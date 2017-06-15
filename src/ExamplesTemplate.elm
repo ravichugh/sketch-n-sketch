@@ -39,7 +39,8 @@ LITTLE_TO_ELM groupOfBoxes
 LITTLE_TO_ELM basicSlides
 LITTLE_TO_ELM logo
 LITTLE_TO_ELM logo2
-LITTLE_TO_ELM logoSizes
+-- TODO stack overflow for some reason?
+-- LITTLE_TO_ELM logoSizes
 LITTLE_TO_ELM elmLogo
 -- LITTLE_TO_ELM activeTrans
 LITTLE_TO_ELM activeTrans2
@@ -71,7 +72,8 @@ LITTLE_TO_ELM solarSystem
 LITTLE_TO_ELM fractalTree
 LITTLE_TO_ELM hilbertCurveAnimation
 LITTLE_TO_ELM stickFigures
-LITTLE_TO_ELM cultOfLambda
+-- TODO stack overflow for some reason?
+--LITTLE_TO_ELM cultOfLambda
 LITTLE_TO_ELM clique
 LITTLE_TO_ELM miscShapes
 LITTLE_TO_ELM paths1
@@ -197,7 +199,7 @@ logoCategory =
       , makeExample "Floral Logo 2" floralLogo2
       , makeExample "Elm Logo" elmLogo
       , makeExample "Logo 2" logo2
-      , makeExample "Logo Sizes" logoSizes
+      -- , makeExample "Logo Sizes" logoSizes
       ]
   )
 
@@ -268,7 +270,7 @@ otherCategory =
     , makeExample "Bezier Curves" bezier
     , makeExample "Fractal Tree" fractalTree
     , makeExample "Stick Figures" stickFigures
-    , makeExample "Cult of Lambda" cultOfLambda
+    -- , makeExample "Cult of Lambda" cultOfLambda
     , makeExample "Matrix Transformations" matrices
     , makeExample "Misc Shapes" miscShapes
     , makeExample "Interface Buttons" interfaceButtons

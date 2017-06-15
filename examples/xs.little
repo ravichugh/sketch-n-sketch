@@ -9,7 +9,7 @@
 ;   - colors global (below) or per function call
 ;
 
-(def X (\(cx cy n boxWidth)
+(def x (\(cx cy n boxWidth)
   (let [centerColor descendingColor ascendingColor] [438 32 240]
   (let square (\(cx cy color)
     [ (squareByCenter color cx cy boxWidth) ])
@@ -25,5 +25,5 @@
   ))
 
 (blobs [
-  (X 200 250 3{1-6} 50)
+  (x 200 250 3{1-6} 50)
 ])

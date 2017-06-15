@@ -1,10 +1,10 @@
 ; Logo for POP-PL
 ; see https://github.com/florence/pop-pl
 
-(def M 'M')
-(def L 'L')
-(def C 'C')
-(def Z 'Z')
+(def m 'M')
+(def l 'L')
+(def c 'C')
+(def z 'Z')
 
 (def ltopWidth 29!)
 (def ltopHeight 63!)
@@ -16,11 +16,11 @@
 (def cr2x (* cr2Control ltopWidth))
 (def cr2y (* cr2Control ltopHeight))
 (def lpath
-  [M (- xstart stethx) (- ystart stethy)
-   C (+ xstart -12) (+ ystart -19)
+  [m (- xstart stethx) (- ystart stethy)
+   c (+ xstart -12) (+ ystart -19)
      (+ cr2x xstart) (+ cr2y ystart)
      xstart ystart
-   L (+ xstart ltopWidth) (+ ystart ltopHeight)
+   l (+ xstart ltopWidth) (+ ystart ltopHeight)
    ])
 
 (def axstart  (+ xstart ltopWidth))
@@ -30,11 +30,11 @@
 (def ay (* ascale ltopHeight))
 (def bx 18!)
 (def armpath
-  [M axstart aystart
-   C (+ xstart 71) (+ ystart 94)
+  [m axstart aystart
+   c (+ xstart 71) (+ ystart 94)
      (+ xstart 90) (+ ystart 142)
      (+ axstart ax) (+ aystart ay)
-   C (+ xstart 63) (+ ystart 190)
+   c (+ xstart 63) (+ ystart 190)
      (+ xstart 74) (+ ystart 188)
      (- (+ axstart ax) bx) (+ aystart ay)])
 

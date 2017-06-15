@@ -308,61 +308,8 @@ logo2 =
 
 """
 
-logoSizes =
- """
-(def logo (\\(x0 y0 w h delta1 delta2 fg bg)
-  (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
-  (let poly (\\(c pts) (polygon c 'none' 0 pts))
-  (let basic (\\shape (addAttr shape ['ZONES' 'basic']))
-  [
-  
-    ; positive background
-    ; starting with (xw,yh) to place color slider
-    (poly fg [[xw yh] [xw y0] [x0 y0] [x0 yh]])
-  
-    ; negative X, part 1
-    (poly bg
-      [[x0 y0] [(+ x0 delta1) y0] [xw (- yh delta2)]
-       [xw yh] [(- xw delta1) yh] [x0 (+ y0 delta2)]])
-  
-    ; negative X, part 2
-    (basic (poly bg
-      [[xw y0] [xw (+ y0 delta2)] [(+ x0 delta1) yh]
-       [x0 yh] [x0 (- yh delta2)] [(- xw delta1) y0]]))
-  
-    ; positive, hiding top-right quarter of X
-    (basic (poly fg
-      [[(+ x0 delta1) y0] [xw y0] [xw (- yh delta2)]]))
-  
-  ])))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-(def [w h]      [300 300])
-(def [fg bg]    [360 499])
-(def [p0 p1 p2] [1.0! 0.3! 0.1!])
-(def offset     20!)
-
-(def x0 offset)
-(def y0 offset)
-(def x1 (+ x0 (+ offset (* p0 w))))
-(def x2 (+ x1 (+ offset (* p1 w))))
-
-(def [large medium small] [
-  (logo x0 y0 (* p0 w) (* p0 h) 10 10 fg bg)
-  (logo x1 y0 (* p1 w) (* p1 h)  3  3 fg bg)
-  (logo x2 y0 (* p2 w) (* p2 h)  1  1 fg bg)
-])
-
-(svg (concat [
-  large
-  (zones 'basic' medium)
-  (zones 'basic' small)
-]))
-
-"""
-
+-- TODO stack overflow for some reason?
+-- LITTLE_TO_ELM logoSizes
 elmLogo =
  """; Elm logo, based on:
 ; https://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm
@@ -1497,7 +1444,6 @@ solarSystem =
 fractalTree =
  """; A fractal tree
 ;
-(defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
 (def nsin (\\n (if (< n (/ 3.14159 2)) (sin n) (cos (mod n (/ 3.14159 2))))))
 (def ncos (\\n (if (< n (/ 3.14159 2)) (cos n) (sin (mod n (/ 3.14159 2))))))
 (def [initwd initlen] [10! 150!])
@@ -1505,8 +1451,8 @@ fractalTree =
 (def [bendn bendnslider] (hSlider false 20! 420! 580! 1! 8! 'Bend ' 1))
 (def initangle (/ 3.14159! 2!))
 (def bend (/ 3.14159! bendn))
-(defrec exp (\\(base pow)
-  (if (< pow 1) 1 (* base (exp base (- pow 1))))))
+(defrec exp (\\(b p)
+  (if (< p 1) 1 (* b (exp b (- p 1))))))
 (def mkleftx (\\(stepnum theta px) 
   (- px (* (/ initlen stepnum) (ncos (+ theta (* (exp 0.5 stepnum) bend)))))))
 (def mkrightx (\\(stepnum theta px)
@@ -2004,74 +1950,8 @@ stickFigures =
 
 """
 
-cultOfLambda =
- """;
-; Cult of Lambda
-;
-; Some fun 
-;
-(let [x0 y0 w h] [0 0 500 500]
-(let wstripe (/ w 6!)
-(let xoff (+ x0 wstripe)
-(let yoff (+ y0 (/ h 4!))
-(let minrad
-  (if (< (/ wstripe 7.5!) (/ h 30!))
-    (/ wstripe 7.5!)
-    (/ h 15!))
-(let min
-  (if (< w h)
-    (* 0.4! w)
-    (* 0.4! h))
-(let rotate (\\a (/ (* (+ 1! a) (pi)) 4!))
-(let figure 
-  (\\(x y) 
-    (let [x1 x2 x3] (map (\\n (+ x (* wstripe n))) [1.2! 1.5! 1.8!])
-    (let [y1 y2 y3 y4] (map (\\n (+ y (/ (/ h 2!) n))) [4.3! 2.8! 1.9! 1.4!])
-    (let figline (\\[[a b] [c d]] (line 'orange' (/ minrad 2!) a b c d))
-      (snoc
-        (ellipse 'orange' x2 y1 (/ wstripe 7.5!) (/ h 30!))
-        (map
-          figline
-            [[[x1 y1] [x1 y2]]
-            [[x1 y2] [x3 y2]]
-            [[x3 y1] [x3 y2]]
-            [[x1 y4] [x1 y3]]
-            [[x1 y3] [x3 y3]]
-            [[x3 y3] [x3 y4]]
-            [[x2 y1] [x2 y3]]]))))))
-(let logo
-  (\\(x y)
-    (let [xl yl wl hl delta] [x y w h 27.5]
-    (let [xw yh w2 h2] [(+ xl wl) (+ yl hl) (div wl 2) (div hl 2)]
-    (let poly (\\pts (polygon 'black' 'none' 0 pts))
-      [
-      (rect 'white' xl yl wl hl)
-      (poly
-        [[(+ xl delta) yl]
-         [xw yl]
-         [xw (- yh delta)]])
-      (poly
-        [[xl (+ yl delta)]
-         [xl (- yh delta)]
-         [(- (+ xl w2) delta) (+ yl h2)]])
-      (poly
-        [[(+ xl delta) yh]
-         [(- xw delta) yh]
-         [(+ xl w2) (+ (+ yl h2) delta)]])
-    ]))))
-;
-  (svg
-    (append
-      (logo (+ x0 80!) (+ y0 36!))
-      (concatMap 
-        (\\i 
-          (figure 
-            (+ (* 0.41! w) (+ x0 (* min (cos (rotate i)))))
-            (+ (* 0.38! h) (+ y0 (* min (sin (rotate i)))))))
-        (range 0! 7!)))))))))))))
-
-"""
-
+-- TODO stack overflow for some reason?
+--LITTLE_TO_ELM cultOfLambda
 clique =
  """;
 ; A six node clique
@@ -2221,7 +2101,6 @@ sailBoat =
     (* (* (* 2 (- 1 t)) t) c)) 
     (* (* t t) e))))
 
-(defrec mod (\\(x m) (if (< x m) x (mod (- x m) m))))
 (def tphase (/ (mod boatpos (/ period 2)) (/ period 2)))
 (def pickdir (\\(sl amp) (if 
     (< (mod boatpos period) (/ period 2))
@@ -2717,10 +2596,10 @@ poppl =
  """; Logo for POP-PL
 ; see https://github.com/florence/pop-pl
 
-(def M 'M')
-(def L 'L')
-(def C 'C')
-(def Z 'Z')
+(def m 'M')
+(def l 'L')
+(def c 'C')
+(def z 'Z')
 
 (def ltopWidth 29!)
 (def ltopHeight 63!)
@@ -2732,11 +2611,11 @@ poppl =
 (def cr2x (* cr2Control ltopWidth))
 (def cr2y (* cr2Control ltopHeight))
 (def lpath
-  [M (- xstart stethx) (- ystart stethy)
-   C (+ xstart -12) (+ ystart -19)
+  [m (- xstart stethx) (- ystart stethy)
+   c (+ xstart -12) (+ ystart -19)
      (+ cr2x xstart) (+ cr2y ystart)
      xstart ystart
-   L (+ xstart ltopWidth) (+ ystart ltopHeight)
+   l (+ xstart ltopWidth) (+ ystart ltopHeight)
    ])
 
 (def axstart  (+ xstart ltopWidth))
@@ -2746,11 +2625,11 @@ poppl =
 (def ay (* ascale ltopHeight))
 (def bx 18!)
 (def armpath
-  [M axstart aystart
-   C (+ xstart 71) (+ ystart 94)
+  [m axstart aystart
+   c (+ xstart 71) (+ ystart 94)
      (+ xstart 90) (+ ystart 142)
      (+ axstart ax) (+ aystart ay)
-   C (+ xstart 63) (+ ystart 190)
+   c (+ xstart 63) (+ ystart 190)
      (+ xstart 74) (+ ystart 188)
      (- (+ axstart ax) bx) (+ aystart ay)])
 
@@ -4546,7 +4425,7 @@ xs =
 ;   - colors global (below) or per function call
 ;
 
-(def X (\\(cx cy n boxWidth)
+(def x (\\(cx cy n boxWidth)
   (let [centerColor descendingColor ascendingColor] [438 32 240]
   (let square (\\(cx cy color)
     [ (squareByCenter color cx cy boxWidth) ])
@@ -4562,8 +4441,9 @@ xs =
   ))
 
 (blobs [
-  (X 200 250 3{1-6} 50)
+  (x 200 250 3{1-6} 50)
 ])
+
 """
 
 conifer =
@@ -5321,7 +5201,7 @@ logoCategory =
       , makeExample "Floral Logo 2" floralLogo2
       , makeExample "Elm Logo" elmLogo
       , makeExample "Logo 2" logo2
-      , makeExample "Logo Sizes" logoSizes
+      -- , makeExample "Logo Sizes" logoSizes
       ]
   )
 
@@ -5392,7 +5272,7 @@ otherCategory =
     , makeExample "Bezier Curves" bezier
     , makeExample "Fractal Tree" fractalTree
     , makeExample "Stick Figures" stickFigures
-    , makeExample "Cult of Lambda" cultOfLambda
+    -- , makeExample "Cult of Lambda" cultOfLambda
     , makeExample "Matrix Transformations" matrices
     , makeExample "Misc Shapes" miscShapes
     , makeExample "Interface Buttons" interfaceButtons
