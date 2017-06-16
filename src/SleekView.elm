@@ -134,12 +134,12 @@ menuBar model =
   in
     Html.div
       [ Attr.class "menu-bar"
+      , Attr.style
+          [ ("height", (px << .height) SleekLayout.menuBar)
+          ]
       ]
       [ Html.div
           [ Attr.class "main-bar"
-          , Attr.style
-              [ ("height", (px << .height) SleekLayout.menuBar)
-              ]
           ]
           [ Html.img
               [ Attr.class "logo-image"
