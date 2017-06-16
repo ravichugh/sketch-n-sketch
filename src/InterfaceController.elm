@@ -55,7 +55,8 @@ import Eval
 import Utils exposing (maybePluralize)
 import Keys
 import InterfaceModel as Model exposing (..)
-import Layout exposing (clickToCanvasPoint)
+-- import Layout exposing (clickToCanvasPoint)
+import SleekLayout exposing (clickToCanvasPoint)
 import AceCodeBox
 import AnimationLoop
 import FileHandler

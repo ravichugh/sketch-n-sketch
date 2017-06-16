@@ -41,7 +41,7 @@ body {
 .menu-bar {
   background-color: #222222;
   width: 100%;
-  height: 30px;
+  /*height: 30px;*/
   border-bottom: 1px solid #555555;
   box-shadow: 0 0 7px 0 #000000;
   display: flex;
@@ -72,9 +72,9 @@ body {
 
 .main-bar .menu .menu-heading {
   white-space: nowrap;
-  height: 30px;
-  line-height: 30px;
-  padding: 0 15px;
+  /*height: 30px;*/
+  /*line-height: 30px;*/
+  /*padding: 0 15px;*/
   cursor: pointer;
 }
 
@@ -95,7 +95,7 @@ body {
   border-top-color: #333333;
   box-shadow: 0 3px 7px -3px #000000;
   position: absolute;
-  top: 30px;
+  /*top: 30px;*/
   left: 0;
   z-index: 10;
 }
@@ -121,6 +121,8 @@ body {
 
 /* Quick Action Bar */
 
+/* DISABLED FOR NOW
+
 .quick-action-bar {
   display: flex;
   align-items: center;
@@ -142,6 +144,8 @@ body {
   line-height: 30px;
   padding: 0 15px;
 }
+
+*/
 
 /******************************************************************************
  * General Panels                                                             *
@@ -242,7 +246,7 @@ body {
  ******************************************************************************/
 
 .resizer {
-  flex: 0 0 30px;
+  /*flex: 0 0 30px;*/
 }
 
 /******************************************************************************
@@ -267,8 +271,8 @@ body {
 
 .tool-panel {
   background-color: #222222;
-  margin-left: 10px;
-  flex: 0 0 40px;
+  /*margin-left: 10px;*/
+  /*flex: 0 0 40px;*/
   align-self: flex-start;
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -278,8 +282,8 @@ body {
 }
 
 .tool-panel .tool {
-  width: 40px;
-  height: 40px;
+  /*width: 40px;
+  height: 40px;*/
   border-bottom: 1px solid #333333;
 }
 
@@ -288,11 +292,11 @@ body {
  ******************************************************************************/
 
 .work-area {
-  margin: 30px;
+  /*margin: 30px;*/
   display: flex;
   justify-content: space-between;
   position: absolute;
-  top: 30px; /* height of header */
+  /*top: 30px; /* height of header */
   right: 0;
   bottom: 0;
   left: 0;

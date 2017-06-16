@@ -28,7 +28,7 @@ import InterfaceModel as Model exposing
 
 import InterfaceController as Controller
 
-import SleekLayout
+import SleekLayout exposing (px, half)
 import Canvas
 
 import Debug
@@ -98,6 +98,12 @@ menuBar model =
                 , preventDefault = False
                 }
                 (Json.succeed <| Controller.msgToggleMenu heading)
+            , Attr.style
+                [ ("height", (px << .height) SleekLayout.menuBar)
+                , ("line-height", (px << .height) SleekLayout.menuBar)
+                , ("padding", "0 " ++
+                    (px << half << .height) SleekLayout.menuBar)
+                ]
             ]
             [ Html.text heading
             ]
@@ -111,6 +117,8 @@ menuBar model =
           in
             Html.div
               [ Attr.class "menu-options"
+              , Attr.style
+                  [ ("top", (px << .height) SleekLayout.menuBar) ]
               ]
               ( options
                   |> List.intersperse [ menuOptionDivider ]
@@ -129,6 +137,9 @@ menuBar model =
       ]
       [ Html.div
           [ Attr.class "main-bar"
+          , Attr.style
+              [ ("height", (px << .height) SleekLayout.menuBar)
+              ]
           ]
           [ Html.img
               [ Attr.class "logo-image"
@@ -256,15 +267,16 @@ menuBar model =
                 ]
               ]
           ]
-      , Html.div
-          [ Attr.class "quick-action-bar"
-          ]
-          [ Html.div
-              [ Attr.class "quick-action-bar-label"
-              ]
-              [ Html.text "Quick Actions"
-              ]
-          ]
+      -- Quick Action Bar disabled for now
+      -- , Html.div
+      --     [ Attr.class "quick-action-bar"
+      --     ]
+      --     [ Html.div
+      --         [ Attr.class "quick-action-bar-label"
+      --         ]
+      --         [ Html.text "Quick Actions"
+      --         ]
+      --     ]
       ]
 
 --------------------------------------------------------------------------------
@@ -318,6 +330,8 @@ resizer : Model -> Html Msg
 resizer model =
   Html.div
     [ Attr.class "resizer"
+    , Attr.style
+        [ ("flex", "0 0 " ++ (px << .width) SleekLayout.spacing) ]
     ]
     []
 
@@ -355,23 +369,23 @@ pixels n = toString n ++ "px"
 outputPanel : Model -> Html Msg
 outputPanel model =
   let
-    (width, height) =
-      SleekLayout.outputPanelDimensions model
+    dim =
+      SleekLayout.outputPanelBox model
     output =
       case (model.errorBox, model.mode, model.preview) of
         (_, _, Just (_, Err errorMsg)) ->
           textArea errorMsg
-            [ Attr.style [ ("width", pixels width) ] ]
+            [ Attr.style [ ("width", pixels dim.width) ] ]
         (_, _, Just (_, Ok _)) ->
-          Canvas.build width height model
+          Canvas.build dim.width dim.height model
         (Just errorMsg, _, Nothing) ->
           textArea errorMsg
-            [ Attr.style [ ("width", pixels width) ] ]
+            [ Attr.style [ ("width", pixels dim.width) ] ]
         (Nothing, Print svgCode, Nothing) ->
           textArea svgCode
-            [ Attr.style [ ("width", pixels width) ] ]
+            [ Attr.style [ ("width", pixels dim.width) ] ]
         (Nothing, _, _) ->
-          Canvas.build width height model
+          Canvas.build dim.width dim.height model
   in
     Html.div
       [ Attr.class "panel output-panel"
@@ -455,6 +469,10 @@ toolButton model tool =
   in
     Html.div
       [ Attr.class "tool"
+      , Attr.style
+          [ ("width", (px << .width) SleekLayout.toolPanel)
+          , ("height", (px << .width) SleekLayout.toolPanel)
+          ]
       ]
       [ iconButton
           model cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
@@ -483,6 +501,10 @@ toolPanel : Model -> Html Msg
 toolPanel model =
   Html.div
     [ Attr.class "panel tool-panel"
+    , Attr.style
+        [ ("flex", "0 0 " ++ (px << .width) SleekLayout.toolPanel)
+        , ("margin-left", (px << .marginLeft) SleekLayout.toolPanel)
+        ]
     ]
     ( [ toolButton model Cursor
       , toolButton model Text
@@ -502,6 +524,10 @@ workArea : Model -> Html Msg
 workArea model =
   Html.div
     [ Attr.class "work-area"
+    , Attr.style
+        [ ("margin", px <| .width SleekLayout.spacing)
+        , ("top", px <| .height SleekLayout.menuBar)
+        ]
     ]
     [ codePanel model
     , resizer model
