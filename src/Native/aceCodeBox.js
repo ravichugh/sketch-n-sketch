@@ -7,7 +7,7 @@ var fontSize = 16;
 function initialize() {
   editor = ace.edit("editor");
   editor.$blockScrolling = Infinity;
-  editor.setTheme("ace/theme/chrome");
+  editor.setTheme("ace/theme/tomorrow_night");
   editor.setFontSize(fontSize);
   editor.getSession().setMode("ace/mode/little");
   editor.setOption("dragEnabled", true); // true by default anyway

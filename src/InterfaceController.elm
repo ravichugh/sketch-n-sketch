@@ -36,6 +36,7 @@ module InterfaceController exposing
   , msgMouseClickDeuceWidget
   , msgMouseEnterDeuceWidget, msgMouseLeaveDeuceWidget
   , contextSensitiveDeuceTools, msgChooseDeuceExp
+  , msgShowMenu, msgHideMenu, msgToggleMenu
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -2528,3 +2529,43 @@ addToolAlign m selections =
 
     _ -> []
 
+--------------------------------------------------------------------------------
+-- Menu Handling
+
+
+showMenu : String -> Model -> Model
+showMenu heading model =
+  let
+    oldViewState =
+      model.viewState
+    newViewState =
+      { oldViewState | currentMenu = Just heading }
+  in
+    { model | viewState = newViewState }
+
+hideMenu : Model -> Model
+hideMenu model =
+  let
+    oldViewState =
+      model.viewState
+    newViewState =
+      { oldViewState | currentMenu = Nothing }
+  in
+    { model | viewState = newViewState }
+
+msgShowMenu : String -> Msg
+msgShowMenu heading  =
+  Msg "Show Menu" <|
+    showMenu heading
+
+msgHideMenu : Msg
+msgHideMenu =
+  Msg "Hide Menu" hideMenu
+
+msgToggleMenu : String -> Msg
+msgToggleMenu heading =
+  Msg "Toggle Menu" <| \old ->
+    if old.viewState.currentMenu == Just heading then
+      hideMenu old
+    else
+      showMenu heading old

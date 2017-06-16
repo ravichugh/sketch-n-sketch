@@ -44,10 +44,14 @@ type alias Position = { col : Int, line : Int }
 
 type alias IconName = String
 
-type alias Icon = {
-  iconName : IconName,
-  code : Code
-}
+type alias Icon =
+  { iconName : IconName
+  , code : Code
+  }
+
+type alias ViewState =
+  { currentMenu : Maybe String
+  }
 
 type alias Model =
   { code : Code
@@ -115,6 +119,7 @@ type alias Model =
   , scopeGraph : ScopeGraph
   , deuceState : DeuceWidgets.DeuceState
   , showOnlyBasicTools : Bool
+  , viewState : ViewState
   }
 
 type Mode
@@ -506,4 +511,7 @@ initModel =
     , hoveringCodeBox = False
     , deuceState = DeuceWidgets.emptyDeuceState
     , showOnlyBasicTools = True
+    , viewState =
+        { currentMenu = Nothing
+        }
     }

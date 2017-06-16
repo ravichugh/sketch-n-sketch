@@ -1,0 +1,299 @@
+/******************************************************************************
+ * General                                                                    *
+ ******************************************************************************/
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #333333;
+  color: #CCCCCC;
+  font-family: "Roboto", sans-serif;
+}
+
+/******************************************************************************
+ * Buttons                                                                    *
+ ******************************************************************************/
+
+.text-button {
+  color: #CCCCCC;
+  cursor: pointer;
+}
+
+.text-button:not(.disabled):hover {
+  color: #FFFFFF;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.text-button.disabled {
+  color: #555555;
+  cursor: default;
+}
+
+/******************************************************************************
+ * Menu Bar                                                                   *
+ ******************************************************************************/
+
+/* General Menu Bar */
+
+.menu-bar {
+  background-color: #222222;
+  width: 100%;
+  height: 30px;
+  border-bottom: 1px solid #555555;
+  box-shadow: 0 0 7px 0 #000000;
+  display: flex;
+  justify-content: space-between;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+}
+
+/* Main Bar */
+
+.main-bar {
+  display: flex;
+  align-items: center;
+}
+
+.main-bar .logo-image {
+  width: 20px;
+  height: 20px;
+  margin: 15px;
+}
+
+.main-bar .menu {
+  position: relative;
+}
+
+.main-bar .menu .menu-heading {
+  white-space: nowrap;
+  height: 30px;
+  line-height: 30px;
+  padding: 0 15px;
+  cursor: pointer;
+}
+
+.main-bar .menu:nth-child(2) .menu-heading {
+  font-weight: bold;
+}
+
+.main-bar .menu .menu-heading:hover,
+.main-bar .menu.active .menu-heading {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
+}
+
+.main-bar .menu .menu-options {
+  display: none;
+  background-color: #222222;
+  border: 1px solid #555555;
+  border-top-color: #333333;
+  box-shadow: 0 3px 7px -3px #000000;
+  position: absolute;
+  top: 30px;
+  left: 0;
+  z-index: 10;
+}
+
+.main-bar .menu.active .menu-options {
+  display: block;
+}
+
+.main-bar .menu .menu-options .text-button {
+  display: block;
+  white-space: nowrap;
+  min-width: 150px;
+  height: 30px;
+  line-height: 30px;
+  padding: 0 15px;
+}
+
+.main-bar .menu .menu-option-divider {
+  width: 100%;
+  height: 1px;
+  background-color: #333333;
+}
+
+/* Quick Action Bar */
+
+.quick-action-bar {
+  display: flex;
+  align-items: center;
+  padding-right: 15px;
+}
+
+.quick-action-bar-label {
+  font-size: 0.7em;
+  font-weight: lighter;
+  margin: 0 15px;
+  padding: 0 15px;
+  border-left: 1px solid #333333;
+  border-right: 1px solid #333333;
+}
+
+.quick-action-bar .text-button {
+  white-space: nowrap;
+  height: 30px;
+  line-height: 30px;
+  padding: 0 15px;
+}
+
+/******************************************************************************
+ * General Panels                                                             *
+ ******************************************************************************/
+
+.panel {
+  border: 1px solid #555555;
+  box-shadow: 0 0 7px 0 #000000;
+}
+
+/******************************************************************************
+ * Code Panel                                                                 *
+ ******************************************************************************/
+
+/* General Code Panel */
+
+.code-panel {
+  background-color: #222222;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Action Bar */
+
+.action-bar {
+  width: 100%;
+  border-bottom: 1px solid #333333;
+  flex: 0;
+  align-items: center;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+}
+
+.action-bar .text-button {
+  display: inline-block;
+  white-space: nowrap;
+  height: 45px;
+  line-height: 45px;
+  padding: 0 15px;
+}
+
+.action-bar .run {
+  display: inline-block;
+
+  white-space: nowrap;
+  height: 25px;
+  line-height: 25px;
+  padding: 0 15px;
+  cursor: pointer;
+
+  position: relative;
+  top: 10px; /* (height of bar - height of button) / 2 */
+
+  float: right;
+  margin-right: 10px;
+
+  background-color: #33aa00;
+  color: #FFFFFF;
+  border-bottom: 2px solid #338800;
+  border-radius: 5px;
+}
+
+.action-bar .run:hover {
+  background-color: #33bb00;
+}
+
+.action-bar .run:active {
+  background-color: #339900;
+  border-bottom-width: 1px;
+}
+
+/* Editor */
+
+#editor {
+  width: 100%;
+  flex: 1;
+}
+
+/* Status Bar */
+
+.status-bar {
+  width: 100%;
+  border-top: 1px solid #333333;
+  flex: 0;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+}
+
+/******************************************************************************
+ * Resizer                                                                    *
+ ******************************************************************************/
+
+.resizer {
+  flex: 0 0 30px;
+}
+
+/******************************************************************************
+ * Output Panel                                                               *
+ ******************************************************************************/
+
+.output-panel {
+  background-color: #FFFFFF;
+  border: 1px solid #555555;
+  box-shadow: 0 0 7px 0 #000000;
+  flex: 1;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+}
+
+/******************************************************************************
+ * Tool Panel                                                                 *
+ ******************************************************************************/
+
+.tool-panel {
+  background-color: #222222;
+  margin-left: 10px;
+  flex: 0 0 40px;
+  align-self: flex-start;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+}
+
+.tool-panel .tool {
+  width: 40px;
+  height: 40px;
+  border-bottom: 1px solid #333333;
+}
+
+/******************************************************************************
+ * Work Area                                                                  *
+ ******************************************************************************/
+
+.work-area {
+  margin: 30px;
+  display: flex;
+  justify-content: space-between;
+  position: absolute;
+  top: 30px; /* height of header */
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
