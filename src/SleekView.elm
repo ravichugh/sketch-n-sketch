@@ -461,8 +461,8 @@ menuBar model =
                 ]
                 -- TODO make boolean
               , [ hoverMenu "Automatically Suggest Code Changes"
-                    [ textButton "On" Controller.msgNoop
-                    , textButton "Off" Controller.msgNoop
+                    [ textButton "On" <| Controller.msgSetAutoSynthesis True
+                    , textButton "Off" <| Controller.msgSetAutoSynthesis False
                     ]
                 -- TODO make radio buttons
                 , hoverMenu "Live Update Heuristics"

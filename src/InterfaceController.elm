@@ -42,6 +42,7 @@ module InterfaceController exposing
   , msgUpdateFontSize
   , msgSetToolMode
   , msgSetGhostsShown
+  , msgSetAutoSynthesis
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -2623,15 +2624,24 @@ msgSetToolMode mode =
 -- Ghosts
 
 msgSetGhostsShown : Bool -> Msg
-msgSetGhostsShown shown = Msg "Set Ghosts Shown" <| \old ->
-  let
-    newMode =
-      case old.mode of
-        Print _ ->
-          Print (LangSvg.printSvg shown old.slate)
-        _ ->
-          old.mode
-  in
-    { old | showGhosts = shown
-          , mode = newMode
-    }
+msgSetGhostsShown shown =
+  Msg "Set Ghosts Shown" <| \old ->
+    let
+      newMode =
+        case old.mode of
+          Print _ ->
+            Print (LangSvg.printSvg shown old.slate)
+          _ ->
+            old.mode
+    in
+      { old | showGhosts = shown
+            , mode = newMode
+      }
+
+--------------------------------------------------------------------------------
+-- Auto-Synthesis
+
+msgSetAutoSynthesis : Bool -> Msg
+msgSetAutoSynthesis shouldUseAutoSynthesis =
+  Msg "Set Auto Synthesis" <| \old ->
+    { old | autoSynthesis = shouldUseAutoSynthesis }
