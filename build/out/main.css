@@ -88,12 +88,16 @@ body {
   color: #FFFFFF;
 }
 
-.main-bar .menu .menu-options {
-  display: none;
+.main-bar .menu .menu-options,
+.main-bar .menu .menu-options .dropdown-content {
   background-color: #222222;
   border: 1px solid #555555;
-  border-top-color: #333333;
   box-shadow: 0 3px 7px -3px #000000;
+}
+
+.main-bar .menu .menu-options {
+  display: none;
+  border-top-color: #333333;
   position: absolute;
   /* top: DYNAMIC */
   left: 0;
@@ -117,6 +121,34 @@ body {
   width: 100%;
   height: 1px;
   background-color: #333333;
+}
+
+/* Hover Menu */
+
+.main-bar .menu .hover-menu {
+  position: relative;
+}
+
+.main-bar .menu .hover-menu .hover-menu-title .text-button {
+  display: flex;
+  justify-content: space-between;
+  cursor: default;
+}
+
+.main-bar .menu .hover-menu .hover-menu-indicator {
+  margin-left: 10px;
+}
+
+.main-bar .menu .hover-menu > .dropdown-content {
+  display: none;
+  position: absolute;
+  border-left: none;
+}
+
+.main-bar .menu .hover-menu:hover > .dropdown-content {
+  display: block;
+  left: 100%;
+  top: -1px;
 }
 
 /* Quick Action Bar */

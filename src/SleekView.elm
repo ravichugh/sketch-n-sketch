@@ -39,20 +39,28 @@ import Debug
 
 textButton : String -> Msg -> Html Msg
 textButton text onClickHandler =
-  textButtonExtra text onClickHandler False
+  disableableTextButton text onClickHandler False
 
-textButtonExtra : String -> Msg -> Bool -> Html Msg
-textButtonExtra text onClickHandler disabled =
+disableableTextButton : String -> Msg -> Bool -> Html Msg
+disableableTextButton text onClickHandler disabled =
+  htmlTextButton [Html.text text] onClickHandler disabled False
+
+htmlTextButton : (List (Html Msg)) -> Msg -> Bool -> Bool -> Html Msg
+htmlTextButton content onClickHandler disabled stopPropatation =
   let
     disabledFlag =
       if disabled then " disabled" else ""
   in
     Html.span
       [ Attr.class <| "text-button" ++ disabledFlag
-      , E.onClick onClickHandler
+      , E.onWithOptions
+          "click"
+          { stopPropagation = stopPropatation
+          , preventDefault = False
+          }
+          (Json.succeed onClickHandler)
       ]
-      [ Html.text text
-      ]
+      content
 
 relateTextButton : Model -> String -> Msg -> Html Msg
 relateTextButton model text onClickHandler =
@@ -60,7 +68,7 @@ relateTextButton model text onClickHandler =
     noFeatures =
       Set.isEmpty model.selectedFeatures
   in
-    textButtonExtra text onClickHandler noFeatures
+    disableableTextButton text onClickHandler noFeatures
 
 groupTextButton : Model -> String -> Msg -> Bool -> Html Msg
 groupTextButton model text onClickHandler disallowSelectedFeatures =
@@ -70,7 +78,7 @@ groupTextButton model text onClickHandler disallowSelectedFeatures =
     noBlobs =
       Dict.isEmpty model.selectedBlobs
   in
-    textButtonExtra
+    disableableTextButton
       text
       onClickHandler
       (noBlobs || (disallowSelectedFeatures && (not noFeatures)))
@@ -131,6 +139,32 @@ menuBar model =
           [ menuHeading
           , menuOptions
           ]
+    hoverMenu title dropdownContent =
+      Html.div
+        [ Attr.class "hover-menu"
+        ]
+        [ Html.div
+            [ Attr.class "hover-menu-title"
+            ]
+            [ htmlTextButton
+                [ Html.span
+                    []
+                    [ Html.text title
+                    ]
+                , Html.span
+                    [ Attr.class "hover-menu-indicator"
+                    ]
+                    [ Html.text "▸"
+                    ]
+                ]
+                Controller.msgNoop
+                False
+                True
+            ]
+        , Html.div
+            [ Attr.class "dropdown-content" ]
+            dropdownContent
+        ]
   in
     Html.div
       [ Attr.class "menu-bar"
@@ -159,7 +193,7 @@ menuBar model =
                     Controller.msgOpenDialogBox New
                 , textButton "Save As" <|
                     Controller.msgOpenDialogBox SaveAs
-                , textButtonExtra "Save"
+                , disableableTextButton "Save"
                     Controller.msgSave
                     (not model.needsSave)
                 ]
@@ -178,36 +212,103 @@ menuBar model =
                 ]
               ]
           , menu "Edit Code"
-              [ [ textButton "Abstract (all constants or only named, unfrozen constants...)" Controller.msgNoop
+              [ [ hoverMenu "Abstract"
+                    [ textButton "All Constants" Controller.msgNoop
+                    , textButton "Named Constants" Controller.msgNoop
+                    , textButton "Unfrozen Constants" Controller.msgNoop
+                    ]
                 , textButton "Merge" Controller.msgNoop
                 ]
-              , [ textButton "Add Arguments ..." Controller.msgNoop
-                , textButton "Remove Arguments ..." Controller.msgNoop
-                , textButton "Reorder Arguments ..." Controller.msgNoop
+              , [ hoverMenu "Long Hover Menu"
+                    [ hoverMenu "Submenu 1"
+                        [ textButton "Button 1.1" Controller.msgNoop
+                        ]
+                    , hoverMenu "Submenu 2"
+                        [ hoverMenu "Submenu 2.1"
+                            [ hoverMenu "Submenu 2.1.1"
+                                [ textButton "Button 2.1.1.1" Controller.msgNoop
+                                , hoverMenu "Submenu 2.1.1.2"
+                                    [ textButton "Button 2.1.1.2.1" Controller.msgNoop
+                                    ]
+                                ]
+                            , textButton "Button 2.1.2" Controller.msgNoop
+                            ]
+                        ]
+                    ]
                 ]
-              , [ textButton "Move Definitions (...)" Controller.msgNoop
-                , textButton "Introduce Variable ..." Controller.msgNoop
+              , [ hoverMenu "Add Arguments"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Remove Arguments"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Reorder Arguments"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
                 ]
-              , [ textButton "Eliminate Common Subexpression ..." Controller.msgNoop
-                , textButton "Rename ..." Controller.msgNoop
-                , textButton "Swap Variable Names and Usages ..." Controller.msgNoop
-                , textButton "Inline Definition ..." Controller.msgNoop
-                , textButton "Duplicate Definition ..." Controller.msgNoop
-                , textButton "Make Single Line ..." Controller.msgNoop
-                , textButton "Make Multi-Line ..." Controller.msgNoop
-                , textButton "Align Expressions ..." Controller.msgNoop
+              , [ hoverMenu "Move Definitions"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Introduce Variable"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
                 ]
-              , [ textButton "Make Equal (Introduce Single Variable) (...)" Controller.msgNoop
-                , textButton "Make Equal (Copy Expression) ..." Controller.msgNoop
-                , textButton "Reorder Expressions (...)" Controller.msgNoop
-                , textButton "Swap Variable Usages (...)" Controller.msgNoop
+              , [ hoverMenu "Eliminate Common Subexpression"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Rename"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Swap Variable Names and Usages"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Inline Definition"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Duplicate Definition"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Make Single Line"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Make Multi-Line"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Align Expressions"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
                 ]
-              , [ textButton "Thaw/Freeze Numbers ..." Controller.msgNoop
-                , textButton "Add/Remove Ranges ..." Controller.msgNoop
-                , textButton "Show/Hide Sliders ..." Controller.msgNoop
-                , textButton "Rewrite as Offsets ..." Controller.msgNoop
-                , textButton "Convert Color Strings ..." Controller.msgNoop
-                , textButton "Flip Boolean ..." Controller.msgNoop
+              , [ hoverMenu "Make Equal (Introduce Single Variable)"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Make Equal (Copy Expression)"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Reorder Expressions"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Swap Variable Usages"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                ]
+              , [ hoverMenu "Thaw/Freeze Numbers"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Add/Remove Ranges"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Show/Hide Sliders"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Rewrite as Offsets"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Convert Color Strings"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
+                , hoverMenu "Flip Boolean"
+                    [ textButton "TODO" Controller.msgNoop
+                    ]
                 ]
               ]
           , menu "Edit Output"
