@@ -84,6 +84,29 @@ groupTextButton model text onClickHandler disallowSelectedFeatures =
       onClickHandler
       (noBlobs || (disallowSelectedFeatures && (not noFeatures)))
 
+uiButton : String -> Msg -> Html Msg
+uiButton =
+  styledUiButton ""
+
+styledUiButton : String -> String -> Msg -> Html Msg
+styledUiButton =
+  generalUiButton False
+
+generalUiButton : Bool -> String -> String -> Msg -> Html Msg
+generalUiButton disabled userClass title onClickHandler =
+  let
+    disabledFlag =
+      if disabled then
+        "disabled "
+      else
+        ""
+  in
+    Html.span
+      [ Attr.class <| "uiButton " ++ disabledFlag ++ userClass
+      , E.onClick onClickHandler
+      ]
+      [ Html.text title ]
+
 --------------------------------------------------------------------------------
 -- Menu Bar
 --------------------------------------------------------------------------------
@@ -235,8 +258,10 @@ menuBar model =
                 ]
               , [ textButton "Import Code" <|
                     Controller.msgOpenDialogBox ImportCode
-                , textButton "Import SVG"
+                , disableableTextButton
+                    "Import SVG"
                     Controller.msgNoop
+                    True
                 ]
               ]
           , menu "Edit Code"
@@ -461,6 +486,28 @@ menuBar model =
 --------------------------------------------------------------------------------
 -- Code Panel
 --------------------------------------------------------------------------------
+
+fileIndicator : Model -> Html Msg
+fileIndicator model =
+  let
+    filenameHtml =
+      Html.text <| Model.prettyFilename model
+    wrapper =
+      if model.needsSave then
+        Html.i
+          []
+          [ filenameHtml
+          , Html.text " *"
+          ]
+      else
+        filenameHtml
+  in
+    Html.span
+      [ Attr.class "file-indicator"
+      ]
+      [ wrapper
+      ]
+
 
 codePanel : Model -> Html Msg
 codePanel model =
@@ -742,67 +789,6 @@ workArea model =
 -- Dialog Boxes
 --------------------------------------------------------------------------------
 
-htmlButton text onClickHandler btnKind disabled =
-  htmlButtonExtraAttrs [] text onClickHandler btnKind disabled
-
-htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
-  let color =
-    case btnKind of
-      Regular    -> buttonRegularColor
-      Unselected -> buttonRegularColor
-      Selected   -> buttonSelectedColor
-  in
-  -- let lineHeight = 1 + 1.1735 * unpixels params.mainSection.widgets.fontSize |> ((*) 2) |> round |> toFloat |> ((*) 0.5) in -- My best guess based on sampling Firefox's behavior.
-  let commonAttrs =
-    [ Attr.disabled disabled
-    , Attr.style [ ("box-sizing", "border-box") -- Strangely, Firefox and Chrome on Mac differ on this default.
-                 , ("min-height", pixels buttonHeight)
-                 , ("background", color)
-                 , ("cursor", "pointer")
-                 , ("-ms-user-select", "none")
-                 , ("-moz-user-select", "none")
-                 , ("-webkit-user-select", "none")
-                 , ("user-select", "none")
-                 ] ]
-  in
-  Html.button
-    (commonAttrs ++
-      [ handleEventAndStop "mousedown" Controller.msgNoop
-      , E.onClick onClickHandler
-      ] ++
-      extraAttrs)
-    [ Html.text text ]
-
-fileNewDialogBoxButton =
-  disableableTextButton "New" (Controller.msgOpenDialogBox New) False
-
-fileSaveAsDialogBoxButton =
-  disableableTextButton "Save As" (Controller.msgOpenDialogBox SaveAs) False
-
-fileSaveButton model =
-  disableableTextButton "Save" Controller.msgSave (not model.needsSave)
-
-fileOpenDialogBoxButton =
-  disableableTextButton "Open" (Controller.msgOpenDialogBox Open) False
-
-closeDialogBoxButton db model =
-  disableableTextButton
-    "X"
-    (Controller.msgCloseDialogBox db)
-    (Model.isDialogBoxShowing AlertSave model)
-
-exportCodeButton =
-  disableableTextButton "Export Code" Controller.msgExportCode False
-
-importCodeButton =
-    disableableTextButton "Import Code" (Controller.msgOpenDialogBox ImportCode) False
-
-exportSvgButton =
-  disableableTextButton "Export SVG" Controller.msgExportSvg False
-
-importSvgButton =
-   disableableTextButton "Import SVG" Controller.msgNoop True
-
 dialogBox
   zIndex
   width
@@ -815,9 +801,14 @@ dialogBox
   parentStyles
   elements =
     let
+      closeDialogBoxButton =
+        styledUiButton
+          "circle"
+          "×"
+          (Controller.msgCloseDialogBox db)
       closeButton =
         if closable then
-          [ closeDialogBoxButton db model ]
+          [ closeDialogBoxButton ]
         else
           []
       activeFlag =
@@ -834,66 +825,40 @@ dialogBox
             , ("z-index", zIndex)
             ]
         ] <|
-        [ Html.h2
-            [ Attr.style <|
-                [ ("margin", "0")
-                , ("padding", "0 20px")
-                , ("border-bottom", "1px solid black")
-                , ("flex", "0 0 60px")
-                , ("display", "flex")
-                , ("justify-content", "space-between")
-                , ("align-items", "center")
-                ] ++ headerStyles
-            ] <|
+        [ Html.h1
+            [ Attr.style headerStyles
+            ]
             [ Html.div [] headerElements
             , Html.div [] closeButton
             ]
         , Html.div
-            [ Attr.style <|
-                [ ("overflow", "scroll")
-                , ("flex-grow", "1")
-                ] ++ parentStyles
+            [ Attr.class "content"
+            , Attr.style parentStyles
             ]
             elements
         ]
 
 bigDialogBox = dialogBox "100" "85%" "85%"
-
 smallDialogBox = dialogBox "101" "35%" "35%"
 
 fileNewDialogBox model =
   let
     viewTemplate (name, _) =
       Html.div
-        [ Attr.style
-            [ ("font-family", "monospace")
-            , ("font-size", "1.2em")
-            , ("margin-bottom", "10px")
-            , ("padding", "10px 20px")
-            --, ("border-top", "1px solid black")
-            --, ("border-bottom", "1px solid black")
-            , ("background-color", "rgba(0, 0, 0, 0.1)")
-            ]
+        [ Attr.class "file-listing"
         ]
-        [ disableableTextButton
+        [ styledUiButton
+            "wide"
             name
             (Controller.msgAskNew name model.needsSave)
-            False
         ]
     viewCategory (categoryName, templates) =
       Html.div
         []
-        ( [ Html.h1
-              [ Attr.style
-                [ ("padding", "10px 20px")
-                --, ("border-top", "2px solid black")
-                --, ("border-bottom", "2px solid black")
-                , ("background-color", "rgba(0, 0, 0, 0.2)")
-                ]
-              ]
+        ( [ Html.h2
+              []
               [ Html.text categoryName ]
-          ]
-          ++ List.map viewTemplate templates
+          ] ++ List.map viewTemplate templates
         )
   in
     bigDialogBox
@@ -906,28 +871,29 @@ fileNewDialogBox model =
       (List.map viewCategory Examples.templateCategories)
 
 fileSaveAsDialogBox model =
-  let saveAsInput =
-        Html.div
-          [ Attr.style
-            [ ("font-family", "monospace")
-            , ("font-size", "1.2em")
-            , ("padding", "20px")
-            , ("text-align", "right")
+  let
+    saveAsInput =
+      Html.div
+        [ Attr.class "save-as-input" ]
+        [ Html.input
+            [ Attr.type_ "text"
+            , E.onInput Controller.msgUpdateFilenameInput
             ]
-          ]
-          [ Html.input
-              [ Attr.type_ "text"
-              , E.onInput Controller.msgUpdateFilenameInput
-              ]
-              []
-          , Html.text ".little"
-          , Html.span
-              [ Attr.style
-                  [ ("margin-left", "20px")
-                  ]
-              ]
-              [ disableableTextButton "Save" Controller.msgSaveAs False ]
-          ]
+            []
+        , Html.text ".little"
+        , Html.span
+            [ Attr.class "save-as-button"
+            ]
+            [ uiButton
+                "Save"
+                Controller.msgSaveAs
+            ]
+        ]
+    currentFilesHeader =
+      Html.h2
+        []
+        [ Html.text "Current Files"
+        ]
   in
     bigDialogBox
       True
@@ -936,41 +902,29 @@ fileSaveAsDialogBox model =
       []
       [Html.text "Save As..."]
       []
-      ((List.map viewFileIndexEntry model.fileIndex) ++ [saveAsInput])
+      ([saveAsInput, currentFilesHeader] ++ (List.map viewFileIndexEntry model.fileIndex))
 
 fileOpenDialogBox model =
   let fileOpenRow filename =
         Html.div
-          [ Attr.style
-            [ ("font-family", "monospace")
-            , ("font-size", "1.2em")
-            , ("padding", "20px")
-            , ("border-bottom", "1px solid black")
-            , ("overflow", "hidden")
-            ]
+          [ Attr.class "file-listing"
           ]
           [ Html.span []
               [ Html.b [] [ Html.text filename ]
               , Html.text ".little"
               ]
           , Html.span
-              [ Attr.style
-                  [ ("float", "right")
-                  ]
+              [ Attr.class "file-open-delete-buttons"
               ]
-              [ disableableTextButton
+              [ uiButton
                   "Open"
                    (Controller.msgAskOpen filename model.needsSave)
-                   False
               , Html.span
-                  [ Attr.style
-                    [ ("margin-left", "30px")
-                    ]
+                  [ Attr.class "file-delete-button"
                   ]
-                  [ disableableTextButton
+                  [ uiButton
                       "Delete"
                       (Controller.msgDelete filename)
-                      False
                   ]
               ]
           ]
@@ -986,36 +940,13 @@ fileOpenDialogBox model =
 
 viewFileIndexEntry filename =
   Html.div
-    [ Attr.style
-        [ ("font-family", "monospace")
-        , ("font-size", "1.2em")
-        , ("padding", "20px")
-        , ("border-bottom", "1px solid black")
-        ]
+    [ Attr.class "file-listing"
     ]
     [ Html.span []
         [ Html.b [] [ Html.text filename ]
         , Html.text ".little"
         ]
     ]
-
-fileIndicator model =
-  let
-    filenameHtml =
-      Html.text (Model.prettyFilename model)
-    wrapper =
-      if model.needsSave then
-        Html.i [] [ filenameHtml, Html.text " *" ]
-      else
-        filenameHtml
-  in
-    Html.span
-      [ Attr.style
-          [ ("color", "white")
-          , ("font-family", "sans-serif")
-          ]
-      ]
-      [ wrapper ]
 
 alertSaveDialogBox model =
   smallDialogBox
@@ -1024,7 +955,7 @@ alertSaveDialogBox model =
     model
     []
     [ Html.span
-        [ Attr.style [("color", "#550000")] ]
+        [ Attr.style [("color", "#FF3300")] ]
         [ Html.text "Warning" ]
     ]
     [ ("display", "flex") ]
@@ -1049,19 +980,24 @@ alertSaveDialogBox model =
                 [ ("text-align", "right")
                 ]
             ]
-            [ disableableTextButton "Cancel" Controller.msgCancelFileOperation False
+            [ uiButton
+                "Cancel"
+                Controller.msgCancelFileOperation
             , Html.span
                 [ Attr.style
                     [ ("margin-left", "30px")
                     ]
                 ]
-                [ disableableTextButton "Yes (Discard Changes)" Controller.msgConfirmFileOperation False ]
+                [ uiButton
+                    "Yes (Discard Changes)"
+                    Controller.msgConfirmFileOperation
+                ]
             ]
         ]
     ]
 
 importCodeDialogBox model =
-  bigDialogBox
+  smallDialogBox
     True
     ImportCode
     model
@@ -1069,20 +1005,18 @@ importCodeDialogBox model =
     [ Html.text "Import Code..." ]
     []
     [ Html.div
-        [ Attr.style
-            [ ("padding", "20px")
-            , ("text-align", "center")
-            ]
+        [ Attr.class "centered"
         ]
         [ Html.input
             [ Attr.type_ "file"
             , Attr.id Model.importCodeFileInputId
             ]
             []
-        , disableableTextButton
+        , Html.br [] []
+        , Html.br [] []
+        , uiButton
             "Import"
             (Controller.msgAskImportCode model.needsSave)
-            False
         ]
     ]
 

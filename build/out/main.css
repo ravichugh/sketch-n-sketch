@@ -25,6 +25,7 @@ a {
 .text-button {
   color: #CCCCCC;
   cursor: pointer;
+  transition: background-color 0.1s;
 }
 
 .text-button:not(.disabled):hover {
@@ -35,6 +36,45 @@ a {
 .text-button.disabled {
   color: #555555;
   cursor: default;
+}
+
+.uiButton {
+  color: #CCCCCC;
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.uiButton:not(.disabled):hover {
+  color: #CCCCCC;
+  background-color: rgba(50, 50, 50, 0.1);
+}
+
+.uiButton:not(.disabled):active {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.uiButton.disabled {
+  color: #555555;
+  cursor: default;
+}
+
+.uiButton.wide {
+  display: block;
+}
+
+.uiButton.circle {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  text-align: center;
+  font-size: 0.5em;
+  border-bottom: none;
+  border: 1px solid #333333;
+  border-radius: 50%;
 }
 
 /******************************************************************************
@@ -77,6 +117,7 @@ a {
   /* line-height: DYNAMIC */
   /* padding: DYNAMIC */
   cursor: pointer;
+  transition: background-color 0.1s;
 }
 
 .main-bar .menu:nth-child(2) .menu-heading {
@@ -219,6 +260,10 @@ a {
   box-sizing: border-box;
 }
 
+.status-bar .file-indicator {
+  color: #FFFFFF;
+}
+
 .status-bar .needs-run-indicator {
   user-select: none;
   cursor: default;
@@ -236,7 +281,7 @@ a {
   height: 7px;
   border-radius: 50%;
   border: 1px solid #555555;
-  transition: background-color 0.5s, border-color 0.5s;
+  transition: background-color 0.3s, border-color 0.3s;
 }
 
 .main.needs-run .status-bar .needs-run-light {
@@ -281,6 +326,8 @@ a {
   color: #FFFFFF;
   border-bottom: 2px solid #338800;
   border-radius: 5px;
+
+  transition: background-color 0.1s;
 }
 
 .action-bar .run:hover {
@@ -368,7 +415,7 @@ a {
 
   visibility: hidden;
   opacity: 0;
-  transition: visibility 0s linear 1s, opacity 1s;
+  transition: visibility 0s linear 0.7s, opacity 0.7s;
 }
 
 .main.has-dialogs .subtle-background {
@@ -378,6 +425,10 @@ a {
 }
 
 .dialog-box {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+  /* z-index: DYNAMIC */
+
   background-color: #222222;
   border: 1px solid #555555;
   box-shadow: 0 0 7px 0 #000000;
@@ -400,3 +451,81 @@ a {
   opacity: 1;
   transition-delay: 0s;
 }
+
+.dialog-box h1 {
+  margin: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid #333333;
+  box-shadow: 0 3px 5px -3px #000000;
+
+  flex: 0 0 60px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-box h2 {
+  background-color: rgba(0, 0, 0, 0.2);
+  margin: 10px 0;
+  padding: 10px 20px;
+}
+
+.dialog-box .content {
+  overflow: scroll;
+  flex-grow: 1;
+}
+
+.dialog-box .file-listing {
+  background-color: rgba(0, 0, 0, 0.1);
+  font-family: monospace;
+  font-size: 1.2em;
+  margin-bottom: 10px;
+  padding: 10px 20px;
+}
+
+.dialog-box .centered {
+  background-color: rgba(0, 0, 0, 0.1);
+  text-align: center;
+  margin: 20px 0;
+  padding: 20px;
+  border-top: 1px solid #333333;
+  border-bottom: 1px solid #333333;
+}
+
+/* Save As Dialog */
+
+.dialog-box .save-as-input {
+  background-color: rgba(0, 0, 0, 0.1);
+  font-family: monospace;
+  font-size: 1.2em;
+  padding: 20px;
+  text-align: right;
+}
+
+.dialog-box .save-as-button {
+  margin-left: 20px;
+}
+
+/* Open Dialog */
+
+.dialog-box .file-open-delete-buttons {
+  float: right;
+}
+
+.dialog-box .file-delete-button {
+  margin-left: 30px;
+}
+
+/* TODO change from text to some other kind of button */
+.dialog-box .file-delete-button .text-button {
+  color: #FF3300;
+}
+
+/* Alert Save Dialog Box */
+
+/* TODO migrate from Elm to CSS */
+
+/* Import Code Dialog box */
+
+
