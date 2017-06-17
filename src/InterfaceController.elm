@@ -15,6 +15,7 @@ module InterfaceController exposing
   , msgReplicateBlob
   , msgToggleCodeBox, msgToggleOutput
   , msgSetOutputLive, msgSetOutputPrint
+  , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
   , msgStartAnimation, msgRedraw, msgTickDelta
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
@@ -1001,6 +1002,37 @@ msgToggleOutput = Msg "Toggle Output" <| \old ->
     PrintScopeGraph _ -> refreshMode_ old
   in
   { old | mode = m }
+
+updateHeuristics : Int -> Model -> Model
+updateHeuristics heuristic old =
+  let
+    oldSyncOptions =
+      old.syncOptions
+    newSyncOptions =
+      { oldSyncOptions | feelingLucky = heuristic }
+  in
+    case old.mode of
+      Live _ ->
+        case mkLive_
+               newSyncOptions
+               old.slideNumber
+               old.movieNumber
+               old.movieTime
+               old.inputExp of
+          Ok m ->
+            { old | syncOptions = newSyncOptions, mode = m }
+          Err s ->
+            { old | syncOptions = newSyncOptions, errorBox = Just s }
+      _ -> { old | syncOptions = newSyncOptions }
+
+msgSetHeuristicsBiased =
+  Msg "Set Heuristics Biased" (updateHeuristics Sync.heuristicsBiased)
+
+msgSetHeuristicsNone =
+  Msg "Set Heuristics None" (updateHeuristics Sync.heuristicsNone)
+
+msgSetHeuristicsFair =
+  Msg "Set Heuristics Fair" (updateHeuristics Sync.heuristicsFair)
 
 --------------------------------------------------------------------------------
 

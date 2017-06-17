@@ -459,8 +459,9 @@ menuBar model =
                     ]
                 -- TODO make radio buttons
                 , hoverMenu "Live Update Heuristics"
-                    [ textButton "Biased" Controller.msgNoop
-                    , textButton "Fair" Controller.msgNoop
+                    [ textButton "Biased" Controller.msgSetHeuristicsBiased
+                    , textButton "None" Controller.msgSetHeuristicsNone
+                    , textButton "Fair" Controller.msgSetHeuristicsFair
                     ]
                 ]
                 -- TODO make radio buttons
