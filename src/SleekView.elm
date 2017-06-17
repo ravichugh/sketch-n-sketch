@@ -1036,6 +1036,27 @@ subtleBackground =
     []
 
 --------------------------------------------------------------------------------
+-- Onbeforeunload Data Element (save confirmation)
+--------------------------------------------------------------------------------
+
+onbeforeunloadDataElement : Model -> Html Msg
+onbeforeunloadDataElement model =
+  let
+    needsSaveString =
+      if model.needsSave then
+        "true"
+      else
+        "false"
+  in
+    Html.input
+      [ Attr.type_ "hidden"
+      , Attr.id "onbeforeunload-data"
+      , Attr.attribute "data-needs-save" needsSaveString
+      , Attr.attribute "data-filename" (Model.prettyFilename model)
+      ]
+      []
+
+--------------------------------------------------------------------------------
 -- Main View
 --------------------------------------------------------------------------------
 
@@ -1057,7 +1078,8 @@ view model =
       [ Attr.class <| "main" ++ needsRunFlag ++ hasDialogFlag
       , E.onClick Controller.msgHideMenu
       ]
-      ( [ menuBar model
+      ( [ onbeforeunloadDataElement model
+        , menuBar model
         , workArea model
         , subtleBackground
         ] ++ (dialogBoxes model)
