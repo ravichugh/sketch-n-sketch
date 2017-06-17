@@ -12,6 +12,7 @@ import Json.Decode as Json
 
 import Utils
 import HtmlUtils exposing (handleEventAndStop)
+import Either exposing (..)
 
 import InterfaceModel as Model exposing
   ( Msg(..)
@@ -628,20 +629,16 @@ menuBar model =
                         ( case model.mode of
                             Live _ ->
                               True
-                            Print _ ->
-                              False
-                            PrintScopeGraph _ ->
+                            _ ->
                               False
                         )
                         "Graphics"
                         Controller.msgSetOutputLive
                     , simpleTextRadioButton
                         ( case model.mode of
-                            Live _ ->
-                              False
                             Print _ ->
                               True
-                            PrintScopeGraph _ ->
+                            _ ->
                               False
                         )
                         "Text"
@@ -750,6 +747,54 @@ fileIndicator model =
 codePanel : Model -> Html Msg
 codePanel model =
   let
+    undoButton =
+      let
+        past =
+          Tuple.first model.history
+        attributes =
+          case past of
+            _ :: prevCode :: _ ->
+              [ E.onMouseEnter <| Controller.msgPreview (Right prevCode)
+              , E.onMouseLeave Controller.msgClearPreview
+              ]
+            _ ->
+             []
+      in
+        textButton
+          { defaultTb
+              | attributes = attributes
+              , content = [Html.text "Undo"]
+              , onClick = Controller.msgUndo
+              , disabled = List.length past <= 1
+          }
+    redoButton =
+      let
+        future =
+          Tuple.second model.history
+        attributes =
+          case future of
+            futureCode :: _ ->
+              [ E.onMouseEnter <| Controller.msgPreview (Right futureCode)
+              , E.onMouseLeave Controller.msgClearPreview
+              ]
+            _ ->
+             []
+      in
+        textButton
+          { defaultTb
+              | attributes = attributes
+              , content = [Html.text "Redo"]
+              , onClick = Controller.msgRedo
+              , disabled = List.length future == 0
+          }
+    cleanButton =
+      let
+        disabled =
+          case model.mode of
+            Live _ -> False
+            _      -> True
+      in
+        disableableTextButton disabled "Clean Up" Controller.msgCleanCode
     runButton =
       Html.div
         [ Attr.class "run"
@@ -761,9 +806,9 @@ codePanel model =
       Html.div
         [ Attr.class "action-bar"
         ]
-        [ simpleTextButton "Undo" Controller.msgUndo
-        , simpleTextButton "Redo" Controller.msgRedo
-        , simpleTextButton "Clean Up" Controller.msgCleanCode
+        [ undoButton
+        , redoButton
+        , cleanButton
         , runButton
         ]
     editor =
