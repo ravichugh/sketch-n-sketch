@@ -90,13 +90,13 @@ groupTextButton model text onClickHandler disallowSelectedFeatures =
 menuBar : Model -> Html Msg
 menuBar model =
   let
+    activeFlag =
+      if model.viewState.menuActive then
+        " active"
+      else
+        ""
     menu heading options =
       let
-        activeFlag =
-          if model.viewState.currentMenu == Just heading then
-            " active"
-          else
-            ""
         menuHeading =
           Html.div
             [ Attr.class "menu-heading"
@@ -105,7 +105,7 @@ menuBar model =
                 { stopPropagation = True
                 , preventDefault = False
                 }
-                (Json.succeed <| Controller.msgToggleMenu heading)
+                (Json.succeed <| Controller.msgToggleMenu)
             , Attr.style
                 [ ("height", (px << .height) SleekLayout.menuBar)
                 , ("line-height", (px << .height) SleekLayout.menuBar)
@@ -134,7 +134,7 @@ menuBar model =
               )
       in
         Html.div
-          [ Attr.class <| "menu" ++ activeFlag
+          [ Attr.class "menu"
           ]
           [ menuHeading
           , menuOptions
@@ -173,7 +173,7 @@ menuBar model =
           ]
       ]
       [ Html.div
-          [ Attr.class "main-bar"
+          [ Attr.class <| "main-bar" ++ activeFlag
           ]
           [ Html.img
               [ Attr.class "logo-image"
@@ -183,9 +183,36 @@ menuBar model =
               ]
               []
           , menu "Sketch-n-Sketch"
-              [ [ textButton "Syntax Guide" Controller.msgNoop
-                , textButton "Standard Library (Prelude)" Controller.msgNoop
-                , textButton "About Sketch-n-Sketch" Controller.msgNoop
+              [ [ htmlTextButton
+                    [ Html.a
+                        [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md"
+                        , Attr.target "_blank"
+                        ]
+                        [ Html.text "Syntax Guide" ]
+                    ]
+                    Controller.msgNoop
+                    False
+                    False
+                , htmlTextButton
+                    [ Html.a
+                        [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little"
+                        , Attr.target "_blank"
+                        ]
+                        [ Html.text "Little Standard Library (Prelude)" ]
+                    ]
+                    Controller.msgNoop
+                    False
+                    False
+                , htmlTextButton
+                    [ Html.a
+                        [ Attr.href "http://ravichugh.github.io/sketch-n-sketch/"
+                        , Attr.target "_blank"
+                        ]
+                        [ Html.text "About Sketch-n-Sketch" ]
+                    ]
+                    Controller.msgNoop
+                    False
+                    False
                 ]
               ]
           , menu "File"
@@ -352,19 +379,68 @@ menuBar model =
                 ]
               ]
           , menu "Options"
-              [ [ textButton "Font Size (numeric options...)" Controller.msgNoop
-                , textButton "Auto-Run (every 1, 2, 3 second...)" Controller.msgNoop
-                , textButton "Color Scheme (light or dark)" Controller.msgNoop
+                -- TODO make radio buttons
+              [ [ hoverMenu "Font Size"
+                    [ textButton "8" (Controller.msgUpdateFontSize 8)
+                    , textButton "10" (Controller.msgUpdateFontSize 10)
+                    , textButton "12" (Controller.msgUpdateFontSize 12)
+                    , textButton "14" (Controller.msgUpdateFontSize 14)
+                    , textButton "16" (Controller.msgUpdateFontSize 16)
+                    , textButton "18" (Controller.msgUpdateFontSize 18)
+                    , textButton "20" (Controller.msgUpdateFontSize 20)
+                    , textButton "22" (Controller.msgUpdateFontSize 22)
+                    , textButton "24" (Controller.msgUpdateFontSize 24)
+                    ]
+                -- TODO make radio buttons
+                , hoverMenu "Auto-Run"
+                    [ textButton "Every second" Controller.msgNoop
+                    , textButton "Every 2 seconds" Controller.msgNoop
+                    , textButton "Every 3 seconds" Controller.msgNoop
+                    ]
+                -- TODO make radio buttons
+                , hoverMenu "Color Scheme"
+                    [ disableableTextButton "Light" Controller.msgNoop True
+                    , disableableTextButton "Dark" Controller.msgNoop True
+                    ]
                 ]
-              , [ textButton "Edit Code UI Mode (text select, or nested boxes, or both)" Controller.msgNoop
-                , textButton "Pin Context-Sensitive Menu (boolean...)" Controller.msgNoop
+                -- TODO make checkboxes
+              , [ hoverMenu "Edit Code UI Mode"
+                    [ disableableTextButton
+                        "Text Select" Controller.msgNoop True
+                    , disableableTextButton
+                        "Nested Boxes" Controller.msgNoop True
+                    , disableableTextButton
+                        "Both" Controller.msgNoop True
+                    ]
+                -- TODO make boolean
+                , hoverMenu "Pin Context-Sensitive Menu"
+                    [ disableableTextButton "Pin" Controller.msgNoop True
+                    , disableableTextButton "Unpin" Controller.msgNoop True
+                    ]
                 ]
-              , [ textButton "Shape Code Templates (raw, stretchy, or sticky...)" Controller.msgNoop
+                -- TODO make radio buttons
+              , [ hoverMenu "Shape Code Templates"
+                    [ textButton "Raw" Controller.msgNoop
+                    , textButton "Stretchy" Controller.msgNoop
+                    , textButton "Sticky" Controller.msgNoop
+                    ]
                 ]
-              , [ textButton "Automatically Suggest Code Changes (boolean...)" Controller.msgNoop
-                , textButton "Live Update Heuristics (biased or fair...)" Controller.msgNoop
+                -- TODO make boolean
+              , [ hoverMenu "Automatically Suggest Code Changes"
+                    [ textButton "On" Controller.msgNoop
+                    , textButton "Off" Controller.msgNoop
+                    ]
+                -- TODO make radio buttons
+                , hoverMenu "Live Update Heuristics"
+                    [ textButton "Biased" Controller.msgNoop
+                    , textButton "Fair" Controller.msgNoop
+                    ]
                 ]
-              , [ textButton "Output Type (graphics or text...)" Controller.msgNoop
+                -- TODO make radio buttons
+              , [ hoverMenu "Output Type"
+                    [ textButton "Graphics" Controller.msgNoop
+                    , textButton "Text" Controller.msgNoop
+                    ]
                 ]
               ]
           ]

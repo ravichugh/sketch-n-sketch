@@ -37,6 +37,7 @@ module InterfaceController exposing
   , msgMouseEnterDeuceWidget, msgMouseLeaveDeuceWidget
   , contextSensitiveDeuceTools, msgChooseDeuceExp
   , msgShowMenu, msgHideMenu, msgToggleMenu
+  , msgUpdateFontSize
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -2533,40 +2534,37 @@ addToolAlign m selections =
 --------------------------------------------------------------------------------
 -- Menu Handling
 
-
-showMenu : String -> Model -> Model
-showMenu heading model =
+setMenuActive : Bool -> Model -> Model
+setMenuActive isActive model =
   let
     oldViewState =
       model.viewState
     newViewState =
-      { oldViewState | currentMenu = Just heading }
+      { oldViewState | menuActive = isActive }
   in
     { model | viewState = newViewState }
 
-hideMenu : Model -> Model
-hideMenu model =
-  let
-    oldViewState =
-      model.viewState
-    newViewState =
-      { oldViewState | currentMenu = Nothing }
-  in
-    { model | viewState = newViewState }
-
-msgShowMenu : String -> Msg
-msgShowMenu heading  =
-  Msg "Show Menu" <|
-    showMenu heading
+msgShowMenu : Msg
+msgShowMenu  =
+  Msg "Show Menu" <| setMenuActive True
 
 msgHideMenu : Msg
 msgHideMenu =
-  Msg "Hide Menu" hideMenu
+  Msg "Hide Menu" <| setMenuActive False
 
-msgToggleMenu : String -> Msg
-msgToggleMenu heading =
+msgToggleMenu : Msg
+msgToggleMenu =
   Msg "Toggle Menu" <| \old ->
-    if old.viewState.currentMenu == Just heading then
-      hideMenu old
-    else
-      showMenu heading old
+    setMenuActive (not old.viewState.menuActive) old
+
+--------------------------------------------------------------------------------
+-- Fonts
+
+msgUpdateFontSize : Int -> Msg
+msgUpdateFontSize fontSize = Msg "Update Font Size" <| \old ->
+  let
+    oldCodeBoxInfo = old.codeBoxInfo
+  in
+    { old | codeBoxInfo =
+      { oldCodeBoxInfo | fontSize = fontSize }
+    }

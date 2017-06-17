@@ -50,7 +50,7 @@ type alias Icon =
   }
 
 type alias ViewState =
-  { currentMenu : Maybe String
+  { menuActive : Bool
   }
 
 type alias Model =
@@ -512,6 +512,6 @@ initModel =
     , deuceState = DeuceWidgets.emptyDeuceState
     , showOnlyBasicTools = True
     , viewState =
-        { currentMenu = Nothing
+        { menuActive = False
         }
     }

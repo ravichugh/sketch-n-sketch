@@ -13,6 +13,11 @@ body {
   font-family: "Roboto", sans-serif;
 }
 
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 /******************************************************************************
  * Buttons                                                                    *
  ******************************************************************************/
@@ -83,7 +88,7 @@ body {
 }
 
 .main-bar .menu .menu-heading:hover,
-.main-bar .menu.active .menu-heading {
+.main-bar.active .menu:hover .menu-heading {
   background-color: rgba(255, 255, 255, 0.1);
   color: #FFFFFF;
 }
@@ -97,6 +102,9 @@ body {
 
 .main-bar .menu .menu-options {
   display: none;
+  /* TODO overflow scrolling acts weirdly */
+  /* max-height: 80vh; */
+  /* overflow: scroll; */
   border-top-color: #333333;
   position: absolute;
   /* top: DYNAMIC */
@@ -104,7 +112,7 @@ body {
   z-index: 10;
 }
 
-.main-bar .menu.active .menu-options {
+.main-bar.active .menu:hover .menu-options {
   display: block;
 }
 
