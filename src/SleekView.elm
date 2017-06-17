@@ -774,36 +774,34 @@ htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
     [ Html.text text ]
 
 fileNewDialogBoxButton =
-  htmlButton "New" (Controller.msgOpenDialogBox New) Regular False
+  disableableTextButton "New" (Controller.msgOpenDialogBox New) False
 
 fileSaveAsDialogBoxButton =
-  htmlButton "Save As" (Controller.msgOpenDialogBox SaveAs) Regular False
+  disableableTextButton "Save As" (Controller.msgOpenDialogBox SaveAs) False
 
 fileSaveButton model =
-  htmlButton "Save" Controller.msgSave Regular (not model.needsSave)
+  disableableTextButton "Save" Controller.msgSave (not model.needsSave)
 
 fileOpenDialogBoxButton =
-  htmlButton "Open" (Controller.msgOpenDialogBox Open) Regular False
+  disableableTextButton "Open" (Controller.msgOpenDialogBox Open) False
 
 closeDialogBoxButton db model =
-  htmlButton
+  disableableTextButton
     "X"
     (Controller.msgCloseDialogBox db)
-    Regular
     (Model.isDialogBoxShowing AlertSave model)
 
 exportCodeButton =
-  htmlButton "Export Code" Controller.msgExportCode Regular False
+  disableableTextButton "Export Code" Controller.msgExportCode False
 
 importCodeButton =
-    htmlButton "Import Code" (Controller.msgOpenDialogBox ImportCode) Regular False
+    disableableTextButton "Import Code" (Controller.msgOpenDialogBox ImportCode) False
 
 exportSvgButton =
-  htmlButton "Export SVG" Controller.msgExportSvg Regular False
+  disableableTextButton "Export SVG" Controller.msgExportSvg False
 
 importSvgButton =
-   htmlButton "Import SVG" Controller.msgNoop Regular True
-
+   disableableTextButton "Import SVG" Controller.msgNoop True
 
 dialogBox
   zIndex
@@ -836,7 +834,7 @@ dialogBox
             , ("width", width)
             , ("height", height)
             , ("font-family", "sans-serif")
-            , ("background-color", "#F8F8F8")
+            , ("background-color", "#222222")
             , ("border", "2px solid " ++ strInterfaceColor)
             , ("border-radius", "10px")
             , ("box-shadow", "0 0 10px 0 #888888")
@@ -888,10 +886,9 @@ fileNewDialogBox model =
             , ("background-color", "rgba(0, 0, 0, 0.1)")
             ]
         ]
-        [ htmlButton
+        [ disableableTextButton
             name
             (Controller.msgAskNew name model.needsSave)
-            Regular
             False
         ]
     viewCategory (categoryName, templates) =
@@ -940,7 +937,7 @@ fileSaveAsDialogBox model =
                   [ ("margin-left", "20px")
                   ]
               ]
-              [ htmlButton "Save" Controller.msgSaveAs Regular False ]
+              [ disableableTextButton "Save" Controller.msgSaveAs False ]
           ]
   in
     bigDialogBox
@@ -972,19 +969,19 @@ fileOpenDialogBox model =
                   [ ("float", "right")
                   ]
               ]
-              [ htmlButton "Open"
-                           (Controller.msgAskOpen filename model.needsSave)
-                           Regular
-                           False
+              [ disableableTextButton
+                  "Open"
+                   (Controller.msgAskOpen filename model.needsSave)
+                   False
               , Html.span
                   [ Attr.style
                     [ ("margin-left", "30px")
                     ]
                   ]
-                  [ htmlButton "Delete"
-                               (Controller.msgDelete filename)
-                               Regular
-                               False
+                  [ disableableTextButton
+                      "Delete"
+                      (Controller.msgDelete filename)
+                      False
                   ]
               ]
           ]
@@ -1063,13 +1060,13 @@ alertSaveDialogBox model =
                 [ ("text-align", "right")
                 ]
             ]
-            [ htmlButton "Cancel" Controller.msgCancelFileOperation Regular False
+            [ disableableTextButton "Cancel" Controller.msgCancelFileOperation False
             , Html.span
                 [ Attr.style
                     [ ("margin-left", "30px")
                     ]
                 ]
-                [ htmlButton "Yes (Discard Changes)" Controller.msgConfirmFileOperation Regular False ]
+                [ disableableTextButton "Yes (Discard Changes)" Controller.msgConfirmFileOperation False ]
             ]
         ]
     ]
@@ -1093,10 +1090,9 @@ importCodeDialogBox model =
             , Attr.id Model.importCodeFileInputId
             ]
             []
-        , htmlButton
+        , disableableTextButton
             "Import"
             (Controller.msgAskImportCode model.needsSave)
-            Regular
             False
         ]
     ]
