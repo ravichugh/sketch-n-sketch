@@ -373,9 +373,10 @@ menuBar model =
                 ]
               ]
           , menu "View" <|
-              [ [ textButton "Main Layer (boolean...)" Controller.msgNoop
-                , textButton "Widget Layer (boolean...)" Controller.msgNoop
-                , textButton "Ghost Layer (boolean...)" Controller.msgNoop
+                -- TODO make booleans
+              [ [ disableableTextButton "Main Layer" Controller.msgNoop True
+                , disableableTextButton "Widget Layer" Controller.msgNoop True
+                , disableableTextButton "Ghost Layer" Controller.msgNoop True
                 ]
               ]
           , menu "Options"
@@ -393,9 +394,9 @@ menuBar model =
                     ]
                 -- TODO make radio buttons
                 , hoverMenu "Auto-Run"
-                    [ textButton "Every second" Controller.msgNoop
-                    , textButton "Every 2 seconds" Controller.msgNoop
-                    , textButton "Every 3 seconds" Controller.msgNoop
+                    [ disableableTextButton "Every second" Controller.msgNoop True
+                    , disableableTextButton "Every 2 seconds" Controller.msgNoop True
+                    , disableableTextButton "Every 3 seconds" Controller.msgNoop True
                     ]
                 -- TODO make radio buttons
                 , hoverMenu "Color Scheme"
