@@ -402,7 +402,10 @@ menuBar model =
                 -- TODO make booleans
               [ [ disableableTextButton "Main Layer" Controller.msgNoop True
                 , disableableTextButton "Widget Layer" Controller.msgNoop True
-                , disableableTextButton "Ghost Layer" Controller.msgNoop True
+                , hoverMenu "Ghost Layer"
+                    [ textButton "On" <| Controller.msgSetGhostsShown True
+                    , textButton "Off" <| Controller.msgSetGhostsShown False
+                    ]
                 ]
               ]
           , menu "Options"

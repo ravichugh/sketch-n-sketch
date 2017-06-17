@@ -41,6 +41,7 @@ module InterfaceController exposing
   , msgShowMenu, msgHideMenu, msgToggleMenu
   , msgUpdateFontSize
   , msgSetToolMode
+  , msgSetGhostsShown
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -2616,4 +2617,21 @@ msgSetToolMode mode =
   Msg "Set Tool Mode" <| \old ->
     { old | toolMode = mode
           , tool = Cursor
+    }
+
+--------------------------------------------------------------------------------
+-- Ghosts
+
+msgSetGhostsShown : Bool -> Msg
+msgSetGhostsShown shown = Msg "Set Ghosts Shown" <| \old ->
+  let
+    newMode =
+      case old.mode of
+        Print _ ->
+          Print (LangSvg.printSvg shown old.slate)
+        _ ->
+          old.mode
+  in
+    { old | showGhosts = shown
+          , mode = newMode
     }
