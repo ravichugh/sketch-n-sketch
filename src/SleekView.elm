@@ -820,29 +820,18 @@ dialogBox
           [ closeDialogBoxButton db model ]
         else
           []
-      displayStyle =
+      activeFlag =
         if (Model.isDialogBoxShowing db model) then
-          "flex"
+          " active"
         else
-          "none"
+          ""
     in
       Html.div
-        [ Attr.style
-            [ ("position", "fixed")
-            , ("top", "50%")
-            , ("left", "50%")
-            , ("width", width)
+        [ Attr.class <| "dialog-box" ++ activeFlag
+        , Attr.style
+            [ ("width", width)
             , ("height", height)
-            , ("font-family", "sans-serif")
-            , ("background-color", "#222222")
-            , ("border", "2px solid " ++ strInterfaceColor)
-            , ("border-radius", "10px")
-            , ("box-shadow", "0 0 10px 0 #888888")
-            , ("transform", "translateY(-50%) translateX(-50%)")
-            , ("margin", "auto")
             , ("z-index", zIndex)
-            , ("display", displayStyle)
-            , ("flex-direction", "column")
             ]
         ] <|
         [ Html.h2
@@ -1106,6 +1095,12 @@ dialogBoxes model =
   , importCodeDialogBox model
   ]
 
+subtleBackground : Html Msg
+subtleBackground =
+  Html.div
+    [ Attr.class "subtle-background" ]
+    []
+
 --------------------------------------------------------------------------------
 -- Main View
 --------------------------------------------------------------------------------
@@ -1118,12 +1113,18 @@ view model =
         " needs-run"
       else
         ""
+    hasDialogFlag =
+      if not (Set.isEmpty model.dialogBoxes) then
+         " has-dialogs"
+      else
+        ""
   in
     Html.div
-      [ Attr.class <| "main" ++ needsRunFlag
+      [ Attr.class <| "main" ++ needsRunFlag ++ hasDialogFlag
       , E.onClick Controller.msgHideMenu
       ]
       ( [ menuBar model
         , workArea model
+        , subtleBackground
         ] ++ (dialogBoxes model)
       )
