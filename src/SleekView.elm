@@ -673,7 +673,7 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
         Unselected -> buttonRegularColor
         Selected   -> buttonSelectedColor
     iconHtml =
-      case Dict.get (String.toLower iconName) model.icons of
+      case Dict.get (Utils.naturalToCamelCase iconName) model.icons of
         Just h -> h
         Nothing -> Html.text ""
   in
@@ -757,22 +757,29 @@ lambdaTools model =
 
 toolPanel : Model -> Html Msg
 toolPanel model =
-  Html.div
-    [ Attr.class "panel tool-panel"
-    , Attr.style
-        [ ("flex", "0 0 " ++ (px << .width) SleekLayout.toolPanel)
-        , ("margin-left", (px << .marginLeft) SleekLayout.toolPanel)
-        ]
-    ]
-    ( [ toolButton model Cursor
-      , toolButton model Text
-      , toolButton model (Line model.toolMode)
-      , toolButton model (Rect model.toolMode)
-      , toolButton model (Oval model.toolMode)
-      , toolButton model (Poly model.toolMode)
-      , toolButton model (Path model.toolMode)
-      ] ++ (lambdaTools model)
-    )
+  let
+    separator =
+      Html.div
+        [ Attr.class "tool-separator" ]
+        []
+  in
+    Html.div
+      [ Attr.class "panel tool-panel"
+      , Attr.style
+          [ ("flex", "0 0 " ++ (px << .width) SleekLayout.toolPanel)
+          , ("margin-left", (px << .marginLeft) SleekLayout.toolPanel)
+          ]
+      ]
+      ( [ toolButton model Cursor
+        , toolButton model Text
+        , toolButton model (Line model.toolMode)
+        , toolButton model (Rect model.toolMode)
+        , toolButton model (Oval model.toolMode)
+        , toolButton model (Poly model.toolMode)
+        , toolButton model (Path model.toolMode)
+        , separator
+        ] ++ (lambdaTools model)
+      )
 
 --------------------------------------------------------------------------------
 -- Work Area

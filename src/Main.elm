@@ -2,7 +2,6 @@ module Main exposing (main)
 
 import InterfaceModel as Model exposing (Msg, Model)
 import SleekView as View
--- import InterfaceView3 as View
 import InterfaceController as Controller
 import AceCodeBox
 import AnimationLoop
