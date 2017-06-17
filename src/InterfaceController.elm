@@ -14,6 +14,7 @@ module InterfaceController exposing
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox, msgToggleOutput
+  , msgSetOutputLive, msgSetOutputPrint
   , msgStartAnimation, msgRedraw, msgTickDelta
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
@@ -983,6 +984,12 @@ msgReplicateBlob option = Msg "Replicate Blob" <| \old ->
 
 msgToggleCodeBox = Msg "Toggle Code Box" <| \old ->
   { old | basicCodeBox = not old.basicCodeBox }
+
+msgSetOutputLive = Msg "Set Output Live" <| \old ->
+  { old | mode = refreshMode_ old }
+
+msgSetOutputPrint = Msg "Set Output Print" <| \old ->
+  { old | mode = Print (LangSvg.printSvg old.showGhosts old.slate) }
 
 msgToggleOutput = Msg "Toggle Output" <| \old ->
   let m = case old.mode of

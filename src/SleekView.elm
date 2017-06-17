@@ -465,8 +465,8 @@ menuBar model =
                 ]
                 -- TODO make radio buttons
               , [ hoverMenu "Output Type"
-                    [ textButton "Graphics" Controller.msgNoop
-                    , textButton "Text" Controller.msgNoop
+                    [ textButton "Graphics" Controller.msgSetOutputLive
+                    , textButton "Text" Controller.msgSetOutputPrint
                     ]
                 ]
               ]
