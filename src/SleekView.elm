@@ -3,6 +3,7 @@ module SleekView exposing (view)
 import List
 import Dict
 import Set
+import Regex
 
 import Html exposing (Html)
 import Html.Attributes as Attr
@@ -29,39 +30,93 @@ import InterfaceModel as Model exposing
 import InterfaceController as Controller
 import ExamplesGenerated as Examples
 
+import Layout
 import SleekLayout exposing (px, half)
 import Canvas
+import LangTools
 
-import Debug
+--------------------------------------------------------------------------------
+-- Helper Functions
+--------------------------------------------------------------------------------
+
+relateDisabled : Model -> Bool
+relateDisabled model =
+  Set.isEmpty model.selectedFeatures
+
+groupDisabled : Bool -> Model -> Bool
+groupDisabled disallowSelectedFeatures model =
+  let
+    noFeatures =
+      Set.isEmpty model.selectedFeatures
+    noBlobs =
+      Dict.isEmpty model.selectedBlobs
+  in
+    noBlobs || (disallowSelectedFeatures && (not noFeatures))
 
 --------------------------------------------------------------------------------
 -- Buttons
 --------------------------------------------------------------------------------
 
-textButton : String -> Msg -> Html Msg
-textButton text onClickHandler =
-  disableableTextButton text onClickHandler False
+-- Text Button Options
 
-disableableTextButton : String -> Msg -> Bool -> Html Msg
-disableableTextButton text onClickHandler disabled =
-  htmlTextButton [Html.text text] onClickHandler disabled False
+type alias TextButtonOptions =
+  { attributes : List (Html.Attribute Msg)
+  , content : (List (Html Msg))
+  , onClick : Msg
+  , disabled : Bool
+  , stopPropagation : Bool
+  }
 
-htmlTextButton : (List (Html Msg)) -> Msg -> Bool -> Bool -> Html Msg
-htmlTextButton content onClickHandler disabled stopPropatation =
+defaultTb : TextButtonOptions
+defaultTb =
+  { attributes = []
+  , content = []
+  , onClick = Controller.msgNoop
+  , disabled = False
+  , stopPropagation = False
+  }
+
+-- Main Text Button
+
+textButton : TextButtonOptions -> Html Msg
+textButton tb =
   let
     disabledFlag =
-      if disabled then " disabled" else ""
+      if tb.disabled then " disabled" else ""
   in
     Html.span
-      [ Attr.class <| "text-button" ++ disabledFlag
-      , E.onWithOptions
-          "click"
-          { stopPropagation = stopPropatation
-          , preventDefault = False
-          }
-          (Json.succeed onClickHandler)
-      ]
-      content
+      ( [ Attr.class <| "text-button" ++ disabledFlag
+        , E.onWithOptions
+            "click"
+            { stopPropagation = tb.stopPropagation
+            , preventDefault = False
+            }
+            (Json.succeed tb.onClick)
+        ] ++ tb.attributes
+      )
+      tb.content
+
+-- Convenience Button Functions
+
+simpleHtmlTextButton : (List (Html Msg)) -> Html Msg
+simpleHtmlTextButton content =
+  textButton
+    { defaultTb
+        | content = content
+    }
+
+disableableTextButton : Bool -> String -> Msg -> Html Msg
+disableableTextButton disabled title onClick =
+  textButton
+    { defaultTb
+        | content = [Html.text title]
+        , onClick = onClick
+        , disabled = disabled
+    }
+
+simpleTextButton : String -> Msg -> Html Msg
+simpleTextButton =
+  disableableTextButton False
 
 relateTextButton : Model -> String -> Msg -> Html Msg
 relateTextButton model text onClickHandler =
@@ -69,7 +124,7 @@ relateTextButton model text onClickHandler =
     noFeatures =
       Set.isEmpty model.selectedFeatures
   in
-    disableableTextButton text onClickHandler noFeatures
+    disableableTextButton noFeatures text onClickHandler
 
 groupTextButton : Model -> String -> Msg -> Bool -> Html Msg
 groupTextButton model text onClickHandler disallowSelectedFeatures =
@@ -80,9 +135,11 @@ groupTextButton model text onClickHandler disallowSelectedFeatures =
       Dict.isEmpty model.selectedBlobs
   in
     disableableTextButton
+      (noBlobs || (disallowSelectedFeatures && (not noFeatures)))
       text
       onClickHandler
-      (noBlobs || (disallowSelectedFeatures && (not noFeatures)))
+
+-- UI Buttons
 
 uiButton : String -> Msg -> Html Msg
 uiButton =
@@ -163,32 +220,67 @@ menuBar model =
           [ menuHeading
           , menuOptions
           ]
+    generalHoverMenu title onMouseEnter onMouseLeave disabled dropdownContent =
+      let
+        (disabledFlag, realOnMouseEnter, realOnMouseLeave) =
+          if disabled then
+            (" disabled", Controller.msgNoop, Controller.msgNoop)
+          else
+            ("", onMouseEnter, onMouseLeave)
+      in
+        Html.div
+          [ Attr.class <| "hover-menu" ++ disabledFlag
+          , E.onMouseEnter realOnMouseEnter
+          , E.onMouseLeave realOnMouseLeave
+          ]
+          [ Html.div
+              [ Attr.class "hover-menu-title"
+              ]
+              [ textButton
+                  { defaultTb
+                      | content =
+                          [ Html.span
+                              []
+                              [ Html.text title
+                              ]
+                          , Html.span
+                              [ Attr.class "hover-menu-indicator"
+                              ]
+                              [ Html.text "▸"
+                              ]
+                          ]
+                      , disabled = disabled
+                      , stopPropagation = True
+                  }
+              ]
+          , Html.div
+              [ Attr.class "dropdown-content" ]
+              dropdownContent
+          ]
     hoverMenu title dropdownContent =
-      Html.div
-        [ Attr.class "hover-menu"
-        ]
-        [ Html.div
-            [ Attr.class "hover-menu-title"
-            ]
-            [ htmlTextButton
-                [ Html.span
-                    []
-                    [ Html.text title
-                    ]
-                , Html.span
-                    [ Attr.class "hover-menu-indicator"
-                    ]
-                    [ Html.text "▸"
-                    ]
-                ]
-                Controller.msgNoop
-                False
-                True
-            ]
-        , Html.div
-            [ Attr.class "dropdown-content" ]
-            dropdownContent
-        ]
+      generalHoverMenu
+        title
+        Controller.msgNoop
+        Controller.msgNoop
+        False
+        dropdownContent
+    synthesisHoverMenu title onMouseEnter disabled =
+      generalHoverMenu
+        title
+        onMouseEnter
+        Controller.msgClearSynthesisResults
+        disabled
+        (synthesisResultsSelect model)
+    relateHoverMenu title onMouseEnter =
+      synthesisHoverMenu
+        title
+        onMouseEnter
+        (relateDisabled model)
+    groupHoverMenu title onMouseEnter disallowSelectedFeatures =
+      synthesisHoverMenu
+        title
+        onMouseEnter
+        (groupDisabled disallowSelectedFeatures model)
   in
     Html.div
       [ Attr.class "menu-bar"
@@ -207,274 +299,285 @@ menuBar model =
               ]
               []
           , menu "Sketch-n-Sketch"
-              [ [ htmlTextButton
+              [ [ simpleHtmlTextButton
                     [ Html.a
                         [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md"
                         , Attr.target "_blank"
                         ]
                         [ Html.text "Syntax Guide" ]
                     ]
-                    Controller.msgNoop
-                    False
-                    False
-                , htmlTextButton
+                , simpleHtmlTextButton
                     [ Html.a
                         [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little"
                         , Attr.target "_blank"
                         ]
                         [ Html.text "Little Standard Library (Prelude)" ]
                     ]
-                    Controller.msgNoop
-                    False
-                    False
-                , htmlTextButton
+                , simpleHtmlTextButton
                     [ Html.a
                         [ Attr.href "http://ravichugh.github.io/sketch-n-sketch/"
                         , Attr.target "_blank"
                         ]
                         [ Html.text "About Sketch-n-Sketch" ]
                     ]
-                    Controller.msgNoop
-                    False
-                    False
                 ]
               ]
           , menu "File"
-              [ [ textButton "New" <|
+              [ [ simpleTextButton "New" <|
                     Controller.msgOpenDialogBox New
-                , textButton "Save As" <|
+                , simpleTextButton "Save As" <|
                     Controller.msgOpenDialogBox SaveAs
-                , disableableTextButton "Save"
-                    Controller.msgSave
+                , disableableTextButton
                     (not model.needsSave)
+                    "Save"
+                    Controller.msgSave
                 ]
-              , [ textButton "Open" <|
+              , [ simpleTextButton "Open" <|
                     Controller.msgOpenDialogBox Open
                 ]
-              , [ textButton "Export Code"
+              , [ simpleTextButton "Export Code"
                     Controller.msgExportCode
-                , textButton "Export SVG"
+                , simpleTextButton "Export SVG"
                     Controller.msgExportSvg
                 ]
-              , [ textButton "Import Code" <|
+              , [ simpleTextButton "Import Code" <|
                     Controller.msgOpenDialogBox ImportCode
                 , disableableTextButton
+                    True
                     "Import SVG"
                     Controller.msgNoop
-                    True
                 ]
               ]
           , menu "Edit Code"
               [ [ hoverMenu "Abstract"
-                    [ textButton "All Constants" Controller.msgNoop
-                    , textButton "Named Constants" Controller.msgNoop
-                    , textButton "Unfrozen Constants" Controller.msgNoop
+                    [ simpleTextButton "All Constants" Controller.msgNoop
+                    , simpleTextButton "Named Constants" Controller.msgNoop
+                    , simpleTextButton "Unfrozen Constants" Controller.msgNoop
                     ]
-                , textButton "Merge" Controller.msgNoop
+                , simpleTextButton "Merge" Controller.msgNoop
                 ]
               , [ hoverMenu "Long Hover Menu"
                     [ hoverMenu "Submenu 1"
-                        [ textButton "Button 1.1" Controller.msgNoop
+                        [ simpleTextButton "Button 1.1" Controller.msgNoop
                         ]
                     , hoverMenu "Submenu 2"
                         [ hoverMenu "Submenu 2.1"
                             [ hoverMenu "Submenu 2.1.1"
-                                [ textButton "Button 2.1.1.1" Controller.msgNoop
+                                [ simpleTextButton "Button 2.1.1.1" Controller.msgNoop
                                 , hoverMenu "Submenu 2.1.1.2"
-                                    [ textButton "Button 2.1.1.2.1" Controller.msgNoop
+                                    [ simpleTextButton "Button 2.1.1.2.1" Controller.msgNoop
                                     ]
                                 ]
-                            , textButton "Button 2.1.2" Controller.msgNoop
+                            , simpleTextButton "Button 2.1.2" Controller.msgNoop
                             ]
                         ]
                     ]
                 ]
               , [ hoverMenu "Add Arguments"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Remove Arguments"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Reorder Arguments"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 ]
               , [ hoverMenu "Move Definitions"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Introduce Variable"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 ]
               , [ hoverMenu "Eliminate Common Subexpression"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Rename"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Swap Variable Names and Usages"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Inline Definition"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Duplicate Definition"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Make Single Line"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Make Multi-Line"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Align Expressions"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 ]
               , [ hoverMenu "Make Equal (Introduce Single Variable)"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Make Equal (Copy Expression)"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Reorder Expressions"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Swap Variable Usages"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 ]
               , [ hoverMenu "Thaw/Freeze Numbers"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Add/Remove Ranges"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Show/Hide Sliders"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Rewrite as Offsets"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Convert Color Strings"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 , hoverMenu "Flip Boolean"
-                    [ textButton "TODO" Controller.msgNoop
+                    [ simpleTextButton "TODO" Controller.msgNoop
                     ]
                 ]
               ]
           , menu "Edit Output"
-              [ [ relateTextButton model "Dig Hole"
+              [ [ relateTextButton
+                    model
+                    "Dig Hole"
                     Controller.msgDigHole
-                , relateTextButton model "Make Equal"
+                , relateHoverMenu
+                    "Make Equal"
                     Controller.msgMakeEqual
-                , relateTextButton model "Relate"
+                , relateHoverMenu
+                   "Relate"
                     Controller.msgRelate
-                , relateTextButton model "Indexed Relate"
+                , relateHoverMenu
+                    "Indexed Relate"
                     Controller.msgIndexedRelate
                 ]
-              , [ groupTextButton model "Dupe"
+              , [ groupTextButton
+                    model
+                    "Dupe"
                     Controller.msgDuplicateBlobs
                     True
-                , groupTextButton model "Merge"
+                , groupTextButton
+                    model
+                    "Merge"
                     Controller.msgMergeBlobs
                     True
-                , groupTextButton model "Group"
+                , groupTextButton
+                    model
+                    "Group"
                     Controller.msgGroupBlobs
                     False
-                , groupTextButton model "Abstract"
+                , groupTextButton
+                    model
+                    "Abstract"
                     Controller.msgAbstractBlobs
                     True
                 ]
-              , [ groupTextButton model "Repeat Right"
+              , [ groupTextButton
+                    model
+                    "Repeat Right"
                     (Controller.msgReplicateBlob HorizontalRepeat)
                     True
-                , groupTextButton model "Repeat To"
+                , groupTextButton
+                    model
+                    "Repeat To"
                     (Controller.msgReplicateBlob LinearRepeat)
                     True
-                , groupTextButton model "Repeat Around"
+                , groupTextButton
+                    model
+                    "Repeat Around"
                     (Controller.msgReplicateBlob RadialRepeat)
                     True
                 ]
               ]
           , menu "View" <|
                 -- TODO make booleans
-              [ [ disableableTextButton "Main Layer" Controller.msgNoop True
-                , disableableTextButton "Widget Layer" Controller.msgNoop True
+              [ [ disableableTextButton True "Main Layer" Controller.msgNoop
+                , disableableTextButton True "Widget Layer" Controller.msgNoop
                 , hoverMenu "Ghost Layer"
-                    [ textButton "On" <| Controller.msgSetGhostsShown True
-                    , textButton "Off" <| Controller.msgSetGhostsShown False
+                    [ simpleTextButton "On" <| Controller.msgSetGhostsShown True
+                    , simpleTextButton "Off" <| Controller.msgSetGhostsShown False
                     ]
                 ]
               ]
           , menu "Options"
                 -- TODO make radio buttons
               [ [ hoverMenu "Font Size"
-                    [ textButton "8" (Controller.msgUpdateFontSize 8)
-                    , textButton "10" (Controller.msgUpdateFontSize 10)
-                    , textButton "12" (Controller.msgUpdateFontSize 12)
-                    , textButton "14" (Controller.msgUpdateFontSize 14)
-                    , textButton "16" (Controller.msgUpdateFontSize 16)
-                    , textButton "18" (Controller.msgUpdateFontSize 18)
-                    , textButton "20" (Controller.msgUpdateFontSize 20)
-                    , textButton "22" (Controller.msgUpdateFontSize 22)
-                    , textButton "24" (Controller.msgUpdateFontSize 24)
+                    [ simpleTextButton "8" (Controller.msgUpdateFontSize 8)
+                    , simpleTextButton "10" (Controller.msgUpdateFontSize 10)
+                    , simpleTextButton "12" (Controller.msgUpdateFontSize 12)
+                    , simpleTextButton "14" (Controller.msgUpdateFontSize 14)
+                    , simpleTextButton "16" (Controller.msgUpdateFontSize 16)
+                    , simpleTextButton "18" (Controller.msgUpdateFontSize 18)
+                    , simpleTextButton "20" (Controller.msgUpdateFontSize 20)
+                    , simpleTextButton "22" (Controller.msgUpdateFontSize 22)
+                    , simpleTextButton "24" (Controller.msgUpdateFontSize 24)
                     ]
                 -- TODO make radio buttons
                 , hoverMenu "Auto-Run"
-                    [ disableableTextButton "Every second" Controller.msgNoop True
-                    , disableableTextButton "Every 2 seconds" Controller.msgNoop True
-                    , disableableTextButton "Every 3 seconds" Controller.msgNoop True
+                    [ disableableTextButton True "Every second" Controller.msgNoop
+                    , disableableTextButton True "Every 2 seconds" Controller.msgNoop
+                    , disableableTextButton True "Every 3 seconds" Controller.msgNoop
                     ]
                 -- TODO make radio buttons
                 , hoverMenu "Color Scheme"
-                    [ disableableTextButton "Light" Controller.msgNoop True
-                    , disableableTextButton "Dark" Controller.msgNoop True
+                    [ disableableTextButton True "Light" Controller.msgNoop
+                    , disableableTextButton True "Dark" Controller.msgNoop
                     ]
                 ]
                 -- TODO make checkboxes
               , [ hoverMenu "Edit Code UI Mode"
                     [ disableableTextButton
-                        "Text Select" Controller.msgNoop True
+                        True "Text Select" Controller.msgNoop
                     , disableableTextButton
-                        "Nested Boxes" Controller.msgNoop True
+                        True "Nested Boxes" Controller.msgNoop
                     , disableableTextButton
-                        "Both" Controller.msgNoop True
+                        True "Both" Controller.msgNoop
                     ]
                 -- TODO make boolean
                 , hoverMenu "Pin Context-Sensitive Menu"
-                    [ disableableTextButton "Pin" Controller.msgNoop True
-                    , disableableTextButton "Unpin" Controller.msgNoop True
+                    [ disableableTextButton True "Pin" Controller.msgNoop
+                    , disableableTextButton True "Unpin" Controller.msgNoop
                     ]
                 ]
                 -- TODO make radio buttons
               , [ hoverMenu "Shape Code Templates"
-                    [ textButton "Raw" <|
+                    [ simpleTextButton "Raw" <|
                         Controller.msgSetToolMode Raw
-                    , textButton "Stretchy" <|
+                    , simpleTextButton "Stretchy" <|
                         Controller.msgSetToolMode Stretchy
-                    , disableableTextButton "Sticky" Controller.msgNoop True
-                    --, textButton "Sticky" <|
+                    , disableableTextButton True "Sticky" Controller.msgNoop
+                    --, simpleTextButton "Sticky" <|
                     --    Controller.msgSetToolMode Sticky
                     ]
                 ]
                 -- TODO make boolean
               , [ hoverMenu "Automatically Suggest Code Changes"
-                    [ textButton "On" <| Controller.msgSetAutoSynthesis True
-                    , textButton "Off" <| Controller.msgSetAutoSynthesis False
+                    [ simpleTextButton "On" <| Controller.msgSetAutoSynthesis True
+                    , simpleTextButton "Off" <| Controller.msgSetAutoSynthesis False
                     ]
                 -- TODO make radio buttons
                 , hoverMenu "Live Update Heuristics"
-                    [ textButton "Biased" Controller.msgSetHeuristicsBiased
-                    , textButton "None" Controller.msgSetHeuristicsNone
-                    , textButton "Fair" Controller.msgSetHeuristicsFair
+                    [ simpleTextButton "Biased" Controller.msgSetHeuristicsBiased
+                    , simpleTextButton "None" Controller.msgSetHeuristicsNone
+                    , simpleTextButton "Fair" Controller.msgSetHeuristicsFair
                     ]
                 ]
                 -- TODO make radio buttons
               , [ hoverMenu "Output Type"
-                    [ textButton "Graphics" Controller.msgSetOutputLive
-                    , textButton "Text" Controller.msgSetOutputPrint
+                    [ simpleTextButton "Graphics" Controller.msgSetOutputLive
+                    , simpleTextButton "Text" Controller.msgSetOutputPrint
                     ]
                 ]
               ]
@@ -490,6 +593,65 @@ menuBar model =
       --         ]
       --     ]
       ]
+
+--------------------------------------------------------------------------------
+-- Synthesis Results
+--------------------------------------------------------------------------------
+
+synthesisResultsSelectBox model =
+  let
+    desc description exp isSafe sortKey =
+      (if isSafe then "" else "[UNSAFE] ") ++
+      (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
+      " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
+    resultButtonList priorPathByIndices remainingPathByIndices results =
+      let buttons =
+        results
+        |> Utils.mapi0
+            (\(i, Model.SynthesisResult {description, exp, isSafe, sortKey, children}) ->
+              let thisElementPath = priorPathByIndices ++ [i] in
+              let (isHovered, nextMenu) =
+                case remainingPathByIndices of
+                  nexti::is ->
+                    if i == nexti then
+                      case children of
+                        Just childResults -> (True, [resultButtonList thisElementPath is childResults])
+                        Nothing           -> (True, [])
+                    else
+                      (False, [])
+                  [] ->
+                    (False, [])
+              in
+              nextMenu ++
+              [ textButton
+                  { defaultTb
+                      | attributes =
+                          [ E.onMouseEnter (Controller.msgHoverSynthesisResult thisElementPath)
+                          , E.onMouseLeave (Controller.msgHoverSynthesisResult [])
+                          ]
+                      , content =
+                          [Html.text <| desc description exp isSafe sortKey]
+                      , onClick =
+                          Controller.msgSelectSynthesisResult exp
+                  }
+              ]
+            )
+        |> List.concat
+    in
+      Html.div
+          [ Attr.style <|
+            [ ("position", if priorPathByIndices == [] then "relative" else "absolute")
+            , ("left", if priorPathByIndices == [] then "0" else "-325px")
+            ]
+          ]
+          buttons
+  in
+    resultButtonList [] model.hoveredSynthesisResultPathByIndices model.synthesisResults
+
+synthesisResultsSelect model =
+  if List.length model.synthesisResults > 0
+  then [ synthesisResultsSelectBox model ]
+  else []
 
 --------------------------------------------------------------------------------
 -- Code Panel
@@ -531,9 +693,9 @@ codePanel model =
       Html.div
         [ Attr.class "action-bar"
         ]
-        [ textButton "Undo" Controller.msgUndo
-        , textButton "Redo" Controller.msgRedo
-        , textButton "Clean Up" Controller.msgCleanCode
+        [ simpleTextButton "Undo" Controller.msgUndo
+        , simpleTextButton "Redo" Controller.msgRedo
+        , simpleTextButton "Clean Up" Controller.msgCleanCode
         , runButton
         ]
     editor =
@@ -1097,5 +1259,6 @@ view model =
         , menuBar model
         , workArea model
         , subtleBackground
-        ] ++ (dialogBoxes model)
+        ]
+        ++ (dialogBoxes model)
       )

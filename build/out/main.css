@@ -190,7 +190,7 @@ a {
   border-left: none;
 }
 
-.main-bar .menu .hover-menu:hover > .dropdown-content {
+.main-bar .menu .hover-menu:not(.disabled):hover > .dropdown-content {
   display: block;
   left: 100%;
   top: -1px;
