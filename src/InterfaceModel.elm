@@ -120,6 +120,7 @@ type alias Model =
   , deuceState : DeuceWidgets.DeuceState
   , showOnlyBasicTools : Bool
   , viewState : ViewState
+  , toolMode : ShapeToolKind
   }
 
 type Mode
@@ -540,4 +541,6 @@ initModel =
     , viewState =
         { menuActive = False
         }
+    , toolMode =
+        Raw
     }

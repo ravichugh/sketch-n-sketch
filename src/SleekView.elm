@@ -447,9 +447,13 @@ menuBar model =
                 ]
                 -- TODO make radio buttons
               , [ hoverMenu "Shape Code Templates"
-                    [ textButton "Raw" Controller.msgNoop
-                    , textButton "Stretchy" Controller.msgNoop
-                    , textButton "Sticky" Controller.msgNoop
+                    [ textButton "Raw" <|
+                        Controller.msgSetToolMode Raw
+                    , textButton "Stretchy" <|
+                        Controller.msgSetToolMode Stretchy
+                    , disableableTextButton "Sticky" Controller.msgNoop True
+                    --, textButton "Sticky" <|
+                    --    Controller.msgSetToolMode Sticky
                     ]
                 ]
                 -- TODO make boolean
@@ -672,8 +676,8 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
   in
   let commonAttrs =
     [ Attr.disabled disabled
-    , Attr.style [ ("width", "40px")
-                 , ("height", "40px")
+    , Attr.style [ ("width", (px << .width) SleekLayout.toolPanel)
+                 , ("height", (px << .width) SleekLayout.toolPanel)
                  , ("background", color)
                  , ("cursor", "pointer")
                  ]
@@ -689,34 +693,34 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
     [ iconHtml ]
 
 toolButton model tool =
-  let capStretchy s = if showRawShapeTools then "BB" else s in
-  let capSticky = Utils.uniPlusMinus in -- Utils.uniDelta in
-  let capRaw = "(Raw)" in
-  let cap = case tool of
-    Cursor        -> "Cursor"
-    Line Raw      -> "Line"
-    Rect Raw      -> "Rect"
-    Rect Stretchy -> capStretchy "Rect" -- "Box"
-    Oval Raw      -> "Ellipse"
-    Oval Stretchy -> capStretchy "Ellipse" -- "Oval"
-    Poly Raw      -> "Polygon"
-    Poly Stretchy -> capStretchy "Polygon"
-    Poly Sticky   -> capSticky
-    Path Raw      -> "Path"
-    Path Stretchy -> capStretchy "Path"
-    Path Sticky   -> capSticky
-    Text          -> "Text"
-    HelperLine    -> "(Rule)"
-    -- HelperDot     -> "(Dot)"
-    Lambda _      -> "Lambda" -- Utils.uniLambda
-    _             -> Debug.crash ("toolButton: " ++ toString tool)
-  in
-  -- TODO temporarily disabling a couple tools
-  let (btnKind, disabled) =
-    case (model.tool == tool, tool) of
-      (True, _)            -> (Selected, False)
-      (False, Path Sticky) -> (Regular, True)
-      (False, _)           -> (Unselected, False)
+  let
+    cap = case tool of
+      Cursor ->
+        "Cursor"
+      Line _ ->
+        "Line"
+      Rect _ ->
+        "Rect"
+      Oval _  ->
+        "Ellipse"
+      Poly _ ->
+        "Polygon"
+      Path _ ->
+        "Path"
+      Text ->
+        "Text"
+      HelperLine ->
+        "(Rule)"
+      Lambda _ ->
+        "Lambda" -- Utils.uniLambda
+      _ ->
+        Debug.crash ("toolButton: " ++ toString tool)
+    -- TODO temporarily disabling a couple tools
+    (btnKind, disabled) =
+     case (model.tool == tool, tool) of
+       (True, _)            -> (Selected, False)
+       (False, Path Sticky) -> (Regular, True)
+       (False, _)           -> (Unselected, False)
   in
     Html.div
       [ Attr.class "tool"
@@ -759,11 +763,11 @@ toolPanel model =
     ]
     ( [ toolButton model Cursor
       , toolButton model Text
-      , toolButton model (Line Raw)
-      , toolButton model (Rect Raw)
-      , toolButton model (Oval Raw)
-      , toolButton model (Poly Raw)
-      , toolButton model (Path Raw)
+      , toolButton model (Line model.toolMode)
+      , toolButton model (Rect model.toolMode)
+      , toolButton model (Oval model.toolMode)
+      , toolButton model (Poly model.toolMode)
+      , toolButton model (Path model.toolMode)
       ] ++ (lambdaTools model)
     )
 

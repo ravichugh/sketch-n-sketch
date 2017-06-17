@@ -40,6 +40,7 @@ module InterfaceController exposing
   , contextSensitiveDeuceTools, msgChooseDeuceExp
   , msgShowMenu, msgHideMenu, msgToggleMenu
   , msgUpdateFontSize
+  , msgSetToolMode
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -2605,4 +2606,14 @@ msgUpdateFontSize fontSize = Msg "Update Font Size" <| \old ->
   in
     { old | codeBoxInfo =
       { oldCodeBoxInfo | fontSize = fontSize }
+    }
+
+--------------------------------------------------------------------------------
+-- Tools
+
+msgSetToolMode : ShapeToolKind -> Msg
+msgSetToolMode mode =
+  Msg "Set Tool Mode" <| \old ->
+    { old | toolMode = mode
+          , tool = Cursor
     }
