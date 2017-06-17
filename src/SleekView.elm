@@ -30,10 +30,10 @@ import InterfaceModel as Model exposing
 import InterfaceController as Controller
 import ExamplesGenerated as Examples
 
-import Layout
 import SleekLayout exposing (px, half)
 import Canvas
 import LangTools
+import Sync
 
 --------------------------------------------------------------------------------
 -- Helper Functions
@@ -117,6 +117,32 @@ disableableTextButton disabled title onClick =
 simpleTextButton : String -> Msg -> Html Msg
 simpleTextButton =
   disableableTextButton False
+
+simpleTextRadioButton : Bool -> String -> Msg -> Html Msg
+simpleTextRadioButton active title onClick =
+  let
+    (activeFlag, radioButtonIcon) =
+      if active then
+        ("radio-button-active", "●")
+      else
+        ("", "○")
+  in
+    textButton
+      { defaultTb
+          | content =
+              [ Html.span
+                  [ Attr.class "radio-button-icon"
+                  ]
+                  [ Html.text radioButtonIcon
+                  ]
+              , Html.span
+                  [ Attr.class activeFlag
+                  ]
+                  [ Html.text title
+                  ]
+              ]
+          , onClick = onClick
+      }
 
 relateTextButton : Model -> String -> Msg -> Html Msg
 relateTextButton model text onClickHandler =
@@ -502,17 +528,21 @@ menuBar model =
                 ]
               ]
           , menu "View" <|
-                -- TODO make booleans
               [ [ disableableTextButton True "Main Layer" Controller.msgNoop
                 , disableableTextButton True "Widget Layer" Controller.msgNoop
                 , hoverMenu "Ghost Layer"
-                    [ simpleTextButton "On" <| Controller.msgSetGhostsShown True
-                    , simpleTextButton "Off" <| Controller.msgSetGhostsShown False
+                    [ simpleTextRadioButton
+                        model.showGhosts
+                        "On"
+                        (Controller.msgSetGhostsShown True)
+                    , simpleTextRadioButton
+                        (not model.showGhosts)
+                        "Off"
+                        (Controller.msgSetGhostsShown False)
                     ]
                 ]
               ]
           , menu "Options"
-                -- TODO make radio buttons
               [ [ hoverMenu "Font Size"
                     [ simpleTextButton "8" (Controller.msgUpdateFontSize 8)
                     , simpleTextButton "10" (Controller.msgUpdateFontSize 10)
@@ -524,19 +554,16 @@ menuBar model =
                     , simpleTextButton "22" (Controller.msgUpdateFontSize 22)
                     , simpleTextButton "24" (Controller.msgUpdateFontSize 24)
                     ]
-                -- TODO make radio buttons
                 , hoverMenu "Auto-Run"
                     [ disableableTextButton True "Every second" Controller.msgNoop
                     , disableableTextButton True "Every 2 seconds" Controller.msgNoop
                     , disableableTextButton True "Every 3 seconds" Controller.msgNoop
                     ]
-                -- TODO make radio buttons
                 , hoverMenu "Color Scheme"
                     [ disableableTextButton True "Light" Controller.msgNoop
                     , disableableTextButton True "Dark" Controller.msgNoop
                     ]
                 ]
-                -- TODO make checkboxes
               , [ hoverMenu "Edit Code UI Mode"
                     [ disableableTextButton
                         True "Text Select" Controller.msgNoop
@@ -545,39 +572,80 @@ menuBar model =
                     , disableableTextButton
                         True "Both" Controller.msgNoop
                     ]
-                -- TODO make boolean
                 , hoverMenu "Pin Context-Sensitive Menu"
                     [ disableableTextButton True "Pin" Controller.msgNoop
                     , disableableTextButton True "Unpin" Controller.msgNoop
                     ]
                 ]
-                -- TODO make radio buttons
               , [ hoverMenu "Shape Code Templates"
-                    [ simpleTextButton "Raw" <|
-                        Controller.msgSetToolMode Raw
-                    , simpleTextButton "Stretchy" <|
-                        Controller.msgSetToolMode Stretchy
-                    , disableableTextButton True "Sticky" Controller.msgNoop
-                    --, simpleTextButton "Sticky" <|
-                    --    Controller.msgSetToolMode Sticky
+                    [ simpleTextRadioButton
+                        (model.toolMode == Raw)
+                        "Raw"
+                        (Controller.msgSetToolMode Raw)
+                    , simpleTextRadioButton
+                        (model.toolMode == Stretchy)
+                        "Stretchy"
+                        (Controller.msgSetToolMode Stretchy)
+                    , simpleTextRadioButton
+                        (model.toolMode == Sticky)
+                        "Sticky"
+                        (Controller.msgSetToolMode Sticky)
                     ]
                 ]
-                -- TODO make boolean
               , [ hoverMenu "Automatically Suggest Code Changes"
-                    [ simpleTextButton "On" <| Controller.msgSetAutoSynthesis True
-                    , simpleTextButton "Off" <| Controller.msgSetAutoSynthesis False
+                    [ simpleTextRadioButton
+                        model.autoSynthesis
+                        "On"
+                        (Controller.msgSetAutoSynthesis True)
+                    , simpleTextRadioButton
+                        (not model.autoSynthesis)
+                        "Off"
+                        (Controller.msgSetAutoSynthesis False)
                     ]
-                -- TODO make radio buttons
                 , hoverMenu "Live Update Heuristics"
-                    [ simpleTextButton "Biased" Controller.msgSetHeuristicsBiased
-                    , simpleTextButton "None" Controller.msgSetHeuristicsNone
-                    , simpleTextButton "Fair" Controller.msgSetHeuristicsFair
+                    [ simpleTextRadioButton
+                        ( model.syncOptions.feelingLucky ==
+                            Sync.heuristicsBiased
+                        )
+                        "Biased"
+                        Controller.msgSetHeuristicsBiased
+                    , simpleTextRadioButton
+                        ( model.syncOptions.feelingLucky ==
+                            Sync.heuristicsNone
+                        )
+                        "None"
+                        Controller.msgSetHeuristicsNone
+                    , simpleTextRadioButton
+                        ( model.syncOptions.feelingLucky ==
+                            Sync.heuristicsFair
+                        )
+                        "Fair"
+                        Controller.msgSetHeuristicsFair
                     ]
                 ]
-                -- TODO make radio buttons
               , [ hoverMenu "Output Type"
-                    [ simpleTextButton "Graphics" Controller.msgSetOutputLive
-                    , simpleTextButton "Text" Controller.msgSetOutputPrint
+                    [ simpleTextRadioButton
+                        ( case model.mode of
+                            Live _ ->
+                              True
+                            Print _ ->
+                              False
+                            PrintScopeGraph _ ->
+                              False
+                        )
+                        "Graphics"
+                        Controller.msgSetOutputLive
+                    , simpleTextRadioButton
+                        ( case model.mode of
+                            Live _ ->
+                              False
+                            Print _ ->
+                              True
+                            PrintScopeGraph _ ->
+                              False
+                        )
+                        "Text"
+                        Controller.msgSetOutputPrint
                     ]
                 ]
               ]

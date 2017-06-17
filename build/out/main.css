@@ -38,6 +38,14 @@ a {
   cursor: default;
 }
 
+.text-button .radio-button-active {
+  font-weight: bold;
+}
+
+.text-button .radio-button-icon {
+  margin-right: 10px;
+}
+
 .uiButton {
   color: #CCCCCC;
   background-color: rgba(0, 0, 0, 0.1);
