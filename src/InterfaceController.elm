@@ -762,16 +762,19 @@ msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
 msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
   -- let _ = Debug.log "Key Down" (keyCode, old.keysDown) in
   if [keyCode] == Keys.escape then
-    let new = resetDeuceState old in
-    case (old.tool, old.mouseMode) of
-      (Cursor, _) ->
-        { new | selectedFeatures = Set.empty
-              , selectedShapes = Set.empty
-              , selectedBlobs = Dict.empty
-              }
-      (_, MouseNothing)   -> { new | tool = Cursor }
-      (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
-      _                   -> new
+    if Model.anyDialogShown old then
+      Model.closeAllDialogBoxes old
+    else
+      let new = resetDeuceState old in
+      case (old.tool, old.mouseMode) of
+        (Cursor, _) ->
+          { new | selectedFeatures = Set.empty
+                , selectedShapes = Set.empty
+                , selectedBlobs = Dict.empty
+                }
+        (_, MouseNothing)   -> { new | tool = Cursor }
+        (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
+        _                   -> new
   else if keyCode == Keys.keyMeta then
     old
     -- for now, no need to ever put keyMeta in keysDown
@@ -1153,7 +1156,6 @@ requireSaveAsker ((Msg name _) as msg) needsSave =
     msg
 
 --------------------------------------------------------------------------------
-
 -- Dialog Box
 
 msgOpenDialogBox db =
@@ -1328,10 +1330,7 @@ msgDelete filename =
     else
       { old | fileToDelete = filename }
 
-msgCancelFileOperation = Msg "Cancel File Operation" <| (\old ->
-  { old | pendingFileOperation = Nothing
-        , fileOperationConfirmed = False })
-    >> Model.closeDialogBox AlertSave
+msgCancelFileOperation = Msg "Cancel File Operation" Model.cancelFileOperation
 
 msgConfirmFileOperation = Msg "Confirm File Operation" <| (\old ->
   { old | fileOperationConfirmed = True })

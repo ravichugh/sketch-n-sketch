@@ -1069,7 +1069,7 @@ view model =
       else
         ""
     hasDialogFlag =
-      if not (Set.isEmpty model.dialogBoxes) then
+      if Model.anyDialogShown model then
          " has-dialogs"
       else
         ""

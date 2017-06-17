@@ -294,6 +294,7 @@ initialLayoutOffsets =
 
 type DialogBox = New | SaveAs | Open | AlertSave | ImportCode
 
+dbToInt : DialogBox -> Int
 dbToInt db =
   case db of
     New -> 0
@@ -302,6 +303,7 @@ dbToInt db =
     AlertSave -> 3
     ImportCode -> 4
 
+intToDb : Int -> DialogBox
 intToDb n =
   case n of
     0 -> New
@@ -311,14 +313,38 @@ intToDb n =
     4 -> ImportCode
     _ -> Debug.crash "Undefined Dialog Box Type"
 
+openDialogBox : DialogBox -> Model -> Model
 openDialogBox db model =
   { model | dialogBoxes = Set.insert (dbToInt db) model.dialogBoxes }
 
+closeDialogBox : DialogBox -> Model -> Model
 closeDialogBox db model =
   { model | dialogBoxes = Set.remove (dbToInt db) model.dialogBoxes }
 
+cancelFileOperation : Model -> Model
+cancelFileOperation model =
+  closeDialogBox
+    AlertSave
+    { model
+      | pendingFileOperation = Nothing
+      , fileOperationConfirmed = False
+    }
+
+closeAllDialogBoxes : Model -> Model
+closeAllDialogBoxes model =
+  let
+    noFileOpsModel =
+      cancelFileOperation model
+  in
+    { noFileOpsModel | dialogBoxes = Set.empty }
+
+isDialogBoxShowing : DialogBox -> Model -> Bool
 isDialogBoxShowing db model =
   Set.member (dbToInt db) model.dialogBoxes
+
+anyDialogShown : Model -> Bool
+anyDialogShown =
+  not << Set.isEmpty << .dialogBoxes
 
 --------------------------------------------------------------------------------
 
