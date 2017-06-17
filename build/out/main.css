@@ -209,6 +209,48 @@ a {
   flex-direction: column;
 }
 
+/* Status Bar */
+
+.status-bar {
+  width: 100%;
+  border-bottom: 1px solid #333333;
+  flex: 0;
+  padding: 5px 15px;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+.status-bar .needs-run-indicator {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+  cursor: default;
+  vertical-align: middle;
+  float: right;
+}
+
+.status-bar .needs-run-light-vertical-spacer {
+  visibility: hidden;
+}
+
+.status-bar .needs-run-light {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid #555555;
+}
+
+.main.needs-run .status-bar .needs-run-light {
+  background-color: #FF3300;
+  border-color: #110000;
+}
+
 /* Action Bar */
 
 .action-bar {
@@ -226,8 +268,8 @@ a {
 .action-bar .text-button {
   display: inline-block;
   white-space: nowrap;
-  height: 45px;
-  line-height: 45px;
+  height: 35px;
+  line-height: 35px;
   padding: 0 15px;
 }
 
@@ -241,19 +283,19 @@ a {
   cursor: pointer;
 
   position: relative;
-  top: 10px; /* (height of bar - height of button) / 2 */
+  top: 5px; /* (height of bar - height of button) / 2 */
 
   float: right;
   margin-right: 10px;
 
-  background-color: #33aa00;
+  background-color: #33AA00;
   color: #FFFFFF;
   border-bottom: 2px solid #338800;
   border-radius: 5px;
 }
 
 .action-bar .run:hover {
-  background-color: #33bb00;
+  background-color: #33BB00;
 }
 
 .action-bar .run:active {
@@ -266,19 +308,6 @@ a {
 #editor {
   width: 100%;
   flex: 1;
-}
-
-/* Status Bar */
-
-.status-bar {
-  width: 100%;
-  border-top: 1px solid #333333;
-  flex: 0;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  -o-user-select: none;
-  user-select: none;
 }
 
 /******************************************************************************
@@ -341,3 +370,9 @@ a {
   bottom: 0;
   left: 0;
 }
+
+/******************************************************************************
+ * Dialog Boxes                                                               *
+ ******************************************************************************/
+
+

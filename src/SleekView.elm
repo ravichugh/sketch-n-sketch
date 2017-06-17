@@ -27,6 +27,7 @@ import InterfaceModel as Model exposing
   )
 
 import InterfaceController as Controller
+import ExamplesGenerated as Examples
 
 import SleekLayout exposing (px, half)
 import Canvas
@@ -489,15 +490,36 @@ codePanel model =
       Html.div
         [ Attr.class "status-bar"
         ]
-        [ Html.text "status-bar"
+        [ Html.span
+            []
+            [ Html.b
+                []
+                [ Html.text "Current file: "
+                ]
+            , fileIndicator model
+            ]
+        , Html.span
+            [ Attr.class "needs-run-indicator"
+            ]
+            [
+              Html.span
+                [ Attr.class "needs-run-light-vertical-spacer"
+                ]
+                [ Html.text "|"
+                ]
+            , Html.span
+                [ Attr.class "needs-run-light"
+                ]
+                []
+            ]
         ]
   in
     Html.div
       [ Attr.class "panel code-panel"
       ]
-      [ actionBar
+      [ statusBar
+      , actionBar
       , editor
-      , statusBar
       ]
 
 --------------------------------------------------------------------------------
@@ -581,6 +603,9 @@ type ButtonKind = Regular | Selected | Unselected
 
 buttonRegularColor = "white"
 buttonSelectedColor = "lightgray"
+strInterfaceColor = "rgba(52,73,94,1.0)"
+strButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
+buttonHeight = 25
 
 iconButton model iconName onClickHandler btnKind disabled =
   iconButtonExtraAttrs model iconName [] onClickHandler btnKind disabled
@@ -714,13 +739,395 @@ workArea model =
     ]
 
 --------------------------------------------------------------------------------
+-- Dialog Boxes
+--------------------------------------------------------------------------------
+
+htmlButton text onClickHandler btnKind disabled =
+  htmlButtonExtraAttrs [] text onClickHandler btnKind disabled
+
+htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
+  let color =
+    case btnKind of
+      Regular    -> buttonRegularColor
+      Unselected -> buttonRegularColor
+      Selected   -> buttonSelectedColor
+  in
+  -- let lineHeight = 1 + 1.1735 * unpixels params.mainSection.widgets.fontSize |> ((*) 2) |> round |> toFloat |> ((*) 0.5) in -- My best guess based on sampling Firefox's behavior.
+  let commonAttrs =
+    [ Attr.disabled disabled
+    , Attr.style [ ("box-sizing", "border-box") -- Strangely, Firefox and Chrome on Mac differ on this default.
+                 , ("min-height", pixels buttonHeight)
+                 , ("background", color)
+                 , ("cursor", "pointer")
+                 , ("-ms-user-select", "none")
+                 , ("-moz-user-select", "none")
+                 , ("-webkit-user-select", "none")
+                 , ("user-select", "none")
+                 ] ]
+  in
+  Html.button
+    (commonAttrs ++
+      [ handleEventAndStop "mousedown" Controller.msgNoop
+      , E.onClick onClickHandler
+      ] ++
+      extraAttrs)
+    [ Html.text text ]
+
+fileNewDialogBoxButton =
+  htmlButton "New" (Controller.msgOpenDialogBox New) Regular False
+
+fileSaveAsDialogBoxButton =
+  htmlButton "Save As" (Controller.msgOpenDialogBox SaveAs) Regular False
+
+fileSaveButton model =
+  htmlButton "Save" Controller.msgSave Regular (not model.needsSave)
+
+fileOpenDialogBoxButton =
+  htmlButton "Open" (Controller.msgOpenDialogBox Open) Regular False
+
+closeDialogBoxButton db model =
+  htmlButton
+    "X"
+    (Controller.msgCloseDialogBox db)
+    Regular
+    (Model.isDialogBoxShowing AlertSave model)
+
+exportCodeButton =
+  htmlButton "Export Code" Controller.msgExportCode Regular False
+
+importCodeButton =
+    htmlButton "Import Code" (Controller.msgOpenDialogBox ImportCode) Regular False
+
+exportSvgButton =
+  htmlButton "Export SVG" Controller.msgExportSvg Regular False
+
+importSvgButton =
+   htmlButton "Import SVG" Controller.msgNoop Regular True
+
+
+dialogBox
+  zIndex
+  width
+  height
+  closable
+  db
+  model
+  headerStyles
+  headerElements
+  parentStyles
+  elements =
+    let
+      closeButton =
+        if closable then
+          [ closeDialogBoxButton db model ]
+        else
+          []
+      displayStyle =
+        if (Model.isDialogBoxShowing db model) then
+          "flex"
+        else
+          "none"
+    in
+      Html.div
+        [ Attr.style
+            [ ("position", "fixed")
+            , ("top", "50%")
+            , ("left", "50%")
+            , ("width", width)
+            , ("height", height)
+            , ("font-family", "sans-serif")
+            , ("background-color", "#F8F8F8")
+            , ("border", "2px solid " ++ strInterfaceColor)
+            , ("border-radius", "10px")
+            , ("box-shadow", "0 0 10px 0 #888888")
+            , ("transform", "translateY(-50%) translateX(-50%)")
+            , ("margin", "auto")
+            , ("z-index", zIndex)
+            , ("display", displayStyle)
+            , ("flex-direction", "column")
+            ]
+        ] <|
+        [ Html.h2
+            [ Attr.style <|
+                [ ("margin", "0")
+                , ("padding", "0 20px")
+                , ("border-bottom", "1px solid black")
+                , ("flex", "0 0 60px")
+                , ("display", "flex")
+                , ("justify-content", "space-between")
+                , ("align-items", "center")
+                ] ++ headerStyles
+            ] <|
+            [ Html.div [] headerElements
+            , Html.div [] closeButton
+            ]
+        , Html.div
+            [ Attr.style <|
+                [ ("overflow", "scroll")
+                , ("flex-grow", "1")
+                ] ++ parentStyles
+            ]
+            elements
+        ]
+
+bigDialogBox = dialogBox "100" "85%" "85%"
+
+smallDialogBox = dialogBox "101" "35%" "35%"
+
+fileNewDialogBox model =
+  let
+    viewTemplate (name, _) =
+      Html.div
+        [ Attr.style
+            [ ("font-family", "monospace")
+            , ("font-size", "1.2em")
+            , ("margin-bottom", "10px")
+            , ("padding", "10px 20px")
+            --, ("border-top", "1px solid black")
+            --, ("border-bottom", "1px solid black")
+            , ("background-color", "rgba(0, 0, 0, 0.1)")
+            ]
+        ]
+        [ htmlButton
+            name
+            (Controller.msgAskNew name model.needsSave)
+            Regular
+            False
+        ]
+    viewCategory (categoryName, templates) =
+      Html.div
+        []
+        ( [ Html.h1
+              [ Attr.style
+                [ ("padding", "10px 20px")
+                --, ("border-top", "2px solid black")
+                --, ("border-bottom", "2px solid black")
+                , ("background-color", "rgba(0, 0, 0, 0.2)")
+                ]
+              ]
+              [ Html.text categoryName ]
+          ]
+          ++ List.map viewTemplate templates
+        )
+  in
+    bigDialogBox
+      True
+      New
+      model
+      []
+      [Html.text "New..."]
+      []
+      (List.map viewCategory Examples.templateCategories)
+
+fileSaveAsDialogBox model =
+  let saveAsInput =
+        Html.div
+          [ Attr.style
+            [ ("font-family", "monospace")
+            , ("font-size", "1.2em")
+            , ("padding", "20px")
+            , ("text-align", "right")
+            ]
+          ]
+          [ Html.input
+              [ Attr.type_ "text"
+              , E.onInput Controller.msgUpdateFilenameInput
+              ]
+              []
+          , Html.text ".little"
+          , Html.span
+              [ Attr.style
+                  [ ("margin-left", "20px")
+                  ]
+              ]
+              [ htmlButton "Save" Controller.msgSaveAs Regular False ]
+          ]
+  in
+    bigDialogBox
+      True
+      SaveAs
+      model
+      []
+      [Html.text "Save As..."]
+      []
+      ((List.map viewFileIndexEntry model.fileIndex) ++ [saveAsInput])
+
+fileOpenDialogBox model =
+  let fileOpenRow filename =
+        Html.div
+          [ Attr.style
+            [ ("font-family", "monospace")
+            , ("font-size", "1.2em")
+            , ("padding", "20px")
+            , ("border-bottom", "1px solid black")
+            , ("overflow", "hidden")
+            ]
+          ]
+          [ Html.span []
+              [ Html.b [] [ Html.text filename ]
+              , Html.text ".little"
+              ]
+          , Html.span
+              [ Attr.style
+                  [ ("float", "right")
+                  ]
+              ]
+              [ htmlButton "Open"
+                           (Controller.msgAskOpen filename model.needsSave)
+                           Regular
+                           False
+              , Html.span
+                  [ Attr.style
+                    [ ("margin-left", "30px")
+                    ]
+                  ]
+                  [ htmlButton "Delete"
+                               (Controller.msgDelete filename)
+                               Regular
+                               False
+                  ]
+              ]
+          ]
+  in
+    bigDialogBox
+      True
+      Open
+      model
+      []
+      [Html.text "Open..."]
+      []
+      (List.map fileOpenRow model.fileIndex)
+
+viewFileIndexEntry filename =
+  Html.div
+    [ Attr.style
+        [ ("font-family", "monospace")
+        , ("font-size", "1.2em")
+        , ("padding", "20px")
+        , ("border-bottom", "1px solid black")
+        ]
+    ]
+    [ Html.span []
+        [ Html.b [] [ Html.text filename ]
+        , Html.text ".little"
+        ]
+    ]
+
+fileIndicator model =
+  let
+    filenameHtml =
+      Html.text (Model.prettyFilename model)
+    wrapper =
+      if model.needsSave then
+        Html.i [] [ filenameHtml, Html.text " *" ]
+      else
+        filenameHtml
+  in
+    Html.span
+      [ Attr.style
+          [ ("color", "white")
+          , ("font-family", "sans-serif")
+          ]
+      ]
+      [ wrapper ]
+
+alertSaveDialogBox model =
+  smallDialogBox
+    False
+    AlertSave
+    model
+    []
+    [ Html.span
+        [ Attr.style [("color", "#550000")] ]
+        [ Html.text "Warning" ]
+    ]
+    [ ("display", "flex") ]
+    [ Html.div
+        [ Attr.style
+            [ ("padding", "20px")
+            , ("flex-grow", "1")
+            , ("display", "flex")
+            , ("flex-direction", "column")
+            , ("justify-content", "space-between")
+            ]
+        ]
+        [ Html.div
+            []
+            [ Html.i []
+                [ Html.text <| Model.prettyFilename model ]
+            , Html.text
+                " has unsaved changes. Would you like to continue anyway?"
+            ]
+        , Html.div
+            [ Attr.style
+                [ ("text-align", "right")
+                ]
+            ]
+            [ htmlButton "Cancel" Controller.msgCancelFileOperation Regular False
+            , Html.span
+                [ Attr.style
+                    [ ("margin-left", "30px")
+                    ]
+                ]
+                [ htmlButton "Yes (Discard Changes)" Controller.msgConfirmFileOperation Regular False ]
+            ]
+        ]
+    ]
+
+importCodeDialogBox model =
+  bigDialogBox
+    True
+    ImportCode
+    model
+    []
+    [ Html.text "Import Code..." ]
+    []
+    [ Html.div
+        [ Attr.style
+            [ ("padding", "20px")
+            , ("text-align", "center")
+            ]
+        ]
+        [ Html.input
+            [ Attr.type_ "file"
+            , Attr.id Model.importCodeFileInputId
+            ]
+            []
+        , htmlButton
+            "Import"
+            (Controller.msgAskImportCode model.needsSave)
+            Regular
+            False
+        ]
+    ]
+
+dialogBoxes : Model -> (List (Html Msg))
+dialogBoxes model =
+  [ fileNewDialogBox model
+  , fileSaveAsDialogBox model
+  , fileOpenDialogBox model
+  , alertSaveDialogBox model
+  , importCodeDialogBox model
+  ]
+
+--------------------------------------------------------------------------------
 -- Main View
 --------------------------------------------------------------------------------
 
 view : Model -> Html Msg
 view model =
-  Html.div
-    [ E.onClick Controller.msgHideMenu ]
-    [ menuBar model
-    , workArea model
-    ]
+  let
+    needsRunFlag =
+      if Model.needsRun model then
+        " needs-run"
+      else
+        ""
+  in
+    Html.div
+      [ Attr.class <| "main" ++ needsRunFlag
+      , E.onClick Controller.msgHideMenu
+      ]
+      ( [ menuBar model
+        , workArea model
+        ] ++ (dialogBoxes model)
+      )
