@@ -35,6 +35,12 @@ function initialize() {
       app.ports.receiveEditorState.send(info);
   });
 
+  // Ace Editor has a bug in which it does not resize when its height is changed
+  // with a transition. This is kind of ugly, but it is the simplest way to
+  // get around this bug and there's no real performance penalty...
+  window.setInterval(function() {
+    editor.resize();
+  }, 20);
 }
 
 
