@@ -40,7 +40,7 @@ function initialize() {
   // get around this bug and there's no real performance penalty...
   window.setInterval(function() {
     editor.resize();
-  }, 20);
+  }, 50);
 }
 
 
