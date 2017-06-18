@@ -20,6 +20,7 @@ module SleekLayout exposing
   , toolPanel
   , codePanelBox
   , outputPanelBox
+  , synthesisPanelHeight
   )
 
 import InterfaceModel as Model exposing (Model)
@@ -111,18 +112,30 @@ box x y width height =
 numPanels : Int
 numPanels = 2
 
+staticContentWidth : Int
+staticContentWidth =
+  numPanels * spacing.width +
+    toolPanel.marginLeft + toolPanel.width + spacing.width
+
+synthesisPanelHeight : Model -> Int
+synthesisPanelHeight model =
+  if Model.synthesisResultsNotEmpty model &&
+       (not model.viewState.menuActive) then
+     300
+  else
+    0
+
+staticContentHeight : Model -> Int
+staticContentHeight model =
+  2 + menuBar.height + 2 * spacing.height + (synthesisPanelHeight model)
+
 panelBox : Int -> Model -> LayoutBox
 panelBox panelNumber model =
   let
-    staticContentWidth =
-      numPanels * spacing.width +
-        toolPanel.marginLeft + toolPanel.width + spacing.width
-    staticContentHeight =
-      menuBar.height + 2 * spacing.height
     width =
       (model.dimensions.width - staticContentWidth) // numPanels
     height =
-      model.dimensions.height - staticContentHeight
+      model.dimensions.height - staticContentHeight model
     x =
       spacing.width + (width + spacing.width) * panelNumber
     y =

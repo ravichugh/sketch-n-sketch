@@ -255,7 +255,7 @@ synthesisHoverMenu model title onMouseEnter disabled =
     Controller.msgClearSynthesisResults
     Controller.msgNoop
     disabled
-    (synthesisResultsSelect model)
+    [ synthesisResultsSelect model ]
 
 relateHoverMenu : Model -> String -> Msg -> Html Msg
 relateHoverMenu model title onMouseEnter =
@@ -677,8 +677,8 @@ synthesisResultHoverMenu description elementPath exp nextMenu =
     False
     nextMenu
 
-synthesisResultsSelectBox : Model -> Html Msg
-synthesisResultsSelectBox model =
+synthesisResultsSelect : Model -> Html Msg
+synthesisResultsSelect model =
   let
     desc description exp isSafe sortKey =
       (if isSafe then "" else "[UNSAFE] ") ++
@@ -728,12 +728,6 @@ synthesisResultsSelectBox model =
           model.hoveredSynthesisResultPathByIndices
           model.synthesisResults
       )
-
-synthesisResultsSelect : Model -> (List (Html Msg))
-synthesisResultsSelect model =
-  if List.length model.synthesisResults > 0
-  then [ synthesisResultsSelectBox model ]
-  else []
 
 --------------------------------------------------------------------------------
 -- Code Panel
@@ -1074,6 +1068,41 @@ toolPanel model =
       )
 
 --------------------------------------------------------------------------------
+-- Synthesis Panel
+--------------------------------------------------------------------------------
+
+synthesisAutoSearch : Model -> (List (Html Msg))
+synthesisAutoSearch model =
+  if List.length model.synthesisResults > 0 then
+     [ Html.div
+         [ Attr.class "synthesis-auto-search"
+         ]
+         [ synthesisResultsSelect model
+         ]
+     ]
+  else
+    []
+
+synthesisPanel : Model -> Html Msg
+synthesisPanel model =
+  Html.div
+    [ Attr.class "synthesis-panel-wrapper"
+    , Attr.style
+        [ ( "height", px <| SleekLayout.synthesisPanelHeight model)
+        ]
+    ]
+    [ Html.div
+        [ Attr.class "panel synthesis-panel"
+        ]
+        [ Html.div
+            [ Attr.class "dropdown-content synthesis-menu-holder"
+            ]
+            [ synthesisResultsSelect model
+            ]
+        ]
+    ]
+
+--------------------------------------------------------------------------------
 -- Work Area
 --------------------------------------------------------------------------------
 
@@ -1086,10 +1115,15 @@ workArea model =
         , ("top", px <| .height SleekLayout.menuBar)
         ]
     ]
-    [ codePanel model
-    , resizer model
-    , outputPanel model
-    , toolPanel model
+    [ Html.div
+        [ Attr.class "main-panels"
+        ]
+        [ codePanel model
+        , resizer model
+        , outputPanel model
+        , toolPanel model
+        ]
+    , synthesisPanel model
     ]
 
 --------------------------------------------------------------------------------

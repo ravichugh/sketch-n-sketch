@@ -236,6 +236,10 @@ synthesisResult description exp =
     , children    = Nothing
     }
 
+synthesisResultsNotEmpty : Model -> Bool
+synthesisResultsNotEmpty =
+  not << List.isEmpty << .synthesisResults
+
 mapResultSafe f (SynthesisResult result) =
   SynthesisResult { result | isSafe = f result.isSafe }
 

@@ -5,6 +5,11 @@
 * {
   margin: 0;
   padding: 0;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 body {
@@ -110,17 +115,17 @@ a {
   align-items: center;
 }
 
-.main-bar .logo-image {
+.logo-image {
   width: 20px;
   height: 20px;
   margin: 15px;
 }
 
-.main-bar .menu {
+.menu {
   position: relative;
 }
 
-.main-bar .menu .menu-heading {
+.menu-heading {
   white-space: nowrap;
   /* height: DYNAMIC */
   /* line-height: DYNAMIC */
@@ -133,20 +138,20 @@ a {
   font-weight: bold;
 }
 
-.main-bar .menu .menu-heading:hover,
+.menu-heading:hover,
 .main-bar.active .menu:hover .menu-heading {
   background-color: rgba(255, 255, 255, 0.1);
   color: #FFFFFF;
 }
 
-.main-bar .menu .menu-options,
-.main-bar .menu .menu-options .dropdown-content {
+.menu-options,
+.dropdown-content {
   background-color: #222222;
   border: 1px solid #555555;
   box-shadow: 0 3px 7px -3px #000000;
 }
 
-.main-bar .menu .menu-options {
+.menu-options {
   display: none;
   /* TODO overflow scrolling acts weirdly */
   /* max-height: 80vh; */
@@ -162,7 +167,7 @@ a {
   display: block;
 }
 
-.main-bar .menu .menu-options .text-button {
+.menu-options .text-button {
   display: block;
   white-space: nowrap;
   min-width: 150px;
@@ -171,7 +176,7 @@ a {
   padding: 0 15px;
 }
 
-.main-bar .menu .menu-option-divider {
+.menu-option-divider {
   width: 100%;
   height: 1px;
   background-color: #333333;
@@ -179,27 +184,27 @@ a {
 
 /* Hover Menu */
 
-.main-bar .menu .hover-menu {
+.hover-menu {
   position: relative;
 }
 
-.main-bar .menu .hover-menu .hover-menu-title .text-button {
+.hover-menu-title .text-button {
   display: flex;
   justify-content: space-between;
   cursor: default;
 }
 
-.main-bar .menu .hover-menu .hover-menu-indicator {
+.hover-menu-indicator {
   margin-left: 10px;
 }
 
-.main-bar .menu .hover-menu > .dropdown-content {
+.hover-menu > .dropdown-content {
   display: none;
   position: absolute;
   border-left: none;
 }
 
-.main-bar .menu .hover-menu:not(.disabled):hover > .dropdown-content {
+.hover-menu:not(.disabled):hover > .dropdown-content {
   display: block;
   left: 100%;
   top: -1px;
@@ -398,18 +403,51 @@ a {
 }
 
 /******************************************************************************
+ * Synthesis Panel                                                            *
+ ******************************************************************************/
+
+.synthesis-panel-wrapper {
+  width: 100%;
+  overflow: hidden;
+
+  /* height: DYNAMIC */
+  transition: height 0.5s;
+}
+
+.synthesis-panel {
+  background-color: #282828;
+  height: 290px;
+  margin-top: 10px;
+  padding: 10px;
+  overflow: scroll;
+}
+
+.synthesis-menu-holder {
+  display: inline-block;
+}
+
+/******************************************************************************
  * Work Area                                                                  *
  ******************************************************************************/
 
 .work-area {
   /* margin: DYNAMIC */
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
   position: absolute;
   /* top: DYNAMIC */
   right: 0;
   bottom: 0;
   left: 0;
+}
+
+.main-panels {
+  display: flex;
+  justify-content: space-between;
+  flex-grow: 1;
+
+  width: 100%;
 }
 
 /******************************************************************************
@@ -538,7 +576,7 @@ a {
  * Synthesis Menu                                                             *
  ******************************************************************************/
 
-.main-bar .menu .synthesis-results .hover-menu .text-button {
+.synthesis-results .hover-menu .text-button {
   width: 150px;
   height: auto;
   padding: 7px;
@@ -549,10 +587,10 @@ a {
   cursor: pointer;
 }
 
-.main-bar .menu .synthesis-results .hover-menu .hover-menu-indicator {
-  display: none;
+.synthesis-results .hover-menu:last-child .text-button {
+  border-bottom: none;
 }
 
-.main-bar .menu .synthesis-results .hover-menu:last-child {
-  border-bottom: none;
+.synthesis-results .hover-menu-indicator {
+  display: none;
 }
