@@ -35,6 +35,7 @@ import SleekLayout exposing (px, half)
 import Canvas
 import LangTools
 import Sync
+import Lang exposing (Exp)
 
 --------------------------------------------------------------------------------
 -- Helper Functions
@@ -186,7 +187,7 @@ generalUiButton disabled userClass title onClickHandler =
         ""
   in
     Html.span
-      [ Attr.class <| "uiButton " ++ disabledFlag ++ userClass
+      [ Attr.class <| "ui-button " ++ disabledFlag ++ userClass
       , E.onClick onClickHandler
       ]
       [ Html.text title ]
@@ -194,6 +195,83 @@ generalUiButton disabled userClass title onClickHandler =
 --------------------------------------------------------------------------------
 -- Menu Bar
 --------------------------------------------------------------------------------
+
+generalHoverMenu
+  : String -> Msg -> Msg -> Msg -> Bool -> (List (Html Msg)) -> Html Msg
+generalHoverMenu title onMouseEnter onMouseLeave onClick disabled dropdownContent =
+  let
+    (disabledFlag, realOnMouseEnter, realOnMouseLeave, realOnClick) =
+      if disabled then
+        (" disabled", Controller.msgNoop, Controller.msgNoop, Controller.msgNoop)
+      else
+        ("", onMouseEnter, onMouseLeave, onClick)
+  in
+    Html.div
+      [ Attr.class <| "hover-menu" ++ disabledFlag
+      , E.onMouseEnter realOnMouseEnter
+      , E.onMouseLeave realOnMouseLeave
+      ]
+      [ Html.div
+          [ Attr.class "hover-menu-title"
+          ]
+          [ textButton
+              { defaultTb
+                  | content =
+                      [ Html.span
+                          []
+                          [ Html.text title
+                          ]
+                      , Html.span
+                          [ Attr.class "hover-menu-indicator"
+                          ]
+                          [ Html.text "▸"
+                          ]
+                      ]
+                  , disabled = disabled
+                  , stopPropagation = True
+                  , onClick = realOnClick
+              }
+          ]
+      , Html.div
+          [ Attr.class "dropdown-content" ]
+          dropdownContent
+      ]
+
+hoverMenu : String -> (List (Html Msg)) -> Html Msg
+hoverMenu title dropdownContent =
+  generalHoverMenu
+    title
+    Controller.msgNoop
+    Controller.msgNoop
+    Controller.msgNoop
+    False
+    dropdownContent
+
+synthesisHoverMenu : Model -> String -> Msg -> Bool -> Html Msg
+synthesisHoverMenu model title onMouseEnter disabled =
+  generalHoverMenu
+    title
+    onMouseEnter
+    Controller.msgClearSynthesisResults
+    Controller.msgNoop
+    disabled
+    (synthesisResultsSelect model)
+
+relateHoverMenu : Model -> String -> Msg -> Html Msg
+relateHoverMenu model title onMouseEnter =
+  synthesisHoverMenu
+    model
+    title
+    onMouseEnter
+    (relateDisabled model)
+
+groupHoverMenu : Model -> String -> Msg -> Bool -> Html Msg
+groupHoverMenu model title onMouseEnter disallowSelectedFeatures =
+  synthesisHoverMenu
+    model
+    title
+    onMouseEnter
+    (groupDisabled disallowSelectedFeatures model)
 
 menuBar : Model -> Html Msg
 menuBar model =
@@ -247,67 +325,6 @@ menuBar model =
           [ menuHeading
           , menuOptions
           ]
-    generalHoverMenu title onMouseEnter onMouseLeave disabled dropdownContent =
-      let
-        (disabledFlag, realOnMouseEnter, realOnMouseLeave) =
-          if disabled then
-            (" disabled", Controller.msgNoop, Controller.msgNoop)
-          else
-            ("", onMouseEnter, onMouseLeave)
-      in
-        Html.div
-          [ Attr.class <| "hover-menu" ++ disabledFlag
-          , E.onMouseEnter realOnMouseEnter
-          , E.onMouseLeave realOnMouseLeave
-          ]
-          [ Html.div
-              [ Attr.class "hover-menu-title"
-              ]
-              [ textButton
-                  { defaultTb
-                      | content =
-                          [ Html.span
-                              []
-                              [ Html.text title
-                              ]
-                          , Html.span
-                              [ Attr.class "hover-menu-indicator"
-                              ]
-                              [ Html.text "▸"
-                              ]
-                          ]
-                      , disabled = disabled
-                      , stopPropagation = True
-                  }
-              ]
-          , Html.div
-              [ Attr.class "dropdown-content" ]
-              dropdownContent
-          ]
-    hoverMenu title dropdownContent =
-      generalHoverMenu
-        title
-        Controller.msgNoop
-        Controller.msgNoop
-        False
-        dropdownContent
-    synthesisHoverMenu title onMouseEnter disabled =
-      generalHoverMenu
-        title
-        onMouseEnter
-        Controller.msgClearSynthesisResults
-        disabled
-        (synthesisResultsSelect model)
-    relateHoverMenu title onMouseEnter =
-      synthesisHoverMenu
-        title
-        onMouseEnter
-        (relateDisabled model)
-    groupHoverMenu title onMouseEnter disallowSelectedFeatures =
-      synthesisHoverMenu
-        title
-        onMouseEnter
-        (groupDisabled disallowSelectedFeatures model)
   in
     Html.div
       [ Attr.class "menu-bar"
@@ -382,23 +399,6 @@ menuBar model =
                     , simpleTextButton "Unfrozen Constants" Controller.msgNoop
                     ]
                 , simpleTextButton "Merge" Controller.msgNoop
-                ]
-              , [ hoverMenu "Long Hover Menu"
-                    [ hoverMenu "Submenu 1"
-                        [ simpleTextButton "Button 1.1" Controller.msgNoop
-                        ]
-                    , hoverMenu "Submenu 2"
-                        [ hoverMenu "Submenu 2.1"
-                            [ hoverMenu "Submenu 2.1.1"
-                                [ simpleTextButton "Button 2.1.1.1" Controller.msgNoop
-                                , hoverMenu "Submenu 2.1.1.2"
-                                    [ simpleTextButton "Button 2.1.1.2.1" Controller.msgNoop
-                                    ]
-                                ]
-                            , simpleTextButton "Button 2.1.2" Controller.msgNoop
-                            ]
-                        ]
-                    ]
                 ]
               , [ hoverMenu "Add Arguments"
                     [ simpleTextButton "TODO" Controller.msgNoop
@@ -481,12 +481,15 @@ menuBar model =
                     "Dig Hole"
                     Controller.msgDigHole
                 , relateHoverMenu
+                    model
                     "Make Equal"
                     Controller.msgMakeEqual
                 , relateHoverMenu
+                    model
                    "Relate"
                     Controller.msgRelate
                 , relateHoverMenu
+                    model
                     "Indexed Relate"
                     Controller.msgIndexedRelate
                 ]
@@ -663,6 +666,18 @@ menuBar model =
 -- Synthesis Results
 --------------------------------------------------------------------------------
 
+synthesisResultHoverMenu
+  : String -> (List Int) -> Exp -> (List (Html Msg)) -> Html Msg
+synthesisResultHoverMenu description elementPath exp nextMenu =
+  generalHoverMenu
+    description
+    (Controller.msgHoverSynthesisResult elementPath)
+    Controller.msgNoop
+    (Controller.msgSelectSynthesisResult exp)
+    False
+    nextMenu
+
+synthesisResultsSelectBox : Model -> Html Msg
 synthesisResultsSelectBox model =
   let
     desc description exp isSafe sortKey =
@@ -670,49 +685,51 @@ synthesisResultsSelectBox model =
       (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
       " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
     resultButtonList priorPathByIndices remainingPathByIndices results =
-      let buttons =
-        results
+      results
         |> Utils.mapi0
-            (\(i, Model.SynthesisResult {description, exp, isSafe, sortKey, children}) ->
-              let thisElementPath = priorPathByIndices ++ [i] in
-              let (isHovered, nextMenu) =
-                case remainingPathByIndices of
-                  nexti::is ->
-                    if i == nexti then
-                      case children of
-                        Just childResults -> (True, [resultButtonList thisElementPath is childResults])
-                        Nothing           -> (True, [])
-                    else
-                      (False, [])
-                  [] ->
-                    (False, [])
-              in
-              nextMenu ++
-              [ textButton
-                  { defaultTb
-                      | attributes =
-                          [ E.onMouseEnter (Controller.msgHoverSynthesisResult thisElementPath)
-                          , E.onMouseLeave (Controller.msgHoverSynthesisResult [])
-                          ]
-                      , content =
-                          [Html.text <| desc description exp isSafe sortKey]
-                      , onClick =
-                          Controller.msgSelectSynthesisResult exp
-                  }
-              ]
-            )
+             ( \( i
+                , Model.SynthesisResult
+                    { description, exp, isSafe, sortKey, children }
+                ) ->
+                  let
+                    thisElementPath =
+                      priorPathByIndices ++ [i]
+                    nextMenu =
+                      case remainingPathByIndices of
+                        nexti::is ->
+                          if i == nexti then
+                            case children of
+                              Just childResults ->
+                                resultButtonList
+                                  thisElementPath
+                                  is
+                                  childResults
+                              Nothing ->
+                                []
+                          else
+                            []
+                        [] ->
+                          []
+                  in
+                    [ synthesisResultHoverMenu
+                        (desc description exp isSafe sortKey)
+                        thisElementPath
+                        exp
+                        nextMenu
+                    ]
+              )
         |> List.concat
-    in
-      Html.div
-          [ Attr.style <|
-            [ ("position", if priorPathByIndices == [] then "relative" else "absolute")
-            , ("left", if priorPathByIndices == [] then "0" else "-325px")
-            ]
-          ]
-          buttons
   in
-    resultButtonList [] model.hoveredSynthesisResultPathByIndices model.synthesisResults
+    Html.div
+      [ Attr.class "synthesis-results"
+      ]
+      ( resultButtonList
+          []
+          model.hoveredSynthesisResultPathByIndices
+          model.synthesisResults
+      )
 
+synthesisResultsSelect : Model -> (List (Html Msg))
 synthesisResultsSelect model =
   if List.length model.synthesisResults > 0
   then [ synthesisResultsSelectBox model ]

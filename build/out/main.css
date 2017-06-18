@@ -28,7 +28,8 @@ a {
   transition: background-color 0.1s;
 }
 
-.text-button:not(.disabled):hover {
+.text-button:not(.disabled):hover,
+.hover-menu:hover > .hover-menu-title .text-button:not(.disabled) {
   color: #FFFFFF;
   background-color: rgba(255, 255, 255, 0.1);
 }
@@ -46,7 +47,7 @@ a {
   margin-right: 10px;
 }
 
-.uiButton {
+.ui-button {
   color: #CCCCCC;
   background-color: rgba(0, 0, 0, 0.1);
   padding: 10px;
@@ -56,25 +57,25 @@ a {
   transition: background-color 0.1s;
 }
 
-.uiButton:not(.disabled):hover {
+.ui-button:not(.disabled):hover {
   color: #CCCCCC;
   background-color: rgba(50, 50, 50, 0.1);
 }
 
-.uiButton:not(.disabled):active {
+.ui-button:not(.disabled):active {
   background-color: rgba(0, 0, 0, 0.2);
 }
 
-.uiButton.disabled {
+.ui-button.disabled {
   color: #555555;
   cursor: default;
 }
 
-.uiButton.wide {
+.ui-button.wide {
   display: block;
 }
 
-.uiButton.circle {
+.ui-button.circle {
   display: inline-block;
   width: 1em;
   height: 1em;
@@ -529,15 +530,29 @@ a {
   margin-left: 30px;
 }
 
-/* TODO change from text to some other kind of button */
-.dialog-box .file-delete-button .text-button {
+.dialog-box .file-delete-button .ui-button {
   color: #FF3300;
 }
 
-/* Alert Save Dialog Box */
+/******************************************************************************
+ * Synthesis Menu                                                             *
+ ******************************************************************************/
 
-/* TODO migrate from Elm to CSS */
+.main-bar .menu .synthesis-results .hover-menu .text-button {
+  width: 150px;
+  height: auto;
+  padding: 7px;
+  font-size: 0.7em;
+  line-height: 1.4em;
+  white-space: normal;
+  border-bottom: 1px solid #333333;
+  cursor: pointer;
+}
 
-/* Import Code Dialog box */
+.main-bar .menu .synthesis-results .hover-menu .hover-menu-indicator {
+  display: none;
+}
 
-
+.main-bar .menu .synthesis-results .hover-menu:last-child {
+  border-bottom: none;
+}
