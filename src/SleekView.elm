@@ -672,7 +672,7 @@ synthesisResultHoverMenu description elementPath exp nextMenu =
   generalHoverMenu
     description
     (Controller.msgHoverSynthesisResult elementPath)
-    Controller.msgNoop
+    (Controller.msgHoverSynthesisResult [])
     (Controller.msgSelectSynthesisResult exp)
     False
     nextMenu
