@@ -16,6 +16,7 @@ body {
   background-color: #333333;
   color: #CCCCCC;
   font-family: "Roboto", sans-serif;
+  user-select: none;
 }
 
 a {
@@ -123,7 +124,6 @@ a {
 
   display: flex;
   justify-content: space-between;
-  user-select: none;
 
   -webkit-box-sizing: content-box;
   -moz-box-sizing: content-box;
@@ -288,6 +288,8 @@ a {
   /* left: DYNAMIC */
 
   transition: height 0.5s;
+
+  user-select: text;
 }
 
 /* Status Bar */
@@ -418,13 +420,16 @@ a {
   background-color: #FFFFFF;
   border: 1px solid #555555;
   box-shadow: 0 0 7px 0 #000000;
-  user-select: none;
 
   position: absolute;
   /* top: DYNAMIC */
   /* left: DYNAMIC */
 
   transition: height 0.5s;
+}
+
+#outputCanvas {
+  cursor: default;
 }
 
 /******************************************************************************
@@ -435,7 +440,6 @@ a {
   /* width: DYNAMIC */
   background-color: #222222;
   /* margin-left: DYNAMIC */
-  user-select: none;
 
   position: absolute;
   /* right: DYNAMIC */
@@ -487,10 +491,6 @@ a {
 .synthesis-menu-holder {
   display: inline-block;
 }
-
-/******************************************************************************
- * Work Area                                                                  *
- ******************************************************************************/
 
 /******************************************************************************
  * Dialog Boxes                                                               *
