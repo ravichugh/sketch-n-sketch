@@ -1032,10 +1032,36 @@ lambdaTools model =
   in
     buttons
 
+toolModeIndicator : Model -> Html Msg
+toolModeIndicator model =
+  let
+    toolModeDisplay mode modeText =
+      let
+        flag =
+          if model.toolMode == mode then
+             " active"
+          else
+            ""
+      in
+        Html.div
+          [ Attr.class <| "tool-mode" ++ flag
+          , E.onClick <| Controller.msgSetToolMode mode
+          ]
+          [ Html.text modeText
+          ]
+  in
+    Html.div
+      [ Attr.class "tool-mode-indicator"
+      ]
+      [ toolModeDisplay Raw "Raw"
+      , toolModeDisplay Stretchy "Stretchy"
+      , toolModeDisplay Sticky "Sticky"
+      ]
+
 toolPanel : Model -> Html Msg
 toolPanel model =
   let
-    separator =
+    toolSeparator =
       Html.div
         [ Attr.class "tool-separator" ]
         []
@@ -1055,8 +1081,10 @@ toolPanel model =
         , toolButton model (Oval model.toolMode)
         , toolButton model (Poly model.toolMode)
         , toolButton model (Path model.toolMode)
-        , separator
-        ] ++ (lambdaTools model)
+        ]
+        ++ (lambdaTools model) ++
+        [ toolModeIndicator model
+        ]
       )
 
 --------------------------------------------------------------------------------

@@ -437,8 +437,24 @@ a {
   /* right: DYNAMIC */
 }
 
-.tool-panel .tool-separator {
+.tool-separator {
   height: 5px;
+}
+
+.tool-mode-indicator {
+  text-align: center;
+  font-size: 0.5em;
+  line-height: 1.4em;
+  padding: 5px 0;
+}
+
+.tool-mode-indicator .tool-mode {
+  color: #888888;
+  cursor: pointer;
+}
+
+.tool-mode-indicator .tool-mode.active {
+  color: #FFFFFF;
 }
 
 /******************************************************************************
