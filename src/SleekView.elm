@@ -600,11 +600,11 @@ menuBar model =
                     [ simpleTextRadioButton
                         model.autoSynthesis
                         "On"
-                        (Controller.msgSetAutoSynthesis True)
+                        Controller.msgStartAutoSynthesis
                     , simpleTextRadioButton
                         (not model.autoSynthesis)
                         "Off"
-                        (Controller.msgSetAutoSynthesis False)
+                        Controller.msgStopAutoSynthesisAndClear
                     ]
                 , hoverMenu "Live Update Heuristics"
                     [ simpleTextRadioButton
@@ -857,6 +857,12 @@ codePanel model =
   in
     Html.div
       [ Attr.class "panel code-panel"
+      , Attr.style
+          [ ("left", (px << .x) <| SleekLayout.codePanel model)
+          , ("top", (px << .y) <| SleekLayout.codePanel model)
+          , ("width", (px << .width) <| SleekLayout.codePanel model)
+          , ("height", (px << .height) <| SleekLayout.codePanel model)
+          ]
       ]
       [ statusBar
       , actionBar
@@ -872,7 +878,7 @@ resizer model =
   Html.div
     [ Attr.class "resizer"
     , Attr.style
-        [ ("flex", "0 0 " ++ (px << .width) SleekLayout.spacing) ]
+        [ ("width", (px << .width) SleekLayout.spacing) ]
     ]
     []
 
@@ -880,56 +886,40 @@ resizer model =
 -- Output Panel
 --------------------------------------------------------------------------------
 
-textArea text attrs =
-  let innerPadding = 4 in
-  -- NOTE: using both Attr.value and Html.text seems to allow read/write...
-  let commonAttrs =
-    [ Attr.spellcheck False
-    , Attr.value text
-    , Attr.style
-        [ ("font-family", "monospace")
-        , ("font-size", "14px")
-        , ("whiteSpace", "pre")
-        , ("height", "100%")
-        , ("resize", "none")
-        , ("overflow", "auto")
-        -- Horizontal Scrollbars in Chrome
-        , ("word-wrap", "normal")
-        -- , ("background-color", "whitesmoke")
-        , ("background-color", "white")
-        , ("padding", toString innerPadding ++ "px")
-        -- Makes the 100% for width/height work as intended
-        , ("box-sizing", "border-box")
-        ]
+textOutput : String -> Html Msg
+textOutput text =
+  Html.div
+    [ Attr.class "text-output"
     ]
-  in
-  Html.textarea (commonAttrs ++ attrs) [ Html.text text ]
-
-pixels n = toString n ++ "px"
+    [ Html.text text
+    ]
 
 outputPanel : Model -> Html Msg
 outputPanel model =
   let
     dim =
-      SleekLayout.outputPanelBox model
+      SleekLayout.outputPanel model
     output =
       case (model.errorBox, model.mode, model.preview) of
         (_, _, Just (_, Err errorMsg)) ->
-          textArea errorMsg
-            [ Attr.style [ ("width", pixels dim.width) ] ]
+          textOutput errorMsg
         (_, _, Just (_, Ok _)) ->
           Canvas.build dim.width dim.height model
         (Just errorMsg, _, Nothing) ->
-          textArea errorMsg
-            [ Attr.style [ ("width", pixels dim.width) ] ]
+          textOutput errorMsg
         (Nothing, Print svgCode, Nothing) ->
-          textArea svgCode
-            [ Attr.style [ ("width", pixels dim.width) ] ]
+          textOutput svgCode
         (Nothing, _, _) ->
           Canvas.build dim.width dim.height model
   in
     Html.div
       [ Attr.class "panel output-panel"
+      , Attr.style
+          [ ("left", (px << .x) <| SleekLayout.outputPanel model)
+          , ("top", (px << .y) <| SleekLayout.outputPanel model)
+          , ("width", (px << .width) <| SleekLayout.outputPanel model)
+          , ("height", (px << .height) <| SleekLayout.outputPanel model)
+          ]
       ]
       [ output
       ]
@@ -1052,8 +1042,9 @@ toolPanel model =
     Html.div
       [ Attr.class "panel tool-panel"
       , Attr.style
-          [ ("flex", "0 0 " ++ (px << .width) SleekLayout.toolPanel)
-          , ("margin-left", (px << .marginLeft) SleekLayout.toolPanel)
+          [ ("width", (px << .width) SleekLayout.toolPanel)
+          , ("right", (px << .right) SleekLayout.toolPanel)
+          , ("marginLeft", (px << .marginLeft) SleekLayout.toolPanel)
           ]
       ]
       ( [ toolButton model Cursor
@@ -1088,7 +1079,8 @@ synthesisPanel model =
   Html.div
     [ Attr.class "synthesis-panel-wrapper"
     , Attr.style
-        [ ( "height", px <| SleekLayout.synthesisPanelHeight model)
+        [ ( "bottom", (px << .bottom) <| SleekLayout.synthesisPanel model)
+        , ( "height", (px << .height) <| SleekLayout.synthesisPanel model)
         ]
     ]
     [ Html.div
@@ -1119,7 +1111,6 @@ workArea model =
         [ Attr.class "main-panels"
         ]
         [ codePanel model
-        , resizer model
         , outputPanel model
         , toolPanel model
         ]

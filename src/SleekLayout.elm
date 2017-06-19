@@ -18,9 +18,9 @@ module SleekLayout exposing
   , spacing
   , menuBar
   , toolPanel
-  , codePanelBox
-  , outputPanelBox
-  , synthesisPanelHeight
+  , synthesisPanel
+  , codePanel
+  , outputPanel
   )
 
 import InterfaceModel as Model exposing (Model)
@@ -41,7 +41,7 @@ clickToCanvasPoint : Model -> { x : Int, y : Int } -> (Bool, (Int, Int))
 clickToCanvasPoint model {x, y} =
   let
     box =
-      outputPanelBox model
+      outputPanel model
     canvasX =
       x - box.x
     canvasY =
@@ -79,15 +79,27 @@ menuBar =
 
 toolPanel =
   { width = 40
-  , marginLeft = 10
+  , right = spacing.width
+  , marginLeft = spacing.width
   }
 
---==============================================================================
---= Computed Information
---==============================================================================
+--------------------------------------------------------------------------------
+-- Synthesis Panel Wrapper
+--------------------------------------------------------------------------------
+
+synthesisPanel model =
+  { bottom =
+      spacing.height
+  , height =
+      if Model.synthesisResultsNotEmpty model &&
+           (not model.viewState.menuActive) then
+         300
+      else
+        0
+  }
 
 --------------------------------------------------------------------------------
--- Layout Boxes
+-- Main Panels
 --------------------------------------------------------------------------------
 
 type alias LayoutBox =
@@ -105,35 +117,23 @@ box x y width height =
   , height = height
   }
 
---------------------------------------------------------------------------------
--- Panels
---------------------------------------------------------------------------------
-
-numPanels : Int
-numPanels = 2
+numMainPanels : Int
+numMainPanels = 2
 
 staticContentWidth : Int
 staticContentWidth =
-  numPanels * spacing.width +
+  numMainPanels * spacing.width +
     toolPanel.marginLeft + toolPanel.width + spacing.width
-
-synthesisPanelHeight : Model -> Int
-synthesisPanelHeight model =
-  if Model.synthesisResultsNotEmpty model &&
-       (not model.viewState.menuActive) then
-     300
-  else
-    0
 
 staticContentHeight : Model -> Int
 staticContentHeight model =
-  2 + menuBar.height + 2 * spacing.height + (synthesisPanelHeight model)
+  2 + menuBar.height + 2 * spacing.height + (synthesisPanel model).height
 
-panelBox : Int -> Model -> LayoutBox
-panelBox panelNumber model =
+mainPanel : Int -> Model -> LayoutBox
+mainPanel panelNumber model =
   let
     width =
-      (model.dimensions.width - staticContentWidth) // numPanels
+      (model.dimensions.width - staticContentWidth) // numMainPanels
     height =
       model.dimensions.height - staticContentHeight model
     x =
@@ -143,8 +143,8 @@ panelBox panelNumber model =
   in
     box x y width height
 
-codePanelBox : Model -> LayoutBox
-codePanelBox = panelBox 0
+codePanel : Model -> LayoutBox
+codePanel = mainPanel 0
 
-outputPanelBox : Model -> LayoutBox
-outputPanelBox = panelBox 1
+outputPanel : Model -> LayoutBox
+outputPanel = mainPanel 1

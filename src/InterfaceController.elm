@@ -10,6 +10,7 @@ module InterfaceController exposing
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate
   , msgSelectSynthesisResult, msgClearSynthesisResults
+  , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
@@ -42,7 +43,6 @@ module InterfaceController exposing
   , msgUpdateFontSize
   , msgSetToolMode
   , msgSetGhostsShown
-  , msgSetAutoSynthesis
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -952,8 +952,26 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
               }
   )
 
-msgClearSynthesisResults = Msg "Clear Synthesis Results" <| \old ->
+clearSynthesisResults : Model -> Model
+clearSynthesisResults old =
   { old | preview = Nothing, synthesisResults = [] }
+
+setAutoSynthesis : Bool -> Model -> Model
+setAutoSynthesis shouldUseAutoSynthesis old =
+  { old | autoSynthesis = shouldUseAutoSynthesis }
+
+msgClearSynthesisResults : Msg
+msgClearSynthesisResults =
+  Msg "Clear Synthesis Results" clearSynthesisResults
+
+msgStartAutoSynthesis : Msg
+msgStartAutoSynthesis =
+  Msg "Start Auto Synthesis" (setAutoSynthesis True)
+
+msgStopAutoSynthesisAndClear : Msg
+msgStopAutoSynthesisAndClear =
+  Msg "Stop Auto Synthesis and Clear" <|
+    clearSynthesisResults << (setAutoSynthesis False)
 
 --------------------------------------------------------------------------------
 
@@ -2637,11 +2655,3 @@ msgSetGhostsShown shown =
       { old | showGhosts = shown
             , mode = newMode
       }
-
---------------------------------------------------------------------------------
--- Auto-Synthesis
-
-msgSetAutoSynthesis : Bool -> Msg
-msgSetAutoSynthesis shouldUseAutoSynthesis =
-  Msg "Set Auto Synthesis" <| \old ->
-    { old | autoSynthesis = shouldUseAutoSynthesis }

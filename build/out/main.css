@@ -249,10 +249,17 @@ a {
 /* General Code Panel */
 
 .code-panel {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
   background-color: #222222;
-  flex: 1;
   display: flex;
   flex-direction: column;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+
+  transition: height 0.5s;
 }
 
 /* Status Bar */
@@ -356,23 +363,38 @@ a {
 }
 
 /******************************************************************************
- * Resizer                                                                    *
- ******************************************************************************/
-
-.resizer {
-  /* flex: DYNAMIC */
-}
-
-/******************************************************************************
  * Output Panel                                                               *
  ******************************************************************************/
 
+.text-output {
+  width: 100%;
+  height: 100%;
+  color: #000000;
+  font-family: monospace;
+  font-size: 16px; /* match default Ace Editor font size */
+  white-space: pre;
+  overflow: scroll;
+  padding: 7px;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
 .output-panel {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
   background-color: #FFFFFF;
   border: 1px solid #555555;
   box-shadow: 0 0 7px 0 #000000;
-  flex: 1;
   user-select: none;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+
+  transition: height 0.5s;
 }
 
 /******************************************************************************
@@ -380,11 +402,13 @@ a {
  ******************************************************************************/
 
 .tool-panel {
+  /* width: DYNAMIC */
   background-color: #222222;
   /* margin-left: DYNAMIC */
-  /* flex: DYNAMIC */
-  align-self: flex-start;
   user-select: none;
+
+  position: absolute;
+  /* right: DYNAMIC */
 }
 
 .tool-panel .tool {
@@ -405,6 +429,9 @@ a {
   width: 100%;
   overflow: hidden;
 
+  position: absolute;
+  /* bottom: DYNAMIC */
+
   /* height: DYNAMIC */
   transition: height 0.5s;
 }
@@ -424,26 +451,6 @@ a {
 /******************************************************************************
  * Work Area                                                                  *
  ******************************************************************************/
-
-.work-area {
-  /* margin: DYNAMIC */
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  position: absolute;
-  /* top: DYNAMIC */
-  right: 0;
-  bottom: 0;
-  left: 0;
-}
-
-.main-panels {
-  display: flex;
-  justify-content: space-between;
-  flex-grow: 1;
-
-  width: 100%;
-}
 
 /******************************************************************************
  * Dialog Boxes                                                               *
