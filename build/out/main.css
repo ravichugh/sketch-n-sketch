@@ -91,6 +91,13 @@ a {
   border-radius: 50%;
 }
 
+.icon-button {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+  /* background-color: DYNAMIC */
+  cursor: pointer;
+}
+
 /******************************************************************************
  * Menu Bar                                                                   *
  ******************************************************************************/
@@ -99,13 +106,25 @@ a {
 
 .menu-bar {
   background-color: #222222;
+
   width: 100%;
   /* height: DYNAMIC */
-  border-bottom: 1px solid #555555;
+
+  border-bottom-style: solid;
+  border-bottom-color: #555555;
+  /* border-bottom-width: DYNAMIC */
+
   box-shadow: 0 0 7px 0 #000000;
+
   display: flex;
   justify-content: space-between;
   user-select: none;
+
+  -webkit-box-sizing: content-box;
+  -moz-box-sizing: content-box;
+  -ms-box-sizing: content-box;
+  -o-box-sizing: content-box;
+  box-sizing: content-box;
 }
 
 /* Main Bar */
@@ -416,12 +435,6 @@ a {
 
   position: absolute;
   /* right: DYNAMIC */
-}
-
-.tool-panel .tool {
-  /* width: DYNAMIC */
-  /* height: DYNAMIC */
-  border-bottom: 1px solid #333333;
 }
 
 .tool-panel .tool-separator {

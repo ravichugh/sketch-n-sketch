@@ -338,6 +338,7 @@ menuBar model =
       [ Attr.class "menu-bar"
       , Attr.style
           [ ("height", (px << .height) SleekLayout.menuBar)
+          , ("borderBottomWidth", (px << .borderWidth) SleekLayout.menuBar)
           ]
       ]
       [ Html.div
@@ -936,15 +937,10 @@ outputPanel model =
 -- Tool Panel
 --------------------------------------------------------------------------------
 
-showRawShapeTools = False
-
 type ButtonKind = Regular | Selected | Unselected
 
 buttonRegularColor = "white"
 buttonSelectedColor = "lightgray"
-strInterfaceColor = "rgba(52,73,94,1.0)"
-strButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
-buttonHeight = 25
 
 iconButton model iconName onClickHandler btnKind disabled =
   iconButtonExtraAttrs model iconName [] onClickHandler btnKind disabled
@@ -963,11 +959,12 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
   in
   let commonAttrs =
     [ Attr.disabled disabled
-    , Attr.style [ ("width", (px << .width) SleekLayout.toolPanel)
-                 , ("height", (px << .width) SleekLayout.toolPanel)
-                 , ("background", color)
-                 , ("cursor", "pointer")
-                 ]
+    , Attr.class "icon-button"
+    , Attr.style
+        [ ("width", (px << .width) SleekLayout.iconButton)
+        , ("height", (px << .height) SleekLayout.iconButton)
+        , ("background", color)
+        ]
     ]
   in
   Html.button
@@ -1011,10 +1008,6 @@ toolButton model tool =
   in
     Html.div
       [ Attr.class "tool"
-      , Attr.style
-          [ ("width", (px << .width) SleekLayout.toolPanel)
-          , ("height", (px << .width) SleekLayout.toolPanel)
-          ]
       ]
       [ iconButton
           model cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled

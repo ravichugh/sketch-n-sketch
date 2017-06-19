@@ -9,6 +9,10 @@
 -- NOTE: If CSS is added dynamically in the view, please make a note in the
 --       main.css file next to the selector that is modified saying which
 --       properties are modified.
+--
+-- NOTE: If an item is marked "descriptive", it describes the CSS rather than
+--       modifies it. If you want to modify this property, the styles MUST also
+--       be MANUALLY MODIFIED.
 --------------------------------------------------------------------------------
 
 module SleekLayout exposing
@@ -18,12 +22,21 @@ module SleekLayout exposing
   , spacing
   , menuBar
   , toolPanel
+  , iconButton
   , synthesisPanel
   , codePanel
   , outputPanel
+  , codeBox
   )
 
 import InterfaceModel as Model exposing (Model)
+
+--------------------------------------------------------------------------------
+-- General Descriptions (descriptive)
+--------------------------------------------------------------------------------
+
+panelBorderWidth : Int
+panelBorderWidth = 1
 
 --------------------------------------------------------------------------------
 -- Utility Functions
@@ -65,22 +78,35 @@ spacing =
   , height = 10
   }
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -- Menu Bar
 --------------------------------------------------------------------------------
 
+-- Note: the menu bar does not have "box-sizing: border-box"
+
 menuBar =
   { height = 30
+  , borderWidth = 1
   }
+
+menuBarTotalHeight =
+  menuBar.height + menuBar.borderWidth
 
 --------------------------------------------------------------------------------
 -- Tool Panel
 --------------------------------------------------------------------------------
 
 toolPanel =
-  { width = 40
+  { width = 50
   , right = spacing.width
   , marginLeft = spacing.width
+  }
+
+iconButton =
+  { width =
+      toolPanel.width - 2 * panelBorderWidth
+  , height =
+      toolPanel.width - 2 * panelBorderWidth
   }
 
 --------------------------------------------------------------------------------
@@ -127,7 +153,7 @@ staticContentWidth =
 
 staticContentHeight : Model -> Int
 staticContentHeight model =
-  2 + menuBar.height + 2 * spacing.height + (synthesisPanel model).height
+  menuBarTotalHeight + 2 * spacing.height + (synthesisPanel model).height
 
 mainPanel : Int -> Model -> LayoutBox
 mainPanel panelNumber model =
@@ -139,7 +165,7 @@ mainPanel panelNumber model =
     x =
       spacing.width + (width + spacing.width) * panelNumber
     y =
-      menuBar.height + spacing.height
+      menuBarTotalHeight + spacing.height
   in
     box x y width height
 
@@ -148,3 +174,19 @@ codePanel = mainPanel 0
 
 outputPanel : Model -> LayoutBox
 outputPanel = mainPanel 1
+
+--------------------------------------------------------------------------------
+-- Code Box (descriptive)
+--------------------------------------------------------------------------------
+
+codeBox =
+  { x =
+      -- spacing + codePanel.borderBorderWidth
+      spacing.width + panelBorderWidth
+  , y =
+      --   codePanel.y
+      -- + codePanel.borderWidth
+      -- + actionBar.height
+      -- + statusBar.height
+      (menuBarTotalHeight + spacing.height) + panelBorderWidth + 35 + 35
+  }

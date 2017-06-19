@@ -14,9 +14,8 @@ import ShapeWidgets exposing
   , ShapeFeature, Feature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..)
   , FeatureNum(..)
   )
---import Layout exposing (clickToCanvasPoint)
 import Layout exposing (strButtonTopColor, strInterfaceColor)
-import SleekLayout exposing (clickToCanvasPoint)
+import SleekLayout
 import Sync
 import Draw
 import InterfaceModel exposing (..)
@@ -61,7 +60,7 @@ msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.mode of
     Live info ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
-      let (_, (mx, my)) = clickToCanvasPoint old (Tuple.second old.mouseState) in
+      let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (Tuple.second old.mouseState) in
       let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
       let dragInfo = (trigger, (mx, my), False) in
       { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
@@ -172,10 +171,14 @@ iconify env code =
         <| LangSvg.resolveToIndexedTree 1 1 0 val
     svgElements =
       buildSvg ({ initModel | showGhosts = False }, False) tree
+    subPadding x =
+      x - 10
   in
     Svg.svg
-      [ SAttr.width "30px"
-      , SAttr.height "30px"
+      [ SAttr.width <|
+          (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
+      , SAttr.height <|
+          (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
       ]
       [ svgElements ]
 
