@@ -897,8 +897,9 @@ resizer model =
 
 textOutput : String -> Html Msg
 textOutput text =
-  Html.div
+  Html.textarea
     [ Attr.class "text-output"
+    , Attr.readonly True
     ]
     [ Html.text text
     ]
