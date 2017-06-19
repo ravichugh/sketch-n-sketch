@@ -89,6 +89,11 @@ a {
   border-bottom: none;
   border: 1px solid #333333;
   border-radius: 50%;
+  -webkit-box-sizing: content-box;
+  -moz-box-sizing: content-box;
+  -ms-box-sizing: content-box;
+  -o-box-sizing: content-box;
+  box-sizing: content-box;
 }
 
 .icon-button {
