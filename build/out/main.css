@@ -5,6 +5,11 @@
 * {
   margin: 0;
   padding: 0;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 body {
@@ -249,11 +254,10 @@ a {
 /* General Code Panel */
 
 .code-panel {
+  background-color: #222222;
+
   /* width: DYNAMIC */
   /* height: DYNAMIC */
-  background-color: #222222;
-  display: flex;
-  flex-direction: column;
 
   position: absolute;
   /* top: DYNAMIC */
@@ -265,15 +269,10 @@ a {
 /* Status Bar */
 
 .status-bar {
-  width: 100%;
+  height: 35px;
+  line-height: 35px;
+  padding: 0 15px;
   border-bottom: 1px solid #333333;
-  flex: 0;
-  padding: 5px 15px;
-  -webkit-box-sizing: border-box;
-  -moz-box-sizing: border-box;
-  -ms-box-sizing: border-box;
-  -o-box-sizing: border-box;
-  box-sizing: border-box;
 }
 
 .status-bar .file-indicator {
@@ -298,6 +297,11 @@ a {
   border-radius: 50%;
   border: 1px solid #555555;
   transition: background-color 0.3s, border-color 0.3s;
+  -webkit-box-sizing: content-box;
+  -moz-box-sizing: content-box;
+  -ms-box-sizing: content-box;
+  -o-box-sizing: content-box;
+  box-sizing: content-box;
 }
 
 .main.needs-run .status-bar .needs-run-light {
@@ -308,10 +312,7 @@ a {
 /* Action Bar */
 
 .action-bar {
-  width: 100%;
   border-bottom: 1px solid #333333;
-  flex: 0;
-  align-items: center;
   user-select: none;
 }
 
@@ -358,8 +359,14 @@ a {
 /* Editor */
 
 #editor {
-  width: 100%;
-  flex: 1;
+  position: absolute;
+  /* top =
+   *   height of status bar + height of action bar + border of code panel
+   */
+  top: 71px;
+  right: 0;
+  bottom: 0;
+  left: 0;
 }
 
 /******************************************************************************
