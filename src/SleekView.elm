@@ -41,6 +41,14 @@ import Lang exposing (Exp)
 -- Helper Functions
 --------------------------------------------------------------------------------
 
+allButLast : List a -> List a
+allButLast xs =
+  let
+    len = List.length xs
+  in
+    List.take (len - 1) xs
+
+
 relateDisabled : Model -> Bool
 relateDisabled model =
   Set.isEmpty model.selectedFeatures
@@ -672,7 +680,7 @@ synthesisResultHoverMenu description elementPath exp nextMenu =
   generalHoverMenu
     description
     (Controller.msgHoverSynthesisResult elementPath)
-    (Controller.msgHoverSynthesisResult [])
+    (Controller.msgHoverSynthesisResult <| allButLast elementPath)
     (Controller.msgSelectSynthesisResult exp)
     False
     nextMenu
