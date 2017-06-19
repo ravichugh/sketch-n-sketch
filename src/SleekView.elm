@@ -908,7 +908,7 @@ outputPanel : Model -> Html Msg
 outputPanel model =
   let
     dim =
-      SleekLayout.outputPanel model
+      SleekLayout.outputCanvas model
     output =
       case (model.errorBox, model.mode, model.preview) of
         (_, _, Just (_, Err errorMsg)) ->

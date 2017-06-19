@@ -26,6 +26,7 @@ module SleekLayout exposing
   , synthesisPanel
   , codePanel
   , outputPanel
+  , outputCanvas
   , codeBox
   )
 
@@ -54,7 +55,7 @@ clickToCanvasPoint : Model -> { x : Int, y : Int } -> (Bool, (Int, Int))
 clickToCanvasPoint model {x, y} =
   let
     box =
-      outputPanel model
+      outputCanvas model
     canvasX =
       x - box.x
     canvasY =
@@ -128,14 +129,14 @@ synthesisPanel model =
 -- Main Panels
 --------------------------------------------------------------------------------
 
-type alias LayoutBox =
+type alias BoundingBox =
   { x : Int
   , y : Int
   , width : Int
   , height : Int
   }
 
-box : Int -> Int -> Int -> Int -> LayoutBox
+box : Int -> Int -> Int -> Int -> BoundingBox
 box x y width height =
   { x = x
   , y = y
@@ -155,7 +156,7 @@ staticContentHeight : Model -> Int
 staticContentHeight model =
   menuBarTotalHeight + 2 * spacing.height + (synthesisPanel model).height
 
-mainPanel : Int -> Model -> LayoutBox
+mainPanel : Int -> Model -> BoundingBox
 mainPanel panelNumber model =
   let
     width =
@@ -169,11 +170,31 @@ mainPanel panelNumber model =
   in
     box x y width height
 
-codePanel : Model -> LayoutBox
+codePanel : Model -> BoundingBox
 codePanel = mainPanel 0
 
-outputPanel : Model -> LayoutBox
+outputPanel : Model -> BoundingBox
 outputPanel = mainPanel 1
+
+--------------------------------------------------------------------------------
+-- Output Dimensions (descriptive)
+--------------------------------------------------------------------------------
+
+outputCanvas : Model -> BoundingBox
+outputCanvas model =
+  let
+    op =
+      outputPanel model
+  in
+    { x =
+        op.x + panelBorderWidth
+    , y =
+        op.y + panelBorderWidth
+    , width =
+        op.width - 2 * panelBorderWidth
+    , height =
+        op.height - 2 * panelBorderWidth
+    }
 
 --------------------------------------------------------------------------------
 -- Code Box (descriptive)
