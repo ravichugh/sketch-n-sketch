@@ -376,16 +376,16 @@ menuBar model =
                 ]
               ]
           , menu "File"
-              [ [ simpleTextButton "New" <|
+              [ [ simpleTextButton "New..." <|
                     Controller.msgOpenDialogBox New
-                , simpleTextButton "Save As" <|
+                , simpleTextButton "Save As..." <|
                     Controller.msgOpenDialogBox SaveAs
                 , disableableTextButton
                     (not model.needsSave)
                     "Save"
                     Controller.msgSave
                 ]
-              , [ simpleTextButton "Open" <|
+              , [ simpleTextButton "Open..." <|
                     Controller.msgOpenDialogBox Open
                 ]
               , [ simpleTextButton "Export Code"
@@ -393,7 +393,7 @@ menuBar model =
                 , simpleTextButton "Export SVG"
                     Controller.msgExportSvg
                 ]
-              , [ simpleTextButton "Import Code" <|
+              , [ simpleTextButton "Import Code..." <|
                     Controller.msgOpenDialogBox ImportCode
                 , disableableTextButton
                     True
@@ -1206,14 +1206,10 @@ smallDialogBox = dialogBox "101" "35%" "35%"
 fileNewDialogBox model =
   let
     viewTemplate (name, _) =
-      Html.div
-        [ Attr.class "file-listing"
-        ]
-        [ styledUiButton
-            "wide"
-            name
-            (Controller.msgAskNew name model.needsSave)
-        ]
+      styledUiButton
+        "wide"
+        name
+        (Controller.msgAskNew name model.needsSave)
     viewCategory (categoryName, templates) =
       Html.div
         []
@@ -1228,7 +1224,7 @@ fileNewDialogBox model =
       New
       model
       []
-      [Html.text "New..."]
+      [Html.text "New from Template..."]
       []
       (List.map viewCategory Examples.templateCategories)
 
@@ -1269,7 +1265,7 @@ fileSaveAsDialogBox model =
 fileOpenDialogBox model =
   let fileOpenRow filename =
         Html.div
-          [ Attr.class "file-listing"
+          [ Attr.class "open-listing"
           ]
           [ Html.span []
               [ Html.b [] [ Html.text filename ]
