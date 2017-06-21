@@ -2634,9 +2634,35 @@ msgUpdateFontSize fontSize = Msg "Update Font Size" <| \old ->
 msgSetToolMode : ShapeToolKind -> Msg
 msgSetToolMode mode =
   Msg "Set Tool Mode" <| \old ->
-    { old | toolMode = mode
-          , tool = Cursor
-    }
+    let
+      newTool =
+        case old.tool of
+          -- Tools with mode
+          Line _ ->
+            Line mode
+          Rect _ ->
+            Rect mode
+          Oval _ ->
+            Oval mode
+          Poly _ ->
+            Poly mode
+          Path _ ->
+            Path mode
+          -- Tools without mode
+          Cursor ->
+            Cursor
+          PointOrOffset ->
+            PointOrOffset
+          Text ->
+            Text
+          HelperLine ->
+            HelperLine
+          Lambda i ->
+            Lambda i
+    in
+      { old | toolMode = mode
+            , tool = newTool
+      }
 
 --------------------------------------------------------------------------------
 -- Ghosts
