@@ -300,40 +300,38 @@ a {
   line-height: 35px;
   padding: 0 15px;
   border-bottom: 1px solid #333333;
+  position: relative;
 }
 
-.status-bar .file-indicator {
+.file-indicator {
   color: #FFFFFF;
 }
 
-.status-bar .needs-run-indicator {
-  user-select: none;
-  cursor: default;
-  vertical-align: middle;
-  float: right;
-}
-
-.status-bar .needs-run-light-vertical-spacer {
-  visibility: hidden;
-}
-
-.status-bar .needs-run-light {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
+.needs-run-light {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   border: 1px solid #555555;
+
+  user-select: none;
+  cursor: default;
+
   transition: background-color 0.3s, border-color 0.3s;
+
   -webkit-box-sizing: content-box;
   -moz-box-sizing: content-box;
   -ms-box-sizing: content-box;
   -o-box-sizing: content-box;
   box-sizing: content-box;
+
+  position: absolute;
+  right: 14px;
+  top: 14px; /* (height of status bar - height of light) / 2 */
 }
 
-.main.needs-run .status-bar .needs-run-light {
+.needs-run .status-bar .needs-run-light {
   background-color: #FF3300;
-  border-color: #110000;
+  border-color: #330000;
 }
 
 /* Action Bar */
@@ -431,6 +429,22 @@ a {
 
 #outputCanvas {
   cursor: default;
+}
+
+.output-panel-warning {
+  pointer-events: none; /* pass mouse events through to canvas */
+  position: absolute;
+  /* top: DYNAMIC */
+  /* right: DYNAMIC */
+  /* bottom: DYNAMIC */
+  /* left: DYNAMIC */
+
+  border: 0px solid rgba(136, 0, 0, 0.7);
+  transition: border-width 0.5s;
+}
+
+.needs-run .output-panel-warning {
+  border-width: 5px;
 }
 
 /******************************************************************************

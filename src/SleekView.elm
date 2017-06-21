@@ -848,20 +848,10 @@ codePanel model =
                 ]
             , fileIndicator model
             ]
-        , Html.span
-            [ Attr.class "needs-run-indicator"
+        , Html.div
+            [ Attr.class "needs-run-light"
             ]
-            [
-              Html.span
-                [ Attr.class "needs-run-light-vertical-spacer"
-                ]
-                [ Html.text "|"
-                ]
-            , Html.span
-                [ Attr.class "needs-run-light"
-                ]
-                []
-            ]
+            []
         ]
   in
     Html.div
@@ -921,6 +911,17 @@ outputPanel model =
           textOutput svgCode
         (Nothing, _, _) ->
           Canvas.build dim.width dim.height model
+    outputPanelWarning =
+      Html.div
+        [ Attr.class "output-panel-warning"
+        , Attr.style
+            [ ("top", (px << negate) SleekLayout.panelBorderWidth)
+            , ("right", (px << negate) SleekLayout.panelBorderWidth)
+            , ("bottom", (px << negate) SleekLayout.panelBorderWidth)
+            , ("left", (px << negate) SleekLayout.panelBorderWidth)
+            ]
+        ]
+        []
   in
     Html.div
       [ Attr.class "panel output-panel"
@@ -932,6 +933,7 @@ outputPanel model =
           ]
       ]
       [ output
+      , outputPanelWarning
       ]
 
 --------------------------------------------------------------------------------

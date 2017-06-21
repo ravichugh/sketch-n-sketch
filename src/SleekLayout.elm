@@ -19,6 +19,7 @@ module SleekLayout exposing
   ( px
   , half
   , clickToCanvasPoint
+  , panelBorderWidth
   , spacing
   , menuBar
   , toolPanel
