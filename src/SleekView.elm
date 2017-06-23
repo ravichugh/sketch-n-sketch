@@ -9,6 +9,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as E
 import Json.Decode as Json
+import Svg
 
 import Utils
 import HtmlUtils exposing (handleEventAndStop)
@@ -30,6 +31,8 @@ import InterfaceModel as Model exposing
 
 import InterfaceController as Controller
 import ExamplesGenerated as Examples
+
+import Deuce
 
 import SleekLayout exposing (px, half)
 import Canvas
@@ -1417,6 +1420,17 @@ onbeforeunloadDataElement model =
       []
 
 --------------------------------------------------------------------------------
+-- Deuce
+--------------------------------------------------------------------------------
+
+deuceOverlay : Model -> Html Msg
+deuceOverlay model =
+  Html.div
+    [ Attr.class "deuce-overlay"
+    ]
+    [ Deuce.view model ]
+
+--------------------------------------------------------------------------------
 -- Main View
 --------------------------------------------------------------------------------
 
@@ -1442,6 +1456,7 @@ view model =
         , menuBar model
         , workArea model
         , subtleBackground
+        , deuceOverlay model
         ]
         ++ (dialogBoxes model)
       )
