@@ -92,7 +92,7 @@ isOnlySpaces : String -> Bool
 isOnlySpaces =
   String.all isSpace
 
-spaces : ParserI WS
+spaces : Parser WS
 spaces =
   trackInfo <| keep zeroOrMore isSpace
 
@@ -121,7 +121,7 @@ spaceSaverKeyword : String -> (WS -> a) -> ParserI a
 spaceSaverKeyword kword combiner =
   delayedCommitMap
     ( \ws _ ->
-        withInfo (combiner ws.val) ws.start ws.end
+        withInfo (combiner ws) ws.start ws.end
     )
     ( spaces )
     ( keyword kword )
@@ -131,7 +131,7 @@ spacesBefore : (WS -> a -> b) -> ParserI a -> ParserI b
 spacesBefore combiner p =
   delayedCommitMap
     ( \ws x ->
-        withInfo (combiner ws.val x.val) x.start x.end
+        withInfo (combiner ws x.val) x.start x.end
     )
     spaces
     p
@@ -140,25 +140,13 @@ spacesBefore combiner p =
 -- Block Helper
 --------------------------------------------------------------------------------
 
--- openBlock : String -> Parser (WS, WithInfo String)
--- openBlock openSymbol =
---   succeed identity
---     |= spaces
---     |= trackInfo (symbol openSymbol)
--- 
--- closeBlock : String -> Parser (WithInfo WS, WithInfo String)
--- closeBlock closeSymbol =
---   succeed identity
---     |= spaces
---     |= trackInfo (symbol closeSymbol)
-
 block
   : (WS -> a -> WS -> b) -> String -> String -> Parser a -> ParserI b
 block combiner openSymbol closeSymbol p =
   delayedCommitMap
     ( \(wsStart, open) (result, wsEnd, close) ->
         withInfo
-          (combiner wsStart.val result wsEnd.val)
+          (combiner wsStart result wsEnd)
           open.start
           close.end
     )
@@ -213,7 +201,7 @@ multiConsInternal context combiner elem =
           )
           ( succeed (,)
               |= repeat oneOrMore elem
-              |= untrackInfo spaces
+              |= spaces
               |. symbol "|"
           )
           elem
@@ -521,7 +509,7 @@ patternList =
             "pattern multi cons literal"
         , listLiteralCombiner =
             ( \wsStart heads wsEnd ->
-                PList wsStart heads "" Nothing wsEnd
+                PList wsStart heads space0 Nothing wsEnd
             )
         , multiConsCombiner =
             ( \wsStart heads wsBar tail wsEnd ->
@@ -545,9 +533,9 @@ asPattern =
               withInfo (PAs wsStart name.val wsAt pat) name.start pat.end
           )
           ( succeed (,,)
-              |= untrackInfo spaces
+              |= spaces
               |= variableIdentifierString
-              |= untrackInfo spaces
+              |= spaces
               |. symbol "@"
           )
           pattern
@@ -580,7 +568,7 @@ baseType context combiner token =
   inContext context <|
     delayedCommitMap
       ( \ws _ ->
-          withInfo (combiner ws.val) ws.start ws.end
+          withInfo (combiner ws) ws.start ws.end
       )
       ( spaces )
       ( keyword token )
@@ -661,7 +649,7 @@ tupleType =
           "tuple type multi cons literal"
       , listLiteralCombiner =
           ( \wsStart heads wsEnd ->
-              TTuple wsStart heads "" Nothing wsEnd
+              TTuple wsStart heads space0 Nothing wsEnd
           )
       , multiConsCombiner =
           ( \wsStart heads wsBar tail wsEnd ->
@@ -681,7 +669,7 @@ forallType =
     wsIdentifierPair =
       delayedCommitMap
         ( \ws name ->
-            (ws.val, name.val)
+            (ws, name.val)
         )
         spaces
         variableIdentifierString
@@ -786,7 +774,7 @@ constantExpression =
     delayedCommitMap
       ( \ws (n, fa, w) ->
           withInfo
-            (EConst ws.val n.val (dummyLocWithDebugInfo fa.val n.val) w)
+            (EConst ws n.val (dummyLocWithDebugInfo fa.val n.val) w)
             n.start
             w.end
       )
@@ -919,7 +907,7 @@ list =
             "multi cons literal"
         , listLiteralCombiner =
             ( \wsStart heads wsEnd ->
-                EList wsStart heads "" Nothing wsEnd
+                EList wsStart heads space0 Nothing wsEnd
             )
         , multiConsCombiner =
             ( \wsStart heads wsBar tail wsEnd ->
@@ -1060,7 +1048,7 @@ genericDefBinding context kword isRec =
       delayedCommitMap
         ( \(wsStart, open) (name, binding, wsEnd, close, rest) ->
             withInfo
-              (ELet wsStart.val Def isRec name binding rest wsEnd.val)
+              (ELet wsStart Def isRec name binding rest wsEnd)
               open.start
               close.end
         )
@@ -1124,7 +1112,7 @@ option =
                 open.start
                 val.end
           )
-          ( untrackInfo spaces )
+          ( spaces )
           ( succeed (,,,,)
               |= trackInfo (symbol "#")
               |. spaces
@@ -1133,7 +1121,7 @@ option =
                        c /= '\n' && c /= ' ' && c /= ':'
                    )
               |. symbol ":"
-              |= untrackInfo spaces
+              |= spaces
               |= trackInfo
                    ( keep zeroOrMore <| \c ->
                        c /= '\n'
@@ -1153,7 +1141,7 @@ typeDeclaration =
       delayedCommitMap
         ( \(wsStart, open) (pat, t, wsEnd, close, rest) ->
             withInfo
-              (ETyp wsStart.val pat t rest wsEnd.val)
+              (ETyp wsStart pat t rest wsEnd)
               open.start
               close.end
         )
@@ -1186,14 +1174,14 @@ typeAlias =
               close.end
         )
         ( succeed (,,)
-            |= untrackInfo spaces
+            |= spaces
             |= trackInfo (symbol "(")
             |. spacedKeyword "def "
             |= typePattern
         )
         ( succeed (,,,)
             |= typ
-            |= untrackInfo spaces
+            |= spaces
             |= trackInfo (symbol ")")
             |= exp
         )
@@ -1217,7 +1205,7 @@ typeAnnotation =
               )
               ( succeed (,)
                   |= exp
-                  |= untrackInfo spaces
+                  |= spaces
                   |. symbol ":"
               )
               typ
@@ -1235,7 +1223,7 @@ comment =
         delayedCommitMap
           ( \wsStart (text, rest) ->
               withInfo
-                (EComment wsStart.val text.val rest)
+                (EComment wsStart text.val rest)
                 text.start
                 text.end
           )
@@ -1360,7 +1348,7 @@ topLevelTypeAlias =
     delayedCommitMap
       ( \(wsStart, open, pat) (t, wsEnd, close) ->
           withInfo
-            (\rest -> (exp_ <| ETypeAlias wsStart.val pat t rest wsEnd.val))
+            (\rest -> (exp_ <| ETypeAlias wsStart pat t rest wsEnd))
             open.start
             close.end
       )
@@ -1416,7 +1404,7 @@ topLevelOption =
                    c /= '\n' && c /= ' ' && c /= ':'
                )
           |. symbol ":"
-          |= untrackInfo spaces
+          |= spaces
           |= trackInfo
                ( keep zeroOrMore <| \c ->
                    c /= '\n'

@@ -2488,8 +2488,8 @@ addToolMakeSingleLine m selections =
       if LangUnparser.unparse (LangTools.justFindExpByEId m.inputExp eid) |> perhapsLeftTrimmer |> String.contains "\n" then
         [ ("Make Single Line", \() ->
             let deLine ws =
-              if String.contains "\n" ws
-              then " "
+              if String.contains "\n" ws.val
+              then space1
               else ws
             in
             let deLineP__ p__ =
@@ -2497,8 +2497,8 @@ addToolMakeSingleLine m selections =
                 PVar   ws ident wd         -> PVar   (deLine ws) ident wd
                 PConst ws n                -> PConst (deLine ws) n
                 PBase  ws v                -> PBase  (deLine ws) v
-                PList  ws1 ps ws2 rest ws3 -> PList  (deLine ws1) (setPatListWhitespace "" " " ps) (deLine ws2) rest ""
-                PAs    ws1 ident ws2 p     -> PAs    (deLine ws1) ident " " p
+                PList  ws1 ps ws2 rest ws3 -> PList  (deLine ws1) (setPatListWhitespace "" " " ps) (deLine ws2) rest space0
+                PAs    ws1 ident ws2 p     -> PAs    (deLine ws1) ident space1 p
             in
             let deLinePat p = mapPatTopDown (mapNodeP__ deLineP__) p in
             let deLineE__ e__ =
@@ -2506,19 +2506,19 @@ addToolMakeSingleLine m selections =
                 EBase      ws v                     -> EBase      (deLine ws) v
                 EConst     ws n l wd                -> EConst     (deLine ws) n l wd
                 EVar       ws x                     -> EVar       (deLine ws) x
-                EFun       ws1 ps e1 ws2            -> EFun       (deLine ws1) (ps |> List.map deLinePat |> setPatListWhitespace "" " ") e1 ""
-                EApp       ws1 e1 es ws2            -> EApp       (deLine ws1) (replacePrecedingWhitespace "" e1) es ""
-                EList      ws1 es ws2 rest ws3      -> EList      (deLine ws1) (setExpListWhitespace "" " " es) (deLine ws2) rest ""
-                EOp        ws1 op es ws2            -> EOp        (deLine ws1) op es ""
-                EIf        ws1 e1 e2 e3 ws2         -> EIf        (deLine ws1) e1 e2 e3 ""
-                ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (deLine ws1) kind rec p e1 e2 ""
-                ECase      ws1 e1 bs ws2            -> ECase      (deLine ws1) e1 bs ""
-                ETypeCase  ws1 pat bs ws2           -> ETypeCase  (deLine ws1) pat bs ""
+                EFun       ws1 ps e1 ws2            -> EFun       (deLine ws1) (ps |> List.map deLinePat |> setPatListWhitespace "" " ") e1 space0
+                EApp       ws1 e1 es ws2            -> EApp       (deLine ws1) (replacePrecedingWhitespace "" e1) es space0
+                EList      ws1 es ws2 rest ws3      -> EList      (deLine ws1) (setExpListWhitespace "" " " es) (deLine ws2) rest space0
+                EOp        ws1 op es ws2            -> EOp        (deLine ws1) op es space0
+                EIf        ws1 e1 e2 e3 ws2         -> EIf        (deLine ws1) e1 e2 e3 space0
+                ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (deLine ws1) kind rec p e1 e2 space0
+                ECase      ws1 e1 bs ws2            -> ECase      (deLine ws1) e1 bs space0
+                ETypeCase  ws1 pat bs ws2           -> ETypeCase  (deLine ws1) pat bs space0
                 EComment   ws s e1                  -> EComment   ws s e1
-                EOption    ws1 s1 ws2 s2 e1         -> EOption    ws1 s1 " " s2 e1
-                ETyp       ws1 pat tipe e ws2       -> ETyp       (deLine ws1) pat tipe e ""
-                EColonType ws1 e ws2 tipe ws3       -> EColonType (deLine ws1) e (deLine ws2) tipe ""
-                ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (deLine ws1) pat tipe e ""
+                EOption    ws1 s1 ws2 s2 e1         -> EOption    ws1 s1 space1 s2 e1
+                ETyp       ws1 pat tipe e ws2       -> ETyp       (deLine ws1) pat tipe e space0
+                EColonType ws1 e ws2 tipe ws3       -> EColonType (deLine ws1) e (deLine ws2) tipe space0
+                ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (deLine ws1) pat tipe e space0
             in
             let deLineExp e = mapExp (mapNodeE__ deLineE__) e in
             m.inputExp
@@ -2542,7 +2542,7 @@ addToolMakeMultiLine m selections =
             [ ("Make Multi-line", \() ->
               let indentation = indentationAt eid m.inputExp in
               m.inputExp
-              |> replaceExpNodeE__ByEId eid (EList ws1 (setExpListWhitespace ("\n" ++ indentation ++ "  ") ("\n" ++ indentation ++ "  ") es) ws2 Nothing ("\n" ++ indentation))
+              |> replaceExpNodeE__ByEId eid (EList ws1 (setExpListWhitespace ("\n" ++ indentation ++ "  ") ("\n" ++ indentation ++ "  ") es) ws2 Nothing (ws <| "\n" ++ indentation))
               |> synthesisResult "Make Multi-line"
               |> Utils.singleton
             ) ]
@@ -2554,7 +2554,7 @@ addToolMakeMultiLine m selections =
             [ ("Make Multi-line", \() ->
               let indentation = String.repeat (e.end.col) " " in
               m.inputExp
-              |> replaceExpNodeE__ByEId eid (EApp ws1 e (setExpListWhitespace " " ("\n" ++ indentation) es) "")
+              |> replaceExpNodeE__ByEId eid (EApp ws1 e (setExpListWhitespace " " ("\n" ++ indentation) es) space0)
               |> synthesisResult "Make Multi-line"
               |> Utils.singleton
             ) ]

@@ -62,9 +62,40 @@ withInfo x start end =
   , end = end
   }
 
+withDummyInfo : a -> WithInfo a
+withDummyInfo x =
+  withInfo x dummyPos dummyPos
+
 mapInfo : (a -> b) -> WithInfo a -> WithInfo b
 mapInfo f wa =
   { wa | val = f wa.val }
+
+--------------------------------------------------------------------------------
+-- Whitespace
+--------------------------------------------------------------------------------
+
+type alias WS_ = String
+type alias WS = WithInfo WS_
+
+ws : WS_ -> WS
+ws =
+  withDummyInfo
+
+space0 : WS
+space0 =
+  ws ""
+
+space1 : WS
+space1 =
+  ws " "
+
+newline1 : WS
+newline1 =
+  ws "\n"
+
+newline2 : WS
+newline2 =
+  ws "\n\n"
 
 --------------------------------------------------------------------------------
 -- Miscellaneous
@@ -166,8 +197,6 @@ type Type_
   | TVar WS Ident
   | TForall WS (OneOrMany (WS, Ident)) Type WS
   | TWildcard WS
-
-type alias WS = String
 
 type OneOrMany a          -- track concrete syntax for:
   = One a                 --   x
@@ -1377,19 +1406,19 @@ dummyTrace_ b = TrLoc (dummyLoc_ b)
 dummyLoc = dummyLoc_ unann
 dummyTrace = dummyTrace_ unann
 
-eOp op_ es = withDummyExpInfo <| EOp " " (withDummyRange op_) es ""
+eOp op_ es = withDummyExpInfo <| EOp space1 (withDummyRange op_) es space0
 
 ePlus e1 e2 = eOp Plus [e1, e2]
 eMinus e1 e2 = eOp Minus [e1, e2]
 
-eBool  = withDummyExpInfo << EBase " " << EBool
-eStr   = withDummyExpInfo << EBase " " << EString defaultQuoteChar
-eStr0  = withDummyExpInfo << EBase "" << EString defaultQuoteChar
+eBool  = withDummyExpInfo << EBase space1 << EBool
+eStr   = withDummyExpInfo << EBase space1 << EString defaultQuoteChar
+eStr0  = withDummyExpInfo << EBase space0 << EString defaultQuoteChar
 eTrue  = eBool True
 eFalse = eBool False
 
-eApp e es = withDummyExpInfo <| EApp " " e es ""
-eFun ps e = withDummyExpInfo <| EFun " " ps e ""
+eApp e es = withDummyExpInfo <| EApp space1 e es space0
+eFun ps e = withDummyExpInfo <| EFun space1 ps e space0
 
 desugarEApp e es = case es of
   []      -> Debug.crash "desugarEApp"
@@ -1401,7 +1430,7 @@ desugarEFun ps e = case ps of
   [p]     -> eFun [p] e
   p::ps_  -> eFun [p] (desugarEFun ps_ e)
 
-ePair e1 e2 = withDummyExpInfo <| EList " " [e1,e2] "" Nothing ""
+ePair e1 e2 = withDummyExpInfo <| EList space1 [e1,e2] space0 Nothing space0
 
 noWidgetDecl = withDummyRange NoWidgetDecl
 
@@ -1426,7 +1455,7 @@ eLets xes eBody = case xes of
 eLetOrDef : LetKind -> List (Ident, Exp) -> Exp -> Exp
 eLetOrDef letKind namesAndAssigns bodyExp =
   let (pat, assign) = patBoundExpOf namesAndAssigns in
-  withDummyExpInfo <| ELet "\n" letKind False pat assign bodyExp ""
+  withDummyExpInfo <| ELet newline1 letKind False pat assign bodyExp space0
 
 patBoundExpOf : List (Ident, Exp) -> (Pat, Exp)
 patBoundExpOf namesAndAssigns =
@@ -1441,26 +1470,26 @@ eDef : List (Ident, Exp) -> Exp -> Exp
 eDef = eLetOrDef Def
 
 
-eVar0 a           = withDummyExpInfo <| EVar "" a
-eVar a            = withDummyExpInfo <| EVar " " a
-eConst0 a b       = withDummyExpInfo <| EConst "" a b noWidgetDecl
-eConst a b        = withDummyExpInfo <| EConst " " a b noWidgetDecl
-eConstDummyLoc0 a = withDummyExpInfo <| EConst "" a dummyLoc noWidgetDecl
-eConstDummyLoc a  = withDummyExpInfo <| EConst " " a dummyLoc noWidgetDecl
-eList0 a b        = withDummyExpInfo <| EList "" a "" b ""
-eList a b         = withDummyExpInfo <| EList " " a "" b ""
+eVar0 a           = withDummyExpInfo <| EVar space0 a
+eVar a            = withDummyExpInfo <| EVar space1 a
+eConst0 a b       = withDummyExpInfo <| EConst space0 a b noWidgetDecl
+eConst a b        = withDummyExpInfo <| EConst space1 a b noWidgetDecl
+eConstDummyLoc0 a = withDummyExpInfo <| EConst space0 a dummyLoc noWidgetDecl
+eConstDummyLoc a  = withDummyExpInfo <| EConst space1 a dummyLoc noWidgetDecl
+eList0 a b        = withDummyExpInfo <| EList space0 a space0 b space0
+eList a b         = withDummyExpInfo <| EList space1 a space0 b space0
 eTuple0 a         = eList0 a Nothing
 eTuple a          = eList a Nothing
 
-eColonType e t    = withDummyExpInfo <| EColonType " " e " " (withDummyRange t) ""
+eColonType e t    = withDummyExpInfo <| EColonType space1 e space1 (withDummyRange t) space0
 
-eComment a b   = withDummyExpInfo <| EComment " " a b
+eComment a b   = withDummyExpInfo <| EComment space1 a b
 
-pVar0 a        = withDummyPatInfo <| PVar "" a noWidgetDecl
-pVar a         = withDummyPatInfo <| PVar " " a noWidgetDecl
-pList0 ps      = withDummyPatInfo <| PList "" ps "" Nothing ""
-pList ps       = withDummyPatInfo <| PList " " ps "" Nothing ""
-pAs x p        = withDummyPatInfo <| PAs " " x " " p
+pVar0 a        = withDummyPatInfo <| PVar space0 a noWidgetDecl
+pVar a         = withDummyPatInfo <| PVar space1 a noWidgetDecl
+pList0 ps      = withDummyPatInfo <| PList space0 ps space0 Nothing space0
+pList ps       = withDummyPatInfo <| PList space1 ps space0 Nothing space0
+pAs x p        = withDummyPatInfo <| PAs space1 x space1 p
 
 pListOfPVars names = pList (listOfPVars names)
 
@@ -1524,10 +1553,10 @@ listOfAnnotatedNums list =
   case list of
     [] -> []
     (n,ann,wd) :: list_ ->
-      withDummyExpInfo (EConst "" n (dummyLoc_ ann) wd) :: listOfAnnotatedNums1 list_
+      withDummyExpInfo (EConst space0 n (dummyLoc_ ann) wd) :: listOfAnnotatedNums1 list_
 
 listOfAnnotatedNums1 =
- List.map (\(n,ann,wd) -> withDummyExpInfo (EConst " " n (dummyLoc_ ann) wd))
+ List.map (\(n,ann,wd) -> withDummyExpInfo (EConst space0 n (dummyLoc_ ann) wd))
 
 minMax x y             = (min x y, max x y)
 minNumTr (a,t1) (b,t2) = if a <= b then (a,t1) else (b,t2)
@@ -1582,34 +1611,35 @@ indentationAt eid program =
 
 precedingWhitespacePat : Pat -> String
 precedingWhitespacePat pat =
-  case pat.val.p__ of
-    PVar   ws ident wd         -> ws
-    PConst ws n                -> ws
-    PBase  ws v                -> ws
-    PList  ws1 es ws2 rest ws3 -> ws1
-    PAs    ws1 ident ws2 p     -> ws1
+  .val <|
+    case pat.val.p__ of
+      PVar   ws ident wd         -> ws
+      PConst ws n                -> ws
+      PBase  ws v                -> ws
+      PList  ws1 es ws2 rest ws3 -> ws1
+      PAs    ws1 ident ws2 p     -> ws1
 
 
 precedingWhitespaceExp__ : Exp__ -> String
 precedingWhitespaceExp__ e__ =
-  case e__ of
-    EBase      ws v                     -> ws
-    EConst     ws n l wd                -> ws
-    EVar       ws x                     -> ws
-    EFun       ws1 ps e1 ws2            -> ws1
-    EApp       ws1 e1 es ws2            -> ws1
-    EList      ws1 es ws2 rest ws3      -> ws1
-    EOp        ws1 op es ws2            -> ws1
-    EIf        ws1 e1 e2 e3 ws2         -> ws1
-    ELet       ws1 kind rec p e1 e2 ws2 -> ws1
-    ECase      ws1 e1 bs ws2            -> ws1
-    ETypeCase  ws1 pat bs ws2           -> ws1
-    EComment   ws s e1                  -> ws
-    EOption    ws1 s1 ws2 s2 e1         -> ws1
-    ETyp       ws1 pat tipe e ws2       -> ws1
-    EColonType ws1 e ws2 tipe ws3       -> ws1
-    ETypeAlias ws1 pat tipe e ws2       -> ws1
-
+  .val <|
+    case e__ of
+      EBase      ws v                     -> ws
+      EConst     ws n l wd                -> ws
+      EVar       ws x                     -> ws
+      EFun       ws1 ps e1 ws2            -> ws1
+      EApp       ws1 e1 es ws2            -> ws1
+      EList      ws1 es ws2 rest ws3      -> ws1
+      EOp        ws1 op es ws2            -> ws1
+      EIf        ws1 e1 e2 e3 ws2         -> ws1
+      ELet       ws1 kind rec p e1 e2 ws2 -> ws1
+      ECase      ws1 e1 bs ws2            -> ws1
+      ETypeCase  ws1 pat bs ws2           -> ws1
+      EComment   ws s e1                  -> ws
+      EOption    ws1 s1 ws2 s2 e1         -> ws1
+      ETyp       ws1 pat tipe e ws2       -> ws1
+      EColonType ws1 e ws2 tipe ws3       -> ws1
+      ETypeAlias ws1 pat tipe e ws2       -> ws1
 
 addPrecedingWhitespace : String -> Exp -> Exp
 addPrecedingWhitespace newWs exp =
@@ -1638,40 +1668,46 @@ copyPrecedingWhitespacePat source target =
 
 -- Does not recurse.
 mapPrecedingWhitespace : (String -> String) -> Exp -> Exp
-mapPrecedingWhitespace mapWs exp =
-  let e__New =
-    case exp.val.e__ of
-      EBase      ws v                     -> EBase      (mapWs ws) v
-      EConst     ws n l wd                -> EConst     (mapWs ws) n l wd
-      EVar       ws x                     -> EVar       (mapWs ws) x
-      EFun       ws1 ps e1 ws2            -> EFun       (mapWs ws1) ps e1 ws2
-      EApp       ws1 e1 es ws2            -> EApp       (mapWs ws1) e1 es ws2
-      EList      ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
-      EOp        ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
-      EIf        ws1 e1 e2 e3 ws2         -> EIf        (mapWs ws1) e1 e2 e3 ws2
-      ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (mapWs ws1) kind rec p e1 e2 ws2
-      ECase      ws1 e1 bs ws2            -> ECase      (mapWs ws1) e1 bs ws2
-      ETypeCase  ws1 pat bs ws2           -> ETypeCase  (mapWs ws1) pat bs ws2
-      EComment   ws s e1                  -> EComment   (mapWs ws) s e1
-      EOption    ws1 s1 ws2 s2 e1         -> EOption    (mapWs ws1) s1 ws2 s2 e1
-      ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
-      EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
-      ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
+mapPrecedingWhitespace stringMap exp =
+  let
+    mapWs s =
+      ws (stringMap s.val)
+    e__New =
+      case exp.val.e__ of
+        EBase      ws v                     -> EBase      (mapWs ws) v
+        EConst     ws n l wd                -> EConst     (mapWs ws) n l wd
+        EVar       ws x                     -> EVar       (mapWs ws) x
+        EFun       ws1 ps e1 ws2            -> EFun       (mapWs ws1) ps e1 ws2
+        EApp       ws1 e1 es ws2            -> EApp       (mapWs ws1) e1 es ws2
+        EList      ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
+        EOp        ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
+        EIf        ws1 e1 e2 e3 ws2         -> EIf        (mapWs ws1) e1 e2 e3 ws2
+        ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (mapWs ws1) kind rec p e1 e2 ws2
+        ECase      ws1 e1 bs ws2            -> ECase      (mapWs ws1) e1 bs ws2
+        ETypeCase  ws1 pat bs ws2           -> ETypeCase  (mapWs ws1) pat bs ws2
+        EComment   ws s e1                  -> EComment   (mapWs ws) s e1
+        EOption    ws1 s1 ws2 s2 e1         -> EOption    (mapWs ws1) s1 ws2 s2 e1
+        ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
+        EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
+        ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
   in
-  replaceE__ exp e__New
+    replaceE__ exp e__New
 
 
 mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
-mapPrecedingWhitespacePat mapWs pat =
-  let p__ =
-    case pat.val.p__ of
-      PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
-      PConst ws n                -> PConst (mapWs ws) n
-      PBase  ws v                -> PBase  (mapWs ws) v
-      PList  ws1 ps ws2 rest ws3 -> PList  (mapWs ws1) ps ws2 rest ws3
-      PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
+mapPrecedingWhitespacePat stringMap pat =
+  let
+    mapWs s =
+      ws (stringMap s.val)
+    p__ =
+      case pat.val.p__ of
+        PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
+        PConst ws n                -> PConst (mapWs ws) n
+        PBase  ws v                -> PBase  (mapWs ws) v
+        PList  ws1 ps ws2 rest ws3 -> PList  (mapWs ws1) ps ws2 rest ws3
+        PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
   in
-  replaceP__ pat p__
+    replaceP__ pat p__
 
 
 ensureWhitespace : String -> String

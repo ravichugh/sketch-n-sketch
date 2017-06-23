@@ -94,8 +94,8 @@ pluck__ p e1 path =
     (_, _, []) ->
       Just <|
         ( (p, e1)
-        , replaceP__ p   <| PList (precedingWhitespacePat p) [] "" Nothing ""
-        , replaceE__ e1 <| EList (precedingWhitespace e1)   [] "" Nothing ""
+        , replaceP__ p   <| PList (ws <| precedingWhitespacePat p) [] space0 Nothing space0
+        , replaceE__ e1 <| EList (ws <| precedingWhitespace e1)   [] space0 Nothing space0
         )
 
     (PAs _ _ _ childPat, _, i::is) ->
@@ -859,8 +859,8 @@ moveDefinitionsBeforeEId_ sourcePathedPatIds targetEId program =
           (pluckedPat, boundExp)
 
         _ ->
-          ( withDummyPatInfo <| PList " " (pluckedPats      |> setPatListWhitespace "" " ") "" Nothing ""
-          , withDummyExpInfo <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
+          ( withDummyPatInfo <| PList space1 (pluckedPats      |> setPatListWhitespace "" " ") space0 Nothing space0
+          , withDummyExpInfo <| EList space1 (pluckedBoundExps |> setExpListWhitespace "" " ") space0 Nothing space0 -- May want to be smarter about whitespace here to avoid long lines.
           )
     in
     let insertedLetEId = Parser.maxId program + 1 in
@@ -973,8 +973,8 @@ duplicateDefinitionsBeforeEId sourcePathedPatIds targetEId originalProgram =
                 (pluckedPat, boundExp)
 
               _ ->
-                ( withDummyPatInfo <| PList " " (pluckedPats      |> setPatListWhitespace "" " ") "" Nothing ""
-                , withDummyExpInfo <| EList " " (pluckedBoundExps |> setExpListWhitespace "" " ") "" Nothing "" -- May want to be smarter about whitespace here to avoid long lines.
+                ( withDummyPatInfo <| PList space1 (pluckedPats      |> setPatListWhitespace "" " ") space0 Nothing space0
+                , withDummyExpInfo <| EList space1 (pluckedBoundExps |> setExpListWhitespace "" " ") space0 Nothing space0 -- May want to be smarter about whitespace here to avoid long lines.
                 )
           in
           newLetFancyWhitespace insertedLetEId newPat newBoundExp expToWrap originalProgram
@@ -1033,12 +1033,12 @@ insertPat__ (patToInsert, boundExp) p e1 path =
   let maybeNewP_E__Pair =
     case (p.val.p__, e1.val.e__, path) of
       (PVar pws1 _ _, _, [i]) ->
-        Just ( PList pws1                      (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") "" Nothing ""
-             , EList (precedingWhitespace e1)  (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ") "" Nothing "" )
+        Just ( PList pws1                            (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") space0 Nothing space0
+             , EList (ws <| precedingWhitespace e1)  (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ") space0 Nothing space0 )
 
       (PAs pws1 _ _ _, _, [i]) ->
-        Just ( PList pws1                      (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") "" Nothing ""
-             , EList (precedingWhitespace e1)  (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ") "" Nothing "" )
+        Just ( PList pws1                            (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") space0 Nothing space0
+             , EList (ws <| precedingWhitespace e1)  (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ") space0 Nothing space0 )
 
       (PAs pws1 _ _ _, _, i::is) ->
         -- TODO: allow but mark unsafe if as-pattern is used
@@ -1226,7 +1226,7 @@ moveEquationsBeforeEId letEIds targetEId originalProgram =
                     _ -> indentationAt targetEId program
                 in
                 ELet ws1 letOrDef isRec pat boundExp
-                    (expToWrap |> ensureWhitespaceSmartExp (indentationOf letExp ++ if isLet expToWrap then "" else "  ")) ""
+                    (expToWrap |> ensureWhitespaceSmartExp (indentationOf letExp ++ if isLet expToWrap then "" else "  ")) space0
                 |> withDummyExpInfoEId insertedLetEId
                 |> ensureWhitespaceNewlineExp
                 |> replaceIndentation newLetIndentation
@@ -1390,7 +1390,7 @@ abstract eid shouldBeParameter originalProgram =
     -- Do it like this as a moderately straightforward way to not add extra arguments in the
     -- case that shouldBeParameter returns one expression nested inside another
     expToAbstact
-    |> mapExp (\e -> if shouldBeParameter e originalProgram then replaceE__ e (EVar " " "INSERT_ARGUMENT_HERE") else e)
+    |> mapExp (\e -> if shouldBeParameter e originalProgram then replaceE__ e (EVar space1 "INSERT_ARGUMENT_HERE") else e)
     |> flattenExpTree
     |> List.filter (expToMaybeIdent >> (==) (Just "INSERT_ARGUMENT_HERE"))
     |> List.map (.val >> .eid)
@@ -1497,7 +1497,7 @@ abstractPVar pathedPatId originalProgram =
             in
             let newScopeBody =
               let varToApp varExp =
-                replaceE__PreservingPrecedingWhitespace varExp (EApp "" (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") "")
+                replaceE__PreservingPrecedingWhitespace varExp (EApp space0 (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") space0)
               in
               transformVarsUntilBound (Dict.singleton ident varToApp) scopeBody
             in
@@ -2237,7 +2237,7 @@ literalWS literal =
 literalExp literal =
   case literal of
     Left (_,(_,firstNum,_,_)) -> eConst firstNum dummyLoc
-    Right (_,(_,baseVal))     -> withDummyExpInfo (EBase " " baseVal)
+    Right (_,(_,baseVal))     -> withDummyExpInfo (EBase space1 baseVal)
 
 makeMakeEqualTool m literals =
   let expIds = List.map literalEId literals in
