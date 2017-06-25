@@ -39,6 +39,14 @@ rgba r g b a =
     ++ (toString b) ++ ","
     ++ (toString a) ++ ")"
 
+styleListToString : List (String, String) -> String
+styleListToString =
+  let
+    stylePairToString (attr, val) =
+      attr ++ ": " ++ val ++ "; "
+  in
+    String.concat << List.map stylePairToString
+
 --==============================================================================
 --= INDEXED
 --==============================================================================
@@ -242,17 +250,20 @@ expPolygon ci e =
       Controller.msgMouseLeaveDeuceWidget deuceWidget
     active =
       List.member deuceWidget ci.deuceState.hoveredWidgets
-    (strokeWidth, a) =
+    (strokeWidth, a, cursorStyle) =
       if active then
-        ("2px", 0.2)
+        ("2px", 0.2, "pointer")
       else
-        ("0", 0)
+        ("0", 0, "default")
   in
     Svg.polygon
       [ SAttr.points <| boundingHullPoints ci e
       , SAttr.strokeWidth strokeWidth
       , SAttr.stroke <| rgba r g b 1
       , SAttr.fill <| rgba r g b a
+      , SAttr.style << styleListToString <|
+          [ ("cursor", cursorStyle)
+          ]
       , SE.onMouseOver onMouseOver
       , SE.onMouseOut onMouseOut
       ]
