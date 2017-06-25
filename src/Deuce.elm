@@ -283,10 +283,14 @@ expPolygon ci e =
       Controller.msgMouseEnterDeuceWidget deuceWidget
     onMouseOut =
       Controller.msgMouseLeaveDeuceWidget deuceWidget
-    active =
+    onClick =
+      Controller.msgMouseClickDeuceWidget deuceWidget
+    hovered =
       List.member deuceWidget ci.deuceState.hoveredWidgets
+    active =
+      List.member deuceWidget ci.deuceState.selectedWidgets
     (strokeWidth, a, cursorStyle) =
-      if active then
+      if hovered || active then
         ("2px", 0.2, "pointer")
       else
         ("0", 0, "default")
@@ -301,6 +305,7 @@ expPolygon ci e =
           ]
       , SE.onMouseOver onMouseOver
       , SE.onMouseOut onMouseOut
+      , SE.onClick onClick
       ]
       []
 
