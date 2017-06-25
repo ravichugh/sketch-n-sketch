@@ -152,9 +152,9 @@ type alias CodeBoxInfo =
   , scrollerLeft : Float
   , scrollerWidth : Float
   , scrollerHeight : Float
-  , contentWidth : Float
-  , contentHeight : Float
   , contentLeft : Float
+  , scrollTop : Float
+  , scrollLeft : Float
   }
 
 type alias RawSvg = String
@@ -526,9 +526,9 @@ initModel =
                       , scrollerLeft = 0.0
                       , scrollerWidth = 0.0
                       , scrollerHeight = 0.0
-                      , contentWidth = 0.0
-                      , contentHeight = 0.0
                       , contentLeft = 0.0
+                      , scrollLeft = 0.0
+                      , scrollTop = 0.0
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing

@@ -678,5 +678,6 @@ a {
 
 .deuce-overlay {
   position: relative;
+  /* top: DYNAMIC */
   /* left: DYNAMIC */
 }

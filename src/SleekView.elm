@@ -14,7 +14,7 @@ import Svg
 import Svg.Attributes as SAttr
 
 import Utils
-import HtmlUtils exposing (handleEventAndStop)
+import HtmlUtils exposing (handleEventAndStop, styleListToString)
 import Either exposing (..)
 
 import InterfaceModel as Model exposing
@@ -1446,8 +1446,12 @@ deuceOverlay model =
       ]
       [ Svg.svg
           [ SAttr.class "deuce-overlay"
-          , SAttr.width <| px model.codeBoxInfo.contentWidth
-          , SAttr.height <| px model.codeBoxInfo.contentHeight
+          , SAttr.width "10000000"
+          , SAttr.height "10000000"
+          , SAttr.style << styleListToString <|
+              [ ("top", px -model.codeBoxInfo.scrollTop)
+              , ("left", px -model.codeBoxInfo.scrollLeft)
+              ]
           ]
           [ Deuce.overlay model
           ]

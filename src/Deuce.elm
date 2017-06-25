@@ -9,6 +9,9 @@ import Svg exposing (Svg)
 import Svg.Attributes as SAttr
 import Svg.Events as SE
 
+import Utils
+import HtmlUtils exposing (styleListToString)
+
 import InterfaceModel as Model exposing
   ( Model
   , Msg(..)
@@ -50,14 +53,6 @@ rgba r g b a =
     ++ (toString g) ++ ","
     ++ (toString b) ++ ","
     ++ (toString a) ++ ")"
-
-styleListToString : List (String, String) -> String
-styleListToString =
-  let
-    stylePairToString (attr, val) =
-      attr ++ ": " ++ val ++ "; "
-  in
-    String.concat << List.map stylePairToString
 
 --==============================================================================
 --= INDEXED

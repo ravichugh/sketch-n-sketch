@@ -210,9 +210,9 @@ function getEditorState() {
     , scrollerLeft: aceScroller.getBoundingClientRect().left
     , scrollerWidth: aceScroller.getBoundingClientRect().width
     , scrollerHeight: aceScroller.getBoundingClientRect().height
-    , contentWidth: aceContent.getBoundingClientRect().width
-    , contentHeight: aceContent.getBoundingClientRect().height
     , contentLeft: CONTENT_PADDING_LEFT
+    , scrollTop: editor.session.$scrollTop
+    , scrollLeft : editor.session.$scrollLeft
     };
   var info =
     { code : editor.getSession().getDocument().getValue()
