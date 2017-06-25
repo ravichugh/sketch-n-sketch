@@ -1428,20 +1428,20 @@ onbeforeunloadDataElement model =
 deuceOverlay : Model -> Html Msg
 deuceOverlay model =
   let
-    displayValue =
+    pointerEvents =
       if Model.deuceActive model then
-        "block"
+        "auto"
       else
         "none"
   in
     Html.div
       [ Attr.class "deuce-overlay-container"
       , Attr.style
-          [ ("top", px model.codeBoxInfo.scrollerTop)
+          [ ("pointer-events", pointerEvents)
+          , ("top", px model.codeBoxInfo.scrollerTop)
           , ("left", px model.codeBoxInfo.scrollerLeft)
           , ("width", px model.codeBoxInfo.scrollerWidth)
           , ("height", px model.codeBoxInfo.scrollerHeight)
-          , ("display", displayValue)
           ]
       ]
       [ Svg.svg

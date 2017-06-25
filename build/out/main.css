@@ -665,7 +665,7 @@ a {
  ******************************************************************************/
 
 .deuce-overlay-container {
-  /* display: DYNAMIC */
+  /* pointer-events: DYNAMIC */
 
   overflow: hidden;
 
