@@ -1,8 +1,14 @@
 //////////////////////////////////////////////////////////////////////
 
+// The padding that Ace puts on its content
+var CONTENT_LEFT_PADDING = 4;
+
 var editor;
 var markers = [];
 var fontSize = 16;
+
+var aceContent;
+var aceScroller;
 
 function initialize() {
   editor = ace.edit("editor");
@@ -40,7 +46,12 @@ function initialize() {
   // get around this bug and there's no real performance penalty...
   window.setInterval(function() {
     editor.resize();
+    var info = getEditorState();
+    app.ports.receiveEditorState.send(info);
   }, 50);
+
+  aceContent = document.getElementsByClassName("ace_content")[0];
+  aceScroller = document.getElementsByClassName("ace_scroller")[0];
 }
 
 
@@ -193,8 +204,15 @@ function getEditorState() {
     , gutterWidth: editor.renderer.gutterWidth
     , firstVisibleRow: editor.renderer.getFirstVisibleRow()
     , lastVisibleRow: editor.renderer.getLastVisibleRow()
-    , marginTopOffset: document.getElementsByClassName("ace_content")[0].offsetTop
-    , marginLeftOffset: document.getElementsByClassName("ace_content")[0].offsetLeft
+    , marginTopOffset: aceContent.offsetTop
+    , marginLeftOffset: aceContent.offsetLeft
+    , scrollerTop: aceScroller.getBoundingClientRect().top
+    , scrollerLeft: aceScroller.getBoundingClientRect().left
+    , scrollerWidth: aceScroller.getBoundingClientRect().width
+    , scrollerHeight: aceScroller.getBoundingClientRect().height
+    , contentWidth: aceContent.getBoundingClientRect().width
+    , contentHeight: aceContent.getBoundingClientRect().height
+    , contentLeft: CONTENT_LEFT_PADDING
     };
   var info =
     { code : editor.getSession().getDocument().getValue()

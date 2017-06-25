@@ -659,3 +659,24 @@ a {
 .synthesis-results .hover-menu-indicator {
   display: none;
 }
+
+/******************************************************************************
+ * Deuce                                                                      *
+ ******************************************************************************/
+
+.deuce-overlay-container {
+  /* display: DYNAMIC */
+
+  overflow: hidden;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+}
+
+.deuce-overlay {
+  position: relative;
+  /* left: DYNAMIC */
+}

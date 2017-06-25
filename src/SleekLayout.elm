@@ -28,7 +28,6 @@ module SleekLayout exposing
   , codePanel
   , outputPanel
   , outputCanvas
-  , codeBox
   )
 
 import InterfaceModel as Model exposing (Model)
@@ -44,7 +43,7 @@ panelBorderWidth = 1
 -- Utility Functions
 --------------------------------------------------------------------------------
 
-px : Int -> String
+px : number -> String
 px n =
   (toString n) ++ "px"
 
@@ -201,14 +200,14 @@ outputCanvas model =
 -- Code Box (descriptive)
 --------------------------------------------------------------------------------
 
-codeBox =
-  { x =
-      -- spacing + codePanel.borderBorderWidth
-      spacing.width + panelBorderWidth
-  , y =
-      --   codePanel.y
-      -- + codePanel.borderWidth
-      -- + actionBar.height
-      -- + statusBar.height
-      (menuBarTotalHeight + spacing.height) + panelBorderWidth + 35 + 35
-  }
+-- codeBox =
+--   { x =
+--       -- spacing + codePanel.borderBorderWidth
+--       spacing.width + panelBorderWidth
+--   , y =
+--       --   codePanel.y
+--       -- + codePanel.borderWidth
+--       -- + actionBar.height
+--       -- + statusBar.height
+--       (menuBarTotalHeight + spacing.height) + panelBorderWidth + 35 + 35
+--   }

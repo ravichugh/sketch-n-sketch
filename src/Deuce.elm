@@ -1,4 +1,7 @@
-module Deuce exposing (view)
+module Deuce exposing (svgElements)
+
+import List
+import String
 
 import Html exposing (Html)
 import Svg exposing (Svg)
@@ -14,36 +17,80 @@ import Lang exposing (..)
 import FastParser exposing (parseE)
 
 --------------------------------------------------------------------------------
--- Polygon Primitive
+-- Hulls
 --------------------------------------------------------------------------------
 
-svgPolygon : Int -> Int -> Int -> Int -> Svg Msg
-svgPolygon x y w h =
-  Svg.rect
-    [ SAttr.x <| toString x
-    , SAttr.y <| toString y
-    , SAttr.width <| toString w
-    , SAttr.height <| toString h
-    ]
-    []
+type alias DisplayInfo =
+  { lineHeight : Float
+  , characterWidth : Float
+  }
+
+type alias CodePos =
+  (Int, Int)
+
+type alias AbsolutePos =
+  (Float, Float)
+
+type alias Hull =
+  List (Float, Float)
+
+codeToAbsolute : DisplayInfo -> CodePos -> AbsolutePos
+codeToAbsolute di (cx, cy) =
+  ( di.characterWidth * toFloat cx
+  , di.lineHeight * toFloat cy
+  )
+
+hull : DisplayInfo -> Exp -> Hull
+hull di e =
+  let
+    smallX =
+      (min e.start.col e.end.col) - 1
+    smallY =
+      (min e.start.line e.end.line) - 1
+    bigX =
+      (max e.start.col e.end.col) - 1
+    bigY =
+      max e.start.line e.end.line
+    codeHull =
+      [ (smallX, smallY)
+      , (smallX, bigY)
+      , (bigX, bigY)
+      , (bigX, smallY)
+      ]
+  in
+    List.map (codeToAbsolute di) codeHull
+
+hullPoints : Hull -> String
+hullPoints =
+  let
+    pairToString (x, y) =
+      (toString x) ++ "," ++ (toString y) ++ " "
+  in
+    String.concat << List.map pairToString
+
+boundingHullPoints : DisplayInfo -> Exp -> String
+boundingHullPoints di e =
+  hullPoints <| hull di e
 
 --------------------------------------------------------------------------------
 -- Polygons
 --------------------------------------------------------------------------------
 
-polygon : Exp -> Svg Msg
-polygon e =
-  case e.val.e__ of
-    EVar ws i ->
-      svgPolygon 100 100 100 100
-    _ ->
-      svgPolygon 300 300 100 100
+polygon : DisplayInfo -> Exp -> Svg Msg
+polygon di e =
+  Svg.polygon
+    [ SAttr.points <| boundingHullPoints di e
+    , SAttr.fill "rgba(0,0,0,0)"
+    , SAttr.strokeWidth "3px"
+    , SAttr.stroke "#00c6ff"
+    ]
+    []
 
-polygons : Exp -> (List (Svg Msg))
-polygons =
+polygons : DisplayInfo -> Exp -> (List (Svg Msg))
+polygons di =
   foldExp
     ( \e acc ->
-        polygon e :: acc
+        polygon di e :: acc
     )
     []
 
@@ -51,16 +98,21 @@ polygons =
 -- Exports
 --------------------------------------------------------------------------------
 
-view : Model -> Html Msg
-view model =
+svgElements : Model -> (List (Svg Msg))
+svgElements model =
   let
     ast =
-      case (parseE model.code) of
-        Ok e ->
-          e
-        Err e ->
-          Debug.crash "testing"
+      model.inputExp
+      -- case (parseE model.code) of
+      --   Ok e ->
+      --     e
+      --   Err e ->
+      --     Debug.crash "testing"
+    displayInfo =
+      { lineHeight =
+          model.codeBoxInfo.lineHeight
+      , characterWidth =
+          model.codeBoxInfo.characterWidth
+      }
   in
-    Svg.svg
-      []
-      (polygons ast)
+    polygons displayInfo ast

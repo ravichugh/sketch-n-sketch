@@ -148,6 +148,13 @@ type alias CodeBoxInfo =
   , lastVisibleRow: Int
   , marginTopOffset: Float
   , marginLeftOffset: Float
+  , scrollerTop : Float
+  , scrollerLeft : Float
+  , scrollerWidth : Float
+  , scrollerHeight : Float
+  , contentWidth : Float
+  , contentHeight : Float
+  , contentLeft : Float
   }
 
 type alias RawSvg = String
@@ -457,6 +464,12 @@ oneSafeResult newExp =
 
 --------------------------------------------------------------------------------
 
+deuceActive : Model -> Bool
+deuceActive model =
+  List.member Keys.keyShift model.keysDown
+
+--------------------------------------------------------------------------------
+
 initModel : Model
 initModel =
   let
@@ -509,6 +522,13 @@ initModel =
                       , lastVisibleRow = 10
                       , marginTopOffset = 0.0
                       , marginLeftOffset = 0.0
+                      , scrollerTop = 0.0
+                      , scrollerLeft = 0.0
+                      , scrollerWidth = 0.0
+                      , scrollerHeight = 0.0
+                      , contentWidth = 0.0
+                      , contentHeight = 0.0
+                      , contentLeft = 0.0
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
@@ -545,6 +565,5 @@ initModel =
     , viewState =
         { menuActive = False
         }
-    , toolMode =
-        Raw
+    , toolMode = Raw
     }

@@ -4,12 +4,14 @@ import List
 import Dict
 import Set
 import Regex
+import String
 
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as E
 import Json.Decode as Json
 import Svg
+import Svg.Attributes as SAttr
 
 import Utils
 import HtmlUtils exposing (handleEventAndStop)
@@ -65,6 +67,14 @@ groupDisabled disallowSelectedFeatures model =
       Dict.isEmpty model.selectedBlobs
   in
     noBlobs || (disallowSelectedFeatures && (not noFeatures))
+
+styleListToString : List (String, String) -> String
+styleListToString =
+  let
+    stylePairToString (attr, val) =
+      attr ++ ": " ++ val ++ "; "
+  in
+    String.concat << List.map stylePairToString
 
 --------------------------------------------------------------------------------
 -- Buttons
@@ -1425,10 +1435,36 @@ onbeforeunloadDataElement model =
 
 deuceOverlay : Model -> Html Msg
 deuceOverlay model =
-  Html.div
-    [ Attr.class "deuce-overlay"
-    ]
-    [ Deuce.view model ]
+  let
+    displayValue =
+      if Model.deuceActive model then
+        "block"
+      else
+        "none"
+  in
+    Html.div
+      [ Attr.class "deuce-overlay-container"
+      , Attr.style
+          [ ("top", px model.codeBoxInfo.scrollerTop)
+          , ("left", px model.codeBoxInfo.scrollerLeft)
+          , ("width", px model.codeBoxInfo.scrollerWidth)
+          , ("height", px model.codeBoxInfo.scrollerHeight)
+          , ("display", displayValue)
+          ]
+      ]
+      [ Svg.svg
+          [ SAttr.class "deuce-overlay"
+          , SAttr.width <| px model.codeBoxInfo.contentWidth
+          , SAttr.height <| px model.codeBoxInfo.contentHeight
+          , (SAttr.style << styleListToString)
+              [ ("left", px model.codeBoxInfo.contentLeft)
+              --, ("width", px model.codeBoxInfo.contentWidth)
+              --, ("height", px model.codeBoxInfo.contentHeight)
+              ]
+          ]
+          ( Deuce.svgElements model
+          )
+      ]
 
 --------------------------------------------------------------------------------
 -- Main View
