@@ -1456,14 +1456,9 @@ deuceOverlay model =
           [ SAttr.class "deuce-overlay"
           , SAttr.width <| px model.codeBoxInfo.contentWidth
           , SAttr.height <| px model.codeBoxInfo.contentHeight
-          , (SAttr.style << styleListToString)
-              [ ("left", px model.codeBoxInfo.contentLeft)
-              --, ("width", px model.codeBoxInfo.contentWidth)
-              --, ("height", px model.codeBoxInfo.contentHeight)
-              ]
           ]
-          ( Deuce.svgElements model
-          )
+          [ Deuce.overlay model
+          ]
       ]
 
 --------------------------------------------------------------------------------

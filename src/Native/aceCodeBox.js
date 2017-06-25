@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////
 
 // The padding that Ace puts on its content
-var CONTENT_LEFT_PADDING = 4;
+var CONTENT_PADDING_LEFT = 4;
 
 var editor;
 var markers = [];
@@ -212,7 +212,7 @@ function getEditorState() {
     , scrollerHeight: aceScroller.getBoundingClientRect().height
     , contentWidth: aceContent.getBoundingClientRect().width
     , contentHeight: aceContent.getBoundingClientRect().height
-    , contentLeft: CONTENT_LEFT_PADDING
+    , contentLeft: CONTENT_PADDING_LEFT
     };
   var info =
     { code : editor.getSession().getDocument().getValue()

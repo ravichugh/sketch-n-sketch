@@ -1,4 +1,4 @@
-module Deuce exposing (svgElements)
+module Deuce exposing (overlay)
 
 import List
 import String
@@ -7,6 +7,7 @@ import Array exposing (Array)
 import Html exposing (Html)
 import Svg exposing (Svg)
 import Svg.Attributes as SAttr
+import Svg.Events as SE
 
 import InterfaceModel as Model exposing
   ( Model
@@ -14,9 +15,17 @@ import InterfaceModel as Model exposing
   , Code
   )
 
-import Lang exposing (..)
+import InterfaceController as Controller
 
-import FastParser exposing (parseE)
+import Lang exposing
+  ( Exp
+  , foldExp
+  )
+
+import DeuceWidgets exposing
+  ( DeuceState
+  , DeuceWidget(..)
+  )
 
 --==============================================================================
 --= INDEXED
@@ -77,6 +86,7 @@ type alias DisplayInfo =
 type alias CodeInfo =
   { displayInfo : DisplayInfo
   , lineHulls : LineHulls
+  , deuceState : DeuceState
   }
 
 --==============================================================================
@@ -212,12 +222,24 @@ expPolygon ci e =
     r = toString <| 100 * (e.start.col % 3)
     g = toString <| 50 * (e.end.col % 5)
     b = toString <| 50 * (e.start.col % 7)
+    deuceWidget =
+      DeuceExp e.val.eid
+    onMouseOver =
+      Controller.msgMouseEnterDeuceWidget deuceWidget
+    onMouseOut =
+      Controller.msgMouseLeaveDeuceWidget deuceWidget
+    active =
+      List.member deuceWidget ci.deuceState.hoveredWidgets
+    strokeWidth =
+      if active then "2px" else "0"
   in
     Svg.polygon
       [ SAttr.points <| boundingHullPoints ci e
       , SAttr.fill "rgba(0,0,0,0)"
-      , SAttr.strokeWidth "3px"
+      , SAttr.strokeWidth strokeWidth
       , SAttr.stroke <| "rgb(" ++ r ++ "," ++ g ++ "," ++ b ++ ")"
+      , SE.onMouseOver onMouseOver
+      , SE.onMouseOut onMouseOut
       ]
       []
 
@@ -235,8 +257,8 @@ polygons ci ast =
 --= EXPORTS
 --==============================================================================
 
-svgElements : Model -> (List (Svg Msg))
-svgElements model =
+overlay : Model -> Svg Msg
+overlay model =
   let
     ast =
       model.inputExp
@@ -253,6 +275,13 @@ svgElements model =
           displayInfo
       , lineHulls =
           lineHulls
+      , deuceState =
+          model.deuceState
       }
   in
-    polygons codeInfo ast
+    Svg.g
+      [ SAttr.transform <|
+          "translate(" ++ toString model.codeBoxInfo.contentLeft ++ ", 0)"
+      ]
+      ( polygons codeInfo ast
+      )
