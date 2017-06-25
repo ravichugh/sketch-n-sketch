@@ -3,7 +3,6 @@ module Deuce exposing (overlay)
 import List
 import String
 import Tuple
-import Array exposing (Array)
 
 import Html exposing (Html)
 import Svg exposing (Svg)
@@ -31,6 +30,18 @@ import DeuceWidgets exposing
 --==============================================================================
 --= HELPER FUNCTIONS
 --==============================================================================
+
+slice : Int -> Int -> List a -> List a
+slice start end list =
+  list
+    |> List.drop start
+    |> List.take (end - start)
+
+get : Int -> List a -> Maybe a
+get i list =
+  list
+    |> List.drop i
+    |> List.head
 
 rgba : Int -> Int -> Int -> Float -> String
 rgba r g b a =
@@ -93,7 +104,7 @@ type alias Line =
   }
 
 type alias LineHulls =
-  Array Hull
+  List Hull
 
 --------------------------------------------------------------------------------
 -- Information
@@ -187,7 +198,6 @@ lineHullsFromCode di code =
     |> lines
     |> index
     |> List.map (lineHull di)
-    |> Array.fromList
 
 --==============================================================================
 --= HULL FUNCTIONS
@@ -207,7 +217,7 @@ expHull codeInfo e =
       e.end.line - 1
     -- Get relevant part of line array
     relevantLines =
-      Array.toList <| Array.slice (startRow + 1) endRow codeInfo.lineHulls
+      slice (startRow + 1) endRow codeInfo.lineHulls
   in
     if startRow /= endRow then
       -- Left of first line
@@ -226,7 +236,7 @@ expHull codeInfo e =
       -- Left of last line
       ( List.take 2 <|
           Maybe.withDefault [] <|
-            Array.get endRow codeInfo.lineHulls
+            get endRow codeInfo.lineHulls
       ) ++
 
       -- Right of last line
@@ -245,7 +255,7 @@ expHull codeInfo e =
       -- Right of first line
       ( List.drop 2 <|
           Maybe.withDefault [] <|
-            Array.get startRow codeInfo.lineHulls
+            get startRow codeInfo.lineHulls
       )
     else
       List.map (c2a codeInfo.displayInfo)
