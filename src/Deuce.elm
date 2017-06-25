@@ -2,6 +2,7 @@ module Deuce exposing (overlay)
 
 import List
 import String
+import Tuple
 import Array exposing (Array)
 
 import Html exposing (Html)
@@ -113,6 +114,17 @@ type alias CodeInfo =
 --= LINE FUNCTIONS
 --==============================================================================
 
+emptyLine : Line
+emptyLine =
+  { startCol = 0
+  , endCol = 0
+  , val = ""
+  }
+
+isBlankLine : Line -> Bool
+isBlankLine line =
+  line.startCol == line.endCol
+
 trimLine : String -> Line
 trimLine s =
   let
@@ -141,6 +153,25 @@ lines : String -> List Line
 lines =
   List.map trimLine << String.split "\n"
 
+-- TODO Not quite right; possibly need to pad based on expression position
+--      rather than lines.
+--
+-- padLines : List Line -> List Line
+-- padLines lines =
+--   let
+--     paddingFolder line (lastLine, newList) =
+--       let
+--         newLine =
+--           if isBlankLine line then
+--             { lastLine | val = line.val }
+--           else
+--             line
+--       in
+--         (newLine, newLine :: newList)
+--   in
+--     Tuple.second <|
+--       List.foldr paddingFolder (emptyLine, []) lines
+
 lineHull : DisplayInfo -> Indexed Line -> Hull
 lineHull di (row, line) =
   List.map (c2a di)
@@ -151,8 +182,12 @@ lineHull di (row, line) =
     ]
 
 lineHullsFromCode : DisplayInfo -> Code -> LineHulls
-lineHullsFromCode di =
-  Array.fromList << List.map (lineHull di) << index << lines
+lineHullsFromCode di code =
+  code
+    |> lines
+    |> index
+    |> List.map (lineHull di)
+    |> Array.fromList
 
 --==============================================================================
 --= HULL FUNCTIONS

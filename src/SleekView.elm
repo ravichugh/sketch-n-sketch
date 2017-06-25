@@ -68,14 +68,6 @@ groupDisabled disallowSelectedFeatures model =
   in
     noBlobs || (disallowSelectedFeatures && (not noFeatures))
 
-styleListToString : List (String, String) -> String
-styleListToString =
-  let
-    stylePairToString (attr, val) =
-      attr ++ ": " ++ val ++ "; "
-  in
-    String.concat << List.map stylePairToString
-
 --------------------------------------------------------------------------------
 -- Buttons
 --------------------------------------------------------------------------------
