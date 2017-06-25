@@ -28,6 +28,18 @@ import DeuceWidgets exposing
   )
 
 --==============================================================================
+--= HELPER FUNCTIONS
+--==============================================================================
+
+rgba : Int -> Int -> Int -> Float -> String
+rgba r g b a =
+  "rgba("
+    ++ (toString r) ++ ","
+    ++ (toString g) ++ ","
+    ++ (toString b) ++ ","
+    ++ (toString a) ++ ")"
+
+--==============================================================================
 --= INDEXED
 --==============================================================================
 
@@ -219,9 +231,9 @@ boundingHullPoints ci e =
 expPolygon : CodeInfo -> Exp -> Svg Msg
 expPolygon ci e =
   let
-    r = toString <| 100 * (e.start.col % 3)
-    g = toString <| 50 * (e.end.col % 5)
-    b = toString <| 50 * (e.start.col % 7)
+    r = 100 * (e.start.col % 3)
+    g = 50 * (e.end.col % 5)
+    b = 50 * (e.start.col % 4)
     deuceWidget =
       DeuceExp e.val.eid
     onMouseOver =
@@ -230,14 +242,17 @@ expPolygon ci e =
       Controller.msgMouseLeaveDeuceWidget deuceWidget
     active =
       List.member deuceWidget ci.deuceState.hoveredWidgets
-    strokeWidth =
-      if active then "2px" else "0"
+    (strokeWidth, a) =
+      if active then
+        ("2px", 0.2)
+      else
+        ("0", 0)
   in
     Svg.polygon
       [ SAttr.points <| boundingHullPoints ci e
-      , SAttr.fill "rgba(0,0,0,0)"
       , SAttr.strokeWidth strokeWidth
-      , SAttr.stroke <| "rgb(" ++ r ++ "," ++ g ++ "," ++ b ++ ")"
+      , SAttr.stroke <| rgba r g b 1
+      , SAttr.fill <| rgba r g b a
       , SE.onMouseOver onMouseOver
       , SE.onMouseOut onMouseOut
       ]
