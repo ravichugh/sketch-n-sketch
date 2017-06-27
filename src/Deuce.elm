@@ -23,8 +23,10 @@ import InterfaceController as Controller
 import Lang exposing
   ( Exp
   , Exp__(..)
+  , Pat
   , LetKind(..)
-  , foldExp
+  , CodeObject(..)
+  , foldCode
   )
 
 import DeuceWidgets exposing
@@ -200,25 +202,10 @@ lineHullsFromCode di code =
 --= HULL FUNCTIONS
 --==============================================================================
 
-expHull : CodeInfo -> Exp -> Hull
-expHull codeInfo e =
+-- NOTE: Use 0-indexing for columns and rows.
+hull : CodeInfo -> Int -> Int -> Int -> Int -> Hull
+hull codeInfo startCol startRow endCol endRow =
   let
-    endExp =
-      case e.val.e__ of
-        ELet _ Let _ _ binding _ _ ->
-          binding
-        _ ->
-          e
-    -- Use 0-indexing
-    startCol =
-      e.start.col - 1
-    startRow =
-      e.start.line - 1
-    endCol =
-        endExp.end.col - 1
-    endRow =
-      endExp.end.line - 1
-    -- Get relevant part of line array
     relevantLines =
       slice (startRow + 1) endRow codeInfo.lineHulls
   in
@@ -268,6 +255,40 @@ expHull codeInfo e =
         , (endCol, startRow)
         ]
 
+codeObjectHull : CodeInfo -> CodeObject -> Hull
+codeObjectHull codeInfo codeObject =
+  let
+    (startCol, startRow, endCol, endRow) =
+      case codeObject of
+        E e ->
+          let
+            endExp =
+              case e.val.e__ of
+                ELet _ Let _ _ binding _ _ ->
+                  binding
+                _ ->
+                  e
+          in
+            ( e.start.col - 1
+            , e.start.line - 1
+            , endExp.end.col - 1
+            , endExp.end.line - 1
+            )
+        P p ->
+            ( p.start.col - 1
+            , p.start.line - 1
+            , p.end.col - 1
+            , p.end.line - 1
+            )
+        T t ->
+            ( t.start.col - 1
+            , t.start.line - 1
+            , t.end.col - 1
+            , t.end.line - 1
+            )
+  in
+    hull codeInfo startCol startRow endCol endRow
+
 hullPoints : Hull -> String
 hullPoints =
   let
@@ -276,26 +297,35 @@ hullPoints =
   in
     String.concat << List.map pairToString
 
-boundingHullPoints : CodeInfo -> Exp -> String
-boundingHullPoints ci e =
-  hullPoints <| expHull ci e
+codeObjectHullPoints : CodeInfo -> CodeObject -> String
+codeObjectHullPoints codeInfo codeObject =
+  hullPoints <| codeObjectHull codeInfo codeObject
 
 --==============================================================================
 --= POLYGONS
 --==============================================================================
 
-expPolygon : CodeInfo -> Exp -> Svg Msg
-expPolygon ci e =
+codeObjectPolygon : CodeInfo -> CodeObject -> DeuceWidget -> Svg Msg
+codeObjectPolygon codeInfo codeObject deuceWidget =
   let
-    r = 100 * (e.start.col % 3)
-    g = 50 * (e.end.col % 5)
-    b = 50 * (e.start.col % 4)
-    deuceWidget =
-      case e.val.e__ of
-        ELet _ _ _ _ _ _ _ ->
-          DeuceLetBindingEquation e.val.eid
-        _ ->
-          DeuceExp e.val.eid
+    -- Eventually move style into additional parameter (like "extraAttrs")
+    (r, g, b) =
+      case codeObject of
+        E e ->
+          ( 50 * (e.start.col % 5) + 50
+          , 30
+          , 30
+          )
+        P p ->
+          ( 30
+          , 50 * (p.start.col % 5) + 50
+          , 30
+          )
+        T t ->
+          ( 30
+          , 30
+          , 50 * (t.start.col % 5) + 50
+          )
     onMouseOver =
       Controller.msgMouseEnterDeuceWidget deuceWidget
     onMouseOut =
@@ -303,9 +333,9 @@ expPolygon ci e =
     onClick =
       Controller.msgMouseClickDeuceWidget deuceWidget
     hovered =
-      List.member deuceWidget ci.deuceState.hoveredWidgets
+      List.member deuceWidget codeInfo.deuceState.hoveredWidgets
     active =
-      List.member deuceWidget ci.deuceState.selectedWidgets
+      List.member deuceWidget codeInfo.deuceState.selectedWidgets
     (strokeWidth, a, cursorStyle) =
       if hovered || active then
         ("2px", 0.2, "pointer")
@@ -313,7 +343,7 @@ expPolygon ci e =
         ("0", 0, "default")
   in
     Svg.polygon
-      [ SAttr.points <| boundingHullPoints ci e
+      [ SAttr.points <| codeObjectHullPoints codeInfo codeObject
       , SAttr.strokeWidth strokeWidth
       , SAttr.stroke <| rgba r g b 1
       , SAttr.fill <| rgba r g b a
@@ -326,13 +356,44 @@ expPolygon ci e =
       ]
       []
 
+expPolygon : CodeInfo -> Exp -> Svg Msg
+expPolygon codeInfo e =
+  let
+    codeObject =
+      E e
+    deuceWidget =
+      case e.val.e__ of
+        ELet _ _ _ _ _ _ _ ->
+          DeuceLetBindingEquation e.val.eid
+        _ ->
+          DeuceExp e.val.eid
+  in
+    codeObjectPolygon codeInfo codeObject deuceWidget
+
+patPolygon : CodeInfo -> Pat -> Svg Msg
+patPolygon codeInfo p =
+  let
+    codeObject =
+      P p
+    deuceWidget =
+      -- TODO PathedPatternId
+      DeucePat ((p.val.pid, 1), [])
+  in
+    codeObjectPolygon codeInfo codeObject deuceWidget
+
 polygons : CodeInfo -> Exp -> (List (Svg Msg))
-polygons ci ast =
+polygons codeInfo ast =
   List.reverse <|
-    foldExp
-      ( \e acc ->
-          expPolygon ci e :: acc
-      )
+    foldCode
+      { expFolder =
+          \e acc ->
+            expPolygon codeInfo e :: acc
+      , patFolder =
+          \p acc ->
+            patPolygon codeInfo p :: acc
+      , typeFolder =
+          flip always
+      }
       []
       ast
 

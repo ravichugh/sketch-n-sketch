@@ -1926,3 +1926,149 @@ pushRight : String -> Exp -> Exp
 pushRight spaces e =
   indent spaces e
   |> replacePrecedingWhitespace (precedingWhitespace e ++ spaces)
+
+--------------------------------------------------------------------------------
+-- Code Object Traversal
+--------------------------------------------------------------------------------
+-- NOTE: Much of this code is very similar to the `foldExp` code, but we also
+--       need to fold on patterns (and possibly types) as well as target
+--       positions for Deuce, so this code heavily draws from the earlier code
+--       but makes it more general. The old code is left in for backward
+--       compatibility.
+--------------------------------------------------------------------------------
+
+type CodeObject
+  = E Exp
+  | P Pat
+  | T Type
+  -- | ET WS -- for exp target
+  -- | PT WS -- for pat target
+  -- | TT WS -- for type target
+
+childCodeObjects : CodeObject -> List CodeObject
+childCodeObjects co =
+  case co of
+    E e ->
+      case e.val.e__ of
+        EConst _ _ _ _ ->
+          []
+        EBase _ _ ->
+          []
+        EVar _ _ ->
+          []
+        EFun _ ps e1 _ ->
+          (List.map P ps) ++ [E e1]
+        EApp _ f es _ ->
+          (E f) :: (List.map E es)
+        EOp _ _ es _ ->
+          (List.map E es)
+        EList _ es _ m _  ->
+          List.map E <|
+            es ++
+              case m of
+                Just eTail  -> [eTail]
+                Nothing -> []
+        EIf _ e1 e2 e3 _ ->
+          [E e1, E e2, E e3]
+        ECase _ e1 branches ws2 ->
+          (E e1) ::
+            ( List.concatMap
+                ( .val >> \(Branch_ _ branchP branchE _) ->
+                    [P branchP, E branchE]
+                )
+                branches
+            )
+        ETypeCase _ p1 tbranches _ ->
+          (P p1) ::
+            ( List.concatMap
+                ( .val >> \(TBranch_ _ branchT branchE _) ->
+                    [T branchT, E branchE]
+                )
+                tbranches
+            )
+        ELet _ _ _ p1 e1 e2 _ ->
+          [P p1, E e1, E e2]
+        EComment _ _ e1 ->
+          [E e1]
+        EOption _ _ _ _ e1 ->
+          [E e1]
+        ETyp _ p1 t1 e1 _ ->
+          [P p1, T t1, E e1]
+        EColonType _ e1 _ t1 _ ->
+          [E e1, T t1]
+        ETypeAlias _ p1 t1 e1 _ ->
+          [P p1, T t1, E e1]
+    P p ->
+      case p.val.p__ of
+        PVar _ _ _ ->
+          []
+        PConst _ _ ->
+          []
+        PBase _ _ ->
+          []
+        PList _ ps _ m _ ->
+          List.map P <|
+            ps ++
+              case m of
+                Just pTail  -> [pTail]
+                Nothing -> []
+        PAs _ _ _ p1 ->
+          [P p1]
+    T t ->
+      case t.val of
+        TNum _ ->
+          []
+        TBool _ ->
+          []
+        TString _ ->
+          []
+        TNull _ ->
+          []
+        TList _ t1 _ ->
+          [T t1]
+        TDict _ t1 t2 _ ->
+          [T t1, T t2]
+        TTuple _ ts _ m _ ->
+          List.map T <|
+            ts ++
+              case m of
+                Just tTail  -> [tTail]
+                Nothing -> []
+        TArrow _ ts _ ->
+          List.map T ts
+        TUnion _ ts _ ->
+          List.map T ts
+        TNamed _ _ ->
+          []
+        TVar _ _ ->
+          []
+        TForall _ _ t1 _ ->
+          [T t1]
+        TWildcard _ ->
+          []
+
+flattenToCodeObjects : CodeObject -> List CodeObject
+flattenToCodeObjects codeObject =
+  codeObject ::
+    List.concatMap flattenToCodeObjects (childCodeObjects codeObject)
+
+foldCode
+  :  { expFolder : Exp -> a -> a
+     , patFolder : Pat -> a -> a
+     , typeFolder : Type -> a -> a
+     }
+  -> a
+  -> Exp
+  -> a
+foldCode folders initialAcc exp =
+  let
+    folder codeObject =
+      case codeObject of
+        E e ->
+          folders.expFolder e
+        P p ->
+          folders.patFolder p
+        T t ->
+          folders.typeFolder t
+  in
+    List.foldl folder initialAcc (flattenToCodeObjects (E exp))
