@@ -50,12 +50,21 @@ get i list =
     |> List.drop i
     |> List.head
 
-rgba : Int -> Int -> Int -> Float -> String
-rgba r g b a =
+type alias Color =
+  { r : Int
+  , g : Int
+  , b : Int
+  }
+
+type alias Opacity =
+  Float
+
+rgbaString : Color -> Opacity -> String
+rgbaString c a =
   "rgba("
-    ++ (toString r) ++ ","
-    ++ (toString g) ++ ","
-    ++ (toString b) ++ ","
+    ++ (toString c.r) ++ ","
+    ++ (toString c.g) ++ ","
+    ++ (toString c.b) ++ ","
     ++ (toString a) ++ ")"
 
 --==============================================================================
@@ -305,27 +314,9 @@ codeObjectHullPoints codeInfo codeObject =
 --= POLYGONS
 --==============================================================================
 
-codeObjectPolygon : CodeInfo -> CodeObject -> DeuceWidget -> Svg Msg
-codeObjectPolygon codeInfo codeObject deuceWidget =
+codeObjectPolygon : CodeInfo -> CodeObject -> DeuceWidget -> Color -> Svg Msg
+codeObjectPolygon codeInfo codeObject deuceWidget color =
   let
-    -- Eventually move style into additional parameter (like "extraAttrs")
-    (r, g, b) =
-      case codeObject of
-        E e ->
-          ( 50 * (e.start.col % 5) + 50
-          , 30
-          , 30
-          )
-        P p ->
-          ( 30
-          , 50 * (p.start.col % 5) + 50
-          , 30
-          )
-        T t ->
-          ( 30
-          , 30
-          , 50 * (t.start.col % 5) + 50
-          )
     onMouseOver =
       Controller.msgMouseEnterDeuceWidget deuceWidget
     onMouseOut =
@@ -336,7 +327,7 @@ codeObjectPolygon codeInfo codeObject deuceWidget =
       List.member deuceWidget codeInfo.deuceState.hoveredWidgets
     active =
       List.member deuceWidget codeInfo.deuceState.selectedWidgets
-    (strokeWidth, a, cursorStyle) =
+    (strokeWidth, alpha, cursorStyle) =
       if hovered || active then
         ("2px", 0.2, "pointer")
       else
@@ -345,8 +336,8 @@ codeObjectPolygon codeInfo codeObject deuceWidget =
     Svg.polygon
       [ SAttr.points <| codeObjectHullPoints codeInfo codeObject
       , SAttr.strokeWidth strokeWidth
-      , SAttr.stroke <| rgba r g b 1
-      , SAttr.fill <| rgba r g b a
+      , SAttr.stroke <| rgbaString color 1
+      , SAttr.fill <| rgbaString color alpha
       , SAttr.style << styleListToString <|
           [ ("cursor", cursorStyle)
           ]
@@ -367,8 +358,13 @@ expPolygon codeInfo e =
           DeuceLetBindingEquation e.val.eid
         _ ->
           DeuceExp e.val.eid
+    color =
+      { r = 200
+      , g = 0
+      , b = 0
+      }
   in
-    codeObjectPolygon codeInfo codeObject deuceWidget
+    codeObjectPolygon codeInfo codeObject deuceWidget color
 
 patPolygon : CodeInfo -> Pat -> Svg Msg
 patPolygon codeInfo p =
@@ -378,8 +374,13 @@ patPolygon codeInfo p =
     deuceWidget =
       -- TODO PathedPatternId
       DeucePat ((p.val.pid, 1), [])
+    color =
+      { r = 0
+      , g = 200
+      , b = 0
+      }
   in
-    codeObjectPolygon codeInfo codeObject deuceWidget
+    codeObjectPolygon codeInfo codeObject deuceWidget color
 
 polygons : CodeInfo -> Exp -> (List (Svg Msg))
 polygons codeInfo ast =
