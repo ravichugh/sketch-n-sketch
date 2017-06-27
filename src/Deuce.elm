@@ -22,6 +22,8 @@ import InterfaceController as Controller
 
 import Lang exposing
   ( Exp
+  , Exp__(..)
+  , LetKind(..)
   , foldExp
   )
 
@@ -201,15 +203,21 @@ lineHullsFromCode di code =
 expHull : CodeInfo -> Exp -> Hull
 expHull codeInfo e =
   let
+    endExp =
+      case e.val.e__ of
+        ELet _ Let _ _ binding _ _ ->
+          binding
+        _ ->
+          e
     -- Use 0-indexing
     startCol =
       e.start.col - 1
     startRow =
       e.start.line - 1
     endCol =
-      e.end.col - 1
+        endExp.end.col - 1
     endRow =
-      e.end.line - 1
+      endExp.end.line - 1
     -- Get relevant part of line array
     relevantLines =
       slice (startRow + 1) endRow codeInfo.lineHulls
@@ -283,7 +291,11 @@ expPolygon ci e =
     g = 50 * (e.end.col % 5)
     b = 50 * (e.start.col % 4)
     deuceWidget =
-      DeuceExp e.val.eid
+      case e.val.e__ of
+        ELet _ _ _ _ _ _ _ ->
+          DeuceLetBindingEquation e.val.eid
+        _ ->
+          DeuceExp e.val.eid
     onMouseOver =
       Controller.msgMouseEnterDeuceWidget deuceWidget
     onMouseOut =
