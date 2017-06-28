@@ -30,6 +30,7 @@ import Lang exposing
   , CodeObject(..)
   , extractInfoFromCodeObject
   , isTarget
+  , startEnd
   , foldCode
   )
 
@@ -70,6 +71,23 @@ rgbaString c a =
     ++ (toString c.g) ++ ","
     ++ (toString c.b) ++ ","
     ++ (toString a) ++ ")"
+
+-- (startCol, startRow, endCol, endRow) but 0-indexed
+startEndZeroIndexed : CodeObject -> (Int, Int, Int, Int)
+startEndZeroIndexed codeObject =
+  let
+    (startCol, startRow, endCol, endRow) =
+      startEnd codeObject
+  in
+    ( startCol - 1
+    , startRow - 1
+    , endCol - 1
+    , endRow - 1
+    )
+
+mapBoth : (a -> b) -> (a, a) -> (b, b)
+mapBoth f (x, y) =
+  (f x, f y)
 
 --==============================================================================
 --= INDEXED
@@ -292,31 +310,7 @@ codeObjectHull codeInfo codeObject =
     useTrimmed =
       (not << isTarget) codeObject
     (startCol, startRow, endCol, endRow) =
-      case codeObject of
-        E e ->
-          let
-            endExp =
-              case e.val.e__ of
-                ELet _ Let _ _ binding _ _ ->
-                  binding
-                _ ->
-                  e
-          in
-            ( e.start.col - 1
-            , e.start.line - 1
-            , endExp.end.col - 1
-            , endExp.end.line - 1
-            )
-        _ ->
-          let
-            info =
-              extractInfoFromCodeObject codeObject
-          in
-            ( info.start.col - 1
-            , info.start.line - 1
-            , info.end.col - 1
-            , info.end.line - 1
-            )
+      startEndZeroIndexed codeObject
   in
     hull codeInfo useTrimmed startCol startRow endCol endRow
 
@@ -336,6 +330,42 @@ codeObjectHullPoints codeInfo codeObject =
 --= POLYGONS
 --==============================================================================
 
+handles
+  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
+handles codeInfo codeObject color opacity radius =
+  let
+    (startCol, startRow, endCol, endRow) =
+      startEndZeroIndexed codeObject
+    (cx1, cy1) =
+      (startCol, startRow)
+        |> c2a codeInfo.displayInfo
+        |> \(x, y) -> (x, y - radius)
+        |> mapBoth toString
+    (cx2, cy2) =
+      (endCol, endRow + 1)
+        |> c2a codeInfo.displayInfo
+        |> \(x, y) -> (x, y + radius)
+        |> mapBoth toString
+    radiusString =
+      toString radius
+  in
+    Svg.g
+      [ SAttr.fill <| rgbaString color opacity
+      ]
+      [ Svg.circle
+          [ SAttr.cx cx1
+          , SAttr.cy cy1
+          , SAttr.r radiusString
+          ]
+          []
+      , Svg.circle
+          [ SAttr.cx cx2
+          , SAttr.cy cy2
+          , SAttr.r radiusString
+          ]
+          []
+      ]
+
 codeObjectPolygon
   : CodeInfo -> CodeObject -> DeuceWidget -> Color -> Int -> Svg Msg
 codeObjectPolygon codeInfo codeObject deuceWidget color zIndex =
@@ -350,18 +380,14 @@ codeObjectPolygon codeInfo codeObject deuceWidget color zIndex =
       List.member deuceWidget codeInfo.deuceState.hoveredWidgets
     active =
       List.member deuceWidget codeInfo.deuceState.selectedWidgets
-    (strokeWidth, alpha, cursorStyle) =
+    (baseAlpha, cursorStyle) =
       if hovered || active then
-        ("2px", 0.2, "pointer")
+        (1, "pointer")
       else
-        ("0", 0, "default")
+        (0, "default")
   in
-    Svg.polygon
-      [ SAttr.points <| codeObjectHullPoints codeInfo codeObject
-      , SAttr.strokeWidth strokeWidth
-      , SAttr.stroke <| rgbaString color 1
-      , SAttr.fill <| rgbaString color alpha
-      , SAttr.z <| toString zIndex
+    Svg.g
+      [ SAttr.z <| toString zIndex
       , SAttr.style << styleListToString <|
           [ ("cursor", cursorStyle)
           ]
@@ -369,7 +395,15 @@ codeObjectPolygon codeInfo codeObject deuceWidget color zIndex =
       , SE.onMouseOut onMouseOut
       , SE.onClick onClick
       ]
-      []
+      [ handles codeInfo codeObject color baseAlpha 5
+      , Svg.polygon
+          [ SAttr.points <| codeObjectHullPoints codeInfo codeObject
+          , SAttr.strokeWidth "2px"
+          , SAttr.stroke <| rgbaString color baseAlpha
+          , SAttr.fill <| rgbaString color (0.2 * baseAlpha)
+          ]
+          []
+      ]
 
 expPolygon : CodeInfo -> Exp -> Svg Msg
 expPolygon codeInfo e =

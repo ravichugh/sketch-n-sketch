@@ -1977,6 +1977,36 @@ isTarget codeObject =
     TT _ _ _ ->
       True
 
+-- (startCol, startRow, endCol, endRow)
+-- NOTE: 1-indexed.
+startEnd : CodeObject -> (Int, Int, Int, Int)
+startEnd codeObject =
+  case codeObject of
+    E e ->
+      let
+        endExp =
+          case e.val.e__ of
+            ELet _ Let _ _ binding _ _ ->
+              binding
+            _ ->
+              e
+      in
+        ( e.start.col
+        , e.start.line
+        , endExp.end.col
+        , endExp.end.line
+        )
+    _ ->
+      let
+        info =
+          extractInfoFromCodeObject codeObject
+      in
+        ( info.start.col
+        , info.start.line
+        , info.end.col
+        , info.end.line
+        )
+
 childCodeObjects : CodeObject -> List CodeObject
 childCodeObjects co =
   case co of
