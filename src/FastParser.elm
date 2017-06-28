@@ -180,7 +180,7 @@ listLiteralInternal
   :  String
   -> (WS -> List (WithInfo elem) -> WS -> list)
   -> ParserI elem -> ParserI list
-listLiteralInternal context combiner elem  =
+listLiteralInternal context combiner elem =
   inContext context <|
     bracketBlock combiner (repeat zeroOrMore elem)
 
@@ -634,6 +634,24 @@ listType =
           |= typ
 
 --------------------------------------------------------------------------------
+-- Dict Type
+--------------------------------------------------------------------------------
+
+dictType : Parser Type
+dictType =
+  inContext "dictionary type" <|
+    lazy <| \_ ->
+      parenBlock
+        ( \wsStart (tKey, tVal) wsEnd ->
+            TDict wsStart tKey tVal wsEnd
+        )
+        ( succeed (,)
+            |. spacedKeyword "TDict"
+            |= typ
+            |= typ
+        )
+
+--------------------------------------------------------------------------------
 -- Tuple Type
 --------------------------------------------------------------------------------
 
@@ -733,6 +751,7 @@ typ =
         , wildcardType
         , lazy <| \_ -> functionType
         , lazy <| \_ -> listType
+        , lazy <| \_ -> dictType
         , lazy <| \_ -> tupleType
         , lazy <| \_ -> forallType
         , lazy <| \_ -> unionType

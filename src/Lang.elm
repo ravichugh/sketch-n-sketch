@@ -1941,111 +1941,332 @@ type CodeObject
   = E Exp
   | P Pat
   | T Type
-  -- | ET WS -- for exp target
-  -- | PT WS -- for pat target
-  -- | TT WS -- for type target
+  | ET BeforeAfter WS Exp  -- Exp target
+  | PT BeforeAfter WS Pat  -- Pat target
+  | TT BeforeAfter WS Type -- Type target
+
+extractInfoFromCodeObject : CodeObject -> WithInfo CodeObject
+extractInfoFromCodeObject codeObject =
+  case codeObject of
+    E e ->
+      { e | val = codeObject }
+    P p ->
+      { p | val = codeObject }
+    T t ->
+      { t | val = codeObject }
+    ET _ ws _ ->
+      { ws | val = codeObject }
+    PT _ ws _ ->
+      { ws | val = codeObject }
+    TT _ ws _ ->
+      { ws | val = codeObject }
+
+isTarget : CodeObject -> Bool
+isTarget codeObject =
+  case codeObject of
+    E _ ->
+      False
+    P _ ->
+      False
+    T _ ->
+      False
+    ET _ _ _ ->
+      True
+    PT _ _ _ ->
+      True
+    TT _ _ _ ->
+      True
 
 childCodeObjects : CodeObject -> List CodeObject
 childCodeObjects co =
   case co of
     E e ->
       case e.val.e__ of
-        EConst _ _ _ _ ->
-          []
-        EBase _ _ ->
-          []
-        EVar _ _ ->
-          []
-        EFun _ ps e1 _ ->
-          (List.map P ps) ++ [E e1]
-        EApp _ f es _ ->
-          (E f) :: (List.map E es)
-        EOp _ _ es _ ->
-          (List.map E es)
-        EList _ es _ m _  ->
-          List.map E <|
-            es ++
-              case m of
-                Just eTail  -> [eTail]
-                Nothing -> []
-        EIf _ e1 e2 e3 _ ->
-          [E e1, E e2, E e3]
-        ECase _ e1 branches ws2 ->
-          (E e1) ::
-            ( List.concatMap
-                ( .val >> \(Branch_ _ branchP branchE _) ->
-                    [P branchP, E branchE]
-                )
-                branches
+        EConst ws1 _ _ _ ->
+          [ ET Before ws1 e ]
+        EBase ws1 _ ->
+          [ ET Before ws1 e ]
+        EVar ws1 _ ->
+          [ ET Before ws1 e ]
+        EFun ws1 ps e1 ws2 ->
+          [ ET Before ws1 e
+          ] ++
+          ( List.map P ps
+          ) ++
+          [ E e1
+          , ET After ws2 e1
+          ]
+        EApp ws1 e1 es ws2 ->
+          [ ET Before ws1 e
+          , E e1
+          ] ++
+          ( List.map E es
+          ) ++
+          ( case Utils.maybeLast es of
+              Just lastE ->
+                [ ET After ws2 lastE ]
+              Nothing ->
+                []
+          )
+        EOp ws1 _ es ws2 ->
+          [ ET Before ws1 e
+          ] ++
+          ( List.map E es
+          ) ++
+          ( case Utils.maybeLast es of
+              Just lastE ->
+                [ ET After ws2 lastE ]
+              Nothing ->
+                []
+          )
+        EList ws1 es ws2 m ws3  ->
+          let
+            lastHead =
+              case Utils.maybeLast es of
+                Just lastHead ->
+                  [ lastHead ]
+                Nothing ->
+                  []
+          in
+            [ ET Before ws1 e
+            ] ++
+            ( List.map E es
+            ) ++
+            ( case m of
+                Just eTail ->
+                  ( List.map (ET After ws2) lastHead
+                  ) ++
+                  [ E eTail
+                  , ET After ws3 eTail
+                  ]
+                Nothing ->
+                  ( List.map (ET After ws3) lastHead
+                  )
             )
-        ETypeCase _ p1 tbranches _ ->
-          (P p1) ::
-            ( List.concatMap
-                ( .val >> \(TBranch_ _ branchT branchE _) ->
-                    [T branchT, E branchE]
-                )
-                tbranches
+        EIf ws1 e1 e2 e3 ws2 ->
+            [ ET Before ws1 e
+            , E e1
+            , E e2
+            , E e3
+            , ET After ws2 e3
+            ]
+        ECase ws1 e1 branches _ ->
+          [ ET Before ws1 e
+          , E e1
+          ] ++
+          ( case List.head branches of
+              Just b ->
+                case b.val of
+                  Branch_ branchWS1 _ _ _ ->
+                    [ ET After branchWS1 e1 ]
+              Nothing ->
+                []
+          ) ++
+          ( List.concatMap
+              ( .val >> \(Branch_ _ branchP branchE branchWS2) ->
+                  [ P branchP
+                  , E branchE
+                  , ET After branchWS2 branchE
+                  ]
+              )
+              branches
+          )
+        ETypeCase ws1 p1 tbranches _ ->
+          [ ET Before ws1 e
+          , P p1
+          ] ++
+          ( case List.head tbranches of
+              Just tb ->
+                case tb.val of
+                  TBranch_ tbranchWS1 _ _ _ ->
+                    [ PT After tbranchWS1 p1 ]
+              Nothing ->
+                []
+          ) ++
+          ( List.concatMap
+              ( .val >> \(TBranch_ _ branchT branchE branchWS2) ->
+                  [ T branchT
+                  , E branchE
+                  , ET After branchWS2 branchE
+                  ]
+              )
+              tbranches
+          )
+        ELet ws1 lk _ p1 e1 e2 ws2 ->
+          let
+            lastInside =
+              case lk of
+                Let ->
+                  e2
+                Def ->
+                  e1
+          in
+            [ ET Before ws1 e
+            , P p1
+            , E e1
+            ] ++
+            ( case lk of
+                Let ->
+                  [ E e2
+                  , ET After ws2 e2
+                  ]
+                Def ->
+                  [ ET After ws2 e1
+                  , E e2
+                  ]
             )
-        ELet _ _ _ p1 e1 e2 _ ->
-          [P p1, E e1, E e2]
-        EComment _ _ e1 ->
-          [E e1]
-        EOption _ _ _ _ e1 ->
-          [E e1]
-        ETyp _ p1 t1 e1 _ ->
-          [P p1, T t1, E e1]
+        EComment ws1 _ e1 ->
+          [ ET Before ws1 e
+          , E e1
+          ]
+        EOption ws1 _ _ _ e1 ->
+          [ ET Before ws1 e
+          , E e1
+          ]
+        ETyp ws1 p1 t1 e1 ws2 ->
+          [ ET Before ws1 e
+          , P p1
+          , T t1
+          , TT After ws2 t1
+          , E e1
+          ]
         EColonType _ e1 _ t1 _ ->
           [E e1, T t1]
-        ETypeAlias _ p1 t1 e1 _ ->
-          [P p1, T t1, E e1]
+        ETypeAlias ws1 p1 t1 e1 ws2 ->
+          [ ET Before ws1 e
+          , P p1
+          , T t1
+          , TT After ws2 t1
+          , E e1
+          ]
     P p ->
       case p.val.p__ of
-        PVar _ _ _ ->
-          []
-        PConst _ _ ->
-          []
-        PBase _ _ ->
-          []
-        PList _ ps _ m _ ->
-          List.map P <|
-            ps ++
-              case m of
-                Just pTail  -> [pTail]
-                Nothing -> []
-        PAs _ _ _ p1 ->
-          [P p1]
+        PVar ws1 _ _ ->
+          [ PT Before ws1 p ]
+        PConst ws1 _ ->
+          [ PT Before ws1 p ]
+        PBase ws1 _ ->
+          [ PT Before ws1 p ]
+        PList ws1 ps ws2 m ws3 ->
+          let
+            lastHead =
+              case Utils.maybeLast ps of
+                Just lastHead ->
+                  [ lastHead ]
+                Nothing ->
+                  []
+          in
+            [ PT Before ws1 p
+            ] ++
+            ( List.map P ps
+            ) ++
+            ( case m of
+                Just pTail ->
+                  ( List.map (PT After ws2) lastHead
+                  ) ++
+                  [ P pTail
+                  , PT After ws3 pTail
+                  ]
+                Nothing ->
+                  ( List.map (PT After ws3) lastHead
+                  )
+            )
+        PAs ws1 _ _ p1 ->
+          [ PT Before ws1 p
+          , P p1
+          ]
     T t ->
       case t.val of
-        TNum _ ->
-          []
-        TBool _ ->
-          []
-        TString _ ->
-          []
-        TNull _ ->
-          []
-        TList _ t1 _ ->
-          [T t1]
-        TDict _ t1 t2 _ ->
-          [T t1, T t2]
-        TTuple _ ts _ m _ ->
-          List.map T <|
-            ts ++
-              case m of
-                Just tTail  -> [tTail]
-                Nothing -> []
-        TArrow _ ts _ ->
-          List.map T ts
-        TUnion _ ts _ ->
-          List.map T ts
-        TNamed _ _ ->
-          []
-        TVar _ _ ->
-          []
-        TForall _ _ t1 _ ->
-          [T t1]
-        TWildcard _ ->
-          []
+        TNum ws1 ->
+          [ TT Before ws1 t ]
+        TBool ws1 ->
+          [ TT Before ws1 t ]
+        TString ws1 ->
+          [ TT Before ws1 t ]
+        TNull ws1 ->
+          [ TT Before ws1 t ]
+        TList ws1 t1 ws2 ->
+          [ TT Before ws1 t
+          , T t1
+          , TT After ws2 t1
+          ]
+        TDict ws1 t1 t2 ws2 ->
+          [ TT Before ws1 t
+          , T t1
+          , T t2
+          , TT After ws2 t2
+          ]
+        TTuple ws1 ts ws2 m ws3 ->
+          let
+            lastHead =
+              case Utils.maybeLast ts of
+                Just lastHead ->
+                  [ lastHead ]
+                Nothing ->
+                  []
+          in
+            [ TT Before ws1 t
+            ] ++
+            ( List.map T ts
+            ) ++
+            ( case m of
+                Just tTail ->
+                  ( List.map (TT After ws2) lastHead
+                  ) ++
+                  [ T tTail
+                  , TT After ws3 tTail
+                  ]
+                Nothing ->
+                  ( List.map (TT After ws3) lastHead
+                  )
+            )
+        TArrow ws1 ts ws2 ->
+          let
+            lastHead =
+              case Utils.maybeLast ts of
+                Just lastHead ->
+                  [ lastHead ]
+                Nothing ->
+                  []
+          in
+            [ TT Before ws1 t
+            ] ++
+            ( List.map T ts
+            ) ++
+            ( List.map (TT After ws2) lastHead
+            )
+        TUnion ws1 ts ws2 ->
+          let
+            lastHead =
+              case Utils.maybeLast ts of
+                Just lastHead ->
+                  [ lastHead ]
+                Nothing ->
+                  []
+          in
+            [ TT Before ws1 t
+            ] ++
+            ( List.map T ts
+            ) ++
+            ( List.map (TT After ws2) lastHead
+            )
+        TNamed ws1 _ ->
+          [ TT Before ws1 t ]
+        TVar ws1 _ ->
+          [ TT Before ws1 t ]
+        TForall ws1 _ t1 ws2 ->
+          [ TT Before ws1 t
+          , T t1
+          , TT After ws2 t1
+          ]
+        TWildcard ws1 ->
+          [ TT Before ws1 t ]
+    ET _ _ _ ->
+      []
+    PT _ _ _ ->
+      []
+    TT _ _ _ ->
+      []
 
 flattenToCodeObjects : CodeObject -> List CodeObject
 flattenToCodeObjects codeObject =
@@ -2056,6 +2277,9 @@ foldCode
   :  { expFolder : Exp -> a -> a
      , patFolder : Pat -> a -> a
      , typeFolder : Type -> a -> a
+     , expTargetFolder : BeforeAfter -> WS -> Exp -> a -> a
+     , patTargetFolder : BeforeAfter -> WS -> Pat -> a -> a
+     , typeTargetFolder : BeforeAfter -> WS -> Type -> a -> a
      }
   -> a
   -> Exp
@@ -2070,5 +2294,11 @@ foldCode folders initialAcc exp =
           folders.patFolder p
         T t ->
           folders.typeFolder t
+        ET ba ws et ->
+          folders.expTargetFolder ba ws et
+        PT ba ws pt ->
+          folders.patTargetFolder ba ws pt
+        TT ba ws tt ->
+          folders.typeTargetFolder ba ws tt
   in
     List.foldl folder initialAcc (flattenToCodeObjects (E exp))

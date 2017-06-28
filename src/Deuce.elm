@@ -21,11 +21,15 @@ import InterfaceModel as Model exposing
 import InterfaceController as Controller
 
 import Lang exposing
-  ( Exp
+  ( WS
+  , BeforeAfter
+  , Exp
   , Exp__(..)
   , Pat
   , LetKind(..)
   , CodeObject(..)
+  , extractInfoFromCodeObject
+  , isTarget
   , foldCode
   )
 
@@ -125,7 +129,8 @@ type alias DisplayInfo =
 
 type alias CodeInfo =
   { displayInfo : DisplayInfo
-  , lineHulls : LineHulls
+  , untrimmedLineHulls : LineHulls
+  , trimmedLineHulls : LineHulls
   , deuceState : DeuceState
   }
 
@@ -144,19 +149,27 @@ isBlankLine : Line -> Bool
 isBlankLine line =
   line.startCol == line.endCol
 
-trimLine : String -> Line
-trimLine s =
+untrimmedLine : String -> Line
+untrimmedLine s =
+  { startCol =
+      0
+  , endCol =
+      String.length s
+  , val =
+      s
+  }
+
+trimmedLine : String -> Line
+trimmedLine s =
   let
     trimmed =
       String.trim s
     trimmedLen =
       String.length trimmed
-    trimmedLeftLen =
-      (String.length << String.trimLeft) s
     trimmedRightLen =
       (String.length << String.trimRight) s
     startCol =
-      trimmedRightLen - trimmedLeftLen
+      trimmedRightLen - trimmedLen
     endCol =
       startCol + trimmedLen
   in
@@ -167,10 +180,6 @@ trimLine s =
     , val =
         trimmed
     }
-
-lines : String -> List Line
-lines =
-  List.map trimLine << String.split "\n"
 
 -- TODO Not quite right; possibly need to pad based on expression position
 --      rather than lines.
@@ -200,23 +209,36 @@ lineHull di (row, line) =
     , (line.endCol, row)
     ]
 
-lineHullsFromCode : DisplayInfo -> Code -> LineHulls
+-- Returns: (untrimmed, trimmed)
+lineHullsFromCode : DisplayInfo -> Code -> (LineHulls, LineHulls)
 lineHullsFromCode di code =
-  code
-    |> lines
-    |> index
-    |> List.map (lineHull di)
+  let
+    pipeline lineKind =
+      code
+        |> String.lines
+        |> List.map lineKind
+        |> index
+        |> List.map (lineHull di)
+  in
+    ( pipeline untrimmedLine
+    , pipeline trimmedLine
+    )
 
 --==============================================================================
 --= HULL FUNCTIONS
 --==============================================================================
 
 -- NOTE: Use 0-indexing for columns and rows.
-hull : CodeInfo -> Int -> Int -> Int -> Int -> Hull
-hull codeInfo startCol startRow endCol endRow =
+hull : CodeInfo -> Bool -> Int -> Int -> Int -> Int -> Hull
+hull codeInfo useTrimmed startCol startRow endCol endRow =
   let
+    lineHulls =
+      if useTrimmed then
+        codeInfo.trimmedLineHulls
+      else
+        codeInfo.untrimmedLineHulls
     relevantLines =
-      slice (startRow + 1) endRow codeInfo.lineHulls
+      slice (startRow + 1) endRow lineHulls
   in
     if startRow /= endRow then
       -- Left of first line
@@ -235,7 +257,7 @@ hull codeInfo startCol startRow endCol endRow =
       -- Left of last line
       ( List.take 2 <|
           Maybe.withDefault [] <|
-            get endRow codeInfo.lineHulls
+            get endRow lineHulls
       ) ++
 
       -- Right of last line
@@ -254,7 +276,7 @@ hull codeInfo startCol startRow endCol endRow =
       -- Right of first line
       ( List.drop 2 <|
           Maybe.withDefault [] <|
-            get startRow codeInfo.lineHulls
+            get startRow lineHulls
       )
     else
       List.map (c2a codeInfo.displayInfo)
@@ -267,6 +289,8 @@ hull codeInfo startCol startRow endCol endRow =
 codeObjectHull : CodeInfo -> CodeObject -> Hull
 codeObjectHull codeInfo codeObject =
   let
+    useTrimmed =
+      (not << isTarget) codeObject
     (startCol, startRow, endCol, endRow) =
       case codeObject of
         E e ->
@@ -283,20 +307,18 @@ codeObjectHull codeInfo codeObject =
             , endExp.end.col - 1
             , endExp.end.line - 1
             )
-        P p ->
-            ( p.start.col - 1
-            , p.start.line - 1
-            , p.end.col - 1
-            , p.end.line - 1
-            )
-        T t ->
-            ( t.start.col - 1
-            , t.start.line - 1
-            , t.end.col - 1
-            , t.end.line - 1
+        _ ->
+          let
+            info =
+              extractInfoFromCodeObject codeObject
+          in
+            ( info.start.col - 1
+            , info.start.line - 1
+            , info.end.col - 1
+            , info.end.line - 1
             )
   in
-    hull codeInfo startCol startRow endCol endRow
+    hull codeInfo useTrimmed startCol startRow endCol endRow
 
 hullPoints : Hull -> String
 hullPoints =
@@ -314,8 +336,9 @@ codeObjectHullPoints codeInfo codeObject =
 --= POLYGONS
 --==============================================================================
 
-codeObjectPolygon : CodeInfo -> CodeObject -> DeuceWidget -> Color -> Svg Msg
-codeObjectPolygon codeInfo codeObject deuceWidget color =
+codeObjectPolygon
+  : CodeInfo -> CodeObject -> DeuceWidget -> Color -> Int -> Svg Msg
+codeObjectPolygon codeInfo codeObject deuceWidget color zIndex =
   let
     onMouseOver =
       Controller.msgMouseEnterDeuceWidget deuceWidget
@@ -338,6 +361,7 @@ codeObjectPolygon codeInfo codeObject deuceWidget color =
       , SAttr.strokeWidth strokeWidth
       , SAttr.stroke <| rgbaString color 1
       , SAttr.fill <| rgbaString color alpha
+      , SAttr.z <| toString zIndex
       , SAttr.style << styleListToString <|
           [ ("cursor", cursorStyle)
           ]
@@ -363,8 +387,10 @@ expPolygon codeInfo e =
       , g = 0
       , b = 0
       }
+    zIndex =
+      0
   in
-    codeObjectPolygon codeInfo codeObject deuceWidget color
+    codeObjectPolygon codeInfo codeObject deuceWidget color zIndex
 
 patPolygon : CodeInfo -> Pat -> Svg Msg
 patPolygon codeInfo p =
@@ -379,8 +405,44 @@ patPolygon codeInfo p =
       , g = 200
       , b = 0
       }
+    zIndex = 0
   in
-    codeObjectPolygon codeInfo codeObject deuceWidget color
+    codeObjectPolygon codeInfo codeObject deuceWidget color zIndex
+
+expTargetPolygon : CodeInfo -> BeforeAfter -> WS -> Exp -> Svg Msg
+expTargetPolygon codeInfo ba ws et =
+  let
+    codeObject =
+      ET ba ws et
+    deuceWidget =
+      DeuceExpTarget (ba, et.val.eid)
+    color =
+      { r = 200
+      , g = 0
+      , b = 200
+      }
+    zIndex =
+      1
+  in
+    codeObjectPolygon codeInfo codeObject deuceWidget color zIndex
+
+patTargetPolygon : CodeInfo -> BeforeAfter -> WS -> Pat -> Svg Msg
+patTargetPolygon codeInfo ba ws pt =
+  let
+    codeObject =
+      PT ba ws pt
+    deuceWidget =
+      -- TODO PathedPatternId
+      DeucePatTarget (ba, ((pt.val.pid, 1), []))
+    color =
+      { r = 0
+      , g = 200
+      , b = 200
+      }
+    zIndex =
+      1
+  in
+    codeObjectPolygon codeInfo codeObject deuceWidget color zIndex
 
 polygons : CodeInfo -> Exp -> (List (Svg Msg))
 polygons codeInfo ast =
@@ -393,7 +455,17 @@ polygons codeInfo ast =
           \p acc ->
             patPolygon codeInfo p :: acc
       , typeFolder =
-          flip always
+          \_ acc ->
+            acc
+      , expTargetFolder =
+          \ba ws et acc ->
+            expTargetPolygon codeInfo ba ws et :: acc
+      , patTargetFolder =
+          \ba ws pt acc ->
+            patTargetPolygon codeInfo ba ws pt :: acc
+      , typeTargetFolder =
+          \_ _ _ acc ->
+            acc
       }
       []
       ast
@@ -413,13 +485,15 @@ overlay model =
       , characterWidth =
           model.codeBoxInfo.characterWidth
       }
-    lineHulls =
+    (untrimmedLineHulls, trimmedLineHulls) =
       lineHullsFromCode displayInfo model.code
     codeInfo =
       { displayInfo =
           displayInfo
-      , lineHulls =
-          lineHulls
+      , untrimmedLineHulls =
+          untrimmedLineHulls
+      , trimmedLineHulls =
+          trimmedLineHulls
       , deuceState =
           model.deuceState
       }
