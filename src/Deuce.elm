@@ -3,6 +3,7 @@ module Deuce exposing (overlay)
 import List
 import String
 import Tuple
+import Dict exposing (Dict)
 
 import Html exposing (Html)
 import Svg exposing (Svg)
@@ -27,11 +28,14 @@ import Lang exposing
   , Exp__(..)
   , Pat
   , LetKind(..)
+  , PId
+  , PathedPatternId
   , CodeObject(..)
   , extractInfoFromCodeObject
   , isTarget
   , startEnd
   , foldCode
+  , computePatMap
   )
 
 import DeuceWidgets exposing
@@ -150,6 +154,7 @@ type alias CodeInfo =
   , untrimmedLineHulls : LineHulls
   , trimmedLineHulls : LineHulls
   , deuceState : DeuceState
+  , patMap : Dict PId PathedPatternId
   }
 
 --==============================================================================
@@ -489,14 +494,21 @@ expPolygon codeInfo e =
   in
     codeObjectPolygon codeInfo codeObject deuceWidget color zIndex
 
-patPolygon : CodeInfo -> Pat -> Svg Msg
-patPolygon codeInfo p =
+patPolygon : CodeInfo -> Exp -> Pat -> Svg Msg
+patPolygon codeInfo e p =
   let
     codeObject =
-      P p
+      P e p
     deuceWidget =
-      -- TODO PathedPatternId
-      DeucePat ((p.val.pid, 1), [])
+      case Dict.get p.val.pid codeInfo.patMap of
+        Just ppid ->
+          DeucePat ppid
+        Nothing ->
+          Debug.crash <|
+            "Cannot find ppid of pattern with pid "
+              ++ toString p.val.pid
+              ++ ". The pattern in question looks like this:\n"
+              ++ toString p
     color =
       { r = 0
       , g = 200
@@ -523,14 +535,21 @@ expTargetPolygon codeInfo ba ws et =
   in
     codeObjectPolygon codeInfo codeObject deuceWidget color zIndex
 
-patTargetPolygon : CodeInfo -> BeforeAfter -> WS -> Pat -> Svg Msg
-patTargetPolygon codeInfo ba ws pt =
+patTargetPolygon : CodeInfo -> BeforeAfter -> WS -> Exp -> Pat -> Svg Msg
+patTargetPolygon codeInfo ba ws e pt =
   let
     codeObject =
-      PT ba ws pt
+      PT ba ws e pt
     deuceWidget =
-      -- TODO PathedPatternId
-      DeucePatTarget (ba, ((pt.val.pid, 1), []))
+      case Dict.get pt.val.pid codeInfo.patMap of
+        Just ppid ->
+          DeucePatTarget (ba, ppid)
+        Nothing ->
+          Debug.crash <|
+            "Cannot find ppid of targeted pattern with pid "
+              ++ toString pt.val.pid
+              ++ ". The targeted pattern in question looks like this:\n"
+              ++ toString pt
     color =
       { r = 0
       , g = 200
@@ -545,27 +564,23 @@ polygons : CodeInfo -> Exp -> (List (Svg Msg))
 polygons codeInfo ast =
   List.reverse <|
     foldCode
-      { expFolder =
-          \e acc ->
-            expPolygon codeInfo e :: acc
-      , patFolder =
-          \p acc ->
-            patPolygon codeInfo p :: acc
-      , typeFolder =
-          \_ acc ->
-            acc
-      , expTargetFolder =
-          \ba ws et acc ->
-            expTargetPolygon codeInfo ba ws et :: acc
-      , patTargetFolder =
-          \ba ws pt acc ->
-            patTargetPolygon codeInfo ba ws pt :: acc
-      , typeTargetFolder =
-          \_ _ _ acc ->
-            acc
-      }
+      ( \codeObject acc ->
+          case codeObject of
+            E e ->
+              expPolygon codeInfo e :: acc
+            P e p ->
+              patPolygon codeInfo e p :: acc
+            T t ->
+              acc
+            ET ba ws et ->
+              expTargetPolygon codeInfo ba ws et :: acc
+            PT ba ws e pt ->
+              patTargetPolygon codeInfo ba ws e pt :: acc
+            TT _ _ _ ->
+              acc
+      )
       []
-      ast
+      (E ast)
 
 --==============================================================================
 --= EXPORTS
@@ -584,6 +599,8 @@ overlay model =
       }
     (untrimmedLineHulls, trimmedLineHulls) =
       lineHullsFromCode displayInfo model.code
+    patMap =
+      computePatMap ast
     codeInfo =
       { displayInfo =
           displayInfo
@@ -593,6 +610,8 @@ overlay model =
           trimmedLineHulls
       , deuceState =
           model.deuceState
+      , patMap =
+          patMap
       }
   in
     Svg.g

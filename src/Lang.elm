@@ -2,7 +2,7 @@ module Lang exposing (..)
 
 import String
 import Debug
-import Dict
+import Dict exposing (Dict)
 import Set
 import Debug
 import Regex
@@ -367,24 +367,25 @@ pathAfterElementRemoved removedPath path =
       -- Unless the initial call was with paths ([], []). But why would that happen?
       Debug.crash <| "Lang.pathAfterElementRemoved why did this get called?!" ++ toString (removedPath, path)
 
-
 patTargetPositionToTargetPathedPatId : PatTargetPosition -> PathedPatternId
 patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId) =
-  let (referenceScopeId, referencePath) = referencePathedPatId in
-  let targetPath =
-    let referencePathAsPList =
-      case referencePath of
-        [] -> [1]
-        _  -> referencePath
-    in
-    case beforeAfter of
-      Before -> referencePathAsPList
-      After  ->
-        patPathRightSibling referencePathAsPList
-        |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePathedPatId))
+  let
+    (referenceScopeId, referencePath) =
+      referencePathedPatId
+    targetPath =
+      let
+        referencePathAsPList =
+          case referencePath of
+            [] -> [1]
+            _  -> referencePath
+      in
+        case beforeAfter of
+          Before -> referencePathAsPList
+          After  ->
+            patPathRightSibling referencePathAsPList
+            |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePathedPatId))
   in
-  (referenceScopeId, targetPath)
-
+    (referenceScopeId, targetPath)
 
 ------------------------------------------------------------------------------
 -- Unparsing
@@ -1939,10 +1940,10 @@ pushRight spaces e =
 
 type CodeObject
   = E Exp
-  | P Pat
+  | P Exp Pat -- Patterns know their parent
   | T Type
-  | ET BeforeAfter WS Exp  -- Exp target
-  | PT BeforeAfter WS Pat  -- Pat target
+  | ET BeforeAfter WS Exp -- Exp target
+  | PT BeforeAfter WS Exp Pat -- Pat target (knows the parent of its target)
   | TT BeforeAfter WS Type -- Type target
 
 extractInfoFromCodeObject : CodeObject -> WithInfo CodeObject
@@ -1950,13 +1951,13 @@ extractInfoFromCodeObject codeObject =
   case codeObject of
     E e ->
       { e | val = codeObject }
-    P p ->
+    P _ p ->
       { p | val = codeObject }
     T t ->
       { t | val = codeObject }
     ET _ ws _ ->
       { ws | val = codeObject }
-    PT _ ws _ ->
+    PT _ ws _ _ ->
       { ws | val = codeObject }
     TT _ ws _ ->
       { ws | val = codeObject }
@@ -1966,13 +1967,13 @@ isTarget codeObject =
   case codeObject of
     E _ ->
       False
-    P _ ->
+    P _ _ ->
       False
     T _ ->
       False
     ET _ _ _ ->
       True
-    PT _ _ _ ->
+    PT _ _ _ _ ->
       True
     TT _ _ _ ->
       True
@@ -2021,7 +2022,7 @@ childCodeObjects co =
         EFun ws1 ps e1 ws2 ->
           [ ET Before ws1 e
           ] ++
-          ( List.map P ps
+          ( List.map (P e) ps
           ) ++
           [ E e1
           , ET After ws2 e1
@@ -2094,7 +2095,7 @@ childCodeObjects co =
           ) ++
           ( List.concatMap
               ( .val >> \(Branch_ _ branchP branchE branchWS2) ->
-                  [ P branchP
+                  [ P e branchP
                   , E branchE
                   , ET After branchWS2 branchE
                   ]
@@ -2103,13 +2104,13 @@ childCodeObjects co =
           )
         ETypeCase ws1 p1 tbranches _ ->
           [ ET Before ws1 e
-          , P p1
+          , P e p1
           ] ++
           ( case List.head tbranches of
               Just tb ->
                 case tb.val of
                   TBranch_ tbranchWS1 _ _ _ ->
-                    [ PT After tbranchWS1 p1 ]
+                    [ PT After tbranchWS1 e p1 ]
               Nothing ->
                 []
           ) ++
@@ -2132,7 +2133,7 @@ childCodeObjects co =
                   e1
           in
             [ ET Before ws1 e
-            , P p1
+            , P e p1
             , E e1
             ] ++
             ( case lk of
@@ -2155,7 +2156,7 @@ childCodeObjects co =
           ]
         ETyp ws1 p1 t1 e1 ws2 ->
           [ ET Before ws1 e
-          , P p1
+          , P e p1
           , T t1
           , TT After ws2 t1
           , E e1
@@ -2164,19 +2165,19 @@ childCodeObjects co =
           [E e1, T t1]
         ETypeAlias ws1 p1 t1 e1 ws2 ->
           [ ET Before ws1 e
-          , P p1
+          , P e p1
           , T t1
           , TT After ws2 t1
           , E e1
           ]
-    P p ->
+    P e p ->
       case p.val.p__ of
         PVar ws1 _ _ ->
-          [ PT Before ws1 p ]
+          [ PT Before ws1 e p ]
         PConst ws1 _ ->
-          [ PT Before ws1 p ]
+          [ PT Before ws1 e p ]
         PBase ws1 _ ->
-          [ PT Before ws1 p ]
+          [ PT Before ws1 e p ]
         PList ws1 ps ws2 m ws3 ->
           let
             lastHead =
@@ -2186,24 +2187,24 @@ childCodeObjects co =
                 Nothing ->
                   []
           in
-            [ PT Before ws1 p
+            [ PT Before ws1 e p
             ] ++
-            ( List.map P ps
+            ( List.map (P e) ps
             ) ++
             ( case m of
                 Just pTail ->
-                  ( List.map (PT After ws2) lastHead
+                  ( List.map (PT After ws2 e) lastHead
                   ) ++
-                  [ P pTail
-                  , PT After ws3 pTail
+                  [ P e pTail
+                  , PT After ws3 e pTail
                   ]
                 Nothing ->
-                  ( List.map (PT After ws3) lastHead
+                  ( List.map (PT After ws3 e) lastHead
                   )
             )
         PAs ws1 _ _ p1 ->
-          [ PT Before ws1 p
-          , P p1
+          [ PT Before ws1 e p
+          , P e p1
           ]
     T t ->
       case t.val of
@@ -2293,7 +2294,7 @@ childCodeObjects co =
           [ TT Before ws1 t ]
     ET _ _ _ ->
       []
-    PT _ _ _ ->
+    PT _ _ _ _ ->
       []
     TT _ _ _ ->
       []
@@ -2303,32 +2304,102 @@ flattenToCodeObjects codeObject =
   codeObject ::
     List.concatMap flattenToCodeObjects (childCodeObjects codeObject)
 
-foldCode
-  :  { expFolder : Exp -> a -> a
-     , patFolder : Pat -> a -> a
-     , typeFolder : Type -> a -> a
-     , expTargetFolder : BeforeAfter -> WS -> Exp -> a -> a
-     , patTargetFolder : BeforeAfter -> WS -> Pat -> a -> a
-     , typeTargetFolder : BeforeAfter -> WS -> Type -> a -> a
-     }
-  -> a
-  -> Exp
-  -> a
-foldCode folders initialAcc exp =
+foldCode : (CodeObject -> a -> a) -> a -> CodeObject -> a
+foldCode f acc code =
+  List.foldl f acc (flattenToCodeObjects code)
+
+-- Some helper functions that use CodeObjects
+
+hasPid : PId -> CodeObject -> Bool
+hasPid pid codeObject =
+  case codeObject of
+    P _ p ->
+      p.val.pid == pid
+    _ ->
+      False
+
+hasPatWithPid : PId -> Exp -> Bool
+hasPatWithPid pid =
+  Utils.hasMatchingElement (hasPid pid) << childCodeObjects << E
+
+--------------------------------------------------------------------------------
+-- Getting PathedPatternIds from PIds
+--------------------------------------------------------------------------------
+
+-- Helper function for computePatMap
+tagPatList
+  :  ScopeId
+  -> List Pat
+  -> List (PId, PathedPatternId)
+tagPatList scopeId =
   let
-    folder codeObject =
-      case codeObject of
-        E e ->
-          folders.expFolder e
-        P p ->
-          folders.patFolder p
-        T t ->
-          folders.typeFolder t
-        ET ba ws et ->
-          folders.expTargetFolder ba ws et
-        PT ba ws pt ->
-          folders.patTargetFolder ba ws pt
-        TT ba ws tt ->
-          folders.typeTargetFolder ba ws tt
+    manyMapper : PathedPatternId -> List Pat -> List (PId, PathedPatternId)
+    manyMapper ppid =
+      let
+        path =
+          Tuple.second ppid
+      in
+        List.concat <<
+          List.indexedMap
+            ( \index pat ->
+                singleMapper
+                  (scopeId, path ++ [index + 1])
+                  pat
+            )
+    singleMapper : PathedPatternId -> Pat -> List (PId, PathedPatternId)
+    singleMapper ppid p =
+        (p.val.pid, ppid) ::
+          case p.val.p__ of
+            PConst _ _  ->
+              []
+            PBase _ _ ->
+              []
+            PVar _ _ _  ->
+              []
+            PAs _ _ _ p1 ->
+              -- TODO Unsure if this is the right ppid (it is the same as the
+              --      parent).
+              singleMapper ppid p1
+            PList _ ps _ Nothing _  ->
+              manyMapper ppid ps
+            PList _ ps _ (Just pTail) _ ->
+              manyMapper ppid (ps ++ [pTail])
   in
-    List.foldl folder initialAcc (flattenToCodeObjects (E exp))
+    List.concatMap (singleMapper (scopeId, []))
+
+-- Helper function for computePatMap
+tagBranchList
+  :  EId
+  -> List Branch
+  -> List (PId, PathedPatternId)
+tagBranchList eid =
+  List.concat <<
+    List.indexedMap
+      ( \index branch ->
+          case branch.val of
+            Branch_ _ p _ _ ->
+              tagPatList (eid, index + 1) [ p ]
+      )
+
+computePatMap : Exp -> Dict PId PathedPatternId
+computePatMap =
+  let
+    taggedChildPats : Exp -> List (PId, PathedPatternId)
+    taggedChildPats e =
+      case e.val.e__ of
+        EFun _ ps _ _ ->
+          tagPatList (e.val.eid, 1) ps
+        ECase _ _ branches _ ->
+          tagBranchList e.val.eid branches
+        ETypeCase _ p1 _ _ ->
+          tagPatList (e.val.eid, 1) [ p1 ]
+        ELet _ _ _ p1 _ _ _ ->
+          tagPatList (e.val.eid, 1) [ p1 ]
+        ETyp _ p1 _ _ _ ->
+          tagPatList (e.val.eid, 1) [ p1 ]
+        ETypeAlias _ p1 _ _ _ ->
+          tagPatList (e.val.eid, 1) [ p1 ]
+        _ ->
+          []
+  in
+    Dict.fromList << List.concatMap taggedChildPats << flattenExpTree
