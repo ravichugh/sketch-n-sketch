@@ -330,9 +330,21 @@ codeObjectHullPoints codeInfo codeObject =
 --= POLYGONS
 --==============================================================================
 
-handles
+--------------------------------------------------------------------------------
+-- Parameters
+--------------------------------------------------------------------------------
+
+strokeWidth : String
+strokeWidth = "2px"
+
+--------------------------------------------------------------------------------
+-- Handles
+--------------------------------------------------------------------------------
+
+-- Looks not as good but easier to click
+circleHandles
   : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
-handles codeInfo codeObject color opacity radius =
+circleHandles codeInfo codeObject color opacity radius =
   let
     (startCol, startRow, endCol, endRow) =
       startEndZeroIndexed codeObject
@@ -351,6 +363,8 @@ handles codeInfo codeObject color opacity radius =
   in
     Svg.g
       [ SAttr.fill <| rgbaString color opacity
+      , SAttr.strokeWidth strokeWidth
+      , SAttr.stroke <| rgbaString color opacity
       ]
       [ Svg.circle
           [ SAttr.cx cx1
@@ -365,6 +379,55 @@ handles codeInfo codeObject color opacity radius =
           ]
           []
       ]
+
+-- Looks better but is harder to click
+fancyHandles
+  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
+fancyHandles codeInfo codeObject color opacity radius =
+  let
+    (startCol, startRow, endCol, endRow) =
+      startEndZeroIndexed codeObject
+    (xTip1, yTip1) =
+      (startCol, startRow)
+        |> c2a codeInfo.displayInfo
+        |> mapBoth toString
+    (xTip2, yTip2) =
+      (endCol, endRow + 1)
+        |> c2a codeInfo.displayInfo
+        |> mapBoth toString
+    radiusString =
+      toString radius
+  in
+    Svg.g
+      [ SAttr.fill <| rgbaString color opacity
+      , SAttr.strokeWidth strokeWidth
+      , SAttr.stroke <| rgbaString color opacity
+      ]
+      [ Svg.path
+          [ SAttr.d <|
+              "M " ++ xTip1 ++ " " ++ yTip1 ++ "\n"
+                ++ "l 0 -" ++ radiusString ++ "\n"
+                ++ "a " ++ radiusString ++ " " ++ radiusString
+                  ++ ", 0, 1, 0, -" ++ radiusString
+                  ++ " " ++ radiusString ++ "\n"
+                ++ "Z"
+          ]
+          []
+      , Svg.path
+          [ SAttr.d <|
+              "M " ++ xTip2 ++ " " ++ yTip2 ++ "\n"
+                ++ "l 0 " ++ radiusString ++ "\n"
+                ++ "a " ++ radiusString ++ " " ++ radiusString
+                  ++ ", 0, 1, 0, " ++ radiusString
+                  ++ " -" ++ radiusString ++ "\n"
+                ++ "Z"
+          ]
+          []
+      ]
+
+--------------------------------------------------------------------------------
+-- Polygons
+--------------------------------------------------------------------------------
 
 codeObjectPolygon
   : CodeInfo -> CodeObject -> DeuceWidget -> Color -> Int -> Svg Msg
@@ -395,10 +458,10 @@ codeObjectPolygon codeInfo codeObject deuceWidget color zIndex =
       , SE.onMouseOut onMouseOut
       , SE.onClick onClick
       ]
-      [ handles codeInfo codeObject color baseAlpha 5
+      [ circleHandles codeInfo codeObject color baseAlpha 3
       , Svg.polygon
           [ SAttr.points <| codeObjectHullPoints codeInfo codeObject
-          , SAttr.strokeWidth "2px"
+          , SAttr.strokeWidth strokeWidth
           , SAttr.stroke <| rgbaString color baseAlpha
           , SAttr.fill <| rgbaString color (0.2 * baseAlpha)
           ]

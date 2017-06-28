@@ -674,6 +674,8 @@ a {
   /* left: DYNAMIC */
   /* width: DYNAMIC */
   /* height: DYNAMIC */
+
+  z-index: 10;
 }
 
 .deuce-overlay {
