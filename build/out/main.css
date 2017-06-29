@@ -185,7 +185,7 @@ a {
   position: absolute;
   /* top: DYNAMIC */
   left: 0;
-  z-index: 10;
+  z-index: 100;
 }
 
 .main-bar.active .menu:hover .menu-options {

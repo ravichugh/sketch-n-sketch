@@ -256,6 +256,9 @@ setResultSafe isSafe synthesisResult =
 isResultSafe (SynthesisResult {isSafe}) =
   isSafe
 
+resultDescription (SynthesisResult {description}) =
+  description
+
 setResultDescription description (SynthesisResult result) =
   SynthesisResult { result | description = description }
 
@@ -454,9 +457,6 @@ needsRun m =
   m.code /= m.lastRunCode
 
 --------------------------------------------------------------------------------
-
-type alias DeuceTool = () -> List SynthesisResult
-type alias NamedDeuceTool = (String, DeuceTool)
 
 oneSafeResult newExp =
   Utils.just <|

@@ -35,6 +35,7 @@ import InterfaceController as Controller
 import ExamplesGenerated as Examples
 
 import Deuce
+import DeuceTools exposing (DeuceTool)
 
 import SleekLayout exposing (px, half)
 import Canvas
@@ -211,13 +212,22 @@ generalUiButton disabled userClass title onClickHandler =
 
 generalHoverMenu
   : String -> Msg -> Msg -> Msg -> Bool -> (List (Html Msg)) -> Html Msg
-generalHoverMenu title onMouseEnter onMouseLeave onClick disabled dropdownContent =
+generalHoverMenu
+  title onMouseEnter onMouseLeave onClick disabled dropdownContent =
   let
     (disabledFlag, realOnMouseEnter, realOnMouseLeave, realOnClick) =
       if disabled then
-        (" disabled", Controller.msgNoop, Controller.msgNoop, Controller.msgNoop)
+        (" disabled"
+        , Controller.msgNoop
+        , Controller.msgNoop
+        , Controller.msgNoop
+        )
       else
-        ("", onMouseEnter, onMouseLeave, onClick)
+        (""
+        , onMouseEnter
+        , onMouseLeave
+        , onClick
+        )
   in
     Html.div
       [ Attr.class <| "hover-menu" ++ disabledFlag
@@ -285,6 +295,40 @@ groupHoverMenu model title onMouseEnter disallowSelectedFeatures =
     title
     onMouseEnter
     (groupDisabled disallowSelectedFeatures model)
+
+-- See InterfaceView3.deuceTools
+deuceHoverMenu : DeuceTool -> Html Msg
+deuceHoverMenu deuceTool =
+  let
+    (results, disabled) =
+      case deuceTool.func of
+        Just f ->
+          (f (), False)
+        Nothing ->
+          ([], True)
+  in
+    generalHoverMenu
+      deuceTool.name
+      Controller.msgNoop
+      Controller.msgNoop
+      Controller.msgNoop
+      disabled
+      [ Html.div
+        [ Attr.class "synthesis-results"
+        ]
+        ( List.map
+            ( \r ->
+              generalHoverMenu
+                (Model.resultDescription r)
+                Controller.msgNoop
+                Controller.msgNoop
+                Controller.msgNoop
+                False
+                []
+            )
+          results
+        )
+      ]
 
 menuBar : Model -> Html Msg
 menuBar model =
@@ -406,89 +450,90 @@ menuBar model =
                     Controller.msgNoop
                 ]
               ]
-          , menu "Edit Code"
-              [ [ hoverMenu "Abstract"
-                    [ simpleTextButton "All Constants" Controller.msgNoop
-                    , simpleTextButton "Named Constants" Controller.msgNoop
-                    , simpleTextButton "Unfrozen Constants" Controller.msgNoop
-                    ]
-                , simpleTextButton "Merge" Controller.msgNoop
-                ]
-              , [ hoverMenu "Add Arguments"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Remove Arguments"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Reorder Arguments"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                ]
-              , [ hoverMenu "Move Definitions"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Introduce Variable"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                ]
-              , [ hoverMenu "Eliminate Common Subexpression"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Rename"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Swap Variable Names and Usages"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Inline Definition"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Duplicate Definition"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Make Single Line"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Make Multi-Line"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Align Expressions"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                ]
-              , [ hoverMenu "Make Equal (Introduce Single Variable)"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Make Equal (Copy Expression)"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Reorder Expressions"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Swap Variable Usages"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                ]
-              , [ hoverMenu "Thaw/Freeze Numbers"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Add/Remove Ranges"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Show/Hide Sliders"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Rewrite as Offsets"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Convert Color Strings"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                , hoverMenu "Flip Boolean"
-                    [ simpleTextButton "TODO" Controller.msgNoop
-                    ]
-                ]
-              ]
+          , menu "Edit Code" <|
+              List.map (List.map deuceHoverMenu) (DeuceTools.deuceTools model)
+--              [ [ hoverMenu "Abstract"
+--                    [ simpleTextButton "All Constants" Controller.msgNoop
+--                    , simpleTextButton "Named Constants" Controller.msgNoop
+--                    , simpleTextButton "Unfrozen Constants" Controller.msgNoop
+--                    ]
+--                , simpleTextButton "Merge" Controller.msgNoop
+--                ]
+--              , [ hoverMenu "Add Arguments"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Remove Arguments"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Reorder Arguments"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                ]
+--              , [ hoverMenu "Move Definitions"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Introduce Variable"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                ]
+--              , [ hoverMenu "Eliminate Common Subexpression"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Rename"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Swap Variable Names and Usages"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Inline Definition"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Duplicate Definition"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Make Single Line"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Make Multi-Line"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Align Expressions"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                ]
+--              , [ hoverMenu "Make Equal (Introduce Single Variable)"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Make Equal (Copy Expression)"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Reorder Expressions"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Swap Variable Usages"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                ]
+--              , [ hoverMenu "Thaw/Freeze Numbers"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Add/Remove Ranges"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Show/Hide Sliders"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Rewrite as Offsets"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Convert Color Strings"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                , hoverMenu "Flip Boolean"
+--                    [ simpleTextButton "TODO" Controller.msgNoop
+--                    ]
+--                ]
+--              ]
           , menu "Edit Output"
               [ [ relateTextButton
                     model

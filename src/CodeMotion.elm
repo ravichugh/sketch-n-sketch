@@ -1,5 +1,8 @@
 module CodeMotion exposing
-  ( moveDefinitionsPat, moveDefinitionsBeforeEId
+  ( renamePat, renameVar
+  , composeTransformations
+  , swapUsages
+  , moveDefinitionsPat, moveDefinitionsBeforeEId
   , moveEquationsBeforeEId
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
   , inlineDefinitions
@@ -8,7 +11,8 @@ module CodeMotion exposing
   , addToolReorderEList
   , makeIntroduceVarTool
   , makeMakeEqualTool
-  , addToolCompareSubExpressions
+  , makeEliminateCommonSubExpressionTool
+  , makeCopyExpressionTool
   , rewriteOffsetTool
   )
 
@@ -20,8 +24,8 @@ import FastParser as Parser
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
 import InterfaceModel exposing
-  ( Model, SynthesisResult(..), NamedDeuceTool
-  , synthesisResult, setResultSafe, mapResultSafe, oneSafeResult
+  ( Model, SynthesisResult(..)
+  , synthesisResult, setResultSafe, mapResultSafe, oneSafeResult, setResultDescription
   )
 import LocEqn exposing ( LocEquation(..) )
 import Utils exposing (MaybeOne)
@@ -31,9 +35,130 @@ import Dict
 import Regex
 import Set
 
-
 type alias PatBoundExp = (Pat, Exp)
 
+--------------------------------------------------------------------------------
+-- Composition of Transformations
+--------------------------------------------------------------------------------
+
+composeTransformations : String -> List (Exp -> List SynthesisResult) -> Exp -> List SynthesisResult
+composeTransformations finalCaption transformations originalProgram =
+  transformations
+  |> List.foldl
+      (\transformation results ->
+        results
+        |> List.concatMap
+            (\(SynthesisResult result) ->
+              transformation (Parser.freshen result.exp) |> List.map (mapResultSafe ((&&) result.isSafe))
+            )
+      )
+      [ synthesisResult "Original" originalProgram ]
+  |> List.map (setResultDescription finalCaption)
+
+--------------------------------------------------------------------------------
+-- Swapping Usages
+--------------------------------------------------------------------------------
+
+swapUsages : PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+swapUsages (scopeId1, path1) (scopeId2, path2) originalProgram =
+  case (LangTools.findScopeExpAndPat (scopeId1, path1) originalProgram, LangTools.findScopeExpAndPat (scopeId2, path2) originalProgram) of
+    (Just (scopeExp1, pat1), Just (scopeExp2, pat2)) ->
+      case (LangTools.patToMaybeIdent pat1, LangTools.patToMaybeIdent pat2) of
+        (Just name1, Just name2) ->
+          let eidToBindingPId =
+            LangTools.allVarEIdsToBindingPId originalProgram
+          in
+          let newProgram =
+            originalProgram
+            |> mapExp
+                (\exp ->
+                  case (Dict.get exp.val.eid eidToBindingPId, exp.val.e__) of
+                    (Just (Just pid), EVar ws _) ->
+                      if pid == pat1.val.pid then
+                        replaceE__ exp (EVar ws name2)
+                      else if pid == pat2.val.pid then
+                        replaceE__ exp (EVar ws name1)
+                      else
+                        exp
+                    _ ->
+                      exp
+                )
+          in
+          let isSafe =
+            let expectedVarEIdsToBindingPId =
+              eidToBindingPId
+              |> Dict.map
+                  (\eid maybePId ->
+                    if maybePId == Just pat1.val.pid then
+                      Just pat2.val.pid
+                    else if maybePId == Just pat2.val.pid then
+                      Just pat1.val.pid
+                    else
+                      maybePId
+                  )
+            in
+            LangTools.allVarEIdsToBindingPId newProgram == expectedVarEIdsToBindingPId
+          in
+          let result =
+            synthesisResult ("Swap usages of " ++ name1 ++ " and " ++ name2) newProgram |> setResultSafe isSafe
+          in
+          [result]
+
+        _ -> []
+
+    _ -> []
+
+--------------------------------------------------------------------------------
+-- Renaming
+--------------------------------------------------------------------------------
+
+renamePat : PathedPatternId -> String -> Exp -> List SynthesisResult
+renamePat (scopeId, path) newName program =
+  case LangTools.findScopeExpAndPat (scopeId, path) program of
+    Just (scopeExp, pat) ->
+      case LangTools.patToMaybeIdent pat of
+        Just oldName ->
+          let scopeAreas = LangTools.findScopeAreas scopeId scopeExp in
+          let oldUseEIds = List.concatMap (LangTools.identifierUses oldName) scopeAreas |> List.map (.val >> .eid) in
+          let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
+          let newUseEIds = List.concatMap (LangTools.identifierUses newName) newScopeAreas |> List.map (.val >> .eid) in
+          let isSafe =
+            oldUseEIds == newUseEIds && not (List.member newName (LangTools.identifiersListInPat pat))
+          in
+          let newScopeExp =
+            let scopeAreasReplaced =
+              newScopeAreas
+              |> List.foldl
+                  (\newScopeArea scopeExp -> replaceExpNode newScopeArea.val.eid newScopeArea scopeExp)
+                  scopeExp
+            in
+            LangTools.setPatName (scopeId, path) newName scopeAreasReplaced
+          in
+          let newProgram = replaceExpNode newScopeExp.val.eid newScopeExp program in
+          let result =
+            synthesisResult ("Rename " ++ oldName ++ " to " ++ newName) newProgram |> setResultSafe isSafe
+          in
+          [result]
+
+        Nothing ->
+          []
+
+    Nothing ->
+      []
+
+renameVar : EId -> String -> Exp -> List SynthesisResult
+renameVar varEId newName program =
+  let varExp = LangTools.justFindExpByEId program varEId in
+  let oldName = LangTools.expToIdent varExp in
+  case LangTools.bindingPathedPatternIdFor varExp program of
+    Just pathedPatternId ->
+      renamePat pathedPatternId newName program
+
+    Nothing ->
+      let _ = Debug.log (oldName ++ " is free at this location in the program") () in
+      []
+
+--------------------------------------------------------------------------------
 
 pluckAll : List PathedPatternId -> Exp -> (List (Pat, Exp), Exp)
 pluckAll sourcePathedPatIds program =
@@ -2146,7 +2271,7 @@ makeIntroduceVarTool m expIds targetPos =
   case targetPos of
 
     ExpTargetPosition (After, expTargetId) ->
-      []
+      Nothing
 
     ExpTargetPosition (Before, expTargetId) ->
       makeIntroduceVarTool_ m expIds expTargetId
@@ -2161,18 +2286,18 @@ makeIntroduceVarTool m expIds targetPos =
                 makeIntroduceVarTool_ m expIds targetId
                   (addNewEquationsInside targetPath)
               else
-                []
+                Nothing
 
             _ ->
-              []
+              Nothing
 
         _ ->
-          []
+          Nothing
 
 -- TODO: Bug: can't introduce var directly in from of expression being extracted.
 makeIntroduceVarTool_ m expIds addNewVarsAtThisId addNewEquationsAt =
   let toolName =
-    "Introduce Var" ++ (if List.length expIds == 1 then "" else "s")
+    "Introduce Variable" ++ (if List.length expIds == 1 then "" else "s")
   in
   let visibleAtTargetBody =
     let targetBodyEId =
@@ -2183,39 +2308,38 @@ makeIntroduceVarTool_ m expIds addNewVarsAtThisId addNewEquationsAt =
     in
     visibleIdentifiersAtEIds m.inputExp (Set.singleton targetBodyEId)
   in
-  [ (toolName, \() ->
-      let (newEquations, expWithNewVarsUsed) =
-         List.foldl
-           (\eId (acc1, acc2) ->
-             -- TODO version of scopeNamesLiftedThrough for EId instead of Loc?
-             -- let scopes = scopeNamesLocLiftedThrough m.inputExp loc in
-             -- let newVar = String.join "_" (scopes ++ [name]) in
-             let name = expNameForEId m.inputExp eId in
-             let namesToAvoid =
-               Set.union visibleAtTargetBody
-                   (Set.fromList (List.map Tuple.first acc1))
-             in
-             let newVar = nonCollidingName name 1 namesToAvoid in
-             let expAtEId = justFindExpByEId m.inputExp eId in
-             let expWithNewVarUsed =
-               replaceExpNodePreservingPrecedingWhitespace eId (eVar newVar) acc2
-             in
-             ((newVar, expAtEId) :: acc1, expWithNewVarUsed)
-           )
-           ([], m.inputExp)
-           expIds
-      in
-      let newExp =
-        mapExp (\e -> if e.val.eid == addNewVarsAtThisId
-                      then addNewEquationsAt newEquations e
-                      else e
-               ) expWithNewVarsUsed
-      in
-      synthesisResult toolName newExp
-        |> setResultSafe (freeVars newExp == freeVars m.inputExp)
-        |> Utils.just
-    ) ]
-
+    Just <|
+      \() ->
+        let (newEquations, expWithNewVarsUsed) =
+           List.foldl
+             (\eId (acc1, acc2) ->
+               -- TODO version of scopeNamesLiftedThrough for EId instead of Loc?
+               -- let scopes = scopeNamesLocLiftedThrough m.inputExp loc in
+               -- let newVar = String.join "_" (scopes ++ [name]) in
+               let name = expNameForEId m.inputExp eId in
+               let namesToAvoid =
+                 Set.union visibleAtTargetBody
+                     (Set.fromList (List.map Tuple.first acc1))
+               in
+               let newVar = nonCollidingName name 1 namesToAvoid in
+               let expAtEId = justFindExpByEId m.inputExp eId in
+               let expWithNewVarUsed =
+                 replaceExpNodePreservingPrecedingWhitespace eId (eVar newVar) acc2
+               in
+               ((newVar, expAtEId) :: acc1, expWithNewVarUsed)
+             )
+             ([], m.inputExp)
+             expIds
+        in
+        let newExp =
+          mapExp (\e -> if e.val.eid == addNewVarsAtThisId
+                        then addNewEquationsAt newEquations e
+                        else e
+                 ) expWithNewVarsUsed
+        in
+        synthesisResult toolName newExp
+          |> setResultSafe (freeVars newExp == freeVars m.inputExp)
+          |> Utils.just
 
 ------------------------------------------------------------------------------
 
@@ -2277,26 +2401,11 @@ makeMakeEqualTool m literals =
       synthesisResult ("New variable: " ++ newVar) newExp
     )
   in
-  -- TODO maybe call this "Make Equal with New Var"
-  [ ("Make Equal", \() -> results) ]
-
+    Just <| \() -> results
 
 ------------------------------------------------------------------------------
 
-addToolCompareSubExpressions m selections =
-  case selections of
-    (_, _, [], _, _, _, _)          -> []
-    (_, _, [_], _, _, _, _)         -> []
-    (nums, baseVals, i::js, [], [], [], []) ->
-      let atLeastOneNonLiteral =
-        List.length (i::js) > (List.length nums + List.length baseVals)
-      in
-      if atLeastOneNonLiteral
-        then makeCompareSubExpressionsTool m i js
-        else []
-    _                               -> []
-
-makeCompareSubExpressionsTool m firstId restIds =
+makeEliminateCommonSubExpressionTool m firstId restIds =
   let expIds = firstId :: restIds in
   let firstExp = justFindExpByEId m.inputExp firstId in
   let restExps = List.map (justFindExpByEId m.inputExp) restIds in
@@ -2324,16 +2433,26 @@ makeCompareSubExpressionsTool m firstId restIds =
                     else e
              ) expWithNewVarUsed
     in
-    [ ("Eliminate Common Subexpression", \() ->
-        newExp
-        |> synthesisResult "Just Do It."
-        |> setResultSafe True -- TODO
-        |> Utils.singleton
-      ) ]
+      Just <|
+        \() ->
+          newExp
+            |> synthesisResult "Just Do It."
+            |> setResultSafe True -- TODO
+            |> Utils.singleton
   else
-    -- TODO make call this "Copy Expression",
+    Nothing
+
+makeCopyExpressionTool m firstId restIds =
+  let expIds = firstId :: restIds in
+  let firstExp = justFindExpByEId m.inputExp firstId in
+  let restExps = List.map (justFindExpByEId m.inputExp) restIds in
+  let diffs = List.concatMap (extraExpsDiff firstExp) restExps in
+  if diffs == [] then
+    Nothing
+  else
     -- TODO make "Copy Expression" available for selected literals
-    [ ("Make Equal", \() ->
+    Just <|
+      \() ->
         (firstExp :: restExps) |> List.map (\exp ->
           let newExp =
             List.foldl
@@ -2344,8 +2463,6 @@ makeCompareSubExpressionsTool m firstId restIds =
           |> synthesisResult ("Copy expression: " ++ unparse exp)
           |> setResultSafe True -- TODO
         )
-      ) ]
-
 
 ------------------------------------------------------------------------------
 
