@@ -17,6 +17,7 @@ body {
   color: #CCCCCC;
   font-family: "Roboto", sans-serif;
   user-select: none;
+  overflow: hidden;
 }
 
 a {
@@ -31,7 +32,7 @@ a {
 .text-button {
   color: #CCCCCC;
   cursor: pointer;
-  transition: background-color 0.1s;
+  /* transition: background-color 0.1s; */
 }
 
 .text-button:not(.disabled):hover,
@@ -156,7 +157,7 @@ a {
   /* line-height: DYNAMIC */
   /* padding: DYNAMIC */
   cursor: pointer;
-  transition: background-color 0.1s;
+  /* transition: background-color 0.1s; */
 }
 
 .main-bar .menu:nth-child(2) .menu-heading {
@@ -369,7 +370,7 @@ a {
   border-bottom: 2px solid #338800;
   border-radius: 5px;
 
-  transition: background-color 0.1s;
+  /* transition: background-color 0.1s; */
 }
 
 .action-bar .run:hover {

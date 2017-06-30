@@ -451,89 +451,9 @@ menuBar model =
                 ]
               ]
           , menu "Edit Code" <|
-              List.map (List.map deuceHoverMenu) (DeuceTools.deuceTools model)
---              [ [ hoverMenu "Abstract"
---                    [ simpleTextButton "All Constants" Controller.msgNoop
---                    , simpleTextButton "Named Constants" Controller.msgNoop
---                    , simpleTextButton "Unfrozen Constants" Controller.msgNoop
---                    ]
---                , simpleTextButton "Merge" Controller.msgNoop
---                ]
---              , [ hoverMenu "Add Arguments"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Remove Arguments"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Reorder Arguments"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                ]
---              , [ hoverMenu "Move Definitions"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Introduce Variable"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                ]
---              , [ hoverMenu "Eliminate Common Subexpression"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Rename"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Swap Variable Names and Usages"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Inline Definition"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Duplicate Definition"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Make Single Line"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Make Multi-Line"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Align Expressions"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                ]
---              , [ hoverMenu "Make Equal (Introduce Single Variable)"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Make Equal (Copy Expression)"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Reorder Expressions"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Swap Variable Usages"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                ]
---              , [ hoverMenu "Thaw/Freeze Numbers"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Add/Remove Ranges"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Show/Hide Sliders"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Rewrite as Offsets"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Convert Color Strings"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                , hoverMenu "Flip Boolean"
---                    [ simpleTextButton "TODO" Controller.msgNoop
---                    ]
---                ]
---              ]
+              List.map
+                (List.map deuceHoverMenu)
+                (DeuceTools.deuceTools model)
           , menu "Edit Output"
               [ [ relateTextButton
                     model

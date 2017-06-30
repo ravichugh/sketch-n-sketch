@@ -140,7 +140,7 @@ type alias DeuceTool =
 
 makeEqualTool : Model -> Selections -> DeuceTool
 makeEqualTool model selections =
-  { name = "Make Equal with New Var"
+  { name = "Make Equal (New Variable)"
   , func =
       case selections of
         (nums, baseVals, exps, [], [], [], []) ->
@@ -1111,11 +1111,11 @@ mergeTool model selections =
   }
 
 --------------------------------------------------------------------------------
--- Add Argument
+-- Add Arguments
 --------------------------------------------------------------------------------
 
-addArgumentTool : Model -> Selections -> DeuceTool
-addArgumentTool model selections =
+addArgumentsTool : Model -> Selections -> DeuceTool
+addArgumentsTool model selections =
   let
     disabledTool =
       { name = "Add Argument"
@@ -1224,11 +1224,11 @@ addArgumentTool model selections =
         disabledTool
 
 --------------------------------------------------------------------------------
--- Remove Argument
+-- Remove Arguments
 --------------------------------------------------------------------------------
 
-removeArgumentTool : Model -> Selections -> DeuceTool
-removeArgumentTool model selections =
+removeArgumentsTool : Model -> Selections -> DeuceTool
+removeArgumentsTool model selections =
   let
     disabledTool =
       { name = "Remove Argument"
@@ -1637,14 +1637,14 @@ makeMultiLineTool model selections =
   }
 
 --------------------------------------------------------------------------------
--- Align
+-- Align Expressions
 --------------------------------------------------------------------------------
 -- TODO This function does not rely on CodeMotion, so it is probably doing too
 --      much.
 --------------------------------------------------------------------------------
 
-alignTool : Model -> Selections -> DeuceTool
-alignTool model selections =
+alignExpressionsTool : Model -> Selections -> DeuceTool
+alignExpressionsTool model selections =
   { name = "Align Expressions"
   , func =
       case selections of
@@ -1669,7 +1669,8 @@ alignTool model selections =
                       exps
                         |> List.map (.start >> .col)
                         |> List.maximum
-                        |> Utils.fromJust_ "DeuceTools.alignTool maxCol"
+                        |> Utils.fromJust_
+                             "DeuceTools.alignExpressionsTool maxCol"
                   in
                     model.inputExp
                       |> mapExp
@@ -1724,32 +1725,40 @@ deuceTools model =
       )
   in
     List.map (List.map ((|>) model >> (|>) selections))
-      [ [ makeEqualTool
-        , flipBooleanTool
+      [ [ createFunctionTool
+        , mergeTool
         ]
-      , [ renamePatternTool
+      , [ addArgumentsTool
+        , removeArgumentsTool
+        , reorderArgumentsTool
         ]
-      , [ renameVariableTool
-        , swapUsagesTool
+      , [ moveDefinitionTool
+        , introduceVariableTool
+        ]
+      , [ eliminateCommonSubExpressionTool
+        , renameVariableTool
+        , renamePatternTool
         , swapNamesAndUsagesTool
         , inlineDefinitionTool
-        , introduceVariableTool
-        , eliminateCommonSubExpressionTool
-        , copyExpressionTool
-        , moveDefinitionTool
         , duplicateDefinitionTool
-        , thawFreezeTool
-        , showHideRangeTool
-        , addRemoveRangeTool
-        , rewriteOffsetTool
-        , createFunctionTool
-        , mergeTool
-        , addArgumentTool
-        , removeArgumentTool
-        , reorderArgumentsTool
-        , reorderListTool
-        , makeSingleLineTool
-        , makeMultiLineTool
-        , alignTool
         ]
+      , [ makeSingleLineTool
+        , makeMultiLineTool
+        , alignExpressionsTool
+        ]
+      , [ makeEqualTool
+        , copyExpressionTool
+        , reorderListTool
+        , swapUsagesTool
+        ]
+      , [ thawFreezeTool
+        , addRemoveRangeTool
+        , showHideRangeTool
+        , rewriteOffsetTool
+        -- TODO
+        -- , convertColorStringsTool
+        , flipBooleanTool
+        -- TODO ?
+        -- , twiddleShapesTool
       ]
+    ]
