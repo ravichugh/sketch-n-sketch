@@ -740,6 +740,12 @@ projJusts =
       (Just x, Just xs) -> Just (x::xs)
       _                 -> Nothing) (Just [])
 
+bindMaybesToList : List (Maybe a) -> (List a -> List b) -> List b
+bindMaybesToList list f =
+  case projJusts list of
+    Nothing -> nothing
+    Just xs -> f xs
+
 filterJusts : List (Maybe a) -> List a
 filterJusts mxs = case mxs of
   []              -> []

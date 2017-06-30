@@ -347,6 +347,7 @@ strokeWidth = "2px"
 --------------------------------------------------------------------------------
 
 -- Looks not as good but easier to click
+-- TODO make 4 handles and use them as corners
 circleHandles
   : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
 circleHandles codeInfo codeObject color opacity radius =

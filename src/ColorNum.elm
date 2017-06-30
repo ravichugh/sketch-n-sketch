@@ -1,4 +1,5 @@
-module ColorNum exposing (convert, htmlColorNames)
+module ColorNum exposing
+  (convert, htmlColorNames, convertStringToRgbAndHue)
 
 import Utils
 import Dict
@@ -173,3 +174,20 @@ htmlColorNames =
     , ("Yellow", ((255, 255, 0), (60, 1, 0.5)))
     , ("YellowGreen", ((154, 205, 50), (80, 0.61, 0.5)))
     ]
+
+--------------------------------------------------------------------------------
+
+convertStringToRgbAndHue (eid, string) =
+  let colorName = String.toLower string in
+  let values = Utils.maybeFind colorName htmlColorNames in
+  values |> Utils.mapMaybe (\((r,g,b), (h,_,_)) ->
+    let colorNum =
+      if colorName == "black" then 360
+      else if colorName == "white" then 499
+      else if String.contains "gray" colorName ||
+              String.contains "grey" colorName then 450
+                -- not dealing with different grays individually
+      else h
+    in
+    (eid, (r,g,b), colorNum)
+  )

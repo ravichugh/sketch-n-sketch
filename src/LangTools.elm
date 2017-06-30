@@ -2533,3 +2533,39 @@ expEnvAt_ exp targetEId =
       ETyp _ pat tipe e _        -> recurse e
       EColonType _ e _ tipe _    -> recurse e
       ETypeAlias _ pat tipe e _  -> recurse e
+
+--------------------------------------------------------------------------------
+
+-- Map a selected argument at a call site to the corresponding pathedPatId in the called function.
+eidToMaybeCorrespondingArgumentPathedPatId : Exp -> EId -> Maybe PathedPatternId
+eidToMaybeCorrespondingArgumentPathedPatId program targetEId =
+  -- This should be more efficient than running the massive predicate over every expression in the program
+  findWithAncestorsByEId program targetEId
+  |> Maybe.withDefault []
+  |> Utils.mapFirstSuccess
+      (\exp ->
+        case exp.val.e__ of
+          EApp _ appFuncExp argExps _ ->
+            case appFuncExp.val.e__ of
+              EVar _ funcName ->
+                case resolveIdentifierToExp funcName appFuncExp.val.eid program of -- This is probably slow.
+                  Just (Bound funcExp) ->
+                    case funcExp.val.e__ of
+                      EFun _ fpats _ _ ->
+                        -- Allow partial application
+                        tryMatchExpsPatsToPathsAtFunctionCall fpats argExps
+                        |> Utils.mapFirstSuccess
+                            (\(path, correspondingExp) ->
+                              if correspondingExp.val.eid == targetEId
+                              then Just ((funcExp.val.eid, 1), path)
+                              else Nothing
+                            )
+
+                      _ -> Nothing
+
+                  _ -> Nothing
+
+              _ -> Nothing
+
+          _ -> Nothing
+      )

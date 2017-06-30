@@ -8,19 +8,24 @@ module DeuceTools exposing
   , deuceTools
   )
 
+import Dict
+
 import Either exposing (..)
 import Utils
+import ColorNum
 
 import InterfaceModel exposing (..)
 
 import Lang exposing (..)
 import LangTools
+import LangUnparser
 
 import DeuceWidgets exposing
   ( DeuceWidget(..)
   )
 
 import CodeMotion
+import ExpressionBasedTransform
 
 --------------------------------------------------------------------------------
 -- Selections
@@ -106,6 +111,18 @@ selectedPatTargets deuceWidgets =
       _ -> []
 
 --------------------------------------------------------------------------------
+-- Selection Helper Functions
+--------------------------------------------------------------------------------
+
+oneOrMoreNumsOnly : Selections -> Bool
+oneOrMoreNumsOnly selections =
+  case selections of
+    (nums, [], exps, [], [], [], []) ->
+      List.length nums >= 1 && List.length nums == List.length exps
+    _ ->
+      False
+
+--------------------------------------------------------------------------------
 -- Deuce Tools
 --------------------------------------------------------------------------------
 
@@ -135,7 +152,7 @@ makeEqualTool model selections =
               List.length literals >= 2 &&
               List.length literals == List.length exps
             then
-              CodeMotion.makeMakeEqualTool model literals
+              CodeMotion.makeEqualTransformation model literals
             else
               Nothing
         _ -> Nothing
@@ -144,8 +161,8 @@ makeEqualTool model selections =
 --------------------------------------------------------------------------------
 -- Flip Boolean
 --------------------------------------------------------------------------------
--- NOTE: This tool does not rely on CodeMotion, so this function is probably
---       doing too much.
+-- TODO This function does not rely on CodeMotion, so it is probably doing too
+--      much.
 --------------------------------------------------------------------------------
 
 flipBooleanTool : Model -> Selections -> DeuceTool
@@ -426,7 +443,7 @@ introduceVariableTool model selections =
         { name =
             Utils.maybePluralize "Introduce Variable" exps
         , func =
-            CodeMotion.makeIntroduceVarTool
+            CodeMotion.introduceVarTransformation
               model
               exps
               (PatTargetPosition patTarget)
@@ -435,7 +452,7 @@ introduceVariableTool model selections =
         { name =
             Utils.maybePluralize "Introduce Variable" exps
         , func =
-            CodeMotion.makeIntroduceVarTool
+            CodeMotion.introduceVarTransformation
               model
               exps
               (ExpTargetPosition expTarget)
@@ -462,7 +479,8 @@ eliminateCommonSubExpressionTool model selections =
               List.length (i::js) > (List.length nums + List.length baseVals)
           in
             if atLeastOneNonLiteral then
-              CodeMotion.makeEliminateCommonSubExpressionTool model i js
+              CodeMotion.eliminateCommonSubExpressionTransformation
+                model i js
             else
               Nothing
         _ ->
@@ -488,7 +506,7 @@ copyExpressionTool model selections =
               List.length (i::js) > (List.length nums + List.length baseVals)
           in
             if atLeastOneNonLiteral then
-              CodeMotion.makeCopyExpressionTool model i js
+              CodeMotion.copyExpressionTransformation model i js
             else
               Nothing
         _ ->
@@ -570,7 +588,1110 @@ moveDefinitionTool model selections =
         disabledTool
 
 --------------------------------------------------------------------------------
--- All Tools
+-- Duplicate Definition
+--------------------------------------------------------------------------------
+
+duplicateDefinitionTool : Model -> Selections -> DeuceTool
+duplicateDefinitionTool model selections =
+  let
+    disabledTool =
+      { name = "Duplicate Definition"
+      , func = Nothing
+      }
+  in
+    case selections of
+    (_, _, _, [], _, _, _) ->
+      disabledTool
+    ([], [], [], pathedPatIds, [], [(Before, eId)], []) ->
+      { name =
+          Utils.maybePluralize "Duplicate Definition" pathedPatIds
+      , func =
+          Just <|
+            \() ->
+              CodeMotion.duplicateDefinitionsBeforeEId
+                pathedPatIds
+                eId
+                model.inputExp
+      }
+    ([], [], [], pathedPatIds, [], [], [patTarget]) ->
+      let
+        targetPathedPatId =
+          patTargetPositionToTargetPathedPatId patTarget
+      in
+        case
+          ( findExpByEId
+              model.inputExp
+              (pathedPatIdToScopeEId targetPathedPatId)
+          ) |> Maybe.map (.val >> .e__)
+        of
+          Just (ELet _ _ _ _ _ _ _) ->
+            { name =
+                Utils.maybePluralize "Duplicate Definition" pathedPatIds
+            , func =
+                Just <|
+                  \() ->
+                    CodeMotion.duplicateDefinitionsPat
+                      pathedPatIds
+                      targetPathedPatId
+                      model.inputExp
+            }
+          _ -> disabledTool
+    _ -> disabledTool
+
+--------------------------------------------------------------------------------
+-- Thaw/Freeze
+--------------------------------------------------------------------------------
+-- TODO This function does not rely on CodeMotion, so it is probably doing too
+--      much.
+--------------------------------------------------------------------------------
+
+thawFreezeTool : Model -> Selections -> DeuceTool
+thawFreezeTool model selections =
+  let
+    disabledTool =
+      { name = "Thaw/Freeze"
+      , func = Nothing
+      }
+    (nums, _, _, _, _, _, _) =
+      selections
+    mode =
+      let
+        freezeAnnotations =
+          List.map (\(_,(_,_,(_,frzn,_),_)) -> frzn) nums
+      in
+        if not (oneOrMoreNumsOnly selections) then
+          Nothing
+        else
+          case Utils.dedup freezeAnnotations of
+            [frzn] ->
+              if model.syncOptions.thawedByDefault then
+                if frzn == unann then
+                  Just ("Freeze", frozen)
+                else if frzn == frozen then
+                  Just ("Thaw", unann)
+                else if frzn == thawed then
+                  Just ("Freeze", frozen)
+                else
+                  Nothing
+              else
+                if frzn == unann then
+                  Just ("Thaw", thawed)
+                else if frzn == frozen then
+                  Just ("Thaw", thawed)
+                else if frzn == thawed then
+                  Just ("Freeze", unann)
+                else
+                  Nothing
+            _ ->
+              if model.syncOptions.thawedByDefault then
+                Just ("Freeze", frozen)
+              else
+                Just ("Thaw", thawed)
+  in
+    case mode of
+      Nothing ->
+        disabledTool
+      Just (toolName, newAnnotation) ->
+        { name = toolName
+        , func =
+            Just <|
+              \() ->
+                let
+                  eSubst =
+                    List.foldl
+                      ( \(eId,(ws,n,(locid,_,x),wd)) acc ->
+                          Dict.insert
+                            eId
+                            (EConst ws n (locid, newAnnotation, x) wd)
+                            acc
+                      )
+                      Dict.empty
+                      nums
+                in
+                  [ synthesisResult
+                      toolName
+                      (applyESubst eSubst model.inputExp)
+                  ]
+        }
+
+--------------------------------------------------------------------------------
+-- Show/Hide Range
+--------------------------------------------------------------------------------
+-- TODO This function does not rely on CodeMotion, so it is probably doing too
+--      much.
+--------------------------------------------------------------------------------
+
+showHideRangeTool : Model -> Selections -> DeuceTool
+showHideRangeTool model selections =
+  let
+    disabledTool =
+      { name = "Show/Hide Sliders"
+      , func = Nothing
+      }
+    (nums, _, _, _, _, _, _) =
+      selections
+    mode =
+      if not (oneOrMoreNumsOnly selections) then
+        Nothing
+      else
+        let
+          freezeAnnotations =
+            flip List.map nums <|
+              \(_,(_,_,_,wd)) ->
+                case wd.val of
+                  IntSlider _ _ _ _ b ->
+                    Just b
+                  NumSlider _ _ _ _ b ->
+                    Just b
+                  _ ->
+                    Nothing
+        in
+          case Utils.dedup freezeAnnotations of
+            [Just b] ->
+              Just b
+            _ ->
+              Nothing
+  in
+    case mode of
+      Nothing ->
+        disabledTool
+      Just hidden ->
+        let
+          toolName =
+            case (hidden, List.length nums) of
+              (True, 1) ->
+                "Show Slider"
+              (True, _) ->
+                "Show Sliders"
+              (False, 1) ->
+                "Hide Slider"
+              (False, _) ->
+                "Hide Sliders"
+        in
+          { name = toolName
+          , func =
+              Just <|
+                \() ->
+                  let
+                    eSubst =
+                      List.foldl
+                        ( \(eId,(ws,n,loc,wd)) acc ->
+                            let
+                              wd_ =
+                                case wd.val of
+                                  IntSlider a b c d _ ->
+                                    IntSlider a b c d (not hidden)
+                                  NumSlider a b c d _ ->
+                                    NumSlider a b c d (not hidden)
+                                  _ ->
+                                    wd.val
+                            in
+                              Dict.insert
+                                eId
+                                (EConst ws n loc { wd | val = wd_ })
+                                acc
+                        )
+                        Dict.empty
+                        nums
+                  in
+                    [ synthesisResult
+                        toolName
+                        (applyESubst eSubst model.inputExp)
+                    ]
+          }
+
+--------------------------------------------------------------------------------
+-- Add/Remove Range
+--------------------------------------------------------------------------------
+-- TODO This function does not rely on CodeMotion, so it is probably doing too
+--      much.
+--------------------------------------------------------------------------------
+
+-- Helper function
+rangeAround : number -> (number, number)
+rangeAround n =
+  let i = n - 3 * n in
+  let j = n + 3 * n in
+  (i, j)
+
+addRemoveRangeTool : Model -> Selections -> DeuceTool
+addRemoveRangeTool model selections =
+  let
+    disabledTool =
+      { name = "Add/Remove Sliders"
+      , func = Nothing
+      }
+    (nums, _, _, _, _, _, _) =
+      selections
+    mode =
+      let
+        freezeAnnotations =
+          flip List.map nums <|
+            \(_,(_,_,_,wd)) ->
+              case wd.val of
+                NoWidgetDecl ->
+                  True
+                _ ->
+                  False
+      in
+        case Utils.dedup freezeAnnotations of
+          [b] ->
+            Just b
+          _   ->
+            Nothing
+  in
+    case mode of
+      Nothing ->
+        disabledTool
+      Just noRanges ->
+        let
+          toolName =
+            case (noRanges, List.length nums) of
+              (True, 1) ->
+                "Add Slider"
+              (True, _) ->
+                "Add Sliders"
+              (False, 1) ->
+                "Remove Slider"
+              (False, _) ->
+                "Remove Sliders"
+        in
+          { name = toolName
+          , func =
+              Just <|
+                \() ->
+                  let
+                    eSubst =
+                      List.foldl
+                        ( \(eId,(ws,n,loc,_)) acc ->
+                            let
+                              wd =
+                                if noRanges then
+                                  if Utils.between n (0.001, 1) then
+                                    numSlider 0.001 1
+                                  else
+                                    let
+                                      (i, j) =
+                                        rangeAround n
+                                    in
+                                      if toFloat (round n) == n then
+                                        intSlider (max 0 (round i)) (round j)
+                                      else
+                                        numSlider (max 0 i) j
+                                else
+                                  withDummyRange NoWidgetDecl
+                            in
+                              Dict.insert
+                                eId
+                                (EConst ws n loc wd)
+                                acc
+                        )
+                        Dict.empty
+                        nums
+                  in
+                    [ synthesisResult
+                        toolName
+                        (applyESubst eSubst model.inputExp)
+                    ]
+          }
+
+--------------------------------------------------------------------------------
+-- Rewrite Offset
+--------------------------------------------------------------------------------
+
+rewriteOffsetTool : Model -> Selections -> DeuceTool
+rewriteOffsetTool model selections =
+  let
+    func =
+      case selections of
+        ([], _, _, _, _, _, _) ->
+          Nothing
+        (nums, [], exps, [ppid], [], [], []) ->
+          if List.length nums == List.length exps then
+            CodeMotion.rewriteOffsetTransformation model ppid nums
+          else
+            Nothing
+        _ ->
+          Nothing
+  in
+    { name =
+        let
+          (nums, _, _, _, _, _, _) =
+            selections
+        in
+          case func of
+            Nothing ->
+              "Rewrite as Offset"
+            Just _ ->
+              Utils.maybePluralize "Rewrite as Offset" nums
+    , func =
+        func
+    }
+
+--------------------------------------------------------------------------------
+-- Convert Color String
+--------------------------------------------------------------------------------
+-- TODO This function does not rely on CodeMotion, so it is probably doing too
+--      much.
+--------------------------------------------------------------------------------
+-- TODO
+--------------------------------------------------------------------------------
+
+-- convertColorStringTool : Model -> Selections -> DeuceTool
+-- convertColorStringTool model selections =
+--   let
+--     disabledTool =
+--       { name = "Convert Color String"
+--       , func = Nothing
+--       }
+--   in
+--     case selections of
+--       (_, [], _, _, _, _, _) ->
+--         disabledTool
+--       ([], literals, exps, [], [], [], []) ->
+--         if List.length exps /= List.length literals then
+--           disabledTool
+--         else
+--           let
+--             maybeStrings =
+--               List.map
+--                 ( \(eid, (_, baseVal)) ->
+--                     case baseVal of
+--                       EString _ string ->
+--                         Just (eid, string)
+--                       _ ->
+--                         Nothing
+--                 )
+--                 literals
+--           in
+--             Utils.bindMaybesToList maybeStrings <| \idsAndStrings ->
+--               let
+--                 maybeConverted =
+--                   List.map ColorNum.convertStringToRgbAndHue idsAndStrings
+--               in
+--                 Utils.bindMaybesToList maybeConverted <| \converted ->
+--                   let
+--                     (newExp1, newExp2) =
+--                       List.foldl
+--                         ( \(eid,(r,g,b),hue) (acc1,acc2) ->
+--                             let
+--                               replaceString =
+--                                 replaceExpNodePreservingPrecedingWhitespace eid
+--                               eRgba =
+--                                 eList (listOfNums [r,g,b,1.0]) Nothing
+--                               eColorNum =
+--                                 eConst hue dummyLoc
+--                             in
+--                               ( replaceString eRgba acc1
+--                               , replaceString eColorNum acc2
+--                               )
+--                         )
+--                         (model.inputExp, model.inputExp)
+--                         converted
+--                   in
+--                     { name =
+--                         Utils.maybePluralize "Convert Color String" literals
+--                     , func =
+--                         Just <|
+--                           \() ->
+--                             [ newExp1
+--                                 |> synthesisResult "RGBA"
+--                             , newExp2
+--                                 |> synthesisResult "Color Number (Hue Only)"
+--                                 |> setResultSafe False
+--                             ]
+--                     }
+--       _ ->
+--         disabledTool
+
+--------------------------------------------------------------------------------
+-- Create Function
+--------------------------------------------------------------------------------
+
+createFunctionTool : Model -> Selections -> DeuceTool
+createFunctionTool model selections =
+  { name = "Create Function"
+  , func =
+      case selections of
+        ([], [], [], [pathedPatId], [], [], []) ->
+          case
+            LangTools.findScopeExpAndPat pathedPatId model.inputExp
+              |> Maybe.map (\(e,p) -> (e.val.e__, p.val.p__))
+          of
+            Just (ELet _ _ _ _ _ _ _, PVar _ ident _) ->
+              Just <|
+                \() ->
+                  CodeMotion.abstractPVar pathedPatId model.inputExp
+            _ ->
+              Nothing
+        (_, _, [eid], [], [], [], []) ->
+          let
+            maybeExpToAbstract =
+              findExpByEId model.inputExp eid
+            expToAbstractParts =
+              maybeExpToAbstract
+                |> Maybe.map flattenExpTree
+                |> Maybe.withDefault []
+            parameterCount =
+              ( Utils.count
+                  ( \e ->
+                      CodeMotion.shouldBeParameterIsConstant
+                        e model.inputExp
+                  )
+                  expToAbstractParts
+              ) +
+              ( Utils.count
+                  ( \e ->
+                      CodeMotion.shouldBeParameterIsNamedUnfrozenConstant
+                        e model.inputExp
+                  )
+                  expToAbstractParts
+              )
+            expSize =
+              maybeExpToAbstract
+                |> Maybe.map LangTools.nodeCount
+                |> Maybe.withDefault 0
+          in
+            if parameterCount > 0 && expSize >= 3 then
+              Just <|
+                \() ->
+                  CodeMotion.abstractExp eid model.inputExp
+            else
+              Nothing
+        ([], [], [], [], [letEId], [], []) ->
+          case
+            LangTools.justFindExpByEId model.inputExp letEId
+              |> LangTools.expToMaybeLetPat
+              |> Maybe.map (.val >> .p__)
+          of
+            Just (PVar _ _ _) ->
+              Just <|
+                \() ->
+                  let
+                     pathedPatId = ((letEId, 1), [])
+                  in
+                    CodeMotion.abstractPVar pathedPatId model.inputExp
+            _ ->
+              Nothing
+        _ ->
+          Nothing
+  }
+
+--------------------------------------------------------------------------------
+-- Merge
+--------------------------------------------------------------------------------
+
+mergeTool : Model -> Selections -> DeuceTool
+mergeTool model selections =
+  { name = "Merge"
+  , func =
+      case selections of
+        (_, _, eid1::eid2::restEIds, [], [], [], []) ->
+          let
+            eids =
+              eid1::eid2::restEIds
+            mergeResults =
+              let
+                candidateExpFilter e =
+                  List.member e.val.eid eids
+                minCloneCount =
+                  List.length eids
+              in
+                ExpressionBasedTransform.cloneEliminationSythesisResults
+                  candidateExpFilter minCloneCount 2 model.inputExp
+          in
+            if mergeResults /= [] then
+              Just <|
+                \() ->
+                  mergeResults
+            else
+              Nothing
+        _ ->
+          Nothing
+  }
+
+--------------------------------------------------------------------------------
+-- Add Argument
+--------------------------------------------------------------------------------
+
+addArgumentTool : Model -> Selections -> DeuceTool
+addArgumentTool model selections =
+  let
+    disabledTool =
+      { name = "Add Argument"
+      , func = Nothing
+      }
+  in
+    case selections of
+      (_, _, firstEId::restEIds, [], [], [], [patTarget]) ->
+        let
+          eids =
+            firstEId::restEIds
+          targetPathedPatId =
+            patTargetPositionToTargetPathedPatId patTarget
+          maybeScopeExp =
+            findExpByEId
+              model.inputExp
+              (pathedPatIdToScopeEId targetPathedPatId)
+        in
+          case
+            maybeScopeExp
+              |> Maybe.map (.val >> .e__)
+          of
+            Just (EFun _ _ fbody _) ->
+              let
+                isAllSelectedExpsInFBody =
+                  eids |> List.all (\eid -> findExpByEId fbody eid /= Nothing)
+              in
+                if isAllSelectedExpsInFBody && List.length eids == 1 then
+                  { name = "Add Argument" -- Fowler calls this "Add Parameter"
+                  , func =
+                      Just <|
+                        \() ->
+                          CodeMotion.addArg
+                            (Utils.head_ eids)
+                            targetPathedPatId
+                            model.inputExp
+                  }
+                else if isAllSelectedExpsInFBody then
+                  { name = "Add Arguments" -- Fowler calls this "Add Parameter"
+                  , func =
+                      Just <|
+                        \() ->
+                          CodeMotion.addArgs
+                            eids
+                            targetPathedPatId
+                            model.inputExp
+                  }
+                else
+                  disabledTool
+            _ ->
+              disabledTool
+      ( _, _, []
+      , firstArgSourcePathedPatId::restArgSourcePathedPatId
+      , [], [], [patTarget]
+      ) ->
+        let
+          argSourcePathedPatIds =
+            firstArgSourcePathedPatId::restArgSourcePathedPatId
+          targetPathedPatId =
+            patTargetPositionToTargetPathedPatId patTarget
+          maybeScopeExp =
+            findExpByEId model.inputExp (pathedPatIdToScopeEId targetPathedPatId)
+        in
+          case
+            maybeScopeExp
+              |> Maybe.map (.val >> .e__)
+          of
+            Just (EFun _ _ fbody _) ->
+              let
+                isAllSelectedPatsInFBody =
+                  argSourcePathedPatIds
+                    |> List.all
+                         ( \argSourcePathedPatId ->
+                             LangTools.findScopeExpAndPat
+                               argSourcePathedPatId fbody /= Nothing
+                         )
+              in
+                if
+                  isAllSelectedPatsInFBody &&
+                  List.length argSourcePathedPatIds == 1
+                then
+                  { name = "Add Argument" -- Fowler calls this "Add Parameter"
+                  , func =
+                      Just <|
+                        \() ->
+                          CodeMotion.addArgFromPat
+                            (Utils.head_ argSourcePathedPatIds)
+                            targetPathedPatId
+                            model.inputExp
+                  }
+                else if isAllSelectedPatsInFBody then
+                  { name = "Add Arguments" -- Fowler calls this "Add Parameter"
+                  , func =
+                      Just <|
+                        \() ->
+                          CodeMotion.addArgsFromPats
+                            argSourcePathedPatIds
+                            targetPathedPatId
+                            model.inputExp
+                  }
+                else
+                  disabledTool
+            _ ->
+              disabledTool
+      _ ->
+        disabledTool
+
+--------------------------------------------------------------------------------
+-- Remove Argument
+--------------------------------------------------------------------------------
+
+removeArgumentTool : Model -> Selections -> DeuceTool
+removeArgumentTool model selections =
+  let
+    disabledTool =
+      { name = "Remove Argument"
+      , func = Nothing
+      }
+  in
+    case selections of
+      (_, _, [], [], _, _, _) ->
+        disabledTool
+      ([], [], [], pathedPatIds, [], [], []) ->
+        let
+          isAllArgumentSelected =
+            pathedPatIds
+              |> List.all
+                   ( \pathedPatId ->
+                       let
+                         scopeExp =
+                           findExpByEId
+                             model.inputExp
+                             (pathedPatIdToScopeEId pathedPatId)
+                       in
+                         case
+                           scopeExp
+                             |> Maybe.map (.val >> .e__)
+                         of
+                           Just (EFun _ _ _ _) ->
+                             True
+                           _ ->
+                             False
+                   )
+        in
+          if isAllArgumentSelected && List.length pathedPatIds == 1 then
+            { name = "Remove Aggument"
+            , func =
+                Just <|
+                  \() ->
+                    CodeMotion.removeArg
+                      (Utils.head_ pathedPatIds)
+                      model.inputExp
+            }
+          else if isAllArgumentSelected then
+            { name = "Remove Arguments"
+            , func =
+                Just <|
+                  \() ->
+                    CodeMotion.removeArgs
+                      pathedPatIds
+                      model.inputExp
+            }
+          else
+            disabledTool
+      (_, _, eids, [], [], [], []) ->
+        case
+          eids
+            |> List.map
+                 ( LangTools.eidToMaybeCorrespondingArgumentPathedPatId
+                     model.inputExp
+                 )
+            |> Utils.projJusts
+        of
+          Just [argPathedPatId] ->
+            { name = "Remove Argument"
+            , func =
+                Just <|
+                  \() ->
+                    CodeMotion.removeArg
+                      argPathedPatId
+                      model.inputExp
+            }
+          Just argPathedPatIds ->
+            { name = "Remove Arguments"
+            , func =
+                Just <|
+                  \() ->
+                    CodeMotion.removeArgs
+                    argPathedPatIds
+                    model.inputExp
+            }
+          _ ->
+            disabledTool
+      _ ->
+        disabledTool
+
+--------------------------------------------------------------------------------
+-- Reorder Arguments
+--------------------------------------------------------------------------------
+
+reorderArgumentsTool : Model -> Selections -> DeuceTool
+reorderArgumentsTool model selections =
+  { name = "Reorder Arguments"
+  , func =
+      case selections of
+        (_, _, [], [], _, _, _) ->
+          Nothing
+        ([], [], [], pathedPatIds, [], [], [patTarget]) ->
+          let
+            targetPathedPatId =
+              patTargetPositionToTargetPathedPatId patTarget
+            allScopesSame =
+              List.map pathedPatIdToScopeId (targetPathedPatId::pathedPatIds)
+                |> Utils.allSame
+          in
+            case
+              ( allScopesSame
+              , ( findExpByEId
+                    model.inputExp
+                    (pathedPatIdToScopeEId targetPathedPatId)
+                ) |> Maybe.map (.val >> .e__)
+              )
+            of
+              (True, Just (EFun _ _ _ _)) ->
+                Just <|
+                  \() ->
+                    CodeMotion.reorderFunctionArgs
+                        (pathedPatIdToScopeEId targetPathedPatId)
+                        (List.map pathedPatIdToPath pathedPatIds)
+                        (pathedPatIdToPath targetPathedPatId)
+                        model.inputExp
+              _ ->
+                Nothing
+        (_, _, eids, [], [], [(beforeAfter, eid)], []) ->
+          case
+            (eid::eids)
+              |> List.map
+                   ( LangTools.eidToMaybeCorrespondingArgumentPathedPatId
+                       model.inputExp
+                   )
+              |> Utils.projJusts
+          of
+            Just (targetReferencePathedPatId::pathedPatIds) ->
+              let
+                targetPathedPatId =
+                  patTargetPositionToTargetPathedPatId
+                    (beforeAfter, targetReferencePathedPatId)
+                allScopesSame =
+                  ( List.map
+                      pathedPatIdToScopeId
+                      (targetPathedPatId::pathedPatIds)
+                  ) |> Utils.allSame
+              in
+                case
+                  ( allScopesSame
+                  , ( findExpByEId
+                        model.inputExp
+                        (pathedPatIdToScopeEId targetPathedPatId)
+                    ) |> Maybe.map (.val >> .e__)
+                  )
+                of
+                  (True, Just (EFun _ _ _ _)) ->
+                    Just <|
+                      \() ->
+                        CodeMotion.reorderFunctionArgs
+                            (pathedPatIdToScopeEId targetPathedPatId)
+                            (List.map pathedPatIdToPath pathedPatIds)
+                            (pathedPatIdToPath targetPathedPatId)
+                            model.inputExp
+                  _ ->
+                    Nothing
+            _ ->
+              Nothing
+        _ ->
+          Nothing
+  }
+
+--------------------------------------------------------------------------------
+-- Reorder List
+--------------------------------------------------------------------------------
+
+reorderListTool : Model -> Selections -> DeuceTool
+reorderListTool model selections =
+  { name = "Reorder List"
+  , func =
+      CodeMotion.reorderEListTransformation model selections
+  }
+
+--------------------------------------------------------------------------------
+-- Make Single Line
+--------------------------------------------------------------------------------
+-- TODO This function does not rely on CodeMotion, so it is probably doing too
+--      much.
+--------------------------------------------------------------------------------
+
+makeSingleLineTool : Model -> Selections -> DeuceTool
+makeSingleLineTool model selections =
+  { name = "Make Single Line"
+  , func =
+      let
+        maybeEIdToDeLineAndWhetherToPreservePrecedingWhitespace =
+          case selections of
+            (_, _, [eid], [], [], [], []) ->
+              Just (eid, True)
+            ([], [], [], [], [letEId], [], []) ->
+              findExpByEId model.inputExp letEId
+                |> Maybe.andThen LangTools.expToMaybeLetBoundExp
+                |> Maybe.map (\letBoundExp -> (letBoundExp.val.eid, False))
+            _ ->
+              Nothing
+      in
+        case maybeEIdToDeLineAndWhetherToPreservePrecedingWhitespace of
+          Nothing ->
+            Nothing
+          Just (eid, shouldPreservePrecedingWhitespace) ->
+            let
+              perhapsLeftTrimmer =
+                if shouldPreservePrecedingWhitespace then
+                  String.trimLeft
+                else
+                  identity
+            in
+              if
+                LangTools.justFindExpByEId model.inputExp eid
+                  |> LangUnparser.unparse
+                  |> perhapsLeftTrimmer
+                  |> String.contains "\n"
+              then
+                Just <|
+                  \() ->
+                    let
+                      deLine ws =
+                        if String.contains "\n" ws.val then
+                          space1
+                        else
+                          ws
+                      deLineP__ p__ =
+                        case p__ of
+                          PVar ws ident wd ->
+                            PVar
+                              (deLine ws)
+                              ident
+                              wd
+                          PConst ws n ->
+                            PConst
+                              (deLine ws)
+                              n
+                          PBase ws v ->
+                            PBase
+                              (deLine ws)
+                              v
+                          PList ws1 ps ws2 rest ws3 ->
+                            PList
+                              (deLine ws1)
+                              (setPatListWhitespace "" " " ps)
+                              (deLine ws2)
+                              rest
+                              space0
+                          PAs ws1 ident ws2 p ->
+                            PAs
+                              (deLine ws1)
+                              ident
+                              space1
+                              p
+                      deLinePat p =
+                        mapPatTopDown (mapNodeP__ deLineP__) p
+                      deLineE__ e__ =
+                        case e__ of
+                          EBase ws v ->
+                            EBase (deLine ws) v
+                          EConst ws n l wd ->
+                            EConst (deLine ws) n l wd
+                          EVar ws x ->
+                            EVar (deLine ws) x
+                          EFun ws1 ps e1 ws2 ->
+                            EFun
+                              (deLine ws1)
+                              ( ps
+                                  |> List.map deLinePat
+                                  |> setPatListWhitespace "" " "
+                              )
+                              e1
+                              space0
+                          EApp ws1 e1 es ws2 ->
+                            EApp
+                              (deLine ws1)
+                              (replacePrecedingWhitespace "" e1)
+                              es
+                              space0
+                          EList ws1 es ws2 rest ws3 ->
+                            EList
+                              (deLine ws1)
+                              (setExpListWhitespace "" " " es)
+                              (deLine ws2)
+                              rest
+                              space0
+                          EOp ws1 op es ws2 ->
+                            EOp (deLine ws1) op es space0
+                          EIf ws1 e1 e2 e3 ws2 ->
+                            EIf (deLine ws1) e1 e2 e3 space0
+                          ELet ws1 kind rec p e1 e2 ws2 ->
+                            ELet (deLine ws1) kind rec p e1 e2 space0
+                          ECase ws1 e1 bs ws2 ->
+                            ECase (deLine ws1) e1 bs space0
+                          ETypeCase ws1 pat bs ws2 ->
+                            ETypeCase (deLine ws1) pat bs space0
+                          EComment ws s e1 ->
+                            EComment ws s e1
+                          EOption ws1 s1 ws2 s2 e1 ->
+                            EOption ws1 s1 space1 s2 e1
+                          ETyp ws1 pat tipe e ws2 ->
+                            ETyp (deLine ws1) pat tipe e space0
+                          EColonType ws1 e ws2 tipe ws3 ->
+                            EColonType (deLine ws1) e (deLine ws2) tipe space0
+                          ETypeAlias ws1 pat tipe e ws2 ->
+                            ETypeAlias (deLine ws1) pat tipe e space0
+                      deLineExp e =
+                        mapExp (mapNodeE__ deLineE__) e
+                    in
+                      model.inputExp
+                        |> mapExpNode
+                             eid
+                             ( \e ->
+                                 e
+                                   |> deLineExp
+                                   |> ( if
+                                          shouldPreservePrecedingWhitespace
+                                        then
+                                          copyPrecedingWhitespace e
+                                        else
+                                          replacePrecedingWhitespace " "
+                                      )
+                             )
+                        |> synthesisResult "Make Single Line"
+                        |> Utils.singleton
+              else
+                Nothing
+    }
+
+--------------------------------------------------------------------------------
+-- Make Multi-line
+--------------------------------------------------------------------------------
+-- TODO This function does not rely on CodeMotion, so it is probably doing too
+--      much.
+--------------------------------------------------------------------------------
+
+makeMultiLineTool : Model -> Selections -> DeuceTool
+makeMultiLineTool model selections =
+  { name = "Make Multi-line"
+  , func =
+      case selections of
+        (_, _, [eid], [], [], [], []) ->
+          let
+            exp =
+              LangTools.justFindExpByEId model.inputExp eid
+          in
+            case exp.val.e__ of
+              EList ws1 es ws2 Nothing ws3 ->
+                if
+                  es |>
+                    List.all (precedingWhitespace >> String.contains "\n")
+                then
+                  Nothing
+                else
+                  Just <|
+                    \() ->
+                      let
+                        indentation =
+                          indentationAt eid model.inputExp
+                      in
+                        model.inputExp
+                          |> replaceExpNodeE__ByEId
+                               eid
+                               ( EList
+                                   ws1
+                                   ( setExpListWhitespace
+                                       ("\n" ++ indentation ++ "  ")
+                                       ("\n" ++ indentation ++ "  ")
+                                       es
+                                   )
+                                   ws2
+                                   Nothing
+                                   ( ws <| "\n" ++ indentation )
+                               )
+                          |> synthesisResult "Make Multi-line"
+                          |> Utils.singleton
+              EApp ws1 e es ws2 ->
+                if
+                  es |>
+                    List.all (precedingWhitespace >> String.contains "\n")
+                then
+                  Nothing
+                else
+                  Just <|
+                    \() ->
+                      let
+                        indentation =
+                          String.repeat (e.end.col) " "
+                      in
+                        model.inputExp
+                          |> replaceExpNodeE__ByEId
+                               eid
+                               ( EApp
+                                   ws1
+                                   e
+                                   ( setExpListWhitespace
+                                       " "
+                                       ("\n" ++ indentation)
+                                       es
+                                   )
+                                   space0
+                               )
+                          |> synthesisResult "Make Multi-line"
+                          |> Utils.singleton
+              _ ->
+                Nothing
+        _ ->
+          Nothing
+  }
+
+--------------------------------------------------------------------------------
+-- Align
+--------------------------------------------------------------------------------
+-- TODO This function does not rely on CodeMotion, so it is probably doing too
+--      much.
+--------------------------------------------------------------------------------
+
+alignTool : Model -> Selections -> DeuceTool
+alignTool model selections =
+  { name = "Align Expressions"
+  , func =
+      case selections of
+        (_, _, eid1::eid2::restEIds, [], [], [], []) ->
+          let
+            eids =
+              eid1::eid2::restEIds
+            exps =
+              eids |>
+                List.map (LangTools.justFindExpByEId model.inputExp)
+            lineNums =
+              exps |>
+                List.map (.start >> .line)
+          in
+            if lineNums /= Utils.dedup lineNums then
+              Nothing
+            else
+              Just <|
+                \() ->
+                  let
+                    maxCol =
+                      exps
+                        |> List.map (.start >> .col)
+                        |> List.maximum
+                        |> Utils.fromJust_ "DeuceTools.alignTool maxCol"
+                  in
+                    model.inputExp
+                      |> mapExp
+                          ( \e ->
+                              if List.member e.val.eid eids then
+                                let
+                                  wsDelta =
+                                    maxCol - e.start.col
+                                in
+                                  e |>
+                                    pushRight (String.repeat wsDelta " ")
+                              else
+                                e
+                          )
+                      |> synthesisResult "Align Expressions"
+                      |> Utils.singleton
+        _ ->
+          Nothing
+  }
+
+--------------------------------------------------------------------------------
+-- All Tools (Exported)
 --------------------------------------------------------------------------------
 
 deuceTools : Model -> List (List DeuceTool)
@@ -616,5 +1737,19 @@ deuceTools model =
         , eliminateCommonSubExpressionTool
         , copyExpressionTool
         , moveDefinitionTool
+        , duplicateDefinitionTool
+        , thawFreezeTool
+        , showHideRangeTool
+        , addRemoveRangeTool
+        , rewriteOffsetTool
+        , createFunctionTool
+        , mergeTool
+        , addArgumentTool
+        , removeArgumentTool
+        , reorderArgumentsTool
+        , reorderListTool
+        , makeSingleLineTool
+        , makeMultiLineTool
+        , alignTool
         ]
       ]

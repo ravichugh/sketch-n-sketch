@@ -1726,7 +1726,7 @@ deuceTools model =
         buttonAndMaybeMenu (Right results)
   in
   Utils.mapi1 oneTool
-    (List.concat <| Controller.contextSensitiveDeuceTools model)
+    (List.concat <| [])
 
 renameVarTextBox path =
   flip Html.input [] <|

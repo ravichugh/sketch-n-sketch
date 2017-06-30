@@ -8,12 +8,12 @@ module CodeMotion exposing
   , inlineDefinitions
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
   , removeArg, removeArgs, addArg, addArgFromPat, addArgs, addArgsFromPats, reorderFunctionArgs
-  , addToolReorderEList
-  , makeIntroduceVarTool
-  , makeMakeEqualTool
-  , makeEliminateCommonSubExpressionTool
-  , makeCopyExpressionTool
-  , rewriteOffsetTool
+  , reorderEListTransformation
+  , introduceVarTransformation
+  , makeEqualTransformation
+  , eliminateCommonSubExpressionTransformation
+  , copyExpressionTransformation
+  , rewriteOffsetTransformation
   )
 
 import Lang exposing (..)
@@ -2185,22 +2185,15 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
 
 ------------------------------------------------------------------------------
 
--- TODO: define these and use this elsewhere
-bindMaybeToMaybeOne : (a -> MaybeOne b) -> Maybe a -> MaybeOne b
-bindMaybeToMaybeOne f mx =
-  case mx of
-    Nothing -> Utils.nothing
-    Just x  -> f x
-
-addToolReorderEList m selections =
+reorderEListTransformation m selections =
   case selections of
-    (_, _, [], _, _, _, _) -> []
+    (_, _, [], _, _, _, _) -> Nothing
     (_, _, expIds, [], [], [expTarget], []) ->
       let maybeMaybeParents =
         List.map (parentByEId m.inputExp) (Tuple.second expTarget :: expIds)
       in
-      Utils.projJusts maybeMaybeParents |> bindMaybeToMaybeOne (\maybeParents ->
-      Utils.projJusts maybeParents |> bindMaybeToMaybeOne (\parents ->
+      Utils.projJusts maybeMaybeParents |> Maybe.andThen (\maybeParents ->
+      Utils.projJusts maybeParents |> Maybe.andThen (\parents ->
       let parentIds = List.map (.eid << .val) parents in
         case Utils.dedup parentIds of
           [eListId] ->
@@ -2246,12 +2239,16 @@ addToolReorderEList m selections =
                 let newExp =
                   replaceExpNode eListId reorderedEList m.inputExp
                 in
-                [ ("Reorder List", \() -> [synthesisResult "Reorder List" newExp]) ]
-
-              _ -> []
-          _ -> []
+                  Just <|
+                    \() ->
+                      [synthesisResult "Reorder List" newExp]
+              _ ->
+                Nothing
+          _ ->
+            Nothing
       ))
-    _ -> []
+    _ ->
+      Nothing
 
 
 ------------------------------------------------------------------------------
@@ -2267,14 +2264,14 @@ addNewEquationsInside targetPath newEquations e =
 
 ------------------------------------------------------------------------------
 
-makeIntroduceVarTool m expIds targetPos =
+introduceVarTransformation m expIds targetPos =
   case targetPos of
 
     ExpTargetPosition (After, expTargetId) ->
       Nothing
 
     ExpTargetPosition (Before, expTargetId) ->
-      makeIntroduceVarTool_ m expIds expTargetId
+      introduceVarTransformation_ m expIds expTargetId
         (addNewEquationsAround m.inputExp expTargetId)
 
     PatTargetPosition patTarget ->
@@ -2283,7 +2280,7 @@ makeIntroduceVarTool m expIds targetPos =
           case findExpByEId m.inputExp targetId of
             Just scopeExp ->
               if isLet scopeExp then
-                makeIntroduceVarTool_ m expIds targetId
+                introduceVarTransformation_ m expIds targetId
                   (addNewEquationsInside targetPath)
               else
                 Nothing
@@ -2295,7 +2292,7 @@ makeIntroduceVarTool m expIds targetPos =
           Nothing
 
 -- TODO: Bug: can't introduce var directly in from of expression being extracted.
-makeIntroduceVarTool_ m expIds addNewVarsAtThisId addNewEquationsAt =
+introduceVarTransformation_ m expIds addNewVarsAtThisId addNewEquationsAt =
   let toolName =
     "Introduce Variable" ++ (if List.length expIds == 1 then "" else "s")
   in
@@ -2363,7 +2360,7 @@ literalExp literal =
     Left (_,(_,firstNum,_,_)) -> eConst firstNum dummyLoc
     Right (_,(_,baseVal))     -> withDummyExpInfo (EBase space1 baseVal)
 
-makeMakeEqualTool m literals =
+makeEqualTransformation m literals =
   let expIds = List.map literalEId literals in
   let firstLiteral = literalExp (Utils.head_ literals) in
   let targetLet =
@@ -2405,13 +2402,13 @@ makeMakeEqualTool m literals =
 
 ------------------------------------------------------------------------------
 
-makeEliminateCommonSubExpressionTool m firstId restIds =
+eliminateCommonSubExpressionTransformation m firstId restIds =
   let expIds = firstId :: restIds in
   let firstExp = justFindExpByEId m.inputExp firstId in
   let restExps = List.map (justFindExpByEId m.inputExp) restIds in
   let diffs = List.concatMap (extraExpsDiff firstExp) restExps in
   if diffs == [] then
-    -- a lot of duplication from makeIntroduceVarTool and makeMakeEqualTool...
+    -- a lot of duplication from introduceVarTransformation and makeEqualTransformation...
     let name = expNameForEId m.inputExp firstId in
     let targetLet =
       justInsideDeepestCommonScope m.inputExp (\e -> List.member e.val.eid expIds)
@@ -2442,7 +2439,7 @@ makeEliminateCommonSubExpressionTool m firstId restIds =
   else
     Nothing
 
-makeCopyExpressionTool m firstId restIds =
+copyExpressionTransformation m firstId restIds =
   let expIds = firstId :: restIds in
   let firstExp = justFindExpByEId m.inputExp firstId in
   let restExps = List.map (justFindExpByEId m.inputExp) restIds in
@@ -2466,32 +2463,32 @@ makeCopyExpressionTool m firstId restIds =
 
 ------------------------------------------------------------------------------
 
-rewriteOffsetTool m ppid nums =
+rewriteOffsetTransformation m ppid nums =
   let eids = List.map Tuple.first nums in
   let isSafe = True in -- TODO
   if not isSafe then
     -- TODO can do some renaming to make it safe
-    []
+    Nothing
   else
     case pluck ppid m.inputExp of
-      Nothing -> []
+      Nothing ->
+        Nothing
       Just ((p, eBase), _) ->
         case (p.val.p__, eBase.val.e__) of
           (PVar _ xBase _,  EConst _ nBase _ _) ->
-            [ (Utils.maybePluralize "Rewrite as Offset" nums, \() ->
-                let newExp =
-                  List.foldl
-                     (\(eid,(_,n,_,_)) ->
-                       let eBasePlusOffset =
-                         let diff = n - nBase in
-                         if diff >= 0
-                           then ePlus (eVar xBase) (eConst diff dummyLoc)
-                           else eMinus (eVar xBase) (eConst (-1 * diff) dummyLoc)
-                       in
-                       replaceExpNodePreservingPrecedingWhitespace eid eBasePlusOffset)
-                     m.inputExp nums
-                in
+            Just <| \() ->
+              let newExp =
+                List.foldl
+                   (\(eid,(_,n,_,_)) ->
+                     let eBasePlusOffset =
+                       let diff = n - nBase in
+                       if diff >= 0
+                         then ePlus (eVar xBase) (eConst diff dummyLoc)
+                         else eMinus (eVar xBase) (eConst (-1 * diff) dummyLoc)
+                     in
+                     replaceExpNodePreservingPrecedingWhitespace eid eBasePlusOffset)
+                   m.inputExp nums
+              in
                 oneSafeResult newExp
-              ) ]
-
-          _ -> []
+          _ ->
+            Nothing
