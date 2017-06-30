@@ -538,9 +538,12 @@ menuBar model =
                     , simpleTextButton "24" (Controller.msgUpdateFontSize 24)
                     ]
                 , hoverMenu "Auto-Run"
-                    [ disableableTextButton True "Every second" Controller.msgNoop
-                    , disableableTextButton True "Every 2 seconds" Controller.msgNoop
-                    , disableableTextButton True "Every 3 seconds" Controller.msgNoop
+                    [ disableableTextButton
+                        True "Every second" Controller.msgNoop
+                    , disableableTextButton
+                        True "Every 2 seconds" Controller.msgNoop
+                    , disableableTextButton
+                        True "Every 3 seconds" Controller.msgNoop
                     ]
                 , hoverMenu "Color Scheme"
                     [ disableableTextButton True "Light" Controller.msgNoop
