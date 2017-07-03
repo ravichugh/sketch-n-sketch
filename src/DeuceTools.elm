@@ -1,13 +1,15 @@
 --------------------------------------------------------------------------------
 -- This module provides "glue" code for the View to access the transformations
--- that CodeMotion provides.
+-- that CodeMotion (and friends) provides.
 --------------------------------------------------------------------------------
 
 module DeuceTools exposing
   ( DeuceTool
   , deuceTools
+  , isRenamer
   )
 
+import String
 import Dict
 
 import Either exposing (..)
@@ -1691,8 +1693,12 @@ alignExpressionsTool model selections =
           Nothing
   }
 
+--==============================================================================
+--= EXPORTS
+--==============================================================================
+
 --------------------------------------------------------------------------------
--- All Tools (Exported)
+-- All Tools
 --------------------------------------------------------------------------------
 
 deuceTools : Model -> List (List DeuceTool)
@@ -1762,3 +1768,11 @@ deuceTools model =
         -- , twiddleShapesTool
       ]
     ]
+
+--------------------------------------------------------------------------------
+-- Helpers
+--------------------------------------------------------------------------------
+
+isRenamer : DeuceTool -> Bool
+isRenamer =
+  String.startsWith "Rename" << .name

@@ -75,6 +75,25 @@ groupDisabled disallowSelectedFeatures model =
   in
     noBlobs || (disallowSelectedFeatures && (not noFeatures))
 
+onClickWithoutPropagation : msg -> Html.Attribute msg
+onClickWithoutPropagation handler =
+  E.onWithOptions
+    "click"
+    { stopPropagation = True
+    , preventDefault = False
+    }
+    (Json.succeed handler)
+
+-- Derived from (under "keyCode"):
+--   http://package.elm-lang.org/packages/elm-lang/html/2.0.0/Html-Events
+onKeyDown : (Int -> msg) -> Html.Attribute msg
+onKeyDown tagger =
+  E.on "keydown" (Json.map tagger E.keyCode)
+
+enterKeyCode : Int
+enterKeyCode =
+  13
+
 --------------------------------------------------------------------------------
 -- Buttons
 --------------------------------------------------------------------------------
@@ -216,55 +235,59 @@ generalUiButton disabled userClass title onClickHandler =
 -- Menu Bar
 --------------------------------------------------------------------------------
 
+generalHtmlHoverMenu
+  : List (Html Msg) -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
+generalHtmlHoverMenu
+  titleHtml onMouseEnter onMouseLeave onClick disabled dropdownContent =
+    let
+      (disabledFlag, realOnMouseEnter, realOnMouseLeave, realOnClick) =
+        if disabled then
+          (" disabled"
+          , Controller.msgNoop
+          , Controller.msgNoop
+          , Controller.msgNoop
+          )
+        else
+          (""
+          , onMouseEnter
+          , onMouseLeave
+          , onClick
+          )
+    in
+      Html.div
+        [ Attr.class <| "hover-menu" ++ disabledFlag
+        , E.onMouseEnter realOnMouseEnter
+        , E.onMouseLeave realOnMouseLeave
+        ]
+        [ Html.div
+            [ Attr.class "hover-menu-title"
+            ]
+            [ textButton
+                { defaultTb
+                    | content =
+                        [ Html.span
+                            []
+                            titleHtml
+                        , Html.span
+                            [ Attr.class "hover-menu-indicator"
+                            ]
+                            [ Html.text "▸"
+                            ]
+                        ]
+                    , disabled = disabled
+                    , stopPropagation = True
+                    , onClick = realOnClick
+                }
+            ]
+        , Html.div
+            [ Attr.class "dropdown-content" ]
+            dropdownContent
+        ]
+
 generalHoverMenu
-  : String -> Msg -> Msg -> Msg -> Bool -> (List (Html Msg)) -> Html Msg
-generalHoverMenu
-  title onMouseEnter onMouseLeave onClick disabled dropdownContent =
-  let
-    (disabledFlag, realOnMouseEnter, realOnMouseLeave, realOnClick) =
-      if disabled then
-        (" disabled"
-        , Controller.msgNoop
-        , Controller.msgNoop
-        , Controller.msgNoop
-        )
-      else
-        (""
-        , onMouseEnter
-        , onMouseLeave
-        , onClick
-        )
-  in
-    Html.div
-      [ Attr.class <| "hover-menu" ++ disabledFlag
-      , E.onMouseEnter realOnMouseEnter
-      , E.onMouseLeave realOnMouseLeave
-      ]
-      [ Html.div
-          [ Attr.class "hover-menu-title"
-          ]
-          [ textButton
-              { defaultTb
-                  | content =
-                      [ Html.span
-                          []
-                          [ Html.text title
-                          ]
-                      , Html.span
-                          [ Attr.class "hover-menu-indicator"
-                          ]
-                          [ Html.text "▸"
-                          ]
-                      ]
-                  , disabled = disabled
-                  , stopPropagation = True
-                  , onClick = realOnClick
-              }
-          ]
-      , Html.div
-          [ Attr.class "dropdown-content" ]
-          dropdownContent
-      ]
+  : String -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
+generalHoverMenu titleString =
+  generalHtmlHoverMenu [ Html.text titleString ]
 
 hoverMenu : String -> (List (Html Msg)) -> Html Msg
 hoverMenu title dropdownContent =
@@ -339,13 +362,11 @@ renameVarTextBox path =
      [ Attr.type_ "text"
      , Attr.style <|
          [ ("width", "100px") -- in sync with 250px - 150px above
+         -- the following are the same as for htmlButton
          , ("box-sizing", "border-box") -- Strangely, Firefox and Chrome on Mac differ on this default.
-         , ("min-height", px Layout.buttonHeight)
+         , ("min-height", px <|  Layout.buttonHeight)
          ]
-     , E.onInput <| \str ->
-         Msg ("Update Rename Var Textbox: " ++ str) <| \m ->
-           let deuceState = m.deuceState in
-           { m | deuceState = { deuceState | renameVarTextBox = str } }
+     , E.onInput Controller.msgUpdateRenameVarTextBox
      ] ++
     deuceMenuButtonHoverEvents path Nothing
 
@@ -487,12 +508,36 @@ deuceHoverMenu model (index, deuceTool) =
           ([], True)
     path =
       [ index ]
+    isRenamer =
+      DeuceTools.isRenamer deuceTool
     preview result =
-      case (runAndResolve model result.exp) of
-        Err err ->
+      case (isRenamer, runAndResolve model result.exp) of
+        (True, _) ->
+          Nothing
+        (False, Err err) ->
           Just (LangUnparser.unparse result.exp, Err err)
-        Ok (val, widgets, slate, code) ->
+        (False, Ok (val, widgets, slate, code)) ->
           Just (code, Ok (val, widgets, slate))
+    renameInput result =
+      if isRenamer then
+        [ Html.input
+            [ Attr.type_ "text"
+            , Attr.class "rename-input"
+            , E.onInput Controller.msgUpdateRenameVarTextBox
+            , onClickWithoutPropagation Controller.msgNoop
+            , onKeyDown <|
+                \code ->
+                  if code == enterKeyCode then -- Enter button
+                    Controller.msgChooseDeuceExp result.exp
+                  else
+                    Controller.msgNoop
+            ]
+            []
+        ]
+      else
+        []
+    additionalInputs result =
+      renameInput result
   in
     generalHoverMenu
       deuceTool.name
@@ -507,8 +552,13 @@ deuceHoverMenu model (index, deuceTool) =
             ( \synthesisResult ->
                 case synthesisResult of
                   SynthesisResult r ->
-                    generalHoverMenu
-                      (Model.resultDescription synthesisResult)
+                    generalHtmlHoverMenu
+                      ( [ Html.span
+                            []
+                            [ Html.text <| Model.resultDescription synthesisResult
+                            ]
+                        ] ++ (additionalInputs r)
+                      )
                       (Controller.msgHoverDeuceTool path (Just <| preview r))
                       (Controller.msgLeaveDeuceTool path (Just <| preview r))
                       (Controller.msgChooseDeuceExp r.exp)
@@ -1643,5 +1693,5 @@ view model =
         , deuceOverlay model
         ]
         ++ (dialogBoxes model)
-        ++ (deuceTools3 model)
+        -- ++ (deuceTools3 model)
       )

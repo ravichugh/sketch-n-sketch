@@ -45,6 +45,7 @@ module InterfaceController exposing
   , msgSetGhostsShown
   , msgHoverDeuceTool
   , msgLeaveDeuceTool
+  , msgUpdateRenameVarTextBox
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -1748,3 +1749,15 @@ msgLeaveDeuceTool path maybePreview =
           \m -> { m | preview = Nothing }
         Nothing ->
           identity
+
+msgUpdateRenameVarTextBox : String -> Msg
+msgUpdateRenameVarTextBox text =
+  Msg ("Update Rename Var Text Box: " ++ text) <| \model ->
+    let
+      oldDeuceState =
+        model.deuceState
+    in
+      { model
+          | deuceState =
+              { oldDeuceState | renameVarTextBox = text }
+      }
