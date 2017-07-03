@@ -350,20 +350,8 @@ renameVarTextBox path =
     deuceMenuButtonHoverEvents path Nothing
 
 deuceMenuButtonHoverEvents path maybePreview =
-  [ E.onMouseEnter <|
-      Msg ("Hover Deuce Tool " ++ toString path)
-          (setHoveredMenuPath path >>
-           case maybePreview of
-             Just preview -> \m -> { m | preview = preview }
-             Nothing      -> \m -> m
-          )
-  , E.onMouseLeave <|
-      Msg ("Leave Deuce Tool " ++ toString path)
-          (clearHoveredMenuPath >>
-           case maybePreview of
-             Just preview -> \m -> { m | preview = Nothing }
-             Nothing      -> \m -> m
-          )
+  [ E.onMouseEnter <| Controller.msgHoverDeuceTool path maybePreview
+  , E.onMouseLeave <| Controller.msgLeaveDeuceTool path maybePreview
   ]
 
 deuceTools3 model =
@@ -488,8 +476,8 @@ deuceTools3 model =
 --------------------------------------------------------------------------------
 
 -- See InterfaceView3.deuceTools
-deuceHoverMenu : DeuceTool -> Html Msg
-deuceHoverMenu deuceTool =
+deuceHoverMenu : Model -> (Int, DeuceTool) -> Html Msg
+deuceHoverMenu model (index, deuceTool) =
   let
     (results, disabled) =
       case deuceTool.func of
@@ -497,6 +485,14 @@ deuceHoverMenu deuceTool =
           (f (), False)
         Nothing ->
           ([], True)
+    path =
+      [ index ]
+    preview result =
+      case (runAndResolve model result.exp) of
+        Err err ->
+          Just (LangUnparser.unparse result.exp, Err err)
+        Ok (val, widgets, slate, code) ->
+          Just (code, Ok (val, widgets, slate))
   in
     generalHoverMenu
       deuceTool.name
@@ -508,14 +504,16 @@ deuceHoverMenu deuceTool =
         [ Attr.class "synthesis-results"
         ]
         ( List.map
-            ( \r ->
-              generalHoverMenu
-                (Model.resultDescription r)
-                Controller.msgNoop
-                Controller.msgNoop
-                Controller.msgNoop
-                False
-                []
+            ( \synthesisResult ->
+                case synthesisResult of
+                  SynthesisResult r ->
+                    generalHoverMenu
+                      (Model.resultDescription synthesisResult)
+                      (Controller.msgHoverDeuceTool path (Just <| preview r))
+                      (Controller.msgLeaveDeuceTool path (Just <| preview r))
+                      (Controller.msgChooseDeuceExp r.exp)
+                      False
+                      []
             )
           results
         )
@@ -643,7 +641,7 @@ menuBar model =
               ]
           , menu "Edit Code" <|
               List.map
-                (List.map deuceHoverMenu)
+                (Utils.mapi1 <| deuceHoverMenu model)
                 (DeuceTools.deuceTools model)
           , menu "Edit Output"
               [ [ relateTextButton

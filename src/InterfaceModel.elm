@@ -53,10 +53,13 @@ type alias ViewState =
   { menuActive : Bool
   }
 
+type alias Preview =
+  Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
+
 type alias Model =
   { code : Code
   , lastRunCode : Code
-  , preview: Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
+  , preview : Preview
   , history : (List Code, List Code)
   , inputExp : Exp
   , inputVal : Val

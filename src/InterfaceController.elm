@@ -43,6 +43,8 @@ module InterfaceController exposing
   , msgUpdateFontSize
   , msgSetToolMode
   , msgSetGhostsShown
+  , msgHoverDeuceTool
+  , msgLeaveDeuceTool
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -1723,3 +1725,26 @@ msgSetGhostsShown shown =
       { old | showGhosts = shown
             , mode = newMode
       }
+
+--------------------------------------------------------------------------------
+-- Deuce Tools
+
+msgHoverDeuceTool : List Int -> Maybe Preview -> Msg
+msgHoverDeuceTool path maybePreview =
+  Msg ("Hover Deuce Tool " ++ toString path) <|
+    setHoveredMenuPath path >>
+      case maybePreview of
+        Just preview ->
+          \m -> { m | preview = preview }
+        Nothing ->
+          identity
+
+msgLeaveDeuceTool : List Int -> Maybe Preview -> Msg
+msgLeaveDeuceTool path maybePreview =
+  Msg ("Leave Deuce Tool " ++ toString path) <|
+    clearHoveredMenuPath >>
+      case maybePreview of
+        Just preview ->
+          \m -> { m | preview = Nothing }
+        Nothing ->
+          identity
