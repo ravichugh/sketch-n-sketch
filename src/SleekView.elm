@@ -236,13 +236,13 @@ generalUiButton disabled userClass title onClickHandler =
 --------------------------------------------------------------------------------
 
 generalHtmlHoverMenu
-  : List (Html Msg) -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
+  : String -> List (Html Msg) -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
 generalHtmlHoverMenu
-  titleHtml onMouseEnter onMouseLeave onClick disabled dropdownContent =
+  class titleHtml onMouseEnter onMouseLeave onClick disabled dropdownContent =
     let
       (disabledFlag, realOnMouseEnter, realOnMouseLeave, realOnClick) =
         if disabled then
-          (" disabled"
+          ("disabled "
           , Controller.msgNoop
           , Controller.msgNoop
           , Controller.msgNoop
@@ -255,7 +255,7 @@ generalHtmlHoverMenu
           )
     in
       Html.div
-        [ Attr.class <| "hover-menu" ++ disabledFlag
+        [ Attr.class <| "hover-menu " ++ disabledFlag ++ class
         , E.onMouseEnter realOnMouseEnter
         , E.onMouseLeave realOnMouseLeave
         ]
@@ -287,7 +287,7 @@ generalHtmlHoverMenu
 generalHoverMenu
   : String -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
 generalHoverMenu titleString =
-  generalHtmlHoverMenu [ Html.text titleString ]
+  generalHtmlHoverMenu "" [ Html.text titleString ]
 
 hoverMenu : String -> (List (Html Msg)) -> Html Msg
 hoverMenu title dropdownContent =
@@ -510,14 +510,17 @@ deuceHoverMenu model (index, deuceTool) =
       [ index ]
     isRenamer =
       DeuceTools.isRenamer deuceTool
-    preview result =
-      case (isRenamer, runAndResolve model result.exp) of
-        (True, _) ->
-          Nothing
-        (False, Err err) ->
-          Just (LangUnparser.unparse result.exp, Err err)
+    previewAndClass result =
+      case (result.isSafe, runAndResolve model result.exp) of
+        (True, Ok (val, widgets, slate, code)) ->
+          (Just (code, Ok (val, widgets, slate)), "expected-safe")
+        (True, Err err) ->
+          let _ = Debug.log "not safe after all!" () in
+          (Just (LangUnparser.unparse result.exp, Err err), "unexpected-unsafe")
         (False, Ok (val, widgets, slate, code)) ->
-          Just (code, Ok (val, widgets, slate))
+          (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
+        (False, Err err) ->
+          (Just (LangUnparser.unparse result.exp, Err err), "expected-unsafe")
     renameInput result =
       if isRenamer then
         [ Html.input
@@ -552,18 +555,23 @@ deuceHoverMenu model (index, deuceTool) =
             ( \synthesisResult ->
                 case synthesisResult of
                   SynthesisResult r ->
-                    generalHtmlHoverMenu
-                      ( [ Html.span
-                            []
-                            [ Html.text <| Model.resultDescription synthesisResult
-                            ]
-                        ] ++ (additionalInputs r)
-                      )
-                      (Controller.msgHoverDeuceTool path (Just <| preview r))
-                      (Controller.msgLeaveDeuceTool path (Just <| preview r))
-                      (Controller.msgChooseDeuceExp r.exp)
-                      False
-                      []
+                    let
+                      (preview, class) =
+                        previewAndClass r
+                    in
+                      generalHtmlHoverMenu class
+                        ( [ Html.span
+                              []
+                              [ Html.text <|
+                                  Model.resultDescription synthesisResult
+                              ]
+                          ] ++ (additionalInputs r)
+                        )
+                        (Controller.msgHoverDeuceTool path (Just preview))
+                        (Controller.msgLeaveDeuceTool path (Just preview))
+                        (Controller.msgChooseDeuceExp r.exp)
+                        False
+                        []
             )
           results
         )

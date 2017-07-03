@@ -689,6 +689,42 @@ a {
  * Deuce Tools                                                                *
  ******************************************************************************/
 
+.expected-safe .text-button {
+  background-color: rgba(0, 255, 0, 0.1);
+}
+
+.expected-safe .text-button:not(.disabled):hover,
+.expected-safe:hover > .hover-menu-title .text-button:not(.disabled) {
+  background-color: rgba(0, 255, 0, 0.2);
+}
+
+.unexpected-unsafe .text-button {
+  background-color: rgba(255, 0, 255, 0.5);
+}
+
+.unexpected-unsafe .text-button:not(.disabled):hover,
+.unexpected-unsafe:hover > .hover-menu-title .text-button:not(.disabled) {
+  background-color: rgba(255, 0, 255, 1);
+}
+
+.unexpected-safe .text-button {
+  background-color: rgba(255, 255, 0, 0.1);
+}
+
+.unexpected-safe .text-button:not(.disabled):hover,
+.unexpected-safe:hover > .hover-menu-title .text-button:not(.disabled) {
+  background-color: rgba(255, 255, 0, 0.2);
+}
+
+.expected-unsafe .text-button {
+  background-color: rgba(255, 0, 0, 0.1);
+}
+
+.expected-unsafe .text-button:not(.disabled):hover,
+.expected-unsafe:hover > .hover-menu-title .text-button:not(.disabled) {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
 .rename-input {
   width: 100%;
   margin-top: 0.4em; /* 1em - synthesis-results.line-height */
