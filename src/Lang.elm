@@ -1557,7 +1557,7 @@ listOfAnnotatedNums list =
       withDummyExpInfo (EConst space0 n (dummyLoc_ ann) wd) :: listOfAnnotatedNums1 list_
 
 listOfAnnotatedNums1 =
- List.map (\(n,ann,wd) -> withDummyExpInfo (EConst space0 n (dummyLoc_ ann) wd))
+ List.map (\(n,ann,wd) -> withDummyExpInfo (EConst space1 n (dummyLoc_ ann) wd))
 
 minMax x y             = (min x y, max x y)
 minNumTr (a,t1) (b,t2) = if a <= b then (a,t1) else (b,t2)
