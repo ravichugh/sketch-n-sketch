@@ -155,6 +155,15 @@ type alias PId  = Int
 type alias Exp_ = { e__ : Exp__, eid : EId }
 type alias Pat_ = { p__ : Pat__, pid : PId }
 
+--------------------------------------------------------------------------------
+-- The following expressions count as "top-level":
+--   * definition (def, not let)
+--   * comment
+--   * option
+--   * type declaration
+--   * type alias
+--------------------------------------------------------------------------------
+
 type Exp__
   = EConst WS Num Loc WidgetDecl
   | EBase WS EBaseVal
@@ -1978,36 +1987,6 @@ isTarget codeObject =
     TT _ _ _ ->
       True
 
--- (startCol, startRow, endCol, endRow)
--- NOTE: 1-indexed.
-startEnd : CodeObject -> (Int, Int, Int, Int)
-startEnd codeObject =
-  case codeObject of
-    E e ->
-      let
-        endExp =
-          case e.val.e__ of
-            ELet _ Let _ _ binding _ _ ->
-              binding
-            _ ->
-              e
-      in
-        ( e.start.col
-        , e.start.line
-        , endExp.end.col
-        , endExp.end.line
-        )
-    _ ->
-      let
-        info =
-          extractInfoFromCodeObject codeObject
-      in
-        ( info.start.col
-        , info.start.line
-        , info.end.col
-        , info.end.line
-        )
-
 childCodeObjects : CodeObject -> List CodeObject
 childCodeObjects co =
   case co of
@@ -2124,28 +2103,20 @@ childCodeObjects co =
               tbranches
           )
         ELet ws1 lk _ p1 e1 e2 ws2 ->
-          let
-            lastInside =
-              case lk of
-                Let ->
-                  e2
-                Def ->
-                  e1
-          in
-            [ ET Before ws1 e
-            , P e p1
-            , E e1
-            ] ++
-            ( case lk of
-                Let ->
-                  [ E e2
-                  , ET After ws2 e2
-                  ]
-                Def ->
-                  [ ET After ws2 e1
-                  , E e2
-                  ]
-            )
+          [ ET Before ws1 e
+          , P e p1
+          , E e1
+          ] ++
+          ( case lk of
+              Let ->
+                [ E e2
+                , ET After ws2 e2
+                ]
+              Def ->
+                [ ET After ws2 e1
+                , E e2
+                ]
+          )
         EComment ws1 _ e1 ->
           [ ET Before ws1 e
           , E e1
@@ -2403,3 +2374,24 @@ computePatMap =
           []
   in
     Dict.fromList << List.concatMap taggedChildPats << flattenExpTree
+
+--------------------------------------------------------------------------------
+-- Dealing with top-level expressions
+--------------------------------------------------------------------------------
+
+-- A "nested expression" is a non-top-level expression
+firstNestedExp : Exp -> Exp
+firstNestedExp e =
+  case e.val.e__ of
+    ELet _ Def _ _ _ eRest _ ->
+      firstNestedExp eRest
+    EComment _ _ eRest ->
+      firstNestedExp eRest
+    EOption _ _ _ _ eRest ->
+      firstNestedExp eRest
+    ETyp _ _ _ eRest _ ->
+      firstNestedExp eRest
+    ETypeAlias _ _ _ eRest _ ->
+      firstNestedExp eRest
+    _ ->
+      e

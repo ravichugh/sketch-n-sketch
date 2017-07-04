@@ -33,9 +33,9 @@ import Lang exposing
   , CodeObject(..)
   , extractInfoFromCodeObject
   , isTarget
-  , startEnd
   , foldCode
   , computePatMap
+  , firstNestedExp
   )
 
 import DeuceWidgets exposing
@@ -76,17 +76,44 @@ rgbaString c a =
     ++ (toString c.b) ++ ","
     ++ (toString a) ++ ")"
 
--- (startCol, startRow, endCol, endRow) but 0-indexed
-startEndZeroIndexed : CodeObject -> (Int, Int, Int, Int)
-startEndZeroIndexed codeObject =
+-- (startCol, startRow, endCol, endRow)
+-- NOTE: 0-indexed.
+startEnd : CodeObject -> Bool -> (Int, Int, Int, Int)
+startEnd codeObject isLetBinding =
   let
-    (startCol, startRow, endCol, endRow) =
-      startEnd codeObject
+    infoToTuple info =
+      ( info.start.col
+      , info.start.line
+      , info.end.col
+      , info.end.line
+      )
+    (startCol, startLine, endCol, endLine) =
+      case codeObject of
+        E e ->
+          case (isLetBinding, e.val.e__) of
+            (True, ELet _ _ _ _ binding _ _) ->
+              ( e.start.col + 1
+              , e.start.line
+              , binding.end.col
+              , binding.end.line
+              )
+            _ ->
+              let
+                endExp =
+                  firstNestedExp e
+              in
+                ( e.start.col
+                , e.start.line
+                , endExp.end.col
+                , endExp.end.line
+                )
+        _ ->
+          infoToTuple << extractInfoFromCodeObject <| codeObject
   in
     ( startCol - 1
-    , startRow - 1
+    , startLine - 1
     , endCol - 1
-    , endRow - 1
+    , endLine - 1
     )
 
 mapBoth : (a -> b) -> (a, a) -> (b, b)
@@ -94,18 +121,18 @@ mapBoth f (x, y) =
   (f x, f y)
 
 --==============================================================================
---= INDEXED
+--= DATA TYPES
 --==============================================================================
+
+--------------------------------------------------------------------------------
+-- Indexed
+--------------------------------------------------------------------------------
 
 type alias Indexed a =
   (Int, a)
 
 index : List a -> List (Indexed a)
 index = List.indexedMap (,)
-
---==============================================================================
---= GENERAL DATA TYPES
---==============================================================================
 
 --------------------------------------------------------------------------------
 -- Hulls
@@ -177,7 +204,9 @@ untrimmedLine s =
   { startCol =
       0
   , endCol =
-      String.length s
+      -- the +1 is for "phantom" whitespace at the end of a line to allow for
+      -- easier selection of target positions
+      String.length s + 1
   , val =
       s
   }
@@ -309,13 +338,13 @@ hull codeInfo useTrimmed startCol startRow endCol endRow =
         , (endCol, startRow)
         ]
 
-codeObjectHull : CodeInfo -> CodeObject -> Hull
-codeObjectHull codeInfo codeObject =
+codeObjectHull : CodeInfo -> CodeObject -> Bool -> Hull
+codeObjectHull codeInfo codeObject isLetBinding =
   let
     useTrimmed =
       (not << isTarget) codeObject
     (startCol, startRow, endCol, endRow) =
-      startEndZeroIndexed codeObject
+      startEnd codeObject isLetBinding
   in
     hull codeInfo useTrimmed startCol startRow endCol endRow
 
@@ -327,9 +356,9 @@ hullPoints =
   in
     String.concat << List.map pairToString
 
-codeObjectHullPoints : CodeInfo -> CodeObject -> String
-codeObjectHullPoints codeInfo codeObject =
-  hullPoints <| codeObjectHull codeInfo codeObject
+codeObjectHullPoints : CodeInfo -> CodeObject -> Bool -> String
+codeObjectHullPoints codeInfo codeObject isLetBinding =
+  hullPoints <| codeObjectHull codeInfo codeObject isLetBinding
 
 --==============================================================================
 --= POLYGONS
@@ -345,15 +374,47 @@ strokeWidth = "2px"
 --------------------------------------------------------------------------------
 -- Handles
 --------------------------------------------------------------------------------
+-- The following functions are a couple different options for different handle
+-- styles.
+--------------------------------------------------------------------------------
 
--- Looks not as good but easier to click
--- TODO make 4 handles and use them as corners
 circleHandles
-  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
-circleHandles codeInfo codeObject color opacity radius =
+  : CodeInfo -> CodeObject -> Bool -> Color -> Opacity -> Float -> Svg Msg
+circleHandles codeInfo codeObject isLetBinding color opacity radius =
+  let
+    radiusString =
+      toString radius
+    handle col row =
+      let
+        (cx, cy) =
+          (col, row)
+            |> c2a codeInfo.displayInfo
+            |> mapBoth toString
+      in
+        Svg.circle
+          [ SAttr.cx cx
+          , SAttr.cy cy
+          , SAttr.r radiusString
+          ]
+          []
+    (startCol, startRow, endCol, endRow) =
+      startEnd codeObject isLetBinding
+  in
+    Svg.g
+      [ SAttr.fill <| rgbaString color opacity
+      , SAttr.strokeWidth strokeWidth
+      , SAttr.stroke <| rgbaString color opacity
+      ]
+      [ handle startCol startRow
+      , handle endCol (endRow + 1)
+      ]
+
+oldCircleHandles
+  : CodeInfo -> CodeObject -> Bool -> Color -> Opacity -> Float -> Svg Msg
+oldCircleHandles codeInfo codeObject isLetBinding color opacity radius =
   let
     (startCol, startRow, endCol, endRow) =
-      startEndZeroIndexed codeObject
+      startEnd codeObject isLetBinding
     (cx1, cy1) =
       (startCol, startRow)
         |> c2a codeInfo.displayInfo
@@ -386,13 +447,12 @@ circleHandles codeInfo codeObject color opacity radius =
           []
       ]
 
--- Looks better but is harder to click
 fancyHandles
-  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
-fancyHandles codeInfo codeObject color opacity radius =
+  : CodeInfo -> CodeObject -> Bool -> Color -> Opacity -> Float -> Svg Msg
+fancyHandles codeInfo codeObject isLetBinding color opacity radius =
   let
     (startCol, startRow, endCol, endRow) =
-      startEndZeroIndexed codeObject
+      startEnd codeObject isLetBinding
     (xTip1, yTip1) =
       (startCol, startRow)
         |> c2a codeInfo.displayInfo
@@ -436,55 +496,78 @@ fancyHandles codeInfo codeObject color opacity radius =
 --------------------------------------------------------------------------------
 
 codeObjectPolygon
-  : CodeInfo -> CodeObject -> DeuceWidget -> Color -> Int -> Svg Msg
-codeObjectPolygon codeInfo codeObject deuceWidget color zIndex =
-  let
-    onMouseOver =
-      Controller.msgMouseEnterDeuceWidget deuceWidget
-    onMouseOut =
-      Controller.msgMouseLeaveDeuceWidget deuceWidget
-    onClick =
-      Controller.msgMouseClickDeuceWidget deuceWidget
-    hovered =
-      List.member deuceWidget codeInfo.deuceState.hoveredWidgets
-    active =
-      List.member deuceWidget codeInfo.deuceState.selectedWidgets
-    (baseAlpha, cursorStyle) =
-      if hovered || active then
-        (1, "pointer")
-      else
-        (0, "default")
-  in
-    Svg.g
-      [ SAttr.z <| toString zIndex
-      , SAttr.style << styleListToString <|
-          [ ("cursor", cursorStyle)
-          ]
-      , SE.onMouseOver onMouseOver
-      , SE.onMouseOut onMouseOut
-      , SE.onClick onClick
-      ]
-      [ circleHandles codeInfo codeObject color baseAlpha 3
-      , Svg.polygon
-          [ SAttr.points <| codeObjectHullPoints codeInfo codeObject
-          , SAttr.strokeWidth strokeWidth
-          , SAttr.stroke <| rgbaString color baseAlpha
-          , SAttr.fill <| rgbaString color (0.2 * baseAlpha)
-          ]
-          []
-      ]
+  : CodeInfo -> CodeObject -> Bool -> DeuceWidget -> Color -> Int -> Svg Msg
+codeObjectPolygon
+  codeInfo codeObject isLetBinding deuceWidget color zIndex =
+    let
+      onMouseOver =
+        Controller.msgMouseEnterDeuceWidget deuceWidget
+      onMouseOut =
+        Controller.msgMouseLeaveDeuceWidget deuceWidget
+      onClick =
+        Controller.msgMouseClickDeuceWidget deuceWidget
+      hovered =
+        List.member deuceWidget codeInfo.deuceState.hoveredWidgets
+      active =
+        List.member deuceWidget codeInfo.deuceState.selectedWidgets
+      (baseAlpha, cursorStyle) =
+        if hovered || active then
+          (1, "pointer")
+        else
+          (0, "default")
+    in
+      Svg.g
+        [ SAttr.z <| toString zIndex
+        , SAttr.style << styleListToString <|
+            [ ("cursor", cursorStyle)
+            ]
+        , SE.onMouseOver onMouseOver
+        , SE.onMouseOut onMouseOut
+        , SE.onClick onClick
+        ]
+        [ circleHandles codeInfo codeObject isLetBinding color baseAlpha 3
+        , Svg.polygon
+            [ SAttr.points <|
+                codeObjectHullPoints codeInfo codeObject isLetBinding
+            , SAttr.strokeWidth strokeWidth
+            , SAttr.stroke <| rgbaString color baseAlpha
+            , SAttr.fill <| rgbaString color (0.2 * baseAlpha)
+            ]
+            []
+        ]
 
-expPolygon : CodeInfo -> Exp -> Svg Msg
+letBindingEquationPolygon
+  : CodeInfo -> Exp -> List (Svg Msg)
+letBindingEquationPolygon codeInfo e =
+  case e.val.e__ of
+    ELet _ _ _ _ _ _ _ ->
+      let
+        codeObject =
+          E e
+        deuceWidget =
+          DeuceLetBindingEquation e.val.eid
+        color =
+          { r = 200
+          , g = 200
+          , b = 100
+          }
+        zIndex =
+          0
+      in
+        [ codeObjectPolygon
+            codeInfo codeObject True deuceWidget color zIndex
+        ]
+    _ ->
+      []
+
+expPolygon
+  : CodeInfo -> Exp -> List (Svg Msg)
 expPolygon codeInfo e =
   let
     codeObject =
       E e
     deuceWidget =
-      case e.val.e__ of
-        ELet _ _ _ _ _ _ _ ->
-          DeuceLetBindingEquation e.val.eid
-        _ ->
-          DeuceExp e.val.eid
+      DeuceExp e.val.eid
     color =
       { r = 200
       , g = 0
@@ -493,9 +576,13 @@ expPolygon codeInfo e =
     zIndex =
       0
   in
-    codeObjectPolygon codeInfo codeObject deuceWidget color zIndex
+    (letBindingEquationPolygon codeInfo e) ++
+      [ codeObjectPolygon
+          codeInfo codeObject False deuceWidget color zIndex
+      ]
 
-patPolygon : CodeInfo -> Exp -> Pat -> Svg Msg
+patPolygon
+  : CodeInfo -> Exp -> Pat -> List (Svg Msg)
 patPolygon codeInfo e p =
   let
     codeObject =
@@ -517,9 +604,12 @@ patPolygon codeInfo e p =
       }
     zIndex = 0
   in
-    codeObjectPolygon codeInfo codeObject deuceWidget color zIndex
+    [ codeObjectPolygon
+        codeInfo codeObject False deuceWidget color zIndex
+    ]
 
-expTargetPolygon : CodeInfo -> BeforeAfter -> WS -> Exp -> Svg Msg
+expTargetPolygon
+  : CodeInfo -> BeforeAfter -> WS -> Exp -> List (Svg Msg)
 expTargetPolygon codeInfo ba ws et =
   let
     codeObject =
@@ -534,9 +624,12 @@ expTargetPolygon codeInfo ba ws et =
     zIndex =
       1
   in
-    codeObjectPolygon codeInfo codeObject deuceWidget color zIndex
+    [ codeObjectPolygon
+        codeInfo codeObject False deuceWidget color zIndex
+    ]
 
-patTargetPolygon : CodeInfo -> BeforeAfter -> WS -> Exp -> Pat -> Svg Msg
+patTargetPolygon
+  : CodeInfo -> BeforeAfter -> WS -> Exp -> Pat -> List (Svg Msg)
 patTargetPolygon codeInfo ba ws e pt =
   let
     codeObject =
@@ -559,24 +652,26 @@ patTargetPolygon codeInfo ba ws e pt =
     zIndex =
       1
   in
-    codeObjectPolygon codeInfo codeObject deuceWidget color zIndex
+    [ codeObjectPolygon
+        codeInfo codeObject False deuceWidget color zIndex
+    ]
 
-polygons : CodeInfo -> Exp -> (List (Svg Msg))
+polygons : CodeInfo -> Exp -> List (Svg Msg)
 polygons codeInfo ast =
   List.reverse <|
     foldCode
       ( \codeObject acc ->
           case codeObject of
             E e ->
-              expPolygon codeInfo e :: acc
+              expPolygon codeInfo e ++ acc
             P e p ->
-              patPolygon codeInfo e p :: acc
+              patPolygon codeInfo e p ++ acc
             T t ->
               acc
             ET ba ws et ->
-              expTargetPolygon codeInfo ba ws et :: acc
+              expTargetPolygon codeInfo ba ws et ++ acc
             PT ba ws e pt ->
-              patTargetPolygon codeInfo ba ws e pt :: acc
+              patTargetPolygon codeInfo ba ws e pt ++ acc
             TT _ _ _ ->
               acc
       )
