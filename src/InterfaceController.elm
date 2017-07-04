@@ -767,38 +767,50 @@ msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
 msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
   old
 
-msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
-  -- let _ = Debug.log "Key Down" (keyCode, old.keysDown) in
-  if [keyCode] == Keys.escape then
-    if Model.anyDialogShown old then
-      Model.closeAllDialogBoxes old
-    else
-      let new = resetDeuceState old in
-      case (old.tool, old.mouseMode) of
-        (Cursor, _) ->
-          { new | selectedFeatures = Set.empty
-                , selectedShapes = Set.empty
-                , selectedBlobs = Dict.empty
-                }
-        (_, MouseNothing)   -> { new | tool = Cursor }
-        (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
-        _                   -> new
-  else if keyCode == Keys.keyMeta then
-    old
-    -- for now, no need to ever put keyMeta in keysDown
-    -- TODO need to put keyMeta in model, so know not to put the next key in model
-{-
-  else if List.member Keys.keyMeta old.keysDown then
-    -- when keyMeta is down and another key k is downed,
-    -- there will not be a key up event for k. so, not putting
-    -- k in keysDown. if want to handle keyMeta + k, keep track
-    -- of this another way.
-    old
--}
-  else if not (List.member keyCode old.keysDown) then
-    { old | keysDown = keyCode :: old.keysDown }
-  else
-    old
+msgKeyDown keyCode =
+  let
+    addKey old =
+      if not (List.member keyCode old.keysDown) then
+        { old | keysDown = keyCode :: old.keysDown }
+      else
+        old
+    func old =
+      -- let _ = Debug.log "Key Down" (keyCode, old.keysDown) in
+      if keyCode == Keys.keyEsc then
+        if Model.anyDialogShown old then
+          Model.closeAllDialogBoxes old
+        else
+          let new = resetDeuceState old in
+          case (old.tool, old.mouseMode) of
+            (Cursor, _) ->
+              { new | selectedFeatures = Set.empty
+                    , selectedShapes = Set.empty
+                    , selectedBlobs = Dict.empty
+                    }
+            (_, MouseNothing)   -> { new | tool = Cursor }
+            (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
+            _                   -> new
+      else if keyCode == Keys.keyMeta then
+        old
+        -- for now, no need to ever put keyMeta in keysDown
+        -- TODO need to put keyMeta in model, so know not to put the next key in model
+      {-
+      else if List.member Keys.keyMeta old.keysDown then
+        -- when keyMeta is down and another key k is downed,
+        -- there will not be a key up event for k. so, not putting
+        -- k in keysDown. if want to handle keyMeta + k, keep track
+        -- of this another way.
+        old
+      -}
+      else if keyCode == Keys.keyShift then
+        upstateRun old -- same as msgRun
+      else if not (List.member keyCode old.keysDown) then
+        { old | keysDown = keyCode :: old.keysDown }
+      else
+        old
+  in
+    Msg ("Key Down " ++ toString keyCode) <|
+      addKey << func
 
 msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
   -- let _ = Debug.log "Key Up" (keyCode, old.keysDown) in
