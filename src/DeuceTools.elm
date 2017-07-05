@@ -7,6 +7,8 @@ module DeuceTools exposing
   ( DeuceTool
   , deuceTools
   , isRenamer
+  , isActive
+  , noneActive
   )
 
 import String
@@ -1776,3 +1778,15 @@ deuceTools model =
 isRenamer : DeuceTool -> Bool
 isRenamer =
   String.startsWith "Rename" << .name
+
+isActive : DeuceTool -> Bool
+isActive tool =
+  not <| tool.func == Nothing
+
+noneActive : Model -> Bool
+noneActive model =
+  model
+    |> deuceTools
+    |> List.concat
+    |> List.filter isActive
+    |> List.isEmpty

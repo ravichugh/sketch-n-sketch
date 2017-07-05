@@ -325,178 +325,6 @@ groupHoverMenu model title onMouseEnter disallowSelectedFeatures =
     onMouseEnter
     (groupDisabled disallowSelectedFeatures model)
 
---------------------------------------------------------------------------------
--- TODO
---------------------------------------------------------------------------------
-
-htmlButtonExtraAttrs extraAttrs text onClickHandler btnKind disabled =
-  let color =
-    case btnKind of
-      Regular    -> buttonRegularColor
-      Unselected -> buttonRegularColor
-      Selected   -> buttonSelectedColor
-  in
-  -- let lineHeight = 1 + 1.1735 * unpixels params.mainSection.widgets.fontSize |> ((*) 2) |> round |> toFloat |> ((*) 0.5) in -- My best guess based on sampling Firefox's behavior.
-  let commonAttrs =
-    [ Attr.disabled disabled
-    , Attr.style [  ("box-sizing", "border-box") -- Strangely, Firefox and Chrome on Mac differ on this default.
-                 , ("min-height", px Layout.buttonHeight)
-                 , ("background", color)
-                 , ("cursor", "pointer")
-                 , ("-ms-user-select", "none")
-                 , ("-moz-user-select", "none")
-                 , ("-webkit-user-select", "none")
-                 , ("user-select", "none")
-                 ] ]
-  in
-  Html.button
-    (commonAttrs ++
-      [ handleEventAndStop "mousedown" Controller.msgNoop
-      , E.onClick onClickHandler
-      ] ++
-      extraAttrs)
-    [ Html.text text ]
-
-renameVarTextBox path =
-  flip Html.input [] <|
-     [ Attr.type_ "text"
-     , Attr.style <|
-         [ ("width", "100px") -- in sync with 250px - 150px above
-         -- the following are the same as for htmlButton
-         , ("box-sizing", "border-box") -- Strangely, Firefox and Chrome on Mac differ on this default.
-         , ("min-height", px <|  Layout.buttonHeight)
-         ]
-     , E.onInput Controller.msgUpdateRenameVarTextBox
-     ] ++
-    deuceMenuButtonHoverEvents path Nothing
-
-deuceMenuButtonHoverEvents path maybePreview =
-  [ E.onMouseEnter <| Controller.msgHoverDeuceTool path maybePreview
-  , E.onMouseLeave <| Controller.msgLeaveDeuceTool path maybePreview
-  ]
-
-deuceTools3 model =
-  let chop = Utils.removeLastElement in
-  let hoveredPath = model.deuceState.hoveredMenuPath in
-  let extraButtonStyles path maybeWidth =
-    Attr.style
-        [ ("width", Maybe.withDefault "100%" maybeWidth)
-        , ("text-align", "left")
-        , ("padding-top", "0px")
-        , ("padding-bottom", "0px")
-        , ("opacity",
-            if path == hoveredPath then "1.0"
-            else if path == chop hoveredPath then "1.0"
-            else if chop path == hoveredPath then "0.9"
-            else if chop path == chop hoveredPath then "0.9"
-            else if List.length path == 1 then "0.9"
-            else "0.0"
-          )
-        ]
-  in
-  let oneTool (i, (toolName, func)) =
-    let previewAndColor result =
-      case (result.isSafe, runAndResolve model result.exp) of
-        (True, Err err) ->
-          let _ = Debug.log "not safe after all!" () in
-          (Just (LangUnparser.unparse result.exp, Err err), "red")
-
-        (True, Ok (val, widgets, slate, code)) ->
-          (Just (code, Ok (val, widgets, slate)), "white")
-
-        (False, Ok (val, widgets, slate, code)) ->
-          (Just (code, Ok (val, widgets, slate)), "khaki")
-
-        (False, Err err) ->
-          (Just (LangUnparser.unparse result.exp, Err err), "salmon")
-    in
-    -- could refactor deadButton and previewButton...
-    let deadButton path caption maybeWidth =
-      let attrs =
-        [extraButtonStyles path maybeWidth] ++
-        deuceMenuButtonHoverEvents path Nothing
-      in
-      htmlButtonExtraAttrs attrs caption Controller.msgNoop Regular False
-    in
-    let previewButton path maybeCaption (SynthesisResult result) =
-      let (preview, color) = previewAndColor result in
-      let attrs =
-        [Attr.style [("background-color", color)]] ++
-        [extraButtonStyles path Nothing] ++
-        deuceMenuButtonHoverEvents path (Just preview)
-      in
-      let caption = Maybe.withDefault result.description maybeCaption in
-      htmlButtonExtraAttrs attrs caption
-         (Controller.msgChooseDeuceExp result.exp) Regular False
-    in
-    let buttonAndMaybeMenu oneOrMoreResults =
-      -- parent tool button is "relative", so that its descendants
-      -- (the next menu) can be positioned "absolute"ly in terms
-      -- of the parent
-      let divAttrs isParent =
-        let width = "250px" in -- "100%"
-        Attr.style <|
-          [ ("position", if isParent then "relative" else "absolute")
-          , ("overflow", "visible")
-          , ("width", width)
-          , ("background", Layout.strInterfaceColor)
-          ] ++ (if isParent then [] else [("left", width)])
-      in
-      case oneOrMoreResults of
-        Left result ->
-          let toolButton = previewButton [i] (Just toolName) result in
-          Html.div [divAttrs True] [toolButton]
-
-        Right results ->
-          let toolButtonAndExtras =
-            let caption =
-              toolName
-              -- toolName ++ " " ++ Utils.parens (toString (List.length results))
-            in
-            if String.startsWith "Rename" toolName
-            then [deadButton [i] caption (Just "150px"), renameVarTextBox [i]]
-            else [deadButton [i] caption Nothing]
-          in
-          let nextMenu =
-            if hoveredPath == [i] || chop hoveredPath == [i] then
-              Html.div [divAttrs False]
-                (Utils.mapi1 (\(j,result) -> previewButton [i,j] Nothing result)
-                             results)
-            else
-              Html.div [] []
-          in
-          -- nextMenu first, so it pops out at same y-position as toolButton
-          Html.div [divAttrs True] (nextMenu :: toolButtonAndExtras)
-    in
-    let results = func () in
-
-    if String.startsWith "Rename" toolName then
-      if model.deuceState.renameVarTextBox == ""
-      then buttonAndMaybeMenu (Right [])
-      else buttonAndMaybeMenu (Right results)
-
-    else case results of
-      [SynthesisResult result] ->
-        if result.isSafe
-          then buttonAndMaybeMenu (Left (SynthesisResult result))
-          else buttonAndMaybeMenu (Right results)
-      _ ->
-        buttonAndMaybeMenu (Right results)
-  in
-  Utils.mapi1 oneTool <|
-    List.concatMap (\tool -> case tool.func of
-      Just f ->
-        [(tool.name, f)]
-      Nothing ->
-        []
-    )
-    (List.concat <| DeuceTools.deuceTools model)
-
---------------------------------------------------------------------------------
--- TODO end
---------------------------------------------------------------------------------
-
--- See InterfaceView3.deuceTools
 deuceHoverMenu : Model -> (Int, DeuceTool) -> Html Msg
 deuceHoverMenu model (index, deuceTool) =
   let
@@ -1673,6 +1501,44 @@ deuceOverlay model =
       ]
 
 --------------------------------------------------------------------------------
+-- Deuce Panel
+--------------------------------------------------------------------------------
+
+deucePanel : Model -> Html Msg
+deucePanel model =
+  let
+    (x, y) =
+      model.deucePanelPosition
+    disabled =
+      -- Handle pin/unpin here
+      if DeuceTools.noneActive model then
+        " disabled"
+      else
+        ""
+  in
+  Html.div
+    [ Attr.class <| "deuce-panel panel" ++ noToolsFlag
+    , Attr.style
+        [ ("left", px x)
+        , ("top", px y)
+        ]
+    ]
+    [ Html.div
+        [ Attr.class "dragger"
+        , E.onMouseDown Controller.msgDragDeucePanel
+        ]
+        []
+    , Html.div
+        []
+        ( List.concatMap
+           ( List.filter DeuceTools.isActive >>
+               Utils.mapi1 (deuceHoverMenu model)
+           )
+           (DeuceTools.deuceTools model)
+        )
+    ]
+
+--------------------------------------------------------------------------------
 -- Main View
 --------------------------------------------------------------------------------
 
@@ -1697,9 +1563,9 @@ view model =
       ( [ onbeforeunloadDataElement model
         , menuBar model
         , workArea model
-        , subtleBackground
         , deuceOverlay model
+        , deucePanel model
+        , subtleBackground
         ]
         ++ (dialogBoxes model)
-        -- ++ (deuceTools3 model)
       )

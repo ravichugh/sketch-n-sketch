@@ -46,6 +46,7 @@ module InterfaceController exposing
   , msgHoverDeuceTool
   , msgLeaveDeuceTool
   , msgUpdateRenameVarTextBox
+  , msgDragDeucePanel
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -64,8 +65,7 @@ import Eval
 import Utils exposing (maybePluralize)
 import Keys
 import InterfaceModel as Model exposing (..)
--- import Layout exposing (clickToCanvasPoint)
-import SleekLayout exposing (clickToCanvasPoint)
+import SleekLayout exposing (clickToCanvasPoint, deucePanelMouseOffset)
 import AceCodeBox
 import AnimationLoop
 import FileHandler
@@ -80,6 +80,7 @@ import DefaultIconTheme
 import DependenceGraph exposing (lookupIdent)
 import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
+import DeuceTools
 import ColorNum
 
 import VirtualDom
@@ -333,6 +334,9 @@ onMouseDrag lastPosition newPosition old =
 
     MouseDragLayoutWidget f ->
       f (mx0, my0) old
+
+    MouseDragPanel f ->
+      f lastPosition newPosition old
 
     MouseDragZone zoneKey Nothing ->
       old
@@ -756,11 +760,29 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
       let _ = Debug.log "upstate MouseIsDown: impossible" () in
       new
 
-msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
-  case old.mouseState of
-    (Nothing, _)          -> { old | mouseState = (Nothing, pos_) }
-    (Just False, oldPos_) -> onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
-    (Just True, oldPos_)  -> onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
+msgMousePosition pos_ =
+  let
+    mouseStateUpdater old =
+      case old.mouseState of
+        (Nothing, _) ->
+          { old | mouseState = (Nothing, pos_) }
+        (Just False, oldPos_) ->
+          onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
+        (Just True, oldPos_) ->
+          onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
+    deucePanelPositionUpdater old =
+      if DeuceTools.noneActive old then
+        { old
+            | deucePanelPosition =
+                ( pos_.x + deucePanelMouseOffset.x
+                , pos_.y + deucePanelMouseOffset.y
+                )
+        }
+      else
+        old
+  in
+    Msg ("MousePosition " ++ toString pos_) <|
+      mouseStateUpdater >> deucePanelPositionUpdater
 
 --------------------------------------------------------------------------------
 
@@ -1773,3 +1795,31 @@ msgUpdateRenameVarTextBox text =
           | deuceState =
               { oldDeuceState | renameVarTextBox = text }
       }
+
+--------------------------------------------------------------------------------
+-- Deuce Panel
+
+msgDragDeucePanel : Msg
+msgDragDeucePanel =
+  Msg "Drag Deuce Panel" <|
+    let
+      shift (x, y) (dx, dy) =
+        (x + dx, y + dy)
+      deltaMouse old new =
+        ( new.x - old.x
+        , new.y - old.y
+        )
+      f oldPosition newPosition model =
+        let
+          oldDeucePanelPosition =
+            model.deucePanelPosition
+        in
+          { model
+              | deucePanelPosition =
+                  shift
+                    oldDeucePanelPosition
+                    (deltaMouse oldPosition newPosition)
+          }
+    in
+    \model ->
+        { model | mouseMode = Model.MouseDragPanel f }

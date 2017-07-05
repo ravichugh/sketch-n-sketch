@@ -124,6 +124,7 @@ type alias Model =
   , showOnlyBasicTools : Bool
   , viewState : ViewState
   , toolMode : ShapeToolKind
+  , deucePanelPosition : (Int, Int)
   }
 
 type Mode
@@ -165,6 +166,7 @@ type alias RawSvg = String
 type MouseMode
   = MouseNothing
   | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
+  | MouseDragPanel (Mouse.Position -> Mouse.Position -> Model -> Model)
 
   | MouseDragZone
       ZoneKey               -- (nodeId, shapeKind, zoneName)
@@ -569,4 +571,5 @@ initModel =
         { menuActive = False
         }
     , toolMode = Raw
+    , deucePanelPosition = (200, 200)
     }

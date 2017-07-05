@@ -520,7 +520,7 @@ a {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 5;
+  z-index: 50;
 
   visibility: hidden;
   opacity: 0;
@@ -728,4 +728,33 @@ a {
 .rename-input {
   width: 100%;
   margin-top: 0.4em; /* 1em - synthesis-results.line-height */
+}
+
+/******************************************************************************
+ * Deuce Panel                                                                *
+ ******************************************************************************/
+
+.deuce-panel {
+  display: block;
+  background-color: #111111;
+  z-index: 15;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+}
+
+.deuce-panel.disabled {
+  display: none;
+}
+
+.deuce-panel .dragger {
+  height: 14px;
+  background-color: #444444;
+  background-image: linear-gradient(#444444, #333333);
+  cursor: move;
+}
+
+.deuce-panel .text-button {
+  padding: 5px;
 }
