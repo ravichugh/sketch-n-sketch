@@ -1509,7 +1509,7 @@ deucePanel model =
   let
     (x, y) =
       model.deucePanelPosition
-    disabled =
+    disabledFlag =
       -- Handle pin/unpin here
       if DeuceTools.noneActive model then
         " disabled"
@@ -1517,7 +1517,7 @@ deucePanel model =
         ""
   in
   Html.div
-    [ Attr.class <| "deuce-panel panel" ++ noToolsFlag
+    [ Attr.class <| "deuce-panel panel" ++ disabledFlag
     , Attr.style
         [ ("left", px x)
         , ("top", px y)
