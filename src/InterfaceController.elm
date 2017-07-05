@@ -824,7 +824,7 @@ msgKeyDown keyCode =
         -- of this another way.
         old
       -}
-      else if keyCode == Keys.keyShift then
+      else if keyCode == Keys.keyShift && Model.needsRun old then
         upstateRun old -- same as msgRun
       else if not (List.member keyCode old.keysDown) then
         { old | keysDown = keyCode :: old.keysDown }
