@@ -1476,9 +1476,15 @@ deuceOverlay model =
         "auto"
       else
         "none"
+    disabledFlag =
+      case model.preview of
+        Just _ ->
+          " disabled"
+        Nothing ->
+          ""
   in
     Html.div
-      [ Attr.class "deuce-overlay-container"
+      [ Attr.class <| "deuce-overlay-container" ++ disabledFlag
       , Attr.style
           [ ("pointer-events", pointerEvents)
           , ("top", px model.codeBoxInfo.scrollerTop)

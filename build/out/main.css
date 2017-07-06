@@ -668,6 +668,7 @@ a {
 .deuce-overlay-container {
   /* pointer-events: DYNAMIC */
 
+  display: block;
   overflow: hidden;
 
   position: absolute;
@@ -677,6 +678,10 @@ a {
   /* height: DYNAMIC */
 
   z-index: 10;
+}
+
+.deuce-overlay-container.disabled {
+  display: none;
 }
 
 .deuce-overlay {
@@ -736,7 +741,7 @@ a {
 
 .deuce-panel {
   display: block;
-  background-color: #111111;
+  background-color: #222222;
   z-index: 15;
 
   position: absolute;
