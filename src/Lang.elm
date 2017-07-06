@@ -2296,13 +2296,15 @@ hasPatWithPid pid =
 --------------------------------------------------------------------------------
 -- Getting PathedPatternIds from PIds
 --------------------------------------------------------------------------------
+-- NOTE: Similar to DependenceGraph.foldPatternsWithIds
+--------------------------------------------------------------------------------
 
 -- Helper function for computePatMap
 tagPatList
   :  ScopeId
   -> List Pat
   -> List (PId, PathedPatternId)
-tagPatList scopeId =
+tagPatList scopeId pats =
   let
     manyMapper : PathedPatternId -> List Pat -> List (PId, PathedPatternId)
     manyMapper ppid =
@@ -2336,7 +2338,11 @@ tagPatList scopeId =
             PList _ ps _ (Just pTail) _ ->
               manyMapper ppid (ps ++ [pTail])
   in
-    List.concatMap (singleMapper (scopeId, []))
+    case pats of
+      [ pat ] ->
+        singleMapper (scopeId, []) pat
+      _ ->
+        manyMapper (scopeId, []) pats
 
 -- Helper function for computePatMap
 tagBranchList
