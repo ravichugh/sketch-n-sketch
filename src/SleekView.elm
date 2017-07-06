@@ -382,10 +382,16 @@ deuceHoverMenu model (index, deuceTool) =
         ( List.map
             ( \synthesisResult ->
                 case synthesisResult of
-                  SynthesisResult r ->
+                  SynthesisResult result ->
                     let
                       (preview, class) =
-                        previewAndClass r
+                        previewAndClass result
+                      maybePreview =
+                        -- TODO make renaming dynamically appear in the code
+                        if isRenamer then
+                          Nothing
+                        else
+                          Just preview
                     in
                       generalHtmlHoverMenu class
                         ( [ Html.span
@@ -393,11 +399,11 @@ deuceHoverMenu model (index, deuceTool) =
                               [ Html.text <|
                                   Model.resultDescription synthesisResult
                               ]
-                          ] ++ (additionalInputs r)
+                          ] ++ (additionalInputs result)
                         )
-                        (Controller.msgHoverDeuceTool path (Just preview))
-                        (Controller.msgLeaveDeuceTool path (Just preview))
-                        (Controller.msgChooseDeuceExp r.exp)
+                        (Controller.msgHoverDeuceTool path maybePreview)
+                        (Controller.msgLeaveDeuceTool path maybePreview)
+                        (Controller.msgChooseDeuceExp result.exp)
                         False
                         []
             )
