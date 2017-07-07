@@ -1265,7 +1265,7 @@ removeArgumentsTool model selections =
                    )
         in
           if isAllArgumentSelected && List.length pathedPatIds == 1 then
-            { name = "Remove Aggument"
+            { name = "Remove Argument"
             , func =
                 Just <|
                   \() ->
