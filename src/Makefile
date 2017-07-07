@@ -39,10 +39,11 @@ loc:
     Solver.elm LocEqn.elm Sync.elm \
     InterfaceModel.elm \
     InterfaceView3.elm Layout.elm Canvas.elm \
+		SleekView.elm SleekLayout.elm \
     InterfaceController.elm \
     LangTools.elm LangSimplify.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
-    DeuceWidgets.elm \
+    DeuceWidgets.elm Deuce.elm DeuceTools.elm \
     DependenceGraph.elm CodeMotion.elm Native/dotGraph.js \
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
     AnimationLoop.elm Native/animationLoop.js \
