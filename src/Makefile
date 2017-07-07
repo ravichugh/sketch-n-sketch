@@ -39,7 +39,7 @@ loc:
     Solver.elm LocEqn.elm Sync.elm \
     InterfaceModel.elm \
     InterfaceView3.elm Layout.elm Canvas.elm \
-		SleekView.elm SleekLayout.elm \
+    SleekView.elm SleekLayout.elm \
     InterfaceController.elm \
     LangTools.elm LangSimplify.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
