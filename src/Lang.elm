@@ -2299,52 +2299,39 @@ hasPatWithPid pid =
 -- NOTE: Similar to DependenceGraph.foldPatternsWithIds
 --------------------------------------------------------------------------------
 
--- Helper function for computePatMap
-tagPatList
-  :  ScopeId
-  -> List Pat
-  -> List (PId, PathedPatternId)
-tagPatList scopeId pats =
-  let
-    manyMapper : PathedPatternId -> List Pat -> List (PId, PathedPatternId)
-    manyMapper ppid =
-      let
-        path =
-          Tuple.second ppid
-      in
-        List.concat <<
-          List.indexedMap
-            ( \index pat ->
-                singleMapper
-                  (scopeId, path ++ [index + 1])
-                  pat
-            )
-    singleMapper : PathedPatternId -> Pat -> List (PId, PathedPatternId)
-    singleMapper ppid p =
-        (p.val.pid, ppid) ::
-          case p.val.p__ of
-            PConst _ _  ->
-              []
-            PBase _ _ ->
-              []
-            PVar _ _ _  ->
-              []
-            PAs _ _ _ p1 ->
-              -- TODO Unsure if this is the right ppid (it is the same as the
-              --      parent).
-              singleMapper ppid p1
-            PList _ ps _ Nothing _  ->
-              manyMapper ppid ps
-            PList _ ps _ (Just pTail) _ ->
-              manyMapper ppid (ps ++ [pTail])
-  in
-    case pats of
-      [ pat ] ->
-        singleMapper (scopeId, []) pat
-      _ ->
-        manyMapper (scopeId, []) pats
+rootPathedPatternId : ScopeId -> PathedPatternId
+rootPathedPatternId scopeId =
+  (scopeId, [])
 
--- Helper function for computePatMap
+tagPatList : PathedPatternId -> List Pat -> List (PId, PathedPatternId)
+tagPatList (scopeId, path) =
+  List.concat <<
+    List.indexedMap
+      ( \index pat ->
+          tagSinglePat
+            (scopeId, path ++ [index + 1])
+            pat
+      )
+
+tagSinglePat : PathedPatternId -> Pat -> List (PId, PathedPatternId)
+tagSinglePat ppid pat =
+    (pat.val.pid, ppid) ::
+      case pat.val.p__ of
+        PConst _ _  ->
+          []
+        PBase _ _ ->
+          []
+        PVar _ _ _  ->
+          []
+        PAs _ _ _ p1 ->
+          -- TODO Unsure if this is the right ppid (it is the same as the
+          --      parent).
+          tagSinglePat ppid p1
+        PList _ ps _ Nothing _  ->
+          tagPatList ppid ps
+        PList _ ps _ (Just pTail) _ ->
+          tagPatList ppid (ps ++ [pTail])
+
 tagBranchList
   :  EId
   -> List Branch
@@ -2355,7 +2342,7 @@ tagBranchList eid =
       ( \index branch ->
           case branch.val of
             Branch_ _ p _ _ ->
-              tagPatList (eid, index + 1) [ p ]
+              tagSinglePat (rootPathedPatternId (eid, index + 1)) p
       )
 
 computePatMap : Exp -> Dict PId PathedPatternId
@@ -2365,17 +2352,17 @@ computePatMap =
     taggedChildPats e =
       case e.val.e__ of
         EFun _ ps _ _ ->
-          tagPatList (e.val.eid, 1) ps
+          tagPatList (rootPathedPatternId (e.val.eid, 1)) ps
         ECase _ _ branches _ ->
           tagBranchList e.val.eid branches
         ETypeCase _ p1 _ _ ->
-          tagPatList (e.val.eid, 1) [ p1 ]
+          tagSinglePat (rootPathedPatternId (e.val.eid, 1)) p1
         ELet _ _ _ p1 _ _ _ ->
-          tagPatList (e.val.eid, 1) [ p1 ]
+          tagSinglePat (rootPathedPatternId (e.val.eid, 1)) p1
         ETyp _ p1 _ _ _ ->
-          tagPatList (e.val.eid, 1) [ p1 ]
+          tagSinglePat (rootPathedPatternId (e.val.eid, 1)) p1
         ETypeAlias _ p1 _ _ _ ->
-          tagPatList (e.val.eid, 1) [ p1 ]
+          tagSinglePat (rootPathedPatternId (e.val.eid, 1)) p1
         _ ->
           []
   in
