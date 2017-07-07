@@ -167,28 +167,28 @@ sanityChecks = True
 
 -- AST Helpers for Types -----------------------------------------------------
 
-tBool   = withDummyRange (TBool " ")
-tNum    = withDummyRange (TNum " ")
-tString = withDummyRange (TString " ")
-tNull   = withDummyRange (TNull " ")
-tVar x  = withDummyRange (TVar " " x)
+tBool   = withDummyRange (TBool space1)
+tNum    = withDummyRange (TNum space1)
+tString = withDummyRange (TString space1)
+tNull   = withDummyRange (TNull space1)
+tVar x  = withDummyRange (TVar space1 x)
 
-tTupleRest ts tRest = withDummyRange (TTuple " " ts "" tRest "")
+tTupleRest ts tRest = withDummyRange (TTuple space1 ts space0 tRest space0)
 tTuple ts = tTupleRest ts Nothing
 
-tList t = withDummyRange (TList " " t "")
+tList t = withDummyRange (TList space1 t space0)
 
-tUnion ts = withDummyRange (TUnion " " ts "")
+tUnion ts = withDummyRange (TUnion space1 ts space0)
 
-tArrow (argTypes, retType) = withDummyRange (TArrow " " (argTypes ++ [retType]) "")
+tArrow (argTypes, retType) = withDummyRange (TArrow space1 (argTypes ++ [retType]) space0)
 tPolyArrow vars arrowType  = tForall vars (tArrow arrowType)
 
 tForall vars t =
   case vars of
     []    -> Debug.crash "tForall: no vars"
-    [a]   -> withDummyRange (TForall " " (One (" ", a)) t "")
-    a::bs -> let typeVars = ("",a) :: List.map (\a -> (" ", a)) bs in
-             withDummyRange (TForall " " (Many " " typeVars "") t "")
+    [a]   -> withDummyRange (TForall space1 (One (space1, a)) t space0)
+    a::bs -> let typeVars = (space0, a) :: List.map (\a -> (space1, a)) bs in
+             withDummyRange (TForall space1 (Many space1 typeVars space0) t space0)
 
 eInfoOf : Exp -> EInfo
 eInfoOf e = { val = e.val.eid, start = e.start, end = e.end }
@@ -922,7 +922,7 @@ synthesizeType typeInfo typeEnv e =
         (_, Nothing, True, EFun _ ps _ _) -> -- [TS-LetRec-Fun] [TS-Fun-LetRec]
           let (arrow, typeInfo_) = newArrowTemplate typeInfo (List.length ps) in
           let t1 = tArrow arrow in
-          let e1_ = replaceE__ e1 (EColonType "" e1 "" t1 "") in
+          let e1_ = replaceE__ e1 (EColonType space0 e1 space0 t1 space0) in
           let typeEnv_ = addRecBinding True p t1 typeEnv in
           tsLet finish.withType typeInfo_ typeEnv_ p e1_ e2
 
@@ -961,7 +961,7 @@ synthesizeType typeInfo typeEnv e =
               tsLetFinishE2 finish.withType typeInfo_ typeEnv p t1 (eInfoOf e1) e2
           else
             let typeEnv_ = addRecBinding rec p t1 typeEnv in
-            let e1_ = replaceE__ e1 (EColonType "" e1 "" t1 "") in
+            let e1_ = replaceE__ e1 (EColonType space0 e1 space0 t1 space0) in
             let e_ = replaceE__ e (ELet ws1 letKind rec p e1_ e2 ws2) in
             synthesizeType typeInfo typeEnv_ e_
 

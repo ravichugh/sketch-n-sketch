@@ -56,28 +56,28 @@ unparseWDWithUniformWhitespace = unparseWD  -- WidgetDecls don't have any whites
 unparsePat : Pat -> String
 unparsePat pat = case pat.val.p__ of
   PVar ws x wd ->
-    ws ++ x ++ unparseWD wd
+    ws.val ++ x ++ unparseWD wd
   PList ws1 ps ws2 Nothing ws3 ->
-    ws1 ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws3 ++ "]"
+    ws1.val ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws3.val ++ "]"
   PList ws1 ps ws2 (Just pRest) ws3 ->
-    ws1 ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws2 ++ "|" ++ unparsePat pRest ++ ws3 ++ "]"
-  PConst ws n -> ws ++ strNum n
-  PBase ws bv -> ws ++ unparseBaseVal bv
-  PAs ws1 ident ws2 p -> ws1 ++ ident ++ ws2 ++ "@" ++ (unparsePat p)
+    ws1.val ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws2.val ++ "|" ++ unparsePat pRest ++ ws3.val ++ "]"
+  PConst ws n -> ws.val ++ strNum n
+  PBase ws bv -> ws.val ++ unparseBaseVal bv
+  PAs ws1 ident ws2 p -> ws1.val ++ ident ++ ws2.val ++ "@" ++ (unparsePat p)
 
 unparsePatWithIds : Pat -> String
 unparsePatWithIds pat =
   let pidTag = "«" ++ toString pat.val.pid ++ "»" in
   case pat.val.p__ of
     PVar ws x wd ->
-      ws ++ x ++ unparseWD wd ++ pidTag
+      ws.val ++ x ++ unparseWD wd ++ pidTag
     PList ws1 ps ws2 Nothing ws3 ->
-      ws1 ++ "[" ++ (String.concat (List.map unparsePatWithIds ps)) ++ ws3 ++ "]" ++ pidTag
+      ws1.val ++ "[" ++ (String.concat (List.map unparsePatWithIds ps)) ++ ws3.val ++ "]" ++ pidTag
     PList ws1 ps ws2 (Just pRest) ws3 ->
-      ws1 ++ "[" ++ (String.concat (List.map unparsePatWithIds ps)) ++ ws2 ++ "|" ++ unparsePatWithIds pRest ++ ws3 ++ "]" ++ pidTag
-    PConst ws n -> ws ++ strNum n ++ pidTag
-    PBase ws bv -> ws ++ unparseBaseVal bv ++ pidTag
-    PAs ws1 ident ws2 p -> ws1 ++ ident ++ pidTag ++ ws2 ++ "@" ++ (unparsePatWithIds p)
+      ws1.val ++ "[" ++ (String.concat (List.map unparsePatWithIds ps)) ++ ws2.val ++ "|" ++ unparsePatWithIds pRest ++ ws3.val ++ "]" ++ pidTag
+    PConst ws n -> ws.val ++ strNum n ++ pidTag
+    PBase ws bv -> ws.val ++ unparseBaseVal bv ++ pidTag
+    PAs ws1 ident ws2 p -> ws1.val ++ ident ++ pidTag ++ ws2.val ++ "@" ++ (unparsePatWithIds p)
 
 unparsePatWithUniformWhitespace includeWidgetDecls pat =
   let recurse p = unparsePatWithUniformWhitespace includeWidgetDecls p in
@@ -95,33 +95,33 @@ unparsePatWithUniformWhitespace includeWidgetDecls pat =
 unparseType : Type -> String
 unparseType tipe =
   case tipe.val of
-    TNum ws                   -> ws ++ "Num"
-    TBool ws                  -> ws ++ "Bool"
-    TString ws                -> ws ++ "String"
-    TNull ws                  -> ws ++ "Null"
-    TList ws1 tipe ws2        -> ws1 ++ "(List" ++ (unparseType tipe) ++ ws2 ++ ")"
-    TDict ws1 tipe1 tipe2 ws2 -> ws1 ++ "(Dict" ++ (unparseType tipe1) ++ (unparseType tipe2) ++ ws2 ++ ")"
+    TNum ws                   -> ws.val ++ "Num"
+    TBool ws                  -> ws.val ++ "Bool"
+    TString ws                -> ws.val ++ "String"
+    TNull ws                  -> ws.val ++ "Null"
+    TList ws1 tipe ws2        -> ws1.val ++ "(List" ++ (unparseType tipe) ++ ws2.val ++ ")"
+    TDict ws1 tipe1 tipe2 ws2 -> ws1.val ++ "(Dict" ++ (unparseType tipe1) ++ (unparseType tipe2) ++ ws2.val ++ ")"
     TTuple ws1 typeList ws2 maybeRestType ws3 ->
       case maybeRestType of
-        Just restType -> ws1 ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2 ++ "|" ++ (unparseType restType) ++ ws3 ++ "]"
-        Nothing       -> ws1 ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3 ++ "]"
-    TArrow ws1 typeList ws2 -> ws1 ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2 ++ ")"
-    TUnion ws1 typeList ws2 -> ws1 ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2 ++ ")"
-    TNamed ws1 "Num"        -> ws1 ++ "Bad_NUM"
-    TNamed ws1 "Bool"       -> ws1 ++ "Bad_BOOL"
-    TNamed ws1 "String"     -> ws1 ++ "Bad_STRING"
-    TNamed ws1 "Null"       -> ws1 ++ "Bad_NULL"
-    TNamed ws1 ident        -> ws1 ++ ident
-    TVar ws1 ident          -> ws1 ++ ident
-    TWildcard ws            -> ws ++ "_"
+        Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"
+        Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3.val ++ "]"
+    TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
+    TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
+    TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
+    TNamed ws1 "Bool"       -> ws1.val ++ "Bad_BOOL"
+    TNamed ws1 "String"     -> ws1.val ++ "Bad_STRING"
+    TNamed ws1 "Null"       -> ws1.val ++ "Bad_NULL"
+    TNamed ws1 ident        -> ws1.val ++ ident
+    TVar ws1 ident          -> ws1.val ++ ident
+    TWildcard ws            -> ws.val ++ "_"
     TForall ws1 typeVars tipe1 ws2 ->
-      let strVar (ws,x) = ws ++ x in
+      let strVar (ws,x) = ws.val ++ x in
       let sVars =
         case typeVars of
           One var             -> strVar var
-          Many ws1_ vars ws2_ -> ws1_ ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2_)
+          Many ws1_ vars ws2_ -> ws1_.val ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2_.val)
       in
-      ws1 ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2)
+      ws1.val ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2.val)
 
 unparseTypeWithUniformWhitespace : Type -> String
 unparseTypeWithUniformWhitespace tipe =
@@ -157,114 +157,114 @@ unparseTypeWithUniformWhitespace tipe =
 
 unparse : Exp -> String
 unparse e = case e.val.e__ of
-  EBase ws v -> ws ++ unparseBaseVal v
+  EBase ws v -> ws.val ++ unparseBaseVal v
   EConst ws n l wd ->
     let (_,b,_) = l in
-    ws ++ toString n ++ b ++ unparseWD wd
+    ws.val ++ toString n ++ b ++ unparseWD wd
     -- TODO: parse/unparse are not inverses for floats (e.g. 1.0)
-  EVar ws x -> ws ++ x
+  EVar ws x -> ws.val ++ x
   EFun ws1 [p] e1 ws2 ->
-    ws1 ++ "(\\" ++ unparsePat p ++ unparse e1 ++ ws2 ++ ")"
+    ws1.val ++ "(\\" ++ unparsePat p ++ unparse e1 ++ ws2.val ++ ")"
   EFun ws1 ps e1 ws2 ->
-    ws1 ++ "(\\(" ++ (String.concat (List.map unparsePat ps)) ++ ")" ++ unparse e1 ++ ws2 ++ ")"
+    ws1.val ++ "(\\(" ++ (String.concat (List.map unparsePat ps)) ++ ")" ++ unparse e1 ++ ws2.val ++ ")"
   EApp ws1 e1 es ws2 ->
-    ws1 ++ "(" ++ unparse e1 ++ (String.concat (List.map unparse es)) ++ ws2 ++ ")"
+    ws1.val ++ "(" ++ unparse e1 ++ (String.concat (List.map unparse es)) ++ ws2.val ++ ")"
   EList ws1 es ws2 Nothing ws3 ->
-    ws1 ++ "[" ++ (String.concat (List.map unparse es)) ++ ws3 ++ "]"
+    ws1.val ++ "[" ++ (String.concat (List.map unparse es)) ++ ws3.val ++ "]"
   EList ws1 es ws2 (Just eRest) ws3 ->
-    ws1 ++ "[" ++ (String.concat (List.map unparse es)) ++ ws2 ++ "|" ++ unparse eRest ++ ws3 ++ "]"
+    ws1.val ++ "[" ++ (String.concat (List.map unparse es)) ++ ws2.val ++ "|" ++ unparse eRest ++ ws3.val ++ "]"
   EOp ws1 op es ws2 ->
-    ws1 ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse es)) ++ ws2 ++ ")"
+    ws1.val ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse es)) ++ ws2.val ++ ")"
   EIf ws1 e1 e2 e3 ws2 ->
-    ws1 ++ "(if" ++ unparse e1 ++ unparse e2 ++ unparse e3 ++ ws2 ++ ")"
+    ws1.val ++ "(if" ++ unparse e1 ++ unparse e2 ++ unparse e3 ++ ws2.val ++ ")"
   ELet ws1 Let b p e1 e2 ws2 ->
     let tok = if b then "letrec" else "let" in
-    ws1 ++ "(" ++ tok ++ unparsePat p ++ unparse e1 ++ unparse e2 ++ ws2 ++ ")"
+    ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse e1 ++ unparse e2 ++ ws2.val ++ ")"
   ELet ws1 Def b p e1 e2 ws2 ->
     -- TODO don't used nested defs until this is re-worked
     let tok = if b then "defrec" else "def" in
-    ws1 ++ "(" ++ tok ++ unparsePat p ++ unparse e1 ++ ws2 ++ ")" ++ unparse e2
+    ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse e1 ++ ws2.val ++ ")" ++ unparse e2
   ECase ws1 e1 bs ws2 ->
     let branchesStr =
       String.concat
-        <| List.map (\(Branch_ bws1 pat exp bws2) -> bws1 ++ "(" ++ unparsePat pat ++ unparse exp ++ bws2 ++ ")")
+        <| List.map (\(Branch_ bws1 pat exp bws2) -> bws1.val ++ "(" ++ unparsePat pat ++ unparse exp ++ bws2.val ++ ")")
         <| List.map (.val) bs
     in
-    ws1 ++ "(case" ++ unparse e1 ++ branchesStr ++ ws2 ++ ")"
+    ws1.val ++ "(case" ++ unparse e1 ++ branchesStr ++ ws2.val ++ ")"
   ETypeCase ws1 pat tbranches ws2 ->
     let tbranchesStr =
       String.concat
-        <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1 ++ "(" ++ unparseType tipe ++ unparse exp ++ bws2 ++ ")")
+        <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparse exp ++ bws2.val ++ ")")
         <| List.map (.val) tbranches
     in
-    ws1 ++ "(typecase" ++ unparsePat pat ++ tbranchesStr ++ ws2 ++ ")"
+    ws1.val ++ "(typecase" ++ unparsePat pat ++ tbranchesStr ++ ws2.val ++ ")"
   EComment ws s e1 ->
-    ws ++ ";" ++ s ++ "\n" ++ unparse e1
+    ws.val ++ ";" ++ s ++ "\n" ++ unparse e1
   EOption ws1 s1 ws2 s2 e1 ->
-    ws1 ++ "# " ++ s1.val ++ ":" ++ ws2 ++ s2.val ++ "\n" ++ unparse e1
+    ws1.val ++ "# " ++ s1.val ++ ":" ++ ws2.val ++ s2.val ++ "\n" ++ unparse e1
   ETyp ws1 pat tipe e ws2 ->
-    ws1 ++ "(typ" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparse e
+    ws1.val ++ "(typ" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse e
   EColonType ws1 e ws2 tipe ws3 ->
-    ws1 ++ "(" ++ (unparse e) ++ ws2 ++ ":" ++ (unparseType tipe) ++ ws3 ++ ")"
+    ws1.val ++ "(" ++ (unparse e) ++ ws2.val ++ ":" ++ (unparseType tipe) ++ ws3.val ++ ")"
   ETypeAlias ws1 pat tipe e ws2 ->
-    ws1 ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparse e
+    ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse e
 
 
 unparseWithIds : Exp -> String
 unparseWithIds e =
   let eidTag = "<" ++ toString e.val.eid ++ ">" in
   case e.val.e__ of
-    EBase ws v -> ws ++ unparseBaseVal v ++ eidTag
+    EBase ws v -> ws.val ++ unparseBaseVal v ++ eidTag
     EConst ws n l wd ->
       let (locId,b,_) = l in
-      ws ++ toString n ++ b ++ unparseWD wd ++ "{" ++ toString locId ++ "}" ++ eidTag
+      ws.val ++ toString n ++ b ++ unparseWD wd ++ "{" ++ toString locId ++ "}" ++ eidTag
       -- TODO: parse/unparseWithIds are not inverses for floats (e.g. 1.0)
-    EVar ws x -> ws ++ x ++ eidTag
+    EVar ws x -> ws.val ++ x ++ eidTag
     EFun ws1 [p] e1 ws2 ->
-      ws1 ++ "(" ++ eidTag ++ "\\" ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2 ++ ")"
+      ws1.val ++ "(" ++ eidTag ++ "\\" ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2.val ++ ")"
     EFun ws1 ps e1 ws2 ->
-      ws1 ++ "(" ++ eidTag ++ "\\(" ++ (String.concat (List.map unparsePatWithIds ps)) ++ ")" ++ unparseWithIds e1 ++ ws2 ++ ")"
+      ws1.val ++ "(" ++ eidTag ++ "\\(" ++ (String.concat (List.map unparsePatWithIds ps)) ++ ")" ++ unparseWithIds e1 ++ ws2.val ++ ")"
     EApp ws1 e1 es ws2 ->
-      ws1 ++ "(" ++ unparseWithIds e1 ++ (String.concat (List.map unparseWithIds es)) ++ ws2 ++ ")" ++ eidTag
+      ws1.val ++ "(" ++ unparseWithIds e1 ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")" ++ eidTag
     EList ws1 es ws2 Nothing ws3 ->
-      ws1 ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws3 ++ "]" ++ eidTag
+      ws1.val ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws3.val ++ "]" ++ eidTag
     EList ws1 es ws2 (Just eRest) ws3 ->
-      ws1 ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws2 ++ "|" ++ unparseWithIds eRest ++ ws3 ++ "]" ++ eidTag
+      ws1.val ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ "|" ++ unparseWithIds eRest ++ ws3.val ++ "]" ++ eidTag
     EOp ws1 op es ws2 ->
-      ws1 ++ "(" ++ eidTag ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2 ++ ")"
+      ws1.val ++ "(" ++ eidTag ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")"
     EIf ws1 e1 e2 e3 ws2 ->
-      ws1 ++ "(" ++ eidTag ++ "if" ++ unparseWithIds e1 ++ unparseWithIds e2 ++ unparseWithIds e3 ++ ws2 ++ ")"
+      ws1.val ++ "(" ++ eidTag ++ "if" ++ unparseWithIds e1 ++ unparseWithIds e2 ++ unparseWithIds e3 ++ ws2.val ++ ")"
     ELet ws1 Let b p e1 e2 ws2 ->
       let tok = if b then "letrec" else "let" in
-      ws1 ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ unparseWithIds e2 ++ ws2 ++ ")"
+      ws1.val ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ unparseWithIds e2 ++ ws2.val ++ ")"
     ELet ws1 Def b p e1 e2 ws2 ->
       -- TODO don't used nested defs until this is re-worked
       let tok = if b then "defrec" else "def" in
-      ws1 ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2 ++ ")" ++ unparseWithIds e2
+      ws1.val ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2.val ++ ")" ++ unparseWithIds e2
     ECase ws1 e1 bs ws2 ->
       let branchesStr =
         String.concat
-          <| List.map (\(Branch_ bws1 pat exp bws2) -> bws1 ++ "(" ++ unparsePatWithIds pat ++ unparseWithIds exp ++ bws2 ++ ")")
+          <| List.map (\(Branch_ bws1 pat exp bws2) -> bws1.val ++ "(" ++ unparsePatWithIds pat ++ unparseWithIds exp ++ bws2.val ++ ")")
           <| List.map (.val) bs
       in
-      ws1 ++ "(" ++ eidTag ++ "case" ++ unparseWithIds e1 ++ branchesStr ++ ws2 ++ ")"
+      ws1.val ++ "(" ++ eidTag ++ "case" ++ unparseWithIds e1 ++ branchesStr ++ ws2.val ++ ")"
     ETypeCase ws1 pat tbranches ws2 ->
       let tbranchesStr =
         String.concat
-          <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1 ++ "(" ++ unparseType tipe ++ unparseWithIds exp ++ bws2 ++ ")")
+          <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparseWithIds exp ++ bws2.val ++ ")")
           <| List.map (.val) tbranches
       in
-      ws1 ++ "(" ++ eidTag ++ "typecase" ++ unparsePatWithIds pat ++ tbranchesStr ++ ws2 ++ ")"
+      ws1.val ++ "(" ++ eidTag ++ "typecase" ++ unparsePatWithIds pat ++ tbranchesStr ++ ws2.val ++ ")"
     EComment ws s e1 ->
-      ws ++ ";" ++ eidTag ++ s ++ "\n" ++ unparseWithIds e1
+      ws.val ++ ";" ++ eidTag ++ s ++ "\n" ++ unparseWithIds e1
     EOption ws1 s1 ws2 s2 e1 ->
-      ws1 ++ "#" ++ eidTag ++ " " ++ s1.val ++ ":" ++ ws2 ++ s2.val ++ "\n" ++ unparseWithIds e1
+      ws1.val ++ "#" ++ eidTag ++ " " ++ s1.val ++ ":" ++ ws2.val ++ s2.val ++ "\n" ++ unparseWithIds e1
     ETyp ws1 pat tipe e ws2 ->
-      ws1 ++ "(" ++ eidTag ++ "typ" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparseWithIds e
+      ws1.val ++ "(" ++ eidTag ++ "typ" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
     EColonType ws1 e ws2 tipe ws3 ->
-      ws1 ++ "(" ++ (unparseWithIds e) ++ ws2 ++ ":" ++ eidTag ++ (unparseType tipe) ++ ws3 ++ ")"
+      ws1.val ++ "(" ++ (unparseWithIds e) ++ ws2.val ++ ":" ++ eidTag ++ (unparseType tipe) ++ ws3.val ++ ")"
     ETypeAlias ws1 pat tipe e ws2 ->
-      ws1 ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2 ++ ")" ++ unparseWithIds e
+      ws1.val ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
 
 
 -- Ignores given whitespace.

@@ -165,7 +165,7 @@ removeUnusedVars exp =
             if Set.member ident usedNames then
               e__
             else
-              ELet ws1 letKind rec (replacePrecedingWhitespacePat asWs innerPat) assign body ws2
+              ELet ws1 letKind rec (replacePrecedingWhitespacePat asWs.val innerPat) assign body ws2
 
           -- List assignment, no tail.
           (PList pws1 pats pws2 Nothing pws3, EList aws1 assigns aws2 Nothing aws3) ->
@@ -188,8 +188,8 @@ removeUnusedVars exp =
 
                 1 ->
                   let (thePat, theAssign) = Utils.head_ usedPatsAssigns in
-                  let newPat    = replacePrecedingWhitespacePat pws1 thePat in
-                  let newAssign = replacePrecedingWhitespace aws1 theAssign in
+                  let newPat    = replacePrecedingWhitespacePat pws1.val thePat in
+                  let newAssign = replacePrecedingWhitespace aws1.val theAssign in
                   ELet ws1 letKind rec newPat newAssign body ws2
 
                 _ ->
@@ -312,7 +312,7 @@ inlineTrivialRenamings exp =
           -- Simple assignment.
           (PVar _ _ _, EVar oldWs assignIdent) ->
             if assignIdent == targetIdent then
-              let newExpAdjustedWs = replacePrecedingWhitespace oldWs newExp in
+              let newExpAdjustedWs = replacePrecedingWhitespace oldWs.val newExp in
               ELet ws1 letKind rec pat newExpAdjustedWs body ws2
             else
               e__

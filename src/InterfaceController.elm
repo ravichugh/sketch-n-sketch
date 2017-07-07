@@ -10,10 +10,13 @@ module InterfaceController exposing
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate
   , msgSelectSynthesisResult, msgClearSynthesisResults
+  , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox, msgToggleOutput
+  , msgSetOutputLive, msgSetOutputPrint
+  , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
   , msgStartAnimation, msgRedraw, msgTickDelta
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
@@ -35,7 +38,15 @@ module InterfaceController exposing
   , msgMoveExp
   , msgMouseClickDeuceWidget
   , msgMouseEnterDeuceWidget, msgMouseLeaveDeuceWidget
-  , contextSensitiveDeuceTools, msgChooseDeuceExp
+  , msgChooseDeuceExp
+  , msgShowMenu, msgHideMenu, msgToggleMenu
+  , msgUpdateFontSize
+  , msgSetToolMode
+  , msgSetGhostsShown
+  , msgHoverDeuceTool
+  , msgLeaveDeuceTool
+  , msgUpdateRenameVarTextBox
+  , msgDragDeucePanel
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -54,7 +65,7 @@ import Eval
 import Utils exposing (maybePluralize)
 import Keys
 import InterfaceModel as Model exposing (..)
-import Layout exposing (clickToCanvasPoint)
+import SleekLayout exposing (clickToCanvasPoint, deucePanelMouseOffset)
 import AceCodeBox
 import AnimationLoop
 import FileHandler
@@ -69,6 +80,7 @@ import DefaultIconTheme
 import DependenceGraph exposing (lookupIdent)
 import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
+import DeuceTools
 import ColorNum
 
 import VirtualDom
@@ -322,6 +334,9 @@ onMouseDrag lastPosition newPosition old =
 
     MouseDragLayoutWidget f ->
       f (mx0, my0) old
+
+    MouseDragPanel f ->
+      f lastPosition newPosition old
 
     MouseDragZone zoneKey Nothing ->
       old
@@ -745,46 +760,79 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
       let _ = Debug.log "upstate MouseIsDown: impossible" () in
       new
 
-msgMousePosition pos_ = Msg ("MousePosition " ++ toString pos_) <| \old ->
-  case old.mouseState of
-    (Nothing, _)          -> { old | mouseState = (Nothing, pos_) }
-    (Just False, oldPos_) -> onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
-    (Just True, oldPos_)  -> onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
+msgMousePosition pos_ =
+  let
+    mouseStateUpdater old =
+      case old.mouseState of
+        (Nothing, _) ->
+          { old | mouseState = (Nothing, pos_) }
+        (Just False, oldPos_) ->
+          onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
+        (Just True, oldPos_) ->
+          onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
+    deucePanelPositionUpdater old =
+      if DeuceTools.noneActive old then
+        { old
+            | deucePanelPosition =
+                ( pos_.x + deucePanelMouseOffset.x
+                , pos_.y + deucePanelMouseOffset.y
+                )
+        }
+      else
+        old
+  in
+    Msg ("MousePosition " ++ toString pos_) <|
+      mouseStateUpdater >> deucePanelPositionUpdater
 
 --------------------------------------------------------------------------------
 
 msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
   old
 
-msgKeyDown keyCode = Msg ("Key Down " ++ toString keyCode) <| \old ->
-  -- let _ = Debug.log "Key Down" (keyCode, old.keysDown) in
-  if [keyCode] == Keys.escape then
-    let new = resetDeuceState old in
-    case (old.tool, old.mouseMode) of
-      (Cursor, _) ->
-        { new | selectedFeatures = Set.empty
-              , selectedShapes = Set.empty
-              , selectedBlobs = Dict.empty
-              }
-      (_, MouseNothing)   -> { new | tool = Cursor }
-      (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
-      _                   -> new
-  else if keyCode == Keys.keyMeta then
-    old
-    -- for now, no need to ever put keyMeta in keysDown
-    -- TODO need to put keyMeta in model, so know not to put the next key in model
-{-
-  else if List.member Keys.keyMeta old.keysDown then
-    -- when keyMeta is down and another key k is downed,
-    -- there will not be a key up event for k. so, not putting
-    -- k in keysDown. if want to handle keyMeta + k, keep track
-    -- of this another way.
-    old
--}
-  else if not (List.member keyCode old.keysDown) then
-    { old | keysDown = keyCode :: old.keysDown }
-  else
-    old
+msgKeyDown keyCode =
+  let
+    addKey old =
+      if not (List.member keyCode old.keysDown) then
+        { old | keysDown = keyCode :: old.keysDown }
+      else
+        old
+    func old =
+      -- let _ = Debug.log "Key Down" (keyCode, old.keysDown) in
+      if keyCode == Keys.keyEsc then
+        if Model.anyDialogShown old then
+          Model.closeAllDialogBoxes old
+        else
+          let new = resetDeuceState old in
+          case (old.tool, old.mouseMode) of
+            (Cursor, _) ->
+              { new | selectedFeatures = Set.empty
+                    , selectedShapes = Set.empty
+                    , selectedBlobs = Dict.empty
+                    }
+            (_, MouseNothing)   -> { new | tool = Cursor }
+            (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
+            _                   -> new
+      else if keyCode == Keys.keyMeta then
+        old
+        -- for now, no need to ever put keyMeta in keysDown
+        -- TODO need to put keyMeta in model, so know not to put the next key in model
+      {-
+      else if List.member Keys.keyMeta old.keysDown then
+        -- when keyMeta is down and another key k is downed,
+        -- there will not be a key up event for k. so, not putting
+        -- k in keysDown. if want to handle keyMeta + k, keep track
+        -- of this another way.
+        old
+      -}
+      else if keyCode == Keys.keyShift && Model.needsRun old then
+        upstateRun old -- same as msgRun
+      else if not (List.member keyCode old.keysDown) then
+        { old | keysDown = keyCode :: old.keysDown }
+      else
+        old
+  in
+    Msg ("Key Down " ++ toString keyCode) <|
+      addKey << func
 
 msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
   -- let _ = Debug.log "Key Up" (keyCode, old.keysDown) in
@@ -941,8 +989,26 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
               }
   )
 
-msgClearSynthesisResults = Msg "Clear Synthesis Results" <| \old ->
+clearSynthesisResults : Model -> Model
+clearSynthesisResults old =
   { old | preview = Nothing, synthesisResults = [] }
+
+setAutoSynthesis : Bool -> Model -> Model
+setAutoSynthesis shouldUseAutoSynthesis old =
+  { old | autoSynthesis = shouldUseAutoSynthesis }
+
+msgClearSynthesisResults : Msg
+msgClearSynthesisResults =
+  Msg "Clear Synthesis Results" clearSynthesisResults
+
+msgStartAutoSynthesis : Msg
+msgStartAutoSynthesis =
+  Msg "Start Auto Synthesis" (setAutoSynthesis True)
+
+msgStopAutoSynthesisAndClear : Msg
+msgStopAutoSynthesisAndClear =
+  Msg "Stop Auto Synthesis and Clear" <|
+    clearSynthesisResults << (setAutoSynthesis False)
 
 --------------------------------------------------------------------------------
 
@@ -978,6 +1044,12 @@ msgReplicateBlob option = Msg "Replicate Blob" <| \old ->
 msgToggleCodeBox = Msg "Toggle Code Box" <| \old ->
   { old | basicCodeBox = not old.basicCodeBox }
 
+msgSetOutputLive = Msg "Set Output Live" <| \old ->
+  { old | mode = refreshMode_ old }
+
+msgSetOutputPrint = Msg "Set Output Print" <| \old ->
+  { old | mode = Print (LangSvg.printSvg old.showGhosts old.slate) }
+
 msgToggleOutput = Msg "Toggle Output" <| \old ->
   let m = case old.mode of
     Live _  -> Print (LangSvg.printSvg old.showGhosts old.slate)
@@ -988,6 +1060,37 @@ msgToggleOutput = Msg "Toggle Output" <| \old ->
     PrintScopeGraph _ -> refreshMode_ old
   in
   { old | mode = m }
+
+updateHeuristics : Int -> Model -> Model
+updateHeuristics heuristic old =
+  let
+    oldSyncOptions =
+      old.syncOptions
+    newSyncOptions =
+      { oldSyncOptions | feelingLucky = heuristic }
+  in
+    case old.mode of
+      Live _ ->
+        case mkLive_
+               newSyncOptions
+               old.slideNumber
+               old.movieNumber
+               old.movieTime
+               old.inputExp of
+          Ok m ->
+            { old | syncOptions = newSyncOptions, mode = m }
+          Err s ->
+            { old | syncOptions = newSyncOptions, errorBox = Just s }
+      _ -> { old | syncOptions = newSyncOptions }
+
+msgSetHeuristicsBiased =
+  Msg "Set Heuristics Biased" (updateHeuristics Sync.heuristicsBiased)
+
+msgSetHeuristicsNone =
+  Msg "Set Heuristics None" (updateHeuristics Sync.heuristicsNone)
+
+msgSetHeuristicsFair =
+  Msg "Set Heuristics Fair" (updateHeuristics Sync.heuristicsFair)
 
 --------------------------------------------------------------------------------
 
@@ -1150,7 +1253,6 @@ requireSaveAsker ((Msg name _) as msg) needsSave =
     msg
 
 --------------------------------------------------------------------------------
-
 -- Dialog Box
 
 msgOpenDialogBox db =
@@ -1325,10 +1427,7 @@ msgDelete filename =
     else
       { old | fileToDelete = filename }
 
-msgCancelFileOperation = Msg "Cancel File Operation" <| (\old ->
-  { old | pendingFileOperation = Nothing
-        , fileOperationConfirmed = False })
-    >> Model.closeDialogBox AlertSave
+msgCancelFileOperation = Msg "Cancel File Operation" Model.cancelFileOperation
 
 msgConfirmFileOperation = Msg "Confirm File Operation" <| (\old ->
   { old | fileOperationConfirmed = True })
@@ -1564,967 +1663,163 @@ msgMoveExp = Msg "Move Exp" <| \m -> m
 --     (safeResults, unsafeResults) ->
 --       { model | synthesisResults = safeResults ++ unsafeResults }
 
-
 --------------------------------------------------------------------------------
-
--- TODO if/when drawing extra widgets for tools,
--- this all should move elsewhere (View, DeuceWidgets, ...)
-
-contextSensitiveDeuceTools m =
-
-  let {selectedWidgets} = m.deuceState in
-  let nums = selectedNums m in
-  let baseVals = selectedBaseVals m in
-  let exps = selectedExps selectedWidgets in
-  let pathedPatIds = selectedPats selectedWidgets in
-  let letBindingEquations = selectedEquations selectedWidgets in
-  let expTargets = selectedExpTargets selectedWidgets in
-  let patTargets = selectedPatTargets selectedWidgets in
-  let selections =
-    (nums, baseVals, exps, pathedPatIds, letBindingEquations, expTargets, patTargets) in
-
-  List.concat <|
-    [ addToolMakeEqual m selections
-    , addToolFlipBoolean m selections
-    , addToolRenamePat m selections
-    , addToolRenameVar m selections
-    , addToolSwapNames m selections
-    , addToolInlineDefintion m selections
-    , addToolTwiddleShapes m selections
-    , addToolIntroduceVar m selections
-    , CodeMotion.addToolCompareSubExpressions m selections
-    , addToolMoveDefinition m selections
-    , addToolDuplicateDefinition m selections
-    , addToolOneOrMoreNumsOnly thawOrFreezeTool m selections
-    , addToolOneOrMoreNumsOnly showOrHideRangeTool m selections
-    , addToolOneOrMoreNumsOnly addOrRemoveRangeTool m selections
-    , addToolRewriteOffset m selections
-    , addToolConvertColorString m selections
-    , addToolAbstract m selections
-    , addToolMerge m selections
-    , addToolAddArg m selections
-    , addToolRemoveArg m selections
-    , addToolReorderFunctionArgs m selections
-    , CodeMotion.addToolReorderEList m selections
-    , addToolMakeSingleLine m selections
-    , addToolMakeMultiLine m selections
-    , addToolAlign m selections
-    ]
-
-
 
 msgChooseDeuceExp exp = Msg "Choose Deuce Exp" <| \m ->
   -- TODO version of tryRun/upstateRun starting with parsed expression
   upstateRun (resetDeuceState { m | code = unparse exp })
 
-dummyDeuceTool m = \() ->
-  [synthesisResult "not yet implemented" m.inputExp |> setResultSafe False]
-
-
 --------------------------------------------------------------------------------
+-- Menu Handling
 
-selectedNums : Model -> List (LocId, (WS, Num, Loc, WidgetDecl))
-selectedNums = selectedNumsAndBaseVals >> Tuple.first
-
-selectedBaseVals : Model -> List (EId, (WS, EBaseVal))
-selectedBaseVals = selectedNumsAndBaseVals >> Tuple.second
-
-selectedNumsAndBaseVals
-    : Model
-   -> ( List (LocId, (WS, Num, Loc, WidgetDecl))
-      , List (EId, (WS, EBaseVal))
-      )
-selectedNumsAndBaseVals m =
-  let noMatches = ([], []) in
-  -- TODO may want to distinguish between different kinds of selected
-  -- items earlier
-  m.deuceState.selectedWidgets
-  |> List.map (\deuceWidget ->
-       case deuceWidget of
-         DeuceExp eid ->
-           case findExpByEId m.inputExp eid of
-             Just ePlucked ->
-               case ePlucked.val.e__ of
-                 EConst ws n loc wd -> ([(eid, (ws, n, loc, wd))], [])
-                 EBase ws baseVal   -> ([], [(eid, (ws, baseVal))])
-
-                 _ -> noMatches
-             _ -> noMatches
-         _ -> noMatches
-     )
-  |> List.unzip
-  |> (\(l1,l2) -> (List.concat l1, List.concat l2))
-
-selectedExps deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
-  case deuceWidget of
-    DeuceExp x -> [x]
-    _ -> []
-
-selectedPats deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
-  case deuceWidget of
-    DeucePat x -> [x]
-    _ -> []
-
-selectedEquations deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
-  case deuceWidget of
-    DeuceLetBindingEquation x -> [x]
-    _ -> []
-
-selectedExpTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
-  case deuceWidget of
-    DeuceExpTarget x -> [x]
-    _ -> []
-
-selectedPatTargets deuceWidgets = flip List.concatMap deuceWidgets <| \deuceWidget ->
-  case deuceWidget of
-    DeucePatTarget x -> [x]
-    _ -> []
-
-
---------------------------------------------------------------------------------
-
-addToolOneOrMoreNumsOnly func m selections = case selections of
-  (nums, [], exps, [], [], [], []) ->
-    if List.length nums >= 1 &&
-       List.length nums == List.length exps
-    then func m nums
-    else []
-
-  _ -> []
-
-
---------------------------------------------------------------------------------
-
-addToolMakeEqual m selections = case selections of
-  (nums, baseVals, exps, [], [], [], []) ->
-    let literals = List.map Left nums ++ List.map Right baseVals in
-    if List.length literals >= 2 &&
-       List.length literals == List.length exps
-    then CodeMotion.makeMakeEqualTool m literals
-    else []
-
-  _ -> []
-
-
---------------------------------------------------------------------------------
-
-addToolAbstract m selections = case selections of
-  ([], [], [], [pathedPatId], [], [], []) ->
-    case LangTools.findScopeExpAndPat pathedPatId m.inputExp |> Maybe.map (\(e,p) -> (e.val.e__, p.val.p__)) of
-      Just (ELet _ _ _ _ _ _ _, PVar _ ident _) ->
-        [ ("Abstract", \() ->
-            CodeMotion.abstractPVar pathedPatId m.inputExp
-          ) ]
-
-      _ -> []
-
-  (_, _, [eid], [], [], [], []) ->
-    let maybeExpToAbstract = findExpByEId m.inputExp eid in
-    let expToAbstractParts = maybeExpToAbstract |> Maybe.map flattenExpTree |> Maybe.withDefault [] in
-    let parameterCount =
-      Utils.count (\e -> CodeMotion.shouldBeParameterIsConstant e m.inputExp) expToAbstractParts +
-      Utils.count (\e -> CodeMotion.shouldBeParameterIsNamedUnfrozenConstant e m.inputExp) expToAbstractParts
-    in
-    let expSize = maybeExpToAbstract |> Maybe.map LangTools.nodeCount |> Maybe.withDefault 0 in
-    if parameterCount > 0 && expSize >= 3 then
-      [ ("Extract Function", \() -> -- Martin Fowler's name is "Extract Method" but this is FP
-          CodeMotion.abstractExp eid m.inputExp
-        ) ]
-    else
-      []
-
-  ([], [], [], [], [letEId], [], []) ->
-    case LangTools.justFindExpByEId m.inputExp letEId |> LangTools.expToMaybeLetPat |> Maybe.map (.val >> .p__) of
-      Just (PVar _ _ _) ->
-        [ ("Abstract", \() ->
-            let pathedPatId = ((letEId, 1), []) in
-            CodeMotion.abstractPVar pathedPatId m.inputExp
-          ) ]
-
-      _ -> []
-
-  _ -> []
-
-
-addToolMerge m selections =
-  case selections of
-    (_, _, eid1::eid2::restEIds, [], [], [], []) ->
-      let eids = eid1::eid2::restEIds in
-      let mergeResults =
-        let candidateExpFilter e = List.member e.val.eid eids in
-        let minCloneCount = List.length eids in
-        ETransform.cloneEliminationSythesisResults candidateExpFilter minCloneCount 2 m.inputExp
-      in
-      if mergeResults /= []
-      then [ ("Merge", always mergeResults) ]
-      else []
-
-    _ -> []
-
-
---------------------------------------------------------------------------------
-
--- Map a selected argument at a call site to the corresponding pathedPatId in the called function.
-eidToMaybeCorrespondingArgumentPathedPatId : Exp -> EId -> Maybe PathedPatternId
-eidToMaybeCorrespondingArgumentPathedPatId program targetEId =
-  -- This should be more efficient than running the massive predicate over every expression in the program
-  findWithAncestorsByEId program targetEId
-  |> Maybe.withDefault []
-  |> Utils.mapFirstSuccess
-      (\exp ->
-        case exp.val.e__ of
-          EApp _ appFuncExp argExps _ ->
-            case appFuncExp.val.e__ of
-              EVar _ funcName ->
-                case LangTools.resolveIdentifierToExp funcName appFuncExp.val.eid program of -- This is probably slow.
-                  Just (LangTools.Bound funcExp) ->
-                    case funcExp.val.e__ of
-                      EFun _ fpats _ _ ->
-                        -- Allow partial application
-                        LangTools.tryMatchExpsPatsToPathsAtFunctionCall fpats argExps
-                        |> Utils.mapFirstSuccess
-                            (\(path, correspondingExp) ->
-                              if correspondingExp.val.eid == targetEId
-                              then Just ((funcExp.val.eid, 1), path)
-                              else Nothing
-                            )
-
-                      _ -> Nothing
-
-                  _ -> Nothing
-
-              _ -> Nothing
-
-          _ -> Nothing
-      )
-
-
-addToolAddArg m selections = case selections of
-  -- (_, _, [], [], _, _, _) -> []
-
-  (_, _, firstEId::restEIds, [], [], [], [patTarget]) ->
-    let eids = firstEId::restEIds in
-    let targetPathedPatId = patTargetPositionToTargetPathedPatId patTarget in
-    let maybeScopeExp = findExpByEId m.inputExp (pathedPatIdToScopeEId targetPathedPatId) in
-    case maybeScopeExp |> Maybe.map (.val >> .e__) of
-      Just (EFun _ _ fbody _) ->
-        let isAllSelectedExpsInFBody =
-          eids |> List.all (\eid -> findExpByEId fbody eid /= Nothing)
-        in
-        if isAllSelectedExpsInFBody && List.length eids == 1 then
-          [ ("Add Argument", \() -> -- Fowler calls this "Add Parameter"
-              CodeMotion.addArg (Utils.head_ eids) targetPathedPatId m.inputExp
-            ) ]
-        else if isAllSelectedExpsInFBody then
-          [ ("Add Arguments", \() -> -- Fowler calls this "Add Parameter"
-              CodeMotion.addArgs eids targetPathedPatId m.inputExp
-            ) ]
-        else
-          []
-
-      _ -> []
-
-  (_, _, [], firstArgSourcePathedPatId::restArgSourcePathedPatId, [], [], [patTarget]) ->
-    let argSourcePathedPatIds = firstArgSourcePathedPatId::restArgSourcePathedPatId in
-    let targetPathedPatId = patTargetPositionToTargetPathedPatId patTarget in
-    let maybeScopeExp = findExpByEId m.inputExp (pathedPatIdToScopeEId targetPathedPatId) in
-    case maybeScopeExp |> Maybe.map (.val >> .e__) of
-      Just (EFun _ _ fbody _) ->
-        let isAllSelectedPatsInFBody =
-          argSourcePathedPatIds |> List.all (\argSourcePathedPatId -> LangTools.findScopeExpAndPat argSourcePathedPatId fbody /= Nothing)
-        in
-        if isAllSelectedPatsInFBody && List.length argSourcePathedPatIds == 1 then
-          [ ("Add Argument", \() -> -- Fowler calls this "Add Parameter"
-              CodeMotion.addArgFromPat (Utils.head_ argSourcePathedPatIds) targetPathedPatId m.inputExp
-            ) ]
-        else if isAllSelectedPatsInFBody then
-          [ ("Add Arguments", \() -> -- Fowler calls this "Add Parameter"
-              CodeMotion.addArgsFromPats argSourcePathedPatIds targetPathedPatId m.inputExp
-            ) ]
-        else
-          []
-
-      _ -> []
-
-  _ -> []
-
-
-addToolReorderFunctionArgs m selections = case selections of
-  (_, _, [], [], _, _, _) -> []
-
-  ([], [], [], pathedPatIds, [], [], [patTarget]) ->
-    let targetPathedPatId = patTargetPositionToTargetPathedPatId patTarget in
-    let allScopesSame = List.map pathedPatIdToScopeId (targetPathedPatId::pathedPatIds) |> Utils.allSame in
-    case (allScopesSame, findExpByEId m.inputExp (pathedPatIdToScopeEId targetPathedPatId) |> Maybe.map (.val >> .e__)) of
-      (True, Just (EFun _ _ _ _)) ->
-        [ ("Reorder Arguments", \() ->
-            CodeMotion.reorderFunctionArgs
-                (pathedPatIdToScopeEId targetPathedPatId)
-                (List.map pathedPatIdToPath pathedPatIds)
-                (pathedPatIdToPath targetPathedPatId)
-                m.inputExp
-          ) ]
-
-      _ -> []
-
-  (_, _, eids, [], [], [(beforeAfter, eid)], []) ->
-    case (eid::eids) |> List.map (eidToMaybeCorrespondingArgumentPathedPatId m.inputExp) |> Utils.projJusts of
-      Just (targetReferencePathedPatId::pathedPatIds) ->
-        let targetPathedPatId = patTargetPositionToTargetPathedPatId (beforeAfter, targetReferencePathedPatId) in
-        let allScopesSame = List.map pathedPatIdToScopeId (targetPathedPatId::pathedPatIds) |> Utils.allSame in
-        case (allScopesSame, findExpByEId m.inputExp (pathedPatIdToScopeEId targetPathedPatId) |> Maybe.map (.val >> .e__)) of
-          (True, Just (EFun _ _ _ _)) ->
-            [ ("Reorder Function Arguments", \() ->
-                CodeMotion.reorderFunctionArgs
-                    (pathedPatIdToScopeEId targetPathedPatId)
-                    (List.map pathedPatIdToPath pathedPatIds)
-                    (pathedPatIdToPath targetPathedPatId)
-                    m.inputExp
-              ) ]
-
-          _ -> []
-
-      _ -> []
-
-  _ -> []
-
-
-addToolRemoveArg m selections = case selections of
-  (_, _, [], [], _, _, _) -> []
-
-  ([], [], [], pathedPatIds, [], [], []) ->
-    let isAllArgumentSelected =
-      pathedPatIds
-      |> List.all
-          (\pathedPatId ->
-            let scopeExp = findExpByEId m.inputExp (pathedPatIdToScopeEId pathedPatId) in
-            case scopeExp |> Maybe.map (.val >> .e__) of
-              Just (EFun _ _ _ _) -> True
-              _                   -> False
-          )
-    in
-    if isAllArgumentSelected && List.length pathedPatIds == 1 then
-      [ ("Remove Argument", \() ->
-          CodeMotion.removeArg (Utils.head_ pathedPatIds) m.inputExp
-        ) ]
-    else if isAllArgumentSelected then
-      [ ("Remove Arguments", \() ->
-          CodeMotion.removeArgs pathedPatIds m.inputExp
-        ) ]
-    else
-      []
-
-  (_, _, eids, [], [], [], []) ->
-    case eids |> List.map (eidToMaybeCorrespondingArgumentPathedPatId m.inputExp) |> Utils.projJusts of
-      Just [argPathedPatId] ->
-        [ ("Remove Argument", \() ->
-            CodeMotion.removeArg argPathedPatId m.inputExp
-          ) ]
-
-      Just argPathedPatIds->
-        [ ("Remove Arguments", \() ->
-            CodeMotion.removeArgs argPathedPatIds m.inputExp
-          ) ]
-
-      _ ->
-        []
-
-  _ -> []
-
---------------------------------------------------------------------------------
-
--- TODO: the following three functions
--- (thawOrFreezeTool, showOrHideRangeTool, addOrRemoveRangeTool)
--- could be factored...
-
-thawOrFreezeTool m nums =
-
-  let thawOrFreeze m nums =
-    let freezeAnnotations = List.map (\(_,(_,_,(_,frzn,_),_)) -> frzn) nums in
-    case Utils.dedup freezeAnnotations of
-
-      [frzn] ->
-        if m.syncOptions.thawedByDefault then
-          if frzn == unann then Just ("Freeze", frozen)
-          else if frzn == frozen then Just ("Thaw", unann)
-          else if frzn == thawed then Just ("Freeze", frozen)
-          else Nothing
-        else
-          if frzn == unann then Just ("Thaw", thawed)
-          else if frzn == frozen then Just ("Thaw", thawed)
-          else if frzn == thawed then Just ("Freeze", unann)
-          else Nothing
-
-      _ ->
-        if m.syncOptions.thawedByDefault
-        then Just ("Freeze", frozen)
-        else Just ("Thaw", thawed)
+setMenuActive : Bool -> Model -> Model
+setMenuActive isActive model =
+  let
+    oldViewState =
+      model.viewState
+    newViewState =
+      { oldViewState | menuActive = isActive }
   in
+    { model | viewState = newViewState }
 
-  case thawOrFreeze m nums of
-    Nothing -> []
-    Just (toolName, newAnnotation) ->
-      [ (toolName, \() ->
-          let eSubst =
-             List.foldl
-               (\(eId,(ws,n,(locid,_,x),wd)) acc ->
-                 Dict.insert eId (EConst ws n (locid, newAnnotation, x) wd) acc
-               )
-               Dict.empty nums
-          in
-          [synthesisResult toolName (applyESubst eSubst m.inputExp)]
-        )
-      ]
+msgShowMenu : Msg
+msgShowMenu  =
+  Msg "Show Menu" <| setMenuActive True
 
-showOrHideRangeTool m nums =
-  let showOrHide m nums =
-    let freezeAnnotations = flip List.map nums <| \(_,(_,_,_,wd)) ->
-      case wd.val of
-        IntSlider _ _ _ _ b -> Just b
-        NumSlider _ _ _ _ b -> Just b
-        _                   -> Nothing
-    in
-    case Utils.dedup freezeAnnotations of
-      [Just b] -> Just b
-      _        -> Nothing
-  in
-  case showOrHide m nums of
-    Nothing -> []
-    Just hidden ->
-      let toolName =
-        case (hidden, List.length nums) of
-          (True, 1)  -> "Show Slider"
-          (True, _)  -> "Show Sliders"
-          (False, 1) -> "Hide Slider"
-          (False, _) -> "Hide Sliders"
-      in
-      [ (toolName, \() ->
-          let eSubst =
-             List.foldl
-               (\(eId,(ws,n,loc,wd)) acc ->
-                 let wd_ =
-                   case wd.val of
-                     IntSlider a b c d _ -> IntSlider a b c d (not hidden)
-                     NumSlider a b c d _ -> NumSlider a b c d (not hidden)
-                     _                   -> wd.val
-                 in
-                 Dict.insert eId (EConst ws n loc { wd | val = wd_ }) acc
-               )
-               Dict.empty nums
-          in
-          [synthesisResult toolName (applyESubst eSubst m.inputExp)]
-        )
-      ]
+msgHideMenu : Msg
+msgHideMenu =
+  Msg "Hide Menu" <| setMenuActive False
 
-addOrRemoveRangeTool m nums =
-  let addOrRemove m nums =
-    let freezeAnnotations = flip List.map nums <| \(_,(_,_,_,wd)) ->
-      case wd.val of
-        NoWidgetDecl -> True
-        _            -> False
-    in
-    case Utils.dedup freezeAnnotations of
-      [b] -> Just b
-      _   -> Nothing
-  in
-  case addOrRemove m nums of
-    Nothing -> []
-    Just noRanges ->
-      let toolName =
-        case (noRanges, List.length nums) of
-          (True, 1)  -> "Add Slider"
-          (True, _)  -> "Add Sliders"
-          (False, 1) -> "Remove Slider"
-          (False, _) -> "Remove Sliders"
-      in
-      [ (toolName, \() ->
-          let eSubst =
-             List.foldl
-               (\(eId,(ws,n,loc,_)) acc ->
-                 let wd =
-                   if noRanges then
-                     if Utils.between n (0.001, 1) then
-                       numSlider 0.001 1
-                     else
-                       let (i, j) = rangeAround n in
-                       if toFloat (round n) == n then
-                         intSlider (max 0 (round i)) (round j)
-                       else
-                         numSlider (max 0 i) j
-                   else
-                     withDummyRange NoWidgetDecl
-                 in
-                 Dict.insert eId (EConst ws n loc wd) acc
-               )
-               Dict.empty nums
-          in
-          [synthesisResult toolName (applyESubst eSubst m.inputExp)]
-        )
-      ]
-
-rangeAround n =
-  let i = n - 3 * n in
-  let j = n + 3 * n in
-  (i, j)
-
+msgToggleMenu : Msg
+msgToggleMenu =
+  Msg "Toggle Menu" <| \old ->
+    setMenuActive (not old.viewState.menuActive) old
 
 --------------------------------------------------------------------------------
+-- Fonts
 
-addToolRenamePat m selections = case selections of
-  ([], [], [], [pathedPatId], [], [], []) ->
-    case LangTools.findPat pathedPatId m.inputExp |> Maybe.andThen LangTools.patToMaybeIdent of
-      Just ident ->
-        [ ("Rename " ++ ident, \() ->
-            let newName = m.deuceState.renameVarTextBox in
-            renamePat pathedPatId newName m.inputExp
-          ) ]
+msgUpdateFontSize : Int -> Msg
+msgUpdateFontSize fontSize = Msg "Update Font Size" <| \old ->
+  let
+    oldCodeBoxInfo = old.codeBoxInfo
+  in
+    { old | codeBoxInfo =
+      { oldCodeBoxInfo | fontSize = fontSize }
+    }
 
-      _ -> []
+--------------------------------------------------------------------------------
+-- Tools
 
-  _ -> []
+msgSetToolMode : ShapeToolKind -> Msg
+msgSetToolMode mode =
+  Msg "Set Tool Mode" <| \old ->
+    let
+      newTool =
+        case old.tool of
+          -- Tools with mode
+          Line _ ->
+            Line mode
+          Rect _ ->
+            Rect mode
+          Oval _ ->
+            Oval mode
+          Poly _ ->
+            Poly mode
+          Path _ ->
+            Path mode
+          -- Tools without mode
+          Cursor ->
+            Cursor
+          PointOrOffset ->
+            PointOrOffset
+          Text ->
+            Text
+          HelperLine ->
+            HelperLine
+          Lambda i ->
+            Lambda i
+    in
+      { old | toolMode = mode
+            , tool = newTool
+      }
 
+--------------------------------------------------------------------------------
+-- Ghosts
 
-composeTransformations : String -> List (Exp -> List SynthesisResult) -> Exp -> List SynthesisResult
-composeTransformations finalCaption transformations originalProgram =
-  transformations
-  |> List.foldl
-      (\transformation results ->
-        results
-        |> List.concatMap
-            (\(SynthesisResult result) ->
-              transformation (freshen result.exp) |> List.map (mapResultSafe ((&&) result.isSafe))
-            )
-      )
-      [ synthesisResult "Original" originalProgram ]
-  |> List.map (setResultDescription finalCaption)
+msgSetGhostsShown : Bool -> Msg
+msgSetGhostsShown shown =
+  Msg "Set Ghosts Shown" <| \old ->
+    let
+      newMode =
+        case old.mode of
+          Print _ ->
+            Print (LangSvg.printSvg shown old.slate)
+          _ ->
+            old.mode
+    in
+      { old | showGhosts = shown
+            , mode = newMode
+      }
 
+--------------------------------------------------------------------------------
+-- Deuce Tools
 
-addToolSwapNames m selections = case selections of
-  ([], [], [], pathedPatId1::pathedPatId2::[], [], [], []) ->
-    case [LangTools.findPat pathedPatId1 m.inputExp, LangTools.findPat pathedPatId2 m.inputExp] |> List.map (Maybe.andThen LangTools.patToMaybeIdent) of
-      [Just name1, Just name2] ->
-        [ ("Swap Names and Usages", \() ->
-            m.inputExp
-            |> composeTransformations ("Swap names " ++ name1 ++ " and " ++ name2)
-                [ renamePat pathedPatId1 "IMPROBABLE_TEMPORARY_NAME_FOR_SAFETY_CHECK!!!"
-                , renamePat pathedPatId2 name1
-                , renamePat pathedPatId1 name2
-                ]
-          ),
-          ("Swap Usages", \() ->
-            swapUsages pathedPatId1 pathedPatId2 m.inputExp
-          )
-        ]
-
-      _ -> []
-
-  _ -> []
-
-
-renamePat : PathedPatternId -> String -> Exp -> List SynthesisResult
-renamePat (scopeId, path) newName program =
-  case LangTools.findScopeExpAndPat (scopeId, path) program of
-    Just (scopeExp, pat) ->
-      case LangTools.patToMaybeIdent pat of
-        Just oldName ->
-          let scopeAreas = LangTools.findScopeAreas scopeId scopeExp in
-          let oldUseEIds = List.concatMap (LangTools.identifierUses oldName) scopeAreas |> List.map (.val >> .eid) in
-          let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
-          let newUseEIds = List.concatMap (LangTools.identifierUses newName) newScopeAreas |> List.map (.val >> .eid) in
-          let isSafe =
-            oldUseEIds == newUseEIds && not (List.member newName (LangTools.identifiersListInPat pat))
-          in
-          let newScopeExp =
-            let scopeAreasReplaced =
-              newScopeAreas
-              |> List.foldl
-                  (\newScopeArea scopeExp -> replaceExpNode newScopeArea.val.eid newScopeArea scopeExp)
-                  scopeExp
-            in
-            LangTools.setPatName (scopeId, path) newName scopeAreasReplaced
-          in
-          let newProgram = replaceExpNode newScopeExp.val.eid newScopeExp program in
-          let result =
-            synthesisResult ("Rename " ++ oldName ++ " to " ++ newName) newProgram |> setResultSafe isSafe
-          in
-          [result]
-
+msgHoverDeuceTool : List Int -> Maybe Preview -> Msg
+msgHoverDeuceTool path maybePreview =
+  Msg ("Hover Deuce Tool " ++ toString path) <|
+    setHoveredMenuPath path >>
+      case maybePreview of
+        Just preview ->
+          \m -> { m | preview = preview }
         Nothing ->
-          []
+          identity
 
-    Nothing ->
-      []
+msgLeaveDeuceTool : List Int -> Maybe Preview -> Msg
+msgLeaveDeuceTool path maybePreview =
+  Msg ("Leave Deuce Tool " ++ toString path) <|
+    clearHoveredMenuPath >>
+      case maybePreview of
+        Just preview ->
+          \m -> { m | preview = Nothing }
+        Nothing ->
+          identity
 
-
-swapUsages : PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
-swapUsages (scopeId1, path1) (scopeId2, path2) originalProgram =
-  case (LangTools.findScopeExpAndPat (scopeId1, path1) originalProgram, LangTools.findScopeExpAndPat (scopeId2, path2) originalProgram) of
-    (Just (scopeExp1, pat1), Just (scopeExp2, pat2)) ->
-      case (LangTools.patToMaybeIdent pat1, LangTools.patToMaybeIdent pat2) of
-        (Just name1, Just name2) ->
-          let eidToBindingPId =
-            LangTools.allVarEIdsToBindingPId originalProgram
-          in
-          let newProgram =
-            originalProgram
-            |> mapExp
-                (\exp ->
-                  case (Dict.get exp.val.eid eidToBindingPId, exp.val.e__) of
-                    (Just (Just pid), EVar ws _) ->
-                      if pid == pat1.val.pid then
-                        replaceE__ exp (EVar ws name2)
-                      else if pid == pat2.val.pid then
-                        replaceE__ exp (EVar ws name1)
-                      else
-                        exp
-                    _ ->
-                      exp
-                )
-          in
-          let isSafe =
-            let expectedVarEIdsToBindingPId =
-              eidToBindingPId
-              |> Dict.map
-                  (\eid maybePId ->
-                    if maybePId == Just pat1.val.pid then
-                      Just pat2.val.pid
-                    else if maybePId == Just pat2.val.pid then
-                      Just pat1.val.pid
-                    else
-                      maybePId
-                  )
-            in
-            LangTools.allVarEIdsToBindingPId newProgram == expectedVarEIdsToBindingPId
-          in
-          let result =
-            synthesisResult ("Swap usages of " ++ name1 ++ " and " ++ name2) newProgram |> setResultSafe isSafe
-          in
-          [result]
-
-        _ -> []
-
-    _ -> []
-
-
---------------------------------------------------------------------------------
-
-addToolRenameVar m selections = case selections of
-  ([], [], [eId], [], [], [], []) ->
-    case findExpByEId m.inputExp eId of
-      Just ePlucked ->
-        case ePlucked.val.e__ of
-          EVar _ ident ->
-            let newName = m.deuceState.renameVarTextBox in
-            [("Rename All " ++ ident, \() -> renameVar eId newName m.inputExp)]
-          _ -> []
-      _ -> []
-  _ -> []
-
-renameVar : EId -> String -> Exp -> List SynthesisResult
-renameVar varEId newName program =
-  let varExp = LangTools.justFindExpByEId program varEId in
-  let oldName = LangTools.expToIdent varExp in
-  case LangTools.bindingPathedPatternIdFor varExp program of
-    Just pathedPatternId ->
-      renamePat pathedPatternId newName program
-
-    Nothing ->
-      let _ = Debug.log (oldName ++ " is free at this location in the program") () in
-      []
-
-
---------------------------------------------------------------------------------
-
-addToolInlineDefintion m selections =
-  case selections of
-    (_, _, _, [], [], _, _) -> []
-
-    ([], [], [], pathedPatIds, [], [], []) ->
-      [ (maybePluralize "Inline Definition" pathedPatIds, \() ->
-          CodeMotion.inlineDefinitions pathedPatIds m.inputExp
-        ) ]
-
-    ([], [], [], [], letEIds, [], []) ->
-      [ (maybePluralize "Inline Definition" letEIds, \() ->
-          CodeMotion.inlineDefinitions (letEIds |> List.map (\letEId -> ((letEId, 1), []))) m.inputExp
-        ) ]
-
-    _ -> []
-
-
---------------------------------------------------------------------------------
-
-addToolFlipBoolean m selections = case selections of
-  ([], [_], [eId], [], [], [], []) ->
-    case findExpByEId m.inputExp eId of
-      Just ePlucked ->
-        case ePlucked.val.e__ of
-          EBase ws (EBool bool) ->
-            let flipped = withDummyExpInfo (EBase ws (EBool (not bool))) in
-            let newExp = replaceExpNode eId flipped m.inputExp in
-            [("Flip Boolean", \() -> oneSafeResult newExp)]
-          _ -> []
-      _ -> []
-  _ -> []
-
-
---------------------------------------------------------------------------------
-
-addToolConvertColorString m selections = case selections of
-  (_, [], _, _, _, _, _) -> []
-
-  ([], literals, exps, [], [], [], []) ->
-    if List.length exps /= List.length literals then []
-    else
-      let maybeStrings =
-        List.map (\(eid, (_, baseVal)) ->
-                   case baseVal of
-                     EString _ string -> Just (eid, string)
-                     _                -> Nothing
-                 ) literals
-      in
-      bindMaybesToList maybeStrings <| \idsAndStrings ->
-      let maybeConverted = List.map convertStringToRgbAndHue idsAndStrings in
-      bindMaybesToList maybeConverted <| \converted ->
-      let (newExp1, newExp2) =
-         List.foldl
-           (\(eid,(r,g,b),hue) (acc1,acc2) ->
-             let replaceString = replaceExpNodePreservingPrecedingWhitespace eid in
-             let eRgba = eList (listOfNums [r,g,b,1.0]) Nothing in
-             let eColorNum = eConst hue dummyLoc in
-             (replaceString eRgba acc1, replaceString eColorNum acc2)
-           )
-           (m.inputExp, m.inputExp) converted
-      in
-      [ (maybePluralize "Convert Color String" literals, \() ->
-          [ newExp1 |> synthesisResult "RGBA"
-          , newExp2 |> synthesisResult "Color Number (Hue Only)" |> setResultSafe False
-          ])
-      ]
-
-  _ -> []
-
-convertStringToRgbAndHue (eid, string) =
-  let colorName = String.toLower string in
-  let values = Utils.maybeFind colorName ColorNum.htmlColorNames in
-  values |> Utils.mapMaybe (\((r,g,b), (h,_,_)) ->
-    let colorNum =
-      if colorName == "black" then 360
-      else if colorName == "white" then 499
-      else if String.contains "gray" colorName ||
-              String.contains "grey" colorName then 450
-                -- not dealing with different grays individually
-      else h
+msgUpdateRenameVarTextBox : String -> Msg
+msgUpdateRenameVarTextBox text =
+  Msg ("Update Rename Var Text Box: " ++ text) <| \model ->
+    let
+      oldDeuceState =
+        model.deuceState
     in
-    (eid, (r,g,b), colorNum)
-  )
-
-bindMaybesToList : List (Maybe a) -> (List a -> List b) -> List b
-bindMaybesToList list f =
-  case Utils.projJusts list of
-    Nothing -> Utils.nothing
-    Just xs -> f xs
-
+      { model
+          | deuceState =
+              { oldDeuceState | renameVarTextBox = text }
+      }
 
 --------------------------------------------------------------------------------
+-- Deuce Panel
 
-addToolTwiddleShapes m selections = case selections of
-  ([], [], [eId], [], [], [], []) ->
-    case findExpByEId m.inputExp eId of
-      Just ePlucked ->
-        let tools = Draw.makeTwiddleTools m eId ePlucked in
-        case tools of
-          _::_ -> tools
-          [] -> []
-      _ -> []
-  _ -> []
-
-
---------------------------------------------------------------------------------
-
-addToolRewriteOffset m selections = case selections of
-  ([], _, _, _, _, _, _) -> []
-
-  (nums, [], exps, [ppid], [], [], []) ->
-    if List.length nums == List.length exps
-    then CodeMotion.rewriteOffsetTool m ppid nums
-    else []
-
-  _ -> []
-
-
---------------------------------------------------------------------------------
-
--- could do the following inside CodeMotion...
-
-addToolIntroduceVar m selections = case selections of
-  (_, _, [], _, _, _, _) -> []
-  (_, _, exps, [], [], [], [patTarget]) ->
-    CodeMotion.makeIntroduceVarTool m exps (PatTargetPosition patTarget)
-  (_, _, exps, [], [], [expTarget], []) ->
-    CodeMotion.makeIntroduceVarTool m exps (ExpTargetPosition expTarget)
-  _ -> []
-
-addToolMoveDefinition m selections = case selections of
-  (_, _, _, [], [], _, _) -> []
-  ([], [], [], pathedPatIds, [], [(Before, eId)], []) ->
-    [ (maybePluralize "Move Definition" pathedPatIds, \() ->
-        CodeMotion.moveDefinitionsBeforeEId pathedPatIds eId m.inputExp
-      ) ]
-  ([], [], [], pathedPatIds, [], [], [patTarget]) ->
-    let targetPathedPatId = patTargetPositionToTargetPathedPatId patTarget in
-    case findExpByEId m.inputExp (pathedPatIdToScopeEId targetPathedPatId) |> Maybe.map (.val >> .e__) of
-      Just (ELet _ _ _ _ _ _ _) ->
-        [ (maybePluralize "Move Definition" pathedPatIds, \() ->
-            CodeMotion.moveDefinitionsPat pathedPatIds targetPathedPatId m.inputExp
-          ) ]
-
-      _ -> []
-
-  ([], [], [], [], [letEId], [(Before, eId)], []) ->
-    [ ("Move Definition", \() ->
-        -- Better result names if we hand the singular case directly to moveDefinitionsBeforeEId.
-        CodeMotion.moveDefinitionsBeforeEId [((letEId, 1), [])] eId m.inputExp
-      ) ]
-
-  ([], [], [], [], letEIds, [(Before, eId)], []) ->
-    [ ("Move Definitions", \() ->
-        CodeMotion.moveEquationsBeforeEId letEIds eId m.inputExp
-      ) ]
-  _ -> []
-
-addToolDuplicateDefinition m selections = case selections of
-  (_, _, _, [], _, _, _) -> []
-  ([], [], [], pathedPatIds, [], [(Before, eId)], []) ->
-    [ (maybePluralize "Duplicate Definition" pathedPatIds, \() ->
-        CodeMotion.duplicateDefinitionsBeforeEId pathedPatIds eId m.inputExp
-      ) ]
-  ([], [], [], pathedPatIds, [], [], [patTarget]) ->
-    let targetPathedPatId = patTargetPositionToTargetPathedPatId patTarget in
-    case findExpByEId m.inputExp (pathedPatIdToScopeEId targetPathedPatId) |> Maybe.map (.val >> .e__) of
-      Just (ELet _ _ _ _ _ _ _) ->
-        [ (maybePluralize "Duplicate Definition" pathedPatIds, \() ->
-            CodeMotion.duplicateDefinitionsPat pathedPatIds targetPathedPatId m.inputExp
-          ) ]
-
-      _ -> []
-
-  _ -> []
-
-
-addToolMakeSingleLine m selections =
-  let maybeEIdToDeLineAndWhetherToPreservePrecedingWhitespace =
-    case selections of
-      (_, _, [eid], [], [], [], [])      -> Just (eid, True)
-      ([], [], [], [], [letEId], [], []) -> findExpByEId m.inputExp letEId |> Maybe.andThen LangTools.expToMaybeLetBoundExp |> Maybe.map (\letBoundExp -> (letBoundExp.val.eid, False))
-      _                                  -> Nothing
-  in
-  case maybeEIdToDeLineAndWhetherToPreservePrecedingWhitespace of
-    Nothing  -> []
-    Just (eid, shouldPreservePrecedingWhitespace) ->
-      let perhapsLeftTrimmer = if shouldPreservePrecedingWhitespace then String.trimLeft else identity in
-      if LangUnparser.unparse (LangTools.justFindExpByEId m.inputExp eid) |> perhapsLeftTrimmer |> String.contains "\n" then
-        [ ("Make Single Line", \() ->
-            let deLine ws =
-              if String.contains "\n" ws
-              then " "
-              else ws
-            in
-            let deLineP__ p__ =
-              case p__ of
-                PVar   ws ident wd         -> PVar   (deLine ws) ident wd
-                PConst ws n                -> PConst (deLine ws) n
-                PBase  ws v                -> PBase  (deLine ws) v
-                PList  ws1 ps ws2 rest ws3 -> PList  (deLine ws1) (setPatListWhitespace "" " " ps) (deLine ws2) rest ""
-                PAs    ws1 ident ws2 p     -> PAs    (deLine ws1) ident " " p
-            in
-            let deLinePat p = mapPatTopDown (mapNodeP__ deLineP__) p in
-            let deLineE__ e__ =
-              case e__ of
-                EBase      ws v                     -> EBase      (deLine ws) v
-                EConst     ws n l wd                -> EConst     (deLine ws) n l wd
-                EVar       ws x                     -> EVar       (deLine ws) x
-                EFun       ws1 ps e1 ws2            -> EFun       (deLine ws1) (ps |> List.map deLinePat |> setPatListWhitespace "" " ") e1 ""
-                EApp       ws1 e1 es ws2            -> EApp       (deLine ws1) (replacePrecedingWhitespace "" e1) es ""
-                EList      ws1 es ws2 rest ws3      -> EList      (deLine ws1) (setExpListWhitespace "" " " es) (deLine ws2) rest ""
-                EOp        ws1 op es ws2            -> EOp        (deLine ws1) op es ""
-                EIf        ws1 e1 e2 e3 ws2         -> EIf        (deLine ws1) e1 e2 e3 ""
-                ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (deLine ws1) kind rec p e1 e2 ""
-                ECase      ws1 e1 bs ws2            -> ECase      (deLine ws1) e1 bs ""
-                ETypeCase  ws1 pat bs ws2           -> ETypeCase  (deLine ws1) pat bs ""
-                EComment   ws s e1                  -> EComment   ws s e1
-                EOption    ws1 s1 ws2 s2 e1         -> EOption    ws1 s1 " " s2 e1
-                ETyp       ws1 pat tipe e ws2       -> ETyp       (deLine ws1) pat tipe e ""
-                EColonType ws1 e ws2 tipe ws3       -> EColonType (deLine ws1) e (deLine ws2) tipe ""
-                ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (deLine ws1) pat tipe e ""
-            in
-            let deLineExp e = mapExp (mapNodeE__ deLineE__) e in
-            m.inputExp
-            |> mapExpNode eid (\e -> e |> deLineExp |> (if shouldPreservePrecedingWhitespace then copyPrecedingWhitespace e else replacePrecedingWhitespace " "))
-            |> synthesisResult "Make Single Line"
-            |> Utils.singleton
-          ) ]
-      else
-        []
-
--- For Tuples and function calls
-addToolMakeMultiLine m selections =
-  case selections of
-    (_, _, [eid], [], [], [], []) ->
-      let exp = LangTools.justFindExpByEId m.inputExp eid in
-      case exp.val.e__ of
-        EList ws1 es ws2 Nothing ws3 ->
-          if es |> List.all (precedingWhitespace >> String.contains "\n") then
-            []
-          else
-            [ ("Make Multi-line", \() ->
-              let indentation = indentationAt eid m.inputExp in
-              m.inputExp
-              |> replaceExpNodeE__ByEId eid (EList ws1 (setExpListWhitespace ("\n" ++ indentation ++ "  ") ("\n" ++ indentation ++ "  ") es) ws2 Nothing ("\n" ++ indentation))
-              |> synthesisResult "Make Multi-line"
-              |> Utils.singleton
-            ) ]
-
-        EApp ws1 e es ws2 ->
-          if es |> List.all (precedingWhitespace >> String.contains "\n") then
-            []
-          else
-            [ ("Make Multi-line", \() ->
-              let indentation = String.repeat (e.end.col) " " in
-              m.inputExp
-              |> replaceExpNodeE__ByEId eid (EApp ws1 e (setExpListWhitespace " " ("\n" ++ indentation) es) "")
-              |> synthesisResult "Make Multi-line"
-              |> Utils.singleton
-            ) ]
-
-        _ -> []
-    _ -> []
-
-
--- Align multiple expressions all on different lines
-addToolAlign m selections =
-  case selections of
-    (_, _, eid1::eid2::restEIds, [], [], [], []) ->
-      let eids = eid1::eid2::restEIds in
-      let exps = eids |> List.map (LangTools.justFindExpByEId m.inputExp) in
-      let lineNums = exps |> List.map (.start >> .line) in
-      if lineNums /= Utils.dedup lineNums then
-        []
-      else
-        [ ("Align Expressions", \() ->
-          let maxCol = exps |> List.map (.start >> .col) |> List.maximum |> Utils.fromJust_ "addToolAlign maxCol" in
-          m.inputExp
-          |> mapExp
-              (\e ->
-                if List.member e.val.eid eids then
-                  let wsDelta = maxCol - e.start.col in
-                  e |> pushRight (String.repeat wsDelta " ")
-                else
-                  e
-              )
-          |> synthesisResult "Align Expressions"
-          |> Utils.singleton
-        ) ]
-
-    _ -> []
-
+msgDragDeucePanel : Msg
+msgDragDeucePanel =
+  Msg "Drag Deuce Panel" <|
+    let
+      shift (x, y) (dx, dy) =
+        (x + dx, y + dy)
+      deltaMouse old new =
+        ( new.x - old.x
+        , new.y - old.y
+        )
+      f oldPosition newPosition model =
+        let
+          oldDeucePanelPosition =
+            model.deucePanelPosition
+        in
+          { model
+              | deucePanelPosition =
+                  shift
+                    oldDeucePanelPosition
+                    (deltaMouse oldPosition newPosition)
+          }
+    in
+    \model ->
+        { model | mouseMode = Model.MouseDragPanel f }

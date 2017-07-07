@@ -44,15 +44,22 @@ type alias Position = { col : Int, line : Int }
 
 type alias IconName = String
 
-type alias Icon = {
-  iconName : IconName,
-  code : Code
-}
+type alias Icon =
+  { iconName : IconName
+  , code : Code
+  }
+
+type alias ViewState =
+  { menuActive : Bool
+  }
+
+type alias Preview =
+  Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
 
 type alias Model =
   { code : Code
   , lastRunCode : Code
-  , preview: Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
+  , preview : Preview
   , history : (List Code, List Code)
   , inputExp : Exp
   , inputVal : Val
@@ -115,6 +122,9 @@ type alias Model =
   , scopeGraph : ScopeGraph
   , deuceState : DeuceWidgets.DeuceState
   , showOnlyBasicTools : Bool
+  , viewState : ViewState
+  , toolMode : ShapeToolKind
+  , deucePanelPosition : (Int, Int)
   }
 
 type Mode
@@ -142,6 +152,13 @@ type alias CodeBoxInfo =
   , lastVisibleRow: Int
   , marginTopOffset: Float
   , marginLeftOffset: Float
+  , scrollerTop : Float
+  , scrollerLeft : Float
+  , scrollerWidth : Float
+  , scrollerHeight : Float
+  , contentLeft : Float
+  , scrollTop : Float
+  , scrollLeft : Float
   }
 
 type alias RawSvg = String
@@ -149,6 +166,7 @@ type alias RawSvg = String
 type MouseMode
   = MouseNothing
   | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
+  | MouseDragPanel (Mouse.Position -> Mouse.Position -> Model -> Model)
 
   | MouseDragZone
       ZoneKey               -- (nodeId, shapeKind, zoneName)
@@ -230,6 +248,10 @@ synthesisResult description exp =
     , children    = Nothing
     }
 
+synthesisResultsNotEmpty : Model -> Bool
+synthesisResultsNotEmpty =
+  not << List.isEmpty << .synthesisResults
+
 mapResultSafe f (SynthesisResult result) =
   SynthesisResult { result | isSafe = f result.isSafe }
 
@@ -238,6 +260,9 @@ setResultSafe isSafe synthesisResult =
 
 isResultSafe (SynthesisResult {isSafe}) =
   isSafe
+
+resultDescription (SynthesisResult {description}) =
+  description
 
 setResultDescription description (SynthesisResult result) =
   SynthesisResult { result | description = description }
@@ -289,6 +314,7 @@ initialLayoutOffsets =
 
 type DialogBox = New | SaveAs | Open | AlertSave | ImportCode
 
+dbToInt : DialogBox -> Int
 dbToInt db =
   case db of
     New -> 0
@@ -297,6 +323,7 @@ dbToInt db =
     AlertSave -> 3
     ImportCode -> 4
 
+intToDb : Int -> DialogBox
 intToDb n =
   case n of
     0 -> New
@@ -306,14 +333,38 @@ intToDb n =
     4 -> ImportCode
     _ -> Debug.crash "Undefined Dialog Box Type"
 
+openDialogBox : DialogBox -> Model -> Model
 openDialogBox db model =
   { model | dialogBoxes = Set.insert (dbToInt db) model.dialogBoxes }
 
+closeDialogBox : DialogBox -> Model -> Model
 closeDialogBox db model =
   { model | dialogBoxes = Set.remove (dbToInt db) model.dialogBoxes }
 
+cancelFileOperation : Model -> Model
+cancelFileOperation model =
+  closeDialogBox
+    AlertSave
+    { model
+      | pendingFileOperation = Nothing
+      , fileOperationConfirmed = False
+    }
+
+closeAllDialogBoxes : Model -> Model
+closeAllDialogBoxes model =
+  let
+    noFileOpsModel =
+      cancelFileOperation model
+  in
+    { noFileOpsModel | dialogBoxes = Set.empty }
+
+isDialogBoxShowing : DialogBox -> Model -> Bool
 isDialogBoxShowing db model =
   Set.member (dbToInt db) model.dialogBoxes
+
+anyDialogShown : Model -> Bool
+anyDialogShown =
+  not << Set.isEmpty << .dialogBoxes
 
 --------------------------------------------------------------------------------
 
@@ -412,12 +463,15 @@ needsRun m =
 
 --------------------------------------------------------------------------------
 
-type alias DeuceTool = () -> List SynthesisResult
-type alias NamedDeuceTool = (String, DeuceTool)
-
 oneSafeResult newExp =
   Utils.just <|
     synthesisResult ("NO DESCRIPTION B/C SELECTED AUTOMATICALLY") newExp
+
+--------------------------------------------------------------------------------
+
+deuceActive : Model -> Bool
+deuceActive model =
+  List.member Keys.keyShift model.keysDown
 
 --------------------------------------------------------------------------------
 
@@ -473,6 +527,13 @@ initModel =
                       , lastVisibleRow = 10
                       , marginTopOffset = 0.0
                       , marginLeftOffset = 0.0
+                      , scrollerTop = 0.0
+                      , scrollerLeft = 0.0
+                      , scrollerWidth = 0.0
+                      , scrollerHeight = 0.0
+                      , contentLeft = 0.0
+                      , scrollLeft = 0.0
+                      , scrollTop = 0.0
                       }
     , basicCodeBox  = False
     , errorBox      = Nothing
@@ -506,4 +567,9 @@ initModel =
     , hoveringCodeBox = False
     , deuceState = DeuceWidgets.emptyDeuceState
     , showOnlyBasicTools = True
+    , viewState =
+        { menuActive = False
+        }
+    , toolMode = Raw
+    , deucePanelPosition = (200, 200)
     }

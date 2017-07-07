@@ -14,7 +14,8 @@ import ShapeWidgets exposing
   , ShapeFeature, Feature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..)
   , FeatureNum(..)
   )
-import Layout exposing (clickToCanvasPoint)
+import Layout exposing (strButtonTopColor, strInterfaceColor)
+import SleekLayout
 import Sync
 import Draw
 import InterfaceModel exposing (..)
@@ -59,7 +60,7 @@ msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.mode of
     Live info ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
-      let (_, (mx, my)) = clickToCanvasPoint old (Tuple.second old.mouseState) in
+      let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (Tuple.second old.mouseState) in
       let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
       let dragInfo = (trigger, (mx, my), False) in
       { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
@@ -170,10 +171,14 @@ iconify env code =
         <| LangSvg.resolveToIndexedTree 1 1 0 val
     svgElements =
       buildSvg ({ initModel | showGhosts = False }, False) tree
+    subPadding x =
+      x - 10
   in
     Svg.svg
-      [ SAttr.width "30px"
-      , SAttr.height "30px"
+      [ SAttr.width <|
+          (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
+      , SAttr.height <|
+          (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
       ]
       [ svgElements ]
 
@@ -313,7 +318,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     let region =
       flip Svg.rect [] <|
         [ attr "fill" "lightgray"
-        , attr "stroke" Layout.strInterfaceColor , attr "stroke-width" "3px"
+        , attr "stroke" strInterfaceColor , attr "stroke-width" "3px"
         , attr "rx" "9px" , attr "ry" "9px"
         , attr "x" (toString (xL  + c*wWidget))
         , attr "y" (toString (yBL - r*hWidget))
@@ -329,8 +334,8 @@ buildSvgWidgets wCanvas hCanvas widgets model =
           Cursor ->
             if Set.member nodeIdAndFeatureName model.selectedFeatures
               then colorPointSelected
-              else Layout.strInterfaceColor -- colorPointNotSelected
-          _ -> Layout.strInterfaceColor
+              else strInterfaceColor -- colorPointNotSelected
+          _ -> strInterfaceColor
       in
       flip Svg.rect [] <|
         [ attr "fill" color
@@ -348,7 +353,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       let cy = yi + pad + (hSlider//2) in
       flip Svg.circle [] <|
         [ attr "stroke" "black" , attr "stroke-width" "2px"
-        , attr "fill" Layout.strButtonTopColor
+        , attr "fill" strButtonTopColor
         , attr "r" params.mainSection.uiWidgets.rBall
         , attr "cx" (toString cx) , attr "cy" (toString cy)
         , cursorOfZone ZSlider "default"

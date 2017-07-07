@@ -383,7 +383,7 @@ reflowLetWhitespace program letExp =
     ELet oldLetWs letKind isRec pat boundExp body ws2 ->
       let oldIndentation = indentationOf letExp in
       let oneOrTwoNewlinesBeforeLet =
-        let newlineCount = List.length (String.split "\n" oldLetWs) - 1 in
+        let newlineCount = List.length (String.split "\n" oldLetWs.val) - 1 in
         if newlineCount <= 1
         then "\n"
         else "\n\n"
@@ -397,7 +397,7 @@ reflowLetWhitespace program letExp =
           let newLineForFunctionArgs =
             longLineLength < String.length (LangUnparser.unparsePatWithUniformWhitespace True pat ++ String.join " " (List.map (LangUnparser.unparsePatWithUniformWhitespace True) fpats))
           in
-          let (letWs, funcWs, fbodyWs, newFBody, bodyMinimalNewlineCount) =
+          let (letWs_, funcWs_, fbodyWs_, newFBody, bodyMinimalNewlineCount) =
             if isTopLevelEId letExp.val.eid program then
               let oldBodyWs = precedingWhitespace body in
               if      newLineForFunctionArgs   then ( "\n\n"                   , "\n  ", "\n    ", replaceIndentation "    " fbody, 2)
@@ -415,13 +415,16 @@ reflowLetWhitespace program letExp =
               in
               (letWs, funcWs, fbodyWs, newFBody, bodyMinimalNewlineCount)
           in
+          let (letWs, funcWs, fbodyWs) =
+            (ws letWs_, ws funcWs_, ws fbodyWs_)
+          in
           let newFunc =
             replaceE__ boundExp <|
               EFun
                   funcWs
                   (setPatListWhitespace "" " " fpats)
-                  (replacePrecedingWhitespace fbodyWs newFBody)
-                  ""
+                  (replacePrecedingWhitespace fbodyWs_ newFBody)
+                  space0
           in
           replaceE__ letExp <|
             ELet
@@ -430,8 +433,8 @@ reflowLetWhitespace program letExp =
                 isRec
                 (replacePrecedingWhitespacePat " " pat)
                 newFunc
-                (ensureNNewlinesExp bodyMinimalNewlineCount (extractIndentation letWs) body)
-                ""
+                (ensureNNewlinesExp bodyMinimalNewlineCount (extractIndentation letWs_) body)
+                space0
 
         _ ->
           let minimalSurroundingNewlineCount =
@@ -441,13 +444,13 @@ reflowLetWhitespace program letExp =
           in
           replaceE__ letExp <|
             ELet
-                (ensureNNewlines minimalSurroundingNewlineCount oldLetWs oldLetWs)
+                (ws <| ensureNNewlines minimalSurroundingNewlineCount oldLetWs.val oldLetWs.val)
                 letKind
                 isRec
                 (replacePrecedingWhitespacePat " " pat)
                 boundExp
-                (ensureNNewlinesExp minimalSurroundingNewlineCount (extractIndentation oldLetWs) body)
-                ""
+                (ensureNNewlinesExp minimalSurroundingNewlineCount (extractIndentation oldLetWs.val) body)
+                space0
 
           -- let addNewLineForBoundExp =
           --   (not <| String.contains "\n" (precedingWhitespace boundExp))
@@ -499,8 +502,8 @@ newLetFancyWhitespace insertedLetEId pat boundExp expToWrap program =
         else indentationAt expToWrap.val.eid program
       _ -> indentationAt expToWrap.val.eid program
   in
-  ELet "" letOrDef False (ensureWhitespacePat pat) (replaceIndentation "  " boundExp |> ensureWhitespaceExp)
-      (expToWrap |> ensureWhitespaceSmartExp (if isLet expToWrap || isTopLevel then "" else "  ")) ""
+  ELet space0 letOrDef False (ensureWhitespacePat pat) (replaceIndentation "  " boundExp |> ensureWhitespaceExp)
+      (expToWrap |> ensureWhitespaceSmartExp (if isLet expToWrap || isTopLevel then "" else "  ")) space0
   |> withDummyExpInfoEId insertedLetEId
   |> ensureWhitespaceNewlineExp
   |> indent newLetIndentation
@@ -1021,7 +1024,7 @@ addFirstDef program pat boundExp =
       EComment _ _ body -> firstNonCommentEId body
       _                 -> e.val.eid
   in
-  mapExpNode (firstNonCommentEId program) (\nonComment -> withDummyExpInfo <| ELet "\n" Def False pat boundExp nonComment "") program
+  mapExpNode (firstNonCommentEId program) (\nonComment -> withDummyExpInfo <| ELet newline1 Def False pat boundExp nonComment space0) program
 
 
 expToMaybeNum : Exp -> Maybe Num
@@ -1067,7 +1070,7 @@ patToMaybePVarIdent pat =
     _              -> Nothing
 
 
-expToLetParts : Exp -> (String, LetKind, Bool, Pat, Exp, Exp, String)
+expToLetParts : Exp -> (WS, LetKind, Bool, Pat, Exp, Exp, WS)
 expToLetParts exp =
   case exp.val.e__ of
     ELet ws1 letKind rec p1 e1 e2 ws2 -> (ws1, letKind, rec, p1, e1, e2, ws2)
@@ -2530,3 +2533,39 @@ expEnvAt_ exp targetEId =
       ETyp _ pat tipe e _        -> recurse e
       EColonType _ e _ tipe _    -> recurse e
       ETypeAlias _ pat tipe e _  -> recurse e
+
+--------------------------------------------------------------------------------
+
+-- Map a selected argument at a call site to the corresponding pathedPatId in the called function.
+eidToMaybeCorrespondingArgumentPathedPatId : Exp -> EId -> Maybe PathedPatternId
+eidToMaybeCorrespondingArgumentPathedPatId program targetEId =
+  -- This should be more efficient than running the massive predicate over every expression in the program
+  findWithAncestorsByEId program targetEId
+  |> Maybe.withDefault []
+  |> Utils.mapFirstSuccess
+      (\exp ->
+        case exp.val.e__ of
+          EApp _ appFuncExp argExps _ ->
+            case appFuncExp.val.e__ of
+              EVar _ funcName ->
+                case resolveIdentifierToExp funcName appFuncExp.val.eid program of -- This is probably slow.
+                  Just (Bound funcExp) ->
+                    case funcExp.val.e__ of
+                      EFun _ fpats _ _ ->
+                        -- Allow partial application
+                        tryMatchExpsPatsToPathsAtFunctionCall fpats argExps
+                        |> Utils.mapFirstSuccess
+                            (\(path, correspondingExp) ->
+                              if correspondingExp.val.eid == targetEId
+                              then Just ((funcExp.val.eid, 1), path)
+                              else Nothing
+                            )
+
+                      _ -> Nothing
+
+                  _ -> Nothing
+
+              _ -> Nothing
+
+          _ -> Nothing
+      )

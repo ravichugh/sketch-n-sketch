@@ -1,13 +1,19 @@
 //////////////////////////////////////////////////////////////////////
 
+// The padding that Ace puts on its content
+var CONTENT_PADDING_LEFT = 4;
+
 var editor;
 var markers = [];
 var fontSize = 16;
 
+var aceContent;
+var aceScroller;
+
 function initialize() {
   editor = ace.edit("editor");
   editor.$blockScrolling = Infinity;
-  editor.setTheme("ace/theme/chrome");
+  editor.setTheme("ace/theme/tomorrow_night");
   editor.setFontSize(fontSize);
   editor.getSession().setMode("ace/mode/little");
   editor.setOption("dragEnabled", true); // true by default anyway
@@ -35,6 +41,17 @@ function initialize() {
       app.ports.receiveEditorState.send(info);
   });
 
+  // Ace Editor has a bug in which it does not resize when its height is changed
+  // with a transition. This is kind of ugly, but it is the simplest way to
+  // get around this bug and there's no real performance penalty...
+  window.setInterval(function() {
+    editor.resize();
+    var info = getEditorState();
+    app.ports.receiveEditorState.send(info);
+  }, 50);
+
+  aceContent = document.getElementsByClassName("ace_content")[0];
+  aceScroller = document.getElementsByClassName("ace_scroller")[0];
 }
 
 
@@ -187,8 +204,15 @@ function getEditorState() {
     , gutterWidth: editor.renderer.gutterWidth
     , firstVisibleRow: editor.renderer.getFirstVisibleRow()
     , lastVisibleRow: editor.renderer.getLastVisibleRow()
-    , marginTopOffset: document.getElementsByClassName("ace_content")[0].offsetTop
-    , marginLeftOffset: document.getElementsByClassName("ace_content")[0].offsetLeft
+    , marginTopOffset: aceContent.offsetTop
+    , marginLeftOffset: aceContent.offsetLeft
+    , scrollerTop: aceScroller.getBoundingClientRect().top
+    , scrollerLeft: aceScroller.getBoundingClientRect().left
+    , scrollerWidth: aceScroller.getBoundingClientRect().width
+    , scrollerHeight: aceScroller.getBoundingClientRect().height
+    , contentLeft: CONTENT_PADDING_LEFT
+    , scrollTop: editor.session.$scrollTop
+    , scrollLeft : editor.session.$scrollLeft
     };
   var info =
     { code : editor.getSession().getDocument().getValue()

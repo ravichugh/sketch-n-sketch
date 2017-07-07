@@ -14,7 +14,6 @@ module Draw exposing
   , addPoint , addOffsetAndMaybePoint , horizontalVerticalSnap
   , addTextBox
   , lambdaToolOptionsOf
-  , makeTwiddleTools
   )
 
 import Lang exposing (..)
@@ -423,7 +422,7 @@ addPoint old (x, y) =
     [pointName, xName, yName] ->
       let
         programWithPoint =
-          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (TNamed " " "Point"))
+          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (TNamed space1 "Point"))
       in
       { old | code = LangUnparser.unparse programWithPoint }
 
@@ -463,7 +462,7 @@ addOffsetAndMaybePoint old ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
                       let offsetExp  = (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) in
                       let wrappedBody =
                         let letKind = if LangTools.isTopLevel body originalProgram then Def else Let in
-                        withDummyExpInfo <| ELet ws1 letKind False (pVar offsetName) offsetExp body ""
+                        withDummyExpInfo <| ELet ws1 letKind False (pVar offsetName) offsetExp body space0
                       in
                       Just <| replaceE__ e (ELet ws1 letKind isRec pat boundExp wrappedBody ws2)
                     else
@@ -491,7 +490,7 @@ addOffsetAndMaybePoint old ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
           programWithOffset =
             LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> FastParser.freshen
           programWithOffsetAndPoint =
-            LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TNamed " " "Point"))
+            LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TNamed space1 "Point"))
         in
         { old | code = LangUnparser.unparse programWithOffsetAndPoint }
 
@@ -681,7 +680,7 @@ addStickyPath old keysAndPoints =
 eAsPoint e =
   let e_ = replacePrecedingWhitespace "" e in
   withDummyExpInfo <|
-    EColonType " " e_ " " (withDummyRange <| TNamed " " "Point") ""
+    EColonType space1 e_ space1 (withDummyRange <| TNamed space1 "Point") space1
 
 {-
 addLambda old (_,pt2) (_,pt1) =
@@ -708,7 +707,7 @@ addLambdaBounds old (_,pt2) (_,pt1) func =
   let bounds = eList (makeInts [xa,ya,xb,yb]) Nothing in
   let args = [] in
   let eNew =
-    withDummyExpInfo (EApp "\n  " (eVar0 "withBounds") [ bounds, func ] "") in
+    withDummyExpInfo (EApp (ws "\n  ") (eVar0 "withBounds") [ bounds, func ] space0) in
   -- TODO refactor Program to keep (f,args) in sync with exp
   let newBlob = withBoundsBlob eNew (bounds, "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
@@ -733,7 +732,7 @@ addLambdaAnchor old _ (_,(x,y)) func =
   let anchor = eAsPoint (eList (makeInts [x,y]) Nothing) in
   let args = [] in
   let eNew =
-    withDummyExpInfo (EApp "\n  " (eVar0 "withAnchor") [ anchor, func ] "") in
+    withDummyExpInfo (EApp (ws "\n  ") (eVar0 "withAnchor") [ anchor, func ] space0) in
   -- TODO refactor Program to keep (f,args) in sync with exp
   let newBlob = withAnchorBlob eNew (anchor , "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
@@ -761,11 +760,11 @@ addShape old newShapeKind newShapeExp =
   let shapeVarName =
     LangTools.nonCollidingName newShapeKind 1 <|
       LangTools.identifiersVisibleAtProgramEnd old.inputExp in
-  let newShapeName = withDummyPatInfo (PVar " " shapeVarName noWidgetDecl) in
-  let newDef = ("\n\n", newShapeName, newShapeExp, "") in
+  let newShapeName = withDummyPatInfo (PVar space1 shapeVarName noWidgetDecl) in
+  let newDef = (newline2, newShapeName, newShapeExp, space0) in
   let (defs, mainExp) = splitExp old.inputExp in
   let defs_ = defs ++ [newDef] in
-  let eNew = withDummyExpInfo (EVar "\n  " shapeVarName) in
+  let eNew = withDummyExpInfo (EVar (ws "\n  ") shapeVarName) in
   let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
   let code = unparse (fuseExp (defs_, mainExp_)) in
   { old | code = code }
@@ -783,13 +782,13 @@ add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
         Text     -> True
         _        -> False
     in
-    let newShapeName = withDummyPatInfo (PVar " " shapeVarName noWidgetDecl) in
+    let newShapeName = withDummyPatInfo (PVar space1 shapeVarName noWidgetDecl) in
     let newShapeExp = makeCallWithLocals multi newShapeLocals newShapeFunc newShapeArgs in
-    ("\n\n", newShapeName, newShapeExp, "")
+    (ws "\n\n", newShapeName, newShapeExp, space0)
   in
   let (defs, mainExp) = splitExp old.inputExp in
   let defs_ = defs ++ [newDef] in
-  let eNew = withDummyExpInfo (EVar "\n  " shapeVarName) in
+  let eNew = withDummyExpInfo (EVar (ws "\n  ") shapeVarName) in
   let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
   let code = unparse (fuseExp (defs_, mainExp_)) in
 
@@ -801,11 +800,11 @@ makeCallWithLocals multi locals func args =
     case locals of
       [] ->
         if multi then
-          withDummyExpInfo (EApp "\n    " func args "")
+          withDummyExpInfo (EApp (ws "\n    ") func args space0)
         else
-          let app = withDummyExpInfo (EApp " " func args "") in
-          withDummyExpInfo (EList "\n    " [app] "" Nothing " ")
-      (p,e)::locals_ -> withDummyExpInfo (ELet "\n  " Let False p e (recurse locals_) "")
+          let app = withDummyExpInfo (EApp space1 func args space0) in
+          withDummyExpInfo (EList (ws "\n    ") [app] space0 Nothing space1)
+      (p,e)::locals_ -> withDummyExpInfo (ELet (ws "\n  ") Let False p e (recurse locals_) space0)
   in
   recurse locals
 
@@ -838,13 +837,13 @@ addToMainExp newBlob mainExp =
     SvgConcat shapes f -> SvgConcat (shapes ++ [fromBlobExp newBlob]) f
     Blobs shapes f     -> Blobs (shapes ++ [newBlob]) f
     OtherExp main ->
-      let ws = "\n" in -- TODO take main into account
+      let wsN = ws "\n" in -- TODO take main into account
       OtherExp <| withDummyExpInfo <|
-        EApp ws (eVar0 "addBlob") [fromBlobExp newBlob, main] ""
+        EApp (wsN) (eVar0 "addBlob") [fromBlobExp newBlob, main] space0
 
 maybeGhost b f args =
   if b
-    then (eVar0 "ghost", [ withDummyExpInfo (EApp " " f args "") ])
+    then (eVar0 "ghost", [ withDummyExpInfo (EApp space1 f args space0) ])
     else (f, args)
 
 ghost = maybeGhost True
@@ -901,74 +900,10 @@ lambdaToolOptionsOf (defs, mainExp) =
           in
           case Utils.findFirst pred withBlobs of
             Nothing               -> []
-            Just (Left (f,args))  -> [LambdaBounds <| withDummyExpInfo (EApp " " (eVar0 f) args "")]
-            Just (Right (f,args)) -> [LambdaAnchor <| withDummyExpInfo (EApp " " (eVar0 f) args "")]
+            Just (Left (f,args))  -> [LambdaBounds <| withDummyExpInfo (EApp space1 (eVar0 f) args space0)]
+            Just (Right (f,args)) -> [LambdaAnchor <| withDummyExpInfo (EApp space1 (eVar0 f) args space0)]
           ) lambdaPreFuncs
       in
       lambdaCalls
 
     _ -> []
-
-
---------------------------------------------------------------------------------
--- Syntactic Twiddling
-
-matchOne str (strRegex, f) =
-  case Regex.find (Regex.AtMost 1) (Regex.regex strRegex) str of
-    [match] ->
-      case Utils.projJusts match.submatches of
-        Nothing -> []
-        Just xs -> f xs
-    _ ->
-      []
-
-makeTwiddleTools m eId eShape =
-
-  let strShape = unparse eShape in
-
-  let evaluateRulesUntilMatch rules =
-    case rules of
-      [] -> []
-      rule :: rest ->
-        case matchOne strShape rule of
-          []    -> evaluateRulesUntilMatch rest
-          tools -> tools
-  in
-
-  let rewriteAndReturn newShape =
-    let newExp =
-      replaceExpNodePreservingPrecedingWhitespace eId newShape m.inputExp
-    in
-    [synthesisResult "XXX" newExp]
-  in
-
-  let rewriteRectRawToStretchy args =
-    if List.length args /= 8 then []
-    else
-      let (x, y, w, h, fill, stroke, strokeWidth, rot) =
-        Utils.unwrap8 (List.map Utils.parseInt args)
-      in
-      [ ("Rewrite Stretchy", \() ->
-          let newShape =
-            stencilStretchyRect x y (x + w) (y + h) fill stroke strokeWidth rot in
-          rewriteAndReturn newShape
-        ) ]
-  in
-
-  let rewriteRectStretchyToRaw args =
-    if List.length args /= 8 then []
-    else
-      let (left, top, right, bot, fill, stroke, strokeWidth, rot) =
-        Utils.unwrap8 (List.map Utils.parseInt args)
-      in
-      [ ("Rewrite Raw", \() ->
-          let newShape =
-            stencilRawRect left top (right - left) (bot - top) fill stroke strokeWidth rot in
-          rewriteAndReturn newShape
-        ) ]
-  in
-
-  evaluateRulesUntilMatch <|
-    [ (reStretchyRect, rewriteRectStretchyToRaw)
-    , (reRawRect, rewriteRectRawToStretchy)
-    ]

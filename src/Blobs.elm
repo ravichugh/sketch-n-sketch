@@ -90,8 +90,8 @@ maybeSvgConcat main =
                   eAppConcatNew = replaceE__ eAppConcat <| EApp ws3 eConcat [e2New] ws4
                   mainNew       = replaceE__ main <| EApp ws1 e1 [eAppConcatNew] ws2
                 in
-                if ws1 == "" then addPrecedingWhitespace "\n\n" mainNew
-                else if ws1 == "\n" then addPrecedingWhitespace "\n" mainNew
+                if ws1.val == "" then addPrecedingWhitespace "\n\n" mainNew
+                else if ws1.val == "\n" then addPrecedingWhitespace "\n" mainNew
                 else mainNew
               in
               Just (SvgConcat oldList updateExpressionList)
@@ -113,8 +113,8 @@ maybeBlobs main =
               eArgsNew = replaceE__ eArgs <| EList ws5 newExpList ws6 Nothing ws7
               mainNew  = replaceE__ main <| EApp ws1 eBlobs [eArgsNew] ws2
             in
-            if ws1 == "" then addPrecedingWhitespace "\n\n" mainNew
-            else if ws1 == "\n" then addPrecedingWhitespace "\n" mainNew
+            if ws1.val == "" then addPrecedingWhitespace "\n\n" mainNew
+            else if ws1.val == "\n" then addPrecedingWhitespace "\n" mainNew
             else mainNew
           in
           let blobs = List.map toBlobExp oldList in
