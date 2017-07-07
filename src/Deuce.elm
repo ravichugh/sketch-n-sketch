@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+-- This modules provides the Deuce overlay for the View.
+--------------------------------------------------------------------------------
+
 module Deuce exposing (overlay)
 
 import List
@@ -199,39 +203,51 @@ isBlankLine : Line -> Bool
 isBlankLine line =
   line.startCol == line.endCol
 
-untrimmedLine : String -> Line
-untrimmedLine s =
-  { startCol =
-      0
-  , endCol =
-      -- the +1 is for "phantom" whitespace at the end of a line to allow for
-      -- easier selection of target positions
-      String.length s + 1
-  , val =
-      s
-  }
-
-trimmedLine : String -> Line
-trimmedLine s =
+untrimmedLine : List String -> List Line
+untrimmedLine strings =
   let
-    trimmed =
-      String.trim s
-    trimmedLen =
-      String.length trimmed
-    trimmedRightLen =
-      (String.length << String.trimRight) s
+    lens =
+      List.map String.length strings
+    maxLen =
+      Maybe.withDefault 0 (List.maximum lens)
     startCol =
-      trimmedRightLen - trimmedLen
+      0
     endCol =
-      startCol + trimmedLen
+      maxLen + 1
+    lineMapper s =
+      { startCol =
+          startCol
+      , endCol =
+          endCol
+      , val =
+          s
+      }
   in
-    { startCol =
-        startCol
-    , endCol =
-        endCol
-    , val =
-        trimmed
-    }
+    List.map lineMapper strings
+
+trimmedLine : List String -> List Line
+trimmedLine =
+  List.map <|
+    \s ->
+      let
+        trimmed =
+          String.trim s
+        trimmedLen =
+          String.length trimmed
+        trimmedRightLen =
+          (String.length << String.trimRight) s
+        startCol =
+          trimmedRightLen - trimmedLen
+        endCol =
+          startCol + trimmedLen
+      in
+        { startCol =
+            startCol
+        , endCol =
+            endCol
+        , val =
+            trimmed
+        }
 
 -- TODO Not quite right; possibly need to pad based on expression position
 --      rather than lines.
@@ -268,7 +284,7 @@ lineHullsFromCode di code =
     pipeline lineKind =
       code
         |> String.lines
-        |> List.map lineKind
+        |> lineKind
         |> index
         |> List.map (lineHull di)
   in
