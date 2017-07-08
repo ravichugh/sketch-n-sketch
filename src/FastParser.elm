@@ -69,7 +69,7 @@ trackInfo : Parser a -> ParserI a
 trackInfo p =
   delayedCommitMap
     ( \start (a, end) ->
-        withInfo a start end
+        WithInfo a start end
     )
     getPos
     ( succeed (,)
@@ -122,7 +122,7 @@ spaceSaverKeyword : String -> (WS -> a) -> ParserI a
 spaceSaverKeyword kword combiner =
   delayedCommitMap
     ( \ws _ ->
-        withInfo (combiner ws) ws.start ws.end
+        WithInfo (combiner ws) ws.start ws.end
     )
     ( spaces )
     ( keyword kword )
@@ -132,7 +132,7 @@ spacesBefore : (WS -> a -> b) -> ParserI a -> ParserI b
 spacesBefore combiner p =
   delayedCommitMap
     ( \ws x ->
-        withInfo (combiner ws x.val) x.start x.end
+        WithInfo (combiner ws x.val) x.start x.end
     )
     spaces
     p
@@ -146,7 +146,7 @@ block
 block combiner openSymbol closeSymbol p =
   delayedCommitMap
     ( \(wsStart, open) (result, wsEnd, close) ->
-        withInfo
+        WithInfo
           (combiner wsStart result wsEnd)
           open.start
           close.end
@@ -405,6 +405,7 @@ keywords =
     , "get"
     , "remove"
     , "debug"
+    , "noWidgets"
     ]
 
 --------------------------------------------------------------------------------
@@ -531,7 +532,7 @@ asPattern =
       lazy <| \_ ->
         delayedCommitMap
           ( \(wsStart, name, wsAt) pat ->
-              withInfo (PAs wsStart name.val wsAt pat) name.start pat.end
+              WithInfo (PAs wsStart name.val wsAt pat) name.start pat.end
           )
           ( succeed (,,)
               |= spaces
@@ -569,7 +570,7 @@ baseType context combiner token =
   inContext context <|
     delayedCommitMap
       ( \ws _ ->
-          withInfo (combiner ws) ws.start ws.end
+          WithInfo (combiner ws) ws.start ws.end
       )
       ( spaces )
       ( keyword token )
@@ -793,7 +794,7 @@ constantExpression =
   mapExp_ <|
     delayedCommitMap
       ( \ws (n, fa, w) ->
-          withInfo
+          WithInfo
             (EConst ws n.val (dummyLocWithDebugInfo fa.val n.val) w)
             n.start
             w.end
@@ -877,6 +878,8 @@ operator =
                 |. spacedKeyword "remove"
             , succeed DebugLog
                 |. spacedKeyword "debug"
+            , succeed NoWidgets
+                |. spacedKeyword "noWidgets"
             ]
     in
       inContext "operator" <|
@@ -1067,7 +1070,7 @@ genericDefBinding context kword isRec =
     inContext context <|
       delayedCommitMap
         ( \(wsStart, open) (name, binding, wsEnd, close, rest) ->
-            withInfo
+            WithInfo
               (ELet wsStart Def isRec name binding rest wsEnd)
               open.start
               close.end
@@ -1127,7 +1130,7 @@ option =
       lazy <| \_ ->
         delayedCommitMap
           ( \wsStart (open, opt, wsMid, val, rest) ->
-              withInfo
+              WithInfo
                 (EOption wsStart opt wsMid val rest)
                 open.start
                 val.end
@@ -1160,7 +1163,7 @@ typeDeclaration =
     inContext "type declaration" <|
       delayedCommitMap
         ( \(wsStart, open) (pat, t, wsEnd, close, rest) ->
-            withInfo
+            WithInfo
               (ETyp wsStart pat t rest wsEnd)
               open.start
               close.end
@@ -1188,7 +1191,7 @@ typeAlias =
     inContext "type alias" <|
       delayedCommitMap
         ( \(wsStart, open, pat) (t, wsEnd, close, rest) ->
-            withInfo
+            WithInfo
               (ETypeAlias wsStart pat t rest wsEnd)
               open.start
               close.end
@@ -1242,7 +1245,7 @@ comment =
       lazy <| \_ ->
         delayedCommitMap
           ( \wsStart (semicolon, text, rest) ->
-              withInfo
+              WithInfo
                 (EComment wsStart text.val rest)
                 semicolon.start
                 text.end
@@ -1298,7 +1301,7 @@ type alias TopLevelExp = WithInfo (Exp -> Exp_)
 
 fuseTopLevelExp : TopLevelExp -> Exp -> Exp
 fuseTopLevelExp tld rest =
-  withInfo (tld.val rest) tld.start tld.end
+  WithInfo (tld.val rest) tld.start tld.end
 
 fuseTopLevelExps : (List TopLevelExp) -> Exp -> Exp
 fuseTopLevelExps tlds rest =
@@ -1367,7 +1370,7 @@ topLevelTypeAlias =
   inContext "top-level type alias" <|
     delayedCommitMap
       ( \(wsStart, open, pat) (t, wsEnd, close) ->
-          withInfo
+          WithInfo
             (\rest -> (exp_ <| ETypeAlias wsStart pat t rest wsEnd))
             open.start
             close.end
@@ -1393,7 +1396,7 @@ topLevelComment =
   inContext "top-level comment" <|
     delayedCommitMap
       ( \wsStart (semicolon, text) ->
-          withInfo
+          WithInfo
             ( \rest ->
                 exp_ <| EComment wsStart text.val rest
             )
@@ -1469,7 +1472,7 @@ implicitMain =
     builder p =
       let
         withCorrectInfo x =
-          withInfo x p p
+          WithInfo x p p
         name =
           withCorrectInfo << pat_ <|
             PVar space1 "_IMPLICIT_MAIN" (withDummyInfo NoWidgetDecl)

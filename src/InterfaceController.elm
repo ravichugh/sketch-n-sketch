@@ -266,7 +266,7 @@ rewriteInnerMostExpToMain exp =
 --------------------------------------------------------------------------------
 -- Mouse Events
 
-onMouseClick click old =
+onMouseClick click old maybeClickable =
   case (old.tool, old.mouseMode) of
 
     -- Inactive zone
@@ -277,19 +277,30 @@ onMouseClick click old =
     (Cursor, MouseDragZone (i, k, z) (Just (_, _, False))) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
-    (Poly stk, MouseDrawNew NoPointsYet) ->
-      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
-      { old | mouseMode = MouseDrawNew (PolyPoints [pointOnCanvas]) }
-
-    (Poly stk, MouseDrawNew (PolyPoints points)) ->
-      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
-      if points == [] then Debug.crash "invalid state, PolyPoints should always be nonempty"
-      else
-        let initialPoint = Utils.last_ points in
-        if Utils.distanceInt pointOnCanvas initialPoint > Draw.drawDotSize then { old | mouseMode = MouseDrawNew (PolyPoints (pointOnCanvas :: points)) }
-        else if List.length points == 2 then { old | mouseMode = MouseNothing }
-        else if List.length points == 1 then switchToCursorTool old
-        else upstateRun <| switchToCursorTool <| Draw.addPolygon stk old points
+    (Poly stk, MouseDrawNew polyPoints) ->
+      let (isOnCanvas, (canvasX, canvasY)) = clickToCanvasPoint old click in
+      let pointToAdd =
+        case maybeClickable of
+          Just (PointWithProvenance (snapX, snapXTr) (LazyVal snapXEnv snapXExp) (snapY, snapYTr) (LazyVal snapYEnv snapYExp)) ->
+            -- TODO static check
+            if snapXExp.val.eid > 0 && snapYExp.val.eid > 0 then
+              ((round snapX, SnapEId snapXExp.val.eid), (round snapY, SnapEId snapYExp.val.eid))
+            else
+              ((canvasX, NoSnap), (canvasY, NoSnap))
+          Nothing ->
+            ((canvasX, NoSnap), (canvasY, NoSnap))
+      in
+      case polyPoints of
+        NoPointsYet   -> { old | mouseMode = MouseDrawNew (PolyPoints [pointToAdd]) }
+        PolyPoints [] -> Debug.crash "invalid state, PolyPoints should always be nonempty"
+        PolyPoints points ->
+          let ((initialX, _), (initialY, _)) = Utils.last_ points in
+          let ((thisX, _), (thisY, _))       = pointToAdd in
+          if Utils.distanceInt (thisX, thisY) (initialX, initialY) > Draw.drawDotSize then { old | mouseMode = MouseDrawNew (PolyPoints (pointToAdd :: points)) }
+          else if List.length points == 2 then { old | mouseMode = MouseNothing }
+          else if List.length points == 1 then switchToCursorTool old
+          else upstateRun <| switchToCursorTool <| Draw.addPolygon stk old points
+        _ -> Debug.crash "invalid state, points shoudl be NoPointsYet or PolyPoints for polygon tool"
 
     (Path stk, MouseDrawNew NoPointsYet) ->
       let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
@@ -331,6 +342,7 @@ onMouseClick click old =
     _ ->
       old
 
+
 onClickPrimaryZone : LangSvg.NodeId -> LangSvg.ShapeKind -> ShapeWidgets.ZoneName -> Model -> Model
 onClickPrimaryZone i k z old =
   let realZone = ShapeWidgets.parseZone z in
@@ -362,7 +374,7 @@ onClickPrimaryZone i k z old =
           else Dict.empty
       in
       let maybeBlobId =
-        case Dict.get i (Tuple.second old.slate) of
+        case Dict.get i (Tuple.second old.slate) |> Maybe.map .interpreted of
           Just (LangSvg.SvgNode _ l _) -> LangSvg.maybeFindBlobId l
           _                            -> Debug.crash "onClickPrimaryZone"
       in
@@ -436,8 +448,42 @@ onMouseDrag lastPosition newPosition old =
           let pointOnCanvas = (old.keysDown, (mx, my)) in
           { old | mouseMode = MouseDrawNew (TwoPoints pointOnCanvas point1) }
 
-        (_, OffsetFromExisting _ basePoint) ->
-          { old | mouseMode = MouseDrawNew (OffsetFromExisting (mx, my) basePoint) }
+        (_, Offset1DFromExisting _ _ basePoint) ->
+          let ((effectiveMX, effectiveMY), snap) =
+            let ((x0,_), (y0,_)) = basePoint in
+            let (dxRaw, dyRaw) = (mx - round x0, my - round y0) in
+            -- Hmm, shoudn't assume this here. Yolo.
+            let (axis, sign, amount) = Draw.horizontalVerticalSnap (0, 0) (dxRaw, dyRaw) in
+            let possibleSnaps =
+              flattenExpTree old.inputExp
+              |> List.filterMap (\e -> LangTools.expToMaybeNum e |> Maybe.map (\n -> (round n, e.val.eid)))
+              |> List.filter (\(n,_) -> n >= 2)
+              |> List.sort
+            in
+            let pixelsPerSnap = 20 in
+            let snapRanges =
+              possibleSnaps
+              |> Utils.mapi0
+                  (\(i, (numberToSnapTo, eid))->
+                    ((numberToSnapTo + pixelsPerSnap * i, numberToSnapTo + pixelsPerSnap * (i+1)), numberToSnapTo, eid)
+                  )
+              |> Debug.log "snapRanges"
+            in
+            let maybeInSnapRange = Utils.findFirst (\((low, high), _, _) -> amount >= low && amount < high) snapRanges in
+            case maybeInSnapRange of
+              Just (_, snapToNumber, eid) ->
+                if      axis == X && sign == Positive then ((round x0 + snapToNumber, my), SnapEId eid)
+                else if axis == X && sign == Negative then ((round x0 - snapToNumber, my), SnapEId eid)
+                else if axis == Y && sign == Positive then ((mx, round y0 + snapToNumber), SnapEId eid)
+                else                                       ((mx, round y0 - snapToNumber), SnapEId eid)
+              Nothing ->
+                let numberOfSnapsPassed = Utils.count (\((_, high), _, _) -> amount >= high) snapRanges in
+                if      axis == X && sign == Positive then ((mx - numberOfSnapsPassed*pixelsPerSnap, my), NoSnap)
+                else if axis == X && sign == Negative then ((mx + numberOfSnapsPassed*pixelsPerSnap, my), NoSnap)
+                else if axis == Y && sign == Positive then ((mx, my - numberOfSnapsPassed*pixelsPerSnap), NoSnap)
+                else                                       ((mx, my + numberOfSnapsPassed*pixelsPerSnap), NoSnap)
+          in
+          { old | mouseMode = MouseDrawNew (Offset1DFromExisting (effectiveMX, effectiveMY) snap basePoint) }
 
         _ -> old
 
@@ -482,8 +528,8 @@ onMouseUp old =
 
         (Text, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addTextBox old pt2 pt1
 
-        (PointOrOffset, TwoPoints (_, pt2) (_, (x1,y1)), _)  -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) pt2
-        (PointOrOffset, OffsetFromExisting pt2 basePoint, _) -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old basePoint pt2
+        (PointOrOffset, TwoPoints (_, pt2) (_, (x1,y1)), _)         -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old NoSnap ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) pt2
+        (PointOrOffset, Offset1DFromExisting pt2 snap basePoint, _) -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old snap basePoint pt2
 
         (_, NoPointsYet, _)     -> switchToCursorTool old
 
@@ -971,13 +1017,13 @@ msgRedo = Msg "Redo" <| \old ->
 
 msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
   let new =
-    let {x,y} = Tuple.second old.mouseState in
+    let {x,y} = Utils.snd3 old.mouseState in
     let lightestColor = 470 in
     { old | randomColor = (old.randomColor + x + y) % lightestColor }
   in
   case (b, new.mouseState) of
 
-    (True, (Nothing, pos)) -> -- mouse down
+    (True, (Nothing, pos, _)) -> -- mouse down
       let _ = debugLog "mouse down" () in
       if old.hoveringCodeBox
       -- TODO disabling MouseDownInCodeBox because onMouseDragged is disabled
@@ -985,23 +1031,23 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
       then { new | mouseState = (Just False, pos),
                    mouseMode = MouseDownInCodebox pos }
 -}
-      then { new | mouseState = (Just False, pos) }
-      else { new | mouseState = (Just False, pos) }
+      then { new | mouseState = (Just False, pos, Nothing) }
+      else { new | mouseState = (Just False, pos, Nothing) }
 
-    (False, (Just False, pos)) -> -- click (mouse up after not being dragged)
+    (False, (Just False, pos, maybeClickable)) -> -- click (mouse up after not being dragged)
       let _ = debugLog "mouse click" () in
-      onMouseClick pos { new | mouseState = (Nothing, pos) }
+      onMouseClick pos { new | mouseState = (Nothing, pos, Nothing) } maybeClickable
 
-    (False, (Just True, pos)) -> -- mouse up (after being dragged)
+    (False, (Just True, pos, _)) -> -- mouse up (after being dragged)
       let _ = debugLog "mouse up" () in
-      onMouseUp { new | mouseState = (Nothing, pos) }
+      onMouseUp { new | mouseState = (Nothing, pos, Nothing) }
 
-    (False, (Nothing, _)) ->
+    (False, (Nothing, _, _)) ->
       let _ = debugLog "mouse down was preempted by a handler in View" () in
       new
 
     -- (True, (Just _, _)) -> Debug.crash "upstate MouseIsDown: impossible"
-    (True, (Just _, _)) ->
+    (True, (Just _, _, _)) ->
       let _ = Debug.log "upstate MouseIsDown: impossible" () in
       new
 
@@ -1009,28 +1055,25 @@ msgMousePosition pos_ =
   let
     mouseStateUpdater old =
       case old.mouseState of
-        (Nothing, _) ->
-          { old | mouseState = (Nothing, pos_) }
-        (Just False, oldPos_) ->
-          onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
-        (Just True, oldPos_) ->
-          onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
+        (Nothing, _, _) ->
+          { old | mouseState = (Nothing, pos_, Nothing) }
+        (Just _, oldPos_, maybeClickable) ->
+          onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_, maybeClickable) }
+
     deucePopupPanelPositionUpdater old =
       if Model.noWidgetsSelected old then
         let
-          -- Compute new position
           newDeucePopupPanelPosition =
             ( pos_.x + deucePopupPanelMouseOffset.x
             , pos_.y + deucePopupPanelMouseOffset.y
             )
-          -- Get old position
+
           oldPopupPanelPositions =
             old.popupPanelPositions
-          -- Update old position
+
           newPopupPanelPositions =
             { oldPopupPanelPositions | deuce = newDeucePopupPanelPosition }
         in
-          -- Update model
           { old | popupPanelPositions = newPopupPanelPositions }
       else
         old

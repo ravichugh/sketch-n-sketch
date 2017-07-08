@@ -864,7 +864,7 @@ evaluateFeature nodeIdAndFeatureName slate widgets locIdToNumberAndLoc =
 nodeIdAndFeatureNameToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc =
   if not <| nodeId < -2 then
     -- shape feature
-    case Dict.get nodeId tree of
+    case Dict.get nodeId tree |> Maybe.map .interpreted of
       Just (LangSvg.SvgNode kind nodeAttrs _) ->
         Just (ShapeWidgets.featureEquation kind featureName nodeAttrs)
 

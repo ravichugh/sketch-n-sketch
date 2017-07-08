@@ -16,6 +16,7 @@ module Draw exposing
   , lambdaToolOptionsOf
   )
 
+import CodeMotion
 import Lang exposing (..)
 import LangSvg
 import Blobs exposing (..)
@@ -166,16 +167,20 @@ drawNewEllipse keysDown (_,pt2) (_,pt1) =
   let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(xa,ya),pt2,pt1] in
   clearDots ++ [ ellipse ]
 
+drawNewPolygon : PointWithSnap -> List PointWithSnap -> List (Svg.Svg Msg)
 drawNewPolygon ptLast points =
-  let (xInit,yInit) = Utils.last_ (ptLast::points) in
+  let allRawPoints =
+    ptLast::points |> List.map (\((x, _), (y, _)) -> (x, y))
+  in
+  let (xInit,yInit) = Utils.last_ allRawPoints in
   let redDot = drawDot dotFill (xInit,yInit) in
-  let clearDots = List.map (drawDot dotFillCursor) (ptLast::points) in
+  let clearDots = List.map (drawDot dotFillCursor) allRawPoints in
   let maybeShape =
-    case (ptLast::points) of
+    case allRawPoints of
       [_] -> []
       _ ->
         -- don't need to reverse, but keeping it same as resulting shape
-        let polyPoints = List.reverse (ptLast::points) in
+        let polyPoints = List.reverse allRawPoints in
         let sPoints =
           Utils.spaces <|
             List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
@@ -268,11 +273,12 @@ addLine old click2 click1 =
        (eVar0 "line")
        (List.map eVar ["color","width","x1","y1","x2","y2"])
   in
-  add "line" old
+  add "line" old.inputExp False
     [ makeLet ["x1","y1","x2","y2"] (makeInts [x1,y1,xb,yb])
     , makeLet ["color", "width"]
               [ color , eConst 5 dummyLoc ]
     ] f args
+  |> insertExpAsCode old
 
 {- using variables x1/x2/y1/y2 instead of left/top/right/bot:
 
@@ -311,12 +317,13 @@ stencilRawRect x y w h fill stroke strokeWidth rot =
 addRawSquare old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = squareBoundingBox pt2 pt1 in
   let (x, y, side) = (xa, ya, xb - xa) in
-  add "square" old
+  add "square" old.inputExp False
     [ makeLet ["x","y","side"] (makeInts [x,y,side])
     , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
     (eVar0 "rawRect")
     [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
     , eVar "x", eVar "y", eVar "side", eVar "side", eVar "rot" ]
+  |> insertExpAsCode old
 
 --------------------------------------------------------------------------------
 
@@ -340,7 +347,7 @@ stencilStretchyRect left top right bot fill stroke strokeWidth rot =
 addStretchySquare old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, _) = squareBoundingBox pt2 pt1 in
   let side = (xMax - xMin) in
-  add "square" old
+  add "square" old.inputExp False
     [ makeLet ["left","top","side"] (makeInts [xMin,yMin,side])
     , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
     , makeLet ["rot"] [eConst 0 dummyLoc]
@@ -348,6 +355,7 @@ addStretchySquare old (_,pt2) (_,pt1) =
               [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
     (eVar0 "rectangle")
     (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
+  |> insertExpAsCode old
 
 --------------------------------------------------------------------------------
 
@@ -355,12 +363,13 @@ addRawOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
   let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
   let (cx, cy) = (xa + rx, ya + ry) in
-  add "ellipse" old
+  add "ellipse" old.inputExp False
     [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
     , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
     (eVar0 "rawEllipse")
     [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
     , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
+  |> insertExpAsCode old
 
 --------------------------------------------------------------------------------
 
@@ -368,29 +377,31 @@ addRawCircle old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = squareBoundingBox pt2 pt1 in
   let r = (xb-xa)//2 in
   let (cx, cy) = (xa + r, ya + r) in
-  add "circle" old
+  add "circle" old.inputExp False
     [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
     , makeLet ["color"] [randomColor1 old] ]
     (eVar0 "rawCircle")
     [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
     , eVar "cx", eVar "cy", eVar "r" ]
+  |> insertExpAsCode old
 
 --------------------------------------------------------------------------------
 
 addStretchyOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
-  add "ellipse" old
+  add "ellipse" old.inputExp False
     [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
     , makeLet ["color","strokeColor","strokeWidth"]
               [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
     (eVar0 "oval")
     (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
+  |> insertExpAsCode old
 
 --------------------------------------------------------------------------------
 
 addStretchyCircle old (_,pt2) (_,pt1) =
   let (left, right, top, _) = squareBoundingBox pt2 pt1 in
-  add "circle" old
+  add "circle" old.inputExp False
     [ makeLet ["left", "top", "r"] (makeInts [left, top, (right-left)//2])
     , makeLet ["bounds"]
         [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing]
@@ -398,6 +409,7 @@ addStretchyCircle old (_,pt2) (_,pt1) =
               [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
     (eVar0 "oval")
     (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
+  |> insertExpAsCode old
 
 --------------------------------------------------------------------------------
 
@@ -428,8 +440,8 @@ horizontalVerticalSnap (x1, y1) (x2, y2) =
     else (Y, Negative, y1 - y2)
 
 
-addOffsetAndMaybePoint : Model -> (NumTr, NumTr) -> (Int, Int) -> Model
-addOffsetAndMaybePoint old ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
+addOffsetAndMaybePoint : Model -> Snap -> (NumTr, NumTr) -> (Int, Int) -> Model
+addOffsetAndMaybePoint old snaps ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let originalProgram = old.inputExp in
   let (axis, sign, offsetAmount) = horizontalVerticalSnap (round x1, round y1) (x2, y2) in
@@ -437,30 +449,55 @@ addOffsetAndMaybePoint old ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
   let offsetFromExistingTrace trace =
     case trace of
       TrLoc (locId, _, offsetFromName) ->
-        let maybeNewProgram =
+        let maybeOffsetBaseLet =
           originalProgram
-          |> mapFirstSuccessNode
+          |> findFirstNode
               (\e ->
                 case e.val.e__ of
                   ELet ws1 letKind isRec pat boundExp body ws2 ->
-                    let bindings = Debug.log "bindings" <| LangTools.tryMatchExpReturningList pat boundExp in
-                    if List.any (\(boundIdent, _) -> boundIdent == offsetFromName) bindings then
-                      let offsetName = LangTools.nonCollidingName (offsetFromName ++ "Offset") 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp body).val.eid) in
-                      let offsetExp  = (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) in
-                      let wrappedBody =
-                        let letKind = if LangTools.isTopLevel body originalProgram then Def else Let in
-                        withDummyExpInfo <| ELet ws1 letKind False (pVar offsetName) offsetExp body space0
-                      in
-                      Just <| replaceE__ e (ELet ws1 letKind isRec pat boundExp wrappedBody ws2)
-                    else
-                      Nothing
+                    let bindings = LangTools.tryMatchExpReturningList pat boundExp in
+                    List.any (\(boundIdent, _) -> boundIdent == offsetFromName) bindings
+
                   _ ->
-                    Nothing
+                    False
               )
         in
-        case maybeNewProgram of
-          Just newProgram -> { old | code = LangUnparser.unparse newProgram }
-          Nothing         -> old
+        case maybeOffsetBaseLet of
+          Nothing -> old
+          Just offsetBaseLet ->
+            let (ws1, letKind, isRec, pat, boundExp, body, ws2) = LangTools.expToLetParts offsetBaseLet in
+            let newProgram =
+              let offsetName = LangTools.nonCollidingName (offsetFromName ++ "Offset") 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp body).val.eid) in
+              let insertOffset offsetAmountExp insertBeforeEId originalProgram =
+                let offsetExp  = (eOp plusOrMinus [eVar offsetFromName, offsetAmountExp]) in
+                originalProgram
+                |> mapExpNode insertBeforeEId (\e -> LangTools.newLetFancyWhitespace -1 (pVar offsetName) offsetExp e originalProgram)
+              in
+              case snaps of
+                NoSnap ->
+                  insertOffset (eConstDummyLoc (toFloat offsetAmount)) body.val.eid originalProgram
+
+                SnapEId snapToEId ->
+                  let possibleInsertLocations =
+                    [ Just body.val.eid
+                    , LangTools.expToMaybeLetBody body |> Maybe.map (.val >> .eid)
+                    ] |> Utils.filterJusts
+                  in
+                  let maybeInsertBeforeEIdAndSnapIdentAndProgramWithSnapVisible =
+                    -- Need to try both in case one of these eids is actually a definition that we need to move.
+                    possibleInsertLocations
+                    |> Utils.mapFirstSuccess
+                        (\viewerEId -> CodeMotion.makeEIdVisibleToEIds originalProgram snapToEId (Set.singleton viewerEId) |> Maybe.map ((,) viewerEId))
+                  in
+                  case maybeInsertBeforeEIdAndSnapIdentAndProgramWithSnapVisible of
+                    Nothing ->
+                      let _ = Debug.log "couldn't reconfigure program to enforce snap" () in
+                      originalProgram
+
+                    Just (insertBeforeEId, (snapIdent, programWithSnapVisible)) ->
+                      insertOffset (eVar snapIdent) insertBeforeEId programWithSnapVisible
+            in
+            { old | code = LangUnparser.unparse newProgram }
 
       _ ->
         old
@@ -504,28 +541,74 @@ qMark n  = toString n ++ "?"
 qMarkLoc = dummyLoc_ thawed
 -}
 
-addPolygon stk old points =
+addPolygon stk old pointsWithSnap =
+  let points = pointsWithSnap |> List.map (\((x, _), (y, _)) -> (x, y)) in
   case stk of
-    Raw      -> addRawPolygon old points
+    Raw      -> addRawPolygon old pointsWithSnap
     Stretchy -> addStretchablePolygon old points
     Sticky   -> addStickyPolygon old points
 
-addRawPolygon old points =
-  let sPts =
-    Utils.bracks <| Utils.spaces <|
-      flip List.map (List.reverse points) <| \(x,y) ->
-        let xStr = toString x in
-        let yStr = toString y in
-        Utils.bracks (Utils.spaces [xStr,yStr])
+addRawPolygon old pointsWithSnap =
+  let lastNonDef exp =
+    -- Based on logic of splitExp
+    case exp.val.e__ of
+      ELet ws1 Def False p1 e1 e2 ws2 -> lastNonDef e2
+      _                               -> exp
   in
-  add "polygon" old
-    [ makeLet ["pts"] [eRaw sPts]
+  let viewerEId = (lastNonDef old.inputExp).val.eid in
+  let (program, eidAndName) =
+    let snapEIds =
+      pointsWithSnap
+      |> List.concatMap (\((_, xSnap), (_, ySnap)) -> [xSnap, ySnap])
+      |> List.filterMap
+          (\(snap) ->
+            case snap of
+              NoSnap          -> Nothing
+              SnapEId snapEId -> Just snapEId
+          )
+      |> Utils.dedupByEquality
+    in
+    snapEIds
+    |> List.foldl
+        (\snapEId (program, eidAndName) ->
+          case CodeMotion.makeEIdVisibleToEIds program snapEId (Set.singleton viewerEId) of
+            Nothing                     -> (program, eidAndName)
+            Just (snapName, newProgram) -> (newProgram, (snapEId, snapName)::eidAndName)
+        )
+        (old.inputExp, [])
+  in
+  let ePts =
+    List.reverse pointsWithSnap
+    |> List.map
+        (\((x, xSnap), (y, ySnap)) ->
+          let xExp =
+            case xSnap of
+              NoSnap  -> eConstDummyLoc0 (toFloat x)
+              SnapEId snapEId ->
+                case Utils.maybeFind snapEId eidAndName of
+                  Nothing       -> eConstDummyLoc0 (toFloat x)
+                  Just snapName -> eVar0 snapName
+          in
+          let yExp =
+            case ySnap of
+              NoSnap  -> eConstDummyLoc (toFloat y)
+              SnapEId snapEId ->
+                case Utils.maybeFind snapEId eidAndName of
+                  Nothing       -> eConstDummyLoc (toFloat y)
+                  Just snapName -> eVar snapName
+          in
+          eTuple [xExp, yExp]
+        )
+  in
+  add "polygon" old.inputExp False
+    [ makeLet ["pts"] [eTuple ePts]
     , makeLet ["color","strokeColor","strokeWidth"]
               [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
     ]
     (eVar0 "rawPolygon")
     [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
     , eVar "pts", eConst 0 dummyLoc ]
+  |> insertExpAsCode old
 
 addStretchablePolygon old points =
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
@@ -539,13 +622,14 @@ addStretchablePolygon old points =
         let yStr = maybeThaw yPct in
         Utils.bracks (Utils.spaces [xStr,yStr])
   in
-  add "polygon" old
+  add "polygon" old.inputExp False
     [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["color","strokeColor","strokeWidth"]
               [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
     , makeLet ["pcts"] [eRaw sPcts] ]
     (eVar0 "stretchyPolygon")
     (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
+  |> insertExpAsCode old
 
 addStickyPolygon old points =
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
@@ -565,13 +649,14 @@ addStickyPolygon old points =
         in
         Utils.bracks (Utils.spaces [xOff,yOff])
   in
-  add "polygon" old
+  add "polygon" old.inputExp False
     [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
     , makeLet ["color","strokeColor","strokeWidth"]
               [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
     , makeLet ["offsets"] [eRaw sOffsets] ]
     (eVar0 "stickyPolygon")
     (List.map eVar ["bounds","color","strokeColor","strokeWidth","offsets"])
+  |> insertExpAsCode old
 
 strPoint strX strY (x,y) = Utils.spaces [strX x, strY y]
 
@@ -635,7 +720,7 @@ pathCommands strX strY keysAndPoints =
 
 addAbsolutePath old keysAndPoints =
   let (extraLets, sD) = pathCommands toString toString keysAndPoints in
-  add "path" old
+  add "path" old.inputExp False
     ([ makeLet ["strokeColor","strokeWidth","color"]
                [randomColor old, eConst 5 dummyLoc, randomColor1 old] ]
     ++ extraLets
@@ -643,6 +728,7 @@ addAbsolutePath old keysAndPoints =
     (eVar0 "rawPath")
     [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
     , eVar "d", eConst 0 dummyLoc ]
+  |> insertExpAsCode old
 
 addStretchyPath old keysAndPoints =
   let points = List.map Tuple.second keysAndPoints in
@@ -651,7 +737,7 @@ addStretchyPath old keysAndPoints =
   let strX x = maybeThaw (toFloat (x - xMin) / width) in
   let strY y = maybeThaw (toFloat (y - yMin) / height) in
   let (extraLets, sD) = pathCommands strX strY keysAndPoints in
-  add "path" old
+  add "path" old.inputExp False
     ([ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
      , makeLet ["strokeColor","strokeWidth","color"]
                [ randomColor old, eConst 5 dummyLoc, randomColor1 old ] ]
@@ -659,6 +745,7 @@ addStretchyPath old keysAndPoints =
      ++ [ makeLet ["dPcts"] [eVar sD] ])
     (eVar0 "stretchyPath")
     (List.map eVar ["bounds","color","strokeColor","strokeWidth","dPcts"])
+  |> insertExpAsCode old
 
 addStickyPath old keysAndPoints =
   Debug.crash "TODO: addStickyPath"
@@ -733,13 +820,14 @@ addTextBox old click2 click1 =
     eConst0 (toFloat (yb - ya)) dummyLoc
     -- withDummyExpInfo (EConst "" (toFloat (yb - ya)) dummyLoc (intSlider 0 128))
   in
-  add "text" old
+  add "text" old.inputExp True
     [ makeLet ["fontSize","textVal"] [fontSize, eStr "Text"] ]
     (eVar0 "simpleText")
     [ eStr "Tahoma, sans-serif", eStr "black", eVar "fontSize"
     , eConst (toFloat xa) dummyLoc, eConst (toFloat xb) dummyLoc
     , eConst (toFloat yb) dummyLoc
     , eConst 1.5 dummyLoc, eVar "textVal" ]
+  |> insertExpAsCode old
 
 --------------------------------------------------------------------------------
 
@@ -756,31 +844,28 @@ addShape old newShapeKind newShapeExp =
   let code = unparse (fuseExp (defs_, mainExp_)) in
   { old | code = code }
 
+insertExpAsCode old exp = { old | code = unparse exp }
+
 -- TODO: replace all calls to "add" to "addShapeToProgram"; remove "add"
 -- TODO: remove randomColor/1 when they are no longer needed
-add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
+add newShapeKind program isSvgList newShapeLocals newShapeFunc newShapeArgs =
   let shapeVarName =
-    LangTools.nonCollidingName newShapeKind 1 (LangTools.identifiersVisibleAtProgramEnd old.inputExp)
+    LangTools.nonCollidingName newShapeKind 1 (LangTools.identifiersVisibleAtProgramEnd program)
   in
   let newDef =
-    let multi = -- check if the stencil for current tool returns List SVG or SVG
-      case old.tool of
-        Lambda _ -> True
-        Text     -> True
-        _        -> False
-    in
     let newShapeName = withDummyPatInfo (PVar space1 shapeVarName noWidgetDecl) in
-    let newShapeExp = makeCallWithLocals multi newShapeLocals newShapeFunc newShapeArgs in
+    let newShapeExp = makeCallWithLocals isSvgList newShapeLocals newShapeFunc newShapeArgs in
     (ws "\n\n", newShapeName, newShapeExp, space0)
   in
-  let (defs, mainExp) = splitExp old.inputExp in
+  let (defs, mainExp) = splitExp program in
   let defs_ = defs ++ [newDef] in
   let eNew = withDummyExpInfo (EVar (ws "\n  ") shapeVarName) in
   let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
-  let code = unparse (fuseExp (defs_, mainExp_)) in
-
-  -- upstate Run
-    { old | code = code }
+  fuseExp (defs_, mainExp_)
+  -- let code = unparse () in
+  --
+  -- -- upstate Run
+  --   { old | code = code }
 
 makeCallWithLocals multi locals func args =
   let recurse locals =

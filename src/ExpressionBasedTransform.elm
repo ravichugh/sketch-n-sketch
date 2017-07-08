@@ -833,7 +833,7 @@ computeSelectedBlobsAndBounds model =
   Dict.map
      (\blobId nodeId ->
        undoGroupPadding <|
-       case Dict.get nodeId tree of
+       case Dict.get nodeId tree |> Maybe.map .interpreted of
 
          -- refactor the following cases for readability
 

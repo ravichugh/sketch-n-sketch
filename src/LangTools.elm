@@ -1986,6 +1986,7 @@ numericLetBoundIdentifiers program =
           Sqrt       -> True
           Explode    -> False
           DebugLog   -> List.any recurse operands
+          NoWidgets  -> List.any recurse operands
           Plus       -> List.any recurse operands -- Can have string addition.
           Minus      -> True
           Mult       -> True

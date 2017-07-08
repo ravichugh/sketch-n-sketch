@@ -65,7 +65,7 @@ msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.mode of
     Live info ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
-      let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (Tuple.second old.mouseState) in
+      let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (Utils.snd3 old.mouseState) in
       let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
       let dragInfo = (trigger, (mx, my), False) in
       { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
@@ -121,14 +121,16 @@ build wCanvas hCanvas model =
 -- Compiling to Svg
 
 buildSvg : (Model, Bool) -> LangSvg.RootedIndexedTree -> (Svg Msg)
-buildSvg options (i,d) = buildSvg_ options d i
+buildSvg (model, addZones) (i,d) = buildSvg_ (model, addZones) d i
+
+-- START HERE
+-- exploring why LangSvg.IndexedTree exists
 
 buildSvg_ : (Model, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> (Svg Msg)
-buildSvg_ stuff d i =
-  let (model, addZones) = stuff in
-  case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
+buildSvg_ (model, addZones) d i =
+  case Utils.justGet_ ("buildSvg_ " ++ toString i) i d |> .interpreted of
    LangSvg.TextNode text -> VirtualDom.text text
-   LangSvg.SvgNode shape attrs js ->
+   LangSvg.SvgNode shape attrs childIndices ->
     case (model.showGhosts, Utils.maybeRemoveFirst "HIDDEN" attrs) of
      (False, Just _) -> Svg.svg [] []
      _ ->
@@ -139,7 +141,7 @@ buildSvg_ stuff d i =
           (False, Just (_, l)) -> ([], l)
           (True, Nothing) ->
             (makeZones model shape i attrs, attrs)
-          (True, Just (aval, l)) -> case aval.av_ of
+          (True, Just (aval, l)) -> case aval.interpreted of
             _ ->
               (makeZones model shape i attrs, l)
             -- TODO breaking these for now; see ZoneOptions comment.
@@ -152,7 +154,7 @@ buildSvg_ stuff d i =
             _ -> Debug.crash "buildSvg_"
 -}
       in
-      let children = List.map (buildSvg_ stuff d) js in
+      let children = List.map (buildSvg_ (model, addZones) d) childIndices in
       -- let mainshape = (Svg.node shape) (LangSvg.compileAttrs attrs') children in
       let mainshape =
         let (rawKind, rawAttrs) = LangSvg.desugarShapeAttrs shape attrs_ in
@@ -201,39 +203,39 @@ dragZoneEvents id shapeKind realZone =
 
 drawNewShape model =
   case (model.tool, model.mouseMode) of
-    (Line _,        MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewLine model pt2 pt1
-    (Rect _,        MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewEllipse model.keysDown pt2 pt1
-    (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))               -> Draw.drawNewPolygon ptLast pts
-    (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))               -> Draw.drawNewPath ptLast pts
-    (PointOrOffset, MouseDrawNew (OffsetFromExisting pt2 ((x1,_),(y1,_)))) -> drawNewPointOrOffset pt2 (round x1, round y1)
-    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))            -> drawNewPointOrOffset pt2 pt1
-    (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewLine model pt2 pt1
-    (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Text,          MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewRect model.keysDown pt2 pt1
-    _                                                                      -> []
+    (Line _,        MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewLine model pt2 pt1
+    (Rect _,        MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewEllipse model.keysDown pt2 pt1
+    (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))                      -> Draw.drawNewPolygon ptLast pts
+    (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))                      -> Draw.drawNewPath ptLast pts
+    (PointOrOffset, MouseDrawNew (Offset1DFromExisting pt2 snap ((x1,_),(y1,_)))) -> drawNewPointAndOffset (snap /= NoSnap) pt2 (round x1, round y1)
+    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))                   -> drawNewPointAndOffset False pt2 pt1
+    (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewLine model pt2 pt1
+    (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Text,          MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
+    _                                                                             -> []
 
 
-drawNewPointOrOffset (x2, y2) (x1, y1) =
+drawNewPointAndOffset shouldHighlight (x2, y2) (x1, y1) =
   let (axis, sign, amount) = Draw.horizontalVerticalSnap (x1, y1) (x2, y2) in
   let xyDot = svgXYDot (x1, y1) pointZoneStyles.fill.shown True [] in
-  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint (toFloat x1, toFloat y1) axis sign amount Nothing False [] in
+  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) Nothing shouldHighlight [] in
   [xyDot] ++ arrowParts
 
 
 --------------------------------------------------------------------------------
 -- Widget Layer
 
-svgOffsetWidget1DArrowPartsAndEndPoint (baseX, baseY) axis sign amount maybeCaptionText isSelected extraStyles =
-  let effectiveAmount =
+svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) maybeCaptionText isSelected extraStyles =
+  let (effectiveAmount, op) =
     case sign of
-      Positive -> amount
-      Negative -> -amount
+      Positive -> (amount, Plus)
+      Negative -> (-amount, Minus)
   in
-  let (endX, endY) =
+  let ((endX, endXTr), (endY, endYTr)) =
     case axis of
-      X -> (baseX + effectiveAmount, baseY)
-      Y -> (baseX, baseY + effectiveAmount)
+      X -> ((baseX + effectiveAmount, TrOp op [baseXTr, amountTr]), (baseY, baseYTr))
+      Y -> ((baseX, baseXTr), (baseY + effectiveAmount, TrOp op [baseYTr, amountTr]))
   in
   let lineStyle =
     if isSelected then
@@ -280,15 +282,20 @@ svgOffsetWidget1DArrowPartsAndEndPoint (baseX, baseY) axis sign amount maybeCapt
         X -> ((baseX + endX) / 2, baseY - 10, "middle")
         Y -> (baseX + 10, (baseY + endY) / 2, "start")
     in
+    let maybeBold =
+      if isSelected
+      then [ attr "font-weight" "bold" ]
+      else []
+    in
     flip Svg.text_ [VirtualDom.text string] <|
       [ attr "font-family" params.mainSection.uiWidgets.font
       , attr "font-size" params.mainSection.uiWidgets.fontSize
       , attr "text-anchor" textAnchor
       , attr "x" (toString x)
       , attr "y" (toString y)
-      ] ++ extraStyles
+      ] ++ maybeBold ++ extraStyles
   in
-  ([line, caption, endArrow], (endX, endY))
+  ([line, caption, endArrow], ((endX, endXTr), (endY, endYTr)))
 
 
 buildSvgWidgets : Int -> Int -> Widgets -> InterfaceModel.Model -> List (Svg Msg)
@@ -377,12 +384,12 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     in
     [region, box, text, ball]
   in
-  let drawPointWidget i_ widget (cx, cxTr) (cy, cyTr) =
+  let drawPointWidget i_ widget (cx, cxTr) xLazyVal (cy, cyTr) yLazyVal =
     let idAsShape = -2 - i_ in
-    zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) (cy, cyTr)
+    zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xLazyVal (cy, cyTr) yLazyVal
     ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] [attrNum "cx" cx, attrNum "cy" cy]
   in
-  let drawOffsetWidget1D i_ baseX baseY axis sign (amount, amountTr) =
+  let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) endXLazyVal endYLazyVal =
     let idAsShape = -2 - i_ in
     let isSelected = Set.member (idAsShape, "offset") model.selectedFeatures in
     let dragStyle =
@@ -394,8 +401,11 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         [ attr "cursor" "default" ]
     in
     let maybeCaptionText = traceToMaybeIdent amountTr in
-    let (arrowParts, (endX, endY)) =
-      svgOffsetWidget1DArrowPartsAndEndPoint (baseX, baseY) axis sign amount maybeCaptionText isSelected dragStyle
+    let (arrowParts, (endXNumTr, endYNumTr)) =
+      let shouldHighlight =
+        isSelected || isTraceInModelHighlights model amountTr
+      in
+      svgOffsetWidget1DArrowPartsAndEndPoint (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) maybeCaptionText shouldHighlight dragStyle
     in
     -- let effectiveAmount =
     --   case sign of
@@ -469,7 +479,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     --     ] ++ dragStyle
     -- in
     let endPt =
-      zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) (endX, dummyTrace) (endY, dummyTrace)
+      zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXLazyVal endYNumTr endYLazyVal
     in
     -- if amount /= 0 then
     --   [ Svg.g
@@ -500,11 +510,11 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
-      WPoint xNumTr yNumTr ->
-        drawPointWidget i_ widget xNumTr yNumTr
+      WPoint xNumTr xLazyVal yNumTr yLazyVal ->
+        drawPointWidget i_ widget xNumTr xLazyVal yNumTr yLazyVal
 
-      WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign amountNumTr ->
-        drawOffsetWidget1D i_ baseX baseY axis sign amountNumTr
+      WOffset1D baseXNumTr baseYNumTr axis sign amountNumTr endXLazyVal endYLazyVal ->
+        drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr endXLazyVal endYLazyVal
   in
 
   List.concat <| Utils.mapi1 draw widgets
@@ -739,7 +749,7 @@ rotZoneDelta = 20
 maybeTransformCmds : List LangSvg.Attr -> Maybe (List LangSvg.TransformCmd)
 maybeTransformCmds l =
   case Utils.maybeFind "transform" l of
-    Just aval -> case aval.av_ of
+    Just aval -> case aval.interpreted of
       LangSvg.ATransform cmds -> Just cmds
       _                       -> Nothing
     _                         -> Nothing
@@ -854,7 +864,7 @@ hZoneColor = 20
 maybeColorNumAttr : String -> List LangSvg.Attr -> (Maybe NumTr, Maybe NumTr)
 maybeColorNumAttr k l =
   case Utils.maybeFind k l of
-    Just aval -> case aval.av_ of
+    Just aval -> case aval.interpreted of
       LangSvg.AColorNum (nt, maybeOpacity) -> (Just nt, maybeOpacity)
       _                                    -> (Nothing, Nothing)
     _                                      -> (Nothing, Nothing)
@@ -983,7 +993,7 @@ wStrokeWidthBox = ShapeWidgets.wStrokeWidthSlider
 maybeStrokeWidthNumAttr : List LangSvg.Attr -> Maybe NumTr
 maybeStrokeWidthNumAttr l =
   case Utils.maybeFind "stroke-width" l of
-    Just aval -> case aval.av_ of
+    Just aval -> case aval.interpreted of
       LangSvg.ANum n -> Just n
       _              -> Nothing
     _                -> Nothing
@@ -1057,7 +1067,8 @@ zoneDelete_ id shape x y transform =
       (20, 20, "silver", "2") in
   let evt =
     let foo old =
-      { old | slate = Tuple.mapSecond (Dict.insert id LangSvg.dummySvgNode) old.slate }
+      old
+      -- { old | slate = Tuple.mapSnd (Dict.insert id LangSvg.dummySvgNode) old.slate }
     in
     onMouseDown (Msg "Delete..." foo) in
   let lines =
@@ -1128,13 +1139,13 @@ svgXYDot (x, y) fill isVisible extraAttrs =
     ] ++ extraAttrs
 
 
-maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr yNumTr =
+maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr xLazyVal yNumTr yLazyVal =
   if sideLength < minLengthForMiddleZones then []
-  else zoneSelectCrossDot model False thisCrosshair xNumTr yNumTr
+  else zoneSelectCrossDot model False thisCrosshair xNumTr xLazyVal yNumTr yLazyVal
 
 zoneSelectCrossDot : Model -> Bool -> (Int, ShapeKind, PointFeature)
-                  -> NumTr -> NumTr -> List (Svg Msg)
-zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr yNumTr =
+                  -> NumTr -> LazyVal -> NumTr -> LazyVal -> List (Svg Msg)
+zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xLazyVal yNumTr yLazyVal =
   let ((xFloat, _), (yFloat, _)) = (xNumTr, yNumTr) in
   let (x, y) = (round xFloat, round yFloat) in
   let xFeatureName = ShapeWidgets.unparseFeatureNum (Just kind) (XFeat pointFeature) in
@@ -1187,7 +1198,8 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr yNumTr =
          && (alwaysShowDot ||
              Set.member id model.selectedShapes ||
              Set.member id model.hoveredShapes ||
-             Set.member thisCrosshair model.hoveredCrosshairs)
+             Set.member thisCrosshair model.hoveredCrosshairs ||
+             model.tool /= Cursor)
     in
     let extraAttrs =
       if model.tool == Cursor then
@@ -1198,10 +1210,11 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr yNumTr =
         ]
       else if model.tool == PointOrOffset then
         [ onMouseDown <| Msg "Begin Offset From Point..." <| \model ->
-            { model | mouseMode = MouseDrawNew (OffsetFromExisting (x, y) (xNumTr, yNumTr)) }
+            { model | mouseMode = MouseDrawNew (Offset1DFromExisting (x, y) NoSnap (xNumTr, yNumTr)) }
         ]
       else
-        []
+        [ onMouseDown <| Msg "Mouse Down On Point..." <| \model ->
+            { model | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xNumTr xLazyVal yNumTr yLazyVal)) } ]
     in
     svgXYDot (x, y) dotFill isVisible extraAttrs
   in
@@ -1273,8 +1286,8 @@ boxySelectZones model id kind boxyNums =
 
   let drawPoint maybeThreshold feature x y =
     case maybeThreshold of
-      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) (x, dummyTrace) (y, dummyTrace)
-      Nothing     -> zoneSelectCrossDot model False (id, kind, feature) (x, dummyTrace) (y, dummyTrace) in
+      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) (x, dummyTrace) dummyLazyVal (y, dummyTrace) dummyLazyVal
+      Nothing     -> zoneSelectCrossDot model False (id, kind, feature) (x, dummyTrace) dummyLazyVal (y, dummyTrace) dummyLazyVal in
 
   let drawLine threshold feature pt1 pt2 =
     maybeZoneSelectLine threshold model id kind feature pt1 pt2 in
@@ -1346,9 +1359,9 @@ makeZonesLine model id l =
   in
   let zonesSelect =
     List.concat
-       [ maybeZoneSelectCrossDot (distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) (cy, dummyTrace)
-       , zoneSelectCrossDot model False (id, "line", Point 1) (x1, dummyTrace) (y1, dummyTrace)
-       , zoneSelectCrossDot model False (id, "line", Point 2) (x2, dummyTrace) (y2, dummyTrace)]
+       [ maybeZoneSelectCrossDot (distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) dummyLazyVal (cy, dummyTrace) dummyLazyVal
+       , zoneSelectCrossDot model False (id, "line", Point 1) (x1, dummyTrace) dummyLazyVal (y1, dummyTrace) dummyLazyVal
+       , zoneSelectCrossDot model False (id, "line", Point 2) (x2, dummyTrace) dummyLazyVal (y2, dummyTrace) dummyLazyVal]
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
@@ -1475,10 +1488,10 @@ makeZonesPoly model shape id l =
     let midptCrossDot ((i1, ((xi1, xTr1), (yi1, yTr1))), (i2, ((xi2, xTr2), (yi2, yTr2)))) =
       let (midX, midXTr) = ((xi1+xi2)/2, TrOp Plus [xTr1, xTr2]) in -- Can't divide by two until we unify traces which will allow introduction of constants. Here it only affects drawing new offests (for now).
       let (midY, midYTr) = ((yi1+yi2)/2, TrOp Plus [yTr1, yTr2]) in -- Can't divide by two until we unify traces which will allow introduction of constants. Here it only affects drawing new offests (for now).
-      zoneSelectCrossDot model False (id, shape, Midpoint i1) (midX, midXTr) (midY, midYTr)
+      zoneSelectCrossDot model False (id, shape, Midpoint i1) (midX, midXTr) dummyLazyVal (midY, midYTr) dummyLazyVal
     in
     let ptCrossDot (i, (xNumTrI, yNumTrI)) =
-      zoneSelectCrossDot model False (id, shape, Point i) xNumTrI yNumTrI
+      zoneSelectCrossDot model False (id, shape, Point i) xNumTrI dummyLazyVal yNumTrI dummyLazyVal
     in
     let midptCrossDots =
       let ptsI = Utils.mapi1 identity pts in
@@ -1526,7 +1539,7 @@ makeZonesPath model shape id nodeAttrs =
   let zSelect =
     let ptCrossDot (maybeIndex, (xNumTr, yNumTr)) =
       let i = Utils.fromJust maybeIndex in
-      zoneSelectCrossDot model False (id, shape, Point i) xNumTr yNumTr
+      zoneSelectCrossDot model False (id, shape, Point i) xNumTr dummyLazyVal yNumTr dummyLazyVal
     in
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
     crossDots

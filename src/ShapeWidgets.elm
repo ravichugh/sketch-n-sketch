@@ -61,7 +61,7 @@ polyKindFeatures kind attrs =
   let cap = "polyKindFeatures" in
   let err s = Debug.crash <| Utils.spaces [cap, kind, ": ", s] in
   if kind == "polygon" then
-    case (Utils.find cap attrs "points").av_ of
+    case (Utils.find cap attrs "points").interpreted of
       LangSvg.APoints pts ->
         List.concatMap
           (\i -> [PointFeature (Point i), PointFeature (Midpoint i)])
@@ -69,7 +69,7 @@ polyKindFeatures kind attrs =
       _ ->
         err "polyKindFeatures: points not found"
   else if kind == "path" then
-    case (Utils.find cap attrs "d").av_ of
+    case (Utils.find cap attrs "d").interpreted of
       LangSvg.APath2 (_, pathCounts) ->
         List.concatMap
           (\i -> [PointFeature (Point i)])
@@ -474,13 +474,13 @@ widgetFeatureEquation featureName widget locIdToNumberAndLoc =
         Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
       in
       EqnNum (n, TrLoc loc)
-    WPoint (x, xTr) (y, yTr) ->
+    WPoint (x, xTr) xLazyVal (y, yTr) yLazyVal ->
       let featureNum = parseFeatureNum featureName in
       case featureNum of
         XFeat LonePoint -> EqnNum (x, xTr)
         YFeat LonePoint -> EqnNum (y, yTr)
         _               -> Debug.crash <| "WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ featureName
-    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) ->
+    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) endXLazyVal endYLazyVal ->
       let featureNum = parseFeatureNum featureName in
       let op =
         case sign of
@@ -585,11 +585,11 @@ featureEquationOf kind attrs featureNum =
     OFeat StrokeWidth -> get "stroke-width"
 
     OFeat FillOpacity ->
-      case (Utils.find_ attrs "fill").av_ of
+      case (Utils.find_ attrs "fill").interpreted of
         LangSvg.AColorNum (_, Just opacity) -> EqnNum opacity
         _                                   -> Debug.crash "featureEquationOf: fillOpacity"
     OFeat StrokeOpacity ->
-      case (Utils.find_ attrs "stroke").av_ of
+      case (Utils.find_ attrs "stroke").interpreted of
         LangSvg.AColorNum (_, Just opacity) -> EqnNum opacity
         _                                   -> Debug.crash "featureEquationOf: strokeOpacity"
     OFeat Rotation ->
@@ -769,7 +769,7 @@ getPointEquations kind attrs pointFeature =
 
 getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
 getPrimitivePointEquations (_, tree) nodeId =
-  case Utils.justGet_ "LangSvg.getPrimitivePoints" nodeId tree of
+  case Utils.justGet_ "LangSvg.getPrimitivePoints" nodeId tree |> .interpreted of
     LangSvg.SvgNode kind attrs _ ->
       List.concatMap (\pointFeature ->
         case getPointEquations kind attrs pointFeature of

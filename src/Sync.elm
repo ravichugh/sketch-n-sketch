@@ -129,7 +129,7 @@ getLocationCounts options (slate, widgets) =
       -- because literal bounds will be unambiguously controlled by
       -- corner zones (and because bounding boxes are used often for
       -- stretchy shapes and groups), increase the bias against them
-      case (kind, attrName, attrVal.av_) of
+      case (kind, attrName, attrVal.interpreted) of
         ("BOX", "LEFT",  ANum (_, TrLoc _)) -> 2
         ("BOX", "RIGHT", ANum (_, TrLoc _)) -> 2
         ("BOX", "TOP",   ANum (_, TrLoc _)) -> 2
@@ -150,10 +150,10 @@ getLocationCounts options (slate, widgets) =
   in
   let addTriggerWidget widget acc =
     case widget of
-      WIntSlider _ _ _ _ loc _  -> updateCount loc acc
-      WNumSlider _ _ _ _ loc _  -> updateCount loc acc
-      WPoint (_, t1) (_, t2)    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
-      WOffset1D _ _ _ _ (_, tr) -> Set.foldl updateCount acc (locsOfTrace options tr)
+      WIntSlider _ _ _ _ loc _      -> updateCount loc acc
+      WNumSlider _ _ _ _ loc _      -> updateCount loc acc
+      WPoint (_, t1) _ (_, t2) _    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
+      WOffset1D _ _ _ _ (_, tr) _ _ -> Set.foldl updateCount acc (locsOfTrace options tr)
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
   let d_ = List.foldl addTriggerWidget d widgets in
@@ -166,7 +166,7 @@ tracesOfAVals avals = List.foldl (\av acc -> tracesOfAVal av ++ acc) [] avals
 
 tracesOfAVal : AVal -> List Trace
 tracesOfAVal aval =
-  case aval.av_ of
+  case aval.interpreted of
     ANum (_,t) -> [t]
 
     AColorNum ((_,t), Nothing)     -> [t]
@@ -410,7 +410,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WPoint (x, xTrace) (y, yTrace) ->
+      WPoint (x, xTrace) xLazyVal (y, yTrace) yLazyVal ->
         addTrigger options idAsShape (ZPoint LonePoint) [xTrace, yTrace]
         ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
             mapMaybeToList xMaybeLoc (\xLoc ->
@@ -424,7 +424,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WOffset1D baseXNumTr baseYNumTr axis sign (amount, amountTrace) ->
+      WOffset1D baseXNumTr baseYNumTr axis sign (amount, amountTrace) endXLazyVal endYLazyVal ->
         addTrigger options idAsShape ZOffset1D [amountTrace]
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
@@ -1003,7 +1003,7 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
   let finishTrigger = addTrigger options id in
 
   let maybeAddColorTrigger realZone fillOrStroke (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind fillOrStroke attrs) of
+    case Utils.maybeFind fillOrStroke attrs |> Maybe.map .interpreted of
 
       Just (AColorNum ((color, colorTrace), _)) ->
         finishTrigger realZone [colorTrace] (\assignedMaybeLocs ->
@@ -1019,7 +1019,7 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
       _ -> (dict, maybeCounts) in
 
   let maybeAddOpacityTrigger realZone fillOrStroke (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind fillOrStroke attrs) of
+    case Utils.maybeFind fillOrStroke attrs |> Maybe.map .interpreted of
 
       Just (AColorNum (_, (Just (opacity, opacityTrace)))) ->
         finishTrigger realZone [opacityTrace] (\assignedMaybeLocs ->
@@ -1035,7 +1035,7 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
       _ -> (dict, maybeCounts) in
 
   let maybeAddStrokeWidthTrigger realZone (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind "stroke-width" attrs) of
+    case Utils.maybeFind "stroke-width" attrs |> Maybe.map .interpreted of
 
       Just (ANum (width, widthTrace)) ->
         finishTrigger realZone [widthTrace] (\assignedMaybeLocs ->
@@ -1051,7 +1051,7 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
       _ -> (dict, maybeCounts) in
 
   let maybeAddRotationTrigger realZone (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind "transform" attrs) of
+    case Utils.maybeFind "transform" attrs |> Maybe.map .interpreted of
 
       Just (ATransform [Rot (rot, rotTrace) (cx, _) (cy ,_)]) ->
         finishTrigger realZone [rotTrace] (\assignedMaybeLocs ->

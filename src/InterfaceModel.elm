@@ -110,7 +110,7 @@ type alias Model =
   , mouseMode : MouseMode
   , dimensions : Window.Size
 
-  , mouseState : (Maybe Bool, Mouse.Position)
+  , mouseState : (Maybe Bool, Mouse.Position, Maybe Clickable)
       -- mouseState ~= (Mouse.isDown, Mouse.position)
       --  Nothing    : isDown = False
       --  Just False : isDown = True and position unchanged since isDown became True
@@ -219,6 +219,9 @@ type alias CodeBoxInfo =
 
 type alias RawSvg = String
 
+type Clickable
+  = PointWithProvenance NumTr LazyVal NumTr LazyVal
+
 type MouseMode
   = MouseNothing
   | MouseDrag (Mouse.Position -> Mouse.Position -> Model -> Model)
@@ -242,13 +245,46 @@ type MouseMode
 
 type alias MouseTrigger a = (Int, Int) -> a
 
+traceToMaybeEId model tr =
+  case tr of
+    TrLoc (locId, _, _) -> locIdToEId model.inputExp locId
+    _                   -> Nothing
+
+-- May or may not make this stateful. I don't like stateful.
+isTraceInModelHighlights model tr =
+  -- Only singular locs for now.
+  case (model.mouseMode, traceToMaybeEId model tr) of
+    (MouseDrawNew shapeBeingDrawn, Just traceEId) ->
+      snapsOfShapeBeingDrawn shapeBeingDrawn
+      |> List.any ((==) (SnapEId traceEId))
+
+    _ ->
+      False
+
+snapsOfShapeBeingDrawn shapeBeingDrawn =
+  case shapeBeingDrawn of
+    NoPointsYet                   -> []
+    TwoPoints _ _                 -> []
+    PolyPoints _                  -> []
+    PathPoints _                  -> []
+    Offset1DFromExisting _ snap _ -> [snap]
+
+
+type Snap
+  = NoSnap
+  | SnapEId EId
+
+type alias IntSnap = (Int, Snap) -- like NumTr
+
+type alias PointWithSnap = (IntSnap, IntSnap)
+
 -- Oldest/base point is last in all of these.
 type ShapeBeingDrawn
   = NoPointsYet -- For shapes drawn by dragging, no points until the mouse moves after the mouse-down.
   | TwoPoints (KeysDown, (Int, Int)) (KeysDown, (Int, Int)) -- KeysDown should probably be refactored out
-  | PolyPoints (List (Int, Int))
+  | PolyPoints (List PointWithSnap)
   | PathPoints (List (KeysDown, (Int, Int))) -- KeysDown should probably be replaced with a more semantic represenation of point type
-  | OffsetFromExisting (Int, Int) (NumTr, NumTr)
+  | Offset1DFromExisting (Int, Int) Snap (NumTr, NumTr) -- Snap is separate here because it is unidimensional
 
 
 -- type alias ShowZones = Bool
@@ -473,7 +509,7 @@ showDeuceRightClickMenu
 showDeuceRightClickMenu offsetX offsetY menuMode model =
   let
     mousePos =
-      Tuple.second model.mouseState
+      Utils.snd3 model.mouseState
     oldPopupPanelPositions =
       model.popupPanelPositions
   in
@@ -959,7 +995,7 @@ initModel =
     , mode          = liveModeInfo
     , mouseMode     = MouseNothing
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
-    , mouseState    = (Nothing, {x = 0, y = 0})
+    , mouseState    = (Nothing, {x = 0, y = 0}, Nothing)
     , syncOptions   = Sync.defaultOptions
     , caption       = Nothing
     , showGhosts    = True

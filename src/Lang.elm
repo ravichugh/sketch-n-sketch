@@ -56,16 +56,9 @@ type alias WithInfo a =
   , end : Pos
   }
 
-withInfo : a -> Pos -> Pos -> WithInfo a
-withInfo x start end =
-  { val = x
-  , start = start
-  , end = end
-  }
-
 withDummyInfo : a -> WithInfo a
 withDummyInfo x =
-  withInfo x dummyPos dummyPos
+  WithInfo x dummyPos dummyPos
 
 hasDummyInfo : WithInfo a -> Bool
 hasDummyInfo w =
@@ -144,6 +137,7 @@ type Op_
   | Sqrt
   | Explode
   | DebugLog
+  | NoWidgets
   --  | DictMem   -- TODO: add this
   -- binary ops
   | Plus | Minus | Mult | Div
@@ -233,11 +227,16 @@ type WidgetDecl_
 type Axis = X | Y
 type Sign = Positive | Negative
 
+type LazyVal = LazyVal Env Exp
+
+lazyValEnv (LazyVal env exp) = env
+lazyValExp (LazyVal env exp) = exp
+
 type Widget
   = WIntSlider Int Int String Int Loc Bool
   | WNumSlider Num Num String Num Loc Bool
-  | WPoint NumTr NumTr
-  | WOffset1D NumTr NumTr Axis Sign NumTr
+  | WPoint NumTr LazyVal NumTr LazyVal
+  | WOffset1D NumTr NumTr Axis Sign NumTr LazyVal LazyVal -- baseXNumTr baseYNumTr axis sign amountNumTr endXLazyVal endYLazyVal
 
 type alias Widgets = List Widget
 
@@ -245,11 +244,10 @@ type alias Token = WithInfo String
 
 type alias Caption = Maybe (WithInfo String)
 
-type alias VTrace = List EId
-type alias Val    = { v_ : Val_, vtrace : VTrace }
+type alias Val = { v_ : Val_, lazyVal : LazyVal, parents : List LazyVal }
 
 type Val_
-  = VConst (Maybe (Axis, NumTr)) NumTr -- Maybe (Axis, value in other dimention)
+  = VConst (Maybe (Axis, NumTr, LazyVal)) NumTr -- Maybe (Axis, value in other dimension, lazyVal in other dimension)
   | VBase VBaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
@@ -421,8 +419,8 @@ strNumTrunc k =
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
   let foo = strVal_ showTraces in
-  let sTrace = if showTraces then Utils.braces (toString v.vtrace) else "" in
-  sTrace ++
+  -- let sTrace = if showTraces then Utils.braces (toString v.lazyVal) else "" in
+  -- sTrace ++
   case v.v_ of
     VConst maybeAxis (i,tr) -> strNum i ++ if showTraces then Utils.angleBracks (toString maybeAxis) ++ Utils.braces (strTrace tr) else ""
     VBase b                 -> strBaseVal b
@@ -456,6 +454,7 @@ strOp op = case op of
   DictGet       -> "get"
   DictRemove    -> "remove"
   DebugLog      -> "debug"
+  NoWidgets     -> "noWidgets"
 
 strLoc (k, b, mx) =
   "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
@@ -1473,8 +1472,8 @@ strPos p =
 
 -- NOTE: the Exp builders use dummyPos
 
-val : Val_ -> Val
-val = flip Val [-1]
+-- val : Val_ -> Val
+-- val = flip Val (LazyVal [] dummyExp)
 
 exp_ : Exp__ -> Exp_
 exp_ = flip Exp_ (-1)
@@ -1544,8 +1543,9 @@ clearNodeIds e =
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)
 
-dummyLoc = dummyLoc_ unann
-dummyTrace = dummyTrace_ unann
+dummyLoc     = dummyLoc_ unann
+dummyTrace   = dummyTrace_ unann
+dummyLazyVal = LazyVal [] (eTuple0 [])
 
 eOp op_ es = withDummyExpInfo <| EOp space1 (withDummyRange op_) es space0
 
@@ -1637,14 +1637,14 @@ pAs x p        = withDummyPatInfo <| PAs space1 x space1 p
 pListOfPVars names = pList (listOfPVars names)
 
 -- note: dummy ids...
-vTrue    = vBool True
-vFalse   = vBool False
-vBool    = val << VBase << VBool
-vStr     = val << VBase << VString
-vConst   = val << VConst Nothing
-vBase    = val << VBase
-vList    = val << VList
-vDict    = val << VDict
+-- vTrue    = vBool True
+-- vFalse   = vBool False
+-- vBool    = val << VBase << VBool
+-- vStr     = val << VBase << VString
+-- vConst   = val << VConst Nothing
+-- vBase    = val << VBase
+-- vList    = val << VList
+-- vDict    = val << VDict
 
 unwrapVList : Val -> Maybe (List Val_)
 unwrapVList v =
@@ -2410,7 +2410,7 @@ childCodeObjects co =
             ) ++
             ( case Utils.maybeLast ps of
                 Just pLast ->
-                  [ PT After (withInfo "" pLast.end pLast.end) e pLast
+                  [ PT After (WithInfo "" pLast.end pLast.end) e pLast
                   ]
                 Nothing ->
                   []

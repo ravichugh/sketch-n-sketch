@@ -1488,6 +1488,8 @@ toolButton model tool =
     cap = case tool of
       Cursor ->
         "Cursor"
+      PointOrOffset ->
+        "Point or Offset"
       Line _ ->
         "Line"
       Rect _ ->
@@ -1504,8 +1506,6 @@ toolButton model tool =
         "(Rule)"
       Lambda _ ->
         "Lambda" -- Utils.uniLambda
-      _ ->
-        Debug.crash ("toolButton: " ++ toString tool)
     -- TODO temporarily disabling a couple tools
     (btnKind, disabled) =
      case (model.tool == tool, tool) of
@@ -1582,6 +1582,7 @@ toolPanel model =
           ]
       ]
       ( [ toolButton model Cursor
+        , toolButton model PointOrOffset
         , toolButton model Text
         , toolButton model (Line model.toolMode)
         , toolButton model (Rect model.toolMode)
