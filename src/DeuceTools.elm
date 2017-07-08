@@ -127,6 +127,45 @@ oneOrMoreNumsOnly selections =
       False
 
 --------------------------------------------------------------------------------
+-- Predicates
+--------------------------------------------------------------------------------
+
+type PredicateValue
+    -- Good to go, and can accept no more arguments
+  = FullySatisfied
+    -- Good to go, but can accept more arguments if necessary
+  | Satisfied
+    -- Not yet good to go, but with more arguments may be okay
+  | Possible
+    -- Not good to go, and no additional arguments will make a difference
+  | Impossible
+
+-- NOTE: Descriptions should be an *action* in sentence case with no period at
+--       the end, e.g.:
+--         * Select a boolean value
+--         * Select 4 integers
+type alias Predicate =
+  { description : String
+  , value : PredicateValue
+  }
+
+satisfied : Predicate -> Bool
+satisfied pred =
+  case pred.value of
+    FullySatisfied ->
+      True
+    Satisfied ->
+      True
+    Possible ->
+      False
+    Impossible ->
+      False
+
+allSatisfied : List Predicate -> Bool
+allSatisfied =
+  List.all satisfied
+
+--------------------------------------------------------------------------------
 -- Deuce Tools
 --------------------------------------------------------------------------------
 
@@ -136,6 +175,7 @@ type alias DeuceTransformation =
 type alias DeuceTool =
   { name : String
   , func : Maybe DeuceTransformation
+  , reqs : List Predicate -- requirements to run the tool
   }
 
 --------------------------------------------------------------------------------
@@ -144,23 +184,36 @@ type alias DeuceTool =
 
 makeEqualTool : Model -> Selections -> DeuceTool
 makeEqualTool model selections =
-  { name = "Make Equal (New Variable)"
-  , func =
+  let
+    (func, literalPredVal) =
       case selections of
         (nums, baseVals, exps, [], [], [], []) ->
           let
             literals =
               List.map Left nums ++ List.map Right baseVals
           in
-            if
-              List.length literals >= 2 &&
-              List.length literals == List.length exps
-            then
-              CodeMotion.makeEqualTransformation model literals
+            if List.length literals /= List.length exps then
+              (Nothing, Impossible)
+            else if List.length literals < 2 then
+              (Nothing, Possible)
             else
-              Nothing
-        _ -> Nothing
-  }
+              ( CodeMotion.makeEqualTransformation model literals
+              , Satisfied
+              )
+        _ ->
+          (Nothing, Impossible)
+  in
+    { name = "Make Equal (New Variable)"
+    , func = func
+    , reqs =
+        [ { description =
+              "Select two or more literals"
+          , value =
+              literalPredVal
+          }
+        ]
+    }
+
 
 --------------------------------------------------------------------------------
 -- Flip Boolean
@@ -171,8 +224,8 @@ makeEqualTool model selections =
 
 flipBooleanTool : Model -> Selections -> DeuceTool
 flipBooleanTool model selections =
-  { name = "Flip Boolean"
-  , func =
+  let
+    (func, boolPredVal) =
       case selections of
         ([], [_], [eId], [], [], [], []) ->
           case findExpByEId model.inputExp eId of
@@ -185,11 +238,26 @@ flipBooleanTool model selections =
                     newExp =
                       replaceExpNode eId flipped model.inputExp
                   in
-                    Just <| \() -> oneSafeResult newExp
-                _ -> Nothing
-            _ -> Nothing
-        _ -> Nothing
-  }
+                    (Just <| \() -> oneSafeResult newExp, FullySatisfied)
+                _ ->
+                  (Nothing, Impossible)
+            _ ->
+              (Nothing, Impossible)
+        ([], [], [], [], [], [], []) ->
+          (Nothing, Possible)
+        _ ->
+          (Nothing, Impossible)
+  in
+    { name = "Flip Boolean"
+    , func = func
+    , reqs =
+        [ { description =
+              "Select a boolean value"
+          , value =
+              boolPredVal
+          }
+        ]
+    }
 
 --------------------------------------------------------------------------------
 -- Rename Pattern
@@ -198,30 +266,43 @@ flipBooleanTool model selections =
 renamePatternTool : Model -> Selections -> DeuceTool
 renamePatternTool model selections =
   let
-    disabledTool =
-      { name = "Rename Pattern"
-      , func = Nothing
-      }
-  in
-    case selections of
-      ([], [], [], [pathedPatId], [], [], []) ->
-        case
-          LangTools.findPat pathedPatId model.inputExp
-            |> Maybe.andThen LangTools.patToMaybeIdent
-        of
-          Just ident ->
-            { name = "Rename " ++ ident
-            , func =
-                Just <|
+    disabledName =
+      "Rename Pattern"
+    (name, func, patPredVal) =
+      case selections of
+        ([], [], [], [pathedPatId], [], [], []) ->
+          case
+            LangTools.findPat pathedPatId model.inputExp
+              |> Maybe.andThen LangTools.patToMaybeIdent
+          of
+            Just ident ->
+              ( "Rename " ++ ident
+              , Just <|
                   \() ->
                     let
                       newName =
                         model.deuceState.renameVarTextBox
                     in
                       CodeMotion.renamePat pathedPatId newName model.inputExp
-            }
-          _ -> disabledTool
-      _ -> disabledTool
+              , FullySatisfied
+              )
+            _ ->
+              (disabledName, Nothing, Impossible)
+        ([], [], [], [], [], [], []) ->
+          (disabledName, Nothing, Possible)
+        _ ->
+          (disabledName, Nothing, Impossible)
+  in
+    { name = name
+    , func = func
+    , reqs =
+        [ { description =
+              "Select a pattern identifier"
+          , value =
+              patPredVal
+          }
+        ]
+    }
 
 --------------------------------------------------------------------------------
 -- Rename Variable
@@ -230,30 +311,42 @@ renamePatternTool model selections =
 renameVariableTool : Model -> Selections -> DeuceTool
 renameVariableTool model selections =
   let
-    disabledTool =
-      { name = "Rename Variable"
-      , func = Nothing
-      }
-  in
-    case selections of
-      ([], [], [eId], [], [], [], []) ->
-        case findExpByEId model.inputExp eId of
-          Just ePlucked ->
-            case ePlucked.val.e__ of
-              EVar _ ident ->
-                let
-                   newName =
-                    model.deuceState.renameVarTextBox
-                in
-                  { name = "Rename All " ++ ident
-                  , func =
-                      Just <|
+    disabledName =
+      "Rename Variable"
+    (name, func, varPredVal) =
+      case selections of
+        ([], [], [eId], [], [], [], []) ->
+          case findExpByEId model.inputExp eId of
+            Just ePlucked ->
+              case ePlucked.val.e__ of
+                EVar _ ident ->
+                  let
+                     newName =
+                      model.deuceState.renameVarTextBox
+                  in
+                    ( "Rename All " ++ ident
+                    , Just <|
                         \() ->
                           CodeMotion.renameVar eId newName model.inputExp
-                  }
-              _ -> disabledTool
-          _ -> disabledTool
-      _ -> disabledTool
+                    , FullySatisfied
+                    )
+                _ -> (disabledName, Nothing, Impossible)
+            _ -> (disabledName, Nothing, Impossible)
+        ([], [], [], [], [], [], []) ->
+          (disabledName, Nothing, Possible)
+        _ ->
+          (disabledName, Nothing, Impossible)
+  in
+    { name = name
+    , func = func
+    , reqs =
+        [ { description =
+              "Select a variable"
+          , value =
+              varPredVal
+          }
+        ]
+    }
 
 --------------------------------------------------------------------------------
 -- Swap Usages
@@ -276,6 +369,7 @@ swapUsagesTool model selections =
                   CodeMotion.swapUsages pathedPatId1 pathedPatId2 model.inputExp
             _ -> Nothing
         _ -> Nothing
+  , reqs = [] -- TODO reqs
   }
 
 --------------------------------------------------------------------------------
@@ -311,6 +405,7 @@ swapNamesAndUsagesTool model selections =
                          ]
             _ -> Nothing
         _ -> Nothing
+  , reqs = [] -- TODO reqs
   }
 
 --------------------------------------------------------------------------------
@@ -323,6 +418,7 @@ inlineDefinitionTool model selections =
     disabledTool =
       { name = "Rename Pattern"
       , func = Nothing
+      , reqs = [] -- TODO reqs
       }
   in
     case selections of
@@ -335,6 +431,7 @@ inlineDefinitionTool model selections =
             Just <|
               \() ->
                 CodeMotion.inlineDefinitions pathedPatIds model.inputExp
+        , reqs = [] -- TODO reqs
         }
       ([], [], [], [], letEIds, [], []) ->
         { name =
@@ -345,6 +442,7 @@ inlineDefinitionTool model selections =
                 CodeMotion.inlineDefinitions
                   (letEIds |> List.map (\letEId -> ((letEId, 1), [])))
                   model.inputExp
+        , reqs = [] -- TODO reqs
         }
       _ ->
         disabledTool
@@ -438,6 +536,7 @@ introduceVariableTool model selections =
     disabledTool =
       { name = "Introduce Variable"
       , func = Nothing
+      , reqs = [] -- TODO reqs
       }
   in
     case selections of
@@ -451,6 +550,7 @@ introduceVariableTool model selections =
               model
               exps
               (PatTargetPosition patTarget)
+        , reqs = [] -- TODO reqs
         }
       (_, _, exps, [], [], [expTarget], []) ->
         { name =
@@ -460,6 +560,7 @@ introduceVariableTool model selections =
               model
               exps
               (ExpTargetPosition expTarget)
+        , reqs = [] -- TODO reqs
         }
       _ ->
         disabledTool
@@ -489,6 +590,7 @@ eliminateCommonSubExpressionTool model selections =
               Nothing
         _ ->
           Nothing
+  , reqs = [] -- TODO reqs
   }
 
 --------------------------------------------------------------------------------
@@ -515,6 +617,7 @@ copyExpressionTool model selections =
               Nothing
         _ ->
           Nothing
+  , reqs = [] -- TODO reqs
   }
 
 --------------------------------------------------------------------------------
@@ -527,6 +630,7 @@ moveDefinitionTool model selections =
     disabledTool =
       { name = "Rename Pattern"
       , func = Nothing
+      , reqs = [] -- TODO reqs
       }
   in
     case selections of
@@ -542,6 +646,7 @@ moveDefinitionTool model selections =
                   pathedPatIds
                   eId
                   model.inputExp
+        , reqs = [] -- TODO reqs
         }
       ([], [], [], pathedPatIds, [], [], [patTarget]) ->
         let
@@ -564,6 +669,7 @@ moveDefinitionTool model selections =
                         pathedPatIds
                         targetPathedPatId
                         model.inputExp
+              , reqs = [] -- TODO reqs
               }
             _ -> disabledTool
       ([], [], [], [], [letEId], [(Before, eId)], []) ->
@@ -577,6 +683,7 @@ moveDefinitionTool model selections =
                   [((letEId, 1), [])]
                   eId
                   model.inputExp
+        , reqs = [] -- TODO reqs
         }
       ([], [], [], [], letEIds, [(Before, eId)], []) ->
         { name = "Move Definitions"
@@ -587,6 +694,7 @@ moveDefinitionTool model selections =
                   letEIds
                   eId
                   model.inputExp
+        , reqs = [] -- TODO reqs
         }
       _ ->
         disabledTool
@@ -601,6 +709,7 @@ duplicateDefinitionTool model selections =
     disabledTool =
       { name = "Duplicate Definition"
       , func = Nothing
+      , reqs = [] -- TODO reqs
       }
   in
     case selections of
@@ -616,6 +725,7 @@ duplicateDefinitionTool model selections =
                 pathedPatIds
                 eId
                 model.inputExp
+      , reqs = [] -- TODO reqs
       }
     ([], [], [], pathedPatIds, [], [], [patTarget]) ->
       let
@@ -638,6 +748,7 @@ duplicateDefinitionTool model selections =
                       pathedPatIds
                       targetPathedPatId
                       model.inputExp
+            , reqs = [] -- TODO reqs
             }
           _ -> disabledTool
     _ -> disabledTool
@@ -655,6 +766,7 @@ thawFreezeTool model selections =
     disabledTool =
       { name = "Thaw/Freeze"
       , func = Nothing
+      , reqs = [] -- TODO reqs
       }
     (nums, _, _, _, _, _, _) =
       selections
@@ -716,6 +828,7 @@ thawFreezeTool model selections =
                       toolName
                       (applyESubst eSubst model.inputExp)
                   ]
+        , reqs = [] -- TODO reqs
         }
 
 --------------------------------------------------------------------------------
@@ -731,6 +844,7 @@ showHideRangeTool model selections =
     disabledTool =
       { name = "Show/Hide Sliders"
       , func = Nothing
+      , reqs = [] -- TODO reqs
       }
     (nums, _, _, _, _, _, _) =
       selections
@@ -802,6 +916,7 @@ showHideRangeTool model selections =
                         toolName
                         (applyESubst eSubst model.inputExp)
                     ]
+          , reqs = [] -- TODO reqs
           }
 
 --------------------------------------------------------------------------------
@@ -824,6 +939,7 @@ addRemoveRangeTool model selections =
     disabledTool =
       { name = "Add/Remove Sliders"
       , func = Nothing
+      , reqs = [] -- TODO reqs
       }
     (nums, _, _, _, _, _, _) =
       selections
@@ -897,6 +1013,7 @@ addRemoveRangeTool model selections =
                         toolName
                         (applyESubst eSubst model.inputExp)
                     ]
+          , reqs = [] -- TODO reqs
           }
 
 --------------------------------------------------------------------------------
@@ -930,6 +1047,7 @@ rewriteOffsetTool model selections =
               Utils.maybePluralize "Rewrite as Offset" nums
     , func =
         func
+    , reqs = [] -- TODO reqs
     }
 
 --------------------------------------------------------------------------------
@@ -937,8 +1055,6 @@ rewriteOffsetTool model selections =
 --------------------------------------------------------------------------------
 -- TODO This function does not rely on CodeMotion, so it is probably doing too
 --      much.
---------------------------------------------------------------------------------
--- TODO
 --------------------------------------------------------------------------------
 
 -- convertColorStringTool : Model -> Selections -> DeuceTool
@@ -1079,6 +1195,7 @@ createFunctionTool model selections =
               Nothing
         _ ->
           Nothing
+  , reqs = [] -- TODO reqs
   }
 
 --------------------------------------------------------------------------------
@@ -1112,6 +1229,7 @@ mergeTool model selections =
               Nothing
         _ ->
           Nothing
+  , reqs = [] -- TODO reqs
   }
 
 --------------------------------------------------------------------------------
@@ -1124,6 +1242,7 @@ addArgumentsTool model selections =
     disabledTool =
       { name = "Add Argument"
       , func = Nothing
+      , reqs = [] -- TODO reqs
       }
   in
     case selections of
@@ -1156,6 +1275,7 @@ addArgumentsTool model selections =
                             (Utils.head_ eids)
                             targetPathedPatId
                             model.inputExp
+                  , reqs = [] -- TODO reqs
                   }
                 else if isAllSelectedExpsInFBody then
                   { name = "Add Arguments" -- Fowler calls this "Add Parameter"
@@ -1166,6 +1286,7 @@ addArgumentsTool model selections =
                             eids
                             targetPathedPatId
                             model.inputExp
+                  , reqs = [] -- TODO reqs
                   }
                 else
                   disabledTool
@@ -1209,6 +1330,7 @@ addArgumentsTool model selections =
                             (Utils.head_ argSourcePathedPatIds)
                             targetPathedPatId
                             model.inputExp
+                  , reqs = [] -- TODO reqs
                   }
                 else if isAllSelectedPatsInFBody then
                   { name = "Add Arguments" -- Fowler calls this "Add Parameter"
@@ -1219,6 +1341,7 @@ addArgumentsTool model selections =
                             argSourcePathedPatIds
                             targetPathedPatId
                             model.inputExp
+                  , reqs = [] -- TODO reqs
                   }
                 else
                   disabledTool
@@ -1237,6 +1360,7 @@ removeArgumentsTool model selections =
     disabledTool =
       { name = "Remove Argument"
       , func = Nothing
+      , reqs = [] -- TODO reqs
       }
   in
     case selections of
@@ -1272,6 +1396,7 @@ removeArgumentsTool model selections =
                     CodeMotion.removeArg
                       (Utils.head_ pathedPatIds)
                       model.inputExp
+            , reqs = [] -- TODO reqs
             }
           else if isAllArgumentSelected then
             { name = "Remove Arguments"
@@ -1281,6 +1406,7 @@ removeArgumentsTool model selections =
                     CodeMotion.removeArgs
                       pathedPatIds
                       model.inputExp
+            , reqs = [] -- TODO reqs
             }
           else
             disabledTool
@@ -1301,6 +1427,7 @@ removeArgumentsTool model selections =
                     CodeMotion.removeArg
                       argPathedPatId
                       model.inputExp
+            , reqs = [] -- TODO reqs
             }
           Just argPathedPatIds ->
             { name = "Remove Arguments"
@@ -1310,6 +1437,7 @@ removeArgumentsTool model selections =
                     CodeMotion.removeArgs
                     argPathedPatIds
                     model.inputExp
+            , reqs = [] -- TODO reqs
             }
           _ ->
             disabledTool
@@ -1395,6 +1523,7 @@ reorderArgumentsTool model selections =
               Nothing
         _ ->
           Nothing
+  , reqs = [] -- TODO reqs
   }
 
 --------------------------------------------------------------------------------
@@ -1406,6 +1535,7 @@ reorderListTool model selections =
   { name = "Reorder List"
   , func =
       CodeMotion.reorderEListTransformation model selections
+  , reqs = [] -- TODO reqs
   }
 
 --------------------------------------------------------------------------------
@@ -1557,6 +1687,7 @@ makeSingleLineTool model selections =
                         |> Utils.singleton
               else
                 Nothing
+    , reqs = [] -- TODO reqs
     }
 
 --------------------------------------------------------------------------------
@@ -1638,6 +1769,7 @@ makeMultiLineTool model selections =
                 Nothing
         _ ->
           Nothing
+  , reqs = [] -- TODO reqs
   }
 
 --------------------------------------------------------------------------------
@@ -1693,6 +1825,7 @@ alignExpressionsTool model selections =
                       |> Utils.singleton
         _ ->
           Nothing
+  , reqs = [] -- TODO reqs
   }
 
 --==============================================================================
