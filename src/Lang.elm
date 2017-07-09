@@ -1948,9 +1948,10 @@ pushRight spaces e =
 --------------------------------------------------------------------------------
 
 type CodeObject
-  = E Exp
-  | P Exp Pat -- Patterns know their parent
-  | T Type
+  = E Exp -- Expression
+  | P Exp Pat -- Pattern; knows own parent
+  | T Type -- Type
+  | LBE (WithInfo EId) -- Let binding equation
   | ET BeforeAfter WS Exp -- Exp target
   | PT BeforeAfter WS Exp Pat -- Pat target (knows the parent of its target)
   | TT BeforeAfter WS Type -- Type target
@@ -1964,6 +1965,8 @@ extractInfoFromCodeObject codeObject =
       { p | val = codeObject }
     T t ->
       { t | val = codeObject }
+    LBE eid ->
+      { eid | val = codeObject }
     ET _ ws _ ->
       { ws | val = codeObject }
     PT _ ws _ _ ->
@@ -1979,6 +1982,8 @@ isTarget codeObject =
     P _ _ ->
       False
     T _ ->
+      False
+    LBE _ ->
       False
     ET _ _ _ ->
       True
@@ -2105,6 +2110,18 @@ childCodeObjects co =
             )
           ELet ws1 lk _ p1 e1 e2 ws2 ->
             [ ET Before ws1 e
+            , LBE
+                { start =
+                    { line =
+                        e.start.line
+                    , col =
+                        e.start.col + 1
+                    }
+                , end =
+                    e1.end
+                , val =
+                    e.val.eid
+                }
             , P e p1
             , E e1
             ] ++
@@ -2266,6 +2283,8 @@ childCodeObjects co =
             ]
           TWildcard ws1 ->
             [ TT Before ws1 t ]
+    LBE _ ->
+      []
     ET _ _ _ ->
       []
     PT _ _ _ _ ->

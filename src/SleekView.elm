@@ -711,6 +711,8 @@ menuBar model =
                         Controller.msgSetOutputPrint
                     ]
                 ]
+              , [ simpleTextButton "Text Select" Controller.msgTextSelect
+                ]
               ]
           ]
       -- Quick Action Bar disabled for now

@@ -26,12 +26,14 @@ import InterfaceModel as Model exposing
 import InterfaceController as Controller
 
 import Lang exposing
-  ( WS
+  ( WithInfo
+  , WS
   , BeforeAfter
   , Exp
   , Exp__(..)
   , Pat
   , LetKind(..)
+  , EId
   , PId
   , PathedPatternId
   , CodeObject(..)
@@ -45,6 +47,7 @@ import Lang exposing
 import DeuceWidgets exposing
   ( DeuceState
   , DeuceWidget(..)
+  , toDeuceWidget
   )
 
 --==============================================================================
@@ -82,8 +85,8 @@ rgbaString c a =
 
 -- (startCol, startRow, endCol, endRow)
 -- NOTE: 0-indexed.
-startEnd : CodeObject -> Bool -> (Int, Int, Int, Int)
-startEnd codeObject isLetBinding =
+startEnd : CodeObject -> (Int, Int, Int, Int)
+startEnd codeObject =
   let
     infoToTuple info =
       ( info.start.col
@@ -94,23 +97,15 @@ startEnd codeObject isLetBinding =
     (startCol, startLine, endCol, endLine) =
       case codeObject of
         E e ->
-          case (isLetBinding, e.val.e__) of
-            (True, ELet _ _ _ _ binding _ _) ->
-              ( e.start.col + 1
-              , e.start.line
-              , binding.end.col
-              , binding.end.line
-              )
-            _ ->
-              let
-                endExp =
-                  firstNestedExp e
-              in
-                ( e.start.col
-                , e.start.line
-                , endExp.end.col
-                , endExp.end.line
-                )
+          let
+            endExp =
+              firstNestedExp e
+          in
+            ( e.start.col
+            , e.start.line
+            , endExp.end.col
+            , endExp.end.line
+            )
         _ ->
           infoToTuple << extractInfoFromCodeObject <| codeObject
   in
@@ -354,13 +349,13 @@ hull codeInfo useTrimmed startCol startRow endCol endRow =
         , (endCol, startRow)
         ]
 
-codeObjectHull : CodeInfo -> CodeObject -> Bool -> Hull
-codeObjectHull codeInfo codeObject isLetBinding =
+codeObjectHull : CodeInfo -> CodeObject -> Hull
+codeObjectHull codeInfo codeObject =
   let
     useTrimmed =
       (not << isTarget) codeObject
     (startCol, startRow, endCol, endRow) =
-      startEnd codeObject isLetBinding
+      startEnd codeObject
   in
     hull codeInfo useTrimmed startCol startRow endCol endRow
 
@@ -372,9 +367,9 @@ hullPoints =
   in
     String.concat << List.map pairToString
 
-codeObjectHullPoints : CodeInfo -> CodeObject -> Bool -> String
-codeObjectHullPoints codeInfo codeObject isLetBinding =
-  hullPoints <| codeObjectHull codeInfo codeObject isLetBinding
+codeObjectHullPoints : CodeInfo -> CodeObject -> String
+codeObjectHullPoints codeInfo codeObject =
+  hullPoints <| codeObjectHull codeInfo codeObject
 
 --==============================================================================
 --= POLYGONS
@@ -395,8 +390,8 @@ strokeWidth = "2px"
 --------------------------------------------------------------------------------
 
 circleHandles
-  : CodeInfo -> CodeObject -> Bool -> Color -> Opacity -> Float -> Svg Msg
-circleHandles codeInfo codeObject isLetBinding color opacity radius =
+  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
+circleHandles codeInfo codeObject color opacity radius =
   let
     radiusString =
       toString radius
@@ -414,7 +409,7 @@ circleHandles codeInfo codeObject isLetBinding color opacity radius =
           ]
           []
     (startCol, startRow, endCol, endRow) =
-      startEnd codeObject isLetBinding
+      startEnd codeObject
   in
     Svg.g
       [ SAttr.fill <| rgbaString color opacity
@@ -426,11 +421,11 @@ circleHandles codeInfo codeObject isLetBinding color opacity radius =
       ]
 
 oldCircleHandles
-  : CodeInfo -> CodeObject -> Bool -> Color -> Opacity -> Float -> Svg Msg
-oldCircleHandles codeInfo codeObject isLetBinding color opacity radius =
+  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
+oldCircleHandles codeInfo codeObject color opacity radius =
   let
     (startCol, startRow, endCol, endRow) =
-      startEnd codeObject isLetBinding
+      startEnd codeObject
     (cx1, cy1) =
       (startCol, startRow)
         |> c2a codeInfo.displayInfo
@@ -464,11 +459,11 @@ oldCircleHandles codeInfo codeObject isLetBinding color opacity radius =
       ]
 
 fancyHandles
-  : CodeInfo -> CodeObject -> Bool -> Color -> Opacity -> Float -> Svg Msg
-fancyHandles codeInfo codeObject isLetBinding color opacity radius =
+  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
+fancyHandles codeInfo codeObject color opacity radius =
   let
     (startCol, startRow, endCol, endRow) =
-      startEnd codeObject isLetBinding
+      startEnd codeObject
     (xTip1, yTip1) =
       (startCol, startRow)
         |> c2a codeInfo.displayInfo
@@ -512,69 +507,49 @@ fancyHandles codeInfo codeObject isLetBinding color opacity radius =
 --------------------------------------------------------------------------------
 
 codeObjectPolygon
-  : CodeInfo -> CodeObject -> Bool -> DeuceWidget -> Color -> Int -> Svg Msg
-codeObjectPolygon
-  codeInfo codeObject isLetBinding deuceWidget color zIndex =
-    let
-      onMouseOver =
-        Controller.msgMouseEnterDeuceWidget deuceWidget
-      onMouseOut =
-        Controller.msgMouseLeaveDeuceWidget deuceWidget
-      onClick =
-        Controller.msgMouseClickDeuceWidget deuceWidget
-      hovered =
-        List.member deuceWidget codeInfo.deuceState.hoveredWidgets
-      active =
-        List.member deuceWidget codeInfo.deuceState.selectedWidgets
-      (baseAlpha, cursorStyle) =
-        if hovered || active then
-          (1, "pointer")
-        else
-          (0, "default")
-    in
-      Svg.g
-        [ SAttr.z <| toString zIndex
-        , SAttr.style << styleListToString <|
-            [ ("cursor", cursorStyle)
-            ]
-        , SE.onMouseOver onMouseOver
-        , SE.onMouseOut onMouseOut
-        , SE.onClick onClick
-        ]
-        [ circleHandles codeInfo codeObject isLetBinding color baseAlpha 3
-        , Svg.polygon
-            [ SAttr.points <|
-                codeObjectHullPoints codeInfo codeObject isLetBinding
-            , SAttr.strokeWidth strokeWidth
-            , SAttr.stroke <| rgbaString color baseAlpha
-            , SAttr.fill <| rgbaString color (0.2 * baseAlpha)
-            ]
-            []
-        ]
-
-letBindingEquationPolygon
-  : CodeInfo -> Exp -> List (Svg Msg)
-letBindingEquationPolygon codeInfo e =
-  case e.val.e__ of
-    ELet _ _ _ _ _ _ _ ->
-      let
-        codeObject =
-          E e
-        deuceWidget =
-          DeuceLetBindingEquation e.val.eid
-        color =
-          { r = 200
-          , g = 200
-          , b = 100
-          }
-        zIndex =
-          0
-      in
-        [ codeObjectPolygon
-            codeInfo codeObject True deuceWidget color zIndex
-        ]
-    _ ->
+  : CodeInfo -> CodeObject -> Color -> Int -> List (Svg Msg)
+codeObjectPolygon codeInfo codeObject color zIndex =
+  case toDeuceWidget codeInfo.patMap codeObject of
+    Nothing ->
       []
+    Just deuceWidget ->
+      let
+        onMouseOver =
+          Controller.msgMouseEnterDeuceWidget deuceWidget
+        onMouseOut =
+          Controller.msgMouseLeaveDeuceWidget deuceWidget
+        onClick =
+          Controller.msgMouseClickDeuceWidget deuceWidget
+        hovered =
+          List.member deuceWidget codeInfo.deuceState.hoveredWidgets
+        active =
+          List.member deuceWidget codeInfo.deuceState.selectedWidgets
+        (baseAlpha, cursorStyle) =
+          if hovered || active then
+            (1, "pointer")
+          else
+            (0, "default")
+      in
+        [ Svg.g
+            [ SAttr.z <| toString zIndex
+            , SAttr.style << styleListToString <|
+                [ ("cursor", cursorStyle)
+                ]
+            , SE.onMouseOver onMouseOver
+            , SE.onMouseOut onMouseOut
+            , SE.onClick onClick
+            ]
+            [ circleHandles codeInfo codeObject color baseAlpha 3
+            , Svg.polygon
+                [ SAttr.points <|
+                    codeObjectHullPoints codeInfo codeObject
+                , SAttr.strokeWidth strokeWidth
+                , SAttr.stroke <| rgbaString color baseAlpha
+                , SAttr.fill <| rgbaString color (0.2 * baseAlpha)
+                ]
+                []
+            ]
+        ]
 
 expPolygon
   : CodeInfo -> Exp -> List (Svg Msg)
@@ -582,8 +557,6 @@ expPolygon codeInfo e =
   let
     codeObject =
       E e
-    deuceWidget =
-      DeuceExp e.val.eid
     color =
       { r = 200
       , g = 0
@@ -592,10 +565,7 @@ expPolygon codeInfo e =
     zIndex =
       0
   in
-    (letBindingEquationPolygon codeInfo e) ++
-      [ codeObjectPolygon
-          codeInfo codeObject False deuceWidget color zIndex
-      ]
+    codeObjectPolygon codeInfo codeObject color zIndex
 
 patPolygon
   : CodeInfo -> Exp -> Pat -> List (Svg Msg)
@@ -603,16 +573,6 @@ patPolygon codeInfo e p =
   let
     codeObject =
       P e p
-    deuceWidget =
-      case Dict.get p.val.pid codeInfo.patMap of
-        Just ppid ->
-          DeucePat ppid
-        Nothing ->
-          Debug.crash <|
-            "Cannot find ppid of pattern with pid "
-              ++ toString p.val.pid
-              ++ ". The pattern in question looks like this:\n"
-              ++ toString p
     color =
       { r = 0
       , g = 200
@@ -620,9 +580,23 @@ patPolygon codeInfo e p =
       }
     zIndex = 0
   in
-    [ codeObjectPolygon
-        codeInfo codeObject False deuceWidget color zIndex
-    ]
+    codeObjectPolygon codeInfo codeObject color zIndex
+
+letBindingEquationPolygon
+  : CodeInfo -> (WithInfo EId) -> List (Svg Msg)
+letBindingEquationPolygon codeInfo eid =
+  let
+    codeObject =
+      LBE eid
+    color =
+      { r = 200
+      , g = 200
+      , b = 100
+      }
+    zIndex =
+      0
+  in
+    codeObjectPolygon codeInfo codeObject color zIndex
 
 expTargetPolygon
   : CodeInfo -> BeforeAfter -> WS -> Exp -> List (Svg Msg)
@@ -630,8 +604,6 @@ expTargetPolygon codeInfo ba ws et =
   let
     codeObject =
       ET ba ws et
-    deuceWidget =
-      DeuceExpTarget (ba, et.val.eid)
     color =
       { r = 200
       , g = 0
@@ -640,9 +612,7 @@ expTargetPolygon codeInfo ba ws et =
     zIndex =
       1
   in
-    [ codeObjectPolygon
-        codeInfo codeObject False deuceWidget color zIndex
-    ]
+    codeObjectPolygon codeInfo codeObject color zIndex
 
 patTargetPolygon
   : CodeInfo -> BeforeAfter -> WS -> Exp -> Pat -> List (Svg Msg)
@@ -650,16 +620,6 @@ patTargetPolygon codeInfo ba ws e pt =
   let
     codeObject =
       PT ba ws e pt
-    deuceWidget =
-      case Dict.get pt.val.pid codeInfo.patMap of
-        Just ppid ->
-          DeucePatTarget (ba, ppid)
-        Nothing ->
-          Debug.crash <|
-            "Cannot find ppid of targeted pattern with pid "
-              ++ toString pt.val.pid
-              ++ ". The targeted pattern in question looks like this:\n"
-              ++ toString pt
     color =
       { r = 0
       , g = 200
@@ -668,9 +628,7 @@ patTargetPolygon codeInfo ba ws e pt =
     zIndex =
       1
   in
-    [ codeObjectPolygon
-        codeInfo codeObject False deuceWidget color zIndex
-    ]
+    codeObjectPolygon codeInfo codeObject color zIndex
 
 polygons : CodeInfo -> Exp -> List (Svg Msg)
 polygons codeInfo ast =
@@ -684,6 +642,8 @@ polygons codeInfo ast =
               patPolygon codeInfo e p ++ acc
             T t ->
               acc
+            LBE eid ->
+              letBindingEquationPolygon codeInfo eid ++ acc
             ET ba ws et ->
               expTargetPolygon codeInfo ba ws et ++ acc
             PT ba ws e pt ->

@@ -47,6 +47,7 @@ module InterfaceController exposing
   , msgLeaveDeuceTool
   , msgUpdateRenameVarTextBox
   , msgDragDeucePanel
+  , msgTextSelect
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -679,10 +680,18 @@ msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
     if old.preview /= Nothing then
       old
     else
-      let isSame = old.lastSaveState == (Just aceCodeBoxInfo.code) in
-      { old | code = aceCodeBoxInfo.code
-            , codeBoxInfo = aceCodeBoxInfo.codeBoxInfo
-            , needsSave = not isSame }
+      let
+        isSame =
+          old.lastSaveState == Just aceCodeBoxInfo.code
+      in
+        { old
+            | code =
+                aceCodeBoxInfo.code
+            , codeBoxInfo =
+                aceCodeBoxInfo.codeBoxInfo
+            , needsSave =
+                not isSame
+        }
 
 upstateRun old =
   case tryRun old of
@@ -1517,20 +1526,35 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m -> m
   --else
   --  m
 
-msgMouseClickDeuceWidget id = Msg ("msgMouseClickDeuceWidget " ++ toString id) <| \m ->
-  if showDeuceWidgets m
-  then
-    let selectedWidgets =
-        if List.member id m.deuceState.selectedWidgets
-          then Utils.removeAsSet id m.deuceState.selectedWidgets
-          else Utils.addAsSet id m.deuceState.selectedWidgets
-    in
-    let deuceState = m.deuceState in
-    { m | deuceState =
-            { deuceState
-            | selectedWidgets = selectedWidgets } }
-  else
-    m
+toggleDeuceWidget : DeuceWidget -> Model -> Model
+toggleDeuceWidget id model =
+  let
+    oldDeuceState =
+      model.deuceState
+    oldSelectedWidgets =
+      oldDeuceState.selectedWidgets
+    newSelectedWidgets =
+      if List.member id oldSelectedWidgets then
+        Utils.removeAsSet id oldSelectedWidgets
+      else
+        Utils.addAsSet id oldSelectedWidgets
+    newDeuceState =
+      { oldDeuceState
+          | selectedWidgets =
+              newSelectedWidgets
+      }
+  in
+    { model
+        | deuceState =
+            newDeuceState
+    }
+
+msgMouseClickDeuceWidget id =
+  Msg ("msgMouseClickDeuceWidget " ++ toString id) <| \old ->
+    if showDeuceWidgets old then
+      toggleDeuceWidget id old
+    else
+      old
 
 msgMouseEnterDeuceWidget widget = Msg ("msgMouseEnterDeuceWidget " ++ toString widget) <| \old ->
   let deuceState = old.deuceState in
@@ -1821,5 +1845,25 @@ msgDragDeucePanel =
                     (deltaMouse oldPosition newPosition)
           }
     in
-    \model ->
+      \model ->
         { model | mouseMode = Model.MouseDragPanel f }
+
+--------------------------------------------------------------------------------
+-- Text Select
+
+msgTextSelect : Msg
+msgTextSelect =
+  Msg "Text Select" <| \old ->
+    let
+      patMap =
+        computePatMap old.inputExp
+    in
+      case
+        old
+          |> Model.primaryCodeObject
+          |> Maybe.andThen (toDeuceWidget patMap)
+      of
+        Just deuceWidget ->
+          toggleDeuceWidget deuceWidget old
+        Nothing ->
+          old

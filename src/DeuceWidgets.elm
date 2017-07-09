@@ -25,6 +25,33 @@ type DeuceWidget
   | DeuceExpTarget ExpTargetPosition
   | DeucePatTarget PatTargetPosition
 
+toDeuceWidget : Dict PId PathedPatternId -> CodeObject -> Maybe DeuceWidget
+toDeuceWidget patMap codeObject =
+  case codeObject of
+    E e ->
+      Just <|
+        DeuceExp e.val.eid
+    P e p ->
+      Maybe.map DeucePat <|
+        Dict.get p.val.pid patMap
+    T _ ->
+      Nothing
+    LBE eid ->
+      Just <|
+        DeuceLetBindingEquation eid.val
+    ET ba _ et ->
+      Just <|
+        DeuceExpTarget (ba, et.val.eid)
+    PT ba _ _ pt ->
+      Maybe.map
+        ( \ppid ->
+            DeucePatTarget (ba, ppid)
+        )
+        ( Dict.get pt.val.pid patMap
+        )
+    TT _ _ _ ->
+      Nothing
+
 emptyDeuceState : DeuceState
 emptyDeuceState =
   { selectedWidgets = []

@@ -475,6 +475,72 @@ deuceActive model =
 
 --------------------------------------------------------------------------------
 
+isSubsetRange : Ace.Range -> Ace.Range -> Bool
+isSubsetRange innerRange outerRange =
+  let
+    startGood =
+      (outerRange.start.row < innerRange.start.row) ||
+      (outerRange.start.row == innerRange.start.row
+        && outerRange.start.column <= innerRange.start.column)
+    endGood =
+      (innerRange.end.row < outerRange.end.row) ||
+      (innerRange.end.row == outerRange.end.row
+        && innerRange.end.column <= outerRange.end.column)
+  in
+    startGood && endGood
+
+findSupersetRange : Ace.Range -> List (Ace.Range, a) -> Maybe a
+findSupersetRange pos =
+  List.foldl
+    ( \(range, val) previousVal ->
+        if isSubsetRange pos range then
+          Just val
+        else
+          previousVal
+    )
+    Nothing
+
+-- Note that WithInfo is 1-indexed, but Ace.Range is 0-indexed.
+rangeFromInfo : WithInfo a -> Ace.Range
+rangeFromInfo info =
+  { start =
+      { row =
+          info.start.line - 1
+      , column =
+          info.start.col - 1
+      }
+  , end =
+      { row =
+          info.end.line - 1
+      , column =
+          info.end.col - 1
+      }
+  }
+
+primaryCodeObject : Model -> Maybe CodeObject
+primaryCodeObject model =
+  case model.codeBoxInfo.selections of
+    -- Note that when nothing is selected, Ace treats the current selection
+    -- as just the range [cursorPos, cursorPos]. Thus, this pattern handles
+    -- all the cases that we need.
+    [ selection ] ->
+      findSupersetRange
+        selection
+        ( List.map
+            ( \codeObject ->
+                ( rangeFromInfo << extractInfoFromCodeObject <| codeObject
+                , codeObject
+                )
+            )
+            ( flattenToCodeObjects << E <|
+                model.inputExp
+            )
+        )
+    _ ->
+      Nothing
+
+--------------------------------------------------------------------------------
+
 initModel : Model
 initModel =
   let
