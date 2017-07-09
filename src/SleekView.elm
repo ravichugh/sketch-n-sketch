@@ -531,10 +531,14 @@ menuBar model =
                     Controller.msgNoop
                 ]
               ]
-          , menu "Edit Code" <|
+          , menu "Edit Code (Deuce)" <|
               List.map
                 (Utils.mapi1 <| deuceHoverMenu model)
                 (DeuceTools.deuceTools model)
+          , menu "Edit Code" <|
+              [ [ simpleTextButton "Text Select" Controller.msgTextSelect
+                ]
+              ]
           , menu "Edit Output"
               [ [ relateTextButton
                     model
@@ -710,8 +714,6 @@ menuBar model =
                         "Text"
                         Controller.msgSetOutputPrint
                     ]
-                ]
-              , [ simpleTextButton "Text Select" Controller.msgTextSelect
                 ]
               ]
           ]
