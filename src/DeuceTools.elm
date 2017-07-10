@@ -36,13 +36,13 @@ import ExpressionBasedTransform
 --------------------------------------------------------------------------------
 
 type alias Selections =
-  ( List (LocId, (WS, Num, Loc, WidgetDecl))
-  , List (EId, (WS, EBaseVal))
-  , List EId
-  , List PathedPatternId
-  , List EId
-  , List ExpTargetPosition
-  , List PatTargetPosition
+  ( List (LocId, (WS, Num, Loc, WidgetDecl))  -- number literals
+  , List (EId, (WS, EBaseVal))                -- other base value literals
+  , List EId                                  -- expressions (including literals)
+  , List PathedPatternId                      -- patterns
+  , List EId                                  -- equations
+  , List ExpTargetPosition                    -- expression target positions
+  , List PatTargetPosition                    -- pattern target positions
   )
 
 selectedNumsAndBaseVals
@@ -184,6 +184,8 @@ type alias DeuceTool =
 
 makeEqualTool : Model -> Selections -> DeuceTool
 makeEqualTool model selections =
+  -- TODO allow optional target position
+  -- TODO define a helper to factor Introduce Var and this
   let
     (func, literalPredVal) =
       case selections of
@@ -349,64 +351,65 @@ renameVariableTool model selections =
     }
 
 --------------------------------------------------------------------------------
--- Swap Usages
---------------------------------------------------------------------------------
-
-swapUsagesTool : Model -> Selections -> DeuceTool
-swapUsagesTool model selections =
-  { name = "Swap Usages"
-  , func =
-      case selections of
-        ([], [], [], pathedPatId1::pathedPatId2::[], [], [], []) ->
-          case
-            [ LangTools.findPat pathedPatId1 model.inputExp
-            , LangTools.findPat pathedPatId2 model.inputExp
-            ] |> List.map (Maybe.andThen LangTools.patToMaybeIdent)
-          of
-            [Just name1, Just name2] ->
-              Just <|
-                \() ->
-                  CodeMotion.swapUsages pathedPatId1 pathedPatId2 model.inputExp
-            _ -> Nothing
-        _ -> Nothing
-  , reqs = [] -- TODO reqs
-  }
-
---------------------------------------------------------------------------------
 -- Swap Names and Usages
+--------------------------------------------------------------------------------
+-- Swap Usages
 --------------------------------------------------------------------------------
 
 swapNamesAndUsagesTool : Model -> Selections -> DeuceTool
 swapNamesAndUsagesTool model selections =
-  { name = "Swap Names and Usages"
-  , func =
+  let makeThunk (pathedPatId1, name1) (pathedPatId2, name2) () =
+    model.inputExp
+      |> CodeMotion.composeTransformations
+           ("Swap names " ++ name1 ++ " and " ++ name2)
+           [ CodeMotion.renamePat
+               pathedPatId1
+               "IMPROBABLE_TEMPORARY_NAME_FOR_SAFETY_CHECK!!!"
+           , CodeMotion.renamePat
+               pathedPatId2
+               name1
+           , CodeMotion.renamePat
+               pathedPatId1
+               name2
+           ]
+  in
+  selectTwoVars "Swap Names and Usages" makeThunk model selections
+
+swapUsagesTool : Model -> Selections -> DeuceTool
+swapUsagesTool model selections =
+  let makeThunk (pathedPatId1, _) (pathedPatId2, _) () =
+    CodeMotion.swapUsages pathedPatId1 pathedPatId2 model.inputExp
+  in
+  selectTwoVars "Swap Usages" makeThunk model selections
+
+selectTwoVars toolName makeThunk model selections =
+  let
+    (func, predVal) =
       case selections of
-        ([], [], [], pathedPatId1::pathedPatId2::[], [], [], []) ->
-          case
-            [ LangTools.findPat pathedPatId1 model.inputExp
-            , LangTools.findPat pathedPatId2 model.inputExp
-            ] |> List.map (Maybe.andThen LangTools.patToMaybeIdent)
-          of
+        ([], [], [], [], [], [], []) ->
+          (Nothing, Possible)
+        ([], [], [], [_], [], [], []) ->
+          (Nothing, Possible) -- could check whether pathedPatId1 is a var
+        ([], [], [], [pathedPatId1, pathedPatId2], [], [], []) ->
+          let maybeNames =
+            [pathedPatId1, pathedPatId2]
+              |> List.map (\ppid -> LangTools.findPat ppid model.inputExp)
+              |> List.map (Maybe.andThen LangTools.patToMaybeIdent)
+          in
+          case maybeNames of
             [Just name1, Just name2] ->
-              Just <|
-                \() ->
-                  model.inputExp
-                    |> CodeMotion.composeTransformations
-                         ("Swap names " ++ name1 ++ " and " ++ name2)
-                         [ CodeMotion.renamePat
-                             pathedPatId1
-                             "IMPROBABLE_TEMPORARY_NAME_FOR_SAFETY_CHECK!!!"
-                         , CodeMotion.renamePat
-                             pathedPatId2
-                             name1
-                         , CodeMotion.renamePat
-                             pathedPatId1
-                             name2
-                         ]
-            _ -> Nothing
-        _ -> Nothing
-  , reqs = [] -- TODO reqs
-  }
+              ( Just (makeThunk (pathedPatId1, name1) (pathedPatId2, name2))
+              , FullySatisfied
+              )
+            _ ->
+              (Nothing, Impossible)
+        _ ->
+          (Nothing, Impossible)
+  in
+    { name = toolName
+    , func = func
+    , reqs = [ { description = "Select two variables", value = predVal } ]
+    }
 
 --------------------------------------------------------------------------------
 -- Inline Definition
@@ -415,37 +418,42 @@ swapNamesAndUsagesTool model selections =
 inlineDefinitionTool : Model -> Selections -> DeuceTool
 inlineDefinitionTool model selections =
   let
-    disabledTool =
-      { name = "Rename Pattern"
-      , func = Nothing
-      , reqs = [] -- TODO reqs
-      }
+    toolName = "Inline Definition"
+
+    (name, func, predVal) =
+      case selections of
+        ([], [], [], [], [], [], []) ->
+          (toolName, Nothing, Possible)
+        (_, _, _, [], [], _, _) ->
+          (toolName, Nothing, Impossible)
+        ([], [], [], pathedPatIds, [], [], []) ->
+          ( Utils.maybePluralize toolName pathedPatIds
+          , Just <| \() ->
+              CodeMotion.inlineDefinitions pathedPatIds model.inputExp
+          , Satisfied
+          )
+        ([], [], [], [], letEIds, [], []) ->
+          ( Utils.maybePluralize toolName letEIds
+          , Just <| \() ->
+              CodeMotion.inlineDefinitions
+                (letEIds |> List.map (\letEId -> ((letEId, 1), [])))
+                model.inputExp
+          , Satisfied
+          )
+        _ ->
+          (toolName, Nothing, Impossible)
   in
-    case selections of
-      (_, _, _, [], [], _, _) ->
-        disabledTool
-      ([], [], [], pathedPatIds, [], [], []) ->
-        { name =
-            Utils.maybePluralize "Inline Definition" pathedPatIds
-        , func =
-            Just <|
-              \() ->
-                CodeMotion.inlineDefinitions pathedPatIds model.inputExp
-        , reqs = [] -- TODO reqs
-        }
-      ([], [], [], [], letEIds, [], []) ->
-        { name =
-            Utils.maybePluralize "Inline Definition" letEIds
-        , func =
-            Just <|
-              \() ->
-                CodeMotion.inlineDefinitions
-                  (letEIds |> List.map (\letEId -> ((letEId, 1), [])))
-                  model.inputExp
-        , reqs = [] -- TODO reqs
-        }
-      _ ->
-        disabledTool
+    { name = name
+    , func = func
+    , reqs =
+        [ { description =
+              "Select 1 or more patterns, or 1 or more variable definitions"
+          , value =
+              predVal
+          }
+        ]
+    }
+
 
 --------------------------------------------------------------------------------
 -- Twiddle Shapes
@@ -532,93 +540,102 @@ inlineDefinitionTool model selections =
 
 introduceVariableTool : Model -> Selections -> DeuceTool
 introduceVariableTool model selections =
+  -- TODO allow target position to be omitted
   let
-    disabledTool =
-      { name = "Introduce Variable"
-      , func = Nothing
-      , reqs = [] -- TODO reqs
-      }
-  in
-    case selections of
-      (_, _, [], _, _, _, _) ->
-        disabledTool
-      (_, _, exps, [], [], [], [patTarget]) ->
-        { name =
-            Utils.maybePluralize "Introduce Variable" exps
-        , func =
-            CodeMotion.introduceVarTransformation
+    toolName = "Introduce Variable"
+
+    (name, func, predVal) =
+      case selections of
+        ([], [], [], [], [], [], []) ->
+          (toolName, Nothing, Possible)
+        (_, _, [], _, _, _, _) ->
+          (toolName, Nothing, Impossible)
+        (_, _, exps, [], [], [], [patTarget]) ->
+          ( Utils.maybePluralize "Introduce Variable" exps
+          , CodeMotion.introduceVarTransformation
               model
               exps
               (PatTargetPosition patTarget)
-        , reqs = [] -- TODO reqs
-        }
-      (_, _, exps, [], [], [expTarget], []) ->
-        { name =
-            Utils.maybePluralize "Introduce Variable" exps
-        , func =
-            CodeMotion.introduceVarTransformation
+          , Satisfied
+          )
+        (_, _, exps, [], [], [expTarget], []) ->
+          ( Utils.maybePluralize "Introduce Variable" exps
+          , CodeMotion.introduceVarTransformation
               model
               exps
               (ExpTargetPosition expTarget)
-        , reqs = [] -- TODO reqs
-        }
-      _ ->
-        disabledTool
+          , Satisfied
+          )
+        _ ->
+          (toolName, Nothing, Impossible)
+  in
+    { name = name
+    , func = func
+    , reqs =
+        [ { description =
+              "Select 1 or more constants and 1 optional target position"
+          , value =
+              predVal
+          }
+        ]
+    }
 
 --------------------------------------------------------------------------------
 -- Elminate Common Sub-Expression
 --------------------------------------------------------------------------------
-
-eliminateCommonSubExpressionTool : Model -> Selections -> DeuceTool
-eliminateCommonSubExpressionTool model selections =
-  { name = "Eliminate Common Sub-Expression"
-  , func =
-      case selections of
-        (_, _, [], _, _, _, _) ->
-          Nothing
-        (_, _, [_], _, _, _, _) ->
-          Nothing
-        (nums, baseVals, i::js, [], [], [], []) ->
-          let
-            atLeastOneNonLiteral =
-              List.length (i::js) > (List.length nums + List.length baseVals)
-          in
-            if atLeastOneNonLiteral then
-              CodeMotion.eliminateCommonSubExpressionTransformation
-                model i js
-            else
-              Nothing
-        _ ->
-          Nothing
-  , reqs = [] -- TODO reqs
-  }
-
---------------------------------------------------------------------------------
 -- Copy Expression
 --------------------------------------------------------------------------------
 
+eliminateCommonSubExpressionTool : Model -> Selections -> DeuceTool
+eliminateCommonSubExpressionTool model selections =
+  selectOneNonLiteralExpression
+    "Eliminate Common Sub-Expression"
+    CodeMotion.eliminateCommonSubExpressionTransformation
+    model
+    selections
+
 copyExpressionTool : Model -> Selections -> DeuceTool
 copyExpressionTool model selections =
-  { name = "Copy Expression"
-  , func =
+  selectOneNonLiteralExpression
+    "Copy Expression"
+    CodeMotion.copyExpressionTransformation
+    model
+    selections
+
+selectOneNonLiteralExpression toolName makeThunk model selections =
+  let
+    (func, predVal) =
       case selections of
+        ([], [], [], [], [], [], []) ->
+          (Nothing, Possible)
         (_, _, [], _, _, _, _) ->
-          Nothing
+          (Nothing, Impossible)
         (_, _, [_], _, _, _, _) ->
-          Nothing
+          (Nothing, Impossible)
         (nums, baseVals, i::js, [], [], [], []) ->
           let
             atLeastOneNonLiteral =
               List.length (i::js) > (List.length nums + List.length baseVals)
           in
             if atLeastOneNonLiteral then
-              CodeMotion.copyExpressionTransformation model i js
+              ( makeThunk model i js
+              , Satisfied
+              )
             else
-              Nothing
+              (Nothing, Impossible)
         _ ->
-          Nothing
-  , reqs = [] -- TODO reqs
-  }
+          (Nothing, Impossible)
+  in
+    { name = toolName
+    , func = func
+    , reqs =
+        [ { description =
+              "Select 2 or more expressions, including at least 1 that is not a constant"
+          , value =
+              predVal
+          }
+        ]
+    }
 
 --------------------------------------------------------------------------------
 -- Move Definition
@@ -627,77 +644,79 @@ copyExpressionTool model selections =
 moveDefinitionTool : Model -> Selections -> DeuceTool
 moveDefinitionTool model selections =
   let
-    disabledTool =
-      { name = "Rename Pattern"
-      , func = Nothing
-      , reqs = [] -- TODO reqs
-      }
-  in
-    case selections of
-      (_, _, _, [], [], _, _) ->
-        disabledTool
-      ([], [], [], pathedPatIds, [], [(Before, eId)], []) ->
-        { name =
-            Utils.maybePluralize "Move Definition" pathedPatIds
-        , func =
-            Just <|
-              \() ->
-                CodeMotion.moveDefinitionsBeforeEId
-                  pathedPatIds
-                  eId
-                  model.inputExp
-        , reqs = [] -- TODO reqs
-        }
-      ([], [], [], pathedPatIds, [], [], [patTarget]) ->
-        let
-          targetPathedPatId =
-            patTargetPositionToTargetPathedPatId patTarget
-        in
-          case
-            ( findExpByEId
+    toolName = "Move Definition"
+
+    (name, func, predVal) =
+      case selections of
+        ([], [], [], [], [], [], []) ->
+          (toolName, Nothing, Possible)
+        (_, _, _, [], [], _, _) ->
+          (toolName, Nothing, Impossible)
+        ([], [], [], pathedPatIds, [], [(Before, eId)], []) ->
+          ( Utils.maybePluralize toolName pathedPatIds
+          , Just <| \() ->
+              CodeMotion.moveDefinitionsBeforeEId
+                pathedPatIds
+                eId
                 model.inputExp
-                (pathedPatIdToScopeEId targetPathedPatId)
-            ) |> Maybe.map (.val >> .e__)
-          of
-            Just (ELet _ _ _ _ _ _ _) ->
-              { name =
-                  Utils.maybePluralize "Move Definition" pathedPatIds
-              , func =
-                  Just <|
-                    \() ->
-                      CodeMotion.moveDefinitionsPat
-                        pathedPatIds
-                        targetPathedPatId
-                        model.inputExp
-              , reqs = [] -- TODO reqs
-              }
-            _ -> disabledTool
-      ([], [], [], [], [letEId], [(Before, eId)], []) ->
-        { name = "Move Definition"
-        , func =
-            Just <|
-              \() ->
-                -- Better result names if we hand the singular case directly to
-                -- moveDefinitionsBeforeEId.
-                CodeMotion.moveDefinitionsBeforeEId
-                  [((letEId, 1), [])]
-                  eId
+          , Satisfied
+          )
+        ([], [], [], pathedPatIds, [], [], [patTarget]) ->
+          let
+            targetPathedPatId =
+              patTargetPositionToTargetPathedPatId patTarget
+          in
+            case
+              ( findExpByEId
                   model.inputExp
-        , reqs = [] -- TODO reqs
-        }
-      ([], [], [], [], letEIds, [(Before, eId)], []) ->
-        { name = "Move Definitions"
-        , func =
-            Just <|
-              \() ->
-                CodeMotion.moveEquationsBeforeEId
-                  letEIds
-                  eId
-                  model.inputExp
-        , reqs = [] -- TODO reqs
-        }
-      _ ->
-        disabledTool
+                  (pathedPatIdToScopeEId targetPathedPatId)
+              ) |> Maybe.map (.val >> .e__)
+            of
+              Just (ELet _ _ _ _ _ _ _) ->
+                ( Utils.maybePluralize toolName pathedPatIds
+                , Just <| \() ->
+                    CodeMotion.moveDefinitionsPat
+                      pathedPatIds
+                      targetPathedPatId
+                      model.inputExp
+                , Satisfied
+                )
+              _ ->
+                (toolName, Nothing, Impossible)
+        ([], [], [], [], [letEId], [(Before, eId)], []) ->
+          ( toolName
+          , Just <| \() ->
+              -- Better result names if we hand the singular case directly to
+              -- moveDefinitionsBeforeEId.
+              CodeMotion.moveDefinitionsBeforeEId
+                [((letEId, 1), [])]
+                eId
+                model.inputExp
+          , Satisfied
+          )
+        ([], [], [], [], letEIds, [(Before, eId)], []) ->
+          ( Utils.maybePluralize toolName letEIds
+          , Just <| \() ->
+              CodeMotion.moveEquationsBeforeEId
+                letEIds
+                eId
+                model.inputExp
+          , Satisfied
+          )
+        _ ->
+          (toolName, Nothing, Impossible)
+  in
+    { name = toolName
+    , func = func
+    , reqs =
+        [ { description =
+              """Select 2 or more patterns or 2 or more variable definitions,
+                 and 1 target position"""
+          , value =
+              predVal
+          }
+        ]
+    }
 
 --------------------------------------------------------------------------------
 -- Duplicate Definition
@@ -706,52 +725,59 @@ moveDefinitionTool model selections =
 duplicateDefinitionTool : Model -> Selections -> DeuceTool
 duplicateDefinitionTool model selections =
   let
-    disabledTool =
-      { name = "Duplicate Definition"
-      , func = Nothing
-      , reqs = [] -- TODO reqs
-      }
-  in
-    case selections of
-    (_, _, _, [], _, _, _) ->
-      disabledTool
-    ([], [], [], pathedPatIds, [], [(Before, eId)], []) ->
-      { name =
-          Utils.maybePluralize "Duplicate Definition" pathedPatIds
-      , func =
-          Just <|
-            \() ->
+    toolName = "Duplicate Definition"
+
+    (name, func, predVal) =
+      case selections of
+        ([], [], [], [], [], [], []) ->
+          (toolName, Nothing, Possible)
+        (_, _, _, [], _, _, _) ->
+          (toolName, Nothing, Impossible)
+        ([], [], [], pathedPatIds, [], [(Before, eId)], []) ->
+          ( Utils.maybePluralize toolName pathedPatIds
+          , Just <| \() ->
               CodeMotion.duplicateDefinitionsBeforeEId
                 pathedPatIds
                 eId
                 model.inputExp
-      , reqs = [] -- TODO reqs
-      }
-    ([], [], [], pathedPatIds, [], [], [patTarget]) ->
-      let
-        targetPathedPatId =
-          patTargetPositionToTargetPathedPatId patTarget
-      in
-        case
-          ( findExpByEId
-              model.inputExp
-              (pathedPatIdToScopeEId targetPathedPatId)
-          ) |> Maybe.map (.val >> .e__)
-        of
-          Just (ELet _ _ _ _ _ _ _) ->
-            { name =
-                Utils.maybePluralize "Duplicate Definition" pathedPatIds
-            , func =
-                Just <|
-                  \() ->
+          , Satisfied
+          )
+        ([], [], [], pathedPatIds, [], [], [patTarget]) ->
+          let
+            targetPathedPatId =
+              patTargetPositionToTargetPathedPatId patTarget
+          in
+            case
+              ( findExpByEId
+                  model.inputExp
+                  (pathedPatIdToScopeEId targetPathedPatId)
+              ) |> Maybe.map (.val >> .e__)
+            of
+              Just (ELet _ _ _ _ _ _ _) ->
+                ( Utils.maybePluralize toolName pathedPatIds
+                , Just <| \() ->
                     CodeMotion.duplicateDefinitionsPat
                       pathedPatIds
                       targetPathedPatId
                       model.inputExp
-            , reqs = [] -- TODO reqs
-            }
-          _ -> disabledTool
-    _ -> disabledTool
+                , Satisfied
+                )
+              _ ->
+                (toolName, Nothing, Impossible)
+        _ ->
+          (toolName, Nothing, Impossible)
+  in
+    { name = toolName
+    , func = func
+    , reqs =
+        [ { description =
+              "Select 1 or more patterns and 1 target position"
+          , value =
+              predVal
+          }
+        ]
+    }
+
 
 --------------------------------------------------------------------------------
 -- Thaw/Freeze
@@ -763,13 +789,9 @@ duplicateDefinitionTool model selections =
 thawFreezeTool : Model -> Selections -> DeuceTool
 thawFreezeTool model selections =
   let
-    disabledTool =
-      { name = "Thaw/Freeze"
-      , func = Nothing
-      , reqs = [] -- TODO reqs
-      }
     (nums, _, _, _, _, _, _) =
       selections
+
     mode =
       let
         freezeAnnotations =
@@ -803,33 +825,37 @@ thawFreezeTool model selections =
                 Just ("Freeze", frozen)
               else
                 Just ("Thaw", thawed)
+
+    (name, func, predVal) =
+      case mode of
+        Nothing ->
+          ("Thaw/Freeze", Nothing, Impossible)
+        Just (toolName, newAnnotation) ->
+          ( toolName
+          , Just <| \() ->
+              let
+                eSubst =
+                  List.foldl
+                    ( \(eId,(ws,n,(locid,_,x),wd)) acc ->
+                        Dict.insert
+                          eId
+                          (EConst ws n (locid, newAnnotation, x) wd)
+                          acc
+                    )
+                    Dict.empty
+                    nums
+              in
+                [ synthesisResult
+                    toolName
+                    (applyESubst eSubst model.inputExp)
+                ]
+          , Satisfied
+          )
   in
-    case mode of
-      Nothing ->
-        disabledTool
-      Just (toolName, newAnnotation) ->
-        { name = toolName
-        , func =
-            Just <|
-              \() ->
-                let
-                  eSubst =
-                    List.foldl
-                      ( \(eId,(ws,n,(locid,_,x),wd)) acc ->
-                          Dict.insert
-                            eId
-                            (EConst ws n (locid, newAnnotation, x) wd)
-                            acc
-                      )
-                      Dict.empty
-                      nums
-                in
-                  [ synthesisResult
-                      toolName
-                      (applyESubst eSubst model.inputExp)
-                  ]
-        , reqs = [] -- TODO reqs
-        }
+    { name = name
+    , func = func
+    , reqs = [ { description = "Select 1 or more numbers", value = predVal } ]
+    }
 
 --------------------------------------------------------------------------------
 -- Show/Hide Range
@@ -841,13 +867,9 @@ thawFreezeTool model selections =
 showHideRangeTool : Model -> Selections -> DeuceTool
 showHideRangeTool model selections =
   let
-    disabledTool =
-      { name = "Show/Hide Sliders"
-      , func = Nothing
-      , reqs = [] -- TODO reqs
-      }
     (nums, _, _, _, _, _, _) =
       selections
+
     mode =
       if not (oneOrMoreNumsOnly selections) then
         Nothing
@@ -869,55 +891,59 @@ showHideRangeTool model selections =
               Just b
             _ ->
               Nothing
+
+    (name, func, predVal) =
+      case mode of
+        Nothing ->
+          ("Show/Hide Sliders", Nothing, Impossible)
+        Just hidden ->
+          let
+            toolName =
+              case (hidden, List.length nums) of
+                (True, 1) ->
+                  "Show Slider"
+                (True, _) ->
+                  "Show Sliders"
+                (False, 1) ->
+                  "Hide Slider"
+                (False, _) ->
+                  "Hide Sliders"
+          in
+            ( toolName
+            , Just <| \() ->
+                let
+                  eSubst =
+                    List.foldl
+                      ( \(eId,(ws,n,loc,wd)) acc ->
+                          let
+                            wd_ =
+                              case wd.val of
+                                IntSlider a b c d _ ->
+                                  IntSlider a b c d (not hidden)
+                                NumSlider a b c d _ ->
+                                  NumSlider a b c d (not hidden)
+                                _ ->
+                                  wd.val
+                          in
+                            Dict.insert
+                              eId
+                              (EConst ws n loc { wd | val = wd_ })
+                              acc
+                      )
+                      Dict.empty
+                      nums
+                in
+                  [ synthesisResult
+                      toolName
+                      (applyESubst eSubst model.inputExp)
+                  ]
+            , Satisfied
+            )
   in
-    case mode of
-      Nothing ->
-        disabledTool
-      Just hidden ->
-        let
-          toolName =
-            case (hidden, List.length nums) of
-              (True, 1) ->
-                "Show Slider"
-              (True, _) ->
-                "Show Sliders"
-              (False, 1) ->
-                "Hide Slider"
-              (False, _) ->
-                "Hide Sliders"
-        in
-          { name = toolName
-          , func =
-              Just <|
-                \() ->
-                  let
-                    eSubst =
-                      List.foldl
-                        ( \(eId,(ws,n,loc,wd)) acc ->
-                            let
-                              wd_ =
-                                case wd.val of
-                                  IntSlider a b c d _ ->
-                                    IntSlider a b c d (not hidden)
-                                  NumSlider a b c d _ ->
-                                    NumSlider a b c d (not hidden)
-                                  _ ->
-                                    wd.val
-                            in
-                              Dict.insert
-                                eId
-                                (EConst ws n loc { wd | val = wd_ })
-                                acc
-                        )
-                        Dict.empty
-                        nums
-                  in
-                    [ synthesisResult
-                        toolName
-                        (applyESubst eSubst model.inputExp)
-                    ]
-          , reqs = [] -- TODO reqs
-          }
+    { name = name
+    , func = func
+    , reqs = [ { description = "Select 1 or more numbers", value = predVal } ]
+    }
 
 --------------------------------------------------------------------------------
 -- Add/Remove Range
@@ -936,13 +962,9 @@ rangeAround n =
 addRemoveRangeTool : Model -> Selections -> DeuceTool
 addRemoveRangeTool model selections =
   let
-    disabledTool =
-      { name = "Add/Remove Sliders"
-      , func = Nothing
-      , reqs = [] -- TODO reqs
-      }
     (nums, _, _, _, _, _, _) =
       selections
+
     mode =
       let
         freezeAnnotations =
@@ -959,62 +981,66 @@ addRemoveRangeTool model selections =
             Just b
           _   ->
             Nothing
-  in
-    case mode of
-      Nothing ->
-        disabledTool
-      Just noRanges ->
-        let
-          toolName =
-            case (noRanges, List.length nums) of
-              (True, 1) ->
-                "Add Slider"
-              (True, _) ->
-                "Add Sliders"
-              (False, 1) ->
-                "Remove Slider"
-              (False, _) ->
-                "Remove Sliders"
-        in
-          { name = toolName
-          , func =
-              Just <|
-                \() ->
-                  let
-                    eSubst =
-                      List.foldl
-                        ( \(eId,(ws,n,loc,_)) acc ->
-                            let
-                              wd =
-                                if noRanges then
-                                  if Utils.between n (0.001, 1) then
-                                    numSlider 0.001 1
-                                  else
-                                    let
-                                      (i, j) =
-                                        rangeAround n
-                                    in
-                                      if toFloat (round n) == n then
-                                        intSlider (max 0 (round i)) (round j)
-                                      else
-                                        numSlider (max 0 i) j
+
+    (name, func, predVal) =
+      case mode of
+        Nothing ->
+          ("Add/Remove Sliders", Nothing, Impossible)
+        Just noRanges ->
+          let
+            toolName =
+              case (noRanges, List.length nums) of
+                (True, 1) ->
+                  "Add Slider"
+                (True, _) ->
+                  "Add Sliders"
+                (False, 1) ->
+                  "Remove Slider"
+                (False, _) ->
+                  "Remove Sliders"
+          in
+            ( toolName
+            , Just <| \() ->
+                let
+                  eSubst =
+                    List.foldl
+                      ( \(eId,(ws,n,loc,_)) acc ->
+                          let
+                            wd =
+                              if noRanges then
+                                if Utils.between n (0.001, 1) then
+                                  numSlider 0.001 1
                                 else
-                                  withDummyRange NoWidgetDecl
-                            in
-                              Dict.insert
-                                eId
-                                (EConst ws n loc wd)
-                                acc
-                        )
-                        Dict.empty
-                        nums
-                  in
-                    [ synthesisResult
-                        toolName
-                        (applyESubst eSubst model.inputExp)
-                    ]
-          , reqs = [] -- TODO reqs
-          }
+                                  let
+                                    (i, j) =
+                                      rangeAround n
+                                  in
+                                    if toFloat (round n) == n then
+                                      intSlider (max 0 (round i)) (round j)
+                                    else
+                                      numSlider (max 0 i) j
+                              else
+                                withDummyRange NoWidgetDecl
+                          in
+                            Dict.insert
+                              eId
+                              (EConst ws n loc wd)
+                              acc
+                      )
+                      Dict.empty
+                      nums
+                in
+                  [ synthesisResult
+                      toolName
+                      (applyESubst eSubst model.inputExp)
+                  ]
+            , Satisfied
+            )
+  in
+    { name = name
+    , func = func
+    , reqs = [ { description = "Select 1 or more numbers", value = predVal } ]
+    }
 
 --------------------------------------------------------------------------------
 -- Rewrite Offset
@@ -1023,31 +1049,32 @@ addRemoveRangeTool model selections =
 rewriteOffsetTool : Model -> Selections -> DeuceTool
 rewriteOffsetTool model selections =
   let
-    func =
+    toolName = "Rewrite as Offset"
+
+    (name, func, predVal)  =
       case selections of
+        ([], [], [], [], [], [], []) ->
+          (toolName, Nothing, Possible)
         ([], _, _, _, _, _, _) ->
-          Nothing
+          (toolName, Nothing, Impossible)
         (nums, [], exps, [ppid], [], [], []) ->
           if List.length nums == List.length exps then
-            CodeMotion.rewriteOffsetTransformation model ppid nums
+            ( Utils.maybePluralize toolName nums
+            , CodeMotion.rewriteOffsetTransformation model ppid nums
+            , Satisfied
+            )
           else
-            Nothing
+            (toolName, Nothing, Impossible)
         _ ->
-          Nothing
+          (toolName, Nothing, Impossible)
   in
-    { name =
-        let
-          (nums, _, _, _, _, _, _) =
-            selections
-        in
-          case func of
-            Nothing ->
-              "Rewrite as Offset"
-            Just _ ->
-              Utils.maybePluralize "Rewrite as Offset" nums
-    , func =
-        func
-    , reqs = [] -- TODO reqs
+    { name = name
+    , func = func
+    , reqs =
+        [ { description = "Select 1 variable and 1 or more numbers"
+          , value = predVal
+          }
+        ]
     }
 
 --------------------------------------------------------------------------------
@@ -1130,20 +1157,23 @@ rewriteOffsetTool model selections =
 
 createFunctionTool : Model -> Selections -> DeuceTool
 createFunctionTool model selections =
-  { name = "Create Function"
-  , func =
+  let
+    (func, predVal) =
       case selections of
+        ([], [], [], [], [], [], []) ->
+          (Nothing, Possible)
         ([], [], [], [pathedPatId], [], [], []) ->
           case
             LangTools.findScopeExpAndPat pathedPatId model.inputExp
               |> Maybe.map (\(e,p) -> (e.val.e__, p.val.p__))
           of
             Just (ELet _ _ _ _ _ _ _, PVar _ ident _) ->
-              Just <|
-                \() ->
+              ( Just <| \() ->
                   CodeMotion.abstractPVar pathedPatId model.inputExp
+              , FullySatisfied
+              )
             _ ->
-              Nothing
+              (Nothing, Impossible)
         (_, _, [eid], [], [], [], []) ->
           let
             maybeExpToAbstract =
@@ -1173,11 +1203,11 @@ createFunctionTool model selections =
                 |> Maybe.withDefault 0
           in
             if parameterCount > 0 && expSize >= 3 then
-              Just <|
-                \() ->
-                  CodeMotion.abstractExp eid model.inputExp
+              ( Just <| \() -> CodeMotion.abstractExp eid model.inputExp
+              , FullySatisfied
+              )
             else
-              Nothing
+              (Nothing, Impossible)
         ([], [], [], [], [letEId], [], []) ->
           case
             LangTools.justFindExpByEId model.inputExp letEId
@@ -1185,18 +1215,27 @@ createFunctionTool model selections =
               |> Maybe.map (.val >> .p__)
           of
             Just (PVar _ _ _) ->
-              Just <|
-                \() ->
-                  let
-                     pathedPatId = ((letEId, 1), [])
-                  in
-                    CodeMotion.abstractPVar pathedPatId model.inputExp
+              ( Just <|
+                  \() ->
+                    let
+                       pathedPatId = ((letEId, 1), [])
+                    in
+                      CodeMotion.abstractPVar pathedPatId model.inputExp
+              , FullySatisfied
+              )
             _ ->
-              Nothing
+              (Nothing, Impossible)
         _ ->
-          Nothing
-  , reqs = [] -- TODO reqs
-  }
+          (Nothing, Impossible)
+  in
+    { name = "Create Function"
+    , func = func
+    , reqs =
+        [ { description = "Select 1 definition or variable or expression"
+          , value = predVal
+          }
+        ]
+    }
 
 --------------------------------------------------------------------------------
 -- Merge
@@ -1204,9 +1243,11 @@ createFunctionTool model selections =
 
 mergeTool : Model -> Selections -> DeuceTool
 mergeTool model selections =
-  { name = "Merge"
-  , func =
+  let
+    (func, predVal) =
       case selections of
+        ([], [], [], [], [], [], []) ->
+          (Nothing, Possible)
         (_, _, eid1::eid2::restEIds, [], [], [], []) ->
           let
             eids =
@@ -1222,15 +1263,22 @@ mergeTool model selections =
                   candidateExpFilter minCloneCount 2 model.inputExp
           in
             if mergeResults /= [] then
-              Just <|
-                \() ->
-                  mergeResults
+              ( Just <| \() -> mergeResults
+              , Satisfied
+              )
             else
-              Nothing
+              (Nothing, Impossible)
         _ ->
-          Nothing
-  , reqs = [] -- TODO reqs
-  }
+          (Nothing, Impossible)
+  in
+    { name = "Merge"
+    , func = func
+    , reqs =
+        [ { description = "Select 2 or more expressions"
+          , value = predVal
+          }
+        ]
+    }
 
 --------------------------------------------------------------------------------
 -- Add Arguments
@@ -1239,13 +1287,28 @@ mergeTool model selections =
 addArgumentsTool : Model -> Selections -> DeuceTool
 addArgumentsTool model selections =
   let
-    disabledTool =
-      { name = "Add Argument"
+    toolName = "Add Argument"
+
+    -- this helper helps avoid changing existing structure of this function
+    makeReqs predVal =
+      [ { description =
+            """Select 1 or more expressions in a function and
+               1 target position in the function's argument list"""
+        , value = predVal
+        }
+      ]
+
+    defaultTool predVal =
+      { name = toolName
       , func = Nothing
-      , reqs = [] -- TODO reqs
+      , reqs = makeReqs predVal
       }
+
+    disabledTool = defaultTool Impossible
   in
     case selections of
+      ([], [], [], [], [], [], []) ->
+        defaultTool Possible
       (_, _, firstEId::restEIds, [], [], [], [patTarget]) ->
         let
           eids =
@@ -1275,7 +1338,7 @@ addArgumentsTool model selections =
                             (Utils.head_ eids)
                             targetPathedPatId
                             model.inputExp
-                  , reqs = [] -- TODO reqs
+                  , reqs = makeReqs Satisfied
                   }
                 else if isAllSelectedExpsInFBody then
                   { name = "Add Arguments" -- Fowler calls this "Add Parameter"
@@ -1286,7 +1349,7 @@ addArgumentsTool model selections =
                             eids
                             targetPathedPatId
                             model.inputExp
-                  , reqs = [] -- TODO reqs
+                  , reqs = makeReqs Satisfied
                   }
                 else
                   disabledTool
@@ -1330,7 +1393,7 @@ addArgumentsTool model selections =
                             (Utils.head_ argSourcePathedPatIds)
                             targetPathedPatId
                             model.inputExp
-                  , reqs = [] -- TODO reqs
+                  , reqs = makeReqs Satisfied
                   }
                 else if isAllSelectedPatsInFBody then
                   { name = "Add Arguments" -- Fowler calls this "Add Parameter"
@@ -1341,7 +1404,7 @@ addArgumentsTool model selections =
                             argSourcePathedPatIds
                             targetPathedPatId
                             model.inputExp
-                  , reqs = [] -- TODO reqs
+                  , reqs = makeReqs Satisfied
                   }
                 else
                   disabledTool
@@ -1357,13 +1420,27 @@ addArgumentsTool model selections =
 removeArgumentsTool : Model -> Selections -> DeuceTool
 removeArgumentsTool model selections =
   let
-    disabledTool =
-      { name = "Remove Argument"
+    toolName = "Remove Argument"
+
+    -- this helper helps avoid changing existing structure of this function
+    makeReqs predVal =
+      [ { description =
+            "Select function arguments at definitions or call-sites"
+        , value = predVal
+        }
+      ]
+
+    defaultTool predVal =
+      { name = toolName
       , func = Nothing
-      , reqs = [] -- TODO reqs
+      , reqs = makeReqs predVal
       }
+
+    disabledTool = defaultTool Impossible
   in
     case selections of
+      ([], [], [], [], [], [], []) ->
+        defaultTool Possible
       (_, _, [], [], _, _, _) ->
         disabledTool
       ([], [], [], pathedPatIds, [], [], []) ->
@@ -1396,7 +1473,7 @@ removeArgumentsTool model selections =
                     CodeMotion.removeArg
                       (Utils.head_ pathedPatIds)
                       model.inputExp
-            , reqs = [] -- TODO reqs
+            , reqs = makeReqs Satisfied
             }
           else if isAllArgumentSelected then
             { name = "Remove Arguments"
@@ -1406,7 +1483,7 @@ removeArgumentsTool model selections =
                     CodeMotion.removeArgs
                       pathedPatIds
                       model.inputExp
-            , reqs = [] -- TODO reqs
+            , reqs = makeReqs Satisfied
             }
           else
             disabledTool
@@ -1427,7 +1504,7 @@ removeArgumentsTool model selections =
                     CodeMotion.removeArg
                       argPathedPatId
                       model.inputExp
-            , reqs = [] -- TODO reqs
+            , reqs = makeReqs Satisfied
             }
           Just argPathedPatIds ->
             { name = "Remove Arguments"
@@ -1437,7 +1514,7 @@ removeArgumentsTool model selections =
                     CodeMotion.removeArgs
                     argPathedPatIds
                     model.inputExp
-            , reqs = [] -- TODO reqs
+            , reqs = makeReqs Satisfied
             }
           _ ->
             disabledTool
@@ -1450,8 +1527,17 @@ removeArgumentsTool model selections =
 
 reorderArgumentsTool : Model -> Selections -> DeuceTool
 reorderArgumentsTool model selections =
-  { name = "Reorder Arguments"
-  , func =
+  let
+    -- this helper helps avoid changing existing structure of this function
+    makeReqs predVal =
+      [ { description =
+            """Select one or more function arguments (either at the definition
+               or a call-site, and 1 target position in that list"""
+        , value = predVal
+        }
+      ]
+
+    func =
       case selections of
         (_, _, [], [], _, _, _) ->
           Nothing
@@ -1523,7 +1609,16 @@ reorderArgumentsTool model selections =
               Nothing
         _ ->
           Nothing
-  , reqs = [] -- TODO reqs
+  in
+  { name = "Reorder Arguments"
+  , func = func
+  , reqs =
+      case selections of
+        ([], [], [], [], [], [], []) -> makeReqs Possible
+        _ ->
+          case func of
+            Just _  -> makeReqs Satisfied
+            Nothing -> makeReqs Impossible
   }
 
 --------------------------------------------------------------------------------
@@ -1687,7 +1782,21 @@ makeSingleLineTool model selections =
                         |> Utils.singleton
               else
                 Nothing
-    , reqs = [] -- TODO reqs
+    , reqs =
+        [ { description = "Select 1 expression or definition"
+          , value =
+              -- just duplicating this case from above
+              case selections of
+                ([], [], [], [], [], [], []) ->
+                  Possible
+                (_, _, [eid], [], [], [], []) ->
+                  FullySatisfied
+                ([], [], [], [], [letEId], [], []) ->
+                  FullySatisfied
+                _ ->
+                  Impossible
+           }
+        ]
     }
 
 --------------------------------------------------------------------------------
@@ -1769,7 +1878,19 @@ makeMultiLineTool model selections =
                 Nothing
         _ ->
           Nothing
-  , reqs = [] -- TODO reqs
+  , reqs =
+      [ { description = "Select 1 expression"
+        , value =
+            -- just duplicating this case from above
+            case selections of
+              ([], [], [], [], [], [], []) ->
+                Possible
+              (_, _, [eid], [], [], [], []) ->
+                FullySatisfied
+              _ ->
+                Impossible
+         }
+      ]
   }
 
 --------------------------------------------------------------------------------
@@ -1825,7 +1946,19 @@ alignExpressionsTool model selections =
                       |> Utils.singleton
         _ ->
           Nothing
-  , reqs = [] -- TODO reqs
+  , reqs =
+      [ { description = "Select 2 or more expressions"
+        , value =
+            -- just duplicating this case from above
+            case selections of
+              ([], [], [], [], [], [], []) ->
+                Possible
+              (_, _, eid1::eid2::restEIds, [], [], [], []) ->
+                Satisfied
+              _ ->
+                Impossible
+         }
+      ]
   }
 
 --==============================================================================
