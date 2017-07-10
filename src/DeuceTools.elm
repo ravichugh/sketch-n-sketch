@@ -1244,34 +1244,45 @@ createFunctionTool model selections =
 mergeTool : Model -> Selections -> DeuceTool
 mergeTool model selections =
   let
+    tryMerge eids =
+      let
+        mergeResults =
+          let
+            candidateExpFilter e =
+              List.member e.val.eid eids
+            minCloneCount =
+              List.length eids
+          in
+            ExpressionBasedTransform.cloneEliminationSythesisResults
+              candidateExpFilter minCloneCount 2 model.inputExp
+      in
+        if mergeResults /= [] then
+          ( Just <| \() -> mergeResults
+          , Satisfied
+          )
+        else
+          (Nothing, Impossible)
+
+
     (func, predVal) =
       case selections of
         ([], [], [], [], [], [], []) ->
           (Nothing, Possible)
-        (_, _, eid1::eid2::restEIds, [], [], [], []) ->
-          let
-            eids =
-              eid1::eid2::restEIds
-            mergeResults =
-              let
-                candidateExpFilter e =
-                  List.member e.val.eid eids
-                minCloneCount =
-                  List.length eids
-              in
-                ExpressionBasedTransform.cloneEliminationSythesisResults
-                  candidateExpFilter minCloneCount 2 model.inputExp
+
+        (_, _, [], [], letEId1::letEId2::restLetEIds, [], []) ->
+          let boundExpEIds =
+            letEId1::letEId2::restLetEIds
+            |> List.map (LangTools.justFindExpByEId model.inputExp >> LangTools.expToLetBoundExp >> .val >> .eid)
           in
-            if mergeResults /= [] then
-              ( Just <| \() -> mergeResults
-              , Satisfied
-              )
-            else
-              (Nothing, Impossible)
+          tryMerge boundExpEIds
+
+        (_, _, eid1::eid2::restEIds, [], [], [], []) ->
+          tryMerge (eid1::eid2::restEIds)
+
         _ ->
           (Nothing, Impossible)
   in
-    { name = "Merge"
+    { name = "Merge Expressions into Function"
     , func = func
     , reqs =
         [ { description = "Select 2 or more expressions"
@@ -1998,7 +2009,7 @@ deuceTools model =
       , patTargets
       )
   in
-    List.map (List.map ((|>) model >> (|>) selections))
+    List.map (List.map (\tool -> tool model selections))
       [ [ createFunctionTool
         , mergeTool
         ]
