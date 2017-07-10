@@ -187,31 +187,24 @@ makeEqualTool model selections =
   -- TODO allow optional target position
   -- TODO define a helper to factor Introduce Var and this
   let
-    (func, literalPredVal) =
+    (func, expsPredVal) =
       case selections of
-        (nums, baseVals, exps, [], [], [], []) ->
-          let
-            literals =
-              List.map Left nums ++ List.map Right baseVals
-          in
-            if List.length literals /= List.length exps then
-              (Nothing, Impossible)
-            else if List.length literals < 2 then
-              (Nothing, Possible)
-            else
-              ( CodeMotion.makeEqualTransformation model literals
-              , Satisfied
-              )
+        (_, _, [],  _, _, _, []) -> (Nothing, Possible)
+        (_, _, [_], _, _, _, []) -> (Nothing, Possible)
+        (_, _, eids, [], [], [], []) ->
+          ( CodeMotion.makeEqualTransformation model.inputExp eids
+          , Satisfied
+          )
         _ ->
           (Nothing, Impossible)
   in
-    { name = "Make Equal (New Variable)"
+    { name = "Introduce Single Variable"
     , func = func
     , reqs =
         [ { description =
-              "Select two or more literals"
+              "Select two or more expressions"
           , value =
-              literalPredVal
+              expsPredVal
           }
         ]
     }
@@ -594,14 +587,6 @@ introduceVariableTool model selections =
 -- Copy Expression
 --------------------------------------------------------------------------------
 
-eliminateCommonSubExpressionTool : Model -> Selections -> DeuceTool
-eliminateCommonSubExpressionTool model selections =
-  selectOneNonLiteralExpression
-    "Eliminate Common Sub-Expression"
-    CodeMotion.eliminateCommonSubExpressionTransformation
-    model
-    selections
-
 copyExpressionTool : Model -> Selections -> DeuceTool
 copyExpressionTool model selections =
   selectOneNonLiteralExpression
@@ -808,7 +793,7 @@ thawFreezeTool model selections =
         if not (oneOrMoreNumsOnly selections) then
           Nothing
         else
-          case Utils.dedup freezeAnnotations of
+          case Utils.dedupByEquality freezeAnnotations of
             [frzn] ->
               if model.syncOptions.thawedByDefault then
                 if frzn == unann then
@@ -894,7 +879,7 @@ showHideRangeTool model selections =
                   _ ->
                     Nothing
         in
-          case Utils.dedup freezeAnnotations of
+          case Utils.dedupByEquality freezeAnnotations of
             [Just b] ->
               Just b
             _ ->
@@ -984,7 +969,7 @@ addRemoveRangeTool model selections =
                 _ ->
                   False
       in
-        case Utils.dedup freezeAnnotations of
+        case Utils.dedupByEquality freezeAnnotations of
           [b] ->
             Just b
           _   ->
@@ -2027,8 +2012,7 @@ deuceTools model =
       , [ moveDefinitionTool
         , introduceVariableTool
         ]
-      , [ eliminateCommonSubExpressionTool
-        , renameVariableTool
+      , [ renameVariableTool
         , renamePatternTool
         , swapNamesAndUsagesTool
         , inlineDefinitionTool

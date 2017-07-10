@@ -966,6 +966,16 @@ replaceExpNodes eidToNewNode root =
     )
     root
 
+replaceExpNodesPreservingPrecedingWhitespace : (Dict.Dict EId Exp) -> Exp -> Exp
+replaceExpNodesPreservingPrecedingWhitespace eidToNewNode root =
+  mapExpTopDown -- top down to handle replacements that are subtrees of each other; a naive eidToNewNode could however make this loop forever
+    (\exp ->
+      case Dict.get exp.val.eid eidToNewNode of
+        Just newExp -> replacePrecedingWhitespace (precedingWhitespace exp) newExp
+        Nothing     -> exp
+    )
+    root
+
 mapType : (Type -> Type) -> Type -> Type
 mapType f tipe =
   let recurse = mapType f in

@@ -702,6 +702,7 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
       )
 
 
+-- TODO: replace usages of this with makeEIdVisibleToEIds
 liftLocsSoVisibleTo : Exp -> Set.Set Loc -> Set.Set EId -> (Exp, Dict.Dict LocId Ident)
 liftLocsSoVisibleTo originalExp mobileLocset observerEIds =
   let isPredecessor exp =

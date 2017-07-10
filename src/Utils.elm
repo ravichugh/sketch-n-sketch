@@ -163,9 +163,8 @@ listsEqualBy elementEqualityFunc xs ys =
 
 
 -- Preserves original list order
--- Dedups based on toString representation
-dedup : List a -> List a
-dedup xs = dedupBy toString xs
+dedup : List comparable -> List comparable
+dedup xs = dedupBy identity xs
 
 -- Preserves original list order
 -- Dedups based on a provided function (first seen element for each key is preserved)
@@ -179,7 +178,7 @@ dedupBy f xs =
   in
   deduped
 
--- O(n^2).
+-- O(n^2). Elements do not need to be comparable.
 dedupByEquality : List a -> List a
 dedupByEquality xs =
   List.foldr addAsSet [] xs
