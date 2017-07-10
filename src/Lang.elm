@@ -882,14 +882,14 @@ mapExpViaExp__ f e =
 
 -- Folding function returns just newGlobalAcc instead of (newExp, newGlobalAcc)
 foldExpTopDownWithScope
-  :  (Exp -> a -> b -> a)
-  -> (Exp -> b -> b)
-  -> (Exp -> b -> b)
-  -> (Exp -> Branch -> Int -> b -> b)
-  -> a
-  -> b
+  :  (Exp -> accT -> scopeAccT -> accT)
+  -> (Exp -> scopeAccT -> scopeAccT)
+  -> (Exp -> scopeAccT -> scopeAccT)
+  -> (Exp -> Branch -> Int -> scopeAccT -> scopeAccT)
+  -> accT
+  -> scopeAccT
   -> Exp
-  -> a
+  -> accT
 foldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAcc initScopeTempAcc e =
   let (_, finalGlobalAcc) =
     mapFoldExpTopDownWithScope
@@ -1070,6 +1070,26 @@ findAllWithAncestors_ predicate ancestors exp =
   let thisResult       = if predicate exp then [ancestorsAndThis] else [] in
   let recurse exp      = findAllWithAncestors_ predicate ancestorsAndThis exp in
   thisResult ++ List.concatMap recurse (childExps exp)
+
+-- Returns a boolean tag indicating whether then ancestor is a scope.
+-- Most notably, a let is NOT a scope for its bound exp, only its body.
+-- (An ECase is also NOT a scope for its scrutinee, but is for its branches.)
+findAllWithAncestorsScopesTagged : (Exp -> Bool) -> Exp -> List (List (Exp, Bool))
+findAllWithAncestorsScopesTagged predicate exp =
+  findAllWithAncestorsScopesTagged_ predicate [] exp
+
+findAllWithAncestorsScopesTagged_ : (Exp -> Bool) -> List (Exp, Bool) -> Exp -> List (List (Exp, Bool))
+findAllWithAncestorsScopesTagged_ predicate ancestors exp =
+  let ancestorsAndThisNoScope = ancestors ++ [(exp, False)] in
+  let ancestorsAndThisScope   = ancestors ++ [(exp, True)] in
+  let thisResult = if predicate exp then [ancestorsAndThisNoScope] else [] in
+  let recurseNoScope exp = findAllWithAncestorsScopesTagged_ predicate ancestorsAndThisNoScope exp in
+  let recurseScope exp   = findAllWithAncestorsScopesTagged_ predicate ancestorsAndThisScope exp in
+  case exp.val.e__ of
+    ELet _ _ _ _ boundExp body _ -> thisResult ++ recurseNoScope boundExp  ++ recurseScope body
+    ECase _ scrutinee branches _ -> thisResult ++ recurseNoScope scrutinee ++ List.concatMap recurseScope (branchExps branches)
+    EFun _ _ body _              -> thisResult ++ recurseScope body
+    _                            -> thisResult ++ List.concatMap recurseNoScope (childExps exp)
 
 
 findWithAncestorsByEId : Exp -> EId -> Maybe (List Exp)

@@ -1,4 +1,4 @@
---------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 -- This module provides "glue" code for the View to access the transformations
 -- that CodeMotion (and friends) provides.
 --------------------------------------------------------------------------------
@@ -550,12 +550,20 @@ introduceVariableTool model selections =
           (toolName, Nothing, Possible)
         (_, _, [], _, _, _, _) ->
           (toolName, Nothing, Impossible)
+        (_, _, exps, [], [], [], []) ->
+          ( Utils.maybePluralize "Introduce Variable" exps
+          , CodeMotion.introduceVarTransformation
+              model
+              exps
+              Nothing
+          , Satisfied
+          )
         (_, _, exps, [], [], [], [patTarget]) ->
           ( Utils.maybePluralize "Introduce Variable" exps
           , CodeMotion.introduceVarTransformation
               model
               exps
-              (PatTargetPosition patTarget)
+              (Just (PatTargetPosition patTarget))
           , Satisfied
           )
         (_, _, exps, [], [], [expTarget], []) ->
@@ -563,7 +571,7 @@ introduceVariableTool model selections =
           , CodeMotion.introduceVarTransformation
               model
               exps
-              (ExpTargetPosition expTarget)
+              (Just (ExpTargetPosition expTarget))
           , Satisfied
           )
         _ ->
@@ -1262,7 +1270,6 @@ mergeTool model selections =
           )
         else
           (Nothing, Impossible)
-
 
     (func, predVal) =
       case selections of

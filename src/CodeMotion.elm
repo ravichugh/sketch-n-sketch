@@ -2253,10 +2253,10 @@ reorderEListTransformation m selections =
 
 ------------------------------------------------------------------------------
 
-addNewEquationsAround program targetId newEquations e =
+addNewEquationsAround program newEquations e =
   copyPrecedingWhitespace e <|
     eLetOrDef
-      (if isTopLevelEId targetId program then Def else Let)
+      (if isTopLevelEId e.val.eid program then Def else Let)
       newEquations e
 
 addNewEquationsInside targetPath newEquations e =
@@ -2264,17 +2264,21 @@ addNewEquationsInside targetPath newEquations e =
 
 ------------------------------------------------------------------------------
 
-introduceVarTransformation m expIds targetPos =
-  case targetPos of
+introduceVarTransformation m expIds maybeTargetPos =
+  case maybeTargetPos of
+    Nothing ->
+      let expToWrap = deepestCommonAncestorWithNewline m.inputExp (\e -> List.member e.val.eid expIds) in
+      introduceVarTransformation_ m expIds expToWrap.val.eid
+        (addNewEquationsAround m.inputExp)
 
-    ExpTargetPosition (After, expTargetId) ->
+    Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
-    ExpTargetPosition (Before, expTargetId) ->
+    Just (ExpTargetPosition (Before, expTargetId)) ->
       introduceVarTransformation_ m expIds expTargetId
-        (addNewEquationsAround m.inputExp expTargetId)
+        (addNewEquationsAround m.inputExp)
 
-    PatTargetPosition patTarget ->
+    Just (PatTargetPosition patTarget) ->
       case patTargetPositionToTargetPathedPatId patTarget of
         ((targetId, 1), targetPath) ->
           case findExpByEId m.inputExp targetId of
@@ -2291,7 +2295,7 @@ introduceVarTransformation m expIds targetPos =
         _ ->
           Nothing
 
--- TODO: Bug: can't introduce var directly in from of expression being extracted.
+-- TODO: Bug: can't introduce var directly in front of expression being extracted.
 introduceVarTransformation_ m expIds addNewVarsAtThisId addNewEquationsAt =
   let toolName =
     "Introduce Variable" ++ (if List.length expIds == 1 then "" else "s")
@@ -2363,10 +2367,10 @@ literalExp literal =
 makeEqualTransformation m literals =
   let expIds = List.map literalEId literals in
   let firstLiteral = literalExp (Utils.head_ literals) in
-  let targetLet =
-    justInsideDeepestCommonScope m.inputExp (\e -> List.member e.val.eid expIds)
+  let expToWrap =
+    deepestCommonAncestorWithNewline m.inputExp (\e -> List.member e.val.eid expIds)
   in
-  let targetId = targetLet.val.eid in
+  let targetId = expToWrap.val.eid in
   let potentialNames =
     let
       names = Utils.dedupByEquality (List.map (expNameForEId m.inputExp) expIds)
@@ -2391,7 +2395,7 @@ makeEqualTransformation m literals =
       let newExp =
         expWithNewVarUsed |> mapExp (\e ->
           if e.val.eid == targetId
-          then addNewEquationsAround m.inputExp targetId [newEquation] e
+          then addNewEquationsAround m.inputExp [newEquation] e
           else e
         )
       in
@@ -2410,10 +2414,10 @@ eliminateCommonSubExpressionTransformation m firstId restIds =
   if diffs == [] then
     -- a lot of duplication from introduceVarTransformation and makeEqualTransformation...
     let name = expNameForEId m.inputExp firstId in
-    let targetLet =
-      justInsideDeepestCommonScope m.inputExp (\e -> List.member e.val.eid expIds)
+    let expToWrap =
+      deepestCommonAncestorWithNewline m.inputExp (\e -> List.member e.val.eid expIds)
     in
-    let targetBodyEId = targetLet.val.eid in
+    let targetBodyEId = expToWrap.val.eid in
     let namesToAvoid =
       visibleIdentifiersAtEIds m.inputExp (Set.singleton targetBodyEId)
     in
@@ -2426,7 +2430,7 @@ eliminateCommonSubExpressionTransformation m firstId restIds =
     in
     let newExp =
       mapExp (\e -> if e.val.eid == targetBodyEId
-                    then addNewEquationsAround m.inputExp targetBodyEId [newEquation] e
+                    then addNewEquationsAround m.inputExp [newEquation] e
                     else e
              ) expWithNewVarUsed
     in
