@@ -764,6 +764,15 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
   else Nothing
 
 
+-- It's possible that, for our purposes, it may be sufficient
+-- to determine all intended variable references from the new program
+-- with unique names. Assume inserted and removed patterns and variables
+-- are implicitly correct, and then check to make sure there are no
+-- odd free variables and that the vars in the final program resolve to
+-- the same locations as the vars in the new program with unique names.
+-- (requires that these programs match structurally/freshen similarly).
+--
+-- TODO: verify this is correct and simplify the below if so.
 makeResult
     :  String
     -> Dict.Dict String Ident
@@ -2319,30 +2328,26 @@ reorderEListTransformation m selections =
 
 ------------------------------------------------------------------------------
 
-addNewEquationsAround program newEquations e =
-  copyPrecedingWhitespace e <|
-    eLetOrDef
-      (if isTopLevelEId e.val.eid program then Def else Let)
-      newEquations e
-
-addNewEquationsInside targetPath newEquations e =
-  insertPat_ (patBoundExpOf newEquations) targetPath e
-
-------------------------------------------------------------------------------
-
 introduceVarTransformation m expIds maybeTargetPos =
+  let addNewEquationsAround insertedLetEId program namesAndBoundExps e =
+    let (pat, boundExp) = patBoundExpOf namesAndBoundExps in
+    newLetFancyWhitespace insertedLetEId pat boundExp e program
+  in
+  let addNewEquationsInside targetPath newEquations e =
+    insertPat_ (patBoundExpOf newEquations) targetPath e
+  in
   case maybeTargetPos of
     Nothing ->
       let expToWrap = deepestCommonAncestorWithNewline m.inputExp (\e -> List.member e.val.eid expIds) in
       introduceVarTransformation_ m expIds expToWrap.val.eid
-        (addNewEquationsAround m.inputExp)
+        (addNewEquationsAround -1 m.inputExp)
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
       introduceVarTransformation_ m expIds expTargetId
-        (addNewEquationsAround m.inputExp)
+        (addNewEquationsAround -1 m.inputExp)
 
     Just (PatTargetPosition patTarget) ->
       case patTargetPositionToTargetPathedPatId patTarget of
@@ -2410,38 +2415,52 @@ introduceVarTransformation_ m expIds addNewVarsAtThisId addNewEquationsAt =
 
 ------------------------------------------------------------------------------
 
-type alias Literal =
-  Either
-    (LocId, (WS, Num, Loc, WidgetDecl)) -- from selectedNums
-    (EId, (WS, EBaseVal))               -- from selectedBaseVals
-
-literalEId literal =
-  case literal of
-    Left (eId, _)  -> eId
-    Right (eId, _) -> eId
-
-literalWS literal =
-  case literal of
-    Left (_, (ws,_,_,_)) -> ws
-    Right (_, (ws,_))    -> ws
-
-literalExp literal =
-  case literal of
-    Left (_,(_,firstNum,_,_)) -> eConst firstNum dummyLoc
-    Right (_,(_,baseVal))     -> withDummyExpInfo (EBase space1 baseVal)
-
-makeEqualTransformation originalProgram eids =
-  let firstEId = Utils.head "CodeMotion.makeEqualTransform expected some eids, got []" eids in
-  let expToWrap =
-    deepestCommonAncestorWithNewline originalProgram (\e -> List.member e.val.eid eids)
+makeEqualTransformation originalProgram eids maybeTargetPosition =
+  let insertNewLet insertedLetEId pat boundExp expToWrap program =
+    ( newLetFancyWhitespace insertedLetEId pat boundExp expToWrap program
+    , Just insertedLetEId
+    )
   in
-  let targetEId = expToWrap.val.eid in
+  let addToExistingLet targetPath _ pat boundExp letExpToInsertInto _ =
+    ( insertPat_ (pat, boundExp) targetPath letExpToInsertInto
+    , Nothing
+    )
+  in
+  case maybeTargetPosition of
+    Nothing ->
+      let expToWrap = deepestCommonAncestorWithNewline originalProgram (\e -> List.member e.val.eid eids) in
+      makeEqualTransformation_ originalProgram eids expToWrap.val.eid insertNewLet
+
+    Just (ExpTargetPosition (After, expTargetId)) ->
+      Nothing
+
+    Just (ExpTargetPosition (Before, expTargetId)) ->
+      makeEqualTransformation_ originalProgram eids expTargetId insertNewLet
+
+    Just (PatTargetPosition patTarget) ->
+      case patTargetPositionToTargetPathedPatId patTarget of
+        ((targetId, 1), targetPath) ->
+          case findExpByEId originalProgram targetId of
+            Just scopeExp ->
+              if isLet scopeExp then
+                makeEqualTransformation_ originalProgram eids targetId (addToExistingLet targetPath)
+              else
+                Nothing
+
+            _ ->
+              Nothing
+
+        _ ->
+          Nothing
+
+makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
+  let firstEId = Utils.head "CodeMotion.makeEqualTransform expected some eids, got []" eids in
   let potentialNames =
     let
       names = Utils.dedupByEquality (List.map (expNameForEId originalProgram) eids)
       joinedName = String.join "_" names
       commonName = commonNameForEIdsWithDefault joinedName originalProgram eids
-      namesToAvoid = visibleIdentifiersAtEIds originalProgram (Set.fromList (targetEId::eids))
+      namesToAvoid = visibleIdentifiersAtEIds originalProgram (Set.fromList (newBindingLocationEId::eids))
     in
     commonName :: joinedName :: names
     |> List.map (\name -> nonCollidingName name 1 namesToAvoid)
@@ -2466,15 +2485,24 @@ makeEqualTransformation originalProgram eids =
             |> List.map (.val >> .eid)
           in
           let newBoundExp = justFindExpByEId originalProgramUniqueNames firstEId in
-          let newLet = newLetFancyWhitespace insertedLetEId (pVar varName |> setPId newBindingPId) newBoundExp (justFindExpByEId programWithNewVarUsed targetEId) programWithNewVarUsed in
+          let (newLet, maybeNewScopeEId) =
+            -- makeNewLet will either insert the variable into an existing let at
+            -- newBindingLocationEId or introduce a new let around newBindingLocationEId
+            makeNewLet
+                insertedLetEId
+                (pVar varName |> setPId newBindingPId)
+                newBoundExp
+                (justFindExpByEId programWithNewVarUsed newBindingLocationEId)
+                programWithNewVarUsed
+          in
           let newProgramUniqueNames =
-            programWithNewVarUsed |> replaceExpNode targetEId newLet
+            programWithNewVarUsed |> replaceExpNode newBindingLocationEId newLet
           in
           let namesUniqueTouched = Set.insert varName (identifiersSet newBoundExp) in
           programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
               ("New variable: " ++ varName)
               uniqueNameToOldName
-              (Just insertedLetEId) -- maybeNewScopeEId
+              maybeNewScopeEId
               namesUniqueTouched
               varEIdsPreviouslyDeliberatelyRemoved
               (Dict.singleton insertedVarsEId (Just newBindingPId)) -- insertedVarEIdToBindingPId

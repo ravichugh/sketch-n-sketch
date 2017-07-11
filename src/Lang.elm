@@ -1492,6 +1492,8 @@ eLets xes eBody = case xes of
 -- Produces (let [a b] [aExp bExp] bodyExp)
 --
 -- If given singleton list, produces a simple non-list let.
+--
+-- But you probably want to use LangTools.newLetFancyWhitespace.
 eLetOrDef : LetKind -> List (Ident, Exp) -> Exp -> Exp
 eLetOrDef letKind namesAndAssigns bodyExp =
   let (pat, assign) = patBoundExpOf namesAndAssigns in

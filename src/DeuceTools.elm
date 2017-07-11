@@ -189,10 +189,20 @@ makeEqualTool model selections =
   let
     (func, expsPredVal) =
       case selections of
-        (_, _, [],  _, _, _, []) -> (Nothing, Possible)
-        (_, _, [_], _, _, _, []) -> (Nothing, Possible)
+        (_, _, [], [], [], _, _) -> (Nothing, Possible)
+        (_, _, _, _::_, _, _, _) -> (Nothing, Impossible) -- no pattern selection allowed (yet)
+        (_, _, _, _, _::_, _, _) -> (Nothing, Impossible) -- no equation selection allowed (yet?)
+        (_, _, [_], _, _, _, _)  -> (Nothing, Possible)
         (_, _, eids, [], [], [], []) ->
-          ( CodeMotion.makeEqualTransformation model.inputExp eids
+          ( CodeMotion.makeEqualTransformation model.inputExp eids Nothing
+          , Satisfied
+          )
+        (_, _, eids, [], [], [], [patTarget]) ->
+          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (PatTargetPosition patTarget))
+          , Satisfied
+          )
+        (_, _, eids, [], [], [expTarget], []) ->
+          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (ExpTargetPosition expTarget))
           , Satisfied
           )
         _ ->
@@ -202,7 +212,7 @@ makeEqualTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select two or more expressions"
+              "Select two or more expressions and, optionally, a target position."
           , value =
               expsPredVal
           }
