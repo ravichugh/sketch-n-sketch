@@ -12,6 +12,7 @@ module CodeMotion exposing
   , introduceVarTransformation
   , makeEqualTransformation
   , copyExpressionTransformation
+  , swapExpressionsTransformation
   , rewriteOffsetTransformation
   , makeEIdVisibleToEIds
   )
@@ -2729,6 +2730,41 @@ copyExpressionTransformation originalProgram eids =
                 originalProgramUniqueNames
                 newProgramUniqueNames
           )
+
+------------------------------------------------------------------------------
+
+-- based off copyExpressionTransformation
+swapExpressionsTransformation originalProgram eid1 eid2 =
+  let exp1 = justFindExpByEId originalProgram eid1 in
+  let exp2 = justFindExpByEId originalProgram eid2 in
+  if unparseWithUniformWhitespace True True exp1 == unparseWithUniformWhitespace True True exp2 then
+    Nothing
+  else if List.member exp1 (flattenExpTree exp2) || List.member exp2 (flattenExpTree exp1) then
+    Nothing
+  else
+    Just <|
+      \() ->
+        let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
+        let tempEId = Parser.maxId originalProgramUniqueNames + 1 in
+        let exp1UniqueNames = justFindExpByEId originalProgramUniqueNames eid1 in
+        let exp2UniqueNames = justFindExpByEId originalProgramUniqueNames eid2 in
+        let newProgramUniqueNames =
+          originalProgramUniqueNames
+          |> replaceExpNodePreservingPrecedingWhitespace eid1 (exp1UniqueNames |> setEId tempEId)
+          |> replaceExpNodePreservingPrecedingWhitespace eid2 exp1UniqueNames
+          |> replaceExpNodePreservingPrecedingWhitespace tempEId exp2UniqueNames
+        in
+        let namesUniqueTouched = Set.union (identifiersSet exp1UniqueNames) (identifiersSet exp2UniqueNames) in
+        programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
+            ("Swap " ++ Utils.squish (unparse exp1) ++ " and " ++ Utils.squish (unparse exp2))
+            uniqueNameToOldName
+            Nothing -- maybeNewScopeEId
+            namesUniqueTouched
+            [] -- varEIdsPreviouslyDeliberatelyRemoved
+            Dict.empty -- insertedVarEIdToBindingPId
+            originalProgramUniqueNames
+            newProgramUniqueNames
+
 
 ------------------------------------------------------------------------------
 

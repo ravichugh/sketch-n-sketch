@@ -415,6 +415,34 @@ selectTwoVars toolName makeThunk model selections =
     }
 
 --------------------------------------------------------------------------------
+-- Swap Expressions
+--------------------------------------------------------------------------------
+
+swapExpressionsTool : Model -> Selections -> DeuceTool
+swapExpressionsTool model selections =
+  let
+    (func, predVal) =
+      case selections of
+        (_, _, [], [], [], [], [])           -> (Nothing, Possible)
+        (_, _, _, _::_, _, _, _)             -> (Nothing, Impossible) -- no pattern selection allowed (yet)
+        (_, _, _, _, _::_, _, _)             -> (Nothing, Impossible) -- no equation selection allowed (yet?)
+        (_, _, [_], _, _, [], [])            -> (Nothing, Possible)
+        (_, _, [eid1, eid2], [], [], [], []) -> (CodeMotion.swapExpressionsTransformation model.inputExp eid1 eid2, Satisfied)
+        _                                    -> (Nothing, Impossible)
+  in
+    { name = "Swap Expressions"
+    , func = func
+    , reqs =
+        [ { description =
+              "Select 2 expressions."
+          , value =
+              predVal
+          }
+        ]
+    }
+
+
+--------------------------------------------------------------------------------
 -- Inline Definition
 --------------------------------------------------------------------------------
 
@@ -2014,6 +2042,7 @@ deuceTools model =
         , copyExpressionTool
         , reorderListTool
         , swapUsagesTool
+        , swapExpressionsTool
         ]
       , [ thawFreezeTool
         , addRemoveRangeTool
