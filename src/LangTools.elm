@@ -213,7 +213,7 @@ patternsEqual patA patB =
 -- For finding what expressions are being removed when an expression is replaced by a function.
 --
 -- Also suitable to compare expressions for equality, discounting whitespace and EIds etc.
--- (Though see also LangUnparsers.unparseWithUniformWhitespace)
+-- (Though see also LangUnparser.unparseWithUniformWhitespace)
 --
 -- The sister functions here are ExpressionBasedTransform.passiveSynthesisSearch.(merge/mergeSingleArg)
 extraExpsDiff : Exp -> Exp -> List Exp
@@ -2365,6 +2365,13 @@ bindingScopeIdForIdentAtEId targetName targetEId program =
 -- "Nothing" means free in program
 allVarEIdsToBindingPId : Exp -> Dict.Dict EId (Maybe PId)
 allVarEIdsToBindingPId program =
+  allVarEIdsToBindingPIdList program
+  |> Dict.fromList
+
+-- "Nothing" means free in program
+-- May want this list version when you might have duplicate EIds
+allVarEIdsToBindingPIdList : Exp -> List (EId, Maybe PId)
+allVarEIdsToBindingPIdList program =
   let handleELet letExp identToPId =
     Dict.union
         (expToLetPat letExp |> indentPIdsInPat |> Dict.fromList)
@@ -2382,15 +2389,15 @@ allVarEIdsToBindingPId program =
   in
   program
   |> foldExpTopDownWithScope
-      (\exp eidToMaybePId identToPId ->
+      (\exp eidAndMaybePId identToPId ->
         case expToMaybeIdent exp of
-          Just ident -> Dict.insert exp.val.eid (Dict.get ident identToPId) eidToMaybePId
-          Nothing    -> eidToMaybePId
+          Just ident -> (exp.val.eid, Dict.get ident identToPId) :: eidAndMaybePId
+          Nothing    -> eidAndMaybePId
       )
       handleELet
       handleEFun
       handleCaseBranch
-      Dict.empty
+      []
       Dict.empty
 
 

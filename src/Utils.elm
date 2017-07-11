@@ -202,6 +202,13 @@ removeAsSet x xs =
   List.filter ((/=) x) xs
 
 -- O(nm)
+diffAsSet : List a -> List a -> List a
+diffAsSet xs ys =
+  ys |> List.foldl removeAsSet xs
+
+removeAll = diffAsSet
+
+-- O(nm)
 isSublistAsSet : List a -> List a -> Bool
 isSublistAsSet sub super =
   sub |> List.all (\x -> List.member x super)

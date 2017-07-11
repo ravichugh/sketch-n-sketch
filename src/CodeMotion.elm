@@ -800,20 +800,21 @@ makeResult
     Dict.diff uniqueNameToOldName (List.map Utils.flip renamings |> Dict.fromList)
   in
   let isSafe =
-    let originalVarRefs = allVarEIdsToBindingPId originalProgramUniqueNames |> Debug.log "originalVarRefs" in
-    let newVarRefs      = allVarEIdsToBindingPId newProgram |> Debug.log "newVarRefs" in
+    let originalVarRefs = allVarEIdsToBindingPIdList originalProgramUniqueNames |> Debug.log "originalVarRefs" in
+    let newVarRefs      = allVarEIdsToBindingPIdList newProgram |> Debug.log "newVarRefs" in
     let allOldReferencesSame =
       originalVarRefs
-      |> Dict.toList
       |> List.all
-          (\(oldVarEId, oldPId) ->
-            List.member oldVarEId varEIdsDeliberatelyRemoved || Dict.get oldVarEId newVarRefs == Just oldPId
-            -- || Debug.log (toString (oldVarEId, oldPId) ++ unparseWithIds originalProgramUniqueNames ++ unparseWithIds newProgram) False
+          (\(oldVarEId, maybeOldPid) ->
+            List.member oldVarEId varEIdsDeliberatelyRemoved
+            || Utils.equalAsSets (List.filter (Tuple.first >> (==) oldVarEId) newVarRefs) [(oldVarEId, maybeOldPid)]
+            -- || Debug.log (toString (oldVarEId, maybeOldPid) ++ unparseWithIds originalProgramUniqueNames ++ unparseWithIds newProgram) False
           )
       |> Debug.log "allOldReferencesSame"
     in
     let allNewReferencesGood =
-      Dict.diff newVarRefs originalVarRefs == insertedVarEIdToBindingPId
+      let apparentlyInsertedVarRefs = Utils.diffAsSet newVarRefs originalVarRefs in
+      Utils.equalAsSets apparentlyInsertedVarRefs (Dict.toList insertedVarEIdToBindingPId)
       |> Debug.log "allNewReferencesGood"
     in
     let noDuplicateNamesInPats =
@@ -855,6 +856,7 @@ makeResult
     baseDescription
     ++ Utils.toSentence (List.filter ((/=) "") [liftingsStr, rewrittingsStr, renamingsStr])
   in
+  let _ = Debug.log caption () in
   let result =
     synthesisResult caption newProgram |> setResultSafe isSafe
   in
@@ -2690,27 +2692,43 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
 
 ------------------------------------------------------------------------------
 
-copyExpressionTransformation m firstId restIds =
-  let expIds = firstId :: restIds in
-  let firstExp = justFindExpByEId m.inputExp firstId in
-  let restExps = List.map (justFindExpByEId m.inputExp) restIds in
-  let diffs = List.concatMap (extraExpsDiff firstExp) restExps in
-  if diffs == [] then
+copyExpressionTransformation originalProgram eids =
+  let exps = List.map (justFindExpByEId originalProgram) eids in
+  let uniqueExps = Utils.dedupBy (unparseWithUniformWhitespace True True) exps in
+  if List.length uniqueExps < 2 then
     Nothing
   else
-    -- TODO make "Copy Expression" available for selected literals
     Just <|
       \() ->
-        (firstExp :: restExps) |> List.map (\exp ->
-          let newExp =
-            List.foldl
-               (\eid -> replaceExpNodePreservingPrecedingWhitespace eid exp)
-               m.inputExp expIds
-          in
-          newExp
-          |> synthesisResult ("Copy expression: " ++ unparse exp)
-          |> setResultSafe True -- TODO
-        )
+        let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
+        uniqueExps
+        |> List.map (.val >> .eid)
+        |> List.concatMap
+          (\eidToCopy ->
+            let expToCopy = justFindExpByEId originalProgramUniqueNames eidToCopy in
+            let eidsToChange = List.filter ((/=) eidToCopy) eids in
+            let newProgramUniqueNames =
+              List.foldl
+                 (\eid -> replaceExpNodePreservingPrecedingWhitespace eid expToCopy)
+                 originalProgramUniqueNames
+                 eidsToChange
+            in
+            let namesUniqueTouched = identifiersSet expToCopy in
+            let varEIdsPreviouslyDeliberatelyRemoved =
+              eidsToChange
+              |> List.concatMap (justFindExpByEId originalProgramUniqueNames >> allVars)
+              |> List.map (.val >> .eid)
+            in
+            programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
+                ("Copy expression: " ++ Utils.squish (unparse expToCopy))
+                uniqueNameToOldName
+                Nothing -- maybeNewScopeEId
+                namesUniqueTouched
+                varEIdsPreviouslyDeliberatelyRemoved
+                Dict.empty -- insertedVarEIdToBindingPId
+                originalProgramUniqueNames
+                newProgramUniqueNames
+          )
 
 ------------------------------------------------------------------------------
 

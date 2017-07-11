@@ -592,48 +592,26 @@ introduceVariableTool model selections =
     }
 
 --------------------------------------------------------------------------------
--- Elminate Common Sub-Expression
---------------------------------------------------------------------------------
 -- Copy Expression
 --------------------------------------------------------------------------------
 
 copyExpressionTool : Model -> Selections -> DeuceTool
 copyExpressionTool model selections =
-  selectOneNonLiteralExpression
-    "Copy Expression"
-    CodeMotion.copyExpressionTransformation
-    model
-    selections
-
-selectOneNonLiteralExpression toolName makeThunk model selections =
   let
     (func, predVal) =
       case selections of
-        ([], [], [], [], [], [], []) ->
-          (Nothing, Possible)
-        (_, _, [], _, _, _, _) ->
-          (Nothing, Impossible)
-        (_, _, [_], _, _, _, _) ->
-          (Nothing, Impossible)
-        (nums, baseVals, i::js, [], [], [], []) ->
-          let
-            atLeastOneNonLiteral =
-              List.length (i::js) > (List.length nums + List.length baseVals)
-          in
-            if atLeastOneNonLiteral then
-              ( makeThunk model i js
-              , Satisfied
-              )
-            else
-              (Nothing, Impossible)
-        _ ->
-          (Nothing, Impossible)
+        (_, _, [], [], [], [], [])   -> (Nothing, Possible)
+        (_, _, _, _::_, _, _, _)     -> (Nothing, Impossible) -- no pattern selection allowed (yet)
+        (_, _, _, _, _::_, _, _)     -> (Nothing, Impossible) -- no equation selection allowed (yet?)
+        (_, _, [_], _, _, [], [])    -> (Nothing, Possible)
+        (_, _, eids, [], [], [], []) -> (CodeMotion.copyExpressionTransformation model.inputExp eids, Satisfied)
+        _                            -> (Nothing, Impossible)
   in
-    { name = toolName
+    { name = "Copy Expression"
     , func = func
     , reqs =
         [ { description =
-              "Select 2 or more expressions, including at least 1 that is not a constant"
+              "Select 2 or more expressions."
           , value =
               predVal
           }
