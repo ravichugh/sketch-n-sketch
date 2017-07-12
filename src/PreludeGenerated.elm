@@ -421,45 +421,35 @@ prelude =
 
 (def Vec2D [Num Num])
 
-(typ x (-> Point Num))
-(def x (\\[x _] x))
-  ; TODO
-  ; (def x fst)
-
-(typ y (-> Point Num))
-(def y (\\[_ y] y))
-  ; TODO
-  ; (def y snd)
-
 (typ vec2DPlus (-> Point Vec2D Point))
 (def vec2DPlus (\\(pt vec)
   [
-    (+ (x pt) (x vec))
-    (+ (y pt) (y vec))
+    (+ (fst pt) (fst vec))
+    (+ (snd pt) (snd vec))
   ]
 ))
 
 (typ vec2DMinus (-> Point Point Vec2D))
 (def vec2DMinus (\\(pt vec)
   [
-    (- (x pt) (x vec))
-    (- (y pt) (y vec))
+    (- (fst pt) (fst vec))
+    (- (snd pt) (snd vec))
   ]
 ))
 
 (typ vec2DScalarMult (-> Num Vec2D Point))
 (def vec2DScalarMult (\\(num vec)
   [
-    (* (x vec) num)
-    (* (y vec) num)
+    (* (fst vec) num)
+    (* (snd vec) num)
   ]
 ))
 
 (typ vec2DScalarDiv (-> Num Vec2D Point))
 (def vec2DScalarDiv (\\(num vec)
   [
-    (/ (x vec) num)
-    (/ (y vec) num)
+    (/ (fst vec) num)
+    (/ (snd vec) num)
   ]
 ))
 

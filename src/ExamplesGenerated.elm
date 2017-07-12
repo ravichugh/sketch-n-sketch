@@ -5072,7 +5072,7 @@ battery_deuce =
               (if (< juicePct 0.4) 'orange'
               (if (ge juicePct 1)  'green'
                                    'black')))
-    (rect fill (x topLeft) (y topLeft) w bodyHeight)))
+    (rect fill (fst topLeft) (snd topLeft) w bodyHeight)))
 
     [ juice body cap ]))))))
   
