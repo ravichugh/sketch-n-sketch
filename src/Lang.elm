@@ -345,7 +345,7 @@ pathAfterElementRemoved : List Int -> List Int -> Maybe (List Int)
 pathAfterElementRemoved removedPath path =
   case (removedPath, path) of
     ([removedI], [pathI]) ->
-      if removedI <= pathI
+      if removedI < pathI
       then Just [pathI - 1]
       else Just [pathI]
 
