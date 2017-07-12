@@ -1566,70 +1566,40 @@ reorderArgumentsTool model selections =
       case selections of
         (_, _, [], [], _, _, _) ->
           Nothing
+
         ([], [], [], pathedPatIds, [], [], [patTarget]) ->
-          let
-            targetPathedPatId =
-              patTargetPositionToTargetPathedPatId patTarget
-            allScopesSame =
-              List.map pathedPatIdToScopeId (targetPathedPatId::pathedPatIds)
-                |> Utils.allSame
-          in
-            case
-              ( allScopesSame
-              , ( findExpByEId
-                    model.inputExp
-                    (pathedPatIdToScopeEId targetPathedPatId)
-                ) |> Maybe.map (.val >> .e__)
-              )
-            of
-              (True, Just (EFun _ _ _ _)) ->
-                Just <|
-                  \() ->
-                    CodeMotion.reorderFunctionArgs
-                        (pathedPatIdToScopeEId targetPathedPatId)
-                        (List.map pathedPatIdToPath pathedPatIds)
-                        (pathedPatIdToPath targetPathedPatId)
-                        model.inputExp
-              _ ->
+          let targetPathedPatId = patTargetPositionToTargetPathedPatId patTarget in
+          let scopeIds          = List.map pathedPatIdToScopeId (targetPathedPatId::pathedPatIds) in
+          let targetScopeEId    = pathedPatIdToScopeEId targetPathedPatId in
+          case (Utils.allSame scopeIds, targetScopeEId |> findExpByEId model.inputExp |> Maybe.map (.val >> .e__)) of
+            (True, Just (EFun _ _ _ _)) ->
+              Just <|
+                \() ->
+                  CodeMotion.reorderFunctionArgs
+                      targetScopeEId
+                      (List.map pathedPatIdToPath pathedPatIds)
+                      (pathedPatIdToPath targetPathedPatId)
+                      model.inputExp
+            _ ->
                 Nothing
+
         (_, _, eids, [], [], [(beforeAfter, eid)], []) ->
-          case
-            (eid::eids)
-              |> List.map
-                   ( LangTools.eidToMaybeCorrespondingArgumentPathedPatId
-                       model.inputExp
-                   )
-              |> Utils.projJusts
-          of
+          case eid::eids |> List.map (LangTools.eidToMaybeCorrespondingArgumentPathedPatId model.inputExp) |> Utils.projJusts of
             Just (targetReferencePathedPatId::pathedPatIds) ->
-              let
-                targetPathedPatId =
-                  patTargetPositionToTargetPathedPatId
-                    (beforeAfter, targetReferencePathedPatId)
-                allScopesSame =
-                  ( List.map
-                      pathedPatIdToScopeId
-                      (targetPathedPatId::pathedPatIds)
-                  ) |> Utils.allSame
-              in
-                case
-                  ( allScopesSame
-                  , ( findExpByEId
-                        model.inputExp
-                        (pathedPatIdToScopeEId targetPathedPatId)
-                    ) |> Maybe.map (.val >> .e__)
-                  )
-                of
-                  (True, Just (EFun _ _ _ _)) ->
-                    Just <|
-                      \() ->
-                        CodeMotion.reorderFunctionArgs
-                            (pathedPatIdToScopeEId targetPathedPatId)
-                            (List.map pathedPatIdToPath pathedPatIds)
-                            (pathedPatIdToPath targetPathedPatId)
-                            model.inputExp
-                  _ ->
-                    Nothing
+              let targetPathedPatId = patTargetPositionToTargetPathedPatId (beforeAfter, targetReferencePathedPatId) in
+              let scopeIds = List.map pathedPatIdToScopeId (targetPathedPatId::pathedPatIds) in
+              let targetEId = pathedPatIdToScopeEId targetPathedPatId in
+              case (Utils.allSame scopeIds, targetEId |> findExpByEId model.inputExp |> Maybe.map (.val >> .e__)) of
+                (True, Just (EFun _ _ _ _)) ->
+                  Just <|
+                    \() ->
+                      CodeMotion.reorderFunctionArgs
+                          targetEId
+                          (List.map pathedPatIdToPath pathedPatIds)
+                          (pathedPatIdToPath targetPathedPatId)
+                          model.inputExp
+                _ ->
+                  Nothing
             _ ->
               Nothing
         _ ->
