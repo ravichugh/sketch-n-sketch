@@ -1717,7 +1717,7 @@ abstractPVar pathedPatId originalProgram =
           in
           let abstractedOverNamedUnfrozenConstantsResult =
             let newProgram = doAbstract shouldBeParameterIsNamedUnfrozenConstant in
-            synthesisResult ("Abstract " ++ ident ++ " over its named unfrozen constants") newProgram
+            synthesisResult ("Abstract " ++ ident ++ " over its named constants") newProgram
           in
           [ abstractedOverAllConstantsResult
           , abstractedOverNamedUnfrozenConstantsResult
@@ -1763,7 +1763,7 @@ abstractExp eidToAbstract originalProgram =
   in
   let abstractedOverNamedUnfrozenConstantsResult =
     let newProgram = doAbstract shouldBeParameterIsNamedUnfrozenConstant in
-    synthesisResult ("Abstract " ++ (expToAbstract |> unparse |> Utils.squish |> Utils.niceTruncateString 20 "...") ++ " over its named unfrozen constants") newProgram
+    synthesisResult ("Abstract " ++ (expToAbstract |> unparse |> Utils.squish |> Utils.niceTruncateString 20 "...") ++ " over its named constants") newProgram
   in
   [ abstractedOverAllConstantsResult
   , abstractedOverNamedUnfrozenConstantsResult
