@@ -1,0 +1,27 @@
+;
+; The language has several binary operators for
+; arithmetic.
+;
+; If we want to multiply three numbers, we can use binary
+; multiplication twice.
+;
+; EXERCISE: Call the multiply3 function.
+;
+; EXERCISE: Write a function add4 that adds four
+; numbers.
+;
+; EXERCISE: Call a function with too many arguments.
+; You'll see a run-time error.
+;
+; EXERCISE: Call a function with too few arguments.
+; You won't get a run-time error, but the result
+; shown will be "<fun>" (a function that is waiting
+; for the rest of its arguments).
+
+(def foo (\(x y) [(+ x y) (* x y) (/ x y)]))
+
+(def multiply3 (\(x y z) (* x (* y z))))
+
+(draw [
+  (show (foo 3 4))
+])

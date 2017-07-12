@@ -1,0 +1,39 @@
+; Goals:
+;
+; * The three rectangle definitions share a lot of
+;   identical code. Create a function rect_50_70 that
+;   generates a 50 x 70 rectangle with color and
+;   position parameters. Then define rect1, rect2, and
+;   rect3 in terms of rect_50_70.
+; 
+; The final program should look something like:
+; 
+;   (def rect_50_70 (\(fill2 x2 y2)
+;     (let [fill x y w h] [fill2 x2 y2 50 70]
+;       (rect fill x y w h))))
+;       
+;   (def rect1
+;     (rect_50_70 "red" 30 30))
+;   
+;   (def rect2
+;     (rect_50_70 "green" 109 53))
+;   
+;   (def rect3
+;     (rect_50_70 "blue" 192 35))
+;   
+;   (draw [ rect1 rect2 rect3 ])
+
+
+(def rect1
+  (let [fill x y w h] ["red" 30 30 50 70]
+    (rect fill x y w h)))
+
+(def rect2
+  (let [fill x y w h] ["green" 109 53 50 70]
+    (rect fill x y w h)))
+
+(def rect3
+  (let [fill x y w h] ["blue" 192 35 50 70]
+    (rect fill x y w h)))
+
+(draw [ rect1 rect2 rect3 ])

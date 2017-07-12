@@ -1,0 +1,24 @@
+;
+; To recap, there are two general mechanisms for
+; invoking code transformations.
+;
+; (TODO SAME ORDER as 1/3 and 3 above)
+;
+; Text Select Mode:
+;
+;  1.  Text select something in the code
+;  2a. Go to Edit Code menu and select a tool
+;  2b. Right-click select a tool from pop-up menu
+;  3.  Follow any instructions and finish
+;
+; Box Select Mode:
+;
+;  1.  Hold down Shift, and hover and click boxes
+;  2.  Select a tool from pop-up menu
+;  3.  Follow any instructions and finish
+;
+; Hitting the Escape key clears any selected boxes.
+; Notice that the Edit Code menu is disabled when
+; using Box Select mode.
+
+(draw [(show "That's the end of the tutorial!")])

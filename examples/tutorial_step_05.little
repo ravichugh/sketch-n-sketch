@@ -1,0 +1,27 @@
+;
+; In addition to top-level definitions, local
+; variables can be created using a different keyword
+; called let. For example, within a def, we can
+; define the local variable data to hold some value,
+; and then refer to that value with the name data in
+; the rest of the let-expression.
+;
+; The data variable is not in scope outside of the
+; myText definition. Trying to refer to it results
+; in a variable not found run-time error.
+;
+; EXERCISE: Uncomment the thisWillFail definition
+; and re-run.
+;
+; List patterns can be used within local bindings.
+;
+; EXERCISE: Define the pattern [one two] to be [1 2]
+; inside nums.
+
+(def nums
+  (let one 1
+    [one one]))
+
+(def thisWillFail one)
+
+(draw (show nums))

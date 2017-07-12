@@ -1,0 +1,26 @@
+;
+; Now we'll see how to draw three basic shapes:
+; lines, rectangles, and circles. Notice how
+; elements later in the list appear on top.
+;
+; EXERCISE: Reorder the elements in the main
+; expression so that the red line is on top of the
+; green rectangle.
+;
+; EXERCISE: All three shapes share the point [100
+; 100]. Define variables for these two values, and
+; use the variables in all three shapes.
+
+(def redLine
+  (let [w x1 y1 x2 y2] [4 100 100 300 300]
+    (line "salmon" w x1 y1 x2 y2)))
+
+(def greenRect
+  (let [x y w h] [100 100 150 80]
+    (rect "lightgreen" x y w h)))
+
+(def blueCircle
+  (let [cx cy r] [100 100 20]
+    (circle "lightblue" cx cy r)))
+
+(draw [redLine greenRect blueCircle])

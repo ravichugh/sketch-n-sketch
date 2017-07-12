@@ -152,6 +152,29 @@ LITTLE_TO_ELM battery_deuce
 LITTLE_TO_ELM coffee_deuce
 LITTLE_TO_ELM mondrian_arch_deuce
 
+LITTLE_TO_ELM tutorial_step_01
+LITTLE_TO_ELM tutorial_step_02
+LITTLE_TO_ELM tutorial_step_03
+LITTLE_TO_ELM tutorial_step_04
+LITTLE_TO_ELM tutorial_step_05
+LITTLE_TO_ELM tutorial_step_06
+LITTLE_TO_ELM tutorial_step_07
+LITTLE_TO_ELM tutorial_step_08
+LITTLE_TO_ELM tutorial_step_09
+LITTLE_TO_ELM tutorial_step_10
+LITTLE_TO_ELM tutorial_step_11
+LITTLE_TO_ELM tutorial_step_12
+LITTLE_TO_ELM tutorial_step_13
+LITTLE_TO_ELM tutorial_step_14
+LITTLE_TO_ELM tutorial_step_15
+LITTLE_TO_ELM tutorial_step_16
+
+LITTLE_TO_ELM task_one_rectangle
+LITTLE_TO_ELM task_three_rectangles
+LITTLE_TO_ELM task_target
+LITTLE_TO_ELM task_battery
+LITTLE_TO_ELM task_lambda
+
 generalCategory =
   ( "General"
   , [ makeExample "BLANK" blank
@@ -301,8 +324,41 @@ otherCategory =
     ]
   )
 
+tutorialCategory =
+  ( "Tutorial"
+  , [ makeExample "Step 01" tutorial_step_01
+    , makeExample "Step 02" tutorial_step_02
+    , makeExample "Step 03" tutorial_step_03
+    , makeExample "Step 04" tutorial_step_04
+    , makeExample "Step 05" tutorial_step_05
+    , makeExample "Step 06" tutorial_step_06
+    , makeExample "Step 07" tutorial_step_07
+    , makeExample "Step 08" tutorial_step_08
+    , makeExample "Step 09" tutorial_step_09
+    , makeExample "Step 10" tutorial_step_10
+    , makeExample "Step 11" tutorial_step_11
+    , makeExample "Step 12" tutorial_step_12
+    , makeExample "Step 13" tutorial_step_13
+    , makeExample "Step 14" tutorial_step_14
+    , makeExample "Step 15" tutorial_step_15
+    , makeExample "Step 16" tutorial_step_16
+    ]
+  )
+
+taskCategory =
+  ( "Tasks"
+  , [ makeExample "One Rectangle" task_one_rectangle
+    , makeExample "Three Rectangles" task_three_rectangles
+    , makeExample "Target Icon" task_target
+    , makeExample "Battery Icon" task_battery
+    , makeExample "Lambda Icon" task_lambda
+    ]
+  )
+
 templateCategories =
   [ generalCategory
+  , tutorialCategory
+  , taskCategory
   , deuceCategory
   , defaultIconCategory
   , logoCategory

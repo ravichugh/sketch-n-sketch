@@ -1,0 +1,37 @@
+;
+; Now let's introduce variables for the x- and
+; y-positions using the Introduce Variable tool.
+;
+; Again, we can perform these in several ways.
+;
+; EXERCISE: Select the text 100, go to Edit Code,
+; select Introduce Variable. The configuration pane
+; asks for more information, namely, zero or one
+; target position. To select a target position, we
+; can hover the code and see that boxes for
+; different items light up. We can select the space
+; between definitions as our desired target
+; position.
+;
+; EXERCISE: Undo. Select the text 100, go to Edit
+; Code, select Introduce Variable. This time, select
+; the target position inside redRect before the
+; call.
+;
+; EXERCISE: Undo. Select the text 100, this time
+; right-click, and select Introduce Variable. This
+; time, don't select a target position.
+;
+; EXERCISE: Undo. Hold down Shift, hover and click
+; both 100 and 100 and the target position inside
+; redRect. Release the Shift Key, hover and select
+; Introduce Variables.
+;
+; EXERCISE: Undo. Hold down Shift, hover and click
+; both 100 and 100. Release the Shift Key, hover and
+; select Introduce Variables.
+
+(def redRect
+  (rect "salmon" 100 100 150 80))
+
+(draw [redRect])

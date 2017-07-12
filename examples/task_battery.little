@@ -1,0 +1,38 @@
+; Goals:
+; 
+; * The programmer intends the color of juiceRectangle
+;   to depend on how wide the rectangle is (that is,
+;   how much battery juice is left). But juicePct is
+;   currently hard-coded to be 0.30 (that is, 30%).
+;   
+;   Redefine juicePct to be the ratio of the
+;   juiceRectangle width to the bodyRectangle width.
+;   
+; * Turn battery into a function that is parametrized
+;   over the location, size, and juice percentage and
+;   then draws both rectangles.
+;
+; The final program should be easy to read and
+; understand.
+
+
+(def [x y w h] [17 15 172 100])
+(def margin 5)
+
+(def bodyRectangle
+  (rect "lightgray" x y
+    (+ w (* 2 margin)) (+ h (* 2 margin))))
+
+(def juiceRectangle
+  (let juicePct 0.30
+  (let fill
+    (if (< juicePct 0.2) "red"
+    (if (< juicePct 0.4) "orange"
+    (if (= juicePct 1)   "green"
+                         "black")))
+  (rect fill (+ x margin) (+ y margin) 71 h))))
+  
+(def battery
+  [bodyRectangle juiceRectangle])
+
+(draw battery)

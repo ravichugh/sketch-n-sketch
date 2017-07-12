@@ -1,0 +1,10 @@
+;
+; So far, we've seen how to write code using the
+; text editor. Now we'll see some features that
+; Sketch-n-Sketch provides for automatically
+; performing code transformations. If you've used
+; refactoring tools or IDEs like Eclipse, you may
+; have seen code transformations before. Even if
+; not, we will explain how it works.
+
+(draw [])

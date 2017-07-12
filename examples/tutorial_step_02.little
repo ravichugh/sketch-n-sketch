@@ -1,0 +1,29 @@
+;
+; The structure of a program is a series of
+; top-level definitions followed my a "main"
+; expression that corresponds to the final image to
+; draw. The initial main expression has an empty
+; list, so nothing is drawn in the canvas.
+;
+; EXERCISE: Add the expression (show "hello world!")
+; to the list of drawings. Notice how the border of
+; the canvas is red to indicate when the code needs
+; to be re-run. Hit the Run button.
+;
+; EXERCISE: Now define this expression in a new
+; variable instead, and refer to it in the main
+; expression.
+;
+; Many expressions start and end with parentheses.
+; Extra parentheses are not allowed, resulting in a
+; syntax error.
+;
+; EXERCISE: Add extra parentheses somewhere and run.
+
+(def x 1)   ; var x = 1
+
+(def y 2)   ; var y = 2
+
+(def z 3)   ; var z = 3
+
+(draw [])

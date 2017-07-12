@@ -5154,6 +5154,652 @@ mondrian_arch_deuce =
 """
 
 
+tutorial_step_01 =
+ """;
+; In this study, we are going to show you some
+; program editing features in Sketch-n-Sketch, a
+; programming system for generating Scalable Vector
+; Graphics images. Before we ask you to use
+; Sketch-n-Sketch to perform several program editing
+; tasks, we will spend a few minutes explaining the
+; basics of how Sketch-n-Sketch works.
+;
+; Sketch-n-Sketch programs are written in a
+; functional language. This language is small,
+; custom language built for Sketch-n-Sketch, though
+; its features are common to most functional
+; languages and its syntax is similar to Lisp and
+; Racket. Even if you do not have significant or
+; recent experience programming in functional
+; languages, your programming knowledge from other
+; languages will allow you to complete the tasks. We
+; will provide a tutorial on the basics of the
+; language.
+
+(draw [])
+
+"""
+
+tutorial_step_02 =
+ """;
+; The structure of a program is a series of
+; top-level definitions followed my a \"main\"
+; expression that corresponds to the final image to
+; draw. The initial main expression has an empty
+; list, so nothing is drawn in the canvas.
+;
+; EXERCISE: Add the expression (show \"hello world!\")
+; to the list of drawings. Notice how the border of
+; the canvas is red to indicate when the code needs
+; to be re-run. Hit the Run button.
+;
+; EXERCISE: Now define this expression in a new
+; variable instead, and refer to it in the main
+; expression.
+;
+; Many expressions start and end with parentheses.
+; Extra parentheses are not allowed, resulting in a
+; syntax error.
+;
+; EXERCISE: Add extra parentheses somewhere and run.
+
+(def x 1)   ; var x = 1
+
+(def y 2)   ; var y = 2
+
+(def z 3)   ; var z = 3
+
+(draw [])
+
+"""
+
+tutorial_step_03 =
+ """;
+; In addition to strings, there are numbers,
+; booleans, and lists. Lists are written with square
+; brackets and with spaces separating the elements.
+; The language does not have static types, so we can
+; mix and match different types of elements within a
+; list.
+
+(def str \"hello world!\")
+(def num 3.14)
+(def bool true)
+(def list
+  [1 2 3 true [false \"abc\"] str num bool])
+
+(draw [(show list)])
+
+"""
+
+tutorial_step_04 =
+ """;
+; When a list has a fixed number of elements, we
+; often call that list a tuple. For example, we
+; refer to a two-element list as a pair, a
+; three-element list as a triple, and so on.
+;
+; We can access the components of tuples by writing
+; list patterns, instead of just plain variables, on
+; the left-hand side of definitions. For example,
+; the pattern [one two] below matches a list with
+; two elements, and gives the name one to the first
+; element and two to the second.
+;
+; If the list pattern and list expression do not
+; have the same number of elements, Sketch-n-Sketch
+; throws a run-time error.
+;
+; EXERCISE: Add a third variable to the pattern and
+; re-run.
+;
+; EXERCISE: Remove one of the expressions from the
+; list bound to the pattern and re-run.
+
+(def [one two] [1 \"two\"])
+      
+(draw [(show [one two one two])])
+
+"""
+
+tutorial_step_05 =
+ """;
+; In addition to top-level definitions, local
+; variables can be created using a different keyword
+; called let. For example, within a def, we can
+; define the local variable data to hold some value,
+; and then refer to that value with the name data in
+; the rest of the let-expression.
+;
+; The data variable is not in scope outside of the
+; myText definition. Trying to refer to it results
+; in a variable not found run-time error.
+;
+; EXERCISE: Uncomment the thisWillFail definition
+; and re-run.
+;
+; List patterns can be used within local bindings.
+;
+; EXERCISE: Define the pattern [one two] to be [1 2]
+; inside nums.
+
+(def nums
+  (let one 1
+    [one one]))
+
+(def thisWillFail one)
+
+(draw (show nums))
+
+"""
+
+tutorial_step_06 =
+ """;
+; The syntax for a function, also known as a lambda
+; expression, is shown below. The function
+; triplicate takes a single argument x, and it
+; returns a list that repeats x three times.
+;
+; To call it, the function name and its argument are
+; separated by a space, and the entire call is
+; surrounded by parentheses.
+;
+; EXERCISE: Rename the argument of triplicate to
+; something else and re-run.
+;
+; The syntax for functions with multiple arguments
+; is shown in the triplicate2 function; the list of
+; arguments is surrounding in parentheses. When
+; calling a function with multiple arguments, the
+; arguments are separated by spaces.
+;
+; EXERCISE: Call triplicate2 in the main expression.
+
+(def triplicate (\\x [x x x]))
+
+(def triplicate2 (\\(x y) [x y x y x y]))
+
+(draw [(show (triplicate 3))])
+
+"""
+
+tutorial_step_07 =
+ """;
+; The language has several binary operators for
+; arithmetic.
+;
+; If we want to multiply three numbers, we can use binary
+; multiplication twice.
+;
+; EXERCISE: Call the multiply3 function.
+;
+; EXERCISE: Write a function add4 that adds four
+; numbers.
+;
+; EXERCISE: Call a function with too many arguments.
+; You'll see a run-time error.
+;
+; EXERCISE: Call a function with too few arguments.
+; You won't get a run-time error, but the result
+; shown will be \"<fun>\" (a function that is waiting
+; for the rest of its arguments).
+
+(def foo (\\(x y) [(+ x y) (* x y) (/ x y)]))
+
+(def multiply3 (\\(x y z) (* x (* y z))))
+
+(draw [
+  (show (foo 3 4))
+])
+
+"""
+
+tutorial_step_08 =
+ """;
+; We can also use binary operators for comparison,
+; and then use if-then-else expressions based on
+; their boolean results.
+;
+; EXERCISE: Define a max3 function.
+
+(def max (\\(x y)
+  (if (< x y) y x)))
+
+(show (max 1 100))
+
+"""
+
+tutorial_step_09 =
+ """;
+; EXERCISE: The range library function computes the
+; list of numbers between start and end numbers.
+; Try the expression (range 1 10).
+;
+; EXERCISE: The reverse library function reverses
+; the elements of a list. Try the expression
+; (reverse (range 1 10)).
+;
+; Now let's apply the same function to each of the
+; arguments in this list of reversed numbers. For
+; example, let's define a function that multiplies
+; its argument by two. Then we can map this function
+; over a list of numbers.
+;
+; The map function, as is in typical functional
+; languages, is a basic building block resembling
+; what can be accomplished with loops in imperative
+; languages.
+;
+; EXERCISE: Try (map double (reverse (range 1 10))).
+
+(def double (\\i (* i 2)))
+
+(draw [
+  (show (range 1 10))
+])
+
+"""
+
+tutorial_step_10 =
+ """;
+; Now we'll see how to draw three basic shapes:
+; lines, rectangles, and circles. Notice how
+; elements later in the list appear on top.
+;
+; EXERCISE: Reorder the elements in the main
+; expression so that the red line is on top of the
+; green rectangle.
+;
+; EXERCISE: All three shapes share the point [100
+; 100]. Define variables for these two values, and
+; use the variables in all three shapes.
+
+(def redLine
+  (let [w x1 y1 x2 y2] [4 100 100 300 300]
+    (line \"salmon\" w x1 y1 x2 y2)))
+
+(def greenRect
+  (let [x y w h] [100 100 150 80]
+    (rect \"lightgreen\" x y w h)))
+
+(def blueCircle
+  (let [cx cy r] [100 100 20]
+    (circle \"lightblue\" cx cy r)))
+
+(draw [redLine greenRect blueCircle])
+
+"""
+
+tutorial_step_11 =
+ """;
+; As a final example, let's create a pattern of
+; rectangles, repeated downwards with some space in
+; between each.
+;
+; The function below uses local variables to make
+; things readable. The call to map applies the
+; function to the list [0 1 2 3]. Because the
+; function currently ignores its argument i, it
+; draws every rectangle at the same position.
+;
+; EXERCISE: Add a local variable called space
+; defined to be some non-zero number. Then draw the
+; rectangle at y-position (+ y (* i (+ h space))).
+
+(def greenRect (\\i
+  (let [x y w h] [100 100 150 80]
+    (rect \"lightgreen\" x y w h))))
+
+(draw (map greenRect (range 0 3)))
+
+"""
+
+tutorial_step_12 =
+ """;
+; So far, we've seen how to write code using the
+; text editor. Now we'll see some features that
+; Sketch-n-Sketch provides for automatically
+; performing code transformations. If you've used
+; refactoring tools or IDEs like Eclipse, you may
+; have seen code transformations before. Even if
+; not, we will explain how it works.
+
+(draw [])
+
+"""
+
+tutorial_step_13 =
+ """;
+; Here's a red rectangle. We will use the Rename
+; code transformation tool to rename the function at
+; its definition and its call-sites.
+;
+; There are a few ways to do this:
+;
+; (TODO RANDOMIZE ORDER OF 1/2 and 3)
+;
+; 1) Select the text redRect, go to the Edit Code
+; menu, and select the Rename tool. Then enter a new
+; name in the configuration menu, and press OK.
+;
+; 2) Select the text redRect, right-click the code
+; box, and select the Rename tool. Then enter a new
+; name in the configuration menu, and press OK.
+;
+; 3) Hold down the Shift key, hover over redRect,
+; and click the box that pops up over redRect.
+; Release the Shift key and select the Rename tool
+; from the pop-up menu. Then enter a new name in the
+; configuration menu, and press OK.
+;
+; EXERCISE: Perform the renaming with each of the
+; three interactions. Use Undo after each to reset
+; the program.
+
+(def redRect
+  (rect \"salmon\" 100 100 150 80))
+
+(draw [redRect])
+
+"""
+
+tutorial_step_14 =
+ """;
+; Now we will use the Create Function tool to turn
+; the definition into a function.
+;
+; Like Rename, there are a few ways to do this:
+;
+; (TODO OPPOSITE ORDER OF 1/2 and 3)
+;
+; 1) Select the text (def redRect ...). Go to the
+; Edit Code menu and select Create Function.
+;
+; 2) Select the text (def redRect ...). Right-click
+; the code box and select Create Function.
+;
+; 3) Hold down the Shift key, hover over and click
+; either the definition (def redRect ...). Release
+; the Shift Key and select Create Function.
+;
+; In each case, there are a couple options for what
+; to make arguments. Since the point of this
+; function is to draw a red rectangle, we'll pick
+; the option that does not make color one of the
+; arguments. Notice how the expression is turned in
+; to a call.
+;
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program.
+
+(def redRect
+  (rect \"salmon\" 100 100 150 80))
+
+(draw [redRect])
+
+"""
+
+tutorial_step_15 =
+ """;
+; Now let's introduce variables for the x- and
+; y-positions using the Introduce Variable tool.
+;
+; Again, we can perform these in several ways.
+;
+; EXERCISE: Select the text 100, go to Edit Code,
+; select Introduce Variable. The configuration pane
+; asks for more information, namely, zero or one
+; target position. To select a target position, we
+; can hover the code and see that boxes for
+; different items light up. We can select the space
+; between definitions as our desired target
+; position.
+;
+; EXERCISE: Undo. Select the text 100, go to Edit
+; Code, select Introduce Variable. This time, select
+; the target position inside redRect before the
+; call.
+;
+; EXERCISE: Undo. Select the text 100, this time
+; right-click, and select Introduce Variable. This
+; time, don't select a target position.
+;
+; EXERCISE: Undo. Hold down Shift, hover and click
+; both 100 and 100 and the target position inside
+; redRect. Release the Shift Key, hover and select
+; Introduce Variables.
+;
+; EXERCISE: Undo. Hold down Shift, hover and click
+; both 100 and 100. Release the Shift Key, hover and
+; select Introduce Variables.
+
+(def redRect
+  (rect \"salmon\" 100 100 150 80))
+
+(draw [redRect])
+
+"""
+
+tutorial_step_16 =
+ """;
+; To recap, there are two general mechanisms for
+; invoking code transformations.
+;
+; (TODO SAME ORDER as 1/3 and 3 above)
+;
+; Text Select Mode:
+;
+;  1.  Text select something in the code
+;  2a. Go to Edit Code menu and select a tool
+;  2b. Right-click select a tool from pop-up menu
+;  3.  Follow any instructions and finish
+;
+; Box Select Mode:
+;
+;  1.  Hold down Shift, and hover and click boxes
+;  2.  Select a tool from pop-up menu
+;  3.  Follow any instructions and finish
+;
+; Hitting the Escape key clears any selected boxes.
+; Notice that the Edit Code menu is disabled when
+; using Box Select mode.
+
+(draw [(show \"That's the end of the tutorial!\")])
+
+"""
+
+
+task_one_rectangle =
+ """; Goals:
+; 
+; * The programmer intended the rectangle to be 250
+;   pixels tall and 80 pixels wide, but the height and
+;   width arguments to rect are in the wrong order.
+;   Swap them.
+; 
+; * Rearrange the five variable definitions into a
+;   single tuple definition. The order of variables
+;   should match the order of arguments to rect.
+; 
+; The final program should look like:
+;
+;   (def rect1
+;     (let [fill x y width height] [\"black\" 20 20 80 250]
+;       (rect fill x y width height)))
+;   
+;   (draw [ rect1 ])
+
+
+(def rect1
+  (let x 20
+  (let y 20
+  (let height 250
+  (let width 80
+  (let fill \"black\"
+    (rect fill x y height width)))))))
+
+(draw [ rect1 ])
+
+"""
+
+task_three_rectangles =
+ """; Goals:
+;
+; * The three rectangle definitions share a lot of
+;   identical code. Create a function rect_50_70 that
+;   generates a 50 x 70 rectangle with color and
+;   position parameters. Then define rect1, rect2, and
+;   rect3 in terms of rect_50_70.
+; 
+; The final program should look something like:
+; 
+;   (def rect_50_70 (\\(fill2 x2 y2)
+;     (let [fill x y w h] [fill2 x2 y2 50 70]
+;       (rect fill x y w h))))
+;       
+;   (def rect1
+;     (rect_50_70 \"red\" 30 30))
+;   
+;   (def rect2
+;     (rect_50_70 \"green\" 109 53))
+;   
+;   (def rect3
+;     (rect_50_70 \"blue\" 192 35))
+;   
+;   (draw [ rect1 rect2 rect3 ])
+
+
+(def rect1
+  (let [fill x y w h] [\"red\" 30 30 50 70]
+    (rect fill x y w h)))
+
+(def rect2
+  (let [fill x y w h] [\"green\" 109 53 50 70]
+    (rect fill x y w h)))
+
+(def rect3
+  (let [fill x y w h] [\"blue\" 192 35 50 70]
+    (rect fill x y w h)))
+
+(draw [ rect1 rect2 rect3 ])
+
+"""
+
+task_target =
+ """; Goals:
+;
+; * Remove the startIndex argument; its value should
+;   always be 1.
+;   
+; * Rename endIndex to numRings.
+;   
+; * Move the ring function inside the target
+;   definition.
+;   
+; * Add the center position and ring width as
+;   arguments to target.
+;   
+; The final program should look like:
+;
+;   (def target (\\(cx cy num numRings)
+;     (let ring (\\i
+;       (let fill (if (= 0 (mod i 2)) \"firebrick\" \"lightgray\")
+;       (circle fill cx cy (* num i))))
+;       (map ring (reverse (range 1 numRings))))))
+;
+;   (draw (target 250 250 50 4))
+
+
+(def ring (\\i
+  (let fill (if (= 0 (mod i 2)) \"firebrick\" \"lightgray\")
+  (circle fill 250 250 (* 50 i)))))
+
+(def target (\\(startIndex endIndex)
+  (map ring (reverse (range startIndex endIndex)))))
+
+(draw (target 1 4))
+
+"""
+
+task_battery =
+ """; Goals:
+; 
+; * The programmer intends the color of juiceRectangle
+;   to depend on how wide the rectangle is (that is,
+;   how much battery juice is left). But juicePct is
+;   currently hard-coded to be 0.30 (that is, 30%).
+;   
+;   Redefine juicePct to be the ratio of the
+;   juiceRectangle width to the bodyRectangle width.
+;   
+; * Turn battery into a function that is parametrized
+;   over the location, size, and juice percentage and
+;   then draws both rectangles.
+;
+; The final program should be easy to read and
+; understand.
+
+
+(def [x y w h] [17 15 172 100])
+(def margin 5)
+
+(def bodyRectangle
+  (rect \"lightgray\" x y
+    (+ w (* 2 margin)) (+ h (* 2 margin))))
+
+(def juiceRectangle
+  (let juicePct 0.30
+  (let fill
+    (if (< juicePct 0.2) \"red\"
+    (if (< juicePct 0.4) \"orange\"
+    (if (= juicePct 1)   \"green\"
+                         \"black\")))
+  (rect fill (+ x margin) (+ y margin) 71 h))))
+  
+(def battery
+  [bodyRectangle juiceRectangle])
+
+(draw battery)
+
+"""
+
+task_lambda =
+ """; Goals:
+; 
+; * The initial program draws a lambda icon, but
+;   the hard-coded constants requires many changes if
+;   we want to draw the icon at a different position.
+;   
+;   Define four new variables for the x-position,
+;   y-position, width, and height of the logo, and use
+;   them to enforce two geometric relationships:
+;   
+;    - one line should go from the top-left
+;      corner of the rectangle to the bottom-right;
+;   
+;    - the other line should go from the
+;      bottom-left corner of the rectangle to the
+;      center.
+;   
+; * Both lines are intended to be the same
+;   color, so define a variable and use it.
+;   
+; The final program should be easy to read and
+; understand.
+
+
+(def rectangle (rect \"black\" 20 20 100 100))
+(def line1 (line \"white\" 5 20 20 120 120))
+(def line2 (line \"white\" 5 20 120 70 70))
+
+(def logo [rectangle line1 line2])
+
+(draw logo)
+
+"""
+
+
 generalCategory =
   ( "General"
   , [ makeExample "BLANK" blank
@@ -5303,8 +5949,41 @@ otherCategory =
     ]
   )
 
+tutorialCategory =
+  ( "Tutorial"
+  , [ makeExample "Step 01" tutorial_step_01
+    , makeExample "Step 02" tutorial_step_02
+    , makeExample "Step 03" tutorial_step_03
+    , makeExample "Step 04" tutorial_step_04
+    , makeExample "Step 05" tutorial_step_05
+    , makeExample "Step 06" tutorial_step_06
+    , makeExample "Step 07" tutorial_step_07
+    , makeExample "Step 08" tutorial_step_08
+    , makeExample "Step 09" tutorial_step_09
+    , makeExample "Step 10" tutorial_step_10
+    , makeExample "Step 11" tutorial_step_11
+    , makeExample "Step 12" tutorial_step_12
+    , makeExample "Step 13" tutorial_step_13
+    , makeExample "Step 14" tutorial_step_14
+    , makeExample "Step 15" tutorial_step_15
+    , makeExample "Step 16" tutorial_step_16
+    ]
+  )
+
+taskCategory =
+  ( "Tasks"
+  , [ makeExample "One Rectangle" task_one_rectangle
+    , makeExample "Three Rectangles" task_three_rectangles
+    , makeExample "Target Icon" task_target
+    , makeExample "Battery Icon" task_battery
+    , makeExample "Lambda Icon" task_lambda
+    ]
+  )
+
 templateCategories =
   [ generalCategory
+  , tutorialCategory
+  , taskCategory
   , deuceCategory
   , defaultIconCategory
   , logoCategory

@@ -1663,5 +1663,9 @@
 ))))
 
 
+(def draw svg)
+
+(def show (\val (text 20 30 (toString val))))
+
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)

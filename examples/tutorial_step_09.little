@@ -1,0 +1,27 @@
+;
+; EXERCISE: The range library function computes the
+; list of numbers between start and end numbers.
+; Try the expression (range 1 10).
+;
+; EXERCISE: The reverse library function reverses
+; the elements of a list. Try the expression
+; (reverse (range 1 10)).
+;
+; Now let's apply the same function to each of the
+; arguments in this list of reversed numbers. For
+; example, let's define a function that multiplies
+; its argument by two. Then we can map this function
+; over a list of numbers.
+;
+; The map function, as is in typical functional
+; languages, is a basic building block resembling
+; what can be accomplished with loops in imperative
+; languages.
+;
+; EXERCISE: Try (map double (reverse (range 1 10))).
+
+(def double (\i (* i 2)))
+
+(draw [
+  (show (range 1 10))
+])

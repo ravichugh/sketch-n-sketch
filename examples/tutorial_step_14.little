@@ -1,0 +1,33 @@
+;
+; Now we will use the Create Function tool to turn
+; the definition into a function.
+;
+; Like Rename, there are a few ways to do this:
+;
+; (TODO OPPOSITE ORDER OF 1/2 and 3)
+;
+; 1) Select the text (def redRect ...). Go to the
+; Edit Code menu and select Create Function.
+;
+; 2) Select the text (def redRect ...). Right-click
+; the code box and select Create Function.
+;
+; 3) Hold down the Shift key, hover over and click
+; either the definition (def redRect ...). Release
+; the Shift Key and select Create Function.
+;
+; In each case, there are a couple options for what
+; to make arguments. Since the point of this
+; function is to draw a red rectangle, we'll pick
+; the option that does not make color one of the
+; arguments. Notice how the expression is turned in
+; to a call.
+;
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program.
+
+(def redRect
+  (rect "salmon" 100 100 150 80))
+
+(draw [redRect])

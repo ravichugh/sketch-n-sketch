@@ -1,0 +1,11 @@
+;
+; We can also use binary operators for comparison,
+; and then use if-then-else expressions based on
+; their boolean results.
+;
+; EXERCISE: Define a max3 function.
+
+(def max (\(x y)
+  (if (< x y) y x)))
+
+(show (max 1 100))

@@ -1,0 +1,26 @@
+;
+; The syntax for a function, also known as a lambda
+; expression, is shown below. The function
+; triplicate takes a single argument x, and it
+; returns a list that repeats x three times.
+;
+; To call it, the function name and its argument are
+; separated by a space, and the entire call is
+; surrounded by parentheses.
+;
+; EXERCISE: Rename the argument of triplicate to
+; something else and re-run.
+;
+; The syntax for functions with multiple arguments
+; is shown in the triplicate2 function; the list of
+; arguments is surrounding in parentheses. When
+; calling a function with multiple arguments, the
+; arguments are separated by spaces.
+;
+; EXERCISE: Call triplicate2 in the main expression.
+
+(def triplicate (\x [x x x]))
+
+(def triplicate2 (\(x y) [x y x y x y]))
+
+(draw [(show (triplicate 3))])

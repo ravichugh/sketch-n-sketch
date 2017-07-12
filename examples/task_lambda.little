@@ -1,0 +1,31 @@
+; Goals:
+; 
+; * The initial program draws a lambda icon, but
+;   the hard-coded constants requires many changes if
+;   we want to draw the icon at a different position.
+;   
+;   Define four new variables for the x-position,
+;   y-position, width, and height of the logo, and use
+;   them to enforce two geometric relationships:
+;   
+;    - one line should go from the top-left
+;      corner of the rectangle to the bottom-right;
+;   
+;    - the other line should go from the
+;      bottom-left corner of the rectangle to the
+;      center.
+;   
+; * Both lines are intended to be the same
+;   color, so define a variable and use it.
+;   
+; The final program should be easy to read and
+; understand.
+
+
+(def rectangle (rect "black" 20 20 100 100))
+(def line1 (line "white" 5 20 20 120 120))
+(def line2 (line "white" 5 20 120 70 70))
+
+(def logo [rectangle line1 line2])
+
+(draw logo)
