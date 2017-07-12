@@ -267,9 +267,6 @@ oneElement xs = case xs of
   [_] -> True
   _   -> False
 
-singleton : a -> List a
-singleton x = [x]
-
 snoc : List a -> a -> List a
 snoc xs x = xs ++ [x]
 
@@ -749,7 +746,7 @@ projJusts =
 bindMaybesToList : List (Maybe a) -> (List a -> List b) -> List b
 bindMaybesToList list f =
   case projJusts list of
-    Nothing -> nothing
+    Nothing -> []
     Just xs -> f xs
 
 filterJusts : List (Maybe a) -> List a
@@ -873,13 +870,6 @@ distance (x1,y1) (x2,y2) = sqrt <| (x2-x1)^2 + (y2-y1)^2
 
 distanceInt (x1,y1) (x2,y2) =
   distance (toFloat x1, toFloat y1) (toFloat x2, toFloat y2)
-
-type alias MaybeOne a = List a
-nothing               = []
-just                  = singleton
-maybeToMaybeOne mx    = case mx of
-  Nothing -> nothing
-  Just x  -> just x
 
 -- n:number -> i:[0,n) -> RGB
 numToColor n i =

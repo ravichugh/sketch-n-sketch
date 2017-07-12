@@ -29,7 +29,7 @@ import InterfaceModel exposing
   , synthesisResult, setResultSafe, mapResultSafe, oneSafeResult, isResultSafe, setResultDescription
   )
 import LocEqn exposing ( LocEquation(..) )
-import Utils exposing (MaybeOne)
+import Utils
 import Either exposing (..)
 
 import Dict
@@ -2414,7 +2414,7 @@ introduceVarTransformation_ m expIds addNewVarsAtThisId addNewEquationsAt =
         in
         synthesisResult toolName newExp
           |> setResultSafe (freeVars newExp == freeVars m.inputExp)
-          |> Utils.just
+          |> List.singleton
 
 ------------------------------------------------------------------------------
 

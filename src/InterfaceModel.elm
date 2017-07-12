@@ -464,7 +464,7 @@ needsRun m =
 --------------------------------------------------------------------------------
 
 oneSafeResult newExp =
-  Utils.just <|
+  List.singleton <|
     synthesisResult ("NO DESCRIPTION B/C SELECTED AUTOMATICALLY") newExp
 
 --------------------------------------------------------------------------------

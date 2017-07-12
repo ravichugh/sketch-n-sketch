@@ -1804,7 +1804,7 @@ makeSingleLineTool model selections =
                                       )
                              )
                         |> synthesisResult "Make Single Line"
-                        |> Utils.singleton
+                        |> List.singleton
               else
                 Nothing
     , reqs =
@@ -1870,7 +1870,7 @@ makeMultiLineTool model selections =
                                    ( ws <| "\n" ++ indentation )
                                )
                           |> synthesisResult "Make Multi-line"
-                          |> Utils.singleton
+                          |> List.singleton
               EApp ws1 e es ws2 ->
                 if
                   es |>
@@ -1898,7 +1898,7 @@ makeMultiLineTool model selections =
                                    space0
                                )
                           |> synthesisResult "Make Multi-line"
-                          |> Utils.singleton
+                          |> List.singleton
               _ ->
                 Nothing
         _ ->
@@ -1968,7 +1968,7 @@ alignExpressionsTool model selections =
                                 e
                           )
                       |> synthesisResult "Align Expressions"
-                      |> Utils.singleton
+                      |> List.singleton
         _ ->
           Nothing
   , reqs =
