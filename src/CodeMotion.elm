@@ -2129,7 +2129,7 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
     Just (letExp, funcName) ->
       case letExp.val.e__ of
         ELet ws1 letKind isRec letPat func letBody ws2 ->
-          -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
+          -- If func is passed to itself as an arg, this probably breaks. (is fixable though, with flow craziness)
           let funcVarUsageEIds =
             if isRec
             then identifierUsageEIds funcName func ++ identifierUsageEIds funcName letBody |> Set.fromList
@@ -2249,7 +2249,7 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
                       let isSafe =
                         funcVarUsageEIds == funcVarUsagesTransformed
                       in
-                      [ synthesisResult "Reorder Arguments (unfinished)" newProgram |> setResultSafe isSafe ]
+                      [ synthesisResult "Reorder Arguments" newProgram |> setResultSafe isSafe ]
 
             _ ->
               Debug.crash <| "CodeMotion.reorderFunctionArgs should've had an EFun here"
