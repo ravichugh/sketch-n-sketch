@@ -2473,33 +2473,37 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
   let results =
     let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
     let maxId = Parser.maxId originalProgram in
-    let (insertedLetEId, insertedVarsEId, newBindingPId) = (maxId + 1, maxId + 2, maxId + 3) in
+    let (insertedLetEId, insertedVarsEId, newBindingPId, dummyBoundExpEId) = (maxId + 1, maxId + 2, maxId + 3, maxId + 4) in
     potentialNames
     |> List.concatMap
         (\varName ->
-          let programWithNewVarUsed =
-            let expSubst = eids |> List.map (\eid -> (eid, eVar varName |> setEId insertedVarsEId)) |> Dict.fromList in
-            replaceExpNodesPreservingPrecedingWhitespace expSubst originalProgramUniqueNames
-          in
-          let varEIdsPreviouslyDeliberatelyRemoved =
-            eids
-            |> List.drop 1
-            |> List.concatMap (\eid -> justFindExpByEId originalProgramUniqueNames eid |> allVars)
-            |> List.map (.val >> .eid)
-          in
-          let newBoundExp = justFindExpByEId originalProgramUniqueNames firstEId in
+          -- Replacement order is a little wonky, but it prevents crashes when you try
+          -- to insert the new binding right in front of one of the expressions you
+          -- are trying to equalize. This is an odd case because you can't produce a
+          -- sane program, but at least it won't crash.
           let (newLet, maybeNewScopeEId) =
             -- makeNewLet will either insert the variable into an existing let at
             -- newBindingLocationEId or introduce a new let around newBindingLocationEId
             makeNewLet
                 insertedLetEId
                 (pVar varName |> setPId newBindingPId)
-                newBoundExp
-                (justFindExpByEId programWithNewVarUsed newBindingLocationEId)
-                programWithNewVarUsed
+                (eTuple [] |> setEId dummyBoundExpEId)
+                (justFindExpByEId originalProgramUniqueNames newBindingLocationEId)
+                originalProgramUniqueNames
           in
+          let newBoundExp = justFindExpByEId originalProgramUniqueNames firstEId in
           let newProgramUniqueNames =
-            programWithNewVarUsed |> replaceExpNode newBindingLocationEId newLet
+            let expSubst = eids |> List.map (\eid -> (eid, eVar varName |> setEId insertedVarsEId)) |> Dict.fromList in
+            originalProgramUniqueNames
+            |> replaceExpNode newBindingLocationEId newLet
+            |> replaceExpNodesPreservingPrecedingWhitespace expSubst
+            |> replaceExpNode dummyBoundExpEId newBoundExp
+          in
+          let varEIdsPreviouslyDeliberatelyRemoved =
+            eids
+            |> List.drop 1
+            |> List.concatMap (\eid -> justFindExpByEId originalProgramUniqueNames eid |> allVars)
+            |> List.map (.val >> .eid)
           in
           let namesUniqueTouched = Set.insert varName (identifiersSet newBoundExp) in
           programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
