@@ -1552,21 +1552,44 @@ findScopeAreasByIdent ident exp =
       )
 
 
-findScopeExpAndPat : PathedPatternId -> Exp -> Maybe (Exp, Pat)
-findScopeExpAndPat ((scopeEId, branchI), path) exp =
+-- Oops I wrote this and we don't need it yet. I imagine we will though, so let's leave it be for now. (July 2017)
+findScopeExpAndPat : PId -> Exp -> Maybe (Exp, Pat)
+findScopeExpAndPat targetPId exp =
+  exp
+  |> mapFirstSuccessNode
+      (\e ->
+        let maybeTargetPat =
+          case e.val.e__ of
+            ELet _ _ _ pat _ _ _ -> findPatInPat targetPId pat
+            EFun _ pats _ _      -> Utils.mapFirstSuccess (findPatInPat targetPId) pats
+            ECase _ _ branches _ -> Utils.mapFirstSuccess (findPatInPat targetPId) (branchPats branches)
+            _                    -> Nothing
+        in
+        maybeTargetPat |> Maybe.map (\pat -> (e, pat))
+      )
+
+
+findPatInPat : PId -> Pat -> Maybe Pat
+findPatInPat targetPId pat =
+  flattenPatTree pat
+  |> Utils.findFirst (.val >> .pid >> (==) targetPId)
+
+
+findScopeExpAndPatByPathedPatternId : PathedPatternId -> Exp -> Maybe (Exp, Pat)
+findScopeExpAndPatByPathedPatternId ((scopeEId, branchI), path) exp =
   let maybeScopeExp = findExpByEId exp scopeEId in
   let maybePat =
     case (Maybe.map (.val >> .e__) maybeScopeExp, path) of
       (Just (ELet _ _ _ pat _ _ _), _) ->
-        findPatInPat path pat
+        followPathInPat path pat
 
       (Just (EFun _ pats _ _), i::is) ->
         Utils.maybeGet1 i pats
-        |> Maybe.andThen (\pat -> findPatInPat is pat)
+        |> Maybe.andThen (\pat -> followPathInPat is pat)
 
       (Just (ECase _ _ branches _), _) ->
         Utils.maybeGet1 branchI (branchPats branches)
-        |> Maybe.andThen (\pat -> findPatInPat path pat)
+        |> Maybe.andThen (\pat -> followPathInPat path pat)
 
       _ ->
         Nothing
@@ -1575,28 +1598,28 @@ findScopeExpAndPat ((scopeEId, branchI), path) exp =
   |> Maybe.map (\pat -> (Utils.fromJust maybeScopeExp, pat))
 
 
-findPat : PathedPatternId -> Exp -> Maybe Pat
-findPat pathedPatId exp =
-  findScopeExpAndPat pathedPatId exp
+findPatByPathedPatternId : PathedPatternId -> Exp -> Maybe Pat
+findPatByPathedPatternId pathedPatId exp =
+  findScopeExpAndPatByPathedPatternId pathedPatId exp
   |> Maybe.map Tuple.second
 
 
-findPatInPat : List Int -> Pat -> Maybe Pat
-findPatInPat path pat =
+followPathInPat : List Int -> Pat -> Maybe Pat
+followPathInPat path pat =
   case (pat.val.p__, path) of
     (_, []) ->
       Just pat
 
     (PAs _ _ _ p, 1::is) ->
-      findPatInPat is p
+      followPathInPat is p
 
     (PList _ ps _ Nothing _, i::is) ->
       Utils.maybeGet1 i ps
-      |> Maybe.andThen (\p -> findPatInPat is p)
+      |> Maybe.andThen (\p -> followPathInPat is p)
 
     (PList _ ps _ (Just tailPat) _, i::is) ->
       Utils.maybeGet1 i (ps ++ [tailPat])
-      |> Maybe.andThen (\p -> findPatInPat is p)
+      |> Maybe.andThen (\p -> followPathInPat is p)
 
     _ ->
       Nothing

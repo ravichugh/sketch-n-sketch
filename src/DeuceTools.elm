@@ -283,7 +283,7 @@ renamePatternTool model selections =
       case selections of
         ([], [], [], [pathedPatId], [], [], []) ->
           case
-            LangTools.findPat pathedPatId model.inputExp
+            LangTools.findPatByPathedPatternId pathedPatId model.inputExp
               |> Maybe.andThen LangTools.patToMaybeIdent
           of
             Just ident ->
@@ -402,7 +402,7 @@ selectTwoVars toolName makeThunk model selections =
         ([], [], [], [pathedPatId1, pathedPatId2], [], [], []) ->
           let maybeNames =
             [pathedPatId1, pathedPatId2]
-              |> List.map (\ppid -> LangTools.findPat ppid model.inputExp)
+              |> List.map (\ppid -> LangTools.findPatByPathedPatternId ppid model.inputExp)
               |> List.map (Maybe.andThen LangTools.patToMaybeIdent)
           in
           case maybeNames of
@@ -1176,7 +1176,7 @@ createFunctionTool model selections =
           (Nothing, Possible)
         ([], [], [], [pathedPatId], [], [], []) ->
           case
-            LangTools.findScopeExpAndPat pathedPatId model.inputExp
+            LangTools.findScopeExpAndPatByPathedPatternId pathedPatId model.inputExp
               |> Maybe.map (\(e,p) -> (e.val.e__, p.val.p__))
           of
             Just (ELet _ _ _ _ _ _ _, PVar _ ident _) ->
@@ -1399,7 +1399,7 @@ addArgumentsTool model selections =
                   argSourcePathedPatIds
                     |> List.all
                          ( \argSourcePathedPatId ->
-                             LangTools.findScopeExpAndPat
+                             LangTools.findScopeExpAndPatByPathedPatternId
                                argSourcePathedPatId fbody /= Nothing
                          )
               in

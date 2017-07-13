@@ -62,7 +62,7 @@ composeTransformations finalCaption transformations originalProgram =
 
 swapUsages : PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
 swapUsages (scopeId1, path1) (scopeId2, path2) originalProgram =
-  case (LangTools.findScopeExpAndPat (scopeId1, path1) originalProgram, LangTools.findScopeExpAndPat (scopeId2, path2) originalProgram) of
+  case (LangTools.findScopeExpAndPatByPathedPatternId (scopeId1, path1) originalProgram, LangTools.findScopeExpAndPatByPathedPatternId (scopeId2, path2) originalProgram) of
     (Just (scopeExp1, pat1), Just (scopeExp2, pat2)) ->
       case (LangTools.patToMaybeIdent pat1, LangTools.patToMaybeIdent pat2) of
         (Just name1, Just name2) ->
@@ -115,7 +115,7 @@ swapUsages (scopeId1, path1) (scopeId2, path2) originalProgram =
 
 renamePat : PathedPatternId -> String -> Exp -> List SynthesisResult
 renamePat (scopeId, path) newName program =
-  case LangTools.findScopeExpAndPat (scopeId, path) program of
+  case LangTools.findScopeExpAndPatByPathedPatternId (scopeId, path) program of
     Just (scopeExp, pat) ->
       case LangTools.patToMaybeIdent pat of
         Just oldName ->
@@ -1528,7 +1528,7 @@ inlineDefinitions selectedPathedPatIds originalProgram =
     |> List.concatMap
         (\(scopeId, pathedPatternIds) ->
           let paths = List.map pathedPatIdToPath pathedPatternIds in
-          case findPat (scopeId, []) programUniqueNames of
+          case findPatByPathedPatternId (scopeId, []) programUniqueNames of
             Nothing  -> []
             Just pat ->
               indentPathsInPat pat
