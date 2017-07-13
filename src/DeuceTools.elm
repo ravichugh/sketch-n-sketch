@@ -2080,13 +2080,26 @@ isActive : Model -> DeuceTool -> Bool
 isActive model deuceTool =
   (not <| Model.needsRun model) && (deuceTool.func /= Nothing)
 
--- Check if none of the tools are active
+-- TODO: This is a workaround to ensure that there is no race condition wherein
+--       the controller thinks that there are no active tools for a *split*
+--       second when hovering off of a tool. This happens because
+--       `Model.needsRun` (in isActive) returns true for a *brief* instant. This
+--       is what the code *should* look like:
+--
+-- noneActive : Model -> Bool
+-- noneActive model =
+--   model
+--     |> deuceTools
+--     |> List.concat
+--     |> List.filter (isActive model)
+--     |> List.isEmpty
+--
 noneActive : Model -> Bool
 noneActive model =
   model
     |> deuceTools
     |> List.concat
-    |> List.filter (isActive model)
+    |> List.filter ((/=) Nothing << .func)
     |> List.isEmpty
 
 -- Check if a given tool is a renaming tool
