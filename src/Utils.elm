@@ -267,8 +267,9 @@ oneElement xs = case xs of
   [_] -> True
   _   -> False
 
-singleton : a -> List a
-singleton x = [x]
+maybeUnpackSingleton xs = case xs of
+  [x] -> Just x
+  _   -> Nothing
 
 snoc : List a -> a -> List a
 snoc xs x = xs ++ [x]
@@ -510,6 +511,15 @@ adjacentPairs includeLast list = case list of
       else List.reverse (pairs)
 
 -- 1-based
+findi : (a -> Bool) -> List a -> Maybe Int
+findi p xs = findi_ 1 p xs
+
+findi_ : Int -> (a -> Bool) -> List a -> Maybe Int
+findi_ i p xs = case xs of
+  []     -> Nothing
+  x::xs_ -> if p x then Just i else findi_ (i+1) p xs_
+
+-- 1-based
 geti : Int -> List a -> a
 geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 
@@ -749,7 +759,7 @@ projJusts =
 bindMaybesToList : List (Maybe a) -> (List a -> List b) -> List b
 bindMaybesToList list f =
   case projJusts list of
-    Nothing -> nothing
+    Nothing -> []
     Just xs -> f xs
 
 filterJusts : List (Maybe a) -> List a
@@ -873,13 +883,6 @@ distance (x1,y1) (x2,y2) = sqrt <| (x2-x1)^2 + (y2-y1)^2
 
 distanceInt (x1,y1) (x2,y2) =
   distance (toFloat x1, toFloat y1) (toFloat x2, toFloat y2)
-
-type alias MaybeOne a = List a
-nothing               = []
-just                  = singleton
-maybeToMaybeOne mx    = case mx of
-  Nothing -> nothing
-  Just x  -> just x
 
 -- n:number -> i:[0,n) -> RGB
 numToColor n i =

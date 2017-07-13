@@ -1628,6 +1628,27 @@ indentPathsInPat pat =
     Nothing    -> childIdentPaths
 
 
+-- paths in expression list, e.g. function parameters
+-- can recurse into list heads
+expPathsInExpList : List Exp -> List (Exp, List Int)
+expPathsInExpList exps =
+  exps
+  |> Utils.mapi1
+      (\(i, exp) ->
+        case exp.val.e__ of
+          EList _ es _ _ _ -> [(exp, [i])] ++ List.map (\(e, path) -> (e, i::path)) (expPathsInExpList es)
+          _                -> [(exp, [i])]
+      )
+  |> List.concat
+
+
+eidPathInExpList : List Exp -> EId -> Maybe (List Int)
+eidPathInExpList exps targetEId =
+  expPathsInExpList exps
+  |> Utils.mapFirstSuccess
+      (\(e, path) -> if e.val.eid == targetEId then Just path else Nothing)
+
+
 indentPIdsInPat : Pat -> List (Ident, PId)
 indentPIdsInPat pat =
   flattenPatTree pat

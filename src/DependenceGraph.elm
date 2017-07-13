@@ -401,6 +401,8 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
 --   can even remain internal.
 
 checkVisible scopeGraph x sourcePat targetId =
+  let nothing = [] in
+  let just x = [x] in
   let (sourceId, _) = sourcePat in
   let xBindingsAfterSource =
     scopeGraph.varBindingsAfter
@@ -422,31 +424,31 @@ checkVisible scopeGraph x sourcePat targetId =
       xHead :: xRest ->
         if xHead /= sourcePat then
           -- let _ = Debug.log "blah 2" (x, sourceId, xHead) in
-          Utils.nothing
+          nothing
         else case xRest of
-          [] -> Utils.nothing
+          [] -> nothing
           xNext :: _ ->
             case scopeOrder scopeGraph targetId (Tuple.first xNext) of
-              ChildScope -> Utils.nothing
+              ChildScope -> nothing
               ParentScope ->
                 -- let _ = Debug.log "issue 1" (x, sourcePat, "captured by", xRest) in
-                Utils.just (sourcePat, xNext)
+                just (sourcePat, xNext)
               SameScope ->
                 -- let _ = Debug.log "issue 1" (x, sourcePat, "captured by", xRest) in
-                Utils.just (sourcePat, xNext)
+                just (sourcePat, xNext)
               order ->
                 -- let _ =  Debug.log "checkVisible 1 TODO" (targetId, xNext, order) in
-                Utils.nothing
+                nothing
   in
   let capturedBy2 =
     case xBindingsBeforeTarget of
-      [] -> Utils.nothing
+      [] -> nothing
       j::js ->
         if sourcePat == j
-        then Utils.nothing
+        then nothing
         else
           -- let _ = Debug.log "issue 2" (x, sourcePat, "captures another", j::js) in
-          Utils.just (j, sourcePat)
+          just (j, sourcePat)
   in
   let scopeIssues = capturedBy1 ++ capturedBy2 in
   if scopeIssues == [] then ""

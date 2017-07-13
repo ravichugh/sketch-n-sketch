@@ -613,7 +613,7 @@ boundingBoxZones model id (left, top, right, bot) shapeWidgets =
     if objectIsCurrentlyBeingManipulated model id then []
     else if not (Set.member id model.hoveredShapes) then []
     else
-      Utils.singleton <| svgRect <|
+      List.singleton <| svgRect <|
         [ attr "x" (toString (left - pad))
         , attr "y" (toString (top - pad))
         , attr "width" (toString (right - left + 2 * pad))
@@ -689,7 +689,7 @@ zonePoint model alwaysShow id shapeKind realZone transform attrs =
   case maybeStyles of
     Nothing -> []
     Just fill ->
-      Utils.singleton <| svgCircle <|
+      List.singleton <| svgCircle <|
         [ attr "r" pointZoneStyles.radius
         , attr "fill" fill
         , attr "stroke" pointZoneStyles.stroke
@@ -1226,7 +1226,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr yNumTr =
         [ onMouseDown (toggleSelected [xFeature]) ]
   in
   -- using nested group for onMouseLeave handler
-  Utils.singleton <| Svg.g
+  List.singleton <| Svg.g
     [onMouseLeave (removeHoveredCrosshair thisCrosshair)]
     [backDisc, xLine, yLine, frontDisc, xyDot]
 

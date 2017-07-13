@@ -29,7 +29,7 @@ import InterfaceModel exposing
   , synthesisResult, setResultSafe, mapResultSafe, oneSafeResult, isResultSafe, setResultDescription
   )
 import LocEqn exposing ( LocEquation(..) )
-import Utils exposing (MaybeOne)
+import Utils
 import Either exposing (..)
 
 import Dict
@@ -2120,6 +2120,64 @@ removeArg pathedPatId originalProgram =
       []
 
 
+maybePathAfterPathsRemoved : List (List Int) -> List Int -> Maybe (List Int)
+maybePathAfterPathsRemoved pathsRemoved path =
+  pathsRemoved
+  |> List.sort
+  |> Utils.foldrMaybe
+      pathAfterElementRemoved
+      (Just path)
+
+
+-- Reorder an expression list (supports raising/lowering of nested tuples)
+tryReorderExps : List (List Int) -> List Int -> List (List Int) -> List Exp -> Maybe (List Exp)
+tryReorderExps pathsToMove insertPath pathsToRemove exps =
+  -- 1. remove exps from original locations
+  -- 2. insert exps into new locations
+  -- 3. remove exps as directed (when reordering arguments, this is used to kill empty lists created when all interior arguments are lifted to a higher level)
+  case maybePathAfterPathsRemoved pathsToMove insertPath of
+    Nothing ->
+      let _ = Debug.log ("can't insert at that path in " ++ String.join " " (List.map unparse exps)) insertPath in
+      Nothing
+
+    Just realInsertPath ->
+      -- 1. remove exps from original locations
+      let maybePluckedExpsAndExpsAfterRemoved1 =
+        pathsToMove
+        |> List.sort
+        |> Utils.foldrMaybe
+            (\pathToRemove (pluckedExps, remainingExps) ->
+              pluckExpFromExpsByPath pathToRemove remainingExps
+              |> Maybe.map (\(pluckedExp, remainingExps) -> (pluckedExp::pluckedExps, remainingExps))
+            )
+            (Just ([], exps))
+      in
+      -- 2. insert exps into new locations
+      case maybePluckedExpsAndExpsAfterRemoved1 of
+        Just (pluckedExps, expsRemainingAfterPluck) ->
+          let maybeExpsAfterInsertion =
+            pluckedExps
+            |> Utils.foldrMaybe
+                (\pluckedExp newExps -> addExpToExpsByPath pluckedExp realInsertPath newExps)
+                (Just expsRemainingAfterPluck)
+          in
+          -- 3. remove exps as directed
+          let maybeNewExps =
+            let removeExpFromExpsByPath pathToRemove exps =
+              pluckExpFromExpsByPath pathToRemove exps |> Maybe.map Tuple.second
+            in
+            pathsToRemove
+            |> List.sort
+            |> Utils.foldrMaybe
+                removeExpFromExpsByPath
+                maybeExpsAfterInsertion
+          in
+          maybeNewExps
+
+        Nothing ->
+          Nothing
+
+
 -- This is way nastier than I want it to be, but not sure how to make it
 -- nicer and still support e.g. moving all of the variables outside of a
 -- list and removing the empty list.
@@ -2151,13 +2209,7 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
                     ([], fpats, [])
               in
               -- Adjust insert path based on all the paths removed
-              let maybeInsertPath =
-                pathsRemoved1
-                |> Utils.foldrMaybe
-                    pathAfterElementRemoved
-                    (Just targetPath)
-              in
-              case maybeInsertPath of
+              case maybePathAfterPathsRemoved pathsRemoved1 targetPath of
                 Nothing ->
                   let _ = Debug.log "can't insert at that path" (targetPath, fpats) in
                   []
@@ -2193,47 +2245,11 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
                               case exp.val.e__ of
                                 EApp appWs1 appFuncExp appArgs appWs2 ->
                                   if Set.member appFuncExp.val.eid funcVarUsageEIds then
-                                    -- 1. remove args from original locations
-                                    -- 2. insert args into new locations
-                                    -- 3. kill empty lists
-                                    --
-                                    -- 1. remove args from original locations
-                                    let maybePluckedExpsAndExpsAfterRemoved1 =
-                                      pathsRemoved1
-                                      |> Utils.foldrMaybe
-                                          (\pathToRemove (pluckedExps, remainingExps) ->
-                                            pluckExpFromExpsByPath pathToRemove remainingExps
-                                            |> Maybe.map (\(pluckedExp, remainingExps) -> (pluckedExp::pluckedExps, remainingExps))
-                                          )
-                                          (Just ([], appArgs))
-                                    in
-                                    -- 2. insert args into new locations
-                                    case maybePluckedExpsAndExpsAfterRemoved1 of
-                                      Just (pluckedExps, expsAfterRemoved1) ->
-                                        let maybeExpsAfterInsertion =
-                                          pluckedExps
-                                          |> Utils.foldrMaybe
-                                              (\pluckedExp newExps -> addExpToExpsByPath pluckedExp insertPath newExps)
-                                              (Just expsAfterRemoved1)
-                                        in
-                                        -- 3. kill empty lists
-                                        let maybeNewExps =
-                                          let removeExpFromExpsByPath pathToRemove exps =
-                                            pluckExpFromExpsByPath pathToRemove exps |> Maybe.map Tuple.second
-                                          in
-                                          pathsRemoved2
-                                          |> Utils.foldrMaybe
-                                              removeExpFromExpsByPath
-                                              maybeExpsAfterInsertion
-                                        in
-                                        case maybeNewExps of
-                                          Just newExps ->
-                                            ( replaceE__ exp (EApp appWs1 appFuncExp newExps appWs2)
-                                            , Set.insert appFuncExp.val.eid funcVarUsagesTransformed
-                                            )
-
-                                          Nothing ->
-                                            (exp, funcVarUsagesTransformed)
+                                    case tryReorderExps pathsRemoved1 targetPath pathsRemoved2 appArgs of
+                                      Just newExps ->
+                                        ( replaceE__ exp (EApp appWs1 appFuncExp newExps appWs2)
+                                        , Set.insert appFuncExp.val.eid funcVarUsagesTransformed
+                                        )
 
                                       Nothing ->
                                         (exp, funcVarUsagesTransformed)
@@ -2263,68 +2279,57 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
 
 ------------------------------------------------------------------------------
 
-reorderEListTransformation m selections =
+reorderEListTransformation originalProgram selections =
   case selections of
     (_, _, [], _, _, _, _) -> Nothing
     (_, _, expIds, [], [], [expTarget], []) ->
-      let maybeMaybeParents =
-        List.map (parentByEId m.inputExp) (Tuple.second expTarget :: expIds)
+      let (beforeAfter, expTargetEId) = expTarget in
+      let relevantEIds = expTargetEId::expIds in
+      -- tryReorderExps can handle rearrangement of nested tuples, e.g. [a [b c]] to [a b [c]]
+      -- so let's find the outermost list of all relevant eids
+      let allWithAncestors = findAllWithAncestors (\e -> List.member e.val.eid relevantEIds) originalProgram in
+      let maybeSharedListParent =
+        allWithAncestors
+        |> List.map (List.reverse >> List.drop 1 >> Utils.takeWhile isList >> Utils.maybeLast)
+        |> Utils.dedupByEquality      -- [Just listParent]
+        |> Utils.maybeUnpackSingleton -- (Just (Just listParent))
+        |> Maybe.withDefault Nothing  -- (Just listParent)
       in
-      Utils.projJusts maybeMaybeParents |> Maybe.andThen (\maybeParents ->
-      Utils.projJusts maybeParents |> Maybe.andThen (\parents ->
-      let parentIds = List.map (.eid << .val) parents in
-        case Utils.dedup parentIds of
-          [eListId] ->
-            case (justFindExpByEId m.inputExp eListId).val.e__ of
-              EList ws1 listExps ws2 Nothing ws3 ->
+      case maybeSharedListParent of
+        Just listExp ->
+          let eListId = listExp.val.eid in
+          case listExp.val.e__ of
+            EList ws1 listExps ws2 Nothing ws3 ->
+              let insertPath =
+                case (beforeAfter, eidPathInExpList listExps expTargetEId) of
+                  (Before, Just path) -> path
+                  (After,  Just path) -> pathRightSibling path |> Utils.fromJust_ "CodeMotion.reorderEListTransformation should not have empty path here"
+                  _                -> Debug.crash <| "CodeMotion.reorderEListTransformation expected target eid " ++ toString expTargetEId ++ " to appear in list " ++ unparseWithIds listExp
+              in
+              let pathsToMove =
+                expIds
+                |> List.map (eidPathInExpList listExps)
+                |> Utils.projJusts
+                |> Utils.fromJust__ (\() -> "CodeMotion.reorderEListTransformation expected all eids " ++ Utils.toSentence (List.map toString expIds) ++ " to appear in list " ++ unparseWithIds listExp)
+              in
+              case tryReorderExps pathsToMove insertPath [] listExps of
+                Nothing ->
+                  Nothing
 
-                let (plucked, prefix, maybeSuffix) =
-                  List.foldl (\listExp_i (plucked, prefix, maybeSuffix) ->
-
-                    if listExp_i.val.eid == Tuple.second expTarget then
-                      case (maybeSuffix, Tuple.first expTarget) of
-                        (Nothing, Before) ->
-                          if List.member listExp_i.val.eid expIds
-                            then (plucked ++ [listExp_i], prefix, Just [])
-                            else (plucked, prefix, Just [listExp_i])
-                        (Nothing, After) ->
-                          if List.member listExp_i.val.eid expIds
-                            then (plucked ++ [listExp_i], prefix, Just [])
-                            else (plucked, prefix ++ [listExp_i], Just [])
-                        (Just _, _) ->
-                          Debug.crash "reorder fail ..."
-
-                    else if List.member listExp_i.val.eid expIds then
-                      (plucked ++ [listExp_i], prefix, maybeSuffix)
-
-                    else
-                      case maybeSuffix of
-                        Nothing     -> (plucked, prefix ++ [listExp_i], maybeSuffix)
-                        Just suffix -> (plucked, prefix, Just (suffix ++ [listExp_i]))
-
-                    ) ([], [], Nothing) listExps
-                in
-                let reorderedListExps =
-                  case maybeSuffix of
-                    Nothing     -> Debug.crash "reorder fail ..."
-                    Just suffix -> prefix ++ plucked ++ suffix
-                in
-                let reorderedEList =
-                  withDummyExpInfo <|
-                    EList ws1 (imitateExpListWhitespace listExps reorderedListExps)
-                          ws2 Nothing ws3
-                in
-                let newExp =
-                  replaceExpNode eListId reorderedEList m.inputExp
-                in
-                  Just <|
-                    \() ->
-                      [synthesisResult "Reorder List" newExp]
-              _ ->
-                Nothing
-          _ ->
-            Nothing
-      ))
+                Just reorderedListExps ->
+                  let reorderedListE__ =
+                    EList ws1 (imitateExpListWhitespace listExps reorderedListExps) ws2 Nothing ws3
+                  in
+                  let newProgram =
+                    replaceExpNodeE__ByEId eListId reorderedListE__ originalProgram
+                  in
+                    Just <|
+                      \() ->
+                        [synthesisResult "Reorder List" newProgram]
+            _ ->
+              Nothing
+        _ ->
+          Nothing
     _ ->
       Nothing
 
@@ -2414,7 +2419,7 @@ introduceVarTransformation_ m expIds addNewVarsAtThisId addNewEquationsAt =
         in
         synthesisResult toolName newExp
           |> setResultSafe (freeVars newExp == freeVars m.inputExp)
-          |> Utils.just
+          |> List.singleton
 
 ------------------------------------------------------------------------------
 
@@ -2473,33 +2478,37 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
   let results =
     let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
     let maxId = Parser.maxId originalProgram in
-    let (insertedLetEId, insertedVarsEId, newBindingPId) = (maxId + 1, maxId + 2, maxId + 3) in
+    let (insertedLetEId, insertedVarsEId, newBindingPId, dummyBoundExpEId) = (maxId + 1, maxId + 2, maxId + 3, maxId + 4) in
     potentialNames
     |> List.concatMap
         (\varName ->
-          let programWithNewVarUsed =
-            let expSubst = eids |> List.map (\eid -> (eid, eVar varName |> setEId insertedVarsEId)) |> Dict.fromList in
-            replaceExpNodesPreservingPrecedingWhitespace expSubst originalProgramUniqueNames
-          in
-          let varEIdsPreviouslyDeliberatelyRemoved =
-            eids
-            |> List.drop 1
-            |> List.concatMap (\eid -> justFindExpByEId originalProgramUniqueNames eid |> allVars)
-            |> List.map (.val >> .eid)
-          in
-          let newBoundExp = justFindExpByEId originalProgramUniqueNames firstEId in
+          -- Replacement order is a little wonky, but it prevents crashes when you try
+          -- to insert the new binding right in front of one of the expressions you
+          -- are trying to equalize. This is an odd case because you can't produce a
+          -- sane program, but at least it won't crash.
           let (newLet, maybeNewScopeEId) =
             -- makeNewLet will either insert the variable into an existing let at
             -- newBindingLocationEId or introduce a new let around newBindingLocationEId
             makeNewLet
                 insertedLetEId
                 (pVar varName |> setPId newBindingPId)
-                newBoundExp
-                (justFindExpByEId programWithNewVarUsed newBindingLocationEId)
-                programWithNewVarUsed
+                (eTuple [] |> setEId dummyBoundExpEId)
+                (justFindExpByEId originalProgramUniqueNames newBindingLocationEId)
+                originalProgramUniqueNames
           in
+          let newBoundExp = justFindExpByEId originalProgramUniqueNames firstEId in
           let newProgramUniqueNames =
-            programWithNewVarUsed |> replaceExpNode newBindingLocationEId newLet
+            let expSubst = eids |> List.map (\eid -> (eid, eVar varName |> setEId insertedVarsEId)) |> Dict.fromList in
+            originalProgramUniqueNames
+            |> replaceExpNode newBindingLocationEId newLet
+            |> replaceExpNodesPreservingPrecedingWhitespace expSubst
+            |> replaceExpNode dummyBoundExpEId newBoundExp
+          in
+          let varEIdsPreviouslyDeliberatelyRemoved =
+            eids
+            |> List.drop 1
+            |> List.concatMap (\eid -> justFindExpByEId originalProgramUniqueNames eid |> allVars)
+            |> List.map (.val >> .eid)
           in
           let namesUniqueTouched = Set.insert varName (identifiersSet newBoundExp) in
           programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
