@@ -2290,10 +2290,10 @@ reorderEListTransformation originalProgram selections =
       let allWithAncestors = findAllWithAncestors (\e -> List.member e.val.eid relevantEIds) originalProgram in
       let maybeSharedListParent =
         allWithAncestors
-        |> List.map (List.reverse >> List.drop 1 >> Utils.takeWhile isList >> Utils.maybeLast)
-        |> Utils.dedupByEquality      -- [Just listParent]
-        |> Utils.maybeUnpackSingleton -- (Just (Just listParent))
-        |> Maybe.withDefault Nothing  -- (Just listParent)
+        |> List.map (Utils.dropLast 1) -- Leave ancestors only.
+        |> Utils.commonPrefix
+        |> Utils.maybeLast
+        |> Utils.filterMaybe isList
       in
       case maybeSharedListParent of
         Just listExp ->

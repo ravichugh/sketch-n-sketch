@@ -724,10 +724,12 @@ takeWhile pred list =
 
 -- Use Maybe.map
 mapMaybe = Maybe.map
--- mapMaybe : (a -> b) -> Maybe a -> Maybe b
--- mapMaybe f mx = case mx of
---   Just x  -> Just (f x)
---   Nothing -> Nothing
+
+filterMaybe : (a -> Bool) -> Maybe a -> Maybe a
+filterMaybe pred mx =
+  case mx of
+    Just x  -> if pred x then Just x else Nothing
+    Nothing -> Nothing
 
 bindMaybe : (a -> Maybe b) -> Maybe a -> Maybe b
 bindMaybe = Maybe.andThen
