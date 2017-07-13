@@ -1543,9 +1543,9 @@ toggleDeuceWidget widget model =
       if List.member widget oldSelectedWidgets then
         Utils.removeAsSet widget oldSelectedWidgets
       else
-        -- Remove any overlapping widgets before adding.
         oldSelectedWidgets
-        |> List.filter (\w -> not (isSubWidget model.inputExp w widget || isSubWidget model.inputExp widget w))
+        |> List.filter (\w -> not (isSubWidget model.inputExp w widget || isSubWidget model.inputExp widget w)) -- Remove any overlapping widgets.
+        |> List.filter (\w -> not (isTargetPosition w && isTargetPosition widget)) -- Only allow one target position.
         |> Utils.addAsSet widget
     newDeuceState =
       { oldDeuceState

@@ -27,6 +27,16 @@ type DeuceWidget
   | DeucePatTarget PatTargetPosition
 
 
+isTargetPosition : DeuceWidget -> Bool
+isTargetPosition widget =
+  case widget of
+    DeuceExp _                -> False
+    DeucePat _                -> False
+    DeuceLetBindingEquation _ -> False
+    DeuceExpTarget _          -> True
+    DeucePatTarget _          -> True
+
+
 isSubWidget : Exp -> DeuceWidget -> DeuceWidget -> Bool
 isSubWidget program widget superWidget =
   let isSubEId subEId superEId =
