@@ -2299,26 +2299,25 @@ reorderEListTransformation originalProgram selections =
         Just listExp ->
           let eListId = listExp.val.eid in
           case listExp.val.e__ of
-            EList ws1 listExps ws2 Nothing ws3 ->
-              let insertPath =
+            EList ws1 listExps ws2 maybeTail ws3 ->
+              let maybeInsertPath =
                 case (beforeAfter, eidPathInExpList listExps expTargetEId) of
-                  (Before, Just path) -> path
-                  (After,  Just path) -> pathRightSibling path |> Utils.fromJust_ "CodeMotion.reorderEListTransformation should not have empty path here"
-                  _                -> Debug.crash <| "CodeMotion.reorderEListTransformation expected target eid " ++ toString expTargetEId ++ " to appear in list " ++ unparseWithIds listExp
+                  (Before, Just path) -> Just path
+                  (After,  Just path) -> pathRightSibling path
+                  _                   -> Nothing
               in
-              let pathsToMove =
+              let maybePathsToMove =
                 expIds
                 |> List.map (eidPathInExpList listExps)
                 |> Utils.projJusts
-                |> Utils.fromJust__ (\() -> "CodeMotion.reorderEListTransformation expected all eids " ++ Utils.toSentence (List.map toString expIds) ++ " to appear in list " ++ unparseWithIds listExp)
               in
-              case tryReorderExps pathsToMove insertPath [] listExps of
+              case Utils.bindMaybe2 (\pathsToMove insertPath -> tryReorderExps pathsToMove insertPath [] listExps) maybePathsToMove maybeInsertPath of
                 Nothing ->
                   Nothing
 
                 Just reorderedListExps ->
                   let reorderedListE__ =
-                    EList ws1 (imitateExpListWhitespace listExps reorderedListExps) ws2 Nothing ws3
+                    EList ws1 (imitateExpListWhitespace listExps reorderedListExps) ws2 maybeTail ws3
                   in
                   let newProgram =
                     replaceExpNodeE__ByEId eListId reorderedListE__ originalProgram
