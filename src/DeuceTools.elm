@@ -1070,13 +1070,19 @@ rewriteOffsetTool model selections =
         ([], _, _, _, _, _, _) ->
           (toolName, Nothing, Impossible)
         (nums, [], exps, [ppid], [], [], []) ->
-          if List.length nums == List.length exps then
-            ( Utils.maybePluralize toolName nums
-            , CodeMotion.rewriteOffsetTransformation model ppid nums
-            , Satisfied
-            )
-          else
-            (toolName, Nothing, Impossible)
+          case findExpByEId model.inputExp (pathedPatIdToScopeEId ppid) of
+            Just scopeExp ->
+              if isLet scopeExp && List.length nums == List.length exps then
+                ( Utils.maybePluralize toolName nums
+                , CodeMotion.rewriteOffsetTransformation model ppid nums
+                , Satisfied
+                )
+              else
+                (toolName, Nothing, Impossible)
+
+            _ ->
+              (toolName, Nothing, Impossible)
+
         _ ->
           (toolName, Nothing, Impossible)
   in
