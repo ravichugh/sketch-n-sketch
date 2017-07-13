@@ -8,7 +8,7 @@ module CodeMotion exposing
   , inlineDefinitions
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
   , removeArg, removeArgs, addArg, addArgFromPat, addArgs, addArgsFromPats, reorderFunctionArgs
-  , reorderEListTransformation
+  , reorderExpressionsTransformation
   , introduceVarTransformation
   , makeEqualTransformation
   , copyExpressionTransformation
@@ -2279,7 +2279,7 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
 
 ------------------------------------------------------------------------------
 
-reorderEListTransformation originalProgram selections =
+reorderExpressionsTransformation originalProgram selections =
   case selections of
     (_, _, [], _, _, _, _) -> Nothing
     (_, _, expIds, [], [], [expTarget], []) ->
@@ -2288,45 +2288,49 @@ reorderEListTransformation originalProgram selections =
       -- tryReorderExps can handle rearrangement of nested tuples, e.g. [a [b c]] to [a b [c]]
       -- so let's find the outermost list of all relevant eids
       let allWithAncestors = findAllWithAncestors (\e -> List.member e.val.eid relevantEIds) originalProgram in
-      let maybeSharedListParent =
+      let maybeSharedAncestor =
         allWithAncestors
         |> List.map (Utils.dropLast 1) -- Leave ancestors only.
         |> Utils.commonPrefix
         |> Utils.maybeLast
-        |> Utils.filterMaybe isList
       in
-      case maybeSharedListParent of
-        Just listExp ->
-          let eListId = listExp.val.eid in
-          case listExp.val.e__ of
-            EList ws1 listExps ws2 maybeTail ws3 ->
-              let maybeInsertPath =
-                case (beforeAfter, eidPathInExpList listExps expTargetEId) of
-                  (Before, Just path) -> Just path
-                  (After,  Just path) -> pathRightSibling path
-                  _                   -> Nothing
-              in
-              let maybePathsToMove =
-                expIds
-                |> List.map (eidPathInExpList listExps)
-                |> Utils.projJusts
-              in
-              case Utils.bindMaybe2 (\pathsToMove insertPath -> tryReorderExps pathsToMove insertPath [] listExps) maybePathsToMove maybeInsertPath of
-                Nothing ->
-                  Nothing
+      let reorder sharedAncestorEId expList makeNewAncestorE__ =
+        let maybeInsertPath =
+          case (beforeAfter, eidPathInExpList expList expTargetEId) of
+            (Before, Just path) -> Just path
+            (After,  Just path) -> pathRightSibling path
+            _                   -> Nothing
+        in
+        let maybePathsToMove =
+          expIds
+          |> List.map (eidPathInExpList expList)
+          |> Utils.projJusts
+        in
+        case Utils.bindMaybe2 (\pathsToMove insertPath -> tryReorderExps pathsToMove insertPath [] expList) maybePathsToMove maybeInsertPath of
+          Nothing ->
+            Nothing
 
-                Just reorderedListExps ->
-                  let reorderedListE__ =
-                    EList ws1 (imitateExpListWhitespace listExps reorderedListExps) ws2 maybeTail ws3
-                  in
-                  let newProgram =
-                    replaceExpNodeE__ByEId eListId reorderedListE__ originalProgram
-                  in
-                    Just <|
-                      \() ->
-                        [synthesisResult "Reorder List" newProgram]
-            _ ->
-              Nothing
+          Just reorderedExpList ->
+            let ancestorE__WithReorderedChildren =
+              makeNewAncestorE__ (imitateExpListWhitespace expList reorderedExpList)
+              --
+            in
+            let newProgram =
+              replaceExpNodeE__ByEId sharedAncestorEId ancestorE__WithReorderedChildren originalProgram
+            in
+              Just <|
+                \() ->
+                  [synthesisResult "Reorder Expressions" newProgram]
+      in
+      case maybeSharedAncestor of
+        Just sharedAncestor ->
+          let sharedAncestorEId = sharedAncestor.val.eid in
+          case sharedAncestor.val.e__ of
+            EList ws1 listExps ws2 maybeTail ws3 -> reorder sharedAncestorEId listExps (\newListExps -> EList ws1 newListExps ws2 maybeTail ws3)
+            EApp ws1 fExp argExps ws2            -> reorder sharedAncestorEId argExps  (\newArgExps  -> EApp ws1 fExp newArgExps ws2)
+            EOp ws1 op operands ws2              -> reorder sharedAncestorEId operands (\newOperands -> EOp ws1 op newOperands ws2)
+            _                                    -> Nothing
+
         _ ->
           Nothing
     _ ->

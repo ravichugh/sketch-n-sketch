@@ -1623,11 +1623,11 @@ reorderArgumentsTool model selections =
 -- Reorder List
 --------------------------------------------------------------------------------
 
-reorderListTool : Model -> Selections -> DeuceTool
-reorderListTool model selections =
-  { name = "Reorder List"
+reorderExpressionsTool : Model -> Selections -> DeuceTool
+reorderExpressionsTool model selections =
+  { name = "Reorder Expressions"
   , func =
-      CodeMotion.reorderEListTransformation model.inputExp selections
+      CodeMotion.reorderExpressionsTransformation model.inputExp selections
   , reqs = [] -- TODO reqs
   }
 
@@ -2019,7 +2019,7 @@ deuceTools model =
         ]
       , [ makeEqualTool
         , copyExpressionTool
-        , reorderListTool
+        , reorderExpressionsTool
         , swapUsagesTool
         , swapExpressionsTool
         ]
