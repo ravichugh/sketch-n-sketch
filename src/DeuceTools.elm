@@ -6,9 +6,10 @@
 module DeuceTools exposing
   ( DeuceTool
   , deuceTools
-  , isRenamer
+  , runTool
   , isActive
   , noneActive
+  , isRenamer
   )
 
 import String
@@ -18,7 +19,12 @@ import Either exposing (..)
 import Utils
 import ColorNum
 
-import InterfaceModel exposing (..)
+import InterfaceModel as Model exposing
+  ( Model
+  , SynthesisResult(..)
+  , synthesisResult
+  , oneSafeResult
+  )
 
 import Lang exposing (..)
 import LangTools
@@ -2060,18 +2066,30 @@ deuceTools model =
 -- Helpers
 --------------------------------------------------------------------------------
 
-isRenamer : DeuceTool -> Bool
-isRenamer =
-  String.startsWith "Rename" << .name
+-- Run a tool, and maybe get some results back (if it is active)
+runTool : Model -> DeuceTool -> Maybe (List SynthesisResult)
+runTool model deuceTool =
+  case (Model.needsRun model, deuceTool.func) of
+    (False, Just f) ->
+      Just <| f ()
+    _ ->
+      Nothing
 
-isActive : DeuceTool -> Bool
-isActive tool =
-  not <| tool.func == Nothing
+-- Check if a tool is active without running it
+isActive : Model -> DeuceTool -> Bool
+isActive model deuceTool =
+  (not <| Model.needsRun model) && (deuceTool.func /= Nothing)
 
+-- Check if none of the tools are active
 noneActive : Model -> Bool
 noneActive model =
   model
     |> deuceTools
     |> List.concat
-    |> List.filter isActive
+    |> List.filter (isActive model)
     |> List.isEmpty
+
+-- Check if a given tool is a renaming tool
+isRenamer : DeuceTool -> Bool
+isRenamer =
+  String.startsWith "Rename" << .name

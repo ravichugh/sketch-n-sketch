@@ -329,9 +329,9 @@ deuceHoverMenu : Model -> (Int, DeuceTool) -> Html Msg
 deuceHoverMenu model (index, deuceTool) =
   let
     (results, disabled) =
-      case deuceTool.func of
-        Just f ->
-          (f (), False)
+      case DeuceTools.runTool model deuceTool of
+        Just results ->
+          (results, False)
         Nothing ->
           ([], True)
     path =
@@ -1547,7 +1547,7 @@ deucePanel model =
     , Html.div
         []
         ( List.concatMap
-           ( List.filter DeuceTools.isActive >>
+           ( List.filter (DeuceTools.isActive model) >>
                Utils.mapi1 (deuceHoverMenu model)
            )
            (DeuceTools.deuceTools model)
