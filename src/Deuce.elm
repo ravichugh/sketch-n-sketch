@@ -507,8 +507,8 @@ fancyHandles codeInfo codeObject color opacity radius =
 --------------------------------------------------------------------------------
 
 codeObjectPolygon
-  : CodeInfo -> CodeObject -> Color -> Int -> List (Svg Msg)
-codeObjectPolygon codeInfo codeObject color zIndex =
+  : CodeInfo -> CodeObject -> Color -> List (Svg Msg)
+codeObjectPolygon codeInfo codeObject color =
   case toDeuceWidget codeInfo.patMap codeObject of
     Nothing ->
       []
@@ -531,8 +531,7 @@ codeObjectPolygon codeInfo codeObject color zIndex =
             (0, "default")
       in
         [ Svg.g
-            [ SAttr.z <| toString zIndex
-            , SAttr.style << styleListToString <|
+            [ SAttr.style << styleListToString <|
                 [ ("cursor", cursorStyle)
                 ]
             , SE.onMouseOver onMouseOver
@@ -562,10 +561,8 @@ expPolygon codeInfo e =
       , g = 0
       , b = 0
       }
-    zIndex =
-      0
   in
-    codeObjectPolygon codeInfo codeObject color zIndex
+    codeObjectPolygon codeInfo codeObject color
 
 patPolygon
   : CodeInfo -> Exp -> Pat -> List (Svg Msg)
@@ -578,9 +575,8 @@ patPolygon codeInfo e p =
       , g = 200
       , b = 0
       }
-    zIndex = 0
   in
-    codeObjectPolygon codeInfo codeObject color zIndex
+    codeObjectPolygon codeInfo codeObject color
 
 letBindingEquationPolygon
   : CodeInfo -> (WithInfo EId) -> List (Svg Msg)
@@ -593,10 +589,8 @@ letBindingEquationPolygon codeInfo eid =
       , g = 200
       , b = 100
       }
-    zIndex =
-      0
   in
-    codeObjectPolygon codeInfo codeObject color zIndex
+    codeObjectPolygon codeInfo codeObject color
 
 expTargetPolygon
   : CodeInfo -> BeforeAfter -> WS -> Exp -> List (Svg Msg)
@@ -609,10 +603,8 @@ expTargetPolygon codeInfo ba ws et =
       , g = 0
       , b = 200
       }
-    zIndex =
-      1
   in
-    codeObjectPolygon codeInfo codeObject color zIndex
+    codeObjectPolygon codeInfo codeObject color
 
 patTargetPolygon
   : CodeInfo -> BeforeAfter -> WS -> Exp -> Pat -> List (Svg Msg)
@@ -625,10 +617,8 @@ patTargetPolygon codeInfo ba ws e pt =
       , g = 200
       , b = 200
       }
-    zIndex =
-      1
   in
-    codeObjectPolygon codeInfo codeObject color zIndex
+    codeObjectPolygon codeInfo codeObject color
 
 polygons : CodeInfo -> Exp -> List (Svg Msg)
 polygons codeInfo ast =
