@@ -2346,16 +2346,20 @@ introduceVarTransformation m expIds maybeTargetPos =
   in
   case maybeTargetPos of
     Nothing ->
-      let expToWrap = deepestCommonAncestorWithNewline m.inputExp (\e -> List.member e.val.eid expIds) in
-      introduceVarTransformation_ m expIds expToWrap.val.eid
-        (addNewEquationsAround -1 m.inputExp)
+      Just <|
+        \() ->
+          let expToWrap = deepestCommonAncestorWithNewline m.inputExp (\e -> List.member e.val.eid expIds) in
+          introduceVarTransformation_ m expIds expToWrap.val.eid
+            (addNewEquationsAround -1 m.inputExp)
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
-      introduceVarTransformation_ m expIds expTargetId
-        (addNewEquationsAround -1 m.inputExp)
+      Just <|
+        \() ->
+          introduceVarTransformation_ m expIds expTargetId
+            (addNewEquationsAround -1 m.inputExp)
 
     Just (PatTargetPosition patTarget) ->
       case patTargetPositionToTargetPathedPatId patTarget of
@@ -2363,8 +2367,10 @@ introduceVarTransformation m expIds maybeTargetPos =
           case findExpByEId m.inputExp targetId of
             Just scopeExp ->
               if isLet scopeExp then
-                introduceVarTransformation_ m expIds targetId
-                  (addNewEquationsInside targetPath)
+                Just <|
+                  \() ->
+                    introduceVarTransformation_ m expIds targetId
+                      (addNewEquationsInside targetPath)
               else
                 Nothing
 
@@ -2388,38 +2394,36 @@ introduceVarTransformation_ m expIds addNewVarsAtThisId addNewEquationsAt =
     in
     visibleIdentifiersAtEIds m.inputExp (Set.singleton targetBodyEId)
   in
-    Just <|
-      \() ->
-        let (newEquations, expWithNewVarsUsed) =
-           List.foldl
-             (\eId (acc1, acc2) ->
-               -- TODO version of scopeNamesLiftedThrough for EId instead of Loc?
-               -- let scopes = scopeNamesLocLiftedThrough m.inputExp loc in
-               -- let newVar = String.join "_" (scopes ++ [name]) in
-               let name = expNameForEId m.inputExp eId in
-               let namesToAvoid =
-                 Set.union visibleAtTargetBody
-                     (Set.fromList (List.map Tuple.first acc1))
-               in
-               let newVar = nonCollidingName name 1 namesToAvoid in
-               let expAtEId = justFindExpByEId m.inputExp eId in
-               let expWithNewVarUsed =
-                 replaceExpNodePreservingPrecedingWhitespace eId (eVar newVar) acc2
-               in
-               ((newVar, expAtEId) :: acc1, expWithNewVarUsed)
-             )
-             ([], m.inputExp)
-             expIds
-        in
-        let newExp =
-          mapExp (\e -> if e.val.eid == addNewVarsAtThisId
-                        then addNewEquationsAt newEquations e
-                        else e
-                 ) expWithNewVarsUsed
-        in
-        synthesisResult toolName newExp
-          |> setResultSafe (freeVars newExp == freeVars m.inputExp)
-          |> List.singleton
+  let (newEquations, expWithNewVarsUsed) =
+     List.foldl
+       (\eId (acc1, acc2) ->
+         -- TODO version of scopeNamesLiftedThrough for EId instead of Loc?
+         -- let scopes = scopeNamesLocLiftedThrough m.inputExp loc in
+         -- let newVar = String.join "_" (scopes ++ [name]) in
+         let name = expNameForEId m.inputExp eId in
+         let namesToAvoid =
+           Set.union visibleAtTargetBody
+               (Set.fromList (List.map Tuple.first acc1))
+         in
+         let newVar = nonCollidingName name 1 namesToAvoid in
+         let expAtEId = justFindExpByEId m.inputExp eId in
+         let expWithNewVarUsed =
+           replaceExpNodePreservingPrecedingWhitespace eId (eVar newVar) acc2
+         in
+         ((newVar, expAtEId) :: acc1, expWithNewVarUsed)
+       )
+       ([], m.inputExp)
+       expIds
+  in
+  let newExp =
+    mapExp (\e -> if e.val.eid == addNewVarsAtThisId
+                  then addNewEquationsAt newEquations e
+                  else e
+           ) expWithNewVarsUsed
+  in
+  synthesisResult toolName newExp
+    |> setResultSafe (freeVars newExp == freeVars m.inputExp)
+    |> List.singleton
 
 ------------------------------------------------------------------------------
 
