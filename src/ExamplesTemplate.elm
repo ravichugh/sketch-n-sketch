@@ -357,13 +357,13 @@ taskCategory =
 
 templateCategories =
   [ generalCategory
-  , tutorialCategory
-  , taskCategory
   , deuceCategory
   , defaultIconCategory
   , logoCategory
   , flagCategory
   , otherCategory
+  , tutorialCategory
+  , taskCategory
   ]
 
 list =

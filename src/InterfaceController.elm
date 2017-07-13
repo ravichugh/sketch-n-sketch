@@ -48,6 +48,7 @@ module InterfaceController exposing
   , msgUpdateRenameVarTextBox
   , msgDragDeucePanel
   , msgTextSelect
+  , msgUserStudyNext
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -83,6 +84,8 @@ import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
+
+import UserStudy
 
 import VirtualDom
 
@@ -1356,7 +1359,9 @@ msgUpdateFileIndex fileIndex =
 --------------------------------------------------------------------------------
 -- File Operations
 
-msgNew template = Msg "New" <| (\old ->
+msgNew template = Msg "New" (handleNew template)
+
+handleNew template = (\old ->
   case Utils.maybeFind template Examples.list of
     Nothing -> let _ = Debug.log "WARN: not found:" template in old
     Just (_, thunk) ->
@@ -1399,6 +1404,7 @@ msgNew template = Msg "New" <| (\old ->
                     , icons         = old.icons
                     , scopeGraph    = DependenceGraph.compute e
                     , deuceState    = DeuceWidgets.emptyDeuceState
+                    , userStudyState = old.userStudyState
                     }
       ) |> handleError old) >> closeDialogBox New
 
@@ -1867,3 +1873,14 @@ msgTextSelect =
           toggleDeuceWidget deuceWidget old
         Nothing ->
           old
+
+--------------------------------------------------------------------------------
+-- User Study Operations
+
+msgUserStudyNext = Msg "User Study Next" <| \old ->
+  case UserStudy.nextState old.userStudyState of
+    UserStudy.Finished ->
+      { old | userStudyState = UserStudy.Finished }
+    userStudyState ->
+      { old | userStudyState = userStudyState }
+        |> handleNew (UserStudy.getTemplate userStudyState)

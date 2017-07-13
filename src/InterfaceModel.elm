@@ -18,6 +18,8 @@ import Keys
 import Svg
 import LangSvg exposing (attr)
 
+import UserStudy
+
 import Dict exposing (Dict)
 import Set exposing (Set)
 import Char
@@ -125,6 +127,7 @@ type alias Model =
   , viewState : ViewState
   , toolMode : ShapeToolKind
   , deucePanelPosition : (Int, Int)
+  , userStudyState : UserStudy.State
   }
 
 type Mode
@@ -638,4 +641,5 @@ initModel =
         }
     , toolMode = Raw
     , deucePanelPosition = (200, 200)
+    , userStudyState = UserStudy.NotStarted
     }

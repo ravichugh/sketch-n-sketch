@@ -22,6 +22,6 @@
   (let one 1
     [one one]))
 
-(def thisWillFail one)
+; (def thisWillFail one)
 
-(draw (show nums))
+(draw [(show nums)])

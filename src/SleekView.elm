@@ -49,6 +49,8 @@ import LangUnparser
 import Layout
 import DeuceWidgets exposing (..)
 
+import UserStudy
+
 --------------------------------------------------------------------------------
 -- Helper Functions
 --------------------------------------------------------------------------------
@@ -716,6 +718,15 @@ menuBar model =
                     ]
                 ]
               ]
+          -- TODO temporarily putting user study caption and button in main toolbar
+          , disableableTextButton
+              True
+              ("User Study: " ++ UserStudy.caption model.userStudyState ++ "...")
+              Controller.msgNoop
+          , disableableTextButton
+              (model.userStudyState == UserStudy.Finished)
+              " Next ▸"
+              Controller.msgUserStudyNext
           ]
       -- Quick Action Bar disabled for now
       -- , Html.div

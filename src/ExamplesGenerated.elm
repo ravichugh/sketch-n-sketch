@@ -5287,9 +5287,9 @@ tutorial_step_05 =
   (let one 1
     [one one]))
 
-(def thisWillFail one)
+; (def thisWillFail one)
 
-(draw (show nums))
+(draw [(show nums)])
 
 """
 
@@ -5982,13 +5982,13 @@ taskCategory =
 
 templateCategories =
   [ generalCategory
-  , tutorialCategory
-  , taskCategory
   , deuceCategory
   , defaultIconCategory
   , logoCategory
   , flagCategory
   , otherCategory
+  , tutorialCategory
+  , taskCategory
   ]
 
 list =
