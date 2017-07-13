@@ -991,11 +991,8 @@ addRemoveRangeTool model selections =
                 _ ->
                   False
       in
-        case Utils.dedupByEquality freezeAnnotations of
-          [b] ->
-            Just b
-          _   ->
-            Nothing
+        Utils.dedupByEquality freezeAnnotations
+        |> Utils.maybeUnpackSingleton
 
     (name, func, predVal) =
       case mode of
@@ -1624,7 +1621,7 @@ reorderListTool : Model -> Selections -> DeuceTool
 reorderListTool model selections =
   { name = "Reorder List"
   , func =
-      CodeMotion.reorderEListTransformation model selections
+      CodeMotion.reorderEListTransformation model.inputExp selections
   , reqs = [] -- TODO reqs
   }
 

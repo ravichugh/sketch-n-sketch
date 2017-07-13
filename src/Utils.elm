@@ -267,6 +267,10 @@ oneElement xs = case xs of
   [_] -> True
   _   -> False
 
+maybeUnpackSingleton xs = case xs of
+  [x] -> Just x
+  _   -> Nothing
+
 snoc : List a -> a -> List a
 snoc xs x = xs ++ [x]
 
@@ -505,6 +509,15 @@ adjacentPairs includeLast list = case list of
     if includeLast
       then List.reverse ((xn,x0) :: pairs)
       else List.reverse (pairs)
+
+-- 1-based
+findi : (a -> Bool) -> List a -> Maybe Int
+findi p xs = findi_ 1 p xs
+
+findi_ : Int -> (a -> Bool) -> List a -> Maybe Int
+findi_ i p xs = case xs of
+  []     -> Nothing
+  x::xs_ -> if p x then Just i else findi_ (i+1) p xs_
 
 -- 1-based
 geti : Int -> List a -> a

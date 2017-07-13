@@ -334,11 +334,11 @@ pathedPatIdToScopeEId pathedPatId =
 -- Increment last path index by 1
 pathedPatIdRightSibling : PathedPatternId -> Maybe PathedPatternId
 pathedPatIdRightSibling (scopeId, path) =
-  patPathRightSibling path
+  pathRightSibling path
   |> Maybe.map (\newPath -> (scopeId, newPath))
 
-patPathRightSibling : List Int -> Maybe (List Int)
-patPathRightSibling path =
+pathRightSibling : List Int -> Maybe (List Int)
+pathRightSibling path =
   Utils.maybeMapLastElement ((+) 1) path
 
 pathAfterElementRemoved : List Int -> List Int -> Maybe (List Int)
@@ -391,7 +391,7 @@ patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId) =
         case beforeAfter of
           Before -> referencePathAsPList
           After  ->
-            patPathRightSibling referencePathAsPList
+            pathRightSibling referencePathAsPList
             |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePathedPatId))
   in
     (referenceScopeId, targetPath)
@@ -479,6 +479,10 @@ isLet e = case e.val.e__ of
   ELet _ _ _ _ _ _ _ -> True
   -- EComment _ _ e1    -> isLet e1
   _                  -> False
+
+isList e = case e.val.e__ of
+  EList _ _ _ _ _ -> True
+  _               -> False
 
 
 ------------------------------------------------------------------------------
