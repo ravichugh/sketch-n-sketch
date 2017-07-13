@@ -916,6 +916,10 @@ tryMatchExp pat exp =
 
 -- Returns the common ancestor just inside the deepest common scope -- the expression you want to wrap with new defintions.
 -- If the nearest common ancestor is itself a scope, returns that instead.
+--
+-- Used to use this, now prefering deepestCommonAncestorWithNewline. (July 2017)
+--
+-- Remove this if it turns out that deepestCommonAncestorWithNewline is indeed better.
 justInsideDeepestCommonScope : Exp -> (Exp -> Bool) -> Exp
 justInsideDeepestCommonScope exp pred =
   let (maybeDeepestCommonScope, maybeAncestorJustInsideCommonScope) =

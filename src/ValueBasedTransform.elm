@@ -57,7 +57,7 @@ digHole originalExp selectedFeatures slate widgets syncOptions =
     Set.toList locset
   in
   let subst = substOf originalExp in
-  let commonScope = justInsideDeepestCommonScopeByLocSet originalExp locset in
+  let commonScope = deepestCommonAncestorWithNewlineByLocSet originalExp locset in
   let existingNames = identifiersSet originalExp in
   let locIdNameOrigNamePrime =
     let (_, result) =
@@ -630,7 +630,7 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
             let locIdSet = Set.insert dependentLocId <| locEqnLocIdSet resultLocEqn in
             -- Consequently, we don't need to dig out higher than the frozen locs.
             let locsetToDig = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) unfrozenLocset in
-            let commonScope = justInsideDeepestCommonScopeByLocSet originalExp locsetToDig in
+            let commonScope = deepestCommonAncestorWithNewlineByLocSet originalExp locsetToDig in
             let existingNames = identifiersSet commonScope in
             let independentLocs =
               locsetToDig
@@ -713,7 +713,7 @@ liftLocsSoVisibleTo originalExp mobileLocset observerEIds =
     in
     isMobileLoc || Set.member exp.val.eid observerEIds
   in
-  let commonScope = justInsideDeepestCommonScope originalExp isPredecessor in
+  let commonScope = deepestCommonAncestorWithNewline originalExp isPredecessor in
   let locs = Set.toList mobileLocset in
   let locIds = List.map (\(locId, _, _) -> locId) locs in
   let locEIds =
@@ -764,14 +764,14 @@ liftLocsSoVisibleTo originalExp mobileLocset observerEIds =
   (newExp, locIdToNewName)
 
 
-justInsideDeepestCommonScopeByLocSet : Exp -> LocSet -> Exp
-justInsideDeepestCommonScopeByLocSet exp locset =
+deepestCommonAncestorWithNewlineByLocSet : Exp -> LocSet -> Exp
+deepestCommonAncestorWithNewlineByLocSet exp locset =
   let isLocsetNode exp =
     case exp.val.e__ of
       EConst ws n loc wd -> Set.member loc locset
       _                  -> False
   in
-  justInsideDeepestCommonScope exp isLocsetNode
+  deepestCommonAncestorWithNewline exp isLocsetNode
 
 
 -- Replace consts in targetExp with given variable names

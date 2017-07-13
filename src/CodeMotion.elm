@@ -503,7 +503,7 @@ liftDependenciesBasedOnUniqueNames program =
             case pluck ((originalDefiningScope.val.eid, 1), path) program of
               Nothing -> Nothing
               Just ((pluckedPat, pluckedBoundExp), programWithoutPlucked) ->
-                let eidToWrap = deepestCommonScope program (expToMaybeIdent >> (==) (Just identToLift)) |> .val |> .eid in
+                let eidToWrap = deepestCommonAncestorWithNewline program (expToMaybeIdent >> (==) (Just identToLift)) |> .val |> .eid in
                 let insertedLetEId = Parser.maxId program + 1 in
                 let newProgram =
                   programWithoutPlucked
@@ -2618,7 +2618,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
   in
   let makeVisibleByInsertingNewBinding () =
     let expToWrap =
-      justInsideDeepestCommonScope originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
+      deepestCommonAncestorWithNewline originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
     in
     let maxId = Parser.maxId originalProgramUniqueNames in
     let (insertedVarEId, newBindingPId) = (maxId + 1, maxId + 2) in
@@ -2673,7 +2673,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
       else
         -- CASE 2: EId already bound, but some viewers are not in its scope. Try to move binding.
         let expToWrap =
-          justInsideDeepestCommonScope originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
+          deepestCommonAncestorWithNewline originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
         in
         let pathedPatId = bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames |> Utils.fromJust_ "makeEIdVisibleToEIds: bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames" in
         let maybeProgramAfterMove =
