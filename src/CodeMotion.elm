@@ -1532,7 +1532,7 @@ inlineDefinitions selectedPathedPatIds originalProgram =
             Nothing  -> []
             Just pat ->
               indentPathsInPat pat
-              |> List.filter (\(ident, path) -> List.any (Utils.isPrefix path) paths)
+              |> List.filter (\(ident, path) -> List.any (Utils.isPrefixOf path) paths)
               |> List.map    (\(ident, path) -> (scopeId, path))
         )
   in

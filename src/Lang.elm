@@ -1150,6 +1150,11 @@ childExps e =
     ETypeAlias ws1 pat tipe e ws2   -> [e]
 
 
+allEIds : Exp -> List EId
+allEIds exp =
+  flattenExpTree exp |> List.map (.val >> .eid)
+
+
 ------------------------------------------------------------------------------
 -- Conversion
 

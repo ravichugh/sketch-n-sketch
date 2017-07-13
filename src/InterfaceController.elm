@@ -1533,17 +1533,20 @@ msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m -> m
   --  m
 
 toggleDeuceWidget : DeuceWidget -> Model -> Model
-toggleDeuceWidget id model =
+toggleDeuceWidget widget model =
   let
     oldDeuceState =
       model.deuceState
     oldSelectedWidgets =
       oldDeuceState.selectedWidgets
     newSelectedWidgets =
-      if List.member id oldSelectedWidgets then
-        Utils.removeAsSet id oldSelectedWidgets
+      if List.member widget oldSelectedWidgets then
+        Utils.removeAsSet widget oldSelectedWidgets
       else
-        Utils.addAsSet id oldSelectedWidgets
+        -- Remove any overlapping widgets before adding.
+        oldSelectedWidgets
+        |> List.filter (\w -> not (isSubWidget model.inputExp w widget || isSubWidget model.inputExp widget w))
+        |> Utils.addAsSet widget
     newDeuceState =
       { oldDeuceState
           | selectedWidgets =
@@ -1555,10 +1558,10 @@ toggleDeuceWidget id model =
             newDeuceState
     }
 
-msgMouseClickDeuceWidget id =
-  Msg ("msgMouseClickDeuceWidget " ++ toString id) <| \old ->
+msgMouseClickDeuceWidget widget =
+  Msg ("msgMouseClickDeuceWidget " ++ toString widget) <| \old ->
     if showDeuceWidgets old then
-      toggleDeuceWidget id old
+      toggleDeuceWidget widget old
     else
       old
 

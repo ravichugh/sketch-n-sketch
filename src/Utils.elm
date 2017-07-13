@@ -730,9 +730,7 @@ mapMaybe = Maybe.map
 --   Nothing -> Nothing
 
 bindMaybe : (a -> Maybe b) -> Maybe a -> Maybe b
-bindMaybe f mx = case mx of
-  Just x  -> f x
-  Nothing -> Nothing
+bindMaybe = Maybe.andThen
 
 plusMaybe : Maybe a -> Maybe a -> Maybe a
 plusMaybe mx my = case mx of
@@ -835,11 +833,15 @@ parseInt   = fromOk_ << String.toInt
 parseFloat = fromOk_ << String.toFloat
 
 isPrefix : List a -> List a -> Bool
-isPrefix longer prefix =
+isPrefix prefix longer =
+  prefix |> isPrefixOf longer
+
+isPrefixOf : List a -> List a -> Bool
+isPrefixOf longer prefix =
   case (longer, prefix) of
     (_, [])        -> True
     ([], _)        -> False
-    (x::xs, y::ys) -> x == y && isPrefix xs ys
+    (x::xs, y::ys) -> x == y && isPrefixOf xs ys
 
 -- Common elements shared at the beginning of each list
 commonPrefix : List (List a) -> List a

@@ -1,6 +1,7 @@
 module DeuceWidgets exposing (..) -- TODO
 
 import Lang exposing (..)
+import LangTools
 import LangUnparser exposing (unparse, unparsePat)
 import Utils
 import Keys
@@ -24,6 +25,47 @@ type DeuceWidget
   | DeuceLetBindingEquation EId
   | DeuceExpTarget ExpTargetPosition
   | DeucePatTarget PatTargetPosition
+
+
+isSubWidget : Exp -> DeuceWidget -> DeuceWidget -> Bool
+isSubWidget program widget superWidget =
+  let isSubEId subEId superEId =
+    superEId
+    |> findExpByEId program
+    |> Maybe.map (\superExp -> List.member subEId (allEIds superExp))
+    |> Maybe.withDefault False
+  in
+  let boundExpContains subEId superLetEId =
+    superLetEId
+    |> findExpByEId program
+    |> Maybe.andThen LangTools.expToMaybeLetBoundExp
+    |> Maybe.map (\superBoundExp -> List.member subEId (allEIds superBoundExp))
+    |> Maybe.withDefault False
+  in
+  let isSubPPId (subScopeId, subPath) (superScopeId, superPath) =
+    subScopeId == superScopeId && Utils.isPrefix superPath subPath
+  in
+  case (widget, superWidget) of
+    (DeuceExpTarget subExpTarget,       DeuceExpTarget superExpTarget)       -> subExpTarget == superExpTarget
+    (DeucePatTarget subPatTarget,       DeucePatTarget superPatTarget)       -> subPatTarget == superPatTarget
+    (_,                                 DeuceExpTarget _)                    -> False
+    (_,                                 DeucePatTarget _)                    -> False
+    (DeuceExp subEId,                   DeuceExp superEId)                   -> isSubEId subEId superEId
+    (DeuceExp _,                        DeucePat _)                          -> False
+    (DeuceExp subEId,                   DeuceLetBindingEquation superLetEId) -> boundExpContains subEId superLetEId
+    (DeucePat subPPId,                  DeuceExp superEId)                   -> isSubEId (pathedPatIdToScopeEId subPPId) superEId
+    (DeucePat subPPId,                  DeucePat superPPId)                  -> isSubPPId subPPId superPPId
+    (DeucePat subPPId,                  DeuceLetBindingEquation superLetEId) -> pathedPatIdToScopeEId subPPId == superLetEId || boundExpContains (pathedPatIdToScopeEId subPPId) superLetEId
+    (DeuceLetBindingEquation subLetEId, DeuceExp superEId)                   -> isSubEId subLetEId superEId
+    (DeuceLetBindingEquation _,         DeucePat _)                          -> False
+    (DeuceLetBindingEquation subLetEId, DeuceLetBindingEquation superLetEId) -> subLetEId == superLetEId || boundExpContains subLetEId superLetEId
+    (DeuceExpTarget (_, subEId),        DeuceExp superEId)                   -> subEId /= superEId && isSubEId subEId superEId
+    (DeuceExpTarget _,                  DeucePat _)                          -> False
+    (DeuceExpTarget (_, subEId),        DeuceLetBindingEquation superLetEId) -> boundExpContains subEId superLetEId
+    (DeucePatTarget (_, subPPId),       DeuceExp superEId)                   -> isSubEId (pathedPatIdToScopeEId subPPId) superEId
+    (DeucePatTarget (_, subPPId),       DeucePat superPPId)                  -> subPPId /= superPPId && isSubPPId subPPId superPPId
+    (DeucePatTarget (_, subPPId),       DeuceLetBindingEquation superLetEId) -> pathedPatIdToScopeEId subPPId == superLetEId || boundExpContains (pathedPatIdToScopeEId subPPId) superLetEId
+
 
 toDeuceWidget : Dict PId PathedPatternId -> CodeObject -> Maybe DeuceWidget
 toDeuceWidget patMap codeObject =
