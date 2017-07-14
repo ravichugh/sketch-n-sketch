@@ -50,6 +50,7 @@ import LangUnparser
 
 import Layout
 import DeuceWidgets exposing (..)
+import Config exposing (params)
 
 import UserStudy
 
@@ -513,6 +514,10 @@ menuBar model =
                         ]
                         [ Html.text "About Sketch-n-Sketch" ]
                     ]
+                , disableableTextButton
+                    True
+                    params.strVersion
+                    Controller.msgNoop
                 ]
               ]
           , menu "File"
