@@ -2443,14 +2443,16 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
   in
   case maybeTargetPosition of
     Nothing ->
-      let expToWrap = deepestCommonAncestorWithNewline originalProgram (\e -> List.member e.val.eid eids) in
-      makeEqualTransformation_ originalProgram eids expToWrap.val.eid insertNewLet
+      Just <| \() ->
+        let expToWrap = deepestCommonAncestorWithNewline originalProgram (\e -> List.member e.val.eid eids) in
+        makeEqualTransformation_ originalProgram eids expToWrap.val.eid insertNewLet
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
-      makeEqualTransformation_ originalProgram eids expTargetId insertNewLet
+      Just <| \() ->
+        makeEqualTransformation_ originalProgram eids expTargetId insertNewLet
 
     Just (PatTargetPosition patTarget) ->
       case patTargetPositionToTargetPathedPatId patTarget of
@@ -2458,7 +2460,8 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
           case findExpByEId originalProgram targetId of
             Just scopeExp ->
               if isLet scopeExp then
-                makeEqualTransformation_ originalProgram eids targetId (addToExistingLet targetPath)
+                Just <| \() ->
+                  makeEqualTransformation_ originalProgram eids targetId (addToExistingLet targetPath)
               else
                 Nothing
 
@@ -2467,6 +2470,7 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
 
         _ ->
           Nothing
+
 
 makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
   let firstEId = Utils.head "CodeMotion.makeEqualTransform expected some eids, got []" eids in
@@ -2482,122 +2486,53 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
     |> Utils.dedupByEquality
     |> List.sortBy (\s -> (String.length s, s))
   in
-  let results =
-    let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
-    let maxId = Parser.maxId originalProgram in
-    let (insertedLetEId, insertedVarsEId, newBindingPId, dummyBoundExpEId) = (maxId + 1, maxId + 2, maxId + 3, maxId + 4) in
-    potentialNames
-    |> List.concatMap
-        (\varName ->
-          -- Replacement order is a little wonky, but it prevents crashes when you try
-          -- to insert the new binding right in front of one of the expressions you
-          -- are trying to equalize. This is an odd case because you can't produce a
-          -- sane program, but at least it won't crash.
-          let (newLet, maybeNewScopeEId) =
-            -- makeNewLet will either insert the variable into an existing let at
-            -- newBindingLocationEId or introduce a new let around newBindingLocationEId
-            makeNewLet
-                insertedLetEId
-                (pVar varName |> setPId newBindingPId)
-                (eTuple [] |> setEId dummyBoundExpEId)
-                (justFindExpByEId originalProgramUniqueNames newBindingLocationEId)
-                originalProgramUniqueNames
-          in
-          let newBoundExp = justFindExpByEId originalProgramUniqueNames firstEId in
-          let newProgramUniqueNames =
-            let expSubst = eids |> List.map (\eid -> (eid, eVar varName |> setEId insertedVarsEId)) |> Dict.fromList in
-            originalProgramUniqueNames
-            |> replaceExpNode newBindingLocationEId newLet
-            |> replaceExpNodesPreservingPrecedingWhitespace expSubst
-            |> replaceExpNode dummyBoundExpEId newBoundExp
-          in
-          let varEIdsPreviouslyDeliberatelyRemoved =
-            eids
-            |> List.drop 1
-            |> List.concatMap (\eid -> justFindExpByEId originalProgramUniqueNames eid |> allVars)
-            |> List.map (.val >> .eid)
-          in
-          let namesUniqueTouched = Set.insert varName (identifiersSet newBoundExp) in
-          programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
-              ("New variable: " ++ varName)
-              uniqueNameToOldName
-              maybeNewScopeEId
-              namesUniqueTouched
-              varEIdsPreviouslyDeliberatelyRemoved
-              (Dict.singleton insertedVarsEId (Just newBindingPId)) -- insertedVarEIdToBindingPId
-              originalProgramUniqueNames
-              newProgramUniqueNames
-        )
+  let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
+  let maxId = Parser.maxId originalProgram in
+  let (insertedLetEId, insertedVarsEId, newBindingPId, dummyBoundExpEId) = (maxId + 1, maxId + 2, maxId + 3, maxId + 4) in
+  let varTempName = "* New Variable *" in
+  -- Replacement order is super wonky, but it prevents crashes when you try
+  -- to insert the new binding right in front of one of the expressions you
+  -- are trying to equalize. This is an odd case because you can't produce a
+  -- sane program, but at least it won't crash.
+  let newBoundExp = justFindExpByEId originalProgramUniqueNames firstEId in
+  let (newLet, maybeNewScopeEId) =
+    -- makeNewLet will either insert the variable into an existing let at
+    -- newBindingLocationEId or introduce a new let around newBindingLocationEId
+    makeNewLet
+        insertedLetEId
+        (pVar varTempName |> setPId newBindingPId)
+        (newBoundExp |> setEId dummyBoundExpEId) -- newLetFancyWhitespace will set the correct whitespace for boundExp, but we don't want the expSubst below to destroy the boundExp
+        (justFindExpByEId originalProgramUniqueNames newBindingLocationEId)
+        originalProgramUniqueNames
   in
-  Just <| \() -> results
+  let newProgramUniqueNames =
+    let expSubst = eids |> List.map (\eid -> (eid, eVar varTempName |> setEId insertedVarsEId)) |> Dict.fromList in
+    originalProgramUniqueNames
+    |> replaceExpNode newBindingLocationEId newLet
+    |> replaceExpNodesPreservingPrecedingWhitespace expSubst
+    |> mapExpNode dummyBoundExpEId (setEId newBoundExp.val.eid)
+  in
+  let varEIdsPreviouslyDeliberatelyRemoved =
+    eids
+    |> List.drop 1
+    |> List.concatMap (\eid -> justFindExpByEId originalProgramUniqueNames eid |> allVars)
+    |> List.map (.val >> .eid)
+  in
+  let namesUniqueTouched = Set.insert varTempName (identifiersSet newBoundExp) in
+  potentialNames
+  |> List.concatMap
+      (\varName ->
+        programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
+            ("New variable: " ++ varName)
+            (Dict.insert varTempName varName uniqueNameToOldName)
+            maybeNewScopeEId
+            namesUniqueTouched
+            varEIdsPreviouslyDeliberatelyRemoved
+            (Dict.singleton insertedVarsEId (Just newBindingPId)) -- insertedVarEIdToBindingPId
+            originalProgramUniqueNames
+            newProgramUniqueNames
+      )
 
-  -- let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
-  -- let allViewerEIds = Set.insert mobileEId viewerEIds in
-  -- let renameIfCollision mobileUniqueName uniqueNameToOldName viewerEIds originalProgram originalProgramUniqueNames =
-  --   let mobileOriginalName = Utils.getWithDefault mobileUniqueName "" uniqueNameToOldName in
-  --   -- Were the original name to be used, are we still good?
-  --   let resolvesCorrectly viewerEId =
-  --     maybeResolveIdentifierToExp mobileOriginalName viewerEId originalProgram
-  --     |> Maybe.map (\e -> e.val.eid == mobileEId)
-  --     |> Maybe.withDefault False
-  --   in
-  --   if List.all resolvesCorrectly (Set.toList viewerEIds) then
-  --     Just (mobileOriginalName, originalProgram)
-  --   else
-  --     -- Apparently use original name, but it will work if we rename that variable.
-  --     let uniqueNameToOldNameWithoutMobileName = Dict.remove mobileUniqueName uniqueNameToOldName in
-  --     let newProgram = renameIdentifiers uniqueNameToOldNameWithoutMobileName originalProgramUniqueNames in
-  --     Just (mobileUniqueName, newProgram)
-  -- in
-  -- let makeVisibleByInsertingNewBinding () =
-  --   let expToWrap =
-  --     justInsideDeepestCommonScope originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
-  --   in
-  --   let maxId = Parser.maxId originalProgramUniqueNames in
-  --   let (insertedVarEId, newBindingPId) = (maxId + 1, maxId + 2) in
-  --   let newProgramUniqueNames =
-  --     let extractedExp = justFindExpByEId originalProgramUniqueNames mobileEId in
-  --     originalProgramUniqueNames
-  --     |> mapExpNode mobileEId
-  --         (\e -> eVar "*EXTRACTED EXPRESSION*" |> setEId insertedVarEId)
-  --     |> mapExpNode expToWrap.val.eid
-  --         (\e -> newLetFancyWhitespace -1 (pVar "*EXTRACTED EXPRESSION*" |> setPId newBindingPId) extractedExp e originalProgramUniqueNames )
-  --   in
-  --   let maybeNewProgramWithLiftedDependenciesOldNames =
-  --     -- tryResolvingProblemsAfterTransform will always return at least one result.
-  --     -- We're just using it here to lift any needed dependencies and handle any shadowing that introduces.
-  --     -- The results are marked unsafe because `makeResult` doesn't know what to do with our inserted variable.
-  --     -- We should rework `tryResolvingProblemsAfterTransform` to handle that and mark it as safe, and then only pick a safe result.
-  --     -- Because otherwise we might be lifting arguments outside their funcitons.
-  --     tryResolvingProblemsAfterTransformNoTwiddling
-  --         ""
-  --         (Dict.insert "*EXTRACTED EXPRESSION*" "*EXTRACTED EXPRESSION*" uniqueNameToOldName)
-  --         Nothing
-  --         []
-  --         Set.empty
-  --         []
-  --         (Dict.singleton insertedVarEId (Just newBindingPId))
-  --         originalProgramUniqueNames
-  --         newProgramUniqueNames
-  --     |> Utils.findFirst isResultSafe
-  --     |> Maybe.map (\(SynthesisResult {exp}) -> Parser.freshen exp)
-  --   in
-  --   let visibleNameSuggestion = expNameForEId originalProgram mobileEId in
-  --   case maybeNewProgramWithLiftedDependenciesOldNames of
-  --     Nothing -> Nothing
-  --     Just newProgramWithLiftedDependenciesOldNames ->
-  --       let namesToAvoid =
-  --         let finalViewerEIds =
-  --           newProgramWithLiftedDependenciesOldNames
-  --           |> flattenExpTree
-  --           |> List.filter (expToMaybeIdent >> (==) (Just "*EXTRACTED EXPRESSION*"))
-  --           |> List.map (.val >> .eid)
-  --           |> Set.fromList
-  --         in
-  --         visibleIdentifiersAtEIds newProgramWithLiftedDependenciesOldNames finalViewerEIds
-  --       in
-  --       let visibleName = nonCollidingName visibleNameSuggestion 2 namesToAvoid in
-  --       Just (visibleName, renameIdentifier "*EXTRACTED EXPRESSION*" visibleName newProgramWithLiftedDependenciesOldNames)
 
 -- Tries to make minimal changes to expose EId to all viewers.
 -- If EId already bound to a variable, either do nothing, or rename, or move the binding, as needed.
