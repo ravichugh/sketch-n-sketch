@@ -58,6 +58,10 @@ type alias ViewState =
 type alias Preview =
   Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
 
+type TextSelectMode
+  = Superset
+  | Strict
+
 type alias Model =
   { code : Code
   , lastRunCode : Code
@@ -129,6 +133,11 @@ type alias Model =
   , toolMode : ShapeToolKind
   , deucePanelPosition : (Int, Int)
   , userStudyState : UserStudy.State
+  , enableDeuceTextSelection : Bool
+  , enableDeuceBoxSelection : Bool
+  , showDeuceInMenuBar : Bool
+  , showDeucePanel : Bool
+  , textSelectMode : TextSelectMode
   }
 
 type Mode
@@ -529,9 +538,19 @@ oneSafeResult newExp =
 
 deuceActive : Model -> Bool
 deuceActive model =
-  List.member Keys.keyShift model.keysDown
+  let
+    atLeastOneWidgetSelected =
+      not <| List.isEmpty model.deuceState.selectedWidgets
+    shiftDown =
+      List.member Keys.keyShift model.keysDown
+  in
+  shiftDown && (model.enableDeuceBoxSelection || atLeastOneWidgetSelected)
 
 --------------------------------------------------------------------------------
+
+isRangeEqual : Ace.Range -> Ace.Range -> Bool
+isRangeEqual =
+  (==)
 
 isSubsetRange : Ace.Range -> Ace.Range -> Bool
 isSubsetRange innerRange outerRange =
@@ -547,16 +566,24 @@ isSubsetRange innerRange outerRange =
   in
     startGood && endGood
 
-findSupersetRange : Ace.Range -> List (Ace.Range, a) -> Maybe a
-findSupersetRange pos =
-  List.foldl
-    ( \(range, val) previousVal ->
-        if isSubsetRange pos range then
-          Just val
-        else
-          previousVal
-    )
-    Nothing
+matchingRange : TextSelectMode -> Ace.Range -> List (Ace.Range, a) -> Maybe a
+matchingRange textSelectMode selectedRange =
+  let
+    matcher =
+      case textSelectMode of
+        Superset ->
+          isSubsetRange
+        Strict ->
+          isRangeEqual
+  in
+    List.foldl
+      ( \(range, val) previousVal ->
+          if matcher selectedRange range then
+            Just val
+          else
+            previousVal
+      )
+      Nothing
 
 -- Note that WithInfo is 1-indexed, but Ace.Range is 0-indexed.
 rangeFromInfo : WithInfo a -> Ace.Range
@@ -582,7 +609,8 @@ primaryCodeObject model =
     -- as just the range [cursorPos, cursorPos]. Thus, this pattern handles
     -- all the cases that we need.
     [ selection ] ->
-      findSupersetRange
+      matchingRange
+        model.textSelectMode
         selection
         ( List.map
             ( \codeObject ->
@@ -698,4 +726,9 @@ initModel =
     , toolMode = Raw
     , deucePanelPosition = (200, 200)
     , userStudyState = UserStudy.NotStarted
+    , enableDeuceTextSelection = True
+    , enableDeuceBoxSelection = True
+    , showDeuceInMenuBar = True
+    , showDeucePanel = True
+    , textSelectMode = Superset
     }

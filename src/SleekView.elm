@@ -470,7 +470,7 @@ menuBar model =
       ]
       [ Html.div
           [ Attr.class <| "main-bar" ++ activeFlag
-          ]
+          ] <|
           [ Html.img
               [ Attr.class "logo-image"
               , Attr.src "img/light_logo.svg"
@@ -528,11 +528,17 @@ menuBar model =
                     Controller.msgNoop
                 ]
               ]
-          , menu "Edit Code (Deuce)" <|
-              List.map
-                (Utils.mapi1 <| deuceHoverMenu model)
-                model.deuceToolsAndResults
-          , menu "Edit Code" <|
+          ] ++
+          ( if model.showDeuceInMenuBar then
+              [ menu "Deuce" <|
+                    List.map
+                      (Utils.mapi1 <| deuceHoverMenu model)
+                      model.deuceToolsAndResults
+              ]
+            else
+              []
+          ) ++
+          [ menu "Edit Code" <|
               [ [ simpleTextButton "Text Select" Controller.msgTextSelect
                 ]
               ]
@@ -1532,8 +1538,7 @@ deucePanel model =
     (x, y) =
       model.deucePanelPosition
     disabledFlag =
-      -- Handle pin/unpin here
-      if DeuceTools.noneActive model then
+      if not model.showDeucePanel || DeuceTools.noneActive model then
         " disabled"
       else
         ""
