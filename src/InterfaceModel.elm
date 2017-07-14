@@ -59,8 +59,15 @@ type alias Preview =
   Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
 
 type TextSelectMode
+    -- Only match the exact range
   = Strict
+    -- Match the smallest superset range
   | Superset
+    -- Match the largest subset range
+  | Subset
+    -- Match the largest subset range, but also allow additional surrounding
+    -- whitespace characters
+  | SubsetExtra
 
 type alias Model =
   { code : Code
@@ -548,6 +555,18 @@ deuceActive model =
 
 --------------------------------------------------------------------------------
 
+snippet : Ace.Range -> String -> String
+snippet range =
+     String.lines
+  >> Utils.slice range.start.row (range.end.row + 1)
+  >> Utils.modifyLast (String.left range.end.column)
+  >> Utils.modifyFirst (String.dropLeft range.start.column)
+  >> String.concat
+
+codeSnippet : Model -> Ace.Range -> String
+codeSnippet model range =
+  snippet range model.code
+
 isRangeEqual : Ace.Range -> Ace.Range -> Bool
 isRangeEqual =
   (==)
@@ -566,17 +585,55 @@ isSubsetRange innerRange outerRange =
   in
     startGood && endGood
 
-matchingRange : TextSelectMode -> Ace.Range -> List (Ace.Range, a) -> Maybe a
-matchingRange textSelectMode selectedRange =
+matchingRange : Model -> Ace.Range -> List (Ace.Range, a) -> Maybe a
+matchingRange model selectedRange =
   let
-    matcher =
-      case textSelectMode of
+    (fold, matcher) =
+      case model.textSelectMode of
         Strict ->
-          isRangeEqual
+          (List.foldl, isRangeEqual)
         Superset ->
-          isSubsetRange
+          (List.foldl, isSubsetRange)
+        Subset ->
+          (List.foldr, flip isSubsetRange)
+        SubsetExtra ->
+          ( List.foldr
+          , ( \sr r ->
+              if isSubsetRange r sr then
+                let
+                  validAdditionalSelectedCharacter : Char -> Bool
+                  validAdditionalSelectedCharacter c =
+                    c == ' ' || c == '\n'
+
+                  snippetValid : String -> Bool
+                  snippetValid =
+                    String.all validAdditionalSelectedCharacter
+
+                  beginValid : Bool
+                  beginValid =
+                    snippetValid << (codeSnippet model) <|
+                      { start =
+                          sr.start
+                      , end =
+                          r.start
+                      }
+
+                  endValid : Bool
+                  endValid =
+                    snippetValid << (codeSnippet model) <|
+                      { start =
+                          r.end
+                      , end =
+                          sr.end
+                      }
+                in
+                  beginValid && endValid
+              else
+                False
+            )
+          )
   in
-    List.foldl
+    fold
       ( \(range, val) previousVal ->
           if matcher selectedRange range then
             Just val
@@ -610,7 +667,7 @@ primaryCodeObject model =
     -- all the cases that we need.
     [ selection ] ->
       matchingRange
-        model.textSelectMode
+        model
         selection
         ( List.map
             ( \codeObject ->
@@ -730,5 +787,5 @@ initModel =
     , enableDeuceTextSelection = True
     , showDeuceInMenuBar = True
     , showDeucePanel = True
-    , textSelectMode = Strict
+    , textSelectMode = SubsetExtra
     }

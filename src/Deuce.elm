@@ -54,18 +54,6 @@ import DeuceWidgets exposing
 --= HELPER FUNCTIONS
 --==============================================================================
 
-slice : Int -> Int -> List a -> List a
-slice start end list =
-  list
-    |> List.drop start
-    |> List.take (end - start)
-
-get : Int -> List a -> Maybe a
-get i list =
-  list
-    |> List.drop i
-    |> List.head
-
 type alias Color =
   { r : Int
   , g : Int
@@ -301,7 +289,7 @@ hull codeInfo useTrimmed startCol startRow endCol endRow =
       else
         codeInfo.untrimmedLineHulls
     relevantLines =
-      slice (startRow + 1) endRow lineHulls
+      Utils.slice (startRow + 1) endRow lineHulls
   in
     if startRow /= endRow then
       -- Left of first line
@@ -320,7 +308,7 @@ hull codeInfo useTrimmed startCol startRow endCol endRow =
       -- Left of last line
       ( List.take 2 <|
           Maybe.withDefault [] <|
-            get endRow lineHulls
+            Utils.get endRow lineHulls
       ) ++
 
       -- Right of last line
@@ -339,7 +327,7 @@ hull codeInfo useTrimmed startCol startRow endCol endRow =
       -- Right of first line
       ( List.drop 2 <|
           Maybe.withDefault [] <|
-            get startRow lineHulls
+            Utils.get startRow lineHulls
       )
     else
       List.map (c2a codeInfo.displayInfo)

@@ -979,3 +979,39 @@ unwrap7 xs = case xs of
 unwrap8 xs = case xs of
   [x1,x2,x3,x4,x5,x6,x7,x8] -> (x1, x2, x3, x4, x5, x6, x7, x8)
   _ -> Debug.crash "unwrap7"
+
+--------------------------------------------------------------------------------
+
+slice : Int -> Int -> List a -> List a
+slice start end list =
+  list
+    |> List.drop start
+    |> List.take (end - start)
+
+get : Int -> List a -> Maybe a
+get i list =
+  list
+    |> List.drop i
+    |> List.head
+
+mapIndexes : ((Int, a) -> Bool) -> (a -> a) -> List a -> List a
+mapIndexes filter f =
+  mapi0
+    ( \(i, x) ->
+        if filter (i, x) then
+          f x
+        else
+          x
+    )
+
+modify : Int -> (a -> a) -> List a -> List a
+modify n =
+  mapIndexes ((==) n << Tuple.first)
+
+modifyFirst : (a -> a) -> List a -> List a
+modifyFirst =
+  modify 0
+
+modifyLast : (a -> a) -> List a -> List a
+modifyLast f xs =
+  modify (List.length xs - 1) f xs

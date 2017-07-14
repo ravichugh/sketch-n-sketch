@@ -697,6 +697,24 @@ menuBar model =
                         )
                         "Superset"
                         (Controller.msgSetTextSelectMode Superset)
+                    , simpleTextRadioButton
+                        ( case model.textSelectMode of
+                            Subset ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "Subset"
+                        (Controller.msgSetTextSelectMode Subset)
+                    , simpleTextRadioButton
+                        ( case model.textSelectMode of
+                            SubsetExtra ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "SubsetExtra"
+                        (Controller.msgSetTextSelectMode SubsetExtra)
                     ]
                 ]
               , [ hoverMenu "Shape Code Templates"
