@@ -193,6 +193,7 @@ pluckAll sourcePathedPatIds program =
 pluck : PathedPatternId -> Exp -> Maybe (PatBoundExp, Exp)
 pluck ((scopeEId, scopeBranchI), path) program =
   findExpByEId program scopeEId
+  |> Utils.filterMaybe isLet
   |> Maybe.andThen (\scope -> pluck_ scope path program)
 
 
@@ -201,7 +202,8 @@ pluck_ scopeExp path program =
   let (maybePluckedAndNewPatAndBoundExp, ws1, letKind, isRec, e2, ws2) =
     case scopeExp.val.e__ of
       ELet ws1 letKind False p e1 e2 ws2 -> (pluck__ p e1 path, ws1, letKind, False, e2, ws2)
-      _                                  -> Debug.crash <| "pluck_: bad Exp__ (note: letrec not supported) " ++ unparseWithIds scopeExp
+      ELet ws1 letKind True  p e1 e2 ws2 -> let _ = Debug.log "pluck: letrec not supported" () in (Nothing, ws1, letKind, True, e2, ws2)
+      _                                  -> Debug.crash <| "pluck_: bad Exp__ (note: case branches, and func args not supported) " ++ unparseWithIds scopeExp
   in
   case maybePluckedAndNewPatAndBoundExp of
     Nothing ->
