@@ -1565,7 +1565,7 @@ toggleDeuceWidget widget model =
               (deuceTool, results, False)
             Nothing ->
               (deuceTool, [], True)
-         )
+        )
       )
   in
     { almostNewModel
