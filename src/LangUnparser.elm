@@ -178,8 +178,12 @@ unparse e = case e.val.e__ of
   EIf ws1 e1 e2 e3 ws2 ->
     ws1.val ++ "(if" ++ unparse e1 ++ unparse e2 ++ unparse e3 ++ ws2.val ++ ")"
   ELet ws1 Let b p e1 e2 ws2 ->
-    let tok = if b then "letrec" else "let" in
-    ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse e1 ++ unparse e2 ++ ws2.val ++ ")"
+    case p.val.p__ of
+      PVar _ "_IMPLICIT_MAIN" _ ->
+        ""
+      _ ->
+        let tok = if b then "letrec" else "let" in
+        ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse e1 ++ unparse e2 ++ ws2.val ++ ")"
   ELet ws1 Def b p e1 e2 ws2 ->
     -- TODO don't used nested defs until this is re-worked
     let tok = if b then "defrec" else "def" in

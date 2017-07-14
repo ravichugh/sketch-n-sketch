@@ -1454,11 +1454,24 @@ allTopLevelExps =
 --= PROGRAMS
 --==============================================================================
 
+-- TODO there's a deuce polygon drawn from somewhere in this expression
+-- to dummyPos. fix this.
+implicitMain =
+  eLet [("_IMPLICIT_MAIN", eStr "...")] (eVar "main")
+    |> succeed
+    |> untrackInfo
+    |> trackInfo
+
+mainExp =
+  oneOf [exp, implicitMain]
+    -- if using implicitMain, the last topLevelExp (e.g. topLevelComment)
+    -- requires a newline. TODO fix this.
+
 program : Parser Exp
 program =
   succeed fuseTopLevelExps
     |= allTopLevelExps
-    |= exp
+    |= mainExp
     |. spaces
     |. end
 
