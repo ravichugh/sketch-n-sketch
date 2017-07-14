@@ -235,8 +235,8 @@ flipBooleanTool model selections =
 -- Rename Pattern
 --------------------------------------------------------------------------------
 
-renamePatternTool : Model -> Selections -> DeuceTool
-renamePatternTool model selections =
+renamePatternTool : Ident -> Model -> Selections -> DeuceTool
+renamePatternTool newName model selections =
   let
     disabledName =
       "Rename Pattern"
@@ -249,13 +249,7 @@ renamePatternTool model selections =
           of
             Just ident ->
               ( "Rename " ++ ident
-              , Just <|
-                  \() ->
-                    let
-                      newName =
-                        model.deuceState.renameVarTextBox
-                    in
-                      CodeMotion.renamePat pathedPatId newName model.inputExp
+              , Just <| \() -> CodeMotion.renamePat pathedPatId newName model.inputExp
               , FullySatisfied
               )
             _ ->
@@ -280,8 +274,8 @@ renamePatternTool model selections =
 -- Rename Variable
 --------------------------------------------------------------------------------
 
-renameVariableTool : Model -> Selections -> DeuceTool
-renameVariableTool model selections =
+renameVariableTool : Ident -> Model -> Selections -> DeuceTool
+renameVariableTool newName model selections =
   let
     disabledName =
       "Rename Variable"
@@ -292,10 +286,6 @@ renameVariableTool model selections =
             Just ePlucked ->
               case ePlucked.val.e__ of
                 EVar _ ident ->
-                  let
-                     newName =
-                      model.deuceState.renameVarTextBox
-                  in
                     ( "Rename All " ++ ident
                     , Just <|
                         \() ->
@@ -1968,8 +1958,8 @@ deuceTools model =
       , [ moveDefinitionTool
         , introduceVariableTool
         ]
-      , [ renameVariableTool
-        , renamePatternTool
+      , [ renameVariableTool model.deuceState.renameVarTextBox
+        , renamePatternTool model.deuceState.renameVarTextBox
         , swapNamesAndUsagesTool
         , inlineDefinitionTool
         , duplicateDefinitionTool

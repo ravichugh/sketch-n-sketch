@@ -1558,13 +1558,11 @@ toggleDeuceWidget widget model =
               newDeuceState
       }
     deuceToolsAndResults =
-      DeuceTools.deuceTools almostNewModel |> List.map (\deuceTools ->
-        deuceTools |> List.map (\deuceTool ->
+      DeuceTools.deuceTools almostNewModel |> List.map (
+        List.map (\deuceTool ->
           case DeuceTools.runTool almostNewModel deuceTool of
-            Just results ->
-              (deuceTool, results, False)
-            Nothing ->
-              (deuceTool, [], True)
+            Just results -> (deuceTool, results, False)
+            Nothing      -> (deuceTool, [], True)
         )
       )
   in
@@ -1838,10 +1836,32 @@ msgUpdateRenameVarTextBox text =
     let
       oldDeuceState =
         model.deuceState
+      almostNewModel =
+        { model
+            | deuceState =
+                { oldDeuceState | renameVarTextBox = text }
+        }
+      cachedAndNewDeuceTools =
+        Utils.zipWith Utils.zip
+          almostNewModel.deuceToolsAndResults
+          (DeuceTools.deuceTools almostNewModel)
+            -- assumes that the new tools computed by deuceTools
+            -- are the same as the cached ones
+      deuceToolsAndResults =
+        cachedAndNewDeuceTools |> List.map (
+          List.map (\((cachedDeuceTool, cachedResults, cachedBool), newDeuceTool) ->
+            if DeuceTools.isRenamer cachedDeuceTool then
+              case DeuceTools.runTool almostNewModel newDeuceTool of
+                Just results -> (newDeuceTool, results, False)
+                Nothing      -> (newDeuceTool, [], True)
+            else
+              (cachedDeuceTool, cachedResults, cachedBool)
+          )
+        )
     in
-      { model
-          | deuceState =
-              { oldDeuceState | renameVarTextBox = text }
+      { almostNewModel
+          | deuceToolsAndResults =
+              deuceToolsAndResults
       }
 
 --------------------------------------------------------------------------------

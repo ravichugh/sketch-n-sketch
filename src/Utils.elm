@@ -34,8 +34,10 @@ update (k1, v1) vals =
 -- Extra elements left off if the lists are different lengths.
 -- Resulting list length is minimum of (length xs, length ys)
 zip : List a -> List b -> List (a,b)
-zip xs ys = case (xs, ys) of
-  (x::xs_, y::ys_) -> (x,y) :: zip xs_ ys_
+zip = zipWith (,)
+
+zipWith f xs ys = case (xs, ys) of
+  (x::xs_, y::ys_) -> f x y :: zipWith f xs_ ys_
   _                -> []
 
 maybeZip : List a -> List b -> Maybe (List (a,b))
