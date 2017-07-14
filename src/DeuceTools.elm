@@ -137,12 +137,6 @@ oneOrMoreNumsOnly selections =
 -- Make Equal
 --------------------------------------------------------------------------------
 
-runNotSoLazyThunk : Maybe (() -> List SynthesisResult) -> List SynthesisResult
-runNotSoLazyThunk e =
-  case e of
-    Nothing -> []
-    Just f  -> f ()
-
 makeEqualTool : Model -> Selections -> DeuceTool
 makeEqualTool model selections =
   -- TODO allow optional target position
@@ -155,21 +149,15 @@ makeEqualTool model selections =
         (_, _, _, _, _::_, _, _) -> (Nothing, Impossible) -- no equation selection allowed (yet?)
         (_, _, [_], _, _, _, _)  -> (Nothing, Possible)
         (_, _, eids, [], [], [], []) ->
-          ( Just <| \() ->
-              runNotSoLazyThunk <|
-                CodeMotion.makeEqualTransformation model.inputExp eids Nothing
+          ( CodeMotion.makeEqualTransformation model.inputExp eids Nothing
           , Satisfied
           )
         (_, _, eids, [], [], [], [patTarget]) ->
-          ( Just <| \() ->
-              runNotSoLazyThunk <|
-                CodeMotion.makeEqualTransformation model.inputExp eids (Just (PatTargetPosition patTarget))
+          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (PatTargetPosition patTarget))
           , Satisfied
           )
         (_, _, eids, [], [], [expTarget], []) ->
-          ( Just <| \() ->
-              runNotSoLazyThunk <|
-                CodeMotion.makeEqualTransformation model.inputExp eids (Just (ExpTargetPosition expTarget))
+          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (ExpTargetPosition expTarget))
           , Satisfied
           )
         _ ->
