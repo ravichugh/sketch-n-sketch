@@ -115,6 +115,7 @@ emptyDeuceState =
 resetDeuceState m =
   let layoutOffsets = m.layoutOffsets in
   { m | deuceState = emptyDeuceState
+      , deuceToolsAndResults = []
       , preview = Nothing
       , layoutOffsets =
           { layoutOffsets |

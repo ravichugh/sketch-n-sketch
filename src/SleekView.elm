@@ -31,13 +31,14 @@ import InterfaceModel as Model exposing
   , DialogBox(..)
   , SynthesisResult(..)
   , runAndResolve
+  , DeuceTool
   )
 
 import InterfaceController as Controller
 import ExamplesGenerated as Examples
 
 import Deuce
-import DeuceTools exposing (DeuceTool)
+import DeuceTools
 
 import SleekLayout exposing (px, half)
 import Canvas
@@ -327,15 +328,9 @@ groupHoverMenu model title onMouseEnter disallowSelectedFeatures =
     onMouseEnter
     (groupDisabled disallowSelectedFeatures model)
 
-deuceHoverMenu : Model -> (Int, DeuceTool) -> Html Msg
-deuceHoverMenu model (index, deuceTool) =
+deuceHoverMenu : Model -> (Int, (DeuceTool, List SynthesisResult, Bool)) -> Html Msg
+deuceHoverMenu model (index, (deuceTool, results, disabled)) =
   let
-    (results, disabled) =
-      case DeuceTools.runTool model deuceTool of
-        Just results ->
-          (results, False)
-        Nothing ->
-          ([], True)
     path =
       [ index ]
     isRenamer =
@@ -536,7 +531,7 @@ menuBar model =
           , menu "Edit Code (Deuce)" <|
               List.map
                 (Utils.mapi1 <| deuceHoverMenu model)
-                (DeuceTools.deuceTools model)
+                model.deuceToolsAndResults
           , menu "Edit Code" <|
               [ [ simpleTextButton "Text Select" Controller.msgTextSelect
                 ]
@@ -1558,10 +1553,10 @@ deucePanel model =
     , Html.div
         []
         ( List.concatMap
-           ( List.filter (DeuceTools.isActive model) >>
+           ( List.filter (Utils.fst3 >> DeuceTools.isActive model) >>
                Utils.mapi1 (deuceHoverMenu model)
            )
-           (DeuceTools.deuceTools model)
+           model.deuceToolsAndResults
         )
     ]
 

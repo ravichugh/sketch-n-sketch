@@ -4,8 +4,7 @@
 --------------------------------------------------------------------------------
 
 module DeuceTools exposing
-  ( DeuceTool
-  , deuceTools
+  ( deuceTools
   , runTool
   , isActive
   , noneActive
@@ -24,6 +23,8 @@ import InterfaceModel as Model exposing
   , SynthesisResult(..)
   , synthesisResult
   , oneSafeResult
+  , DeuceTool
+  , PredicateValue(..)
   )
 
 import Lang exposing (..)
@@ -133,60 +134,14 @@ oneOrMoreNumsOnly selections =
       False
 
 --------------------------------------------------------------------------------
--- Predicates
---------------------------------------------------------------------------------
-
-type PredicateValue
-    -- Good to go, and can accept no more arguments
-  = FullySatisfied
-    -- Good to go, but can accept more arguments if necessary
-  | Satisfied
-    -- Not yet good to go, but with more arguments may be okay
-  | Possible
-    -- Not good to go, and no additional arguments will make a difference
-  | Impossible
-
--- NOTE: Descriptions should be an *action* in sentence case with no period at
---       the end, e.g.:
---         * Select a boolean value
---         * Select 4 integers
-type alias Predicate =
-  { description : String
-  , value : PredicateValue
-  }
-
-satisfied : Predicate -> Bool
-satisfied pred =
-  case pred.value of
-    FullySatisfied ->
-      True
-    Satisfied ->
-      True
-    Possible ->
-      False
-    Impossible ->
-      False
-
-allSatisfied : List Predicate -> Bool
-allSatisfied =
-  List.all satisfied
-
---------------------------------------------------------------------------------
--- Deuce Tools
---------------------------------------------------------------------------------
-
-type alias DeuceTransformation =
-  () -> List SynthesisResult
-
-type alias DeuceTool =
-  { name : String
-  , func : Maybe DeuceTransformation
-  , reqs : List Predicate -- requirements to run the tool
-  }
-
---------------------------------------------------------------------------------
 -- Make Equal
 --------------------------------------------------------------------------------
+
+runNotSoLazyThunk : Maybe (() -> List SynthesisResult) -> List SynthesisResult
+runNotSoLazyThunk e =
+  case e of
+    Nothing -> []
+    Just f  -> f ()
 
 makeEqualTool : Model -> Selections -> DeuceTool
 makeEqualTool model selections =
@@ -200,15 +155,21 @@ makeEqualTool model selections =
         (_, _, _, _, _::_, _, _) -> (Nothing, Impossible) -- no equation selection allowed (yet?)
         (_, _, [_], _, _, _, _)  -> (Nothing, Possible)
         (_, _, eids, [], [], [], []) ->
-          ( CodeMotion.makeEqualTransformation model.inputExp eids Nothing
+          ( Just <| \() ->
+              runNotSoLazyThunk <|
+                CodeMotion.makeEqualTransformation model.inputExp eids Nothing
           , Satisfied
           )
         (_, _, eids, [], [], [], [patTarget]) ->
-          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (PatTargetPosition patTarget))
+          ( Just <| \() ->
+              runNotSoLazyThunk <|
+                CodeMotion.makeEqualTransformation model.inputExp eids (Just (PatTargetPosition patTarget))
           , Satisfied
           )
         (_, _, eids, [], [], [expTarget], []) ->
-          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (ExpTargetPosition expTarget))
+          ( Just <| \() ->
+              runNotSoLazyThunk <|
+                CodeMotion.makeEqualTransformation model.inputExp eids (Just (ExpTargetPosition expTarget))
           , Satisfied
           )
         _ ->

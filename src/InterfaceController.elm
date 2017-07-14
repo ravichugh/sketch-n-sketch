@@ -1552,10 +1552,25 @@ toggleDeuceWidget widget model =
           | selectedWidgets =
               newSelectedWidgets
       }
+    almostNewModel =
+      { model
+          | deuceState =
+              newDeuceState
+      }
+    deuceToolsAndResults =
+      DeuceTools.deuceTools almostNewModel |> List.map (\deuceTools ->
+        deuceTools |> List.map (\deuceTool ->
+          case DeuceTools.runTool almostNewModel deuceTool of
+            Just results ->
+              (deuceTool, results, False)
+            Nothing ->
+              (deuceTool, [], True)
+         )
+      )
   in
-    { model
-        | deuceState =
-            newDeuceState
+    { almostNewModel
+        | deuceToolsAndResults =
+            deuceToolsAndResults
     }
 
 msgMouseClickDeuceWidget widget =

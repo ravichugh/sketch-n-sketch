@@ -123,6 +123,7 @@ type alias Model =
   , hoveringCodeBox : Bool
   , scopeGraph : ScopeGraph
   , deuceState : DeuceWidgets.DeuceState
+  , deuceToolsAndResults : List (List (DeuceTool, List SynthesisResult, Bool))
   , showOnlyBasicTools : Bool
   , viewState : ViewState
   , toolMode : ShapeToolKind
@@ -315,6 +316,8 @@ initialLayoutOffsets =
   , synthesisResultsSelectBox = init
   }
 
+--------------------------------------------------------------------------------
+
 type DialogBox = New | SaveAs | Open | AlertSave | ImportCode
 
 dbToInt : DialogBox -> Int
@@ -372,6 +375,58 @@ anyDialogShown =
 --------------------------------------------------------------------------------
 
 importCodeFileInputId = "import-code-file-input"
+
+--------------------------------------------------------------------------------
+-- Predicates
+--------------------------------------------------------------------------------
+
+type PredicateValue
+    -- Good to go, and can accept no more arguments
+  = FullySatisfied
+    -- Good to go, but can accept more arguments if necessary
+  | Satisfied
+    -- Not yet good to go, but with more arguments may be okay
+  | Possible
+    -- Not good to go, and no additional arguments will make a difference
+  | Impossible
+
+-- NOTE: Descriptions should be an *action* in sentence case with no period at
+--       the end, e.g.:
+--         * Select a boolean value
+--         * Select 4 integers
+type alias Predicate =
+  { description : String
+  , value : PredicateValue
+  }
+
+satisfied : Predicate -> Bool
+satisfied pred =
+  case pred.value of
+    FullySatisfied ->
+      True
+    Satisfied ->
+      True
+    Possible ->
+      False
+    Impossible ->
+      False
+
+allSatisfied : List Predicate -> Bool
+allSatisfied =
+  List.all satisfied
+
+--------------------------------------------------------------------------------
+-- Deuce Tools
+--------------------------------------------------------------------------------
+
+type alias DeuceTransformation =
+  () -> List SynthesisResult
+
+type alias DeuceTool =
+  { name : String
+  , func : Maybe DeuceTransformation
+  , reqs : List Predicate -- requirements to run the tool
+  }
 
 --------------------------------------------------------------------------------
 
@@ -635,6 +690,7 @@ initModel =
     , showAllDeuceWidgets = False
     , hoveringCodeBox = False
     , deuceState = DeuceWidgets.emptyDeuceState
+    , deuceToolsAndResults = []
     , showOnlyBasicTools = True
     , viewState =
         { menuActive = False
