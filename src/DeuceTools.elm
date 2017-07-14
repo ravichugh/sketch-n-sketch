@@ -235,8 +235,8 @@ flipBooleanTool model selections =
 -- Rename Pattern
 --------------------------------------------------------------------------------
 
-renamePatternTool : Ident -> Model -> Selections -> DeuceTool
-renamePatternTool newName model selections =
+renamePatternTool : Model -> Selections -> DeuceTool
+renamePatternTool model selections =
   let
     disabledName =
       "Rename Pattern"
@@ -249,7 +249,13 @@ renamePatternTool newName model selections =
           of
             Just ident ->
               ( "Rename " ++ ident
-              , Just <| \() -> CodeMotion.renamePat pathedPatId newName model.inputExp
+              , Just <|
+                  \() ->
+                    let
+                      newName =
+                        model.deuceState.renameVarTextBox
+                    in
+                      CodeMotion.renamePat pathedPatId newName model.inputExp
               , FullySatisfied
               )
             _ ->
@@ -274,8 +280,8 @@ renamePatternTool newName model selections =
 -- Rename Variable
 --------------------------------------------------------------------------------
 
-renameVariableTool : Ident -> Model -> Selections -> DeuceTool
-renameVariableTool newName model selections =
+renameVariableTool : Model -> Selections -> DeuceTool
+renameVariableTool model selections =
   let
     disabledName =
       "Rename Variable"
@@ -286,6 +292,10 @@ renameVariableTool newName model selections =
             Just ePlucked ->
               case ePlucked.val.e__ of
                 EVar _ ident ->
+                  let
+                     newName =
+                      model.deuceState.renameVarTextBox
+                  in
                     ( "Rename All " ++ ident
                     , Just <|
                         \() ->
@@ -1958,8 +1968,8 @@ deuceTools model =
       , [ moveDefinitionTool
         , introduceVariableTool
         ]
-      , [ renameVariableTool model.deuceState.renameVarTextBox
-        , renamePatternTool model.deuceState.renameVarTextBox
+      , [ renameVariableTool
+        , renamePatternTool
         , swapNamesAndUsagesTool
         , inlineDefinitionTool
         , duplicateDefinitionTool
