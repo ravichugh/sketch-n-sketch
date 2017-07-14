@@ -2033,6 +2033,98 @@ isTarget codeObject =
     TT _ _ _ ->
       True
 
+wsBefore : CodeObject -> WS
+wsBefore codeObject =
+  case codeObject of
+    E e ->
+      case e.val.e__ of
+        EConst ws _ _ _ ->
+          ws
+        EBase ws _ ->
+          ws
+        EVar ws _ ->
+          ws
+        EFun ws _ _ _ ->
+          ws
+        EApp ws _ _ _ ->
+          ws
+        EOp ws _ _ _ ->
+          ws
+        EList ws _ _ _ _ ->
+          ws
+        EIf ws _ _ _ _ ->
+          ws
+        ECase ws _ _ _ ->
+          ws
+        ETypeCase ws _ _ _ ->
+          ws
+        ELet ws _ _ _ _ _ _ ->
+          ws
+        EComment ws _ _ ->
+          ws
+        EOption ws _ _ _ _ ->
+          ws
+        ETyp ws _ _ _ _ ->
+          ws
+        EColonType ws _ _ _ _ ->
+          ws
+        ETypeAlias ws _ _ _ _ ->
+          ws
+    P _ p ->
+      case p.val.p__ of
+        PVar ws _ _ ->
+          ws
+        PConst ws _ ->
+          ws
+        PBase ws _ ->
+          ws
+        PList ws _ _ _ _ ->
+          ws
+        PAs ws _ _ _ ->
+          ws
+    T t ->
+      case t.val of
+        TNum ws ->
+          ws
+        TBool ws ->
+          ws
+        TString ws ->
+          ws
+        TNull ws ->
+          ws
+        TList ws _ _ ->
+          ws
+        TDict ws _ _ _ ->
+          ws
+        TTuple ws _ _ _ _ ->
+          ws
+        TArrow ws _ _ ->
+          ws
+        TUnion ws _ _ ->
+          ws
+        TNamed ws _ ->
+          ws
+        TVar ws _ ->
+          ws
+        TForall ws _ _ _ ->
+          ws
+        TWildcard ws ->
+          ws
+    LBE eid ->
+      { start =
+          eid.start
+      , end =
+          eid.end
+      , val =
+          ""
+      }
+    ET _ ws _ ->
+      ws
+    PT _ ws _ _ ->
+      ws
+    TT _ ws _ ->
+      ws
+
 childCodeObjects : CodeObject -> List CodeObject
 childCodeObjects co =
   case co of
@@ -2165,6 +2257,7 @@ childCodeObjects co =
                 }
             , P e p1
             , E e1
+            , PT After (wsBefore << E <| e1) e p1
             ] ++
             ( case lk of
                 Let ->
