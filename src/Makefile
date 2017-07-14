@@ -17,8 +17,9 @@ html:
 	cp ../ace-builds/src/theme-chrome.js ../build/out/
 	cp ../viz.js/viz.js ../build/out/
 	mkdir -p ../build/out/img
-	cp img/light_logo.svg ../build/out/img/
-	cp img/deuce_logo.png ../build/out/img/
+	cp ../img/sketch-n-sketch-logo.png ../build/out/img/
+	cp ../img/light_logo.svg ../build/out/img/
+	cp ../img/deuce_logo.png ../build/out/img/
 
 remove_build_artifacts:
 	rm -r elm-stuff/build-artifacts/0.*/user; rm -r ../tests/elm-stuff/build-artifacts/0.*/user; true
