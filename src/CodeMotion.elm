@@ -445,6 +445,7 @@ programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
   baseDescription
   uniqueNameToOldName
   maybeNewScopeEId
+  (touchedAdjective, untouchedAdjective)
   namesUniqueTouched
   varEIdsPreviouslyDeliberatelyRemoved
   insertedVarEIdToBindingPId
@@ -471,6 +472,7 @@ programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
           baseDescription
           uniqueNameToOldName
           maybeNewScopeEId
+          (touchedAdjective, untouchedAdjective)
           namesUniqueTouched
           varEIdsPreviouslyDeliberatelyRemoved
           insertedVarEIdToBindingPId
@@ -779,7 +781,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
 makeResult
     :  String
     -> Dict.Dict String Ident
-    -> List ( Ident, Ident )
+    -> List ( String, Ident, Ident )
     -> List Ident
     -> List Ident
     -> List Ident
@@ -791,7 +793,7 @@ makeResult
 makeResult
     baseDescription
     uniqueNameToOldName
-    renamings -- As a list of pairs
+    renamings -- As a list of (description, oldName, newName), e.g. ("touched", "x", "x2")
     liftedUniqueIdents
     identsInvalidlyFreeRewritten
     identsWithInvalidlyFreeVarsHandled
@@ -800,11 +802,11 @@ makeResult
     originalProgramUniqueNames
     newProgram =
   let uniqueNameToOldNameUsed =
-    Dict.diff uniqueNameToOldName (List.map Utils.flip renamings |> Dict.fromList)
+    Dict.diff uniqueNameToOldName (List.map (\(desc, oldName, newName) -> (newName, oldName)) renamings |> Dict.fromList)
   in
   let isSafe =
-    let originalVarRefs = allVarEIdsToBindingPIdList originalProgramUniqueNames |> Debug.log "originalVarRefs" in
-    let newVarRefs      = allVarEIdsToBindingPIdList newProgram |> Debug.log "newVarRefs" in
+    let originalVarRefs = allVarEIdsToBindingPIdList originalProgramUniqueNames in
+    let newVarRefs      = allVarEIdsToBindingPIdList newProgram in
     let allOldReferencesSame =
       originalVarRefs
       |> List.all
@@ -813,12 +815,12 @@ makeResult
             || Utils.equalAsSets (List.filter (Tuple.first >> (==) oldVarEId) newVarRefs) [(oldVarEId, maybeOldPid)]
             -- || Debug.log (toString (oldVarEId, maybeOldPid) ++ unparseWithIds originalProgramUniqueNames ++ unparseWithIds newProgram) False
           )
-      |> Debug.log "allOldReferencesSame"
+      -- |> Debug.log "allOldReferencesSame"
     in
     let allNewReferencesGood =
       let apparentlyInsertedVarRefs = Utils.diffAsSet newVarRefs originalVarRefs in
       Utils.equalAsSets apparentlyInsertedVarRefs (Dict.toList insertedVarEIdToBindingPId)
-      |> Debug.log "allNewReferencesGood"
+      -- |> Debug.log "allNewReferencesGood"
     in
     let noDuplicateNamesInPats =
       allPats newProgram
@@ -827,7 +829,7 @@ makeResult
             let namesDefinedAtPat = identifiersListInPat pat in
             namesDefinedAtPat == Utils.dedup namesDefinedAtPat
           )
-      |> Debug.log "noDuplicateNamesInPats"
+      -- |> Debug.log "noDuplicateNamesInPats"
     in
     allOldReferencesSame && allNewReferencesGood && noDuplicateNamesInPats
   in
@@ -853,7 +855,7 @@ makeResult
     in
     let renamingsStr =
       if not <| List.isEmpty renamings
-      then " renaming " ++ (renamings |> List.map (\(oldName, newName) -> oldName ++ " to " ++ newName) |> Utils.toSentence)
+      then " renaming " ++ (renamings |> List.map (\(desc, oldName, newName) -> desc ++ " " ++ oldName ++ " to " ++ newName) |> Utils.toSentence)
       else ""
     in
     baseDescription
@@ -870,6 +872,7 @@ tryResolvingProblemsAfterTransform
     :  String
     -> Dict.Dict String Ident
     -> Maybe EId
+    -> (String, String)
     -> Set.Set Ident
     -> List EId
     -> Dict.Dict EId (Maybe PId)
@@ -880,6 +883,7 @@ tryResolvingProblemsAfterTransform
     baseDescription
     uniqueNameToOldName
     maybeNewScopeEId
+    (touchedAdjective, untouchedAdjective)
     namesUniqueTouched
     varEIdsPreviouslyDeliberatelyRemoved
     insertedVarEIdToBindingPId
@@ -889,6 +893,7 @@ tryResolvingProblemsAfterTransform
     baseDescription
     uniqueNameToOldName
     maybeNewScopeEId
+    (touchedAdjective, untouchedAdjective)
     namesUniqueTouched
     varEIdsPreviouslyDeliberatelyRemoved
     insertedVarEIdToBindingPId
@@ -901,6 +906,7 @@ tryResolvingProblemsAfterTransformNoTwiddling
     :  String
     -> Dict.Dict String Ident
     -> Maybe EId
+    -> (String, String)
     -> Set.Set Ident
     -> List EId
     -> Dict.Dict EId (Maybe PId)
@@ -911,6 +917,7 @@ tryResolvingProblemsAfterTransformNoTwiddling
     baseDescription
     uniqueNameToOldName
     maybeNewScopeEId
+    (touchedAdjective, untouchedAdjective)
     namesUniqueTouched
     varEIdsPreviouslyDeliberatelyRemoved
     insertedVarEIdToBindingPId
@@ -920,6 +927,7 @@ tryResolvingProblemsAfterTransformNoTwiddling
     baseDescription
     uniqueNameToOldName
     maybeNewScopeEId
+    (touchedAdjective, untouchedAdjective)
     namesUniqueTouched
     varEIdsPreviouslyDeliberatelyRemoved
     insertedVarEIdToBindingPId
@@ -932,6 +940,7 @@ tryResolvingProblemsAfterTransform_
     :  String
     -> Dict.Dict String Ident
     -> Maybe EId
+    -> (String, String)
     -> Set.Set Ident
     -> List EId
     -> Dict.Dict EId (Maybe PId)
@@ -943,6 +952,7 @@ tryResolvingProblemsAfterTransform_
     baseDescription
     uniqueNameToOldName
     maybeNewScopeEId
+    (touchedAdjective, untouchedAdjective)
     namesUniqueTouched
     varEIdsPreviouslyDeliberatelyRemoved
     insertedVarEIdToBindingPId
@@ -953,19 +963,19 @@ tryResolvingProblemsAfterTransform_
     maybeNewScopeEId
     |> Maybe.map (\newScopeEId -> justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat)
   in
-  let resultForOriginalNamesPriority uniqueNameToOldNamePrioritized movedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved insertedVarEIdToBindingPId programWithUniqueNames =
+  let resultForOriginalNamesPriority uniqueNameToOldNameDescribedPrioritized movedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved insertedVarEIdToBindingPId programWithUniqueNames =
     let (newProgramPartiallyOriginalNames, _, renamingsPreserved) =
       -- Try revert back to original names one by one, as safe.
       -- If new program involves a new/updated pattern (maybeNewScopeEId), ensure we don't introduce duplicate names in that pattern.
-      uniqueNameToOldNamePrioritized
+      uniqueNameToOldNameDescribedPrioritized
       |> List.foldl
-          (\(uniqueName, oldName) (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved) ->
+          (\(nameDesc, uniqueName, oldName) (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved) ->
             let intendedUses = varsWithName uniqueName originalProgramUniqueNames |> List.map (.val >> .eid) in
             let usesInNewProgram = identifierUsesAfterDefiningPat uniqueName newProgramPartiallyOriginalNames |> List.map (.val >> .eid) in
             let identifiersInNewPat = maybeNewPatPartiallyOriginalNames |> Maybe.map identifiersListInPat |> Maybe.withDefault [] in
             -- If this name is part of the new pattern and renaming it would created a duplicate name, don't rename.
             if List.member uniqueName identifiersInNewPat && List.member oldName identifiersInNewPat then
-              (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved ++ [(oldName, uniqueName)])
+              (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved ++ [(nameDesc, oldName, uniqueName)])
             else if not <| Utils.equalAsSets intendedUses usesInNewProgram then
               -- Definition of this variable was moved in such a way that renaming can't make the program work.
               -- Might as well use the old name and let the programmer fix the mess they made.
@@ -987,7 +997,7 @@ tryResolvingProblemsAfterTransform_
                 , renamingsPreserved
                 )
               else
-                (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved ++ [(oldName, uniqueName)])
+                (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved ++ [(nameDesc, oldName, uniqueName)])
           )
           (programWithUniqueNames, maybeNewPatUniqueNames, [])
     in
@@ -1008,6 +1018,8 @@ tryResolvingProblemsAfterTransform_
     |> Dict.toList
     |> List.partition (\(uniqueName, oldName) -> Set.member uniqueName namesUniqueTouched)
   in
+  let uniqueNameToOldNameTouchedDescribed   = uniqueNameToOldNameTouched   |> List.map (\(uniqueName, oldName) -> (touchedAdjective, uniqueName, oldName)) in
+  let uniqueNameToOldNameUntouchedDescribed = uniqueNameToOldNameUntouched |> List.map (\(uniqueName, oldName) -> (untouchedAdjective, uniqueName, oldName)) in
   let twiddledResults =
     if tryTwiddling then
       case newProgramUniqueNames |> maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic of
@@ -1025,8 +1037,8 @@ tryResolvingProblemsAfterTransform_
           let (newProgramTwiddledArithmeticToSwapDependenciesAndLifted, liftedUniqueIdents) =
             liftDependenciesBasedOnUniqueNames newProgramTwiddledArithmeticToSwapDependencies
           in
-          [ resultForOriginalNamesPriority (uniqueNameToOldNameUntouched ++ uniqueNameToOldNameTouched) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved newInsertedVarEIdToBindingPId newProgramTwiddledArithmeticToSwapDependenciesAndLifted
-          , resultForOriginalNamesPriority (uniqueNameToOldNameTouched ++ uniqueNameToOldNameUntouched) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved newInsertedVarEIdToBindingPId newProgramTwiddledArithmeticToSwapDependenciesAndLifted
+          [ resultForOriginalNamesPriority (uniqueNameToOldNameUntouchedDescribed ++ uniqueNameToOldNameTouchedDescribed) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved newInsertedVarEIdToBindingPId newProgramTwiddledArithmeticToSwapDependenciesAndLifted
+          , resultForOriginalNamesPriority (uniqueNameToOldNameTouchedDescribed ++ uniqueNameToOldNameUntouchedDescribed) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved newInsertedVarEIdToBindingPId newProgramTwiddledArithmeticToSwapDependenciesAndLifted
           ]
     else
       []
@@ -1034,8 +1046,8 @@ tryResolvingProblemsAfterTransform_
   let (newProgramUniqueNamesDependenciesLifted, liftedUniqueIdents) =
     liftDependenciesBasedOnUniqueNames newProgramUniqueNames
   in
-  [ resultForOriginalNamesPriority (uniqueNameToOldNameUntouched ++ uniqueNameToOldNameTouched) liftedUniqueIdents [] [] [] insertedVarEIdToBindingPId newProgramUniqueNamesDependenciesLifted
-  , resultForOriginalNamesPriority (uniqueNameToOldNameTouched ++ uniqueNameToOldNameUntouched) liftedUniqueIdents [] [] [] insertedVarEIdToBindingPId newProgramUniqueNamesDependenciesLifted
+  [ resultForOriginalNamesPriority (uniqueNameToOldNameUntouchedDescribed ++ uniqueNameToOldNameTouchedDescribed) liftedUniqueIdents [] [] [] insertedVarEIdToBindingPId newProgramUniqueNamesDependenciesLifted
+  , resultForOriginalNamesPriority (uniqueNameToOldNameTouchedDescribed ++ uniqueNameToOldNameUntouchedDescribed) liftedUniqueIdents [] [] [] insertedVarEIdToBindingPId newProgramUniqueNamesDependenciesLifted
   ] ++ twiddledResults
 
 
@@ -1072,6 +1084,7 @@ moveDefinitions_ makeNewProgram sourcePathedPatIds program =
       ("Move " ++ movedThingsStr)
       uniqueNameToOldName
       (Just newScopeEId) -- maybeNewScopeEId
+      ("moved", "unmoved")
       namesUniqueExplicitlyMoved -- namesUniqueTouched
       [] -- varEIdsPreviouslyDeliberatelyRemoved
       Dict.empty -- insertedVarEIdToBindingPId
@@ -1508,6 +1521,7 @@ moveEquationsBeforeEId letEIds targetEId originalProgram =
       ("Move " ++ movedThingsStr)
       uniqueNameToOldName
       Nothing -- maybeNewScopeEId
+      ("moved", "unmoved")
       namesUniqueExplicitlyMoved -- namesUniqueTouched
       [] -- varEIdsPreviouslyDeliberatelyRemoved
       Dict.empty -- insertedVarEIdToBindingPId
@@ -1578,6 +1592,7 @@ inlineDefinitions selectedPathedPatIds originalProgram =
         ("Inline " ++ inlinedThingsStr)
         uniqueNameToOldName
         Nothing -- maybeNewScopeEId
+        ("touched", "untouched")
         namesUniqueExplicitlyTouched -- namesUniqueTouched
         varEIdsRemoved -- varEIdsPreviouslyDeliberatelyRemoved
         Dict.empty -- insertedVarEIdToBindingPId
@@ -2528,6 +2543,7 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
             ("New variable: " ++ varName)
             (Dict.insert varTempName varName uniqueNameToOldName)
             maybeNewScopeEId
+            ("touched", "untouched")
             namesUniqueTouched
             varEIdsPreviouslyDeliberatelyRemoved
             (Dict.singleton insertedVarsEId (Just newBindingPId)) -- insertedVarEIdToBindingPId
@@ -2584,6 +2600,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
           ""
           (Dict.insert "*EXTRACTED EXPRESSION*" "*EXTRACTED EXPRESSION*" uniqueNameToOldName)
           Nothing
+          ("", "")
           Set.empty
           []
           (Dict.singleton insertedVarEId (Just newBindingPId))
@@ -2677,6 +2694,7 @@ copyExpressionTransformation originalProgram eids =
                 ("Copy expression: " ++ Utils.squish (unparse expToCopy))
                 uniqueNameToOldName
                 Nothing -- maybeNewScopeEId
+                ("copied", "untouched")
                 namesUniqueTouched
                 varEIdsPreviouslyDeliberatelyRemoved
                 Dict.empty -- insertedVarEIdToBindingPId
@@ -2712,6 +2730,7 @@ swapExpressionsTransformation originalProgram eid1 eid2 =
             ("Swap " ++ Utils.squish (unparse exp1) ++ " and " ++ Utils.squish (unparse exp2))
             uniqueNameToOldName
             Nothing -- maybeNewScopeEId
+            ("swapped", "untouched")
             namesUniqueTouched
             [] -- varEIdsPreviouslyDeliberatelyRemoved
             Dict.empty -- insertedVarEIdToBindingPId
