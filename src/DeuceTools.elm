@@ -703,6 +703,9 @@ duplicateDefinitionTool model selections =
   let
     toolName = "Duplicate Definition"
 
+    eidIsLet eid =
+      (findExpByEId model.inputExp eid |> Maybe.map isLet) == Just True
+
     (name, func, predVal) =
       case selections of
         ([], [], [], [], [], [], []) ->
@@ -710,36 +713,39 @@ duplicateDefinitionTool model selections =
         (_, _, _, [], _, _, _) ->
           (toolName, Nothing, Impossible)
         ([], [], [], pathedPatIds, [], [(Before, eId)], []) ->
-          ( Utils.maybePluralize toolName pathedPatIds
-          , Just <| \() ->
-              CodeMotion.duplicateDefinitionsBeforeEId
-                pathedPatIds
-                eId
-                model.inputExp
-          , Satisfied
-          )
+          let allAreLets = pathedPatIds |> List.all (pathedPatIdToScopeEId >> eidIsLet) in
+          if allAreLets then
+            ( Utils.maybePluralize toolName pathedPatIds
+            , Just <| \() ->
+                CodeMotion.duplicateDefinitionsBeforeEId
+                  pathedPatIds
+                  eId
+                  model.inputExp
+            , Satisfied
+            )
+          else
+            (toolName, Nothing, Impossible)
+
         ([], [], [], pathedPatIds, [], [], [patTarget]) ->
           let
             targetPathedPatId =
               patTargetPositionToTargetPathedPatId patTarget
+
+            allAreLets =
+              (pathedPatIds |> List.all (pathedPatIdToScopeEId >> eidIsLet)) &&
+              eidIsLet (pathedPatIdToScopeEId targetPathedPatId)
           in
-            case
-              ( findExpByEId
+          if allAreLets then
+            ( Utils.maybePluralize toolName pathedPatIds
+            , Just <| \() ->
+                CodeMotion.duplicateDefinitionsPat
+                  pathedPatIds
+                  targetPathedPatId
                   model.inputExp
-                  (pathedPatIdToScopeEId targetPathedPatId)
-              ) |> Maybe.map (.val >> .e__)
-            of
-              Just (ELet _ _ _ _ _ _ _) ->
-                ( Utils.maybePluralize toolName pathedPatIds
-                , Just <| \() ->
-                    CodeMotion.duplicateDefinitionsPat
-                      pathedPatIds
-                      targetPathedPatId
-                      model.inputExp
-                , Satisfied
-                )
-              _ ->
-                (toolName, Nothing, Impossible)
+            , Satisfied
+            )
+          else
+            (toolName, Nothing, Impossible)
         _ ->
           (toolName, Nothing, Impossible)
   in
