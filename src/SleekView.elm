@@ -32,6 +32,7 @@ import InterfaceModel as Model exposing
   , SynthesisResult(..)
   , runAndResolve
   , DeuceTool
+  , TextSelectMode(..)
   )
 
 import InterfaceController as Controller
@@ -187,6 +188,18 @@ simpleTextRadioButton active title onClick =
               ]
           , onClick = onClick
       }
+
+booleanOption : Bool -> String -> String -> (Bool -> Msg) -> List (Html Msg)
+booleanOption test onString offString handler =
+  [ simpleTextRadioButton
+      test
+      onString
+      (handler True)
+  , simpleTextRadioButton
+      (not test)
+      offString
+      (handler False)
+  ]
 
 relateTextButton : Model -> String -> Msg -> Html Msg
 relateTextButton model text onClickHandler =
@@ -601,16 +614,12 @@ menuBar model =
           , menu "View" <|
               [ [ disableableTextButton True "Main Layer" Controller.msgNoop
                 , disableableTextButton True "Widget Layer" Controller.msgNoop
-                , hoverMenu "Ghost Layer"
-                    [ simpleTextRadioButton
-                        model.showGhosts
-                        "On"
-                        (Controller.msgSetGhostsShown True)
-                    , simpleTextRadioButton
-                        (not model.showGhosts)
-                        "Off"
-                        (Controller.msgSetGhostsShown False)
-                    ]
+                , hoverMenu "Ghost Layer" <|
+                    booleanOption
+                      model.showGhosts
+                      "On"
+                      "Off"
+                      Controller.msgSetGhostsShown
                 ]
               ]
           , menu "Options"
@@ -638,17 +647,51 @@ menuBar model =
                     , disableableTextButton True "Dark" Controller.msgNoop
                     ]
                 ]
-              , [ hoverMenu "Edit Code UI Mode"
-                    [ disableableTextButton
-                        True "Text Select" Controller.msgNoop
-                    , disableableTextButton
-                        True "Nested Boxes" Controller.msgNoop
-                    , disableableTextButton
-                        True "Both" Controller.msgNoop
-                    ]
-                , hoverMenu "Pin Context-Sensitive Menu"
-                    [ disableableTextButton True "Pin" Controller.msgNoop
-                    , disableableTextButton True "Unpin" Controller.msgNoop
+              , [ hoverMenu "Enable Deuce Box Selection" <|
+                    booleanOption
+                      model.enableDeuceBoxSelection
+                      "True"
+                      "False"
+                      Controller.msgSetEnableDeuceBoxSelection
+                , hoverMenu "Enable Deuce Text Selection" <|
+                    booleanOption
+                      model.enableDeuceTextSelection
+                      "True"
+                      "False"
+                      Controller.msgSetEnableDeuceTextSelection
+                ]
+              , [ hoverMenu "Show Deuce in Menu Bar" <|
+                    booleanOption
+                      model.showDeuceInMenuBar
+                      "True"
+                      "False"
+                      Controller.msgSetShowDeuceInMenuBar
+                , hoverMenu "Show Deuce Panel" <|
+                    booleanOption
+                      model.showDeucePanel
+                      "True"
+                      "False"
+                      Controller.msgSetShowDeucePanel
+                ]
+              , [ hoverMenu "Text Selection Mode"
+                    [ simpleTextRadioButton
+                        ( case model.textSelectMode of
+                            Strict ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "Strict"
+                        (Controller.msgSetTextSelectMode Strict)
+                    , simpleTextRadioButton
+                        ( case model.textSelectMode of
+                            Superset ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "Superset"
+                        (Controller.msgSetTextSelectMode Superset)
                     ]
                 ]
               , [ hoverMenu "Shape Code Templates"

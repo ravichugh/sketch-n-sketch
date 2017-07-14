@@ -49,6 +49,11 @@ module InterfaceController exposing
   , msgDragDeucePanel
   , msgTextSelect
   , msgUserStudyNext
+  , msgSetEnableDeuceBoxSelection
+  , msgSetEnableDeuceTextSelection
+  , msgSetShowDeuceInMenuBar
+  , msgSetShowDeucePanel
+  , msgSetTextSelectMode
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -1916,3 +1921,46 @@ msgUserStudyNext = Msg "User Study Next" <| \old ->
     userStudyState ->
       { old | userStudyState = userStudyState }
         |> handleNew (UserStudy.getTemplate userStudyState)
+
+--------------------------------------------------------------------------------
+-- Some Flags
+
+msgSetEnableDeuceBoxSelection : Bool -> Msg
+msgSetEnableDeuceBoxSelection bool =
+  Msg "Set Enable Deuce Box Selection" <| \model ->
+    { model
+        | enableDeuceBoxSelection =
+            bool
+    }
+
+msgSetEnableDeuceTextSelection : Bool -> Msg
+msgSetEnableDeuceTextSelection bool =
+  Msg "Set Enable Deuce Text Selection" <| \model ->
+    { model
+        | enableDeuceTextSelection =
+            bool
+    }
+
+msgSetShowDeuceInMenuBar : Bool -> Msg
+msgSetShowDeuceInMenuBar bool =
+  Msg "Set Show Deuce In Menu Bar" <| \model ->
+    { model
+        | showDeuceInMenuBar =
+            bool
+    }
+
+msgSetShowDeucePanel : Bool -> Msg
+msgSetShowDeucePanel bool =
+  Msg "Set Show Deuce Panel" <| \model ->
+    { model
+        | showDeucePanel =
+            bool
+    }
+
+msgSetTextSelectMode : TextSelectMode -> Msg
+msgSetTextSelectMode textSelectMode =
+  Msg "Set Text Select Mode" <| \model ->
+    { model
+        | textSelectMode =
+            textSelectMode
+    }

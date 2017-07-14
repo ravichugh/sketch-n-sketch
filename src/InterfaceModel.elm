@@ -59,8 +59,8 @@ type alias Preview =
   Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
 
 type TextSelectMode
-  = Superset
-  | Strict
+  = Strict
+  | Superset
 
 type alias Model =
   { code : Code
@@ -133,8 +133,8 @@ type alias Model =
   , toolMode : ShapeToolKind
   , deucePanelPosition : (Int, Int)
   , userStudyState : UserStudy.State
-  , enableDeuceTextSelection : Bool
   , enableDeuceBoxSelection : Bool
+  , enableDeuceTextSelection : Bool
   , showDeuceInMenuBar : Bool
   , showDeucePanel : Bool
   , textSelectMode : TextSelectMode
@@ -571,10 +571,10 @@ matchingRange textSelectMode selectedRange =
   let
     matcher =
       case textSelectMode of
-        Superset ->
-          isSubsetRange
         Strict ->
           isRangeEqual
+        Superset ->
+          isSubsetRange
   in
     List.foldl
       ( \(range, val) previousVal ->
@@ -726,9 +726,9 @@ initModel =
     , toolMode = Raw
     , deucePanelPosition = (200, 200)
     , userStudyState = UserStudy.NotStarted
-    , enableDeuceTextSelection = True
     , enableDeuceBoxSelection = True
+    , enableDeuceTextSelection = True
     , showDeuceInMenuBar = True
     , showDeucePanel = True
-    , textSelectMode = Superset
+    , textSelectMode = Strict
     }
