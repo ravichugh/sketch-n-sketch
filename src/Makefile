@@ -27,10 +27,10 @@ remove_build_artifacts:
 clean: remove_build_artifacts prelude examples html
 
 prelude:
-	scripts/expandTemplate.py Prelude
+	../scripts/expandTemplate.py Prelude
 
 examples:
-	scripts/expandTemplate.py Examples
+	../scripts/expandTemplate.py Examples
 
 loc:
 	wc -l \
@@ -58,6 +58,6 @@ loc:
 
 littleloc:
 	# wc -l ../examples/*
-	scripts/exampleStats.sh
-	scripts/exampleStats.sh | wc -l
-	scripts/exampleStats.sh | awk '{ sum += $$1 } END { print sum }'
+	../scripts/exampleStats.sh
+	../scripts/exampleStats.sh | wc -l
+	../scripts/exampleStats.sh | awk '{ sum += $$1 } END { print sum }'
