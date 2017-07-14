@@ -1403,9 +1403,8 @@ handleNew template = (\old ->
                     , fileIndex     = old.fileIndex
                     , icons         = old.icons
                     , scopeGraph    = DependenceGraph.compute e
-                    , deuceState    = DeuceWidgets.emptyDeuceState
                     , userStudyState = old.userStudyState
-                    }
+                    } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
 
 msgAskNew template = requireSaveAsker (msgNew template)
@@ -1468,6 +1467,22 @@ msgAskImportCode = requireSaveAsker msgImportCode
 
 --------------------------------------------------------------------------------
 -- Deuce Interactions
+
+resetDeuceState m =
+  let layoutOffsets = m.layoutOffsets in
+  { m | deuceState = emptyDeuceState
+      , deuceToolsAndResults = DeuceTools.createToolCache initModel
+      , preview = Nothing
+      , layoutOffsets =
+          { layoutOffsets |
+              deuceToolBox =
+                { pinned = layoutOffsets.deuceToolBox.pinned
+                , offsets = if layoutOffsets.deuceToolBox.pinned
+                            then layoutOffsets.deuceToolBox.offsets
+                            else {dx=0, dy=0}
+                }
+          }
+      }
 
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
@@ -1558,13 +1573,7 @@ toggleDeuceWidget widget model =
               newDeuceState
       }
     deuceToolsAndResults =
-      DeuceTools.deuceTools almostNewModel |> List.map (
-        List.map (\deuceTool ->
-          case DeuceTools.runTool almostNewModel deuceTool of
-            Just results -> (deuceTool, results, False)
-            Nothing      -> (deuceTool, [], True)
-        )
-      )
+      DeuceTools.createToolCache almostNewModel
   in
     { almostNewModel
         | deuceToolsAndResults =
@@ -1841,23 +1850,8 @@ msgUpdateRenameVarTextBox text =
             | deuceState =
                 { oldDeuceState | renameVarTextBox = text }
         }
-      cachedAndNewDeuceTools =
-        Utils.zipWith Utils.zip
-          almostNewModel.deuceToolsAndResults
-          (DeuceTools.deuceTools almostNewModel)
-            -- assumes that the new tools computed by deuceTools
-            -- are the same as the cached ones
       deuceToolsAndResults =
-        cachedAndNewDeuceTools |> List.map (
-          List.map (\((cachedDeuceTool, cachedResults, cachedBool), newDeuceTool) ->
-            if DeuceTools.isRenamer cachedDeuceTool then
-              case DeuceTools.runTool almostNewModel newDeuceTool of
-                Just results -> (newDeuceTool, results, False)
-                Nothing      -> (newDeuceTool, [], True)
-            else
-              (cachedDeuceTool, cachedResults, cachedBool)
-          )
-        )
+        DeuceTools.updateRenameToolsInCache almostNewModel
     in
       { almostNewModel
           | deuceToolsAndResults =

@@ -4,8 +4,8 @@
 --------------------------------------------------------------------------------
 
 module DeuceTools exposing
-  ( deuceTools
-  , runTool
+  ( createToolCache
+  , updateRenameToolsInCache
   , isActive
   , noneActive
   , isRenamer
@@ -1995,6 +1995,36 @@ deuceTools model =
         -- , twiddleShapesTool
       ]
     ]
+
+createToolCache : Model -> List (List (DeuceTool, List SynthesisResult, Bool))
+createToolCache model =
+  deuceTools model |> List.map (
+    List.map (\deuceTool ->
+      case runTool model deuceTool of
+        Just results -> (deuceTool, results, False)
+        Nothing      -> (deuceTool, [], True)
+    )
+  )
+
+updateRenameToolsInCache almostNewModel =
+  let
+    cachedAndNewDeuceTools =
+      Utils.zipWith Utils.zip
+        almostNewModel.deuceToolsAndResults
+        (deuceTools almostNewModel)
+          -- assumes that the new tools computed by deuceTools
+          -- are the same as the cached ones
+  in
+  cachedAndNewDeuceTools |> List.map (
+    List.map (\((cachedDeuceTool, cachedResults, cachedBool), newDeuceTool) ->
+      if isRenamer cachedDeuceTool then
+        case runTool almostNewModel newDeuceTool of
+          Just results -> (newDeuceTool, results, False)
+          Nothing      -> (newDeuceTool, [], True)
+      else
+        (cachedDeuceTool, cachedResults, cachedBool)
+    )
+  )
 
 --------------------------------------------------------------------------------
 -- Helpers

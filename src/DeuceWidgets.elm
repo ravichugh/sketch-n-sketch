@@ -112,22 +112,6 @@ emptyDeuceState =
   , renameVarTextBox = ""
   }
 
-resetDeuceState m =
-  let layoutOffsets = m.layoutOffsets in
-  { m | deuceState = emptyDeuceState
-      , deuceToolsAndResults = []
-      , preview = Nothing
-      , layoutOffsets =
-          { layoutOffsets |
-              deuceToolBox =
-                { pinned = layoutOffsets.deuceToolBox.pinned
-                , offsets = if layoutOffsets.deuceToolBox.pinned
-                            then layoutOffsets.deuceToolBox.offsets
-                            else {dx=0, dy=0}
-                }
-          }
-      }
-
 setHoveredMenuPath path m =
   let deuceState = m.deuceState in
   { m | deuceState = { deuceState | hoveredMenuPath = path } }
