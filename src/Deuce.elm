@@ -417,6 +417,8 @@ circleHandles codeInfo codeObject color opacity radius =
       , SAttr.stroke <| rgbaString color opacity
       ]
       [ handle startCol startRow
+      , handle startCol (startRow + 1)
+      , handle endCol endRow
       , handle endCol (endRow + 1)
       ]
 
