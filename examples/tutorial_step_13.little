@@ -28,4 +28,5 @@
 (def redRect
   (rect "salmon" 100 100 150 80))
 
-(draw [redRect])
+(def main
+  (draw [redRect]))

@@ -1,3 +1,15 @@
+
+(def rect1
+  (let x 20
+  (let y 20
+  (let height 250
+  (let width 80
+  (let fill "black"
+    (rect fill x y height width)))))))
+
+(def main
+  (draw [ rect1 ]))
+
 ; Goals:
 ; 
 ; * The programmer intended the rectangle to be 250
@@ -15,15 +27,6 @@
 ;     (let [fill x y width height] ["black" 20 20 80 250]
 ;       (rect fill x y width height)))
 ;   
-;   (draw [ rect1 ])
+;   (def main
+;     (draw [ rect1 ]))
 
-
-(def rect1
-  (let x 20
-  (let y 20
-  (let height 250
-  (let width 80
-  (let fill "black"
-    (rect fill x y height width)))))))
-
-(draw [ rect1 ])

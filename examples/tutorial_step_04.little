@@ -23,4 +23,5 @@
 
 (def [one two] [1 "two"])
       
-(draw [(show [one two one two])])
+(def main
+  (draw [(show [one two one two])]))

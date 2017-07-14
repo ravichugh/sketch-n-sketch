@@ -22,6 +22,7 @@
 
 (def multiply3 (\(x y z) (* x (* y z))))
 
-(draw [
-  (show (foo 3 4))
-])
+(def main
+  (draw [
+    (show (foo 3 4))
+  ]))

@@ -17,8 +17,8 @@ type Phase
 tutorialCount = 16
 
 headToHeadTaskTemplates =
-  [ "One Rectangle"
-  , "Three Rectangles"
+  [ "Three Rectangles"
+  , "One Rectangle"
   , "Target Icon"
   ]
 

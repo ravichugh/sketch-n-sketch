@@ -23,4 +23,5 @@
 
 (def triplicate2 (\(x y) [x y x y x y]))
 
-(draw [(show (triplicate 3))])
+(def main
+  (draw [(show (triplicate 3))]))

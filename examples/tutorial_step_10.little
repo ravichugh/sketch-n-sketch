@@ -23,4 +23,5 @@
   (let [cx cy r] [100 100 20]
     (circle "lightblue" cx cy r)))
 
-(draw [redLine greenRect blueCircle])
+(def main
+  (draw [redLine greenRect blueCircle]))

@@ -1,3 +1,19 @@
+
+(def rect1
+  (let [fill x y w h] ["red" 30 30 50 70]
+    (rect fill x y w h)))
+
+(def rect2
+  (let [fill x y w h] ["green" 109 53 50 70]
+    (rect fill x y w h)))
+
+(def rect3
+  (let [fill x y w h] ["blue" 192 35 50 70]
+    (rect fill x y w h)))
+
+(def main
+  (draw [ rect1 rect2 rect3 ]))
+
 ; Goals:
 ;
 ; * The three rectangle definitions share a lot of
@@ -21,19 +37,6 @@
 ;   (def rect3
 ;     (rect_50_70 "blue" 192 35))
 ;   
-;   (draw [ rect1 rect2 rect3 ])
+;   (def main
+;     (draw [ rect1 rect2 rect3 ]))
 
-
-(def rect1
-  (let [fill x y w h] ["red" 30 30 50 70]
-    (rect fill x y w h)))
-
-(def rect2
-  (let [fill x y w h] ["green" 109 53 50 70]
-    (rect fill x y w h)))
-
-(def rect3
-  (let [fill x y w h] ["blue" 192 35 50 70]
-    (rect fill x y w h)))
-
-(draw [ rect1 rect2 rect3 ])

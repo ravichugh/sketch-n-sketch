@@ -17,4 +17,5 @@
   (let [x y w h] [100 100 150 80]
     (rect "lightgreen" x y w h))))
 
-(draw (map greenRect (range 0 3)))
+(def main
+  (draw (map greenRect (range 0 3))))

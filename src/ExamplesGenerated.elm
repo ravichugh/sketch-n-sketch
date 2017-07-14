@@ -5154,6 +5154,8 @@ mondrian_arch_deuce =
 """
 
 
+-- these .little files are generated from somewhere else;
+-- don't change them manually
 tutorial_step_01 =
  """;
 ; In this study, we are going to show you some
@@ -5176,7 +5178,8 @@ tutorial_step_01 =
 ; will provide a tutorial on the basics of the
 ; language.
 
-(draw [])
+(def main
+  (draw []))
 
 """
 
@@ -5209,7 +5212,8 @@ tutorial_step_02 =
 
 (def z 3)   ; var z = 3
 
-(draw [])
+(def main
+  (draw []))
 
 """
 
@@ -5228,7 +5232,8 @@ tutorial_step_03 =
 (def list
   [1 2 3 true [false \"abc\"] str num bool])
 
-(draw [(show list)])
+(def main
+  (draw [(show list)]))
 
 """
 
@@ -5258,7 +5263,8 @@ tutorial_step_04 =
 
 (def [one two] [1 \"two\"])
       
-(draw [(show [one two one two])])
+(def main
+  (draw [(show [one two one two])]))
 
 """
 
@@ -5289,7 +5295,8 @@ tutorial_step_05 =
 
 ; (def thisWillFail one)
 
-(draw [(show nums)])
+(def main
+  (draw [(show nums)]))
 
 """
 
@@ -5319,7 +5326,8 @@ tutorial_step_06 =
 
 (def triplicate2 (\\(x y) [x y x y x y]))
 
-(draw [(show (triplicate 3))])
+(def main
+  (draw [(show (triplicate 3))]))
 
 """
 
@@ -5348,9 +5356,10 @@ tutorial_step_07 =
 
 (def multiply3 (\\(x y z) (* x (* y z))))
 
-(draw [
-  (show (foo 3 4))
-])
+(def main
+  (draw [
+    (show (foo 3 4))
+  ]))
 
 """
 
@@ -5365,7 +5374,8 @@ tutorial_step_08 =
 (def max (\\(x y)
   (if (< x y) y x)))
 
-(show (max 1 100))
+(def main
+  (show (max 1 100)))
 
 """
 
@@ -5394,9 +5404,10 @@ tutorial_step_09 =
 
 (def double (\\i (* i 2)))
 
-(draw [
-  (show (range 1 10))
-])
+(def main
+  (draw [
+    (show (range 1 10))
+  ]))
 
 """
 
@@ -5426,7 +5437,8 @@ tutorial_step_10 =
   (let [cx cy r] [100 100 20]
     (circle \"lightblue\" cx cy r)))
 
-(draw [redLine greenRect blueCircle])
+(def main
+  (draw [redLine greenRect blueCircle]))
 
 """
 
@@ -5450,7 +5462,8 @@ tutorial_step_11 =
   (let [x y w h] [100 100 150 80]
     (rect \"lightgreen\" x y w h))))
 
-(draw (map greenRect (range 0 3)))
+(def main
+  (draw (map greenRect (range 0 3))))
 
 """
 
@@ -5464,7 +5477,8 @@ tutorial_step_12 =
 ; have seen code transformations before. Even if
 ; not, we will explain how it works.
 
-(draw [])
+(def main
+  (draw []))
 
 """
 
@@ -5499,7 +5513,8 @@ tutorial_step_13 =
 (def redRect
   (rect \"salmon\" 100 100 150 80))
 
-(draw [redRect])
+(def main
+  (draw [redRect]))
 
 """
 
@@ -5536,7 +5551,8 @@ tutorial_step_14 =
 (def redRect
   (rect \"salmon\" 100 100 150 80))
 
-(draw [redRect])
+(def main
+  (draw [redRect]))
 
 """
 
@@ -5577,7 +5593,8 @@ tutorial_step_15 =
 (def redRect
   (rect \"salmon\" 100 100 150 80))
 
-(draw [redRect])
+(def main
+  (draw [redRect]))
 
 """
 
@@ -5605,13 +5622,28 @@ tutorial_step_16 =
 ; Notice that the Edit Code menu is disabled when
 ; using Box Select mode.
 
-(draw [(show \"That's the end of the tutorial!\")])
+(def main
+  (draw [(show \"That's the end of the tutorial!\")]))
 
 """
 
 
+-- these .little files are generated from somewhere else;
+-- don't change them manually
 task_one_rectangle =
- """; Goals:
+ """
+(def rect1
+  (let x 20
+  (let y 20
+  (let height 250
+  (let width 80
+  (let fill \"black\"
+    (rect fill x y height width)))))))
+
+(def main
+  (draw [ rect1 ]))
+
+; Goals:
 ; 
 ; * The programmer intended the rectangle to be 250
 ;   pixels tall and 80 pixels wide, but the height and
@@ -5628,23 +5660,30 @@ task_one_rectangle =
 ;     (let [fill x y width height] [\"black\" 20 20 80 250]
 ;       (rect fill x y width height)))
 ;   
-;   (draw [ rect1 ])
+;   (def main
+;     (draw [ rect1 ]))
 
-
-(def rect1
-  (let x 20
-  (let y 20
-  (let height 250
-  (let width 80
-  (let fill \"black\"
-    (rect fill x y height width)))))))
-
-(draw [ rect1 ])
 
 """
 
 task_three_rectangles =
- """; Goals:
+ """
+(def rect1
+  (let [fill x y w h] [\"red\" 30 30 50 70]
+    (rect fill x y w h)))
+
+(def rect2
+  (let [fill x y w h] [\"green\" 109 53 50 70]
+    (rect fill x y w h)))
+
+(def rect3
+  (let [fill x y w h] [\"blue\" 192 35 50 70]
+    (rect fill x y w h)))
+
+(def main
+  (draw [ rect1 rect2 rect3 ]))
+
+; Goals:
 ;
 ; * The three rectangle definitions share a lot of
 ;   identical code. Create a function rect_50_70 that
@@ -5667,27 +5706,25 @@ task_three_rectangles =
 ;   (def rect3
 ;     (rect_50_70 \"blue\" 192 35))
 ;   
-;   (draw [ rect1 rect2 rect3 ])
+;   (def main
+;     (draw [ rect1 rect2 rect3 ]))
 
-
-(def rect1
-  (let [fill x y w h] [\"red\" 30 30 50 70]
-    (rect fill x y w h)))
-
-(def rect2
-  (let [fill x y w h] [\"green\" 109 53 50 70]
-    (rect fill x y w h)))
-
-(def rect3
-  (let [fill x y w h] [\"blue\" 192 35 50 70]
-    (rect fill x y w h)))
-
-(draw [ rect1 rect2 rect3 ])
 
 """
 
 task_target =
- """; Goals:
+ """
+(def ring (\\i
+  (let fill (if (= 0 (mod i 2)) \"firebrick\" \"lightgray\")
+  (circle fill 250 250 (* 50 i)))))
+
+(def target (\\(startIndex endIndex)
+  (map ring (reverse (range startIndex endIndex)))))
+
+(def main
+  (draw (target 1 4)))
+
+; Goals:
 ;
 ; * Remove the startIndex argument; its value should
 ;   always be 1.
@@ -5708,39 +5745,14 @@ task_target =
 ;       (circle fill cx cy (* num i))))
 ;       (map ring (reverse (range 1 numRings))))))
 ;
-;   (draw (target 250 250 50 4))
+;   (def main
+;     (draw (target 250 250 50 4)))
 
-
-(def ring (\\i
-  (let fill (if (= 0 (mod i 2)) \"firebrick\" \"lightgray\")
-  (circle fill 250 250 (* 50 i)))))
-
-(def target (\\(startIndex endIndex)
-  (map ring (reverse (range startIndex endIndex)))))
-
-(draw (target 1 4))
 
 """
 
 task_battery =
- """; Goals:
-; 
-; * The programmer intends the color of juiceRectangle
-;   to depend on how wide the rectangle is (that is,
-;   how much battery juice is left). But juicePct is
-;   currently hard-coded to be 0.30 (that is, 30%).
-;   
-;   Redefine juicePct to be the ratio of the
-;   juiceRectangle width to the bodyRectangle width.
-;   
-; * Turn battery into a function that is parametrized
-;   over the location, size, and juice percentage and
-;   then draws both rectangles.
-;
-; The final program should be easy to read and
-; understand.
-
-
+ """
 (def [x y w h] [17 15 172 100])
 (def margin 5)
 
@@ -5760,12 +5772,41 @@ task_battery =
 (def battery
   [bodyRectangle juiceRectangle])
 
-(draw battery)
+(def main
+  (draw battery))
+
+; Goals:
+; 
+; * The programmer intends the color of juiceRectangle
+;   to depend on how wide the rectangle is (that is,
+;   how much battery juice is left). But juicePct is
+;   currently hard-coded to be 0.30 (that is, 30%).
+;   
+;   Redefine juicePct to be the ratio of the
+;   juiceRectangle width to the bodyRectangle width.
+;   
+; * Turn battery into a function that is parametrized
+;   over the location, size, and juice percentage and
+;   then draws both rectangles.
+;
+; The final program should be easy to read and
+; understand.
+
 
 """
 
 task_lambda =
- """; Goals:
+ """
+(def rectangle (rect \"black\" 20 20 100 100))
+(def line1 (line \"white\" 5 20 20 120 120))
+(def line2 (line \"white\" 5 20 120 70 70))
+
+(def logo [rectangle line1 line2])
+
+(def main
+  (draw logo))
+
+; Goals:
 ; 
 ; * The initial program draws a lambda icon, but
 ;   the hard-coded constants requires many changes if
@@ -5788,14 +5829,6 @@ task_lambda =
 ; The final program should be easy to read and
 ; understand.
 
-
-(def rectangle (rect \"black\" 20 20 100 100))
-(def line1 (line \"white\" 5 20 20 120 120))
-(def line2 (line \"white\" 5 20 120 70 70))
-
-(def logo [rectangle line1 line2])
-
-(draw logo)
 
 """
 

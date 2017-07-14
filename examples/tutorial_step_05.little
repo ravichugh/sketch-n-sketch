@@ -24,4 +24,5 @@
 
 ; (def thisWillFail one)
 
-(draw [(show nums)])
+(def main
+  (draw [(show nums)]))

@@ -1,3 +1,13 @@
+
+(def rectangle (rect "black" 20 20 100 100))
+(def line1 (line "white" 5 20 20 120 120))
+(def line2 (line "white" 5 20 120 70 70))
+
+(def logo [rectangle line1 line2])
+
+(def main
+  (draw logo))
+
 ; Goals:
 ; 
 ; * The initial program draws a lambda icon, but
@@ -21,11 +31,3 @@
 ; The final program should be easy to read and
 ; understand.
 
-
-(def rectangle (rect "black" 20 20 100 100))
-(def line1 (line "white" 5 20 20 120 120))
-(def line2 (line "white" 5 20 120 70 70))
-
-(def logo [rectangle line1 line2])
-
-(draw logo)

@@ -19,4 +19,5 @@
 ; will provide a tutorial on the basics of the
 ; language.
 
-(draw [])
+(def main
+  (draw []))

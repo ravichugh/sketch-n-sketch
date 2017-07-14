@@ -152,6 +152,8 @@ LITTLE_TO_ELM battery_deuce
 LITTLE_TO_ELM coffee_deuce
 LITTLE_TO_ELM mondrian_arch_deuce
 
+-- these .little files are generated from somewhere else;
+-- don't change them manually
 LITTLE_TO_ELM tutorial_step_01
 LITTLE_TO_ELM tutorial_step_02
 LITTLE_TO_ELM tutorial_step_03
@@ -169,6 +171,8 @@ LITTLE_TO_ELM tutorial_step_14
 LITTLE_TO_ELM tutorial_step_15
 LITTLE_TO_ELM tutorial_step_16
 
+-- these .little files are generated from somewhere else;
+-- don't change them manually
 LITTLE_TO_ELM task_one_rectangle
 LITTLE_TO_ELM task_three_rectangles
 LITTLE_TO_ELM task_target

@@ -26,4 +26,5 @@
 
 (def z 3)   ; var z = 3
 
-(draw [])
+(def main
+  (draw []))

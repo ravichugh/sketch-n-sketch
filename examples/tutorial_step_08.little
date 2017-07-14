@@ -8,4 +8,5 @@
 (def max (\(x y)
   (if (< x y) y x)))
 
-(show (max 1 100))
+(def main
+  (show (max 1 100)))

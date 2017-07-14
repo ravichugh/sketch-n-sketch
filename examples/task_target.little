@@ -1,3 +1,14 @@
+
+(def ring (\i
+  (let fill (if (= 0 (mod i 2)) "firebrick" "lightgray")
+  (circle fill 250 250 (* 50 i)))))
+
+(def target (\(startIndex endIndex)
+  (map ring (reverse (range startIndex endIndex)))))
+
+(def main
+  (draw (target 1 4)))
+
 ; Goals:
 ;
 ; * Remove the startIndex argument; its value should
@@ -19,14 +30,6 @@
 ;       (circle fill cx cy (* num i))))
 ;       (map ring (reverse (range 1 numRings))))))
 ;
-;   (draw (target 250 250 50 4))
+;   (def main
+;     (draw (target 250 250 50 4)))
 
-
-(def ring (\i
-  (let fill (if (= 0 (mod i 2)) "firebrick" "lightgray")
-  (circle fill 250 250 (* 50 i)))))
-
-(def target (\(startIndex endIndex)
-  (map ring (reverse (range startIndex endIndex)))))
-
-(draw (target 1 4))

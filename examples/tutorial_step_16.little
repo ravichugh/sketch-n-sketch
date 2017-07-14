@@ -21,4 +21,5 @@
 ; Notice that the Edit Code menu is disabled when
 ; using Box Select mode.
 
-(draw [(show "That's the end of the tutorial!")])
+(def main
+  (draw [(show "That's the end of the tutorial!")]))

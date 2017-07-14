@@ -7,4 +7,5 @@
 ; have seen code transformations before. Even if
 ; not, we will explain how it works.
 
-(draw [])
+(def main
+  (draw []))
