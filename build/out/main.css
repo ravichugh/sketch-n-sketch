@@ -236,6 +236,17 @@ a {
   top: -1px;
 }
 
+/* TODO User Study Info */
+
+.user-study-info {
+  position: absolute;
+  right: 15px;
+}
+
+.user-study-info > *:first-child {
+  margin: 0 10px;
+}
+
 /* Quick Action Bar */
 
 /* DISABLED FOR NOW

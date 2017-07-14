@@ -786,25 +786,29 @@ menuBar model =
                 ]
               ]
           -- TODO temporarily putting user study caption and button in main toolbar
-          , disableableTextButton
-              True
-              ("User Study: " ++ UserStudy.caption model.userStudyState ++ "...")
-              Controller.msgNoop
-          , disableableTextButton
-              (model.userStudyState == UserStudy.Finished)
-              " Next ▸"
-              Controller.msgUserStudyNext
+          , Html.div
+              [ Attr.class "user-study-info"
+              ]
+              [ disableableTextButton
+                  True
+                  ("User Study: " ++ UserStudy.caption model.userStudyState ++ "...")
+                  Controller.msgNoop
+              , disableableTextButton
+                  (model.userStudyState == UserStudy.Finished)
+                  " Next ▸"
+                  Controller.msgUserStudyNext
+              ]
           ]
-      -- Quick Action Bar disabled for now
-      -- , Html.div
-      --     [ Attr.class "quick-action-bar"
-      --     ]
-      --     [ Html.div
-      --         [ Attr.class "quick-action-bar-label"
-      --         ]
-      --         [ Html.text "Quick Actions"
-      --         ]
-      --     ]
+          -- Quick Action Bar disabled for now
+          -- , Html.div
+          --     [ Attr.class "quick-action-bar"
+          --     ]
+          --     [ Html.div
+          --         [ Attr.class "quick-action-bar-label"
+          --         ]
+          --         [ Html.text "Quick Actions"
+          --         ]
+          --     ]
       ]
 
 --------------------------------------------------------------------------------
