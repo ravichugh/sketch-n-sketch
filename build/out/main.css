@@ -155,8 +155,10 @@ a {
   white-space: nowrap;
   /* height: DYNAMIC */
   /* line-height: DYNAMIC */
-  /* padding: DYNAMIC */
+
+  padding: 0 15px;
   cursor: pointer;
+
   /* transition: background-color 0.1s; */
 }
 
@@ -236,15 +238,25 @@ a {
   top: -1px;
 }
 
-/* TODO User Study Info */
+/* TODO User Study Info (temporary) */
 
 .user-study-info {
   position: absolute;
   right: 15px;
 }
 
-.user-study-info > *:nth-child(2) {
-  margin: 0 10px;
+.user-study-info .text-button {
+  display: inline-block;
+  height: 30px; /* height of menu bar */
+  line-height: 30px; /* height of menu bar */
+  padding: 0 15px;
+}
+
+.flip {
+  /* The left triangle and the right triangle have different sizes, so just
+   * use one of them for both left/right and flip it. */
+  display: inline-block;
+  transform: scale(-1);
 }
 
 /* Quick Action Bar */

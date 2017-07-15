@@ -99,9 +99,6 @@ enterKeyCode : Int
 enterKeyCode =
   13
 
-maybeMsg disabled msg =
-  if disabled then Controller.msgNoop else msg
-
 --------------------------------------------------------------------------------
 -- Buttons
 --------------------------------------------------------------------------------
@@ -130,17 +127,26 @@ defaultTb =
 textButton : TextButtonOptions -> Html Msg
 textButton tb =
   let
-    disabledFlag =
-      if tb.disabled then " disabled" else ""
+    (disabledFlag, realOnClick, realStopPropagation) =
+      if tb.disabled then
+        (" disabled"
+        , Controller.msgNoop
+        , True
+        )
+      else
+        (""
+        , tb.onClick
+        , tb.stopPropagation
+        )
   in
     Html.span
       ( [ Attr.class <| "text-button" ++ disabledFlag
         , E.onWithOptions
             "click"
-            { stopPropagation = tb.stopPropagation
+            { stopPropagation = realStopPropagation
             , preventDefault = False
             }
-            (Json.succeed tb.onClick)
+            (Json.succeed realOnClick)
         ] ++ tb.attributes
       )
       tb.content
@@ -158,7 +164,7 @@ disableableTextButton : Bool -> String -> Msg -> Html Msg
 disableableTextButton disabled title onClick =
   textButton
     { defaultTb
-        | content = [Html.text title]
+        | content = [ Html.text title ]
         , onClick = onClick
         , disabled = disabled
     }
@@ -791,24 +797,30 @@ menuBar model =
           , Html.div
               [ Attr.class "user-study-info"
               ]
-              [ let disabled =
-                  UserStudy.disablePreviousStep model.userStudyStateIndex
-                in
-                  disableableTextButton
-                    disabled
-                    "◀ Previous Step"
-                    (maybeMsg disabled Controller.msgUserStudyPrev)
+              [ textButton
+                  { defaultTb
+                      | content =
+                          [ Html.span
+                              [ Attr.class "flip"
+                              ]
+                              [ Html.text "▸"
+                              ]
+                          , Html.text " Previous Step"
+                          ]
+                      , onClick =
+                          Controller.msgUserStudyPrev
+                      , disabled =
+                          UserStudy.disablePreviousStep
+                            model.userStudyStateIndex
+                  }
               , disableableTextButton
                   True
                   "USER STUDY"
                   Controller.msgNoop
-              , let disabled =
-                  UserStudy.disableNextStep model.userStudyStateIndex
-                in
-                  disableableTextButton
-                    disabled
-                    "Next Step ▶"
-                    (maybeMsg disabled Controller.msgUserStudyNext)
+              , disableableTextButton
+                  (UserStudy.disableNextStep model.userStudyStateIndex)
+                  "Next Step ▸"
+                  Controller.msgUserStudyNext
               ]
           ]
           -- Quick Action Bar disabled for now
