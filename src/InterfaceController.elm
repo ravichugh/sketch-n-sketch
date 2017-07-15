@@ -1915,12 +1915,15 @@ msgTextSelect =
 -- User Study Operations
 
 msgUserStudyNext = Msg "User Study Next" <| \old ->
-  case UserStudy.nextState old.userStudyState of
-    UserStudy.Finished ->
-      { old | userStudyState = UserStudy.Finished }
-    userStudyState ->
-      { old | userStudyState = userStudyState }
-        |> handleNew (UserStudy.getTemplate userStudyState)
+  case old.userStudyState of
+    _ :: nextState :: rest ->
+      let _ = Debug.log "User Study Next" nextState in
+      { old | userStudyState = nextState :: rest }
+        |> handleNew (UserStudy.getTemplate nextState)
+    [UserStudy.End] ->
+      old
+    _ ->
+      Debug.crash <| "msgUserStudyNext: " ++ toString old.userStudyState
 
 --------------------------------------------------------------------------------
 -- Some Flags

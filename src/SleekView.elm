@@ -790,12 +790,16 @@ menuBar model =
               [ Attr.class "user-study-info"
               ]
               [ disableableTextButton
+                  (UserStudy.disablePreviousStep model.userStudyState)
+                  "◀ Previous Step"
+                  Controller.msgNoop -- TODO
+              , disableableTextButton
                   True
-                  ("User Study: " ++ UserStudy.caption model.userStudyState ++ "...")
+                  "USER STUDY"
                   Controller.msgNoop
               , disableableTextButton
-                  (model.userStudyState == UserStudy.Finished)
-                  " Next ▸"
+                  (model.userStudyState == [UserStudy.End])
+                  "Next Step ▶"
                   Controller.msgUserStudyNext
               ]
           ]

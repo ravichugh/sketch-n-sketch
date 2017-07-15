@@ -139,7 +139,7 @@ type alias Model =
   , viewState : ViewState
   , toolMode : ShapeToolKind
   , deucePanelPosition : (Int, Int)
-  , userStudyState : UserStudy.State
+  , userStudyState : List UserStudy.State -- TODO add Int so that can navigate previous
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
   , showDeuceInMenuBar : Bool
@@ -782,7 +782,7 @@ initModel =
         }
     , toolMode = Raw
     , deucePanelPosition = (200, 200)
-    , userStudyState = UserStudy.NotStarted
+    , userStudyState = UserStudy.sequence
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
     , showDeuceInMenuBar = True
