@@ -134,7 +134,7 @@ type alias Model =
   , hoveringCodeBox : Bool
   , scopeGraph : ScopeGraph
   , deuceState : DeuceWidgets.DeuceState
-  , deuceToolsAndResults : List (List (DeuceTool, List SynthesisResult, Bool))
+  , deuceToolsAndResults : List (List CachedDeuceTool)
   , showOnlyBasicTools : Bool
   , viewState : ViewState
   , toolMode : ShapeToolKind
@@ -443,6 +443,9 @@ type alias DeuceTool =
   , func : Maybe DeuceTransformation
   , reqs : List Predicate -- requirements to run the tool
   }
+
+type alias CachedDeuceTool =
+  (DeuceTool, List SynthesisResult, Bool)
 
 --------------------------------------------------------------------------------
 

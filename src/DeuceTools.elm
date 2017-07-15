@@ -24,6 +24,7 @@ import InterfaceModel as Model exposing
   , synthesisResult
   , oneSafeResult
   , DeuceTool
+  , CachedDeuceTool
   , PredicateValue(..)
   )
 
@@ -1990,7 +1991,7 @@ deuceTools model =
       ]
     ]
 
-createToolCache : Model -> List (List (DeuceTool, List SynthesisResult, Bool))
+createToolCache : Model -> List (List CachedDeuceTool)
 createToolCache model =
   deuceTools model |> List.map (
     List.map (\deuceTool ->

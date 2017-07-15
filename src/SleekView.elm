@@ -32,6 +32,7 @@ import InterfaceModel as Model exposing
   , SynthesisResult(..)
   , runAndResolve
   , DeuceTool
+  , CachedDeuceTool
   , TextSelectMode(..)
   )
 
@@ -351,14 +352,10 @@ groupHoverMenu model title onMouseEnter disallowSelectedFeatures =
     onMouseEnter
     (groupDisabled disallowSelectedFeatures model)
 
-deuceHoverMenu : Model -> (Int, (DeuceTool, List SynthesisResult, Bool)) -> Html Msg
-deuceHoverMenu model (index, (deuceTool, results, disabled)) =
+deuceSynthesisResult : Model -> (List Int) -> Bool -> SynthesisResult -> Html Msg
+deuceSynthesisResult model path isRenamer (SynthesisResult result) =
   let
-    path =
-      [ index ]
-    isRenamer =
-      DeuceTools.isRenamer deuceTool
-    previewAndClass result =
+    (preview, class) =
       case (result.isSafe, runAndResolve model result.exp) of
         (True, Ok (val, widgets, slate, code)) ->
           (Just (code, Ok (val, widgets, slate)), "expected-safe")
@@ -369,7 +366,13 @@ deuceHoverMenu model (index, (deuceTool, results, disabled)) =
           (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
         (False, Err err) ->
           (Just (LangUnparser.unparse result.exp, Err err), "expected-unsafe")
-    renameInput result =
+    maybePreview =
+      -- TODO make renaming dynamically appear in the code
+      if isRenamer then
+        Nothing
+      else
+        Just preview
+    renameInput =
       if isRenamer then
         [ Html.input
             [ Attr.type_ "text"
@@ -387,48 +390,45 @@ deuceHoverMenu model (index, (deuceTool, results, disabled)) =
         ]
       else
         []
-    additionalInputs result =
-      renameInput result
+    additionalInputs =
+      renameInput
+  in
+    generalHtmlHoverMenu class
+      ( [ Html.span
+            []
+            [ Html.text
+                result.description
+            ]
+        ] ++ additionalInputs
+      )
+      (Controller.msgHoverDeuceTool path maybePreview)
+      (Controller.msgLeaveDeuceTool path maybePreview)
+      (Controller.msgChooseDeuceExp result.exp)
+      False
+      []
+
+deuceHoverMenu : Model -> (Int, CachedDeuceTool) -> Html Msg
+deuceHoverMenu model (index, (deuceTool, results, disabled)) =
+  let
+    path =
+      [ index ]
+    isRenamer =
+      DeuceTools.isRenamer deuceTool
+    title =
+      deuceTool.name
   in
     generalHoverMenu
-      deuceTool.name
+      title
       Controller.msgNoop
       Controller.msgNoop
       Controller.msgNoop
       disabled
       [ Html.div
-        [ Attr.class "synthesis-results"
-        ]
-        ( List.map
-            ( \synthesisResult ->
-                case synthesisResult of
-                  SynthesisResult result ->
-                    let
-                      (preview, class) =
-                        previewAndClass result
-                      maybePreview =
-                        -- TODO make renaming dynamically appear in the code
-                        if isRenamer then
-                          Nothing
-                        else
-                          Just preview
-                    in
-                      generalHtmlHoverMenu class
-                        ( [ Html.span
-                              []
-                              [ Html.text <|
-                                  Model.resultDescription synthesisResult
-                              ]
-                          ] ++ (additionalInputs result)
-                        )
-                        (Controller.msgHoverDeuceTool path maybePreview)
-                        (Controller.msgLeaveDeuceTool path maybePreview)
-                        (Controller.msgChooseDeuceExp result.exp)
-                        False
-                        []
-            )
-          results
-        )
+          [ Attr.class "synthesis-results"
+          ] <|
+          List.map
+            (deuceSynthesisResult model path isRenamer)
+            results
       ]
 
 menuBar : Model -> Html Msg
