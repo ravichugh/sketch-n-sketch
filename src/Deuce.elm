@@ -308,7 +308,7 @@ hull codeInfo useTrimmed startCol startRow endCol endRow =
       -- Left of last line
       ( List.take 2 <|
           Maybe.withDefault [] <|
-            Utils.get endRow lineHulls
+            Utils.maybeGeti0 endRow lineHulls
       ) ++
 
       -- Right of last line
@@ -327,7 +327,7 @@ hull codeInfo useTrimmed startCol startRow endCol endRow =
       -- Right of first line
       ( List.drop 2 <|
           Maybe.withDefault [] <|
-            Utils.get startRow lineHulls
+            Utils.maybeGeti0 startRow lineHulls
       )
     else
       List.map (c2a codeInfo.displayInfo)

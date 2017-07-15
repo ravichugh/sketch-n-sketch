@@ -1440,7 +1440,7 @@ setPatName ((scopeEId, branchI), path) newName exp =
         Just <| makeNewScope (ELet ws1 letKind isRec newPat boundExp body ws2)
 
       (Just (EFun ws1 pats body ws2), i::is) ->
-        Utils.maybeGet1 i pats
+        Utils.maybeGeti1 i pats
         |> Maybe.map
             (\pat ->
               let newPat = setPatNameInPat is newName pat in
@@ -1448,7 +1448,7 @@ setPatName ((scopeEId, branchI), path) newName exp =
             )
 
       (Just (ECase ws1 scrutinee branches ws2), _) ->
-        Utils.maybeGet1 branchI branches
+        Utils.maybeGeti1 branchI branches
         |> Maybe.map
             (\branch ->
               let (Branch_ ws1 pat exp ws2) = branch.val in
@@ -1509,7 +1509,7 @@ findScopeAreas (scopeEId, branchI) exp  =
       [body]
 
     Just (ECase _ _ branches _) ->
-      Utils.maybeGet1 branchI (branchExps branches)
+      Utils.maybeGeti1 branchI (branchExps branches)
       |> Maybe.map (\branch -> [branch])
       |> Maybe.withDefault []
 
@@ -1588,11 +1588,11 @@ findScopeExpAndPatByPathedPatternId ((scopeEId, branchI), path) exp =
         followPathInPat path pat
 
       (Just (EFun _ pats _ _), i::is) ->
-        Utils.maybeGet1 i pats
+        Utils.maybeGeti1 i pats
         |> Maybe.andThen (\pat -> followPathInPat is pat)
 
       (Just (ECase _ _ branches _), _) ->
-        Utils.maybeGet1 branchI (branchPats branches)
+        Utils.maybeGeti1 branchI (branchPats branches)
         |> Maybe.andThen (\pat -> followPathInPat path pat)
 
       _ ->
@@ -1618,11 +1618,11 @@ followPathInPat path pat =
       followPathInPat is p
 
     (PList _ ps _ Nothing _, i::is) ->
-      Utils.maybeGet1 i ps
+      Utils.maybeGeti1 i ps
       |> Maybe.andThen (\p -> followPathInPat is p)
 
     (PList _ ps _ (Just tailPat) _, i::is) ->
-      Utils.maybeGet1 i (ps ++ [tailPat])
+      Utils.maybeGeti1 i (ps ++ [tailPat])
       |> Maybe.andThen (\p -> followPathInPat is p)
 
     _ ->

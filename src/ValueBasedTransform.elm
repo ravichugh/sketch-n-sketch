@@ -877,7 +877,7 @@ nodeIdAndFeatureNameToEquation (nodeId, featureName) tree widgets locIdToNumberA
     -- widget feature
     -- change to index widgets by position in widget list; then pull feature from widget type
     let widgetId = -nodeId - 2 in -- widget nodeId's are encoded at -2 and count down. (And they are 1-indexed, so actually they start at -3)
-    case Utils.maybeGet1 widgetId widgets of
+    case Utils.maybeGeti1 widgetId widgets of
       Just widget -> Just (ShapeWidgets.widgetFeatureEquation featureName widget locIdToNumberAndLoc)
       Nothing     -> Debug.crash <| "nodeIdAndFeatureNameToEquation can't find widget " ++ (toString widgetId) ++ " " ++ (toString widgets)
 

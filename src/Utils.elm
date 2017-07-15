@@ -314,58 +314,11 @@ dropLast n list =
   |> List.drop n
   |> List.reverse
 
-splitString : Int -> String -> (String, String)
-splitString n s = (String.left n s, String.dropLeft n s)
-
-munchString : String -> String -> Maybe String
-munchString prefix s =
-  let (pre,suf) = splitString (String.length prefix) s in
-  if pre == prefix
-    then Just suf
-    else Nothing
-
-takeNLines : Int -> String -> String
-takeNLines n s =
-  String.lines s |> List.take n |> String.join "\n"
-
--- Replace all runs of whitespace with a single space
-squish : String -> String
-squish str =
-  String.trim <|
-    Regex.replace Regex.All (Regex.regex "\\s+") (\_ -> " ") str
-
--- e.g. niceTruncateString 10 "..." "Really long text here" => "Really..."
-niceTruncateString : Int -> String -> String -> String
-niceTruncateString n toBeContinuedStr str =
-  if String.length str > n then
-    String.trimRight (String.left (n - String.length toBeContinuedStr) str) ++ toBeContinuedStr
-  else
-    str
-
-maybePluralize : String -> List a -> String
-maybePluralize str list =
-  str ++ (if List.length list == 1 then "" else "s")
-
-capitalize : String -> String
-capitalize str =
-  case String.split "" str of
-    []          -> ""
-    first::rest -> String.join "" (String.toUpper first :: rest)
-
--- https://stackoverflow.com/a/41124950
-stringReplace : String -> String -> String -> String
-stringReplace target replacement string =
-  String.split target string |> String.join replacement
-
--- "WORD Word" -> "wordWord"
--- "word word" -> "wordWord"
-naturalToCamelCase : String -> String
-naturalToCamelCase natural =
-  natural
-  |> String.split " "
-  |> List.map String.toLower
-  |> mapi1 (\(i, word) -> if i == 1 then word else capitalize word)
-  |> String.join ""
+slice : Int -> Int -> List a -> List a
+slice start end list =
+  list
+    |> List.drop start
+    |> List.take (end - start)
 
 cartProd : List a -> List b -> List (a, b)
 cartProd xs ys =
@@ -479,11 +432,6 @@ removeLastElement : List a -> List a
 removeLastElement list =
   List.take ((List.length list)-1) list
 
-maybeMapLastElement : (a -> a) -> List a -> Maybe (List a)
-maybeMapLastElement f list =
-  maybeLast list
-  |> Maybe.map (\last -> removeLastElement list ++ [f last])
-
 -- Equivalent to Maybe.oneOf (List.map f list)
 -- but maps the list lazily to return early
 mapFirstSuccess : (a -> Maybe b) -> List a -> Maybe b
@@ -538,12 +486,12 @@ inserti : Int -> a -> List a -> List a
 inserti i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop (i-1) xs
 
 -- 0-based
-maybeGet0 : Int -> List a -> Maybe a
-maybeGet0 i list = list |> List.drop i |> List.head
+maybeGeti0 : Int -> List a -> Maybe a
+maybeGeti0 i list = list |> List.drop i |> List.head
 
 -- 1-based
-maybeGet1 : Int -> List a -> Maybe a
-maybeGet1 i list = list |> List.drop (i-1) |> List.head
+maybeGeti1 : Int -> List a -> Maybe a
+maybeGeti1 i list = list |> List.drop (i-1) |> List.head
 
 -- 0-based
 getReplacei0 : Int -> (a -> a) -> List a -> List a
@@ -556,6 +504,19 @@ getReplacei0 i f list =
 getReplacei1 : Int -> (a -> a) -> List a -> List a
 getReplacei1 i f list =
   getReplacei0 (i-1) f list
+
+modifyFirst : (a -> a) -> List a -> List a
+modifyFirst f list =
+  getReplacei0 0 f list
+
+modifyLast : (a -> a) -> List a -> List a
+modifyLast f list =
+  getReplacei0 (List.length list - 1) f list
+
+maybeModifyLast : (a -> a) -> List a -> Maybe (List a)
+maybeModifyLast f list =
+  maybeLast list
+  |> Maybe.map (\last -> removeLastElement list ++ [f last])
 
 -- O(n)
 allSame list = case list of
@@ -586,6 +547,59 @@ angleBracks = delimit "<" ">"
 spaces = String.join " "
 commas = String.join ", "
 lines  = String.join "\n"
+
+splitString : Int -> String -> (String, String)
+splitString n s = (String.left n s, String.dropLeft n s)
+
+munchString : String -> String -> Maybe String
+munchString prefix s =
+  let (pre,suf) = splitString (String.length prefix) s in
+  if pre == prefix
+    then Just suf
+    else Nothing
+
+takeNLines : Int -> String -> String
+takeNLines n s =
+  String.lines s |> List.take n |> String.join "\n"
+
+-- Replace all runs of whitespace with a single space
+squish : String -> String
+squish str =
+  String.trim <|
+    Regex.replace Regex.All (Regex.regex "\\s+") (\_ -> " ") str
+
+-- e.g. niceTruncateString 10 "..." "Really long text here" => "Really..."
+niceTruncateString : Int -> String -> String -> String
+niceTruncateString n toBeContinuedStr str =
+  if String.length str > n then
+    String.trimRight (String.left (n - String.length toBeContinuedStr) str) ++ toBeContinuedStr
+  else
+    str
+
+maybePluralize : String -> List a -> String
+maybePluralize str list =
+  str ++ (if List.length list == 1 then "" else "s")
+
+capitalize : String -> String
+capitalize str =
+  case String.split "" str of
+    []          -> ""
+    first::rest -> String.join "" (String.toUpper first :: rest)
+
+-- https://stackoverflow.com/a/41124950
+stringReplace : String -> String -> String -> String
+stringReplace target replacement string =
+  String.split target string |> String.join replacement
+
+-- "WORD Word" -> "wordWord"
+-- "word word" -> "wordWord"
+naturalToCamelCase : String -> String
+naturalToCamelCase natural =
+  natural
+  |> String.split " "
+  |> List.map String.toLower
+  |> mapi1 (\(i, word) -> if i == 1 then word else capitalize word)
+  |> String.join ""
 
 -- After ActiveSupport's to_sentence method
 toSentence strings =
@@ -980,38 +994,3 @@ unwrap8 xs = case xs of
   [x1,x2,x3,x4,x5,x6,x7,x8] -> (x1, x2, x3, x4, x5, x6, x7, x8)
   _ -> Debug.crash "unwrap7"
 
---------------------------------------------------------------------------------
-
-slice : Int -> Int -> List a -> List a
-slice start end list =
-  list
-    |> List.drop start
-    |> List.take (end - start)
-
-get : Int -> List a -> Maybe a
-get i list =
-  list
-    |> List.drop i
-    |> List.head
-
-mapIndexes : ((Int, a) -> Bool) -> (a -> a) -> List a -> List a
-mapIndexes filter f =
-  mapi0
-    ( \(i, x) ->
-        if filter (i, x) then
-          f x
-        else
-          x
-    )
-
-modify : Int -> (a -> a) -> List a -> List a
-modify n =
-  mapIndexes ((==) n << Tuple.first)
-
-modifyFirst : (a -> a) -> List a -> List a
-modifyFirst =
-  modify 0
-
-modifyLast : (a -> a) -> List a -> List a
-modifyLast f xs =
-  modify (List.length xs - 1) f xs

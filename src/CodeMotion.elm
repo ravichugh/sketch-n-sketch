@@ -321,7 +321,7 @@ pluckPatFromPats : List Int -> List Pat -> Maybe (Pat, List Pat)
 pluckPatFromPats path pats =
   case path of
     i::is ->
-      Utils.maybeGet1 i pats
+      Utils.maybeGeti1 i pats
       |> Maybe.andThen (pluckPat is)
       |> Maybe.map
           (\(pluckedPat, maybeRemainingPat) ->
@@ -387,7 +387,7 @@ pluckExpFromExpsByPath : List Int -> List Exp -> Maybe (Exp, List Exp)
 pluckExpFromExpsByPath path exps =
   case path of
     i::is ->
-      Utils.maybeGet1 i exps
+      Utils.maybeGeti1 i exps
       |> Maybe.andThen (pluckExpByPath is)
       |> Maybe.map
           (\(pluckedExp, maybeRemainingExp) ->
@@ -1356,7 +1356,7 @@ addPatToPats patToInsert path pats =
       Just (Utils.inserti i patToInsert pats |> imitatePatListWhitespace pats)
 
     i::is ->
-      Utils.maybeGet1 i pats
+      Utils.maybeGeti1 i pats
       |> Maybe.andThen (addPatToPat patToInsert is)
       |> Maybe.map (\newPat -> Utils.replacei i newPat pats)
 
@@ -1405,7 +1405,7 @@ addExpToExpsByPath expToInsert path exps =
       Just (Utils.inserti i expToInsert exps |> imitateExpListWhitespace exps)
 
     i::is ->
-      Utils.maybeGet1 i exps
+      Utils.maybeGeti1 i exps
       |> Maybe.andThen (addExpToExpByPath expToInsert is)
       |> Maybe.map (\newExp -> Utils.replacei i newExp exps)
 

@@ -339,7 +339,7 @@ pathedPatIdRightSibling (scopeId, path) =
 
 pathRightSibling : List Int -> Maybe (List Int)
 pathRightSibling path =
-  Utils.maybeMapLastElement ((+) 1) path
+  Utils.maybeModifyLast ((+) 1) path
 
 pathAfterElementRemoved : List Int -> List Int -> Maybe (List Int)
 pathAfterElementRemoved removedPath path =

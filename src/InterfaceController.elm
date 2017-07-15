@@ -1213,8 +1213,8 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
   let maybeFindResult path results =
     case path of
       []    -> Nothing
-      [i]   -> Utils.maybeGet0 i results
-      i::is -> Utils.maybeGet0 i results |> Maybe.andThen (\(SynthesisResult {children}) -> children |> Maybe.andThen (maybeFindResult is))
+      [i]   -> Utils.maybeGeti0 i results
+      i::is -> Utils.maybeGeti0 i results |> Maybe.andThen (\(SynthesisResult {children}) -> children |> Maybe.andThen (maybeFindResult is))
   in
   let setResultChildren path childResults oldResults =
     case path of
