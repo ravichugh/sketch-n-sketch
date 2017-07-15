@@ -1,0 +1,9 @@
+;
+; All done with the programming exercises!
+;
+; One last thing: please fill out the exit survey.
+;
+; Thanks!
+
+(def main
+  (draw []))

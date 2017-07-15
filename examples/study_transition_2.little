@@ -1,0 +1,12 @@
+;
+; In the final section, you will see two examples
+; programs, each with a list of editing tasks. This
+; time, you will be able to use _all_ features: text
+; editing, Text Select Mode, and Box Select Mode.
+; It's up to you. And this time, you will work with
+; each program just once.
+;
+; Click "Next Step" to proceed.
+
+(def main
+  (draw []))

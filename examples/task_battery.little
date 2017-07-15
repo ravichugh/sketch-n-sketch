@@ -30,6 +30,8 @@
 ;   
 ;   Redefine juicePct to be the ratio of the
 ;   juiceRectangle width to the bodyRectangle width.
+;   Check that the color of juiceRectangle changes
+;   according to juicePct.
 ;   
 ; * Turn battery into a function that is parametrized
 ;   over the location, size, and juice percentage and

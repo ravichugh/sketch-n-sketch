@@ -5154,18 +5154,100 @@ mondrian_arch_deuce =
 """
 
 
+--------------------------------------------------------------------------------
+-- Deuce User Study Files
+
 -- these .little files are generated from somewhere else;
 -- don't change them manually
-tutorial_step_01 =
+
+study_start =
  """;
 ; In this study, we are going to show you some
 ; program editing features in Sketch-n-Sketch, a
 ; programming system for generating Scalable Vector
-; Graphics images. Before we ask you to use
-; Sketch-n-Sketch to perform several program editing
-; tasks, we will spend a few minutes explaining the
+; Graphics images.
+;
+; First, we will spend a few minutes explaining the
 ; basics of how Sketch-n-Sketch works.
 ;
+; Then, we will ask you to use Sketch-n-Sketch to
+; perform several program editing tasks,
+;
+; See the \"USER STUDY\" label in the top-right corner
+; of the screen? Every time you've finished a
+; section, use the \"Next Step\" to move on.
+
+(def main
+  (draw []))
+
+"""
+
+study_transition_1 =
+ """;
+; You're done with the tutorial. Now you're going to
+; use Sketch-n-Sketch to perform some program
+; editings tasks.
+;
+; In the next section, you will see three examples
+; programs, each with a list of editing tasks. You
+; will _not_ be allowed to use text editing for any
+; of the tasks. Instead, you will use the code
+; transformation tools. You will work with each
+; program twice, once using the Text Select Mode and
+; once with Box Select Mode. The order in which you
+; are asked to perform tasks and use the different
+; modes is random.
+;
+; Before each task, you will have the opportunity to
+; read the code to understand it. All editing
+; features are disabled during this reading period.
+;
+; Then, you will be given a list of transformations
+; to perform. The Mode to use is shown in TODO. When
+; you are done with each task, click \"Next Step\" to
+; move on.
+;
+; To start this sequence of tasks, click \"Next
+; Step\". Once you do, you will no longer be able to
+; go the \"Previous Step\" of the tutorial.
+
+(def main
+  (draw []))
+
+"""
+
+study_transition_2 =
+ """;
+; In the final section, you will see two examples
+; programs, each with a list of editing tasks. This
+; time, you will be able to use _all_ features: text
+; editing, Text Select Mode, and Box Select Mode.
+; It's up to you. And this time, you will work with
+; each program just once.
+;
+; Click \"Next Step\" to proceed.
+
+(def main
+  (draw []))
+
+"""
+
+study_end =
+ """;
+; All done with the programming exercises!
+;
+; One last thing: please fill out the exit survey.
+;
+; Thanks!
+
+(def main
+  (draw []))
+
+"""
+
+
+tutorial_step_01 =
+ """;
 ; Sketch-n-Sketch programs are written in a
 ; functional language. This language is small,
 ; custom language built for Sketch-n-Sketch, though
@@ -5628,8 +5710,6 @@ tutorial_step_16 =
 """
 
 
--- these .little files are generated from somewhere else;
--- don't change them manually
 task_one_rectangle =
  """
 (def rect1
@@ -5784,6 +5864,8 @@ task_battery =
 ;   
 ;   Redefine juicePct to be the ratio of the
 ;   juiceRectangle width to the bodyRectangle width.
+;   Check that the color of juiceRectangle changes
+;   according to juicePct.
 ;   
 ; * Turn battery into a function that is parametrized
 ;   over the location, size, and juice percentage and
@@ -5832,6 +5914,8 @@ task_lambda =
 
 """
 
+
+--------------------------------------------------------------------------------
 
 generalCategory =
   ( "General"
@@ -5982,9 +6066,10 @@ otherCategory =
     ]
   )
 
-tutorialCategory =
-  ( "Tutorial"
-  , [ makeExample "Step 01" tutorial_step_01
+deuceUserStudyCategory =
+  ( "Deuce User Study"
+  , [ makeExample "Deuce Study Start" study_start
+    , makeExample "Step 01" tutorial_step_01
     , makeExample "Step 02" tutorial_step_02
     , makeExample "Step 03" tutorial_step_03
     , makeExample "Step 04" tutorial_step_04
@@ -6000,16 +6085,14 @@ tutorialCategory =
     , makeExample "Step 14" tutorial_step_14
     , makeExample "Step 15" tutorial_step_15
     , makeExample "Step 16" tutorial_step_16
-    ]
-  )
-
-taskCategory =
-  ( "Tasks"
-  , [ makeExample "One Rectangle" task_one_rectangle
+    , makeExample "Deuce Study Transition 1" study_transition_1
+    , makeExample "One Rectangle" task_one_rectangle
     , makeExample "Three Rectangles" task_three_rectangles
     , makeExample "Target Icon" task_target
+    , makeExample "Deuce Study Transition 2" study_transition_2
     , makeExample "Battery Icon" task_battery
     , makeExample "Lambda Icon" task_lambda
+    , makeExample "Deuce Study End" study_end
     ]
   )
 
@@ -6020,8 +6103,7 @@ templateCategories =
   , logoCategory
   , flagCategory
   , otherCategory
-  , tutorialCategory
-  , taskCategory
+  , deuceUserStudyCategory
   ]
 
 list =

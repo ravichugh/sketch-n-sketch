@@ -54,7 +54,8 @@ loc:
     HtmlUtils.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm \
-    DefaultIconTheme.elm
+    DefaultIconTheme.elm \
+    UserStudy.elm
 
 littleloc:
 	# wc -l ../examples/*

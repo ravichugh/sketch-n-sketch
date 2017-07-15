@@ -2,6 +2,7 @@ module UserStudy exposing
   ( State(End)
   , sequence
   , getTemplate
+  , disableNextStep
   , disablePreviousStep
   )
 
@@ -29,25 +30,31 @@ type EditorMode
 
 --------------------------------------------------------------------------------
 
+getState i =
+  Utils.geti i sequence
+
 getTemplate state =
   case state of
-    Start -> Debug.crash <| "getTemplate: bad userStudyState: " ++ toString state
+    Start       -> "Deuce Study Start"
+    Transition1 -> "Deuce Study Transition 1"
+    Transition2 -> "Deuce Study Transition 2"
+    End         -> "Deuce Study End"
     Step (_, (s, mode)) ->
       if mode == ReadOnly
         then s -- TODO add task files without instructions
         else s
-    Transition1 -> "BLANK" -- TODO
-    Transition2 -> "BLANK" -- TODO
-    End -> "BLANK" -- TODO
 
-allowPreviousStep state =
-  case Utils.head "UserStudy.allowPreviousStep" state of
-    Step (Tutorial, _) -> True
-    Transition1        -> True
-    _                  -> False
+disableNextStep i =
+  case getState i of
+    End -> True
+    _   -> False
 
-disablePreviousStep state =
-  not (allowPreviousStep state)
+disablePreviousStep i =
+  case getState i of
+    Start              -> True
+    Step (Tutorial, _) -> False
+    Transition1        -> False
+    _                  -> True
 
 --------------------------------------------------------------------------------
 -- User Study Configuration Parameters

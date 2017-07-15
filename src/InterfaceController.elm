@@ -49,6 +49,7 @@ module InterfaceController exposing
   , msgDragDeucePanel
   , msgTextSelect
   , msgUserStudyNext
+  , msgUserStudyPrev
   , msgSetEnableDeuceBoxSelection
   , msgSetEnableDeuceTextSelection
   , msgSetShowDeuceInMenuBar
@@ -1408,7 +1409,7 @@ handleNew template = (\old ->
                     , fileIndex     = old.fileIndex
                     , icons         = old.icons
                     , scopeGraph    = DependenceGraph.compute e
-                    , userStudyState = old.userStudyState
+                    , userStudyStateIndex = old.userStudyStateIndex
                     } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
 
@@ -1914,16 +1915,15 @@ msgTextSelect =
 --------------------------------------------------------------------------------
 -- User Study Operations
 
-msgUserStudyNext = Msg "User Study Next" <| \old ->
-  case old.userStudyState of
-    _ :: nextState :: rest ->
-      let _ = Debug.log "User Study Next" nextState in
-      { old | userStudyState = nextState :: rest }
-        |> handleNew (UserStudy.getTemplate nextState)
-    [UserStudy.End] ->
-      old
-    _ ->
-      Debug.crash <| "msgUserStudyNext: " ++ toString old.userStudyState
+msgUserStudyStep label offset = Msg label <| \old ->
+  let i = old.userStudyStateIndex in
+  let newState = Utils.geti (i + offset) UserStudy.sequence in
+  let _ = Debug.log label newState in
+  { old | userStudyStateIndex = i + offset }
+      |> handleNew (UserStudy.getTemplate newState)
+
+msgUserStudyNext = msgUserStudyStep "User Study Next" 1
+msgUserStudyPrev = msgUserStudyStep "User Study Prev" (-1)
 
 --------------------------------------------------------------------------------
 -- Some Flags

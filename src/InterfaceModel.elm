@@ -139,7 +139,7 @@ type alias Model =
   , viewState : ViewState
   , toolMode : ShapeToolKind
   , deucePanelPosition : (Int, Int)
-  , userStudyState : List UserStudy.State -- TODO add Int so that can navigate previous
+  , userStudyStateIndex : Int
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
   , showDeuceInMenuBar : Bool
@@ -684,11 +684,15 @@ primaryCodeObject model =
 
 --------------------------------------------------------------------------------
 
+-- initTemplate = "BLANK"
+initTemplate = "Deuce Study Start"
+
 initModel : Model
 initModel =
   let
-    (name,(_,f)) = Utils.head_ Examples.list
-    {e,v,ws}     = f ()
+    -- TODO unnecessary process to initTemplate, because of initCmd
+    (_,f)    = Utils.find_ Examples.list initTemplate
+    {e,v,ws} = f ()
   in
   let unwrap = Utils.fromOk "generating initModel" in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
@@ -782,7 +786,7 @@ initModel =
         }
     , toolMode = Raw
     , deucePanelPosition = (200, 200)
-    , userStudyState = UserStudy.sequence
+    , userStudyStateIndex = 1
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
     , showDeuceInMenuBar = True

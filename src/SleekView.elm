@@ -99,6 +99,9 @@ enterKeyCode : Int
 enterKeyCode =
   13
 
+maybeMsg disabled msg =
+  if disabled then Controller.msgNoop else msg
+
 --------------------------------------------------------------------------------
 -- Buttons
 --------------------------------------------------------------------------------
@@ -785,22 +788,27 @@ menuBar model =
                     ]
                 ]
               ]
-          -- TODO temporarily putting user study caption and button in main toolbar
           , Html.div
               [ Attr.class "user-study-info"
               ]
-              [ disableableTextButton
-                  (UserStudy.disablePreviousStep model.userStudyState)
-                  "◀ Previous Step"
-                  Controller.msgNoop -- TODO
+              [ let disabled =
+                  UserStudy.disablePreviousStep model.userStudyStateIndex
+                in
+                  disableableTextButton
+                    disabled
+                    "◀ Previous Step"
+                    (maybeMsg disabled Controller.msgUserStudyPrev)
               , disableableTextButton
                   True
                   "USER STUDY"
                   Controller.msgNoop
-              , disableableTextButton
-                  (model.userStudyState == [UserStudy.End])
-                  "Next Step ▶"
-                  Controller.msgUserStudyNext
+              , let disabled =
+                  UserStudy.disableNextStep model.userStudyStateIndex
+                in
+                  disableableTextButton
+                    disabled
+                    "Next Step ▶"
+                    (maybeMsg disabled Controller.msgUserStudyNext)
               ]
           ]
           -- Quick Action Bar disabled for now

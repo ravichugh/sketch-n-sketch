@@ -152,8 +152,17 @@ LITTLE_TO_ELM battery_deuce
 LITTLE_TO_ELM coffee_deuce
 LITTLE_TO_ELM mondrian_arch_deuce
 
+--------------------------------------------------------------------------------
+-- Deuce User Study Files
+
 -- these .little files are generated from somewhere else;
 -- don't change them manually
+
+LITTLE_TO_ELM study_start
+LITTLE_TO_ELM study_transition_1
+LITTLE_TO_ELM study_transition_2
+LITTLE_TO_ELM study_end
+
 LITTLE_TO_ELM tutorial_step_01
 LITTLE_TO_ELM tutorial_step_02
 LITTLE_TO_ELM tutorial_step_03
@@ -171,13 +180,13 @@ LITTLE_TO_ELM tutorial_step_14
 LITTLE_TO_ELM tutorial_step_15
 LITTLE_TO_ELM tutorial_step_16
 
--- these .little files are generated from somewhere else;
--- don't change them manually
 LITTLE_TO_ELM task_one_rectangle
 LITTLE_TO_ELM task_three_rectangles
 LITTLE_TO_ELM task_target
 LITTLE_TO_ELM task_battery
 LITTLE_TO_ELM task_lambda
+
+--------------------------------------------------------------------------------
 
 generalCategory =
   ( "General"
@@ -328,9 +337,10 @@ otherCategory =
     ]
   )
 
-tutorialCategory =
-  ( "Tutorial"
-  , [ makeExample "Step 01" tutorial_step_01
+deuceUserStudyCategory =
+  ( "Deuce User Study"
+  , [ makeExample "Deuce Study Start" study_start
+    , makeExample "Step 01" tutorial_step_01
     , makeExample "Step 02" tutorial_step_02
     , makeExample "Step 03" tutorial_step_03
     , makeExample "Step 04" tutorial_step_04
@@ -346,16 +356,14 @@ tutorialCategory =
     , makeExample "Step 14" tutorial_step_14
     , makeExample "Step 15" tutorial_step_15
     , makeExample "Step 16" tutorial_step_16
-    ]
-  )
-
-taskCategory =
-  ( "Tasks"
-  , [ makeExample "One Rectangle" task_one_rectangle
+    , makeExample "Deuce Study Transition 1" study_transition_1
+    , makeExample "One Rectangle" task_one_rectangle
     , makeExample "Three Rectangles" task_three_rectangles
     , makeExample "Target Icon" task_target
+    , makeExample "Deuce Study Transition 2" study_transition_2
     , makeExample "Battery Icon" task_battery
     , makeExample "Lambda Icon" task_lambda
+    , makeExample "Deuce Study End" study_end
     ]
   )
 
@@ -366,8 +374,7 @@ templateCategories =
   , logoCategory
   , flagCategory
   , otherCategory
-  , tutorialCategory
-  , taskCategory
+  , deuceUserStudyCategory
   ]
 
 list =
