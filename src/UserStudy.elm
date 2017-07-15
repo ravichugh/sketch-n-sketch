@@ -2,6 +2,7 @@ module UserStudy exposing
   ( State(End)
   , sequence
   , getTemplate
+  , getFinalCode
   , disableNextStep
   , disablePreviousStep
   )
@@ -43,6 +44,45 @@ getTemplate state =
       if mode == ReadOnly
         then s -- TODO add task files without instructions
         else s
+
+readOnly = """; Read and understand the code below.
+; All editing features are disabled for now.
+; When you are ready, press Next Step.
+"""
+
+textSelectOnly = """; Follow the instructions below.
+; Use only TEXT SELECT MODE to perform the edits.
+; When you are done, press Next Step.
+"""
+
+boxSelectOnly = """; Follow the instructions below.
+; Use only BOX SELECT MODE to perform the edits.
+; When you are done, press Next Step.
+"""
+
+allFeatures = """; Follow the instructions below.
+; Use NORMAL TEXT EDITS or TEXT SELECT MODE or
+; BOX SELECT MODE to perform the edits.
+; When you are done, press Next Step.
+"""
+
+chopInstructions templateCode =
+  templateCode
+    |> String.lines
+    |> List.filter (not << String.startsWith ";")
+    |> String.join "\n"
+
+getFinalCode state templateCode =
+  case state of
+    Step (_, (_, editorMode)) ->
+      case editorMode of
+        ReadOnly       -> readOnly ++ chopInstructions templateCode
+        TextEditOnly   -> templateCode
+        TextSelectOnly -> textSelectOnly ++ templateCode
+        BoxSelectOnly  -> boxSelectOnly ++ templateCode
+        AllFeatures    -> allFeatures ++ templateCode
+    _ ->
+      templateCode
 
 disableNextStep i =
   case getState i of

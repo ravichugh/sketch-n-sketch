@@ -1921,6 +1921,8 @@ msgUserStudyStep label offset = Msg label <| \old ->
   let _ = Debug.log label newState in
   { old | userStudyStateIndex = i + offset }
       |> handleNew (UserStudy.getTemplate newState)
+      |> (\m -> { m | code = UserStudy.getFinalCode newState m.code })
+      |> upstateRun
 
 msgUserStudyNext = msgUserStudyStep "User Study Next" 1
 msgUserStudyPrev = msgUserStudyStep "User Study Prev" (-1)
