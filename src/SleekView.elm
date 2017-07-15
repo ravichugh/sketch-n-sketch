@@ -384,7 +384,7 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
             , onKeyDown <|
                 \code ->
                   if code == enterKeyCode then -- Enter button
-                    Controller.msgChooseDeuceExp result.exp
+                    Controller.msgChooseDeuceExp result.description result.exp
                   else
                     Controller.msgNoop
             ]
@@ -403,9 +403,9 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
             ]
         ] ++ additionalInputs
       )
-      (Controller.msgHoverDeuceTool path maybePreview)
-      (Controller.msgLeaveDeuceTool path maybePreview)
-      (Controller.msgChooseDeuceExp result.exp)
+      (Controller.msgHoverDeuceResult result.description path maybePreview)
+      (Controller.msgLeaveDeuceResult result.description path maybePreview)
+      (Controller.msgChooseDeuceExp result.description result.exp)
       False
       []
 

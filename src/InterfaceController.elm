@@ -41,8 +41,8 @@ module InterfaceController exposing
   , msgUpdateFontSize
   , msgSetToolMode
   , msgSetGhostsShown
-  , msgHoverDeuceTool
-  , msgLeaveDeuceTool
+  , msgHoverDeuceResult
+  , msgLeaveDeuceResult
   , msgUpdateRenameVarTextBox
   , msgDragDeucePopupPanel
   , msgDragEditCodePopupPanel
@@ -93,6 +93,7 @@ import DeuceTools
 import ColorNum
 
 import UserStudy
+import UserStudyLog
 
 import VirtualDom
 
@@ -1533,7 +1534,7 @@ msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString w
               { deuceState
               | hoveredWidgets = [] } }
 
-msgChooseDeuceExp exp = Msg "Choose Deuce Exp" <| \m ->
+msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m ->
   -- TODO version of tryRun/upstateRun starting with parsed expression
   upstateRun (resetDeuceState { m | code = unparse exp })
 
@@ -1638,9 +1639,9 @@ msgSetGhostsShown shown =
 --------------------------------------------------------------------------------
 -- Deuce Tools
 
-msgHoverDeuceTool : List Int -> Maybe Preview -> Msg
-msgHoverDeuceTool path maybePreview =
-  Msg ("Hover Deuce Tool " ++ toString path) <|
+msgHoverDeuceResult : String -> List Int -> Maybe Preview -> Msg
+msgHoverDeuceResult name path maybePreview =
+  Msg ("Hover Deuce Result \"" ++ name ++ "\" " ++ toString path) <|
     setHoveredMenuPath path >>
       case maybePreview of
         Just preview ->
@@ -1648,9 +1649,9 @@ msgHoverDeuceTool path maybePreview =
         Nothing ->
           identity
 
-msgLeaveDeuceTool : List Int -> Maybe Preview -> Msg
-msgLeaveDeuceTool path maybePreview =
-  Msg ("Leave Deuce Tool " ++ toString path) <|
+msgLeaveDeuceResult : String -> List Int -> Maybe Preview -> Msg
+msgLeaveDeuceResult name path maybePreview =
+  Msg ("Leave Deuce Result \"" ++ name ++ "\" " ++ toString path) <|
     clearHoveredMenuPath >>
       case maybePreview of
         Just preview ->
@@ -1774,7 +1775,7 @@ msgTextSelect =
 msgUserStudyStep label offset = Msg label <| \old ->
   let i = old.userStudyStateIndex in
   let newState = Utils.geti (i + offset) UserStudy.sequence in
-  let _ = Debug.log label newState in
+  let _ = UserStudyLog.log label (toString newState) in
   { old | userStudyStateIndex = i + offset }
       |> handleNew (UserStudy.getTemplate newState)
       |> (\m -> { m | code = UserStudy.getFinalCode newState m.code })

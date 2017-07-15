@@ -22,3 +22,4 @@ examples/*swp
 elm-package.json
 elm-stuff/
 tests/build
+user_study_logs/

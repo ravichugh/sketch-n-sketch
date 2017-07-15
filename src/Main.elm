@@ -8,6 +8,8 @@ import AnimationLoop
 import FileHandler
 import DependenceGraph
 
+import UserStudyLog
+
 import Html exposing (Html)
 import Mouse
 import Window
@@ -36,7 +38,8 @@ view : Model -> Html Msg
 view = View.view
 
 update : Msg -> Model -> (Model, Cmd Msg)
-update = Controller.update
+update msg model =
+  UserStudyLog.logModelUpdate Controller.update msg model
 
 initCmd : Cmd Msg
 initCmd =

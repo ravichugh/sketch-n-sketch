@@ -18,8 +18,6 @@ import Keys
 import Svg
 import LangSvg exposing (attr)
 
-import UserStudy
-
 import Dict exposing (Dict)
 import Set exposing (Set)
 import Char

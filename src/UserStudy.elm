@@ -10,6 +10,9 @@ module UserStudy exposing
 import Utils
 import Random
 import Dict
+import ImpureGoodies
+
+import UserStudyLog
 
 type State
   = Start
@@ -189,7 +192,7 @@ reorderTutorialStep order templateCode =
 --------------------------------------------------------------------------------
 -- User Study Configuration Parameters
 
-participantNum = 1
+seed = ImpureGoodies.randomInt 0 (2^32)
 
 --------------------------------------------------------------------------------
 
@@ -231,7 +234,7 @@ insertReadingPeriods =
 everything =
   let
     initialSeed =
-      Random.initialSeed participantNum
+      Random.initialSeed seed
 
     (tutorialVersion, nextSeed) =
       Random.step (Random.int 1 numTutorialVersions) initialSeed
@@ -286,8 +289,7 @@ sequence =
 
 _ =
   let
-    _ = Debug.log "UserStudy tutorialVersion" tutorialVersion
-    _ = Debug.log "UserStudy.participantNum" participantNum
-    _ = Debug.log "UserStudy.sequence" sequence
+    _ = UserStudyLog.log "UserStudy tutorialVersion" (toString tutorialVersion)
+    _ = UserStudyLog.log "UserStudy.sequence" (toString sequence)
   in
     ()
