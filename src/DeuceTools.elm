@@ -5,6 +5,7 @@
 
 module DeuceTools exposing
   ( createToolCache
+  , reselectDeuceTool
   , updateRenameToolsInCache
   , isActive
   , noneActive
@@ -2036,6 +2037,23 @@ createToolCache model =
         Nothing      -> (deuceTool, [], True)
     )
   )
+
+reselectDeuceTool : Model -> Model
+reselectDeuceTool model =
+  let
+    newSelectedDeuceTool =
+      case model.selectedDeuceTool of
+        Just (selectedDeuceTool, _, _) ->
+          Utils.findFirst
+            ( \(deuceTool, _, _) ->
+                deuceTool.id == selectedDeuceTool.id
+            )
+            ( List.concat model.deuceToolsAndResults
+            )
+        Nothing ->
+          Nothing
+  in
+    { model | selectedDeuceTool = newSelectedDeuceTool }
 
 updateRenameToolsInCache almostNewModel =
   let

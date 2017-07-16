@@ -34,6 +34,7 @@ import InterfaceModel as Model exposing
   , DeuceTool
   , CachedDeuceTool
   , TextSelectMode(..)
+  , PredicateValue(..)
   )
 
 import InterfaceController as Controller
@@ -293,7 +294,8 @@ generalHtmlHoverMenu
                 { defaultTb
                     | content =
                         [ Html.span
-                            []
+                            [ Attr.class "hover-menu-content"
+                            ]
                             titleHtml
                         , Html.span
                             [ Attr.class "hover-menu-indicator"
@@ -1643,6 +1645,8 @@ popupPanel
   :  { pos : (Int, Int)
      , disabled : Bool
      , dragHandler : Msg
+     , class : String
+     , title : String
      , content : List (Html Msg)
      }
   -> Html Msg
@@ -1650,7 +1654,7 @@ popupPanel args =
   let
     disabledFlag =
       if args.disabled then
-        " disabled"
+        "disabled "
       else
         ""
     dragger =
@@ -1658,13 +1662,15 @@ popupPanel args =
           [ Attr.class "dragger"
           , E.onMouseDown args.dragHandler
           ]
-          []
+          [ Html.text args.title
+          ]
       ]
     (xString, yString) =
       Utils.mapBoth px args.pos
   in
     Html.div
-      [ Attr.class <| "popup-panel panel" ++ disabledFlag
+      [ Attr.class <|
+          "popup-panel panel " ++ disabledFlag ++ args.class
       , Attr.style
           [ ("left", xString)
           , ("top", yString)
@@ -1718,6 +1724,10 @@ deucePopupPanel model =
         not model.showDeucePanel || DeuceTools.noneActive model
     , dragHandler =
         Controller.msgDragDeucePopupPanel
+    , class =
+        ""
+    , title =
+        "Deuce Menu"
     , content =
         [ Html.div
             [] <|
@@ -1736,29 +1746,65 @@ deucePopupPanel model =
 editCodePopupPanel : Model -> Html Msg
 editCodePopupPanel model =
   let
-    (disabled, content) =
+    (disabled, title, content) =
       case model.selectedDeuceTool of
         Nothing ->
-          (True, [])
-        Just (deuceTool, synthesisResults, _) ->
+          (True, "Edit Code Menu", [])
+        Just (deuceTool, results, _) ->
           ( False
-          , [ Html.div
-                []
-                [ Html.text deuceTool.name
-                ]
-            , Html.div
-                []
-                ( List.map
-                    ( \{description, value} ->
-                        Html.div
-                          []
-                          [ Html.text <|
-                              description ++ " (" ++ toString value ++ ")"
-                          ]
-                    )
-                    deuceTool.reqs
-                )
-            ]
+          , deuceTool.name
+          , let
+              path =
+                [ 1 ] -- TODO, maybe?
+              isRenamer =
+                DeuceTools.isRenamer deuceTool
+            in
+              ( if List.all Model.predicateSatisfied deuceTool.reqs then
+                  [ Html.div
+                      [ Attr.class "synthesis-results"
+                      ] <|
+                      List.map
+                        (deuceSynthesisResult model path isRenamer)
+                        results
+                  ]
+                else
+                  []
+              ) ++
+              -- Only show requiments if there are some that are not fully
+              -- satisfied
+              ( if List.all Model.predicateFullySatisfied deuceTool.reqs then
+                  []
+                else
+                  [ Html.h2
+                      []
+                      [ Html.text "Requirements" ]
+                  , Html.ul
+                      [ Attr.class "requirements-list"
+                      ]
+                      ( List.map
+                          ( \{description, value} ->
+                              let
+                                class =
+                                  case value of
+                                    FullySatisfied ->
+                                      "fully-satisfied"
+                                    Satisfied ->
+                                      "satisfied"
+                                    Possible ->
+                                      "possible"
+                                    Impossible ->
+                                      "impossible"
+                              in
+                                Html.li
+                                  [ Attr.class class
+                                  ]
+                                  [ Html.text description
+                                  ]
+                          )
+                          deuceTool.reqs
+                      )
+                  ]
+              )
           )
   in
     popupPanel
@@ -1768,6 +1814,10 @@ editCodePopupPanel model =
           disabled
       , dragHandler =
           Controller.msgDragEditCodePopupPanel
+      , class =
+          "edit-code-popup-panel"
+      , title =
+          title
       , content =
           content
       }

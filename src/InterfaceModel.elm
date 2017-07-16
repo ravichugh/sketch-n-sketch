@@ -421,6 +421,18 @@ type alias Predicate =
   , value : PredicateValue
   }
 
+predicateFullySatisfied : Predicate -> Bool
+predicateFullySatisfied pred =
+  case pred.value of
+    FullySatisfied ->
+      True
+    Satisfied ->
+      False
+    Possible ->
+      False
+    Impossible ->
+      False
+
 predicateSatisfied : Predicate -> Bool
 predicateSatisfied pred =
   case pred.value of
@@ -430,6 +442,18 @@ predicateSatisfied pred =
       True
     Possible ->
       False
+    Impossible ->
+      False
+
+predicatePossible : Predicate -> Bool
+predicatePossible pred =
+  case pred.value of
+    FullySatisfied ->
+      True
+    Satisfied ->
+      True
+    Possible ->
+      True
     Impossible ->
       False
 

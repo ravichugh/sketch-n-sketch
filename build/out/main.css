@@ -760,7 +760,7 @@ a {
 }
 
 /******************************************************************************
- * Deuce Panel                                                                *
+ * Popup Panel                                                                *
  ******************************************************************************/
 
 .popup-panel {
@@ -778,12 +778,86 @@ a {
 }
 
 .popup-panel .dragger {
-  height: 14px;
   background-color: #444444;
   background-image: linear-gradient(#444444, #333333);
+  font-weight: bold;
+  text-align: center;
+  padding: 2px 0;
   cursor: move;
 }
 
 .popup-panel .text-button {
   padding: 5px;
+}
+
+/******************************************************************************
+ * Edit Code Popup Panel                                                      *
+ ******************************************************************************/
+
+.edit-code-popup-panel {
+  width: 300px;
+}
+.edit-code-popup-panel .synthesis-results .hover-menu .text-button {
+  width: 100%;
+}
+
+.edit-code-popup-panel
+  .synthesis-results
+  .hover-menu
+  .text-button
+  .hover-menu-content {
+  width: 100%;
+}
+
+.edit-code-popup-panel .synthesis-results .hover-menu:first-child .text-button {
+  border-top: 1px solid #333333;
+}
+
+.edit-code-popup-panel .synthesis-results .hover-menu:last-child .text-button {
+  border-bottom: 1px solid #333333;
+}
+
+.edit-code-popup-panel h2 {
+  font-size: 1em;
+  margin: 10px;
+}
+
+.requirements-list {
+  margin: 10px 10px 10px 40px;
+}
+
+.requirements-list .fully-satisfied {
+  color: #333333;
+  text-decoration: line-through;
+}
+
+.requirements-list .fully-satisfied:after {
+  content: " (Fully Satisfied)";
+  font-style: italic;
+}
+
+.requirements-list .satisfied {
+  color: #AAF200;
+}
+
+.requirements-list .satisfied:after {
+  content: " (Satisfied)";
+  font-style: italic;
+}
+
+.requirements-list .possible {
+}
+
+.requirements-list .possible:after {
+  content: " (Possible)";
+  font-style: italic;
+}
+
+.requirements-list .impossible {
+  color: #FF3300;
+}
+
+.requirements-list .impossible:after {
+  content: " (Impossible)";
+  font-style: italic;
 }

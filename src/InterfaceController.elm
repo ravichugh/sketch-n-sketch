@@ -1594,24 +1594,11 @@ toggleDeuceWidget widget model =
       }
     deuceToolsAndResults =
       DeuceTools.createToolCache almostNewModel
-    selectedDeuceTool =
-      case model.selectedDeuceTool of
-        Just (selectedDeuceTool, _, _) ->
-          Utils.findFirst
-            ( \(deuceTool, _, _) ->
-                deuceTool.id == selectedDeuceTool.id
-            )
-            ( List.concat deuceToolsAndResults
-            )
-        Nothing ->
-          Nothing
   in
     { almostNewModel
         | deuceToolsAndResults =
             deuceToolsAndResults
-        , selectedDeuceTool =
-            selectedDeuceTool
-    }
+    } |> DeuceTools.reselectDeuceTool
 
 msgMouseClickDeuceWidget widget =
   Msg ("msgMouseClickDeuceWidget " ++ toString widget) <| \old ->
@@ -1889,7 +1876,7 @@ msgUpdateRenameVarTextBox text =
       { almostNewModel
           | deuceToolsAndResults =
               deuceToolsAndResults
-      }
+      } |> DeuceTools.reselectDeuceTool
 
 --------------------------------------------------------------------------------
 -- Popup Panels
