@@ -103,10 +103,6 @@ startEnd codeObject =
     , endLine - 1
     )
 
-mapBoth : (a -> b) -> (a, a) -> (b, b)
-mapBoth f (x, y) =
-  (f x, f y)
-
 --==============================================================================
 --= DATA TYPES
 --==============================================================================
@@ -388,7 +384,7 @@ circleHandles codeInfo codeObject color opacity radius =
         (cx, cy) =
           (col, row)
             |> c2a codeInfo.displayInfo
-            |> mapBoth toString
+            |> Utils.mapBoth toString
       in
         Svg.circle
           [ SAttr.cx cx
@@ -420,12 +416,12 @@ oldCircleHandles codeInfo codeObject color opacity radius =
       (startCol, startRow)
         |> c2a codeInfo.displayInfo
         |> \(x, y) -> (x, y - radius)
-        |> mapBoth toString
+        |> Utils.mapBoth toString
     (cx2, cy2) =
       (endCol, endRow + 1)
         |> c2a codeInfo.displayInfo
         |> \(x, y) -> (x, y + radius)
-        |> mapBoth toString
+        |> Utils.mapBoth toString
     radiusString =
       toString radius
   in
@@ -457,11 +453,11 @@ fancyHandles codeInfo codeObject color opacity radius =
     (xTip1, yTip1) =
       (startCol, startRow)
         |> c2a codeInfo.displayInfo
-        |> mapBoth toString
+        |> Utils.mapBoth toString
     (xTip2, yTip2) =
       (endCol, endRow + 1)
         |> c2a codeInfo.displayInfo
-        |> mapBoth toString
+        |> Utils.mapBoth toString
     radiusString =
       toString radius
   in

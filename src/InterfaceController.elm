@@ -46,7 +46,8 @@ module InterfaceController exposing
   , msgHoverDeuceTool
   , msgLeaveDeuceTool
   , msgUpdateRenameVarTextBox
-  , msgDragDeucePanel
+  , msgDragDeucePopupPanel
+  , msgDragEditCodePopupPanel
   , msgTextSelect
   , msgUserStudyNext
   , msgUserStudyPrev
@@ -55,6 +56,7 @@ module InterfaceController exposing
   , msgSetShowDeuceInMenuBar
   , msgSetShowDeucePanel
   , msgSetTextSelectMode
+  , msgSetSelectedDeuceTool
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -73,7 +75,7 @@ import Eval
 import Utils exposing (maybePluralize)
 import Keys
 import InterfaceModel as Model exposing (..)
-import SleekLayout exposing (clickToCanvasPoint, deucePanelMouseOffset)
+import SleekLayout exposing (clickToCanvasPoint, deucePopupPanelMouseOffset)
 import AceCodeBox
 import AnimationLoop
 import FileHandler
@@ -112,6 +114,8 @@ import Svg
 import Svg.Attributes
 import Svg.Events
 import Svg.Lazy
+
+import Mouse
 
 --Error Checking Libraries
 import Debug
@@ -345,7 +349,7 @@ onMouseDrag lastPosition newPosition old =
     MouseDragLayoutWidget f ->
       f (mx0, my0) old
 
-    MouseDragPanel f ->
+    MouseDragPopupPanel f ->
       f lastPosition newPosition old
 
     MouseDragZone zoneKey Nothing ->
@@ -788,19 +792,28 @@ msgMousePosition pos_ =
           onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
         (Just True, oldPos_) ->
           onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
-    deucePanelPositionUpdater old =
+    deucePopupPanelPositionUpdater old =
       if DeuceTools.noneActive old then
-        { old
-            | deucePanelPosition =
-                ( pos_.x + deucePanelMouseOffset.x
-                , pos_.y + deucePanelMouseOffset.y
-                )
-        }
+        let
+          -- Compute new position
+          newDeucePopupPanelPosition =
+            ( pos_.x + deucePopupPanelMouseOffset.x
+            , pos_.y + deucePopupPanelMouseOffset.y
+            )
+          -- Get old position
+          oldPopupPanelPositions =
+            old.popupPanelPositions
+          -- Update old position
+          newPopupPanelPositions =
+            { oldPopupPanelPositions | deuce = newDeucePopupPanelPosition }
+        in
+          -- Update model
+          { old | popupPanelPositions = newPopupPanelPositions }
       else
         old
   in
     Msg ("MousePosition " ++ toString pos_) <|
-      mouseStateUpdater >> deucePanelPositionUpdater
+      mouseStateUpdater >> deucePopupPanelPositionUpdater
 
 --------------------------------------------------------------------------------
 
@@ -1478,6 +1491,7 @@ resetDeuceState m =
   let layoutOffsets = m.layoutOffsets in
   { m | deuceState = emptyDeuceState
       , deuceToolsAndResults = DeuceTools.createToolCache initModel
+      , selectedDeuceTool = Nothing
       , preview = Nothing
       , layoutOffsets =
           { layoutOffsets |
@@ -1580,10 +1594,23 @@ toggleDeuceWidget widget model =
       }
     deuceToolsAndResults =
       DeuceTools.createToolCache almostNewModel
+    selectedDeuceTool =
+      case model.selectedDeuceTool of
+        Just (selectedDeuceTool, _, _) ->
+          Utils.findFirst
+            ( \(deuceTool, _, _) ->
+                deuceTool.id == selectedDeuceTool.id
+            )
+            ( List.concat deuceToolsAndResults
+            )
+        Nothing ->
+          Nothing
   in
     { almostNewModel
         | deuceToolsAndResults =
             deuceToolsAndResults
+        , selectedDeuceTool =
+            selectedDeuceTool
     }
 
 msgMouseClickDeuceWidget widget =
@@ -1865,32 +1892,72 @@ msgUpdateRenameVarTextBox text =
       }
 
 --------------------------------------------------------------------------------
--- Deuce Panel
+-- Popup Panels
 
-msgDragDeucePanel : Msg
-msgDragDeucePanel =
-  Msg "Drag Deuce Panel" <|
-    let
-      shift (x, y) (dx, dy) =
-        (x + dx, y + dy)
-      deltaMouse old new =
-        ( new.x - old.x
-        , new.y - old.y
-        )
-      f oldPosition newPosition model =
-        let
-          oldDeucePanelPosition =
-            model.deucePanelPosition
-        in
-          { model
-              | deucePanelPosition =
-                  shift
-                    oldDeucePanelPosition
-                    (deltaMouse oldPosition newPosition)
-          }
-    in
-      \model ->
-        { model | mouseMode = Model.MouseDragPanel f }
+shift : (Int, Int) -> (Int, Int) -> (Int, Int)
+shift (x, y) (dx, dy) =
+  ( x + dx
+  , y + dy
+  )
+
+deltaMouse : Mouse.Position -> Mouse.Position -> (Int, Int)
+deltaMouse old new =
+  ( new.x - old.x
+  , new.y - old.y
+  )
+
+updatePopupPanelPosition
+  :  (PopupPanelPositions -> (Int, Int))
+  -> (PopupPanelPositions -> (Int, Int) -> PopupPanelPositions)
+  -> Model -> Model
+updatePopupPanelPosition get set model  =
+  let
+    updater oldPosition newPosition old =
+      let
+        -- Get old set
+        oldPopupPanelPositions =
+          old.popupPanelPositions
+        -- Get old pos
+        oldPopupPanelPosition =
+          get old.popupPanelPositions
+        -- Compute new pos
+        newPopupPanelPosition =
+          shift
+            oldPopupPanelPosition
+            (deltaMouse oldPosition newPosition)
+        -- Update old set
+        newPopupPanelPositions =
+          set oldPopupPanelPositions newPopupPanelPosition
+      in
+        -- Update model
+        { old | popupPanelPositions = newPopupPanelPositions }
+  in
+    { model | mouseMode = Model.MouseDragPopupPanel updater }
+
+
+--------------------------------------------------------------------------------
+-- Deuce Popup Panel
+
+msgDragDeucePopupPanel : Msg
+msgDragDeucePopupPanel =
+  Msg "Drag Deuce Popup Panel" <|
+    updatePopupPanelPosition
+      .deuce
+      ( \ppp pos ->
+          { ppp | deuce = pos }
+      )
+
+--------------------------------------------------------------------------------
+-- Edit Code Popup Panel
+
+msgDragEditCodePopupPanel : Msg
+msgDragEditCodePopupPanel =
+  Msg "Drag Edit Code Popup Panel" <|
+    updatePopupPanelPosition
+      .editCode
+      ( \ppp pos ->
+          { ppp | editCode = pos }
+      )
 
 --------------------------------------------------------------------------------
 -- Text Select
@@ -1968,4 +2035,15 @@ msgSetTextSelectMode textSelectMode =
     { model
         | textSelectMode =
             textSelectMode
+    }
+
+--------------------------------------------------------------------------------
+-- Setting the selected DeuceTool from the "Edit Code" menu
+
+msgSetSelectedDeuceTool : CachedDeuceTool -> Msg
+msgSetSelectedDeuceTool cachedDeuceTool =
+  Msg "Set Selected Deuce Tool" <| \model ->
+    { model
+        | selectedDeuceTool =
+            Just cachedDeuceTool
     }

@@ -24,7 +24,7 @@ module SleekLayout exposing
   , menuBar
   , toolPanel
   , iconButton
-  , deucePanelMouseOffset
+  , deucePopupPanelMouseOffset
   , synthesisPanel
   , codePanel
   , outputPanel
@@ -112,10 +112,10 @@ iconButton =
   }
 
 --------------------------------------------------------------------------------
--- Deuce Panel Mouse Offset
+-- Deuce Popup Panel Mouse Offset
 --------------------------------------------------------------------------------
 
-deucePanelMouseOffset =
+deucePopupPanelMouseOffset =
   { x = 20
   , y = 20
   }

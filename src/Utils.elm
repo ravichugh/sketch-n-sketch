@@ -825,6 +825,10 @@ mapFst f (a, b) = (f a, b)
 mapSnd : (b -> b_) -> (a, b) -> (a, b_)
 mapSnd f (a, b) = (a, f b)
 
+mapBoth : (a -> b) -> (a, a) -> (b, b)
+mapBoth f (x, y) =
+  (f x, f y)
+
 fst3 (x,_,_) = x
 snd3 (_,x,_) = x
 thd3 (_,_,x) = x

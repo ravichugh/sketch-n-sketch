@@ -431,6 +431,19 @@ deuceHoverMenu model (index, (deuceTool, results, disabled)) =
             results
       ]
 
+editCodeEntry : Model -> (Int, CachedDeuceTool) -> Html Msg
+editCodeEntry model (index, ((deuceTool, results, _) as cachedDeuceTool)) =
+  let
+    title =
+      deuceTool.name ++ "..."
+    disabled =
+      List.any Model.predicateImpossible deuceTool.reqs
+  in
+    disableableTextButton
+      disabled
+      title
+      (Controller.msgSetSelectedDeuceTool cachedDeuceTool)
+
 menuBar : Model -> Html Msg
 menuBar model =
   let
@@ -566,9 +579,9 @@ menuBar model =
               []
           ) ++
           [ menu "Edit Code" <|
-              [ [ simpleTextButton "Text Select" Controller.msgTextSelect
-                ]
-              ]
+              List.map
+                (Utils.mapi1 <| editCodeEntry model)
+                model.deuceToolsAndResults
           , menu "Edit Output"
               [ [ relateTextButton
                     model
@@ -1623,41 +1636,151 @@ deuceOverlay model =
       ]
 
 --------------------------------------------------------------------------------
--- Deuce Panel
+-- Popup Panels
 --------------------------------------------------------------------------------
 
-deucePanel : Model -> Html Msg
-deucePanel model =
+popupPanel
+  :  { pos : (Int, Int)
+     , disabled : Bool
+     , dragHandler : Msg
+     , content : List (Html Msg)
+     }
+  -> Html Msg
+popupPanel args =
   let
-    (x, y) =
-      model.deucePanelPosition
     disabledFlag =
-      if not model.showDeucePanel || DeuceTools.noneActive model then
+      if args.disabled then
         " disabled"
       else
         ""
+    dragger =
+      [ Html.div
+          [ Attr.class "dragger"
+          , E.onMouseDown args.dragHandler
+          ]
+          []
+      ]
+    (xString, yString) =
+      Utils.mapBoth px args.pos
   in
-  Html.div
-    [ Attr.class <| "deuce-panel panel" ++ disabledFlag
-    , Attr.style
-        [ ("left", px x)
-        , ("top", px y)
+    Html.div
+      [ Attr.class <| "popup-panel panel" ++ disabledFlag
+      , Attr.style
+          [ ("left", xString)
+          , ("top", yString)
+          ]
+      ] <|
+      dragger ++ args.content
+
+--------------------------------------------------------------------------------
+-- Deuce Popup Panel
+--------------------------------------------------------------------------------
+
+--deucePanel : Model -> Html Msg
+--deucePanel model =
+--  let
+--    (x, y) =
+--      model.deucePanelPosition
+--    disabledFlag =
+--      if not model.showDeucePanel || DeuceTools.noneActive model then
+--        " disabled"
+--      else
+--        ""
+--  in
+--  Html.div
+--    [ Attr.class <| "popup-panel panel" ++ disabledFlag
+--    , Attr.style
+--        [ ("left", px x)
+--        , ("top", px y)
+--        ]
+--    ]
+--    [ Html.div
+--        [ Attr.class "dragger"
+--        , E.onMouseDown Controller.msgDragDeucePanel
+--        ]
+--        []
+--    , Html.div
+--        []
+--        ( List.concatMap
+--           ( List.filter (Utils.fst3 >> DeuceTools.isActive model) >>
+--               Utils.mapi1 (deuceHoverMenu model)
+--           )
+--           model.deuceToolsAndResults
+--        )
+--    ]
+
+deucePopupPanel : Model -> Html Msg
+deucePopupPanel model =
+  popupPanel
+    { pos =
+        model.popupPanelPositions.deuce
+    , disabled =
+        not model.showDeucePanel || DeuceTools.noneActive model
+    , dragHandler =
+        Controller.msgDragDeucePopupPanel
+    , content =
+        [ Html.div
+            [] <|
+            List.concatMap
+              (    List.filter (Utils.fst3 >> DeuceTools.isActive model)
+                >> Utils.mapi1 (deuceHoverMenu model)
+              )
+              model.deuceToolsAndResults
         ]
-    ]
-    [ Html.div
-        [ Attr.class "dragger"
-        , E.onMouseDown Controller.msgDragDeucePanel
-        ]
-        []
-    , Html.div
-        []
-        ( List.concatMap
-           ( List.filter (Utils.fst3 >> DeuceTools.isActive model) >>
-               Utils.mapi1 (deuceHoverMenu model)
-           )
-           model.deuceToolsAndResults
-        )
-    ]
+    }
+
+--------------------------------------------------------------------------------
+-- Edit Code Panel
+--------------------------------------------------------------------------------
+
+editCodePopupPanel : Model -> Html Msg
+editCodePopupPanel model =
+  let
+    (disabled, content) =
+      case model.selectedDeuceTool of
+        Nothing ->
+          (True, [])
+        Just (deuceTool, synthesisResults, _) ->
+          ( False
+          , [ Html.div
+                []
+                [ Html.text deuceTool.name
+                ]
+            , Html.div
+                []
+                ( List.map
+                    ( \{description, value} ->
+                        Html.div
+                          []
+                          [ Html.text <|
+                              description ++ " (" ++ toString value ++ ")"
+                          ]
+                    )
+                    deuceTool.reqs
+                )
+            ]
+          )
+  in
+    popupPanel
+      { pos =
+          model.popupPanelPositions.editCode
+      , disabled =
+          disabled
+      , dragHandler =
+          Controller.msgDragEditCodePopupPanel
+      , content =
+          content
+      }
+
+--------------------------------------------------------------------------------
+-- All Popup Panels
+--------------------------------------------------------------------------------
+
+popupPanels : Model -> List (Html Msg)
+popupPanels model =
+  [ deucePopupPanel model
+  , editCodePopupPanel model
+  ]
 
 --------------------------------------------------------------------------------
 -- Main View
@@ -1685,8 +1808,8 @@ view model =
         , menuBar model
         , workArea model
         , deuceOverlay model
-        , deucePanel model
-        , subtleBackground
         ]
+        ++ (popupPanels model)
+        ++ [subtleBackground]
         ++ (dialogBoxes model)
       )

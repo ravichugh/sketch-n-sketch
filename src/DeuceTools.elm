@@ -173,6 +173,7 @@ makeEqualTool model selections =
               expsPredVal
           }
         ]
+    , id = "makeEqual"
     }
 
 
@@ -218,6 +219,7 @@ flipBooleanTool model selections =
               boolPredVal
           }
         ]
+    , id = "flipBoolean"
     }
 
 --------------------------------------------------------------------------------
@@ -263,6 +265,7 @@ renamePatternTool model selections =
               patPredVal
           }
         ]
+    , id = "renamePattern"
     }
 
 --------------------------------------------------------------------------------
@@ -307,6 +310,7 @@ renameVariableTool model selections =
               varPredVal
           }
         ]
+    , id = "renameVariable"
     }
 
 --------------------------------------------------------------------------------
@@ -332,16 +336,18 @@ swapNamesAndUsagesTool model selections =
                name2
            ]
   in
-  selectTwoVars "Swap Names and Usages" makeThunk model selections
+  selectTwoVars
+    "Swap Names and Usages" "swapNamesAndUsages" makeThunk model selections
 
 swapUsagesTool : Model -> Selections -> DeuceTool
 swapUsagesTool model selections =
   let makeThunk (pathedPatId1, _) (pathedPatId2, _) () =
     CodeMotion.swapUsages pathedPatId1 pathedPatId2 model.inputExp
   in
-  selectTwoVars "Swap Usages" makeThunk model selections
+  selectTwoVars
+    "Swap Usages" "swapUsages" makeThunk model selections
 
-selectTwoVars toolName makeThunk model selections =
+selectTwoVars toolName toolId makeThunk model selections =
   let
     (func, predVal) =
       case selections of
@@ -368,6 +374,7 @@ selectTwoVars toolName makeThunk model selections =
     { name = toolName
     , func = func
     , reqs = [ { description = "Select two variables", value = predVal } ]
+    , id = toolId
     }
 
 --------------------------------------------------------------------------------
@@ -395,6 +402,7 @@ swapExpressionsTool model selections =
               predVal
           }
         ]
+    , id = "swapExpressions"
     }
 
 
@@ -439,6 +447,7 @@ inlineDefinitionTool model selections =
               predVal
           }
         ]
+    , id = "inlineDefinition"
     }
 
 
@@ -573,6 +582,7 @@ introduceVariableTool model selections =
               predVal
           }
         ]
+    , id = "introduceVariable"
     }
 
 --------------------------------------------------------------------------------
@@ -600,6 +610,7 @@ copyExpressionTool model selections =
               predVal
           }
         ]
+    , id = "copyExpression"
     }
 
 --------------------------------------------------------------------------------
@@ -681,6 +692,7 @@ moveDefinitionTool model selections =
               predVal
           }
         ]
+    , id = "moveDefinition"
     }
 
 --------------------------------------------------------------------------------
@@ -747,6 +759,7 @@ duplicateDefinitionTool model selections =
               predVal
           }
         ]
+    , id = "duplicateDefinition"
     }
 
 
@@ -826,6 +839,7 @@ thawFreezeTool model selections =
     { name = name
     , func = func
     , reqs = [ { description = "Select 1 or more numbers", value = predVal } ]
+    , id = "thawFreeze"
     }
 
 --------------------------------------------------------------------------------
@@ -914,6 +928,7 @@ showHideRangeTool model selections =
     { name = name
     , func = func
     , reqs = [ { description = "Select 1 or more numbers", value = predVal } ]
+    , id = "showHideRange"
     }
 
 --------------------------------------------------------------------------------
@@ -1008,6 +1023,7 @@ addRemoveRangeTool model selections =
     { name = name
     , func = func
     , reqs = [ { description = "Select 1 or more numbers", value = predVal } ]
+    , id = "addRemoveRange"
     }
 
 --------------------------------------------------------------------------------
@@ -1049,6 +1065,7 @@ rewriteOffsetTool model selections =
           , value = predVal
           }
         ]
+    , id = "rewriteOffset"
     }
 
 --------------------------------------------------------------------------------
@@ -1209,6 +1226,7 @@ createFunctionTool model selections =
           , value = predVal
           }
         ]
+    , id = "createFunction"
     }
 
 --------------------------------------------------------------------------------
@@ -1262,6 +1280,7 @@ mergeTool model selections =
           , value = predVal
           }
         ]
+    , id = "merge"
     }
 
 --------------------------------------------------------------------------------
@@ -1272,6 +1291,7 @@ addArgumentsTool : Model -> Selections -> DeuceTool
 addArgumentsTool model selections =
   let
     toolName = "Add Argument"
+    id = "addArguments"
 
     -- this helper helps avoid changing existing structure of this function
     makeReqs predVal =
@@ -1286,6 +1306,7 @@ addArgumentsTool model selections =
       { name = toolName
       , func = Nothing
       , reqs = makeReqs predVal
+      , id = id
       }
 
     disabledTool = defaultTool Impossible
@@ -1323,6 +1344,7 @@ addArgumentsTool model selections =
                             targetPathedPatId
                             model.inputExp
                   , reqs = makeReqs Satisfied
+                  , id = id
                   }
                 else if isAllSelectedExpsInFBody then
                   { name = "Add Arguments" -- Fowler calls this "Add Parameter"
@@ -1334,6 +1356,7 @@ addArgumentsTool model selections =
                             targetPathedPatId
                             model.inputExp
                   , reqs = makeReqs Satisfied
+                  , id = id
                   }
                 else
                   disabledTool
@@ -1378,6 +1401,7 @@ addArgumentsTool model selections =
                             targetPathedPatId
                             model.inputExp
                   , reqs = makeReqs Satisfied
+                  , id = id
                   }
                 else if isAllSelectedPatsInFBody then
                   { name = "Add Arguments" -- Fowler calls this "Add Parameter"
@@ -1389,6 +1413,7 @@ addArgumentsTool model selections =
                             targetPathedPatId
                             model.inputExp
                   , reqs = makeReqs Satisfied
+                  , id = id
                   }
                 else
                   disabledTool
@@ -1405,6 +1430,7 @@ removeArgumentsTool : Model -> Selections -> DeuceTool
 removeArgumentsTool model selections =
   let
     toolName = "Remove Argument"
+    id = "removeArguments"
 
     -- this helper helps avoid changing existing structure of this function
     makeReqs predVal =
@@ -1418,6 +1444,7 @@ removeArgumentsTool model selections =
       { name = toolName
       , func = Nothing
       , reqs = makeReqs predVal
+      , id = id
       }
 
     disabledTool = defaultTool Impossible
@@ -1458,6 +1485,7 @@ removeArgumentsTool model selections =
                       (Utils.head_ pathedPatIds)
                       model.inputExp
             , reqs = makeReqs Satisfied
+            , id = id
             }
           else if isAllArgumentSelected then
             { name = "Remove Arguments"
@@ -1468,6 +1496,7 @@ removeArgumentsTool model selections =
                       pathedPatIds
                       model.inputExp
             , reqs = makeReqs Satisfied
+            , id = id
             }
           else
             disabledTool
@@ -1489,6 +1518,7 @@ removeArgumentsTool model selections =
                       argPathedPatId
                       model.inputExp
             , reqs = makeReqs Satisfied
+            , id = id
             }
           Just argPathedPatIds ->
             { name = "Remove Arguments"
@@ -1499,6 +1529,7 @@ removeArgumentsTool model selections =
                     argPathedPatIds
                     model.inputExp
             , reqs = makeReqs Satisfied
+            , id = id
             }
           _ ->
             disabledTool
@@ -1573,6 +1604,7 @@ reorderArgumentsTool model selections =
           case func of
             Just _  -> makeReqs Satisfied
             Nothing -> makeReqs Impossible
+  , id = "reorderArguments"
   }
 
 --------------------------------------------------------------------------------
@@ -1585,6 +1617,7 @@ reorderExpressionsTool model selections =
   , func =
       CodeMotion.reorderExpressionsTransformation model.inputExp selections
   , reqs = [] -- TODO reqs
+  , id = "reorderExpressions"
   }
 
 --------------------------------------------------------------------------------
@@ -1751,6 +1784,7 @@ makeSingleLineTool model selections =
                   Impossible
            }
         ]
+    , id = "makeSingleLine"
     }
 
 --------------------------------------------------------------------------------
@@ -1845,6 +1879,7 @@ makeMultiLineTool model selections =
                 Impossible
          }
       ]
+  , id = "makeMultiLine"
   }
 
 --------------------------------------------------------------------------------
@@ -1913,6 +1948,7 @@ alignExpressionsTool model selections =
                 Impossible
          }
       ]
+  , id = "alignExpressions"
   }
 
 --==============================================================================

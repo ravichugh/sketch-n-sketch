@@ -69,6 +69,11 @@ type TextSelectMode
     -- whitespace characters
   | SubsetExtra
 
+type alias PopupPanelPositions =
+  { deuce : (Int, Int)
+  , editCode : (Int, Int)
+  }
+
 type alias Model =
   { code : Code
   , lastRunCode : Code
@@ -135,10 +140,11 @@ type alias Model =
   , scopeGraph : ScopeGraph
   , deuceState : DeuceWidgets.DeuceState
   , deuceToolsAndResults : List (List CachedDeuceTool)
+  , selectedDeuceTool : Maybe CachedDeuceTool
   , showOnlyBasicTools : Bool
   , viewState : ViewState
   , toolMode : ShapeToolKind
-  , deucePanelPosition : (Int, Int)
+  , popupPanelPositions : PopupPanelPositions
   , userStudyStateIndex : Int
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
@@ -186,7 +192,7 @@ type alias RawSvg = String
 type MouseMode
   = MouseNothing
   | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
-  | MouseDragPanel (Mouse.Position -> Mouse.Position -> Model -> Model)
+  | MouseDragPopupPanel (Mouse.Position -> Mouse.Position -> Model -> Model)
 
   | MouseDragZone
       ZoneKey               -- (nodeId, shapeKind, zoneName)
@@ -415,8 +421,8 @@ type alias Predicate =
   , value : PredicateValue
   }
 
-satisfied : Predicate -> Bool
-satisfied pred =
+predicateSatisfied : Predicate -> Bool
+predicateSatisfied pred =
   case pred.value of
     FullySatisfied ->
       True
@@ -427,9 +433,17 @@ satisfied pred =
     Impossible ->
       False
 
-allSatisfied : List Predicate -> Bool
-allSatisfied =
-  List.all satisfied
+predicateImpossible : Predicate -> Bool
+predicateImpossible pred =
+  case pred.value of
+    FullySatisfied ->
+      False
+    Satisfied ->
+      False
+    Possible ->
+      False
+    Impossible ->
+      True
 
 --------------------------------------------------------------------------------
 -- Deuce Tools
@@ -442,6 +456,7 @@ type alias DeuceTool =
   { name : String
   , func : Maybe DeuceTransformation
   , reqs : List Predicate -- requirements to run the tool
+  , id : String -- unique, unchanging identifier
   }
 
 type alias CachedDeuceTool =
@@ -783,12 +798,16 @@ initModel =
     , hoveringCodeBox = False
     , deuceState = DeuceWidgets.emptyDeuceState
     , deuceToolsAndResults = []
+    , selectedDeuceTool = Nothing
     , showOnlyBasicTools = True
     , viewState =
         { menuActive = False
         }
     , toolMode = Raw
-    , deucePanelPosition = (200, 200)
+    , popupPanelPositions =
+        { deuce = (200, 200)
+        , editCode = (400, 400)
+        }
     , userStudyStateIndex = 1
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True

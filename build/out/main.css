@@ -763,7 +763,7 @@ a {
  * Deuce Panel                                                                *
  ******************************************************************************/
 
-.deuce-panel {
+.popup-panel {
   display: block;
   background-color: #222222;
   z-index: 15;
@@ -773,17 +773,17 @@ a {
   /* left: DYNAMIC */
 }
 
-.deuce-panel.disabled {
+.popup-panel.disabled {
   display: none;
 }
 
-.deuce-panel .dragger {
+.popup-panel .dragger {
   height: 14px;
   background-color: #444444;
   background-image: linear-gradient(#444444, #333333);
   cursor: move;
 }
 
-.deuce-panel .text-button {
+.popup-panel .text-button {
   padding: 5px;
 }
