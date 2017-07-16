@@ -54,6 +54,7 @@ module InterfaceController exposing
   , msgSetEnableDeuceBoxSelection
   , msgSetEnableDeuceTextSelection
   , msgSetShowDeuceInMenuBar
+  , msgSetShowEditCodeInMenuBar
   , msgSetShowDeucePanel
   , msgSetTextSelectMode
   , msgSetSelectedDeuceTool
@@ -448,34 +449,34 @@ onMouseUp old =
 
         _              -> resetMouseMode old
 
-    (_, MouseDownInCodebox downPos) ->
-      let oldPos = pixelToRowColPosition downPos old in
-      let newPos = pixelToRowColPosition (Tuple.second old.mouseState) old in
-      onMouseDragged (dragSource oldPos old) (dragTarget newPos old)
-        { old | mouseMode = MouseNothing }
+    --(_, MouseDownInCodebox downPos) ->
+    --  let oldPos = pixelToRowColPosition downPos old in
+    --  let newPos = pixelToRowColPosition (Tuple.second old.mouseState) old in
+    --  onMouseDragged (dragSource oldPos old) (dragTarget newPos old)
+    --    { old | mouseMode = MouseNothing }
 
     _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
 
-dragSource pixelPos m =
-  -- TODO: Allow dragging and scrolling (store touched item in MouseDownInCodebox rather than initial position)
-  -- TODO: Allow selection of ECase patterns
-  let maybePathedPatId = getClickedPat (findPats m.inputExp) pixelPos m in
-  let maybeEId   = getClickedEId (computeExpRanges m.inputExp) pixelPos in
-  -- case Debug.log "source maybeEId, source maybePathedPatId" (maybeEId, maybePathedPatId) of
-  case (maybeEId, maybePathedPatId) of
-    (Nothing, Just ppid) -> Just (Left ppid)
-    (Just eid, _)        -> Just (Right eid)
-    _                    -> Nothing
-
-dragTarget pixelPos m =
-  let expTarget = getClickedExpTarget (computeExpTargets m.inputExp) pixelPos in
-  let patTarget = getClickedPatTarget (findPatTargets m.inputExp) pixelPos m in
-  let target = case List.head expTarget of
-                Nothing       -> case List.head patTarget of
-                                    Nothing         -> Nothing
-                                    Just firstPat   -> Just (PatTargetPosition firstPat)
-                Just etarget  -> Just (ExpTargetPosition etarget) in
-  target
+--dragSource pixelPos m =
+--  -- TODO: Allow dragging and scrolling (store touched item in MouseDownInCodebox rather than initial position)
+--  -- TODO: Allow selection of ECase patterns
+--  let maybePathedPatId = getClickedPat (findPats m.inputExp) pixelPos m in
+--  let maybeEId   = getClickedEId (computeExpRanges m.inputExp) pixelPos in
+--  -- case Debug.log "source maybeEId, source maybePathedPatId" (maybeEId, maybePathedPatId) of
+--  case (maybeEId, maybePathedPatId) of
+--    (Nothing, Just ppid) -> Just (Left ppid)
+--    (Just eid, _)        -> Just (Right eid)
+--    _                    -> Nothing
+--
+--dragTarget pixelPos m =
+--  let expTarget = getClickedExpTarget (computeExpTargets m.inputExp) pixelPos in
+--  let patTarget = getClickedPatTarget (findPatTargets m.inputExp) pixelPos m in
+--  let target = case List.head expTarget of
+--                Nothing       -> case List.head patTarget of
+--                                    Nothing         -> Nothing
+--                                    Just firstPat   -> Just (PatTargetPosition firstPat)
+--                Just etarget  -> Just (ExpTargetPosition etarget) in
+--  target
 
 tryRun : Model -> Result (String, Maybe Ace.Annotation) Model
 tryRun old =
@@ -1602,10 +1603,7 @@ toggleDeuceWidget widget model =
 
 msgMouseClickDeuceWidget widget =
   Msg ("msgMouseClickDeuceWidget " ++ toString widget) <| \old ->
-    if showDeuceWidgets old then
-      toggleDeuceWidget widget old
-    else
-      old
+    toggleDeuceWidget widget old
 
 msgMouseEnterDeuceWidget widget = Msg ("msgMouseEnterDeuceWidget " ++ toString widget) <| \old ->
   let deuceState = old.deuceState in
@@ -1626,37 +1624,37 @@ getSetMembers ls s =
                   then Set.remove first (getSetMembers rest s)
                   else Set.insert first (getSetMembers rest s)
 
-getClickedEId ls pixelPos =
-  let selected =
-    List.filter (\(exp,eid,start,end,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
-  in
-  case selected of
-    []                    -> Nothing
-    [(exp,eid,_,_,_,_)]   -> Just eid
-    _                     -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
-                              Nothing
-
-getClickedExpTarget ls pixelPos =
-  let selected =
-    List.filter (\(expTarget,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
-  in
-    List.map (\(expTarget,start,end) -> expTarget) selected
-
-getClickedPat ls pixelPos m =
-  let selected =
-      List.filter (\(pat,ppid,start,end,selectEnd) -> betweenPos start pixelPos selectEnd) ls
-  in
-  case selected of
-    []                     -> Nothing
-    [(pat,ppid,s,e,se)]    -> Just ppid
-    _                      -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
-                                Nothing
-
-getClickedPatTarget ls pixelPos m =
-  let selected =
-    List.filter (\(tid,start,end) -> betweenPos start pixelPos end) ls
-  in
-    List.map (\(tid,start,end) -> tid) selected
+--getClickedEId ls pixelPos =
+--  let selected =
+--    List.filter (\(exp,eid,start,end,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
+--  in
+--  case selected of
+--    []                    -> Nothing
+--    [(exp,eid,_,_,_,_)]   -> Just eid
+--    _                     -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
+--                              Nothing
+--
+--getClickedExpTarget ls pixelPos =
+--  let selected =
+--    List.filter (\(expTarget,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
+--  in
+--    List.map (\(expTarget,start,end) -> expTarget) selected
+--
+--getClickedPat ls pixelPos m =
+--  let selected =
+--      List.filter (\(pat,ppid,start,end,selectEnd) -> betweenPos start pixelPos selectEnd) ls
+--  in
+--  case selected of
+--    []                     -> Nothing
+--    [(pat,ppid,s,e,se)]    -> Just ppid
+--    _                      -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
+--                                Nothing
+--
+--getClickedPatTarget ls pixelPos m =
+--  let selected =
+--    List.filter (\(tid,start,end) -> betweenPos start pixelPos end) ls
+--  in
+--    List.map (\(tid,start,end) -> tid) selected
 
 msgReceiveDotImage s = Msg "Receive Image" <| \m ->
   { m | mode = Model.PrintScopeGraph (Just s) }
@@ -1666,10 +1664,7 @@ onMouseDragged
    -> Maybe TargetPosition
    -> Model -> Model
 onMouseDragged dragSource dragTarget m =
-  if showDeuceWidgets m
-  then
-    let _ = Debug.log "ignoring drag" (dragSource, dragTarget) in
-    m
+  let _ = Debug.log "ignoring drag" (dragSource, dragTarget) in
 {-
     let new = resetDeuceState m in
     case Debug.log "source, target" (dragSource, dragTarget) of
@@ -1680,7 +1675,6 @@ onMouseDragged dragSource dragTarget m =
       _ ->
         new
 -}
-  else
     m
 
 
@@ -1949,22 +1943,25 @@ msgDragEditCodePopupPanel =
 --------------------------------------------------------------------------------
 -- Text Select
 
+textSelect : Model -> Model
+textSelect old =
+  let
+    patMap =
+      computePatMap old.inputExp
+  in
+    case
+      old
+        |> Model.primaryCodeObject
+        |> Maybe.andThen (toDeuceWidget patMap)
+    of
+      Just deuceWidget ->
+        toggleDeuceWidget deuceWidget old
+      Nothing ->
+        old
+
 msgTextSelect : Msg
 msgTextSelect =
-  Msg "Text Select" <| \old ->
-    let
-      patMap =
-        computePatMap old.inputExp
-    in
-      case
-        old
-          |> Model.primaryCodeObject
-          |> Maybe.andThen (toDeuceWidget patMap)
-      of
-        Just deuceWidget ->
-          toggleDeuceWidget deuceWidget old
-        Nothing ->
-          old
+  Msg "Text Select" textSelect
 
 --------------------------------------------------------------------------------
 -- User Study Operations
@@ -2008,6 +2005,14 @@ msgSetShowDeuceInMenuBar bool =
             bool
     }
 
+msgSetShowEditCodeInMenuBar : Bool -> Msg
+msgSetShowEditCodeInMenuBar bool =
+  Msg "Set Show Edit Code In Menu Bar" <| \model ->
+    { model
+        | showEditCodeInMenuBar =
+            bool
+    }
+
 msgSetShowDeucePanel : Bool -> Msg
 msgSetShowDeucePanel bool =
   Msg "Set Show Deuce Panel" <| \model ->
@@ -2029,8 +2034,12 @@ msgSetTextSelectMode textSelectMode =
 
 msgSetSelectedDeuceTool : CachedDeuceTool -> Msg
 msgSetSelectedDeuceTool cachedDeuceTool =
-  Msg "Set Selected Deuce Tool" <| \model ->
-    { model
-        | selectedDeuceTool =
-            Just cachedDeuceTool
-    }
+  let
+    selectedDeuceToolUpdater model =
+      { model
+          | selectedDeuceTool =
+              Just cachedDeuceTool
+      }
+  in
+    Msg "Set Selected Deuce Tool" <|
+      selectedDeuceToolUpdater >> textSelect

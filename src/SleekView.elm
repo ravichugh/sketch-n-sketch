@@ -573,18 +573,23 @@ menuBar model =
           ] ++
           ( if model.showDeuceInMenuBar then
               [ menu "Deuce" <|
-                    List.map
-                      (Utils.mapi1 <| deuceHoverMenu model)
-                      model.deuceToolsAndResults
+                  List.map
+                    (Utils.mapi1 <| deuceHoverMenu model)
+                    model.deuceToolsAndResults
               ]
             else
               []
           ) ++
-          [ menu "Edit Code" <|
-              List.map
-                (Utils.mapi1 <| editCodeEntry model)
-                model.deuceToolsAndResults
-          , menu "Edit Output"
+          ( if model.showEditCodeInMenuBar then
+              [ menu "Edit Code" <|
+                  List.map
+                    (Utils.mapi1 <| editCodeEntry model)
+                    model.deuceToolsAndResults
+              ]
+            else
+              []
+          ) ++
+          [ menu "Edit Output"
               [ [ relateTextButton
                     model
                     "Dig Hole"
@@ -689,19 +694,6 @@ menuBar model =
                       "False"
                       Controller.msgSetEnableDeuceTextSelection
                 ]
-              , [ hoverMenu "Show Deuce in Menu Bar" <|
-                    booleanOption
-                      model.showDeuceInMenuBar
-                      "True"
-                      "False"
-                      Controller.msgSetShowDeuceInMenuBar
-                , hoverMenu "Show Deuce Panel" <|
-                    booleanOption
-                      model.showDeucePanel
-                      "True"
-                      "False"
-                      Controller.msgSetShowDeucePanel
-                ]
               , [ hoverMenu "Text Selection Mode"
                     [ simpleTextRadioButton
                         ( case model.textSelectMode of
@@ -740,6 +732,25 @@ menuBar model =
                         "SubsetExtra"
                         (Controller.msgSetTextSelectMode SubsetExtra)
                     ]
+                ]
+              , [ hoverMenu "Show Deuce in Menu Bar" <|
+                    booleanOption
+                      model.showDeuceInMenuBar
+                      "True"
+                      "False"
+                      Controller.msgSetShowDeuceInMenuBar
+                , hoverMenu "Show Edit Code in Menu Bar" <|
+                    booleanOption
+                      model.showEditCodeInMenuBar
+                      "True"
+                      "False"
+                      Controller.msgSetShowEditCodeInMenuBar
+                , hoverMenu "Show Deuce Panel" <|
+                    booleanOption
+                      model.showDeucePanel
+                      "True"
+                      "False"
+                      Controller.msgSetShowDeucePanel
                 ]
               , [ hoverMenu "Shape Code Templates"
                     [ simpleTextRadioButton

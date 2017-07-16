@@ -149,6 +149,7 @@ type alias Model =
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
   , showDeuceInMenuBar : Bool
+  , showEditCodeInMenuBar : Bool
   , showDeucePanel : Bool
   , textSelectMode : TextSelectMode
   }
@@ -588,12 +589,13 @@ oneSafeResult newExp =
 deuceActive : Model -> Bool
 deuceActive model =
   let
-    atLeastOneWidgetSelected =
-      not <| List.isEmpty model.deuceState.selectedWidgets
     shiftDown =
       List.member Keys.keyShift model.keysDown
+    toolSelected =
+      model.selectedDeuceTool /= Nothing
   in
-  shiftDown && (model.enableDeuceBoxSelection || atLeastOneWidgetSelected)
+    (model.enableDeuceBoxSelection && shiftDown) ||
+    (model.enableDeuceTextSelection && toolSelected)
 
 --------------------------------------------------------------------------------
 
@@ -708,19 +710,25 @@ primaryCodeObject model =
     -- as just the range [cursorPos, cursorPos]. Thus, this pattern handles
     -- all the cases that we need.
     [ selection ] ->
-      matchingRange
-        model
-        selection
-        ( List.map
-            ( \codeObject ->
-                ( rangeFromInfo << extractInfoFromCodeObject <| codeObject
-                , codeObject
-                )
-            )
-            ( flattenToCodeObjects << E <|
-                model.inputExp
-            )
-        )
+      -- If there is nothing currently selected, this "selection" will simply be
+      -- the cursor position. For now, we will just ignore this, but this will
+      -- probably be used for handling the right click menu.
+      if selection.start == selection.end then
+        Nothing
+      else
+        matchingRange
+          model
+          selection
+          ( List.map
+              ( \codeObject ->
+                  ( rangeFromInfo << extractInfoFromCodeObject <| codeObject
+                  , codeObject
+                  )
+              )
+              ( flattenToCodeObjects << E <|
+                  model.inputExp
+              )
+          )
     _ ->
       Nothing
 
@@ -836,6 +844,7 @@ initModel =
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
     , showDeuceInMenuBar = True
+    , showEditCodeInMenuBar = True
     , showDeucePanel = True
     , textSelectMode = SubsetExtra
     }
