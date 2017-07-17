@@ -1,35 +1,36 @@
-;
 ; Now let's introduce variables for the x- and
 ; y-positions using the Introduce Variable tool.
 ;
-; Again, we can perform these in several ways.
+; This tool is the first one that we have seen
+; which refers to a target position, which is
+; the whitespace between or above other items
+; in the code.
 ;
-; EXERCISE: Select the text 100, go to Edit Code,
-; select Introduce Variable. The configuration pane
-; asks for more information, namely, zero or one
-; target position. To select a target position, we
-; can hover the code and see that boxes for
-; different items light up. We can select the space
-; between definitions as our desired target
-; position.
+; Again, we can perform this in several ways.
 ;
-; EXERCISE: Undo. Select the text 100, go to Edit
-; Code, select Introduce Variable. This time, select
-; the target position inside redRect before the
-; call.
-;
-; EXERCISE: Undo. Select the text 100, this time
-; right-click, and select Introduce Variable. This
-; time, don't select a target position.
-;
-; EXERCISE: Undo. Hold down Shift, hover and click
-; both 100 and 100 and the target position inside
-; redRect. Release the Shift Key, hover and select
-; Introduce Variables.
-;
-; EXERCISE: Undo. Hold down Shift, hover and click
-; both 100 and 100. Release the Shift Key, hover and
-; select Introduce Variables.
+; _begin
+; _1 * Select the text 100, right-click, and
+; _1   select Introduce Variable from the pop-up menu.
+; _1   The configuration pane asks for zero or
+; _1   one target position. Select a target position
+; _1   just inside the redRect definition or above it.
+; _1
+; _2 * Select the text 100, and select
+; _2   Introduce Variable from the Edit Code menu.
+; _2   The configuration pane asks for zero or
+; _2   one target position. Select a target position
+; _2   just inside the redRect definition or above it.
+; _2
+; _3 * Hold down Shift, hover and click
+; _3   both occurrences of 100 and a target position,
+; _3   just inside the redRect definition or above it.
+; _3   Release the Shift Key and select Introduce
+; _3   Variables from the pop-up menu.
+; _3
+; _end
+; EXERCISE: Introduce x and y variables with each of
+; the three interactions. Use Undo after each to
+; reset the program.
 
 (def redRect
   (rect "salmon" 100 100 150 80))

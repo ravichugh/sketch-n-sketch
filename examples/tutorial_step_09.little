@@ -1,4 +1,3 @@
-;
 ; EXERCISE: The range library function computes the
 ; list of numbers between start and end numbers.
 ; Try the expression (range 1 10).
@@ -24,5 +23,5 @@
 
 (def main
   (draw [
-    (show (range 1 10))
+    (show [1 2 3 4 5 6 7 8 9 10])
   ]))

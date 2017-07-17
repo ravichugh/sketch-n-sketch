@@ -1,4 +1,3 @@
-;
 ; The structure of a program is a series of
 ; top-level definitions followed my a "main"
 ; expression that corresponds to the final image to

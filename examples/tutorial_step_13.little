@@ -1,26 +1,26 @@
-;
 ; Here's a red rectangle. We will use the Rename
 ; code transformation tool to rename the function at
 ; its definition and its call-sites.
 ;
 ; There are a few ways to do this:
 ;
-; (TODO RANDOMIZE ORDER OF 1/2 and 3)
-;
-; 1) Select the text redRect, go to the Edit Code
-; menu, and select the Rename tool. Then enter a new
-; name in the configuration menu, and press OK.
-;
-; 2) Select the text redRect, right-click the code
-; box, and select the Rename tool. Then enter a new
-; name in the configuration menu, and press OK.
-;
-; 3) Hold down the Shift key, hover over redRect,
-; and click the box that pops up over redRect.
-; Release the Shift key and select the Rename tool
-; from the pop-up menu. Then enter a new name in the
-; configuration menu, and press OK.
-;
+; _begin
+; _1 * Select the text redRect, right-click the code
+; _1   box, and select the Rename tool from the pop-up
+; _1   menu. Then enter a new name in the
+; _1   configuration menu, and press OK.
+; _1
+; _2 * Select the text redRect, and select the Rename
+; _2   tool from the Edit Code menu. Then enter a new
+; _2   name in the configuration menu, and press OK.
+; _2
+; _3 * Hold down the Shift key, hover over redRect,
+; _3   click the box that pops up over redRect, and
+; _3   then release the Shift Key. Select the Rename
+; _3   tool from the pop-up menu. Then enter a new
+; _3   name in the configuration menu, and press OK.
+; _3
+; _end
 ; EXERCISE: Perform the renaming with each of the
 ; three interactions. Use Undo after each to reset
 ; the program.

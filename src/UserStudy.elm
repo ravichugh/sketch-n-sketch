@@ -9,6 +9,7 @@ module UserStudy exposing
 
 import Utils
 import Random
+import Dict
 
 type State
   = Start
@@ -34,16 +35,46 @@ type EditorMode
 getState i =
   Utils.geti i sequence
 
+disableNextStep i =
+  case getState i of
+    End -> True
+    _   -> False
+
+disablePreviousStep i =
+  case getState i of
+    Start              -> True
+    Step (Tutorial, _) -> False
+    Transition1        -> False
+    _                  -> True
+
+--------------------------------------------------------------------------------
+
 getTemplate state =
   case state of
     Start       -> "Deuce Study Start"
     Transition1 -> "Deuce Study Transition 1"
     Transition2 -> "Deuce Study Transition 2"
     End         -> "Deuce Study End"
-    Step (_, (s, mode)) ->
+    Step (_, (template, mode)) ->
       if mode == ReadOnly
-        then s -- TODO add task files without instructions
-        else s
+        then template -- getFinalCode will make changes to the template code
+        else template
+
+getFinalCode state templateCode =
+  case state of
+    Step (Tutorial, ("Step 13", _)) -> reorderTutorialStep order_13_14_15 templateCode
+    Step (Tutorial, ("Step 14", _)) -> reorderTutorialStep order_13_14_15 templateCode
+    Step (Tutorial, ("Step 15", _)) -> reorderTutorialStep order_13_14_15 templateCode
+    Step (Tutorial, ("Step 16", _)) -> reorderTutorialStep order_16 templateCode
+    Step (Tutorial, (_, _))         -> templateCode
+    Step (_, (_, TextEditOnly))     -> templateCode
+    Step (_, (_, ReadOnly))         -> readOnly ++ chopInstructions templateCode
+    Step (_, (_, TextSelectOnly))   -> textSelectOnly ++ templateCode
+    Step (_, (_, BoxSelectOnly))    -> boxSelectOnly ++ templateCode
+    Step (_, (_, AllFeatures))      -> allFeatures ++ templateCode
+    _                               -> templateCode
+
+-- post-processing for tasks ---------------------------------------------------
 
 readOnly = """; Read and understand the code below.
 ; All editing features are disabled for now.
@@ -72,29 +103,88 @@ chopInstructions templateCode =
     |> List.filter (not << String.startsWith ";")
     |> String.join "\n"
 
-getFinalCode state templateCode =
-  case state of
-    Step (_, (_, editorMode)) ->
-      case editorMode of
-        ReadOnly       -> readOnly ++ chopInstructions templateCode
-        TextEditOnly   -> templateCode
-        TextSelectOnly -> textSelectOnly ++ templateCode
-        BoxSelectOnly  -> boxSelectOnly ++ templateCode
-        AllFeatures    -> allFeatures ++ templateCode
-    _ ->
-      templateCode
+-- post-processing for tutorial ------------------------------------------------
 
-disableNextStep i =
-  case getState i of
-    End -> True
-    _   -> False
+order_13_14_15 =
+  case tutorialVersion of
+    1 -> ["_1","_2","_3"]
+    2 -> ["_2","_1","_3"]
+    3 -> ["_3","_1","_2"]
+    4 -> ["_3","_2","_1"]
+    _ -> Debug.crash "order: tutorialVersion > numTutorialVersions"
 
-disablePreviousStep i =
-  case getState i of
-    Start              -> True
-    Step (Tutorial, _) -> False
-    Transition1        -> False
-    _                  -> True
+order_16 =
+  case tutorialVersion of
+    1 -> ["_1","_2"]
+    2 -> ["_1","_2"]
+    3 -> ["_2","_1"]
+    4 -> ["_2","_1"]
+    _ -> Debug.crash "order: tutorialVersion > numTutorialVersions"
+
+reorderTutorialStep order templateCode =
+  let
+    prefixes =
+      List.map (\s -> "; " ++ s) order
+
+    updateDictionary prefix line =
+      Dict.update prefix <| \maybeLines ->
+        case maybeLines of
+          Nothing    -> Just [line]
+          Just lines -> Just (lines ++ [line])
+
+    -- the following two passes assume that all the choices in
+    -- templateCode appear in a single, contiguous section, e.g.
+    --
+    --   blah
+    --   blah
+    --   _begin
+    --   _1 blah
+    --   _1 blah
+    --   _2 blah
+    --   _3 blah
+    --   _3 blah
+    --   _3 blah
+    --   _end
+    --   blah
+
+    createDictionary acc lines =
+      case lines of
+        [] ->
+          (acc, [])
+        "; _begin" :: rest ->
+          let (acc_, list) = createDictionary acc rest in
+          (acc_, "INSERT HERE" :: list)
+        "; _end" :: rest ->
+          (acc, rest)
+        line :: rest ->
+          if List.any (\prefix -> String.startsWith prefix line) prefixes then
+            let
+              -- assuming prefix is two characters (e.g. "_1", "_2", etc.)
+              prefix =
+                String.left 4 line
+              s =
+                "; " ++ String.dropLeft (String.length prefix) line
+            in
+            createDictionary (updateDictionary prefix s acc) rest
+          else
+            let (acc_, list) = createDictionary acc rest in
+            (acc_, line :: list)
+
+    insertReorderedLines (dict, lines) =
+      case lines of
+        [] ->
+          []
+        "INSERT HERE" :: rest ->
+          let reordered = List.concatMap (flip Utils.justGet dict) prefixes in
+          reordered ++ rest
+        line :: rest ->
+          line :: insertReorderedLines (dict, rest)
+  in
+  templateCode
+    |> String.lines
+    |> createDictionary Dict.empty
+    |> insertReorderedLines
+    |> String.join "\n"
 
 --------------------------------------------------------------------------------
 -- User Study Configuration Parameters
@@ -103,7 +193,9 @@ participantNum = 1
 
 --------------------------------------------------------------------------------
 
-tutorialCount = 16
+numTutorialSteps = 16
+structuredEditingStartStep = 13
+numTutorialVersions = 4
 
 headToHeadTaskTemplates =
   [ "Three Rectangles"
@@ -126,8 +218,6 @@ shuffleList seed list =
           let (i, nextSeed) = Random.step (Random.int 1 n) seed in
           let (x, nextRemaining) = (Utils.geti i remaining, Utils.removei i remaining) in
           foo nextRemaining (reordered ++ [x]) nextSeed
-    initialSeed =
-      Random.initialSeed participantNum
   in
   foo list [] seed
 
@@ -143,7 +233,8 @@ everything =
     initialSeed =
       Random.initialSeed participantNum
 
-    -- TODO add a choice about tutorial
+    (tutorialVersion, nextSeed) =
+      Random.step (Random.int 1 numTutorialVersions) initialSeed
 
     headToHeadTasks =
       headToHeadTaskTemplates
@@ -152,7 +243,7 @@ everything =
              , (HeadToHeadTask, (template, BoxSelectOnly))
              ]
            )
-        |> shuffleList initialSeed
+        |> shuffleList nextSeed
         |> Tuple.first
         |> insertReadingPeriods
 
@@ -162,17 +253,23 @@ everything =
         |> insertReadingPeriods
 
   in
-    (headToHeadTasks, fullTasks)
+    (tutorialVersion, headToHeadTasks, fullTasks)
 
-headToHeadTasks = Tuple.first everything
-fullTasks       = Tuple.second everything
+tutorialVersion = Utils.fst3 everything
+headToHeadTasks = Utils.snd3 everything
+fullTasks       = Utils.thd3 everything
 
 tutorialTasks =
   let template i = "Step " ++ String.padLeft 2 '0' (toString i) in
-  -- TODO use AllFeatures for structured editing tutorial
   List.map
-    (\i -> (Tutorial, (template i, TextEditOnly)))
-    (List.range 1 tutorialCount)
+    (\i ->
+      let editorMode =
+        if i < structuredEditingStartStep
+          then TextEditOnly
+          else AllFeatures
+      in
+      (Tutorial, (template i, editorMode)))
+    (List.range 1 numTutorialSteps)
 
 sequence : List State
 sequence =
@@ -189,6 +286,7 @@ sequence =
 
 _ =
   let
+    _ = Debug.log "UserStudy tutorialVersion" tutorialVersion
     _ = Debug.log "UserStudy.participantNum" participantNum
     _ = Debug.log "UserStudy.sequence" sequence
   in

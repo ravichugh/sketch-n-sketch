@@ -1,21 +1,22 @@
-;
 ; Now we will use the Create Function tool to turn
 ; the definition into a function.
 ;
 ; Like Rename, there are a few ways to do this:
 ;
-; (TODO OPPOSITE ORDER OF 1/2 and 3)
-;
-; 1) Select the text (def redRect ...). Go to the
-; Edit Code menu and select Create Function.
-;
-; 2) Select the text (def redRect ...). Right-click
-; the code box and select Create Function.
-;
-; 3) Hold down the Shift key, hover over and click
-; either the definition (def redRect ...). Release
-; the Shift Key and select Create Function.
-;
+; _begin
+; _1 * Select the text (def redRect ...). Right-click
+; _1   the code box, and select Create Function from
+; _1   the pop-up menu.
+; _1
+; _2 * Select the text (def redRect ...). Select
+; _2   Create Function from the Edit Code Menu.
+; _2
+; _3 * Hold down the Shift key, hover over and click
+; _3   the definition (def redRect ...), and release
+; _3   the Shift Key. Select Create Function from the
+; _3   pop-up menu.
+; _3
+; _end
 ; In each case, there are a couple options for what
 ; to make arguments. Since the point of this
 ; function is to draw a red rectangle, we'll pick

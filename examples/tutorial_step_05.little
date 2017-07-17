@@ -1,4 +1,3 @@
-;
 ; In addition to top-level definitions, local
 ; variables can be created using a different keyword
 ; called let. For example, within a def, we can

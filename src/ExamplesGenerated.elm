@@ -5161,8 +5161,7 @@ mondrian_arch_deuce =
 -- don't change them manually
 
 study_start =
- """;
-; In this study, we are going to show you some
+ """; In this study, we are going to show you some
 ; program editing features in Sketch-n-Sketch, a
 ; programming system for generating Scalable Vector
 ; Graphics images.
@@ -5183,8 +5182,7 @@ study_start =
 """
 
 study_transition_1 =
- """;
-; You're done with the tutorial. Now you're going to
+ """; You're done with the tutorial. Now you're going to
 ; use Sketch-n-Sketch to perform some program
 ; editings tasks.
 ;
@@ -5217,8 +5215,7 @@ study_transition_1 =
 """
 
 study_transition_2 =
- """;
-; In the final section, you will see two examples
+ """; In the final section, you will see two examples
 ; programs, each with a list of editing tasks. This
 ; time, you will be able to use _all_ features: text
 ; editing, Text Select Mode, and Box Select Mode.
@@ -5233,8 +5230,7 @@ study_transition_2 =
 """
 
 study_end =
- """;
-; All done with the programming exercises!
+ """; All done with the programming exercises!
 ;
 ; One last thing: please fill out the exit survey.
 ;
@@ -5247,8 +5243,7 @@ study_end =
 
 
 tutorial_step_01 =
- """;
-; Sketch-n-Sketch programs are written in a
+ """; Sketch-n-Sketch programs are written in a
 ; functional language. This language is small,
 ; custom language built for Sketch-n-Sketch, though
 ; its features are common to most functional
@@ -5266,8 +5261,7 @@ tutorial_step_01 =
 """
 
 tutorial_step_02 =
- """;
-; The structure of a program is a series of
+ """; The structure of a program is a series of
 ; top-level definitions followed my a \"main\"
 ; expression that corresponds to the final image to
 ; draw. The initial main expression has an empty
@@ -5300,8 +5294,7 @@ tutorial_step_02 =
 """
 
 tutorial_step_03 =
- """;
-; In addition to strings, there are numbers,
+ """; In addition to strings, there are numbers,
 ; booleans, and lists. Lists are written with square
 ; brackets and with spaces separating the elements.
 ; The language does not have static types, so we can
@@ -5320,8 +5313,7 @@ tutorial_step_03 =
 """
 
 tutorial_step_04 =
- """;
-; When a list has a fixed number of elements, we
+ """; When a list has a fixed number of elements, we
 ; often call that list a tuple. For example, we
 ; refer to a two-element list as a pair, a
 ; three-element list as a triple, and so on.
@@ -5351,8 +5343,7 @@ tutorial_step_04 =
 """
 
 tutorial_step_05 =
- """;
-; In addition to top-level definitions, local
+ """; In addition to top-level definitions, local
 ; variables can be created using a different keyword
 ; called let. For example, within a def, we can
 ; define the local variable data to hold some value,
@@ -5383,8 +5374,7 @@ tutorial_step_05 =
 """
 
 tutorial_step_06 =
- """;
-; The syntax for a function, also known as a lambda
+ """; The syntax for a function, also known as a lambda
 ; expression, is shown below. The function
 ; triplicate takes a single argument x, and it
 ; returns a list that repeats x three times.
@@ -5414,8 +5404,7 @@ tutorial_step_06 =
 """
 
 tutorial_step_07 =
- """;
-; The language has several binary operators for
+ """; The language has several binary operators for
 ; arithmetic.
 ;
 ; If we want to multiply three numbers, we can use binary
@@ -5446,8 +5435,7 @@ tutorial_step_07 =
 """
 
 tutorial_step_08 =
- """;
-; We can also use binary operators for comparison,
+ """; We can also use binary operators for comparison,
 ; and then use if-then-else expressions based on
 ; their boolean results.
 ;
@@ -5462,8 +5450,7 @@ tutorial_step_08 =
 """
 
 tutorial_step_09 =
- """;
-; EXERCISE: The range library function computes the
+ """; EXERCISE: The range library function computes the
 ; list of numbers between start and end numbers.
 ; Try the expression (range 1 10).
 ;
@@ -5488,14 +5475,13 @@ tutorial_step_09 =
 
 (def main
   (draw [
-    (show (range 1 10))
+    (show [1 2 3 4 5 6 7 8 9 10])
   ]))
 
 """
 
 tutorial_step_10 =
- """;
-; Now we'll see how to draw three basic shapes:
+ """; Now we'll see how to draw three basic shapes:
 ; lines, rectangles, and circles. Notice how
 ; elements later in the list appear on top.
 ;
@@ -5525,8 +5511,7 @@ tutorial_step_10 =
 """
 
 tutorial_step_11 =
- """;
-; As a final example, let's create a pattern of
+ """; As a final example, let's create a pattern of
 ; rectangles, repeated downwards with some space in
 ; between each.
 ;
@@ -5550,8 +5535,7 @@ tutorial_step_11 =
 """
 
 tutorial_step_12 =
- """;
-; So far, we've seen how to write code using the
+ """; So far, we've seen how to write code using the
 ; text editor. Now we'll see some features that
 ; Sketch-n-Sketch provides for automatically
 ; performing code transformations. If you've used
@@ -5565,29 +5549,29 @@ tutorial_step_12 =
 """
 
 tutorial_step_13 =
- """;
-; Here's a red rectangle. We will use the Rename
+ """; Here's a red rectangle. We will use the Rename
 ; code transformation tool to rename the function at
 ; its definition and its call-sites.
 ;
 ; There are a few ways to do this:
 ;
-; (TODO RANDOMIZE ORDER OF 1/2 and 3)
-;
-; 1) Select the text redRect, go to the Edit Code
-; menu, and select the Rename tool. Then enter a new
-; name in the configuration menu, and press OK.
-;
-; 2) Select the text redRect, right-click the code
-; box, and select the Rename tool. Then enter a new
-; name in the configuration menu, and press OK.
-;
-; 3) Hold down the Shift key, hover over redRect,
-; and click the box that pops up over redRect.
-; Release the Shift key and select the Rename tool
-; from the pop-up menu. Then enter a new name in the
-; configuration menu, and press OK.
-;
+; _begin
+; _1 * Select the text redRect, right-click the code
+; _1   box, and select the Rename tool from the pop-up
+; _1   menu. Then enter a new name in the
+; _1   configuration menu, and press OK.
+; _1
+; _2 * Select the text redRect, and select the Rename
+; _2   tool from the Edit Code menu. Then enter a new
+; _2   name in the configuration menu, and press OK.
+; _2
+; _3 * Hold down the Shift key, hover over redRect,
+; _3   click the box that pops up over redRect, and
+; _3   then release the Shift Key. Select the Rename
+; _3   tool from the pop-up menu. Then enter a new
+; _3   name in the configuration menu, and press OK.
+; _3
+; _end
 ; EXERCISE: Perform the renaming with each of the
 ; three interactions. Use Undo after each to reset
 ; the program.
@@ -5601,24 +5585,25 @@ tutorial_step_13 =
 """
 
 tutorial_step_14 =
- """;
-; Now we will use the Create Function tool to turn
+ """; Now we will use the Create Function tool to turn
 ; the definition into a function.
 ;
 ; Like Rename, there are a few ways to do this:
 ;
-; (TODO OPPOSITE ORDER OF 1/2 and 3)
-;
-; 1) Select the text (def redRect ...). Go to the
-; Edit Code menu and select Create Function.
-;
-; 2) Select the text (def redRect ...). Right-click
-; the code box and select Create Function.
-;
-; 3) Hold down the Shift key, hover over and click
-; either the definition (def redRect ...). Release
-; the Shift Key and select Create Function.
-;
+; _begin
+; _1 * Select the text (def redRect ...). Right-click
+; _1   the code box, and select Create Function from
+; _1   the pop-up menu.
+; _1
+; _2 * Select the text (def redRect ...). Select
+; _2   Create Function from the Edit Code Menu.
+; _2
+; _3 * Hold down the Shift key, hover over and click
+; _3   the definition (def redRect ...), and release
+; _3   the Shift Key. Select Create Function from the
+; _3   pop-up menu.
+; _3
+; _end
 ; In each case, there are a couple options for what
 ; to make arguments. Since the point of this
 ; function is to draw a red rectangle, we'll pick
@@ -5639,38 +5624,39 @@ tutorial_step_14 =
 """
 
 tutorial_step_15 =
- """;
-; Now let's introduce variables for the x- and
+ """; Now let's introduce variables for the x- and
 ; y-positions using the Introduce Variable tool.
 ;
-; Again, we can perform these in several ways.
+; This tool is the first one that we have seen
+; which refers to a target position, which is
+; the whitespace between or above other items
+; in the code.
 ;
-; EXERCISE: Select the text 100, go to Edit Code,
-; select Introduce Variable. The configuration pane
-; asks for more information, namely, zero or one
-; target position. To select a target position, we
-; can hover the code and see that boxes for
-; different items light up. We can select the space
-; between definitions as our desired target
-; position.
+; Again, we can perform this in several ways.
 ;
-; EXERCISE: Undo. Select the text 100, go to Edit
-; Code, select Introduce Variable. This time, select
-; the target position inside redRect before the
-; call.
-;
-; EXERCISE: Undo. Select the text 100, this time
-; right-click, and select Introduce Variable. This
-; time, don't select a target position.
-;
-; EXERCISE: Undo. Hold down Shift, hover and click
-; both 100 and 100 and the target position inside
-; redRect. Release the Shift Key, hover and select
-; Introduce Variables.
-;
-; EXERCISE: Undo. Hold down Shift, hover and click
-; both 100 and 100. Release the Shift Key, hover and
-; select Introduce Variables.
+; _begin
+; _1 * Select the text 100, right-click, and
+; _1   select Introduce Variable from the pop-up menu.
+; _1   The configuration pane asks for zero or
+; _1   one target position. Select a target position
+; _1   just inside the redRect definition or above it.
+; _1
+; _2 * Select the text 100, and select
+; _2   Introduce Variable from the Edit Code menu.
+; _2   The configuration pane asks for zero or
+; _2   one target position. Select a target position
+; _2   just inside the redRect definition or above it.
+; _2
+; _3 * Hold down Shift, hover and click
+; _3   both occurrences of 100 and a target position,
+; _3   just inside the redRect definition or above it.
+; _3   Release the Shift Key and select Introduce
+; _3   Variables from the pop-up menu.
+; _3
+; _end
+; EXERCISE: Introduce x and y variables with each of
+; the three interactions. Use Undo after each to
+; reset the program.
 
 (def redRect
   (rect \"salmon\" 100 100 150 80))
@@ -5681,28 +5667,26 @@ tutorial_step_15 =
 """
 
 tutorial_step_16 =
- """;
-; To recap, there are two general mechanisms for
+ """; To recap, there are two general mechanisms for
 ; invoking code transformations.
 ;
-; (TODO SAME ORDER as 1/3 and 3 above)
-;
-; Text Select Mode:
-;
-;  1.  Text select something in the code
-;  2a. Go to Edit Code menu and select a tool
-;  2b. Right-click select a tool from pop-up menu
-;  3.  Follow any instructions and finish
-;
-; Box Select Mode:
-;
-;  1.  Hold down Shift, and hover and click boxes
-;  2.  Select a tool from pop-up menu
-;  3.  Follow any instructions and finish
-;
-; Hitting the Escape key clears any selected boxes.
-; Notice that the Edit Code menu is disabled when
-; using Box Select mode.
+; _begin
+; _1 Text Select Mode:
+; _1
+; _1   1.  Text select something in the code.
+; _1   2a. Select a tool from the Edit Code menu, or
+; _1   2b. Right-click and select a tool from pop-up menu.
+; _1   3.  Follow any instructions and finish.
+; _1
+; _2 Box Select Mode:
+; _2
+; _2   1.  Hold down Shift, and hover and click boxes.
+; _2   2.  Select a tool from pop-up menu.
+; _2   3.  Follow any instructions and finish.
+; _2
+; _2   The Escape key deselects all selected boxes.
+; _2
+; _end
 
 (def main
   (draw [(show \"That's the end of the tutorial!\")]))

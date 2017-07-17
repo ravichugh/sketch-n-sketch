@@ -1,4 +1,3 @@
-;
 ; When a list has a fixed number of elements, we
 ; often call that list a tuple. For example, we
 ; refer to a two-element list as a pair, a

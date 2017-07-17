@@ -1,4 +1,3 @@
-;
 ; We can also use binary operators for comparison,
 ; and then use if-then-else expressions based on
 ; their boolean results.

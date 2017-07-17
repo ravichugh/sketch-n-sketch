@@ -1,4 +1,3 @@
-;
 ; The syntax for a function, also known as a lambda
 ; expression, is shown below. The function
 ; triplicate takes a single argument x, and it
