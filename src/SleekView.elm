@@ -29,6 +29,7 @@ import InterfaceModel as Model exposing
   , MouseMode(..)
   , mkLive_
   , DialogBox(..)
+  , HelpInfo(..)
   , SynthesisResult(..)
   , runAndResolve
   , DeuceTool
@@ -848,6 +849,15 @@ menuBar model =
                   "Next Step ▸"
                   Controller.msgUserStudyNext
               ]
+          , menu "Help"
+              [ [ simpleTextButton
+                    "Text Select Mode"
+                    (Controller.msgOpenDialogBox (Help HelpTextSelectMode))
+                , simpleTextButton
+                    "Box Select Mode"
+                    (Controller.msgOpenDialogBox (Help HelpBoxSelectMode))
+                ]
+              ]
           ]
           -- Quick Action Bar disabled for now
           -- , Html.div
@@ -1394,6 +1404,7 @@ dialogBox
 
 bigDialogBox = dialogBox "100" "85%" "85%"
 smallDialogBox = dialogBox "101" "35%" "35%"
+smallWideDialogBox = dialogBox "101" "50%" "35%"
 
 fileNewDialogBox model =
   let
@@ -1570,6 +1581,45 @@ importCodeDialogBox model =
         ]
     ]
 
+helpDialogBox model helpInfo =
+  smallWideDialogBox
+    True
+    (Help helpInfo)
+    model
+    []
+    [ case helpInfo of
+        HelpTextSelectMode -> Html.text "Text Select Mode..."
+        HelpBoxSelectMode  -> Html.text "Box Select Mode..."
+    ]
+    []
+    [ Html.div
+        [ Attr.class "centered"
+        ]
+        ( let makeList items =
+            Html.ol [] (List.map (\s -> Html.li [] [Html.text s]) items)
+          in
+          case helpInfo of
+            HelpTextSelectMode ->
+              [ makeList
+                  [ "Text select something in the code."
+                  , "Select a tool from either the Edit Code menu or the right-click pop-up menu."
+                  , "Follow any instructions and finish."
+                  ]
+              , Html.br [] []
+              , Html.text "The Escape key resets all selections and tools."
+              ]
+            HelpBoxSelectMode ->
+              [ makeList
+                  [ "Hold down Shift, and hover and click boxes."
+                  , "Select a tool from pop-up menu."
+                  , "Follow any instructions and finish."
+                  ]
+              , Html.br [] []
+              , Html.text "The Escape key deselects all selected boxes."
+              ]
+        )
+    ]
+
 dialogBoxes : Model -> (List (Html Msg))
 dialogBoxes model =
   [ fileNewDialogBox model
@@ -1577,6 +1627,8 @@ dialogBoxes model =
   , fileOpenDialogBox model
   , alertSaveDialogBox model
   , importCodeDialogBox model
+  , helpDialogBox model HelpTextSelectMode
+  , helpDialogBox model HelpBoxSelectMode
   ]
 
 subtleBackground : Html Msg

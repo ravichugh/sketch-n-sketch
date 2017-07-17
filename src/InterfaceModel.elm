@@ -341,26 +341,40 @@ initialLayoutOffsets =
 
 --------------------------------------------------------------------------------
 
-type DialogBox = New | SaveAs | Open | AlertSave | ImportCode
+type DialogBox
+  = New
+  | SaveAs
+  | Open
+  | AlertSave
+  | ImportCode
+  | Help HelpInfo
+
+type HelpInfo
+  = HelpTextSelectMode
+  | HelpBoxSelectMode
+
+dialogBoxes =
+  Utils.mapi0 identity
+    [ New
+    , SaveAs
+    , Open
+    , AlertSave
+    , ImportCode
+    , Help HelpTextSelectMode
+    , Help HelpBoxSelectMode
+    ]
 
 dbToInt : DialogBox -> Int
 dbToInt db =
-  case db of
-    New -> 0
-    SaveAs -> 1
-    Open -> 2
-    AlertSave -> 3
-    ImportCode -> 4
+  case Utils.findFirst (Tuple.second >> (==) db) dialogBoxes of
+    Just (i, _) -> i
+    Nothing     -> Debug.crash <| "Undefined Dialog Box Type: " ++ toString db
 
 intToDb : Int -> DialogBox
 intToDb n =
-  case n of
-    0 -> New
-    1 -> SaveAs
-    2 -> Open
-    3 -> AlertSave
-    4 -> ImportCode
-    _ -> Debug.crash "Undefined Dialog Box Type"
+  case Utils.maybeFind n dialogBoxes of
+    Just db -> db
+    Nothing -> Debug.crash <| "Undefined Dialog Box Id: " ++ toString n
 
 openDialogBox : DialogBox -> Model -> Model
 openDialogBox db model =

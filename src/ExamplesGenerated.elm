@@ -5687,6 +5687,8 @@ tutorial_step_16 =
 ; _2   The Escape key deselects all selected boxes.
 ; _2
 ; _end
+; EXERCISE: Try the Help menu; you'll find these
+; summary instructions there.
 
 (def main
   (draw [(show \"That's the end of the tutorial!\")]))
