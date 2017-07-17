@@ -33,9 +33,7 @@ module InterfaceController exposing
   , msgExportCode, msgExportSvg
   , msgImportCode, msgAskImportCode
   , msgMouseEnterCodeBox, msgMouseLeaveCodeBox
-  , msgMouseClickCodeBox
   , msgReceiveDotImage
-  , msgMoveExp
   , msgMouseClickDeuceWidget
   , msgMouseEnterDeuceWidget, msgMouseLeaveDeuceWidget
   , msgChooseDeuceExp
@@ -449,34 +447,7 @@ onMouseUp old =
 
         _              -> resetMouseMode old
 
-    --(_, MouseDownInCodebox downPos) ->
-    --  let oldPos = pixelToRowColPosition downPos old in
-    --  let newPos = pixelToRowColPosition (Tuple.second old.mouseState) old in
-    --  onMouseDragged (dragSource oldPos old) (dragTarget newPos old)
-    --    { old | mouseMode = MouseNothing }
-
     _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
-
---dragSource pixelPos m =
---  -- TODO: Allow dragging and scrolling (store touched item in MouseDownInCodebox rather than initial position)
---  -- TODO: Allow selection of ECase patterns
---  let maybePathedPatId = getClickedPat (findPats m.inputExp) pixelPos m in
---  let maybeEId   = getClickedEId (computeExpRanges m.inputExp) pixelPos in
---  -- case Debug.log "source maybeEId, source maybePathedPatId" (maybeEId, maybePathedPatId) of
---  case (maybeEId, maybePathedPatId) of
---    (Nothing, Just ppid) -> Just (Left ppid)
---    (Just eid, _)        -> Just (Right eid)
---    _                    -> Nothing
---
---dragTarget pixelPos m =
---  let expTarget = getClickedExpTarget (computeExpTargets m.inputExp) pixelPos in
---  let patTarget = getClickedPatTarget (findPatTargets m.inputExp) pixelPos m in
---  let target = case List.head expTarget of
---                Nothing       -> case List.head patTarget of
---                                    Nothing         -> Nothing
---                                    Just firstPat   -> Just (PatTargetPosition firstPat)
---                Just etarget  -> Just (ExpTargetPosition etarget) in
---  target
 
 tryRun : Model -> Result (String, Maybe Ace.Annotation) Model
 tryRun old =
@@ -1513,61 +1484,6 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
   let codeBoxInfo = m.codeBoxInfo in
   { m | hoveringCodeBox = False }
 
-msgMouseClickCodeBox = Msg "Mouse Click CodeBox" <| \m -> m
-  --let _ = Debug.log "selectedEIds" m.selectedEIds in
-  --let _ = Debug.log "selectedPats" m.selectedPats in
-  --let _ = Debug.log "selectedExpTargets" m.selectedExpTargets in
-  --let _ = Debug.log "selectedPatTargets" m.selectedPatTargets in
-
-  --if showDeuceWidgets m
-  --then
-  --  let downPos = case m.mouseMode of
-  --                  MouseDownInCodebox downPos -> downPos
-  --                  _                          -> { x = 0 , y = 0} in
-  --  let pos = case m.mouseState of
-  --              (Nothing, _) -> downPos
-  --              (_, p)       -> p  in
-  --  let codeBoxInfo = m.codeBoxInfo in
-  --  let mousePos = case m.mouseState of
-  --                  (b, pos) -> pos in
-  --  let pixelPos = pixelToRowColPosition mousePos m in
-  --  let selectedEIds =
-  --    case getClickedEId (computeExpRanges m.inputExp) pixelPos of
-  --      Nothing  -> m.selectedEIds
-  --      Just eid -> if Set.member eid m.selectedEIds
-  --                  then Set.remove eid m.selectedEIds
-  --                  else Set.insert eid m.selectedEIds
-  --  in
-  --  let selectedExpTargets =
-  --    case getClickedExpTarget (computeExpTargets m.inputExp) pixelPos of
-  --      [] -> m.selectedExpTargets
-  --      ls -> getSetMembers ls m.selectedExpTargets
-  --  in
-  --  let selectedPats =
-  --    case getClickedPat (findPats m.inputExp) pixelPos m of
-  --      Nothing  -> m.selectedPats
-  --      Just s -> if Set.member s m.selectedPats
-  --                  then Set.remove s m.selectedPats
-  --                  else Set.insert s m.selectedPats
-  --  in
-  --  let selectedPatTargets =
-  --    case getClickedPatTarget (findPatTargets m.inputExp) pixelPos m of
-  --      [] -> m.selectedPatTargets
-  --      ls -> getSetMembers ls m.selectedPatTargets
-  --  in
-  --  let new = { m | --selectedEIds = selectedEIds
-  --                --selectedPats = selectedPats
-  --                selectedPatTargets = selectedPatTargets
-  --                , selectedExpTargets = selectedExpTargets }
-  --  in
-  --  { new | --expSelectionBoxes = expRangeSelections new
-  --        expTargetSelections = expTargetsToSelect new
-  --        --, patSelectionBoxes = patRangeSelections new
-  --        , patTargetSelections = patTargetsToSelect new
-  --        }
-  --else
-  --  m
-
 toggleDeuceWidget : DeuceWidget -> Model -> Model
 toggleDeuceWidget widget model =
   let
@@ -1617,126 +1533,15 @@ msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString w
               { deuceState
               | hoveredWidgets = [] } }
 
-getSetMembers ls s =
-  case ls of
-    [] -> s
-    first::rest -> if Set.member first s
-                  then Set.remove first (getSetMembers rest s)
-                  else Set.insert first (getSetMembers rest s)
-
---getClickedEId ls pixelPos =
---  let selected =
---    List.filter (\(exp,eid,start,end,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
---  in
---  case selected of
---    []                    -> Nothing
---    [(exp,eid,_,_,_,_)]   -> Just eid
---    _                     -> let _ = Debug.log "WARN: getClickedEId: multiple eids" () in
---                              Nothing
---
---getClickedExpTarget ls pixelPos =
---  let selected =
---    List.filter (\(expTarget,selectStart,selectEnd) -> betweenPos selectStart pixelPos selectEnd) ls
---  in
---    List.map (\(expTarget,start,end) -> expTarget) selected
---
---getClickedPat ls pixelPos m =
---  let selected =
---      List.filter (\(pat,ppid,start,end,selectEnd) -> betweenPos start pixelPos selectEnd) ls
---  in
---  case selected of
---    []                     -> Nothing
---    [(pat,ppid,s,e,se)]    -> Just ppid
---    _                      -> let _ = Debug.log "WARN: getClickedPat: multiple pats" () in
---                                Nothing
---
---getClickedPatTarget ls pixelPos m =
---  let selected =
---    List.filter (\(tid,start,end) -> betweenPos start pixelPos end) ls
---  in
---    List.map (\(tid,start,end) -> tid) selected
-
-msgReceiveDotImage s = Msg "Receive Image" <| \m ->
-  { m | mode = Model.PrintScopeGraph (Just s) }
-
-onMouseDragged
-    : Maybe (Either PathedPatternId EId)
-   -> Maybe TargetPosition
-   -> Model -> Model
-onMouseDragged dragSource dragTarget m =
-  let _ = Debug.log "ignoring drag" (dragSource, dragTarget) in
-{-
-    let new = resetDeuceState m in
-    case Debug.log "source, target" (dragSource, dragTarget) of
-      (Just (Left sourcePathedPatId), Just (ExpTargetPosition (Before, targetEId))) ->
-        movePatBeforeEId sourcePathedPatId targetEId new
-      (Just (Left sourcePathedPatId), Just (PatTargetPosition patTargetPosition)) ->
-        movePatToPat sourcePathedPatId (patTargetPositionToTargetPathedPatId patTargetPosition) new
-      _ ->
-        new
--}
-    m
-
-
-msgMoveExp = Msg "Move Exp" <| \m -> m
-  --let selections =
-  --  -- Debug.log "selections" <|
-  --    { exps = Set.toList m.deuceState.selectedEIds
-  --    , pats = Set.toList m.deuceState.selectedPats
-  --    , patTargets = Set.toList m.deuceState.selectedPatTargets
-  --    , expTargets = Set.toList m.deuceState.selectedExpTargets
-  --    } in
-
-  --let new = resetDeuceState m in
-  --let bad () =
-  --  let _ = Debug.log "bad selections" (selections) in
-  --  new
-  --in
-
-  --let {pats, patTargets, expTargets} = selections in
-  --case (pats, patTargets, expTargets) of
-
-  --  ([sourcePat], [], [(0, targetId)]) ->
-  --    movePatBeforeEId sourcePat targetId new
-
-  --  ([sourcePat], targetPat :: targetPats, []) ->
-  --    movePatToPat_ bad sourcePat targetPat targetPats new
-
-  --  _ ->
-  --    bad ()
-
-
--- movePatBeforeEId sourcePathedPatId targetEId model =
---   let (safeResults, unsafeResults) =
---     CodeMotion.moveDefinitionBeforeEId sourcePathedPatId targetEId model.inputExp
---   in
---   updateWithMoveExpResults model (safeResults, unsafeResults)
---
---
--- movePatToPat sourcePathedPatId targetPathedPatId model =
---   let (safeResults, unsafeResults) =
---     CodeMotion.moveDefinitionPat sourcePathedPatId targetPathedPatId model.inputExp
---   in
---   updateWithMoveExpResults model (safeResults, unsafeResults)
-
-
--- updateWithMoveExpResults model (safeResults, unsafeResults) =
---   -- If exactly one result and it is safe, apply the update to the code immediately.
---   -- Otherwise, place results in the synthesis results box.
---   case (safeResults, unsafeResults) of
---     ([SynthesisResult safeResult], []) ->
---       -- TODO version of upstateRun to avoid unparse then re-parse
---       let newCode = unparse safeResult.exp in
---       upstateRun { model | code = newCode, synthesisResults = [] }
---
---     (safeResults, unsafeResults) ->
---       { model | synthesisResults = safeResults ++ unsafeResults }
-
---------------------------------------------------------------------------------
-
 msgChooseDeuceExp exp = Msg "Choose Deuce Exp" <| \m ->
   -- TODO version of tryRun/upstateRun starting with parsed expression
   upstateRun (resetDeuceState { m | code = unparse exp })
+
+--------------------------------------------------------------------------------
+-- DOT
+
+msgReceiveDotImage s = Msg "Receive Image" <| \m ->
+  { m | mode = Model.PrintScopeGraph (Just s) }
 
 --------------------------------------------------------------------------------
 -- Menu Handling

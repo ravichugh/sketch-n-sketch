@@ -14,7 +14,6 @@ import ShapeWidgets exposing
   , ShapeFeature, Feature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..)
   , FeatureNum(..)
   )
-import Layout exposing (strButtonTopColor, strInterfaceColor)
 import SleekLayout
 import Sync
 import Draw
@@ -41,6 +40,11 @@ import Html.Events exposing
   , onWithOptions, defaultOptions
   )
 
+
+--------------------------------------------------------------------------------
+
+strOldInterfaceColor = "rgba(52,73,94,1.0)"
+strOldButtonTopColor = "rgba(231,76,60,1.0)" -- from InterfaceButtons example
 
 --------------------------------------------------------------------------------
 
@@ -318,7 +322,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     let region =
       flip Svg.rect [] <|
         [ attr "fill" "lightgray"
-        , attr "stroke" strInterfaceColor , attr "stroke-width" "3px"
+        , attr "stroke" strOldInterfaceColor , attr "stroke-width" "3px"
         , attr "rx" "9px" , attr "ry" "9px"
         , attr "x" (toString (xL  + c*wWidget))
         , attr "y" (toString (yBL - r*hWidget))
@@ -334,8 +338,8 @@ buildSvgWidgets wCanvas hCanvas widgets model =
           Cursor ->
             if Set.member nodeIdAndFeatureName model.selectedFeatures
               then colorPointSelected
-              else strInterfaceColor -- colorPointNotSelected
-          _ -> strInterfaceColor
+              else strOldInterfaceColor -- colorPointNotSelected
+          _ -> strOldInterfaceColor
       in
       flip Svg.rect [] <|
         [ attr "fill" color
@@ -353,7 +357,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       let cy = yi + pad + (hSlider//2) in
       flip Svg.circle [] <|
         [ attr "stroke" "black" , attr "stroke-width" "2px"
-        , attr "fill" strButtonTopColor
+        , attr "fill" strOldButtonTopColor
         , attr "r" params.mainSection.uiWidgets.rBall
         , attr "cx" (toString cx) , attr "cy" (toString cy)
         , cursorOfZone ZSlider "default"

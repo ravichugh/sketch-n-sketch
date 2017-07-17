@@ -51,7 +51,6 @@ import Sync
 import Lang exposing (Exp)
 import LangUnparser
 
-import Layout
 import DeuceWidgets exposing (..)
 import Config exposing (params)
 

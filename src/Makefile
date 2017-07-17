@@ -39,7 +39,7 @@ loc:
     Types.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
     InterfaceModel.elm \
-    InterfaceView3.elm Layout.elm Canvas.elm \
+    Canvas.elm \
     SleekView.elm SleekLayout.elm \
     InterfaceController.elm \
     LangTools.elm LangSimplify.elm ValueBasedTransform.elm \
