@@ -13,6 +13,10 @@ class Event
     name == "Key Down 16"
   end
 
+  def shift_up?
+    name == "Key Up 16"
+  end
+
   def escape_down?
     name == "Key Down 27"
   end
@@ -78,13 +82,25 @@ def split_into_head_to_head_tasks(events)
     map { |chunk| [chunk[0]] + chunk[1..-1].slice_after(&:user_study_next?).to_a[0] }
 end
 
+# An interaction is a series of deuce selections
+# Starting when the shift key is depressed
+# Ending when the selections are cleared (via refactoring, or escape key, or deselection) AND the shift key is also not depressed
+#
+# Taps of the shift key that do not result in a selection do not count as an interaction.
 def split_into_deuce_interactions(events)
   interactions = []
   current_interaction = nil
   pending_interaction = nil
+  shift_depressed     = false
   events.each do |event|
+    if event.shift_down?
+      shift_depressed = true
+    elsif event.shift_up?
+      shift_depressed = false
+    end
+
     if current_interaction
-      if event.deuce_selections_count && event.deuce_selections_count == 0
+      if event.deuce_selections_count && event.deuce_selections_count == 0 && !shift_depressed
         interactions << current_interaction
         current_interaction = nil
       else
@@ -110,13 +126,15 @@ def split_into_deuce_interactions(events)
 end
 
 puts [
-  "Participant No",
+  "Participant Number",
+  "Task Number",
   "Task",
   "Treatment",
   "Gross Time",
   "Interaction Time",
-  "#Interactions",
+  "#Interactions Started",
   "Interacting Time",
+  "#Refactorings",
   "#Undo",
   "#Redo",
   "Invocations",
@@ -127,10 +145,16 @@ participant_indices.each do |participant_i|
 
   head_to_head_tasks = split_into_head_to_head_tasks(events)
 
+  task_num = 0
+
   head_to_head_tasks.each do |events|
     task_name = events[0].next_step_task_name
     treatment = events[0].next_step_task_treatment
+
     next if treatment == "ReadOnly"
+
+    task_num += 1
+
     gross_start_time = events[0].time
     gross_end_time   = events[-1].time
 
@@ -169,18 +193,18 @@ participant_indices.each do |participant_i|
 
     puts [
       participant_i,
+      task_num,
       task_name,
       treatment,
       gross_end_time - gross_start_time,
       interaction_end_time - interaction_start_time,
       interactions_count,
       interacting_time,
+      invocations.size - invocations.grep(/^(Undo|Redo)$/).size,
       events.count(&:undo?),
       events.count(&:redo?),
       invocations.join(";"),
     ].join("\t")
-
-    # break
   end
 
 end
