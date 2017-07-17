@@ -35,10 +35,6 @@ def get_participant_number
   end
 end
 
-get "/index.html" do
-  redirect "/"
-end
-
 get "/" do
   get_participant_number # Set participant number on first request.
   send_file(PUBLIC_FOLDER + "/index.html")
