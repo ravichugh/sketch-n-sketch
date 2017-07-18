@@ -760,6 +760,29 @@ a {
 }
 
 /******************************************************************************
+ * Deuce Right Click Menu                                                     *
+ ******************************************************************************/
+
+.deuce-right-click-menu {
+  position: absolute;
+  z-index: 12;
+  /* top: DYNAMIC */
+  /* top: DYNAMIC */
+}
+
+.deuce-right-click-menu.disabled {
+  display: none;
+}
+
+.deuce-right-click-menu .menu-options {
+  display: block;
+  font-size: 0.8em;
+  border-top-color: #555555;
+  top: 16px !important; /* TODO this is the offset */
+  left: 16px !important; /* TODO this is the offset */
+}
+
+/******************************************************************************
  * Popup Panel                                                                *
  ******************************************************************************/
 

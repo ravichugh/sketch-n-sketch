@@ -17,26 +17,7 @@ import Utils
 import HtmlUtils exposing (handleEventAndStop, styleListToString)
 import Either exposing (..)
 
-import InterfaceModel as Model exposing
-  ( Msg(..)
-  , Model
-  , Tool(..)
-  , ShapeToolKind(..)
-  , Mode(..)
-  , ReplicateKind(..)
-  , LambdaTool(..)
-  , Caption(..)
-  , MouseMode(..)
-  , mkLive_
-  , DialogBox(..)
-  , HelpInfo(..)
-  , SynthesisResult(..)
-  , runAndResolve
-  , DeuceTool
-  , CachedDeuceTool
-  , TextSelectMode(..)
-  , PredicateValue(..)
-  )
+import InterfaceModel as Model exposing (..)
 
 import InterfaceController as Controller
 import ExamplesGenerated as Examples
@@ -67,7 +48,6 @@ allButLast xs =
   in
     List.take (len - 1) xs
 
-
 relateDisabled : Model -> Bool
 relateDisabled model =
   Set.isEmpty model.selectedFeatures
@@ -88,6 +68,15 @@ onClickWithoutPropagation handler =
     "click"
     { stopPropagation = True
     , preventDefault = False
+    }
+    (Json.succeed handler)
+
+onRightClick : msg -> Html.Attribute msg
+onRightClick handler =
+  E.onWithOptions
+    "contextmenu"
+    { stopPropagation = True
+    , preventDefault = True
     }
     (Json.succeed handler)
 
@@ -434,7 +423,7 @@ deuceHoverMenu model (index, (deuceTool, results, disabled)) =
       ]
 
 editCodeEntry : Model -> (Int, CachedDeuceTool) -> Html Msg
-editCodeEntry model (index, ((deuceTool, results, _) as cachedDeuceTool)) =
+editCodeEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
   let
     title =
       deuceTool.name ++ "..."
@@ -446,6 +435,54 @@ editCodeEntry model (index, ((deuceTool, results, _) as cachedDeuceTool)) =
       title
       (Controller.msgSetSelectedDeuceTool cachedDeuceTool)
 
+menuHeading : String -> Html Msg
+menuHeading heading =
+  Html.div
+    [ Attr.class "menu-heading"
+    , E.onWithOptions
+        "click"
+        { stopPropagation = True
+        , preventDefault = False
+        }
+        (Json.succeed <| Controller.msgToggleMenu)
+    , Attr.style
+        [ ("height", (px << .height) SleekLayout.menuBar)
+        , ("line-height", (px << .height) SleekLayout.menuBar)
+        , ("padding", "0 " ++
+            (px << half << .height) SleekLayout.menuBar)
+        ]
+    ]
+    [ Html.text heading
+    ]
+
+menuOptions : List (List (Html Msg)) -> Html Msg
+menuOptions options =
+  let
+    menuOptionDivider =
+      Html.div
+        [ Attr.class "menu-option-divider"
+        ]
+        []
+  in
+    Html.div
+      [ Attr.class "menu-options"
+      , Attr.style
+          [ ("top", (px << .height) SleekLayout.menuBar) ]
+      ]
+      ( options
+          |> List.intersperse [ menuOptionDivider ]
+          |> List.concat
+      )
+
+menu : String -> List (List (Html Msg)) -> Html Msg
+menu heading options =
+  Html.div
+    [ Attr.class "menu"
+    ]
+    [ menuHeading heading
+    , menuOptions options
+    ]
+
 menuBar : Model -> Html Msg
 menuBar model =
   let
@@ -454,50 +491,6 @@ menuBar model =
         " active"
       else
         ""
-    menu heading options =
-      let
-        menuHeading =
-          Html.div
-            [ Attr.class "menu-heading"
-            , E.onWithOptions
-                "click"
-                { stopPropagation = True
-                , preventDefault = False
-                }
-                (Json.succeed <| Controller.msgToggleMenu)
-            , Attr.style
-                [ ("height", (px << .height) SleekLayout.menuBar)
-                , ("line-height", (px << .height) SleekLayout.menuBar)
-                , ("padding", "0 " ++
-                    (px << half << .height) SleekLayout.menuBar)
-                ]
-            ]
-            [ Html.text heading
-            ]
-        menuOptions =
-          let
-            menuOptionDivider =
-              Html.div
-                [ Attr.class "menu-option-divider"
-                ]
-                []
-          in
-            Html.div
-              [ Attr.class "menu-options"
-              , Attr.style
-                  [ ("top", (px << .height) SleekLayout.menuBar) ]
-              ]
-              ( options
-                  |> List.intersperse [ menuOptionDivider ]
-                  |> List.concat
-              )
-      in
-        Html.div
-          [ Attr.class "menu"
-          ]
-          [ menuHeading
-          , menuOptions
-          ]
   in
     Html.div
       [ Attr.class "menu-bar"
@@ -751,6 +744,12 @@ menuBar model =
                       "True"
                       "False"
                       Controller.msgSetShowDeucePanel
+                , hoverMenu "Show Deuce Right Click Menu" <|
+                    booleanOption
+                      model.showDeuceRightClickMenu
+                      "True"
+                      "False"
+                      Controller.msgSetShowDeuceRightClickMenu
                 ]
               , [ hoverMenu "Shape Code Templates"
                     [ simpleTextRadioButton
@@ -1033,6 +1032,8 @@ codePanel model =
     editor =
       Html.div
         [ Attr.id "editor"
+        , onRightClick <|
+            Controller.msgDeuceRightClick ShowPossible
         ]
         []
     statusBar =
@@ -1700,6 +1701,59 @@ deuceOverlay model =
       ]
 
 --------------------------------------------------------------------------------
+-- Deuce Right Click Menu
+--------------------------------------------------------------------------------
+-- NOTE: This is very similar to the "Edit Code" menu.
+--------------------------------------------------------------------------------
+
+deuceRightClickMenuEntry : Model -> (Int, CachedDeuceTool) -> List (Html Msg)
+deuceRightClickMenuEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
+  let
+    title =
+      deuceTool.name ++ "..."
+    disabled =
+      List.any Model.predicateImpossible deuceTool.reqs
+  in
+    if disabled then
+      []
+    else
+      [ simpleTextButton
+          title
+          (Controller.msgSetSelectedDeuceTool cachedDeuceTool)
+      ]
+
+deuceRightClickMenu : Model -> Html Msg
+deuceRightClickMenu model =
+  let
+    atLeastOneWidgetSelected =
+      not <| List.isEmpty model.deuceState.selectedWidgets
+    (disabledFlag, position) =
+      case
+        ( model.showDeuceRightClickMenu
+        , model.deuceRightClickMenu
+        )
+      of
+        (True, Just (pos, _)) ->
+          ("", pos)
+        _ ->
+          (" disabled", { x = 0, y = 0 })
+  in
+    Html.div
+      [ Attr.class <| "deuce-right-click-menu" ++ disabledFlag
+      , Attr.style
+          [ ("left", px <| position.x)
+          , ("top", px <| position.y)
+          ]
+      ]
+      [ menuOptions <|
+          List.singleton <|
+            List.concat <|
+              List.concatMap
+                (Utils.mapi1 <| deuceRightClickMenuEntry model)
+                model.deuceToolsAndResults
+      ]
+
+--------------------------------------------------------------------------------
 -- Popup Panels
 --------------------------------------------------------------------------------
 
@@ -1743,39 +1797,6 @@ popupPanel args =
 --------------------------------------------------------------------------------
 -- Deuce Popup Panel
 --------------------------------------------------------------------------------
-
---deucePanel : Model -> Html Msg
---deucePanel model =
---  let
---    (x, y) =
---      model.deucePanelPosition
---    disabledFlag =
---      if not model.showDeucePanel || DeuceTools.noneActive model then
---        " disabled"
---      else
---        ""
---  in
---  Html.div
---    [ Attr.class <| "popup-panel panel" ++ disabledFlag
---    , Attr.style
---        [ ("left", px x)
---        , ("top", px y)
---        ]
---    ]
---    [ Html.div
---        [ Attr.class "dragger"
---        , E.onMouseDown Controller.msgDragDeucePanel
---        ]
---        []
---    , Html.div
---        []
---        ( List.concatMap
---           ( List.filter (Utils.fst3 >> DeuceTools.isActive model) >>
---               Utils.mapi1 (deuceHoverMenu model)
---           )
---           model.deuceToolsAndResults
---        )
---    ]
 
 deucePopupPanel : Model -> Html Msg
 deucePopupPanel model =
@@ -1920,6 +1941,7 @@ view model =
         , menuBar model
         , workArea model
         , deuceOverlay model
+        , deuceRightClickMenu model
         ]
         ++ (popupPanels model)
         ++ [subtleBackground]

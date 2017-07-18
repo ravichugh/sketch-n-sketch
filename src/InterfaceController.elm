@@ -54,8 +54,10 @@ module InterfaceController exposing
   , msgSetShowDeuceInMenuBar
   , msgSetShowEditCodeInMenuBar
   , msgSetShowDeucePanel
+  , msgSetShowDeuceRightClickMenu
   , msgSetTextSelectMode
   , msgSetSelectedDeuceTool
+  , msgDeuceRightClick
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -806,16 +808,21 @@ msgKeyDown keyCode =
         if Model.anyDialogShown old then
           Model.closeAllDialogBoxes old
         else
-          let new = resetDeuceState old in
-          case (old.tool, old.mouseMode) of
-            (Cursor, _) ->
-              { new | selectedFeatures = Set.empty
-                    , selectedShapes = Set.empty
-                    , selectedBlobs = Dict.empty
-                    }
-            (_, MouseNothing)   -> { new | tool = Cursor }
-            (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
-            _                   -> new
+          let
+            new =
+              old
+                |> Model.hideDeuceRightClickMenu
+                |> resetDeuceState
+          in
+            case (old.tool, old.mouseMode) of
+              (Cursor, _) ->
+                { new | selectedFeatures = Set.empty
+                      , selectedShapes = Set.empty
+                      , selectedBlobs = Dict.empty
+                      }
+              (_, MouseNothing)   -> { new | tool = Cursor }
+              (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
+              _                   -> new
       else if keyCode == Keys.keyMeta then
         old
         -- for now, no need to ever put keyMeta in keysDown
@@ -1505,10 +1512,17 @@ toggleDeuceWidget widget model =
           | selectedWidgets =
               newSelectedWidgets
       }
+    newDeuceRightClickMenu =
+      if List.isEmpty newSelectedWidgets then
+        Nothing
+      else
+        model.deuceRightClickMenu
     almostNewModel =
       { model
           | deuceState =
               newDeuceState
+          , deuceRightClickMenu =
+              newDeuceRightClickMenu
       }
     deuceToolsAndResults =
       DeuceTools.createToolCache almostNewModel
@@ -1749,15 +1763,15 @@ msgDragEditCodePopupPanel =
 --------------------------------------------------------------------------------
 -- Text Select
 
-textSelect : Model -> Model
-textSelect old =
+textSelect : Bool -> Model -> Model
+textSelect allowSingleSelection old =
   let
     patMap =
       computePatMap old.inputExp
   in
     case
       old
-        |> Model.primaryCodeObject
+        |> Model.primaryCodeObject allowSingleSelection
         |> Maybe.andThen (toDeuceWidget patMap)
     of
       Just deuceWidget ->
@@ -1765,9 +1779,10 @@ textSelect old =
       Nothing ->
         old
 
-msgTextSelect : Msg
-msgTextSelect =
-  Msg "Text Select" textSelect
+msgTextSelect : Bool -> Msg
+msgTextSelect allowSingleSelection =
+  Msg "Text Select" <|
+    textSelect allowSingleSelection
 
 --------------------------------------------------------------------------------
 -- User Study Operations
@@ -1827,6 +1842,14 @@ msgSetShowDeucePanel bool =
             bool
     }
 
+msgSetShowDeuceRightClickMenu : Bool -> Msg
+msgSetShowDeuceRightClickMenu bool =
+  Msg "Set Show Deuce Right Click Menu" <| \model ->
+    { model
+        | showDeuceRightClickMenu =
+            bool
+    }
+
 msgSetTextSelectMode : TextSelectMode -> Msg
 msgSetTextSelectMode textSelectMode =
   Msg "Set Text Select Mode" <| \model ->
@@ -1848,4 +1871,18 @@ msgSetSelectedDeuceTool cachedDeuceTool =
       }
   in
     Msg "Set Selected Deuce Tool" <|
-      selectedDeuceToolUpdater >> textSelect
+      selectedDeuceToolUpdater >> (textSelect False)
+
+--------------------------------------------------------------------------------
+-- Deuce Right Click
+
+msgDeuceRightClick : DeuceRightClickMenuMode -> Msg
+msgDeuceRightClick menuMode =
+  Msg "Deuce Right Click" <| \model ->
+    let
+      noWidgetsSelected =
+        List.isEmpty model.deuceState.selectedWidgets
+    in
+      model
+        |> textSelect noWidgetsSelected
+        |> showDeuceRightClickMenu menuMode

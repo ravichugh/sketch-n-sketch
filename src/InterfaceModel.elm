@@ -38,8 +38,6 @@ type alias File = {
   code : Code
 }
 
-type alias Html msg = VirtualDom.Node msg
-
 type alias Position = { col : Int, line : Int }
 
 type alias IconName = String
@@ -66,6 +64,9 @@ type TextSelectMode
     -- Match the largest subset range, but also allow additional surrounding
     -- whitespace characters
   | SubsetExtra
+
+type DeuceRightClickMenuMode =
+  ShowPossible
 
 type alias PopupPanelPositions =
   { deuce : (Int, Int)
@@ -143,12 +144,14 @@ type alias Model =
   , viewState : ViewState
   , toolMode : ShapeToolKind
   , popupPanelPositions : PopupPanelPositions
+  , deuceRightClickMenu : Maybe (Mouse.Position, DeuceRightClickMenuMode)
   , userStudyStateIndex : Int
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
   , showDeuceInMenuBar : Bool
   , showEditCodeInMenuBar : Bool
   , showDeucePanel : Bool
+  , showDeuceRightClickMenu : Bool
   , textSelectMode : TextSelectMode
   }
 
@@ -409,6 +412,27 @@ anyDialogShown =
 
 --------------------------------------------------------------------------------
 
+showDeuceRightClickMenu : DeuceRightClickMenuMode -> Model -> Model
+showDeuceRightClickMenu menuMode model =
+  let
+    mousePos =
+      Tuple.second model.mouseState
+  in
+    { model
+        | deuceRightClickMenu =
+            Just (mousePos, menuMode)
+    }
+
+hideDeuceRightClickMenu : Model -> Model
+hideDeuceRightClickMenu model =
+  { model | deuceRightClickMenu = Nothing }
+
+deuceRightClickMenuShown : Model -> Bool
+deuceRightClickMenuShown model =
+  model.deuceRightClickMenu /= Nothing
+
+--------------------------------------------------------------------------------
+
 importCodeFileInputId = "import-code-file-input"
 
 --------------------------------------------------------------------------------
@@ -607,7 +631,8 @@ deuceActive model =
       model.selectedDeuceTool /= Nothing
   in
     (model.enableDeuceBoxSelection && shiftDown) ||
-    (model.enableDeuceTextSelection && toolSelected)
+    (model.enableDeuceTextSelection && toolSelected) ||
+    (deuceRightClickMenuShown model)
 
 --------------------------------------------------------------------------------
 
@@ -641,11 +666,19 @@ isSubsetRange innerRange outerRange =
   in
     startGood && endGood
 
-matchingRange : Model -> Ace.Range -> List (Ace.Range, a) -> Maybe a
-matchingRange model selectedRange =
+matchingRange : Model -> Bool -> Ace.Range -> List (Ace.Range, a) -> Maybe a
+matchingRange model allowSingleSelection selectedRange =
   let
+    textSelectMode =
+      if
+        allowSingleSelection &&
+        selectedRange.start == selectedRange.end
+      then
+        Superset
+      else
+        model.textSelectMode
     (fold, matcher) =
-      case model.textSelectMode of
+      case textSelectMode of
         Strict ->
           (List.foldl, isRangeEqual)
         Superset ->
@@ -715,32 +748,27 @@ rangeFromInfo info =
       }
   }
 
-primaryCodeObject : Model -> Maybe CodeObject
-primaryCodeObject model =
+primaryCodeObject : Bool -> Model -> Maybe CodeObject
+primaryCodeObject allowSingleSelection model =
   case model.codeBoxInfo.selections of
     -- Note that when nothing is selected, Ace treats the current selection
     -- as just the range [cursorPos, cursorPos]. Thus, this pattern handles
     -- all the cases that we need.
     [ selection ] ->
-      -- If there is nothing currently selected, this "selection" will simply be
-      -- the cursor position. For now, we will just ignore this, but this will
-      -- probably be used for handling the right click menu.
-      if selection.start == selection.end then
-        Nothing
-      else
-        matchingRange
-          model
-          selection
-          ( List.map
-              ( \codeObject ->
-                  ( rangeFromInfo << extractInfoFromCodeObject <| codeObject
-                  , codeObject
-                  )
-              )
-              ( flattenToCodeObjects << E <|
-                  model.inputExp
-              )
-          )
+      matchingRange
+        model
+        allowSingleSelection
+        selection
+        ( List.map
+            ( \codeObject ->
+                ( rangeFromInfo << extractInfoFromCodeObject <| codeObject
+                , codeObject
+                )
+            )
+            ( flattenToCodeObjects << E <|
+                model.inputExp
+            )
+        )
     _ ->
       Nothing
 
@@ -852,11 +880,13 @@ initModel =
         { deuce = (200, 200)
         , editCode = (400, 400)
         }
+    , deuceRightClickMenu = Nothing
     , userStudyStateIndex = 1
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
     , showDeuceInMenuBar = True
     , showEditCodeInMenuBar = True
     , showDeucePanel = True
+    , showDeuceRightClickMenu = True
     , textSelectMode = SubsetExtra
     }
