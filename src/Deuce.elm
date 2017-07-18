@@ -570,7 +570,11 @@ expPolygon codeInfo e =
     color =
       objectColor
   in
-    codeObjectPolygon codeInfo codeObject color
+    case e.val.e__ of
+      EComment _ _ _ ->
+        []
+      _ ->
+        codeObjectPolygon codeInfo codeObject color
 
 patPolygon
   : CodeInfo -> Exp -> Pat -> List (Svg Msg)
