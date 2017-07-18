@@ -8,7 +8,6 @@ module DeuceTools exposing
   , reselectDeuceTool
   , updateRenameToolsInCache
   , isActive
-  , noneActive
   , isRenamer
   )
 
@@ -2082,38 +2081,17 @@ updateRenameToolsInCache almostNewModel =
 -- Run a tool, and maybe get some results back (if it is active)
 runTool : Model -> DeuceTool -> Maybe (List SynthesisResult)
 runTool model deuceTool =
-  case (Model.needsRun model, deuceTool.func) of
-    (False, Just f) ->
-      Just <| f ()
+  case deuceTool.func of
+    Just f ->
+      Just <|
+        f ()
     _ ->
       Nothing
 
 -- Check if a tool is active without running it
 isActive : Model -> DeuceTool -> Bool
 isActive model deuceTool =
-  (not <| Model.needsRun model) && (deuceTool.func /= Nothing)
-
--- TODO: This is a workaround to ensure that there is no race condition wherein
---       the controller thinks that there are no active tools for a *split*
---       second when hovering off of a tool. This happens because
---       `Model.needsRun` (in isActive) returns true for a *brief* instant. This
---       is what the code *should* look like:
---
--- noneActive : Model -> Bool
--- noneActive model =
---   model
---     |> deuceTools
---     |> List.concat
---     |> List.filter (isActive model)
---     |> List.isEmpty
---
-noneActive : Model -> Bool
-noneActive model =
-  model
-    |> deuceTools
-    |> List.concat
-    |> List.filter ((/=) Nothing << .func)
-    |> List.isEmpty
+  deuceTool.func /= Nothing
 
 -- Check if a given tool is a renaming tool
 isRenamer : DeuceTool -> Bool

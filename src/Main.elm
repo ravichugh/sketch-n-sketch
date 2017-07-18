@@ -62,6 +62,7 @@ subscriptions model =
     , Keyboard.downs Controller.msgKeyDown
     , Keyboard.ups Controller.msgKeyUp
     , AceCodeBox.receiveEditorState Controller.msgAceUpdate
+    , AceCodeBox.userHasTyped (always Controller.msgUserHasTyped)
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.writeConfirmation Controller.msgConfirmWrite
     , FileHandler.deleteConfirmation Controller.msgConfirmDelete

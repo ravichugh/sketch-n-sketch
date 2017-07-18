@@ -3,6 +3,8 @@
 // The padding that Ace puts on its content
 var CONTENT_PADDING_LEFT = 4;
 
+var userCoding = true;
+
 var editor;
 var markers = [];
 var fontSize = 16;
@@ -39,6 +41,11 @@ function initialize() {
   editor.getSession().on("changeScrollLeft", function() {
       var info = getEditorState();
       app.ports.receiveEditorState.send(info);
+  });
+  editor.getSession().on("change", function() {
+    if (userCoding) {
+      app.ports.userHasTyped.send(null);
+    }
   });
 
   // Ace Editor has a bug in which it does not resize when its height is changed
@@ -132,7 +139,9 @@ function display(info) {
 }
 
 function displayCode(code) {
+  userCoding = false;
   editor.getSession().setValue(code, 0);
+  userCoding = true;
 }
 
 function displayCursor(cursorPos) {

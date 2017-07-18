@@ -7,6 +7,7 @@ module InterfaceController exposing
   , msgMouseIsDown, msgMousePosition
   , msgRun, upstateRun, msgTryParseRun
   , msgAceUpdate
+  , msgUserHasTyped
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate
   , msgSelectSynthesisResult, msgClearSynthesisResults
@@ -665,21 +666,30 @@ msgCodeUpdate s = Msg "Code Update" <| \old ->
 msgRun = Msg "Run" <| \old -> upstateRun old
 
 msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
-    if old.preview /= Nothing then
-      old
-    else
-      let
-        isSame =
-          old.lastSaveState == Just aceCodeBoxInfo.code
-      in
-        { old
-            | code =
-                aceCodeBoxInfo.code
-            , codeBoxInfo =
-                aceCodeBoxInfo.codeBoxInfo
-            , needsSave =
-                not isSame
-        }
+  if old.preview /= Nothing then
+    old
+  else
+    let
+      needsSave =
+        old.lastSaveState /= Just aceCodeBoxInfo.code
+    in
+      { old
+          | code =
+              aceCodeBoxInfo.code
+          , codeBoxInfo =
+              aceCodeBoxInfo.codeBoxInfo
+          , needsSave =
+              needsSave
+      }
+
+msgUserHasTyped : Msg
+msgUserHasTyped =
+  Msg "User Has Typed" <| \model ->
+    let _ = Debug.log "HAPPENS" () in
+    { model
+        | deuceState =
+            emptyDeuceState
+    }
 
 upstateRun old =
   case tryRun old of
@@ -768,7 +778,7 @@ msgMousePosition pos_ =
         (Just True, oldPos_) ->
           onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
     deucePopupPanelPositionUpdater old =
-      if DeuceTools.noneActive old then
+      if Model.noWidgetsSelected old then
         let
           -- Compute new position
           newDeucePopupPanelPosition =
@@ -835,8 +845,23 @@ msgKeyDown keyCode =
         -- of this another way.
         old
       -}
-      else if keyCode == Keys.keyShift && Model.needsRun old then
-        upstateRun old -- same as msgRun
+      else if keyCode == Keys.keyShift then
+        let
+          parseResult =
+            parseE old.code
+          (newInputExp, codeClean) =
+            case parseResult of
+              Ok exp ->
+                (exp, True)
+              Err _ ->
+                (old.inputExp, False)
+        in
+          { old
+              | inputExp =
+                  newInputExp
+              , codeClean =
+                  codeClean
+          }
       else if not (List.member keyCode old.keysDown) then
         { old | keysDown = keyCode :: old.keysDown }
       else
@@ -1881,10 +1906,6 @@ msgSetSelectedDeuceTool cachedDeuceTool =
 msgDeuceRightClick : DeuceRightClickMenuMode -> Msg
 msgDeuceRightClick menuMode =
   Msg "Deuce Right Click" <| \model ->
-    let
-      noWidgetsSelected =
-        List.isEmpty model.deuceState.selectedWidgets
-    in
-      model
-        |> textSelect noWidgetsSelected
-        |> showDeuceRightClickMenu menuMode
+    model
+      |> textSelect (Model.noWidgetsSelected model)
+      |> showDeuceRightClickMenu menuMode

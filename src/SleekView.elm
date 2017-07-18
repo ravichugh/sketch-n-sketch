@@ -1823,7 +1823,8 @@ deucePopupPanel model =
     { pos =
         model.popupPanelPositions.deuce
     , disabled =
-        not model.showDeucePanel || DeuceTools.noneActive model
+        (not model.showDeucePanel) ||
+        (Model.noWidgetsSelected model)
     , dragHandler =
         Controller.msgDragDeucePopupPanel
     , class =

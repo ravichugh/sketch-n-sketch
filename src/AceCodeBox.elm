@@ -1,6 +1,7 @@
 port module AceCodeBox exposing
   ( initializeAndDisplay, display, resize, updateFontSize
   , receiveEditorState
+  , userHasTyped
   )
 
 import InterfaceModel as Model exposing (Model, AceCodeBoxInfo)
@@ -35,3 +36,4 @@ sendCmd message model =
 -- Incoming
 
 port receiveEditorState : (AceCodeBoxInfo -> msg) -> Sub msg
+port userHasTyped : (() -> msg) -> Sub msg

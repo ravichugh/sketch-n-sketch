@@ -153,6 +153,7 @@ type alias Model =
   , showDeucePanel : Bool
   , showDeuceRightClickMenu : Bool
   , textSelectMode : TextSelectMode
+  , codeClean : Bool
   }
 
 type Mode
@@ -630,9 +631,11 @@ deuceActive model =
     toolSelected =
       model.selectedDeuceTool /= Nothing
   in
-    (model.enableDeuceBoxSelection && shiftDown) ||
-    (model.enableDeuceTextSelection && toolSelected) ||
-    (deuceRightClickMenuShown model)
+    model.codeClean &&
+    ( (model.enableDeuceBoxSelection && shiftDown) ||
+      (model.enableDeuceTextSelection && toolSelected) ||
+      (deuceRightClickMenuShown model)
+    )
 
 --------------------------------------------------------------------------------
 
@@ -789,6 +792,12 @@ codeObjectFromSelection allowSingleSelection model =
 
 --------------------------------------------------------------------------------
 
+noWidgetsSelected : Model -> Bool
+noWidgetsSelected model =
+  List.isEmpty model.deuceState.selectedWidgets
+
+--------------------------------------------------------------------------------
+
 -- initTemplate = "BLANK"
 initTemplate = "Deuce Study Start"
 
@@ -904,4 +913,5 @@ initModel =
     , showDeucePanel = True
     , showDeuceRightClickMenu = True
     , textSelectMode = SubsetExtra
+    , codeClean = True
     }
