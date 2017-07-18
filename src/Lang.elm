@@ -2244,14 +2244,21 @@ childCodeObjects co =
           ELet ws1 lk _ p1 e1 e2 ws2 ->
             [ ET Before ws1 e
             , LBE
+                -- TODO LBE Bounds
                 { start =
                     { line =
                         e.start.line
                     , col =
-                        e.start.col + 1
+                        if lk == Def then
+                          e.start.col
+                        else
+                          e.start.col + 1
                     }
                 , end =
-                    e1.end
+                    if lk == Def then
+                      e.end
+                    else
+                      e1.end
                 , val =
                     e.val.eid
                 }

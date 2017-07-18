@@ -748,8 +748,8 @@ rangeFromInfo info =
       }
   }
 
-primaryCodeObject : Bool -> Model -> Maybe CodeObject
-primaryCodeObject allowSingleSelection model =
+codeObjectFromSelection : Bool -> Model -> Maybe CodeObject
+codeObjectFromSelection allowSingleSelection model =
   case model.codeBoxInfo.selections of
     -- Note that when nothing is selected, Ace treats the current selection
     -- as just the range [cursorPos, cursorPos]. Thus, this pattern handles
@@ -759,11 +759,26 @@ primaryCodeObject allowSingleSelection model =
         model
         allowSingleSelection
         selection
-        ( List.map
+        -- Ignore Def code objects for now
+        ( List.concatMap
             ( \codeObject ->
-                ( rangeFromInfo << extractInfoFromCodeObject <| codeObject
-                , codeObject
-                )
+                let
+                  default =
+                    [ ( rangeFromInfo << extractInfoFromCodeObject <|
+                          codeObject
+                      , codeObject
+                      )
+                    ]
+                in
+                  case codeObject of
+                    E e ->
+                      case e.val.e__ of
+                        (ELet _ Def _ _ _ _ _) ->
+                          []
+                        _ ->
+                          default
+                    _ ->
+                      default
             )
             ( flattenToCodeObjects << E <|
                 model.inputExp

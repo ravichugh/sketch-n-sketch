@@ -1771,7 +1771,7 @@ textSelect allowSingleSelection old =
   in
     case
       old
-        |> Model.primaryCodeObject allowSingleSelection
+        |> Model.codeObjectFromSelection allowSingleSelection
         |> Maybe.andThen (toDeuceWidget patMap)
     of
       Just deuceWidget ->
