@@ -524,11 +524,20 @@ codeObjectPolygon codeInfo codeObject color =
           List.member deuceWidget codeInfo.deuceState.hoveredWidgets
         active =
           List.member deuceWidget codeInfo.deuceState.selectedWidgets
-        (baseAlpha, cursorStyle) =
-          if hovered || active then
-            (1, "pointer")
+        baseAlpha =
+          if active && hovered then
+            1
+          else if active then
+            1 -- 0.75
+          else if hovered then
+            1 -- 0.5
           else
-            (0, "default")
+            0
+        (cursorStyle) =
+          if hovered || active then
+            "pointer"
+          else
+            "default"
       in
         [ Svg.g
             [ SAttr.style << styleListToString <|
@@ -537,14 +546,15 @@ codeObjectPolygon codeInfo codeObject color =
             , SE.onMouseOver onMouseOver
             , SE.onMouseOut onMouseOut
             , SE.onClick onClick
+            , SAttr.opacity <| toString baseAlpha
             ]
-            [ circleHandles codeInfo codeObject color baseAlpha 3
+            [ circleHandles codeInfo codeObject color 1 3
             , Svg.polygon
                 [ SAttr.points <|
                     codeObjectHullPoints codeInfo codeObject
                 , SAttr.strokeWidth strokeWidth
-                , SAttr.stroke <| rgbaString color baseAlpha
-                , SAttr.fill <| rgbaString color (0.2 * baseAlpha)
+                , SAttr.stroke <| rgbaString color 1
+                , SAttr.fill <| rgbaString color 0.2
                 ]
                 []
             ]
