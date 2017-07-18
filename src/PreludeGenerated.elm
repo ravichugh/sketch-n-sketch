@@ -1668,7 +1668,10 @@ prelude =
 
 (def draw svg)
 
-(def show (\\val (text 20 30 (toString val))))
+(def show (\\val
+   ['text' [['x' 20] ['y' 30] ['style' 'fill:black']
+            ['font-family' 'monospace']]
+           [['TEXT' (toString val)]]]))
 
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
