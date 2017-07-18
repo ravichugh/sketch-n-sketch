@@ -275,6 +275,9 @@ lineHullsFromCode di code =
 --= HULL FUNCTIONS
 --==============================================================================
 
+zeroWidthPadding : Float
+zeroWidthPadding = 2
+
 -- NOTE: Use 0-indexing for columns and rows.
 hull : CodeInfo -> Bool -> Int -> Int -> Int -> Int -> Hull
 hull codeInfo useTrimmed startCol startRow endCol endRow =
@@ -287,6 +290,7 @@ hull codeInfo useTrimmed startCol startRow endCol endRow =
     relevantLines =
       Utils.slice (startRow + 1) endRow lineHulls
   in
+    -- Multi-line
     if startRow /= endRow then
       -- Left of first line
       ( List.map (c2a codeInfo.displayInfo)
@@ -325,6 +329,20 @@ hull codeInfo useTrimmed startCol startRow endCol endRow =
           Maybe.withDefault [] <|
             Utils.maybeGeti0 startRow lineHulls
       )
+    -- Zero-width
+    else if startCol == endCol then
+      let
+        (x, yTop) =
+          c2a codeInfo.displayInfo (startCol, startRow)
+        (_, yBottom) =
+          c2a codeInfo.displayInfo (startCol, startRow + 1)
+      in
+        [ (x - zeroWidthPadding, yTop)
+        , (x - zeroWidthPadding, yBottom)
+        , (x + zeroWidthPadding, yBottom)
+        , (x + zeroWidthPadding, yTop)
+        ]
+    -- Single-line, nonzero-width
     else
       List.map (c2a codeInfo.displayInfo)
         [ (startCol, startRow)
