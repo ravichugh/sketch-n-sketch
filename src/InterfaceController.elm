@@ -1868,6 +1868,8 @@ msgSetSelectedDeuceTool cachedDeuceTool =
       { model
           | selectedDeuceTool =
               Just cachedDeuceTool
+          , deuceRightClickMenu =
+              Nothing
       }
   in
     Msg "Set Selected Deuce Tool" <|
