@@ -343,7 +343,7 @@ groupHoverMenu model title onMouseEnter disallowSelectedFeatures =
     onMouseEnter
     (groupDisabled disallowSelectedFeatures model)
 
-deuceSynthesisResult : Model -> (List Int) -> Bool -> SynthesisResult -> Html Msg
+deuceSynthesisResult : Model -> List Int -> Bool -> SynthesisResult -> Html Msg
 deuceSynthesisResult model path isRenamer (SynthesisResult result) =
   let
     (preview, class) =
@@ -398,6 +398,27 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
       False
       []
 
+deuceSynthesisResults
+  : Model -> List Int -> Bool -> List SynthesisResult -> List (Html Msg)
+deuceSynthesisResults model path isRenamer results =
+  if List.isEmpty results then
+    [ generalHtmlHoverMenu "transformation-oops"
+        [ Html.span
+            []
+            [ Html.text "Oops! Can't apply transformation after all."
+            ]
+        ]
+        Controller.msgNoop
+        Controller.msgNoop
+        Controller.msgNoop
+        True
+        []
+    ]
+  else
+    List.map
+      (deuceSynthesisResult model path isRenamer)
+      results
+
 deuceHoverMenu : Model -> (Int, CachedDeuceTool) -> Html Msg
 deuceHoverMenu model (index, (deuceTool, results, disabled)) =
   let
@@ -417,9 +438,7 @@ deuceHoverMenu model (index, (deuceTool, results, disabled)) =
       [ Html.div
           [ Attr.class "synthesis-results"
           ] <|
-          List.map
-            (deuceSynthesisResult model path isRenamer)
-            results
+          deuceSynthesisResults model path isRenamer results
       ]
 
 editCodeEntry : Model -> (Int, CachedDeuceTool) -> Html Msg
@@ -1878,9 +1897,7 @@ editCodePopupPanel model =
                   , Html.div
                       [ Attr.class "synthesis-results"
                       ] <|
-                      List.map
-                        (deuceSynthesisResult model path isRenamer)
-                        results
+                      deuceSynthesisResults model path isRenamer results
                   ]
                 else
                   []

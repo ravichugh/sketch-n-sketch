@@ -673,6 +673,9 @@ a {
   line-height: 1.4em;
   white-space: normal;
   border-bottom: 1px solid #333333;
+}
+
+.synthesis-results .hover-menu .text-button:not(.disabled) {
   cursor: pointer;
 }
 
