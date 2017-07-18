@@ -492,6 +492,20 @@ fancyHandles codeInfo codeObject color opacity radius =
 -- Polygons
 --------------------------------------------------------------------------------
 
+objectColor : Color
+objectColor =
+  { r = 200
+  , g = 200
+  , b = 100
+  }
+
+whitespaceColor : Color
+whitespaceColor =
+  { r = 0
+  , g = 200
+  , b = 200
+  }
+
 codeObjectPolygon
   : CodeInfo -> CodeObject -> Color -> List (Svg Msg)
 codeObjectPolygon codeInfo codeObject color =
@@ -543,10 +557,7 @@ expPolygon codeInfo e =
     codeObject =
       E e
     color =
-      { r = 200
-      , g = 0
-      , b = 0
-      }
+      objectColor
   in
     codeObjectPolygon codeInfo codeObject color
 
@@ -557,10 +568,7 @@ patPolygon codeInfo e p =
     codeObject =
       P e p
     color =
-      { r = 0
-      , g = 200
-      , b = 0
-      }
+      objectColor
   in
     codeObjectPolygon codeInfo codeObject color
 
@@ -571,10 +579,7 @@ letBindingEquationPolygon codeInfo eid =
     codeObject =
       LBE eid
     color =
-      { r = 200
-      , g = 200
-      , b = 100
-      }
+      objectColor
   in
     codeObjectPolygon codeInfo codeObject color
 
@@ -585,10 +590,7 @@ expTargetPolygon codeInfo ba ws et =
     codeObject =
       ET ba ws et
     color =
-      { r = 200
-      , g = 0
-      , b = 200
-      }
+      whitespaceColor
   in
     codeObjectPolygon codeInfo codeObject color
 
@@ -599,10 +601,7 @@ patTargetPolygon codeInfo ba ws e pt =
     codeObject =
       PT ba ws e pt
     color =
-      { r = 0
-      , g = 200
-      , b = 200
-      }
+      whitespaceColor
   in
     codeObjectPolygon codeInfo codeObject color
 
