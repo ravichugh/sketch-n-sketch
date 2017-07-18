@@ -2125,6 +2125,108 @@ wsBefore codeObject =
     TT _ ws _ ->
       ws
 
+modifyWsBefore : (WS -> WS) -> CodeObject -> CodeObject
+modifyWsBefore f codeObject =
+  case codeObject of
+    E e ->
+      let
+        eVal =
+          e.val
+        newE__ =
+          case eVal.e__ of
+            EConst ws a b c ->
+              EConst (f ws) a b c
+            EBase ws a ->
+              EBase (f ws) a
+            EVar ws a ->
+              EVar (f ws) a
+            EFun ws a b c ->
+              EFun (f ws) a b c
+            EApp ws a b c ->
+              EApp (f ws) a b c
+            EOp ws a b c ->
+              EOp (f ws) a b c
+            EList ws a b c d ->
+              EList (f ws) a b c d
+            EIf ws a b c d ->
+              EIf (f ws) a b c d
+            ECase ws a b c  ->
+              ECase (f ws) a b c
+            ETypeCase ws a b c ->
+              ETypeCase (f ws) a b c
+            ELet ws a b c d e_ f_ ->
+              ELet (f ws) a b c d e_ f_
+            EComment ws a b ->
+              EComment (f ws) a b
+            EOption ws a b c d ->
+              EOption (f ws) a b c d
+            ETyp ws a b c d  ->
+              ETyp (f ws) a b c d
+            EColonType ws a b c d  ->
+              EColonType (f ws) a b c d
+            ETypeAlias ws a b c d  ->
+              ETypeAlias (f ws) a b c d
+      in
+        E { e | val = { eVal | e__ = newE__ } }
+    P e p ->
+      let
+        pVal =
+          p.val
+        newP__ =
+          case pVal.p__ of
+            PVar ws a b ->
+              PVar (f ws) a b
+            PConst ws a ->
+              PConst (f ws) a
+            PBase ws a ->
+              PBase (f ws) a
+            PList ws a b c d ->
+              PList (f ws) a b c d
+            PAs ws a b c ->
+              PAs (f ws) a b c
+      in
+        P e { p | val = { pVal | p__ = newP__ } }
+    T t ->
+      let
+        newVal =
+          case t.val of
+            TNum ws ->
+              TNum (f ws)
+            TBool ws ->
+              TBool (f ws)
+            TString ws ->
+              TString (f ws)
+            TNull ws ->
+              TNull (f ws)
+            TList ws a b ->
+              TList (f ws) a b
+            TDict ws a b c ->
+              TDict (f ws) a b c
+            TTuple ws a b c d ->
+              TTuple (f ws) a b c d
+            TArrow ws a b ->
+              TArrow (f ws) a b
+            TUnion ws a b ->
+              TUnion (f ws) a b
+            TNamed ws a ->
+              TNamed (f ws) a
+            TVar ws a ->
+              TVar (f ws) a
+            TForall ws a b c ->
+              TForall (f ws) a b c
+            TWildcard ws ->
+              TWildcard (f ws)
+      in
+        T { t | val = newVal }
+    LBE eid ->
+      LBE eid
+    ET a ws b ->
+      ET a (f ws) b
+    PT a ws b c ->
+      PT a (f ws) b c
+    TT a ws b ->
+      TT a (f ws) b
+
 childCodeObjects : CodeObject -> List CodeObject
 childCodeObjects co =
   case co of
@@ -2242,40 +2344,74 @@ childCodeObjects co =
                 tbranches
             )
           ELet ws1 lk _ p1 e1 e2 ws2 ->
-            [ ET Before ws1 e
-            , LBE
-                -- TODO LBE Bounds
-                { start =
-                    { line =
-                        e.start.line
-                    , col =
-                        if lk == Def then
-                          e.start.col
-                        else
-                          e.start.col + 1
-                    }
-                , end =
-                    if lk == Def then
-                      e.end
-                    else
-                      e1.end
-                , val =
-                    e.val.eid
-                }
-            , P e p1
-            , E e1
-            , PT After (wsBefore << E <| e1) e p1
-            ] ++
-            ( case lk of
-                Let ->
-                  [ E e2
-                  , ET After ws2 e2
-                  ]
-                Def ->
-                  [ ET After ws2 e1
-                  , E e2
-                  ]
-            )
+            let
+              -- TODO Altered Whitespace
+              (maybeAfterAws, e1Aws) =
+                let
+                  e1Ws =
+                    wsBefore << E <| e1
+                in
+                  if e1Ws.start.line == e1Ws.end.line then
+                    ( Nothing
+                    , e1Ws
+                    )
+                  else
+                    let
+                      breakpoint =
+                        { line =
+                            e1Ws.start.line + 1
+                          , col =
+                              1
+                        }
+                      afterAws =
+                        { e1Ws | end = breakpoint }
+                      e1Aws =
+                        { e1Ws | start = breakpoint }
+                    in
+                      ( Just afterAws
+                      , e1Aws
+                      )
+            in
+              [ ET Before ws1 e
+              , LBE
+                  -- TODO LBE Bounds
+                  { start =
+                      { line =
+                          e.start.line
+                      , col =
+                          if lk == Def then
+                            e.start.col
+                          else
+                            e.start.col + 1
+                      }
+                  , end =
+                      if lk == Def then
+                        e.end
+                      else
+                        e1.end
+                  , val =
+                      e.val.eid
+                  }
+              , P e p1
+              , modifyWsBefore (always e1Aws) <|
+                  E e1
+              ] ++
+              ( case maybeAfterAws of
+                  Just aws ->
+                    [ PT After aws e p1 ]
+                  Nothing ->
+                    []
+              ) ++
+              ( case lk of
+                  Let ->
+                    [ E e2
+                    , ET After ws2 e2
+                    ]
+                  Def ->
+                    [ ET After ws2 e1
+                    , E e2
+                    ]
+              )
           EComment ws1 _ e1 ->
             [ ET Before ws1 e
             , E e1
