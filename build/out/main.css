@@ -855,7 +855,7 @@ a {
 }
 
 .requirements-list .fully-satisfied:after {
-  content: " (Fully Satisfied)";
+  content: " (Satisfied)";
   font-style: italic;
 }
 
@@ -872,8 +872,6 @@ a {
 }
 
 .requirements-list .possible:after {
-  content: " (Possible)";
-  font-style: italic;
 }
 
 .requirements-list .impossible {
@@ -881,6 +879,6 @@ a {
 }
 
 .requirements-list .impossible:after {
-  content: " (Impossible)";
+  content: " (Invalid Selections)";
   font-style: italic;
 }

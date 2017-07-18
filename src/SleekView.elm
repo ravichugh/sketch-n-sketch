@@ -1842,8 +1842,40 @@ editCodePopupPanel model =
               isRenamer =
                 DeuceTools.isRenamer deuceTool
             in
+              [ Html.h2
+                  []
+                  [ Html.text "Requirements" ]
+              , Html.ul
+                  [ Attr.class "requirements-list"
+                  ]
+                  ( List.map
+                      ( \{description, value} ->
+                          let
+                            class =
+                              case value of
+                                FullySatisfied ->
+                                  "fully-satisfied"
+                                Satisfied ->
+                                  "satisfied"
+                                Possible ->
+                                  "possible"
+                                Impossible ->
+                                  "impossible"
+                          in
+                            Html.li
+                              [ Attr.class class
+                              ]
+                              [ Html.text description
+                              ]
+                      )
+                      deuceTool.reqs
+                  )
+              ] ++
               ( if List.all Model.predicateSatisfied deuceTool.reqs then
-                  [ Html.div
+                  [ Html.h2
+                      []
+                      [ Html.text "Code Updates" ]
+                  , Html.div
                       [ Attr.class "synthesis-results"
                       ] <|
                       List.map
@@ -1852,41 +1884,6 @@ editCodePopupPanel model =
                   ]
                 else
                   []
-              ) ++
-              -- Only show requiments if there are some that are not fully
-              -- satisfied
-              ( if List.all Model.predicateFullySatisfied deuceTool.reqs then
-                  []
-                else
-                  [ Html.h2
-                      []
-                      [ Html.text "Requirements" ]
-                  , Html.ul
-                      [ Attr.class "requirements-list"
-                      ]
-                      ( List.map
-                          ( \{description, value} ->
-                              let
-                                class =
-                                  case value of
-                                    FullySatisfied ->
-                                      "fully-satisfied"
-                                    Satisfied ->
-                                      "satisfied"
-                                    Possible ->
-                                      "possible"
-                                    Impossible ->
-                                      "impossible"
-                              in
-                                Html.li
-                                  [ Attr.class class
-                                  ]
-                                  [ Html.text description
-                                  ]
-                          )
-                          deuceTool.reqs
-                      )
-                  ]
               )
           )
   in
