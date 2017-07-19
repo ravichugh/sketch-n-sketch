@@ -1618,8 +1618,19 @@ helpDialogBox model helpInfo =
     [ Html.div
         [ Attr.class "centered"
         ]
-        ( let makeList items =
-            Html.ol [] (List.map (\s -> Html.li [] [Html.text s]) items)
+        ( let
+            makeList items =
+              Html.ol
+                [ Attr.class "help-list"
+                ]
+                ( List.map
+                    ( \s ->
+                        Html.li
+                          []
+                          [ Html.text s ]
+                    )
+                    items
+                )
           in
           case helpInfo of
             HelpSyntax ->
