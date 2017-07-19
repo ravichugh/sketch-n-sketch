@@ -28,7 +28,7 @@ import InterfaceController as Controller
 import Lang exposing
   ( WithInfo
   , WS
-  , BeforeAfter
+  , BeforeAfter(..)
   , Exp
   , Exp__(..)
   , Pat
@@ -641,8 +641,8 @@ patTargetPolygon codeInfo ba ws e pt =
       default =
         codeObjectPolygon codeInfo codeObject color
     in
-      case e.val.e__ of
-        ELet _ Def _ p1 e1 _ _ ->
+      case (ba, e.val.e__) of
+        (After, ELet _ Def _ p1 e1 _ _) ->
           let
             e1WsBefore =
               Lang.wsBefore << E <| e1
