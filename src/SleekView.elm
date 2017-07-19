@@ -593,7 +593,7 @@ menuBar model =
               []
           ) ++
           ( if model.showEditCodeInMenuBar then
-              [ menu "Edit Code" <|
+              [ menu "Code Tools" <| -- "Edit Code"
                   List.map
                     (Utils.mapi1 <| editCodeEntry model)
                     model.deuceToolsAndResults
@@ -1830,7 +1830,7 @@ deucePopupPanel model =
     , class =
         ""
     , title =
-        "Deuce Menu"
+        "Code Tools" -- "Deuce Menu"
     , content =
         [ Html.div
             [] <|
@@ -1852,7 +1852,7 @@ editCodePopupPanel model =
     (disabled, title, content) =
       case model.selectedDeuceTool of
         Nothing ->
-          (True, "Edit Code Menu", [])
+          (True, "Code Tool Menu", [])
         Just (deuceTool, results, _) ->
           ( False
           , deuceTool.name
