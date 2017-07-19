@@ -1839,7 +1839,7 @@ deucePopupPanel model =
     , dragHandler =
         Controller.msgDragDeucePopupPanel
     , class =
-        ""
+        "appear-above"
     , title =
         "Code Tools" -- "Deuce Menu"
     , content =
