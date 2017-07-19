@@ -1418,6 +1418,8 @@ handleNew template = (\old ->
                     , filename      = Model.bufferName
                     , needsSave     = True
                     , lastSaveState = Nothing
+                    , scopeGraph    = DependenceGraph.compute e
+
                     , dimensions    = old.dimensions
                     , syncOptions   = old.syncOptions
                     , localSaves    = old.localSaves
@@ -1426,8 +1428,16 @@ handleNew template = (\old ->
                     , layoutOffsets = old.layoutOffsets
                     , fileIndex     = old.fileIndex
                     , icons         = old.icons
-                    , scopeGraph    = DependenceGraph.compute e
-                    , userStudyStateIndex = old.userStudyStateIndex
+
+                    , userStudyStateIndex      = old.userStudyStateIndex
+                    , enableDeuceBoxSelection  = old.enableDeuceBoxSelection
+                    , enableDeuceTextSelection = old.enableDeuceTextSelection
+                    , showDeuceInMenuBar       = old.showDeuceInMenuBar
+                    , showEditCodeInMenuBar    = old.showEditCodeInMenuBar
+                    , showDeucePanel           = old.showDeucePanel
+                    , showDeuceRightClickMenu  = old.showDeuceRightClickMenu
+                    , textSelectMode           = old.textSelectMode
+
                     } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
 
