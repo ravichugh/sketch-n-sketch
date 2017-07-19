@@ -852,8 +852,7 @@ a {
 }
 
 .requirements-list .fully-satisfied {
-  color: #333333;
-  text-decoration: line-through;
+  color: #AAF200;
 }
 
 .requirements-list .fully-satisfied:after {
