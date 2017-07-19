@@ -47,6 +47,7 @@ module InterfaceController exposing
   , msgUpdateRenameVarTextBox
   , msgDragDeucePopupPanel
   , msgDragEditCodePopupPanel
+  , msgDragDeuceRightClickMenu
   , msgTextSelect
   , msgUserStudyNext
   , msgUserStudyPrev
@@ -77,7 +78,11 @@ import Eval
 import Utils exposing (maybePluralize)
 import Keys
 import InterfaceModel as Model exposing (..)
-import SleekLayout exposing (clickToCanvasPoint, deucePopupPanelMouseOffset)
+import SleekLayout exposing
+  ( clickToCanvasPoint
+  , deucePopupPanelMouseOffset
+  , deuceRightClickMenuMouseOffset
+  )
 import AceCodeBox
 import AnimationLoop
 import FileHandler
@@ -1547,17 +1552,17 @@ toggleDeuceWidget widget model =
           | selectedWidgets =
               newSelectedWidgets
       }
-    newDeuceRightClickMenu =
+    newDeuceRightClickMenuMode =
       if List.isEmpty newSelectedWidgets then
         Nothing
       else
-        model.deuceRightClickMenu
+        model.deuceRightClickMenuMode
     almostNewModel =
       { model
           | deuceState =
               newDeuceState
-          , deuceRightClickMenu =
-              newDeuceRightClickMenu
+          , deuceRightClickMenuMode =
+              newDeuceRightClickMenuMode
       }
     deuceToolsAndResults =
       DeuceTools.createToolCache almostNewModel
@@ -1796,6 +1801,18 @@ msgDragEditCodePopupPanel =
       )
 
 --------------------------------------------------------------------------------
+-- Deuce Right Click Menu
+
+msgDragDeuceRightClickMenu : Msg
+msgDragDeuceRightClickMenu =
+  Msg "Drag Deuce Right Click Menu" <|
+    updatePopupPanelPosition
+      .deuceRightClickMenu
+      ( \ppp pos ->
+          { ppp | deuceRightClickMenu = pos }
+      )
+
+--------------------------------------------------------------------------------
 -- Text Select
 
 textSelect : Bool -> Model -> Model
@@ -1903,7 +1920,7 @@ msgSetSelectedDeuceTool cachedDeuceTool =
       { model
           | selectedDeuceTool =
               Just cachedDeuceTool
-          , deuceRightClickMenu =
+          , deuceRightClickMenuMode =
               Nothing
       }
   in
@@ -1918,4 +1935,7 @@ msgDeuceRightClick menuMode =
   Msg "Deuce Right Click" <| \model ->
     model
       |> textSelect (Model.noWidgetsSelected model)
-      |> showDeuceRightClickMenu menuMode
+      |> showDeuceRightClickMenu
+           deuceRightClickMenuMouseOffset.x
+           deuceRightClickMenuMouseOffset.y
+           menuMode

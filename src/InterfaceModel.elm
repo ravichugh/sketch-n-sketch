@@ -71,6 +71,7 @@ type DeuceRightClickMenuMode =
 type alias PopupPanelPositions =
   { deuce : (Int, Int)
   , editCode : (Int, Int)
+  , deuceRightClickMenu : (Int, Int)
   }
 
 type alias Model =
@@ -144,7 +145,7 @@ type alias Model =
   , viewState : ViewState
   , toolMode : ShapeToolKind
   , popupPanelPositions : PopupPanelPositions
-  , deuceRightClickMenu : Maybe (Mouse.Position, DeuceRightClickMenuMode)
+  , deuceRightClickMenuMode : Maybe DeuceRightClickMenuMode
   , userStudyStateIndex : Int
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
@@ -415,24 +416,34 @@ anyDialogShown =
 
 --------------------------------------------------------------------------------
 
-showDeuceRightClickMenu : DeuceRightClickMenuMode -> Model -> Model
-showDeuceRightClickMenu menuMode model =
+showDeuceRightClickMenu
+  : Int -> Int -> DeuceRightClickMenuMode -> Model -> Model
+showDeuceRightClickMenu offsetX offsetY menuMode model =
   let
     mousePos =
       Tuple.second model.mouseState
+    oldPopupPanelPositions =
+      model.popupPanelPositions
   in
     { model
-        | deuceRightClickMenu =
-            Just (mousePos, menuMode)
+        | deuceRightClickMenuMode =
+            Just menuMode
+        , popupPanelPositions =
+            { oldPopupPanelPositions
+                | deuceRightClickMenu =
+                    ( mousePos.x + offsetX
+                    , mousePos.y + offsetY
+                    )
+            }
     }
 
 hideDeuceRightClickMenu : Model -> Model
 hideDeuceRightClickMenu model =
-  { model | deuceRightClickMenu = Nothing }
+  { model | deuceRightClickMenuMode = Nothing }
 
 deuceRightClickMenuShown : Model -> Bool
 deuceRightClickMenuShown model =
-  model.deuceRightClickMenu /= Nothing
+  model.deuceRightClickMenuMode /= Nothing
 
 --------------------------------------------------------------------------------
 
@@ -905,8 +916,9 @@ initModel =
     , popupPanelPositions =
         { deuce = (200, 200)
         , editCode = (400, 400)
+        , deuceRightClickMenu = (400, 400)
         }
-    , deuceRightClickMenu = Nothing
+    , deuceRightClickMenuMode = Nothing
     , userStudyStateIndex = 1
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True

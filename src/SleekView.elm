@@ -1744,33 +1744,33 @@ deuceRightClickMenuEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
 deuceRightClickMenu : Model -> Html Msg
 deuceRightClickMenu model =
   let
-    atLeastOneWidgetSelected =
-      not <| List.isEmpty model.deuceState.selectedWidgets
-    (disabledFlag, position) =
-      case
-        ( model.showDeuceRightClickMenu
-        , model.deuceRightClickMenu
-        )
-      of
-        (True, Just (pos, _)) ->
-          ("", pos)
-        _ ->
-          (" disabled", { x = 0, y = 0 })
+    disabled =
+      (not model.showDeuceRightClickMenu) ||
+      (not <| Model.deuceRightClickMenuShown model)
+    content =
+      [ Html.div
+          [ Attr.class <| "deuce-right-click-menu"
+          ] <|
+          List.concat <|
+            List.concatMap
+              (Utils.mapi1 <| deuceRightClickMenuEntry model)
+              model.deuceToolsAndResults
+      ]
   in
-    Html.div
-      [ Attr.class <| "deuce-right-click-menu" ++ disabledFlag
-      , Attr.style
-          [ ("left", px <| position.x)
-          , ("top", px <| position.y)
-          ]
-      ]
-      [ menuOptions <|
-          List.singleton <|
-            List.concat <|
-              List.concatMap
-                (Utils.mapi1 <| deuceRightClickMenuEntry model)
-                model.deuceToolsAndResults
-      ]
+    popupPanel
+      { pos =
+          model.popupPanelPositions.deuceRightClickMenu
+      , disabled =
+          disabled
+      , dragHandler =
+          Controller.msgDragDeuceRightClickMenu
+      , class =
+          ""
+      , title =
+          "Code Tools"
+      , content =
+          content
+      }
 
 --------------------------------------------------------------------------------
 -- Popup Panels
