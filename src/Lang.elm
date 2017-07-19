@@ -2364,7 +2364,8 @@ childCodeObjects co =
                               1
                         }
                       afterAws =
-                        { e1Ws | end = breakpoint }
+                        -- So that Deuce polygon renderer can render correctly
+                        { e1Ws | end = { breakpoint | col = 0 } }
                       e1Aws =
                         { e1Ws | start = breakpoint }
                     in

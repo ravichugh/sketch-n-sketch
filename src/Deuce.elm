@@ -73,8 +73,8 @@ rgbaString c a =
 
 -- (startCol, startRow, endCol, endRow)
 -- NOTE: 0-indexed.
-startEnd : CodeObject -> (Int, Int, Int, Int)
-startEnd codeObject =
+startEnd : CodeInfo -> CodeObject -> (Int, Int, Int, Int)
+startEnd codeInfo codeObject =
   let
     infoToTuple info =
       ( info.start.col
@@ -96,11 +96,16 @@ startEnd codeObject =
             )
         _ ->
           infoToTuple << extractInfoFromCodeObject <| codeObject
+    (realEndLine, realEndCol) =
+      if endCol == 0 then
+        (endLine - 1, codeInfo.maxLineLength + 1)
+      else
+        (endLine, endCol)
   in
     ( startCol - 1
     , startLine - 1
-    , endCol - 1
-    , endLine - 1
+    , realEndCol - 1
+    , realEndLine - 1
     )
 
 --==============================================================================
@@ -165,6 +170,7 @@ type alias CodeInfo =
   , trimmedLineHulls : LineHulls
   , deuceState : DeuceState
   , patMap : Dict PId PathedPatternId
+  , maxLineLength : Int
   }
 
 --==============================================================================
@@ -182,13 +188,18 @@ isBlankLine : Line -> Bool
 isBlankLine line =
   line.startCol == line.endCol
 
-untrimmedLine : List String -> List Line
-untrimmedLine strings =
+computeMaxLineLength : List String -> Int
+computeMaxLineLength strings =
   let
     lens =
       List.map String.length strings
-    maxLen =
-      Maybe.withDefault 0 (List.maximum lens)
+  in
+    Maybe.withDefault 0 <|
+      List.maximum lens
+
+untrimmedLine : Int -> List String -> List Line
+untrimmedLine maxLen strings =
+  let
     startCol =
       0
     endCol =
@@ -256,19 +267,23 @@ lineHull di (row, line) =
     , (line.endCol, row)
     ]
 
--- Returns: (untrimmed, trimmed)
-lineHullsFromCode : DisplayInfo -> Code -> (LineHulls, LineHulls)
+-- Returns: (untrimmed, trimmed, max line length)
+lineHullsFromCode : DisplayInfo -> Code -> (LineHulls, LineHulls, Int)
 lineHullsFromCode di code =
   let
+    lines =
+      String.lines code
+    maxLineLength =
+      computeMaxLineLength lines
     pipeline lineKind =
-      code
-        |> String.lines
+      lines
         |> lineKind
         |> index
         |> List.map (lineHull di)
   in
-    ( pipeline untrimmedLine
+    ( pipeline <| untrimmedLine maxLineLength
     , pipeline trimmedLine
+    , maxLineLength
     )
 
 --==============================================================================
@@ -357,7 +372,7 @@ codeObjectHull codeInfo codeObject =
     useTrimmed =
       (not << isTarget) codeObject
     (startCol, startRow, endCol, endRow) =
-      startEnd codeObject
+      startEnd codeInfo codeObject
   in
     hull codeInfo useTrimmed startCol startRow endCol endRow
 
@@ -411,7 +426,7 @@ circleHandles codeInfo codeObject color opacity radius =
           ]
           []
     (startCol, startRow, endCol, endRow) =
-      startEnd codeObject
+      startEnd codeInfo codeObject
   in
     Svg.g
       [ SAttr.fill <| rgbaString color opacity
@@ -430,7 +445,7 @@ oldCircleHandles
 oldCircleHandles codeInfo codeObject color opacity radius =
   let
     (startCol, startRow, endCol, endRow) =
-      startEnd codeObject
+      startEnd codeInfo codeObject
     (cx1, cy1) =
       (startCol, startRow)
         |> c2a codeInfo.displayInfo
@@ -468,7 +483,7 @@ fancyHandles
 fancyHandles codeInfo codeObject color opacity radius =
   let
     (startCol, startRow, endCol, endRow) =
-      startEnd codeObject
+      startEnd codeInfo codeObject
     (xTip1, yTip1) =
       (startCol, startRow)
         |> c2a codeInfo.displayInfo
@@ -703,7 +718,7 @@ overlay model =
       , characterWidth =
           model.codeBoxInfo.characterWidth
       }
-    (untrimmedLineHulls, trimmedLineHulls) =
+    (untrimmedLineHulls, trimmedLineHulls, maxLineLength) =
       lineHullsFromCode displayInfo model.code
     patMap =
       computePatMap ast
@@ -718,6 +733,8 @@ overlay model =
           model.deuceState
       , patMap =
           patMap
+      , maxLineLength =
+          maxLineLength
       }
   in
     Svg.g
