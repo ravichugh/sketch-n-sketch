@@ -1,10 +1,21 @@
-; So far, we've seen how to write code using the
-; text editor. Now we'll see some features that
-; Sketch-n-Sketch provides for automatically
-; performing code transformations. If you've used
-; refactoring tools or IDEs like Eclipse, you may
-; have seen code transformations before. Even if
-; not, we will explain how it works.
+; As a final example for basic programming in
+; Sketch-n-Sketch, let's create a pattern of
+; rectangles, repeated downwards with some space in
+; between each.
+;
+; The function below uses local variables to make
+; things readable. The call to map applies the
+; function to the list [0 1 2 3]. Because the
+; function currently ignores its argument i, it
+; draws every rectangle at the same position.
+
+(def greenRect (\i
+  (let [x y w h] [100 100 150 80]
+    (rect "lightgreen" x y w h))))
 
 (def main
-  (draw []))
+  (draw (map greenRect (range 0 3))))
+
+; EXERCISE: Add a local variable called space
+; defined to be some non-zero number. Then draw the
+; rectangle at y-position (+ y (* i (+ h space))).

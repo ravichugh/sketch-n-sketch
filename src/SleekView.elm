@@ -868,6 +868,9 @@ menuBar model =
               ]
           , menu "Help"
               [ [ simpleTextButton
+                    "Syntax"
+                    (Controller.msgOpenDialogBox (Help HelpSyntax))
+                , simpleTextButton
                     "Text Select Mode"
                     (Controller.msgOpenDialogBox (Help HelpTextSelectMode))
                 , simpleTextButton
@@ -1607,6 +1610,7 @@ helpDialogBox model helpInfo =
     model
     []
     [ case helpInfo of
+        HelpSyntax         -> Html.text "Syntax..."
         HelpTextSelectMode -> Html.text "Text Select Mode..."
         HelpBoxSelectMode  -> Html.text "Box Select Mode..."
     ]
@@ -1618,21 +1622,16 @@ helpDialogBox model helpInfo =
             Html.ol [] (List.map (\s -> Html.li [] [Html.text s]) items)
           in
           case helpInfo of
+            HelpSyntax ->
+              [ Html.pre [] [ Html.text UserStudy.syntaxHelp ]
+              ]
             HelpTextSelectMode ->
-              [ makeList
-                  [ "Text select something in the code."
-                  , "Select a tool from either the Edit Code menu or the right-click pop-up menu."
-                  , "Follow any instructions and finish."
-                  ]
+              [ makeList UserStudy.textSelectHelp
               , Html.br [] []
               , Html.text "The Escape key resets all selections and tools."
               ]
             HelpBoxSelectMode ->
-              [ makeList
-                  [ "Hold down Shift, and hover and click boxes."
-                  , "Select a tool from pop-up menu."
-                  , "Follow any instructions and finish."
-                  ]
+              [ makeList UserStudy.boxSelectHelp
               , Html.br [] []
               , Html.text "The Escape key deselects all selected boxes."
               ]
@@ -1646,6 +1645,7 @@ dialogBoxes model =
   , fileOpenDialogBox model
   , alertSaveDialogBox model
   , importCodeDialogBox model
+  , helpDialogBox model HelpSyntax
   , helpDialogBox model HelpTextSelectMode
   , helpDialogBox model HelpBoxSelectMode
   ]

@@ -1,25 +1,39 @@
-; To recap, there are two general mechanisms for
-; invoking code transformations.
-;
-; _begin
-; _1 Text Select Mode:
-; _1
-; _1   1.  Text select something in the code.
-; _1   2a. Select a tool from the Edit Code menu, or
-; _1   2b. Right-click and select a tool from pop-up menu.
-; _1   3.  Follow any instructions and finish.
-; _1
-; _2 Box Select Mode:
-; _2
-; _2   1.  Hold down Shift, and hover and click boxes.
-; _2   2.  Select a tool from pop-up menu.
-; _2   3.  Follow any instructions and finish.
-; _2
-; _2   The Escape key deselects all selected boxes.
-; _2
-; _end
-; EXERCISE: Try the Help menu; you'll find these
-; summary instructions there.
+; Finally, we will use the Create Function tool to
+; turn the definition into a function, so that it
+; can be called to create more red rectangles.
+
+(def redRect
+  (let x 100
+  (let y 100
+  (let [w h] [150 80]
+    (rect "salmon" x y w h)))))
 
 (def main
-  (draw [(show "That's the end of the tutorial!")]))
+  (draw [redRect]))
+
+; Again, there are a few ways to do this:
+;
+; _begin
+; _1 * Select the text (def redRect ...). Right-click
+; _1   the code box, and select Create Function from
+; _1   the pop-up menu.
+; _1
+; _2 * Select the text (def redRect ...). Select
+; _2   Create Function from the Edit Code Menu.
+; _2
+; _3 * Hold down the Shift key, hover over and click
+; _3   the definition (def redRect ...), and release
+; _3   the Shift Key. Select Create Function from the
+; _3   pop-up menu.
+; _3
+; _end
+; No matter how Create Function is invoked, there
+; are a couple options for what to make arguments.
+; Since the point of this function is to draw a red
+; rectangle, we'll pick the option that does not
+; make color one of the arguments. Notice how the
+; expression is turned in to a call.
+;
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program.

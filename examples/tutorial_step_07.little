@@ -1,27 +1,24 @@
-; The language has several binary operators for
-; arithmetic.
+; The syntax for a multi-argument function is
+; (\(x1 x2 x3 ...) e); notice the parentheses
+; surrounding the list of arguments.
 ;
-; If we want to multiply three numbers, we can use binary
-; multiplication twice.
+; For example, the triplicate2 function takes two
+; arguments. To call a function with multiple
+; arguments, the arguments are separated by spaces.
+
+(def triplicate (\x [x x x]))
+
+(def triplicate2 (\(x y) [x y x y x y]))
+
+(def main
+  (draw [(show (triplicate 3))]))
+
+; EXERCISE: Call triplicate2 in the main expression.
 ;
-; EXERCISE: Call the multiply3 function.
-;
-; EXERCISE: Write a function add4 that adds four
-; numbers.
-;
-; EXERCISE: Call a function with too many arguments.
+; EXERCISE: Call triplicate2 with too many arguments.
 ; You'll see a run-time error.
 ;
-; EXERCISE: Call a function with too few arguments.
+; EXERCISE: Call triplicate2 with too few arguments.
 ; You won't get a run-time error, but the result
 ; shown will be "<fun>" (a function that is waiting
 ; for the rest of its arguments).
-
-(def foo (\(x y) [(+ x y) (* x y) (/ x y)]))
-
-(def multiply3 (\(x y z) (* x (* y z))))
-
-(def main
-  (draw [
-    (show (foo 3 4))
-  ]))

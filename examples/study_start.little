@@ -3,15 +3,17 @@
 ; programming system for generating Scalable Vector
 ; Graphics images.
 ;
-; First, we will spend a few minutes explaining the
-; basics of how Sketch-n-Sketch works.
+; In the first half, you will work through a
+; tutorial that explains several features in
+; Sketch-n-Sketch.
 ;
-; Then, we will ask you to use Sketch-n-Sketch to
-; perform several program editing tasks,
+; In the second half, you will work through several
+; programming editing tasks using the features
+; described in the tutorial.
 ;
-; See the "USER STUDY" label in the top-right corner
-; of the screen? Every time you've finished a
-; section, use the "Next Step" to move on.
+; See the area labeled USER STUDY label in the
+; top-right corner of the screen? Every time you've
+; finished a section, press Next Step to move on.
 
 (def main
   (draw []))

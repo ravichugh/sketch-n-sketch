@@ -1,32 +1,13 @@
-; Here's a red rectangle. We will use the Rename
-; code transformation tool to rename the function at
-; its definition and its call-sites.
+; So far, we've seen how to write code using the
+; text editor.
 ;
-; There are a few ways to do this:
+; EXERCISE: If you need a refresher on the language
+; syntax later on, check out the Syntax option under
+; the Help menu. Try this out now.
 ;
-; _begin
-; _1 * Select the text redRect, right-click the code
-; _1   box, and select the Rename tool from the pop-up
-; _1   menu. Then enter a new name in the
-; _1   configuration menu, and press OK.
-; _1
-; _2 * Select the text redRect, and select the Rename
-; _2   tool from the Edit Code menu. Then enter a new
-; _2   name in the configuration menu, and press OK.
-; _2
-; _3 * Hold down the Shift key, hover over redRect,
-; _3   click the box that pops up over redRect, and
-; _3   then release the Shift Key. Select the Rename
-; _3   tool from the pop-up menu. Then enter a new
-; _3   name in the configuration menu, and press OK.
-; _3
-; _end
-; EXERCISE: Perform the renaming with each of the
-; three interactions. Use Undo after each to reset
-; the program.
-
-(def redRect
-  (rect "salmon" 100 100 150 80))
+; Next, we'll see some tools that Sketch-n-Sketch
+; provides for automatically performing code
+; transformations.
 
 (def main
-  (draw [redRect]))
+  (draw []))

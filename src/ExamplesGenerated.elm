@@ -5166,15 +5166,17 @@ study_start =
 ; programming system for generating Scalable Vector
 ; Graphics images.
 ;
-; First, we will spend a few minutes explaining the
-; basics of how Sketch-n-Sketch works.
+; In the first half, you will work through a
+; tutorial that explains several features in
+; Sketch-n-Sketch.
 ;
-; Then, we will ask you to use Sketch-n-Sketch to
-; perform several program editing tasks,
+; In the second half, you will work through several
+; programming editing tasks using the features
+; described in the tutorial.
 ;
-; See the \"USER STUDY\" label in the top-right corner
-; of the screen? Every time you've finished a
-; section, use the \"Next Step\" to move on.
+; See the area labeled USER STUDY label in the
+; top-right corner of the screen? Every time you've
+; finished a section, press Next Step to move on.
 
 (def main
   (draw []))
@@ -5191,38 +5193,46 @@ study_transition_1 =
 ; will _not_ be allowed to use text editing for any
 ; of the tasks. Instead, you will use the code
 ; transformation tools. You will work with each
-; program twice, once using the Text Select Mode and
-; once with Box Select Mode. The order in which you
-; are asked to perform tasks and use the different
-; modes is random.
+; program twice:
+;
+;  - using code tools with Text Select Mode, and
+;  - using code tools with Box Select Mode.
+;
+; The order in which you are asked to perform tasks
+; and use the different modes is random.
 ;
 ; Before each task, you will have the opportunity to
 ; read the code to understand it. All editing
 ; features are disabled during this reading period.
 ;
-; Then, you will be given a list of transformations
-; to perform. The Mode to use is shown in TODO. When
-; you are done with each task, click \"Next Step\" to
+; Then, you will be given a list of editing tasks to
+; perform. The top of the file will tell you to use
+; either Text Select Mode or Box Select Mode. When
+; you are done with each task, click Next Step to
 ; move on.
 ;
-; To start this sequence of tasks, click \"Next
-; Step\". Once you do, you will no longer be able to
-; go the \"Previous Step\" of the tutorial.
+; To start this sequence of tasks, click Next Step.
+; Once you do, you will no longer be able to go the
+; Previous Step of the tutorial.
 
 (def main
-  (draw []))
+  (draw [(show \"That's the end of the tutorial!\")]))
 
 """
 
 study_transition_2 =
  """; In the final section, you will see two examples
 ; programs, each with a list of editing tasks. This
-; time, you will be able to use _all_ features: text
-; editing, Text Select Mode, and Box Select Mode.
+; time, you will be able to use _all_ features:
+;
+;  - normal text editing,
+;  - code tools with Text Select Mode, and
+;  - code tools with Box Select Mode.
+;
 ; It's up to you. And this time, you will work with
 ; each program just once.
 ;
-; Click \"Next Step\" to proceed.
+; Click Next Step to proceed.
 
 (def main
   (draw []))
@@ -5243,17 +5253,15 @@ study_end =
 
 
 tutorial_step_01 =
- """; Sketch-n-Sketch programs are written in a
-; functional language. This language is small,
-; custom language built for Sketch-n-Sketch, though
-; its features are common to most functional
-; languages and its syntax is similar to Lisp and
-; Racket. Even if you do not have significant or
-; recent experience programming in functional
-; languages, your programming knowledge from other
-; languages will allow you to complete the tasks. We
-; will provide a tutorial on the basics of the
-; language.
+ """; Sketch-n-Sketch programs are written in a small
+; functional language, with features commonly found
+; in other functional languages and with syntax that
+; resembles Lisp or Racket. Significant or recent
+; experience with functional programming is not
+; necessary to complete the tasks.
+;
+; To start, we will introduce the basics of how the
+; language works.
 
 (def main
   (draw []))
@@ -5262,25 +5270,10 @@ tutorial_step_01 =
 
 tutorial_step_02 =
  """; The structure of a program is a series of
-; top-level definitions followed my a \"main\"
-; expression that corresponds to the final image to
-; draw. The initial main expression has an empty
-; list, so nothing is drawn in the canvas.
-;
-; EXERCISE: Add the expression (show \"hello world!\")
-; to the list of drawings. Notice how the border of
-; the canvas is red to indicate when the code needs
-; to be re-run. Hit the Run button.
-;
-; EXERCISE: Now define this expression in a new
-; variable instead, and refer to it in the main
-; expression.
-;
-; Many expressions start and end with parentheses.
-; Extra parentheses are not allowed, resulting in a
-; syntax error.
-;
-; EXERCISE: Add extra parentheses somewhere and run.
+; top-level definitions. The last definition is
+; called main and describes the image to draw in the
+; canvas area on the right. The initial main
+; expression has an empty list, so nothing is drawn.
 
 (def x 1)   ; var x = 1
 
@@ -5291,15 +5284,25 @@ tutorial_step_02 =
 (def main
   (draw []))
 
+; EXERCISE: Add the expression (show \"hello world!\")
+; to the list of drawings. Notice how the border of
+; the canvas is red to indicate when the code needs
+; to be re-run. Hit the Run button.
+;
+; EXERCISE: Now define this expression in a new
+; variable instead, and refer to it in the main
+; expression.
+;
+; EXERCISE: Add extra parentheses somewhere and
+; re-run. You will get a syntax error. Many
+; expressions start and end with parentheses; extra
+; parentheses are not allowed.
+
 """
 
 tutorial_step_03 =
- """; In addition to strings, there are numbers,
-; booleans, and lists. Lists are written with square
-; brackets and with spaces separating the elements.
-; The language does not have static types, so we can
-; mix and match different types of elements within a
-; list.
+ """; The language has several kinds of data: strings,
+; numbers, booleans, and lists.
 
 (def str \"hello world!\")
 (def num 3.14)
@@ -5310,89 +5313,107 @@ tutorial_step_03 =
 (def main
   (draw [(show list)]))
 
+; Lists are written with square brackets and with
+; spaces separating the elements.
+;
+; The language does not have static types, so we
+; can mix and match different types of elements
+; within a list.
+
 """
 
 tutorial_step_04 =
- """; When a list has a fixed number of elements, we
-; often call that list a tuple. For example, we
-; refer to a two-element list as a pair, a
-; three-element list as a triple, and so on.
-;
-; We can access the components of tuples by writing
-; list patterns, instead of just plain variables, on
-; the left-hand side of definitions. For example,
-; the pattern [one two] below matches a list with
-; two elements, and gives the name one to the first
-; element and two to the second.
-;
-; If the list pattern and list expression do not
-; have the same number of elements, Sketch-n-Sketch
-; throws a run-time error.
-;
-; EXERCISE: Add a third variable to the pattern and
-; re-run.
-;
-; EXERCISE: Remove one of the expressions from the
-; list bound to the pattern and re-run.
+ """; We use the term \"tuple\" to describe a list with a
+; fixed number of elements. For example, the list
+; expression [1 \"two\"] below is a 2-tuple, that is,
+; a list with exactly two elements.
 
 (def [one two] [1 \"two\"])
       
 (def main
   (draw [(show [one two one two])]))
 
+; Notice how we access the components of tuple
+; expressions with tuple patterns (instead of just
+; plain variables) on the left-hand side of
+; definitions. The tuple pattern [one two] above
+; matches a list with exactly, binding the name one
+; to the first element and two to the second.
+;
+; If the tuple pattern and tuple expression do not
+; have the same number of elements, Sketch-n-Sketch
+; throws a run-time error.
+;
+; EXERCISE: Add a third variable to the tuple
+; pattern and re-run.
+;
+; EXERCISE: Remove one of the expressions from the
+; list expression and re-run.
+
 """
 
 tutorial_step_05 =
  """; In addition to top-level definitions, local
 ; variables can be created using a different keyword
-; called let. For example, within a def, we can
-; define the local variable data to hold some value,
-; and then refer to that value with the name data in
-; the rest of the let-expression.
-;
-; The data variable is not in scope outside of the
-; myText definition. Trying to refer to it results
-; in a variable not found run-time error.
-;
-; EXERCISE: Uncomment the thisWillFail definition
-; and re-run.
-;
-; List patterns can be used within local bindings.
-;
-; EXERCISE: Define the pattern [one two] to be [1 2]
-; inside nums.
+; called let. For example, within the nums def we
+; can define the local variable one to hold the
+; value 1, and then refer to that value with the
+; name one in the rest of the let-expression.
 
 (def nums
   (let one 1
-    [one one]))
-
-; (def thisWillFail one)
+    [one \"two\" one \"two\"]))
 
 (def main
   (draw [(show nums)]))
 
+; The syntax for a let definition is (let x e1 e2),
+; which says let x refer to e1 when evaluating e2.
+; Notice how parentheses surround the entire let
+; definition.
+;
+; The binding of x is only in scope in the
+; expression e2. For example, the one variable above
+; is not in scope outside of the myText definition.
+;
+; EXERCISE: Try referencing the one variable outside
+; the nums definition.
+;
+; EXERCISE: Tuple patterns can be used in let
+; definitions. Define the tuple pattern [one two] to
+; be [1 2] inside nums.
+
 """
 
 tutorial_step_06 =
- """; The syntax for a function, also known as a lambda
-; expression, is shown below. The function
-; triplicate takes a single argument x, and it
-; returns a list that repeats x three times.
+ """; The syntax for a function expression is (\\x e),
+; which defines a function that takes an argument x
+; and returns the expression e.
 ;
-; To call it, the function name and its argument are
-; separated by a space, and the entire call is
-; surrounded by parentheses.
-;
+; For example, the function triplicate takes a
+; single argument x, and it returns a list that
+; repeats x three times. To call it, the function
+; name and its argument are separated by a space,
+; and the entire call is surrounded by parentheses.
+
+(def triplicate (\\x [x x x]))
+
+(def main
+  (draw [(show (triplicate 3))]))
+
 ; EXERCISE: Rename the argument of triplicate to
 ; something else and re-run.
+
+"""
+
+tutorial_step_07 =
+ """; The syntax for a multi-argument function is
+; (\\(x1 x2 x3 ...) e); notice the parentheses
+; surrounding the list of arguments.
 ;
-; The syntax for functions with multiple arguments
-; is shown in the triplicate2 function; the list of
-; arguments is surrounding in parentheses. When
-; calling a function with multiple arguments, the
-; arguments are separated by spaces.
-;
-; EXERCISE: Call triplicate2 in the main expression.
+; For example, the triplicate2 function takes two
+; arguments. To call a function with multiple
+; arguments, the arguments are separated by spaces.
 
 (def triplicate (\\x [x x x]))
 
@@ -5401,27 +5422,22 @@ tutorial_step_06 =
 (def main
   (draw [(show (triplicate 3))]))
 
-"""
-
-tutorial_step_07 =
- """; The language has several binary operators for
-; arithmetic.
+; EXERCISE: Call triplicate2 in the main expression.
 ;
-; If we want to multiply three numbers, we can use binary
-; multiplication twice.
-;
-; EXERCISE: Call the multiply3 function.
-;
-; EXERCISE: Write a function add4 that adds four
-; numbers.
-;
-; EXERCISE: Call a function with too many arguments.
+; EXERCISE: Call triplicate2 with too many arguments.
 ; You'll see a run-time error.
 ;
-; EXERCISE: Call a function with too few arguments.
+; EXERCISE: Call triplicate2 with too few arguments.
 ; You won't get a run-time error, but the result
 ; shown will be \"<fun>\" (a function that is waiting
 ; for the rest of its arguments).
+
+"""
+
+tutorial_step_08 =
+ """; The language has several binary operators for
+; arithmetic. To operate on three numbers, use a
+; binary operation twice.
 
 (def foo (\\(x y) [(+ x y) (* x y) (/ x y)]))
 
@@ -5432,14 +5448,15 @@ tutorial_step_07 =
     (show (foo 3 4))
   ]))
 
+; EXERCISE: Call the multiply3 function.
+;
+; EXERCISE: Write a function add4 to add four numbers.
+
 """
 
-tutorial_step_08 =
- """; We can also use binary operators for comparison,
-; and then use if-then-else expressions based on
-; their boolean results.
-;
-; EXERCISE: Define a max3 function.
+tutorial_step_09 =
+ """; There are also binary comparison operators, which
+; can be used in if-then-else expressions.
 
 (def max (\\(x y)
   (if (< x y) y x)))
@@ -5447,27 +5464,26 @@ tutorial_step_08 =
 (def main
   (show (max 1 100)))
 
+; EXERCISE: Define a max3 function.
+
 """
 
-tutorial_step_09 =
- """; EXERCISE: The range library function computes the
-; list of numbers between start and end numbers.
-; Try the expression (range 1 10).
+tutorial_step_10 =
+ """; EXERCISE: The range library function computes a
+; list of numbers. Replace the list expression below
+; with (range 1 10).
 ;
 ; EXERCISE: The reverse library function reverses
 ; the elements of a list. Try the expression
 ; (reverse (range 1 10)).
 ;
-; Now let's apply the same function to each of the
+; Now let's call the same function with each of the
 ; arguments in this list of reversed numbers. For
 ; example, let's define a function that multiplies
-; its argument by two. Then we can map this function
-; over a list of numbers.
-;
-; The map function, as is in typical functional
-; languages, is a basic building block resembling
-; what can be accomplished with loops in imperative
-; languages.
+; its argument by two, and then \"map\" this function
+; over a list of numbers. The map function, found in
+; typical functional languages, is a basic building
+; block for \"looping\" over a list of elements.
 ;
 ; EXERCISE: Try (map double (reverse (range 1 10))).
 
@@ -5480,18 +5496,11 @@ tutorial_step_09 =
 
 """
 
-tutorial_step_10 =
+tutorial_step_11 =
  """; Now we'll see how to draw three basic shapes:
 ; lines, rectangles, and circles. Notice how
-; elements later in the list appear on top.
-;
-; EXERCISE: Reorder the elements in the main
-; expression so that the red line is on top of the
-; green rectangle.
-;
-; EXERCISE: All three shapes share the point [100
-; 100]. Define variables for these two values, and
-; use the variables in all three shapes.
+; elements later in the main list appear on top
+; of earlier ones.
 
 (def redLine
   (let [w x1 y1 x2 y2] [4 100 100 300 300]
@@ -5508,10 +5517,20 @@ tutorial_step_10 =
 (def main
   (draw [redLine greenRect blueCircle]))
 
+; EXERCISE: Make the rectangle a square.
+;
+; EXERCISE: Reorder the elements in main so that the
+; red line is on top of the green rectangle.
+;
+; EXERCISE: All three shapes share the xy-point
+; (100,100). Define variables for these two values
+; and use them in all three shapes.
+
 """
 
-tutorial_step_11 =
- """; As a final example, let's create a pattern of
+tutorial_step_12 =
+ """; As a final example for basic programming in
+; Sketch-n-Sketch, let's create a pattern of
 ; rectangles, repeated downwards with some space in
 ; between each.
 ;
@@ -5520,10 +5539,6 @@ tutorial_step_11 =
 ; function to the list [0 1 2 3]. Because the
 ; function currently ignores its argument i, it
 ; draws every rectangle at the same position.
-;
-; EXERCISE: Add a local variable called space
-; defined to be some non-zero number. Then draw the
-; rectangle at y-position (+ y (* i (+ h space))).
 
 (def greenRect (\\i
   (let [x y w h] [100 100 150 80]
@@ -5532,63 +5547,125 @@ tutorial_step_11 =
 (def main
   (draw (map greenRect (range 0 3))))
 
+; EXERCISE: Add a local variable called space
+; defined to be some non-zero number. Then draw the
+; rectangle at y-position (+ y (* i (+ h space))).
+
 """
 
-tutorial_step_12 =
+tutorial_step_13 =
  """; So far, we've seen how to write code using the
-; text editor. Now we'll see some features that
-; Sketch-n-Sketch provides for automatically
-; performing code transformations. If you've used
-; refactoring tools or IDEs like Eclipse, you may
-; have seen code transformations before. Even if
-; not, we will explain how it works.
+; text editor.
+;
+; EXERCISE: If you need a refresher on the language
+; syntax later on, check out the Syntax option under
+; the Help menu. Try this out now.
+;
+; Next, we'll see some tools that Sketch-n-Sketch
+; provides for automatically performing code
+; transformations.
 
 (def main
   (draw []))
 
 """
 
-tutorial_step_13 =
+tutorial_step_14 =
  """; Here's a red rectangle. We will use the Rename
 ; code transformation tool to rename the function at
 ; its definition and its call-sites.
-;
+
+(def redRect
+  (let [w h] [150 80]
+    (rect \"salmon\" 100 100 w h)))
+
+(def main
+  (draw [redRect]))
+
 ; There are a few ways to do this:
 ;
 ; _begin
 ; _1 * Select the text redRect, right-click the code
 ; _1   box, and select the Rename tool from the pop-up
 ; _1   menu. Then enter a new name in the
-; _1   configuration menu, and press OK.
+; _1   configuration box, and press Enter.
 ; _1
 ; _2 * Select the text redRect, and select the Rename
 ; _2   tool from the Edit Code menu. Then enter a new
-; _2   name in the configuration menu, and press OK.
+; _2   name in the configuration box, and press Enter.
 ; _2
 ; _3 * Hold down the Shift key, hover over redRect,
 ; _3   click the box that pops up over redRect, and
 ; _3   then release the Shift Key. Select the Rename
 ; _3   tool from the pop-up menu. Then enter a new
-; _3   name in the configuration menu, and press OK.
+; _3   name in the configuration box, and press Enter.
 ; _3
 ; _end
 ; EXERCISE: Perform the renaming with each of the
 ; three interactions. Use Undo after each to reset
 ; the program.
 
+"""
+
+tutorial_step_15 =
+ """; The previous definition used variables for width
+; and height. Let's introduce variables for the x-
+; and y-positions using the Introduce Variable tool.
+
 (def redRect
-  (rect \"salmon\" 100 100 150 80))
+  (let [w h] [150 80]
+    (rect \"salmon\" 100 100 w h)))
 
 (def main
   (draw [redRect]))
 
+; This tool uses the notion of a \"target position\",
+; which is the whitespace between or above other
+; items in the code.
+;
+; We can perform this in several ways.
+;
+; _begin
+; _1 * Select the text 100, right-click, and
+; _1   select Introduce Variable from the pop-up menu.
+; _1   The configuration pane asks for zero or
+; _1   one target position. Select a target position
+; _1   before the let or before the call to rect.
+; _1
+; _2 * Select the text 100, and select
+; _2   Introduce Variable from the Edit Code menu.
+; _2   The configuration pane asks for zero or
+; _2   one target position. Select a target position
+; _2   before the let or before the call to rect.
+; _2
+; _3 * Hold down Shift, hover and click
+; _3   both occurrences of 100 and a target position,
+; _3   before the let or before the call to rect.
+; _3   Release the Shift Key and select Introduce
+; _3   Variables from the pop-up menu.
+; _3
+; _end
+; EXERCISE: Introduce x and y variables with each of
+; the three interactions. Use Undo after each to
+; reset the program.
+
 """
 
-tutorial_step_14 =
- """; Now we will use the Create Function tool to turn
-; the definition into a function.
-;
-; Like Rename, there are a few ways to do this:
+tutorial_step_16 =
+ """; Finally, we will use the Create Function tool to
+; turn the definition into a function, so that it
+; can be called to create more red rectangles.
+
+(def redRect
+  (let x 100
+  (let y 100
+  (let [w h] [150 80]
+    (rect \"salmon\" x y w h)))))
+
+(def main
+  (draw [redRect]))
+
+; Again, there are a few ways to do this:
 ;
 ; _begin
 ; _1 * Select the text (def redRect ...). Right-click
@@ -5604,94 +5681,47 @@ tutorial_step_14 =
 ; _3   pop-up menu.
 ; _3
 ; _end
-; In each case, there are a couple options for what
-; to make arguments. Since the point of this
-; function is to draw a red rectangle, we'll pick
-; the option that does not make color one of the
-; arguments. Notice how the expression is turned in
-; to a call.
+; No matter how Create Function is invoked, there
+; are a couple options for what to make arguments.
+; Since the point of this function is to draw a red
+; rectangle, we'll pick the option that does not
+; make color one of the arguments. Notice how the
+; expression is turned in to a call.
 ;
 ; EXERCISE: Perform the transformation with each of
 ; the three interactions. Use Undo after each to
 ; reset the program.
 
-(def redRect
-  (rect \"salmon\" 100 100 150 80))
-
-(def main
-  (draw [redRect]))
-
 """
 
-tutorial_step_15 =
- """; Now let's introduce variables for the x- and
-; y-positions using the Introduce Variable tool.
-;
-; This tool is the first one that we have seen
-; which refers to a target position, which is
-; the whitespace between or above other items
-; in the code.
-;
-; Again, we can perform this in several ways.
-;
-; _begin
-; _1 * Select the text 100, right-click, and
-; _1   select Introduce Variable from the pop-up menu.
-; _1   The configuration pane asks for zero or
-; _1   one target position. Select a target position
-; _1   just inside the redRect definition or above it.
-; _1
-; _2 * Select the text 100, and select
-; _2   Introduce Variable from the Edit Code menu.
-; _2   The configuration pane asks for zero or
-; _2   one target position. Select a target position
-; _2   just inside the redRect definition or above it.
-; _2
-; _3 * Hold down Shift, hover and click
-; _3   both occurrences of 100 and a target position,
-; _3   just inside the redRect definition or above it.
-; _3   Release the Shift Key and select Introduce
-; _3   Variables from the pop-up menu.
-; _3
-; _end
-; EXERCISE: Introduce x and y variables with each of
-; the three interactions. Use Undo after each to
-; reset the program.
-
-(def redRect
-  (rect \"salmon\" 100 100 150 80))
-
-(def main
-  (draw [redRect]))
-
-"""
-
-tutorial_step_16 =
+tutorial_step_17 =
  """; To recap, there are two general mechanisms for
 ; invoking code transformations.
 ;
 ; _begin
-; _1 Text Select Mode:
+; _1Text Select Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; _1
-; _1   1.  Text select something in the code.
-; _1   2a. Select a tool from the Edit Code menu, or
-; _1   2b. Right-click and select a tool from pop-up menu.
-; _1   3.  Follow any instructions and finish.
+; _1 1.  Text select something in the code.
+; _1 2a. Select a tool from the Edit Code menu, or
+; _1 2b. Right-click and select a tool from pop-up menu.
+; _1 3.  Follow any instructions and finish.
 ; _1
-; _2 Box Select Mode:
+; _2Box Select Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; _2
-; _2   1.  Hold down Shift, and hover and click boxes.
-; _2   2.  Select a tool from pop-up menu.
-; _2   3.  Follow any instructions and finish.
+; _2 1.  Hold down Shift, and hover and click boxes.
+; _2 2.  Select a tool from pop-up menu.
+; _2 3.  Follow any instructions and finish.
 ; _2
-; _2   The Escape key deselects all selected boxes.
+; _2 The Escape key deselects all selected boxes.
 ; _2
 ; _end
+; :;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
 ; EXERCISE: Try the Help menu; you'll find these
 ; summary instructions there.
 
 (def main
-  (draw [(show \"That's the end of the tutorial!\")]))
+  (draw []))
 
 """
 
@@ -6071,6 +6101,7 @@ deuceUserStudyCategory =
     , makeExample "Step 14" tutorial_step_14
     , makeExample "Step 15" tutorial_step_15
     , makeExample "Step 16" tutorial_step_16
+    , makeExample "Step 17" tutorial_step_17
     , makeExample "Deuce Study Transition 1" study_transition_1
     , makeExample "One Rectangle" task_one_rectangle
     , makeExample "Three Rectangles" task_three_rectangles

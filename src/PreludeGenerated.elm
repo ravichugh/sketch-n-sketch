@@ -1670,7 +1670,8 @@ prelude =
 
 (def show (\\val
    ['text' [['x' 20] ['y' 30] ['style' 'fill:black']
-            ['font-family' 'monospace']]
+            ['font-family' 'monospace']
+            ['font-size' '12pt']]
            [['TEXT' (toString val)]]]))
 
 ; The type checker relies on the name of this definition.

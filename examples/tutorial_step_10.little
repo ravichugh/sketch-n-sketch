@@ -1,26 +1,24 @@
-; Now we'll see how to draw three basic shapes:
-; lines, rectangles, and circles. Notice how
-; elements later in the list appear on top.
+; EXERCISE: The range library function computes a
+; list of numbers. Replace the list expression below
+; with (range 1 10).
 ;
-; EXERCISE: Reorder the elements in the main
-; expression so that the red line is on top of the
-; green rectangle.
+; EXERCISE: The reverse library function reverses
+; the elements of a list. Try the expression
+; (reverse (range 1 10)).
 ;
-; EXERCISE: All three shapes share the point [100
-; 100]. Define variables for these two values, and
-; use the variables in all three shapes.
+; Now let's call the same function with each of the
+; arguments in this list of reversed numbers. For
+; example, let's define a function that multiplies
+; its argument by two, and then "map" this function
+; over a list of numbers. The map function, found in
+; typical functional languages, is a basic building
+; block for "looping" over a list of elements.
+;
+; EXERCISE: Try (map double (reverse (range 1 10))).
 
-(def redLine
-  (let [w x1 y1 x2 y2] [4 100 100 300 300]
-    (line "salmon" w x1 y1 x2 y2)))
-
-(def greenRect
-  (let [x y w h] [100 100 150 80]
-    (rect "lightgreen" x y w h)))
-
-(def blueCircle
-  (let [cx cy r] [100 100 20]
-    (circle "lightblue" cx cy r)))
+(def double (\i (* i 2)))
 
 (def main
-  (draw [redLine greenRect blueCircle]))
+  (draw [
+    (show [1 2 3 4 5 6 7 8 9 10])
+  ]))

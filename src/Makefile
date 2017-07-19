@@ -55,7 +55,8 @@ loc:
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm \
     DefaultIconTheme.elm \
-    UserStudy.elm
+    UserStudy.elm UserStudyLog.elm \
+    Native/UserStudyLog.js Native/ImpureGoodies.js
 
 littleloc:
 	# wc -l ../examples/*

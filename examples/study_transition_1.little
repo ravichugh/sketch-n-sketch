@@ -7,23 +7,27 @@
 ; will _not_ be allowed to use text editing for any
 ; of the tasks. Instead, you will use the code
 ; transformation tools. You will work with each
-; program twice, once using the Text Select Mode and
-; once with Box Select Mode. The order in which you
-; are asked to perform tasks and use the different
-; modes is random.
+; program twice:
+;
+;  - using code tools with Text Select Mode, and
+;  - using code tools with Box Select Mode.
+;
+; The order in which you are asked to perform tasks
+; and use the different modes is random.
 ;
 ; Before each task, you will have the opportunity to
 ; read the code to understand it. All editing
 ; features are disabled during this reading period.
 ;
-; Then, you will be given a list of transformations
-; to perform. The Mode to use is shown in TODO. When
-; you are done with each task, click "Next Step" to
+; Then, you will be given a list of editing tasks to
+; perform. The top of the file will tell you to use
+; either Text Select Mode or Box Select Mode. When
+; you are done with each task, click Next Step to
 ; move on.
 ;
-; To start this sequence of tasks, click "Next
-; Step". Once you do, you will no longer be able to
-; go the "Previous Step" of the tutorial.
+; To start this sequence of tasks, click Next Step.
+; Once you do, you will no longer be able to go the
+; Previous Step of the tutorial.
 
 (def main
-  (draw []))
+  (draw [(show "That's the end of the tutorial!")]))

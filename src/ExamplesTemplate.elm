@@ -179,6 +179,7 @@ LITTLE_TO_ELM tutorial_step_13
 LITTLE_TO_ELM tutorial_step_14
 LITTLE_TO_ELM tutorial_step_15
 LITTLE_TO_ELM tutorial_step_16
+LITTLE_TO_ELM tutorial_step_17
 
 LITTLE_TO_ELM task_one_rectangle
 LITTLE_TO_ELM task_three_rectangles
@@ -356,6 +357,7 @@ deuceUserStudyCategory =
     , makeExample "Step 14" tutorial_step_14
     , makeExample "Step 15" tutorial_step_15
     , makeExample "Step 16" tutorial_step_16
+    , makeExample "Step 17" tutorial_step_17
     , makeExample "Deuce Study Transition 1" study_transition_1
     , makeExample "One Rectangle" task_one_rectangle
     , makeExample "Three Rectangles" task_three_rectangles

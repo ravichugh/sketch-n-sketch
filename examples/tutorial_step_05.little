@@ -1,27 +1,29 @@
 ; In addition to top-level definitions, local
 ; variables can be created using a different keyword
-; called let. For example, within a def, we can
-; define the local variable data to hold some value,
-; and then refer to that value with the name data in
-; the rest of the let-expression.
-;
-; The data variable is not in scope outside of the
-; myText definition. Trying to refer to it results
-; in a variable not found run-time error.
-;
-; EXERCISE: Uncomment the thisWillFail definition
-; and re-run.
-;
-; List patterns can be used within local bindings.
-;
-; EXERCISE: Define the pattern [one two] to be [1 2]
-; inside nums.
+; called let. For example, within the nums def we
+; can define the local variable one to hold the
+; value 1, and then refer to that value with the
+; name one in the rest of the let-expression.
 
 (def nums
   (let one 1
-    [one one]))
-
-; (def thisWillFail one)
+    [one "two" one "two"]))
 
 (def main
   (draw [(show nums)]))
+
+; The syntax for a let definition is (let x e1 e2),
+; which says let x refer to e1 when evaluating e2.
+; Notice how parentheses surround the entire let
+; definition.
+;
+; The binding of x is only in scope in the
+; expression e2. For example, the one variable above
+; is not in scope outside of the myText definition.
+;
+; EXERCISE: Try referencing the one variable outside
+; the nums definition.
+;
+; EXERCISE: Tuple patterns can be used in let
+; definitions. Define the tuple pattern [one two] to
+; be [1 2] inside nums.

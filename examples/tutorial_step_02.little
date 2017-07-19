@@ -1,23 +1,8 @@
 ; The structure of a program is a series of
-; top-level definitions followed my a "main"
-; expression that corresponds to the final image to
-; draw. The initial main expression has an empty
-; list, so nothing is drawn in the canvas.
-;
-; EXERCISE: Add the expression (show "hello world!")
-; to the list of drawings. Notice how the border of
-; the canvas is red to indicate when the code needs
-; to be re-run. Hit the Run button.
-;
-; EXERCISE: Now define this expression in a new
-; variable instead, and refer to it in the main
-; expression.
-;
-; Many expressions start and end with parentheses.
-; Extra parentheses are not allowed, resulting in a
-; syntax error.
-;
-; EXERCISE: Add extra parentheses somewhere and run.
+; top-level definitions. The last definition is
+; called main and describes the image to draw in the
+; canvas area on the right. The initial main
+; expression has an empty list, so nothing is drawn.
 
 (def x 1)   ; var x = 1
 
@@ -27,3 +12,17 @@
 
 (def main
   (draw []))
+
+; EXERCISE: Add the expression (show "hello world!")
+; to the list of drawings. Notice how the border of
+; the canvas is red to indicate when the code needs
+; to be re-run. Hit the Run button.
+;
+; EXERCISE: Now define this expression in a new
+; variable instead, and refer to it in the main
+; expression.
+;
+; EXERCISE: Add extra parentheses somewhere and
+; re-run. You will get a syntax error. Many
+; expressions start and end with parentheses; extra
+; parentheses are not allowed.

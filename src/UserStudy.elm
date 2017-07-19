@@ -5,6 +5,9 @@ module UserStudy exposing
   , getFinalCode
   , disableNextStep
   , disablePreviousStep
+  , syntaxHelp
+  , textSelectHelp
+  , boxSelectHelp
   )
 
 import Utils
@@ -65,10 +68,10 @@ getTemplate state =
 
 getFinalCode state templateCode =
   case state of
-    Step (Tutorial, ("Step 13", _)) -> reorderTutorialStep order_13_14_15 templateCode
-    Step (Tutorial, ("Step 14", _)) -> reorderTutorialStep order_13_14_15 templateCode
-    Step (Tutorial, ("Step 15", _)) -> reorderTutorialStep order_13_14_15 templateCode
-    Step (Tutorial, ("Step 16", _)) -> reorderTutorialStep order_16 templateCode
+    Step (Tutorial, ("Step 14", _)) -> reorderTutorialStep order_14_15_16 templateCode
+    Step (Tutorial, ("Step 15", _)) -> reorderTutorialStep order_14_15_16 templateCode
+    Step (Tutorial, ("Step 16", _)) -> reorderTutorialStep order_14_15_16 templateCode
+    Step (Tutorial, ("Step 17", _)) -> reorderTutorialStep order_17 templateCode
     Step (Tutorial, (_, _))         -> templateCode
     Step (_, (_, TextEditOnly))     -> templateCode
     Step (_, (_, ReadOnly))         -> readOnly ++ chopInstructions templateCode
@@ -95,8 +98,8 @@ boxSelectOnly = """; Follow the instructions below.
 """
 
 allFeatures = """; Follow the instructions below.
-; Use NORMAL TEXT EDITS or TEXT SELECT MODE or
-; BOX SELECT MODE to perform the edits.
+; Use NORMAL TEXT EDITS and/or TEXT SELECT MODE
+; and/or BOX SELECT MODE to perform the edits.
 ; When you are done, press Next Step.
 """
 
@@ -108,7 +111,7 @@ chopInstructions templateCode =
 
 -- post-processing for tutorial ------------------------------------------------
 
-order_13_14_15 =
+order_14_15_16 =
   case tutorialVersion of
     1 -> ["_1","_2","_3"]
     2 -> ["_2","_1","_3"]
@@ -116,7 +119,7 @@ order_13_14_15 =
     4 -> ["_3","_2","_1"]
     _ -> Debug.crash "order: tutorialVersion > numTutorialVersions"
 
-order_16 =
+order_17 =
   case tutorialVersion of
     1 -> ["_1","_2"]
     2 -> ["_1","_2"]
@@ -190,14 +193,32 @@ reorderTutorialStep order templateCode =
     |> String.join "\n"
 
 --------------------------------------------------------------------------------
+
+syntaxHelp = """
+TODO
+"""
+
+textSelectHelp =
+  [ "Text select something in the code."
+  , "Select a tool from either the Edit Code menu or the right-click pop-up menu."
+  , "Follow any instructions and finish."
+  ]
+
+boxSelectHelp =
+  [ "Hold down Shift, and hover and click boxes."
+  , "Select a tool from pop-up menu."
+  , "Follow any instructions and finish."
+  ]
+
+--------------------------------------------------------------------------------
 -- User Study Configuration Parameters
 
 seed = ImpureGoodies.randomInt 0 (2^32)
 
 --------------------------------------------------------------------------------
 
-numTutorialSteps = 16
-structuredEditingStartStep = 13
+numTutorialSteps = 17
+structuredEditingStartStep = 14
 numTutorialVersions = 4
 
 headToHeadTaskTemplates =

@@ -1,20 +1,28 @@
-; As a final example, let's create a pattern of
-; rectangles, repeated downwards with some space in
-; between each.
-;
-; The function below uses local variables to make
-; things readable. The call to map applies the
-; function to the list [0 1 2 3]. Because the
-; function currently ignores its argument i, it
-; draws every rectangle at the same position.
-;
-; EXERCISE: Add a local variable called space
-; defined to be some non-zero number. Then draw the
-; rectangle at y-position (+ y (* i (+ h space))).
+; Now we'll see how to draw three basic shapes:
+; lines, rectangles, and circles. Notice how
+; elements later in the main list appear on top
+; of earlier ones.
 
-(def greenRect (\i
+(def redLine
+  (let [w x1 y1 x2 y2] [4 100 100 300 300]
+    (line "salmon" w x1 y1 x2 y2)))
+
+(def greenRect
   (let [x y w h] [100 100 150 80]
-    (rect "lightgreen" x y w h))))
+    (rect "lightgreen" x y w h)))
+
+(def blueCircle
+  (let [cx cy r] [100 100 20]
+    (circle "lightblue" cx cy r)))
 
 (def main
-  (draw (map greenRect (range 0 3))))
+  (draw [redLine greenRect blueCircle]))
+
+; EXERCISE: Make the rectangle a square.
+;
+; EXERCISE: Reorder the elements in main so that the
+; red line is on top of the green rectangle.
+;
+; EXERCISE: All three shapes share the xy-point
+; (100,100). Define variables for these two values
+; and use them in all three shapes.

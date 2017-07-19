@@ -352,7 +352,8 @@ type DialogBox
   | Help HelpInfo
 
 type HelpInfo
-  = HelpTextSelectMode
+  = HelpSyntax
+  | HelpTextSelectMode
   | HelpBoxSelectMode
 
 dialogBoxes =
@@ -362,6 +363,7 @@ dialogBoxes =
     , Open
     , AlertSave
     , ImportCode
+    , Help HelpSyntax
     , Help HelpTextSelectMode
     , Help HelpBoxSelectMode
     ]
