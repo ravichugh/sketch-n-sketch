@@ -1610,9 +1610,9 @@ helpDialogBox model helpInfo =
     model
     []
     [ case helpInfo of
-        HelpSyntax         -> Html.text "Syntax..."
-        HelpTextSelectMode -> Html.text "Text Select Mode..."
-        HelpBoxSelectMode  -> Html.text "Box Select Mode..."
+        HelpSyntax         -> Html.text "Syntax Help"
+        HelpTextSelectMode -> Html.text "Text Select Mode Help"
+        HelpBoxSelectMode  -> Html.text "Box Select Mode Help"
     ]
     []
     [ Html.div
