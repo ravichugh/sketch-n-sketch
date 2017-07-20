@@ -100,7 +100,7 @@ import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
 
-import UserStudy
+import UserStudy exposing (EditorMode(..))
 import UserStudyLog
 
 import VirtualDom
@@ -1846,10 +1846,57 @@ msgUserStudyStep label offset = Msg label <| \old ->
   { old | userStudyStateIndex = i + offset }
       |> handleNew (UserStudy.getTemplate newState)
       |> (\m -> { m | code = UserStudy.getFinalCode newState m.code })
+      |> enableFeaturesForEditorMode newState
       |> upstateRun
 
 msgUserStudyNext = msgUserStudyStep "User Study Next" 1
 msgUserStudyPrev = msgUserStudyStep "User Study Prev" (-1)
+
+enableFeaturesForEditorMode newState m =
+  case UserStudy.getEditorMode newState of
+    -- TODO add enableTextEdits to Model
+    -- TODO remove showDeucePanel and showDeuceRightClickMenu
+    -- TODO maybe use enableEditCodeInMenuBar instead of show
+    ReadOnly ->
+      { m -- | enableTextEdits = False
+          | enableDeuceBoxSelection = False
+          , enableDeuceTextSelection = False
+          , showEditCodeInMenuBar = False
+          , showDeucePanel = False
+          , showDeuceRightClickMenu = False
+          }
+    TextEditOnly ->
+      { m -- | enableTextEdits = True
+          | enableDeuceBoxSelection = False
+          , enableDeuceTextSelection = False
+          , showEditCodeInMenuBar = False
+          , showDeucePanel = False
+          , showDeuceRightClickMenu = False
+          }
+    BoxSelectOnly ->
+      { m -- | enableTextEdits = False
+          | enableDeuceBoxSelection = True
+          , enableDeuceTextSelection = False
+          , showEditCodeInMenuBar = False
+          , showDeucePanel = True
+          , showDeuceRightClickMenu = False
+          }
+    TextSelectOnly ->
+      { m -- | enableTextEdits = False
+          | enableDeuceBoxSelection = False
+          , enableDeuceTextSelection = True
+          , showEditCodeInMenuBar = True
+          , showDeucePanel = False
+          , showDeuceRightClickMenu = True
+          }
+    AllFeatures ->
+      { m -- | enableTextEdits = True
+          | enableDeuceBoxSelection = True
+          , enableDeuceTextSelection = True
+          , showEditCodeInMenuBar = True
+          , showDeucePanel = True
+          , showDeuceRightClickMenu = True
+          }
 
 --------------------------------------------------------------------------------
 -- Some Flags
