@@ -34,10 +34,15 @@ logModelUpdate updateFunc msg model =
       ()
   in
   let _ =
-    if model.code /= newModel.code then
-      log "New Code" (toString newModel.code)
-    else
-      ()
+    if model.code /= newModel.code
+    then log "New Code" (toString newModel.code)
+    else ()
+  in
+  let _ =
+    case (msgName, newModel.errorBox) of
+      ("Run", Nothing)     -> log "Run Success" ""
+      ("Run", Just errMsg) -> log "Run Error" (toString errMsg)
+      _                    -> ()
   in
   (newModel, cmd)
 
