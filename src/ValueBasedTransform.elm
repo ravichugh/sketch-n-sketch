@@ -318,18 +318,25 @@ stormTheBastille subst indexedLocIdsWithTarget =
   List.concatMap eqnsOfSize (List.range 1 5)
 
 
-type RelateType
-  = Equalize
-  | Relate
+type alias PartialSynthesisResult =
+  { description : String
+  , dependentLocIds : List LocId
+  , exp : Exp
+  }
 
-makeEqual = synthesizeRelation Equalize
-relate    = synthesizeRelation Relate
+
+type RelationToSynthesize a
+  = Equalize a a
+  | Relate (List a)
+
 
 -- Rank synthesis results by:
 --
 -- 1. Distance between locs removed (less is better)
 -- 2. Position in program of locs removed (later is better)
 --
+-- May want to incorporate thawing into the result ranking.
+rankComparedTo : Exp -> List PartialSynthesisResult -> List InterfaceModel.SynthesisResult
 rankComparedTo originalExp synthesisResults =
   let isLocId targetLocId exp =
     case exp.val.e__ of
@@ -338,7 +345,7 @@ rankComparedTo originalExp synthesisResults =
   in
   synthesisResults
   |> List.map
-      (\{description, exp, sortKey, dependentLocIds} ->
+      (\{description, exp, dependentLocIds} ->
         let locLineNums =
           dependentLocIds
           |> List.map
@@ -363,66 +370,111 @@ rankComparedTo originalExp synthesisResults =
           }
       )
 
--- Returns list of synthesis results
-synthesizeRelation relateType originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
+
+makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
   let relateByPairs priorResults features =
-    relateOverlappingPairs relateType priorResults features slideNumber movieNumber movieTime syncOptions
+    equalizeOverlappingPairs priorResults features slideNumber movieNumber movieTime syncOptions
   in
+  synthesizeRelationCoordinateWiseAndSortResults
+      relateByPairs
+      originalExp
+      selectedFeatures
+      slideNumber
+      movieNumber
+      movieTime
+      syncOptions
+
+
+relate originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
+  let relateOneInTermsOfAllOthers priorResults features =
+    priorResults
+    |> List.concatMap
+        (\{description, exp, dependentLocIds} ->
+          let priorExp = exp in
+          case evalToSlateAndWidgetsResult priorExp slideNumber movieNumber movieTime of
+            Err s -> []
+            Ok (slate, widgets) ->
+              relate_ (Relate features) priorExp slate widgets syncOptions
+              |> List.map (InterfaceModel.prependDescription (description ++ " -> "))
+              |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
+        )
+  in
+  synthesizeRelationCoordinateWiseAndSortResults
+      relateOneInTermsOfAllOthers
+      originalExp
+      selectedFeatures
+      slideNumber
+      movieNumber
+      movieTime
+      syncOptions
+
+-- Returns list of synthesis results
+-- When points selected, relates x's and y's separately.
+-- Ranks all results
+synthesizeRelationCoordinateWiseAndSortResults
+  :  (List PartialSynthesisResult -> List (Int, String) -> List PartialSynthesisResult)
+  -> Exp
+  -> Set.Set (Int, String)
+  -> Int
+  -> Int
+  -> Num
+  -> Sync.Options
+  -> List InterfaceModel.SynthesisResult
+synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
   let selectedPoints =
     featurePoints (Set.toList selectedFeatures)
   in
-  -- let _ = Debug.log ("Original:\n" ++ LangUnparser.unparseWithIds originalExp) () in
-  let startingResult = { description = "Original", exp = originalExp, sortKey = [], dependentLocIds = [] } in
+  let startingResult = { description = "Original", exp = originalExp, dependentLocIds = [] } in
   if 2 * (List.length selectedPoints) == (Set.size selectedFeatures) then
     -- We have only selected x&y of several points.
     -- Make all the selected points overlap, that is: make all the x's equal to
     -- each other and all the y's equal to each other.
     let xFeatures = List.map Tuple.first selectedPoints in
     let yFeatures = List.map Tuple.second selectedPoints in
-    let xsEqualized  = relateByPairs [startingResult] xFeatures in
-    let xysEqualized = relateByPairs xsEqualized yFeatures in
+    let xsEqualized  = doSynthesis [startingResult] xFeatures in
+    let xysEqualized = doSynthesis xsEqualized yFeatures in
     xysEqualized
     |> rankComparedTo originalExp
   else
     -- We have not selected only x&y of different points.
     -- Equalize all selected attributes naively.
-    relateByPairs [startingResult] (Set.toList selectedFeatures)
+    doSynthesis [startingResult] (Set.toList selectedFeatures)
     |> rankComparedTo originalExp
 
 
 -- If given more than two features, run relate_ on each overlapping pair.
-relateOverlappingPairs relateType priorResults features slideNumber movieNumber movieTime syncOptions =
-  let relateMore results =
+equalizeOverlappingPairs priorResults features slideNumber movieNumber movieTime syncOptions =
+  let equalizeMore results =
     case features of
       _::remainingFeatues ->
-        relateOverlappingPairs relateType results remainingFeatues slideNumber movieNumber movieTime syncOptions
+        equalizeOverlappingPairs results remainingFeatues slideNumber movieNumber movieTime syncOptions
 
       _ ->
         -- Shouldn't happen.
-        Debug.crash "relateOverlappingPairs relateMore"
+        Debug.crash "equalizeOverlappingPairs equalizeMore"
   in
   case List.take 2 features of
     [featureA, featureB] ->
       priorResults
       |> List.concatMap
-          (\{description, exp, sortKey, dependentLocIds} ->
+          (\{description, exp, dependentLocIds} ->
             let priorExp = exp in
             case evalToSlateAndWidgetsResult priorExp slideNumber movieNumber movieTime of
               Err s -> []
               Ok (slate, widgets) ->
                 let newResults =
-                  relate_ relateType priorExp featureA featureB slate widgets syncOptions
+                  relate_ (Equalize featureA featureB) priorExp slate widgets syncOptions
                 in
                 case newResults of
                   [] ->
-                    relateMore [{description = description, exp = priorExp, sortKey = sortKey, dependentLocIds = dependentLocIds}]
+                    equalizeMore [{description = description, exp = priorExp, dependentLocIds = dependentLocIds}]
 
                   _ ->
                     newResults
                     |> List.map (InterfaceModel.prependDescription (description ++ " -> "))
                     |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
                     -- |> List.map (\result -> let _ = if True then Debug.log ("Before:\n" ++ LangUnparser.unparseWithIds priorExp ++ "\nAfter:\n" ++ LangUnparser.unparseWithIds result.exp) () else () in result)
-                    |> relateMore
+                    |> equalizeMore
 
           )
 
@@ -501,71 +553,75 @@ relateOverlappingPairs relateType priorResults features slideNumber movieNumber 
 --       originalExp
 
 
-relate_ relateType originalExp featureA featureB slate widgets syncOptions =
+relate_
+    :  RelationToSynthesize (Int, String)
+    -> Exp
+    -> LangSvg.RootedIndexedTree
+    -> Widgets
+    -> Sync.Options
+    -> List PartialSynthesisResult
+relate_ relationToSynthesize originalExp slate widgets syncOptions =
   let (_, tree) = slate in
   let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
+  let maybeGetFeatureEquation nodeIdAndFeatureName =
+    nodeIdAndFeatureNameToEquation nodeIdAndFeatureName tree widgets locIdToNumberAndLoc
+  in
   let featureDescription (nodeId, featureName) tree = featureName in
-  case (nodeIdAndFeatureNameToEquation featureA tree widgets locIdToNumberAndLoc,
-        nodeIdAndFeatureNameToEquation featureB tree widgets locIdToNumberAndLoc) of
-    (Nothing, _) ->
-      []
+  case relationToSynthesize of
+    Equalize nodeIdAndFeatureNameA nodeIdAndFeatureNameB ->
+      case (maybeGetFeatureEquation nodeIdAndFeatureNameA,
+            maybeGetFeatureEquation nodeIdAndFeatureNameB) of
+        (Just featureAEqn, Just featureBEqn) ->
+           let descriptionPrefix =
+             featureDescription nodeIdAndFeatureNameA tree ++ " = " ++ featureDescription nodeIdAndFeatureNameB tree ++ " "
+           in
+           relate__ (Equalize featureAEqn featureBEqn) originalExp syncOptions
+           |> List.map (InterfaceModel.prependDescription descriptionPrefix)
 
-    (_, Nothing) ->
-      []
+        _ ->
+          []
 
-    (Just featureAEqn,
-     Just featureBEqn) ->
-       let descriptionPrefix =
-         case relateType of
-           Equalize -> (featureDescription featureA tree) ++ " = " ++ (featureDescription featureB tree) ++ " "
-           Relate   -> ""
-       in
-       relate__ relateType originalExp featureAEqn featureBEqn syncOptions
-       |> List.map (InterfaceModel.prependDescription descriptionPrefix)
+    Relate nodeIdAndFeatureNamePairs ->
+      case nodeIdAndFeatureNamePairs |> List.map maybeGetFeatureEquation |> Utils.projJusts of
+        Just featureEqns ->
+          relate__ (Relate featureEqns) originalExp syncOptions
 
+        _ ->
+          []
 
-relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
+relate__
+    :  RelationToSynthesize FeatureEquation
+    -> Exp
+    -> Sync.Options
+    -> List PartialSynthesisResult
+relate__ relationToSynthesize originalExp syncOptions =
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
      (frozenLocIdsAndNumbers prelude))
     |> Dict.fromList
   in
-  let aUnfrozenLocset = equationLocs syncOptions featureAEqn |> Set.fromList in
-  let bUnfrozenLocset = equationLocs syncOptions featureBEqn |> Set.fromList in
-  let unfrozenLocset = Set.union aUnfrozenLocset bUnfrozenLocset in
-  -- Ignore locations multiplied by 0, etc.
-  let aSignificantUnfrozenLocIdSet =
-    featureEquationToLocEquation featureAEqn
-    |> constantifyLocs frozenLocIdToNum
-    |> normalizeSimplify
-    |> locEqnLocIdSet
+  let featureEqns =
+    case relationToSynthesize of
+      Equalize featureAEqn featureBEqn -> [featureAEqn, featureBEqn]
+      Relate   featureEqns             -> featureEqns
   in
-  let bSignificantUnfrozenLocIdSet =
-    featureEquationToLocEquation featureBEqn
-    |> constantifyLocs frozenLocIdToNum
-    |> normalizeSimplify
-    |> locEqnLocIdSet
+  let unfrozenLocset =
+    featureEqns
+    |> List.concatMap (equationLocs syncOptions)
+    |> Set.fromList
   in
-  let sharedSignificantUnfrozenLocIdSet =
-    Set.intersect aSignificantUnfrozenLocIdSet bSignificantUnfrozenLocIdSet
+  -- Each equation's unique locs.
+  let eqnsUniqueLocIds =
+    featureEqns
+    |> List.map (equationLocs syncOptions >> List.map locToLocId >> Set.fromList)
+    |> Utils.manySetDiffs -- For each set, subtract all the other sets.
   in
   let subst = substOf originalExp in
-  -- Prefer to solve for ?-annotated locs
-  -- This code is pointless now that all synth results are shown.
-  -- May want to incorporate thawing into the result ranking.
-  let thawedLocsFirst =
-    let (thawed, others) =
-      unfrozenLocset
-      |> Set.toList
-      |> List.partition (\(_, annotation, _) -> annotation == Lang.thawed)
-    in
-    thawed ++ others
-  in
   let solutionsForLoc dependentLoc =
     let (dependentLocId, dependentFrozen, dependentIdent) = dependentLoc in
     let dependentIdentDesc = locDescription originalExp dependentLoc in
-    case relateType of
-      Equalize ->
+    case relationToSynthesize of
+      Equalize featureAEqn featureBEqn ->
         case solveForLoc dependentLocId frozenLocIdToNum subst featureAEqn featureBEqn of
           Nothing ->
             []
@@ -573,33 +629,77 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
           Just resultLocEqn ->
             [(resultLocEqn, "by removing " ++ dependentIdentDesc)]
 
-      Relate ->
-        -- Solve for a location that *doesn't* appear in other equation.
-        -- In some cases such cases you could get a meaningful relation but that
-        -- requires smarts that we don't have yet.
-        let independentLocIdSet =
-          if Set.member dependentLocId sharedSignificantUnfrozenLocIdSet then
-            -- Loc appears in both equations; do not try to replace it.
-            Set.empty
-          else if Set.member dependentLocId aSignificantUnfrozenLocIdSet then
-            bSignificantUnfrozenLocIdSet
-          else if Set.member dependentLocId bSignificantUnfrozenLocIdSet then
-            aSignificantUnfrozenLocIdSet
-          else
-            -- Dependent loc is insignficant (e.g. multiplied by 0)
-            -- Replacing it is futile.
-            Set.empty
+      Relate _ ->
+        -- Solution should be in terms of locs unique to the other equations.
+        -- In some cases such cases you could relax this constraint and still get
+        -- meaningful relations but that requires smarts that we don't have yet.
+        let (independentLocIds, targetFeatureEqn, otherFeatureEqns) =
+          case eqnsUniqueLocIds |> Utils.zipi1 |> Utils.findFirst (\(i, eqnUniqueLocs) -> Set.member dependentLocId eqnUniqueLocs) of
+            Just (i, _) ->
+              let independentLocIds =
+                eqnsUniqueLocIds
+                |> Utils.removei i
+                |> List.concatMap Set.toList
+              in
+              (independentLocIds, Utils.geti i featureEqns, Utils.removei i featureEqns)
+
+            Nothing ->
+              -- Loc appears in more than one equation (i.e. does not appear in any equation's unique locs)
+              -- Do not try to replace it.
+              ([], Utils.head "ValueBasedTransform.relate__ cannot relate but featureEqns shouldn't be empty" featureEqns, [])
         in
-        let targetValue = Utils.justGet_ "ValueBasedTransform.relate__ targetValue" dependentLocId subst in
+        let targetLocValue = Utils.justGet_ "ValueBasedTransform.relate__ targetLocValue" dependentLocId subst in
+        let originalLocEqn =
+          featureEquationToLocEquation targetFeatureEqn
+        in
+        let otherReferenceValues =
+          otherFeatureEqns
+          |> List.map (ShapeWidgets.evaluateFeatureEquation >> Utils.fromJust_ "ValueBasedTransform.relate__ reference values")
+        in
+        let originalFeatureValue =
+          ShapeWidgets.evaluateFeatureEquation targetFeatureEqn |> Utils.fromJust_ "ValueBasedTransform.relate__ originalFeatureValue"
+        in
         -- let indepLocs = Set.remove dependentLoc unfrozenLocset in
+        let usesLocFromEachOtherEqn locEqn =
+          let locEqnLocIds = locEqnLocIdSet locEqn in
+          let eqnsUsedCount =
+            eqnsUniqueLocIds |> Utils.count (not << Set.isEmpty << Set.intersect locEqnLocIds)
+          in
+          eqnsUsedCount == List.length featureEqns - 1
+        in
         let isGoodEnough locEqn =
           if Set.size (locEqnLocIdSet locEqn) == 0 then
             False
           else
-            let diff = locEqnEval subst locEqn - targetValue in
-            if targetValue == 0
-            then diff == 0
-            else abs (diff / targetValue) < 0.2
+            -- Loc replaced must be within 20% of its original value.
+            let newValueAtLoc = locEqnEval subst locEqn in
+            let valueCloseEnoughToLoc =
+              let diff = newValueAtLoc - targetLocValue in
+              if targetLocValue == 0
+              then diff == 0
+              else abs (diff / targetLocValue) < 0.2
+            in
+            let newFeatureValue = locEqnEval (Dict.insert dependentLocId newValueAtLoc subst) originalLocEqn in
+            -- And difference between evaluated equation and other equations must be within 20% of original difference.
+            let equationResultRelativelyCloseEnough =
+              otherReferenceValues
+              |> List.all
+                  (\refVal ->
+                    let targetDistance = originalFeatureValue - refVal in
+                    let newDistance    = newFeatureValue - refVal in
+                    let diff = newDistance - targetDistance in
+                    if targetDistance == 0
+                    then diff == 0
+                    else abs (diff / targetDistance) < 0.2
+                  )
+            in
+            valueCloseEnoughToLoc && equationResultRelativelyCloseEnough
+        in
+        let possibleEquationConstants =
+          if List.length featureEqns <= 2 then
+            littleConstants
+          else
+            littleConstants |> List.filter (\n -> n <= 10)
         in
         -- let maxResults = 10 in
         let synthesizeMore astSize results =
@@ -608,11 +708,14 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
           else
             -- let newEqns = locEqnsOfSize astSize indepLocs |> List.filter isGoodEnough in
             let newEqns =
-              locEqnsTemplatesOfSize 1 1 astSize
-              |> List.concatMap (\template -> locEqnTemplateFillings targetValue subst independentLocIdSet template)
+              let minLocsInEqn = List.length featureEqns - 1 in
+              locEqnsTemplatesOfSize minLocsInEqn 1 astSize
+              |> List.concatMap (\template -> locEqnTemplateLocFillings independentLocIds template)
+              |> List.filter usesLocFromEachOtherEqn
+              |> locEqnTemplateFillingsLocsFilled targetLocValue subst possibleEquationConstants
               |> List.filter isGoodEnough
               |> List.map normalizeSimplify
-              |> List.filter (\locEqn -> locEqnSize locEqn >= astSize) -- Equation was not simplified. Still need to handle subtraction well.
+              |> List.filter (\locEqn -> locEqnSize locEqn >= astSize) -- Equation was not simplified. Good. But normalizeSimplify still needs to handle subtraction well which is why the equation can grow in size.
             in
             results ++ newEqns
             |> Utils.dedupByEquality
@@ -621,7 +724,8 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
         resultEqns
         |> List.map (\resultLocEqn -> (resultLocEqn, dependentIdentDesc ++ " = "))
   in
-  thawedLocsFirst
+  unfrozenLocset
+  |> Set.toList
   |> List.concatMap
       (\dependentLoc ->
         let (dependentLocId, dependentFrozen, dependentIdent) = dependentLoc in
@@ -680,7 +784,11 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
               Utils.justGet_ "ValueBasedTransform.relate__ dependentLocNameStr" dependentLocId locIdToNewName
             in
             let dependentLocExp =
-              let constantAnnotation = if relateType == Relate then unann else frozen in
+              let constantAnnotation =
+                case relationToSynthesize of
+                  Equalize _ _ -> frozen
+                  Relate _     -> unann
+              in
               locEqnToExp constantAnnotation frozenLocIdToNum locIdToNewName resultLocEqn
             in
             let listOfListsOfNamesAndAssigns =
@@ -695,9 +803,9 @@ relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
                   commonScope
                   originalExp
             in
-            case relateType of
-              Equalize -> {description = description, exp = newExp, sortKey = [], dependentLocIds = [dependentLocId]}
-              Relate   -> {description = description ++ unparse dependentLocExp, exp = newExp, sortKey = [], dependentLocIds = [dependentLocId]}
+            case relationToSynthesize of
+              Equalize _ _ -> {description = description, exp = newExp, dependentLocIds = [dependentLocId]}
+              Relate _     -> {description = description ++ unparse dependentLocExp, exp = newExp, dependentLocIds = [dependentLocId]}
           )
       )
 
@@ -861,6 +969,7 @@ evaluateFeature nodeIdAndFeatureName slate widgets locIdToNumberAndLoc =
     Nothing  -> Nothing
 
 
+nodeIdAndFeatureNameToEquation : (Int, String) -> LangSvg.IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureEquation
 nodeIdAndFeatureNameToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc =
   if not <| nodeId < -2 then
     -- shape feature

@@ -1157,6 +1157,8 @@ locIdToEId : Exp -> LocId -> Maybe EId
 locIdToEId program locId =
   findExpByLocId program locId |> Maybe.map (.val >> .eid)
 
+locToLocId : Loc -> LocId
+locToLocId (locId, _, _) = locId
 
 -- For each node for which `predicate` returns True, return it and its ancestors
 -- For each matching node, ancestors appear in order: root first, match last.

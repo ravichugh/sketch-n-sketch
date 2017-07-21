@@ -350,21 +350,22 @@ intersectMany list = case list of
   set::sets -> List.foldl Set.intersect set sets
   []        -> Debug.crash "intersectMany"
 
+-- Leave behind the elements unique to each set.
 manySetDiffs : List (Set comparable) -> List (Set.Set comparable)
 manySetDiffs sets =
-  mapi1 (\(i,locs_i) ->
-    foldli1 (\(j,locs_j) acc ->
+  mapi1 (\(i,ithSet) ->
+    foldli1 (\(j,jthSet) acc ->
       if i == j
         then acc
-        else Set.diff acc locs_j
-    ) locs_i sets
+        else Set.diff acc jthSet
+    ) ithSet sets
   ) sets
 
 unionAll : List (Set comparable) -> Set.Set comparable
 unionAll sets =
   List.foldl Set.union Set.empty sets
 
--- Returns false if any two sets share an element.
+-- Returns true if any two sets share an element.
 -- Can help answer, "Is this a valid partition?"
 -- Or if sets are disjoint
 anyOverlap : List (Set comparable) -> Bool
