@@ -19,7 +19,27 @@ logModelUpdate updateFunc msg model =
       Just info -> log msgName <| "{ " ++ info ++ " }"
       Nothing   -> ()
   in
-  updateFunc msg model
+  let (newModel, cmd) =
+    updateFunc msg model
+  in
+  let _ =
+    let somethingSelected model =
+      model.codeBoxInfo.selections |> List.any (\range -> range.start /= range.end)
+    in
+    if model.codeBoxInfo.selections /= newModel.codeBoxInfo.selections && (somethingSelected model || somethingSelected newModel) then
+      log "Text Selection Changed" (if somethingSelected newModel then "Non-empty" else "Empty")
+    else if model.codeBoxInfo.cursorPos /= newModel.codeBoxInfo.cursorPos && model.code == newModel.code then
+      log "Text Cursor Moved" ""
+    else
+      ()
+  in
+  let _ =
+    if model.code /= newModel.code then
+      log "New Code" (toString newModel.code)
+    else
+      ()
+  in
+  (newModel, cmd)
 
 
 msgInfo (Msg msgName updater) model =
