@@ -37,6 +37,7 @@ module SleekLayout exposing
   )
 
 import InterfaceModel as Model exposing (Model)
+import UserStudy
 
 --------------------------------------------------------------------------------
 -- Bounding Box
@@ -123,10 +124,16 @@ menuBarTotalHeight =
 --------------------------------------------------------------------------------
 
 toolPanel =
-  { width = 50
-  , right = spacing.width
-  , marginLeft = spacing.width
-  }
+  if UserStudy.enabled then
+    { width = 0
+    , right = spacing.width
+    , marginLeft = 0
+    }
+  else
+    { width = 50
+    , right = spacing.width
+    , marginLeft = spacing.width
+    }
 
 iconButton =
   { width =

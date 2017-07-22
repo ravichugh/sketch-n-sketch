@@ -1,5 +1,8 @@
 module UserStudy exposing
-  ( sequence
+  ( enabled
+  , hideIfEnabled
+  , showIfEnabled
+  , sequence
   , getTemplate
   , getFinalCode
   , EditorMode(..)
@@ -35,6 +38,26 @@ type EditorMode
   | TextSelectOnly
   | BoxSelectOnly
   | AllFeatures
+
+--------------------------------------------------------------------------------
+
+enabled : Bool
+enabled =
+  True
+
+hideIfEnabled : List a -> List a
+hideIfEnabled content =
+  if enabled then
+    []
+  else
+    content
+
+showIfEnabled : List a -> List a
+showIfEnabled content =
+  if enabled then
+    content
+  else
+    []
 
 --------------------------------------------------------------------------------
 

@@ -162,7 +162,7 @@ a {
   /* transition: background-color 0.1s; */
 }
 
-.main-bar .menu:nth-child(2) .menu-heading {
+.main:not(.user-study-enabled) .main-bar .menu:nth-child(2) .menu-heading {
   font-weight: bold;
 }
 

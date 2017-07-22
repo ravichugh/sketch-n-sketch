@@ -521,68 +521,70 @@ menuBar model =
       [ Html.div
           [ Attr.class <| "main-bar" ++ activeFlag
           ] <|
-          [ Html.img
-              [ Attr.class "logo-image"
-              , Attr.src "img/light_logo.svg"
-              , Attr.width 20
-              , Attr.height 20
-              ]
-              []
-          , menu "Sketch-n-Sketch"
-              [ [ simpleHtmlTextButton
-                    [ Html.a
-                        [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md"
-                        , Attr.target "_blank"
+          ( UserStudy.hideIfEnabled
+              [ Html.img
+                  [ Attr.class "logo-image"
+                  , Attr.src "img/light_logo.svg"
+                  , Attr.width 20
+                  , Attr.height 20
+                  ]
+                  []
+              , menu "Sketch-n-Sketch"
+                  [ [ simpleHtmlTextButton
+                        [ Html.a
+                            [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md"
+                            , Attr.target "_blank"
+                            ]
+                            [ Html.text "Syntax Guide" ]
                         ]
-                        [ Html.text "Syntax Guide" ]
-                    ]
-                , simpleHtmlTextButton
-                    [ Html.a
-                        [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little"
-                        , Attr.target "_blank"
+                    , simpleHtmlTextButton
+                        [ Html.a
+                            [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little"
+                            , Attr.target "_blank"
+                            ]
+                            [ Html.text "Little Standard Library (Prelude)" ]
                         ]
-                        [ Html.text "Little Standard Library (Prelude)" ]
-                    ]
-                , simpleHtmlTextButton
-                    [ Html.a
-                        [ Attr.href "http://ravichugh.github.io/sketch-n-sketch/"
-                        , Attr.target "_blank"
+                    , simpleHtmlTextButton
+                        [ Html.a
+                            [ Attr.href "http://ravichugh.github.io/sketch-n-sketch/"
+                            , Attr.target "_blank"
+                            ]
+                            [ Html.text "About Sketch-n-Sketch" ]
                         ]
-                        [ Html.text "About Sketch-n-Sketch" ]
+                    , disableableTextButton
+                        True
+                        params.strVersion
+                        Controller.msgNoop
                     ]
-                , disableableTextButton
-                    True
-                    params.strVersion
-                    Controller.msgNoop
+                  ]
+              , menu "File"
+                  [ [ simpleTextButton "New..." <|
+                        Controller.msgOpenDialogBox New
+                    , simpleTextButton "Save As..." <|
+                        Controller.msgOpenDialogBox SaveAs
+                    , disableableTextButton
+                        (not model.needsSave)
+                        "Save"
+                        Controller.msgSave
+                    ]
+                  , [ simpleTextButton "Open..." <|
+                        Controller.msgOpenDialogBox Open
+                    ]
+                  , [ simpleTextButton "Export Code"
+                        Controller.msgExportCode
+                    , simpleTextButton "Export SVG"
+                        Controller.msgExportSvg
+                    ]
+                  , [ simpleTextButton "Import Code..." <|
+                        Controller.msgOpenDialogBox ImportCode
+                    , disableableTextButton
+                        True
+                        "Import SVG"
+                        Controller.msgNoop
+                    ]
+                  ]
                 ]
-              ]
-          , menu "File"
-              [ [ simpleTextButton "New..." <|
-                    Controller.msgOpenDialogBox New
-                , simpleTextButton "Save As..." <|
-                    Controller.msgOpenDialogBox SaveAs
-                , disableableTextButton
-                    (not model.needsSave)
-                    "Save"
-                    Controller.msgSave
-                ]
-              , [ simpleTextButton "Open..." <|
-                    Controller.msgOpenDialogBox Open
-                ]
-              , [ simpleTextButton "Export Code"
-                    Controller.msgExportCode
-                , simpleTextButton "Export SVG"
-                    Controller.msgExportSvg
-                ]
-              , [ simpleTextButton "Import Code..." <|
-                    Controller.msgOpenDialogBox ImportCode
-                , disableableTextButton
-                    True
-                    "Import SVG"
-                    Controller.msgNoop
-                ]
-              ]
-          ] ++
+          ) ++
           ( if model.showDeuceInMenuBar then
               [ menu "Deuce" <|
                   List.map
@@ -601,78 +603,84 @@ menuBar model =
             else
               []
           ) ++
-          [ menu "Output Tools"
-              [ [ relateTextButton
-                    model
-                    "Dig Hole"
-                    Controller.msgDigHole
-                , relateHoverMenu
-                    model
-                    "Make Equal"
-                    Controller.msgMakeEqual
-                , relateHoverMenu
-                    model
-                   "Relate"
-                    Controller.msgRelate
-                , relateHoverMenu
-                    model
-                    "Indexed Relate"
-                    Controller.msgIndexedRelate
-                ]
-              , [ groupTextButton
-                    model
-                    "Dupe"
-                    Controller.msgDuplicateBlobs
-                    True
-                , groupTextButton
-                    model
-                    "Merge"
-                    Controller.msgMergeBlobs
-                    True
-                , groupTextButton
-                    model
-                    "Group"
-                    Controller.msgGroupBlobs
-                    False
-                , groupTextButton
-                    model
-                    "Abstract"
-                    Controller.msgAbstractBlobs
-                    True
-                ]
-              , [ groupTextButton
-                    model
-                    "Repeat Right"
-                    (Controller.msgReplicateBlob HorizontalRepeat)
-                    True
-                , groupTextButton
-                    model
-                    "Repeat To"
-                    (Controller.msgReplicateBlob LinearRepeat)
-                    True
-                , groupTextButton
-                    model
-                    "Repeat Around"
-                    (Controller.msgReplicateBlob RadialRepeat)
-                    True
-                ]
+          ( UserStudy.hideIfEnabled
+              [ menu "Output Tools"
+                  [ [ relateTextButton
+                        model
+                        "Dig Hole"
+                        Controller.msgDigHole
+                    , relateHoverMenu
+                        model
+                        "Make Equal"
+                        Controller.msgMakeEqual
+                    , relateHoverMenu
+                        model
+                       "Relate"
+                        Controller.msgRelate
+                    , relateHoverMenu
+                        model
+                        "Indexed Relate"
+                        Controller.msgIndexedRelate
+                    ]
+                  , [ groupTextButton
+                        model
+                        "Dupe"
+                        Controller.msgDuplicateBlobs
+                        True
+                    , groupTextButton
+                        model
+                        "Merge"
+                        Controller.msgMergeBlobs
+                        True
+                    , groupTextButton
+                        model
+                        "Group"
+                        Controller.msgGroupBlobs
+                        False
+                    , groupTextButton
+                        model
+                        "Abstract"
+                        Controller.msgAbstractBlobs
+                        True
+                    ]
+                  , [ groupTextButton
+                        model
+                        "Repeat Right"
+                        (Controller.msgReplicateBlob HorizontalRepeat)
+                        True
+                    , groupTextButton
+                        model
+                        "Repeat To"
+                        (Controller.msgReplicateBlob LinearRepeat)
+                        True
+                    , groupTextButton
+                        model
+                        "Repeat Around"
+                        (Controller.msgReplicateBlob RadialRepeat)
+                        True
+                    ]
+                  ]
               ]
-          , menu "View" <|
-              [ [ disableableTextButton True "Main Layer" Controller.msgNoop
-                , disableableTextButton True "Widget Layer" Controller.msgNoop
-                , hoverMenu "Ghost Layer" <|
-                    booleanOption
-                      model.showGhosts
-                      "On"
-                      "Off"
-                      Controller.msgSetGhostsShown
-                ]
-              , [ simpleTextButton
+          ) ++
+          [ menu "View" <|
+              ( UserStudy.hideIfEnabled
+                  [ [ disableableTextButton True "Main Layer" Controller.msgNoop
+                    , disableableTextButton True "Widget Layer" Controller.msgNoop
+                    , hoverMenu "Ghost Layer" <|
+                        booleanOption
+                          model.showGhosts
+                          "On"
+                          "Off"
+                          Controller.msgSetGhostsShown
+                    ]
+                  ]
+              ) ++
+              [ [ simpleTextButton
                     "Reset Interface Layout"
                     Controller.msgResetInterfaceLayout
                 ]
               ]
-          , menu "Options"
+          , menu "Options" <|
               [ [ hoverMenu "Font Size"
                     [ simpleTextButton "8" (Controller.msgUpdateFontSize 8)
                     , simpleTextButton "10" (Controller.msgUpdateFontSize 10)
@@ -684,205 +692,214 @@ menuBar model =
                     , simpleTextButton "22" (Controller.msgUpdateFontSize 22)
                     , simpleTextButton "24" (Controller.msgUpdateFontSize 24)
                     ]
-                , hoverMenu "Auto-Run"
-                    [ disableableTextButton
-                        True "Every second" Controller.msgNoop
-                    , disableableTextButton
-                        True "Every 2 seconds" Controller.msgNoop
-                    , disableableTextButton
-                        True "Every 3 seconds" Controller.msgNoop
+                ] ++
+                ( UserStudy.hideIfEnabled
+                    [ hoverMenu "Auto-Run"
+                        [ disableableTextButton
+                            True "Every second" Controller.msgNoop
+                        , disableableTextButton
+                            True "Every 2 seconds" Controller.msgNoop
+                        , disableableTextButton
+                            True "Every 3 seconds" Controller.msgNoop
+                        ]
+                    , hoverMenu "Color Scheme"
+                        [ disableableTextButton True "Light" Controller.msgNoop
+                        , disableableTextButton True "Dark" Controller.msgNoop
+                        ]
                     ]
-                , hoverMenu "Color Scheme"
-                    [ disableableTextButton True "Light" Controller.msgNoop
-                    , disableableTextButton True "Dark" Controller.msgNoop
+                )
+              ] ++
+              ( UserStudy.hideIfEnabled
+                  [ [ hoverMenu "Enable Deuce Box Selection" <|
+                        booleanOption
+                          model.enableDeuceBoxSelection
+                          "True"
+                          "False"
+                          Controller.msgSetEnableDeuceBoxSelection
+                    , hoverMenu "Enable Deuce Text Selection" <|
+                        booleanOption
+                          model.enableDeuceTextSelection
+                          "True"
+                          "False"
+                          Controller.msgSetEnableDeuceTextSelection
                     ]
-                ]
-              , [ hoverMenu "Enable Deuce Box Selection" <|
-                    booleanOption
-                      model.enableDeuceBoxSelection
-                      "True"
-                      "False"
-                      Controller.msgSetEnableDeuceBoxSelection
-                , hoverMenu "Enable Deuce Text Selection" <|
-                    booleanOption
-                      model.enableDeuceTextSelection
-                      "True"
-                      "False"
-                      Controller.msgSetEnableDeuceTextSelection
-                ]
-              , [ hoverMenu "Text Selection Mode"
-                    [ simpleTextRadioButton
-                        ( case model.textSelectMode of
-                            Strict ->
-                              True
-                            _ ->
-                              False
-                        )
-                        "Strict"
-                        (Controller.msgSetTextSelectMode Strict)
-                    , simpleTextRadioButton
-                        ( case model.textSelectMode of
-                            Superset ->
-                              True
-                            _ ->
-                              False
-                        )
-                        "Superset"
-                        (Controller.msgSetTextSelectMode Superset)
-                    , simpleTextRadioButton
-                        ( case model.textSelectMode of
-                            Subset ->
-                              True
-                            _ ->
-                              False
-                        )
-                        "Subset"
-                        (Controller.msgSetTextSelectMode Subset)
-                    , simpleTextRadioButton
-                        ( case model.textSelectMode of
-                            SubsetExtra ->
-                              True
-                            _ ->
-                              False
-                        )
-                        "SubsetExtra"
-                        (Controller.msgSetTextSelectMode SubsetExtra)
+                  , [ hoverMenu "Text Selection Mode"
+                        [ simpleTextRadioButton
+                            ( case model.textSelectMode of
+                                Strict ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Strict"
+                            (Controller.msgSetTextSelectMode Strict)
+                        , simpleTextRadioButton
+                            ( case model.textSelectMode of
+                                Superset ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Superset"
+                            (Controller.msgSetTextSelectMode Superset)
+                        , simpleTextRadioButton
+                            ( case model.textSelectMode of
+                                Subset ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Subset"
+                            (Controller.msgSetTextSelectMode Subset)
+                        , simpleTextRadioButton
+                            ( case model.textSelectMode of
+                                SubsetExtra ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "SubsetExtra"
+                            (Controller.msgSetTextSelectMode SubsetExtra)
+                        ]
                     ]
-                ]
-              , [ hoverMenu "Show Deuce in Menu Bar" <|
-                    booleanOption
-                      model.showDeuceInMenuBar
-                      "True"
-                      "False"
-                      Controller.msgSetShowDeuceInMenuBar
-                , hoverMenu "Show Edit Code in Menu Bar" <|
-                    booleanOption
-                      model.showEditCodeInMenuBar
-                      "True"
-                      "False"
-                      Controller.msgSetShowEditCodeInMenuBar
-                , hoverMenu "Show Deuce Panel" <|
-                    booleanOption
-                      model.showDeucePanel
-                      "True"
-                      "False"
-                      Controller.msgSetShowDeucePanel
-                , hoverMenu "Show Deuce Right Click Menu" <|
-                    booleanOption
-                      model.showDeuceRightClickMenu
-                      "True"
-                      "False"
-                      Controller.msgSetShowDeuceRightClickMenu
-                ]
-              , [ hoverMenu "Shape Code Templates"
-                    [ simpleTextRadioButton
-                        (model.toolMode == Raw)
-                        "Raw"
-                        (Controller.msgSetToolMode Raw)
-                    , simpleTextRadioButton
-                        (model.toolMode == Stretchy)
-                        "Stretchy"
-                        (Controller.msgSetToolMode Stretchy)
-                    , simpleTextRadioButton
-                        (model.toolMode == Sticky)
-                        "Sticky"
-                        (Controller.msgSetToolMode Sticky)
+                  , [ hoverMenu "Show Deuce in Menu Bar" <|
+                        booleanOption
+                          model.showDeuceInMenuBar
+                          "True"
+                          "False"
+                          Controller.msgSetShowDeuceInMenuBar
+                    , hoverMenu "Show Edit Code in Menu Bar" <|
+                        booleanOption
+                          model.showEditCodeInMenuBar
+                          "True"
+                          "False"
+                          Controller.msgSetShowEditCodeInMenuBar
+                    , hoverMenu "Show Deuce Panel" <|
+                        booleanOption
+                          model.showDeucePanel
+                          "True"
+                          "False"
+                          Controller.msgSetShowDeucePanel
+                    , hoverMenu "Show Deuce Right Click Menu" <|
+                        booleanOption
+                          model.showDeuceRightClickMenu
+                          "True"
+                          "False"
+                          Controller.msgSetShowDeuceRightClickMenu
                     ]
-                ]
-              , [ hoverMenu "Automatically Suggest Code Changes"
-                    [ simpleTextRadioButton
-                        model.autoSynthesis
-                        "On"
-                        Controller.msgStartAutoSynthesis
-                    , simpleTextRadioButton
-                        (not model.autoSynthesis)
-                        "Off"
-                        Controller.msgStopAutoSynthesisAndClear
+                  , [ hoverMenu "Shape Code Templates"
+                        [ simpleTextRadioButton
+                            (model.toolMode == Raw)
+                            "Raw"
+                            (Controller.msgSetToolMode Raw)
+                        , simpleTextRadioButton
+                            (model.toolMode == Stretchy)
+                            "Stretchy"
+                            (Controller.msgSetToolMode Stretchy)
+                        , simpleTextRadioButton
+                            (model.toolMode == Sticky)
+                            "Sticky"
+                            (Controller.msgSetToolMode Sticky)
+                        ]
                     ]
-                , hoverMenu "Live Update Heuristics"
-                    [ simpleTextRadioButton
-                        ( model.syncOptions.feelingLucky ==
-                            Sync.heuristicsBiased
-                        )
-                        "Biased"
-                        Controller.msgSetHeuristicsBiased
-                    , simpleTextRadioButton
-                        ( model.syncOptions.feelingLucky ==
-                            Sync.heuristicsNone
-                        )
-                        "None"
-                        Controller.msgSetHeuristicsNone
-                    , simpleTextRadioButton
-                        ( model.syncOptions.feelingLucky ==
-                            Sync.heuristicsFair
-                        )
-                        "Fair"
-                        Controller.msgSetHeuristicsFair
+                  , [ hoverMenu "Automatically Suggest Code Changes"
+                        [ simpleTextRadioButton
+                            model.autoSynthesis
+                            "On"
+                            Controller.msgStartAutoSynthesis
+                        , simpleTextRadioButton
+                            (not model.autoSynthesis)
+                            "Off"
+                            Controller.msgStopAutoSynthesisAndClear
+                        ]
+                    , hoverMenu "Live Update Heuristics"
+                        [ simpleTextRadioButton
+                            ( model.syncOptions.feelingLucky ==
+                                Sync.heuristicsBiased
+                            )
+                            "Biased"
+                            Controller.msgSetHeuristicsBiased
+                        , simpleTextRadioButton
+                            ( model.syncOptions.feelingLucky ==
+                                Sync.heuristicsNone
+                            )
+                            "None"
+                            Controller.msgSetHeuristicsNone
+                        , simpleTextRadioButton
+                            ( model.syncOptions.feelingLucky ==
+                                Sync.heuristicsFair
+                            )
+                            "Fair"
+                            Controller.msgSetHeuristicsFair
+                        ]
                     ]
-                ]
-              , [ hoverMenu "Output Type"
-                    [ simpleTextRadioButton
-                        ( case model.mode of
-                            Live _ ->
-                              True
-                            _ ->
-                              False
-                        )
-                        "Graphics"
-                        Controller.msgSetOutputLive
-                    , simpleTextRadioButton
-                        ( case model.mode of
-                            Print _ ->
-                              True
-                            _ ->
-                              False
-                        )
-                        "Text"
-                        Controller.msgSetOutputPrint
+                  , [ hoverMenu "Output Type"
+                        [ simpleTextRadioButton
+                            ( case model.mode of
+                                Live _ ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Graphics"
+                            Controller.msgSetOutputLive
+                        , simpleTextRadioButton
+                            ( case model.mode of
+                                Print _ ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Text"
+                            Controller.msgSetOutputPrint
+                        ]
                     ]
-                ]
-              ]
-          , Html.div
-              [ Attr.class "user-study-info"
-              ]
-              [ textButton
-                  { defaultTb
-                      | content =
-                          [ Html.span
-                              [ Attr.class "flip"
+                  ]
+              )
+          ] ++
+          ( UserStudy.showIfEnabled
+              [ Html.div
+                  [ Attr.class "user-study-info"
+                  ]
+                  [ textButton
+                      { defaultTb
+                          | content =
+                              [ Html.span
+                                  [ Attr.class "flip"
+                                  ]
+                                  [ Html.text "▸"
+                                  ]
+                              , Html.text " Previous Step"
                               ]
-                              [ Html.text "▸"
-                              ]
-                          , Html.text " Previous Step"
-                          ]
-                      , onClick =
-                          Controller.msgUserStudyPrev
-                      , disabled =
-                          UserStudy.disablePreviousStep
-                            model.userStudyStateIndex
-                  }
-              , disableableTextButton
-                  True
-                  "USER STUDY"
-                  Controller.msgNoop
-              , disableableTextButton
-                  (UserStudy.disableNextStep model.userStudyStateIndex)
-                  "Next Step ▸"
-                  Controller.msgUserStudyNext
+                          , onClick =
+                              Controller.msgUserStudyPrev
+                          , disabled =
+                              UserStudy.disablePreviousStep
+                                model.userStudyStateIndex
+                      }
+                  , disableableTextButton
+                      True
+                      "USER STUDY"
+                      Controller.msgNoop
+                  , disableableTextButton
+                      (UserStudy.disableNextStep model.userStudyStateIndex)
+                      "Next Step ▸"
+                      Controller.msgUserStudyNext
+                  ]
+              , menu "Help"
+                  [ [ simpleTextButton
+                        "Syntax"
+                        (Controller.msgOpenDialogBox (Help HelpSyntax))
+                    , simpleTextButton
+                        "Text Select Mode"
+                        (Controller.msgOpenDialogBox (Help HelpTextSelectMode))
+                    , simpleTextButton
+                        "Box Select Mode"
+                        (Controller.msgOpenDialogBox (Help HelpBoxSelectMode))
+                    ]
+                  ]
               ]
-          , menu "Help"
-              [ [ simpleTextButton
-                    "Syntax"
-                    (Controller.msgOpenDialogBox (Help HelpSyntax))
-                , simpleTextButton
-                    "Text Select Mode"
-                    (Controller.msgOpenDialogBox (Help HelpTextSelectMode))
-                , simpleTextButton
-                    "Box Select Mode"
-                    (Controller.msgOpenDialogBox (Help HelpBoxSelectMode))
-                ]
-              ]
-          ]
+          )
           -- Quick Action Bar disabled for now
           -- , Html.div
           --     [ Attr.class "quick-action-bar"
@@ -1049,11 +1066,15 @@ codePanel model =
     actionBar =
       Html.div
         [ Attr.class "action-bar"
-        ]
+        ] <|
         [ undoButton
         , redoButton
-        , cleanButton
-        , runButton
+        ] ++
+        ( UserStudy.hideIfEnabled
+            [ cleanButton
+            ]
+        ) ++
+        [ runButton
         ]
     editor =
       Html.div
@@ -1065,16 +1086,19 @@ codePanel model =
     statusBar =
       Html.div
         [ Attr.class "status-bar"
-        ]
-        [ Html.span
-            []
-            [ Html.b
+        ] <|
+        ( UserStudy.hideIfEnabled
+            [ Html.span
                 []
-                [ Html.text "Current file: "
+                [ Html.b
+                    []
+                    [ Html.text "Current file: "
+                    ]
+                , fileIndicator model
                 ]
-            , fileIndicator model
             ]
-        , Html.div
+        ) ++
+        [ Html.div
             [ Attr.class "needs-run-light"
             ]
             []
@@ -1375,17 +1399,23 @@ workArea model =
         [ ("margin", px <| .width SleekLayout.spacing)
         , ("top", px <| .height SleekLayout.menuBar)
         ]
-    ]
+    ] <|
     [ Html.div
         [ Attr.class "main-panels"
-        ]
+        ] <|
         [ codePanel model
         , resizer model
         , outputPanel model
-        , toolPanel model
+        ] ++
+        ( UserStudy.hideIfEnabled
+            [ toolPanel model
+            ]
+        )
+    ] ++
+    ( UserStudy.hideIfEnabled
+        [ synthesisPanel model
         ]
-    , synthesisPanel model
-    ]
+    )
 
 --------------------------------------------------------------------------------
 -- Dialog Boxes
@@ -1974,9 +2004,18 @@ view model =
          " has-dialogs"
       else
         ""
+    userStudyFlag =
+      if UserStudy.enabled then
+        " user-study-enabled"
+      else
+        ""
   in
     Html.div
-      [ Attr.class <| "main" ++ needsRunFlag ++ hasDialogFlag
+      [ Attr.class <|
+          "main"
+            ++ needsRunFlag
+            ++ hasDialogFlag
+            ++ userStudyFlag
       , E.onClick Controller.msgHideMenu
       ]
       ( [ onbeforeunloadDataElement model
