@@ -2024,6 +2024,7 @@ view model =
             ++ hasDialogFlag
             ++ userStudyFlag
       , E.onClick Controller.msgHideMenu
+      , onRightClick Controller.msgNoop
       ]
       ( [ onbeforeunloadDataElement model
         , menuBar model

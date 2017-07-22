@@ -2024,12 +2024,15 @@ msgSetSelectedDeuceTool useTextSelect cachedDeuceTool =
 msgDeuceRightClick : DeuceRightClickMenuMode -> Msg
 msgDeuceRightClick menuMode =
   Msg "Deuce Right Click" <| \model ->
-    model
-      |> textSelect (Model.noWidgetsSelected model)
-      |> showDeuceRightClickMenu
-           deuceRightClickMenuMouseOffset.x
-           deuceRightClickMenuMouseOffset.y
-           menuMode
+    if Model.noWidgetsSelected model then
+      model
+        |> textSelect True
+        |> showDeuceRightClickMenu
+             deuceRightClickMenuMouseOffset.x
+             deuceRightClickMenuMouseOffset.y
+             menuMode
+    else
+      model
 
 --------------------------------------------------------------------------------
 -- Resizer
