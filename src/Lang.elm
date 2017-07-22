@@ -2033,24 +2033,24 @@ isTarget codeObject =
     TT _ _ _ ->
       True
 
-isNonSelectable : CodeObject -> Bool
-isNonSelectable codeObject =
-  let
-    isIgnoredExp =
-      case codeObject of
-        E e ->
-          case e.val.e__ of
-            EComment _ _ _ ->
-              True
-            EOption _ _ _ _ _ ->
-              True
-            _ ->
-              False
-        _ ->
+isSelectable : CodeObject -> Bool
+isSelectable codeObject =
+  case codeObject of
+    E e ->
+      case e.val.e__ of
+        EComment _ _ _ ->
           False
-  in
-    (isTarget codeObject) ||
-    isIgnoredExp
+        EOption _ _ _ _ _ ->
+          False
+        _ ->
+          True
+    _ ->
+      True
+
+isTextSelectable : CodeObject -> Bool
+isTextSelectable codeObject =
+  (isSelectable codeObject) &&
+  (not <| isTarget codeObject)
 
 wsBefore : CodeObject -> WS
 wsBefore codeObject =

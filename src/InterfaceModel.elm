@@ -791,7 +791,6 @@ codeObjectFromSelection allowSingleSelection model =
         model
         allowSingleSelection
         selection
-        -- Ignore Def code objects for now
         ( List.concatMap
             ( \codeObject ->
                 let
@@ -802,11 +801,10 @@ codeObjectFromSelection allowSingleSelection model =
                       )
                     ]
                 in
-                  -- Do not text-select non-selectable code objects like comments
-                  -- or target positions
-                  if isNonSelectable codeObject then
-                    []
-                  else
+                  -- Do not text-select non-text-selectable code objects like
+                  -- comments or target positions
+                  if Lang.isTextSelectable codeObject then
+                    -- Also just ignore def code objects for now
                     case codeObject of
                       E e ->
                         case e.val.e__ of
@@ -816,6 +814,8 @@ codeObjectFromSelection allowSingleSelection model =
                             default
                       _ ->
                         default
+                  else
+                    []
             )
             ( flattenToCodeObjects << E <|
                 model.inputExp
