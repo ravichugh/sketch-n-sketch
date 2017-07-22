@@ -564,20 +564,20 @@ upstate (Msg caption updateModel) old =
 updateCommands : Model -> List (Cmd Msg)
 updateCommands model =
   let
-    ifNeedsUpdate : (Model -> Updatable a) -> Cmd Msg -> List (Cmd Msg)
-    ifNeedsUpdate get cmd =
-      if Updatable.needsUpdate (get model) then
-        [ cmd ]
-      else
-        []
+    ifNeedsUpdate : (Model -> Updatable a) -> (a -> Cmd Msg) -> List (Cmd Msg)
+    ifNeedsUpdate get f =
+      let
+        up =
+          get model
+      in
+        if Updatable.needsUpdate up then
+          [ f <| Updatable.extract up ]
+        else
+          []
   in
     List.concat
       [ ifNeedsUpdate .enableTextEdits <|
-          let
-            readOnly =
-              not <| Updatable.extract model.enableTextEdits
-          in
-            AceCodeBox.setReadOnly readOnly
+          AceCodeBox.setReadOnly << not
       ]
 
 issueCommand : Msg -> Model -> Model -> Cmd Msg
