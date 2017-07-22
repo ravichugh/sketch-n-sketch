@@ -16,6 +16,7 @@ import Svg.Attributes as SAttr
 import Utils
 import HtmlUtils exposing (handleEventAndStop, styleListToString)
 import Either exposing (..)
+import Updatable
 
 import InterfaceModel as Model exposing (..)
 
@@ -722,6 +723,12 @@ menuBar model =
                           "True"
                           "False"
                           Controller.msgSetEnableDeuceTextSelection
+                    , hoverMenu "Enable Text Edits" <|
+                        booleanOption
+                          (Updatable.extract model.enableTextEdits)
+                          "True"
+                          "False"
+                          Controller.msgSetEnableTextEdits
                     ]
                   , [ hoverMenu "Text Selection Mode"
                         [ simpleTextRadioButton

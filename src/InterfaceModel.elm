@@ -1,5 +1,6 @@
 module InterfaceModel exposing (..)
 
+import Updatable exposing (Updatable)
 import Lang exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
@@ -154,6 +155,7 @@ type alias Model =
   , showDeucePanel : Bool
   , showDeuceRightClickMenu : Bool
   , textSelectMode : TextSelectMode
+  , enableTextEdits : Updatable Bool
   , codeClean : Bool
   , resizerX : Maybe Int
   }
@@ -342,6 +344,19 @@ initialLayoutOffsets =
   , deuceToolBox = {pinned=False, offsets=init}
   , synthesisResultsSelectBox = init
   }
+
+--------------------------------------------------------------------------------
+
+setAllUpdated : Model -> Model
+setAllUpdated model =
+  let
+    old =
+      model
+  in
+    { model
+        | enableTextEdits =
+            Updatable.setUpdated old.enableTextEdits
+    }
 
 --------------------------------------------------------------------------------
 
@@ -938,6 +953,8 @@ initModel =
     , showDeucePanel = True
     , showDeuceRightClickMenu = True
     , textSelectMode = SubsetExtra
+    , enableTextEdits =
+        Updatable.setUpdated << Updatable.create <| True
     , codeClean = True
     , resizerX = Nothing
     }

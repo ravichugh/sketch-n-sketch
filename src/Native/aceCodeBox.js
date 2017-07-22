@@ -261,4 +261,8 @@ app.ports.aceCodeBoxCmd.subscribe(function(aceCmd) {
 
 });
 
+app.ports.setReadOnly.subscribe(function(flag) {
+  editor.setReadOnly(flag);
+});
+
 // receiveEditorState port is in initialize()

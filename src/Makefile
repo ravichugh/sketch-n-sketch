@@ -50,7 +50,7 @@ loc:
     AnimationLoop.elm Native/animationLoop.js \
     FileHandler.elm Native/fileHandler.js \
     Main.elm Config.elm \
-    Utils.elm Either.elm \
+    Utils.elm Either.elm Updatable.elm \
     HtmlUtils.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm \

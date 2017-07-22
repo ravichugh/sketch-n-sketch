@@ -58,12 +58,14 @@ module InterfaceController exposing
   , msgSetShowDeucePanel
   , msgSetShowDeuceRightClickMenu
   , msgSetTextSelectMode
+  , msgSetEnableTextEdits
   , msgSetSelectedDeuceTool
   , msgDeuceRightClick
   , msgDragResizer
   , msgResetInterfaceLayout
   )
 
+import Updatable exposing (Updatable)
 import Lang exposing (..) --For access to what makes up the Vals
 import Types
 import Ace
@@ -547,7 +549,10 @@ update msg oldModel =
     _ ->
       let newModel = upstate msg oldModel in
       let cmd = issueCommand msg oldModel newModel in
-      (newModel, cmd)
+      ( Model.setAllUpdated newModel
+      , Cmd.batch <|
+          cmd :: updateCommands newModel
+      )
 
 
 upstate : Msg -> Model -> Model
@@ -556,6 +561,24 @@ upstate (Msg caption updateModel) old =
   let _ = debugLog "Msg" caption in
   updateModel old
 
+updateCommands : Model -> List (Cmd Msg)
+updateCommands model =
+  let
+    ifNeedsUpdate : (Model -> Updatable a) -> Cmd Msg -> List (Cmd Msg)
+    ifNeedsUpdate get cmd =
+      if Updatable.needsUpdate (get model) then
+        [ cmd ]
+      else
+        []
+  in
+    List.concat
+      [ ifNeedsUpdate .enableTextEdits <|
+          let
+            readOnly =
+              not <| Updatable.extract model.enableTextEdits
+          in
+            AceCodeBox.setReadOnly readOnly
+      ]
 
 issueCommand : Msg -> Model -> Model -> Cmd Msg
 issueCommand (Msg kind _) oldModel newModel =
@@ -617,16 +640,22 @@ issueCommand (Msg kind _) oldModel newModel =
     "Open Dialog Box" ->
       FileHandler.requestFileIndex ()
 
+    "Enable Text Edits" ->
+      AceCodeBox.setReadOnly False
+
+    "Disable Text Edits" ->
+      AceCodeBox.setReadOnly True
+
     _ ->
       if kind == "Update Font Size" then
         AceCodeBox.updateFontSize newModel
-      else
-      if newModel.code /= oldModel.code ||
-         newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
-         newModel.preview /= oldModel.preview ||
-         kind == "Turn Off Caption" ||
-         kind == "Mouse Enter CodeBox" ||
-         kind == "Mouse Leave CodeBox"
+      else if
+        newModel.code /= oldModel.code ||
+        newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
+        newModel.preview /= oldModel.preview ||
+        kind == "Turn Off Caption" ||
+        kind == "Mouse Enter CodeBox" ||
+        kind == "Mouse Leave CodeBox"
          {- ||
          String.startsWith "Key Up" kind ||
          String.startsWith "Key Down" kind
@@ -1444,6 +1473,7 @@ handleNew template = (\old ->
                     , showDeucePanel           = old.showDeucePanel
                     , showDeuceRightClickMenu  = old.showDeuceRightClickMenu
                     , textSelectMode           = old.textSelectMode
+                    , enableTextEdits          = old.enableTextEdits
                     , resizerX                 = old.resizerX
                     } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
@@ -1856,44 +1886,43 @@ msgUserStudyPrev = msgUserStudyStep "User Study Prev" (-1)
 
 enableFeaturesForEditorMode newState m =
   case UserStudy.getEditorMode newState of
-    -- TODO add enableTextEdits to Model
     -- TODO remove showDeucePanel and showDeuceRightClickMenu
     -- TODO maybe use enableEditCodeInMenuBar instead of show
     ReadOnly ->
-      { m -- | enableTextEdits = False
-          | enableDeuceBoxSelection = False
+      { m | enableTextEdits = Updatable.create False
+          , enableDeuceBoxSelection = False
           , enableDeuceTextSelection = False
           , showEditCodeInMenuBar = False
           , showDeucePanel = False
           , showDeuceRightClickMenu = False
           }
     TextEditOnly ->
-      { m -- | enableTextEdits = True
-          | enableDeuceBoxSelection = False
+      { m | enableTextEdits = Updatable.create True
+          , enableDeuceBoxSelection = False
           , enableDeuceTextSelection = False
           , showEditCodeInMenuBar = False
           , showDeucePanel = False
           , showDeuceRightClickMenu = False
           }
     BoxSelectOnly ->
-      { m -- | enableTextEdits = False
-          | enableDeuceBoxSelection = True
+      { m | enableTextEdits = Updatable.create False
+          , enableDeuceBoxSelection = True
           , enableDeuceTextSelection = False
           , showEditCodeInMenuBar = False
           , showDeucePanel = True
           , showDeuceRightClickMenu = False
           }
     TextSelectOnly ->
-      { m -- | enableTextEdits = False
-          | enableDeuceBoxSelection = False
+      { m | enableTextEdits = Updatable.create False
+          , enableDeuceBoxSelection = False
           , enableDeuceTextSelection = True
           , showEditCodeInMenuBar = True
           , showDeucePanel = False
           , showDeuceRightClickMenu = True
           }
     AllFeatures ->
-      { m -- | enableTextEdits = True
-          | enableDeuceBoxSelection = True
+      { m | enableTextEdits = Updatable.create True
+          , enableDeuceBoxSelection = True
           , enableDeuceTextSelection = True
           , showEditCodeInMenuBar = True
           , showDeucePanel = True
@@ -1957,6 +1986,14 @@ msgSetTextSelectMode textSelectMode =
     { model
         | textSelectMode =
             textSelectMode
+    }
+
+msgSetEnableTextEdits : Bool -> Msg
+msgSetEnableTextEdits bool =
+  Msg "Set Enable Text Edits" <| \model ->
+    { model
+        | enableTextEdits =
+            Updatable.create bool
     }
 
 --------------------------------------------------------------------------------

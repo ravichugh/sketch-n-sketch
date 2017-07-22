@@ -1,5 +1,6 @@
 port module AceCodeBox exposing
   ( initializeAndDisplay, display, resize, updateFontSize
+  , setReadOnly
   , receiveEditorState
   , userHasTyped
   )
@@ -32,6 +33,8 @@ sendCmd message model =
         , codeBoxInfo = model.codeBoxInfo
         }
     }
+
+port setReadOnly : Bool -> Cmd msg
 
 -- Incoming
 
