@@ -31,6 +31,7 @@ import InterfaceModel as Model exposing
 import Lang exposing (..)
 import LangTools
 import LangUnparser
+import UserStudy
 
 import DeuceWidgets exposing
   ( DeuceWidget(..)
@@ -1988,7 +1989,9 @@ deuceTools model =
       , patTargets
       )
   in
-    List.map (List.map (\tool -> tool model selections))
+    -- TODO convertColorStringsTool
+    -- TODO (?) twiddleShapesTool
+    List.map (List.map (\tool -> tool model selections)) <|
       [ [ createFunctionTool
         , mergeTool
         ]
@@ -2015,17 +2018,18 @@ deuceTools model =
         , swapUsagesTool
         , swapExpressionsTool
         ]
-      , [ thawFreezeTool
-        , addRemoveRangeTool
-        , showHideRangeTool
-        , rewriteOffsetTool
-        -- TODO
-        -- , convertColorStringsTool
-        , flipBooleanTool
-        -- TODO ?
-        -- , twiddleShapesTool
+      ] ++
+      ( UserStudy.hideIfEnabled <|
+          [ [ thawFreezeTool
+            , addRemoveRangeTool
+            , showHideRangeTool
+            , rewriteOffsetTool
+            ]
+          ]
+      ) ++
+      [ [ flipBooleanTool
+        ]
       ]
-    ]
 
 createToolCache : Model -> List (List CachedDeuceTool)
 createToolCache model =
