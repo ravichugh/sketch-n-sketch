@@ -698,16 +698,14 @@ isSubsetRange innerRange outerRange =
   in
     startGood && endGood
 
-validCursorSelect : Bool -> Ace.Range -> Bool
-validCursorSelect allowSingleSelection selectedRange =
-  allowSingleSelection &&
-  selectedRange.start == selectedRange.end
-
 matchingRange : Model -> Bool -> Ace.Range -> List (Ace.Range, a) -> Maybe a
 matchingRange model allowSingleSelection selectedRange =
   let
     textSelectMode =
-      if validCursorSelect allowSingleSelection selectedRange then
+      if
+        allowSingleSelection &&
+        selectedRange.start == selectedRange.end
+      then
         Superset
       else
         model.textSelectMode
@@ -789,43 +787,39 @@ codeObjectFromSelection allowSingleSelection model =
     -- as just the range [cursorPos, cursorPos]. Thus, this pattern handles
     -- all the cases that we need.
     [ selection ] ->
-      let
-        isCursorSelect =
-          validCursorSelect allowSingleSelection selection
-      in
-        matchingRange
-          model
-          allowSingleSelection
-          selection
-          -- Ignore Def code objects for now
-          ( List.concatMap
-              ( \codeObject ->
-                  let
-                    default =
-                      [ ( rangeFromInfo << extractInfoFromCodeObject <|
-                            codeObject
-                        , codeObject
-                        )
-                      ]
-                  in
-                    -- Do not cursor-select target positions
-                    if isCursorSelect && isTarget codeObject then
-                      []
-                    else
-                      case codeObject of
-                        E e ->
-                          case e.val.e__ of
-                            (ELet _ Def _ _ _ _ _) ->
-                              []
-                            _ ->
-                              default
-                        _ ->
-                          default
-              )
-              ( flattenToCodeObjects << E <|
-                  model.inputExp
-              )
-          )
+      matchingRange
+        model
+        allowSingleSelection
+        selection
+        -- Ignore Def code objects for now
+        ( List.concatMap
+            ( \codeObject ->
+                let
+                  default =
+                    [ ( rangeFromInfo << extractInfoFromCodeObject <|
+                          codeObject
+                      , codeObject
+                      )
+                    ]
+                in
+                  -- Do not text-select target positions
+                  if isTarget codeObject then
+                    []
+                  else
+                    case codeObject of
+                      E e ->
+                        case e.val.e__ of
+                          (ELet _ Def _ _ _ _ _) ->
+                            []
+                          _ ->
+                            default
+                      _ ->
+                        default
+            )
+            ( flattenToCodeObjects << E <|
+                model.inputExp
+            )
+        )
     _ ->
       Nothing
 
