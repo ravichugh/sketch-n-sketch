@@ -45,6 +45,7 @@ module InterfaceController exposing
   , msgHoverDeuceResult
   , msgLeaveDeuceResult
   , msgUpdateRenameVarTextBox
+  , msgClearDrag
   , msgDragDeucePopupPanel
   , msgDragEditCodePopupPanel
   , msgDragDeuceRightClickMenu
@@ -1764,6 +1765,14 @@ msgUpdateRenameVarTextBox text =
       } |> DeuceTools.reselectDeuceTool
 
 --------------------------------------------------------------------------------
+-- Clear Drag
+
+msgClearDrag : Msg
+msgClearDrag =
+  Msg "Clear Drag" <| \model ->
+    { model | mouseMode = MouseNothing }
+
+--------------------------------------------------------------------------------
 -- Popup Panels
 
 shift : (Int, Int) -> (Int, Int) -> (Int, Int)
@@ -1804,8 +1813,7 @@ updatePopupPanelPosition get set model  =
         -- Update model
         { old | popupPanelPositions = newPopupPanelPositions }
   in
-    { model | mouseMode = Model.MouseDrag updater }
-
+    { model | mouseMode = MouseDrag updater }
 
 --------------------------------------------------------------------------------
 -- Deuce Popup Panel

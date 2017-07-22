@@ -1146,6 +1146,7 @@ resizer model =
           , ("top", (px << .y) resizerBoundingBox)
           ]
       , E.onMouseDown Controller.msgDragResizer
+      , E.onMouseUp Controller.msgClearDrag
       ]
       [ Html.text "⦀"
       ]
@@ -1861,6 +1862,7 @@ popupPanel args =
       [ Html.div
           [ Attr.class "dragger"
           , E.onMouseDown args.dragHandler
+          , E.onMouseUp Controller.msgClearDrag
           ]
           [ Html.text args.title
           ]
