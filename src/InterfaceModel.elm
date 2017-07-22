@@ -802,8 +802,9 @@ codeObjectFromSelection allowSingleSelection model =
                       )
                     ]
                 in
-                  -- Do not text-select target positions
-                  if isTarget codeObject then
+                  -- Do not text-select non-selectable code objects like comments
+                  -- or target positions
+                  if isNonSelectable codeObject then
                     []
                   else
                     case codeObject of

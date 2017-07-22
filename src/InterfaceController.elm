@@ -2025,12 +2025,19 @@ msgDeuceRightClick : DeuceRightClickMenuMode -> Msg
 msgDeuceRightClick menuMode =
   Msg "Deuce Right Click" <| \model ->
     if Model.noWidgetsSelected model then
-      model
-        |> textSelect True
-        |> showDeuceRightClickMenu
-             deuceRightClickMenuMouseOffset.x
-             deuceRightClickMenuMouseOffset.y
-             menuMode
+      let
+        modelAfterTextSelection =
+          textSelect True model
+      in
+        -- Make sure we selected at least one code object
+        if Model.noWidgetsSelected modelAfterTextSelection then
+          model
+        else
+          showDeuceRightClickMenu
+            deuceRightClickMenuMouseOffset.x
+            deuceRightClickMenuMouseOffset.y
+            menuMode
+            modelAfterTextSelection
     else
       model
 

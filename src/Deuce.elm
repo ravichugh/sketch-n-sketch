@@ -39,6 +39,7 @@ import Lang exposing
   , CodeObject(..)
   , extractInfoFromCodeObject
   , isTarget
+  , isNonSelectable
   , foldCode
   , computePatMap
   , firstNestedExp
@@ -630,11 +631,7 @@ expPolygon codeInfo e =
     color =
       objectColor
   in
-    case e.val.e__ of
-      EComment _ _ _ ->
-        blockerPolygon codeInfo codeObject
-      _ ->
-        codeObjectPolygon codeInfo codeObject color
+    codeObjectPolygon codeInfo codeObject color
 
 patPolygon
   : CodeInfo -> Exp -> Pat -> List (Svg Msg)
@@ -711,21 +708,24 @@ polygons codeInfo ast =
   List.reverse <|
     foldCode
       ( \codeObject acc ->
-          case codeObject of
-            E e ->
-              expPolygon codeInfo e ++ acc
-            P e p ->
-              patPolygon codeInfo e p ++ acc
-            T t ->
-              acc
-            LBE eid ->
-              letBindingEquationPolygon codeInfo eid ++ acc
-            ET ba ws et ->
-              expTargetPolygon codeInfo ba ws et ++ acc
-            PT ba ws e pt ->
-              patTargetPolygon codeInfo ba ws e pt ++ acc
-            TT _ _ _ ->
-              acc
+          if isNonSelectable codeObject then
+            blockerPolygon codeInfo codeObject ++ acc
+          else
+            case codeObject of
+              E e ->
+                expPolygon codeInfo e ++ acc
+              P e p ->
+                patPolygon codeInfo e p ++ acc
+              T t ->
+                acc
+              LBE eid ->
+                letBindingEquationPolygon codeInfo eid ++ acc
+              ET ba ws et ->
+                expTargetPolygon codeInfo ba ws et ++ acc
+              PT ba ws e pt ->
+                patTargetPolygon codeInfo ba ws e pt ++ acc
+              TT _ _ _ ->
+                acc
       )
       []
       (E ast)
