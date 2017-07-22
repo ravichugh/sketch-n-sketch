@@ -324,6 +324,7 @@ a {
   line-height: 35px;
   padding: 0 15px;
   border-bottom: 1px solid #333333;
+  overflow: hidden;
   position: relative;
 }
 
@@ -416,6 +417,27 @@ a {
   right: 0;
   bottom: 0;
   left: 0;
+}
+
+/******************************************************************************
+ * Resizer                                                                    *
+ ******************************************************************************/
+
+.resizer {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+  /* line-height: DYNAMIC */
+  transition: height 0.5s, line-height 0.5s;
+
+  color: #444444;
+  font-size: 2em;
+  text-align: center;
+  cursor: col-resize;
+  user-select: none;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
 }
 
 /******************************************************************************

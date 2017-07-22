@@ -60,6 +60,8 @@ module InterfaceController exposing
   , msgSetTextSelectMode
   , msgSetSelectedDeuceTool
   , msgDeuceRightClick
+  , msgDragResizer
+  , msgResetInterfaceLayout
   )
 
 import Lang exposing (..) --For access to what makes up the Vals
@@ -357,7 +359,7 @@ onMouseDrag lastPosition newPosition old =
     MouseDragLayoutWidget f ->
       f (mx0, my0) old
 
-    MouseDragPopupPanel f ->
+    MouseDrag f ->
       f lastPosition newPosition old
 
     MouseDragZone zoneKey Nothing ->
@@ -1442,7 +1444,7 @@ handleNew template = (\old ->
                     , showDeucePanel           = old.showDeucePanel
                     , showDeuceRightClickMenu  = old.showDeuceRightClickMenu
                     , textSelectMode           = old.textSelectMode
-
+                    , resizerX                 = old.resizerX
                     } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
 
@@ -1773,7 +1775,7 @@ updatePopupPanelPosition get set model  =
         -- Update model
         { old | popupPanelPositions = newPopupPanelPositions }
   in
-    { model | mouseMode = Model.MouseDragPopupPanel updater }
+    { model | mouseMode = Model.MouseDrag updater }
 
 
 --------------------------------------------------------------------------------
@@ -1939,3 +1941,32 @@ msgDeuceRightClick menuMode =
            deuceRightClickMenuMouseOffset.x
            deuceRightClickMenuMouseOffset.y
            menuMode
+
+--------------------------------------------------------------------------------
+-- Resizer
+
+msgDragResizer : Msg
+msgDragResizer =
+  let
+    updater oldPosition newPosition old =
+      let
+        leftBound =
+          SleekLayout.resizerLeftBound old
+        rightBound =
+          SleekLayout.resizerRightBound old
+        oldResizerX =
+          SleekLayout.resizerX old
+        newResizerX =
+          Utils.clamp leftBound rightBound <|
+            oldResizerX +
+              (Tuple.first <| deltaMouse oldPosition newPosition)
+      in
+        { old | resizerX = Just newResizerX }
+  in
+    Msg "Drag Resizer" <| \model ->
+      { model | mouseMode = Model.MouseDrag updater }
+
+msgResetInterfaceLayout : Msg
+msgResetInterfaceLayout =
+  Msg "Reset Interface Layout" <| \model ->
+    { model | resizerX = Nothing }

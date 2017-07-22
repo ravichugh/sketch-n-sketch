@@ -667,6 +667,10 @@ menuBar model =
                       "Off"
                       Controller.msgSetGhostsShown
                 ]
+              , [ simpleTextButton
+                    "Reset Interface Layout"
+                    Controller.msgResetInterfaceLayout
+                ]
               ]
           , menu "Options"
               [ [ hoverMenu "Font Size"
@@ -1096,12 +1100,23 @@ codePanel model =
 
 resizer : Model -> Html Msg
 resizer model =
-  Html.div
-    [ Attr.class "resizer"
-    , Attr.style
-        [ ("width", (px << .width) SleekLayout.spacing) ]
-    ]
-    []
+  let
+    resizerBoundingBox =
+      SleekLayout.resizer model
+  in
+    Html.div
+      [ Attr.class "resizer"
+      , Attr.style
+          [ ("width", (px << .width) resizerBoundingBox)
+          , ("height", (px << .height) resizerBoundingBox)
+          , ("line-height", (px << .height) resizerBoundingBox)
+          , ("left", (px << .x) resizerBoundingBox)
+          , ("top", (px << .y) resizerBoundingBox)
+          ]
+      , E.onMouseDown Controller.msgDragResizer
+      ]
+      [ Html.text "⦀"
+      ]
 
 --------------------------------------------------------------------------------
 -- Output Panel
@@ -1365,6 +1380,7 @@ workArea model =
         [ Attr.class "main-panels"
         ]
         [ codePanel model
+        , resizer model
         , outputPanel model
         , toolPanel model
         ]

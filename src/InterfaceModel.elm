@@ -155,6 +155,7 @@ type alias Model =
   , showDeuceRightClickMenu : Bool
   , textSelectMode : TextSelectMode
   , codeClean : Bool
+  , resizerX : Maybe Int
   }
 
 type Mode
@@ -195,8 +196,8 @@ type alias RawSvg = String
 
 type MouseMode
   = MouseNothing
+  | MouseDrag (Mouse.Position -> Mouse.Position -> Model -> Model)
   | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
-  | MouseDragPopupPanel (Mouse.Position -> Mouse.Position -> Model -> Model)
 
   | MouseDragZone
       ZoneKey               -- (nodeId, shapeKind, zoneName)
@@ -938,4 +939,5 @@ initModel =
     , showDeuceRightClickMenu = True
     , textSelectMode = SubsetExtra
     , codeClean = True
+    , resizerX = Nothing
     }

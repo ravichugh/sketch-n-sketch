@@ -27,12 +27,35 @@ module SleekLayout exposing
   , deucePopupPanelMouseOffset
   , deuceRightClickMenuMouseOffset
   , synthesisPanel
+  , resizerX
+  , resizer
+  , resizerLeftBound
+  , resizerRightBound
   , codePanel
   , outputPanel
   , outputCanvas
   )
 
 import InterfaceModel as Model exposing (Model)
+
+--------------------------------------------------------------------------------
+-- Bounding Box
+--------------------------------------------------------------------------------
+
+type alias BoundingBox =
+  { x : Int
+  , y : Int
+  , width : Int
+  , height : Int
+  }
+
+box : Int -> Int -> Int -> Int -> BoundingBox
+box x y width height =
+  { x = x
+  , y = y
+  , width = width
+  , height = height
+  }
 
 --------------------------------------------------------------------------------
 -- General Descriptions (descriptive)
@@ -149,52 +172,110 @@ synthesisPanel model =
 -- Main Panels
 --------------------------------------------------------------------------------
 
-type alias BoundingBox =
-  { x : Int
-  , y : Int
-  , width : Int
-  , height : Int
-  }
-
-box : Int -> Int -> Int -> Int -> BoundingBox
-box x y width height =
-  { x = x
-  , y = y
-  , width = width
-  , height = height
-  }
-
-numMainPanels : Int
-numMainPanels = 2
-
-staticContentWidth : Int
-staticContentWidth =
-  numMainPanels * spacing.width +
-    toolPanel.marginLeft + toolPanel.width + spacing.width
-
 staticContentHeight : Model -> Int
 staticContentHeight model =
   menuBarTotalHeight + 2 * spacing.height + (synthesisPanel model).height
 
-mainPanel : Int -> Model -> BoundingBox
-mainPanel panelNumber model =
+mainPanelHeight : Model -> Int
+mainPanelHeight model =
+  model.dimensions.height - staticContentHeight model
+
+mainPanelY : Int
+mainPanelY =
+  menuBarTotalHeight + spacing.height
+
+codePanel : Model -> BoundingBox
+codePanel model =
   let
-    width =
-      (model.dimensions.width - staticContentWidth) // numMainPanels
-    height =
-      model.dimensions.height - staticContentHeight model
+    resizerBB =
+      resizer model
     x =
-      spacing.width + (width + spacing.width) * panelNumber
+      spacing.width
     y =
-      menuBarTotalHeight + spacing.height
+      mainPanelY
+    width =
+      resizerBB.x - x
+    height =
+      mainPanelHeight model
   in
     box x y width height
 
-codePanel : Model -> BoundingBox
-codePanel = mainPanel 0
-
 outputPanel : Model -> BoundingBox
-outputPanel = mainPanel 1
+outputPanel model =
+  let
+    resizerBB =
+      resizer model
+    x =
+      resizerBB.x + resizerBB.width
+    y =
+      mainPanelY
+    width =
+      model.dimensions.width
+        - toolPanel.right
+        - toolPanel.width
+        - spacing.width
+        - x
+    height =
+      mainPanelHeight model
+  in
+    box x y width height
+
+--------------------------------------------------------------------------------
+-- Resizer
+--------------------------------------------------------------------------------
+
+resizerWidth : Int
+resizerWidth =
+  20
+
+-- Position without moving the resizer
+defaultResizerX : Model -> Int
+defaultResizerX model =
+  let
+    defaultMainPanelWidth =
+      (model.dimensions.width - 3 * spacing.width - resizerWidth) // 2
+  in
+    spacing.width + defaultMainPanelWidth
+
+resizerX : Model -> Int
+resizerX model =
+  Maybe.withDefault
+    (defaultResizerX model)
+    model.resizerX
+
+resizer : Model -> BoundingBox
+resizer model =
+  let
+    width =
+      resizerWidth
+    height =
+      mainPanelHeight model
+    x =
+      resizerX model
+    y =
+      mainPanelY
+  in
+    box x y width height
+
+resizerBoundMargin : Int
+resizerBoundMargin =
+  100
+
+resizerLeftBound : Model -> Int
+resizerLeftBound model =
+  let
+    codePanelBB =
+      codePanel model
+  in
+    codePanelBB.x + resizerBoundMargin
+
+resizerRightBound : Model -> Int
+resizerRightBound model =
+  let
+    outputPanelBB =
+      outputPanel model
+  in
+    outputPanelBB.x + outputPanelBB.width - resizerBoundMargin
 
 --------------------------------------------------------------------------------
 -- Output Dimensions (descriptive)
