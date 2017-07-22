@@ -2023,7 +2023,10 @@ msgSetSelectedDeuceTool useTextSelect cachedDeuceTool =
 msgDeuceRightClick : DeuceRightClickMenuMode -> Msg
 msgDeuceRightClick menuMode =
   Msg "Deuce Right Click" <| \model ->
-    if Model.noWidgetsSelected model then
+    if
+      model.showDeuceRightClickMenu &&
+      (Model.noWidgetsSelected model)
+    then
       let
         modelAfterTextSelection =
           textSelect True model
