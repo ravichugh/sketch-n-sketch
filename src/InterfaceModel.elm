@@ -941,12 +941,12 @@ initModel =
         }
     , deuceRightClickMenuMode = Nothing
     , userStudyStateIndex = 1
-    , enableDeuceBoxSelection = True
-    , enableDeuceTextSelection = True
+    , enableDeuceBoxSelection = False
+    , enableDeuceTextSelection = False
     , showDeuceInMenuBar = False
-    , showEditCodeInMenuBar = True
-    , showDeucePanel = True
-    , showDeuceRightClickMenu = True
+    , showEditCodeInMenuBar = False
+    , showDeucePanel = False
+    , showDeuceRightClickMenu = False
     , textSelectMode = SubsetExtra
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True

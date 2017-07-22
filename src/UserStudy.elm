@@ -95,6 +95,10 @@ disablePreviousStep i =
 
 getFinalCode state templateCode =
   case state of
+    (Start, _)                 -> templateCode
+    (Transition1, _)           -> templateCode
+    (Transition2, _)           -> templateCode
+    (End, _)                   -> templateCode
     (Tutorial, ("Step 14", _)) -> reorderTutorialStep order_14_15_16 templateCode
     (Tutorial, ("Step 15", _)) -> reorderTutorialStep order_14_15_16 templateCode
     (Tutorial, ("Step 16", _)) -> reorderTutorialStep order_14_15_16 templateCode
