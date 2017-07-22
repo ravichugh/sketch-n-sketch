@@ -601,7 +601,7 @@ menuBar model =
             else
               []
           ) ++
-          [ menu "Edit Output"
+          [ menu "Output Tools"
               [ [ relateTextButton
                     model
                     "Dig Hole"
