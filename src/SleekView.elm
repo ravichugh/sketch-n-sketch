@@ -448,7 +448,8 @@ editCodeEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
     title =
       deuceTool.name ++ "..."
     disabled =
-      List.any Model.predicateImpossible deuceTool.reqs
+      (List.any Model.predicateImpossible deuceTool.reqs) ||
+      (not <| Model.noWidgetsSelected model)
   in
     disableableTextButton
       disabled
