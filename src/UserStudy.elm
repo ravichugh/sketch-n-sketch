@@ -43,21 +43,24 @@ type EditorMode
 
 enabled : Bool
 enabled =
-  True
+  False
 
-hideIfEnabled : List a -> List a
-hideIfEnabled content =
-  if enabled then
-    []
-  else
-    content
+hideIfEnabled = identity
+showIfEnabled = identity
 
-showIfEnabled : List a -> List a
-showIfEnabled content =
-  if enabled then
-    content
-  else
-    []
+--hideIfEnabled : List a -> List a
+--hideIfEnabled content =
+--  if enabled then
+--    []
+--  else
+--    content
+--
+--showIfEnabled : List a -> List a
+--showIfEnabled content =
+--  if enabled then
+--    content
+--  else
+--    []
 
 --------------------------------------------------------------------------------
 
