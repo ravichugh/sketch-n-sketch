@@ -721,7 +721,6 @@ msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
 msgUserHasTyped : Msg
 msgUserHasTyped =
   Msg "User Has Typed" <| \model ->
-    let _ = Debug.log "HAPPENS" () in
     { model
         | deuceState =
             emptyDeuceState
