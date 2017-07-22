@@ -172,12 +172,20 @@ synthesisPanel model =
 -- Main Panels
 --------------------------------------------------------------------------------
 
+staticContentWidth : Int
+staticContentWidth =
+  2 * spacing.width + toolPanel.width + toolPanel.marginLeft
+
 staticContentHeight : Model -> Int
 staticContentHeight model =
   menuBarTotalHeight + 2 * spacing.height + (synthesisPanel model).height
 
-mainPanelHeight : Model -> Int
-mainPanelHeight model =
+dynamicContentWidth : Model -> Int
+dynamicContentWidth model =
+  model.dimensions.width - staticContentWidth
+
+dynamicContentHeight : Model -> Int
+dynamicContentHeight model =
   model.dimensions.height - staticContentHeight model
 
 mainPanelY : Int
@@ -196,7 +204,7 @@ codePanel model =
     width =
       resizerBB.x - x
     height =
-      mainPanelHeight model
+      dynamicContentHeight model
   in
     box x y width height
 
@@ -213,10 +221,10 @@ outputPanel model =
       model.dimensions.width
         - toolPanel.right
         - toolPanel.width
-        - spacing.width
+        - toolPanel.marginLeft
         - x
     height =
-      mainPanelHeight model
+      dynamicContentHeight model
   in
     box x y width height
 
@@ -231,11 +239,7 @@ resizerWidth =
 -- Position without moving the resizer
 defaultResizerX : Model -> Int
 defaultResizerX model =
-  let
-    defaultMainPanelWidth =
-      (model.dimensions.width - 3 * spacing.width - resizerWidth) // 2
-  in
-    spacing.width + defaultMainPanelWidth
+  spacing.width + (dynamicContentWidth model - resizerWidth) // 2
 
 resizerX : Model -> Int
 resizerX model =
@@ -249,7 +253,7 @@ resizer model =
     width =
       resizerWidth
     height =
-      mainPanelHeight model
+      dynamicContentHeight model
     x =
       resizerX model
     y =
