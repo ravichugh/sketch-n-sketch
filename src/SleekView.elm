@@ -453,7 +453,7 @@ editCodeEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
     disableableTextButton
       disabled
       title
-      (Controller.msgSetSelectedDeuceTool cachedDeuceTool)
+      (Controller.msgSetSelectedDeuceTool True cachedDeuceTool)
 
 menuHeading : String -> Html Msg
 menuHeading heading =
@@ -1802,7 +1802,7 @@ deuceRightClickMenuEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
     else
       [ simpleTextButton
           title
-          (Controller.msgSetSelectedDeuceTool cachedDeuceTool)
+          (Controller.msgSetSelectedDeuceTool False cachedDeuceTool)
       ]
 
 deuceRightClickMenu : Model -> Html Msg

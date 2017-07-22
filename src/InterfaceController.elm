@@ -1997,10 +1997,10 @@ msgSetEnableTextEdits bool =
     }
 
 --------------------------------------------------------------------------------
--- Setting the selected DeuceTool from the "Edit Code" menu
+-- Set the selected Deuce tool
 
-msgSetSelectedDeuceTool : CachedDeuceTool -> Msg
-msgSetSelectedDeuceTool cachedDeuceTool =
+msgSetSelectedDeuceTool : Bool -> CachedDeuceTool -> Msg
+msgSetSelectedDeuceTool useTextSelect cachedDeuceTool =
   let
     selectedDeuceToolUpdater model =
       { model
@@ -2009,9 +2009,14 @@ msgSetSelectedDeuceTool cachedDeuceTool =
           , deuceRightClickMenuMode =
               Nothing
       }
+    maybeTextSelect =
+      if useTextSelect then
+        textSelect False
+      else
+        identity
   in
     Msg "Set Selected Deuce Tool" <|
-      selectedDeuceToolUpdater >> (textSelect False)
+      selectedDeuceToolUpdater >> maybeTextSelect
 
 --------------------------------------------------------------------------------
 -- Deuce Right Click
