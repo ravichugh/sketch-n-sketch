@@ -540,6 +540,33 @@ whitespaceColor =
   , b = 200
   }
 
+-- This polygon should be used for code objects that should not be Deuce-
+-- selectable. The purpose of this polygon is to block selection of the parent
+-- code object of the unwanted code object. For example, this is very useful
+-- with EComments.
+blockerPolygon : CodeInfo -> CodeObject -> List (Svg Msg)
+blockerPolygon codeInfo codeObject =
+  let
+    color =
+      { r = 255
+      , g = 0
+      , b = 0
+      }
+  in
+    [ Svg.g
+      [ SAttr.opacity "0"
+      ]
+      [ Svg.polygon
+          [ SAttr.points <|
+              codeObjectHullPoints codeInfo codeObject
+          , SAttr.strokeWidth strokeWidth
+          , SAttr.stroke <| rgbaString color 1
+          , SAttr.fill <| rgbaString color 0.2
+          ]
+          []
+      ]
+    ]
+
 codeObjectPolygon
   : CodeInfo -> CodeObject -> Color -> List (Svg Msg)
 codeObjectPolygon codeInfo codeObject color =
@@ -605,7 +632,7 @@ expPolygon codeInfo e =
   in
     case e.val.e__ of
       EComment _ _ _ ->
-        []
+        blockerPolygon codeInfo codeObject
       _ ->
         codeObjectPolygon codeInfo codeObject color
 

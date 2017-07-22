@@ -1240,15 +1240,15 @@ comment =
     inContext "comment" <|
       lazy <| \_ ->
         delayedCommitMap
-          ( \wsStart (text, rest) ->
+          ( \wsStart (semicolon, text, rest) ->
               withInfo
                 (EComment wsStart text.val rest)
-                text.start
+                semicolon.start
                 text.end
           )
           spaces
-          ( succeed (,)
-              |. symbol ";"
+          ( succeed (,,)
+              |= trackInfo (symbol ";")
               |= trackInfo (keep zeroOrMore (\c -> c /= '\n'))
               |. symbol "\n"
               |= exp
@@ -1390,14 +1390,18 @@ topLevelTypeAlias =
 topLevelComment : Parser TopLevelExp
 topLevelComment =
   inContext "top-level comment" <|
-    spacesBefore
-      ( \wsStart text ->
-          ( \rest ->
-              exp_ <| EComment wsStart text rest
-          )
+    delayedCommitMap
+      ( \wsStart (semicolon, text) ->
+          withInfo
+            ( \rest ->
+                exp_ <| EComment wsStart text.val rest
+            )
+            semicolon.start
+            text.end
       )
-      ( succeed identity
-          |. symbol ";"
+      spaces
+      ( succeed (,)
+          |= trackInfo (symbol ";")
           |= trackInfo (keep zeroOrMore (\c -> c /= '\n'))
           |. symbol "\n"
       )
