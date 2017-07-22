@@ -1,8 +1,9 @@
 module UserStudy exposing
-  ( State(End)
-  , sequence
+  ( sequence
   , getTemplate
   , getFinalCode
+  , EditorMode(..)
+  , getEditorMode
   , disableNextStep
   , disablePreviousStep
   , syntaxHelp
@@ -17,17 +18,16 @@ import ImpureGoodies
 
 import UserStudyLog
 
-type State
-  = Start
-  | Transition1
-  | Step (Phase, (String, EditorMode))
-  | Transition2
-  | End
+type alias State = (Phase, (String, EditorMode))
 
 type Phase
-  = Tutorial
+  = Start
+  | Tutorial
+  | Transition1
   | HeadToHeadTask
+  | Transition2
   | FullTask
+  | End
 
 type EditorMode
   = ReadOnly
@@ -41,44 +41,44 @@ type EditorMode
 getState i =
   Utils.geti i sequence
 
+getPhase state =
+  case state of
+    (phase, (_, _)) -> phase
+
+getTemplate state =
+  case state of
+    (_, (template, _)) -> template
+
+getEditorMode state =
+  case state of
+    (_, (_, editorMode)) -> editorMode
+
 disableNextStep i =
-  case getState i of
+  case getPhase (getState i) of
     End -> True
     _   -> False
 
 disablePreviousStep i =
-  case getState i of
-    Start              -> True
-    Step (Tutorial, _) -> False
-    Transition1        -> False
-    _                  -> True
+  case getPhase (getState i) of
+    Start       -> True
+    Tutorial    -> False
+    Transition1 -> False
+    _           -> True
 
 --------------------------------------------------------------------------------
 
-getTemplate state =
-  case state of
-    Start       -> "Deuce Study Start"
-    Transition1 -> "Deuce Study Transition 1"
-    Transition2 -> "Deuce Study Transition 2"
-    End         -> "Deuce Study End"
-    Step (_, (template, mode)) ->
-      if mode == ReadOnly
-        then template -- getFinalCode will make changes to the template code
-        else template
-
 getFinalCode state templateCode =
   case state of
-    Step (Tutorial, ("Step 14", _)) -> reorderTutorialStep order_14_15_16 templateCode
-    Step (Tutorial, ("Step 15", _)) -> reorderTutorialStep order_14_15_16 templateCode
-    Step (Tutorial, ("Step 16", _)) -> reorderTutorialStep order_14_15_16 templateCode
-    Step (Tutorial, ("Step 17", _)) -> reorderTutorialStep order_17 templateCode
-    Step (Tutorial, (_, _))         -> templateCode
-    Step (_, (_, TextEditOnly))     -> templateCode
-    Step (_, (_, ReadOnly))         -> readOnly ++ chopInstructions templateCode
-    Step (_, (_, TextSelectOnly))   -> textSelectOnly ++ templateCode
-    Step (_, (_, BoxSelectOnly))    -> boxSelectOnly ++ templateCode
-    Step (_, (_, AllFeatures))      -> allFeatures ++ templateCode
-    _                               -> templateCode
+    (Tutorial, ("Step 14", _)) -> reorderTutorialStep order_14_15_16 templateCode
+    (Tutorial, ("Step 15", _)) -> reorderTutorialStep order_14_15_16 templateCode
+    (Tutorial, ("Step 16", _)) -> reorderTutorialStep order_14_15_16 templateCode
+    (Tutorial, ("Step 17", _)) -> reorderTutorialStep order_17 templateCode
+    (Tutorial, (_, _))         -> templateCode
+    (_, (_, TextEditOnly))     -> templateCode
+    (_, (_, ReadOnly))         -> readOnly ++ chopInstructions templateCode
+    (_, (_, TextSelectOnly))   -> textSelectOnly ++ templateCode
+    (_, (_, BoxSelectOnly))    -> boxSelectOnly ++ templateCode
+    (_, (_, AllFeatures))      -> allFeatures ++ templateCode
 
 -- post-processing for tasks ---------------------------------------------------
 
@@ -297,13 +297,15 @@ tutorialTasks =
 
 sequence : List State
 sequence =
-  [Start]
-    ++ (List.map Step tutorialTasks)
-    ++ [Transition1]
-    ++ (List.map Step headToHeadTasks)
-    ++ [Transition2]
-    ++ (List.map Step fullTasks)
-    ++ [End]
+  List.concat
+    [ [(Start, ("Deuce Study Start", TextEditOnly))]
+    , tutorialTasks
+    , [(Transition1, ("Deuce Study Transition 1", TextEditOnly))]
+    , headToHeadTasks
+    , [(Transition2, ("Deuce Study Transition 2", AllFeatures))]
+    , fullTasks
+    , [(End, ("Deuce Study End", AllFeatures))]
+    ]
 
 --------------------------------------------------------------------------------
 -- Logging

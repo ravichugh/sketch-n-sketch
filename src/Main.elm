@@ -6,7 +6,7 @@ import InterfaceController as Controller
 import AceCodeBox
 import AnimationLoop
 import FileHandler
-import DependenceGraph
+-- import DependenceGraph
 
 import UserStudyLog
 
@@ -70,5 +70,5 @@ subscriptions model =
     , FileHandler.receiveIcon Controller.msgLoadIcon
     , FileHandler.receiveFileFromInput Controller.msgReadFileFromInput
     , FileHandler.receiveFileIndex Controller.msgUpdateFileIndex
-    , DependenceGraph.receiveImage Controller.msgReceiveDotImage
+    -- , DependenceGraph.receiveImage Controller.msgReceiveDotImage
     ]
