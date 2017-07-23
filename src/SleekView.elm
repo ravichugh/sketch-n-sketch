@@ -1021,8 +1021,8 @@ codePanel model =
         past =
           Tuple.first model.history
         attributes =
-          case past of
-            _ :: prevCode :: _ ->
+          case (UserStudy.enabled, past) of
+            (False, _ :: prevCode :: _) ->
               [ E.onMouseEnter <| Controller.msgPreview (Right prevCode)
               , E.onMouseLeave Controller.msgClearPreview
               ]
@@ -1041,8 +1041,8 @@ codePanel model =
         future =
           Tuple.second model.history
         attributes =
-          case future of
-            futureCode :: _ ->
+          case (UserStudy.enabled, future) of
+            (False, futureCode :: _) ->
               [ E.onMouseEnter <| Controller.msgPreview (Right futureCode)
               , E.onMouseLeave Controller.msgClearPreview
               ]
