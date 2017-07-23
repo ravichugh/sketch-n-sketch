@@ -265,4 +265,23 @@ app.ports.setReadOnly.subscribe(function(flag) {
   editor.setReadOnly(flag);
 });
 
+app.ports.setSelections.subscribe(function(ranges) {
+  editor.clearSelection();
+
+  var range, selection;
+  var len = ranges.length;
+
+  for (var i = 0; i < len; i++) {
+    range = ranges[i];
+    selection = new Range(
+      range.start.row,
+      range.start.column,
+      range.end.row,
+      range.end.column,
+    );
+    // TODO handle multiple selection
+    editor.selection.setSelectionRange(selection);
+  }
+});
+
 // receiveEditorState port is in initialize()

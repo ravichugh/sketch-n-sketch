@@ -550,17 +550,55 @@ update msg oldModel =
     _ ->
       let newModel = upstate msg oldModel in
       let cmd = issueCommand msg oldModel newModel in
-      ( Model.setAllUpdated newModel
+      let (hookedModel, hookedCommands) = applyAllHooks oldModel newModel in
+      ( Model.setAllUpdated hookedModel
       , Cmd.batch <|
-          cmd :: updateCommands newModel
+          cmd :: updateCommands newModel ++ hookedCommands
       )
-
 
 upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
   -- let _ = Debug.log "" (caption, old.mouseState, old.mouseMode) in
   let _ = debugLog "Msg" caption in
   updateModel old
+
+--------------------------------------------------------------------------------
+-- Hooks to be run after every message
+
+hooks : List (Model -> Model -> (Model, Cmd Msg))
+hooks =
+  [ handleSavedSelectionsHook
+  ]
+
+applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
+applyAllHooks oldModel newModel =
+  List.foldl
+    ( \f (newestModel, cmds) ->
+        f oldModel newestModel
+          |> Tuple.mapSecond (flip (::) cmds)
+    )
+    (newModel, [])
+    hooks
+
+handleSavedSelectionsHook : Model -> Model -> (Model, Cmd Msg)
+handleSavedSelectionsHook oldModel newModel =
+  -- Update selections before/after previewing
+  if oldModel.preview == Nothing && newModel.preview /= Nothing then
+    ( { newModel | savedSelections = Just newModel.codeBoxInfo.selections }
+    , Cmd.none
+    )
+  else if oldModel.preview /= Nothing && newModel.preview == Nothing then
+    case newModel.savedSelections of
+      Just selections ->
+        ( { newModel | savedSelections = Nothing }
+        , AceCodeBox.setSelections selections
+        )
+      Nothing ->
+        (newModel, Cmd.none)
+  else
+    (newModel, Cmd.none)
+
+--------------------------------------------------------------------------------
 
 updateCommands : Model -> List (Cmd Msg)
 updateCommands model =

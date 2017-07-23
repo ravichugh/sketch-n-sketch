@@ -158,6 +158,7 @@ type alias Model =
   , enableTextEdits : Updatable Bool
   , codeClean : Bool
   , resizerX : Maybe Int
+  , savedSelections : Maybe (List Ace.Range)
   }
 
 type Mode
@@ -955,4 +956,5 @@ initModel =
         Updatable.setUpdated << Updatable.create <| True
     , codeClean = True
     , resizerX = Nothing
+    , savedSelections = Nothing
     }

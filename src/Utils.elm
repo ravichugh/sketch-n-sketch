@@ -998,3 +998,16 @@ unwrap8 xs = case xs of
   [x1,x2,x3,x4,x5,x6,x7,x8] -> (x1, x2, x3, x4, x5, x6, x7, x8)
   _ -> Debug.crash "unwrap7"
 
+--------------------------------------------------------------------------------
+
+-- Composition is left-to-right
+composeAll : List (a -> a) -> a -> a
+composeAll =
+  List.foldl (<<) identity
+
+--------------------------------------------------------------------------------
+
+-- Useful for ensuring that the () in "let _ = Debug.log s ()" is not forgotten.
+log : String -> ()
+log s =
+  Debug.log s ()

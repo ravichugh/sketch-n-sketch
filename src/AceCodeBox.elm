@@ -1,12 +1,13 @@
 port module AceCodeBox exposing
   ( initializeAndDisplay, display, resize, updateFontSize
   , setReadOnly
+  , setSelections
   , receiveEditorState
   , userHasTyped
   )
 
 import InterfaceModel as Model exposing (Model, AceCodeBoxInfo)
-
+import Ace
 
 --------------------------------------------------------------------------------
 -- Ports
@@ -35,6 +36,7 @@ sendCmd message model =
     }
 
 port setReadOnly : Bool -> Cmd msg
+port setSelections : List Ace.Range -> Cmd msg
 
 -- Incoming
 
