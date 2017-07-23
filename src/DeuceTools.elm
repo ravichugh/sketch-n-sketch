@@ -224,53 +224,9 @@ flipBooleanTool model selections =
     }
 
 --------------------------------------------------------------------------------
--- Rename Pattern
+-- Rename Variable at Definition
 --------------------------------------------------------------------------------
-
-renamePatternTool : Model -> Selections -> DeuceTool
-renamePatternTool model selections =
-  let
-    disabledName =
-      "Rename Pattern"
-    (name, func, patPredVal) =
-      case selections of
-        ([], [], [], [pathedPatId], [], [], []) ->
-          case
-            LangTools.findPatByPathedPatternId pathedPatId model.inputExp
-              |> Maybe.andThen LangTools.patToMaybeIdent
-          of
-            Just ident ->
-              ( "Rename " ++ ident
-              , Just <|
-                  \() ->
-                    let
-                      newName =
-                        model.deuceState.renameVarTextBox
-                    in
-                      CodeMotion.renamePat pathedPatId newName model.inputExp
-              , FullySatisfied
-              )
-            _ ->
-              (disabledName, Nothing, Impossible)
-        ([], [], [], [], [], [], []) ->
-          (disabledName, Nothing, Possible)
-        _ ->
-          (disabledName, Nothing, Impossible)
-  in
-    { name = name
-    , func = func
-    , reqs =
-        [ { description =
-              "Select a pattern identifier"
-          , value =
-              patPredVal
-          }
-        ]
-    , id = "renamePattern"
-    }
-
---------------------------------------------------------------------------------
--- Rename Variable
+-- Rename Variable At Use
 --------------------------------------------------------------------------------
 
 renameVariableTool : Model -> Selections -> DeuceTool
@@ -278,8 +234,24 @@ renameVariableTool model selections =
   let
     disabledName =
       "Rename Variable"
-    (name, func, varPredVal) =
+    (name, func, predVal) =
       case selections of
+        ([], [], [], [pathedPatId], [], [], []) ->
+          case
+            LangTools.findPatByPathedPatternId pathedPatId model.inputExp
+              |> Maybe.andThen LangTools.patToMaybeIdent
+          of
+            Just ident ->
+              let
+                newName =
+                  model.deuceState.renameVarTextBox
+              in
+                ( "Rename " ++ ident
+                , Just <| \() -> CodeMotion.renamePat pathedPatId newName model.inputExp
+                , FullySatisfied
+                )
+            _ ->
+              (disabledName, Nothing, Impossible)
         ([], [], [eId], [], [], [], []) ->
           case findExpByEId model.inputExp eId of
             Just ePlucked ->
@@ -289,10 +261,8 @@ renameVariableTool model selections =
                      newName =
                       model.deuceState.renameVarTextBox
                   in
-                    ( "Rename All " ++ ident
-                    , Just <|
-                        \() ->
-                          CodeMotion.renameVar eId newName model.inputExp
+                    ( "Rename " ++ ident
+                    , Just <| \() -> CodeMotion.renameVar eId newName model.inputExp
                     , FullySatisfied
                     )
                 _ -> (disabledName, Nothing, Impossible)
@@ -306,9 +276,9 @@ renameVariableTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select a variable"
+              "Select a variable definition or use"
           , value =
-              varPredVal
+              predVal
           }
         ]
     , id = "renameVariable"
@@ -2003,7 +1973,6 @@ deuceTools model =
         , introduceVariableTool
         ]
       , [ renameVariableTool
-        , renamePatternTool
         , swapNamesAndUsagesTool
         , inlineDefinitionTool
         , duplicateDefinitionTool
