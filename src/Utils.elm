@@ -1007,6 +1007,16 @@ composeAll =
 
 --------------------------------------------------------------------------------
 
+and : List Bool -> Bool
+and =
+  List.foldl (&&) True
+
+or : List Bool -> Bool
+or =
+  List.foldl (||) False
+
+--------------------------------------------------------------------------------
+
 -- Useful for ensuring that the () in "let _ = Debug.log s ()" is not forgotten.
 log : String -> ()
 log s =

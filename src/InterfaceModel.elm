@@ -666,9 +666,14 @@ deuceActive model =
       List.member Keys.keyShift model.keysDown
   in
     model.codeClean &&
-    ( (model.enableDeuceBoxSelection && shiftDown) ||
-      (configurationPanelShown model)
-    )
+    Utils.or
+      [ Utils.and
+          [ model.enableDeuceBoxSelection
+          , not <| deuceRightClickMenuShown model
+          , shiftDown
+          ]
+      , configurationPanelShown model
+      ]
 
 --------------------------------------------------------------------------------
 
