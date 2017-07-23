@@ -368,7 +368,7 @@ swapExpressionsTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select 2 expressions."
+              "Select two expressions."
           , value =
               predVal
           }
@@ -413,7 +413,7 @@ inlineDefinitionTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select 1 or more patterns, or 1 or more variable definitions"
+              "Select one or more variable definitions"
           , value =
               predVal
           }
@@ -468,7 +468,7 @@ introduceVariableTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select 1 or more constants and 1 optional target position"
+              "Select one or more constants and, optionally, one target position"
           , value =
               predVal
           }
@@ -496,7 +496,7 @@ copyExpressionTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select 2 or more expressions."
+              "Select two or more expressions."
           , value =
               predVal
           }
@@ -517,9 +517,16 @@ moveDefinitionTool model selections =
       case selections of
         ([], [], [], [], [], [], []) ->
           (toolName, Nothing, Possible)
-        (_, _, _, [], [], _, _) ->
-          (toolName, Nothing, Impossible)
-        ([], [], [], pathedPatIds, [], [(Before, eId)], []) ->
+        ([], [], [], _::_, [], [], []) ->
+          (toolName, Nothing, Possible)
+        ([], [], [], [], _::_, [], []) ->
+          (toolName, Nothing, Possible)
+        ([], [], [], [], [], [_], []) ->
+          (toolName, Nothing, Possible)
+        ([], [], [], [], [], [], [_]) ->
+          (toolName, Nothing, Possible)
+        ([], [], [], firstPatId::restPatIds, [], [(Before, eId)], []) ->
+          let pathedPatIds = firstPatId::restPatIds in
           ( Utils.maybePluralize toolName pathedPatIds
           , Just <| \() ->
               CodeMotion.moveDefinitionsBeforeEId
@@ -528,7 +535,8 @@ moveDefinitionTool model selections =
                 model.inputExp
           , Satisfied
           )
-        ([], [], [], pathedPatIds, [], [], [patTarget]) ->
+        ([], [], [], firstPatId::restPatIds, [], [], [patTarget]) ->
+          let pathedPatIds = firstPatId::restPatIds in
           let
             targetPathedPatId =
               patTargetPositionToTargetPathedPatId patTarget
@@ -577,8 +585,7 @@ moveDefinitionTool model selections =
     , func = func
     , reqs =
         [ { description =
-              """Select 2 or more patterns or 2 or more variable definitions,
-                 and 1 target position"""
+              "Select one or more variable definitions and one target position"
           , value =
               predVal
           }
@@ -645,7 +652,7 @@ duplicateDefinitionTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select 1 or more patterns and 1 target position"
+              "Select one or more patterns and one target position"
           , value =
               predVal
           }
@@ -729,7 +736,7 @@ thawFreezeTool model selections =
   in
     { name = name
     , func = func
-    , reqs = [ { description = "Select 1 or more numbers", value = predVal } ]
+    , reqs = [ { description = "Select one or more numbers", value = predVal } ]
     , id = "thawFreeze"
     }
 
@@ -818,7 +825,7 @@ showHideRangeTool model selections =
   in
     { name = name
     , func = func
-    , reqs = [ { description = "Select 1 or more numbers", value = predVal } ]
+    , reqs = [ { description = "Select one or more numbers", value = predVal } ]
     , id = "showHideRange"
     }
 
@@ -913,7 +920,7 @@ addRemoveRangeTool model selections =
   in
     { name = name
     , func = func
-    , reqs = [ { description = "Select 1 or more numbers", value = predVal } ]
+    , reqs = [ { description = "Select one or more numbers", value = predVal } ]
     , id = "addRemoveRange"
     }
 
@@ -952,7 +959,7 @@ rewriteOffsetTool model selections =
     { name = name
     , func = func
     , reqs =
-        [ { description = "Select 1 variable and 1 or more numbers"
+        [ { description = "Select one variable and one or more numbers"
           , value = predVal
           }
         ]
@@ -1113,7 +1120,7 @@ createFunctionTool model selections =
     { name = "Create Function"
     , func = func
     , reqs =
-        [ { description = "Select 1 definition or variable or expression"
+        [ { description = "Select one variable definition or expression"
           , value = predVal
           }
         ]
@@ -1151,6 +1158,12 @@ mergeTool model selections =
         ([], [], [], [], [], [], []) ->
           (Nothing, Possible)
 
+        ([], [], [_], [], [], [], []) ->
+          (Nothing, Possible)
+
+        ([], [], [], [], [_], [], []) ->
+          (Nothing, Possible)
+
         (_, _, [], [], letEId1::letEId2::restLetEIds, [], []) ->
           let boundExpEIds =
             letEId1::letEId2::restLetEIds
@@ -1167,7 +1180,7 @@ mergeTool model selections =
     { name = "Merge Expressions into Function"
     , func = func
     , reqs =
-        [ { description = "Select 2 or more expressions"
+        [ { description = "Select two or more expressions"
           , value = predVal
           }
         ]
@@ -1187,8 +1200,8 @@ addArgumentsTool model selections =
     -- this helper helps avoid changing existing structure of this function
     makeReqs predVal =
       [ { description =
-            """Select 1 or more expressions in a function and
-               1 target position in the function's argument list"""
+            """Select one or more expressions in a function and
+               one target position in the function's argument list"""
         , value = predVal
         }
       ]
@@ -1438,7 +1451,7 @@ reorderArgumentsTool model selections =
     makeReqs predVal =
       [ { description =
             """Select one or more function arguments (either at the definition
-               or a call-site, and 1 target position in that list"""
+               or a call-site) and one target position in that list"""
         , value = predVal
         }
       ]
@@ -1661,7 +1674,7 @@ makeSingleLineTool model selections =
               else
                 Nothing
     , reqs =
-        [ { description = "Select 1 expression or definition"
+        [ { description = "Select one expression or definition"
           , value =
               -- just duplicating this case from above
               case selections of
@@ -1758,7 +1771,7 @@ makeMultiLineTool model selections =
         _ ->
           Nothing
   , reqs =
-      [ { description = "Select 1 expression"
+      [ { description = "Select one expression"
         , value =
             -- just duplicating this case from above
             case selections of
@@ -1827,7 +1840,7 @@ alignExpressionsTool model selections =
         _ ->
           Nothing
   , reqs =
-      [ { description = "Select 2 or more expressions"
+      [ { description = "Select two or more expressions"
         , value =
             -- just duplicating this case from above
             case selections of
