@@ -77,7 +77,9 @@ rgbaString c a =
 startEnd : CodeInfo -> CodeObject -> (Int, Int, Int, Int)
 startEnd codeInfo codeObject =
   let
-    infoToTuple info =
+    info =
+      extractInfoFromCodeObject codeObject
+    infoTuple =
       ( info.start.col
       , info.start.line
       , info.end.col
@@ -96,15 +98,24 @@ startEnd codeInfo codeObject =
             , endExp.end.line
             )
         _ ->
-          infoToTuple << extractInfoFromCodeObject <| codeObject
-    (realEndLine, realEndCol) =
+          infoTuple
+    -- Special cases
+    (realStartLine, realStartCol, realEndLine, realEndCol) =
+      -- Manual extension to max col
       if endCol == 0 then
-        (endLine - 1, codeInfo.maxLineLength + 1)
+        ( startLine
+        , startCol
+        , endLine - 1
+        , codeInfo.maxLineLength + 1
+        )
+      -- Removal
+      else if Lang.hasDummyInfo info then
+        (-100, -100, -100, -100)
       else
-        (endLine, endCol)
+        (startLine, startCol, endLine, endCol)
   in
-    ( startCol - 1
-    , startLine - 1
+    ( realStartCol - 1
+    , realStartLine - 1
     , realEndCol - 1
     , realEndLine - 1
     )
@@ -675,33 +686,7 @@ patTargetPolygon codeInfo ba ws e pt =
     color =
       whitespaceColor
   in
-    -- TODO Altered Whitespace
-    let
-      default =
-        codeObjectPolygon codeInfo codeObject color
-    in
-      case (ba, e.val.e__) of
-        (After, ELet _ Def _ p1 e1 _ _) ->
-          let
-            e1WsBefore =
-              Lang.wsBefore << E <| e1
-          in
-            -- If the whitespace has been altered, show only if the target
-            -- is the altered target
-            if e1WsBefore.start.line /= e1WsBefore.end.line then
-              if ws.start == ws.end then
-                []
-              else
-                default
-            -- If the whitespace has NOT been altered, show only if the target
-            -- is NOT the altered target
-            else
-              if ws.start == ws.end then
-                default
-              else
-                []
-        _ ->
-          default
+    codeObjectPolygon codeInfo codeObject color
 
 polygons : CodeInfo -> Exp -> List (Svg Msg)
 polygons codeInfo ast =

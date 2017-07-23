@@ -66,6 +66,10 @@ withDummyInfo : a -> WithInfo a
 withDummyInfo x =
   withInfo x dummyPos dummyPos
 
+hasDummyInfo : WithInfo a -> Bool
+hasDummyInfo w =
+  (w.start, w.end) == (dummyPos, dummyPos)
+
 mapInfo : (a -> b) -> WithInfo a -> WithInfo b
 mapInfo f wa =
   { wa | val = f wa.val }
@@ -2369,35 +2373,44 @@ childCodeObjects co =
               tbranches
           )
         ELet ws1 lk _ p1 e1 e2 ws2 ->
---          let
---            -- TODO Altered Whitespace
---            (maybeAfterAws, e1Aws) =
---              let
---                e1Ws =
---                  wsBefore << E <| e1
---              in
---                if e1Ws.start.line == e1Ws.end.line then
---                  ( Nothing
---                  , e1Ws
---                  )
---                else
---                  let
---                    breakpoint =
---                      { line =
---                          e1Ws.start.line + 1
---                        , col =
---                            1
---                      }
---                    afterAws =
---                      -- So that Deuce polygon renderer can render correctly
---                      { e1Ws | end = { breakpoint | col = 0 } }
---                    e1Aws =
---                      { e1Ws | start = breakpoint }
---                  in
---                    ( Just afterAws
---                    , e1Aws
---                    )
---          in
+          let
+            -- Altered Whitespace
+            --
+            -- In the following example little programs, * represents special1
+            -- and ~ represents special2. Note that (+ 2 3) is e1.
+            --
+            -- Case 1:
+            --   (def x*(+ 2 3))
+            --
+            -- Case 2:
+            --   (def x******
+            --   ~~~~(+ 2 3))
+            (special1, special2) =
+              let
+                e1Ws =
+                  wsBefore << E <| e1
+              in
+                -- Case 1
+                if e1Ws.start.line == e1Ws.end.line then
+                  ( e1Ws
+                  , withDummyInfo ""
+                  )
+                -- Case 2
+                else
+                  let
+                    breakpoint =
+                      { line =
+                          e1Ws.start.line + 1
+                        , col =
+                            1
+                      }
+                  in
+                    -- Note that col = 0 makes the Deuce polygon renderer extend
+                    -- the polygon to maxCol (desired).
+                    ( { e1Ws | end = { breakpoint | col = 0 } }
+                    , { e1Ws | start = breakpoint }
+                    )
+          in
             [ ET Before ws1 e
             , LBE
                 -- TODO LBE Bounds
@@ -2419,16 +2432,10 @@ childCodeObjects co =
                     e.val.eid
                 }
             , P e p1
+            , PT After special1 e p1
             , E e1
---              , modifyWsBefore (always e1Aws) <|
---                  E e1
+                |> modifyWsBefore (always special2)
             ] ++
---              ( case maybeAfterAws of
---                  Just aws ->
---                    [ PT After aws e p1 ]
---                  Nothing ->
---                    []
---              ) ++
             ( case lk of
                 Let ->
                   [ E e2
