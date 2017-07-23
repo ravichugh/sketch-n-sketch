@@ -6,6 +6,7 @@ import Config exposing (params)
 import Utils
 import Either exposing (Either(..))
 import HtmlUtils exposing (handleEventAndStop)
+import UserStudy
 
 import Lang exposing (..)
 import LangSvg exposing (NodeId, ShapeKind, attr)
@@ -88,8 +89,9 @@ msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
 
 
 build wCanvas hCanvas model =
-  let addZones = case (model.mode, model.preview) of
-    (Live _, Nothing) -> model.tool == Cursor
+  let addZones = case (UserStudy.enabled, model.mode, model.preview) of
+    (True, _, _)         -> False
+    (_, Live _, Nothing) -> model.tool == Cursor
     _                 -> False
   in
   let (widgets, slate) =
