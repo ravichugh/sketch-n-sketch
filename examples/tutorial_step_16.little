@@ -19,7 +19,7 @@
 ; _1   the pop-up menu.
 ; _1
 ; _2 * Select the text (def redRect ...). Select
-; _2   Create Function from the Edit Code Menu.
+; _2   Create Function from the Code Tools Menu.
 ; _2
 ; _3 * Hold down the Shift key, hover over and click
 ; _3   the definition (def redRect ...), and release

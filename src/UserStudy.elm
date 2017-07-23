@@ -227,7 +227,7 @@ TODO
 
 textSelectHelp =
   [ "Text select something in the code."
-  , "Select a tool from either the Edit Code menu or the right-click pop-up menu."
+  , "Select a tool from either the Code Tools menu or the right-click pop-up menu."
   , "Follow any instructions and finish."
   ]
 

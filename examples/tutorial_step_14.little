@@ -18,7 +18,7 @@
 ; _1   configuration box, and press Enter.
 ; _1
 ; _2 * Select the text redRect, and select the Rename
-; _2   tool from the Edit Code menu. Then enter a new
+; _2   tool from the Code Tools menu. Then enter a new
 ; _2   name in the configuration box, and press Enter.
 ; _2
 ; _3 * Hold down the Shift key, hover over redRect,

@@ -23,7 +23,7 @@
 ; _1   before the let or before the call to rect.
 ; _1
 ; _2 * Select the text 100, and select
-; _2   Introduce Variable from the Edit Code menu.
+; _2   Introduce Variable from the Code Tools menu.
 ; _2   The configuration pane asks for zero or
 ; _2   one target position. Select a target position
 ; _2   before the let or before the call to rect.

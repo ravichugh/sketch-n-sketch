@@ -5591,7 +5591,7 @@ tutorial_step_14 =
 ; _1   configuration box, and press Enter.
 ; _1
 ; _2 * Select the text redRect, and select the Rename
-; _2   tool from the Edit Code menu. Then enter a new
+; _2   tool from the Code Tools menu. Then enter a new
 ; _2   name in the configuration box, and press Enter.
 ; _2
 ; _3 * Hold down the Shift key, hover over redRect,
@@ -5633,7 +5633,7 @@ tutorial_step_15 =
 ; _1   before the let or before the call to rect.
 ; _1
 ; _2 * Select the text 100, and select
-; _2   Introduce Variable from the Edit Code menu.
+; _2   Introduce Variable from the Code Tools menu.
 ; _2   The configuration pane asks for zero or
 ; _2   one target position. Select a target position
 ; _2   before the let or before the call to rect.
@@ -5673,7 +5673,7 @@ tutorial_step_16 =
 ; _1   the pop-up menu.
 ; _1
 ; _2 * Select the text (def redRect ...). Select
-; _2   Create Function from the Edit Code Menu.
+; _2   Create Function from the Code Tools Menu.
 ; _2
 ; _3 * Hold down the Shift key, hover over and click
 ; _3   the definition (def redRect ...), and release
@@ -5702,7 +5702,7 @@ tutorial_step_17 =
 ; _1Text Select Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; _1
 ; _1 1.  Text select something in the code.
-; _1 2a. Select a tool from the Edit Code menu, or
+; _1 2a. Select a tool from the Code Tools menu, or
 ; _1 2b. Right-click and select a tool from pop-up menu.
 ; _1 3.  Follow any instructions and finish.
 ; _1
