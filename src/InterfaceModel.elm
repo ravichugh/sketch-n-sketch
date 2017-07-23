@@ -463,6 +463,12 @@ deuceRightClickMenuShown model =
 
 --------------------------------------------------------------------------------
 
+configurationPanelShown : Model -> Bool
+configurationPanelShown model =
+  model.selectedDeuceTool /= Nothing
+
+--------------------------------------------------------------------------------
+
 importCodeFileInputId = "import-code-file-input"
 
 --------------------------------------------------------------------------------
@@ -657,13 +663,10 @@ deuceActive model =
   let
     shiftDown =
       List.member Keys.keyShift model.keysDown
-    toolSelected =
-      model.selectedDeuceTool /= Nothing
   in
     model.codeClean &&
     ( (model.enableDeuceBoxSelection && shiftDown) ||
-      (model.enableDeuceTextSelection && toolSelected) ||
-      (deuceRightClickMenuShown model)
+      (configurationPanelShown model)
     )
 
 --------------------------------------------------------------------------------
