@@ -306,13 +306,6 @@ stencilRawRect x y w h fill stroke strokeWidth rot =
     [ eVar "fill", eVar "stroke", eVar "strokeWidth"
     , eVar "x", eVar "y", eVar "w", eVar "h", eVar "rot" ]
 
-reRawRect = -- using . instead of escaping ( ) [ ]
- """^
-  .let .x y w h. .(\\d+) (\\d+) (\\d+) (\\d+).
-  .let .fill stroke strokeWidth. .(\\d+) (\\d+) (\\d+).
-  .let rot (\\d+)
-    . .rawRect fill stroke strokeWidth x y w h rot. ....$"""
-
 --------------------------------------------------------------------------------
 
 addRawSquare old (_,pt2) (_,pt1) =
@@ -341,12 +334,6 @@ stencilStretchyRect left top right bot fill stroke strokeWidth rot =
     (eVar0 "rectangle")
     [eVar "color", eConst (toFloat stroke) dummyLoc, eConst (toFloat strokeWidth) dummyLoc
     , eConst (toFloat rot) dummyLoc, eVar "bounds"]
-
-reStretchyRect =
- """^
-  .let bounds @ .left top right bot. .(\\d+)[ ]+(\\d+)[ ]+(\\d+)[ ]+(\\d+).
-  .let color (\\d+)
-    . .rectangle color (\\d+)[ ]+(\\d+)[ ]+(\\d+)[ ]+bounds. ...$"""
 
 --------------------------------------------------------------------------------
 

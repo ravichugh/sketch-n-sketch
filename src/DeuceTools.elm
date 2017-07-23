@@ -421,86 +421,6 @@ inlineDefinitionTool model selections =
     , id = "inlineDefinition"
     }
 
-
---------------------------------------------------------------------------------
--- Twiddle Shapes
---------------------------------------------------------------------------------
--- TODO
---------------------------------------------------------------------------------
---
---matchOne str (strRegex, f) =
---  case Regex.find (Regex.AtMost 1) (Regex.regex strRegex) str of
---    [match] ->
---      case Utils.projJusts match.submatches of
---        Nothing -> []
---        Just xs -> f xs
---    _ ->
---      []
---
---makeTwiddleTools m eId eShape =
---
---  let strShape = unparse eShape in
---
---  let evaluateRulesUntilMatch rules =
---    case rules of
---      [] -> []
---      rule :: rest ->
---        case matchOne strShape rule of
---          []    -> evaluateRulesUntilMatch rest
---          tools -> tools
---  in
---
---  let rewriteAndReturn newShape =
---    let newExp =
---      replaceExpNodePreservingPrecedingWhitespace eId newShape m.inputExp
---    in
---    [synthesisResult "XXX" newExp]
---  in
---
---  let rewriteRectRawToStretchy args =
---    if List.length args /= 8 then []
---    else
---      let (x, y, w, h, fill, stroke, strokeWidth, rot) =
---        Utils.unwrap8 (List.map Utils.parseInt args)
---      in
---      [ ("Rewrite Stretchy", \() ->
---          let newShape =
---            stencilStretchyRect x y (x + w) (y + h) fill stroke strokeWidth rot in
---          rewriteAndReturn newShape
---        ) ]
---  in
---
---  let rewriteRectStretchyToRaw args =
---    if List.length args /= 8 then []
---    else
---      let (left, top, right, bot, fill, stroke, strokeWidth, rot) =
---        Utils.unwrap8 (List.map Utils.parseInt args)
---      in
---      [ ("Rewrite Raw", \() ->
---          let newShape =
---            stencilRawRect left top (right - left) (bot - top) fill stroke strokeWidth rot in
---          rewriteAndReturn newShape
---        ) ]
---  in
---
---  evaluateRulesUntilMatch <|
---    [ (reStretchyRect, rewriteRectStretchyToRaw)
---    , (reRawRect, rewriteRectRawToStretchy)
---    ]
---
---twiddleShapesTool : Model -> Selections -> DeuceTool
---twiddleShapesTool model selections = case selections of
---  ([], [], [eId], [], [], [], []) ->
---    case findExpByEId m.inputExp eId of
---      Just ePlucked ->
---        let tools = Draw.makeTwiddleTools m eId ePlucked in
---        case tools of
---          _::_ -> tools
---          [] -> []
---      _ -> []
---  _ -> []
---
-
 --------------------------------------------------------------------------------
 -- Introduce Variable
 --------------------------------------------------------------------------------
@@ -1960,7 +1880,6 @@ deuceTools model =
       )
   in
     -- TODO convertColorStringsTool
-    -- TODO (?) twiddleShapesTool
     List.map (List.map (\tool -> tool model selections)) <|
       [ [ createFunctionTool
         , mergeTool
