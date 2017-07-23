@@ -1899,13 +1899,29 @@ deucePopupPanel model =
     , title =
         "Code Tools" -- "Deuce Menu"
     , content =
-        [ Html.div
-            [] <|
-            List.concatMap
-              (    List.filter (Utils.fst3 >> DeuceTools.isActive model)
-                >> Utils.mapi1 (deuceHoverMenu model)
-              )
-              model.deuceToolsAndResults
+        [ let
+            activeTools =
+              List.concatMap
+                (    List.filter (Utils.fst3 >> DeuceTools.isActive model)
+                  >> Utils.mapi1 (deuceHoverMenu model)
+                )
+                model.deuceToolsAndResults
+          in
+            if List.isEmpty activeTools then
+              Html.div
+                [ Attr.class "no-available-tools"
+                ]
+                [ Html.text
+                    "There are no available tools based on these selections. Press "
+                , Html.i []
+                    [ Html.text "Escape" ]
+                , Html.text
+                    " to clear."
+                ]
+            else
+              Html.div
+                []
+                activeTools
         ]
     }
 
