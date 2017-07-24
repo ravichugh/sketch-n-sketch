@@ -2,6 +2,7 @@ module InterfaceController exposing
   ( update
   , msgNoop
   , msgWindowDimensions
+  , msgVisibilityChange
   , msgCodeUpdate
   , msgKeyPress, msgKeyDown, msgKeyUp
   , msgMouseIsDown, msgMousePosition
@@ -132,6 +133,9 @@ import Mouse
 
 --Error Checking Libraries
 import Debug
+
+--Other libraries
+import PageVisibility exposing (Visibility(..))
 
 --------------------------------------------------------------------------------
 
@@ -736,6 +740,19 @@ msgWindowDimensions wh = Msg "Window Dimensions" <| \old ->
 
 msgCodeUpdate s = Msg "Code Update" <| \old ->
   { old | code = s }
+
+--------------------------------------------------------------------------------
+
+msgVisibilityChange : Visibility -> Msg
+msgVisibilityChange visibility =
+  Msg "Visibility Change" <| \model ->
+    case visibility of
+      -- If changing to visible, do nothing
+      Visible ->
+        model
+      -- If changing to hidden, unpress all keys
+      Hidden ->
+        { model | keysDown = [] }
 
 --------------------------------------------------------------------------------
 

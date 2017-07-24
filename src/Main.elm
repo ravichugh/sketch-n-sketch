@@ -15,6 +15,7 @@ import Mouse
 import Window
 import Keyboard
 import Time
+import PageVisibility
 
 import Task exposing (Task, andThen)
 
@@ -55,6 +56,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.batch
     [ Window.resizes Controller.msgWindowDimensions
+    , PageVisibility.visibilityChanges Controller.msgVisibilityChange
     , Mouse.downs (always (Controller.msgMouseIsDown True))
     , Mouse.ups (always (Controller.msgMouseIsDown False))
     , Mouse.moves Controller.msgMousePosition
