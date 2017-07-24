@@ -246,7 +246,16 @@ resizerWidth =
 -- Position without moving the resizer
 defaultResizerX : Model -> Int
 defaultResizerX model =
-  spacing.width + (dynamicContentWidth model - resizerWidth) // 2
+  let
+    ratio =
+      0.6
+    spaceToDivide =
+      toFloat <|
+        dynamicContentWidth model - resizerWidth
+    left =
+      spacing.width
+  in
+    left + round (ratio * spaceToDivide)
 
 resizerX : Model -> Int
 resizerX model =
