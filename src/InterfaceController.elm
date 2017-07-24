@@ -468,74 +468,84 @@ onMouseUp old =
 
     _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
 
-tryRun : Model -> Result (String, Maybe Ace.Annotation) Model
+tryRun : Model -> Result (Model, String, Maybe Ace.Annotation) Model
 tryRun old =
-  case parseE old.code of
-    Err err -> Err (showError err, Nothing)
-    Ok e ->
-      let result =
-        -- let aceTypeInfo = Types.typecheck e in
-        let aceTypeInfo = Types.dummyAceTypeInfo in
-
-        -- want final environment of top-level definitions when evaluating e,
-        -- for the purposes of running Little code to generate icons.
-        -- but can't just use the output environment from eval directly.
-        -- for example, if the last expression was a function call (either
-        -- within the program or in Prelude), the final environment is from
-        -- that function body. so instead, calling rewriteInnerMostExpToMain
-        -- because the output environment from (let main eFinalBody main)
-        -- will be the top-level definitions (and main).
-        --
-        let rewrittenE = rewriteInnerMostExpToMain e in
-
-        Eval.doEval Eval.initEnv rewrittenE |>
-        Result.andThen (\((newVal,ws),finalEnv) ->
-          LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
-          |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
-            let newCode = unparse e in -- unnecessary, if parse/unparse were inverses
-            let lambdaTools_ =
-              -- TODO should put program into Model
-              -- TODO actually, ideally not. caching introduces bugs
-              let program = splitExp e in
-              Draw.lambdaToolOptionsOf program ++ initModel.lambdaTools
-            in
-            let new =
-              loadLambdaToolIcons finalEnv { old | lambdaTools = lambdaTools_ }
-            in
-            let new_ =
-              { new | inputExp      = e
-                    , inputVal      = newVal
-                    , code          = newCode
-                    , lastRunCode   = newCode
-                    , slideCount    = newSlideCount
-                    , movieCount    = newMovieCount
-                    , movieTime     = 0
-                    , movieDuration = newMovieDuration
-                    , movieContinue = newMovieContinue
-                    , runAnimation  = newMovieDuration > 0
-                    , slate         = newSlate
-                    , widgets       = ws
-                    , history       = addToHistory newCode old.history
-                    , caption       = Nothing
-                    , syncOptions   = Sync.syncOptionsOf old.syncOptions e
-                    , lambdaTools   = lambdaTools_
-                    , errorBox      = Nothing
-                    , scopeGraph    = DependenceGraph.compute e
-                    , preview       = Nothing
-                    , synthesisResults = maybeRunAutoSynthesis old e
-              }
-            in
-            resetDeuceState <|
-            { new_ | mode = refreshMode_ new_
-                   , codeBoxInfo = updateCodeBoxInfo aceTypeInfo new_
-                   }
-          )
-        )
+  let
+    oldWithUpdatedHistory =
+      let
+        updatedHistory =
+          addToHistory old.code old.history
       in
-      case result of
-        Err s    -> Err (s, Nothing)
-        Ok model -> Ok model
+        { old | history = updatedHistory }
+  in
+    case parseE old.code of
+      Err err ->
+        Err (oldWithUpdatedHistory, showError err, Nothing)
+      Ok e ->
+        let result =
+          -- let aceTypeInfo = Types.typecheck e in
+          let aceTypeInfo = Types.dummyAceTypeInfo in
 
+          -- want final environment of top-level definitions when evaluating e,
+          -- for the purposes of running Little code to generate icons.
+          -- but can't just use the output environment from eval directly.
+          -- for example, if the last expression was a function call (either
+          -- within the program or in Prelude), the final environment is from
+          -- that function body. so instead, calling rewriteInnerMostExpToMain
+          -- because the output environment from (let main eFinalBody main)
+          -- will be the top-level definitions (and main).
+          --
+          let rewrittenE = rewriteInnerMostExpToMain e in
+
+          Eval.doEval Eval.initEnv rewrittenE |>
+          Result.andThen (\((newVal,ws),finalEnv) ->
+            LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
+            |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
+              let newCode = unparse e in -- unnecessary, if parse/unparse were inverses
+              let lambdaTools_ =
+                -- TODO should put program into Model
+                -- TODO actually, ideally not. caching introduces bugs
+                let program = splitExp e in
+                Draw.lambdaToolOptionsOf program ++ initModel.lambdaTools
+              in
+              let new =
+                loadLambdaToolIcons finalEnv { old | lambdaTools = lambdaTools_ }
+              in
+              let new_ =
+                { new | inputExp      = e
+                      , inputVal      = newVal
+                      , code          = newCode
+                      , lastRunCode   = newCode
+                      , slideCount    = newSlideCount
+                      , movieCount    = newMovieCount
+                      , movieTime     = 0
+                      , movieDuration = newMovieDuration
+                      , movieContinue = newMovieContinue
+                      , runAnimation  = newMovieDuration > 0
+                      , slate         = newSlate
+                      , widgets       = ws
+                      , history       = addToHistory newCode old.history
+                      , caption       = Nothing
+                      , syncOptions   = Sync.syncOptionsOf old.syncOptions e
+                      , lambdaTools   = lambdaTools_
+                      , errorBox      = Nothing
+                      , scopeGraph    = DependenceGraph.compute e
+                      , preview       = Nothing
+                      , synthesisResults = maybeRunAutoSynthesis old e
+                }
+              in
+              resetDeuceState <|
+              { new_ | mode = refreshMode_ new_
+                     , codeBoxInfo = updateCodeBoxInfo aceTypeInfo new_
+                     }
+            )
+          )
+        in
+          case result of
+            Err s ->
+              Err (oldWithUpdatedHistory, s, Nothing)
+            Ok model ->
+              Ok model
 
 --------------------------------------------------------------------------------
 -- Updating the Model
@@ -785,20 +795,29 @@ msgUserHasTyped =
 
 upstateRun old =
   case tryRun old of
-    Err (err, Just annot) ->
-      { old | errorBox = Just err
-            , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
-    Err (err, Nothing) ->
-      { old | errorBox = Just err }
-    Ok newModel -> newModel
+    Err (oldWithUpdatedHistory, err, Just annot) ->
+      { oldWithUpdatedHistory
+          | errorBox = Just err
+          , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo
+      }
+    Err (oldWithUpdatedHistory, err, Nothing) ->
+      { oldWithUpdatedHistory
+          | errorBox = Just err
+      }
+    Ok newModel ->
+      newModel
 
 msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
   case tryRun newModel of
-    Err (err, Just annot) ->
-      { old | caption = Just (LangError err)
-            , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo }
-    Err (err, Nothing) ->
-      { old | caption = Just (LangError err) }
+    Err (oldWithUpdatedHistory, err, Just annot) ->
+      { oldWithUpdatedHistory
+          | caption = Just (LangError err)
+          , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo
+      }
+    Err (oldWithUpdatedHistory, err, Nothing) ->
+      { oldWithUpdatedHistory
+          | caption = Just (LangError err)
+      }
     Ok modelAfterRun ->
       modelAfterRun
 
