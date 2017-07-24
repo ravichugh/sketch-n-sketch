@@ -234,6 +234,8 @@ renameVariableTool model selections =
   let
     disabledName =
       "Rename Variable"
+    nameMaker s =
+      "Rename '" ++ s ++ "'"
     (name, func, predVal) =
       case selections of
         ([], [], [], [pathedPatId], [], [], []) ->
@@ -246,7 +248,7 @@ renameVariableTool model selections =
                 newName =
                   model.deuceState.renameVarTextBox
               in
-                ( "Rename " ++ ident
+                ( nameMaker ident
                 , Just <| \() -> CodeMotion.renamePat pathedPatId newName model.inputExp
                 , FullySatisfied
                 )
@@ -261,7 +263,7 @@ renameVariableTool model selections =
                      newName =
                       model.deuceState.renameVarTextBox
                   in
-                    ( "Rename " ++ ident
+                    ( nameMaker ident
                     , Just <| \() -> CodeMotion.renameVar eId newName model.inputExp
                     , FullySatisfied
                     )

@@ -137,7 +137,18 @@ renamePat (scopeId, path) newName program =
           in
           let newProgram = replaceExpNode newScopeExp.val.eid newScopeExp program in
           let result =
-            synthesisResult ("Rename " ++ oldName ++ " to " ++ newName) newProgram |> setResultSafe isSafe
+            let
+              descriptionStart =
+                "Rename '" ++ oldName ++ "' to"
+              descriptionEnd =
+                if String.isEmpty newName then
+                  "..."
+                else
+                  " '" ++ newName ++ "'"
+              description =
+                descriptionStart ++ descriptionEnd
+            in
+              synthesisResult description newProgram |> setResultSafe isSafe
           in
           [result]
 

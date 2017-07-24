@@ -284,6 +284,18 @@ type Trace = TrLoc Loc | TrOp Op_ (List Trace)
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
 
+------------------------------------------------------------------------------
+
+sanitize : String -> String
+sanitize =
+  let
+    forbiddenCharacters =
+      "\"' "
+  in
+    Regex.replace
+      Regex.All
+      (Regex.regex <| "[" ++ forbiddenCharacters ++ "]")
+      (\_ -> "")
 
 ------------------------------------------------------------------------------
 

@@ -1021,3 +1021,13 @@ or =
 log : String -> ()
 log s =
   Debug.log s ()
+
+--------------------------------------------------------------------------------
+
+isEven : Int -> Bool
+isEven n =
+  n % 2 == 0
+
+isOdd : Int -> Bool
+isOdd n =
+  n % 2 == 1

@@ -1793,7 +1793,10 @@ msgUpdateRenameVarTextBox text =
       almostNewModel =
         { model
             | deuceState =
-                { oldDeuceState | renameVarTextBox = text }
+                { oldDeuceState
+                    | renameVarTextBox =
+                        Lang.sanitize text
+                }
         }
       deuceToolsAndResults =
         DeuceTools.updateRenameToolsInCache almostNewModel

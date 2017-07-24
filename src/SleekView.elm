@@ -91,6 +91,19 @@ enterKeyCode : Int
 enterKeyCode =
   13
 
+italicizeQuotes : String -> String -> List (Html Msg)
+italicizeQuotes quoteString text =
+  let
+    splitString =
+      String.split quoteString text
+    mapper (i, s) =
+      if Utils.isEven i then
+        Html.text s
+      else
+        Html.i [] [ Html.text s ]
+  in
+    Utils.mapi0 mapper splitString
+
 --------------------------------------------------------------------------------
 -- Buttons
 --------------------------------------------------------------------------------
@@ -384,13 +397,17 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
         []
     additionalInputs =
       renameInput
+    description =
+      if isRenamer then
+        italicizeQuotes "'" result.description
+      else
+        [ Html.text result.description
+        ]
   in
     generalHtmlHoverMenu class
       ( [ Html.span
             []
-            [ Html.text
-                result.description
-            ]
+            description
         ] ++ additionalInputs
       )
       (Controller.msgHoverDeuceResult result.description path maybePreview)
@@ -428,9 +445,14 @@ deuceHoverMenu model (index, (deuceTool, results, disabled)) =
     isRenamer =
       DeuceTools.isRenamer deuceTool
     title =
-      deuceTool.name
+      if isRenamer then
+        italicizeQuotes "'" deuceTool.name
+      else
+        [ Html.text deuceTool.name
+        ]
   in
-    generalHoverMenu
+    generalHtmlHoverMenu
+      ""
       title
       Controller.msgNoop
       Controller.msgNoop
@@ -445,16 +467,29 @@ deuceHoverMenu model (index, (deuceTool, results, disabled)) =
 editCodeEntry : Model -> (Int, CachedDeuceTool) -> Html Msg
 editCodeEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
   let
-    title =
+    name =
       deuceTool.name ++ "..."
+    isRenamer =
+      DeuceTools.isRenamer deuceTool
+    title =
+      if isRenamer then
+        italicizeQuotes "'" name
+      else
+        [ Html.text name
+        ]
     disabled =
       (List.any Model.predicateImpossible deuceTool.reqs) ||
       (not <| Model.noWidgetsSelected model)
   in
-    disableableTextButton
-      disabled
-      title
-      (Controller.msgSetSelectedDeuceTool True cachedDeuceTool)
+    textButton
+      { defaultTb
+          | content =
+              title
+          , disabled =
+              disabled
+          , onClick =
+              (Controller.msgSetSelectedDeuceTool True cachedDeuceTool)
+      }
 
 menuHeading : String -> Html Msg
 menuHeading heading =
