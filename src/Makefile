@@ -34,6 +34,7 @@ examples:
 
 loc:
 	wc -l \
+    ../build/out/index.html ../build/out/main.css \
     Lang.elm LangSvg.elm \
     FastParser.elm LangUnparser.elm \
     Types.elm Eval.elm ShapeWidgets.elm \

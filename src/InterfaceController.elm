@@ -159,7 +159,8 @@ addToHistory currentCode h =
       (currentCode::past, [])
 
     last::older ->
-      if currentCode == last
+      -- trimRight to tolerate differences in newlines at the end
+      if String.trimRight currentCode == String.trimRight last
       then h
       else (currentCode::past, [])
 
@@ -1922,7 +1923,10 @@ msgUserStudyStep label offset = Msg label <| \old ->
   let _ = UserStudyLog.log label (toString newState) in
   { old | userStudyStateIndex = i + offset }
       |> handleNew (UserStudy.getTemplate newState)
-      |> (\m -> { m | code = UserStudy.getFinalCode newState m.code })
+      |> (\m ->
+           let finalCode = UserStudy.getFinalCode newState m.code in
+           { m | code = finalCode, history = ([finalCode], []) }
+         )
       |> enableFeaturesForEditorMode newState
       |> upstateRun
 
