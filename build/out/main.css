@@ -16,8 +16,13 @@ body {
   background-color: #333333;
   color: #CCCCCC;
   font-family: "Roboto", sans-serif;
-  user-select: none;
   overflow: hidden;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
 }
 
 a {
@@ -314,6 +319,10 @@ a {
 
   transition: height 0.5s;
 
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  -o-user-select: text;
   user-select: text;
 }
 
@@ -337,9 +346,13 @@ a {
   height: 6px;
   border-radius: 50%;
   border: 1px solid #555555;
-
-  user-select: none;
   cursor: default;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
 
   transition: background-color 0.3s, border-color 0.3s;
 
@@ -363,6 +376,11 @@ a {
 
 .action-bar {
   border-bottom: 1px solid #333333;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
   user-select: none;
 }
 
@@ -433,6 +451,11 @@ a {
   font-size: 2em;
   text-align: center;
   cursor: col-resize;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
   user-select: none;
 
   position: absolute;
@@ -456,6 +479,11 @@ a {
 
   white-space: pre;
   resize: none;
+
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  -o-user-select: text;
   user-select: text;
 }
 
