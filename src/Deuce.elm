@@ -642,7 +642,12 @@ expPolygon codeInfo e =
     color =
       objectColor
   in
-    codeObjectPolygon codeInfo codeObject color
+    case e.val.e__ of
+      -- Do not show def polygons (for now, at least)
+      ELet _ Def _ _ _ _ _ ->
+        []
+      _ ->
+        codeObjectPolygon codeInfo codeObject color
 
 patPolygon
   : CodeInfo -> Exp -> Pat -> List (Svg Msg)
