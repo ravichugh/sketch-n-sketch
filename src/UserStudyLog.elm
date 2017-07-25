@@ -50,6 +50,25 @@ logModelUpdate updateFunc msg model =
     else ()
   in
   let _ =
+    let deuceToolJsons model =
+      List.concat model.deuceToolsAndResults
+      |> List.map
+          (\(deuceTool, results, disabled) ->
+            let impossible = List.any predicateImpossible deuceTool.reqs in
+            "{ " ++
+            "\"name\" : " ++ toString deuceTool.name ++
+            ", \"results\" : [ " ++ String.join ", " (List.map (resultDescription >> toString) results) ++ " ] " ++
+            ", \"disabled\" : " ++ String.toLower (toString disabled) ++
+            ", \"impossible\" : " ++ String.toLower (toString impossible) ++
+            " }"
+          )
+    in
+    if deuceToolJsons model /= deuceToolJsons newModel then
+      log "New Deuce Tools and Results List" ("[ " ++ String.join ", " (deuceToolJsons newModel) ++ " ]")
+    else
+      ()
+  in
+  let _ =
     case (msgName, newModel.errorBox) of
       ("Run", Nothing)     -> log "Run Success" ""
       ("Run", Just errMsg) -> log "Run Error" (toString errMsg)
@@ -63,7 +82,9 @@ msgInfo (Msg msgName updater) model =
     "Ace Update" -> Nothing
 
     _ ->
-      let info = "\"deuceSelectionsCount\" : " ++ toString (List.length model.deuceState.selectedWidgets) in
+      let info =
+        "\"deuceSelectionsCount\" : " ++ toString (List.length model.deuceState.selectedWidgets)
+      in
       if String.startsWith "MousePosition" msgName
       then Nothing
       else Just info

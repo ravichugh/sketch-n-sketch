@@ -1404,10 +1404,10 @@ requireSaveAsker ((Msg name _) as msg) needsSave =
 -- Dialog Box
 
 msgOpenDialogBox db =
-  Msg "Open Dialog Box" <| Model.openDialogBox db
+  Msg ("Open Dialog Box \"" ++ toString db ++ "\"") <| Model.openDialogBox db
 
 msgCloseDialogBox db =
-  Msg "Close Dialog Box" <| Model.closeDialogBox db
+  Msg ("Close Dialog Box \"" ++ toString db ++ "\"") <| Model.closeDialogBox db
 
 msgUpdateFilenameInput str = Msg "Update Filename Input" <| \old ->
   { old | filenameInput = str }
@@ -2125,6 +2125,9 @@ msgDeuceRightClick menuMode =
         if Model.noWidgetsSelected modelAfterTextSelection then
           model
         else
+          let _ =
+            UserStudyLog.log "Showing Right Click Menu" ""
+          in
           showDeuceRightClickMenu
             deuceRightClickMenuMouseOffset.x
             deuceRightClickMenuMouseOffset.y

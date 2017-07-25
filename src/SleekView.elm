@@ -165,6 +165,11 @@ simpleHtmlTextButton content =
         | content = content
     }
 
+logMouseOver itemDescription =
+  [ E.onMouseOver (Msg ("Hover " ++ itemDescription) identity)
+  , E.onMouseOut  (Msg ("Leave " ++ itemDescription) identity)
+  ]
+
 disableableTextButton : Bool -> String -> Msg -> Html Msg
 disableableTextButton disabled title onClick =
   textButton
@@ -172,6 +177,7 @@ disableableTextButton disabled title onClick =
         | content = [ Html.text title ]
         , onClick = onClick
         , disabled = disabled
+        , attributes = logMouseOver ("Button \"" ++ title ++ "\"")
     }
 
 simpleTextButton : String -> Msg -> Html Msg
@@ -202,6 +208,7 @@ simpleTextRadioButton active title onClick =
                   ]
               ]
           , onClick = onClick
+          , attributes = logMouseOver ("Radio Button \"" ++ radioButtonIcon ++ " " ++ title ++ "\"")
       }
 
 booleanOption : Bool -> String -> String -> (Bool -> Msg) -> List (Html Msg)
@@ -489,11 +496,12 @@ editCodeEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
               disabled
           , onClick =
               (Controller.msgSetSelectedDeuceTool True cachedDeuceTool)
+          , attributes = logMouseOver ("Edit Code Top Menu Item \"" ++ name ++ "\"")
       }
 
 menuHeading : String -> Html Msg
 menuHeading heading =
-  Html.div
+  let attributes =
     [ Attr.class "menu-heading"
     , E.onWithOptions
         "click"
@@ -507,9 +515,12 @@ menuHeading heading =
         , ("padding", "0 " ++
             (px << half << .height) SleekLayout.menuBar)
         ]
-    ]
-    [ Html.text heading
-    ]
+    ] ++
+    logMouseOver ("Menu \"" ++ heading ++ "\"")
+  in
+  Html.div
+    attributes
+    [ Html.text heading ]
 
 menuOptions : List (List (Html Msg)) -> Html Msg
 menuOptions options =
@@ -1066,7 +1077,7 @@ codePanel model =
       in
         textButton
           { defaultTb
-              | attributes = attributes
+              | attributes = attributes ++ logMouseOver "Undo"
               , content = [Html.text "Undo"]
               , onClick = Controller.msgUndo
               , disabled = List.length past <= 1
@@ -1086,7 +1097,7 @@ codePanel model =
       in
         textButton
           { defaultTb
-              | attributes = attributes
+              | attributes = attributes ++ logMouseOver "Redo"
               , content = [Html.text "Redo"]
               , onClick = Controller.msgRedo
               , disabled = List.length future == 0
