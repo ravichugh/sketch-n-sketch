@@ -1218,7 +1218,11 @@ addArgumentsTool model selections =
     disabledTool = defaultTool Impossible
   in
     case selections of
-      ([], [], [], [], [], [], []) ->
+      (_, _, _, [], [], [], []) ->
+        defaultTool Possible
+      (_, _, [], _, [], [], []) ->
+        defaultTool Possible
+      ([], [], [], [], [], [], [patTarget]) ->
         defaultTool Possible
       (_, _, firstEId::restEIds, [], [], [], [patTarget]) ->
         let
