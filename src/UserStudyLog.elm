@@ -23,11 +23,22 @@ logModelUpdate updateFunc msg model =
     updateFunc msg model
   in
   let _ =
-    let somethingSelected model =
-      model.codeBoxInfo.selections |> List.any (\range -> range.start /= range.end)
+    let nonEmptySelections model =
+      model.codeBoxInfo.selections
+      |> List.filter (\range -> range.start /= range.end)
     in
+    let rangeToJson {start, end} =
+      let posToJson {row, column} =
+        "{ " ++ "\"row\" : " ++ toString row ++ ", \"column\" : " ++ toString column ++ " }"
+      in
+      "{ " ++ "\"start\" : " ++ posToJson start ++ ", \"end\" : " ++ posToJson end ++ " }"
+    in
+    let rangeListToJson ranges =
+      "[ " ++ String.join ", " (List.map rangeToJson ranges) ++ " ]"
+    in
+    let somethingSelected model = nonEmptySelections model /= [] in
     if model.codeBoxInfo.selections /= newModel.codeBoxInfo.selections && (somethingSelected model || somethingSelected newModel) then
-      log "Text Selection Changed" (if somethingSelected newModel then "Non-empty" else "Empty")
+      log "Text Selection Changed" (rangeListToJson (nonEmptySelections newModel))
     else if model.codeBoxInfo.cursorPos /= newModel.codeBoxInfo.cursorPos && model.code == newModel.code then
       log "Text Cursor Moved" ""
     else
