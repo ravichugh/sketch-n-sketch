@@ -1403,7 +1403,10 @@ topLevelComment =
       ( succeed (,)
           |= trackInfo (symbol ";")
           |= trackInfo (keep zeroOrMore (\c -> c /= '\n'))
-          |. symbol "\n"
+          |. oneOf
+               [ symbol "\n"
+               , end
+               ]
       )
 
 --------------------------------------------------------------------------------
@@ -1485,8 +1488,6 @@ implicitMain =
 mainExp : Parser Exp
 mainExp =
   oneOf [exp, implicitMain]
-    -- if using implicitMain, the last topLevelExp (e.g. topLevelComment)
-    -- requires a newline. TODO fix this.
 
 program : Parser Exp
 program =
