@@ -2104,7 +2104,7 @@ msgSetSelectedDeuceTool useTextSelect cachedDeuceTool =
       else
         identity
   in
-    Msg "Set Selected Deuce Tool" <|
+    Msg ("Set Selected Deuce Tool " ++ toString (Utils.fst3 cachedDeuceTool |> .name)) <|
       selectedDeuceToolUpdater >> maybeTextSelect
 
 --------------------------------------------------------------------------------
