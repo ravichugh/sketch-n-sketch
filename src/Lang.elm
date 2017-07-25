@@ -2262,356 +2262,379 @@ modifyWsBefore f codeObject =
     TT a ws b ->
       TT a (f ws) b
 
+isImplicitMain : Exp -> Bool
+isImplicitMain e =
+  case e.val.e__ of
+    ELet _ _ _ name _ _ _ ->
+      case name.val.p__ of
+        PVar _ "_IMPLICIT_MAIN" _ ->
+          True
+        _ ->
+          False
+    _ ->
+      False
+
+isHiddenCodeObject : CodeObject -> Bool
+isHiddenCodeObject codeObject =
+  case codeObject of
+    E e ->
+      isImplicitMain e
+    ET _ _ e ->
+      isImplicitMain e
+    _ ->
+      False
+
 childCodeObjects : CodeObject -> List CodeObject
 childCodeObjects co =
-  case co of
-    E e ->
-      case e.val.e__ of
-        EConst ws1 _ _ _ ->
-          [ ET Before ws1 e ]
-        EBase ws1 _ ->
-          [ ET Before ws1 e ]
-        EVar ws1 _ ->
-          [ ET Before ws1 e ]
-        EFun ws1 ps e1 ws2 ->
-          [ ET Before ws1 e
-          ] ++
-          ( List.map (P e) ps
-          ) ++
-          ( case Utils.maybeLast ps of
-              Just pLast ->
-                [ PT After (withInfo "" pLast.end pLast.end) e pLast
-                ]
-              Nothing ->
-                []
-          ) ++
-          [ E e1
-          , ET After ws2 e1
-          ]
-        EApp ws1 e1 es ws2 ->
-          [ ET Before ws1 e
-          , E e1
-          ] ++
-          ( List.map E es
-          ) ++
-          ( case Utils.maybeLast es of
-              Just lastE ->
-                [ ET After ws2 lastE ]
-              Nothing ->
-                []
-          )
-        EOp ws1 _ es ws2 ->
-          [ ET Before ws1 e
-          ] ++
-          ( List.map E es
-          ) ++
-          ( case Utils.maybeLast es of
-              Just lastE ->
-                [ ET After ws2 lastE ]
-              Nothing ->
-                []
-          )
-        EList ws1 es ws2 m ws3  ->
-          let
-            lastHead =
-              case Utils.maybeLast es of
-                Just lastHead ->
-                  [ lastHead ]
+  List.filter (not << isHiddenCodeObject) <|
+    case co of
+      E e ->
+        case e.val.e__ of
+          EConst ws1 _ _ _ ->
+            [ ET Before ws1 e ]
+          EBase ws1 _ ->
+            [ ET Before ws1 e ]
+          EVar ws1 _ ->
+            [ ET Before ws1 e ]
+          EFun ws1 ps e1 ws2 ->
+            [ ET Before ws1 e
+            ] ++
+            ( List.map (P e) ps
+            ) ++
+            ( case Utils.maybeLast ps of
+                Just pLast ->
+                  [ PT After (withInfo "" pLast.end pLast.end) e pLast
+                  ]
                 Nothing ->
                   []
-          in
+            ) ++
+            [ E e1
+            , ET After ws2 e1
+            ]
+          EApp ws1 e1 es ws2 ->
+            [ ET Before ws1 e
+            , E e1
+            ] ++
+            ( List.map E es
+            ) ++
+            ( case Utils.maybeLast es of
+                Just lastE ->
+                  [ ET After ws2 lastE ]
+                Nothing ->
+                  []
+            )
+          EOp ws1 _ es ws2 ->
             [ ET Before ws1 e
             ] ++
             ( List.map E es
             ) ++
-            ( case m of
-                Just eTail ->
-                  ( List.map (ET After ws2) lastHead
-                  ) ++
-                  [ E eTail
-                  , ET After ws3 eTail
-                  ]
+            ( case Utils.maybeLast es of
+                Just lastE ->
+                  [ ET After ws2 lastE ]
                 Nothing ->
-                  ( List.map (ET After ws3) lastHead
-                  )
+                  []
             )
-        EIf ws1 e1 e2 e3 ws2 ->
-            [ ET Before ws1 e
-            , E e1
-            , E e2
-            , E e3
-            , ET After ws2 e3
-            ]
-        ECase ws1 e1 branches _ ->
-          [ ET Before ws1 e
-          , E e1
-          ] ++
-          ( case List.head branches of
-              Just b ->
-                case b.val of
-                  Branch_ branchWS1 _ _ _ ->
-                    [ ET After branchWS1 e1 ]
-              Nothing ->
-                []
-          ) ++
-          ( List.concatMap
-              ( .val >> \(Branch_ _ branchP branchE branchWS2) ->
-                  [ P e branchP
-                  , E branchE
-                  , ET After branchWS2 branchE
-                  ]
-              )
-              branches
-          )
-        ETypeCase ws1 p1 tbranches _ ->
-          [ ET Before ws1 e
-          , P e p1
-          ] ++
-          ( case List.head tbranches of
-              Just tb ->
-                case tb.val of
-                  TBranch_ tbranchWS1 _ _ _ ->
-                    [ PT After tbranchWS1 e p1 ]
-              Nothing ->
-                []
-          ) ++
-          ( List.concatMap
-              ( .val >> \(TBranch_ _ branchT branchE branchWS2) ->
-                  [ T branchT
-                  , E branchE
-                  , ET After branchWS2 branchE
-                  ]
-              )
-              tbranches
-          )
-        ELet ws1 lk _ p1 e1 e2 ws2 ->
-          let
-            -- Altered Whitespace
-            --
-            -- In the following example little programs, * represents special1
-            -- and ~ represents special2. Note that (+ 2 3) is e1.
-            --
-            -- Case 1:
-            --   (def x*(+ 2 3))
-            --
-            -- Case 2:
-            --   (def x******
-            --   ~~~~(+ 2 3))
-            (special1, special2) =
-              let
-                e1Ws =
-                  wsBefore << E <| e1
-              in
-                -- Case 1
-                if e1Ws.start.line == e1Ws.end.line then
-                  ( e1Ws
-                  , withDummyInfo ""
-                  )
-                -- Case 2
-                else
-                  let
-                    breakpoint =
-                      { line =
-                          e1Ws.start.line + 1
-                        , col =
-                            1
-                      }
-                  in
-                    -- Note that col = 0 makes the Deuce polygon renderer extend
-                    -- the polygon to maxCol (desired).
-                    ( { e1Ws | end = { breakpoint | col = 0 } }
-                    , { e1Ws | start = breakpoint }
+          EList ws1 es ws2 m ws3  ->
+            let
+              lastHead =
+                case Utils.maybeLast es of
+                  Just lastHead ->
+                    [ lastHead ]
+                  Nothing ->
+                    []
+            in
+              [ ET Before ws1 e
+              ] ++
+              ( List.map E es
+              ) ++
+              ( case m of
+                  Just eTail ->
+                    ( List.map (ET After ws2) lastHead
+                    ) ++
+                    [ E eTail
+                    , ET After ws3 eTail
+                    ]
+                  Nothing ->
+                    ( List.map (ET After ws3) lastHead
                     )
-          in
+              )
+          EIf ws1 e1 e2 e3 ws2 ->
+              [ ET Before ws1 e
+              , E e1
+              , E e2
+              , E e3
+              , ET After ws2 e3
+              ]
+          ECase ws1 e1 branches _ ->
             [ ET Before ws1 e
-            , LBE
-                -- TODO LBE Bounds
-                { start =
-                    { line =
-                        e.start.line
-                    , col =
-                        if lk == Def then
-                          e.start.col
-                        else
-                          e.start.col + 1
-                    }
-                , end =
-                    if lk == Def then
-                      e.end
-                    else
-                      e1.end
-                , val =
-                    e.val.eid
-                }
-            , P e p1
-            , PT After special1 e p1
             , E e1
-                |> modifyWsBefore (always special2)
             ] ++
-            ( case lk of
-                Let ->
-                  [ E e2
-                  , ET After ws2 e2
-                  ]
-                Def ->
-                  [ ET After ws2 e1
-                  , E e2
-                  ]
-            )
-        EComment ws1 _ e1 ->
-          [ ET Before ws1 e
-          , E e1
-          ]
-        EOption ws1 _ _ _ e1 ->
-          [ ET Before ws1 e
-          , E e1
-          ]
-        ETyp ws1 p1 t1 e1 ws2 ->
-          [ ET Before ws1 e
-          , P e p1
-          , T t1
-          , TT After ws2 t1
-          , E e1
-          ]
-        EColonType _ e1 _ t1 _ ->
-          [E e1, T t1]
-        ETypeAlias ws1 p1 t1 e1 ws2 ->
-          [ ET Before ws1 e
-          , P e p1
-          , T t1
-          , TT After ws2 t1
-          , E e1
-          ]
-    P e p ->
-      case p.val.p__ of
-        PVar ws1 _ _ ->
-          [ PT Before ws1 e p ]
-        PConst ws1 _ ->
-          [ PT Before ws1 e p ]
-        PBase ws1 _ ->
-          [ PT Before ws1 e p ]
-        PList ws1 ps ws2 m ws3 ->
-          let
-            lastHead =
-              case Utils.maybeLast ps of
-                Just lastHead ->
-                  [ lastHead ]
+            ( case List.head branches of
+                Just b ->
+                  case b.val of
+                    Branch_ branchWS1 _ _ _ ->
+                      [ ET After branchWS1 e1 ]
                 Nothing ->
                   []
-          in
+            ) ++
+            ( List.concatMap
+                ( .val >> \(Branch_ _ branchP branchE branchWS2) ->
+                    [ P e branchP
+                    , E branchE
+                    , ET After branchWS2 branchE
+                    ]
+                )
+                branches
+            )
+          ETypeCase ws1 p1 tbranches _ ->
+            [ ET Before ws1 e
+            , P e p1
+            ] ++
+            ( case List.head tbranches of
+                Just tb ->
+                  case tb.val of
+                    TBranch_ tbranchWS1 _ _ _ ->
+                      [ PT After tbranchWS1 e p1 ]
+                Nothing ->
+                  []
+            ) ++
+            ( List.concatMap
+                ( .val >> \(TBranch_ _ branchT branchE branchWS2) ->
+                    [ T branchT
+                    , E branchE
+                    , ET After branchWS2 branchE
+                    ]
+                )
+                tbranches
+            )
+          ELet ws1 lk _ p1 e1 e2 ws2 ->
+            let
+              -- Altered Whitespace
+              --
+              -- In the following example little programs, * represents special1
+              -- and ~ represents special2. Note that (+ 2 3) is e1.
+              --
+              -- Case 1:
+              --   (def x*(+ 2 3))
+              --
+              -- Case 2:
+              --   (def x******
+              --   ~~~~(+ 2 3))
+              (special1, special2) =
+                let
+                  e1Ws =
+                    wsBefore << E <| e1
+                in
+                  -- Case 1
+                  if e1Ws.start.line == e1Ws.end.line then
+                    ( e1Ws
+                    , withDummyInfo ""
+                    )
+                  -- Case 2
+                  else
+                    let
+                      breakpoint =
+                        { line =
+                            e1Ws.start.line + 1
+                          , col =
+                              1
+                        }
+                    in
+                      -- Note that col = 0 makes the Deuce polygon renderer extend
+                      -- the polygon to maxCol (desired).
+                      ( { e1Ws | end = { breakpoint | col = 0 } }
+                      , { e1Ws | start = breakpoint }
+                      )
+            in
+              [ ET Before ws1 e
+              , LBE
+                  -- TODO LBE Bounds
+                  { start =
+                      { line =
+                          e.start.line
+                      , col =
+                          if lk == Def then
+                            e.start.col
+                          else
+                            e.start.col + 1
+                      }
+                  , end =
+                      if lk == Def then
+                        e.end
+                      else
+                        e1.end
+                  , val =
+                      e.val.eid
+                  }
+              , P e p1
+              , PT After special1 e p1
+              , E e1
+                  |> modifyWsBefore (always special2)
+              ] ++
+              ( case lk of
+                  Let ->
+                    [ E e2
+                    , ET After ws2 e2
+                    ]
+                  Def ->
+                    [ ET After ws2 e1
+                    , E e2
+                    ]
+              )
+          EComment ws1 _ e1 ->
+            [ ET Before ws1 e
+            , E e1
+            ]
+          EOption ws1 _ _ _ e1 ->
+            [ ET Before ws1 e
+            , E e1
+            ]
+          ETyp ws1 p1 t1 e1 ws2 ->
+            [ ET Before ws1 e
+            , P e p1
+            , T t1
+            , TT After ws2 t1
+            , E e1
+            ]
+          EColonType _ e1 _ t1 _ ->
+            [E e1, T t1]
+          ETypeAlias ws1 p1 t1 e1 ws2 ->
+            [ ET Before ws1 e
+            , P e p1
+            , T t1
+            , TT After ws2 t1
+            , E e1
+            ]
+      P e p ->
+        case p.val.p__ of
+          PVar ws1 _ _ ->
+            [ PT Before ws1 e p ]
+          PConst ws1 _ ->
+            [ PT Before ws1 e p ]
+          PBase ws1 _ ->
+            [ PT Before ws1 e p ]
+          PList ws1 ps ws2 m ws3 ->
+            let
+              lastHead =
+                case Utils.maybeLast ps of
+                  Just lastHead ->
+                    [ lastHead ]
+                  Nothing ->
+                    []
+            in
+              [ PT Before ws1 e p
+              ] ++
+              ( List.map (P e) ps
+              ) ++
+              ( case m of
+                  Just pTail ->
+                    ( List.map (PT After ws2 e) lastHead
+                    ) ++
+                    [ P e pTail
+                    , PT After ws3 e pTail
+                    ]
+                  Nothing ->
+                    ( List.map (PT After ws3 e) lastHead
+                    )
+              )
+          PAs ws1 _ _ p1 ->
             [ PT Before ws1 e p
-            ] ++
-            ( List.map (P e) ps
-            ) ++
-            ( case m of
-                Just pTail ->
-                  ( List.map (PT After ws2 e) lastHead
-                  ) ++
-                  [ P e pTail
-                  , PT After ws3 e pTail
-                  ]
-                Nothing ->
-                  ( List.map (PT After ws3 e) lastHead
-                  )
-            )
-        PAs ws1 _ _ p1 ->
-          [ PT Before ws1 e p
-          , P e p1
-          ]
-    T t ->
-      case t.val of
-        TNum ws1 ->
-          [ TT Before ws1 t ]
-        TBool ws1 ->
-          [ TT Before ws1 t ]
-        TString ws1 ->
-          [ TT Before ws1 t ]
-        TNull ws1 ->
-          [ TT Before ws1 t ]
-        TList ws1 t1 ws2 ->
-          [ TT Before ws1 t
-          , T t1
-          , TT After ws2 t1
-          ]
-        TDict ws1 t1 t2 ws2 ->
-          [ TT Before ws1 t
-          , T t1
-          , T t2
-          , TT After ws2 t2
-          ]
-        TTuple ws1 ts ws2 m ws3 ->
-          let
-            lastHead =
-              case Utils.maybeLast ts of
-                Just lastHead ->
-                  [ lastHead ]
-                Nothing ->
-                  []
-          in
+            , P e p1
+            ]
+      T t ->
+        case t.val of
+          TNum ws1 ->
+            [ TT Before ws1 t ]
+          TBool ws1 ->
+            [ TT Before ws1 t ]
+          TString ws1 ->
+            [ TT Before ws1 t ]
+          TNull ws1 ->
+            [ TT Before ws1 t ]
+          TList ws1 t1 ws2 ->
             [ TT Before ws1 t
-            ] ++
-            ( List.map T ts
-            ) ++
-            ( case m of
-                Just tTail ->
-                  ( List.map (TT After ws2) lastHead
-                  ) ++
-                  [ T tTail
-                  , TT After ws3 tTail
-                  ]
-                Nothing ->
-                  ( List.map (TT After ws3) lastHead
-                  )
-            )
-        TArrow ws1 ts ws2 ->
-          let
-            lastHead =
-              case Utils.maybeLast ts of
-                Just lastHead ->
-                  [ lastHead ]
-                Nothing ->
-                  []
-          in
+            , T t1
+            , TT After ws2 t1
+            ]
+          TDict ws1 t1 t2 ws2 ->
             [ TT Before ws1 t
-            ] ++
-            ( List.map T ts
-            ) ++
-            ( List.map (TT After ws2) lastHead
-            )
-        TUnion ws1 ts ws2 ->
-          let
-            lastHead =
-              case Utils.maybeLast ts of
-                Just lastHead ->
-                  [ lastHead ]
-                Nothing ->
-                  []
-          in
+            , T t1
+            , T t2
+            , TT After ws2 t2
+            ]
+          TTuple ws1 ts ws2 m ws3 ->
+            let
+              lastHead =
+                case Utils.maybeLast ts of
+                  Just lastHead ->
+                    [ lastHead ]
+                  Nothing ->
+                    []
+            in
+              [ TT Before ws1 t
+              ] ++
+              ( List.map T ts
+              ) ++
+              ( case m of
+                  Just tTail ->
+                    ( List.map (TT After ws2) lastHead
+                    ) ++
+                    [ T tTail
+                    , TT After ws3 tTail
+                    ]
+                  Nothing ->
+                    ( List.map (TT After ws3) lastHead
+                    )
+              )
+          TArrow ws1 ts ws2 ->
+            let
+              lastHead =
+                case Utils.maybeLast ts of
+                  Just lastHead ->
+                    [ lastHead ]
+                  Nothing ->
+                    []
+            in
+              [ TT Before ws1 t
+              ] ++
+              ( List.map T ts
+              ) ++
+              ( List.map (TT After ws2) lastHead
+              )
+          TUnion ws1 ts ws2 ->
+            let
+              lastHead =
+                case Utils.maybeLast ts of
+                  Just lastHead ->
+                    [ lastHead ]
+                  Nothing ->
+                    []
+            in
+              [ TT Before ws1 t
+              ] ++
+              ( List.map T ts
+              ) ++
+              ( List.map (TT After ws2) lastHead
+              )
+          TNamed ws1 _ ->
+            [ TT Before ws1 t ]
+          TVar ws1 _ ->
+            [ TT Before ws1 t ]
+          TForall ws1 _ t1 ws2 ->
             [ TT Before ws1 t
-            ] ++
-            ( List.map T ts
-            ) ++
-            ( List.map (TT After ws2) lastHead
-            )
-        TNamed ws1 _ ->
-          [ TT Before ws1 t ]
-        TVar ws1 _ ->
-          [ TT Before ws1 t ]
-        TForall ws1 _ t1 ws2 ->
-          [ TT Before ws1 t
-          , T t1
-          , TT After ws2 t1
-          ]
-        TWildcard ws1 ->
-          [ TT Before ws1 t ]
-    LBE _ ->
-      []
-    ET _ _ _ ->
-      []
-    PT _ _ _ _ ->
-      []
-    TT _ _ _ ->
-      []
+            , T t1
+            , TT After ws2 t1
+            ]
+          TWildcard ws1 ->
+            [ TT Before ws1 t ]
+      LBE _ ->
+        []
+      ET _ _ _ ->
+        []
+      PT _ _ _ _ ->
+        []
+      TT _ _ _ ->
+        []
 
 flattenToCodeObjects : CodeObject -> List CodeObject
 flattenToCodeObjects codeObject =

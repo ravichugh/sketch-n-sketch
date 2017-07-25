@@ -1458,14 +1458,31 @@ allTopLevelExps =
 --= PROGRAMS
 --==============================================================================
 
--- TODO there's a deuce polygon drawn from somewhere in this expression
--- to dummyPos. fix this.
+implicitMain : Parser Exp
 implicitMain =
-  eLet [("_IMPLICIT_MAIN", eStr "...")] (eVar "main")
-    |> succeed
-    |> untrackInfo
-    |> trackInfo
+  let
+    builder : Pos -> Exp
+    builder p =
+      let
+        withCorrectInfo x =
+          withInfo x p p
+        name =
+          withCorrectInfo << pat_ <|
+            PVar space1 "_IMPLICIT_MAIN" (withDummyInfo NoWidgetDecl)
+        binding =
+          withCorrectInfo << exp_ <|
+            EBase space1 (EString defaultQuoteChar "...")
+        body =
+          withCorrectInfo << exp_ <|
+            EVar space1 "main"
+      in
+        withCorrectInfo << exp_ <|
+          ELet newline2 Let False name binding body space0
+  in
+    succeed builder
+      |= getPos
 
+mainExp : Parser Exp
 mainExp =
   oneOf [exp, implicitMain]
     -- if using implicitMain, the last topLevelExp (e.g. topLevelComment)
