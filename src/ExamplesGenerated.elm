@@ -5850,42 +5850,30 @@ task_target =
 task_battery =
  """
 (def [x y w h] [17 15 172 100])
-(def margin 5)
 
 (def bodyRectangle
-  (rect \"lightgray\" x y
-    (+ w (* 2 margin)) (+ h (* 2 margin))))
+  (rectWithBorder \"black\" 5 \"none\" x y w h))
 
 (def juiceRectangle
-  (let juicePct 0.30
+  (let percentRemaining 0.30
   (let fill
-    (if (< juicePct 0.2) \"red\"
-    (if (< juicePct 0.4) \"orange\"
-    (if (= juicePct 1)   \"green\"
-                         \"black\")))
-  (rect fill (+ x margin) (+ y margin) 71 h))))
+    (if (< percentRemaining 0.2) \"red\"
+    (if (< percentRemaining 0.4) \"orange\"
+    (if (= percentRemaining 1)   \"green\"
+                                 \"black\")))
+  (rect fill x y (* percentRemaining w) h))))
   
 (def battery
-  [bodyRectangle juiceRectangle])
+  [juiceRectangle bodyRectangle])
 
 (def main
   (draw battery))
 
 ; Goals:
 ; 
-; * The programmer intends the color of juiceRectangle
-;   to depend on how wide the rectangle is (that is,
-;   how much battery juice is left). But juicePct is
-;   currently hard-coded to be 0.30 (that is, 30%).
-;   
-;   Redefine juicePct to be the ratio of the
-;   juiceRectangle width to the bodyRectangle width.
-;   Check that the color of juiceRectangle changes
-;   according to juicePct.
-;   
-; * Turn battery into a function that is parametrized
-;   over the location, size, and juice percentage and
-;   then draws both rectangles.
+; * Turn battery into a function that is parameterized
+;   over the location, size, and remaining percentage,
+;   and then draws both rectangles.
 ;
 ; The final program should be easy to read and
 ; understand.
@@ -5895,35 +5883,30 @@ task_battery =
 
 task_lambda =
  """
-(def rectangle (rect \"black\" 20 20 100 100))
-(def line1 (line \"white\" 5 20 20 120 120))
-(def line2 (line \"white\" 5 20 120 70 70))
+(def rectangle (rect \"black\" 20 30 100 120))
+(def line1 (line \"white\" 5 20 30 (+ 20 100) (+ 30 120)))
+(def line2 (line \"white\" 5 20 (+ 30 120) (+ 20 (/ 100 2)) (+ 30 (/ 120 2))))
 
-(def logo [rectangle line1 line2])
+(def logo
+  [rectangle line1 line2])
 
 (def main
   (draw logo))
 
 ; Goals:
 ; 
-; * The initial program draws a lambda icon, but
-;   the hard-coded constants requires many changes if
-;   we want to draw the icon at a different position.
+; * The initial program draws a 100 x 120 pixel
+;   lambda icon at xy-position (20, 30), but the
+;   hard-coded constants requires many changes if
+;   we want to draw the icon at a different position
+;   or change the style of the lines.
 ;   
-;   Define four new variables for the x-position,
-;   y-position, width, and height of the logo, and use
-;   them to enforce two geometric relationships:
-;   
-;    - one line should go from the top-left
-;      corner of the rectangle to the bottom-right;
-;   
-;    - the other line should go from the
-;      bottom-left corner of the rectangle to the
-;      center.
-;   
-; * Both lines are intended to be the same
-;   color, so define a variable and use it.
-;   
+;   Define and use four new variables for the x-position,
+;   y-position, width, and height of the logo.
+;
+;   Define and use two new variables for the color and
+;   width of the lines.
+;
 ; The final program should be easy to read and
 ; understand.
 

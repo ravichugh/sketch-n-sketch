@@ -1674,6 +1674,12 @@ prelude =
             ['font-size' '12pt']]
            [['TEXT' (toString val)]]]))
 
+(def rectWithBorder (\\(stroke strokeWidth fill x y w h)
+  (addAttr (addAttr
+    (rect fill x y w h)
+      [\"stroke\" stroke])
+      [\"stroke-width\" strokeWidth])))
+
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
 
