@@ -16,6 +16,7 @@ import Dict
 
 import Either exposing (..)
 import Utils
+import ImpureGoodies
 import ColorNum
 
 import InterfaceModel as Model exposing
@@ -1993,9 +1994,9 @@ updateRenameToolsInCache almostNewModel =
 runTool : Model -> DeuceTool -> Maybe (List SynthesisResult)
 runTool model deuceTool =
   case deuceTool.func of
-    Just f ->
-      Just <|
-        f ()
+    Just thunk ->
+      ImpureGoodies.crashToNothing thunk
+
     _ ->
       Nothing
 
