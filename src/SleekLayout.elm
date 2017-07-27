@@ -21,6 +21,7 @@ module SleekLayout exposing
   , clickToCanvasPoint
   , panelBorderWidth
   , spacing
+  , deuceOverlayBleed
   , menuBar
   , toolPanel
   , iconButton
@@ -104,6 +105,14 @@ spacing =
   { width = 10
   , height = 10
   }
+
+-------------------------------------------------------------------------------
+-- DeuceOverlayBleed
+--------------------------------------------------------------------------------
+
+deuceOverlayBleed : Float
+deuceOverlayBleed =
+  10
 
 -------------------------------------------------------------------------------
 -- Menu Bar

@@ -1814,11 +1814,22 @@ deuceOverlay model =
     Html.div
       [ Attr.class <| "deuce-overlay-container" ++ disabledFlag
       , Attr.style
-          [ ("pointer-events", pointerEvents)
-          , ("top", px model.codeBoxInfo.scrollerTop)
-          , ("left", px model.codeBoxInfo.scrollerLeft)
-          , ("width", px model.codeBoxInfo.scrollerWidth)
-          , ("height", px model.codeBoxInfo.scrollerHeight)
+          [ ( "pointer-events"
+            , pointerEvents
+            )
+          , ( "top"
+            , px model.codeBoxInfo.scrollerTop
+            )
+          , ( "left"
+            , px <|
+                model.codeBoxInfo.scrollerLeft - SleekLayout.deuceOverlayBleed
+            )
+          , ( "width"
+            , px model.codeBoxInfo.scrollerWidth
+            )
+          , ( "height"
+            , px model.codeBoxInfo.scrollerHeight
+            )
           ]
       ]
       [ Svg.svg

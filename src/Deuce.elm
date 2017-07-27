@@ -51,6 +51,8 @@ import DeuceWidgets exposing
   , toDeuceWidget
   )
 
+import SleekLayout
+
 --==============================================================================
 --= HELPER FUNCTIONS
 --==============================================================================
@@ -251,25 +253,6 @@ trimmedLine =
             trimmed
         }
 
--- TODO Not quite right; possibly need to pad based on expression position
---      rather than lines.
---
--- padLines : List Line -> List Line
--- padLines lines =
---   let
---     paddingFolder line (lastLine, newList) =
---       let
---         newLine =
---           if isBlankLine line then
---             { lastLine | val = line.val }
---           else
---             line
---       in
---         (newLine, newLine :: newList)
---   in
---     Tuple.second <|
---       List.foldr paddingFolder (emptyLine, []) lines
-
 lineHull : DisplayInfo -> Indexed Line -> Hull
 lineHull di (row, line) =
   List.map (c2a di)
@@ -305,9 +288,39 @@ lineHullsFromCode di code =
 zeroWidthPadding : Float
 zeroWidthPadding = 2
 
+affectedByBleed : CodeObject -> Bool
+affectedByBleed =
+  isTarget
+
+specialEndFlag : Float
+specialEndFlag =
+  -123456789
+
+addBleed : AbsolutePos -> AbsolutePos
+addBleed (x, y) =
+  if x == specialEndFlag then
+    ( 0
+    , y
+    )
+  else if x <= 0 then
+    ( -SleekLayout.deuceOverlayBleed
+    , y
+    )
+  else
+    (x, y)
+
+addFinalEndBleed : AbsolutePos -> AbsolutePos
+addFinalEndBleed (x, y) =
+  if x <= 0 then
+    ( specialEndFlag
+    , y
+    )
+  else
+    (x, y)
+
 -- NOTE: Use 0-indexing for columns and rows.
-hull : CodeInfo -> Bool -> Int -> Int -> Int -> Int -> Hull
-hull codeInfo useTrimmed startCol startRow endCol endRow =
+hull : CodeInfo -> Bool -> Bool -> Int -> Int -> Int -> Int -> Hull
+hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow =
   let
     lineHulls =
       if useTrimmed then
@@ -316,77 +329,89 @@ hull codeInfo useTrimmed startCol startRow endCol endRow =
         codeInfo.untrimmedLineHulls
     relevantLines =
       Utils.slice (startRow + 1) endRow lineHulls
+    (modifier, finalEndModifier) =
+      if shouldAddBleed then
+        ( List.map addBleed
+        , addFinalEndBleed
+        )
+      else
+        ( identity
+        , identity
+        )
   in
-    -- Multi-line
-    if startRow /= endRow then
-      -- Left of first line
-      ( List.map (c2a codeInfo.displayInfo)
+    modifier <|
+      -- Multi-line
+      if startRow /= endRow then
+        -- Left of first line
+        ( List.map (c2a codeInfo.displayInfo)
+            [ (startCol, startRow)
+            , (startCol, startRow + 1)
+            ]
+        ) ++
+
+        -- Left of middle lines
+        ( List.concat <|
+            List.map (List.take 2)
+              relevantLines
+        ) ++
+
+        -- Left of last line
+        ( List.take 2 <|
+            Maybe.withDefault [] <|
+              Utils.maybeGeti0 endRow lineHulls
+        ) ++
+
+        -- Right of last line
+        ( List.map (finalEndModifier << c2a codeInfo.displayInfo)
+            [ (endCol, endRow + 1)
+            , (endCol, endRow)
+            ]
+        ) ++
+
+        -- Right of middle lines
+        ( List.concat <|
+            List.map (List.drop 2) <|
+              List.reverse relevantLines
+        ) ++
+
+        -- Right of first line
+        ( List.drop 2 <|
+            Maybe.withDefault [] <|
+              Utils.maybeGeti0 startRow lineHulls
+        )
+      -- Zero-width
+      else if startCol == endCol then
+        let
+          (x, yTop) =
+            c2a codeInfo.displayInfo (startCol, startRow)
+          (_, yBottom) =
+            c2a codeInfo.displayInfo (startCol, startRow + 1)
+        in
+          [ (x - zeroWidthPadding, yTop)
+          , (x - zeroWidthPadding, yBottom)
+          , (x + zeroWidthPadding, yBottom)
+          , (x + zeroWidthPadding, yTop)
+          ]
+      -- Single-line, nonzero-width
+      else
+        List.map (c2a codeInfo.displayInfo)
           [ (startCol, startRow)
           , (startCol, startRow + 1)
+          , (endCol, startRow + 1)
+          , (endCol, startRow)
           ]
-      ) ++
-
-      -- Left of middle lines
-      ( List.concat <|
-          List.map (List.take 2)
-            relevantLines
-      ) ++
-
-      -- Left of last line
-      ( List.take 2 <|
-          Maybe.withDefault [] <|
-            Utils.maybeGeti0 endRow lineHulls
-      ) ++
-
-      -- Right of last line
-      ( List.map (c2a codeInfo.displayInfo)
-          [ (endCol, endRow + 1)
-          , (endCol, endRow)
-          ]
-      ) ++
-
-      -- Right of middle lines
-      ( List.concat <|
-          List.map (List.drop 2) <|
-            List.reverse relevantLines
-      ) ++
-
-      -- Right of first line
-      ( List.drop 2 <|
-          Maybe.withDefault [] <|
-            Utils.maybeGeti0 startRow lineHulls
-      )
-    -- Zero-width
-    else if startCol == endCol then
-      let
-        (x, yTop) =
-          c2a codeInfo.displayInfo (startCol, startRow)
-        (_, yBottom) =
-          c2a codeInfo.displayInfo (startCol, startRow + 1)
-      in
-        [ (x - zeroWidthPadding, yTop)
-        , (x - zeroWidthPadding, yBottom)
-        , (x + zeroWidthPadding, yBottom)
-        , (x + zeroWidthPadding, yTop)
-        ]
-    -- Single-line, nonzero-width
-    else
-      List.map (c2a codeInfo.displayInfo)
-        [ (startCol, startRow)
-        , (startCol, startRow + 1)
-        , (endCol, startRow + 1)
-        , (endCol, startRow)
-        ]
 
 codeObjectHull : CodeInfo -> CodeObject -> Hull
 codeObjectHull codeInfo codeObject =
   let
     useTrimmed =
       (not << isTarget) codeObject
+    shouldAddBleed =
+      affectedByBleed codeObject
     (startCol, startRow, endCol, endRow) =
       startEnd codeInfo codeObject
   in
-    hull codeInfo useTrimmed startCol startRow endCol endRow
+    hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow
 
 hullPoints : Hull -> String
 hullPoints =
@@ -424,11 +449,23 @@ circleHandles codeInfo codeObject color opacity radius =
   let
     radiusString =
       toString radius
-    handle col row =
+    accountForBleed mightBleed (x, y) =
+      if
+        x <= 0 &&
+        mightBleed &&
+        affectedByBleed codeObject
+      then
+        ( -SleekLayout.deuceOverlayBleed
+        , y
+        )
+      else
+        (x, y)
+    handle mightBleed col row =
       let
         (cx, cy) =
           (col, row)
             |> c2a codeInfo.displayInfo
+            |> accountForBleed mightBleed
             |> Utils.mapBoth toString
       in
         Svg.circle
@@ -445,11 +482,8 @@ circleHandles codeInfo codeObject color opacity radius =
       , SAttr.strokeWidth strokeWidth
       , SAttr.stroke <| rgbaString color opacity
       ]
-      [ handle startCol startRow
-      -- For four handles, uncomment:
-      -- , handle startCol (startRow + 1)
-      -- , handle endCol endRow
-      , handle endCol (endRow + 1)
+      [ handle True startCol startRow
+      , handle False endCol (endRow + 1)
       ]
 
 oldCircleHandles
@@ -753,10 +787,12 @@ overlay model =
       , maxLineLength =
           maxLineLength
       }
+    leftShift =
+      model.codeBoxInfo.contentLeft + SleekLayout.deuceOverlayBleed
   in
     Svg.g
       [ SAttr.transform <|
-          "translate(" ++ toString model.codeBoxInfo.contentLeft ++ ", 0)"
+          "translate(" ++ toString leftShift ++ ", 0)"
       ]
       ( polygons codeInfo ast
       )
