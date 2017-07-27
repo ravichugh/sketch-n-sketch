@@ -1128,8 +1128,11 @@ codePanel model =
             [ cleanButton
             ]
         ) ++
-        [ runButton
-        ]
+        if Updatable.extract model.enableTextEdits then
+          [ runButton
+          ]
+        else
+          []
     editor =
       Html.div
         [ Attr.id "editor"
