@@ -616,6 +616,7 @@ mapFoldExp f initAcc e =
 
 
 -- Nodes visited/replaced in top-down, left-to-right order.
+-- Careful, a poorly constructed mapping function can cause this to fail to terminate.
 mapFoldExpTopDown : (Exp -> a -> (Exp, a)) -> a -> Exp -> (Exp, a)
 mapFoldExpTopDown f initAcc e =
   let (newE, newAcc) = f e initAcc in
@@ -719,6 +720,7 @@ mapFoldExpTopDown f initAcc e =
 
 
 -- Nodes visited/replaced in top-down, left-to-right order.
+-- Careful, a poorly constructed mapping function can cause this to fail to terminate.
 mapFoldPatTopDown : (Pat -> a -> (Pat, a)) -> a -> Pat -> (Pat, a)
 mapFoldPatTopDown f initAcc p =
   let (newP, newAcc) = f p initAcc in
@@ -758,6 +760,7 @@ mapFoldPatTopDown f initAcc p =
 
 -- Nodes visited/replaced in top-down, left-to-right order.
 -- Includes user-defined scope information.
+-- Careful, a poorly constructed mapping function can cause this to fail to terminate.
 mapFoldExpTopDownWithScope
   :  (Exp -> a -> b -> (Exp, a))
   -> (Exp -> b -> b)
@@ -882,12 +885,14 @@ mapExp f e =
   let (newExp, _) = mapFoldExp (\exp _ -> (f exp, ())) () e in
   newExp
 
+-- Careful, a poorly constructed mapping function can cause this to fail to terminate.
 mapExpTopDown : (Exp -> Exp) -> Exp -> Exp
 mapExpTopDown f e =
   -- Accumulator thrown away; just need something that type checks.
   let (newExp, _) = mapFoldExpTopDown (\exp _ -> (f exp, ())) () e in
   newExp
 
+-- Careful, a poorly constructed mapping function can cause this to fail to terminate.
 mapPatTopDown : (Pat -> Pat) -> Pat -> Pat
 mapPatTopDown f p =
   -- Accumulator thrown away; just need something that type checks.
