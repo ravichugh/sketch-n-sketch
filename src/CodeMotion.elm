@@ -233,7 +233,7 @@ pluck__ p e1 path =
     (_, _, []) ->
       Just <|
         ( (p, e1)
-        , replaceP__ p   <| PList (ws <| precedingWhitespacePat p) [] space0 Nothing space0
+        , replaceP__ p   <| PVar (ws <| precedingWhitespacePat p) "*RemoveMe*" noWidgetDecl -- Can't leave behind a [] because an insert with path [2] right after pluck would treat [] as a list to enter rather than an atom to insert behind
         , replaceE__ e1 <| EList (ws <| precedingWhitespace e1)   [] space0 Nothing space0
         )
 

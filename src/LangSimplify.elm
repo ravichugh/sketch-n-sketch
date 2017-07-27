@@ -210,11 +210,14 @@ removeUnusedVars exp =
   mapExpViaExp__ remover exp
 
 
--- Remove assignments of [] to [] (produced by CodeMotion.pluck)
+-- Remove assignments of [] to [] and of *RemoveMe* to whatever (produced by CodeMotion.pluck)
 -- Flatten assignment of singleton [exp] to singleton [var] (also often produced by CodeMotion.pluck)
 simplifyPatBoundExp : Pat -> Exp -> Maybe (Pat, Exp)
 simplifyPatBoundExp pat boundExp =
   case (pat.val.p__, boundExp.val.e__) of
+    (PVar ws1 "*RemoveMe*" wd, _) ->
+      Nothing
+
     (PAs ws1 ident ws2 childPat, _) ->
       case simplifyPatBoundExp childPat boundExp of
         Just (newChildPat, newBoundExp) -> Just (replaceP__ pat (PAs ws1 ident ws2 newChildPat), newBoundExp)
@@ -253,7 +256,7 @@ simplifyPatBoundExp pat boundExp =
       Just (pat, boundExp)
 
 
--- Remove assignments of [] to [] (produced by CodeMotion.pluck)
+-- Remove assignments of [] to [] and *RemoveMe* to whatever (produced by CodeMotion.pluck)
 -- Flatten assignment of singleton [exp] to singleton [var] (also often produced by CodeMotion.pluck)
 simplifyAssignments : Exp -> Exp
 simplifyAssignments program =
