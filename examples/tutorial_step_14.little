@@ -1,33 +1,14 @@
-; Here's a red rectangle. We will use the Rename
-; code transformation tool to rename the function at
-; its definition and its call-sites.
-
-(def redRect
-  (let [w h] [150 80]
-    (rect "salmon" 100 100 w h)))
+; TODO
+;
+; (no _1, _2, _3 randomness in this step)
+;
+; based on previous example function
+;
+; Add Args
+;
+; Remove Args
+;
+; Reorder Args
 
 (def main
-  (draw [redRect]))
-
-; There are a few ways to do this:
-;
-; _begin
-; _1 * Select the text redRect, right-click the code
-; _1   box, and select the Rename tool from the pop-up
-; _1   menu. Then enter a new name in the
-; _1   configuration box, and press Enter.
-; _1
-; _2 * Select the text redRect, and select the Rename
-; _2   tool from the Code Tools menu. Then enter a new
-; _2   name in the configuration box, and press Enter.
-; _2
-; _3 * Hold down the Shift key, hover over redRect,
-; _3   click the box that pops up over redRect, and
-; _3   then release the Shift Key. Select the Rename
-; _3   tool from the pop-up menu. Then enter a new
-; _3   name in the configuration box, and press Enter.
-; _3
-; _end
-; EXERCISE: Perform the renaming with each of the
-; three interactions. Use Undo after each to reset
-; the program.
+  (draw []))

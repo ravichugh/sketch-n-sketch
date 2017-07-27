@@ -1,16 +1,28 @@
-; The language has several binary operators for
-; arithmetic. To operate on three numbers, use a
-; binary operation twice.
+; Now we'll see how to draw three basic shapes:
+; lines, rectangles, and circles. Notice how
+; elements later in the main list appear on top
+; of earlier ones.
 
-(def foo (\(x y) [(+ x y) (* x y) (/ x y)]))
+(def redLine
+  (let [w x1 y1 x2 y2] [4 100 100 300 300]
+    (line "salmon" w x1 y1 x2 y2)))
 
-(def multiply3 (\(x y z) (* x (* y z))))
+(def greenRect
+  (let [x y w h] [100 100 150 80]
+    (rect "lightgreen" x y w h)))
+
+(def blueCircle
+  (let [cx cy r] [100 100 20]
+    (circle "lightblue" cx cy r)))
 
 (def main
-  (draw [
-    (show (foo 3 4))
-  ]))
+  (draw [redLine greenRect blueCircle]))
 
-; EXERCISE: Call the multiply3 function.
+; EXERCISE: Make the rectangle a square.
 ;
-; EXERCISE: Write a function add4 to add four numbers.
+; EXERCISE: Reorder the elements in main so that the
+; red line is on top of the green rectangle.
+;
+; EXERCISE: All three shapes share the xy-point
+; (100,100). Define variables for these two values
+; and use them in all three shapes.

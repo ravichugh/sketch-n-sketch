@@ -1,10 +1,13 @@
-; There are also binary comparison operators, which
-; can be used in if-then-else expressions.
-
-(def max (\(x y)
-  (if (< x y) y x)))
+; So far, we've seen how to write code using the
+; text editor.
+;
+; EXERCISE: If you need a refresher on the language
+; syntax later on, check out the Syntax option under
+; the Help menu. Try this out now.
+;
+; Next, we'll see some tools that Sketch-n-Sketch
+; provides for automatically performing code
+; transformations.
 
 (def main
-  (show (max 1 100)))
-
-; EXERCISE: Define a max3 function.
+  (draw []))

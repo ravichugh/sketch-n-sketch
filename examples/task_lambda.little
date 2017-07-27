@@ -18,11 +18,23 @@
 ;   or change the style of the lines.
 ;   
 ;   Define and use four new variables for the x-position,
-;   y-position, width, and height of the logo.
+;   y-position, width, and height of the logo. These
+;   variables should be defined in a single 4-tuple.
 ;
 ;   Define and use two new variables for the color and
-;   width of the lines.
+;   width of the lines. These variables should be defined
+;   in a single 2-tuple.
 ;
-; The final program should be easy to read and
-; understand.
-
+; The final program should look something like:
+;
+;   (def [x y w h] [20 30 100 120])
+;   (def [stroke strokeWidth] ["white" 5])
+;   (def rectangle (rect "black" x y w h))
+;   (def line1 (line stroke strokeWidth x y (+ x w) (+ y h)))
+;   (def line2 (line stroke strokeWidth x (+ y h) (+ x (/ w 2)) (+ y (/ h 2))))
+;   
+;   (def logo
+;     [rectangle line1 line2])
+;   
+;   (def main
+;     (draw logo))

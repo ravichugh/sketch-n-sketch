@@ -1,40 +1,10 @@
-; The previous definition used variables for width
-; and height. Let's introduce variables for the x-
-; and y-positions using the Introduce Variable tool.
-
-(def redRect
-  (let [w h] [150 80]
-    (rect "salmon" 100 100 w h)))
+; TODO
+;
+; (no _1, _2, _3 randomness in this step)
+;
+; somehow based on previous examples
+;
+; Move Definitions
 
 (def main
-  (draw [redRect]))
-
-; This tool uses the notion of a "target position",
-; which is the whitespace between or above other
-; items in the code.
-;
-; We can perform this in several ways.
-;
-; _begin
-; _1 * Select the text 100, right-click, and
-; _1   select Introduce Variable from the pop-up menu.
-; _1   The configuration pane asks for zero or
-; _1   one target position. Select a target position
-; _1   before the let or before the call to rect.
-; _1
-; _2 * Select the text 100, and select
-; _2   Introduce Variable from the Code Tools menu.
-; _2   The configuration pane asks for zero or
-; _2   one target position. Select a target position
-; _2   before the let or before the call to rect.
-; _2
-; _3 * Hold down Shift, hover and click
-; _3   both occurrences of 100 and a target position,
-; _3   before the let or before the call to rect.
-; _3   Release the Shift Key and select Introduce
-; _3   Variables from the pop-up menu.
-; _3
-; _end
-; EXERCISE: Introduce x and y variables with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+  (draw []))

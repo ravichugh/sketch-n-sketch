@@ -1,6 +1,9 @@
 ; To recap, there are two general mechanisms for
 ; invoking code transformations.
 ;
+; TODO text-select: single arg, then tool, then rest later
+; TODO box-select: select all args, then tool
+;
 ; _begin
 ; _1Text Select Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; _1

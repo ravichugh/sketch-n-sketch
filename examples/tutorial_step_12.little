@@ -1,21 +1,21 @@
-; As a final example for basic programming in
-; Sketch-n-Sketch, let's create a pattern of
-; rectangles, repeated downwards with some space in
-; between each.
+; TODO
 ;
-; The function below uses local variables to make
-; things readable. The call to map applies the
-; function to the list [0 1 2 3]. Because the
-; function currently ignores its argument i, it
-; draws every rectangle at the same position.
-
-(def greenRect (\i
-  (let [x y w h] [100 100 150 80]
-    (rect "lightgreen" x y w h))))
+; (no _1, _2, _3 randomness in this step)
+;
+; Introduce Single Var
+;
+; start with same example as before
+;
+; to make a rectangle, introduce single var for
+; width and height constants
+;
+; explain that in box select mode, choose all
+; args first and then tool is shown
+;
+; in text select mode, select one arg, then
+; panel asks for the rest
+;
+; try both.
 
 (def main
-  (draw (map greenRect (range 0 3))))
-
-; EXERCISE: Add a local variable called space
-; defined to be some non-zero number. Then draw the
-; rectangle at y-position (+ y (* i (+ h space))).
+  (draw []))

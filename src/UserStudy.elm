@@ -37,6 +37,7 @@ type EditorMode
   | TextEditOnly
   | TextSelectOnly
   | BoxSelectOnly
+  | CodeToolsOnly
   | AllFeatures
 
 --------------------------------------------------------------------------------
@@ -96,15 +97,16 @@ getFinalCode state templateCode =
     (Transition1, _)           -> templateCode
     (Transition2, _)           -> templateCode
     (End, _)                   -> templateCode
-    (Tutorial, ("Step 14", _)) -> reorderTutorialStep order_14_15_16 templateCode
-    (Tutorial, ("Step 15", _)) -> reorderTutorialStep order_14_15_16 templateCode
-    (Tutorial, ("Step 16", _)) -> reorderTutorialStep order_14_15_16 templateCode
+    (Tutorial, ("Step 10", _)) -> reorderTutorialStep order_10_11_13 templateCode
+    (Tutorial, ("Step 11", _)) -> reorderTutorialStep order_10_11_13 templateCode
+    (Tutorial, ("Step 13", _)) -> reorderTutorialStep order_10_11_13 templateCode
     (Tutorial, ("Step 17", _)) -> reorderTutorialStep order_17 templateCode
     (Tutorial, (_, _))         -> templateCode
     (_, (_, TextEditOnly))     -> templateCode
     (_, (_, ReadOnly))         -> readOnly ++ chopInstructions templateCode
     (_, (_, TextSelectOnly))   -> textSelectOnly ++ templateCode
     (_, (_, BoxSelectOnly))    -> boxSelectOnly ++ templateCode
+    (_, (_, CodeToolsOnly))    -> codeToolsOnly ++ templateCode
     (_, (_, AllFeatures))      -> allFeatures ++ templateCode
 
 -- post-processing for tasks ---------------------------------------------------
@@ -124,6 +126,12 @@ boxSelectOnly = """; Follow the instructions below.
 ; When you are done, press Next Step.
 """
 
+codeToolsOnly = """; Follow the instructions below.
+; Use TEXT SELECT MODE and/or BOX SELECT MODE to
+; perform the edits. Text edits are disabled.
+; When you are done, press Next Step.
+"""
+
 allFeatures = """; Follow the instructions below.
 ; Use NORMAL TEXT EDITS and/or TEXT SELECT MODE
 ; and/or BOX SELECT MODE to perform the edits.
@@ -138,7 +146,7 @@ chopInstructions templateCode =
 
 -- post-processing for tutorial ------------------------------------------------
 
-order_14_15_16 =
+order_10_11_13 =
   case tutorialVersion of
     1 -> ["_1","_2","_3"]
     2 -> ["_2","_1","_3"]
@@ -245,7 +253,7 @@ seed = ImpureGoodies.randomInt 0 (2^32)
 --------------------------------------------------------------------------------
 
 numTutorialSteps = 17
-structuredEditingStartStep = 14
+structuredEditingStartStep = 10
 numTutorialVersions = 4
 
 headToHeadTaskTemplates =
@@ -300,7 +308,7 @@ everything =
 
     fullTasks =
       fullTaskTemplates
-        |> List.map (\template -> (FullTask, (template, AllFeatures)))
+        |> List.map (\template -> (FullTask, (template, CodeToolsOnly)))
         |> insertReadingPeriods
 
   in

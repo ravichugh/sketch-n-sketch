@@ -25,6 +25,22 @@
 ;   over the location, size, and remaining percentage,
 ;   and then draws both rectangles.
 ;
-; The final program should be easy to read and
-; understand.
-
+; The final program should look something like:
+;
+;   (def battery (\(x y w h percentRemaining)
+;   
+;     (let bodyRectangle
+;       (rectWithBorder "black" 5 "none" x y w h)
+;   
+;     (let juiceRectangle
+;       (let fill
+;         (if (< percentRemaining 0.2) "red"
+;         (if (< percentRemaining 0.4) "orange"
+;         (if (= percentRemaining 1)   "green"
+;                                      "black")))
+;       (rect fill x y (* percentRemaining w) h))
+;
+;     [juiceRectangle bodyRectangle]))))
+;   
+;   (def main
+;     (draw (battery 17 15 172 100 0.3)))

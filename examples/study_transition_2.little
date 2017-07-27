@@ -1,9 +1,9 @@
 ; In the final section, you will see two examples
-; programs, each with a list of editing tasks. This
-; time, you will be able to use _all_ features:
+; programs, each with a list of editing tasks. As
+; before, you will _not_ be able to use text editing.
+; But, this time, you will be able to use _either_:
 ;
-;  - normal text editing,
-;  - code tools with Text Select Mode, and
+;  - code tools with Text Select Mode, or
 ;  - code tools with Box Select Mode.
 ;
 ; It's up to you. And this time, you will work with

@@ -1,24 +1,33 @@
-; EXERCISE: The range library function computes a
-; list of numbers. Replace the list expression below
-; with (range 1 10).
-;
-; EXERCISE: The reverse library function reverses
-; the elements of a list. Try the expression
-; (reverse (range 1 10)).
-;
-; Now let's call the same function with each of the
-; arguments in this list of reversed numbers. For
-; example, let's define a function that multiplies
-; its argument by two, and then "map" this function
-; over a list of numbers. The map function, found in
-; typical functional languages, is a basic building
-; block for "looping" over a list of elements.
-;
-; EXERCISE: Try (map double (reverse (range 1 10))).
+; Here's a red rectangle. We will use the Rename
+; code transformation tool to rename the function at
+; its definition and its call-sites.
 
-(def double (\i (* i 2)))
+(def redRect
+  (let [w h] [150 80]
+    (rect "salmon" 100 100 w h)))
 
 (def main
-  (draw [
-    (show [1 2 3 4 5 6 7 8 9 10])
-  ]))
+  (draw [redRect]))
+
+; There are a few ways to do this:
+;
+; _begin
+; _1 * Select the text redRect, right-click the code
+; _1   box, and select the Rename tool from the pop-up
+; _1   menu. Then enter a new name in the
+; _1   configuration box, and press Enter.
+; _1
+; _2 * Select the text redRect, and select the Rename
+; _2   tool from the Code Tools menu. Then enter a new
+; _2   name in the configuration box, and press Enter.
+; _2
+; _3 * Hold down the Shift key, hover over redRect,
+; _3   click the box that pops up over redRect, and
+; _3   then release the Shift Key. Select the Rename
+; _3   tool from the pop-up menu. Then enter a new
+; _3   name in the configuration box, and press Enter.
+; _3
+; _end
+; EXERCISE: Perform the renaming with each of the
+; three interactions. Use Undo after each to reset
+; the program.

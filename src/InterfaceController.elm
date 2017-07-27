@@ -2009,6 +2009,14 @@ enableFeaturesForEditorMode newState m =
           , showDeucePanel = False
           , showDeuceRightClickMenu = True
           }
+    CodeToolsOnly ->
+      { m | enableTextEdits = Updatable.create False
+          , enableDeuceBoxSelection = True
+          , enableDeuceTextSelection = True
+          , showEditCodeInMenuBar = True
+          , showDeucePanel = True
+          , showDeuceRightClickMenu = True
+          }
     AllFeatures ->
       { m | enableTextEdits = Updatable.create True
           , enableDeuceBoxSelection = True

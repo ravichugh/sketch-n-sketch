@@ -1,28 +1,40 @@
-; Now we'll see how to draw three basic shapes:
-; lines, rectangles, and circles. Notice how
-; elements later in the main list appear on top
-; of earlier ones.
+; The previous definition used variables for width
+; and height. Let's introduce variables for the x-
+; and y-positions using the Introduce Variable tool.
 
-(def redLine
-  (let [w x1 y1 x2 y2] [4 100 100 300 300]
-    (line "salmon" w x1 y1 x2 y2)))
-
-(def greenRect
-  (let [x y w h] [100 100 150 80]
-    (rect "lightgreen" x y w h)))
-
-(def blueCircle
-  (let [cx cy r] [100 100 20]
-    (circle "lightblue" cx cy r)))
+(def redRect
+  (let [w h] [150 80]
+    (rect "salmon" 100 100 w h)))
 
 (def main
-  (draw [redLine greenRect blueCircle]))
+  (draw [redRect]))
 
-; EXERCISE: Make the rectangle a square.
+; This tool uses the notion of a "target position",
+; which is the whitespace between or above other
+; items in the code.
 ;
-; EXERCISE: Reorder the elements in main so that the
-; red line is on top of the green rectangle.
+; We can perform this in several ways.
 ;
-; EXERCISE: All three shapes share the xy-point
-; (100,100). Define variables for these two values
-; and use them in all three shapes.
+; _begin
+; _1 * Select the text 100, right-click, and
+; _1   select Introduce Variable from the pop-up menu.
+; _1   The configuration pane asks for zero or
+; _1   one target position. Select a target position
+; _1   before the let or before the call to rect.
+; _1
+; _2 * Select the text 100, and select
+; _2   Introduce Variable from the Code Tools menu.
+; _2   The configuration pane asks for zero or
+; _2   one target position. Select a target position
+; _2   before the let or before the call to rect.
+; _2
+; _3 * Hold down Shift, hover and click both
+; _3   occurrences of 100 and a target position,
+; _3   before the let or before the call to rect.
+; _3   Release the Shift Key and select Introduce
+; _3   Variables from the pop-up menu.
+; _3
+; _end
+; EXERCISE: Introduce x and y variables with each of
+; the three interactions. Use Undo after each to
+; reset the program.

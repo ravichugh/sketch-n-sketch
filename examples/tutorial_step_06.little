@@ -2,16 +2,33 @@
 ; which defines a function that takes an argument x
 ; and returns the expression e.
 ;
+; The syntax for a multi-argument function is
+; (\(x1 x2 x3 ...) e); notice the parentheses
+; surrounding the list of arguments.
+;
 ; For example, the function triplicate takes a
 ; single argument x, and it returns a list that
-; repeats x three times. To call it, the function
+; repeats x three times, and triplicate2 takes
+; turn arguments. To call any function, the function
 ; name and its argument are separated by a space,
 ; and the entire call is surrounded by parentheses.
 
 (def triplicate (\x [x x x]))
+
+(def triplicate2 (\(x y) [x y x y x y]))
 
 (def main
   (draw [(show (triplicate 3))]))
 
 ; EXERCISE: Rename the argument of triplicate to
 ; something else and re-run.
+;
+; EXERCISE: Call triplicate2 in the main expression.
+;
+; EXERCISE: Call triplicate2 with too many arguments.
+; You'll see a run-time error.
+;
+; EXERCISE: Call triplicate2 with too few arguments.
+; You won't get a run-time error, but the result
+; shown will be "<fun>" (a function that is waiting
+; for the rest of its arguments).

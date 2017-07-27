@@ -39,4 +39,3 @@
 ;   
 ;   (def main
 ;     (draw [ rect1 rect2 rect3 ]))
-

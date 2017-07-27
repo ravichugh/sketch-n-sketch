@@ -5222,11 +5222,11 @@ study_transition_1 =
 
 study_transition_2 =
  """; In the final section, you will see two examples
-; programs, each with a list of editing tasks. This
-; time, you will be able to use _all_ features:
+; programs, each with a list of editing tasks. As
+; before, you will _not_ be able to use text editing.
+; But, this time, you will be able to use _either_:
 ;
-;  - normal text editing,
-;  - code tools with Text Select Mode, and
+;  - code tools with Text Select Mode, or
 ;  - code tools with Box Select Mode.
 ;
 ; It's up to you. And this time, you will work with
@@ -5390,30 +5390,16 @@ tutorial_step_06 =
 ; which defines a function that takes an argument x
 ; and returns the expression e.
 ;
-; For example, the function triplicate takes a
-; single argument x, and it returns a list that
-; repeats x three times. To call it, the function
-; name and its argument are separated by a space,
-; and the entire call is surrounded by parentheses.
-
-(def triplicate (\\x [x x x]))
-
-(def main
-  (draw [(show (triplicate 3))]))
-
-; EXERCISE: Rename the argument of triplicate to
-; something else and re-run.
-
-"""
-
-tutorial_step_07 =
- """; The syntax for a multi-argument function is
+; The syntax for a multi-argument function is
 ; (\\(x1 x2 x3 ...) e); notice the parentheses
 ; surrounding the list of arguments.
 ;
-; For example, the triplicate2 function takes two
-; arguments. To call a function with multiple
-; arguments, the arguments are separated by spaces.
+; For example, the function triplicate takes a
+; single argument x, and it returns a list that
+; repeats x three times, and triplicate2 takes
+; turn arguments. To call any function, the function
+; name and its argument are separated by a space,
+; and the entire call is surrounded by parentheses.
 
 (def triplicate (\\x [x x x]))
 
@@ -5422,6 +5408,9 @@ tutorial_step_07 =
 (def main
   (draw [(show (triplicate 3))]))
 
+; EXERCISE: Rename the argument of triplicate to
+; something else and re-run.
+;
 ; EXERCISE: Call triplicate2 in the main expression.
 ;
 ; EXERCISE: Call triplicate2 with too many arguments.
@@ -5434,69 +5423,30 @@ tutorial_step_07 =
 
 """
 
-tutorial_step_08 =
- """; The language has several binary operators for
-; arithmetic. To operate on three numbers, use a
-; binary operation twice.
+tutorial_step_07 =
+ """; The language has several binary operators...
 
-(def foo (\\(x y) [(+ x y) (* x y) (/ x y)]))
+(def foo (\\(x y) [(+ x y) (- x y) (* x y) (/ x y)]))
 
 (def multiply3 (\\(x y z) (* x (* y z))))
+
+; ... and if-then-else expressions.
+
+(def max (\\(x y)
+  (if (< x y) y x)))
+
+; Don't worry about the syntax too much.
 
 (def main
   (draw [
     (show (foo 3 4))
   ]))
 
-; EXERCISE: Call the multiply3 function.
-;
-; EXERCISE: Write a function add4 to add four numbers.
+; EXERCISE: Call the multiply3 and max functions.
 
 """
 
-tutorial_step_09 =
- """; There are also binary comparison operators, which
-; can be used in if-then-else expressions.
-
-(def max (\\(x y)
-  (if (< x y) y x)))
-
-(def main
-  (show (max 1 100)))
-
-; EXERCISE: Define a max3 function.
-
-"""
-
-tutorial_step_10 =
- """; EXERCISE: The range library function computes a
-; list of numbers. Replace the list expression below
-; with (range 1 10).
-;
-; EXERCISE: The reverse library function reverses
-; the elements of a list. Try the expression
-; (reverse (range 1 10)).
-;
-; Now let's call the same function with each of the
-; arguments in this list of reversed numbers. For
-; example, let's define a function that multiplies
-; its argument by two, and then \"map\" this function
-; over a list of numbers. The map function, found in
-; typical functional languages, is a basic building
-; block for \"looping\" over a list of elements.
-;
-; EXERCISE: Try (map double (reverse (range 1 10))).
-
-(def double (\\i (* i 2)))
-
-(def main
-  (draw [
-    (show [1 2 3 4 5 6 7 8 9 10])
-  ]))
-
-"""
-
-tutorial_step_11 =
+tutorial_step_08 =
  """; Now we'll see how to draw three basic shapes:
 ; lines, rectangles, and circles. Notice how
 ; elements later in the main list appear on top
@@ -5528,32 +5478,7 @@ tutorial_step_11 =
 
 """
 
-tutorial_step_12 =
- """; As a final example for basic programming in
-; Sketch-n-Sketch, let's create a pattern of
-; rectangles, repeated downwards with some space in
-; between each.
-;
-; The function below uses local variables to make
-; things readable. The call to map applies the
-; function to the list [0 1 2 3]. Because the
-; function currently ignores its argument i, it
-; draws every rectangle at the same position.
-
-(def greenRect (\\i
-  (let [x y w h] [100 100 150 80]
-    (rect \"lightgreen\" x y w h))))
-
-(def main
-  (draw (map greenRect (range 0 3))))
-
-; EXERCISE: Add a local variable called space
-; defined to be some non-zero number. Then draw the
-; rectangle at y-position (+ y (* i (+ h space))).
-
-"""
-
-tutorial_step_13 =
+tutorial_step_09 =
  """; So far, we've seen how to write code using the
 ; text editor.
 ;
@@ -5570,7 +5495,7 @@ tutorial_step_13 =
 
 """
 
-tutorial_step_14 =
+tutorial_step_10 =
  """; Here's a red rectangle. We will use the Rename
 ; code transformation tool to rename the function at
 ; its definition and its call-sites.
@@ -5607,7 +5532,7 @@ tutorial_step_14 =
 
 """
 
-tutorial_step_15 =
+tutorial_step_11 =
  """; The previous definition used variables for width
 ; and height. Let's introduce variables for the x-
 ; and y-positions using the Introduce Variable tool.
@@ -5638,8 +5563,8 @@ tutorial_step_15 =
 ; _2   one target position. Select a target position
 ; _2   before the let or before the call to rect.
 ; _2
-; _3 * Hold down Shift, hover and click
-; _3   both occurrences of 100 and a target position,
+; _3 * Hold down Shift, hover and click both
+; _3   occurrences of 100 and a target position,
 ; _3   before the let or before the call to rect.
 ; _3   Release the Shift Key and select Introduce
 ; _3   Variables from the pop-up menu.
@@ -5651,8 +5576,33 @@ tutorial_step_15 =
 
 """
 
-tutorial_step_16 =
- """; Finally, we will use the Create Function tool to
+tutorial_step_12 =
+ """; TODO
+;
+; (no _1, _2, _3 randomness in this step)
+;
+; Introduce Single Var
+;
+; start with same example as before
+;
+; to make a rectangle, introduce single var for
+; width and height constants
+;
+; explain that in box select mode, choose all
+; args first and then tool is shown
+;
+; in text select mode, select one arg, then
+; panel asks for the rest
+;
+; try both.
+
+(def main
+  (draw []))
+
+"""
+
+tutorial_step_13 =
+ """; Next, we will use the Create Function tool to
 ; turn the definition into a function, so that it
 ; can be called to create more red rectangles.
 
@@ -5665,7 +5615,8 @@ tutorial_step_16 =
 (def main
   (draw [redRect]))
 
-; Again, there are a few ways to do this:
+; As with all code tools, this can be accomplished in
+; several ways:
 ;
 ; _begin
 ; _1 * Select the text (def redRect ...). Right-click
@@ -5694,9 +5645,58 @@ tutorial_step_16 =
 
 """
 
+tutorial_step_14 =
+ """; TODO
+;
+; (no _1, _2, _3 randomness in this step)
+;
+; based on previous example function
+;
+; Add Args
+;
+; Remove Args
+;
+; Reorder Args
+
+(def main
+  (draw []))
+
+"""
+
+tutorial_step_15 =
+ """; TODO
+;
+; (no _1, _2, _3 randomness in this step)
+;
+; somehow based on previous examples
+;
+; Move Definitions
+
+(def main
+  (draw []))
+
+"""
+
+tutorial_step_16 =
+ """; TODO
+;
+; (no _1, _2, _3 randomness in this step)
+;
+; draw a red rectangle and a green rectangle
+;
+; Merge Expressions into Function to abstract over color
+
+(def main
+  (draw []))
+
+"""
+
 tutorial_step_17 =
  """; To recap, there are two general mechanisms for
 ; invoking code transformations.
+;
+; TODO text-select: single arg, then tool, then rest later
+; TODO box-select: select all args, then tool
 ;
 ; _begin
 ; _1Text Select Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -5759,7 +5759,6 @@ task_one_rectangle =
 ;   (def main
 ;     (draw [ rect1 ]))
 
-
 """
 
 task_three_rectangles =
@@ -5805,7 +5804,6 @@ task_three_rectangles =
 ;   (def main
 ;     (draw [ rect1 rect2 rect3 ]))
 
-
 """
 
 task_target =
@@ -5844,7 +5842,6 @@ task_target =
 ;   (def main
 ;     (draw (target 250 250 50 4)))
 
-
 """
 
 task_battery =
@@ -5875,9 +5872,25 @@ task_battery =
 ;   over the location, size, and remaining percentage,
 ;   and then draws both rectangles.
 ;
-; The final program should be easy to read and
-; understand.
-
+; The final program should look something like:
+;
+;   (def battery (\\(x y w h percentRemaining)
+;   
+;     (let bodyRectangle
+;       (rectWithBorder \"black\" 5 \"none\" x y w h)
+;   
+;     (let juiceRectangle
+;       (let fill
+;         (if (< percentRemaining 0.2) \"red\"
+;         (if (< percentRemaining 0.4) \"orange\"
+;         (if (= percentRemaining 1)   \"green\"
+;                                      \"black\")))
+;       (rect fill x y (* percentRemaining w) h))
+;
+;     [juiceRectangle bodyRectangle]))))
+;   
+;   (def main
+;     (draw (battery 17 15 172 100 0.3)))
 
 """
 
@@ -5902,14 +5915,26 @@ task_lambda =
 ;   or change the style of the lines.
 ;   
 ;   Define and use four new variables for the x-position,
-;   y-position, width, and height of the logo.
+;   y-position, width, and height of the logo. These
+;   variables should be defined in a single 4-tuple.
 ;
 ;   Define and use two new variables for the color and
-;   width of the lines.
+;   width of the lines. These variables should be defined
+;   in a single 2-tuple.
 ;
-; The final program should be easy to read and
-; understand.
-
+; The final program should look something like:
+;
+;   (def [x y w h] [20 30 100 120])
+;   (def [stroke strokeWidth] [\"white\" 5])
+;   (def rectangle (rect \"black\" x y w h))
+;   (def line1 (line stroke strokeWidth x y (+ x w) (+ y h)))
+;   (def line2 (line stroke strokeWidth x (+ y h) (+ x (/ w 2)) (+ y (/ h 2))))
+;   
+;   (def logo
+;     [rectangle line1 line2])
+;   
+;   (def main
+;     (draw logo))
 
 """
 

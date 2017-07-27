@@ -1,24 +1,19 @@
-; The syntax for a multi-argument function is
-; (\(x1 x2 x3 ...) e); notice the parentheses
-; surrounding the list of arguments.
-;
-; For example, the triplicate2 function takes two
-; arguments. To call a function with multiple
-; arguments, the arguments are separated by spaces.
+; The language has several binary operators...
 
-(def triplicate (\x [x x x]))
+(def foo (\(x y) [(+ x y) (- x y) (* x y) (/ x y)]))
 
-(def triplicate2 (\(x y) [x y x y x y]))
+(def multiply3 (\(x y z) (* x (* y z))))
+
+; ... and if-then-else expressions.
+
+(def max (\(x y)
+  (if (< x y) y x)))
+
+; Don't worry about the syntax too much.
 
 (def main
-  (draw [(show (triplicate 3))]))
+  (draw [
+    (show (foo 3 4))
+  ]))
 
-; EXERCISE: Call triplicate2 in the main expression.
-;
-; EXERCISE: Call triplicate2 with too many arguments.
-; You'll see a run-time error.
-;
-; EXERCISE: Call triplicate2 with too few arguments.
-; You won't get a run-time error, but the result
-; shown will be "<fun>" (a function that is waiting
-; for the rest of its arguments).
+; EXERCISE: Call the multiply3 and max functions.
