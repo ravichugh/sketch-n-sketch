@@ -24,7 +24,7 @@ convert i =
 -- w3color.js (https://www.w3schools.com/lib/w3color.js) and node repl.
 
 htmlColorNames =
-  List.map (Utils.mapFst String.toLower)
+  List.map (Tuple.mapFirst String.toLower)
     [ ("AliceBlue", ((240, 248, 255), (208, 1, 0.97)))
     , ("AntiqueWhite", ((250, 235, 215), (34, 0.78, 0.91)))
     , ("Aqua", ((0, 255, 255), (180, 1, 0.5)))

@@ -1057,7 +1057,7 @@ zoneDelete_ id shape x y transform =
       (20, 20, "silver", "2") in
   let evt =
     let foo old =
-      { old | slate = Utils.mapSnd (Dict.insert id LangSvg.dummySvgNode) old.slate }
+      { old | slate = Tuple.mapSecond (Dict.insert id LangSvg.dummySvgNode) old.slate }
     in
     onMouseDown (Msg "Delete..." foo) in
   let lines =

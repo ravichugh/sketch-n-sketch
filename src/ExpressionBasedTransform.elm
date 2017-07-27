@@ -1625,7 +1625,7 @@ mergeExpressions eFirst eRest =
       in
       matchAllAndBind match eRest <| \stuff ->
         let ((p1List, e1List), e2List) =
-          Utils.mapFst List.unzip (List.unzip stuff)
+          Tuple.mapFirst List.unzip (List.unzip stuff)
         in
         Utils.bindMaybe3
           (\_ (e1_,l1) (e2_,l2) ->
@@ -1666,7 +1666,7 @@ mergeExpressions eFirst eRest =
         _                   -> Nothing
       in
       matchAllAndBind match eRest <| \stuff ->
-        let ((e1List, e2List), e3List) = Utils.mapFst List.unzip (List.unzip stuff) in
+        let ((e1List, e2List), e3List) = Tuple.mapFirst List.unzip (List.unzip stuff) in
         Utils.bindMaybe3
           (\(e1_,l1) (e2_,l2) (e3_,l3) ->
             return (EIf ws1 e1_ e2_ e3_ ws2) (l1 ++ l2 ++ l3))
@@ -1691,7 +1691,7 @@ mergeExpressions eFirst eRest =
       in
       matchAllAndBind match eRest <| \stuff ->
         let ((patList, typeList), eList) =
-          Utils.mapFst List.unzip (List.unzip stuff)
+          Tuple.mapFirst List.unzip (List.unzip stuff)
         in
         Utils.bindMaybe3
           (\_ _ (e_,l) ->
@@ -1720,7 +1720,7 @@ mergeExpressions eFirst eRest =
       in
       matchAllAndBind match eRest <| \stuff ->
         let ((patList, typeList), eList) =
-          Utils.mapFst List.unzip (List.unzip stuff)
+          Tuple.mapFirst List.unzip (List.unzip stuff)
         in
         Utils.bindMaybe3
           (\_ _ (e_,l) ->
@@ -1773,7 +1773,7 @@ mergeMaybeExpressions me mes =
         else Nothing
     Just e  ->
       Utils.bindMaybe
-        (Utils.mapMaybe (Utils.mapFst Just) << mergeExpressions e)
+        (Utils.mapMaybe (Tuple.mapFirst Just) << mergeExpressions e)
         (Utils.projJusts mes)
 
 

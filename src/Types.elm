@@ -209,7 +209,7 @@ strConstraint (i,rawConstraint) =
 -- could move these to (extern typ x T) definitions in Prelude...
 opTypeTable : List (Op_, Type)
 opTypeTable =
-  List.map (Utils.mapSnd parseT)
+  List.map (Tuple.mapSecond parseT)
     [ (Pi         , " Num ") -- TODO
 
     , (ToStr      , " (forall a (-> a String))")
@@ -1686,7 +1686,7 @@ applyUnifier unifier =
 
 applyUnifierToConstraints : Unifier -> Constraints -> Constraints
 applyUnifierToConstraints unifier =
-  List.map <| Utils.mapSnd <| \(t1,t2) ->
+  List.map <| Tuple.mapSecond <| \(t1,t2) ->
     (applyUnifier unifier t1, applyUnifier unifier t2)
 
 rewriteArrow : Unifier -> ArrowType -> ArrowType

@@ -123,7 +123,7 @@ digHole originalExp selectedFeatures slate widgets syncOptions =
         <| List.map (\(locId, nameOrig, namePrime) -> (locId, nameOrig))
         <| locIdNameOrigNamePrime
     in
-    List.map (Utils.mapSnd <| equationToExp subst locIdToOrigName) selectedFeatureEquationsNamedWithScopes
+    List.map (Tuple.mapSecond <| equationToExp subst locIdToOrigName) selectedFeatureEquationsNamedWithScopes
   in
   -- Remove expressions of only one term
   let significantFeatureNamesWithExpressionExps =

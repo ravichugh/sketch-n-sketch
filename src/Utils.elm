@@ -819,11 +819,13 @@ projOk list =
       (Ok [])
       list
 
-mapFst : (a -> a_) -> (a, b) -> (a_, b)
-mapFst f (a, b) = (f a, b)
+-- Use Tuple.mapFirst
+-- mapFst : (a -> a_) -> (a, b) -> (a_, b)
+-- mapFst f (a, b) = (f a, b)
 
-mapSnd : (b -> b_) -> (a, b) -> (a, b_)
-mapSnd f (a, b) = (a, f b)
+-- Use Tuple.mapSecond
+-- mapSnd : (b -> b_) -> (a, b) -> (a, b_)
+-- mapSnd f (a, b) = (a, f b)
 
 mapBoth : (a -> b) -> (a, a) -> (b, b)
 mapBoth f (x, y) =

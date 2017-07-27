@@ -222,7 +222,7 @@ pickLocs options maybeCounts traces =
         (List.map (chooseBiased biasCounts) locSets, Just (Left biasCounts))
 
       Just (Right fairCounts) ->
-        Utils.mapSnd (Just << Right) <|
+        Tuple.mapSecond (Just << Right) <|
           chooseFairLocationAssignment locSets fairCounts
   in
   (assignedMaybeLocs, allLocs, maybeCounts_)

@@ -1084,7 +1084,7 @@ moveDefinitions_ makeNewProgram sourcePathedPatIds program =
     let namesUniqueExplicitlyMoved = Set.union pluckedPathedPatIdentifiersUnique pluckedBoundExpFreeIdentifiersUnique in
     let (newProgramUniqueNames, newScopeEId) =
       makeNewProgram (Utils.zip pluckedPats pluckedBoundExps) programWithoutPlucked
-      |> Utils.mapFst LangSimplify.simplifyAssignments
+      |> Tuple.mapFirst LangSimplify.simplifyAssignments
     in
     let movedThingsStr =
       pluckedPats

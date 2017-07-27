@@ -255,23 +255,23 @@ valsToPath2_ counts vs = case vs of
       if matchCmd cmd "Z" then
         CmdZ cmd +++ valsToPath2_ counts vs_
       else if matchCmd cmd "MLT" then
-        let ((x,y),vs__) = Utils.mapFst Utils.unwrap2 <| projConsts 2 vs_ in
-        let (counts_,pt) = Utils.mapSnd Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
+        let ((x,y),vs__) = Tuple.mapFirst Utils.unwrap2 <| projConsts 2 vs_ in
+        let (counts_,pt) = Tuple.mapSecond Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
         CmdMLT cmd pt +++ valsToPath2_ counts_ vs__
       else if matchCmd cmd "HV" then
-        let (i,vs__) = Utils.mapFst Utils.unwrap1 <| projConsts 1 vs_ in
+        let (i,vs__) = Tuple.mapFirst Utils.unwrap1 <| projConsts 1 vs_ in
         CmdHV cmd i +++ valsToPath2_ counts vs__
       else if matchCmd cmd "C" then
-        let ((x1,y1,x2,y2,x,y),vs__) = Utils.mapFst Utils.unwrap6 <| projConsts 6 vs_ in
-        let (counts_,(pt1,pt2,pt3)) = Utils.mapSnd Utils.unwrap3 <| addIdPoints cmd counts [(x1,y1),(x2,y2),(x,y)] in
+        let ((x1,y1,x2,y2,x,y),vs__) = Tuple.mapFirst Utils.unwrap6 <| projConsts 6 vs_ in
+        let (counts_,(pt1,pt2,pt3)) = Tuple.mapSecond Utils.unwrap3 <| addIdPoints cmd counts [(x1,y1),(x2,y2),(x,y)] in
         CmdC cmd pt1 pt2 pt3 +++ valsToPath2_ counts_ vs__
       else if matchCmd cmd "SQ" then
-        let ((x1,y1,x,y),vs__) = Utils.mapFst Utils.unwrap4 <| projConsts 4 vs_ in
-        let (counts_,(pt1,pt2)) = Utils.mapSnd Utils.unwrap2 <| addIdPoints cmd counts [(x1,y1),(x,y)] in
+        let ((x1,y1,x,y),vs__) = Tuple.mapFirst Utils.unwrap4 <| projConsts 4 vs_ in
+        let (counts_,(pt1,pt2)) = Tuple.mapSecond Utils.unwrap2 <| addIdPoints cmd counts [(x1,y1),(x,y)] in
         CmdSQ cmd pt1 pt2 +++ valsToPath2_ counts_ vs__
       else if matchCmd cmd "A" then
-        let ((rx,ry,axis,flag,sweep,x,y),vs__) = Utils.mapFst Utils.unwrap7 <| projConsts 7 vs_ in
-        let (counts_,pt) = Utils.mapSnd Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
+        let ((rx,ry,axis,flag,sweep,x,y),vs__) = Tuple.mapFirst Utils.unwrap7 <| projConsts 7 vs_ in
+        let (counts_,pt) = Tuple.mapSecond Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
         CmdA cmd rx ry axis flag sweep pt +++ valsToPath2_ counts_ vs__
       else
         Debug.crash "valsToPath2_"
@@ -607,7 +607,7 @@ maybeFindBounds l =
       case (av.av_, roundBounds) of
         (ABounds bounds, False) -> Just bounds
         (ABounds (a,b,c,d), True) ->
-          let f = Utils.mapFst (toFloat << round) in
+          let f = Tuple.mapFirst (toFloat << round) in
           Just (f a, f b, f c, f d)
         _ ->
           Nothing
