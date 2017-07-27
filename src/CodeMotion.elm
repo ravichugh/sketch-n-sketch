@@ -497,12 +497,44 @@ programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
 
 
 -- Precondition: program has been run through assignUniqueNames
--- Also returns a dictionary any identifiers lifted
+-- Also returns a dictionary of any identifiers lifted
 liftDependenciesBasedOnUniqueNames : Exp -> (Exp, List Ident)
 liftDependenciesBasedOnUniqueNames program =
   let needToLift =
     Set.diff (freeIdentifiers program) preludeIdentifiers
     |> Set.toList
+  in
+  let safeToLift =
+    -- Don't lift idents that would result in cyclically lifting forever.
+    --
+    -- (def x z)
+    -- (def y x)
+    -- (def z y)
+    --
+    -- Or: (def x (+ x 1))
+    -- Or: (def x x)
+    --
+    -- This isn't guarenteed to catch all cycles until LangTools.tryMatchExpReturningList is
+    -- rewritten to match everything pluckable (rather than requiring a complete match)
+    --
+    -- Should catch pretty much all practical cases, however.
+    let identToDependentIdents =
+      -- Works because we know names are unique.
+      program
+      |> allSimplyResolvableLetBindings
+      |> List.map (\(ident, boundExp) -> (ident, freeIdentifiers boundExp |> Set.toList))
+      |> Dict.fromList
+    in
+    let hasCyclicDependencies seenIdents ident =
+      if Set.member ident seenIdents then
+        True
+      else
+        case Dict.get ident identToDependentIdents of
+          Just dependsOnIdents -> dependsOnIdents |> List.any (hasCyclicDependencies (Set.insert ident seenIdents))
+          Nothing              -> False
+    in
+    needToLift
+    |> List.filter (not << hasCyclicDependencies Set.empty)
   in
   let bringIdentIntoScope identToLift =
     let maybeOriginalDefiningScope =
@@ -537,7 +569,7 @@ liftDependenciesBasedOnUniqueNames program =
   in
   -- Look for an identifier we can lift
   let maybeNewProgramAndMovedIdent =
-    needToLift |> Utils.mapFirstSuccess bringIdentIntoScope
+    safeToLift |> Utils.mapFirstSuccess bringIdentIntoScope
   in
   case maybeNewProgramAndMovedIdent of
     Nothing ->
@@ -872,7 +904,7 @@ makeResult
     baseDescription
     ++ Utils.toSentence (List.filter ((/=) "") [liftingsStr, rewrittingsStr, renamingsStr])
   in
-  let _ = Debug.log caption () in
+  -- let _ = Debug.log caption () in
   let result =
     synthesisResult caption newProgram |> setResultSafe isSafe
   in

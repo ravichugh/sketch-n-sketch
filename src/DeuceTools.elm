@@ -1993,6 +1993,7 @@ updateRenameToolsInCache almostNewModel =
 -- Run a tool, and maybe get some results back (if it is active)
 runTool : Model -> DeuceTool -> Maybe (List SynthesisResult)
 runTool model deuceTool =
+  -- let _ = Utils.log <| "running tool " ++ deuceTool.name in
   case deuceTool.func of
     Just thunk ->
       ImpureGoodies.crashToNothing thunk
