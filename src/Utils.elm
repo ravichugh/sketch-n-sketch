@@ -562,6 +562,37 @@ takeNLines : Int -> String -> String
 takeNLines n s =
   String.lines s |> List.take n |> String.join "\n"
 
+commonPrefixString : List String -> String
+commonPrefixString strings =
+  strings |> List.map String.toList |> commonPrefix |> String.fromList
+
+commonSuffixString : List String -> String
+commonSuffixString strings =
+  strings |> List.map String.reverse |> commonPrefixString |> String.reverse
+
+-- Merge common prefix and common suffix; combine middle parts with toSentence.
+--
+-- [ "Insert Argument x into function"
+-- , "Insert Argument y into function" ]
+-- =>
+-- "Insert Argument x and y into function"
+mergeStrings : List String -> String
+mergeStrings strings =
+  let stringsWords  = strings |> List.map (squish >> String.split " ") in
+  let prefixWords   = commonPrefix stringsWords in
+  let noPrefixes    = removeCommonPrefix stringsWords in
+  let suffixWords   = commonSuffix noPrefixes in
+  let middleString =
+    noPrefixes
+    |> removeCommonSuffix
+    |> List.map (String.join " ")
+    |> List.filter (not << String.isEmpty)
+    |> toSentence
+  in
+  prefixWords ++ [middleString] ++ suffixWords
+  |> List.filter (not << String.isEmpty) -- Possibly elide middleString
+  |> String.join " "
+
 -- Replace all runs of whitespace with a single space
 squish : String -> String
 squish str =
@@ -874,28 +905,30 @@ commonPrefix lists =
     first::rest -> List.foldl commonPrefixPair first rest
     []          -> []
 
+commonSuffix : List (List a) -> List a
+commonSuffix lists =
+  lists
+  |> List.map List.reverse
+  |> commonPrefix
+  |> List.reverse
+
 commonPrefixPair : List a -> List a -> List a
 commonPrefixPair l1 l2 =
   case (l1, l2) of
     (x::xs, y::ys) -> if x == y then x::(commonPrefixPair xs ys) else []
     _              -> []
 
-commonPrefixString : List String -> String
-commonPrefixString strings =
-  strings |> List.map String.toList |> commonPrefix |> String.fromList
-
-commonSuffixString : List String -> String
-commonSuffixString strings =
-  strings |> List.map String.reverse |> commonPrefixString |> String.reverse
-
 removeCommonPrefix : List (List a) -> List (List a)
 removeCommonPrefix lists =
+  let prefixLength = List.length (commonPrefix lists) in
+  lists |> List.map (List.drop prefixLength)
+
+removeCommonSuffix : List (List a) -> List (List a)
+removeCommonSuffix lists =
   lists
-  |> List.map maybeUncons
-  |> projJusts
-  |> Maybe.map List.unzip
-  |> Maybe.andThen (\(heads, rests) -> if allSame heads then Just (removeCommonPrefix rests) else Nothing)
-  |> Maybe.withDefault lists
+  |> List.map List.reverse
+  |> removeCommonPrefix
+  |> List.map List.reverse
 
 sgn x =
   if x == 0 then 0

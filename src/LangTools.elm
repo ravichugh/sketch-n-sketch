@@ -973,12 +973,7 @@ deepestCommonScopeAndJustInside_ program pred =
 
 deepestCommonAncestorWithNewline : Exp -> (Exp -> Bool) -> Exp
 deepestCommonAncestorWithNewline program pred =
-  let allWithAncestors =
-    findAllWithAncestors pred program
-    |> List.map (Utils.dropLast 1) -- Never return an expression that the predicate matched: it will be moved/removed/replaced
-  in
-  let commonAncestors = Utils.commonPrefix allWithAncestors in
-  commonAncestors
+  commonAncestors pred program
   |> List.reverse
   |> Utils.findFirst (precedingWhitespace >> String.contains "\n")
   |> Maybe.withDefault program

@@ -1834,8 +1834,8 @@ abstractExp eidToAbstract originalProgram =
 
 -- TODO: relax addArg/removeArg/reorderArgs to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
 
-addArg_ : PathedPatternId -> (Exp -> Exp -> Maybe (String, Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
-addArg_ pathedPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
+addArg_ : PathedPatternId -> (Exp -> Exp -> Maybe (Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
+addArg_ pathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
   let ((funcEId, _), path) = pathedPatId in
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
@@ -1849,11 +1849,11 @@ addArg_ pathedPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody origin
           in
           case func.val.e__ of
             EFun fws1 fpats fbody fws2 ->
-              case funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody func fbody of
+              case funcToIsSafePatToInsertArgValExpAndNewFuncBody func fbody of
                 Nothing ->
                   []
 
-                Just (caption, bodyTransformationIsSafe, patToInsert, argValExp, newFBody) ->
+                Just (bodyTransformationIsSafe, patToInsert, argValExp, newFBody) ->
                   case addPatToPats patToInsert path fpats of
                     Nothing ->
                       let _ = Debug.log ("Could not insert pattern into " ++ String.join " " (List.map unparsePat fpats) ++ " at path") path in
@@ -1909,6 +1909,16 @@ addArg_ pathedPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody origin
                         && argAdditionsSafe
                         && noDuplicateNamesInPat
                       in
+                      let caption =
+                        let baseCaption = "Insert Argument " ++ (patToInsert |> unparsePat |> Utils.squish) in
+                        let intoFuncString =
+                          originalProgram
+                          |> findLetAndIdentBindingExp func.val.eid
+                          |> Maybe.map (\(_, ident) -> " into " ++ ident)
+                          |> Maybe.withDefault ""
+                        in
+                        baseCaption ++ intoFuncString
+                      in
                       [ synthesisResult caption newProgram |> setResultSafe isSafe ]
 
             _ ->
@@ -1924,37 +1934,38 @@ addArg_ pathedPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody origin
 
 addArgs : List EId -> PathedPatternId -> Exp -> List SynthesisResult
 addArgs argSourceEIds pathedPatId originalProgram =
-  let (maybeNewProgram, isSafe) =
+  let (maybeNewProgram, resultDescs, isSafe) =
     argSourceEIds
     |> List.sortBy (locationInProgram originalProgram)
     |> List.foldr
-        (\argSourceEId (maybePriorProgram, safeSoFar) ->
+        (\argSourceEId (maybePriorProgram, resultDescs, safeSoFar) ->
           case maybePriorProgram |> Maybe.map (addArg argSourceEId pathedPatId) of
-            Just (SynthesisResult newResult :: _) -> (Just newResult.exp, safeSoFar && newResult.isSafe)
-            _                                     -> (Nothing, False)
+            Just (SynthesisResult newResult :: _) -> (Just newResult.exp, newResult.description::resultDescs, safeSoFar && newResult.isSafe)
+            _                                     -> (Nothing, resultDescs, False)
         )
-        (Just originalProgram, True)
+        (Just originalProgram, [], True)
   in
   case maybeNewProgram of
     Just newProgram ->
-      [ synthesisResult "Add Arguments" newProgram |> setResultSafe isSafe ]
+      let caption = Utils.mergeStrings resultDescs |> Utils.stringReplace "Argument " "Arguments " in
+      [ synthesisResult caption newProgram |> setResultSafe isSafe ]
 
     Nothing ->
       []
 
 addArgsFromPats : List PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
 addArgsFromPats argSourcePathedPatIds pathedPatId originalProgram =
-  let (maybeNewProgram, isSafe) =
+  let (maybeNewProgram, resultDescs, isSafe) =
     argSourcePathedPatIds
     |> List.sortBy (\((scopeEId, _), path) -> locationInProgram originalProgram scopeEId)
     |> List.foldr
-        (\argSourcePathedPatId (maybePriorProgram, safeSoFar) ->
+        (\argSourcePathedPatId (maybePriorProgram, resultDescs, safeSoFar) ->
           -- Identity for post-processing fbody -- when adding multiple patterns, can't simplify assignments until the very end.
           case maybePriorProgram |> Maybe.map (addArgFromPat_ identity argSourcePathedPatId pathedPatId) of
-            Just (SynthesisResult newResult :: _) -> (Just newResult.exp, safeSoFar && newResult.isSafe)
-            _                                     -> (Nothing, False)
+            Just (SynthesisResult newResult :: _) -> (Just newResult.exp, newResult.description::resultDescs, safeSoFar && newResult.isSafe)
+            _                                     -> (Nothing, resultDescs, False)
         )
-        (Just originalProgram, True)
+        (Just originalProgram, [], True)
   in
   case maybeNewProgram of
     Just newProgram ->
@@ -1964,7 +1975,8 @@ addArgsFromPats argSourcePathedPatIds pathedPatId originalProgram =
             (pathedPatIdToScopeEId pathedPatId)
             LangSimplify.simplifyAssignments
       in
-      [ synthesisResult "Add Arguments" newProgramWithAssignmentsSimplified |> setResultSafe isSafe ]
+      let caption = Utils.mergeStrings resultDescs |> Utils.stringReplace "Argument " "Arguments " in
+      [ synthesisResult caption newProgramWithAssignmentsSimplified |> setResultSafe isSafe ]
 
     Nothing ->
       []
@@ -1977,7 +1989,7 @@ addArgFromPat argSourcePathedPatId targetPathedPatId originalProgram =
 
 addArgFromPat_ : (Exp -> Exp) ->PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
 addArgFromPat_ postProcessFBody argSourcePathedPatId targetPathedPatId originalProgram =
-  let funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
+  let funcToIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
     case pluck argSourcePathedPatId fbody of
       Nothing ->
         let _ = Debug.log "could not pluck argument source pattern from inside the function" () in
@@ -1993,19 +2005,18 @@ addArgFromPat_ postProcessFBody argSourcePathedPatId targetPathedPatId originalP
               )
         in
         Just <|
-          ( "Insert Argument " ++ (newArgPat |> unparsePat |> Utils.squish)
-          , varUsagesSame
+          ( varUsagesSame
           , newArgPat
           , newArgVal
           , postProcessFBody fbodyWithoutPlucked
           )
   in
-  addArg_ targetPathedPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
+  addArg_ targetPathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
 
 
 addArg : EId -> PathedPatternId -> Exp -> List SynthesisResult
 addArg argSourceEId pathedPatId originalProgram =
-  let funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
+  let funcToIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
     case findExpByEId fbody argSourceEId of
       Nothing ->
         let _ = Debug.log ("couldn't find argument source " ++ toString argSourceEId ++ " in function " ++ unparseWithIds func) () in
@@ -2018,14 +2029,13 @@ addArg argSourceEId pathedPatId originalProgram =
         in
         let patToInsert = pVar argName in -- Whitespace is going to be tricky.
         Just <|
-          ( "Insert Argument " ++ argName
-          , True
+          ( True
           , patToInsert
           , argSourceExp
           , replaceExpNodePreservingPrecedingWhitespace argSourceEId (eVar argName) fbody
           )
   in
-  addArg_ pathedPatId funcToCaptionIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
+  addArg_ pathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
 
 
 removeArgs : List PathedPatternId -> Exp -> List SynthesisResult
@@ -2347,11 +2357,8 @@ reorderExpressionsTransformation originalProgram selections =
       let relevantEIds = expTargetEId::expIds in
       -- tryReorderExps can handle rearrangement of nested tuples, e.g. [a [b c]] to [a b [c]]
       -- so let's find the outermost list of all relevant eids
-      let allWithAncestors = findAllWithAncestors (\e -> List.member e.val.eid relevantEIds) originalProgram in
       let maybeSharedAncestor =
-        allWithAncestors
-        |> List.map (Utils.dropLast 1) -- Leave ancestors only.
-        |> Utils.commonPrefix
+        commonAncestors (\e -> List.member e.val.eid relevantEIds) originalProgram
         |> Utils.maybeLast
       in
       let reorder sharedAncestorEId expList makeNewAncestorE__ =

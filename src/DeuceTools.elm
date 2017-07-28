@@ -1203,7 +1203,7 @@ addArgumentsTool model selections =
     -- this helper helps avoid changing existing structure of this function
     makeReqs predVal =
       [ { description =
-            """Select one or more expressions in a function and
+            """Select one or more expressions in a function and, optionally,
                one target position in the function's argument list"""
         , value = predVal
         }
@@ -1219,117 +1219,119 @@ addArgumentsTool model selections =
     disabledTool = defaultTool Impossible
   in
     case selections of
-      (_, _, _, [], [], [], []) ->
+      (_, _, [], [], [], [], []) ->
         defaultTool Possible
-      (_, _, [], _, [], [], []) ->
+
+      (_, _, [], [], [], [], [patTarget]) ->
         defaultTool Possible
-      ([], [], [], [], [], [], [patTarget]) ->
-        defaultTool Possible
-      (_, _, firstEId::restEIds, [], [], [], [patTarget]) ->
-        let
-          eids =
-            firstEId::restEIds
-          targetPathedPatId =
-            patTargetPositionToTargetPathedPatId patTarget
-          maybeScopeExp =
-            findExpByEId
-              model.inputExp
-              (pathedPatIdToScopeEId targetPathedPatId)
+
+      (_, _, firstEId::restEIds, [], [], [], patTargets) ->
+        let eids = firstEId::restEIds in
+        let enclosingFuncs =
+          commonAncestors (\e -> List.member e.val.eid eids) model.inputExp
+          |> List.filter isFunc
         in
-          case
-            maybeScopeExp
-              |> Maybe.map (.val >> .e__)
-          of
-            Just (EFun _ _ fbody _) ->
-              let
-                isAllSelectedExpsInFBody =
-                  eids |> List.all (\eid -> findExpByEId fbody eid /= Nothing)
-              in
-                if isAllSelectedExpsInFBody && List.length eids == 1 then
-                  { name = "Add Argument" -- Fowler calls this "Add Parameter"
-                  , func =
-                      Just <|
-                        \() ->
-                          CodeMotion.addArg
-                            (Utils.head_ eids)
-                            targetPathedPatId
-                            model.inputExp
-                  , reqs = makeReqs Satisfied
-                  , id = id
-                  }
-                else if isAllSelectedExpsInFBody then
-                  { name = "Add Arguments" -- Fowler calls this "Add Parameter"
-                  , func =
-                      Just <|
-                        \() ->
-                          CodeMotion.addArgs
-                            eids
-                            targetPathedPatId
-                            model.inputExp
-                  , reqs = makeReqs Satisfied
-                  , id = id
-                  }
-                else
-                  disabledTool
-            _ ->
-              disabledTool
-      ( _, _, []
-      , firstArgSourcePathedPatId::restArgSourcePathedPatId
-      , [], [], [patTarget]
-      ) ->
-        let
-          argSourcePathedPatIds =
-            firstArgSourcePathedPatId::restArgSourcePathedPatId
-          targetPathedPatId =
-            patTargetPositionToTargetPathedPatId patTarget
-          maybeScopeExp =
-            findExpByEId model.inputExp (pathedPatIdToScopeEId targetPathedPatId)
+        let targetPPIdsWithValidity =
+          patTargets
+          |> List.map patTargetPositionToTargetPathedPatId
+          |> List.map
+              (\targetPPId ->
+                ( targetPPId
+                , enclosingFuncs |> List.any (.val >> .eid >> (==) (pathedPatIdToScopeEId targetPPId))
+                )
+              )
         in
-          case
-            maybeScopeExp
-              |> Maybe.map (.val >> .e__)
-          of
-            Just (EFun _ _ fbody _) ->
-              let
-                isAllSelectedPatsInFBody =
-                  argSourcePathedPatIds
-                    |> List.all
-                         ( \argSourcePathedPatId ->
-                             LangTools.findScopeExpAndPatByPathedPatternId
-                               argSourcePathedPatId fbody /= Nothing
-                         )
-              in
-                if
-                  isAllSelectedPatsInFBody &&
-                  List.length argSourcePathedPatIds == 1
-                then
-                  { name = "Add Argument" -- Fowler calls this "Add Parameter"
-                  , func =
-                      Just <|
-                        \() ->
-                          CodeMotion.addArgFromPat
-                            (Utils.head_ argSourcePathedPatIds)
-                            targetPathedPatId
-                            model.inputExp
-                  , reqs = makeReqs Satisfied
-                  , id = id
-                  }
-                else if isAllSelectedPatsInFBody then
-                  { name = "Add Arguments" -- Fowler calls this "Add Parameter"
-                  , func =
-                      Just <|
-                        \() ->
-                          CodeMotion.addArgsFromPats
-                            argSourcePathedPatIds
-                            targetPathedPatId
-                            model.inputExp
-                  , reqs = makeReqs Satisfied
-                  , id = id
-                  }
-                else
-                  disabledTool
-            _ ->
-              disabledTool
+        let targetPPIdsToTry =
+          let funcExpToArgPPId funcExp =
+            ( (funcExp.val.eid, 1)
+            , [ 1 + List.length (LangTools.expToFuncPats funcExp) ] -- By default, insert argument at the end
+            )
+          in
+          case targetPPIdsWithValidity of
+            []                   -> enclosingFuncs |> List.map funcExpToArgPPId
+            [(targetPPId, True)] -> [targetPPId]
+            _                    -> []
+        in
+        case (eids, targetPPIdsToTry) of
+          ([eid], _::_) ->
+            { name = "Add Argument" -- Fowler calls this "Add Parameter"
+            , func =
+                Just <|
+                  \() ->
+                    targetPPIdsToTry
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArg eid targetPPId model.inputExp)
+            , reqs = makeReqs Satisfied
+            , id = id
+            }
+
+          (_::_::_, _::_) ->
+            { name = "Add Arguments" -- Fowler calls this "Add Parameter"
+            , func =
+                Just <|
+                  \() ->
+                    targetPPIdsToTry
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArgs eids targetPPId model.inputExp)
+            , reqs = makeReqs Satisfied
+            , id = id
+            }
+
+          _ ->
+            disabledTool
+
+      ( _, _, [], firstArgSourcePathedPatId::restArgSourcePathedPatId, [], [], patTargets) ->
+        let argSourcePathedPatIds = firstArgSourcePathedPatId::restArgSourcePathedPatId in
+        let argSourceScopeEIds = argSourcePathedPatIds |> List.map pathedPatIdToScopeEId in
+        let enclosingFuncs =
+          commonAncestors (\e -> List.member e.val.eid argSourceScopeEIds) model.inputExp
+          |> List.filter isFunc
+        in
+        let targetPPIdsWithValidity =
+          patTargets
+          |> List.map patTargetPositionToTargetPathedPatId
+          |> List.map
+              (\targetPPId ->
+                ( targetPPId
+                , enclosingFuncs |> List.any (.val >> .eid >> (==) (pathedPatIdToScopeEId targetPPId))
+                )
+              )
+        in
+        let targetPPIdsToTry =
+          let funcExpToArgPPId funcExp =
+            ( (funcExp.val.eid, 1)
+            , [ 1 + List.length (LangTools.expToFuncPats funcExp) ] -- By default, insert argument at the end
+            )
+          in
+          case targetPPIdsWithValidity of
+            []                   -> enclosingFuncs |> List.map funcExpToArgPPId
+            [(targetPPId, True)] -> [targetPPId]
+            _                    -> []
+        in
+        case (argSourcePathedPatIds, targetPPIdsToTry) of
+          ([argSourcePathedPatId], _::_) ->
+            { name = "Add Argument" -- Fowler calls this "Add Parameter"
+            , func =
+                Just <|
+                  \() ->
+                    targetPPIdsToTry
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArgFromPat argSourcePathedPatId targetPPId model.inputExp)
+            , reqs = makeReqs Satisfied
+            , id = id
+            }
+
+          (_::_::_, _::_) ->
+            { name = "Add Arguments" -- Fowler calls this "Add Parameter"
+            , func =
+                Just <|
+                  \() ->
+                    targetPPIdsToTry
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArgsFromPats argSourcePathedPatIds targetPPId model.inputExp)
+            , reqs = makeReqs Satisfied
+            , id = id
+            }
+
+          _ ->
+            disabledTool
+
       _ ->
         disabledTool
 

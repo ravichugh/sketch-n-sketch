@@ -500,6 +500,10 @@ isList e = case e.val.e__ of
   EList _ _ _ _ _ -> True
   _               -> False
 
+isFunc e = case e.val.e__ of
+  EFun _ _ _ _ -> True
+  _            -> False
+
 
 ------------------------------------------------------------------------------
 -- Mapping WithInfo/WithPos
@@ -1126,6 +1130,11 @@ findAllWithAncestorsScopesTagged_ predicate ancestors exp =
     EFun _ _ body _              -> thisResult ++ recurseScope body
     _                            -> thisResult ++ List.concatMap recurseNoScope (childExps exp)
 
+commonAncestors : (Exp -> Bool) -> Exp -> List Exp
+commonAncestors pred exp =
+  findAllWithAncestors pred exp
+  |> List.map (Utils.dropLast 1) -- Never return an expression that the predicate matched: it will be moved/removed/replaced
+  |> Utils.commonPrefix
 
 findWithAncestorsByEId : Exp -> EId -> Maybe (List Exp)
 findWithAncestorsByEId exp targetEId =
