@@ -826,20 +826,41 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 
 msgUndo = Msg "Undo" <| \old ->
   case old.history of
-    ([],_)         -> old
-    ([firstRun],_) -> old
+    ([], _) ->
+      old
+    ([firstRun], _) ->
+      old
     (lastRun::secondToLast::older, future) ->
-      let new = { old | history = (secondToLast::older, lastRun::future)
-                      , code    = secondToLast } in
-      upstateRun new
+      let
+        new =
+          { old
+              | history =
+                  (secondToLast::older, lastRun::future)
+              , code =
+                  secondToLast
+          }
+            |> Model.hideDeuceRightClickMenu
+            |> resetDeuceState
+      in
+        upstateRun new
 
 msgRedo = Msg "Redo" <| \old ->
   case old.history of
-    (_,[]) -> old
+    (_, []) ->
+      old
     (past, next::future) ->
-      let new = { old | history = (next::past, future)
-                      , code    = next } in
-      upstateRun new
+      let
+        new =
+          { old
+              | history =
+                  (next::past, future)
+              , code =
+                  next
+          }
+            |> Model.hideDeuceRightClickMenu
+            |> resetDeuceState
+      in
+        upstateRun new
 
 --------------------------------------------------------------------------------
 
