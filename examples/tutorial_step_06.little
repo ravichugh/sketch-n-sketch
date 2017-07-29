@@ -3,15 +3,15 @@
 ; and returns the expression e.
 ;
 ; The syntax for a multi-argument function is
-; (\(x1 x2 x3 ...) e); notice the parentheses
+; (\(x1 x2 x3 ...) e). Notice the parentheses
 ; surrounding the list of arguments.
 ;
 ; For example, the function triplicate takes a
-; single argument x, and it returns a list that
-; repeats x three times, and triplicate2 takes
-; turn arguments. To call any function, the function
-; name and its argument are separated by a space,
-; and the entire call is surrounded by parentheses.
+; single argument x and returns a list that repeats
+; x three times, and triplicate2 takes two
+; arguments. To call any function, the function name
+; and its argument are separated by a space, and the
+; entire call is surrounded by parentheses.
 
 (def triplicate (\x [x x x]))
 

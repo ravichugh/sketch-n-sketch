@@ -1,38 +1,62 @@
-; The previous definition used variables for width
-; and height. Let's introduce variables for the x-
-; and y-positions using the Introduce Variable tool.
+; Many times, when using a function like rect,
+; passing in multiple constants rather than named
+; variables can lead to confusion as to the purpose
+; of each constant.
 
-(def redRect
-  (let [w h] [150 80]
-    (rect "salmon" 100 100 w h)))
+(def redSquare
+  (rect "salmon" 100 250 80 80))
 
 (def main
-  (draw [redRect]))
+  (draw [redSquare]))
 
-; This tool uses the notion of a "target position",
-; which is the whitespace between or above other
-; items in the code.
+; To alleviate this, we can introduce variables
+; using the Introduce Variable tool. This tool uses
+; the notion of a "target position", which is the
+; whitespace between or above other items in the
+; code. Target positions typically allow us to
+; select where we want resultant transformations to
+; appear in the code. In the case of the Introduce
+; Variable tool, the target position indicates where
+; we would like the variables to be introduced.
 ;
-; We can perform this in several ways.
+; Let's try out the Introduce Variable tool on the
+; x- and y- positions of the red square (the first
+; two arguments of the rect function after the
+; color, "salmon").
+;
+; As before, we can use this tool in three ways:
 ;
 ; _begin
-; _1 * Select the text 100, right-click, and
-; _1   select Introduce Variable from the pop-up menu.
-; _1   The configuration pane asks for zero or
-; _1   one target position. Select a target position
-; _1   before the let or before the call to rect.
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select one of the 100s, right-click,
+; _1   then select Introduce Variable from the
+; _1   pop-up menu. The configuration panel asks for
+; _1   one or more expressions for which variables
+; _1   will be introduced, as well as an optional
+; _1   target position. Click the other 100, then
+; _1   click a target position before the call to
+; _1   rect or above the def. Apply the
+; _1   transformation from the results list.
 ; _1
-; _2 * Select the text 100, and select
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select one of the 100s, then select
 ; _2   Introduce Variable from the Code Tools menu.
-; _2   The configuration pane asks for zero or
-; _2   one target position. Select a target position
-; _2   before the let or before the call to rect.
+; _2   The configuration panel asks for one or more
+; _2   expressions for which variables will be
+; _2   introduced, as well as an optional target
+; _2   positions. Click the other 100, then click a
+; _2   target position before the call to rect or
+; _2   above the def. Apply the transformation from
+; _2   the results list.
 ; _2
-; _3 * Hold down Shift, hover and click both
-; _3   occurrences of 100 and a target position,
-; _3   before the let or before the call to rect.
-; _3   Release the Shift Key and select Introduce
-; _3   Variables from the pop-up menu.
+; _3 * Box-Select Mode:
+; _3   Hold down Shift, then click on both
+; _3   occurrences of the number 100 as well as a
+; _3   target position before the call to rect or
+; _3   above the def. Release the Shift key and
+; _3   select Introduce Variables from the pop-up
+; _3   menu. Apply the transformation from the
+; _3   results list.
 ; _3
 ; _end
 ; EXERCISE: Introduce x and y variables with each of

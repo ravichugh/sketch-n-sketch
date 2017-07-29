@@ -4,7 +4,7 @@
 ; a list with exactly two elements.
 
 (def [one two] [1 "two"])
-      
+
 (def main
   (draw [(show [one two one two])]))
 

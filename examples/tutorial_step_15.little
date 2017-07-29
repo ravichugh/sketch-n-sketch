@@ -1,10 +1,46 @@
-; TODO
-;
-; (no _1, _2, _3 randomness in this step)
-;
-; somehow based on previous examples
-;
-; Move Definitions
+; While refactoring the function in the previous
+; step, we notice something else we'd like to change:
+; every single time our function is called, we always
+; set the x-position to 200, so we decide to just
+; remove the x-position argument.
+
+(def redSquare
+  (\(w x y)
+    (rect "salmon" x y w w)))
 
 (def main
-  (draw []))
+  (draw
+    [(redSquare 80 200 250)
+     (redSquare 30 200 100)
+     (redSquare 150 200 400)]))
+
+; To do so, we can use the Remove Argument tool.
+;
+; _begin
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select the argument x in the list of
+; _1   arguments after the backslash in the
+; _1   redSquare function definition. Right click
+; _1   the editor and select Remove Argument from
+; _1   the pop-up menu. Click on the single
+; _1   option from the results list.
+; _1
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select the argument x in the list of
+; _2   arguments after the backslash in the
+; _2   redSquare function definition. Select Remove
+; _2   Argument from the Code Tools menu. Click on
+; _2   the single option from the results list.
+; _2
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key and click on the
+; _3   argument x in the list of arguments after the
+; _3   backslash in the redSquare function
+; _3   definition. Release the Shift key. Under the
+; _3   Remove Argument tool in the pop-up menu,
+; _3   select the single result option.
+; _3
+; _end
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program.

@@ -97,10 +97,18 @@ getFinalCode state templateCode =
     (Transition1, _)           -> templateCode
     (Transition2, _)           -> templateCode
     (End, _)                   -> templateCode
+    -- TODO randomize each step individually
     (Tutorial, ("Step 10", _)) -> reorderTutorialStep order_10_11_13 templateCode
     (Tutorial, ("Step 11", _)) -> reorderTutorialStep order_10_11_13 templateCode
+    (Tutorial, ("Step 12", _)) -> reorderTutorialStep order_10_11_13 templateCode
     (Tutorial, ("Step 13", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 17", _)) -> reorderTutorialStep order_17 templateCode
+    (Tutorial, ("Step 14", _)) -> reorderTutorialStep order_10_11_13 templateCode
+    (Tutorial, ("Step 15", _)) -> reorderTutorialStep order_10_11_13 templateCode
+    (Tutorial, ("Step 16", _)) -> reorderTutorialStep order_10_11_13 templateCode
+    (Tutorial, ("Step 17", _)) -> reorderTutorialStep order_10_11_13 templateCode
+    (Tutorial, ("Step 18", _)) -> reorderTutorialStep order_10_11_13 templateCode
+    (Tutorial, ("Step 19", _)) -> reorderTutorialStep order_10_11_13 templateCode
+    (Tutorial, ("Step 20", _)) -> reorderTutorialStep order_17 templateCode
     (Tutorial, (_, _))         -> templateCode
     (_, (_, TextEditOnly))     -> templateCode
     (_, (_, ReadOnly))         -> readOnly ++ chopInstructions templateCode
@@ -145,6 +153,8 @@ chopInstructions templateCode =
     |> String.join "\n"
 
 -- post-processing for tutorial ------------------------------------------------
+
+-- TODO remove these, and randomize each step individually
 
 order_10_11_13 =
   case tutorialVersion of
@@ -234,13 +244,13 @@ TODO
 """
 
 textSelectHelp =
-  [ "Text select something in the code."
+  [ "Text select a SINGLE expression in the code."
   , "Select a tool from either the Code Tools menu or the right-click pop-up menu."
   , "Follow any instructions and finish."
   ]
 
 boxSelectHelp =
-  [ "Hold down Shift, and hover and click boxes."
+  [ "Hold down Shift, and hover and click ALL relevant expressions and target positions."
   , "Select a tool from pop-up menu."
   , "Follow any instructions and finish."
   ]
@@ -252,7 +262,7 @@ seed = ImpureGoodies.randomInt 0 (2^32)
 
 --------------------------------------------------------------------------------
 
-numTutorialSteps = 17
+numTutorialSteps = 20
 structuredEditingStartStep = 10
 numTutorialVersions = 4
 
@@ -302,6 +312,7 @@ everything =
              , (HeadToHeadTask, (template, BoxSelectOnly))
              ]
            )
+        -- TODO avoid having same task back-to-back
         |> shuffleList nextSeed
         |> Tuple.first
         |> insertReadingPeriods

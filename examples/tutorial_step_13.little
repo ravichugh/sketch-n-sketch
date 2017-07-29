@@ -1,39 +1,48 @@
 ; Next, we will use the Create Function tool to
-; turn the definition into a function, so that it
-; can be called to create more red rectangles.
+; turn this definition into a function so that it
+; can be called to create more red squares easily.
 
-(def redRect
-  (let x 100
-  (let y 100
-  (let [w h] [150 80]
-    (rect "salmon" x y w h)))))
+(def redSquare
+  (let [x y] [100 250]
+  (let w 80
+    (rect "salmon" x y w w))))
 
 (def main
-  (draw [redRect]))
+  (draw [redSquare]))
 
-; As with all code tools, this can be accomplished in
-; several ways:
+; We can invoke Create Function in three ways:
 ;
 ; _begin
-; _1 * Select the text (def redRect ...). Right-click
-; _1   the code box, and select Create Function from
-; _1   the pop-up menu.
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select the entire (def redSquare ...)
+; _1   expression starting from its opening
+; _1   parenthesis until its closing parenthesis.
+; _1   Right click the editor and select Create
+; _1   Function from the pop-up menu.
 ; _1
-; _2 * Select the text (def redRect ...). Select
-; _2   Create Function from the Code Tools Menu.
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select the entire (def redSquare ...)
+; _2   expression starting from its opening
+; _2   parenthesis until its closing parenthesis.
+; _2   Select Create Function from the Code Tools
+; _2   menu.
 ; _2
-; _3 * Hold down the Shift key, hover over and click
-; _3   the definition (def redRect ...), and release
-; _3   the Shift Key. Select Create Function from the
-; _3   pop-up menu.
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key, hover over the
+; _3   keyword "def" in (def redSquare ...), then
+; _3   click. Release the Shift key. Select Create
+; _3   Function from the pop-up menu.
 ; _3
 ; _end
-; No matter how Create Function is invoked, there
-; are a couple options for what to make arguments.
-; Since the point of this function is to draw a red
-; rectangle, we'll pick the option that does not
-; make color one of the arguments. Notice how the
-; expression is turned in to a call.
+; No matter how the Create Function tool is invoked,
+; there are two options in the results list that we
+; can select from. Because the point of this
+; function is to draw a RED square, we'll pick the
+; option that does not make color one of the
+; resulting function arguments.
+;
+; Notice how the reference to this expression in
+; main has now turned into a function call.
 ;
 ; EXERCISE: Perform the transformation with each of
 ; the three interactions. Use Undo after each to

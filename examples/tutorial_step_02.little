@@ -15,8 +15,8 @@
 
 ; EXERCISE: Add the expression (show "hello world!")
 ; to the list of drawings. Notice how the border of
-; the canvas is red to indicate when the code needs
-; to be re-run. Hit the Run button.
+; the canvas turns red; this indicates that the code
+; needs to be re-run. Hit the Run button.
 ;
 ; EXERCISE: Now define this expression in a new
 ; variable instead, and refer to it in the main

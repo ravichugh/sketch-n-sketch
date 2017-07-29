@@ -1,0 +1,41 @@
+; As a final recap, there are two general mechanisms
+; for invoking code transformation tools:
+;
+; _begin
+; _1 * TEXT-SELECT MODE ----------------------------
+; _1   (either right-click menu or Code Tools menu)
+; _1
+; _1   1.  Text-select something in the code.
+; _1   2a. Right-click and select a tool from pop-up
+; _1       menu, or
+; _1   2b. Select a tool from the Code Tools menu.
+; _1   3.  Follow any instructions and finish.
+; _1
+; _1   In Text-Select Mode, a SINGLE, primary
+; _1   argument is selected FIRST, then the desired
+; _1   code tool is selected, and then the rest
+; _1   of the arguments are selected AFTERWARD (as
+; _1   required by the configuration panel).
+; _1
+; _2 * BOX-SELECT MODE -----------------------------
+; _2
+; _2   1.  Hold down Shift, hover and click boxes
+; _2       for all items involved for the desired
+; _2       code tool (then release Shift key).
+; _2   2.  Select a tool from pop-up menu.
+; _2   3.  Follow any instructions and finish.
+; _2
+; _2   In Box-Select Mode, ALL arguments are
+; _2   selected first, BEFORE the desired code
+; _2   tool is selected.
+; _2
+; _end
+; Note that regardless of the method of selection,
+; the Escape key will always deselect all selected
+; boxes and cancel any pop-up menus.
+;
+; EXERCISE: Try the Help menu; you'll find these
+; summary instructions there.
+
+(def main
+  (draw []))

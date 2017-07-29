@@ -19,7 +19,7 @@
 ;
 ; The binding of x is only in scope in the
 ; expression e2. For example, the one variable above
-; is not in scope outside of the myText definition.
+; is not in scope outside of the nums definition.
 ;
 ; EXERCISE: Try referencing the one variable outside
 ; the nums definition.

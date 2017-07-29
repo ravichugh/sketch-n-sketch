@@ -941,14 +941,14 @@ menuBar model =
                       Controller.msgUserStudyNext
                   ]
               , menu "Help"
-                  [ [ simpleTextButton
-                        "Syntax"
-                        (Controller.msgOpenDialogBox (Help HelpSyntax))
-                    , simpleTextButton
-                        "Text Select Mode"
+                  [ -- [ simpleTextButton
+                    --     "Syntax"
+                    --     (Controller.msgOpenDialogBox (Help HelpSyntax))
+                    [ simpleTextButton
+                        "Text-Select Mode"
                         (Controller.msgOpenDialogBox (Help HelpTextSelectMode))
                     , simpleTextButton
-                        "Box Select Mode"
+                        "Box-Select Mode"
                         (Controller.msgOpenDialogBox (Help HelpBoxSelectMode))
                     ]
                   ]
@@ -1530,7 +1530,7 @@ dialogBox
 
 bigDialogBox = dialogBox "100" "85%" "85%"
 smallDialogBox = dialogBox "101" "35%" "35%"
-smallWideDialogBox = dialogBox "101" "50%" "35%"
+smallWideDialogBox = dialogBox "101" "60%" "35%"
 
 fileNewDialogBox model =
   let
@@ -1715,8 +1715,8 @@ helpDialogBox model helpInfo =
     []
     [ case helpInfo of
         HelpSyntax         -> Html.text "Syntax Help"
-        HelpTextSelectMode -> Html.text "Text Select Mode Help"
-        HelpBoxSelectMode  -> Html.text "Box Select Mode Help"
+        HelpTextSelectMode -> Html.text "Text-Select Mode Help"
+        HelpBoxSelectMode  -> Html.text "Box-Select Mode Help"
     ]
     []
     [ Html.div

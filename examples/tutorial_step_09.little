@@ -1,10 +1,6 @@
 ; So far, we've seen how to write code using the
 ; text editor.
 ;
-; EXERCISE: If you need a refresher on the language
-; syntax later on, check out the Syntax option under
-; the Help menu. Try this out now.
-;
 ; Next, we'll see some tools that Sketch-n-Sketch
 ; provides for automatically performing code
 ; transformations.

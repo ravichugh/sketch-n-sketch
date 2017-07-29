@@ -1,0 +1,64 @@
+; Lastly, because the three definitions are short,
+; we'd like to put them in a single tuple definition
+; to save some space.
+
+(def square (\fill
+  (\(w x y)
+    (rect fill x y w w))))
+
+(def redSquare
+  (square "salmon"))
+
+(def yellowSquare
+  (square "gold"))
+
+(def greenSquare
+  (square "yellowgreen"))
+
+(def main
+  (draw
+    [(redSquare 100 80 50)
+     (yellowSquare 130 65 160)
+     (greenSquare 160 50 300)]))
+
+; To do so, we can use the Move Definition tool again.
+; This time, however, we will select only variable
+; names (rather than entire (def ...) expressions) and
+; target positions next to variables (rather than
+; above or below (def ...) expressions).
+;
+; _begin
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select "redSquare" in the
+; _1   (def redSquare ...) expression.
+; _1   Right click the editor and select Move
+; _1   Definition from the pop-up menu. Click on
+; _1   "yellowSquare" in the (def yellowSquare ...)
+; _1   definition. And click the space between the
+; _1   keyword "def" and the variable greenSquare.
+; _1   Click on the single result option.
+; _1
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select "redSquare" in the
+; _2   (def redSquare ...) expression.
+; _2   Select Move Definition from the Code Tools
+; _2   menu. Click on "yellowSquare" in the
+; _2   (def yellowSquare ...). And click the
+; _2   space between the keyword "def" and the
+; _2   variable greenSquare.
+; _2   Click on the single result option.
+; _2
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key and hover over
+; _3   "redSquare" in (def redSquare ...), then
+; _3   click. Next, hover over "yellowSquare" in
+; _3   (def yellowSquare ...), then click. Then,
+; _3   click on the space between the keyword "def"
+; _3   and the variable greenSquare. Under the
+; _3   Move Definition tool in the pop-up menu,
+; _3   select the single result option.
+; _3
+; _end
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program.

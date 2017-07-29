@@ -1,31 +1,40 @@
-; Here's a red rectangle. We will use the Rename
-; code transformation tool to rename the function at
-; its definition and its call-sites.
+; Here is a red square.
 
-(def redRect
-  (let [w h] [150 80]
-    (rect "salmon" 100 100 w h)))
+(def blueSquare
+  (rect "salmon" 100 250 80 80))
 
 (def main
-  (draw [redRect]))
+  (draw [blueSquare]))
 
-; There are a few ways to do this:
+; Unfortunately, the name of the function that
+; generates this red square is incorrect. To fix
+; this, we can use the Rename tool to rename the
+; function at its definition and its call-sites.
+;
+; There are three ways to do this:
 ;
 ; _begin
-; _1 * Select the text redRect, right-click the code
-; _1   box, and select the Rename tool from the pop-up
-; _1   menu. Then enter a new name in the
-; _1   configuration box, and press Enter.
+; _1 * Text-Select Mode (right-click menu):
+; _1   Select the text blueSquare, right-click the
+; _1   editor and select the Rename tool from the
+; _1   pop-up menu. Then, enter a new name (like
+; _1   redSquare) in the results list and press
+; _1   Enter.
 ; _1
-; _2 * Select the text redRect, and select the Rename
-; _2   tool from the Code Tools menu. Then enter a new
-; _2   name in the configuration box, and press Enter.
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Select the text blueSquare, and select the Rename
+; _2   Variable tool from the Code Tools menu at the top
+; _2   left of the screen. Then enter a new name (like
+; _2   redSquare) in the results list and press
+; _2   Enter.
 ; _2
-; _3 * Hold down the Shift key, hover over redRect,
-; _3   click the box that pops up over redRect, and
-; _3   then release the Shift Key. Select the Rename
-; _3   tool from the pop-up menu. Then enter a new
-; _3   name in the configuration box, and press Enter.
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key, hover over blueSquare,
+; _3   click the box that pops up over blueSquare, and
+; _3   then release the Shift key. Select the Rename
+; _3   tool from the pop-up menu. Enter a new name
+; _3   (like redSquare) in the results list and
+; _3   press Enter.
 ; _3
 ; _end
 ; EXERCISE: Perform the renaming with each of the

@@ -5184,9 +5184,9 @@ study_start =
 """
 
 study_transition_1 =
- """; You're done with the tutorial. Now you're going to
-; use Sketch-n-Sketch to perform some program
-; editings tasks.
+ """; Great job, you've completed the tutorial! Now
+; you're going to use Sketch-n-Sketch to perform
+; some program editings tasks.
 ;
 ; In the next section, you will see three examples
 ; programs, each with a list of editing tasks. You
@@ -5195,8 +5195,8 @@ study_transition_1 =
 ; transformation tools. You will work with each
 ; program twice:
 ;
-;  - using code tools with Text Select Mode, and
-;  - using code tools with Box Select Mode.
+;  - using code tools with Text-Select Mode, and
+;  - using code tools with Box-Select Mode.
 ;
 ; The order in which you are asked to perform tasks
 ; and use the different modes is random.
@@ -5207,7 +5207,7 @@ study_transition_1 =
 ;
 ; Then, you will be given a list of editing tasks to
 ; perform. The top of the file will tell you to use
-; either Text Select Mode or Box Select Mode. When
+; either Text-Select Mode or Box-Select Mode. When
 ; you are done with each task, click Next Step to
 ; move on.
 ;
@@ -5226,8 +5226,8 @@ study_transition_2 =
 ; before, you will _not_ be able to use text editing.
 ; But, this time, you will be able to use _either_:
 ;
-;  - code tools with Text Select Mode, or
-;  - code tools with Box Select Mode.
+;  - code tools with Text-Select Mode, or
+;  - code tools with Box-Select Mode.
 ;
 ; It's up to you. And this time, you will work with
 ; each program just once.
@@ -5254,7 +5254,7 @@ study_end =
 
 tutorial_step_01 =
  """; Sketch-n-Sketch programs are written in a small
-; functional language, with features commonly found
+; functional language with features commonly found
 ; in other functional languages and with syntax that
 ; resembles Lisp or Racket. Significant or recent
 ; experience with functional programming is not
@@ -5286,8 +5286,8 @@ tutorial_step_02 =
 
 ; EXERCISE: Add the expression (show \"hello world!\")
 ; to the list of drawings. Notice how the border of
-; the canvas is red to indicate when the code needs
-; to be re-run. Hit the Run button.
+; the canvas turns red; this indicates that the code
+; needs to be re-run. Hit the Run button.
 ;
 ; EXERCISE: Now define this expression in a new
 ; variable instead, and refer to it in the main
@@ -5329,7 +5329,7 @@ tutorial_step_04 =
 ; a list with exactly two elements.
 
 (def [one two] [1 \"two\"])
-      
+
 (def main
   (draw [(show [one two one two])]))
 
@@ -5374,7 +5374,7 @@ tutorial_step_05 =
 ;
 ; The binding of x is only in scope in the
 ; expression e2. For example, the one variable above
-; is not in scope outside of the myText definition.
+; is not in scope outside of the nums definition.
 ;
 ; EXERCISE: Try referencing the one variable outside
 ; the nums definition.
@@ -5391,15 +5391,15 @@ tutorial_step_06 =
 ; and returns the expression e.
 ;
 ; The syntax for a multi-argument function is
-; (\\(x1 x2 x3 ...) e); notice the parentheses
+; (\\(x1 x2 x3 ...) e). Notice the parentheses
 ; surrounding the list of arguments.
 ;
 ; For example, the function triplicate takes a
-; single argument x, and it returns a list that
-; repeats x three times, and triplicate2 takes
-; turn arguments. To call any function, the function
-; name and its argument are separated by a space,
-; and the entire call is surrounded by parentheses.
+; single argument x and returns a list that repeats
+; x three times, and triplicate2 takes two
+; arguments. To call any function, the function name
+; and its argument are separated by a space, and the
+; entire call is surrounded by parentheses.
 
 (def triplicate (\\x [x x x]))
 
@@ -5482,10 +5482,6 @@ tutorial_step_09 =
  """; So far, we've seen how to write code using the
 ; text editor.
 ;
-; EXERCISE: If you need a refresher on the language
-; syntax later on, check out the Syntax option under
-; the Help menu. Try this out now.
-;
 ; Next, we'll see some tools that Sketch-n-Sketch
 ; provides for automatically performing code
 ; transformations.
@@ -5496,34 +5492,43 @@ tutorial_step_09 =
 """
 
 tutorial_step_10 =
- """; Here's a red rectangle. We will use the Rename
-; code transformation tool to rename the function at
-; its definition and its call-sites.
+ """; Here is a red square.
 
-(def redRect
-  (let [w h] [150 80]
-    (rect \"salmon\" 100 100 w h)))
+(def blueSquare
+  (rect \"salmon\" 100 250 80 80))
 
 (def main
-  (draw [redRect]))
+  (draw [blueSquare]))
 
-; There are a few ways to do this:
+; Unfortunately, the name of the function that
+; generates this red square is incorrect. To fix
+; this, we can use the Rename tool to rename the
+; function at its definition and its call-sites.
+;
+; There are three ways to do this:
 ;
 ; _begin
-; _1 * Select the text redRect, right-click the code
-; _1   box, and select the Rename tool from the pop-up
-; _1   menu. Then enter a new name in the
-; _1   configuration box, and press Enter.
+; _1 * Text-Select Mode (right-click menu):
+; _1   Select the text blueSquare, right-click the
+; _1   editor and select the Rename tool from the
+; _1   pop-up menu. Then, enter a new name (like
+; _1   redSquare) in the results list and press
+; _1   Enter.
 ; _1
-; _2 * Select the text redRect, and select the Rename
-; _2   tool from the Code Tools menu. Then enter a new
-; _2   name in the configuration box, and press Enter.
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Select the text blueSquare, and select the Rename
+; _2   Variable tool from the Code Tools menu at the top
+; _2   left of the screen. Then enter a new name (like
+; _2   redSquare) in the results list and press
+; _2   Enter.
 ; _2
-; _3 * Hold down the Shift key, hover over redRect,
-; _3   click the box that pops up over redRect, and
-; _3   then release the Shift Key. Select the Rename
-; _3   tool from the pop-up menu. Then enter a new
-; _3   name in the configuration box, and press Enter.
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key, hover over blueSquare,
+; _3   click the box that pops up over blueSquare, and
+; _3   then release the Shift key. Select the Rename
+; _3   tool from the pop-up menu. Enter a new name
+; _3   (like redSquare) in the results list and
+; _3   press Enter.
 ; _3
 ; _end
 ; EXERCISE: Perform the renaming with each of the
@@ -5533,41 +5538,65 @@ tutorial_step_10 =
 """
 
 tutorial_step_11 =
- """; The previous definition used variables for width
-; and height. Let's introduce variables for the x-
-; and y-positions using the Introduce Variable tool.
+ """; Many times, when using a function like rect,
+; passing in multiple constants rather than named
+; variables can lead to confusion as to the purpose
+; of each constant.
 
-(def redRect
-  (let [w h] [150 80]
-    (rect \"salmon\" 100 100 w h)))
+(def redSquare
+  (rect \"salmon\" 100 250 80 80))
 
 (def main
-  (draw [redRect]))
+  (draw [redSquare]))
 
-; This tool uses the notion of a \"target position\",
-; which is the whitespace between or above other
-; items in the code.
+; To alleviate this, we can introduce variables
+; using the Introduce Variable tool. This tool uses
+; the notion of a \"target position\", which is the
+; whitespace between or above other items in the
+; code. Target positions typically allow us to
+; select where we want resultant transformations to
+; appear in the code. In the case of the Introduce
+; Variable tool, the target position indicates where
+; we would like the variables to be introduced.
 ;
-; We can perform this in several ways.
+; Let's try out the Introduce Variable tool on the
+; x- and y- positions of the red square (the first
+; two arguments of the rect function after the
+; color, \"salmon\").
+;
+; As before, we can use this tool in three ways:
 ;
 ; _begin
-; _1 * Select the text 100, right-click, and
-; _1   select Introduce Variable from the pop-up menu.
-; _1   The configuration pane asks for zero or
-; _1   one target position. Select a target position
-; _1   before the let or before the call to rect.
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select one of the 100s, right-click,
+; _1   then select Introduce Variable from the
+; _1   pop-up menu. The configuration panel asks for
+; _1   one or more expressions for which variables
+; _1   will be introduced, as well as an optional
+; _1   target position. Click the other 100, then
+; _1   click a target position before the call to
+; _1   rect or above the def. Apply the
+; _1   transformation from the results list.
 ; _1
-; _2 * Select the text 100, and select
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select one of the 100s, then select
 ; _2   Introduce Variable from the Code Tools menu.
-; _2   The configuration pane asks for zero or
-; _2   one target position. Select a target position
-; _2   before the let or before the call to rect.
+; _2   The configuration panel asks for one or more
+; _2   expressions for which variables will be
+; _2   introduced, as well as an optional target
+; _2   positions. Click the other 100, then click a
+; _2   target position before the call to rect or
+; _2   above the def. Apply the transformation from
+; _2   the results list.
 ; _2
-; _3 * Hold down Shift, hover and click both
-; _3   occurrences of 100 and a target position,
-; _3   before the let or before the call to rect.
-; _3   Release the Shift Key and select Introduce
-; _3   Variables from the pop-up menu.
+; _3 * Box-Select Mode:
+; _3   Hold down Shift, then click on both
+; _3   occurrences of the number 100 as well as a
+; _3   target position before the call to rect or
+; _3   above the def. Release the Shift key and
+; _3   select Introduce Variables from the pop-up
+; _3   menu. Apply the transformation from the
+; _3   results list.
 ; _3
 ; _end
 ; EXERCISE: Introduce x and y variables with each of
@@ -5577,67 +5606,122 @@ tutorial_step_11 =
 """
 
 tutorial_step_12 =
- """; TODO
+ """; The Introduce Variable tool can be used to give
+; names to multiple expressions at once, but sometimes
+; we may want a single variable to take the place of
+; multiple expressions. The Introduce Single Variable
+; tool does just that.
 ;
-; (no _1, _2, _3 randomness in this step)
-;
-; Introduce Single Var
-;
-; start with same example as before
-;
-; to make a rectangle, introduce single var for
-; width and height constants
-;
-; explain that in box select mode, choose all
-; args first and then tool is shown
-;
-; in text select mode, select one arg, then
-; panel asks for the rest
-;
-; try both.
+; Take a look at the following code snippet:
+
+(def redSquare
+  (let [x y] [100 250]
+    (rect \"salmon\" x y 120 80)))
 
 (def main
-  (draw []))
+  (draw [redSquare]))
+
+; The rectangle should have sides of equal length, but
+; the width and height (fourth and fifth) arguments of
+; the rect function call are not equal.
+;
+; As with all Sketch-n-Sketch code tools, there are
+; three ways that we can use the Introduce Single
+; Variable tool:
+;
+; _begin
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select either 120 or 80. Then,
+; _1   right-click and select Introduce Single
+; _1   Variable. Click on the remaining number
+; _1   (either 120 or 80). Click on one of the
+; _1   results from the list that appears to
+; _1   apply the transformation.
+; _1
+; _1   Note: in Text-Select Mode, a SINGLE, primary
+; _1   argument is selected FIRST, then the desired
+; _2   tool is selected, and then the rest of
+; _1   the arguments are selected AFTERWARD
+; _1   (as required by the configuration panel).
+; _1
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select either 120 or 80. Then, click on
+; _2   the Code Tools menu at the top of the screen
+; _2   and select Introduce Single Variable. Click
+; _2   on the remaining number (either 120 or 80).
+; _2   Click on one of the results from the list
+; _2   that appears to apply the transformation.
+; _2
+; _2   Note: in Text-Select Mode, a SINGLE, primary
+; _2   argument is selected FIRST, then the desired
+; _2   tool is selected, and then the rest of
+; _2   the arguments are selected AFTERWARD
+; _2   (as required by the configuration panel).
+; _2
+; _3 * Box-Select Mode:
+; _3   Hold down Shift, then click on 120 and 80
+; _3   Release the Shift key and select Introduce
+; _3   Single Variable from the pop-up menu. Click
+; _3   on one of the results from the list that
+; _3   appears to apply the transformation.
+; _3
+; _3   Note: in Box-Select Mode, ALL arguments are
+; _3   selected first, BEFORE the desired code
+; _3   transformation is selected.
+; _3
+; _end
+; EXERCISE: Fix the redSquare definition using each
+; of the three interactions. Use Undo after each
+; interaction to reset the program.
 
 """
 
 tutorial_step_13 =
  """; Next, we will use the Create Function tool to
-; turn the definition into a function, so that it
-; can be called to create more red rectangles.
+; turn this definition into a function so that it
+; can be called to create more red squares easily.
 
-(def redRect
-  (let x 100
-  (let y 100
-  (let [w h] [150 80]
-    (rect \"salmon\" x y w h)))))
+(def redSquare
+  (let [x y] [100 250]
+  (let w 80
+    (rect \"salmon\" x y w w))))
 
 (def main
-  (draw [redRect]))
+  (draw [redSquare]))
 
-; As with all code tools, this can be accomplished in
-; several ways:
+; We can invoke Create Function in three ways:
 ;
 ; _begin
-; _1 * Select the text (def redRect ...). Right-click
-; _1   the code box, and select Create Function from
-; _1   the pop-up menu.
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select the entire (def redSquare ...)
+; _1   expression starting from its opening
+; _1   parenthesis until its closing parenthesis.
+; _1   Right click the editor and select Create
+; _1   Function from the pop-up menu.
 ; _1
-; _2 * Select the text (def redRect ...). Select
-; _2   Create Function from the Code Tools Menu.
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select the entire (def redSquare ...)
+; _2   expression starting from its opening
+; _2   parenthesis until its closing parenthesis.
+; _2   Select Create Function from the Code Tools
+; _2   menu.
 ; _2
-; _3 * Hold down the Shift key, hover over and click
-; _3   the definition (def redRect ...), and release
-; _3   the Shift Key. Select Create Function from the
-; _3   pop-up menu.
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key, hover over the
+; _3   keyword \"def\" in (def redSquare ...), then
+; _3   click. Release the Shift key. Select Create
+; _3   Function from the pop-up menu.
 ; _3
 ; _end
-; No matter how Create Function is invoked, there
-; are a couple options for what to make arguments.
-; Since the point of this function is to draw a red
-; rectangle, we'll pick the option that does not
-; make color one of the arguments. Notice how the
-; expression is turned in to a call.
+; No matter how the Create Function tool is invoked,
+; there are two options in the results list that we
+; can select from. Because the point of this
+; function is to draw a RED square, we'll pick the
+; option that does not make color one of the
+; resulting function arguments.
+;
+; Notice how the reference to this expression in
+; main has now turned into a function call.
 ;
 ; EXERCISE: Perform the transformation with each of
 ; the three interactions. Use Undo after each to
@@ -5646,76 +5730,395 @@ tutorial_step_13 =
 """
 
 tutorial_step_14 =
- """; TODO
-;
-; (no _1, _2, _3 randomness in this step)
-;
-; based on previous example function
-;
-; Add Args
-;
-; Remove Args
-;
-; Reorder Args
+ """; Let's say we've now coded up a nice piece of art
+; using our newly-defined function:
+
+(def redSquare
+  (\\(x y w)
+    (rect \"salmon\" x y w w)))
 
 (def main
-  (draw []))
+  (draw
+    [(redSquare 200 250 80)
+     (redSquare 200 100 30)
+     (redSquare 200 400 150)]))
+
+; However, we now want to change how the redSquare
+; function is called; instead of the size of the
+; square being the last argument that we pass in,
+; we'd prefer if it were the first.
+;
+; To do this, we can use the Reorder Arguments tool.
+;
+; _begin
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select the argument w in the list of
+; _1   arguments after the backslash in the
+; _1   redSquare function definition. Right click
+; _1   the editor and select Reorder Arguments from
+; _1   the pop-up menu. Click on the target position
+; _1   that lies before the first argument (x) and
+; _1   after the opening parenthesis of the argument
+; _1   list. Click on the single option from the
+; _1   results list.
+; _1
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select the argument w in the list of
+; _2   arguments after the backslash in the
+; _2   redSquare function definition. Select Reorder
+; _2   Arguments from the Code Tools menu. Click on
+; _2   the target position that lies before the
+; _2   first argument (x) and after the opening
+; _2   parenthesis of the argument list. Click on
+; _2   the single option from the results list.
+; _2
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key and click on the
+; _3   argument w in the list of arguments after the
+; _3   backslash in the redSquare function
+; _3   definition. Then, click on the target
+; _3   position that lies before the first argument
+; _3   (x) and after the opening parenthesis of the
+; _3   argument list. Release the Shift key. Under
+; _3   the Create Function tool in the pop-up menu,
+; _3   select the single option from the results list.
+; _3
+; _end
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program.
 
 """
 
 tutorial_step_15 =
- """; TODO
-;
-; (no _1, _2, _3 randomness in this step)
-;
-; somehow based on previous examples
-;
-; Move Definitions
+ """; While refactoring the function in the previous
+; step, we notice something else we'd like to change:
+; every single time our function is called, we always
+; set the x-position to 200, so we decide to just
+; remove the x-position argument.
+
+(def redSquare
+  (\\(w x y)
+    (rect \"salmon\" x y w w)))
 
 (def main
-  (draw []))
+  (draw
+    [(redSquare 80 200 250)
+     (redSquare 30 200 100)
+     (redSquare 150 200 400)]))
+
+; To do so, we can use the Remove Argument tool.
+;
+; _begin
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select the argument x in the list of
+; _1   arguments after the backslash in the
+; _1   redSquare function definition. Right click
+; _1   the editor and select Remove Argument from
+; _1   the pop-up menu. Click on the single
+; _1   option from the results list.
+; _1
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select the argument x in the list of
+; _2   arguments after the backslash in the
+; _2   redSquare function definition. Select Remove
+; _2   Argument from the Code Tools menu. Click on
+; _2   the single option from the results list.
+; _2
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key and click on the
+; _3   argument x in the list of arguments after the
+; _3   backslash in the redSquare function
+; _3   definition. Release the Shift key. Under the
+; _3   Remove Argument tool in the pop-up menu,
+; _3   select the single result option.
+; _3
+; _end
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program.
 
 """
 
 tutorial_step_16 =
- """; TODO
-;
-; (no _1, _2, _3 randomness in this step)
-;
-; draw a red rectangle and a green rectangle
-;
-; Merge Expressions into Function to abstract over color
+ """; On second thought, we realize we'd like to change
+; the x-position of some of the boxes after all.
+
+(def redSquare
+  (\\(w y)
+    (rect \"salmon\" 200 y w w)))
 
 (def main
-  (draw []))
+  (draw
+    [(redSquare 80 250)
+     (redSquare 30 100)
+     (redSquare 150 400)]))
+
+; We can use the Add Argument tool.
+;
+; _begin
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select the number 200 in the rect function
+; _1   call. Right click the editor and select Add
+; _1   Argument from the pop-up menu. Click on the
+; _1   single option from the results list.
+; _1
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select the number 200 in the rect
+; _2   function call. Select Add Argument from the
+; _2   Code Tools menu. Click on the single option
+; _2   from the results list.
+; _2
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key and click on the
+; _3   number 200 in the rect function call. Under
+; _3   the Add Argument tool in the pop-up menu,
+; _3   select the single result option.
+; _3
+; _end
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program. Feel free to manually edit the
+; x-position of the squares after you have done so!
 
 """
 
 tutorial_step_17 =
- """; To recap, there are two general mechanisms for
-; invoking code transformations.
-;
-; TODO text-select: single arg, then tool, then rest later
-; TODO box-select: select all args, then tool
+ """; Here are some friends for our redSquare function.
+; However, a lot of the code from redSquare has been
+; duplicated in the two new functions; in fact, the
+; only thing that has changed is the color.
+
+(def redSquare
+  (\\(w x y)
+    (rect \"salmon\" x y w w)))
+
+(def greenSquare
+  (\\(w x y)
+    (rect \"yellowgreen\" x y w w)))
+
+(def yellowSquare
+  (\\(w x y)
+    (rect \"gold\" x y w w)))
+
+(def main
+  (draw
+    [(redSquare 100 80 50)
+     (yellowSquare 130 65 160)
+     (greenSquare 160 50 300)]))
+
+; Sketch-n-Sketch provides a Merge Expressions code
+; tool that we can use in this situation to abstract
+; much of the repeated code into a helper function.
 ;
 ; _begin
-; _1Text Select Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select the entire (def redSquare ...)
+; _1   expression starting from its opening
+; _1   parenthesis until its closing parenthesis.
+; _1   Right click the editor and select Merge
+; _1   Expressions into Function from the pop-up
+; _1   menu. Hover over the keyword \"def\" in (def
+; _1   greenSquare ...), then click. Hover over the
+; _1   keyword \"def\" in (def yellowSquare ...), then
+; _1   click. Click on the single option from the
+; _1   results list.
 ; _1
-; _1 1.  Text select something in the code.
-; _1 2a. Select a tool from the Code Tools menu, or
-; _1 2b. Right-click and select a tool from pop-up menu.
-; _1 3.  Follow any instructions and finish.
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select the entire (def redSquare ...)
+; _2   expression starting from its opening
+; _2   parenthesis until its closing parenthesis.
+; _2   Select Merge Expressions into Function from
+; _2   the Code Tools menu. Hover over the keyword
+; _2   \"def\" in (def greenSquare ...), then click.
+; _2   Hover over the keyword \"def\" in (def
+; _2   yellowSquare ...), then click. Click on the
+; _2   single option from the results list.
+; _2
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key and hover over the
+; _3   keyword \"def\" in (def redSquare ...), then
+; _3   click. Hover over the keyword \"def\" in (def
+; _3   greenSquare ...), then click. Hover over the
+; _3   keyword \"def\" in (def yellowSquare ...), then
+; _3   click. Release the Shift key. Under the Merge
+; _3   Expressions into Function tool in the pop-up
+; _3   menu, select the single result option.
+; _3
+; _end
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program.
+
+"""
+
+tutorial_step_18 =
+ """; A couple more things before we're done! We'd like to
+; reorder the function definitions to match the order
+; in which we use them, just for the sake of consistency
+; (red, yellow, then green).
+
+(def square (\\fill
+  (\\(w x y)
+    (rect fill x y w w))))
+
+(def redSquare
+  (square \"salmon\"))
+
+(def greenSquare
+  (square \"yellowgreen\"))
+
+(def yellowSquare
+  (square \"gold\"))
+
+(def main
+  (draw
+    [(redSquare 100 80 50)
+     (yellowSquare 130 65 160)
+     (greenSquare 160 50 300)]))
+
+; To do so, we can use the Move Definition tool.
+;
+; _begin
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select the entire (def greenSquare ...)
+; _1   expression starting from its opening
+; _1   parenthesis until its closing parenthesis.
+; _1   Right click the editor and select Move
+; _1   Definition from the pop-up menu. Click on the
+; _1   target position after the yellowSquare
+; _1   definition (before the main definition).
+; _1   Click on the single result option.
 ; _1
-; _2Box Select Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select the entire (def greenSquare ...)
+; _2   expression starting from its opening
+; _2   parenthesis until its closing parenthesis.
+; _2   Select Move Definition from the Code Tools
+; _2   menu. Click on the target position after the
+; _2   yellowSquare definition (before the main
+; _2   definition). Click on the single result option.
 ; _2
-; _2 1.  Hold down Shift, and hover and click boxes.
-; _2 2.  Select a tool from pop-up menu.
-; _2 3.  Follow any instructions and finish.
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key and hover over the
+; _3   keyword \"def\" in (def greenSquare ...), then
+; _3   click. Next, click on the target position
+; _3   after the yellowSquare definition (before the
+; _3   main definition). Release the Shift key.
+; _3   Under the Move Definition tool in the pop-up
+; _3   menu, select the single result option.
+; _3
+; _end
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program.
+
+"""
+
+tutorial_step_19 =
+ """; Lastly, because the three definitions are short,
+; we'd like to put them in a single tuple definition
+; to save some space.
+
+(def square (\\fill
+  (\\(w x y)
+    (rect fill x y w w))))
+
+(def redSquare
+  (square \"salmon\"))
+
+(def yellowSquare
+  (square \"gold\"))
+
+(def greenSquare
+  (square \"yellowgreen\"))
+
+(def main
+  (draw
+    [(redSquare 100 80 50)
+     (yellowSquare 130 65 160)
+     (greenSquare 160 50 300)]))
+
+; To do so, we can use the Move Definition tool again.
+; This time, however, we will select only variable
+; names (rather than entire (def ...) expressions) and
+; target positions next to variables (rather than
+; above or below (def ...) expressions).
+;
+; _begin
+; _1 * Text-Select Mode (right-click menu):
+; _1   Text-select \"redSquare\" in the
+; _1   (def redSquare ...) expression.
+; _1   Right click the editor and select Move
+; _1   Definition from the pop-up menu. Click on
+; _1   \"yellowSquare\" in the (def yellowSquare ...)
+; _1   definition. And click the space between the
+; _1   keyword \"def\" and the variable greenSquare.
+; _1   Click on the single result option.
+; _1
+; _2 * Text-Select Mode (Code Tools menu):
+; _2   Text-select \"redSquare\" in the
+; _2   (def redSquare ...) expression.
+; _2   Select Move Definition from the Code Tools
+; _2   menu. Click on \"yellowSquare\" in the
+; _2   (def yellowSquare ...). And click the
+; _2   space between the keyword \"def\" and the
+; _2   variable greenSquare.
+; _2   Click on the single result option.
 ; _2
-; _2 The Escape key deselects all selected boxes.
+; _3 * Box-Select Mode:
+; _3   Hold down the Shift key and hover over
+; _3   \"redSquare\" in (def redSquare ...), then
+; _3   click. Next, hover over \"yellowSquare\" in
+; _3   (def yellowSquare ...), then click. Then,
+; _3   click on the space between the keyword \"def\"
+; _3   and the variable greenSquare. Under the
+; _3   Move Definition tool in the pop-up menu,
+; _3   select the single result option.
+; _3
+; _end
+; EXERCISE: Perform the transformation with each of
+; the three interactions. Use Undo after each to
+; reset the program.
+
+"""
+
+tutorial_step_20 =
+ """; As a final recap, there are two general mechanisms
+; for invoking code transformation tools:
+;
+; _begin
+; _1 * TEXT-SELECT MODE ----------------------------
+; _1   (either right-click menu or Code Tools menu)
+; _1
+; _1   1.  Text-select something in the code.
+; _1   2a. Right-click and select a tool from pop-up
+; _1       menu, or
+; _1   2b. Select a tool from the Code Tools menu.
+; _1   3.  Follow any instructions and finish.
+; _1
+; _1   In Text-Select Mode, a SINGLE, primary
+; _1   argument is selected FIRST, then the desired
+; _1   code tool is selected, and then the rest
+; _1   of the arguments are selected AFTERWARD (as
+; _1   required by the configuration panel).
+; _1
+; _2 * BOX-SELECT MODE -----------------------------
+; _2
+; _2   1.  Hold down Shift, hover and click boxes
+; _2       for all items involved for the desired
+; _2       code tool (then release Shift key).
+; _2   2.  Select a tool from pop-up menu.
+; _2   3.  Follow any instructions and finish.
+; _2
+; _2   In Box-Select Mode, ALL arguments are
+; _2   selected first, BEFORE the desired code
+; _2   tool is selected.
 ; _2
 ; _end
-; :;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Note that regardless of the method of selection,
+; the Escape key will always deselect all selected
+; boxes and cancel any pop-up menus.
 ;
 ; EXERCISE: Try the Help menu; you'll find these
 ; summary instructions there.
@@ -6110,6 +6513,9 @@ deuceUserStudyCategory =
     , makeExample "Step 15" tutorial_step_15
     , makeExample "Step 16" tutorial_step_16
     , makeExample "Step 17" tutorial_step_17
+    , makeExample "Step 18" tutorial_step_18
+    , makeExample "Step 19" tutorial_step_19
+    , makeExample "Step 20" tutorial_step_20
     , makeExample "Deuce Study Transition 1" study_transition_1
     , makeExample "One Rectangle" task_one_rectangle
     , makeExample "Three Rectangles" task_three_rectangles
