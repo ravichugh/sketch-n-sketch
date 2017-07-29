@@ -158,7 +158,7 @@ textButton tb =
 
 -- Convenience Button Functions
 
-simpleHtmlTextButton : (List (Html Msg)) -> Html Msg
+simpleHtmlTextButton : List (Html Msg) -> Html Msg
 simpleHtmlTextButton content =
   textButton
     { defaultTb
@@ -1854,17 +1854,32 @@ deuceOverlay model =
 deuceRightClickMenuEntry : Model -> (Int, CachedDeuceTool) -> List (Html Msg)
 deuceRightClickMenuEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
   let
-    title =
+    name =
       deuceTool.name ++ "..."
+    isRenamer =
+      DeuceTools.isRenamer deuceTool
+    title =
+      if isRenamer then
+        italicizeQuotes "'" name
+      else
+        [ Html.text name
+        ]
     disabled =
       List.any Model.predicateImpossible deuceTool.reqs
   in
     if disabled then
       []
     else
-      [ simpleTextButton
-          title
-          (Controller.msgSetSelectedDeuceTool False cachedDeuceTool)
+      [ textButton
+          { defaultTb
+              | content =
+                  title
+              , onClick =
+                  Controller.msgSetSelectedDeuceTool False cachedDeuceTool
+              , attributes =
+                  logMouseOver <|
+                    "Button (Deuce Right-Click Menu) \"" ++ name ++ "\""
+          }
       ]
 
 deuceRightClickMenu : Model -> Html Msg
