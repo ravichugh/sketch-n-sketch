@@ -1036,8 +1036,8 @@ unwrap8 xs = case xs of
 --------------------------------------------------------------------------------
 
 -- Composition is left-to-right
-composeAll : List (a -> a) -> a -> a
-composeAll =
+compose : List (a -> a) -> a -> a
+compose =
   List.foldl (<<) identity
 
 --------------------------------------------------------------------------------
