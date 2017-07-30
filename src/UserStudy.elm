@@ -125,24 +125,24 @@ readOnly = """; Read and understand the code below.
 """
 
 textSelectOnly = """; Follow the instructions below.
-; Use only TEXT SELECT MODE to perform the edits.
+; Use only TEXT-SELECT MODE to perform the edits.
 ; When you are done, press Next Step.
 """
 
 boxSelectOnly = """; Follow the instructions below.
-; Use only BOX SELECT MODE to perform the edits.
+; Use only BOX-SELECT MODE to perform the edits.
 ; When you are done, press Next Step.
 """
 
 codeToolsOnly = """; Follow the instructions below.
-; Use TEXT SELECT MODE and/or BOX SELECT MODE to
+; Use TEXT-SELECT MODE and/or BOX-SELECT MODE to
 ; perform the edits. Text edits are disabled.
 ; When you are done, press Next Step.
 """
 
 allFeatures = """; Follow the instructions below.
-; Use NORMAL TEXT EDITS and/or TEXT SELECT MODE
-; and/or BOX SELECT MODE to perform the edits.
+; Use NORMAL TEXT EDITS and/or TEXT-SELECT MODE
+; and/or BOX-SELECT MODE to perform the edits.
 ; When you are done, press Next Step.
 """
 
