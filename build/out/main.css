@@ -302,16 +302,42 @@ a {
 }
 
 /******************************************************************************
+ * Prose Panel                                                                *
+ ******************************************************************************/
+
+.prose-panel-wrapper {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+  transition: height 0.5s;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+}
+
+.prose-panel {
+  background-color: #222222;
+  padding: 10px;
+  overflow-y: scroll;
+
+  /* box-shadow: DYNAMIC */
+  transition: box-shadow 0.5s;
+
+  /* height: DYNAMIC */
+  /* margin-bottom: DYNMAMIC */
+}
+
+/******************************************************************************
  * Code Panel                                                                 *
  ******************************************************************************/
 
 /* General Code Panel */
 
 .code-panel {
-  background-color: #222222;
-
   /* width: DYNAMIC */
   /* height: DYNAMIC */
+
+  background-color: #222222;
 
   position: absolute;
   /* top: DYNAMIC */
@@ -490,6 +516,7 @@ a {
 .output-panel {
   /* width: DYNAMIC */
   /* height: DYNAMIC */
+
   background-color: #FFFFFF;
   border: 1px solid #555555;
   box-shadow: 0 0 7px 0 #000000;

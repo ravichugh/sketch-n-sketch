@@ -10,6 +10,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as E
 import Json.Decode as Json
+import Json.Encode as JsonE
 import Svg
 import Svg.Attributes as SAttr
 
@@ -1034,6 +1035,62 @@ synthesisResultsSelect model =
       )
 
 --------------------------------------------------------------------------------
+-- Prose Panel
+--------------------------------------------------------------------------------
+
+prosePanel : Model -> Html Msg
+prosePanel model =
+  let
+    prosePanelBB =
+      SleekLayout.prosePanel model
+    prosePanelGet f =
+      (px << f) prosePanelBB
+    spacingHeight =
+      .height SleekLayout.spacing
+  in
+    Html.div
+      [ Attr.class "prose-panel-wrapper"
+      , Attr.style
+          [ ("left", prosePanelGet .x)
+          , ("bottom", prosePanelGet .bottom)
+          , ("width", prosePanelGet .width)
+          , ("height", prosePanelGet .height)
+          ]
+      ]
+      [ Html.div
+          ( [ Attr.class "panel prose-panel"
+            , Attr.style
+                [ ( "height"
+                  , px <|
+                      SleekLayout.prosePanelFullHeight - spacingHeight
+                  )
+                , ( "margin-top"
+                  , px spacingHeight
+                  )
+                , ( "box-shadow"
+                  , case prosePanelBB.height of
+                      0 ->
+                        "none"
+                      _ ->
+                        ""
+                  )
+                ]
+            ] ++
+            ( case model.prose of
+                Just prose ->
+                  -- Hack for displaying HTML strings as HTML (no virtual DOM).
+                  -- See: https://github.com/eeue56/elm-for-web-developers#can-i-enter-html-as-a-string
+                  [ Attr.property "innerHTML" <|
+                      JsonE.string prose
+                  ]
+                Nothing ->
+                  []
+            )
+          )
+          []
+      ]
+
+--------------------------------------------------------------------------------
 -- Code Panel
 --------------------------------------------------------------------------------
 
@@ -1461,6 +1518,10 @@ workArea model =
     [ Html.div
         [ Attr.class "main-panels"
         ] <|
+        ( UserStudy.showIfEnabled
+            [ prosePanel model
+            ]
+        ) ++
         [ codePanel model
         , resizer model
         , outputPanel model

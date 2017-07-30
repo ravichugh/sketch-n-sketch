@@ -96,6 +96,7 @@ import FileHandler
 import LangSvg
 import ShapeWidgets exposing (RealZone(..), PointFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
+import ProseGenerated as Prose
 import Config exposing (params)
 import Either exposing (Either(..))
 import Canvas
@@ -1581,6 +1582,17 @@ handleNew template = (\old ->
                     } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
 
+loadProse : String -> Model -> Model
+loadProse name old =
+  case Utils.maybeFind name Prose.list of
+    Nothing ->
+      let
+        _ = Debug.log "WARN: prose not found: " name
+      in
+        old
+    Just prose ->
+      { old | prose = Just prose }
+
 msgAskNew template = requireSaveAsker (msgNew template)
 
 msgSaveAs =
@@ -1987,9 +1999,11 @@ msgTextSelect allowSingleSelection =
 msgUserStudyStep label offset = Msg label <| \old ->
   let i = old.userStudyStateIndex in
   let newState = Utils.geti (i + offset) UserStudy.sequence in
+  let template = UserStudy.getTemplate newState in
   let _ = UserStudyLog.log label (toString newState) in
   { old | userStudyStateIndex = i + offset }
-      |> handleNew (UserStudy.getTemplate newState)
+      |> handleNew template
+      |> loadProse template
       |> (\m ->
            let finalCode = UserStudy.getFinalCode newState m.code in
            { m | code = finalCode, history = ([finalCode], []) }

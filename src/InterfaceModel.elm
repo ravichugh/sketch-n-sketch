@@ -159,6 +159,7 @@ type alias Model =
   , codeClean : Bool
   , resizerX : Maybe Int
   , savedSelections : Maybe (List Ace.Range)
+  , prose : Maybe String
   }
 
 type Mode
@@ -962,4 +963,5 @@ initModel =
     , codeClean = True
     , resizerX = Nothing
     , savedSelections = Nothing
+    , prose = Nothing
     }
