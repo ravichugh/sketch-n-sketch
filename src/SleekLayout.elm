@@ -325,19 +325,3 @@ outputCanvas model =
     , height =
         op.height - 2 * panelBorderWidth
     }
-
---------------------------------------------------------------------------------
--- Code Box (descriptive)
---------------------------------------------------------------------------------
-
--- codeBox =
---   { x =
---       -- spacing + codePanel.borderBorderWidth
---       spacing.width + panelBorderWidth
---   , y =
---       --   codePanel.y
---       -- + codePanel.borderWidth
---       -- + actionBar.height
---       -- + statusBar.height
---       (menuBarTotalHeight + spacing.height) + panelBorderWidth + 35 + 35
---   }
