@@ -255,6 +255,9 @@ app.ports.aceCodeBoxCmd.subscribe(function(aceCmd) {
 
   } else if (message == "changeScroll") {
 
+  } else if (message == "resetScroll") {
+    editor.scrollToLine(0, true, true, function () {});
+    editor.gotoLine(0, 0, true);
   } else {
     console.log("[aceCodeBox.js] unexpected message: " + message);
   }

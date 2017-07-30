@@ -4,6 +4,7 @@ port module AceCodeBox exposing
   , setSelections
   , receiveEditorState
   , userHasTyped
+  , resetScroll
   )
 
 import InterfaceModel as Model exposing (Model, AceCodeBoxInfo)
@@ -25,6 +26,7 @@ initializeAndDisplay  = sendCmd "initializeAndDisplay"
 display               = sendCmd "display"
 resize                = sendCmd "resize"
 updateFontSize        = sendCmd "updateFontSize"
+resetScroll           = sendCmd "resetScroll"
 
 sendCmd message model =
   aceCodeBoxCmd <|

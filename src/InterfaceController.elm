@@ -701,35 +701,41 @@ issueCommand (Msg kind _) oldModel newModel =
       AceCodeBox.setReadOnly True
 
     _ ->
-      if kind == "Update Font Size" then
-        AceCodeBox.updateFontSize newModel
-      else if
-        newModel.code /= oldModel.code ||
-        newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
-        newModel.preview /= oldModel.preview ||
-        kind == "Turn Off Caption" ||
-        kind == "Mouse Enter CodeBox" ||
-        kind == "Mouse Leave CodeBox"
-         {- ||
-         String.startsWith "Key Up" kind ||
-         String.startsWith "Key Down" kind
-         -}
-           -- ideally this last condition would not be necessary.
-           -- and onMouseLeave from point/crosshair zones still leave
-           -- stale yellow highlights.
-      then
-        AceCodeBox.display newModel
-      else if kind == "Drag Layout Widget Trigger" then
-        -- TODO: only want to do this for resize code box widget.
-        -- and need to resize during and after the MouseDragLayout trigger.
-        -- (onMouseUp). workaround for now: click widget again.
-        AceCodeBox.resize newModel
-      else if kind == "Toggle Output" && newModel.mode == PrintScopeGraph Nothing then
-        DependenceGraph.render newModel.scopeGraph
-      else if newModel.runAnimation then
-        AnimationLoop.requestFrame ()
-      else
-        Cmd.none
+      Cmd.batch
+        [ if kind == "Update Font Size" then
+            AceCodeBox.updateFontSize newModel
+          else if
+            newModel.code /= oldModel.code ||
+            newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
+            newModel.preview /= oldModel.preview ||
+            kind == "Turn Off Caption" ||
+            kind == "Mouse Enter CodeBox" ||
+            kind == "Mouse Leave CodeBox"
+             {- ||
+             String.startsWith "Key Up" kind ||
+             String.startsWith "Key Down" kind
+             -}
+               -- ideally this last condition would not be necessary.
+               -- and onMouseLeave from point/crosshair zones still leave
+               -- stale yellow highlights.
+          then
+            AceCodeBox.display newModel
+          else if kind == "Drag Layout Widget Trigger" then
+            -- TODO: only want to do this for resize code box widget.
+            -- and need to resize during and after the MouseDragLayout trigger.
+            -- (onMouseUp). workaround for now: click widget again.
+            AceCodeBox.resize newModel
+          else if kind == "Toggle Output" && newModel.mode == PrintScopeGraph Nothing then
+            DependenceGraph.render newModel.scopeGraph
+          else if newModel.runAnimation then
+            AnimationLoop.requestFrame ()
+          else
+            Cmd.none
+        , if String.startsWith "New" kind then
+            AceCodeBox.resetScroll newModel
+          else
+            Cmd.none
+        ]
 
 iconCommand filename =
   let
@@ -1991,8 +1997,8 @@ msgUserStudyStep label offset = Msg label <| \old ->
       |> enableFeaturesForEditorMode newState
       |> upstateRun
 
-msgUserStudyNext = msgUserStudyStep "User Study Next" 1
-msgUserStudyPrev = msgUserStudyStep "User Study Prev" (-1)
+msgUserStudyNext = msgUserStudyStep "New: User Study Next" 1
+msgUserStudyPrev = msgUserStudyStep "New: User Study Prev" (-1)
 
 enableFeaturesForEditorMode newState m =
   case UserStudy.getEditorMode newState of
