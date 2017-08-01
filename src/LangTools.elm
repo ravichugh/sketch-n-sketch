@@ -12,7 +12,7 @@ module LangTools exposing (..)
 
 import Eval
 import Lang exposing (..)
-import FastParser exposing (prelude, isPreludeLocId)
+import FastParser exposing (prelude, isPreludeLocId, isPreludeEId)
 import Utils
 import LangUnparser exposing (unparseWithIds)
 import Types
@@ -2626,6 +2626,7 @@ expEnvAt_ exp targetEId =
 --------------------------------------------------------------------------------
 
 -- Map a selected argument at a call site to the corresponding pathedPatId in the called function.
+-- Returns Nothing if corresponding function is in prelude not the program.
 eidToMaybeCorrespondingArgumentPathedPatId : Exp -> EId -> Maybe PathedPatternId
 eidToMaybeCorrespondingArgumentPathedPatId program targetEId =
   -- This should be more efficient than running the massive predicate over every expression in the program
@@ -2639,8 +2640,8 @@ eidToMaybeCorrespondingArgumentPathedPatId program targetEId =
               EVar _ funcName ->
                 case resolveIdentifierToExp funcName appFuncExp.val.eid program of -- This is probably slow.
                   Just (Bound funcExp) ->
-                    case funcExp.val.e__ of
-                      EFun _ fpats _ _ ->
+                    case (funcExp.val.e__, isPreludeEId funcExp.val.eid) of
+                      (EFun _ fpats _ _, False) ->
                         -- Allow partial application
                         tryMatchExpsPatsToPathsAtFunctionCall fpats argExps
                         |> Utils.mapFirstSuccess
