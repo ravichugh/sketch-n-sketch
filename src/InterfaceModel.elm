@@ -160,7 +160,7 @@ type alias Model =
   , mainResizerX : Maybe Int
   , proseResizerY : Maybe Int
   , savedSelections : Maybe (List Ace.Range)
-  , prose : Maybe String
+  , prose : Updatable (Maybe String)
   }
 
 type Mode
@@ -359,6 +359,8 @@ setAllUpdated model =
     { model
         | enableTextEdits =
             Updatable.setUpdated old.enableTextEdits
+        , prose =
+            Updatable.setUpdated old.prose
     }
 
 --------------------------------------------------------------------------------
@@ -965,5 +967,6 @@ initModel =
     , mainResizerX = Nothing
     , proseResizerY = Nothing
     , savedSelections = Nothing
-    , prose = Nothing
+    , prose =
+        Updatable.setUpdated << Updatable.create <| Nothing
     }

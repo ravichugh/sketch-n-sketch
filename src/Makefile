@@ -11,6 +11,7 @@ html:
 	cp Native/aceTooltips.js ../build/out/
 	cp Native/animationLoop.js ../build/out/
 	cp Native/fileHandler.js ../build/out/
+	cp Native/proseScroller.js ../build/out/
 	cp Native/dotGraph.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
@@ -50,6 +51,7 @@ loc:
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
     AnimationLoop.elm Native/animationLoop.js \
     FileHandler.elm Native/fileHandler.js \
+    ProseScroller.elm Native/proseScroller.js \
     Main.elm Config.elm \
     Utils.elm Either.elm Updatable.elm \
     HtmlUtils.elm \

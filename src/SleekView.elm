@@ -1047,6 +1047,7 @@ prosePanel model =
       (px << f) prosePanelBB
     innerHTML =
       model.prose
+        |> Updatable.extract
         |> Maybe.withDefault ""
         |> JsonE.string
   in
@@ -1058,6 +1059,8 @@ prosePanel model =
           , ("width", prosePanelGet .width)
           , ("height", prosePanelGet .height)
           ]
+        -- Hack for displaying HTML strings as HTML (no virtual DOM).
+        -- See: https://github.com/eeue56/elm-for-web-developers#can-i-enter-html-as-a-string
       , Attr.property "innerHTML" innerHTML
       ]
       []

@@ -93,6 +93,7 @@ import SleekLayout exposing
 import AceCodeBox
 import AnimationLoop
 import FileHandler
+import ProseScroller
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets exposing (RealZone(..), PointFeature(..), OtherFeature(..))
@@ -635,6 +636,8 @@ updateCommands model =
     List.concat
       [ ifNeedsUpdate .enableTextEdits <|
           AceCodeBox.setReadOnly << not
+      , ifNeedsUpdate .prose <|
+          ProseScroller.resetProseScroll << always ()
       ]
 
 issueCommand : Msg -> Model -> Model -> Cmd Msg
@@ -2011,7 +2014,7 @@ enableFeaturesForEditorMode newState m =
     replacePlaceholderInstructionsWith s =
       Maybe.map
         (Regex.replace All (regex "PLACEHOLDER INSTRUCTIONS") (always s))
-        m.prose
+        (Updatable.extract m.prose)
   in
 
   case UserStudy.getEditorMode newState of
@@ -2024,7 +2027,9 @@ enableFeaturesForEditorMode newState m =
           , showEditCodeInMenuBar = False
           , showDeucePanel = False
           , showDeuceRightClickMenu = False
-          , prose = Just UserStudy.readOnlyProse
+          , prose =
+              Updatable.create <|
+                Just UserStudy.readOnlyProse
           }
     TextEditOnly ->
       { m | enableTextEdits = Updatable.create True
@@ -2041,7 +2046,9 @@ enableFeaturesForEditorMode newState m =
           , showEditCodeInMenuBar = False
           , showDeucePanel = True
           , showDeuceRightClickMenu = False
-          , prose = replacePlaceholderInstructionsWith UserStudy.boxSelectOnlyProse
+          , prose =
+              Updatable.create <|
+                replacePlaceholderInstructionsWith UserStudy.boxSelectOnlyProse
           }
     TextSelectOnly ->
       { m | enableTextEdits = Updatable.create False
@@ -2050,7 +2057,9 @@ enableFeaturesForEditorMode newState m =
           , showEditCodeInMenuBar = True
           , showDeucePanel = False
           , showDeuceRightClickMenu = True
-          , prose = replacePlaceholderInstructionsWith UserStudy.textSelectOnlyProse
+          , prose =
+              Updatable.create <|
+                replacePlaceholderInstructionsWith UserStudy.textSelectOnlyProse
           }
     CodeToolsOnly ->
       { m | enableTextEdits = Updatable.create False
@@ -2059,7 +2068,9 @@ enableFeaturesForEditorMode newState m =
           , showEditCodeInMenuBar = True
           , showDeucePanel = True
           , showDeuceRightClickMenu = True
-          , prose = replacePlaceholderInstructionsWith UserStudy.codeToolsOnlyProse
+          , prose =
+              Updatable.create <|
+                replacePlaceholderInstructionsWith UserStudy.codeToolsOnlyProse
           }
     AllFeatures ->
       { m | enableTextEdits = Updatable.create True
