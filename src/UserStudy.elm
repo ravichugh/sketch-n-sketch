@@ -7,6 +7,10 @@ module UserStudy exposing
   , getFinalCode
   , EditorMode(..)
   , getEditorMode
+  , readOnlyProse
+  , textSelectOnlyProse
+  , boxSelectOnlyProse
+  , codeToolsOnlyProse
   , disableNextStep
   , disablePreviousStep
   , syntaxHelp
@@ -93,6 +97,9 @@ disablePreviousStep i =
 
 getFinalCode state templateCode =
   case state of
+    (_, (_, ReadOnly))         -> chopInstructions templateCode
+    _                          -> templateCode
+{-
     (Start, _)                 -> templateCode
     (Transition1, _)           -> templateCode
     (Transition2, _)           -> templateCode
@@ -116,35 +123,37 @@ getFinalCode state templateCode =
     (_, (_, BoxSelectOnly))    -> boxSelectOnly ++ templateCode
     (_, (_, CodeToolsOnly))    -> codeToolsOnly ++ templateCode
     (_, (_, AllFeatures))      -> allFeatures ++ templateCode
+-}
 
 -- post-processing for tasks ---------------------------------------------------
 
-readOnly = """; Read and understand the code below.
-; All editing features are disabled for now.
-; When you are ready, press Next Step.
-"""
+readOnlyProse = """<p></p><p>
+Read and understand the code.
+All editing features are disabled for now.
+When you are ready, press Next Step.
+</p>"""
 
-textSelectOnly = """; Follow the instructions below.
-; Use only TEXT-SELECT MODE to perform the edits.
-; When you are done, press Next Step.
-"""
+textSelectOnlyProse = """<p>
+Use only TEXT-SELECT MODE to perform the edits below.
+When you are done, press Next Step.
+</p>"""
 
-boxSelectOnly = """; Follow the instructions below.
-; Use only BOX-SELECT MODE to perform the edits.
-; When you are done, press Next Step.
-"""
+boxSelectOnlyProse = """<p>
+Use only BOX-SELECT MODE to perform the edits below.
+When you are done, press Next Step.
+</p>"""
 
-codeToolsOnly = """; Follow the instructions below.
-; Use TEXT-SELECT MODE and/or BOX-SELECT MODE to
-; perform the edits. Text edits are disabled.
-; When you are done, press Next Step.
-"""
+codeToolsOnlyProse = """<p>
+Use TEXT-SELECT MODE and/or BOX-SELECT MODE to
+perform the edits below. Text edits are disabled.
+When you are done, press Next Step.
+</p>"""
 
-allFeatures = """; Follow the instructions below.
-; Use NORMAL TEXT EDITS and/or TEXT-SELECT MODE
-; and/or BOX-SELECT MODE to perform the edits.
-; When you are done, press Next Step.
-"""
+allFeaturesProse = """<p>
+Use NORMAL TEXT EDITS and/or TEXT-SELECT MODE
+and/or BOX-SELECT MODE to perform the edits below.
+When you are done, press Next Step.
+</p>"""
 
 chopInstructions templateCode =
   templateCode

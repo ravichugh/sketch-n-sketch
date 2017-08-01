@@ -14,14 +14,8 @@
 (def main
   (draw [ rect1 rect2 rect3 ]))
 
-; Goals:
-;
-; * The three rectangle definitions share a lot of
-;   identical code. Create a function rect_50_70 that
-;   generates a 50 x 70 rectangle with color and
-;   position parameters. Then define rect1, rect2, and
-;   rect3 in terms of rect_50_70.
-; 
+
+
 ; The final program should look something like:
 ; 
 ;   (def rect_50_70 (\(fill2 x2 y2)
@@ -39,3 +33,4 @@
 ;   
 ;   (def main
 ;     (draw [ rect1 rect2 rect3 ]))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li>The three rectangle definitions share a lot of identical code. Create a function rect_50_70 that generates a 50 x 70 rectangle given color and position parameters, and define rect1, rect2, and rect3 in terms of rect_50_70.</li></ul>

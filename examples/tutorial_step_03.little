@@ -1,5 +1,3 @@
-; The language has several kinds of data: strings,
-; numbers, booleans, and lists.
 
 (def str "hello world!")
 (def num 3.14)
@@ -9,10 +7,4 @@
 
 (def main
   (draw [(show list)]))
-
-; Lists are written with square brackets and with
-; spaces separating the elements.
-;
-; The language does not have static types, so we
-; can mix and match different types of elements
-; within a list.
+; <!-- PROSE --> <p>The language has several kinds of data: strings, numbers, booleans, and lists.</p><p>Lists are written with square brackets and with spaces separating the elements.</p><p>The language does not have static types, so we can mix and match different types of elements within a list.</p>

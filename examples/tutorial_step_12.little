@@ -1,10 +1,3 @@
-; The Introduce Variable tool can be used to give
-; names to multiple expressions at once, but sometimes
-; we may want a single variable to take the place of
-; multiple expressions. The Introduce Single Variable
-; tool does just that.
-;
-; Take a look at the following code snippet:
 
 (def redSquare
   (let [x y] [100 250]
@@ -12,56 +5,4 @@
 
 (def main
   (draw [redSquare]))
-
-; The rectangle should have sides of equal length, but
-; the width and height (fourth and fifth) arguments of
-; the rect function call are not equal.
-;
-; As with all Sketch-n-Sketch code tools, there are
-; three ways that we can use the Introduce Single
-; Variable tool:
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select either 120 or 80. Then,
-; _1   right-click and select Introduce Single
-; _1   Variable. Click on the remaining number
-; _1   (either 120 or 80). Click on one of the
-; _1   results from the list that appears to
-; _1   apply the transformation.
-; _1
-; _1   Note: in Text-Select Mode, a SINGLE, primary
-; _1   argument is selected FIRST, then the desired
-; _2   tool is selected, and then the rest of
-; _1   the arguments are selected AFTERWARD
-; _1   (as required by the configuration panel).
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select either 120 or 80. Then, click on
-; _2   the Code Tools menu at the top of the screen
-; _2   and select Introduce Single Variable. Click
-; _2   on the remaining number (either 120 or 80).
-; _2   Click on one of the results from the list
-; _2   that appears to apply the transformation.
-; _2
-; _2   Note: in Text-Select Mode, a SINGLE, primary
-; _2   argument is selected FIRST, then the desired
-; _2   tool is selected, and then the rest of
-; _2   the arguments are selected AFTERWARD
-; _2   (as required by the configuration panel).
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down Shift, then click on 120 and 80
-; _3   Release the Shift key and select Introduce
-; _3   Single Variable from the pop-up menu. Click
-; _3   on one of the results from the list that
-; _3   appears to apply the transformation.
-; _3
-; _3   Note: in Box-Select Mode, ALL arguments are
-; _3   selected first, BEFORE the desired code
-; _3   transformation is selected.
-; _3
-; _end
-; EXERCISE: Fix the redSquare definition using each
-; of the three interactions. Use Undo after each
-; interaction to reset the program.
+; <!-- PROSE --> <p>The Introduce Variable tool can be used to give names to multiple expressions at once, but sometimes we may want a single variable to take the place of multiple expressions. The Introduce Single Variable tool does just that.</p><p>Take a look at the following code snippet:</p><p>The rectangle should have sides of equal length, but the width and height (fourth and fifth) arguments of the rect function call are not equal.</p><p>As with all Sketch-n-Sketch code tools, there are three ways that we can use the Introduce Single Variable tool:</p><ul class="_123"><li class="_1"><p>Text-Select Mode (right-click menu): <br><br> Text-select either 120 or 80. Then, right-click and select Introduce Single Variable. Click on the remaining number (either 120 or 80). Click on one of the results from the list that appears to apply the transformation.</p><br><br> Note: in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</li><li class="_2"><p>Text-Select Mode (Code Tools menu): <br><br> Text-select either 120 or 80. Then, click on the Code Tools menu at the top of the screen and select Introduce Single Variable. Click on the remaining number (either 120 or 80). Click on one of the results from the list that appears to apply the transformation.</p><br><br> Note: in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</li><li class="_3"><p>Box-Select Mode: <br><br> Hold down Shift, then click on 120 and 80 Release the Shift key and select Introduce Single Variable from the pop-up menu. Click on one of the results from the list that appears to apply the transformation.</p><br><br> Note: in Box-Select Mode, ALL arguments are selected first, BEFORE the desired code transformation is selected.</li></ul><p>EXERCISE: Fix the redSquare definition using each of the three interactions. Use Undo after each interaction to reset the program.</p>

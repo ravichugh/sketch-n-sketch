@@ -1,19 +1,13 @@
-; The language has several binary operators...
 
 (def foo (\(x y) [(+ x y) (- x y) (* x y) (/ x y)]))
 
 (def multiply3 (\(x y z) (* x (* y z))))
 
-; ... and if-then-else expressions.
-
 (def max (\(x y)
   (if (< x y) y x)))
-
-; Don't worry about the syntax too much.
 
 (def main
   (draw [
     (show (foo 3 4))
   ]))
-
-; EXERCISE: Call the multiply3 and max functions.
+; <!-- PROSE --> <p>The language has several binary operators, and if-then-else-expressions.</p><p>Don't worry about the syntax too much.</p><p>EXERCISE: Call the multiply3 and max functions.</p>

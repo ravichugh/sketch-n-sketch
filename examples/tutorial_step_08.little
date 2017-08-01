@@ -1,7 +1,3 @@
-; Now we'll see how to draw three basic shapes:
-; lines, rectangles, and circles. Notice how
-; elements later in the main list appear on top
-; of earlier ones.
 
 (def redLine
   (let [w x1 y1 x2 y2] [4 100 100 300 300]
@@ -17,12 +13,4 @@
 
 (def main
   (draw [redLine greenRect blueCircle]))
-
-; EXERCISE: Make the rectangle a square.
-;
-; EXERCISE: Reorder the elements in main so that the
-; red line is on top of the green rectangle.
-;
-; EXERCISE: All three shapes share the xy-point
-; (100,100). Define variables for these two values
-; and use them in all three shapes.
+; <!-- PROSE --> <p>Now we'll see how to draw three basic shapes: lines, rectangles, and circles. Notice how elements later in the main list appear on top of earlier ones.</p><p>EXERCISE: Make the rectangle a square.</p><p>EXERCISE: Reorder the elements in main so that the red line is on top of the green rectangle.</p><p>EXERCISE: All three shapes share the xy-point (100,100). Define variables for these two values and use them in all three shapes.</p>

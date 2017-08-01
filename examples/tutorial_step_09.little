@@ -1,9 +1,4 @@
-; So far, we've seen how to write code using the
-; text editor.
-;
-; Next, we'll see some tools that Sketch-n-Sketch
-; provides for automatically performing code
-; transformations.
 
 (def main
   (draw []))
+; <!-- PROSE --> <p>So far, we've seen how to write code using the text editor.</p><p>Next, we'll see some tools that Sketch-n-Sketch provides for automatically performing code transformations.</p>

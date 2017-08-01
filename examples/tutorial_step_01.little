@@ -1,12 +1,4 @@
-; Sketch-n-Sketch programs are written in a small
-; functional language with features commonly found
-; in other functional languages and with syntax that
-; resembles Lisp or Racket. Significant or recent
-; experience with functional programming is not
-; necessary to complete the tasks.
-;
-; To start, we will introduce the basics of how the
-; language works.
 
 (def main
   (draw []))
+; <!-- PROSE --> <p>Sketch-n-Sketch programs are written in a small functional language with features commonly found in other functional languages and with syntax that resembles Lisp or Racket. Significant or recent experience with functional programming is not necessary to complete the tasks.</p><p>To start, we will introduce the basics of how the language works.</p>

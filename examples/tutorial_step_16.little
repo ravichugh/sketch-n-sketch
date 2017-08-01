@@ -1,5 +1,3 @@
-; On second thought, we realize we'd like to change
-; the x-position of some of the boxes after all.
 
 (def redSquare
   (\(w y)
@@ -10,30 +8,4 @@
     [(redSquare 80 250)
      (redSquare 30 100)
      (redSquare 150 400)]))
-
-; We can use the Add Argument tool.
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select the number 200 in the rect function
-; _1   call. Right click the editor and select Add
-; _1   Argument from the pop-up menu. Click on the
-; _1   single option from the results list.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select the number 200 in the rect
-; _2   function call. Select Add Argument from the
-; _2   Code Tools menu. Click on the single option
-; _2   from the results list.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key and click on the
-; _3   number 200 in the rect function call. Under
-; _3   the Add Argument tool in the pop-up menu,
-; _3   select the single result option.
-; _3
-; _end
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program. Feel free to manually edit the
-; x-position of the squares after you have done so!
+; <!-- PROSE --> <p>On second thought, we realize we'd like to change the x-position of some of the boxes after all.</p><p>We can use the Add Argument tool.</p><ul class="_123"><li class="_1">Text-Select Mode (right-click menu): <br><br> Text-select the number 200 in the rect function call. Right click the editor and select Add Argument from the pop-up menu. Click on the single option from the results list.</li><li class="_2">Text-Select Mode (Code Tools menu): <br><br> Text-select the number 200 in the rect function call. Select Add Argument from the Code Tools menu. Click on the single option from the results list.</li><li class="_3">Box-Select Mode: <br><br> Hold down the Shift key and click on the number 200 in the rect function call. Under the Add Argument tool in the pop-up menu, select the single result option.</li></ul><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program. Feel free to manually edit the x-position of the squares after you have done so!</p>

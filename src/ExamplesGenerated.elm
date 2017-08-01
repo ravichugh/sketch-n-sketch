@@ -5161,120 +5161,45 @@ mondrian_arch_deuce =
 -- don't change them manually
 
 study_start =
- """; In this study, we are going to show you some
-; program editing features in Sketch-n-Sketch, a
-; programming system for generating Scalable Vector
-; Graphics images.
-;
-; In the first half, you will work through a
-; tutorial that explains several features in
-; Sketch-n-Sketch.
-;
-; In the second half, you will work through several
-; programming editing tasks using the features
-; described in the tutorial.
-;
-; See the area labeled USER STUDY label in the
-; top-right corner of the screen? Every time you've
-; finished a section, press Next Step to move on.
-
+ """
 (def main
   (draw []))
+; <!-- PROSE --> <p>In this study, we are going to show you some program editing features in Sketch-n-Sketch, a programming system for generating Scalable Vector Graphics images.</p><p>In the first half, you will work through a tutorial that explains several features in Sketch-n-Sketch.</p><p>In the second half, you will work through several programming editing tasks using the features described in the tutorial.</p><p>See the area labeled USER STUDY label in the top-right corner of the screen? Every time you've finished a section, press Next Step to move on.</p>
 
 """
 
 study_transition_1 =
- """; Great job, you've completed the tutorial! Now
-; you're going to use Sketch-n-Sketch to perform
-; some program editings tasks.
-;
-; In the next section, you will see three examples
-; programs, each with a list of editing tasks. You
-; will _not_ be allowed to use text editing for any
-; of the tasks. Instead, you will use the code
-; transformation tools. You will work with each
-; program twice:
-;
-;  - using code tools with Text-Select Mode, and
-;  - using code tools with Box-Select Mode.
-;
-; The order in which you are asked to perform tasks
-; and use the different modes is random.
-;
-; Before each task, you will have the opportunity to
-; read the code to understand it. All editing
-; features are disabled during this reading period.
-;
-; Then, you will be given a list of editing tasks to
-; perform. The top of the file will tell you to use
-; either Text-Select Mode or Box-Select Mode. When
-; you are done with each task, click Next Step to
-; move on.
-;
-; To start this sequence of tasks, click Next Step.
-; Once you do, you will no longer be able to go the
-; Previous Step of the tutorial.
-
-(def main
+ """(def main
   (draw [(show \"That's the end of the tutorial!\")]))
+; <!-- PROSE --> <p>Great job, you've completed the tutorial! Now you're going to use Sketch-n-Sketch to perform some program editings tasks.</p><p>In the next section, you will see three examples programs, each with a list of editing tasks. You will <em>not</em> be allowed to use text editing for any of the tasks. Instead, you will use the code transformation tools. You will work with each program twice:</p><ul><li>using code tools with Text-Select Mode, and</li><li>using code tools with Box-Select Mode.</li></ul><p>The order in which you are asked to perform tasks and use the different modes is random.</p><p>Before each task, you will have the opportunity to read the code to understand it. All editing features are disabled during this reading period.</p><p>Then, you will be given a list of editing tasks to perform. The top of the file will tell you to use either Text-Select Mode or Box-Select Mode. When you are done with each task, click Next Step to move on.</p><p>To start this sequence of tasks, click Next Step. Once you do, you will no longer be able to go the Previous Step of the tutorial.</p>
 
 """
 
 study_transition_2 =
- """; In the final section, you will see two examples
-; programs, each with a list of editing tasks. As
-; before, you will _not_ be able to use text editing.
-; But, this time, you will be able to use _either_:
-;
-;  - code tools with Text-Select Mode, or
-;  - code tools with Box-Select Mode.
-;
-; It's up to you. And this time, you will work with
-; each program just once.
-;
-; Click Next Step to proceed.
-
-(def main
+ """(def main
   (draw []))
+; <!-- PROSE --> <p>In the final section, you will see two examples programs, each with a list of editing tasks. As before, you will <em>not</em> be able to use text editing. But, this time, you will be able to use <em>either</em>:</p><ul><li>code tools with Text-Select Mode, or</li><li>code tools with Box-Select Mode.</li></ul><p>It's up to you. And this time, you will work with each program just once.</p><p>Click Next Step to proceed.</p>
 
 """
 
 study_end =
- """; All done with the programming exercises!
-;
-; One last thing: please fill out the exit survey.
-;
-; Thanks!
-
-(def main
+ """(def main
   (draw []))
+; <!-- PROSE --> <p>All done with the programming exercises!</p><p>One last thing: please fill out the exit survey.</p><p>Thanks!</p>
 
 """
 
 
 tutorial_step_01 =
- """; Sketch-n-Sketch programs are written in a small
-; functional language with features commonly found
-; in other functional languages and with syntax that
-; resembles Lisp or Racket. Significant or recent
-; experience with functional programming is not
-; necessary to complete the tasks.
-;
-; To start, we will introduce the basics of how the
-; language works.
-
+ """
 (def main
   (draw []))
+; <!-- PROSE --> <p>Sketch-n-Sketch programs are written in a small functional language with features commonly found in other functional languages and with syntax that resembles Lisp or Racket. Significant or recent experience with functional programming is not necessary to complete the tasks.</p><p>To start, we will introduce the basics of how the language works.</p>
 
 """
 
 tutorial_step_02 =
- """; The structure of a program is a series of
-; top-level definitions. The last definition is
-; called main and describes the image to draw in the
-; canvas area on the right. The initial main
-; expression has an empty list, so nothing is drawn.
-
+ """
 (def x 1)   ; var x = 1
 
 (def y 2)   ; var y = 2
@@ -5283,27 +5208,12 @@ tutorial_step_02 =
 
 (def main
   (draw []))
-
-; EXERCISE: Add the expression (show \"hello world!\")
-; to the list of drawings. Notice how the border of
-; the canvas turns red; this indicates that the code
-; needs to be re-run. Hit the Run button.
-;
-; EXERCISE: Now define this expression in a new
-; variable instead, and refer to it in the main
-; expression.
-;
-; EXERCISE: Add extra parentheses somewhere and
-; re-run. You will get a syntax error. Many
-; expressions start and end with parentheses; extra
-; parentheses are not allowed.
+; <!-- PROSE --> <p>The structure of a program is a series of top-level definitions. The last definition is called main and describes the image to draw in the canvas area on the right. The initial main expression has an empty list, so nothing is drawn.</p><p>EXERCISE: Add the expression (show &quot;hello world!&quot;) to the list of drawings. Notice how the border of the canvas turns red; this indicates that the code needs to be re-run. Hit the Run button.</p><p>EXERCISE: Now define this expression in a new variable instead, and refer to it in the main expression.</p><p>EXERCISE: Add extra parentheses somewhere and re-run. You will get a syntax error. Many expressions start and end with parentheses; extra parentheses are not allowed.</p>
 
 """
 
 tutorial_step_03 =
- """; The language has several kinds of data: strings,
-; numbers, booleans, and lists.
-
+ """
 (def str \"hello world!\")
 (def num 3.14)
 (def bool true)
@@ -5312,146 +5222,63 @@ tutorial_step_03 =
 
 (def main
   (draw [(show list)]))
-
-; Lists are written with square brackets and with
-; spaces separating the elements.
-;
-; The language does not have static types, so we
-; can mix and match different types of elements
-; within a list.
+; <!-- PROSE --> <p>The language has several kinds of data: strings, numbers, booleans, and lists.</p><p>Lists are written with square brackets and with spaces separating the elements.</p><p>The language does not have static types, so we can mix and match different types of elements within a list.</p>
 
 """
 
 tutorial_step_04 =
- """; We use the term \"tuple\" to describe a list with a
-; fixed number of elements. For example, the list
-; expression [1 \"two\"] below is a 2-tuple, that is,
-; a list with exactly two elements.
-
+ """
 (def [one two] [1 \"two\"])
 
 (def main
   (draw [(show [one two one two])]))
-
-; Notice how we access the components of tuple
-; expressions with tuple patterns (instead of just
-; plain variables) on the left-hand side of
-; definitions. The tuple pattern [one two] above
-; matches a list with exactly, binding the name one
-; to the first element and two to the second.
-;
-; If the tuple pattern and tuple expression do not
-; have the same number of elements, Sketch-n-Sketch
-; throws a run-time error.
-;
-; EXERCISE: Add a third variable to the tuple
-; pattern and re-run.
-;
-; EXERCISE: Remove one of the expressions from the
-; list expression and re-run.
+; <!-- PROSE --> <p>We use the term &quot;tuple&quot; to describe a list with a fixed number of elements. For example, the list expression [1 &quot;two&quot;] below is a 2-tuple, that is, a list with exactly two elements.</p><p>Notice how we access the components of tuple expressions with tuple patterns (instead of just plain variables) on the left-hand side of definitions. The tuple pattern [one two] above matches a list with exactly, binding the name one to the first element and two to the second.</p><p>If the tuple pattern and tuple expression do not have the same number of elements, Sketch-n-Sketch throws a run-time error.</p><p>EXERCISE: Add a third variable to the tuple pattern and re-run.</p><p>EXERCISE: Remove one of the expressions from the list expression and re-run.</p>
 
 """
 
 tutorial_step_05 =
- """; In addition to top-level definitions, local
-; variables can be created using a different keyword
-; called let. For example, within the nums def we
-; can define the local variable one to hold the
-; value 1, and then refer to that value with the
-; name one in the rest of the let-expression.
-
+ """
 (def nums
   (let one 1
     [one \"two\" one \"two\"]))
 
 (def main
   (draw [(show nums)]))
-
-; The syntax for a let definition is (let x e1 e2),
-; which says let x refer to e1 when evaluating e2.
-; Notice how parentheses surround the entire let
-; definition.
-;
-; The binding of x is only in scope in the
-; expression e2. For example, the one variable above
-; is not in scope outside of the nums definition.
-;
-; EXERCISE: Try referencing the one variable outside
-; the nums definition.
-;
-; EXERCISE: Tuple patterns can be used in let
-; definitions. Define the tuple pattern [one two] to
-; be [1 2] inside nums.
+; <!-- PROSE --> <p>In addition to top-level definitions, local variables can be created using a different keyword called let. For example, within the nums def we can define the local variable one to hold the value 1, and then refer to that value with the name one in the rest of the let-expression.</p><p>The syntax for a let definition is (let x e1 e2), which says let x refer to e1 when evaluating e2. Notice how parentheses surround the entire let definition.</p><p>The binding of x is only in scope in the expression e2. For example, the one variable above is not in scope outside of the nums definition.</p><p>EXERCISE: Try referencing the one variable outside the nums definition.</p><p>EXERCISE: Tuple patterns can be used in let definitions. Define the tuple pattern [one two] to be [1 2] inside nums.</p>
 
 """
 
 tutorial_step_06 =
- """; The syntax for a function expression is (\\x e),
-; which defines a function that takes an argument x
-; and returns the expression e.
-;
-; The syntax for a multi-argument function is
-; (\\(x1 x2 x3 ...) e). Notice the parentheses
-; surrounding the list of arguments.
-;
-; For example, the function triplicate takes a
-; single argument x and returns a list that repeats
-; x three times, and triplicate2 takes two
-; arguments. To call any function, the function name
-; and its argument are separated by a space, and the
-; entire call is surrounded by parentheses.
-
+ """
 (def triplicate (\\x [x x x]))
 
 (def triplicate2 (\\(x y) [x y x y x y]))
 
 (def main
   (draw [(show (triplicate 3))]))
-
-; EXERCISE: Rename the argument of triplicate to
-; something else and re-run.
-;
-; EXERCISE: Call triplicate2 in the main expression.
-;
-; EXERCISE: Call triplicate2 with too many arguments.
-; You'll see a run-time error.
-;
-; EXERCISE: Call triplicate2 with too few arguments.
-; You won't get a run-time error, but the result
-; shown will be \"<fun>\" (a function that is waiting
-; for the rest of its arguments).
+; <!-- PROSE --> <p>The syntax for a function expression is (e), which defines a function that takes an argument x and returns the expression e.</p><p>The syntax for a multi-argument function is ((x1 x2 x3 ...) e). Notice the parentheses surrounding the list of arguments.</p><p>For example, the function triplicate takes a single argument x and returns a list that repeats x three times, and triplicate2 takes two arguments. To call any function, the function name and its argument are separated by a space, and the entire call is surrounded by parentheses.</p><p>EXERCISE: Rename the argument of triplicate to something else and re-run.</p><p>EXERCISE: Call triplicate2 in the main expression.</p><p>EXERCISE: Call triplicate2 with too many arguments. You'll see a run-time error.</p><p>EXERCISE: Call triplicate2 with too few arguments. You won't get a run-time error, but the result shown will be &quot;<fun>&quot; (a function that is waiting for the rest of its arguments).</p>
 
 """
 
 tutorial_step_07 =
- """; The language has several binary operators...
-
+ """
 (def foo (\\(x y) [(+ x y) (- x y) (* x y) (/ x y)]))
 
 (def multiply3 (\\(x y z) (* x (* y z))))
 
-; ... and if-then-else expressions.
-
 (def max (\\(x y)
   (if (< x y) y x)))
-
-; Don't worry about the syntax too much.
 
 (def main
   (draw [
     (show (foo 3 4))
   ]))
-
-; EXERCISE: Call the multiply3 and max functions.
+; <!-- PROSE --> <p>The language has several binary operators, and if-then-else-expressions.</p><p>Don't worry about the syntax too much.</p><p>EXERCISE: Call the multiply3 and max functions.</p>
 
 """
 
 tutorial_step_08 =
- """; Now we'll see how to draw three basic shapes:
-; lines, rectangles, and circles. Notice how
-; elements later in the main list appear on top
-; of earlier ones.
-
+ """
 (def redLine
   (let [w x1 y1 x2 y2] [4 100 100 300 300]
     (line \"salmon\" w x1 y1 x2 y2)))
@@ -5466,221 +5293,54 @@ tutorial_step_08 =
 
 (def main
   (draw [redLine greenRect blueCircle]))
-
-; EXERCISE: Make the rectangle a square.
-;
-; EXERCISE: Reorder the elements in main so that the
-; red line is on top of the green rectangle.
-;
-; EXERCISE: All three shapes share the xy-point
-; (100,100). Define variables for these two values
-; and use them in all three shapes.
+; <!-- PROSE --> <p>Now we'll see how to draw three basic shapes: lines, rectangles, and circles. Notice how elements later in the main list appear on top of earlier ones.</p><p>EXERCISE: Make the rectangle a square.</p><p>EXERCISE: Reorder the elements in main so that the red line is on top of the green rectangle.</p><p>EXERCISE: All three shapes share the xy-point (100,100). Define variables for these two values and use them in all three shapes.</p>
 
 """
 
 tutorial_step_09 =
- """; So far, we've seen how to write code using the
-; text editor.
-;
-; Next, we'll see some tools that Sketch-n-Sketch
-; provides for automatically performing code
-; transformations.
-
+ """
 (def main
   (draw []))
+; <!-- PROSE --> <p>So far, we've seen how to write code using the text editor.</p><p>Next, we'll see some tools that Sketch-n-Sketch provides for automatically performing code transformations.</p>
 
 """
 
 tutorial_step_10 =
- """; Here is a red square.
-
+ """
 (def blueSquare
   (rect \"salmon\" 100 250 80 80))
 
 (def main
   (draw [blueSquare]))
-
-; Unfortunately, the name of the function that
-; generates this red square is incorrect. To fix
-; this, we can use the Rename tool to rename the
-; function at its definition and its call-sites.
-;
-; There are three ways to do this:
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Select the text blueSquare, right-click the
-; _1   editor and select the Rename tool from the
-; _1   pop-up menu. Then, enter a new name (like
-; _1   redSquare) in the results list and press
-; _1   Enter.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Select the text blueSquare, and select the Rename
-; _2   Variable tool from the Code Tools menu at the top
-; _2   left of the screen. Then enter a new name (like
-; _2   redSquare) in the results list and press
-; _2   Enter.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key, hover over blueSquare,
-; _3   click the box that pops up over blueSquare, and
-; _3   then release the Shift key. Select the Rename
-; _3   tool from the pop-up menu. Enter a new name
-; _3   (like redSquare) in the results list and
-; _3   press Enter.
-; _3
-; _end
-; EXERCISE: Perform the renaming with each of the
-; three interactions. Use Undo after each to reset
-; the program.
+; <!-- PROSE --> <p>Here is a red square. Unfortunately, the name of the function that generates this red square is incorrect. To fix this, we can use the Rename tool to rename the function at its definition and its call-sites.</p><p>There are three ways to do this:</p><ul class=\"_123\"><li class=\"_1\">Text-Select Mode (right-click menu): <br><br> Select the text blueSquare, right-click the editor and select the Rename tool from the pop-up menu. Then, enter a new name (like redSquare) in the results list and press Enter.</li><li class=\"_2\">Text-Select Mode (Code Tools menu): <br><br> Select the text blueSquare, and select the Rename Variable tool from the Code Tools menu at the top left of the screen. Then enter a new name (like redSquare) in the results list and press Enter.</li><li class=\"_3\">Box-Select Mode: <br><br> Hold down the Shift key, hover over blueSquare, click the box that pops up over blueSquare, and then release the Shift key. Select the Rename tool from the pop-up menu. Enter a new name (like redSquare) in the results list and press Enter.</li></ul><p>EXERCISE: Perform the renaming with each of the three interactions. Use Undo after each to reset the program.</p>
 
 """
 
 tutorial_step_11 =
- """; Many times, when using a function like rect,
-; passing in multiple constants rather than named
-; variables can lead to confusion as to the purpose
-; of each constant.
-
+ """
 (def redSquare
   (rect \"salmon\" 100 250 80 80))
 
 (def main
   (draw [redSquare]))
-
-; To alleviate this, we can introduce variables
-; using the Introduce Variable tool. This tool uses
-; the notion of a \"target position\", which is the
-; whitespace between or above other items in the
-; code. Target positions typically allow us to
-; select where we want resultant transformations to
-; appear in the code. In the case of the Introduce
-; Variable tool, the target position indicates where
-; we would like the variables to be introduced.
-;
-; Let's try out the Introduce Variable tool on the
-; x- and y- positions of the red square (the first
-; two arguments of the rect function after the
-; color, \"salmon\").
-;
-; As before, we can use this tool in three ways:
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select one of the 100s, right-click,
-; _1   then select Introduce Variable from the
-; _1   pop-up menu. The configuration panel asks for
-; _1   one or more expressions for which variables
-; _1   will be introduced, as well as an optional
-; _1   target position. Click the other 100, then
-; _1   click a target position before the call to
-; _1   rect or above the def. Apply the
-; _1   transformation from the results list.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select one of the 100s, then select
-; _2   Introduce Variable from the Code Tools menu.
-; _2   The configuration panel asks for one or more
-; _2   expressions for which variables will be
-; _2   introduced, as well as an optional target
-; _2   positions. Click the other 100, then click a
-; _2   target position before the call to rect or
-; _2   above the def. Apply the transformation from
-; _2   the results list.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down Shift, then click on both
-; _3   occurrences of the number 100 as well as a
-; _3   target position before the call to rect or
-; _3   above the def. Release the Shift key and
-; _3   select Introduce Variables from the pop-up
-; _3   menu. Apply the transformation from the
-; _3   results list.
-; _3
-; _end
-; EXERCISE: Introduce x and y variables with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+; <!-- PROSE --> <p>Many times, when using a function like rect, passing in multiple constants rather than named variables can lead to confusion as to the purpose of each constant.</p><p>To alleviate this, we can introduce variables using the Introduce Variable tool. This tool uses the notion of a &quot;target position&quot;, which is the whitespace between or above other items in the code. Target positions typically allow us to select where we want resultant transformations to appear in the code. In the case of the Introduce Variable tool, the target position indicates where we would like the variables to be introduced.</p><p>Let's try out the Introduce Variable tool on the x- and y- positions of the red square (the first two arguments of the rect function after the color, &quot;salmon&quot;).</p><p>As before, we can use this tool in three ways:</p><ul class=\"_123\"><li class=\"_1\">Text-Select Mode (right-click menu): <br><br> Text-select one of the 100s, right-click, then select Introduce Variable from the pop-up menu. The configuration panel asks for one or more expressions for which variables will be introduced, as well as an optional target position. Click the other 100, then click a target position before the call to rect or above the def. Apply the transformation from the results list.</li><li class=\"_2\">Text-Select Mode (Code Tools menu): <br><br> Text-select one of the 100s, then select Introduce Variable from the Code Tools menu. The configuration panel asks for one or more expressions for which variables will be introduced, as well as an optional target positions. Click the other 100, then click a target position before the call to rect or above the def. Apply the transformation from the results list.</li><li class=\"_3\">Box-Select Mode: <br><br> Hold down Shift, then click on both occurrences of the number 100 as well as a target position before the call to rect or above the def. Release the Shift key and select Introduce Variables from the pop-up menu. Apply the transformation from the results list.</li></ul><p>EXERCISE: Introduce x and y variables with each of the three interactions. Use Undo after each to reset the program.</p>
 
 """
 
 tutorial_step_12 =
- """; The Introduce Variable tool can be used to give
-; names to multiple expressions at once, but sometimes
-; we may want a single variable to take the place of
-; multiple expressions. The Introduce Single Variable
-; tool does just that.
-;
-; Take a look at the following code snippet:
-
+ """
 (def redSquare
   (let [x y] [100 250]
     (rect \"salmon\" x y 120 80)))
 
 (def main
   (draw [redSquare]))
-
-; The rectangle should have sides of equal length, but
-; the width and height (fourth and fifth) arguments of
-; the rect function call are not equal.
-;
-; As with all Sketch-n-Sketch code tools, there are
-; three ways that we can use the Introduce Single
-; Variable tool:
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select either 120 or 80. Then,
-; _1   right-click and select Introduce Single
-; _1   Variable. Click on the remaining number
-; _1   (either 120 or 80). Click on one of the
-; _1   results from the list that appears to
-; _1   apply the transformation.
-; _1
-; _1   Note: in Text-Select Mode, a SINGLE, primary
-; _1   argument is selected FIRST, then the desired
-; _2   tool is selected, and then the rest of
-; _1   the arguments are selected AFTERWARD
-; _1   (as required by the configuration panel).
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select either 120 or 80. Then, click on
-; _2   the Code Tools menu at the top of the screen
-; _2   and select Introduce Single Variable. Click
-; _2   on the remaining number (either 120 or 80).
-; _2   Click on one of the results from the list
-; _2   that appears to apply the transformation.
-; _2
-; _2   Note: in Text-Select Mode, a SINGLE, primary
-; _2   argument is selected FIRST, then the desired
-; _2   tool is selected, and then the rest of
-; _2   the arguments are selected AFTERWARD
-; _2   (as required by the configuration panel).
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down Shift, then click on 120 and 80
-; _3   Release the Shift key and select Introduce
-; _3   Single Variable from the pop-up menu. Click
-; _3   on one of the results from the list that
-; _3   appears to apply the transformation.
-; _3
-; _3   Note: in Box-Select Mode, ALL arguments are
-; _3   selected first, BEFORE the desired code
-; _3   transformation is selected.
-; _3
-; _end
-; EXERCISE: Fix the redSquare definition using each
-; of the three interactions. Use Undo after each
-; interaction to reset the program.
+; <!-- PROSE --> <p>The Introduce Variable tool can be used to give names to multiple expressions at once, but sometimes we may want a single variable to take the place of multiple expressions. The Introduce Single Variable tool does just that.</p><p>Take a look at the following code snippet:</p><p>The rectangle should have sides of equal length, but the width and height (fourth and fifth) arguments of the rect function call are not equal.</p><p>As with all Sketch-n-Sketch code tools, there are three ways that we can use the Introduce Single Variable tool:</p><ul class=\"_123\"><li class=\"_1\"><p>Text-Select Mode (right-click menu): <br><br> Text-select either 120 or 80. Then, right-click and select Introduce Single Variable. Click on the remaining number (either 120 or 80). Click on one of the results from the list that appears to apply the transformation.</p><br><br> Note: in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</li><li class=\"_2\"><p>Text-Select Mode (Code Tools menu): <br><br> Text-select either 120 or 80. Then, click on the Code Tools menu at the top of the screen and select Introduce Single Variable. Click on the remaining number (either 120 or 80). Click on one of the results from the list that appears to apply the transformation.</p><br><br> Note: in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</li><li class=\"_3\"><p>Box-Select Mode: <br><br> Hold down Shift, then click on 120 and 80 Release the Shift key and select Introduce Single Variable from the pop-up menu. Click on one of the results from the list that appears to apply the transformation.</p><br><br> Note: in Box-Select Mode, ALL arguments are selected first, BEFORE the desired code transformation is selected.</li></ul><p>EXERCISE: Fix the redSquare definition using each of the three interactions. Use Undo after each interaction to reset the program.</p>
 
 """
 
 tutorial_step_13 =
- """; Next, we will use the Create Function tool to
-; turn this definition into a function so that it
-; can be called to create more red squares easily.
-
+ """
 (def redSquare
   (let [x y] [100 250]
   (let w 80
@@ -5688,51 +5348,12 @@ tutorial_step_13 =
 
 (def main
   (draw [redSquare]))
-
-; We can invoke Create Function in three ways:
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select the entire (def redSquare ...)
-; _1   expression starting from its opening
-; _1   parenthesis until its closing parenthesis.
-; _1   Right click the editor and select Create
-; _1   Function from the pop-up menu.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select the entire (def redSquare ...)
-; _2   expression starting from its opening
-; _2   parenthesis until its closing parenthesis.
-; _2   Select Create Function from the Code Tools
-; _2   menu.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key, hover over the
-; _3   keyword \"def\" in (def redSquare ...), then
-; _3   click. Release the Shift key. Select Create
-; _3   Function from the pop-up menu.
-; _3
-; _end
-; No matter how the Create Function tool is invoked,
-; there are two options in the results list that we
-; can select from. Because the point of this
-; function is to draw a RED square, we'll pick the
-; option that does not make color one of the
-; resulting function arguments.
-;
-; Notice how the reference to this expression in
-; main has now turned into a function call.
-;
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+; <!-- PROSE --> <p>Next, we will use the Create Function tool to turn this definition into a function so that it can be called to create more red squares easily.</p><p>We can invoke Create Function in three ways:</p><ul class=\"_123\"><li class=\"_1\">Text-Select Mode (right-click menu): <br><br> Text-select the entire (def redSquare ...) expression starting from its opening parenthesis until its closing parenthesis. Right click the editor and select Create Function from the pop-up menu.</li><li class=\"_2\">Text-Select Mode (Code Tools menu): <br><br> Text-select the entire (def redSquare ...) expression starting from its opening parenthesis until its closing parenthesis. Select Create Function from the Code Tools menu.</li><li class=\"_3\">Box-Select Mode: <br><br> Hold down the Shift key, hover over the keyword &quot;def&quot; in (def redSquare ...), then click. Release the Shift key. Select Create Function from the pop-up menu.</li></ul><p>No matter how the Create Function tool is invoked, there are two options in the results list that we can select from. Because the point of this function is to draw a RED square, we'll pick the option that does not make color one of the resulting function arguments.</p><p>Notice how the reference to this expression in main has now turned into a function call.</p><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</p>
 
 """
 
 tutorial_step_14 =
- """; Let's say we've now coded up a nice piece of art
-; using our newly-defined function:
-
+ """
 (def redSquare
   (\\(x y w)
     (rect \"salmon\" x y w w)))
@@ -5742,61 +5363,12 @@ tutorial_step_14 =
     [(redSquare 200 250 80)
      (redSquare 200 100 30)
      (redSquare 200 400 150)]))
-
-; However, we now want to change how the redSquare
-; function is called; instead of the size of the
-; square being the last argument that we pass in,
-; we'd prefer if it were the first.
-;
-; To do this, we can use the Reorder Arguments tool.
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select the argument w in the list of
-; _1   arguments after the backslash in the
-; _1   redSquare function definition. Right click
-; _1   the editor and select Reorder Arguments from
-; _1   the pop-up menu. Click on the target position
-; _1   that lies before the first argument (x) and
-; _1   after the opening parenthesis of the argument
-; _1   list. Click on the single option from the
-; _1   results list.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select the argument w in the list of
-; _2   arguments after the backslash in the
-; _2   redSquare function definition. Select Reorder
-; _2   Arguments from the Code Tools menu. Click on
-; _2   the target position that lies before the
-; _2   first argument (x) and after the opening
-; _2   parenthesis of the argument list. Click on
-; _2   the single option from the results list.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key and click on the
-; _3   argument w in the list of arguments after the
-; _3   backslash in the redSquare function
-; _3   definition. Then, click on the target
-; _3   position that lies before the first argument
-; _3   (x) and after the opening parenthesis of the
-; _3   argument list. Release the Shift key. Under
-; _3   the Create Function tool in the pop-up menu,
-; _3   select the single option from the results list.
-; _3
-; _end
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+; <!-- PROSE --> <p>Let's say we've now coded up a nice piece of art using our newly-defined function:</p><p>However, we now want to change how the redSquare function is called; instead of the size of the square being the last argument that we pass in, we'd prefer if it were the first.</p><p>To do this, we can use the Reorder Arguments tool.</p><ul class=\"_123\"><li class=\"_1\">Text-Select Mode (right-click menu): <br><br> Text-select the argument w in the list of arguments after the backslash in the redSquare function definition. Right click the editor and select Reorder Arguments from the pop-up menu. Click on the target position that lies before the first argument (x) and after the opening parenthesis of the argument list. Click on the single option from the results list.</li><li class=\"_2\">Text-Select Mode (Code Tools menu): <br><br> Text-select the argument w in the list of arguments after the backslash in the redSquare function definition. Select Reorder Arguments from the Code Tools menu. Click on the target position that lies before the first argument (x) and after the opening parenthesis of the argument list. Click on the single option from the results list.</li><li class=\"_3\">Box-Select Mode: <br><br> Hold down the Shift key and click on the argument w in the list of arguments after the backslash in the redSquare function definition. Then, click on the target position that lies before the first argument (x) and after the opening parenthesis of the argument list. Release the Shift key. Under the Create Function tool in the pop-up menu, select the single option from the results list.</li></ul><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</p>
 
 """
 
 tutorial_step_15 =
- """; While refactoring the function in the previous
-; step, we notice something else we'd like to change:
-; every single time our function is called, we always
-; set the x-position to 200, so we decide to just
-; remove the x-position argument.
-
+ """
 (def redSquare
   (\\(w x y)
     (rect \"salmon\" x y w w)))
@@ -5806,44 +5378,12 @@ tutorial_step_15 =
     [(redSquare 80 200 250)
      (redSquare 30 200 100)
      (redSquare 150 200 400)]))
-
-; To do so, we can use the Remove Argument tool.
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select the argument x in the list of
-; _1   arguments after the backslash in the
-; _1   redSquare function definition. Right click
-; _1   the editor and select Remove Argument from
-; _1   the pop-up menu. Click on the single
-; _1   option from the results list.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select the argument x in the list of
-; _2   arguments after the backslash in the
-; _2   redSquare function definition. Select Remove
-; _2   Argument from the Code Tools menu. Click on
-; _2   the single option from the results list.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key and click on the
-; _3   argument x in the list of arguments after the
-; _3   backslash in the redSquare function
-; _3   definition. Release the Shift key. Under the
-; _3   Remove Argument tool in the pop-up menu,
-; _3   select the single result option.
-; _3
-; _end
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+; <!-- PROSE --> <p>While refactoring the function in the previous step, we notice something else we'd like to change: every single time our function is called, we always set the x-position to 200, so we decide to just remove the x-position argument.</p><p>To do so, we can use the Remove Argument tool.</p><ul class=\"_123\"><li class=\"_1\">Text-Select Mode (right-click menu): <br><br> Text-select the argument x in the list of arguments after the backslash in the redSquare function definition. Right click the editor and select Remove Argument from the pop-up menu. Click on the single option from the results list.</li><li class=\"_2\">Text-Select Mode (Code Tools menu): <br><br> Text-select the argument x in the list of arguments after the backslash in the redSquare function definition. Select Remove Argument from the Code Tools menu. Click on the single option from the results list.</li><li class=\"_3\">Box-Select Mode: <br><br> Hold down the Shift key and click on the argument x in the list of arguments after the backslash in the redSquare function definition. Release the Shift key. Under the Remove Argument tool in the pop-up menu, select the single result option.</li></ul><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</p>
 
 """
 
 tutorial_step_16 =
- """; On second thought, we realize we'd like to change
-; the x-position of some of the boxes after all.
-
+ """
 (def redSquare
   (\\(w y)
     (rect \"salmon\" 200 y w w)))
@@ -5853,42 +5393,12 @@ tutorial_step_16 =
     [(redSquare 80 250)
      (redSquare 30 100)
      (redSquare 150 400)]))
-
-; We can use the Add Argument tool.
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select the number 200 in the rect function
-; _1   call. Right click the editor and select Add
-; _1   Argument from the pop-up menu. Click on the
-; _1   single option from the results list.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select the number 200 in the rect
-; _2   function call. Select Add Argument from the
-; _2   Code Tools menu. Click on the single option
-; _2   from the results list.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key and click on the
-; _3   number 200 in the rect function call. Under
-; _3   the Add Argument tool in the pop-up menu,
-; _3   select the single result option.
-; _3
-; _end
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program. Feel free to manually edit the
-; x-position of the squares after you have done so!
+; <!-- PROSE --> <p>On second thought, we realize we'd like to change the x-position of some of the boxes after all.</p><p>We can use the Add Argument tool.</p><ul class=\"_123\"><li class=\"_1\">Text-Select Mode (right-click menu): <br><br> Text-select the number 200 in the rect function call. Right click the editor and select Add Argument from the pop-up menu. Click on the single option from the results list.</li><li class=\"_2\">Text-Select Mode (Code Tools menu): <br><br> Text-select the number 200 in the rect function call. Select Add Argument from the Code Tools menu. Click on the single option from the results list.</li><li class=\"_3\">Box-Select Mode: <br><br> Hold down the Shift key and click on the number 200 in the rect function call. Under the Add Argument tool in the pop-up menu, select the single result option.</li></ul><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program. Feel free to manually edit the x-position of the squares after you have done so!</p>
 
 """
 
 tutorial_step_17 =
- """; Here are some friends for our redSquare function.
-; However, a lot of the code from redSquare has been
-; duplicated in the two new functions; in fact, the
-; only thing that has changed is the color.
-
+ """
 (def redSquare
   (\\(w x y)
     (rect \"salmon\" x y w w)))
@@ -5906,58 +5416,12 @@ tutorial_step_17 =
     [(redSquare 100 80 50)
      (yellowSquare 130 65 160)
      (greenSquare 160 50 300)]))
-
-; Sketch-n-Sketch provides a Merge Expressions code
-; tool that we can use in this situation to abstract
-; much of the repeated code into a helper function.
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select the entire (def redSquare ...)
-; _1   expression starting from its opening
-; _1   parenthesis until its closing parenthesis.
-; _1   Right click the editor and select Merge
-; _1   Expressions into Function from the pop-up
-; _1   menu. Hover over the keyword \"def\" in (def
-; _1   greenSquare ...), then click. Hover over the
-; _1   keyword \"def\" in (def yellowSquare ...), then
-; _1   click. Click on the single option from the
-; _1   results list.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select the entire (def redSquare ...)
-; _2   expression starting from its opening
-; _2   parenthesis until its closing parenthesis.
-; _2   Select Merge Expressions into Function from
-; _2   the Code Tools menu. Hover over the keyword
-; _2   \"def\" in (def greenSquare ...), then click.
-; _2   Hover over the keyword \"def\" in (def
-; _2   yellowSquare ...), then click. Click on the
-; _2   single option from the results list.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key and hover over the
-; _3   keyword \"def\" in (def redSquare ...), then
-; _3   click. Hover over the keyword \"def\" in (def
-; _3   greenSquare ...), then click. Hover over the
-; _3   keyword \"def\" in (def yellowSquare ...), then
-; _3   click. Release the Shift key. Under the Merge
-; _3   Expressions into Function tool in the pop-up
-; _3   menu, select the single result option.
-; _3
-; _end
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+; <!-- PROSE --> <p>Here are some friends for our redSquare function. However, a lot of the code from redSquare has been duplicated in the two new functions; in fact, the only thing that has changed is the color.</p><p>Sketch-n-Sketch provides a Merge Expressions code tool that we can use in this situation to abstract much of the repeated code into a helper function.</p><ul class=\"_123\"><li class=\"_1\">Text-Select Mode (right-click menu): <br><br> Text-select the entire (def redSquare ...) expression starting from its opening parenthesis until its closing parenthesis. Right click the editor and select Merge Expressions into Function from the pop-up menu. Hover over the keyword &quot;def&quot; in (def greenSquare ...), then click. Hover over the keyword &quot;def&quot; in (def yellowSquare ...), then click. Click on the single option from the results list.</li><li class=\"_2\">Text-Select Mode (Code Tools menu): <br><br> Text-select the entire (def redSquare ...) expression starting from its opening parenthesis until its closing parenthesis. Select Merge Expressions into Function from the Code Tools menu. Hover over the keyword &quot;def&quot; in (def greenSquare ...), then click. Hover over the keyword &quot;def&quot; in (def yellowSquare ...), then click. Click on the single option from the results list.</li><li class=\"_3\">Box-Select Mode: <br><br> Hold down the Shift key and hover over the keyword &quot;def&quot; in (def redSquare ...), then click. Hover over the keyword &quot;def&quot; in (def greenSquare ...), then click. Hover over the keyword &quot;def&quot; in (def yellowSquare ...), then click. Release the Shift key. Under the Merge Expressions into Function tool in the pop-up menu, select the single result option.</li></ul><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</p>
 
 """
 
 tutorial_step_18 =
- """; A couple more things before we're done! We'd like to
-; reorder the function definitions to match the order
-; in which we use them, just for the sake of consistency
-; (red, yellow, then green).
-
+ """
 (def square (\\fill
   (\\(w x y)
     (rect fill x y w w))))
@@ -5976,50 +5440,12 @@ tutorial_step_18 =
     [(redSquare 100 80 50)
      (yellowSquare 130 65 160)
      (greenSquare 160 50 300)]))
-
-; To do so, we can use the Move Definition tool.
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select the entire (def greenSquare ...)
-; _1   expression starting from its opening
-; _1   parenthesis until its closing parenthesis.
-; _1   Right click the editor and select Move
-; _1   Definition from the pop-up menu. Click on the
-; _1   target position after the yellowSquare
-; _1   definition (before the main definition).
-; _1   Click on the single result option.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select the entire (def greenSquare ...)
-; _2   expression starting from its opening
-; _2   parenthesis until its closing parenthesis.
-; _2   Select Move Definition from the Code Tools
-; _2   menu. Click on the target position after the
-; _2   yellowSquare definition (before the main
-; _2   definition). Click on the single result option.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key and hover over the
-; _3   keyword \"def\" in (def greenSquare ...), then
-; _3   click. Next, click on the target position
-; _3   after the yellowSquare definition (before the
-; _3   main definition). Release the Shift key.
-; _3   Under the Move Definition tool in the pop-up
-; _3   menu, select the single result option.
-; _3
-; _end
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+; <!-- PROSE --> <p>A couple more things before we're done! We'd like to reorder the function definitions to match the order in which we use them, just for the sake of consistency (red, yellow, then green).</p><p>To do so, we can use the Move Definition tool.</p><ul class=\"_123\"><li class=\"_1\">Text-Select Mode (right-click menu): <br><br> Text-select the entire (def greenSquare ...) expression starting from its opening parenthesis until its closing parenthesis. Right click the editor and select Move Definition from the pop-up menu. Click on the target position after the yellowSquare definition (before the main definition). Click on the single result option.</li><li class=\"_2\">Text-Select Mode (Code Tools menu): <br><br> Text-select the entire (def greenSquare ...) expression starting from its opening parenthesis until its closing parenthesis. Select Move Definition from the Code Tools menu. Click on the target position after the yellowSquare definition (before the main definition). Click on the single result option.</li><li class=\"_3\">Box-Select Mode: <br><br> Hold down the Shift key and hover over the keyword &quot;def&quot; in (def greenSquare ...), then click. Next, click on the target position after the yellowSquare definition (before the main definition). Release the Shift key. Under the Move Definition tool in the pop-up menu, select the single result option.</li></ul><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</p>
 
 """
 
 tutorial_step_19 =
- """; Lastly, because the three definitions are short,
-; we'd like to put them in a single tuple definition
-; to save some space.
-
+ """
 (def square (\\fill
   (\\(w x y)
     (rect fill x y w w))))
@@ -6038,93 +5464,14 @@ tutorial_step_19 =
     [(redSquare 100 80 50)
      (yellowSquare 130 65 160)
      (greenSquare 160 50 300)]))
-
-; To do so, we can use the Move Definition tool again.
-; This time, however, we will select only variable
-; names (rather than entire (def ...) expressions) and
-; target positions next to variables (rather than
-; above or below (def ...) expressions).
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select \"redSquare\" in the
-; _1   (def redSquare ...) expression.
-; _1   Right click the editor and select Move
-; _1   Definition from the pop-up menu. Click on
-; _1   \"yellowSquare\" in the (def yellowSquare ...)
-; _1   definition. And click the space between the
-; _1   keyword \"def\" and the variable greenSquare.
-; _1   Click on the single result option.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select \"redSquare\" in the
-; _2   (def redSquare ...) expression.
-; _2   Select Move Definition from the Code Tools
-; _2   menu. Click on \"yellowSquare\" in the
-; _2   (def yellowSquare ...). And click the
-; _2   space between the keyword \"def\" and the
-; _2   variable greenSquare.
-; _2   Click on the single result option.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key and hover over
-; _3   \"redSquare\" in (def redSquare ...), then
-; _3   click. Next, hover over \"yellowSquare\" in
-; _3   (def yellowSquare ...), then click. Then,
-; _3   click on the space between the keyword \"def\"
-; _3   and the variable greenSquare. Under the
-; _3   Move Definition tool in the pop-up menu,
-; _3   select the single result option.
-; _3
-; _end
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+; <!-- PROSE --> <p>Lastly, because the three definitions are short, we'd like to put them in a single tuple definition to save some space.</p><p>To do so, we can use the Move Definition tool again. This time, however, we will select only variable names (rather than entire (def ...) expressions) and target positions next to variables (rather than above or below (def ...) expressions).</p><ul class=\"_123\"><li class=\"_1\">Text-Select Mode (right-click menu): <br><br> Text-select &quot;redSquare&quot; in the (def redSquare ...) expression. Right click the editor and select Move Definition from the pop-up menu. Click on &quot;yellowSquare&quot; in the (def yellowSquare ...) definition. And click the space between the keyword &quot;def&quot; and the variable greenSquare. Click on the single result option.</li><li class=\"_2\">Text-Select Mode (Code Tools menu): <br><br> Text-select &quot;redSquare&quot; in the (def redSquare ...) expression. Select Move Definition from the Code Tools menu. Click on &quot;yellowSquare&quot; in the (def yellowSquare ...). And click the space between the keyword &quot;def&quot; and the variable greenSquare. Click on the single result option.</li><li class=\"_3\">Box-Select Mode: <br><br> Hold down the Shift key and hover over &quot;redSquare&quot; in (def redSquare ...), then click. Next, hover over &quot;yellowSquare&quot; in (def yellowSquare ...), then click. Then, click on the space between the keyword &quot;def&quot; and the variable greenSquare. Under the Move Definition tool in the pop-up menu, select the single result option.</li></ul><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</p>
 
 """
 
 tutorial_step_20 =
- """; As a final recap, there are two general mechanisms
-; for invoking code transformation tools:
-;
-; _begin
-; _1 * TEXT-SELECT MODE ----------------------------
-; _1   (either right-click menu or Code Tools menu)
-; _1
-; _1   1.  Text-select something in the code.
-; _1   2a. Right-click and select a tool from pop-up
-; _1       menu, or
-; _1   2b. Select a tool from the Code Tools menu.
-; _1   3.  Follow any instructions and finish.
-; _1
-; _1   In Text-Select Mode, a SINGLE, primary
-; _1   argument is selected FIRST, then the desired
-; _1   code tool is selected, and then the rest
-; _1   of the arguments are selected AFTERWARD (as
-; _1   required by the configuration panel).
-; _1
-; _2 * BOX-SELECT MODE -----------------------------
-; _2
-; _2   1.  Hold down Shift, hover and click boxes
-; _2       for all items involved for the desired
-; _2       code tool (then release Shift key).
-; _2   2.  Select a tool from pop-up menu.
-; _2   3.  Follow any instructions and finish.
-; _2
-; _2   In Box-Select Mode, ALL arguments are
-; _2   selected first, BEFORE the desired code
-; _2   tool is selected.
-; _2
-; _end
-; Note that regardless of the method of selection,
-; the Escape key will always deselect all selected
-; boxes and cancel any pop-up menus.
-;
-; EXERCISE: Try the Help menu; you'll find these
-; summary instructions there.
-
-(def main
+ """(def main
   (draw []))
+; <!-- PROSE --> <p>As a final recap, there are two general mechanisms for invoking code transformation tools:</p><ul class=\"_12\"><li class=\"_1\"><p><b>TEXT-SELECT MODE</b> (either right-click menu or Code Tools menu) <br><br></p><p>(Step 1) Text-select something in the code. <br> (Step 2a) Right-click and select a tool from pop-up menu, or <br> (Step 2b) Select a tool from the Code Tools menu. <br> (Step 3) Follow any instructions and finish. <br></p><br> In Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired code tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</li><li class=\"_2\"><p><b>BOX-SELECT MODE</b> <br><br></p><p>(Step 1) Hold down Shift, hover and click boxes for all items involved for the desired code tool (then release Shift key). <br> (Step 2) Select a tool from pop-up menu. <br> (Step 3) Follow any instructions and finish. <br></p><br> In Box-Select Mode, ALL arguments are selected first, BEFORE the desired code tool is selected.</li></ul><p>Note that regardless of the method of selection, the Escape key will always deselect all selected boxes and cancel any pop-up menus.</p><p>EXERCISE: Try the Help menu; you'll find these summary instructions there.</p>
 
 """
 
@@ -6142,25 +5489,17 @@ task_one_rectangle =
 (def main
   (draw [ rect1 ]))
 
-; Goals:
-; 
-; * The programmer intended the rectangle to be 250
-;   pixels tall and 80 pixels wide, but the height and
-;   width arguments to rect are in the wrong order.
-;   Swap them.
-; 
-; * Rearrange the five variable definitions into a
-;   single tuple definition. The order of variables
-;   should match the order of arguments to rect.
-; 
+
+
 ; The final program should look like:
-;
+; 
 ;   (def rect1
 ;     (let [fill x y width height] [\"black\" 20 20 80 250]
 ;       (rect fill x y width height)))
 ;   
 ;   (def main
 ;     (draw [ rect1 ]))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>The programmer intended the rectangle to be 250 pixels tall and 80 pixels wide, but the height and width arguments to rect are in the wrong order. Swap them.</p></li><li><p>Rearrange the five variable definitions into a single tuple definition. The order of variables should match the order of arguments to rect.</p></li></ul>
 
 """
 
@@ -6181,14 +5520,8 @@ task_three_rectangles =
 (def main
   (draw [ rect1 rect2 rect3 ]))
 
-; Goals:
-;
-; * The three rectangle definitions share a lot of
-;   identical code. Create a function rect_50_70 that
-;   generates a 50 x 70 rectangle with color and
-;   position parameters. Then define rect1, rect2, and
-;   rect3 in terms of rect_50_70.
-; 
+
+
 ; The final program should look something like:
 ; 
 ;   (def rect_50_70 (\\(fill2 x2 y2)
@@ -6206,6 +5539,7 @@ task_three_rectangles =
 ;   
 ;   (def main
 ;     (draw [ rect1 rect2 rect3 ]))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li>The three rectangle definitions share a lot of identical code. Create a function rect_50_70 that generates a 50 x 70 rectangle given color and position parameters, and define rect1, rect2, and rect3 in terms of rect_50_70.</li></ul>
 
 """
 
@@ -6221,19 +5555,8 @@ task_target =
 (def main
   (draw (target 1 4)))
 
-; Goals:
-;
-; * Remove the startIndex argument; its value should
-;   always be 1.
-;   
-; * Rename endIndex to numRings.
-;   
-; * Move the ring function inside the target
-;   definition.
-;   
-; * Add the center position and ring width as
-;   arguments to target.
-;   
+
+
 ; The final program should look like:
 ;
 ;   (def target (\\(cx cy num numRings)
@@ -6244,56 +5567,16 @@ task_target =
 ;
 ;   (def main
 ;     (draw (target 250 250 50 4)))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Remove the startIndex argument; its value should always be 1.</p></li><li><p>Rename endIndex to numRings.</p></li><li><p>Move the ring function inside the target definition.</p></li><li><p>Add the center position and ring width as arguments to target.</p></li></ul>
 
 """
 
 task_battery =
  """
-(def [x y w h] [17 15 172 100])
-
-(def bodyRectangle
-  (rectWithBorder \"black\" 5 \"none\" x y w h))
-
-(def juiceRectangle
-  (let percentRemaining 0.30
-  (let fill
-    (if (< percentRemaining 0.2) \"red\"
-    (if (< percentRemaining 0.4) \"orange\"
-    (if (= percentRemaining 1)   \"green\"
-                                 \"black\")))
-  (rect fill x y (* percentRemaining w) h))))
-  
-(def battery
-  [juiceRectangle bodyRectangle])
-
+; TODO replace battery task
 (def main
-  (draw battery))
-
-; Goals:
-; 
-; * Turn battery into a function that is parameterized
-;   over the location, size, and remaining percentage,
-;   and then draws both rectangles.
-;
-; The final program should look something like:
-;
-;   (def battery (\\(x y w h percentRemaining)
-;   
-;     (let bodyRectangle
-;       (rectWithBorder \"black\" 5 \"none\" x y w h)
-;   
-;     (let juiceRectangle
-;       (let fill
-;         (if (< percentRemaining 0.2) \"red\"
-;         (if (< percentRemaining 0.4) \"orange\"
-;         (if (= percentRemaining 1)   \"green\"
-;                                      \"black\")))
-;       (rect fill x y (* percentRemaining w) h))
-;
-;     [juiceRectangle bodyRectangle]))))
-;   
-;   (def main
-;     (draw (battery 17 15 172 100 0.3)))
+  (draw []))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p>
 
 """
 
@@ -6309,22 +5592,8 @@ task_lambda =
 (def main
   (draw logo))
 
-; Goals:
-; 
-; * The initial program draws a 100 x 120 pixel
-;   lambda icon at xy-position (20, 30), but the
-;   hard-coded constants requires many changes if
-;   we want to draw the icon at a different position
-;   or change the style of the lines.
-;   
-;   Define and use four new variables for the x-position,
-;   y-position, width, and height of the logo. These
-;   variables should be defined in a single 4-tuple.
-;
-;   Define and use two new variables for the color and
-;   width of the lines. These variables should be defined
-;   in a single 2-tuple.
-;
+
+
 ; The final program should look something like:
 ;
 ;   (def [x y w h] [20 30 100 120])
@@ -6338,6 +5607,7 @@ task_lambda =
 ;   
 ;   (def main
 ;     (draw logo))
+; <!-- PROSE --> <p>The initial program draws a 100 x 120 pixel lambda icon at xy-position (20, 30), but the hard-coded constants requires many changes if we want to draw the icon at a different position or change the style of the lines.</p><p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Define and use four new variables for the x-position, y-position, width, and height of the logo. These variables should be defined in a single 4-tuple.</p></li><li><p>Define and use two new variables for the color and width of the lines. These variables should be defined in a single 2-tuple.</p></li></ul>
 
 """
 

@@ -1,15 +1,3 @@
-; In the final section, you will see two examples
-; programs, each with a list of editing tasks. As
-; before, you will _not_ be able to use text editing.
-; But, this time, you will be able to use _either_:
-;
-;  - code tools with Text-Select Mode, or
-;  - code tools with Box-Select Mode.
-;
-; It's up to you. And this time, you will work with
-; each program just once.
-;
-; Click Next Step to proceed.
-
 (def main
   (draw []))
+; <!-- PROSE --> <p>In the final section, you will see two examples programs, each with a list of editing tasks. As before, you will <em>not</em> be able to use text editing. But, this time, you will be able to use <em>either</em>:</p><ul><li>code tools with Text-Select Mode, or</li><li>code tools with Box-Select Mode.</li></ul><p>It's up to you. And this time, you will work with each program just once.</p><p>Click Next Step to proceed.</p>

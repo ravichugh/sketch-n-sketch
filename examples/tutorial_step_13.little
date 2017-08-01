@@ -1,6 +1,3 @@
-; Next, we will use the Create Function tool to
-; turn this definition into a function so that it
-; can be called to create more red squares easily.
 
 (def redSquare
   (let [x y] [100 250]
@@ -9,41 +6,4 @@
 
 (def main
   (draw [redSquare]))
-
-; We can invoke Create Function in three ways:
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select the entire (def redSquare ...)
-; _1   expression starting from its opening
-; _1   parenthesis until its closing parenthesis.
-; _1   Right click the editor and select Create
-; _1   Function from the pop-up menu.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select the entire (def redSquare ...)
-; _2   expression starting from its opening
-; _2   parenthesis until its closing parenthesis.
-; _2   Select Create Function from the Code Tools
-; _2   menu.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key, hover over the
-; _3   keyword "def" in (def redSquare ...), then
-; _3   click. Release the Shift key. Select Create
-; _3   Function from the pop-up menu.
-; _3
-; _end
-; No matter how the Create Function tool is invoked,
-; there are two options in the results list that we
-; can select from. Because the point of this
-; function is to draw a RED square, we'll pick the
-; option that does not make color one of the
-; resulting function arguments.
-;
-; Notice how the reference to this expression in
-; main has now turned into a function call.
-;
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+; <!-- PROSE --> <p>Next, we will use the Create Function tool to turn this definition into a function so that it can be called to create more red squares easily.</p><p>We can invoke Create Function in three ways:</p><ul class="_123"><li class="_1">Text-Select Mode (right-click menu): <br><br> Text-select the entire (def redSquare ...) expression starting from its opening parenthesis until its closing parenthesis. Right click the editor and select Create Function from the pop-up menu.</li><li class="_2">Text-Select Mode (Code Tools menu): <br><br> Text-select the entire (def redSquare ...) expression starting from its opening parenthesis until its closing parenthesis. Select Create Function from the Code Tools menu.</li><li class="_3">Box-Select Mode: <br><br> Hold down the Shift key, hover over the keyword &quot;def&quot; in (def redSquare ...), then click. Release the Shift key. Select Create Function from the pop-up menu.</li></ul><p>No matter how the Create Function tool is invoked, there are two options in the results list that we can select from. Because the point of this function is to draw a RED square, we'll pick the option that does not make color one of the resulting function arguments.</p><p>Notice how the reference to this expression in main has now turned into a function call.</p><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</p>

@@ -10,22 +10,14 @@
 (def main
   (draw [ rect1 ]))
 
-; Goals:
-; 
-; * The programmer intended the rectangle to be 250
-;   pixels tall and 80 pixels wide, but the height and
-;   width arguments to rect are in the wrong order.
-;   Swap them.
-; 
-; * Rearrange the five variable definitions into a
-;   single tuple definition. The order of variables
-;   should match the order of arguments to rect.
-; 
+
+
 ; The final program should look like:
-;
+; 
 ;   (def rect1
 ;     (let [fill x y width height] ["black" 20 20 80 250]
 ;       (rect fill x y width height)))
 ;   
 ;   (def main
 ;     (draw [ rect1 ]))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>The programmer intended the rectangle to be 250 pixels tall and 80 pixels wide, but the height and width arguments to rect are in the wrong order. Swap them.</p></li><li><p>Rearrange the five variable definitions into a single tuple definition. The order of variables should match the order of arguments to rect.</p></li></ul>

@@ -318,6 +318,23 @@ a {
   /* left: DYNAMIC */
 }
 
+.prose-panel > p {
+  font-size: 18px;
+  padding: 0 0 10px 0;
+}
+
+.prose-panel > ul > li {
+  font-size: 18px;
+  padding: 0 0 1em 2em;
+  display: list-item;
+  list-style: disc inside;
+  text-indent: -1.5em;
+}
+
+.prose-panel > ul > li > p {
+  display: inline;
+}
+
 /******************************************************************************
  * Code Panel                                                                 *
  ******************************************************************************/

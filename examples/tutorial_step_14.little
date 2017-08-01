@@ -1,5 +1,3 @@
-; Let's say we've now coded up a nice piece of art
-; using our newly-defined function:
 
 (def redSquare
   (\(x y w)
@@ -10,48 +8,4 @@
     [(redSquare 200 250 80)
      (redSquare 200 100 30)
      (redSquare 200 400 150)]))
-
-; However, we now want to change how the redSquare
-; function is called; instead of the size of the
-; square being the last argument that we pass in,
-; we'd prefer if it were the first.
-;
-; To do this, we can use the Reorder Arguments tool.
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select the argument w in the list of
-; _1   arguments after the backslash in the
-; _1   redSquare function definition. Right click
-; _1   the editor and select Reorder Arguments from
-; _1   the pop-up menu. Click on the target position
-; _1   that lies before the first argument (x) and
-; _1   after the opening parenthesis of the argument
-; _1   list. Click on the single option from the
-; _1   results list.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select the argument w in the list of
-; _2   arguments after the backslash in the
-; _2   redSquare function definition. Select Reorder
-; _2   Arguments from the Code Tools menu. Click on
-; _2   the target position that lies before the
-; _2   first argument (x) and after the opening
-; _2   parenthesis of the argument list. Click on
-; _2   the single option from the results list.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key and click on the
-; _3   argument w in the list of arguments after the
-; _3   backslash in the redSquare function
-; _3   definition. Then, click on the target
-; _3   position that lies before the first argument
-; _3   (x) and after the opening parenthesis of the
-; _3   argument list. Release the Shift key. Under
-; _3   the Create Function tool in the pop-up menu,
-; _3   select the single option from the results list.
-; _3
-; _end
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+; <!-- PROSE --> <p>Let's say we've now coded up a nice piece of art using our newly-defined function:</p><p>However, we now want to change how the redSquare function is called; instead of the size of the square being the last argument that we pass in, we'd prefer if it were the first.</p><p>To do this, we can use the Reorder Arguments tool.</p><ul class="_123"><li class="_1">Text-Select Mode (right-click menu): <br><br> Text-select the argument w in the list of arguments after the backslash in the redSquare function definition. Right click the editor and select Reorder Arguments from the pop-up menu. Click on the target position that lies before the first argument (x) and after the opening parenthesis of the argument list. Click on the single option from the results list.</li><li class="_2">Text-Select Mode (Code Tools menu): <br><br> Text-select the argument w in the list of arguments after the backslash in the redSquare function definition. Select Reorder Arguments from the Code Tools menu. Click on the target position that lies before the first argument (x) and after the opening parenthesis of the argument list. Click on the single option from the results list.</li><li class="_3">Box-Select Mode: <br><br> Hold down the Shift key and click on the argument w in the list of arguments after the backslash in the redSquare function definition. Then, click on the target position that lies before the first argument (x) and after the opening parenthesis of the argument list. Release the Shift key. Under the Create Function tool in the pop-up menu, select the single option from the results list.</li></ul><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</p>

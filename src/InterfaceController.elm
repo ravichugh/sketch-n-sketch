@@ -119,6 +119,7 @@ import Dict exposing (Dict)
 import Set
 import String
 import Char
+import Regex exposing (HowMany(All), regex)
 
 --Html Libraries
 import Html
@@ -2006,6 +2007,13 @@ msgUserStudyNext = msgUserStudyStep "New: User Study Next" 1
 msgUserStudyPrev = msgUserStudyStep "New: User Study Prev" (-1)
 
 enableFeaturesForEditorMode newState m =
+  let
+    replacePlaceholderInstructionsWith s =
+      Maybe.map
+        (Regex.replace All (regex "PLACEHOLDER INSTRUCTIONS") (always s))
+        m.prose
+  in
+
   case UserStudy.getEditorMode newState of
     -- TODO remove showDeucePanel and showDeuceRightClickMenu
     -- TODO maybe use enableEditCodeInMenuBar instead of show
@@ -2016,6 +2024,7 @@ enableFeaturesForEditorMode newState m =
           , showEditCodeInMenuBar = False
           , showDeucePanel = False
           , showDeuceRightClickMenu = False
+          , prose = Just UserStudy.readOnlyProse
           }
     TextEditOnly ->
       { m | enableTextEdits = Updatable.create True
@@ -2032,6 +2041,7 @@ enableFeaturesForEditorMode newState m =
           , showEditCodeInMenuBar = False
           , showDeucePanel = True
           , showDeuceRightClickMenu = False
+          , prose = replacePlaceholderInstructionsWith UserStudy.boxSelectOnlyProse
           }
     TextSelectOnly ->
       { m | enableTextEdits = Updatable.create False
@@ -2040,6 +2050,7 @@ enableFeaturesForEditorMode newState m =
           , showEditCodeInMenuBar = True
           , showDeucePanel = False
           , showDeuceRightClickMenu = True
+          , prose = replacePlaceholderInstructionsWith UserStudy.textSelectOnlyProse
           }
     CodeToolsOnly ->
       { m | enableTextEdits = Updatable.create False
@@ -2048,6 +2059,7 @@ enableFeaturesForEditorMode newState m =
           , showEditCodeInMenuBar = True
           , showDeucePanel = True
           , showDeuceRightClickMenu = True
+          , prose = replacePlaceholderInstructionsWith UserStudy.codeToolsOnlyProse
           }
     AllFeatures ->
       { m | enableTextEdits = Updatable.create True

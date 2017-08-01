@@ -1,7 +1,3 @@
-; Here are some friends for our redSquare function.
-; However, a lot of the code from redSquare has been
-; duplicated in the two new functions; in fact, the
-; only thing that has changed is the color.
 
 (def redSquare
   (\(w x y)
@@ -20,46 +16,4 @@
     [(redSquare 100 80 50)
      (yellowSquare 130 65 160)
      (greenSquare 160 50 300)]))
-
-; Sketch-n-Sketch provides a Merge Expressions code
-; tool that we can use in this situation to abstract
-; much of the repeated code into a helper function.
-;
-; _begin
-; _1 * Text-Select Mode (right-click menu):
-; _1   Text-select the entire (def redSquare ...)
-; _1   expression starting from its opening
-; _1   parenthesis until its closing parenthesis.
-; _1   Right click the editor and select Merge
-; _1   Expressions into Function from the pop-up
-; _1   menu. Hover over the keyword "def" in (def
-; _1   greenSquare ...), then click. Hover over the
-; _1   keyword "def" in (def yellowSquare ...), then
-; _1   click. Click on the single option from the
-; _1   results list.
-; _1
-; _2 * Text-Select Mode (Code Tools menu):
-; _2   Text-select the entire (def redSquare ...)
-; _2   expression starting from its opening
-; _2   parenthesis until its closing parenthesis.
-; _2   Select Merge Expressions into Function from
-; _2   the Code Tools menu. Hover over the keyword
-; _2   "def" in (def greenSquare ...), then click.
-; _2   Hover over the keyword "def" in (def
-; _2   yellowSquare ...), then click. Click on the
-; _2   single option from the results list.
-; _2
-; _3 * Box-Select Mode:
-; _3   Hold down the Shift key and hover over the
-; _3   keyword "def" in (def redSquare ...), then
-; _3   click. Hover over the keyword "def" in (def
-; _3   greenSquare ...), then click. Hover over the
-; _3   keyword "def" in (def yellowSquare ...), then
-; _3   click. Release the Shift key. Under the Merge
-; _3   Expressions into Function tool in the pop-up
-; _3   menu, select the single result option.
-; _3
-; _end
-; EXERCISE: Perform the transformation with each of
-; the three interactions. Use Undo after each to
-; reset the program.
+; <!-- PROSE --> <p>Here are some friends for our redSquare function. However, a lot of the code from redSquare has been duplicated in the two new functions; in fact, the only thing that has changed is the color.</p><p>Sketch-n-Sketch provides a Merge Expressions code tool that we can use in this situation to abstract much of the repeated code into a helper function.</p><ul class="_123"><li class="_1">Text-Select Mode (right-click menu): <br><br> Text-select the entire (def redSquare ...) expression starting from its opening parenthesis until its closing parenthesis. Right click the editor and select Merge Expressions into Function from the pop-up menu. Hover over the keyword &quot;def&quot; in (def greenSquare ...), then click. Hover over the keyword &quot;def&quot; in (def yellowSquare ...), then click. Click on the single option from the results list.</li><li class="_2">Text-Select Mode (Code Tools menu): <br><br> Text-select the entire (def redSquare ...) expression starting from its opening parenthesis until its closing parenthesis. Select Merge Expressions into Function from the Code Tools menu. Hover over the keyword &quot;def&quot; in (def greenSquare ...), then click. Hover over the keyword &quot;def&quot; in (def yellowSquare ...), then click. Click on the single option from the results list.</li><li class="_3">Box-Select Mode: <br><br> Hold down the Shift key and hover over the keyword &quot;def&quot; in (def redSquare ...), then click. Hover over the keyword &quot;def&quot; in (def greenSquare ...), then click. Hover over the keyword &quot;def&quot; in (def yellowSquare ...), then click. Release the Shift key. Under the Merge Expressions into Function tool in the pop-up menu, select the single result option.</li></ul><p>EXERCISE: Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</p>

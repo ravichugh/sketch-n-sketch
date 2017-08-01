@@ -1,26 +1,6 @@
-; We use the term "tuple" to describe a list with a
-; fixed number of elements. For example, the list
-; expression [1 "two"] below is a 2-tuple, that is,
-; a list with exactly two elements.
 
 (def [one two] [1 "two"])
 
 (def main
   (draw [(show [one two one two])]))
-
-; Notice how we access the components of tuple
-; expressions with tuple patterns (instead of just
-; plain variables) on the left-hand side of
-; definitions. The tuple pattern [one two] above
-; matches a list with exactly, binding the name one
-; to the first element and two to the second.
-;
-; If the tuple pattern and tuple expression do not
-; have the same number of elements, Sketch-n-Sketch
-; throws a run-time error.
-;
-; EXERCISE: Add a third variable to the tuple
-; pattern and re-run.
-;
-; EXERCISE: Remove one of the expressions from the
-; list expression and re-run.
+; <!-- PROSE --> <p>We use the term &quot;tuple&quot; to describe a list with a fixed number of elements. For example, the list expression [1 &quot;two&quot;] below is a 2-tuple, that is, a list with exactly two elements.</p><p>Notice how we access the components of tuple expressions with tuple patterns (instead of just plain variables) on the left-hand side of definitions. The tuple pattern [one two] above matches a list with exactly, binding the name one to the first element and two to the second.</p><p>If the tuple pattern and tuple expression do not have the same number of elements, Sketch-n-Sketch throws a run-time error.</p><p>EXERCISE: Add a third variable to the tuple pattern and re-run.</p><p>EXERCISE: Remove one of the expressions from the list expression and re-run.</p>
