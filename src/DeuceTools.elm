@@ -1231,6 +1231,7 @@ addArgumentsTool model selections =
           commonAncestors (\e -> List.member e.val.eid eids) model.inputExp
           |> List.filter isFunc
         in
+        -- Is each target in an arg list? (Filtered to only zero or one target below in targetPPIdsToTry.)
         let targetPPIdsWithValidity =
           patTargets
           |> List.map patTargetPositionToTargetPathedPatId
@@ -1281,10 +1282,12 @@ addArgumentsTool model selections =
       ( _, _, [], firstArgSourcePathedPatId::restArgSourcePathedPatId, [], [], patTargets) ->
         let argSourcePathedPatIds = firstArgSourcePathedPatId::restArgSourcePathedPatId in
         let argSourceScopeEIds = argSourcePathedPatIds |> List.map pathedPatIdToScopeEId in
+        let areSourcesAllLets = argSourceScopeEIds |> List.all (findExpByEId model.inputExp >> Maybe.map isLet >> (==) (Just True)) in
         let enclosingFuncs =
           commonAncestors (\e -> List.member e.val.eid argSourceScopeEIds) model.inputExp
           |> List.filter isFunc
         in
+        -- Is each target in an arg list? (Filtered to only zero or one target below in targetPPIdsToTry.)
         let targetPPIdsWithValidity =
           patTargets
           |> List.map patTargetPositionToTargetPathedPatId
@@ -1306,8 +1309,8 @@ addArgumentsTool model selections =
             [(targetPPId, True)] -> [targetPPId]
             _                    -> []
         in
-        case (argSourcePathedPatIds, targetPPIdsToTry) of
-          ([argSourcePathedPatId], _::_) ->
+        case (argSourcePathedPatIds, targetPPIdsToTry, areSourcesAllLets) of
+          ([argSourcePathedPatId], _::_, True) ->
             { name = "Add Argument" -- Fowler calls this "Add Parameter"
             , func =
                 Just <|
@@ -1318,7 +1321,7 @@ addArgumentsTool model selections =
             , id = id
             }
 
-          (_::_::_, _::_) ->
+          (_::_::_, _::_, True) ->
             { name = "Add Arguments" -- Fowler calls this "Add Parameter"
             , func =
                 Just <|
