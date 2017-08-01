@@ -280,7 +280,10 @@ outputPanel model =
         - toolPanel.marginLeft
         - x
     height =
-      proseResizerBB.y - mainPanelY
+      if UserStudy.enabled then
+        proseResizerBB.y - mainPanelY
+      else
+        dynamicContentHeight model
   in
     box x y width height
 
