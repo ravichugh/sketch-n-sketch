@@ -1468,10 +1468,21 @@ reorderArgumentsTool model selections =
         }
       ]
 
-    func =
+    (func, possibility) =
       case selections of
-        (_, _, [], [], _, _, _) ->
-          Nothing
+        (_, _, [], [], [], [], []) ->
+          (Nothing, Possible)
+
+        (_, _, [], pathedPatIds, [], [], []) ->
+          let scopeEIds = List.map pathedPatIdToScopeEId pathedPatIds in
+          if Utils.allSame scopeEIds && (scopeEIds |> List.all (findExpByEId model.inputExp >> Maybe.map isFunc >> (==) (Just True)))
+          then (Nothing, Possible)
+          else (Nothing, Impossible)
+
+        (_, _, eids, [], [], [], []) ->
+          case eids |> List.map (LangTools.eidToMaybeCorrespondingArgumentPathedPatId model.inputExp) |> Utils.projJusts of
+            Just _  -> (Nothing, Possible)
+            Nothing -> (Nothing, Impossible)
 
         ([], [], [], pathedPatIds, [], [], [patTarget]) ->
           let targetPathedPatId = patTargetPositionToTargetPathedPatId patTarget in
@@ -1479,15 +1490,19 @@ reorderArgumentsTool model selections =
           let targetScopeEId    = pathedPatIdToScopeEId targetPathedPatId in
           case (Utils.allSame scopeIds, targetScopeEId |> findExpByEId model.inputExp |> Maybe.map (.val >> .e__)) of
             (True, Just (EFun _ _ _ _)) ->
-              Just <|
-                \() ->
-                  CodeMotion.reorderFunctionArgs
-                      targetScopeEId
-                      (List.map pathedPatIdToPath pathedPatIds)
-                      (pathedPatIdToPath targetPathedPatId)
-                      model.inputExp
+              ( Just <|
+                  \() ->
+                    CodeMotion.reorderFunctionArgs
+                        targetScopeEId
+                        (List.map pathedPatIdToPath pathedPatIds)
+                        (pathedPatIdToPath targetPathedPatId)
+                        model.inputExp
+
+              , Satisfied
+              )
+
             _ ->
-                Nothing
+                (Nothing, Impossible)
 
         (_, _, eids, [], [], [(beforeAfter, eid)], []) ->
           case eid::eids |> List.map (LangTools.eidToMaybeCorrespondingArgumentPathedPatId model.inputExp) |> Utils.projJusts of
@@ -1497,29 +1512,25 @@ reorderArgumentsTool model selections =
               let targetEId = pathedPatIdToScopeEId targetPathedPatId in
               case (Utils.allSame scopeIds, targetEId |> findExpByEId model.inputExp |> Maybe.map (.val >> .e__)) of
                 (True, Just (EFun _ _ _ _)) ->
-                  Just <|
-                    \() ->
-                      CodeMotion.reorderFunctionArgs
-                          targetEId
-                          (List.map pathedPatIdToPath pathedPatIds)
-                          (pathedPatIdToPath targetPathedPatId)
-                          model.inputExp
+                  ( Just <|
+                      \() ->
+                        CodeMotion.reorderFunctionArgs
+                            targetEId
+                            (List.map pathedPatIdToPath pathedPatIds)
+                            (pathedPatIdToPath targetPathedPatId)
+                            model.inputExp
+                  , Satisfied
+                  )
                 _ ->
-                  Nothing
+                (Nothing, Impossible)
             _ ->
-              Nothing
+              (Nothing, Impossible)
         _ ->
-          Nothing
+          (Nothing, Impossible)
   in
   { name = "Reorder Arguments"
   , func = func
-  , reqs =
-      case selections of
-        ([], [], [], [], [], [], []) -> makeReqs Possible
-        _ ->
-          case func of
-            Just _  -> makeReqs Satisfied
-            Nothing -> makeReqs Impossible
+  , reqs = makeReqs possibility
   , id = "reorderArguments"
   }
 
