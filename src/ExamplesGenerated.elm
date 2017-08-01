@@ -5311,7 +5311,7 @@ tutorial_step_09 =
 tutorial_step_10 =
  """
 (def blueSquare
-  (rect \"salmon\" 100 250 80 80))
+  (rect \"salmon\" 100 70 80 80))
 
 (def main
   (draw [blueSquare]))
@@ -5322,7 +5322,7 @@ tutorial_step_10 =
 tutorial_step_11 =
  """
 (def redSquare
-  (rect \"salmon\" 100 250 80 80))
+  (rect \"salmon\" 100 70 80 80))
 
 (def main
   (draw [redSquare]))
@@ -5333,7 +5333,7 @@ tutorial_step_11 =
 tutorial_step_12 =
  """
 (def redSquare
-  (let [x y] [100 250]
+  (let [x y] [100 70]
     (rect \"salmon\" x y 120 80)))
 
 (def main
@@ -5345,7 +5345,7 @@ tutorial_step_12 =
 tutorial_step_13 =
  """
 (def redSquare
-  (let [x y] [100 250]
+  (let [x y] [100 70]
   (let w 80
     (rect \"salmon\" x y w w))))
 
@@ -5363,9 +5363,9 @@ tutorial_step_14 =
 
 (def main
   (draw
-    [(redSquare 200 250 80)
-     (redSquare 200 100 30)
-     (redSquare 200 400 150)]))
+    [(redSquare 100 70 80)
+     (redSquare 100 160 30)
+     (redSquare 100 200 150)]))
 ; <!-- PROSE --> <p>Let's say we've now coded up a nice piece of art using our newly-defined function. However, we now want to change how the redSquare function is called; instead of the size of the square being the last argument that we pass in, we'd prefer if it were the first.</p><p>To do this, we can use the <em>Reorder Arguments</em> tool.</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select the argument <code>w</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Right-click the editor and select <em>Reorder Arguments</em> from the pop-up menu. Click on the target position that lies before the first argument (<code>x</code>) and after the opening parenthesis of the argument list. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select the argument <code>w</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Select <em>Reorder Arguments</em> from the Code Tools menu. Click on the target position that lies before the first argument (<code>x</code>) and after the opening parenthesis of the argument list. Click on the single option from the results list.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and click on the argument <code>w</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Then, click on the target position that lies before the first argument (<code>x</code>) and after the opening parenthesis of the argument list. Release the Shift key. Under the <em>Reorder Arguments</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</li></ol>
 
 """
@@ -5378,10 +5378,10 @@ tutorial_step_15 =
 
 (def main
   (draw
-    [(redSquare 80 200 250)
-     (redSquare 30 200 100)
-     (redSquare 150 200 400)]))
-; <!-- PROSE --> <p>While refactoring the function in the previous step, we notice something else we'd like to change; every single time our function is called, we always set the x-position to <code>200</code>, so we decide to just remove the x-position argument.</p><p>To do so, we can use the <em>Remove Argument</em> tool.</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select the argument <code>x</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Right-click the editor and select <em>Remove Argument</em> from the pop-up menu. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select the argument <code>x</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Select <em>Remove Argument</em> from the Code Tools menu. Click on the single option from the results list.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and click on the argument <code>x</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Release the Shift key. Under the <em>Remove Argument</em> tool in the pop-up menu, select the single option form the results listn.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</li></ol>
+    [(redSquare 80 100 70)
+     (redSquare 30 100 160)
+     (redSquare 150 100 200)]))
+; <!-- PROSE --> <p>While refactoring the function in the previous step, we notice something else we'd like to change; every single time our function is called, we always set the x-position to <code>100</code>, so we decide to just remove the x-position argument.</p><p>To do so, we can use the <em>Remove Argument</em> tool.</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select the argument <code>x</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Right-click the editor and select <em>Remove Argument</em> from the pop-up menu. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select the argument <code>x</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Select <em>Remove Argument</em> from the Code Tools menu. Click on the single option from the results list.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and click on the argument <code>x</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Release the Shift key. Under the <em>Remove Argument</em> tool in the pop-up menu, select the single option form the results listn.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</li></ol>
 
 """
 
@@ -5389,14 +5389,14 @@ tutorial_step_16 =
  """
 (def redSquare
   (\\(w y)
-    (rect \"salmon\" 200 y w w)))
+    (rect \"salmon\" 100 y w w)))
 
 (def main
   (draw
-    [(redSquare 80 250)
-     (redSquare 30 100)
-     (redSquare 150 400)]))
-; <!-- PROSE --> <p>On second thought... we realize we'd like to change the x-position of some of the boxes after all.</p><p>To do so, we can use the Add Argument tool.</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select the number <code>200</code> in the <code>rect</code> function call. Right-click the editor and select <em>Add Argument</em> from the pop-up menu. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select the number <code>200</code> in the <code>rect</code> function call. Select <em>Add Argument</em> from the Code Tools menu. Click on the single option from the results list.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and click on the number <code>200</code> in the <code>rect</code> function call. Under the <em>Add Argument</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program. Feel free to manually edit the x-position of the squares after you have done so!</li></ol>
+    [(redSquare 80 70)
+     (redSquare 30 160)
+     (redSquare 150 200)]))
+; <!-- PROSE --> <p>On second thought... we realize we'd like to change the x-position of some of the boxes after all.</p><p>To do so, we can use the Add Argument tool.</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select the number <code>100</code> in the <code>rect</code> function call. Right-click the editor and select <em>Add Argument</em> from the pop-up menu. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select the number <code>100</code> in the <code>rect</code> function call. Select <em>Add Argument</em> from the Code Tools menu. Click on the single option from the results list.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and click on the number <code>100</code> in the <code>rect</code> function call. Under the <em>Add Argument</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program. Feel free to manually edit the x-position of the squares after you have done so!</li></ol>
 
 """
 
@@ -5416,9 +5416,9 @@ tutorial_step_17 =
 
 (def main
   (draw
-    [(redSquare 100 80 50)
-     (yellowSquare 130 65 160)
-     (greenSquare 160 50 300)]))
+    [(redSquare 50 80 50)
+     (yellowSquare 70 70 110)
+     (greenSquare 90 60 190)]))
 ; <!-- PROSE --> <p>Here are some friends for our <code>redSquare</code> function. However, a lot of the code from <code>redSquare</code> has been duplicated in the two new functions; in fact, the only thing that has changed is the color.</p><p>Sketch-n-Sketch provides a <em>Merge Expressions</em> code tool that we can use in this situation to abstract much of the repeated code into a helper function.</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select the entire <code>(def redSquare ...)</code> expression starting from its opening parenthesis until its closing parenthesis. Right-click the editor and select <em>Merge Expressions into Function</em> from the pop-up menu. Hover over the keyword <code>def</code> in <code>(def greenSquare ...)</code>, then click. Hover over the keyword <code>def</code> in <code>(def yellowSquare ...)</code>, then click. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select the entire <code>(def redSquare ...)</code> expression starting from its opening parenthesis until its closing parenthesis. Select <em>Merge Expressions into Function</em> from the Code Tools menu. Hover over the keyword <code>def</code> in <code>(def greenSquare ...)</code>, then click. Hover over the keyword <code>def</code> in <code>(def   yellowSquare ...)</code>, then click. Click on the single option from the results list.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over the keyword <code>def</code> in <code>(def   redSquare ...)</code>, then click. Hover over the keyword <code>def</code> in <code>(def   greenSquare ...)</code>, then click. Hover over the keyword <code>def</code> in <code>(def   yellowSquare ...)</code>, then click. Release the Shift key. Under the <em>Merge Expressions into Function</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</li></ol>
 
 """
@@ -5440,9 +5440,9 @@ tutorial_step_18 =
 
 (def main
   (draw
-    [(redSquare 100 80 50)
-     (yellowSquare 130 65 160)
-     (greenSquare 160 50 300)]))
+    [(redSquare 50 80 50)
+     (yellowSquare 70 70 110)
+     (greenSquare 90 60 190)]))
 ; <!-- PROSE --> <p>A couple more things before we're done! We'd like to reorder the function definitions to match the order in which we use them, just for the sake of consistency (red, yellow, then green).</p><p>To do so, we can use the Move Definition tool.</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select the entire <code>(def greenSquare ...)</code> expression starting from its opening parenthesis until its closing parenthesis. Right-click the editor and select <em>Move Definition</em> from the pop-up menu. Click on the target position after the <code>yellowSquare</code> definition (before the <code>main</code> definition). Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select the entire <code>(def greenSquare ...)</code> expression starting from its opening parenthesis until its closing parenthesis. Select <em>Move Definition</em> from the Code Tools menu. Click on the target position after the <code>yellowSquare</code> definition (before the <code>main</code> definition). Click on the single option from the results list.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over the keyword <code>def</code> in <code>(def   greenSquare ...)</code>, then click. Then, click on the target position after the <code>yellowSquare</code> definition (before the <code>main</code> definition). Release the Shift key. Under the Move Definition tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</li></ol>
 
 """
@@ -5464,9 +5464,9 @@ tutorial_step_19 =
 
 (def main
   (draw
-    [(redSquare 100 80 50)
-     (yellowSquare 130 65 160)
-     (greenSquare 160 50 300)]))
+    [(redSquare 50 80 50)
+     (yellowSquare 70 70 110)
+     (greenSquare 90 60 190)]))
 ; <!-- PROSE --> <p>Lastly, because the three definitions are short, we'd like to put them in a single tuple definition to save some space.</p><p>To do so, we can use the <em>Move Definition</em> tool again. This time, however, we will select only variable names (rather than entire <code>(def ...)</code> expressions) and target positions next to variables (rather than above or below <code>(def ...)</code> expressions).</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select <code>redSquare</code> in the <code>(def redSquare ...)</code> expression. Right-click the editor and select <em>Move Definition</em> from the pop-up menu. Click on <code>yellowSquare</code> in the <code>(def yellowSquare ...)</code> definition. Then, click the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select <code>redSquare</code> in the <code>(def redSquare ...)</code> expression. Select <em>Move Definition</em> from the Code Tools menu. Click on <code>yellowSquare</code> in the <code>(def yellowSquare ...)</code> definition. Then, click the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Click on the single option from the results list.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over <code>redSquare</code> in <code>(def redSquare   ...)</code>, then click. Next, hover over <code>yellowSquare</code> in (def yellowSquare ...), then click. Then, click on the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Under the <em>Move Definition</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</li></ol>
 
 """

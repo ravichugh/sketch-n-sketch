@@ -5,7 +5,7 @@
 
 (def main
   (draw
-    [(redSquare 200 250 80)
-     (redSquare 200 100 30)
-     (redSquare 200 400 150)]))
+    [(redSquare 100 70 80)
+     (redSquare 100 160 30)
+     (redSquare 100 200 150)]))
 ; <!-- PROSE --> <p>Let's say we've now coded up a nice piece of art using our newly-defined function. However, we now want to change how the redSquare function is called; instead of the size of the square being the last argument that we pass in, we'd prefer if it were the first.</p><p>To do this, we can use the <em>Reorder Arguments</em> tool.</p><ul class="_123"><li class="_1"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select the argument <code>w</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Right-click the editor and select <em>Reorder Arguments</em> from the pop-up menu. Click on the target position that lies before the first argument (<code>x</code>) and after the opening parenthesis of the argument list. Click on the single option from the results list.</p></li><li class="_2"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select the argument <code>w</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Select <em>Reorder Arguments</em> from the Code Tools menu. Click on the target position that lies before the first argument (<code>x</code>) and after the opening parenthesis of the argument list. Click on the single option from the results list.</p></li><li class="_3"><h3>Box-Select Mode</h3><p>Hold down the Shift key and click on the argument <code>w</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Then, click on the target position that lies before the first argument (<code>x</code>) and after the opening parenthesis of the argument list. Release the Shift key. Under the <em>Reorder Arguments</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</li></ol>

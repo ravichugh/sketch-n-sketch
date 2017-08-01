@@ -1,6 +1,6 @@
 
 (def redSquare
-  (rect "salmon" 100 250 80 80))
+  (rect "salmon" 100 70 80 80))
 
 (def main
   (draw [redSquare]))

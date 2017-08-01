@@ -1,6 +1,6 @@
 
 (def redSquare
-  (let [x y] [100 250]
+  (let [x y] [100 70]
   (let w 80
     (rect "salmon" x y w w))))
 
