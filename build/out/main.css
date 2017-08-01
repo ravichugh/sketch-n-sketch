@@ -30,6 +30,11 @@ a {
   text-decoration: none;
 }
 
+code {
+  font-family: "Inconsolata", monospace;
+  font-size: 0.9em;
+}
+
 /******************************************************************************
  * Buttons                                                                    *
  ******************************************************************************/
@@ -541,7 +546,7 @@ a {
   overflow: scroll;
 
   color: #000000;
-  font-family: monospace;
+  font-family: "Inconsolata", monospace;
   font-size: 16px; /* match default Ace Editor font size */
 
   white-space: pre;
@@ -727,7 +732,7 @@ a {
 
 .dialog-box .open-listing {
   background-color: rgba(0, 0, 0, 0.1);
-  font-family: monospace;
+  font-family: "Inconsolata", monospace;
   font-size: 1.2em;
   margin: 10px 0;
   padding: 20px;
@@ -735,7 +740,7 @@ a {
 
 .dialog-box .file-listing {
   background-color: rgba(0, 0, 0, 0.1);
-  font-family: monospace;
+  font-family: "Inconsolata", monospace;
   font-size: 1.2em;
   margin-bottom: 10px;
   padding: 10px 20px;
@@ -754,7 +759,7 @@ a {
 
 .dialog-box .save-as-input {
   background-color: rgba(0, 0, 0, 0.1);
-  font-family: monospace;
+  font-family: "Inconsolata", monospace;
   font-size: 1.2em;
   padding: 20px;
   text-align: right;
