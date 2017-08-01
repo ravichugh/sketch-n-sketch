@@ -28,10 +28,12 @@ module SleekLayout exposing
   , deucePopupPanelMouseOffset
   , deuceRightClickMenuMouseOffset
   , synthesisPanel
-  , resizerX
-  , resizer
-  , resizerLeftBound
-  , resizerRightBound
+  , mainResizer
+  , mainResizerLeftBound
+  , mainResizerRightBound
+  , proseResizer
+  , proseResizerBottomBound
+  , proseResizerTopBound
   , prosePanelFullHeight
   , prosePanel
   , codePanel
@@ -194,37 +196,31 @@ prosePanelFullHeight : Int
 prosePanelFullHeight =
   300
 
+prosePanel : Model -> BoundingBox
 prosePanel model =
   let
-    resizerBB =
-      resizer model
+    mainResizerBB =
+      mainResizer model
+    proseResizerBB =
+      proseResizer model
+    outputPanelBB =
+      outputPanel model
     x =
-      resizerBB.x + resizerBB.width
-    bottom =
-      spacing.height
+      mainResizerBB.x + mainResizerBB.width
+    y =
+      proseResizerBB.y + proseResizerBB.height
     width =
       model.dimensions.width
         - toolPanel.right
         - toolPanel.width
         - toolPanel.marginLeft
         - x
-    -- Includes margin-top
     height =
-      case model.prose of
-        Just _ ->
-          prosePanelFullHeight
-        Nothing ->
-          0
+      dynamicContentHeight model
+        - outputPanelBB.height
+        - proseResizerBB.height
   in
-    { x =
-        x
-    , bottom =
-        bottom
-    , width =
-        width
-    , height =
-        height
-    }
+    box x y width height
 
 --------------------------------------------------------------------------------
 -- Main Panels
@@ -253,14 +249,14 @@ mainPanelY =
 codePanel : Model -> BoundingBox
 codePanel model =
   let
-    resizerBB =
-      resizer model
+    mainResizerBB =
+      mainResizer model
     x =
       spacing.width
     y =
       mainPanelY
     width =
-      resizerBB.x - x
+      mainResizerBB.x - x
     height =
       dynamicContentHeight model
   in
@@ -269,12 +265,12 @@ codePanel model =
 outputPanel : Model -> BoundingBox
 outputPanel model =
   let
-    prosePanelBB =
-      prosePanel model
-    resizerBB =
-      resizer model
+    mainResizerBB =
+      mainResizer model
+    proseResizerBB =
+      proseResizer model
     x =
-      resizerBB.x + resizerBB.width
+      mainResizerBB.x + mainResizerBB.width
     y =
       mainPanelY
     width =
@@ -284,71 +280,127 @@ outputPanel model =
         - toolPanel.marginLeft
         - x
     height =
-      dynamicContentHeight model - prosePanelBB.height
+      proseResizerBB.y - mainPanelY
   in
     box x y width height
 
 --------------------------------------------------------------------------------
--- Resizer
+-- Main Resizer
 --------------------------------------------------------------------------------
 
-resizerWidth : Int
-resizerWidth =
+mainResizerWidth : Int
+mainResizerWidth =
   20
 
 -- Position without moving the resizer
-defaultResizerX : Model -> Int
-defaultResizerX model =
+defaultMainResizerX : Model -> Int
+defaultMainResizerX model =
   let
     ratio =
       0.6
     spaceToDivide =
       toFloat <|
-        dynamicContentWidth model - resizerWidth
+        dynamicContentWidth model - mainResizerWidth
     left =
       spacing.width
   in
     left + round (ratio * spaceToDivide)
 
-resizerX : Model -> Int
-resizerX model =
-  Maybe.withDefault
-    (defaultResizerX model)
-    model.resizerX
-
-resizer : Model -> BoundingBox
-resizer model =
+mainResizer : Model -> BoundingBox
+mainResizer model =
   let
     width =
-      resizerWidth
+      mainResizerWidth
     height =
       dynamicContentHeight model
     x =
-      resizerX model
+      Maybe.withDefault
+        (defaultMainResizerX model)
+        model.mainResizerX
     y =
       mainPanelY
   in
     box x y width height
 
-resizerBoundMargin : Int
-resizerBoundMargin =
+mainResizerBoundMargin : Int
+mainResizerBoundMargin =
   100
 
-resizerLeftBound : Model -> Int
-resizerLeftBound model =
+mainResizerLeftBound : Model -> Int
+mainResizerLeftBound model =
   let
     codePanelBB =
       codePanel model
   in
-    codePanelBB.x + resizerBoundMargin
+    codePanelBB.x + mainResizerBoundMargin
 
-resizerRightBound : Model -> Int
-resizerRightBound model =
+mainResizerRightBound : Model -> Int
+mainResizerRightBound model =
   let
     outputPanelBB =
       outputPanel model
   in
-    outputPanelBB.x + outputPanelBB.width - resizerBoundMargin
+    outputPanelBB.x + outputPanelBB.width - mainResizerBoundMargin
+
+--------------------------------------------------------------------------------
+-- Prose Resizer
+--------------------------------------------------------------------------------
+
+proseResizerHeight : Int
+proseResizerHeight =
+  20
+
+-- Position without moving the resizer
+defaultProseResizerY : Model -> Int
+defaultProseResizerY model =
+  let
+    ratio =
+      0.6
+    spaceToDivide =
+      toFloat <|
+        dynamicContentHeight model - proseResizerHeight
+    top =
+      mainPanelY
+  in
+    top + round (ratio * spaceToDivide)
+
+proseResizer : Model -> BoundingBox
+proseResizer model =
+  let
+    mainResizerBB =
+      mainResizer model
+    x =
+      mainResizerBB.x + mainResizerBB.width
+    y =
+      Maybe.withDefault
+        (defaultProseResizerY model)
+        model.proseResizerY
+    height =
+      proseResizerHeight
+    width =
+      model.dimensions.width
+        - toolPanel.right
+        - toolPanel.width
+        - toolPanel.marginLeft
+        - x
+  in
+    box x y width height
+
+proseResizerBoundMargin : Int
+proseResizerBoundMargin =
+  100
+
+proseResizerBottomBound : Model -> Int
+proseResizerBottomBound model =
+  mainPanelY + dynamicContentHeight model - proseResizerBoundMargin
+
+proseResizerTopBound : Model -> Int
+proseResizerTopBound model =
+  let
+    outputPanelBB =
+      outputPanel model
+  in
+    outputPanelBB.y + proseResizerBoundMargin
 
 --------------------------------------------------------------------------------
 -- Output Dimensions (descriptive)

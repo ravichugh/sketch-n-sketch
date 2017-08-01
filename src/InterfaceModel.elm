@@ -157,7 +157,8 @@ type alias Model =
   , textSelectMode : TextSelectMode
   , enableTextEdits : Updatable Bool
   , codeClean : Bool
-  , resizerX : Maybe Int
+  , mainResizerX : Maybe Int
+  , proseResizerY : Maybe Int
   , savedSelections : Maybe (List Ace.Range)
   , prose : Maybe String
   }
@@ -961,7 +962,8 @@ initModel =
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True
     , codeClean = True
-    , resizerX = Nothing
+    , mainResizerX = Nothing
+    , proseResizerY = Nothing
     , savedSelections = Nothing
     , prose = Nothing
     }

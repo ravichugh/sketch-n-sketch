@@ -1045,50 +1045,22 @@ prosePanel model =
       SleekLayout.prosePanel model
     prosePanelGet f =
       (px << f) prosePanelBB
-    spacingHeight =
-      .height SleekLayout.spacing
+    innerHTML =
+      model.prose
+        |> Maybe.withDefault ""
+        |> JsonE.string
   in
     Html.div
-      [ Attr.class "prose-panel-wrapper"
+      [ Attr.class "panel prose-panel"
       , Attr.style
           [ ("left", prosePanelGet .x)
-          , ("bottom", prosePanelGet .bottom)
+          , ("top", prosePanelGet .y)
           , ("width", prosePanelGet .width)
           , ("height", prosePanelGet .height)
           ]
+      , Attr.property "innerHTML" innerHTML
       ]
-      [ Html.div
-          ( [ Attr.class "panel prose-panel"
-            , Attr.style
-                [ ( "height"
-                  , px <|
-                      SleekLayout.prosePanelFullHeight - spacingHeight
-                  )
-                , ( "margin-top"
-                  , px spacingHeight
-                  )
-                , ( "box-shadow"
-                  , case prosePanelBB.height of
-                      0 ->
-                        "none"
-                      _ ->
-                        ""
-                  )
-                ]
-            ] ++
-            ( case model.prose of
-                Just prose ->
-                  -- Hack for displaying HTML strings as HTML (no virtual DOM).
-                  -- See: https://github.com/eeue56/elm-for-web-developers#can-i-enter-html-as-a-string
-                  [ Attr.property "innerHTML" <|
-                      JsonE.string prose
-                  ]
-                Nothing ->
-                  []
-            )
-          )
-          []
-      ]
+      []
 
 --------------------------------------------------------------------------------
 -- Code Panel
@@ -1233,28 +1205,56 @@ codePanel model =
       ]
 
 --------------------------------------------------------------------------------
--- Resizer
+-- Main Resizer
 --------------------------------------------------------------------------------
 
-resizer : Model -> Html Msg
-resizer model =
+mainResizer : Model -> Html Msg
+mainResizer model =
   let
-    resizerBoundingBox =
-      SleekLayout.resizer model
+    mainResizerBB =
+      SleekLayout.mainResizer model
   in
     Html.div
-      [ Attr.class "resizer"
+      [ Attr.class "resizer main-resizer"
       , Attr.style
-          [ ("width", (px << .width) resizerBoundingBox)
-          , ("height", (px << .height) resizerBoundingBox)
-          , ("line-height", (px << .height) resizerBoundingBox)
-          , ("left", (px << .x) resizerBoundingBox)
-          , ("top", (px << .y) resizerBoundingBox)
+          [ ("width", (px << .width) mainResizerBB)
+          , ("height", (px << .height) mainResizerBB)
+          , ("line-height", (px << .height) mainResizerBB)
+          , ("left", (px << .x) mainResizerBB)
+          , ("top", (px << .y) mainResizerBB)
           ]
-      , E.onMouseDown Controller.msgDragResizer
+      , E.onMouseDown Controller.msgDragMainResizer
       , E.onMouseUp Controller.msgClearDrag
       ]
       [ Html.text "⦀"
+      ]
+
+--------------------------------------------------------------------------------
+-- Prose Resizer
+--------------------------------------------------------------------------------
+
+proseResizer : Model -> Html Msg
+proseResizer model =
+  let
+    proseResizerBB =
+      SleekLayout.proseResizer model
+  in
+    Html.div
+      [ Attr.class "resizer prose-resizer"
+      , Attr.style
+          [ ("width", (px << .width) proseResizerBB)
+          , ("height", (px << .height) proseResizerBB)
+          , ("left", (px << .x) proseResizerBB)
+          , ("top", (px << .y) proseResizerBB)
+          ]
+      , E.onMouseDown Controller.msgDragProseResizer
+      , E.onMouseUp Controller.msgClearDrag
+      ]
+      [ Html.span
+          [ Attr.class "sideways"
+          ]
+          [ Html.text "⦀"
+          ]
       ]
 
 --------------------------------------------------------------------------------
@@ -1519,11 +1519,12 @@ workArea model =
         [ Attr.class "main-panels"
         ] <|
         ( UserStudy.showIfEnabled
-            [ prosePanel model
+            [ proseResizer model
+            , prosePanel model
             ]
         ) ++
         [ codePanel model
-        , resizer model
+        , mainResizer model
         , outputPanel model
         ] ++
         ( UserStudy.hideIfEnabled

@@ -305,26 +305,17 @@ a {
  * Prose Panel                                                                *
  ******************************************************************************/
 
-.prose-panel-wrapper {
+.prose-panel {
   /* width: DYNAMIC */
   /* height: DYNAMIC */
-  transition: height 0.5s;
 
-  position: absolute;
-  /* top: DYNAMIC */
-  /* left: DYNAMIC */
-}
-
-.prose-panel {
   background-color: #222222;
   padding: 10px;
   overflow-y: scroll;
 
-  /* box-shadow: DYNAMIC */
-  transition: box-shadow 0.5s;
-
-  /* height: DYNAMIC */
-  /* margin-bottom: DYNMAMIC */
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
 }
 
 /******************************************************************************
@@ -464,29 +455,50 @@ a {
 }
 
 /******************************************************************************
- * Resizer                                                                    *
+ * Resizers                                                                    *
  ******************************************************************************/
 
 .resizer {
+  color: #444444;
+  font-size: 2em;
+  text-align: center;
+}
+
+.main-resizer {
   /* width: DYNAMIC */
   /* height: DYNAMIC */
   /* line-height: DYNAMIC */
   transition: height 0.5s, line-height 0.5s;
 
-  color: #444444;
-  font-size: 2em;
-  text-align: center;
   cursor: col-resize;
-
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  -o-user-select: none;
-  user-select: none;
 
   position: absolute;
   /* top: DYNAMIC */
   /* left: DYNAMIC */
+}
+
+.prose-resizer {
+  cursor: row-resize;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+}
+
+.prose-resizer .sideways {
+  display: inline-block;
+
+  -webkit-transform: rotate(90deg);
+  -moz-transform: rotate(90deg);
+  -ms-transform: rotate(90deg);
+  -o-transform: rotate(90deg);
+  transform: rotate(90deg);
+
+  -webkit-transform-origin: 50% 25%;
+  -moz-transform-origin: 50% 25%;
+  -ms-transform-origin: 50% 25%;
+  -o-transform-origin: 50% 25%;
+  transform-origin: 50% 25%;
 }
 
 /******************************************************************************
@@ -524,8 +536,6 @@ a {
   position: absolute;
   /* top: DYNAMIC */
   /* left: DYNAMIC */
-
-  transition: height 0.5s;
 }
 
 #outputCanvas {

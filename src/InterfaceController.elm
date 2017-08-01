@@ -63,7 +63,8 @@ module InterfaceController exposing
   , msgSetEnableTextEdits
   , msgSetSelectedDeuceTool
   , msgDeuceRightClick
-  , msgDragResizer
+  , msgDragMainResizer
+  , msgDragProseResizer
   , msgResetInterfaceLayout
   )
 
@@ -1578,7 +1579,8 @@ handleNew template = (\old ->
                     , showDeuceRightClickMenu  = old.showDeuceRightClickMenu
                     , textSelectMode           = old.textSelectMode
                     , enableTextEdits          = old.enableTextEdits
-                    , resizerX                 = old.resizerX
+                    , mainResizerX             = old.mainResizerX
+                    , proseResizerY            = old.proseResizerY
                     } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
 
@@ -2175,30 +2177,56 @@ msgDeuceRightClick menuMode =
       model
 
 --------------------------------------------------------------------------------
--- Resizer
+-- Resizers
 
-msgDragResizer : Msg
-msgDragResizer =
+msgDragMainResizer : Msg
+msgDragMainResizer =
   let
     updater oldPosition newPosition old =
       let
         leftBound =
-          SleekLayout.resizerLeftBound old
+          SleekLayout.mainResizerLeftBound old
         rightBound =
-          SleekLayout.resizerRightBound old
-        oldResizerX =
-          SleekLayout.resizerX old
-        newResizerX =
+          SleekLayout.mainResizerRightBound old
+        oldMainResizerX =
+          (SleekLayout.mainResizer old).x
+        newMainResizerX =
           Utils.clamp leftBound rightBound <|
-            oldResizerX +
+            oldMainResizerX +
               (Tuple.first <| deltaMouse oldPosition newPosition)
       in
-        { old | resizerX = Just newResizerX }
+        { old | mainResizerX = Just newMainResizerX }
   in
-    Msg "Drag Resizer" <| \model ->
+    Msg "Drag Main Resizer" <| \model ->
+      { model | mouseMode = Model.MouseDrag updater }
+
+msgDragProseResizer : Msg
+msgDragProseResizer =
+  let
+    updater oldPosition newPosition old =
+      let
+        topBound =
+          SleekLayout.proseResizerTopBound old
+        bottomBound =
+          SleekLayout.proseResizerBottomBound old
+        oldProseResizerY =
+          (SleekLayout.proseResizer old).y
+        newProseResizerY =
+          Utils.clamp topBound bottomBound <|
+            oldProseResizerY +
+              (Tuple.second <| deltaMouse oldPosition newPosition)
+      in
+        { old | proseResizerY = Just newProseResizerY }
+  in
+    Msg "Drag Prose Resizer" <| \model ->
       { model | mouseMode = Model.MouseDrag updater }
 
 msgResetInterfaceLayout : Msg
 msgResetInterfaceLayout =
   Msg "Reset Interface Layout" <| \model ->
-    { model | resizerX = Nothing }
+    { model
+        | mainResizerX =
+            Nothing
+        , proseResizerY =
+            Nothing
+    }
