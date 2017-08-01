@@ -1,7 +1,10 @@
 
 (def str "hello world!")
+
 (def num 3.14)
+
 (def bool true)
+
 (def list
   [1 2 3 true [false "abc"] str num bool])
 

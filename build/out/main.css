@@ -310,7 +310,7 @@ a {
   /* height: DYNAMIC */
 
   background-color: #222222;
-  padding: 10px;
+  padding: 15px;
   overflow-y: scroll;
 
   position: absolute;
@@ -318,21 +318,33 @@ a {
   /* left: DYNAMIC */
 }
 
-.prose-panel > p {
-  font-size: 18px;
-  padding: 0 0 10px 0;
+/* Prose Panel Content */
+
+  .prose-panel p
+, .prose-panel h3
+, .prose-panel ul
+, .prose-panel ol
+{
+  margin-bottom: 0.5em;
 }
 
-.prose-panel > ul > li {
-  font-size: 18px;
-  padding: 0 0 1em 2em;
-  display: list-item;
-  list-style: disc inside;
-  text-indent: -1.5em;
+.prose-panel h3 {
+  font-size: 1.2em;
 }
 
-.prose-panel > ul > li > p {
-  display: inline;
+.prose-panel li h3 {
+  font-size: 1.1em;
+  font-style: italic;
+}
+
+.prose-panel li {
+  margin-left: 1.5em;
+}
+
+.prose-panel code {
+  background-color: #444444;
+  padding: 4px;
+  border-radius: 5px;
 }
 
 /******************************************************************************
