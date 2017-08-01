@@ -1582,6 +1582,7 @@ handleNew template = (\old ->
                     , mainResizerX             = old.mainResizerX
                     , proseResizerY            = old.proseResizerY
                     } |> resetDeuceState
+                      |> Prose.extractFromUserStudyTemplate
       ) |> handleError old) >> closeDialogBox New
 
 msgAskNew template = requireSaveAsker (msgNew template)
@@ -1994,7 +1995,6 @@ msgUserStudyStep label offset = Msg label <| \old ->
   let _ = UserStudyLog.log label (toString newState) in
   { old | userStudyStateIndex = i + offset }
       |> handleNew template
-      |> Prose.extractFromUserStudyTemplate
       |> (\m ->
            let finalCode = UserStudy.getFinalCode newState m.code in
            { m | code = finalCode, history = ([finalCode], []) }
