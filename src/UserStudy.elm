@@ -4,13 +4,9 @@ module UserStudy exposing
   , showIfEnabled
   , sequence
   , getTemplate
-  , getFinalCode
-  , EditorMode(..)
-  , getEditorMode
-  , readOnlyProse
-  , textSelectOnlyProse
-  , boxSelectOnlyProse
-  , codeToolsOnlyProse
+  , enableFeaturesForEditorMode
+  , postProcessCode
+  , postProcessProse
   , disableNextStep
   , disablePreviousStep
   , syntaxHelp
@@ -18,12 +14,13 @@ module UserStudy exposing
   , boxSelectHelp
   )
 
+import Updatable exposing (Updatable)
 import Utils
 import Random
 import Dict
 import ImpureGoodies
-
 import UserStudyLog
+import Regex exposing (HowMany (AtMost, All), regex)
 
 type alias State = (Phase, (String, EditorMode))
 
@@ -31,10 +28,13 @@ type Phase
   = Start
   | Tutorial
   | Transition1
-  | HeadToHeadTask
+  | Task TaskKind
   | Transition2
-  | FullTask
   | End
+
+type TaskKind
+  = HeadToHead
+  | OpenEnded
 
 type EditorMode
   = ReadOnly
@@ -63,6 +63,14 @@ showIfEnabled content =
     content
   else
     []
+
+--------------------------------------------------------------------------------
+
+getRandom g =
+  ImpureGoodies.randomInt 0 (2^32)
+    |> Random.initialSeed
+    |> Random.step g
+    |> Tuple.first
 
 --------------------------------------------------------------------------------
 
@@ -95,37 +103,115 @@ disablePreviousStep i =
 
 --------------------------------------------------------------------------------
 
-getFinalCode state templateCode =
+enableFeaturesForEditorMode newState m =
+  case getEditorMode newState of
+    -- TODO remove showDeucePanel and showDeuceRightClickMenu
+    -- TODO maybe use enableEditCodeInMenuBar instead of show
+    ReadOnly ->
+      { m | enableTextEdits = Updatable.create False
+          , enableDeuceBoxSelection = False
+          , enableDeuceTextSelection = False
+          , showEditCodeInMenuBar = False
+          , showDeucePanel = False
+          , showDeuceRightClickMenu = False
+          }
+    TextEditOnly ->
+      { m | enableTextEdits = Updatable.create True
+          , enableDeuceBoxSelection = False
+          , enableDeuceTextSelection = False
+          , showEditCodeInMenuBar = False
+          , showDeucePanel = False
+          , showDeuceRightClickMenu = False
+          }
+    BoxSelectOnly ->
+      { m | enableTextEdits = Updatable.create False
+          , enableDeuceBoxSelection = True
+          , enableDeuceTextSelection = False
+          , showEditCodeInMenuBar = False
+          , showDeucePanel = True
+          , showDeuceRightClickMenu = False
+          }
+    TextSelectOnly ->
+      { m | enableTextEdits = Updatable.create False
+          , enableDeuceBoxSelection = False
+          , enableDeuceTextSelection = True
+          , showEditCodeInMenuBar = True
+          , showDeucePanel = False
+          , showDeuceRightClickMenu = True
+          }
+    CodeToolsOnly ->
+      { m | enableTextEdits = Updatable.create False
+          , enableDeuceBoxSelection = True
+          , enableDeuceTextSelection = True
+          , showEditCodeInMenuBar = True
+          , showDeucePanel = True
+          , showDeuceRightClickMenu = True
+          }
+    AllFeatures ->
+      { m | enableTextEdits = Updatable.create True
+          , enableDeuceBoxSelection = True
+          , enableDeuceTextSelection = True
+          , showEditCodeInMenuBar = True
+          , showDeucePanel = True
+          , showDeuceRightClickMenu = True
+          }
+
+--------------------------------------------------------------------------------
+
+postProcessCode state templateCode =
   case state of
-    (_, (_, ReadOnly))         -> chopInstructions templateCode
-    _                          -> templateCode
-{-
-    (Start, _)                 -> templateCode
-    (Transition1, _)           -> templateCode
-    (Transition2, _)           -> templateCode
-    (End, _)                   -> templateCode
-    -- TODO randomize each step individually
-    (Tutorial, ("Step 10", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 11", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 12", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 13", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 14", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 15", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 16", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 17", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 18", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 19", _)) -> reorderTutorialStep order_10_11_13 templateCode
-    (Tutorial, ("Step 20", _)) -> reorderTutorialStep order_17 templateCode
-    (Tutorial, (_, _))         -> templateCode
-    (_, (_, TextEditOnly))     -> templateCode
-    (_, (_, ReadOnly))         -> readOnly ++ chopInstructions templateCode
-    (_, (_, TextSelectOnly))   -> textSelectOnly ++ templateCode
-    (_, (_, BoxSelectOnly))    -> boxSelectOnly ++ templateCode
-    (_, (_, CodeToolsOnly))    -> codeToolsOnly ++ templateCode
-    (_, (_, AllFeatures))      -> allFeatures ++ templateCode
--}
+    (Task _, (_, ReadOnly)) -> chopInstructions templateCode
+    _                       -> templateCode
+
+chopInstructions templateCode =
+  templateCode
+    |> String.lines
+    |> List.filter (not << String.startsWith ";")
+    |> String.join "\n"
+
+--------------------------------------------------------------------------------
+
+postProcessProse newState m =
+  let
+    prose =
+      Updatable.extract m.prose
+    updateModel maybeString =
+      { m | prose = Updatable.create maybeString }
+  in
+  case newState of
+
+    (Tutorial, (step, _)) ->
+      case step of
+        "Step 11" -> updateModel (shuffle_123 step prose)
+        "Step 12" -> updateModel (shuffle_123 step prose)
+        "Step 13" -> updateModel (shuffle_123 step prose)
+        "Step 14" -> updateModel (shuffle_123 step prose)
+        "Step 15" -> updateModel (shuffle_123 step prose)
+        "Step 16" -> updateModel (shuffle_123 step prose)
+        "Step 17" -> updateModel (shuffle_123 step prose)
+        "Step 18" -> updateModel (shuffle_123 step prose)
+        "Step 19" -> updateModel (shuffle_123 step prose)
+        "Step 20" -> updateModel (shuffle_12 step prose)
+        _         -> m
+
+    (Task _, (_, ReadOnly)) ->
+      updateModel (Just readOnlyProse)
+    (Task _, (_, BoxSelectOnly)) ->
+      updateModel (replacePlaceholderInstructionsWith prose boxSelectOnlyProse)
+    (Task _, (_, TextSelectOnly)) ->
+      updateModel (replacePlaceholderInstructionsWith prose textSelectOnlyProse)
+    (Task _, (_, CodeToolsOnly)) ->
+      updateModel (replacePlaceholderInstructionsWith prose codeToolsOnlyProse)
+
+    _ ->
+      m
 
 -- post-processing for tasks ---------------------------------------------------
+
+replacePlaceholderInstructionsWith prose s =
+  Maybe.map
+    (Regex.replace All (regex "PLACEHOLDER INSTRUCTIONS") (always s))
+    prose
 
 readOnlyProse = """<p></p><p>
 Read and understand the code.
@@ -155,96 +241,76 @@ and/or BOX-SELECT MODE to perform the edits below.
 When you are done, press Next Step.
 </p>"""
 
-chopInstructions templateCode =
-  templateCode
-    |> String.lines
-    |> List.filter (not << String.startsWith ";")
-    |> String.join "\n"
-
 -- post-processing for tutorial ------------------------------------------------
 
--- TODO remove these, and randomize each step individually
+re_123 = regex <|
+  """(.*<ul class="_123">)(.*)(<li class="_1">.*</li>)(.*)(<li class="_2">.*</li>)(.*)(<li class="_3">.*</li>)(.*)(</ul>.*)"""
 
-order_10_11_13 =
-  case tutorialVersion of
-    1 -> ["_1","_2","_3"]
-    2 -> ["_2","_1","_3"]
-    3 -> ["_3","_1","_2"]
-    4 -> ["_3","_2","_1"]
-    _ -> Debug.crash "order: tutorialVersion > numTutorialVersions"
+shuffle_123 step maybeStr =
+  case maybeStr of
+    Nothing -> Nothing
+    Just s ->
+      case Regex.find (AtMost 1) re_123 s of
+        [match] ->
+          let
+            li1 =
+              Utils.geti 3 match.submatches
+            li2 =
+              Utils.geti 5 match.submatches
+            li3 =
+              Utils.geti 7 match.submatches
+            (first, second, third) =
+              let i = getRandom (Random.int 1 4) in
+              let _ = UserStudyLog.log "Shuffle Tutorial _123 List" (toString (step, i)) in
+              case i of
+                1 -> (li1, li2, li3)
+                2 -> (li2, li1, li3)
+                3 -> (li3, li1, li2)
+                _ -> (li3, li2, li1)
+          in
+          match.submatches
+            |> Utils.replacei 3 first
+            |> Utils.replacei 5 second
+            |> Utils.replacei 7 third
+            |> Utils.filterJusts
+            |> String.concat
+            |> Just
+        _ ->
+          let _ = UserStudyLog.log "Shuffle Tutorial _123 List" (toString (step, "Couldn't shuffle...")) in
+          maybeStr
 
-order_17 =
-  case tutorialVersion of
-    1 -> ["_1","_2"]
-    2 -> ["_1","_2"]
-    3 -> ["_2","_1"]
-    4 -> ["_2","_1"]
-    _ -> Debug.crash "order: tutorialVersion > numTutorialVersions"
+-- NOTE: the _12 case below is mostly copied from _123 above
 
-reorderTutorialStep order templateCode =
-  let
-    prefixes =
-      List.map (\s -> "; " ++ s) order
+re_12 = regex <|
+  """(.*<ul class="_12">)(.*)(<li class="_1">.*</li>)(.*)(<li class="_2">.*</li>)(.*)(</ul>.*)"""
 
-    updateDictionary prefix line =
-      Dict.update prefix <| \maybeLines ->
-        case maybeLines of
-          Nothing    -> Just [line]
-          Just lines -> Just (lines ++ [line])
-
-    -- the following two passes assume that all the choices in
-    -- templateCode appear in a single, contiguous section, e.g.
-    --
-    --   blah
-    --   blah
-    --   _begin
-    --   _1 blah
-    --   _1 blah
-    --   _2 blah
-    --   _3 blah
-    --   _3 blah
-    --   _3 blah
-    --   _end
-    --   blah
-
-    createDictionary acc lines =
-      case lines of
-        [] ->
-          (acc, [])
-        "; _begin" :: rest ->
-          let (acc_, list) = createDictionary acc rest in
-          (acc_, "INSERT HERE" :: list)
-        "; _end" :: rest ->
-          (acc, rest)
-        line :: rest ->
-          if List.any (\prefix -> String.startsWith prefix line) prefixes then
-            let
-              -- assuming prefix is two characters (e.g. "_1", "_2", etc.)
-              prefix =
-                String.left 4 line
-              s =
-                "; " ++ String.dropLeft (String.length prefix) line
-            in
-            createDictionary (updateDictionary prefix s acc) rest
-          else
-            let (acc_, list) = createDictionary acc rest in
-            (acc_, line :: list)
-
-    insertReorderedLines (dict, lines) =
-      case lines of
-        [] ->
-          []
-        "INSERT HERE" :: rest ->
-          let reordered = List.concatMap (flip Utils.justGet dict) prefixes in
-          reordered ++ rest
-        line :: rest ->
-          line :: insertReorderedLines (dict, rest)
-  in
-  templateCode
-    |> String.lines
-    |> createDictionary Dict.empty
-    |> insertReorderedLines
-    |> String.join "\n"
+shuffle_12 step maybeStr =
+  case maybeStr of
+    Nothing -> Nothing
+    Just s ->
+      case Regex.find (AtMost 1) re_12 s of
+        [match] ->
+          let
+            li1 =
+              Utils.geti 3 match.submatches
+            li2 =
+              Utils.geti 5 match.submatches
+            (first, second) =
+              let i = getRandom (Random.int 1 2) in
+              let _ = UserStudyLog.log "Shuffle Tutorial _12 List" (toString (step, i)) in
+              case i of
+                1 -> (li1, li2)
+                _ -> (li2, li1)
+          in
+          match.submatches
+            |> Utils.replacei 3 first
+            |> Utils.replacei 5 second
+            |> Utils.filterJusts
+            |> String.concat
+            |> Just
+        _ ->
+          let _ = UserStudyLog.log "Shuffle Tutorial _12 List" (toString (step, "Couldn't shuffle...")) in
+          maybeStr
 
 --------------------------------------------------------------------------------
 
@@ -265,15 +331,9 @@ boxSelectHelp =
   ]
 
 --------------------------------------------------------------------------------
--- User Study Configuration Parameters
-
-seed = ImpureGoodies.randomInt 0 (2^32)
-
---------------------------------------------------------------------------------
 
 numTutorialSteps = 20
 structuredEditingStartStep = 10
-numTutorialVersions = 4
 
 headToHeadTaskTemplates =
   [ "Three Rectangles"
@@ -286,18 +346,20 @@ fullTaskTemplates =
   , "Lambda Icon"
   ]
 
-shuffleList seed list =
+
+shuffleList list =
   let
-    foo remaining reordered seed =
+    foo remaining reordered =
       case remaining of
-        [] -> (reordered, seed)
+        [] -> reordered
         _  ->
           let n = List.length remaining in
-          let (i, nextSeed) = Random.step (Random.int 1 n) seed in
+          let i = getRandom (Random.int 1 n) in
           let (x, nextRemaining) = (Utils.geti i remaining, Utils.removei i remaining) in
-          foo nextRemaining (reordered ++ [x]) nextSeed
+          foo nextRemaining (reordered ++ [x])
   in
-  foo list [] seed
+  foo list []
+
 
 insertReadingPeriods =
   List.concatMap (\(phase, (task, mode)) ->
@@ -306,37 +368,57 @@ insertReadingPeriods =
     ]
   )
 
-everything =
+headToHeadTasks =
+
+  -- Do each template once in random order and with a random mode,
+  -- and then do them all again in (a different) random order
+  -- with the other modes. If the last template in the first pass
+  -- and the first template in the second pass are the same,
+  -- swap the first two tasks of the second pass.
+
   let
-    initialSeed =
-      Random.initialSeed seed
+    (firstTimeThroughAll, secondTimeThroughAll) =
+      let
+        shuffledTemplates =
+          shuffleList headToHeadTaskTemplates
+        randomBools =
+          getRandom (Random.list 3 Random.bool)
+        makeTaskMode template bool =
+          (Task HeadToHead, (template, if bool then TextSelectOnly else BoxSelectOnly))
+      in
+        ( Utils.zipWith makeTaskMode shuffledTemplates randomBools
+        , Utils.zipWith makeTaskMode shuffledTemplates (List.map not randomBools)
+            |> shuffleList
+        )
 
-    (tutorialVersion, nextSeed) =
-      Random.step (Random.int 1 numTutorialVersions) initialSeed
-
-    headToHeadTasks =
-      headToHeadTaskTemplates
-        |> List.concatMap (\template ->
-             [ (HeadToHeadTask, (template, TextSelectOnly))
-             , (HeadToHeadTask, (template, BoxSelectOnly))
-             ]
-           )
-        -- TODO avoid having same task back-to-back
-        |> shuffleList nextSeed
-        |> Tuple.first
-        |> insertReadingPeriods
-
-    fullTasks =
-      fullTaskTemplates
-        |> List.map (\template -> (FullTask, (template, CodeToolsOnly)))
-        |> insertReadingPeriods
-
+    maybeReshuffle list =
+      let
+        getTask i =
+          Utils.geti i list
+        getTemplate (_, (template, _)) =
+          template
+        numTemplates =
+          List.length headToHeadTaskTemplates
+        _ =
+          Utils.assert "UserStudy.numTemplates == 3" <| numTemplates == 3
+      in
+        if getTemplate (getTask 3) == getTemplate (getTask 4) then
+          list
+            |> Utils.replacei 4 (getTask 5)
+            |> Utils.replacei 5 (getTask 4)
+        else
+          list
   in
-    (tutorialVersion, headToHeadTasks, fullTasks)
+    firstTimeThroughAll ++ secondTimeThroughAll
+      |> maybeReshuffle
+      |> insertReadingPeriods
 
-tutorialVersion = Utils.fst3 everything
-headToHeadTasks = Utils.snd3 everything
-fullTasks       = Utils.thd3 everything
+
+fullTasks =
+  fullTaskTemplates
+    |> List.map (\template -> (Task OpenEnded, (template, CodeToolsOnly)))
+    |> insertReadingPeriods
+
 
 tutorialTasks =
   let template i = "Step " ++ String.padLeft 2 '0' (toString i) in
@@ -350,6 +432,7 @@ tutorialTasks =
       (Tutorial, (template i, editorMode)))
     (List.range 1 numTutorialSteps)
 
+
 sequence : List State
 sequence =
   List.concat
@@ -362,12 +445,5 @@ sequence =
     , [(End, ("Deuce Study End", AllFeatures))]
     ]
 
---------------------------------------------------------------------------------
--- Logging
-
 _ =
-  let
-    _ = UserStudyLog.log "UserStudy tutorialVersion" (toString tutorialVersion)
-    _ = UserStudyLog.log "UserStudy.sequence" (toString sequence)
-  in
-    ()
+  UserStudyLog.log "UserStudy.sequence" (toString sequence)

@@ -13,13 +13,12 @@
 
 ; The final program should look something like:
 ;
-;   (def target (\(cx cy num numRings)
+;   (def target (\(numRings cx cy num)
 ;     (let ring (\i
 ;       (let fill (if (= 0 (mod i 2)) "firebrick" "lightgray")
 ;       (circle fill cx cy (* num i))))
-;
 ;       (map ring (reverse (range 1 numRings))))))
 ;
 ;   (def main
-;     (draw (target 150 150 30 4)))
+;     (draw (target 4 150 150 30)))
 ; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Remove the <code>startIndex</code> argument; its value should always be <code>1</code>.</p></li><li><p>Rename <code>endIndex</code> to <code>numRings</code>.</p></li><li><p>Move the <code>ring</code> function inside the <code>target</code> definition.</p></li><li><p>Add the center position and ring width as arguments to <code>target</code>.</p></li></ul>

@@ -5180,7 +5180,7 @@ study_transition_2 =
  """
 (def main
   (draw []))
-; <!-- PROSE --> <p>In the final section, you will see two examples programs, each with a list of editing tasks. As before, you will <em>not</em> be able to use text editing. But, this time, you will be able to use <em>either</em>:</p><ul><li>code tools with Text-Select Mode, or</li><li>code tools with Box-Select Mode.</li></ul><p>It's up to you. And this time, you will work with each program just once.</p><p>Click Next Step to proceed.</p>
+; <!-- PROSE --> <p>In the final section, you will see two example programs, each with a list of editing tasks. As before, you will <em>not</em> be able to use text editing. But, this time, you will be able to use <em>either</em>:</p><ul><li>code tools with Text-Select Mode, or</li><li>code tools with Box-Select Mode.</li></ul><p>It's up to you. And this time, you will work with each program just once.</p><p>Click Next Step to proceed.</p>
 
 """
 
@@ -5470,7 +5470,7 @@ tutorial_step_19 =
     [(redSquare 50 80 50)
      (yellowSquare 70 70 110)
      (greenSquare 90 60 190)]))
-; <!-- PROSE --> <p>Lastly, because the three definitions are short, we'd like to put them in a single tuple definition to save some space.</p><p>To do so, we can use the <em>Move Definition</em> tool again. This time, however, we will select only variable names (rather than entire <code>(def ...)</code> expressions) and target positions next to variables (rather than above or below <code>(def ...)</code> expressions).</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select <code>redSquare</code> in the <code>(def redSquare ...)</code> expression. Right-click the editor and select <em>Move Definition</em> from the pop-up menu. Click on <code>yellowSquare</code> in the <code>(def yellowSquare ...)</code> definition. Then, click the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select <code>redSquare</code> in the <code>(def redSquare ...)</code> expression. Select <em>Move Definition</em> from the Code Tools menu. Click on <code>yellowSquare</code> in the <code>(def yellowSquare ...)</code> definition. Then, click the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Click on the single option from the results list.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over <code>redSquare</code> in <code>(def redSquare   ...)</code>, then click. Next, hover over <code>yellowSquare</code> in (def yellowSquare ...), then click. Then, click on the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Under the <em>Move Definition</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</li></ol>
+; <!-- PROSE --> <p>Lastly, because the three definitions are short, we'd like to put them in a single tuple definition to save some space.</p><p>To do so, we can use the <em>Move Definition</em> tool again. This time, however, we will select only variable names (rather than entire <code>(def ...)</code> expressions) and target positions next to variables (rather than above or below <code>(def ...)</code> expressions).</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Text-select <code>redSquare</code> in the <code>(def redSquare ...)</code> expression. Right-click the editor and select <em>Move Definition</em> from the pop-up menu. Click on <code>yellowSquare</code> in the <code>(def yellowSquare ...)</code> definition. Then, click the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Text-select <code>redSquare</code> in the <code>(def redSquare ...)</code> expression. Select <em>Move Definition</em> from the Code Tools menu. Click on <code>yellowSquare</code> in the <code>(def yellowSquare ...)</code> definition. Then, click the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Click on the single option from the results list.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over <code>redSquare</code> in <code>(def redSquare   ...)</code>, then click. Next, hover over <code>yellowSquare</code> in <code>(def yellowSquare ...)</code>, then click. Then, click on the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Under the <em>Move Definition</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the three interactions. Use Undo after each to reset the program.</li></ol>
 
 """
 
@@ -5566,15 +5566,14 @@ task_target =
 
 ; The final program should look something like:
 ;
-;   (def target (\\(cx cy num numRings)
+;   (def target (\\(numRings cx cy num)
 ;     (let ring (\\i
 ;       (let fill (if (= 0 (mod i 2)) \"firebrick\" \"lightgray\")
 ;       (circle fill cx cy (* num i))))
-;
 ;       (map ring (reverse (range 1 numRings))))))
 ;
 ;   (def main
-;     (draw (target 150 150 30 4)))
+;     (draw (target 4 150 150 30)))
 ; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Remove the <code>startIndex</code> argument; its value should always be <code>1</code>.</p></li><li><p>Rename <code>endIndex</code> to <code>numRings</code>.</p></li><li><p>Move the <code>ring</code> function inside the <code>target</code> definition.</p></li><li><p>Add the center position and ring width as arguments to <code>target</code>.</p></li></ul>
 
 """

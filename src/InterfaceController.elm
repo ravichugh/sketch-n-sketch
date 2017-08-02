@@ -109,7 +109,7 @@ import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
 
-import UserStudy exposing (EditorMode(..))
+import UserStudy
 import UserStudyLog
 
 import VirtualDom
@@ -120,7 +120,6 @@ import Dict exposing (Dict)
 import Set
 import String
 import Char
-import Regex exposing (HowMany(All), regex)
 
 --Html Libraries
 import Html
@@ -2000,86 +1999,15 @@ msgUserStudyStep label offset = Msg label <| \old ->
   { old | userStudyStateIndex = i + offset }
       |> handleNew template
       |> (\m ->
-           let finalCode = UserStudy.getFinalCode newState m.code in
+           let finalCode = UserStudy.postProcessCode newState m.code in
            { m | code = finalCode, history = ([finalCode], []) }
          )
-      |> enableFeaturesForEditorMode newState
+      |> UserStudy.enableFeaturesForEditorMode newState
+      |> UserStudy.postProcessProse newState
       |> upstateRun
 
 msgUserStudyNext = msgUserStudyStep "New: User Study Next" 1
 msgUserStudyPrev = msgUserStudyStep "New: User Study Prev" (-1)
-
-enableFeaturesForEditorMode newState m =
-  let
-    replacePlaceholderInstructionsWith s =
-      Maybe.map
-        (Regex.replace All (regex "PLACEHOLDER INSTRUCTIONS") (always s))
-        (Updatable.extract m.prose)
-  in
-
-  case UserStudy.getEditorMode newState of
-    -- TODO remove showDeucePanel and showDeuceRightClickMenu
-    -- TODO maybe use enableEditCodeInMenuBar instead of show
-    ReadOnly ->
-      { m | enableTextEdits = Updatable.create False
-          , enableDeuceBoxSelection = False
-          , enableDeuceTextSelection = False
-          , showEditCodeInMenuBar = False
-          , showDeucePanel = False
-          , showDeuceRightClickMenu = False
-          , prose =
-              Updatable.create <|
-                Just UserStudy.readOnlyProse
-          }
-    TextEditOnly ->
-      { m | enableTextEdits = Updatable.create True
-          , enableDeuceBoxSelection = False
-          , enableDeuceTextSelection = False
-          , showEditCodeInMenuBar = False
-          , showDeucePanel = False
-          , showDeuceRightClickMenu = False
-          }
-    BoxSelectOnly ->
-      { m | enableTextEdits = Updatable.create False
-          , enableDeuceBoxSelection = True
-          , enableDeuceTextSelection = False
-          , showEditCodeInMenuBar = False
-          , showDeucePanel = True
-          , showDeuceRightClickMenu = False
-          , prose =
-              Updatable.create <|
-                replacePlaceholderInstructionsWith UserStudy.boxSelectOnlyProse
-          }
-    TextSelectOnly ->
-      { m | enableTextEdits = Updatable.create False
-          , enableDeuceBoxSelection = False
-          , enableDeuceTextSelection = True
-          , showEditCodeInMenuBar = True
-          , showDeucePanel = False
-          , showDeuceRightClickMenu = True
-          , prose =
-              Updatable.create <|
-                replacePlaceholderInstructionsWith UserStudy.textSelectOnlyProse
-          }
-    CodeToolsOnly ->
-      { m | enableTextEdits = Updatable.create False
-          , enableDeuceBoxSelection = True
-          , enableDeuceTextSelection = True
-          , showEditCodeInMenuBar = True
-          , showDeucePanel = True
-          , showDeuceRightClickMenu = True
-          , prose =
-              Updatable.create <|
-                replacePlaceholderInstructionsWith UserStudy.codeToolsOnlyProse
-          }
-    AllFeatures ->
-      { m | enableTextEdits = Updatable.create True
-          , enableDeuceBoxSelection = True
-          , enableDeuceTextSelection = True
-          , showEditCodeInMenuBar = True
-          , showDeucePanel = True
-          , showDeuceRightClickMenu = True
-          }
 
 --------------------------------------------------------------------------------
 -- Some Flags
