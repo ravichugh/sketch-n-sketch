@@ -157,8 +157,6 @@ removeUnusedVars exp =
           (PVar _ ident _, _) ->
             if Set.member ident usedNames then
               e__
-            else if ident == "_IMPLICIT_MAIN" then
-              e__
             else
               letRemoved
 
