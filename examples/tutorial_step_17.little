@@ -1,15 +1,12 @@
 
-(def redSquare
-  (\(w x y)
-    (rect "salmon" x y w w)))
+(def redSquare (\(w x y)
+  (rect "salmon" x y w w)))
 
-(def greenSquare
-  (\(w x y)
-    (rect "yellowgreen" x y w w)))
+(def greenSquare (\(w x y)
+  (rect "yellowgreen" x y w w)))
 
-(def yellowSquare
-  (\(w x y)
-    (rect "gold" x y w w)))
+(def yellowSquare (\(w x y)
+  (rect "gold" x y w w)))
 
 (def main
   (draw

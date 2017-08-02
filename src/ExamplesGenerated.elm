@@ -5360,9 +5360,8 @@ tutorial_step_13 =
 
 tutorial_step_14 =
  """
-(def redSquare
-  (\\(x y w)
-    (rect \"salmon\" x y w w)))
+(def redSquare (\\(x y w)
+  (rect \"salmon\" x y w w)))
 
 (def main
   (draw
@@ -5375,9 +5374,8 @@ tutorial_step_14 =
 
 tutorial_step_15 =
  """
-(def redSquare
-  (\\(w x y)
-    (rect \"salmon\" x y w w)))
+(def redSquare (\\(w x y)
+  (rect \"salmon\" x y w w)))
 
 (def main
   (draw
@@ -5390,9 +5388,8 @@ tutorial_step_15 =
 
 tutorial_step_16 =
  """
-(def redSquare
-  (\\(w y)
-    (rect \"salmon\" 100 y w w)))
+(def redSquare (\\(w y)
+  (rect \"salmon\" 100 y w w)))
 
 (def main
   (draw
@@ -5405,17 +5402,14 @@ tutorial_step_16 =
 
 tutorial_step_17 =
  """
-(def redSquare
-  (\\(w x y)
-    (rect \"salmon\" x y w w)))
+(def redSquare (\\(w x y)
+  (rect \"salmon\" x y w w)))
 
-(def greenSquare
-  (\\(w x y)
-    (rect \"yellowgreen\" x y w w)))
+(def greenSquare (\\(w x y)
+  (rect \"yellowgreen\" x y w w)))
 
-(def yellowSquare
-  (\\(w x y)
-    (rect \"gold\" x y w w)))
+(def yellowSquare (\\(w x y)
+  (rect \"gold\" x y w w)))
 
 (def main
   (draw
@@ -5428,18 +5422,14 @@ tutorial_step_17 =
 
 tutorial_step_18 =
  """
-(def square (\\fill
-  (\\(w x y)
-    (rect fill x y w w))))
+(def square (\\fill (\\(w x y)
+  (rect fill x y w w))))
 
-(def redSquare
-  (square \"salmon\"))
+(def redSquare (square \"salmon\"))
 
-(def greenSquare
-  (square \"yellowgreen\"))
+(def greenSquare (square \"yellowgreen\"))
 
-(def yellowSquare
-  (square \"gold\"))
+(def yellowSquare (square \"gold\"))
 
 (def main
   (draw
@@ -5452,18 +5442,14 @@ tutorial_step_18 =
 
 tutorial_step_19 =
  """
-(def square (\\fill
-  (\\(w x y)
-    (rect fill x y w w))))
+(def square (\\fill (\\(w x y)
+  (rect fill x y w w))))
 
-(def redSquare
-  (square \"salmon\"))
+(def redSquare (square \"salmon\"))
 
-(def yellowSquare
-  (square \"gold\"))
+(def yellowSquare (square \"gold\"))
 
-(def greenSquare
-  (square \"yellowgreen\"))
+(def greenSquare (square \"yellowgreen\"))
 
 (def main
   (draw
@@ -5499,11 +5485,11 @@ task_one_rectangle =
 
 
 ; The final program should look something like:
-; 
+;
 ;   (def rect1
 ;     (let [fill x y width height] [\"black\" 20 20 80 250]
 ;       (rect fill x y width height)))
-;   
+;
 ;   (def main
 ;     (draw [ rect1 ]))
 ; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>The programmer intended the rectangle to be <code>250</code> pixels tall and <code>80</code> pixels wide, but the <code>height</code> and <code>width</code> arguments to <code>rect</code> are in the wrong order. Swap them.</p></li><li><p>Rearrange the five variable definitions into a single tuple definition. The order of variables should match the order of arguments to <code>rect</code>.</p></li></ul>
@@ -5530,20 +5516,20 @@ task_three_rectangles =
 
 
 ; The final program should look something like:
-; 
-;   (def rect_50_70 (\\(fill2 x2 y2)
+;
+;   (def rect_50_70 (\\(fill x y)
 ;     (let [w h] [50 70]
-;       (rect fill2 x2 y2 w h))))
-;   
+;       (rect fill x y w h))))
+;
 ;   (def rect1
 ;     (rect_50_70 \"red\" 30 30))
-;   
+;
 ;   (def rect2
 ;     (rect_50_70 \"green\" 109 53))
-;   
+;
 ;   (def rect3
 ;     (rect_50_70 \"blue\" 192 35))
-;   
+;
 ;   (def main
 ;     (draw [ rect1 rect2 rect3 ]))
 ; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li>The three rectangle definitions share a lot of identical code. Create a function <code>rect_50_70</code> that generates a <code>50</code> x <code>70</code> rectangle given color and position parameters, and define <code>rect1</code>, <code>rect2</code>, and <code>rect3</code> in terms of <code>rect_50_70</code>.</li></ul>
@@ -5596,17 +5582,17 @@ task_four_squares =
 
 ; The final program should look something like:
 ;
-;   (def fourSquares
-;     (\\(x y w topLeft topRight botLeft botRight)
-;       (let oneCorner (\\(fill num num2)
-;         (rect fill (+ x (* num w)) (+ y (* num2 w)) w w))
-;   
+;   (def fourSquares (\\(x y w topLeft topRight botLeft botRight)
+;
+;     (let oneCorner (\\(fill num num2)
+;       (rect fill (+ x (* num w)) (+ y (* num2 w)) w w))
+;
 ;       [(oneCorner topLeft 0 0)
 ;        (oneCorner topRight 1 0)
 ;        (oneCorner botLeft 0 1)
 ;        (oneCorner botRight 1 1)
 ;       ])))
-;   
+;
 ;   (def main
 ;     (draw (fourSquares 80 30 100 \"yellowgreen\" \"gold\" \"royalblue\" \"salmon\")))
 ; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Introduce a helper function called <code>oneCorner</code> that factors the code that is common to the four calls to <code>rect</code>.</p></li><li><p>Turn <code>fourSquares</code> into a function takes <code>x</code>, <code>y</code>, and <code>w</code> arguments, as well as color arguments called <code>topLeft</code>, <code>topRight</code>, <code>botLeft</code>, and <code>botRight</code>.</p></li></ul>
@@ -5634,10 +5620,10 @@ task_lambda =
 ;   (def rectangle (rect \"black\" x y w h))
 ;   (def line1 (line stroke strokeWidth x y (+ x w) (+ y h)))
 ;   (def line2 (line stroke strokeWidth x (+ y h) (+ x (/ w 2)) (+ y (/ h 2))))
-;   
+;
 ;   (def logo
 ;     [rectangle line1 line2])
-;   
+;
 ;   (def main
 ;     (draw logo))
 ; <!-- PROSE --> <p>The initial program draws a <code>100</code> x <code>120</code> pixel lambda icon at xy-position <code>(20, 30)</code>, but the hard-coded constants requires many changes if we want to draw the icon at a different position or change the style of the lines.</p><p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Define and use four new variables for the x-position, y-position, width, and height of the logo. These variables should be defined in a single 4-tuple.</p></li><li><p>Define and use two new variables for the color and width of the lines. These variables should be defined in a single 2-tuple.</p></li></ul>

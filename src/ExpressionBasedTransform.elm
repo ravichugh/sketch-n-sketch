@@ -413,19 +413,35 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
         in
         let funcWithPlaceholders =
           let argList = List.map (\n -> (if n == 1 then pVar0 else pVar) ("INSERT_ARGUMENT" ++ toString n ++ "_HERE")) (List.range 1 argCount) in
-          let explicitFunc = eFun argList (unindent mergedArgUsesEnumerated) in
-          -- Try to curry, if body is a simple function application and flag given
+          let fBody =
+            mergedArgUsesEnumerated
+            |> LangSimplify.changeRenamedVarsToOuter
+            |> LangSimplify.removeUnusedVars
+            |> unindent
+          in
+          let fBodyReflowed =
+            let multipleLinesForFunction =
+              -- Rather different logic than LangTools.reflowLetWhitespace :/
+              not (String.contains "\n" (LangUnparser.unparse fBody))
+              && longLineLength < String.length (LangUnparser.unparseWithUniformWhitespace True True (eFun argList fBody))
+            in
+            if multipleLinesForFunction
+            then replacePrecedingWhitespace "\n" fBody
+            else ensureWhitespaceExp fBody
+          in
+          let explicitFunc = eFun argList fBodyReflowed in
+          -- Try to curry once, if body is a simple function application and flag given
           if not allowCurrying || argCount >= 2 then
             explicitFunc
           else
-            case mergedArgUsesEnumerated.val.e__ of
+            case fBody.val.e__ of
               (EApp ws1 funcE args ws2) ->
                 case Utils.takeLast 1 args of
                   [lastArg] ->
                     case lastArg.val.e__ of
                       EVar _ "INSERT_ARGUMENT1_HERE" ->
                         if List.length args >= 2 then
-                          replaceE__ mergedArgUsesEnumerated (EApp ws1 funcE (List.take (List.length args - 1) args) ws2)
+                          replaceE__ fBody (EApp ws1 funcE (List.take (List.length args - 1) args) ws2)
                           |> replacePrecedingWhitespace " " -- Presume a single line application.
                         else
                           -- funcE is almost certainly an EVar
@@ -501,10 +517,7 @@ cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToA
         let funcName = nonCollidingName funcSuggestedName 2 (identifiersSet commonScope) in
         let oldIndentation = indentationOf commonScope in
         let abstractedFuncIndented =
-          if String.contains "\n" (unparse abstractedFunc) then
-            replacePrecedingWhitespace (" " ++ oldIndentation) (indent ("  " ++ oldIndentation) abstractedFunc)
-          else
-            replacePrecedingWhitespace " " abstractedFunc
+          replaceIndentation ("  " ++ oldIndentation) abstractedFunc
         in
         let eidToNewE__ =
           cloneEIdsAndExpsAndParameterExpLists

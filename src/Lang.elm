@@ -1660,6 +1660,7 @@ precedingWhitespace exp =
 extractIndentation : String -> String
 extractIndentation string =
   String.split "\n" string
+  |> List.drop 1 -- If no newline, consider that no indentation.
   |> Utils.maybeLast
   |> Maybe.withDefault ""
   |> tabsToSpaces

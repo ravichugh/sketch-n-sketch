@@ -1758,6 +1758,11 @@ abstractPVar pathedPatId originalProgram =
             let (argumentsForCallSite, abstractedFuncExp) =
               abstract pluckedBoundExp.val.eid shouldBeParameter originalProgram
             in
+            let abstractedFuncExpNiceWs =
+              abstractedFuncExp
+              |> replacePrecedingWhitespace " "
+              |> replaceIndentation (indentationOf scopeExp ++ "  ")
+            in
             let newScopeBody =
               let varToApp varExp =
                 replaceE__PreservingPrecedingWhitespace varExp (EApp space0 (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") space0)
@@ -1767,7 +1772,7 @@ abstractPVar pathedPatId originalProgram =
             let newProgram =
               originalProgram
               |> replaceExpNode scopeBody.val.eid newScopeBody
-              |> replaceExpNodePreservingPrecedingWhitespace pluckedBoundExp.val.eid abstractedFuncExp
+              |> replaceExpNode pluckedBoundExp.val.eid abstractedFuncExpNiceWs
             in
             newProgram
           in

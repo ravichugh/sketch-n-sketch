@@ -374,11 +374,12 @@ copyListWhitespace templateList list =
     _ ->
       Debug.crash <| "Lang.copyListWs expected lists, but given " ++ unparseWithIds templateList ++ " and " ++ unparseWithIds list
 
+longLineLength = 50 -- Not precisely 50, but roughly so. (using unparseWithUniformWhitespace to ensure convergence in one step; also don't count length of initial "(let ")
+
 -- O(n^2) if applied recursively to children
 -- O(n) if used once
 reflowLetWhitespace : Exp -> Exp -> Exp
 reflowLetWhitespace program letExp =
-  let longLineLength = 50 in -- Not precisely 50, but roughly so. (using unparseWithUniformWhitespace to ensure convergence in one step; also don't count length of initial "(let ")
   case letExp.val.e__ of
     ELet oldLetWs letKind isRec pat boundExp body ws2 ->
       let oldIndentation = indentationOf letExp in

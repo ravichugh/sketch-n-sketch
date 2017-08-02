@@ -1,7 +1,6 @@
 
-(def redSquare
-  (\(w y)
-    (rect "salmon" 100 y w w)))
+(def redSquare (\(w y)
+  (rect "salmon" 100 y w w)))
 
 (def main
   (draw

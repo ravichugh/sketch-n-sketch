@@ -1,16 +1,12 @@
 
-(def square (\fill
-  (\(w x y)
-    (rect fill x y w w))))
+(def square (\fill (\(w x y)
+  (rect fill x y w w))))
 
-(def redSquare
-  (square "salmon"))
+(def redSquare (square "salmon"))
 
-(def greenSquare
-  (square "yellowgreen"))
+(def greenSquare (square "yellowgreen"))
 
-(def yellowSquare
-  (square "gold"))
+(def yellowSquare (square "gold"))
 
 (def main
   (draw
