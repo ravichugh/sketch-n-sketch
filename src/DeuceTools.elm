@@ -1926,6 +1926,7 @@ deuceTools model =
         ]
       , [ moveDefinitionTool
         , introduceVariableTool
+        , makeEqualTool
         ]
       , [ renameVariableTool
         , swapNamesAndUsagesTool
@@ -1936,8 +1937,7 @@ deuceTools model =
         , makeMultiLineTool
         , alignExpressionsTool
         ]
-      , [ makeEqualTool
-        , copyExpressionTool
+      , [ copyExpressionTool
         , reorderExpressionsTool
         , swapUsagesTool
         , swapExpressionsTool
