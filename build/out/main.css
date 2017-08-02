@@ -799,10 +799,9 @@ code {
  ******************************************************************************/
 
 .synthesis-results .hover-menu .text-button {
-  width: 150px;
+  width: 300px;
   height: auto;
   padding: 7px;
-  font-size: 0.7em;
   line-height: 1.4em;
   white-space: normal;
   border-bottom: 1px solid #333333;
