@@ -32,6 +32,7 @@ import InterfaceModel as Model exposing
 import Lang exposing (..)
 import LangTools
 import LangUnparser
+import LangSimplify
 import UserStudy
 
 import DeuceWidgets exposing
@@ -2013,9 +2014,27 @@ runTool model deuceTool =
   case deuceTool.func of
     Just thunk ->
       ImpureGoodies.crashToNothing thunk
+        |> maybeCleanResults
 
     _ ->
       Nothing
+
+-- Auto-clean results for user study
+maybeCleanResults : Maybe (List SynthesisResult) -> Maybe (List SynthesisResult)
+maybeCleanResults =
+  if UserStudy.enabled == False then
+    identity
+  else
+    Maybe.map (
+      List.map (\(SynthesisResult result) ->
+        let cleanedExp =
+          result.exp
+            |> LangSimplify.cleanCode
+            |> copyPrecedingWhitespace result.exp
+        in
+        SynthesisResult { result | exp = cleanedExp }
+      )
+    )
 
 -- Check if a tool is active without running it
 isActive : Model -> DeuceTool -> Bool
