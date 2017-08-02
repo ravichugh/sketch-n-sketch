@@ -1110,7 +1110,7 @@ codePanel model =
         textButton
           { defaultTb
               | attributes = attributes ++ logMouseOver "Undo"
-              , content = [Html.text "Undo"]
+              , content = [Html.text "⟲ Undo"]
               , onClick = Controller.msgUndo
               , disabled = List.length past <= 1
           }
@@ -1130,7 +1130,7 @@ codePanel model =
         textButton
           { defaultTb
               | attributes = attributes ++ logMouseOver "Redo"
-              , content = [Html.text "Redo"]
+              , content = [Html.text "⟳ Redo"]
               , onClick = Controller.msgRedo
               , disabled = List.length future == 0
           }
