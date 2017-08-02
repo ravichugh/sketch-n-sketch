@@ -2732,6 +2732,7 @@ copyExpressionTransformation originalProgram eids =
         |> List.concatMap
           (\eidToCopy ->
             let expToCopy = justFindExpByEId originalProgramUniqueNames eidToCopy in
+            let expToCopyOriginalNames = justFindExpByEId originalProgram eidToCopy in
             let eidsToChange = List.filter ((/=) eidToCopy) eids in
             let newProgramUniqueNames =
               List.foldl
@@ -2746,7 +2747,7 @@ copyExpressionTransformation originalProgram eids =
               |> List.map (.val >> .eid)
             in
             programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
-                ("Copy expression: " ++ Utils.squish (unparse expToCopy))
+                ("Copy expression: " ++ Utils.squish (unparse expToCopyOriginalNames))
                 uniqueNameToOldName
                 Nothing -- maybeNewScopeEId
                 ("copied", "untouched")
