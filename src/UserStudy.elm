@@ -282,7 +282,7 @@ headToHeadTaskTemplates =
   ]
 
 fullTaskTemplates =
-  [ "Battery Icon"
+  [ "Four Squares"
   , "Lambda Icon"
   ]
 

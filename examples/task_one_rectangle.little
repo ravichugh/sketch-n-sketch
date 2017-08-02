@@ -12,7 +12,7 @@
 
 
 
-; The final program should look like:
+; The final program should look something like:
 ; 
 ;   (def rect1
 ;     (let [fill x y width height] ["black" 20 20 80 250]
@@ -20,4 +20,4 @@
 ;   
 ;   (def main
 ;     (draw [ rect1 ]))
-; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>The programmer intended the rectangle to be 250 pixels tall and 80 pixels wide, but the height and width arguments to rect are in the wrong order. Swap them.</p></li><li><p>Rearrange the five variable definitions into a single tuple definition. The order of variables should match the order of arguments to rect.</p></li></ul>
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>The programmer intended the rectangle to be <code>250</code> pixels tall and <code>80</code> pixels wide, but the <code>height</code> and <code>width</code> arguments to <code>rect</code> are in the wrong order. Swap them.</p></li><li><p>Rearrange the five variable definitions into a single tuple definition. The order of variables should match the order of arguments to <code>rect</code>.</p></li></ul>

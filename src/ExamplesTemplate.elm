@@ -187,7 +187,7 @@ LITTLE_TO_ELM tutorial_step_20
 LITTLE_TO_ELM task_one_rectangle
 LITTLE_TO_ELM task_three_rectangles
 LITTLE_TO_ELM task_target
-LITTLE_TO_ELM task_battery
+LITTLE_TO_ELM task_four_squares
 LITTLE_TO_ELM task_lambda
 
 --------------------------------------------------------------------------------
@@ -369,7 +369,7 @@ deuceUserStudyCategory =
     , makeExample "Three Rectangles" task_three_rectangles
     , makeExample "Target Icon" task_target
     , makeExample "Deuce Study Transition 2" study_transition_2
-    , makeExample "Battery Icon" task_battery
+    , makeExample "Four Squares" task_four_squares
     , makeExample "Lambda Icon" task_lambda
     , makeExample "Deuce Study End" study_end
     ]

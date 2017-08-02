@@ -28,5 +28,4 @@
 ;   
 ;   (def main
 ;     (draw (fourSquares 80 30 100 "yellowgreen" "gold" "royalblue" "salmon")))
-;   four calls to `rect`.
-; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Introduce a helper function called <code>oneCorner</code> that factors the code that is common to the</p></li><li><p>Turn <code>fourSquares</code> into a function takes <code>x</code>, <code>y</code>, and <code>w</code> arguments, as well as color arguments called <code>topLeft</code>, <code>topRight</code>, <code>botLeft</code>, and <code>botRight</code>.</p></li></ul>
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Introduce a helper function called <code>oneCorner</code> that factors the code that is common to the four calls to <code>rect</code>.</p></li><li><p>Turn <code>fourSquares</code> into a function takes <code>x</code>, <code>y</code>, and <code>w</code> arguments, as well as color arguments called <code>topLeft</code>, <code>topRight</code>, <code>botLeft</code>, and <code>botRight</code>.</p></li></ul>

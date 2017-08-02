@@ -5169,21 +5169,24 @@ study_start =
 """
 
 study_transition_1 =
- """(def main
+ """
+(def main
   (draw [(show \"That's the end of the tutorial!\")]))
-; <!-- PROSE --> <p>Great job, you've completed the tutorial! Now you're going to use Sketch-n-Sketch to perform some program editings tasks.</p><p>In the next section, you will see three examples programs, each with a list of editing tasks. You will <em>not</em> be allowed to use text editing for any of the tasks. Instead, you will use the code transformation tools. You will work with each program twice:</p><ul><li>using code tools with Text-Select Mode, and</li><li>using code tools with Box-Select Mode.</li></ul><p>The order in which you are asked to perform tasks and use the different modes is random.</p><p>Before each task, you will have the opportunity to read the code to understand it. All editing features are disabled during this reading period.</p><p>Then, you will be given a list of editing tasks to perform. The top of the file will tell you to use either Text-Select Mode or Box-Select Mode. When you are done with each task, click Next Step to move on.</p><p>To start this sequence of tasks, click Next Step. Once you do, you will no longer be able to go the Previous Step of the tutorial.</p>
+; <!-- PROSE --> <p>Great job, you've completed the tutorial! Now you're going to use Sketch-n-Sketch to perform some program editings tasks.</p><p>In the next section, you will see three example programs, each with a list of editing tasks. You will <em>not</em> be allowed to use text editing for any of the tasks. Instead, you will use the code transformation tools. You will work with each program twice:</p><ul><li>using code tools with Text-Select Mode, and</li><li>using code tools with Box-Select Mode.</li></ul><p>The order in which you are asked to perform tasks and use the different modes is random.</p><p>Before each task, you will have the opportunity to read the code to understand it. All editing features are disabled during this reading period.</p><p>Then, you will be given a list of editing tasks to perform. The top of the file will tell you to use either Text-Select Mode or Box-Select Mode. When you are done with each task, click Next Step to move on.</p><p>To start this sequence of tasks, click Next Step. Once you do, you will no longer be able to go the Previous Step of the tutorial.</p>
 
 """
 
 study_transition_2 =
- """(def main
+ """
+(def main
   (draw []))
 ; <!-- PROSE --> <p>In the final section, you will see two examples programs, each with a list of editing tasks. As before, you will <em>not</em> be able to use text editing. But, this time, you will be able to use <em>either</em>:</p><ul><li>code tools with Text-Select Mode, or</li><li>code tools with Box-Select Mode.</li></ul><p>It's up to you. And this time, you will work with each program just once.</p><p>Click Next Step to proceed.</p>
 
 """
 
 study_end =
- """(def main
+ """
+(def main
   (draw []))
 ; <!-- PROSE --> <p>You're all done with the programming exercises!</p><p>One last thing: please fill out the exit survey.</p><p>Thanks!</p>
 
@@ -5472,7 +5475,8 @@ tutorial_step_19 =
 """
 
 tutorial_step_20 =
- """(def main
+ """
+(def main
   (draw []))
 ; <!-- PROSE --> <p>As a final recap, there are two general mechanisms for invoking code transformation tools:</p><ul class=\"_12\"><li class=\"_1\"><h3>TEXT-SELECT MODE</h3><p><em>(either via right-click menu or Code Tools menu)</em></p><p><strong>(Step 1)</strong> Text-select something in the code.</p><p><strong>(Step 2a)</strong> Right-click and select a tool from pop-up menu, or</p><p><strong>(Step 2b)</strong> Select a tool from the Code Tools menu.</p><p><strong>(Step 3)</strong> Follow any instructions and finish.</p><p><em>In Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired code tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</em></p></li><li class=\"_2\"><h3>BOX-SELECT MODE</h3><p><strong>(Step 1)</strong> Hold down Shift, hover and click boxes for all items involved for the desired code tool (then release Shift key).</p><p><strong>(Step 2)</strong> Select a tool from pop-up menu.</p><p><strong>(Step 3)</strong> Follow any instructions and finish.</p><p><em>In Box-Select Mode, ALL arguments are selected first, BEFORE the desired code tool is selected.</em></p></li></ul><p>Note that regardless of the method of selection, the Escape key will always deselect all selected boxes and cancel any pop-up menus.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Try the Help menu at the top of the screen; you'll find these summary instructions there.</li></ol>
 
@@ -5494,7 +5498,7 @@ task_one_rectangle =
 
 
 
-; The final program should look like:
+; The final program should look something like:
 ; 
 ;   (def rect1
 ;     (let [fill x y width height] [\"black\" 20 20 80 250]
@@ -5502,7 +5506,7 @@ task_one_rectangle =
 ;   
 ;   (def main
 ;     (draw [ rect1 ]))
-; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>The programmer intended the rectangle to be 250 pixels tall and 80 pixels wide, but the height and width arguments to rect are in the wrong order. Swap them.</p></li><li><p>Rearrange the five variable definitions into a single tuple definition. The order of variables should match the order of arguments to rect.</p></li></ul>
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>The programmer intended the rectangle to be <code>250</code> pixels tall and <code>80</code> pixels wide, but the <code>height</code> and <code>width</code> arguments to <code>rect</code> are in the wrong order. Swap them.</p></li><li><p>Rearrange the five variable definitions into a single tuple definition. The order of variables should match the order of arguments to <code>rect</code>.</p></li></ul>
 
 """
 
@@ -5528,9 +5532,9 @@ task_three_rectangles =
 ; The final program should look something like:
 ; 
 ;   (def rect_50_70 (\\(fill2 x2 y2)
-;     (let [fill x y w h] [fill2 x2 y2 50 70]
-;       (rect fill x y w h))))
-;       
+;     (let [w h] [50 70]
+;       (rect fill2 x2 y2 w h))))
+;   
 ;   (def rect1
 ;     (rect_50_70 \"red\" 30 30))
 ;   
@@ -5542,7 +5546,7 @@ task_three_rectangles =
 ;   
 ;   (def main
 ;     (draw [ rect1 rect2 rect3 ]))
-; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li>The three rectangle definitions share a lot of identical code. Create a function rect_50_70 that generates a 50 x 70 rectangle given color and position parameters, and define rect1, rect2, and rect3 in terms of rect_50_70.</li></ul>
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li>The three rectangle definitions share a lot of identical code. Create a function <code>rect_50_70</code> that generates a <code>50</code> x <code>70</code> rectangle given color and position parameters, and define <code>rect1</code>, <code>rect2</code>, and <code>rect3</code> in terms of <code>rect_50_70</code>.</li></ul>
 
 """
 
@@ -5550,7 +5554,7 @@ task_target =
  """
 (def ring (\\i
   (let fill (if (= 0 (mod i 2)) \"firebrick\" \"lightgray\")
-  (circle fill 250 250 (* 50 i)))))
+  (circle fill 150 150 (* 30 i)))))
 
 (def target (\\(startIndex endIndex)
   (map ring (reverse (range startIndex endIndex)))))
@@ -5560,26 +5564,53 @@ task_target =
 
 
 
-; The final program should look like:
+; The final program should look something like:
 ;
 ;   (def target (\\(cx cy num numRings)
 ;     (let ring (\\i
 ;       (let fill (if (= 0 (mod i 2)) \"firebrick\" \"lightgray\")
 ;       (circle fill cx cy (* num i))))
+;
 ;       (map ring (reverse (range 1 numRings))))))
 ;
 ;   (def main
-;     (draw (target 250 250 50 4)))
-; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Remove the startIndex argument; its value should always be 1.</p></li><li><p>Rename endIndex to numRings.</p></li><li><p>Move the ring function inside the target definition.</p></li><li><p>Add the center position and ring width as arguments to target.</p></li></ul>
+;     (draw (target 150 150 30 4)))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Remove the <code>startIndex</code> argument; its value should always be <code>1</code>.</p></li><li><p>Rename <code>endIndex</code> to <code>numRings</code>.</p></li><li><p>Move the <code>ring</code> function inside the <code>target</code> definition.</p></li><li><p>Add the center position and ring width as arguments to <code>target</code>.</p></li></ul>
 
 """
 
-task_battery =
+task_four_squares =
  """
-; TODO replace battery task
+(def fourSquares
+  (let [x y w] [80 30 100]
+
+    [(rect \"yellowgreen\" (+ x (* 0 w)) (+ y (* 0 w)) w w)
+     (rect \"gold\"        (+ x (* 1 w)) (+ y (* 0 w)) w w)
+     (rect \"royalblue\"   (+ x (* 0 w)) (+ y (* 1 w)) w w)
+     (rect \"salmon\"      (+ x (* 1 w)) (+ y (* 1 w)) w w)
+    ]))
+
 (def main
-  (draw []))
-; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p>
+  (draw fourSquares))
+
+
+
+; The final program should look something like:
+;
+;   (def fourSquares
+;     (\\(x y w topLeft topRight botLeft botRight)
+;       (let oneCorner (\\(fill num num2)
+;         (rect fill (+ x (* num w)) (+ y (* num2 w)) w w))
+;   
+;       [(oneCorner topLeft 0 0)
+;        (oneCorner topRight 1 0)
+;        (oneCorner botLeft 0 1)
+;        (oneCorner botRight 1 1)
+;       ])))
+;   
+;   (def main
+;     (draw (fourSquares 80 30 100 \"yellowgreen\" \"gold\" \"royalblue\" \"salmon\")))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Introduce a helper function called <code>oneCorner</code> that factors the code that is common to the four calls to <code>rect</code>.</p></li><li><p>Turn <code>fourSquares</code> into a function takes <code>x</code>, <code>y</code>, and <code>w</code> arguments, as well as color arguments called <code>topLeft</code>, <code>topRight</code>, <code>botLeft</code>, and <code>botRight</code>.</p></li></ul>
 
 """
 
@@ -5610,7 +5641,7 @@ task_lambda =
 ;   
 ;   (def main
 ;     (draw logo))
-; <!-- PROSE --> <p>The initial program draws a 100 x 120 pixel lambda icon at xy-position (20, 30), but the hard-coded constants requires many changes if we want to draw the icon at a different position or change the style of the lines.</p><p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Define and use four new variables for the x-position, y-position, width, and height of the logo. These variables should be defined in a single 4-tuple.</p></li><li><p>Define and use two new variables for the color and width of the lines. These variables should be defined in a single 2-tuple.</p></li></ul>
+; <!-- PROSE --> <p>The initial program draws a <code>100</code> x <code>120</code> pixel lambda icon at xy-position <code>(20, 30)</code>, but the hard-coded constants requires many changes if we want to draw the icon at a different position or change the style of the lines.</p><p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Define and use four new variables for the x-position, y-position, width, and height of the logo. These variables should be defined in a single 4-tuple.</p></li><li><p>Define and use two new variables for the color and width of the lines. These variables should be defined in a single 2-tuple.</p></li></ul>
 
 """
 
@@ -5794,7 +5825,7 @@ deuceUserStudyCategory =
     , makeExample "Three Rectangles" task_three_rectangles
     , makeExample "Target Icon" task_target
     , makeExample "Deuce Study Transition 2" study_transition_2
-    , makeExample "Battery Icon" task_battery
+    , makeExample "Four Squares" task_four_squares
     , makeExample "Lambda Icon" task_lambda
     , makeExample "Deuce Study End" study_end
     ]

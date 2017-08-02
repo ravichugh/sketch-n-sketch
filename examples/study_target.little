@@ -1,0 +1,23 @@
+(def ring (\i
+  (let fill (if (= 0 (mod i 2)) "firebrick" "lightgray")
+  (circle fill 250 250 (* 50 i)))))
+
+(def target (\(startIndex endIndex)
+  (map ring (reverse (range startIndex endIndex)))))
+
+(def main
+  (draw (target 1 4)))
+
+; The final program should look like:
+;
+;   (def target (\(cx cy num numRings)
+;     (let ring (\i
+;       (let fill (if (= 0 (mod i 2)) "firebrick" "lightgray")
+;       (circle fill cx cy (* num i))))
+;       (map ring (reverse (range 1 numRings))))))
+;
+;   (def main
+;     (draw (target 250 250 50 4)))
+; ; BEGIN PROSE
+; <p>Goals:</p><ul><li><p>Remove the startIndex argument; its value should always be 1.</p></li><li><p>Rename endIndex to numRings.</p></li><li><p>Move the ring function inside the target definition.</p></li><li><p>Add the center position and ring width as arguments to target.</p></li></ul>
+; END PROSE

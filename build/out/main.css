@@ -348,7 +348,7 @@ code {
 
 .prose-panel code {
   background-color: #444444;
-  padding: 4px;
+  padding: 2px 4px 2px 4px;
   border-radius: 5px;
 }
 
