@@ -203,7 +203,7 @@ function getEditorState() {
     { cursorPos : editor.getCursorPosition()
     , selections : editor.selection.getAllRanges()
     , highlights : [] // TODO
-    , annotations : [] // TODO
+    , annotations : editor.getSession().getAnnotations().map(function (annot) { return { row: annot.row, text: annot.text, type_ : annot.type } })
     , tooltips : [] // TODO
     , fontSize : fontSize
     , lineHeight : editor.renderer.layerConfig.lineHeight

@@ -938,7 +938,7 @@ menuBar model =
                       Controller.msgNoop
                   , disableableTextButton
                       (UserStudy.disableNextStep model.userStudyStateIndex)
-                      "Next Step ▸"
+                      (if model.codeBoxInfo.annotations == [] then "Next Step ▸" else "Give Up ▸")
                       Controller.msgUserStudyNext
                   ]
               , menu "Help"
