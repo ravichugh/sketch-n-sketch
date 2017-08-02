@@ -81,6 +81,8 @@ msgInfo (Msg msgName updater) model =
   case msgName of
     "Ace Update" -> Nothing
 
+    "New: User Study Next" -> Nothing -- has its own logging
+
     _ ->
       let info =
         "\"deuceSelectionsCount\" : " ++ toString (List.length model.deuceState.selectedWidgets)

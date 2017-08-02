@@ -39,7 +39,7 @@ module InterfaceController exposing
   , msgMouseClickDeuceWidget
   , msgMouseEnterDeuceWidget, msgMouseLeaveDeuceWidget
   , msgChooseDeuceExp
-  , msgShowMenu, msgHideMenu, msgToggleMenu
+  , msgHideMenu, msgToggleMenu -- , msgShowMenu
   , msgUpdateFontSize
   , msgSetToolMode
   , msgSetGhostsShown
@@ -857,7 +857,6 @@ msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
 msgUserHasTyped : Msg
 msgUserHasTyped =
   Msg "User Has Typed" <| \model ->
-    let _ = UserStudyLog.log "Typing In Codebox" "" in
     { model
         | deuceState =
             emptyDeuceState
@@ -1811,9 +1810,9 @@ setMenuActive isActive model =
   in
     { model | viewState = newViewState }
 
-msgShowMenu : Msg
-msgShowMenu  =
-  Msg "Show Menu" <| setMenuActive True
+-- msgShowMenu : Msg
+-- msgShowMenu  =
+--   Msg "Show Menu" <| setMenuActive True
 
 msgHideMenu : Msg
 msgHideMenu =
