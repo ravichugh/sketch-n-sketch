@@ -505,16 +505,22 @@ getReplacei1 : Int -> (a -> a) -> List a -> List a
 getReplacei1 i f list =
   getReplacei0 (i-1) f list
 
-modifyFirst : (a -> a) -> List a -> List a
-modifyFirst f list =
+mapHead : (a -> a) -> List a -> List a
+mapHead f list =
   getReplacei0 0 f list
 
-modifyLast : (a -> a) -> List a -> List a
-modifyLast f list =
+changeTail : (List a -> List a) -> List a -> List a
+changeTail f list =
+  case list of
+    []    -> []
+    x::xs -> x :: f xs
+
+mapLast : (a -> a) -> List a -> List a
+mapLast f list =
   getReplacei0 (List.length list - 1) f list
 
-maybeModifyLast : (a -> a) -> List a -> Maybe (List a)
-maybeModifyLast f list =
+maybeMapLast : (a -> a) -> List a -> Maybe (List a)
+maybeMapLast f list =
   maybeLast list
   |> Maybe.map (\last -> removeLastElement list ++ [f last])
 
@@ -768,6 +774,13 @@ takeWhile pred list =
     x::xs -> if pred x
              then x::(takeWhile pred xs)
              else []
+
+dropWhile pred list =
+  case list of
+    []    -> []
+    x::xs -> if pred x
+             then dropWhile pred xs
+             else list
 
 -- Use Maybe.map
 mapMaybe = Maybe.map

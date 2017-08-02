@@ -685,8 +685,8 @@ snippet : Ace.Range -> String -> String
 snippet range =
      String.lines
   >> Utils.slice range.start.row (range.end.row + 1)
-  >> Utils.modifyLast (String.left range.end.column)
-  >> Utils.modifyFirst (String.dropLeft range.start.column)
+  >> Utils.mapLast (String.left range.end.column)
+  >> Utils.mapHead (String.dropLeft range.start.column)
   >> String.concat
 
 codeSnippet : Model -> Ace.Range -> String

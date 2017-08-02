@@ -1866,7 +1866,7 @@ msgUpdateRenameVarTextBox text =
             | deuceState =
                 { oldDeuceState
                     | renameVarTextBox =
-                        Lang.sanitize text
+                        FastParser.sanitizeVariableName text
                 }
         }
       deuceToolsAndResults =

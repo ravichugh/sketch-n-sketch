@@ -1,5 +1,6 @@
 module Lang exposing (..)
 
+import Char
 import String
 import Debug
 import Dict exposing (Dict)
@@ -286,19 +287,6 @@ type alias Backtrace = List Exp
 
 ------------------------------------------------------------------------------
 
-sanitize : String -> String
-sanitize =
-  let
-    forbiddenCharacters =
-      "\"' "
-  in
-    Regex.replace
-      Regex.All
-      (Regex.regex <| "[" ++ forbiddenCharacters ++ "]")
-      (\_ -> "")
-
-------------------------------------------------------------------------------
-
 -- We currently have two forms of pattern ids.
 --
 -- PathedPatternIds are older and reference a pattern by its scopeId and a
@@ -355,7 +343,7 @@ pathedPatIdRightSibling (scopeId, path) =
 
 pathRightSibling : List Int -> Maybe (List Int)
 pathRightSibling path =
-  Utils.maybeModifyLast ((+) 1) path
+  Utils.maybeMapLast ((+) 1) path
 
 pathAfterElementRemoved : List Int -> List Int -> Maybe (List Int)
 pathAfterElementRemoved removedPath path =

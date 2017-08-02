@@ -2,6 +2,7 @@ module FastParser exposing
   ( prelude, isPreludeLoc, isPreludeLocId, isPreludeEId
   , substOf, substStrOf, substPlusOf
   , parseE, parseT
+  , sanitizeVariableName
   , clearAllIds
   , freshen
   , maxId
@@ -1591,6 +1592,17 @@ showError err =
 --------------------------------------------------------------------------------
 -- Code from old parser
 --------------------------------------------------------------------------------
+
+-- Cousin of variableIdentifierString.
+-- Removes invalid characters.
+sanitizeVariableName : String -> String
+sanitizeVariableName unsafeName =
+  unsafeName
+  |> String.toList
+  |> U.dropWhile (not << (Char.toLower >> validVariableIdentifierFirstChar))
+  |> U.mapHead Char.toLower
+  |> U.changeTail (List.filter validIdentifierRestChar)
+  |> String.fromList
 
 (prelude, initK) =
   freshenClean 1 <| U.fromOkay "parse prelude" <| parseE_ identity Prelude.src
