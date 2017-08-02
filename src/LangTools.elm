@@ -502,10 +502,19 @@ newLetFancyWhitespace insertedLetEId pat boundExp expToWrap program =
         else indentationAt expToWrap.val.eid program
       _ -> indentationAt expToWrap.val.eid program
   in
+  let newlineCountAfterLet =
+    let newlinesBeforeWrapped = List.length (String.split "\n" (precedingWhitespace expToWrap)) - 1 in
+    if isTopLevel || newlinesBeforeWrapped >= 2
+    then 2
+    else 1
+  in
+  let newlineCountBeforeLet =
+    if expToWrap.val.eid == program.val.eid then 1 else newlineCountAfterLet
+  in
   ELet space0 letOrDef False (ensureWhitespacePat pat) (replaceIndentation "  " boundExp |> ensureWhitespaceExp)
-      (expToWrap |> ensureWhitespaceSmartExp (if isLet expToWrap || isTopLevel then "" else "  ")) space0
+      (expToWrap |> ensureWhitespaceSmartExp newlineCountAfterLet (if isLet expToWrap || isTopLevel then "" else "  ")) space0
   |> withDummyExpInfoEId insertedLetEId
-  |> ensureWhitespaceNewlineExp
+  |> replacePrecedingWhitespace (String.repeat newlineCountBeforeLet "\n")
   |> indent newLetIndentation
 
 

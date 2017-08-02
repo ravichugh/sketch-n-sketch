@@ -1518,7 +1518,7 @@ moveEquationsBeforeEId letEIds targetEId originalProgram =
                     _ -> indentationAt targetEId program
                 in
                 ELet ws1 letOrDef isRec pat boundExp
-                    (expToWrap |> ensureWhitespaceSmartExp (indentationOf letExp ++ if isLet expToWrap then "" else "  ")) space0
+                    (expToWrap |> ensureWhitespaceSmartExp 1 (indentationOf letExp ++ if isLet expToWrap then "" else "  ")) space0
                 |> withDummyExpInfoEId insertedLetEId
                 |> ensureWhitespaceNewlineExp
                 |> replaceIndentation newLetIndentation

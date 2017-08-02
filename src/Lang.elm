@@ -1805,10 +1805,11 @@ ensureWhitespacePat : Pat -> Pat
 ensureWhitespacePat pat =
   mapPrecedingWhitespacePat ensureWhitespace pat
 
-
-ensureWhitespaceNewline : String -> String
-ensureWhitespaceNewline s =
-  if String.contains "\n" s then s else "\n" ++ s
+ensureWhitespaceNNewlines : Int -> String -> String
+ensureWhitespaceNNewlines n s =
+  let newlineCount = List.length (String.split "\n" s) - 1 in
+  String.repeat (n - newlineCount) "\n" ++ s
+  |> ensureWhitespace
 
 -- whitespaceTwoNewlines : String -> String
 -- whitespaceTwoNewlines string =
@@ -1816,7 +1817,11 @@ ensureWhitespaceNewline s =
 
 ensureWhitespaceNewlineExp : Exp -> Exp
 ensureWhitespaceNewlineExp exp =
-  mapPrecedingWhitespace ensureWhitespaceNewline exp
+  ensureWhitespaceNNewlinesExp 1 exp
+
+ensureWhitespaceNNewlinesExp : Int -> Exp -> Exp
+ensureWhitespaceNNewlinesExp n exp =
+  mapPrecedingWhitespace (ensureWhitespaceNNewlines n) exp
 
 -- whitespaceTwoNewlinesExp : Exp -> Exp
 -- whitespaceTwoNewlinesExp exp =
@@ -1832,7 +1837,6 @@ ensureNNewlines n indentationIfNoPreviousNewlines ws =
   else
     ws
 
-
 ensureNNewlinesExp : Int -> String -> Exp -> Exp
 ensureNNewlinesExp n indentationIfNoPreviousNewlines exp =
   mapPrecedingWhitespace (ensureNNewlines n indentationIfNoPreviousNewlines) exp
@@ -1843,11 +1847,11 @@ ensureNNewlinesExp n indentationIfNoPreviousNewlines exp =
 --   Indent to given indentation level.
 -- Otherwise:
 --   Ensure preceeding whitespace is at least one space character.
-ensureWhitespaceSmartExp : String -> Exp -> Exp
-ensureWhitespaceSmartExp indentationIfMultiline exp =
+ensureWhitespaceSmartExp : Int -> String -> Exp -> Exp
+ensureWhitespaceSmartExp newlineCountIfMultiline indentationIfMultiline exp =
   if isLet exp || List.any (precedingWhitespace >> String.contains "\n") (flattenExpTree exp) then
     exp
-    |> ensureWhitespaceNewlineExp
+    |> ensureWhitespaceNNewlinesExp newlineCountIfMultiline
     |> replaceIndentation indentationIfMultiline
   else
     ensureWhitespaceExp exp
