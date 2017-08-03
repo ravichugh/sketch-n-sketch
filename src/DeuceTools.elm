@@ -17,6 +17,7 @@ import Dict
 import Either exposing (..)
 import Utils
 import ImpureGoodies
+import UserStudyLog
 import ColorNum
 
 import InterfaceModel as Model exposing
@@ -2012,7 +2013,11 @@ runTool model deuceTool =
   -- let _ = Utils.log <| "running tool " ++ deuceTool.name in
   case deuceTool.func of
     Just thunk ->
-      ImpureGoodies.crashToNothing thunk
+      case ImpureGoodies.crashToError thunk of
+        Ok results -> Just results
+        Err errMsg ->
+          let _ = UserStudyLog.log ("Deuce Tool Crash \"" ++ deuceTool.name ++ "\"") (toString errMsg) in
+          Nothing
 
     _ ->
       Nothing

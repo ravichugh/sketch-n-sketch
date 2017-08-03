@@ -18,3 +18,9 @@ randomInt low highNonInclusive =
 crashToNothing : (() -> a) -> Maybe a
 crashToNothing thunk =
   Native.ImpureGoodies.crashToNothing thunk
+
+
+-- Runs thunk. If thunk crashes, returns an Err value. No built-in logging.
+crashToError : (() -> a) -> Result String a
+crashToError thunk =
+  Native.ImpureGoodies.crashToError thunk
