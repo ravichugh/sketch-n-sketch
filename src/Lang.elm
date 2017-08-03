@@ -1098,7 +1098,7 @@ findAllWithAncestors_ predicate ancestors exp =
   let recurse exp      = findAllWithAncestors_ predicate ancestorsAndThis exp in
   thisResult ++ List.concatMap recurse (childExps exp)
 
--- Returns a boolean tag indicating whether then ancestor is a scope.
+-- Returns a boolean tag indicating whether the ancestor is a scope.
 -- Most notably, a let is NOT a scope for its bound exp, only its body.
 -- (An ECase is also NOT a scope for its scrutinee, but is for its branches.)
 findAllWithAncestorsScopesTagged : (Exp -> Bool) -> Exp -> List (List (Exp, Bool))

@@ -360,9 +360,9 @@ topLevelExps program =
 
 lastExp : Exp -> Exp
 lastExp exp =
-  case childExps exp of
-    []       -> exp
-    children -> lastExp <| Utils.last "LangTools.lastExp" children
+  case childExps exp |> List.reverse of
+    []           -> exp
+    lastChild::_ -> lastExp lastChild
 
 
 copyListWhitespace : Exp -> Exp -> Exp
@@ -1101,6 +1101,13 @@ expToLetParts exp =
     _                                 -> Debug.crash <| "LangTools.expToLetParts exp is not an ELet: " ++ unparseWithIds exp
 
 
+expToMaybeLetParts : Exp -> Maybe (WS, LetKind, Bool, Pat, Exp, Exp, WS)
+expToMaybeLetParts exp =
+  case exp.val.e__ of
+    ELet ws1 letKind rec p1 e1 e2 ws2 -> Just (ws1, letKind, rec, p1, e1, e2, ws2)
+    _                                 -> Nothing
+
+
 expToLetKind : Exp -> LetKind
 expToLetKind exp =
   case exp.val.e__ of
@@ -1561,6 +1568,37 @@ findScopeAreasByIdent ident exp =
       )
 
 
+-- Nothing means not found or can't match pattern.
+--
+-- Only matches PVar or PAs for now
+findBoundExpByPId : PId -> Exp -> Maybe Exp
+findBoundExpByPId targetPId exp =
+  case findScopeExpAndPat targetPId exp of
+    Just (scopeExp, pat) ->
+      case (expToMaybeLetPatAndBoundExp scopeExp, patToMaybeIdent pat) of
+        (Just (letPat, letBoundExp), Just ident) ->
+          tryMatchExpReturningList letPat letBoundExp
+          |> Utils.maybeFind ident
+
+        _ ->
+          Nothing
+
+    Nothing ->
+      Nothing
+
+
+-- Nothing means not found or can't match pattern.
+findBoundExpByPathedPatternId : PathedPatternId -> Exp -> Maybe Exp
+findBoundExpByPathedPatternId ((scopeEId, _), targetPath) exp =
+  case findExpByEId exp scopeEId |> Maybe.andThen expToMaybeLetPatAndBoundExp of
+    Just (letPat, letBoundExp) ->
+        tryMatchExpPatToPaths letPat letBoundExp
+        |> Utils.mapFirstSuccess (\(path, boundExp) -> if path == targetPath then Just boundExp else Nothing)
+
+    Nothing ->
+      Nothing
+
+
 -- Oops I wrote this and we don't need it yet. I imagine we will though, so let's leave it be for now. (July 2017)
 findScopeExpAndPat : PId -> Exp -> Maybe (Exp, Pat)
 findScopeExpAndPat targetPId exp =
@@ -1632,6 +1670,12 @@ followPathInPat path pat =
 
     _ ->
       Nothing
+
+
+pathedPatternIdToPId : PathedPatternId -> Exp -> Maybe PId
+pathedPatternIdToPId pathedPatId exp =
+  findPatByPathedPatternId pathedPatId exp
+  |> Maybe.map (.val >> .pid)
 
 
 pathForIdentInPat : Ident -> Pat -> Maybe (List Int)

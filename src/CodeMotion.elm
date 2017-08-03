@@ -1742,8 +1742,8 @@ shouldBeParameterIsNamedUnfrozenConstant exp originalProgram =
     _ -> False
 
 
-abstractPVar : PathedPatternId -> Exp -> List SynthesisResult
-abstractPVar pathedPatId originalProgram =
+abstractPVar : PathedPatternId -> List EId -> Exp -> List SynthesisResult
+abstractPVar pathedPatId perhapsArgEIds originalProgram =
   case pluck pathedPatId originalProgram of
     Nothing ->
       Debug.log ("abstractPVar Could not find pathedPatternId " ++ toString pathedPatId ++ " in program\n" ++ unparseWithIds originalProgram) []
@@ -1774,19 +1774,28 @@ abstractPVar pathedPatId originalProgram =
               |> replaceExpNode scopeBody.val.eid newScopeBody
               |> replaceExpNode pluckedBoundExp.val.eid abstractedFuncExpNiceWs
             in
-            newProgram
+            (newProgram, expToFuncPats abstractedFuncExpNiceWs)
           in
-          let abstractedOverAllConstantsResult =
-            let newProgram = doAbstract shouldBeParameterIsConstant in
-            synthesisResult ("Abstract " ++ ident ++ " over its constants") newProgram
-          in
-          let abstractedOverNamedUnfrozenConstantsResult =
-            let newProgram = doAbstract shouldBeParameterIsNamedUnfrozenConstant in
-            synthesisResult ("Abstract " ++ ident ++ " over its named constants") newProgram
-          in
-          [ abstractedOverAllConstantsResult
-          , abstractedOverNamedUnfrozenConstantsResult
-          ]
+          case perhapsArgEIds of
+            [] ->
+              let abstractedOverAllConstantsResult =
+                let (newProgram, _) = doAbstract shouldBeParameterIsConstant in
+                synthesisResult ("Abstract " ++ ident ++ " over its constants") newProgram
+              in
+              let abstractedOverNamedUnfrozenConstantsResult =
+                let (newProgram, _) = doAbstract shouldBeParameterIsNamedUnfrozenConstant in
+                synthesisResult ("Abstract " ++ ident ++ " over its named constants") newProgram
+              in
+              [ abstractedOverAllConstantsResult
+              , abstractedOverNamedUnfrozenConstantsResult
+              ]
+
+            argEIds ->
+              let shouldBeParameter e _ = List.member e.val.eid argEIds in
+              let (newProgram, argPats) = doAbstract shouldBeParameter in
+              -- A little bit conservative here.
+              let isSafe = argEIds |> List.all (findExpByEId originalProgram >> Maybe.map isLiteral >> (==) (Just True)) in
+              [ synthesisResult ("Abstract " ++ ident ++ " over " ++ (argPats |> List.map (unparsePat >> Utils.squish) |> Utils.toSentence)) newProgram |> setResultSafe isSafe ]
 
         _ ->
           Debug.log "Can only abstract a PVar" []

@@ -1062,7 +1062,7 @@ createFunctionTool model selections =
           of
             Just (ELet _ _ _ _ _ _ _, PVar _ ident _) ->
               ( Just <| \() ->
-                  CodeMotion.abstractPVar pathedPatId model.inputExp
+                  CodeMotion.abstractPVar pathedPatId [] model.inputExp
               , FullySatisfied
               )
             _ ->
@@ -1113,7 +1113,7 @@ createFunctionTool model selections =
                     let
                        pathedPatId = ((letEId, 1), [])
                     in
-                      CodeMotion.abstractPVar pathedPatId model.inputExp
+                      CodeMotion.abstractPVar pathedPatId [] model.inputExp
               , FullySatisfied
               )
             _ ->
@@ -1129,6 +1129,57 @@ createFunctionTool model selections =
           }
         ]
     , id = "createFunction"
+    }
+
+
+createFunctionFromArgsTool : Model -> Selections -> DeuceTool
+createFunctionFromArgsTool model selections =
+  let
+    (func, predVal) =
+      case selections of
+        ([], [], [], [], [], [], []) ->
+          (Nothing, Possible)
+        (_, _, eids, ppids, [], [], []) ->
+          case ppids |> List.map (\ppid -> LangTools.findBoundExpByPathedPatternId ppid model.inputExp) |> Utils.projJusts of
+            Just boundExps ->
+              let argEIds = Utils.dedup <| eids ++ List.map (.val >> .eid) boundExps in
+              let enclosingPPIds =
+                let ancestors = commonAncestors (\e -> List.member e.val.eid argEIds) model.inputExp in
+                let ancestorEIds = ancestors |> List.map (.val >> .eid) in
+                ancestors
+                |> List.filter isLet
+                |> List.filter (LangTools.expToLetPat >> LangTools.patToMaybePVarIdent >> (/=) (Just "main")) -- TODO: more precise exclusion of main def
+                |> List.concatMap
+                    (\letExp ->
+                      LangTools.tryMatchExpPatToPaths (LangTools.expToLetPat letExp) (LangTools.expToLetBoundExp letExp)
+                      |> List.filter (\(path, boundExp) -> not (isFunc boundExp))
+                      |> List.filter (\(path, boundExp) -> List.member boundExp.val.eid ancestorEIds) -- Incidentally, this also filters out trivial abstractions (e.g. (let x 5) -> (let x (\n -> n))) b/c boundExp must be ancestor of an arg, not an arg itself.
+                      |> List.map    (\(path, boundExp) -> ((letExp.val.eid, 1), path))
+                    )
+              in
+              case enclosingPPIds of
+                [] ->
+                  (Nothing, Impossible)
+
+                _ ->
+                  ( Just (\() -> enclosingPPIds |> List.concatMap (\ppid -> CodeMotion.abstractPVar ppid argEIds model.inputExp))
+                  , Satisfied
+                  )
+
+            _ ->
+              (Nothing, Impossible)
+
+        _ ->
+          (Nothing, Impossible)
+  in
+    { name = "Create Function From Arguments"
+    , func = func
+    , reqs =
+        [ { description = "Select expressions or patterns to become arguments to a new function."
+          , value = predVal
+          }
+        ]
+    , id = "createFunctionFromArguments"
     }
 
 --------------------------------------------------------------------------------
@@ -1919,6 +1970,7 @@ deuceTools model =
     -- TODO convertColorStringsTool
     List.map (List.map (\tool -> tool model selections)) <|
       [ [ createFunctionTool
+        , createFunctionFromArgsTool
         , mergeTool
         ]
       , [ addArgumentsTool
