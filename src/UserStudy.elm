@@ -183,14 +183,14 @@ postProcessProse newState m =
     (Tutorial, (step, _)) ->
       case step of
         "Step 11" -> updateModel (shuffle_123 step prose)
-        "Step 12" -> updateModel (shuffle_123 step prose)
-        "Step 13" -> updateModel (shuffle_123 step prose)
-        "Step 14" -> updateModel (shuffle_123 step prose)
-        "Step 15" -> updateModel (shuffle_123 step prose)
-        "Step 16" -> updateModel (shuffle_123 step prose)
-        "Step 17" -> updateModel (shuffle_123 step prose)
-        "Step 18" -> updateModel (shuffle_123 step prose)
-        "Step 19" -> updateModel (shuffle_123 step prose)
+        "Step 12" -> updateModel (shuffle_12 step prose)
+        "Step 13" -> updateModel (shuffle_12 step prose)
+        "Step 14" -> updateModel (shuffle_12 step prose)
+        "Step 15" -> updateModel (shuffle_12 step prose)
+        "Step 16" -> updateModel (shuffle_12 step prose)
+        "Step 17" -> updateModel (shuffle_12 step prose)
+        "Step 18" -> updateModel (shuffle_12 step prose)
+        "Step 19" -> updateModel (shuffle_12 step prose)
         "Step 20" -> updateModel (shuffle_12 step prose)
         _         -> m
 

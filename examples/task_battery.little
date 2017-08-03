@@ -1,32 +1,5 @@
 
-(def fourSquares
-  (let [x y w] [80 30 100]
-
-    [(rect "yellowgreen" (+ x (* 0 w)) (+ y (* 0 w)) w w)
-     (rect "gold"        (+ x (* 1 w)) (+ y (* 0 w)) w w)
-     (rect "royalblue"   (+ x (* 0 w)) (+ y (* 1 w)) w w)
-     (rect "salmon"      (+ x (* 1 w)) (+ y (* 1 w)) w w)
-    ]))
-
+; TODO replace battery task
 (def main
-  (draw fourSquares))
-
-
-
-; The final program should look something like:
-;
-;   (def fourSquares
-;     (\(x y w topLeft topRight botLeft botRight)
-;       (let oneCorner (\(fill num num2)
-;         (rect fill (+ x (* num w)) (+ y (* num2 w)) w w))
-;   
-;       [(oneCorner topLeft 0 0)
-;        (oneCorner topRight 1 0)
-;        (oneCorner botLeft 0 1)
-;        (oneCorner botRight 1 1)
-;       ])))
-;   
-;   (def main
-;     (draw (fourSquares 80 30 100 "yellowgreen" "gold" "royalblue" "salmon")))
-;   four calls to `rect`.
-; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Introduce a helper function called <code>oneCorner</code> that factors the code that is common to the</p></li><li><p>Turn <code>fourSquares</code> into a function takes <code>x</code>, <code>y</code>, and <code>w</code> arguments, as well as color arguments called <code>topLeft</code>, <code>topRight</code>, <code>botLeft</code>, and <code>botRight</code>.</p></li></ul>
+  (draw []))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p>
