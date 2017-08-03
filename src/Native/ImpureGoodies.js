@@ -14,7 +14,7 @@ var _user$project$Native_ImpureGoodies = {
         console.log(err);
         return _elm_lang$core$Maybe$Nothing;
       }
-    }
+    },
 
     crashToError : function(thunk) {
       try {
