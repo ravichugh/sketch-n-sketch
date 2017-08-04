@@ -167,11 +167,11 @@ makeEqualTool model selections =
         _ ->
           (Nothing, Impossible)
   in
-    { name = "Introduce Single Variable"
+    { name = "Make Equal with Single Variable"
     , func = func
     , reqs =
         [ { description =
-              "Select two or more expressions and, optionally, a target position."
+              "Select two or more expressions and, optionally, a target position (i.e. whitespace)."
           , value =
               expsPredVal
           }
@@ -312,7 +312,7 @@ swapNamesAndUsagesTool model selections =
            ]
   in
   selectTwoVars
-    "Swap Names and Usages" "swapNamesAndUsages" makeThunk model selections
+    "Swap Variable Names and Usages" "swapNamesAndUsages" makeThunk model selections
 
 swapUsagesTool : Model -> Selections -> DeuceTool
 swapUsagesTool model selections =
@@ -320,7 +320,7 @@ swapUsagesTool model selections =
     CodeMotion.swapUsages pathedPatId1 pathedPatId2 model.inputExp
   in
   selectTwoVars
-    "Swap Usages" "swapUsages" makeThunk model selections
+    "Swap Variable Usages" "swapUsages" makeThunk model selections
 
 selectTwoVars toolName toolId makeThunk model selections =
   let
@@ -433,7 +433,7 @@ introduceVariableTool : Model -> Selections -> DeuceTool
 introduceVariableTool model selections =
   -- TODO allow target position to be omitted
   let
-    toolName = "Introduce Variable"
+    toolName = "Introduce Local Variable"
 
     (name, func, predVal) =
       case selections of
@@ -472,7 +472,7 @@ introduceVariableTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select one or more constants and, optionally, one target position"
+              "Select one or more constants and, optionally, one target position (i.e. whitespace)"
           , value =
               predVal
           }
@@ -496,7 +496,7 @@ copyExpressionTool model selections =
         (_, _, eids, [], [], [], []) -> (CodeMotion.copyExpressionTransformation model.inputExp eids, Satisfied)
         _                            -> (Nothing, Impossible)
   in
-    { name = "Copy Expression"
+    { name = "Make Equal by Copying"
     , func = func
     , reqs =
         [ { description =
@@ -589,7 +589,7 @@ moveDefinitionTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select one or more variable definitions and one target position"
+              "Select one or more variable definitions and one target position (i.e. whitespace)"
           , value =
               predVal
           }
@@ -656,7 +656,7 @@ duplicateDefinitionTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select one or more patterns and one target position"
+              "Select one or more patterns and one target position (i.e. whitespace)"
           , value =
               predVal
           }
@@ -1172,7 +1172,7 @@ createFunctionFromArgsTool model selections =
         _ ->
           (Nothing, Impossible)
   in
-    { name = "Create Function From Arguments"
+    { name = "Create Function from Arguments"
     , func = func
     , reqs =
         [ { description = "Select expressions or patterns to become arguments to a new function."
@@ -1256,7 +1256,7 @@ addArgumentsTool model selections =
     makeReqs predVal =
       [ { description =
             """Select one or more expressions in a function and, optionally,
-               one target position in the function's argument list"""
+               one target position (i.e. whitespace) in the function's argument list"""
         , value = predVal
         }
       ]
@@ -1515,7 +1515,7 @@ reorderArgumentsTool model selections =
     makeReqs predVal =
       [ { description =
             """Select one or more function arguments (either at the definition
-               or a call-site) and one target position in that list"""
+               or a call-site) and one target position (i.e. whitespace) in that list"""
         , value = predVal
         }
       ]
@@ -1977,23 +1977,24 @@ deuceTools model =
         , removeArgumentsTool
         , reorderArgumentsTool
         ]
-      , [ moveDefinitionTool
-        , introduceVariableTool
-        , makeEqualTool
-        ]
       , [ renameVariableTool
+        , introduceVariableTool
         , swapNamesAndUsagesTool
+        , swapUsagesTool
+        ]
+      , [ makeEqualTool
+        , copyExpressionTool
+        ]
+      , [ moveDefinitionTool
         , inlineDefinitionTool
         , duplicateDefinitionTool
+        ]
+      , [ reorderExpressionsTool
+        , swapExpressionsTool
         ]
       , [ makeSingleLineTool
         , makeMultiLineTool
         , alignExpressionsTool
-        ]
-      , [ copyExpressionTool
-        , reorderExpressionsTool
-        , swapUsagesTool
-        , swapExpressionsTool
         ]
       ] ++
       ( UserStudy.hideIfEnabled <|
