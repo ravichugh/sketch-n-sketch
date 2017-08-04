@@ -2026,48 +2026,50 @@ popupPanel args =
 
 deucePopupPanel : Model -> Html Msg
 deucePopupPanel model =
-  popupPanel
-    { pos =
-        model.popupPanelPositions.deuce
-    , disabled =
-        Utils.or
-          [ not model.showDeucePanel
-          , Model.noWidgetsSelected model
-          , Model.deuceRightClickMenuShown model
-          , Model.configurationPanelShown model
-          ]
-    , dragHandler =
-        Controller.msgDragDeucePopupPanel
-    , class =
+  let
+    appearDirectionFlag =
+      if model.deucePopupPanelAbove then
         "appear-above"
-    , title =
-        "Code Tools" -- "Deuce Menu"
-    , content =
-        [ let
-            activeTools =
-              List.concatMap
-                (    List.filter (Utils.fst3 >> DeuceTools.isActive model)
-                  >> Utils.mapi1 (deuceHoverMenu model)
-                )
-                model.deuceToolsAndResults
-          in
-            if List.isEmpty activeTools then
-              Html.div
-                [ Attr.class "no-available-tools"
-                ]
-                [ Html.text
-                    "There are no available tools based on these selections. Press "
-                , Html.i []
-                    [ Html.text "Escape" ]
-                , Html.text
-                    " to clear."
-                ]
-            else
-              Html.div
-                []
-                activeTools
-        ]
-    }
+      else
+        "appear-below"
+  in
+    popupPanel
+      { pos =
+          model.popupPanelPositions.deuce
+      , disabled =
+          not <| Model.deucePopupPanelShown model
+      , dragHandler =
+          Controller.msgDragDeucePopupPanel
+      , class =
+          "deuce-popup-panel " ++ appearDirectionFlag
+      , title =
+          "Code Tools" -- "Deuce Menu"
+      , content =
+          [ let
+              activeTools =
+                List.concatMap
+                  (    List.filter (Utils.fst3 >> DeuceTools.isActive model)
+                    >> Utils.mapi1 (deuceHoverMenu model)
+                  )
+                  model.deuceToolsAndResults
+            in
+              if List.isEmpty activeTools then
+                Html.div
+                  [ Attr.class "no-available-tools"
+                  ]
+                  [ Html.text
+                      "There are no available tools based on these selections. Press "
+                  , Html.i []
+                      [ Html.text "Escape" ]
+                  , Html.text
+                      " to clear."
+                  ]
+              else
+                Html.div
+                  []
+                  activeTools
+          ]
+      }
 
 --------------------------------------------------------------------------------
 -- Edit Code Panel

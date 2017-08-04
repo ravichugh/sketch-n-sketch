@@ -915,6 +915,12 @@ code {
   position: absolute;
   /* top: DYNAMIC */
   /* left: DYNAMIC */
+
+  -webkit-transition: transform 0.1s;
+  -moz-transition: transform 0.1s;
+  -ms-transition: transform 0.1s;
+  -o-transition: transform 0.1s;
+  transition: transform 0.1s;
 }
 
 .popup-panel.disabled {
@@ -935,7 +941,19 @@ code {
 }
 
 .appear-above {
+  -webkit-transform: translateY(-100%);
+  -moz-transform: translateY(-100%);
+  -ms-transform: translateY(-100%);
+  -o-transform: translateY(-100%);
   transform: translateY(-100%);
+}
+
+.appear-below {
+  -webkit-transform: translate(32px, 32px);
+  -moz-transform: translate(32px, 32px);
+  -ms-transform: translate(32px, 32px);
+  -o-transform: translate(32px, 32px);
+  transform: translate(32px, 32px);
 }
 
 .no-available-tools {

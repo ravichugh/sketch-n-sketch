@@ -163,6 +163,7 @@ type alias Model =
   , proseResizerY : Maybe Int
   , savedSelections : Maybe (List Ace.Range)
   , prose : Updatable (Maybe String)
+  , deucePopupPanelAbove : Bool
   }
 
 type Mode
@@ -861,6 +862,17 @@ noWidgetsSelected model =
 
 --------------------------------------------------------------------------------
 
+deucePopupPanelShown : Model -> Bool
+deucePopupPanelShown model =
+  Utils.and
+    [ model.showDeucePanel
+    , not <| noWidgetsSelected model
+    , not <| deuceRightClickMenuShown model
+    , not <| configurationPanelShown model
+    ]
+
+--------------------------------------------------------------------------------
+
 -- initTemplate = "BLANK"
 initTemplate = "Deuce Study Start"
 
@@ -985,4 +997,5 @@ initModel =
     , savedSelections = Nothing
     , prose =
         Updatable.setUpdated << Updatable.create <| Nothing
+    , deucePopupPanelAbove = True
     }

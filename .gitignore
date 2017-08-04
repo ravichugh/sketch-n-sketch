@@ -8,6 +8,7 @@ build/out/ace.js
 build/out/aceTooltips.js
 build/out/animationLoop.js
 build/out/fileHandler.js
+build/out/deucePopupPanelInfo.js
 build/out/proseScroller.js
 build/out/viz.js
 build/out/dotGraph.js

@@ -66,6 +66,7 @@ module InterfaceController exposing
   , msgDragMainResizer
   , msgDragProseResizer
   , msgResetInterfaceLayout
+  , msgReceiveDeucePopupPanelInfo
   )
 
 import Updatable exposing (Updatable)
@@ -94,6 +95,7 @@ import AceCodeBox
 import AnimationLoop
 import FileHandler
 import ProseScroller
+import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets exposing (RealZone(..), PointFeature(..), OtherFeature(..))
@@ -798,6 +800,10 @@ issueCommand (Msg kind _) oldModel newModel =
             AceCodeBox.resetScroll newModel
           else
             Cmd.none
+        , if String.startsWith "msgMouseClickDeuceWidget" kind then
+            DeucePopupPanelInfo.requestDeucePopupPanelInfo ()
+          else
+            Cmd.none
         ]
 
 iconCommand filename =
@@ -1024,6 +1030,7 @@ msgKeyDown keyCode =
               old
                 |> Model.hideDeuceRightClickMenu
                 |> resetDeuceState
+                |> \m -> { m | deucePopupPanelAbove = True }
           in
             case (old.tool, old.mouseMode) of
               (Cursor, _) ->
@@ -2238,3 +2245,27 @@ msgResetInterfaceLayout =
         , proseResizerY =
             Nothing
     }
+
+--------------------------------------------------------------------------------
+-- Deuce Popup Panel Info
+
+msgReceiveDeucePopupPanelInfo : DeucePopupPanelInfo -> Msg
+msgReceiveDeucePopupPanelInfo dppi =
+  Msg "Receive Deuce Popup Panel Info" <| \old ->
+    let
+      (oldX, oldY) =
+        old.popupPanelPositions.deuce
+      oldDeucePopupPanelAbove =
+        old.deucePopupPanelAbove
+      newDeucePopupPanelAbove =
+        oldY > dppi.height
+    in
+      -- Only update if going from False to True
+      -- Also, reset to True if the popup panel is not even shown
+      { old
+          | deucePopupPanelAbove =
+              if Model.deucePopupPanelShown old then
+                oldDeucePopupPanelAbove && newDeucePopupPanelAbove
+              else
+                True
+      }
