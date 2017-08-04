@@ -325,12 +325,12 @@ code {
 
 /* Prose Panel Content */
 
-  .prose-panel p
-, .prose-panel h3
-, .prose-panel ul
-, .prose-panel ol
-{
+.prose-panel * {
   margin-bottom: 0.5em;
+}
+
+.prose-panel *:last-child {
+  margin-bottom: 0;
 }
 
 .prose-panel h3 {
