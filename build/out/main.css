@@ -916,11 +916,11 @@ code {
   /* top: DYNAMIC */
   /* left: DYNAMIC */
 
-  -webkit-transition: transform 0.1s;
-  -moz-transition: transform 0.1s;
-  -ms-transition: transform 0.1s;
-  -o-transition: transform 0.1s;
-  transition: transform 0.1s;
+  -webkit-transition: transform 0.3s;
+  -moz-transition: transform 0.3s;
+  -ms-transition: transform 0.3s;
+  -o-transition: transform 0.3s;
+  transition: transform 0.3s;
 }
 
 .popup-panel.disabled {
