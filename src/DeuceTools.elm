@@ -1121,7 +1121,7 @@ createFunctionTool model selections =
         _ ->
           (Nothing, Impossible)
   in
-    { name = "Create Function"
+    { name = "Create Function from Definition"
     , func = func
     , reqs =
         [ { description = "Select one variable definition or expression"
@@ -1232,7 +1232,7 @@ mergeTool model selections =
         _ ->
           (Nothing, Impossible)
   in
-    { name = "Merge Expressions into Function"
+    { name = "Create Function by Merging Definitions"
     , func = func
     , reqs =
         [ { description = "Select two or more expressions"

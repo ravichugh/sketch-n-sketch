@@ -51,7 +51,7 @@ loc:
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
     AnimationLoop.elm Native/animationLoop.js \
     FileHandler.elm Native/fileHandler.js \
-    ProseScroller.elm Native/proseScroller.js \
+    Prose.elm ProseScroller.elm Native/proseScroller.js \
     Main.elm Config.elm \
     Utils.elm Either.elm Updatable.elm \
     HtmlUtils.elm \
