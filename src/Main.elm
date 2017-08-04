@@ -10,6 +10,7 @@ import DeucePopupPanelInfo
 -- import DependenceGraph
 
 import UserStudyLog
+import UserStudy
 
 import Html exposing (Html)
 import Mouse
@@ -45,13 +46,20 @@ update msg model =
 
 initCmd : Cmd Msg
 initCmd =
-  Cmd.batch
+  Cmd.batch <|
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
-    , Task.perform Controller.msgNew (Task.succeed Model.initTemplate)
     , Cmd.batch <| List.map FileHandler.requestIcon Model.iconNames
     , Task.perform Controller.msgLoadIcon (Task.succeed (Model.starLambdaToolIcon))
-    ]
+    ] ++
+    -- Fixes model not correctly handling initial user study step
+    ( if UserStudy.enabled then
+        [ Task.perform (Controller.msgUserStudyStep "") (Task.succeed 0)
+        ]
+      else
+        [ Task.perform Controller.msgNew (Task.succeed Model.initTemplate)
+        ]
+    )
 
 subscriptions : Model -> Sub Msg
 subscriptions model =

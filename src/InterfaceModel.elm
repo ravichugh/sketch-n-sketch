@@ -873,8 +873,7 @@ deucePopupPanelShown model =
 
 --------------------------------------------------------------------------------
 
--- initTemplate = "BLANK"
-initTemplate = "Deuce Study Start"
+initTemplate = "BLANK"
 
 initModel : Model
 initModel =

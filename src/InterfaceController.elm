@@ -51,6 +51,7 @@ module InterfaceController exposing
   , msgDragEditCodePopupPanel
   , msgDragDeuceRightClickMenu
   , msgTextSelect
+  , msgUserStudyStep
   , msgUserStudyNext
   , msgUserStudyPrev
   , msgSetEnableDeuceBoxSelection
