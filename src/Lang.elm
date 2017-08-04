@@ -2075,6 +2075,32 @@ isTextSelectable codeObject =
   (isSelectable codeObject) &&
   (not <| isTarget codeObject)
 
+isWord : CodeObject -> Bool
+isWord codeObject =
+  case codeObject of
+    E e ->
+      case e.val.e__ of
+        (EConst _ _ _ _) ->
+          True
+        (EBase _ _) ->
+          True
+        (EVar _ _) ->
+          True
+        _ ->
+          False
+    P _ p ->
+      case p.val.p__ of
+        (PVar _ _ _) ->
+          True
+        (PConst _ _) ->
+          True
+        (PBase _ _) ->
+          True
+        _ ->
+          False
+    _ ->
+      False
+
 wsBefore : CodeObject -> WS
 wsBefore codeObject =
   case codeObject of

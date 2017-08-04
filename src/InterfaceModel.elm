@@ -65,6 +65,8 @@ type TextSelectMode
     -- Match the largest subset range, but also allow additional surrounding
     -- whitespace characters
   | SubsetExtra
+    -- Select only atomic values ("words") like constants and variables
+  | Word
 
 type DeuceRightClickMenuMode =
   ShowPossible
@@ -689,10 +691,6 @@ snippet range =
   >> Utils.mapHead (String.dropLeft range.start.column)
   >> String.concat
 
-codeSnippet : Model -> Ace.Range -> String
-codeSnippet model range =
-  snippet range model.code
-
 isRangeEqual : Ace.Range -> Ace.Range -> Bool
 isRangeEqual =
   (==)
@@ -711,17 +709,9 @@ isSubsetRange innerRange outerRange =
   in
     startGood && endGood
 
-matchingRange : Model -> Bool -> Ace.Range -> List (Ace.Range, a) -> Maybe a
-matchingRange model allowSingleSelection selectedRange =
+matchingRange : TextSelectMode -> Code -> Ace.Range -> List (Ace.Range, a) -> Maybe a
+matchingRange textSelectMode code selectedRange =
   let
-    textSelectMode =
-      if
-        allowSingleSelection &&
-        selectedRange.start == selectedRange.end
-      then
-        Superset
-      else
-        model.textSelectMode
     (fold, matcher) =
       case textSelectMode of
         Strict ->
@@ -745,7 +735,7 @@ matchingRange model allowSingleSelection selectedRange =
 
                   beginValid : Bool
                   beginValid =
-                    snippetValid << (codeSnippet model) <|
+                    snippetValid << (flip snippet code) <|
                       { start =
                           sr.start
                       , end =
@@ -754,7 +744,7 @@ matchingRange model allowSingleSelection selectedRange =
 
                   endValid : Bool
                   endValid =
-                    snippetValid << (codeSnippet model) <|
+                    snippetValid << (flip snippet code) <|
                       { start =
                           r.end
                       , end =
@@ -766,10 +756,16 @@ matchingRange model allowSingleSelection selectedRange =
                 False
             )
           )
+        Word ->
+          ( List.foldl
+          , isSubsetRange
+          )
   in
     fold
       ( \(range, val) previousVal ->
-          if matcher selectedRange range then
+          if
+            matcher selectedRange range
+          then
             Just val
           else
             previousVal
@@ -800,40 +796,60 @@ codeObjectFromSelection allowSingleSelection model =
     -- as just the range [cursorPos, cursorPos]. Thus, this pattern handles
     -- all the cases that we need.
     [ selection ] ->
-      matchingRange
-        model
-        allowSingleSelection
-        selection
-        ( List.concatMap
-            ( \codeObject ->
-                let
-                  default =
-                    [ ( rangeFromInfo << extractInfoFromCodeObject <|
+      let
+        textSelectMode : TextSelectMode
+        textSelectMode =
+          if
+            allowSingleSelection &&
+            selection.start == selection.end
+          then
+            Word
+          else
+            model.textSelectMode
+
+        theFilter : CodeObject -> Bool
+        theFilter codeObject =
+          let
+            notDef =
+              case codeObject of
+                E e ->
+                  case e.val.e__ of
+                    (ELet _ Def _ _ _ _ _) ->
+                      False
+                    _ ->
+                      True
+                _ ->
+                  True
+            textSelectable =
+              Lang.isTextSelectable codeObject
+            word =
+              Lang.isWord codeObject
+            activeFilters =
+              [ notDef, textSelectable
+              ] ++
+              ( if textSelectMode == Word then
+                  [ word ]
+                else
+                  []
+              )
+          in
+            Utils.and activeFilters
+      in
+        matchingRange
+          textSelectMode
+          model.code
+          selection
+          ( E model.inputExp
+             |> flattenToCodeObjects
+             |> List.filter theFilter
+             |> List.map
+                  ( \codeObject ->
+                      ( rangeFromInfo << extractInfoFromCodeObject <|
                           codeObject
                       , codeObject
                       )
-                    ]
-                in
-                  -- Do not text-select non-text-selectable code objects like
-                  -- comments or target positions
-                  if Lang.isTextSelectable codeObject then
-                    -- Also just ignore def code objects for now
-                    case codeObject of
-                      E e ->
-                        case e.val.e__ of
-                          (ELet _ Def _ _ _ _ _) ->
-                            []
-                          _ ->
-                            default
-                      _ ->
-                        default
-                  else
-                    []
-            )
-            ( flattenToCodeObjects << E <|
-                model.inputExp
-            )
-        )
+                  )
+          )
     _ ->
       Nothing
 
