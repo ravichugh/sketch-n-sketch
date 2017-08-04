@@ -326,7 +326,7 @@ code {
 /* Prose Panel Content */
 
 .prose-panel * {
-  margin-bottom: 0.5em;
+  margin-bottom: 0.5rem;
 }
 
 .prose-panel *:last-child {
