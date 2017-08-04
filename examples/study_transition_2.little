@@ -1,4 +1,4 @@
 
 (def main
   (draw []))
-; <!-- PROSE --> <p>In the final section, you will see two example programs, each with a list of editing tasks. As before, you will <em>not</em> be able to use text editing. But, this time, you will be able to use <em>either</em>:</p><ul><li>code tools with Text-Select Mode, or</li><li>code tools with Box-Select Mode.</li></ul><p>It's up to you. And this time, you will work with each program just once.</p><p>Click Next Step to proceed.</p>
+; <!-- PROSE --> <p>In the final section, you will see two example programs, each with a list of editing tasks. As before, you will <em>not</em> be able to use text editing. But, this time, you will be able to use <em>either</em>:</p><ul><li>code tools with Text-Select Mode, or</li><li>code tools with Box-Select Mode.</li></ul><p>It's up to you. You can mix and match Text-Select and Box-Select Modes, like in the tutorial.</p><p>And this time, you will work with each program just once.</p><p>Click Next Step to proceed.</p>

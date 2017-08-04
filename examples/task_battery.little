@@ -1,5 +1,0 @@
-
-; TODO replace battery task
-(def main
-  (draw []))
-; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p>

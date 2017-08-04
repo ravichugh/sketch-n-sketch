@@ -4,13 +4,13 @@
 
 (def redSquare (square "salmon"))
 
-(def yellowSquare (square "gold"))
-
 (def greenSquare (square "yellowgreen"))
+
+(def yellowSquare (square "gold"))
 
 (def main
   (draw
     [(redSquare 50 80 50)
      (yellowSquare 70 70 110)
      (greenSquare 90 60 190)]))
-; <!-- PROSE --> <p>Lastly, because the three definitions are short, we'd like to put them in a single tuple definition to save some space.</p><p>To do so, we can use the <em>Move Definition</em> tool again. This time, however, we will select only variable names (rather than entire <code>(def ...)</code> expressions) and target positions next to variables (rather than above or below <code>(def ...)</code> expressions).</p><ul class="_12"><li class="_1"><h3>Text-Select Mode</h3><p>Text-select <code>redSquare</code> in the <code>(def redSquare ...)</code> expression. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Move Definition</em>. Click on <code>yellowSquare</code> in the <code>(def yellowSquare ...)</code> definition. Then, click the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Click on the single option from the results list.</p></li><li class="_2"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over <code>redSquare</code> in <code>(def redSquare   ...)</code>, then click. Next, hover over <code>yellowSquare</code> in <code>(def yellowSquare ...)</code>, then click. Then, click on the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Under the <em>Move Definition</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>
+; <!-- PROSE --> <p>A couple more things before we're done! We'd like to reorder the function definitions to match the order in which we use them, just for the sake of consistency (red, yellow, then green).</p><p>To do so, we can use the <em>Move Definition</em> tool.</p><ul class="_12"><li class="_1"><h3>Text-Select Mode</h3><p>Text-select the entire <code>(def greenSquare ...)</code> expression starting from its opening parenthesis until its closing parenthesis. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Move Definition</em>. Click on the whitespace below the <code>yellowSquare</code> definition (above the <code>main</code> definition). Click on the single option from the results list.</p></li><li class="_2"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over the keyword <code>def</code> in <code>(def   greenSquare ...)</code>, then click. Then, click on the whitespace below the <code>yellowSquare</code> definition (above the <code>main</code> definition). Release the Shift key. Under the Move Definition tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>

@@ -13,4 +13,4 @@
 
 (def main
   (draw [redLine greenRect blueCircle]))
-; <!-- PROSE --> <p>Now we'll see how to draw three basic shapes: lines, rectangles, and circles. Notice how elements later in the main list appear on top of earlier ones.</p><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li><p>Make the rectangle a square.</p></li><li><p>Reorder the elements in <code>main</code> so that the red line is on top of the green rectangle.</p></li><li><p>All three shapes share the xy-point (100, 100). Define variables for these two values and use them in all three shapes.</p></li></ol>
+; <!-- PROSE --> <p>Now we'll see how to draw three basic shapes: lines, rectangles, and circles. Notice how elements later in the <code>main</code> list appear on top of earlier ones.</p><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li><p>Make the rectangle a square.</p></li><li><p>Reorder the elements in <code>main</code> so that the red line is on top of the green rectangle.</p></li><li><p>All three shapes share the xy-point <code>(100, 100)</code>. Define variables for these two values and use them in all three shapes.</p></li></ol>

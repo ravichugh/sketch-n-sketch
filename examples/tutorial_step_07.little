@@ -10,4 +10,4 @@
   (draw [
     (show (foo 3 4))
   ]))
-; <!-- PROSE --> <p>The language has several binary operators, as well as if-then-else-expressions.</p><p>Don't worry about the syntax too much.</p><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li>Call the <code>multiply3</code> and <code>max</code> functions.</li></ol>
+; <!-- PROSE --> <p>The language has several binary operators, as well as if-then-else-expressions.</p><p>Don't worry about the syntax too much.</p><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li><p>Replace the call to <code>foo</code> in the <code>main</code> expression with a call to <code>multiply3</code>.</p></li><li><p>Replace the call to <code>foo</code> in the <code>main</code> expression with a call to <code>max</code>.</p></li></ol>

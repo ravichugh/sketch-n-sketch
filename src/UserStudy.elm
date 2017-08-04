@@ -192,6 +192,7 @@ postProcessProse newState m =
         "Step 18" -> updateModel (shuffle_12 step prose)
         "Step 19" -> updateModel (shuffle_12 step prose)
         "Step 20" -> updateModel (shuffle_12 step prose)
+        "Step 21" -> updateModel (shuffle_12 step prose)
         _         -> m
 
     (Task _, (_, ReadOnly)) ->
@@ -332,7 +333,7 @@ boxSelectHelp =
 
 --------------------------------------------------------------------------------
 
-numTutorialSteps = 20
+numTutorialSteps = 21
 structuredEditingStartStep = 10
 
 headToHeadTaskTemplates =

@@ -5180,7 +5180,7 @@ study_transition_2 =
  """
 (def main
   (draw []))
-; <!-- PROSE --> <p>In the final section, you will see two example programs, each with a list of editing tasks. As before, you will <em>not</em> be able to use text editing. But, this time, you will be able to use <em>either</em>:</p><ul><li>code tools with Text-Select Mode, or</li><li>code tools with Box-Select Mode.</li></ul><p>It's up to you. And this time, you will work with each program just once.</p><p>Click Next Step to proceed.</p>
+; <!-- PROSE --> <p>In the final section, you will see two example programs, each with a list of editing tasks. As before, you will <em>not</em> be able to use text editing. But, this time, you will be able to use <em>either</em>:</p><ul><li>code tools with Text-Select Mode, or</li><li>code tools with Box-Select Mode.</li></ul><p>It's up to you. You can mix and match Text-Select and Box-Select Modes, like in the tutorial.</p><p>And this time, you will work with each program just once.</p><p>Click Next Step to proceed.</p>
 
 """
 
@@ -5211,7 +5211,7 @@ tutorial_step_02 =
 
 (def main
   (draw []))
-; <!-- PROSE --> <p>The structure of a program is a series of top-level definitions. The last definition is called main and describes the image to draw in the canvas area on the right. The initial main expression has an empty list, so nothing is drawn.</p><p>Note that any text on the same line following a semicolon (<code>; like this</code>) is a <em>comment</em> and has no effect on the output of the program.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Add the expression <code>(show &quot;hello world!&quot;)</code> to the list of drawings. Notice how the border of the canvas turns red; this indicates that the code needs to be re-run. Hit the Run button.</p></li><li><p>Now define this expression in a new variable instead, and refer to it in the main expression.</p></li><li><p>Remove a comment from the program. Notice how this change has no effect on the output.</p></li><li><p>Add extra parentheses somewhere and re-run. You will get a syntax error. Many expressions start and end with parentheses; extra parentheses are not allowed.</p></li></ol>
+; <!-- PROSE --> <p>The structure of a program is a series of top-level definitions. The last definition is called <code>main</code> and describes the image to draw in the canvas area on the right. The initial <code>main</code> expression has an empty list, so nothing is drawn.</p><p>Note that any text on the same line following a semicolon (<code>; like this</code>) is a <em>comment</em> and has no effect on the output of the program.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Add the expression <code>(show &quot;hello world!&quot;)</code> to the list of drawings. Notice how the border of the canvas turns red; this indicates that the code needs to be re-run. Hit the Run button.</p></li><li><p>Now define this expression in a new variable instead, and refer to it in the <code>main</code> expression.</p></li><li><p>Remove a comment from the program. Notice how this change has no effect on the output.</p></li><li><p>Add extra parentheses somewhere and re-run. You will get a syntax error. Many expressions start and end with parentheses; extra parentheses are not allowed.</p></li></ol>
 
 """
 
@@ -5238,7 +5238,7 @@ tutorial_step_04 =
 
 (def main
   (draw [(show [one two one two])]))
-; <!-- PROSE --> <p>We use the term &quot;tuple&quot; to describe a list with a fixed number of elements. For example, the list expression <code>[1 &quot;two&quot;]</code> in this code is a 2-tuple, that is, a list with exactly two elements.</p><p>Notice how we access the components of tuple expressions with tuple patterns (instead of just plain variables) on the left-hand side of definitions. The tuple pattern <code>[one two]</code> above matches a list with exactly two elements, binding the name one to the first element and two to the second.</p><p>If the tuple pattern and tuple expression do not have the same number of elements, Sketch-n-Sketch throws a run-time error.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Add a third variable to the tuple pattern and re-run.</p></li><li><p>Remove one of the expressions from the list expression and re-run.</p></li></ol>
+; <!-- PROSE --> <p>We use the term &quot;tuple&quot; to describe a list with a fixed number of elements. For example, the list expression <code>[1 &quot;two&quot;]</code> in this code is a 2-tuple, that is, a list with exactly two elements.</p><p>Notice how we access the components of tuple expressions with tuple patterns (instead of just plain variables) on the left-hand side of definitions. The tuple pattern <code>[one two]</code> above matches a list with exactly two elements, binding the name one to the first element and two to the second.</p><p>If the tuple pattern and tuple expression do not have the same number of elements, Sketch-n-Sketch throws a run-time error.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Add a third variable to the tuple pattern and a third value to the list expression, and re-run.</p></li><li><p>Remove one of the expressions from the list expression (so that the number of variables and expressions are unequal), and re-run.</p></li></ol>
 
 """
 
@@ -5262,7 +5262,7 @@ tutorial_step_06 =
 
 (def main
   (draw [(show (triplicate 3))]))
-; <!-- PROSE --> <p>The syntax for a function expression is <code>(\\x e)</code>, which defines a function that takes an argument <code>x</code> and returns the expression <code>e</code>.</p><p>The syntax for a multi-argument function is <code>(\\(x1 x2 x3 ...) e)</code>. Notice the parentheses surrounding the list of arguments.</p><p>For example, the function <code>triplicate</code> takes a single argument <code>x</code> (and returns a list that repeats <code>x</code> three times), and <code>triplicate2</code> takes two arguments. To call any function, the function name and its argument are separated by a space, and the entire call is surrounded by parentheses.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Rename the argument of <code>triplicate</code> to something else and re-run.</p></li><li><p>Call <code>triplicate2</code> in the main expression.</p></li><li><p>Call <code>triplicate2</code> with too many arguments. You'll see a run-time error.</p></li><li><p>Call <code>triplicate2</code> with too few arguments. You won't get a run-time error, but the result shown will be <code>&lt;fun&gt;</code> (a function that is waiting for the rest of its arguments).</p></li></ol>
+; <!-- PROSE --> <p>The syntax for a function expression is <code>(\\x e)</code>, which defines a function that takes an argument <code>x</code> and returns the expression <code>e</code>.</p><p>The syntax for a multi-argument function is <code>(\\(x1 x2 x3 ...) e)</code>. Notice the parentheses surrounding the list of arguments.</p><p>For example, the function <code>triplicate</code> takes a single argument <code>x</code> (and returns a list that repeats <code>x</code> three times), and <code>triplicate2</code> takes two arguments. To call any function, the function name and its argument are separated by a space, and the entire call is surrounded by parentheses.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Rename the argument of <code>triplicate</code> to something else and re-run.</p></li><li><p>Add the function call <code>(triplicate2 3 4)</code> in the <code>main</code> expression.</p></li><li><p>Call <code>triplicate2</code> with too many arguments. You'll see a run-time error.</p></li><li><p>Call <code>triplicate2</code> with too few arguments. You won't get a run-time error, but the result shown will be <code>&lt;fun&gt;</code> (a function that is waiting for the rest of its arguments).</p></li></ol>
 
 """
 
@@ -5279,7 +5279,7 @@ tutorial_step_07 =
   (draw [
     (show (foo 3 4))
   ]))
-; <!-- PROSE --> <p>The language has several binary operators, as well as if-then-else-expressions.</p><p>Don't worry about the syntax too much.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Call the <code>multiply3</code> and <code>max</code> functions.</li></ol>
+; <!-- PROSE --> <p>The language has several binary operators, as well as if-then-else-expressions.</p><p>Don't worry about the syntax too much.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Replace the call to <code>foo</code> in the <code>main</code> expression with a call to <code>multiply3</code>.</p></li><li><p>Replace the call to <code>foo</code> in the <code>main</code> expression with a call to <code>max</code>.</p></li></ol>
 
 """
 
@@ -5299,7 +5299,7 @@ tutorial_step_08 =
 
 (def main
   (draw [redLine greenRect blueCircle]))
-; <!-- PROSE --> <p>Now we'll see how to draw three basic shapes: lines, rectangles, and circles. Notice how elements later in the main list appear on top of earlier ones.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Make the rectangle a square.</p></li><li><p>Reorder the elements in <code>main</code> so that the red line is on top of the green rectangle.</p></li><li><p>All three shapes share the xy-point (100, 100). Define variables for these two values and use them in all three shapes.</p></li></ol>
+; <!-- PROSE --> <p>Now we'll see how to draw three basic shapes: lines, rectangles, and circles. Notice how elements later in the <code>main</code> list appear on top of earlier ones.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Make the rectangle a square.</p></li><li><p>Reorder the elements in <code>main</code> so that the red line is on top of the green rectangle.</p></li><li><p>All three shapes share the xy-point <code>(100, 100)</code>. Define variables for these two values and use them in all three shapes.</p></li></ol>
 
 """
 
@@ -5318,7 +5318,7 @@ tutorial_step_10 =
 
 (def main
   (draw [blueSquare]))
-; <!-- PROSE --> <p>Here is a red square. Unfortunately, the name of the function that generates this red square is incorrect. To fix this, we can use the <em>Rename</em> tool to rename the function at its definition and its call-sites.</p><p>There are a few ways to do this:</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Select the text <code>blueSquare</code>, right-click the editor, and select the <em>Rename</em> tool from the pop-up menu. Then, enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the menu or panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Select the text <code>blueSquare</code>, and select the <em>Rename</em> Variable tool from the Code Tools menu at the top-left of the screen. Then enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key, hover over <code>blueSquare</code>, click the box that pops up over <code>blueSquare</code>, and then release the Shift key. Select the <em>Rename</em> tool from the pop-up menu. Enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will clear any selections and make the menu go away. <em>⟲ Undo</em> will let you go back.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the renaming with each of the three interactions. Use Undo after each to reset the program.</li></ol>
+; <!-- PROSE --> <p>Here is a red square. Unfortunately, the name of the function that generates this red square is incorrect. To fix this, we can use the <em>Rename</em> tool to rename the function at its definition and its call-sites.</p><p>There are a few ways to do this:</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Select the text <code>blueSquare</code>, right-click the editor, and select the <em>Rename</em> tool from the pop-up menu. Then, enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the menu or panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Select the text <code>blueSquare</code>, and select the <em>Rename</em> Variable tool from the Code Tools menu at the top-left of the screen. Then enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key, hover over <code>blueSquare</code>, click the box that pops up over <code>blueSquare</code>, and then release the Shift key. Select the <em>Rename</em> tool from the pop-up menu. Enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will clear any selections and make the menu go away. <em>⟲ Undo</em> will let you go back.</p></li></ul><p>Unlike with text edits, you do <em>not</em> need to hit the Run button after invoking a code transformation.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the renaming with each of the three interactions. Use Undo after each to reset the program.</li></ol>
 
 """
 
@@ -5329,7 +5329,7 @@ tutorial_step_11 =
 
 (def main
   (draw [redSquare]))
-; <!-- PROSE --> <p>Many times, when using a function like <code>rect</code>, passing in multiple constants rather than named variables can lead to confusion as to the purpose of each constant.</p><p>To alleviate this, we can introduce variables using the <em>Introduce Variable</em> tool. This tool uses the notion of a <em>target position</em>, which is the whitespace between or above other items in the code. Target positions typically allow us to select where we want resultant transformations to appear in the code. In the case of the <em>Introduce Variable</em> tool, the target position indicates where we would like the variables to be introduced.</p><p>Let's try out the <em>Introduce Variable</em> tool on the x- and y- positions of the red square (the first two arguments of the <code>rect</code> function after the color, &quot;salmon&quot;).</p><p>We can use this code tool (and all others) in two main ways:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select one of the <code>80</code>s, then either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Introduce Variable</em>. The configuration panel asks for one or more expressions for which variables will be introduced, as well as an optional target position. Click the other <code>80</code>, then click a target position before the call to rect or above the def. Apply the transformation from the results list.</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down Shift, then click on both occurrences of the number <code>80</code> as well as a target position before the call to <code>rect</code> or above the def. Release the Shift key and select <em>Introduce Variables</em> from the pop-up menu. Apply the transformation from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Introduce x and y variables with each of the two interactions. Use Undo after each to reset the program.</li></ol>
+; <!-- PROSE --> <p>Many times, when using a function like <code>rect</code>, passing in multiple constants rather than named variables can lead to confusion as to the purpose of each constant.</p><p>To alleviate this, we can introduce variables using the <em>Introduce Variable</em> tool. This tool uses the notion of a <em>target position</em>, which is the whitespace between or above other items in the code. Target positions typically allow us to select where we want resultant transformations to appear in the code. In the case of the <em>Introduce Variable</em> tool, the target position indicates where we would like the variables to be introduced.</p><p>Let's try out the <em>Introduce Variable</em> tool on the x- and y- positions of the red square (the first two arguments of the <code>rect</code> function after the color, &quot;salmon&quot;).</p><p>We can use this code tool (and all others) in two main ways:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select one of the <code>80</code>s, then either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Introduce Variable</em>. The configuration panel asks for one or more expressions for which variables will be introduced, as well as an optional target position. Click the other <code>80</code>, then click the whitespace (on line 3) before the call to <code>rect</code> or the whitespace (on line 1) above the <code>def</code>. Apply the transformation from the results list.</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down Shift, then click on both occurrences of the number <code>80</code>, as well as the whitespace (on line 3) before the call to <code>rect</code> or the whitespace (on line 1) above the <code>def</code>. Release the Shift key and select <em>Introduce Variables</em> from the pop-up menu. Apply the transformation from the results list.</p><p><strong>Note:</strong> Remember to hold down Shift while selecting multiple arguments.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Introduce x and y variables with each of the two interactions. Use Undo after each to reset the program.</li></ol>
 
 """
 
@@ -5341,11 +5341,23 @@ tutorial_step_12 =
 
 (def main
   (draw [redSquare]))
-; <!-- PROSE --> <p>The <em>Introduce Variable</em> tool can be used to give names to multiple expressions at once, but sometimes we may want a single variable to take the place of multiple expressions. The <em>Introduce Single Variable</em> tool does just that.</p><p>In this code snippet, the rectangle should have sides of equal length, but the width and height (fourth and fifth) arguments of the <code>rect</code> function call are not equal.</p><p>As with all Sketch-n-Sketch code tools, there are two main ways that we can use the <em>Introduce Single Variable</em> tool:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select either <code>120</code> or <code>80</code>. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Introduce Single Variable</em>. Click on the remaining number (either <code>120</code> or <code>80</code>). Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Note:</strong> in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down Shift, then click on <code>120</code> and <code>80</code> Release the Shift key and select <em>Introduce Single Variable</em> from the pop-up menu. Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Note:</strong> in Box-Select Mode, ALL arguments are selected first, BEFORE the desired code transformation is selected.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Fix the <code>redSquare</code> definition using each of the two interactions. Use Undo after each interaction to reset the program.</li></ol>
+; <!-- PROSE --> <p>In this code snippet, the rectangle should have sides of equal length, but the width and height (fourth and fifth) arguments of the <code>rect</code> function call are not equal. The <em>Make Equal by Copying</em> tool can be used to copy one expression to replace one or more other expressions.</p><p>As with all Sketch-n-Sketch code tools, there are two main ways that we can use the <em>Make Equal by Copying</em> tool:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select either <code>120</code> or <code>80</code>. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Make Equal by Copying</em>. Click on the remaining number (either <code>120</code> or <code>80</code>). Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Note:</strong> in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down Shift, then click on <code>120</code> and <code>80</code>. Release the Shift key and select <em>Make Equal by Copying</em> from the pop-up menu. Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Note:</strong> in Box-Select Mode, ALL arguments are selected first, BEFORE the desired code transformation is selected.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Fix the <code>redSquare</code> definition using each of the two interactions. Use Undo after each interaction to reset the program.</li></ol>
 
 """
 
 tutorial_step_13 =
+ """
+(def redSquare
+  (let [x y] [100 70]
+    (rect \"salmon\" x y 120 80)))
+
+(def main
+  (draw [redSquare]))
+; <!-- PROSE --> <p>Thinking back on the previous example, we successfully turned the rectangle into a square by copying the width and height values. But now if we want to change the size of the square, we must remember to change <em>both</em> values in sync.</p><p>Instead, we may want a single variable to take the place of multiple expressions (in this case, the width and height). The <em>Make Equal with Single Variable</em> tool does just that.</p><p>We can invoke <em>Make Equal with Single Variable</em> in two main ways:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select either <code>120</code> or <code>80</code>. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Make Equal with Single Variable</em>. Click on the remaining number (either <code>120</code> or <code>80</code>). Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Reminder:</strong> in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down Shift, then click on <code>120</code> and <code>80</code>. Release the Shift key and select <em>Make Equal with Single Variable</em> from the pop-up menu. Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Reminder:</strong> in Box-Select Mode, ALL arguments are selected first, BEFORE the desired code transformation is selected.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Fix the <code>redSquare</code> definition using each of the two interactions. Use Undo after each interaction to reset the program.</li></ol>
+
+"""
+
+tutorial_step_14 =
  """
 (def redSquare
   (let [x y] [100 70]
@@ -5354,11 +5366,11 @@ tutorial_step_13 =
 
 (def main
   (draw [redSquare]))
-; <!-- PROSE --> <p>Next, we will use the <em>Create Function</em> tool to turn this definition into a function so that it can be called to create more red squares easily.</p><p>We can invoke <em>Create Function</em> in two main ways:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select the entire <code>(def redSquare ...)</code> expression starting from its opening parenthesis until its closing parenthesis. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Create Function</em>.</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down the Shift key, hover over the keyword <code>def</code> in <code>(def redSquare   ...)</code>, then click. Release the Shift key. Select <em>Create Function</em> from the pop-up menu.</p></li></ul><p>No matter how the <em>Create Function</em> tool is invoked, there are two options in the results list that we can select from. Because the point of this function is to draw a <em>red</em> square, we'll pick the option that does not make color one of the resulting function arguments.</p><p>Notice how the reference to this expression in main has now turned into a function call.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>
+; <!-- PROSE --> <p>Next, we will use the <em>Create Function</em> tool to turn this definition into a function so that it can be called to create more red squares easily.</p><p>We can invoke <em>Create Function</em> in two main ways:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select the entire <code>(def redSquare ...)</code> expression starting from its opening parenthesis until its closing parenthesis. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Create Function</em>.</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down the Shift key, hover over the keyword <code>def</code> in <code>(def redSquare   ...)</code>, then click. Release the Shift key. Select <em>Create Function</em> from the pop-up menu.</p></li></ul><p>No matter how the <em>Create Function</em> tool is invoked, there are two options in the results list that we can select from. Because the point of this function is to draw a <em>red</em> square, we'll pick the option that does not make color one of the resulting function arguments.</p><p>Notice how the reference to this expression in <code>main</code> has now turned into a function call.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>
 
 """
 
-tutorial_step_14 =
+tutorial_step_15 =
  """
 (def redSquare (\\(x y w)
   (rect \"salmon\" x y w w)))
@@ -5372,7 +5384,7 @@ tutorial_step_14 =
 
 """
 
-tutorial_step_15 =
+tutorial_step_16 =
  """
 (def redSquare (\\(w x y)
   (rect \"salmon\" x y w w)))
@@ -5386,7 +5398,7 @@ tutorial_step_15 =
 
 """
 
-tutorial_step_16 =
+tutorial_step_17 =
  """
 (def redSquare (\\(w y)
   (rect \"salmon\" 100 y w w)))
@@ -5400,7 +5412,7 @@ tutorial_step_16 =
 
 """
 
-tutorial_step_17 =
+tutorial_step_18 =
  """
 (def redSquare (\\(w x y)
   (rect \"salmon\" x y w w)))
@@ -5420,26 +5432,6 @@ tutorial_step_17 =
 
 """
 
-tutorial_step_18 =
- """
-(def square (\\fill (\\(w x y)
-  (rect fill x y w w))))
-
-(def redSquare (square \"salmon\"))
-
-(def greenSquare (square \"yellowgreen\"))
-
-(def yellowSquare (square \"gold\"))
-
-(def main
-  (draw
-    [(redSquare 50 80 50)
-     (yellowSquare 70 70 110)
-     (greenSquare 90 60 190)]))
-; <!-- PROSE --> <p>A couple more things before we're done! We'd like to reorder the function definitions to match the order in which we use them, just for the sake of consistency (red, yellow, then green).</p><p>To do so, we can use the <em>Move Definition</em> tool.</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select the entire <code>(def greenSquare ...)</code> expression starting from its opening parenthesis until its closing parenthesis. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Move Definition</em>. Click on the target position after the <code>yellowSquare</code> definition (before the <code>main</code> definition). Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over the keyword <code>def</code> in <code>(def   greenSquare ...)</code>, then click. Then, click on the target position after the <code>yellowSquare</code> definition (before the <code>main</code> definition). Release the Shift key. Under the Move Definition tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>
-
-"""
-
 tutorial_step_19 =
  """
 (def square (\\fill (\\(w x y)
@@ -5447,6 +5439,26 @@ tutorial_step_19 =
 
 (def redSquare (square \"salmon\"))
 
+(def greenSquare (square \"yellowgreen\"))
+
+(def yellowSquare (square \"gold\"))
+
+(def main
+  (draw
+    [(redSquare 50 80 50)
+     (yellowSquare 70 70 110)
+     (greenSquare 90 60 190)]))
+; <!-- PROSE --> <p>A couple more things before we're done! We'd like to reorder the function definitions to match the order in which we use them, just for the sake of consistency (red, yellow, then green).</p><p>To do so, we can use the <em>Move Definition</em> tool.</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select the entire <code>(def greenSquare ...)</code> expression starting from its opening parenthesis until its closing parenthesis. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Move Definition</em>. Click on the whitespace below the <code>yellowSquare</code> definition (above the <code>main</code> definition). Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over the keyword <code>def</code> in <code>(def   greenSquare ...)</code>, then click. Then, click on the whitespace below the <code>yellowSquare</code> definition (above the <code>main</code> definition). Release the Shift key. Under the Move Definition tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>
+
+"""
+
+tutorial_step_20 =
+ """
+(def square (\\fill (\\(w x y)
+  (rect fill x y w w))))
+
+(def redSquare (square \"salmon\"))
+
 (def yellowSquare (square \"gold\"))
 
 (def greenSquare (square \"yellowgreen\"))
@@ -5456,11 +5468,11 @@ tutorial_step_19 =
     [(redSquare 50 80 50)
      (yellowSquare 70 70 110)
      (greenSquare 90 60 190)]))
-; <!-- PROSE --> <p>Lastly, because the three definitions are short, we'd like to put them in a single tuple definition to save some space.</p><p>To do so, we can use the <em>Move Definition</em> tool again. This time, however, we will select only variable names (rather than entire <code>(def ...)</code> expressions) and target positions next to variables (rather than above or below <code>(def ...)</code> expressions).</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select <code>redSquare</code> in the <code>(def redSquare ...)</code> expression. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Move Definition</em>. Click on <code>yellowSquare</code> in the <code>(def yellowSquare ...)</code> definition. Then, click the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over <code>redSquare</code> in <code>(def redSquare   ...)</code>, then click. Next, hover over <code>yellowSquare</code> in <code>(def yellowSquare ...)</code>, then click. Then, click on the target position (space) between the keyword <code>def</code> and the variable <code>greenSquare</code>. Under the <em>Move Definition</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>
+; <!-- PROSE --> <p>Lastly, because the three definitions <code>redSquare</code>, <code>yellowSquare</code>, and <code>greenSquare</code> are short, we'd like to group them into a single tuple definition (on a single line) to save some space.</p><p>We can use the <em>Move Definition</em> tool again, this time to group definitions into a tuple. To do so, we will select only variable names (rather than entire <code>(def ...)</code> expressions) and whitespace next to variables (rather than above or below <code>(def ...)</code> expressions).</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select <code>redSquare</code> in the <code>(def redSquare ...)</code> expression. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Move Definition</em>. Click on <code>yellowSquare</code> in the <code>(def yellowSquare ...)</code> definition. Then, click the whitespace between the keyword <code>def</code> and the variable <code>greenSquare</code>. Click on the single option from the results list.</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down the Shift key and hover over <code>redSquare</code> in <code>(def redSquare   ...)</code>, then click. Next, hover over <code>yellowSquare</code> in <code>(def yellowSquare ...)</code>, then click. Then, click on the whitespace between the keyword <code>def</code> and the variable <code>greenSquare</code>. Under the <em>Move Definition</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>
 
 """
 
-tutorial_step_20 =
+tutorial_step_21 =
  """
 (def main
   (draw []))
@@ -5805,6 +5817,7 @@ deuceUserStudyCategory =
     , makeExample "Step 18" tutorial_step_18
     , makeExample "Step 19" tutorial_step_19
     , makeExample "Step 20" tutorial_step_20
+    , makeExample "Step 21" tutorial_step_20
     , makeExample "Deuce Study Transition 1" study_transition_1
     , makeExample "One Rectangle" task_one_rectangle
     , makeExample "Three Rectangles" task_three_rectangles
