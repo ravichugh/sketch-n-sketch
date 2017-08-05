@@ -452,7 +452,7 @@ sequence =
 isTutorialPhase : Phase -> Bool
 isTutorialPhase phase =
   case phase of
-    Start       -> True
+    Start       -> False
     Tutorial    -> True
     Transition1 -> True
     Task _      -> False
@@ -492,7 +492,9 @@ stepDescription stepI =
   Utils.maybeGeti1 stepI stepPhases
   |> Maybe.map
       (\phase ->
-        if isTutorialPhase phase then
+        if phase == Start then
+          "Welcome to the User Study!"
+        else if isTutorialPhase phase then
           "Tutorial Step " ++ toString (tutorialStepNumber stepI) ++ "/" ++ toString tutorialStepsCount
         else if isTaskPhase phase then
           "Task Step " ++ toString (taskStepNumber stepI) ++ "/" ++ toString taskStepsCount
