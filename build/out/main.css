@@ -255,11 +255,18 @@ code {
   right: 15px;
 }
 
-.user-study-info .text-button {
+.user-study-info .text-button,
+.user-study-info .step-info {
   display: inline-block;
   height: 30px; /* height of menu bar */
   line-height: 30px; /* height of menu bar */
   padding: 0 15px;
+  min-width: 120px;
+  text-align: center;
+}
+
+.user-study-info .step-info {
+  min-width: 175px;
 }
 
 .flip {

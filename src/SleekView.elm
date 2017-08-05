@@ -932,10 +932,9 @@ menuBar model =
                               UserStudy.disablePreviousStep
                                 model.userStudyStateIndex
                       }
-                  , disableableTextButton
-                      True
-                      "USER STUDY"
-                      Controller.msgNoop
+                  , Html.span
+                      [ Attr.class "step-info" ]
+                      [ Html.text (UserStudy.stepDescription model.userStudyStateIndex) ]
                   , disableableTextButton
                       (UserStudy.disableNextStep model.userStudyStateIndex)
                       (if model.codeBoxInfo.annotations == [] then "Next Step ▸" else "Give Up ▸")

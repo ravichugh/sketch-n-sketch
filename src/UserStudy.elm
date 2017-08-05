@@ -3,6 +3,7 @@ module UserStudy exposing
   , hideIfEnabled
   , showIfEnabled
   , sequence
+  , stepDescription
   , getTemplate
   , enableFeaturesForEditorMode
   , postProcessCode
@@ -445,6 +446,62 @@ sequence =
     , fullTasks
     , [(End, ("Deuce Study End", AllFeatures))]
     ]
+
+
+isTutorialPhase : Phase -> Bool
+isTutorialPhase phase =
+  case phase of
+    Start       -> True
+    Tutorial    -> True
+    Transition1 -> True
+    Task _      -> False
+    Transition2 -> False
+    End         -> False
+
+isTaskPhase : Phase -> Bool
+isTaskPhase phase =
+  case phase of
+    Start       -> False
+    Tutorial    -> False
+    Transition1 -> False
+    Task _      -> True
+    Transition2 -> True
+    End         -> False
+
+stepPhases =
+  List.map (\(phase, _) -> phase) sequence
+
+tutorialStepsCount =
+  Utils.count isTutorialPhase stepPhases
+
+tutorialStepNumber currentI =
+  Utils.zipi1 stepPhases
+  |> Utils.count (\(i, phase) -> i <= currentI && isTutorialPhase phase)
+
+taskStepsCount =
+  Utils.count isTaskPhase stepPhases
+
+taskStepNumber currentI =
+  Utils.zipi1 stepPhases
+  |> Utils.count (\(i, phase) -> i <= currentI && isTaskPhase phase)
+
+stepDescription : Int -> String
+stepDescription stepI =
+  let unknownStepText = "User Study" in
+  Utils.maybeGeti1 stepI stepPhases
+  |> Maybe.map
+      (\phase ->
+        if isTutorialPhase phase then
+          "Tutorial Step " ++ toString (tutorialStepNumber stepI) ++ "/" ++ toString tutorialStepsCount
+        else if isTaskPhase phase then
+          "Task Step " ++ toString (taskStepNumber stepI) ++ "/" ++ toString taskStepsCount
+        else if phase == End then
+          "Tasks Complete"
+        else
+          let _ = UserStudyLog.log "Unkown Phase" (toString phase) in
+          unknownStepText
+      )
+  |> Maybe.withDefault unknownStepText
 
 _ =
   UserStudyLog.log "UserStudy.sequence" (toString sequence)
