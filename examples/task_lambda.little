@@ -13,7 +13,6 @@
   (draw logo))
 
 
-
 ; The final program should look something like:
 ;
 ;   (def [x y w h] [20 30 100 120])

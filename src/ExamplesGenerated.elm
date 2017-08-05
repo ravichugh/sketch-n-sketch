@@ -5495,7 +5495,6 @@ task_one_rectangle =
   (draw [ rect1 ]))
 
 
-
 ; The final program should look something like:
 ;
 ;   (def rect1
@@ -5505,6 +5504,36 @@ task_one_rectangle =
 ;   (def main
 ;     (draw [ rect1 ]))
 ; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>The programmer intended the rectangle to be <code>250</code> pixels tall and <code>80</code> pixels wide, but the <code>height</code> and <code>width</code> arguments to <code>rect</code> are in the wrong order. Swap them.</p></li><li><p>Rearrange the five variable definitions into a single tuple definition. The order of variables should match the order of arguments to <code>rect</code>.</p></li></ul>
+
+"""
+
+task_two_circles =
+ """
+(def connectedCircles
+  (let startX 50
+  (let endY 50
+  (let startY 70
+  (let endX 150
+  [(circle \"gray\" startX startY 30)
+   (circle \"gray\" endX endY 30)
+   (line \"gray\" 10 startX startY endX endY)
+  ])))))
+
+(def main
+  (draw connectedCircles))
+
+
+; The final program should look something like:
+;
+;   (def connectedCircles (\\(startX startY endX endY)
+;     [(circle \"gray\" startX startY 30)
+;      (circle \"gray\" endX endY 30)
+;      (line \"gray\" 10 startX startY endX endY)
+;     ]))
+;
+;   (def main
+;     (draw (connectedCircles 50 70 150 50)))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li>Turn <code>connectedCirlces</code> into a function takes <code>startX</code>, <code>startY</code>, <code>endX</code>, and <code>endY</code> arguments, and draws two gray circles at <code>(startX, startY)</code> and <code>(endX, endY)</code> connected by a line.</li></ul>
 
 """
 
@@ -5526,7 +5555,6 @@ task_three_rectangles =
   (draw [ rect1 rect2 rect3 ]))
 
 
-
 ; The final program should look something like:
 ;
 ;   (def rect_50_70 (\\(fill x y)
@@ -5544,7 +5572,7 @@ task_three_rectangles =
 ;
 ;   (def main
 ;     (draw [ rect1 rect2 rect3 ]))
-; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li>The three rectangle definitions share a lot of identical code. Create a function <code>rect_50_70</code> that generates a <code>50</code> x <code>70</code> rectangle given color and position parameters, and define <code>rect1</code>, <code>rect2</code>, and <code>rect3</code> in terms of <code>rect_50_70</code>.</li></ul>
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li>The three rectangle definitions share a lot of identical code. Create a function <code>rect_50_70</code> that generates a <code>50</code> x <code>70</code> rectangle given color and position arguments, and define <code>rect1</code>, <code>rect2</code>, and <code>rect3</code> in terms of <code>rect_50_70</code>.</li></ul>
 
 """
 
@@ -5559,7 +5587,6 @@ task_target =
 
 (def main
   (draw (target 1 4)))
-
 
 
 ; The final program should look something like:
@@ -5589,7 +5616,6 @@ task_four_squares =
 
 (def main
   (draw fourSquares))
-
 
 
 ; The final program should look something like:
@@ -5625,7 +5651,6 @@ task_lambda =
 
 (def main
   (draw logo))
-
 
 
 ; The final program should look something like:
@@ -5827,6 +5852,7 @@ deuceUserStudyCategory =
     , makeExample "Step 21" tutorial_step_21
     , makeExample "Deuce Study Transition 1" study_transition_1
     , makeExample "One Rectangle" task_one_rectangle
+    , makeExample "Two Circles" task_two_circles
     , makeExample "Three Rectangles" task_three_rectangles
     , makeExample "Target Icon" task_target
     , makeExample "Deuce Study Transition 2" study_transition_2

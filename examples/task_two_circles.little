@@ -1,0 +1,26 @@
+
+(def connectedCircles
+  (let startX 50
+  (let endY 50
+  (let startY 70
+  (let endX 150
+  [(circle "gray" startX startY 30)
+   (circle "gray" endX endY 30)
+   (line "gray" 10 startX startY endX endY)
+  ])))))
+
+(def main
+  (draw connectedCircles))
+
+
+; The final program should look something like:
+;
+;   (def connectedCircles (\(startX startY endX endY)
+;     [(circle "gray" startX startY 30)
+;      (circle "gray" endX endY 30)
+;      (line "gray" 10 startX startY endX endY)
+;     ]))
+;
+;   (def main
+;     (draw (connectedCircles 50 70 150 50)))
+; <!-- PROSE --> <p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li>Turn <code>connectedCirlces</code> into a function takes <code>startX</code>, <code>startY</code>, <code>endX</code>, and <code>endY</code> arguments, and draws two gray circles at <code>(startX, startY)</code> and <code>(endX, endY)</code> connected by a line.</li></ul>

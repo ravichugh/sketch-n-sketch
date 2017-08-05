@@ -12,7 +12,6 @@
   (draw fourSquares))
 
 
-
 ; The final program should look something like:
 ;
 ;   (def fourSquares (\(x y w topLeft topRight botLeft botRight)

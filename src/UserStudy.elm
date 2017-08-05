@@ -339,8 +339,9 @@ numTutorialSteps = 21
 structuredEditingStartStep = 10
 
 headToHeadTaskTemplates =
-  [ "Three Rectangles"
-  , "One Rectangle"
+  [ "One Rectangle"
+  , "Two Circles"
+  , "Three Rectangles"
   , "Target Icon"
   ]
 
@@ -385,7 +386,7 @@ headToHeadTasks =
         shuffledTemplates =
           shuffleList headToHeadTaskTemplates
         randomBools =
-          getRandom (Random.list 3 Random.bool)
+          getRandom (Random.list (List.length headToHeadTaskTemplates) Random.bool)
         makeTaskMode template bool =
           (Task HeadToHead, (template, if bool then TextSelectOnly else BoxSelectOnly))
       in
@@ -398,17 +399,19 @@ headToHeadTasks =
       let
         getTask i =
           Utils.geti i list
-        getTemplate (_, (template, _)) =
-          template
-        numTemplates =
+        indexLastHeadToHead =
           List.length headToHeadTaskTemplates
-        _ =
-          Utils.assert "UserStudy.numTemplates == 3" <| numTemplates == 3
+        indexFirstOpenEnded =
+          indexLastHeadToHead + 1
+        indexSecondOpenEnded =
+          indexLastHeadToHead + 2
       in
-        if getTemplate (getTask 3) == getTemplate (getTask 4) then
+        if getTemplate (getTask indexLastHeadToHead)
+            == getTemplate (getTask indexFirstOpenEnded)
+        then
           list
-            |> Utils.replacei 4 (getTask 5)
-            |> Utils.replacei 5 (getTask 4)
+            |> Utils.replacei indexFirstOpenEnded (getTask indexSecondOpenEnded)
+            |> Utils.replacei indexSecondOpenEnded (getTask indexFirstOpenEnded)
         else
           list
   in

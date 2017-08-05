@@ -10,7 +10,6 @@
   (draw (target 1 4)))
 
 
-
 ; The final program should look something like:
 ;
 ;   (def target (\(numRings cx cy num)

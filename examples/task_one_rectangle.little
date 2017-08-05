@@ -11,7 +11,6 @@
   (draw [ rect1 ]))
 
 
-
 ; The final program should look something like:
 ;
 ;   (def rect1
