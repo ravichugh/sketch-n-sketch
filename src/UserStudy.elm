@@ -233,7 +233,8 @@ When you are done, press Next Step.
 
 codeToolsOnlyProse = """<p>
 Use TEXT-SELECT MODE and/or BOX-SELECT MODE to
-perform the edits below. Text edits are disabled.
+perform the edits below. You can mix both modes,
+like in the tutorial. Text edits are disabled.
 When you are done, press Next Step.
 </p>"""
 

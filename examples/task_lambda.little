@@ -1,7 +1,10 @@
 
-(def rectangle (rect "black" 20 30 100 120))
-(def line1 (line "white" 5 20 30 (+ 20 100) (+ 30 120)))
-(def line2 (line "white" 5 20 (+ 30 120) (+ 20 (/ 100 2)) (+ 30 (/ 120 2))))
+(def rectangle
+  (rect "black" 20 30 100 120))
+(def line1
+  (line "white" 5 20 30 (+ 20 100) (+ 30 120)))
+(def line2
+  (line "white" 5 20 (+ 30 120) (+ 20 (/ 100 2)) (+ 30 (/ 120 2))))
 
 (def logo
   [rectangle line1 line2])
@@ -14,14 +17,18 @@
 ; The final program should look something like:
 ;
 ;   (def [x y w h] [20 30 100 120])
-;   (def [stroke strokeWidth] ["white" 5])
-;   (def rectangle (rect "black" x y w h))
-;   (def line1 (line stroke strokeWidth x y (+ x w) (+ y h)))
-;   (def line2 (line stroke strokeWidth x (+ y h) (+ x (/ w 2)) (+ y (/ h 2))))
+;   (def [fill stroke strokeWidth] ["black" "white" 5])
+;
+;   (def rectangle
+;     (rect fill x y w h))
+;   (def line1
+;     (line stroke strokeWidth x y (+ x w) (+ y h)))
+;   (def line2
+;     (line stroke strokeWidth x (+ y h) (+ x (/ w 2)) (+ y (/ h 2))))
 ;
 ;   (def logo
 ;     [rectangle line1 line2])
 ;
 ;   (def main
 ;     (draw logo))
-; <!-- PROSE --> <p>The initial program draws a <code>100</code> x <code>120</code> pixel lambda icon at xy-position <code>(20, 30)</code>, but the hard-coded constants requires many changes if we want to draw the icon at a different position or change the style of the lines.</p><p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Define and use four new variables for the x-position, y-position, width, and height of the logo. These variables should be defined in a single 4-tuple.</p></li><li><p>Define and use two new variables for the color and width of the lines. These variables should be defined in a single 2-tuple.</p></li></ul>
+; <!-- PROSE --> <p>The initial program draws a <code>100</code> x <code>120</code> pixel lambda icon at xy-position <code>(20, 30)</code>, but the use of duplicated constants requires many changes if we want to draw the icon at a different position or change the style of the lines.</p><p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Define and use four new variables called <code>x</code>, <code>y</code>, <code>w</code>, and <code>h</code> for the x-position, y-position, width, and height, respectively, of the logo. These variables should be defined in a single 4-tuple.</p></li><li><p>Define and use two new variables called <code>stroke</code> and <code>strokeWidth</code> for the color and width, respectively, of the lines. These variables should be defined in a single 2-tuple.</p></li><li><p>Define and use a new variable called <code>fill</code> for the color of the rectangle. This variable should be defined in the same tuple as <code>stroke</code> and <code>strokeWidth</code>.</p></li></ul>

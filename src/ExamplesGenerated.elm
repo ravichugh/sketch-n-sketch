@@ -5164,7 +5164,7 @@ study_start =
  """
 (def main
   (draw []))
-; <!-- PROSE --> <p>In this study, we are going to show you some program editing features in Sketch-n-Sketch, a programming system for generating Scalable Vector Graphics images.</p><p>In the first half, you will work through a tutorial that explains several features in Sketch-n-Sketch.</p><p>In the second half, you will work through several programming editing tasks using the features described in the tutorial.</p><p>See the area labeled USER STUDY label in the top-right corner of the screen? Every time you've finished a section, press Next Step to move on.</p>
+; <!-- PROSE --> <p>In this study, we are going to show you some program editing features in Sketch-n-Sketch, a programming system for generating Scalable Vector Graphics images.</p><p><strong>Tutorial:</strong> In the first half, you will work through a tutorial that explains several features in Sketch-n-Sketch.</p><p><strong>Tasks:</strong> In the second half, you will work through several programming editing tasks using the features described in the tutorial.</p><p>See the Next Step button in the top-right corner of the screen? Every time you've finished a section, press Next Step to move on.</p>
 
 """
 
@@ -5187,7 +5187,7 @@ study_transition_2 =
 study_end =
  """
 (def main
-  (draw []))
+  (draw [(show \"That's the end of the tasks!\")]))
 ; <!-- PROSE --> <p>You're all done with the programming exercises!</p><p>One last thing: please fill out the exit survey.</p><p>Thanks!</p>
 
 """
@@ -5318,7 +5318,7 @@ tutorial_step_10 =
 
 (def main
   (draw [blueSquare]))
-; <!-- PROSE --> <p>Here is a red square. Unfortunately, the name of the function that generates this red square is incorrect. To fix this, we can use the <em>Rename Variable</em> tool to rename the function at its definition and its call-sites.</p><p>There are a few ways to do this:</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Select the text <code>blueSquare</code>, right-click the editor, and select the <em>Rename</em> tool from the pop-up menu. Then, enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the menu or panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Select the text <code>blueSquare</code>, and select the <em>Rename</em> Variable tool from the Code Tools menu at the top-left of the screen. Then enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key, hover over <code>blueSquare</code>, click the box that pops up over <code>blueSquare</code>, and then release the Shift key. Select the <em>Rename</em> tool from the pop-up menu. Enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will clear any selections and make the menu go away. <em>⟲ Undo</em> will let you go back.</p></li></ul><p>Unlike with text edits, you do <em>not</em> need to hit the Run button after invoking a code transformation.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Perform the renaming with each of the three interactions. Use Undo after each to reset the program.</p></li><li><p><strong>Tip</strong>: To save time in Text-Select Mode, a right-click can be performed without a text selection for <em>variables</em> and <em>constants</em> (but not for more complicated expressions). In this case, Sketch-n-Sketch will automatically select the variable or constant that contains the click that was performed. Try this out by redoing the instructions for <em>Text-Select Mode (right-click menu)</em>, this time by right-clicking <code>blueSquare</code> without text-selecting it.</p></li></ol>
+; <!-- PROSE --> <p>Here is a red square. Unfortunately, the name of the function that generates this red square is incorrect. To fix this, we can use the <em>Rename Variable</em> tool to rename the function at its definition and its call-sites.</p><p>There are a few ways to do this:</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Select the text <code>blueSquare</code>, right-click the editor, and select the <em>Rename</em> tool from the pop-up menu. Then, enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the menu or panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Select the text <code>blueSquare</code>, and select the <em>Rename</em> Variable tool from the Code Tools menu at the top-left of the screen. Then enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key, hover over <code>blueSquare</code>, click the box that pops up over <code>blueSquare</code>, and then release the Shift key. Select the <em>Rename</em> tool from the pop-up menu. Enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will clear any selections and make the menu go away. <em>⟲ Undo</em> will let you go back.</p></li></ul><p>Unlike with text edits, you do <em>not</em> need to hit the Run button after invoking a code transformation.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Perform the renaming with each of the three interactions. Use Undo after each to reset the program.</p></li><li><p><strong>Tip:</strong> To save time in Text-Select Mode, a right-click can be performed without a text selection for <em>variables</em> and <em>constants</em> (but not for more complicated expressions). In this case, Sketch-n-Sketch will automatically select the variable or constant that contains the click that was performed. Try this out by redoing the instructions for <em>Text-Select Mode (right-click menu)</em>, this time by right-clicking <code>blueSquare</code> without text-selecting it.</p></li><li><p><strong>Tip:</strong> The pop-up panels can be re-positioned if they are covering up relevant parts of the code. Redo any one of the interactions and, when a pop-up panel appears, click and drag the top bar to move it somewhere else.</p></li></ol>
 
 """
 
@@ -5613,9 +5613,12 @@ task_four_squares =
 
 task_lambda =
  """
-(def rectangle (rect \"black\" 20 30 100 120))
-(def line1 (line \"white\" 5 20 30 (+ 20 100) (+ 30 120)))
-(def line2 (line \"white\" 5 20 (+ 30 120) (+ 20 (/ 100 2)) (+ 30 (/ 120 2))))
+(def rectangle
+  (rect \"black\" 20 30 100 120))
+(def line1
+  (line \"white\" 5 20 30 (+ 20 100) (+ 30 120)))
+(def line2
+  (line \"white\" 5 20 (+ 30 120) (+ 20 (/ 100 2)) (+ 30 (/ 120 2))))
 
 (def logo
   [rectangle line1 line2])
@@ -5628,17 +5631,21 @@ task_lambda =
 ; The final program should look something like:
 ;
 ;   (def [x y w h] [20 30 100 120])
-;   (def [stroke strokeWidth] [\"white\" 5])
-;   (def rectangle (rect \"black\" x y w h))
-;   (def line1 (line stroke strokeWidth x y (+ x w) (+ y h)))
-;   (def line2 (line stroke strokeWidth x (+ y h) (+ x (/ w 2)) (+ y (/ h 2))))
+;   (def [fill stroke strokeWidth] [\"black\" \"white\" 5])
+;
+;   (def rectangle
+;     (rect fill x y w h))
+;   (def line1
+;     (line stroke strokeWidth x y (+ x w) (+ y h)))
+;   (def line2
+;     (line stroke strokeWidth x (+ y h) (+ x (/ w 2)) (+ y (/ h 2))))
 ;
 ;   (def logo
 ;     [rectangle line1 line2])
 ;
 ;   (def main
 ;     (draw logo))
-; <!-- PROSE --> <p>The initial program draws a <code>100</code> x <code>120</code> pixel lambda icon at xy-position <code>(20, 30)</code>, but the hard-coded constants requires many changes if we want to draw the icon at a different position or change the style of the lines.</p><p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Define and use four new variables for the x-position, y-position, width, and height of the logo. These variables should be defined in a single 4-tuple.</p></li><li><p>Define and use two new variables for the color and width of the lines. These variables should be defined in a single 2-tuple.</p></li></ul>
+; <!-- PROSE --> <p>The initial program draws a <code>100</code> x <code>120</code> pixel lambda icon at xy-position <code>(20, 30)</code>, but the use of duplicated constants requires many changes if we want to draw the icon at a different position or change the style of the lines.</p><p>PLACEHOLDER INSTRUCTIONS</p><p>Goals:</p><ul><li><p>Define and use four new variables called <code>x</code>, <code>y</code>, <code>w</code>, and <code>h</code> for the x-position, y-position, width, and height, respectively, of the logo. These variables should be defined in a single 4-tuple.</p></li><li><p>Define and use two new variables called <code>stroke</code> and <code>strokeWidth</code> for the color and width, respectively, of the lines. These variables should be defined in a single 2-tuple.</p></li><li><p>Define and use a new variable called <code>fill</code> for the color of the rectangle. This variable should be defined in the same tuple as <code>stroke</code> and <code>strokeWidth</code>.</p></li></ul>
 
 """
 
