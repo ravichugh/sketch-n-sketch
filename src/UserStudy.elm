@@ -399,19 +399,19 @@ headToHeadTasks =
       let
         getTask i =
           Utils.geti i list
-        indexLastHeadToHead =
+        indexLastInFirstPass =
           List.length headToHeadTaskTemplates
-        indexFirstOpenEnded =
-          indexLastHeadToHead + 1
-        indexSecondOpenEnded =
-          indexLastHeadToHead + 2
+        indexFirstInSecondPass =
+          indexLastInFirstPass + 1
+        indexSecondInSecondPass =
+          indexLastInFirstPass + 2
       in
-        if getTemplate (getTask indexLastHeadToHead)
-            == getTemplate (getTask indexFirstOpenEnded)
+        if getTemplate (getTask indexLastInFirstPass)
+            == getTemplate (getTask indexFirstInSecondPass)
         then
           list
-            |> Utils.replacei indexFirstOpenEnded (getTask indexSecondOpenEnded)
-            |> Utils.replacei indexSecondOpenEnded (getTask indexFirstOpenEnded)
+            |> Utils.replacei indexFirstInSecondPass (getTask indexSecondInSecondPass)
+            |> Utils.replacei indexSecondInSecondPass (getTask indexFirstInSecondPass)
         else
           list
   in
