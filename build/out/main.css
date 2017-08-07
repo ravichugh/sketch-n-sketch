@@ -350,6 +350,10 @@ code {
   margin-bottom: 0;
 }
 
+.prose-panel *:empty {
+  display: none;
+}
+
 .prose-panel h3 {
   font-size: 1.2em;
 }
