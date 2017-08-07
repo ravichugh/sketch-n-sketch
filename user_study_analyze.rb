@@ -2,11 +2,18 @@ require "irb"
 require "json"
 
 class Event
-  attr_reader :time, :name, :info
+  attr_reader :event_number, :time, :name, :info
 
   def initialize(line)
-    _, ms_since_epoch, @name, @info = line.split("\t", 4)
+    event_number_str, _, ms_since_epoch, @name, @info = line.split("\t", 5)
 
+    if event_number_str =~ /T/
+      _, ms_since_epoch, @name, @info = line.split("\t", 4)
+
+      event_number_str = ms_since_epoch
+    end
+
+    @event_number = event_number_str.to_i
     @time = Time.at(ms_since_epoch.to_f / 1000.0)
   end
 
@@ -564,20 +571,32 @@ class Event
     json_info("deuceSelectionsCount") && json_info("deuceSelectionsCount").to_i
   end
 
+  def code_annotations_count
+    json_info("codeAnnotationsCount") && json_info("codeAnnotationsCount").to_i
+  end
+
+  def task_timeout?
+    name == "Task Timeout"
+  end
+
   def user_study_next?
     name =~ /^(New: )?User Study Next/
   end
 
+  def next_step_task?
+    user_study_next? && info =~ /^(Step )?\((Task )?(HeadToHead|OpenEnded)(Task)?/
+  end
+
   def next_step_head_to_head?
-    user_study_next? && info =~ /^(Step )?\(HeadToHeadTask/
+    user_study_next? && info =~ /^(Step )?\((Task )?HeadToHead(Task)?/
   end
 
   def next_step_task_name
-    info[/^(?:Step )?\(\w+,\("([^"]+)"\,\w+\)\)/, 1]
+    info[/^(?:Step )?\([\w ]+,\("([^"]+)"\,\w+\)\)/, 1]
   end
 
   def next_step_task_treatment
-    info[/^(?:Step )?\(\w+,\("[^"]+"\,(\w+)\)\)/, 1]
+    info[/^(?:Step )?\([\w ]+,\("[^"]+"\,(\w+)\)\)/, 1]
   end
 
   def deuce_exp_chosen
@@ -594,10 +613,10 @@ LOGS_DIR = ROOT + "/user_study_logs"
 
 participant_indices = Dir.entries(LOGS_DIR).join("\n").scan(/participant_(\d+)\.log/).flatten.map(&:to_i).sort
 
-def split_into_head_to_head_tasks(events)
+def split_into_tasks(events)
   events.
-    slice_before(&:next_step_head_to_head?).
-    select { |chunk| chunk[0].next_step_head_to_head? }.
+    slice_before(&:next_step_task?).
+    select { |chunk| chunk[0].next_step_task? }.
     map { |chunk| [chunk[0]] + chunk[1..-1].slice_after(&:user_study_next?).to_a[0] }
 end
 
@@ -684,53 +703,6 @@ end
 class DialogInteraction < Interaction
 end
 
-# A box select interaction is a series of deuce selections
-# Starting when the shift key is depressed
-# Ending when the selections are cleared (via refactoring, or escape key, or deselection) AND the shift key is also not depressed
-#
-# Taps of the shift key that do not result in a selection do not count as an interaction.
-def split_into_box_select_interactions(events)
-  interactions = []
-  current_interaction_events = nil
-  pending_interaction_events = nil
-  shift_depressed     = false
-  events.each do |event|
-    if event.shift_down?
-      shift_depressed = true
-    elsif event.shift_up?
-      shift_depressed = false
-    end
-
-    if current_interaction_events
-      if event.deuce_selections_count && event.deuce_selections_count == 0 && !shift_depressed
-        interactions << BoxSelectInteraction.new(current_interaction_events)
-        current_interaction_events = nil
-      else
-        current_interaction_events << event
-      end
-    elsif pending_interaction_events
-      if event.shift_down?
-        pending_interaction_events = [event]
-      elsif event.deuce_selections_count && event.deuce_selections_count > 0
-        current_interaction_events = pending_interaction_events + [event]
-        pending_interaction_events = nil
-      else
-        pending_interaction_events << event
-      end
-    else
-      if event.shift_down?
-        pending_interaction_events = [event]
-      end
-    end
-  end
-
-  if current_interaction_events
-    interactions + [BoxSelectInteraction.new(current_interaction_events)]
-  else
-    interactions
-  end
-end
-
 # A text select interaction starts when the selection is started or right mouse is clicked or the code tools menu is opened
 # and ends when the selections are cleared (via refactoring, or escape key, or deselection)
 #
@@ -804,13 +776,60 @@ def split_into_text_select_interactions(events)
   end
 end
 
+# A box select interaction is a series of deuce selections
+# Starting when the shift key is depressed
+# Ending when the selections are cleared (via refactoring, or escape key, or deselection) AND the shift key is also not depressed
+#
+# Taps of the shift key that do not result in a selection do not count as an interaction.
+def split_into_box_select_interactions(events)
+  interactions = []
+  current_interaction_events = nil
+  pending_interaction_events = nil
+  shift_depressed     = false
+  events.each do |event|
+    if event.shift_down?
+      shift_depressed = true
+    elsif event.shift_up?
+      shift_depressed = false
+    end
+
+    if current_interaction_events
+      if event.deuce_selections_count && event.deuce_selections_count == 0 && !shift_depressed
+        interactions << BoxSelectInteraction.new(current_interaction_events)
+        current_interaction_events = nil
+      else
+        current_interaction_events << event
+      end
+    elsif pending_interaction_events
+      if event.shift_down?
+        pending_interaction_events = [event]
+      elsif event.deuce_selections_count && event.deuce_selections_count > 0
+        current_interaction_events = pending_interaction_events + [event]
+        pending_interaction_events = nil
+      else
+        pending_interaction_events << event
+      end
+    else
+      if event.shift_down?
+        pending_interaction_events = [event]
+      end
+    end
+  end
+
+  if current_interaction_events
+    interactions + [BoxSelectInteraction.new(current_interaction_events)]
+  else
+    interactions
+  end
+end
+
 def split_into_viewing_dialog_interactions(events)
   interactions = []
   current_interaction_events = nil
   events.each do |event|
     if current_interaction_events
       current_interaction_events << event
-      if event.close_dialog_box?
+      if event.close_dialog_box? || event.user_study_next? # next b/c task timeout
         interactions << DialogInteraction.new(current_interaction_events)
         current_interaction_events = nil
       elsif event.open_dialog_box?
@@ -843,8 +862,16 @@ puts [
   "Task Number",
   "Task",
   "Treatment",
+  "Completed?",
+  "Timeout?",
   "Gross Time",
   "Interaction Time",
+  "#Text Select Interactions Started",
+  "Text Select Interacting Time",
+  "#Text Select Refactorings",
+  "#Box Select Interactions Started",
+  "Box Select Interacting Time",
+  "#Box Select Refactorings",
   "#Interactions Started",
   "Interacting Time",
   "#Refactorings",
@@ -854,13 +881,13 @@ puts [
 ].join("\t")
 
 participant_indices.each do |participant_i|
-  events = File.read("#{LOGS_DIR}/participant_#{participant_i}.log").split("\n").map { |line| Event.new(line) }.sort_by(&:time) # Events are sent async and are occasionally slightly out of order
+  events = File.read("#{LOGS_DIR}/participant_#{participant_i}.log").split("\n").map { |line| Event.new(line) }.sort_by(&:event_number) # Events are sent async and are occasionally slightly out of order
 
-  head_to_head_tasks = split_into_head_to_head_tasks(events)
+  tasks = split_into_tasks(events)
 
   task_num = 0
 
-  head_to_head_tasks.each do |events|
+  tasks.each do |events|
     task_name = events[0].next_step_task_name
     treatment = events[0].next_step_task_treatment
 
@@ -871,49 +898,52 @@ participant_indices.each do |participant_i|
     gross_start_time = events[0].time
     gross_end_time   = events[-1].time
 
-    if treatment == "BoxSelectOnly" || treatment == "TextSelectOnly"
-      # These should be mutually exclusive (TODO: check)
-      interactions = split_into_box_select_interactions(events) + split_into_text_select_interactions(events)
-      interactions.sort_by!(&:begin)
-      interactions_count = interactions.count
-      if interactions.size == 0
-        interaction_start_time = 0
-        interaction_end_time = 0
-      else
-        interaction_start_time = interactions.first.begin
-        interaction_end_time   = interactions.last.end
-      end
-      viewing_dialog_interactions = split_into_viewing_dialog_interactions(events)
-      interacting_time = (TimeRanges.new(interactions.map(&:time_range)) - TimeRanges.new(viewing_dialog_interactions.map(&:time_range))).duration
-      invocations =
-        events.
-          flat_map do |event|
-            if event.undo?
-              ["Undo"]
-            elsif event.redo?
-              ["Redo"]
-            elsif event.choose_deuce_exp?
-              [event.deuce_exp_chosen]
-            else
-              []
-            end
-          end
-    else
-      interactions_count = -1
+    # These should be mutually exclusive (TODO: check)
+    text_select_interactions = split_into_text_select_interactions(events)
+    box_select_interactions = split_into_box_select_interactions(events)
+    all_interactions = text_select_interactions + box_select_interactions
+    all_interactions.sort_by!(&:begin)
+    if all_interactions.size == 0
       interaction_start_time = 0
       interaction_end_time = 0
-      interacting_time = 0
-      invocations = []
+    else
+      interaction_start_time = all_interactions.first.begin
+      interaction_end_time   = all_interactions.last.end
     end
+    viewing_dialog_interactions = split_into_viewing_dialog_interactions(events)
+    text_select_interacting_time = (TimeRanges.new(text_select_interactions.map(&:time_range)) - TimeRanges.new(viewing_dialog_interactions.map(&:time_range))).duration
+    box_select_interacting_time  = (TimeRanges.new(box_select_interactions.map(&:time_range))  - TimeRanges.new(viewing_dialog_interactions.map(&:time_range))).duration
+    interacting_time = text_select_interacting_time + box_select_interacting_time
+    invocations =
+      events.
+        flat_map do |event|
+          if event.undo?
+            ["Undo"]
+          elsif event.redo?
+            ["Redo"]
+          elsif event.choose_deuce_exp?
+            [event.deuce_exp_chosen]
+          else
+            []
+          end
+        end
 
     puts [
       participant_i,
       task_num,
       task_name,
       treatment,
+      events.map(&:code_annotations_count).compact.last == 0 ? "yes" : "no",
+      events.any?(&:task_timeout?) ? "yes" : "no",
       gross_end_time - gross_start_time,
       interaction_end_time - interaction_start_time,
-      interactions_count,
+      text_select_interactions.count,
+      text_select_interacting_time,
+      text_select_interactions.flat_map(&:events).count(&:choose_deuce_exp?),
+      box_select_interactions.count,
+      box_select_interacting_time,
+      box_select_interactions.flat_map(&:events).count(&:choose_deuce_exp?),
+      all_interactions.count,
       interacting_time,
       invocations.size - invocations.grep(/^(Undo|Redo)$/).size,
       events.count(&:undo?),

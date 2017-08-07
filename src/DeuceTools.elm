@@ -397,13 +397,13 @@ inlineDefinitionTool model selections =
         (_, _, _, [], [], _, _) ->
           (toolName, Nothing, Impossible)
         ([], [], [], pathedPatIds, [], [], []) ->
-          ( Utils.maybePluralize toolName pathedPatIds
+          ( Utils.perhapsPluralizeList toolName pathedPatIds
           , Just <| \() ->
               CodeMotion.inlineDefinitions pathedPatIds model.inputExp
           , Satisfied
           )
         ([], [], [], [], letEIds, [], []) ->
-          ( Utils.maybePluralize toolName letEIds
+          ( Utils.perhapsPluralizeList toolName letEIds
           , Just <| \() ->
               CodeMotion.inlineDefinitions
                 (letEIds |> List.map (\letEId -> ((letEId, 1), [])))
@@ -442,7 +442,7 @@ introduceVariableTool model selections =
         (_, _, [], _, _, _, _) ->
           (toolName, Nothing, Impossible)
         (_, _, exps, [], [], [], []) ->
-          ( Utils.maybePluralize "Introduce Variable" exps
+          ( Utils.perhapsPluralizeList "Introduce Variable" exps
           , CodeMotion.introduceVarTransformation
               model
               exps
@@ -450,7 +450,7 @@ introduceVariableTool model selections =
           , Satisfied
           )
         (_, _, exps, [], [], [], [patTarget]) ->
-          ( Utils.maybePluralize "Introduce Variable" exps
+          ( Utils.perhapsPluralizeList "Introduce Variable" exps
           , CodeMotion.introduceVarTransformation
               model
               exps
@@ -458,7 +458,7 @@ introduceVariableTool model selections =
           , Satisfied
           )
         (_, _, exps, [], [], [expTarget], []) ->
-          ( Utils.maybePluralize "Introduce Variable" exps
+          ( Utils.perhapsPluralizeList "Introduce Variable" exps
           , CodeMotion.introduceVarTransformation
               model
               exps
@@ -531,7 +531,7 @@ moveDefinitionTool model selections =
           (toolName, Nothing, Possible)
         ([], [], [], firstPatId::restPatIds, [], [(Before, eId)], []) ->
           let pathedPatIds = firstPatId::restPatIds in
-          ( Utils.maybePluralize toolName pathedPatIds
+          ( Utils.perhapsPluralizeList toolName pathedPatIds
           , Just <| \() ->
               CodeMotion.moveDefinitionsBeforeEId
                 pathedPatIds
@@ -552,7 +552,7 @@ moveDefinitionTool model selections =
               ) |> Maybe.map (.val >> .e__)
             of
               Just (ELet _ _ _ _ _ _ _) ->
-                ( Utils.maybePluralize toolName pathedPatIds
+                ( Utils.perhapsPluralizeList toolName pathedPatIds
                 , Just <| \() ->
                     CodeMotion.moveDefinitionsPat
                       pathedPatIds
@@ -574,7 +574,7 @@ moveDefinitionTool model selections =
           , Satisfied
           )
         ([], [], [], [], letEIds, [(Before, eId)], []) ->
-          ( Utils.maybePluralize toolName letEIds
+          ( Utils.perhapsPluralizeList toolName letEIds
           , Just <| \() ->
               CodeMotion.moveEquationsBeforeEId
                 letEIds
@@ -618,7 +618,7 @@ duplicateDefinitionTool model selections =
         ([], [], [], pathedPatIds, [], [(Before, eId)], []) ->
           let allAreLets = pathedPatIds |> List.all (pathedPatIdToScopeEId >> eidIsLet) in
           if allAreLets then
-            ( Utils.maybePluralize toolName pathedPatIds
+            ( Utils.perhapsPluralizeList toolName pathedPatIds
             , Just <| \() ->
                 CodeMotion.duplicateDefinitionsBeforeEId
                   pathedPatIds
@@ -639,7 +639,7 @@ duplicateDefinitionTool model selections =
               eidIsLet (pathedPatIdToScopeEId targetPathedPatId)
           in
           if allAreLets then
-            ( Utils.maybePluralize toolName pathedPatIds
+            ( Utils.perhapsPluralizeList toolName pathedPatIds
             , Just <| \() ->
                 CodeMotion.duplicateDefinitionsPat
                   pathedPatIds
@@ -947,7 +947,7 @@ rewriteOffsetTool model selections =
           case findExpByEId model.inputExp (pathedPatIdToScopeEId ppid) of
             Just scopeExp ->
               if isLet scopeExp && List.length nums == List.length exps then
-                ( Utils.maybePluralize toolName nums
+                ( Utils.perhapsPluralizeList toolName nums
                 , CodeMotion.rewriteOffsetTransformation model ppid nums
                 , Satisfied
                 )
@@ -1030,7 +1030,7 @@ rewriteOffsetTool model selections =
 --                         converted
 --                   in
 --                     { name =
---                         Utils.maybePluralize "Convert Color String" literals
+--                         Utils.perhapsPluralizeList "Convert Color String" literals
 --                     , func =
 --                         Just <|
 --                           \() ->

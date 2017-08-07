@@ -1,5 +1,7 @@
 module InterfaceController exposing
   ( update
+  , timeLeft
+  , currentTaskDuration
   , msgNoop
   , msgWindowDimensions
   , msgVisibilityChange
@@ -54,6 +56,7 @@ module InterfaceController exposing
   , msgUserStudyStep
   , msgUserStudyNext
   , msgUserStudyPrev
+  , msgUserStudyEverySecondTick
   , msgSetEnableDeuceBoxSelection
   , msgSetEnableDeuceTextSelection
   , msgSetShowDeuceInMenuBar
@@ -84,7 +87,7 @@ import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
-import Utils exposing (maybePluralize)
+import Utils
 import Keys
 import InterfaceModel as Model exposing (..)
 import SleekLayout exposing
@@ -124,6 +127,7 @@ import Regex
 import Set
 import String
 import Char
+import Time
 
 --Html Libraries
 import Html
@@ -637,7 +641,7 @@ update msg oldModel =
 
 upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
-  -- let _ = Debug.log "" (caption, old.mouseState, old.mouseMode) in
+  -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
   let _ = debugLog "Msg" caption in
   updateModel old
 
@@ -1639,6 +1643,8 @@ handleNew template = (\old ->
                     , icons         = old.icons
 
                     , userStudyStateIndex      = old.userStudyStateIndex
+                    , userStudyTaskCurrentTime = old.userStudyTaskCurrentTime
+                    , userStudyTaskStartTime   = old.userStudyTaskCurrentTime
                     , enableDeuceBoxSelection  = old.enableDeuceBoxSelection
                     , enableDeuceTextSelection = old.enableDeuceTextSelection
                     , showDeuceInMenuBar       = old.showDeuceInMenuBar
@@ -2057,6 +2063,9 @@ msgTextSelect allowSingleSelection =
 -- User Study Operations
 
 msgUserStudyStep label offset = Msg label <| \old ->
+  changeUserStudyStep label offset old
+
+changeUserStudyStep label offset old =
   let i = old.userStudyStateIndex in
   let newState = Utils.geti (i + offset) UserStudy.sequence in
   let template = UserStudy.getTemplate newState in
@@ -2071,8 +2080,27 @@ msgUserStudyStep label offset = Msg label <| \old ->
       |> UserStudy.postProcessProse newState
       |> upstateRun
 
+currentTaskDuration : Model -> Time.Time
+currentTaskDuration model =
+  let userStudyState = UserStudy.getState model.userStudyStateIndex in
+  UserStudy.stepTimeoutDuration userStudyState
+
+timeLeft : Model -> Time.Time
+timeLeft model =
+  let timeoutTime = model.userStudyTaskStartTime + currentTaskDuration model in
+  timeoutTime - model.userStudyTaskCurrentTime
+
 msgUserStudyNext = msgUserStudyStep "New: User Study Next" 1
 msgUserStudyPrev = msgUserStudyStep "New: User Study Prev" (-1)
+
+msgUserStudyEverySecondTick : Time.Time -> Msg
+msgUserStudyEverySecondTick currentTime =
+  Model.Msg "Time Tick" <| \old ->
+    if timeLeft old <= 0 then
+      let _ = UserStudyLog.log "Task Timeout" ("{ " ++ UserStudyLog.modelSummaryJsonInner old ++ " }") in
+      changeUserStudyStep "New: User Study Next" 1 { old | userStudyTaskCurrentTime = currentTime }
+    else
+      { old | userStudyTaskCurrentTime = currentTime }
 
 --------------------------------------------------------------------------------
 -- Some Flags

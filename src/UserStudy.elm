@@ -3,6 +3,8 @@ module UserStudy exposing
   , hideIfEnabled
   , showIfEnabled
   , sequence
+  , getState
+  , stepTimeoutDuration
   , stepDescription
   , getTemplate
   , enableFeaturesForEditorMode
@@ -19,6 +21,7 @@ import Updatable exposing (Updatable)
 import Utils
 import Random
 import Dict
+import Time
 import ImpureGoodies
 import UserStudyLog
 import Regex exposing (HowMany (AtMost, All), regex)
@@ -380,6 +383,7 @@ headToHeadTasks =
   -- and the first template in the second pass are the same,
   -- swap the first two tasks of the second pass.
 
+  -- TODO: swap method produces bias. fix
   let
     (firstTimeThroughAll, secondTimeThroughAll) =
       let
@@ -450,6 +454,14 @@ sequence =
     , fullTasks
     , [(End, ("Deuce Study End", AllFeatures))]
     ]
+
+
+stepTimeoutDuration : State -> Time.Time
+stepTimeoutDuration (phase, _) =
+  case phase of
+    Task HeadToHead -> 5  * Time.minute
+    Task OpenEnded  -> 10 * Time.minute
+    _               -> Utils.infinity
 
 
 isTutorialPhase : Phase -> Bool

@@ -613,9 +613,16 @@ niceTruncateString n toBeContinuedStr str =
   else
     str
 
-maybePluralize : String -> List a -> String
-maybePluralize str list =
+perhapsPluralizeList : String -> List a -> String
+perhapsPluralizeList str list =
   str ++ (if List.length list == 1 then "" else "s")
+
+-- After Rails pluralize https://apidock.com/rails/ActionView/Helpers/TextHelper/pluralize
+pluralize : Int -> String -> String
+pluralize count singular =
+  case count of
+    1 -> toString count ++ " " ++ singular
+    _ -> toString count ++ " " ++ singular ++ "s"
 
 capitalize : String -> String
 capitalize str =

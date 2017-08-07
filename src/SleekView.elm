@@ -5,6 +5,7 @@ import Dict
 import Set
 import Regex
 import String
+import Time
 
 import Html exposing (Html)
 import Html.Attributes as Attr
@@ -916,7 +917,16 @@ menuBar model =
               [ Html.div
                   [ Attr.class "user-study-info"
                   ]
-                  [ textButton
+                  [ let timeLeft = Controller.timeLeft model in
+                    if timeLeft /= Utils.infinity && timeLeft <= 30 * Time.second then
+                      let secs = round (timeLeft / Time.second) in
+                      Html.span [Attr.class "time-left time-almost-gone"] [Html.text <| (if secs < 10 then "0:0" else "0:") ++ toString secs ++ " remaining on task"]
+                    else if timeLeft /= Utils.infinity && timeLeft <= Controller.currentTaskDuration model / 3.0 then
+                      let mins = round (timeLeft / Time.minute) in
+                      Html.span [Attr.class "time-left"] [Html.text <| Utils.pluralize mins "minute" ++ " remaining on task"]
+                    else
+                      Html.span [] []
+                  , textButton
                       { defaultTb
                           | content =
                               [ Html.span

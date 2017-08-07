@@ -22,6 +22,7 @@ import LangSvg exposing (attr)
 import Dict exposing (Dict)
 import Set exposing (Set)
 import Char
+import Time
 import Window
 import Mouse
 import Html exposing (Html)
@@ -150,6 +151,8 @@ type alias Model =
   , popupPanelPositions : PopupPanelPositions
   , deuceRightClickMenuMode : Maybe DeuceRightClickMenuMode
   , userStudyStateIndex : Int
+  , userStudyTaskStartTime : Time.Time
+  , userStudyTaskCurrentTime : Time.Time
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
   , showDeuceInMenuBar : Bool
@@ -981,6 +984,8 @@ initModel =
         }
     , deuceRightClickMenuMode = Nothing
     , userStudyStateIndex = 1
+    , userStudyTaskStartTime = 0.0
+    , userStudyTaskCurrentTime = 0.0
     , enableDeuceBoxSelection = False
     , enableDeuceTextSelection = False
     , showDeuceInMenuBar = False

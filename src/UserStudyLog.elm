@@ -1,4 +1,4 @@
-module UserStudyLog exposing (log, logModelUpdate)
+module UserStudyLog exposing (log, logModelUpdate, modelSummaryJsonInner)
 
 import InterfaceModel exposing (..)
 
@@ -77,16 +77,18 @@ logModelUpdate updateFunc msg model =
   (newModel, cmd)
 
 
+modelSummaryJsonInner model =
+  "\"deuceSelectionsCount\" : " ++ toString (List.length model.deuceState.selectedWidgets) ++
+  ", \"codeAnnotationsCount\" : " ++ toString (List.length model.codeBoxInfo.annotations)
+
+
 msgInfo (Msg msgName updater) model =
   case msgName of
-    "Ace Update" -> Nothing
-
+    "Ace Update"           -> Nothing
+    "Time Tick"            -> Nothing
     "New: User Study Next" -> Nothing -- has its own logging
 
     _ ->
-      let info =
-        "\"deuceSelectionsCount\" : " ++ toString (List.length model.deuceState.selectedWidgets)
-      in
       if String.startsWith "MousePosition" msgName
       then Nothing
-      else Just info
+      else Just (modelSummaryJsonInner model)
