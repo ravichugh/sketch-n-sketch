@@ -1015,71 +1015,85 @@ msgMousePosition pos_ =
 
 --------------------------------------------------------------------------------
 
+isKeyDown : Int -> Model -> Bool
+isKeyDown keyCode model =
+  List.member keyCode model.keysDown
+
 msgKeyPress keyCode = Msg ("Key Press " ++ toString keyCode) <| \old ->
   old
 
 msgKeyDown keyCode =
   let
     addKey old =
-      if not (List.member keyCode old.keysDown) then
-        { old | keysDown = keyCode :: old.keysDown }
-      else
-        old
-    func old =
-      -- let _ = Debug.log "Key Down" (keyCode, old.keysDown) in
-      if keyCode == Keys.keyEsc then
-        if Model.anyDialogShown old then
-          Model.closeAllDialogBoxes old
+      let
+        currentKeyDown =
+          isKeyDown keyCode old
+      in
+        if not currentKeyDown then
+          { old | keysDown = keyCode :: old.keysDown }
         else
+          old
+    func old =
+      let
+        _ =
+          Debug.log "Key Down" (keyCode, old.keysDown)
+        currentKeyDown =
+          isKeyDown keyCode old
+      in
+        if keyCode == Keys.keyEsc then
+          if Model.anyDialogShown old then
+            Model.closeAllDialogBoxes old
+          else
+            let
+              new =
+                old
+                  |> Model.hideDeuceRightClickMenu
+                  |> resetDeuceState
+                  |> \m -> { m | deucePopupPanelAbove = True }
+            in
+              case (old.tool, old.mouseMode) of
+                (Cursor, _) ->
+                  { new | selectedFeatures = Set.empty
+                        , selectedShapes = Set.empty
+                        , selectedBlobs = Dict.empty
+                        }
+                (_, MouseNothing)   -> { new | tool = Cursor }
+                (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
+                _                   -> new
+        else if keyCode == Keys.keyMeta then
+          old
+          -- for now, no need to ever put keyMeta in keysDown
+          -- TODO need to put keyMeta in model, so know not to put the next key in model
+        {-
+        else if List.member Keys.keyMeta old.keysDown then
+          -- when keyMeta is down and another key k is downed,
+          -- there will not be a key up event for k. so, not putting
+          -- k in keysDown. if want to handle keyMeta + k, keep track
+          -- of this another way.
+          old
+        -}
+        else if
+          not currentKeyDown &&
+          keyCode == Keys.keyShift
+        then
           let
-            new =
-              old
-                |> Model.hideDeuceRightClickMenu
-                |> resetDeuceState
-                |> \m -> { m | deucePopupPanelAbove = True }
+            parseResult =
+              parseE old.code
+            (newInputExp, codeClean) =
+              case parseResult of
+                Ok exp ->
+                  (exp, True)
+                Err _ ->
+                  (old.inputExp, False)
           in
-            case (old.tool, old.mouseMode) of
-              (Cursor, _) ->
-                { new | selectedFeatures = Set.empty
-                      , selectedShapes = Set.empty
-                      , selectedBlobs = Dict.empty
-                      }
-              (_, MouseNothing)   -> { new | tool = Cursor }
-              (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
-              _                   -> new
-      else if keyCode == Keys.keyMeta then
-        old
-        -- for now, no need to ever put keyMeta in keysDown
-        -- TODO need to put keyMeta in model, so know not to put the next key in model
-      {-
-      else if List.member Keys.keyMeta old.keysDown then
-        -- when keyMeta is down and another key k is downed,
-        -- there will not be a key up event for k. so, not putting
-        -- k in keysDown. if want to handle keyMeta + k, keep track
-        -- of this another way.
-        old
-      -}
-      else if keyCode == Keys.keyShift then
-        let
-          parseResult =
-            parseE old.code
-          (newInputExp, codeClean) =
-            case parseResult of
-              Ok exp ->
-                (exp, True)
-              Err _ ->
-                (old.inputExp, False)
-        in
-          { old
-              | inputExp =
-                  newInputExp
-              , codeClean =
-                  codeClean
-          }
-      else if not (List.member keyCode old.keysDown) then
-        { old | keysDown = keyCode :: old.keysDown }
-      else
-        old
+            { old
+                | inputExp =
+                    newInputExp
+                , codeClean =
+                    codeClean
+            }
+        else
+          old
   in
     Msg ("Key Down " ++ toString keyCode) <|
       addKey << func
