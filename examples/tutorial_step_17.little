@@ -1,10 +1,10 @@
 
-(def redSquare (\(w x y)
+(def redSquare (\(x y w)
   (rect "salmon" x y w w)))
 
 (def main
   (draw
-    [(redSquare 80 100 70)
-     (redSquare 30 100 160)
-     (redSquare 150 100 200)]))
-; <!-- PROSE --> <p>While refactoring the function in the previous step, we notice something else we'd like to change; every single time our function is called, we always set the x-position to <code>100</code>, so we decide to just remove the x-position argument.</p><p>To do so, we can use the <em>Remove Argument</em> tool.</p><ul class="_12"><li class="_1"><h3>Text-Select Mode</h3><p>Text-select the argument <code>x</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Remove Argument</em>. Click on the single option from the results list.</p></li><li class="_2"><h3>Box-Select Mode</h3><p>Hold down the Shift key and click on the argument <code>x</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Release the Shift key. Under the <em>Remove Argument</em> tool in the pop-up menu, select the single option form the results listn.</p></li></ul><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>
+    [(redSquare 100 70 80)
+     (redSquare 100 160 30)
+     (redSquare 100 200 150)]))
+; <!-- PROSE --> <p>Let's say we've now coded up a nice piece of art using our newly-defined function. However, we now want to change how the <code>redSquare</code> function is called; instead of the size of the square being the last argument that we pass in, we'd prefer if it were the first.</p><p>To do this, we can use the <em>Reorder Arguments</em> tool.</p><ul class="_12"><li class="_1"><h3>Text-Select Mode</h3><p>Text-select the argument <code>w</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Reorder Arguments</em>. Click on the target position that lies before the first argument (<code>x</code>) and after the opening parenthesis of the argument list. Click on the single option from the results list.</p></li><li class="_2"><h3>Box-Select Mode</h3><p>Hold down the Shift key and click on the argument <code>w</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Then, click on the target position that lies before the first argument (<code>x</code>) and after the opening parenthesis of the argument list. Release the Shift key. Under the <em>Reorder Arguments</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>

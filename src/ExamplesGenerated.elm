@@ -5318,11 +5318,22 @@ tutorial_step_10 =
 
 (def main
   (draw [blueSquare]))
-; <!-- PROSE --> <p>Here is a red square. Unfortunately, the name of the function that generates this red square is incorrect. To fix this, we can use the <em>Rename Variable</em> tool to rename the function at its definition and its call-sites.</p><p>There are a few ways to do this:</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Select the text <code>blueSquare</code>, right-click the editor, and select the <em>Rename</em> tool from the pop-up menu. Then, enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the menu or panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Select the text <code>blueSquare</code>, and select the <em>Rename</em> Variable tool from the Code Tools menu at the top-left of the screen. Then enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key, hover over <code>blueSquare</code>, click the box that pops up over <code>blueSquare</code>, and then release the Shift key. Select the <em>Rename</em> tool from the pop-up menu. Enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will clear any selections and make the menu go away. <em>⟲ Undo</em> will let you go back.</p></li></ul><p>Unlike with text edits, you do <em>not</em> need to hit the Run button after invoking a code transformation.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Perform the renaming with each of the three interactions. Use Undo after each to reset the program.</p></li><li><p><strong>Tip:</strong> To save time in Text-Select Mode, a right-click can be performed without a text selection for <em>variables</em> and <em>constants</em> (but not for more complicated expressions). In this case, Sketch-n-Sketch will automatically select the variable or constant that contains the click that was performed. Try this out by redoing the instructions for <em>Text-Select Mode (right-click menu)</em>, this time by right-clicking <code>blueSquare</code> without text-selecting it.</p></li><li><p><strong>Tip:</strong> The pop-up panels can be re-positioned if they are covering up relevant parts of the code. Redo any one of the interactions and, when a pop-up panel appears, click and drag the top bar to move it somewhere else.</p></li></ol>
+; <!-- PROSE --> <p>Here is a red square. Unfortunately, the name of the function that generates this red square is incorrect. To fix this, we can use one of the <em>code tools</em> that are built in to Sketch-n-Sketch.</p><p>The Code Tools menu at the top-left of the screen lists all of the tools. In this case, we want the <em>Rename Variable</em> to rename the variable at its definition on line 2 and its use on line 6.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Choose the <em>Rename Variable</em> tool from the Code Tools menu. The configuration panel that appears asks for a variable to be selected. Hover over and click <code>blueSquare</code> either on line 2 or line 6. Notice that the Code Updates section of the configuration panel now displays a text box in which to enter a new name. Type a new name (like <code>redSquare</code>) in the text box and press Enter. Notice how the variable definition and use are changed. Unlike with text edits, you do <em>not</em> need to hit the Run button after invoking a code transformation.</li></ol>
 
 """
 
 tutorial_step_11 =
+ """
+(def blueSquare
+  (rect \"salmon\" 100 70 80 80))
+
+(def main
+  (draw [blueSquare]))
+; <!-- PROSE --> <p>Here is the incorrectly-named red square again. Besides selecting <em>Rename Variable</em> directly from the Code Tools menu, there are a few ways additional ways to invoke the <em>Rename</em> tool:</p><ul class=\"_123\"><li class=\"_1\"><h3>Text-Select Mode (right-click menu)</h3><p>Select the text <code>blueSquare</code>, right-click the editor, and select the <em>Rename</em> tool from the pop-up menu. Then, enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the menu or panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_2\"><h3>Text-Select Mode (Code Tools menu)</h3><p>Select the text <code>blueSquare</code>, and select the <em>Rename</em> Variable tool from the Code Tools menu at the top-left of the screen. Then enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will make the panel go away. <em>⟲ Undo</em> will let you go back.</p></li><li class=\"_3\"><h3>Box-Select Mode</h3><p>Hold down the Shift key, hover over <code>blueSquare</code>, click the box that pops up over <code>blueSquare</code>, and then release the Shift key. Select the <em>Rename</em> tool from the pop-up menu. Enter a new name (like <code>redSquare</code>) in the results list and press Enter.</p><p><strong>Note:</strong> The Escape key will clear any selections and make the menu go away. <em>⟲ Undo</em> will let you go back.</p></li></ul><p>Unlike with text edits, you do <em>not</em> need to hit the Run button after invoking a code transformation.</p><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li><p>Perform the renaming with each of the three interactions. Use Undo after each to reset the program.</p></li><li><p><strong>Tip:</strong> To save time in Text-Select Mode, a right-click can be performed without a text selection for <em>variables</em> and <em>constants</em> (but not for more complicated expressions). In this case, Sketch-n-Sketch will automatically select the variable or constant that contains the click that was performed. Try this out by redoing the instructions for <em>Text-Select Mode (right-click menu)</em>, this time by right-clicking <code>blueSquare</code> without text-selecting it.</p></li><li><p><strong>Tip:</strong> The pop-up panels can be re-positioned if they are covering up relevant parts of the code. Redo any one of the interactions and, when a pop-up panel appears, click and drag the top bar to move it somewhere else.</p></li></ol>
+
+"""
+
+tutorial_step_12 =
  """
 (def redSquare
   (rect \"salmon\" 100 70 80 80))
@@ -5333,7 +5344,7 @@ tutorial_step_11 =
 
 """
 
-tutorial_step_12 =
+tutorial_step_13 =
  """
 (def redSquare
   (let [x y] [100 70]
@@ -5345,7 +5356,7 @@ tutorial_step_12 =
 
 """
 
-tutorial_step_13 =
+tutorial_step_14 =
  """
 (def redSquare
   (let [x y] [100 70]
@@ -5357,7 +5368,7 @@ tutorial_step_13 =
 
 """
 
-tutorial_step_14 =
+tutorial_step_15 =
  """
 (def redSquare
   (let [x y] [100 70]
@@ -5369,7 +5380,7 @@ tutorial_step_14 =
 
 """
 
-tutorial_step_15 =
+tutorial_step_16 =
  """
 (def redSquare
   (let [x y] [100 70]
@@ -5382,7 +5393,7 @@ tutorial_step_15 =
 
 """
 
-tutorial_step_16 =
+tutorial_step_17 =
  """
 (def redSquare (\\(x y w)
   (rect \"salmon\" x y w w)))
@@ -5396,7 +5407,7 @@ tutorial_step_16 =
 
 """
 
-tutorial_step_17 =
+tutorial_step_18 =
  """
 (def redSquare (\\(w x y)
   (rect \"salmon\" x y w w)))
@@ -5410,7 +5421,7 @@ tutorial_step_17 =
 
 """
 
-tutorial_step_18 =
+tutorial_step_19 =
  """
 (def redSquare (\\(w y)
   (rect \"salmon\" 100 y w w)))
@@ -5424,7 +5435,7 @@ tutorial_step_18 =
 
 """
 
-tutorial_step_19 =
+tutorial_step_20 =
  """
 (def redSquare (\\(w x y)
   (rect \"salmon\" x y w w)))
@@ -5444,7 +5455,7 @@ tutorial_step_19 =
 
 """
 
-tutorial_step_20 =
+tutorial_step_21 =
  """
 (def square (\\fill (\\(w x y)
   (rect fill x y w w))))
@@ -5464,7 +5475,7 @@ tutorial_step_20 =
 
 """
 
-tutorial_step_21 =
+tutorial_step_22 =
  """
 (def square (\\fill (\\(w x y)
   (rect fill x y w w))))
@@ -5484,7 +5495,7 @@ tutorial_step_21 =
 
 """
 
-tutorial_step_22 =
+tutorial_step_23 =
  """
 (def main
   (draw []))
@@ -5863,6 +5874,7 @@ deuceUserStudyCategory =
     , makeExample "Step 20" tutorial_step_20
     , makeExample "Step 21" tutorial_step_21
     , makeExample "Step 22" tutorial_step_22
+    , makeExample "Step 23" tutorial_step_23
     , makeExample "Deuce Study Transition 1" study_transition_1
     , makeExample "One Rectangle" task_one_rectangle
     , makeExample "Two Circles" task_two_circles

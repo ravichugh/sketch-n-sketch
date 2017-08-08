@@ -1,10 +1,10 @@
 
-(def redSquare (\(w y)
-  (rect "salmon" 100 y w w)))
+(def redSquare (\(w x y)
+  (rect "salmon" x y w w)))
 
 (def main
   (draw
-    [(redSquare 80 70)
-     (redSquare 30 160)
-     (redSquare 150 200)]))
-; <!-- PROSE --> <p>On second thought... we realize we'd like to change the x-position of some of the boxes after all.</p><p>To do so, we can use the <em>Add Argument</em> tool.</p><ul class="_12"><li class="_1"><h3>Text-Select Mode</h3><p>Text-select the number <code>100</code> in the <code>rect</code> function call. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Add Argument</em>. Click on the single option from the results list.</p></li><li class="_2"><h3>Box-Select Mode</h3><p>Hold down the Shift key and click on the number <code>100</code> in the <code>rect</code> function call. Under the <em>Add Argument</em> tool in the pop-up menu, select the single option from the results list.</p></li></ul><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program. Feel free to manually edit the x-position of the squares after you have performed the transformation!</li></ol>
+    [(redSquare 80 100 70)
+     (redSquare 30 100 160)
+     (redSquare 150 100 200)]))
+; <!-- PROSE --> <p>While refactoring the function in the previous step, we notice something else we'd like to change; every single time our function is called, we always set the x-position to <code>100</code>, so we decide to just remove the x-position argument.</p><p>To do so, we can use the <em>Remove Argument</em> tool.</p><ul class="_12"><li class="_1"><h3>Text-Select Mode</h3><p>Text-select the argument <code>x</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Remove Argument</em>. Click on the single option from the results list.</p></li><li class="_2"><h3>Box-Select Mode</h3><p>Hold down the Shift key and click on the argument <code>x</code> in the list of arguments after the backslash in the <code>redSquare</code> function definition. Release the Shift key. Under the <em>Remove Argument</em> tool in the pop-up menu, select the single option form the results listn.</p></li></ul><h3 id="exercises">Exercises</h3><ol style="list-style-type: decimal"><li>Perform the transformation with each of the two interactions. Use Undo after each to reset the program.</li></ol>
