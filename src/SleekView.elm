@@ -1819,7 +1819,7 @@ alertSaveDialogBox model =
     model
     []
     [ Html.span
-        [ Attr.style [("color", "#FF3300")] ]
+        [ Attr.class "alert-warning" ]
         [ Html.text "Warning" ]
     ]
     [ ("display", "flex") ]
@@ -1867,7 +1867,7 @@ alertGiveUpDialogBox model =
     model
     []
     [ Html.span
-        [ Attr.style [("color", "#FF3300")] ]
+        [ Attr.class "alert-warning" ]
         [ Html.text "Warning" ]
     ]
     [ ("display", "flex") ]

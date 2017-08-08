@@ -778,6 +778,10 @@ code {
   border-bottom: 1px solid var(--subtle-border-color);
 }
 
+.dialog-box .alert-warning {
+  color: var(--alert-warning-text-color);
+}
+
 /* Save As Dialog */
 
 .dialog-box .save-as-input {
