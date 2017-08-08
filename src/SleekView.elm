@@ -1926,7 +1926,8 @@ deuceOverlay model =
                 model.codeBoxInfo.scrollerLeft - SleekLayout.deuceOverlayBleed
             )
           , ( "width"
-            , px model.codeBoxInfo.scrollerWidth
+            , px <|
+                model.codeBoxInfo.scrollerWidth + SleekLayout.deuceOverlayBleed
             )
           , ( "height"
             , px model.codeBoxInfo.scrollerHeight
