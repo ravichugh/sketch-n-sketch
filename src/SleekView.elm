@@ -2133,7 +2133,8 @@ deuceRightClickMenu model =
       , class =
           ""
       , title =
-          "Code Tools"
+          [ Html.text "Code Tools"
+          ]
       , content =
           content
       }
@@ -2147,7 +2148,7 @@ popupPanel
      , disabled : Bool
      , dragHandler : Msg
      , class : String
-     , title : String
+     , title : List (Html Msg)
      , content : List (Html Msg)
      }
   -> Html Msg
@@ -2164,8 +2165,7 @@ popupPanel args =
           , E.onMouseDown args.dragHandler
           , E.onMouseUp Controller.msgClearDrag
           ]
-          [ Html.text args.title
-          ]
+          args.title
       ]
     (xString, yString) =
       Utils.mapBoth px args.pos
@@ -2203,7 +2203,8 @@ deucePopupPanel model =
       , class =
           "deuce-popup-panel " ++ appearDirectionFlag
       , title =
-          "Code Tools" -- "Deuce Menu"
+          [ Html.text "Code Tools" -- "Deuce Menu"
+          ]
       , content =
           [ let
               activeTools =
@@ -2241,16 +2242,23 @@ editCodePopupPanel model =
     (disabled, title, content) =
       case model.selectedDeuceTool of
         Nothing ->
-          (True, "Code Tool Menu", [])
+          ( True
+          , [ Html.text "Configuration Panel" ]
+          , []
+          )
         Just (deuceTool, results, _) ->
-          ( False
-          , deuceTool.name
-          , let
-              path =
-                [ 1 ] -- TODO, maybe?
-              isRenamer =
-                DeuceTools.isRenamer deuceTool
-            in
+          let
+            path =
+              [ 1 ] -- TODO, maybe?
+            isRenamer =
+              DeuceTools.isRenamer deuceTool
+            title =
+              if isRenamer then
+                italicizeQuotes "'" deuceTool.name
+              else
+                [ Html.text deuceTool.name
+                ]
+            content =
               [ Html.h2
                   []
                   [ Html.text "Requirements" ]
@@ -2292,7 +2300,11 @@ editCodePopupPanel model =
                 else
                   []
               )
-          )
+          in
+            ( False
+            , title
+            , content
+            )
   in
     popupPanel
       { pos =
