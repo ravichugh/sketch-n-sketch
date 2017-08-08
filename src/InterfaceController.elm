@@ -72,6 +72,7 @@ module InterfaceController exposing
   , msgDragProseResizer
   , msgResetInterfaceLayout
   , msgReceiveDeucePopupPanelInfo
+  , msgSetColorScheme
   )
 
 import Updatable exposing (Updatable)
@@ -101,6 +102,7 @@ import AnimationLoop
 import FileHandler
 import ProseScroller
 import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
+import ColorScheme
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets exposing (RealZone(..), PointFeature(..), OtherFeature(..))
@@ -809,6 +811,10 @@ issueCommand (Msg kind _) oldModel newModel =
             Cmd.none
         , if String.startsWith "Open Dialog Box" kind then
             FileHandler.requestFileIndex ()
+          else
+            Cmd.none
+        , if kind == "Set Color Scheme" then
+            ColorScheme.updateColorScheme newModel.colorScheme
           else
             Cmd.none
         ]
@@ -2329,3 +2335,11 @@ msgReceiveDeucePopupPanelInfo dppi =
               else
                 True
       }
+
+--------------------------------------------------------------------------------
+-- Color Scheme
+
+msgSetColorScheme : ColorScheme -> Msg
+msgSetColorScheme colorScheme =
+  Msg "Set Color Scheme" <| \old ->
+    { old | colorScheme = colorScheme }

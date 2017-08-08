@@ -78,6 +78,10 @@ type alias PopupPanelPositions =
   , deuceRightClickMenu : (Int, Int)
   }
 
+type ColorScheme
+  = Light
+  | Dark
+
 type alias Model =
   { code : Code
   , lastRunCode : Code
@@ -168,6 +172,7 @@ type alias Model =
   , savedSelections : Maybe (List Ace.Range)
   , prose : Updatable (Maybe String)
   , deucePopupPanelAbove : Bool
+  , colorScheme : ColorScheme
   }
 
 type Mode
@@ -877,7 +882,11 @@ deucePopupPanelShown model =
 
 --------------------------------------------------------------------------------
 
+initTemplate : String
 initTemplate = "BLANK"
+
+initColorScheme : ColorScheme
+initColorScheme = Dark
 
 initModel : Model
 initModel =
@@ -1005,4 +1014,5 @@ initModel =
     , prose =
         Updatable.setUpdated << Updatable.create <| Nothing
     , deucePopupPanelAbove = True
+    , colorScheme = initColorScheme
     }

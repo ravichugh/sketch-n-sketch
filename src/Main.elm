@@ -7,6 +7,7 @@ import AceCodeBox
 import AnimationLoop
 import FileHandler
 import DeucePopupPanelInfo
+import ColorScheme
 -- import DependenceGraph
 
 import UserStudyLog
@@ -52,6 +53,7 @@ initCmd =
     , FileHandler.requestFileIndex ()
     , Cmd.batch <| List.map FileHandler.requestIcon Model.iconNames
     , Task.perform Controller.msgLoadIcon (Task.succeed (Model.starLambdaToolIcon))
+    , ColorScheme.updateColorScheme Model.initColorScheme
     ] ++
     -- Fixes model not correctly handling initial user study step
     ( if UserStudy.enabled then

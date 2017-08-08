@@ -574,7 +574,12 @@ menuBar model =
           ( UserStudy.hideIfEnabled
               [ Html.img
                   [ Attr.class "logo-image"
-                  , Attr.src "img/light_logo.svg"
+                  , Attr.src <|
+                      case model.colorScheme of
+                        Light ->
+                          "img/sketch-n-sketch-logo.png"
+                        Dark ->
+                          "img/light_logo.svg"
                   , Attr.width 20
                   , Attr.height 20
                   ]
@@ -742,6 +747,26 @@ menuBar model =
                     , simpleTextButton "22" (Controller.msgUpdateFontSize 22)
                     , simpleTextButton "24" (Controller.msgUpdateFontSize 24)
                     ]
+                , hoverMenu "Color Scheme"
+                    [ simpleTextRadioButton
+                        ( case model.colorScheme of
+                            Light ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "Light"
+                        (Controller.msgSetColorScheme Light)
+                    , simpleTextRadioButton
+                        ( case model.colorScheme of
+                            Dark ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "Dark"
+                        (Controller.msgSetColorScheme Dark)
+                    ]
                 ] ++
                 ( UserStudy.hideIfEnabled
                     [ hoverMenu "Auto-Run"
@@ -751,10 +776,6 @@ menuBar model =
                             True "Every 2 seconds" Controller.msgNoop
                         , disableableTextButton
                             True "Every 3 seconds" Controller.msgNoop
-                        ]
-                    , hoverMenu "Color Scheme"
-                        [ disableableTextButton True "Light" Controller.msgNoop
-                        , disableableTextButton True "Dark" Controller.msgNoop
                         ]
                     ]
                 )
@@ -1336,8 +1357,8 @@ outputPanel model =
 
 type ButtonKind = Regular | Selected | Unselected
 
-buttonRegularColor = "white"
-buttonSelectedColor = "lightgray"
+buttonRegularColor = "#FFFFFF"
+buttonSelectedColor = "#DDDDDD"
 
 iconButton model iconName onClickHandler btnKind disabled =
   iconButtonExtraAttrs model iconName [] onClickHandler btnKind disabled

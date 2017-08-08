@@ -14,6 +14,7 @@ html:
 	cp Native/deucePopupPanelInfo.js ../build/out/
 	cp Native/proseScroller.js ../build/out/
 	cp Native/dotGraph.js ../build/out/
+	cp Native/colorScheme.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
 	cp ../ace-builds/src/theme-chrome.js ../build/out/
@@ -54,6 +55,7 @@ loc:
     FileHandler.elm Native/fileHandler.js \
     DeucePopupPanelInfo.elm Native/deucePopupPanelInfo.js \
     Prose.elm ProseScroller.elm Native/proseScroller.js \
+    ColorScheme.elm Native/colorScheme.js \
     Main.elm Config.elm \
     Utils.elm Either.elm Updatable.elm \
     HtmlUtils.elm \
