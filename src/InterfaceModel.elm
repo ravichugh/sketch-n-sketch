@@ -161,6 +161,7 @@ type alias Model =
   , showDeuceRightClickMenu : Bool
   , textSelectMode : TextSelectMode
   , enableTextEdits : Updatable Bool
+  , allowMultipleTargetPositions : Bool
   , codeClean : Bool
   , mainResizerX : Maybe Int
   , proseResizerY : Maybe Int
@@ -995,6 +996,8 @@ initModel =
     , textSelectMode = SubsetExtra
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True
+    , allowMultipleTargetPositions =
+        False
     , codeClean = True
     , mainResizerX = Nothing
     , proseResizerY = Nothing

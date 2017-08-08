@@ -817,6 +817,12 @@ menuBar model =
                             "SubsetExtra"
                             (Controller.msgSetTextSelectMode SubsetExtra)
                         ]
+                    , hoverMenu "Allow Multiple Target Positions" <|
+                        booleanOption
+                          (model.allowMultipleTargetPositions)
+                          "True"
+                          "False"
+                          Controller.msgSetAllowMultipleTargetPositions
                     ]
                   , [ hoverMenu "Show Deuce in Menu Bar" <|
                         booleanOption

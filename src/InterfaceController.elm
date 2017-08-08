@@ -65,6 +65,7 @@ module InterfaceController exposing
   , msgSetShowDeuceRightClickMenu
   , msgSetTextSelectMode
   , msgSetEnableTextEdits
+  , msgSetAllowMultipleTargetPositions
   , msgSetSelectedDeuceTool
   , msgDeuceRightClick
   , msgDragMainResizer
@@ -1767,13 +1768,20 @@ toggleDeuceWidget widget model =
       model.deuceState
     oldSelectedWidgets =
       oldDeuceState.selectedWidgets
+    multipleTargetPositionsFilter =
+      if model.allowMultipleTargetPositions then
+        -- Do not filter anything
+        identity
+      else
+        -- Only allow one target position
+        List.filter (\w -> not (isTargetPosition w && isTargetPosition widget))
     newSelectedWidgets =
       if List.member widget oldSelectedWidgets then
         Utils.removeAsSet widget oldSelectedWidgets
       else
         oldSelectedWidgets
         |> List.filter (\w -> not (isSubWidget model.inputExp w widget || isSubWidget model.inputExp widget w)) -- Remove any overlapping widgets.
-        |> List.filter (\w -> not (isTargetPosition w && isTargetPosition widget)) -- Only allow one target position.
+        |> multipleTargetPositionsFilter
         |> Utils.addAsSet widget
     newDeuceState =
       { oldDeuceState
@@ -2183,6 +2191,14 @@ msgSetEnableTextEdits bool =
         | enableTextEdits =
             Updatable.create bool
     }
+
+msgSetAllowMultipleTargetPositions : Bool -> Msg
+msgSetAllowMultipleTargetPositions bool =
+  Msg "Set Allow Multiple Target Positions" <| \model ->
+    { model
+        | allowMultipleTargetPositions =
+            bool
+    } |> resetDeuceState
 
 --------------------------------------------------------------------------------
 -- Set the selected Deuce tool
