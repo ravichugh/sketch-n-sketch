@@ -972,10 +972,14 @@ menuBar model =
                   , Html.span
                       [ Attr.class "step-info" ]
                       [ Html.text (UserStudy.stepDescription model.userStudyStateIndex) ]
-                  , disableableTextButton
-                      (UserStudy.disableNextStep model.userStudyStateIndex)
-                      (if model.codeBoxInfo.annotations == [] then "Next Step ▸" else "Give Up ▸")
-                      Controller.msgUserStudyNext
+                  , let
+                      isDone =
+                        model.codeBoxInfo.annotations == []
+                    in
+                      disableableTextButton
+                        (UserStudy.disableNextStep model.userStudyStateIndex)
+                        (if isDone then "Next Step ▸" else "Give Up ▸")
+                        (Controller.msgUserStudyNext isDone)
                   ]
               , menu "Help"
                   [ -- [ simpleTextButton
@@ -1784,6 +1788,52 @@ alertSaveDialogBox model =
         ]
     ]
 
+alertGiveUpDialogBox model =
+  smallDialogBox
+    False
+    AlertGiveUp
+    model
+    []
+    [ Html.span
+        [ Attr.style [("color", "#FF3300")] ]
+        [ Html.text "Warning" ]
+    ]
+    [ ("display", "flex") ]
+    [ Html.div
+        [ Attr.style
+            [ ("padding", "20px")
+            , ("flex-grow", "1")
+            , ("display", "flex")
+            , ("flex-direction", "column")
+            , ("justify-content", "space-between")
+            ]
+        ]
+        [ Html.div
+            []
+            [ Html.text
+                "Are you sure you would like to give up? You will NOT be able to return to this task at a later time."
+            ]
+        , Html.div
+            [ Attr.style
+                [ ("text-align", "right")
+                ]
+            ]
+            [ uiButton
+                "Cancel"
+                Controller.msgCancelGiveUp
+            , Html.span
+                [ Attr.style
+                    [ ("margin-left", "30px")
+                    ]
+                ]
+                [ uiButton
+                    "Yes (cannot be undone)"
+                    Controller.msgConfirmGiveUp
+                ]
+            ]
+        ]
+    ]
+
 importCodeDialogBox model =
   smallDialogBox
     True
@@ -1860,6 +1910,7 @@ dialogBoxes model =
   , fileSaveAsDialogBox model
   , fileOpenDialogBox model
   , alertSaveDialogBox model
+  , alertGiveUpDialogBox model
   , importCodeDialogBox model
   , helpDialogBox model HelpSyntax
   , helpDialogBox model HelpTextSelectMode

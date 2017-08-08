@@ -33,6 +33,7 @@ module InterfaceController exposing
   , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
   , msgAskNew, msgAskOpen
   , msgConfirmFileOperation, msgCancelFileOperation
+  , msgConfirmGiveUp, msgCancelGiveUp
   , msgToggleAutosave
   , msgExportCode, msgExportSvg
   , msgImportCode, msgAskImportCode
@@ -627,12 +628,21 @@ tryRun old =
 --
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg oldModel =
-  case (oldModel.pendingFileOperation, oldModel.fileOperationConfirmed) of
-    (Just msg2, True) ->
+  case
+    ( (oldModel.pendingFileOperation, oldModel.fileOperationConfirmed)
+    , (oldModel.pendingGiveUpMsg, oldModel.giveUpConfirmed)
+    )
+  of
+    ((Just msg2, True), _) ->
       update
         msg2
         { oldModel | pendingFileOperation = Nothing
                    , fileOperationConfirmed = False }
+    (_, (Just msg2, True)) ->
+      update
+      msg2
+      { oldModel | pendingGiveUpMsg = Nothing
+                 , giveUpConfirmed = False }
     _ ->
       let newModel = upstate msg oldModel in
       let cmd = issueCommand msg oldModel newModel in
@@ -1523,6 +1533,16 @@ requireSaveAsker ((Msg name _) as msg) needsSave =
   else
     msg
 
+giveUpAsker : Msg -> Msg
+giveUpAsker ((Msg name _) as msg) =
+  Msg ("Give Up Asker " ++ name) <| \old ->
+    { old
+        | pendingGiveUpMsg =
+            Just msg
+        , giveUpConfirmed =
+            False
+    } |> Model.openDialogBox AlertGiveUp
+
 --------------------------------------------------------------------------------
 -- Dialog Box
 
@@ -1723,6 +1743,20 @@ msgConfirmFileOperation = Msg "Confirm File Operation" <| (\old ->
 
 msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
   { old | autosave = not old.autosave }
+
+--------------------------------------------------------------------------------
+
+msgCancelGiveUp : Msg
+msgCancelGiveUp =
+  Msg "Cancel Give Up" Model.cancelGiveUp
+
+msgConfirmGiveUp : Msg
+msgConfirmGiveUp =
+  Msg "Confirm Give Up" <| \old ->
+    { old
+        | giveUpConfirmed =
+            True
+    } |> Model.closeDialogBox AlertGiveUp
 
 --------------------------------------------------------------------------------
 -- Exporting
@@ -2119,7 +2153,17 @@ timeLeft model =
   let timeoutTime = model.userStudyTaskStartTime + currentTaskDuration model in
   timeoutTime - model.userStudyTaskCurrentTime
 
-msgUserStudyNext = msgUserStudyStep "New: User Study Next" 1
+msgUserStudyNext isDone =
+  let
+    asker =
+      if isDone then
+        identity
+      else
+        giveUpAsker
+  in
+    asker <|
+      msgUserStudyStep "New: User Study Next" 1
+
 msgUserStudyPrev = msgUserStudyStep "New: User Study Prev" (-1)
 
 msgUserStudyEverySecondTick : Time.Time -> Msg

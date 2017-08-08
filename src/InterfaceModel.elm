@@ -173,6 +173,8 @@ type alias Model =
   , prose : Updatable (Maybe String)
   , deucePopupPanelAbove : Bool
   , colorScheme : ColorScheme
+  , pendingGiveUpMsg : Maybe Msg
+  , giveUpConfirmed : Bool
   }
 
 type Mode
@@ -384,6 +386,7 @@ type DialogBox
   | AlertSave
   | ImportCode
   | Help HelpInfo
+  | AlertGiveUp
 
 type HelpInfo
   = HelpSyntax
@@ -400,6 +403,7 @@ dialogBoxes =
     , Help HelpSyntax
     , Help HelpTextSelectMode
     , Help HelpBoxSelectMode
+    , AlertGiveUp
     ]
 
 dbToInt : DialogBox -> Int
@@ -429,6 +433,15 @@ cancelFileOperation model =
     { model
       | pendingFileOperation = Nothing
       , fileOperationConfirmed = False
+    }
+
+cancelGiveUp : Model -> Model
+cancelGiveUp model =
+  closeDialogBox
+    AlertGiveUp
+    { model
+      | pendingGiveUpMsg = Nothing
+      , giveUpConfirmed = False
     }
 
 closeAllDialogBoxes : Model -> Model
@@ -1015,4 +1028,6 @@ initModel =
         Updatable.setUpdated << Updatable.create <| Nothing
     , deucePopupPanelAbove = True
     , colorScheme = initColorScheme
+    , pendingGiveUpMsg = Nothing
+    , giveUpConfirmed = False
     }
