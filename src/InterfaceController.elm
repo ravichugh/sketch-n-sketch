@@ -1697,6 +1697,7 @@ handleNew template = (\old ->
                     , enableTextEdits          = old.enableTextEdits
                     , mainResizerX             = old.mainResizerX
                     , proseResizerY            = old.proseResizerY
+                    , colorScheme              = old.colorScheme
                     } |> resetDeuceState
                       |> Prose.extractFromUserStudyTemplate
       ) |> handleError old) >> closeDialogBox New
