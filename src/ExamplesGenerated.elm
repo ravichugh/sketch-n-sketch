@@ -5337,11 +5337,11 @@ tutorial_step_12 =
  """
 (def redSquare
   (let [x y] [100 70]
-    (rect \"salmon\" x y 120 80)))
+    (rect \"salmon\" x y 80 80)))
 
 (def main
   (draw [redSquare]))
-; <!-- PROSE --> <p>In this code snippet, the rectangle should have sides of equal length, but the width and height (fourth and fifth) arguments of the <code>rect</code> function call are not equal. The <em>Make Equal by Copying</em> tool can be used to copy one expression to replace one or more other expressions.</p><p>As with all Sketch-n-Sketch code tools, there are two main ways that we can use the <em>Make Equal by Copying</em> tool:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select either <code>120</code> or <code>80</code>. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Make Equal by Copying</em>. Click on the remaining number (either <code>120</code> or <code>80</code>). Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Note:</strong> in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down Shift, then click on <code>120</code> and <code>80</code>. Release the Shift key and select <em>Make Equal by Copying</em> from the pop-up menu. Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Note:</strong> in Box-Select Mode, ALL arguments are selected first, BEFORE the desired code transformation is selected.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Fix the <code>redSquare</code> definition using each of the two interactions. Use Undo after each interaction to reset the program.</li></ol>
+; <!-- PROSE --> <p>As introduced in the previous step, a <em>target position</em> is the whitespace between or above other items in the code. Before moving on to the next tool, let's get more practice selecting target positions.</p><h3 id=\"exercises\">Exercises</h3><p>In the interactions below, notice how target positions are sometimes zero characters wide and sometimes span multiple lines.</p><ol style=\"list-style-type: decimal\"><li><p>Hold down the Shift key, and select the target position above <code>redSquare</code> either by selecting the whitespace on line 1 or at the very beginning of line 2. Notice how there are no available tools when only a target position is selected.</p></li><li><p>Hold down the Shift key, and select the target position above <code>main</code>. Notice how selecting a second target position deselects the previous one — at most one target position can be selected at a time.</p></li><li><p>Hold down the Shift key, and hover and select each of the following target positions on line 3:</p></li></ol><ul><li>between the beginning of the line and <code>(let</code>, and</li><li>between <code>let</code> and <code>[x</code>,</li><li>between <code>[</code> and <code>x</code>,</li><li>between <code>x</code> and <code>y</code>,</li><li>between <code>y</code> and <code>]</code>,</li><li>between <code>y]</code> and <code>[100</code>,</li><li>between <code>[</code> and <code>100</code>,</li><li>between <code>100</code> and <code>70</code>,</li><li>between <code>70</code> and <code>]</code>, and</li><li>between <code>70]</code> and the end of the line.</li></ul>
 
 """
 
@@ -5353,11 +5353,23 @@ tutorial_step_13 =
 
 (def main
   (draw [redSquare]))
-; <!-- PROSE --> <p>Thinking back on the previous example, we successfully turned the rectangle into a square by copying the width and height values. But now if we want to change the size of the square, we must remember to change <em>both</em> values in sync.</p><p>Instead, we may want a single variable to take the place of multiple expressions (in this case, the width and height). The <em>Make Equal with Single Variable</em> tool does just that.</p><p>We can invoke <em>Make Equal with Single Variable</em> in two main ways:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select either <code>120</code> or <code>80</code>. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Make Equal with Single Variable</em>. Click on the remaining number (either <code>120</code> or <code>80</code>). Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Reminder:</strong> in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down Shift, then click on <code>120</code> and <code>80</code>. Release the Shift key and select <em>Make Equal with Single Variable</em> from the pop-up menu. Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Reminder:</strong> in Box-Select Mode, ALL arguments are selected first, BEFORE the desired code transformation is selected.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Fix the <code>redSquare</code> definition using each of the two interactions. Use Undo after each interaction to reset the program.</li></ol>
+; <!-- PROSE --> <p>In this code snippet, the rectangle should have sides of equal length, but the width and height (fourth and fifth) arguments of the <code>rect</code> function call are not equal. The <em>Make Equal by Copying</em> tool can be used to copy one expression to replace one or more other expressions.</p><p>As with all Sketch-n-Sketch code tools, there are two main ways that we can use the <em>Make Equal by Copying</em> tool:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select either <code>120</code> or <code>80</code>. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Make Equal by Copying</em>. Click on the remaining number (either <code>120</code> or <code>80</code>). Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Note:</strong> in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down Shift, then click on <code>120</code> and <code>80</code>. Release the Shift key and select <em>Make Equal by Copying</em> from the pop-up menu. Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Note:</strong> in Box-Select Mode, ALL arguments are selected first, BEFORE the desired code transformation is selected.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Fix the <code>redSquare</code> definition using each of the two interactions. Use Undo after each interaction to reset the program.</li></ol>
 
 """
 
 tutorial_step_14 =
+ """
+(def redSquare
+  (let [x y] [100 70]
+    (rect \"salmon\" x y 120 80)))
+
+(def main
+  (draw [redSquare]))
+; <!-- PROSE --> <p>Thinking back on the previous example, we successfully turned the rectangle into a square by copying the width and height values. But now if we want to change the size of the square, we must remember to change <em>both</em> values in sync.</p><p>Instead, we may want a single variable to take the place of multiple expressions (in this case, the width and height). The <em>Make Equal with Single Variable</em> tool does just that.</p><p>We can invoke <em>Make Equal with Single Variable</em> in two main ways:</p><ul class=\"_12\"><li class=\"_1\"><h3>Text-Select Mode</h3><p>Text-select either <code>120</code> or <code>80</code>. Then, either right-click the editor or click on the Code Tools menu at the top of the screen. From either of these menus, select <em>Make Equal with Single Variable</em>. Click on the remaining number (either <code>120</code> or <code>80</code>). Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Reminder:</strong> in Text-Select Mode, a SINGLE, primary argument is selected FIRST, then the desired tool is selected, and then the rest of the arguments are selected AFTERWARD (as required by the configuration panel).</p></li><li class=\"_2\"><h3>Box-Select Mode</h3><p>Hold down Shift, then click on <code>120</code> and <code>80</code>. Release the Shift key and select <em>Make Equal with Single Variable</em> from the pop-up menu. Click on one of the results from the list that appears to apply the transformation.</p><p><strong>Reminder:</strong> in Box-Select Mode, ALL arguments are selected first, BEFORE the desired code transformation is selected.</p></li></ul><h3 id=\"exercises\">Exercises</h3><ol style=\"list-style-type: decimal\"><li>Fix the <code>redSquare</code> definition using each of the two interactions. Use Undo after each interaction to reset the program.</li></ol>
+
+"""
+
+tutorial_step_15 =
  """
 (def redSquare
   (let [x y] [100 70]
@@ -5370,7 +5382,7 @@ tutorial_step_14 =
 
 """
 
-tutorial_step_15 =
+tutorial_step_16 =
  """
 (def redSquare (\\(x y w)
   (rect \"salmon\" x y w w)))
@@ -5384,7 +5396,7 @@ tutorial_step_15 =
 
 """
 
-tutorial_step_16 =
+tutorial_step_17 =
  """
 (def redSquare (\\(w x y)
   (rect \"salmon\" x y w w)))
@@ -5398,7 +5410,7 @@ tutorial_step_16 =
 
 """
 
-tutorial_step_17 =
+tutorial_step_18 =
  """
 (def redSquare (\\(w y)
   (rect \"salmon\" 100 y w w)))
@@ -5412,7 +5424,7 @@ tutorial_step_17 =
 
 """
 
-tutorial_step_18 =
+tutorial_step_19 =
  """
 (def redSquare (\\(w x y)
   (rect \"salmon\" x y w w)))
@@ -5432,7 +5444,7 @@ tutorial_step_18 =
 
 """
 
-tutorial_step_19 =
+tutorial_step_20 =
  """
 (def square (\\fill (\\(w x y)
   (rect fill x y w w))))
@@ -5452,7 +5464,7 @@ tutorial_step_19 =
 
 """
 
-tutorial_step_20 =
+tutorial_step_21 =
  """
 (def square (\\fill (\\(w x y)
   (rect fill x y w w))))
@@ -5472,7 +5484,7 @@ tutorial_step_20 =
 
 """
 
-tutorial_step_21 =
+tutorial_step_22 =
  """
 (def main
   (draw []))
@@ -5850,6 +5862,7 @@ deuceUserStudyCategory =
     , makeExample "Step 19" tutorial_step_19
     , makeExample "Step 20" tutorial_step_20
     , makeExample "Step 21" tutorial_step_21
+    , makeExample "Step 22" tutorial_step_22
     , makeExample "Deuce Study Transition 1" study_transition_1
     , makeExample "One Rectangle" task_one_rectangle
     , makeExample "Two Circles" task_two_circles
