@@ -737,15 +737,87 @@ menuBar model =
               ]
           , menu "Options" <|
               [ [ hoverMenu "Font Size"
-                    [ simpleTextButton "8" (Controller.msgUpdateFontSize 8)
-                    , simpleTextButton "10" (Controller.msgUpdateFontSize 10)
-                    , simpleTextButton "12" (Controller.msgUpdateFontSize 12)
-                    , simpleTextButton "14" (Controller.msgUpdateFontSize 14)
-                    , simpleTextButton "16" (Controller.msgUpdateFontSize 16)
-                    , simpleTextButton "18" (Controller.msgUpdateFontSize 18)
-                    , simpleTextButton "20" (Controller.msgUpdateFontSize 20)
-                    , simpleTextButton "22" (Controller.msgUpdateFontSize 22)
-                    , simpleTextButton "24" (Controller.msgUpdateFontSize 24)
+                    [ simpleTextRadioButton
+                        ( case model.codeBoxInfo.fontSize of
+                            8 ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "8"
+                        (Controller.msgUpdateFontSize 8)
+                    , simpleTextRadioButton
+                        ( case model.codeBoxInfo.fontSize of
+                            10 ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "10"
+                        (Controller.msgUpdateFontSize 10)
+                    , simpleTextRadioButton
+                        ( case model.codeBoxInfo.fontSize of
+                            12 ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "12"
+                        (Controller.msgUpdateFontSize 12)
+                    , simpleTextRadioButton
+                        ( case model.codeBoxInfo.fontSize of
+                            14 ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "14"
+                        (Controller.msgUpdateFontSize 14)
+                    , simpleTextRadioButton
+                        ( case model.codeBoxInfo.fontSize of
+                            16 ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "16"
+                        (Controller.msgUpdateFontSize 16)
+                    , simpleTextRadioButton
+                        ( case model.codeBoxInfo.fontSize of
+                            18 ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "18"
+                        (Controller.msgUpdateFontSize 18)
+                    , simpleTextRadioButton
+                        ( case model.codeBoxInfo.fontSize of
+                            20 ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "20"
+                        (Controller.msgUpdateFontSize 20)
+                    , simpleTextRadioButton
+                        ( case model.codeBoxInfo.fontSize of
+                            22 ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "22"
+                        (Controller.msgUpdateFontSize 22)
+                    , simpleTextRadioButton
+                        ( case model.codeBoxInfo.fontSize of
+                            24 ->
+                              True
+                            _ ->
+                              False
+                        )
+                        "24"
+                        (Controller.msgUpdateFontSize 24)
                     ]
                 , hoverMenu "Color Scheme"
                     [ simpleTextRadioButton
