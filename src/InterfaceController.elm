@@ -761,9 +761,6 @@ issueCommand (Msg kind _) oldModel newModel =
         else
           Cmd.none
 
-    "Open Dialog Box" ->
-      FileHandler.requestFileIndex ()
-
     "Enable Text Edits" ->
       AceCodeBox.setReadOnly False
 
@@ -807,6 +804,10 @@ issueCommand (Msg kind _) oldModel newModel =
             Cmd.none
         , if String.startsWith "msgMouseClickDeuceWidget" kind then
             DeucePopupPanelInfo.requestDeucePopupPanelInfo ()
+          else
+            Cmd.none
+        , if String.startsWith "Open Dialog Box" kind then
+            FileHandler.requestFileIndex ()
           else
             Cmd.none
         ]

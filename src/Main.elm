@@ -49,6 +49,7 @@ initCmd =
   Cmd.batch <|
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
+    , FileHandler.requestFileIndex ()
     , Cmd.batch <| List.map FileHandler.requestIcon Model.iconNames
     , Task.perform Controller.msgLoadIcon (Task.succeed (Model.starLambdaToolIcon))
     ] ++
