@@ -819,29 +819,29 @@ menuBar model =
                         "24"
                         (Controller.msgUpdateFontSize 24)
                     ]
-                , hoverMenu "Color Scheme"
-                    [ simpleTextRadioButton
-                        ( case model.colorScheme of
-                            Light ->
-                              True
-                            _ ->
-                              False
-                        )
-                        "Light"
-                        (Controller.msgSetColorScheme Light)
-                    , simpleTextRadioButton
-                        ( case model.colorScheme of
-                            Dark ->
-                              True
-                            _ ->
-                              False
-                        )
-                        "Dark"
-                        (Controller.msgSetColorScheme Dark)
-                    ]
                 ] ++
                 ( UserStudy.hideIfEnabled
-                    [ hoverMenu "Auto-Run"
+                    [ hoverMenu "Color Scheme"
+                        [ simpleTextRadioButton
+                            ( case model.colorScheme of
+                                Light ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Light"
+                            (Controller.msgSetColorScheme Light)
+                        , simpleTextRadioButton
+                            ( case model.colorScheme of
+                                Dark ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Dark"
+                            (Controller.msgSetColorScheme Dark)
+                        ]
+                    , hoverMenu "Auto-Run"
                         [ disableableTextButton
                             True "Every second" Controller.msgNoop
                         , disableableTextButton
