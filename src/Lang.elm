@@ -511,7 +511,7 @@ mapValField f r = { r | val = f r.val }
 mapFoldExp : (Exp -> a -> (Exp, a)) -> a -> Exp -> (Exp, a)
 mapFoldExp f initAcc e =
   let recurse = mapFoldExp f in
-  let wrap e__ = WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+  let wrap e__ = replaceE__ e e__ in
   let wrapAndMap = f << wrap in
   -- Make sure exps are left-to-right so they are visited right-to-left.
   let recurseAll initAcc exps =
@@ -605,6 +605,43 @@ mapFoldExp f initAcc e =
     ETypeAlias ws1 pat tipe e1 ws2 ->
       let (newE1, newAcc) = recurse initAcc e1 in
       wrapAndMap (ETypeAlias ws1 pat tipe newE1 ws2) newAcc
+
+
+-- Children visited/replaced first. (Post-order traversal.)
+--
+-- Children are visited in right-to-left order (opposite of order returned by the childPats function).
+mapFoldPat : (Pat -> a -> (Pat, a)) -> a -> Pat -> (Pat, a)
+mapFoldPat f initAcc p =
+  let recurse = mapFoldPat f in
+  let wrap p__ = replaceP__ p p__ in
+  let wrapAndMap = f << wrap in
+  -- Make sure pats are left-to-right so they are visited right-to-left.
+  let recurseAll initAcc pats =
+    pats
+    |> List.foldr
+        (\pat (newPats, acc) ->
+          let (newPat, newAcc) = recurse acc pat in
+          (newPat::newPats, newAcc)
+        )
+        ([], initAcc)
+  in
+  case p.val.p__ of
+    PVar ws ident wd -> f p initAcc
+    PConst ws num    -> f p initAcc
+    PBase ws ebv     -> f p initAcc
+
+    PList ws1 ps ws2 Nothing ws3 ->
+      let (newPs, newAcc) = recurseAll initAcc ps in
+      wrapAndMap (PList ws1 newPs ws2 Nothing ws3) newAcc
+
+    PList ws1 ps ws2 (Just pTail) ws3 ->
+      let (newPTail, newAcc) = recurse initAcc pTail in
+      let (newPs, newAcc2)   = recurseAll newAcc ps in
+      wrapAndMap (PList ws1 newPs ws2 (Just newPTail) ws3) newAcc2
+
+    PAs ws1 ident ws2 pChild ->
+      let (newPChild, newAcc) = recurse initAcc pChild in
+      wrapAndMap (PAs ws1 ident ws2 newPChild) newAcc
 
 
 -- Nodes visited/replaced in top-down, left-to-right order.
@@ -877,6 +914,12 @@ mapExp f e =
   let (newExp, _) = mapFoldExp (\exp _ -> (f exp, ())) () e in
   newExp
 
+mapPat : (Pat -> Pat) -> Pat -> Pat
+mapPat f p =
+  -- Accumulator thrown away; just need something that type checks.
+  let (newPat, _) = mapFoldPat (\pat _ -> (f pat, ())) () p in
+  newPat
+
 -- Careful, a poorly constructed mapping function can cause this to fail to terminate.
 mapExpTopDown : (Exp -> Exp) -> Exp -> Exp
 mapExpTopDown f e =
@@ -992,6 +1035,37 @@ replaceExpNodesPreservingPrecedingWhitespace eidToNewNode root =
         Nothing     -> exp
     )
     root
+
+mapPatNodePat : PId -> (Pat -> Pat) -> Pat -> Pat
+mapPatNodePat pid f rootPat =
+  mapPat
+      (\pat ->
+        if pat.val.pid == pid
+        then f pat
+        else pat
+      )
+      rootPat
+
+-- Search for pid in root, replace matching pat based on given function
+mapPatNode : PId -> (Pat -> Pat) -> Exp -> Exp
+mapPatNode pid f root =
+  mapExpViaExp__
+      (\e__ ->
+        case e__ of
+          ELet ws1 kind isRec pat boundExp body ws2 -> ELet ws1 kind isRec (mapPatNodePat pid f pat) boundExp body ws2
+          EFun ws1 pats body ws2                    -> EFun ws1 (List.map (mapPatNodePat pid f) pats) body ws2
+          ECase ws1 scrutinee branches ws2          -> ECase ws1 scrutinee (mapBranchPats (mapPatNodePat pid f) branches) ws2
+          ETypeCase ws1 pat tbranches ws2           -> ETypeCase ws1 (mapPatNodePat pid f pat) tbranches ws2
+          _                                         -> e__
+      )
+      root
+
+replacePatNodePreservingPrecedingWhitespace : PId -> Pat -> Exp -> Exp
+replacePatNodePreservingPrecedingWhitespace pid newPat root =
+  mapPatNode
+      pid
+      (\pat -> replacePrecedingWhitespacePat (precedingWhitespacePat pat) newPat)
+      root
 
 mapType : (Type -> Type) -> Type -> Type
 mapType f tipe =

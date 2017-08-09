@@ -382,6 +382,43 @@ swapExpressionsTool model selections =
 
 
 --------------------------------------------------------------------------------
+-- Swap Definitions
+--------------------------------------------------------------------------------
+
+swapDefinitionsTool : Model -> Selections -> DeuceTool
+swapDefinitionsTool model selections =
+  let ppidIsInLet ppid =
+    case LangTools.findScopeExpAndPatByPathedPatternId ppid model.inputExp of
+      Just (scopeExp, _) -> isLet scopeExp
+      Nothing            -> False
+  in
+  let letEIdToTopPId letEId =
+    LangTools.justFindExpByEId model.inputExp letEId |> LangTools.expToLetPat |> .val |> .pid
+  in
+  let
+    (func, predVal) =
+      case selections of
+        (_, _, [], [], [], [], [])                 -> (Nothing, Possible)
+        (_, _, [], [ppid], [], [], [])             -> if ppidIsInLet ppid then (Nothing, Possible) else (Nothing, Impossible)
+        (_, _, [], [], [letEId], [], [])           -> (Nothing, Possible)
+        (_, _, [], [ppid1, ppid2], [], [], [])     -> (CodeMotion.swapDefinitionsTransformation model.inputExp (LangTools.pathedPatternIdToPId ppid1 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool") (LangTools.pathedPatternIdToPId ppid2 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool"), Satisfied)
+        (_, _, [], [], [letEId1, letEId2], [], []) -> (CodeMotion.swapDefinitionsTransformation model.inputExp (letEIdToTopPId letEId1) (letEIdToTopPId letEId2), Satisfied)
+        _                                          -> (Nothing, Impossible)
+  in
+    { name = "Swap Definitions"
+    , func = func
+    , reqs =
+        [ { description =
+              "Select two variable definitions."
+          , value =
+              predVal
+          }
+        ]
+    , id = "swapDefinitions"
+    }
+
+
+--------------------------------------------------------------------------------
 -- Inline Definition
 --------------------------------------------------------------------------------
 
@@ -1986,6 +2023,7 @@ deuceTools model =
         , copyExpressionTool
         ]
       , [ moveDefinitionTool
+        , swapDefinitionsTool
         , inlineDefinitionTool
         , duplicateDefinitionTool
         ]

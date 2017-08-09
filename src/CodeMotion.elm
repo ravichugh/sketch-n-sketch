@@ -13,6 +13,7 @@ module CodeMotion exposing
   , makeEqualTransformation
   , copyExpressionTransformation
   , swapExpressionsTransformation
+  , swapDefinitionsTransformation
   , rewriteOffsetTransformation
   , makeEIdVisibleToEIds
   )
@@ -20,7 +21,7 @@ module CodeMotion exposing
 import Lang exposing (..)
 import LangTools exposing (..)
 import LangSimplify
-import LangUnparser exposing (unparse, unparseWithIds, unparseWithUniformWhitespace, unparsePat)
+import LangUnparser exposing (unparse, unparsePat, unparseWithIds, unparseWithUniformWhitespace, unparsePatWithUniformWhitespace)
 import FastParser as Parser
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
@@ -2801,6 +2802,47 @@ swapExpressionsTransformation originalProgram eid1 eid2 =
             Dict.empty -- insertedVarEIdToBindingPId
             originalProgramUniqueNames
             newProgramUniqueNames
+------------------------------------------------------------------------------
+
+-- based off copyExpressionTransformation
+swapDefinitionsTransformation originalProgram pid1 pid2 =
+  case (findPatAndBoundExpByPId pid1 originalProgram, findPatAndBoundExpByPId pid2 originalProgram) of
+    (Just (pat1, boundExp1), Just (pat2, boundExp2)) ->
+      if unparsePatWithUniformWhitespace True pat1 == unparsePatWithUniformWhitespace True pat2 && unparseWithUniformWhitespace True True boundExp1 == unparseWithUniformWhitespace True True boundExp2 then
+        Nothing
+      else if List.member boundExp1 (flattenExpTree boundExp2) || List.member boundExp2 (flattenExpTree boundExp1) then
+        Nothing
+      else
+        Just <|
+          \() ->
+            let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
+            let maxId = Parser.maxId originalProgramUniqueNames in
+            let (tempPId, tempEId) = (maxId + 1, maxId + 2) in
+            let (pat1UniqueNames, boundExp1UniqueNames) = findPatAndBoundExpByPId pid1 originalProgramUniqueNames |> Utils.fromJust_ "CodeMotion.swapDefinitionsTransformation" in
+            let (pat2UniqueNames, boundExp2UniqueNames) = findPatAndBoundExpByPId pid2 originalProgramUniqueNames |> Utils.fromJust_ "CodeMotion.swapDefinitionsTransformation" in
+            let newProgramUniqueNames =
+              originalProgramUniqueNames
+              |> replaceExpNodePreservingPrecedingWhitespace boundExp1UniqueNames.val.eid (boundExp1UniqueNames |> setEId tempEId)
+              |> replaceExpNodePreservingPrecedingWhitespace boundExp2UniqueNames.val.eid boundExp1UniqueNames
+              |> replaceExpNodePreservingPrecedingWhitespace tempEId boundExp2UniqueNames
+              |> replacePatNodePreservingPrecedingWhitespace pat1UniqueNames.val.pid (pat1UniqueNames |> setPId tempPId)
+              |> replacePatNodePreservingPrecedingWhitespace pat2UniqueNames.val.pid pat1UniqueNames
+              |> replacePatNodePreservingPrecedingWhitespace tempPId pat2UniqueNames
+            in
+            let namesUniqueTouched = Utils.unionAll [identifiersSetInPat pat1UniqueNames, identifiersSetInPat pat2UniqueNames, identifiersSet boundExp1UniqueNames, identifiersSet boundExp2UniqueNames] in
+            programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
+                ("Swap Definitions " ++ Utils.squish (unparsePat pat1) ++ " and " ++ Utils.squish (unparsePat pat2))
+                uniqueNameToOldName
+                Nothing -- maybeNewScopeEId
+                ("swapped", "untouched")
+                namesUniqueTouched
+                [] -- varEIdsPreviouslyDeliberatelyRemoved
+                Dict.empty -- insertedVarEIdToBindingPId
+                originalProgramUniqueNames
+                newProgramUniqueNames
+
+    _ ->
+      Nothing
 
 
 ------------------------------------------------------------------------------

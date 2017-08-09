@@ -1571,20 +1571,30 @@ findScopeAreasByIdent ident exp =
 -- Nothing means not found or can't match pattern.
 --
 -- Only matches PVar or PAs for now
-findBoundExpByPId : PId -> Exp -> Maybe Exp
-findBoundExpByPId targetPId exp =
+findPatAndBoundExpByPId : PId -> Exp -> Maybe (Pat, Exp)
+findPatAndBoundExpByPId targetPId exp =
   case findScopeExpAndPat targetPId exp of
     Just (scopeExp, pat) ->
       case (expToMaybeLetPatAndBoundExp scopeExp, patToMaybeIdent pat) of
         (Just (letPat, letBoundExp), Just ident) ->
           tryMatchExpReturningList letPat letBoundExp
           |> Utils.maybeFind ident
+          |> Maybe.map (\boundExp -> (pat, boundExp))
 
         _ ->
           Nothing
 
     Nothing ->
       Nothing
+
+
+-- Nothing means not found or can't match pattern.
+--
+-- Only matches PVar or PAs for now
+findBoundExpByPId : PId -> Exp -> Maybe Exp
+findBoundExpByPId targetPId exp =
+  findPatAndBoundExpByPId targetPId exp
+  |> Maybe.map (\(pat, boundExp) -> boundExp)
 
 
 -- Nothing means not found or can't match pattern.
