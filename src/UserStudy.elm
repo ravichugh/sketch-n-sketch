@@ -116,48 +116,36 @@ enableFeaturesForEditorMode newState m =
           , enableDeuceBoxSelection = False
           , enableDeuceTextSelection = False
           , showEditCodeInMenuBar = False
-          , showDeucePanel = False
-          , showDeuceRightClickMenu = False
           }
     TextEditOnly ->
       { m | enableTextEdits = Updatable.create True
           , enableDeuceBoxSelection = False
           , enableDeuceTextSelection = False
           , showEditCodeInMenuBar = False
-          , showDeucePanel = False
-          , showDeuceRightClickMenu = False
           }
     BoxSelectOnly ->
       { m | enableTextEdits = Updatable.create False
           , enableDeuceBoxSelection = True
           , enableDeuceTextSelection = False
           , showEditCodeInMenuBar = False
-          , showDeucePanel = True
-          , showDeuceRightClickMenu = False
           }
     TextSelectOnly ->
       { m | enableTextEdits = Updatable.create False
           , enableDeuceBoxSelection = False
           , enableDeuceTextSelection = True
           , showEditCodeInMenuBar = True
-          , showDeucePanel = False
-          , showDeuceRightClickMenu = True
           }
     CodeToolsOnly ->
       { m | enableTextEdits = Updatable.create False
           , enableDeuceBoxSelection = True
           , enableDeuceTextSelection = True
           , showEditCodeInMenuBar = True
-          , showDeucePanel = True
-          , showDeuceRightClickMenu = True
           }
     AllFeatures ->
       { m | enableTextEdits = Updatable.create True
           , enableDeuceBoxSelection = True
           , enableDeuceTextSelection = True
           , showEditCodeInMenuBar = True
-          , showDeucePanel = True
-          , showDeuceRightClickMenu = True
           }
 
 --------------------------------------------------------------------------------

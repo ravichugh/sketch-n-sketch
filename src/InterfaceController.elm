@@ -62,8 +62,6 @@ module InterfaceController exposing
   , msgSetEnableDeuceTextSelection
   , msgSetShowDeuceInMenuBar
   , msgSetShowEditCodeInMenuBar
-  , msgSetShowDeucePanel
-  , msgSetShowDeuceRightClickMenu
   , msgSetTextSelectMode
   , msgSetEnableTextEdits
   , msgSetAllowMultipleTargetPositions
@@ -1691,8 +1689,6 @@ handleNew template = (\old ->
                     , enableDeuceTextSelection = old.enableDeuceTextSelection
                     , showDeuceInMenuBar       = old.showDeuceInMenuBar
                     , showEditCodeInMenuBar    = old.showEditCodeInMenuBar
-                    , showDeucePanel           = old.showDeucePanel
-                    , showDeuceRightClickMenu  = old.showDeuceRightClickMenu
                     , textSelectMode           = old.textSelectMode
                     , enableTextEdits          = old.enableTextEdits
                     , mainResizerX             = old.mainResizerX
@@ -2211,22 +2207,6 @@ msgSetShowEditCodeInMenuBar bool =
             bool
     }
 
-msgSetShowDeucePanel : Bool -> Msg
-msgSetShowDeucePanel bool =
-  Msg "Set Show Deuce Panel" <| \model ->
-    { model
-        | showDeucePanel =
-            bool
-    }
-
-msgSetShowDeuceRightClickMenu : Bool -> Msg
-msgSetShowDeuceRightClickMenu bool =
-  Msg "Set Show Deuce Right Click Menu" <| \model ->
-    { model
-        | showDeuceRightClickMenu =
-            bool
-    }
-
 msgSetTextSelectMode : TextSelectMode -> Msg
 msgSetTextSelectMode textSelectMode =
   Msg "Set Text Select Mode" <| \model ->
@@ -2280,7 +2260,7 @@ msgDeuceRightClick : DeuceRightClickMenuMode -> Msg
 msgDeuceRightClick menuMode =
   Msg "Deuce Right Click" <| \model ->
     if
-      model.showDeuceRightClickMenu &&
+      model.enableDeuceTextSelection &&
       (Model.noWidgetsSelected model)
     then
       let

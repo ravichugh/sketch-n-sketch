@@ -929,18 +929,6 @@ menuBar model =
                           "True"
                           "False"
                           Controller.msgSetShowEditCodeInMenuBar
-                    , hoverMenu "Show Deuce Panel" <|
-                        booleanOption
-                          model.showDeucePanel
-                          "True"
-                          "False"
-                          Controller.msgSetShowDeucePanel
-                    , hoverMenu "Show Deuce Right Click Menu" <|
-                        booleanOption
-                          model.showDeuceRightClickMenu
-                          "True"
-                          "False"
-                          Controller.msgSetShowDeuceRightClickMenu
                     ]
                   , [ hoverMenu "Shape Code Templates"
                         [ simpleTextRadioButton
@@ -2111,7 +2099,7 @@ deuceRightClickMenu : Model -> Html Msg
 deuceRightClickMenu model =
   let
     disabled =
-      (not model.showDeuceRightClickMenu) ||
+      (not model.enableDeuceTextSelection) ||
       (not <| Model.deuceRightClickMenuShown model)
     content =
       [ Html.div

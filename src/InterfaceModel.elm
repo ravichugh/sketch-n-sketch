@@ -161,8 +161,6 @@ type alias Model =
   , enableDeuceTextSelection : Bool
   , showDeuceInMenuBar : Bool
   , showEditCodeInMenuBar : Bool
-  , showDeucePanel : Bool
-  , showDeuceRightClickMenu : Bool
   , textSelectMode : TextSelectMode
   , enableTextEdits : Updatable Bool
   , allowMultipleTargetPositions : Bool
@@ -887,7 +885,7 @@ noWidgetsSelected model =
 deucePopupPanelShown : Model -> Bool
 deucePopupPanelShown model =
   Utils.and
-    [ model.showDeucePanel
+    [ model.enableDeuceBoxSelection
     , not <| noWidgetsSelected model
     , not <| deuceRightClickMenuShown model
     , not <| configurationPanelShown model
@@ -1013,8 +1011,6 @@ initModel =
     , enableDeuceTextSelection = False
     , showDeuceInMenuBar = False
     , showEditCodeInMenuBar = False
-    , showDeucePanel = False
-    , showDeuceRightClickMenu = False
     , textSelectMode = SubsetExtra
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True
