@@ -1070,8 +1070,6 @@ msgKeyDown keyCode =
           old
     func old =
       let
-        _ =
-          Debug.log "Key Down" (keyCode, old.keysDown)
         currentKeyDown =
           isKeyDown keyCode old
       in
