@@ -25,4 +25,5 @@ elm-package.json
 elm-stuff/
 tests/build
 user_study_logs/
+user_study_surveys/
 *.pyc

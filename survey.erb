@@ -1,0 +1,245 @@
+<%
+  def inline_radio(name, value, text)
+    %Q{<label><input name="#{name}" type="radio" value="#{value}"> #{text}</label>}
+  end
+
+  def radio(name, value, text)
+    inline_radio(name, value, text) + "<br>\n"
+  end
+
+  def yes_no_radios(name)
+    "<br>\n" +
+    radio(name, "yes", "Yes") +
+    radio(name, "no", "No")
+  end
+%>
+<html>
+<head>
+  <title>Sketch-n-Sketch Code Tools — Exit Survey</title>
+  <style>
+    body {
+      max-width: 800px;
+      margin: auto;
+      line-height: 1.3;
+    }
+    textarea {
+      display: block;
+      width: 100%;
+      height: 5em;
+    }
+    div {
+      margin: 0;
+      padding: 0;
+    }
+    p {
+      margin: 1em 0 3em;
+    }
+    .sus_column {
+      width: 66px;
+      text-align: center;
+    }
+    td {
+      padding: 0.5em 2px;
+      vertical-align: top;
+    }
+    input[type=submit] {
+      width: 300px;
+      height: 40px;
+      font-size: 2em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sketch-n-Sketch Code Tools — Exit Survey</h1>
+  <p>There are no penalties for skipping questions you do not want to answer.</p>
+
+  <form action="/survey" autocomplete="off" method="post">
+
+  <h2>Background Questions</h2>
+
+  <p>
+    How many years of programming experience do you have?
+    <input name="experience" type="number">
+  </p>
+
+  <p>
+    How many years of functional programming experience do you have
+    (in languages such as Racket, Haskell, OCaml, Standard ML, or Elm)?
+    <input name="functional_experience" type="number">
+  </p>
+
+  <p>
+    Do you use languages and tools that provide automated support
+    for refactorings or other program transformations?
+    (Examples include Java and Eclipse, Idris and its editor, etc.)
+    <%= yes_no_radios("other_refactoring_tools") %>
+    <br>If so, please describe which tools and how often you use them.
+    <textarea name="other_refactoring_tools_explanation"></textarea>
+  </p>
+
+
+  <p>
+    Did you have knowledge or hands-on experience with Sketch-n-Sketch
+    before this study?
+    <%= yes_no_radios("prior_sns") %>
+  </p>
+
+  <p>
+    If so, did you also have knowledge or hands-on experience with the
+    Code Tools in Sketch-n-Sketch before this study?
+    <%= yes_no_radios("prior_sns_code_tools") %>
+  </p>
+
+  <p>
+    If you answered Yes to either question above,
+    please explain briefly.
+    <textarea name="prior_sns_explanation"></textarea>
+  </p>
+
+  <h2>Head-to-Head Comparisons on First Four Tasks</h2>
+
+  <%
+    REVERSE_ORDER = [true, false].sample
+
+    def side_by_side_task_questions(task_name, task_param)
+      options = [
+        [-2, "Text-Select Mode worked much better"],
+        [-1, "Text-Select Mode worked a little better"],
+        [ 0, "They were about the same"],
+        [ 1, "Box-Select Mode worked a little better"],
+        [ 2, "Box-Select Mode worked much better"],
+      ]
+
+      options.reverse! if REVERSE_ORDER
+
+      <<-HTML
+      <p>
+        Which interaction worked better for the #{task_name} task?<br>
+
+        #{options.map {|value, text| radio(task_param + "_mode_comparison", value, text)}.join("\n")}
+      </p>
+      HTML
+    end
+  %>
+
+  <%= side_by_side_task_questions("One Rectangle", "one_rectangle") %>
+  <%= side_by_side_task_questions("Two Circles", "two_circles") %>
+  <%= side_by_side_task_questions("Three Rectangles", "three_rectangles") %>
+  <%= side_by_side_task_questions("Target Icon", "target_icon") %>
+
+  <p>
+    <%
+      modes = ["Text-Select Mode", "Box-Select Mode"]
+      modes.reverse! if REVERSE_ORDER
+      interactionA, interactionB = modes
+    %>
+    Explain your answers to the four previous questions.
+    When did <%= interactionA %> work better and why?
+    When did <%= interactionB %> work better and why?
+    <textarea name="mode_comparison_explanation"></textarea>
+  <p>
+
+  <h2>Questions about Final Two Tasks</h2>
+
+  <p>
+    For the last two tasks, you were allowed to use both
+    <%= interactionA %> and <%= interactionB %>. The following
+    questions ask about this combination of features.
+  </p>
+
+  <%
+    sus_statements = [
+      "I think that I would like to use this system frequently.",
+      "I found the system unnecessarily complex.",
+      "I thought the system was easy to use.",
+      "I think that I would need the support of a technical person to be able to use this system.",
+      "I found the various functions in this system were well integrated.",
+      "I thought there was too much inconsistency in this system.",
+      "I would imagine that most people would learn to use this system very quickly.",
+      "I found the system very cumbersome to use.",
+      "I felt very confident using the system.",
+      "I needed to learn a lot of things before I could get going with this system.",
+    ]
+  %>
+
+  <p>
+    <table>
+      <tr>
+        <td></td>
+        <td></td>
+        <td class="sus_column">Strongly<br>Disagree</td>
+        <td class="sus_column"></td>
+        <td class="sus_column"></td>
+        <td class="sus_column"></td>
+        <td class="sus_column">Strongly<br>Agree</td>
+      </tr>
+        <tr>
+          <td></td>
+          <td></td>
+          <td class="sus_column">1</td>
+          <td class="sus_column">2</td>
+          <td class="sus_column">3</td>
+          <td class="sus_column">4</td>
+          <td class="sus_column">5</td>
+        </tr>
+      <% sus_statements.each_with_index.map do |statement, i| %>
+        <tr>
+          <td><%= (i+1).to_s %>.</td>
+          <td><%= statement %></td>
+          <td class="sus_column"><%= inline_radio("sus_#{i+1}", 1, "") %></td>
+          <td class="sus_column"><%= inline_radio("sus_#{i+1}", 2, "") %></td>
+          <td class="sus_column"><%= inline_radio("sus_#{i+1}", 3, "") %></td>
+          <td class="sus_column"><%= inline_radio("sus_#{i+1}", 4, "") %></td>
+          <td class="sus_column"><%= inline_radio("sus_#{i+1}", 5, "") %></td>
+        </tr>
+      <% end %>
+    </table>
+  </p>
+
+  <p>
+    Did the Code Tools (either with <%= interactionA %>
+    or <%= interactionB %>) work well for the Four Squares task?
+    If so, how? If not, why not?
+    <textarea name="four_squares_explanation"></textarea>
+  </p>
+
+  <p>
+    Did the Code Tools (either with <%= interactionA %>
+    or <%= interactionB %>) work well for the Lambda Icon task?
+    If so, how? If not, why not?
+    <textarea name="lambda_icon_explanation"></textarea>
+  </p>
+
+  <h2>Additional Questions</h2>
+
+  <p>
+    What computer did you use?<br>
+    <%= radio("computer","personal","My own personal laptop") %>
+    <%= radio("computer","provided","A computer provided by the user study administrator") %>
+  </p>
+
+  <p>
+    What improvements or new features would make Code
+    Tools in Sketch-n-Sketch better?
+    <textarea name="improvements"></textarea>
+  </p>
+
+  <p>
+    Are there any other comments about Code Tools in
+    Sketch-n-Sketch that you would like to share?
+    <textarea name="comments"></textarea>
+  </p>
+
+  <p>
+    Are there other languages, application domains, or
+    settings where you would like to see the Code Tools
+    features?
+    <textarea name="desired_other_domains"></textarea>
+  </p>
+
+  <p style="text-align: center;">
+    <input type="submit" value="Submit">
+  </p>
+  </form>
+</body>
+</html>

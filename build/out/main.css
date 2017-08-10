@@ -371,6 +371,11 @@ code {
   margin-left: 1.5em;
 }
 
+.prose-panel a {
+  color: lightblue;
+  text-decoration: underline;
+}
+
 .prose-panel code {
   background-color: var(--prose-code-bg-color);
   padding: 2px 4px;

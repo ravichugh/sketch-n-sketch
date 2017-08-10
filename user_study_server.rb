@@ -16,6 +16,7 @@ end
 
 ROOT          = File.dirname(__FILE__)
 LOGS_DIR      = ROOT + "/user_study_logs"
+SURVEYS_DIR   = ROOT + "/user_study_surveys"
 PUBLIC_FOLDER = ROOT + "/build/out"
 
 enable :sessions
@@ -23,8 +24,10 @@ enable :sessions
 puts "Visit http://localhost:4567/ to participate in the user study."
 
 set :public_folder, PUBLIC_FOLDER
+set :views, settings.root
 
 system("mkdir '#{LOGS_DIR}'")
+system("mkdir '#{SURVEYS_DIR}'")
 
 def get_participant_number
   if session[:participant_number].to_i > 0
@@ -44,4 +47,16 @@ post "/log_event" do
   open("#{LOGS_DIR}/participant_#{get_participant_number}.log", "a") do |log|
     log.puts request.body.read
   end
+end
+
+get "/survey" do
+  erb :survey
+end
+
+post "/survey" do
+  p params
+  open("#{SURVEYS_DIR}/participant_#{get_participant_number}.json", "a") do |survey|
+    survey.puts params.merge(submission_time: Time.now).to_json
+  end
+  "Thank you! Don't forget to get paid!"
 end

@@ -5188,7 +5188,7 @@ study_end =
  """
 (def main
   (draw [(show \"That's the end of the tasks!\")]))
-; <!-- PROSE --> <p>You're all done with the programming exercises!</p><p>One last thing: please fill out the exit survey.</p><p>Thanks!</p>
+; <!-- PROSE --> <p>You're all done with the programming exercises!</p><p>One last thing: please fill out the <a href=\"/survey\">exit survey</a>.</p><p>Thanks!</p>
 
 """
 
