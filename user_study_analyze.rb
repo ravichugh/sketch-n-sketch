@@ -17,6 +17,11 @@ class Event
     @time = Time.at(ms_since_epoch.to_f / 1000.0)
   end
 
+  # This handles restarts approprately
+  def sort_key
+    [@time, @event_number]
+  end
+
   def shift_down?
     name == "Key Down 16"
   end
@@ -51,6 +56,11 @@ class Event
 
   def dialog_box_closed
     name[/^Close Dialog Box "([\S\s]*)"/, 1]
+  end
+
+  # Cancel Give Up
+  def cancel_give_up?
+    name == "Cancel Give Up"
   end
 
   def deuce_right_click?
@@ -374,6 +384,11 @@ class Event
     name[/^Open Dialog Box "([\S\s]*)"/, 1]
   end
 
+  # Give Up Asker
+  def give_up_asker?
+    name == "Give Up Asker"
+  end
+
   # Run
   def run?
     name == "Run"
@@ -564,7 +579,7 @@ class Event
 
   def json_info(key)
     parsed = raw_json_info { {} }
-    parsed.is_a?(Hash) && parsed[key]
+    (parsed.is_a?(Hash) || nil) && parsed[key]
   end
 
   def deuce_selections_count
@@ -604,7 +619,7 @@ class Event
   end
 
   def to_tsv
-    [time, name, info, deuce_selections_count.to_i].join("\t")
+    [event_number, time, name, info, deuce_selections_count.to_i, code_annotations_count.to_i].join("\t")
   end
 end
 
@@ -801,8 +816,8 @@ def split_into_box_select_interactions(events)
         current_interaction_events << event
       end
     elsif pending_interaction_events
-      if event.shift_down?
-        pending_interaction_events = [event]
+      if !shift_depressed && event.deuce_selections_count == 0
+        pending_interaction_events = nil
       elsif event.deuce_selections_count && event.deuce_selections_count > 0
         current_interaction_events = pending_interaction_events + [event]
         pending_interaction_events = nil
@@ -810,7 +825,7 @@ def split_into_box_select_interactions(events)
         pending_interaction_events << event
       end
     else
-      if event.shift_down?
+      if event.shift_down? && event.deuce_selections_count == 0 # Not typing in rename box
         pending_interaction_events = [event]
       end
     end
@@ -829,15 +844,15 @@ def split_into_viewing_dialog_interactions(events)
   events.each do |event|
     if current_interaction_events
       current_interaction_events << event
-      if event.close_dialog_box? || event.user_study_next? # next b/c task timeout
+      if event.close_dialog_box? || event.cancel_give_up? || event.user_study_next? # next b/c task timeout
         interactions << DialogInteraction.new(current_interaction_events)
         current_interaction_events = nil
-      elsif event.open_dialog_box?
+      elsif event.open_dialog_box? || event.give_up_asker?
         raise "nested dialog interactions!!"
       end
-    elsif event.open_dialog_box?
+    elsif event.open_dialog_box? || event.give_up_asker?
       current_interaction_events = [event]
-    elsif event.close_dialog_box?
+    elsif event.close_dialog_box? || event.cancel_give_up?
       raise "hanging close dialog event!!"
     end
   end
@@ -869,9 +884,13 @@ puts [
   "#Text Select Interactions Started",
   "Text Select Interacting Time",
   "#Text Select Refactorings",
+  "#Single Arg Text Select Refactorings",
+  "#Multi Arg Text Select Refactorings",
   "#Box Select Interactions Started",
   "Box Select Interacting Time",
   "#Box Select Refactorings",
+  "#Single Arg Box Select Refactorings",
+  "#Multi Arg Box Select Refactorings",
   "#Interactions Started",
   "Interacting Time",
   "#Refactorings",
@@ -881,7 +900,7 @@ puts [
 ].join("\t")
 
 participant_indices.each do |participant_i|
-  events = File.read("#{LOGS_DIR}/participant_#{participant_i}.log").split("\n").map { |line| Event.new(line) }.sort_by(&:event_number) # Events are sent async and are occasionally slightly out of order
+  events = File.read("#{LOGS_DIR}/participant_#{participant_i}.log").split("\n").map { |line| Event.new(line) }.sort_by(&:sort_key) # Events are sent async and are occasionally slightly out of order
 
   tasks = split_into_tasks(events)
 
@@ -893,10 +912,13 @@ participant_indices.each do |participant_i|
 
     next if treatment == "ReadOnly"
 
-    task_num += 1
-
     gross_start_time = events[0].time
     gross_end_time   = events[-1].time
+    gross_time = gross_end_time - gross_start_time
+
+    next if gross_time < 10.0 && events.none?(&:choose_deuce_exp?) # Skipping tasks
+
+    task_num += 1
 
     # These should be mutually exclusive (TODO: check)
     text_select_interactions = split_into_text_select_interactions(events)
@@ -935,14 +957,18 @@ participant_indices.each do |participant_i|
       treatment,
       events.map(&:code_annotations_count).compact.last == 0 ? "yes" : "no",
       events.any?(&:task_timeout?) ? "yes" : "no",
-      gross_end_time - gross_start_time,
+      gross_time,
       interaction_end_time - interaction_start_time,
       text_select_interactions.count,
       text_select_interacting_time,
       text_select_interactions.flat_map(&:events).count(&:choose_deuce_exp?),
+      text_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count == 1 },
+      text_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count >= 2 },
       box_select_interactions.count,
       box_select_interacting_time,
       box_select_interactions.flat_map(&:events).count(&:choose_deuce_exp?),
+      box_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count == 1 },
+      box_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count >= 2 },
       all_interactions.count,
       interacting_time,
       invocations.size - invocations.grep(/^(Undo|Redo)$/).size,
@@ -950,6 +976,9 @@ participant_indices.each do |participant_i|
       events.count(&:redo?),
       invocations.join("; "),
     ].join("\t")
+    # box_select_interactions.each do |interaction|
+    #   interaction.events.each { |e| puts e.to_tsv }
+    # end
   end
 
 end

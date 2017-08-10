@@ -1535,8 +1535,8 @@ requireSaveAsker ((Msg name _) as msg) needsSave =
     msg
 
 giveUpAsker : Msg -> Msg
-giveUpAsker ((Msg name _) as msg) =
-  Msg ("Give Up Asker " ++ name) <| \old ->
+giveUpAsker msg =
+  Msg "Give Up Asker" <| \old ->
     { old
         | pendingGiveUpMsg =
             Just msg
