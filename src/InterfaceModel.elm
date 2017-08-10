@@ -82,6 +82,11 @@ type ColorScheme
   = Light
   | Dark
 
+type CodeToolsMenuMode
+  = CTAll
+  | CTActive
+  | CTDisabled
+
 type alias Model =
   { code : Code
   , lastRunCode : Code
@@ -159,8 +164,7 @@ type alias Model =
   , userStudyTaskCurrentTime : Time.Time
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
-  , showDeuceInMenuBar : Bool
-  , showEditCodeInMenuBar : Bool
+  , codeToolsMenuMode : CodeToolsMenuMode
   , textSelectMode : TextSelectMode
   , enableTextEdits : Updatable Bool
   , allowMultipleTargetPositions : Bool
@@ -1009,8 +1013,7 @@ initModel =
     , userStudyTaskCurrentTime = 0.0
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
-    , showDeuceInMenuBar = False
-    , showEditCodeInMenuBar = False
+    , codeToolsMenuMode = CTAll
     , textSelectMode = SubsetExtra
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True

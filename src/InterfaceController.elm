@@ -60,8 +60,7 @@ module InterfaceController exposing
   , msgUserStudyEverySecondTick
   , msgSetEnableDeuceBoxSelection
   , msgSetEnableDeuceTextSelection
-  , msgSetShowDeuceInMenuBar
-  , msgSetShowEditCodeInMenuBar
+  , msgSetCodeToolsMenuMode
   , msgSetTextSelectMode
   , msgSetEnableTextEdits
   , msgSetAllowMultipleTargetPositions
@@ -1687,8 +1686,7 @@ handleNew template = (\old ->
                     , userStudyTaskStartTime   = old.userStudyTaskCurrentTime
                     , enableDeuceBoxSelection  = old.enableDeuceBoxSelection
                     , enableDeuceTextSelection = old.enableDeuceTextSelection
-                    , showDeuceInMenuBar       = old.showDeuceInMenuBar
-                    , showEditCodeInMenuBar    = old.showEditCodeInMenuBar
+                    , codeToolsMenuMode        = old.codeToolsMenuMode
                     , textSelectMode           = old.textSelectMode
                     , enableTextEdits          = old.enableTextEdits
                     , mainResizerX             = old.mainResizerX
@@ -2191,20 +2189,12 @@ msgSetEnableDeuceTextSelection bool =
             bool
     }
 
-msgSetShowDeuceInMenuBar : Bool -> Msg
-msgSetShowDeuceInMenuBar bool =
-  Msg "Set Show Deuce In Menu Bar" <| \model ->
+msgSetCodeToolsMenuMode : CodeToolsMenuMode -> Msg
+msgSetCodeToolsMenuMode mode =
+  Msg "Set Code Tools Menu Mode" <| \model ->
     { model
-        | showDeuceInMenuBar =
-            bool
-    }
-
-msgSetShowEditCodeInMenuBar : Bool -> Msg
-msgSetShowEditCodeInMenuBar bool =
-  Msg "Set Show Edit Code In Menu Bar" <| \model ->
-    { model
-        | showEditCodeInMenuBar =
-            bool
+        | codeToolsMenuMode =
+            mode
     }
 
 msgSetTextSelectMode : TextSelectMode -> Msg

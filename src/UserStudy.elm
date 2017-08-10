@@ -26,6 +26,10 @@ import ImpureGoodies
 import UserStudyLog
 import Regex exposing (HowMany (AtMost, All), regex)
 
+import InterfaceModel as Model exposing
+  ( CodeToolsMenuMode(..)
+  )
+
 type alias State = (Phase, (String, EditorMode))
 
 type Phase
@@ -115,37 +119,37 @@ enableFeaturesForEditorMode newState m =
       { m | enableTextEdits = Updatable.create False
           , enableDeuceBoxSelection = False
           , enableDeuceTextSelection = False
-          , showEditCodeInMenuBar = False
+          , codeToolsMenuMode = CTDisabled
           }
     TextEditOnly ->
       { m | enableTextEdits = Updatable.create True
           , enableDeuceBoxSelection = False
           , enableDeuceTextSelection = False
-          , showEditCodeInMenuBar = False
+          , codeToolsMenuMode = CTDisabled
           }
     BoxSelectOnly ->
       { m | enableTextEdits = Updatable.create False
           , enableDeuceBoxSelection = True
           , enableDeuceTextSelection = False
-          , showEditCodeInMenuBar = False
+          , codeToolsMenuMode = CTDisabled
           }
     TextSelectOnly ->
       { m | enableTextEdits = Updatable.create False
           , enableDeuceBoxSelection = False
           , enableDeuceTextSelection = True
-          , showEditCodeInMenuBar = True
+          , codeToolsMenuMode = CTAll
           }
     CodeToolsOnly ->
       { m | enableTextEdits = Updatable.create False
           , enableDeuceBoxSelection = True
           , enableDeuceTextSelection = True
-          , showEditCodeInMenuBar = True
+          , codeToolsMenuMode = CTAll
           }
     AllFeatures ->
       { m | enableTextEdits = Updatable.create True
           , enableDeuceBoxSelection = True
           , enableDeuceTextSelection = True
-          , showEditCodeInMenuBar = True
+          , codeToolsMenuMode = CTAll
           }
 
 --------------------------------------------------------------------------------

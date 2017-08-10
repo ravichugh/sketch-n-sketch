@@ -640,23 +640,25 @@ menuBar model =
                   ]
                 ]
           ) ++
-          ( if model.showDeuceInMenuBar then
-              [ menu "Deuce" <|
-                  List.map
-                    (Utils.mapi1 <| deuceHoverMenu model)
-                    model.deuceToolsAndResults
-              ]
-            else
-              []
-          ) ++
-          ( if model.showEditCodeInMenuBar then
-              [ menu "Code Tools" <| -- "Edit Code"
-                  List.map
-                    (Utils.mapi1 <| editCodeEntry model)
-                    model.deuceToolsAndResults
-              ]
-            else
-              []
+          ( let
+              maybeEntry =
+                case model.codeToolsMenuMode of
+                  CTAll ->
+                    Just <| editCodeEntry model
+                  CTActive ->
+                    Just <| deuceHoverMenu model
+                  CTDisabled ->
+                    Nothing
+            in
+              case maybeEntry of
+                Just entry ->
+                  [ menu "Code Tools" <| -- "Edit Code"
+                      List.map
+                        (Utils.mapi1 entry)
+                        model.deuceToolsAndResults
+                  ]
+                Nothing ->
+                  []
           ) ++
           ( UserStudy.hideIfEnabled
               [ menu "Output Tools"
@@ -853,7 +855,13 @@ menuBar model =
                 )
               ] ++
               ( UserStudy.hideIfEnabled
-                  [ [ hoverMenu "Enable Deuce Box Selection" <|
+                  [ [ hoverMenu "Enable Text Edits" <|
+                        booleanOption
+                          (Updatable.extract model.enableTextEdits)
+                          "True"
+                          "False"
+                          Controller.msgSetEnableTextEdits
+                    , hoverMenu "Enable Deuce Box Selection" <|
                         booleanOption
                           model.enableDeuceBoxSelection
                           "True"
@@ -865,12 +873,36 @@ menuBar model =
                           "True"
                           "False"
                           Controller.msgSetEnableDeuceTextSelection
-                    , hoverMenu "Enable Text Edits" <|
-                        booleanOption
-                          (Updatable.extract model.enableTextEdits)
-                          "True"
-                          "False"
-                          Controller.msgSetEnableTextEdits
+                    ]
+                  , [ hoverMenu "Code Tools Menu Mode"
+                        [ simpleTextRadioButton
+                            ( case model.codeToolsMenuMode of
+                                CTAll ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "All"
+                            (Controller.msgSetCodeToolsMenuMode CTAll)
+                        , simpleTextRadioButton
+                            ( case model.codeToolsMenuMode of
+                                CTActive ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Active"
+                            ( Controller.msgSetCodeToolsMenuMode CTActive)
+                        , simpleTextRadioButton
+                            ( case model.codeToolsMenuMode of
+                                CTDisabled ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Disabled"
+                            (Controller.msgSetCodeToolsMenuMode CTDisabled)
+                        ]
                     ]
                   , [ hoverMenu "Text Selection Mode"
                         [ simpleTextRadioButton
@@ -916,19 +948,6 @@ menuBar model =
                           "True"
                           "False"
                           Controller.msgSetAllowMultipleTargetPositions
-                    ]
-                  , [ hoverMenu "Show Deuce in Menu Bar" <|
-                        booleanOption
-                          model.showDeuceInMenuBar
-                          "True"
-                          "False"
-                          Controller.msgSetShowDeuceInMenuBar
-                    , hoverMenu "Show Edit Code in Menu Bar" <|
-                        booleanOption
-                          model.showEditCodeInMenuBar
-                          "True"
-                          "False"
-                          Controller.msgSetShowEditCodeInMenuBar
                     ]
                   , [ hoverMenu "Shape Code Templates"
                         [ simpleTextRadioButton
