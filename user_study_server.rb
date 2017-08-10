@@ -56,7 +56,7 @@ end
 post "/survey" do
   p params
   open("#{SURVEYS_DIR}/participant_#{get_participant_number}.json", "a") do |survey|
-    survey.puts params.merge(submission_time: Time.now).to_json
+    survey.puts JSON.pretty_generate(params.merge(submission_time: Time.now))
   end
   "Thank you! Don't forget to get paid!"
 end
