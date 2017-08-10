@@ -116,6 +116,8 @@ import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
 
+import ImpureGoodies
+
 import UserStudy
 import UserStudyLog
 
@@ -495,7 +497,7 @@ tryRun old =
       Err err ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok e ->
-        let result =
+        let resultThunk () =
           -- let aceTypeInfo = Types.typecheck e in
 
           -- want final environment of top-level definitions when evaluating e,
@@ -610,11 +612,11 @@ tryRun old =
             )
           )
         in
-          case result of
-            Err s ->
-              Err (oldWithUpdatedHistory, s, Nothing)
-            Ok model ->
-              Ok model
+          case ImpureGoodies.crashToError resultThunk of
+            Err s         -> Err (oldWithUpdatedHistory, s, Nothing)
+            Ok (Err s)    -> Err (oldWithUpdatedHistory, s, Nothing)
+            Ok (Ok model) -> Ok model
+
 
 --------------------------------------------------------------------------------
 -- Updating the Model
