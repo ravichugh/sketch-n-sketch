@@ -453,8 +453,8 @@ sequence =
 stepTimeoutDuration : State -> Time.Time
 stepTimeoutDuration (phase, _) =
   case phase of
-    Task HeadToHead -> 5  * Time.minute
-    Task OpenEnded  -> 10 * Time.minute
+    Task HeadToHead -> 6  * Time.minute
+    Task OpenEnded  -> 12 * Time.minute
     _               -> Utils.infinity
 
 
