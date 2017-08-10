@@ -583,11 +583,11 @@ class Event
   end
 
   def deuce_selections_count
-    json_info("deuceSelectionsCount") && json_info("deuceSelectionsCount").to_i
+    json_info("deuceSelectionsCount") && Integer(json_info("deuceSelectionsCount"))
   end
 
   def code_annotations_count
-    json_info("codeAnnotationsCount") && json_info("codeAnnotationsCount").to_i
+    json_info("codeAnnotationsCount") && Integer(json_info("codeAnnotationsCount"))
   end
 
   def task_timeout?
@@ -743,8 +743,6 @@ def split_into_text_select_interactions(events)
       current_text_selection = event.changed_text_selection
     end
 
-    # Can't rely on leave events coming after hover events: can happen in same millisecond when moving mouse horizontally in the menu bar.
-    # Add global counter in Elm code???
     if event.hover_menu?
       last_top_menu_item_hovered = event.menu_hovered
     elsif event.toggle_menu?
@@ -809,7 +807,11 @@ def split_into_box_select_interactions(events)
     end
 
     if current_interaction_events
-      if event.deuce_selections_count && event.deuce_selections_count == 0 && !shift_depressed
+      if event.escape_down? || event.choose_deuce_exp? || event.undo? || event.redo? # TODO check all places where this info is reset
+        current_interaction_events << event
+        interactions << BoxSelectInteraction.new(current_interaction_events)
+        current_interaction_events = nil
+      elsif event.deuce_selections_count && event.deuce_selections_count == 0 && !shift_depressed
         interactions << BoxSelectInteraction.new(current_interaction_events)
         current_interaction_events = nil
       else
