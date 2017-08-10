@@ -113,7 +113,6 @@ disablePreviousStep i =
 
 enableFeaturesForEditorMode newState m =
   case getEditorMode newState of
-    -- TODO remove showDeucePanel and showDeuceRightClickMenu
     -- TODO maybe use enableEditCodeInMenuBar instead of show
     ReadOnly ->
       { m | enableTextEdits = Updatable.create False
@@ -393,29 +392,29 @@ headToHeadTasks =
             |> shuffleList
         )
 
+    indexLastInFirstPass =
+      List.length headToHeadTaskTemplates
+
     maybeReshuffle list =
-      let
-        getTask i =
-          Utils.geti i list
-        indexLastInFirstPass =
-          List.length headToHeadTaskTemplates
-        indexFirstInSecondPass =
-          indexLastInFirstPass + 1
-        indexSecondInSecondPass =
-          indexLastInFirstPass + 2
-      in
-        if getTemplate (getTask indexLastInFirstPass)
-            == getTemplate (getTask indexFirstInSecondPass)
-        then
-          list
-            |> Utils.replacei indexFirstInSecondPass (getTask indexSecondInSecondPass)
-            |> Utils.replacei indexSecondInSecondPass (getTask indexFirstInSecondPass)
-        else
-          list
+      if getTemplate (Utils.geti indexLastInFirstPass firstTimeThroughAll)
+          == getTemplate (Utils.geti 1 list)
+      then
+        shuffleList list
+      else
+        list
   in
-    firstTimeThroughAll ++ secondTimeThroughAll
-      |> maybeReshuffle
-      |> insertReadingPeriods
+  let secondTimeThroughAllNotFirstTaskSameAsPrevious =
+    secondTimeThroughAll
+    |> maybeReshuffle
+    |> maybeReshuffle
+    |> maybeReshuffle
+    |> maybeReshuffle
+    |> maybeReshuffle
+    |> maybeReshuffle
+    |> maybeReshuffle
+  in
+  firstTimeThroughAll ++ secondTimeThroughAllNotFirstTaskSameAsPrevious
+    |> insertReadingPeriods
 
 
 fullTasks =
