@@ -693,6 +693,14 @@ fromOk s mx = case mx of
 
 fromOk_ = fromOk ""
 
+-- Useful with ImpureGoodies.crashToError on a thunk that also returns an error
+unwrapNestedResult : Result e (Result e a) -> Result e a
+unwrapNestedResult nestedResult =
+  case nestedResult of
+    Err e        -> Err e
+    Ok (Err e)   -> Err e
+    Ok (Ok item) -> Ok item
+
 -- Don't construct error string on every dictionary lookup. (Serializing dictionary may be expensive)
 justGetError s k d () =
   "Utils.justGet " ++ s ++ ": key " ++ toString k ++ " not found in dictionary " ++ toString d

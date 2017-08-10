@@ -29,6 +29,8 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import VirtualDom
 
+import ImpureGoodies
+
 type alias Code = String
 
 type alias Filename = String
@@ -596,9 +598,14 @@ type alias CachedDeuceTool =
 
 runAndResolve : Model -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolve model exp =
-  Eval.run exp
-  |> Result.andThen (\(val, widgets) -> slateAndCode model (exp, val)
-  |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
+  let thunk () =
+    Eval.run exp
+    |> Result.andThen (\(val, widgets) -> slateAndCode model (exp, val)
+    |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
+  in
+  ImpureGoodies.crashToError thunk
+  |> Utils.unwrapNestedResult
+
 
 slateAndCode : Model -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
 slateAndCode old (exp, val) =
@@ -614,7 +621,11 @@ mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
   ))
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
-  Eval.run e |> Result.andThen (mkLive opts slideNumber movieNumber movieTime e)
+  let thunk () =
+    Eval.run e |> Result.andThen (mkLive opts slideNumber movieNumber movieTime e)
+  in
+  ImpureGoodies.crashToError thunk
+  |> Utils.unwrapNestedResult
 
 --------------------------------------------------------------------------------
 

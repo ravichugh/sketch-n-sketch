@@ -158,8 +158,16 @@ debugLog = Config.debugLog Config.debugController
 --------------------------------------------------------------------------------
 
 refreshMode model e =
-  Utils.fromOk "refreshMode" <|
-    mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e
+  case mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e of
+    Ok liveInfo ->
+      liveInfo
+
+    Err s ->
+      let _ = UserStudyLog.log "refreshMode Error" (toString s) in
+      Live { initSubstPlus = FastParser.substPlusOf e
+           , triggers = Dict.empty
+           }
+
 
 refreshMode_ model = refreshMode model model.inputExp
 
@@ -1522,8 +1530,7 @@ msgClearPreview = Msg "Clear Preview" <| \old ->
 
 msgCancelSync = Msg "Cancel Sync" <| \old ->
   upstateRun
-    { old | mode = Utils.fromOk "CancelSync mkLive_" <|
-              mkLive_ old.syncOptions old.slideNumber old.movieNumber old.movieTime old.inputExp }
+    { old | mode = refreshMode_ old }
 
 --------------------------------------------------------------------------------
 

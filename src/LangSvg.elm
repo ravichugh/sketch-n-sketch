@@ -48,6 +48,7 @@ import Eval
 import Utils
 import Either exposing (Either(..))
 
+import ImpureGoodies
 
 ------------------------------------------------------------------------------
 
@@ -131,34 +132,38 @@ valToIndexedTree v =
       (rootId, tree)
     )
 
-valToIndexedTree_ v (nextId, d) = case v.v_ of
+-- Attr converters haven't been converted to Result types yet.
+valToIndexedTree_ v (nextId, d) =
+  let thunk () =
+    case v.v_ of
+      VList vs -> case List.map .v_ vs of
 
-  VList vs -> case List.map .v_ vs of
+        [VBase (VString "TEXT"), VBase (VString s)] ->
+          Ok (1 + nextId, Dict.insert nextId (TextNode s) d)
 
-    [VBase (VString "TEXT"), VBase (VString s)] ->
-      Ok (1 + nextId, Dict.insert nextId (TextNode s) d)
+        [VBase (VString kind), VList vs1, VList vs2] ->
+          let processChild vi acc =
+            case acc of
+              Err s -> acc
+              Ok (a_nextId, a_graph , a_children) ->
+                valToIndexedTree_ vi (a_nextId, a_graph)
+                |> Result.map (\(a_nextId_,a_graph_) ->
+                    let a_children_ = (a_nextId_ - 1) :: a_children in
+                    (a_nextId_, a_graph_, a_children_)
+                  )
+          in
+          List.foldl processChild (Ok (nextId,d,[])) vs2
+          |> Result.map (\(nextId_,d_,children) ->
+              let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
+              (1 + nextId_, Dict.insert nextId_ node d_)
+            )
 
-    [VBase (VString kind), VList vs1, VList vs2] ->
-      let processChild vi acc =
-        case acc of
-          Err s -> acc
-          Ok (a_nextId, a_graph , a_children) ->
-            valToIndexedTree_ vi (a_nextId, a_graph)
-            |> Result.map (\(a_nextId_,a_graph_) ->
-                let a_children_ = (a_nextId_ - 1) :: a_children in
-                (a_nextId_, a_graph_, a_children_)
-              )
-      in
-      List.foldl processChild (Ok (nextId,d,[])) vs2
-      |> Result.map (\(nextId_,d_,children) ->
-          let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
-          (1 + nextId_, Dict.insert nextId_ node d_)
-        )
+        _ -> Err <| expectedButGotStr "an SVG node" (strVal v)
 
-    _ -> Err <| expectedButGotStr "an SVG node" (strVal v)
-
-  _ -> Err <| expectedButGotStr "an SVG node" (strVal v)
-
+      _ -> Err <| expectedButGotStr "an SVG node" (strVal v)
+  in
+  ImpureGoodies.crashToError thunk
+  |> Utils.unwrapNestedResult
 
 ------------------------------------------------------------------------------
 -- Convert Raw Value to SVG Attribute
