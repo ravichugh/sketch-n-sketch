@@ -1029,6 +1029,27 @@ msgMousePosition pos_ =
 
 --------------------------------------------------------------------------------
 
+refreshInputExp : Model -> Model
+refreshInputExp old =
+  let
+    parseResult =
+      parseE old.code
+    (newInputExp, codeClean) =
+      case parseResult of
+        Ok exp ->
+          (exp, True)
+        Err _ ->
+          (old.inputExp, False)
+  in
+    { old
+        | inputExp =
+            newInputExp
+        , codeClean =
+            codeClean
+    }
+
+--------------------------------------------------------------------------------
+
 isKeyDown : Int -> Model -> Bool
 isKeyDown keyCode model =
   List.member keyCode model.keysDown
@@ -1090,22 +1111,7 @@ msgKeyDown keyCode =
           not currentKeyDown &&
           keyCode == Keys.keyShift
         then
-          let
-            parseResult =
-              parseE old.code
-            (newInputExp, codeClean) =
-              case parseResult of
-                Ok exp ->
-                  (exp, True)
-                Err _ ->
-                  (old.inputExp, False)
-          in
-            { old
-                | inputExp =
-                    newInputExp
-                , codeClean =
-                    codeClean
-            }
+          refreshInputExp old
         else
           old
   in
@@ -2238,7 +2244,7 @@ msgSetSelectedDeuceTool useTextSelect cachedDeuceTool =
       }
     maybeTextSelect =
       if useTextSelect then
-        textSelect False
+        refreshInputExp >> textSelect False
       else
         identity
   in
@@ -2257,7 +2263,9 @@ msgDeuceRightClick menuMode =
     then
       let
         modelAfterTextSelection =
-          textSelect True model
+          model
+            |> refreshInputExp
+            |> textSelect True
       in
         -- Make sure we selected at least one code object
         if Model.noWidgetsSelected modelAfterTextSelection then
