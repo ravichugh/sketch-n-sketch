@@ -179,7 +179,7 @@ postProcessProse newState m =
       case step of
         "Step 11" -> updateModel (shuffle_123 step prose)
         "Step 12" -> updateModel (shuffle_12 step prose)
-        "Step 13" -> updateModel (shuffle_12 step prose)
+        "Step 13" -> m -- nothing to shuffle in this step
         "Step 14" -> updateModel (shuffle_12 step prose)
         "Step 15" -> updateModel (shuffle_12 step prose)
         "Step 16" -> updateModel (shuffle_12 step prose)
