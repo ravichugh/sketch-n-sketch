@@ -177,6 +177,7 @@ type alias Model =
   , colorScheme : ColorScheme
   , pendingGiveUpMsg : Maybe Msg
   , giveUpConfirmed : Bool
+  , lastSelectedTemplate : Maybe String
   }
 
 type Mode
@@ -646,11 +647,22 @@ prependDescription newPrefix synthesisResult =
 
 bufferName = ""
 
-untitledName = "Untitled"
+blankTemplate = "BLANK"
 
 prettyFilename model =
   if model.filename == bufferName then
-    untitledName
+    let
+      prettyTemplate =
+        case model.lastSelectedTemplate of
+          Just template ->
+            if template /= blankTemplate then
+              " (" ++ template ++ ")"
+            else
+              ""
+          Nothing ->
+            ""
+    in
+      "Untitled" ++ prettyTemplate
   else
     model.filename
 
@@ -1029,4 +1041,5 @@ initModel =
     , colorScheme = initColorScheme
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
+    , lastSelectedTemplate = Nothing
     }

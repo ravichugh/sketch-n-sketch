@@ -1672,6 +1672,8 @@ handleNew template = (\old ->
                     , lastSaveState = Nothing
                     , scopeGraph    = DependenceGraph.compute e
 
+                    , lastSelectedTemplate = Just template
+
                     , dimensions    = old.dimensions
                     , syncOptions   = old.syncOptions
                     , localSaves    = old.localSaves
