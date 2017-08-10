@@ -280,7 +280,7 @@ app.ports.setSelections.subscribe(function(ranges) {
       range.start.row,
       range.start.column,
       range.end.row,
-      range.end.column,
+      range.end.column
     );
     // TODO handle multiple selection
     editor.selection.setSelectionRange(selection);
