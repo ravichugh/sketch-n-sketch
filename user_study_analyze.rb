@@ -879,6 +879,7 @@ puts [
   "Task Number",
   "Task",
   "Treatment",
+  "All Events Logged?",
   "Completed?",
   "Timeout?",
   "Gross Time",
@@ -913,6 +914,17 @@ participant_indices.each do |participant_i|
     treatment = events[0].next_step_task_treatment
 
     next if treatment == "ReadOnly"
+
+    events_intact = true
+
+    last_event_number = nil
+    events.each do |event|
+      if last_event_number && event.event_number != last_event_number + 1
+        events_intact = false
+        # puts "Participant #{participant_i}: event #{event.event_number} comes right after #{last_event_number}"
+      end
+      last_event_number = event.event_number
+    end
 
     gross_start_time = events[0].time
     gross_end_time   = events[-1].time
@@ -957,6 +969,7 @@ participant_indices.each do |participant_i|
       task_num,
       task_name,
       treatment,
+      events_intact ? "yes" : "no",
       events.map(&:code_annotations_count).compact.last == 0 ? "yes" : "no",
       events.any?(&:task_timeout?) ? "yes" : "no",
       gross_time,
