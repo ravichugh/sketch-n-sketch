@@ -54,8 +54,9 @@ import ImpureGoodies
 
 attr = VirtualDom.attribute
 
-expectedButGot x s = crashWithMsg <| expectedButGotStr x s
-expectedButGotStr x s = "expected " ++ x ++ ", but got: " ++ s
+expectedButGot x s      = Err <| expectedButGotStr x s
+expectedButGotCrash x s = Debug.crash <| expectedButGotStr x s
+expectedButGotStr x s   = "expected " ++ x ++ ", but got: " ++ s
 
 
 ------------------------------------------------------------------------------
@@ -132,7 +133,6 @@ valToIndexedTree v =
       (rootId, tree)
     )
 
--- Attr converters haven't been converted to Result types yet.
 valToIndexedTree_ v (nextId, d) =
   let thunk () =
     case v.v_ of
@@ -153,68 +153,73 @@ valToIndexedTree_ v (nextId, d) =
                   )
           in
           List.foldl processChild (Ok (nextId,d,[])) vs2
-          |> Result.map (\(nextId_,d_,children) ->
-              let node = SvgNode kind (List.map valToAttr vs1) (List.reverse children) in
-              (1 + nextId_, Dict.insert nextId_ node d_)
+          |> Result.andThen (\(nextId_,d_,children) ->
+              List.map valToAttr vs1
+              |> Utils.projOk
+              |> Result.map (\attrs ->
+                let node = SvgNode kind attrs (List.reverse children) in
+                (1 + nextId_, Dict.insert nextId_ node d_)
+              )
             )
 
-        _ -> Err <| expectedButGotStr "an SVG node" (strVal v)
+        _ -> expectedButGot "an SVG node" (strVal v)
 
-      _ -> Err <| expectedButGotStr "an SVG node" (strVal v)
+      _ -> expectedButGot "an SVG node" (strVal v)
   in
   ImpureGoodies.crashToError thunk
   |> Utils.unwrapNestedResult
 
+
 ------------------------------------------------------------------------------
 -- Convert Raw Value to SVG Attribute
 
-valToAttr : Val -> Attr
+valToAttr : Val -> Result String Attr
 valToAttr v = case v.v_ of
   VList [v1,v2] -> case (v1.v_, v2.v_) of
     (VBase (VString k), v2_) ->
-     let (k_,av_) =
-      case (k, v2_) of
-        ("points", VList vs)    -> (k, APoints <| List.map valToPoint vs)
+      let avRes =
+        case (k, v2_) of
+          ("points", VList vs)    -> vs |> List.map valToPoint |> Utils.projOk |> Result.map APoints
 
-        ("fill"  , VList [v1,v2,v3,v4]) -> (k, ARgba <| valsToRgba [v1,v2,v3,v4])
-        ("stroke", VList [v1,v2,v3,v4]) -> (k, ARgba <| valsToRgba [v1,v2,v3,v4])
+          ("fill"  , VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
+          ("stroke", VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
 
-        ("fill",   VConst _ it) -> (k, AColorNum (it, Nothing))
-        ("stroke", VConst _ it) -> (k, AColorNum (it, Nothing))
+          ("fill",   VConst _ it) -> Ok <| AColorNum (it, Nothing)
+          ("stroke", VConst _ it) -> Ok <| AColorNum (it, Nothing)
 
-        ("fill",   VList [v1,v2]) ->
-          case (v1.v_, v2.v_) of
-            (VConst _ it1, VConst _ it2) -> (k, AColorNum (it1, Just it2))
-            _                            -> Debug.crash "valToAttr: fill"
-        ("stroke", VList [v1,v2]) ->
-          case (v1.v_, v2.v_) of
-            (VConst _ it1, VConst _ it2) -> (k, AColorNum (it1, Just it2))
-            _                            -> Debug.crash "valToAttr: stroke"
+          ("fill",   VList [v1,v2]) ->
+            case (v1.v_, v2.v_) of
+              (VConst _ it1, VConst _ it2) -> Ok  <| AColorNum (it1, Just it2)
+              _                            -> Err <| "bad fill: " ++ strVal v2
+          ("stroke", VList [v1,v2]) ->
+            case (v1.v_, v2.v_) of
+              (VConst _ it1, VConst _ it2) -> Ok  <| AColorNum (it1, Just it2)
+              _                            -> Err <| "bad stroke: " ++ strVal v2
 
-        ("d", VList vs)         -> (k, APath2 (valsToPath2 vs))
+          ("d", VList vs)         -> valsToPath2 vs |> Result.map APath2
 
-        ("transform", VList vs) -> (k, ATransform (valsToTransform vs))
+          ("transform", VList vs) -> valsToTransform vs |> Result.map ATransform
 
-        ("BOUNDS", VList vs)    -> (k, ABounds <| valToBounds vs)
+          ("BOUNDS", VList vs)    -> valToBounds vs |> Result.map ABounds
 
-        (_, VConst _ it)        -> (k, ANum it)
-        (_, VBase (VString s))  -> (k, AString s)
+          (_, VConst _ it)        -> Ok <| ANum it
+          (_, VBase (VString s))  -> Ok <| AString s
 
-        _                       -> Debug.crash "valToAttr"
-     in
-     (k_, AVal av_ v2.vtrace)
+          _                       -> Err <| "bad SVG attribute value for " ++ k ++ ": " ++ strVal v2
+      in
+      avRes |> Result.map (\av -> (k, AVal av v2.vtrace))
     _ ->
-      Debug.crash "valToAttr"
+      Err <| "malformed attribute pair: " ++ strVal v
   _ ->
-    Debug.crash "valToAttr"
+    Err <| "malformed attribute list, bad element: " ++ strVal v
 
 
 -- Points --
 
-valToPoint : Val -> Point
+valToPoint : Val -> Result String Point
 valToPoint v = case v.v_ of
   VList vs -> case List.map .v_ vs of
-    [VConst _ x, VConst _ y] -> (x,y)
+    [VConst _ x, VConst _ y] -> Ok (x,y)
     _                        -> expectedButGot "a point" (strVal v)
   _                          -> expectedButGot "a point" (strVal v)
 
@@ -226,9 +231,9 @@ strPoint (x_,y_) =
 
 -- RGBA --
 
-valsToRgba : List Val -> Rgba
+valsToRgba : List Val -> Result String Rgba
 valsToRgba vs = case List.map .v_ vs of
-  [VConst _ r, VConst _  g, VConst _ b, VConst _ a] -> (r,g,b,a)
+  [VConst _ r, VConst _  g, VConst _ b, VConst _ a] -> Ok (r,g,b,a)
   _                                                 -> expectedButGot "rgba" (strVal (vList vs))
 
 strRgba : Rgba -> String
@@ -249,39 +254,39 @@ strRgba_ rgba =
 --    to make it less verbose and easier to copy-and-paste raw SVG examples
 --  . looks like commas are optional
 
-valsToPath2 : List Val -> (List PathCmd, PathCounts)
+valsToPath2 : List Val -> Result String (List PathCmd, PathCounts)
 valsToPath2 = valsToPath2_ {numPoints = 0}
 
-valsToPath2_ : PathCounts -> List Val -> (List PathCmd, PathCounts)
+valsToPath2_ : PathCounts -> List Val -> Result String (List PathCmd, PathCounts)
 valsToPath2_ counts vs = case vs of
-  []     -> ([], counts)
+  []     -> Ok ([], counts)
   v::vs_ -> case v.v_ of
     VBase (VString cmd) ->
       if matchCmd cmd "Z" then
-        CmdZ cmd +++ valsToPath2_ counts vs_
+        valsToPath2_ counts vs_ |> Result.map (\rest -> CmdZ cmd +++ rest)
       else if matchCmd cmd "MLT" then
         let ((x,y),vs__) = Tuple.mapFirst Utils.unwrap2 <| projConsts 2 vs_ in
         let (counts_,pt) = Tuple.mapSecond Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
-        CmdMLT cmd pt +++ valsToPath2_ counts_ vs__
+        valsToPath2_ counts_ vs__ |> Result.map (\rest -> CmdMLT cmd pt +++ rest)
       else if matchCmd cmd "HV" then
         let (i,vs__) = Tuple.mapFirst Utils.unwrap1 <| projConsts 1 vs_ in
-        CmdHV cmd i +++ valsToPath2_ counts vs__
+        valsToPath2_ counts vs__ |> Result.map (\rest -> CmdHV cmd i +++ rest)
       else if matchCmd cmd "C" then
         let ((x1,y1,x2,y2,x,y),vs__) = Tuple.mapFirst Utils.unwrap6 <| projConsts 6 vs_ in
         let (counts_,(pt1,pt2,pt3)) = Tuple.mapSecond Utils.unwrap3 <| addIdPoints cmd counts [(x1,y1),(x2,y2),(x,y)] in
-        CmdC cmd pt1 pt2 pt3 +++ valsToPath2_ counts_ vs__
+        valsToPath2_ counts_ vs__ |> Result.map (\rest -> CmdC cmd pt1 pt2 pt3 +++ rest)
       else if matchCmd cmd "SQ" then
         let ((x1,y1,x,y),vs__) = Tuple.mapFirst Utils.unwrap4 <| projConsts 4 vs_ in
         let (counts_,(pt1,pt2)) = Tuple.mapSecond Utils.unwrap2 <| addIdPoints cmd counts [(x1,y1),(x,y)] in
-        CmdSQ cmd pt1 pt2 +++ valsToPath2_ counts_ vs__
+        valsToPath2_ counts_ vs__ |> Result.map (\rest -> CmdSQ cmd pt1 pt2 +++ rest)
       else if matchCmd cmd "A" then
         let ((rx,ry,axis,flag,sweep,x,y),vs__) = Tuple.mapFirst Utils.unwrap7 <| projConsts 7 vs_ in
         let (counts_,pt) = Tuple.mapSecond Utils.unwrap1 <| addIdPoints cmd counts [(x,y)] in
-        CmdA cmd rx ry axis flag sweep pt +++ valsToPath2_ counts_ vs__
+        valsToPath2_ counts_ vs__ |> Result.map (\rest -> CmdA cmd rx ry axis flag sweep pt +++ rest)
       else
-        Debug.crash "valsToPath2_"
+        Err "valsToPath2_"
     _ ->
-      Debug.crash "valsToPath2_"
+      Err "valsToPath2_"
 
 (+++) x (xs,stuff) = (x::xs, stuff)
 
@@ -342,17 +347,17 @@ strAPathCmds =
 
 -- Transform Commands --
 
-valsToTransform : List Val -> List TransformCmd
-valsToTransform = List.map valToTransformCmd
+valsToTransform : List Val -> Result String (List TransformCmd)
+valsToTransform = List.map valToTransformCmd >> Utils.projOk
 
-valToTransformCmd : Val -> TransformCmd
+valToTransformCmd : Val -> Result String TransformCmd
 valToTransformCmd v = case v.v_ of
   VList vs1 -> case List.map .v_ vs1 of
     (VBase (VString k) :: vs) ->
       case (k, vs) of
-        ("rotate",    [VConst _ n1, VConst _ n2, VConst _ n3]) -> Rot n1 n2 n3
-        ("scale",     [VConst _ n1, VConst _ n2])              -> Scale n1 n2
-        ("translate", [VConst _ n1, VConst _ n2])              -> Trans n1 n2
+        ("rotate",    [VConst _ n1, VConst _ n2, VConst _ n3]) -> Ok <| Rot n1 n2 n3
+        ("scale",     [VConst _ n1, VConst _ n2])              -> Ok <| Scale n1 n2
+        ("translate", [VConst _ n1, VConst _ n2])              -> Ok <| Trans n1 n2
         _ -> expectedButGot "a transform command" (strVal v)
     _     -> expectedButGot "a transform command" (strVal v)
   _       -> expectedButGot "a transform command" (strVal v)
@@ -373,7 +378,7 @@ strTransformCmd cmd = case cmd of
 -- Bounds --
 
 valToBounds vs = case List.map .v_ vs of
-  [VConst _ a, VConst _ b, VConst _ c, VConst _ d] -> (a,b,c,d)
+  [VConst _ a, VConst _ b, VConst _ c, VConst _ d] -> Ok (a,b,c,d)
   _                                                -> expectedButGot "bounds" (strVal (vList vs))
 
 strBounds (left,top,right,bot) =
@@ -500,29 +505,29 @@ compileAttr k v = (attr k) (strAVal v)
 
 toNum a = case a.av_ of
   ANum nt -> nt
-  _       -> expectedButGot "a number" (strAVal a)
+  _       -> expectedButGotCrash "a number" (strAVal a)
 
 toColorNum a = case a.av_ of
   AColorNum nt -> nt
-  _            -> expectedButGot "a color number" (strAVal a)
+  _            -> expectedButGotCrash "a color number" (strAVal a)
 
 toNumIsh a = case a.av_ of
   ANum nt           -> nt
   AColorNum (nt, _) -> nt
-  _       -> expectedButGot "a number or color number" (strAVal a)
+  _       -> expectedButGotCrash "a number or color number" (strAVal a)
 
 toPoints a = case a.av_ of
   APoints pts -> pts
-  _           -> expectedButGot "a list of points" (strAVal a)
+  _           -> expectedButGotCrash "a list of points" (strAVal a)
 
 toPath : AVal -> (List PathCmd, PathCounts)
 toPath a = case a.av_ of
   APath2 p -> p
-  _        -> expectedButGot "path commands" (strAVal a)
+  _        -> expectedButGotCrash "path commands" (strAVal a)
 
 toTransformRot a = case a.av_ of
   ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
-  _                         -> expectedButGot "a rotation transform" (strAVal a)
+  _                         -> expectedButGotCrash "a rotation transform" (strAVal a)
 
 
 -- these are for when the VTrace doesn't matter
