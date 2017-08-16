@@ -56,7 +56,7 @@ type EditorMode
 
 enabled : Bool
 enabled =
-  True
+  False
 
 hideIfEnabled : List a -> List a
 hideIfEnabled content =

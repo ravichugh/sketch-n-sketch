@@ -15,6 +15,7 @@ html:
 	cp Native/proseScroller.js ../build/out/
 	cp Native/dotGraph.js ../build/out/
 	cp Native/colorScheme.js ../build/out/
+	cp Native/spreadSheet.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
 	cp ../ace-builds/src/theme-chrome.js ../build/out/
@@ -63,6 +64,8 @@ loc:
     ColorNum.elm Keys.elm \
     DefaultIconTheme.elm \
     UserStudy.elm UserStudyLog.elm \
+    SpreadSheet.elm \
+    Native/spreadSheet.js Native/spreadSheet.css \
     Native/UserStudyLog.js Native/ImpureGoodies.js
 
 littleloc:
