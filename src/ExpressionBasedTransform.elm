@@ -19,7 +19,7 @@ import Blobs exposing (..)
 import LangTools exposing (..)
 import LangSimplify
 import Types
-import InterfaceModel exposing (Model, ReplicateKind(..))
+import InterfaceModel exposing (Model, ReplicateKind(..), justGetSvgOutput)
 import Utils
 import Keys
 
@@ -829,7 +829,7 @@ groupSelectedBlobs model (defs, blobs, f) =
 
 computeSelectedBlobsAndBounds : Model -> Dict Int (NumTr, NumTr, NumTr, NumTr)
 computeSelectedBlobsAndBounds model =
-  let tree = Tuple.second model.slate in
+  let tree = Tuple.second (justGetSvgOutput model) in
   Dict.map
      (\blobId nodeId ->
        undoGroupPadding <|
@@ -952,7 +952,8 @@ anchorOfSelectedFeatures selectedFeatures =
 
 groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
   let (anchorKind, anchorAttrs) =
-    LangSvg.justGetSvgNode "groupSelectedBlobsAround" anchorId model.slate in
+    LangSvg.justGetSvgNode "groupSelectedBlobsAround" anchorId (justGetSvgOutput model)
+  in
 
   -- TODO
   -- simple approach: anchor must be a primitive point
@@ -1009,7 +1010,7 @@ rewritePrimitivePointsOfSelectedBlobs model (nxBase, xBaseLoc)
   let (xAnchor, yAnchor) = ("xAnchor", "yAnchor") in
   let pointsOfSelectedBlobs =
      Dict.foldl
-       (\_ nodeId acc -> acc ++ ShapeWidgets.getPrimitivePointEquations model.slate nodeId)
+       (\_ nodeId acc -> acc ++ ShapeWidgets.getPrimitivePointEquations (justGetSvgOutput model) nodeId)
        [] model.selectedBlobs
   in
   let anchorDef =

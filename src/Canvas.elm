@@ -94,28 +94,32 @@ build wCanvas hCanvas model =
     (_, Live _, Nothing) -> model.tool == Cursor
     _                 -> False
   in
-  let (widgets, slate) =
-    case model.preview of
-      Just (_, Ok (val, widgets, slate)) -> (widgets, slate)
-      _                                  -> (model.widgets, model.slate)
-  in
-  let outputShapes = buildSvg (model, addZones) slate in
-  let newShape = drawNewShape model in
-  let svgWidgets =
-    case (model.mode, model.showGhosts) of
-      (Live _, True ) -> buildSvgWidgets wCanvas hCanvas widgets model
-      _               -> []
-  in
-  Svg.svg
-     [ Attr.id "outputCanvas"
-     , onMouseDown msgMouseClickCanvas
-     , Attr.style
-         [ ("width", pixels wCanvas)
-         , ("height", pixels hCanvas)
-         ]
-     ]
-     ([outputShapes] ++ newShape ++ svgWidgets)
+  case model.slate of
+    LittleSvg svgTree ->
 
+      let (widgets, slate) =
+        case model.preview of
+          Just (_, Ok (val, widgets, slate)) -> (widgets, slate)
+          _                                  -> (model.widgets, svgTree)
+      in
+      let outputShapes = buildSvg (model, addZones) slate in
+      let newShape = drawNewShape model in
+      let svgWidgets =
+        case (model.mode, model.showGhosts) of
+          (Live _, True ) -> buildSvgWidgets wCanvas hCanvas widgets model
+          _               -> []
+      in
+      Svg.svg
+         [ Attr.id "outputCanvas"
+         , onMouseDown msgMouseClickCanvas
+         , Attr.style
+             [ ("width", pixels wCanvas)
+             , ("height", pixels hCanvas)
+             ]
+         ]
+         ([outputShapes] ++ newShape ++ svgWidgets)
+
+    LittleSheet _ -> Html.div [] []
 
 --------------------------------------------------------------------------------
 -- Compiling to Svg
@@ -1057,7 +1061,11 @@ zoneDelete_ id shape x y transform =
       (20, 20, "silver", "2") in
   let evt =
     let foo old =
-      { old | slate = Tuple.mapSecond (Dict.insert id LangSvg.dummySvgNode) old.slate }
+          let slate = LittleSvg
+                      <| Tuple.mapSecond (Dict.insert id LangSvg.dummySvgNode)
+                      <| justGetSvgOutput old
+          in
+      { old | slate = slate }
     in
     onMouseDown (Msg "Delete..." foo) in
   let lines =

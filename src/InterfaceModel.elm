@@ -89,6 +89,15 @@ type CodeToolsMenuMode
   | CTActive
   | CTDisabled
 
+type OutputType
+  = LittleSvg RootedIndexedTree
+  | LittleSheet (List (List Val))
+
+justGetSvgOutput model =
+  case model.slate of
+    LittleSvg rit -> rit
+    _             -> Debug.crash "justGetSvgOutput"
+                     
 type alias Model =
   { code : Code
   , lastRunCode : Code
@@ -104,7 +113,7 @@ type alias Model =
   , movieDuration : Float
   , movieContinue : Bool
   , runAnimation : Bool
-  , slate : RootedIndexedTree
+  , slate : OutputType
   , widgets : Widgets
   , mode : Mode
   , mouseMode : MouseMode
@@ -953,7 +962,7 @@ initModel =
     , movieDuration = movieDuration
     , movieContinue = movieContinue
     , runAnimation  = True
-    , slate         = slate
+    , slate         = LittleSvg slate
     , widgets       = ws
     , mode          = liveModeInfo
     , mouseMode     = MouseNothing

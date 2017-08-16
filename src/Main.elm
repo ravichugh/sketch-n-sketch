@@ -9,6 +9,7 @@ import FileHandler
 import DeucePopupPanelInfo
 import ColorScheme
 -- import DependenceGraph
+import SpreadSheet
 
 import UserStudyLog
 import UserStudy
@@ -88,4 +89,5 @@ subscriptions model =
         Controller.msgReceiveDeucePopupPanelInfo
     -- , DependenceGraph.receiveImage Controller.msgReceiveDotImage
     , Time.every Time.second Controller.msgUserStudyEverySecondTick
+    , SpreadSheet.updateCell Controller.msgUpdateCell
     ]
