@@ -25,6 +25,7 @@ makeCol id name field =
   in
     Encode.encode 0 col
 
+
 makeRow header data =
   let row = Encode.object
             <| Utils.zip
