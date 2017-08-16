@@ -877,6 +877,8 @@ operator =
                 |. spacedKeyword "remove"
             , succeed DebugLog
                 |. spacedKeyword "debug"
+            , succeed Table
+                |. spacedKeyword "Table"
             ]
     in
       inContext "operator" <|

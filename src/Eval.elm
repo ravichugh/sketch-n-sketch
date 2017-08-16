@@ -375,6 +375,19 @@ evalOp env bt opWithInfo es =
           ToStr      -> case vs of
             [val] -> VBase (VString (strVal val)) |> emptyVTraceOk
             _     -> error ()
+          Table ->
+            let getList v =
+                  case v.v_ of
+                    VList val -> Ok val
+                    _         -> error ()
+            in
+            case List.map .v_ vs of
+              [VList vlist] -> 
+                let vss = Utils.projOk <| List.map getList vlist in
+                case vss of
+                  Ok vss -> VSheet vss |> emptyVTraceOk
+                  _      -> error ()
+              _                 -> error ()
       in
       let newWidgets =
         case (op, args) of
