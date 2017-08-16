@@ -1998,6 +1998,7 @@ numericLetBoundIdentifiers program =
           DictGet    -> False
           DictRemove -> False
           DictInsert -> False
+          Table      -> List.any recurse operands
 
       EList _ _ _ _ _           -> False
       EIf _ _ thenExp elseExp _ -> recurse thenExp && recurse elseExp

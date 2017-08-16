@@ -72,6 +72,7 @@ module InterfaceController exposing
   , msgResetInterfaceLayout
   , msgReceiveDeucePopupPanelInfo
   , msgSetColorScheme
+  , msgUpdateCell
   )
 
 import Updatable exposing (Updatable)
@@ -116,6 +117,7 @@ import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
+import SpreadSheet
 
 import ImpureGoodies
 
@@ -362,7 +364,7 @@ onClickPrimaryZone i k z old =
           else Dict.empty
       in
       let maybeBlobId =
-        case Dict.get i (Tuple.second old.slate) of
+        case Dict.get i (Tuple.second <| justGetSvgOutput old) of
           Just (LangSvg.SvgNode _ l _) -> LangSvg.maybeFindBlobId l
           _                            -> Debug.crash "onClickPrimaryZone"
       in
@@ -415,7 +417,7 @@ onMouseDrag lastPosition newPosition old =
               , lastRunCode = newCode
               , inputExp = newExp
               , inputVal = newVal
-              , slate = newSlate
+              , slate = LittleSvg newSlate
               , widgets = newWidgets
               , codeBoxInfo = codeBoxInfo_
               , mouseMode = MouseDragZone zoneKey (Just dragInfo_)
@@ -522,9 +524,21 @@ tryRun old =
 
           Eval.doEval Eval.initEnv rewrittenE |>
           Result.andThen (\((newVal,ws),finalEnv) ->
-            LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
-            |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
-              let newCode = unparse e in -- unnecessary, if parse/unparse were inverses
+            let newCode = unparse e in -- unnecessary, if parse/unparse were inverses
+            let modelWithNewCodeExpVal =
+            { old | inputExp      = e
+                  , inputVal      = newVal
+                  , code          = newCode
+                  , lastRunCode   = newCode
+                  }
+            in
+            case newVal.v_ of
+              VSheet vss -> Ok { modelWithNewCodeExpVal
+                                 | slate = LittleSheet vss
+                               }
+              _          ->
+                LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
+                  |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
               let lambdaTools_ =
                 -- TODO should put program into Model
                 -- TODO actually, ideally not. caching introduces bugs
@@ -532,20 +546,19 @@ tryRun old =
                 Draw.lambdaToolOptionsOf program ++ initModel.lambdaTools
               in
               let new =
-                loadLambdaToolIcons finalEnv { old | lambdaTools = lambdaTools_ }
+                loadLambdaToolIcons finalEnv <|
+                                      { modelWithNewCodeExpVal
+                                        | lambdaTools = lambdaTools_
+                                      }
               in
               let new_ =
-                { new | inputExp      = e
-                      , inputVal      = newVal
-                      , code          = newCode
-                      , lastRunCode   = newCode
-                      , slideCount    = newSlideCount
+                { new | slideCount    = newSlideCount
                       , movieCount    = newMovieCount
                       , movieTime     = 0
                       , movieDuration = newMovieDuration
                       , movieContinue = newMovieContinue
                       , runAnimation  = newMovieDuration > 0
-                      , slate         = newSlate
+                      , slate         = LittleSvg newSlate
                       , widgets       = ws
                       , history       = addToHistory newCode old.history
                       , caption       = Nothing
@@ -767,7 +780,7 @@ issueCommand (Msg kind _) oldModel newModel =
     "Export SVG" ->
       FileHandler.download
         { filename = (Model.prettyFilename newModel) ++ ".svg"
-        , text = LangSvg.printSvg newModel.showGhosts newModel.slate
+        , text = LangSvg.printSvg newModel.showGhosts (justGetSvgOutput newModel)
         }
 
     "Import Code" ->
@@ -792,13 +805,14 @@ issueCommand (Msg kind _) oldModel newModel =
       Cmd.batch
         [ if kind == "Update Font Size" then
             AceCodeBox.updateFontSize newModel
-          else if
+          else if            
             newModel.code /= oldModel.code ||
             newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
             newModel.preview /= oldModel.preview ||
             kind == "Turn Off Caption" ||
             kind == "Mouse Enter CodeBox" ||
-            kind == "Mouse Leave CodeBox"
+            kind == "Mouse Leave CodeBox" ||
+            kind == "Run"
              {- ||
              String.startsWith "Key Up" kind ||
              String.startsWith "Key Down" kind
@@ -807,7 +821,13 @@ issueCommand (Msg kind _) oldModel newModel =
                -- and onMouseLeave from point/crosshair zones still leave
                -- stale yellow highlights.
           then
-            AceCodeBox.display newModel
+            let _ = Debug.log "kind" kind in
+            case newModel.slate of
+              LittleSheet vss -> Cmd.batch
+                                 [ AceCodeBox.display newModel
+                                 , SpreadSheet.render (SpreadSheet.valToSpreadSheet vss)
+                                 ]
+              _               -> AceCodeBox.display newModel
           else if kind == "Drag Layout Widget Trigger" then
             -- TODO: only want to do this for resize code box widget.
             -- and need to resize during and after the MouseDragLayout trigger.
@@ -1167,7 +1187,7 @@ msgCleanCode = Msg "Clean Code" <| \old ->
 
 msgDigHole = Msg "Dig Hole" <| \old ->
   let newExp =
-    ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.widgets old.syncOptions
+    ValueBasedTransform.digHole old.inputExp old.selectedFeatures (justGetSvgOutput old) old.widgets old.syncOptions
   in
   runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
     debugLog "new model" <|
@@ -1175,7 +1195,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
             , inputExp         = reparsed
             , inputVal         = newVal
             , history          = addToHistory newCode old.history
-            , slate            = newSlate
+            , slate            = LittleSvg newSlate
             , widgets          = newWidgets
             , preview          = Nothing
               -- we already ran it successfully once so it shouldn't crash the second time
@@ -1270,7 +1290,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
       let newer =
       { new | inputExp         = reparsed -- newExp
             , inputVal         = newVal
-            , slate            = newSlate
+            , slate            = LittleSvg newSlate
             , widgets          = newWidgets
             , preview          = Nothing
             , selectedFeatures = Set.empty
@@ -1341,11 +1361,11 @@ msgSetOutputLive = Msg "Set Output Live" <| \old ->
   { old | mode = refreshMode_ old }
 
 msgSetOutputPrint = Msg "Set Output Print" <| \old ->
-  { old | mode = Print (LangSvg.printSvg old.showGhosts old.slate) }
+  { old | mode = Print (LangSvg.printSvg old.showGhosts (justGetSvgOutput old)) }
 
 msgToggleOutput = Msg "Toggle Output" <| \old ->
   let m = case old.mode of
-    Live _  -> Print (LangSvg.printSvg old.showGhosts old.slate)
+    Live _  -> Print (LangSvg.printSvg old.showGhosts <| justGetSvgOutput old)
     Print _ -> let showScopeGraph = False in
                if showScopeGraph
                  then PrintScopeGraph Nothing
@@ -1397,7 +1417,7 @@ msgRedraw = Msg "Redraw" <| \old ->
             , movieCount    = newMovieCount
             , movieDuration = newMovieDuration
             , movieContinue = newMovieContinue
-            , slate         = newSlate }
+            , slate         = LittleSvg newSlate }
     Err s -> { old | errorBox = Just s }
 
 msgTickDelta deltaT = Msg ("Tick Delta " ++ toString deltaT) <| \old ->
@@ -1678,7 +1698,7 @@ handleNew template = (\old ->
                     , movieDuration = movieDuration
                     , movieContinue = movieContinue
                     , runAnimation  = movieDuration > 0
-                    , slate         = slate
+                    , slate         = LittleSvg slate
                     , widgets       = ws
                     , codeBoxInfo   = updateCodeBoxInfo ati old
                     , filename      = Model.bufferName
@@ -1978,7 +1998,7 @@ msgSetGhostsShown shown =
       newMode =
         case old.mode of
           Print _ ->
-            Print (LangSvg.printSvg shown old.slate)
+            Print (LangSvg.printSvg shown <| justGetSvgOutput old)
           _ ->
             old.mode
     in
@@ -2399,3 +2419,49 @@ msgSetColorScheme : ColorScheme -> Msg
 msgSetColorScheme colorScheme =
   Msg "Set Color Scheme" <| \old ->
     { old | colorScheme = colorScheme }
+
+--------------------------------------------------
+--spreadsheet update
+
+makeChange : Num -> Val -> Exp -> Exp
+makeChange newNum oldVal exp =
+  case oldVal.v_ of
+    VConst _ (_, trace) ->
+      let locId =
+            case trace of
+              TrLoc loc -> Just <| Utils.fst3 loc
+              _         -> let _ = Debug.log "TODO: support op" "" in
+                           Nothing
+      in
+      let subst = Maybe.map
+                  (\x -> Dict.insert x newNum <| FastParser.substOf exp)
+                  locId
+      in
+      case subst of
+        Just subst -> applyLocSubst subst exp
+        _          -> exp
+    _                 -> let _ = Debug.log "not a number" "" in
+                         exp
+      
+msgUpdateCell cellInfo =
+  Msg "updateCell" <| \m ->
+    let (row, col) = cellInfo.pos in
+    case m.slate of
+      LittleSheet vss ->
+        let littleVal = Maybe.andThen (Utils.maybeGeti0 col)
+                        <| Utils.maybeGeti0 (row + 1) vss
+        in
+        let newNum = String.toFloat cellInfo.value in
+        case littleVal of
+          Just val ->
+            case newNum of
+              Ok newNum -> let newExp = makeChange newNum val m.inputExp in
+                             { m | code = unparse newExp
+                                 , inputExp = newExp
+                             }
+              _           -> let _ = Debug.log "not a num" "" in
+                             m
+          _        -> let _ = Debug.log "index of out range in sheet" "" in
+                      m
+      _  -> let _ = Debug.log "not spreadsheet" in
+            m
