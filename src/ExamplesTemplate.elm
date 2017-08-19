@@ -196,6 +196,8 @@ LITTLE_TO_ELM task_lambda
 
 --------------------------------------------------------------------------------
 
+LITTLE_TO_ELM spreadsheet_test
+
 generalCategory =
   ( "General"
   , [ makeExample "BLANK" blank
@@ -383,6 +385,9 @@ deuceUserStudyCategory =
     ]
   )
 
+sheetCategory =
+  ("Sheets", [ makeExample "simple sheet" spreadsheet_test ])
+  
 templateCategories =
   [ generalCategory
   , deuceCategory
@@ -391,6 +396,7 @@ templateCategories =
   , flagCategory
   , otherCategory
   , deuceUserStudyCategory
+  , sheetCategory
   ]
 
 list =
