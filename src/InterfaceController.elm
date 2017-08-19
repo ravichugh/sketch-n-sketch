@@ -820,11 +820,10 @@ issueCommand (Msg kind _) oldModel newModel =
                -- and onMouseLeave from point/crosshair zones still leave
                -- stale yellow highlights.
           then
-            let _ = Debug.log "kind" kind in
             case newModel.slate of
               LittleSheet vss -> Cmd.batch
-                                 [ AceCodeBox.display newModel
-                                 , SpreadSheet.render (SpreadSheet.valToSpreadSheet vss)
+                                 [ SpreadSheet.render (SpreadSheet.valToSpreadSheet vss)
+                                 , AceCodeBox.display newModel
                                  ]
               _               -> AceCodeBox.display newModel
           else if kind == "Drag Layout Widget Trigger" then
@@ -1675,14 +1674,23 @@ handleNew template = (\old ->
     Nothing -> let _ = Debug.log "WARN: not found:" template in old
     Just (_, thunk) ->
       let {e,v,ws,ati} = thunk () in
+      let code = unparse e in
+      case v.v_ of
+        VSheet vss -> { old | inputExp    = e
+                            , inputVal    = v
+                            , code        = code
+                            , lastRunCode = code
+                            , slate       = LittleSheet vss
+                      } |> closeDialogBox New
+        _          ->
       let so = Sync.syncOptionsOf old.syncOptions e in
       let m =
         Utils.fromOk "SelectExample mkLive_" <|
           mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws)
       in
+
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
-        let code = unparse e in
         { initModel | inputExp      = e
                     , inputVal      = v
                     , code          = code
@@ -2432,9 +2440,11 @@ msgUpdateCell cellInfo =
           Just val ->
             case newNum of
               Ok newNum -> let newExp = makeChange newNum val m.inputExp in
-                             { m | code = unparse newExp
-                                 , inputExp = newExp
-                             }
+                           let newModel = { m | code = unparse newExp
+                                          , inputExp = newExp
+                                          }
+                           in
+                           upstateRun (resetDeuceState newModel)
               _           -> let _ = Debug.log "not a num" "" in
                              m
           _        -> let _ = Debug.log "index of out range in sheet" "" in
