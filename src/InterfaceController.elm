@@ -825,6 +825,7 @@ issueCommand (Msg kind _) oldModel newModel =
               LittleSheet vss -> Cmd.batch
                                  [ SpreadSheet.render (SpreadSheet.valToSpreadSheet vss)
                                  , AceCodeBox.display newModel
+                                 ]
               _               -> AceCodeBox.display newModel
           else if kind == "Drag Layout Widget Trigger" then
             -- TODO: only want to do this for resize code box widget.
