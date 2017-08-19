@@ -5700,6 +5700,16 @@ task_lambda =
 
 --------------------------------------------------------------------------------
 
+spreadsheet_test =
+ """(Table
+  [
+    [\"A\" \"B\"]
+    [1 2]
+    [3 4]
+  ])
+"""
+
+
 generalCategory =
   ( "General"
   , [ makeExample "BLANK" blank
@@ -5887,6 +5897,9 @@ deuceUserStudyCategory =
     ]
   )
 
+sheetCategory =
+  ("Sheets", [ makeExample "simple sheet" spreadsheet_test ])
+  
 templateCategories =
   [ generalCategory
   , deuceCategory
@@ -5895,6 +5908,7 @@ templateCategories =
   , flagCategory
   , otherCategory
   , deuceUserStudyCategory
+  , sheetCategory
   ]
 
 list =
