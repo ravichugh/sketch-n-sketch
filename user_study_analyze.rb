@@ -1,5 +1,62 @@
 require "irb"
 require "json"
+require "csv"
+
+ROOT             = File.dirname(__FILE__)
+LOGS_DIR         = ROOT + "/user_study_logs"
+SURVEYS_DIR      = ROOT + "/user_study_surveys"
+MOUSE_USAGE_FILE = ROOT + "/participant_mouse_usage.txt"
+TASKS_CSV        = ROOT + "/tasks.csv"
+
+csv_file = open(TASKS_CSV, "w")
+
+participant_indices = Dir.entries(LOGS_DIR).join("\n").scan(/participant_(\d+)\.log/).flatten.map(&:to_i).sort
+
+class Array
+  def mean
+    sum / size.to_f
+  end
+
+  def variance
+    mean = self.mean
+    map { |x| (x - mean)**2.0 }.sum / (size - 1.0)
+  end
+
+  def std_dev
+    Math.sqrt(variance)
+  end
+
+  def std_error
+    std_dev / Math.sqrt(size)
+  end
+
+  def twice_std_error
+    std_error * 2.0
+  end
+
+  def rough_confidence_interval
+    mean    = self.mean
+    std_dev = self.std_dev
+    (mean-twice_std_error..mean+twice_std_error)
+  end
+
+  def bernoulli_mean
+    map do |x|
+      if x == true || x.to_s.downcase == "yes"
+        1.0
+      elsif x == false || x.to_s.downcase == "no"
+        0.0
+      end
+    end.mean
+  end
+
+  # https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
+  def bernoulli_rough_confidence_interval
+    p = bernoulli_mean
+    se = Math.sqrt( p*(1.0-p) / size )
+    (p-2*se..p+2*se)
+  end
+end
 
 class Event
   attr_reader :event_number, :time, :name, :info
@@ -623,11 +680,6 @@ class Event
   end
 end
 
-ROOT     = File.dirname(__FILE__)
-LOGS_DIR = ROOT + "/user_study_logs"
-
-participant_indices = Dir.entries(LOGS_DIR).join("\n").scan(/participant_(\d+)\.log/).flatten.map(&:to_i).sort
-
 def split_into_tasks(events)
   events.
     slice_before(&:next_step_task?).
@@ -874,47 +926,34 @@ end
 # - Drag Panel
 # -
 
-puts [
-  "Participant Number",
-  "Task Number",
-  "Task",
-  "Treatment",
-  "All Events Logged?",
-  "Completed?",
-  "Timeout?",
-  "Gross Time",
-  "Interaction Time",
-  "#Text Select Interactions Started",
-  "Text Select Interacting Time",
-  "#Text Select Refactorings",
-  "#Single Arg Text Select Refactorings",
-  "#Multi Arg Text Select Refactorings",
-  "#Box Select Interactions Started",
-  "Box Select Interacting Time",
-  "#Box Select Refactorings",
-  "#Single Arg Box Select Refactorings",
-  "#Multi Arg Box Select Refactorings",
-  "#Interactions Started",
-  "Interacting Time",
-  "#Refactorings",
-  "#Undo",
-  "#Redo",
-  "Invocations",
-].join("\t")
+class Task
+  attr_reader :participant_i, :events
 
-participant_indices.each do |participant_i|
-  events = File.read("#{LOGS_DIR}/participant_#{participant_i}.log").split("\n").map { |line| Event.new(line) }.sort_by(&:sort_key) # Events are sent async and are occasionally slightly out of order
+  attr_accessor :number
 
-  tasks = split_into_tasks(events)
+  def initialize(participant_i, used_mouse, events)
+    @participant_i = participant_i
+    @used_mouse    = used_mouse
+    @events        = events
+  end
 
-  task_num = 0
+  def used_mouse?
+    @used_mouse
+  end
 
-  tasks.each do |events|
-    task_name = events[0].next_step_task_name
-    treatment = events[0].next_step_task_treatment
+  def name
+    events[0].next_step_task_name
+  end
 
-    next if treatment == "ReadOnly"
+  def second_encounter?
+    (5..8).cover? number
+  end
 
+  def treatment
+    events[0].next_step_task_treatment
+  end
+
+  def events_intact?
     events_intact = true
 
     last_event_number = nil
@@ -926,74 +965,600 @@ participant_indices.each do |participant_i|
       last_event_number = event.event_number
     end
 
-    gross_start_time = events[0].time
-    gross_end_time   = events[-1].time
-    gross_time = gross_end_time - gross_start_time
+    events_intact
+  end
 
-    next if gross_time < 10.0 && events.none?(&:choose_deuce_exp?) # Skipping tasks
+  def gross_start_time
+    events[0].time
+  end
 
-    task_num += 1
+  def gross_end_time
+    events[-1].time
+  end
 
-    # These should be mutually exclusive (TODO: check)
-    text_select_interactions = split_into_text_select_interactions(events)
-    box_select_interactions = split_into_box_select_interactions(events)
-    all_interactions = text_select_interactions + box_select_interactions
-    all_interactions.sort_by!(&:begin)
-    if all_interactions.size == 0
-      interaction_start_time = 0
-      interaction_end_time = 0
-    else
-      interaction_start_time = all_interactions.first.begin
-      interaction_end_time   = all_interactions.last.end
-    end
-    viewing_dialog_interactions = split_into_viewing_dialog_interactions(events)
-    text_select_interacting_time = (TimeRanges.new(text_select_interactions.map(&:time_range)) - TimeRanges.new(viewing_dialog_interactions.map(&:time_range))).duration
-    box_select_interacting_time  = (TimeRanges.new(box_select_interactions.map(&:time_range))  - TimeRanges.new(viewing_dialog_interactions.map(&:time_range))).duration
-    interacting_time = text_select_interacting_time + box_select_interacting_time
-    invocations =
-      events.
-        flat_map do |event|
-          if event.undo?
-            ["Undo"]
-          elsif event.redo?
-            ["Redo"]
-          elsif event.choose_deuce_exp?
-            [event.deuce_exp_chosen]
-          else
-            []
-          end
+  def gross_time
+    gross_end_time - gross_start_time
+  end
+
+  # These next two should be mutually exclusive (TODO: check)
+
+  def text_select_interactions
+    @text_select_interactions ||= split_into_text_select_interactions(events)
+  end
+
+  def box_select_interactions
+    @box_select_interactions ||= split_into_box_select_interactions(events)
+  end
+
+  def all_interactions
+    @all_interactions ||= (text_select_interactions + box_select_interactions).sort_by(&:begin)
+  end
+
+  def interaction_start_time
+    all_interactions.any? ? all_interactions.first.begin : 0
+  end
+
+  def interaction_end_time
+    all_interactions.any? ? all_interactions.last.end : 0
+  end
+
+  def interaction_time
+    interaction_end_time - interaction_start_time
+  end
+
+  def viewing_dialog_interactions
+    @viewing_dialog_interactions ||= split_into_viewing_dialog_interactions(events)
+  end
+
+  def viewing_dialog_time_ranges
+    TimeRanges.new(viewing_dialog_interactions.map(&:time_range))
+  end
+
+  def text_select_interacting_time
+    (TimeRanges.new(text_select_interactions.map(&:time_range)) - viewing_dialog_time_ranges).duration
+  end
+
+  def box_select_interacting_time
+    (TimeRanges.new(box_select_interactions.map(&:time_range)) - viewing_dialog_time_ranges).duration
+  end
+
+  def interacting_time
+    text_select_interacting_time + box_select_interacting_time
+  end
+
+  def invocations
+    events.
+      flat_map do |event|
+        if event.undo?
+          ["Undo"]
+        elsif event.redo?
+          ["Redo"]
+        elsif event.choose_deuce_exp?
+          [event.deuce_exp_chosen]
+        else
+          []
         end
+      end
+  end
 
-    puts [
+  def completed?
+    events.map(&:code_annotations_count).compact.last == 0
+  end
+
+  def timeout?
+    events.any?(&:task_timeout?)
+  end
+
+  def refactorings_count
+    events.count(&:choose_deuce_exp?)
+  end
+
+  def text_select_refactorings
+    text_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?)
+  end
+
+  def single_arg_text_select_refactorings
+    text_select_refactorings.select { |e| e.deuce_selections_count == 1 }
+  end
+
+  def multi_arg_text_select_refactorings
+    text_select_refactorings.select { |e| e.deuce_selections_count >= 2 }
+  end
+
+  def box_select_refactorings
+    box_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?)
+  end
+
+  def single_arg_box_select_refactorings
+    box_select_refactorings.select { |e| e.deuce_selections_count == 1 }
+  end
+
+  def multi_arg_box_select_refactorings
+    box_select_refactorings.select { |e| e.deuce_selections_count >= 2 }
+  end
+
+  def undo_count
+    events.count(&:undo?)
+  end
+
+  def redo_count
+    events.count(&:redo?)
+  end
+
+  def to_row
+    [
       participant_i,
-      task_num,
-      task_name,
+      used_mouse? ? "yes" : "no",
+      number,
+      second_encounter? ? "yes" : "no",
+      name,
       treatment,
-      events_intact ? "yes" : "no",
-      events.map(&:code_annotations_count).compact.last == 0 ? "yes" : "no",
-      events.any?(&:task_timeout?) ? "yes" : "no",
+      events_intact? ? "yes" : "no",
+      completed? ? "yes" : "no",
+      timeout? ? "yes" : "no",
       gross_time,
-      interaction_end_time - interaction_start_time,
+      interaction_time,
       text_select_interactions.count,
       text_select_interacting_time,
-      text_select_interactions.flat_map(&:events).count(&:choose_deuce_exp?),
-      text_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count == 1 },
-      text_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count >= 2 },
+      text_select_refactorings.count,
+      single_arg_text_select_refactorings.count,
+      multi_arg_text_select_refactorings.count,
       box_select_interactions.count,
       box_select_interacting_time,
-      box_select_interactions.flat_map(&:events).count(&:choose_deuce_exp?),
-      box_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count == 1 },
-      box_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count >= 2 },
+      box_select_refactorings.count,
+      single_arg_box_select_refactorings.count,
+      multi_arg_box_select_refactorings.count,
       all_interactions.count,
       interacting_time,
       invocations.size - invocations.grep(/^(Undo|Redo)$/).size,
-      events.count(&:undo?),
-      events.count(&:redo?),
+      undo_count,
+      redo_count,
       invocations.join("; "),
-    ].join("\t")
+    ]
+  end
+end
+
+# {
+#   "experience": "3",
+#   "functional_experience": "2",
+#   "other_refactoring_tools": "yes",
+#   "other_refactoring_tools_explanation": "Java and IntelliJ, once every few weeks for about 8 months.",
+#   "prior_sns": "no",
+#   "prior_sns_code_tools": "no",
+#   "prior_sns_explanation": "",
+#   "one_rectangle_mode_comparison": "2",
+#   "two_circles_mode_comparison": "2",
+#   "three_rectangles_mode_comparison": "2",
+#   "target_icon_mode_comparison": "-1",
+#   "mode_comparison_explanation": "Text select mode is easier when selecting individual variables, like when using the rename tool. Box select is better for selecting blocks of text and selecting many variables at once.",
+#   "sus_1": "3",
+#   "sus_2": "1",
+#   "sus_3": "3",
+#   "sus_4": "2",
+#   "sus_5": "4",
+#   "sus_6": "1",
+#   "sus_7": "4",
+#   "sus_8": "1",
+#   "sus_9": "2",
+#   "sus_10": "1",
+#   "four_squares_explanation": "Not for selecting many variables at once (same issue as lambda icon task)",
+#   "lambda_icon_explanation": "For the most part yes, but it was kind of annoying to select everything necessary for Make Equal By Copying. ",
+#   "computer": "personal",
+#   "improvements": "A feature that would automatically try to choose the best place (one that doesn't cover much code) for the toolbox to pop up upon right click/box select",
+#   "comments": "",
+#   "desired_other_domains": "",
+#   "submission_time": "2017-08-15 09:31:49 -0500"
+# }
+class Survey
+  attr_reader :json
+
+  def initialize(json_str)
+    @json = JSON.parse(json_str)
+  end
+
+  def years_experience
+    Float(json["experience"])
+  end
+
+  def years_functional_experience
+    Float(json["functional_experience"])
+  end
+
+  def other_refactoring_tools
+    json["prior_sns"]
+  end
+
+  def prior_sns
+    json["prior_sns"]
+  end
+
+  def prior_sns_code_tools
+    json["prior_sns_code_tools"]
+  end
+
+  def one_rectangle_mode_comparison
+    json["one_rectangle_mode_comparison"] && json["one_rectangle_mode_comparison"].to_i
+  end
+
+  def two_circles_mode_comparison
+    json["two_circles_mode_comparison"] && json["two_circles_mode_comparison"].to_i
+  end
+
+  def three_rectangles_mode_comparison
+    json["three_rectangles_mode_comparison"] && json["three_rectangles_mode_comparison"].to_i
+  end
+
+  def target_icon_mode_comparison
+    json["target_icon_mode_comparison"] && json["target_icon_mode_comparison"].to_i
+  end
+
+  def sus_score
+    sus_scores =
+      (1..10).map do |i|
+        begin
+          i%2 == 1 ? Integer(json["sus_#{i}"]) - 1 : 5 - Integer(json["sus_#{i}"])
+        rescue
+          nil
+        end
+      end
+
+    # If at least half of the SUS is completed, use it. Fill in blanks with middle value 3.
+    # (Per Brooke: "If a respondent feels that they cannot respond to a particular item, they should mark the centre point of the scale.")
+    if sus_scores.compact.size >= 5
+      sus_scores.map! { |x| x.nil? ? 3-1 : x }
+      sus_scores.sum * 2.5
+    else
+      nil
+    end
+  end
+
+  def computer
+    json["computer"]
+  end
+end
+
+headers = [
+  "participantNumber",
+  "usedMouse",
+  "taskNumber",
+  "secondEncounter",
+  "task",
+  "treatment",
+  "allEventsLogged",
+  "completed",
+  "timedOut",
+  "grossTime",
+  "interactionTime",
+  "textSelectInteractionsStartedCount",
+  "textSelectInteractingTime",
+  "textSelectRefactoringsCount",
+  "singleArgTextSelectRefactoringsCount",
+  "multiArgTextSelectRefactoringsCount",
+  "boxSelectInteractionsStartedCount",
+  "boxSelectInteractingTime",
+  "boxSelectRefactoringsCount",
+  "singleArgBoxSelectRefactoringsCount",
+  "multiArgBoxSelectRefactoringsCount",
+  "interactionsStartedCount",
+  "interactingTime",
+  "refactoringsCount",
+  "undoCount",
+  "redoCount",
+  "invocations",
+]
+
+puts headers.join("\t")
+csv_file.print(headers.to_csv)
+
+all_surveys = []
+all_tasks   = []
+mouse_usage = File.read(MOUSE_USAGE_FILE).split.map { |word| word == "Mouse" }
+
+participant_indices.each do |participant_i|
+  next if participant_i >= 100
+
+  survey = Survey.new(File.read("#{SURVEYS_DIR}/participant_#{participant_i}.json"))
+  all_surveys << survey
+
+  events = File.read("#{LOGS_DIR}/participant_#{participant_i}.log").split("\n").map { |line| Event.new(line) }.sort_by(&:sort_key) # Events are sent async and are occasionally slightly out of order
+
+  tasks = split_into_tasks(events)
+
+  task_num = 0
+
+  used_mouse = mouse_usage[participant_i-1]
+
+  tasks.each do |events|
+    task = Task.new(participant_i, used_mouse, events)
+    # task_name = events[0].next_step_task_name
+    # treatment = events[0].next_step_task_treatment
+
+    next if task.treatment == "ReadOnly"
+
+    # events_intact = true
+    #
+    # last_event_number = nil
+    # events.each do |event|
+    #   if last_event_number && event.event_number != last_event_number + 1
+    #     events_intact = false
+    #     # puts "Participant #{participant_i}: event #{event.event_number} comes right after #{last_event_number}"
+    #   end
+    #   last_event_number = event.event_number
+    # end
+    #
+    # gross_start_time = events[0].time
+    # gross_end_time   = events[-1].time
+    # gross_time = gross_end_time - gross_start_time
+
+    next if task.gross_time < 30.0 && task.events.none?(&:choose_deuce_exp?) # Skipping tasks because of crash
+
+    task_num += 1
+
+    task.number = task_num
+
+    next if participant_i == 3 && task.name == "Target Icon" && task.treatment == "TextSelectOnly"  # Crash
+    next if participant_i == 7 && task.name == "One Rectangle" && task.treatment == "BoxSelectOnly" # Crash
+
+    all_tasks << task
+
+    # # These should be mutually exclusive (TODO: check)
+    # text_select_interactions = split_into_text_select_interactions(events)
+    # box_select_interactions = split_into_box_select_interactions(events)
+    # all_interactions = text_select_interactions + box_select_interactions
+    # all_interactions.sort_by!(&:begin)
+    # if all_interactions.size == 0
+    #   interaction_start_time = 0
+    #   interaction_end_time = 0
+    # else
+    #   interaction_start_time = all_interactions.first.begin
+    #   interaction_end_time   = all_interactions.last.end
+    # end
+    # viewing_dialog_interactions = split_into_viewing_dialog_interactions(events)
+    # text_select_interacting_time = (TimeRanges.new(text_select_interactions.map(&:time_range)) - TimeRanges.new(viewing_dialog_interactions.map(&:time_range))).duration
+    # box_select_interacting_time  = (TimeRanges.new(box_select_interactions.map(&:time_range))  - TimeRanges.new(viewing_dialog_interactions.map(&:time_range))).duration
+    # interacting_time = text_select_interacting_time + box_select_interacting_time
+    # invocations =
+    #   events.
+    #     flat_map do |event|
+    #       if event.undo?
+    #         ["Undo"]
+    #       elsif event.redo?
+    #         ["Redo"]
+    #       elsif event.choose_deuce_exp?
+    #         [event.deuce_exp_chosen]
+    #       else
+    #         []
+    #       end
+    #     end
+
+    # events.each do |event|
+    #   if viewing_dialog_interactions.any? {|interaction| interaction.events.first == event}
+    #     puts "*** VIEWING DIALOG INTERACTION BEGIN ***"
+    #   end
+    #   if text_select_interactions.any? {|interaction| interaction.events.first == event}
+    #     puts "*** TEXT SELECT INTERACTION BEGIN ***"
+    #   end
+    #   if box_select_interactions.any? {|interaction| interaction.events.first == event}
+    #     puts "*** BOX SELECT INTERACTION BEGIN ***"
+    #   end
+    #
+    #   puts event.to_tsv
+    #
+    #   if box_select_interactions.any? {|interaction| interaction.events.last == event}
+    #     puts "*** BOX SELECT INTERACTION END ***"
+    #   end
+    #   if text_select_interactions.any? {|interaction| interaction.events.last == event}
+    #     puts "*** TEXT SELECT INTERACTION END ***"
+    #   end
+    #   if viewing_dialog_interactions.any? {|interaction| interaction.events.last == event}
+    #     puts "*** VIEWING DIALOG INTERACTION END ***"
+    #   end
+    # end
+
+    puts task.to_row.join("\t")
+    csv_file.print(task.to_row.to_csv)
+    # [
+    #   participant_i,
+    #   task_num,
+    #   task_name,
+    #   treatment,
+    #   events_intact ? "yes" : "no",
+    #   events.map(&:code_annotations_count).compact.last == 0 ? "yes" : "no",
+    #   events.any?(&:task_timeout?) ? "yes" : "no",
+    #   gross_time,
+    #   interaction_end_time - interaction_start_time,
+    #   text_select_interactions.count,
+    #   text_select_interacting_time,
+    #   text_select_interactions.flat_map(&:events).count(&:choose_deuce_exp?),
+    #   text_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count == 1 },
+    #   text_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count >= 2 },
+    #   box_select_interactions.count,
+    #   box_select_interacting_time,
+    #   box_select_interactions.flat_map(&:events).count(&:choose_deuce_exp?),
+    #   box_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count == 1 },
+    #   box_select_interactions.flat_map(&:events).select(&:choose_deuce_exp?).count { |e| e.deuce_selections_count >= 2 },
+    #   all_interactions.count,
+    #   interacting_time,
+    #   invocations.size - invocations.grep(/^(Undo|Redo)$/).size,
+    #   events.count(&:undo?),
+    #   events.count(&:redo?),
+    #   invocations.join("; "),
+    # ].join("\t")
     # box_select_interactions.each do |interaction|
     #   interaction.events.each { |e| puts e.to_tsv }
     # end
   end
+end
 
+puts
+puts [
+  "Task",
+  "Treatment",
+  "Completion Rate",
+  "Mean Time (completed tasks only)",
+  "Mean Text-Select Refactorings (completed tasks only)",
+  "Mean Text-Select Refactorings, Single Arg (completed tasks only)",
+  "Mean Text-Select Refactorings, Multi Arg (completed tasks only)",
+  "Mean Box-Select Refactorings (completed tasks only)",
+  "Mean Box-Select Refactorings, Single Arg (completed tasks only)",
+  "Mean Box-Select Refactorings, Multi Arg (completed tasks only)",
+  "Mean Undos (completed only)",
+  "Mean Redos (completed only)",
+].join("\t")
+
+all_tasks.group_by { |task| [task.name, task.treatment] }.sort_by(&:first).each do |(name, treatment),tasks|
+  completed, incomplete = tasks.partition(&:completed?)
+  puts [
+    name,
+    treatment,
+    completed.count.to_f / tasks.count,
+    completed.map(&:interaction_time).mean,
+    completed.map(&:text_select_refactorings).map(&:count).mean,
+    completed.map(&:single_arg_text_select_refactorings).map(&:count).mean,
+    completed.map(&:multi_arg_text_select_refactorings).map(&:count).mean,
+    completed.map(&:box_select_refactorings).map(&:count).mean,
+    completed.map(&:single_arg_box_select_refactorings).map(&:count).mean,
+    completed.map(&:multi_arg_box_select_refactorings).map(&:count).mean,
+    completed.map(&:undo_count).mean,
+    completed.map(&:redo_count).mean,
+  ].join("\t")
+end
+
+# class Survey
+#   attr_reader :json
+#
+#   def initialize(json_str)
+#     @json = JSON.parse(json_str)
+#   end
+#
+#   def years_experience
+#     Float(json["experience"])
+#   end
+#
+#   def years_functional_experience
+#     Float(json["functional_experience"])
+#   end
+#
+#   def other_refactoring_tools
+#     json["prior_sns"]
+#   end
+#
+#   def prior_sns
+#     json["prior_sns"]
+#   end
+#
+#   def prior_sns_code_tools
+#     json["prior_sns_code_tools"]
+#   end
+#
+#   def one_rectangle_mode_comparison
+#     json["one_rectangle_mode_comparison"] && json["one_rectangle_mode_comparison"].to_i
+#   end
+#
+#   def two_circles_mode_comparison
+#     json["two_circles_mode_comparison"] && json["two_circles_mode_comparison"].to_i
+#   end
+#
+#   def three_rectangles_mode_comparison
+#     json["three_rectangles_mode_comparison"] && json["three_rectangles_mode_comparison"].to_i
+#   end
+#
+#   def target_icon_mode_comparison
+#     json["target_icon_mode_comparison"] && json["target_icon_mode_comparison"].to_i
+#   end
+#
+#   def sus_score
+#     (1..10).map do |i|
+#       i%2 == 1 ? Integer(json["sus_#{i}"]) - 1 : 5 - Integer(json["sus_#{i}"])
+#     end.sum * 2.5
+#   end
+#
+#   def computer
+#     json["computer"]
+#   end
+# end
+
+puts
+puts [
+  "Metric", "Min", "-2 * Std Err", "Mean", "+2 * Std Err", "Max"
+].join("\t")
+
+[
+  :years_experience,
+  :years_functional_experience,
+  :one_rectangle_mode_comparison,
+  :two_circles_mode_comparison,
+  :three_rectangles_mode_comparison,
+  :target_icon_mode_comparison,
+  :sus_score
+].each do |metric|
+  values = all_surveys.map(&metric).compact
+  puts [
+    metric,
+    values.min,
+    values.rough_confidence_interval.begin,
+    values.mean,
+    values.rough_confidence_interval.end,
+    values.max
+  ].join("\t")
+end
+
+all_tasks.group_by { |task| [task.name, task.treatment] }.sort_by(&:first).each do |(name, treatment),tasks|
+  values = tasks.map(&:completed?)
+  puts [
+    "#{name} #{treatment} completion rate",
+    "",
+    values.bernoulli_rough_confidence_interval.begin,
+    values.bernoulli_mean,
+    values.bernoulli_rough_confidence_interval.end,
+    "",
+  ].join("\t")
+end
+
+all_tasks.reject { |task| task.treatment == "CodeToolsOnly" }.group_by { |task| [task.treatment, task.second_encounter? ? 1 : 0] }.sort.each do |(treatment, is_second_encounter),tasks|
+  values = tasks.map(&:completed?)
+  puts [
+    "#{treatment} #{is_second_encounter == 1 ? "second" : "first"} encounter completion rate",
+    "",
+    values.bernoulli_rough_confidence_interval.begin,
+    values.bernoulli_mean,
+    values.bernoulli_rough_confidence_interval.end,
+    "",
+  ].join("\t")
+end
+
+all_tasks.group_by { |task| [task.name, task.treatment] }.sort_by(&:first).each do |(name, treatment),tasks|
+  values = tasks.select(&:completed?).map(&:interaction_time)
+  puts [
+    "#{name} #{treatment} time",
+    values.min,
+    values.rough_confidence_interval.begin,
+    values.mean,
+    values.rough_confidence_interval.end,
+    values.max
+  ].join("\t")
+end
+
+all_tasks.group_by { |task| [task.name, task.treatment] }.sort_by(&:first).each do |(name, treatment),tasks|
+  values = tasks.select(&:completed?).map(&:refactorings_count)
+  puts [
+    "#{name} #{treatment} refactorings invoked",
+    values.min,
+    values.rough_confidence_interval.begin,
+    values.mean,
+    values.rough_confidence_interval.end,
+    values.max
+  ].join("\t")
+end
+
+all_tasks.group_by { |task| [task.name, task.treatment] }.sort_by(&:first).each do |(name, treatment),tasks|
+  values = tasks.select(&:completed?).map(&:undo_count)
+  puts [
+    "#{name} #{treatment} undo count",
+    values.min,
+    values.rough_confidence_interval.begin,
+    values.mean,
+    values.rough_confidence_interval.end,
+    values.max
+  ].join("\t")
 end
