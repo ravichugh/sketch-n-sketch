@@ -1643,6 +1643,8 @@ reorderExpressionsTool model selections =
 --      much.
 --------------------------------------------------------------------------------
 
+-- TODO make tool this Inactive when the resulting line would be too long
+
 makeSingleLineTool : Model -> Selections -> DeuceTool
 makeSingleLineTool model selections =
   { name = "Make Single Line"
@@ -2034,16 +2036,15 @@ deuceTools model =
         , makeMultiLineTool
         , alignExpressionsTool
         ]
-      ] ++
-      ( UserStudy.hideIfEnabled <|
-          [ [ thawFreezeTool
-            , addRemoveRangeTool
-            , showHideRangeTool
-            , rewriteOffsetTool
-            ]
+      , if model.enableDomainSpecificCodeTools && not UserStudy.enabled then
+          [ thawFreezeTool
+          , addRemoveRangeTool
+          , showHideRangeTool
+          , rewriteOffsetTool
           ]
-      ) ++
-      [ [ flipBooleanTool
+        else
+          []
+      , [ flipBooleanTool
         ]
       ]
 

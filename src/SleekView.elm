@@ -903,6 +903,12 @@ menuBar model =
                             "Disabled"
                             (Controller.msgSetCodeToolsMenuMode CTDisabled)
                         ]
+                    , hoverMenu "Domain-Specific Code Tools" <|
+                        booleanOption
+                          model.enableDomainSpecificCodeTools
+                          "True"
+                          "False"
+                          Controller.msgSetEnableDomainSpecificCodeTools
                     ]
                   , [ hoverMenu "Text Selection Mode"
                         [ simpleTextRadioButton

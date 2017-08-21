@@ -23,6 +23,7 @@ function initialize() {
   editor.setShowPrintMargin(false);
   editor.getSession().setUseSoftTabs(true);
   editor.getSession().setTabSize(2);
+  editor.setDisplayIndentGuides(false);
 
   editor.on("input", function() {
       var info = getEditorState();

@@ -170,6 +170,7 @@ type alias Model =
   , textSelectMode : TextSelectMode
   , enableTextEdits : Updatable Bool
   , allowMultipleTargetPositions : Bool
+  , enableDomainSpecificCodeTools : Bool
   , codeClean : Bool
   , mainResizerX : Maybe Int
   , proseResizerY : Maybe Int
@@ -1042,6 +1043,7 @@ initModel =
         Updatable.setUpdated << Updatable.create <| True
     , allowMultipleTargetPositions =
         False
+    , enableDomainSpecificCodeTools = False
     , codeClean = True
     , mainResizerX = Nothing
     , proseResizerY = Nothing

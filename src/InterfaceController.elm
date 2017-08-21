@@ -64,6 +64,7 @@ module InterfaceController exposing
   , msgSetTextSelectMode
   , msgSetEnableTextEdits
   , msgSetAllowMultipleTargetPositions
+  , msgSetEnableDomainSpecificCodeTools
   , msgSetSelectedDeuceTool
   , msgDeuceRightClick
   , msgDragMainResizer
@@ -2235,6 +2236,20 @@ msgSetAllowMultipleTargetPositions bool =
         | allowMultipleTargetPositions =
             bool
     } |> resetDeuceState
+
+msgSetEnableDomainSpecificCodeTools : Bool -> Msg
+msgSetEnableDomainSpecificCodeTools bool =
+  Msg "Set Enable Domain Specific Code Tools" <| \model ->
+    let almostNewModel =
+      { model
+          | enableDomainSpecificCodeTools =
+              bool
+      }
+    in
+      { almostNewModel
+          | deuceToolsAndResults =
+              DeuceTools.createToolCache almostNewModel
+      }
 
 --------------------------------------------------------------------------------
 -- Set the selected Deuce tool
