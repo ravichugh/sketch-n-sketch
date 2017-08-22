@@ -25,6 +25,7 @@ import InterfaceModel as Model exposing
   , SynthesisResult(..)
   , synthesisResult
   , oneSafeResult
+  , setResultSafe
   , DeuceTool
   , CachedDeuceTool
   , PredicateValue(..)
@@ -1041,73 +1042,106 @@ rewriteOffsetTool model selections =
 --      much.
 --------------------------------------------------------------------------------
 
--- convertColorStringTool : Model -> Selections -> DeuceTool
--- convertColorStringTool model selections =
---   let
---     disabledTool =
---       { name = "Convert Color String"
---       , func = Nothing
---       }
---   in
---     case selections of
---       (_, [], _, _, _, _, _) ->
---         disabledTool
---       ([], literals, exps, [], [], [], []) ->
---         if List.length exps /= List.length literals then
---           disabledTool
---         else
---           let
---             maybeStrings =
---               List.map
---                 ( \(eid, (_, baseVal)) ->
---                     case baseVal of
---                       EString _ string ->
---                         Just (eid, string)
---                       _ ->
---                         Nothing
---                 )
---                 literals
---           in
---             Utils.bindMaybesToList maybeStrings <| \idsAndStrings ->
---               let
---                 maybeConverted =
---                   List.map ColorNum.convertStringToRgbAndHue idsAndStrings
---               in
---                 Utils.bindMaybesToList maybeConverted <| \converted ->
---                   let
---                     (newExp1, newExp2) =
---                       List.foldl
---                         ( \(eid,(r,g,b),hue) (acc1,acc2) ->
---                             let
---                               replaceString =
---                                 replaceExpNodePreservingPrecedingWhitespace eid
---                               eRgba =
---                                 eList (listOfNums [r,g,b,1.0]) Nothing
---                               eColorNum =
---                                 eConst hue dummyLoc
---                             in
---                               ( replaceString eRgba acc1
---                               , replaceString eColorNum acc2
---                               )
---                         )
---                         (model.inputExp, model.inputExp)
---                         converted
---                   in
---                     { name =
---                         Utils.perhapsPluralizeList "Convert Color String" literals
---                     , func =
---                         Just <|
---                           \() ->
---                             [ newExp1
---                                 |> synthesisResult "RGBA"
---                             , newExp2
---                                 |> synthesisResult "Color Number (Hue Only)"
---                                 |> setResultSafe False
---                             ]
---                     }
---       _ ->
---         disabledTool
+convertColorStringTool : Model -> Selections -> DeuceTool
+convertColorStringTool model selections =
+  let
+    baseName =
+      "Convert Color String"
 
+    impossible =
+      ( baseName
+      , Nothing
+      , Impossible
+      )
+
+    (name, func, predVal) =
+      case selections of
+        ([], [], [], [], [], [], []) ->
+          ( baseName
+          , Nothing
+          , Possible
+          )
+        ([], literals, exps, [], [], [], []) ->
+          let
+            expCount =
+              List.length exps
+            literalCount =
+              List.length literals
+          in
+            if expCount /= literalCount then
+              impossible
+            else
+              let
+                idStringPairs =
+                  List.filterMap
+                    ( \(eid, (_, baseVal)) ->
+                        case baseVal of
+                          EString _ string ->
+                            Just (eid, string)
+                          _ ->
+                            Nothing
+                    )
+                    literals
+                idStringPairCount =
+                  List.length idStringPairs
+              in
+                if literalCount /= idStringPairCount then
+                  impossible
+                else
+                  let
+                    convertedStrings =
+                      List.filterMap
+                        ColorNum.convertStringToRgbAndHue
+                        idStringPairs
+                    convertedStringCount =
+                      List.length convertedStrings
+                  in
+                    if idStringPairCount /= convertedStringCount then
+                      impossible
+                    else
+                      let
+                        (newExp1, newExp2) =
+                          List.foldl
+                            ( \(eid, (r, g, b), hue) (acc1, acc2) ->
+                                let
+                                  replaceString =
+                                    replaceExpNodePreservingPrecedingWhitespace
+                                      eid
+                                  eRgba =
+                                    eList (listOfNums [r, g, b, 1.0]) Nothing
+                                  eColorNum =
+                                    eConst hue dummyLoc
+                                in
+                                  ( replaceString eRgba acc1
+                                  , replaceString eColorNum acc2
+                                  )
+                            )
+                            (model.inputExp, model.inputExp)
+                            convertedStrings
+                      in
+                        ( Utils.perhapsPluralizeList baseName literals
+                        , Just <|
+                            \() ->
+                              [ newExp1
+                                  |> synthesisResult "RGBA"
+                              , newExp2
+                                  |> synthesisResult "Color Number (Hue Only)"
+                                  |> setResultSafe False
+                              ]
+                        , Satisfied
+                        )
+        _ ->
+          impossible
+  in
+    { name = name
+    , func = func
+    , reqs =
+        [ { description = "Select one or more color strings"
+          , value = predVal
+          }
+        ]
+    , id = "convertColorString"
+    }
 --------------------------------------------------------------------------------
 -- Create Function
 --------------------------------------------------------------------------------
@@ -2033,7 +2067,6 @@ deuceTools model =
       , patTargets
       )
   in
-    -- TODO convertColorStringsTool
     List.map (List.map (\tool -> tool model selections)) <|
       [ [ createFunctionTool
         , createFunctionFromArgsTool
@@ -2068,6 +2101,7 @@ deuceTools model =
           , addRemoveRangeTool
           , showHideRangeTool
           , rewriteOffsetTool
+          , convertColorStringTool
           ]
         else
           []
