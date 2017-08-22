@@ -34,11 +34,54 @@ tasks <- read.csv("tasks.csv", header = TRUE)
 #  $ invocations                         : Factor w/ 155 levels "","Abstract (rect \"yellowgree... over its constants; Rename 'rect2' to 'oneCorner'; Undo; Undo; Merge 4 rects by "| __truncated__,..: 72 147 111 15 72 109 21 135 81 61 ...
 
 tasks[ , "completionProbability"] <- sapply(tasks$completed, function (yn) { as.double(yn == "yes") })
+tasks[ , "firstEncounter"]        <- sapply(tasks$secondEncounter, function (yn) { if(yn=="yes") "no" else "yes" })
+tasks[ , "logInteractionTime"]    <- sapply(tasks$interactionTime, log)
 
 headToHeadTasks <- subset(tasks, treatment != "CodeToolsOnly")
 
 completedHeadToHeadTasks <- subset(headToHeadTasks, completed == "yes")
 
-interactionTimeModel <- lmer(interactionTime ~ treatment + (1 | participantNumber) + (1 + secondEncounter | task) + secondEncounter + taskNumber + usedMouse, completedHeadToHeadTasks)
+interactionTimeModel <- lmer(interactionTime ~ treatment + (1 | participantNumber) + (1 + secondEncounter | task) + secondEncounter + treatment:secondEncounter + taskNumber + usedMouse + usedOwnComputer, completedHeadToHeadTasks)
+summary(interactionTimeModel)
 
-completionProbabilityModel <- glmer(completionProbability ~ treatment + (1 | participantNumber) + (1 + secondEncounter | task) + secondEncounter, headToHeadTasks, family=binomial(link="logit"))
+logInteractionTimeModel <- lmer(logInteractionTime ~ treatment + (1 | participantNumber) + (1 + secondEncounter | task) + secondEncounter + treatment:secondEncounter + taskNumber + usedMouse + usedOwnComputer, completedHeadToHeadTasks)
+summary(logInteractionTimeModel)
+
+# Swap firstEncounter for secondEncounter to get an easy to interpret p value for treatment on second encounter.
+interactionTimeModel <- lmer(interactionTime ~ treatment + (1 | participantNumber) + (1 + firstEncounter | task) + firstEncounter + treatment:firstEncounter + taskNumber + usedMouse + usedOwnComputer, completedHeadToHeadTasks)
+summary(interactionTimeModel)
+
+# Swap firstEncounter for secondEncounter to get an easy to interpret p value for treatment on second encounter.
+logInteractionTimeModel <- lmer(logInteractionTime ~ treatment + (1 | participantNumber) + (1 + firstEncounter | task) + firstEncounter + treatment:firstEncounter + taskNumber + usedMouse + usedOwnComputer, completedHeadToHeadTasks)
+summary(logInteractionTimeModel)
+
+completionProbabilityModel <- glmer(completionProbability ~ treatment + (1 | participantNumber) + (1 + secondEncounter | task) + secondEncounter + treatment:secondEncounter + taskNumber + usedMouse + usedOwnComputer, headToHeadTasks, family=binomial(link="logit"), control=glmerControl(optimizer="bobyqa"))
+summary(completionProbabilityModel)
+
+# Swap firstEncounter for secondEncounter to get an easy to interpret p value for treatment on second encounter.
+completionProbabilityModel <- glmer(completionProbability ~ treatment + (1 | participantNumber) + (1 + firstEncounter | task) + firstEncounter + treatment:firstEncounter + taskNumber + usedMouse + usedOwnComputer, headToHeadTasks, family=binomial(link="logit"), control=glmerControl(optimizer="bobyqa"))
+summary(completionProbabilityModel)
+
+invocationsModel <- lmer(refactoringsCount ~ treatment + (1 | participantNumber) + (1 + secondEncounter | task) + secondEncounter + treatment:secondEncounter + taskNumber + usedMouse + usedOwnComputer, completedHeadToHeadTasks)
+summary(invocationsModel)
+
+# Swap firstEncounter for secondEncounter to get an easy to interpret p value for treatment on second encounter.
+invocationsModel <- lmer(refactoringsCount ~ treatment + (1 | participantNumber) + (1 + firstEncounter | task) + firstEncounter + treatment:firstEncounter + taskNumber + usedMouse + usedOwnComputer, completedHeadToHeadTasks)
+summary(invocationsModel)
+
+interactingTimeModel <- lmer(interactingTime ~ treatment + (1 | participantNumber) + (1 + secondEncounter | task) + secondEncounter + treatment:secondEncounter + taskNumber + usedMouse + usedOwnComputer, completedHeadToHeadTasks)
+summary(interactingTimeModel)
+
+# Swap firstEncounter for secondEncounter to get an easy to interpret p value for treatment on second encounter.
+interactingTimeModel <- lmer(interactingTime ~ treatment + (1 | participantNumber) + (1 + firstEncounter | task) + firstEncounter + treatment:firstEncounter + taskNumber + usedMouse + usedOwnComputer, completedHeadToHeadTasks)
+summary(interactingTimeModel)
+
+# summaryToBootstrap <- function(.) { fixef(.) }
+#
+# set.seed(101)
+# ## 3.8s (on a 5600 MIPS 64bit fast(year 2009) desktop "AMD Phenom(tm) II X4 925"):
+# boot01 <- bootMer(interactionTimeModel, summaryToBootstrap, nsim = 100)
+#
+# ## to "look" at it
+# require("boot") ## a recommended package, i.e. *must* be there
+# boot01

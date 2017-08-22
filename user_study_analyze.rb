@@ -7,8 +7,10 @@ LOGS_DIR         = ROOT + "/user_study_logs"
 SURVEYS_DIR      = ROOT + "/user_study_surveys"
 MOUSE_USAGE_FILE = ROOT + "/participant_mouse_usage.txt"
 TASKS_CSV        = ROOT + "/tasks.csv"
+METRICS_CSV      = ROOT + "/metrics.csv"
 
-csv_file = open(TASKS_CSV, "w")
+CSV_FILE = open(TASKS_CSV, "w")
+METRICS_FILE = open(METRICS_CSV, "w")
 
 participant_indices = Dir.entries(LOGS_DIR).join("\n").scan(/participant_(\d+)\.log/).flatten.map(&:to_i).sort
 
@@ -931,14 +933,27 @@ class Task
 
   attr_accessor :number
 
-  def initialize(participant_i, used_mouse, events)
-    @participant_i = participant_i
-    @used_mouse    = used_mouse
-    @events        = events
+  def initialize(participant_i, used_mouse, used_own_computer, events)
+    @participant_i     = participant_i
+    @used_mouse        = used_mouse
+    @used_own_computer = used_own_computer
+    @events            = events
   end
 
   def used_mouse?
     @used_mouse
+  end
+
+  def used_own_computer?
+    @used_own_computer
+  end
+
+  def used_provided_computer?
+    if used_own_computer?.nil?
+      nil
+    else
+      !used_own_computer?
+    end
   end
 
   def name
@@ -1089,6 +1104,7 @@ class Task
     [
       participant_i,
       used_mouse? ? "yes" : "no",
+      used_own_computer? ? "yes" : "no",
       number,
       second_encounter? ? "yes" : "no",
       name,
@@ -1165,7 +1181,7 @@ class Survey
   end
 
   def other_refactoring_tools
-    json["prior_sns"]
+    json["other_refactoring_tools"]
   end
 
   def prior_sns
@@ -1220,6 +1236,7 @@ end
 headers = [
   "participantNumber",
   "usedMouse",
+  "usedOwnComputer",
   "taskNumber",
   "secondEncounter",
   "task",
@@ -1248,10 +1265,11 @@ headers = [
 ]
 
 puts headers.join("\t")
-csv_file.print(headers.to_csv)
+CSV_FILE.print(headers.to_csv)
 
 all_surveys = []
 all_tasks   = []
+user_events = []
 mouse_usage = File.read(MOUSE_USAGE_FILE).split.map { |word| word == "Mouse" }
 
 participant_indices.each do |participant_i|
@@ -1262,6 +1280,8 @@ participant_indices.each do |participant_i|
 
   events = File.read("#{LOGS_DIR}/participant_#{participant_i}.log").split("\n").map { |line| Event.new(line) }.sort_by(&:sort_key) # Events are sent async and are occasionally slightly out of order
 
+  user_events << events
+
   tasks = split_into_tasks(events)
 
   task_num = 0
@@ -1269,7 +1289,7 @@ participant_indices.each do |participant_i|
   used_mouse = mouse_usage[participant_i-1]
 
   tasks.each do |events|
-    task = Task.new(participant_i, used_mouse, events)
+    task = Task.new(participant_i, used_mouse, survey.computer == "personal", events)
     # task_name = events[0].next_step_task_name
     # treatment = events[0].next_step_task_treatment
 
@@ -1355,8 +1375,10 @@ participant_indices.each do |participant_i|
     #   end
     # end
 
-    puts task.to_row.join("\t")
-    csv_file.print(task.to_row.to_csv)
+    row = task.to_row
+
+    puts row.join("\t")
+    CSV_FILE.print(row.to_csv)
     # [
     #   participant_i,
     #   task_num,
@@ -1478,10 +1500,15 @@ end
 #   end
 # end
 
+def output_metrics_row(row)
+  puts row.join("\t")
+  METRICS_FILE.print(row.to_csv)
+end
+
 puts
-puts [
+output_metrics_row [
   "Metric", "Min", "-2 * Std Err", "Mean", "+2 * Std Err", "Max"
-].join("\t")
+]
 
 [
   :years_experience,
@@ -1493,72 +1520,175 @@ puts [
   :sus_score
 ].each do |metric|
   values = all_surveys.map(&metric).compact
-  puts [
+  output_metrics_row [
     metric,
     values.min,
     values.rough_confidence_interval.begin,
     values.mean,
     values.rough_confidence_interval.end,
     values.max
-  ].join("\t")
+  ]
+end
+
+user_tutorial_times =
+  user_events.map do |events|
+    (events.find(&:next_step_head_to_head?).time - events.first.time) / 60.0
+  end
+
+output_metrics_row [
+  "Tutorial Minutes",
+  user_tutorial_times.min,
+  user_tutorial_times.rough_confidence_interval.begin,
+  user_tutorial_times.mean,
+  user_tutorial_times.rough_confidence_interval.end,
+  user_tutorial_times.max
+]
+
+user_task_times =
+  user_events.map do |events|
+    (events.select(&:user_study_next?).last.time - events.find(&:next_step_head_to_head?).time) / 60.0
+  end
+
+output_metrics_row [
+  "Task Minutes",
+  user_task_times.min,
+  user_task_times.rough_confidence_interval.begin,
+  user_task_times.mean,
+  user_task_times.rough_confidence_interval.end,
+  user_task_times.max
+]
+
+values = all_tasks.reject { |task| task.treatment == "CodeToolsOnly" }.map(&:completed?)
+output_metrics_row [
+  "Head-to-head task completion rate",
+  "",
+  values.bernoulli_rough_confidence_interval.begin,
+  values.bernoulli_mean,
+  values.bernoulli_rough_confidence_interval.end,
+  "",
+]
+
+all_tasks.group_by { |task| task.name }.sort.each do |name,tasks|
+  values = tasks.map(&:completed?)
+  output_metrics_row [
+    "#{name} completion rate",
+    "",
+    values.bernoulli_rough_confidence_interval.begin,
+    values.bernoulli_mean,
+    values.bernoulli_rough_confidence_interval.end,
+    "",
+  ]
+end
+
+all_tasks.reject { |task| task.treatment == "CodeToolsOnly" }.group_by { |task| task.second_encounter? ? 1 : 0 }.sort.each do |is_second_encounter,tasks|
+  values = tasks.map(&:completed?)
+  output_metrics_row [
+    "#{is_second_encounter == 1 ? "Second" : "First"} encounter completion rate",
+    "",
+    values.bernoulli_rough_confidence_interval.begin,
+    values.bernoulli_mean,
+    values.bernoulli_rough_confidence_interval.end,
+    "",
+  ]
 end
 
 all_tasks.group_by { |task| [task.name, task.treatment] }.sort_by(&:first).each do |(name, treatment),tasks|
   values = tasks.map(&:completed?)
-  puts [
+  output_metrics_row [
     "#{name} #{treatment} completion rate",
     "",
     values.bernoulli_rough_confidence_interval.begin,
     values.bernoulli_mean,
     values.bernoulli_rough_confidence_interval.end,
     "",
-  ].join("\t")
+  ]
+end
+
+all_tasks.reject { |task| task.treatment == "CodeToolsOnly" }.group_by { |task| [task.name, task.second_encounter? ? 1 : 0] }.sort.each do |(name, is_second_encounter),tasks|
+  # if name == "Two Circles"
+  #   tasks.each do |task|
+  #     puts [task.name, task.participant_i, task.number, task.second_encounter?, task.completed?, task.treatment].join("\t")
+  #   end
+  # end
+  values = tasks.map(&:completed?)
+  output_metrics_row [
+    "#{name} #{is_second_encounter == 1 ? "second" : "first"} encounter completion rate",
+    "",
+    values.bernoulli_rough_confidence_interval.begin,
+    values.bernoulli_mean,
+    values.bernoulli_rough_confidence_interval.end,
+    "",
+  ]
 end
 
 all_tasks.reject { |task| task.treatment == "CodeToolsOnly" }.group_by { |task| [task.treatment, task.second_encounter? ? 1 : 0] }.sort.each do |(treatment, is_second_encounter),tasks|
   values = tasks.map(&:completed?)
-  puts [
+  output_metrics_row [
     "#{treatment} #{is_second_encounter == 1 ? "second" : "first"} encounter completion rate",
     "",
     values.bernoulli_rough_confidence_interval.begin,
     values.bernoulli_mean,
     values.bernoulli_rough_confidence_interval.end,
     "",
-  ].join("\t")
+  ]
+end
+
+all_tasks.reject { |task| task.treatment == "CodeToolsOnly" }.group_by { |task| [task.name, task.treatment, task.second_encounter? ? 1 : 0] }.sort.each do |(name, treatment, is_second_encounter),tasks|
+  values = tasks.map(&:completed?)
+  output_metrics_row [
+    "#{name} #{treatment} #{is_second_encounter == 1 ? "second" : "first"} encounter completion rate",
+    "",
+    values.bernoulli_rough_confidence_interval.begin,
+    values.bernoulli_mean,
+    values.bernoulli_rough_confidence_interval.end,
+    "",
+  ]
 end
 
 all_tasks.group_by { |task| [task.name, task.treatment] }.sort_by(&:first).each do |(name, treatment),tasks|
   values = tasks.select(&:completed?).map(&:interaction_time)
-  puts [
+  output_metrics_row [
     "#{name} #{treatment} time",
     values.min,
     values.rough_confidence_interval.begin,
     values.mean,
     values.rough_confidence_interval.end,
     values.max
-  ].join("\t")
+  ]
 end
 
 all_tasks.group_by { |task| [task.name, task.treatment] }.sort_by(&:first).each do |(name, treatment),tasks|
   values = tasks.select(&:completed?).map(&:refactorings_count)
-  puts [
+  output_metrics_row [
     "#{name} #{treatment} refactorings invoked",
     values.min,
     values.rough_confidence_interval.begin,
     values.mean,
     values.rough_confidence_interval.end,
     values.max
-  ].join("\t")
+  ]
 end
 
 all_tasks.group_by { |task| [task.name, task.treatment] }.sort_by(&:first).each do |(name, treatment),tasks|
   values = tasks.select(&:completed?).map(&:undo_count)
-  puts [
+  output_metrics_row [
     "#{name} #{treatment} undo count",
     values.min,
     values.rough_confidence_interval.begin,
     values.mean,
     values.rough_confidence_interval.end,
     values.max
-  ].join("\t")
+  ]
 end
+
+puts
+puts [
+  "Metric", "YesCount", "NoCount"
+].join("\t")
+
+puts ["Any Functional Experience", all_surveys.map(&:years_functional_experience).count {|years| years > 0}, all_surveys.map(&:years_functional_experience).count {|years| years == 0}].join("\t")
+puts ["Used Own Computer", all_surveys.map(&:computer).count("personal"), all_surveys.map(&:computer).count("provided")].join("\t")
+puts ["Used Mouse", mouse_usage.count(true), mouse_usage.count(false)].join("\t")
+puts ["Other Refactoring Tools", all_surveys.map(&:other_refactoring_tools).count("yes"), ""].join("\t")
+puts ["Prior SnS Exposure", all_surveys.map(&:prior_sns).count("yes"), ""].join("\t")
+puts ["Prior SnS Code Tools", all_surveys.map(&:prior_sns_code_tools).count("yes"), ""].join("\t")
