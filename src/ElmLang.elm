@@ -22,6 +22,8 @@ type Exp
       { char : Char }
   | EString
       { string : String }
+  | EMultiLineString
+      { string : String }
 
 -- EIds
 

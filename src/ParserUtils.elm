@@ -1,6 +1,8 @@
 module ParserUtils exposing
   ( try
   , token
+  , keepUntil
+  , inside
   , char
   , spaces
   , trackRange
@@ -26,6 +28,22 @@ try parser =
 token : String -> a -> Parser a
 token text val =
   map (\_ -> val) (keyword text)
+
+keepUntil : String -> Parser String
+keepUntil end =
+  let
+    endLength =
+      String.length end
+  in
+    ignoreUntil end
+      |> source
+      |> map (String.dropRight endLength)
+
+inside : String -> Parser String
+inside delimiter =
+  succeed identity
+    |. symbol delimiter
+    |= keepUntil delimiter
 
 char : Parser Char
 char =

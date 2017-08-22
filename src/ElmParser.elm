@@ -13,7 +13,7 @@ import ParserUtils exposing (..)
 
 bool : Parser Term
 bool =
-  spacesBefore << trackRange << map term_ <|
+  inContext "bool" << spacesBefore << trackRange << map term_ <|
     oneOf
       [ token "True" <|
           EBool { bool = True }
@@ -27,7 +27,7 @@ bool =
 
 int : Parser Term
 int =
-  spacesBefore << trackRange << map term_ <|
+  inContext "int" << spacesBefore << trackRange << map term_ <|
     map (\x -> EInt { int = x })
       P.int
 
@@ -47,7 +47,7 @@ int =
 
 char : Parser Term
 char =
-  spacesBefore << trackRange << map term_ <|
+  inContext "char" << spacesBefore << trackRange << map term_ <|
     succeed (\c -> EChar { char = c })
       |. symbol "'"
       |= ParserUtils.char
@@ -59,11 +59,17 @@ char =
 
 string : Parser Term
 string =
-  spacesBefore << trackRange << map term_ <|
+  inContext "string" << spacesBefore << trackRange << map term_ <|
     succeed (\s -> EString { string = s })
       |. symbol "\""
       |= keep zeroOrMore (\c -> c /= '\"')
       |. symbol "\""
+
+multiLineString : Parser Term
+multiLineString =
+  inContext "multi-line string" << spacesBefore << trackRange << map term_ <|
+    map (\s -> EMultiLineString { string = s }) <|
+      ParserUtils.inside "\"\"\""
 
 --------------------------------------------------------------------------------
 -- General
@@ -75,6 +81,7 @@ term =
     [ bool
     , int
     , char
+    , multiLineString
     , string
     ]
 
