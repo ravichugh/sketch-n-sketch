@@ -715,44 +715,54 @@ thawFreezeTool model selections =
     (nums, _, _, _, _, _, _) =
       selections
 
-    mode =
+    (mode, predVal) =
       let
         freezeAnnotations =
           List.map (\(_,(_,_,(_,frzn,_),_)) -> frzn) nums
       in
-        if not (oneOrMoreNumsOnly selections) then
-          Nothing
+        if selections == ([], [], [], [], [], [], []) then
+          (Nothing, Possible)
+        else if not (oneOrMoreNumsOnly selections) then
+          (Nothing, Impossible)
         else
-          case Utils.dedupByEquality freezeAnnotations of
-            [frzn] ->
-              if model.syncOptions.thawedByDefault then
-                if frzn == unann then
-                  Just ("Freeze", frozen)
-                else if frzn == frozen then
-                  Just ("Thaw", unann)
-                else if frzn == thawed then
-                  Just ("Freeze", frozen)
-                else
-                  Nothing
-              else
-                if frzn == unann then
-                  Just ("Thaw", thawed)
-                else if frzn == frozen then
-                  Just ("Thaw", thawed)
-                else if frzn == thawed then
-                  Just ("Freeze", unann)
-                else
-                  Nothing
-            _ ->
-              if model.syncOptions.thawedByDefault then
-                Just ("Freeze", frozen)
-              else
-                Just ("Thaw", thawed)
+          let
+            mode_ =
+              case Utils.dedupByEquality freezeAnnotations of
+                [frzn] ->
+                  if model.syncOptions.thawedByDefault then
+                    if frzn == unann then
+                      Just ("Freeze", frozen)
+                    else if frzn == frozen then
+                      Just ("Thaw", unann)
+                    else if frzn == thawed then
+                      Just ("Freeze", frozen)
+                    else
+                      Nothing
+                  else
+                    if frzn == unann then
+                      Just ("Thaw", thawed)
+                    else if frzn == frozen then
+                      Just ("Thaw", thawed)
+                    else if frzn == thawed then
+                      Just ("Freeze", unann)
+                    else
+                      Nothing
+                _ ->
+                  if model.syncOptions.thawedByDefault then
+                    Just ("Freeze", frozen)
+                  else
+                    Just ("Thaw", thawed)
+          in
+            case mode_ of
+              Just _ ->
+                (mode_, Satisfied)
+              Nothing ->
+                (mode_, Impossible)
 
-    (name, func, predVal) =
+    (name, func) =
       case mode of
         Nothing ->
-          ("Thaw/Freeze", Nothing, Impossible)
+          ("Thaw/Freeze", Nothing)
         Just (toolName, newAnnotation) ->
           ( toolName
           , Just <| \() ->
@@ -772,7 +782,6 @@ thawFreezeTool model selections =
                     toolName
                     (applyESubst eSubst model.inputExp)
                 ]
-          , Satisfied
           )
   in
     { name = name
@@ -816,10 +825,20 @@ showHideRangeTool model selections =
             _ ->
               Nothing
 
-    (name, func, predVal) =
+    predVal =
+      if selections == ([], [], [], [], [], [], []) then
+        Possible
+      else if mode /= Nothing then
+        Satisfied
+      else
+        Impossible
+
+    (name, func) =
       case mode of
         Nothing ->
-          ("Show/Hide Sliders", Nothing, Impossible)
+          ( "Show/Hide Sliders"
+          , Nothing
+          )
         Just hidden ->
           let
             toolName =
@@ -861,12 +880,11 @@ showHideRangeTool model selections =
                       toolName
                       (applyESubst eSubst model.inputExp)
                   ]
-            , Satisfied
             )
   in
     { name = name
     , func = func
-    , reqs = [ { description = "Select one or more numbers", value = predVal } ]
+    , reqs = [ { description = "Select one or more numbers with sliders", value = predVal } ]
     , id = "showHideRange"
     }
 
@@ -904,10 +922,20 @@ addRemoveRangeTool model selections =
         Utils.dedupByEquality freezeAnnotations
         |> Utils.maybeUnpackSingleton
 
-    (name, func, predVal) =
+    predVal =
+      if selections == ([], [], [], [], [], [], []) then
+        Possible
+      else if oneOrMoreNumsOnly selections then
+        Satisfied
+      else
+        Impossible
+
+    (name, func) =
       case mode of
         Nothing ->
-          ("Add/Remove Sliders", Nothing, Impossible)
+          ( "Add/Remove Sliders"
+          , Nothing
+          )
         Just noRanges ->
           let
             toolName =
@@ -956,7 +984,6 @@ addRemoveRangeTool model selections =
                       toolName
                       (applyESubst eSubst model.inputExp)
                   ]
-            , Satisfied
             )
   in
     { name = name

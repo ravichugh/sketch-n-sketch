@@ -906,8 +906,8 @@ menuBar model =
                     , hoverMenu "Domain-Specific Code Tools" <|
                         booleanOption
                           model.enableDomainSpecificCodeTools
-                          "True"
-                          "False"
+                          "Enabled"
+                          "Disabled"
                           Controller.msgSetEnableDomainSpecificCodeTools
                     ]
                   , [ hoverMenu "Text Selection Mode"

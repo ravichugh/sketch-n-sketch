@@ -1705,6 +1705,8 @@ handleNew template = (\old ->
                     , codeToolsMenuMode        = old.codeToolsMenuMode
                     , textSelectMode           = old.textSelectMode
                     , enableTextEdits          = old.enableTextEdits
+                    , allowMultipleTargetPositions  = old.allowMultipleTargetPositions
+                    , enableDomainSpecificCodeTools = old.enableDomainSpecificCodeTools
                     , mainResizerX             = old.mainResizerX
                     , proseResizerY            = old.proseResizerY
                     , colorScheme              = old.colorScheme
@@ -1790,7 +1792,12 @@ msgAskImportCode = requireSaveAsker msgImportCode
 resetDeuceState m =
   let layoutOffsets = m.layoutOffsets in
   { m | deuceState = emptyDeuceState
-      , deuceToolsAndResults = DeuceTools.createToolCache initModel
+      , deuceToolsAndResults =
+          DeuceTools.createToolCache
+            { initModel
+                | enableDomainSpecificCodeTools =
+                    m.enableDomainSpecificCodeTools
+            }
       , selectedDeuceTool = Nothing
       , preview = Nothing
       , layoutOffsets =
@@ -1834,13 +1841,15 @@ toggleDeuceWidget widget model =
         |> List.filter (\w -> not (isSubWidget model.inputExp w widget || isSubWidget model.inputExp widget w)) -- Remove any overlapping widgets.
         |> multipleTargetPositionsFilter
         |> Utils.addAsSet widget
+    newSelectedWidgetsEmpty =
+      List.isEmpty newSelectedWidgets
     newDeuceState =
       { oldDeuceState
           | selectedWidgets =
               newSelectedWidgets
       }
     newDeuceRightClickMenuMode =
-      if List.isEmpty newSelectedWidgets then
+      if newSelectedWidgetsEmpty then
         Nothing
       else
         model.deuceRightClickMenuMode
