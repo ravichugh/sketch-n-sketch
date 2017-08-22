@@ -1,5 +1,7 @@
 module Main exposing (main)
 
+import Keyboard
+
 import Html exposing (Html)
 import Html.Attributes as A
 import Html.Events as E
@@ -155,7 +157,9 @@ update msg model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  Sub.none
+  Sub.batch
+    [ Keyboard.downs (always Run)
+    ]
 
 --------------------------------------------------------------------------------
 -- Main
