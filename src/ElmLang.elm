@@ -11,19 +11,35 @@ import Padding exposing (Padded)
 
 -- Expressions
 
+-- Helpful: http://elm-lang.org/docs/syntax
+
 type Exp
   = EBool
-      { bool : Bool }
+      { bool : Bool
+      }
   | EInt
-      { int : Int }
+      { int : Int
+      }
   | EFloat
-      { float : Float }
+      { float : Float
+      }
   | EChar
-      { char : Char }
+      { char : Char
+      }
   | EString
-      { string : String }
+      { string : String
+      }
   | EMultiLineString
-      { string : String }
+      { string : String
+      }
+  | EList
+      { members : List Term
+      }
+  | EConditional
+      { condition : Term
+      , trueBranch : Term
+      , falseBranch : Term
+      }
 
 -- EIds
 

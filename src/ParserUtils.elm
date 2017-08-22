@@ -4,13 +4,15 @@ module ParserUtils exposing
   , keepUntil
   , inside
   , char
-  , spaces
+  , whitespace
+  , guardWhitespace
+  , keywordWithWhitespace
   , trackRange
-  , spacesBefore
+  , whitespaceBefore
   )
 
 import Parser exposing (..)
-import Parser.LowLevel
+import Parser.LowLevel as LL
 
 import Whitespace exposing (Whitespace, whitespace_)
 import Position exposing (Position)
@@ -24,6 +26,10 @@ import Padding exposing (Padded)
 try : Parser a -> Parser a
 try parser =
   delayedCommitMap always parser (succeed ())
+
+guard : String -> Bool -> Parser ()
+guard failReason pred =
+  if pred then (succeed ()) else (fail failReason)
 
 token : String -> a -> Parser a
 token text val =
@@ -59,19 +65,38 @@ char =
 -- Whitespace
 --------------------------------------------------------------------------------
 
-isSpace : Char -> Bool
-isSpace c =
+isWhitespace : Char -> Bool
+isWhitespace c =
   c == ' ' || c == '\n'
 
-isOnlySpaces : String -> Bool
-isOnlySpaces =
-  String.all isSpace
+isOnlyWhitespace : String -> Bool
+isOnlyWhitespace =
+  String.all isWhitespace
 
-spaces : Parser Whitespace
-spaces =
+whitespace : Parser Whitespace
+whitespace =
   trackRange <|
     map whitespace_ <|
-      keep zeroOrMore isSpace
+      keep zeroOrMore isWhitespace
+
+guardWhitespace : Parser ()
+guardWhitespace =
+  ( succeed (,)
+    |= LL.getOffset
+    |= LL.getSource
+  )
+  |> andThen
+  ( \(offset, source) ->
+      guard "expecting space" <|
+        isOnlyWhitespace <|
+          String.slice offset (offset + 1) source
+  )
+
+keywordWithWhitespace : String -> Parser ()
+keywordWithWhitespace kword =
+  succeed ()
+    |. keyword kword
+    |. guardWhitespace
 
 --------------------------------------------------------------------------------
 -- Positions
@@ -81,7 +106,7 @@ getPosition : Parser Position
 getPosition =
   map
     Position.fromRowCol
-    Parser.LowLevel.getPosition
+    LL.getPosition
 
 --------------------------------------------------------------------------------
 -- Ranges
@@ -106,13 +131,13 @@ trackRange parser =
 -- Paddings
 --------------------------------------------------------------------------------
 
-spacesBefore : Parser (Padded a) -> Parser (Padded a)
-spacesBefore parser =
+whitespaceBefore : Parser (Padded a) -> Parser (Padded a)
+whitespaceBefore parser =
   delayedCommitMap
     ( \before x ->
         { x
             | before = before
         }
     )
-    spaces
+    whitespace
     parser

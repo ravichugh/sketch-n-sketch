@@ -1,11 +1,11 @@
 module ElmParser exposing
   (parse)
 
-import ElmLang exposing (..)
-
 import Parser as P exposing (..)
+import Parser.LanguageKit as LK
 
 import ParserUtils exposing (..)
+import ElmLang exposing (..)
 
 --------------------------------------------------------------------------------
 -- Bools
@@ -13,7 +13,7 @@ import ParserUtils exposing (..)
 
 bool : Parser Term
 bool =
-  inContext "bool" << spacesBefore << trackRange << map term_ <|
+  inContext "bool" << whitespaceBefore << trackRange << map term_ <|
     oneOf
       [ token "True" <|
           EBool { bool = True }
@@ -27,7 +27,7 @@ bool =
 
 int : Parser Term
 int =
-  inContext "int" << spacesBefore << trackRange << map term_ <|
+  inContext "int" << whitespaceBefore << trackRange << map term_ <|
     map (\x -> EInt { int = x })
       P.int
 
@@ -37,7 +37,7 @@ int =
 
 --float : Parser Term
 --float =
---  spacesBefore << trackRange << map term_ <|
+--  whitespaceBefore << trackRange << map term_ <|
 --    map (\x -> EFloat { float = x }) <|
 --      try P.float
 
@@ -47,7 +47,7 @@ int =
 
 char : Parser Term
 char =
-  inContext "char" << spacesBefore << trackRange << map term_ <|
+  inContext "char" << whitespaceBefore << trackRange << map term_ <|
     succeed (\c -> EChar { char = c })
       |. symbol "'"
       |= ParserUtils.char
@@ -59,7 +59,7 @@ char =
 
 string : Parser Term
 string =
-  inContext "string" << spacesBefore << trackRange << map term_ <|
+  inContext "string" << whitespaceBefore << trackRange << map term_ <|
     succeed (\s -> EString { string = s })
       |. symbol "\""
       |= keep zeroOrMore (\c -> c /= '\"')
@@ -67,9 +67,65 @@ string =
 
 multiLineString : Parser Term
 multiLineString =
-  inContext "multi-line string" << spacesBefore << trackRange << map term_ <|
+  inContext "multi-line string" << whitespaceBefore << trackRange << map term_ <|
     map (\s -> EMultiLineString { string = s }) <|
-      ParserUtils.inside "\"\"\""
+      inside "\"\"\""
+
+--------------------------------------------------------------------------------
+-- Lists
+--------------------------------------------------------------------------------
+
+list : Parser Term
+list =
+  let
+    member =
+      inContext "list member" <|
+        succeed
+          ( \t after ->
+              { t | after = after }
+          )
+          |= term
+          |= whitespace
+  in
+    inContext "list" << whitespaceBefore << trackRange << map term_ <|
+      map (\members -> EList { members = members }) <|
+        LK.sequence
+          { start = "["
+          , separator = ","
+          , end = "]"
+            -- We'll handle spaces on our own
+          , spaces = succeed ()
+          , item = member
+          , trailing = LK.Forbidden
+          }
+
+--------------------------------------------------------------------------------
+-- Conditionals
+--------------------------------------------------------------------------------
+
+conditional : Parser Term
+conditional =
+  inContext "conditional" << whitespaceBefore << trackRange << map term_ <|
+    succeed
+      ( \c cAfter t tAfter f ->
+          EConditional
+          { condition =
+              { c | after = cAfter }
+          , trueBranch =
+              { t | after = tAfter }
+          , falseBranch =
+              f
+          }
+      )
+      |. keywordWithWhitespace "if"
+      |= term
+      |= whitespace
+      |. keywordWithWhitespace "then"
+      |= term
+      |= whitespace
+      |. keywordWithWhitespace "else"
+      |= term
+
 
 --------------------------------------------------------------------------------
 -- General
@@ -83,6 +139,8 @@ term =
     , char
     , multiLineString
     , string
+    , lazy <| \_ -> list
+    , lazy <| \_ -> conditional
     ]
 
 program : Parser Term
