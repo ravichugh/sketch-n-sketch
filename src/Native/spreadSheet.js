@@ -18,7 +18,6 @@ function render(model) {
 	grid.setSelectionModel(new Slick.CellSelectionModel());
     }
     else {
-        console.log("DEBUG" + " new data");
         if (cols == grid.getColumns()) {
             grid.setData(rows)
             grid.render();

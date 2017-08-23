@@ -420,6 +420,15 @@ strNum     = toString
 strNumTrunc k =
   strNum >> (\s -> if String.length s > k then String.left k s ++ ".." else s)
 
+strVal1 : Val -> String
+strVal1 v =
+  case v.v_ of
+    VBase b ->
+      case b of
+        VString s -> s
+        _         -> strBaseVal b
+    _       -> strVal v
+               
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
   let foo = strVal_ showTraces in
