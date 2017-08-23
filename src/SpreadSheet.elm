@@ -25,7 +25,9 @@ makeCol id name field =
 
 makeRow col data =
   let row = Encode.object
-            <| Utils.zip (List.map strVal col) (List.map (Encode.string << strVal) data)
+            <| Utils.zip
+                 (List.map strVal1 col)
+                 (List.map (Encode.string << strVal1) data)
   in
     Encode.encode 0 row
           
@@ -33,7 +35,7 @@ valToSpreadSheet : List (List Val) -> SpreadSheet
 valToSpreadSheet vss =
   case vss of
     vs::vss_ ->
-      let columns = List.map (\v -> makeCol (strVal v) (strVal v) (strVal v)) vs in
+      let columns = List.map (\v -> makeCol (strVal1 v) (strVal1 v) (strVal1 v)) vs in
       let rows = List.map (makeRow vs) vss_ in
       { columns = columns, rows = rows }
     _        -> Debug.crash "TODO: no header"
