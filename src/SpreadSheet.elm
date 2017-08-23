@@ -41,6 +41,7 @@ genHeader len =
   let numToChar n = Char.fromCode (65 + n - 1) in
   List.map (String.fromList << (List.map numToChar) << Utils.toBase 26) allNum
       
+
 valToSpreadSheet : List (List Val) -> SpreadSheet
 valToSpreadSheet vss =
   case vss of
