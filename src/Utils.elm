@@ -1094,3 +1094,12 @@ isEven n =
 isOdd : Int -> Bool
 isOdd n =
   n % 2 == 1
+
+toBase : Int -> Int -> List Int
+toBase k n =
+  if n == 0 then [0]
+  else
+  let m = floor <| logBase (toFloat k) (toFloat n) in
+  let rest = n % k^m in
+  if rest == 0 then (n // k^m) :: List.repeat m 0
+  else (n // k^m) :: toBase k (n - k^m)
