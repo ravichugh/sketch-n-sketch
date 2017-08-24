@@ -1,5 +1,10 @@
 module ElmParser exposing
-  (parse)
+  ( parse
+  , showError
+  )
+
+import Char
+import Set exposing (Set)
 
 import Parser as P exposing (..)
 import Parser.LanguageKit as LK
@@ -7,13 +12,76 @@ import Parser.LanguageKit as LK
 import ParserUtils exposing (..)
 import ElmLang exposing (..)
 
+--==============================================================================
+--= General
+--==============================================================================
+
+keywords : Set String
+keywords =
+  Set.fromList
+    [ "let"
+    , "in"
+    , "case"
+    , "of"
+    ]
+
+isRestChar : Char -> Bool
+isRestChar char =
+  Char.isLower char ||
+  Char.isUpper char ||
+  Char.isDigit char ||
+  char == '_'
+
+littleIdentifier : Parser String
+littleIdentifier =
+  LK.variable
+    Char.isLower
+    isRestChar
+    keywords
+
+bigIdentifier : Parser String
+bigIdentifier =
+  LK.variable
+    Char.isUpper
+    isRestChar
+    keywords
+
+--==============================================================================
+--= Patterns
+--==============================================================================
+
+--------------------------------------------------------------------------------
+-- Named
+--------------------------------------------------------------------------------
+
+named : Parser PTerm
+named =
+  ptermify "named" <|
+    map (\name -> PNamed { name = name })
+      littleIdentifier
+
+--------------------------------------------------------------------------------
+-- General
+--------------------------------------------------------------------------------
+
+pterm : Parser PTerm
+pterm =
+  inContext "pattern" <|
+    oneOf
+      [ named
+      ]
+
+--==============================================================================
+-- Expressions
+--==============================================================================
+
 --------------------------------------------------------------------------------
 -- Bools
 --------------------------------------------------------------------------------
 
-bool : Parser Term
+bool : Parser ETerm
 bool =
-  inContext "bool" << whitespaceBefore << trackRange << map term_ <|
+  etermify "bool" <|
     oneOf
       [ token "True" <|
           EBool { bool = True }
@@ -25,9 +93,9 @@ bool =
 -- Ints
 --------------------------------------------------------------------------------
 
-int : Parser Term
+int : Parser ETerm
 int =
-  inContext "int" << whitespaceBefore << trackRange << map term_ <|
+  etermify "int" <|
     map (\x -> EInt { int = x })
       P.int
 
@@ -35,7 +103,7 @@ int =
 -- Floats
 --------------------------------------------------------------------------------
 
---float : Parser Term
+--float : Parser ETerm
 --float =
 --  whitespaceBefore << trackRange << map term_ <|
 --    map (\x -> EFloat { float = x }) <|
@@ -45,9 +113,9 @@ int =
 -- Chars
 --------------------------------------------------------------------------------
 
-char : Parser Term
+char : Parser ETerm
 char =
-  inContext "char" << whitespaceBefore << trackRange << map term_ <|
+  etermify "char" <|
     succeed (\c -> EChar { char = c })
       |. symbol "'"
       |= ParserUtils.char
@@ -57,17 +125,17 @@ char =
 -- Strings
 --------------------------------------------------------------------------------
 
-string : Parser Term
+string : Parser ETerm
 string =
-  inContext "string" << whitespaceBefore << trackRange << map term_ <|
+  etermify "string" <|
     succeed (\s -> EString { string = s })
       |. symbol "\""
       |= keep zeroOrMore (\c -> c /= '\"')
       |. symbol "\""
 
-multiLineString : Parser Term
+multiLineString : Parser ETerm
 multiLineString =
-  inContext "multi-line string" << whitespaceBefore << trackRange << map term_ <|
+  etermify "multi-line string" <|
     map (\s -> EMultiLineString { string = s }) <|
       inside "\"\"\""
 
@@ -75,84 +143,222 @@ multiLineString =
 -- Lists
 --------------------------------------------------------------------------------
 
-list : Parser Term
+emptyList : Parser ETerm
+emptyList =
+  etermify "empty list" <|
+    succeed (\space -> EEmptyList { space = space })
+      |. symbol "["
+      |= whitespace
+      |. symbol "]"
+
+list : Parser ETerm
 list =
-  let
-    member =
-      inContext "list member" <|
+  lazy <| \_ ->
+    let
+      member =
+        inContext "list member" <|
+          padded eterm
+    in
+      etermify "list" <|
+        map (\members -> EList { members = members }) <|
+          LK.sequence
+            { start = "["
+            , separator = ","
+            , end = "]"
+              -- We'll handle spaces on our own
+            , spaces = succeed ()
+            , item = member
+            , trailing = LK.Forbidden
+            }
+
+--------------------------------------------------------------------------------
+-- Records
+--------------------------------------------------------------------------------
+
+emptyRecord : Parser ETerm
+emptyRecord =
+  etermify "empty record" <|
+    succeed (\space -> EEmptyRecord { space = space })
+      |. symbol "{"
+      |= whitespace
+      |. symbol "}"
+
+record : Parser ETerm
+record =
+  lazy <| \_ ->
+    let
+      entry =
+        inContext "record entry" <|
+          succeed (,)
+            |= padded pterm
+            |. symbol "="
+            |= padded eterm
+      entries =
+        inContext "record entries" <|
+          LK.sequence
+            { start = ""
+            , separator = ","
+            , end = "}"
+              -- We'll handle spaces on our own
+            , spaces = succeed ()
+            , item = entry
+            , trailing = LK.Forbidden
+            }
+      base =
+        inContext "record base" <|
+          succeed identity
+            |. symbol "{"
+            |= oneOf
+                 [ succeed Just
+                     |= delayedCommitMap
+                          (\t _ -> t)
+                          (padded eterm)
+                          (symbol "|")
+                 , succeed Nothing
+                 ]
+    in
+      etermify "record" <|
         succeed
-          ( \t after ->
-              { t | after = after }
+          ( \b es ->
+              ERecord
+                { base = b
+                , entries = es
+                }
           )
-          |= term
-          |= whitespace
-  in
-    inContext "list" << whitespaceBefore << trackRange << map term_ <|
-      map (\members -> EList { members = members }) <|
-        LK.sequence
-          { start = "["
-          , separator = ","
-          , end = "]"
-            -- We'll handle spaces on our own
-          , spaces = succeed ()
-          , item = member
-          , trailing = LK.Forbidden
-          }
+          |= base
+          |= entries
 
 --------------------------------------------------------------------------------
 -- Conditionals
 --------------------------------------------------------------------------------
 
-conditional : Parser Term
+conditional : Parser ETerm
 conditional =
-  inContext "conditional" << whitespaceBefore << trackRange << map term_ <|
-    succeed
-      ( \c cAfter t tAfter f ->
-          EConditional
-          { condition =
-              { c | after = cAfter }
-          , trueBranch =
-              { t | after = tAfter }
-          , falseBranch =
-              f
-          }
-      )
-      |. keywordWithWhitespace "if"
-      |= term
-      |= whitespace
-      |. keywordWithWhitespace "then"
-      |= term
-      |= whitespace
-      |. keywordWithWhitespace "else"
-      |= term
-
+  lazy <| \_ ->
+    etermify "conditional" <|
+      succeed
+        ( \c t f ->
+            EConditional
+              { condition = c
+              , trueBranch = t
+              , falseBranch = f
+              }
+        )
+        |. keywordWithWhitespace "if"
+        |= padded eterm
+        |. keywordWithWhitespace "then"
+        |= padded eterm
+        |. keywordWithWhitespace "else"
+        |= padded eterm
 
 --------------------------------------------------------------------------------
 -- General
 --------------------------------------------------------------------------------
 
-term : Parser Term
-term =
-  oneOf
-    [ bool
-    , int
-    , char
-    , multiLineString
-    , string
-    , lazy <| \_ -> list
-    , lazy <| \_ -> conditional
-    ]
+eterm : Parser ETerm
+eterm =
+  inContext "expression" <|
+    oneOf
+      [ bool
+      , int
+      , char
+      , multiLineString
+      , string
+      , try emptyList
+      , lazy <| \_ -> list
+      , try emptyRecord
+      , lazy <| \_ -> record
+      , lazy <| \_ -> conditional
+      ]
 
-program : Parser Term
+program : Parser ETerm
 program =
   succeed identity
-    |= term
+    |= padded eterm
     |. end
 
+--==============================================================================
+--= Exports
+--==============================================================================
+
 --------------------------------------------------------------------------------
--- Exports
+-- Parser Runners
 --------------------------------------------------------------------------------
 
-parse : String -> Result P.Error Term
+parse : String -> Result P.Error ETerm
 parse =
   run program
+
+--------------------------------------------------------------------------------
+-- Error Handling
+--------------------------------------------------------------------------------
+
+showIndentedProblem : Int -> Problem -> String
+showIndentedProblem n prob =
+  let
+    indent =
+      String.repeat (2 * n) " "
+  in
+    case prob of
+      BadOneOf probs ->
+        indent ++ "One of:\n" ++
+          String.concat (List.map (showIndentedProblem (n + 1)) probs)
+      BadInt ->
+        indent ++ "Bad integer value\n"
+      BadFloat ->
+        indent ++ "Bad float value\n"
+      BadRepeat ->
+        indent ++ "Parse of zero-length input indefinitely\n"
+      ExpectingEnd ->
+        indent ++ "Expecting end\n"
+      ExpectingSymbol s ->
+        indent ++ "Expecting symbol '" ++ s ++ "'\n"
+      ExpectingKeyword s ->
+        indent ++ "Expecting keyword '" ++ s ++ "'\n"
+      ExpectingVariable ->
+        indent ++ "Expecting variable\n"
+      ExpectingClosing s ->
+        indent ++ "Expecting closing string '" ++ s ++ "'\n"
+      Fail s ->
+        indent ++ "Parser failure: " ++ s ++ "\n"
+
+showError : Error -> String
+showError err =
+  let
+    prettyError =
+      let
+        sourceLines =
+          String.lines err.source
+        problemLine =
+          List.head (List.drop (err.row - 1) sourceLines)
+        arrow =
+          (String.repeat (err.col - 1) " ") ++ "^"
+      in
+        case problemLine of
+          Just line ->
+            line ++ "\n" ++ arrow ++ "\n\n"
+          Nothing ->
+            ""
+    showContext c =
+      "  (row: " ++ (toString c.row) ++", col: " ++ (toString c.col)
+      ++ ") Error while parsing '" ++ c.description ++ "'\n"
+    deepestContext =
+      case List.head err.context of
+        Just c ->
+          "Error while parsing '" ++ c.description ++ "':\n"
+        Nothing ->
+          ""
+  in
+    "[Parser Error]\n\n" ++
+      deepestContext ++ "\n" ++
+      prettyError ++
+    "Position\n" ++
+    "========\n" ++
+    "  Row: " ++ (toString err.row) ++ "\n" ++
+    "  Col: " ++ (toString err.col) ++ "\n\n" ++
+    "Problem\n" ++
+    "=======\n" ++
+      (showIndentedProblem 1 err.problem) ++ "\n" ++
+    "Context Stack\n" ++
+    "=============\n" ++
+      (String.concat <| List.map showContext err.context) ++ "\n\n"

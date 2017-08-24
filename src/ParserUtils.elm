@@ -1,14 +1,13 @@
 module ParserUtils exposing
   ( try
   , token
-  , keepUntil
   , inside
   , char
   , whitespace
-  , guardWhitespace
   , keywordWithWhitespace
-  , trackRange
-  , whitespaceBefore
+  , padded
+  , etermify
+  , ptermify
   )
 
 import Parser exposing (..)
@@ -18,6 +17,14 @@ import Whitespace exposing (Whitespace, whitespace_)
 import Position exposing (Position)
 import Range exposing (Ranged)
 import Padding exposing (Padded)
+import ElmLang exposing
+  ( Pattern
+  , Expression
+  , PTerm
+  , ETerm
+  , pterm_
+  , eterm_
+  )
 
 --------------------------------------------------------------------------------
 -- General
@@ -131,13 +138,43 @@ trackRange parser =
 -- Paddings
 --------------------------------------------------------------------------------
 
-whitespaceBefore : Parser (Padded a) -> Parser (Padded a)
-whitespaceBefore parser =
+paddedBefore : Parser (Padded a) -> Parser (Padded a)
+paddedBefore parser =
   delayedCommitMap
     ( \before x ->
-        { x
-            | before = before
-        }
+        { x | before = before }
     )
     whitespace
     parser
+
+paddedAfter : Parser (Padded a) -> Parser (Padded a)
+paddedAfter parser =
+  succeed
+    ( \x after ->
+        { x | after = after }
+    )
+    |= parser
+    |= whitespace
+
+padded : Parser (Padded a) -> Parser (Padded a)
+padded =
+  paddedBefore >> paddedAfter
+
+--------------------------------------------------------------------------------
+-- Terms
+--------------------------------------------------------------------------------
+
+termify
+  : (a -> Ranged (Padded b)) -> String -> Parser a -> Parser (Ranged (Padded b))
+termify term_ context =
+  map term_
+    >> trackRange
+    >> inContext context
+
+etermify : String -> Parser Expression -> Parser ETerm
+etermify =
+  termify eterm_
+
+ptermify : String -> Parser Pattern -> Parser PTerm
+ptermify =
+  termify pterm_

@@ -5,8 +5,10 @@ import Keyboard
 import Html exposing (Html)
 import Html.Attributes as A
 import Html.Events as E
+import Parser as P
 
 import ElmParser
+import ElmLang
 
 --------------------------------------------------------------------------------
 -- Model
@@ -15,7 +17,7 @@ import ElmParser
 type alias Model =
   { code : String
   , oldCode : String
-  , output : String
+  , output : Maybe (Result P.Error ElmLang.ETerm)
   }
 
 type Msg
@@ -29,7 +31,7 @@ init =
     , oldCode =
         ""
     , output =
-        ""
+        Nothing
     }
   , Cmd.none
   )
@@ -81,6 +83,16 @@ editor model =
         []
     ]
 
+prettyPrint : Result P.Error ElmLang.ETerm -> Html Msg
+prettyPrint result =
+  case result of
+    Err error ->
+      Html.text <|
+        ElmParser.showError error
+    Ok term ->
+      Html.text <|
+        toString term
+
 output : Model -> Html Msg
 output model =
   let
@@ -100,7 +112,11 @@ output model =
           ]
       , Html.pre
           []
-          [ Html.text model.output
+          [ case model.output of
+              Just result ->
+                prettyPrint result
+              Nothing ->
+                Html.text ""
           ]
       ]
 
@@ -140,7 +156,8 @@ update msg model =
         oldCode =
           model.code
         newOutput =
-          toString <| ElmParser.parse model.code
+          Just <|
+            ElmParser.parse model.code
       in
         ( { model
               | oldCode =

@@ -9,7 +9,8 @@ import Range exposing (Ranged)
 
 type alias Whitespace =
   Ranged
-    { ws : String }
+    { ws : String
+    }
 
 dummyWhitespace : Whitespace
 dummyWhitespace =

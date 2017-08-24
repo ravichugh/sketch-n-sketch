@@ -1,19 +1,33 @@
 module ElmLang exposing
-  ( Exp(..)
-  , Term
-  , term_
+  ( Pattern(..)
+  , Expression(..)
+  , PTerm
+  , ETerm
+  , pterm_
+  , eterm_
   )
 
 import Position exposing (dummyPosition)
-import Whitespace exposing (dummyWhitespace)
+import Whitespace exposing (Whitespace, dummyWhitespace)
 import Range exposing (Ranged)
 import Padding exposing (Padded)
+
+-- General
+
+type alias Identifier =
+  String
+
+-- Patterns
+
+type Pattern =
+  PNamed
+    { name : Identifier }
 
 -- Expressions
 
 -- Helpful: http://elm-lang.org/docs/syntax
 
-type Exp
+type Expression
   = EBool
       { bool : Bool
       }
@@ -33,15 +47,30 @@ type Exp
       { string : String
       }
   | EList
-      { members : List Term
+      { members : List ETerm
+      }
+  | EEmptyList
+      { space : Whitespace
+      }
+  | ERecord
+      { base : Maybe ETerm
+      , entries : List (PTerm, ETerm)
+      }
+  | EEmptyRecord
+      { space : Whitespace
       }
   | EConditional
-      { condition : Term
-      , trueBranch : Term
-      , falseBranch : Term
+      { condition : ETerm
+      , trueBranch : ETerm
+      , falseBranch : ETerm
       }
 
--- EIds
+type alias PId =
+  Int
+
+dummyPId : PId
+dummyPId =
+  -1
 
 type alias EId =
   Int
@@ -50,22 +79,39 @@ dummyEId : EId
 dummyEId =
   -1
 
--- Terms
 
-type alias Term =
+type alias PTerm =
   Ranged
     ( Padded
-        { exp : Exp
+        { pattern : Pattern
+        , pid : PId
+        }
+    )
+
+pterm_ : Pattern -> PTerm
+pterm_ pattern =
+  { start = dummyPosition
+  , end = dummyPosition
+  , before = dummyWhitespace
+  , after = dummyWhitespace
+  , pid = dummyPId
+  , pattern = pattern
+  }
+
+type alias ETerm =
+  Ranged
+    ( Padded
+        { expression : Expression
         , eid : EId
         }
     )
 
-term_ : Exp -> Term
-term_ exp =
+eterm_ : Expression -> ETerm
+eterm_ expression =
   { start = dummyPosition
   , end = dummyPosition
   , before = dummyWhitespace
   , after = dummyWhitespace
   , eid = dummyEId
-  , exp = exp
+  , expression = expression
   }
