@@ -925,7 +925,7 @@ initTemplate : String
 initTemplate = "BLANK"
 
 initColorScheme : ColorScheme
-initColorScheme = Dark
+initColorScheme = Light
 
 initModel : Model
 initModel =
