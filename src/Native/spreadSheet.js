@@ -10,10 +10,11 @@ function render(model) {
 	autoEdit: false
     };
     if (!$("#grid").length) {
-        var height = $(".output-panel").height();
+        /*var height = $(".output-panel").height();
         var width = $(".output-panel").width();
         var $div = $("<div>", {"id":"grid", "style": "height:" + height + "px;" + "width:" + width + "px" });
-        $(".output-panel").append($div);
+        $(".output-panel").append($div);*/
+	$(".output-panel").attr("id", "grid");
 	grid = new Slick.Grid("#grid", rows, cols, options);
 	grid.setSelectionModel(new Slick.CellSelectionModel());
     }
