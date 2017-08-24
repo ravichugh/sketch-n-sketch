@@ -9,7 +9,8 @@ import String
 
 log : String -> String -> ()
 log eventName info =
-  Native.UserStudyLog.log eventName info
+  ()
+  -- Native.UserStudyLog.log eventName info
 
 
 logModelUpdate updateFunc msg model =
