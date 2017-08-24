@@ -1656,8 +1656,10 @@ workArea model =
         , outputPanel model
         ] ++
         ( UserStudy.hideIfEnabled
+            (if Model.isSheet model then []
+            else
             [ toolPanel model
-            ]
+            ])
         )
     ] ++
     ( UserStudy.hideIfEnabled
