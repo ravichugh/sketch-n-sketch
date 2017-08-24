@@ -97,6 +97,11 @@ justGetSvgOutput model =
   case model.slate of
     LittleSvg rit -> rit
     _             -> Debug.crash "justGetSvgOutput"
+
+isSheet model =
+  case model.slate of
+    LittleSheet _ -> True
+    _             -> False
                      
 type alias Model =
   { code : Code
