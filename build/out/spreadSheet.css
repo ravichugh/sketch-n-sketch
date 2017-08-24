@@ -1,6 +1,6 @@
 @import url('../../SlickGrid/slick-default-theme.css');
 
-#myGrid {
+#grid {
   background: white;
   outline: 0;
   border: 1px solid gray;
