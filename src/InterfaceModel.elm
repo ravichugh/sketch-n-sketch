@@ -28,6 +28,7 @@ import Mouse
 import Html exposing (Html)
 import Html.Attributes as Attr
 import VirtualDom
+import SpreadSheet exposing (CellInfo)
 
 import ImpureGoodies
 
@@ -195,6 +196,7 @@ type alias Model =
   , pendingGiveUpMsg : Maybe Msg
   , giveUpConfirmed : Bool
   , lastSelectedTemplate : Maybe String
+  , selectedCell : Maybe CellInfo
   }
 
 type Mode
@@ -1069,4 +1071,5 @@ initModel =
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
+    , selectedCell = Nothing
     }

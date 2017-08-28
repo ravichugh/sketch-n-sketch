@@ -1,4 +1,5 @@
 var grid = null;
+    
 function render(model) {
     var cols = model['columns'].map(JSON.parse);
     cols.map(function(d) {d['editor'] = Slick.Editors.Text;});
@@ -30,14 +31,28 @@ function render(model) {
         }
     }
     grid.onCellChange.subscribe(function(e, args) {
-	var row = Object.values(args.item);
-	var val = row[args.cell];
-	var pos = [args.row, args.cell];
-	var cellInfo = {pos: pos, value: val};
+        var row = Object.values(args.item);
+        var val = row[args.cell];
+        var pos = [args.row, args.cell];
+        var cellInfo = {pos: pos, value: val};
 	console.log(cellInfo);
 	app.ports.updateCell.send(cellInfo);
     });
+    grid.onClick.subscribe(function(e, args) {
+        var row = args.row;
+        var col = args.cell;
+        var pos = [row, col];
+        var cellInfo = {pos: pos, value: ""};
+        console.log(cellInfo);
+        app.ports.cellSelection.send(cellInfo);
+    });
 }
+
+function gotoCell(cellInfo) {
+    var row = cellInfo.pos[0];
+    var col = cellInfo.pos[1];
+    grid.gotoCell(row, col, true);
+}
+
 app.ports.render.subscribe(render);
-
-
+app.ports.gotoCell.subscribe(gotoCell);

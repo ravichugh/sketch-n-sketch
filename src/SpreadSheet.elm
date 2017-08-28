@@ -1,4 +1,12 @@
-port module SpreadSheet exposing (SpreadSheet, render, valToSpreadSheet, updateCell)
+port module SpreadSheet exposing
+       (SpreadSheet,
+        CellInfo,
+        render,
+        valToSpreadSheet,
+        updateCell,
+        cellSelection,
+        gotoCell
+       )
 
 import Html exposing (Html)
 import Html.Attributes as Attr
@@ -6,7 +14,6 @@ import Json.Encode as Encode
 import Char
 
 import Lang exposing (..)
-import InterfaceModel as Model
 import Utils
 
 type alias SpreadSheet
@@ -14,7 +21,6 @@ type alias SpreadSheet
     , rows: List String
     }
 
-port render : SpreadSheet -> Cmd msg
               
 makeCol id name field =
   let col = Encode.object
@@ -67,5 +73,11 @@ type alias CellInfo
   = { pos : Pos
     , value : String
     }
-  
+
+port render : SpreadSheet -> Cmd msg
+
+port gotoCell : CellInfo -> Cmd msg
+
 port updateCell : (CellInfo -> msg) -> Sub msg
+
+port cellSelection : (CellInfo -> msg) -> Sub msg

@@ -90,4 +90,5 @@ subscriptions model =
     -- , DependenceGraph.receiveImage Controller.msgReceiveDotImage
     , Time.every Time.second Controller.msgUserStudyEverySecondTick
     , SpreadSheet.updateCell Controller.msgUpdateCell
+    , SpreadSheet.cellSelection Controller.msgCellSelection
     ]
