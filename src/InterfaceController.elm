@@ -73,6 +73,7 @@ module InterfaceController exposing
   , msgReceiveDeucePopupPanelInfo
   , msgSetColorScheme
   , msgUpdateCell
+  , msgCellSelection
   )
 
 import Updatable exposing (Updatable)
@@ -117,7 +118,7 @@ import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
-import SpreadSheet
+import SpreadSheet exposing (CellInfo)
 
 import ImpureGoodies
 
@@ -852,6 +853,12 @@ issueCommand (Msg kind _) oldModel newModel =
             Cmd.none
         , if kind == "Set Color Scheme" then
             ColorScheme.updateColorScheme newModel.colorScheme
+          else
+            Cmd.none
+        , if kind == "cellSelection" then
+            case newModel.selectedCell of
+              Just cell -> SpreadSheet.gotoCell cell
+              _         -> Cmd.none
           else
             Cmd.none
         ]
@@ -2450,28 +2457,60 @@ makeChange newNum oldVal exp =
         _          -> exp
     _                 -> let _ = Debug.log "not a number" "" in
                          exp
-      
+
+getCellVal : Model -> CellInfo -> Maybe Val
+getCellVal m cellInfo =
+  let (row, col) = cellInfo.pos in
+  case m.slate of
+    LittleSheet vss -> Utils.maybeGeti0 (row + 1) vss |>
+                       Maybe.andThen (Utils.maybeGeti0 col)
+    _               -> Nothing
+
+
+-- this is a temporary function assuming that no arithmetic operation is performed
+-- on the cell
+getLoc : Val -> Loc
+getLoc v =
+  case valToTrace v of
+    TrLoc l -> l
+    _       -> Debug.crash "unable to retrieve loc"
+               
+msgCellSelection cellInfo =
+  Msg "cellSelection" <| \m ->
+    let littleVal = getCellVal m cellInfo in
+    let loc = Maybe.map getLoc littleVal in
+    let highlights =
+          let substPlus = FastParser.substPlusOf m.inputExp in
+          case loc of
+            Just l -> [ Sync.makeHighlight substPlus Sync.yellow l ]
+            _      -> []
+    in
+    let oldCodeBoxInfo = m.codeBoxInfo in
+    { m | codeBoxInfo =
+          { oldCodeBoxInfo | highlights = highlights }
+        , selectedCell = Just cellInfo
+    }
+
+    
 msgUpdateCell cellInfo =
   Msg "updateCell" <| \m ->
-    let (row, col) = cellInfo.pos in
-    case m.slate of
-      LittleSheet vss ->
-        let littleVal = Maybe.andThen (Utils.maybeGeti0 col)
-                        <| Utils.maybeGeti0 (row + 1) vss
-        in
-        let newNum = String.toFloat cellInfo.value in
-        case littleVal of
-          Just val ->
-            case newNum of
-              Ok newNum -> let newExp = makeChange newNum val m.inputExp in
-                           let newModel = { m | code = unparse newExp
-                                          , inputExp = newExp
-                                          }
-                           in
-                           upstateRun (resetDeuceState newModel)
-              _           -> let _ = Debug.log "not a num" "" in
+    let littleVal = getCellVal m cellInfo in
+    let newNum = String.toFloat cellInfo.value in
+    case littleVal of
+      Just val ->
+        case newNum of
+          Ok newNum -> let newExp = makeChange newNum val m.inputExp in
+                       let oldCodeBoxInfo = m.codeBoxInfo in
+                       let newModel =
+                             { m | code = unparse newExp
+                                 , inputExp = newExp
+                                 , codeBoxInfo =
+                                   { oldCodeBoxInfo | highlights = [] }
+                                 , selectedCell = Nothing
+                             }
+                       in
+                         upstateRun (resetDeuceState newModel)
+          _           -> let _ = Debug.log "not a num" "" in
                              m
-          _        -> let _ = Debug.log "index of out range in sheet" "" in
+      _        -> let _ = Debug.log "index of out range in sheet" "" in
                       m
-      _  -> let _ = Debug.log "not spreadsheet" in
-            m
