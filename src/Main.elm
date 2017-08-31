@@ -10,9 +10,6 @@ import DeucePopupPanelInfo
 import ColorScheme
 -- import DependenceGraph
 
-import UserStudyLog
-import UserStudy
-
 import Html exposing (Html)
 import Mouse
 import Window
@@ -43,7 +40,7 @@ view = View.view
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
-  UserStudyLog.logModelUpdate Controller.update msg model
+  Controller.update msg model
 
 initCmd : Cmd Msg
 initCmd =
@@ -54,15 +51,8 @@ initCmd =
     , Cmd.batch <| List.map FileHandler.requestIcon Model.iconNames
     , Task.perform Controller.msgLoadIcon (Task.succeed (Model.starLambdaToolIcon))
     , ColorScheme.updateColorScheme Model.initColorScheme
-    ] ++
-    -- Fixes model not correctly handling initial user study step
-    ( if UserStudy.enabled then
-        [ Task.perform (Controller.msgUserStudyStep "") (Task.succeed 0)
-        ]
-      else
-        [ Task.perform Controller.msgNew (Task.succeed Model.initTemplate)
-        ]
-    )
+    , Task.perform Controller.msgNew (Task.succeed Model.initTemplate)
+    ]
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -87,5 +77,4 @@ subscriptions model =
     , DeucePopupPanelInfo.receiveDeucePopupPanelInfo
         Controller.msgReceiveDeucePopupPanelInfo
     -- , DependenceGraph.receiveImage Controller.msgReceiveDotImage
-    , Time.every Time.second Controller.msgUserStudyEverySecondTick
     ]

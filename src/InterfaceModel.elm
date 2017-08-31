@@ -161,9 +161,6 @@ type alias Model =
   , toolMode : ShapeToolKind
   , popupPanelPositions : PopupPanelPositions
   , deuceRightClickMenuMode : Maybe DeuceRightClickMenuMode
-  , userStudyStateIndex : Int
-  , userStudyTaskStartTime : Time.Time
-  , userStudyTaskCurrentTime : Time.Time
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
   , codeToolsMenuMode : CodeToolsMenuMode
@@ -173,9 +170,7 @@ type alias Model =
   , enableDomainSpecificCodeTools : Bool
   , codeClean : Bool
   , mainResizerX : Maybe Int
-  , proseResizerY : Maybe Int
   , savedSelections : Maybe (List Ace.Range)
-  , prose : Updatable (Maybe String)
   , deucePopupPanelAbove : Bool
   , colorScheme : ColorScheme
   , pendingGiveUpMsg : Maybe Msg
@@ -415,8 +410,6 @@ setAllUpdated model =
     { model
         | enableTextEdits =
             Updatable.setUpdated old.enableTextEdits
-        , prose =
-            Updatable.setUpdated old.prose
     }
 
 --------------------------------------------------------------------------------
@@ -427,13 +420,6 @@ type DialogBox
   | Open
   | AlertSave
   | ImportCode
-  | Help HelpInfo
-  | AlertGiveUp
-
-type HelpInfo
-  = HelpSyntax
-  | HelpTextSelectMode
-  | HelpBoxSelectMode
 
 dialogBoxes =
   Utils.mapi0 identity
@@ -442,10 +428,6 @@ dialogBoxes =
     , Open
     , AlertSave
     , ImportCode
-    , Help HelpSyntax
-    , Help HelpTextSelectMode
-    , Help HelpBoxSelectMode
-    , AlertGiveUp
     ]
 
 dbToInt : DialogBox -> Int
@@ -475,15 +457,6 @@ cancelFileOperation model =
     { model
       | pendingFileOperation = Nothing
       , fileOperationConfirmed = False
-    }
-
-cancelGiveUp : Model -> Model
-cancelGiveUp model =
-  closeDialogBox
-    AlertGiveUp
-    { model
-      | pendingGiveUpMsg = Nothing
-      , giveUpConfirmed = False
     }
 
 closeAllDialogBoxes : Model -> Model
@@ -1068,9 +1041,6 @@ initModel =
         , deuceRightClickMenu = (400, 400)
         }
     , deuceRightClickMenuMode = Nothing
-    , userStudyStateIndex = 1
-    , userStudyTaskStartTime = 0.0
-    , userStudyTaskCurrentTime = 0.0
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
     , codeToolsMenuMode = CTAll
@@ -1082,10 +1052,7 @@ initModel =
     , enableDomainSpecificCodeTools = False
     , codeClean = True
     , mainResizerX = Nothing
-    , proseResizerY = Nothing
     , savedSelections = Nothing
-    , prose =
-        Updatable.setUpdated << Updatable.create <| Nothing
     , deucePopupPanelAbove = True
     , colorScheme = initColorScheme
     , pendingGiveUpMsg = Nothing

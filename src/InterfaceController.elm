@@ -1,7 +1,5 @@
 module InterfaceController exposing
   ( update
-  , timeLeft
-  , currentTaskDuration
   , msgNoop
   , msgWindowDimensions
   , msgVisibilityChange
@@ -33,7 +31,6 @@ module InterfaceController exposing
   , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
   , msgAskNew, msgAskOpen
   , msgConfirmFileOperation, msgCancelFileOperation
-  , msgConfirmGiveUp, msgCancelGiveUp
   , msgToggleAutosave
   , msgExportCode, msgExportSvg
   , msgImportCode, msgAskImportCode
@@ -54,10 +51,6 @@ module InterfaceController exposing
   , msgDragEditCodePopupPanel
   , msgDragDeuceRightClickMenu
   , msgTextSelect
-  , msgUserStudyStep
-  , msgUserStudyNext
-  , msgUserStudyPrev
-  , msgUserStudyEverySecondTick
   , msgSetEnableDeuceBoxSelection
   , msgSetEnableDeuceTextSelection
   , msgSetCodeToolsMenuMode
@@ -68,7 +61,6 @@ module InterfaceController exposing
   , msgSetSelectedDeuceTool
   , msgDeuceRightClick
   , msgDragMainResizer
-  , msgDragProseResizer
   , msgResetInterfaceLayout
   , msgReceiveDeucePopupPanelInfo
   , msgSetColorScheme
@@ -99,14 +91,12 @@ import SleekLayout exposing
 import AceCodeBox
 import AnimationLoop
 import FileHandler
-import ProseScroller
 import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
 import ColorScheme
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets exposing (RealZone(..), PointFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
-import Prose
 import Config exposing (params)
 import Either exposing (Either(..))
 import Canvas
@@ -118,9 +108,6 @@ import DeuceTools
 import ColorNum
 
 import ImpureGoodies
-
-import UserStudy
-import UserStudyLog
 
 import VirtualDom
 
@@ -164,7 +151,7 @@ refreshMode model e =
       liveInfo
 
     Err s ->
-      let _ = UserStudyLog.log "refreshMode Error" (toString s) in
+      let _ = Debug.log "refreshMode Error" (toString s) in
       Live { initSubstPlus = FastParser.substPlusOf e
            , triggers = Dict.empty
            }
@@ -708,7 +695,7 @@ update msg oldModel =
 
 upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
-  -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
+  let _ = Utils.log caption in
   let _ = debugLog "Msg" caption in
   updateModel old
 
@@ -767,8 +754,6 @@ updateCommands model =
     List.concat
       [ ifNeedsUpdate .enableTextEdits <|
           AceCodeBox.setReadOnly << not
-      , ifNeedsUpdate .prose <|
-          ProseScroller.resetProseScroll << always ()
       ]
 
 issueCommand : Msg -> Model -> Model -> Cmd Msg
@@ -1587,16 +1572,6 @@ requireSaveAsker ((Msg name _) as msg) needsSave =
   else
     msg
 
-giveUpAsker : Msg -> Msg
-giveUpAsker msg =
-  Msg "Give Up Asker" <| \old ->
-    { old
-        | pendingGiveUpMsg =
-            Just msg
-        , giveUpConfirmed =
-            False
-    } |> Model.openDialogBox AlertGiveUp
-
 --------------------------------------------------------------------------------
 -- Dialog Box
 
@@ -1740,9 +1715,6 @@ handleNew template = (\old ->
                     , fileIndex     = old.fileIndex
                     , icons         = old.icons
 
-                    , userStudyStateIndex      = old.userStudyStateIndex
-                    , userStudyTaskCurrentTime = old.userStudyTaskCurrentTime
-                    , userStudyTaskStartTime   = old.userStudyTaskCurrentTime
                     , enableDeuceBoxSelection  = old.enableDeuceBoxSelection
                     , enableDeuceTextSelection = old.enableDeuceTextSelection
                     , codeToolsMenuMode        = old.codeToolsMenuMode
@@ -1751,10 +1723,8 @@ handleNew template = (\old ->
                     , allowMultipleTargetPositions  = old.allowMultipleTargetPositions
                     , enableDomainSpecificCodeTools = old.enableDomainSpecificCodeTools
                     , mainResizerX             = old.mainResizerX
-                    , proseResizerY            = old.proseResizerY
                     , colorScheme              = old.colorScheme
                     } |> resetDeuceState
-                      |> Prose.extractFromUserStudyTemplate
       ) |> handleError old) >> closeDialogBox New
 
 msgAskNew template = requireSaveAsker (msgNew template)
@@ -1799,20 +1769,6 @@ msgConfirmFileOperation = Msg "Confirm File Operation" <| (\old ->
 
 msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
   { old | autosave = not old.autosave }
-
---------------------------------------------------------------------------------
-
-msgCancelGiveUp : Msg
-msgCancelGiveUp =
-  Msg "Cancel Give Up" Model.cancelGiveUp
-
-msgConfirmGiveUp : Msg
-msgConfirmGiveUp =
-  Msg "Confirm Give Up" <| \old ->
-    { old
-        | giveUpConfirmed =
-            True
-    } |> Model.closeDialogBox AlertGiveUp
 
 --------------------------------------------------------------------------------
 -- Exporting
@@ -2186,59 +2142,6 @@ msgTextSelect allowSingleSelection =
     textSelect allowSingleSelection
 
 --------------------------------------------------------------------------------
--- User Study Operations
-
-msgUserStudyStep label offset = Msg label <| \old ->
-  changeUserStudyStep label offset old
-
-changeUserStudyStep label offset old =
-  let i = old.userStudyStateIndex in
-  let newState = Utils.geti (i + offset) UserStudy.sequence in
-  let template = UserStudy.getTemplate newState in
-  let _ = UserStudyLog.log label (toString newState) in
-  { old | userStudyStateIndex = i + offset }
-      |> handleNew template
-      |> (\m ->
-           let finalCode = UserStudy.postProcessCode newState m.code in
-           { m | code = finalCode, history = ([finalCode], []) }
-         )
-      |> UserStudy.enableFeaturesForEditorMode newState
-      |> UserStudy.postProcessProse newState
-      |> upstateRun
-
-currentTaskDuration : Model -> Time.Time
-currentTaskDuration model =
-  let userStudyState = UserStudy.getState model.userStudyStateIndex in
-  UserStudy.stepTimeoutDuration userStudyState
-
-timeLeft : Model -> Time.Time
-timeLeft model =
-  let timeoutTime = model.userStudyTaskStartTime + currentTaskDuration model in
-  timeoutTime - model.userStudyTaskCurrentTime
-
-msgUserStudyNext isDone =
-  let
-    asker =
-      if isDone then
-        identity
-      else
-        giveUpAsker
-  in
-    asker <|
-      msgUserStudyStep "New: User Study Next" 1
-
-msgUserStudyPrev = msgUserStudyStep "New: User Study Prev" (-1)
-
-msgUserStudyEverySecondTick : Time.Time -> Msg
-msgUserStudyEverySecondTick currentTime =
-  Model.Msg "Time Tick" <| \old ->
-    if timeLeft old <= 0 then
-      let _ = UserStudyLog.log "Task Timeout" ("{ " ++ UserStudyLog.modelSummaryJsonInner old ++ " }") in
-      changeUserStudyStep "New: User Study Next" 1 { old | userStudyTaskCurrentTime = currentTime }
-    else
-      { old | userStudyTaskCurrentTime = currentTime }
-
---------------------------------------------------------------------------------
 -- Some Flags
 
 msgSetEnableDeuceBoxSelection : Bool -> Msg
@@ -2345,9 +2248,6 @@ msgDeuceRightClick menuMode =
         if Model.noWidgetsSelected modelAfterTextSelection then
           model
         else
-          let _ =
-            UserStudyLog.log "Showing Right Click Menu" ""
-          in
           showDeuceRightClickMenu
             deuceRightClickMenuMouseOffset.x
             deuceRightClickMenuMouseOffset.y
@@ -2380,34 +2280,11 @@ msgDragMainResizer =
     Msg "Drag Main Resizer" <| \model ->
       { model | mouseMode = Model.MouseDrag updater }
 
-msgDragProseResizer : Msg
-msgDragProseResizer =
-  let
-    updater oldPosition newPosition old =
-      let
-        topBound =
-          SleekLayout.proseResizerTopBound old
-        bottomBound =
-          SleekLayout.proseResizerBottomBound old
-        oldProseResizerY =
-          (SleekLayout.proseResizer old).y
-        newProseResizerY =
-          Utils.clamp topBound bottomBound <|
-            oldProseResizerY +
-              (Tuple.second <| deltaMouse oldPosition newPosition)
-      in
-        { old | proseResizerY = Just newProseResizerY }
-  in
-    Msg "Drag Prose Resizer" <| \model ->
-      { model | mouseMode = Model.MouseDrag updater }
-
 msgResetInterfaceLayout : Msg
 msgResetInterfaceLayout =
   Msg "Reset Interface Layout" <| \model ->
     { model
         | mainResizerX =
-            Nothing
-        , proseResizerY =
             Nothing
     }
 

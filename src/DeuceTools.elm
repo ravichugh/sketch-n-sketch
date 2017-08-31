@@ -17,7 +17,6 @@ import Dict
 import Either exposing (..)
 import Utils
 import ImpureGoodies
-import UserStudyLog
 import ColorNum
 
 import InterfaceModel as Model exposing
@@ -34,7 +33,6 @@ import InterfaceModel as Model exposing
 import Lang exposing (..)
 import LangTools
 import LangUnparser
-import UserStudy
 
 import DeuceWidgets exposing
   ( DeuceWidget(..)
@@ -2096,7 +2094,7 @@ deuceTools model =
         , makeMultiLineTool
         , alignExpressionsTool
         ]
-      , if model.enableDomainSpecificCodeTools && not UserStudy.enabled then
+      , if model.enableDomainSpecificCodeTools then
           [ thawFreezeTool
           , addRemoveRangeTool
           , showHideRangeTool
@@ -2169,7 +2167,7 @@ runTool model deuceTool =
       case ImpureGoodies.crashToError thunk of
         Ok results -> Just results
         Err errMsg ->
-          let _ = UserStudyLog.log ("Deuce Tool Crash \"" ++ deuceTool.name ++ "\"") (toString errMsg) in
+          let _ = Debug.log ("Deuce Tool Crash \"" ++ deuceTool.name ++ "\"") (toString errMsg) in
           Nothing
 
     _ ->
