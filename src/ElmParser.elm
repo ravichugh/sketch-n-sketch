@@ -76,7 +76,7 @@ pterm =
 --==============================================================================
 
 --------------------------------------------------------------------------------
--- Line Comment
+-- Line Comments
 --------------------------------------------------------------------------------
 
 lineComment : Parser ETerm
@@ -96,6 +96,16 @@ lineComment =
            [ map Just (padded eterm)
            , succeed Nothing
            ]
+
+--------------------------------------------------------------------------------
+-- Variables
+--------------------------------------------------------------------------------
+
+variable : Parser ETerm
+variable =
+  etermify "variable" <|
+    map (\identifier -> EVariable { identifier = identifier })
+      littleIdentifier
 
 --------------------------------------------------------------------------------
 -- Bools
@@ -274,6 +284,24 @@ conditional =
         |= padded eterm
 
 --------------------------------------------------------------------------------
+-- Function Applications
+--------------------------------------------------------------------------------
+
+functionApplication : Parser ETerm
+functionApplication =
+  lazy <| \_ ->
+    etermify "function application" <|
+      succeed
+        ( \function arguments ->
+            EFunctionApplication
+              { function = function
+              , arguments = arguments
+              }
+        )
+        |= padded eterm
+        |= repeat oneOrMore (padded eterm)
+
+--------------------------------------------------------------------------------
 -- General
 --------------------------------------------------------------------------------
 
@@ -290,6 +318,9 @@ etermBase =
     , lazy <| \_ -> list
     , try emptyRecord
     , lazy <| \_ -> record
+    , lazy <| \_ -> conditional
+    , variable
+    -- , lazy <| \_ -> functionApplication
     ]
 
 etermWithPrecedence : Int -> Parser ETerm
@@ -328,8 +359,9 @@ etermWithPrecedence precedence =
           etermWithPrecedence 1
         _ ->
           fail <|
-            "Trying to parse expression with invalid precedence " ++
-              (toString precedence)
+            "trying to parse expression with invalid precedence '" ++
+              (toString precedence) ++
+              "'"
 
 eterm : Parser ETerm
 eterm =

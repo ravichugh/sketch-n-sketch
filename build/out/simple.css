@@ -92,6 +92,7 @@ pre {
 #work-area > div > *:nth-child(2) {
   width: 100%;
   height: calc(100vh - 50px - 2 * 10px - 25px - 10px - 2 * 10px);
+  overflow: scroll;
 
   margin-top: 10px;
   border: 1px solid #AAAAAA;

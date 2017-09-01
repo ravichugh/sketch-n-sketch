@@ -6,6 +6,8 @@ module ParserUtils exposing
   , char
   , whitespace
   , keywordWithWhitespace
+  , paddedBefore
+  , paddedAfter
   , padded
   , etermify
   , ptermify

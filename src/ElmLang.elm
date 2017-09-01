@@ -37,6 +37,9 @@ type Expression
       { text : String
       , termAfter : Maybe ETerm
       }
+  | EVariable
+      { identifier : Identifier
+      }
   | EBool
       { bool : Bool
       }
