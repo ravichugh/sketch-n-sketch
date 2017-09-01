@@ -17,7 +17,7 @@ import ElmLang
 type alias Model =
   { code : String
   , oldCode : String
-  , output : Maybe (Result P.Error ElmLang.ETerm)
+  , output : Maybe (Result P.Error ElmLang.Program)
   }
 
 type Msg
@@ -83,15 +83,15 @@ editor model =
         []
     ]
 
-prettyPrint : Result P.Error ElmLang.ETerm -> Html Msg
+prettyPrint : Result P.Error ElmLang.Program -> Html Msg
 prettyPrint result =
   case result of
     Err error ->
       Html.text <|
         ElmParser.showError error
-    Ok term ->
+    Ok program ->
       Html.text <|
-        toString term
+        toString program
 
 output : Model -> Html Msg
 output model =

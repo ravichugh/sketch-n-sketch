@@ -1,5 +1,6 @@
 module ParserUtils exposing
   ( try
+  , optional
   , chainLeft
   , token
   , inside
@@ -36,6 +37,13 @@ import ElmLang exposing
 try : Parser a -> Parser a
 try parser =
   delayedCommitMap always parser (succeed ())
+
+optional : Parser a -> Parser (Maybe a)
+optional parser =
+  oneOf
+    [ map Just parser
+    , succeed Nothing
+    ]
 
 -- Like Parsec's chainl1
 chainLeft : (a -> a -> a) -> Parser sep -> Parser a -> Parser a

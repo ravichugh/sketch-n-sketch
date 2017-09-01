@@ -92,10 +92,7 @@ lineComment =
            [ symbol "\n"
            , end
            ]
-      |= oneOf
-           [ map Just (padded eterm)
-           , succeed Nothing
-           ]
+      |= optional (padded eterm)
 
 --------------------------------------------------------------------------------
 -- Variables
@@ -240,14 +237,12 @@ record =
         inContext "record base" <|
           succeed identity
             |. symbol "{"
-            |= oneOf
-                 [ succeed Just
-                     |= delayedCommitMap
-                          (\t _ -> t)
-                          (padded eterm)
-                          (symbol "|")
-                 , succeed Nothing
-                 ]
+            |= optional
+                 ( delayedCommitMap
+                     (\t _ -> t)
+                     (padded eterm)
+                     (symbol "|")
+                 )
     in
       etermify "record" <|
         succeed
@@ -284,24 +279,6 @@ conditional =
         |= padded eterm
 
 --------------------------------------------------------------------------------
--- Function Applications
---------------------------------------------------------------------------------
-
-functionApplication : Parser ETerm
-functionApplication =
-  lazy <| \_ ->
-    etermify "function application" <|
-      succeed
-        ( \function arguments ->
-            EFunctionApplication
-              { function = function
-              , arguments = arguments
-              }
-        )
-        |= padded eterm
-        |= repeat oneOrMore (padded eterm)
-
---------------------------------------------------------------------------------
 -- General
 --------------------------------------------------------------------------------
 
@@ -320,7 +297,6 @@ etermBase =
     , lazy <| \_ -> record
     , lazy <| \_ -> conditional
     , variable
-    -- , lazy <| \_ -> functionApplication
     ]
 
 etermWithPrecedence : Int -> Parser ETerm
@@ -328,7 +304,7 @@ etermWithPrecedence precedence =
   let
     binop op =
       chainLeft
-        (ebinop_ op)
+        (spannedBinaryOperator op)
         (symbol op)
         (padded << etermWithPrecedence <| precedence + 1)
     binops ops =
@@ -365,13 +341,32 @@ etermWithPrecedence precedence =
 
 eterm : Parser ETerm
 eterm =
-  lazy <| \_ ->
-    etermWithPrecedence 0
+  let
+    -- Start parsing the lowest precedence first.
+    ezero =
+      lazy <| \_ ->
+        etermWithPrecedence 0
+    -- If there are multiple expressions in a row, we must have a function
+    -- application. Otherwise, if there is only one expression in a row, simply
+    -- return that expression.
+    combiner head tail =
+      case tail of
+        [] ->
+          head
+        _ ->
+          spannedFunctionApplication head tail
+  in
+    succeed combiner
+      |= padded ezero
+      |= repeat zeroOrMore (padded ezero)
 
-program : Parser ETerm
+program : Parser ElmLang.Program
 program =
   succeed identity
-    |= padded eterm
+    |= oneOf
+         [ map Nonempty <| padded eterm
+         , map Empty whitespace
+         ]
     |. end
 
 --==============================================================================
@@ -382,7 +377,7 @@ program =
 -- Parser Runners
 --------------------------------------------------------------------------------
 
-parse : String -> Result P.Error ETerm
+parse : String -> Result P.Error ElmLang.Program
 parse =
   run program
 

@@ -1,22 +1,29 @@
 module ElmLang exposing
-  ( Pattern(..)
+  ( Program(..)
+  , Pattern(..)
   , Expression(..)
   , PTerm
   , ETerm
   , pterm_
   , eterm_
-  , ebinop_
+  , spannedBinaryOperator
+  , spannedFunctionApplication
   )
 
 import Position exposing (dummyPosition)
 import Whitespace exposing (Whitespace, dummyWhitespace)
 import Range exposing (Ranged)
 import Padding exposing (Padded)
+import Utils
 
 -- General
 
 type alias Identifier =
   String
+
+type Program
+  = Empty Whitespace
+  | Nonempty ETerm
 
 -- Patterns
 
@@ -100,7 +107,6 @@ dummyEId : EId
 dummyEId =
   -1
 
-
 type alias PTerm =
   Ranged
     ( Padded
@@ -137,37 +143,56 @@ eterm_ expression =
   , expression = expression
   }
 
-ebinop_ : String -> ETerm -> ETerm -> ETerm
-ebinop_ operator left right =
-  { start =
-      left.start
-  , end =
-      right.end
-  , before =
-      { start =
-          left.start
-      , end =
-          left.start
-      , ws =
-          ""
+span : List (Ranged (Padded a)) -> (Ranged (Padded a)) -> (Ranged (Padded a))
+span insides wrapper =
+  case (List.head insides, Utils.maybeLast insides) of
+    (Just left, Just right) ->
+      { wrapper
+          | start =
+              left.start
+          , end =
+              right.end
+          , before =
+              { start =
+                  left.start
+              , end =
+                  left.start
+              , ws =
+                  ""
+              }
+          , after =
+              { start =
+                  right.end
+              , end =
+                  right.end
+              , ws =
+                  ""
+              }
       }
-  , after =
-      { start =
-          right.end
-      , end =
-          right.end
-      , ws =
-          ""
-      }
-  , eid =
-      dummyEId
-  , expression =
-      EBinaryOperator
-        { operator =
-            operator
-        , left =
-            left
-        , right =
-            right
-        }
-  }
+    _ ->
+      wrapper
+
+spannedBinaryOperator : String -> ETerm -> ETerm -> ETerm
+spannedBinaryOperator operator left right =
+  let
+    wrapper =
+      eterm_ <|
+        EBinaryOperator
+          { operator = operator
+          , left = left
+          , right = right
+          }
+  in
+    span [left, right] wrapper
+
+spannedFunctionApplication : ETerm -> List ETerm -> ETerm
+spannedFunctionApplication function arguments =
+  let
+    wrapper =
+      eterm_ <|
+        EFunctionApplication
+          { function = function
+          , arguments = arguments
+          }
+  in
+    span arguments wrapper
