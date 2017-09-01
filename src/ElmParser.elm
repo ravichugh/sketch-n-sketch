@@ -76,6 +76,27 @@ pterm =
 --==============================================================================
 
 --------------------------------------------------------------------------------
+-- Line Comment
+--------------------------------------------------------------------------------
+
+lineComment : Parser ETerm
+lineComment =
+  etermify "line comment" <|
+    succeed
+      ( \text termAfter ->
+          ELineComment { text = text, termAfter = termAfter }
+      )
+      |. symbol "--"
+      |= keep zeroOrMore (\c -> c /= '\n')
+      |. symbol "\n"
+      |= oneOf
+           [ map Just <|
+               padded eterm
+           , map (\_ -> Nothing)
+               end
+           ]
+
+--------------------------------------------------------------------------------
 -- Bools
 --------------------------------------------------------------------------------
 
@@ -259,7 +280,8 @@ eterm : Parser ETerm
 eterm =
   inContext "expression" <|
     oneOf
-      [ bool
+      [ lazy <| \_ -> lineComment
+      , bool
       , int
       , char
       , multiLineString

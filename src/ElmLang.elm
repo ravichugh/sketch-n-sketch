@@ -28,7 +28,15 @@ type Pattern =
 -- Helpful: http://elm-lang.org/docs/syntax
 
 type Expression
-  = EBool
+  = ELineComment
+      { text : String
+      , termAfter : Maybe ETerm
+      }
+  | EBlockComment
+      { text : String
+      , termAfter : Maybe ETerm
+      }
+  | EBool
       { bool : Bool
       }
   | EInt
