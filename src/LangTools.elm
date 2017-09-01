@@ -39,7 +39,7 @@ nodeCount exp =
     EIf _ e1 e2 e3 _        -> 1 + expsNodeCount [e1, e2, e3]
     -- Cases have a set of parens around each branch. I suppose each should count as a node.
     ECase _ e1 bs _         -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
-    ETypeCase _ p tbs _     -> 1 + (List.length tbs) + patNodeCount p + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
+    ETypeCase _ e1 tbs _    -> 1 + (List.length tbs) + nodeCount e1 + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
     -- ETypeCase _ e1 tbranches _  ->
     EApp _ e1 es _          -> 1 + nodeCount e1 + expsNodeCount es
     ELet _ _ _ p e1 e2 _    -> 1 + patNodeCount p + nodeCount e1 + nodeCount e2
@@ -83,8 +83,7 @@ subExpsOfSizeAtLeast_ min exp =
         EIf _ e1 e2 e3 _        -> 1
         -- Cases have a set of parens around each branch. I suppose each should count as a node.
         ECase _ e1 bs _         -> 1 + (List.length bs) + patsNodeCount (branchPats bs)
-        ETypeCase _ p tbs _     -> 1 + (List.length tbs) + patNodeCount p + typesNodeCount (tbranchTypes tbs)
-        -- ETypeCase _ e1 tbranches _  ->
+        ETypeCase _ e1 tbs _    -> 1 + (List.length tbs) + typesNodeCount (tbranchTypes tbs)
         EApp _ e1 es _          -> 1
         ELet _ _ _ p e1 e2 _    -> 1 + patNodeCount p
         EComment _ _ e1         -> 0 -- Comments don't count.
@@ -234,8 +233,8 @@ extraExpsDiff baseExp otherExp =
     (EApp ws1A fA esA ws2A,                EApp ws1B fB esB ws2B)                -> childDiffs ()
     (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> if recA == recB && patternsEqual pA pB then extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B else [otherExp]
     (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
-    (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA branchesB |> Maybe.andThen (\branchPairs -> let bValPairs = branchPairs |> List.map (\(bA, bB) -> (bA.val, bB.val)) in if bValPairs |> List.all (\(Branch_ bws1A bpatA beA bws2A, Branch_ bws1B bpatB beB bws2B) -> patternsEqual bpatA bpatB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
-    (ETypeCase ws1A patA tbranchesA ws2A,  ETypeCase ws1B patB tbranchesB ws2B)  -> if patternsEqual patA patB then Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp] else [otherExp]
+    (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)  then  Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
+    (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)    -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
     (EComment wsA sA e1A,                  _)                                    -> extraExpsDiff e1A otherExp
     (_,                                    EComment wsB sB e1B)                  -> extraExpsDiff baseExp e1B
     (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> [otherExp]
@@ -1228,9 +1227,6 @@ identifiersList exp =
         let pats = branchPats branches in
         (List.concatMap identifiersListInPat pats) ++ acc
 
-      ETypeCase _ pat _ _ ->
-        (identifiersListInPat pat) ++ acc
-
       ELet _ _ _ pat _ _ _ ->
         (identifiersListInPat pat) ++ acc
 
@@ -1252,7 +1248,6 @@ allPats root =
           EFun _ pats _ _        -> pats
           ECase _ _ branches _   -> branchPats branches
           ELet _ _ _ pat _ _ _   -> [pat]
-          ETypeCase _ pat _ _    -> [pat]
           ETyp _ pat _ _ _       -> [pat]
           ETypeAlias _ pat _ _ _ -> [pat]
           _                      -> []
@@ -1276,10 +1271,6 @@ identifiersListPatsOnly exp =
       ECase _ _ branches _ ->
         let pats = branchPats branches in
         (List.concatMap identifiersListInPat pats) ++ acc
-
-      -- If we are looking for introduced variables, should exclude ETypeCase
-      -- ETypeCase _ pat _ _ ->
-      --   (identifiersListInPat pat) ++ acc
 
       ELet _ _ _ pat _ _ _ ->
         (identifiersListInPat pat) ++ acc
@@ -1923,8 +1914,7 @@ freeVars_ boundIdentsSet exp =
       in
       freeInScrutinee ++ freeInEachBranch
 
-    ETypeCase _ p tbranches _   -> recurse ()
-    -- ETypeCase _ e1 tbranches _  -> recurse ()
+    ETypeCase _ e1 tbranches _  -> recurse ()
     EApp _ e1 es _              -> recurse ()
     ELet _ _ False p e1 e2 _    ->
       let freeInAssigns = freeVars_ boundIdentsSet e1 in
@@ -2050,6 +2040,7 @@ renameVarsUntilBound renamings exp =
 
 -- Transforms only free variables.
 -- Preserves EIds (for Brainstorm)
+-- Might be able to rewrite using freeVars or mapFoldExpTopDownWithScope
 transformVarsUntilBound : Dict.Dict Ident (Exp -> Exp) -> Exp -> Exp
 transformVarsUntilBound subst exp =
   let recurse e = transformVarsUntilBound subst e in
@@ -2090,20 +2081,16 @@ transformVarsUntilBound subst exp =
       in
       replaceE__ exp (ECase ws1 newScrutinee newBranches ws2)
 
-
     ETypeCase ws1 scrutinee tbranches ws2 ->
-      Debug.crash "need to change typecase scrutinee to expression; pluck from brainstorm branch"
-    -- Brainstorm changed typecase scrutinee to an evaluated expression
-    -- ETypeCase ws1 scrutinee tbranches ws2 ->
-    --   let newScrutinee = recurse scrutinee in
-    --   let newTBranches =
-    --     tbranches
-    --     |> List.map
-    --         (mapValField (\(TBranch_ bws1 bType bExp bws2) ->
-    --           TBranch_ bws1 bType (recurse bExp) bws2
-    --         ))
-    --   in
-    --   replaceE__ exp (ETypeCase ws1 newScrutinee newTBranches ws2)
+      let newScrutinee = recurse scrutinee in
+      let newTBranches =
+        tbranches
+        |> List.map
+            (mapValField (\(TBranch_ bws1 bType bExp bws2) ->
+              TBranch_ bws1 bType (recurse bExp) bws2
+            ))
+      in
+      replaceE__ exp (ETypeCase ws1 newScrutinee newTBranches ws2)
 
     EApp ws1 e1 es ws2              -> replaceE__ exp (EApp ws1 (recurse e1) (List.map recurse es) ws2)
     ELet ws1 kind False p e1 e2 ws2 ->
@@ -2340,19 +2327,23 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       , newNameToOldName_
       )
 
-    ETypeCase ws1 scrutinee tbranches ws2 ->
-      Debug.crash "need to change typecase scrutinee to expression; pluck from brainstorm branch"
-    -- Brainstorm changed typecase scrutinee to an evaluated expression
-    -- ETypeCase ws1 scrutinee tbranches ws2 ->
-    --   let newScrutinee = recurse scrutinee in
-    --   let newTBranches =
-    --     tbranches
-    --     |> List.map
-    --         (mapValField (\(TBranch_ bws1 bType bExp bws2) ->
-    --           TBranch_ bws1 bType (recurse bExp) bws2
-    --         ))
-    --   in
-    --   replaceE__ exp (ETypeCase ws1 newScrutinee newTBranches ws2)
+    ETypeCase ws1 e1 tbs ws2 ->
+      let (newScrutinee, usedNames_, newNameToOldName) = recurse e1 usedNames oldNameToNewName in
+      let (newTBranches, usedNames__, newNameToOldName_) =
+        tbs
+        |> List.foldl
+            (\tbranch (newTBranches, usedNames, newNameToOldName) ->
+              let (TBranch_ bws1 bType bExp bws2) = tbranch.val in
+              let (newBody, usedNames_, newNameToOldName_) = recurse bExp usedNames oldNameToNewName in
+              let newTBranch = { tbranch | val = TBranch_ bws1 bType newBody bws2 } in
+              (newTBranches ++ [newTBranch], usedNames_, Dict.union newNameToOldName_ newNameToOldName)
+            )
+            ([], usedNames_, newNameToOldName)
+      in
+      ( replaceE__ exp (ETypeCase ws1 newScrutinee newTBranches ws2)
+      , usedNames__
+      , newNameToOldName_
+      )
 
     EApp ws1 e1 es ws2 ->
       let (newE1AndEs, usedNames_, newNameToOldName) = recurseExps (e1::es) in

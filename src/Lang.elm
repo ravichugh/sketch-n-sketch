@@ -175,7 +175,7 @@ type Exp__
   | EList WS (List Exp) WS (Maybe Exp) WS
   | EIf WS Exp Exp Exp WS
   | ECase WS Exp (List Branch) WS
-  | ETypeCase WS Pat (List TBranch) WS
+  | ETypeCase WS Exp (List TBranch) WS
   | ELet WS LetKind Rec Pat Exp Exp WS
   | EComment WS String Exp
   | EOption WS (WithInfo String) WS (WithInfo String) Exp
@@ -567,7 +567,7 @@ mapFoldExp f initAcc e =
       let (newE1, newAcc2) = recurse newAcc e1 in
       wrapAndMap (ECase ws1 newE1 newBranches ws2) newAcc2
 
-    ETypeCase ws1 pat tbranches ws2 ->
+    ETypeCase ws1 e1 tbranches ws2 ->
       let (newBranches, newAcc) =
         tbranches
         |> List.foldr
@@ -578,7 +578,8 @@ mapFoldExp f initAcc e =
             )
             ([], initAcc)
       in
-      wrapAndMap (ETypeCase ws1 pat newBranches ws2) newAcc
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      wrapAndMap (ETypeCase ws1 newE1 newBranches ws2) newAcc2
 
     EComment ws s e1 ->
       let (newE1, newAcc) = recurse initAcc e1 in
@@ -708,18 +709,19 @@ mapFoldExpTopDown f initAcc e =
       in
       ret (ECase ws1 newE1 newBranches ws2) newAcc3
 
-    ETypeCase ws1 pat tbranches ws2 ->
-      let (newBranches, newAcc2) =
+    ETypeCase ws1 e1 tbranches ws2 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      let (newBranches, newAcc3) =
         tbranches
         |> List.foldl
             (\tbranch (newBranches, acc) ->
               let (TBranch_ bws1 t ei bws2) = tbranch.val in
-              let (newEi, newAcc2) = recurse acc ei in
-              (newBranches ++ [{ tbranch | val = TBranch_ bws1 t newEi bws2 }], newAcc2)
+              let (newEi, newAcc3) = recurse acc ei in
+              (newBranches ++ [{ tbranch | val = TBranch_ bws1 t newEi bws2 }], newAcc3)
             )
-            ([], newAcc)
+            ([], newAcc2)
       in
-      ret (ETypeCase ws1 pat newBranches ws2) newAcc2
+      ret (ETypeCase ws1 newE1 newBranches ws2) newAcc3
 
     EComment ws s e1 ->
       let (newE1, newAcc2) = recurse newAcc e1 in
@@ -863,18 +865,19 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
       in
       ret (ECase ws1 newE1 newBranches ws2) newGlobalAcc3
 
-    ETypeCase ws1 pat tbranches ws2 ->
-      let (newBranches, newGlobalAcc2) =
+    ETypeCase ws1 e1 tbranches ws2 ->
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      let (newBranches, newGlobalAcc3) =
         tbranches
         |> List.foldl
             (\tbranch (newBranches, globalAcc) ->
               let (TBranch_ bws1 t ei bws2) = tbranch.val in
-              let (newEi, newGlobalAcc2) = recurse globalAcc initScopeTempAcc ei in
-              (newBranches ++ [{ tbranch | val = TBranch_ bws1 t newEi bws2 }], newGlobalAcc2)
+              let (newEi, newGlobalAcc3) = recurse globalAcc initScopeTempAcc ei in
+              (newBranches ++ [{ tbranch | val = TBranch_ bws1 t newEi bws2 }], newGlobalAcc3)
             )
-            ([], newGlobalAcc)
+            ([], newGlobalAcc2)
       in
-      ret (ETypeCase ws1 pat newBranches ws2) newGlobalAcc2
+      ret (ETypeCase ws1 newE1 newBranches ws2) newGlobalAcc3
 
     EComment ws s e1 ->
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
@@ -1054,7 +1057,6 @@ mapPatNode pid f root =
           ELet ws1 kind isRec pat boundExp body ws2 -> ELet ws1 kind isRec (mapPatNodePat pid f pat) boundExp body ws2
           EFun ws1 pats body ws2                    -> EFun ws1 (List.map (mapPatNodePat pid f) pats) body ws2
           ECase ws1 scrutinee branches ws2          -> ECase ws1 scrutinee (mapBranchPats (mapPatNodePat pid f) branches) ws2
-          ETypeCase ws1 pat tbranches ws2           -> ETypeCase ws1 (mapPatNodePat pid f pat) tbranches ws2
           _                                         -> e__
       )
       root
@@ -1234,8 +1236,8 @@ childExps e =
     EApp ws1 f es ws2               -> f :: es
     ELet ws1 k b p e1 e2 ws2        -> [e1, e2]
     EIf ws1 e1 e2 e3 ws2            -> [e1, e2, e3]
-    ECase ws1 e branches ws2        -> e :: (branchExps branches)
-    ETypeCase ws1 pat tbranches ws2 -> tbranchExps tbranches
+    ECase ws1 e branches ws2        -> e :: branchExps branches
+    ETypeCase ws1 e tbranches ws2   -> e :: tbranchExps tbranches
     EComment ws s e1                -> [e1]
     EOption ws1 s1 ws2 s2 e1        -> [e1]
     ETyp ws1 pat tipe e ws2         -> [e]
@@ -1533,14 +1535,14 @@ clearPIds p = mapPatTopDown clearPId p
 clearNodeIds e =
   let eidCleared = clearEId e in
   case eidCleared.val.e__ of
-    EConst ws n (locId, annot, ident) wd -> replaceE__ eidCleared (EConst ws n (0, annot, "") wd)
-    ELet ws1 kind b p e1 e2 ws2          -> replaceE__ eidCleared (ELet ws1 kind b (clearPIds p) e1 e2 ws2)
-    EFun ws1 pats body ws2               -> replaceE__ eidCleared (EFun ws1 (List.map clearPIds pats) body ws2)
-    ECase ws1 scrutinee branches ws2     -> replaceE__ eidCleared (ECase ws1 scrutinee (mapBranchPats clearPIds branches) ws2)
-    ETypeCase ws1 pat tbranches ws2      -> replaceE__ eidCleared (ETypeCase ws1 (clearPIds pat) tbranches ws2)
-    ETyp ws1 pat tipe e ws2              -> replaceE__ eidCleared (ETyp ws1 (clearPIds pat) tipe e ws2)
-    ETypeAlias ws1 pat tipe e ws2        -> replaceE__ eidCleared (ETypeAlias ws1 (clearPIds pat) tipe e ws2)
-    _                                    -> eidCleared
+    EConst ws n (locId, annot, ident) wd  -> replaceE__ eidCleared (EConst ws n (0, annot, "") wd)
+    ELet ws1 kind b p e1 e2 ws2           -> replaceE__ eidCleared (ELet ws1 kind b (clearPIds p) e1 e2 ws2)
+    EFun ws1 pats body ws2                -> replaceE__ eidCleared (EFun ws1 (List.map clearPIds pats) body ws2)
+    ECase ws1 scrutinee branches ws2      -> replaceE__ eidCleared (ECase ws1 scrutinee (mapBranchPats clearPIds branches) ws2)
+    ETypeCase ws1 scrutinee tbranches ws2 -> replaceE__ eidCleared (ETypeCase ws1 scrutinee tbranches ws2)
+    ETyp ws1 pat tipe e ws2               -> replaceE__ eidCleared (ETyp ws1 (clearPIds pat) tipe e ws2)
+    ETypeAlias ws1 pat tipe e ws2         -> replaceE__ eidCleared (ETypeAlias ws1 (clearPIds pat) tipe e ws2)
+    _                                     -> eidCleared
 
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)
@@ -1780,7 +1782,7 @@ precedingWhitespaceExp__ e__ =
       EIf        ws1 e1 e2 e3 ws2         -> ws1
       ELet       ws1 kind rec p e1 e2 ws2 -> ws1
       ECase      ws1 e1 bs ws2            -> ws1
-      ETypeCase  ws1 pat bs ws2           -> ws1
+      ETypeCase  ws1 e1 bs ws2            -> ws1
       EComment   ws s e1                  -> ws
       EOption    ws1 s1 ws2 s2 e1         -> ws1
       ETyp       ws1 pat tipe e ws2       -> ws1
@@ -1830,7 +1832,7 @@ mapPrecedingWhitespace stringMap exp =
         EIf        ws1 e1 e2 e3 ws2         -> EIf        (mapWs ws1) e1 e2 e3 ws2
         ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (mapWs ws1) kind rec p e1 e2 ws2
         ECase      ws1 e1 bs ws2            -> ECase      (mapWs ws1) e1 bs ws2
-        ETypeCase  ws1 pat bs ws2           -> ETypeCase  (mapWs ws1) pat bs ws2
+        ETypeCase  ws1 e1 bs ws2            -> ETypeCase  (mapWs ws1) e1 bs ws2
         EComment   ws s e1                  -> EComment   (mapWs ws) s e1
         EOption    ws1 s1 ws2 s2 e1         -> EOption    (mapWs ws1) s1 ws2 s2 e1
         ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
@@ -2495,15 +2497,15 @@ childCodeObjects co =
                 )
                 branches
             )
-          ETypeCase ws1 p1 tbranches _ ->
+          ETypeCase ws1 e1 tbranches _ ->
             [ ET Before ws1 e
-            , P e p1
+            , E e1
             ] ++
             ( case List.head tbranches of
                 Just tb ->
                   case tb.val of
                     TBranch_ tbranchWS1 _ _ _ ->
-                      [ PT After tbranchWS1 e p1 ]
+                      [ ET After tbranchWS1 e1 ]
                 Nothing ->
                   []
             ) ++
@@ -2830,8 +2832,6 @@ computePatMap =
           tagPatList (rootPathedPatternId (e.val.eid, 1)) ps
         ECase _ _ branches _ ->
           tagBranchList e.val.eid branches
-        ETypeCase _ p1 _ _ ->
-          tagSinglePat (rootPathedPatternId (e.val.eid, 1)) p1
         ELet _ _ _ p1 _ _ _ ->
           tagSinglePat (rootPathedPatternId (e.val.eid, 1)) p1
         ETyp _ p1 _ _ _ ->

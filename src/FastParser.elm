@@ -999,7 +999,7 @@ typeCaseExpression =
     lazy <| \_ ->
       genericCase
         "type case expression" "typecase"
-        ETypeCase TBranch_ pattern typ
+        ETypeCase TBranch_ exp typ
 
 --------------------------------------------------------------------------------
 -- Functions
@@ -1687,11 +1687,6 @@ freshenPreserving idsToPreserve initK e =
           in
           (ECase ws1 scrutinee newBranches ws2, newK)
 
-        -- TypeCase scrutinee will be changed to an exp eventually.
-        ETypeCase ws1 pat tbranches ws2 ->
-          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
-          (ETypeCase ws1 newPat tbranches ws2, newK)
-
         ETyp ws1 pat tipe e ws2 ->
           let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
           (ETyp ws1 newPat tipe e ws2, newK)
@@ -1766,7 +1761,6 @@ allIdsRaw exp =
             ELet ws1 kind b p e1 e2 ws2           -> pidsInPat p
             EFun ws1 pats body ws2                -> pidsInPats pats
             ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
-            ETypeCase ws1 pat tbranches ws2       -> pidsInPat pat
             ETyp ws1 pat tipe e ws2               -> pidsInPat pat
             ETypeAlias ws1 pat tipe e ws2         -> pidsInPat pat
             _                                     -> []

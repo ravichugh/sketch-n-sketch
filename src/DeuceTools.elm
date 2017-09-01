@@ -1813,8 +1813,8 @@ makeSingleLineTool model selections =
                             ELet (deLine ws1) kind rec p e1 e2 space0
                           ECase ws1 e1 bs ws2 ->
                             ECase (deLine ws1) e1 bs space0
-                          ETypeCase ws1 pat bs ws2 ->
-                            ETypeCase (deLine ws1) pat bs space0
+                          ETypeCase ws1 e1 bs ws2 ->
+                            ETypeCase (deLine ws1) e1 bs space0
                           EComment ws s e1 ->
                             EComment ws s e1
                           EOption ws1 s1 ws2 s2 e1 ->

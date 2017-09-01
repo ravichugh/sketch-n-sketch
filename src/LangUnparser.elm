@@ -195,13 +195,13 @@ unparse e = case e.val.e__ of
         <| List.map (.val) bs
     in
     ws1.val ++ "(case" ++ unparse e1 ++ branchesStr ++ ws2.val ++ ")"
-  ETypeCase ws1 pat tbranches ws2 ->
+  ETypeCase ws1 e1 tbranches ws2 ->
     let tbranchesStr =
       String.concat
         <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparse exp ++ bws2.val ++ ")")
         <| List.map (.val) tbranches
     in
-    ws1.val ++ "(typecase" ++ unparsePat pat ++ tbranchesStr ++ ws2.val ++ ")"
+    ws1.val ++ "(typecase" ++ unparse e1 ++ tbranchesStr ++ ws2.val ++ ")"
   EComment ws s e1 ->
     ws.val ++ ";" ++ s ++ "\n" ++ unparse e1
   EOption ws1 s1 ws2 s2 e1 ->
@@ -252,13 +252,13 @@ unparseWithIds e =
           <| List.map (.val) bs
       in
       ws1.val ++ "(" ++ eidTag ++ "case" ++ unparseWithIds e1 ++ branchesStr ++ ws2.val ++ ")"
-    ETypeCase ws1 pat tbranches ws2 ->
+    ETypeCase ws1 e1 tbranches ws2 ->
       let tbranchesStr =
         String.concat
           <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparseWithIds exp ++ bws2.val ++ ")")
           <| List.map (.val) tbranches
       in
-      ws1.val ++ "(" ++ eidTag ++ "typecase" ++ unparsePatWithIds pat ++ tbranchesStr ++ ws2.val ++ ")"
+      ws1.val ++ "(" ++ eidTag ++ "typecase" ++ unparseWithIds e1 ++ tbranchesStr ++ ws2.val ++ ")"
     EComment ws s e1 ->
       ws.val ++ ";" ++ eidTag ++ s ++ "\n" ++ unparseWithIds e1
     EOption ws1 s1 ws2 s2 e1 ->
@@ -313,13 +313,13 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
           <| List.map (.val) bs
       in
       " " ++ "(case" ++ recurse e1 ++ branchesStr ++ " " ++ ")"
-    ETypeCase _ pat tbranches _ ->
+    ETypeCase _ e1 tbranches _ ->
       let tbranchesStr =
         String.concat
           <| List.map (\(TBranch_ _ tipe exp _) -> " " ++ "(" ++ unparseTypeWithUniformWhitespace tipe ++ recurse exp ++ " " ++ ")")
           <| List.map (.val) tbranches
       in
-      " " ++ "(typecase" ++ recursePat pat ++ tbranchesStr ++ " " ++ ")"
+      " " ++ "(typecase" ++ recurse e1 ++ tbranchesStr ++ " " ++ ")"
     EComment _ s e1 ->
       " " ++ ";" ++ s ++ "\n" ++ recurse e1
     EOption _ s1 _ s2 e1 ->

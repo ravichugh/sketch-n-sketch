@@ -50,41 +50,6 @@ matchList pvs =
   ) (Just []) pvs
 
 
-typeCaseMatch : Env -> Backtrace -> Pat -> Type -> Result String Bool
-typeCaseMatch env bt pat tipe =
-  case (pat.val.p__, tipe.val) of
-    (PList _ pats _ Nothing _, TTuple _ typeList _ maybeRestType _) ->
-      let typeListsMatch =
-        Utils.zip pats typeList
-        |> List.map (\(p, t) -> typeCaseMatch env bt p t)
-        |> Utils.projOk
-        |> Result.map (\bools -> List.all ((==) True) bools)
-      in
-      case typeListsMatch of
-        Err s -> Err s
-        Ok False -> Ok False
-        Ok True ->
-          case maybeRestType of
-            Nothing ->
-              Ok (List.length pats == List.length typeList)
-            Just restType ->
-              if List.length pats >= List.length typeList then
-                -- Check the rest part of the tuple type against the rest of the vars in the pattern
-                List.drop (List.length typeList) pats
-                |> List.map (\p -> typeCaseMatch env bt p restType)
-                |> Utils.projOk
-                |> Result.map (\bools -> List.all ((==) True) bools)
-              else
-                -- Maybe we should make an error here
-                Ok False
-
-    (PVar _ ident _, _) ->
-      lookupVar env bt ident pat.start
-      |> Result.map (\val -> Types.valIsType val tipe)
-
-    _ -> errorWithBacktrace bt <| "unexpected pattern in typecase: " ++ (unparsePat pat) ++ "\n\nAllowed patterns are bare identifiers and [ident1 ident2 ...]"
-
-
 cons : (Pat, Val) -> Maybe Env -> Maybe Env
 cons pv menv =
   case (menv, match pv) of
@@ -219,11 +184,14 @@ eval env bt e =
           Err s              -> Err s
           _                  -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
 
-  ETypeCase _ pat tbranches _ ->
-    case evalTBranches env (e::bt) pat tbranches of
-      Ok (Just (v,ws)) -> Ok <| retVBoth (v, ws)
-      Err s            -> Err s
-      _                -> errorWithBacktrace (e::bt) <| strPos pat.start ++ " non-exhaustive typecase statement"
+  ETypeCase _ e1 tbranches _ ->
+    case eval_ env (e::bt) e1 of
+      Err s -> Err s
+      Ok (v1,ws1) ->
+        case evalTBranches env (e::bt) v1 tbranches of
+          Ok (Just (v2,ws2)) -> Ok <| retVBoth (v2, ws1 ++ ws2)
+          Err s              -> Err s
+          _                  -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " non-exhaustive typecase statement"
 
   EApp _ e1 [e2] _ ->
     case eval_ env bt_ e1 of
@@ -468,13 +436,20 @@ evalBranches env bt v bs =
 -- Returns Ok Nothing if no branch matches
 -- Returns Ok (Just results) if branch matches and no execution errors
 -- Returns Err s if execution error
-evalTBranches env bt pat tbranches =
+evalTBranches env bt val tbranches =
   List.foldl (\(TBranch_ _ tipe exp _) acc ->
-    case (acc, typeCaseMatch env bt pat tipe) of
-      (Ok (Just done), _)       -> acc
-      (Ok Nothing, Ok didMatch) -> if didMatch then eval_ env bt exp |> Result.map Just else acc
-      (Ok Nothing, Err s)       -> Err s
-      (Err s, _)                -> acc
+    case acc of
+      Ok (Just done) ->
+        acc
+
+      Ok Nothing ->
+        if Types.valIsType val tipe then
+          eval_ env bt exp |> Result.map Just
+        else
+          acc
+
+      Err s ->
+        acc
   ) (Ok Nothing) (List.map .val tbranches)
 
 
