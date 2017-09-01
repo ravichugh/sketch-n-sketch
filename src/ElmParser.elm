@@ -88,12 +88,13 @@ lineComment =
       )
       |. symbol "--"
       |= keep zeroOrMore (\c -> c /= '\n')
-      |. symbol "\n"
+      |. oneOf
+           [ symbol "\n"
+           , end
+           ]
       |= oneOf
-           [ map Just <|
-               padded eterm
-           , map (\_ -> Nothing)
-               end
+           [ map Just (padded eterm)
+           , succeed Nothing
            ]
 
 --------------------------------------------------------------------------------
