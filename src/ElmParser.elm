@@ -277,22 +277,64 @@ conditional =
 -- General
 --------------------------------------------------------------------------------
 
+etermBase : Parser ETerm
+etermBase =
+  oneOf
+    [ lazy <| \_ -> lineComment
+    , bool
+    , int
+    , char
+    , multiLineString
+    , string
+    , try emptyList
+    , lazy <| \_ -> list
+    , try emptyRecord
+    , lazy <| \_ -> record
+    ]
+
+etermWithPrecedence : Int -> Parser ETerm
+etermWithPrecedence precedence =
+  let
+    binop op =
+      chainLeft
+        (ebinop_ op)
+        (symbol op)
+        (padded << etermWithPrecedence <| precedence + 1)
+    binops ops =
+      oneOf <|
+        List.map binop ops
+  in
+    lazy <| \_ ->
+      case precedence of
+        9 ->
+          etermBase
+        8 ->
+          binops ["^"]
+        7 ->
+          binops ["*", "/", "//", "%"]
+        6 ->
+          binops ["+", "-"]
+        5 ->
+          etermWithPrecedence 6
+        4 ->
+          etermWithPrecedence 5
+        3 ->
+          etermWithPrecedence 4
+        2 ->
+          etermWithPrecedence 3
+        1 ->
+          etermWithPrecedence 2
+        0 ->
+          etermWithPrecedence 1
+        _ ->
+          fail <|
+            "Trying to parse expression with invalid precedence " ++
+              (toString precedence)
+
 eterm : Parser ETerm
 eterm =
-  inContext "expression" <|
-    oneOf
-      [ lazy <| \_ -> lineComment
-      , bool
-      , int
-      , char
-      , multiLineString
-      , string
-      , try emptyList
-      , lazy <| \_ -> list
-      , try emptyRecord
-      , lazy <| \_ -> record
-      , lazy <| \_ -> conditional
-      ]
+  lazy <| \_ ->
+    etermWithPrecedence 0
 
 program : Parser ETerm
 program =

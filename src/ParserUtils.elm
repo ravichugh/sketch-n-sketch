@@ -1,5 +1,6 @@
 module ParserUtils exposing
   ( try
+  , chainLeft
   , token
   , inside
   , char
@@ -33,6 +34,19 @@ import ElmLang exposing
 try : Parser a -> Parser a
 try parser =
   delayedCommitMap always parser (succeed ())
+
+-- Like Parsec's chainl1
+chainLeft : (a -> a -> a) -> Parser sep -> Parser a -> Parser a
+chainLeft combiner sep term =
+  let
+    separatedTerm =
+      succeed identity
+        |. sep
+        |= term
+  in
+    succeed (List.foldl (flip combiner))
+      |= term
+      |= repeat zeroOrMore separatedTerm
 
 guard : String -> Bool -> Parser ()
 guard failReason pred =

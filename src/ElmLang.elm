@@ -5,6 +5,7 @@ module ElmLang exposing
   , ETerm
   , pterm_
   , eterm_
+  , ebinop_
   )
 
 import Position exposing (dummyPosition)
@@ -72,6 +73,15 @@ type Expression
       , trueBranch : ETerm
       , falseBranch : ETerm
       }
+  | EFunctionApplication
+      { function : ETerm
+      , arguments : List ETerm
+      }
+  | EBinaryOperator
+     { operator : String
+     , left : ETerm
+     , right : ETerm
+     }
 
 type alias PId =
   Int
@@ -122,4 +132,39 @@ eterm_ expression =
   , after = dummyWhitespace
   , eid = dummyEId
   , expression = expression
+  }
+
+ebinop_ : String -> ETerm -> ETerm -> ETerm
+ebinop_ operator left right =
+  { start =
+      left.start
+  , end =
+      right.end
+  , before =
+      { start =
+          left.start
+      , end =
+          left.start
+      , ws =
+          ""
+      }
+  , after =
+      { start =
+          right.end
+      , end =
+          right.end
+      , ws =
+          ""
+      }
+  , eid =
+      dummyEId
+  , expression =
+      EBinaryOperator
+        { operator =
+            operator
+        , left =
+            left
+        , right =
+            right
+        }
   }
