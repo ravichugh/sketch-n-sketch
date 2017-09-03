@@ -695,7 +695,7 @@ update msg oldModel =
 
 upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
-  let _ = Utils.log caption in
+  -- let _ = Utils.log caption in
   let _ = debugLog "Msg" caption in
   updateModel old
 

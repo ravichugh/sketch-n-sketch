@@ -364,6 +364,19 @@ lastExp exp =
     lastChild::_ -> lastExp lastChild
 
 
+-- What exp actually determines the evaluated value of this exp?
+expValueExp : Exp -> Exp
+expValueExp exp =
+  case exp.val.e__ of
+    ETyp _ _ _ body _       -> expValueExp body
+    EColonType _ body _ _ _ -> expValueExp body
+    ETypeAlias _ _ _ body _ -> expValueExp body
+    ELet _ _ _ _ _ body _   -> expValueExp body
+    EComment _ _ e          -> expValueExp e
+    EOption _ _ _ _ e       -> expValueExp e
+    _                       -> exp
+
+
 copyListWhitespace : Exp -> Exp -> Exp
 copyListWhitespace templateList list =
   case (templateList.val.e__, list.val.e__) of
@@ -442,9 +455,14 @@ reflowLetWhitespace program letExp =
             then 2
             else 1
           in
+          let newlinesBefore =
+            if letExp.val.eid == program.val.eid -- First expression in a program does not need a newline.
+            then 0
+            else minimalSurroundingNewlineCount
+          in
           replaceE__ letExp <|
             ELet
-                (ws <| ensureNNewlines minimalSurroundingNewlineCount oldLetWs.val oldLetWs.val)
+                (ws <| ensureNNewlines newlinesBefore oldLetWs.val oldLetWs.val)
                 letKind
                 isRec
                 (replacePrecedingWhitespacePat " " pat)
@@ -511,11 +529,34 @@ newLetFancyWhitespace insertedLetEId pat boundExp expToWrap program =
   let newlineCountBeforeLet =
     if expToWrap.val.eid == program.val.eid then 1 else newlineCountAfterLet
   in
-  ELet space0 letOrDef False (ensureWhitespacePat pat) (replaceIndentation "  " boundExp |> ensureWhitespaceExp)
-      (expToWrap |> ensureWhitespaceSmartExp newlineCountAfterLet (if isLet expToWrap || isTopLevel then "" else "  ")) space0
+  let expToWrapWithNewWs =
+    let wrappedExpIndent = if isLet expToWrap || isTopLevel then "" else "  " in
+    if patHasNewlines pat || expHasNewlines boundExp
+    then expToWrap |> ensureWhitespaceNNewlinesExp newlineCountAfterLet |> replaceIndentation wrappedExpIndent
+    else expToWrap |> ensureWhitespaceSmartExp newlineCountAfterLet wrappedExpIndent
+  in
+  ELet space0 letOrDef False (ensureWhitespacePat pat) (replaceIndentation "  " boundExp |> ensureWhitespaceExp) expToWrapWithNewWs space0
   |> withDummyExpInfoEId insertedLetEId
   |> replacePrecedingWhitespace (String.repeat newlineCountBeforeLet "\n")
   |> indent newLetIndentation
+
+
+newVariableVisibleTo : EId -> Ident -> Int -> Exp -> List EId -> Exp -> (Ident, Exp)
+newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingName boundExp observerEIds program =
+  let
+    newName =
+      nonCollidingName suggestedName startingNumberForNonCollidingName (visibleIdentifiersAtEIds program (Set.fromList observerEIds))
+    eidToWrap =
+      deepestCommonAncestorWithNewline program (\exp -> List.member exp.val.eid observerEIds) |> .val |> .eid
+    newProgram =
+      program
+      |> mapExpNode
+          eidToWrap
+          (\expToWrap ->
+            newLetFancyWhitespace insertedLetEId (pVar newName) boundExp expToWrap program
+          )
+  in
+  (newName, newProgram)
 
 
 identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
@@ -803,6 +844,7 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
       List.concatMap recurse (childExps exp)
 
 
+-- If tryMatchExp is made less strict (allow partial matches), then be sure to also return unmatch identifiers (for StaticAnalysis).
 type ExpMatchResult
   = Match (List (Ident, Exp))
   | NoMatch
@@ -1047,7 +1089,12 @@ addFirstDef program pat boundExp =
       EComment _ _ body -> firstNonCommentEId body
       _                 -> e.val.eid
   in
-  mapExpNode (firstNonCommentEId program) (\nonComment -> withDummyExpInfo <| ELet newline1 Def False pat boundExp nonComment space0) program
+  program
+  |> mapExpNode
+      (firstNonCommentEId program)
+      (\nonComment ->
+        newLetFancyWhitespace -1 pat boundExp nonComment program
+      )
 
 
 expToMaybeNum : Exp -> Maybe Num
@@ -1091,6 +1138,13 @@ patToMaybePVarIdent pat =
   case pat.val.p__ of
     PVar _ ident _ -> Just ident
     _              -> Nothing
+
+
+expToListParts : Exp -> (WS, List Exp, WS, Maybe Exp, WS)
+expToListParts exp =
+  case exp.val.e__ of
+    EList ws1 heads ws2 maybeTail ws3 -> (ws1, heads, ws2, maybeTail, ws3)
+    _                                 -> Debug.crash <| "LangTools.expToListParts exp is not an EList: " ++ unparseWithIds exp
 
 
 expToLetParts : Exp -> (WS, LetKind, Bool, Pat, Exp, Exp, WS)
@@ -1175,6 +1229,14 @@ expToFuncPats exp =
   case exp.val.e__ of
     EFun _ pats _ _ -> pats
     _               -> Debug.crash <| "LangTools.expToFuncPats exp is not an EFun: " ++ unparseWithIds exp
+
+
+expToCaseScrutinee : Exp -> Exp
+expToCaseScrutinee exp =
+  case exp.val.e__ of
+    ECase _ scrutinee _ _ -> scrutinee
+    _                     -> Debug.crash <| "LangTools.expToScrutinee exp is not an ECase: " ++ unparseWithIds exp
+
 
 -- This is a rather generous definition of literal.
 isLiteral : Exp -> Bool

@@ -24,6 +24,7 @@ import LangUnparser exposing (unparse)
 import InterfaceModel exposing (..)
 import FastParser
 import LangTools
+import StaticAnalysis
 import Utils
 import Either exposing (..)
 import Keys
@@ -31,6 +32,7 @@ import Keys
 import String
 import Regex
 import Html.Attributes as Attr
+import Dict
 import Set
 import Svg
 
@@ -273,12 +275,17 @@ addLine old click2 click1 =
        (eVar0 "line")
        (List.map eVar ["color","width","x1","y1","x2","y2"])
   in
-  add "line" old.inputExp False
-    [ makeLet ["x1","y1","x2","y2"] (makeInts [x1,y1,xb,yb])
-    , makeLet ["color", "width"]
-              [ color , eConst 5 dummyLoc ]
-    ] f args
-  |> insertExpAsCode old
+  let lineExp =
+    makeCallWithLocals
+        [ makeLet ["x1","y1","x2","y2"] (makeInts [x1,y1,xb,yb])
+        , makeLet ["color", "width"]
+                  [ color , eConst 5 dummyLoc ]
+        ]
+        f
+        args
+  in
+  addShape old "line" lineExp
+
 
 {- using variables x1/x2/y1/y2 instead of left/top/right/bot:
 
@@ -287,7 +294,7 @@ addLine old click2 click1 =
        (eVar0 "line")
        (eStr color :: eStr "5" :: List.map eVar ["x1","y1","x2","y2"])
   in
-  add "line" old
+  add old "line" old
     [ makeLet ["x1","x2"] (makeInts [x1,xb])
     , makeLet ["y1","y2"] (makeInts [y1,yb])
     ] f args
@@ -304,7 +311,7 @@ addRawRect old (_,pt2) (_,pt1) =
     (stencilRawRect x y w h fill stroke strokeWidth rot)
 
 stencilRawRect x y w h fill stroke strokeWidth rot =
-  makeCallWithLocals False
+  makeCallWithLocals
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
     , makeLet ["fill", "stroke","strokeWidth"] (makeInts [fill, stroke, strokeWidth])
     , makeLet ["rot"] [eConst (toFloat rot) dummyLoc] ]
@@ -317,13 +324,15 @@ stencilRawRect x y w h fill stroke strokeWidth rot =
 addRawSquare old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = squareBoundingBox pt2 pt1 in
   let (x, y, side) = (xa, ya, xb - xa) in
-  add "square" old.inputExp False
-    [ makeLet ["x","y","side"] (makeInts [x,y,side])
-    , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
-    (eVar0 "rawRect")
-    [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
-    , eVar "x", eVar "y", eVar "side", eVar "side", eVar "rot" ]
-  |> insertExpAsCode old
+  let squareExp =
+    makeCallWithLocals
+        [ makeLet ["x","y","side"] (makeInts [x,y,side])
+        , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
+        (eVar0 "rawRect")
+        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+        , eVar "x", eVar "y", eVar "side", eVar "side", eVar "rot" ]
+  in
+  addShape old "square" squareExp
 
 --------------------------------------------------------------------------------
 
@@ -335,7 +344,7 @@ addStretchyRect old (_,pt2) (_,pt1) =
     (stencilStretchyRect xMin yMin xMax yMax fill stroke strokeWidth rot)
 
 stencilStretchyRect left top right bot fill stroke strokeWidth rot =
-  makeCallWithLocals False
+  makeCallWithLocals
     [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [left,top,right,bot])
     , makeLet ["color"] [eConst (toFloat fill) dummyLoc] ]
     (eVar0 "rectangle")
@@ -347,15 +356,17 @@ stencilStretchyRect left top right bot fill stroke strokeWidth rot =
 addStretchySquare old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, _) = squareBoundingBox pt2 pt1 in
   let side = (xMax - xMin) in
-  add "square" old.inputExp False
-    [ makeLet ["left","top","side"] (makeInts [xMin,yMin,side])
-    , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
-    , makeLet ["rot"] [eConst 0 dummyLoc]
-    , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
-    (eVar0 "rectangle")
-    (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
-  |> insertExpAsCode old
+  let squareExp =
+    makeCallWithLocals
+        [ makeLet ["left","top","side"] (makeInts [xMin,yMin,side])
+        , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
+        , makeLet ["rot"] [eConst 0 dummyLoc]
+        , makeLet ["color","strokeColor","strokeWidth"]
+                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+        (eVar0 "rectangle")
+        (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
+  in
+  addShape old "square" squareExp
 
 --------------------------------------------------------------------------------
 
@@ -363,13 +374,15 @@ addRawOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
   let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
   let (cx, cy) = (xa + rx, ya + ry) in
-  add "ellipse" old.inputExp False
-    [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
-    , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
-    (eVar0 "rawEllipse")
-    [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
-    , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
-  |> insertExpAsCode old
+  let ellipseExp =
+    makeCallWithLocals
+        [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
+        , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
+        (eVar0 "rawEllipse")
+        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+        , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
+  in
+  addShape old "ellipse" ellipseExp
 
 --------------------------------------------------------------------------------
 
@@ -377,39 +390,45 @@ addRawCircle old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = squareBoundingBox pt2 pt1 in
   let r = (xb-xa)//2 in
   let (cx, cy) = (xa + r, ya + r) in
-  add "circle" old.inputExp False
-    [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
-    , makeLet ["color"] [randomColor1 old] ]
-    (eVar0 "rawCircle")
-    [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
-    , eVar "cx", eVar "cy", eVar "r" ]
-  |> insertExpAsCode old
+  let circleExp =
+    makeCallWithLocals
+        [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
+        , makeLet ["color"] [randomColor1 old] ]
+        (eVar0 "rawCircle")
+        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+        , eVar "cx", eVar "cy", eVar "r" ]
+  in
+  addShape old "circle" circleExp
 
 --------------------------------------------------------------------------------
 
 addStretchyOval old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
-  add "ellipse" old.inputExp False
-    [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
-    , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
-    (eVar0 "oval")
-    (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
-  |> insertExpAsCode old
+  let ellipseExp =
+    makeCallWithLocals
+        [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
+        , makeLet ["color","strokeColor","strokeWidth"]
+                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+        (eVar0 "oval")
+        (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
+  in
+  addShape old "ellipse" ellipseExp
 
 --------------------------------------------------------------------------------
 
 addStretchyCircle old (_,pt2) (_,pt1) =
   let (left, right, top, _) = squareBoundingBox pt2 pt1 in
-  add "circle" old.inputExp False
-    [ makeLet ["left", "top", "r"] (makeInts [left, top, (right-left)//2])
-    , makeLet ["bounds"]
-        [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing]
-    , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
-    (eVar0 "oval")
-    (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
-  |> insertExpAsCode old
+  let circleExp =
+    makeCallWithLocals
+        [ makeLet ["left", "top", "r"] (makeInts [left, top, (right-left)//2])
+        , makeLet ["bounds"]
+            [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing]
+        , makeLet ["color","strokeColor","strokeWidth"]
+                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+        (eVar0 "oval")
+        (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
+  in
+  addShape old "circle" circleExp
 
 --------------------------------------------------------------------------------
 
@@ -600,15 +619,17 @@ addRawPolygon old pointsWithSnap =
           eTuple [xExp, yExp]
         )
   in
-  add "polygon" old.inputExp False
-    [ makeLet ["pts"] [eTuple ePts]
-    , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
-    ]
-    (eVar0 "rawPolygon")
-    [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
-    , eVar "pts", eConst 0 dummyLoc ]
-  |> insertExpAsCode old
+  let polygonExp =
+    makeCallWithLocals
+        [ makeLet ["pts"] [eTuple ePts]
+        , makeLet ["color","strokeColor","strokeWidth"]
+                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
+        ]
+        (eVar0 "rawPolygon")
+        [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
+        , eVar "pts", eConst 0 dummyLoc ]
+  in
+  addShape old "polygon" polygonExp
 
 addStretchablePolygon old points =
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
@@ -622,14 +643,16 @@ addStretchablePolygon old points =
         let yStr = maybeThaw yPct in
         Utils.bracks (Utils.spaces [xStr,yStr])
   in
-  add "polygon" old.inputExp False
-    [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
-    , makeLet ["pcts"] [eRaw sPcts] ]
-    (eVar0 "stretchyPolygon")
-    (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
-  |> insertExpAsCode old
+  let polygonExp =
+    makeCallWithLocals
+        [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+        , makeLet ["color","strokeColor","strokeWidth"]
+                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
+        , makeLet ["pcts"] [eRaw sPcts] ]
+        (eVar0 "stretchyPolygon")
+        (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
+  in
+  addShape old "polygon" polygonExp
 
 addStickyPolygon old points =
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
@@ -649,14 +672,16 @@ addStickyPolygon old points =
         in
         Utils.bracks (Utils.spaces [xOff,yOff])
   in
-  add "polygon" old.inputExp False
-    [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-    , makeLet ["color","strokeColor","strokeWidth"]
-              [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
-    , makeLet ["offsets"] [eRaw sOffsets] ]
-    (eVar0 "stickyPolygon")
-    (List.map eVar ["bounds","color","strokeColor","strokeWidth","offsets"])
-  |> insertExpAsCode old
+  let polygonExp =
+    makeCallWithLocals
+        [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+        , makeLet ["color","strokeColor","strokeWidth"]
+                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
+        , makeLet ["offsets"] [eRaw sOffsets] ]
+        (eVar0 "stickyPolygon")
+        (List.map eVar ["bounds","color","strokeColor","strokeWidth","offsets"])
+  in
+  addShape old "polygon" polygonExp
 
 strPoint strX strY (x,y) = Utils.spaces [strX x, strY y]
 
@@ -720,15 +745,17 @@ pathCommands strX strY keysAndPoints =
 
 addAbsolutePath old keysAndPoints =
   let (extraLets, sD) = pathCommands toString toString keysAndPoints in
-  add "path" old.inputExp False
-    ([ makeLet ["strokeColor","strokeWidth","color"]
-               [randomColor old, eConst 5 dummyLoc, randomColor1 old] ]
-    ++ extraLets
-    ++ [makeLet ["d"] [eVar sD] ])
-    (eVar0 "rawPath")
-    [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
-    , eVar "d", eConst 0 dummyLoc ]
-  |> insertExpAsCode old
+  let pathExp =
+    makeCallWithLocals
+        ([ makeLet ["strokeColor","strokeWidth","color"]
+                   [randomColor old, eConst 5 dummyLoc, randomColor1 old] ]
+        ++ extraLets
+        ++ [makeLet ["d"] [eVar sD] ])
+        (eVar0 "rawPath")
+        [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
+        , eVar "d", eConst 0 dummyLoc ]
+  in
+  addShape old "path" pathExp
 
 addStretchyPath old keysAndPoints =
   let points = List.map Tuple.second keysAndPoints in
@@ -737,15 +764,17 @@ addStretchyPath old keysAndPoints =
   let strX x = maybeThaw (toFloat (x - xMin) / width) in
   let strY y = maybeThaw (toFloat (y - yMin) / height) in
   let (extraLets, sD) = pathCommands strX strY keysAndPoints in
-  add "path" old.inputExp False
-    ([ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-     , makeLet ["strokeColor","strokeWidth","color"]
-               [ randomColor old, eConst 5 dummyLoc, randomColor1 old ] ]
-     ++ extraLets
-     ++ [ makeLet ["dPcts"] [eVar sD] ])
-    (eVar0 "stretchyPath")
-    (List.map eVar ["bounds","color","strokeColor","strokeWidth","dPcts"])
-  |> insertExpAsCode old
+  let pathExp =
+    makeCallWithLocals
+        ([ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
+         , makeLet ["strokeColor","strokeWidth","color"]
+                   [ randomColor old, eConst 5 dummyLoc, randomColor1 old ] ]
+         ++ extraLets
+         ++ [ makeLet ["dPcts"] [eVar sD] ])
+        (eVar0 "stretchyPath")
+        (List.map eVar ["bounds","color","strokeColor","strokeWidth","dPcts"])
+  in
+  addShape old "path" pathExp
 
 addStickyPath old keysAndPoints =
   Debug.crash "TODO: addStickyPath"
@@ -820,62 +849,81 @@ addTextBox old click2 click1 =
     eConst0 (toFloat (yb - ya)) dummyLoc
     -- withDummyExpInfo (EConst "" (toFloat (yb - ya)) dummyLoc (intSlider 0 128))
   in
-  add "text" old.inputExp True
-    [ makeLet ["fontSize","textVal"] [fontSize, eStr "Text"] ]
-    (eVar0 "simpleText")
-    [ eStr "Tahoma, sans-serif", eStr "black", eVar "fontSize"
-    , eConst (toFloat xa) dummyLoc, eConst (toFloat xb) dummyLoc
-    , eConst (toFloat yb) dummyLoc
-    , eConst 1.5 dummyLoc, eVar "textVal" ]
-  |> insertExpAsCode old
+  let textExp =
+    makeCallWithLocals
+        [ makeLet ["fontSize","textVal"] [fontSize, eStr "Text"] ]
+        (eVar0 "simpleText")
+        [ eStr "Tahoma, sans-serif", eStr "black", eVar "fontSize"
+        , eConst (toFloat xa) dummyLoc, eConst (toFloat xb) dummyLoc
+        , eConst (toFloat yb) dummyLoc
+        , eConst 1.5 dummyLoc, eVar "textVal" ]
+  in
+  addShape old "text" textExp
 
 --------------------------------------------------------------------------------
 
-addShape old newShapeKind newShapeExp =
-  let shapeVarName =
-    LangTools.nonCollidingName newShapeKind 1 <|
-      LangTools.identifiersVisibleAtProgramEnd old.inputExp in
-  let newShapeName = withDummyPatInfo (PVar space1 shapeVarName noWidgetDecl) in
-  let newDef = (newline2, newShapeName, newShapeExp, space0) in
-  let (defs, mainExp) = splitExp old.inputExp in
-  let defs_ = defs ++ [newDef] in
-  let eNew = withDummyExpInfo (EVar (ws "\n  ") shapeVarName) in
-  let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
-  let code = unparse (fuseExp (defs_, mainExp_)) in
-  { old | code = code }
-
-insertExpAsCode old exp = { old | code = unparse exp }
-
--- TODO: replace all calls to "add" to "addShapeToProgram"; remove "add"
 -- TODO: remove randomColor/1 when they are no longer needed
-add newShapeKind program isSvgList newShapeLocals newShapeFunc newShapeArgs =
-  let shapeVarName =
-    LangTools.nonCollidingName newShapeKind 1 (LangTools.identifiersVisibleAtProgramEnd program)
+--
+-- 1. Find all list literals.
+-- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
+-- 3. Keep those programs that do not crash.
+-- 4. Keep those programs that result in one more shape in the output.
+-- 5. Finally, use list the others do not depend on.
+addShape : Model -> String -> Exp -> Model
+addShape model newShapeKind newShapeExp =
+  let program = model.inputExp in
+  let oldShapeTree =
+    case runAndResolve model program of
+      Ok (_, _, (root, shapeTree), _) -> shapeTree
+      _                               -> Dict.empty
   in
-  let newDef =
-    let newShapeName = withDummyPatInfo (PVar space1 shapeVarName noWidgetDecl) in
-    let newShapeExp = makeCallWithLocals isSvgList newShapeLocals newShapeFunc newShapeArgs in
-    (ws "\n\n", newShapeName, newShapeExp, space0)
+  -- 1. Find all list literals.
+  let lists = flattenExpTree program |> List.filter isList in -- Possible optimization: exclude lists with numeric element
+  -- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
+  let listEIdWithPossiblePrograms =
+    lists
+    |> List.concatMap
+        (\listExp ->
+          let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeKind 1 newShapeExp [listExp.val.eid] program in
+          let (ws1, heads, ws2, maybeTail, ws3) = LangTools.expToListParts listExp in
+          let newListFlat      = replaceE__ listExp <| EList ws1 (imitateExpListWhitespace_ heads ws3.val (heads ++ [eVar varName]))           ws2 maybeTail ws3 in
+          let newListSingleton = replaceE__ listExp <| EList ws1 (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [eVar0 varName]])) ws2 maybeTail ws3 in
+          let newProgramFlat      = programWithNewDef |> replaceExpNode listExp.val.eid newListFlat in
+          let newProgramSingleton = programWithNewDef |> replaceExpNode listExp.val.eid newListSingleton in
+          [ (listExp.val.eid, newProgramFlat)
+          , (listExp.val.eid, newProgramSingleton)
+          ]
+        )
+    -- 3. Keep those programs that do not crash.
+    -- 4. Keep those programs that result in one more shape in the output.
+    |> List.filter
+        (\(listEId, newProgram) ->
+          case InterfaceModel.runAndResolve model newProgram of
+            Ok (_, _, (root, shapeTree), _) -> Dict.size oldShapeTree + 1 == Dict.size shapeTree
+            _                               -> False
+        )
   in
-  let (defs, mainExp) = splitExp program in
-  let defs_ = defs ++ [newDef] in
-  let eNew = withDummyExpInfo (EVar (ws "\n  ") shapeVarName) in
-  let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
-  fuseExp (defs_, mainExp_)
-  -- let code = unparse () in
-  --
-  -- -- upstate Run
-  --   { old | code = code }
+  -- 5. Finally, use list the others do not depend on.
+  let listEIds = listEIdWithPossiblePrograms |> List.map Tuple.first in
+  let grossDependencies = StaticAnalysis.grossDependencies program in
+  let (_, bestProgram) =
+    listEIdWithPossiblePrograms
+    |> Utils.findFirst
+        (\(listEId, _) -> listEIds |> List.all (\otherListEId -> not <| StaticAnalysis.isDependentOn grossDependencies otherListEId listEId))
+    |> Maybe.withDefault (-1, program)
+  in
+  { model | code = unparse bestProgram }
 
-makeCallWithLocals multi locals func args =
+
+makeCallWithLocals locals func args =
   let recurse locals =
     case locals of
       [] ->
-        if multi then
-          withDummyExpInfo (EApp (ws "\n    ") func args space0)
-        else
-          let app = withDummyExpInfo (EApp space1 func args space0) in
-          withDummyExpInfo (EList (ws "\n    ") [app] space0 Nothing space1)
+        -- if multi then
+        withDummyExpInfo (EApp (ws "\n    ") func args space0)
+        -- else
+        --   let app = withDummyExpInfo (EApp space1 func args space0) in
+        --   withDummyExpInfo (EList (ws "\n    ") [app] space0 Nothing space1)
       (p,e)::locals_ -> withDummyExpInfo (ELet (ws "\n  ") Let False p e (recurse locals_) space0)
   in
   recurse locals

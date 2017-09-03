@@ -1335,17 +1335,23 @@ applyESubst esubst =
 -----------------------------------------------------------------------------
 -- Utility
 
+branchExp : Branch -> Exp
+branchExp branch =
+  let (Branch_ _ _ exp _) = branch.val in
+  exp
+
 branchExps : List Branch -> List Exp
 branchExps branches =
-  List.map
-    (.val >> \(Branch_ _ _ exp _) -> exp)
-    branches
+  List.map branchExp branches
+
+tbranchExp : TBranch -> Exp
+tbranchExp tbranch =
+  let (TBranch_ _ _ exp _) = tbranch.val in
+  exp
 
 tbranchExps : List TBranch -> List Exp
 tbranchExps tbranches =
-  List.map
-    (.val >> \(TBranch_ _ _ exp _) -> exp)
-    tbranches
+  List.map tbranchExp tbranches
 
 branchPat : Branch -> Pat
 branchPat branch =
@@ -1365,11 +1371,14 @@ mapBranchPats f branches =
         { branch | val = Branch_ ws1 (f pat) exp ws2 }
       )
 
+tbranchType : TBranch -> Type
+tbranchType tbranch =
+  let (TBranch_ _ tipe _ _) = tbranch.val in
+  tipe
+
 tbranchTypes : List TBranch -> List Type
 tbranchTypes tbranches =
-  List.map
-    (.val >> \(TBranch_ _ tipe _ _) -> tipe)
-    tbranches
+  List.map tbranchType tbranches
 
 branchPatExps : List Branch -> List (Pat, Exp)
 branchPatExps branches =
@@ -1764,7 +1773,7 @@ precedingWhitespacePat pat =
       PVar   ws ident wd         -> ws
       PConst ws n                -> ws
       PBase  ws v                -> ws
-      PList  ws1 es ws2 rest ws3 -> ws1
+      PList  ws1 ps ws2 rest ws3 -> ws1
       PAs    ws1 ident ws2 p     -> ws1
 
 
@@ -1788,6 +1797,79 @@ precedingWhitespaceExp__ e__ =
       ETyp       ws1 pat tipe e ws2       -> ws1
       EColonType ws1 e ws2 tipe ws3       -> ws1
       ETypeAlias ws1 pat tipe e ws2       -> ws1
+
+
+allWhitespaces : Exp -> List String
+allWhitespaces exp =
+  allWhitespaces_ exp |> List.map .val
+
+
+allWhitespaces_ : Exp -> List WS
+allWhitespaces_ exp =
+  let allWhitespacesBranch branch =
+    let (Branch_ ws1 pat e ws2) = branch.val in
+    [ws1] ++ allWhitespacesPat_ pat ++ allWhitespaces_ e ++ [ws2]
+  in
+  let allWhitespacesTBranch tbranch =
+    let (TBranch_ ws1 tipe e ws2) = tbranch.val in
+    [ws1] ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
+  in
+  case exp.val.e__ of
+    EBase      ws v                     -> [ws]
+    EConst     ws n l wd                -> [ws]
+    EVar       ws x                     -> [ws]
+    EFun       ws1 ps e1 ws2            -> [ws1] ++ List.concatMap allWhitespacesPat_ ps ++ allWhitespaces_ e1 ++ [ws2]
+    EApp       ws1 e1 es ws2            -> [ws1] ++ List.concatMap allWhitespaces_ (e1::es) ++ [ws2]
+    EList      ws1 es ws2 rest ws3      -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2] ++ (rest |> Maybe.map allWhitespaces_ |> Maybe.withDefault []) ++ [ws3]
+    EOp        ws1 op es ws2            -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2]
+    EIf        ws1 e1 e2 e3 ws2         -> [ws1] ++ List.concatMap allWhitespaces_ [e1, e2, e3] ++ [ws2]
+    ELet       ws1 kind rec p e1 e2 ws2 -> [ws1] ++ allWhitespacesPat_ p ++ allWhitespaces_ e1 ++ allWhitespaces_ e2 ++ [ws2]
+    ECase      ws1 e1 bs ws2            -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesBranch bs ++ [ws2]
+    ETypeCase  ws1 e1 bs ws2            -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesTBranch bs ++ [ws2]
+    EComment   ws s e1                  -> [ws] ++ allWhitespaces_ e1
+    EOption    ws1 s1 ws2 s2 e1         -> [ws1, ws2] ++ allWhitespaces_ e1
+    ETyp       ws1 pat tipe e ws2       -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
+    EColonType ws1 e ws2 tipe ws3       -> [ws1] ++ allWhitespaces_ e ++ [ws2] ++ allWhitespacesType_ tipe ++ [ws2]
+    ETypeAlias ws1 pat tipe e ws2       -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
+
+
+allWhitespacesPat : Pat -> List String
+allWhitespacesPat pat =
+  allWhitespacesPat_ pat |> List.map .val
+
+
+allWhitespacesPat_ : Pat -> List WS
+allWhitespacesPat_ pat =
+  case pat.val.p__ of
+    PVar   ws ident wd         -> [ws]
+    PConst ws n                -> [ws]
+    PBase  ws v                -> [ws]
+    PList  ws1 ps ws2 rest ws3 -> [ws1] ++ List.concatMap allWhitespacesPat_ ps ++ [ws2] ++ (rest |> Maybe.map allWhitespacesPat_ |> Maybe.withDefault []) ++ [ws3]
+    PAs    ws1 ident ws2 p     -> [ws1, ws2] ++ allWhitespacesPat_ p
+
+
+allWhitespacesType_ : Type -> List WS
+allWhitespacesType_ tipe =
+  let allWhitespacesForAllInner oneOrMany =
+    case oneOrMany of
+      One (ws, ident) -> [ws]
+      Many ws1 inner ws2 -> [ws1] ++ List.map (\(ws, ident) -> ws) inner ++ [ws2]
+  in
+    case tipe.val of
+      TNum ws                             -> [ws]
+      TBool ws                            -> [ws]
+      TString ws                          -> [ws]
+      TNull ws                            -> [ws]
+      TList ws1 elemType ws2              -> [ws1] ++ allWhitespacesType_ elemType ++ [ws2]
+      TDict ws1 keyType valueType ws2     -> [ws1] ++ allWhitespacesType_ keyType ++ allWhitespacesType_ valueType ++ [ws2]
+      TTuple ws1 heads ws2 maybeTail ws3  -> [ws1] ++ List.concatMap allWhitespacesType_ heads ++ [ws2] ++ (maybeTail |> Maybe.map allWhitespacesType_ |> Maybe.withDefault []) ++ [ws3]
+      TArrow ws1 ts ws2                   -> [ws1] ++ List.concatMap allWhitespacesType_ ts ++ [ws2]
+      TUnion ws1 ts ws2                   -> [ws1] ++ List.concatMap allWhitespacesType_ ts ++ [ws2]
+      TNamed ws ident                     -> [ws]
+      TVar ws ident                       -> [ws]
+      TForall ws1 innerOneOrMany tipe ws2 -> [ws1] ++ allWhitespacesForAllInner innerOneOrMany ++ allWhitespacesType_ tipe ++ [ws2]
+      TWildcard ws                        -> [ws]
+
 
 addPrecedingWhitespace : String -> Exp -> Exp
 addPrecedingWhitespace newWs exp =
@@ -1916,12 +1998,22 @@ ensureNNewlinesExp n indentationIfNoPreviousNewlines exp =
 --   Ensure preceeding whitespace is at least one space character.
 ensureWhitespaceSmartExp : Int -> String -> Exp -> Exp
 ensureWhitespaceSmartExp newlineCountIfMultiline indentationIfMultiline exp =
-  if isLet exp || List.any (precedingWhitespace >> String.contains "\n") (flattenExpTree exp) then
+  if isLet exp || expHasNewlines exp then
     exp
     |> ensureWhitespaceNNewlinesExp newlineCountIfMultiline
     |> replaceIndentation indentationIfMultiline
   else
     ensureWhitespaceExp exp
+
+
+expHasNewlines : Exp -> Bool
+expHasNewlines exp =
+  List.any (String.contains "\n") (allWhitespaces exp)
+
+
+patHasNewlines : Pat -> Bool
+patHasNewlines pat =
+  List.any (String.contains "\n") (allWhitespacesPat pat)
 
 
 setExpListWhitespace : String -> String -> List Exp -> List Exp
@@ -1953,11 +2045,18 @@ setPatListWhitespace firstWs sepWs pats =
 
 imitateExpListWhitespace : List Exp -> List Exp -> List Exp
 imitateExpListWhitespace oldExps newExps =
+  imitateExpListWhitespace_ oldExps "" newExps
+
+
+-- nextWs is to handle empty multiline list
+-- e.g. "[\n]" nextWs is "\n"
+imitateExpListWhitespace_ : List Exp -> String -> List Exp -> List Exp
+imitateExpListWhitespace_ oldExps nextWs newExps =
   let (firstWs, sepWs) =
     case oldExps of
       first::second::_ -> (precedingWhitespace first, precedingWhitespace second)
       first::[]        -> (precedingWhitespace first, if precedingWhitespace first == "" then " " else precedingWhitespace first)
-      []               -> ("", " ")
+      []               -> if String.contains "\n" nextWs then (indentWs "  " nextWs, indentWs "  " nextWs) else ("", " ")
   in
   case newExps of
     [] ->
@@ -2062,16 +2161,16 @@ unindent exp =
   in
   mapExp (mapPrecedingWhitespace removeIndentation) expWsAsSpaces
 
+indentWs : String -> String -> String
+indentWs spaces ws =
+  ws |> String.reverse
+     |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
+     |> String.reverse
 
 -- Increases indentation by spaces string.
 indent : String -> Exp -> Exp
 indent spaces e =
-  let processWS ws =
-    ws |> String.reverse
-       |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
-       |> String.reverse
-  in
-  mapExp (mapPrecedingWhitespace processWS) e
+  mapExp (mapPrecedingWhitespace (indentWs spaces)) e
 
 -- Same as indent, but always push top level exp right even if no newline.
 pushRight : String -> Exp -> Exp

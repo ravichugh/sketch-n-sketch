@@ -6,7 +6,6 @@ import Types
 import Eval
 import Utils
 import PreludeGenerated as Prelude
-import LangSvg
 import DefaultIconTheme
 
 makeExample name s =
