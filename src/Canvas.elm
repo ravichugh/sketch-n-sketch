@@ -1158,7 +1158,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xLazyVal 
               else { model | hoveredCrosshairs = Set.insert thisCrosshair model.hoveredCrosshairs }
         ]
       else if model.tool == PointOrOffset then
-        [ onMouseDownAndStop <| Msg "Begin Offset From Point..." <| \model ->
+        [ onMouseDown <| Msg "Begin Offset From Point..." <| \model ->
             { model | mouseMode = MouseDrawNew (Offset1DFromExisting (x, y) NoSnap (xNumTr, yNumTr)) }
         ]
       else
