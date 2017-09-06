@@ -230,15 +230,8 @@ drawNewPointAndOffset shouldHighlight (x2, y2) (x1, y1) =
 -- Widget Layer
 
 svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) maybeCaptionText isSelected extraStyles =
-  let (effectiveAmount, op) =
-    case sign of
-      Positive -> (amount, Plus)
-      Negative -> (-amount, Minus)
-  in
-  let ((endX, endXTr), (endY, endYTr)) =
-    case axis of
-      X -> ((baseX + effectiveAmount, TrOp op [baseXTr, amountTr]), (baseY, baseYTr))
-      Y -> ((baseX, baseXTr), (baseY + effectiveAmount, TrOp op [baseYTr, amountTr]))
+  let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
+    offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
   in
   let lineStyle =
     if isSelected then

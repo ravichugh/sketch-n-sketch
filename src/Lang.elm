@@ -227,11 +227,6 @@ type WidgetDecl_
 type Axis = X | Y
 type Sign = Positive | Negative
 
-type LazyVal = LazyVal Env Exp
-
-lazyValEnv (LazyVal env exp) = env
-lazyValExp (LazyVal env exp) = exp
-
 type Widget
   = WIntSlider Int Int String Int Loc Bool
   | WNumSlider Num Num String Num Loc Bool
@@ -239,6 +234,19 @@ type Widget
   | WOffset1D NumTr NumTr Axis Sign NumTr LazyVal LazyVal -- baseXNumTr baseYNumTr axis sign amountNumTr endXLazyVal endYLazyVal
 
 type alias Widgets = List Widget
+
+offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) =
+  let (effectiveAmount, op) =
+    case sign of
+      Positive -> (amount, Plus)
+      Negative -> (-amount, Minus)
+  in
+  let ((endX, endXTr), (endY, endYTr)) =
+    case axis of
+      X -> ((baseX + effectiveAmount, TrOp op [baseXTr, amountTr]), (baseY, baseYTr))
+      Y -> ((baseX, baseXTr), (baseY + effectiveAmount, TrOp op [baseYTr, amountTr]))
+  in
+  (effectiveAmount, ((endX, endXTr), (endY, endYTr)))
 
 type alias Token = WithInfo String
 
@@ -279,6 +287,11 @@ eBaseValsEqual ebv1 ebv2 =
     _                                -> False
 
 type Trace = TrLoc Loc | TrOp Op_ (List Trace)
+
+type LazyVal = LazyVal Env Exp
+
+lazyValEnv (LazyVal env exp) = env
+lazyValExp (LazyVal env exp) = exp
 
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp

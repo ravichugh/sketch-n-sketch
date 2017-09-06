@@ -96,7 +96,7 @@ import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
 import ColorScheme
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
-import ShapeWidgets exposing (Feature(..), RealZone(..), PointFeature(..), OtherFeature(..))
+import ShapeWidgets exposing (Feature(..), FeatureNum(..), RealZone(..), PointFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
@@ -454,6 +454,28 @@ onMouseDrag lastPosition newPosition old =
                       )
             )
       in
+      let selectableWidgetFeaturesAndPositions =
+        old.widgets
+        |> Utils.zipi1
+        |> List.concatMap
+            (\(widgetI, widget) ->
+              let idAsShape = -2 - widgetI in
+              case widget of
+                WIntSlider _ _ _ _ _ _ -> []
+                WNumSlider _ _ _ _ _ _ -> []
+                WPoint (x, xTr) _ (y, yTr) _ ->
+                  [ ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "point") (XFeat LonePoint)), (x, y))
+                  , ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "point") (YFeat LonePoint)), (x, y))
+                  ]
+                WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ ->
+                  let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
+                    offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
+                  in
+                  [ ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "offset") (XFeat EndPoint)), (endX, endY))
+                  , ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "offset") (YFeat EndPoint)), (endX, endY))
+                  ]
+            )
+      in
       let shapesAndBounds =
         selectableShapeFeaturesAndPositions
         |> Utils.groupBy (\((nodeId, shapeFeatureStr), (x, y)) -> nodeId)
@@ -475,7 +497,7 @@ onMouseDrag lastPosition newPosition old =
         |> List.map    (\(nodeId, _) -> nodeId)
       in
       let featuresToSelect =
-        selectableShapeFeaturesAndPositions
+        selectableShapeFeaturesAndPositions ++ selectableWidgetFeaturesAndPositions
         |> List.filter (\((nodeId, shapeFeatureStr), (x, y)) -> not (List.member nodeId shapesToSelect) && selectLeft <= round x && round x <= selectRight && selectTop <= round y && round y <= selectBot)
         |> List.map    (\(selectableShapeFeature,    (x, y)) -> selectableShapeFeature)
       in
