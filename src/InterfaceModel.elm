@@ -229,6 +229,12 @@ type MouseMode
         , (Int, Int)            -- initial click
         , Bool ))               -- dragged at least one pixel
 
+  | MouseDragSelect
+      Mouse.Position                 -- initial mouse position
+      (Set.Set NodeId)               -- initial selected shapes
+      (Set.Set SelectedShapeFeature) -- initial selected features
+      (Dict Int NodeId)              -- initial selected blobs
+
   | MouseDrawNew ShapeBeingDrawn
       -- invariant on length n of list of points:
       --   for line/rect/ellipse, n == 0 or n == 2
@@ -239,6 +245,15 @@ type MouseMode
   | MouseDownInCodebox Mouse.Position
 
 type alias MouseTrigger a = (Int, Int) -> a
+
+mousePosition : Model -> Mouse.Position
+mousePosition model = Utils.snd3 model.mouseState
+
+isMouseDown : Model -> Bool
+isMouseDown model =
+  case model.mouseState of
+    (Just _, _, _) -> True
+    _              -> False
 
 traceToMaybeEId model tr =
   case tr of
@@ -482,7 +497,7 @@ showDeuceRightClickMenu
 showDeuceRightClickMenu offsetX offsetY menuMode model =
   let
     mousePos =
-      Utils.snd3 model.mouseState
+      mousePosition model
     oldPopupPanelPositions =
       model.popupPanelPositions
   in

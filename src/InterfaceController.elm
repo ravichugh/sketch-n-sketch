@@ -84,7 +84,8 @@ import Utils
 import Keys
 import InterfaceModel as Model exposing (..)
 import SleekLayout exposing
-  ( clickToCanvasPoint
+  ( canvasPosition
+  , clickToCanvasPoint
   , deucePopupPanelMouseOffset
   , deuceRightClickMenuMouseOffset
   )
@@ -95,7 +96,7 @@ import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
 import ColorScheme
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
-import ShapeWidgets exposing (RealZone(..), PointFeature(..), OtherFeature(..))
+import ShapeWidgets exposing (Feature(..), RealZone(..), PointFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
@@ -254,6 +255,7 @@ rewriteInnerMostExpToMain exp =
 -- Mouse Events
 
 onMouseClick click old maybeClickable =
+  let (isOnCanvas, (canvasX, canvasY) as pointOnCanvas) = clickToCanvasPoint old click in
   case (old.tool, old.mouseMode) of
 
     -- Inactive zone
@@ -264,8 +266,10 @@ onMouseClick click old maybeClickable =
     (Cursor, MouseDragZone (i, k, z) (Just (_, _, False))) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
+    (Cursor, _) ->
+      { old | mouseMode = MouseNothing }
+
     (Poly stk, MouseDrawNew polyPoints) ->
-      let (isOnCanvas, (canvasX, canvasY)) = clickToCanvasPoint old click in
       let pointToAdd =
         case maybeClickable of
           Just (PointWithProvenance (snapX, snapXTr) (LazyVal snapXEnv snapXExp) (snapY, snapYTr) (LazyVal snapYEnv snapYExp)) ->
@@ -290,11 +294,9 @@ onMouseClick click old maybeClickable =
         _ -> Debug.crash "invalid state, points shoudl be NoPointsYet or PolyPoints for polygon tool"
 
     (Path stk, MouseDrawNew NoPointsYet) ->
-      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
       { old | mouseMode = MouseDrawNew (PathPoints [(old.keysDown, pointOnCanvas)]) }
 
     (Path stk, MouseDrawNew (PathPoints points)) ->
-      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
       let add new =
         let points_ = (old.keysDown, new) :: points in
         (points_, { old | mouseMode = MouseDrawNew (PathPoints points_) })
@@ -318,7 +320,6 @@ onMouseClick click old maybeClickable =
               Tuple.second (add pointOnCanvas)
 
     (PointOrOffset, _) ->
-      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
       if isOnCanvas then
         upstateRun <| Draw.addPoint old pointOnCanvas
       else
@@ -349,16 +350,17 @@ onClickPrimaryZone i k z old =
         (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
     else
       let selectThisShape () =
-        Set.insert i <|
-          if old.keysDown == Keys.shift
-          then old.selectedShapes
-          else Set.empty
+        if old.keysDown == Keys.shift
+        then Utils.toggleSet i old.selectedShapes
+        else Set.singleton i
       in
       let selectBlob blobId =
-        Dict.insert blobId i <|
-          if old.keysDown == Keys.shift
-          then old.selectedBlobs
-          else Dict.empty
+        if old.keysDown == Keys.shift then
+          if Dict.member blobId old.selectedBlobs
+          then Dict.remove blobId old.selectedBlobs
+          else Dict.insert blobId i old.selectedBlobs
+        else
+          Dict.singleton blobId i
       in
       let maybeBlobId =
         case Dict.get i (Tuple.second old.slate) |> Maybe.map .interpreted of
@@ -420,6 +422,72 @@ onMouseDrag lastPosition newPosition old =
               , mouseMode = MouseDragZone zoneKey (Just dragInfo_)
               }
       )) |> handleError old
+
+    MouseDragSelect initialPosition initialSelectedShapes initialSelectedFeatures initialSelectedBlobs ->
+      let pos1 = canvasPosition old initialPosition in
+      let pos2 = canvasPosition old (mousePosition old) in
+      let selectTop   = min pos1.y pos2.y in
+      let selectLeft  = min pos1.x pos2.x in
+      let selectBot   = max pos1.y pos2.y in
+      let selectRight = max pos1.x pos2.x in
+      let (root, shapeTree) = old.slate in
+      let selectableShapeFeaturesAndPositions =
+        shapeTree
+        |> Dict.toList
+        |> List.concatMap
+            (\(nodeId, svgNode) ->
+              case svgNode.interpreted of
+                LangSvg.TextNode _ -> []
+                LangSvg.SvgNode shapeKind shapeAttrs childIds ->
+                  ShapeWidgets.featuresOfShape shapeKind shapeAttrs
+                  |> List.filterMap
+                      (\feature ->
+                        case feature of
+                          PointFeature pf -> Just (ShapeWidgets.featureNumsOfFeature feature |> List.map (ShapeWidgets.unparseFeatureNum (Just shapeKind)), ShapeWidgets.getPointEquations shapeKind shapeAttrs pf)
+                          _               -> Nothing
+                      )
+                  |> List.concatMap
+                      (\(shapeFeatureStrs, (xEqn, yEqn)) ->
+                        case (ShapeWidgets.evaluateFeatureEquation xEqn, ShapeWidgets.evaluateFeatureEquation yEqn) of
+                          (Just x, Just y) -> shapeFeatureStrs |> List.map (\shapeFeatureStr -> ((nodeId, shapeFeatureStr), (x, y)))
+                          _                -> []
+                      )
+            )
+      in
+      let shapesAndBounds =
+        selectableShapeFeaturesAndPositions
+        |> Utils.groupBy (\((nodeId, shapeFeatureStr), (x, y)) -> nodeId)
+        |> Dict.toList
+        |> List.map
+            (\(nodeId, featuresAndPositions) ->
+              let xs = featuresAndPositions |> List.map (\(_, (x, y)) -> x) in
+              let ys = featuresAndPositions |> List.map (\(_, (x, y)) -> y) in
+              let (left, right) = (List.minimum xs |> Maybe.withDefault -100000, List.maximum xs |> Maybe.withDefault -100000) in
+              let (top, bot)    = (List.minimum ys |> Maybe.withDefault -100000, List.maximum ys |> Maybe.withDefault -100000) in
+              (nodeId, (top, left, bot, right))
+            )
+      in
+      let blobsAndBounds = [] in -- Ignore for now. Blobs are going to go bye-bye.
+      let blobsToSelect = [] in  -- Ignore for now. Blobs are going to go bye-bye.
+      let shapesToSelect =
+        shapesAndBounds
+        |> List.filter (\(nodeId, (top, left, bot, right)) -> selectLeft <= left && right <= selectRight && selectTop <= top && bot <= selectBot)
+        |> List.map    (\(nodeId, _) -> nodeId)
+      in
+      let featuresToSelect =
+        selectableShapeFeaturesAndPositions
+        |> List.filter (\((nodeId, shapeFeatureStr), (x, y)) -> not (List.member nodeId shapesToSelect) && selectLeft <= round x && round x <= selectRight && selectTop <= round y && round y <= selectBot)
+        |> List.map    (\(selectableShapeFeature,    (x, y)) -> selectableShapeFeature)
+      in
+      if old.keysDown == Keys.shift then
+        { old | selectedShapes   = Utils.multiToggleSet (Set.fromList shapesToSelect) initialSelectedShapes
+              , selectedFeatures = Utils.multiToggleSet (Set.fromList featuresToSelect) initialSelectedFeatures
+              , selectedBlobs    = initialSelectedBlobs }
+      else
+        { old | selectedShapes   = Set.fromList shapesToSelect
+              , selectedFeatures = Set.fromList featuresToSelect
+              , selectedBlobs    = Dict.fromList blobsToSelect }
+
 
     MouseDrawNew shapeBeingDrawn ->
       case (old.tool, shapeBeingDrawn) of
@@ -1002,7 +1070,7 @@ msgRedo = Msg "Redo" <| \old ->
 
 msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
   let new =
-    let {x,y} = Utils.snd3 old.mouseState in
+    let {x,y} = mousePosition old in
     let lightestColor = 470 in
     { old | randomColor = (old.randomColor + x + y) % lightestColor }
   in

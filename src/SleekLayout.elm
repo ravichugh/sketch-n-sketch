@@ -18,6 +18,7 @@
 module SleekLayout exposing
   ( px
   , half
+  , canvasPosition
   , clickToCanvasPoint
   , panelBorderWidth
   , spacing
@@ -75,6 +76,13 @@ px n =
 half : Int -> Int
 half x =
   x // 2
+
+canvasPosition : Model -> { x : Int, y : Int } -> { x : Int, y : Int }
+canvasPosition model {x, y} =
+  let box = outputCanvas model in
+  { x = x - box.x
+  , y = y - box.y
+  }
 
 clickToCanvasPoint : Model -> { x : Int, y : Int } -> (Bool, (Int, Int))
 clickToCanvasPoint model {x, y} =

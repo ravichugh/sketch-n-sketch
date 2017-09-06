@@ -81,9 +81,11 @@ polyKindFeatures kind attrs =
 
 featuresOfShape : ShapeKind -> List Attr -> List Feature
 featuresOfShape kind attrs =
-  case Utils.maybeFind kind simpleKindFeatures of
-    Just features -> features
-    Nothing       -> polyKindFeatures kind attrs
+  case (Utils.maybeFind kind simpleKindFeatures, kind) of
+    (Just features, _)   -> features
+    (Nothing, "polygon") -> polyKindFeatures kind attrs
+    (Nothing, "path")    -> polyKindFeatures kind attrs
+    _                    -> []
 
 pointFeaturesOfShape : ShapeKind -> List Attr -> List PointFeature
 pointFeaturesOfShape kind attrs =
@@ -111,10 +113,10 @@ featureNumsOfFeature feature =
     DistanceFeature df -> [DFeat df]
     OtherFeature feat  -> [OFeat feat]
 
-featureNumsOfShape : ShapeKind -> List Attr -> List FeatureNum
-featureNumsOfShape kind attrs =
-  featuresOfShape kind attrs
-  |> List.concatMap featureNumsOfFeature
+-- featureNumsOfShape : ShapeKind -> List Attr -> List FeatureNum
+-- featureNumsOfShape kind attrs =
+--   featuresOfShape kind attrs
+--   |> List.concatMap featureNumsOfFeature
 
 
 ------------------------------------------------------------------------------

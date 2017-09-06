@@ -14,7 +14,7 @@ import ShapeWidgets exposing
   , ShapeFeature, Feature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..)
   , FeatureNum(..)
   )
-import SleekLayout
+import SleekLayout exposing (canvasPosition)
 import Sync
 import Draw
 import InterfaceModel exposing (..)
@@ -27,6 +27,7 @@ import String
 import Dict
 import Set
 import Color
+import Keys
 
 import VirtualDom
 import Json.Decode
@@ -64,7 +65,7 @@ msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.mode of
     Live info ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
-      let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (Utils.snd3 old.mouseState) in
+      let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (mousePosition old) in
       let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
       let dragInfo = (trigger, (mx, my), False) in
       { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
@@ -74,8 +75,11 @@ msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
 msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
   case (old.tool, old.mouseMode) of
     (Cursor, MouseDragZone _ _) -> old
-    (Cursor, _) ->
-      { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+    (Cursor, MouseNothing) ->
+      let dragMode = MouseDragSelect (mousePosition old) old.selectedShapes old.selectedFeatures old.selectedBlobs in
+      if old.keysDown == Keys.shift
+      then { old | mouseMode = dragMode }
+      else { old | mouseMode = dragMode, selectedShapes = Set.empty, selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
 
     (_ , MouseNothing) ->
       { old | mouseMode = MouseDrawNew NoPointsYet -- No points until drag begins, or (for paths/polys) mouse-up
@@ -104,6 +108,7 @@ build wCanvas hCanvas model =
       (Live _, True ) -> buildSvgWidgets wCanvas hCanvas widgets model
       _               -> []
   in
+  let selectBox = drawSelectBox model in
   Svg.svg
      [ Attr.id "outputCanvas"
      , onMouseDown msgMouseClickCanvas
@@ -112,7 +117,7 @@ build wCanvas hCanvas model =
          , ("height", pixels hCanvas)
          ]
      ]
-     ([outputShapes] ++ newShape ++ svgWidgets)
+     ([outputShapes] ++ newShape ++ svgWidgets ++ selectBox)
 
 
 --------------------------------------------------------------------------------
@@ -354,7 +359,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         , attr "x" (toString (xL  + c*wWidget + pad))
         , attr "y" (toString (yBL - r*hWidget + pad))
         , attr "width" (toString wSlider) , attr "height" (toString hSlider)
-        , onMouseDown (toggleSelected [nodeIdAndFeatureName])
+        , onMouseDownAndStop (toggleSelected [nodeIdAndFeatureName])
         ]
     in
     let ball =
@@ -405,87 +410,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       in
       svgOffsetWidget1DArrowPartsAndEndPoint (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) maybeCaptionText shouldHighlight dragStyle
     in
-    -- let effectiveAmount =
-    --   case sign of
-    --     Positive -> amount
-    --     Negative -> -amount
-    -- in
-    -- let (endX, endY) =
-    --   case axis of
-    --     X -> (baseX + effectiveAmount, baseY)
-    --     Y -> (baseX, baseY + effectiveAmount)
-    -- in
-    -- let lineStyle =
-    --   if Set.member (idAsShape, "offset") model.selectedFeatures then
-    --     [ attr "stroke" colorPointSelected
-    --     , attr "stroke-width" "5px"
-    --     ]
-    --   else
-    --     [ attr "stroke" "black"
-    --     , attr "stroke-width" "1px"
-    --     , attr "stroke-dasharray" "1,1"
-    --     ]
-    -- in
-    -- let dragStyle =
-    --   if model.tool == Cursor then
-    --     [ attr "cursor" "pointer"
-    --     , onMouseEnter (addHoveredShape idAsShape)
-    --     ] ++ dragZoneEvents idAsShape "offset" ZOffset1D
-    --   else
-    --     [ attr "cursor" "default" ]
-    -- in
-    -- let line =
-    --   flip Svg.line [] <|
-    --     [ attrNum "x1" baseX, attrNum "y1" baseY
-    --     , attrNum "x2" endX,  attrNum "y2" endY
-    --     ] ++ lineStyle ++ dragStyle
-    -- in
-    -- let endArrow =
-    --   let arrowOffset = 12 in
-    --   let (opX1, opY1, opX2, opY2) =
-    --     case (axis, Utils.sgn effectiveAmount) of
-    --       (X, 1)  -> ((-), (-), (-), (+))
-    --       (X, -1) -> ((+), (-), (+), (+))
-    --       (Y, 1)  -> ((-), (-), (+), (-))
-    --       _       -> ((-), (+), (+), (+))
-    --   in
-    --   flip Svg.polyline [] <|
-    --     [ attr "fill" "rgba(0,0,0,0.0)"
-    --     , attr "cursor" "pointer"
-    --     , attr "points" <| toString (opX1 endX arrowOffset) ++ "," ++ toString (opY1 endY arrowOffset) ++ " " ++
-    --                        toString endX                 ++ "," ++ toString endY ++ " " ++
-    --                        toString (opX2 endX arrowOffset) ++ "," ++ toString (opY2 endY arrowOffset) ++ " "
-    --     ] ++ lineStyle ++ dragStyle
-    -- in
-    -- let cap =
-    --   let string =
-    --     case traceToMaybeIdent amountTr of
-    --       Just ident -> ident
-    --       Nothing    -> toString amount
-    --   in
-    --   let (x, y, textAnchor) =
-    --     case axis of
-    --       X -> ((baseX + endX) / 2, baseY - 10, "middle")
-    --       Y -> (baseX + 10, (baseY + endY) / 2, "start")
-    --   in
-    --   flip Svg.text_ [VirtualDom.text string] <|
-    --     [ attr "font-family" params.mainSection.uiWidgets.font
-    --     , attr "font-size" params.mainSection.uiWidgets.fontSize
-    --     , attr "text-anchor" textAnchor
-    --     , attr "x" (toString x)
-    --     , attr "y" (toString y)
-    --     ] ++ dragStyle
-    -- in
     let endPt =
       zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXLazyVal endYNumTr endYLazyVal
     in
-    -- if amount /= 0 then
-    --   [ Svg.g
-    --       [onMouseLeave (removeHoveredShape idAsShape)]
-    --       <| [line, cap, endArrow] ++ endPt
-    --   ]
-    -- else
-    --   []
     if amount /= 0 then
       [ Svg.g
           [onMouseLeave (removeHoveredShape idAsShape)]
@@ -517,6 +444,33 @@ buildSvgWidgets wCanvas hCanvas widgets model =
 
   List.concat <| Utils.mapi1 draw widgets
 
+--------------------------------------------------------------------------------
+-- Select Box
+
+drawSelectBox : Model -> List (Svg Msg)
+drawSelectBox model =
+  case model.mouseMode of
+    MouseDragSelect initialPosition _ _ _ ->
+      let pos1 = canvasPosition model initialPosition in
+      let pos2 = canvasPosition model (mousePosition model) in
+      let top   = min pos1.y pos2.y in
+      let left  = min pos1.x pos2.x in
+      let bot   = max pos1.y pos2.y in
+      let right = max pos1.x pos2.x in
+      List.singleton <|
+      flip Svg.rect [] <|
+        [ attr "fill" "none"
+        , attr "stroke" "black"
+        , attr "stroke-width" "2px"
+        , attr "stroke-dasharray" "5,5"
+        , attr "x" (toString left)
+        , attr "y" (toString top)
+        , attr "width" (toString <| right - left)
+        , attr "height" (toString <| bot - top)
+        ]
+
+    _ ->
+      []
 
 --------------------------------------------------------------------------------
 -- Defining Zones
@@ -535,12 +489,16 @@ removeHoveredShape id =
 
 addHoveredShape id =
   Msg ("Add Hovered Shape " ++ toString id) <| \m ->
-    { m | hoveredShapes = Set.singleton id }
+    if isMouseDown m
+    then m
+    else { m | hoveredShapes = Set.singleton id }
     -- { m | hoveredShapes = Set.insert id m.hoveredShapes }
 
 addHoveredCrosshair tuple =
   Msg ("Add Hovered Crosshair " ++ toString tuple) <| \m ->
-    { m | hoveredCrosshairs = Set.insert tuple m.hoveredCrosshairs }
+    if isMouseDown m
+    then m
+    else { m | hoveredCrosshairs = Set.insert tuple m.hoveredCrosshairs }
 
 removeHoveredCrosshair tuple =
   Msg ("Remove Hovered Crosshair " ++ toString tuple) <| \m ->
@@ -796,7 +754,7 @@ zoneRotate_ model id shape cx cy r cmds =
       case (cmds, model.tool) of
         ([LangSvg.Rot (_,trace) _ _], Cursor) ->
           let nodeIdAndFeatureName = (id, ShapeWidgets.shapeRotation) in
-          let handler = [onMouseDown (toggleSelected [nodeIdAndFeatureName])] in
+          let handler = [onMouseDownAndStop (toggleSelected [nodeIdAndFeatureName])] in
           if Set.member nodeIdAndFeatureName model.selectedFeatures
             then (colorPointSelected, handler)
             else (colorPointNotSelected, handler)
@@ -1201,17 +1159,17 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xLazyVal 
     in
     let extraAttrs =
       if model.tool == Cursor then
-        [ onMouseDown <| Msg "Select Cross Dot..." <| \model ->
+        [ onMouseDownAndStop <| Msg "Select Cross Dot..." <| \model ->
             if Set.member thisCrosshair model.hoveredCrosshairs
               then toggleSelectedLambda [xFeature, yFeature] model
               else { model | hoveredCrosshairs = Set.insert thisCrosshair model.hoveredCrosshairs }
         ]
       else if model.tool == PointOrOffset then
-        [ onMouseDown <| Msg "Begin Offset From Point..." <| \model ->
+        [ onMouseDownAndStop <| Msg "Begin Offset From Point..." <| \model ->
             { model | mouseMode = MouseDrawNew (Offset1DFromExisting (x, y) NoSnap (xNumTr, yNumTr)) }
         ]
       else
-        [ onMouseDown <| Msg "Mouse Down On Point..." <| \model ->
+        [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->
             { model | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xNumTr xLazyVal yNumTr yLazyVal)) } ]
     in
     svgXYDot (x, y) dotFill isVisible extraAttrs
@@ -1227,7 +1185,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xLazyVal 
       , attr "x1" (toString (x-len)) , attr "y1" (toString y)
       , attr "x2" (toString (x+len)) , attr "y2" (toString y)
       ] ++ if model.tool /= Cursor then [] else
-        [ onMouseDown (toggleSelected [yFeature]) ]
+        [ onMouseDownAndStop (toggleSelected [yFeature]) ]
   in
   let xLine =
     svgLine <|
@@ -1240,7 +1198,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xLazyVal 
       , attr "y1" (toString (y-len)) , attr "x1" (toString x)
       , attr "y2" (toString (y+len)) , attr "x2" (toString x)
       ] ++ if model.tool /= Cursor then [] else
-        [ onMouseDown (toggleSelected [xFeature]) ]
+        [ onMouseDownAndStop (toggleSelected [xFeature]) ]
   in
   -- using nested group for onMouseLeave handler
   List.singleton <| Svg.g
@@ -1275,7 +1233,7 @@ zoneSelectLine_ model nodeIdAndFeatureName (x1,y1) (x2,y2) =
       , attr "stroke-width" hairStrokeWidth
       , attr "x1" (toString x1) , attr "y1" (toString y1)
       , attr "x2" (toString x2) , attr "y2" (toString y2)
-      , onMouseDown (toggleSelected [nodeIdAndFeatureName])
+      , onMouseDownAndStop (toggleSelected [nodeIdAndFeatureName])
       ]
   in
   [line]

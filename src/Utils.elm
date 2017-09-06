@@ -719,6 +719,12 @@ toggleSet : comparable -> Set comparable -> Set comparable
 toggleSet x set =
   if Set.member x set then Set.remove x set else Set.insert x set
 
+multiToggleSet : Set comparable -> Set comparable -> Set comparable
+multiToggleSet insertSet set =
+  Set.diff
+    (Set.union insertSet set)
+    (Set.intersect insertSet set)
+
 toggleDict : (comparable, v) -> Dict comparable v -> Dict comparable v
 toggleDict (k,v) dict =
   if Dict.member k dict then Dict.remove k dict else Dict.insert k v dict
