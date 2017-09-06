@@ -1041,15 +1041,15 @@ synthesisResultsSelect model =
   let
     desc description exp isSafe sortKey =
       (if isSafe then "" else "[UNSAFE] ") ++
-      (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
+      (Regex.replace Regex.All (Regex.regex "^Original → | → Cleaned$") (\_ -> "") description) ++
       " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
     resultButtonList priorPathByIndices remainingPathByIndices results =
-      results
-        |> Utils.mapi0
-             ( \( i
-                , Model.SynthesisResult
-                    { description, exp, isSafe, sortKey, children }
-                ) ->
+      if results == [] then
+        [ disableableTextButton True "No Results" Controller.msgNoop ]
+      else
+        results
+          |> Utils.mapi0
+               (\(i, SynthesisResult { description, exp, isSafe, sortKey, children }) ->
                   let
                     thisElementPath =
                       priorPathByIndices ++ [i]
@@ -1076,8 +1076,8 @@ synthesisResultsSelect model =
                         exp
                         nextMenu
                     ]
-              )
-        |> List.concat
+                )
+          |> List.concat
   in
     Html.div
       [ Attr.class "synthesis-results"

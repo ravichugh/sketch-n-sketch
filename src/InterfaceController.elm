@@ -1253,7 +1253,7 @@ msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
 
 cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, children}) =
   SynthesisResult <|
-    { description = description ++ " -> Cleaned"
+    { description = description ++ " → Cleaned"
     , exp         = LangSimplify.cleanCode exp
     , isSafe      = isSafe
     , sortKey     = sortKey

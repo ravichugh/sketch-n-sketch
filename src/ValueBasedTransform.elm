@@ -321,6 +321,7 @@ stormTheBastille subst indexedLocIdsWithTarget =
 type alias PartialSynthesisResult =
   { description : String
   , dependentLocIds : List LocId
+  , maybeTermShape : Maybe LocEquation
   , exp : Exp
   }
 
@@ -389,13 +390,13 @@ relate originalExp selectedFeatures slideNumber movieNumber movieTime syncOption
   let relateOneInTermsOfAllOthers priorResults features =
     priorResults
     |> List.concatMap
-        (\{description, exp, dependentLocIds} ->
+        (\{description, exp, maybeTermShape, dependentLocIds} ->
           let priorExp = exp in
           case evalToSlateAndWidgetsResult priorExp slideNumber movieNumber movieTime of
             Err s -> []
             Ok (slate, widgets) ->
-              relate_ (Relate features) priorExp slate widgets syncOptions
-              |> List.map (InterfaceModel.prependDescription (description ++ " -> "))
+              relate_ (Relate features) priorExp maybeTermShape slate widgets syncOptions
+              |> List.map (InterfaceModel.prependDescription (description ++ " → "))
               |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
         )
   in
@@ -424,16 +425,16 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp selectedF
   let selectedPoints =
     featurePoints (Set.toList selectedFeatures)
   in
-  let startingResult = { description = "Original", exp = originalExp, dependentLocIds = [] } in
+  let startingResult = { description = "Original", exp = originalExp, maybeTermShape = Nothing, dependentLocIds = [] } in
   if 2 * (List.length selectedPoints) == (Set.size selectedFeatures) then
     -- We have only selected x&y of several points.
     -- Make all the selected points overlap, that is: make all the x's equal to
     -- each other and all the y's equal to each other.
     let xFeatures = List.map Tuple.first selectedPoints in
     let yFeatures = List.map Tuple.second selectedPoints in
-    let xsEqualized  = doSynthesis [startingResult] xFeatures in
-    let xysEqualized = doSynthesis xsEqualized yFeatures in
-    xysEqualized
+    let xsRelated  = doSynthesis [startingResult] xFeatures in
+    let xysRelated = doSynthesis xsRelated yFeatures in
+    xysRelated
     |> rankComparedTo originalExp
   else
     -- We have not selected only x&y of different points.
@@ -457,21 +458,21 @@ equalizeOverlappingPairs priorResults features slideNumber movieNumber movieTime
     [featureA, featureB] ->
       priorResults
       |> List.concatMap
-          (\{description, exp, dependentLocIds} ->
+          (\{description, exp, maybeTermShape, dependentLocIds} ->
             let priorExp = exp in
             case evalToSlateAndWidgetsResult priorExp slideNumber movieNumber movieTime of
               Err s -> []
               Ok (slate, widgets) ->
                 let newResults =
-                  relate_ (Equalize featureA featureB) priorExp slate widgets syncOptions
+                  relate_ (Equalize featureA featureB) priorExp maybeTermShape slate widgets syncOptions
                 in
                 case newResults of
                   [] ->
-                    equalizeMore [{description = description, exp = priorExp, dependentLocIds = dependentLocIds}]
+                    equalizeMore [{description = description, exp = priorExp, maybeTermShape = maybeTermShape, dependentLocIds = dependentLocIds}]
 
                   _ ->
                     newResults
-                    |> List.map (InterfaceModel.prependDescription (description ++ " -> "))
+                    |> List.map (InterfaceModel.prependDescription (description ++ " → "))
                     |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
                     -- |> List.map (\result -> let _ = if True then Debug.log ("Before:\n" ++ LangUnparser.unparseWithIds priorExp ++ "\nAfter:\n" ++ LangUnparser.unparseWithIds result.exp) () else () in result)
                     |> equalizeMore
@@ -556,11 +557,12 @@ equalizeOverlappingPairs priorResults features slideNumber movieNumber movieTime
 relate_
     :  RelationToSynthesize (Int, String)
     -> Exp
+    -> Maybe LocEquation
     -> LangSvg.RootedIndexedTree
     -> Widgets
     -> Sync.Options
     -> List PartialSynthesisResult
-relate_ relationToSynthesize originalExp slate widgets syncOptions =
+relate_ relationToSynthesize originalExp maybeTermShape slate widgets syncOptions =
   let (_, tree) = slate in
   let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
   let maybeGetFeatureEquation nodeIdAndFeatureName =
@@ -575,7 +577,7 @@ relate_ relationToSynthesize originalExp slate widgets syncOptions =
            let descriptionPrefix =
              featureDescription nodeIdAndFeatureNameA tree ++ " = " ++ featureDescription nodeIdAndFeatureNameB tree ++ " "
            in
-           relate__ (Equalize featureAEqn featureBEqn) originalExp syncOptions
+           relate__ (Equalize featureAEqn featureBEqn) originalExp maybeTermShape syncOptions
            |> List.map (InterfaceModel.prependDescription descriptionPrefix)
 
         _ ->
@@ -584,7 +586,7 @@ relate_ relationToSynthesize originalExp slate widgets syncOptions =
     Relate nodeIdAndFeatureNamePairs ->
       case nodeIdAndFeatureNamePairs |> List.map maybeGetFeatureEquation |> Utils.projJusts of
         Just featureEqns ->
-          relate__ (Relate featureEqns) originalExp syncOptions
+          relate__ (Relate featureEqns) originalExp maybeTermShape syncOptions
 
         _ ->
           []
@@ -592,9 +594,10 @@ relate_ relationToSynthesize originalExp slate widgets syncOptions =
 relate__
     :  RelationToSynthesize FeatureEquation
     -> Exp
+    -> Maybe LocEquation
     -> Sync.Options
     -> List PartialSynthesisResult
-relate__ relationToSynthesize originalExp syncOptions =
+relate__ relationToSynthesize originalExp maybeTermShape syncOptions =
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
      (frozenLocIdsAndNumbers prelude))
@@ -611,17 +614,17 @@ relate__ relationToSynthesize originalExp syncOptions =
     |> Set.fromList
   in
   -- Each equation's unique locs.
-  let eqnsUniqueLocIds =
-    featureEqns
-    |> List.map (equationLocs syncOptions >> List.map locToLocId >> Set.fromList)
-    |> Utils.manySetDiffs -- For each set, subtract all the other sets.
+  let featureEqnLocIds =
+    featureEqns |> List.map (equationLocs syncOptions >> List.map locToLocId >> Set.fromList)
   in
+  let eqnsUniqueLocIds = Utils.manySetDiffs featureEqnLocIds in -- For each set, subtract all the other sets.
   let subst = substOf originalExp in
   let solutionsForLoc dependentLoc =
     let (dependentLocId, dependentFrozen, dependentIdent) = dependentLoc in
     let dependentIdentDesc = locDescription originalExp dependentLoc in
     case relationToSynthesize of
       Equalize featureAEqn featureBEqn ->
+        -- Make equal ignores termShape.
         case solveForLoc dependentLocId frozenLocIdToNum subst featureAEqn featureBEqn of
           Nothing ->
             []
@@ -701,26 +704,46 @@ relate__ relationToSynthesize originalExp syncOptions =
           else
             littleConstants |> List.filter (\n -> n <= 10)
         in
-        -- let maxResults = 10 in
-        let synthesizeMore astSize results =
-          if False then -- List.length results >= maxResults then
-            results
-          else
-            -- let newEqns = locEqnsOfSize astSize indepLocs |> List.filter isGoodEnough in
-            let newEqns =
-              let minLocsInEqn = List.length featureEqns - 1 in
-              locEqnsTemplatesOfSize minLocsInEqn 1 astSize
-              |> List.concatMap (\template -> locEqnTemplateLocFillings independentLocIds template)
+        let resultEqns =
+          case maybeTermShape of
+            Nothing ->
+              -- let maxResults = 10 in
+              let synthesizeMore astSize results =
+                if False then -- List.length results >= maxResults then
+                  results
+                else
+                  let newEqns =
+                    let minLocsInEqn = List.length featureEqns - 1 in
+                    locEqnsTemplatesOfSize minLocsInEqn 1 astSize
+                    |> List.concatMap (\template -> locEqnTemplateLocFillings independentLocIds template)
+                    |> List.filter usesLocFromEachOtherEqn
+                    |> locEqnTemplateFillingsLocsFilled targetLocValue subst possibleEquationConstants
+                    |> List.filter isGoodEnough
+                    |> List.map normalizeSimplify
+                    |> List.filter (\locEqn -> locEqnSize locEqn >= astSize) -- Equation was not simplified. Good. But normalizeSimplify still needs to handle subtraction well which is why the equation can grow in size.
+                  in
+                  results ++ newEqns
+              in
+              List.foldl synthesizeMore [] (List.range 1 7)
+              |> Utils.dedupByEquality
+
+            Just termShape ->
+              let matchesTermShape termShape locEqn =
+                case (termShape, locEqn) of
+                  (LocEqnConst n1,          LocEqnConst n2)          -> n1 == n2
+                  (LocEqnLoc featureI,      LocEqnLoc locId)         -> featureI == 0 || (featureEqnLocIds |> Utils.findi (Set.member locId) |> Maybe.withDefault 0) == featureI
+                  (LocEqnOp op1_ children1, LocEqnOp op2_ children2) -> op1_ == op2_ && (Utils.maybeZip children1 children2 |> Maybe.map (List.all (uncurry matchesTermShape)) |> Maybe.withDefault False)
+                  _                                                  -> False
+              in
+              let astSize = locEqnSize termShape in
+              locEqnTemplateLocFillings independentLocIds termShape
+              |> List.filter (matchesTermShape termShape)
               |> List.filter usesLocFromEachOtherEqn
-              |> locEqnTemplateFillingsLocsFilled targetLocValue subst possibleEquationConstants
               |> List.filter isGoodEnough
               |> List.map normalizeSimplify
               |> List.filter (\locEqn -> locEqnSize locEqn >= astSize) -- Equation was not simplified. Good. But normalizeSimplify still needs to handle subtraction well which is why the equation can grow in size.
-            in
-            results ++ newEqns
-            |> Utils.dedupByEquality
+              |> Utils.dedupByEquality
         in
-        let resultEqns = List.foldl synthesizeMore [] (List.range 1 5) in
         resultEqns
         |> List.map (\resultLocEqn -> (resultLocEqn, dependentIdentDesc ++ " = "))
   in
@@ -803,9 +826,16 @@ relate__ relationToSynthesize originalExp syncOptions =
                   commonScope
                   originalExp
             in
+            -- TermShape uses feature index instead of LocId. (As a go-between between the x and y coordinate of a point.)
+            let termShape locEqn =
+              case locEqn of
+                LocEqnConst _         -> locEqn
+                LocEqnLoc locId       -> LocEqnLoc (featureEqnLocIds |> Utils.findi (Set.member locId) |> Maybe.withDefault 0)
+                LocEqnOp op_ children -> LocEqnOp op_ (children |> List.map termShape)
+            in
             case relationToSynthesize of
-              Equalize _ _ -> {description = description, exp = newExp, dependentLocIds = [dependentLocId]}
-              Relate _     -> {description = description ++ unparse dependentLocExp, exp = newExp, dependentLocIds = [dependentLocId]}
+              Equalize _ _ -> {description = description,                            exp = newExp, maybeTermShape = Just (termShape resultLocEqn), dependentLocIds = [dependentLocId]}
+              Relate _     -> {description = description ++ unparse dependentLocExp, exp = newExp, maybeTermShape = Just (termShape resultLocEqn), dependentLocIds = [dependentLocId]}
           )
       )
 
