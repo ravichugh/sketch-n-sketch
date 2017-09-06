@@ -613,6 +613,7 @@ relate__ relationToSynthesize originalExp maybeTermShape syncOptions =
     |> List.concatMap (equationLocs syncOptions)
     |> Set.fromList
   in
+  let unfrozenLocIdSet = Set.map locToLocId unfrozenLocset in
   -- Each equation's unique locs.
   let featureEqnLocIds =
     featureEqns |> List.map (equationLocs syncOptions >> List.map locToLocId >> Set.fromList)
@@ -662,7 +663,6 @@ relate__ relationToSynthesize originalExp maybeTermShape syncOptions =
         let originalFeatureValue =
           ShapeWidgets.evaluateFeatureEquation targetFeatureEqn |> Utils.fromJust_ "ValueBasedTransform.relate__ originalFeatureValue"
         in
-        -- let indepLocs = Set.remove dependentLoc unfrozenLocset in
         let usesLocFromEachOtherEqn locEqn =
           let locEqnLocIds = locEqnLocIdSet locEqn in
           let eqnsUsedCount =
@@ -754,58 +754,11 @@ relate__ relationToSynthesize originalExp maybeTermShape syncOptions =
         let (dependentLocId, dependentFrozen, dependentIdent) = dependentLoc in
         solutionsForLoc dependentLoc
         |> List.map (\(resultLocEqn, description) ->
-            let locIdSet = Set.insert dependentLocId <| locEqnLocIdSet resultLocEqn in
-            -- Consequently, we don't need to dig out higher than the frozen locs.
-            let locsetToDig = Set.filter (\(locId, _, _) -> Set.member locId locIdSet) unfrozenLocset in
-            let commonScope = deepestCommonAncestorWithNewlineByLocSet originalExp locsetToDig in
-            let existingNames = identifiersSet commonScope in
-            let independentLocs =
-              locsetToDig
-              |> Set.toList
-              |> List.filter (\(locId, _, _) -> locId /= dependentLocId)
-            in
-            let independentLocIds = List.map Utils.fst3 independentLocs in
-            -- TODO: Can this be replaced by liftLocsSoVisibleTo??
-            let locIdToNewName =
-              let (_, result) =
-                List.foldr
-                    (\(locId, frozen, ident) (usedNames, result) ->
-                      let baseIdent = locIdToEId originalExp locId |> Maybe.map (expNameForEId originalExp) |> Maybe.withDefault (if ident == "" then "num" else ident) in
-                      let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough commonScope (locId, frozen, ident) in
-                      let scopesAndBaseIdent = String.join "_" (scopeNamesLiftedThrough ++ [baseIdent]) in
-                      let ident =
-                        if locId == dependentLocId then
-                          nonCollidingName (baseIdent ++ "'") 2 usedNames
-                        else
-                          if scopesAndBaseIdent == baseIdent
-                          then nonCollidingName (baseIdent ++ "_orig") 2 usedNames
-                          else nonCollidingName scopesAndBaseIdent 2 usedNames
-                      in
-                      (
-                        Set.insert ident usedNames,
-                        (locId, ident)::result
-                      )
-                    )
-                    (existingNames, [])
-                    (dependentLoc::independentLocs)
-              in
-              Dict.fromList result
-            in
-            let independentLocNames =
-              List.map
-                  (\locId ->
-                    Utils.justGet_ "ValueBasedTransform.relate__ independentLocNames" locId locIdToNewName
-                  )
-                  independentLocIds
-            in
-            let independentLocExps =
-              independentLocs
-              |> List.map
-                  (\(locId, _, _) -> findExpByLocId commonScope locId |> Utils.fromJust_ "ValueBasedTransform.relate__ independentLocValues")
-            in
-            let dependentLocNameStr  =
-              Utils.justGet_ "ValueBasedTransform.relate__ dependentLocNameStr" dependentLocId locIdToNewName
-            in
+            -- We don't need to dig out higher than the frozen locs.
+            let independentLocIdSet = Set.intersect (locEqnLocIdSet resultLocEqn) unfrozenLocIdSet in
+            let independentLocset = unfrozenLocset |> Set.filter (\(locId, _, _) -> Set.member locId independentLocIdSet) in
+            let dependentEId = locIdToEId originalExp dependentLocId |> Utils.fromJust_ "relate__: dependendLocId locIdToEId" in
+            let (programWithLocsLifted, locIdToNewName) = liftLocsSoVisibleTo originalExp independentLocset (Set.singleton dependentEId) in
             let dependentLocExp =
               let constantAnnotation =
                 case relationToSynthesize of
@@ -814,17 +767,10 @@ relate__ relationToSynthesize originalExp maybeTermShape syncOptions =
               in
               locEqnToExp constantAnnotation frozenLocIdToNum locIdToNewName resultLocEqn
             in
-            let listOfListsOfNamesAndAssigns =
-              [ Utils.zip independentLocNames independentLocExps
-              , [(dependentLocNameStr, dependentLocExp)]
-              ]
-            in
-            let newExp =
-              variableifyConstantsAndWrapTargetExpWithLets
-                  locIdToNewName
-                  listOfListsOfNamesAndAssigns
-                  commonScope
-                  originalExp
+            let newProgram =
+              programWithLocsLifted
+              |> replaceExpNode dependentEId dependentLocExp
+              |> freshen
             in
             -- TermShape uses feature index instead of LocId. (As a go-between between the x and y coordinate of a point.)
             let termShape locEqn =
@@ -834,8 +780,8 @@ relate__ relationToSynthesize originalExp maybeTermShape syncOptions =
                 LocEqnOp op_ children -> LocEqnOp op_ (children |> List.map termShape)
             in
             case relationToSynthesize of
-              Equalize _ _ -> {description = description,                            exp = newExp, maybeTermShape = Just (termShape resultLocEqn), dependentLocIds = [dependentLocId]}
-              Relate _     -> {description = description ++ unparse dependentLocExp, exp = newExp, maybeTermShape = Just (termShape resultLocEqn), dependentLocIds = [dependentLocId]}
+              Equalize _ _ -> {description = description,                            exp = newProgram, maybeTermShape = Just (termShape resultLocEqn), dependentLocIds = [dependentLocId]}
+              Relate _     -> {description = description ++ unparse dependentLocExp, exp = newProgram, maybeTermShape = Just (termShape resultLocEqn), dependentLocIds = [dependentLocId]}
           )
       )
 

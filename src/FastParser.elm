@@ -23,6 +23,7 @@ import Parser.LowLevel exposing (getPosition, getOffset, getSource)
 import Utils as U
 import PreludeGenerated as Prelude
 import Lang exposing (..)
+import LangUnparser
 
 --==============================================================================
 --= PARSER WITH INFO
@@ -1833,7 +1834,10 @@ substPlusOf_ substPlus exp =
           Nothing ->
             Dict.insert locId { e | val = n } s
           Just existing ->
-            if n == existing.val then s else Debug.crash <| "substPlusOf_ Constant: " ++ (toString n)
+            if n == existing.val then
+              s
+            else
+              Debug.crash <| "substPlusOf_ Duplicate locId " ++ toString locId ++ " with differing value " ++ toString n ++ "\n" ++ LangUnparser.unparseWithIds exp
       _ -> s
   in
   foldExp accumulator substPlus exp
