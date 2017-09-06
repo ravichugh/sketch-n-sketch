@@ -865,19 +865,14 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
   let targetExpReplaced =
     replaceConstsWithVars locIdToNewName targetExp
   in
-  let wrappedTargetExp =
-    wrapWithLets
-        listOfListsOfNamesAndAssigns
-        (isTopLevel targetExp program)
-        targetExpReplaced
-  in
-  -- Debug only:
-  -- let _ = debugLog "wrappedTargetExp" <| unparse wrappedTargetExp in
   let newProgram =
-    replaceExpNodeE__ targetExp wrappedTargetExp.val.e__ program
-    |> freshen
+    program
+    |> replaceExpNodeE__ByEId targetExp.val.eid targetExpReplaced.val.e__
+    |> wrapWithLets
+        listOfListsOfNamesAndAssigns
+        targetExp.val.eid
   in
-  newProgram
+  freshen newProgram
 
 
 

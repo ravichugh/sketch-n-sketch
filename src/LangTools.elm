@@ -1037,49 +1037,32 @@ deepestAncestorWithNewline program eid =
   in
   Utils.last_ (program :: ancestorsWithNewlines)
 
--- Given [ [("a", eConst 4 dummyLoc), ("b", eConst 5 dummyLoc)], [("c", eConst 6 dummyLoc)] ] False bodyExp
+-- Given [ [("a", eConst 4 dummyLoc), ("b", eConst 5 dummyLoc)], [("c", eConst 6 dummyLoc)] ]
 --
--- Produces an Exp of:
+-- Wraps EId with:
 --
 -- (let [a c] [4 5]
 -- (let [c] [6]
 --   bodyExp))
 --
-wrapWithLets : List (List (String, Exp)) -> Bool -> Exp -> Exp
-wrapWithLets listOfListsOfNamesAndAssigns isTopLevel bodyExp =
+-- Returns new whole program
+wrapWithLets : List (List (String, Exp)) -> EId -> Exp -> Exp
+wrapWithLets listOfListsOfNamesAndAssigns eidToWrap program =
   let nonEmptyListOfListsOfNamesAndAssigns =
     List.filter
         (not << List.isEmpty)
         listOfListsOfNamesAndAssigns
   in
-  case nonEmptyListOfListsOfNamesAndAssigns of
-    [] ->
-      bodyExp
-
-    _::_ ->
-      let oldPrecedingWhitespace = precedingWhitespace bodyExp in
-      -- Insure one newline after first let
-      let extraWhitespace =
-        if String.contains "\n" oldPrecedingWhitespace then "" else "\n"
-      in
-      -- Limit to one newline for all lets
-      let limitedOldPrecedingWhitespace =
-        case String.split "\n" oldPrecedingWhitespace |> List.reverse of
-          indentation::_ -> "\n" ++ indentation
-          []             -> oldPrecedingWhitespace
-      in
-      let precedingWs = extraWhitespace ++ limitedOldPrecedingWhitespace in
-      let letOrDef = if isTopLevel then Def else Let in
-      let wrappedWithLets =
-        nonEmptyListOfListsOfNamesAndAssigns
-        |> List.foldr
-            (\letNamesAndAssigns innerExp ->
-              eLetOrDef letOrDef letNamesAndAssigns innerExp
-              |> replacePrecedingWhitespace precedingWs
-            )
-            (addPrecedingWhitespace extraWhitespace bodyExp)
-      in
-      wrappedWithLets
+  nonEmptyListOfListsOfNamesAndAssigns
+  |> List.foldr
+      (\letNamesAndAssigns program ->
+        let (pat, boundExp) = patBoundExpOf letNamesAndAssigns in
+        program
+        |> mapExpNode
+            eidToWrap
+            (\expToWrap -> newLetFancyWhitespace -1 pat boundExp expToWrap program)
+      )
+      program
 
 
 addFirstDef : Exp -> Pat -> Exp -> Exp

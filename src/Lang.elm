@@ -1610,6 +1610,7 @@ numSlider = rangeSlider NumSlider
 
 colorNumberSlider = intSlider 0 499
 
+-- See also LangTools.wrapWithLets
 eLets xes eBody = case xes of
   (x,e)::xes_ -> eLet [(x,e)] (eLets xes_ eBody)
   []          -> eBody
