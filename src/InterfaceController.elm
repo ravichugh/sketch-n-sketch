@@ -1262,7 +1262,7 @@ cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, childr
 
 cleanDedupSortSynthesisResults synthesisResults =
   synthesisResults
-  |> List.map cleanSynthesisResult
+  -- |> List.map cleanSynthesisResult
   |> Utils.dedupBy (\(SynthesisResult {description, exp, sortKey, children}) -> unparse exp)
   |> List.sortBy (\(SynthesisResult {description, exp, sortKey, children}) -> (LangTools.nodeCount exp, sortKey, description))
 
