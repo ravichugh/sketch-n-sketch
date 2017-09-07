@@ -288,6 +288,12 @@ eBaseValsEqual ebv1 ebv2 =
 
 type Trace = TrLoc Loc | TrOp Op_ (List Trace)
 
+allTraceLocs : Trace -> List Loc
+allTraceLocs trace =
+  case trace of
+    TrLoc loc     -> [loc]
+    TrOp _ traces -> List.concatMap allTraceLocs traces
+
 type LazyVal = LazyVal Env Exp
 
 lazyValEnv (LazyVal env exp) = env

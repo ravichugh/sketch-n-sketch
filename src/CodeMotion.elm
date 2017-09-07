@@ -1163,11 +1163,6 @@ moveDefinitionsBeforeEId_ sourcePathedPatIds targetEId program =
           targetEId
           (\expToWrap ->
             newLetFancyWhitespace insertedLetEId newPatUniqueNames newBoundExpUniqueNames expToWrap programWithoutPluckedUniqueNames
-            -- let letOrDef = if isTopLevelEId targetEId programWithoutPluckedUniqueNames then Def else Let in
-            -- withDummyExpInfoEId insertedLetEId <|
-            --   ELet (precedingWhitespace expToWrap) letOrDef False
-            --     (ensureWhitespacePat newPatUniqueNames) (ensureWhitespaceExp newBoundExpUniqueNames)
-            --     (ensureWhitespaceExp expToWrap) ""
           )
     in
     (newProgram, insertedLetEId)
@@ -1255,26 +1250,22 @@ duplicateDefinitionsBeforeEId sourcePathedPatIds targetEId originalProgram =
   in
   let (pluckedPats, pluckedBoundExps) = List.unzip pluckedPatAndBoundExps in
   let insertedLetEId = Parser.maxId originalProgram + 1 in
+  let (newPat, newBoundExp) =
+    case (pluckedPats, pluckedBoundExps) of
+      ([pluckedPat], [boundExp]) ->
+        (pluckedPat, boundExp)
+
+      _ ->
+        ( withDummyPatInfo <| PList space1 (pluckedPats      |> setPatListWhitespace "" " ") space0 Nothing space0
+        , withDummyExpInfo <| EList space1 (pluckedBoundExps |> setExpListWhitespace "" " ") space0 Nothing space0 -- May want to be smarter about whitespace here to avoid long lines.
+        )
+  in
   let newProgram =
     originalProgram
     |> mapExpNode
         targetEId
         (\expToWrap ->
-          let (newPat, newBoundExp) =
-            case (pluckedPats, pluckedBoundExps) of
-              ([pluckedPat], [boundExp]) ->
-                (pluckedPat, boundExp)
-
-              _ ->
-                ( withDummyPatInfo <| PList space1 (pluckedPats      |> setPatListWhitespace "" " ") space0 Nothing space0
-                , withDummyExpInfo <| EList space1 (pluckedBoundExps |> setExpListWhitespace "" " ") space0 Nothing space0 -- May want to be smarter about whitespace here to avoid long lines.
-                )
-          in
           newLetFancyWhitespace insertedLetEId newPat newBoundExp expToWrap originalProgram
-          -- withDummyExpInfoEId insertedLetEId <|
-          --   ELet (precedingWhitespace expToWrap) letOrDef False
-          --     (ensureWhitespacePat newPat) (ensureWhitespaceExp newBoundExp)
-          --     (ensureWhitespaceExp expToWrap) ""
         )
     |> Parser.freshen -- Remove duplicate EIds
   in

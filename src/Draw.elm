@@ -898,7 +898,7 @@ addShape model newShapeKind newShapeExp =
     -- 4. Keep those programs that result in one more shape in the output.
     |> List.filter
         (\(listEId, newProgram) ->
-          case InterfaceModel.runAndResolve model newProgram of
+          case runAndResolve model newProgram of
             Ok (_, _, (root, shapeTree), _) -> Dict.size oldShapeTree + 1 == Dict.size shapeTree
             _                               -> False
         )

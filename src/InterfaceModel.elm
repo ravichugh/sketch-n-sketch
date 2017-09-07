@@ -621,8 +621,21 @@ type alias CachedDeuceTool =
 
 --------------------------------------------------------------------------------
 
+
+-- Elm typechecker should properly subtype Model < { slideNumber : Int, movieNumber : Int, movieTime : Float }
+-- but for some reason it doesn't.
 runAndResolve : Model -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolve model exp =
+  runAndResolve_
+    { movieNumber = model.movieNumber
+    , movieTime   = model.movieTime
+    , slideNumber = model.slideNumber
+    }
+    exp
+
+
+runAndResolve_ : { slideNumber : Int, movieNumber : Int, movieTime : Float } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolve_ model exp =
   let thunk () =
     Eval.run exp
     |> Result.andThen (\(val, widgets) -> slateAndCode model (exp, val)
@@ -632,7 +645,7 @@ runAndResolve model exp =
   |> Utils.unwrapNestedResult
 
 
-slateAndCode : Model -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
+slateAndCode : { slideNumber : Int, movieNumber : Int, movieTime : Float } -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
 slateAndCode old (exp, val) =
   LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
   |> Result.map (\slate -> (slate, unparse exp))
