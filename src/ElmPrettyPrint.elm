@@ -44,15 +44,15 @@ prettyPrint { expression } =
     EList { members } ->
       members
         |> List.map prettyPrint
-        |> String.join ","
+        |> String.join ", "
         |> String.append "["
         |> flip String.append "]"
     EEmptyList { space } ->
       "[" ++ space.ws ++ "]"
     ERecord { base, entries } ->
       entries
-        |> List.map (\(p, e) -> prettyPrintP p ++ "=" ++ prettyPrint e)
-        |> String.join ","
+        |> List.map (\(p, e) -> prettyPrintP p ++ " = " ++ prettyPrint e)
+        |> String.join ", "
         |> String.append "{"
         |> flip String.append "}"
     EEmptyRecord { space } ->
@@ -60,9 +60,9 @@ prettyPrint { expression } =
     ELambda { parameters, body } ->
       parameters
         |> List.map prettyPrintP
-        |> String.join ""
+        |> String.join " "
         |> String.append "\\"
-        |> flip String.append "->"
+        |> flip String.append " -> "
         |> flip String.append (prettyPrint body)
     EParen { eterm } ->
       "(" ++ prettyPrint eterm ++ ")"
@@ -73,7 +73,7 @@ prettyPrint { expression } =
     EFunctionApplication { function, arguments } ->
       arguments
         |> List.map prettyPrint
-        |> String.join ""
+        |> String.join " "
         |> flip String.append (prettyPrint function)
     EBinaryOperator { operator, left, right } ->
       prettyPrint left ++ operator ++ prettyPrint right
