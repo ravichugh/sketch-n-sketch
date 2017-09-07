@@ -1,5 +1,7 @@
 module Main exposing (main)
 
+import Dict
+
 import Keyboard
 
 import Html exposing (Html)
@@ -7,8 +9,9 @@ import Html.Attributes as A
 import Html.Events as E
 import Parser as P
 
-import ElmParser
 import ElmLang
+import ElmParser
+import ElmEval
 
 --------------------------------------------------------------------------------
 -- Model
@@ -17,7 +20,7 @@ import ElmLang
 type alias Model =
   { code : String
   , oldCode : String
-  , output : Maybe (Result P.Error ElmLang.Program)
+  , output : String
   }
 
 type Msg
@@ -31,7 +34,7 @@ init =
     , oldCode =
         ""
     , output =
-        Nothing
+        ""
     }
   , Cmd.none
   )
@@ -83,16 +86,6 @@ editor model =
         []
     ]
 
-prettyPrint : Result P.Error ElmLang.Program -> Html Msg
-prettyPrint result =
-  case result of
-    Err error ->
-      Html.text <|
-        ElmParser.showError error
-    Ok program ->
-      Html.text <|
-        toString program
-
 output : Model -> Html Msg
 output model =
   let
@@ -112,11 +105,7 @@ output model =
           ]
       , Html.pre
           []
-          [ case model.output of
-              Just result ->
-                prettyPrint result
-              Nothing ->
-                Html.text ""
+          [ Html.text model.output
           ]
       ]
 
@@ -156,8 +145,33 @@ update msg model =
         oldCode =
           model.code
         newOutput =
-          Just <|
-            ElmParser.parse model.code
+          let
+            parsedCode =
+              ElmParser.parse model.code
+          in
+            case parsedCode of
+              Ok program ->
+                case program of
+                  ElmLang.Nonempty eterm ->
+                    let
+                      evaluatedProgram =
+                        ElmEval.eval
+                          { environment =
+                              Dict.empty
+                          }
+                          eterm
+                    in
+                      case evaluatedProgram.value of
+                        Ok eterm ->
+                          toString eterm.expression
+                        Err errors ->
+                          errors
+                            |> List.map (ElmEval.showError model.code)
+                            |> String.join "\n* * * * *\n\n"
+                  ElmLang.Empty ws ->
+                    ""
+              Err error ->
+                ElmParser.showError error
       in
         ( { model
               | oldCode =

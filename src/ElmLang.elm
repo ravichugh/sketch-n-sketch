@@ -1,5 +1,6 @@
 module ElmLang exposing
-  ( Program(..)
+  ( Identifier
+  , Program(..)
   , Pattern(..)
   , Expression(..)
   , PTerm
@@ -78,6 +79,13 @@ type Expression
   | EEmptyRecord
       { space : Whitespace
       }
+  | ELambda
+     { parameters : List PTerm
+     , body : ETerm
+     }
+  | EParens
+    { eterm : ETerm
+    }
   | EConditional
       { condition : ETerm
       , trueBranch : ETerm

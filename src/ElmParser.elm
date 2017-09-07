@@ -23,6 +23,9 @@ keywords =
     , "in"
     , "case"
     , "of"
+    , "if"
+    , "then"
+    , "else"
     ]
 
 isRestChar : Char -> Bool
@@ -256,6 +259,39 @@ record =
           |= entries
 
 --------------------------------------------------------------------------------
+-- Lambdas
+--------------------------------------------------------------------------------
+
+lambda : Parser ETerm
+lambda =
+  lazy <| \_ ->
+    etermify "lambda" <|
+      succeed
+        ( \parameters body ->
+            ELambda
+              { parameters = parameters
+              , body = body
+              }
+        )
+        |. symbol "\\"
+        |= repeat oneOrMore (padded pterm)
+        |. symbol "->"
+        |= padded eterm
+
+--------------------------------------------------------------------------------
+-- Parentheses (grouping)
+--------------------------------------------------------------------------------
+
+parens : Parser ETerm
+parens =
+  lazy <| \_ ->
+    etermify "parens" <|
+      succeed ( \eterm -> EParens { eterm = eterm } )
+        |. symbol "("
+        |= padded eterm
+        |. symbol ")"
+
+--------------------------------------------------------------------------------
 -- Conditionals
 --------------------------------------------------------------------------------
 
@@ -295,6 +331,8 @@ etermBase =
     , lazy <| \_ -> list
     , try emptyRecord
     , lazy <| \_ -> record
+    , lazy <| \_ -> lambda
+    , lazy <| \_ -> parens
     , lazy <| \_ -> conditional
     , variable
     ]

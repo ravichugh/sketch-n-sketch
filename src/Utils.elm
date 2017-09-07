@@ -1094,3 +1094,17 @@ isEven n =
 isOdd : Int -> Bool
 isOdd n =
   n % 2 == 1
+
+--------------------------------------------------------------------------------
+
+partitionResults : List (Result a b) -> (List a, List b)
+partitionResults =
+  List.foldr
+    ( \result (errs, oks) ->
+        case result of
+          Err a ->
+            (a :: errs, oks)
+          Ok b ->
+            (errs, b :: oks)
+    )
+    ([], [])
