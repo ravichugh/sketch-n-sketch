@@ -158,74 +158,85 @@ eval context eterm  =
                   case functionTerm.expression  of
                     ELambda { parameters, body } ->
                       let
-                        -- List lengths
-                        argCount =
-                          List.length arguments
-                        paramCount =
-                          List.length parameters
-
-                        -- Temporary helper (no pattern matching)
-                        getName pterm =
-                          case pterm.pattern of
-                            PNamed { name } ->
-                              name
-
-                        -- The base environment to build the new environment
-                        -- from
-                        baseEnvironment =
-                          parameters
-                            |> List.map (\p -> (getName p, Nothing))
-                            |> Dict.fromList
-
-                        -- The parameter-argument pairs
-                        pairs =
-                          Utils.zip parameters arguments
-
-                        -- How to build the new environment
-                        builder (pterm, arg) env =
-                          case pterm.pattern of
-                            PNamed { name } ->
-                              Dict.insert name (Just arg) env
-
-                        -- The new environment, context, and body
-                        newEnvironment =
-                          List.foldl builder baseEnvironment pairs
-                        newContext =
-                          { context | environment = newEnvironment }
-                        bodyOutput =
-                          body
-                            |> eval newContext
-                            |> .value
-
-                        -- The end result of the evaluation
-                        result =
-                          -- If fully applied, return the evaluated body. Else,
-                          -- curry.
-                          if argCount == paramCount then
-                            bodyOutput
-                          else if argCount < paramCount then
-                            case bodyOutput of
-                              Ok bodyTerm ->
-                                let
-                                  remainingParameters =
-                                    List.drop argCount parameters
-                                in
-                                  Ok
-                                    { eterm
-                                        | expression =
-                                            ELambda
-                                              { parameters =
-                                                  remainingParameters
-                                              , body =
-                                                  bodyTerm
-                                              }
-                                    }
-                              Err errs ->
-                                Err errs
-                          else
-                            Err [evalError TooManyArgumentsError function]
+                        -- Evaluated arguments (strict)
+                        (argErrs, argOks) =
+                          arguments
+                            |> List.map (eval context >> .value)
+                            |> Utils.partitionResults
+                            |> Tuple.mapFirst List.concat
                       in
-                        result
+                        if List.isEmpty argErrs then
+                          let
+                            -- List lengths
+                            argCount =
+                              List.length arguments
+                            paramCount =
+                              List.length parameters
+
+                            -- Temporary helper (no pattern matching)
+                            getName pterm =
+                              case pterm.pattern of
+                                PNamed { name } ->
+                                  name
+
+                            -- The base environment to build the new environment
+                            -- from
+                            baseEnvironment =
+                              parameters
+                                |> List.map (\p -> (getName p, Nothing))
+                                |> Dict.fromList
+
+                            -- The parameter-argument pairs
+                            pairs =
+                              Utils.zip parameters arguments
+
+                            -- How to build the new environment
+                            builder (pterm, arg) env =
+                              case pterm.pattern of
+                                PNamed { name } ->
+                                  Dict.insert name (Just arg) env
+
+                            -- The new environment, context, and body
+                            newEnvironment =
+                              List.foldl builder baseEnvironment pairs
+                            newContext =
+                              { context | environment = newEnvironment }
+                            bodyOutput =
+                              body
+                                |> eval newContext
+                                |> .value
+
+                            -- The end result of the evaluation
+                            result =
+                              -- If fully applied, return the evaluated body.
+                              -- Else, curry.
+                              if argCount == paramCount then
+                                bodyOutput
+                              else if argCount < paramCount then
+                                case bodyOutput of
+                                  Ok bodyTerm ->
+                                    let
+                                      remainingParameters =
+                                        List.drop argCount parameters
+                                    in
+                                      Ok
+                                        { eterm
+                                            | expression =
+                                                ELambda
+                                                  { parameters =
+                                                      remainingParameters
+                                                  , body =
+                                                      bodyTerm
+                                                  }
+                                        }
+                                  Err errs ->
+                                    Err errs
+                              else
+                                Err [evalError TooManyArgumentsError function]
+                          in
+                            result
+                        else
+                          Err argErrs
                     _ ->
                       Err [evalError TypeError function]
                 Err errs ->
