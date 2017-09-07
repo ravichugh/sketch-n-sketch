@@ -12,6 +12,7 @@ import Parser as P
 import ElmLang
 import ElmParser
 import ElmEval
+import ElmPrettyPrint
 
 --------------------------------------------------------------------------------
 -- Model
@@ -163,7 +164,7 @@ update msg model =
                     in
                       case evaluatedProgram.value of
                         Ok eterm ->
-                          toString eterm.expression
+                          ElmPrettyPrint.prettyPrint eterm
                         Err errors ->
                           errors
                             |> List.map (ElmEval.showError model.code)

@@ -122,7 +122,7 @@ eval context eterm  =
                   Err [evalError NoSuchVariableError eterm]
 
           -- Parentheses
-          EParens { eterm } ->
+          EParen { eterm } ->
             let
               insideOutput =
                 eval context eterm

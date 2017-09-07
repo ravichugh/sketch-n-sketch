@@ -83,9 +83,9 @@ type Expression
      { parameters : List PTerm
      , body : ETerm
      }
-  | EParens
-    { eterm : ETerm
-    }
+  | EParen
+      { eterm : ETerm
+      }
   | EConditional
       { condition : ETerm
       , trueBranch : ETerm

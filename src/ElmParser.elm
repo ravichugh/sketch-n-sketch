@@ -282,11 +282,11 @@ lambda =
 -- Parentheses (grouping)
 --------------------------------------------------------------------------------
 
-parens : Parser ETerm
-parens =
+paren : Parser ETerm
+paren =
   lazy <| \_ ->
-    etermify "parens" <|
-      succeed ( \eterm -> EParens { eterm = eterm } )
+    etermify "parentheses" <|
+      succeed ( \eterm -> EParen { eterm = eterm } )
         |. symbol "("
         |= padded eterm
         |. symbol ")"
@@ -332,7 +332,7 @@ etermBase =
     , try emptyRecord
     , lazy <| \_ -> record
     , lazy <| \_ -> lambda
-    , lazy <| \_ -> parens
+    , lazy <| \_ -> paren
     , lazy <| \_ -> conditional
     , variable
     ]
