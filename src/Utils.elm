@@ -8,6 +8,20 @@ import Regex
 
 infinity = 1/0
 
+-- Change e.g. 1.4999999999999 to 1.5.
+correctFloatError : Float -> Float
+correctFloatError x =
+  if x == 0.0 then
+    x
+  else
+    let tens = -(logBase 10 (abs x) |> round |> toFloat) in
+    let multiplier = 2*2*2*3*3*5*5*7*11*13*17*19*23*(10.0^(tens + 1)) in
+    let corrected = (x*multiplier |> round |> toFloat) / multiplier in
+    if abs (corrected - x) /  x < 0.0000001
+    then corrected
+    else x
+
+
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
   []            -> Nothing

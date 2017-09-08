@@ -849,9 +849,19 @@ normalizeSimplify eqn =
   -- let _ = Debug.log ("Poly version " ++ polyToString polyEqn) () in
   let normPolyResult = polyNorm polyEqn in
   -- let _ = Debug.log ("Got " ++ normPolyToString normPolyResult) () in
-  let littleResult = normPolyToLocEquation normPolyResult in
+  let locEqnResult = normPolyToLocEquation normPolyResult |> correctFloatErrors in
   -- let _ = Debug.log ("As little " ++ locEqnToLittle Dict.empty littleResult) () in
-  littleResult
+  locEqnResult
+
+
+-- Find e.g. 1.4999999999999 and change to 1.5.
+correctFloatErrors : LocEquation -> LocEquation
+correctFloatErrors eqn =
+  case eqn of
+    LocEqnConst n         -> LocEqnConst (Utils.correctFloatError n)
+    LocEqnLoc _           -> eqn
+    LocEqnOp op_ children -> LocEqnOp op_ (List.map correctFloatErrors children)
+
 
 -- locEqnsOfSize astSize locsToUse =
 --   if astSize < 1 then
