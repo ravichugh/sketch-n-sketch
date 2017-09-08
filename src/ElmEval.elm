@@ -26,6 +26,29 @@ type alias Binding =
 type alias Environment =
   Dict Identifier (Maybe ETerm)
 
+-- Extend an environment with new patterns. All the previous variables are kept
+-- in scope, but preference is given to the new bindings (shadowing).
+extendEnvironment : Environment -> List PTerm -> Environment
+extendEnvironment previousEnvironment pterms =
+  pterms
+    |> List.concatMap (.pattern >> getIdentifiers)
+    |> List.map (flip (,) Nothing)
+    |> Dict.fromList
+    |> flip Dict.union previousEnvironment
+
+updateEnvironment : Environment -> List (PTerm, ETerm) -> Environment
+updateEnvironment =
+  List.foldl <|
+    \(pterm, eterm) environment ->
+      let
+        identifiers =
+          getIdentifiers pterm.pattern
+      in
+        List.foldl
+          (flip Dict.insert (Just eterm))
+          environment
+          identifiers
+
 --------------------------------------------------------------------------------
 -- Evaluation Context
 --------------------------------------------------------------------------------
@@ -41,26 +64,30 @@ type alias Context =
 type EvalErrorType
   = ConditionNotBool
   | NotAFunction
-  | NoSuchVariable
+  | NoSuchVariable Identifier
   | TooManyArguments
   | UnimplError
 
 type alias EvalError =
-  Ranged { error : EvalErrorType }
+  Ranged
+    { error : EvalErrorType
+    , context : Context
+    }
 
 type alias Output =
   { value : Result (List EvalError) ETerm
   }
 
-evalError : EvalErrorType -> Ranged a -> EvalError
-evalError error { start, end } =
+evalError : Context -> EvalErrorType -> Ranged a -> EvalError
+evalError context error { start, end } =
   { start = start
   , end = end
   , error = error
+  , context = context
   }
 
 showError : String -> EvalError -> String
-showError source { start, end, error } =
+showError source { start, end, error, context } =
   let
     relevantLines =
       source
@@ -69,16 +96,28 @@ showError source { start, end, error } =
         |> List.drop (start.row - 1)
     prettyError =
       String.join "\n" relevantLines
+    prettyEnvironment =
+      context.environment
+        |> Dict.toList
+        |> List.map
+             ( \(identifier, binding) ->
+                 "\n" ++ identifier ++ ":\n  " ++ toString binding
+             )
+        |> String.join "\n"
   in
     "[Evaluator Error]\n\n" ++
       (toString error) ++ ":\n\n" ++
       prettyError ++ "\n\n" ++
+    "Environment\n" ++
+    "===========\n" ++
+      prettyEnvironment ++ "\n\n" ++
     "Position\n" ++
     "========\n" ++
     "  Start Row: " ++ (toString start.row) ++ "\n" ++
     "  Start Col: " ++ (toString start.col) ++ "\n" ++
     "    End Row: " ++ (toString end.row) ++ "\n" ++
     "    End Col: " ++ (toString end.col) ++ "\n\n"
+
 
 --==============================================================================
 --= Evaluation
@@ -120,8 +159,40 @@ evalVariable context range info =
                   EVariable info
 
           Nothing ->
-            Err [evalError NoSuchVariable range]
+            Err [evalError context (NoSuchVariable info.identifier) range]
   }
+
+--------------------------------------------------------------------------------
+-- Lambdas
+--------------------------------------------------------------------------------
+
+evalLambda : EvalHelper r ELambdaInfo
+evalLambda context _ { parameters, body } =
+  let
+    newEnvironment =
+      extendEnvironment context.environment parameters
+
+    newContext =
+      { context | environment = newEnvironment }
+
+    evaluatedBody =
+      eval newContext body
+        |> .value
+  in
+    { value =
+        case evaluatedBody of
+          Ok bodyTerm ->
+            Ok << eterm_ <|
+              ELambda
+                { parameters =
+                    parameters
+                , body =
+                    bodyTerm
+                }
+
+          Err bodyErrors ->
+            Err bodyErrors
+    }
 
 --------------------------------------------------------------------------------
 -- Parentheses
@@ -129,10 +200,7 @@ evalVariable context range info =
 
 evalParen : EvalHelper r EParenInfo
 evalParen context _ { inside } =
-  { value =
-      eval context inside
-        |> .value
-  }
+  eval context inside
 
 --------------------------------------------------------------------------------
 -- Lists
@@ -142,20 +210,21 @@ evalList : EvalHelper r EListInfo
 evalList context _ { members } =
   { value =
       let
-        (evaluatedMemberErrors, evaluatedMemberOks) =
+        collapsedEvaluatedMembers =
           members
             |> List.map (eval context >> .value)
-            |> Utils.partitionResults
-            |> Tuple.mapFirst List.concat
+            |> Utils.collapseResults
+            |> Result.mapError List.concat
       in
-        if List.isEmpty evaluatedMemberErrors then
-          Ok << eterm_ <|
-            EList
-              { members =
-                  evaluatedMemberOks
-              }
-        else
-          Err evaluatedMemberErrors
+        case collapsedEvaluatedMembers of
+          Ok evaluatedMemberTerms ->
+            Ok << eterm_ <|
+              EList
+                { members =
+                    evaluatedMemberTerms
+                }
+          Err memberErrors ->
+            Err memberErrors
   }
 
 --------------------------------------------------------------------------------
@@ -169,39 +238,35 @@ evalRecord context _ { base, entries } =
         evaluatedBase =
           Maybe.map (eval context >> .value) base
 
-        (evaluatedBaseErrors, evaluatedBaseOk) =
-          case evaluatedBase of
-            Just (Ok baseTerm) ->
-              ([], Just baseTerm)
-
-            Just (Err baseErrors) ->
-              (baseErrors, Nothing)
-
-            Nothing ->
-              ([], Nothing)
+        collapsedEvaluatedBase =
+          Utils.collapseMaybeResult evaluatedBase
 
         (entryKeys, entryValues) =
           List.unzip entries
 
-        (evaluatedEntryValueErrors, evaluatedEntryValueOks) =
+        collapsedEvaluatedEntryValues =
           entryValues
             |> List.map (eval context >> .value)
-            |> Utils.partitionResults
-            |> Tuple.mapFirst List.concat
-
-        errors =
-          evaluatedBaseErrors ++ evaluatedEntryValueErrors
+            |> Utils.collapseResults
+            |> Result.mapError List.concat
       in
-        if List.isEmpty errors then
-          Ok << eterm_ <|
-            ERecord
-              { base =
-                  evaluatedBaseOk
-              , entries =
-                  Utils.zip entryKeys evaluatedEntryValueOks
-              }
-        else
-          Err errors
+        case collapsedEvaluatedBase of
+          Ok evaluatedBaseTerm ->
+            case collapsedEvaluatedEntryValues of
+              Ok evaluatedEntryValueTerms ->
+                Ok << eterm_ <|
+                  ERecord
+                    { base =
+                        evaluatedBaseTerm
+                    , entries =
+                        Utils.zip entryKeys evaluatedEntryValueTerms
+                    }
+
+              Err entryValueErrors ->
+                Err entryValueErrors
+
+          Err baseErrors ->
+            Err baseErrors
   }
 
 --------------------------------------------------------------------------------
@@ -224,7 +289,7 @@ evalConditional context range { condition, trueBranch, falseBranch } =
                 Ok falseBranch
 
             _ ->
-              Err [evalError ConditionNotBool range]
+              Err [evalError context ConditionNotBool range]
 
         Err errors ->
           Err errors
@@ -237,97 +302,93 @@ evalConditional context range { condition, trueBranch, falseBranch } =
 evalFunctionApplication : EvalHelper r EFunctionApplicationInfo
 evalFunctionApplication context range { function, arguments } =
   { value =
-      case
-        eval context function
-          |> .value
-      of
-        Ok functionTerm ->
-          case functionTerm.expression of
-            ELambda { parameters, body } ->
-              let
-                -- Evaluated arguments (strict)
-                (evaluatedArgumentErrors, evaluatedArgumentOks) =
-                  arguments
-                    |> List.map (eval context >> .value)
-                    |> Utils.partitionResults
-                    |> Tuple.mapFirst List.concat
-              in
-                if List.isEmpty evaluatedArgumentErrors then
-                  let
-                    argCount =
-                      List.length arguments
+      let
+        evaluatedFunction =
+          eval context function
+            |> .value
 
-                    paramCount =
-                      List.length parameters
+        -- Evaluated arguments (strict)
+        collapsedEvaluatedArguments =
+          arguments
+            |> List.map (eval context >> .value)
+            |> Utils.collapseResults
+            |> Result.mapError List.concat
+      in
+        case collapsedEvaluatedArguments of
+          Ok evaluatedArgumentTerms ->
+            case evaluatedFunction of
+              Ok evaluatedFunctionTerm ->
+                case evaluatedFunctionTerm.expression of
+                  ELambda { parameters, body } ->
+                    let
+                      argCount =
+                        List.length arguments
 
-                    evaluatedBody =
-                      let
-                        -- Temporary helper (no pattern matching)
-                        getName pterm =
-                          case pterm.pattern of
-                            PNamed { name } ->
-                              name
+                      paramCount =
+                        List.length parameters
 
-                        -- The parameter-argument pairs
-                        pairs =
-                          Utils.zip parameters evaluatedArgumentOks
+                      evaluatedBody =
+                        let
+                          -- The parameter-argument pairs
+                          pairs =
+                            Utils.zip parameters evaluatedArgumentTerms
 
-                        -- The base environment from which to build the new
-                        -- environment. All the parameters are in scope, but
-                        -- unassigned.
-                        baseEnvironment =
-                          parameters
-                            |> List.map (\p -> (getName p, Nothing))
-                            |> Dict.fromList
+                          newEnvironment =
+                            context.environment
+                              |> flip extendEnvironment parameters
+                              |> flip updateEnvironment pairs
 
-                        -- The new environment
-                        newEnvironment =
-                          let
-                            -- How to build the new environment
-                            builder (pterm, arg) env =
-                              case pterm.pattern of
-                                PNamed { name } ->
-                                  Dict.insert name (Just arg) env
-                          in
-                            List.foldl builder baseEnvironment pairs
+                          -- The new context
+                          newContext =
+                            { context | environment = newEnvironment }
+                        in
+                          eval newContext body
+                            |> .value
+                    in
+                      -- If fully applied, return the evaluated body.
+                      -- Else, curry.
+                      if argCount == paramCount then
+                        evaluatedBody
+                      else if argCount < paramCount then
+                        case evaluatedBody of
+                          Ok bodyTerm ->
+                            let
+                              remainingParameters =
+                                List.drop argCount parameters
+                            in
+                              Ok << eterm_ <|
+                                ELambda
+                                  { parameters =
+                                      remainingParameters
+                                  , body =
+                                      bodyTerm
+                                  }
 
-                        -- The new context
-                        newContext =
-                          { context | environment = newEnvironment }
-                      in
-                        body
-                          |> eval newContext
-                          |> .value
-                  in
-                    -- If fully applied, return the evaluated body.
-                    -- Else, curry.
-                    if argCount == paramCount then
-                      evaluatedBody
-                    else if argCount < paramCount then
-                      case evaluatedBody of
-                        Ok bodyTerm ->
-                          let
-                            remainingParameters =
-                              List.drop argCount parameters
-                          in
-                            Ok << eterm_ <|
-                              ELambda
-                                { parameters =
-                                    remainingParameters
-                                , body =
-                                    bodyTerm
-                                }
+                          Err errors ->
+                            Err errors
+                      else
+                        Err [evalError context TooManyArguments function]
 
-                        Err errors ->
-                          Err errors
-                    else
-                      Err [evalError TooManyArguments function]
-                else
-                  Err evaluatedArgumentErrors
-            _ ->
-              Err [evalError NotAFunction function]
-        Err errors ->
-          Err errors
+                  -- Don't reduce this term futher if the function is a variable
+                  -- (for now). The variable may actually be a lambda when looked
+                  -- up later.
+                  EVariable _ ->
+                    Ok << eterm_ <|
+                      EFunctionApplication
+                        { function =
+                            evaluatedFunctionTerm
+                        , arguments =
+                            evaluatedArgumentTerms
+                        }
+
+                  _ ->
+                    Err [evalError context NotAFunction function]
+
+              Err functionErrors ->
+                Err functionErrors
+
+          Err argumentErrors ->
+            Err argumentErrors
   }
 
 --------------------------------------------------------------------------------
@@ -337,7 +398,7 @@ evalFunctionApplication context range { function, arguments } =
 evalBinaryOperator : EvalHelper r EBinaryOperatorInfo
 evalBinaryOperator context range info =
   { value =
-      Err [evalError UnimplError range ]
+      Err [evalError context UnimplError range ]
   }
 
   -- TODO
@@ -385,11 +446,11 @@ eval context eterm  =
     EEmptyRecord _ ->
       evalBaseValue context eterm eterm
 
-    ELambda _ ->
-      evalBaseValue context eterm eterm
-
     EVariable info ->
       evalVariable context eterm info
+
+    ELambda info ->
+      evalLambda context eterm info
 
     EParen info  ->
       evalParen context eterm info

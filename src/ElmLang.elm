@@ -36,6 +36,12 @@ type alias PNamedInfo =
 type Pattern
   = PNamed PNamedInfo
 
+getIdentifiers : Pattern -> List String
+getIdentifiers pattern =
+  case pattern of
+    PNamed { name } ->
+      [ name ]
+
 --------------------------------------------------------------------------------
 -- PIds
 --------------------------------------------------------------------------------
@@ -120,13 +126,13 @@ type alias EEmptyRecordInfo =
   { whitespace : Whitespace
   }
 
+type alias EVariableInfo =
+  { identifier : Identifier
+  }
+
 type alias ELambdaInfo =
   { parameters : List PTerm
   , body : ETerm
-  }
-
-type alias EVariableInfo =
-  { identifier : Identifier
   }
 
 type alias EParenInfo =
@@ -174,8 +180,8 @@ type Expression
   | EMultiLineString EMultiLineStringInfo
   | EEmptyList EEmptyListInfo
   | EEmptyRecord EEmptyRecordInfo
-  | ELambda ELambdaInfo
   | EVariable EVariableInfo
+  | ELambda ELambdaInfo
   | EParen EParenInfo
   | EList EListInfo
   | ERecord ERecordInfo

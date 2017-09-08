@@ -1109,6 +1109,29 @@ partitionResults =
     )
     ([], [])
 
+collapseResults : List (Result a b) -> Result (List a) (List b)
+collapseResults results =
+  let
+    (errors, oks) =
+      partitionResults results
+  in
+    if List.isEmpty errors then
+      Ok oks
+    else
+      Err errors
+
+collapseMaybeResult : Maybe (Result a b) -> Result a (Maybe b)
+collapseMaybeResult maybeResult =
+  case maybeResult of
+    Just (Err a) ->
+      Err a
+
+    Just (Ok b) ->
+      Ok (Just b)
+
+    Nothing ->
+      Ok Nothing
+
 --------------------------------------------------------------------------------
 
 maybeToList : Maybe a -> List a
