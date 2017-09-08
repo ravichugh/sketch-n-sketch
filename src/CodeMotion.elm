@@ -2616,20 +2616,20 @@ makeEIdVisibleToEIds : Exp -> EId -> Set.Set EId -> Maybe (Ident, Exp)
 makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
   let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
   let allViewerEIds = Set.insert mobileEId viewerEIds in
-  let renameIfCollision mobileUniqueName uniqueNameToOldName viewerEIds originalProgram originalProgramUniqueNames =
+  let renameIfCollision mobileUniqueName uniqueNameToOldName viewerEIds program programUniqueNames =
     let mobileOriginalName = Utils.getWithDefault mobileUniqueName "" uniqueNameToOldName in
     -- Were the original name to be used, are we still good?
     let resolvesCorrectly viewerEId =
-      maybeResolveIdentifierToExp mobileOriginalName viewerEId originalProgram
+      maybeResolveIdentifierToExp mobileOriginalName viewerEId program
       |> Maybe.map (\e -> e.val.eid == mobileEId)
       |> Maybe.withDefault False
     in
     if List.all resolvesCorrectly (Set.toList viewerEIds) then
-      Just (mobileOriginalName, originalProgram)
+      Just (mobileOriginalName, program)
     else
-      -- Apparently use original name, but it will work if we rename that variable.
+      -- Apparently can't use original name, but it will work if we rename that variable.
       let uniqueNameToOldNameWithoutMobileName = Dict.remove mobileUniqueName uniqueNameToOldName in
-      let newProgram = renameIdentifiers uniqueNameToOldNameWithoutMobileName originalProgramUniqueNames in
+      let newProgram = renameIdentifiers uniqueNameToOldNameWithoutMobileName programUniqueNames in
       Just (mobileUniqueName, newProgram)
   in
   let makeVisibleByInsertingNewBinding () =
@@ -2692,11 +2692,20 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
         let expToWrap =
           deepestCommonAncestorWithNewline originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
         in
-        let pathedPatId = bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames |> Utils.fromJust_ "makeEIdVisibleToEIds: bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames" in
         let maybeProgramAfterMove =
-          moveDefinitionsBeforeEId [pathedPatId] expToWrap.val.eid originalProgram
-          |> Utils.findFirst isResultSafe
-          |> Maybe.map (\(SynthesisResult {exp}) -> exp)
+          let bindingLetBoundExp = expToLetBoundExp bindingLet in
+          let freeVarsAtNewLocation = freeVars expToWrap in
+          -- Case 2.1: If target position is at the same level and boundExp free vars are the same at both locations (no recursive lifting needed), move the entire let. This will nicely preserve (def point @ [x y] [30 40])
+          if List.member bindingLet (topLevelExps expToWrap) && List.all (\var -> List.member var freeVarsAtNewLocation) (freeVars bindingLetBoundExp) then
+            moveEquationsBeforeEId [bindingLet.val.eid] expToWrap.val.eid originalProgram
+            |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
+            |> Maybe.map (\(SynthesisResult {exp}) -> exp)
+          else
+            -- Case 2.2: Move just the definition needed.
+            let pathedPatId = bindingPathedPatternIdForUniqueName mobileUniqueName bindingLet |> Utils.fromJust_ "makeEIdVisibleToEIds: bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames" in
+            moveDefinitionsBeforeEId [pathedPatId] expToWrap.val.eid originalProgram
+            |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
+            |> Maybe.map (\(SynthesisResult {exp}) -> exp)
         in
         case maybeProgramAfterMove of
           Nothing ->
