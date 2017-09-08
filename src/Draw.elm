@@ -490,7 +490,7 @@ addOffsetAndMaybePoint old snaps ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
               let insertOffset offsetAmountExp insertBeforeEId originalProgram =
                 let offsetExp  = (eOp plusOrMinus [eVar offsetFromName, offsetAmountExp]) in
                 originalProgram
-                |> mapExpNode insertBeforeEId (\e -> LangTools.newLetFancyWhitespace -1 (pVar offsetName) offsetExp e originalProgram)
+                |> mapExpNode insertBeforeEId (\e -> LangTools.newLetFancyWhitespace -1 False (pVar offsetName) offsetExp e originalProgram)
               in
               case snaps of
                 NoSnap ->

@@ -506,8 +506,8 @@ reflowLetWhitespace program letExp =
       Debug.crash <| "reflowLetWhitespace expected an ELet, got: " ++ unparseWithIds letExp
 
 
-newLetFancyWhitespace : EId -> Pat -> Exp -> Exp -> Exp -> Exp
-newLetFancyWhitespace insertedLetEId pat boundExp expToWrap program =
+newLetFancyWhitespace : EId -> Bool -> Pat -> Exp -> Exp -> Exp -> Exp
+newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program =
   let isTopLevel = isTopLevelEId expToWrap.val.eid program in
   let letOrDef = if isTopLevel then Def else Let in
   let newLetIndentation =
@@ -535,7 +535,7 @@ newLetFancyWhitespace insertedLetEId pat boundExp expToWrap program =
     then expToWrap |> ensureWhitespaceNNewlinesExp newlineCountAfterLet |> replaceIndentation wrappedExpIndent
     else expToWrap |> ensureWhitespaceSmartExp newlineCountAfterLet wrappedExpIndent
   in
-  ELet space0 letOrDef False (ensureWhitespacePat pat) (replaceIndentation "  " boundExp |> ensureWhitespaceExp) expToWrapWithNewWs space0
+  ELet space0 letOrDef isRec (ensureWhitespacePat pat) (replaceIndentation "  " boundExp |> ensureWhitespaceExp) expToWrapWithNewWs space0
   |> withDummyExpInfoEId insertedLetEId
   |> replacePrecedingWhitespace (String.repeat newlineCountBeforeLet "\n")
   |> indent newLetIndentation
@@ -553,7 +553,7 @@ newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingN
       |> mapExpNode
           eidToWrap
           (\expToWrap ->
-            newLetFancyWhitespace insertedLetEId (pVar newName) boundExp expToWrap program
+            newLetFancyWhitespace insertedLetEId False (pVar newName) boundExp expToWrap program
           )
   in
   (newName, newProgram)
@@ -1060,7 +1060,7 @@ wrapWithLets listOfListsOfNamesAndAssigns eidToWrap program =
         program
         |> mapExpNode
             eidToWrap
-            (\expToWrap -> newLetFancyWhitespace -1 pat boundExp expToWrap program)
+            (\expToWrap -> newLetFancyWhitespace -1 False pat boundExp expToWrap program)
       )
       program
 
@@ -1076,7 +1076,7 @@ addFirstDef program pat boundExp =
   |> mapExpNode
       (firstNonCommentEId program)
       (\nonComment ->
-        newLetFancyWhitespace -1 pat boundExp nonComment program
+        newLetFancyWhitespace -1 False pat boundExp nonComment program
       )
 
 

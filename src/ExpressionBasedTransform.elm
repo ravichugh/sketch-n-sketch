@@ -526,7 +526,7 @@ cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToA
         in
         let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToNewE__ commonScope in
         let wrapped =
-          newLetFancyWhitespace -1 (pVar funcName) abstractedFuncIndented usagesReplaced originalExp
+          newLetFancyWhitespace -1 False (pVar funcName) abstractedFuncIndented usagesReplaced originalExp
         in
         let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
         let clonesName =
