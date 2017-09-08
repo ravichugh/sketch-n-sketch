@@ -83,6 +83,7 @@ prettyPrint { expression } =
       arguments
         |> List.map prettyPrint
         |> String.join " "
-        |> flip String.append (prettyPrint function)
+        |> String.append " "
+        |> String.append (prettyPrint function)
     EBinaryOperator { operator, left, right } ->
       prettyPrint left ++ operator ++ prettyPrint right
