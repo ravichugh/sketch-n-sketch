@@ -1108,3 +1108,10 @@ partitionResults =
             (errs, b :: oks)
     )
     ([], [])
+
+--------------------------------------------------------------------------------
+
+maybeToList : Maybe a -> List a
+maybeToList =
+  Maybe.map List.singleton
+    >> Maybe.withDefault []

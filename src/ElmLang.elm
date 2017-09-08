@@ -1,15 +1,4 @@
-module ElmLang exposing
-  ( Identifier
-  , Program(..)
-  , Pattern(..)
-  , Expression(..)
-  , PTerm
-  , ETerm
-  , pterm_
-  , eterm_
-  , spannedBinaryOperator
-  , spannedFunctionApplication
-  )
+module ElmLang exposing (..)
 
 import Position exposing (dummyPosition)
 import Whitespace exposing (Whitespace, dummyWhitespace)
@@ -17,7 +6,9 @@ import Range exposing (Ranged)
 import Padding exposing (Padded)
 import Utils
 
--- General
+--==============================================================================
+--= General
+--==============================================================================
 
 type alias Identifier =
   String
@@ -26,80 +17,28 @@ type Program
   = Empty Whitespace
   | Nonempty ETerm
 
+--==============================================================================
+--= Patterns
+--==============================================================================
+
+--------------------------------------------------------------------------------
+-- Pattern Information
+--------------------------------------------------------------------------------
+
+type alias PNamedInfo =
+  { name : Identifier
+  }
+
+--------------------------------------------------------------------------------
 -- Patterns
+--------------------------------------------------------------------------------
 
-type Pattern =
-  PNamed
-    { name : Identifier }
+type Pattern
+  = PNamed PNamedInfo
 
--- Expressions
-
--- Helpful: http://elm-lang.org/docs/syntax
-
-type Expression
-  = ELineComment
-      { text : String
-      , termAfter : Maybe ETerm
-      }
-  | EBlockComment
-      { text : String
-      , termAfter : Maybe ETerm
-      }
-  | EVariable
-      { identifier : Identifier
-      }
-  | EBool
-      { bool : Bool
-      }
-  | EInt
-      { int : Int
-      }
-  | EFloat
-      { float : Float
-      }
-  | EChar
-      { char : Char
-      }
-  | EString
-      { string : String
-      }
-  | EMultiLineString
-      { string : String
-      }
-  | EList
-      { members : List ETerm
-      }
-  | EEmptyList
-      { space : Whitespace
-      }
-  | ERecord
-      { base : Maybe ETerm
-      , entries : List (PTerm, ETerm)
-      }
-  | EEmptyRecord
-      { space : Whitespace
-      }
-  | ELambda
-     { parameters : List PTerm
-     , body : ETerm
-     }
-  | EParen
-      { eterm : ETerm
-      }
-  | EConditional
-      { condition : ETerm
-      , trueBranch : ETerm
-      , falseBranch : ETerm
-      }
-  | EFunctionApplication
-      { function : ETerm
-      , arguments : List ETerm
-      }
-  | EBinaryOperator
-     { operator : String
-     , left : ETerm
-     , right : ETerm
-     }
+--------------------------------------------------------------------------------
+-- PIds
+--------------------------------------------------------------------------------
 
 type alias PId =
   Int
@@ -108,12 +47,9 @@ dummyPId : PId
 dummyPId =
   -1
 
-type alias EId =
-  Int
-
-dummyEId : EId
-dummyEId =
-  -1
+--------------------------------------------------------------------------------
+-- P-Terms
+--------------------------------------------------------------------------------
 
 type alias PTerm =
   Ranged
@@ -133,6 +69,135 @@ pterm_ pattern =
   , pattern = pattern
   }
 
+--==============================================================================
+--= Expressions
+--==============================================================================
+-- Helpful: http://elm-lang.org/docs/syntax
+
+--------------------------------------------------------------------------------
+-- Expression Information
+--------------------------------------------------------------------------------
+
+type alias ELineCommentInfo =
+  { text : String
+  , termAfter : Maybe ETerm
+  }
+
+type alias EBlockCommentInfo =
+  { text : String
+  , termAfter : Maybe ETerm
+  }
+
+type alias EBoolInfo =
+  { bool : Bool
+  }
+
+type alias EIntInfo =
+  { int : Int
+  }
+
+type alias EFloatInfo =
+  { float : Float
+  }
+
+type alias ECharInfo =
+  { char : Char
+  }
+
+type alias EStringInfo =
+  { string : String
+  }
+
+type alias EMultiLineStringInfo =
+  { string : String
+  }
+
+type alias EEmptyListInfo =
+  { whitespace : Whitespace
+  }
+
+type alias EEmptyRecordInfo =
+  { whitespace : Whitespace
+  }
+
+type alias ELambdaInfo =
+  { parameters : List PTerm
+  , body : ETerm
+  }
+
+type alias EVariableInfo =
+  { identifier : Identifier
+  }
+
+type alias EParenInfo =
+  { inside : ETerm
+  }
+
+type alias EListInfo =
+  { members : List ETerm
+  }
+
+type alias ERecordInfo =
+  { base : Maybe ETerm
+  , entries : List (PTerm, ETerm)
+  }
+
+type alias EConditionalInfo =
+  { condition : ETerm
+  , trueBranch : ETerm
+  , falseBranch : ETerm
+  }
+
+type alias EFunctionApplicationInfo =
+  { function : ETerm
+  , arguments : List ETerm
+  }
+
+type alias EBinaryOperatorInfo =
+  { operator : String
+  , left : ETerm
+  , right : ETerm
+  }
+
+--------------------------------------------------------------------------------
+-- Expressions
+--------------------------------------------------------------------------------
+
+type Expression
+  = ELineComment ELineCommentInfo
+  | EBlockComment EBlockCommentInfo
+  | EBool EBoolInfo
+  | EInt EIntInfo
+  | EFloat EFloatInfo
+  | EChar ECharInfo
+  | EString EStringInfo
+  | EMultiLineString EMultiLineStringInfo
+  | EEmptyList EEmptyListInfo
+  | EEmptyRecord EEmptyRecordInfo
+  | ELambda ELambdaInfo
+  | EVariable EVariableInfo
+  | EParen EParenInfo
+  | EList EListInfo
+  | ERecord ERecordInfo
+  | EConditional EConditionalInfo
+  | EFunctionApplication EFunctionApplicationInfo
+  | EBinaryOperator EBinaryOperatorInfo
+
+--------------------------------------------------------------------------------
+-- EIds
+--------------------------------------------------------------------------------
+
+type alias EId =
+  Int
+
+dummyEId : EId
+dummyEId =
+  -1
+
+--------------------------------------------------------------------------------
+-- E-Terms
+--------------------------------------------------------------------------------
+
 type alias ETerm =
   Ranged
     ( Padded
@@ -150,6 +215,10 @@ eterm_ expression =
   , eid = dummyEId
   , expression = expression
   }
+
+--==============================================================================
+--= Term Helpers
+--==============================================================================
 
 span : List (Ranged (Padded a)) -> (Ranged (Padded a)) -> (Ranged (Padded a))
 span insides wrapper =
@@ -180,6 +249,18 @@ span insides wrapper =
     _ ->
       wrapper
 
+spannedFunctionApplication : ETerm -> List ETerm -> ETerm
+spannedFunctionApplication function arguments =
+  let
+    wrapper =
+      eterm_ <|
+        EFunctionApplication
+          { function = function
+          , arguments = arguments
+          }
+  in
+    span arguments wrapper
+
 spannedBinaryOperator : String -> ETerm -> ETerm -> ETerm
 spannedBinaryOperator operator left right =
   let
@@ -193,14 +274,3 @@ spannedBinaryOperator operator left right =
   in
     span [left, right] wrapper
 
-spannedFunctionApplication : ETerm -> List ETerm -> ETerm
-spannedFunctionApplication function arguments =
-  let
-    wrapper =
-      eterm_ <|
-        EFunctionApplication
-          { function = function
-          , arguments = arguments
-          }
-  in
-    span arguments wrapper

@@ -64,7 +64,7 @@ named =
       littleIdentifier
 
 --------------------------------------------------------------------------------
--- General
+-- General P-Terms
 --------------------------------------------------------------------------------
 
 pterm : Parser PTerm
@@ -178,7 +178,7 @@ multiLineString =
 emptyList : Parser ETerm
 emptyList =
   etermify "empty list" <|
-    succeed (\space -> EEmptyList { space = space })
+    succeed (\ws -> EEmptyList { whitespace = ws })
       |. symbol "["
       |= whitespace
       |. symbol "]"
@@ -210,7 +210,7 @@ list =
 emptyRecord : Parser ETerm
 emptyRecord =
   etermify "empty record" <|
-    succeed (\space -> EEmptyRecord { space = space })
+    succeed (\ws -> EEmptyRecord { whitespace = ws })
       |. symbol "{"
       |= whitespace
       |. symbol "}"
@@ -226,16 +226,26 @@ record =
             |. symbol "="
             |= padded eterm
       entries =
-        inContext "record entries" <|
-          LK.sequence
-            { start = ""
-            , separator = ","
-            , end = "}"
-              -- We'll handle spaces on our own
-            , spaces = succeed ()
-            , item = entry
-            , trailing = LK.Forbidden
-            }
+        inContext "record entries"
+          ( LK.sequence
+              { start = ""
+              , separator = ","
+              , end = "}"
+                -- We'll handle spaces on our own
+              , spaces = succeed ()
+              , item = entry
+              , trailing = LK.Forbidden
+              }
+              -- andThen force at least one entry
+              |> andThen
+                   ( \es ->
+                       if List.isEmpty es then
+                         fail "trying to parse non-empty records, but no entries found"
+                       else
+                         succeed es
+                   )
+          )
+
       base =
         inContext "record base" <|
           succeed identity
@@ -286,7 +296,7 @@ paren : Parser ETerm
 paren =
   lazy <| \_ ->
     etermify "parentheses" <|
-      succeed ( \eterm -> EParen { eterm = eterm } )
+      succeed ( \inside -> EParen { inside = inside } )
         |. symbol "("
         |= padded eterm
         |. symbol ")"
@@ -315,7 +325,7 @@ conditional =
         |= padded eterm
 
 --------------------------------------------------------------------------------
--- General
+-- General E-Terms
 --------------------------------------------------------------------------------
 
 etermBase : Parser ETerm
@@ -337,6 +347,7 @@ etermBase =
     , variable
     ]
 
+-- For handling binary operators
 etermWithPrecedence : Int -> Parser ETerm
 etermWithPrecedence precedence =
   let
@@ -396,7 +407,11 @@ eterm =
   in
     succeed combiner
       |= padded ezero
-      |= repeat zeroOrMore (padded ezero)
+      |= repeat zeroOrMore (padded ezero) -- handles function application
+
+--------------------------------------------------------------------------------
+-- Programs
+--------------------------------------------------------------------------------
 
 program : Parser ElmLang.Program
 program =

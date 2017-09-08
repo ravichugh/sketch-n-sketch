@@ -47,16 +47,25 @@ prettyPrint { expression } =
         |> String.join ", "
         |> String.append "["
         |> flip String.append "]"
-    EEmptyList { space } ->
-      "[" ++ space.ws ++ "]"
+    EEmptyList { whitespace } ->
+      "[" ++ whitespace.ws ++ "]"
     ERecord { base, entries } ->
-      entries
-        |> List.map (\(p, e) -> prettyPrintP p ++ " = " ++ prettyPrint e)
-        |> String.join ", "
-        |> String.append "{"
-        |> flip String.append "}"
-    EEmptyRecord { space } ->
-      "{" ++ space.ws ++ "}"
+      let
+        prettyBase =
+          case base of
+            Just baseTerm ->
+              "" ++ prettyPrint baseTerm ++ " | "
+            Nothing ->
+              ""
+      in
+        entries
+          |> List.map (\(p, e) -> prettyPrintP p ++ " = " ++ prettyPrint e)
+          |> String.join ", "
+          |> String.append prettyBase
+          |> String.append "{ "
+          |> flip String.append " }"
+    EEmptyRecord { whitespace } ->
+      "{" ++ whitespace.ws ++ "}"
     ELambda { parameters, body } ->
       parameters
         |> List.map prettyPrintP
@@ -64,8 +73,8 @@ prettyPrint { expression } =
         |> String.append "\\"
         |> flip String.append " -> "
         |> flip String.append (prettyPrint body)
-    EParen { eterm } ->
-      "(" ++ prettyPrint eterm ++ ")"
+    EParen { inside } ->
+      "(" ++ prettyPrint inside ++ ")"
     EConditional { condition, trueBranch, falseBranch } ->
       "if" ++ prettyPrint condition
         ++ "then" ++ prettyPrint trueBranch
