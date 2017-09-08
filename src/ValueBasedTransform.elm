@@ -815,7 +815,7 @@ liftLocsSoVisibleTo program mobileLocset viewerEIds =
           Just mobileEId ->
             case CodeMotion.makeEIdVisibleToEIds program mobileEId viewerEIds of
               Just (newName, newProgram) ->
-                let _ = Utils.log (LangUnparser.unparseWithIds newProgram) in
+                -- let _ = Utils.log (newName ++ "\n" ++ LangUnparser.unparseWithIds newProgram) in
                 (newProgram, Dict.insert mobileLocId newName locIdToNewName)
               Nothing ->
                 let _ = Utils.log "liftLocsSoVisibleTo: makeEIdVisibleToEIds could not lift" in
