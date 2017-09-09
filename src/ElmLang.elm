@@ -90,12 +90,21 @@ pTerm_ pattern =
 
 type Special
   = Add
+  | Sub
+  | Eq
 
 specialify : Identifier -> Maybe Special
 specialify identifier =
   case identifier of
     "(+)" ->
       Just Add
+
+    "(-)" ->
+      Just Sub
+
+    "(==)" ->
+      Just Eq
+
     _ ->
       Nothing
 
@@ -104,6 +113,12 @@ showSpecial special =
   case special of
     Add ->
       "(+)"
+
+    Sub ->
+      "(-)"
+
+    Eq ->
+      "(==)"
 
 --------------------------------------------------------------------------------
 -- Expression Information

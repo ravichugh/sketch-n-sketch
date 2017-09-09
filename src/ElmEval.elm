@@ -505,14 +505,28 @@ evalBinaryOperator context _ { operator, left, right } =
 -- Specials
 --------------------------------------------------------------------------------
 
-intSpecial2 : (Int -> Int -> Int) -> ETerm -> ETerm -> Maybe ETerm
-intSpecial2 intFunction left right =
+specialInt2 : (Int -> Int -> Int) -> ETerm -> ETerm -> Maybe ETerm
+specialInt2 intFunction left right =
   case (left.expression, right.expression) of
     (EInt leftInfo, EInt rightInfo) ->
       Just << eTerm_ <|
         EInt
           { int =
               intFunction leftInfo.int rightInfo.int
+          }
+
+    _ ->
+      Nothing
+
+specialIntComparision
+  : (Int -> Int -> Bool) -> ETerm -> ETerm -> Maybe ETerm
+specialIntComparision comparator left right =
+  case (left.expression, right.expression) of
+    (EInt leftInfo, EInt rightInfo) ->
+      Just << eTerm_ <|
+        EBool
+          { bool =
+              comparator leftInfo.int rightInfo.int
           }
 
     _ ->
@@ -536,7 +550,20 @@ evalSpecial context range { special, arguments } =
                   Add ->
                     case evaluatedArgumentTerms of
                       [ left, right ] ->
-                        intSpecial2 (+) left right
+                        specialInt2 (+) left right
+                      _ ->
+                        Nothing
+                  Sub ->
+                    case evaluatedArgumentTerms of
+                      [ left, right ] ->
+                        specialInt2 (-) left right
+                      _ ->
+                        Nothing
+
+                  Eq ->
+                    case evaluatedArgumentTerms of
+                      [ left, right ] ->
+                        specialIntComparision (==) left right
                       _ ->
                         Nothing
             in
