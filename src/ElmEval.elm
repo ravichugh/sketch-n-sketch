@@ -47,7 +47,6 @@ type EvalErrorType
   | NotAFunction
   | NoSuchVariable Identifier
   | TooManyArguments
-  | UnimplError
 
 type alias EvalError =
   Ranged
@@ -343,20 +342,37 @@ evalFunctionApplication context range { function, argument } =
 --------------------------------------------------------------------------------
 -- Binary Operators
 --------------------------------------------------------------------------------
+-- a + b == ((+) a) b
 
 evalBinaryOperator : EvalHelper r EBinaryOperatorInfo
-evalBinaryOperator context range info =
-  { value =
-      Err [evalError context UnimplError range ]
-  }
+evalBinaryOperator context range { operator, left, right } =
+  let
+    function =
+      eTerm_ <|
+        EVariable
+          { identifier =
+              prefixifyOperator operator
+          }
 
-  -- TODO
-  --EBinaryOperator { operator, left, right } ->
-  --  eval context <|
-  --    EFunctionApplication
-  --      { function = operator
-  --      , arguments = [left, right]
-  --      }
+    firstApplication =
+      eTerm_ <|
+        EFunctionApplication
+          { function =
+              function
+          , argument =
+              left
+          }
+
+    secondApplication =
+      eTerm_ <|
+        EFunctionApplication
+          { function =
+              firstApplication
+          , argument =
+              right
+          }
+  in
+    eval context secondApplication
 
 --------------------------------------------------------------------------------
 -- General Evaluation

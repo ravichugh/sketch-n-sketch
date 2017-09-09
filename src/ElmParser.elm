@@ -28,6 +28,29 @@ keywords =
     , "else"
     ]
 
+-- See: https://groups.google.com/forum/#!msg/elm-dev/0AHSnDdkSkQ/E0SVU70JEQAJ
+symbols : Set Char
+symbols =
+  Set.fromList
+    [ '+'
+    , '-'
+    , '/'
+    , '*'
+    , '='
+    , '.'
+    , '<'
+    , '>'
+    , ':'
+    , '&'
+    , '|'
+    , '^'
+    , '?'
+    , '%'
+    , '#'
+    , '~'
+    , '!'
+    ]
+
 isRestChar : Char -> Bool
 isRestChar char =
   Char.isLower char ||
@@ -35,19 +58,27 @@ isRestChar char =
   Char.isDigit char ||
   char == '_'
 
-littleIdentifier : Parser String
+isSymbol : Char -> Bool
+isSymbol char =
+  Set.member char symbols
+
+littleIdentifier : Parser Identifier
 littleIdentifier =
   LK.variable
     Char.isLower
     isRestChar
     keywords
 
-bigIdentifier : Parser String
+bigIdentifier : Parser Identifier
 bigIdentifier =
   LK.variable
     Char.isUpper
     isRestChar
     keywords
+
+operatorIdentifier : Parser Identifier
+operatorIdentifier =
+  keep oneOrMore isSymbol
 
 --==============================================================================
 --= Patterns
@@ -363,25 +394,32 @@ eTermBase =
 eTermWithPrecedence : Int -> Parser ETerm
 eTermWithPrecedence precedence =
   let
-    binop op =
+    binaryOperator operator =
       chainLeft
-        (spannedBinaryOperator op)
-        (symbol op)
+        ( \left right ->
+            eTerm_ <|
+              EBinaryOperator
+                { operator = operator
+                , left = left
+                , right = right
+                }
+        )
+        (symbol operator)
         (padded << eTermWithPrecedence <| precedence + 1)
-    binops ops =
-      oneOf <|
-        List.map binop ops
+
+    binaryOperators =
+      oneOf << List.map binaryOperator
   in
     lazy <| \_ ->
       case precedence of
         9 ->
           eTermBase
         8 ->
-          binops ["^"]
+          binaryOperators ["^"]
         7 ->
-          binops ["*", "/", "//", "%"]
+          binaryOperators ["*", "/", "//", "%"]
         6 ->
-          binops ["+", "-"]
+          binaryOperators ["+", "-"]
         5 ->
           eTermWithPrecedence 6
         4 ->

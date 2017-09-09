@@ -162,7 +162,7 @@ type alias EFunctionApplicationInfo =
   }
 
 type alias EBinaryOperatorInfo =
-  { operator : String
+  { operator : Identifier
   , left : ETerm
   , right : ETerm
   }
@@ -190,6 +190,10 @@ type Expression
   | EConditional EConditionalInfo
   | EFunctionApplication EFunctionApplicationInfo
   | EBinaryOperator EBinaryOperatorInfo
+
+prefixifyOperator : Identifier -> Identifier
+prefixifyOperator operator =
+  "(" ++ operator ++ ")"
 
 --------------------------------------------------------------------------------
 -- EIds
@@ -223,50 +227,3 @@ eTerm_ expression =
   , eid = dummyEId
   , expression = expression
   }
-
---==============================================================================
---= Term Helpers
---==============================================================================
-
-span : List (Ranged (Padded a)) -> (Ranged (Padded a)) -> (Ranged (Padded a))
-span insides wrapper =
-  case (List.head insides, Utils.maybeLast insides) of
-    (Just left, Just right) ->
-      { wrapper
-          | start =
-              left.start
-          , end =
-              right.end
-          , before =
-              { start =
-                  left.start
-              , end =
-                  left.start
-              , ws =
-                  ""
-              }
-          , after =
-              { start =
-                  right.end
-              , end =
-                  right.end
-              , ws =
-                  ""
-              }
-      }
-    _ ->
-      wrapper
-
-spannedBinaryOperator : String -> ETerm -> ETerm -> ETerm
-spannedBinaryOperator operator left right =
-  let
-    wrapper =
-      eTerm_ <|
-        EBinaryOperator
-          { operator = operator
-          , left = left
-          , right = right
-          }
-  in
-    span [left, right] wrapper
-
