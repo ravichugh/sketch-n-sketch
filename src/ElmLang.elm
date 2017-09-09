@@ -81,6 +81,28 @@ pTerm_ pattern =
 -- Helpful: http://elm-lang.org/docs/syntax
 
 --------------------------------------------------------------------------------
+-- Specials
+--------------------------------------------------------------------------------
+-- These are the built-in variables/functions
+
+type Special
+  = Add
+
+specialify : Identifier -> Maybe Special
+specialify identifier =
+  case identifier of
+    "(+)" ->
+      Just Add
+    _ ->
+      Nothing
+
+showSpecial : Special -> String
+showSpecial special =
+  case special of
+    Add ->
+      "(+)"
+
+--------------------------------------------------------------------------------
 -- Expression Information
 --------------------------------------------------------------------------------
 
@@ -167,6 +189,11 @@ type alias EBinaryOperatorInfo =
   , right : ETerm
   }
 
+type alias ESpecialInfo =
+  { special : Special
+  , arguments : List ETerm
+  }
+
 --------------------------------------------------------------------------------
 -- Expressions
 --------------------------------------------------------------------------------
@@ -190,6 +217,7 @@ type Expression
   | EConditional EConditionalInfo
   | EFunctionApplication EFunctionApplicationInfo
   | EBinaryOperator EBinaryOperatorInfo
+  | ESpecial ESpecialInfo
 
 prefixifyOperator : Identifier -> Identifier
 prefixifyOperator operator =

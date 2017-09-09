@@ -4,11 +4,13 @@ module ElmEval exposing
   )
 
 import Dict exposing (Dict)
+import Set exposing (Set)
 
 import Utils
 import Range exposing (Ranged)
 
 import ElmLang exposing (..)
+import ElmPrettyPrint
 
 --==============================================================================
 --= Data Structures
@@ -43,10 +45,11 @@ type alias Context =
 --------------------------------------------------------------------------------
 
 type EvalErrorType
-  = ConditionNotBool
-  | NotAFunction
+  = ConditionNotBool ETerm
+  | NotAFunction ETerm
   | NoSuchVariable Identifier
   | TooManyArguments
+  | SpecialError
 
 type alias EvalError =
   Ranged
@@ -74,8 +77,23 @@ showError source { start, end, error, context } =
         |> String.lines
         |> List.take end.row
         |> List.drop (start.row - 1)
+
     prettyError =
+      case error of
+        ConditionNotBool eTerm ->
+          "Condition not bool: " ++ ElmPrettyPrint.prettyPrint eTerm
+        NotAFunction eTerm ->
+          "Not a function: " ++ ElmPrettyPrint.prettyPrint eTerm
+        NoSuchVariable identifier ->
+          "No such variable: " ++ identifier
+        TooManyArguments ->
+          "Too many arguments"
+        SpecialError ->
+          "Special error"
+
+    prettyErrorLines =
       String.join "\n" relevantLines
+
     prettyEnvironment =
       context.environment
         |> Dict.toList
@@ -86,8 +104,8 @@ showError source { start, end, error, context } =
         |> String.join "\n"
   in
     "[Evaluator Error]\n\n" ++
-      (toString error) ++ ":\n\n" ++
       prettyError ++ "\n\n" ++
+      prettyErrorLines ++ "\n\n" ++
     "Environment\n" ++
     "===========\n" ++
       prettyEnvironment ++ "\n\n" ++
@@ -123,23 +141,34 @@ evalBaseValue _ _ eTerm =
 evalVariable : EvalHelper r EVariableInfo
 evalVariable context range info =
   { value =
-      let
-        bindingLookup =
-          Dict.get info.identifier context.environment
-      in
-        case bindingLookup of
-          Just binding ->
-            case binding of
-              Just bindingTerm ->
-                eval context bindingTerm
-                  |> .value
+      case specialify info.identifier of
+        Just special ->
+          Ok << eTerm_ <|
+            ESpecial
+              { special =
+                  special
+              , arguments =
+                  []
+              }
+
+        Nothing ->
+          let
+            bindingLookup =
+              Dict.get info.identifier context.environment
+          in
+            case bindingLookup of
+              Just binding ->
+                case binding of
+                  Just bindingTerm ->
+                    eval context bindingTerm
+                      |> .value
+
+                  Nothing ->
+                    Ok << eTerm_ <|
+                      EVariable info
 
               Nothing ->
-                Ok << eTerm_ <|
-                  EVariable info
-
-          Nothing ->
-            Err [evalError context (NoSuchVariable info.identifier) range]
+                Err [evalError context (NoSuchVariable info.identifier) range]
   }
 
 --------------------------------------------------------------------------------
@@ -272,7 +301,7 @@ evalConditional context range { condition, trueBranch, falseBranch } =
                 Ok falseBranch
 
             _ ->
-              Err [evalError context ConditionNotBool range]
+              Err [evalError context (ConditionNotBool condition) range]
 
         Err errors ->
           Err errors
@@ -282,8 +311,84 @@ evalConditional context range { condition, trueBranch, falseBranch } =
 -- Function Applications
 --------------------------------------------------------------------------------
 
+handleVariableApplication
+  :  Context -> EVariableInfo -> ETerm
+  -> Result (List EvalError) ETerm
+handleVariableApplication context ({ identifier } as info) argument =
+  case specialify identifier of
+    Just special ->
+      Ok << eTerm_ <|
+        ESpecial
+          { special =
+              special
+          , arguments =
+              [ argument ]
+          }
+
+    -- This variable is not a special function, but do not reduce this term
+    -- further (for now). The variable may actually be a lambda when looked up
+    -- later.
+    Nothing ->
+      Ok << eTerm_ <|
+        EFunctionApplication
+          { function =
+              eTerm_ <|
+                EVariable info
+          , argument =
+              argument
+          }
+
+handleLambdaApplication
+  :  Context -> ELambdaInfo -> ETerm
+  -> Result (List EvalError) ETerm
+handleLambdaApplication context { parameter, body } argument =
+  let
+    identifier =
+      getIdentifier parameter.pattern
+
+    newContext =
+      { context
+          | environment =
+              extendEnvironment
+                identifier
+                (Just argument)
+                context.environment
+      }
+  in
+    eval newContext body
+      |> .value
+
+handleSpecialApplication
+  :  Context -> ESpecialInfo -> ETerm
+  -> Result (List EvalError) ETerm
+handleSpecialApplication context info argument =
+  let
+    newSpecial =
+      eTerm_ <|
+        ESpecial
+          { info
+              | arguments =
+                  info.arguments ++ [ argument ]
+          }
+  in
+    eval context newSpecial
+      |> .value
+
+handleFunctionApplicationApplication
+  :  Context -> EFunctionApplicationInfo -> ETerm
+  -> Result (List EvalError) ETerm
+handleFunctionApplicationApplication context info argument =
+  Ok << eTerm_ <|
+    EFunctionApplication
+      { function =
+          eTerm_ <|
+            EFunctionApplication info
+      , argument =
+          argument
+      }
+
 evalFunctionApplication : EvalHelper r EFunctionApplicationInfo
-evalFunctionApplication context range { function, argument } =
+evalFunctionApplication context _ { function, argument } =
   { value =
       let
         evaluatedFunction =
@@ -300,37 +405,25 @@ evalFunctionApplication context range { function, argument } =
             case evaluatedFunction of
               Ok evaluatedFunctionTerm ->
                 case evaluatedFunctionTerm.expression of
-                  ELambda { parameter, body } ->
-                    let
-                      identifier =
-                        getIdentifier parameter.pattern
+                  EVariable info ->
+                    handleVariableApplication
+                      context info evaluatedArgumentTerm
 
-                      newContext =
-                        { context
-                            | environment =
-                                extendEnvironment
-                                  identifier
-                                  (Just argument)
-                                  context.environment
-                        }
-                    in
-                      eval newContext body
-                        |> .value
+                  ELambda info ->
+                    handleLambdaApplication
+                      context info evaluatedArgumentTerm
 
-                  -- Don't reduce this term futher if the function is a variable
-                  -- (for now). The variable may actually be a lambda when
-                  -- looked up later.
-                  EVariable _ ->
-                    Ok << eTerm_ <|
-                      EFunctionApplication
-                        { function =
-                            evaluatedFunctionTerm
-                        , argument =
-                            evaluatedArgumentTerm
-                        }
+                  -- Unreduced function application even after evaluation
+                  EFunctionApplication info ->
+                    handleFunctionApplicationApplication
+                      context info evaluatedArgumentTerm
+
+                  ESpecial info ->
+                    handleSpecialApplication
+                      context info evaluatedArgumentTerm
 
                   _ ->
-                    Err [evalError context NotAFunction function]
+                    Err [evalError context (NotAFunction function) function]
 
               Err functionErrors ->
                 Err functionErrors
@@ -345,7 +438,7 @@ evalFunctionApplication context range { function, argument } =
 -- a + b == ((+) a) b
 
 evalBinaryOperator : EvalHelper r EBinaryOperatorInfo
-evalBinaryOperator context range { operator, left, right } =
+evalBinaryOperator context _ { operator, left, right } =
   let
     function =
       eTerm_ <|
@@ -373,6 +466,62 @@ evalBinaryOperator context range { operator, left, right } =
           }
   in
     eval context secondApplication
+
+--------------------------------------------------------------------------------
+-- Specials
+--------------------------------------------------------------------------------
+
+intSpecial2 : (Int -> Int -> Int) -> ETerm -> ETerm -> Maybe ETerm
+intSpecial2 intFunction left right =
+  case (left.expression, right.expression) of
+    (EInt leftInfo, EInt rightInfo) ->
+      Just << eTerm_ <|
+        EInt
+          { int =
+              intFunction leftInfo.int rightInfo.int
+          }
+
+    _ ->
+      Nothing
+
+evalSpecial : EvalHelper r ESpecialInfo
+evalSpecial context range { special, arguments } =
+  let
+    collapsedEvaluatedArguments =
+      arguments
+        |> List.map (eval context >> .value)
+        |> Utils.collapseResults
+        |> Result.mapError List.concat
+  in
+    { value =
+        case collapsedEvaluatedArguments of
+          Ok evaluatedArgumentTerms ->
+            let
+              result =
+                case special of
+                  Add ->
+                    case evaluatedArgumentTerms of
+                      [ left, right ] ->
+                        intSpecial2 (+) left right
+                      _ ->
+                        Nothing
+            in
+              case result of
+                Just resultTerm ->
+                  Ok resultTerm
+
+                Nothing ->
+                  Ok << eTerm_ <|
+                    ESpecial
+                      { special =
+                          special
+                      , arguments =
+                          evaluatedArgumentTerms
+                      }
+
+          Err argumentErrors ->
+            Err argumentErrors
+    }
 
 --------------------------------------------------------------------------------
 -- General Evaluation
@@ -434,3 +583,6 @@ eval context eTerm  =
 
     EBinaryOperator info ->
       evalBinaryOperator context eTerm info
+
+    ESpecial info ->
+      evalSpecial context eTerm info

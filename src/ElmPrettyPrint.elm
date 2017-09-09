@@ -2,12 +2,7 @@ module ElmPrettyPrint exposing
   ( prettyPrint
   )
 
-import ElmLang exposing
-  ( Pattern(..)
-  , Expression(..)
-  , ETerm
-  , PTerm
-  )
+import ElmLang exposing (..)
 
 prettyPrintP : PTerm -> String
 prettyPrintP { pattern } =
@@ -95,3 +90,10 @@ prettyPrint { expression } =
 
     EBinaryOperator { operator, left, right } ->
       prettyPrint left ++ operator ++ prettyPrint right
+
+    ESpecial { special, arguments } ->
+      arguments
+        |> List.map prettyPrint
+        |> String.join " "
+        |> String.append " "
+        |> String.append (showSpecial special)
