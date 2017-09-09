@@ -13,9 +13,12 @@ import Utils
 type alias Identifier =
   String
 
-type Program
+type alias Program =
+  List STerm
+
+type ElmInput
   = Empty Whitespace
-  | Nonempty ETerm
+  | Nonempty Program
 
 --==============================================================================
 --= Patterns
@@ -26,7 +29,7 @@ type Program
 --------------------------------------------------------------------------------
 
 type alias PNamedInfo =
-  { name : Identifier
+  { identifier : Identifier
   }
 
 --------------------------------------------------------------------------------
@@ -39,8 +42,8 @@ type Pattern
 getIdentifier : Pattern -> String
 getIdentifier pattern =
   case pattern of
-    PNamed { name } ->
-      name
+    PNamed { identifier } ->
+      identifier
 
 --------------------------------------------------------------------------------
 -- PIds
@@ -223,6 +226,21 @@ prefixifyOperator : Identifier -> Identifier
 prefixifyOperator operator =
   "(" ++ operator ++ ")"
 
+buildLambda : List PTerm -> ETerm -> ETerm
+buildLambda parameters body =
+  List.foldr
+    ( \parameter bodyAcc ->
+        eTerm_ <|
+          ELambda
+            { parameter =
+                parameter
+            , body =
+                bodyAcc
+            }
+    )
+    body
+    parameters
+
 --------------------------------------------------------------------------------
 -- EIds
 --------------------------------------------------------------------------------
@@ -254,4 +272,60 @@ eTerm_ expression =
   , after = dummyWhitespace
   , eid = dummyEId
   , expression = expression
+  }
+
+--==============================================================================
+--= Statements
+--==============================================================================
+
+--------------------------------------------------------------------------------
+-- Definitions
+--------------------------------------------------------------------------------
+
+type alias Definition =
+  { name : PTerm
+  , parameters : List PTerm
+  , body : ETerm
+  }
+
+--------------------------------------------------------------------------------
+-- Statements
+--------------------------------------------------------------------------------
+
+type Statement
+  = SDefinition Definition
+  | SLineComment ELineCommentInfo
+  | SBlockComment EBlockCommentInfo
+
+--------------------------------------------------------------------------------
+-- SIds
+--------------------------------------------------------------------------------
+
+type alias SId =
+  Int
+
+dummySId : SId
+dummySId =
+  -1
+
+--------------------------------------------------------------------------------
+-- S-Terms
+--------------------------------------------------------------------------------
+
+type alias STerm =
+  Ranged
+    ( Padded
+        { statement : Statement
+        , sid : SId
+        }
+    )
+
+sTerm_ : Statement -> STerm
+sTerm_ statement =
+  { start = dummyPosition
+  , end = dummyPosition
+  , before = dummyWhitespace
+  , after = dummyWhitespace
+  , sid = dummySId
+  , statement = statement
   }

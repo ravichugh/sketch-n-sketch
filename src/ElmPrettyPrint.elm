@@ -7,8 +7,8 @@ import ElmLang exposing (..)
 prettyPrintP : PTerm -> String
 prettyPrintP { pattern } =
   case pattern of
-    PNamed { name } ->
-      name
+    PNamed { identifier } ->
+      identifier
 
 prettyPrint : ETerm -> String
 prettyPrint { expression } =

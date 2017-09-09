@@ -12,6 +12,7 @@ module ParserUtils exposing
   , padded
   , eTermify
   , pTermify
+  , sTermify
   )
 
 import Parser exposing (..)
@@ -21,14 +22,8 @@ import Whitespace exposing (Whitespace, whitespace_)
 import Position exposing (Position)
 import Range exposing (Ranged)
 import Padding exposing (Padded)
-import ElmLang exposing
-  ( Pattern
-  , Expression
-  , PTerm
-  , ETerm
-  , pTerm_
-  , eTerm_
-  )
+
+import ElmLang exposing (..)
 
 --------------------------------------------------------------------------------
 -- General
@@ -202,3 +197,7 @@ eTermify =
 pTermify : String -> Parser Pattern -> Parser PTerm
 pTermify =
   termify pTerm_
+
+sTermify : String -> Parser Statement -> Parser STerm
+sTermify =
+  termify sTerm_

@@ -1,5 +1,6 @@
 module ElmEval exposing
   ( eval
+  , evalProgram
   , showError
   )
 
@@ -7,6 +8,7 @@ import Dict exposing (Dict)
 import Set exposing (Set)
 
 import Utils
+import Position exposing (dummyPosition)
 import Range exposing (Ranged)
 
 import ElmLang exposing (..)
@@ -20,17 +22,25 @@ import ElmPrettyPrint
 -- Environment
 --------------------------------------------------------------------------------
 
--- If a binding is Nothing, then it the variable exists in scope but isn't
--- assigned yet via function application (currying).
+-- If a binding is Nothing, then the variable exists in scope but isn't assigned
+-- yet via function application (currying).
 type alias Binding =
   Maybe ETerm
 
 type alias Environment =
   Dict Identifier Binding
 
+lookupIdentifier : Identifier -> Environment -> Maybe Binding
+lookupIdentifier =
+  Dict.get
+
 extendEnvironment : Identifier -> Binding -> Environment -> Environment
 extendEnvironment =
   Dict.insert
+
+emptyEnvironment : Environment
+emptyEnvironment =
+  Dict.empty
 
 --------------------------------------------------------------------------------
 -- Evaluation Context
@@ -50,6 +60,7 @@ type EvalErrorType
   | NoSuchVariable Identifier
   | TooManyArguments
   | SpecialError
+  | NoMainFunction
 
 type alias EvalError =
   Ranged
@@ -90,6 +101,8 @@ showError source { start, end, error, context } =
           "Too many arguments"
         SpecialError ->
           "Special error"
+        NoMainFunction ->
+          "No main function"
 
     prettyErrorLines =
       String.join "\n" relevantLines
@@ -118,7 +131,7 @@ showError source { start, end, error, context } =
 
 
 --==============================================================================
---= Evaluation
+--= E-Term Evaluation
 --==============================================================================
 
 type alias EvalHelper r a =
@@ -154,7 +167,7 @@ evalVariable context range info =
         Nothing ->
           let
             bindingLookup =
-              Dict.get info.identifier context.environment
+              lookupIdentifier info.identifier context.environment
           in
             case bindingLookup of
               Just binding ->
@@ -297,6 +310,7 @@ evalConditional context range { condition, trueBranch, falseBranch } =
             EBool { bool } ->
               if bool then
                 Ok trueBranch
+
               else
                 Ok falseBranch
 
@@ -524,7 +538,7 @@ evalSpecial context range { special, arguments } =
     }
 
 --------------------------------------------------------------------------------
--- General Evaluation
+-- General E-Term Evaluation
 --------------------------------------------------------------------------------
 
 eval : Context -> ETerm -> Output
@@ -586,3 +600,87 @@ eval context eTerm  =
 
     ESpecial info ->
       evalSpecial context eTerm info
+
+--==============================================================================
+--= Program Evaluation
+--==============================================================================
+
+evalProgram : ElmLang.Program -> Output
+evalProgram program =
+  let
+    environmentResult =
+      -- Build up environment from S-Terms
+      List.foldl
+        ( \sTerm environmentAccResult ->
+            case environmentAccResult of
+              Ok environmentAcc ->
+                case sTerm.statement of
+                  SDefinition { name, parameters, body } ->
+                    let
+                      identifier =
+                        getIdentifier name.pattern
+
+                      desugaredBody =
+                        if List.isEmpty parameters then
+                          body
+
+                        else
+                          buildLambda parameters body
+
+                      evaluatedDesugaredBody =
+                        eval { environment = environmentAcc } desugaredBody
+                          |> .value
+                    in
+                      case evaluatedDesugaredBody of
+                        Ok desugaredBodyTerm ->
+                          Ok <|
+                            extendEnvironment
+                              identifier
+                              (Just desugaredBodyTerm)
+                              environmentAcc
+
+                        Err desugaredBodyErrors ->
+                          Err desugaredBodyErrors
+
+                  SLineComment _ ->
+                    Ok environmentAcc
+
+                  SBlockComment _ ->
+                    Ok environmentAcc
+
+              Err errors ->
+                Err errors
+        )
+        (Ok emptyEnvironment)
+        program
+  in
+    { value =
+        case environmentResult of
+          Ok environment ->
+            let
+              mainBinding =
+                lookupIdentifier "main" environment
+
+              context =
+                { environment =
+                    environment
+                }
+            in
+              case mainBinding of
+                Just (Just mainTerm) ->
+                  eval context mainTerm
+                    |> .value
+
+                _ ->
+                  Err
+                    [ evalError
+                        context
+                        NoMainFunction
+                        { start = dummyPosition
+                        , end = dummyPosition
+                        }
+                    ]
+
+          Err errors ->
+            Err errors
+        }

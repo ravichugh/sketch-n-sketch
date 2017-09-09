@@ -1,5 +1,6 @@
 module ElmParser exposing
   ( parse
+  , parseInput
   , showError
   )
 
@@ -91,7 +92,7 @@ operatorIdentifier =
 named : Parser PTerm
 named =
   pTermify "named" <|
-    map (\name -> PNamed { name = name })
+    map (\identifier -> PNamed { identifier = identifier })
       littleIdentifier
 
 --------------------------------------------------------------------------------
@@ -311,21 +312,7 @@ lambda : Parser ETerm
 lambda =
   lazy <| \_ ->
     eTermify "lambda" << map .expression <|
-      succeed
-        ( \parameters body ->
-            List.foldr
-              ( \parameter bodyAcc ->
-                  eTerm_ <|
-                    ELambda
-                      { parameter =
-                          parameter
-                      , body =
-                          bodyAcc
-                      }
-              )
-              body
-              parameters
-        )
+      succeed buildLambda
         |. symbol "\\"
         |= repeat oneOrMore (padded pTerm)
         |. symbol "->"
@@ -468,20 +455,52 @@ eTerm =
             arguments
         )
   in
-    eTermify "expression" << map .expression <|
-      succeed combiner
-        |= padded ezero
-        |= repeat zeroOrMore (padded ezero) -- handles function application
+    lazy <| \_ ->
+      eTermify "expression" << map .expression <|
+        succeed combiner
+          |= padded ezero
+          |= repeat zeroOrMore (padded ezero) -- handles function application
 
---------------------------------------------------------------------------------
--- Programs
---------------------------------------------------------------------------------
+--==============================================================================
+--= Statements
+--==============================================================================
+
+definition : Parser STerm
+definition =
+  sTermify "definition" <|
+    succeed
+      ( \name parameters body ->
+          SDefinition
+            { name = name
+            , parameters = parameters
+            , body = body
+            }
+      )
+      |= padded pTerm
+      |= repeat zeroOrMore (padded pTerm)
+      |. symbol "="
+      |= padded eTerm
+      |. symbol ";"
+
+sTerm : Parser STerm
+sTerm =
+  oneOf
+    [ definition
+    ]
 
 program : Parser ElmLang.Program
 program =
+  repeat oneOrMore (padded sTerm)
+
+--==============================================================================
+--= Elm Input
+--==============================================================================
+
+elmInput : Parser ElmInput
+elmInput =
   succeed identity
     |= oneOf
-         [ map Nonempty <| padded eTerm
+         [ map Nonempty program
          , map Empty whitespace
          ]
     |. end
@@ -494,9 +513,13 @@ program =
 -- Parser Runners
 --------------------------------------------------------------------------------
 
-parse : String -> Result P.Error ElmLang.Program
+parse : String -> Result P.Error ETerm
 parse =
-  run program
+  run eTerm
+
+parseInput : String -> Result P.Error ElmInput
+parseInput =
+  run elmInput
 
 --------------------------------------------------------------------------------
 -- Error Handling

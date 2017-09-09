@@ -141,38 +141,37 @@ update msg model =
       ( { model | code = newCode }
       , Cmd.none
       )
+
     Run ->
       let
         oldCode =
           model.code
+
+        parsedCode =
+          ElmParser.parseInput model.code
+
         newOutput =
-          let
-            parsedCode =
-              ElmParser.parse model.code
-          in
-            case parsedCode of
-              Ok program ->
-                case program of
-                  ElmLang.Nonempty eTerm ->
-                    let
-                      evaluatedProgram =
-                        ElmEval.eval
-                          { environment =
-                              Dict.empty
-                          }
-                          eTerm
-                    in
-                      case evaluatedProgram.value of
-                        Ok eTerm ->
-                          ElmPrettyPrint.prettyPrint eTerm
-                        Err errors ->
-                          errors
-                            |> List.map (ElmEval.showError model.code)
-                            |> String.join "\n* * * * *\n\n"
-                  ElmLang.Empty ws ->
-                    ""
-              Err error ->
-                ElmParser.showError error
+          case parsedCode of
+            Ok elmInput ->
+              case elmInput of
+                ElmLang.Nonempty program ->
+                  let
+                    evaluatedProgram =
+                      ElmEval.evalProgram program
+                  in
+                    case evaluatedProgram.value of
+                      Ok eTerm ->
+                        ElmPrettyPrint.prettyPrint eTerm
+                      Err errors ->
+                        errors
+                          |> List.map (ElmEval.showError model.code)
+                          |> String.join "\n* * * * *\n\n"
+
+                ElmLang.Empty ws ->
+                  ""
+
+            Err error ->
+              ElmParser.showError error
       in
         ( { model
               | oldCode =
