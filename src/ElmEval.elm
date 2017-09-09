@@ -19,36 +19,15 @@ import ElmPrettyPrint
 --==============================================================================
 
 --------------------------------------------------------------------------------
--- Environment
---------------------------------------------------------------------------------
-
--- If a binding is Nothing, then the variable exists in scope but isn't assigned
--- yet via function application (currying).
-type alias Binding =
-  Maybe ETerm
-
-type alias Environment =
-  Dict Identifier Binding
-
-lookupIdentifier : Identifier -> Environment -> Maybe Binding
-lookupIdentifier =
-  Dict.get
-
-extendEnvironment : Identifier -> Binding -> Environment -> Environment
-extendEnvironment =
-  Dict.insert
-
-emptyEnvironment : Environment
-emptyEnvironment =
-  Dict.empty
-
---------------------------------------------------------------------------------
 -- Evaluation Context
 --------------------------------------------------------------------------------
 
 type alias Context =
-  { environment : Environment
-  }
+  {}
+
+emptyContext : Context
+emptyContext =
+  {}
 
 --------------------------------------------------------------------------------
 -- Evaluation Output
@@ -57,9 +36,10 @@ type alias Context =
 type EvalErrorType
   = ConditionNotBool ETerm
   | NotAFunction ETerm
-  | NoSuchVariable Identifier
+  | UnboundVariable Identifier
   | TooManyArguments
   | SpecialError
+  | MainHasParameters
   | NoMainFunction
 
 type alias EvalError =
@@ -95,33 +75,23 @@ showError source { start, end, error, context } =
           "Condition not bool: " ++ ElmPrettyPrint.prettyPrint eTerm
         NotAFunction eTerm ->
           "Not a function: " ++ ElmPrettyPrint.prettyPrint eTerm
-        NoSuchVariable identifier ->
-          "No such variable: " ++ identifier
+        UnboundVariable identifier ->
+          "Unbound variable: " ++ identifier
         TooManyArguments ->
           "Too many arguments"
         SpecialError ->
           "Special error"
+        MainHasParameters ->
+          "Main function has parameters"
         NoMainFunction ->
           "No main function"
 
     prettyErrorLines =
       String.join "\n" relevantLines
-
-    prettyEnvironment =
-      context.environment
-        |> Dict.toList
-        |> List.map
-             ( \(identifier, binding) ->
-                 "\n" ++ identifier ++ ":\n  " ++ toString binding
-             )
-        |> String.join "\n"
   in
     "[Evaluator Error]\n\n" ++
       prettyError ++ "\n\n" ++
       prettyErrorLines ++ "\n\n" ++
-    "Environment\n" ++
-    "===========\n" ++
-      prettyEnvironment ++ "\n\n" ++
     "Position\n" ++
     "========\n" ++
     "  Start Row: " ++ (toString start.row) ++ "\n" ++
@@ -129,6 +99,161 @@ showError source { start, end, error, context } =
     "    End Row: " ++ (toString end.row) ++ "\n" ++
     "    End Col: " ++ (toString end.col) ++ "\n\n"
 
+--==============================================================================
+--= Pattern Matching
+--==============================================================================
+
+type alias Binding =
+  (Identifier, ETerm)
+
+match : PTerm -> ETerm -> Result (List EvalError) (List Binding)
+match pTerm eTerm =
+  case pTerm.pattern of
+    PNamed { identifier } ->
+      Ok [(identifier, eTerm)]
+
+--==============================================================================
+--= Beta Reduction
+--==============================================================================
+
+type alias Substitution =
+  (PTerm, ETerm)
+
+bind : Binding -> ETerm -> ETerm
+bind (identifier, value) body =
+  let
+    subst =
+      bind (identifier, value)
+  in
+    case body.expression of
+      ELineComment _ ->
+        body
+
+      EBlockComment _ ->
+        body
+
+      EBool _ ->
+        body
+
+      EInt _ ->
+        body
+
+      EFloat _ ->
+        body
+
+      EChar _ ->
+        body
+
+      EString _ ->
+        body
+
+      EMultiLineString _ ->
+        body
+
+      EEmptyList _ ->
+        body
+
+      EEmptyRecord _ ->
+        body
+
+      ELambda info ->
+        let
+          newBody =
+            -- Shadowing
+            if
+              List.member
+                identifier
+                (getIdentifiers info.parameter.pattern)
+            then
+              info.body
+
+            else
+              subst info.body
+        in
+          eTerm_ <|
+            ELambda
+              { parameter =
+                  info.parameter
+              , body =
+                  newBody
+              }
+
+      EVariable info ->
+        if info.identifier == identifier then
+          value
+
+        else
+          body
+
+      EParen { inside } ->
+        subst inside
+
+      EList { members } ->
+        eTerm_ <|
+          EList
+            { members =
+                List.map subst members
+            }
+
+      ERecord { base, entries } ->
+        eTerm_ <|
+          ERecord
+            { base =
+                Maybe.map subst base
+            , entries =
+                List.map
+                  (\(p, e) -> (p, subst e))
+                  entries
+            }
+
+      EConditional { condition, trueBranch, falseBranch } ->
+        eTerm_ <|
+          EConditional
+            { condition =
+                subst condition
+            , trueBranch =
+                subst trueBranch
+            , falseBranch =
+                subst falseBranch
+            }
+
+      EFunctionApplication { function, argument } ->
+        eTerm_ <|
+          EFunctionApplication
+            { function =
+                subst function
+            , argument =
+                subst argument
+            }
+
+      EBinaryOperator { operator, left, right } ->
+        eTerm_ <|
+          EBinaryOperator
+            { operator =
+                operator
+            , left =
+                subst left
+            , right =
+                subst right
+            }
+
+      ESpecial { special, arguments } ->
+        eTerm_ <|
+          ESpecial
+            { special =
+                special
+            , arguments =
+                List.map subst arguments
+            }
+
+bindAll : List Binding -> ETerm -> ETerm
+bindAll bindings body =
+  List.foldl bind body bindings
+
+substitute : Substitution -> ETerm -> Result (List EvalError) ETerm
+substitute (pTerm, eTerm) body =
+  match pTerm eTerm
+    |> Result.map (flip bindAll body)
 
 --==============================================================================
 --= E-Term Evaluation
@@ -152,71 +277,25 @@ evalBaseValue _ _ eTerm =
 --------------------------------------------------------------------------------
 
 evalVariable : EvalHelper r EVariableInfo
-evalVariable context range info =
-  { value =
-      case specialify info.identifier of
-        Just special ->
-          Ok << eTerm_ <|
+evalVariable context range { identifier } =
+  case specialify identifier of
+    Just special ->
+      let
+        newSpecial =
+          eTerm_ <|
             ESpecial
               { special =
                   special
               , arguments =
                   []
               }
+      in
+        eval context newSpecial
 
-        Nothing ->
-          let
-            bindingLookup =
-              lookupIdentifier info.identifier context.environment
-          in
-            case bindingLookup of
-              Just binding ->
-                case binding of
-                  Just bindingTerm ->
-                    Ok bindingTerm
-
-                  Nothing ->
-                    Ok << eTerm_ <|
-                      EVariable info
-
-              Nothing ->
-                Err [evalError context (NoSuchVariable info.identifier) range]
-  }
-
---------------------------------------------------------------------------------
--- Lambdas
---------------------------------------------------------------------------------
-
-evalLambda : EvalHelper r ELambdaInfo
-evalLambda context _ { parameter, body } =
-  let
-    identifier =
-      getIdentifier parameter.pattern
-
-    newContext =
-      { context
-          | environment =
-              extendEnvironment identifier Nothing context.environment
+    Nothing ->
+      { value =
+          Err [evalError context (UnboundVariable identifier) range]
       }
-
-    evaluatedBody =
-      eval newContext body
-        |> .value
-  in
-    { value =
-        case evaluatedBody of
-          Ok evaluatedBodyTerm ->
-            Ok << eTerm_ <|
-              ELambda
-                { parameter =
-                    parameter
-                , body =
-                    evaluatedBodyTerm
-                }
-
-          Err bodyErrors ->
-            Err bodyErrors
-    }
 
 --------------------------------------------------------------------------------
 -- Parentheses
@@ -247,6 +326,7 @@ evalList context _ { members } =
                 { members =
                     evaluatedMemberTerms
                 }
+
           Err memberErrors ->
             Err memberErrors
   }
@@ -308,10 +388,12 @@ evalConditional context range { condition, trueBranch, falseBranch } =
           case conditionTerm.expression of
             EBool { bool } ->
               if bool then
-                Ok trueBranch
+                eval context trueBranch
+                  |> .value
 
               else
-                Ok falseBranch
+                eval context falseBranch
+                  |> .value
 
             _ ->
               Err [evalError context (ConditionNotBool condition) range]
@@ -324,57 +406,17 @@ evalConditional context range { condition, trueBranch, falseBranch } =
 -- Function Applications
 --------------------------------------------------------------------------------
 
-handleVariableApplication
-  :  Context -> EVariableInfo -> ETerm
-  -> Result (List EvalError) ETerm
-handleVariableApplication context ({ identifier } as info) argument =
-  case specialify identifier of
-    Just special ->
-      Ok << eTerm_ <|
-        ESpecial
-          { special =
-              special
-          , arguments =
-              [ argument ]
-          }
+-- Helpers
 
-    -- This variable is not a special function, but do not reduce this term
-    -- further (for now). The variable may actually be a lambda when looked up
-    -- later.
-    Nothing ->
-      Ok << eTerm_ <|
-        EFunctionApplication
-          { function =
-              eTerm_ <|
-                EVariable info
-          , argument =
-              argument
-          }
+applyLambda : Context -> ELambdaInfo -> ETerm -> Output
+applyLambda context { parameter, body } argument =
+  { value =
+      substitute (parameter, argument) body
+        |> Result.andThen (eval context >> .value)
+  }
 
-handleLambdaApplication
-  :  Context -> ELambdaInfo -> ETerm
-  -> Result (List EvalError) ETerm
-handleLambdaApplication context { parameter, body } argument =
-  let
-    identifier =
-      getIdentifier parameter.pattern
-
-    newContext =
-      { context
-          | environment =
-              extendEnvironment
-                identifier
-                (Just argument)
-                context.environment
-      }
-  in
-    eval newContext body
-      |> .value
-
-handleSpecialApplication
-  :  Context -> ESpecialInfo -> ETerm
-  -> Result (List EvalError) ETerm
-handleSpecialApplication context info argument =
+applySpecial : Context -> ESpecialInfo -> ETerm -> Output
+applySpecial context info argument =
   let
     newSpecial =
       eTerm_ <|
@@ -385,20 +427,8 @@ handleSpecialApplication context info argument =
           }
   in
     eval context newSpecial
-      |> .value
 
-handleFunctionApplicationApplication
-  :  Context -> EFunctionApplicationInfo -> ETerm
-  -> Result (List EvalError) ETerm
-handleFunctionApplicationApplication context info argument =
-  Ok << eTerm_ <|
-    EFunctionApplication
-      { function =
-          eTerm_ <|
-            EFunctionApplication info
-      , argument =
-          argument
-      }
+-- Evaluator
 
 evalFunctionApplication : EvalHelper r EFunctionApplicationInfo
 evalFunctionApplication context _ { function, argument } =
@@ -408,7 +438,7 @@ evalFunctionApplication context _ { function, argument } =
           eval context function
             |> .value
 
-        -- Evaluated argument (strict)
+        -- Evaluate argument (be strict)
         evaluatedArgument =
           eval context argument
             |> .value
@@ -418,22 +448,13 @@ evalFunctionApplication context _ { function, argument } =
             case evaluatedFunction of
               Ok evaluatedFunctionTerm ->
                 case evaluatedFunctionTerm.expression of
-                  EVariable info ->
-                    handleVariableApplication
-                      context info evaluatedArgumentTerm
-
                   ELambda info ->
-                    handleLambdaApplication
-                      context info evaluatedArgumentTerm
-
-                  -- Unreduced function application even after evaluation
-                  EFunctionApplication info ->
-                    handleFunctionApplicationApplication
-                      context info evaluatedArgumentTerm
+                    applyLambda context info evaluatedArgumentTerm
+                      |> .value
 
                   ESpecial info ->
-                    handleSpecialApplication
-                      context info evaluatedArgumentTerm
+                    applySpecial context info evaluatedArgumentTerm
+                      |> .value
 
                   _ ->
                     Err [evalError context (NotAFunction function) function]
@@ -573,11 +594,11 @@ eval context eTerm  =
     EEmptyRecord _ ->
       evalBaseValue context eTerm eTerm
 
+    ELambda _ ->
+      evalBaseValue context eTerm eTerm
+
     EVariable info ->
       evalVariable context eTerm info
-
-    ELambda info ->
-      evalLambda context eTerm info
 
     EParen info  ->
       evalParen context eTerm info
@@ -604,82 +625,110 @@ eval context eTerm  =
 --= Program Evaluation
 --==============================================================================
 
+-- Helpers
+
+definitionsFromProgram : ElmLang.Program -> List Definition
+definitionsFromProgram =
+  List.filterMap <|
+    \sTerm ->
+      case sTerm.statement of
+        SDefinition definition ->
+          Just definition
+
+        SLineComment _ ->
+          Nothing
+
+        SBlockComment _ ->
+          Nothing
+
+findAndRemoveMainTerm
+  : List Definition -> Result (List EvalError) (ETerm, List Definition)
+findAndRemoveMainTerm definitions =
+  let
+    mainName =
+      PNamed { identifier = "main" }
+  in
+    case
+      Utils.maybeFindAndRemoveFirst
+        (.name >> .pattern >> (==) mainName)
+        definitions
+    of
+      Just (mainDefinition, otherDefinitions) ->
+        if List.isEmpty mainDefinition.parameters then
+          Ok (mainDefinition.body, otherDefinitions)
+
+        else
+          Err
+            [ evalError
+                emptyContext
+                MainHasParameters
+                { start = dummyPosition
+                , end = dummyPosition
+                }
+            ]
+
+      Nothing ->
+        Err
+          [ evalError
+              emptyContext
+              NoMainFunction
+              { start = dummyPosition
+              , end = dummyPosition
+              }
+          ]
+
+bindingsFromDefinition : Definition -> Result (List EvalError) (List Binding)
+bindingsFromDefinition { name, parameters, body } =
+  let
+    value =
+      if List.isEmpty parameters then
+        body
+
+      else
+        buildLambda parameters body
+
+    evaluatedValue =
+      eval emptyContext value
+        |> .value
+  in
+    case evaluatedValue of
+      Ok evaluatedValueTerm ->
+        match name evaluatedValueTerm
+
+      Err valueErrors ->
+        Err valueErrors
+
+bindingsFromDefinitions
+  : List Definition -> Result (List EvalError) (List Binding)
+bindingsFromDefinitions definitions =
+  definitions
+    |> List.map bindingsFromDefinition
+    |> Utils.collapseResults
+    |> Result.mapError List.concat
+    |> Result.map List.concat
+
+evalMain : (ETerm, List Binding) -> Output
+evalMain (mainTerm, bindings) =
+  { value =
+      mainTerm
+        |> bindAll bindings
+        |> eval emptyContext
+        |> .value
+  }
+
+-- Evaluator
+
 evalProgram : ElmLang.Program -> Output
 evalProgram program =
-  let
-    environmentResult =
-      -- Build up environment from S-Terms
-      List.foldl
-        ( \sTerm environmentAccResult ->
-            case environmentAccResult of
-              Ok environmentAcc ->
-                case sTerm.statement of
-                  SDefinition { name, parameters, body } ->
-                    let
-                      identifier =
-                        getIdentifier name.pattern
-
-                      desugaredBody =
-                        if List.isEmpty parameters then
-                          body
-
-                        else
-                          buildLambda parameters body
-
-                      evaluatedDesugaredBody =
-                        eval { environment = environmentAcc } desugaredBody
-                          |> .value
-                    in
-                      case evaluatedDesugaredBody of
-                        Ok desugaredBodyTerm ->
-                          Ok <|
-                            extendEnvironment
-                              identifier
-                              (Just desugaredBodyTerm)
-                              environmentAcc
-
-                        Err desugaredBodyErrors ->
-                          Err desugaredBodyErrors
-
-                  SLineComment _ ->
-                    Ok environmentAcc
-
-                  SBlockComment _ ->
-                    Ok environmentAcc
-
-              Err errors ->
-                Err errors
-        )
-        (Ok emptyEnvironment)
-        program
-  in
-    { value =
-        case environmentResult of
-          Ok environment ->
-            let
-              mainBinding =
-                lookupIdentifier "main" environment
-
-              context =
-                { environment =
-                    environment
-                }
-            in
-              case mainBinding of
-                Just (Just mainTerm) ->
-                  eval context mainTerm
-                    |> .value
-
-                _ ->
-                  Err
-                    [ evalError
-                        context
-                        NoMainFunction
-                        { start = dummyPosition
-                        , end = dummyPosition
-                        }
-                    ]
-
-          Err errors ->
-            Err errors
-        }
+  { value =
+      program
+        |> definitionsFromProgram
+        |> findAndRemoveMainTerm
+        |> Result.andThen
+             ( Tuple.mapSecond bindingsFromDefinitions
+                 >> Utils.collapseSecondResult
+             )
+        |> Result.andThen
+             ( evalMain >> .value
+             )
+  }

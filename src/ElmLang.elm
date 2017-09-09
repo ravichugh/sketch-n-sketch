@@ -39,11 +39,11 @@ type alias PNamedInfo =
 type Pattern
   = PNamed PNamedInfo
 
-getIdentifier : Pattern -> String
-getIdentifier pattern =
+getIdentifiers : Pattern -> List String
+getIdentifiers pattern =
   case pattern of
     PNamed { identifier } ->
-      identifier
+      [ identifier ]
 
 --------------------------------------------------------------------------------
 -- PIds
@@ -151,14 +151,14 @@ type alias EEmptyRecordInfo =
   { whitespace : Whitespace
   }
 
-type alias EVariableInfo =
-  { identifier : Identifier
-  }
-
 -- Functions are curried, so lambdas always take only one parameter
 type alias ELambdaInfo =
   { parameter : PTerm
   , body : ETerm
+  }
+
+type alias EVariableInfo =
+  { identifier : Identifier
   }
 
 type alias EParenInfo =
@@ -212,8 +212,8 @@ type Expression
   | EMultiLineString EMultiLineStringInfo
   | EEmptyList EEmptyListInfo
   | EEmptyRecord EEmptyRecordInfo
-  | EVariable EVariableInfo
   | ELambda ELambdaInfo
+  | EVariable EVariableInfo
   | EParen EParenInfo
   | EList EListInfo
   | ERecord ERecordInfo

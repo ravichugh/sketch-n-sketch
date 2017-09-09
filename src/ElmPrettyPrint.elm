@@ -89,7 +89,7 @@ prettyPrint { expression } =
       prettyPrint function ++ " " ++ prettyPrint argument
 
     EBinaryOperator { operator, left, right } ->
-      prettyPrint left ++ operator ++ prettyPrint right
+      prettyPrint left ++ " " ++ operator ++ " " ++ prettyPrint right
 
     ESpecial { special, arguments } ->
       arguments

@@ -1138,3 +1138,23 @@ maybeToList : Maybe a -> List a
 maybeToList =
   Maybe.map List.singleton
     >> Maybe.withDefault []
+
+--------------------------------------------------------------------------------
+
+collapseFirstResult : (Result e a, b) -> Result e (a, b)
+collapseFirstResult (result, b) =
+  case result of
+    Ok a ->
+      Ok (a, b)
+
+    Err e ->
+      Err e
+
+collapseSecondResult : (a, Result e b) -> Result e (a, b)
+collapseSecondResult (a, result) =
+  case result of
+    Ok b ->
+      Ok (a, b)
+
+    Err e ->
+      Err e
