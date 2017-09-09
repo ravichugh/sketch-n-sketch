@@ -26,29 +26,6 @@ type alias Binding =
 type alias Environment =
   Dict Identifier Binding
 
--- -- Extend an environment with new patterns. All the previous variables are kept
--- -- in scope, but preference is given to the new bindings (shadowing).
--- extendEnvironment : Environment -> List PTerm -> Environment
--- extendEnvironment previousEnvironment pTerms =
---   pTerms
---     |> List.concatMap (.pattern >> getIdentifiers)
---     |> List.map (flip (,) Nothing)
---     |> Dict.fromList
---     |> flip Dict.union previousEnvironment
---
---updateEnvironment : Environment -> List (PTerm, ETerm) -> Environment
---updateEnvironment =
---  List.foldl <|
---    \(pTerm, eTerm) environment ->
---      let
---        identifiers =
---          getIdentifiers pTerm.pattern
---      in
---        List.foldl
---          (flip Dict.insert (Just eTerm))
---          environment
---          identifiers
-
 extendEnvironment : Identifier -> Binding -> Environment -> Environment
 extendEnvironment =
   Dict.insert
