@@ -173,8 +173,7 @@ evalVariable context range info =
               Just binding ->
                 case binding of
                   Just bindingTerm ->
-                    eval context bindingTerm
-                      |> .value
+                    Ok bindingTerm
 
                   Nothing ->
                     Ok << eTerm_ <|
