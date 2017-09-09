@@ -153,18 +153,18 @@ update msg model =
             case parsedCode of
               Ok program ->
                 case program of
-                  ElmLang.Nonempty eterm ->
+                  ElmLang.Nonempty eTerm ->
                     let
                       evaluatedProgram =
                         ElmEval.eval
                           { environment =
                               Dict.empty
                           }
-                          eterm
+                          eTerm
                     in
                       case evaluatedProgram.value of
-                        Ok eterm ->
-                          ElmPrettyPrint.prettyPrint eterm
+                        Ok eTerm ->
+                          ElmPrettyPrint.prettyPrint eTerm
                         Err errors ->
                           errors
                             |> List.map (ElmEval.showError model.code)

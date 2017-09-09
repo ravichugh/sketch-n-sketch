@@ -10,8 +10,8 @@ module ParserUtils exposing
   , paddedBefore
   , paddedAfter
   , padded
-  , etermify
-  , ptermify
+  , eTermify
+  , pTermify
   )
 
 import Parser exposing (..)
@@ -26,8 +26,8 @@ import ElmLang exposing
   , Expression
   , PTerm
   , ETerm
-  , pterm_
-  , eterm_
+  , pTerm_
+  , eTerm_
   )
 
 --------------------------------------------------------------------------------
@@ -195,10 +195,10 @@ termify term_ context =
     >> trackRange
     >> inContext context
 
-etermify : String -> Parser Expression -> Parser ETerm
-etermify =
-  termify eterm_
+eTermify : String -> Parser Expression -> Parser ETerm
+eTermify =
+  termify eTerm_
 
-ptermify : String -> Parser Pattern -> Parser PTerm
-ptermify =
-  termify pterm_
+pTermify : String -> Parser Pattern -> Parser PTerm
+pTermify =
+  termify pTerm_

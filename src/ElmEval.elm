@@ -29,8 +29,8 @@ type alias Environment =
 -- -- Extend an environment with new patterns. All the previous variables are kept
 -- -- in scope, but preference is given to the new bindings (shadowing).
 -- extendEnvironment : Environment -> List PTerm -> Environment
--- extendEnvironment previousEnvironment pterms =
---   pterms
+-- extendEnvironment previousEnvironment pTerms =
+--   pTerms
 --     |> List.concatMap (.pattern >> getIdentifiers)
 --     |> List.map (flip (,) Nothing)
 --     |> Dict.fromList
@@ -39,13 +39,13 @@ type alias Environment =
 --updateEnvironment : Environment -> List (PTerm, ETerm) -> Environment
 --updateEnvironment =
 --  List.foldl <|
---    \(pterm, eterm) environment ->
+--    \(pTerm, eTerm) environment ->
 --      let
 --        identifiers =
---          getIdentifiers pterm.pattern
+--          getIdentifiers pTerm.pattern
 --      in
 --        List.foldl
---          (flip Dict.insert (Just eterm))
+--          (flip Dict.insert (Just eTerm))
 --          environment
 --          identifiers
 
@@ -135,9 +135,9 @@ type alias EvalHelper r a =
 --------------------------------------------------------------------------------
 
 evalBaseValue : EvalHelper r ETerm
-evalBaseValue _ _ eterm =
+evalBaseValue _ _ eTerm =
   { value =
-      Ok eterm
+      Ok eTerm
   }
 
 --------------------------------------------------------------------------------
@@ -159,7 +159,7 @@ evalVariable context range info =
                   |> .value
 
               Nothing ->
-                Ok << eterm_ <|
+                Ok << eTerm_ <|
                   EVariable info
 
           Nothing ->
@@ -189,7 +189,7 @@ evalLambda context _ { parameter, body } =
     { value =
         case evaluatedBody of
           Ok evaluatedBodyTerm ->
-            Ok << eterm_ <|
+            Ok << eTerm_ <|
               ELambda
                 { parameter =
                     parameter
@@ -225,7 +225,7 @@ evalList context _ { members } =
       in
         case collapsedEvaluatedMembers of
           Ok evaluatedMemberTerms ->
-            Ok << eterm_ <|
+            Ok << eTerm_ <|
               EList
                 { members =
                     evaluatedMemberTerms
@@ -261,7 +261,7 @@ evalRecord context _ { base, entries } =
           Ok evaluatedBaseTerm ->
             case collapsedEvaluatedEntryValues of
               Ok evaluatedEntryValueTerms ->
-                Ok << eterm_ <|
+                Ok << eTerm_ <|
                   ERecord
                     { base =
                         evaluatedBaseTerm
@@ -345,7 +345,7 @@ evalFunctionApplication context range { function, argument } =
                   -- (for now). The variable may actually be a lambda when
                   -- looked up later.
                   EVariable _ ->
-                    Ok << eterm_ <|
+                    Ok << eTerm_ <|
                       EFunctionApplication
                         { function =
                             evaluatedFunctionTerm
@@ -386,58 +386,58 @@ evalBinaryOperator context range info =
 --------------------------------------------------------------------------------
 
 eval : Context -> ETerm -> Output
-eval context eterm  =
-  case eterm.expression of
+eval context eTerm  =
+  case eTerm.expression of
     ELineComment _ ->
-      evalBaseValue context eterm eterm
+      evalBaseValue context eTerm eTerm
 
     EBlockComment _ ->
-      evalBaseValue context eterm eterm
+      evalBaseValue context eTerm eTerm
 
     EBool _ ->
-      evalBaseValue context eterm eterm
+      evalBaseValue context eTerm eTerm
 
     EInt _ ->
-      evalBaseValue context eterm eterm
+      evalBaseValue context eTerm eTerm
 
     EFloat _ ->
-      evalBaseValue context eterm eterm
+      evalBaseValue context eTerm eTerm
 
     EChar _ ->
-      evalBaseValue context eterm eterm
+      evalBaseValue context eTerm eTerm
 
     EString _ ->
-      evalBaseValue context eterm eterm
+      evalBaseValue context eTerm eTerm
 
     EMultiLineString _ ->
-      evalBaseValue context eterm eterm
+      evalBaseValue context eTerm eTerm
 
     EEmptyList _ ->
-      evalBaseValue context eterm eterm
+      evalBaseValue context eTerm eTerm
 
     EEmptyRecord _ ->
-      evalBaseValue context eterm eterm
+      evalBaseValue context eTerm eTerm
 
     EVariable info ->
-      evalVariable context eterm info
+      evalVariable context eTerm info
 
     ELambda info ->
-      evalLambda context eterm info
+      evalLambda context eTerm info
 
     EParen info  ->
-      evalParen context eterm info
+      evalParen context eTerm info
 
     EList info ->
-      evalList context eterm info
+      evalList context eTerm info
 
     ERecord info ->
-      evalRecord context eterm info
+      evalRecord context eTerm info
 
     EConditional info ->
-      evalConditional context eterm info
+      evalConditional context eTerm info
 
     EFunctionApplication info ->
-      evalFunctionApplication context eterm info
+      evalFunctionApplication context eTerm info
 
     EBinaryOperator info ->
-      evalBinaryOperator context eterm info
+      evalBinaryOperator context eTerm info

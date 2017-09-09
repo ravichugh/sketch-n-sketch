@@ -59,7 +59,7 @@ bigIdentifier =
 
 named : Parser PTerm
 named =
-  ptermify "named" <|
+  pTermify "named" <|
     map (\name -> PNamed { name = name })
       littleIdentifier
 
@@ -67,8 +67,8 @@ named =
 -- General P-Terms
 --------------------------------------------------------------------------------
 
-pterm : Parser PTerm
-pterm =
+pTerm : Parser PTerm
+pTerm =
   inContext "pattern" <|
     oneOf
       [ named
@@ -84,7 +84,7 @@ pterm =
 
 lineComment : Parser ETerm
 lineComment =
-  etermify "line comment" <|
+  eTermify "line comment" <|
     succeed
       ( \text termAfter ->
           ELineComment { text = text, termAfter = termAfter }
@@ -95,7 +95,7 @@ lineComment =
            [ symbol "\n"
            , end
            ]
-      |= optional (padded eterm)
+      |= optional (padded eTerm)
 
 --------------------------------------------------------------------------------
 -- Variables
@@ -103,7 +103,7 @@ lineComment =
 
 variable : Parser ETerm
 variable =
-  etermify "variable" <|
+  eTermify "variable" <|
     map (\identifier -> EVariable { identifier = identifier })
       littleIdentifier
 
@@ -113,7 +113,7 @@ variable =
 
 bool : Parser ETerm
 bool =
-  etermify "bool" <|
+  eTermify "bool" <|
     oneOf
       [ token "True" <|
           EBool { bool = True }
@@ -127,7 +127,7 @@ bool =
 
 int : Parser ETerm
 int =
-  etermify "int" <|
+  eTermify "int" <|
     map (\x -> EInt { int = x })
       P.int
 
@@ -147,7 +147,7 @@ int =
 
 char : Parser ETerm
 char =
-  etermify "char" <|
+  eTermify "char" <|
     succeed (\c -> EChar { char = c })
       |. symbol "'"
       |= ParserUtils.char
@@ -159,7 +159,7 @@ char =
 
 string : Parser ETerm
 string =
-  etermify "string" <|
+  eTermify "string" <|
     succeed (\s -> EString { string = s })
       |. symbol "\""
       |= keep zeroOrMore (\c -> c /= '\"')
@@ -167,7 +167,7 @@ string =
 
 multiLineString : Parser ETerm
 multiLineString =
-  etermify "multi-line string" <|
+  eTermify "multi-line string" <|
     map (\s -> EMultiLineString { string = s }) <|
       inside "\"\"\""
 
@@ -177,7 +177,7 @@ multiLineString =
 
 emptyList : Parser ETerm
 emptyList =
-  etermify "empty list" <|
+  eTermify "empty list" <|
     succeed (\ws -> EEmptyList { whitespace = ws })
       |. symbol "["
       |= whitespace
@@ -189,9 +189,9 @@ list =
     let
       member =
         inContext "list member" <|
-          padded eterm
+          padded eTerm
     in
-      etermify "list" <|
+      eTermify "list" <|
         map (\members -> EList { members = members }) <|
           LK.sequence
             { start = "["
@@ -209,7 +209,7 @@ list =
 
 emptyRecord : Parser ETerm
 emptyRecord =
-  etermify "empty record" <|
+  eTermify "empty record" <|
     succeed (\ws -> EEmptyRecord { whitespace = ws })
       |. symbol "{"
       |= whitespace
@@ -222,9 +222,9 @@ record =
       entry =
         inContext "record entry" <|
           succeed (,)
-            |= padded pterm
+            |= padded pTerm
             |. symbol "="
-            |= padded eterm
+            |= padded eTerm
       entries =
         inContext "record entries"
           ( LK.sequence
@@ -253,11 +253,11 @@ record =
             |= optional
                  ( delayedCommitMap
                      (\t _ -> t)
-                     (padded eterm)
+                     (padded eTerm)
                      (symbol "|")
                  )
     in
-      etermify "record" <|
+      eTermify "record" <|
         succeed
           ( \b es ->
               ERecord
@@ -279,12 +279,12 @@ record =
 lambda : Parser ETerm
 lambda =
   lazy <| \_ ->
-    etermify "lambda" << map .expression <|
+    eTermify "lambda" << map .expression <|
       succeed
         ( \parameters body ->
             List.foldr
               ( \parameter bodyAcc ->
-                  eterm_ <|
+                  eTerm_ <|
                     ELambda
                       { parameter =
                           parameter
@@ -296,9 +296,9 @@ lambda =
               parameters
         )
         |. symbol "\\"
-        |= repeat oneOrMore (padded pterm)
+        |= repeat oneOrMore (padded pTerm)
         |. symbol "->"
-        |= padded eterm
+        |= padded eTerm
 
 --------------------------------------------------------------------------------
 -- Parentheses (grouping)
@@ -307,10 +307,10 @@ lambda =
 paren : Parser ETerm
 paren =
   lazy <| \_ ->
-    etermify "parentheses" <|
+    eTermify "parentheses" <|
       succeed ( \inside -> EParen { inside = inside } )
         |. symbol "("
-        |= padded eterm
+        |= padded eTerm
         |. symbol ")"
 
 --------------------------------------------------------------------------------
@@ -320,7 +320,7 @@ paren =
 conditional : Parser ETerm
 conditional =
   lazy <| \_ ->
-    etermify "conditional" <|
+    eTermify "conditional" <|
       succeed
         ( \c t f ->
             EConditional
@@ -330,18 +330,18 @@ conditional =
               }
         )
         |. keywordWithWhitespace "if"
-        |= padded eterm
+        |= padded eTerm
         |. keywordWithWhitespace "then"
-        |= padded eterm
+        |= padded eTerm
         |. keywordWithWhitespace "else"
-        |= padded eterm
+        |= padded eTerm
 
 --------------------------------------------------------------------------------
 -- General E-Terms
 --------------------------------------------------------------------------------
 
-etermBase : Parser ETerm
-etermBase =
+eTermBase : Parser ETerm
+eTermBase =
   oneOf
     [ lazy <| \_ -> lineComment
     , bool
@@ -360,14 +360,14 @@ etermBase =
     ]
 
 -- For handling binary operators
-etermWithPrecedence : Int -> Parser ETerm
-etermWithPrecedence precedence =
+eTermWithPrecedence : Int -> Parser ETerm
+eTermWithPrecedence precedence =
   let
     binop op =
       chainLeft
         (spannedBinaryOperator op)
         (symbol op)
-        (padded << etermWithPrecedence <| precedence + 1)
+        (padded << eTermWithPrecedence <| precedence + 1)
     binops ops =
       oneOf <|
         List.map binop ops
@@ -375,7 +375,7 @@ etermWithPrecedence precedence =
     lazy <| \_ ->
       case precedence of
         9 ->
-          etermBase
+          eTermBase
         8 ->
           binops ["^"]
         7 ->
@@ -383,17 +383,17 @@ etermWithPrecedence precedence =
         6 ->
           binops ["+", "-"]
         5 ->
-          etermWithPrecedence 6
+          eTermWithPrecedence 6
         4 ->
-          etermWithPrecedence 5
+          eTermWithPrecedence 5
         3 ->
-          etermWithPrecedence 4
+          eTermWithPrecedence 4
         2 ->
-          etermWithPrecedence 3
+          eTermWithPrecedence 3
         1 ->
-          etermWithPrecedence 2
+          eTermWithPrecedence 2
         0 ->
-          etermWithPrecedence 1
+          eTermWithPrecedence 1
         _ ->
           fail <|
             "trying to parse expression with invalid precedence '" ++
@@ -405,12 +405,12 @@ etermWithPrecedence precedence =
 -- desugars to
 --   (f x) y
 
-eterm : Parser ETerm
-eterm =
+eTerm : Parser ETerm
+eTerm =
   let
     ezero =
       lazy <| \_ ->
-        etermWithPrecedence 0
+        eTermWithPrecedence 0
 
     combiner function arguments =
       if List.isEmpty arguments then
@@ -418,7 +418,7 @@ eterm =
       else
         ( List.foldl
             ( \argument functionAcc ->
-                eterm_ <|
+                eTerm_ <|
                   EFunctionApplication
                     { function =
                         functionAcc
@@ -430,7 +430,7 @@ eterm =
             arguments
         )
   in
-    etermify "expression" << map .expression <|
+    eTermify "expression" << map .expression <|
       succeed combiner
         |= padded ezero
         |= repeat zeroOrMore (padded ezero) -- handles function application
@@ -443,7 +443,7 @@ program : Parser ElmLang.Program
 program =
   succeed identity
     |= oneOf
-         [ map Nonempty <| padded eterm
+         [ map Nonempty <| padded eTerm
          , map Empty whitespace
          ]
     |. end

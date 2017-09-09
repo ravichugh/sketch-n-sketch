@@ -65,8 +65,8 @@ type alias PTerm =
         }
     )
 
-pterm_ : Pattern -> PTerm
-pterm_ pattern =
+pTerm_ : Pattern -> PTerm
+pTerm_ pattern =
   { start = dummyPosition
   , end = dummyPosition
   , before = dummyWhitespace
@@ -214,8 +214,8 @@ type alias ETerm =
         }
     )
 
-eterm_ : Expression -> ETerm
-eterm_ expression =
+eTerm_ : Expression -> ETerm
+eTerm_ expression =
   { start = dummyPosition
   , end = dummyPosition
   , before = dummyWhitespace
@@ -261,7 +261,7 @@ spannedBinaryOperator : String -> ETerm -> ETerm -> ETerm
 spannedBinaryOperator operator left right =
   let
     wrapper =
-      eterm_ <|
+      eTerm_ <|
         EBinaryOperator
           { operator = operator
           , left = left
