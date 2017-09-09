@@ -36,11 +36,11 @@ type alias PNamedInfo =
 type Pattern
   = PNamed PNamedInfo
 
-getIdentifiers : Pattern -> List String
-getIdentifiers pattern =
+getIdentifier : Pattern -> String
+getIdentifier pattern =
   case pattern of
     PNamed { name } ->
-      [ name ]
+      name
 
 --------------------------------------------------------------------------------
 -- PIds
@@ -130,8 +130,9 @@ type alias EVariableInfo =
   { identifier : Identifier
   }
 
+-- Functions are curried, so lambdas always take only one parameter
 type alias ELambdaInfo =
-  { parameters : List PTerm
+  { parameter : PTerm
   , body : ETerm
   }
 
@@ -154,9 +155,10 @@ type alias EConditionalInfo =
   , falseBranch : ETerm
   }
 
+-- Functions are curried, so they always take only one argument
 type alias EFunctionApplicationInfo =
   { function : ETerm
-  , arguments : List ETerm
+  , argument : ETerm
   }
 
 type alias EBinaryOperatorInfo =
@@ -254,18 +256,6 @@ span insides wrapper =
       }
     _ ->
       wrapper
-
-spannedFunctionApplication : ETerm -> List ETerm -> ETerm
-spannedFunctionApplication function arguments =
-  let
-    wrapper =
-      eterm_ <|
-        EFunctionApplication
-          { function = function
-          , arguments = arguments
-          }
-  in
-    span arguments wrapper
 
 spannedBinaryOperator : String -> ETerm -> ETerm -> ETerm
 spannedBinaryOperator operator left right =

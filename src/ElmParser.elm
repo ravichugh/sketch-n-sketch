@@ -271,17 +271,29 @@ record =
 --------------------------------------------------------------------------------
 -- Lambdas
 --------------------------------------------------------------------------------
+-- The expression
+--   \x y -> e
+-- desugars to
+--   \x -> (\y -> e)
 
 lambda : Parser ETerm
 lambda =
   lazy <| \_ ->
-    etermify "lambda" <|
+    etermify "lambda" << map .expression <|
       succeed
         ( \parameters body ->
-            ELambda
-              { parameters = parameters
-              , body = body
-              }
+            List.foldr
+              ( \parameter bodyAcc ->
+                  eterm_ <|
+                    ELambda
+                      { parameter =
+                          parameter
+                      , body =
+                          bodyAcc
+                      }
+              )
+              body
+              parameters
         )
         |. symbol "\\"
         |= repeat oneOrMore (padded pterm)
@@ -388,26 +400,40 @@ etermWithPrecedence precedence =
               (toString precedence) ++
               "'"
 
+-- The expression
+--   f x y
+-- desugars to
+--   (f x) y
+
 eterm : Parser ETerm
 eterm =
   let
-    -- Start parsing the lowest precedence first.
     ezero =
       lazy <| \_ ->
         etermWithPrecedence 0
-    -- If there are multiple expressions in a row, we must have a function
-    -- application. Otherwise, if there is only one expression in a row, simply
-    -- return that expression.
-    combiner head tail =
-      case tail of
-        [] ->
-          head
-        _ ->
-          spannedFunctionApplication head tail
+
+    combiner function arguments =
+      if List.isEmpty arguments then
+        function -- not an actual function
+      else
+        ( List.foldl
+            ( \argument functionAcc ->
+                eterm_ <|
+                  EFunctionApplication
+                    { function =
+                        functionAcc
+                    , argument =
+                        argument
+                    }
+            )
+            function
+            arguments
+        )
   in
-    succeed combiner
-      |= padded ezero
-      |= repeat zeroOrMore (padded ezero) -- handles function application
+    etermify "expression" << map .expression <|
+      succeed combiner
+        |= padded ezero
+        |= repeat zeroOrMore (padded ezero) -- handles function application
 
 --------------------------------------------------------------------------------
 -- Programs

@@ -24,30 +24,34 @@ type alias Binding =
   Maybe ETerm
 
 type alias Environment =
-  Dict Identifier (Maybe ETerm)
+  Dict Identifier Binding
 
--- Extend an environment with new patterns. All the previous variables are kept
--- in scope, but preference is given to the new bindings (shadowing).
-extendEnvironment : Environment -> List PTerm -> Environment
-extendEnvironment previousEnvironment pterms =
-  pterms
-    |> List.concatMap (.pattern >> getIdentifiers)
-    |> List.map (flip (,) Nothing)
-    |> Dict.fromList
-    |> flip Dict.union previousEnvironment
+-- -- Extend an environment with new patterns. All the previous variables are kept
+-- -- in scope, but preference is given to the new bindings (shadowing).
+-- extendEnvironment : Environment -> List PTerm -> Environment
+-- extendEnvironment previousEnvironment pterms =
+--   pterms
+--     |> List.concatMap (.pattern >> getIdentifiers)
+--     |> List.map (flip (,) Nothing)
+--     |> Dict.fromList
+--     |> flip Dict.union previousEnvironment
+--
+--updateEnvironment : Environment -> List (PTerm, ETerm) -> Environment
+--updateEnvironment =
+--  List.foldl <|
+--    \(pterm, eterm) environment ->
+--      let
+--        identifiers =
+--          getIdentifiers pterm.pattern
+--      in
+--        List.foldl
+--          (flip Dict.insert (Just eterm))
+--          environment
+--          identifiers
 
-updateEnvironment : Environment -> List (PTerm, ETerm) -> Environment
-updateEnvironment =
-  List.foldl <|
-    \(pterm, eterm) environment ->
-      let
-        identifiers =
-          getIdentifiers pterm.pattern
-      in
-        List.foldl
-          (flip Dict.insert (Just eterm))
-          environment
-          identifiers
+extendEnvironment : Identifier -> Binding -> Environment -> Environment
+extendEnvironment =
+  Dict.insert
 
 --------------------------------------------------------------------------------
 -- Evaluation Context
@@ -167,13 +171,16 @@ evalVariable context range info =
 --------------------------------------------------------------------------------
 
 evalLambda : EvalHelper r ELambdaInfo
-evalLambda context _ { parameters, body } =
+evalLambda context _ { parameter, body } =
   let
-    newEnvironment =
-      extendEnvironment context.environment parameters
+    identifier =
+      getIdentifier parameter.pattern
 
     newContext =
-      { context | environment = newEnvironment }
+      { context
+          | environment =
+              extendEnvironment identifier Nothing context.environment
+      }
 
     evaluatedBody =
       eval newContext body
@@ -181,13 +188,13 @@ evalLambda context _ { parameters, body } =
   in
     { value =
         case evaluatedBody of
-          Ok bodyTerm ->
+          Ok evaluatedBodyTerm ->
             Ok << eterm_ <|
               ELambda
-                { parameters =
-                    parameters
+                { parameter =
+                    parameter
                 , body =
-                    bodyTerm
+                    evaluatedBodyTerm
                 }
 
           Err bodyErrors ->
@@ -300,85 +307,50 @@ evalConditional context range { condition, trueBranch, falseBranch } =
 --------------------------------------------------------------------------------
 
 evalFunctionApplication : EvalHelper r EFunctionApplicationInfo
-evalFunctionApplication context range { function, arguments } =
+evalFunctionApplication context range { function, argument } =
   { value =
       let
         evaluatedFunction =
           eval context function
             |> .value
 
-        -- Evaluated arguments (strict)
-        collapsedEvaluatedArguments =
-          arguments
-            |> List.map (eval context >> .value)
-            |> Utils.collapseResults
-            |> Result.mapError List.concat
+        -- Evaluated argument (strict)
+        evaluatedArgument =
+          eval context argument
+            |> .value
       in
-        case collapsedEvaluatedArguments of
-          Ok evaluatedArgumentTerms ->
+        case evaluatedArgument of
+          Ok evaluatedArgumentTerm ->
             case evaluatedFunction of
               Ok evaluatedFunctionTerm ->
                 case evaluatedFunctionTerm.expression of
-                  ELambda { parameters, body } ->
+                  ELambda { parameter, body } ->
                     let
-                      argCount =
-                        List.length arguments
+                      identifier =
+                        getIdentifier parameter.pattern
 
-                      paramCount =
-                        List.length parameters
-
-                      evaluatedBody =
-                        let
-                          -- The parameter-argument pairs
-                          pairs =
-                            Utils.zip parameters evaluatedArgumentTerms
-
-                          newEnvironment =
-                            context.environment
-                              |> flip extendEnvironment parameters
-                              |> flip updateEnvironment pairs
-
-                          -- The new context
-                          newContext =
-                            { context | environment = newEnvironment }
-                        in
-                          eval newContext body
-                            |> .value
+                      newContext =
+                        { context
+                            | environment =
+                                extendEnvironment
+                                  identifier
+                                  (Just argument)
+                                  context.environment
+                        }
                     in
-                      -- If fully applied, return the evaluated body.
-                      -- Else, curry.
-                      if argCount == paramCount then
-                        evaluatedBody
-                      else if argCount < paramCount then
-                        case evaluatedBody of
-                          Ok bodyTerm ->
-                            let
-                              remainingParameters =
-                                List.drop argCount parameters
-                            in
-                              Ok << eterm_ <|
-                                ELambda
-                                  { parameters =
-                                      remainingParameters
-                                  , body =
-                                      bodyTerm
-                                  }
-
-                          Err errors ->
-                            Err errors
-                      else
-                        Err [evalError context TooManyArguments function]
+                      eval newContext body
+                        |> .value
 
                   -- Don't reduce this term futher if the function is a variable
-                  -- (for now). The variable may actually be a lambda when looked
-                  -- up later.
+                  -- (for now). The variable may actually be a lambda when
+                  -- looked up later.
                   EVariable _ ->
                     Ok << eterm_ <|
                       EFunctionApplication
                         { function =
                             evaluatedFunctionTerm
-                        , arguments =
-                            evaluatedArgumentTerms
+                        , argument =
+                            evaluatedArgumentTerm
                         }
 
                   _ ->
