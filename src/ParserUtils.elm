@@ -7,6 +7,7 @@ module ParserUtils exposing
   , char
   , whitespace
   , keywordWithWhitespace
+  , trackRange
   , paddedBefore
   , paddedAfter
   , padded

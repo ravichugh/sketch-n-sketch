@@ -11,6 +11,7 @@ import Parser as P exposing (..)
 import Parser.LanguageKit as LK
 
 import ParserUtils exposing (..)
+import BinaryOperatorParser exposing (..)
 import ElmLang exposing (..)
 
 --==============================================================================
@@ -77,9 +78,73 @@ bigIdentifier =
     isRestChar
     keywords
 
-operatorIdentifier : Parser Identifier
-operatorIdentifier =
+symbolIdentifier : Parser Identifier
+symbolIdentifier =
   keep oneOrMore isSymbol
+
+--==============================================================================
+--= Operators
+--==============================================================================
+
+--------------------------------------------------------------------------------
+-- Built-In Precedence Table
+--------------------------------------------------------------------------------
+-- Helpful: http://faq.elm-community.org/operators.html
+
+builtInPrecedenceTable : PrecedenceTable
+builtInPrecedenceTable =
+  buildPrecedenceTable
+    [ ( 9
+      , [">>"]
+      , ["<<"]
+      )
+    , ( 8
+      , []
+      , ["^"]
+      )
+    , ( 7
+      , ["*", "/", "//", "%", "rem"]
+      , []
+      )
+    , ( 6
+      , ["+", "-"]
+      , []
+      )
+    , ( 5
+      , []
+      , ["++", "::"]
+      )
+    , ( 4
+      , ["==", "/=", "<", ">", "<=", ">="]
+      , []
+      )
+    , ( 3
+      , []
+      , ["&&"]
+      )
+    , ( 2
+      , []
+      , ["||"]
+      )
+    , ( 1
+      , []
+      , []
+      )
+    , ( 0
+      , ["|>"]
+      , ["<|"]
+      )
+    ]
+
+--------------------------------------------------------------------------------
+-- Operator Parsing
+--------------------------------------------------------------------------------
+
+operator : Parser Operator
+operator =
+  trackRange <|
+    map (\identifier -> operator_ { identifier = identifier })
+      symbolIdentifier
 
 --==============================================================================
 --= Patterns
@@ -107,7 +172,7 @@ pTerm =
       ]
 
 --==============================================================================
--- Expressions
+--= Expressions
 --==============================================================================
 
 --------------------------------------------------------------------------------
@@ -358,8 +423,8 @@ conditional =
 -- General E-Terms
 --------------------------------------------------------------------------------
 
-eTermBase : Parser ETerm
-eTermBase =
+base : Parser ETerm
+base =
   oneOf
     [ lazy <| \_ -> lineComment
     , bool
@@ -377,89 +442,49 @@ eTermBase =
     , variable
     ]
 
--- For handling binary operators
-eTermWithPrecedence : Int -> Parser ETerm
-eTermWithPrecedence precedence =
+functionApplicationOrBase : Parser ETerm
+functionApplicationOrBase =
   let
-    binaryOperator operator =
-      chainLeft
-        ( \left right ->
-            eTerm_ <|
-              EBinaryOperator
-                { operator = operator
-                , left = left
-                , right = right
-                }
-        )
-        (symbol operator)
-        (padded << eTermWithPrecedence <| precedence + 1)
+    combiner first rest =
+      -- If there are no arguments, then we do not have a function application,
+      -- so just return the first expression. Otherwise, build a function
+      -- application.
+      if List.isEmpty rest then
+        first
 
-    binaryOperators =
-      oneOf << List.map binaryOperator
+      else
+        buildFunctionApplication first rest
   in
     lazy <| \_ ->
-      case precedence of
-        9 ->
-          eTermBase
-        8 ->
-          binaryOperators ["^"]
-        7 ->
-          binaryOperators ["*", "/", "//", "%"]
-        6 ->
-          binaryOperators ["+", "-"]
-        5 ->
-          eTermWithPrecedence 6
-        4 ->
-          eTermWithPrecedence 5
-        3 ->
-          eTermWithPrecedence 4
-        2 ->
-          eTermWithPrecedence 3
-        1 ->
-          eTermWithPrecedence 2
-        0 ->
-          eTermWithPrecedence 1
-        _ ->
-          fail <|
-            "trying to parse expression with invalid precedence '" ++
-              (toString precedence) ++
-              "'"
-
--- The expression
---   f x y
--- desugars to
---   (f x) y
+      succeed combiner
+        |= padded eTerm
+        |= repeat zeroOrMore (padded eTerm)
 
 eTerm : Parser ETerm
 eTerm =
-  let
-    ezero =
-      lazy <| \_ ->
-        eTermWithPrecedence 0
-
-    combiner function arguments =
-      if List.isEmpty arguments then
-        function -- not an actual function
-      else
-        ( List.foldl
-            ( \argument functionAcc ->
-                eTerm_ <|
-                  EFunctionApplication
-                    { function =
-                        functionAcc
-                    , argument =
-                        argument
-                    }
-            )
-            function
-            arguments
-        )
-  in
-    lazy <| \_ ->
-      eTermify "expression" << map .expression <|
-        succeed combiner
-          |= padded ezero
-          |= repeat zeroOrMore (padded ezero) -- handles function application
+  lazy <| \_ ->
+    eTermify "expression" << map .expression  <|
+      binaryOperator
+        { precedenceTable =
+            builtInPrecedenceTable
+        , minimumPrecedence =
+            0
+        , expression =
+            padded int
+        , operator =
+            operator
+        , representation =
+            .identifier
+        , combiner =
+            \left operator right ->
+              -- TODO track
+              eTerm_ <|
+                EBinaryOperator
+                  { operator = operator
+                  , left = left
+                  , right = right
+                  }
+        }
 
 --==============================================================================
 --= Statements

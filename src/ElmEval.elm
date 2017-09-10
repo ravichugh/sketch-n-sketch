@@ -478,7 +478,7 @@ evalBinaryOperator context _ { operator, left, right } =
       eTerm_ <|
         EVariable
           { identifier =
-              prefixifyOperator operator
+              prefixifyOperator operator.identifier
           }
 
     firstApplication =

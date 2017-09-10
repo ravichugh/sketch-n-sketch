@@ -21,6 +21,24 @@ type ElmInput
   | Nonempty Program
 
 --==============================================================================
+--= Operators
+--==============================================================================
+
+type alias OperatorInfo =
+  { identifier : Identifier
+  }
+
+type alias Operator =
+  Ranged OperatorInfo
+
+operator_ : OperatorInfo -> Operator
+operator_ { identifier } =
+  { start = dummyPosition
+  , end = dummyPosition
+  , identifier = identifier
+  }
+
+--==============================================================================
 --= Patterns
 --==============================================================================
 
@@ -202,7 +220,7 @@ type alias EFunctionApplicationInfo =
   }
 
 type alias EBinaryOperatorInfo =
-  { operator : Identifier
+  { operator : Operator
   , left : ETerm
   , right : ETerm
   }
@@ -255,6 +273,18 @@ buildLambda parameters body =
     )
     body
     parameters
+
+buildFunctionApplication : ETerm -> List ETerm -> ETerm
+buildFunctionApplication =
+  List.foldl <|
+    \argument functionAcc ->
+      eTerm_ <|
+        EFunctionApplication
+          { function =
+              functionAcc
+          , argument =
+              argument
+          }
 
 --------------------------------------------------------------------------------
 -- EIds
