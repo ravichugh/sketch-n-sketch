@@ -109,6 +109,8 @@ pTerm_ pattern =
 type Special
   = Add
   | Sub
+  | Mult
+  | Pow
   | Eq
 
 specialify : Identifier -> Maybe Special
@@ -119,6 +121,12 @@ specialify identifier =
 
     "(-)" ->
       Just Sub
+
+    "(*)" ->
+      Just Mult
+
+    "(^)" ->
+      Just Pow
 
     "(==)" ->
       Just Eq
@@ -134,6 +142,12 @@ showSpecial special =
 
     Sub ->
       "(-)"
+
+    Mult ->
+      "(*)"
+
+    Pow ->
+      "(^)"
 
     Eq ->
       "(==)"

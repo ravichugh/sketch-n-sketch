@@ -445,7 +445,7 @@ base =
 functionApplicationOrBase : Parser ETerm
 functionApplicationOrBase =
   let
-    combiner first rest =
+    combine first rest =
       -- If there are no arguments, then we do not have a function application,
       -- so just return the first expression. Otherwise, build a function
       -- application.
@@ -456,9 +456,9 @@ functionApplicationOrBase =
         buildFunctionApplication first rest
   in
     lazy <| \_ ->
-      succeed combiner
-        |= padded eTerm
-        |= repeat zeroOrMore (padded eTerm)
+      succeed combine
+        |= padded base
+        |= repeat zeroOrMore (padded base)
 
 eTerm : Parser ETerm
 eTerm =
@@ -470,12 +470,12 @@ eTerm =
         , minimumPrecedence =
             0
         , expression =
-            padded int
+            padded functionApplicationOrBase
         , operator =
             operator
         , representation =
             .identifier
-        , combiner =
+        , combine =
             \left operator right ->
               -- TODO track
               eTerm_ <|

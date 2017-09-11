@@ -9,6 +9,10 @@ module BinaryOperatorParser exposing
   )
 
 import Parser exposing (..)
+import ParserUtils exposing
+  ( lookAhead
+  , optional
+  )
 
 import Dict exposing (Dict)
 
@@ -77,7 +81,7 @@ binaryOperator
      , expression : Parser exp
      , operator : Parser op
      , representation : op -> String
-     , combiner : exp -> op -> exp -> exp
+     , combine : exp -> op -> exp -> exp
      }
   -> Parser exp
 binaryOperator args =
@@ -87,39 +91,60 @@ binaryOperator args =
     , expression
     , operator
     , representation
-    , combiner
+    , combine
     } =
       args
 
-    operatorAndExpression : Parser (op, exp)
-    operatorAndExpression =
-      flip andThen operator <| \op ->
-        let
-          opRepresentation =
-            representation op
-        in
-          case getOperatorInfo opRepresentation precedenceTable of
-            Just (associativity, precedence) ->
-              let
-                nextMinimumPrecedence =
-                  case associativity of
-                    Left ->
-                      precedence
+    loop resultExp =
+      flip andThen (lookAhead <| optional operator) <| \maybeOperator ->
+        case maybeOperator of
+          Just op ->
+            let
+              opRepresentation =
+                representation op
+            in
+              case getOperatorInfo opRepresentation precedenceTable of
+                Just (associativity, precedence) ->
+                  if precedence >= minimumPrecedence then
+                    let
+                      nextMinimumPrecedence =
+                        case associativity of
+                          Left ->
+                            precedence + 1
 
-                    Right ->
-                      precedence + 1
-              in
-                map (\right -> (op, right)) <|
-                  binaryOperator
-                    { args | minimumPrecedence = nextMinimumPrecedence }
+                          Right ->
+                            precedence
 
-            Nothing ->
-              fail <|
-                "trying to parse operator "
-                  ++ opRepresentation
-                  ++ " but no information for it was found in the precedence"
-                  ++ " table"
+                      rightHandSide =
+                        binaryOperator
+                          { args | minimumPrecedence = nextMinimumPrecedence }
+
+                      continue rightExp =
+                        let
+                          newResult =
+                            combine resultExp op rightExp
+                        in
+                          loop newResult
+                    in
+                      succeed identity
+                        |. operator -- actually consume the operator
+                        |= (rightHandSide |> andThen continue)
+
+                  else
+                    -- Note that the operator has not been consumed at this
+                    -- point because of the lookAhead.
+                    succeed resultExp
+
+                Nothing ->
+                  fail <|
+                    "trying to parse operator "
+                      ++ opRepresentation
+                      ++ " but no information for it was found in the"
+                      ++ " precedence table"
+
+          Nothing ->
+            succeed resultExp
+
   in
-    succeed (\left (op, right) -> combiner left op right)
-      |= expression
-      |= operatorAndExpression
+    expression
+      |> andThen loop

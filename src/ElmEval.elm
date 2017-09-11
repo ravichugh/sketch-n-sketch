@@ -560,6 +560,20 @@ evalSpecial context range { special, arguments } =
                       _ ->
                         Nothing
 
+                  Mult ->
+                    case evaluatedArgumentTerms of
+                      [ left, right ] ->
+                        specialInt2 (*) left right
+                      _ ->
+                        Nothing
+
+                  Pow ->
+                    case evaluatedArgumentTerms of
+                      [ left, right ] ->
+                        specialInt2 (^) left right
+                      _ ->
+                        Nothing
+
                   Eq ->
                     case evaluatedArgumentTerms of
                       [ left, right ] ->

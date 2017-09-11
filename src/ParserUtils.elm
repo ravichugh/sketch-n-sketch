@@ -1,7 +1,7 @@
 module ParserUtils exposing
-  ( try
+  ( lookAhead
+  , try
   , optional
-  , chainLeft
   , token
   , inside
   , char
@@ -29,6 +29,34 @@ import ElmLang exposing (..)
 --------------------------------------------------------------------------------
 -- General
 --------------------------------------------------------------------------------
+
+lookAhead : Parser a -> Parser a
+lookAhead parser =
+  let
+    getResult =
+      succeed
+        ( \offset source ->
+            let
+              remainingCode =
+                String.dropLeft offset source
+            in
+              run parser remainingCode
+        )
+        |= LL.getOffset
+        |= LL.getSource
+  in
+    getResult
+      |> andThen
+           ( \result ->
+               case result of
+                 Ok x ->
+                   -- Return the result without consuming input
+                   succeed x
+
+                 Err _ ->
+                   -- Consume input and fail (we know it will fail)
+                   parser
+           )
 
 try : Parser a -> Parser a
 try parser =

@@ -162,6 +162,7 @@ update msg model =
                     case evaluatedProgram.value of
                       Ok eTerm ->
                         ElmPrettyPrint.prettyPrint eTerm
+
                       Err errors ->
                         errors
                           |> List.map (ElmEval.showError model.code)
