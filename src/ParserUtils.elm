@@ -69,19 +69,6 @@ optional parser =
     , succeed Nothing
     ]
 
--- Like Parsec's chainl1
-chainLeft : (a -> a -> a) -> Parser sep -> Parser a -> Parser a
-chainLeft combiner sep term =
-  let
-    separatedTerm =
-      succeed identity
-        |. sep
-        |= term
-  in
-    succeed (List.foldl (flip combiner))
-      |= term
-      |= repeat zeroOrMore separatedTerm
-
 guard : String -> Bool -> Parser ()
 guard failReason pred =
   if pred then (succeed ()) else (fail failReason)
