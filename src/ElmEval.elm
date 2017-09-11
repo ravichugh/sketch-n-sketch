@@ -8,8 +8,7 @@ import Dict exposing (Dict)
 import Set exposing (Set)
 
 import Utils
-import Position exposing (dummyPosition)
-import Range exposing (Ranged)
+import Range exposing (Ranged, dummyRange)
 
 import ElmLang exposing (..)
 import ElmPrettyPrint
@@ -41,6 +40,7 @@ type EvalErrorType
   | SpecialError
   | MainHasParameters
   | NoMainFunction
+  | NoDefinitions
 
 type alias EvalError =
   Ranged
@@ -85,6 +85,8 @@ showError source { start, end, error, context } =
           "Main function has parameters"
         NoMainFunction ->
           "No main function"
+        NoDefinitions ->
+          "No definitions"
 
     prettyErrorLines =
       String.join "\n" relevantLines
@@ -682,9 +684,9 @@ definitionsFromProgram =
         SBlockComment _ ->
           Nothing
 
-findAndRemoveMainTerm
-  : List Definition -> Result (List EvalError) (ETerm, List Definition)
-findAndRemoveMainTerm definitions =
+moveMainDefinitionToEnd
+  : List Definition -> Result (List EvalError) (List Definition)
+moveMainDefinitionToEnd definitions =
   let
     mainName =
       PNamed { identifier = "main" }
@@ -696,16 +698,15 @@ findAndRemoveMainTerm definitions =
     of
       Just (mainDefinition, otherDefinitions) ->
         if List.isEmpty mainDefinition.parameters then
-          Ok (mainDefinition.body, otherDefinitions)
+          Ok <|
+            otherDefinitions ++ [mainDefinition]
 
         else
           Err
             [ evalError
                 emptyContext
                 MainHasParameters
-                { start = dummyPosition
-                , end = dummyPosition
-                }
+                dummyRange
             ]
 
       Nothing ->
@@ -713,9 +714,7 @@ findAndRemoveMainTerm definitions =
           [ evalError
               emptyContext
               NoMainFunction
-              { start = dummyPosition
-              , end = dummyPosition
-              }
+              dummyRange
           ]
 
 bindingsFromDefinition : Definition -> Result (List EvalError) (List Binding)
@@ -748,14 +747,34 @@ bindingsFromDefinitions definitions =
     |> Result.mapError List.concat
     |> Result.map List.concat
 
-evalMain : (ETerm, List Binding) -> Output
-evalMain (mainTerm, bindings) =
-  { value =
-      mainTerm
-        |> bindAll bindings
+bindDefinitionToAll
+  : Definition -> List Definition -> Result (List EvalError) (List Definition)
+bindDefinitionToAll current remaining =
+  let
+    mapBindings bindings =
+      List.map
+        (\d -> { d | body = bindAll bindings d.body })
+        remaining
+  in
+    current
+      |> bindingsFromDefinition
+      |> Result.map mapBindings
+
+evalDefinitions : List Definition -> Result (List EvalError) ETerm
+evalDefinitions definitions =
+  case definitions of
+    [] ->
+      Err [evalError emptyContext NoDefinitions dummyRange]
+
+    [ mainDefinition ] ->
+      mainDefinition.body
         |> eval emptyContext
         |> .value
-  }
+
+    current :: remaining ->
+      remaining
+        |> bindDefinitionToAll current
+        |> Result.andThen evalDefinitions
 
 -- Evaluator
 
@@ -764,12 +783,6 @@ evalProgram program =
   { value =
       program
         |> definitionsFromProgram
-        |> findAndRemoveMainTerm
-        |> Result.andThen
-             ( Tuple.mapSecond bindingsFromDefinitions
-                 >> Utils.collapseSecondResult
-             )
-        |> Result.andThen
-             ( evalMain >> .value
-             )
+        |> moveMainDefinitionToEnd
+        |> Result.andThen evalDefinitions
   }

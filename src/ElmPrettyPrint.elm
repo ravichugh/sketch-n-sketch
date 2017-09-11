@@ -81,9 +81,9 @@ prettyPrint { expression } =
       "(" ++ prettyPrint inside ++ ")"
 
     EConditional { condition, trueBranch, falseBranch } ->
-      "if" ++ prettyPrint condition
-        ++ "then" ++ prettyPrint trueBranch
-        ++ "else" ++ prettyPrint falseBranch
+      "if " ++ prettyPrint condition
+        ++ " then " ++ prettyPrint trueBranch
+        ++ " else " ++ prettyPrint falseBranch
 
     EFunctionApplication { function, argument } ->
       prettyPrint function ++ " " ++ prettyPrint argument
