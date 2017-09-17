@@ -2111,7 +2111,7 @@ createToolCache : Model -> List (List CachedDeuceTool)
 createToolCache model =
   deuceTools model |> List.map (
     List.map (\deuceTool ->
-      case runTool model deuceTool of
+      case runTool deuceTool of
         Just results -> (deuceTool, results, False)
         Nothing      -> (deuceTool, [], True)
     )
@@ -2146,7 +2146,7 @@ updateRenameToolsInCache almostNewModel =
   cachedAndNewDeuceTools |> List.map (
     List.map (\((cachedDeuceTool, cachedResults, cachedBool), newDeuceTool) ->
       if isRenamer cachedDeuceTool then
-        case runTool almostNewModel newDeuceTool of
+        case runTool newDeuceTool of
           Just results -> (newDeuceTool, results, False)
           Nothing      -> (newDeuceTool, [], True)
       else
@@ -2159,8 +2159,8 @@ updateRenameToolsInCache almostNewModel =
 --------------------------------------------------------------------------------
 
 -- Run a tool, and maybe get some results back (if it is active)
-runTool : Model -> DeuceTool -> Maybe (List SynthesisResult)
-runTool model deuceTool =
+runTool : DeuceTool -> Maybe (List SynthesisResult)
+runTool deuceTool =
   -- let _ = Utils.log <| "running tool " ++ deuceTool.name in
   case deuceTool.func of
     Just thunk ->
@@ -2174,8 +2174,8 @@ runTool model deuceTool =
       Nothing
 
 -- Check if a tool is active without running it
-isActive : Model -> DeuceTool -> Bool
-isActive model deuceTool =
+isActive : DeuceTool -> Bool
+isActive deuceTool =
   deuceTool.func /= Nothing
 
 -- Check if a given tool is a renaming tool

@@ -1061,24 +1061,27 @@ tryResolvingProblemsAfterTransform_
   let uniqueNameToOldNameUntouchedDescribed = uniqueNameToOldNameUntouched |> List.map (\(uniqueName, oldName) -> (untouchedAdjective, uniqueName, oldName)) in
   let twiddledResults =
     if tryTwiddling then
-      case newProgramUniqueNames |> maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic of
-        Nothing -> []
-        Just (newProgramTwiddledArithmeticToSwapDependencies, identsInvalidlyFreeRewritten, identsWithInvalidlyFreeVarsHandled) ->
-          let oldVarEIds = allVars newProgramUniqueNames                          |> List.map (.val >> .eid) in
-          let newVarEIds = allVars newProgramTwiddledArithmeticToSwapDependencies |> List.map (.val >> .eid) in
-          let varEIdsDeliberatelyRemoved = Utils.listDiff oldVarEIds newVarEIds in
-          let newInsertedVarEIdToBindingPId =
-            let insertedVarEIds = Utils.listDiff newVarEIds oldVarEIds |> Set.fromList in
-            allVarEIdsToBindingPIdBasedOnUniqueName newProgramTwiddledArithmeticToSwapDependencies
-            |> Dict.filter (\eid _ -> Set.member eid insertedVarEIds)
-            |> Dict.union insertedVarEIdToBindingPId
-          in
-          let (newProgramTwiddledArithmeticToSwapDependenciesAndLifted, liftedUniqueIdents) =
-            liftDependenciesBasedOnUniqueNames newProgramTwiddledArithmeticToSwapDependencies
-          in
-          [ resultForOriginalNamesPriority (uniqueNameToOldNameUntouchedDescribed ++ uniqueNameToOldNameTouchedDescribed) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved newInsertedVarEIdToBindingPId newProgramTwiddledArithmeticToSwapDependenciesAndLifted
-          , resultForOriginalNamesPriority (uniqueNameToOldNameTouchedDescribed ++ uniqueNameToOldNameUntouchedDescribed) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved newInsertedVarEIdToBindingPId newProgramTwiddledArithmeticToSwapDependenciesAndLifted
-          ]
+      []
+      -- TODO: disabled momentarily, needs to abort on cyclic dependencies
+      --
+      -- case newProgramUniqueNames |> maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic of
+      --   Nothing -> []
+      --   Just (newProgramTwiddledArithmeticToSwapDependencies, identsInvalidlyFreeRewritten, identsWithInvalidlyFreeVarsHandled) ->
+      --     let oldVarEIds = allVars newProgramUniqueNames                          |> List.map (.val >> .eid) in
+      --     let newVarEIds = allVars newProgramTwiddledArithmeticToSwapDependencies |> List.map (.val >> .eid) in
+      --     let varEIdsDeliberatelyRemoved = Utils.listDiff oldVarEIds newVarEIds in
+      --     let newInsertedVarEIdToBindingPId =
+      --       let insertedVarEIds = Utils.listDiff newVarEIds oldVarEIds |> Set.fromList in
+      --       allVarEIdsToBindingPIdBasedOnUniqueName newProgramTwiddledArithmeticToSwapDependencies
+      --       |> Dict.filter (\eid _ -> Set.member eid insertedVarEIds)
+      --       |> Dict.union insertedVarEIdToBindingPId
+      --     in
+      --     let (newProgramTwiddledArithmeticToSwapDependenciesAndLifted, liftedUniqueIdents) =
+      --       liftDependenciesBasedOnUniqueNames newProgramTwiddledArithmeticToSwapDependencies
+      --     in
+      --     [ resultForOriginalNamesPriority (uniqueNameToOldNameUntouchedDescribed ++ uniqueNameToOldNameTouchedDescribed) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved newInsertedVarEIdToBindingPId newProgramTwiddledArithmeticToSwapDependenciesAndLifted
+      --     , resultForOriginalNamesPriority (uniqueNameToOldNameTouchedDescribed ++ uniqueNameToOldNameUntouchedDescribed) liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved newInsertedVarEIdToBindingPId newProgramTwiddledArithmeticToSwapDependenciesAndLifted
+      --     ]
     else
       []
   in

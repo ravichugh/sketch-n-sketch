@@ -215,7 +215,7 @@ type alias CodeBoxInfo =
 type alias RawSvg = String
 
 type Clickable
-  = PointWithProvenance NumTr LazyVal NumTr LazyVal
+  = PointWithProvenance NumTr Provenance NumTr Provenance
 
 type MouseMode
   = MouseNothing

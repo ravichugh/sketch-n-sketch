@@ -272,7 +272,8 @@ onMouseClick click old maybeClickable =
     (Poly stk, MouseDrawNew polyPoints) ->
       let pointToAdd =
         case maybeClickable of
-          Just (PointWithProvenance (snapX, snapXTr) (LazyVal snapXEnv snapXExp) (snapY, snapYTr) (LazyVal snapYEnv snapYExp)) ->
+          -- TODO revisit with better provenance smarts
+          Just (PointWithProvenance (snapX, snapXTr) (Provenance snapXEnv snapXExp snapXBasedOn) (snapY, snapYTr) (Provenance snapYEnv snapYExp snapYBasedOn)) ->
             -- TODO static check
             if snapXExp.val.eid > 0 && snapYExp.val.eid > 0 then
               ((round snapX, SnapEId snapXExp.val.eid), (round snapY, SnapEId snapYExp.val.eid))
@@ -461,13 +462,13 @@ onMouseDrag lastPosition newPosition old =
             (\(widgetI, widget) ->
               let idAsShape = -2 - widgetI in
               case widget of
-                WIntSlider _ _ _ _ _ _ -> []
-                WNumSlider _ _ _ _ _ _ -> []
+                WIntSlider _ _ _ _ _ _ _ -> []
+                WNumSlider _ _ _ _ _ _ _ -> []
                 WPoint (x, xTr) _ (y, yTr) _ ->
                   [ ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "point") (XFeat LonePoint)), (x, y))
                   , ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "point") (YFeat LonePoint)), (x, y))
                   ]
-                WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ ->
+                WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _ ->
                   let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
                     offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
                   in
@@ -785,7 +786,7 @@ update msg oldModel =
 
 upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
-  -- let _ = Utils.log caption in
+  let _ = Debug.log caption (old.mouseMode, old.mouseState) in
   let _ = debugLog "Msg" caption in
   updateModel old
 
@@ -795,6 +796,7 @@ upstate (Msg caption updateModel) old =
 hooks : List (Model -> Model -> (Model, Cmd Msg))
 hooks =
   [ handleSavedSelectionsHook
+  , handleOutputSelectionChanges
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
@@ -822,6 +824,23 @@ handleSavedSelectionsHook oldModel newModel =
         )
       Nothing ->
         (newModel, Cmd.none)
+  else
+    (newModel, Cmd.none)
+
+handleOutputSelectionChanges : Model -> Model -> (Model, Cmd Msg)
+handleOutputSelectionChanges oldModel newModel =
+  if oldModel.selectedFeatures /= newModel.selectedFeatures || oldModel.selectedShapes /= newModel.selectedShapes || oldModel.selectedBlobs /= newModel.selectedBlobs then
+    let
+      oldSelectedEIds = Maybe.withDefault [] <| List.head <| ShapeWidgets.selectionsEIdInterpretations oldModel.inputExp oldModel.slate oldModel.widgets oldModel.selectedFeatures oldModel.selectedShapes oldModel.selectedBlobs
+      newSelectedEIds = Maybe.withDefault [] <| List.head <| ShapeWidgets.selectionsEIdInterpretations newModel.inputExp newModel.slate newModel.widgets newModel.selectedFeatures newModel.selectedShapes newModel.selectedBlobs
+      widgetsToSelect   = Utils.diffAsSet newSelectedEIds oldSelectedEIds |> List.map DeuceExp
+      widgetsToDeselect = Utils.diffAsSet oldSelectedEIds newSelectedEIds |> List.map DeuceExp
+      newSelectedWidgets = (Utils.diffAsSet newModel.deuceState.selectedWidgets widgetsToDeselect) |> Utils.addAllAsSet widgetsToSelect
+      deuceState = newModel.deuceState
+      almostFinalModel = { newModel | deuceState = { deuceState | selectedWidgets = newSelectedWidgets } }
+      finalModel = { almostFinalModel | deuceToolsAndResults = DeuceTools.createToolCache almostFinalModel }
+    in
+    (finalModel, Cmd.none)
   else
     (newModel, Cmd.none)
 

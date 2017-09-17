@@ -228,7 +228,7 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
         let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
         let featureEqns =
           featuresToRevolutionize
-          |> List.map (\feature -> nodeIdAndFeatureNameToEquation feature tree widgets locIdToNumberAndLoc)
+          |> List.map (\feature -> ShapeWidgets.selectedShapeFeatureToEquation feature tree widgets locIdToNumberAndLoc)
           |> Utils.projJusts
           |> Maybe.withDefault []
         in
@@ -382,7 +382,7 @@ selectedFeaturesToShapeFeaturesAndEquations selectedFeatures program slideNumber
       |> List.map
           (\(nodeId, featureName) ->
             ( (nodeId, featureName)
-            , nodeIdAndFeatureNameToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc
+            , ShapeWidgets.selectedShapeFeatureToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc
             )
           )
 
@@ -546,9 +546,9 @@ equalizeOverlappingPairs priorResults shapeFeaturesAndEquations syncOptions =
 --     [featureA, featureB, featureC] ->
 --       let maybeNewExp =
 --         let (_, tree) = slate in
---         let maybeAEqn = nodeIdAndFeatureNameToEquation featureA tree locIdToNumberAndLoc in
---         let maybeBEqn = nodeIdAndFeatureNameToEquation featureB tree locIdToNumberAndLoc in
---         let maybeCEqn = nodeIdAndFeatureNameToEquation featureC tree locIdToNumberAndLoc in
+--         let maybeAEqn = ShapeWidgets.selectedShapeFeatureToEquation featureA tree locIdToNumberAndLoc in
+--         let maybeBEqn = ShapeWidgets.selectedShapeFeatureToEquation featureB tree locIdToNumberAndLoc in
+--         let maybeCEqn = ShapeWidgets.selectedShapeFeatureToEquation featureC tree locIdToNumberAndLoc in
 --         case (maybeAEqn, maybeBEqn, maybeCEqn) of
 --           (Just aEqn, Just bEqn, Just cEqn) ->
 --             let distanceAB = ShapeWidgets.EqnOp Minus [bEqn, aEqn] in
@@ -857,7 +857,7 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
 
 pluckFeatureEquationNamed (nodeId, featureName) slate widgets locIdToNumberAndLoc =
   let (_, tree) = slate in
-  case nodeIdAndFeatureNameToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc of
+  case ShapeWidgets.selectedShapeFeatureToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc of
     Just eqn -> Just (featureName, eqn)
     Nothing  -> Nothing
 
@@ -909,52 +909,24 @@ locIdToWidgetDeclLittleOf exp =
 
 pluckSelectedVals selectedFeatures slate widgets locIdToNumberAndLoc =
   let featureEquations = pluckSelectedFeatureEquations selectedFeatures slate widgets locIdToNumberAndLoc in
-  List.concatMap equationNumTrs featureEquations
+  List.concatMap ShapeWidgets.equationNumTrs featureEquations
 
 
 evaluateFeature nodeIdAndFeatureName slate widgets locIdToNumberAndLoc =
   let (_, tree) = slate in
-  case (nodeIdAndFeatureNameToEquation nodeIdAndFeatureName tree widgets locIdToNumberAndLoc) of
+  case (ShapeWidgets.selectedShapeFeatureToEquation nodeIdAndFeatureName tree widgets locIdToNumberAndLoc) of
     Just eqn -> ShapeWidgets.evaluateFeatureEquation eqn
     Nothing  -> Nothing
 
 
-nodeIdAndFeatureNameToEquation : (Int, String) -> LangSvg.IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureEquation
-nodeIdAndFeatureNameToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc =
-  if not <| nodeId < -2 then
-    -- shape feature
-    case Dict.get nodeId tree |> Maybe.map .interpreted of
-      Just (LangSvg.SvgNode kind nodeAttrs _) ->
-        Just (ShapeWidgets.featureEquation kind featureName nodeAttrs)
-
-      Just (LangSvg.TextNode _) ->
-        Nothing
-
-      Nothing ->
-        Debug.crash <| "nodeIdAndFeatureNameToEquation " ++ (toString nodeId) ++ " " ++ (toString tree)
-  else
-    -- widget feature
-    -- change to index widgets by position in widget list; then pull feature from widget type
-    let widgetId = -nodeId - 2 in -- widget nodeId's are encoded at -2 and count down. (And they are 1-indexed, so actually they start at -3)
-    case Utils.maybeGeti1 widgetId widgets of
-      Just widget -> Just (ShapeWidgets.widgetFeatureEquation featureName widget locIdToNumberAndLoc)
-      Nothing     -> Debug.crash <| "nodeIdAndFeatureNameToEquation can't find widget " ++ (toString widgetId) ++ " " ++ (toString widgets)
-
-
-equationNumTrs featureEqn =
-  case featureEqn of
-    ShapeWidgets.EqnNum val   -> [val]
-    ShapeWidgets.EqnOp _ eqns -> List.concatMap equationNumTrs eqns
-
-
 equationLocs syncOptions featureEqn =
-  equationNumTrs featureEqn
+  ShapeWidgets.equationNumTrs featureEqn
   |> List.concatMap (Tuple.second >> (Sync.locsOfTrace syncOptions) >> Set.toList)
   |> Utils.dedup
 
 
 allEquationLocs featureEqn =
-  equationNumTrs featureEqn
+  ShapeWidgets.equationNumTrs featureEqn
   |> List.concatMap (Tuple.second >> allTraceLocs)
 
 
@@ -1005,34 +977,6 @@ applyRemovedLocIdToLocEquation_ (removedLocId, replacementLocEqn) locEqn =
     LocEqnOp op locEqns -> LocEqnOp op (List.map (applyRemovedLocIdToLocEquation_ (removedLocId, replacementLocEqn)) locEqns)
 
 
--- Explicitly exclude ellipseRX/ellipseRX
-xFeatureNameRegex = Regex.regex "^(?!ellipseR)(.*)X(\\d*)$"
-yFeatureNameRegex = Regex.regex "^(?!ellipseR)(.*)Y(\\d*)$"
-xOrYFeatureNameRegex = Regex.regex "^(?!ellipseR)(.*)[XY](\\d*)$"
-
-featureNameIsX featureName =
-  Regex.contains xFeatureNameRegex featureName
-
-featureNameIsY featureName =
-  Regex.contains yFeatureNameRegex featureName
-
-featureNameIsXOrY featureName =
-  Regex.contains xOrYFeatureNameRegex featureName
-
-featurePointAndNumber featureName =
-  Regex.find (Regex.AtMost 1) xOrYFeatureNameRegex featureName
-  |> Utils.head_
-  |> (.submatches)
-
--- Assuming features are already on the same nodeId...
-featuresNamesAreXYPairs featureNameA featureNameB =
-  (featureNameIsXOrY featureNameA) &&
-  (featureNameIsXOrY featureNameB) &&
-  (featureNameA /= featureNameB) && -- Not the same feature
-  (featurePointAndNumber featureNameA) ==
-    (featurePointAndNumber featureNameB) -- But the same point
-
-
 -- Extract all point x,y features pairs
 featurePoints : List ShapeFeatureAndEquation -> List (ShapeFeatureAndEquation, ShapeFeatureAndEquation)
 featurePoints shapeFeaturesAndEquations =
@@ -1042,17 +986,17 @@ featurePoints shapeFeaturesAndEquations =
 
     nodeIdAndFeatureNameAndEquation::otherShapeFeaturesAndEquations ->
       let ((nodeId, featureName), featureEquation) = nodeIdAndFeatureNameAndEquation in
-      if not <| featureNameIsXOrY featureName then
+      if not <| ShapeWidgets.featureNameIsXOrY featureName then
         featurePoints otherShapeFeaturesAndEquations
       else
         let nodeFeatures = List.filter (\((otherNodeId, _), _) ->  otherNodeId == nodeId) otherShapeFeaturesAndEquations in
         let maybePairedFeature =
-          Utils.findFirst (\((_, otherFeatureName), _) -> featuresNamesAreXYPairs featureName otherFeatureName) nodeFeatures
+          Utils.findFirst (\((_, otherFeatureName), _) -> ShapeWidgets.featuresNamesAreXYPairs featureName otherFeatureName) nodeFeatures
         in
         case maybePairedFeature of
           Just pairedFeature ->
             let pairToReturn =
-              if featureNameIsX featureName
+              if ShapeWidgets.featureNameIsX featureName
               then (nodeIdAndFeatureNameAndEquation, pairedFeature)
               else (pairedFeature, nodeIdAndFeatureNameAndEquation)
             in

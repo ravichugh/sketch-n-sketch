@@ -1980,7 +1980,7 @@ deucePopupPanel model =
           [ let
               activeTools =
                 List.concatMap
-                  (    List.filter (Utils.fst3 >> DeuceTools.isActive model)
+                  (    List.filter (Utils.fst3 >> DeuceTools.isActive)
                     >> Utils.mapi1 (deuceHoverMenu model)
                   )
                   model.deuceToolsAndResults

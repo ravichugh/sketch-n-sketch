@@ -228,10 +228,10 @@ type Axis = X | Y
 type Sign = Positive | Negative
 
 type Widget
-  = WIntSlider Int Int String Int Loc Bool
-  | WNumSlider Num Num String Num Loc Bool
-  | WPoint NumTr LazyVal NumTr LazyVal
-  | WOffset1D NumTr NumTr Axis Sign NumTr LazyVal LazyVal -- baseXNumTr baseYNumTr axis sign amountNumTr endXLazyVal endYLazyVal
+  = WIntSlider Int Int String Int Provenance Loc Bool
+  | WNumSlider Num Num String Num Provenance Loc Bool
+  | WPoint NumTr Provenance NumTr Provenance
+  | WOffset1D NumTr NumTr Axis Sign NumTr Provenance Provenance Provenance -- baseXNumTr baseYNumTr axis sign amountNumTr amountProvenance endXProvenance endYProvenance
 
 type alias Widgets = List Widget
 
@@ -252,12 +252,12 @@ type alias Token = WithInfo String
 
 type alias Caption = Maybe (WithInfo String)
 
-type alias Val = { v_ : Val_, lazyVal : LazyVal, parents : List LazyVal }
+type alias Val = { v_ : Val_, provenance : Provenance, parents : List Provenance }
 
 type Val_
-  = VConst (Maybe (Axis, NumTr, LazyVal)) NumTr -- Maybe (Axis, value in other dimension, lazyVal in other dimension)
+  = VConst (Maybe (Axis, NumTr, Provenance)) NumTr -- Maybe (Axis, value in other dimension, provenance in other dimension)
   | VBase VBaseVal
-  | VClosure (Maybe Ident) Pat Exp Env
+  | VClosure (Maybe Ident) (List Pat) Exp Env
   | VList (List Val)
   | VDict VDict_
 
@@ -294,10 +294,11 @@ allTraceLocs trace =
     TrLoc loc     -> [loc]
     TrOp _ traces -> List.concatMap allTraceLocs traces
 
-type LazyVal = LazyVal Env Exp
+type Provenance = Provenance Env Exp (List Val) -- Env, Exp, Vals immediately used to calculate this; "basedOn" provenance, like traces, ignores control flow.
 
-lazyValEnv (LazyVal env exp) = env
-lazyValExp (LazyVal env exp) = exp
+provenanceEnv     (Provenance env exp basedOn) = env
+provenanceExp     (Provenance env exp basedOn) = exp
+provenanceBasedOn (Provenance env exp basedOn) = basedOn
 
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
@@ -438,7 +439,7 @@ strNumTrunc k =
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
   let foo = strVal_ showTraces in
-  -- let sTrace = if showTraces then Utils.braces (toString v.lazyVal) else "" in
+  -- let sTrace = if showTraces then Utils.braces (toString v.provenance) else "" in
   -- sTrace ++
   case v.v_ of
     VConst maybeAxis (i,tr) -> strNum i ++ if showTraces then Utils.angleBracks (toString maybeAxis) ++ Utils.braces (strTrace tr) else ""
@@ -505,6 +506,10 @@ isLet e = case e.val.e__ of
 isList e = case e.val.e__ of
   EList _ _ _ _ _ -> True
   _               -> False
+
+isPair e = case e.val.e__ of
+  EList _ heads _ Nothing _ -> List.length heads == 2
+  _                         -> False
 
 isFunc e = case e.val.e__ of
   EFun _ _ _ _ -> True
@@ -1505,7 +1510,7 @@ strPos p =
 -- NOTE: the Exp builders use dummyPos
 
 -- val : Val_ -> Val
--- val = flip Val (LazyVal [] dummyExp)
+-- val = flip Val (Provenance [] dummyExp)
 
 exp_ : Exp__ -> Exp_
 exp_ = flip Exp_ (-1)
@@ -1577,7 +1582,7 @@ dummyTrace_ b = TrLoc (dummyLoc_ b)
 
 dummyLoc     = dummyLoc_ unann
 dummyTrace   = dummyTrace_ unann
-dummyLazyVal = LazyVal [] (eTuple0 [])
+dummyProvenance = Provenance [] (eTuple0 []) []
 
 eOp op_ es = withDummyExpInfo <| EOp space1 (withDummyRange op_) es space0
 
@@ -1590,8 +1595,9 @@ eStr0  = withDummyExpInfo << EBase space0 << EString defaultQuoteChar
 eTrue  = eBool True
 eFalse = eBool False
 
-eApp e es = withDummyExpInfo <| EApp space1 e es space0
-eFun ps e = withDummyExpInfo <| EFun space1 ps e space0
+eApp e es      = withDummyExpInfo <| EApp space1 e es space0
+eCall fName es = eApp (eVar fName) es
+eFun ps e      = withDummyExpInfo <| EFun space1 ps e space0
 
 desugarEApp e es = case es of
   []      -> Debug.crash "desugarEApp"
@@ -1688,9 +1694,12 @@ unwrapVList v =
 -- TODO names/types
 
 unwrapVList_ : String -> Val -> List Val_
-unwrapVList_ s v = case v.v_ of
-  VList vs -> List.map .v_ vs
-  _        -> Debug.crash <| "unwrapVList_: " ++ s
+unwrapVList_ s v = vListToVals s v |> List.map .v_
+
+vListToVals : String -> Val -> List Val
+vListToVals s v = case v.v_ of
+  VList vs -> vs
+  _        -> Debug.crash <| "vListToVals: " ++ s
 
 unwrapVBaseString_ : String -> Val_ -> String
 unwrapVBaseString_ s v_ = case v_ of

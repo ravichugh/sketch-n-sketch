@@ -213,6 +213,10 @@ addAsSet x xs =
   then xs
   else x::xs
 
+addAllAsSet : List a -> List a -> List a
+addAllAsSet xs ys =
+  ys |> List.foldl addAsSet xs
+
 removeAsSet : a -> List a -> List a
 removeAsSet x xs =
   List.filter ((/=) x) xs
@@ -899,6 +903,15 @@ projOk list =
       (Ok [])
       list
 
+-- Returns Err if function ever returns Err
+foldlResult : (a -> b -> Result err b) -> Result err b -> List a -> Result err b
+foldlResult f resultAcc list =
+  case (resultAcc, list) of
+    (Err err, _)    -> resultAcc
+    (Ok acc, x::xs) -> foldlResult f (f x acc) xs
+    (_, [])         -> resultAcc
+
+
 -- Use Tuple.mapFirst
 -- mapFst : (a -> a_) -> (a, b) -> (a_, b)
 -- mapFst f (a, b) = (f a, b)
@@ -931,7 +944,6 @@ bindResult res f =
 
 setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
-setCardinal = List.length << Set.toList
 
 parseInt   = fromOk_ << String.toInt
 parseFloat = fromOk_ << String.toFloat
@@ -1049,6 +1061,11 @@ uniPlusMinus   = "±"
 
 
 --------------------------------------------------------------------------------
+
+unwrapSingletonSet : Set.Set comparable -> comparable
+unwrapSingletonSet set = case Set.toList set of
+  [x] -> x
+  _   -> Debug.crash "unwrapSingletonSet"
 
 unwrap1 xs = case xs of
   [x1] -> x1

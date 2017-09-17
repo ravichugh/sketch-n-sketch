@@ -1,5 +1,5 @@
 module FastParser exposing
-  ( prelude, isPreludeLoc, isPreludeLocId, isPreludeEId
+  ( prelude, isPreludeLoc, isPreludeLocId, isPreludeEId, isActualEId, isProgramEId
   , substOf, substStrOf, substPlusOf
   , parseE, parseT
   , sanitizeVariableName
@@ -1621,6 +1621,12 @@ isPreludeLocId k = k < initK
 
 isPreludeEId : EId -> Bool
 isPreludeEId k = k < initK
+
+isActualEId : EId -> Bool
+isActualEId eid = eid >= 0
+
+isProgramEId : EId -> Bool
+isProgramEId eid = isActualEId eid && not (isPreludeEId eid)
 
 clearAllIds : Exp -> Exp
 clearAllIds root =

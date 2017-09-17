@@ -150,10 +150,10 @@ getLocationCounts options (slate, widgets) =
   in
   let addTriggerWidget widget acc =
     case widget of
-      WIntSlider _ _ _ _ loc _      -> updateCount loc acc
-      WNumSlider _ _ _ _ loc _      -> updateCount loc acc
-      WPoint (_, t1) _ (_, t2) _    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
-      WOffset1D _ _ _ _ (_, tr) _ _ -> Set.foldl updateCount acc (locsOfTrace options tr)
+      WIntSlider _ _ _ _ _ loc _      -> updateCount loc acc
+      WNumSlider _ _ _ _ _ loc _      -> updateCount loc acc
+      WPoint (_, t1) _ (_, t2) _      -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
+      WOffset1D _ _ _ _ (_, tr) _ _ _ -> Set.foldl updateCount acc (locsOfTrace options tr)
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
   let d_ = List.foldl addTriggerWidget d widgets in
@@ -377,7 +377,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
     let idAsShape = -2 - i in
     case widget of
 
-      WNumSlider minVal maxVal _ curVal loc _ ->
+      WNumSlider minVal maxVal _ curVal _ loc _ ->
         let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
             |> clamp minVal maxVal
@@ -392,7 +392,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WIntSlider a b _ c loc _ ->
+      WIntSlider a b _ c _ loc _ ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
@@ -410,7 +410,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WPoint (x, xTrace) xLazyVal (y, yTrace) yLazyVal ->
+      WPoint (x, xTrace) xProvenance (y, yTrace) yProvenance ->
         addTrigger options idAsShape (ZPoint LonePoint) [xTrace, yTrace]
         ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
             mapMaybeToList xMaybeLoc (\xLoc ->
@@ -424,7 +424,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WOffset1D baseXNumTr baseYNumTr axis sign (amount, amountTrace) endXLazyVal endYLazyVal ->
+      WOffset1D baseXNumTr baseYNumTr axis sign (amount, amountTrace) amountProvenance endXProvenance endYProvenance ->
         addTrigger options idAsShape ZOffset1D [amountTrace]
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->

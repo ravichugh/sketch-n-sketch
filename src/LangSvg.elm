@@ -542,7 +542,7 @@ toTransformRot a = case a.interpreted of
 
 
 -- Avoid using these going foward: no way to determine provenance.
-aVal av_      = { interpreted = av_, val = { v_ = VList [], lazyVal = dummyLazyVal, parents = [] } }
+aVal av_      = { interpreted = av_, val = { v_ = VList [], provenance = dummyProvenance, parents = [] } }
 aNum          = aVal << ANum
 aString       = aVal << AString
 aTransform    = aVal << ATransform
@@ -682,14 +682,36 @@ foldSlateNodeInfo slate acc f =
 ------------------------------------------------------------------------------
 -- Little Animations
 
--- TODO use options for better error messages
+-- [
+--   slideCount
+--   (slideNumber -> [ ; Slide Val
+--     slideMovieCount
+--     (slideMovieNumber -> [ ; Movie Val
+--       "Static"
+--       (slideNumber -> movieNumber -> SVG array structure) ; Frame Val
+--     ])
+--   ])
+-- ]
+-- or
+-- [
+--   slideCount
+--   (slideNumber -> [ ; Slide Val
+--     slideMovieCount
+--     (slideMovieNumber -> [ ; Movie Val
+--       "Dynamic"
+--       movieDuration
+--       (slideNumber -> movieNumber -> movieTime -> SVG array structure) ; Frame Val
+--       continueBool
+--     ])
+--   ])
+-- ]
 
 -- TODO use this to reduce clutter
 type alias AnimationKey = (Int, Int, Float)
 
 -- HACK: see LocEqn.traceToLocEquation...
 -- TODO: streamline Trace, LocEquation, etc.
-vNumFrozen n = { v_ = VConst Nothing (n, TrLoc (-999, frozen, toString n)), lazyVal = LazyVal [] (eConstDummyLoc0 n), parents = [] }
+vNumFrozen n = { v_ = VConst Nothing (n, TrLoc (-999, frozen, toString n)), provenance = Provenance [] (eConstDummyLoc0 n) [], parents = [] }
 vIntFrozen i = vNumFrozen (toFloat i)
 
 resolveToMovieCount : Int -> Val -> Result String Int
@@ -746,7 +768,7 @@ fetchMovieCount slideVal =
 fetchSlideVal : Int -> Val -> Result String Val
 fetchSlideVal slideNumber val =
   case unwrapVList val of
-    Just [VConst _ (slideCount, _), VClosure _ pat fexp fenv] ->
+    Just [VConst _ (slideCount, _), VClosure _ [pat] fexp fenv] ->
       -- Program returned the slide count and a
       -- function from slideNumber -> SVG array structure.
       case pat.val.p__ of -- Find that function's argument name
@@ -762,7 +784,7 @@ fetchSlideVal slideNumber val =
 fetchMovieVal : Int -> Val -> Result String Val
 fetchMovieVal movieNumber slideVal =
   case unwrapVList slideVal of
-    Just [VConst _ (movieCount, _), VClosure _ pat fexp fenv] ->
+    Just [VConst _ (movieCount, _), VClosure _ [pat] fexp fenv] ->
       case pat.val.p__ of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
           let fenv_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenv in
@@ -785,42 +807,24 @@ fetchMovieDurationAndContinueBool movieVal =
 fetchMovieFrameVal : Int -> Int -> Float -> Val -> Result String Val
 fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
   case unwrapVList movieVal of
-    Just [VBase (VString "Static"), VClosure _ pat fexp fenv] ->
-      case pat.val.p__ of -- Find the function's argument names
-        PVar _ slideNumberArgumentName _ ->
-          let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
-          case Eval.doEval fenv_ fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
-            Ok (VClosure _ patInner fexpInner fenvInner) ->
-              case patInner.val.p__ of
-                PVar _ movieNumberArgumentName _ ->
-                  let fenvInner_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner in
-                  Eval.doEval fenvInner_ fexpInner
-                  |> Result.map (\((returnVal, _), _) -> returnVal)
-                _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val.p__))
-            Ok v_ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString v_))
-            Err s -> Err s
-        _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString pat.val.p__))
-    Just [VBase (VString "Dynamic"), VConst _ (movieDuration, _), VClosure _ pat fexp fenv, VBase (VBool _)] ->
-      case pat.val.p__ of -- Find the function's argument names
-        PVar _ slideNumberArgumentName _ ->
-          let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
-          case Eval.doEval fenv_ fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
-            Ok (VClosure _ patInner1 fexpInner1 fenvInner1) ->
-              case patInner1.val.p__ of
-                PVar _ movieNumberArgumentName _ ->
-                  let fenvInner1_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner1 in
-                  case Eval.doEval fenvInner1_ fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
-                    Ok (VClosure _ patInner2 fexpInner2 fenvInner2) ->
-                      case patInner2.val.p__ of
-                        PVar _ movieSecondsArgumentName _ ->
-                          let fenvInner2_ = (movieSecondsArgumentName, vNumFrozen movieTime) :: fenvInner2 in
-                          Eval.doEval fenvInner2_ fexpInner2
-                          |> Result.map (\((returnVal, _), _) -> returnVal)
-                        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val.p__))
-                    Ok innerV2_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV2_))
-                    Err s -> Err s
-                _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner1.val.p__))
-            Ok innerV1_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV1_))
-            Err s -> Err s
-        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString pat.val.p__))
+    -- [
+    --   "Static"
+    --   (slideNumber -> movieNumber -> SVG array structure) ; Frame Val
+    -- ]
+    Just [VBase (VString "Static"), VClosure _ _ _ _] ->
+      let getFrameValClosure = movieVal |> vListToVals "fetchMovieFrameVal1" |> Utils.geti 2 in
+      Eval.doEval [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber)])
+      |> Result.map (\((returnVal, _), _) -> returnVal)
+
+    -- [
+    --   "Dynamic"
+    --   movieDuration
+    --   (slideNumber -> movieNumber -> movieTime -> SVG array structure) ; Frame Val
+    --   continueBool
+    -- ]
+    Just [VBase (VString "Dynamic"), VConst _ (movieDuration, _), VClosure _ _ _ _, VBase (VBool _)] ->
+      let getFrameValClosure = movieVal |> vListToVals "fetchMovieFrameVal2" |> Utils.geti 3 in
+      Eval.doEval [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber), eConstDummyLoc movieTime])
+      |> Result.map (\((returnVal, _), _) -> returnVal)
+
     _ -> Ok movieVal -- Program returned a plain SVG array structure...we hope.
