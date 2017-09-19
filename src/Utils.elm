@@ -1094,3 +1094,14 @@ isEven n =
 isOdd : Int -> Bool
 isOdd n =
   n % 2 == 1
+
+--------------------------------------------------------------------------------
+
+fromResult : Result a a -> a
+fromResult result =
+  case result of
+    Ok x ->
+      x
+
+    Err x ->
+      x

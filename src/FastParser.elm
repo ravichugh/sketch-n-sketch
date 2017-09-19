@@ -6,7 +6,6 @@ module FastParser exposing
   , clearAllIds
   , freshen
   , maxId
-  , showError
   )
 
 import List
@@ -18,124 +17,18 @@ import Dict exposing (Dict)
 
 import Parser exposing (..)
 import Parser.LanguageKit exposing (..)
-import Parser.LowLevel exposing (getPosition, getOffset, getSource)
+import Parser.LowLevel exposing (getOffset, getSource)
+
+import ParserUtils exposing (..)
+import LangParserUtils exposing (..)
 
 import Utils as U
 import PreludeGenerated as Prelude
 import Lang exposing (..)
 
 --==============================================================================
---= PARSER WITH INFO
---==============================================================================
-
-type alias ParserI a = Parser (WithInfo a)
-
---==============================================================================
 --= HELPERS
 --==============================================================================
-
---------------------------------------------------------------------------------
--- Helper Functions
---------------------------------------------------------------------------------
-
-singleton : a -> List a
-singleton x = [x]
-
---------------------------------------------------------------------------------
--- Parser Combinators
---------------------------------------------------------------------------------
-
-try : Parser a -> Parser a
-try parser =
-  delayedCommitMap always parser (succeed ())
-
-token : String -> Parser String
-token s =
-  map (always s) (keyword s)
-
-guard : String -> Bool -> Parser ()
-guard failReason pred =
-  if pred then (succeed ()) else (fail failReason)
-
---------------------------------------------------------------------------------
--- Info Helpers
---------------------------------------------------------------------------------
-
-getPos : Parser Pos
-getPos =
-  map posFromRowCol getPosition
-
-trackInfo : Parser a -> ParserI a
-trackInfo p =
-  delayedCommitMap
-    ( \start (a, end) ->
-        withInfo a start end
-    )
-    getPos
-    ( succeed (,)
-        |= p
-        |= getPos
-    )
-
-untrackInfo : ParserI a -> Parser a
-untrackInfo =
-  map (.val)
-
---------------------------------------------------------------------------------
--- Whitespace
---------------------------------------------------------------------------------
-
-isSpace : Char -> Bool
-isSpace c =
-  c == ' ' || c == '\n'
-
-isOnlySpaces : String -> Bool
-isOnlySpaces =
-  String.all isSpace
-
-spaces : Parser WS
-spaces =
-  trackInfo <| keep zeroOrMore isSpace
-
-guardSpace : ParserI ()
-guardSpace =
-  trackInfo
-    ( ( succeed (,)
-        |= getOffset
-        |= getSource
-      )
-      |> andThen
-      ( \(offset, source) ->
-          guard "expecting space" <|
-            isOnlySpaces <| String.slice offset (offset + 1) source
-      )
-    )
-
-spacedKeyword : String -> ParserI ()
-spacedKeyword kword =
-  trackInfo <|
-    succeed ()
-      |. keyword kword
-      |. guardSpace
-
-spaceSaverKeyword : String -> (WS -> a) -> ParserI a
-spaceSaverKeyword kword combiner =
-  delayedCommitMap
-    ( \ws _ ->
-        withInfo (combiner ws) ws.start ws.end
-    )
-    ( spaces )
-    ( keyword kword )
-
-
-spacesBefore : (WS -> a -> b) -> ParserI a -> ParserI b
-spacesBefore combiner p =
-  delayedCommitMap
-    ( \ws x ->
-        withInfo (combiner ws x.val) x.start x.end
-    )
-    spaces
-    p
 
 --------------------------------------------------------------------------------
 -- Block Helper
@@ -440,20 +333,13 @@ typeIdentifierString =
 --==============================================================================
 
 --------------------------------------------------------------------------------
--- General Pattern Helpers
---------------------------------------------------------------------------------
-
-mapPat_ : ParserI Pat__ -> Parser Pat
-mapPat_ = (map << mapInfo) pat_
-
---------------------------------------------------------------------------------
 -- Name Pattern Helper
 --------------------------------------------------------------------------------
 
 namePattern : ParserI Ident -> Parser Pat
 namePattern ident =
   mapPat_ <|
-    spacesBefore (\ws name -> PVar ws name noWidgetDecl) ident
+    paddedBefore (\ws name -> PVar ws name noWidgetDecl) ident
 
 --------------------------------------------------------------------------------
 -- Variable Pattern
@@ -481,7 +367,7 @@ constantPattern : Parser Pat
 constantPattern =
   mapPat_ <|
     inContext "constant pattern" <|
-      spacesBefore PConst num
+      paddedBefore PConst num
 
 --------------------------------------------------------------------------------
 -- Base Value Pattern
@@ -491,7 +377,7 @@ baseValuePattern : Parser Pat
 baseValuePattern =
   mapPat_ <|
     inContext "base value pattern" <|
-      spacesBefore PBase baseValue
+      paddedBefore PBase baseValue
 
 --------------------------------------------------------------------------------
 -- Pattern Lists
@@ -597,7 +483,7 @@ stringType =
 namedType : Parser Type
 namedType =
   inContext "named type" <|
-    spacesBefore TNamed typeIdentifierString
+    paddedBefore TNamed typeIdentifierString
 
 --------------------------------------------------------------------------------
 -- Variable Types
@@ -606,7 +492,7 @@ namedType =
 variableType : Parser Type
 variableType =
   inContext "variable type" <|
-    spacesBefore TVar variableIdentifierString
+    paddedBefore TVar variableIdentifierString
 
 --------------------------------------------------------------------------------
 -- Function Type
@@ -765,28 +651,17 @@ typ =
 --==============================================================================
 
 --------------------------------------------------------------------------------
--- General Expression Helpers
---------------------------------------------------------------------------------
-
-mapExp_ : ParserI Exp__ -> Parser Exp
-mapExp_ = (map << mapInfo) exp_
-
---------------------------------------------------------------------------------
 -- Identifier Expressions
 --------------------------------------------------------------------------------
 
 variableExpression : Parser Exp
 variableExpression =
   mapExp_ <|
-    spacesBefore EVar variableIdentifierString
+    paddedBefore EVar variableIdentifierString
 
 --------------------------------------------------------------------------------
 -- Constant Expressions
 --------------------------------------------------------------------------------
-
--- TODO interacts badly with auto-abstracted variable names...
-dummyLocWithDebugInfo : Frozen -> Num -> Loc
-dummyLocWithDebugInfo b n = (0, b, "")
 
 constantExpression : Parser Exp
 constantExpression =
@@ -811,8 +686,9 @@ constantExpression =
 
 baseValueExpression : Parser Exp
 baseValueExpression =
-  mapExp_ <|
-    spacesBefore EBase baseValue
+  inContext "base value expression"
+    mapExp_ <|
+      paddedBefore EBase baseValue
 
 --------------------------------------------------------------------------------
 -- Primitive Operators
@@ -1007,7 +883,7 @@ function =
   let
     parameters =
       oneOf
-        [ map singleton pattern
+        [ map List.singleton pattern
         , untrackInfo <| parenBlockIgnoreWS <| repeat oneOrMore pattern
         ]
   in
@@ -1417,7 +1293,7 @@ topLevelComment =
 topLevelOption : Parser TopLevelExp
 topLevelOption =
   inContext "top-level option" <|
-    spacesBefore
+    paddedBefore
       ( \wsStart (opt, wsMid, val) ->
           ( \rest ->
               exp_ <| EOption wsStart opt wsMid val rest
@@ -1514,80 +1390,6 @@ parseE = parseE_ freshen
 
 parseT : String -> Result Error Type
 parseT = run typ
-
---------------------------------------------------------------------------------
--- Error Handling
---------------------------------------------------------------------------------
-
-showIndentedProblem : Int -> Problem -> String
-showIndentedProblem n prob =
-  let
-    indent =
-      String.repeat (2 * n) " "
-  in
-    case prob of
-      BadOneOf probs ->
-        indent ++ "One of:\n" ++
-          String.concat (List.map (showIndentedProblem (n + 1)) probs)
-      BadInt ->
-        indent ++ "Bad integer value\n"
-      BadFloat ->
-        indent ++ "Bad float value\n"
-      BadRepeat ->
-        indent ++ "Parse of zero-length input indefinitely\n"
-      ExpectingEnd ->
-        indent ++ "Expecting end\n"
-      ExpectingSymbol s ->
-        indent ++ "Expecting symbol '" ++ s ++ "'\n"
-      ExpectingKeyword s ->
-        indent ++ "Expecting keyword '" ++ s ++ "'\n"
-      ExpectingVariable ->
-        indent ++ "Expecting variable\n"
-      ExpectingClosing s ->
-        indent ++ "Expecting closing string '" ++ s ++ "'\n"
-      Fail s ->
-        indent ++ "Parser failure: " ++ s ++ "\n"
-
-showError : Error -> String
-showError err =
-  let
-    prettyError =
-      let
-        sourceLines =
-          String.lines err.source
-        problemLine =
-          List.head (List.drop (err.row - 1) sourceLines)
-        arrow =
-          (String.repeat (err.col - 1) " ") ++ "^"
-      in
-        case problemLine of
-          Just line ->
-            line ++ "\n" ++ arrow ++ "\n\n"
-          Nothing ->
-            ""
-    showContext c =
-      "  (row: " ++ (toString c.row) ++", col: " ++ (toString c.col)
-      ++ ") Error while parsing '" ++ c.description ++ "'\n"
-    deepestContext =
-      case List.head err.context of
-        Just c ->
-          "Error while parsing '" ++ c.description ++ "':\n"
-        Nothing ->
-          ""
-  in
-    "[Parser Error]\n\n" ++
-      deepestContext ++ "\n" ++
-      prettyError ++
-    "Position\n" ++
-    "========\n" ++
-    "  Row: " ++ (toString err.row) ++ "\n" ++
-    "  Col: " ++ (toString err.col) ++ "\n\n" ++
-    "Problem\n" ++
-    "=======\n" ++
-      (showIndentedProblem 1 err.problem) ++ "\n" ++
-    "Context Stack\n" ++
-    "=============\n" ++
-      (String.concat <| List.map showContext err.context) ++ "\n\n"
 
 --------------------------------------------------------------------------------
 -- Code from old parser

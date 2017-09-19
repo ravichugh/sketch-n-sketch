@@ -8,72 +8,9 @@ import Set
 import Debug
 import Regex
 
+import Info exposing (..)
+import Pos exposing (..)
 import Utils
-
---------------------------------------------------------------------------------
--- Pos
---------------------------------------------------------------------------------
-
-type alias Pos =
-  { line : Int
-  , col : Int
-  }
-
-startPos : Pos
-startPos =
-  { line = 1
-  , col = 1
-  }
-
-dummyPos : Pos
-dummyPos =
-  { line = -1
-  , col = -1
-  }
-
-posFromRowCol : (Int, Int) -> Pos
-posFromRowCol (row, col) =
-  { line = row
-  , col = col
-  }
-
---------------------------------------------------------------------------------
--- WithPos
---------------------------------------------------------------------------------
-
-type alias WithPos a =
-  { val : a
-  , pos : Pos
-  }
-
---------------------------------------------------------------------------------
--- WithInfo
---------------------------------------------------------------------------------
-
-type alias WithInfo a =
-  { val : a
-  , start : Pos
-  , end : Pos
-  }
-
-withInfo : a -> Pos -> Pos -> WithInfo a
-withInfo x start end =
-  { val = x
-  , start = start
-  , end = end
-  }
-
-withDummyInfo : a -> WithInfo a
-withDummyInfo x =
-  withInfo x dummyPos dummyPos
-
-hasDummyInfo : WithInfo a -> Bool
-hasDummyInfo w =
-  (w.start, w.end) == (dummyPos, dummyPos)
-
-mapInfo : (a -> b) -> WithInfo a -> WithInfo b
-mapInfo f wa =
-  { wa | val = f wa.val }
 
 --------------------------------------------------------------------------------
 -- Whitespace
@@ -1546,6 +1483,10 @@ dummyTrace_ b = TrLoc (dummyLoc_ b)
 
 dummyLoc = dummyLoc_ unann
 dummyTrace = dummyTrace_ unann
+
+-- TODO interacts badly with auto-abstracted variable names...
+dummyLocWithDebugInfo : Frozen -> Num -> Loc
+dummyLocWithDebugInfo b n = (0, b, "")
 
 eOp op_ es = withDummyExpInfo <| EOp space1 (withDummyRange op_) es space0
 

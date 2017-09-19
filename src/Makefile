@@ -39,7 +39,10 @@ loc:
 	wc -l \
     ../build/out/index.html ../build/out/main.css \
     Lang.elm LangSvg.elm \
+		Info.elm Pos.elm \
+		ParserUtils.elm LangParserUtils.elm \
     FastParser.elm LangUnparser.elm \
+		ElmParser.elm ElmUnparser.elm \
     Types.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
     InterfaceModel.elm \
