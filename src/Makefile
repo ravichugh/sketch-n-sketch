@@ -39,8 +39,9 @@ loc:
 	wc -l \
     ../build/out/index.html ../build/out/main.css \
     Lang.elm LangSvg.elm \
+		ElmLang.elm \
 		Info.elm Pos.elm \
-		ParserUtils.elm LangParserUtils.elm \
+		ParserUtils.elm LangParserUtils.elm BinaryOperatorParser.elm \
     FastParser.elm LangUnparser.elm \
 		ElmParser.elm ElmUnparser.elm \
     Types.elm Eval.elm ShapeWidgets.elm \

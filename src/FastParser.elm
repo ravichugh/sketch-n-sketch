@@ -504,7 +504,7 @@ functionType =
     inContext "function type" <|
       parenBlock TArrow <|
         succeed identity
-          |. spacedKeyword "->"
+          |. keywordWithSpace "->"
           |= repeat oneOrMore typ
 
 --------------------------------------------------------------------------------
@@ -517,7 +517,7 @@ listType =
     lazy <| \_ ->
       parenBlock TList <|
         succeed identity
-          |. spacedKeyword "List"
+          |. keywordWithSpace "List"
           |= typ
 
 --------------------------------------------------------------------------------
@@ -533,7 +533,7 @@ dictType =
             TDict wsStart tKey tVal wsEnd
         )
         ( succeed (,)
-            |. spacedKeyword "TDict"
+            |. keywordWithSpace "TDict"
             |= typ
             |= typ
         )
@@ -595,7 +595,7 @@ forallType =
               TForall wsStart qs t wsEnd
           )
           ( succeed (,)
-              |. spacedKeyword "forall"
+              |. keywordWithSpace "forall"
               |= quantifiers
               |= typ
           )
@@ -610,7 +610,7 @@ unionType =
     lazy <| \_ ->
       parenBlock TUnion <|
         succeed identity
-          |. spacedKeyword "union"
+          |. keywordWithSpace "union"
           |= repeat oneOrMore typ
 
 --------------------------------------------------------------------------------
@@ -708,51 +708,51 @@ operator =
                 |. keyword "empty"
               -- Non-unary operators
             , succeed Cos
-                |. spacedKeyword "cos"
+                |. keywordWithSpace "cos"
             , succeed Sin
-                |. spacedKeyword "sin"
+                |. keywordWithSpace "sin"
             , succeed ArcCos
-                |. spacedKeyword "arccos"
+                |. keywordWithSpace "arccos"
             , succeed ArcSin
-                |. spacedKeyword "arcsin"
+                |. keywordWithSpace "arcsin"
             , succeed Floor
-                |. spacedKeyword "floor"
+                |. keywordWithSpace "floor"
             , succeed Ceil
-                |. spacedKeyword "ceiling"
+                |. keywordWithSpace "ceiling"
             , succeed Round
-                |. spacedKeyword "round"
+                |. keywordWithSpace "round"
             , succeed ToStr
-                |. spacedKeyword "toString"
+                |. keywordWithSpace "toString"
             , succeed Sqrt
-                |. spacedKeyword "sqrt"
+                |. keywordWithSpace "sqrt"
             , succeed Explode
-                |. spacedKeyword "explode"
+                |. keywordWithSpace "explode"
             , succeed Plus
-                |. spacedKeyword "+"
+                |. keywordWithSpace "+"
             , succeed Minus
-                |. spacedKeyword "-"
+                |. keywordWithSpace "-"
             , succeed Mult
-                |. spacedKeyword "*"
+                |. keywordWithSpace "*"
             , succeed Div
-                |. spacedKeyword "/"
+                |. keywordWithSpace "/"
             , succeed Lt
-                |. spacedKeyword "<"
+                |. keywordWithSpace "<"
             , succeed Eq
-                |. spacedKeyword "="
+                |. keywordWithSpace "="
             , succeed Mod
-                |. spacedKeyword "mod"
+                |. keywordWithSpace "mod"
             , succeed Pow
-                |. spacedKeyword "pow"
+                |. keywordWithSpace "pow"
             , succeed ArcTan2
-                |. spacedKeyword "arctan2"
+                |. keywordWithSpace "arctan2"
             , succeed DictInsert
-                |. spacedKeyword "insert"
+                |. keywordWithSpace "insert"
             , succeed DictGet
-                |. spacedKeyword "get"
+                |. keywordWithSpace "get"
             , succeed DictRemove
-                |. spacedKeyword "remove"
+                |. keywordWithSpace "remove"
             , succeed DebugLog
-                |. spacedKeyword "debug"
+                |. keywordWithSpace "debug"
             ]
     in
       inContext "operator" <|
@@ -780,7 +780,7 @@ conditional =
               EIf wsStart c a b wsEnd
           )
           ( succeed (,,)
-             |. spacedKeyword "if"
+             |. keywordWithSpace "if"
              |= exp
              |= exp
              |= exp
@@ -847,7 +847,7 @@ genericCase context kword combiner branchCombiner parser branchParser =
                 combiner wsStart c branches wsEnd
             )
             ( succeed (,)
-                |. spacedKeyword kword
+                |. keywordWithSpace kword
                 |= parser
                 |= repeat zeroOrMore path
             )
@@ -931,7 +931,7 @@ genericLetBinding context kword isRec =
             ELet wsStart Let isRec name binding rest wsEnd
         )
         ( succeed (,,)
-            |. spacedKeyword kword
+            |. keywordWithSpace kword
             |= pattern
             |= exp
             |= exp
@@ -953,7 +953,7 @@ genericDefBinding context kword isRec =
             |= trackInfo (symbol "(")
         )
         ( succeed (,,,,)
-            |. spacedKeyword kword
+            |. keywordWithSpace kword
             |= pattern
             |= exp
             |= spaces
@@ -1046,7 +1046,7 @@ typeDeclaration =
             |= trackInfo (symbol "(")
         )
         ( succeed (,,,,)
-            |. spacedKeyword "typ"
+            |. keywordWithSpace "typ"
             |= variablePattern
             |= typ
             |= spaces
@@ -1072,7 +1072,7 @@ typeAlias =
         ( succeed (,,)
             |= spaces
             |= trackInfo (symbol "(")
-            |. spacedKeyword "def "
+            |. keywordWithSpace "def "
             |= typePattern
         )
         ( succeed (,,,)
@@ -1194,7 +1194,7 @@ genericTopLevelDef context kword isRec =
           )
       )
       ( succeed (,)
-          |. spacedKeyword kword
+          |. keywordWithSpace kword
           |= pattern
           |= exp
       )
@@ -1229,7 +1229,7 @@ topLevelTypeDeclaration =
           )
       )
       ( succeed (,)
-          |. spacedKeyword "typ"
+          |. keywordWithSpace "typ"
           |= variablePattern
           |= typ
       )
@@ -1251,7 +1251,7 @@ topLevelTypeAlias =
       ( succeed (,,)
           |= spaces
           |= trackInfo (symbol "(")
-          |. spacedKeyword "def"
+          |. keywordWithSpace "def"
           |= typePattern
       )
       ( succeed (,,)

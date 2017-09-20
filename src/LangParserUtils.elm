@@ -1,5 +1,8 @@
 module LangParserUtils exposing
-  ( spacedKeyword
+  ( space
+  , spaces
+  , keywordWithSpace
+  , symbolWithSpace
   , spaceSaverKeyword
   , paddedBefore
   , paddedAfter
@@ -28,9 +31,15 @@ isOnlySpaces : String -> Bool
 isOnlySpaces =
   String.all isSpace
 
+space : Parser WS
+space =
+  trackInfo <|
+    keep (Exactly 1) isSpace
+
 spaces : Parser WS
 spaces =
-  trackInfo <| keep zeroOrMore isSpace
+  trackInfo <|
+    keep zeroOrMore isSpace
 
 guardSpace : ParserI ()
 guardSpace =
@@ -46,11 +55,18 @@ guardSpace =
       )
     )
 
-spacedKeyword : String -> ParserI ()
-spacedKeyword kword =
+keywordWithSpace : String -> ParserI ()
+keywordWithSpace kword =
   trackInfo <|
     succeed ()
       |. keyword kword
+      |. guardSpace
+
+symbolWithSpace : String -> ParserI ()
+symbolWithSpace sym =
+  trackInfo <|
+    succeed ()
+      |. symbol sym
       |. guardSpace
 
 spaceSaverKeyword : String -> (WS -> a) -> ParserI a

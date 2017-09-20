@@ -92,6 +92,9 @@ type Op_
   -- trinary ops
   | DictInsert
 
+type alias Operator =
+  (WS, Ident)
+
 type alias EId  = Int
 type alias PId  = Int
 type alias Exp_ = { e__ : Exp__, eid : EId }
@@ -2802,3 +2805,27 @@ firstNestedExp e =
       firstNestedExp eRest
     _ ->
       e
+
+--------------------------------------------------------------------------------
+-- Fixing operators in Elm syntax
+--------------------------------------------------------------------------------
+
+--fixOps : Exp -> Exp
+--fixOps =
+--  let
+--    fixOp e =
+--      let
+--        newE__ =
+--          case e.val.e__ of
+--            EApp ws1 function arguments ws2 ->
+--              case function of
+--                EVar wsBeforeIdentifier identifier ->
+--                  case getOpFromIdentifier identifier of
+--                    Just op ->
+--                      EOp wsBeforeIdentifier op arguments ws2
+--
+--                _ ->
+--                  e.val.e__
+--
+--  in
+--    map fixOp
