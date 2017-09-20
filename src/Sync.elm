@@ -8,6 +8,8 @@ module Sync exposing
   )
 
 import Lang exposing (..)
+import Pos exposing (..)
+import Info exposing (..)
 import LangSvg exposing
   ( NodeId, ShapeKind, Attr, RootedIndexedTree, IndexedTree
   , AVal, AVal_(..), TransformCmd(..), PathCmd(..)

@@ -2,6 +2,7 @@ module InterfaceModel exposing (..)
 
 import Updatable exposing (Updatable)
 import Lang exposing (..)
+import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
 import Sync exposing (ZoneKey)
@@ -18,6 +19,13 @@ import Either exposing (Either(..))
 import Keys
 import Svg
 import LangSvg exposing (attr)
+
+import Parser
+
+import FastParser
+import LangUnparser
+import ElmParser
+import ElmUnparser
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -88,6 +96,10 @@ type CodeToolsMenuMode
   = CTAll
   | CTActive
   | CTDisabled
+
+type ProgrammingLanguage
+  = Little
+  | Elm
 
 type alias Model =
   { code : Code
@@ -181,6 +193,7 @@ type alias Model =
   , pendingGiveUpMsg : Maybe Msg
   , giveUpConfirmed : Bool
   , lastSelectedTemplate : Maybe String
+  , programmingLanguage : ProgrammingLanguage
   }
 
 type Mode
@@ -921,6 +934,26 @@ deucePopupPanelShown model =
 
 --------------------------------------------------------------------------------
 
+parser : Model -> String -> Result Parser.Error Exp
+parser model =
+  case model.programmingLanguage of
+    Little ->
+      FastParser.parseE
+
+    Elm ->
+      ElmParser.parse
+
+unparser : Model -> Exp -> String
+unparser model =
+  case model.programmingLanguage of
+    Little ->
+      LangUnparser.unparse
+
+    Elm ->
+      ElmUnparser.unparse
+
+--------------------------------------------------------------------------------
+
 initTemplate : String
 initTemplate = "BLANK"
 
@@ -1055,4 +1088,5 @@ initModel =
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
+    , programmingLanguage = Elm
     }

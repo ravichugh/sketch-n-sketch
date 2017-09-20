@@ -1,6 +1,8 @@
 module Types exposing (..)
 
 import Lang exposing (..)
+import Pos exposing (..)
+import Info exposing (..)
 import FastParser as Parser
 import LangUnparser exposing (unparsePat, unparseType)
 import Utils

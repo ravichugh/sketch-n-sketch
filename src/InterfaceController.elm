@@ -78,8 +78,9 @@ import Updatable exposing (Updatable)
 import Lang exposing (..) --For access to what makes up the Vals
 import Types
 import Ace
-import FastParser exposing (parseE, freshen, showError)
-import LangUnparser exposing (unparse)
+import ParserUtils exposing (showError)
+import FastParser exposing (freshen)
+import LangUnparser
 import LangTools
 import LangSimplify
 import ValueBasedTransform
@@ -224,7 +225,7 @@ discardErrorAnnotations result =
 runWithErrorHandling model exp onOk =
   let result =
     -- runWithErrorHandling is called after synthesis. Recompute line numbers.
-    let reparsedResult = unparse exp |> parseE |> (Result.mapError showError) in
+    let reparsedResult = unparser model exp |> parser model |> (Result.mapError showError) in
     reparsedResult
     |> Result.andThen (\reparsed ->
       runAndResolve model reparsed
@@ -410,7 +411,7 @@ onMouseDrag lastPosition newPosition old =
 
       Eval.run newExp |> Result.andThen (\(newVal, newWidgets) ->
       LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
-        let newCode = unparse newExp in
+        let newCode = unparser old newExp in
         { old | code = newCode
               , lastRunCode = newCode
               , inputExp = newExp
@@ -452,7 +453,7 @@ onMouseUp old =
     (PrintScopeGraph _, _) -> old
 
     (_, MouseDragZone zoneKey (Just _)) ->
-      let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
+      let e = Utils.fromOkay "onMouseUp" <| parser old old.code in
       let old_ = { old | inputExp = e } in
       refreshHighlights zoneKey
         { old_ | mouseMode = MouseNothing, mode = refreshMode_ old_
@@ -502,7 +503,7 @@ tryRun old =
       in
         { old | history = updatedHistory }
   in
-    case parseE old.code of
+    case parser old old.code of
       Err err ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok e ->
@@ -524,7 +525,7 @@ tryRun old =
           Result.andThen (\((newVal,ws),finalEnv) ->
             LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
-              let newCode = unparse e in -- unnecessary, if parse/unparse were inverses
+              let newCode = unparser old e in -- unnecessary, if parse/unparse were inverses
               let lambdaTools_ =
                 -- TODO should put program into Model
                 -- TODO actually, ideally not. caching introduces bugs
@@ -1044,7 +1045,7 @@ refreshInputExp : Model -> Model
 refreshInputExp old =
   let
     parseResult =
-      parseE old.code
+      parser old old.code
     (newInputExp, codeClean) =
       case parseResult of
         Ok exp ->
@@ -1145,7 +1146,7 @@ cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, childr
 cleanDedupSortSynthesisResults synthesisResults =
   synthesisResults
   |> List.map cleanSynthesisResult
-  |> Utils.dedupBy (\(SynthesisResult {description, exp, sortKey, children}) -> unparse exp)
+  |> Utils.dedupBy (\(SynthesisResult {description, exp, sortKey, children}) -> LangUnparser.unparse exp)
   |> List.sortBy (\(SynthesisResult {description, exp, sortKey, children}) -> (LangTools.nodeCount exp, sortKey, description))
 
 maybeRunAutoSynthesis m e =
@@ -1154,12 +1155,12 @@ maybeRunAutoSynthesis m e =
     else []
 
 msgCleanCode = Msg "Clean Code" <| \old ->
-  case parseE old.code of
+  case parser old old.code of
     Err err ->
       { old | caption = Just (LangError (showError err)) }
     Ok reparsed ->
       let cleanedExp = LangSimplify.cleanCode reparsed in
-      let code_ = unparse cleanedExp in
+      let code_ = unparser old cleanedExp in
       if old.code == code_ then old
       else
         let _ = debugLog "Cleaned: " code_ in
@@ -1257,7 +1258,7 @@ msgIndexedRelate = Msg "Indexed Relate" <| \old ->
 
 msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   -- TODO unparse gets called twice, here and in runWith ...
-  let newCode = unparse newExp in
+  let newCode = unparser old newExp in
   let new =
     { old | code = newCode
           , lastRunCode = newCode
@@ -1462,7 +1463,7 @@ msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
 --------------------------------------------------------------------------------
 
 showExpPreview old exp =
-  let previewCode = unparse exp in
+  let previewCode = unparser old exp in
   case runAndResolve old exp of
     Ok (val, widgets, slate, _) ->
       { old | preview = Just (previewCode, Ok (val, widgets, slate)) }
@@ -1522,7 +1523,7 @@ msgPreview expOrCode = Msg "Preview" <| \old ->
   let previewExp =
     case expOrCode of
       Left exp   -> exp
-      Right code -> Utils.fromOkay "msgPreview" (parseE code)
+      Right code -> Utils.fromOkay "msgPreview" (parser old code)
   in
   showExpPreview old previewExp
 
@@ -1663,7 +1664,7 @@ handleNew template = (\old ->
       in
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
-        let code = unparse e in
+        let code = unparser old e in
         { initModel | inputExp      = e
                     , inputVal      = v
                     , code          = code
@@ -1886,7 +1887,7 @@ msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString w
 
 msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m ->
   -- TODO version of tryRun/upstateRun starting with parsed expression
-  upstateRun (resetDeuceState { m | code = unparse exp })
+  upstateRun (resetDeuceState { m | code = unparser m exp })
 
 --------------------------------------------------------------------------------
 -- DOT

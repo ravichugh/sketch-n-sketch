@@ -25,6 +25,8 @@ import LangParserUtils exposing (..)
 import Utils as U
 import PreludeGenerated as Prelude
 import Lang exposing (..)
+import Pos exposing (..)
+import Info exposing (..)
 
 --==============================================================================
 --= HELPERS
@@ -176,7 +178,7 @@ widgetDecl cap =
           [ succeed combiner
               |. symbol "{"
               |= num
-              |= trackInfo (token "-")
+              |= trackInfo (token "-" "-")
               |= num
               |. symbol "}"
           , succeed NoWidgetDecl
@@ -191,7 +193,7 @@ frozenAnnotation =
   inContext "frozen annotation" <|
     trackInfo <|
       oneOf <|
-        List.map token [frozen, thawed, assignOnlyOnce, unann]
+        List.map (\a -> token a a) [frozen, thawed, assignOnlyOnce, unann]
 
 --==============================================================================
 --= BASE VALUES
@@ -686,7 +688,7 @@ constantExpression =
 
 baseValueExpression : Parser Exp
 baseValueExpression =
-  inContext "base value expression"
+  inContext "base value expression" <|
     mapExp_ <|
       paddedBefore EBase baseValue
 

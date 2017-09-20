@@ -26,9 +26,10 @@ import InterfaceModel as Model exposing
 
 import InterfaceController as Controller
 
+import Info exposing (WithInfo)
+
 import Lang exposing
-  ( WithInfo
-  , WS
+  ( WS
   , BeforeAfter(..)
   , Exp
   , Exp__(..)
@@ -112,7 +113,7 @@ startEnd codeInfo codeObject =
         , codeInfo.maxLineLength + 1
         )
       -- Removal
-      else if Lang.hasDummyInfo info then
+      else if Info.hasDummyInfo info then
         (-100, -100, -100, -100)
       else
         (startLine, startCol, endLine, endCol)

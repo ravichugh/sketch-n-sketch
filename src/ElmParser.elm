@@ -16,6 +16,8 @@ import Lang exposing (..)
 import Info exposing (..)
 import ElmLang
 
+import FastParser
+
 --==============================================================================
 --= Helpers
 --==============================================================================
@@ -522,7 +524,7 @@ letBinding =
       mapExp_ <|
         paddedBefore
           ( \wsBefore (name, binding, body) ->
-              ELet wsBefore Let True name binding body space0
+              ELet wsBefore Let False name binding body space0
           )
           ( trackInfo <|
               delayedCommit (keywordWithSpace "let") <|
@@ -694,4 +696,4 @@ program =
 
 parse : String -> Result P.Error Exp
 parse =
-  run program
+  run (map FastParser.freshen program)
