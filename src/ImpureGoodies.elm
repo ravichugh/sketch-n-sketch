@@ -24,3 +24,11 @@ crashToNothing thunk =
 crashToError : (() -> a) -> Result String a
 crashToError thunk =
   Native.ImpureGoodies.crashToError thunk
+
+
+-- It's up to you to get the types right on this.
+-- Also, you can create pointer cycles with this (that's kind of the point)
+-- which can destroy your nice, otherwise total, functions.
+mutateRecordField : a -> String -> b -> a
+mutateRecordField record fieldName newValue =
+  Native.ImpureGoodies.mutateRecordField record fieldName newValue

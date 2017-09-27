@@ -167,7 +167,6 @@ type alias Model =
   , textSelectMode : TextSelectMode
   , enableTextEdits : Updatable Bool
   , allowMultipleTargetPositions : Bool
-  , enableDomainSpecificCodeTools : Bool
   , codeClean : Bool
   , mainResizerX : Maybe Int
   , savedSelections : Maybe (List Ace.Range)
@@ -215,7 +214,7 @@ type alias CodeBoxInfo =
 type alias RawSvg = String
 
 type Clickable
-  = PointWithProvenance NumTr Provenance NumTr Provenance
+  = PointWithProvenance NumTr Val NumTr Val
 
 type MouseMode
   = MouseNothing
@@ -945,13 +944,19 @@ noWidgetsSelected : Model -> Bool
 noWidgetsSelected model =
   List.isEmpty model.deuceState.selectedWidgets
 
+noOutputSelected : Model -> Bool
+noOutputSelected model =
+  Set.isEmpty model.selectedFeatures &&
+  Set.isEmpty model.selectedShapes &&
+  Dict.isEmpty model.selectedBlobs
+
 --------------------------------------------------------------------------------
 
 deucePopupPanelShown : Model -> Bool
 deucePopupPanelShown model =
   Utils.and
     [ model.enableDeuceBoxSelection
-    , not <| noWidgetsSelected model
+    , not <| (noWidgetsSelected model && noOutputSelected model)
     , not <| deuceRightClickMenuShown model
     , not <| configurationPanelShown model
     ]
@@ -1077,7 +1082,6 @@ initModel =
         Updatable.setUpdated << Updatable.create <| True
     , allowMultipleTargetPositions =
         False
-    , enableDomainSpecificCodeTools = False
     , codeClean = True
     , mainResizerX = Nothing
     , savedSelections = Nothing

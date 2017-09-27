@@ -542,7 +542,7 @@ toTransformRot a = case a.interpreted of
 
 
 -- Avoid using these going foward: no way to determine provenance.
-aVal av_      = { interpreted = av_, val = { v_ = VList [], provenance = dummyProvenance, parents = [] } }
+aVal av_      = { interpreted = av_, val = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] } }
 aNum          = aVal << ANum
 aString       = aVal << AString
 aTransform    = aVal << ATransform
@@ -711,7 +711,7 @@ type alias AnimationKey = (Int, Int, Float)
 
 -- HACK: see LocEqn.traceToLocEquation...
 -- TODO: streamline Trace, LocEquation, etc.
-vNumFrozen n = { v_ = VConst Nothing (n, TrLoc (-999, frozen, toString n)), provenance = Provenance [] (eConstDummyLoc0 n) [], parents = [] }
+vNumFrozen n = { v_ = VConst Nothing (n, TrLoc (-999, frozen, toString n)), provenance = Provenance [] (eConstDummyLoc0 n) [], parents = Parents [] }
 vIntFrozen i = vNumFrozen (toFloat i)
 
 resolveToMovieCount : Int -> Val -> Result String Int

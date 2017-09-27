@@ -227,11 +227,13 @@ type WidgetDecl_
 type Axis = X | Y
 type Sign = Positive | Negative
 
+-- Vals are for provenance
+-- Need actual vals because they are mutably tagged with parents.
 type Widget
-  = WIntSlider Int Int String Int Provenance Loc Bool
-  | WNumSlider Num Num String Num Provenance Loc Bool
-  | WPoint NumTr Provenance NumTr Provenance
-  | WOffset1D NumTr NumTr Axis Sign NumTr Provenance Provenance Provenance -- baseXNumTr baseYNumTr axis sign amountNumTr amountProvenance endXProvenance endYProvenance
+  = WIntSlider Int Int String Int Val Loc Bool
+  | WNumSlider Num Num String Num Val Loc Bool
+  | WPoint NumTr Val NumTr Val
+  | WOffset1D NumTr NumTr Axis Sign NumTr Val Val Val -- baseXNumTr baseYNumTr axis sign amountNumTr amountProvenance endXProvenance endYProvenance
 
 type alias Widgets = List Widget
 
@@ -252,10 +254,12 @@ type alias Token = WithInfo String
 
 type alias Caption = Maybe (WithInfo String)
 
-type alias Val = { v_ : Val_, provenance : Provenance, parents : List Provenance }
+type alias Val = { v_ : Val_, provenance : Provenance, parents : Parents }
+
+type Parents = Parents (List Val) -- Avoiding recursive type alias :(
 
 type Val_
-  = VConst (Maybe (Axis, NumTr, Provenance)) NumTr -- Maybe (Axis, value in other dimension, provenance in other dimension)
+  = VConst (Maybe (Axis, NumTr, Val)) NumTr -- Maybe (Axis, value in other dimension, Val with provenance in other dimension)
   | VBase VBaseVal
   | VClosure (Maybe Ident) (List Pat) Exp Env
   | VList (List Val)
@@ -438,15 +442,15 @@ strNumTrunc k =
 
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
-  let foo = strVal_ showTraces in
+  let recurse = strVal_ showTraces in
   -- let sTrace = if showTraces then Utils.braces (toString v.provenance) else "" in
   -- sTrace ++
   case v.v_ of
     VConst maybeAxis (i,tr) -> strNum i ++ if showTraces then Utils.angleBracks (toString maybeAxis) ++ Utils.braces (strTrace tr) else ""
     VBase b                 -> strBaseVal b
     VClosure _ _ _ _        -> "<fun>"
-    VList vs                -> Utils.bracks (String.join " " (List.map foo vs))
-    VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (foo v)) |> String.join " ") ++ ">"
+    VList vs                -> Utils.bracks (String.join " " (List.map recurse vs))
+    VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (recurse v)) |> String.join " ") ++ ">"
 
 strOp op = case op of
   Plus          -> "+"

@@ -5,6 +5,7 @@
 
 module DeuceTools exposing
   ( createToolCache
+  , createToolCacheMultipleInterpretations
   , reselectDeuceTool
   , updateRenameToolsInCache
   , isActive
@@ -56,19 +57,20 @@ type alias Selections =
   )
 
 selectedNumsAndBaseVals
-    : Model
+    : Exp
+   -> List DeuceWidget
    -> ( List (LocId, (WS, Num, Loc, WidgetDecl))
       , List (EId, (WS, EBaseVal))
       )
-selectedNumsAndBaseVals model =
+selectedNumsAndBaseVals program selectedWidgets =
   let noMatches = ([], []) in
   -- TODO may want to distinguish between different kinds of selected
   -- items earlier
-  model.deuceState.selectedWidgets
+  selectedWidgets
   |> List.map (\deuceWidget ->
        case deuceWidget of
          DeuceExp eid ->
-           case findExpByEId model.inputExp eid of
+           case findExpByEId program eid of
              Just ePlucked ->
                case ePlucked.val.e__ of
                  EConst ws n loc wd -> ([(eid, (ws, n, loc, wd))], [])
@@ -81,44 +83,44 @@ selectedNumsAndBaseVals model =
   |> List.unzip
   |> (\(l1,l2) -> (List.concat l1, List.concat l2))
 
-selectedNums : Model -> List (LocId, (WS, Num, Loc, WidgetDecl))
-selectedNums =
-  selectedNumsAndBaseVals >> Tuple.first
+selectedNums : Exp -> List DeuceWidget -> List (LocId, (WS, Num, Loc, WidgetDecl))
+selectedNums program selectedWidgets =
+  selectedNumsAndBaseVals program selectedWidgets |> Tuple.first
 
-selectedBaseVals : Model -> List (EId, (WS, EBaseVal))
-selectedBaseVals =
-  selectedNumsAndBaseVals >> Tuple.second
+selectedBaseVals : Exp -> List DeuceWidget -> List (EId, (WS, EBaseVal))
+selectedBaseVals program selectedWidgets =
+  selectedNumsAndBaseVals program selectedWidgets |> Tuple.second
 
-selectedExps : List DeuceWidget -> List EId
-selectedExps deuceWidgets =
+selectedEIds : List DeuceWidget -> List EId
+selectedEIds deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
       DeuceExp x -> [x]
       _ -> []
 
-selectedPats : List DeuceWidget -> List PathedPatternId
-selectedPats deuceWidgets =
+selectedPathedPatIds : List DeuceWidget -> List PathedPatternId
+selectedPathedPatIds deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
       DeucePat x -> [x]
       _ -> []
 
-selectedEquations : List DeuceWidget -> List EId
-selectedEquations deuceWidgets =
+selectedEquationEIds : List DeuceWidget -> List EId
+selectedEquationEIds deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
       DeuceLetBindingEquation x -> [x]
       _ -> []
 
-selectedExpTargets : List DeuceWidget -> List ExpTargetPosition
-selectedExpTargets deuceWidgets =
+selectedEIdTargets : List DeuceWidget -> List ExpTargetPosition
+selectedEIdTargets deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
       DeuceExpTarget x -> [x]
       _ -> []
 
-selectedPatTargets : List DeuceWidget -> List PatTargetPosition
-selectedPatTargets deuceWidgets =
+selectedPathedPatIdTargets : List DeuceWidget -> List PatTargetPosition
+selectedPathedPatIdTargets deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
       DeucePatTarget x -> [x]
@@ -2036,86 +2038,94 @@ alignExpressionsTool model selections =
 -- All Tools
 --------------------------------------------------------------------------------
 
-deuceTools : Model -> List (List DeuceTool)
-deuceTools model =
+
+selectionsTuple : Exp -> List DeuceWidget -> Selections
+selectionsTuple program selectedWidgets =
+  ( selectedNums program selectedWidgets
+  , selectedBaseVals program selectedWidgets
+  , selectedEIds selectedWidgets
+  , selectedPathedPatIds selectedWidgets
+  , selectedEquationEIds selectedWidgets
+  , selectedEIdTargets selectedWidgets
+  , selectedPathedPatIdTargets selectedWidgets
+  )
+
+toolList =
+  [ [ createFunctionTool
+    , createFunctionFromArgsTool
+    , mergeTool
+    ]
+  , [ addArgumentsTool
+    , removeArgumentsTool
+    , reorderArgumentsTool
+    ]
+  , [ renameVariableTool
+    , introduceVariableTool
+    , swapNamesAndUsagesTool
+    , swapUsagesTool
+    ]
+  , [ makeEqualTool
+    , copyExpressionTool
+    ]
+  , [ moveDefinitionTool
+    , swapDefinitionsTool
+    , inlineDefinitionTool
+    , duplicateDefinitionTool
+    ]
+  , [ reorderExpressionsTool
+    , swapExpressionsTool
+    ]
+  , [ makeSingleLineTool
+    , makeMultiLineTool
+    , alignExpressionsTool
+    ]
+  , [ thawFreezeTool
+    , addRemoveRangeTool
+    , showHideRangeTool
+    , rewriteOffsetTool
+    , convertColorStringTool
+    ]
+  , [ flipBooleanTool
+    ]
+  ]
+
+deuceToolsOf : Model -> List (List DeuceTool)
+deuceToolsOf model =
   let
-    {selectedWidgets} =
-      model.deuceState
-    nums =
-      selectedNums model
-    baseVals =
-      selectedBaseVals model
-    exps =
-      selectedExps selectedWidgets
-    pathedPatIds =
-      selectedPats selectedWidgets
-    letBindingEquations =
-      selectedEquations selectedWidgets
-    expTargets =
-      selectedExpTargets selectedWidgets
-    patTargets =
-      selectedPatTargets selectedWidgets
-    selections =
-      ( nums
-      , baseVals
-      , exps
-      , pathedPatIds
-      , letBindingEquations
-      , expTargets
-      , patTargets
-      )
+    selections = selectionsTuple model.inputExp model.deuceState.selectedWidgets
   in
-    List.map (List.map (\tool -> tool model selections)) <|
-      [ [ createFunctionTool
-        , createFunctionFromArgsTool
-        , mergeTool
-        ]
-      , [ addArgumentsTool
-        , removeArgumentsTool
-        , reorderArgumentsTool
-        ]
-      , [ renameVariableTool
-        , introduceVariableTool
-        , swapNamesAndUsagesTool
-        , swapUsagesTool
-        ]
-      , [ makeEqualTool
-        , copyExpressionTool
-        ]
-      , [ moveDefinitionTool
-        , swapDefinitionsTool
-        , inlineDefinitionTool
-        , duplicateDefinitionTool
-        ]
-      , [ reorderExpressionsTool
-        , swapExpressionsTool
-        ]
-      , [ makeSingleLineTool
-        , makeMultiLineTool
-        , alignExpressionsTool
-        ]
-      , if model.enableDomainSpecificCodeTools then
-          [ thawFreezeTool
-          , addRemoveRangeTool
-          , showHideRangeTool
-          , rewriteOffsetTool
-          , convertColorStringTool
-          ]
-        else
-          []
-      , [ flipBooleanTool
-        ]
-      ]
+  toolList
+  |> List.map (List.map (\tool -> tool model selections))
 
 createToolCache : Model -> List (List CachedDeuceTool)
 createToolCache model =
-  deuceTools model |> List.map (
+  deuceToolsOf model |> List.map (
     List.map (\deuceTool ->
       case runTool deuceTool of
         Just results -> (deuceTool, results, False)
         Nothing      -> (deuceTool, [], True)
     )
   )
+
+createToolCacheMultipleInterpretations : Model -> List (List DeuceWidget)-> List (List CachedDeuceTool)
+createToolCacheMultipleInterpretations model interpretations =
+  let selectionInterpretations =
+    interpretations
+    |> List.map (selectionsTuple model.inputExp)
+  in
+  let toolToCacheResults tool =
+    let
+      toolInterpretations =
+        selectionInterpretations |> List.map (\selections -> tool model selections)
+      toolResults =
+        toolInterpretations |> List.map runTool |> Utils.filterJusts |> List.concat
+      -- I don't think the context-sensitive menu uses any tool properties that vary between intepretations.
+      deuceTool = Utils.head "createToolCacheMultipleInterpretations" toolInterpretations
+    in
+    (deuceTool, toolResults, toolResults == [])
+  in
+  toolList
+  |> List.map (List.map toolToCacheResults)
 
 reselectDeuceTool : Model -> Model
 reselectDeuceTool model =
@@ -2139,7 +2149,7 @@ updateRenameToolsInCache almostNewModel =
     cachedAndNewDeuceTools =
       Utils.zipWith Utils.zip
         almostNewModel.deuceToolsAndResults
-        (deuceTools almostNewModel)
+        (deuceToolsOf almostNewModel)
           -- assumes that the new tools computed by deuceTools
           -- are the same as the cached ones
   in

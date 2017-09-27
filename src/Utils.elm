@@ -226,6 +226,15 @@ diffAsSet : List a -> List a -> List a
 diffAsSet xs ys =
   ys |> List.foldl removeAsSet xs
 
+-- O(nm)
+intersectAsSet : List a -> List a -> List a
+intersectAsSet xs ys =
+  xs |> List.filter (\x -> List.member x ys)
+
+unionAllAsSet : List (List a) -> List a
+unionAllAsSet lists =
+  List.foldl addAllAsSet [] lists
+
 removeAll = diffAsSet
 
 -- O(nm)

@@ -126,8 +126,6 @@ build wCanvas hCanvas model =
 buildSvg : (Model, Bool) -> LangSvg.RootedIndexedTree -> (Svg Msg)
 buildSvg (model, addZones) (i,d) = buildSvg_ (model, addZones) d i
 
--- START HERE
--- exploring why LangSvg.IndexedTree exists
 
 buildSvg_ : (Model, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> (Svg Msg)
 buildSvg_ (model, addZones) d i =
@@ -228,6 +226,9 @@ drawNewPointAndOffset shouldHighlight (x2, y2) (x1, y1) =
 
 --------------------------------------------------------------------------------
 -- Widget Layer
+
+dummyVal : Val
+dummyVal = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] }
 
 svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) maybeCaptionText isSelected extraStyles =
   let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
@@ -380,12 +381,12 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     in
     [region, box, text, ball]
   in
-  let drawPointWidget i_ widget (cx, cxTr) xProvenance (cy, cyTr) yProvenance =
+  let drawPointWidget i_ widget (cx, cxTr) xVal (cy, cyTr) yVal =
     let idAsShape = -2 - i_ in
-    zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xProvenance (cy, cyTr) yProvenance
+    zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xVal (cy, cyTr) yVal
     ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] [attrNum "cx" cx, attrNum "cy" cy]
   in
-  let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) endXProvenance endYProvenance =
+  let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) endXVal endYVal =
     let idAsShape = -2 - i_ in
     let isSelected = Set.member (idAsShape, "offset") model.selectedFeatures in
     let dragStyle =
@@ -404,7 +405,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       svgOffsetWidget1DArrowPartsAndEndPoint (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) maybeCaptionText shouldHighlight dragStyle
     in
     let endPt =
-      zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXProvenance endYNumTr endYProvenance
+      zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXVal endYNumTr endYVal
     in
     if amount /= 0 then
       [ Svg.g
@@ -421,18 +422,18 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       WNumSlider _ _ _ _ _ _ True -> []
       WIntSlider _ _ _ _ _ _ True -> []
 
-      WNumSlider minVal maxVal cap curVal provenance (k,_,_) False ->
+      WNumSlider minVal maxVal cap curVal val (k,_,_) False ->
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
-      WIntSlider a b cap c provenance (k,_,_) False ->
+      WIntSlider a b cap c val (k,_,_) False ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
-      WPoint xNumTr xProvenance yNumTr yProvenance ->
-        drawPointWidget i_ widget xNumTr xProvenance yNumTr yProvenance
+      WPoint xNumTr xVal yNumTr yVal ->
+        drawPointWidget i_ widget xNumTr xVal yNumTr yVal
 
-      WOffset1D baseXNumTr baseYNumTr axis sign amountNumTr amountProvenance endXProvenance endYProvenance ->
-        drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr endXProvenance endYProvenance
+      WOffset1D baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal ->
+        drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr endXVal endYVal
   in
 
   List.concat <| Utils.mapi1 draw widgets
@@ -1088,13 +1089,13 @@ svgXYDot (x, y) fill isVisible extraAttrs =
     ] ++ extraAttrs
 
 
-maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr xProvenance yNumTr yProvenance =
+maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr xVal yNumTr yVal =
   if sideLength < minLengthForMiddleZones then []
-  else zoneSelectCrossDot model False thisCrosshair xNumTr xProvenance yNumTr yProvenance
+  else zoneSelectCrossDot model False thisCrosshair xNumTr xVal yNumTr yVal
 
 zoneSelectCrossDot : Model -> Bool -> (Int, ShapeKind, PointFeature)
-                  -> NumTr -> Provenance -> NumTr -> Provenance -> List (Svg Msg)
-zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xProvenance yNumTr yProvenance =
+                  -> NumTr -> Val -> NumTr -> Val -> List (Svg Msg)
+zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNumTr yVal =
   let ((xFloat, _), (yFloat, _)) = (xNumTr, yNumTr) in
   let (x, y) = (round xFloat, round yFloat) in
   let xFeatureName = ShapeWidgets.unparseFeatureNum (Just kind) (XFeat pointFeature) in
@@ -1163,7 +1164,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xProvenan
         ]
       else
         [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->
-            { model | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xNumTr xProvenance yNumTr yProvenance)) } ]
+            { model | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xNumTr xVal yNumTr yVal)) } ]
     in
     svgXYDot (x, y) dotFill isVisible extraAttrs
   in
@@ -1235,8 +1236,8 @@ boxySelectZones model id kind boxyNums =
 
   let drawPoint maybeThreshold feature x y =
     case maybeThreshold of
-      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) (x, dummyTrace) dummyProvenance (y, dummyTrace) dummyProvenance
-      Nothing     -> zoneSelectCrossDot model False (id, kind, feature) (x, dummyTrace) dummyProvenance (y, dummyTrace) dummyProvenance in
+      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) (x, dummyTrace) dummyVal (y, dummyTrace) dummyVal
+      Nothing     -> zoneSelectCrossDot model False (id, kind, feature) (x, dummyTrace) dummyVal (y, dummyTrace) dummyVal in
 
   let drawLine threshold feature pt1 pt2 =
     maybeZoneSelectLine threshold model id kind feature pt1 pt2 in
@@ -1308,9 +1309,9 @@ makeZonesLine model id l =
   in
   let zonesSelect =
     List.concat
-       [ maybeZoneSelectCrossDot (distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) dummyProvenance (cy, dummyTrace) dummyProvenance
-       , zoneSelectCrossDot model False (id, "line", Point 1) (x1, dummyTrace) dummyProvenance (y1, dummyTrace) dummyProvenance
-       , zoneSelectCrossDot model False (id, "line", Point 2) (x2, dummyTrace) dummyProvenance (y2, dummyTrace) dummyProvenance]
+       [ maybeZoneSelectCrossDot (distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) dummyVal (cy, dummyTrace) dummyVal
+       , zoneSelectCrossDot model False (id, "line", Point 1) (x1, dummyTrace) dummyVal (y1, dummyTrace) dummyVal
+       , zoneSelectCrossDot model False (id, "line", Point 2) (x2, dummyTrace) dummyVal (y2, dummyTrace) dummyVal]
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
@@ -1437,10 +1438,10 @@ makeZonesPoly model shape id l =
     let midptCrossDot ((i1, ((xi1, xTr1), (yi1, yTr1))), (i2, ((xi2, xTr2), (yi2, yTr2)))) =
       let (midX, midXTr) = ((xi1+xi2)/2, TrOp Plus [xTr1, xTr2]) in -- Can't divide by two until we unify traces which will allow introduction of constants. Here it only affects drawing new offests (for now).
       let (midY, midYTr) = ((yi1+yi2)/2, TrOp Plus [yTr1, yTr2]) in -- Can't divide by two until we unify traces which will allow introduction of constants. Here it only affects drawing new offests (for now).
-      zoneSelectCrossDot model False (id, shape, Midpoint i1) (midX, midXTr) dummyProvenance (midY, midYTr) dummyProvenance
+      zoneSelectCrossDot model False (id, shape, Midpoint i1) (midX, midXTr) dummyVal (midY, midYTr) dummyVal
     in
     let ptCrossDot (i, (xNumTrI, yNumTrI)) =
-      zoneSelectCrossDot model False (id, shape, Point i) xNumTrI dummyProvenance yNumTrI dummyProvenance
+      zoneSelectCrossDot model False (id, shape, Point i) xNumTrI dummyVal yNumTrI dummyVal
     in
     let midptCrossDots =
       let ptsI = Utils.mapi1 identity pts in
@@ -1488,7 +1489,7 @@ makeZonesPath model shape id nodeAttrs =
   let zSelect =
     let ptCrossDot (maybeIndex, (xNumTr, yNumTr)) =
       let i = Utils.fromJust maybeIndex in
-      zoneSelectCrossDot model False (id, shape, Point i) xNumTr dummyProvenance yNumTr dummyProvenance
+      zoneSelectCrossDot model False (id, shape, Point i) xNumTr dummyVal yNumTr dummyVal
     in
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
     crossDots

@@ -25,6 +25,15 @@ var _user$project$Native_ImpureGoodies = {
         // Err (toString err)
         return _elm_lang$core$Result$Err(err.toString());
       }
-    }
+    },
 
+    mutateRecordField : function(record) { return function(fieldName) { return function(newValue) {
+      // Sanity check.
+      if (typeof record[fieldName] == typeof newValue) {
+        record[fieldName] = newValue;
+        return record;
+      } else {
+        throw "ImpureGoodies.mutateRecordField: types do not match" + (typeof record[fieldName]) + " vs " + (typeof newValue);
+      }
+    }}},
 };

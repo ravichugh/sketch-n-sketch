@@ -57,7 +57,6 @@ module InterfaceController exposing
   , msgSetTextSelectMode
   , msgSetEnableTextEdits
   , msgSetAllowMultipleTargetPositions
-  , msgSetEnableDomainSpecificCodeTools
   , msgSetSelectedDeuceTool
   , msgDeuceRightClick
   , msgDragMainResizer
@@ -273,7 +272,9 @@ onMouseClick click old maybeClickable =
       let pointToAdd =
         case maybeClickable of
           -- TODO revisit with better provenance smarts
-          Just (PointWithProvenance (snapX, snapXTr) (Provenance snapXEnv snapXExp snapXBasedOn) (snapY, snapYTr) (Provenance snapYEnv snapYExp snapYBasedOn)) ->
+          Just (PointWithProvenance (snapX, snapXTr) xVal (snapY, snapYTr) yVal) ->
+            let (Provenance snapXEnv snapXExp snapXBasedOn) = xVal.provenance in
+            let (Provenance snapYEnv snapYExp snapYBasedOn) = yVal.provenance in
             -- TODO static check
             if snapXExp.val.eid > 0 && snapYExp.val.eid > 0 then
               ((round snapX, SnapEId snapXExp.val.eid), (round snapY, SnapEId snapYExp.val.eid))
@@ -831,14 +832,9 @@ handleOutputSelectionChanges : Model -> Model -> (Model, Cmd Msg)
 handleOutputSelectionChanges oldModel newModel =
   if oldModel.selectedFeatures /= newModel.selectedFeatures || oldModel.selectedShapes /= newModel.selectedShapes || oldModel.selectedBlobs /= newModel.selectedBlobs then
     let
-      oldSelectedEIds = Maybe.withDefault [] <| List.head <| ShapeWidgets.selectionsEIdInterpretations oldModel.inputExp oldModel.slate oldModel.widgets oldModel.selectedFeatures oldModel.selectedShapes oldModel.selectedBlobs
-      newSelectedEIds = Maybe.withDefault [] <| List.head <| ShapeWidgets.selectionsEIdInterpretations newModel.inputExp newModel.slate newModel.widgets newModel.selectedFeatures newModel.selectedShapes newModel.selectedBlobs
-      widgetsToSelect   = Utils.diffAsSet newSelectedEIds oldSelectedEIds |> List.map DeuceExp
-      widgetsToDeselect = Utils.diffAsSet oldSelectedEIds newSelectedEIds |> List.map DeuceExp
-      newSelectedWidgets = (Utils.diffAsSet newModel.deuceState.selectedWidgets widgetsToDeselect) |> Utils.addAllAsSet widgetsToSelect
-      deuceState = newModel.deuceState
-      almostFinalModel = { newModel | deuceState = { deuceState | selectedWidgets = newSelectedWidgets } }
-      finalModel = { almostFinalModel | deuceToolsAndResults = DeuceTools.createToolCache almostFinalModel }
+      selectedEIdInterpretations = ShapeWidgets.selectionsProximalDistalEIdInterpretations newModel.inputExp newModel.slate newModel.widgets newModel.selectedFeatures newModel.selectedShapes newModel.selectedBlobs
+      deuceWidgetInterpretations = selectedEIdInterpretations |> List.map (List.map DeuceExp)
+      finalModel = { newModel | deuceToolsAndResults = DeuceTools.createToolCacheMultipleInterpretations newModel deuceWidgetInterpretations }
     in
     (finalModel, Cmd.none)
   else
@@ -1155,7 +1151,7 @@ msgMousePosition pos_ =
           onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_, maybeClickable) }
 
     deucePopupPanelPositionUpdater old =
-      if Model.noWidgetsSelected old then
+      if noWidgetsSelected old && noOutputSelected old then
         let
           newDeucePopupPanelPosition =
             ( pos_.x + deucePopupPanelMouseOffset.x
@@ -1830,7 +1826,6 @@ handleNew template = (\old ->
                     , textSelectMode           = old.textSelectMode
                     , enableTextEdits          = old.enableTextEdits
                     , allowMultipleTargetPositions  = old.allowMultipleTargetPositions
-                    , enableDomainSpecificCodeTools = old.enableDomainSpecificCodeTools
                     , mainResizerX             = old.mainResizerX
                     , colorScheme              = old.colorScheme
                     } |> resetDeuceState
@@ -1901,11 +1896,7 @@ resetDeuceState m =
   let layoutOffsets = m.layoutOffsets in
   { m | deuceState = emptyDeuceState
       , deuceToolsAndResults =
-          DeuceTools.createToolCache
-            { initModel
-                | enableDomainSpecificCodeTools =
-                    m.enableDomainSpecificCodeTools
-            }
+          DeuceTools.createToolCache initModel
       , selectedDeuceTool = Nothing
       , preview = Nothing
       , layoutOffsets =
@@ -2300,20 +2291,6 @@ msgSetAllowMultipleTargetPositions bool =
         | allowMultipleTargetPositions =
             bool
     } |> resetDeuceState
-
-msgSetEnableDomainSpecificCodeTools : Bool -> Msg
-msgSetEnableDomainSpecificCodeTools bool =
-  Msg "Set Enable Domain Specific Code Tools" <| \model ->
-    let almostNewModel =
-      { model
-          | enableDomainSpecificCodeTools =
-              bool
-      }
-    in
-      { almostNewModel
-          | deuceToolsAndResults =
-              DeuceTools.createToolCache almostNewModel
-      }
 
 --------------------------------------------------------------------------------
 -- Set the selected Deuce tool

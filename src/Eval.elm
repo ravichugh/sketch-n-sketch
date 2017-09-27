@@ -1,9 +1,10 @@
-module Eval exposing (run, doEval, provenanceToMaybeVal, parseAndRun, parseAndRun_, evalDelta, initEnv)
+module Eval exposing (run, doEval, parseAndRun, parseAndRun_, evalDelta, initEnv)
 
 import Debug
 import Dict
 import String
 
+import ImpureGoodies
 import Lang exposing (..)
 import LangUnparser exposing (unparse, unparsePat, unparseWithIds)
 import FastParser exposing (parseE, prelude)
@@ -30,7 +31,7 @@ match (p,v) = case (p.val.p__, v.v_) of
       let vRest =
         { v_ = VList vs2
         , provenance = Provenance (provenanceEnv v.provenance) (eApp (eVar0 "drop") [provenanceExp v.provenance, eConstDummyLoc (toFloat n)]) [v] -- TODO: should be based on "drop" prelude function and a dummy int. Doesn't matter for selected val -> program EId determination.
-        , parents = []
+        , parents = Parents []
         }
       in
       cons (rest, vRest) (matchList (Utils.zip ps vs1))
@@ -87,11 +88,12 @@ doEval initEnv e =
   |> Result.map (\((val, widgets), env) -> ((val, postProcessWidgets widgets), env))
 
 
-provenanceToMaybeVal : Provenance -> Maybe Val
-provenanceToMaybeVal (Provenance env e vs) =
-  eval env [] e
-  |> Result.map (\((val, widgets), env) -> val)
-  |> Result.toMaybe
+-- Do no use: you lose parent tagging.
+-- provenanceToMaybeVal : Provenance -> Maybe Val
+-- provenanceToMaybeVal (Provenance env e vs) =
+--   eval env [] e
+--   |> Result.map (\((val, widgets), env) -> val)
+--   |> Result.toMaybe
 
 
 -- eval propagates output environment in order to extract
@@ -109,25 +111,37 @@ eval env bt e =
 
   let makeProvenance basedOn = Provenance env e basedOn in
 
-  -- Deeply tag value with this provenance to say value flowed through here.
-  let addParent_ thisProvenance v =
-    if FastParser.isPreludeEId e.val.eid then
-      v
-    else
-      let newV_ =
-        case v.v_ of
-          VConst _ _       -> v.v_
-          VBase _          -> v.v_
-          VClosure _ _ _ _ -> v.v_
-          VList vals       -> VList (List.map (addParent_ thisProvenance) vals)
-          VDict dict       -> VDict (Dict.map (\_ val -> (addParent_ thisProvenance) val) dict)
-      in
-      { v | v_ = newV_, parents = thisProvenance::v.parents }
+  -- Deeply tag value's children to say the child flowed through here.
+  --
+  -- Need mutation in order to also affect values already bound to variables, etc.
+  let addParent_ vParent v =
+    let _ =
+      case v.v_ of
+        VConst _ _       -> ()
+        VBase _          -> ()
+        VClosure _ _ _ _ -> ()
+        VList vals       -> let _ = List.map (addParent_ vParent) vals                 in ()
+        VDict dict       -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) dict in ()
+    in
+    let (Parents priorParents) = v.parents in
+    let _ = ImpureGoodies.mutateRecordField v.parents "_0" (vParent::priorParents) in
+    ()
   in
-  let addParent v = addParent_ v.provenance v in
+  let addParent v =
+    if FastParser.isProgramEId e.val.eid then
+      case v.v_ of
+        VConst _ _       -> v
+        VBase _          -> v
+        VClosure _ _ _ _ -> v
+        VList vals       -> let _ = List.map (addParent_ v) vals               in v -- non-mutating: { v | v_ = VList (List.map (addParent_ v) vals) }
+        VDict dict       -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v -- non-mutating: { v | v_ = VDict (Dict.map (\_ val -> addParent_ v val) dict) }
+    else
+      v
+  in
 
-  -- Only use ret or retBoth for new values (i.e. not var lookups): they do not preserve parents
-  let retBoth basedOn (v_, ws) = ((addParent <| Val v_ (makeProvenance basedOn) [], ws), env) in
+  -- Only use introduceVal, ret, or retBoth for new values (i.e. not var lookups): they do not preserve parents
+  let introduceVal basedOn v_  = addParent <| Val v_ (makeProvenance basedOn) (Parents []) in
+  let retBoth basedOn (v_, ws) = ((introduceVal basedOn v_, ws), env) in
   let ret basedOn v_           = retBoth basedOn (v_, []) in
 
   let retV basedOn v                             = ((addParent { v | provenance = makeProvenance basedOn}, []), env) in
@@ -148,12 +162,15 @@ eval env bt e =
 
   EConst _ n loc wd ->
     let v_ = VConst Nothing (n, TrLoc loc) in
+    let retVal = introduceVal [] v_ in
     case wd.val of
-      NoWidgetDecl         -> Ok <| ret [] v_
+      NoWidgetDecl         -> Ok ((retVal, []), env)
       IntSlider a _ b mcap hidden ->
-        Ok <| retBoth [] (v_, [WIntSlider a.val b.val (mkCap mcap loc) (floor n) (makeProvenance []) loc hidden])
+        let widget = WIntSlider a.val b.val (mkCap mcap loc) (floor n) retVal loc hidden in
+        Ok ((retVal, [widget]), env)
       NumSlider a _ b mcap hidden ->
-        Ok <| retBoth [] (v_, [WNumSlider a.val b.val (mkCap mcap loc) n (makeProvenance []) loc hidden])
+        let widget = WNumSlider a.val b.val (mkCap mcap loc) n retVal loc hidden in
+        Ok ((retVal, [widget]), env)
 
   EBase _ v     -> Ok <| ret [] <| VBase (eBaseToVBase v)
   EVar _ x      -> Result.map (\v -> retV [v] v) <| lookupVar env (e::bt) x e.start
@@ -176,6 +193,8 @@ eval env bt e =
                   VList vs_ -> Ok <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_)
                   _         -> errorWithBacktrace (e::bt) <| strPos rest.start ++ " rest expression not a list."
 
+  -- Alternatively, could choose not to add a basedOn record for if/case/typecase (simply pass value through, maybe add parent)
+  -- But that would suggest that we *might* avoid doing so for EApp as well, which is more dubious. We'll see.
   EIf _ e1 e2 e3 _ ->
     case eval_ env bt e1 of
       Err s -> Err s
@@ -190,7 +209,7 @@ eval env bt e =
       Err s -> Err s
       Ok (v1,ws1) ->
         case evalBranches env (e::bt) v1 bs of
-          -- TODO: why is this retVBoth and not addProvenanceToRet?
+          -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
           Ok (Just (v2,ws2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s              -> Err s
           _                  -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
@@ -200,7 +219,7 @@ eval env bt e =
       Err s -> Err s
       Ok (v1,ws1) ->
         case evalTBranches env (e::bt) v1 tbranches of
-          -- TODO: why is this retVBoth and not addProvenanceToRet?
+          -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
           Ok (Just (v2,ws2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s              -> Err s
           _                  -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " non-exhaustive typecase statement"
@@ -214,47 +233,10 @@ eval env bt e =
       Ok (v1,ws1) ->
         case v1.v_ of
           VClosure maybeRecName ps funcBody closureEnv ->
-            -- Using this recursive function rather than desugaring to single
-            -- applications: cleaner provenance (one record for entire app).
-            let apply psLeft esLeft funcBody closureEnv =
-              case (psLeft, esLeft) of
-                ([], []) ->
-                  eval_ closureEnv bt_ funcBody
-
-                ([], esLeft) ->
-                  eval_ closureEnv bt_ funcBody
-                  |> Result.andThen
-                      (\(fRetVal1, fRetWs1) ->
-                        case fRetVal1.v_ of
-                          VClosure maybeRecName ps funcBody closureEnv ->
-                            case maybeRecName of
-                              Nothing    -> apply ps esLeft funcBody closureEnv                      |> Result.map (retAddWs fRetWs1)
-                              Just fName -> apply ps esLeft funcBody ((fName, fRetVal1)::closureEnv) |> Result.map (retAddWs fRetWs1)
-                          _ ->
-                            errorWithBacktrace (e::bt) <| strPos e1.start ++ " too many arguments given to function"
-                      )
-
-                (psLeft, []) ->
-                  let
-                    -- Based-on provenance is only concerned with concrete values, so the provenance here
-                    -- is moot (i.e. for an application (e1 e2) the provenance of e1 is ignored).
-                    -- The provenance that matters is already attached to the values in the closureEnv.
-                    finalVal = { v_ = VClosure Nothing psLeft funcBody closureEnv, provenance = dummyProvenance, parents = [] }
-                  in
-                  Ok (finalVal, [])
-
-                (p::psLeft, e::esLeft) ->
-                  case eval_ env bt_ e of
-                    Err s -> Err s
-                    Ok (argVal, argWs) ->
-                      case cons (p, argVal) (Just closureEnv) of
-                        Just closureEnv -> apply psLeft esLeft funcBody closureEnv |> Result.map (retAddWs argWs)
-                        Nothing         -> errorWithBacktrace (e::bt) <| strPos e1.start ++ " bad arguments to function"
-            in
             let funcRes =
               case maybeRecName of
-                Nothing    -> apply ps es funcBody closureEnv
-                Just fName -> apply ps es funcBody ((fName, v1)::closureEnv)
+                Nothing    -> apply env bt bt_ e ps es funcBody closureEnv
+                Just fName -> apply env bt bt_ e ps es funcBody ((fName, v1)::closureEnv)
             in
             -- Do not record dependence on closure (which function to execute is essentially control flow).
             -- Dependence on function is implicit by being dependent on some value computed by an expression in the function.
@@ -314,8 +296,8 @@ eval env bt e =
               VList [v1, v2] ->
                 case (v1.v_, v2.v_) of
                   (VConst _ nt1, VConst _ nt2) ->
-                    let vNew = {v | v_ = VList [{v1 | v_ = VConst (Just (X, nt2, v2.provenance)) nt1}, {v2 | v_ = VConst (Just (Y, nt1, v1.provenance)) nt2}]} in
-                    ((vNew, ws ++ [WPoint nt1 v1.provenance nt2 v2.provenance]), env_)
+                    let vNew = {v | v_ = VList [{v1 | v_ = VConst (Just (X, nt2, v2)) nt1}, {v2 | v_ = VConst (Just (Y, nt1, v1)) nt2}]} in
+                    ((vNew, ws ++ [WPoint nt1 v1 nt2 v2]), env_)
                   _ ->
                     result
               _ ->
@@ -344,7 +326,7 @@ evalOp env e bt opWithInfo es =
           <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
           ++ ":\n" ++ Utils.lines (Utils.zip vs es |> List.map (\(v,e) -> (strVal v) ++ " from " ++ (unparse e)))
       in
-      let addProvenance val_   = Val val_ (Provenance env e vs) [] in
+      let addProvenance val_   = Val val_ (Provenance env e vs) (Parents []) in
       let addProvenanceOk val_ = Ok (addProvenance val_) in
       let nullaryOp args retVal_ =
         case args of
@@ -418,8 +400,8 @@ evalOp env e bt opWithInfo es =
               |> Utils.mapi0
                   (\(i, charStr) ->
                     { v_ = VBase (VString charStr)
-                    , provenance = Provenance env (eApp (eVar0 "nth") [eOp Explode es, eConstDummyLoc (toFloat i)]) vs
-                    , parents = []
+                    , provenance = Provenance env (eCall "nth" [e, eConstDummyLoc (toFloat i)]) vs
+                    , parents = Parents []
                     }
                   )
               |> VList
@@ -435,38 +417,40 @@ evalOp env e bt opWithInfo es =
             [val] -> VBase (VString (strVal val)) |> addProvenanceOk
             _     -> error ()
       in
-      let newWidgets =
-        case (op, args, vs) of
-          (Plus, [VConst (Just (axis, otherDimNumTr, otherDirProvenance)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
-            let (baseXNumTr, baseYNumTr, endXProvenance, endYProvenance) =
-              if axis == X
-              then (numTr, otherDimNumTr, Provenance env e vs, otherDirProvenance)
-              else (otherDimNumTr, numTr, otherDirProvenance, Provenance env e vs)
-            in
-            [WOffset1D baseXNumTr baseYNumTr axis Positive amountNumTr amountVal.provenance endXProvenance endYProvenance]
-          (Plus, [VConst Nothing amountNumTr, VConst (Just (axis, otherDimNumTr, otherDirProvenance)) numTr], [amountVal, _]) ->
-            let (baseXNumTr, baseYNumTr, endXProvenance, endYProvenance) =
-              if axis == X
-              then (numTr, otherDimNumTr, Provenance env e vs, otherDirProvenance)
-              else (otherDimNumTr, numTr, otherDirProvenance, Provenance env e vs)
-            in
-            [WOffset1D baseXNumTr baseYNumTr axis Positive amountNumTr amountVal.provenance endXProvenance endYProvenance]
-          (Minus, [VConst (Just (axis, otherDimNumTr, otherDirProvenance)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
-            let (baseXNumTr, baseYNumTr, endXProvenance, endYProvenance) =
-              if axis == X
-              then (numTr, otherDimNumTr, Provenance env e vs, otherDirProvenance)
-              else (otherDimNumTr, numTr, otherDirProvenance, Provenance env e vs)
-            in
-            [WOffset1D baseXNumTr baseYNumTr axis Negative amountNumTr amountVal.provenance endXProvenance endYProvenance]
-          _ -> []
-      in
-      let widgets =
-        case op of
-          NoWidgets -> []
-          _         -> List.concat wss ++ newWidgets
-      in
-      newValRes
-      |> Result.map (\newVal -> (newVal, widgets))
+      case newValRes of
+        Err s     -> Err s
+        Ok newVal ->
+          let newWidgets =
+            case (op, args, vs) of
+              (Plus, [VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
+                let (baseXNumTr, baseYNumTr, endXVal, endYVal) =
+                  if axis == X
+                  then (numTr, otherDimNumTr, newVal, otherDirVal)
+                  else (otherDimNumTr, numTr, otherDirVal, newVal)
+                in
+                [WOffset1D baseXNumTr baseYNumTr axis Positive amountNumTr amountVal endXVal endYVal]
+              (Plus, [VConst Nothing amountNumTr, VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr], [amountVal, _]) ->
+                let (baseXNumTr, baseYNumTr, endXVal, endYVal) =
+                  if axis == X
+                  then (numTr, otherDimNumTr, newVal, otherDirVal)
+                  else (otherDimNumTr, numTr, otherDirVal, newVal)
+                in
+                [WOffset1D baseXNumTr baseYNumTr axis Positive amountNumTr amountVal endXVal endYVal]
+              (Minus, [VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
+                let (baseXNumTr, baseYNumTr, endXVal, endYVal) =
+                  if axis == X
+                  then (numTr, otherDimNumTr, newVal, otherDirVal)
+                  else (otherDimNumTr, numTr, otherDirVal, newVal)
+                in
+                [WOffset1D baseXNumTr baseYNumTr axis Negative amountNumTr amountVal endXVal endYVal]
+              _ -> []
+          in
+          let widgets =
+            case op of
+              NoWidgets -> []
+              _         -> List.concat wss ++ newWidgets
+          in
+          Ok (newVal, widgets)
 
 
 -- Returns Ok Nothing if no branch matches
@@ -529,6 +513,45 @@ evalDelta bt op is =
     _                -> crashWithBacktrace bt <| "Little evaluator bug: Eval.evalDelta " ++ strOp op
 
 
+-- Using this recursive function rather than desugaring to single
+-- applications: cleaner provenance (one record for entire app).
+apply env bt bt_ e psLeft esLeft funcBody closureEnv =
+  let recurse = apply env bt bt_ e in
+  case (psLeft, esLeft) of
+    ([], []) ->
+      eval_ closureEnv bt_ funcBody
+
+    ([], esLeft) ->
+      eval_ closureEnv bt_ funcBody
+      |> Result.andThen
+          (\(fRetVal1, fRetWs1) ->
+            case fRetVal1.v_ of
+              VClosure maybeRecName ps funcBody closureEnv ->
+                case maybeRecName of
+                  Nothing    -> recurse ps esLeft funcBody closureEnv                      |> Result.map (\(v2, ws2) -> (v2, fRetWs1 ++ ws2))
+                  Just fName -> recurse ps esLeft funcBody ((fName, fRetVal1)::closureEnv) |> Result.map (\(v2, ws2) -> (v2, fRetWs1 ++ ws2))
+              _ ->
+                errorWithBacktrace (e::bt) <| strPos e.start ++ " too many arguments given to function"
+          )
+
+    (psLeft, []) ->
+      let
+        -- Based-on provenance is only concerned with concrete values, so the provenance here
+        -- is moot (i.e. for an application (e1 e2) the provenance of e1 is ignored).
+        -- The provenance that matters is already attached to the values in the closureEnv.
+        finalVal = { v_ = VClosure Nothing psLeft funcBody closureEnv, provenance = dummyProvenance, parents = Parents [] }
+      in
+      Ok (finalVal, [])
+
+    (p::psLeft, e::esLeft) ->
+      case eval_ env bt_ e of
+        Err s -> Err s
+        Ok (argVal, argWs) ->
+          case cons (p, argVal) (Just closureEnv) of
+            Just closureEnv -> recurse psLeft esLeft funcBody closureEnv |> Result.map (\(v2, ws2) -> (v2, argWs ++ ws2))
+            Nothing         -> errorWithBacktrace (e::bt) <| strPos e.start ++ " bad arguments to function"
+
+
 eBaseToVBase eBaseVal =
   case eBaseVal of
     EBool b     -> VBool b
@@ -548,7 +571,7 @@ valToDictKey bt val_ =
       |> List.map ((valToDictKey bt) << .v_)
       |> Utils.projOk
       |> Result.map (\keyStrings -> (toString keyStrings, "list"))
-    _                 -> errorWithBacktrace bt <| "Cannot use " ++ (strVal { v_ = val_, provenance = dummyProvenance, parents = [] }) ++ " in a key to a dictionary."
+    _                 -> errorWithBacktrace bt <| "Cannot use " ++ (strVal { v_ = val_, provenance = dummyProvenance, parents = Parents [] }) ++ " in a key to a dictionary."
 
 
 postProcessWidgets widgets =

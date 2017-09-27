@@ -1,14 +1,13 @@
 module ShapeWidgets exposing (..)
 
-import Eval
-import FastParser
 import Lang exposing (..)
 import LangSvg exposing (RootedIndexedTree, IndexedTree, NodeId, ShapeKind, Attr, AVal)
+import Provenance
 import Utils
 
 import Dict
 import Regex
-import Set
+import Set exposing (Set)
 import String
 
 
@@ -530,7 +529,7 @@ type alias BoxyFeatureEquationsOf a =
 
 
 twoNumTr  = EqnNum (2, dummyTrace)
-twoVal    = EqnNum (Val (VConst Nothing (2, dummyTrace)) (Provenance [] (eConst0 2 dummyLoc) []) [])
+twoVal    = EqnNum (Val (VConst Nothing (2, dummyTrace)) (Provenance [] (eConst0 2 dummyLoc) []) (Parents []))
 plus a b  = EqnOp Plus [a, b]
 minus a b = EqnOp Minus [a, b]
 div a b   = EqnOp Div [a, b]
@@ -672,21 +671,15 @@ widgetFeatureEquation featureName widget locIdToNumberAndLoc =
 widgetFeatureValEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureValEquation
 widgetFeatureValEquation featureName widget locIdToNumberAndLoc =
   case widget of
-    WIntSlider low high caption curVal provenance (locId,_,_) _ ->
-      case Eval.provenanceToMaybeVal provenance of
-        Just val -> EqnNum val
-        Nothing  -> Debug.crash <| "ShapeWidgets.widgetFeatureValEquation bad WIntSlider provenance"
-    WNumSlider low high caption curVal provenance (locId,_,_) _ ->
-      case Eval.provenanceToMaybeVal provenance of
-        Just val -> EqnNum val
-        Nothing  -> Debug.crash <| "ShapeWidgets.widgetFeatureValEquation bad WNumSlider provenance"
-    WPoint (x, xTr) xProvenance (y, yTr) yProvenance ->
+    WIntSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
+    WNumSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
+    WPoint (x, xTr) xVal (y, yTr) yVal ->
       let featureNum = parseFeatureNum featureName in
       case featureNum of
-        XFeat LonePoint -> Eval.provenanceToMaybeVal xProvenance |> Maybe.map EqnNum |> Utils.fromJust_ "widgetFeatureValEquation bad WPoint XFeat provenance"
-        YFeat LonePoint -> Eval.provenanceToMaybeVal yProvenance |> Maybe.map EqnNum |> Utils.fromJust_ "widgetFeatureValEquation bad WPoint YFeat provenance"
+        XFeat LonePoint -> EqnNum xVal
+        YFeat LonePoint -> EqnNum yVal
         _               -> Debug.crash <| "widgetFeatureValEquation WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ featureName
-    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountProvenance endXProvenance endYProvenance ->
+    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountVal endXVal endYVal ->
       let featureNum = parseFeatureNum featureName in
       let op =
         case sign of
@@ -694,9 +687,9 @@ widgetFeatureValEquation featureName widget locIdToNumberAndLoc =
           Negative -> Minus
       in
       case featureNum of
-        DFeat Offset   -> Eval.provenanceToMaybeVal amountProvenance |> Maybe.map EqnNum |> Utils.fromJust_ "widgetFeatureValEquation bad WOffset1D DFeat provenance"
-        XFeat EndPoint -> Eval.provenanceToMaybeVal endXProvenance   |> Maybe.map EqnNum |> Utils.fromJust_ "widgetFeatureValEquation bad WOffset1D XFeat provenance"
-        YFeat EndPoint -> Eval.provenanceToMaybeVal endYProvenance   |> Maybe.map EqnNum |> Utils.fromJust_ "widgetFeatureValEquation bad WOffset1D YFeat provenance"
+        DFeat Offset   -> EqnNum amountVal
+        XFeat EndPoint -> EqnNum endXVal
+        YFeat EndPoint -> EqnNum endYVal
         _              -> Debug.crash <| "widgetFeatureValEquation WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ featureName
 
 
@@ -1138,58 +1131,53 @@ featureValEquationToValTree valEqn =
     EqnNum val        -> val
     EqnOp op children ->
       let childVals = List.map featureValEquationToValTree children in
-      -- Only need Provenance-basedOn list and the EId of the expression (dummy here)
+      -- Only need Provenance basedOn list and the EId of the expression (dummy here)
       { v_         = VList []
       , provenance = Provenance [] (eTuple []) childVals
-      , parents    = []
+      , parents    = Parents []
       }
 
--- All possible interpretations of "which expressions brought this value into being".
---
--- Namely, the provenance forms a tree of values: the below returns the EId sets associated
--- with the leaves of all possible prunings if that tree of values.
---
--- Or, as written below, a value comes from either:
---   1. The immediate expression that produced the value OR
---   2. Any combination of the expressions that produced the values this value was based on.
---
--- Expressions outside of the program (i.e. in the Prelude) are ignored.
---
--- Example, eids given as letters:
---
--- (def var 10_b)_a
---
--- (+ 20_d (sqrt_f var_g)_e)_c
---
--- Interpretations are:
--- [ {c}
--- , {d, e}
--- , {d, g}
--- , {d, b}
--- ]
---
--- Note: Expression f does not appear in the provenance--which function to call is
--- considered "control flow".
-valTreeToProgramEIdInterpretations : Val -> List (Set.Set EId)
-valTreeToProgramEIdInterpretations val =
-  let (Provenance _ exp basedOnVals) = val.provenance in
-  let perhapsThisExp = if FastParser.isProgramEId exp.val.eid then [Set.singleton exp.val.eid] else [] in
-  basedOnVals
-  |> List.map valTreeToProgramEIdInterpretations
-  |> Utils.oneOfEach
-  |> List.map Utils.unionAll
-  |> (++) perhapsThisExp
-  |> Utils.dedupByEquality
-
-
-featureValEquationToEIdSets : FeatureValEquation -> List (Set.Set EId)
+-- Unused: combinatorical explosion of interpretations.
+featureValEquationToEIdSets : FeatureValEquation -> List (Set EId)
 featureValEquationToEIdSets valEqn =
   valEqn
   |> featureValEquationToValTree
-  |> valTreeToProgramEIdInterpretations
+  |> Provenance.valTreeToAllProgramEIdInterpretationsIgnoringPreludeSubtrees
   -- |> Debug.log "eids"
 
-selectionsEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set.Set SelectedShapeFeature -> Set.Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
+featureValEquationToProximalDistalEIdSets : FeatureValEquation -> (Set EId, Set EId)
+featureValEquationToProximalDistalEIdSets valEqn =
+  let valTree = valEqn |> featureValEquationToValTree in
+  ( Provenance.valTreeToMostProximalProgramEIdInterpretation valTree
+  , Provenance.valTreeToMostDistalProgramEIdInterpretation valTree
+  )
+
+-- Only two interpretations: most proximal for each feature, and most distal.
+selectionsProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
+selectionsProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs =
+  let (featureProximalEIds, featureDistalEIds) =
+    selectedFeaturesToProximalDistalEIdInterpretations program slate widgets (Set.toList selectedFeatures)
+  in
+  let (otherProximalEIds, otherDistalEIds) =
+    [ selectedShapesToProximalDistalEIdInterpretations        program slate widgets (Set.toList selectedShapes)
+    , selectedBlobsToProximalDistalEIdInterpretations         program slate widgets (Dict.toList selectedBlobs)
+    ]
+    |> List.unzip
+    |> Utils.mapBoth Utils.unionAll
+  in
+  let (pointProximalInterps, pointDistalInterps) =
+    selectedFeaturesToProximalDistalPointEIdInterpretations program slate widgets (Set.toList selectedFeatures)
+  in
+  [ Set.union featureProximalEIds otherProximalEIds
+  , Set.union featureDistalEIds   otherDistalEIds
+  ] ++
+  List.map (Set.union otherProximalEIds) pointProximalInterps ++
+  List.map (Set.union otherDistalEIds)   pointDistalInterps
+  |> List.map Set.toList
+  |> Utils.dedup
+
+-- Unused: combinatorical explosion of interpretations.
+selectionsEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
 selectionsEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs =
   selectedFeaturesToEIdInterpretationLists program slate widgets (Set.toList selectedFeatures) ++
   selectedShapesToEIdInterpretationLists   program slate widgets (Set.toList selectedShapes) ++
@@ -1197,12 +1185,83 @@ selectionsEIdInterpretations program ((rootI, shapeTree) as slate) widgets selec
   |> Utils.oneOfEach
   |> List.map Utils.unionAll
   |> List.map Set.toList
-  |> Utils.dedupByEquality
+  |> Utils.dedup
 
-selectedFeaturesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> List (List (Set.Set EId))
+-- Heuristic: Closest and farthest interpretation only.
+selectedFeaturesToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> (Set EId, Set EId)
+selectedFeaturesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures =
+  let (proximalEIdSets, distalEIdSets) =
+    selectedFeatures
+    |> List.map
+        (\(nodeId, shapeFeature) ->
+          selectedShapeFeatureToValEquation (nodeId, shapeFeature) shapeTree widgets Dict.empty
+          |> Utils.fromJust_ "selectedFeaturesToEIdLists: can't make feature into val equation"
+          |> featureValEquationToProximalDistalEIdSets
+        )
+    |> List.unzip
+  in
+  ( Utils.unionAll proximalEIdSets
+  , Utils.unionAll distalEIdSets
+  )
+
+-- Returns multiple proximal and distal interpretations (b/c of some edge cases where most proximal/distal for x is not the most proximal/distal for y).
+--
+-- Features not part of points are still interpretated.
+selectedFeaturesToProximalDistalPointEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> (List (Set EId), List (Set EId))
+selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures =
+  let recurse remainingFeatures =
+    selectedFeaturesToProximalDistalPointEIdInterpretations program slate widgets remainingFeatures
+  in
+  case selectedFeatures of
+    [] -> ([Set.empty], [Set.empty])
+    (nodeId, shapeFeature)::rest ->
+      let returnNotPartOfAPoint () =
+        let (thisProximalInterp, thisDistalInterp) =
+          selectedShapeFeatureToValEquation (nodeId, shapeFeature) shapeTree widgets Dict.empty
+          |> Utils.fromJust_ "selectedFeaturesToProximalDistalPointEIdInterpretations0: can't make feature into val equation"
+          |> featureValEquationToProximalDistalEIdSets
+        in
+        let (remainingProximalInterps, remainingDistalInterps) = recurse rest in
+        ( remainingProximalInterps |> List.map (Set.union thisProximalInterp)
+        , remainingDistalInterps   |> List.map (Set.union thisDistalInterp)
+        )
+      in
+      -- Try to interpret as point?
+      case rest |> Utils.findFirst (\(otherNodeId, otherShapeFeature) -> nodeId == otherNodeId && featuresNamesAreXYPairs shapeFeature otherShapeFeature) of
+        Just (otherNodeId, otherShapeFeature) ->
+          let (xNodeId, yNodeId, xShapeFeature, yShapeFeature) =
+            if featureNameIsX shapeFeature
+            then (nodeId, otherNodeId, shapeFeature, otherShapeFeature)
+            else (otherNodeId, nodeId, otherShapeFeature, shapeFeature)
+          in
+          let xValEqn = selectedShapeFeatureToValEquation (xNodeId, xShapeFeature) shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists1: can't make feature into val equation" in
+          let yValEqn = selectedShapeFeatureToValEquation (yNodeId, yShapeFeature) shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" in
+          let xValTree = featureValEquationToValTree xValEqn in
+          let yValTree = featureValEquationToValTree yValEqn in
+          let (proximalInterp1, proximalInterp2, distalInterp1, distalInterp2) =
+            Provenance.valsToProximalDistalPointInterpretations xValTree yValTree
+          in
+          -- If code written correctly, there should be a proximal interp iff there is an distal interp.
+          if (proximalInterp1 /= Set.empty || proximalInterp2 /= Set.empty) && (distalInterp1 /= Set.empty || distalInterp2 /= Set.empty) then
+            let (remainingProximalInterps, remainingDistalInterps) = recurse (Utils.removeAsSet (otherNodeId, otherShapeFeature) rest) in
+            ( remainingProximalInterps |> Utils.cartProd (List.filter ((/=) Set.empty) [proximalInterp1, proximalInterp2] |> Utils.dedupByEquality) |> List.map (uncurry Set.union)
+            , remainingDistalInterps   |> Utils.cartProd (List.filter ((/=) Set.empty) [distalInterp1,   distalInterp2]   |> Utils.dedupByEquality) |> List.map (uncurry Set.union)
+            )
+          else if proximalInterp1 /= Set.empty || proximalInterp2 /= Set.empty then
+            Debug.crash <| "selectedFeaturesToProximalDistalPointEIdInterpretations: proximal interpretation exists but distal does not!\n" ++ toString (proximalInterp1, proximalInterp2, distalInterp1, distalInterp2)
+          else if distalInterp1 /= Set.empty || distalInterp2 /= Set.empty then
+            Debug.crash <| "selectedFeaturesToProximalDistalPointEIdInterpretations: distal interpretation exists but proximal does not!\n" ++ toString (proximalInterp1, proximalInterp2, distalInterp1, distalInterp2)
+          else
+            returnNotPartOfAPoint ()
+
+        Nothing ->
+          returnNotPartOfAPoint ()
+
+-- Unused: combinatorical explosion of interpretations.
+selectedFeaturesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> List (List (Set EId))
 selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedFeatures =
-  let recurse selectedFeatures =
-    selectedFeaturesToEIdInterpretationLists program slate widgets selectedFeatures
+  let recurse remainingFeatures =
+    selectedFeaturesToEIdInterpretationLists program slate widgets remainingFeatures
   in
   case selectedFeatures of
     [] -> []
@@ -1235,10 +1294,20 @@ selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) w
         Nothing ->
           eidSets :: recurse rest
 
-selectedShapesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List NodeId -> List (List (Set.Set EId))
+selectedShapesToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List NodeId -> (Set EId, Set EId)
+selectedShapesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedShapes =
+  (Set.empty, Set.empty) -- TODO
+
+-- Unused: combinatorical explosion of interpretations.
+selectedShapesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List NodeId -> List (List (Set EId))
 selectedShapesToEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedShapes =
   []
 
-selectedBlobsToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List (Int, NodeId) -> List (List (Set.Set EId))
+selectedBlobsToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List (Int, NodeId) -> (Set EId, Set EId)
+selectedBlobsToProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedBlobs =
+  (Set.empty, Set.empty) -- blobs will go away sometime
+
+-- Unused: combinatorical explosion of interpretations.
+selectedBlobsToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List (Int, NodeId) -> List (List (Set EId))
 selectedBlobsToEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedBlobs =
   [] -- blobs will go away sometime
