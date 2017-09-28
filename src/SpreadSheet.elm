@@ -18,7 +18,7 @@ import Utils
 
 type alias SpreadSheet
   = { columns: List String
-    , rows: List String
+    , rows: List (List String)
     }
 
               
@@ -31,16 +31,7 @@ makeCol id name field =
   in
     Encode.encode 0 col
 
-
-makeRow header data =
-  let row = Encode.object
-            <| Utils.zip
-                 header
-                 (List.map (Encode.string << strVal1) data)
-  in
-    Encode.encode 0 row
-
-makeRowWithVal col data = makeRow (List.map strVal1 col) data
+makeRow data = List.map strVal1 data
                           
 genHeader : Int -> List String
 genHeader len =
@@ -54,17 +45,13 @@ valToSpreadSheet vss =
     vs::vss_ ->
       if vs == []
       then
-        let header =
-              case Maybe.map genHeader (List.maximum <| List.map List.length vss_) of
-                Just header -> header
-                _           -> []
+        let columns = []
+            rows = List.map makeRow vss_
         in
-          let columns = List.map (\v -> makeCol v v v) header in
-          let rows = List.map (makeRow header) vss_ in
           { columns = columns, rows = rows }
       else
-      let columns = List.map (\v -> makeCol (strVal1 v) (strVal1 v) (strVal1 v)) vs in
-      let rows = List.map (makeRowWithVal vs) vss_ in
+      let columns = List.map strVal1 vs in
+      let rows = List.map makeRow vss_ in
       { columns = columns, rows = rows }
     _        -> Debug.crash "ill formatted sheet"
 
