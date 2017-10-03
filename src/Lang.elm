@@ -255,7 +255,7 @@ type Val_
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
   | VDict VDict_
-  | VSheet (List (List Val))
+  | VSheet (List Val) (List (List Val)) -- header and data
 
 type alias VDict_ = Dict.Dict (String, String) Val
 
@@ -440,7 +440,7 @@ strVal_ showTraces v =
     VClosure _ _ _ _        -> "<fun>"
     VList vs                -> Utils.bracks (String.join " " (List.map foo vs))
     VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (foo v)) |> String.join " ") ++ ">"
-    VSheet vss              ->
+    VSheet header vss       ->
       let handleOneRow vs = Utils.bracks (String.join " " (List.map foo vs)) in
       "<sheet:" ++ Utils.bracks (String.join " " (List.map handleOneRow vss)) ++ ">"
 
@@ -980,7 +980,7 @@ mapVal f v = case v.v_ of
   VConst _ _       -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
-  VSheet vss       -> f { v | v_ = VSheet (List.map (List.map (mapVal f)) vss) }
+  VSheet h vss     -> f { v | v_ = VSheet h (List.map (List.map (mapVal f)) vss) }
 
 foldVal : (Val -> a -> a) -> Val -> a -> a
 foldVal f v a = case v.v_ of
@@ -989,7 +989,7 @@ foldVal f v a = case v.v_ of
   VConst _ _       -> f v a
   VBase _          -> f v a
   VClosure _ _ _ _ -> f v a
-  VSheet vss       -> f v <| List.foldl (flip <| List.foldl (foldVal f)) a vss
+  VSheet h vss     -> f v <| List.foldl (flip <| List.foldl (foldVal f)) a vss
 
 -- Fold through preorder traversal
 foldExp : (Exp -> a -> a) -> a -> Exp -> a
@@ -1476,7 +1476,7 @@ getOptions e = case e.val.e__ of
 ------------------------------------------------------------------------------
 -- Error Messages
 
-errorPrefix = "[Little Error]" -- NOTE: same as errorPrefix in Native/codeBox.js
+errorPrefix = "[ Error]" -- NOTE: same as errorPrefix in Native/codeBox.js
 crashWithMsg s  = Debug.crash <| errorPrefix ++ "\n\n" ++ s
 errorMsg s      = Err <| errorPrefix ++ "\n\n" ++ s
 

@@ -1,18 +1,16 @@
 var ht = null;
     
 function render(model) {
-    var cols = model['columns'];
-    var rows = model['rows'];
-    console.log(cols);
-    console.log(rows);
+    var header = model['header'];
+    var data = model['data'];
     if (!$("#grid").length) {
         $("<div/>", {id : "grid"}).appendTo(".output-panel");
         var container = document.getElementById("grid");
 	ht = new Handsontable(container, {
-            data: rows,
+            data: data,
             minSpareRows: 1,
             minSpareCols: 1,
-            rowHeaders: true,
+            rowHeaders: header ? header : true,
             colHeaders: true,
             contextMenu: true
         });
@@ -40,11 +38,11 @@ function render(model) {
         });
     }
     else {
-        data = []
-        for (var i = 0; i < rows.length; i++)
-            for (var j = 0; j < rows[i].length; j++)
-                data.push([i, j, rows[i][j]]);
-        ht.setDataAtCell(data);
+        new_data = []
+        for (var i = 0; i < data.length; i++)
+            for (var j = 0; j < data[i].length; j++)
+                new_data.push([i, j, data[i][j]]);
+        ht.setDataAtCell(new_data);
         ht.render();
     }
 }

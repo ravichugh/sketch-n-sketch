@@ -385,7 +385,12 @@ evalOp env bt opWithInfo es =
               [VList vlist] -> 
                 let vss = Utils.projOk <| List.map getList vlist in
                 case vss of
-                  Ok vss -> VSheet vss |> emptyVTraceOk
+                  Ok vss -> VSheet [] vss |> emptyVTraceOk
+                  _      -> error ()
+              [VList header, VList vlist] ->
+                let vss = Utils.projOk <| List.map getList vlist in
+                case vss of
+                  Ok vss -> VSheet header vss |> emptyVTraceOk
                   _      -> error ()
               _                 -> error ()
       in

@@ -119,7 +119,7 @@ build wCanvas hCanvas model =
          ]
          ([outputShapes] ++ newShape ++ svgWidgets)
 
-    LittleSheet _ -> Html.div [] []
+    LittleSheet _ _ -> Html.div [] []
 
 --------------------------------------------------------------------------------
 -- Compiling to Svg

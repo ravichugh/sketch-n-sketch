@@ -92,7 +92,7 @@ type CodeToolsMenuMode
 
 type OutputType
   = LittleSvg RootedIndexedTree
-  | LittleSheet (List (List Val))
+  | LittleSheet (List Val) (List (List Val))
 
 justGetSvgOutput model =
   case model.slate of
@@ -101,8 +101,8 @@ justGetSvgOutput model =
 
 isSheet model =
   case model.slate of
-    LittleSheet _ -> True
-    _             -> False
+    LittleSheet _ _ -> True
+    _               -> False
                      
 type alias Model =
   { code : Code
