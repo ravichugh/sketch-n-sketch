@@ -367,14 +367,21 @@ lastExp exp =
 -- What exp actually determines the evaluated value of this exp?
 expValueExp : Exp -> Exp
 expValueExp exp =
+  expSameValueExps exp
+  |> Utils.last "expValueExp shouldn't happen"
+
+
+-- What expressions will surely resolve to the same value?
+expSameValueExps : Exp -> List Exp
+expSameValueExps exp =
   case exp.val.e__ of
-    ETyp _ _ _ body _       -> expValueExp body
-    EColonType _ body _ _ _ -> expValueExp body
-    ETypeAlias _ _ _ body _ -> expValueExp body
-    ELet _ _ _ _ _ body _   -> expValueExp body
-    EComment _ _ e          -> expValueExp e
-    EOption _ _ _ _ e       -> expValueExp e
-    _                       -> exp
+    ETyp _ _ _ body _       -> exp :: expSameValueExps body
+    EColonType _ body _ _ _ -> exp :: expSameValueExps body
+    ETypeAlias _ _ _ body _ -> exp :: expSameValueExps body
+    ELet _ _ _ _ _ body _   -> exp :: expSameValueExps body
+    EComment _ _ e          -> exp :: expSameValueExps e
+    EOption _ _ _ _ e       -> exp :: expSameValueExps e
+    _                       -> [exp]
 
 
 copyListWhitespace : Exp -> Exp -> Exp
@@ -860,6 +867,8 @@ tryMatchExpReturningList pat exp =
 -- Match an expression with a pattern. (Taken from Brainstorm branch.)
 --
 -- For the purposes of naming, this may be more strict than needed. (No bindings unless complete match.)
+--
+-- TODO: perhaps rewrite in terms of tryMatchExpPatToSomething
 tryMatchExp : Pat -> Exp -> ExpMatchResult
 tryMatchExp pat exp =
   let matchMap f matchResult =
@@ -1542,6 +1551,18 @@ setPatNameInPat path newName pat =
       pat
 
 
+-- Produce an expression that, if used just after the pat, references what the pat binds.
+patToExp : Pat -> Exp
+patToExp pat =
+  withDummyExpInfo <|
+  case pat.val.p__ of
+    PVar ws1 ident _                  -> EVar ws1 ident
+    PAs ws1 ident _ _                 -> EVar ws1 ident
+    PList ws1 heads ws2 maybeTail ws3 -> EList ws1 (List.map patToExp heads) ws2 (Maybe.map patToExp maybeTail) ws3
+    PConst ws1 n                      -> EConst ws1 n dummyLoc noWidgetDecl
+    PBase ws1 bv                      -> EBase ws1 bv
+
+
 -- Return the first expression(s) that can see the bound variables.
 -- Returns [] if cannot find scope; letrec returns two expressions [boundExp, body]; others return singleton list.
 findScopeAreas : ScopeId -> Exp -> List Exp
@@ -1607,6 +1628,8 @@ findScopeAreasByIdent ident exp =
 -- Nothing means not found or can't match pattern.
 --
 -- Only matches PVar or PAs for now
+--
+-- TODO uses existing functions to relax that requirement
 findPatAndBoundExpByPId : PId -> Exp -> Maybe (Pat, Exp)
 findPatAndBoundExpByPId targetPId exp =
   case findScopeExpAndPat targetPId exp of
@@ -1773,11 +1796,17 @@ eidPathInExpList exps targetEId =
 
 indentPIdsInPat : Pat -> List (Ident, PId)
 indentPIdsInPat pat =
+  indentPatsInPat pat
+  |> List.map (\(ident, pat) -> (ident, pat.val.pid))
+
+
+indentPatsInPat : Pat -> List (Ident, Pat)
+indentPatsInPat pat =
   flattenPatTree pat
   |> List.filterMap
       (\p ->
         case patToMaybeIdent p of
-          Just ident -> Just (ident, p.val.pid)
+          Just ident -> Just (ident, p)
           Nothing    -> Nothing
       )
 
@@ -1805,35 +1834,62 @@ tryMatchExpPatToPaths pat exp =
   tryMatchExpPatToPaths_ pat exp
   |> Maybe.withDefault []
 
+-- Match exp and pat, returning all the pids that could be matched to an expression
+tryMatchExpPatToPIds : Pat -> Exp -> List (PId, Exp)
+tryMatchExpPatToPIds pat exp =
+  tryMatchExpPatToPats pat exp
+  |> List.map (\(p,e) -> (p.val.pid,e))
+
+-- Match exp and pat, returning all the pats that could be matched to an expression
+tryMatchExpPatToPats : Pat -> Exp -> List (Pat, Exp)
+tryMatchExpPatToPats pat exp =
+  tryMatchExpPatToPats_ pat exp
+  |> Maybe.withDefault []
+
+tryMatchExpPatToPaths_ : Pat -> Exp -> Maybe (List (List Int, Exp))
+tryMatchExpPatToPaths_ pat exp =
+  tryMatchExpPatToSomething
+      (\pat exp -> [([], exp)])
+      (\i (path, e) -> (i::path, e))
+      pat
+      exp
+
+tryMatchExpPatToPats_ : Pat -> Exp -> Maybe (List (Pat, Exp))
+tryMatchExpPatToPats_ pat exp =
+  tryMatchExpPatToSomething
+      (\pat exp -> [(pat, exp)])
+      (\i binding -> binding)
+      pat
+      exp
 
 -- Unlike tryMatchExp (currently), this will return partial matches
 -- (For matching function calls with function arguments)
 --
 -- i.e. "Just ..." means partial or complete match
-tryMatchExpPatToPaths_ : Pat -> Exp -> Maybe (List (List Int, Exp))
-tryMatchExpPatToPaths_ pat exp =
-  let thisMatch = ([], exp) in
+tryMatchExpPatToSomething : (Pat -> Exp -> List a) -> (Int -> a -> a) -> Pat -> Exp -> Maybe (List a)
+tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
+  let recurse pat exp = tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp in
+  let thisMatch = makeThisMatch pat exp in -- makeThisMatch returns list in case you want 0 match entries
   let addThisMatch matchResult =
-    Maybe.map ((::) thisMatch) matchResult
+    Maybe.map ((++) thisMatch) matchResult
   in
-  let prependPath i (path, e) = (i::path, e) in
-  let prependPathToAll i pathAndExps = List.map (prependPath i) pathAndExps in
+  let postProcessDescendentsWithPath i pathAndExps = List.map (postProcessDescendentWithPath i) pathAndExps in
   let matchListsAsFarAsPossible ps es =
     Utils.zip ps es
     |> Utils.mapi1
         (\(i, (p, e)) ->
-          tryMatchExpPatToPaths_ p e |> Maybe.map (prependPathToAll i)
+          recurse p e |> Maybe.map (postProcessDescendentsWithPath i)
         )
     |> Utils.projJusts
     |> Maybe.map List.concat
   in
   case pat.val.p__ of
     PVar _ ident _ ->
-      Just [thisMatch]
+      Just thisMatch
 
     PAs _ ident _ innerPat ->
-      tryMatchExpPatToPaths_ innerPat exp
-      |> Maybe.map (prependPathToAll 1)
+      recurse innerPat exp
+      |> Maybe.map (postProcessDescendentsWithPath 1)
       |> addThisMatch
 
     PList _ ps _ Nothing _ ->
@@ -1853,7 +1909,7 @@ tryMatchExpPatToPaths_ pat exp =
             |> addThisMatch
 
         _ ->
-          Just [thisMatch]
+          Just thisMatch
 
     PList _ ps _ (Just restPat) _ ->
       case exp.val.e__ of
@@ -1875,17 +1931,17 @@ tryMatchExpPatToPaths_ pat exp =
             |> addThisMatch
 
         _ ->
-          Just [thisMatch]
+          Just thisMatch
 
     PConst _ n ->
       case exp.val.e__ of
-        EConst _ num _ _ -> if n == num then Just [thisMatch] else Nothing
-        _                -> Just [thisMatch]
+        EConst _ num _ _ -> if n == num then Just thisMatch else Nothing
+        _                -> Just thisMatch
 
     PBase _ bv ->
       case exp.val.e__ of
-        EBase _ ev -> if eBaseValsEqual bv ev then Just [thisMatch] else Nothing
-        _          -> Just [thisMatch]
+        EBase _ ev -> if eBaseValsEqual bv ev then Just thisMatch else Nothing
+        _          -> Just thisMatch
 
 
 -- Given an EId, look for a name bound to it and the let scope that defined the binding.
@@ -1904,6 +1960,53 @@ findLetAndIdentBindingExp targetEId program =
                   else Nothing
                 )
 
+          _ ->
+            Nothing
+      )
+
+
+-- Given an EId, look for a pat matching it and the let scope that defined the binding.
+--
+-- Will match and return PLists even though they don't introduce variables
+findLetAndPatMatchingExp : EId -> Exp -> Maybe (Exp, Pat)
+findLetAndPatMatchingExp targetEId program =
+  findLetAndPatMatchingExp_
+      targetEId
+      program
+      (\letExp (pat, boundE) ->
+        if boundE.val.eid == targetEId
+        then Just (letExp, pat)
+        else Nothing
+      )
+
+
+-- Given an EId, look for a pat matching it and the let scope that defined the binding.
+--
+-- Looser on EId matching: variable can bind a parent of the target EId as long as the
+-- bound exp and target EId resolve to the same value.
+--
+-- Will match and return PLists even though they don't introduce variables
+findLetAndPatMatchingExpLoose : EId -> Exp -> Maybe (Exp, Pat)
+findLetAndPatMatchingExpLoose targetEId program =
+  findLetAndPatMatchingExp_
+      targetEId
+      program
+      (\letExp (pat, boundE) ->
+        if List.member targetEId (expSameValueExps boundE |> List.map (.val >> .eid))
+        then Just (letExp, pat)
+        else Nothing
+      )
+
+
+findLetAndPatMatchingExp_ : EId -> Exp -> (Exp -> (Pat, Exp) -> Maybe a) -> Maybe a
+findLetAndPatMatchingExp_ targetEId program letAndPatBoundEFindMap =
+  program
+  |> mapFirstSuccessNode
+      (\exp ->
+        case exp.val.e__ of
+          ELet _ _ _ pat boundExp _ _ ->
+            tryMatchExpPatToPats pat boundExp -- In pt@[x y], must be sure pt matches before [x y]
+            |> Utils.mapFirstSuccess (letAndPatBoundEFindMap exp)
           _ ->
             Nothing
       )
@@ -1991,6 +2094,19 @@ allSimplyResolvableLetBindings program =
           ELet _ _ _ pat boundExp _ _ -> tryMatchExpReturningList pat boundExp
           _                           -> []
       )
+
+
+allSimplyResolvableLetPatBindings : Exp -> List (Pat, Exp)
+allSimplyResolvableLetPatBindings program =
+  program
+  |> flattenExpTree
+  |> List.concatMap
+      (\exp ->
+        case exp.val.e__ of
+          ELet _ _ _ pat boundExp _ _ -> tryMatchExpPatToPats pat boundExp
+          _                           -> []
+      )
+
 
 -- Precondition: program has been run through assignUniqueNames.
 --
@@ -2509,26 +2625,42 @@ bindingScopeIdForIdentAtEId targetName targetEId program =
 -- "Nothing" means free in program
 allVarEIdsToBindingPId : Exp -> Dict.Dict EId (Maybe PId)
 allVarEIdsToBindingPId program =
-  allVarEIdsToBindingPIdList program
+  allVarEIdsToBindingPat program
+  |> Dict.map (\_ maybePat -> Maybe.map (.val >> .pid) maybePat)
+
+
+-- "Nothing" means free in program
+allVarEIdsToBindingPat : Exp -> Dict.Dict EId (Maybe Pat)
+allVarEIdsToBindingPat program =
+  allVarEIdsToBindingPatList program
   |> Dict.fromList
+
 
 -- "Nothing" means free in program
 -- May want this list version when you might have duplicate EIds
 allVarEIdsToBindingPIdList : Exp -> List (EId, Maybe PId)
 allVarEIdsToBindingPIdList program =
+  allVarEIdsToBindingPatList program
+  |> List.map (\(eid, maybePat) -> (eid, Maybe.map (.val >> .pid) maybePat))
+
+
+-- "Nothing" means free in program
+-- May want this list version when you might have duplicate EIds
+allVarEIdsToBindingPatList : Exp -> List (EId, Maybe Pat)
+allVarEIdsToBindingPatList program =
   let handleELet letExp identToPId =
     Dict.union
-        (expToLetPat letExp |> indentPIdsInPat |> Dict.fromList)
+        (expToLetPat letExp |> indentPatsInPat |> Dict.fromList)
         identToPId
   in
   let handleEFun funcExp identToPId =
     Dict.union
-        (expToFuncPats funcExp |> List.concatMap indentPIdsInPat |> Dict.fromList)
+        (expToFuncPats funcExp |> List.concatMap indentPatsInPat |> Dict.fromList)
         identToPId
   in
   let handleCaseBranch caseExp branch branchI identToPId =
     Dict.union
-        (branchPat branch |> indentPIdsInPat |> Dict.fromList)
+        (branchPat branch |> indentPatsInPat |> Dict.fromList)
         identToPId
   in
   program
@@ -2549,14 +2681,20 @@ allVarEIdsToBindingPIdList program =
 -- "Nothing" means no matching name in program
 allVarEIdsToBindingPIdBasedOnUniqueName : Exp -> Dict.Dict EId (Maybe PId)
 allVarEIdsToBindingPIdBasedOnUniqueName program =
-  let allIdentToPId =
+  allVarEIdsToBindingPatsBasedOnUniqueName program
+  |> Dict.map (\_ maybePat -> Maybe.map (.val >> .pid) maybePat)
+
+
+allVarEIdsToBindingPatsBasedOnUniqueName : Exp -> Dict.Dict EId (Maybe Pat)
+allVarEIdsToBindingPatsBasedOnUniqueName program =
+  let allIdentToPat =
     flattenExpTree program
     |> List.concatMap
         (\exp ->
           case exp.val.e__ of
-            EFun _ pats _ _      -> List.concatMap indentPIdsInPat pats
-            ELet _ _ _ pat _ _ _ -> indentPIdsInPat pat
-            ECase _ _ branches _ -> List.concatMap indentPIdsInPat (branchPats branches)
+            EFun _ pats _ _      -> List.concatMap indentPatsInPat pats
+            ELet _ _ _ pat _ _ _ -> indentPatsInPat pat
+            ECase _ _ branches _ -> List.concatMap indentPatsInPat (branchPats branches)
             _                    -> []
         )
     |> Dict.fromList
@@ -2567,7 +2705,7 @@ allVarEIdsToBindingPIdBasedOnUniqueName program =
         case expToMaybeIdent exp of
           Nothing    -> Nothing
           Just ident ->
-            case Dict.get ident allIdentToPId of
+            case Dict.get ident allIdentToPat of
               Nothing  -> Just (exp.val.eid, Nothing)
               Just pid -> Just (exp.val.eid, Just pid)
       )

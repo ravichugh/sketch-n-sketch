@@ -806,6 +806,77 @@ relate__ relationToSynthesize originalExp maybeTermShape removedLocIdToLocEquati
       )
 
 
+buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
+  case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime } program of
+    Err s -> []
+    Ok (_, widgets, slate, _) ->
+      ShapeWidgets.selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs
+      |> List.concatMap (\interpretation ->
+        -- 1. Choose an expression to be the output (try all)
+        -- In this iteration, it is one of the selected expressions.
+        -- Future: perhaps select only arguments and then infer what expression(s)
+        -- are calculated based on the selected expressions?
+        -- Or vice versa: select only output and infer arguments (similar to DeuceTools.createFunctionFromArgsTool, which is currently limit to converting an existing definition to a function)
+        List.range 1 (List.length interpretation)
+        |> List.filterMap (\eidI ->
+          let (outputEId, otherEIds) = (Utils.geti eidI interpretation, Utils.removei eidI interpretation) in
+          -- 2. Arguments: (a) selected patterns and (b) vars free at extracted expression but not at funcLocation
+          case otherEIds |> List.map (\otherEId -> findLetAndPatMatchingExpLoose otherEId program) |> Utils.projJusts |> Maybe.map List.unzip of
+            Nothing -> Nothing
+            Just (_, selectedPatterns) ->
+              let
+                funcName =
+                  nonCollidingName
+                      (expNameForEId program outputEId ++ "Func")
+                      2
+                      (visibleIdentifiersAtEIds program (Set.singleton outputEId))
+                funcBody = justFindExpByEId program outputEId
+                funcLocation = deepestCommonAncestorWithNewline program ((==) funcBody) -- Place function just before abstracted expression
+                expEnv = expEnvAt_ program funcLocation.val.eid -- Skip prelude
+                -- Assumes no renamings between selected pat and extracted expression
+                -- Also assumes selected pat is not part of extracted expression
+                varEIdToBindingPat = allVarEIdsToBindingPatList program
+                selectedPatsAndChildren = selectedPatterns |> List.concatMap flattenPatTree
+                varEIdsCoveredBySelectedPatterns =
+                  varEIdToBindingPat
+                  |> List.filter (\(varEId, maybePat) -> Just True == (maybePat |> Maybe.map (\pat -> List.member pat selectedPatsAndChildren)))
+                  |> List.map Tuple.first
+                funcBodyFreeVars = freeVars funcBody
+                otherFreeVarsToParameterize =
+                  Utils.removeAll funcBodyFreeVars (freeVars funcLocation)
+                argPats =
+                  selectedPatterns ++
+                  ( otherFreeVarsToParameterize
+                    |> List.filter (\freeVar -> not <| List.member freeVar.val.eid varEIdsCoveredBySelectedPatterns)
+                    |> List.map expToIdent
+                    |> Utils.dedup
+                    |> List.map pVar
+                  )
+                call = eCall funcName (List.map (patToExp >> replacePrecedingWhitespace " ") argPats)
+                programWithCall =
+                  program
+                  |> replaceExpNodePreservingPrecedingWhitespace
+                      outputEId
+                      (call |> setEId outputEId)
+                funcLet =
+                  newLetFancyWhitespace
+                      -1 False
+                      (pVar funcName)
+                      (eFun (argPats |> setPatListWhitespace "" " ") (funcBody |> unindent |> replacePrecedingWhitespace "\n" |> indent "  "))
+                      (justFindExpByEId programWithCall funcLocation.val.eid)
+                      programWithCall
+                programWithCallAndFunc =
+                  program
+                  |> replaceExpNode
+                      funcLocation.val.eid
+                      funcLet
+                caption = "Build abstraction of " ++ Utils.squish (unparse call)
+              in
+              Just (InterfaceModel.synthesisResult caption programWithCallAndFunc |> InterfaceModel.setResultSafe False)
+        )
+      )
+
+
 liftLocsSoVisibleTo : Exp -> Set.Set Loc -> Set.Set EId -> (Exp, Dict.Dict LocId Ident)
 liftLocsSoVisibleTo program mobileLocset viewerEIds =
   mobileLocset

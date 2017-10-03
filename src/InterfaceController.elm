@@ -10,7 +10,7 @@ module InterfaceController exposing
   , msgAceUpdate
   , msgUserHasTyped
   , msgUndo, msgRedo, msgCleanCode
-  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate
+  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
@@ -1385,6 +1385,20 @@ msgIndexedRelate = Msg "Indexed Relate" <| \old ->
 --             , selectedFeatures = Set.empty
 --       }
 --   )
+
+msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
+  let synthesisResults =
+    ValueBasedTransform.buildAbstraction
+        old.inputExp
+        old.selectedFeatures
+        old.selectedShapes
+        old.selectedBlobs
+        old.slideNumber
+        old.movieNumber
+        old.movieTime
+        old.syncOptions
+  in
+  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
 
 --------------------------------------------------------------------------------
 
