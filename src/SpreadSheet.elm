@@ -4,8 +4,7 @@ port module SpreadSheet exposing
         render,
         valToSpreadSheet,
         updateCell,
-        cellSelection,
-        gotoCell
+        cellSelection
        )
 
 import Html exposing (Html)
@@ -17,43 +16,17 @@ import Lang exposing (..)
 import Utils
 
 type alias SpreadSheet
-  = { columns: List String
-    , rows: List (List String)
+  = { header: List String
+    , data: List (List String)
     }
 
-              
-makeCol id name field =
-  let col = Encode.object
-            [ ("id", Encode.string id)
-            , ("name", Encode.string name)
-            , ("field", Encode.string field)
-            ]
-  in
-    Encode.encode 0 col
-
 makeRow data = List.map strVal1 data
-                          
-genHeader : Int -> List String
-genHeader len =
-  let allNum = List.range 1 len in
-  let numToChar n = Char.fromCode (65 + n - 1) in
-  List.map (String.fromList << (List.map numToChar) << Utils.toBase 26) allNum
-      
-valToSpreadSheet : List (List Val) -> SpreadSheet
-valToSpreadSheet vss =
-  case vss of
-    vs::vss_ ->
-      if vs == []
-      then
-        let columns = []
-            rows = List.map makeRow vss_
-        in
-          { columns = columns, rows = rows }
-      else
-      let columns = List.map strVal1 vs in
-      let rows = List.map makeRow vss_ in
-      { columns = columns, rows = rows }
-    _        -> Debug.crash "ill formatted sheet"
+                                
+valToSpreadSheet : List Val -> List (List Val) -> SpreadSheet
+valToSpreadSheet header vss =
+  let cols = List.map strVal1 header in
+  let rows = List.map makeRow vss in
+  { header = cols, data = rows }
 
 type alias Pos = (Int, Int)
                
@@ -63,8 +36,6 @@ type alias CellInfo
     }
 
 port render : SpreadSheet -> Cmd msg
-
-port gotoCell : CellInfo -> Cmd msg
 
 port updateCell : (CellInfo -> msg) -> Sub msg
 

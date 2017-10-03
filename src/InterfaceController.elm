@@ -534,9 +534,9 @@ tryRun old =
                   }
             in
             case newVal.v_ of
-              VSheet vss -> Ok { modelWithNewCodeExpVal
-                                 | slate = LittleSheet vss
-                               }
+              VSheet header vss -> Ok { modelWithNewCodeExpVal
+                                          | slate = LittleSheet header vss
+                                      }
               _          ->
                 LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
                   |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
@@ -823,10 +823,11 @@ issueCommand (Msg kind _) oldModel newModel =
                -- stale yellow highlights.
           then
             case newModel.slate of
-              LittleSheet vss -> Cmd.batch
-                                 [ SpreadSheet.render (SpreadSheet.valToSpreadSheet vss)
-                                 , AceCodeBox.display newModel
-                                 ]
+              LittleSheet header vss ->
+                Cmd.batch
+                     [ SpreadSheet.render (SpreadSheet.valToSpreadSheet header vss)
+                     , AceCodeBox.display newModel
+                     ]
               _               -> AceCodeBox.display newModel
           else if kind == "Drag Layout Widget Trigger" then
             -- TODO: only want to do this for resize code box widget.
@@ -855,12 +856,12 @@ issueCommand (Msg kind _) oldModel newModel =
             ColorScheme.updateColorScheme newModel.colorScheme
           else
             Cmd.none
-        , if kind == "cellSelection" then
+        {-, if kind == "cellSelection" then
             case newModel.selectedCell of
               Just cell -> SpreadSheet.gotoCell cell
               _         -> Cmd.none
           else
-            Cmd.none
+            Cmd.none-}
         ]
 
 iconCommand filename =
@@ -1684,12 +1685,12 @@ handleNew template = (\old ->
       let {e,v,ws,ati} = thunk () in
       let code = unparse e in
       case v.v_ of
-        VSheet vss -> { old | inputExp    = e
+        VSheet h vss -> { old | inputExp    = e
                             , inputVal    = v
                             , code        = code
                             , lastRunCode = code
-                            , slate       = LittleSheet vss
-                      } |> closeDialogBox New
+                            , slate       = LittleSheet h vss
+                        } |> closeDialogBox New
         _          ->
       let so = Sync.syncOptionsOf old.syncOptions e in
       let m =
@@ -2462,8 +2463,8 @@ getCellVal : Model -> CellInfo -> Maybe Val
 getCellVal m cellInfo =
   let (row, col) = cellInfo.pos in
   case m.slate of
-    LittleSheet vss -> Utils.maybeGeti0 (row + 1) vss |>
-                       Maybe.andThen (Utils.maybeGeti0 col)
+    LittleSheet _ vss -> Utils.maybeGeti0 row vss |>
+                         Maybe.andThen (Utils.maybeGeti0 col)
     _               -> Nothing
 
 
