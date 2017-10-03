@@ -3,6 +3,8 @@ var ht = null;
 function render(model) {
     var cols = model['columns'];
     var rows = model['rows'];
+    console.log(cols);
+    console.log(rows);
     if (!$("#grid").length) {
         $("<div/>", {id : "grid"}).appendTo(".output-panel");
         var container = document.getElementById("grid");
@@ -15,12 +17,19 @@ function render(model) {
             contextMenu: true
         });
         ht.updateSettings({
-            afterChange: function(e) {
-                var arr = e[0];
-                var pos = [arr[0], arr[1]];
-                var cellInfo = {pos: pos, value: arr[3]};
-                console.log(cellInfo);
-                app.ports.updateCell.send(cellInfo);
+            afterChange: function(changes, source) {
+                var realChange = []
+                for (var i = 0; i < changes.length; i++) {
+                    if (changes[i][2] != changes[i][3])
+                        realChange.push(changes[i]);
+                }
+                if (realChange.length) {
+                    var arr = realChange[0]; //need to be changed later
+                    var pos = [arr[0], arr[1]];
+                    var cellInfo = {pos: pos, value: arr[3]};
+                    console.log(cellInfo);
+                    app.ports.updateCell.send(cellInfo);
+                }
             },
             afterOnCellMouseDown: function(e, coords) {
                 var pos = [coords.row, coords.col];
@@ -29,7 +38,6 @@ function render(model) {
                 app.ports.cellSelection.send(cellInfo);
             }
         });
-        ht.render();
     }
     else {
         data = []
