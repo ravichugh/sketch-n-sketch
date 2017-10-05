@@ -941,12 +941,13 @@ codeObjectFromSelection allowSingleSelection model =
 
 --------------------------------------------------------------------------------
 
-noWidgetsSelected : Model -> Bool
-noWidgetsSelected model =
+noCodeWidgetsSelected : Model -> Bool
+noCodeWidgetsSelected model =
   List.isEmpty model.deuceState.selectedWidgets
 
-noOutputSelected : Model -> Bool
-noOutputSelected model =
+-- Currently not used, but may be handy later.
+noOutputWidgetsSelected : Model -> Bool
+noOutputWidgetsSelected model =
   Set.isEmpty model.selectedFeatures &&
   Set.isEmpty model.selectedShapes &&
   Dict.isEmpty model.selectedBlobs
@@ -957,7 +958,7 @@ deucePopupPanelShown : Model -> Bool
 deucePopupPanelShown model =
   Utils.and
     [ model.enableDeuceBoxSelection
-    , not <| (noWidgetsSelected model && noOutputSelected model)
+    , not <| noCodeWidgetsSelected model
     , not <| deuceRightClickMenuShown model
     , not <| configurationPanelShown model
     ]

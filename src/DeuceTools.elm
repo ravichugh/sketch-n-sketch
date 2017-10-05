@@ -2107,6 +2107,7 @@ createToolCache model =
     )
   )
 
+-- This function is not used.
 createToolCacheMultipleInterpretations : Model -> List (List DeuceWidget)-> List (List CachedDeuceTool)
 createToolCacheMultipleInterpretations model interpretations =
   let selectionInterpretations =

@@ -486,7 +486,7 @@ editCodeEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
         ]
     disabled =
       (List.any Model.predicateImpossible deuceTool.reqs) ||
-      (not <| Model.noWidgetsSelected model)
+      (not <| Model.noCodeWidgetsSelected model)
   in
     textButton
       { defaultTb

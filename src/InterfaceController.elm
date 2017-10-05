@@ -797,7 +797,7 @@ upstate (Msg caption updateModel) old =
 hooks : List (Model -> Model -> (Model, Cmd Msg))
 hooks =
   [ handleSavedSelectionsHook
-  , handleOutputSelectionChanges
+  -- , handleOutputSelectionChanges
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
@@ -828,6 +828,7 @@ handleSavedSelectionsHook oldModel newModel =
   else
     (newModel, Cmd.none)
 
+-- This function is not used.
 handleOutputSelectionChanges : Model -> Model -> (Model, Cmd Msg)
 handleOutputSelectionChanges oldModel newModel =
   if oldModel.selectedFeatures /= newModel.selectedFeatures || oldModel.selectedShapes /= newModel.selectedShapes || oldModel.selectedBlobs /= newModel.selectedBlobs then
@@ -1155,7 +1156,7 @@ msgMousePosition pos_ =
           onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_, maybeClickable) }
 
     deucePopupPanelPositionUpdater old =
-      if noWidgetsSelected old && noOutputSelected old then
+      if noCodeWidgetsSelected old then
         let
           newDeucePopupPanelPosition =
             ( pos_.x + deucePopupPanelMouseOffset.x
@@ -2340,7 +2341,7 @@ msgDeuceRightClick menuMode =
   Msg "Deuce Right Click" <| \model ->
     if
       model.enableDeuceTextSelection &&
-      (Model.noWidgetsSelected model)
+      (Model.noCodeWidgetsSelected model)
     then
       let
         modelAfterTextSelection =
@@ -2349,7 +2350,7 @@ msgDeuceRightClick menuMode =
             |> textSelect True
       in
         -- Make sure we selected at least one code object
-        if Model.noWidgetsSelected modelAfterTextSelection then
+        if Model.noCodeWidgetsSelected modelAfterTextSelection then
           model
         else
           showDeuceRightClickMenu
