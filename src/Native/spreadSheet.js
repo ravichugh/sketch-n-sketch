@@ -8,9 +8,18 @@ function padding(data, len) {
     }
 }
 
+/* based on https://docs.handsontable.com/pro/1.14.2/demo-conditional-formatting.html */
+function defaultCellRenderer(instance, td, row, col, prop, value, cellProperties) {
+    Handsontable.renderers.TextRenderer.apply(this, arguments);
+    if (!value || value == "")
+        td.style.background = "#EEE";
+    else
+        td.style.background = "";
+}
+
 function render(model) {
-    var header = model['header'];
-    var data = model['data'];
+    var header = model["header"];
+    var data = model["data"];
     var max_col_len = Math.max.apply(null, data.map(function(d) {return d.length;}));
     padding(data, max_col_len);
     console.log(data);
@@ -27,7 +36,12 @@ function render(model) {
             minSpareCols: 1,
             rowHeaders: header ? header : true,
             colHeaders: true,
-            contextMenu: true
+            contextMenu: true,
+            cells: function(row, col, prop) {
+                var cellProperties = {};
+                cellProperties.renderer = defaultCellRenderer;
+                return cellProperties;
+            }
         });
         ht.updateSettings({
             afterChange: function(changes, source) {

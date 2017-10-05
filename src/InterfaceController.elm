@@ -802,6 +802,9 @@ issueCommand (Msg kind _) oldModel newModel =
     "Disable Text Edits" ->
       AceCodeBox.setReadOnly True
 
+    "cellSelection" ->
+      AceCodeBox.display newModel
+
     _ ->
       Cmd.batch
         [ if kind == "Update Font Size" then
@@ -856,12 +859,6 @@ issueCommand (Msg kind _) oldModel newModel =
             ColorScheme.updateColorScheme newModel.colorScheme
           else
             Cmd.none
-        {-, if kind == "cellSelection" then
-            case newModel.selectedCell of
-              Just cell -> SpreadSheet.gotoCell cell
-              _         -> Cmd.none
-          else
-            Cmd.none-}
         ]
 
 iconCommand filename =
@@ -2508,10 +2505,14 @@ msgCellSelection cellInfo =
             _      -> []
     in
     let oldCodeBoxInfo = m.codeBoxInfo in
-    { m | codeBoxInfo =
-          { oldCodeBoxInfo | highlights = highlights }
-        , selectedCell = Just cellInfo
-    }
+    let _ = Debug.log "highlights" highlights in
+    let newModel =
+          { m | codeBoxInfo =
+                { oldCodeBoxInfo | highlights = highlights }
+          , selectedCell = Just cellInfo
+          }
+    in
+      upstateRun (resetDeuceState newModel)
 
     
 msgUpdateCell cellInfo =
@@ -2533,4 +2534,5 @@ msgUpdateCell cellInfo =
                        in
                          upstateRun (resetDeuceState newModel)
           _           -> let _ = Debug.log "not a num" "" in m
-      _       -> let _ = Debug.log "index of out range in sheet" "" in m
+      _       -> let _ = Debug.log "index of out range in sheet" "" in
+                 upstateRun (resetDeuceState m)
