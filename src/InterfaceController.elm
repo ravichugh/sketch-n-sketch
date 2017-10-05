@@ -2505,7 +2505,6 @@ msgCellSelection cellInfo =
             _      -> []
     in
     let oldCodeBoxInfo = m.codeBoxInfo in
-    let _ = Debug.log "highlights" highlights in
     let newModel =
           { m | codeBoxInfo =
                 { oldCodeBoxInfo | highlights = highlights }
