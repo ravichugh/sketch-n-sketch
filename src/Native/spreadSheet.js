@@ -1,13 +1,28 @@
 var ht = null;
-    
+
+/* this is a hack to get handsontable render all columns */
+function padding(data, len) {
+    for (var i = 0; i < data.length; i++) {
+        var to_pad = len - data[i].length;
+        data[i] = data[i].concat(Array(to_pad).fill(null));
+    }
+}
+
 function render(model) {
     var header = model['header'];
     var data = model['data'];
+    var max_col_len = Math.max.apply(null, data.map(function(d) {return d.length;}));
+    padding(data, max_col_len);
+    console.log(data);
+    var height = $(".output-panel").height();
+    var width = $(".output-panel").width();
     if (!$("#grid").length) {
         $("<div/>", {id : "grid"}).appendTo(".output-panel");
         var container = document.getElementById("grid");
 	ht = new Handsontable(container, {
             data: data,
+            width: width,
+            height: height,
             minSpareRows: 1,
             minSpareCols: 1,
             rowHeaders: header ? header : true,
@@ -16,13 +31,9 @@ function render(model) {
         });
         ht.updateSettings({
             afterChange: function(changes, source) {
-                var realChange = []
-                for (var i = 0; i < changes.length; i++) {
-                    if (changes[i][2] != changes[i][3])
-                        realChange.push(changes[i]);
-                }
-                if (realChange.length) {
-                    var arr = realChange[0]; //need to be changed later
+                if (changes && changes.length) {
+                    console.log(changes);
+                    var arr = changes[0]; //need to be changed later
                     var pos = [arr[0], arr[1]];
                     var cellInfo = {pos: pos, value: arr[3]};
                     console.log(cellInfo);
@@ -38,11 +49,9 @@ function render(model) {
         });
     }
     else {
-        new_data = []
-        for (var i = 0; i < data.length; i++)
-            for (var j = 0; j < data[i].length; j++)
-                new_data.push([i, j, data[i][j]]);
-        ht.setDataAtCell(new_data);
+        ht.updateSettings({
+            data: data
+        });
         ht.render();
     }
 }
