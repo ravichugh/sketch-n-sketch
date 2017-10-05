@@ -418,20 +418,30 @@ code {
   padding: 0 15px;
 }
 
-.action-bar .run {
+.action-bar .run,
+.action-bar .emoji {
   display: inline-block;
 
   white-space: nowrap;
   height: 25px;
   line-height: 25px;
-  padding: 0 15px;
-  cursor: pointer;
 
   position: relative;
-  top: 5px; /* (height of bar - height of button) / 2 */
 
   float: right;
   margin-right: 10px;
+}
+
+.action-bar .emoji {
+  font-size: 28px;
+  top: 7px;
+}
+
+.action-bar .run {
+  top: 5px; /* (height of bar - height of button) / 2 */
+  padding: 0 15px;
+
+  cursor: pointer;
 
   background-color: #33AA00;
   color: #FFFFFF;

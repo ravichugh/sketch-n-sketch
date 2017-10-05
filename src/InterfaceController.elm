@@ -1036,18 +1036,22 @@ msgUserHasTyped =
     }
 
 upstateRun old =
+  let newFailuresInARowAfterFail    = if old.runFailuresInARowCount < 0 then 1 else old.runFailuresInARowCount + 1 in
+  let newFailuresInARowAfterSuccess = if old.runFailuresInARowCount > 0 then 0 else old.runFailuresInARowCount - 1 in
   case tryRun old of
     Err (oldWithUpdatedHistory, err, Just annot) ->
       { oldWithUpdatedHistory
           | errorBox = Just err
           , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo
+          , runFailuresInARowCount = newFailuresInARowAfterFail
       }
     Err (oldWithUpdatedHistory, err, Nothing) ->
       { oldWithUpdatedHistory
           | errorBox = Just err
+          , runFailuresInARowCount = newFailuresInARowAfterFail
       }
     Ok newModel ->
-      newModel
+      { newModel | runFailuresInARowCount = newFailuresInARowAfterSuccess }
 
 msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
   case tryRun newModel of

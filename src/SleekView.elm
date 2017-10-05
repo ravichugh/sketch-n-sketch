@@ -1163,6 +1163,34 @@ codePanel model =
             _      -> True
       in
         disableableTextButton disabled "Clean Up" Controller.msgCleanCode
+    emoji =
+      let
+        happinessEmoji =
+          if      model.runFailuresInARowCount <= -40 then "😎"
+          else if model.runFailuresInARowCount <= -20 then "😍"
+          else if model.runFailuresInARowCount <= -10 then "😁"
+          else if model.runFailuresInARowCount <=  -5 then "😃"
+          else if model.runFailuresInARowCount <=   0 then "🙂"
+          else if model.runFailuresInARowCount <=   1 then "😐"
+          else if model.runFailuresInARowCount <=   2 then "😬"
+          else if model.runFailuresInARowCount <=   3 then "😕"
+          else if model.runFailuresInARowCount <=   4 then "🙁"
+          else if model.runFailuresInARowCount <=   5 then "☹️"
+          else if model.runFailuresInARowCount <=   6 then "😔"
+          else if model.runFailuresInARowCount <=   7 then "😣"
+          else if model.runFailuresInARowCount <=   8 then "😖"
+          else if model.runFailuresInARowCount <=   9 then "😫"
+          else                                             "😡"
+        emoji =
+          if model.runFailuresInARowCount <= 3 && Model.needsRun model
+          then "🤔"
+          else happinessEmoji
+      in
+      Html.div
+        [ Attr.class "emoji"
+        ]
+        [ Html.text emoji
+        ]
     runButton =
       Html.div
         [ Attr.class "run"
@@ -1180,6 +1208,7 @@ codePanel model =
         ] ++
         if Updatable.extract model.enableTextEdits then
           [ runButton
+          , emoji
           ]
         else
           []

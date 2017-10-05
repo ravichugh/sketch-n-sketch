@@ -92,6 +92,8 @@ type CodeToolsMenuMode
 type alias Model =
   { code : Code
   , lastRunCode : Code
+  , runFailuresInARowCount : Int
+  , codeClean : Bool
   , preview : Preview
   , history : (List Code, List Code)
   , inputExp : Exp
@@ -167,7 +169,6 @@ type alias Model =
   , textSelectMode : TextSelectMode
   , enableTextEdits : Updatable Bool
   , allowMultipleTargetPositions : Bool
-  , codeClean : Bool
   , mainResizerX : Maybe Int
   , savedSelections : Maybe (List Ace.Range)
   , deucePopupPanelAbove : Bool
@@ -984,6 +985,8 @@ initModel =
   let code = unparse e in
     { code          = code
     , lastRunCode   = code
+    , runFailuresInARowCount = 0
+    , codeClean     = True
     , preview       = Nothing
     , history       = ([code], [])
     , inputExp      = e
@@ -1082,7 +1085,6 @@ initModel =
         Updatable.setUpdated << Updatable.create <| True
     , allowMultipleTargetPositions =
         False
-    , codeClean = True
     , mainResizerX = Nothing
     , savedSelections = Nothing
     , deucePopupPanelAbove = True
