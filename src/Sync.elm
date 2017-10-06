@@ -154,6 +154,7 @@ getLocationCounts options (slate, widgets) =
       WNumSlider _ _ _ _ _ loc _      -> updateCount loc acc
       WPoint (_, t1) _ (_, t2) _      -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
       WOffset1D _ _ _ _ (_, tr) _ _ _ -> Set.foldl updateCount acc (locsOfTrace options tr)
+      WCall _ _ _ _                   -> acc
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
   let d_ = List.foldl addTriggerWidget d widgets in
@@ -432,6 +433,9 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
             , \_ (dx,dy) -> solveOne subst loc_ ((if sign == Positive then (+) else (-)) amount (if axis == X then toFloat dx else toFloat dy)) amountTrace
             ))
         )
+        accResult
+
+      WCall _ _ _ _ ->
         accResult
   in
   Utils.foldli1 processWidget (Dict.empty, initMaybeCounts) widgets

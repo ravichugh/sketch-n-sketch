@@ -1,5 +1,5 @@
 module CodeMotion exposing
-  ( renamePat, renameVar
+  ( renamePat, renamePatByPId, renameVar
   , composeTransformations
   , swapUsages
   , moveDefinitionsPat, moveDefinitionsBeforeEId
@@ -113,6 +113,13 @@ swapUsages (scopeId1, path1) (scopeId2, path2) originalProgram =
 --------------------------------------------------------------------------------
 -- Renaming
 --------------------------------------------------------------------------------
+
+renamePatByPId : PId -> String -> Exp -> List SynthesisResult
+renamePatByPId pid newName program =
+  pidToPathedPatternId program pid
+  |> Maybe.map (\ppid -> renamePat ppid newName program)
+  |> Maybe.withDefault []
+
 
 renamePat : PathedPatternId -> String -> Exp -> List SynthesisResult
 renamePat (scopeId, path) newName program =

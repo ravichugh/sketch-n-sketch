@@ -138,6 +138,7 @@ type alias Model =
   , autoSynthesis : Bool
   , synthesisResults : List SynthesisResult
   , hoveredSynthesisResultPathByIndices : List Int
+  , renamingInOutput : Maybe (PId, String)
   , randomColor : Int
   , lambdaTools : List LambdaTool
   , layoutOffsets : LayoutOffsets
@@ -365,6 +366,9 @@ isResultSafe (SynthesisResult {isSafe}) =
 
 resultDescription (SynthesisResult {description}) =
   description
+
+resultExp (SynthesisResult {exp}) =
+  exp
 
 setResultDescription description (SynthesisResult result) =
   SynthesisResult { result | description = description }
@@ -1047,6 +1051,7 @@ initModel =
     , autoSynthesis = False
     , synthesisResults = []
     , hoveredSynthesisResultPathByIndices = []
+    , renamingInOutput = Nothing
     , randomColor   = 100
     , lambdaTools   = [starLambdaTool]
     , layoutOffsets = initialLayoutOffsets

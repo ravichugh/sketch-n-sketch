@@ -1,4 +1,4 @@
-module InterfaceController exposing
+port module InterfaceController exposing
   ( update
   , msgNoop
   , msgWindowDimensions
@@ -14,6 +14,7 @@ module InterfaceController exposing
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
+  , msgActivateRenameInOutput, msgUpdateRenameInOutputTextBox, msgDoRename
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox, msgToggleOutput
@@ -99,7 +100,6 @@ import ShapeWidgets exposing (Feature(..), FeatureNum(..), RealZone(..), PointFe
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
-import Canvas
 import DefaultIconTheme
 import DependenceGraph exposing (lookupIdent)
 import CodeMotion
@@ -476,6 +476,7 @@ onMouseDrag lastPosition newPosition old =
                   [ ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "offset") (XFeat EndPoint)), (endX, endY))
                   , ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "offset") (YFeat EndPoint)), (endX, endY))
                   ]
+                WCall _ _ _ _ -> []
             )
       in
       let shapesAndBounds =
@@ -798,6 +799,7 @@ hooks : List (Model -> Model -> (Model, Cmd Msg))
 hooks =
   [ handleSavedSelectionsHook
   -- , handleOutputSelectionChanges
+  , focusJustShownRenameBox
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
@@ -838,6 +840,15 @@ handleOutputSelectionChanges oldModel newModel =
       finalModel = { newModel | deuceToolsAndResults = DeuceTools.createToolCacheMultipleInterpretations newModel deuceWidgetInterpretations }
     in
     (finalModel, Cmd.none)
+  else
+    (newModel, Cmd.none)
+
+port doFocusJustShownRenameBox : () -> Cmd msg
+
+focusJustShownRenameBox : Model -> Model -> (Model, Cmd Msg)
+focusJustShownRenameBox oldModel newModel =
+  if oldModel.renamingInOutput == Nothing && newModel.renamingInOutput /= Nothing then
+    (newModel, doFocusJustShownRenameBox ())
   else
     (newModel, Cmd.none)
 
@@ -1228,7 +1239,7 @@ msgKeyDown keyCode =
           else
             let
               new =
-                old
+                { old | renamingInOutput = Nothing }
                   |> Model.hideDeuceRightClickMenu
                   |> resetDeuceState
                   |> \m -> { m | deucePopupPanelAbove = True }
@@ -1685,6 +1696,40 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
   upstateRun
     { old | mode = refreshMode_ old }
 
+msgActivateRenameInOutput pid = Msg ("Active Rename Box for PId " ++ toString pid) <| \old ->
+  let oldName =
+    findPatByPId old.inputExp pid
+    |> Maybe.andThen LangTools.patToMaybeIdent
+    |> Maybe.withDefault ""
+  in
+  { old | renamingInOutput = Just (pid, oldName) }
+
+msgUpdateRenameInOutputTextBox newText = Msg ("Update Rename In Output: " ++ newText) <| \old ->
+  case old.renamingInOutput of
+    Just (pid, _) -> { old | renamingInOutput = Just (pid, newText) }
+    Nothing       -> old
+
+-- Shouldn't need pid b/c there should only be one rename box at a time, but I hate state.
+msgDoRename pid = Msg ("Rename PId " ++ toString pid) <| \old ->
+  case old.renamingInOutput of
+    Just (renamingPId, newName) ->
+      if renamingPId == pid then
+        let newProgram =
+          CodeMotion.renamePatByPId pid newName old.inputExp
+          |> List.filter isResultSafe
+          |> List.head
+          |> Maybe.map resultExp
+          |> Maybe.withDefault old.inputExp
+        in
+        { old | code             = unparse newProgram
+              , renamingInOutput = Nothing
+        } |> upstateRun
+      else
+        old
+
+    Nothing ->
+      old
+
 --------------------------------------------------------------------------------
 
 requireSaveAsker ((Msg name _) as msg) needsSave =
@@ -1741,11 +1786,38 @@ loadIcon env icon old =
     oldIcons =
       old.icons
     iconHtml =
-      Canvas.iconify env actualCode
+      iconify env actualCode
     newIcons =
       Dict.insert icon.iconName iconHtml oldIcons
   in
     { old | icons = newIcons }
+
+-- for basic icons, env will be Eval.initEnv.
+-- for LambdaTool icons, env will be from result of running main program.
+iconify env code =
+  let
+    exp =
+      Utils.fromOkay "Error parsing icon"
+        <| parseE code
+    ((val, _), _) =
+      Utils.fromOkay "Error evaluating icon"
+        <| Eval.doEval env exp
+    slate =
+      Utils.fromOkay "Error resolving index tree of icon"
+        <| LangSvg.resolveToIndexedTree 1 1 0 val
+    svgElements =
+      LangSvg.buildSvgSimple slate
+    subPadding x =
+      x - 10
+  in
+    Svg.svg
+      [ Svg.Attributes.width <|
+          (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
+      , Svg.Attributes.height <|
+          (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
+      ]
+      [ svgElements ]
+
 
 loadLambdaToolIcons finalEnv old =
   let foo tool acc =

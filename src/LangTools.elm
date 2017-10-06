@@ -1632,7 +1632,7 @@ findScopeAreasByIdent ident exp =
 -- TODO uses existing functions to relax that requirement
 findPatAndBoundExpByPId : PId -> Exp -> Maybe (Pat, Exp)
 findPatAndBoundExpByPId targetPId exp =
-  case findScopeExpAndPat targetPId exp of
+  case findScopeExpAndPatByPId exp targetPId of
     Just (scopeExp, pat) ->
       case (expToMaybeLetPatAndBoundExp scopeExp, patToMaybeIdent pat) of
         (Just (letPat, letBoundExp), Just ident) ->
@@ -1666,29 +1666,6 @@ findBoundExpByPathedPatternId ((scopeEId, _), targetPath) exp =
 
     Nothing ->
       Nothing
-
-
--- Oops I wrote this and we don't need it yet. I imagine we will though, so let's leave it be for now. (July 2017)
-findScopeExpAndPat : PId -> Exp -> Maybe (Exp, Pat)
-findScopeExpAndPat targetPId exp =
-  exp
-  |> mapFirstSuccessNode
-      (\e ->
-        let maybeTargetPat =
-          case e.val.e__ of
-            ELet _ _ _ pat _ _ _ -> findPatInPat targetPId pat
-            EFun _ pats _ _      -> Utils.mapFirstSuccess (findPatInPat targetPId) pats
-            ECase _ _ branches _ -> Utils.mapFirstSuccess (findPatInPat targetPId) (branchPats branches)
-            _                    -> Nothing
-        in
-        maybeTargetPat |> Maybe.map (\pat -> (e, pat))
-      )
-
-
-findPatInPat : PId -> Pat -> Maybe Pat
-findPatInPat targetPId pat =
-  flattenPatTree pat
-  |> Utils.findFirst (.val >> .pid >> (==) targetPId)
 
 
 findScopeExpAndPatByPathedPatternId : PathedPatternId -> Exp -> Maybe (Exp, Pat)

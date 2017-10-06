@@ -1,13 +1,14 @@
-module Canvas exposing (build, buildSvg, iconify)
+module Canvas exposing (build, buildSvg)
 
 -- Sketch-n-Sketch Libraries ---------------------------------------------------
 
 import Config exposing (params)
 import Utils
 import Either exposing (Either(..))
-import HtmlUtils exposing (handleEventAndStop)
+import HtmlUtils exposing (..)
 
 import Lang exposing (..)
+import LangTools
 import LangSvg exposing (NodeId, ShapeKind, attr)
 import ShapeWidgets exposing
   ( ZoneName, RealZone(..)
@@ -18,7 +19,10 @@ import SleekLayout exposing (canvasPosition)
 import Sync
 import Draw
 import InterfaceModel exposing (..)
+import InterfaceController as Controller
 import FastParser exposing (parseE)
+
+import LangUnparser
 import Eval
 
 -- Elm Libraries ---------------------------------------------------------------
@@ -163,33 +167,6 @@ buildSvg_ (model, addZones) d i =
       if zones == []
         then mainshape
         else Svg.svg [] (mainshape :: zones)
-
--- for basic icons, env will be Eval.initEnv.
--- for LambdaTool icons, env will be from result of running main program.
---
-iconify env code =
-  let
-    exp =
-      Utils.fromOkay "Error parsing icon"
-        <| parseE code
-    ((val, _), _) =
-      Utils.fromOkay "Error evaluating icon"
-        <| Eval.doEval env exp
-    tree =
-      Utils.fromOkay "Error resolving index tree of icon"
-        <| LangSvg.resolveToIndexedTree 1 1 0 val
-    svgElements =
-      buildSvg ({ initModel | showGhosts = False }, False) tree
-    subPadding x =
-      x - 10
-  in
-    Svg.svg
-      [ SAttr.width <|
-          (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
-      , SAttr.height <|
-          (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
-      ]
-      [ svgElements ]
 
 --------------------------------------------------------------------------------
 
@@ -415,6 +392,81 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     else
       []
   in
+  let drawCallWidget funcVal argVals retVal retWs model =
+    let program = model.inputExp in
+    let maybeBounds =
+      retVal::argVals
+      |> List.map ShapeWidgets.valToMaybeBounds
+      |> (++) (retWs |> List.map ShapeWidgets.maybeWidgetBounds)
+      |> Utils.filterJusts
+      |> ShapeWidgets.maybeEnclosureOfAllBounds
+    in
+    let padding = 25 in
+    let (maybeFuncName, maybeFuncPat) =
+      case funcVal.v_ of
+        VClosure maybeRecName pats body env ->
+          case parentByEId program body.val.eid of
+            Just (Just funcExp) ->
+              case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
+                Just (_, pat) ->
+                  case pat.val.p__ of
+                    PVar _ funcName _ -> (Just funcName, Just pat)
+                    _ -> (Nothing, Nothing)
+                _ -> (Nothing, Nothing)
+            _ -> (Nothing, Nothing)
+        _ -> (Nothing, Nothing)
+    in
+    case maybeBounds of
+      Nothing -> []
+      Just (left, top, right, bot) ->
+        let title =
+          flip Svg.text_ [VirtualDom.text (maybeFuncName |> Maybe.withDefault "")] <|
+            [ attr "font-family" params.mainSection.uiWidgets.font
+            , attr "font-size" params.mainSection.uiWidgets.fontSize
+            , attr "text-anchor" "start"
+            , attr "cursor" "text"
+            , attr "x" (toString (left - padding))
+            , attr "y" (toString (top - padding - 10))
+            , onMouseDownAndStop (Controller.msgActivateRenameInOutput (maybeFuncPat |> Maybe.map (.val >> .pid) |> Maybe.withDefault -1))
+            ]
+        in
+        let maybeRenameTitle =
+          let funcPatPId = maybeFuncPat |> Maybe.map (.val >> .pid) |> Maybe.withDefault -9283409127 in
+          model.renamingInOutput
+          |> Utils.filterMaybe (\(renamingPId, _) -> renamingPId == funcPatPId)
+          |> Maybe.map
+              (\(renamingPId, renameStr) ->
+                flip Svg.foreignObject [Html.input [Attr.defaultValue renameStr, Attr.id "rename_box"] []] <|
+                  [ attr "x" (toString (left - padding - 2))
+                  , attr "y" (toString (top - padding - 10 - 17))
+                  , onInput Controller.msgUpdateRenameInOutputTextBox
+                  , onClickWithoutPropagation Controller.msgNoop
+                  , onKeyDown <|
+                      \keyCode ->
+                        if keyCode == enterKeyCode then -- Enter button
+                          Controller.msgDoRename renamingPId
+                        else
+                          Controller.msgNoop
+                  ]
+              )
+        in
+        let box =
+          flip Svg.rect [] <|
+            [ attr "fill" "none"
+            , attr "stroke" "black"
+            , attr "stroke-width" "5px"
+            , attr "stroke-dasharray" "20,10"
+            , attr "opacity" "0.3"
+            , attr "rx" (toString padding)
+            , attr "ry" (toString padding)
+            , attr "x" (toString (left - padding))
+            , attr "y" (toString (top - padding))
+            , attr "width" (toString (right - left + padding*2))
+            , attr "height" (toString (bot - top + padding*2))
+            ]
+        in
+        [ box, Maybe.withDefault title maybeRenameTitle ]
+  in
 
   let draw (i_, widget) =
     case widget of
@@ -434,6 +486,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
 
       WOffset1D baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal ->
         drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr endXVal endYVal
+
+      WCall funcVal argVals retVal retWs ->
+        drawCallWidget funcVal argVals retVal retWs model
   in
 
   List.concat <| Utils.mapi1 draw widgets

@@ -851,11 +851,18 @@ code {
   background-color: rgba(255, 0, 0, 0.2);
 }
 
+/* Deuce rename box */
 .rename-input {
   width: 100%;
   margin-top: 0.4em; /* 1em - synthesis-results.line-height */
   font-size: 16px;
   padding: 5px;
+}
+
+/* Rename in output box */
+#rename_box {
+  font-family: Tahoma, sans-serif;
+  font-size: 11pt;
 }
 
 /******************************************************************************

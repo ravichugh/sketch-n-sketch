@@ -233,7 +233,7 @@ eval env bt e =
       Ok (v1,ws1) ->
         case v1.v_ of
           VClosure maybeRecName ps funcBody closureEnv ->
-            let funcRes =
+            let argValsAndFuncRes =
               case maybeRecName of
                 Nothing    -> apply env bt bt_ e ps es funcBody closureEnv
                 Just fName -> apply env bt bt_ e ps es funcBody ((fName, v1)::closureEnv)
@@ -242,7 +242,11 @@ eval env bt e =
             -- Dependence on function is implicit by being dependent on some value computed by an expression in the function.
             -- Instead, point to return value (and, hence, the final expression of) the function. This will also
             -- transitively point to any arguments used.
-            funcRes |> Result.map (\(fRetVal, fRetWs) -> retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs))
+            argValsAndFuncRes
+            |> Result.map (\(argVals, (fRetVal, fRetWs)) ->
+              let perhapsCallWidget = if FastParser.isProgramEId e.val.eid then [WCall v1 argVals fRetVal fRetWs] else [] in
+              retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget)
+            )
 
           _ ->
             errorWithBacktrace (e::bt) <| strPos e1.start ++ " not a function"
@@ -515,11 +519,13 @@ evalDelta bt op is =
 
 -- Using this recursive function rather than desugaring to single
 -- applications: cleaner provenance (one record for entire app).
+--
+-- Returns: Result String (argVals, (functionResult, widgets))
 apply env bt bt_ e psLeft esLeft funcBody closureEnv =
   let recurse = apply env bt bt_ e in
   case (psLeft, esLeft) of
     ([], []) ->
-      eval_ closureEnv bt_ funcBody
+      eval_ closureEnv bt_ funcBody |> Result.map (\valAndWs -> ([], valAndWs))
 
     ([], esLeft) ->
       eval_ closureEnv bt_ funcBody
@@ -528,8 +534,8 @@ apply env bt bt_ e psLeft esLeft funcBody closureEnv =
             case fRetVal1.v_ of
               VClosure maybeRecName ps funcBody closureEnv ->
                 case maybeRecName of
-                  Nothing    -> recurse ps esLeft funcBody closureEnv                      |> Result.map (\(v2, ws2) -> (v2, fRetWs1 ++ ws2))
-                  Just fName -> recurse ps esLeft funcBody ((fName, fRetVal1)::closureEnv) |> Result.map (\(v2, ws2) -> (v2, fRetWs1 ++ ws2))
+                  Nothing    -> recurse ps esLeft funcBody closureEnv                      |> Result.map (\(argVals, (v2, ws2)) -> (argVals, (v2, fRetWs1 ++ ws2)))
+                  Just fName -> recurse ps esLeft funcBody ((fName, fRetVal1)::closureEnv) |> Result.map (\(argVals, (v2, ws2)) -> (argVals, (v2, fRetWs1 ++ ws2)))
               _ ->
                 errorWithBacktrace (e::bt) <| strPos e.start ++ " too many arguments given to function"
           )
@@ -541,14 +547,14 @@ apply env bt bt_ e psLeft esLeft funcBody closureEnv =
         -- The provenance that matters is already attached to the values in the closureEnv.
         finalVal = { v_ = VClosure Nothing psLeft funcBody closureEnv, provenance = dummyProvenance, parents = Parents [] }
       in
-      Ok (finalVal, [])
+      Ok ([], (finalVal, []))
 
     (p::psLeft, e::esLeft) ->
       case eval_ env bt_ e of
         Err s -> Err s
         Ok (argVal, argWs) ->
           case cons (p, argVal) (Just closureEnv) of
-            Just closureEnv -> recurse psLeft esLeft funcBody closureEnv |> Result.map (\(v2, ws2) -> (v2, argWs ++ ws2))
+            Just closureEnv -> recurse psLeft esLeft funcBody closureEnv |> Result.map (\(laterArgs, (v2, ws2)) -> (argVal::laterArgs, (v2, argWs ++ ws2)))
             Nothing         -> errorWithBacktrace (e::bt) <| strPos e.start ++ " bad arguments to function"
 
 
@@ -589,6 +595,7 @@ postProcessWidgets widgets =
           WNumSlider _ _ _ _ _ _ True  -> False
           WPoint _ _ _ _               -> False
           WOffset1D _ _ _ _ _ _ _ _    -> False
+          WCall _ _ _ _                -> False
       )
   in
   rangeWidgets ++ pointWidgets

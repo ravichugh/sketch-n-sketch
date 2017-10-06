@@ -666,6 +666,8 @@ widgetFeatureEquation featureName widget locIdToNumberAndLoc =
         (YFeat EndPoint, X) -> EqnNum (baseY, baseYTr)
         (YFeat EndPoint, Y) -> EqnOp op [EqnNum (baseY, baseYTr), EqnNum (amount, amountTr)]
         _                   -> Debug.crash <| "WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ featureName
+    WCall funcVal argVals retVal retWs ->
+      Debug.crash <| "WCall does not have any feature equations, but asked for " ++ featureName
 
 
 widgetFeatureValEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureValEquation
@@ -691,6 +693,8 @@ widgetFeatureValEquation featureName widget locIdToNumberAndLoc =
         XFeat EndPoint -> EqnNum endXVal
         YFeat EndPoint -> EqnNum endYVal
         _              -> Debug.crash <| "widgetFeatureValEquation WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ featureName
+    WCall funcVal argVals retVal retWs ->
+      Debug.crash <| "WCall does not have any feature val equations, but asked for " ++ featureName
 
 
 featureEquationOf
@@ -977,6 +981,107 @@ getPrimitivePointEquations (_, tree) nodeId =
       ) (pointFeaturesOfShape kind attrs)
     _ ->
       Debug.crash "LangSvg.getPrimitivePoints"
+
+
+------------------------------------------------------------------------------
+-- Shape Bounds
+
+-- Enclosing bounding box
+enclosureOfBoundsPair : (Num, Num, Num, Num) -> (Num, Num, Num, Num) -> (Num, Num, Num, Num)
+enclosureOfBoundsPair (left1, top1, right1, bot1) (left2, top2, right2, bot2) =
+  ( min  left1  left2
+  , min   top1   top2
+  , max right1 right2
+  , max   bot1   bot2
+  )
+
+maybeEnclosureOfAllBounds : List (Num, Num, Num, Num) -> Maybe (Num, Num, Num, Num)
+maybeEnclosureOfAllBounds bounds =
+  case bounds of
+    []          -> Nothing
+    first::rest -> Just (rest |> List.foldl enclosureOfBoundsPair first)
+
+
+valToMaybeBounds : Val -> Maybe (Num, Num, Num, Num)
+valToMaybeBounds val =
+  case valToMaybeAnnotatedPoint val of
+    Just (x, y) -> Just (x, y, x, y)
+    Nothing ->
+      case val.v_ of
+        VList vals ->
+          case LangSvg.valToIndexedTree val of
+            Ok (_, shapeDict) ->
+              let shapeNodes = Dict.values shapeDict in
+              shapeNodes
+              |> List.filterMap maybeShapeBounds
+              |> maybeEnclosureOfAllBounds
+
+            Err _ ->
+              -- Maybe this is a list of shapes or points?
+              vals
+              |> List.filterMap valToMaybeBounds
+              |> maybeEnclosureOfAllBounds -- Returns nothing if input list empty (no shapes found)
+        _ -> Nothing
+
+
+valToMaybeAnnotatedPoint : Val -> Maybe (Num, Num)
+valToMaybeAnnotatedPoint val =
+  case val.v_ of
+    VConst (Just (X, (y, _), _)) (x, _) -> Just (x, y)
+    VConst (Just (Y, (x, _), _)) (y, _) -> Just (x, y)
+    VList vals ->
+      case List.map .v_ vals of
+        [ VConst (Just (X, _, _)) (x, _)
+        , VConst (Just (Y, _, _)) (y, _) ] -> Just (x, y)
+        _                             -> Nothing
+    _ -> Nothing
+
+
+-- Returns Maybe (left, top, right, bot)
+maybeShapeBounds : LangSvg.IndexedTreeNode -> Maybe (Num, Num, Num, Num)
+maybeShapeBounds svgNode =
+  case svgNode.interpreted of
+    LangSvg.TextNode _ -> Nothing
+    LangSvg.SvgNode shapeKind shapeAttrs childIds ->
+      let (xs, ys) =
+        featuresOfShape shapeKind shapeAttrs
+        |> List.filterMap
+            (\feature ->
+              case feature of
+                PointFeature pf ->
+                  let (xEqn, yEqn) = getPointEquations shapeKind shapeAttrs pf in
+                  case (evaluateFeatureEquation xEqn, evaluateFeatureEquation yEqn) of
+                    (Just x, Just y) -> Just (x, y)
+                    _                -> Nothing
+
+                _ -> Nothing
+            )
+        |> List.unzip
+      in
+      case Utils.projJusts [ List.minimum xs, List.minimum ys, List.maximum xs, List.maximum ys ] of
+        Just [ left, top, right, bot ] -> Just (left, top, right, bot)
+        _                              -> Nothing
+
+
+-- Returns Maybe (left, top, right, bot)
+maybeWidgetBounds : Widget -> Maybe (Num, Num, Num, Num)
+maybeWidgetBounds widget =
+  case widget of
+    WIntSlider _ _ _ _ _ _ _     -> Nothing
+    WNumSlider _ _ _ _ _ _ _     -> Nothing
+    WPoint (x, xTr) _ (y, yTr) _ -> Just (x, y, x, y)
+    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _ ->
+      let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
+        offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
+      in
+      Just
+          ( min baseX endX
+          , min baseY endY
+          , max baseX endY
+          , max baseY endY
+          )
+
+    WCall _ _ _ _ -> Nothing
 
 
 ------------------------------------------------------------------------------

@@ -16,7 +16,7 @@ import Svg
 import Svg.Attributes as SAttr
 
 import Utils
-import HtmlUtils exposing (handleEventAndStop, styleListToString)
+import HtmlUtils exposing (..)
 import Either exposing (..)
 import Updatable
 
@@ -62,34 +62,6 @@ groupDisabled disallowSelectedFeatures model =
       Dict.isEmpty model.selectedBlobs
   in
     noBlobs || (disallowSelectedFeatures && (not noFeatures))
-
-onClickWithoutPropagation : msg -> Html.Attribute msg
-onClickWithoutPropagation handler =
-  E.onWithOptions
-    "click"
-    { stopPropagation = True
-    , preventDefault = False
-    }
-    (Json.succeed handler)
-
-onRightClick : msg -> Html.Attribute msg
-onRightClick handler =
-  E.onWithOptions
-    "contextmenu"
-    { stopPropagation = True
-    , preventDefault = True
-    }
-    (Json.succeed handler)
-
--- Derived from (under "keyCode"):
---   http://package.elm-lang.org/packages/elm-lang/html/2.0.0/Html-Events
-onKeyDown : (Int -> msg) -> Html.Attribute msg
-onKeyDown tagger =
-  E.on "keydown" (Json.map tagger E.keyCode)
-
-enterKeyCode : Int
-enterKeyCode =
-  13
 
 italicizeQuotes : String -> String -> List (Html Msg)
 italicizeQuotes quoteString text =

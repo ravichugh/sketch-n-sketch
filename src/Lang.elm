@@ -234,6 +234,7 @@ type Widget
   | WNumSlider Num Num String Num Val Loc Bool
   | WPoint NumTr Val NumTr Val
   | WOffset1D NumTr NumTr Axis Sign NumTr Val Val Val -- baseXNumTr baseYNumTr axis sign amountNumTr amountProvenance endXProvenance endYProvenance
+  | WCall Val (List Val) Val Widgets -- funcVal argVals retVal retWs
 
 type alias Widgets = List Widget
 
@@ -1173,6 +1174,35 @@ findExpByEId program targetEId =
 -- LangTools.justFindExpByEId eid exp =
 --   findExpByEId exp eid
 --   |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
+
+
+findPatByPId : Exp -> PId -> Maybe Pat
+findPatByPId program targetPId =
+  findScopeExpAndPatByPId program targetPId
+  |> Maybe.map (\(scopeExp, pat) -> pat)
+
+
+findScopeExpAndPatByPId : Exp -> PId -> Maybe (Exp, Pat)
+findScopeExpAndPatByPId program targetPId =
+  program
+  |> mapFirstSuccessNode
+      (\e ->
+        let maybeTargetPat =
+          case e.val.e__ of
+            ELet _ _ _ pat _ _ _ -> findPatInPat targetPId pat
+            EFun _ pats _ _      -> Utils.mapFirstSuccess (findPatInPat targetPId) pats
+            ECase _ _ branches _ -> Utils.mapFirstSuccess (findPatInPat targetPId) (branchPats branches)
+            _                    -> Nothing
+        in
+        maybeTargetPat |> Maybe.map (\pat -> (e, pat))
+      )
+
+
+findPatInPat : PId -> Pat -> Maybe Pat
+findPatInPat targetPId pat =
+  flattenPatTree pat
+  |> Utils.findFirst (.val >> .pid >> (==) targetPId)
+
 
 findExpByLocId : Exp -> LocId -> Maybe Exp
 findExpByLocId program targetLocId =
@@ -2954,26 +2984,30 @@ tagBranchList eid =
               tagSinglePat (rootPathedPatternId (eid, index + 1)) p
       )
 
+taggedExpPats : Exp -> List (PId, PathedPatternId)
+taggedExpPats exp =
+  case exp.val.e__ of
+    EFun _ ps _ _ ->
+      tagPatList (rootPathedPatternId (exp.val.eid, 1)) ps
+    ECase _ _ branches _ ->
+      tagBranchList exp.val.eid branches
+    ELet _ _ _ p1 _ _ _ ->
+      tagSinglePat (rootPathedPatternId (exp.val.eid, 1)) p1
+    ETyp _ p1 _ _ _ ->
+      tagSinglePat (rootPathedPatternId (exp.val.eid, 1)) p1
+    ETypeAlias _ p1 _ _ _ ->
+      tagSinglePat (rootPathedPatternId (exp.val.eid, 1)) p1
+    _ ->
+      []
+
 computePatMap : Exp -> Dict PId PathedPatternId
 computePatMap =
-  let
-    taggedChildPats : Exp -> List (PId, PathedPatternId)
-    taggedChildPats e =
-      case e.val.e__ of
-        EFun _ ps _ _ ->
-          tagPatList (rootPathedPatternId (e.val.eid, 1)) ps
-        ECase _ _ branches _ ->
-          tagBranchList e.val.eid branches
-        ELet _ _ _ p1 _ _ _ ->
-          tagSinglePat (rootPathedPatternId (e.val.eid, 1)) p1
-        ETyp _ p1 _ _ _ ->
-          tagSinglePat (rootPathedPatternId (e.val.eid, 1)) p1
-        ETypeAlias _ p1 _ _ _ ->
-          tagSinglePat (rootPathedPatternId (e.val.eid, 1)) p1
-        _ ->
-          []
-  in
-    Dict.fromList << List.concatMap taggedChildPats << flattenExpTree
+  Dict.fromList << List.concatMap taggedExpPats << flattenExpTree
+
+pidToPathedPatternId : Exp -> PId -> Maybe PathedPatternId
+pidToPathedPatternId program pid =
+  program
+  |> mapFirstSuccessNode (taggedExpPats >> Utils.maybeFind pid)
 
 --------------------------------------------------------------------------------
 -- Dealing with top-level expressions

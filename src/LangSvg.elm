@@ -9,6 +9,7 @@ module LangSvg exposing
   , valToIndexedTree
   , printSvg
   , compileAttr, compileAttrs, desugarShapeAttrs -- TODO remove in favor of compileSvg
+  , buildSvgSimple
   , strAVal
   , aNum, aPoints, aTransform
   , toNum, toColorNum, toTransformRot, toPath
@@ -508,7 +509,27 @@ compileAttrs = List.map (uncurry compileAttr)
 compileAttr : String -> AVal -> Svg.Attribute a
 compileAttr k v = (attr k) (strAVal v)
 
-  -- TODO move rest of View.buildSvg here
+
+buildSvgSimple : RootedIndexedTree -> Svg.Svg a
+buildSvgSimple (rootI, tree) =
+  buildSvgSimple_ tree rootI
+
+buildSvgSimple_ : IndexedTree -> NodeId -> Svg.Svg a
+buildSvgSimple_ tree i  =
+  case Utils.justGet_ ("LangSvg.buildSvgSimple_ " ++ toString i) i tree |> .interpreted of
+    TextNode text -> VirtualDom.text text
+    SvgNode shape attrs childIndices ->
+      case Utils.maybeRemoveFirst "HIDDEN" attrs of
+        Just _ -> Svg.svg [] []
+        _ ->
+          let attrs_ =
+            case Utils.maybeRemoveFirst "ZONES" attrs of
+              Nothing        -> attrs
+              Just (_, rest) -> rest
+          in
+          let children = List.map (buildSvgSimple_ tree) childIndices in
+          let (rawKind, rawAttrs) = desugarShapeAttrs shape attrs_ in
+          Svg.node rawKind (compileAttrs rawAttrs) children
 
 
 ------------------------------------------------------------------------------
