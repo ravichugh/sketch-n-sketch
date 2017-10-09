@@ -828,7 +828,7 @@ issueCommand (Msg kind _) oldModel newModel =
             case newModel.slate of
               LittleSheet header vss ->
                 Cmd.batch
-                     [ SpreadSheet.render (SpreadSheet.valToSpreadSheet header vss)
+                     [ SpreadSheet.render (SpreadSheet.valToStyledSheet header vss)
                      , AceCodeBox.display newModel
                      ]
               _               -> AceCodeBox.display newModel
@@ -2461,29 +2461,9 @@ getCellVal m cellInfo =
   let (row, col) = cellInfo.pos in
   case m.slate of
     LittleSheet _ vss -> Utils.maybeGeti0 row vss |>
-                         Maybe.andThen (Utils.maybeGeti0 col)
+                         Maybe.andThen (Utils.maybeGeti0 col) |>
+                         Maybe.andThen (Dict.get "data")
     _               -> Nothing
-
-{-
-addCell : Model -> CellInfo -> Model
-addCell m cellInfo =
-  let (row, col) = cellInfo.pos in
-  case m.slate of
-    LittleSheet h vss ->
-      case Utils.maybeGeti0 row vss of
-        Just l -> if length l == col
-                  then
-                    let newl = l ++ [cellInfo.value] in
-                    let newData = getReplacei0 (\l -> l ++ [cellInfo.value]) vss in
-                    { m | slate = LittleSheet h newData }
-                  else
-                    let _ = Debug.log "adding value at unexpected position" "" in
-                    m
-        _      -> let newRow = [cellInfo.value] in
-                  let newData = vss ++ newRow in
-                  { m | slate = LittleSheet h newData }
--}
-
 
 
 -- this is a temporary function assuming that no arithmetic operation is performed

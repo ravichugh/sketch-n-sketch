@@ -249,13 +249,19 @@ type alias Caption = Maybe (WithInfo String)
 type alias VTrace = List EId
 type alias Val    = { v_ : Val_, vtrace : VTrace }
 
+type alias Cell = Dict.Dict String Val
+
+cellToVal : Cell -> Val
+cellToVal cell =
+  Utils.fromJust_ "cellToVal" <| Dict.get "data" cell
+                
 type Val_
   = VConst (Maybe (Axis, NumTr)) NumTr -- Maybe (Axis, value in other dimention)
   | VBase VBaseVal
   | VClosure (Maybe Ident) Pat Exp Env
   | VList (List Val)
   | VDict VDict_
-  | VSheet (List Val) (List (List Val)) -- header and data
+  | VSheet (List Val) (List (List Cell)) -- header and data
 
 type alias VDict_ = Dict.Dict (String, String) Val
 
@@ -441,7 +447,7 @@ strVal_ showTraces v =
     VList vs                -> Utils.bracks (String.join " " (List.map foo vs))
     VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (foo v)) |> String.join " ") ++ ">"
     VSheet header vss       ->
-      let handleOneRow vs = Utils.bracks (String.join " " (List.map foo vs)) in
+      let handleOneRow vs = Utils.bracks (String.join " " (List.map (foo << cellToVal) vs)) in
       "<sheet:" ++ Utils.bracks (String.join " " (List.map handleOneRow vss)) ++ ">"
 
 strOp op = case op of
@@ -980,7 +986,9 @@ mapVal f v = case v.v_ of
   VConst _ _       -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
-  VSheet h vss     -> f { v | v_ = VSheet h (List.map (List.map (mapVal f)) vss) }
+  VSheet h vss     ->
+    let mapCell f cell = Dict.update "data" (Maybe.map f) cell in
+    f { v | v_ = VSheet h (List.map (List.map (mapCell f)) vss) }
 
 foldVal : (Val -> a -> a) -> Val -> a -> a
 foldVal f v a = case v.v_ of
@@ -989,7 +997,9 @@ foldVal f v a = case v.v_ of
   VConst _ _       -> f v a
   VBase _          -> f v a
   VClosure _ _ _ _ -> f v a
-  VSheet h vss     -> f v <| List.foldl (flip <| List.foldl (foldVal f)) a vss
+  VSheet h vss     ->
+    let foldCell f cell a = foldVal f (cellToVal cell) a in
+    f v <| List.foldl (flip <| List.foldl (foldCell f)) a vss
 
 -- Fold through preorder traversal
 foldExp : (Exp -> a -> a) -> a -> Exp -> a

@@ -381,15 +381,37 @@ evalOp env bt opWithInfo es =
                     VList val -> Ok val
                     _         -> error ()
             in
+            let constructDict vals =
+                  let combine v acc =
+                        case v.v_ of
+                          VList [vstr, v1] ->
+                            case vstr.v_ of
+                              VBase (VString s) -> 
+                                Result.map (\x -> Dict.insert s v1 x) acc
+                              _                 -> error ()
+                          _                             -> error ()
+                  in
+                    List.foldl combine (Ok (Dict.empty)) vals
+            in
+            let getCell cell =
+                  case cell.v_ of
+                    VList vals -> constructDict vals
+                    _          -> error ()
+            in
+            let genCells vlist =
+                  let foo vs = vs |>
+                               getList |>
+                               Result.andThen (Utils.projOk << (List.map getCell))
+                  in
+                    Utils.projOk (List.map foo vlist)
+            in
             case List.map .v_ vs of
               [VList vlist] -> 
-                let vss = Utils.projOk <| List.map getList vlist in
-                case vss of
+                case genCells vlist of
                   Ok vss -> VSheet [] vss |> emptyVTraceOk
                   _      -> error ()
               [VList header, VList vlist] ->
-                let vss = Utils.projOk <| List.map getList vlist in
-                case vss of
+                case genCells vlist of
                   Ok vss -> VSheet header vss |> emptyVTraceOk
                   _      -> error ()
               _                 -> error ()

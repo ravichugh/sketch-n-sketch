@@ -12,19 +12,56 @@ function padding(data, len) {
 function defaultCellRenderer(instance, td, row, col, prop, value, cellProperties) {
     Handsontable.renderers.TextRenderer.apply(this, arguments);
     if (!value || value == "")
-        td.style.background = "#EEE";
+	td.style="background:#EEE;";
     else
         td.style.background = "";
 }
 
+function decodeData(rawData) {
+    var data = [];
+    var styles = [];
+    for (var i = 0; i < rawData.length; i++) {
+	var row = [];
+	var rowStyles = [];
+	for (var j = 0; j < rawData[i].length; j++) {
+	    var decoded = JSON.parse(rawData[i][j]);
+	    row.push(decoded["data"]);
+	    delete decoded.data;
+	    rowStyles.push(decoded);
+	}
+	data.push(row);
+	styles.push(rowStyles);
+    }
+    return [data, styles];
+}
+
 function render(model) {
     var header = model["header"];
-    var data = model["data"];
+    var rawData = model["data"];
+    var arr = decodeData(rawData);
+    var data = arr[0];
+    var cellStyles = arr[1];
     var max_col_len = Math.max.apply(null, data.map(function(d) {return d.length;}));
     padding(data, max_col_len);
     console.log(data);
     var height = $(".output-panel").height();
     var width = $(".output-panel").width();
+
+    var cellFunc = function(row, col, prop) {
+        var cellProperties = {};
+	var styles = null;
+	if (cellStyles[row] != undefined && cellStyles[row][col] != undefined)
+	    styles = cellStyles[row][col];
+	cellProperties.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+	    Handsontable.renderers.TextRenderer.apply(this, arguments);
+	    if (styles)
+		for (var k in styles) {
+		    if (styles.hasOwnProperty(k))
+			td.style[k] = styles[k];
+		}
+	}
+        return cellProperties;
+    }
     if (!$("#grid").length) {
         $("<div/>", {id : "grid"}).appendTo(".output-panel");
         var container = document.getElementById("grid");
@@ -37,11 +74,7 @@ function render(model) {
             rowHeaders: header ? header : true,
             colHeaders: true,
             contextMenu: true,
-            cells: function(row, col, prop) {
-                var cellProperties = {};
-                cellProperties.renderer = defaultCellRenderer;
-                return cellProperties;
-            }
+            cells: cellFunc
         });
         ht.updateSettings({
             afterChange: function(changes, source) {
@@ -64,7 +97,8 @@ function render(model) {
     }
     else {
         ht.updateSettings({
-            data: data
+            data: data,
+	    cells: cellFunc
         });
         ht.render();
     }
