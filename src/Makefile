@@ -65,7 +65,7 @@ loc:
     DefaultIconTheme.elm \
     UserStudy.elm UserStudyLog.elm \
     SpreadSheet.elm \
-    Native/spreadSheet.js Native/spreadSheet.css \
+    Native/spreadSheet.js \
     Native/UserStudyLog.js Native/ImpureGoodies.js
 
 littleloc:

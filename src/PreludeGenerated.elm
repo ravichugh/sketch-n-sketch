@@ -1720,6 +1720,14 @@ prelude =
 (def styledRow (\\(row styles)
    (map (\\x (styledEntry x styles)) row)))
 
+; table without style (default)
+(def simpleTable (\\rows
+   (Table (map noStyleRow rows))))
+
+; every cell has the same style
+(def styledTable (\\(rows styles)
+   (Table (map (\\r (styledRow r styles)) rows))))
+
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
 

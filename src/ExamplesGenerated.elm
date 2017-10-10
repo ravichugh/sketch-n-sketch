@@ -5700,13 +5700,25 @@ task_lambda =
 
 --------------------------------------------------------------------------------
 
-spreadsheet_test =
+simpleSheet =
+ """(simpleTable
+ [
+  [1 2]
+  [3 4]
+  [3 4 5]
+ ])
+"""
+
+styledSheet =
  """(Table
-  [
-    [\"A\" \"B\"]
-    [1 2]
-    [3 4]
-  ])
+ [
+  [(styledEntry 1 [['color' 'red']]) 
+   (styledEntry 2 [['color' 'blue']])
+  ]
+  [(styledEntry 3 [['color' 'green']])
+   (styledEntry 4 [['color' 'yellow']])
+  ]
+ ])
 """
 
 
@@ -5898,7 +5910,10 @@ deuceUserStudyCategory =
   )
 
 sheetCategory =
-  ("Sheets", [ makeExample "simple sheet" spreadsheet_test ])
+  ("Sheets", [ makeExample "simple sheet" simpleSheet
+             , makeExample "styled sheet" styledSheet
+             ]
+  )
   
 templateCategories =
   [ generalCategory

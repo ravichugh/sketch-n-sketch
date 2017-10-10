@@ -196,7 +196,8 @@ LITTLE_TO_ELM task_lambda
 
 --------------------------------------------------------------------------------
 
-LITTLE_TO_ELM spreadsheet_test
+LITTLE_TO_ELM simpleSheet
+LITTLE_TO_ELM styledSheet
 
 generalCategory =
   ( "General"
@@ -386,7 +387,10 @@ deuceUserStudyCategory =
   )
 
 sheetCategory =
-  ("Sheets", [ makeExample "simple sheet" spreadsheet_test ])
+  ("Sheets", [ makeExample "simple sheet" simpleSheet
+             , makeExample "styled sheet" styledSheet
+             ]
+  )
   
 templateCategories =
   [ generalCategory
