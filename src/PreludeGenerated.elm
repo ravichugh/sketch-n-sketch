@@ -1702,6 +1702,24 @@ prelude =
       [\"stroke\" stroke])
       [\"stroke-width\" strokeWidth])))
 
+;
+; SpreadSheet function
+;
+
+; entry with no style
+(def noStyleEntry (\\x [['data' x]]))
+
+; row with no style
+(def noStyleRow (\\row (map noStyleEntry row)))
+
+; entry with style
+(def styledEntry (\\(x styles)
+   (cons ['data' x] styles)))
+
+; row with (same) style 
+(def styledRow (\\(row styles)
+   (map (\\x (styledEntry x styles)) row)))
+
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
 
