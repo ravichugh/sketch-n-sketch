@@ -244,7 +244,11 @@ eval env bt e =
             -- transitively point to any arguments used.
             argValsAndFuncRes
             |> Result.map (\(argVals, (fRetVal, fRetWs)) ->
-              let perhapsCallWidget = if FastParser.isProgramEId e.val.eid then [WCall v1 argVals fRetVal fRetWs] else [] in
+              let perhapsCallWidget =
+                if FastParser.isProgramEId e.val.eid && FastParser.isProgramEId funcBody.val.eid
+                then [WCall v1 argVals fRetVal fRetWs]
+                else []
+              in
               retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget)
             )
 
