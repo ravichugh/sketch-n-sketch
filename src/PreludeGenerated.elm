@@ -186,6 +186,11 @@ prelude =
     ([[]      []]      nil)
     (_                 (append xs ys)))))
 
+(def intersperse (\\(sep xs)
+  (case xs
+    ([]     xs)
+    ([x|xs] (reverse (foldl (\\(y acc) [ y sep | acc ]) [x] xs))))))
+
 (typ mapi (forall (a b) (-> (-> [Num a] b) (List a) (List b))))
 (def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
 
