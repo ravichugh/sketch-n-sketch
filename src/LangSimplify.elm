@@ -8,7 +8,8 @@ module LangSimplify exposing
   ( cleanCode
   , simplify
   , removeExtraPostfixes
-  , removeUnusedVars
+  , removeUnusedLetPats
+  , removeUnusedLetPatsMatching
   , simplifyAssignments
   , changeRenamedVarsToOuter
   )
@@ -126,7 +127,7 @@ simplify exp =
     let firstTwoSimplified =
       e
       |> inlineTrivialRenamings
-      |> removeUnusedVars
+      |> removeUnusedLetPats
     in
     if firstTwoSimplified == e then
       e
@@ -143,29 +144,34 @@ simplify exp =
     simplify simplified
 
 
-removeUnusedVars : Exp -> Exp
-removeUnusedVars exp =
+removeUnusedLetPats : Exp -> Exp
+removeUnusedLetPats exp =
+  removeUnusedLetPatsMatching (always True) exp
+
+
+removeUnusedLetPatsMatching : (Pat -> Bool) -> Exp -> Exp
+removeUnusedLetPatsMatching predicate exp =
   let remover e__ =
     case e__ of
-      ELet ws1 letKind rec pat assign body ws2 ->
-        let usedNames = identifiersSet body in
+      ELet ws1 letKind False pat assign body ws2 ->
+        let usedNames = freeIdentifiers body in
         let letRemoved =
           body.val.e__
         in
         case (pat.val.p__, assign.val.e__) of
           -- Simple assignment.
           (PVar _ ident _, _) ->
-            if Set.member ident usedNames then
+            if Set.member ident usedNames || not (predicate pat) then
               e__
             else
               letRemoved
 
           -- Check if as-pattern is used
           (PAs asWs ident _ innerPat, _) ->
-            if Set.member ident usedNames then
+            if Set.member ident usedNames || not (predicate pat) then
               e__
             else
-              ELet ws1 letKind rec (replacePrecedingWhitespacePat asWs.val innerPat) assign body ws2
+              ELet ws1 letKind False (replacePrecedingWhitespacePat asWs.val innerPat) assign body ws2
 
           -- List assignment, no tail.
           (PList pws1 pats pws2 Nothing pws3, EList aws1 assigns aws2 Nothing aws3) ->
@@ -177,7 +183,7 @@ removeUnusedVars exp =
                 List.filter
                     (\(pat, assign) ->
                       case pat.val.p__ of
-                        PVar _ ident _ -> Set.member ident usedNames
+                        PVar _ ident _ -> Set.member ident usedNames || not (predicate pat)
                         _              -> True
                     )
                     patsAssigns
@@ -190,16 +196,16 @@ removeUnusedVars exp =
                   let (thePat, theAssign) = Utils.head_ usedPatsAssigns in
                   let newPat    = replacePrecedingWhitespacePat pws1.val thePat in
                   let newAssign = replacePrecedingWhitespace aws1.val theAssign in
-                  ELet ws1 letKind rec newPat newAssign body ws2
+                  ELet ws1 letKind False newPat newAssign body ws2
 
                 _ ->
                   if List.length usedPatsAssigns == List.length pats then
                     e__
                   else
                     let (usedPats, usedAssigns) = List.unzip usedPatsAssigns in
-                    let newPat    = withDummyPatInfo <| PList pws1 (setPatListWhitespace "" " " usedPats) pws2 Nothing pws3 in
-                    let newAssign = withDummyExpInfo   <| EList aws1 (setExpListWhitespace "" " " usedAssigns) aws2 Nothing aws3 in
-                    ELet ws1 letKind rec newPat newAssign body ws2
+                    let newPat    = replaceP__ pat    <| PList pws1 (usedPats    |> imitatePatListWhitespace pats)    pws2 Nothing pws3 in
+                    let newAssign = replaceE__ assign <| EList aws1 (usedAssigns |> imitateExpListWhitespace assigns) aws2 Nothing aws3 in
+                    ELet ws1 letKind False newPat newAssign body ws2
 
           _ ->
             e__
@@ -396,7 +402,7 @@ inlineTrivialRenamings exp =
 --   (+ x 2)))
 --
 -- The `redundant` variable is now unsused and can be removed with
--- removeUnusedVars.
+-- removeUnusedLetPats.
 --
 changeRenamedVarsToOuter : Exp -> Exp
 changeRenamedVarsToOuter exp =

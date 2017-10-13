@@ -1143,6 +1143,9 @@ foldType f tipe acc =
 ------------------------------------------------------------------------------
 -- Traversing
 
+eidIs : EId -> Exp -> Bool
+eidIs targetEId exp = exp.val.eid == targetEId
+
 -- Returns pre-order list of expressions
 -- O(n^2) memory
 flattenExpTree : Exp -> List Exp
@@ -1167,7 +1170,7 @@ mapFirstSuccessNode f exp =
 
 findExpByEId : Exp -> EId -> Maybe Exp
 findExpByEId program targetEId =
-  findFirstNode (\exp -> exp.val.eid == targetEId) program
+  findFirstNode (eidIs targetEId) program
 
 -- justFindExpByEId is in LangTools (it needs the unparser for error messages).
 -- LangTools.justFindExpByEId : EId -> Exp -> Exp
@@ -1259,6 +1262,7 @@ commonAncestors pred exp =
   |> List.map (Utils.dropLast 1) -- Never return an expression that the predicate matched: it will be moved/removed/replaced
   |> Utils.commonPrefix
 
+-- Target expression is last in list.
 findWithAncestorsByEId : Exp -> EId -> Maybe (List Exp)
 findWithAncestorsByEId exp targetEId =
   if exp.val.eid == targetEId then

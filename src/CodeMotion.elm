@@ -8,6 +8,7 @@ module CodeMotion exposing
   , inlineDefinitions
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
   , removeArg, removeArgs, addArg, addArgFromPat, addArgs, addArgsFromPats, reorderFunctionArgs
+  , pluckByPId
   , reorderExpressionsTransformation
   , introduceVarTransformation
   , makeEqualTransformation
@@ -202,6 +203,12 @@ pluckAll sourcePathedPatIds program =
         ([], program)
   in
   (pluckedPatAndBoundExps, programWithoutPlucked)
+
+
+pluckByPId : PId -> Exp -> Maybe (PatBoundExp, Exp)
+pluckByPId pid program =
+  pidToPathedPatternId program pid
+  |> Maybe.andThen (\ppid -> pluck ppid program)
 
 
 -- Removes the binding (p, e1) from the program, returns it and the program without with binding.
@@ -1684,7 +1691,7 @@ abstract eid shouldBeParameter originalProgram =
     let abstractionBodySimplifiedARRRGTags =
       abstractionBody
       |> LangSimplify.changeRenamedVarsToOuter
-      |> LangSimplify.removeUnusedVars
+      |> LangSimplify.removeUnusedLetPats
       |> ensureWhitespaceExp
     in
     let arrrgTagRegex = Regex.regex "_ARRRG!!!\\d*$" in

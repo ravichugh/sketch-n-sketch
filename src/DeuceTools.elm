@@ -1388,7 +1388,7 @@ addArgumentsTool model selections =
           |> List.map
               (\targetPPId ->
                 ( targetPPId
-                , enclosingFuncs |> List.any (.val >> .eid >> (==) (pathedPatIdToScopeEId targetPPId))
+                , enclosingFuncs |> List.any (eidIs (pathedPatIdToScopeEId targetPPId))
                 )
               )
         in
@@ -1444,7 +1444,7 @@ addArgumentsTool model selections =
           |> List.map
               (\targetPPId ->
                 ( targetPPId
-                , enclosingFuncs |> List.any (.val >> .eid >> (==) (pathedPatIdToScopeEId targetPPId))
+                , enclosingFuncs |> List.any (eidIs (pathedPatIdToScopeEId targetPPId))
                 )
               )
         in

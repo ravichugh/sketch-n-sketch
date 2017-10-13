@@ -384,6 +384,15 @@ expSameValueExps exp =
     _                       -> [exp]
 
 
+-- Find outermost expression that resolves to the same value.
+outerSameValueExp : Exp -> Exp -> Exp
+outerSameValueExp program targetExp =
+  let targetEId = (expValueExp targetExp).val.eid in
+  program
+  |> findFirstNode (\exp -> (expValueExp exp).val.eid == targetEId)
+  |> Maybe.withDefault targetExp
+
+
 copyListWhitespace : Exp -> Exp -> Exp
 copyListWhitespace templateList list =
   case (templateList.val.e__, list.val.e__) of
@@ -1870,7 +1879,7 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
       |> addThisMatch
 
     PList _ ps _ Nothing _ ->
-      case exp.val.e__ of
+      case (expValueExp exp).val.e__ of
         EList _ es _ Nothing _ ->
           if List.length ps /= List.length es then
             Nothing
@@ -1889,7 +1898,7 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
           Just thisMatch
 
     PList _ ps _ (Just restPat) _ ->
-      case exp.val.e__ of
+      case (expValueExp exp).val.e__ of
         EList _ es _ Nothing _ ->
           if List.length es < List.length ps then
             Nothing
@@ -1911,12 +1920,12 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
           Just thisMatch
 
     PConst _ n ->
-      case exp.val.e__ of
+      case (expValueExp exp).val.e__ of
         EConst _ num _ _ -> if n == num then Just thisMatch else Nothing
         _                -> Just thisMatch
 
     PBase _ bv ->
-      case exp.val.e__ of
+      case (expValueExp exp).val.e__ of
         EBase _ ev -> if eBaseValsEqual bv ev then Just thisMatch else Nothing
         _          -> Just thisMatch
 
@@ -1959,8 +1968,8 @@ findLetAndPatMatchingExp targetEId program =
 
 -- Given an EId, look for a pat matching it and the let scope that defined the binding.
 --
--- Looser on EId matching: variable can bind a parent of the target EId as long as the
--- bound exp and target EId resolve to the same value.
+-- Looser on EId matching: targetEId and bound expression just need to
+-- simply resolve to the same expression (i.e. discarding type annotations etc.)
 --
 -- Will match and return PLists even though they don't introduce variables
 findLetAndPatMatchingExpLoose : EId -> Exp -> Maybe (Exp, Pat)
@@ -1969,9 +1978,13 @@ findLetAndPatMatchingExpLoose targetEId program =
       targetEId
       program
       (\letExp (pat, boundE) ->
-        if List.member targetEId (expSameValueExps boundE |> List.map (.val >> .eid))
-        then Just (letExp, pat)
-        else Nothing
+        case findExpByEId boundE targetEId of
+          Just targetExp ->
+            if (expValueExp targetExp).val.eid == (expValueExp boundE).val.eid
+            then Just (letExp, pat)
+            else Nothing
+          Nothing ->
+            Nothing
       )
 
 

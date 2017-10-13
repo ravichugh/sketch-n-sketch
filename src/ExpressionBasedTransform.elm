@@ -416,7 +416,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
           let fBody =
             mergedArgUsesEnumerated
             |> LangSimplify.changeRenamedVarsToOuter
-            |> LangSimplify.removeUnusedVars
+            |> LangSimplify.removeUnusedLetPats
             |> unindent
           in
           let fBodyReflowed =

@@ -203,6 +203,14 @@ addSlateAndCode old (exp, val) =
   |> Result.map (\(slate, code) -> (exp, val, slate, code))
 -}
 
+clearSelections : Model -> Model
+clearSelections old =
+  { old | selectedFeatures = Set.empty
+        , selectedShapes   = Set.empty
+        , selectedBlobs    = Dict.empty
+        }
+
+
 -- We may want to revisit our error handling so we don't have different error types floating around.
 discardErrorAnnotations : Result (String, Ace.Annotation) a -> Result String a
 discardErrorAnnotations result =
@@ -1249,14 +1257,12 @@ msgKeyDown keyCode =
                   |> \m -> { m | deucePopupPanelAbove = True }
             in
               case (old.tool, old.mouseMode) of
-                (Cursor, _) ->
-                  { new | selectedFeatures = Set.empty
-                        , selectedShapes = Set.empty
-                        , selectedBlobs = Dict.empty
-                        }
+                (Cursor, _)         -> clearSelections new
                 (_, MouseNothing)   -> { new | tool = Cursor }
                 (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
                 _                   -> new
+        else if keyCode == Keys.keyBackspace then
+          deleteInOutput old
         else if keyCode == Keys.keyMeta then
           old
           -- for now, no need to ever put keyMeta in keysDown
@@ -1324,6 +1330,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
   in
   runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
     debugLog "new model" <|
+    clearSelections <|
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
@@ -1336,7 +1343,6 @@ msgDigHole = Msg "Dig Hole" <| \old ->
                                    mkLive old.syncOptions
                                      old.slideNumber old.movieNumber old.movieTime reparsed
                                      (newVal, newWidgets)
-            , selectedFeatures = Set.empty
       }
   )
 
@@ -1420,6 +1426,91 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
   in
   { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
 
+deleteInOutput old =
+  let
+    -- TODO subtract interpretations of other shapes. (What's unique to the selected item?)
+    proximalInterpretations =
+      ShapeWidgets.selectionsProximalEIdInterpretations
+          old.inputExp
+          old.slate
+          old.widgets
+          old.selectedFeatures
+          old.selectedShapes
+          old.selectedBlobs
+
+    deleteEId eidToDelete program =
+      case findExpByEId program eidToDelete of
+        Just expToDelete ->
+          let programWithDistalExpressionRemoved =
+            case LangTools.findLetAndPatMatchingExpLoose expToDelete.val.eid program of
+              Just (letExp, patBindingExpToDelete) ->
+                let identsToDelete = LangTools.identifiersListInPat patBindingExpToDelete in
+                let scopeAreas = LangTools.findScopeAreas (letExp.val.eid, 1) letExp in
+                let varUses = scopeAreas |> List.concatMap (LangTools.identifierSetUses (Set.fromList identsToDelete)) in
+                let deleteVarUses program =
+                  varUses
+                  |> List.map (.val >> .eid)
+                  |> List.foldr deleteEId program
+                  |> LangSimplify.simplifyAssignments
+                in
+                case CodeMotion.pluckByPId patBindingExpToDelete.val.pid program of -- TODO allow unsafe pluck out of as-pattern
+                  Just (_, programWithoutBinding) -> deleteVarUses programWithoutBinding
+                  Nothing                         -> deleteVarUses program
+
+              Nothing ->
+                case parentByEId program (LangTools.outerSameValueExp program expToDelete).val.eid of
+                  (Just (Just parent)) ->
+                    case parent.val.e__ of
+                      EFun _ _ _ _ ->
+                        deleteEId parent.val.eid program
+
+                      EList ws1 heads ws2 maybeTail ws3 ->
+                        case heads |> Utils.findi (eidIs eidToDelete) of
+                          Just iToDelete -> program |> replaceExpNodeE__ parent (EList ws1 (Utils.removei iToDelete heads |> imitateExpListWhitespace heads) ws2 maybeTail ws3)
+                          Nothing ->
+                            if Maybe.map (eidIs eidToDelete) maybeTail == Just True
+                            then program |> replaceExpNodeE__ parent (EList ws1 heads ws2 Nothing ws3)
+                            else program
+
+                      _ ->
+                        let _ = Utils.log <| "can't remove from parent " ++ LangUnparser.unparse parent in
+                        program
+
+                  _ ->
+                    let _ = Utils.log <| "can't find parent to remove from" in
+                    program
+          in
+          -- This seems to remove too much (e.g. will remove function if an application is deleted).
+          -- let varEIdsPerhapsRemoved = LangTools.freeVars expToDelete |> List.map (.val >> .eid) |> Set.fromList in
+          let varEIdsPerhapsRemoved =
+            case LangTools.expToMaybeVar (LangTools.expValueExp expToDelete) of
+              Just varExp -> Set.singleton (varExp.val.eid)
+              _           -> Set.empty
+          in
+          let pidsToMaybeRemove =
+            program
+            |> LangTools.allVarEIdsToBindingPId
+            |> Dict.filter (\varEId _ -> Set.member varEId varEIdsPerhapsRemoved)
+            |> Dict.values
+            |> Utils.filterJusts -- Vars free in program are marked bound to "Nothing"
+            |> Set.fromList
+          in
+          programWithDistalExpressionRemoved
+          |> LangSimplify.removeUnusedLetPatsMatching (\pat -> Set.member pat.val.pid pidsToMaybeRemove)
+
+        _ ->
+          program
+
+
+    deleteResults =
+      proximalInterpretations
+      |> List.take 1
+      |> List.map (\eids -> eids |> List.foldl deleteEId old.inputExp)
+  in
+  case deleteResults of
+    []              -> old
+    deleteResult::_ -> upstateRun <| clearSelections { old | code = unparse deleteResult }
+
 --------------------------------------------------------------------------------
 
 msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
@@ -1440,9 +1531,8 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
-            , selectedFeatures = Set.empty
             , synthesisResults = maybeRunAutoSynthesis old reparsed
-      }
+      } |> clearSelections
       in
       { newer | mode = refreshMode_ newer
               , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer

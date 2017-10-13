@@ -477,6 +477,12 @@ selectedShapeFeatureToValEquation : SelectedShapeFeature -> IndexedTree -> Widge
 selectedShapeFeatureToValEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc =
   selectedShapeFeatureToEquation_ featureValEquation widgetFeatureValEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc
 
+selectedShapeToValEquation : NodeId -> IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureValEquation
+selectedShapeToValEquation nodeId shapeTree widgets locIdToNumberAndLoc =
+  Dict.get nodeId shapeTree
+  |> Maybe.map (\shape -> EqnNum shape.val)
+
+
 selectedShapeFeatureToEquation_
   :  (ShapeKind -> ShapeFeature -> List Attr -> FeatureEquationOf a)
   -> (ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquationOf a)
@@ -1259,7 +1265,21 @@ featureValEquationToProximalDistalEIdSets valEqn =
 
 -- Only two interpretations: most proximal for each feature, and most distal.
 selectionsProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
-selectionsProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs =
+selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs =
+  let (proximalInterps, distalInterps) =
+    selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs
+  in
+  proximalInterps ++ distalInterps |> Utils.dedup
+
+selectionsProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
+selectionsProximalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs =
+  let (proximalInterps, distalInterps) =
+    selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs
+  in
+  proximalInterps
+
+selectionsProximalDistalEIdInterpretations_ : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> (List (List EId), List (List EId))
+selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs =
   let (featureProximalEIds, featureDistalEIds) =
     selectedFeaturesToProximalDistalEIdInterpretations program slate widgets (Set.toList selectedFeatures)
   in
@@ -1273,13 +1293,11 @@ selectionsProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate)
   let (pointProximalInterps, pointDistalInterps) =
     selectedFeaturesToProximalDistalPointEIdInterpretations program slate widgets (Set.toList selectedFeatures)
   in
-  [ Set.union featureProximalEIds otherProximalEIds
-  , Set.union featureDistalEIds   otherDistalEIds
-  ] ++
-  List.map (Set.union otherProximalEIds) pointProximalInterps ++
-  List.map (Set.union otherDistalEIds)   pointDistalInterps
-  |> List.map Set.toList
-  |> Utils.dedup
+  -- Point interps first.
+  ( List.map (Set.union otherProximalEIds) pointProximalInterps ++ [Set.union featureProximalEIds otherProximalEIds] |> List.map Set.toList |> Utils.dedup
+  , List.map (Set.union otherDistalEIds)   pointDistalInterps   ++ [Set.union featureDistalEIds   otherDistalEIds]   |> List.map Set.toList |> Utils.dedup
+  )
+
 
 -- Unused: combinatorical explosion of interpretations.
 selectionsEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
@@ -1399,9 +1417,22 @@ selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) w
         Nothing ->
           eidSets :: recurse rest
 
+-- START HERE so we can delete shapes
 selectedShapesToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List NodeId -> (Set EId, Set EId)
 selectedShapesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedShapes =
-  (Set.empty, Set.empty) -- TODO
+  let (proximalEIdSets, distalEIdSets) =
+    selectedShapes
+    |> List.map
+        (\nodeId ->
+          selectedShapeToValEquation nodeId shapeTree widgets Dict.empty
+          |> Utils.fromJust_ "selectedShapesToProximalDistalEIdInterpretations: can't make shape into val equation"
+          |> featureValEquationToProximalDistalEIdSets
+        )
+    |> List.unzip
+  in
+  ( Utils.unionAll proximalEIdSets
+  , Utils.unionAll distalEIdSets
+  )
 
 -- Unused: combinatorical explosion of interpretations.
 selectedShapesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List NodeId -> List (List (Set EId))
