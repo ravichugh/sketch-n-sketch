@@ -598,6 +598,8 @@ code {
   position: absolute;
   /* top: DYNAMIC */
   /* left: DYNAMIC */
+
+  z-index: 0;
 }
 
 #outputCanvas {
