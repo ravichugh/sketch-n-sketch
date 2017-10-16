@@ -72,8 +72,6 @@ module InterfaceController exposing
   , msgResetInterfaceLayout
   , msgReceiveDeucePopupPanelInfo
   , msgSetColorScheme
-  , msgUpdateCell
-  , msgCellSelection
   )
 
 import Updatable exposing (Updatable)
@@ -2433,6 +2431,8 @@ msgSetColorScheme colorScheme =
   Msg "Set Color Scheme" <| \old ->
     { old | colorScheme = colorScheme }
 
+{-
+
 --------------------------------------------------
 --spreadsheet update
 
@@ -2473,7 +2473,7 @@ getLoc v =
   case valToTrace v of
     TrLoc l -> l
     _       -> Debug.crash "unable to retrieve loc"
-               
+
 msgCellSelection cellInfo =
   Msg "cellSelection" <| \m ->
     let littleVal = getCellVal m cellInfo in
@@ -2515,3 +2515,5 @@ msgUpdateCell cellInfo =
           _           -> let _ = Debug.log "not a num" "" in m
       _       -> let _ = Debug.log "index of out range in sheet" "" in
                  upstateRun (resetDeuceState m)
+
+-}

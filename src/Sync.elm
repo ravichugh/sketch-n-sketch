@@ -5,7 +5,6 @@ module Sync exposing
   , LiveInfo, Triggers, LiveTrigger, ZoneKey
   , prepareLiveUpdates, prepareLiveTrigger
   , yellowAndGrayHighlights, hoverInfo
-  , makeHighlight, yellow
   )
 
 import Lang exposing (..)
