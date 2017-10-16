@@ -156,6 +156,8 @@ prelude =
   ; TODO eta-reduced version:
   ; (def reverse (foldl cons nil))
 
+(def adjacentPairs (\\xs (zip xs (tl xs))))
+
 ;; Given two numbers, creates the list between them (inclusive)
 (typ range (-> Num Num (List Num)))
 (defrec range (\\(i j)
@@ -1727,6 +1729,23 @@ prelude =
 ; every cell has the same style
 (def styledTable (\\(rows styles)
    (Table (map (\\r (styledRow r styles)) rows))))
+
+(def columnsToRows (\\columns
+  (let numColumns (len columns)
+  (let numRows ; maxColumnSize
+    (if (= numColumns 0) 0 (maximum (map len columns)))
+  (foldr
+    (\\(col rows)
+      (let paddedCol (append col (repeat (- numRows (len col)) \".\"))
+      (map
+        (\\[datum row] [ (noStyleEntry datum) | row ])
+        (zip paddedCol rows))))
+    (repeat numRows [])
+    columns)))))
+
+(def tableColumns (\\columns
+  (Table (columnsToRows columns))))
+
 
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
