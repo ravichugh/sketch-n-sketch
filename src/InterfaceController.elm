@@ -521,59 +521,65 @@ tryRun old =
           --
           let rewrittenE = rewriteInnerMostExpToMain e in
 
-          Eval.doEval Eval.initEnv rewrittenE |>
-          Result.andThen (\((newVal,ws),finalEnv) ->
-            let newCode = unparse e in -- unnecessary, if parse/unparse were inverses
-            let modelWithNewCodeExpVal =
-            { old | inputExp      = e
-                  , inputVal      = newVal
-                  , code          = newCode
-                  , lastRunCode   = newCode
-                  }
-            in
-            case newVal.v_ of
-              VSheet header vss -> Ok { modelWithNewCodeExpVal
-                                          | slate = LittleSheet header vss
-                                      }
-              _          ->
-                LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
-                  |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
-              let lambdaTools_ =
-                -- TODO should put program into Model
-                -- TODO actually, ideally not. caching introduces bugs
-                let program = splitExp e in
-                Draw.lambdaToolOptionsOf program ++ initModel.lambdaTools
-              in
-              let new =
-                loadLambdaToolIcons finalEnv <|
-                                      { modelWithNewCodeExpVal
-                                        | lambdaTools = lambdaTools_
-                                      }
-              in
-              let new_ =
-                { new | slideCount    = newSlideCount
-                      , movieCount    = newMovieCount
-                      , movieTime     = 0
-                      , movieDuration = newMovieDuration
-                      , movieContinue = newMovieContinue
-                      , runAnimation  = newMovieDuration > 0
-                      , slate         = LittleSvg newSlate
+          rewrittenE
+
+            |> Eval.doEval Eval.initEnv
+
+            |> Result.andThen (\((newVal,ws),finalEnv) ->
+                 let newCode = unparse e in -- unnecessary, if parse/unparse were inverses
+                 let new =
+                   { old
+                      | inputExp      = e
+                      , inputVal      = newVal
+                      , code          = newCode
+                      , lastRunCode   = newCode
                       , widgets       = ws
-                      , history       = addToHistory newCode old.history
-                      , caption       = Nothing
-                      , syncOptions   = Sync.syncOptionsOf old.syncOptions e
-                      , lambdaTools   = lambdaTools_
-                      , errorBox      = Nothing
-                      , scopeGraph    = DependenceGraph.compute e
-                      , preview       = Nothing
-                      , synthesisResults = maybeRunAutoSynthesis old e
-                }
-              in
-              resetDeuceState <|
-              { new_ | mode = refreshMode_ new_
-                     }
-            )
-          )
+                      }
+                 in
+                 let newerResult =
+                   case newVal.v_ of
+                     VSheet header vss ->
+                       Ok { new | slate = LittleSheet header vss }
+                     _ ->
+                       LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
+                         |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
+                              { new
+                                 | slate         = LittleSvg slate
+                                 , slideCount    = slideCount
+                                 , movieCount    = movieCount
+                                 , movieTime     = 0
+                                 , movieDuration = movieDuration
+                                 , movieContinue = movieContinue
+                                 , runAnimation  = movieDuration > 0
+                                 }
+                            )
+                 in
+                 newerResult
+                   |> Result.map (\newer ->
+                        { newer
+                           | lambdaTools =
+                               let program = splitExp e in
+                               Draw.lambdaToolOptionsOf program ++ initModel.lambdaTools
+                           }
+                        |> loadLambdaToolIcons finalEnv
+                      )
+               )
+
+            |> Result.map (\model ->
+                 { model
+                    | history       = addToHistory model.code model.history
+                    , caption       = Nothing
+                    , syncOptions   = Sync.syncOptionsOf model.syncOptions e
+                    , errorBox      = Nothing
+                    , scopeGraph    = DependenceGraph.compute e
+                    , preview       = Nothing
+                    , mode          = refreshMode_ model
+                    , synthesisResults = maybeRunAutoSynthesis model e
+                    }
+               )
+
+            |> Result.map resetDeuceState
+
         in
           case ImpureGoodies.crashToError resultThunk of
             Err s         -> Err (oldWithUpdatedHistory, s, Nothing)

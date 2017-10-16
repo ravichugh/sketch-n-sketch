@@ -1226,9 +1226,12 @@ codePanel model =
         attributes =
           case (UserStudy.enabled, past) of
             (False, _ :: prevCode :: _) ->
+              []
+{-
               [ E.onMouseEnter <| Controller.msgPreview (Right prevCode)
               , E.onMouseLeave Controller.msgClearPreview
               ]
+-}
             _ ->
              []
       in
@@ -1246,9 +1249,12 @@ codePanel model =
         attributes =
           case (UserStudy.enabled, future) of
             (False, futureCode :: _) ->
+              []
+{-
               [ E.onMouseEnter <| Controller.msgPreview (Right futureCode)
               , E.onMouseLeave Controller.msgClearPreview
               ]
+-}
             _ ->
              []
       in
