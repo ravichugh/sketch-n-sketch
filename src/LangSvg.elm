@@ -6,6 +6,7 @@ module LangSvg exposing
   , NodeInfo, foldSlateNodeInfo
   , maxColorNum, maxStrokeWidthNum
   , emptyTree, dummySvgNode
+  , isSvg
   , valToIndexedTree
   , printSvg
   , compileAttr, compileAttrs, desugarShapeAttrs -- TODO remove in favor of compileSvg
@@ -73,6 +74,7 @@ type AVal_
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
   | ABounds (NumTr, NumTr, NumTr, NumTr)
+  | AStyle (List (String, AVal))
 
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
@@ -169,6 +171,15 @@ valToIndexedTree_ v (nextId, d) =
   ImpureGoodies.crashToError thunk
   |> Utils.unwrapNestedResult
 
+isSvg v =
+  case v.v_ of
+    VList vs ->
+      case List.map .v_ vs of
+        [VBase (VString "svg"), VList _, VList _] -> True
+        _                                         -> False
+    _ ->
+      False
+
 
 ------------------------------------------------------------------------------
 -- Convert Raw Value to SVG Attribute
@@ -201,6 +212,8 @@ valToAttr v = case v.v_ of
           ("transform", VList vs) -> valsToTransform vs |> Result.map ATransform
 
           ("BOUNDS", VList vs)    -> valToBounds vs |> Result.map ABounds
+
+          ("style", VList vs)     -> valToStyle vs |> Result.map AStyle
 
           (_, VConst _ it)        -> Ok <| ANum it
           (_, VBase (VString s))  -> Ok <| AString s
@@ -385,6 +398,25 @@ strBounds (left,top,right,bot) =
   Utils.spaces (List.map (toString << Tuple.first) [left,top,right,bot])
 
 
+-- CSS Styles --
+
+valToCssAttr : Val -> Result String Attr
+valToCssAttr = valToAttr
+
+valToStyle vs =
+  List.foldr (\v acc ->
+    acc |> Result.andThen (\styles ->
+    valToCssAttr v |> Result.andThen (\attr ->
+      Ok (attr :: styles)
+    ))
+  ) (Ok []) vs
+
+strStyle styles =
+  styles
+    |> List.map (\(k,v) -> k ++ ": " ++ strAVal v)
+    |> String.join "; "
+
+
 ------------------------------------------------------------------------------
 -- Compiling to SVG (Text Format)
 
@@ -486,6 +518,7 @@ strAVal a = case a.av_ of
   AColorNum (n, Just (opacity, _)) ->
     let (r,g,b) = Utils.numToColor maxColorNum (Tuple.first n) in
     strRgba_ [toFloat r, toFloat g, toFloat b, opacity]
+  AStyle styles -> strStyle styles
 
 
 ------------------------------------------------------------------------------

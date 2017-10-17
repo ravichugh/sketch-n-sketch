@@ -106,15 +106,25 @@ build wCanvas hCanvas model =
       (Live _, True ) -> buildSvgWidgets wCanvas hCanvas widgets model
       _               -> []
   in
-  Svg.svg
-     [ Attr.id "outputCanvas"
-     , onMouseDown msgMouseClickCanvas
-     , Attr.style
-         [ ("width", pixels wCanvas)
-         , ("height", pixels hCanvas)
-         ]
-     ]
-     ([outputShapes] ++ newShape ++ svgWidgets)
+  if LangSvg.isSvg model.inputVal then
+    Svg.svg
+       [ Attr.id "outputCanvas"
+       , onMouseDown msgMouseClickCanvas
+       , Attr.style
+           [ ("width", pixels wCanvas)
+           , ("height", pixels hCanvas)
+           ]
+       ]
+       ([outputShapes] ++ newShape ++ svgWidgets)
+  else
+    Html.div
+       [ Attr.id "outputCanvas"
+       , Attr.style
+           [ ("width", pixels wCanvas)
+           , ("height", pixels hCanvas)
+           ]
+       ]
+       ([outputShapes] ++ svgWidgets)
 
 
 --------------------------------------------------------------------------------
