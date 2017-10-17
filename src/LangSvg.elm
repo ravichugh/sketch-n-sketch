@@ -19,6 +19,7 @@ module LangSvg exposing
   , pathIndexPoints, getPathPoint
   , maybeFindBounds, maybeFindBlobId
   , justGetSvgNode
+  , descendantNodeIds
   , resolveToIndexedTree, resolveToMovieCount, fetchEverything
   )
 
@@ -659,6 +660,22 @@ justGetSvgNode cap nodeId (_, indexedTree) =
     SvgNode kind attrs _ -> (kind, attrs)
     TextNode _           -> Debug.crash (cap ++ ": TextNode ?")
 
+
+childNodeIds : IndexedTreeNode -> List NodeId
+childNodeIds node =
+  case node.interpreted of
+    SvgNode kind attrs childIds -> childIds
+    TextNode _                  -> []
+
+descendantNodeIds : IndexedTree -> IndexedTreeNode -> List NodeId
+descendantNodeIds indexedTree node =
+  let childIds = childNodeIds node in
+  let deeperIds =
+    childIds
+    |> List.filterMap (\nodeId -> Dict.get nodeId indexedTree)
+    |> List.concatMap (descendantNodeIds indexedTree)
+  in
+  childIds ++ deeperIds
 
 dummySvgNode =
   let zero = aNum (0, dummyTrace) in

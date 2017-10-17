@@ -1430,7 +1430,7 @@ deleteInOutput old =
   let
     -- TODO subtract interpretations of other shapes. (What's unique to the selected item?)
     proximalInterpretations =
-      ShapeWidgets.selectionsProximalEIdInterpretations
+      ShapeWidgets.selectionsUniqueProximalEIdInterpretations
           old.inputExp
           old.slate
           old.widgets

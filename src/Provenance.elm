@@ -154,8 +154,8 @@ flattenValBasedOnTree val =
 -- Proximal/distal to final x and proximal/distal to final y.
 --
 -- However, haven't yet found an example where the proximal for x/y differ or the distal for x/y differ.
-valsToProximalDistalPointInterpretations : Val -> Val -> (Set EId, Set EId, Set EId, Set EId)
-valsToProximalDistalPointInterpretations xValTree yValTree =
+valsToProximalDistalPointInterpretations : (Exp -> Bool) -> Val -> Val -> (Set EId, Set EId, Set EId, Set EId)
+valsToProximalDistalPointInterpretations expFilter xValTree yValTree =
   let valsWherePossiblyXCoord =
     xValTree
     |> flattenValBasedOnTree
@@ -203,10 +203,10 @@ valsToProximalDistalPointInterpretations xValTree yValTree =
     else
       Set.union coord1Interp coord2Interp
   in
-  let proximalToXInterpretation = pointInterpretation valTreeToMostProximalProgramPointEIdInterpretation xValTree yValTree in
-  let proximalToYInterpretation = pointInterpretation valTreeToMostProximalProgramPointEIdInterpretation yValTree xValTree in
-  let distalToXInterpretation   = pointInterpretation valTreeToMostDistalProgramPointEIdInterpretation xValTree yValTree in
-  let distalToYInterpretation   = pointInterpretation valTreeToMostDistalProgramPointEIdInterpretation yValTree xValTree in
+  let proximalToXInterpretation = pointInterpretation (valTreeToMostProximalProgramPointEIdInterpretation expFilter) xValTree yValTree in
+  let proximalToYInterpretation = pointInterpretation (valTreeToMostProximalProgramPointEIdInterpretation expFilter) yValTree xValTree in
+  let distalToXInterpretation   = pointInterpretation (valTreeToMostDistalProgramPointEIdInterpretation expFilter) xValTree yValTree in
+  let distalToYInterpretation   = pointInterpretation (valTreeToMostDistalProgramPointEIdInterpretation expFilter) yValTree xValTree in
   ( proximalToXInterpretation
   , proximalToYInterpretation
   , distalToXInterpretation
@@ -214,24 +214,24 @@ valsToProximalDistalPointInterpretations xValTree yValTree =
   ) -- |> Debug.log "valsToProximalDistalPointInterpretations"
 
 
-isRelevantParentPoint : List Val -> Val -> Bool
-isRelevantParentPoint pointVals parent =
+isRelevantParentPoint : (Exp -> Bool) -> List Val -> Val -> Bool
+isRelevantParentPoint expFilter pointVals parent =
   let (Provenance _ parentExp _) = parent.provenance in
   -- Former condition should always be true; Eval won't add parent unless it's in the program.
   -- Leave it here though: eventually we will narrow contexts further.
-  FastParser.isProgramEId parentExp.val.eid && List.member parent pointVals
+  FastParser.isProgramEId parentExp.val.eid && List.member parent pointVals && expFilter parentExp
 
 
 -- Provide a list of vals known to be points.
 --
 -- Returns an EId interpretation of val prefering those vals, and a list of the pointVals used.
 -- Resulting interpretation may be a mix of EIds from pointVals and bare values
-valTreeToMostProximalProgramPointEIdInterpretation : List Val -> Val -> (Set EId, List Val)
-valTreeToMostProximalProgramPointEIdInterpretation pointVals val =
+valTreeToMostProximalProgramPointEIdInterpretation : (Exp -> Bool) -> List Val -> Val -> (Set EId, List Val)
+valTreeToMostProximalProgramPointEIdInterpretation expFilter pointVals val =
   let (Provenance _ exp basedOnVals) = val.provenance in
   let (Parents valParents) = val.parents in
   -- Most recent parents are at front of list.
-  case valParents |> Utils.findFirst (isRelevantParentPoint pointVals) of
+  case valParents |> Utils.findFirst (isRelevantParentPoint expFilter pointVals) of
     Just parent ->
       let (Provenance _ parentExp _) = parent.provenance in
       (Set.singleton parentExp.val.eid, [parent])
@@ -239,13 +239,13 @@ valTreeToMostProximalProgramPointEIdInterpretation pointVals val =
     Nothing ->
       let (childrenInterpretations, pointValsUsed) =
         basedOnVals
-        |> List.map (valTreeToMostProximalProgramPointEIdInterpretation pointVals)
+        |> List.map (valTreeToMostProximalProgramPointEIdInterpretation expFilter pointVals)
         |> List.unzip
       in
       if List.any ((/=) []) pointValsUsed then
         -- Child interpretations contain a point, use as given.
         (Utils.unionAll childrenInterpretations, Utils.unionAllAsSet pointValsUsed)
-      else if FastParser.isProgramEId exp.val.eid then
+      else if FastParser.isProgramEId exp.val.eid && expFilter exp then
         -- No point intepretation yet, most proximal intepretation we can give is ourself.
         (Set.singleton exp.val.eid, [])
       else
@@ -257,12 +257,12 @@ valTreeToMostProximalProgramPointEIdInterpretation pointVals val =
 --
 -- Returns an EId interpretation of val prefering those vals, and a list of the pointVals used.
 -- Resulting interpretation may be a mix of EIds from pointVals and bare values
-valTreeToMostDistalProgramPointEIdInterpretation : List Val -> Val -> (Set EId, List Val)
-valTreeToMostDistalProgramPointEIdInterpretation pointVals val =
+valTreeToMostDistalProgramPointEIdInterpretation : (Exp -> Bool) -> List Val -> Val -> (Set EId, List Val)
+valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals val =
   let (Provenance _ exp basedOnVals) = val.provenance in
   let (childrenInterpretations, pointValsUsed) =
     basedOnVals
-    |> List.map (valTreeToMostDistalProgramPointEIdInterpretation pointVals)
+    |> List.map (valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals)
     |> List.unzip
   in
   if List.any ((/=) []) pointValsUsed then
@@ -272,7 +272,7 @@ valTreeToMostDistalProgramPointEIdInterpretation pointVals val =
     -- No point interpretations yet: are we part of a point?
     let (Parents valParents) = val.parents in
     -- Oldest parents are at the back of the list.
-    case List.reverse valParents |> Utils.findFirst (isRelevantParentPoint pointVals) of
+    case List.reverse valParents |> Utils.findFirst (isRelevantParentPoint expFilter pointVals) of
       Just parent ->
         let (Provenance _ parentExp _) = parent.provenance in
         (Set.singleton parentExp.val.eid, [parent])
@@ -281,39 +281,39 @@ valTreeToMostDistalProgramPointEIdInterpretation pointVals val =
         -- No point intepretation yet.
         if childrenInterpretations |> List.any (not << Set.isEmpty) then
           (Utils.unionAll childrenInterpretations, [])
-        else if FastParser.isProgramEId exp.val.eid then
+        else if FastParser.isProgramEId exp.val.eid && expFilter exp then
           (Set.singleton exp.val.eid, [])
         else
           (Set.empty, [])
 
 
 -- Interpretation closest to output value, i.e. furthest along in the program.
-valTreeToMostProximalProgramEIdInterpretation : Val -> Set EId
-valTreeToMostProximalProgramEIdInterpretation val =
+valTreeToMostProximalProgramEIdInterpretation : (Exp -> Bool) -> Val -> Set EId
+valTreeToMostProximalProgramEIdInterpretation expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  if FastParser.isProgramEId exp.val.eid then
+  if FastParser.isProgramEId exp.val.eid && expFilter exp then
     Set.singleton exp.val.eid
   else
     basedOnVals
-    |> List.map valTreeToMostProximalProgramEIdInterpretation
+    |> List.map (valTreeToMostProximalProgramEIdInterpretation expFilter)
     |> Utils.unionAll
 
 
 -- Interpretation farthest from output value, i.e. earliest in the program.
 -- Generally constants.
-valTreeToMostDistalProgramEIdInterpretation : Val -> Set EId
-valTreeToMostDistalProgramEIdInterpretation val =
+valTreeToMostDistalProgramEIdInterpretation : (Exp -> Bool) -> Val -> Set EId
+valTreeToMostDistalProgramEIdInterpretation expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
   let childrenInterpretations =
     basedOnVals
-    |> List.map valTreeToMostDistalProgramEIdInterpretation
+    |> List.map (valTreeToMostDistalProgramEIdInterpretation expFilter)
   in
   -- Commented-out bit is if we want to be a member of valTreeToAllProgramEIdInterpretations rather than valTreeToAllProgramEIdInterpretationsIgnoringPreludeSubtrees
   -- if childrenInterpretations |> List.all (not << Set.isEmpty) then
   --   Utils.unionAll childrenInterpretations
   if childrenInterpretations |> List.any (not << Set.isEmpty) then
     Utils.unionAll childrenInterpretations
-  else if FastParser.isProgramEId exp.val.eid then
+  else if FastParser.isProgramEId exp.val.eid && expFilter exp then
     Set.singleton exp.val.eid
   else
     Set.empty

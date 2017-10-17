@@ -305,6 +305,9 @@ provenanceEnv     (Provenance env exp basedOn) = env
 provenanceExp     (Provenance env exp basedOn) = exp
 provenanceBasedOn (Provenance env exp basedOn) = basedOn
 
+valExp : Val -> Exp
+valExp val = val.provenance |> provenanceExp
+
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
 
