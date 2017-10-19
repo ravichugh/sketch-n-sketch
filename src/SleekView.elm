@@ -670,6 +670,7 @@ menuBar model =
                         model
                         "Make Equal"
                         Controller.msgMakeEqual
+{- TODO: off for SPLASH-I demo
                     , relateHoverMenu
                         model
                        "Relate"
@@ -678,6 +679,7 @@ menuBar model =
                         model
                         "Indexed Relate"
                         Controller.msgIndexedRelate
+-}
                     ]
                   , [ groupTextButton
                         model

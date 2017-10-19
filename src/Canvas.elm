@@ -501,10 +501,16 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
       WPoint xNumTr yNumTr ->
+        []
+{- TODO: off for SPLASH-I demo
         drawPointWidget i_ widget xNumTr yNumTr
+-}
 
       WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign amountNumTr ->
+        []
+{- TODO: off for SPLASH-I demo
         drawOffsetWidget1D i_ baseX baseY axis sign amountNumTr
+-}
   in
 
   List.concat <| Utils.mapi1 draw widgets
