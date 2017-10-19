@@ -1100,6 +1100,8 @@ msgKeyDown keyCode =
                   { new | selectedFeatures = Set.empty
                         , selectedShapes = Set.empty
                         , selectedBlobs = Dict.empty
+                        -- clear keysDown to help recover from keyMeta + k issue, below
+                        , keysDown = []
                         }
                 (_, MouseNothing)   -> { new | tool = Cursor }
                 (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
