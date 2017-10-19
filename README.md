@@ -7,15 +7,15 @@
 
 Direct manipulation interfaces are useful in many domains, but the lack of
 programmability in a high-level language makes it difficult to develop complex
-and reusable content. We envision *prodirect manipulation* editors that allow
+and reusable content. We envision *direct manipulation programming systems* that allow
 users to freely mix between programmatic and direct manipulation.
 
 <!-- TODO widths on GitHub -->
 
-<span style="display: inline-block; width: 222px; text-align: right;">**Prodirect Manipulation**</span>
+<span style="display: inline-block; width: 222px; text-align: right;">**Direct Manipulation Programming**</span>
   = Programmatic + Direct Manipulation <br/>
 <span style="display: inline-block; width: 222px; text-align: right;">**Sketch-n-Sketch**</span>
-  = Prodirect Manipulation Editor for SVG
+  = Direct Manipulation Programming for SVG
 
 
 ## [Project Page][ProjectPage]
@@ -94,7 +94,7 @@ Extra parentheses are not permitted.
 ```
 
 ```
-  s  ::=  'hello' | 'world' | ...
+  s  ::=  'hello' | "world" | '"hello world"' |...
 ```
 
 ```
