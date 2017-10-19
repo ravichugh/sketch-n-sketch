@@ -529,7 +529,7 @@ tryRun old =
                 -- TODO should put program into Model
                 -- TODO actually, ideally not. caching introduces bugs
                 let program = splitExp e in
-                Draw.lambdaToolOptionsOf program ++ initModel.lambdaTools
+                Draw.lambdaToolOptionsOf program finalEnv ++ initModel.lambdaTools
               in
               let new =
                 loadLambdaToolIcons finalEnv { old | lambdaTools = lambdaTools_ }

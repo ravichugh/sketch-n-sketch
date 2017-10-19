@@ -26,6 +26,9 @@ import LangTools
 import Utils
 import Either exposing (..)
 import Keys
+import Eval -- used to determine bounding box of LambdaAnchor tools
+            -- for the purposes of rendering icons in drawing toolbox
+import Config
 
 import String
 import Regex
@@ -33,6 +36,10 @@ import Html.Attributes as Attr
 import Set
 import Svg
 
+
+--------------------------------------------------------------------------------
+
+debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
 
@@ -680,7 +687,7 @@ addLambda selectedIdx old pt2 pt1 =
   let exps = old.lambdaTools in
   case Utils.geti selectedIdx exps of
     LambdaBounds func -> addLambdaBounds old pt2 pt1 func
-    LambdaAnchor func -> addLambdaAnchor old pt2 pt1 func
+    LambdaAnchor func _ -> addLambdaAnchor old pt2 pt1 func
 
 addLambdaBounds old (_,pt2) (_,pt1) func =
   let (xa, xb, ya, yb) =
@@ -713,9 +720,11 @@ addLambdaBounds old (_,pt2) (_,pt1) func =
   -}
 
 -- For simplicity, keeping this as a click-and-drag drawing tool instead
--- of a single-click tool. Therefore, ignoring pt2 argument.
+-- of a single-click tool, and using center of bounding box as anchor.
 --
-addLambdaAnchor old _ (_,(x,y)) func =
+addLambdaAnchor old click2 click1 func =
+  let (xa, xb, ya, yb) = boundingBox (Tuple.second click2) (Tuple.second click1) in
+  let (x, y) = ((xa + xb) // 2, (ya + yb) // 2) in
   let anchor = eAsPoint (eList (makeInts [x,y]) Nothing) in
   let args = [] in
   let eNew =
@@ -844,8 +853,8 @@ switchToCursorTool old =
 --------------------------------------------------------------------------------
 -- Lambda Tool
 
-lambdaToolOptionsOf : LittleProgram -> List LambdaTool
-lambdaToolOptionsOf (defs, mainExp) =
+lambdaToolOptionsOf : LittleProgram -> Env -> List LambdaTool
+lambdaToolOptionsOf (defs, mainExp) finalEnv =
   case mainExp of
 
     Blobs blobs _ ->
@@ -888,7 +897,56 @@ lambdaToolOptionsOf (defs, mainExp) =
           case Utils.findFirst pred withBlobs of
             Nothing               -> []
             Just (Left (f,args))  -> [LambdaBounds <| withDummyExpInfo (EApp space1 (eVar0 f) args space0)]
-            Just (Right (f,args)) -> [LambdaAnchor <| withDummyExpInfo (EApp space1 (eVar0 f) args space0)]
+            Just (Right (f,args)) ->
+              let maybeViewBoxAndAnchor =
+                --
+                -- 1. Evaluate the function at anchor (100,100),
+                -- 2. (Try to) Determine its bounding box (via 'BOUNDS'), and
+                -- 3. Translate bounding box and anchor relative to (0,0).
+                --
+                -- Step 2 depends heavily on the structure of blob values.
+                --
+                let
+                  (xAnchor, yAnchor) =
+                    (100, 100)
+                  argsAndAnchor =
+                    args ++ [eTuple [eConstDummyLoc xAnchor, eConstDummyLoc yAnchor]]
+                  exp =
+                    withDummyExpInfo (EApp space1 (eVar0 f) argsAndAnchor space0)
+                  val =
+                    Eval.doEval finalEnv exp
+                      |> Utils.fromOkay "lambdaToolOptionsOf LambdaAnchor"
+                      |> Tuple.first
+                      |> Tuple.first
+                in
+                case val.v_ of
+                  VList [v1] ->
+                    case LangSvg.valToIndexedTree v1 of
+                      Ok (i, it) ->
+                        case Utils.justGet i it of
+                          LangSvg.SvgNode "g" nodeAttrs _ ->
+                            case LangSvg.maybeFindBounds nodeAttrs of
+                              Just bounds ->
+                                let ((left,_),(top,_),(right,_),(bot,_)) = bounds in
+                                debugLog "LambdaAnchor bounds found" <|
+                                  Just <|
+                                    { width   = round <| right - left
+                                    , height  = round <| bot - top
+                                    , xAnchor = round <| xAnchor - left
+                                    , yAnchor = round <| yAnchor - top
+                                    }
+                              Nothing ->
+                                debugLog "LambdaAnchor bounds not found (4)" Nothing
+                          _ ->
+                            debugLog "LambdaAnchor bounds not found (3)" Nothing
+                      _ ->
+                        debugLog "LambdaAnchor bounds not found (2)" Nothing
+                  _ ->
+                    debugLog "LambdaAnchor bounds not found (1)" Nothing
+              in
+              [LambdaAnchor
+                 (withDummyExpInfo (EApp space1 (eVar0 f) args space0))
+                 maybeViewBoxAndAnchor]
           ) lambdaPreFuncs
       in
       lambdaCalls
