@@ -915,7 +915,7 @@ rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds =
     --   (let [a b c d] [na nb nc nd] ...)
     let foo i acc =
       let (a,b,c,d) = Utils.justGet i selectedBlobsAndBounds in
-      if model.keysDown == Keys.shift then
+      if model.keysDown == [Keys.keyShift] then
         acc |> offsetX "" a |> offsetY " " b |> offsetX " " c |> offsetY " " d
       else
         -- acc |> scaleX "" a |> scaleY " " b |> scaleX " " c |> scaleY " " d

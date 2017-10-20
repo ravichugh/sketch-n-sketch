@@ -351,13 +351,13 @@ onClickPrimaryZone i k z old =
     else
       let selectThisShape () =
         Set.insert i <|
-          if old.keysDown == Keys.shift
+          if old.keysDown == [Keys.keyShift]
           then old.selectedShapes
           else Set.empty
       in
       let selectBlob blobId =
         Dict.insert blobId i <|
-          if old.keysDown == Keys.shift
+          if old.keysDown == [Keys.keyShift]
           then old.selectedBlobs
           else Dict.empty
       in
@@ -460,7 +460,7 @@ onMouseUp old =
 
     (_, MouseDrawNew points) ->
       let resetMouseMode model = { model | mouseMode = MouseNothing } in
-      case (old.tool, points, old.keysDown == Keys.shift) of
+      case (old.tool, points, old.keysDown == [Keys.keyShift]) of
 
         (Line _,     TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt2 pt1
         (HelperLine, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt2 pt1
@@ -929,7 +929,9 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 
 --------------------------------------------------------------------------------
 
-msgUndo = Msg "Undo" <| \old ->
+msgUndo = Msg "Undo" doUndo
+
+doUndo old =
   case old.history of
     ([], _) ->
       old
@@ -949,7 +951,9 @@ msgUndo = Msg "Undo" <| \old ->
       in
         upstateRun new
 
-msgRedo = Msg "Redo" <| \old ->
+msgRedo = Msg "Redo" doRedo
+
+doRedo old =
   case old.history of
     (_, []) ->
       old
@@ -1106,18 +1110,18 @@ msgKeyDown keyCode =
                 (_, MouseNothing)   -> { new | tool = Cursor }
                 (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
                 _                   -> new
-        else if keyCode == Keys.keyMeta then
-          old
-          -- for now, no need to ever put keyMeta in keysDown
-          -- TODO need to put keyMeta in model, so know not to put the next key in model
-        {-
-        else if List.member Keys.keyMeta old.keysDown then
-          -- when keyMeta is down and another key k is downed,
-          -- there will not be a key up event for k. so, not putting
-          -- k in keysDown. if want to handle keyMeta + k, keep track
-          -- of this another way.
-          old
-        -}
+        else if keyCode == Keys.keyPlusEqual then
+          let newModel = doMakeEqual old in
+          newModel.synthesisResults
+          |> Utils.findFirst isResultSafe
+          |> Maybe.map (\synthesisResult -> { newModel | code = unparse (resultExp synthesisResult) } |> clearSynthesisResults |> upstateRun )
+          |> Maybe.withDefault old
+        else if keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          doDuplicate old
+        else if keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          doUndo old
+        else if keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.any ((==) Keys.keyShift) old.keysDown && List.length old.keysDown == 2 then
+          doRedo old
         else if
           not currentKeyDown &&
           keyCode == Keys.keyShift
@@ -1131,7 +1135,15 @@ msgKeyDown keyCode =
 
 msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
   -- let _ = Debug.log "Key Up" (keyCode, old.keysDown) in
-  { old | keysDown = Utils.removeFirst keyCode old.keysDown }
+  if Keys.isCommandKey keyCode then
+    -- When keyMeta (command key) is down and another key k is downed,
+    -- there will not be a key up event for k.
+    -- So remove k when keyMeta goes up.
+    { old | keysDown = List.filter ((==) Keys.keyShift) old.keysDown }
+  else
+    { old | keysDown = Utils.removeAsSet keyCode old.keysDown }
+
+
 
 --------------------------------------------------------------------------------
 
@@ -1189,7 +1201,9 @@ msgDigHole = Msg "Dig Hole" <| \old ->
       }
   )
 
-msgMakeEqual = Msg "Make Equal" <| \old ->
+msgMakeEqual = Msg "Make Equal" doMakeEqual
+
+doMakeEqual old =
   let synthesisResults =
     ValueBasedTransform.makeEqual
         old.inputExp
@@ -1319,7 +1333,9 @@ msgGroupBlobs = Msg "Group Blobs" <| \old ->
           (Ok (Just anchor), _) -> upstateRun <| ETransform.groupSelectedBlobsAround old simple anchor
           (Err err, _)          -> let _ = Debug.log "bad anchor" err in old
 
-msgDuplicateBlobs = Msg "Duplicate Blobs" <| \old ->
+msgDuplicateBlobs = Msg "Duplicate Blobs" doDuplicate
+
+doDuplicate old =
   upstateRun <| ETransform.duplicateSelectedBlobs old
 
 msgMergeBlobs = Msg "Merge Blobs" <| \old ->

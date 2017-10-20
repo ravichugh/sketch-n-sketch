@@ -322,6 +322,9 @@ isResultSafe (SynthesisResult {isSafe}) =
 resultDescription (SynthesisResult {description}) =
   description
 
+resultExp (SynthesisResult {exp}) =
+  exp
+
 setResultDescription description (SynthesisResult result) =
   SynthesisResult { result | description = description }
 

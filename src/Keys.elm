@@ -5,7 +5,6 @@ import Char
 --------------------------------------------------------------------------------
 -- Key Combinations
 
-metaShift           = List.sort [keyMeta, keyShift]
 escShift            = List.sort [keyEsc, keyShift]
 escape              = List.sort [keyEsc]
 enter               = List.sort [keyEnter]
@@ -24,8 +23,8 @@ p                   = List.sort [Char.toCode 'P']
 q                   = List.sort [Char.toCode 'Q']
 t                   = List.sort [Char.toCode 'T']
 s                   = List.sort [Char.toCode 'S']
-shift               = List.sort [keyShift]
-shiftS              = List.sort [keyShift, Char.toCode 'S']
+-- shift               = List.sort [keyShift]
+-- shiftS              = List.sort [keyShift, Char.toCode 'S']
 left                = List.sort [keyLeft]
 right               = List.sort [keyRight]
 up                  = List.sort [keyUp]
@@ -37,14 +36,12 @@ shiftDown           = List.sort [keyShift, keyDown]
 backspace           = List.sort [keyBackspace]
 delete              = List.sort [keyDelete]
 
-metaPlus keys       = List.sort (keyMeta :: keys)
-commandPlus keys    = List.sort (keyCommand :: keys)
+-- Mac command key is 17, 91, 93, or 224 depending on browser. https://stackoverflow.com/a/3922353
+-- Note: Ctrl is also 17, so this catches cmd and ctrl.
+isCommandKey code   = List.member code [17, 91, 93, 224]
 
 keyEnter            = 13
 keyEsc              = 27
--- TODO meta vs. command
-keyMeta             = 91
-keyCommand          = 224
 keyCtrl             = 17
 keyShift            = 16
 keyLeft             = 37
@@ -54,3 +51,8 @@ keyDown             = 40
 keyBackspace        = 8
 keyDelete           = 46 -- 127
 keyA                = 65
+keyB                = 66
+keyC                = 67
+keyD                = 68
+keyZ                = 90
+keyPlusEqual        = 187
