@@ -6,6 +6,7 @@ module Draw exposing
   , drawNewPolygon
   , drawNewPath
   , boundingBoxOfPoints_
+  , addShape
   , addLine
   , addRawSquare , addRawRect , addStretchySquare , addStretchyRect
   , addRawCircle , addRawOval , addStretchyCircle , addStretchyOval
@@ -284,7 +285,7 @@ addLine old click2 click1 =
         f
         args
   in
-  addShape old "line" lineExp
+  addShapeToModel old "line" lineExp
 
 
 {- using variables x1/x2/y1/y2 instead of left/top/right/bot:
@@ -307,7 +308,7 @@ addRawRect old (_,pt2) (_,pt1) =
   let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
   let (fill, stroke, strokeWidth) = (old.randomColor, old.randomColor, 0) in
   let (rot) = 0 in
-  addShape old "rect"
+  addShapeToModel old "rect"
     (stencilRawRect x y w h fill stroke strokeWidth rot)
 
 stencilRawRect x y w h fill stroke strokeWidth rot =
@@ -332,7 +333,7 @@ addRawSquare old (_,pt2) (_,pt1) =
         [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
         , eVar "x", eVar "y", eVar "side", eVar "side", eVar "rot" ]
   in
-  addShape old "square" squareExp
+  addShapeToModel old "square" squareExp
 
 --------------------------------------------------------------------------------
 
@@ -340,7 +341,7 @@ addStretchyRect old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, yMax) = boundingBox pt2 pt1 in
   let (fill) = (old.randomColor) in
   let (stroke, strokeWidth, rot) = (360, 0, 0) in
-  addShape old "rect"
+  addShapeToModel old "rect"
     (stencilStretchyRect xMin yMin xMax yMax fill stroke strokeWidth rot)
 
 stencilStretchyRect left top right bot fill stroke strokeWidth rot =
@@ -366,7 +367,7 @@ addStretchySquare old (_,pt2) (_,pt1) =
         (eVar0 "rectangle")
         (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
   in
-  addShape old "square" squareExp
+  addShapeToModel old "square" squareExp
 
 --------------------------------------------------------------------------------
 
@@ -382,7 +383,7 @@ addRawOval old (_,pt2) (_,pt1) =
         [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
         , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
   in
-  addShape old "ellipse" ellipseExp
+  addShapeToModel old "ellipse" ellipseExp
 
 --------------------------------------------------------------------------------
 
@@ -398,7 +399,7 @@ addRawCircle old (_,pt2) (_,pt1) =
         [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
         , eVar "cx", eVar "cy", eVar "r" ]
   in
-  addShape old "circle" circleExp
+  addShapeToModel old "circle" circleExp
 
 --------------------------------------------------------------------------------
 
@@ -412,7 +413,7 @@ addStretchyOval old (_,pt2) (_,pt1) =
         (eVar0 "oval")
         (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
   in
-  addShape old "ellipse" ellipseExp
+  addShapeToModel old "ellipse" ellipseExp
 
 --------------------------------------------------------------------------------
 
@@ -428,7 +429,7 @@ addStretchyCircle old (_,pt2) (_,pt1) =
         (eVar0 "oval")
         (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
   in
-  addShape old "circle" circleExp
+  addShapeToModel old "circle" circleExp
 
 --------------------------------------------------------------------------------
 
@@ -629,7 +630,7 @@ addRawPolygon old pointsWithSnap =
         [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
         , eVar "pts", eConst 0 dummyLoc ]
   in
-  addShape old "polygon" polygonExp
+  addShapeToModel old "polygon" polygonExp
 
 addStretchablePolygon old points =
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
@@ -652,7 +653,7 @@ addStretchablePolygon old points =
         (eVar0 "stretchyPolygon")
         (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
   in
-  addShape old "polygon" polygonExp
+  addShapeToModel old "polygon" polygonExp
 
 addStickyPolygon old points =
   let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
@@ -681,7 +682,7 @@ addStickyPolygon old points =
         (eVar0 "stickyPolygon")
         (List.map eVar ["bounds","color","strokeColor","strokeWidth","offsets"])
   in
-  addShape old "polygon" polygonExp
+  addShapeToModel old "polygon" polygonExp
 
 strPoint strX strY (x,y) = Utils.spaces [strX x, strY y]
 
@@ -755,7 +756,7 @@ addAbsolutePath old keysAndPoints =
         [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
         , eVar "d", eConst 0 dummyLoc ]
   in
-  addShape old "path" pathExp
+  addShapeToModel old "path" pathExp
 
 addStretchyPath old keysAndPoints =
   let points = List.map Tuple.second keysAndPoints in
@@ -774,7 +775,7 @@ addStretchyPath old keysAndPoints =
         (eVar0 "stretchyPath")
         (List.map eVar ["bounds","color","strokeColor","strokeWidth","dPcts"])
   in
-  addShape old "path" pathExp
+  addShapeToModel old "path" pathExp
 
 addStickyPath old keysAndPoints =
   Debug.crash "TODO: addStickyPath"
@@ -858,19 +859,27 @@ addTextBox old click2 click1 =
         , eConst (toFloat yb) dummyLoc
         , eConst 1.5 dummyLoc, eVar "textVal" ]
   in
-  addShape old "text" textExp
+  addShapeToModel old "text" textExp
 
 --------------------------------------------------------------------------------
 
+
 -- TODO: remove randomColor/1 when they are no longer needed
---
+
+
+addShapeToModel : Model -> String -> Exp -> Model
+addShapeToModel model newShapeName newShapeExp =
+  let newProgram = addShape model newShapeName newShapeExp in
+  { model | code = unparse newProgram }
+
+
 -- 1. Find all list literals.
 -- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
 -- 3. Keep those programs that do not crash.
 -- 4. Keep those programs that result in one more shape in the output.
 -- 5. Finally, use list the others do not depend on.
-addShape : Model -> String -> Exp -> Model
-addShape model newShapeKind newShapeExp =
+addShape : Model -> String -> Exp -> Exp
+addShape model newShapeName newShapeExp =
   let program = model.inputExp in
   let oldShapeTree =
     case runAndResolve model program of
@@ -884,7 +893,7 @@ addShape model newShapeKind newShapeExp =
     lists
     |> List.concatMap
         (\listExp ->
-          let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeKind 1 newShapeExp [listExp.val.eid] program in
+          let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] program in
           let (ws1, heads, ws2, maybeTail, ws3) = LangTools.expToListParts listExp in
           let newListFlat      = replaceE__ listExp <| EList ws1 (imitateExpListWhitespace_ heads ws3.val (heads ++ [eVar varName]))           ws2 maybeTail ws3 in
           let newListSingleton = replaceE__ listExp <| EList ws1 (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [eVar0 varName]])) ws2 maybeTail ws3 in
@@ -912,7 +921,7 @@ addShape model newShapeKind newShapeExp =
         (\(listEId, _) -> listEIds |> List.all (\otherListEId -> not <| StaticAnalysis.isDependentOn grossDependencies otherListEId listEId))
     |> Maybe.withDefault (-1, program)
   in
-  { model | code = unparse bestProgram }
+  bestProgram
 
 
 makeCallWithLocals locals func args =

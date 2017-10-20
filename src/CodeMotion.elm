@@ -22,7 +22,7 @@ module CodeMotion exposing
 import Lang exposing (..)
 import LangTools exposing (..)
 import LangSimplify
-import LangUnparser exposing (unparse, unparsePat, unparseWithIds, unparseWithUniformWhitespace, unparsePatWithUniformWhitespace)
+import LangUnparser exposing (unparse, unparsePat, unparseWithIds, expsEquivalent, patsEquivalent, unparseWithUniformWhitespace, unparsePatWithUniformWhitespace)
 import FastParser as Parser
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
@@ -2785,7 +2785,7 @@ copyExpressionTransformation originalProgram eids =
 swapExpressionsTransformation originalProgram eid1 eid2 =
   let exp1 = justFindExpByEId originalProgram eid1 in
   let exp2 = justFindExpByEId originalProgram eid2 in
-  if unparseWithUniformWhitespace True True exp1 == unparseWithUniformWhitespace True True exp2 then
+  if expsEquivalent exp1 exp2 then
     Nothing
   else if List.member exp1 (flattenExpTree exp2) || List.member exp2 (flattenExpTree exp1) then
     Nothing
@@ -2819,7 +2819,7 @@ swapExpressionsTransformation originalProgram eid1 eid2 =
 swapDefinitionsTransformation originalProgram pid1 pid2 =
   case (findPatAndBoundExpByPId pid1 originalProgram, findPatAndBoundExpByPId pid2 originalProgram) of
     (Just (pat1, boundExp1), Just (pat2, boundExp2)) ->
-      if unparsePatWithUniformWhitespace True pat1 == unparsePatWithUniformWhitespace True pat2 && unparseWithUniformWhitespace True True boundExp1 == unparseWithUniformWhitespace True True boundExp2 then
+      if patsEquivalent pat1 pat2 && expsEquivalent boundExp1 boundExp2 then
         Nothing
       else if List.member boundExp1 (flattenExpTree boundExp2) || List.member boundExp2 (flattenExpTree boundExp1) then
         Nothing

@@ -2,10 +2,76 @@ module Provenance exposing (..)
 
 import FastParser
 import Lang exposing (..)
+import LangTools
 import LangUnparser
 import Utils
 
 import Set exposing (Set)
+
+
+-- Mirror of basedOn provenance in Eval.eval
+--
+-- Though note: if code branches, the value produced by the branch
+-- expression can only be based on on the value from the taken branch.
+--
+-- For answering the question: if all of these children appear in an
+-- EId explanation, can they be consolidated into this parent?
+expNonControlFlowChildren : Exp -> List Exp
+expNonControlFlowChildren exp =
+  case exp.val.e__ of
+    EConst _ _ _ _                           -> []
+    EBase _ _                                -> []
+    EVar _ _                                 -> []
+    EFun _ _ _ _                             -> [] -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
+    EOp _ _ _ _                              -> childExps exp
+    EList _ _ _ _ _                          -> childExps exp
+    EApp _ func es _                         -> es -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
+    ELet _ _ _ _ boundExp body _             -> [body] -- lets are actually pass-through and won't appear the val provenance tree; not sure it matters what we return here
+    EIf _ predicate trueBranch falseBranch _ -> [trueBranch, falseBranch]
+    ECase _ scrutinee branches _             -> branchExps branches
+    ETypeCase _ scrutinee tbranches _        -> tbranchExps tbranches
+    EComment _ _ _                           -> childExps exp
+    EOption _ _ _ _ _                        -> childExps exp
+    ETyp _ _ _ _ _                           -> childExps exp
+    EColonType _ _ _ _ _                     -> childExps exp
+    ETypeAlias _ _ _ _ _                     -> childExps exp
+
+
+-- Attempt to consume as many parents as possible.
+--
+-- No obvious reasonable way to incorporate an expFilter here.
+expandEIdInterpretationOutward : Exp -> List EId -> List EId
+expandEIdInterpretationOutward program interpretation =
+  let
+    -- Simple expansion of inner expressions into parents (e.g. we want the expression (3 : Num) instead of just the inner 3).
+    interpPiecesExpanded =
+      interpretation
+      |> List.map (LangTools.outerSameValueExpByEId program >> .val >> .eid)
+
+    -- If all of some expression's children are in an interpretation, then we can use that expression instead of its children.
+    parents =
+      interpPiecesExpanded
+      |> List.map (parentByEId program)
+      |> Utils.filterJusts -- Found exps only
+      |> Utils.filterJusts -- Parent of entire program is "Nothing"
+      |> Utils.dedupBy (.val >> .eid)
+    interpExpandedIntoParents =
+      parents
+      |> List.foldl
+          (\parent interpretation ->
+            let parentNonControlFlowChildrenEIds = expNonControlFlowChildren parent |> List.map (.val >> .eid) in
+            if Utils.isSublistAsSet parentNonControlFlowChildrenEIds interpretation then
+              parent.val.eid :: Utils.diffAsSet interpretation parentNonControlFlowChildrenEIds
+            else
+              interpretation
+          )
+          interpPiecesExpanded
+  in
+  if interpretation == interpExpandedIntoParents then
+    interpretation
+  else
+    -- Keep expanding until no more progress.
+    expandEIdInterpretationOutward program interpExpandedIntoParents
 
 
 ----- Val basedOn tree provenance ----------------------------------
@@ -62,14 +128,14 @@ import Set exposing (Set)
 -- Only starred expressions are from the program: there is no tree pruning with
 -- leaves all in the program.
 --
--- So see "valTreeToAllProgramEIdInterpretationsIgnoringPreludeSubtrees", of which
+-- So see "valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees", of which
 -- valTreeToMost(Proximal/Distal)ProgramEIdInterpretation computes a member of.
 
 
 -- Naive version looking for interpretations all in the program (unused because of poisoning described above).
 valTreeToAllProgramEIdInterpretations : Val -> List (Set EId)
 valTreeToAllProgramEIdInterpretations val =
-  valTreeToAllProgramEIdInterpretations_ False val
+  valTreeToAllProgramEIdInterpretations_ False (always True) val
 
 
 ---- SOME PROOFS THAT DON'T MATTER. ----
@@ -125,18 +191,18 @@ valTreeToAllProgramEIdInterpretations val =
 -- Not subjected to poisoning, but not actually used because of combinatorical explosion of interpretations.
 --
 -- valTreeToMost(Distal/Proximal)ProgramEIdInterpretation each return a member of this.
-valTreeToAllProgramEIdInterpretationsIgnoringPreludeSubtrees : Val -> List (Set EId)
-valTreeToAllProgramEIdInterpretationsIgnoringPreludeSubtrees val =
-  valTreeToAllProgramEIdInterpretations_ True val
+valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees : (Exp -> Bool) -> Val -> List (Set EId)
+valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter val =
+  valTreeToAllProgramEIdInterpretations_ True expFilter val
 
 
-valTreeToAllProgramEIdInterpretations_ : Bool -> Val -> List (Set EId)
-valTreeToAllProgramEIdInterpretations_ ignoreAllPreludeSubtrees val =
+valTreeToAllProgramEIdInterpretations_ : Bool -> (Exp -> Bool) -> Val -> List (Set EId)
+valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  let perhapsThisExp = if FastParser.isProgramEId exp.val.eid then [Set.singleton exp.val.eid] else [] in
+  let perhapsThisExp = if FastParser.isProgramEId exp.val.eid && expFilter exp then [Set.singleton exp.val.eid] else [] in
   basedOnVals
-  |> List.map (valTreeToAllProgramEIdInterpretations_ ignoreAllPreludeSubtrees)
-  |> (if ignoreAllPreludeSubtrees then List.filter (not << List.isEmpty) else identity)
+  |> List.map (valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter)
+  |> (if ignoreUninterpretedSubtress then List.filter (not << List.isEmpty) else identity)
   |> Utils.oneOfEach
   |> List.map Utils.unionAll
   |> (++) perhapsThisExp
@@ -308,7 +374,7 @@ valTreeToMostDistalProgramEIdInterpretation expFilter val =
     basedOnVals
     |> List.map (valTreeToMostDistalProgramEIdInterpretation expFilter)
   in
-  -- Commented-out bit is if we want to be a member of valTreeToAllProgramEIdInterpretations rather than valTreeToAllProgramEIdInterpretationsIgnoringPreludeSubtrees
+  -- Commented-out bit is if we want to be a member of valTreeToAllProgramEIdInterpretations rather than valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees
   -- if childrenInterpretations |> List.all (not << Set.isEmpty) then
   --   Utils.unionAll childrenInterpretations
   if childrenInterpretations |> List.any (not << Set.isEmpty) then

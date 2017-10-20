@@ -15,7 +15,7 @@ port module InterfaceController exposing
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
   , msgActivateRenameInOutput, msgUpdateRenameInOutputTextBox, msgDoRename
-  , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
+  , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox, msgToggleOutput
   , msgSetOutputLive, msgSetOutputPrint
@@ -1263,10 +1263,10 @@ msgKeyDown keyCode =
                 _                   -> new
         else if keyCode == Keys.keyBackspace then
           deleteInOutput old
-        else if keyCode == Keys.keyMeta then
+        else if keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown then
+          doDuplicate old
+        else if List.any Keys.isCommandKey old.keysDown then
           old
-          -- for now, no need to ever put keyMeta in keysDown
-          -- TODO need to put keyMeta in model, so know not to put the next key in model
         {-
         else if List.member Keys.keyMeta old.keysDown then
           -- when keyMeta is down and another key k is downed,
@@ -1428,7 +1428,6 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
 
 deleteInOutput old =
   let
-    -- TODO subtract interpretations of other shapes. (What's unique to the selected item?)
     proximalInterpretations =
       ShapeWidgets.selectionsUniqueProximalEIdInterpretations
           old.inputExp
@@ -1574,8 +1573,58 @@ msgGroupBlobs = Msg "Group Blobs" <| \old ->
           (Ok (Just anchor), _) -> upstateRun <| ETransform.groupSelectedBlobsAround old simple anchor
           (Err err, _)          -> let _ = Debug.log "bad anchor" err in old
 
-msgDuplicateBlobs = Msg "Duplicate Blobs" <| \old ->
-  upstateRun <| ETransform.duplicateSelectedBlobs old
+-- Find a single expression that explains everything selected: duplicate it.
+--
+-- Could change to instead duplicate everything selected, inidividually.
+msgDuplicate = Msg "Duplicate " doDuplicate
+
+doDuplicate : Model -> Model
+doDuplicate old =
+  let
+    singleExpressionInterpretations =
+      ShapeWidgets.selectionsSingleEIdInterpretations
+          old.inputExp
+          old.slate
+          old.widgets
+          old.selectedFeatures
+          old.selectedShapes
+          old.selectedBlobs
+          (not << isVar << LangTools.expValueExp) -- Don't simply duplicate a variable usage.
+
+    maybeNewProgram =
+      singleExpressionInterpretations
+      |> List.concat
+      |> List.map (LangTools.outerSameValueExpByEId old.inputExp >> .val >> .eid)
+      |> Utils.dedup
+      |> Debug.log "possible eids to duplicate"
+      |> List.map (LangTools.justFindExpByEId old.inputExp)
+      |> List.sortBy LangTools.expToLocation -- Choose earliest single expression in program.
+      |> List.head -- No multiple synthesis options for now.
+      |> Maybe.map
+          (\expToDuplicate ->
+            let name = LangTools.expNameForExp old.inputExp expToDuplicate |> LangTools.removeTrailingDigits in
+            -- Attempt 1: Try to add to output as a shape.
+            let newProgram = Draw.addShape old name expToDuplicate in
+            if not <| LangUnparser.expsEquivalent newProgram old.inputExp then
+              newProgram
+            else
+              -- Attempt 2: Simply duplicate the definition.
+              -- TODO: Duplicate entire equation if selected.
+              -- TODO: Lift free vars? Should be uncommon.
+              let
+                eidToInsertBefore =
+                  case LangTools.findLetAndPatMatchingExpLoose expToDuplicate.val.eid old.inputExp of
+                    Nothing          -> expToDuplicate.val.eid
+                    Just (letExp, _) -> letExp.val.eid
+
+                (_, newProgram) = LangTools.newVariableVisibleTo -1 name 1 expToDuplicate [expToDuplicate.val.eid] old.inputExp
+              in
+              newProgram
+          )
+  in
+  maybeNewProgram
+  |> Maybe.map (\newProgram -> { old | code = unparse newProgram } |> clearSelections |> upstateRun)
+  |> Maybe.withDefault old
 
 msgMergeBlobs = Msg "Merge Blobs" <| \old ->
   if Dict.size old.selectedBlobs <= 1 then old

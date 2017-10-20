@@ -4,7 +4,7 @@ module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
   , groupSelectedBlobs
   , abstractSelectedBlobs
   , replicateSelectedBlob
-  , duplicateSelectedBlobs
+  -- , duplicateSelectedBlobs
   , mergeSelectedBlobs
   , deleteSelectedBlobs
   , anchorOfSelectedFeatures
@@ -1425,58 +1425,58 @@ deleteSelectedBlobs model =
 --------------------------------------------------------------------------------
 -- Duplicate Blobs
 
-duplicateSelectedBlobs model =
-  let (defs,mainExp) = splitExp model.inputExp in
-  case mainExp of
-    Blobs blobs f ->
-      let (nextGenSym, newDefs, newBlobs) =
-        let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
-        let (nextGenSym_, newDefs_, newVarBlobs_) =
-          List.foldl
-             (\def (k,acc1,acc2) ->
-               if not (matchesAnySelectedVarBlob selectedNiceBlobs def)
-               then (k, acc1, acc2)
-               else
-                 let (ws1,p,e,ws2) = def in
-                 case p.val.p__ of
-                   PVar pws x wd ->
-                     let x_ = x ++ "_copy" ++ toString k in
-                     let acc1_ = (ws1, withDummyPatInfo (PVar pws x_ wd), e, ws2) :: acc1 in
-                     let acc2_ = varBlob (withDummyExpInfo (EVar (ws "\n  ") x_)) x_ :: acc2 in
-                     (1 + k, acc1_, acc2_)
-                   _ ->
-                     let _ = Debug.log "duplicateSelectedBlobs: weird..." () in
-                     (k, acc1, acc2)
-             )
-             (model.genSymCount, [], [])
-             defs
-        in
-        let newWithAndCallBlobs =
-          List.concatMap
-             (\(_,e,niceBlob) ->
-               case niceBlob of
-                 WithBoundsBlob _ -> [NiceBlob e niceBlob]
-                 WithAnchorBlob _ -> [NiceBlob e niceBlob]
-                 CallBlob _       -> [NiceBlob e niceBlob]
-                 VarBlob _        -> []
-             )
-             selectedNiceBlobs
-        in
-        let newDefs = List.reverse newDefs_ in
-        let newBlobs = List.reverse newVarBlobs_ ++ newWithAndCallBlobs in
-        (nextGenSym_, newDefs, newBlobs)
-      in
-      let code_ =
-        let blobs_ = blobs ++ newBlobs in
-        let defs_ = defs ++ newDefs in
-        unparse (fuseExp (defs_, Blobs blobs_ f))
-      in
-      -- upstate Run
-        { model | code = code_
-                , genSymCount = List.length newBlobs + model.genSymCount
-                }
-    _ ->
-      model
+-- duplicateSelectedBlobs model =
+--   let (defs,mainExp) = splitExp model.inputExp in
+--   case mainExp of
+--     Blobs blobs f ->
+--       let (nextGenSym, newDefs, newBlobs) =
+--         let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
+--         let (nextGenSym_, newDefs_, newVarBlobs_) =
+--           List.foldl
+--              (\def (k,acc1,acc2) ->
+--                if not (matchesAnySelectedVarBlob selectedNiceBlobs def)
+--                then (k, acc1, acc2)
+--                else
+--                  let (ws1,p,e,ws2) = def in
+--                  case p.val.p__ of
+--                    PVar pws x wd ->
+--                      let x_ = x ++ "_copy" ++ toString k in
+--                      let acc1_ = (ws1, withDummyPatInfo (PVar pws x_ wd), e, ws2) :: acc1 in
+--                      let acc2_ = varBlob (withDummyExpInfo (EVar (ws "\n  ") x_)) x_ :: acc2 in
+--                      (1 + k, acc1_, acc2_)
+--                    _ ->
+--                      let _ = Debug.log "duplicateSelectedBlobs: weird..." () in
+--                      (k, acc1, acc2)
+--              )
+--              (model.genSymCount, [], [])
+--              defs
+--         in
+--         let newWithAndCallBlobs =
+--           List.concatMap
+--              (\(_,e,niceBlob) ->
+--                case niceBlob of
+--                  WithBoundsBlob _ -> [NiceBlob e niceBlob]
+--                  WithAnchorBlob _ -> [NiceBlob e niceBlob]
+--                  CallBlob _       -> [NiceBlob e niceBlob]
+--                  VarBlob _        -> []
+--              )
+--              selectedNiceBlobs
+--         in
+--         let newDefs = List.reverse newDefs_ in
+--         let newBlobs = List.reverse newVarBlobs_ ++ newWithAndCallBlobs in
+--         (nextGenSym_, newDefs, newBlobs)
+--       in
+--       let code_ =
+--         let blobs_ = blobs ++ newBlobs in
+--         let defs_ = defs ++ newDefs in
+--         unparse (fuseExp (defs_, Blobs blobs_ f))
+--       in
+--       -- upstate Run
+--         { model | code = code_
+--                 , genSymCount = List.length newBlobs + model.genSymCount
+--                 }
+--     _ ->
+--       model
 
 {-
 shiftNum (n, t) = (30 + n, t)

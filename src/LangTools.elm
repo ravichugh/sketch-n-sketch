@@ -393,6 +393,11 @@ outerSameValueExp program targetExp =
   |> Maybe.withDefault targetExp
 
 
+outerSameValueExpByEId : Exp -> EId -> Exp
+outerSameValueExpByEId program targetEId =
+  outerSameValueExp program (justFindExpByEId program targetEId)
+
+
 copyListWhitespace : Exp -> Exp -> Exp
 copyListWhitespace templateList list =
   case (templateList.val.e__, list.val.e__) of
@@ -655,6 +660,7 @@ commonNameForEIds program eids =
 
 
 leadingDigits   = Regex.regex "^[0-9]+"
+trailingDigits  = Regex.regex "[0-9]+$"
 leadingCapitals = Regex.regex "^[A-Z]+"
 
 removeLeadingDigits : String -> String
@@ -664,6 +670,10 @@ removeLeadingDigits string =
 downcaseLeadingCapitals : String -> String
 downcaseLeadingCapitals string =
   Regex.replace (Regex.AtMost 1) leadingCapitals (\{match} -> String.toLower match) string
+
+removeTrailingDigits : String -> String
+removeTrailingDigits string =
+  Regex.replace (Regex.AtMost 1) trailingDigits (\_ -> "") string
 
 
 -- Suggest a common name for the expressions at eids in program

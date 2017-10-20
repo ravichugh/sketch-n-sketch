@@ -51,7 +51,8 @@ allButLast xs =
 
 relateDisabled : Model -> Bool
 relateDisabled model =
-  Set.isEmpty model.selectedFeatures
+  Set.isEmpty model.selectedFeatures &&
+  Set.isEmpty model.selectedShapes
 
 groupDisabled : Bool -> Model -> Bool
 groupDisabled disallowSelectedFeatures model =
@@ -208,11 +209,13 @@ groupTextButton model text onClickHandler disallowSelectedFeatures =
   let
     noFeatures =
       Set.isEmpty model.selectedFeatures
+    noShapes =
+      Set.isEmpty model.selectedShapes
     noBlobs =
       Dict.isEmpty model.selectedBlobs
   in
     disableableTextButton
-      (noBlobs || (disallowSelectedFeatures && (not noFeatures)))
+      ((noBlobs && noShapes && noFeatures) || (disallowSelectedFeatures && (not noFeatures)))
       text
       onClickHandler
 
@@ -650,8 +653,8 @@ menuBar model =
         , [ groupTextButton
               model
               "Dupe"
-              Controller.msgDuplicateBlobs
-              True
+              Controller.msgDuplicate
+              False
           , groupTextButton
               model
               "Merge"

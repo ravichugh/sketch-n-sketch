@@ -1,5 +1,6 @@
 module LangUnparser exposing
-  ( unparse, unparsePat, unparseWD, unparseType
+  ( expsEquivalent, patsEquivalent
+  , unparse, unparsePat, unparseWD, unparseType
   , unparseWithIds
   , unparseWithUniformWhitespace, unparsePatWithUniformWhitespace
   , bumpCol, incCol
@@ -24,6 +25,16 @@ debugLog = Config.debugLog Config.debugParser
 
 bumpCol n pos = { pos | col = n + pos.col }
 incCol = bumpCol 1
+
+------------------------------------------------------------------------------
+
+expsEquivalent : Exp -> Exp -> Bool
+expsEquivalent exp1 exp2 =
+  unparseWithUniformWhitespace True True exp1 == unparseWithUniformWhitespace True True exp2
+
+patsEquivalent : Pat -> Pat -> Bool
+patsEquivalent pat1 pat2 =
+  unparsePatWithUniformWhitespace True pat1 == unparsePatWithUniformWhitespace True pat2
 
 ------------------------------------------------------------------------------
 
