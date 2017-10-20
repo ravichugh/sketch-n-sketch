@@ -1020,18 +1020,22 @@ rewritePrimitivePointsOfSelectedBlobs model (nxBase, xBaseLoc)
       )
   in
   let eSubst =
+    let locIdToEId =
+      Lang.locIdToEId model.inputExp
+        >> Utils.fromJust_ "rewritePrimitivePointsOfSelectedBlobs"
+    in
     pointsOfSelectedBlobs |> List.foldl (\(xOther, yOther) acc ->
       -- TODO when anchor is derived point, rewrite anchor shape appropriately
       if (nxBase, nyBase) == (Tuple.first xOther, Tuple.first yOther) then
-        acc |> Dict.insert xId (EVar space1 xAnchor)
-            |> Dict.insert yId (EVar space1 yAnchor)
+        acc |> Dict.insert (locIdToEId xId) (EVar space1 xAnchor)
+            |> Dict.insert (locIdToEId yId) (EVar space1 yAnchor)
       else
         case (xOther, yOther) of
           ( (nxOther, TrLoc (xOtherId,_,_))
           , (nyOther, TrLoc (yOtherId,_,_))
           ) ->
-            acc |> Dict.insert xOtherId (eBaseOffset xAnchor (nxOther - nxBase))
-                |> Dict.insert yOtherId (eBaseOffset yAnchor (nyOther - nyBase))
+            acc |> Dict.insert (locIdToEId xOtherId) (eBaseOffset xAnchor (nxOther - nxBase))
+                |> Dict.insert (locIdToEId yOtherId) (eBaseOffset yAnchor (nyOther - nyBase))
           _ ->
             acc
       ) Dict.empty
