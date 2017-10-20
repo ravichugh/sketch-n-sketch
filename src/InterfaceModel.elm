@@ -1074,3 +1074,5 @@ initModel =
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
     }
+
+splash_i_2017_demo = True

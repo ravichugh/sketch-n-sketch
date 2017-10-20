@@ -670,17 +670,18 @@ menuBar model =
                         model
                         "Make Equal"
                         Controller.msgMakeEqual
-{- TODO: off for SPLASH-I demo
-                    , relateHoverMenu
-                        model
-                       "Relate"
-                        Controller.msgRelate
-                    , relateHoverMenu
-                        model
-                        "Indexed Relate"
-                        Controller.msgIndexedRelate
--}
-                    ]
+                    ] ++
+                    if splash_i_2017_demo then []
+                    else
+                      [ relateHoverMenu
+                          model
+                         "Relate"
+                          Controller.msgRelate
+                      , relateHoverMenu
+                          model
+                          "Indexed Relate"
+                          Controller.msgIndexedRelate
+                      ]
                   , [ groupTextButton
                         model
                         "Dupe"
@@ -1116,6 +1117,7 @@ synthesisResultsSelect model =
       (if isSafe then "" else "[UNSAFE] ") ++
       (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
       " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
+
     resultButtonList priorPathByIndices remainingPathByIndices results =
       results
         |> Utils.mapi0
@@ -1144,7 +1146,9 @@ synthesisResultsSelect model =
                           []
                   in
                     [ synthesisResultHoverMenu
-                        (desc description exp isSafe sortKey)
+                        (if splash_i_2017_demo
+                           then ("Option " ++ toString (i+1))
+                           else (desc description exp isSafe sortKey))
                         thisElementPath
                         exp
                         nextMenu
