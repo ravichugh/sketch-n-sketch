@@ -216,6 +216,14 @@ addSlateAndCode old (exp, val) =
   |> Result.map (\(slate, code) -> (exp, val, slate, code))
 -}
 
+clearSelections : Model -> Model
+clearSelections old =
+  { old | selectedFeatures = Set.empty
+        , selectedShapes   = Set.empty
+        , selectedBlobs    = Dict.empty
+        }
+
+
 -- We may want to revisit our error handling so we don't have different error types floating around.
 discardErrorAnnotations : Result (String, Ace.Annotation) a -> Result String a
 discardErrorAnnotations result =
@@ -1104,13 +1112,7 @@ msgKeyDown keyCode =
                   |> \m -> { m | deucePopupPanelAbove = True }
             in
               case (old.tool, old.mouseMode) of
-                (Cursor, _) ->
-                  { new | selectedFeatures = Set.empty
-                        , selectedShapes = Set.empty
-                        , selectedBlobs = Dict.empty
-                        -- clear keysDown to help recover from keyMeta + k issue, below
-                        , keysDown = []
-                        }
+                (Cursor, _)         -> clearSelections new
                 (_, MouseNothing)   -> { new | tool = Cursor }
                 (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
                 _                   -> new
@@ -1189,6 +1191,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
   in
   runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
     debugLog "new model" <|
+    clearSelections <|
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
@@ -1201,7 +1204,6 @@ msgDigHole = Msg "Dig Hole" <| \old ->
                                    mkLive old.syncOptions
                                      old.slideNumber old.movieNumber old.movieTime reparsed
                                      (newVal, newWidgets)
-            , selectedFeatures = Set.empty
       }
   )
 
@@ -1293,9 +1295,8 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
-            , selectedFeatures = Set.empty
             , synthesisResults = maybeRunAutoSynthesis old reparsed
-      }
+      } |> clearSelections
       in
       { newer | mode = refreshMode_ newer
               , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
