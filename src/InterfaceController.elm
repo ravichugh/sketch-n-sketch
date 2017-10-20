@@ -1261,6 +1261,12 @@ msgKeyDown keyCode =
                 (_, MouseNothing)   -> { new | tool = Cursor }
                 (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
                 _                   -> new
+        else if keyCode == Keys.keyPlusEqual then
+          let newModel = doMakeEqual old in
+          newModel.synthesisResults
+          |> Utils.findFirst isResultSafe
+          |> Maybe.map (\synthesisResult -> { newModel | code = unparse (resultExp synthesisResult) } |> clearSynthesisResults |> upstateRun )
+          |> Maybe.withDefault old
         else if keyCode == Keys.keyBackspace then
           deleteInOutput old
         else if keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown then
@@ -1346,7 +1352,9 @@ msgDigHole = Msg "Dig Hole" <| \old ->
       }
   )
 
-msgMakeEqual = Msg "Make Equal" <| \old ->
+msgMakeEqual = Msg "Make Equal" doMakeEqual
+
+doMakeEqual old =
   let synthesisResults =
     ValueBasedTransform.makeEqual
         old.inputExp
