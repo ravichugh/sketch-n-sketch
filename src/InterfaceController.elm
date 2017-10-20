@@ -364,12 +364,12 @@ onClickPrimaryZone i k z old =
         (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
     else
       let selectThisShape () =
-        if old.keysDown == Keys.shift
+        if old.keysDown == [Keys.keyShift]
         then Utils.toggleSet i old.selectedShapes
         else Set.singleton i
       in
       let selectBlob blobId =
-        if old.keysDown == Keys.shift then
+        if old.keysDown == [Keys.keyShift] then
           if Dict.member blobId old.selectedBlobs
           then Dict.remove blobId old.selectedBlobs
           else Dict.insert blobId i old.selectedBlobs
@@ -516,7 +516,7 @@ onMouseDrag lastPosition newPosition old =
         |> List.filter (\((nodeId, shapeFeatureStr), (x, y)) -> not (List.member nodeId shapesToSelect) && selectLeft <= round x && round x <= selectRight && selectTop <= round y && round y <= selectBot)
         |> List.map    (\(selectableShapeFeature,    (x, y)) -> selectableShapeFeature)
       in
-      if old.keysDown == Keys.shift then
+      if old.keysDown == [Keys.keyShift] then
         { old | selectedShapes   = Utils.multiToggleSet (Set.fromList shapesToSelect) initialSelectedShapes
               , selectedFeatures = Utils.multiToggleSet (Set.fromList featuresToSelect) initialSelectedFeatures
               , selectedBlobs    = initialSelectedBlobs }
@@ -598,7 +598,7 @@ onMouseUp old =
 
     (_, MouseDrawNew points) ->
       let resetMouseMode model = { model | mouseMode = MouseNothing } in
-      case (old.tool, points, old.keysDown == Keys.shift) of
+      case (old.tool, points, old.keysDown == [Keys.keyShift]) of
 
         (Line _,     TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt2 pt1
         (HelperLine, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt2 pt1
@@ -800,7 +800,7 @@ update msg oldModel =
 
 upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
-  let _ = Debug.log caption (old.mouseMode, old.mouseState) in
+  let _ = if String.contains "Key" caption then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
   let _ = debugLog "Msg" caption in
   updateModel old
 
@@ -1271,16 +1271,6 @@ msgKeyDown keyCode =
           deleteInOutput old
         else if keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown then
           doDuplicate old
-        else if List.any Keys.isCommandKey old.keysDown then
-          old
-        {-
-        else if List.member Keys.keyMeta old.keysDown then
-          -- when keyMeta is down and another key k is downed,
-          -- there will not be a key up event for k. so, not putting
-          -- k in keysDown. if want to handle keyMeta + k, keep track
-          -- of this another way.
-          old
-        -}
         else if
           not currentKeyDown &&
           keyCode == Keys.keyShift
@@ -1294,7 +1284,15 @@ msgKeyDown keyCode =
 
 msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
   -- let _ = Debug.log "Key Up" (keyCode, old.keysDown) in
-  { old | keysDown = Utils.removeFirst keyCode old.keysDown }
+  if Keys.isCommandKey keyCode then
+    -- When keyMeta (command key) is down and another key k is downed,
+    -- there will not be a key up event for k.
+    -- So remove k when keyMeta goes up.
+    { old | keysDown = List.filter ((==) Keys.keyShift) old.keysDown }
+  else
+    { old | keysDown = Utils.removeAsSet keyCode old.keysDown }
+
+
 
 --------------------------------------------------------------------------------
 

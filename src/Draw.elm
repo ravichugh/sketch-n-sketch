@@ -110,7 +110,7 @@ slicesPerQuadrant = 2 -- can toggle this parameter
 radiansPerSlice   = pi / (2 * slicesPerQuadrant)
 
 snapLine keysDown (_,(x2,y2)) (_,(x1,y1)) =
-  if keysDown == Keys.shift then
+  if keysDown == [Keys.keyShift] then
     let (dx, dy) = (x2 - x1, y2 - y1) in
     let angle = atan2 (toFloat (-dy)) (toFloat dx) in
     let slice = round (angle / radiansPerSlice) in
@@ -137,7 +137,7 @@ drawNewLine model click2 click1 =
 
 drawNewRect keysDown (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) =
-    if keysDown == Keys.shift
+    if keysDown == [Keys.keyShift]
     then squareBoundingBox pt2 pt1
     else boundingBox pt2 pt1
   in
@@ -153,7 +153,7 @@ drawNewRect keysDown (_,pt2) (_,pt1) =
 
 drawNewEllipse keysDown (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) =
-    if keysDown == Keys.shift
+    if (Debug.log "keysDown" keysDown) == [Keys.keyShift]
     then squareBoundingBox pt2 pt1
     else boundingBox pt2 pt1
   in
@@ -801,7 +801,7 @@ addLambda selectedIdx old pt2 pt1 =
 
 addLambdaBounds old (_,pt2) (_,pt1) func =
   let (xa, xb, ya, yb) =
-    if old.keysDown == Keys.shift
+    if old.keysDown == [Keys.keyShift]
       then squareBoundingBox pt2 pt1
       else boundingBox pt2 pt1
   in

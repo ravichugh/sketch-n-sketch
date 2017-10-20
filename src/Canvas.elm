@@ -81,7 +81,7 @@ msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
     (Cursor, MouseDragZone _ _) -> old
     (Cursor, MouseNothing) ->
       let dragMode = MouseDragSelect (mousePosition old) old.selectedShapes old.selectedFeatures old.selectedBlobs in
-      if old.keysDown == Keys.shift
+      if old.keysDown == [Keys.keyShift]
       then { old | mouseMode = dragMode }
       else { old | mouseMode = dragMode, selectedShapes = Set.empty, selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
 
