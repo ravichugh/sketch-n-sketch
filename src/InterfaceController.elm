@@ -1093,7 +1093,9 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 
 --------------------------------------------------------------------------------
 
-msgUndo = Msg "Undo" <| \old ->
+msgUndo = Msg "Undo" doUndo
+
+doUndo old =
   case old.history of
     ([], _) ->
       old
@@ -1113,7 +1115,9 @@ msgUndo = Msg "Undo" <| \old ->
       in
         upstateRun new
 
-msgRedo = Msg "Redo" <| \old ->
+msgRedo = Msg "Redo" doRedo
+
+doRedo old =
   case old.history of
     (_, []) ->
       old
@@ -1269,8 +1273,12 @@ msgKeyDown keyCode =
           |> Maybe.withDefault old
         else if keyCode == Keys.keyBackspace then
           deleteInOutput old
-        else if keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown then
+        else if keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doDuplicate old
+        else if keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          doUndo old
+        else if keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.any ((==) Keys.keyShift) old.keysDown && List.length old.keysDown == 2 then
+          doRedo old
         else if
           not currentKeyDown &&
           keyCode == Keys.keyShift
