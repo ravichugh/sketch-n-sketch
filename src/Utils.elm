@@ -231,6 +231,12 @@ intersectAsSet : List a -> List a -> List a
 intersectAsSet xs ys =
   xs |> List.filter (\x -> List.member x ys)
 
+intersectAllAsSet : List (List a) -> List a
+intersectAllAsSet lists =
+  case lists of
+    first::rest -> List.foldl intersectAsSet first rest
+    _           -> []
+
 unionAllAsSet : List (List a) -> List a
 unionAllAsSet lists =
   List.foldl addAllAsSet [] lists

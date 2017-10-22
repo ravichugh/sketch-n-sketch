@@ -383,3 +383,32 @@ valTreeToMostDistalProgramEIdInterpretation expFilter val =
     Set.singleton exp.val.eid
   else
     Set.empty
+
+
+-- Still combinatorically explosive :/
+valTreeToSingleEIdInterpretations : Exp -> (Exp -> Bool) -> Val -> List EId
+valTreeToSingleEIdInterpretations program expFilter val =
+  let (Provenance _ exp basedOnVals) = val.provenance in
+  let perhapsThisExp = if FastParser.isProgramEId exp.val.eid && expFilter exp then [exp.val.eid] else [] in
+  basedOnVals
+  |> List.map (valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter)
+  |> List.filter (not << List.isEmpty)
+  |> Utils.oneOfEach
+  |> List.map Utils.unionAll
+  |> Utils.dedupByEquality
+  |> List.filterMap
+      (\interpretation ->
+        case Set.toList interpretation of
+          [singleEId]    -> Just singleEId
+          interpretationList ->
+            case expandEIdInterpretationOutward program interpretationList of
+              [singleEId] ->
+                -- Using the exp filter this late may discard allowable interpretations, but it's not clear how to push it into expandEIdInterpretationOutward
+                if singleEId |> findExpByEId program |> Maybe.map expFilter |> (==) (Just True)
+                then Just singleEId
+                else Nothing
+              _ ->
+                Nothing
+      )
+  |> (++) perhapsThisExp
+  |> Utils.dedupByEquality

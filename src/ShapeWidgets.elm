@@ -1265,6 +1265,12 @@ featureValEquationToProximalDistalEIdSets expFilter valEqn =
   , Provenance.valTreeToMostDistalProgramEIdInterpretation expFilter valTree
   )
 
+featureValEquationToSingleEIds : Exp -> (Exp -> Bool) -> FeatureValEquation -> List EId
+featureValEquationToSingleEIds program expFilter valEqn =
+  valEqn
+  |> featureValEquationToValTree
+  |> Provenance.valTreeToSingleEIdInterpretations program expFilter
+
 -- Only two interpretations: most proximal for each feature, and most distal.
 selectionsProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
 selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs =
@@ -1356,33 +1362,22 @@ selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatur
 selectionsEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
 selectionsEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
   selectedFeaturesToEIdInterpretationLists program slate widgets (Set.toList selectedFeatures) expFilter ++
-  selectedShapesToEIdInterpretationLists   program slate widgets (Set.toList selectedShapes) expFilter ++
-  selectedBlobsToEIdInterpretationLists    program slate widgets (Dict.toList selectedBlobs) expFilter
+  selectedShapesToEIdInterpretationLists   program slate widgets (Set.toList selectedShapes)   expFilter ++
+  selectedBlobsToEIdInterpretationLists    program slate widgets (Dict.toList selectedBlobs)   expFilter
   |> Utils.oneOfEach
   |> List.map Utils.unionAll
   |> List.map Set.toList
   |> Utils.dedup
 
 -- Try to find single EIds in the program that explain everything selected.
--- Relying on selectionsEIdInterpretations is not efficient, but oh well.
-selectionsSingleEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
+selectionsSingleEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List EId
 selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
-  selectionsEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter
-  |> List.filterMap
-      (\interpretation ->
-        if List.length interpretation == 1 then
-          Just interpretation
-        else
-          case Provenance.expandEIdInterpretationOutward program interpretation of
-            [singleEId] ->
-              -- Using the exp filter this late may discard allowable interpretations, but it's not clear how to push it into expandEIdInterpretationOutward
-              if singleEId |> findExpByEId program |> Maybe.map expFilter |> (==) (Just True)
-              then Just [singleEId]
-              else Nothing
-            _ ->
-              Nothing
-      )
-  |> Utils.dedup
+  [ selectedFeaturesSingleEIdInterpretationLists program slate widgets (Set.toList selectedFeatures) expFilter
+  , selectedShapesSingleEIdInterpretationLists   program slate         (Set.toList selectedShapes)   expFilter
+  , selectedBlobsSingleEIdInterpretationLists    program slate         (Dict.toList selectedBlobs)   expFilter
+  ]
+  |> List.concat
+  |> Utils.intersectAllAsSet
 
 -- Heuristic: Closest and farthest interpretation only.
 selectedFeaturesToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> (Exp -> Bool) -> (Set EId, Set EId)
@@ -1455,8 +1450,21 @@ selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTr
           returnNotPartOfAPoint ()
 
 
+-- No special handling of points.
+selectedFeaturesSingleEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> (Exp -> Bool) -> List (List EId)
+selectedFeaturesSingleEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedFeatures expFilter =
+  selectedFeatures
+  |> List.map
+      (\(nodeId, shapeFeature) ->
+        selectedShapeFeatureToValEquation (nodeId, shapeFeature) shapeTree widgets Dict.empty
+        |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
+        |> featureValEquationToSingleEIds program expFilter
+      )
+
+
+
 -- Combinatorical explosion of interpretations.
-selectedFeaturesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> (Exp -> Bool) ->List (List (Set EId))
+selectedFeaturesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> (Exp -> Bool) -> List (List (Set EId))
 selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedFeatures expFilter =
   let recurse remainingFeatures =
     selectedFeaturesToEIdInterpretationLists program slate widgets remainingFeatures expFilter
@@ -1510,6 +1518,17 @@ selectedShapesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as 
   )
 
 
+selectedShapesSingleEIdInterpretationLists : Exp -> RootedIndexedTree -> List NodeId -> (Exp -> Bool) -> List (List EId)
+selectedShapesSingleEIdInterpretationLists program ((rootI, shapeTree) as slate) selectedShapes expFilter =
+  selectedShapes
+  |> List.map
+      (\nodeId ->
+        selectedShapeToValEquation nodeId shapeTree
+        |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
+        |> featureValEquationToSingleEIds program expFilter
+      )
+
+
 -- Combinatorical explosion of interpretations.
 selectedShapesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List NodeId -> (Exp -> Bool) -> List (List (Set EId))
 selectedShapesToEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedShapes expFilter =
@@ -1527,7 +1546,15 @@ selectedBlobsToProximalDistalEIdInterpretations program ((rootI, shapeTree) as s
   (Set.empty, Set.empty) -- blobs will go away sometime
 
 
+selectedBlobsSingleEIdInterpretationLists : Exp -> RootedIndexedTree -> List (Int, NodeId) -> (Exp -> Bool) -> List (List EId)
+selectedBlobsSingleEIdInterpretationLists program ((rootI, shapeTree) as slate) selectedBlobs expFilter =
+  selectedBlobs
+  |> List.map (always []) -- blobs will go away sometime
+
+
 -- Unused. Combinatorical explosion of interpretations.
 selectedBlobsToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List (Int, NodeId) -> (Exp -> Bool) -> List (List (Set EId))
 selectedBlobsToEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedBlobs expFilter =
-  [] -- blobs will go away sometime
+  selectedBlobs
+  |> List.map (always []) -- blobs will go away sometime
+

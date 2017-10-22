@@ -1605,12 +1605,13 @@ doDuplicate old =
           old.selectedBlobs
           (not << isVar << LangTools.expValueExp) -- Don't simply duplicate a variable usage.
 
+  -- let _ = Utils.log <| LangUnparser.unparseWithIds old.inputExp in
+
     maybeNewProgram =
       singleExpressionInterpretations
-      |> List.concat
+      |> Debug.log "possible eids to duplicate"
       |> List.map (LangTools.outerSameValueExpByEId old.inputExp >> .val >> .eid)
       |> Utils.dedup
-      |> Debug.log "possible eids to duplicate"
       |> List.map (LangTools.justFindExpByEId old.inputExp)
       |> List.sortBy LangTools.expToLocation -- Choose earliest single expression in program.
       |> List.head -- No multiple synthesis options for now.
