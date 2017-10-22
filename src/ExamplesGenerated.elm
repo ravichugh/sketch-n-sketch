@@ -3752,8 +3752,8 @@ spiralSpiralGraph =
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
 blank =
- """(svg [
-])
+ """(svg (concat [
+]))
 
 """
 

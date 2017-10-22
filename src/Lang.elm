@@ -515,13 +515,18 @@ isList e = case e.val.e__ of
   EList _ _ _ _ _ -> True
   _               -> False
 
+isSingletonList e = case e.val.e__ of
+  EList _ [_] _ Nothing _ -> True
+  _                       -> False
+
+isPair e = case e.val.e__ of
+  EList _ [_, _] _ Nothing _ -> True
+  _                          -> False
+
 isVar e = case e.val.e__ of
   EVar _ _ -> True
   _        -> False
 
-isPair e = case e.val.e__ of
-  EList _ heads _ Nothing _ -> List.length heads == 2
-  _                         -> False
 
 isFunc e = case e.val.e__ of
   EFun _ _ _ _ -> True

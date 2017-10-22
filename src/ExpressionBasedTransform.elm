@@ -135,14 +135,31 @@ inlineListSynthesisResults originalExp =
                       let usages = identifierSetUses (Set.fromList idents) letBody in
                       if List.map expToIdent usages == idents then -- Each should be used exactly once, in order
                         -- All idents used in only in same list
-                        let maybeParents =
-                          findAllWithAncestors (\e -> List.member e usages) letBody
-                          |> List.map (Utils.dropLast 1 >> Utils.maybeLast)
+                        -- Or wrapped in singleton lists in same list
+                        let usagesExpanded = usages |> List.map (outerSameValueExp letBody) in
+                        let usagesExpandedAncestors = findAllWithAncestors (\e -> List.member e usagesExpanded) letBody |> List.map (Utils.dropLast 1) in
+                        let maybeParents = usagesExpandedAncestors |> List.map Utils.maybeLast in
+                        let maybeParentSingletonParents =
+                          usagesExpandedAncestors
+                          |> List.map
+                              (\ancestors ->
+                                if Utils.maybeLast ancestors |> Maybe.map isSingletonList |> (==) (Just True) then
+                                  Utils.dropLast 1 ancestors |> Utils.maybeLast
+                                else
+                                  Nothing
+                              )
                         in
-                        case Utils.dedupByEquality maybeParents of
-                          [Just parentExp] ->
-                            -- Single, shared parent.
-
+                        let maybeSingleParentAndEffectiveUsages =
+                          case Utils.dedupByEquality maybeParents of
+                            [Just parentExp] -> Just (parentExp, usagesExpanded)
+                            _ ->
+                              case maybeParentSingletonParents |> Utils.projJusts |> Maybe.map Utils.dedupByEquality of
+                                Just [grandparentExp] -> Just (grandparentExp, Utils.filterJusts maybeParents) -- maybeParents are all Justs here.
+                                _ -> Nothing
+                        in
+                        case maybeSingleParentAndEffectiveUsages of
+                          Just (parentExp, effectiveUsages) ->
+                            -- Single, shared parent (or grandparent of singleton lists).
                             case parentExp.val.e__ of
                               EList listWs1 heads listWs2 maybeTail listW3 ->
                                 let listName =
@@ -159,22 +176,24 @@ inlineListSynthesisResults originalExp =
                                 let eConcatExp listExp = eApp (eVar0 "concat") [listExp] in
                                 let eConcat listExps = eApp (eVar0 "concat") [eTuple listExps] in
                                 let eAppend listExpA listExpB = eApp (eVar0 "append") (List.map (replacePrecedingWhitespace " ") [listExpA, listExpB]) in
-                                let usagePrecedingWhitespace = precedingWhitespace (Utils.head "ExpressionBasedTransform.inlineListSynthesisResults usages" usages) in
+                                let usagePrecedingWhitespace = precedingWhitespace (Utils.head "ExpressionBasedTransform.inlineListSynthesisResults effectiveUsages" effectiveUsages) in
                                 let useOldWs e = replacePrecedingWhitespace usagePrecedingWhitespace e in
                                 let newListExpCandidates =
                                   -- Must be used in the heads of the list, in order.
-                                  case heads |> Utils.splitBy usages of
+                                  case heads |> Utils.splitBy effectiveUsages of
                                     [[], []] ->
                                       -- Heads and target match exactly.
                                       case maybeTail of
                                         Nothing ->
                                           [ eVar listName
                                           , eTuple [eConcatExp (eVar listName) |> useOldWs]
+                                          , eTuple [eVar listName              |> useOldWs]
                                           ]
 
                                         Just tail ->
                                           [ eAppend (eVar listName) tail
                                           , eList [eConcatExp (eVar listName) |> useOldWs] (Just tail)
+                                          , eList [eVar listName              |> useOldWs] (Just tail)
                                           ]
 
                                     [[], restHeads] ->
@@ -183,13 +202,16 @@ inlineListSynthesisResults originalExp =
                                         Nothing ->
                                           [ eAppend (eVar listName) (eTuple restHeads)
                                           , eTuple <| useOldWs (eConcatExp (eVar listName)) :: restHeads
+                                          , eTuple <| useOldWs (eVar listName)              :: restHeads
                                           , eList [eConcatExp (eVar listName) |> useOldWs] (Just (eTuple restHeads))
+                                          , eList [eVar listName              |> useOldWs] (Just (eTuple restHeads))
                                           ]
 
                                         Just tail ->
                                           [ eConcat [eVar listName, eTuple restHeads, tail]
                                           , eAppend (eVar listName) (eList restHeads (Just tail))
                                           , eList (useOldWs (eConcatExp (eVar listName)) :: restHeads) (Just tail)
+                                          , eList (useOldWs (eVar listName)              :: restHeads) (Just tail)
                                           ]
 
                                     [restHeads, []] ->
@@ -199,6 +221,7 @@ inlineListSynthesisResults originalExp =
                                           [ eAppend (eTuple restHeads) (eVar listName)
                                           , eList restHeads (Just (eVar listName))
                                           , eTuple (restHeads ++ [eConcatExp (eVar listName) |> useOldWs])
+                                          , eTuple (restHeads ++ [eVar listName              |> useOldWs])
                                           , eList restHeads (Just (eConcatExp (eVar listName)))
                                           ]
 
@@ -206,6 +229,7 @@ inlineListSynthesisResults originalExp =
                                           [ eConcat [eTuple restHeads, eVar listName, tail]
                                           , eList restHeads (Just (eAppend (eVar listName) tail))
                                           , eList (restHeads ++ [eConcatExp (eVar listName) |> useOldWs]) (Just tail)
+                                          , eList (restHeads ++ [eVar listName              |> useOldWs]) (Just tail)
                                           ]
 
                                     [headsBefore, headsAfter] ->
@@ -214,11 +238,13 @@ inlineListSynthesisResults originalExp =
                                         Nothing ->
                                           [ eConcat [eTuple headsBefore, eVar listName, eTuple headsAfter]
                                           , eTuple (headsBefore ++ [eConcatExp (eVar listName) |> useOldWs] ++ headsAfter)
+                                          , eTuple (headsBefore ++ [eVar listName              |> useOldWs] ++ headsAfter)
                                           ]
 
                                         Just tail ->
                                           [ eConcat [eTuple headsBefore, eVar listName, eTuple headsAfter, tail]
                                           , eList (headsBefore ++ [eConcatExp (eVar listName) |> useOldWs] ++ headsAfter) (Just tail)
+                                          , eList (headsBefore ++ [eVar listName              |> useOldWs] ++ headsAfter) (Just tail)
                                           ]
 
                                     _ ->
