@@ -1124,6 +1124,8 @@ msgKeyDown keyCode =
           |> Maybe.withDefault old
         else if keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doDuplicate old
+        else if keyCode == Keys.keyG && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          doGroup old
         else if keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doUndo old
         else if keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.any ((==) Keys.keyShift) old.keysDown && List.length old.keysDown == 2 then
@@ -1326,7 +1328,10 @@ msgStopAutoSynthesisAndClear =
 
 --------------------------------------------------------------------------------
 
-msgGroupBlobs = Msg "Group Blobs" <| \old ->
+msgGroupBlobs = Msg "Group Blobs" doGroup
+
+doGroup =
+  \old ->
     case Blobs.isSimpleProgram old.inputExp of
       Nothing -> old
       Just simple ->

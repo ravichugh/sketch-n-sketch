@@ -694,7 +694,7 @@ menuBar model =
                         True
                     , groupTextButton
                         model
-                        "Group"
+                        "Group (⌘G)"
                         Controller.msgGroupBlobs
                         False
                     , groupTextButton

@@ -54,5 +54,6 @@ keyA                = 65
 keyB                = 66
 keyC                = 67
 keyD                = 68
+keyG                = 71
 keyZ                = 90
 keyPlusEqual        = 187
