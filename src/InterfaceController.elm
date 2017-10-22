@@ -692,7 +692,7 @@ tryRun old =
                       , errorBox      = Nothing
                       , scopeGraph    = DependenceGraph.compute e
                       , preview       = Nothing
-                      , synthesisResults = maybeRunAutoSynthesis old e
+                      , synthesisResults = perhapsRunAutoSynthesis old e
                 }
               in
               let taskProgressAnnotation =
@@ -1319,9 +1319,9 @@ cleanDedupSortSynthesisResults synthesisResults =
   |> Utils.dedupBy (\(SynthesisResult {description, exp, sortKey, children}) -> unparse exp)
   |> List.sortBy (\(SynthesisResult {description, exp, sortKey, children}) -> (LangTools.nodeCount exp, sortKey, description))
 
-maybeRunAutoSynthesis m e =
-  if m.autoSynthesis
-    then cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch e)
+perhapsRunAutoSynthesis model program =
+  if model.autoSynthesis
+    then cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch program)
     else []
 
 msgCleanCode = Msg "Clean Code" <| \old ->
@@ -1544,7 +1544,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
-            , synthesisResults = maybeRunAutoSynthesis old reparsed
+            , synthesisResults = perhapsRunAutoSynthesis old reparsed
       } |> clearSelections
       in
       { newer | mode = refreshMode_ newer
@@ -1556,22 +1556,19 @@ clearSynthesisResults : Model -> Model
 clearSynthesisResults old =
   { old | preview = Nothing, synthesisResults = [] }
 
-setAutoSynthesis : Bool -> Model -> Model
-setAutoSynthesis shouldUseAutoSynthesis old =
-  { old | autoSynthesis = shouldUseAutoSynthesis }
-
 msgClearSynthesisResults : Msg
 msgClearSynthesisResults =
   Msg "Clear Synthesis Results" clearSynthesisResults
 
 msgStartAutoSynthesis : Msg
 msgStartAutoSynthesis =
-  Msg "Start Auto Synthesis" (setAutoSynthesis True)
+  Msg "Start Auto Synthesis" <| \old ->
+    { old | autoSynthesis = True }
 
 msgStopAutoSynthesisAndClear : Msg
 msgStopAutoSynthesisAndClear =
-  Msg "Stop Auto Synthesis and Clear" <|
-    clearSynthesisResults << (setAutoSynthesis False)
+  Msg "Stop Auto Synthesis and Clear" <| \old ->
+    clearSynthesisResults { old | autoSynthesis = False }
 
 --------------------------------------------------------------------------------
 
