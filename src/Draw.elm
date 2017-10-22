@@ -514,7 +514,7 @@ addOffsetAndMaybePoint old snaps ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
                       let _ = Debug.log "couldn't reconfigure program to enforce snap" () in
                       originalProgram
 
-                    Just (insertBeforeEId, (snapIdent, programWithSnapVisible)) ->
+                    Just (insertBeforeEId, (snapIdent, _, programWithSnapVisible)) ->
                       insertOffset (eVar snapIdent) insertBeforeEId programWithSnapVisible
             in
             { old | code = LangUnparser.unparse newProgram }
@@ -592,8 +592,8 @@ addRawPolygon old pointsWithSnap =
     |> List.foldl
         (\snapEId (program, eidAndName) ->
           case CodeMotion.makeEIdVisibleToEIds program snapEId (Set.singleton viewerEId) of
-            Nothing                     -> (program, eidAndName)
-            Just (snapName, newProgram) -> (newProgram, (snapEId, snapName)::eidAndName)
+            Nothing                        -> (program, eidAndName)
+            Just (snapName, _, newProgram) -> (newProgram, (snapEId, snapName)::eidAndName)
         )
         (old.inputExp, [])
   in

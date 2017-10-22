@@ -641,10 +641,10 @@ menuBar model =
               model
              "Relate"
               Controller.msgRelate
-          -- , relateHoverMenu
-          --     model
-          --     "Indexed Relate"
-          --     Controller.msgIndexedRelate
+          , relateHoverMenu
+              model
+              "Indexed Relate"
+              Controller.msgIndexedRelate
           , relateHoverMenu
               model
              "Build Abstraction"

@@ -16,7 +16,7 @@ module CodeMotion exposing
   , swapExpressionsTransformation
   , swapDefinitionsTransformation
   , rewriteOffsetTransformation
-  , makeEIdVisibleToEIds
+  , makeEIdVisibleToEIds, makeEIdVisibleToEIdsByInsertingNewBinding
   )
 
 import Lang exposing (..)
@@ -2622,8 +2622,8 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
 -- Tries to make minimal changes to expose EId to all viewers.
 -- If EId already bound to a variable, either do nothing, or rename, or move the binding, as needed.
 -- If EId is not bound to a variable, try to lift it and any dependencies.
--- TODO: also lift dependencies with this method
-makeEIdVisibleToEIds : Exp -> EId -> Set.Set EId -> Maybe (Ident, Exp)
+-- Returns Maybe (newName, insertedVarEId, program)
+makeEIdVisibleToEIds : Exp -> EId -> Set.Set EId -> Maybe (Ident, EId, Exp)
 makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
   let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
   let allViewerEIds = Set.insert mobileEId viewerEIds in
@@ -2636,62 +2636,12 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
       |> Maybe.withDefault False
     in
     if List.all resolvesCorrectly (Set.toList viewerEIds) then
-      Just (mobileOriginalName, program)
+      Just (mobileOriginalName, mobileEId, program)
     else
       -- Apparently can't use original name, but it will work if we rename that variable.
       let uniqueNameToOldNameWithoutMobileName = Dict.remove mobileUniqueName uniqueNameToOldName in
       let newProgram = renameIdentifiers uniqueNameToOldNameWithoutMobileName programUniqueNames in
-      Just (mobileUniqueName, newProgram)
-  in
-  let makeVisibleByInsertingNewBinding () =
-    let expToWrap =
-      deepestCommonAncestorWithNewline originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
-    in
-    let maxId = Parser.maxId originalProgramUniqueNames in
-    let (insertedVarEId, newBindingPId) = (maxId + 1, maxId + 2) in
-    let newProgramUniqueNames =
-      let extractedExp = justFindExpByEId originalProgramUniqueNames mobileEId in
-      originalProgramUniqueNames
-      |> mapExpNode mobileEId
-          (\e -> eVar "*EXTRACTED EXPRESSION*" |> setEId insertedVarEId)
-      |> mapExpNode expToWrap.val.eid
-          (\e -> newLetFancyWhitespace -1 False (pVar "*EXTRACTED EXPRESSION*" |> setPId newBindingPId) extractedExp e originalProgramUniqueNames )
-    in
-    let maybeNewProgramWithLiftedDependenciesOldNames =
-      -- tryResolvingProblemsAfterTransform will always return at least one result.
-      -- We're just using it here to lift any needed dependencies and handle any shadowing that introduces.
-      -- The results are marked unsafe because `makeResult` doesn't know what to do with our inserted variable.
-      -- We should rework `tryResolvingProblemsAfterTransform` to handle that and mark it as safe, and then only pick a safe result.
-      -- Because otherwise we might be lifting arguments outside their funcitons.
-      tryResolvingProblemsAfterTransformNoTwiddling
-          ""
-          (Dict.insert "*EXTRACTED EXPRESSION*" "*EXTRACTED EXPRESSION*" uniqueNameToOldName)
-          Nothing
-          ("", "")
-          Set.empty
-          []
-          (Dict.singleton insertedVarEId (Just newBindingPId))
-          originalProgramUniqueNames
-          newProgramUniqueNames
-      |> Utils.findFirst isResultSafe
-      |> Maybe.map (\(SynthesisResult {exp}) -> Parser.freshen exp)
-    in
-    let visibleNameSuggestion = expNameForEId originalProgram mobileEId in
-    case maybeNewProgramWithLiftedDependenciesOldNames of
-      Nothing -> Nothing
-      Just newProgramWithLiftedDependenciesOldNames ->
-        let namesToAvoid =
-          let finalViewerEIds =
-            newProgramWithLiftedDependenciesOldNames
-            |> flattenExpTree
-            |> List.filter (expToMaybeIdent >> (==) (Just "*EXTRACTED EXPRESSION*"))
-            |> List.map (.val >> .eid)
-            |> Set.fromList
-          in
-          visibleIdentifiersAtEIds newProgramWithLiftedDependenciesOldNames finalViewerEIds
-        in
-        let visibleName = nonCollidingName visibleNameSuggestion 2 namesToAvoid in
-        Just (visibleName, renameIdentifier "*EXTRACTED EXPRESSION*" visibleName newProgramWithLiftedDependenciesOldNames)
+      Just (mobileUniqueName, mobileEId, newProgram)
   in
   case findLetAndIdentBindingExp mobileEId originalProgramUniqueNames of
     Just (bindingLet, mobileUniqueName) ->
@@ -2722,7 +2672,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
           Nothing ->
             -- Not safe to move definition (e.g. may require plucking out of an as-pattern).
             -- Back-up plan: adding a new binding.
-            makeVisibleByInsertingNewBinding ()
+            makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds
 
           Just programAfterMove ->
             let (maybeProgramAfterMoveUniqueNames, afterMoveUniqueNameToOldName) = assignUniqueNames programAfterMove in
@@ -2734,7 +2684,63 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
 
     Nothing ->
       -- CASE 3: EId is not bound. Insert a new binding.
-      makeVisibleByInsertingNewBinding ()
+      makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds
+
+
+-- If you need to force the binding to be copied. makeEIdVisibleToEIds calls this as a last resort.
+-- Returns Maybe (newName, insertedVarEId, program)
+makeEIdVisibleToEIdsByInsertingNewBinding : Exp -> EId -> Set.Set EId -> Maybe (Ident, EId, Exp)
+makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
+  let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
+  let allViewerEIds = Set.insert mobileEId viewerEIds in
+  let expToWrap =
+    deepestCommonAncestorWithNewline originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
+  in
+  let maxId = Parser.maxId originalProgramUniqueNames in
+  let (insertedVarEId, newBindingPId) = (maxId + 1, maxId + 2) in
+  let newProgramUniqueNames =
+    let extractedExp = justFindExpByEId originalProgramUniqueNames mobileEId in
+    originalProgramUniqueNames
+    |> mapExpNode mobileEId
+        (\e -> eVar "*EXTRACTED EXPRESSION*" |> setEId insertedVarEId)
+    |> mapExpNode expToWrap.val.eid
+        (\e -> newLetFancyWhitespace -1 False (pVar "*EXTRACTED EXPRESSION*" |> setPId newBindingPId) extractedExp e originalProgramUniqueNames )
+  in
+  let maybeNewProgramWithLiftedDependenciesOldNames =
+    -- tryResolvingProblemsAfterTransform will always return at least one result.
+    -- We're just using it here to lift any needed dependencies and handle any shadowing that introduces.
+    -- The results are marked unsafe because `makeResult` doesn't know what to do with our inserted variable.
+    -- We should rework `tryResolvingProblemsAfterTransform` to handle that and mark it as safe, and then only pick a safe result.
+    -- Because otherwise we might be lifting arguments outside their funcitons.
+    tryResolvingProblemsAfterTransformNoTwiddling
+        ""
+        (Dict.insert "*EXTRACTED EXPRESSION*" "*EXTRACTED EXPRESSION*" uniqueNameToOldName)
+        Nothing
+        ("", "")
+        Set.empty
+        []
+        (Dict.singleton insertedVarEId (Just newBindingPId))
+        originalProgramUniqueNames
+        newProgramUniqueNames
+    |> Utils.findFirst isResultSafe
+    |> Maybe.map (\(SynthesisResult {exp}) -> Parser.freshen exp)
+  in
+  let visibleNameSuggestion = expNameForEId originalProgram mobileEId in
+  case maybeNewProgramWithLiftedDependenciesOldNames of
+    Nothing -> Nothing
+    Just newProgramWithLiftedDependenciesOldNames ->
+      let namesToAvoid =
+        let finalViewerEIds =
+          newProgramWithLiftedDependenciesOldNames
+          |> flattenExpTree
+          |> List.filter (expToMaybeIdent >> (==) (Just "*EXTRACTED EXPRESSION*"))
+          |> List.map (.val >> .eid)
+          |> Set.fromList
+        in
+        visibleIdentifiersAtEIds newProgramWithLiftedDependenciesOldNames finalViewerEIds
+      in
+      let visibleName = nonCollidingName visibleNameSuggestion 2 namesToAvoid in
+      Just (visibleName, insertedVarEId, renameIdentifier "*EXTRACTED EXPRESSION*" visibleName newProgramWithLiftedDependenciesOldNames)
 
 
 ------------------------------------------------------------------------------

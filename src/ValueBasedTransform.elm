@@ -9,7 +9,7 @@ module ValueBasedTransform exposing (..)
 import Lang exposing (..)
 import LangTools exposing (..)
 import FastParser exposing (prelude, freshen, substOf)
-import LangUnparser exposing (unparse)
+import LangUnparser exposing (unparse, unparseWithIds)
 import InterfaceModel
 import Eval
 import Sync
@@ -219,7 +219,7 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
                 let (kind, attrs) = LangSvg.justGetSvgNode "ValueBasedTransform.indexedRelate" nodeId slate in
                 ShapeWidgets.featuresOfShape kind attrs
                 |> List.concatMap ShapeWidgets.featureNumsOfFeature
-                |> List.map (ShapeWidgets.strFeatureNum kind)
+                |> List.map (ShapeWidgets.unparseFeatureNum (Just kind))
                 |> List.take 1
                 |> List.map (\featureString -> (nodeId, featureString))
               )
@@ -263,16 +263,19 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
               locsToRevolutionize
               |> List.filter (\(locId, _, _) -> Set.member locId eqnLocIds)
             in
-            let (locsLifted, locIdToNewName) = liftLocsSoVisibleTo originalExp (Set.fromList locsToLift) (Set.fromList locEIds) in
+            let (locsLifted, locIdToNewName, locIdToVarEId) = copyLocsSoVisibleTo originalExp (Set.fromList locsToLift) (Set.fromList locEIds) in
+            -- let _ = Utils.log <| "locsLifted:\n" ++ unparseWithIds locsLifted in
             let description =
               let eqnDesc = unparse <| locEqnToExp unann Dict.empty (Dict.insert indexLocId "i" locIdToNewName) eqn in
               let locDescs = locsToRevolutionize |> List.map (locDescription originalExp) in
               "compute " ++ String.join ", " locDescs ++ " by " ++ eqnDesc
             in
-            let newExp =
-              locEIds
+            let newProgram =
+              Utils.zip locIds locEIds
               |> Utils.foldli0
-                  (\(i, locEId) priorExp ->
+                  (\(i, (locId, originalLocEId)) priorExp ->
+                    -- If loc was copied, its original location was replaced with a var, and that's the var we want to replace.
+                    let locEId = Dict.get locId locIdToVarEId |> Maybe.withDefault originalLocEId in
                     let eqnExp = locEqnToExp unann (Dict.singleton indexLocId (toFloat i)) locIdToNewName eqn in
                     replaceExpNodeE__ByEId locEId eqnExp.val.e__ priorExp
                   )
@@ -281,7 +284,7 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
             let distanceScore = indexedRelateDistanceScore subst indexedLocIdsWithTarget eqn in
             InterfaceModel.SynthesisResult <|
               { description = description
-              , exp         = newExp
+              , exp         = newProgram
               , isSafe      = True
               , sortKey     = [distanceScore]
               , children    = Nothing
@@ -770,7 +773,7 @@ relate__ relationToSynthesize originalExp maybeTermShape removedLocIdToLocEquati
             let independentLocIdSet = Set.intersect (locEqnLocIdSet resultLocEqn) unfrozenLocIdSet in
             let independentLocset = unfrozenLocset |> Set.filter (\(locId, _, _) -> Set.member locId independentLocIdSet) in
             let dependentEId = locIdToEId originalExp dependentLocId |> Utils.fromJust_ "relate__: dependendLocId locIdToEId" in
-            let (programWithLocsLifted, locIdToNewName) = liftLocsSoVisibleTo originalExp independentLocset (Set.singleton dependentEId) in
+            let (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo originalExp independentLocset (Set.singleton dependentEId) in
             let dependentLocExp =
               let constantAnnotation =
                 case relationToSynthesize of
@@ -877,26 +880,42 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
       )
 
 
-liftLocsSoVisibleTo : Exp -> Set.Set Loc -> Set.Set EId -> (Exp, Dict.Dict LocId Ident)
+liftLocsSoVisibleTo : Exp -> Set.Set Loc -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
 liftLocsSoVisibleTo program mobileLocset viewerEIds =
+  liftLocsSoVisibleTo_ False program mobileLocset viewerEIds
+
+copyLocsSoVisibleTo : Exp -> Set.Set Loc -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
+copyLocsSoVisibleTo program mobileLocset viewerEIds =
+  liftLocsSoVisibleTo_ True program mobileLocset viewerEIds
+
+liftLocsSoVisibleTo_ : Bool -> Exp -> Set.Set Loc -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
+liftLocsSoVisibleTo_ copyOriginal program mobileLocset viewerEIds =
+  let makeEIdVisibleToEIds =
+    if copyOriginal
+    then CodeMotion.makeEIdVisibleToEIdsByInsertingNewBinding
+    else CodeMotion.makeEIdVisibleToEIds
+  in
   mobileLocset
   |> Set.foldl
-      (\(mobileLocId, _, _) (program, locIdToNewName) ->
+      (\(mobileLocId, _, _) (program, locIdToNewName, locIdToVarEId) ->
         case locIdToEId program mobileLocId of
           Just mobileEId ->
-            case CodeMotion.makeEIdVisibleToEIds program mobileEId viewerEIds of
-              Just (newName, newProgram) ->
+            case makeEIdVisibleToEIds program mobileEId viewerEIds of
+              Just (newName, insertedEId, newProgram) ->
                 -- let _ = Utils.log (newName ++ "\n" ++ LangUnparser.unparseWithIds newProgram) in
-                (newProgram, Dict.insert mobileLocId newName locIdToNewName)
+                ( newProgram
+                , Dict.insert mobileLocId newName locIdToNewName
+                , Dict.insert mobileLocId insertedEId locIdToVarEId
+                )
               Nothing ->
                 let _ = Utils.log "liftLocsSoVisibleTo: makeEIdVisibleToEIds could not lift" in
-                (program, locIdToNewName)
+                (program, locIdToNewName, locIdToVarEId)
 
           Nothing ->
             let _ = Utils.log "liftLocsSoVisibleTo: could not convert locId to EId" in
-            (program, locIdToNewName)
+            (program, locIdToNewName, locIdToVarEId)
       )
-      (program, Dict.empty)
+      (program, Dict.empty, Dict.empty)
 
 
 deepestCommonAncestorWithNewlineByLocSet : Exp -> LocSet -> Exp
