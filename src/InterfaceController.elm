@@ -1781,14 +1781,16 @@ msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
 
 --------------------------------------------------------------------------------
 
-showExpPreview old exp =
-  let previewCode = unparse exp in
-  case runAndResolve old exp of
-    Ok (val, widgets, slate, _) ->
-      { old | preview = Just (previewCode, Ok (val, widgets, slate)) }
+showCodePreview old code =
+  case parseE code of
+    Ok exp  -> showExpPreview old exp
+    Err err -> { old | preview = Just (code, Err (showError err)) }
 
-    Err s ->
-      { old | preview = Just (previewCode, Err s) }
+showExpPreview old exp =
+  let code = unparse exp in
+  case runAndResolve old exp of
+    Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, slate)) }
+    Err s                       -> { old | preview = Just (code, Err s) }
 
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
@@ -1839,12 +1841,9 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
 
 
 msgPreview expOrCode = Msg "Preview" <| \old ->
-  let previewExp =
-    case expOrCode of
-      Left exp   -> exp
-      Right code -> Utils.fromOkay "msgPreview" (parseE code)
-  in
-  showExpPreview old previewExp
+  case expOrCode of
+    Left exp   -> showExpPreview old exp
+    Right code -> showCodePreview old code
 
 msgClearPreview = Msg "Clear Preview" <| \old ->
   { old | preview = Nothing }
