@@ -635,7 +635,7 @@ menuBar model =
               Controller.msgDigHole
           , relateHoverMenu
               model
-              "Make Equal (=)"
+              "Make Equal"
               Controller.msgMakeEqual
           , relateHoverMenu
               model
