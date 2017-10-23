@@ -257,6 +257,8 @@ type alias Caption = Maybe (WithInfo String)
 
 type alias Val = { v_ : Val_, provenance : Provenance, parents : Parents }
 
+valParents val = let (Parents parents) = val.parents in parents
+
 type Parents = Parents (List Val) -- Avoiding recursive type alias :(
 
 type Val_
@@ -1016,6 +1018,19 @@ foldVal f v a = case v.v_ of
   VConst _ _       -> f v a
   VBase _          -> f v a
   VClosure _ _ _ _ -> f v a
+
+-- Not using foldVal so we can get the children in a nicer order.
+flattenValTree : Val -> List Val
+flattenValTree val =
+  val :: List.concatMap flattenValTree (childVals val)
+
+childVals : Val -> List Val
+childVals val = case val.v_ of
+  VList vs         -> vs
+  VDict d          -> Dict.values d -- keys ignored
+  VConst _ _       -> []
+  VBase _          -> []
+  VClosure _ _ _ _ -> []
 
 -- Fold through preorder traversal
 foldExp : (Exp -> a -> a) -> a -> Exp -> a

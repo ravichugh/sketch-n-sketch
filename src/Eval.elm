@@ -123,7 +123,7 @@ eval env bt e =
         VList vals       -> let _ = List.map (addParent_ vParent) vals                 in ()
         VDict dict       -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) dict in ()
     in
-    let (Parents priorParents) = v.parents in
+    let priorParents = valParents v in
     let _ = ImpureGoodies.mutateRecordField v.parents "_0" (vParent::priorParents) in
     ()
   in

@@ -869,7 +869,7 @@ addTextBox old click2 click1 =
 
 addShapeToModel : Model -> String -> Exp -> Model
 addShapeToModel model newShapeName newShapeExp =
-  let newProgram = addShape model newShapeName newShapeExp in
+  let newProgram = addShape model newShapeName newShapeExp 1 in
   { model | code = unparse newProgram }
 
 
@@ -878,8 +878,8 @@ addShapeToModel model newShapeName newShapeExp =
 -- 3. Keep those programs that do not crash.
 -- 4. Keep those programs that result in one more shape in the output.
 -- 5. Finally, use list the others do not depend on.
-addShape : Model -> String -> Exp -> Exp
-addShape model newShapeName newShapeExp =
+addShape : Model -> String -> Exp -> Int -> Exp
+addShape model newShapeName newShapeExp numberOfNewShapesExpected =
   let program = model.inputExp in
   let oldShapeTree =
     case runAndResolve model program of
@@ -908,7 +908,7 @@ addShape model newShapeName newShapeExp =
     |> List.filter
         (\(listEId, newProgram) ->
           case runAndResolve model newProgram of
-            Ok (_, _, (root, shapeTree), _) -> Dict.size oldShapeTree + 1 == Dict.size shapeTree
+            Ok (_, _, (root, shapeTree), _) -> Dict.size oldShapeTree + numberOfNewShapesExpected == Dict.size shapeTree
             _                               -> False
         )
   in

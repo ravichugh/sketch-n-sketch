@@ -209,6 +209,35 @@ valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter val
   |> Utils.dedupByEquality
 
 
+-- Returns [] if val cannot be interpreted all inside vals.
+-- Otherwise, returns the different ways it could be interpreted.
+valInterpretationsAllInside : List Val -> Val -> List (List Val)
+valInterpretationsAllInside vals val =
+  let (Provenance _ exp basedOnVals) = val.provenance in
+  let perhapsThisVal = if List.member val vals then [[val]] else [] in
+  let childrenInterps =
+    -- We do want poisoning here: a child that can't be interpreted inside vals should break the entire interpretation.
+    basedOnVals
+    |> List.map (valInterpretationsAllInside vals)
+    |> Utils.oneOfEach -- This will kill this interpretation and all ancestors if any value is not interpreted.
+    |> List.map Utils.unionAllAsSet
+  in
+  perhapsThisVal ++ childrenInterps
+
+
+proximalValInterpretationsAllInside : List Val -> Val -> List (List Val)
+proximalValInterpretationsAllInside vals val =
+  let (Provenance _ exp basedOnVals) = val.provenance in
+  if List.member val vals then
+    [[val]]
+  else
+    -- We do want poisoning here: a child that can't be interpreted inside vals should break the entire interpretation.
+    basedOnVals
+    |> List.map (proximalValInterpretationsAllInside vals)
+    |> Utils.oneOfEach -- This will kill this interpretation and all ancestors if any value is not interpreted.
+    |> List.map Utils.unionAllAsSet
+
+
 -- Includes given val.
 flattenValBasedOnTree : Val -> List Val
 flattenValBasedOnTree val =
@@ -226,10 +255,7 @@ valsToProximalDistalPointInterpretations expFilter xValTree yValTree =
     xValTree
     |> flattenValBasedOnTree
     |> List.concatMap (\intermediateVal ->
-      let (Parents parents) = intermediateVal.parents in
-      -- let _ = Utils.log (strVal intermediateVal) in
-      -- let _ = Debug.log "parents size" (List.length parents) in
-      parents
+      valParents intermediateVal
       |> List.filter (\parent ->
         case parent.v_ of
           VList [x, y] -> x == intermediateVal -- Would not be an exact match if we didn't mutate in the evaluator.
@@ -243,8 +269,7 @@ valsToProximalDistalPointInterpretations expFilter xValTree yValTree =
     yValTree
     |> flattenValBasedOnTree
     |> List.concatMap (\intermediateVal ->
-      let (Parents parents) = intermediateVal.parents in
-      parents
+      valParents intermediateVal
       |> List.filter (\parent ->
         case parent.v_ of
           VList [x, y] -> y == intermediateVal -- Would not be an exact match if we didn't mutate in the evaluator.
@@ -295,9 +320,8 @@ isRelevantParentPoint expFilter pointVals parent =
 valTreeToMostProximalProgramPointEIdInterpretation : (Exp -> Bool) -> List Val -> Val -> (Set EId, List Val)
 valTreeToMostProximalProgramPointEIdInterpretation expFilter pointVals val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  let (Parents valParents) = val.parents in
   -- Most recent parents are at front of list.
-  case valParents |> Utils.findFirst (isRelevantParentPoint expFilter pointVals) of
+  case valParents val |> Utils.findFirst (isRelevantParentPoint expFilter pointVals) of
     Just parent ->
       let (Provenance _ parentExp _) = parent.provenance in
       (Set.singleton parentExp.val.eid, [parent])
@@ -336,9 +360,8 @@ valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals val =
     (Utils.unionAll childrenInterpretations, Utils.unionAllAsSet pointValsUsed)
   else
     -- No point interpretations yet: are we part of a point?
-    let (Parents valParents) = val.parents in
     -- Oldest parents are at the back of the list.
-    case List.reverse valParents |> Utils.findFirst (isRelevantParentPoint expFilter pointVals) of
+    case List.reverse (valParents val) |> Utils.findFirst (isRelevantParentPoint expFilter pointVals) of
       Just parent ->
         let (Provenance _ parentExp _) = parent.provenance in
         (Set.singleton parentExp.val.eid, [parent])
@@ -386,6 +409,7 @@ valTreeToMostDistalProgramEIdInterpretation expFilter val =
 
 
 -- Still combinatorically explosive :/
+-- Using isPossibleSingleEIdInterpretation instead.
 valTreeToSingleEIdInterpretations : Exp -> (Exp -> Bool) -> Val -> List EId
 valTreeToSingleEIdInterpretations program expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
@@ -412,3 +436,24 @@ valTreeToSingleEIdInterpretations program expFilter val =
       )
   |> (++) perhapsThisExp
   |> Utils.dedupByEquality
+
+
+interpretationIsNonEmpty : Val -> Bool
+interpretationIsNonEmpty val =
+  let (Provenance _ exp basedOnVals) = val.provenance in
+  FastParser.isProgramEId exp.val.eid || List.any interpretationIsNonEmpty basedOnVals
+
+
+isPossibleSingleEIdInterpretation : Exp -> EId -> Val -> Bool
+isPossibleSingleEIdInterpretation program eid val =
+  let (Provenance _ exp basedOnVals) = val.provenance in
+  (exp.val.eid == eid && FastParser.isProgramEId exp.val.eid)
+  || let relevantChildren = List.filter interpretationIsNonEmpty basedOnVals in
+  case relevantChildren of
+    [] -> False
+    _  -> List.all (\basedOnVal -> isPossibleSingleEIdInterpretation program eid basedOnVal) basedOnVals
+
+--
+-- isPossibleEIdInterpretation : Exp -> EId -> Val -> Bool
+-- isPossibleEIdInterpretation program eid val =
+--

@@ -4,6 +4,7 @@ import Lang exposing (..)
 import FastParser
 import LangUnparser
 import LangSvg exposing (RootedIndexedTree, IndexedTree, NodeId, ShapeKind, Attr, AVal)
+-- import LangTools --temporary
 import Provenance
 import Utils
 
@@ -1372,12 +1373,75 @@ selectionsEIdInterpretations program ((rootI, shapeTree) as slate) widgets selec
 -- Try to find single EIds in the program that explain everything selected.
 selectionsSingleEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List EId
 selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
-  [ selectedFeaturesSingleEIdInterpretationLists program slate widgets (Set.toList selectedFeatures) expFilter
-  , selectedShapesSingleEIdInterpretationLists   program slate         (Set.toList selectedShapes)   expFilter
-  , selectedBlobsSingleEIdInterpretationLists    program slate         (Dict.toList selectedBlobs)   expFilter
-  ]
-  |> List.concat
-  |> Utils.intersectAllAsSet
+  let
+    possibleExps = program |> flattenExpTree |> List.filter expFilter
+
+    valTrees =
+      [ selectedFeaturesValTrees slate widgets (Set.toList selectedFeatures)
+      , selectedShapesValTrees   slate         (Set.toList selectedShapes)
+      , selectedBlobsValTrees    slate         (Dict.toList selectedBlobs)
+      ] |> List.concat
+
+    directSingleEIdInterpretations =
+      -- Checking exp-by-exp avoids combinatorical explosion of building all interpretations and then filtering.
+      possibleExps
+      |> List.filter (\exp -> valTrees |> List.all (Provenance.isPossibleSingleEIdInterpretation program exp.val.eid))
+      |> List.map (.val >> .eid)
+
+    valExpIsInProgram val = valExp val |> .val |> .eid |> FastParser.isProgramEId
+
+    parentSingleEIdInterpretations =
+      case valTrees of
+        []          -> []
+        first::_ ->
+          let possibleParentVals = Provenance.flattenValBasedOnTree first |> List.concatMap valParents |> List.filter valExpIsInProgram |> Utils.dedupByEquality in
+          let firstNonTrivialChildren val =
+            case childVals val of
+              []               -> [val]
+              [singleChild]    -> firstNonTrivialChildren singleChild
+              multipleChildren -> multipleChildren
+          in
+          possibleParentVals
+          -- |> List.map (\parentVal -> let _ = Utils.log <| (++) "Possible parent: " <| LangUnparser.unparse <| valExp parentVal in parentVal)
+          |> List.filter
+              (\parentVal ->
+                let domain = flattenValTree parentVal in
+                let coveringsStillNeeded = [firstNonTrivialChildren parentVal] in
+                -- Try to cover the parent's children with interpretations.
+                let maybeNeededAfterCovering =
+                  valTrees
+                  |> Utils.foldlMaybe
+                      (\valTree coveringsStillNeeded ->
+                      --   let valInterps = Provenance.valInterpretationsAllInside domain valTree in
+                      --   -- Remove interpretations subsumed by a more proximal interpretation.
+                      --   let valInterpsSimplified =
+                      --     valInterps
+                      --     |> List.foldl
+                      --         (\valInterp valInterps ->
+                      --           valInterps
+                      --           |> List.filter (\existingValInterp -> not (valInterp /= existingValInterp && Utils.isSublistAsSet existingValInterp (List.concatMap flattenValTree valInterp)))
+                      --         )
+                      --         valInterps
+                      --   in
+                        let valInterpsSimplified = Provenance.proximalValInterpretationsAllInside domain valTree in
+                        case valInterpsSimplified of
+                          [] -> Nothing -- Value can't be interpreted inside parent, give up on this parent.
+                          _  ->
+                            Utils.cartProd coveringsStillNeeded valInterpsSimplified
+                            |> List.map (\(aCoveringNeeded, valInterp) -> Utils.diffAsSet aCoveringNeeded (List.concatMap flattenValTree valInterp))
+                            |> Utils.dedupByEquality
+                            |> Just
+                      )
+                      (Just coveringsStillNeeded)
+                in
+                case maybeNeededAfterCovering of
+                  Nothing                   -> False
+                  Just coveringsStillNeeded -> List.any ((==) []) coveringsStillNeeded
+              )
+          -- |> List.map (\parentVal -> let _ = Utils.log <| (++) "Passing parent: " <| LangUnparser.unparse <| valExp parentVal in parentVal)
+          |> List.map (valExp >> .val >> .eid)
+  in
+  directSingleEIdInterpretations ++ parentSingleEIdInterpretations
 
 -- Heuristic: Closest and farthest interpretation only.
 selectedFeaturesToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> (Exp -> Bool) -> (Set EId, Set EId)
@@ -1451,14 +1515,14 @@ selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTr
 
 
 -- No special handling of points.
-selectedFeaturesSingleEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> (Exp -> Bool) -> List (List EId)
-selectedFeaturesSingleEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedFeatures expFilter =
+selectedFeaturesValTrees : RootedIndexedTree -> Widgets -> List SelectedShapeFeature -> List Val
+selectedFeaturesValTrees ((rootI, shapeTree) as slate) widgets selectedFeatures =
   selectedFeatures
   |> List.map
       (\(nodeId, shapeFeature) ->
         selectedShapeFeatureToValEquation (nodeId, shapeFeature) shapeTree widgets Dict.empty
         |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
-        |> featureValEquationToSingleEIds program expFilter
+        |> featureValEquationToValTree
       )
 
 
@@ -1518,14 +1582,14 @@ selectedShapesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as 
   )
 
 
-selectedShapesSingleEIdInterpretationLists : Exp -> RootedIndexedTree -> List NodeId -> (Exp -> Bool) -> List (List EId)
-selectedShapesSingleEIdInterpretationLists program ((rootI, shapeTree) as slate) selectedShapes expFilter =
+selectedShapesValTrees : RootedIndexedTree -> List NodeId -> List Val
+selectedShapesValTrees ((rootI, shapeTree) as slate) selectedShapes =
   selectedShapes
   |> List.map
       (\nodeId ->
         selectedShapeToValEquation nodeId shapeTree
         |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
-        |> featureValEquationToSingleEIds program expFilter
+        |> featureValEquationToValTree
       )
 
 
@@ -1546,10 +1610,9 @@ selectedBlobsToProximalDistalEIdInterpretations program ((rootI, shapeTree) as s
   (Set.empty, Set.empty) -- blobs will go away sometime
 
 
-selectedBlobsSingleEIdInterpretationLists : Exp -> RootedIndexedTree -> List (Int, NodeId) -> (Exp -> Bool) -> List (List EId)
-selectedBlobsSingleEIdInterpretationLists program ((rootI, shapeTree) as slate) selectedBlobs expFilter =
-  selectedBlobs
-  |> List.map (always []) -- blobs will go away sometime
+selectedBlobsValTrees : RootedIndexedTree -> List (Int, NodeId) -> List Val
+selectedBlobsValTrees ((rootI, shapeTree) as slate) selectedBlobs =
+  [] -- blobs will go away sometime
 
 
 -- Unused. Combinatorical explosion of interpretations.

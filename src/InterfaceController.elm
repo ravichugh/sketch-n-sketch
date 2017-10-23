@@ -634,11 +634,7 @@ tryRun : Model -> Result (Model, String, Maybe Ace.Annotation) Model
 tryRun old =
   let
     oldWithUpdatedHistory =
-      let
-        updatedHistory =
-          addToHistory old.code old.history
-      in
-        { old | history = updatedHistory }
+      { old | history = addToHistory old.code old.history }
   in
     case parseE old.code of
       Err err ->
@@ -1600,23 +1596,25 @@ doDuplicate old =
           old.selectedFeatures
           old.selectedShapes
           old.selectedBlobs
-          (not << isVar << LangTools.expValueExp) -- Don't simply duplicate a variable usage.
+          (always True)
 
   -- let _ = Utils.log <| LangUnparser.unparseWithIds old.inputExp in
 
     maybeNewProgram =
       singleExpressionInterpretations
-      |> Debug.log "possible eids to duplicate"
+      -- |> Debug.log "possible eids to duplicate"
+      -- |> List.map (\eid -> let _ = Utils.log <| unparse <| LangTools.justFindExpByEId old.inputExp eid in eid)
       |> List.map (LangTools.outerSameValueExpByEId old.inputExp >> .val >> .eid)
       |> Utils.dedup
       |> List.map (LangTools.justFindExpByEId old.inputExp)
+      |> List.filter (not << isVar << LangTools.expValueExp)
       |> List.sortBy LangTools.expToLocation -- Choose earliest single expression in program.
       |> List.head -- No multiple synthesis options for now.
       |> Maybe.map
           (\expToDuplicate ->
             let name = LangTools.expNameForExp old.inputExp expToDuplicate |> LangTools.removeTrailingDigits in
             -- Attempt 1: Try to add to output as a shape.
-            let newProgram = Draw.addShape old name expToDuplicate in
+            let newProgram = Draw.addShape old name expToDuplicate (Set.size old.selectedShapes + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) in
             if not <| LangUnparser.expsEquivalent newProgram old.inputExp then
               newProgram
             else
