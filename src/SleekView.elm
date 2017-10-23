@@ -1040,8 +1040,8 @@ synthesisResultsSelect model =
   let
     desc description exp isSafe sortKey =
       (if isSafe then "" else "[UNSAFE] ") ++
-      (Regex.replace Regex.All (Regex.regex "^Original → | → Cleaned$") (\_ -> "") description) ++
-      " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
+      (Regex.replace Regex.All (Regex.regex "^Original → | → Cleaned$") (\_ -> "") description) -- ++
+      -- " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
     resultButtonList priorPathByIndices remainingPathByIndices results =
       if results == [] then
         [ disableableTextButton True "No Results" Controller.msgNoop ]
