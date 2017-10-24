@@ -313,31 +313,33 @@ hoverMenu title dropdownContent =
     False
     dropdownContent
 
-synthesisHoverMenu : Model -> String -> Msg -> Bool -> Html Msg
-synthesisHoverMenu model title onMouseEnter disabled =
+synthesisHoverMenu : Model -> String -> String -> Msg -> Bool -> Html Msg
+synthesisHoverMenu model resultsKey title onMouseEnter disabled =
   generalHoverMenu
     title
-    onMouseEnter
-    Controller.msgClearSynthesisResults
+    (if Dict.member resultsKey model.synthesisResultsDict then Controller.msgNoop else onMouseEnter)
+    Controller.msgNoop
     Controller.msgNoop
     disabled
-    [ synthesisResultsSelect model ]
+    [ synthesisResultsSelect model resultsKey ]
 
-relateHoverMenu : Model -> String -> Msg -> Html Msg
-relateHoverMenu model title onMouseEnter =
+relateHoverMenu : Model -> String -> String -> Msg -> Html Msg
+relateHoverMenu model resultsKey title onMouseEnter =
   synthesisHoverMenu
     model
+    resultsKey
     title
     onMouseEnter
     (relateDisabled model)
 
-groupHoverMenu : Model -> String -> Msg -> Bool -> Html Msg
-groupHoverMenu model title onMouseEnter disallowSelectedFeatures =
-  synthesisHoverMenu
-    model
-    title
-    onMouseEnter
-    (groupDisabled disallowSelectedFeatures model)
+-- groupHoverMenu : Model -> String -> Msg -> Bool -> Html Msg
+-- groupHoverMenu model title onMouseEnter disallowSelectedFeatures =
+--   synthesisHoverMenu
+--     model
+--     ""
+--     title
+--     onMouseEnter
+--     (groupDisabled disallowSelectedFeatures model)
 
 deuceSynthesisResult : Model -> List Int -> Bool -> SynthesisResult -> Html Msg
 deuceSynthesisResult model path isRenamer (SynthesisResult result) =
@@ -636,18 +638,22 @@ menuBar model =
           , relateHoverMenu
               model
               "Make Equal"
+              "Make Equal"
               Controller.msgMakeEqual
           , relateHoverMenu
               model
-             "Relate"
+              "Relate"
+              "Relate"
               Controller.msgRelate
           , relateHoverMenu
               model
               "Indexed Relate"
+              "Indexed Relate"
               Controller.msgIndexedRelate
           , relateHoverMenu
               model
-             "Build Abstraction"
+              "Build Abstraction"
+              "Build Abstraction"
               Controller.msgBuildAbstraction
           ]
         , [ groupTextButton
@@ -1025,18 +1031,18 @@ menuBar model =
 --------------------------------------------------------------------------------
 
 synthesisResultHoverMenu
-  : String -> (List Int) -> Exp -> (List (Html Msg)) -> Html Msg
-synthesisResultHoverMenu description elementPath exp nextMenu =
+  : String -> String -> (List Int) -> Exp -> (List (Html Msg)) -> Html Msg
+synthesisResultHoverMenu resultsKey description elementPath exp nextMenu =
   generalHoverMenu
     description
-    (Controller.msgHoverSynthesisResult elementPath)
-    (Controller.msgHoverSynthesisResult <| allButLast elementPath)
+    (Controller.msgHoverSynthesisResult resultsKey elementPath)
+    (Controller.msgHoverSynthesisResult resultsKey <| allButLast elementPath)
     (Controller.msgSelectSynthesisResult exp)
     False
     nextMenu
 
-synthesisResultsSelect : Model -> Html Msg
-synthesisResultsSelect model =
+synthesisResultsSelect : Model -> String -> Html Msg
+synthesisResultsSelect model resultsKey =
   let
     desc description exp isSafe sortKey =
       (if isSafe then "" else "[UNSAFE] ") ++
@@ -1070,6 +1076,7 @@ synthesisResultsSelect model =
                           []
                   in
                     [ synthesisResultHoverMenu
+                        resultsKey
                         (desc description exp isSafe sortKey)
                         thisElementPath
                         exp
@@ -1081,10 +1088,15 @@ synthesisResultsSelect model =
     Html.div
       [ Attr.class "synthesis-results"
       ]
-      ( resultButtonList
-          []
-          model.hoveredSynthesisResultPathByIndices
-          model.synthesisResults
+      ( case Dict.get resultsKey model.synthesisResultsDict of
+          Just results ->
+            resultButtonList
+                []
+                model.hoveredSynthesisResultPathByIndices
+                results
+
+          Nothing ->
+            [ disableableTextButton True "Synthesizing... ⏳ ⏰ 👵🏽 👴🏼 ⚰️ 🏁" Controller.msgNoop ]
       )
 
 --------------------------------------------------------------------------------
@@ -1493,11 +1505,11 @@ toolPanel model =
 
 synthesisAutoSearch : Model -> (List (Html Msg))
 synthesisAutoSearch model =
-  if List.length model.synthesisResults > 0 then
+  if List.length (Utils.getWithDefault "Auto-Synthesis" [] model.synthesisResultsDict) > 0 then
      [ Html.div
          [ Attr.class "synthesis-auto-search"
          ]
-         [ synthesisResultsSelect model
+         [ synthesisResultsSelect model "Auto-Synthesis"
          ]
      ]
   else
@@ -1518,7 +1530,7 @@ synthesisPanel model =
         [ Html.div
             [ Attr.class "dropdown-content synthesis-menu-holder"
             ]
-            [ synthesisResultsSelect model
+            [ synthesisResultsSelect model "Auto-Synthesis"
             ]
         ]
     ]

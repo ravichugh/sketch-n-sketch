@@ -177,9 +177,9 @@ synthesisPanel model =
   { bottom =
       spacing.height
   , height =
-      if Model.synthesisResultsNotEmpty model &&
+      if Model.synthesisResultsNotEmpty model "Auto-Synthesis" &&
            (not model.viewState.menuActive) then
-         300
+         250
       else
         0
   }

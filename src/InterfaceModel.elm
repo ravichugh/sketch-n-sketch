@@ -136,7 +136,7 @@ type alias Model =
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
   , autoSynthesis : Bool
-  , synthesisResults : List SynthesisResult
+  , synthesisResultsDict : Dict String (List SynthesisResult)
   , hoveredSynthesisResultPathByIndices : List Int
   , renamingInOutput : Maybe (PId, String)
   , randomColor : Int
@@ -351,9 +351,10 @@ synthesisResult description exp =
     , children    = Nothing
     }
 
-synthesisResultsNotEmpty : Model -> Bool
-synthesisResultsNotEmpty =
-  not << List.isEmpty << .synthesisResults
+synthesisResultsNotEmpty : Model -> String -> Bool
+synthesisResultsNotEmpty model resultsKey =
+  Utils.getWithDefault resultsKey [] model.synthesisResultsDict
+  |> (not << List.isEmpty)
 
 mapResultSafe f (SynthesisResult result) =
   SynthesisResult { result | isSafe = f result.isSafe }
@@ -1049,7 +1050,7 @@ initModel =
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , autoSynthesis = True
-    , synthesisResults = []
+    , synthesisResultsDict = Dict.empty
     , hoveredSynthesisResultPathByIndices = []
     , renamingInOutput = Nothing
     , randomColor   = 100

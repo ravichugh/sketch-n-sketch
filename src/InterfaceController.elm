@@ -688,7 +688,7 @@ tryRun old =
                       , errorBox      = Nothing
                       , scopeGraph    = DependenceGraph.compute e
                       , preview       = Nothing
-                      , synthesisResults = perhapsRunAutoSynthesis old e
+                      , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
                 }
               in
               let taskProgressAnnotation =
@@ -1366,7 +1366,7 @@ doMakeEqual old =
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
+  { old | synthesisResultsDict = Dict.insert "Make Equal" (cleanDedupSortSynthesisResults synthesisResults) old.synthesisResultsDict }
 
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
@@ -1378,7 +1378,7 @@ msgRelate = Msg "Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
+  { old | synthesisResultsDict = Dict.insert "Relate" (cleanDedupSortSynthesisResults synthesisResults) old.synthesisResultsDict }
 
 msgIndexedRelate = Msg "Indexed Relate" <| \old ->
   let synthesisResults =
@@ -1391,7 +1391,7 @@ msgIndexedRelate = Msg "Indexed Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
+  { old | synthesisResultsDict = Dict.insert "Indexed Relate" (cleanDedupSortSynthesisResults synthesisResults) old.synthesisResultsDict }
 
 -- msgMakeEquidistant = Msg "Make Equidistant" <| \old ->
 --   let newExp =
@@ -1434,7 +1434,7 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
+  { old | synthesisResultsDict = Dict.insert "Build Abstraction" (cleanDedupSortSynthesisResults synthesisResults) old.synthesisResultsDict }
 
 deleteInOutput old =
   let
@@ -1529,18 +1529,18 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
     { old | code = newCode
           , lastRunCode = newCode
           , history = addToHistory newCode old.history
-          , synthesisResults = []
+          , synthesisResultsDict = Dict.empty
           }
   in
   runWithErrorHandling new newExp (\reparsed newVal newWidgets newSlate newCode ->
     -- debugLog "new model" <|
       let newer =
-      { new | inputExp         = reparsed -- newExp
-            , inputVal         = newVal
-            , slate            = newSlate
-            , widgets          = newWidgets
-            , preview          = Nothing
-            , synthesisResults = perhapsRunAutoSynthesis old reparsed
+      { new | inputExp             = reparsed -- newExp
+            , inputVal             = newVal
+            , slate                = newSlate
+            , widgets              = newWidgets
+            , preview              = Nothing
+            , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old reparsed)
       } |> clearSelections
       in
       { newer | mode = refreshMode_ newer
@@ -1550,7 +1550,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
 
 clearSynthesisResults : Model -> Model
 clearSynthesisResults old =
-  { old | preview = Nothing, synthesisResults = [] }
+  { old | preview = Nothing, synthesisResultsDict = Dict.empty }
 
 msgClearSynthesisResults : Msg
 msgClearSynthesisResults =
@@ -1584,6 +1584,22 @@ msgGroupBlobs = Msg "Group Blobs" <| \old ->
 --
 -- Could change to instead duplicate everything selected, inidividually.
 msgDuplicate = Msg "Duplicate " doDuplicate
+
+
+
+
+-- (def r 15)
+--
+-- (def circles
+--   (map (\i
+--       (let [cx cy r] [208 168 (+ (* i 18) r)]
+--       (let color (if (= (mod i 2) 0) 499 0)
+--         (rawCircle color 360 0 cx cy r))))
+--     (reverse (zeroTo 8!{0-15}))))
+--
+-- (svg (concat [
+--   circles
+-- ]))
 
 doDuplicate : Model -> Model
 doDuplicate old =
@@ -1795,14 +1811,14 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
         , history       = addToHistory code old.history
         , slate         = slate
         , preview       = Nothing
-        , synthesisResults = []
+        , synthesisResultsDict = Dict.empty
         , tool          = Cursor
         , mode          = Utils.fromOk "SelectOption mkLive" <|
                             mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
                               (val, []) -- TODO
         }
 
-msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
+msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <| \old ->
   let maybeFindResult path results =
     case path of
       []    -> Nothing
@@ -1815,7 +1831,8 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
       [i]   -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) -> SynthesisResult { attrs | children = Just childResults})
       i::is -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) -> SynthesisResult { attrs | children = Just (setResultChildren is childResults (attrs.children |> Maybe.withDefault []))})
   in
-  case maybeFindResult pathByIndices old.synthesisResults of
+  let oldResults = Utils.getWithDefault resultsKey [] old.synthesisResultsDict in
+  case maybeFindResult pathByIndices oldResults of
     Just (SynthesisResult {description, exp, sortKey, children}) ->
       let newModel = { old | hoveredSynthesisResultPathByIndices = pathByIndices } in
       let newModel2 =
@@ -1825,8 +1842,8 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
           _            ->
             -- Compute child results.
             let childResults = cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch newModel exp) in
-            let newTopLevelResults = setResultChildren pathByIndices childResults old.synthesisResults in
-            { newModel | synthesisResults = newTopLevelResults
+            let newTopLevelResults = Dict.insert resultsKey (setResultChildren pathByIndices childResults oldResults) old.synthesisResultsDict in
+            { newModel | synthesisResultsDict = newTopLevelResults
                        , hoveredSynthesisResultPathByIndices = pathByIndices }
       in
       showExpPreview newModel2 exp
