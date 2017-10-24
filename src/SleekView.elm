@@ -50,9 +50,7 @@ allButLast xs =
     List.take (len - 1) xs
 
 relateDisabled : Model -> Bool
-relateDisabled model =
-  Set.isEmpty model.selectedFeatures &&
-  Set.isEmpty model.selectedShapes
+relateDisabled model = nothingSelectedInOutput model
 
 groupDisabled : Bool -> Model -> Bool
 groupDisabled disallowSelectedFeatures model =

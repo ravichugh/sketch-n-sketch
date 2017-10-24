@@ -374,6 +374,10 @@ resultExp (SynthesisResult {exp}) =
 setResultDescription description (SynthesisResult result) =
   SynthesisResult { result | description = description }
 
+setResultSortKey sortKey (SynthesisResult result) =
+  SynthesisResult { result | sortKey = sortKey }
+
+
 type Msg
   = Msg String (Model -> Model)
 
@@ -950,9 +954,8 @@ noCodeWidgetsSelected : Model -> Bool
 noCodeWidgetsSelected model =
   List.isEmpty model.deuceState.selectedWidgets
 
--- Currently not used, but may be handy later.
-noOutputWidgetsSelected : Model -> Bool
-noOutputWidgetsSelected model =
+nothingSelectedInOutput : Model -> Bool
+nothingSelectedInOutput model =
   Set.isEmpty model.selectedFeatures &&
   Set.isEmpty model.selectedShapes &&
   Dict.isEmpty model.selectedBlobs

@@ -455,21 +455,38 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       |> Utils.filterJusts
       |> ShapeWidgets.maybeEnclosureOfAllBounds
     in
-    let padding = 25 in
-    let (maybeFuncPat, maybeArgPats) =
-      case funcVal.v_ of
-        VClosure maybeRecName argPats body env ->
-          case parentByEId program body.val.eid of
-            Just (Just funcExp) ->
-              case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
-                Just (_, funcPat) -> (Just funcPat, Just argPats)
-                _                 -> (Nothing, Just argPats)
-            _ -> (Nothing, Just argPats)
-        _ -> (Nothing, Nothing)
-    in
     case maybeBounds of
       Nothing -> []
       Just (left, top, right, bot) ->
+        let padding = 25 in
+        let (maybeFuncBody, maybeFuncPat, maybeArgPats) =
+          case funcVal.v_ of
+            VClosure maybeRecName argPats funcBody env ->
+              case parentByEId program funcBody.val.eid of
+                Just (Just funcExp) ->
+                  case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
+                    Just (_, funcPat) -> (Just funcBody, Just funcPat, Just argPats)
+                    _                 -> (Just funcBody, Nothing,      Just argPats)
+                _ -> (Just funcBody, Nothing, Just argPats)
+            _ -> (Nothing, Nothing, Nothing)
+        in
+        let maybeAddArg =
+          -- TODO: ensure all selected items touch funcBody
+          case (maybeFuncBody, nothingSelectedInOutput model) of
+            (Just funcBody, False) ->
+              Just <|
+                flip Svg.text_ [VirtualDom.text "➕"] <| -- plus symbol (doesn't show up on black editor background)
+                  [ attr "font-family" params.mainSection.uiWidgets.font
+                  , attr "font-size" params.mainSection.uiWidgets.fontSize
+                  , attr "text-anchor" "end"
+                  , attr "cursor" "pointer"
+                  , attr "x" (toString (right + padding))
+                  , attr "y" (toString (top - padding - 10))
+                  , onMouseDownAndStop (Controller.msgAddArg funcBody)
+                  ]
+            _ ->
+              Nothing
+        in
         let box =
           flip Svg.rect [] <|
             [ attr "fill" "none"
@@ -488,6 +505,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         [ Just box
         , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat (left - padding) (top - padding - 20))
         , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats (left - padding) (top - padding))
+        , maybeAddArg
         ] |> Utils.filterJusts
   in
 

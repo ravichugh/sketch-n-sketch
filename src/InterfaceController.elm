@@ -15,7 +15,7 @@ port module InterfaceController exposing
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
   , msgActivateRenameInOutput, msgUpdateRenameInOutputTextBox, msgDoRename
-  , msgRemoveArg
+  , msgAddArg, msgRemoveArg
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox, msgToggleOutput
@@ -364,10 +364,13 @@ onClickPrimaryZone i k z old =
       else
         (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
     else
-      let selectThisShape () =
-        if old.keysDown == [Keys.keyShift]
-        then Utils.toggleSet i old.selectedShapes
-        else Set.singleton i
+      let toggleThisShape () =
+        if old.keysDown == [Keys.keyShift] then
+          Utils.toggleSet i old.selectedShapes
+        else if Set.member i old.selectedShapes then
+          Set.empty
+        else
+          Set.singleton i
       in
       let selectBlob blobId =
         if old.keysDown == [Keys.keyShift] then
@@ -383,10 +386,10 @@ onClickPrimaryZone i k z old =
           _                            -> Debug.crash "onClickPrimaryZone"
       in
       case (k, realZone, maybeBlobId) of
-        ("line", ZLineEdge, Just blobId) -> (old.selectedFeatures, selectThisShape (), selectBlob blobId)
-        (_,      ZInterior, Just blobId) -> (old.selectedFeatures, selectThisShape (), selectBlob blobId)
-        ("line", ZLineEdge, Nothing)     -> (old.selectedFeatures, selectThisShape (), old.selectedBlobs)
-        (_,      ZInterior, Nothing)     -> (old.selectedFeatures, selectThisShape (), old.selectedBlobs)
+        ("line", ZLineEdge, Just blobId) -> (old.selectedFeatures, toggleThisShape (), selectBlob blobId)
+        (_,      ZInterior, Just blobId) -> (old.selectedFeatures, toggleThisShape (), selectBlob blobId)
+        ("line", ZLineEdge, Nothing)     -> (old.selectedFeatures, toggleThisShape (), old.selectedBlobs)
+        (_,      ZInterior, Nothing)     -> (old.selectedFeatures, toggleThisShape (), old.selectedBlobs)
         _                                -> (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
   in
   { old | hoveredCrosshairs = hoveredCrosshairs_
@@ -1900,6 +1903,71 @@ msgDoRename pid = Msg ("Rename PId " ++ toString pid) <| \old ->
     Nothing ->
       old
 
+
+msgAddArg funcBody = Msg "Add Arg to Function in Output" <| \old ->
+  let maybeMaybeParent = parentByEId old.inputExp funcBody.val.eid in
+  case Maybe.map (Maybe.map (\parent -> (parent, parent.val.e__))) maybeMaybeParent of
+    Just (Just (funcExp, EFun _ argPats funcBody _)) ->
+      let targetPPId =
+        ( (funcExp.val.eid, 1)
+        , [ 1 + List.length argPats ] -- By default, insert argument at the end
+        )
+      in
+      let possibleArgEIds =
+        let domain = flattenExpTree funcBody |> List.map (.val >> .eid) |> Set.fromList in
+        let expFilter = .val >> .eid >> (flip Set.member) domain in
+        -- let singleEIdInterps =
+        --   ShapeWidgets.selectionsSingleEIdInterpretations
+        --       old.inputExp
+        --       old.slate
+        --       old.widgets
+        --       old.selectedFeatures
+        --       old.selectedShapes
+        --       old.selectedBlobs
+        --       expFilter
+        -- in
+        -- let distalInterps =
+        --   ShapeWidgets.selectionsDistalEIdInterpretations
+        --       old.inputExp
+        --       old.slate
+        --       old.widgets
+        --       old.selectedFeatures
+        --       old.selectedShapes
+        --       old.selectedBlobs
+        --       expFilter
+        --   |> List.concat
+        -- in
+        -- singleEIdInterps ++ distalInterps
+        -- |> Utils.dedup
+        ShapeWidgets.selectionsEIdsTouched
+            old.inputExp
+            old.slate
+            old.widgets
+            old.selectedFeatures
+            old.selectedShapes
+            old.selectedBlobs
+            expFilter
+      in
+      let results =
+        possibleArgEIds
+        |> List.concatMap
+            (\eid ->
+              let (line, col) = LangTools.locationInProgram old.inputExp eid in
+              CodeMotion.addArg eid targetPPId old.inputExp
+              |> List.map (setResultSortKey [toFloat line, toFloat col])
+            )
+        |> List.sortBy (\(SynthesisResult result) -> (if result.isSafe then 0 else 1, result.sortKey))
+      in
+      case results of
+        []             -> old
+        [singleResult] -> upstateRun { old | code = unparse (resultExp singleResult) }
+        _              -> { old | synthesisResultsDict = Dict.insert "Auto-Synthesis" results old.synthesisResultsDict } -- Commandere auto-synth results for now.
+
+    _ ->
+      let _ = Utils.log "could not find func to add argument to" in
+      old
+
+
 msgRemoveArg pid = Msg ("Remove Arg PId " ++ toString pid) <| \old ->
   case pidToPathedPatternId old.inputExp pid of
     Nothing              -> old
@@ -1908,6 +1976,7 @@ msgRemoveArg pid = Msg ("Remove Arg PId " ++ toString pid) <| \old ->
       |> List.head
       |> Maybe.map (\result -> upstateRun { old | code = unparse (resultExp result) })
       |> Maybe.withDefault old
+
 
 --------------------------------------------------------------------------------
 

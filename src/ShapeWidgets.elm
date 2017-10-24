@@ -1287,6 +1287,13 @@ selectionsProximalEIdInterpretations program slate widgets selectedFeatures sele
   in
   proximalInterps
 
+selectionsDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
+selectionsDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+  let (proximalInterps, distalInterps) =
+    selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter
+  in
+  proximalInterps
+
 selectionsUniqueProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
 selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs =
   let eidsToNotSelect =
@@ -1369,6 +1376,21 @@ selectionsEIdInterpretations program ((rootI, shapeTree) as slate) widgets selec
   |> List.map Utils.unionAll
   |> List.map Set.toList
   |> Utils.dedup
+
+
+selectionsEIdsTouched : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List EId
+selectionsEIdsTouched program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+  [ selectedFeaturesValTrees slate widgets (Set.toList selectedFeatures)
+  , selectedShapesValTrees   slate         (Set.toList selectedShapes)
+  , selectedBlobsValTrees    slate         (Dict.toList selectedBlobs)
+  ]
+  |> List.concat
+  |> List.concatMap Provenance.flattenValBasedOnTree
+  |> List.map valExp
+  |> List.filter expFilter
+  |> List.map (.val >> .eid)
+  |> Utils.dedup
+
 
 -- Try to find single EIds in the program that explain everything selected.
 selectionsSingleEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectedShapeFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List EId
