@@ -19,7 +19,7 @@ import Blobs exposing (..)
 import LangTools exposing (..)
 import LangSimplify
 import Types
-import InterfaceModel exposing (Model, ReplicateKind(..))
+import InterfaceModel exposing (Model, ReplicateKind(..), resultExp)
 import Utils
 import Keys
 
@@ -56,12 +56,13 @@ import String
 -- TODO: turn off overlapping pairs relation
 
 
-passiveSynthesisSearch : Exp -> List InterfaceModel.SynthesisResult
-passiveSynthesisSearch originalExp =
+passiveSynthesisSearch : Model -> Exp -> List InterfaceModel.SynthesisResult
+passiveSynthesisSearch model originalExp =
   cloneEliminationSythesisResults (always True) 2 5 originalExp ++
   mapAbstractSynthesisResults originalExp ++
   rangeSynthesisResults originalExp ++
   inlineListSynthesisResults originalExp
+  |> List.filter (\synthesisResult -> InterfaceModel.runAndResolve model (resultExp synthesisResult) |> Utils.resultToBool)
 
 
 rangeSynthesisResults : Exp -> List InterfaceModel.SynthesisResult

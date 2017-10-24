@@ -700,6 +700,10 @@ maybeToBool m = case m of
   Just _  -> True
   Nothing -> False
 
+resultToBool r = case r of
+  Ok _  -> True
+  Err _ -> False
+
 fromJust m = case m of
   Just x -> x
   Nothing -> Debug.crash <| "Utils.fromJust: Nothing"

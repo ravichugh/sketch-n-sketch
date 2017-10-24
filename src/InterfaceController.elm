@@ -1317,7 +1317,7 @@ cleanDedupSortSynthesisResults synthesisResults =
 
 perhapsRunAutoSynthesis model program =
   if model.autoSynthesis
-    then cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch program)
+    then cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch model program)
     else []
 
 msgCleanCode = Msg "Clean Code" <| \old ->
@@ -1824,7 +1824,7 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
           (False, _)   -> newModel -- Don't compute children if auto-synth off
           _            ->
             -- Compute child results.
-            let childResults = cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch exp) in
+            let childResults = cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch newModel exp) in
             let newTopLevelResults = setResultChildren pathByIndices childResults old.synthesisResults in
             { newModel | synthesisResults = newTopLevelResults
                        , hoveredSynthesisResultPathByIndices = pathByIndices }
