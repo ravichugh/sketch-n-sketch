@@ -272,6 +272,43 @@ svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis
   ([line, caption, endArrow], ((endX, endXTr), (endY, endYTr)))
 
 
+patInOutput : Maybe (PId, String) -> Pat -> Float -> Float -> Svg Msg
+patInOutput modelRenamingInOutput pat left top =
+  let nameStr = LangTools.patToMaybeIdent pat |> Maybe.withDefault "" in
+  let pid = pat.val.pid in
+  let text =
+    flip Svg.text_ [VirtualDom.text nameStr] <|
+      [ attr "font-family" params.mainSection.uiWidgets.font
+      , attr "font-size" params.mainSection.uiWidgets.fontSize
+      , attr "text-anchor" "start"
+      , attr "cursor" "text"
+      , attr "x" (toString left)
+      , attr "y" (toString (top - 10))
+      , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid)
+      ]
+  in
+  let maybeRenameBox =
+    modelRenamingInOutput
+    |> Utils.filterMaybe (\(renamingPId, _) -> renamingPId == pid)
+    |> Maybe.map
+        (\(renamingPId, renameStr) ->
+          flip Svg.foreignObject [Html.input [Attr.defaultValue renameStr, Attr.id "rename_box"] []] <|
+            [ attr "x" (toString (left - 2))
+            , attr "y" (toString (top - 10 - 17))
+            , onInput Controller.msgUpdateRenameInOutputTextBox
+            , onClickWithoutPropagation Controller.msgNoop
+            , onKeyDown <|
+                \keyCode ->
+                  if keyCode == enterKeyCode then -- Enter button
+                    Controller.msgDoRename renamingPId
+                  else
+                    Controller.msgNoop
+            ]
+        )
+  in
+  Maybe.withDefault text maybeRenameBox
+
+
 buildSvgWidgets : Int -> Int -> Widgets -> InterfaceModel.Model -> List (Svg Msg)
 buildSvgWidgets wCanvas hCanvas widgets model =
   let
@@ -419,37 +456,6 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     case maybeBounds of
       Nothing -> []
       Just (left, top, right, bot) ->
-        let title =
-          flip Svg.text_ [VirtualDom.text (maybeFuncName |> Maybe.withDefault "")] <|
-            [ attr "font-family" params.mainSection.uiWidgets.font
-            , attr "font-size" params.mainSection.uiWidgets.fontSize
-            , attr "text-anchor" "start"
-            , attr "cursor" "text"
-            , attr "x" (toString (left - padding))
-            , attr "y" (toString (top - padding - 10))
-            , onMouseDownAndStop (Controller.msgActivateRenameInOutput (maybeFuncPat |> Maybe.map (.val >> .pid) |> Maybe.withDefault -1))
-            ]
-        in
-        let maybeRenameTitle =
-          let funcPatPId = maybeFuncPat |> Maybe.map (.val >> .pid) |> Maybe.withDefault -9283409127 in
-          model.renamingInOutput
-          |> Utils.filterMaybe (\(renamingPId, _) -> renamingPId == funcPatPId)
-          |> Maybe.map
-              (\(renamingPId, renameStr) ->
-                flip Svg.foreignObject [Html.input [Attr.defaultValue renameStr, Attr.id "rename_box"] []] <|
-                  [ attr "x" (toString (left - padding - 2))
-                  , attr "y" (toString (top - padding - 10 - 17))
-                  , onInput Controller.msgUpdateRenameInOutputTextBox
-                  , onClickWithoutPropagation Controller.msgNoop
-                  , onKeyDown <|
-                      \keyCode ->
-                        if keyCode == enterKeyCode then -- Enter button
-                          Controller.msgDoRename renamingPId
-                        else
-                          Controller.msgNoop
-                  ]
-              )
-        in
         let box =
           flip Svg.rect [] <|
             [ attr "fill" "none"
@@ -465,7 +471,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
             , attr "height" (toString (bot - top + padding*2))
             ]
         in
-        [ box, Maybe.withDefault title maybeRenameTitle ]
+        case maybeFuncPat of
+          Nothing      -> [ box ]
+          Just funcPat -> [ box, patInOutput model.renamingInOutput funcPat (left - padding) (top - padding) ]
   in
 
   let draw (i_, widget) =
