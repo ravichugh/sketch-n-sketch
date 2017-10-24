@@ -272,29 +272,29 @@ svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis
   ([line, caption, endArrow], ((endX, endXTr), (endY, endYTr)))
 
 
-patInOutput : Maybe (PId, String) -> Pat -> Float -> Float -> Svg Msg
-patInOutput modelRenamingInOutput pat left top =
+patAsHTML : Maybe (PId, String) -> Pat -> Html Msg
+patAsHTML modelRenamingInOutput pat  =
   let nameStr = LangTools.patToMaybeIdent pat |> Maybe.withDefault "" in
   let pid = pat.val.pid in
   let text =
-    flip Svg.text_ [VirtualDom.text nameStr] <|
-      [ attr "font-family" params.mainSection.uiWidgets.font
-      , attr "font-size" params.mainSection.uiWidgets.fontSize
-      , attr "text-anchor" "start"
-      , attr "cursor" "text"
-      , attr "x" (toString left)
-      , attr "y" (toString (top - 10))
-      , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid)
-      ]
+    Html.span
+        [ Attr.class "pat"
+        , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid)
+        ]
+        [VirtualDom.text nameStr]
+      -- [ attr "font-family" params.mainSection.uiWidgets.font
+      -- , attr "font-size" params.mainSection.uiWidgets.fontSize
+      -- , attr "text-anchor" "start"
   in
   let maybeRenameBox =
     modelRenamingInOutput
     |> Utils.filterMaybe (\(renamingPId, _) -> renamingPId == pid)
     |> Maybe.map
         (\(renamingPId, renameStr) ->
-          flip Svg.foreignObject [Html.input [Attr.defaultValue renameStr, Attr.id "rename_box"] []] <|
-            [ attr "x" (toString (left - 2))
-            , attr "y" (toString (top - 10 - 17))
+          flip Html.input [] <|
+            [ Attr.defaultValue renameStr
+            , Attr.id "rename_box"
+            , Attr.class "pat"
             , onInput Controller.msgUpdateRenameInOutputTextBox
             , onClickWithoutPropagation Controller.msgNoop
             , onKeyDown <|
@@ -307,6 +307,20 @@ patInOutput modelRenamingInOutput pat left top =
         )
   in
   Maybe.withDefault text maybeRenameBox
+
+
+patInOutput : Maybe (PId, String) -> Pat -> Float -> Float -> Svg Msg
+patInOutput modelRenamingInOutput pat left top =
+  patsInOutput modelRenamingInOutput [pat] left top
+
+
+patsInOutput : Maybe (PId, String) -> List Pat -> Float -> Float -> Svg Msg
+patsInOutput modelRenamingInOutput pats left top =
+  let elements = pats |> List.map (patAsHTML modelRenamingInOutput) in
+  flip Svg.foreignObject [Html.div [Attr.class "pats", Attr.style [("width", toString (100 * List.length pats) ++ "px")]] elements] <|
+    [ attr "x" (toString (left - 2))
+    , attr "y" (toString (top - 10 - 17))
+    ]
 
 
 buildSvgWidgets : Int -> Int -> Widgets -> InterfaceModel.Model -> List (Svg Msg)
@@ -439,18 +453,15 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       |> ShapeWidgets.maybeEnclosureOfAllBounds
     in
     let padding = 25 in
-    let (maybeFuncName, maybeFuncPat) =
+    let (maybeFuncPat, maybeArgPats) =
       case funcVal.v_ of
-        VClosure maybeRecName pats body env ->
+        VClosure maybeRecName argPats body env ->
           case parentByEId program body.val.eid of
             Just (Just funcExp) ->
               case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
-                Just (_, pat) ->
-                  case pat.val.p__ of
-                    PVar _ funcName _ -> (Just funcName, Just pat)
-                    _ -> (Nothing, Nothing)
-                _ -> (Nothing, Nothing)
-            _ -> (Nothing, Nothing)
+                Just (_, funcPat) -> (Just funcPat, Just argPats)
+                _                 -> (Nothing, Just argPats)
+            _ -> (Nothing, Just argPats)
         _ -> (Nothing, Nothing)
     in
     case maybeBounds of
@@ -471,9 +482,10 @@ buildSvgWidgets wCanvas hCanvas widgets model =
             , attr "height" (toString (bot - top + padding*2))
             ]
         in
-        case maybeFuncPat of
-          Nothing      -> [ box ]
-          Just funcPat -> [ box, patInOutput model.renamingInOutput funcPat (left - padding) (top - padding) ]
+        [ Just box
+        , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput funcPat (left - padding) (top - padding - 20))
+        , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput argPats (left - padding) (top - padding))
+        ] |> Utils.filterJusts
   in
 
   let draw (i_, widget) =
