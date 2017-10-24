@@ -860,7 +860,7 @@ code {
 }
 
 /* Rename in output box */
-#rename_box {
+#rename-box {
   font-family: Tahoma, sans-serif;
   font-size: 11pt;
 }
@@ -872,6 +872,13 @@ code {
   display: inline-block;
   margin-right: 10px;
   width: 90px;
+  cursor: text;
+}
+
+.remove-arg {
+  margin-left: 5px;
+  font-size: 9pt;
+  cursor: pointer;
 }
 
 /******************************************************************************

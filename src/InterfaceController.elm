@@ -15,6 +15,7 @@ port module InterfaceController exposing
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
   , msgActivateRenameInOutput, msgUpdateRenameInOutputTextBox, msgDoRename
+  , msgRemoveArg
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox, msgToggleOutput
@@ -1898,6 +1899,15 @@ msgDoRename pid = Msg ("Rename PId " ++ toString pid) <| \old ->
 
     Nothing ->
       old
+
+msgRemoveArg pid = Msg ("Remove Arg PId " ++ toString pid) <| \old ->
+  case pidToPathedPatternId old.inputExp pid of
+    Nothing              -> old
+    Just pathedPatternId ->
+      CodeMotion.removeArg pathedPatternId old.inputExp
+      |> List.head
+      |> Maybe.map (\result -> upstateRun { old | code = unparse (resultExp result) })
+      |> Maybe.withDefault old
 
 --------------------------------------------------------------------------------
 

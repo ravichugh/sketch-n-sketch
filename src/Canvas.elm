@@ -272,16 +272,19 @@ svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis
   ([line, caption, endArrow], ((endX, endXTr), (endY, endYTr)))
 
 
-patAsHTML : Maybe (PId, String) -> Pat -> Html Msg
-patAsHTML modelRenamingInOutput pat  =
+patAsHTML : Maybe (PId, String) -> Bool -> Pat -> Html Msg
+patAsHTML modelRenamingInOutput showRemover pat  =
   let nameStr = LangTools.patToMaybeIdent pat |> Maybe.withDefault "" in
   let pid = pat.val.pid in
   let text =
     Html.span
         [ Attr.class "pat"
         , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid)
-        ]
-        [VirtualDom.text nameStr]
+        ] <|
+        [ VirtualDom.text nameStr ] ++
+        if showRemover
+        then [ Html.span [Attr.class "remove-arg", onMouseDownAndStop (Controller.msgRemoveArg pid)] [VirtualDom.text "❌"] ]
+        else []
       -- [ attr "font-family" params.mainSection.uiWidgets.font
       -- , attr "font-size" params.mainSection.uiWidgets.fontSize
       -- , attr "text-anchor" "start"
@@ -293,7 +296,7 @@ patAsHTML modelRenamingInOutput pat  =
         (\(renamingPId, renameStr) ->
           flip Html.input [] <|
             [ Attr.defaultValue renameStr
-            , Attr.id "rename_box"
+            , Attr.id "rename-box"
             , Attr.class "pat"
             , onInput Controller.msgUpdateRenameInOutputTextBox
             , onClickWithoutPropagation Controller.msgNoop
@@ -309,14 +312,14 @@ patAsHTML modelRenamingInOutput pat  =
   Maybe.withDefault text maybeRenameBox
 
 
-patInOutput : Maybe (PId, String) -> Pat -> Float -> Float -> Svg Msg
-patInOutput modelRenamingInOutput pat left top =
-  patsInOutput modelRenamingInOutput [pat] left top
+patInOutput : Maybe (PId, String) -> Bool -> Pat -> Float -> Float -> Svg Msg
+patInOutput modelRenamingInOutput showRemover pat left top =
+  patsInOutput modelRenamingInOutput showRemover [pat] left top
 
 
-patsInOutput : Maybe (PId, String) -> List Pat -> Float -> Float -> Svg Msg
-patsInOutput modelRenamingInOutput pats left top =
-  let elements = pats |> List.map (patAsHTML modelRenamingInOutput) in
+patsInOutput : Maybe (PId, String) -> Bool -> List Pat -> Float -> Float -> Svg Msg
+patsInOutput modelRenamingInOutput showRemover pats left top =
+  let elements = pats |> List.map (patAsHTML modelRenamingInOutput showRemover) in
   flip Svg.foreignObject [Html.div [Attr.class "pats", Attr.style [("width", toString (100 * List.length pats) ++ "px")]] elements] <|
     [ attr "x" (toString (left - 2))
     , attr "y" (toString (top - 10 - 17))
@@ -483,8 +486,8 @@ buildSvgWidgets wCanvas hCanvas widgets model =
             ]
         in
         [ Just box
-        , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput funcPat (left - padding) (top - padding - 20))
-        , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput argPats (left - padding) (top - padding))
+        , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat (left - padding) (top - padding - 20))
+        , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats (left - padding) (top - padding))
         ] |> Utils.filterJusts
   in
 

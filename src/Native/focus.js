@@ -1,7 +1,7 @@
 app.ports.doFocusJustShownRenameBox.subscribe(function(_) {
 
   var tryFocus = function () {
-    var box = document.getElementById("rename_box");
+    var box = document.getElementById("rename-box");
     if (box) {
       box.focus();
       box.select();
