@@ -10,6 +10,8 @@ import FastParser exposing (parseE, prelude)
 import Types
 import Utils
 
+import ImpureGoodies
+
 ------------------------------------------------------------------------------
 -- Big-Step Operational Semantics
 
@@ -108,7 +110,10 @@ initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
 
 run : Exp -> Result String (Val, Widgets)
 run e =
-  doEval initEnv e |> Result.map Tuple.first
+  -- doEval initEnv e |> Result.map Tuple.first
+  ImpureGoodies.logTimedRun "Eval.run" (\() ->
+    doEval initEnv e |> Result.map Tuple.first
+  )
 
 doEval : Env -> Exp -> Result String ((Val, Widgets), Env)
 doEval initEnv e =

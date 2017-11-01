@@ -25,6 +25,14 @@ var _user$project$Native_ImpureGoodies = {
         // Err (toString err)
         return _elm_lang$core$Result$Err(err.toString());
       }
+    },
+
+    timedRun : function(thunk) {
+      var start = (new Date()).getTime();
+      var result = thunk(_elm_lang$core$Native_Utils.Tuple0);
+      var end = (new Date()).getTime();
+
+      return _elm_lang$core$Native_Utils.Tuple2(result, end-start);
     }
 
 };
