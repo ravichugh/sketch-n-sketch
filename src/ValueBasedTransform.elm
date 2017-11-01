@@ -809,6 +809,8 @@ relate__ relationToSynthesize originalExp maybeTermShape removedLocIdToLocEquati
       )
 
 
+-- Returns synthesis results
+-- Build an abstraction where one feature is returned as function of the other selected features.
 buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
   case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime } program of
     Err s -> []
@@ -819,14 +821,14 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
         -- In this iteration, it is one of the selected expressions.
         -- Future: perhaps select only arguments and then infer what expression(s)
         -- are calculated based on the selected expressions?
-        -- Or vice versa: select only output and infer arguments (similar to DeuceTools.createFunctionFromArgsTool, which is currently limit to converting an existing definition to a function)
+        -- Or vice versa: select only output and infer arguments (similar to DeuceTools.createFunctionFromArgsTool, which is currently limited to converting an existing definition to a function)
         List.range 1 (List.length interpretation)
         |> List.filterMap (\eidI ->
           let (outputEId, otherEIds) = (Utils.geti eidI interpretation, Utils.removei eidI interpretation) in
           -- 2. Arguments: (a) selected patterns and (b) vars free at extracted expression but not at funcLocation
           case otherEIds |> List.map (\otherEId -> findLetAndPatMatchingExpLoose otherEId program) |> Utils.projJusts |> Maybe.map List.unzip of
             Nothing -> Nothing
-            Just (_, selectedPatterns) ->
+            Just (_, selectedOtherPatterns) ->
               let
                 funcName =
                   nonCollidingName
@@ -839,7 +841,7 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
                 -- Assumes no renamings between selected pat and extracted expression
                 -- Also assumes selected pat is not part of extracted expression
                 varEIdToBindingPat = allVarEIdsToBindingPatList program
-                selectedPatsAndChildren = selectedPatterns |> List.concatMap flattenPatTree
+                selectedPatsAndChildren = selectedOtherPatterns |> List.concatMap flattenPatTree
                 varEIdsCoveredBySelectedPatterns =
                   varEIdToBindingPat
                   |> List.filter (\(varEId, maybePat) -> Just True == (maybePat |> Maybe.map (\pat -> List.member pat selectedPatsAndChildren)))
@@ -848,7 +850,7 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
                 otherFreeVarsToParameterize =
                   Utils.removeAll funcBodyFreeVars (freeVars funcLocation)
                 argPats =
-                  selectedPatterns ++
+                  selectedOtherPatterns ++
                   ( otherFreeVarsToParameterize
                     |> List.filter (\freeVar -> not <| List.member freeVar.val.eid varEIdsCoveredBySelectedPatterns)
                     |> List.map expToIdent
@@ -864,7 +866,7 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
                 funcLet =
                   newLetFancyWhitespace
                       -1 False
-                      (pVar funcName)
+                      (pVar0 funcName)
                       (eFun (argPats |> setPatListWhitespace "" " ") (funcBody |> unindent |> replacePrecedingWhitespace "\n" |> indent "  "))
                       (justFindExpByEId programWithCall funcLocation.val.eid)
                       programWithCall
@@ -874,8 +876,13 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
                       funcLocation.val.eid
                       funcLet
                 caption = "Build abstraction of " ++ Utils.squish (unparse call)
+                funcBodyFreeIdents = funcBodyFreeVars |> List.map expToIdent |> Set.fromList
+                unusedArgs = argPats |> List.filter (\pat -> not <| Utils.anyOverlap [identifiersSetInPat pat, funcBodyFreeIdents])
               in
-              Just (InterfaceModel.synthesisResult caption programWithCallAndFunc |> InterfaceModel.setResultSafe False)
+              if List.length unusedArgs == List.length argPats then
+                Nothing
+              else
+                Just (InterfaceModel.synthesisResult caption programWithCallAndFunc |> InterfaceModel.setResultSafe False)
         )
       )
 

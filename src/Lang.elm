@@ -1661,7 +1661,7 @@ eTrue  = eBool True
 eFalse = eBool False
 
 eApp e es      = withDummyExpInfo <| EApp space1 e es space0
-eCall fName es = eApp (eVar fName) es
+eCall fName es = eApp (eVar0 fName) es
 eFun ps e      = withDummyExpInfo <| EFun space1 ps e space0
 
 desugarEApp e es = case es of
