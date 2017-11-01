@@ -87,5 +87,5 @@ subscriptions model =
     , DeucePopupPanelInfo.receiveDeucePopupPanelInfo
         Controller.msgReceiveDeucePopupPanelInfo
     -- , DependenceGraph.receiveImage Controller.msgReceiveDotImage
-    , Time.every Time.second Controller.msgUserStudyEverySecondTick
+    -- , Time.every Time.second Controller.msgUserStudyEverySecondTick
     ]
