@@ -279,11 +279,12 @@ patAsHTML modelRenamingInOutput showRemover pat  =
   let text =
     Html.span
         [ Attr.class "pat"
+        , Attr.title <| "Click to rename " ++ nameStr
         , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid)
         ] <|
         [ VirtualDom.text nameStr ] ++
         if showRemover
-        then [ Html.span [Attr.class "remove-arg", onMouseDownAndStop (Controller.msgRemoveArg pid)] [VirtualDom.text "❌"] ]
+        then [ Html.span [Attr.class "remove-arg", Attr.title <| "Remove arg "  ++ nameStr, onMouseDownAndStop (Controller.msgRemoveArg pid)] [VirtualDom.text "❌"] ]
         else []
       -- [ attr "font-family" params.mainSection.uiWidgets.font
       -- , attr "font-size" params.mainSection.uiWidgets.fontSize
@@ -475,7 +476,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
           case (maybeFuncBody, nothingSelectedInOutput model) of
             (Just funcBody, False) ->
               Just <|
-                flip Svg.text_ [VirtualDom.text "➕"] <| -- plus symbol (doesn't show up on black editor background)
+                flip Svg.text_ [Svg.title [] [VirtualDom.text "Add argument"], VirtualDom.text "➕"] <| -- plus symbol (doesn't show up on black editor background)
                   [ attr "font-family" params.mainSection.uiWidgets.font
                   , attr "font-size" params.mainSection.uiWidgets.fontSize
                   , attr "text-anchor" "end"
