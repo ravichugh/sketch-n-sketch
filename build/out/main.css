@@ -602,6 +602,7 @@ code {
 
 #outputCanvas {
   cursor: default;
+  overflow: auto;
 }
 
 .output-panel-warning {

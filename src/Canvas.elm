@@ -1,4 +1,4 @@
-module Canvas exposing (build, buildSvg, iconify)
+module Canvas exposing (build, iconify)
 
 -- Sketch-n-Sketch Libraries ---------------------------------------------------
 
@@ -99,7 +99,7 @@ build wCanvas hCanvas model =
       Just (_, Ok (val, widgets, slate)) -> (widgets, slate)
       _                                  -> (model.widgets, model.slate)
   in
-  let outputShapes = buildSvg (model, addZones) slate in
+  let outputShapes = buildHtml (model, addZones) slate in
   let newShape = drawNewShape model in
   let svgWidgets =
     case (model.mode, model.showGhosts) of
@@ -128,15 +128,15 @@ build wCanvas hCanvas model =
 
 
 --------------------------------------------------------------------------------
--- Compiling to Svg
+-- Compiling to Svg/Html
 
-buildSvg : (Model, Bool) -> LangSvg.RootedIndexedTree -> (Svg Msg)
-buildSvg options (i,d) = buildSvg_ options d i
+buildHtml : (Model, Bool) -> LangSvg.RootedIndexedTree -> (Svg Msg)
+buildHtml options (i,d) = buildHtml_ options False d i
 
-buildSvg_ : (Model, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> (Svg Msg)
-buildSvg_ stuff d i =
+buildHtml_ : (Model, Bool) -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> (Svg Msg)
+buildHtml_ stuff insideSvgNode d i =
   let (model, addZones) = stuff in
-  case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
+  case Utils.justGet_ ("buildHtml_ " ++ toString i) i d of
    LangSvg.TextNode text -> VirtualDom.text text
    LangSvg.SvgNode shape attrs js ->
     case (model.showGhosts, Utils.maybeRemoveFirst "HIDDEN" attrs) of
@@ -159,14 +159,30 @@ buildSvg_ stuff d i =
             LangSvg.AString "basic" ->
               let options' = { options | addRot = False, addColor = False } in
               (makeZones model options_ shape i attrs, l)
-            _ -> Debug.crash "buildSvg_"
+            _ -> Debug.crash "buildHtml_"
 -}
       in
-      let children = List.map (buildSvg_ stuff d) js in
-      -- let mainshape = (Svg.node shape) (LangSvg.compileAttrs attrs') children in
-      let mainshape =
-        let (rawKind, rawAttrs) = LangSvg.desugarShapeAttrs shape attrs_ in
-        (Svg.node rawKind) (LangSvg.compileAttrs rawAttrs) children in
+      let (rawKind, compiledAttrs) =
+        attrs_
+          |> LangSvg.desugarShapeAttrs shape
+          |> Tuple.mapSecond LangSvg.compileAttrs
+      in
+{-
+      Not simply doing the following because want to treat 'text' node
+      differently when it's inside an 'svg' node.
+
+      let node =
+        if List.member rawKind ["svg", "line", "rect", ...]
+          then Svg.node   -- adds http://www.w3.org/2000/svg namespace attribute
+          else Html.node
+-}
+      let (node, isSvgNode) =
+        if rawKind == "svg" then (Svg.node, True)
+        else if insideSvgNode then (Svg.node, True)
+        else (Html.node, False)
+      in
+      let children = List.map (buildHtml_ stuff isSvgNode d) js in
+      let mainshape = (node rawKind) compiledAttrs children in
       if zones == []
         then mainshape
         else Svg.svg [] (mainshape :: zones)
@@ -186,7 +202,7 @@ iconify env code =
       Utils.fromOkay "Error resolving index tree of icon"
         <| LangSvg.resolveToIndexedTree 1 1 0 val
     svgElements =
-      buildSvg ({ initModel | showGhosts = False }, False) tree
+      buildHtml ({ initModel | showGhosts = False }, False) tree
     subPadding x =
       x - 10
   in
