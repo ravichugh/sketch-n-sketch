@@ -153,6 +153,8 @@
   ; TODO eta-reduced version:
   ; (def reverse (foldl cons nil))
 
+(def adjacentPairs (\xs (zip xs (tl xs))))
+
 ;; Given two numbers, creates the list between them (inclusive)
 (typ range (-> Num Num (List Num)))
 (defrec range (\(i j)
@@ -1703,6 +1705,66 @@
     (rect fill x y w h)
       ["stroke" stroke])
       ["stroke-width" strokeWidth])))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def columnsToRows (\columns
+  (let numColumns (len columns)
+  (let numRows ; maxColumnSize
+    (if (= numColumns 0) 0 (maximum (map len columns)))
+  (foldr
+    (\(col rows)
+      (let paddedCol (append col (repeat (- numRows (len col)) "."))
+      (map
+        (\[datum row] [ datum | row ])
+        (zip paddedCol rows))))
+    (repeat numRows [])
+    columns)
+))))
+
+(def border ['border' '1px solid black'])
+(def padding ['padding' '5px'])
+(def center ['align' 'center'])
+(def style (\list ['style' list]))
+(def onlyStyle (\list [(style list)]))
+
+(def td (\text
+  ['td' (onlyStyle [border padding])
+        [['text' [] [['TEXT' text]]]]]))
+
+(def th (\text
+  ['th' (onlyStyle [border padding center])
+        [['text' [] [['TEXT' text]]]]]))
+
+(def tr (\children
+  ['tr' (onlyStyle [border])
+        children]))
+
+(def table (\children
+  ['table' (onlyStyle [border padding]) children]))
+
+; (def table (\children
+;   (let [x y] [100 100]
+;   ['table' (onlyStyle [border padding
+;                       ["position" "relative"]
+;                       ["left" (toString x)]
+;                       ["top" (toString y)]]) children])))
+
+(def tableOfData (\data
+  (let letters (explode "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+  (let data (mapi (\[i row] [(+ i 1) | row]) data)
+  (let tableWidth (maximum (map len data))
+  (let headers
+    (tr (map (\letter (th letter)) (take letters tableWidth)))
+  (let rows
+    (map (\row (tr (map (\col (td (toString col))) row))) data)
+  (table
+    [ headers | rows ]
+))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
