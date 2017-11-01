@@ -14,6 +14,7 @@ build/out/viz.js
 build/out/dotGraph.js
 build/out/mode-little.js
 build/out/theme-chrome.js
+build/out/keyBlocker.js
 build/out/img/*
 *swp
 src/*swp

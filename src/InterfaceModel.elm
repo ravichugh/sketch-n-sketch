@@ -274,7 +274,9 @@ type ShapeToolKind
 
 type LambdaTool
   = LambdaBounds Exp
-  | LambdaAnchor Exp
+  | LambdaAnchor
+      Exp
+      (Maybe { width: Int, height: Int, xAnchor: Int, yAnchor: Int})
 
 type Caption
   = Hovering ZoneKey
@@ -319,6 +321,9 @@ isResultSafe (SynthesisResult {isSafe}) =
 
 resultDescription (SynthesisResult {description}) =
   description
+
+resultExp (SynthesisResult {exp}) =
+  exp
 
 setResultDescription description (SynthesisResult result) =
   SynthesisResult { result | description = description }
@@ -648,7 +653,7 @@ strLambdaTool lambdaTool =
   let strExp = String.trim << unparse in
   case lambdaTool of
     LambdaBounds e -> Utils.parens <| "\\bounds. " ++ strExp e ++ " bounds"
-    LambdaAnchor e -> Utils.parens <| "\\anchor. " ++ strExp e ++ " anchor"
+    LambdaAnchor e _ -> Utils.parens <| "\\anchor. " ++ strExp e ++ " anchor"
 
 --------------------------------------------------------------------------------
 
@@ -697,8 +702,24 @@ lambdaToolIcon tool =
   , code = case tool of
       LambdaBounds func ->
         "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10 90 90]))"
-      LambdaAnchor func ->
+      LambdaAnchor func Nothing ->
         "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10]))"
+      LambdaAnchor func (Just viewBoxAndAnchor) ->
+        Utils.parens <|
+          Utils.spaces <|
+            [ "svgViewBox"
+            , toString viewBoxAndAnchor.width
+            , toString viewBoxAndAnchor.height
+            , Utils.parens <|
+                Utils.spaces <|
+                  [ unparse func
+                  , Utils.bracks <|
+                      Utils.spaces
+                        [ toString viewBoxAndAnchor.xAnchor
+                        , toString viewBoxAndAnchor.yAnchor
+                        ]
+                  ]
+            ]
   }
 
 --------------------------------------------------------------------------------
@@ -1056,3 +1077,5 @@ initModel =
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
     }
+
+splash_i_2017_demo = True

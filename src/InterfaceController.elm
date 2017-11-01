@@ -216,6 +216,14 @@ addSlateAndCode old (exp, val) =
   |> Result.map (\(slate, code) -> (exp, val, slate, code))
 -}
 
+clearSelections : Model -> Model
+clearSelections old =
+  { old | selectedFeatures = Set.empty
+        , selectedShapes   = Set.empty
+        , selectedBlobs    = Dict.empty
+        }
+
+
 -- We may want to revisit our error handling so we don't have different error types floating around.
 discardErrorAnnotations : Result (String, Ace.Annotation) a -> Result String a
 discardErrorAnnotations result =
@@ -257,6 +265,10 @@ switchToCursorTool old =
 --
 rewriteInnerMostExpToMain exp =
   case exp.val.e__ of
+    EComment _ _ e       -> rewriteInnerMostExpToMain e
+    EOption _ _ _ _ e    -> rewriteInnerMostExpToMain e
+    ETyp _ _ _ e _       -> rewriteInnerMostExpToMain e
+    ETypeAlias _ _ _ e _ -> rewriteInnerMostExpToMain e
     ELet ws1 lk rec p1 e1 e2 ws2 ->
       replaceE__ exp (ELet ws1 lk rec p1 e1 (rewriteInnerMostExpToMain e2) ws2)
     _ ->
@@ -351,13 +363,13 @@ onClickPrimaryZone i k z old =
     else
       let selectThisShape () =
         Set.insert i <|
-          if old.keysDown == Keys.shift
+          if old.keysDown == [Keys.keyShift]
           then old.selectedShapes
           else Set.empty
       in
       let selectBlob blobId =
         Dict.insert blobId i <|
-          if old.keysDown == Keys.shift
+          if old.keysDown == [Keys.keyShift]
           then old.selectedBlobs
           else Dict.empty
       in
@@ -460,7 +472,7 @@ onMouseUp old =
 
     (_, MouseDrawNew points) ->
       let resetMouseMode model = { model | mouseMode = MouseNothing } in
-      case (old.tool, points, old.keysDown == Keys.shift) of
+      case (old.tool, points, old.keysDown == [Keys.keyShift]) of
 
         (Line _,     TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt2 pt1
         (HelperLine, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt2 pt1
@@ -529,7 +541,7 @@ tryRun old =
                 -- TODO should put program into Model
                 -- TODO actually, ideally not. caching introduces bugs
                 let program = splitExp e in
-                Draw.lambdaToolOptionsOf program ++ initModel.lambdaTools
+                Draw.lambdaToolOptionsOf program finalEnv ++ initModel.lambdaTools
               in
               let new =
                 loadLambdaToolIcons finalEnv { old | lambdaTools = lambdaTools_ }
@@ -929,7 +941,9 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 
 --------------------------------------------------------------------------------
 
-msgUndo = Msg "Undo" <| \old ->
+msgUndo = Msg "Undo" doUndo
+
+doUndo old =
   case old.history of
     ([], _) ->
       old
@@ -949,7 +963,9 @@ msgUndo = Msg "Undo" <| \old ->
       in
         upstateRun new
 
-msgRedo = Msg "Redo" <| \old ->
+msgRedo = Msg "Redo" doRedo
+
+doRedo old =
   case old.history of
     (_, []) ->
       old
@@ -1096,26 +1112,24 @@ msgKeyDown keyCode =
                   |> \m -> { m | deucePopupPanelAbove = True }
             in
               case (old.tool, old.mouseMode) of
-                (Cursor, _) ->
-                  { new | selectedFeatures = Set.empty
-                        , selectedShapes = Set.empty
-                        , selectedBlobs = Dict.empty
-                        }
+                (Cursor, _)         -> clearSelections new
                 (_, MouseNothing)   -> { new | tool = Cursor }
                 (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
                 _                   -> new
-        else if keyCode == Keys.keyMeta then
-          old
-          -- for now, no need to ever put keyMeta in keysDown
-          -- TODO need to put keyMeta in model, so know not to put the next key in model
-        {-
-        else if List.member Keys.keyMeta old.keysDown then
-          -- when keyMeta is down and another key k is downed,
-          -- there will not be a key up event for k. so, not putting
-          -- k in keysDown. if want to handle keyMeta + k, keep track
-          -- of this another way.
-          old
-        -}
+        else if keyCode == Keys.keyPlusEqual then
+          let newModel = doMakeEqual old in
+          newModel.synthesisResults
+          |> Utils.findFirst isResultSafe
+          |> Maybe.map (\synthesisResult -> { newModel | code = unparse (resultExp synthesisResult) } |> clearSynthesisResults |> upstateRun )
+          |> Maybe.withDefault old
+        else if keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          doDuplicate old
+        else if keyCode == Keys.keyG && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          doGroup old
+        else if keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          doUndo old
+        else if keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.any ((==) Keys.keyShift) old.keysDown && List.length old.keysDown == 2 then
+          doRedo old
         else if
           not currentKeyDown &&
           keyCode == Keys.keyShift
@@ -1129,7 +1143,15 @@ msgKeyDown keyCode =
 
 msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
   -- let _ = Debug.log "Key Up" (keyCode, old.keysDown) in
-  { old | keysDown = Utils.removeFirst keyCode old.keysDown }
+  if Keys.isCommandKey keyCode then
+    -- When keyMeta (command key) is down and another key k is downed,
+    -- there will not be a key up event for k.
+    -- So remove k when keyMeta goes up.
+    { old | keysDown = List.filter ((==) Keys.keyShift) old.keysDown }
+  else
+    { old | keysDown = Utils.removeAsSet keyCode old.keysDown }
+
+
 
 --------------------------------------------------------------------------------
 
@@ -1171,6 +1193,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
   in
   runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
     debugLog "new model" <|
+    clearSelections <|
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
@@ -1183,11 +1206,12 @@ msgDigHole = Msg "Dig Hole" <| \old ->
                                    mkLive old.syncOptions
                                      old.slideNumber old.movieNumber old.movieTime reparsed
                                      (newVal, newWidgets)
-            , selectedFeatures = Set.empty
       }
   )
 
-msgMakeEqual = Msg "Make Equal" <| \old ->
+msgMakeEqual = Msg "Make Equal" doMakeEqual
+
+doMakeEqual old =
   let synthesisResults =
     ValueBasedTransform.makeEqual
         old.inputExp
@@ -1273,9 +1297,8 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
-            , selectedFeatures = Set.empty
             , synthesisResults = maybeRunAutoSynthesis old reparsed
-      }
+      } |> clearSelections
       in
       { newer | mode = refreshMode_ newer
               , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
@@ -1305,7 +1328,10 @@ msgStopAutoSynthesisAndClear =
 
 --------------------------------------------------------------------------------
 
-msgGroupBlobs = Msg "Group Blobs" <| \old ->
+msgGroupBlobs = Msg "Group Blobs" doGroup
+
+doGroup =
+  \old ->
     case Blobs.isSimpleProgram old.inputExp of
       Nothing -> old
       Just simple ->
@@ -1317,7 +1343,9 @@ msgGroupBlobs = Msg "Group Blobs" <| \old ->
           (Ok (Just anchor), _) -> upstateRun <| ETransform.groupSelectedBlobsAround old simple anchor
           (Err err, _)          -> let _ = Debug.log "bad anchor" err in old
 
-msgDuplicateBlobs = Msg "Duplicate Blobs" <| \old ->
+msgDuplicateBlobs = Msg "Duplicate Blobs" doDuplicate
+
+doDuplicate old =
   upstateRun <| ETransform.duplicateSelectedBlobs old
 
 msgMergeBlobs = Msg "Merge Blobs" <| \old ->
@@ -1461,14 +1489,16 @@ msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
 
 --------------------------------------------------------------------------------
 
-showExpPreview old exp =
-  let previewCode = unparse exp in
-  case runAndResolve old exp of
-    Ok (val, widgets, slate, _) ->
-      { old | preview = Just (previewCode, Ok (val, widgets, slate)) }
+showCodePreview old code =
+  case parseE code of
+    Ok exp  -> showExpPreview old exp
+    Err err -> { old | preview = Just (code, Err (showError err)) }
 
-    Err s ->
-      { old | preview = Just (previewCode, Err s) }
+showExpPreview old exp =
+  let code = unparse exp in
+  case runAndResolve old exp of
+    Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, slate)) }
+    Err s                       -> { old | preview = Just (code, Err s) }
 
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
@@ -1519,12 +1549,9 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
 
 
 msgPreview expOrCode = Msg "Preview" <| \old ->
-  let previewExp =
-    case expOrCode of
-      Left exp   -> exp
-      Right code -> Utils.fromOkay "msgPreview" (parseE code)
-  in
-  showExpPreview old previewExp
+  case expOrCode of
+    Left exp   -> showExpPreview old exp
+    Right code -> showCodePreview old code
 
 msgClearPreview = Msg "Clear Preview" <| \old ->
   { old | preview = Nothing }
