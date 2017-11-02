@@ -21,6 +21,7 @@ import Ace
 import Config exposing (params)
 import Utils
 import Either exposing (Either(..))
+import ImpureGoodies
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -304,6 +305,13 @@ type alias LiveInfo =
 
 prepareLiveUpdates : Options -> Exp -> Canvas -> Result String LiveInfo
 prepareLiveUpdates options e (slate, widgets) =
+  -- prepareLiveUpdates_ options e (slate, widgets)
+  ImpureGoodies.logTimedRun "Sync.prepareLiveUpdates" (\() ->
+    prepareLiveUpdates_ options e (slate, widgets)
+  )
+
+prepareLiveUpdates_ : Options -> Exp -> Canvas -> Result String LiveInfo
+prepareLiveUpdates_ options e (slate, widgets) =
 
   let initSubstPlus = substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
