@@ -155,6 +155,7 @@ type alias Model =
   , scopeGraph : ScopeGraph
   , deuceState : DeuceWidgets.DeuceState
   , deuceToolsAndResults : List (List CachedDeuceTool)
+  , deuceToolResultPreviews : DeuceToolResultPreviews
   , selectedDeuceTool : Maybe CachedDeuceTool
   , showOnlyBasicTools : Bool
   , viewState : ViewState
@@ -600,6 +601,13 @@ type alias DeuceTool =
 type alias CachedDeuceTool =
   (DeuceTool, List SynthesisResult, Bool)
 
+type alias DeuceToolResultPreviews =
+  Dict
+    (List Int)   -- indexed by path
+    ( Preview
+    , String     -- CSS class
+    )
+
 --------------------------------------------------------------------------------
 
 runAndResolve : Model -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
@@ -1041,6 +1049,7 @@ initModel =
     , hoveringCodeBox = False
     , deuceState = DeuceWidgets.emptyDeuceState
     , deuceToolsAndResults = []
+    , deuceToolResultPreviews = Dict.empty
     , selectedDeuceTool = Nothing
     , showOnlyBasicTools = True
     , viewState =

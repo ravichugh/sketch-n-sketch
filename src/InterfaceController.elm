@@ -675,6 +675,7 @@ update msg oldModel =
 upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
   -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
+  -- let _ = Debug.log "Msg" caption in
   let _ = debugLog "Msg" caption in
   updateModel old
 
@@ -1825,6 +1826,7 @@ resetDeuceState m =
                 | enableDomainSpecificCodeTools =
                     m.enableDomainSpecificCodeTools
             }
+      , deuceToolResultPreviews = Dict.empty
       , selectedDeuceTool = Nothing
       , preview = Nothing
       , layoutOffsets =
@@ -1887,12 +1889,12 @@ toggleDeuceWidget widget model =
           , deuceRightClickMenuMode =
               newDeuceRightClickMenuMode
       }
-    deuceToolsAndResults =
-      DeuceTools.createToolCache almostNewModel
   in
     { almostNewModel
         | deuceToolsAndResults =
-            deuceToolsAndResults
+            DeuceTools.createToolCache almostNewModel
+        , deuceToolResultPreviews =
+            Dict.empty
     } |> DeuceTools.reselectDeuceTool
 
 msgMouseClickDeuceWidget widget =
@@ -2016,25 +2018,49 @@ msgSetGhostsShown shown =
 --------------------------------------------------------------------------------
 -- Deuce Tools
 
-msgHoverDeuceResult : String -> List Int -> Maybe Preview -> Msg
-msgHoverDeuceResult name path maybePreview =
-  Msg ("Hover Deuce Result \"" ++ name ++ "\" " ++ toString path) <|
-    setHoveredMenuPath path >>
-      case maybePreview of
-        Just preview ->
-          \m -> { m | preview = preview }
-        Nothing ->
-          identity
+msgHoverDeuceResult : Bool -> SynthesisResult -> List Int -> Msg
+msgHoverDeuceResult isRenamer (SynthesisResult result) path =
+  let maybeRunToolAndCachePreview m =
+    case (isRenamer, Dict.get path m.deuceToolResultPreviews) of
+      (True, _) -> -- TODO make renaming dynamically appear in the code
+        m
 
-msgLeaveDeuceResult : String -> List Int -> Maybe Preview -> Msg
-msgLeaveDeuceResult name path maybePreview =
-  Msg ("Leave Deuce Result \"" ++ name ++ "\" " ++ toString path) <|
-    clearHoveredMenuPath >>
-      case maybePreview of
-        Just preview ->
-          \m -> { m | preview = Nothing }
-        Nothing ->
-          identity
+      (False, Just (preview, _)) -> -- already run and cached
+        { m | preview = preview }
+
+      (False, Nothing) -> -- not already run and cached
+        let
+          (preview, class) =
+            -- CSS classes from SleekView leak out here. Oh, well.
+            case (result.isSafe, runAndResolve m result.exp) of
+              (True, Ok (val, widgets, slate, code)) ->
+                (Just (code, Ok (val, widgets, slate)), "expected-safe")
+              (True, Err err) ->
+                let _ = Debug.log "not safe after all!" err in
+                (Just (LangUnparser.unparse result.exp, Err err), "unexpected-unsafe")
+              (False, Ok (val, widgets, slate, code)) ->
+                (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
+              (False, Err err) ->
+                (Just (LangUnparser.unparse result.exp, Err err), "expected-unsafe")
+
+          deuceToolResultPreviews =
+            Dict.insert path (preview, class) m.deuceToolResultPreviews
+        in
+        { m
+        | preview = preview
+        , deuceToolResultPreviews = deuceToolResultPreviews
+        }
+  in
+  Msg
+    ("Hover Deuce Result \"" ++ result.description ++ "\" " ++ toString path)
+    (setHoveredMenuPath path >> maybeRunToolAndCachePreview)
+
+msgLeaveDeuceResult : SynthesisResult -> List Int -> Msg
+msgLeaveDeuceResult (SynthesisResult result) path =
+  let clearPreview m = { m | preview = Nothing } in
+  Msg
+    ("Leave Deuce Result \"" ++ result.description ++ "\" " ++ toString path)
+    (clearHoveredMenuPath >> clearPreview)
 
 msgUpdateRenameVarTextBox : String -> Msg
 msgUpdateRenameVarTextBox text =
@@ -2050,12 +2076,12 @@ msgUpdateRenameVarTextBox text =
                         FastParser.sanitizeVariableName text
                 }
         }
-      deuceToolsAndResults =
-        DeuceTools.updateRenameToolsInCache almostNewModel
     in
       { almostNewModel
           | deuceToolsAndResults =
-              deuceToolsAndResults
+              DeuceTools.updateRenameToolsInCache almostNewModel
+          , deuceToolResultPreviews =
+              Dict.empty
       } |> DeuceTools.reselectDeuceTool
 
 --------------------------------------------------------------------------------
@@ -2285,6 +2311,8 @@ msgSetEnableDomainSpecificCodeTools bool =
       { almostNewModel
           | deuceToolsAndResults =
               DeuceTools.createToolCache almostNewModel
+          , deuceToolResultPreviews =
+              Dict.empty
       }
 
 --------------------------------------------------------------------------------
