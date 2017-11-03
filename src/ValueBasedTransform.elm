@@ -9,7 +9,7 @@ module ValueBasedTransform exposing (..)
 import Lang exposing (..)
 import LangTools exposing (..)
 import FastParser exposing (prelude, freshen, substOf)
-import LangUnparser exposing (unparse)
+import LangUnparser exposing (unparseWD)
 import InterfaceModel
 import Eval
 import Sync
@@ -205,8 +205,8 @@ indexedRelateDistanceScore subst indexedLocIdsWithTarget locEqn =
   sumOfSquares / toFloat (List.length indexedLocIdsWithTarget)
 
 
-indexedRelate : Exp -> Set.Set ShapeWidgets.SelectedShapeFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
-indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
+indexedRelate : (Exp -> String) -> Exp -> Set.Set ShapeWidgets.SelectedShapeFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
+indexedRelate unparse originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
   case evalToSlateAndWidgetsResult originalExp slideNumber movieNumber movieTime of
     Err _    -> []
     Ok (slate, widgets) ->
@@ -322,8 +322,8 @@ type RelateType
   = Equalize
   | Relate
 
-makeEqual = synthesizeRelation Equalize
-relate    = synthesizeRelation Relate
+makeEqual unparse = synthesizeRelation unparse Equalize
+relate unparse    = synthesizeRelation unparse Relate
 
 -- Rank synthesis results by:
 --
@@ -364,9 +364,9 @@ rankComparedTo originalExp synthesisResults =
       )
 
 -- Returns list of synthesis results
-synthesizeRelation relateType originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
+synthesizeRelation unparse relateType originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
   let relateByPairs priorResults features =
-    relateOverlappingPairs relateType priorResults features slideNumber movieNumber movieTime syncOptions
+    relateOverlappingPairs unparse relateType priorResults features slideNumber movieNumber movieTime syncOptions
   in
   let selectedPoints =
     featurePoints (Set.toList selectedFeatures)
@@ -391,11 +391,11 @@ synthesizeRelation relateType originalExp selectedFeatures slideNumber movieNumb
 
 
 -- If given more than two features, run relate_ on each overlapping pair.
-relateOverlappingPairs relateType priorResults features slideNumber movieNumber movieTime syncOptions =
+relateOverlappingPairs unparse relateType priorResults features slideNumber movieNumber movieTime syncOptions =
   let relateMore results =
     case features of
       _::remainingFeatues ->
-        relateOverlappingPairs relateType results remainingFeatues slideNumber movieNumber movieTime syncOptions
+        relateOverlappingPairs unparse relateType results remainingFeatues slideNumber movieNumber movieTime syncOptions
 
       _ ->
         -- Shouldn't happen.
@@ -411,7 +411,7 @@ relateOverlappingPairs relateType priorResults features slideNumber movieNumber 
               Err s -> []
               Ok (slate, widgets) ->
                 let newResults =
-                  relate_ relateType priorExp featureA featureB slate widgets syncOptions
+                  relate_ unparse relateType priorExp featureA featureB slate widgets syncOptions
                 in
                 case newResults of
                   [] ->
@@ -501,7 +501,7 @@ relateOverlappingPairs relateType priorResults features slideNumber movieNumber 
 --       originalExp
 
 
-relate_ relateType originalExp featureA featureB slate widgets syncOptions =
+relate_ unparse relateType originalExp featureA featureB slate widgets syncOptions =
   let (_, tree) = slate in
   let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
   let featureDescription (nodeId, featureName) tree = featureName in
@@ -520,11 +520,11 @@ relate_ relateType originalExp featureA featureB slate widgets syncOptions =
            Equalize -> (featureDescription featureA tree) ++ " = " ++ (featureDescription featureB tree) ++ " "
            Relate   -> ""
        in
-       relate__ relateType originalExp featureAEqn featureBEqn syncOptions
+       relate__ unparse relateType originalExp featureAEqn featureBEqn syncOptions
        |> List.map (InterfaceModel.prependDescription descriptionPrefix)
 
 
-relate__ relateType originalExp featureAEqn featureBEqn syncOptions =
+relate__ unparse relateType originalExp featureAEqn featureBEqn syncOptions =
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
      (frozenLocIdsAndNumbers prelude))
@@ -846,7 +846,7 @@ locIdToWidgetDeclOf exp =
 locIdToWidgetDeclLittleOf : Exp -> Dict.Dict LocId String
 locIdToWidgetDeclLittleOf exp =
   (locIdToWidgetDeclOf exp)
-  |> Dict.map (\locId wd -> LangUnparser.unparseWD wd)
+  |> Dict.map (\locId wd -> unparseWD wd)
 
 
 pluckSelectedVals selectedFeatures slate widgets locIdToNumberAndLoc =

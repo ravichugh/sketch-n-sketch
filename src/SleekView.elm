@@ -33,7 +33,6 @@ import Canvas
 import LangTools
 import Sync
 import Lang exposing (Exp)
-import LangUnparser
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -375,11 +374,11 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
           (Just (code, Ok (val, widgets, slate)), "expected-safe")
         (True, Err err) ->
           let _ = Debug.log "not safe after all!" err in
-          (Just (LangUnparser.unparse result.exp, Err err), "unexpected-unsafe")
+          (Just (Model.unparser model result.exp, Err err), "unexpected-unsafe")
         (False, Ok (val, widgets, slate, code)) ->
           (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
         (False, Err err) ->
-          (Just (LangUnparser.unparse result.exp, Err err), "expected-unsafe")
+          (Just (Model.unparser model result.exp, Err err), "expected-unsafe")
     maybePreview =
       -- TODO make renaming dynamically appear in the code
       if isRenamer then

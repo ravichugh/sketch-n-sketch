@@ -952,6 +952,15 @@ unparser model =
     Elm ->
       ElmUnparser.unparse
 
+patternUnparser : Model -> Pat -> String
+patternUnparser model =
+  case model.programmingLanguage of
+    Little ->
+      LangUnparser.unparsePat
+
+    Elm ->
+      ElmUnparser.unparsePattern
+
 --------------------------------------------------------------------------------
 
 initTemplate : String

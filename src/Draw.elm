@@ -19,7 +19,6 @@ module Draw exposing
 import Lang exposing (..)
 import LangSvg
 import Blobs exposing (..)
-import LangUnparser exposing (unparse)
 import InterfaceModel exposing (..)
 import FastParser
 import LangTools
@@ -411,7 +410,7 @@ addPoint old (x, y) =
         programWithPoint =
           LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (TNamed space1 "Point"))
       in
-      { old | code = LangUnparser.unparse programWithPoint }
+      { old | code = InterfaceModel.unparser old programWithPoint }
 
     _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addPoint"
 
@@ -459,7 +458,7 @@ addOffsetAndMaybePoint old ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
               )
         in
         case maybeNewProgram of
-          Just newProgram -> { old | code = LangUnparser.unparse newProgram }
+          Just newProgram -> { old | code = InterfaceModel.unparser old newProgram }
           Nothing         -> old
 
       _ ->
@@ -479,7 +478,7 @@ addOffsetAndMaybePoint old ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
           programWithOffsetAndPoint =
             LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TNamed space1 "Point"))
         in
-        { old | code = LangUnparser.unparse programWithOffsetAndPoint }
+        { old | code = InterfaceModel.unparser old programWithOffsetAndPoint }
 
       _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addOffsetAndMaybePoint"
 
@@ -699,7 +698,7 @@ addLambdaBounds old (_,pt2) (_,pt1) func =
   let newBlob = withBoundsBlob eNew (bounds, "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
   let mainExp_ = addToMainExp newBlob mainExp in
-  let code = unparse (fuseExp (defs, mainExp_)) in
+  let code = InterfaceModel.unparser old (fuseExp (defs, mainExp_)) in
   { old | code = code }
 
   {- this version adds the call inside a new top-level definition:
@@ -724,7 +723,7 @@ addLambdaAnchor old _ (_,(x,y)) func =
   let newBlob = withAnchorBlob eNew (anchor , "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
   let mainExp_ = addToMainExp newBlob mainExp in
-  let code = unparse (fuseExp (defs, mainExp_)) in
+  let code = InterfaceModel.unparser old (fuseExp (defs, mainExp_)) in
   { old | code = code }
 
 addTextBox old click2 click1 =
@@ -753,7 +752,7 @@ addShape old newShapeKind newShapeExp =
   let defs_ = defs ++ [newDef] in
   let eNew = withDummyExpInfo (EVar (ws "\n  ") shapeVarName) in
   let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
-  let code = unparse (fuseExp (defs_, mainExp_)) in
+  let code = InterfaceModel.unparser old (fuseExp (defs_, mainExp_)) in
   { old | code = code }
 
 -- TODO: replace all calls to "add" to "addShapeToProgram"; remove "add"
@@ -777,7 +776,7 @@ add newShapeKind old newShapeLocals newShapeFunc newShapeArgs =
   let defs_ = defs ++ [newDef] in
   let eNew = withDummyExpInfo (EVar (ws "\n  ") shapeVarName) in
   let mainExp_ = addToMainExp (varBlob eNew shapeVarName) mainExp in
-  let code = unparse (fuseExp (defs_, mainExp_)) in
+  let code = InterfaceModel.unparser old (fuseExp (defs_, mainExp_)) in
 
   -- upstate Run
     { old | code = code }

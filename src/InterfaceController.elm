@@ -1191,6 +1191,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
 msgMakeEqual = Msg "Make Equal" <| \old ->
   let synthesisResults =
     ValueBasedTransform.makeEqual
+        (Model.unparser old)
         old.inputExp
         old.selectedFeatures
         old.slideNumber
@@ -1203,6 +1204,7 @@ msgMakeEqual = Msg "Make Equal" <| \old ->
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
     ValueBasedTransform.relate
+        (Model.unparser old)
         old.inputExp
         old.selectedFeatures
         old.slideNumber
@@ -1215,6 +1217,7 @@ msgRelate = Msg "Relate" <| \old ->
 msgIndexedRelate = Msg "Indexed Relate" <| \old ->
   let synthesisResults =
     ValueBasedTransform.indexedRelate
+        (Model.unparser old)
         old.inputExp
         old.selectedFeatures
         old.selectedShapes

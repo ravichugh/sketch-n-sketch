@@ -2,7 +2,6 @@ module DeuceWidgets exposing (..) -- TODO
 
 import Lang exposing (..)
 import LangTools
-import LangUnparser exposing (unparse, unparsePat)
 import Utils
 import Keys
 
