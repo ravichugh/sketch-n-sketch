@@ -11,7 +11,7 @@ import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
 import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature)
 import ExamplesGenerated as Examples
 import DefaultIconTheme
-import LangUnparser exposing (unparse, unparsePat)
+import LangUnparser
 import DependenceGraph exposing (ScopeGraph)
 import Ace
 import DeuceWidgets exposing (DeuceState)
@@ -637,7 +637,7 @@ runAndResolve model exp =
 slateAndCode : Model -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
 slateAndCode old (exp, val) =
   LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
-  |> Result.map (\slate -> (slate, unparse exp))
+  |> Result.map (\slate -> (slate, unparser old exp))
 
 --------------------------------------------------------------------------------
 
@@ -671,7 +671,7 @@ codeToShow model =
 --------------------------------------------------------------------------------
 
 strLambdaTool lambdaTool =
-  let strExp = String.trim << unparse in
+  let strExp = String.trim << LangUnparser.unparse in
   case lambdaTool of
     LambdaBounds e -> Utils.parens <| "\\bounds. " ++ strExp e ++ " bounds"
     LambdaAnchor e _ -> Utils.parens <| "\\anchor. " ++ strExp e ++ " anchor"
@@ -722,9 +722,9 @@ lambdaToolIcon tool =
   { iconName = Utils.naturalToCamelCase (strLambdaTool tool)
   , code = case tool of
       LambdaBounds func ->
-        "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10 90 90]))"
+        "(svgViewBox 100 100 (" ++ LangUnparser.unparse func ++ " [10 10 90 90]))"
       LambdaAnchor func Nothing ->
-        "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10]))"
+        "(svgViewBox 100 100 (" ++ LangUnparser.unparse func ++ " [10 10]))"
       LambdaAnchor func (Just viewBoxAndAnchor) ->
         Utils.parens <|
           Utils.spaces <|
@@ -733,7 +733,7 @@ lambdaToolIcon tool =
             , toString viewBoxAndAnchor.height
             , Utils.parens <|
                 Utils.spaces <|
-                  [ unparse func
+                  [ LangUnparser.unparse func
                   , Utils.bracks <|
                       Utils.spaces
                         [ toString viewBoxAndAnchor.xAnchor
@@ -1010,7 +1010,7 @@ initModel =
     unwrap (LangSvg.fetchEverything 1 1 0.0 v)
   in
   let liveModeInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
-  let code = unparse e in
+  let code = LangUnparser.unparse e in
     { code          = code
     , lastRunCode   = code
     , preview       = Nothing

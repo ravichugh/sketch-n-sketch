@@ -80,7 +80,6 @@ import Types
 import Ace
 import ParserUtils exposing (showError)
 import FastParser exposing (freshen)
-import LangUnparser
 import LangTools
 import LangSimplify
 import ValueBasedTransform
@@ -1166,15 +1165,15 @@ cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, childr
     , children    = children
     }
 
-cleanDedupSortSynthesisResults synthesisResults =
+cleanDedupSortSynthesisResults model synthesisResults =
   synthesisResults
   |> List.map cleanSynthesisResult
-  |> Utils.dedupBy (\(SynthesisResult {description, exp, sortKey, children}) -> LangUnparser.unparse exp)
+  |> Utils.dedupBy (\(SynthesisResult {description, exp, sortKey, children}) -> Model.unparser model exp)
   |> List.sortBy (\(SynthesisResult {description, exp, sortKey, children}) -> (LangTools.nodeCount exp, sortKey, description))
 
 maybeRunAutoSynthesis m e =
   if m.autoSynthesis
-    then cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch e)
+    then cleanDedupSortSynthesisResults m (ETransform.passiveSynthesisSearch e)
     else []
 
 msgCleanCode = Msg "Clean Code" <| \old ->
@@ -1224,7 +1223,7 @@ doMakeEqual old =
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
+  { old | synthesisResults = cleanDedupSortSynthesisResults old synthesisResults }
 
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
@@ -1237,7 +1236,7 @@ msgRelate = Msg "Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
+  { old | synthesisResults = cleanDedupSortSynthesisResults old synthesisResults }
 
 msgIndexedRelate = Msg "Indexed Relate" <| \old ->
   let synthesisResults =
@@ -1251,7 +1250,7 @@ msgIndexedRelate = Msg "Indexed Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSortSynthesisResults synthesisResults }
+  { old | synthesisResults = cleanDedupSortSynthesisResults old synthesisResults }
 
 -- msgMakeEquidistant = Msg "Make Equidistant" <| \old ->
 --   let newExp =
@@ -1541,7 +1540,7 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
           (False, _)   -> newModel -- Don't compute children if auto-synth off
           _            ->
             -- Compute child results.
-            let childResults = cleanDedupSortSynthesisResults (ETransform.passiveSynthesisSearch exp) in
+            let childResults = cleanDedupSortSynthesisResults newModel (ETransform.passiveSynthesisSearch exp) in
             let newTopLevelResults = setResultChildren pathByIndices childResults old.synthesisResults in
             { newModel | synthesisResults = newTopLevelResults
                        , hoveredSynthesisResultPathByIndices = pathByIndices }
