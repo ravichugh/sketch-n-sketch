@@ -233,7 +233,7 @@ discardErrorAnnotations result =
 runWithErrorHandling model exp onOk =
   let result =
     -- runWithErrorHandling is called after synthesis. Recompute line numbers.
-    let reparsedResult = unparser model exp |> parser model |> (Result.mapError showError) in
+    let reparsedResult = Model.unparser model exp |> Model.parser model |> (Result.mapError showError) in
     reparsedResult
     |> Result.andThen (\reparsed ->
       runAndResolve model reparsed
@@ -423,7 +423,7 @@ onMouseDrag lastPosition newPosition old =
 
       Eval.run newExp |> Result.andThen (\(newVal, newWidgets) ->
       LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
-        let newCode = unparser old newExp in
+        let newCode = Model.unparser old newExp in
         { old | code = newCode
               , lastRunCode = newCode
               , inputExp = newExp
@@ -465,7 +465,7 @@ onMouseUp old =
     (PrintScopeGraph _, _) -> old
 
     (_, MouseDragZone zoneKey (Just _)) ->
-      let e = Utils.fromOkay "onMouseUp" <| parser old old.code in
+      let e = Utils.fromOkay "onMouseUp" <| Model.parser old old.code in
       let old_ = { old | inputExp = e } in
       refreshHighlights zoneKey
         { old_ | mouseMode = MouseNothing, mode = refreshMode_ old_
@@ -515,7 +515,7 @@ tryRun old =
       in
         { old | history = updatedHistory }
   in
-    case parser old old.code of
+    case Model.parser old old.code of
       Err err ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok e ->
@@ -537,7 +537,7 @@ tryRun old =
           Result.andThen (\((newVal,ws),finalEnv) ->
             LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
-              let newCode = unparser old e in -- unnecessary, if parse/unparse were inverses
+              let newCode = Model.unparser old e in -- unnecessary, if parse/unparse were inverses
               let lambdaTools_ =
                 -- TODO should put program into Model
                 -- TODO actually, ideally not. caching introduces bugs
@@ -1062,7 +1062,7 @@ refreshInputExp : Model -> Model
 refreshInputExp old =
   let
     parseResult =
-      parser old old.code
+      Model.parser old old.code
     (newInputExp, codeClean) =
       case parseResult of
         Ok exp ->
@@ -1122,7 +1122,7 @@ msgKeyDown keyCode =
           let newModel = doMakeEqual old in
           newModel.synthesisResults
           |> Utils.findFirst isResultSafe
-          |> Maybe.map (\synthesisResult -> { newModel | code = unparse (resultExp synthesisResult) } |> clearSynthesisResults |> upstateRun )
+          |> Maybe.map (\synthesisResult -> { newModel | code = Model.unparser old (resultExp synthesisResult) } |> clearSynthesisResults |> upstateRun )
           |> Maybe.withDefault old
         else if keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doDuplicate old
@@ -1178,12 +1178,12 @@ maybeRunAutoSynthesis m e =
     else []
 
 msgCleanCode = Msg "Clean Code" <| \old ->
-  case parser old old.code of
+  case Model.parser old old.code of
     Err err ->
       { old | caption = Just (LangError (showError err)) }
     Ok reparsed ->
       let cleanedExp = LangSimplify.cleanCode reparsed in
-      let code_ = unparser old cleanedExp in
+      let code_ = Model.unparser old cleanedExp in
       if old.code == code_ then old
       else
         let _ = debugLog "Cleaned: " code_ in
@@ -1286,7 +1286,7 @@ msgIndexedRelate = Msg "Indexed Relate" <| \old ->
 
 msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   -- TODO unparse gets called twice, here and in runWith ...
-  let newCode = unparser old newExp in
+  let newCode = Model.unparser old newExp in
   let new =
     { old | code = newCode
           , lastRunCode = newCode
@@ -1495,12 +1495,12 @@ msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
 --------------------------------------------------------------------------------
 
 showCodePreview old code =
-  case unparser old code of
+  case Model.parser old code of
     Ok exp  -> showExpPreview old exp
     Err err -> { old | preview = Just (code, Err (showError err)) }
 
 showExpPreview old exp =
-  let code = unparser old exp in
+  let code = Model.unparser old exp in
   case runAndResolve old exp of
     Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, slate)) }
     Err s                       -> { old | preview = Just (code, Err s) }
@@ -1695,7 +1695,7 @@ handleNew template = (\old ->
       in
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
-        let code = unparser old e in
+        let code = Model.unparser old e in
         { initModel | inputExp      = e
                     , inputVal      = v
                     , code          = code
@@ -1919,7 +1919,7 @@ msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString w
 
 msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m ->
   -- TODO version of tryRun/upstateRun starting with parsed expression
-  upstateRun (resetDeuceState { m | code = unparser m exp })
+  upstateRun (resetDeuceState { m | code = Model.unparser m exp })
 
 --------------------------------------------------------------------------------
 -- DOT
@@ -2041,11 +2041,11 @@ msgHoverDeuceResult isRenamer (SynthesisResult result) path =
                 (Just (code, Ok (val, widgets, slate)), "expected-safe")
               (True, Err err) ->
                 let _ = Debug.log "not safe after all!" err in
-                (Just (LangUnparser.unparse result.exp, Err err), "unexpected-unsafe")
+                (Just (Model.unparser m result.exp, Err err), "unexpected-unsafe")
               (False, Ok (val, widgets, slate, code)) ->
                 (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
               (False, Err err) ->
-                (Just (LangUnparser.unparse result.exp, Err err), "expected-unsafe")
+                (Just (Model.unparser m result.exp, Err err), "expected-unsafe")
 
           deuceToolResultPreviews =
             Dict.insert path (preview, class) m.deuceToolResultPreviews
