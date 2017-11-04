@@ -81,13 +81,14 @@ unparse e =
         ++ " ->"
         ++ unparse body
 
-    EApp _ function arguments _ ->
+    EApp wsBefore function arguments _ ->
       case (ElmLang.isOperator function, arguments) of
         (True, [ left, right ]) ->
           unparse left ++ unparse function ++ unparse right
 
         _ ->
-          unparse function
+          wsBefore.val
+            ++ unparse function
             ++ String.concat (List.map unparse arguments)
 
     EList wsBefore members _ _ wsBeforeEnd ->
