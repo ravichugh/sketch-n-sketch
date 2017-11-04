@@ -13,6 +13,7 @@ build/out/proseScroller.js
 build/out/viz.js
 build/out/dotGraph.js
 build/out/mode-little.js
+build/out/mode-elm.js
 build/out/theme-chrome.js
 build/out/keyBlocker.js
 build/out/img/*
