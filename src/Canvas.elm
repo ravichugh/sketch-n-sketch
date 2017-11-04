@@ -501,10 +501,14 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
       WPoint xNumTr yNumTr ->
-        drawPointWidget i_ widget xNumTr yNumTr
+        if splash_i_2017_demo
+          then []
+          else drawPointWidget i_ widget xNumTr yNumTr
 
       WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign amountNumTr ->
-        drawOffsetWidget1D i_ baseX baseY axis sign amountNumTr
+        if splash_i_2017_demo
+          then []
+          else drawOffsetWidget1D i_ baseX baseY axis sign amountNumTr
   in
 
   List.concat <| Utils.mapi1 draw widgets

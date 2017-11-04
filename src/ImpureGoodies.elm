@@ -24,3 +24,15 @@ crashToNothing thunk =
 crashToError : (() -> a) -> Result String a
 crashToError thunk =
   Native.ImpureGoodies.crashToError thunk
+
+
+timedRun : (() -> a) -> (a, Float)
+timedRun thunk =
+  Native.ImpureGoodies.timedRun thunk
+
+
+logTimedRun : String -> (() -> a) -> a
+logTimedRun caption thunk =
+  let (result, time) = timedRun thunk in
+  let _ = Debug.log (caption ++ " milliseconds") time in
+  result

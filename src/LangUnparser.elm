@@ -8,6 +8,7 @@ module LangUnparser exposing
 import Lang exposing (..)
 import Utils
 import Config
+import ImpureGoodies
 
 import String
 import Dict
@@ -156,7 +157,14 @@ unparseTypeWithUniformWhitespace tipe =
       " " ++ Utils.parens ("forall" ++ sVars ++ recurse tipe1 ++ " ")
 
 unparse : Exp -> String
-unparse e = case e.val.e__ of
+unparse e =
+  unparse_ e
+  -- ImpureGoodies.logTimedRun "LangUnparser.unparse" (\() ->
+  --   unparse_ e
+  -- )
+
+unparse_ : Exp -> String
+unparse_ e = case e.val.e__ of
   EBase ws v -> ws.val ++ unparseBaseVal v
   EConst ws n l wd ->
     let (_,b,_) = l in
@@ -164,54 +172,54 @@ unparse e = case e.val.e__ of
     -- TODO: parse/unparse are not inverses for floats (e.g. 1.0)
   EVar ws x -> ws.val ++ x
   EFun ws1 [p] e1 ws2 ->
-    ws1.val ++ "(\\" ++ unparsePat p ++ unparse e1 ++ ws2.val ++ ")"
+    ws1.val ++ "(\\" ++ unparsePat p ++ unparse_ e1 ++ ws2.val ++ ")"
   EFun ws1 ps e1 ws2 ->
-    ws1.val ++ "(\\(" ++ (String.concat (List.map unparsePat ps)) ++ ")" ++ unparse e1 ++ ws2.val ++ ")"
+    ws1.val ++ "(\\(" ++ (String.concat (List.map unparsePat ps)) ++ ")" ++ unparse_ e1 ++ ws2.val ++ ")"
   EApp ws1 e1 es ws2 ->
-    ws1.val ++ "(" ++ unparse e1 ++ (String.concat (List.map unparse es)) ++ ws2.val ++ ")"
+    ws1.val ++ "(" ++ unparse_ e1 ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
   EList ws1 es ws2 Nothing ws3 ->
-    ws1.val ++ "[" ++ (String.concat (List.map unparse es)) ++ ws3.val ++ "]"
+    ws1.val ++ "[" ++ (String.concat (List.map unparse_ es)) ++ ws3.val ++ "]"
   EList ws1 es ws2 (Just eRest) ws3 ->
-    ws1.val ++ "[" ++ (String.concat (List.map unparse es)) ++ ws2.val ++ "|" ++ unparse eRest ++ ws3.val ++ "]"
+    ws1.val ++ "[" ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ "|" ++ unparse_ eRest ++ ws3.val ++ "]"
   EOp ws1 op es ws2 ->
-    ws1.val ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse es)) ++ ws2.val ++ ")"
+    ws1.val ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
   EIf ws1 e1 e2 e3 ws2 ->
-    ws1.val ++ "(if" ++ unparse e1 ++ unparse e2 ++ unparse e3 ++ ws2.val ++ ")"
+    ws1.val ++ "(if" ++ unparse_ e1 ++ unparse_ e2 ++ unparse_ e3 ++ ws2.val ++ ")"
   ELet ws1 Let b p e1 e2 ws2 ->
     case p.val.p__ of
       PVar _ "_IMPLICIT_MAIN" _ ->
         ""
       _ ->
         let tok = if b then "letrec" else "let" in
-        ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse e1 ++ unparse e2 ++ ws2.val ++ ")"
+        ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse_ e1 ++ unparse_ e2 ++ ws2.val ++ ")"
   ELet ws1 Def b p e1 e2 ws2 ->
     -- TODO don't used nested defs until this is re-worked
     let tok = if b then "defrec" else "def" in
-    ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse e1 ++ ws2.val ++ ")" ++ unparse e2
+    ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse_ e1 ++ ws2.val ++ ")" ++ unparse_ e2
   ECase ws1 e1 bs ws2 ->
     let branchesStr =
       String.concat
-        <| List.map (\(Branch_ bws1 pat exp bws2) -> bws1.val ++ "(" ++ unparsePat pat ++ unparse exp ++ bws2.val ++ ")")
+        <| List.map (\(Branch_ bws1 pat exp bws2) -> bws1.val ++ "(" ++ unparsePat pat ++ unparse_ exp ++ bws2.val ++ ")")
         <| List.map (.val) bs
     in
-    ws1.val ++ "(case" ++ unparse e1 ++ branchesStr ++ ws2.val ++ ")"
+    ws1.val ++ "(case" ++ unparse_ e1 ++ branchesStr ++ ws2.val ++ ")"
   ETypeCase ws1 pat tbranches ws2 ->
     let tbranchesStr =
       String.concat
-        <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparse exp ++ bws2.val ++ ")")
+        <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparse_ exp ++ bws2.val ++ ")")
         <| List.map (.val) tbranches
     in
     ws1.val ++ "(typecase" ++ unparsePat pat ++ tbranchesStr ++ ws2.val ++ ")"
   EComment ws s e1 ->
-    ws.val ++ ";" ++ s ++ "\n" ++ unparse e1
+    ws.val ++ ";" ++ s ++ "\n" ++ unparse_ e1
   EOption ws1 s1 ws2 s2 e1 ->
-    ws1.val ++ "# " ++ s1.val ++ ":" ++ ws2.val ++ s2.val ++ "\n" ++ unparse e1
+    ws1.val ++ "# " ++ s1.val ++ ":" ++ ws2.val ++ s2.val ++ "\n" ++ unparse_ e1
   ETyp ws1 pat tipe e ws2 ->
-    ws1.val ++ "(typ" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse e
+    ws1.val ++ "(typ" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
   EColonType ws1 e ws2 tipe ws3 ->
-    ws1.val ++ "(" ++ (unparse e) ++ ws2.val ++ ":" ++ (unparseType tipe) ++ ws3.val ++ ")"
+    ws1.val ++ "(" ++ (unparse_ e) ++ ws2.val ++ ":" ++ (unparseType tipe) ++ ws3.val ++ ")"
   ETypeAlias ws1 pat tipe e ws2 ->
-    ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse e
+    ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
 
 
 unparseWithIds : Exp -> String

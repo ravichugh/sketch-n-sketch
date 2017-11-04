@@ -28,6 +28,14 @@ import Lang exposing (..)
 import Pos exposing (..)
 import Info exposing (..)
 
+import ImpureGoodies
+
+--==============================================================================
+--= PARSER WITH INFO
+--==============================================================================
+
+type alias ParserI a = Parser (WithInfo a)
+
 --==============================================================================
 --= HELPERS
 --==============================================================================
@@ -1388,7 +1396,11 @@ parseE_ : (Exp -> Exp) -> String -> Result Error Exp
 parseE_ f = run (map f program)
 
 parseE : String -> Result Error Exp
-parseE = parseE_ freshen
+-- parseE = parseE_ freshen
+parseE s =
+  ImpureGoodies.logTimedRun "FastParser.parseE" (\() ->
+    parseE_ freshen s
+  )
 
 parseT : String -> Result Error Type
 parseT = run typ

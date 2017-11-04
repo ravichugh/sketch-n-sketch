@@ -368,23 +368,19 @@ groupHoverMenu model title onMouseEnter disallowSelectedFeatures =
 deuceSynthesisResult : Model -> List Int -> Bool -> SynthesisResult -> Html Msg
 deuceSynthesisResult model path isRenamer (SynthesisResult result) =
   let
-    (preview, class) =
-      case (result.isSafe, runAndResolve model result.exp) of
-        (True, Ok (val, widgets, slate, code)) ->
-          (Just (code, Ok (val, widgets, slate)), "expected-safe")
-        (True, Err err) ->
-          let _ = Debug.log "not safe after all!" err in
-          (Just (Model.unparser model result.exp, Err err), "unexpected-unsafe")
-        (False, Ok (val, widgets, slate, code)) ->
-          (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
-        (False, Err err) ->
-          (Just (Model.unparser model result.exp, Err err), "expected-unsafe")
-    maybePreview =
-      -- TODO make renaming dynamically appear in the code
-      if isRenamer then
-        Nothing
-      else
-        Just preview
+    alreadyRun =
+      Dict.member path model.deuceToolResultPreviews
+
+    class =
+      case Dict.get path model.deuceToolResultPreviews of
+        Nothing -> -- tool result Exp has not yet been run and cached
+          if isRenamer then ""
+          else if result.isSafe then "expected-safe"
+          else "expected-unsafe"
+
+        Just (_, class) ->
+          class
+
     renameInput =
       if isRenamer then
         [ Html.input
@@ -409,7 +405,12 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
       if isRenamer then
         italicizeQuotes "'" result.description
       else
-        [ Html.text result.description
+        [ Html.text <|
+            -- indicating whether or not tool has been run and cached
+            -- TODO either remove this, or show a nicer, subtle indicator
+            if alreadyRun
+              then result.description ++ " ✓"
+              else result.description
         ]
   in
     generalHtmlHoverMenu class
@@ -418,8 +419,8 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
             description
         ] ++ additionalInputs
       )
-      (Controller.msgHoverDeuceResult result.description path maybePreview)
-      (Controller.msgLeaveDeuceResult result.description path maybePreview)
+      (Controller.msgHoverDeuceResult isRenamer (SynthesisResult result) path)
+      (Controller.msgLeaveDeuceResult (SynthesisResult result) path)
       (Controller.msgChooseDeuceExp result.description result.exp)
       False
       []
@@ -441,8 +442,8 @@ deuceSynthesisResults model path isRenamer results =
         []
     ]
   else
-    List.map
-      (deuceSynthesisResult model path isRenamer)
+    Utils.mapi1
+      (\(i, result) -> deuceSynthesisResult model (path ++ [i]) isRenamer result)
       results
 
 deuceHoverMenu : Model -> (Int, CachedDeuceTool) -> Html Msg
@@ -667,20 +668,23 @@ menuBar model =
                         Controller.msgDigHole
                     , relateHoverMenu
                         model
-                        "Make Equal"
+                        "Make Equal (=)"
                         Controller.msgMakeEqual
-                    , relateHoverMenu
-                        model
-                       "Relate"
-                        Controller.msgRelate
-                    , relateHoverMenu
-                        model
-                        "Indexed Relate"
-                        Controller.msgIndexedRelate
-                    ]
+                    ] ++
+                    if splash_i_2017_demo then []
+                    else
+                      [ relateHoverMenu
+                          model
+                         "Relate"
+                          Controller.msgRelate
+                      , relateHoverMenu
+                          model
+                          "Indexed Relate"
+                          Controller.msgIndexedRelate
+                      ]
                   , [ groupTextButton
                         model
-                        "Dupe"
+                        "Dupe (⌘D)"
                         Controller.msgDuplicateBlobs
                         True
                     , groupTextButton
@@ -690,7 +694,7 @@ menuBar model =
                         True
                     , groupTextButton
                         model
-                        "Group"
+                        "Group (⌘G)"
                         Controller.msgGroupBlobs
                         False
                     , groupTextButton
@@ -1113,6 +1117,7 @@ synthesisResultsSelect model =
       (if isSafe then "" else "[UNSAFE] ") ++
       (Regex.replace Regex.All (Regex.regex "^Original -> | -> Cleaned$") (\_ -> "") description) ++
       " (" ++ toString (LangTools.nodeCount exp) ++ ")" ++ " " ++ toString sortKey
+
     resultButtonList priorPathByIndices remainingPathByIndices results =
       results
         |> Utils.mapi0
@@ -1141,7 +1146,9 @@ synthesisResultsSelect model =
                           []
                   in
                     [ synthesisResultHoverMenu
-                        (desc description exp isSafe sortKey)
+                        (if splash_i_2017_demo
+                           then ("Option " ++ toString (i+1))
+                           else (desc description exp isSafe sortKey))
                         thisElementPath
                         exp
                         nextMenu
@@ -2220,11 +2227,9 @@ deucePopupPanel model =
       , content =
           [ let
               activeTools =
-                List.concatMap
-                  (    List.filter (Utils.fst3 >> DeuceTools.isActive model)
-                    >> Utils.mapi1 (deuceHoverMenu model)
-                  )
-                  model.deuceToolsAndResults
+                model.deuceToolsAndResults
+                  |> List.concatMap (List.filter (Utils.fst3 >> DeuceTools.isActive model))
+                  |> Utils.mapi1 (deuceHoverMenu model)
             in
               if List.isEmpty activeTools then
                 Html.div

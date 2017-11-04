@@ -140,9 +140,15 @@ prelude =
 (typ hd (forall a (-> (List a) a)))
 (def hd (\\[x|xs] x))
 
-;; Returns the last element of a given list
 (typ tl (forall a (-> (List a) (List a))))
 (def tl (\\[x|xs] xs))
+
+;; Returns the last element of a given list
+(typ last (forall a (-> (List a) a)))
+(defrec last (\\xs
+  (case xs
+    ([x]    x)
+    ([_|xs] (last xs)))))
 
 ;; Given a list, reverse its order
 (typ reverse (forall a (-> (List a) (List a))))
@@ -179,6 +185,11 @@ prelude =
     ([[x|xs1] [y|ys1]] (cons x (cons y (intermingle xs1 ys1))))
     ([[]      []]      nil)
     (_                 (append xs ys)))))
+
+(def intersperse (\\(sep xs)
+  (case xs
+    ([]     xs)
+    ([x|xs] (reverse (foldl (\\(y acc) [ y sep | acc ]) [x] xs))))))
 
 (typ mapi (forall (a b) (-> (-> [Num a] b) (List a) (List b))))
 (def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
@@ -237,6 +248,17 @@ prelude =
   (case ys
     ([]      false)
     ([y|ys1] (or (= x y) (elem x ys1))))))
+
+(def sortBy (\\(f xs)
+  (letrec ins (\\(x ys)   ; insert is a keyword...
+    (case ys
+      ([]     [x])
+      ([y|ys] (if (f x y) [x y | ys] [y | (ins x ys)]))))
+  (foldl ins [] xs))))
+
+(def sortAscending (sortBy lt))
+(def sortDescending (sortBy gt))
+
 
 ;; multiply two numbers and return the result
 (typ mult (-> Num Num Num))
@@ -1668,11 +1690,16 @@ prelude =
 
 (def draw svg)
 
-(def show (\\val
-   ['text' [['x' 20] ['y' 30] ['style' 'fill:black']
+(def showOne (\\(x y val)
+   ['text' [['x' x] ['y' y] ['style' 'fill:black']
             ['font-family' 'monospace']
             ['font-size' '12pt']]
            [['TEXT' (toString val)]]]))
+
+(def show (showOne 20 30))
+
+(def showList (\\vals
+  ['g' [] (mapi (\\[i val] (showOne 20 (* (+ i 1) 30) val)) vals)]))
 
 (def rectWithBorder (\\(stroke strokeWidth fill x y w h)
   (addAttr (addAttr
