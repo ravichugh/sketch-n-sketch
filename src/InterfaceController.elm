@@ -1152,6 +1152,8 @@ msgKeyDown keyCode =
           doUndo old
         else if keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.any ((==) Keys.keyShift) old.keysDown && List.length old.keysDown == 2 then
           doRedo old
+        else if keyCode == Keys.keyEnter && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          upstateRun old
         else if
           not currentKeyDown &&
           keyCode == Keys.keyShift
