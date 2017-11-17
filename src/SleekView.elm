@@ -984,6 +984,16 @@ menuBar model =
                             "Off"
                             Controller.msgStopAutoSynthesisAndClear
                         ]
+                    , hoverMenu "Output Synchronization"
+                        [ simpleTextRadioButton
+                            (model.liveSyncDelay == False)
+                            "Live"
+                            (Controller.msgSetLiveSyncDelay False)
+                        , simpleTextRadioButton
+                            (model.liveSyncDelay == True)
+                            "Delayed"
+                            (Controller.msgSetLiveSyncDelay True)
+                        ]
                     , hoverMenu "Live Update Heuristics"
                         [ simpleTextRadioButton
                             ( model.syncOptions.feelingLucky ==
@@ -1007,8 +1017,8 @@ menuBar model =
                     ]
                   , [ hoverMenu "Output Type"
                         [ simpleTextRadioButton
-                            ( case model.mode of
-                                Live _ ->
+                            ( case model.outputMode of
+                                Live ->
                                   True
                                 _ ->
                                   False
@@ -1016,7 +1026,7 @@ menuBar model =
                             "Graphics"
                             Controller.msgSetOutputLive
                         , simpleTextRadioButton
-                            ( case model.mode of
+                            ( case model.outputMode of
                                 Print _ ->
                                   True
                                 _ ->
@@ -1269,9 +1279,9 @@ codePanel model =
     cleanButton =
       let
         disabled =
-          case model.mode of
-            Live _ -> False
-            _      -> True
+          case model.outputMode of
+            Live -> False
+            _    -> True
       in
         disableableTextButton disabled "Clean Up" Controller.msgCleanCode
     runButton =
@@ -1411,7 +1421,7 @@ outputPanel model =
     dim =
       SleekLayout.outputCanvas model
     output =
-      case (model.errorBox, model.mode, model.preview) of
+      case (model.errorBox, model.outputMode, model.preview) of
         (_, _, Just (_, Err errorMsg)) ->
           textOutput errorMsg
         (_, _, Just (_, Ok _)) ->
