@@ -866,7 +866,7 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
                 funcLet =
                   newLetFancyWhitespace
                       -1 False
-                      (pVar0 funcName)
+                      (pVar funcName)
                       (eFun (argPats |> setPatListWhitespace "" " ") (funcBody |> unindent |> replacePrecedingWhitespace "\n" |> indent "  "))
                       (justFindExpByEId programWithCall funcLocation.val.eid)
                       programWithCall
