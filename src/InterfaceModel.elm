@@ -106,7 +106,9 @@ type alias Model =
   , runAnimation : Bool
   , slate : RootedIndexedTree
   , widgets : Widgets
-  , mode : Mode
+  , liveSyncInfo : Sync.LiveInfo
+  , liveSyncDelay : Bool
+  , outputMode : OutputMode
   , mouseMode : MouseMode
   , dimensions : Window.Size
 
@@ -155,6 +157,7 @@ type alias Model =
   , scopeGraph : ScopeGraph
   , deuceState : DeuceWidgets.DeuceState
   , deuceToolsAndResults : List (List CachedDeuceTool)
+  , deuceToolResultPreviews : DeuceToolResultPreviews
   , selectedDeuceTool : Maybe CachedDeuceTool
   , showOnlyBasicTools : Bool
   , viewState : ViewState
@@ -183,8 +186,8 @@ type alias Model =
   , lastSelectedTemplate : Maybe String
   }
 
-type Mode
-  = Live Sync.LiveInfo
+type OutputMode
+  = Live
   | Print RawSvg
       -- TODO put rawSvg in Model
       -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
@@ -600,6 +603,13 @@ type alias DeuceTool =
 type alias CachedDeuceTool =
   (DeuceTool, List SynthesisResult, Bool)
 
+type alias DeuceToolResultPreviews =
+  Dict
+    (List Int)   -- indexed by path
+    ( Preview
+    , String     -- CSS class
+    )
+
 --------------------------------------------------------------------------------
 
 runAndResolve : Model -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
@@ -623,7 +633,7 @@ slateAndCode old (exp, val) =
 mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
   LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
   Sync.prepareLiveUpdates opts e (slate, widgets)                    |> Result.andThen (\liveInfo ->
-    Ok (Live liveInfo)
+    Ok liveInfo
   ))
 
 mkLive_ opts slideNumber movieNumber movieTime e  =
@@ -636,9 +646,9 @@ mkLive_ opts slideNumber movieNumber movieTime e  =
 --------------------------------------------------------------------------------
 
 liveInfoToHighlights zoneKey model =
-  case model.mode of
-    Live info -> Sync.yellowAndGrayHighlights zoneKey info
-    _         -> []
+  case model.outputMode of
+    Live -> Sync.yellowAndGrayHighlights zoneKey model.liveSyncInfo
+    _    -> []
 
 --------------------------------------------------------------------------------
 
@@ -959,7 +969,7 @@ initModel =
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
     unwrap (LangSvg.fetchEverything 1 1 0.0 v)
   in
-  let liveModeInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
+  let liveSyncInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = unparse e in
     { code          = code
     , lastRunCode   = code
@@ -977,7 +987,9 @@ initModel =
     , runAnimation  = True
     , slate         = slate
     , widgets       = ws
-    , mode          = liveModeInfo
+    , liveSyncInfo  = liveSyncInfo
+    , liveSyncDelay = False
+    , outputMode    = Live
     , mouseMode     = MouseNothing
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
     , mouseState    = (Nothing, {x = 0, y = 0})
@@ -1041,6 +1053,7 @@ initModel =
     , hoveringCodeBox = False
     , deuceState = DeuceWidgets.emptyDeuceState
     , deuceToolsAndResults = []
+    , deuceToolResultPreviews = Dict.empty
     , selectedDeuceTool = Nothing
     , showOnlyBasicTools = True
     , viewState =

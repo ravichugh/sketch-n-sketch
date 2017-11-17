@@ -48,7 +48,6 @@ import Lang exposing (..)
 import Eval
 import Utils
 import Either exposing (Either(..))
-
 import ImpureGoodies
 
 ------------------------------------------------------------------------------
@@ -129,11 +128,15 @@ emptyTree =
 
 valToIndexedTree : Val -> Result String RootedIndexedTree
 valToIndexedTree v =
-  valToIndexedTree_ v (1, Dict.empty)
-  |> Result.map (\(nextId,tree) ->
-      let rootId = nextId - 1 in
-      (rootId, tree)
-    )
+  let thunk () =
+    valToIndexedTree_ v (1, Dict.empty)
+    |> Result.map (\(nextId,tree) ->
+        let rootId = nextId - 1 in
+        (rootId, tree)
+      )
+  in
+  thunk ()
+  -- ImpureGoodies.logTimedRun "LangSvg.valToIndexedTree" thunk
 
 valToIndexedTree_ v (nextId, d) =
   let thunk () =

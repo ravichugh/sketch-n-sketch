@@ -18,9 +18,10 @@ module InterfaceController exposing
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
-  , msgToggleCodeBox, msgToggleOutput
+  , msgToggleCodeBox
   , msgSetOutputLive, msgSetOutputPrint
   , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
+  , msgSetLiveSyncDelay
   , msgStartAnimation, msgRedraw, msgTickDelta
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
@@ -158,19 +159,18 @@ debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
 
-refreshMode model e =
+refreshLiveInfo model e =
   case mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e of
     Ok liveInfo ->
       liveInfo
 
     Err s ->
-      let _ = UserStudyLog.log "refreshMode Error" (toString s) in
-      Live { initSubstPlus = FastParser.substPlusOf e
-           , triggers = Dict.empty
-           }
+      let _ = UserStudyLog.log "refreshLiveInfo Error" (toString s) in
+      { initSubstPlus = FastParser.substPlusOf e
+      , triggers = Dict.empty
+      }
 
-
-refreshMode_ model = refreshMode model model.inputExp
+refreshLiveInfo_ model = refreshLiveInfo model model.inputExp
 
 -- TODO refresh type highlights, too
 refreshHighlights zoneKey model =
@@ -391,7 +391,9 @@ onClickPrimaryZone i k z old =
         , selectedBlobs = selectedBlobs_
         }
 
-onMouseDrag lastPosition newPosition old =
+
+onMouseDrag lastPosition old =
+  let newPosition = Tuple.second old.mouseState in
   let (mx0, my0) = (newPosition.x, newPosition.y) in
   let (isOnCanvas, (mx, my)) = clickToCanvasPoint old newPosition in
   let (_, (mxLast, myLast))  = clickToCanvasPoint old lastPosition in
@@ -409,30 +411,13 @@ onMouseDrag lastPosition newPosition old =
       old
 
     MouseDragZone zoneKey (Just (trigger, (mx0, my0), _)) ->
-      let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
-      let dy = if old.keysDown == Keys.x then 0 else (my - my0) in
-
-      let (newExp, highlights) = trigger (mx0, my0) (dx, dy) in
-
-      let codeBoxInfo_ =
-        let codeBoxInfo = old.codeBoxInfo in
-        { codeBoxInfo | highlights = highlights }
-      in
-      let dragInfo_ = (trigger, (mx0, my0), True) in
-
-      Eval.run newExp |> Result.andThen (\(newVal, newWidgets) ->
-      LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
-        let newCode = unparse newExp in
-        { old | code = newCode
-              , lastRunCode = newCode
-              , inputExp = newExp
-              , inputVal = newVal
-              , slate = newSlate
-              , widgets = newWidgets
-              , codeBoxInfo = codeBoxInfo_
-              , mouseMode = MouseDragZone zoneKey (Just dragInfo_)
-              }
-      )) |> handleError old
+      case old.liveSyncDelay of
+        False ->
+          applyTrigger zoneKey trigger (mx0, my0) (mx, my) old
+        True ->
+          -- TODO: define and run a version of trigger that applies to the
+          -- single value being manipulated, rather than the entire program.
+          old
 
     MouseDrawNew shapeBeingDrawn ->
       case (old.tool, shapeBeingDrawn) of
@@ -457,18 +442,21 @@ onMouseDrag lastPosition newPosition old =
       old
 
 onMouseUp old =
-  case (old.mode, old.mouseMode) of
+  case (old.outputMode, old.mouseMode) of
 
     (Print _, _) -> old
 
     (PrintScopeGraph _, _) -> old
 
-    (_, MouseDragZone zoneKey (Just _)) ->
-      let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
-      let old_ = { old | inputExp = e } in
-      refreshHighlights zoneKey
-        { old_ | mouseMode = MouseNothing, mode = refreshMode_ old_
-               , history = addToHistory old.code old_.history }
+    (Live, MouseDragZone zoneKey (Just (trigger, (mx0, my0), _))) ->
+      case old.liveSyncDelay of
+        False ->
+          finishTrigger zoneKey old
+        True ->
+          let (isOnCanvas, (mx, my)) = clickToCanvasPoint old (Tuple.second old.mouseState) in
+          old
+            |> applyTrigger zoneKey trigger (mx0, my0) (mx, my)
+            |> finishTrigger zoneKey
 
     (_, MouseDrawNew points) ->
       let resetMouseMode model = { model | mouseMode = MouseNothing } in
@@ -501,8 +489,43 @@ onMouseUp old =
 
         _              -> resetMouseMode old
 
-    _ -> { old | mouseMode = MouseNothing, mode = refreshMode_ old }
+    _ -> { old | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo_ old }
 
+applyTrigger zoneKey trigger (mx0, my0) (mx, my) old =
+  let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
+  let dy = if old.keysDown == Keys.x then 0 else (my - my0) in
+
+  let (newExp, highlights) = trigger (mx0, my0) (dx, dy) in
+
+  let codeBoxInfo_ =
+    let codeBoxInfo = old.codeBoxInfo in
+    { codeBoxInfo | highlights = highlights }
+  in
+  let dragInfo_ = (trigger, (mx0, my0), True) in
+
+  Eval.run newExp |> Result.andThen (\(newVal, newWidgets) ->
+  LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
+    let newCode = unparse newExp in
+    { old | code = newCode
+          , lastRunCode = newCode
+          , inputExp = newExp
+          , inputVal = newVal
+          , slate = newSlate
+          , widgets = newWidgets
+          , codeBoxInfo = codeBoxInfo_
+          , mouseMode = MouseDragZone zoneKey (Just dragInfo_)
+          }
+  )) |> handleError old
+
+finishTrigger zoneKey old =
+  let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
+  let old_ = { old | inputExp = e } in
+  refreshHighlights zoneKey
+    { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo_ old_
+           , history = addToHistory old.code old_.history }
+
+
+--------------------------------------------------------------------------------
 
 tryRun : Model -> Result (Model, String, Maybe Ace.Annotation) Model
 tryRun old =
@@ -627,7 +650,7 @@ tryRun old =
                     Types.dummyAceTypeInfo
               in
               resetDeuceState <|
-              { new_ | mode = refreshMode_ new_
+              { new_ | liveSyncInfo = refreshLiveInfo_ new_
                      , codeBoxInfo = updateCodeBoxInfo taskProgressAnnotation new_
                      }
             )
@@ -675,6 +698,7 @@ update msg oldModel =
 upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
   -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
+  -- let _ = Debug.log "Msg" caption in
   let _ = debugLog "Msg" caption in
   updateModel old
 
@@ -825,7 +849,7 @@ issueCommand (Msg kind _) oldModel newModel =
             -- and need to resize during and after the MouseDragLayout trigger.
             -- (onMouseUp). workaround for now: click widget again.
             AceCodeBox.resize newModel
-          else if kind == "Toggle Output" && newModel.mode == PrintScopeGraph Nothing then
+          else if kind == "Toggle Output" && newModel.outputMode == PrintScopeGraph Nothing then
             DependenceGraph.render newModel.scopeGraph
           else if newModel.runAnimation then
             AnimationLoop.requestFrame ()
@@ -1027,10 +1051,8 @@ msgMousePosition pos_ =
       case old.mouseState of
         (Nothing, _) ->
           { old | mouseState = (Nothing, pos_) }
-        (Just False, oldPos_) ->
-          onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
-        (Just True, oldPos_) ->
-          onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_) }
+        (Just _, oldPos_) ->
+          onMouseDrag oldPos_ { old | mouseState = (Just True, pos_) }
     deucePopupPanelPositionUpdater old =
       if Model.noWidgetsSelected old then
         let
@@ -1202,7 +1224,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
             , widgets          = newWidgets
             , preview          = Nothing
               -- we already ran it successfully once so it shouldn't crash the second time
-            , mode             = Utils.fromOk "DigHole MkLive" <|
+            , liveSyncInfo     = Utils.fromOk "DigHole MkLive" <|
                                    mkLive old.syncOptions
                                      old.slideNumber old.movieNumber old.movieTime reparsed
                                      (newVal, newWidgets)
@@ -1300,7 +1322,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , synthesisResults = maybeRunAutoSynthesis old reparsed
       } |> clearSelections
       in
-      { newer | mode = refreshMode_ newer
+      { newer | liveSyncInfo = refreshLiveInfo_ newer
               , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
               }
   )
@@ -1366,21 +1388,10 @@ msgToggleCodeBox = Msg "Toggle Code Box" <| \old ->
   { old | basicCodeBox = not old.basicCodeBox }
 
 msgSetOutputLive = Msg "Set Output Live" <| \old ->
-  { old | mode = refreshMode_ old }
+  { old | outputMode = Live }
 
 msgSetOutputPrint = Msg "Set Output Print" <| \old ->
-  { old | mode = Print (LangSvg.printSvg old.showGhosts old.slate) }
-
-msgToggleOutput = Msg "Toggle Output" <| \old ->
-  let m = case old.mode of
-    Live _  -> Print (LangSvg.printSvg old.showGhosts old.slate)
-    Print _ -> let showScopeGraph = False in
-               if showScopeGraph
-                 then PrintScopeGraph Nothing
-                 else refreshMode_ old
-    PrintScopeGraph _ -> refreshMode_ old
-  in
-  { old | mode = m }
+  { old | outputMode = Print (LangSvg.printSvg old.showGhosts old.slate) }
 
 updateHeuristics : Int -> Model -> Model
 updateHeuristics heuristic old =
@@ -1390,8 +1401,8 @@ updateHeuristics heuristic old =
     newSyncOptions =
       { oldSyncOptions | feelingLucky = heuristic }
   in
-    case old.mode of
-      Live _ ->
+    case old.outputMode of
+      Live ->
         case mkLive_
                newSyncOptions
                old.slideNumber
@@ -1399,7 +1410,7 @@ updateHeuristics heuristic old =
                old.movieTime
                old.inputExp of
           Ok m ->
-            { old | syncOptions = newSyncOptions, mode = m }
+            { old | syncOptions = newSyncOptions, liveSyncInfo = m }
           Err s ->
             { old | syncOptions = newSyncOptions, errorBox = Just s }
       _ -> { old | syncOptions = newSyncOptions }
@@ -1412,6 +1423,9 @@ msgSetHeuristicsNone =
 
 msgSetHeuristicsFair =
   Msg "Set Heuristics Fair" (updateHeuristics Sync.heuristicsFair)
+
+msgSetLiveSyncDelay b =
+  Msg "Set Live" (\m -> { m | liveSyncDelay = b })
 
 --------------------------------------------------------------------------------
 
@@ -1509,7 +1523,7 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
         , preview       = Nothing
         , synthesisResults = []
         , tool          = Cursor
-        , mode          = Utils.fromOk "SelectOption mkLive" <|
+        , liveSyncInfo  = Utils.fromOk "SelectOption mkLive" <|
                             mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
                               (val, []) -- TODO
         }
@@ -1558,7 +1572,7 @@ msgClearPreview = Msg "Clear Preview" <| \old ->
 
 msgCancelSync = Msg "Cancel Sync" <| \old ->
   upstateRun
-    { old | mode = refreshMode_ old }
+    { old | liveSyncInfo = refreshLiveInfo_ old }
 
 --------------------------------------------------------------------------------
 
@@ -1684,7 +1698,7 @@ handleNew template = (\old ->
     Just (_, thunk) ->
       let {e,v,ws,ati} = thunk () in
       let so = Sync.syncOptionsOf old.syncOptions e in
-      let m =
+      let outputMode =
         Utils.fromOk "SelectExample mkLive_" <|
           mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws)
       in
@@ -1696,7 +1710,7 @@ handleNew template = (\old ->
                     , code          = code
                     , lastRunCode   = code
                     , history       = ([code],[])
-                    , mode          = m
+                    , liveSyncInfo  = outputMode
                     , syncOptions   = so
                     , slideNumber   = 1
                     , slideCount    = slideCount
@@ -1825,6 +1839,7 @@ resetDeuceState m =
                 | enableDomainSpecificCodeTools =
                     m.enableDomainSpecificCodeTools
             }
+      , deuceToolResultPreviews = Dict.empty
       , selectedDeuceTool = Nothing
       , preview = Nothing
       , layoutOffsets =
@@ -1887,12 +1902,12 @@ toggleDeuceWidget widget model =
           , deuceRightClickMenuMode =
               newDeuceRightClickMenuMode
       }
-    deuceToolsAndResults =
-      DeuceTools.createToolCache almostNewModel
   in
     { almostNewModel
         | deuceToolsAndResults =
-            deuceToolsAndResults
+            DeuceTools.createToolCache almostNewModel
+        , deuceToolResultPreviews =
+            Dict.empty
     } |> DeuceTools.reselectDeuceTool
 
 msgMouseClickDeuceWidget widget =
@@ -1919,7 +1934,7 @@ msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m -
 -- DOT
 
 msgReceiveDotImage s = Msg "Receive Image" <| \m ->
-  { m | mode = Model.PrintScopeGraph (Just s) }
+  { m | outputMode = Model.PrintScopeGraph (Just s) }
 
 --------------------------------------------------------------------------------
 -- Menu Handling
@@ -2003,38 +2018,62 @@ msgSetGhostsShown shown =
   Msg "Set Ghosts Shown" <| \old ->
     let
       newMode =
-        case old.mode of
+        case old.outputMode of
           Print _ ->
             Print (LangSvg.printSvg shown old.slate)
           _ ->
-            old.mode
+            old.outputMode
     in
       { old | showGhosts = shown
-            , mode = newMode
+            , outputMode = newMode
       }
 
 --------------------------------------------------------------------------------
 -- Deuce Tools
 
-msgHoverDeuceResult : String -> List Int -> Maybe Preview -> Msg
-msgHoverDeuceResult name path maybePreview =
-  Msg ("Hover Deuce Result \"" ++ name ++ "\" " ++ toString path) <|
-    setHoveredMenuPath path >>
-      case maybePreview of
-        Just preview ->
-          \m -> { m | preview = preview }
-        Nothing ->
-          identity
+msgHoverDeuceResult : Bool -> SynthesisResult -> List Int -> Msg
+msgHoverDeuceResult isRenamer (SynthesisResult result) path =
+  let maybeRunToolAndCachePreview m =
+    case (isRenamer, Dict.get path m.deuceToolResultPreviews) of
+      (True, _) -> -- TODO make renaming dynamically appear in the code
+        m
 
-msgLeaveDeuceResult : String -> List Int -> Maybe Preview -> Msg
-msgLeaveDeuceResult name path maybePreview =
-  Msg ("Leave Deuce Result \"" ++ name ++ "\" " ++ toString path) <|
-    clearHoveredMenuPath >>
-      case maybePreview of
-        Just preview ->
-          \m -> { m | preview = Nothing }
-        Nothing ->
-          identity
+      (False, Just (preview, _)) -> -- already run and cached
+        { m | preview = preview }
+
+      (False, Nothing) -> -- not already run and cached
+        let
+          (preview, class) =
+            -- CSS classes from SleekView leak out here. Oh, well.
+            case (result.isSafe, runAndResolve m result.exp) of
+              (True, Ok (val, widgets, slate, code)) ->
+                (Just (code, Ok (val, widgets, slate)), "expected-safe")
+              (True, Err err) ->
+                let _ = Debug.log "not safe after all!" err in
+                (Just (LangUnparser.unparse result.exp, Err err), "unexpected-unsafe")
+              (False, Ok (val, widgets, slate, code)) ->
+                (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
+              (False, Err err) ->
+                (Just (LangUnparser.unparse result.exp, Err err), "expected-unsafe")
+
+          deuceToolResultPreviews =
+            Dict.insert path (preview, class) m.deuceToolResultPreviews
+        in
+        { m
+        | preview = preview
+        , deuceToolResultPreviews = deuceToolResultPreviews
+        }
+  in
+  Msg
+    ("Hover Deuce Result \"" ++ result.description ++ "\" " ++ toString path)
+    (setHoveredMenuPath path >> maybeRunToolAndCachePreview)
+
+msgLeaveDeuceResult : SynthesisResult -> List Int -> Msg
+msgLeaveDeuceResult (SynthesisResult result) path =
+  let clearPreview m = { m | preview = Nothing } in
+  Msg
+    ("Leave Deuce Result \"" ++ result.description ++ "\" " ++ toString path)
+    (clearHoveredMenuPath >> clearPreview)
 
 msgUpdateRenameVarTextBox : String -> Msg
 msgUpdateRenameVarTextBox text =
@@ -2050,12 +2089,12 @@ msgUpdateRenameVarTextBox text =
                         FastParser.sanitizeVariableName text
                 }
         }
-      deuceToolsAndResults =
-        DeuceTools.updateRenameToolsInCache almostNewModel
     in
       { almostNewModel
           | deuceToolsAndResults =
-              deuceToolsAndResults
+              DeuceTools.updateRenameToolsInCache almostNewModel
+          , deuceToolResultPreviews =
+              Dict.empty
       } |> DeuceTools.reselectDeuceTool
 
 --------------------------------------------------------------------------------
@@ -2285,6 +2324,8 @@ msgSetEnableDomainSpecificCodeTools bool =
       { almostNewModel
           | deuceToolsAndResults =
               DeuceTools.createToolCache almostNewModel
+          , deuceToolResultPreviews =
+              Dict.empty
       }
 
 --------------------------------------------------------------------------------
