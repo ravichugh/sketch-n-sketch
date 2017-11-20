@@ -630,18 +630,12 @@ slateAndCode old (exp, val) =
 
 --------------------------------------------------------------------------------
 
+mkLive : Sync.Options -> Int -> Int -> Float -> Exp -> (Val, Widgets) -> Result String Sync.LiveInfo
 mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
   LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
   Sync.prepareLiveUpdates opts e (slate, widgets)                    |> Result.andThen (\liveInfo ->
     Ok liveInfo
   ))
-
-mkLive_ opts slideNumber movieNumber movieTime e  =
-  let thunk () =
-    Eval.run e |> Result.andThen (mkLive opts slideNumber movieNumber movieTime e)
-  in
-  ImpureGoodies.crashToError thunk
-  |> Utils.unwrapNestedResult
 
 --------------------------------------------------------------------------------
 
