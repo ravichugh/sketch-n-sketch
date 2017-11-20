@@ -159,18 +159,21 @@ debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
 
-refreshLiveInfo model e =
-  case mkLive_ model.syncOptions model.slideNumber model.movieNumber model.movieTime e of
+refreshLiveInfo m =
+  case mkLive
+         m.syncOptions
+         m.slideNumber m.movieNumber m.movieTime
+         m.inputExp
+         (m.inputVal, m.widgets) of
+
     Ok liveInfo ->
       liveInfo
 
     Err s ->
       let _ = UserStudyLog.log "refreshLiveInfo Error" (toString s) in
-      { initSubstPlus = FastParser.substPlusOf e
+      { initSubstPlus = FastParser.substPlusOf m.inputExp
       , triggers = Dict.empty
       }
-
-refreshLiveInfo_ model = refreshLiveInfo model model.inputExp
 
 -- TODO refresh type highlights, too
 refreshHighlights zoneKey model =
@@ -489,7 +492,7 @@ onMouseUp old =
 
         _              -> resetMouseMode old
 
-    _ -> { old | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo_ old }
+    _ -> { old | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old }
 
 applyTrigger zoneKey trigger (mx0, my0) (mx, my) old =
   let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
@@ -521,7 +524,7 @@ finishTrigger zoneKey old =
   let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
   let old_ = { old | inputExp = e } in
   refreshHighlights zoneKey
-    { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo_ old_
+    { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
            , history = addToHistory old.code old_.history }
 
 
@@ -650,7 +653,7 @@ tryRun old =
                     Types.dummyAceTypeInfo
               in
               resetDeuceState <|
-              { new_ | liveSyncInfo = refreshLiveInfo_ new_
+              { new_ | liveSyncInfo = refreshLiveInfo new_
                      , codeBoxInfo = updateCodeBoxInfo taskProgressAnnotation new_
                      }
             )
@@ -1324,7 +1327,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , synthesisResults = maybeRunAutoSynthesis old reparsed
       } |> clearSelections
       in
-      { newer | liveSyncInfo = refreshLiveInfo_ newer
+      { newer | liveSyncInfo = refreshLiveInfo newer
               , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
               }
   )
@@ -1405,12 +1408,13 @@ updateHeuristics heuristic old =
   in
     case old.outputMode of
       Live ->
-        case mkLive_
+        case mkLive
                newSyncOptions
                old.slideNumber
                old.movieNumber
                old.movieTime
-               old.inputExp of
+               old.inputExp
+               (old.inputVal, old.widgets) of
           Ok m ->
             { old | syncOptions = newSyncOptions, liveSyncInfo = m }
           Err s ->
@@ -1574,7 +1578,7 @@ msgClearPreview = Msg "Clear Preview" <| \old ->
 
 msgCancelSync = Msg "Cancel Sync" <| \old ->
   upstateRun
-    { old | liveSyncInfo = refreshLiveInfo_ old }
+    { old | liveSyncInfo = refreshLiveInfo old }
 
 --------------------------------------------------------------------------------
 
@@ -1701,7 +1705,7 @@ handleNew template = (\old ->
       let {e,v,ws,ati} = thunk () in
       let so = Sync.syncOptionsOf old.syncOptions e in
       let outputMode =
-        Utils.fromOk "SelectExample mkLive_" <|
+        Utils.fromOk "SelectExample mkLive" <|
           mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws)
       in
       LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
