@@ -521,8 +521,22 @@ applyTrigger zoneKey trigger (mx0, my0) (mx, my) old =
   )) |> handleError old
 
 finishTrigger zoneKey old =
-  let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
-  let old_ = { old | inputExp = e } in
+  --
+  -- Sync.highlightChanges takes into account character length
+  -- changes to constants during live sync (via applyTrigger).
+  -- but Sync.yellowAndGrayHighlights does not, so workaround
+  -- is to re-parse and refreshHighlights.
+  --
+  --   let e = Utils.fromOkay "onMouseUp" <| parseE old.code in
+  --   let old_ = { old | inputExp = e } in
+  --
+  -- But this requires another Eval.run, which can be slow.
+  -- Removing this workaround (which means the yellow highlights
+  -- can be off after a live sync, until the next parse).
+  --
+  -- TODO: make a Sync.finishTrigger function that takes care of this.
+  --
+  let old_ = old in
   refreshHighlights zoneKey
     { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
            , history = addToHistory old.code old_.history }
