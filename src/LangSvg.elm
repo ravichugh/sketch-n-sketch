@@ -9,7 +9,8 @@ module LangSvg exposing
   , isSvg
   , valToIndexedTree
   , printSvg
-  , compileAttr, compileAttrs, desugarShapeAttrs -- TODO remove in favor of compileSvg
+  , compileAttr, compileAttrs
+  , desugarShapeAttrs
   , strAVal
   , aNum, aPoints, aTransform
   , toNum, toColorNum, toTransformRot, toPath
@@ -96,6 +97,9 @@ type alias PathCounts = {numPoints : Int}
 type alias Cmd = String -- single uppercase/lowercase letter
 
 type alias IdPoint = (Maybe Int, Point)
+
+replaceAv_ : AVal -> AVal_ -> AVal
+replaceAv_ av av_ = { av_ = av_, vtrace = av.vtrace }
 
 
 -- Max Attribute Values for Shape Widget Sliders --
@@ -432,7 +436,7 @@ printNode showGhosts k slate i =
   case Utils.justGet i slate of
     TextNode s -> s
     SvgNode kind_ l1_ l2 ->
-      let (kind,l1) = desugarShapeAttrs kind_ l1_ in
+      let (kind,l1) = desugarShapeAttrs 0 0 kind_ l1_ in
       case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
         (False, Just _) -> ""
         _ ->
@@ -468,32 +472,39 @@ specialAttrs = ["HIDDEN", "ZONES"]
 removeSpecialAttrs =
   List.filter (\(s,_) -> not (List.member s specialAttrs))
 
-desugarShapeAttrs shape0 attrs0 =
-  let mkNum n = aNum (n, dummyTrace) in
+desugarShapeAttrs : Int -> Int -> ShapeKind -> List Attr -> (ShapeKind, List Attr)
+desugarShapeAttrs xCanvas yCanvas shape0 attrs0 =
   Maybe.withDefault (shape0, attrs0) <|
-    case shape0 of
-      "BOX" ->
-        Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
-          let newAttrs =
-             [ ("x", mkNum left)
-             , ("y", mkNum top)
-             , ("width", mkNum (right - left))
-             , ("height", mkNum (bot - top))
-             ]
-          in ("rect", newAttrs ++ restOfAttrs)
-        ) (getBoundsAttrs attrs0)
-      "OVAL" ->
-        Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
-          let newAttrs =
-             [ ("cx", mkNum (left + (right - left) / 2))
-             , ("cy", mkNum (top + (bot - top) / 2))
-             , ("rx", mkNum ((right - left) / 2))
-             , ("ry", mkNum ((bot - top) / 2))
-             ]
-          in ("ellipse", newAttrs ++ restOfAttrs)
-        ) (getBoundsAttrs attrs0)
-      _ ->
-        Nothing
+    Utils.plusMaybe
+      (desugarFixedPosition xCanvas yCanvas shape0 attrs0)
+      (desugarBoundedShapes shape0 attrs0)
+
+desugarBoundedShapes : ShapeKind -> List Attr -> Maybe (ShapeKind, List Attr)
+desugarBoundedShapes shape0 attrs0 =
+  let mkNum n = aNum (n, dummyTrace) in
+  case shape0 of
+    "BOX" ->
+      Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
+        let newAttrs =
+           [ ("x", mkNum left)
+           , ("y", mkNum top)
+           , ("width", mkNum (right - left))
+           , ("height", mkNum (bot - top))
+           ]
+        in ("rect", newAttrs ++ restOfAttrs)
+      ) (getBoundsAttrs attrs0)
+    "OVAL" ->
+      Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
+        let newAttrs =
+           [ ("cx", mkNum (left + (right - left) / 2))
+           , ("cy", mkNum (top + (bot - top) / 2))
+           , ("rx", mkNum ((right - left) / 2))
+           , ("ry", mkNum ((bot - top) / 2))
+           ]
+        in ("ellipse", newAttrs ++ restOfAttrs)
+      ) (getBoundsAttrs attrs0)
+    _ ->
+      Nothing
 
 getBoundsAttrs attrs0 =
   Utils.maybeRemoveFirst "LEFT"  attrs0 |> Maybe.andThen (\(vL,attrs1) ->
@@ -505,6 +516,37 @@ getBoundsAttrs attrs0 =
         Just (left, top, right, bot, attrs4)
       _ -> Nothing
   ))))
+
+desugarFixedPosition : Int -> Int -> ShapeKind -> List Attr -> Maybe (ShapeKind, List Attr)
+desugarFixedPosition xCanvas yCanvas shape0 attrs0 =
+  Utils.maybeRemoveFirst "style" attrs0 |> Maybe.andThen (\(vStyle,attrs1) ->
+    case vStyle.av_ of
+      AStyle styles0 ->
+        -- implicitly assuming ("position", AString "fixed") is in styles0
+        Utils.maybeRemoveFirst "FIXED_LEFT" styles0 |> Maybe.andThen (\(vLeft,styles1) ->
+        Utils.maybeRemoveFirst "FIXED_TOP"  styles1 |> Maybe.andThen (\(vTop,styles2) ->
+          case (vLeft.av_, vTop.av_) of
+            (ANum ntLeft, ANum ntTop) ->
+              let
+                newLeft =
+                  plusNumTr ntLeft (toFloat xCanvas, TrLoc (dummyLoc_ frozen))
+                newTop =
+                  plusNumTr ntTop  (toFloat yCanvas, TrLoc (dummyLoc_ frozen))
+                newStyle =
+                  replaceAv_ vStyle <|
+                    AStyle <|
+                      ("left", replaceAv_ vLeft <| ANum newLeft)
+                        :: ("top", replaceAv_ vTop <| ANum newTop)
+                        :: styles2
+              in
+              Just (shape0, ("style", newStyle) :: attrs1)
+            _ ->
+              Nothing
+        ))
+
+      _ -> Nothing
+  )
+
 
 strAVal : AVal -> String
 strAVal a = case a.av_ of

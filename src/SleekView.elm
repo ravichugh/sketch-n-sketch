@@ -1418,20 +1418,20 @@ textOutput text =
 outputPanel : Model -> Html Msg
 outputPanel model =
   let
-    dim =
+    canvasDim =
       SleekLayout.outputCanvas model
     output =
       case (model.errorBox, model.outputMode, model.preview) of
         (_, _, Just (_, Err errorMsg)) ->
-          textOutput errorMsg
+          [textOutput errorMsg]
         (_, _, Just (_, Ok _)) ->
-          Canvas.build dim.width dim.height model
+          Canvas.build canvasDim model
         (Just errorMsg, _, Nothing) ->
-          textOutput errorMsg
+          [textOutput errorMsg]
         (Nothing, Print svgCode, Nothing) ->
-          textOutput svgCode
+          [textOutput svgCode]
         (Nothing, _, _) ->
-          Canvas.build dim.width dim.height model
+          Canvas.build canvasDim model
     outputPanelWarning =
       Html.div
         [ Attr.class "output-panel-warning"
@@ -1453,7 +1453,21 @@ outputPanel model =
           , ("height", (px << .height) <| SleekLayout.outputPanel model)
           ]
       ]
-      [ output
+      [ Html.div
+          --
+          -- Always create this div --- even when it's just showing a
+          -- text box and not HTML/SVG nodes --- because outputCanvas.js
+          -- looks for, and installs an onscroll handler for, this
+          -- element just once. So, don't want this element to
+          -- disappear/re-appear when just a text box is displayed.
+          --
+          [ Attr.id "outputCanvas"
+          , Attr.style
+              [ ("width", px canvasDim.width)
+              , ("height", px canvasDim.height)
+              ]
+          ]
+          output
       , outputPanelWarning
       ]
 

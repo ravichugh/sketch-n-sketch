@@ -11,6 +11,7 @@ module InterfaceController exposing
   , msgRun, upstateRun, msgTryParseRun
   , msgAceUpdate
   , msgUserHasTyped
+  , msgOutputCanvasUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate
   , msgSelectSynthesisResult, msgClearSynthesisResults
@@ -98,6 +99,7 @@ import SleekLayout exposing
   , deuceRightClickMenuMouseOffset
   )
 import AceCodeBox
+import OutputCanvas
 import AnimationLoop
 import FileHandler
 import ProseScroller
@@ -873,7 +875,14 @@ issueCommand (Msg kind _) oldModel newModel =
           else
             Cmd.none
         , if String.startsWith "New" kind then
-            AceCodeBox.resetScroll newModel
+            Cmd.batch
+              [ AceCodeBox.resetScroll newModel
+              , OutputCanvas.resetScroll
+              ]
+          else
+            Cmd.none
+        , if String.startsWith "Read File" kind then
+            OutputCanvas.resetScroll
           else
             Cmd.none
         , if String.startsWith "msgMouseClickDeuceWidget" kind then
@@ -951,6 +960,9 @@ msgUserHasTyped =
         | deuceState =
             emptyDeuceState
     }
+
+msgOutputCanvasUpdate outputCanvasInfo = Msg "Output Canvas Update" <| \old ->
+  { old | outputCanvasInfo = outputCanvasInfo }
 
 upstateRun old =
   case tryRun old of

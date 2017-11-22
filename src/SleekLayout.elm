@@ -16,7 +16,8 @@
 --------------------------------------------------------------------------------
 
 module SleekLayout exposing
-  ( px
+  ( BoundingBox
+  , px
   , half
   , clickToCanvasPoint
   , panelBorderWidth

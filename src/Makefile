@@ -8,6 +8,7 @@ all:
 html:
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
 	cp Native/aceCodeBox.js ../build/out/
+	cp Native/outputCanvas.js ../build/out/
 	cp Native/aceTooltips.js ../build/out/
 	cp Native/animationLoop.js ../build/out/
 	cp Native/fileHandler.js ../build/out/
@@ -52,6 +53,7 @@ loc:
     DeuceWidgets.elm Deuce.elm DeuceTools.elm \
     DependenceGraph.elm CodeMotion.elm Native/dotGraph.js \
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
+    OutputCanvas.elm Native/outputCanvas.js \
     AnimationLoop.elm Native/animationLoop.js \
     FileHandler.elm Native/fileHandler.js \
     DeucePopupPanelInfo.elm Native/deucePopupPanelInfo.js \
