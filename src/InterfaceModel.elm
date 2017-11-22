@@ -1085,4 +1085,4 @@ initModel =
     , lastSelectedTemplate = Nothing
     }
 
-splash_i_2017_demo = True
+splash_i_2017_demo = False
