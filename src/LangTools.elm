@@ -2038,49 +2038,22 @@ freeIdentifiers exp =
 
 freeVars : Exp -> List Exp
 freeVars exp =
-  freeVars_ Set.empty exp
-
-
-freeVars_ : Set.Set Ident -> Exp -> List Exp
-freeVars_ boundIdentsSet exp =
-  let recurse () =
-    List.concatMap (freeVars_ boundIdentsSet) (childExps exp)
+  let removeIntroducedBy pats vars =
+    let introduced = identifiersListInPats pats in
+    vars |> List.filter (\var -> not <| List.member (expToIdent var) introduced)
   in
   case exp.val.e__ of
-    EConst _ i l wd             -> []
-    EBase _ v                   -> []
-    EVar _ x                    -> if Set.member x boundIdentsSet then [] else [exp]
-    EFun _ ps e _               -> freeVars_ (Set.union (identifiersSetInPats ps) boundIdentsSet) e
-    EOp _ op es _               -> recurse ()
-    EList _ es _ m _            -> recurse ()
-    EIf _ e1 e2 e3 _            -> recurse ()
-    ECase _ e1 bs _             ->
-      let freeInScrutinee = freeVars_ boundIdentsSet e1 in
+    EVar _ x                           -> [exp]
+    EFun _ pats body _                 -> freeVars body |> removeIntroducedBy pats
+    ECase _ scrutinee branches _       ->
       let freeInEachBranch =
-        (List.map .val bs)
-        |> List.concatMap (\(Branch_ _ bPat bExp _) -> freeVars_ (Set.union (identifiersSetInPat bPat) boundIdentsSet) bExp)
+        branchPatExps branches
+        |> List.concatMap (\(bPat, bExp) -> freeVars bExp |> removeIntroducedBy [bPat])
       in
-      freeInScrutinee ++ freeInEachBranch
-
-    ETypeCase _ e1 tbranches _  -> recurse ()
-    EApp _ e1 es _              -> recurse ()
-    ELet _ _ False p e1 e2 _    ->
-      let freeInAssigns = freeVars_ boundIdentsSet e1 in
-      let freeInBody    = freeVars_ (Set.union (identifiersSetInPat p) boundIdentsSet) e2 in
-      freeInAssigns ++ freeInBody
-
-    ELet _ _ True p e1 e2 _ ->
-      let freeInAssigns = freeVars_ (Set.union (identifiersSetInPat p) boundIdentsSet) e1 in
-      let freeInBody    = freeVars_ (Set.union (identifiersSetInPat p) boundIdentsSet) e2 in
-      freeInAssigns ++ freeInBody
-
-    EComment _ _ e1       -> recurse ()
-    EOption _ _ _ _ e1    -> recurse ()
-    ETyp _ _ _ e1 _       -> recurse ()
-    EColonType _ e1 _ _ _ -> recurse ()
-    ETypeAlias _ _ _ e1 _ -> recurse ()
-    -- EVal _                -> Debug.crash "LangTools.freeVars_: shouldn't have an EVal in given expression"
-    -- EDict _               -> Debug.crash "LangTools.freeVars_: shouldn't have an EDict in given expression"
+      freeVars scrutinee ++ freeInEachBranch
+    ELet _ _ False pat boundExp body _ -> freeVars boundExp ++ (freeVars body |> removeIntroducedBy [pat])
+    ELet _ _ True  pat boundExp body _ -> freeVars boundExp ++ freeVars body |> removeIntroducedBy [pat]
+    _                                  -> childExps exp |> List.concatMap freeVars
 
 
 -- Probably not useful unless program has been run through assignUniqueNames
