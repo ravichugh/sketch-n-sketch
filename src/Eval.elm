@@ -88,7 +88,7 @@ doEval initEnv e =
   |> Result.map (\((val, widgets), env) -> ((val, postProcessWidgets widgets), env))
 
 
--- Do no use: you lose parent tagging.
+-- Do not use: you lose parent tagging.
 -- provenanceToMaybeVal : Provenance -> Maybe Val
 -- provenanceToMaybeVal (Provenance env e vs) =
 --   eval env [] e

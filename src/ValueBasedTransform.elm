@@ -816,6 +816,7 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
     Err s -> []
     Ok (_, widgets, slate, _) ->
       ShapeWidgets.selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs
+      |> List.map (\interp -> let _ = Utils.log <| String.join " " <| List.map (justFindExpByEId program >> unparse) interp in interp)
       |> List.concatMap (\interpretation ->
         -- 1. Choose an expression to be the output (try all)
         -- In this iteration, it is one of the selected expressions.

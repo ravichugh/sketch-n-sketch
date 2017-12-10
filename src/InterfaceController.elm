@@ -800,7 +800,7 @@ update msg oldModel =
 
 upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
-  let _ = if String.contains "Key" caption then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
+  let _ = if {-String.contains "Key" caption-} True then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
   let _ = debugLog "Msg" caption in
   updateModel old
 
