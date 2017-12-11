@@ -62,9 +62,10 @@ svgPath      = flip Svg.path []
 --------------------------------------------------------------------------------
 
 msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
-  case old.mode of
-    Live info ->
+  case old.outputMode of
+    Live ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
+      let info = old.liveSyncInfo in
       let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (Tuple.second old.mouseState) in
       let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
       let dragInfo = (trigger, (mx, my), False) in
@@ -89,10 +90,10 @@ msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
 
 
 build wCanvas hCanvas model =
-  let addZones = case (UserStudy.enabled, model.mode, model.preview) of
-    (True, _, _)         -> False
-    (_, Live _, Nothing) -> model.tool == Cursor
-    _                 -> False
+  let addZones = case (UserStudy.enabled, model.outputMode, model.preview) of
+    (True, _, _)       -> False
+    (_, Live, Nothing) -> model.tool == Cursor
+    _                  -> False
   in
   let (widgets, slate) =
     case model.preview of
@@ -102,9 +103,9 @@ build wCanvas hCanvas model =
   let outputShapes = buildSvg (model, addZones) slate in
   let newShape = drawNewShape model in
   let svgWidgets =
-    case (model.mode, model.showGhosts) of
-      (Live _, True ) -> buildSvgWidgets wCanvas hCanvas widgets model
-      _               -> []
+    case (model.outputMode, model.showGhosts) of
+      (Live, True ) -> buildSvgWidgets wCanvas hCanvas widgets model
+      _             -> []
   in
   Svg.svg
      [ Attr.id "outputCanvas"

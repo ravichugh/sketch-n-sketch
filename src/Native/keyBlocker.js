@@ -8,5 +8,6 @@ window.addEventListener("keydown", blockCommands);
 function blockCommands(event) {
   if (event.metaKey || event.ctrlKey) {
     if (event.keyCode == 68) { event.preventDefault(); } // Command-D
+    if (event.keyCode == 13) { event.preventDefault(); } // Command-Enter
   }
 }
