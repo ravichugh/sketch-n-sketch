@@ -32,6 +32,7 @@ import InterfaceModel exposing
 import LocEqn exposing ( LocEquation(..) )
 import Utils
 import Either exposing (..)
+import Syntax
 
 import Dict
 import Regex
@@ -2872,7 +2873,7 @@ rewriteOffsetTransformation m ppid nums =
     -- TODO can do some renaming to make it safe
     Nothing
   else
-    case pluck (InterfaceModel.patternUnparser m) ppid m.inputExp of
+    case pluck (Syntax.patternUnparser m.syntax) ppid m.inputExp of
       Nothing ->
         Nothing
       Just ((p, eBase), _) ->

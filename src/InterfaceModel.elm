@@ -11,7 +11,6 @@ import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
 import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature)
 import ExamplesGenerated as Examples
 import DefaultIconTheme
-import LangUnparser
 import DependenceGraph exposing (ScopeGraph)
 import Ace
 import DeuceWidgets exposing (DeuceState)
@@ -19,13 +18,8 @@ import Either exposing (Either(..))
 import Keys
 import Svg
 import LangSvg exposing (attr)
-
-import Parser
-
-import FastParser
+import Syntax exposing (Syntax)
 import LangUnparser
-import ElmParser
-import ElmUnparser
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -96,10 +90,6 @@ type CodeToolsMenuMode
   = CTAll
   | CTActive
   | CTDisabled
-
-type ProgrammingLanguage
-  = Little
-  | Elm
 
 type alias Model =
   { code : Code
@@ -194,7 +184,7 @@ type alias Model =
   , pendingGiveUpMsg : Maybe Msg
   , giveUpConfirmed : Bool
   , lastSelectedTemplate : Maybe String
-  , programmingLanguage : ProgrammingLanguage
+  , syntax : Syntax
   }
 
 type Mode
@@ -637,7 +627,7 @@ runAndResolve model exp =
 slateAndCode : Model -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
 slateAndCode old (exp, val) =
   LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
-  |> Result.map (\slate -> (slate, unparser old exp))
+  |> Result.map (\slate -> (slate, Syntax.unparser old.syntax exp))
 
 --------------------------------------------------------------------------------
 
@@ -963,35 +953,6 @@ deucePopupPanelShown model =
 
 --------------------------------------------------------------------------------
 
-parser : Model -> String -> Result Parser.Error Exp
-parser model =
-  case model.programmingLanguage of
-    Little ->
-      FastParser.parseE
-
-    Elm ->
-      ElmParser.parse
-
-unparser : Model -> Exp -> String
-unparser model =
-  case model.programmingLanguage of
-    Little ->
-      LangUnparser.unparse
-
-    Elm ->
-      ElmUnparser.unparse
-
-patternUnparser : Model -> Pat -> String
-patternUnparser model =
-  case model.programmingLanguage of
-    Little ->
-      LangUnparser.unparsePat
-
-    Elm ->
-      ElmUnparser.unparsePattern
-
---------------------------------------------------------------------------------
-
 initTemplate : String
 initTemplate = "BLANK"
 
@@ -1127,7 +1088,7 @@ initModel =
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
-    , programmingLanguage = Elm
+    , syntax = Syntax.Elm
     }
 
 splash_i_2017_demo = True

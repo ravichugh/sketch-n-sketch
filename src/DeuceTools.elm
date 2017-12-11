@@ -34,6 +34,7 @@ import InterfaceModel as Model exposing
 import Lang exposing (..)
 import LangTools
 import UserStudy
+import Syntax
 
 import DeuceWidgets exposing
   ( DeuceWidget(..)
@@ -153,15 +154,15 @@ makeEqualTool model selections =
         (_, _, _, _, _::_, _, _) -> (Nothing, Impossible) -- no equation selection allowed (yet?)
         (_, _, [_], _, _, _, _)  -> (Nothing, Possible)
         (_, _, eids, [], [], [], []) ->
-          ( CodeMotion.makeEqualTransformation (Model.unparser model) (Model.patternUnparser model) model.inputExp eids Nothing
+          ( CodeMotion.makeEqualTransformation (Syntax.unparser model.syntax) (Syntax.patternUnparser model.syntax) model.inputExp eids Nothing
           , Satisfied
           )
         (_, _, eids, [], [], [], [patTarget]) ->
-          ( CodeMotion.makeEqualTransformation (Model.unparser model) (Model.patternUnparser model) model.inputExp eids (Just (PatTargetPosition patTarget))
+          ( CodeMotion.makeEqualTransformation (Syntax.unparser model.syntax) (Syntax.patternUnparser model.syntax) model.inputExp eids (Just (PatTargetPosition patTarget))
           , Satisfied
           )
         (_, _, eids, [], [], [expTarget], []) ->
-          ( CodeMotion.makeEqualTransformation (Model.unparser model) (Model.patternUnparser model) model.inputExp eids (Just (ExpTargetPosition expTarget))
+          ( CodeMotion.makeEqualTransformation (Syntax.unparser model.syntax) (Syntax.patternUnparser model.syntax) model.inputExp eids (Just (ExpTargetPosition expTarget))
           , Satisfied
           )
         _ ->
@@ -365,7 +366,7 @@ swapExpressionsTool model selections =
         (_, _, _, _::_, _, _, _)             -> (Nothing, Impossible) -- no pattern selection allowed (yet)
         (_, _, _, _, _::_, _, _)             -> (Nothing, Impossible) -- no equation selection allowed (yet?)
         (_, _, [_], _, _, [], [])            -> (Nothing, Possible)
-        (_, _, [eid1, eid2], [], [], [], []) -> (CodeMotion.swapExpressionsTransformation (Model.unparser model) (Model.patternUnparser model) model.inputExp eid1 eid2, Satisfied)
+        (_, _, [eid1, eid2], [], [], [], []) -> (CodeMotion.swapExpressionsTransformation (Syntax.unparser model.syntax) (Syntax.patternUnparser model.syntax) model.inputExp eid1 eid2, Satisfied)
         _                                    -> (Nothing, Impossible)
   in
     { name = "Swap Expressions"
@@ -401,8 +402,8 @@ swapDefinitionsTool model selections =
         (_, _, [], [], [], [], [])                 -> (Nothing, Possible)
         (_, _, [], [ppid], [], [], [])             -> if ppidIsInLet ppid then (Nothing, Possible) else (Nothing, Impossible)
         (_, _, [], [], [letEId], [], [])           -> (Nothing, Possible)
-        (_, _, [], [ppid1, ppid2], [], [], [])     -> (CodeMotion.swapDefinitionsTransformation (Model.patternUnparser model) model.inputExp (LangTools.pathedPatternIdToPId ppid1 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool") (LangTools.pathedPatternIdToPId ppid2 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool"), Satisfied)
-        (_, _, [], [], [letEId1, letEId2], [], []) -> (CodeMotion.swapDefinitionsTransformation (Model.patternUnparser model) model.inputExp (letEIdToTopPId letEId1) (letEIdToTopPId letEId2), Satisfied)
+        (_, _, [], [ppid1, ppid2], [], [], [])     -> (CodeMotion.swapDefinitionsTransformation (Syntax.patternUnparser model.syntax) model.inputExp (LangTools.pathedPatternIdToPId ppid1 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool") (LangTools.pathedPatternIdToPId ppid2 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool"), Satisfied)
+        (_, _, [], [], [letEId1, letEId2], [], []) -> (CodeMotion.swapDefinitionsTransformation (Syntax.patternUnparser model.syntax) model.inputExp (letEIdToTopPId letEId1) (letEIdToTopPId letEId2), Satisfied)
         _                                          -> (Nothing, Impossible)
   in
     { name = "Swap Definitions"
@@ -436,14 +437,14 @@ inlineDefinitionTool model selections =
         ([], [], [], pathedPatIds, [], [], []) ->
           ( Utils.perhapsPluralizeList toolName pathedPatIds
           , Just <| \() ->
-              CodeMotion.inlineDefinitions (Model.patternUnparser model) pathedPatIds model.inputExp
+              CodeMotion.inlineDefinitions (Syntax.patternUnparser model.syntax) pathedPatIds model.inputExp
           , Satisfied
           )
         ([], [], [], [], letEIds, [], []) ->
           ( Utils.perhapsPluralizeList toolName letEIds
           , Just <| \() ->
               CodeMotion.inlineDefinitions
-                (Model.patternUnparser model)
+                (Syntax.patternUnparser model.syntax)
                 (letEIds |> List.map (\letEId -> ((letEId, 1), [])))
                 model.inputExp
           , Satisfied
@@ -482,8 +483,8 @@ introduceVariableTool model selections =
         (_, _, exps, [], [], [], []) ->
           ( Utils.perhapsPluralizeList "Introduce Variable" exps
           , CodeMotion.introduceVarTransformation
-              (Model.unparser model)
-              (Model.patternUnparser model)
+              (Syntax.unparser model.syntax)
+              (Syntax.patternUnparser model.syntax)
               model
               exps
               Nothing
@@ -492,8 +493,8 @@ introduceVariableTool model selections =
         (_, _, exps, [], [], [], [patTarget]) ->
           ( Utils.perhapsPluralizeList "Introduce Variable" exps
           , CodeMotion.introduceVarTransformation
-              (Model.unparser model)
-              (Model.patternUnparser model)
+              (Syntax.unparser model.syntax)
+              (Syntax.patternUnparser model.syntax)
               model
               exps
               (Just (PatTargetPosition patTarget))
@@ -502,8 +503,8 @@ introduceVariableTool model selections =
         (_, _, exps, [], [], [expTarget], []) ->
           ( Utils.perhapsPluralizeList "Introduce Variable" exps
           , CodeMotion.introduceVarTransformation
-              (Model.unparser model)
-              (Model.patternUnparser model)
+              (Syntax.unparser model.syntax)
+              (Syntax.patternUnparser model.syntax)
               model
               exps
               (Just (ExpTargetPosition expTarget))
@@ -537,7 +538,7 @@ copyExpressionTool model selections =
         (_, _, _, _::_, _, _, _)     -> (Nothing, Impossible) -- no pattern selection allowed (yet)
         (_, _, _, _, _::_, _, _)     -> (Nothing, Impossible) -- no equation selection allowed (yet?)
         (_, _, [_], _, _, [], [])    -> (Nothing, Possible)
-        (_, _, eids, [], [], [], []) -> (CodeMotion.copyExpressionTransformation (Model.unparser model) (Model.patternUnparser model) model.inputExp eids, Satisfied)
+        (_, _, eids, [], [], [], []) -> (CodeMotion.copyExpressionTransformation (Syntax.unparser model.syntax) (Syntax.patternUnparser model.syntax) model.inputExp eids, Satisfied)
         _                            -> (Nothing, Impossible)
   in
     { name = "Make Equal by Copying"
@@ -578,7 +579,7 @@ moveDefinitionTool model selections =
           ( Utils.perhapsPluralizeList toolName pathedPatIds
           , Just <| \() ->
               CodeMotion.moveDefinitionsBeforeEId
-                (Model.patternUnparser model)
+                (Syntax.patternUnparser model.syntax)
                 pathedPatIds
                 eId
                 model.inputExp
@@ -600,8 +601,8 @@ moveDefinitionTool model selections =
                 ( Utils.perhapsPluralizeList toolName pathedPatIds
                 , Just <| \() ->
                     CodeMotion.moveDefinitionsPat
-                      (Model.unparser model)
-                      (Model.patternUnparser model)
+                      (Syntax.unparser model.syntax)
+                      (Syntax.patternUnparser model.syntax)
                       pathedPatIds
                       targetPathedPatId
                       model.inputExp
@@ -615,7 +616,7 @@ moveDefinitionTool model selections =
               -- Better result names if we hand the singular case directly to
               -- moveDefinitionsBeforeEId.
               CodeMotion.moveDefinitionsBeforeEId
-                (Model.patternUnparser model)
+                (Syntax.patternUnparser model.syntax)
                 [((letEId, 1), [])]
                 eId
                 model.inputExp
@@ -625,7 +626,7 @@ moveDefinitionTool model selections =
           ( Utils.perhapsPluralizeList toolName letEIds
           , Just <| \() ->
               CodeMotion.moveEquationsBeforeEId
-                (Model.patternUnparser model)
+                (Syntax.patternUnparser model.syntax)
                 letEIds
                 eId
                 model.inputExp
@@ -670,7 +671,7 @@ duplicateDefinitionTool model selections =
             ( Utils.perhapsPluralizeList toolName pathedPatIds
             , Just <| \() ->
                 CodeMotion.duplicateDefinitionsBeforeEId
-                  (Model.patternUnparser model)
+                  (Syntax.patternUnparser model.syntax)
                   pathedPatIds
                   eId
                   model.inputExp
@@ -692,8 +693,8 @@ duplicateDefinitionTool model selections =
             ( Utils.perhapsPluralizeList toolName pathedPatIds
             , Just <| \() ->
                 CodeMotion.duplicateDefinitionsPat
-                  (Model.unparser model)
-                  (Model.patternUnparser model)
+                  (Syntax.unparser model.syntax)
+                  (Syntax.patternUnparser model.syntax)
                   pathedPatIds
                   targetPathedPatId
                   model.inputExp
@@ -1174,7 +1175,7 @@ createFunctionTool model selections =
           of
             Just (ELet _ _ _ _ _ _ _, PVar _ ident _) ->
               ( Just <| \() ->
-                  CodeMotion.abstractPVar (Model.patternUnparser model) pathedPatId [] model.inputExp
+                  CodeMotion.abstractPVar (Syntax.patternUnparser model.syntax) pathedPatId [] model.inputExp
               , FullySatisfied
               )
             _ ->
@@ -1208,7 +1209,7 @@ createFunctionTool model selections =
                 |> Maybe.withDefault 0
           in
             if parameterCount > 0 && expSize >= 3 then
-              ( Just <| \() -> CodeMotion.abstractExp (Model.unparser model) eid model.inputExp
+              ( Just <| \() -> CodeMotion.abstractExp (Syntax.unparser model.syntax) eid model.inputExp
               , FullySatisfied
               )
             else
@@ -1225,7 +1226,7 @@ createFunctionTool model selections =
                     let
                        pathedPatId = ((letEId, 1), [])
                     in
-                      CodeMotion.abstractPVar (Model.patternUnparser model) pathedPatId [] model.inputExp
+                      CodeMotion.abstractPVar (Syntax.patternUnparser model.syntax) pathedPatId [] model.inputExp
               , FullySatisfied
               )
             _ ->
@@ -1274,7 +1275,7 @@ createFunctionFromArgsTool model selections =
                   (Nothing, Impossible)
 
                 _ ->
-                  ( Just (\() -> enclosingPPIds |> List.concatMap (\ppid -> CodeMotion.abstractPVar (Model.patternUnparser model) ppid argEIds model.inputExp))
+                  ( Just (\() -> enclosingPPIds |> List.concatMap (\ppid -> CodeMotion.abstractPVar (Syntax.patternUnparser model.syntax) ppid argEIds model.inputExp))
                   , Satisfied
                   )
 
@@ -1424,7 +1425,7 @@ addArgumentsTool model selections =
                 Just <|
                   \() ->
                     targetPPIdsToTry
-                    |> List.concatMap (\targetPPId -> CodeMotion.addArg (Model.patternUnparser model) eid targetPPId model.inputExp)
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArg (Syntax.patternUnparser model.syntax) eid targetPPId model.inputExp)
             , reqs = makeReqs Satisfied
             , id = id
             }
@@ -1435,7 +1436,7 @@ addArgumentsTool model selections =
                 Just <|
                   \() ->
                     targetPPIdsToTry
-                    |> List.concatMap (\targetPPId -> CodeMotion.addArgs (Model.patternUnparser model) eids targetPPId model.inputExp)
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArgs (Syntax.patternUnparser model.syntax) eids targetPPId model.inputExp)
             , reqs = makeReqs Satisfied
             , id = id
             }
@@ -1480,7 +1481,7 @@ addArgumentsTool model selections =
                 Just <|
                   \() ->
                     targetPPIdsToTry
-                    |> List.concatMap (\targetPPId -> CodeMotion.addArgFromPat (Model.patternUnparser model) argSourcePathedPatId targetPPId model.inputExp)
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArgFromPat (Syntax.patternUnparser model.syntax) argSourcePathedPatId targetPPId model.inputExp)
             , reqs = makeReqs Satisfied
             , id = id
             }
@@ -1491,7 +1492,7 @@ addArgumentsTool model selections =
                 Just <|
                   \() ->
                     targetPPIdsToTry
-                    |> List.concatMap (\targetPPId -> CodeMotion.addArgsFromPats (Model.patternUnparser model) argSourcePathedPatIds targetPPId model.inputExp)
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArgsFromPats (Syntax.patternUnparser model.syntax) argSourcePathedPatIds targetPPId model.inputExp)
             , reqs = makeReqs Satisfied
             , id = id
             }
@@ -1562,7 +1563,7 @@ removeArgumentsTool model selections =
                 Just <|
                   \() ->
                     CodeMotion.removeArg
-                      (Model.patternUnparser model)
+                      (Syntax.patternUnparser model.syntax)
                       (Utils.head_ pathedPatIds)
                       model.inputExp
             , reqs = makeReqs Satisfied
@@ -1574,7 +1575,7 @@ removeArgumentsTool model selections =
                 Just <|
                   \() ->
                     CodeMotion.removeArgs
-                      (Model.patternUnparser model)
+                      (Syntax.patternUnparser model.syntax)
                       pathedPatIds
                       model.inputExp
             , reqs = makeReqs Satisfied
@@ -1597,7 +1598,7 @@ removeArgumentsTool model selections =
                 Just <|
                   \() ->
                     CodeMotion.removeArg
-                      (Model.patternUnparser model)
+                      (Syntax.patternUnparser model.syntax)
                       argPathedPatId
                       model.inputExp
             , reqs = makeReqs Satisfied
@@ -1609,7 +1610,7 @@ removeArgumentsTool model selections =
                 Just <|
                   \() ->
                     CodeMotion.removeArgs
-                      (Model.patternUnparser model)
+                      (Syntax.patternUnparser model.syntax)
                       argPathedPatIds
                       model.inputExp
             , reqs = makeReqs Satisfied
@@ -1661,7 +1662,7 @@ reorderArgumentsTool model selections =
               ( Just <|
                   \() ->
                     CodeMotion.reorderFunctionArgs
-                        (Model.unparser model)
+                        (Syntax.unparser model.syntax)
                         targetScopeEId
                         (List.map pathedPatIdToPath pathedPatIds)
                         (pathedPatIdToPath targetPathedPatId)
@@ -1684,7 +1685,7 @@ reorderArgumentsTool model selections =
                   ( Just <|
                       \() ->
                         CodeMotion.reorderFunctionArgs
-                            (Model.unparser model)
+                            (Syntax.unparser model.syntax)
                             targetEId
                             (List.map pathedPatIdToPath pathedPatIds)
                             (pathedPatIdToPath targetPathedPatId)
@@ -1712,7 +1713,7 @@ reorderExpressionsTool : Model -> Selections -> DeuceTool
 reorderExpressionsTool model selections =
   { name = "Reorder Expressions"
   , func =
-      CodeMotion.reorderExpressionsTransformation (Model.unparser model) model.inputExp selections
+      CodeMotion.reorderExpressionsTransformation (Syntax.unparser model.syntax) model.inputExp selections
   , reqs = [] -- TODO reqs
   , id = "reorderExpressions"
   }
@@ -1755,7 +1756,7 @@ makeSingleLineTool model selections =
             in
               if
                 LangTools.justFindExpByEId model.inputExp eid
-                  |> Model.unparser model
+                  |> Syntax.unparser model.syntax
                   |> perhapsLeftTrimmer
                   |> String.contains "\n"
               then
