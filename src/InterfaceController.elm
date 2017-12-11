@@ -1142,7 +1142,7 @@ msgKeyDown keyCode =
                 (_, MouseNothing)   -> { new | tool = Cursor }
                 (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
                 _                   -> new
-        else if keyCode == Keys.keyPlusEqual then
+        else if keyCode == Keys.keyE && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           let newModel = doMakeEqual old in
           newModel.synthesisResults
           |> Utils.findFirst isResultSafe

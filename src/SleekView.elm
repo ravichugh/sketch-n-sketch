@@ -668,7 +668,7 @@ menuBar model =
                         Controller.msgDigHole
                     , relateHoverMenu
                         model
-                        "Make Equal (=)"
+                        "Make Equal (⌘E)"
                         Controller.msgMakeEqual
                     ] ++
                     if splash_i_2017_demo then []
