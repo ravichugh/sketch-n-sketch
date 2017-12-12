@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# Script to start CAS server on startup.
+#
+# Place in /etc/init.d/
+
+# kFreeBSD do not accept scripts as interpreters, using #!/bin/sh and sourcing.
+if [ true != "$INIT_D_SCRIPT_SOURCED" ] ; then
+    set "$0" "$@"; INIT_D_SCRIPT_SOURCED=true . /lib/init/init-d-script
+fi
+### BEGIN INIT INFO
+# Provides:          sketch-n-sketch_solver_server
+# Required-Start:    $all
+# Short-Description: CAS over Websockets for Sketch-n-Sketch
+# Description:       Exposes a computer algebra system over Websockets for Sketch-n-Sketch.
+### END INIT INFO
+
+# Author: Brian Hempel <brianhempel@uchicago.edu>
+
+DESC="Exposes a computer algebra system over Websockets for Sketch-n-Sketch"
+DAEMON=/usr/sbin/daemonexecutablename
