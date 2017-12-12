@@ -853,7 +853,8 @@ issueCommand (Msg kind _) oldModel newModel =
             newModel.preview /= oldModel.preview ||
             kind == "Turn Off Caption" ||
             kind == "Mouse Enter CodeBox" ||
-            kind == "Mouse Leave CodeBox"
+            kind == "Mouse Leave CodeBox" ||
+            kind == "Call Update"
              {- ||
              String.startsWith "Key Up" kind ||
              String.startsWith "Key Down" kind

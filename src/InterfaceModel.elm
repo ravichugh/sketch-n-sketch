@@ -185,6 +185,7 @@ type alias Model =
   , pendingGiveUpMsg : Maybe Msg
   , giveUpConfirmed : Bool
   , lastSelectedTemplate : Maybe String
+  , valueEditorString : String
   }
 
 type OutputMode
@@ -990,7 +991,7 @@ initModel =
     , widgets       = ws
     , liveSyncInfo  = liveSyncInfo
     , liveSyncDelay = False
-    , outputMode    = Live
+    , outputMode    = ShowValue
     , mouseMode     = MouseNothing
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
     , mouseState    = (Nothing, {x = 0, y = 0})
@@ -1094,6 +1095,7 @@ initModel =
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
+    , valueEditorString = strVal v
     }
 
 splash_i_2017_demo = False

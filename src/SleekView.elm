@@ -1440,7 +1440,16 @@ outputPanel model =
         (Nothing, Print svgCode, Nothing) ->
           [textOutput svgCode]
         (Nothing, ShowValue, _) ->
-          [textOutput (Lang.strVal model.inputVal)]
+          [ Html.textarea
+              [ E.onInput (\s -> Msg "Update Value Editor" (\m -> { m | valueEditorString = s } ))
+              ]
+              -- [ Html.text (Lang.strVal model.inputVal) ]
+              [ Html.text model.valueEditorString ]
+          , Html.button
+              [ E.onClick (Msg "Call Update" (\m -> { m | code = m.valueEditorString } ))
+              ]
+              [ Html.text "Update" ]
+          ]
         (Nothing, _, _) ->
           Canvas.build canvasDim model
     outputPanelWarning =
