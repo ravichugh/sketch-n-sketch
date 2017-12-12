@@ -11,6 +11,7 @@ import Parser.LanguageKit as LK
 import ParserUtils exposing (..)
 import LangParserUtils exposing (..)
 import BinaryOperatorParser exposing (..)
+import Utils
 
 import Lang exposing (..)
 import Info exposing (..)
@@ -621,23 +622,27 @@ simpleExpression =
 simpleExpressionWithPossibleArguments : Parser Exp
 simpleExpressionWithPossibleArguments =
   let
-    combine : Exp -> List Exp -> Exp__
+    combine : Exp -> List Exp -> Exp
     combine first rest =
       -- If there are no arguments, then we do not have a function application,
       -- so just return the first expression. Otherwise, build a function
       -- application.
-      if List.isEmpty rest then
-        first.val.e__
+      case Utils.maybeLast rest of
+        -- rest is empty
+        Nothing ->
+          first
 
-      else
-        EApp space0 first rest space0
+        -- rest is non-empty
+        Just last ->
+          withInfo
+            (exp_ <| EApp space0 first rest space0)
+            first.start
+            last.end
   in
     lazy <| \_ ->
-      mapExp_ <|
-        trackInfo <|
-          succeed combine
-            |= simpleExpression
-            |= repeat zeroOrMore simpleExpression
+      succeed combine
+        |= simpleExpression
+        |= repeat zeroOrMore simpleExpression
 
 expression : Parser Exp
 expression =
