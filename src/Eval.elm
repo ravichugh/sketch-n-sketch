@@ -284,6 +284,7 @@ eval env bt e =
   ETyp _ _ _ e1 _       -> eval env bt e1
   -- EColonType _ e1 _ _ _ -> eval env bt e1
   ETypeAlias _ _ _ e1 _ -> eval env bt e1
+  EParens _ e1 _           -> eval env bt e1
 
   -- abstract syntactic sugar
 

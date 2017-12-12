@@ -220,6 +220,8 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "(" ++ (unparse_ e) ++ ws2.val ++ ":" ++ (unparseType tipe) ++ ws3.val ++ ")"
   ETypeAlias ws1 pat tipe e ws2 ->
     ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
+  EParens ws1 e ws2 ->
+    ws1.val ++ "(" ++ unparse e ++ ws2.val ++ ")"
 
 
 unparseWithIds : Exp -> String
@@ -277,6 +279,8 @@ unparseWithIds e =
       ws1.val ++ "(" ++ (unparseWithIds e) ++ ws2.val ++ ":" ++ eidTag ++ (unparseType tipe) ++ ws3.val ++ ")"
     ETypeAlias ws1 pat tipe e ws2 ->
       ws1.val ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
+    EParens ws1 e ws2 ->
+      ws1.val ++ "(" ++ eidTag ++ unparseWithIds e ++ ws2.val ++ ")"
 
 
 -- Ignores given whitespace.
@@ -338,3 +342,5 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       " " ++ "(" ++ (recurse e) ++ " " ++ ":" ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")"
     ETypeAlias _ pat tipe e _ ->
       " " ++ "(def" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")" ++ recurse e
+    EParens _ e _ ->
+      " " ++ "(" ++ recurse e ++ ")"

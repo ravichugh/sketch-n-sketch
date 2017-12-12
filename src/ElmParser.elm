@@ -650,6 +650,27 @@ option =
           )
 
 --------------------------------------------------------------------------------
+-- Parentheses
+--------------------------------------------------------------------------------
+
+parens : Parser Exp
+parens =
+  inContext "parentheses" <|
+    mapExp_ <|
+      lazy <| \_ ->
+        paddedBefore
+          ( \wsBefore (innerExpression, wsBeforeEnd) ->
+              EParens wsBefore innerExpression wsBeforeEnd
+          )
+          ( trackInfo <|
+              succeed (,)
+                |. symbol "("
+                |= expression
+                |= spaces
+                |. symbol ")"
+          )
+
+--------------------------------------------------------------------------------
 -- General Expressions
 --------------------------------------------------------------------------------
 
@@ -667,6 +688,7 @@ simpleExpression =
       , lazy <| \_ -> letBinding
       , lazy <| \_ -> lineComment
       , lazy <| \_ -> option
+      , lazy <| \_ -> parens
       -- , lazy <| \_ -> typeCaseExpression
       -- , lazy <| \_ -> typeAlias
       -- , lazy <| \_ -> typeDeclaration

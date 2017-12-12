@@ -202,5 +202,22 @@ unparse e =
         ++ "\n"
         ++ unparse expAfter
 
-    _ ->
-      toString e
+    EParens wsBefore innerExpression wsAfter ->
+      wsBefore.val
+        ++ "("
+        ++ unparse innerExpression
+        ++ wsAfter.val
+        ++ ")"
+
+    Lang.EColonType _ _ _ _ _ ->
+      Debug.crash "TODO"
+
+    Lang.ETyp _ _ _ _ _ ->
+      Debug.crash "TODO"
+
+    Lang.ETypeAlias _ _ _ _ _ ->
+      Debug.crash "TODO"
+
+    Lang.ETypeCase _ _ _ _ ->
+      Debug.crash "TODO"
+

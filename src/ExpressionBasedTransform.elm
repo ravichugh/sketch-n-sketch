@@ -1757,6 +1757,16 @@ mergeExpressions eFirst eRest =
       let _ = Debug.log "mergeExpressions: options shouldn't appear nested: " () in
       Nothing
 
+    EParens ws1 e ws2 ->
+      let match eNext = case eNext.val.e__ of
+        EParens _ e_ _  -> Just e_
+        _               -> Nothing
+      in
+      matchAllAndBind match eRest <| \es ->
+        Utils.bindMaybe
+          (\(e_,l) -> return (EParens ws1 e_ ws2) l)
+          (mergeExpressions e es)
+
 matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
 matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))
 

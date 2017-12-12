@@ -308,6 +308,7 @@ traverse env exp acc =
     ETyp _ _ _ e _        -> recurse [e]
     EColonType _ e _ _ _  -> recurse [e]
     ETypeAlias _ _ _ e _  -> recurse [e]
+    EParens _ e _         -> recurse [e]
 
 
 traverseAndAddDependencies newScopeId =

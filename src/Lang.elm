@@ -128,6 +128,7 @@ type Exp__
   | ETyp WS Pat Type Exp WS
   | EColonType WS Exp WS Type WS
   | ETypeAlias WS Pat Type Exp WS
+  | EParens WS Exp WS
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -546,6 +547,10 @@ mapFoldExp f initAcc e =
       let (newE1, newAcc) = recurse initAcc e1 in
       wrapAndMap (ETypeAlias ws1 pat tipe newE1 ws2) newAcc
 
+    EParens ws1 e ws2 ->
+      let (newE, newAcc) = recurse initAcc e in
+      wrapAndMap (EParens ws1 newE ws2) newAcc
+
 
 -- Children visited/replaced first. (Post-order traversal.)
 --
@@ -686,6 +691,10 @@ mapFoldExpTopDown f initAcc e =
     ETypeAlias ws1 pat tipe e1 ws2 ->
       let (newE1, newAcc2) = recurse newAcc e1 in
       ret (ETypeAlias ws1 pat tipe newE1 ws2) newAcc2
+
+    EParens ws1 e ws2 ->
+      let (newE, newAcc2) = recurse newAcc e in
+      ret (EParens ws1 newE ws2) newAcc2
 
 
 -- Nodes visited/replaced in top-down, left-to-right order.
@@ -846,6 +855,10 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
     ETypeAlias ws1 pat tipe e1 ws2 ->
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
       ret (ETypeAlias ws1 pat tipe newE1 ws2) newGlobalAcc2
+
+    EParens ws1 e ws2 ->
+      let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e in
+      ret (EParens ws1 newE ws2) newGlobalAcc2
 
 
 mapExp : (Exp -> Exp) -> Exp -> Exp
@@ -1180,6 +1193,7 @@ childExps e =
     ETyp ws1 pat tipe e ws2         -> [e]
     EColonType ws1 e ws2 tipe ws3   -> [e]
     ETypeAlias ws1 pat tipe e ws2   -> [e]
+    EParens _ e _                   -> [e]
 
 
 allEIds : Exp -> List EId
@@ -1728,6 +1742,7 @@ precedingWhitespaceExp__ e__ =
       ETyp       ws1 pat tipe e ws2       -> ws1
       EColonType ws1 e ws2 tipe ws3       -> ws1
       ETypeAlias ws1 pat tipe e ws2       -> ws1
+      EParens    ws _ _                   -> ws
 
 addPrecedingWhitespace : String -> Exp -> Exp
 addPrecedingWhitespace newWs exp =
@@ -1778,6 +1793,7 @@ mapPrecedingWhitespace stringMap exp =
         ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
         EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
         ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
+        EParens    ws1 e ws2                -> EParens    (mapWs ws1) e ws2
   in
     replaceE__ exp e__New
 
@@ -2156,6 +2172,8 @@ wsBefore codeObject =
           ws
         ETypeAlias ws _ _ _ _ ->
           ws
+        EParens ws _ _ ->
+          ws
     P _ p ->
       case p.val.p__ of
         PVar ws _ _ ->
@@ -2252,6 +2270,8 @@ modifyWsBefore f codeObject =
               EColonType (f ws) a b c d
             ETypeAlias ws a b c d  ->
               ETypeAlias (f ws) a b c d
+            EParens ws a b ->
+              EParens (f ws) a b
       in
         E { e | val = { eVal | e__ = newE__ } }
     P e p ->
@@ -2561,6 +2581,11 @@ childCodeObjects co =
             , T t1
             , TT After ws2 t1
             , E e1
+            ]
+          EParens ws1 e1 ws2 ->
+            [ ET Before ws1 e
+            , E e1
+            , ET After ws2 e1
             ]
       P e p ->
         case p.val.p__ of

@@ -48,6 +48,7 @@ nodeCount exp =
     ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
     EColonType _ e1 _ t _   -> 1 + typeNodeCount t + nodeCount e1
     ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+    EParens _ e1 _          -> 1 + nodeCount e1
 
 
 -- O(n); for clone detection
@@ -92,6 +93,7 @@ subExpsOfSizeAtLeast_ min exp =
         ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t
         EColonType _ e1 _ t _   -> 1 + typeNodeCount t
         ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t
+        EParens _ _ _           -> 1
     in
     if largeSubExps /= [] then
       Debug.crash "LangTools.thisSizeWithoutChildren bug"
@@ -1941,6 +1943,8 @@ freeVars_ boundIdentsSet exp =
     ETyp _ _ _ e1 _       -> recurse ()
     EColonType _ e1 _ _ _ -> recurse ()
     ETypeAlias _ _ _ e1 _ -> recurse ()
+    EParens _ _ _         -> recurse ()
+
     -- EVal _                -> Debug.crash "LangTools.freeVars_: shouldn't have an EVal in given expression"
     -- EDict _               -> Debug.crash "LangTools.freeVars_: shouldn't have an EDict in given expression"
 
@@ -2009,6 +2013,7 @@ numericLetBoundIdentifiers program =
       ETyp _ _ _ body _         -> recurse body
       EColonType _ e _ _ _      -> recurse e
       ETypeAlias _ _ _ body _   -> recurse body
+      EParens _ e _             -> recurse e
   in
   let expBindings = allSimplyResolvableLetBindings program in
   let findAllNumericIdents numericIdents =
@@ -2116,6 +2121,7 @@ transformVarsUntilBound subst exp =
     ETyp ws1 pat tipe e ws2         -> replaceE__ exp (ETyp ws1 pat tipe (recurse e) ws2)
     EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
     ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
+    EParens ws1 e ws2               -> replaceE__ exp (EParens ws1 (recurse e) ws2)
 
     -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
 
@@ -2216,6 +2222,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     ETyp _ pat tipe e _       -> ret <| recurse e
     EColonType _ e _ tipe _   -> ret <| recurse e
     ETypeAlias _ pat tipe e _ -> ret <| recurse e
+    EParens _ e _             -> ret <| recurse e
 
     -- EDict _                   -> Debug.crash "LangTools.visibleIdentifiersAtEIds_: shouldn't have an EDict in given expression"
 
@@ -2409,6 +2416,13 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
     ETypeAlias ws1 pat tipe e1 ws2 ->
       let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
       ( replaceE__ exp (ETypeAlias ws1 pat tipe newE1 ws2)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    EParens ws1 e1 ws2 ->
+      let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
+      ( replaceE__ exp (EParens ws1 newE1 ws2)
       , usedNames_
       , newNameToOldName
       )
@@ -2686,6 +2700,7 @@ expEnvAt_ exp targetEId =
       ETyp _ pat tipe e _        -> recurse e
       EColonType _ e _ tipe _    -> recurse e
       ETypeAlias _ pat tipe e _  -> recurse e
+      EParens _ e _              -> recurse e
 
 --------------------------------------------------------------------------------
 
