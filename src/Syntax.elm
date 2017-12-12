@@ -3,15 +3,17 @@ module Syntax exposing
   , parser
   , unparser
   , patternUnparser
+  , convertSyntax
   )
+
+import Result
+import Parser
 
 import FastParser
 import ElmParser
 import LangUnparser
 import ElmUnparser
 import Lang
-
-import Parser
 
 type Syntax
   = Little
@@ -43,3 +45,9 @@ patternUnparser syntax =
 
     Elm ->
       ElmUnparser.unparsePattern
+
+convertSyntax : Syntax -> Syntax -> String -> Result Parser.Error String
+convertSyntax oldSyntax newSyntax code =
+  code
+    |> parser oldSyntax
+    |> Result.map (unparser newSyntax)

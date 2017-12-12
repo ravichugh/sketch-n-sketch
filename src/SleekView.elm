@@ -33,6 +33,7 @@ import Canvas
 import LangTools
 import Sync
 import Lang exposing (Exp)
+import Syntax
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -1012,6 +1013,27 @@ menuBar model =
                             )
                             "Fair"
                             Controller.msgSetHeuristicsFair
+                        ]
+                    ]
+                  , [ hoverMenu "Syntax"
+                        [ simpleTextRadioButton
+                            ( case model.syntax of
+                                Syntax.Elm ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Elm"
+                            (Controller.msgSetSyntax Syntax.Elm)
+                        , simpleTextRadioButton
+                            ( case model.syntax of
+                                Syntax.Little ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Little"
+                            (Controller.msgSetSyntax Syntax.Little)
                         ]
                     ]
                   , [ hoverMenu "Output Type"

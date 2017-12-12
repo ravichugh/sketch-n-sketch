@@ -73,6 +73,7 @@ module InterfaceController exposing
   , msgResetInterfaceLayout
   , msgReceiveDeucePopupPanelInfo
   , msgSetColorScheme
+  , msgSetSyntax
   )
 
 import Updatable exposing (Updatable)
@@ -117,7 +118,7 @@ import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
-import Syntax
+import Syntax exposing (Syntax)
 
 import ImpureGoodies
 
@@ -2477,3 +2478,20 @@ msgSetColorScheme : ColorScheme -> Msg
 msgSetColorScheme colorScheme =
   Msg "Set Color Scheme" <| \old ->
     { old | colorScheme = colorScheme }
+
+--------------------------------------------------------------------------------
+-- Syntax
+
+msgSetSyntax : Syntax -> Msg
+msgSetSyntax newSyntax =
+  Msg ("Set Syntax to " ++ toString newSyntax) <| \old ->
+    case Syntax.convertSyntax old.syntax newSyntax old.code of
+      Ok newCode ->
+        upstateRun
+          { old
+            | syntax = newSyntax
+            , code = newCode
+          }
+
+      Err _ ->
+        old
