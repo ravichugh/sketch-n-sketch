@@ -1,7 +1,7 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 # https://stackoverflow.com/questions/59895/getting-the-source-directory-of-a-bash-script-from-within
-HERE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+THIS_FILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # -b means no color
-ruby $HERE/../reduce_in_filter.rb | $HERE/../reduce-algebra/bin/redcsl -b | ruby $HERE/../reduce_out_filter.rb
+ruby "$THIS_FILE_DIR/../reduce_in_filter.rb" | $THIS_FILE_DIR/../reduce-algebra/bin/redcsl -b | ruby "$THIS_FILE_DIR/../reduce_out_filter.rb"

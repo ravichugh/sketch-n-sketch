@@ -22,6 +22,12 @@ daemonize:
 status:
 	systemctl status sketch-n-sketch_solver_server
 
+log:
+	sudo journalctl -u sketch-n-sketch_solver_server
+
+tail_log:
+	sudo journalctl -f -u sketch-n-sketch_solver_server
+
 remake_public_server:
 	ssh -t brian@tormenta.cs.uchicago.edu "cd sketch-n-sketch && git pull --rebase && cd solver_server && (rm -r reduce-algebra; make reduce-algebra/bin/redcsl daemonize status)"
 
