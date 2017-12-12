@@ -2504,10 +2504,16 @@ childCodeObjects co =
                       { line =
                           e.start.line
                       , col =
-                          if lk == Def then
+                          -- TODO Make this work well with both Elm and Little.
+                          -- We'd like to have something like:
+                          --
+                          --   if syntax == Syntax.Little && lk == Let then
+                          --     e.start.col + 1
+                          --   else
+                          --     e.start.col
+                          --
+                          -- But this function doesn't know about syntax (yet)
                             e.start.col
-                          else
-                            e.start.col + 1
                       }
                   , end =
                       if lk == Def then
