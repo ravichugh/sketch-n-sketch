@@ -19,8 +19,11 @@ daemonize:
 	sudo systemctl enable sketch-n-sketch_solver_server
 	sudo systemctl start sketch-n-sketch_solver_server
 
+status:
+	systemctl status sketch-n-sketch_solver_server
+
 remake_public_server:
-	echo "cd sketch-n-sketch && git pull --rebase && cd solver_server && (rm -r reduce-algebra; make reduce-algebra/bin/redcsl)" | ssh brian@tormenta.cs.uchicago.edu
+	ssh -t brian@tormenta.cs.uchicago.edu "cd sketch-n-sketch && git pull --rebase && cd solver_server && (rm -r reduce-algebra; make reduce-algebra/bin/redcsl daemonize status)"
 
 refresh_public_server:
-	echo "cd sketch-n-sketch && git pull --rebase && cd solver_server" | ssh brian@tormenta.cs.uchicago.edu
+	ssh -t brian@tormenta.cs.uchicago.edu "cd sketch-n-sketch && git pull --rebase && cd solver_server && make daemonize status"
