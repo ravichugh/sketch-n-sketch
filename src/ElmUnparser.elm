@@ -4,7 +4,6 @@ module ElmUnparser exposing
   )
 
 import Lang exposing (..)
-import ElmLang
 
 unparseBaseValue : EBaseVal -> String
 unparseBaseValue ebv =
@@ -49,6 +48,60 @@ unparsePattern p =
         ++ unparsePattern pat
         ++ ")"
 
+unparseOp : Op -> String
+unparseOp op =
+  case op.val of
+    Pi ->
+      "pi"
+    DictEmpty ->
+      "empty"
+    Cos ->
+      "cos"
+    Sin ->
+      "sin"
+    ArcCos ->
+      "arccos"
+    ArcSin ->
+      "arcsin"
+    Floor ->
+      "floor"
+    Ceil ->
+      "ceiling"
+    Round ->
+      "round"
+    ToStr ->
+      "toString"
+    Sqrt ->
+      "sqrt"
+    Explode ->
+      "explode"
+    Plus ->
+      "+"
+    Minus ->
+      "-"
+    Mult ->
+      "*"
+    Div ->
+      "/"
+    Lt ->
+      "<"
+    Eq ->
+      "="
+    Mod ->
+      "mod"
+    Pow ->
+      "pow"
+    ArcTan2 ->
+      "arctan2"
+    DictInsert ->
+      "insert"
+    DictGet ->
+      "get"
+    DictRemove ->
+      "remove"
+    DebugLog ->
+      "debug"
+
 unparseBranch : Branch -> String
 unparseBranch branch =
   case branch.val of
@@ -82,14 +135,23 @@ unparse e =
         ++ unparse body
 
     EApp wsBefore function arguments _ ->
-      case (ElmLang.isOperator function, arguments) of
-        (True, [ left, right ]) ->
-          unparse left ++ unparse function ++ unparse right
+      wsBefore.val
+        ++ unparse function
+        ++ String.concat (List.map unparse arguments)
+
+    EOp wsBefore op arguments _ ->
+      case arguments of
+        [ left, right ] ->
+          unparse left
+            ++ wsBefore.val
+            ++ unparseOp op
+            ++ unparse right
 
         _ ->
           wsBefore.val
-            ++ unparse function
+            ++ unparseOp op
             ++ String.concat (List.map unparse arguments)
+
 
     EList wsBefore members _ _ wsBeforeEnd ->
       wsBefore.val

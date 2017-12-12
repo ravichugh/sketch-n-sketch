@@ -361,6 +361,62 @@ builtInOperators =
     (\(_, ls, rs) -> ls ++ rs)
     builtInPrecedenceList
 
+opFromIdentifier : Ident -> Maybe Op_
+opFromIdentifier identifier =
+  case identifier of
+    "pi" ->
+      Just Pi
+    "empty" ->
+      Just DictEmpty
+    "cos" ->
+      Just Cos
+    "sin" ->
+      Just Sin
+    "arccos" ->
+      Just ArcCos
+    "arcsin" ->
+      Just ArcSin
+    "floor" ->
+      Just Floor
+    "ceiling" ->
+      Just Ceil
+    "round" ->
+      Just Round
+    "toString" ->
+      Just ToStr
+    "sqrt" ->
+      Just Sqrt
+    "explode" ->
+      Just Explode
+    "+" ->
+      Just Plus
+    "-" ->
+      Just Minus
+    "*" ->
+      Just Mult
+    "/" ->
+      Just Div
+    "<" ->
+      Just Lt
+    "=" ->
+      Just Eq
+    "mod" ->
+      Just Mod
+    "pow" ->
+      Just Pow
+    "arctan2" ->
+      Just ArcTan2
+    "insert" ->
+      Just DictInsert
+    "get" ->
+      Just DictGet
+    "remove" ->
+      Just DictRemove
+    "debug" ->
+      Just DebugLog
+    _ ->
+      Nothing
+
 --------------------------------------------------------------------------------
 -- Operator Parsing
 --------------------------------------------------------------------------------
@@ -662,23 +718,39 @@ expression =
         , combine =
             \left operator right ->
               let
-                (wsBefore, operatorIdentifier) =
+                (wsBefore, identifier) =
                   operator.val
-
-                opExp =
-                  withInfo
-                    ( exp_ <|
-                        EVar wsBefore operatorIdentifier
-                    )
-                    operator.start
-                    operator.end
               in
-                withInfo
-                  ( exp_ <|
-                      EApp space0 opExp [ left, right ] space0
-                  )
-                  left.start
-                  right.end
+                case opFromIdentifier identifier of
+                  Just op_ ->
+                    let
+                      op =
+                        withInfo op_ operator.start operator.end
+                    in
+                      withInfo
+                        ( exp_ <|
+                            EOp wsBefore op [ left, right ] space0
+                        )
+                        left.start
+                        right.end
+
+                  -- Should result in evaluator error
+                  Nothing ->
+                    let
+                      opExp =
+                        withInfo
+                          ( exp_ <|
+                              EVar wsBefore identifier
+                          )
+                          operator.start
+                          operator.end
+                    in
+                      withInfo
+                        ( exp_ <|
+                            EApp space0 opExp [ left, right ] space0
+                        )
+                        left.start
+                        right.end
         }
 
 --------------------------------------------------------------------------------

@@ -137,9 +137,9 @@ binaryOperator args =
 
                 Nothing ->
                   fail <|
-                    "trying to parse operator "
+                    "trying to parse operator '"
                       ++ opRepresentation
-                      ++ " but no information for it was found in the"
+                      ++ "' but no information for it was found in the"
                       ++ " precedence table"
 
           Nothing ->
