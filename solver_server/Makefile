@@ -18,7 +18,7 @@ daemonize:
 	sudo systemctl stop sketch-n-sketch_solver_server;
 	sudo systemctl disable sketch-n-sketch_solver_server;
 	sudo rm /etc/systemd/system/sketch-n-sketch_solver_server.service;
-	sudo cp solver_server/sketch-n-sketch_solver_server.service /etc/systemd/system/
+	sudo cp sketch-n-sketch_solver_server.service /etc/systemd/system/
 	sudo systemctl enable sketch-n-sketch_solver_server
 	sudo systemctl start sketch-n-sketch_solver_server
 
