@@ -20,7 +20,7 @@ module InterfaceController exposing
   , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
-  , msgSetOutputLive, msgSetOutputPrint
+  , msgSetOutputLive, msgSetOutputPrint, msgSetOutputShowValue
   , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
   , msgSetLiveSyncDelay
   , msgStartAnimation, msgRedraw, msgTickDelta
@@ -1423,6 +1423,9 @@ msgSetOutputLive = Msg "Set Output Live" <| \old ->
 
 msgSetOutputPrint = Msg "Set Output Print" <| \old ->
   { old | outputMode = Print (LangSvg.printSvg old.showGhosts old.slate) }
+
+msgSetOutputShowValue = Msg "Set Output Show Value" <| \old ->
+  { old | outputMode = ShowValue }
 
 updateHeuristics : Int -> Model -> Model
 updateHeuristics heuristic old =

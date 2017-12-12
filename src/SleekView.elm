@@ -1034,6 +1034,15 @@ menuBar model =
                             )
                             "Text"
                             Controller.msgSetOutputPrint
+                        , simpleTextRadioButton
+                            ( case model.outputMode of
+                                ShowValue ->
+                                  True
+                                _ ->
+                                  False
+                            )
+                            "Value Editor"
+                            Controller.msgSetOutputShowValue
                         ]
                     ]
                   ]
@@ -1430,6 +1439,8 @@ outputPanel model =
           [textOutput errorMsg]
         (Nothing, Print svgCode, Nothing) ->
           [textOutput svgCode]
+        (Nothing, ShowValue, _) ->
+          [textOutput (Lang.strVal model.inputVal)]
         (Nothing, _, _) ->
           Canvas.build canvasDim model
     outputPanelWarning =
