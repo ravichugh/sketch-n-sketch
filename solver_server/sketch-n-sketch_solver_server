@@ -4,7 +4,7 @@
 THIS_FILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$THIS_FILE_DIR"
 
-# Requires websocketd
+# Requires websocketd and Ruby
 # $ brew install websocketd
 # or
 # wget https://github.com/joewalnes/websocketd/releases/download/v0.2.12/websocketd-0.2.12-linux_amd64.zip
