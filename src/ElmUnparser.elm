@@ -4,6 +4,7 @@ module ElmUnparser exposing
   )
 
 import Lang exposing (..)
+import ElmLang
 
 unparseBaseValue : EBaseVal -> String
 unparseBaseValue ebv =
@@ -140,18 +141,23 @@ unparse e =
         ++ String.concat (List.map unparse arguments)
 
     EOp wsBefore op arguments _ ->
-      case arguments of
-        [ left, right ] ->
-          unparse left
-            ++ wsBefore.val
-            ++ unparseOp op
-            ++ unparse right
-
-        _ ->
+      let
+        default =
           wsBefore.val
             ++ unparseOp op
             ++ String.concat (List.map unparse arguments)
-
+      in
+        if ElmLang.isInfixOperator op then
+          case arguments of
+            [ left, right ] ->
+              unparse left
+                ++ wsBefore.val
+                ++ unparseOp op
+                ++ unparse right
+            _ ->
+              default
+        else
+          default
 
     EList wsBefore members _ _ wsBeforeEnd ->
       wsBefore.val

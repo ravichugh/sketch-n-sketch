@@ -712,10 +712,29 @@ simpleExpressionWithPossibleArguments =
 
         -- rest is non-empty
         Just last ->
-          withInfo
-            (exp_ <| EApp space0 first rest space0)
-            first.start
-            last.end
+          let
+            e_ =
+              exp_ <|
+                let
+                  default =
+                    EApp space0 first rest space0
+                in
+                  case first.val.e__ of
+                    EVar wsBefore identifier ->
+                      case opFromIdentifier identifier of
+                        Just op_ ->
+                          EOp
+                            wsBefore
+                            (withInfo op_ first.start first.end)
+                            rest
+                            space0
+
+                        Nothing ->
+                          default
+                    _ ->
+                      default
+          in
+            withInfo e_ first.start last.end
   in
     lazy <| \_ ->
       succeed combine
