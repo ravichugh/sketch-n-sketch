@@ -318,6 +318,22 @@ To add a new example to the New menu:
 
 4. Launch Sketch-n-Sketch.
 
+## Solver Server
+
+For solving complicated formulae or multi-equation systems, Sketch-n-Sketch relies on an external computer algebra system ([REDUCE](http://www.reduce-algebra.com/)). A solver server exposes REDUCE over the Websockets protocol.
+
+To use Sketch-n-Sketch locally, you do not need to run the solver server—it will try to connect to our public solver server.
+
+However, if you want to run the solver server locally:
+
+1. Download [websocketd](http://websocketd.com/), e.g. with `$ brew install websocketd`
+2. Make sure you have any version of [Ruby](https://www.ruby-lang.org/) installed, check with e.g. `$ ruby --version`
+3. `$ cd solver_server`
+4. `$ make test_reduce` This will download, build, and test REDUCE.
+5. `$ make run`
+
+If a local server is running, Sketch-n-Sketch will try to connect to it first.
+
 
 ## Running Tests
 
