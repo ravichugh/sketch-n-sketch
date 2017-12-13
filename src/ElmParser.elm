@@ -174,6 +174,10 @@ symbolIdentifier =
 --= Numbers
 --==============================================================================
 
+--------------------------------------------------------------------------------
+-- Raw Numbers
+--------------------------------------------------------------------------------
+
 num : ParserI Num
 num =
   let
@@ -190,6 +194,45 @@ num =
           succeed (\s n -> s * n)
             |= sign
             |= float
+
+--------------------------------------------------------------------------------
+-- Widget Declarations
+--------------------------------------------------------------------------------
+
+isInt : Num -> Bool
+isInt n = n == toFloat (floor n)
+
+widgetDecl : Caption -> Parser WidgetDecl
+widgetDecl cap =
+  let
+    combiner a tok b =
+      if List.all isInt [a.val, b.val] then
+        IntSlider (mapInfo floor a) tok (mapInfo floor b) cap False
+      else
+        NumSlider a tok b cap False
+  in
+    inContext "widget declaration" <|
+      trackInfo <|
+        oneOf
+          [ succeed combiner
+              |. symbol "{"
+              |= num
+              |= trackInfo (token "-" "-")
+              |= num
+              |. symbol "}"
+          , succeed NoWidgetDecl
+          ]
+
+--------------------------------------------------------------------------------
+-- Frozen Annotations
+--------------------------------------------------------------------------------
+
+frozenAnnotation : ParserI Frozen
+frozenAnnotation =
+  inContext "frozen annotation" <|
+    trackInfo <|
+      oneOf <|
+        List.map (\a -> token a a) [frozen, thawed, assignOnlyOnce, unann]
 
 --==============================================================================
 -- Base Values
@@ -682,15 +725,19 @@ constantExpression : Parser Exp
 constantExpression =
   inContext "constant expression" <|
     mapExp_ <|
-      paddedBefore
-        ( \wsBefore num ->
-            EConst
-              wsBefore
-              num
-              (dummyLocWithDebugInfo unann num)
-              (withDummyInfo NoWidgetDecl)
+      delayedCommitMap
+        ( \ws (n, fa, w) ->
+            withInfo
+              (EConst ws n.val (dummyLocWithDebugInfo fa.val n.val) w)
+              n.start
+              w.end
         )
-        num
+        spaces
+        ( succeed (,,)
+            |= num
+            |= frozenAnnotation
+            |= widgetDecl Nothing
+        )
 
 --------------------------------------------------------------------------------
 -- Base Values

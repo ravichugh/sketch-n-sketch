@@ -7,6 +7,16 @@ import Lang exposing (..)
 import ElmLang
 import Utils
 
+unparseWD : WidgetDecl -> String
+unparseWD wd =
+  let strHidden bool = if bool then ",\"hidden\"" else "" in
+  case wd.val of
+    NoWidgetDecl        -> ""
+    IntSlider a tok b _ hidden ->
+      "{" ++ toString a.val ++ tok.val ++ toString b.val ++ strHidden hidden ++ "}"
+    NumSlider a tok b _ hidden ->
+      "{" ++ toString a.val ++ tok.val ++ toString b.val ++ strHidden hidden ++ "}"
+
 unparseBaseValue : EBaseVal -> String
 unparseBaseValue ebv =
   case ebv of
@@ -150,9 +160,11 @@ unparseBranch branch =
 unparse : Exp -> String
 unparse e =
   case e.val.e__ of
-    EConst wsBefore num _ _ ->
+    EConst wsBefore num (_, frozen, _) wd ->
       wsBefore.val
         ++ toString num
+        ++ frozen
+        ++ unparseWD wd
 
     EBase wsBefore baseValue ->
       wsBefore.val
