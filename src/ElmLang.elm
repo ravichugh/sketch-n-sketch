@@ -20,7 +20,8 @@ symbols =
     , '.'
     , '<'
     , '>'
-    , ':'
+    -- Disallow ':' (reserved for colon types)
+    -- , ':'
     , '&'
     , '|'
     , '^'

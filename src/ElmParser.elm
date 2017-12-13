@@ -69,23 +69,61 @@ genericNonEmptyList { item, combiner }=
 
 genericList
   :  { item : Parser elem
-     , emptyCombiner : WS -> WS -> list
-     , nonEmptyCombiner : WS -> List elem -> WS -> list
+     , combiner : WS -> List elem -> WS -> list
      }
   -> ParserI list
-genericList { item, emptyCombiner, nonEmptyCombiner } =
+genericList { item, combiner } =
   lazy <| \_ ->
     oneOf
       [ try <|
           genericEmptyList
-            { combiner = emptyCombiner
+            { combiner =
+                \wsBefore wsAfter -> combiner wsBefore [] wsAfter
             }
       , lazy <| \_ ->
           genericNonEmptyList
-            { item = item
-            , combiner = nonEmptyCombiner
+            { item =
+                item
+            , combiner =
+                combiner
             }
       ]
+
+--------------------------------------------------------------------------------
+-- Block Helper (for types) TODO
+--------------------------------------------------------------------------------
+
+block
+  : (WS -> a -> WS -> b) -> String -> String -> Parser a -> ParserI b
+block combiner openSymbol closeSymbol p =
+  delayedCommitMap
+    ( \(wsStart, open) (result, wsEnd, close) ->
+        withInfo
+          (combiner wsStart result wsEnd)
+          open.start
+          close.end
+    )
+    ( succeed (,)
+        |= spaces
+        |= trackInfo (symbol openSymbol)
+    )
+    ( succeed (,,)
+        |= p
+        |= spaces
+        |= trackInfo (symbol closeSymbol)
+    )
+
+parenBlock : (WS -> a -> WS -> b) -> Parser a -> ParserI b
+parenBlock combiner = block combiner "(" ")"
+
+bracketBlock : (WS -> a -> WS -> b) -> Parser a -> ParserI b
+bracketBlock combiner = block combiner "[" "]"
+
+blockIgnoreWS : String -> String -> Parser a -> ParserI a
+blockIgnoreWS = block (\wsStart x wsEnd -> x)
+
+parenBlockIgnoreWS : Parser a -> ParserI a
+parenBlockIgnoreWS = blockIgnoreWS "(" ")"
 
 --==============================================================================
 --= Identifiers
@@ -253,10 +291,7 @@ listPattern =
         genericList
           { item =
               pattern
-          , emptyCombiner =
-              \wsBefore wsInside ->
-                PList wsBefore [] space0 Nothing wsInside
-          , nonEmptyCombiner =
+          , combiner =
               \wsBefore members wsBeforeEnd ->
                 PList wsBefore members space0 Nothing wsBeforeEnd
           }
@@ -298,6 +333,201 @@ pattern =
       , baseValuePattern
       , variablePattern
       ]
+
+--==============================================================================
+--= Types
+--==============================================================================
+
+--------------------------------------------------------------------------------
+-- Base Types
+--------------------------------------------------------------------------------
+
+baseType : String -> (WS -> Type_) -> String -> Parser Type
+baseType context combiner token =
+  inContext context <|
+    delayedCommitMap
+      ( \ws _ ->
+          withInfo (combiner ws) ws.start ws.end
+      )
+      ( spaces )
+      ( keyword token )
+
+nullType : Parser Type
+nullType =
+  baseType "null type" TNull "Null"
+
+numType : Parser Type
+numType =
+  baseType "num type" TNum "Num"
+
+boolType : Parser Type
+boolType =
+  baseType "bool type" TBool "Bool"
+
+stringType : Parser Type
+stringType =
+  baseType "string type" TString "String"
+
+--------------------------------------------------------------------------------
+-- Named Types
+--------------------------------------------------------------------------------
+
+namedType : Parser Type
+namedType =
+  inContext "named type" <|
+    paddedBefore TNamed bigIdentifier
+
+--------------------------------------------------------------------------------
+-- Variable Types
+--------------------------------------------------------------------------------
+
+variableType : Parser Type
+variableType =
+  inContext "variable type" <|
+    paddedBefore TVar littleIdentifier
+
+--------------------------------------------------------------------------------
+-- Function Type
+--------------------------------------------------------------------------------
+
+functionType : Parser Type
+functionType =
+  lazy <| \_ ->
+    inContext "function type" <|
+      parenBlock TArrow <|
+        succeed identity
+          |. keywordWithSpace "->"
+          |= repeat oneOrMore typ
+
+--------------------------------------------------------------------------------
+-- List Type
+--------------------------------------------------------------------------------
+
+listType : Parser Type
+listType =
+  inContext "list type" <|
+    lazy <| \_ ->
+      parenBlock TList <|
+        succeed identity
+          |. keywordWithSpace "List"
+          |= typ
+
+--------------------------------------------------------------------------------
+-- Dict Type
+--------------------------------------------------------------------------------
+
+dictType : Parser Type
+dictType =
+  inContext "dictionary type" <|
+    lazy <| \_ ->
+      parenBlock
+        ( \wsStart (tKey, tVal) wsEnd ->
+            TDict wsStart tKey tVal wsEnd
+        )
+        ( succeed (,)
+            |. keywordWithSpace "TDict"
+            |= typ
+            |= typ
+        )
+
+--------------------------------------------------------------------------------
+-- Tuple Type
+--------------------------------------------------------------------------------
+
+tupleType : Parser Type
+tupleType =
+  inContext "tuple type" <|
+    lazy <| \_ ->
+      genericList
+        { item =
+            typ
+        , combiner =
+            ( \wsStart heads wsEnd ->
+                TTuple wsStart heads space0 Nothing wsEnd
+            )
+        }
+
+--------------------------------------------------------------------------------
+-- Forall Type
+--------------------------------------------------------------------------------
+
+forallType : Parser Type
+forallType =
+  let
+    wsIdentifierPair =
+      delayedCommitMap
+        ( \ws name ->
+            (ws, name.val)
+        )
+        spaces
+        littleIdentifier
+    quantifiers =
+      oneOf
+        [ inContext "forall type (one)" <|
+            map One wsIdentifierPair
+        , inContext "forall type (many) "<|
+            untrackInfo <|
+              parenBlock Many <|
+                repeat zeroOrMore wsIdentifierPair
+        ]
+  in
+    inContext "forall type" <|
+      lazy <| \_ ->
+        parenBlock
+          ( \wsStart (qs, t) wsEnd ->
+              TForall wsStart qs t wsEnd
+          )
+          ( succeed (,)
+              |. keywordWithSpace "forall"
+              |= quantifiers
+              |= typ
+          )
+
+--------------------------------------------------------------------------------
+-- Union Type
+--------------------------------------------------------------------------------
+
+unionType : Parser Type
+unionType =
+  inContext "union type" <|
+    lazy <| \_ ->
+      parenBlock TUnion <|
+        succeed identity
+          |. keywordWithSpace "union"
+          |= repeat oneOrMore typ
+
+--------------------------------------------------------------------------------
+-- Wildcard Type
+--------------------------------------------------------------------------------
+
+wildcardType : Parser Type
+wildcardType =
+  inContext "wildcard type" <|
+    spaceSaverKeyword "_" TWildcard
+
+--------------------------------------------------------------------------------
+-- General Types
+--------------------------------------------------------------------------------
+
+typ : Parser Type
+typ =
+  inContext "type" <|
+    lazy <| \_ ->
+      oneOf
+        [ nullType
+        , numType
+        , boolType
+        , stringType
+        , wildcardType
+        , lazy <| \_ -> functionType
+        , lazy <| \_ -> listType
+        , lazy <| \_ -> dictType
+        , lazy <| \_ -> tupleType
+        , lazy <| \_ -> forallType
+        , lazy <| \_ -> unionType
+        , namedType
+        , variableType
+        ]
 
 --==============================================================================
 -- Operators
@@ -501,10 +731,7 @@ list =
         genericList
           { item =
               expression
-          , emptyCombiner =
-              \wsBefore wsInside ->
-                EList wsBefore [] space0 Nothing wsInside
-          , nonEmptyCombiner =
+          , combiner =
               \wsBefore members wsBeforeEnd ->
                 EList wsBefore members space0 Nothing wsBeforeEnd
           }
@@ -672,6 +899,31 @@ parens =
           )
 
 --------------------------------------------------------------------------------
+-- Colon Types TODO
+--------------------------------------------------------------------------------
+
+colonType : Parser Exp
+colonType =
+  inContext "colon type" <|
+    mapExp_ <|
+      lazy <| \_ ->
+        parenBlock
+          ( \wsStart (e, wsColon, t) wsEnd ->
+              EColonType wsStart e wsColon t wsEnd
+          )
+          ( delayedCommitMap
+              ( \(e, wsColon) t ->
+                  (e, wsColon, t)
+              )
+              ( succeed (,)
+                  |= expression
+                  |= spaces
+                  |. symbol ":"
+              )
+              typ
+          )
+
+--------------------------------------------------------------------------------
 -- General Expressions
 --------------------------------------------------------------------------------
 
@@ -689,11 +941,11 @@ simpleExpression =
       , lazy <| \_ -> letBinding
       , lazy <| \_ -> lineComment
       , lazy <| \_ -> option
+      , lazy <| \_ -> colonType
       , lazy <| \_ -> parens
       -- , lazy <| \_ -> typeCaseExpression
       -- , lazy <| \_ -> typeAlias
       -- , lazy <| \_ -> typeDeclaration
-      -- , lazy <| \_ -> typeAnnotation
       , variableExpression
       ]
 

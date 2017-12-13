@@ -5,6 +5,7 @@ module ElmUnparser exposing
 
 import Lang exposing (..)
 import ElmLang
+import Utils
 
 unparseBaseValue : EBaseVal -> String
 unparseBaseValue ebv =
@@ -48,6 +49,39 @@ unparsePattern p =
         ++ "as"
         ++ unparsePattern pat
         ++ ")"
+
+-- TODO
+unparseType : Type -> String
+unparseType tipe =
+  case tipe.val of
+    TNum ws                   -> ws.val ++ "Num"
+    TBool ws                  -> ws.val ++ "Bool"
+    TString ws                -> ws.val ++ "String"
+    TNull ws                  -> ws.val ++ "Null"
+    TList ws1 tipe ws2        -> ws1.val ++ "(List" ++ (unparseType tipe) ++ ws2.val ++ ")"
+    TDict ws1 tipe1 tipe2 ws2 -> ws1.val ++ "(Dict" ++ (unparseType tipe1) ++ (unparseType tipe2) ++ ws2.val ++ ")"
+    TTuple ws1 typeList ws2 maybeRestType ws3 ->
+      case maybeRestType of
+        Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"
+        Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3.val ++ "]"
+    TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
+    TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
+    TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
+    TNamed ws1 "Bool"       -> ws1.val ++ "Bad_BOOL"
+    TNamed ws1 "String"     -> ws1.val ++ "Bad_STRING"
+    TNamed ws1 "Null"       -> ws1.val ++ "Bad_NULL"
+    TNamed ws1 ident        -> ws1.val ++ ident
+    TVar ws1 ident          -> ws1.val ++ ident
+    TWildcard ws            -> ws.val ++ "_"
+    TForall ws1 typeVars tipe1 ws2 ->
+      let strVar (ws,x) = ws.val ++ x in
+      let sVars =
+        case typeVars of
+          One var             -> strVar var
+          Many ws1_ vars ws2_ -> ws1_.val ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2_.val)
+      in
+      ws1.val ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2.val)
+
 
 unparseOp : Op -> String
 unparseOp op =
@@ -226,8 +260,15 @@ unparse e =
         ++ wsAfter.val
         ++ ")"
 
-    Lang.EColonType _ _ _ _ _ ->
-      Debug.crash "TODO"
+    Lang.EColonType wsBefore term wsBeforeColon typ wsAfter ->
+      wsBefore.val
+        ++ "("
+        ++ unparse term
+        ++ wsBeforeColon.val
+        ++ ":"
+        ++ unparseType typ
+        ++ wsAfter.val
+        ++ ")"
 
     Lang.ETyp _ _ _ _ _ ->
       Debug.crash "TODO"
