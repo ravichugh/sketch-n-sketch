@@ -270,12 +270,20 @@ unparse e =
         ++ wsAfter.val
         ++ ")"
 
-    Lang.ETyp _ _ _ _ _ ->
-      Debug.crash "TODO"
+    Lang.ETyp _ name typ rest wsBeforeColon ->
+      unparsePattern name
+        ++ wsBeforeColon.val
+        ++ ":"
+        ++ unparseType typ
+        ++ unparse rest
 
-    Lang.ETypeAlias _ _ _ _ _ ->
-      Debug.crash "TODO"
+    Lang.ETypeAlias wsBefore pat typ rest _ ->
+      wsBefore.val
+        ++ "type alias"
+        ++ unparsePattern pat
+        ++ " ="
+        ++ unparseType typ
+        ++ unparse rest
 
     Lang.ETypeCase _ _ _ _ ->
-      Debug.crash "TODO"
-
+      "{Error: typecase not yet implemented for Elm syntax}" -- TODO

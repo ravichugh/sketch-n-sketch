@@ -97,9 +97,9 @@ block
   : (WS -> a -> WS -> b) -> String -> String -> Parser a -> ParserI b
 block combiner openSymbol closeSymbol p =
   delayedCommitMap
-    ( \(wsStart, open) (result, wsEnd, close) ->
+    ( \(wsBefore, open) (result, wsEnd, close) ->
         withInfo
-          (combiner wsStart result wsEnd)
+          (combiner wsBefore result wsEnd)
           open.start
           close.end
     )
@@ -120,7 +120,7 @@ bracketBlock : (WS -> a -> WS -> b) -> Parser a -> ParserI b
 bracketBlock combiner = block combiner "[" "]"
 
 blockIgnoreWS : String -> String -> Parser a -> ParserI a
-blockIgnoreWS = block (\wsStart x wsEnd -> x)
+blockIgnoreWS = block (\wsBefore x wsEnd -> x)
 
 parenBlockIgnoreWS : Parser a -> ParserI a
 parenBlockIgnoreWS = blockIgnoreWS "(" ")"
@@ -139,6 +139,7 @@ keywords =
     , "if"
     , "then"
     , "else"
+    , "type"
     ]
 
 isRestChar : Char -> Bool
@@ -246,18 +247,31 @@ baseValue =
 --==============================================================================
 
 --------------------------------------------------------------------------------
+-- Names Helper
+--------------------------------------------------------------------------------
+
+namePattern : ParserI Ident -> Parser Pat
+namePattern ident =
+  mapPat_ <|
+    paddedBefore (\ws name -> PVar ws name noWidgetDecl) ident
+
+--------------------------------------------------------------------------------
 -- Variables
 --------------------------------------------------------------------------------
 
 variablePattern : Parser Pat
 variablePattern =
   inContext "variable pattern" <|
-    mapPat_ <|
-      paddedBefore
-        ( \ws name ->
-            PVar ws name noWidgetDecl
-        )
-        littleIdentifier
+    namePattern littleIdentifier
+
+--------------------------------------------------------------------------------
+-- Types  (SPECIAL-USE ONLY; not included in `pattern`)
+--------------------------------------------------------------------------------
+
+typePattern : Parser Pat
+typePattern =
+  inContext "type pattern" <|
+    namePattern bigIdentifier
 
 --------------------------------------------------------------------------------
 -- Constants
@@ -421,8 +435,8 @@ dictType =
   inContext "dictionary type" <|
     lazy <| \_ ->
       parenBlock
-        ( \wsStart (tKey, tVal) wsEnd ->
-            TDict wsStart tKey tVal wsEnd
+        ( \wsBefore (tKey, tVal) wsEnd ->
+            TDict wsBefore tKey tVal wsEnd
         )
         ( succeed (,)
             |. keywordWithSpace "TDict"
@@ -442,8 +456,8 @@ tupleType =
         { item =
             typ
         , combiner =
-            ( \wsStart heads wsEnd ->
-                TTuple wsStart heads space0 Nothing wsEnd
+            ( \wsBefore heads wsEnd ->
+                TTuple wsBefore heads space0 Nothing wsEnd
             )
         }
 
@@ -474,8 +488,8 @@ forallType =
     inContext "forall type" <|
       lazy <| \_ ->
         parenBlock
-          ( \wsStart (qs, t) wsEnd ->
-              TForall wsStart qs t wsEnd
+          ( \wsBefore (qs, t) wsEnd ->
+              TForall wsBefore qs t wsEnd
           )
           ( succeed (,)
               |. keywordWithSpace "forall"
@@ -853,9 +867,9 @@ option =
     mapExp_ <|
       lazy <| \_ ->
         delayedCommitMap
-          ( \wsStart (open, opt, wsMid, val, rest) ->
+          ( \wsBefore (open, opt, wsMid, val, rest) ->
               withInfo
-                (EOption wsStart opt wsMid val rest)
+                (EOption wsBefore opt wsMid val rest)
                 open.start
                 val.end
           )
@@ -908,8 +922,8 @@ colonType =
     mapExp_ <|
       lazy <| \_ ->
         parenBlock
-          ( \wsStart (e, wsColon, t) wsEnd ->
-              EColonType wsStart e wsColon t wsEnd
+          ( \wsBefore (e, wsColon, t) wsEnd ->
+              EColonType wsBefore e wsColon t wsEnd
           )
           ( delayedCommitMap
               ( \(e, wsColon) t ->
@@ -1088,6 +1102,120 @@ topLevelDef =
       )
 
 --------------------------------------------------------------------------------
+-- Top-Level Type Declarations
+--------------------------------------------------------------------------------
+
+topLevelTypeDeclaration : Parser TopLevelExp
+topLevelTypeDeclaration =
+  inContext "top-level type declaration" <|
+    lazy <| \_ ->
+      delayedCommitMap
+        ( \(name, wsBeforeColon) t ->
+            withInfo
+              ( \rest ->
+                  exp_ <|
+                    ETyp
+                      space0
+                      name
+                      t
+                      rest
+                      wsBeforeColon
+              )
+              name.start
+              t.end
+        )
+        ( succeed (,)
+            |= pattern
+            |= spaces
+            |. symbol ":"
+        )
+        ( typ
+        )
+
+--------------------------------------------------------------------------------
+-- Top Level Type Aliases
+--------------------------------------------------------------------------------
+
+topLevelTypeAlias : Parser TopLevelExp
+topLevelTypeAlias =
+  inContext "top-level type alias" <|
+    delayedCommitMap
+      ( \(wsBefore, typeAliasKeyword, pat) t ->
+          withInfo
+            ( \rest ->
+                exp_ <|
+                  ETypeAlias wsBefore pat t rest space0
+            )
+            typeAliasKeyword.start
+            t.end
+      )
+      ( succeed (,,)
+          |= spaces
+          |= trackInfo (keywordWithSpace "type alias")
+          |= typePattern
+          |. spaces
+          |. symbol "="
+      )
+      ( typ
+      )
+
+--------------------------------------------------------------------------------
+-- Top-Level Comments
+--------------------------------------------------------------------------------
+
+topLevelComment : Parser TopLevelExp
+topLevelComment =
+  inContext "top-level comment" <|
+    delayedCommitMap
+      ( \wsBefore (dashes, text) ->
+          withInfo
+            ( \rest ->
+                exp_ <|
+                  EComment wsBefore text.val rest
+            )
+            dashes.start
+            text.end
+      )
+      spaces
+      ( succeed (,)
+          |= trackInfo (symbol "--")
+          |= trackInfo (keep zeroOrMore (\c -> c /= '\n'))
+          |. oneOf
+               [ symbol "\n"
+               , end
+               ]
+      )
+
+--------------------------------------------------------------------------------
+-- Top-Level Options
+--------------------------------------------------------------------------------
+
+topLevelOption : Parser TopLevelExp
+topLevelOption =
+  inContext "top-level option" <|
+    paddedBefore
+      ( \wsBefore (opt, wsMid, val) ->
+          ( \rest ->
+              exp_ <| EOption wsBefore opt wsMid val rest
+          )
+      )
+      ( trackInfo <| succeed (,,)
+          |. symbol "#"
+          |. spaces
+          |= trackInfo
+               ( keep zeroOrMore <| \c ->
+                   c /= '\n' && c /= ' ' && c /= ':'
+               )
+          |. symbol ":"
+          |= spaces
+          |= trackInfo
+               ( keep zeroOrMore <| \c ->
+                   c /= '\n'
+               )
+          |. symbol "\n"
+      )
+
+--------------------------------------------------------------------------------
 -- General Top-Level Expressions
 --------------------------------------------------------------------------------
 
@@ -1096,6 +1224,10 @@ topLevelExpression =
   inContext "top-level expression" <|
     oneOf
       [ topLevelDef
+      , topLevelTypeDeclaration
+      , topLevelTypeAlias
+      , topLevelComment
+      , topLevelOption
       ]
 
 allTopLevelExpressions : Parser (List TopLevelExp)
