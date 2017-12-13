@@ -221,7 +221,7 @@ unparse_ e = case e.val.e__ of
   ETypeAlias ws1 pat tipe e ws2 ->
     ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
   EParens ws1 e ws2 ->
-    ws1.val ++ "(" ++ unparse e ++ ws2.val ++ ")"
+    unparse e
 
 
 unparseWithIds : Exp -> String
@@ -343,4 +343,4 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
     ETypeAlias _ pat tipe e _ ->
       " " ++ "(def" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")" ++ recurse e
     EParens _ e _ ->
-      " " ++ "(" ++ recurse e ++ ")"
+      recurse e
