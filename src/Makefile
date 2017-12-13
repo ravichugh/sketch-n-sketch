@@ -40,7 +40,7 @@ examples:
 loc:
 	wc -l \
     ../build/out/index.html ../build/out/main.css \
-    Lang.elm LangSvg.elm Syntax.elm \
+    Lang.elm LangSvg.elm Syntax.elm TopLevelExp.elm \
 		ElmLang.elm \
 		Info.elm Pos.elm \
 		ParserUtils.elm LangParserUtils.elm BinaryOperatorParser.elm \

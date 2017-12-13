@@ -16,6 +16,7 @@ import Utils
 import Lang exposing (..)
 import Info exposing (..)
 import ElmLang
+import TopLevelExp exposing (TopLevelExp, fuseTopLevelExps)
 
 import FastParser
 
@@ -794,14 +795,71 @@ expression =
                         right.end
         }
 
+--==============================================================================
+-- Top-Level Expressions
+--=============================================================================
+
 --------------------------------------------------------------------------------
+-- Top-Level Defs
+--------------------------------------------------------------------------------
+
+topLevelDef : Parser TopLevelExp
+topLevelDef =
+  inContext "top-level def binding" <|
+    delayedCommitMap
+      ( \(wsBefore, name) (binding, wsBeforeSemicolon, semicolon) ->
+          withInfo
+            ( \rest ->
+                exp_ <|
+                  ELet
+                    wsBefore
+                    Def
+                    False
+                    name
+                    binding
+                    rest
+                    wsBeforeSemicolon
+            )
+            name.start
+            semicolon.end
+      )
+      ( succeed (,)
+          |= spaces
+          |= pattern
+          |. spaces
+          |. symbol "="
+      )
+      ( succeed (,,)
+          |= expression
+          |= spaces
+          |= trackInfo (symbol ";")
+      )
+
+--------------------------------------------------------------------------------
+-- General Top-Level Expressions
+--------------------------------------------------------------------------------
+
+topLevelExpression : Parser TopLevelExp
+topLevelExpression =
+  inContext "top-level expression" <|
+    oneOf
+      [ topLevelDef
+      ]
+
+allTopLevelExpressions : Parser (List TopLevelExp)
+allTopLevelExpressions =
+  repeat zeroOrMore topLevelExpression
+
+--==============================================================================
 -- Programs
---------------------------------------------------------------------------------
+--=============================================================================
 
 program : Parser Exp
 program =
-  succeed identity
+  succeed fuseTopLevelExps
+    |= allTopLevelExpressions
     |= expression
+    |. spaces
     |. end
 
 --==============================================================================

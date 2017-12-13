@@ -25,6 +25,7 @@ import LangParserUtils exposing (..)
 import Utils as U
 import PreludeGenerated as Prelude
 import Lang exposing (..)
+import TopLevelExp exposing (TopLevelExp, fuseTopLevelExps)
 import Pos exposing (..)
 import Info exposing (..)
 
@@ -1171,24 +1172,6 @@ exp =
 --==============================================================================
 --= TOP-LEVEL EXPRESSIONS
 --==============================================================================
-
---------------------------------------------------------------------------------
--- Data Types
---------------------------------------------------------------------------------
-
-type alias TopLevelExp = WithInfo (Exp -> Exp_)
-
---------------------------------------------------------------------------------
--- Top-Level Expression Fusing
---------------------------------------------------------------------------------
-
-fuseTopLevelExp : TopLevelExp -> Exp -> Exp
-fuseTopLevelExp tld rest =
-  withInfo (tld.val rest) tld.start tld.end
-
-fuseTopLevelExps : (List TopLevelExp) -> Exp -> Exp
-fuseTopLevelExps tlds rest =
-  List.foldr fuseTopLevelExp rest tlds
 
 --------------------------------------------------------------------------------
 -- Top-Level Defs

@@ -182,14 +182,25 @@ unparse e =
         ++ " of"
         ++ String.concat (List.map unparseBranch branches)
 
-    ELet wsBefore _ _ name binding body _ ->
-      wsBefore.val
-        ++ "let"
-        ++ unparsePattern name
-        ++ " ="
-        ++ unparse binding
-        ++ " in"
-        ++ unparse body
+    ELet wsBefore letKind _ name binding body wsBeforeSemicolon ->
+      case letKind of
+        Let ->
+          wsBefore.val
+            ++ "let"
+            ++ unparsePattern name
+            ++ " ="
+            ++ unparse binding
+            ++ " in"
+            ++ unparse body
+
+        Def ->
+          wsBefore.val
+            ++ unparsePattern name
+            ++ " ="
+            ++ unparse binding
+            ++ wsBeforeSemicolon.val
+            ++ ";"
+            ++ unparse body
 
     EComment wsBefore text expAfter ->
       wsBefore.val
