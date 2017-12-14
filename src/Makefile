@@ -2,10 +2,10 @@ ELMMAKE=elm-make
   # for locally-modified Elm compiler, create a symlink to something like:
   # /PATH/TO/elm-make/.stack-work/install/x86_64-osx/lts-3.22/7.10.2/bin/elm-make
 
-all:
+all: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
 
-html:
+html: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
 	cp Native/aceCodeBox.js ../build/out/
 	cp Native/aceTooltips.js ../build/out/
@@ -24,6 +24,16 @@ html:
 	cp ../img/sketch-n-sketch-logo.png ../build/out/img/
 	cp ../img/light_logo.svg ../build/out/img/
 	cp ../img/*.png ../build/out/img/
+
+elm-stuff/packages:
+	# Use our custom version of core that allows anything in sets.
+	#
+	# Wacky, but have to do it this way to avoid circular dependency b/c Basics is auto-included in everything.
+	#
+	# Based on tests/run-tests.sh in elm-lang/core.
+	elm-package install
+	rm -rf elm-stuff/packages/elm-lang/core/5.1.1
+	cd elm-stuff/packages/elm-lang/core && git clone --branch flexible_sets https://github.com/brianhempel/core.git && mv core 5.1.1
 
 remove_build_artifacts:
 	rm -r elm-stuff/build-artifacts/0.*/user; rm -r ../tests/elm-stuff/build-artifacts/0.*/user; true
