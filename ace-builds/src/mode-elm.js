@@ -40,9 +40,9 @@ var ElmHighlightRules = function() {
             "hiding|jsevent|if|import|in|infix|infixl|infixr|instance|let|" +
             "module|newtype|of|open|then|type|where|_|port|\u03BB"
     }, "identifier");
-    
+
     var escapeRe = /\\(\d+|['"\\&trnbvf])/;
-    
+
     var smallRe = /[a-z_]/.source;
     var largeRe = /[A-Z]/.source;
     var idRe = /[a-z_A-Z0-9']/.source;
@@ -50,11 +50,11 @@ var ElmHighlightRules = function() {
     this.$rules = {
         start: [{
             token: "string.start",
-            regex: '"',
+            regex: '["\']',
             next: "string"
-        }, {
-            token: "string.character",
-            regex: "'(?:" + escapeRe.source + "|.)'?"
+//        }, {
+//            token: "string.character",
+//            regex: "'(?:" + escapeRe.source + "|.)'?"
         }, {
             regex: /0(?:[xX][0-9A-Fa-f]+|[oO][0-7]+)|\d+(\.\d+)?([eE][-+]?\d*)?/,
             token: "constant.numeric"
@@ -74,13 +74,13 @@ var ElmHighlightRules = function() {
             regex : largeRe + idRe + "+\\.?",
             token : function(value) {
                 if (value[value.length - 1] == ".")
-                    return "entity.name.function"; 
-                return "constant.language"; 
+                    return "entity.name.function";
+                return "constant.language";
             }
         }, {
             regex : "^" + smallRe  + idRe + "+",
             token : function(value) {
-                return "constant.language"; 
+                return "constant.language";
             }
         }, {
             token : keywordMapper,
@@ -98,7 +98,7 @@ var ElmHighlightRules = function() {
             next: "markdown"
         }, {
             token: "paren.lparen",
-            regex: /[\[({]/ 
+            regex: /[\[({]/
         }, {
             token: "paren.rparen",
             regex: /[\])}]/
@@ -127,7 +127,7 @@ var ElmHighlightRules = function() {
 //        }, {
 //            regex: "-}",
 //            token: "comment.end",
-//            next: "pop" 
+//            next: "pop"
 //        }, {
 //            defaultToken: "doc.comment"
 //        }],
@@ -140,7 +140,7 @@ var ElmHighlightRules = function() {
             next: "stringGap"
         }, {
             token: "string.end",
-            regex: '"',
+            regex: '["\']',
             next: "start"
         }, {
             defaultToken: "string"
@@ -155,7 +155,7 @@ var ElmHighlightRules = function() {
             next: "start"
         }]
     };
-    
+
     this.normalizeRules();
 };
 
