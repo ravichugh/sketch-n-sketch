@@ -41,6 +41,7 @@ type OtherFeature
   = FillColor | FillOpacity
   | StrokeColor | StrokeOpacity | StrokeWidth
   | Rotation
+  | Quantity
 
 eightPointFeatures =
   List.map PointFeature
@@ -118,176 +119,67 @@ featureNumsOfFeature feature =
     DistanceFeature df -> [DFeat df]
     OtherFeature feat  -> [OFeat feat]
 
--- featureNumsOfShape : ShapeKind -> List Attr -> List FeatureNum
--- featureNumsOfShape kind attrs =
---   featuresOfShape kind attrs
---   |> List.concatMap featureNumsOfFeature
+
+featureNumDesc : FeatureNum -> String
+featureNumDesc featureNum =
+  toString featureNum
+  |> Utils.stringReplace " " ""
+  |> Utils.stringReplace "(" ""
+  |> Utils.stringReplace ")" ""
 
 
 ------------------------------------------------------------------------------
--- ShapeFeature ~= a comparable version of ShapeKind + FeatureNum
 
--- Must be a comparable to be put in a Set
--- Otherwise, this shouldn't be a string
--- For now, these are unnecessarily entangled with ShapeKinds.
--- See sanityChecks below for the output of unparseFeatureNum.
---
-type alias ShapeFeature = String
+type alias ShapeFeature = (ShapeKind, FeatureNum)
 
-unparseFeatureNum : Maybe ShapeKind -> FeatureNum -> ShapeFeature
-unparseFeatureNum mKind featureNum =
-  case mKind of
-    Just kind -> String.toLower kind ++ strFeatureNum kind featureNum
-    Nothing   -> strFeatureNum "XXX" featureNum
 
-strFeatureNum : ShapeKind -> FeatureNum -> ShapeFeature
-strFeatureNum kind featureNum =
-  case (kind, featureNum) of
-    ("line", XFeat (Point 1)) -> "X1"
-    ("line", XFeat (Point 2)) -> "X2"
-    ("line", YFeat (Point 1)) -> "Y1"
-    ("line", YFeat (Point 2)) -> "Y2"
-    (_,      XFeat pf)        -> strPointFeature pf "X"
-    (_,      YFeat pf)        -> strPointFeature pf "Y"
-    (_,      DFeat df)        -> strDistanceFeature df
-    (_,      OFeat f)         -> strOtherFeature f
+shapeFeatureDesc : ShapeFeature -> String
+shapeFeatureDesc (shapeKind, featureNum) =
+  shapeKind ++ featureNumDesc featureNum
 
-strPointFeature pointFeature xy =
-  case pointFeature of
-    TopLeft    -> "TL" ++ xy
-    TopRight   -> "TR" ++ xy
-    BotLeft    -> "BL" ++ xy
-    BotRight   -> "BR" ++ xy
-    TopEdge    -> "TC" ++ xy
-    RightEdge  -> "CR" ++ xy
-    BotEdge    -> "BC" ++ xy
-    LeftEdge   -> "CL" ++ xy
-    Center     -> "C" ++ xy
-    LonePoint  -> xy
-    Point i    -> "Pt" ++ xy ++ toString i
-    Midpoint i -> "Midpt" ++ xy ++ toString i
-    EndPoint   -> "Endpt" ++ xy
-
-strDistanceFeature distanceFeature =
-  case distanceFeature of
-    Width         -> "Width"
-    Height        -> "Height"
-    Radius        -> "R"
-    RadiusX       -> "RX"
-    RadiusY       -> "RY"
-    Offset        -> ""
-
-strOtherFeature otherFeature =
-  case otherFeature of
-    FillColor     -> "fill"
-    StrokeColor   -> "stroke"
-    FillOpacity   -> "fillOpacity"
-    StrokeOpacity -> "strokeOpacity"
-    StrokeWidth   -> "strokeWidth"
-    Rotation      -> "rotation"
-
-shapeKindRegexStr  = "line|rect|circle|ellipse|polygon|path|box|oval|point|offset"
-xShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)X(\\d*)$"
-yShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)Y(\\d*)$"
-
-distanceFeatureRegex =
-  Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(Width|Height|R|RX|RY)$"
 
 parseFeatureNum : ShapeFeature -> FeatureNum
-parseFeatureNum shapeFeature =
-  if Regex.contains distanceFeatureRegex shapeFeature then
-    Regex.find (Regex.AtMost 1) distanceFeatureRegex shapeFeature
-      |> Utils.head_
-      |> (.submatches)
-      |> parseDistanceFeature
-      |> DFeat
-  else if Regex.contains xShapeFeatureRegex shapeFeature then
-    Regex.find (Regex.AtMost 1) xShapeFeatureRegex shapeFeature
-      |> Utils.head_
-      |> (.submatches)
-      |> parseShapeFeaturePoint
-      |> XFeat
-  else if Regex.contains yShapeFeatureRegex shapeFeature then
-    Regex.find (Regex.AtMost 1) yShapeFeatureRegex shapeFeature
-      |> Utils.head_
-      |> (.submatches)
-      |> parseShapeFeaturePoint
-      |> YFeat
-  else
-    case shapeFeature of
-      "offset"        -> DFeat Offset
-
-      "fill"          -> OFeat FillColor
-      "stroke"        -> OFeat StrokeColor
-      "fillOpacity"   -> OFeat FillOpacity
-      "strokeOpacity" -> OFeat StrokeOpacity
-      "strokeWidth"   -> OFeat StrokeWidth
-      "rotation"      -> OFeat Rotation
-
-      _ -> Debug.crash <| "parseFeatureNum: " ++ shapeFeature
-
-parseDistanceFeature matches =
-  case matches of
-    [Just kind, Just "Width"]  -> Width
-    [Just kind, Just "Height"] -> Height
-    [Just kind, Just "R"]      -> Radius
-    [Just kind, Just "RX"]     -> RadiusX
-    [Just kind, Just "RY"]     -> RadiusY
-
-    _ -> Debug.crash <| "parseDistanceFeature: " ++ (toString matches)
-
-parseShapeFeaturePoint matches =
-  case matches of
-
-    [Just kind, Just "TL", Just ""] -> TopLeft
-    [Just kind, Just "TR", Just ""] -> TopRight
-    [Just kind, Just "BL", Just ""] -> BotLeft
-    [Just kind, Just "BR", Just ""] -> BotRight
-    [Just kind, Just "TC", Just ""] -> TopEdge
-    [Just kind, Just "CR", Just ""] -> RightEdge
-    [Just kind, Just "BC", Just ""] -> BotEdge
-    [Just kind, Just "CL", Just ""] -> LeftEdge
-    [Just kind, Just "C" , Just ""] -> Center
-
-    [Just kind, Just "",    Just ""] -> LonePoint
-
-    [Just kind, Just "", Just "1"] -> Point 1
-    [Just kind, Just "", Just "2"] -> Point 2
-
-    [Just kind, Just "Pt", Just s] -> Point (Utils.parseInt s)
-
-    [Just kind, Just "Midpt", Just s]  -> Midpoint (Utils.parseInt s)
-    [Just kind, Just "Endpt", Just ""] -> EndPoint
-
-    _ -> Debug.crash <| "parsePoint: " ++ toString matches
+parseFeatureNum (_, featureNum) =
+  featureNum
 
 
--- Explicitly exclude ellipseRX/ellipseRX
-xFeatureNameRegex = Regex.regex "^(?!ellipseR)(.*)X(\\d*)$"
-yFeatureNameRegex = Regex.regex "^(?!ellipseR)(.*)Y(\\d*)$"
-xOrYFeatureNameRegex = Regex.regex "^(?!ellipseR)(.*)[XY](\\d*)$"
+shapeFeatureIsX : ShapeFeature -> Bool
+shapeFeatureIsX (_, featureNum) =
+  case featureNum of
+    XFeat _ -> True
+    _       -> False
 
-featureNameIsX featureName =
-  Regex.contains xFeatureNameRegex featureName
 
-featureNameIsY featureName =
-  Regex.contains yFeatureNameRegex featureName
+shapeFeatureIsY : ShapeFeature -> Bool
+shapeFeatureIsY (_, featureNum) =
+  case featureNum of
+    YFeat _ -> True
+    _       -> False
 
-featureNameIsXOrY featureName =
-  Regex.contains xOrYFeatureNameRegex featureName
 
-featurePointAndNumber featureName =
-  Regex.find (Regex.AtMost 1) xOrYFeatureNameRegex featureName
-  |> Utils.head_
-  |> (.submatches)
+shapeFeatureIsXOrY : ShapeFeature -> Bool
+shapeFeatureIsXOrY shapeFeature =
+  shapeFeatureIsX shapeFeature || shapeFeatureIsY shapeFeature
 
--- Assuming features are already on the same nodeId...
-featuresNamesAreXYPairs featureNameA featureNameB =
-  (featureNameIsXOrY featureNameA) &&
-  (featureNameIsXOrY featureNameB) &&
-  (featureNameA /= featureNameB) && -- Not the same feature
-  (featurePointAndNumber featureNameA) ==
-    (featurePointAndNumber featureNameB) -- But the same point
+
+selectedShapeFeatureIsX : SelectedShapeFeature -> Bool
+selectedShapeFeatureIsX (_, shapeFeature) =
+  shapeFeatureIsX shapeFeature
+
+
+shapeFeaturesAreXYPairs : ShapeFeature -> ShapeFeature -> Bool
+shapeFeaturesAreXYPairs (shapeKind1, featureNum1) (shapeKind2, featureNum2) =
+  shapeKind1 == shapeKind2 &&
+  case (featureNum1, featureNum2) of
+    (XFeat pointFeature1, YFeat pointFeature2) -> pointFeature1 == pointFeature2
+    (YFeat pointFeature1, XFeat pointFeature2) -> pointFeature1 == pointFeature2
+    _                                          -> False
+
+
+selectedShapeFeaturesAreXYPairs : SelectedShapeFeature -> SelectedShapeFeature -> Bool
+selectedShapeFeaturesAreXYPairs (nodeId1, shapeFeature1) (nodeId2, shapeFeature2) =
+  nodeId1 == nodeId2 &&
+  shapeFeaturesAreXYPairs shapeFeature1 shapeFeature2
 
 
 ------------------------------------------------------------------------------
@@ -302,12 +194,12 @@ selectedPointFeatureOf selected1 selected2 =
   let (id2, feature2) = selected2 in
   if id1 /= id2 then Nothing
   else
-    case pointFeatureOf (feature1, feature2) of
+    case pointFeatureOf feature1 feature2 of
       Just pt -> Just (id1, pt)
-      Nothing -> selectedPointFeatureOf selected2 selected1
+      Nothing -> selectedPointFeatureOf selected2 selected1 -- Ah, I think this will infinite loop.
 
-pointFeatureOf : (ShapeFeature, ShapeFeature) -> Maybe PointFeature
-pointFeatureOf (feature1, feature2) =
+pointFeatureOf : ShapeFeature -> ShapeFeature -> Maybe PointFeature
+pointFeatureOf feature1 feature2 =
   case (parseFeatureNum feature1, parseFeatureNum feature2) of
     (XFeat pointFeature1, YFeat pointFeature2) ->
       if pointFeature1 == pointFeature2
@@ -315,145 +207,6 @@ pointFeatureOf (feature1, feature2) =
       else Nothing
     _ ->
       Nothing
-
-
-------------------------------------------------------------------------------
-
--- Keeping these Strings around to avoid pervasive changes to
--- ValueBasedTransform. Can remove them in favor of FeatureNums instead.
-
-assertString string result =
-  if result == string then string
-  else Debug.crash <| Utils.spaces ["assertString:", result, "/= ", string]
-
-sanityCheck string kind featureNum =
-  assertString string (unparseFeatureNum (Just kind) featureNum)
-
-sanityCheckOther string featureNum =
-  assertString string (unparseFeatureNum Nothing featureNum)
-
-shapeFill          = sanityCheckOther "fill" (OFeat FillColor)
-shapeStroke        = sanityCheckOther "stroke" (OFeat StrokeColor)
-shapeFillOpacity   = sanityCheckOther "fillOpacity" (OFeat FillOpacity)
-shapeStrokeOpacity = sanityCheckOther "strokeOpacity" (OFeat StrokeOpacity)
-shapeStrokeWidth   = sanityCheckOther "strokeWidth" (OFeat StrokeWidth)
-shapeRotation      = sanityCheckOther "rotation" (OFeat Rotation)
-
-{-
-rectTLX = sanityCheck "rectTLX" "rect" (X TopLeft)
-rectTLY = sanityCheck "rectTLY" "rect" (Y TopLeft)
-rectTRX = sanityCheck "rectTRX" "rect" (X TopRight)
-rectTRY = sanityCheck "rectTRY" "rect" (Y TopRight)
-rectBLX = sanityCheck "rectBLX" "rect" (X BotLeft)
-rectBLY = sanityCheck "rectBLY" "rect" (Y BotLeft)
-rectBRX = sanityCheck "rectBRX" "rect" (X BotRight)
-rectBRY = sanityCheck "rectBRY" "rect" (Y BotRight)
-rectTCX = sanityCheck "rectTCX" "rect" (X TopEdge)
-rectTCY = sanityCheck "rectTCY" "rect" (Y TopEdge)
-rectCRX = sanityCheck "rectCRX" "rect" (X RightEdge)
-rectCRY = sanityCheck "rectCRY" "rect" (Y RightEdge)
-rectBCX = sanityCheck "rectBCX" "rect" (X BotEdge)
-rectBCY = sanityCheck "rectBCY" "rect" (Y BotEdge)
-rectCLX = sanityCheck "rectCLX" "rect" (X LeftEdge)
-rectCLY = sanityCheck "rectCLY" "rect" (Y LeftEdge)
-rectCX  = sanityCheck "rectCX"  "rect" (X Center)
-rectCY  = sanityCheck "rectCY"  "rect" (Y Center)
-
-rectWidth  = sanityCheck "rectWidth"  "rect" (D Width)
-rectHeight = sanityCheck "rectHeight" "rect" (D Height)
-
-boxTLX = sanityCheck "boxTLX" "BOX" (X TopLeft)
-boxTLY = sanityCheck "boxTLY" "BOX" (Y TopLeft)
-boxTRX = sanityCheck "boxTRX" "BOX" (X TopRight)
-boxTRY = sanityCheck "boxTRY" "BOX" (Y TopRight)
-boxBLX = sanityCheck "boxBLX" "BOX" (X BotLeft)
-boxBLY = sanityCheck "boxBLY" "BOX" (Y BotLeft)
-boxBRX = sanityCheck "boxBRX" "BOX" (X BotRight)
-boxBRY = sanityCheck "boxBRY" "BOX" (Y BotRight)
-boxTCX = sanityCheck "boxTCX" "BOX" (X TopEdge)
-boxTCY = sanityCheck "boxTCY" "BOX" (Y TopEdge)
-boxCRX = sanityCheck "boxCRX" "BOX" (X RightEdge)
-boxCRY = sanityCheck "boxCRY" "BOX" (Y RightEdge)
-boxBCX = sanityCheck "boxBCX" "BOX" (X BotEdge)
-boxBCY = sanityCheck "boxBCY" "BOX" (Y BotEdge)
-boxCLX = sanityCheck "boxCLX" "BOX" (X LeftEdge)
-boxCLY = sanityCheck "boxCLY" "BOX" (Y LeftEdge)
-boxCX  = sanityCheck "boxCX"  "BOX" (X Center)
-boxCY  = sanityCheck "boxCY"  "BOX" (Y Center)
-
-boxWidth  = sanityCheck "boxWidth"  "BOX" (D Width)
-boxHeight = sanityCheck "boxHeight" "BOX" (D Height)
-
-ovalTLX = sanityCheck "ovalTLX" "OVAL" (X TopLeft)
-ovalTLY = sanityCheck "ovalTLY" "OVAL" (Y TopLeft)
-ovalTRX = sanityCheck "ovalTRX" "OVAL" (X TopRight)
-ovalTRY = sanityCheck "ovalTRY" "OVAL" (Y TopRight)
-ovalBLX = sanityCheck "ovalBLX" "OVAL" (X BotLeft)
-ovalBLY = sanityCheck "ovalBLY" "OVAL" (Y BotLeft)
-ovalBRX = sanityCheck "ovalBRX" "OVAL" (X BotRight)
-ovalBRY = sanityCheck "ovalBRY" "OVAL" (Y BotRight)
-ovalTCX = sanityCheck "ovalTCX" "OVAL" (X TopEdge)
-ovalTCY = sanityCheck "ovalTCY" "OVAL" (Y TopEdge)
-ovalCRX = sanityCheck "ovalCRX" "OVAL" (X RightEdge)
-ovalCRY = sanityCheck "ovalCRY" "OVAL" (Y RightEdge)
-ovalBCX = sanityCheck "ovalBCX" "OVAL" (X BotEdge)
-ovalBCY = sanityCheck "ovalBCY" "OVAL" (Y BotEdge)
-ovalCLX = sanityCheck "ovalCLX" "OVAL" (X LeftEdge)
-ovalCLY = sanityCheck "ovalCLY" "OVAL" (Y LeftEdge)
-ovalCX  = sanityCheck "ovalCX"  "OVAL" (X Center)
-ovalCY  = sanityCheck "ovalCY"  "OVAL" (Y Center)
-
-ovalRX = sanityCheck "ovalRX" "OVAL" (D RadiusX)
-ovalRY = sanityCheck "ovalRY" "OVAL" (D RadiusY)
-
-circleTCX = sanityCheck "circleTCX" "circle" (X TopEdge)
-circleTCY = sanityCheck "circleTCY" "circle" (Y TopEdge)
-circleCRX = sanityCheck "circleCRX" "circle" (X RightEdge)
-circleCRY = sanityCheck "circleCRY" "circle" (Y RightEdge)
-circleBCX = sanityCheck "circleBCX" "circle" (X BotEdge)
-circleBCY = sanityCheck "circleBCY" "circle" (Y BotEdge)
-circleCLX = sanityCheck "circleCLX" "circle" (X LeftEdge)
-circleCLY = sanityCheck "circleCLY" "circle" (Y LeftEdge)
-circleCX  = sanityCheck "circleCX"  "circle" (X Center)
-circleCY  = sanityCheck "circleCY"  "circle" (Y Center)
-
-circleR = sanityCheck "circleR" "circle" (D Radius)
-
-ellipseTCX = sanityCheck "ellipseTCX" "ellipse" (X TopEdge)
-ellipseTCY = sanityCheck "ellipseTCY" "ellipse" (Y TopEdge)
-ellipseCRX = sanityCheck "ellipseCRX" "ellipse" (X RightEdge)
-ellipseCRY = sanityCheck "ellipseCRY" "ellipse" (Y RightEdge)
-ellipseBCX = sanityCheck "ellipseBCX" "ellipse" (X BotEdge)
-ellipseBCY = sanityCheck "ellipseBCY" "ellipse" (Y BotEdge)
-ellipseCLX = sanityCheck "ellipseCLX" "ellipse" (X LeftEdge)
-ellipseCLY = sanityCheck "ellipseCLY" "ellipse" (Y LeftEdge)
-ellipseCX  = sanityCheck "ellipseCX"  "ellipse" (X Center)
-ellipseCY  = sanityCheck "ellipseCY"  "ellipse" (Y Center)
-
-ellipseRX = sanityCheck "ellipseRX" "ellipse" (D RadiusX)
-ellipseRY = sanityCheck "ellipseRY" "ellipse" (D RadiusY)
-
-lineX1 = sanityCheck "lineX1" "line" (X (Point 1))
-lineY1 = sanityCheck "lineY1" "line" (Y (Point 1))
-lineX2 = sanityCheck "lineX2" "line" (X (Point 2))
-lineY2 = sanityCheck "lineY2" "line" (Y (Point 2))
-lineCX = sanityCheck "lineCX" "line" (X Center)
-lineCY = sanityCheck "lineCY" "line" (Y Center)
-
-pathPtX i    = sanityCheck (pathPtXPrefix ++ toString i) "path" (X (Point i))
-pathPtY i    = sanityCheck (pathPtYPrefix ++ toString i) "path" (Y (Point i))
-polyPtX i    = sanityCheck (polyPtXPrefix ++ toString i) "polygon" (X (Point i))
-polyPtY i    = sanityCheck (polyPtYPrefix ++ toString i) "polygon" (Y (Point i))
-polyMidptX i = sanityCheck (polyMidptXPrefix ++ toString i) "polygon" (X (Midpoint i))
-polyMidptY i = sanityCheck (polyMidptYPrefix ++ toString i) "polygon" (Y (Midpoint i))
-
-pathPtXPrefix = "pathPtX"
-pathPtYPrefix = "pathPtY"
-polyPtXPrefix = "polygonPtX"
-polyPtYPrefix = "polygonPtY"
-polyMidptXPrefix = "polygonMidptX"
-polyMidptYPrefix = "polygonMidptY"
--}
 
 
 ------------------------------------------------------------------------------
@@ -473,12 +226,12 @@ type FeatureEquationOf a
 
 
 selectedShapeFeatureToEquation : SelectedShapeFeature -> IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureEquation
-selectedShapeFeatureToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc =
-  selectedShapeFeatureToEquation_ featureEquation widgetFeatureEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc
+selectedShapeFeatureToEquation selectedShapeFeature tree widgets locIdToNumberAndLoc =
+  selectedShapeFeatureToEquation_ featureEquation widgetFeatureEquation selectedShapeFeature tree widgets locIdToNumberAndLoc
 
 selectedShapeFeatureToValEquation : SelectedShapeFeature -> IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureValEquation
-selectedShapeFeatureToValEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc =
-  selectedShapeFeatureToEquation_ featureValEquation widgetFeatureValEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc
+selectedShapeFeatureToValEquation selectedShapeFeature tree widgets locIdToNumberAndLoc =
+  selectedShapeFeatureToEquation_ featureValEquation widgetFeatureValEquation selectedShapeFeature tree widgets locIdToNumberAndLoc
 
 selectedShapeToValEquation : NodeId -> IndexedTree -> Maybe FeatureValEquation
 selectedShapeToValEquation nodeId shapeTree =
@@ -487,19 +240,19 @@ selectedShapeToValEquation nodeId shapeTree =
 
 
 selectedShapeFeatureToEquation_
-  :  (ShapeKind -> ShapeFeature -> List Attr -> FeatureEquationOf a)
+  :  (ShapeFeature -> List Attr -> FeatureEquationOf a)
   -> (ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquationOf a)
   -> SelectedShapeFeature
   -> IndexedTree
   -> Widgets
   -> Dict.Dict LocId (Num, Loc)
   -> Maybe (FeatureEquationOf a)
-selectedShapeFeatureToEquation_ getFeatureEquation getWidgetFeatureEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc =
+selectedShapeFeatureToEquation_ getFeatureEquation getWidgetFeatureEquation (nodeId, shapeFeature) tree widgets locIdToNumberAndLoc =
   if not <| nodeId < -2 then
     -- shape feature
     case Dict.get nodeId tree |> Maybe.map .interpreted of
       Just (LangSvg.SvgNode kind nodeAttrs _) ->
-        Just (getFeatureEquation kind featureName nodeAttrs)
+        Just (getFeatureEquation shapeFeature nodeAttrs)
 
       Just (LangSvg.TextNode _) ->
         Nothing
@@ -511,7 +264,7 @@ selectedShapeFeatureToEquation_ getFeatureEquation getWidgetFeatureEquation (nod
     -- change to index widgets by position in widget list; then pull feature from widget type
     let widgetId = -nodeId - 2 in -- widget nodeId's are encoded at -2 and count down. (And they are 1-indexed, so actually they start at -3)
     case Utils.maybeGeti1 widgetId widgets of
-      Just widget -> Just (getWidgetFeatureEquation featureName widget locIdToNumberAndLoc)
+      Just widget -> Just (getWidgetFeatureEquation shapeFeature widget locIdToNumberAndLoc)
       Nothing     -> Debug.crash <| "ShapeWidgets.selectedShapeFeatureToEquation can't find widget " ++ (toString widgetId) ++ " " ++ (toString widgets)
 
 
@@ -544,9 +297,8 @@ minus a b = EqnOp Minus [a, b]
 div a b   = EqnOp Div [a, b]
 
 
-featureEquation : ShapeKind -> ShapeFeature -> List Attr -> FeatureEquation
-featureEquation kind featureName nodeAttrs =
-  let featureNum = parseFeatureNum featureName in
+featureEquation : ShapeFeature -> List Attr -> FeatureEquation
+featureEquation (kind, featureNum) nodeAttrs =
   let toOpacity attr =
     case attr.interpreted of
       LangSvg.AColorNum (_, Just opacity) -> opacity
@@ -563,13 +315,8 @@ featureEquation kind featureName nodeAttrs =
       nodeAttrs
       featureNum
 
-featureNumToEquation : ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
-featureNumToEquation kind nodeAttrs featureNum =
-  featureEquation kind (unparseFeatureNum (Just kind) featureNum) nodeAttrs
-
-featureValEquation : ShapeKind -> ShapeFeature -> List Attr -> FeatureValEquation
-featureValEquation kind featureName nodeAttrs =
-  let featureNum = parseFeatureNum featureName in
+featureValEquation : ShapeFeature -> List Attr -> FeatureValEquation
+featureValEquation (kind, featureNum) nodeAttrs =
   let getAttr attrName attrList =
     (Utils.find ("featureValEquation: getAttr " ++ attrName) attrList attrName).val
   in
@@ -643,7 +390,7 @@ featureValEquation kind featureName nodeAttrs =
 
 
 widgetFeatureEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquation
-widgetFeatureEquation featureName widget locIdToNumberAndLoc =
+widgetFeatureEquation shapeFeature widget locIdToNumberAndLoc =
   case widget of
     WIntSlider low high caption curVal provenance (locId,_,_) _ ->
       let (n, loc) =
@@ -656,13 +403,13 @@ widgetFeatureEquation featureName widget locIdToNumberAndLoc =
       in
       EqnNum (n, TrLoc loc)
     WPoint (x, xTr) xProvenance (y, yTr) yProvenance ->
-      let featureNum = parseFeatureNum featureName in
+      let featureNum = parseFeatureNum shapeFeature in
       case featureNum of
         XFeat LonePoint -> EqnNum (x, xTr)
         YFeat LonePoint -> EqnNum (y, yTr)
-        _               -> Debug.crash <| "WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ featureName
+        _               -> Debug.crash <| "WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ toString shapeFeature
     WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountProvenance endXProvenance endYProvenance ->
-      let featureNum = parseFeatureNum featureName in
+      let featureNum = parseFeatureNum shapeFeature in
       let op =
         case sign of
           Positive -> Plus
@@ -674,24 +421,24 @@ widgetFeatureEquation featureName widget locIdToNumberAndLoc =
         (XFeat EndPoint, Y) -> EqnNum (baseX, baseXTr)
         (YFeat EndPoint, X) -> EqnNum (baseY, baseYTr)
         (YFeat EndPoint, Y) -> EqnOp op [EqnNum (baseY, baseYTr), EqnNum (amount, amountTr)]
-        _                   -> Debug.crash <| "WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ featureName
+        _                   -> Debug.crash <| "WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
     WCall funcVal argVals retVal retWs ->
-      Debug.crash <| "WCall does not have any feature equations, but asked for " ++ featureName
+      Debug.crash <| "WCall does not have any feature equations, but asked for " ++ toString shapeFeature
 
 
 widgetFeatureValEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureValEquation
-widgetFeatureValEquation featureName widget locIdToNumberAndLoc =
+widgetFeatureValEquation shapeFeature widget locIdToNumberAndLoc =
   case widget of
     WIntSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
     WNumSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
     WPoint (x, xTr) xVal (y, yTr) yVal ->
-      let featureNum = parseFeatureNum featureName in
+      let featureNum = parseFeatureNum shapeFeature in
       case featureNum of
         XFeat LonePoint -> EqnNum xVal
         YFeat LonePoint -> EqnNum yVal
-        _               -> Debug.crash <| "widgetFeatureValEquation WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ featureName
+        _               -> Debug.crash <| "widgetFeatureValEquation WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ toString shapeFeature
     WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountVal endXVal endYVal ->
-      let featureNum = parseFeatureNum featureName in
+      let featureNum = parseFeatureNum shapeFeature in
       let op =
         case sign of
           Positive -> Plus
@@ -701,9 +448,9 @@ widgetFeatureValEquation featureName widget locIdToNumberAndLoc =
         DFeat Offset   -> EqnNum amountVal
         XFeat EndPoint -> EqnNum endXVal
         YFeat EndPoint -> EqnNum endYVal
-        _              -> Debug.crash <| "widgetFeatureValEquation WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ featureName
+        _              -> Debug.crash <| "widgetFeatureValEquation WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
     WCall funcVal argVals retVal retWs ->
-      Debug.crash <| "WCall does not have any feature val equations, but asked for " ++ featureName
+      Debug.crash <| "WCall does not have any feature val equations, but asked for " ++ toString shapeFeature
 
 
 featureEquationOf
@@ -720,9 +467,8 @@ featureEquationOf
 featureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot two kind attrs featureNum =
 
   let get attr  = EqnNum <| getAttrNum attr attrs in
-  let crash () =
-    let s = unparseFeatureNum (Just kind) featureNum in
-    Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, s ] in
+  let crash _ = -- Elm compiler crashes if this is instead written as "let crash () ="
+    Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, toString featureNum ] in
 
   let handleLine () =
     case featureNum of
@@ -758,8 +504,7 @@ featureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot 
       YFeat Center    -> equations.cy
 
       DFeat distanceFeature ->
-        let s = strDistanceFeature distanceFeature in
-        let cap = Utils.spaces ["shapeFeatureEquationOf:", kind, s] in
+        let cap = Utils.spaces ["shapeFeatureEquationOf:", kind, toString featureNum] in
         case distanceFeature of
           Width     -> Utils.fromJust_ cap equations.mWidth
           Height    -> Utils.fromJust_ cap equations.mHeight
@@ -929,12 +674,12 @@ evaluateFeatureEquation_ =
 
 
 evaluateLineFeatures attrs =
-  Utils.unwrap6 <|
-    List.map (evaluateFeatureEquation_ << featureNumToEquation "line" attrs) <|
-      [ XFeat (Point 1), YFeat (Point 1)
-      , XFeat (Point 2), YFeat (Point 2)
-      , XFeat Center, YFeat Center
-      ]
+  [ XFeat (Point 1), YFeat (Point 1)
+  , XFeat (Point 2), YFeat (Point 2)
+  , XFeat Center, YFeat Center
+  ]
+  |> List.map (\featureNum -> featureEquation ("line", featureNum) attrs |> evaluateFeatureEquation_)
+  |> Utils.unwrap6
 
 
 type alias BoxyNums =
@@ -976,8 +721,8 @@ type alias PointEquations = (FeatureEquation, FeatureEquation)
 
 getPointEquations : ShapeKind -> List Attr -> PointFeature -> PointEquations
 getPointEquations kind attrs pointFeature =
-  ( featureNumToEquation kind attrs (XFeat pointFeature)
-  , featureNumToEquation kind attrs (YFeat pointFeature) )
+  ( featureEquation (kind, XFeat pointFeature) attrs
+  , featureEquation (kind, XFeat pointFeature) attrs )
 
 getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
 getPrimitivePointEquations (_, tree) nodeId =
@@ -1096,12 +841,6 @@ maybeWidgetBounds widget =
 ------------------------------------------------------------------------------
 -- Zones
 
-type alias ZoneName = String
-
--- NOTE: would like to use only the following definition, but datatypes
--- aren't comparable... so using Strings for storing in dictionaries, but
--- using the following for pattern-matching purposes
-
 type RealZone
   = ZInterior
   | ZPoint PointFeature
@@ -1111,103 +850,13 @@ type RealZone
   | ZSlider               -- range annotations
   | ZOffset1D
 
-unparseZone : RealZone -> ZoneName
-unparseZone z =
-  case z of
-    ZInterior            -> "Interior"
 
-    ZPoint (Point i)     -> "Point" ++ toString i
-    ZPoint TopLeft       -> "TopLeft"
-    ZPoint TopRight      -> "TopRight"
-    ZPoint BotLeft       -> "BotLeft"
-    ZPoint BotRight      -> "BotRight"
-    ZPoint TopEdge       -> "TopEdge"
-    ZPoint RightEdge     -> "RightEdge"
-    ZPoint BotEdge       -> "BotEdge"
-    ZPoint LeftEdge      -> "LeftEdge"
-
-    ZPoint (Midpoint _)  -> Debug.crash <| "unparseZone: " ++ toString z
-    ZPoint Center        -> Debug.crash <| "unparseZone: " ++ toString z
-    ZPoint LonePoint     -> "LonePoint"
-    ZPoint EndPoint      -> Debug.crash <| "unparseZone: " ++ toString z
-
-    ZLineEdge            -> "Edge"
-    ZPolyEdge i          -> "Edge" ++ toString i
-
-    ZOther FillColor     -> "FillBall"
-    ZOther StrokeColor   -> "StrokeBall"
-    ZOther FillOpacity   -> "FillOpacityBall"
-    ZOther StrokeOpacity -> "StrokeOpacityBall"
-    ZOther StrokeWidth   -> "StrokeWidthBall"
-    ZOther Rotation      -> "RotateBall"
-
-    ZSlider              -> "SliderBall"
-    ZOffset1D            -> "Offset1D"
-
-
-parseZone : ZoneName -> RealZone
-parseZone s =
-  case realZoneOf s of
-    Just z  -> z
-    Nothing -> Debug.crash <| "parseZone: " ++ s
-
-realZoneOf s =
-  Utils.firstMaybe
-    [ toInteriorZone s
-    , toOtherWidgetZone s
-    , toCardinalPointZone s
-    , toSliderZone s
-    , toPointZone s
-    , toEdgeZone s
-    ]
-
-toInteriorZone s =
-  case s of
-    "Interior"  -> Just ZInterior
-    _           -> Nothing
-
-toOtherWidgetZone s =
-  case s of
-    "LonePoint" -> Just (ZPoint LonePoint)
-    "Offset1D"  -> Just ZOffset1D
-    _           -> Nothing
-
-toCardinalPointZone s =
-  case s of
-    "TopLeft"   -> Just (ZPoint TopLeft)
-    "TopRight"  -> Just (ZPoint TopRight)
-    "BotLeft"   -> Just (ZPoint BotLeft)
-    "BotRight"  -> Just (ZPoint BotRight)
-    "TopEdge"   -> Just (ZPoint TopEdge)
-    "BotEdge"   -> Just (ZPoint BotEdge)
-    "LeftEdge"  -> Just (ZPoint LeftEdge)
-    "RightEdge" -> Just (ZPoint RightEdge)
-    _           -> Nothing
-
-toSliderZone s =
-  case s of
-    "FillBall"          -> Just (ZOther FillColor)
-    "StrokeBall"        -> Just (ZOther StrokeColor)
-    "FillOpacityBall"   -> Just (ZOther FillOpacity)
-    "StrokeOpacityBall" -> Just (ZOther StrokeOpacity)
-    "StrokeWidthBall"   -> Just (ZOther StrokeWidth)
-    "RotateBall"        -> Just (ZOther Rotation)
-    "SliderBall"        -> Just ZSlider
-    _                   -> Nothing
-
-toPointZone s =
-  Utils.bindMaybe
-    (\suffix ->
-      if suffix == "" then Nothing
-      else Just (ZPoint (Point (Utils.fromOk_ (String.toInt suffix)))))
-    (Utils.munchString "Point" s)
-
-toEdgeZone s =
-  Utils.bindMaybe
-    (\suffix ->
-      if suffix == "" then Just ZLineEdge
-      else Just (ZPolyEdge (Utils.fromOk_ (String.toInt suffix))))
-    (Utils.munchString "Edge" s)
+realZoneDesc : RealZone -> String
+realZoneDesc realZone =
+  toString realZone
+  |> Utils.stringReplace " " ""
+  |> Utils.stringReplace "(" ""
+  |> Utils.stringReplace ")" ""
 
 
 ------------------------------------------------------------------------------
@@ -1218,11 +867,11 @@ toEdgeZone s =
 -- eliminate this connection.
 --
 zoneToCrosshair : ShapeKind -> RealZone -> Maybe (ShapeFeature, ShapeFeature)
-zoneToCrosshair shape realZone =
+zoneToCrosshair shapeKind realZone =
   case realZone of
     ZPoint point ->
-      let xFeature = unparseFeatureNum (Just shape) (XFeat point) in
-      let yFeature = unparseFeatureNum (Just shape) (YFeat point) in
+      let xFeature = (shapeKind, XFeat point) in
+      let yFeature = (shapeKind, YFeat point) in
       Just (xFeature, yFeature)
     _ ->
       Nothing
@@ -1416,7 +1065,7 @@ selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets
       case valTrees of
         []          -> []
         first::_ ->
-          let possibleParentVals = Provenance.flattenValBasedOnTree first |> List.concatMap valParents |> List.filter valExpIsInProgram |> Utils.dedupByEquality in
+          let possibleParentVals = Provenance.flattenValBasedOnTree first |> List.concatMap valParents |> List.filter valExpIsInProgram |> Utils.dedup in
           let firstNonTrivialChildren val =
             case childVals val of
               []               -> [val]
@@ -1451,7 +1100,7 @@ selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets
                           _  ->
                             Utils.cartProd coveringsStillNeeded valInterpsSimplified
                             |> List.map (\(aCoveringNeeded, valInterp) -> Utils.diffAsSet aCoveringNeeded (List.concatMap flattenValTree valInterp))
-                            |> Utils.dedupByEquality
+                            |> Utils.dedup
                             |> Just
                       )
                       (Just coveringsStillNeeded)
@@ -1492,10 +1141,10 @@ selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTr
   in
   case selectedFeatures of
     [] -> ([Set.empty], [Set.empty])
-    (nodeId, shapeFeature)::rest ->
+    selectedShapeFeature::rest ->
       let returnNotPartOfAPoint () =
         let (thisProximalInterp, thisDistalInterp) =
-          selectedShapeFeatureToValEquation (nodeId, shapeFeature) shapeTree widgets Dict.empty
+          selectedShapeFeatureToValEquation selectedShapeFeature shapeTree widgets Dict.empty
           |> Utils.fromJust_ "selectedFeaturesToProximalDistalPointEIdInterpretations0: can't make feature into val equation"
           |> featureValEquationToProximalDistalEIdSets expFilter
         in
@@ -1505,15 +1154,15 @@ selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTr
         )
       in
       -- Try to interpret as point?
-      case rest |> Utils.findFirst (\(otherNodeId, otherShapeFeature) -> nodeId == otherNodeId && featuresNamesAreXYPairs shapeFeature otherShapeFeature) of
-        Just (otherNodeId, otherShapeFeature) ->
-          let (xNodeId, yNodeId, xShapeFeature, yShapeFeature) =
-            if featureNameIsX shapeFeature
-            then (nodeId, otherNodeId, shapeFeature, otherShapeFeature)
-            else (otherNodeId, nodeId, otherShapeFeature, shapeFeature)
+      case rest |> Utils.findFirst (\otherSelectedShapeFeature -> selectedShapeFeaturesAreXYPairs selectedShapeFeature otherSelectedShapeFeature) of
+        Just otherSelectedShapeFeature ->
+          let (xSelectedShapeFeature, ySelectedShapeFeature) =
+            if selectedShapeFeatureIsX selectedShapeFeature
+            then (selectedShapeFeature, otherSelectedShapeFeature)
+            else (otherSelectedShapeFeature, selectedShapeFeature)
           in
-          let xValEqn = selectedShapeFeatureToValEquation (xNodeId, xShapeFeature) shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists1: can't make feature into val equation" in
-          let yValEqn = selectedShapeFeatureToValEquation (yNodeId, yShapeFeature) shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" in
+          let xValEqn = selectedShapeFeatureToValEquation xSelectedShapeFeature shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists1: can't make feature into val equation" in
+          let yValEqn = selectedShapeFeatureToValEquation ySelectedShapeFeature shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" in
           let xValTree = featureValEquationToValTree xValEqn in
           let yValTree = featureValEquationToValTree yValEqn in
           let (proximalInterp1, proximalInterp2, distalInterp1, distalInterp2) =
@@ -1521,9 +1170,9 @@ selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTr
           in
           -- If code written correctly, there should be a proximal interp iff there is an distal interp.
           if (proximalInterp1 /= Set.empty || proximalInterp2 /= Set.empty) && (distalInterp1 /= Set.empty || distalInterp2 /= Set.empty) then
-            let (remainingProximalInterps, remainingDistalInterps) = recurse (Utils.removeAsSet (otherNodeId, otherShapeFeature) rest) in
-            ( remainingProximalInterps |> Utils.cartProd (List.filter ((/=) Set.empty) [proximalInterp1, proximalInterp2] |> Utils.dedupByEquality) |> List.map (uncurry Set.union)
-            , remainingDistalInterps   |> Utils.cartProd (List.filter ((/=) Set.empty) [distalInterp1,   distalInterp2]   |> Utils.dedupByEquality) |> List.map (uncurry Set.union)
+            let (remainingProximalInterps, remainingDistalInterps) = recurse (Utils.removeAsSet otherSelectedShapeFeature rest) in
+            ( remainingProximalInterps |> Utils.cartProd (List.filter ((/=) Set.empty) [proximalInterp1, proximalInterp2] |> Utils.dedup) |> List.map (uncurry Set.union)
+            , remainingDistalInterps   |> Utils.cartProd (List.filter ((/=) Set.empty) [distalInterp1,   distalInterp2]   |> Utils.dedup) |> List.map (uncurry Set.union)
             )
           else if proximalInterp1 /= Set.empty || proximalInterp2 /= Set.empty then
             Debug.crash <| "selectedFeaturesToProximalDistalPointEIdInterpretations: proximal interpretation exists but distal does not!\n" ++ toString (proximalInterp1, proximalInterp2, distalInterp1, distalInterp2)
@@ -1557,12 +1206,12 @@ selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) w
   in
   case selectedFeatures of
     [] -> []
-    (nodeId, shapeFeature)::rest ->
-      let eidSets = featureValEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists: can't make feature into val equation" <| selectedShapeFeatureToValEquation (nodeId, shapeFeature) shapeTree widgets Dict.empty in
+    selectedShapeFeature::rest ->
+      let eidSets = featureValEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists: can't make feature into val equation" <| selectedShapeFeatureToValEquation selectedShapeFeature shapeTree widgets Dict.empty in
       -- Try to interpret as point?
-      case rest |> Utils.findFirst (\(otherNodeId, otherShapeFeature) -> nodeId == otherNodeId && featuresNamesAreXYPairs shapeFeature otherShapeFeature) of
-        Just (otherNodeId, otherShapeFeature) ->
-          let otherEIdSets = featureValEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" <| selectedShapeFeatureToValEquation (otherNodeId, otherShapeFeature) shapeTree widgets Dict.empty in
+      case rest |> Utils.findFirst (\otherSelectedShapeFeature -> selectedShapeFeaturesAreXYPairs selectedShapeFeature otherSelectedShapeFeature) of
+        Just otherSelectedShapeFeature ->
+          let otherEIdSets = featureValEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" <| selectedShapeFeatureToValEquation otherSelectedShapeFeature shapeTree widgets Dict.empty in
           let singletonEIdSets      = eidSets      |> List.filter (Set.size >> (==) 1) in
           let singletonOtherEIdSets = otherEIdSets |> List.filter (Set.size >> (==) 1) in
           let pointTuples =
@@ -1581,7 +1230,7 @@ selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) w
           in
           case pointTuples of
             []   -> eidSets :: recurse rest
-            _::_ -> List.map Set.singleton pointTuples :: recurse (Utils.removeAsSet (otherNodeId, otherShapeFeature) rest)
+            _::_ -> List.map Set.singleton pointTuples :: recurse (Utils.removeAsSet otherSelectedShapeFeature rest)
 
         Nothing ->
           eidSets :: recurse rest

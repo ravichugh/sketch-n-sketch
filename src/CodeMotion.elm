@@ -2560,14 +2560,14 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
   let firstEId = Utils.head "CodeMotion.makeEqualTransform expected some eids, got []" eids in
   let potentialNames =
     let
-      names = Utils.dedupByEquality (List.map (expNameForEId originalProgram) eids)
+      names = Utils.dedup (List.map (expNameForEId originalProgram) eids)
       joinedName = String.join "_" names
       commonName = commonNameForEIdsWithDefault joinedName originalProgram eids
       namesToAvoid = visibleIdentifiersAtEIds originalProgram (Set.fromList (newBindingLocationEId::eids))
     in
     commonName :: joinedName :: names
     |> List.map (\name -> nonCollidingName name 1 namesToAvoid)
-    |> Utils.dedupByEquality
+    |> Utils.dedup
     |> List.sortBy (\s -> (String.length s, s))
   in
   let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in

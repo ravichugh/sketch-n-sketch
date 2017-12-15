@@ -586,7 +586,7 @@ addRawPolygon old pointsWithSnap =
               NoSnap          -> Nothing
               SnapEId snapEId -> Just snapEId
           )
-      |> Utils.dedupByEquality
+      |> Utils.dedup
     in
     snapEIds
     |> List.foldl

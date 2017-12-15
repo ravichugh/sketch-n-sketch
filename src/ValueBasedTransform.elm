@@ -30,22 +30,32 @@ debugLog = Config.debugLog Config.debugSync
 
 
 
-digHole originalExp selectedFeatures slate widgets syncOptions =
+digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
   let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
-  let selectedFeatureEquationsNamed =
-    debugLog "selectedFeatureEquations" <|
-      pluckSelectedFeatureEquationsNamed selectedFeatures slate widgets locIdToNumberAndLoc
+  let shapeFeaturesWithEquation =
+    selectedFeatures
+    |> Set.toList
+    |> List.filterMap
+        (\(nodeId, shapeFeature) ->
+          ShapeWidgets.selectedShapeFeatureToEquation (nodeId, shapeFeature) tree widgets locIdToNumberAndLoc
+          |> Maybe.map (\eqn -> (shapeFeature, eqn))
+        )
+    |> debugLog "shapeFeaturesWithEquation"
   in
   -- If any locs are annotated with "?", only dig those.
   let locset =
-    let selectedVals =
-      debugLog "selectedVals" <|
-        pluckSelectedVals selectedFeatures slate widgets locIdToNumberAndLoc
+    let selectedTraces =
+      let (_, equations) = List.unzip shapeFeaturesWithEquation in
+      equations
+      |> List.concatMap ShapeWidgets.equationNumTrs
+      |> List.map Tuple.second
+      |> debugLog "selectedTraces"
     in
-    let tracesLocsets =
-      List.map ((Sync.locsOfTrace syncOptions) << Tuple.second) selectedVals
+    let allLocs =
+      selectedTraces
+      |> List.map (Sync.locsOfTrace syncOptions)
+      |> Utils.unionAll
     in
-    let allLocs = List.foldl Set.union Set.empty tracesLocsets in
     let (thawed, others) =
       allLocs
       |> Set.partition (\(_, annotation, _) -> annotation == Lang.thawed)
@@ -99,9 +109,10 @@ digHole originalExp selectedFeatures slate widgets syncOptions =
     |> List.map
         (\(locId, _, _) -> findExpByLocId commonScope locId |> Utils.fromJust_ "ValueBasedTransform.digHole valueExps")
   in
-  let selectedFeatureEquationsNamedWithScopes =
-    List.map
-        (\(featureName, eqn) ->
+  let featureNamesWithEquationWithScopes =
+    shapeFeaturesWithEquation
+    |> List.map
+        (\(shapeFeature, eqn) ->
           let featureLocs = equationLocs syncOptions eqn in
           let scopeNamesLocsLiftedThrough =
             List.map
@@ -111,12 +122,11 @@ digHole originalExp selectedFeatures slate widgets syncOptions =
           let commonScopeNamesLocsLiftedThrough =
             Utils.commonPrefix scopeNamesLocsLiftedThrough
           in
-          let featureName_ =
-            String.join "_" (commonScopeNamesLocsLiftedThrough ++ [featureName])
+          let featureName =
+            String.join "_" (commonScopeNamesLocsLiftedThrough ++ [ShapeWidgets.shapeFeatureDesc shapeFeature])
           in
-          (featureName_, eqn)
+          (featureName, eqn)
         )
-        selectedFeatureEquationsNamed
   in
   let featureNamesWithExpressionExps =
     let locIdToOrigName =
@@ -124,7 +134,8 @@ digHole originalExp selectedFeatures slate widgets syncOptions =
         <| List.map (\(locId, nameOrig, namePrime) -> (locId, nameOrig))
         <| locIdNameOrigNamePrime
     in
-    List.map (Tuple.mapSecond <| equationToExp subst locIdToOrigName) selectedFeatureEquationsNamedWithScopes
+    featureNamesWithEquationWithScopes
+    |> List.map (Tuple.mapSecond <| equationToExp subst locIdToOrigName)
   in
   -- Remove expressions of only one term
   let significantFeatureNamesWithExpressionExps =
@@ -219,9 +230,8 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
                 let (kind, attrs) = LangSvg.justGetSvgNode "ValueBasedTransform.indexedRelate" nodeId slate in
                 ShapeWidgets.featuresOfShape kind attrs
                 |> List.concatMap ShapeWidgets.featureNumsOfFeature
-                |> List.map (ShapeWidgets.unparseFeatureNum (Just kind))
+                |> List.map (\featureNum -> (nodeId, (kind, featureNum)))
                 |> List.take 1
-                |> List.map (\featureString -> (nodeId, featureString))
               )
       in
       let locsToRevolutionize =
@@ -240,7 +250,7 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
             featureEqns
             |> List.concatMap (equationLocs syncOptions)
           in
-          if locs == Utils.dedupByEquality locs then
+          if locs == Utils.dedup locs then
             locs
           else
             []
@@ -326,7 +336,7 @@ type alias PartialSynthesisResult =
   , removedLocIdToLocEquation : List (LocId, LocEquation)
   }
 
-type alias ShapeFeatureAndEquation = ((Int, String), Maybe FeatureEquation)
+type alias SelectedShapeFeatureAndEquation = (ShapeWidgets.SelectedShapeFeature, Maybe FeatureEquation)
 
 type RelationToSynthesize a
   = Equalize a a
@@ -374,18 +384,18 @@ rankComparedTo originalExp synthesisResults =
       )
 
 
-selectedFeaturesToShapeFeaturesAndEquations : Set.Set (Int, String) -> Exp -> Int -> Int -> Float -> List ShapeFeatureAndEquation
-selectedFeaturesToShapeFeaturesAndEquations selectedFeatures program slideNumber movieNumber movieTime =
+selectedFeaturesToShapeFeaturesAndEquations : Set.Set ShapeWidgets.SelectedShapeFeature -> Exp -> Int -> Int -> Float -> List SelectedShapeFeatureAndEquation
+selectedFeaturesToShapeFeaturesAndEquations selectedShapeFeatures program slideNumber movieNumber movieTime =
   case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime } program of
     Err s -> []
     Ok (_, widgets, (rootI, tree), _) ->
       let locIdToNumberAndLoc = locIdToNumberAndLocOf program in
-      selectedFeatures
+      selectedShapeFeatures
       |> Set.toList
       |> List.map
-          (\(nodeId, featureName) ->
-            ( (nodeId, featureName)
-            , ShapeWidgets.selectedShapeFeatureToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc
+          (\selectedShapeFeature ->
+            ( selectedShapeFeature
+            , ShapeWidgets.selectedShapeFeatureToEquation selectedShapeFeature tree widgets locIdToNumberAndLoc
             )
           )
 
@@ -436,9 +446,9 @@ relate originalExp selectedFeatures slideNumber movieNumber movieTime syncOption
 -- When points selected, relates x's and y's separately.
 -- Ranks all results
 synthesizeRelationCoordinateWiseAndSortResults
-  :  (List PartialSynthesisResult -> List ShapeFeatureAndEquation -> List PartialSynthesisResult)
+  :  (List PartialSynthesisResult -> List SelectedShapeFeatureAndEquation -> List PartialSynthesisResult)
   -> Exp
-  -> List ShapeFeatureAndEquation
+  -> List SelectedShapeFeatureAndEquation
   -> Int
   -> Int
   -> Num
@@ -572,7 +582,7 @@ equalizeOverlappingPairs priorResults shapeFeaturesAndEquations syncOptions =
 
 
 relate_
-    :  RelationToSynthesize ShapeFeatureAndEquation
+    :  RelationToSynthesize SelectedShapeFeatureAndEquation
     -> Exp
     -> Maybe LocEquation
     -> List (LocId, LocEquation)
@@ -580,9 +590,9 @@ relate_
     -> List PartialSynthesisResult
 relate_ relationToSynthesize originalExp maybeTermShape removedLocIdToLocEquation syncOptions =
   case relationToSynthesize of
-    Equalize ((nodeIdA, featureNameA), Just featureAEqn) ((nodeIdB, featureNameB), Just featureBEqn) ->
+    Equalize ((nodeIdA, shapeFeatureA), Just featureAEqn) ((nodeIdB, shapeFeatureB), Just featureBEqn) ->
       let descriptionPrefix =
-        featureNameA ++ " = " ++ featureNameB ++ " "
+        ShapeWidgets.shapeFeatureDesc shapeFeatureA ++ " = " ++ ShapeWidgets.shapeFeatureDesc shapeFeatureB ++ " "
       in
       relate__ (Equalize featureAEqn featureBEqn) originalExp maybeTermShape removedLocIdToLocEquation syncOptions
       |> List.map (InterfaceModel.prependDescription descriptionPrefix)
@@ -740,7 +750,7 @@ relate__ relationToSynthesize originalExp maybeTermShape removedLocIdToLocEquati
                   results ++ newEqns
               in
               List.foldl synthesizeMore [] (List.range 1 7)
-              |> Utils.dedupByEquality
+              |> Utils.dedup
 
             Just termShape ->
               let matchesTermShape termShape locEqn =
@@ -757,7 +767,7 @@ relate__ relationToSynthesize originalExp maybeTermShape removedLocIdToLocEquati
               |> List.filter isGoodEnough
               |> List.map normalizeSimplify
               |> List.filter (\locEqn -> locEqnSize locEqn >= astSize) -- Equation was not simplified. Good. But normalizeSimplify still needs to handle subtraction well which is why the equation can grow in size.
-              |> Utils.dedupByEquality
+              |> Utils.dedup
         in
         resultEqns
         |> List.map (\resultLocEqn -> (resultLocEqn, dependentIdentDesc ++ " = "))
@@ -953,26 +963,6 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
   freshen newProgram
 
 
-pluckFeatureEquationNamed (nodeId, featureName) slate widgets locIdToNumberAndLoc =
-  let (_, tree) = slate in
-  case ShapeWidgets.selectedShapeFeatureToEquation (nodeId, featureName) tree widgets locIdToNumberAndLoc of
-    Just eqn -> Just (featureName, eqn)
-    Nothing  -> Nothing
-
-
-pluckSelectedFeatureEquationsNamed selectedFeatures slate widgets locIdToNumberAndLoc =
-  let accumulator typeAndNodeIdAndFeature acc =
-    case pluckFeatureEquationNamed typeAndNodeIdAndFeature slate widgets locIdToNumberAndLoc of
-      Just (feature, eqn) -> (feature, eqn) :: acc
-      Nothing             -> acc
-  in
-  Set.foldr accumulator [] selectedFeatures
-
-
-pluckSelectedFeatureEquations selectedFeatures slate widgets locIdToNumberAndLoc =
-  List.map Tuple.second <| pluckSelectedFeatureEquationsNamed selectedFeatures slate widgets locIdToNumberAndLoc
-
-
 locIdToNumberAndLocOf : Exp -> Dict.Dict LocId (Num, Loc)
 locIdToNumberAndLocOf exp =
   exp
@@ -1005,14 +995,9 @@ locIdToWidgetDeclLittleOf exp =
   |> Dict.map (\locId wd -> LangUnparser.unparseWD wd)
 
 
-pluckSelectedVals selectedFeatures slate widgets locIdToNumberAndLoc =
-  let featureEquations = pluckSelectedFeatureEquations selectedFeatures slate widgets locIdToNumberAndLoc in
-  List.concatMap ShapeWidgets.equationNumTrs featureEquations
-
-
-evaluateFeature nodeIdAndFeatureName slate widgets locIdToNumberAndLoc =
+evaluateFeature selectableShapeFeature slate widgets locIdToNumberAndLoc =
   let (_, tree) = slate in
-  case (ShapeWidgets.selectedShapeFeatureToEquation nodeIdAndFeatureName tree widgets locIdToNumberAndLoc) of
+  case (ShapeWidgets.selectedShapeFeatureToEquation selectableShapeFeature tree widgets locIdToNumberAndLoc) of
     Just eqn -> ShapeWidgets.evaluateFeatureEquation eqn
     Nothing  -> Nothing
 
@@ -1076,27 +1061,27 @@ applyRemovedLocIdToLocEquation_ (removedLocId, replacementLocEqn) locEqn =
 
 
 -- Extract all point x,y features pairs
-featurePoints : List ShapeFeatureAndEquation -> List (ShapeFeatureAndEquation, ShapeFeatureAndEquation)
+featurePoints : List SelectedShapeFeatureAndEquation -> List (SelectedShapeFeatureAndEquation, SelectedShapeFeatureAndEquation)
 featurePoints shapeFeaturesAndEquations =
   case shapeFeaturesAndEquations of
     [] ->
       []
 
-    nodeIdAndFeatureNameAndEquation::otherShapeFeaturesAndEquations ->
-      let ((nodeId, featureName), featureEquation) = nodeIdAndFeatureNameAndEquation in
-      if not <| ShapeWidgets.featureNameIsXOrY featureName then
+    nodeIdAndShapeFeatureAndEquation::otherShapeFeaturesAndEquations ->
+      let ((nodeId, shapeFeature), featureEquation) = nodeIdAndShapeFeatureAndEquation in
+      if not <| ShapeWidgets.shapeFeatureIsXOrY shapeFeature then
         featurePoints otherShapeFeaturesAndEquations
       else
         let nodeFeatures = List.filter (\((otherNodeId, _), _) ->  otherNodeId == nodeId) otherShapeFeaturesAndEquations in
         let maybePairedFeature =
-          Utils.findFirst (\((_, otherFeatureName), _) -> ShapeWidgets.featuresNamesAreXYPairs featureName otherFeatureName) nodeFeatures
+          Utils.findFirst (\((_, otherShapeFeature), _) -> ShapeWidgets.shapeFeaturesAreXYPairs shapeFeature otherShapeFeature) nodeFeatures
         in
         case maybePairedFeature of
           Just pairedFeature ->
             let pairToReturn =
-              if ShapeWidgets.featureNameIsX featureName
-              then (nodeIdAndFeatureNameAndEquation, pairedFeature)
-              else (pairedFeature, nodeIdAndFeatureNameAndEquation)
+              if ShapeWidgets.shapeFeatureIsX shapeFeature
+              then (nodeIdAndShapeFeatureAndEquation, pairedFeature)
+              else (pairedFeature, nodeIdAndShapeFeatureAndEquation)
             in
             let remainingFeatures =
               Utils.removeFirst pairedFeature otherShapeFeaturesAndEquations

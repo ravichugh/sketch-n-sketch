@@ -585,7 +585,7 @@ valToDictKey bt val_ =
 
 
 postProcessWidgets widgets =
-  let dedupedWidgets = Utils.dedupByEquality widgets in
+  let dedupedWidgets = Utils.dedup widgets in
   -- partition so that hidden and point sliders don't affect indexing
   -- (and, thus, positioning) of range sliders
   --

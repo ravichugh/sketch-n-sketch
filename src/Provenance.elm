@@ -206,7 +206,7 @@ valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter val
   |> Utils.oneOfEach
   |> List.map Utils.unionAll
   |> (++) perhapsThisExp
-  |> Utils.dedupByEquality
+  |> Utils.dedup
 
 
 -- Returns [] if val cannot be interpreted all inside vals.
@@ -419,7 +419,7 @@ valTreeToSingleEIdInterpretations program expFilter val =
   |> List.filter (not << List.isEmpty)
   |> Utils.oneOfEach
   |> List.map Utils.unionAll
-  |> Utils.dedupByEquality
+  |> Utils.dedup
   |> List.filterMap
       (\interpretation ->
         case Set.toList interpretation of
@@ -435,7 +435,7 @@ valTreeToSingleEIdInterpretations program expFilter val =
                 Nothing
       )
   |> (++) perhapsThisExp
-  |> Utils.dedupByEquality
+  |> Utils.dedup
 
 
 interpretationIsNonEmpty : Val -> Bool

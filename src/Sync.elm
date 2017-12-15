@@ -13,7 +13,7 @@ import LangSvg exposing
   , AVal, AVal_(..), TransformCmd(..), PathCmd(..)
   )
 import ShapeWidgets exposing
-  ( ZoneName, RealZone(..), PointFeature(..), OtherFeature(..)
+  ( RealZone, RealZone(..), PointFeature(..), OtherFeature(..)
   )
 import Solver exposing (Equation)
 import FastParser exposing (isPreludeLoc, substPlusOf)
@@ -295,7 +295,7 @@ type alias Trigger = List TriggerElement
 
 -- keeping these separate (rather than an Either key, which isn't comparable)
 --
-type alias Triggers = Dict (NodeId, ZoneName) (Trigger, Set Loc, Set Loc)
+type alias Triggers = Dict (NodeId, RealZone) (Trigger, Set Loc, Set Loc)
 
 type alias LiveInfo =
   { triggers : Triggers
@@ -444,7 +444,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
 -- Helpers --
 
 addTrigger options id realZone traces makeTrigger (dict, maybeCounts) =
-  let key = (id, ShapeWidgets.unparseZone realZone) in
+  let key = (id, realZone) in
   let (assignedMaybeLocs, allLocs, maybeCounts_) =
     pickLocs options maybeCounts traces in
   let trigger = makeTrigger assignedMaybeLocs in
@@ -477,7 +477,7 @@ computeRectTriggers
      : (Options, Subst)
     -> MaybeCounts
     -> (NodeId, ShapeKind, List Attr)
-    -> (Dict (NodeId, ZoneName) (Trigger, Set Loc, Set Loc), MaybeCounts)
+    -> (Dict (NodeId, RealZone) (Trigger, Set Loc, Set Loc), MaybeCounts)
 
 computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
   let finishTrigger = addTrigger options id in
@@ -1110,7 +1110,7 @@ type alias MouseTrigger2 a = (Int, Int) -> (Int, Int) -> a
 type alias LiveTrigger = MouseTrigger2 (Exp, List Ace.Highlight)
 
 -- ShapeKind in zone key is used for display in caption, but not for keying the triggers dictionary.
-type alias ZoneKey = (NodeId, ShapeKind, ZoneName) -- node id for a widget is -2 - (widget number starting from 1)
+type alias ZoneKey = (NodeId, ShapeKind, RealZone) -- node id for a widget is -2 - (widget number starting from 1)
 
 lookupZoneKey : ZoneKey -> LiveInfo -> (Trigger, Set Loc, Set Loc)
 lookupZoneKey zoneKey info =
@@ -1194,13 +1194,13 @@ yellowAndGrayHighlights zoneKey info =
 
 hoverInfo zoneKey info =
   let line1 =
-    let (nodeId, shapeKind, zoneName) = zoneKey in
+    let (nodeId, shapeKind, realZone) = zoneKey in
     let displayId =
       if nodeId < -2
       then -nodeId - 2 -- Widget
       else nodeId
     in
-    (shapeKind ++ toString displayId) ++ " " ++ zoneName
+    (shapeKind ++ toString displayId) ++ " " ++ ShapeWidgets.realZoneDesc realZone
   in
   let maybeLine2 =
     let (triggerElements, _, _) = lookupZoneKey zoneKey info in

@@ -728,7 +728,7 @@ thawFreezeTool model selections =
         else
           let
             mode_ =
-              case Utils.dedupByEquality freezeAnnotations of
+              case Utils.dedup freezeAnnotations of
                 [frzn] ->
                   if model.syncOptions.thawedByDefault then
                     if frzn == unann then
@@ -820,7 +820,7 @@ showHideRangeTool model selections =
                   _ ->
                     Nothing
         in
-          case Utils.dedupByEquality freezeAnnotations of
+          case Utils.dedup freezeAnnotations of
             [Just b] ->
               Just b
             _ ->
@@ -920,7 +920,7 @@ addRemoveRangeTool model selections =
                 _ ->
                   False
       in
-        Utils.dedupByEquality freezeAnnotations
+        Utils.dedup freezeAnnotations
         |> Utils.maybeUnpackSingleton
 
     predVal =

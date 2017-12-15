@@ -151,10 +151,10 @@ inlineListSynthesisResults originalExp =
                               )
                         in
                         let maybeSingleParentAndEffectiveUsages =
-                          case Utils.dedupByEquality maybeParents of
+                          case Utils.dedup maybeParents of
                             [Just parentExp] -> Just (parentExp, usagesExpanded)
                             _ ->
-                              case maybeParentSingletonParents |> Utils.projJusts |> Maybe.map Utils.dedupByEquality of
+                              case maybeParentSingletonParents |> Utils.projJusts |> Maybe.map Utils.dedup of
                                 Just [grandparentExp] -> Just (grandparentExp, Utils.filterJusts maybeParents) -- maybeParents are all Justs here.
                                 _ -> Nothing
                         in

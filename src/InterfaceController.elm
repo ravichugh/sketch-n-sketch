@@ -97,7 +97,7 @@ import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
 import ColorScheme
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
-import ShapeWidgets exposing (Feature(..), FeatureNum(..), RealZone(..), PointFeature(..), OtherFeature(..))
+import ShapeWidgets exposing (Feature(..), FeatureNum(..), RealZone(..), PointFeature(..), DistanceFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
@@ -346,9 +346,8 @@ onMouseClick click old maybeClickable =
       old
 
 
-onClickPrimaryZone : LangSvg.NodeId -> LangSvg.ShapeKind -> ShapeWidgets.ZoneName -> Model -> Model
-onClickPrimaryZone i k z old =
-  let realZone = ShapeWidgets.parseZone z in
+onClickPrimaryZone : LangSvg.NodeId -> LangSvg.ShapeKind -> ShapeWidgets.RealZone -> Model -> Model
+onClickPrimaryZone i k realZone old =
   let hoveredCrosshairs_ =
     case ShapeWidgets.zoneToCrosshair k realZone of
       Just (xFeature, yFeature) ->
@@ -358,9 +357,10 @@ onClickPrimaryZone i k z old =
   in
   let (selectedFeatures_, selectedShapes_, selectedBlobs_) =
     if i < -2 then -- Clicked a widget
-      if z == "Offset1D" then
-        let update = if Set.member (i,"offset") old.selectedFeatures then Set.remove else Set.insert in
-        (update (i,"offset") old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
+      if realZone == ZOffset1D then
+        let selectedShapeFeatureToToggle = (i, ("offset", DFeat Offset)) in
+        let update = if Set.member selectedShapeFeatureToToggle old.selectedFeatures then Set.remove else Set.insert in
+        (update selectedShapeFeatureToToggle old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
       else
         (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
     else
@@ -461,13 +461,13 @@ onMouseDrag lastPosition newPosition old =
                   |> List.filterMap
                       (\feature ->
                         case feature of
-                          PointFeature pf -> Just (ShapeWidgets.featureNumsOfFeature feature |> List.map (ShapeWidgets.unparseFeatureNum (Just shapeKind)), ShapeWidgets.getPointEquations shapeKind shapeAttrs pf)
+                          PointFeature pf -> Just (feature, ShapeWidgets.getPointEquations shapeKind shapeAttrs pf)
                           _               -> Nothing
                       )
                   |> List.concatMap
-                      (\(shapeFeatureStrs, (xEqn, yEqn)) ->
+                      (\(feature, (xEqn, yEqn)) ->
                         case (ShapeWidgets.evaluateFeatureEquation xEqn, ShapeWidgets.evaluateFeatureEquation yEqn) of
-                          (Just x, Just y) -> shapeFeatureStrs |> List.map (\shapeFeatureStr -> ((nodeId, shapeFeatureStr), (x, y)))
+                          (Just x, Just y) -> feature |> ShapeWidgets.featureNumsOfFeature |> List.map (\featureNum -> ((nodeId, (shapeKind, featureNum)), (x, y)))
                           _                -> []
                       )
             )
@@ -482,15 +482,15 @@ onMouseDrag lastPosition newPosition old =
                 WIntSlider _ _ _ _ _ _ _ -> []
                 WNumSlider _ _ _ _ _ _ _ -> []
                 WPoint (x, xTr) _ (y, yTr) _ ->
-                  [ ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "point") (XFeat LonePoint)), (x, y))
-                  , ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "point") (YFeat LonePoint)), (x, y))
+                  [ ((idAsShape, ("point", XFeat LonePoint)), (x, y))
+                  , ((idAsShape, ("point", YFeat LonePoint)), (x, y))
                   ]
                 WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _ ->
                   let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
                     offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
                   in
-                  [ ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "offset") (XFeat EndPoint)), (endX, endY))
-                  , ((idAsShape, ShapeWidgets.unparseFeatureNum (Just "offset") (YFeat EndPoint)), (endX, endY))
+                  [ ((idAsShape, ("offset", XFeat EndPoint)), (endX, endY))
+                  , ((idAsShape, ("offset", YFeat EndPoint)), (endX, endY))
                   ]
                 WCall _ _ _ _ -> []
             )
