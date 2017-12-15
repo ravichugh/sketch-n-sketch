@@ -794,7 +794,12 @@ code {
   font-family: "Inconsolata", monospace;
   font-size: 1.2em;
   padding: 20px;
-  text-align: right;
+}
+
+.dialog-box input[type="text"] {
+  font-family: "Inconsolata", monospace;
+  font-size: 1em;
+  padding: 5px;
 }
 
 .dialog-box .save-as-button {

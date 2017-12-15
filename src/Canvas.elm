@@ -21,6 +21,7 @@ import Draw
 import InterfaceModel exposing (..)
 import FastParser exposing (parseE)
 import Eval
+import Syntax exposing (Syntax)
 
 -- Elm Libraries ---------------------------------------------------------------
 
@@ -165,11 +166,12 @@ buildSvg_ stuff d i =
 -- for basic icons, env will be Eval.initEnv.
 -- for LambdaTool icons, env will be from result of running main program.
 --
-iconify env code =
+iconify : Env -> Syntax -> String -> Html Msg
+iconify env syntax code =
   let
     exp =
       Utils.fromOkay "Error parsing icon"
-        <| parseE code
+        <| Syntax.parser syntax code
     ((val, _), _) =
       Utils.fromOkay "Error evaluating icon"
         <| Eval.doEval env exp

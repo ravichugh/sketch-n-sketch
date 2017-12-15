@@ -20,6 +20,7 @@ import Svg
 import LangSvg exposing (attr)
 import Syntax exposing (Syntax)
 import LangUnparser
+import File exposing (Filename, File, FileIndex)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -35,23 +36,7 @@ import ImpureGoodies
 
 type alias Code = String
 
-type alias Filename = String
-
-type alias FileIndex = List Filename
-
-type alias File = {
-  filename : Filename,
-  code : Code
-}
-
 type alias Position = { col : Int, line : Int }
-
-type alias IconName = String
-
-type alias Icon =
-  { iconName : IconName
-  , code : Code
-  }
 
 type alias ViewState =
   { menuActive : Bool
@@ -153,7 +138,7 @@ type alias Model =
   , fileToDelete : Filename
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
-  , icons : Dict IconName (Html Msg)
+  , icons : Dict String (Html Msg)
   , showAllDeuceWidgets : Bool
   , hoveringCodeBox : Bool
   , scopeGraph : ScopeGraph
@@ -671,10 +656,22 @@ prependDescription newPrefix synthesisResult =
 
 bufferName = ""
 
+bufferFilename : Model -> Filename
+bufferFilename model =
+  { name =
+      bufferName
+  , extension =
+      Syntax.sourceExtension model.syntax
+  }
+
 blankTemplate = "BLANK"
 
-prettyFilename model =
-  if model.filename == bufferName then
+type PrettyFileNameOption
+  = WithExtension
+  | WithoutExtension
+
+prettyFilename includeExtension model =
+  if model.filename.name == bufferName then
     let
       prettyTemplate =
         case model.lastSelectedTemplate of
@@ -688,11 +685,15 @@ prettyFilename model =
     in
       "Untitled" ++ prettyTemplate
   else
-    model.filename
-
-getFile model = { filename = model.filename
-                , code     = model.code
-                }
+    let
+      suffix =
+        case includeExtension of
+          WithExtension ->
+            "." ++ File.fileExtensionToString model.filename.extension
+          WithoutExtension ->
+            ""
+    in
+      model.filename.name ++ suffix
 
 --------------------------------------------------------------------------------
 
@@ -705,8 +706,13 @@ starLambdaTool = LambdaBounds (eVar "star")
 starLambdaToolIcon = lambdaToolIcon starLambdaTool
 
 lambdaToolIcon tool =
-  { iconName = Utils.naturalToCamelCase (strLambdaTool tool)
-  , code = case tool of
+  { filename =
+      { name =
+          Utils.naturalToCamelCase (strLambdaTool tool)
+      , extension =
+          File.LittleIcon
+      }
+  , contents = case tool of
       LambdaBounds func ->
         "(svgViewBox 100 100 (" ++ LangUnparser.unparse func ++ " [10 10 90 90]))"
       LambdaAnchor func Nothing ->
@@ -1037,11 +1043,11 @@ initModel =
     , needsSave     = False
     , lastSaveState = Nothing
     , autosave      = False
-    , filename      = ""
+    , filename      = { name = "", extension = File.ElmFile }
     , fileIndex     = []
     , dialogBoxes   = Set.empty
     , filenameInput = ""
-    , fileToDelete  = ""
+    , fileToDelete  = { name = "", extension = File.ElmFile }
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
     , icons = Dict.empty

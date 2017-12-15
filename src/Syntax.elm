@@ -4,16 +4,22 @@ module Syntax exposing
   , unparser
   , patternUnparser
   , convertSyntax
+  , sourceExtension
+  , iconExtension
+  , fromFileExtension
+  , encode
   )
 
 import Result
 import Parser
+import Json.Encode
 
 import FastParser
 import ElmParser
 import LangUnparser
 import ElmUnparser
 import Lang
+import File
 
 type Syntax
   = Little
@@ -51,3 +57,46 @@ convertSyntax oldSyntax newSyntax code =
   code
     |> parser oldSyntax
     |> Result.map (unparser newSyntax)
+
+sourceExtension : Syntax -> File.FileExtension
+sourceExtension syntax =
+  case syntax of
+    Elm ->
+      File.ElmFile
+
+    Little ->
+      File.LittleFile
+
+iconExtension : Syntax -> File.FileExtension
+iconExtension syntax =
+  case syntax of
+    Elm ->
+      File.ElmIcon
+
+    Little ->
+      File.LittleIcon
+
+fromFileExtension : File.FileExtension -> Syntax
+fromFileExtension extension =
+  case extension of
+    File.ElmFile ->
+      Elm
+
+    File.ElmIcon ->
+      Elm
+
+    File.LittleFile ->
+      Little
+
+    File.LittleIcon ->
+      Little
+
+encode : Syntax -> Json.Encode.Value
+encode syntax =
+  Json.Encode.string <|
+    case syntax of
+      Elm ->
+        "Elm"
+
+      Little ->
+        "Little"

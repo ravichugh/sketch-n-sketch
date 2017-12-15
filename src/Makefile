@@ -15,6 +15,7 @@ html:
 	cp Native/proseScroller.js ../build/out/
 	cp Native/dotGraph.js ../build/out/
 	cp Native/colorScheme.js ../build/out/
+	cp Native/syntaxHighlight.js ../build/out/
 	cp Native/keyBlocker.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
@@ -58,10 +59,11 @@ loc:
     DependenceGraph.elm CodeMotion.elm Native/dotGraph.js \
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \
     AnimationLoop.elm Native/animationLoop.js \
-    FileHandler.elm Native/fileHandler.js \
+    File.elm FileHandler.elm Native/fileHandler.js \
     DeucePopupPanelInfo.elm Native/deucePopupPanelInfo.js \
     Prose.elm ProseScroller.elm Native/proseScroller.js \
     ColorScheme.elm Native/colorScheme.js \
+    SyntaxHighlight.elm Native/syntaxHighlight.js \
     Main.elm Config.elm \
     Utils.elm Either.elm Updatable.elm \
     HtmlUtils.elm \

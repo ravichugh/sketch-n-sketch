@@ -28,9 +28,8 @@ module InterfaceController exposing
   , msgPauseResumeMovie
   , msgOpenDialogBox, msgCloseDialogBox
   , msgUpdateFilenameInput
-  , msgConfirmWrite, msgConfirmDelete
-  , msgReadFile, msgReadFileFromInput, msgUpdateFileIndex
   , msgLoadIcon
+  , fileMessageHandler, fileMessageError
   , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
   , msgAskNew, msgAskOpen
   , msgConfirmFileOperation, msgCancelFileOperation
@@ -100,10 +99,12 @@ import SleekLayout exposing
   )
 import AceCodeBox
 import AnimationLoop
-import FileHandler
+import FileHandler exposing (ExternalFileMessage(..), InternalFileMessage(..))
+import File exposing (File)
 import ProseScroller
 import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
 import ColorScheme
+import SyntaxHighlight exposing (ExternalSyntaxHighlightMessage(..))
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets exposing (RealZone(..), PointFeature(..), OtherFeature(..))
@@ -119,6 +120,7 @@ import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
 import Syntax exposing (Syntax)
+import FileHandler exposing (ExternalFileMessage(..))
 
 import ImpureGoodies
 
@@ -713,6 +715,7 @@ upstate (Msg caption updateModel) old =
 hooks : List (Model -> Model -> (Model, Cmd Msg))
 hooks =
   [ handleSavedSelectionsHook
+  , handleSyntaxHook
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
@@ -742,6 +745,18 @@ handleSavedSelectionsHook oldModel newModel =
         (newModel, Cmd.none)
   else
     (newModel, Cmd.none)
+
+handleSyntaxHook : Model -> Model -> (Model, Cmd Msg)
+handleSyntaxHook oldModel newModel =
+  let
+    cmd =
+      if newModel.syntax /= oldModel.syntax then
+        SyntaxHighlight.sendMessage <|
+          SetSyntax newModel.syntax
+      else
+        Cmd.none
+  in
+    (newModel, cmd)
 
 --------------------------------------------------------------------------------
 
@@ -776,50 +791,56 @@ issueCommand (Msg kind _) oldModel newModel =
           -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
 
     "Save As" ->
-      if newModel.filename /= Model.bufferName then
-        FileHandler.write <| getFile newModel
+      if newModel.filename.name /= Model.bufferName then
+        FileHandler.sendMessage <|
+          Write newModel.filename newModel.code
       else
         Cmd.none
 
     "Save" ->
-      if newModel.filename /= Model.bufferName then
-        FileHandler.write <| getFile newModel
+      if newModel.filename.name /= Model.bufferName then
+        FileHandler.sendMessage <|
+          Write newModel.filename newModel.code
       else
-        FileHandler.requestFileIndex ()
+        FileHandler.sendMessage RequestFileIndex
 
     "Confirm Write" ->
       Cmd.batch <| iconCommand newModel.filename
 
     "Open" ->
-      FileHandler.requestFile newModel.filename
+      FileHandler.sendMessage <|
+        RequestFile newModel.filename
 
     "Delete" ->
-      FileHandler.delete newModel.fileToDelete
+      FileHandler.sendMessage <|
+        Delete newModel.fileToDelete
 
     "Confirm Delete" ->
       Cmd.batch <| iconCommand newModel.fileToDelete
 
     "Export Code" ->
-      FileHandler.download
-        { filename = (Model.prettyFilename newModel) ++ ".little"
-        , text = newModel.code
-        }
+      FileHandler.sendMessage <|
+        Download
+          (Model.prettyFilename WithoutExtension newModel ++ ".little")
+          newModel.code
 
     "Export SVG" ->
-      FileHandler.download
-        { filename = (Model.prettyFilename newModel) ++ ".svg"
-        , text = LangSvg.printSvg newModel.showGhosts newModel.slate
-        }
+      FileHandler.sendMessage <|
+        Download
+          (Model.prettyFilename WithoutExtension newModel ++ ".svg")
+          (LangSvg.printSvg newModel.showGhosts newModel.slate)
 
     "Import Code" ->
-      FileHandler.requestFileFromInput Model.importCodeFileInputId
+      FileHandler.sendMessage <|
+        RequestUploadedFile Model.importCodeFileInputId
 
     -- Do not send changes back to the editor, because this is the command where
     -- we receieve changes (if this is removed, an infinite feedback loop
     -- occurs).
     "Ace Update" ->
         if newModel.autosave && newModel.needsSave then
-          FileHandler.write <| getFile newModel
+          FileHandler.sendMessage <|
+            Write newModel.filename newModel.code
         else
           Cmd.none
 
@@ -869,7 +890,7 @@ issueCommand (Msg kind _) oldModel newModel =
           else
             Cmd.none
         , if String.startsWith "Open Dialog Box" kind then
-            FileHandler.requestFileIndex ()
+            FileHandler.sendMessage RequestFileIndex
           else
             Cmd.none
         , if kind == "Set Color Scheme" then
@@ -881,10 +902,12 @@ issueCommand (Msg kind _) oldModel newModel =
 iconCommand filename =
   let
     potentialIconName =
-      String.dropLeft 6 filename -- __ui__
+      filename.name
   in
     if List.member potentialIconName Model.iconNames then
-      [ FileHandler.requestIcon potentialIconName ]
+      [ FileHandler.sendMessage <|
+          RequestIcon potentialIconName
+      ]
     else
       []
 
@@ -1630,73 +1653,87 @@ confirmDelete deletedFilename = identity
 requestFile requestedFilename old =
   { old | filename = requestedFilename }
 
-readFile file old =
+readFile : File -> Bool -> Model -> Model
+readFile file needsSave old =
   { old | filename = file.filename
-        , code = file.code
-        , history = ([file.code], [])
-        , lastSaveState = Just file.code
-        , needsSave = False }
+        , code = file.contents
+        , syntax = Syntax.fromFileExtension file.filename.extension
+        , history = ([file.contents], [])
+        , lastSaveState = Just file.contents
+        , needsSave = needsSave
+        }
 
+loadIcon : Env -> File -> Model -> Model
 loadIcon env icon old =
   let
-    actualCode =
-      if icon.code /= "" then
-        icon.code
+    (actualCode, syntax) =
+      if icon.contents /= "" then
+        ( icon.contents
+        , Syntax.fromFileExtension icon.filename.extension
+        )
       else
-        case Dict.get icon.iconName DefaultIconTheme.icons of
+        case Dict.get icon.filename.name DefaultIconTheme.icons of
           Just c ->
-            c
+            ( c
+            , Syntax.Little
+            )
           Nothing ->
-            "(blobs [])"
+            ( "(blobs [])"
+            , Syntax.Little
+            )
     oldIcons =
       old.icons
     iconHtml =
-      Canvas.iconify env actualCode
+      Canvas.iconify env syntax actualCode
     newIcons =
-      Dict.insert icon.iconName iconHtml oldIcons
+      Dict.insert icon.filename.name iconHtml oldIcons
   in
     { old | icons = newIcons }
 
 loadLambdaToolIcons finalEnv old =
   let foo tool acc =
     let icon = lambdaToolIcon tool in
-    if Dict.member icon.iconName old.icons
+    if Dict.member icon.filename.name old.icons
       then acc
       else loadIcon finalEnv icon old
   in
   List.foldl foo old old.lambdaTools
 
-readFileFromInput file old =
-  { old | filename = file.filename
-        , code = file.code
-        , history = ([file.code], [])
-        , lastSaveState = Nothing
-        , needsSave = True }
-
 updateFileIndex fileIndex old =
   { old | fileIndex = fileIndex }
 
--- Subscription Handlers
-
-msgConfirmWrite savedFilename =
-  Msg "Confirm Write" <| confirmWrite savedFilename
-
-msgConfirmDelete deletedFilename =
-  Msg "Confirm Delete" <| confirmDelete deletedFilename
-
 -- TODO: clear state (e.g. selectedEIds) after read file
 
-msgReadFile file =
-  Msg "Read File" <| readFile file >> upstateRun
-
+msgLoadIcon : File -> Msg
 msgLoadIcon file =
-  Msg "Load Icon" <| loadIcon Eval.initEnv file
+  Msg "Load Icon" <|
+    loadIcon Eval.initEnv file
 
-msgReadFileFromInput file =
-  Msg "Read File From Input" <| readFileFromInput file >> upstateRun
+fileMessageHandler : InternalFileMessage -> Msg
+fileMessageHandler ifm =
+  case ifm of
+    ConfirmWrite filename ->
+      Msg "Confirm Write" <|
+        confirmWrite filename
 
-msgUpdateFileIndex fileIndex =
-  Msg "Update File Index" <| updateFileIndex fileIndex
+    ConfirmDelete filename ->
+      Msg "Confirm Delete" <|
+        confirmDelete filename
+
+    ReceiveFile file needsSave ->
+      Msg "Read File" <|
+        readFile file needsSave >> upstateRun
+
+    ReceiveIcon file ->
+      msgLoadIcon file
+
+    ReceiveFileIndex fileIndex ->
+      Msg "Update File Index" <|
+        updateFileIndex fileIndex
+
+fileMessageError : String -> Msg
+fileMessageError err =
+  Debug.log err msgNoop
 
 --------------------------------------------------------------------------------
 -- File Operations
@@ -1733,7 +1770,8 @@ handleNew template = (\old ->
                     , slate         = slate
                     , widgets       = ws
                     , codeBoxInfo   = updateCodeBoxInfo ati old
-                    , filename      = Model.bufferName
+                    , filename      = Model.bufferFilename old
+                    , syntax        = old.syntax
                     , needsSave     = True
                     , lastSaveState = Nothing
                     , scopeGraph    = DependenceGraph.compute e
@@ -1771,9 +1809,9 @@ msgAskNew template = requireSaveAsker (msgNew template)
 msgSaveAs =
   let
     switchFilenameToInput old =
-      { old | filename = old.filenameInput }
+      { old | filename = File.parseFilename old.filenameInput }
     closeDialogBoxIfNecessary old =
-      if old.filename /= Model.bufferName then
+      if old.filename.name /= Model.bufferName then
         Model.closeDialogBox SaveAs old
       else
         old
@@ -1781,7 +1819,7 @@ msgSaveAs =
     Msg "Save As" (switchFilenameToInput >> closeDialogBoxIfNecessary)
 
 msgSave = Msg "Save" <| \old ->
-  if old.filename == Model.bufferName then
+  if old.filename.name == Model.bufferName then
     Model.openDialogBox SaveAs old
   else
     old

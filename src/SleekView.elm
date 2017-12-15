@@ -34,6 +34,7 @@ import LangTools
 import Sync
 import Lang exposing (Exp)
 import Syntax
+import File
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -1236,7 +1237,7 @@ fileIndicator : Model -> Html Msg
 fileIndicator model =
   let
     filenameHtml =
-      Html.text <| Model.prettyFilename model
+      Html.text <| Model.prettyFilename WithExtension model
     wrapper =
       if model.needsSave then
         Html.i
@@ -1252,7 +1253,6 @@ fileIndicator model =
       ]
       [ wrapper
       ]
-
 
 codePanel : Model -> Html Msg
 codePanel model =
@@ -1787,6 +1787,13 @@ fileNewDialogBox model =
 
 fileSaveAsDialogBox model =
   let
+    saveAsInputHeader =
+      Html.h2
+        []
+        [ Html.text "Filename (default "
+        , Html.code [] [ Html.text ".elm" ]
+        , Html.text ")"
+        ]
     saveAsInput =
       Html.div
         [ Attr.class "save-as-input" ]
@@ -1795,7 +1802,6 @@ fileSaveAsDialogBox model =
             , E.onInput Controller.msgUpdateFilenameInput
             ]
             []
-        , Html.text ".little"
         , Html.span
             [ Attr.class "save-as-button"
             ]
@@ -1817,7 +1823,7 @@ fileSaveAsDialogBox model =
       []
       [Html.text "Save As..."]
       []
-      ([saveAsInput, currentFilesHeader] ++ (List.map viewFileIndexEntry model.fileIndex))
+      ([saveAsInputHeader, saveAsInput, currentFilesHeader] ++ (List.map viewFileIndexEntry model.fileIndex))
 
 fileOpenDialogBox model =
   let fileOpenRow filename =
@@ -1825,8 +1831,9 @@ fileOpenDialogBox model =
           [ Attr.class "open-listing"
           ]
           [ Html.span []
-              [ Html.b [] [ Html.text filename ]
-              , Html.text ".little"
+              [ Html.b [] [ Html.text filename.name ]
+              , Html.text <|
+                  "." ++ File.fileExtensionToString filename.extension
               ]
           , Html.span
               [ Attr.class "file-open-delete-buttons"
@@ -1858,8 +1865,9 @@ viewFileIndexEntry filename =
     [ Attr.class "file-listing"
     ]
     [ Html.span []
-        [ Html.b [] [ Html.text filename ]
-        , Html.text ".little"
+        [ Html.b [] [ Html.text filename.name ]
+        , Html.text <|
+            "." ++ File.fileExtensionToString filename.extension
         ]
     ]
 
@@ -1886,7 +1894,7 @@ alertSaveDialogBox model =
         [ Html.div
             []
             [ Html.i []
-                [ Html.text <| Model.prettyFilename model ]
+                [ Html.text <| Model.prettyFilename WithExtension model ]
             , Html.text
                 " has unsaved changes. Would you like to continue anyway?"
             ]
@@ -2063,7 +2071,7 @@ onbeforeunloadDataElement model =
       [ Attr.type_ "hidden"
       , Attr.id "onbeforeunload-data"
       , Attr.attribute "data-needs-save" needsSaveString
-      , Attr.attribute "data-filename" (Model.prettyFilename model)
+      , Attr.attribute "data-filename" (Model.prettyFilename WithExtension model)
       ]
       []
 

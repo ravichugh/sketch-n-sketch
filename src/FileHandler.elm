@@ -1,42 +1,176 @@
 port module FileHandler exposing
-  ( write, writeConfirmation
-  , requestFile, receiveFile
-  , requestIcon, receiveIcon
-  , requestFileFromInput, receiveFileFromInput
-  , requestFileIndex, receiveFileIndex
-  , delete, deleteConfirmation
-  , download
+  ( ExternalFileMessage(..)
+  , InternalFileMessage(..)
+  , sendMessage
+  , receiveMessage
   )
 
-import InterfaceModel exposing (Filename, File, IconName, Icon, FileIndex)
+import File exposing (Filename, File, FileIndex)
 
-type alias DownloadInfo =
-  { filename : Filename
-  , text : String
+import Json.Encode as JsonE
+import Json.Decode as JsonD
+
+-- API structure derived from:
+--   https://github.com/splodingsocks/a-very-im-port-ant-topic/
+
+-- Sent from Elm to outside world
+type ExternalFileMessage
+  = Write Filename String
+  | Delete Filename
+  | Download String String
+  | RequestFile Filename
+  | RequestIcon String
+  | RequestUploadedFile String
+  | RequestFileIndex
+
+-- Received from outside world for Elm
+type InternalFileMessage
+  = ConfirmWrite Filename
+  | ConfirmDelete Filename
+  | ReceiveFile File Bool
+  | ReceiveIcon File
+  | ReceiveFileIndex FileIndex
+
+type alias ExternalData =
+  { tag : String
+  , data : JsonE.Value
   }
 
-port write : File -> Cmd msg
+sendMessage : ExternalFileMessage -> Cmd msg
+sendMessage em =
+  case em of
+    Write filename contents ->
+      externalFileMessage
+        { tag =
+            "Write"
+        , data =
+            JsonE.object
+              [ ("filename", File.encodeFilename filename)
+              , ("contents", JsonE.string contents)
+              ]
+        }
 
-port writeConfirmation : (Filename -> msg) -> Sub msg
+    Delete filename ->
+      externalFileMessage
+        { tag =
+            "Delete"
+        , data =
+            File.encodeFilename filename
+        }
 
-port requestFile : Filename -> Cmd msg
+    Download title contents ->
+      externalFileMessage
+        { tag =
+            "Download"
+        , data =
+            JsonE.object
+              [ ("title", JsonE.string title)
+              , ("contents", JsonE.string contents)
+              ]
+        }
 
-port receiveFile : (File -> msg) -> Sub msg
+    RequestFile filename ->
+      externalFileMessage
+        { tag =
+            "RequestFile"
+        , data =
+            File.encodeFilename filename
+        }
 
-port requestIcon : IconName -> Cmd msg
+    RequestIcon iconName ->
+      externalFileMessage
+        { tag =
+            "RequestIcon"
+        , data =
+            JsonE.object
+              [ ( "iconName"
+                , JsonE.string iconName
+                )
+              , ( "iconExtensionPrecedences"
+                , JsonE.list <|
+                    List.map
+                      File.encodeFileExtension
+                      File.iconExtensionPrecedences
+                )
+              ]
+        }
 
-port receiveIcon : (Icon -> msg) -> Sub msg
+    RequestUploadedFile inputId ->
+      externalFileMessage
+        { tag =
+            "RequestUploadedFile"
+        , data =
+            JsonE.string inputId
+        }
 
-port requestFileFromInput : String -> Cmd msg
+    RequestFileIndex ->
+      externalFileMessage
+        { tag =
+            "RequestFileIndex"
+        , data =
+            JsonE.null
+        }
 
-port receiveFileFromInput : (File -> msg) -> Sub msg
+receiveMessage : (InternalFileMessage -> msg) -> (String -> msg) -> Sub msg
+receiveMessage tagger onError =
+  let
+    handler externalData =
+      case externalData.tag of
+        "ConfirmWrite" ->
+          case JsonD.decodeValue File.filenameDecoder externalData.data of
+            Ok filename ->
+              tagger (ConfirmWrite filename)
 
-port requestFileIndex : () -> Cmd msg
+            Err e ->
+              onError e
 
-port receiveFileIndex : (FileIndex -> msg) -> Sub msg
+        "ConfirmDelete" ->
+          case JsonD.decodeValue File.filenameDecoder externalData.data of
+            Ok filename ->
+              tagger (ConfirmDelete filename)
 
-port delete : Filename -> Cmd msg
+            Err e ->
+              onError e
 
-port deleteConfirmation : (Filename -> msg) -> Sub msg
+        "ReceiveFile" ->
+          case
+            JsonD.decodeValue
+              ( JsonD.map2 (,)
+                  (JsonD.field "file" File.fileDecoder)
+                  (JsonD.field "needsSave" JsonD.bool)
+              )
+              externalData.data
+          of
+            Ok (file, needsSave) ->
+              tagger (ReceiveFile file needsSave)
 
-port download : DownloadInfo -> Cmd msg
+            Err e ->
+              onError e
+
+        "ReceiveIcon" ->
+          case JsonD.decodeValue File.fileDecoder externalData.data of
+            Ok file ->
+              tagger (ReceiveIcon file)
+
+            Err e ->
+              onError e
+
+        "ReceiveFileIndex" ->
+          case JsonD.decodeValue File.fileIndexDecoder externalData.data of
+            Ok fileIndex ->
+              tagger (ReceiveFileIndex fileIndex)
+
+            Err e ->
+              onError e
+
+        _ ->
+          onError <|
+            "Unknown internal file message '"
+              ++ externalData.tag
+              ++ "' with data: "
+              ++ toString externalData.data
+  in
+    internalFileMessage handler
+
+port externalFileMessage : ExternalData -> Cmd msg
+port internalFileMessage : (ExternalData -> msg) -> Sub msg

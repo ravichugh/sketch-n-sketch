@@ -1,227 +1,3 @@
---module Main exposing (main)
---
---import Dict
---
---import Keyboard
---
---import Html exposing (Html)
---import Html.Attributes as A
---import Html.Events as E
---import Parser as P
---
---import ParserUtils
---import Utils
---import ElmParser
---import ElmUnparser
---
-----------------------------------------------------------------------------------
----- Model
-----------------------------------------------------------------------------------
---
---type alias Model =
---  { code : String
---  , oldCode : String
---  , output : String
---  , expected : Maybe Bool
---  }
---
---type Msg
---  = UpdateCode String
---  | Run
---
---init : (Model, Cmd Msg)
---init =
---  ( { code =
---        ""
---    , oldCode =
---        ""
---    , output =
---        ""
---    , expected =
---        Nothing
---    }
---  , Cmd.none
---  )
---
----- Helpers
---
---isDirty : Model -> Bool
---isDirty model =
---  model.code /= model.oldCode
---
-----------------------------------------------------------------------------------
----- View
-----------------------------------------------------------------------------------
---
----- Header
---
---header : Html Msg
---header =
---  Html.h1
---    [ A.id "header"
---    ]
---    [ Html.text "elm-elm"
---    ]
---
----- Work Area
---
---editor : Model -> Html Msg
---editor model =
---  Html.div
---    [ A.id "editor"
---    ]
---    [ Html.div
---        []
---        [ Html.h2
---            []
---            [ Html.text "Input"
---            ]
---        , Html.div
---            [ A.id "run-button"
---            , E.onClick Run
---            ]
---            [ Html.text "Run ▸"
---            ]
---        ]
---    , Html.textarea
---        [ A.autofocus True
---        , E.onInput UpdateCode
---        ]
---        []
---    ]
---
---output : Model -> Html Msg
---output model =
---  let
---    dirtyFlag =
---      if isDirty model then
---        "dirty"
---      else
---        ""
---
---    (expectedClass, expectedLabel) =
---      case model.expected of
---        Just True ->
---          ("expected", "(expected)")
---
---        Just False ->
---          ("unexpected", "(UNEXPECTED)")
---
---        Nothing ->
---          ("no-expectation", "")
---  in
---    Html.div
---      [ A.id "output"
---      , A.class dirtyFlag
---      ]
---      [ Html.div
---          []
---          [ Html.h2
---              []
---              [ Html.text "Output"
---              ]
---          , Html.div
---              [ A.id "expected-indicator"
---              , A.class expectedClass
---              ]
---              [ Html.text expectedLabel
---              ]
---          ]
---      , Html.pre
---          []
---          [ Html.text model.output
---          ]
---      ]
---
---workArea : Model -> Html Msg
---workArea model =
---  Html.div
---    [ A.id "work-area"
---    ]
---    [ editor model
---    , output model
---    ]
---
----- View
---
---view : Model -> Html Msg
---view model =
---  Html.div
---    [ A.id "view"
---    ]
---    [ header
---    , workArea model
---    ]
---
-----------------------------------------------------------------------------------
----- Controller
-----------------------------------------------------------------------------------
---
---update : Msg -> Model -> (Model, Cmd Msg)
---update msg model =
---  case msg of
---    UpdateCode newCode ->
---      ( { model | code = newCode }
---      , Cmd.none
---      )
---
---    Run ->
---      let
---        oldCode =
---          model.code
---
---        parsedCode =
---          ElmParser.parse oldCode
---
---        newOutput =
---          parsedCode
---            |> Result.mapError ParserUtils.showError
---            |> Result.map ElmUnparser.unparse
---            |> Utils.fromResult
---
---        expected =
---          case parsedCode of
---            Err _ ->
---              Nothing
---
---            Ok _ ->
---              Just <|
---                newOutput == oldCode
---      in
---        ( { model
---              | oldCode =
---                  oldCode
---              , output =
---                  newOutput
---              , expected =
---                  expected
---          }
---        , Cmd.none
---        )
---
-----------------------------------------------------------------------------------
----- Subscriptions
-----------------------------------------------------------------------------------
---
---subscriptions : Model -> Sub Msg
---subscriptions model =
---  Sub.batch
---    [ Keyboard.downs (always Run)
---    ]
---
-----------------------------------------------------------------------------------
----- Main
-----------------------------------------------------------------------------------
---
---main : Program Never Model Msg
---main =
---  Html.program
---    { init = init
---    , view = view
---    , update = update
---    , subscriptions = subscriptions
---    }
-
 module Main exposing (main)
 
 import InterfaceModel as Model exposing (Msg, Model)
@@ -274,9 +50,14 @@ initCmd =
   Cmd.batch <|
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
-    , FileHandler.requestFileIndex ()
-    , Cmd.batch <| List.map FileHandler.requestIcon Model.iconNames
-    , Task.perform Controller.msgLoadIcon (Task.succeed (Model.starLambdaToolIcon))
+    , FileHandler.sendMessage FileHandler.RequestFileIndex
+    , Cmd.batch <|
+        List.map
+          (FileHandler.sendMessage << FileHandler.RequestIcon)
+          Model.iconNames
+    , Task.perform
+        Controller.msgLoadIcon
+        (Task.succeed (Model.starLambdaToolIcon))
     , ColorScheme.updateColorScheme Model.initColorScheme
     ] ++
     -- Fixes model not correctly handling initial user study step
@@ -302,12 +83,9 @@ subscriptions model =
     , AceCodeBox.receiveEditorState Controller.msgAceUpdate
     , AceCodeBox.userHasTyped (always Controller.msgUserHasTyped)
     , AnimationLoop.receiveFrame Controller.msgTickDelta
-    , FileHandler.writeConfirmation Controller.msgConfirmWrite
-    , FileHandler.deleteConfirmation Controller.msgConfirmDelete
-    , FileHandler.receiveFile Controller.msgReadFile
-    , FileHandler.receiveIcon Controller.msgLoadIcon
-    , FileHandler.receiveFileFromInput Controller.msgReadFileFromInput
-    , FileHandler.receiveFileIndex Controller.msgUpdateFileIndex
+    , FileHandler.receiveMessage
+        Controller.fileMessageHandler
+        Controller.fileMessageError
     , DeucePopupPanelInfo.receiveDeucePopupPanelInfo
         Controller.msgReceiveDeucePopupPanelInfo
     -- , DependenceGraph.receiveImage Controller.msgReceiveDotImage

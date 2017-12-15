@@ -256,14 +256,22 @@ bool =
 -- Strings
 --------------------------------------------------------------------------------
 
+-- Allows both 'these' and "these" for strings for compatibility
 singleLineString : ParserI EBaseVal
 singleLineString =
-  inContext "single-line string" <|
-    trackInfo <|
-      succeed (EString "\"")
-        |. symbol "\""
-        |= keep zeroOrMore (\c -> c /= '\"')
-        |. symbol "\""
+  let
+    stringHelper quoteChar =
+      let
+        quoteString = String.fromChar quoteChar
+      in
+        succeed (EString quoteString)
+          |. symbol quoteString
+          |= keep zeroOrMore (\c -> c /= quoteChar)
+          |. symbol quoteString
+  in
+    inContext "single-line string" <|
+      trackInfo <|
+        oneOf <| List.map stringHelper ['\'', '"']
 
 multiLineString : ParserI EBaseVal
 multiLineString =

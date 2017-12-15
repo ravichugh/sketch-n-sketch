@@ -85,13 +85,13 @@ var ElmHighlightRules = function() {
         }, {
             token : keywordMapper,
             regex : "[\\w\\xff-\\u218e\\u2455-\\uffff]+\\b"
-        }, {
-            regex: "{-#?",
-            token: "comment.start",
-            onMatch: function(value, currentState, stack) {
-                this.next = value.length == 2 ? "blockComment" : "docComment";
-                return this.token;
-            }
+//        }, {
+//            regex: "{-#?",
+//            token: "comment.start",
+//            onMatch: function(value, currentState, stack) {
+//                this.next = value.length == 2 ? "blockComment" : "docComment";
+//                return this.token;
+//            }
         }, {
             token: "variable.language",
             regex: /\[markdown\|/,
@@ -109,28 +109,28 @@ var ElmHighlightRules = function() {
         }, {
             defaultToken : "string"
         }],
-        blockComment: [{
-            regex: "{-",
-            token: "comment.start",
-            push: "blockComment"
-        }, {
-            regex: "-}",
-            token: "comment.end",
-            next: "pop"
-        }, {
-            defaultToken: "comment"
-        }],
-        docComment: [{
-            regex: "{-",
-            token: "comment.start",
-            push: "docComment"
-        }, {
-            regex: "-}",
-            token: "comment.end",
-            next: "pop" 
-        }, {
-            defaultToken: "doc.comment"
-        }],
+//        blockComment: [{
+//            regex: "{-",
+//            token: "comment.start",
+//            push: "blockComment"
+//        }, {
+//            regex: "-}",
+//            token: "comment.end",
+//            next: "pop"
+//        }, {
+//            defaultToken: "comment"
+//        }],
+//        docComment: [{
+//            regex: "{-",
+//            token: "comment.start",
+//            push: "docComment"
+//        }, {
+//            regex: "-}",
+//            token: "comment.end",
+//            next: "pop" 
+//        }, {
+//            defaultToken: "doc.comment"
+//        }],
         string: [{
             token: "constant.language.escape",
             regex: escapeRe
@@ -178,7 +178,7 @@ oop.inherits(Mode, TextMode);
 
 (function() {
     this.lineCommentStart = "--";
-    this.blockComment = {start: "{-", end: "-}", nestable: true};
+    //this.blockComment = {start: "{-", end: "-}", nestable: true};
     // Extra logic goes here.
     this.$id = "ace/mode/elm";
 }).call(Mode.prototype);
