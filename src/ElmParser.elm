@@ -877,13 +877,24 @@ letBinding =
     lazy <| \_ ->
       mapExp_ <|
         paddedBefore
-          ( \wsBefore (name, binding, body) ->
-              ELet wsBefore Let False name binding body space0
+          ( \wsBefore (name, parameters, binding_, body) ->
+              let
+                binding =
+                  if List.isEmpty parameters then
+                    binding_
+                  else
+                    withInfo
+                      (exp_ <| EFun space0 parameters binding_ space0)
+                      binding_.start
+                      binding_.end
+              in
+                ELet wsBefore Let False name binding body space0
           )
           ( trackInfo <|
               delayedCommit (keywordWithSpace "let") <|
-                succeed (,,)
+                succeed (,,,)
                   |= pattern
+                  |= repeat zeroOrMore pattern
                   |. spaces
                   |. symbol "="
                   |= expression
@@ -1128,25 +1139,37 @@ topLevelDef : Parser TopLevelExp
 topLevelDef =
   inContext "top-level def binding" <|
     delayedCommitMap
-      ( \(wsBefore, name) (binding, wsBeforeSemicolon, semicolon) ->
-          withInfo
-            ( \rest ->
-                exp_ <|
-                  ELet
-                    wsBefore
-                    Def
-                    False
-                    name
-                    binding
-                    rest
-                    wsBeforeSemicolon
-            )
-            name.start
-            semicolon.end
+      ( \(wsBefore, name, parameters)
+         (binding_, wsBeforeSemicolon, semicolon) ->
+          let
+            binding =
+              if List.isEmpty parameters then
+                binding_
+              else
+                withInfo
+                  (exp_ <| EFun space0 parameters binding_ space0)
+                  binding_.start
+                  binding_.end
+          in
+            withInfo
+              ( \rest ->
+                  exp_ <|
+                    ELet
+                      wsBefore
+                      Def
+                      False
+                      name
+                      binding
+                      rest
+                      wsBeforeSemicolon
+              )
+              name.start
+              semicolon.end
       )
-      ( succeed (,)
+      ( succeed (,,)
           |= spaces
           |= pattern
+          |= repeat zeroOrMore pattern
           |. spaces
           |. symbol "="
       )

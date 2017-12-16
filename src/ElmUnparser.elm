@@ -92,7 +92,6 @@ unparseType tipe =
       in
       ws1.val ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2.val)
 
-
 unparseOp : Op -> String
 unparseOp op =
   case op.val of
@@ -228,12 +227,22 @@ unparse e =
         ++ " of"
         ++ String.concat (List.map unparseBranch branches)
 
-    ELet wsBefore letKind _ name binding body wsBeforeSemicolon ->
+    ELet wsBefore letKind _ name binding_ body wsBeforeSemicolon ->
+      let
+        (parameters, binding) =
+          case binding_.val.e__ of
+            EFun _ parameters functionBinding _ ->
+              (parameters, functionBinding)
+
+            _ ->
+              ([], binding_)
+      in
       case letKind of
         Let ->
           wsBefore.val
             ++ "let"
             ++ unparsePattern name
+            ++ String.concat (List.map unparsePattern parameters)
             ++ " ="
             ++ unparse binding
             ++ " in"
@@ -242,6 +251,7 @@ unparse e =
         Def ->
           wsBefore.val
             ++ unparsePattern name
+            ++ String.concat (List.map unparsePattern parameters)
             ++ " ="
             ++ unparse binding
             ++ wsBeforeSemicolon.val
