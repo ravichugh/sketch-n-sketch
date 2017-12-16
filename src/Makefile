@@ -47,6 +47,7 @@ loc:
 		ParserUtils.elm LangParserUtils.elm BinaryOperatorParser.elm \
     FastParser.elm LangUnparser.elm \
 		ElmParser.elm ElmUnparser.elm \
+		ValUnparser.elm \
     Types.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
     InterfaceModel.elm \

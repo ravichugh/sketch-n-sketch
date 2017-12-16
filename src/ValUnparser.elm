@@ -1,0 +1,86 @@
+module ValUnparser exposing
+  (..)
+
+import Dict
+
+import Utils
+import Lang exposing (..)
+
+strBaseVal : VBaseVal -> String
+strBaseVal v =
+  case v of
+    VBool True ->
+      "true"
+    VBool False ->
+      "false"
+    VString s ->
+      "'" ++ s ++ "'"
+    VNull ->
+      "null"
+
+strVal : Val -> String
+strVal =
+  strVal_ False
+
+strValLocs : Val -> String
+strValLocs =
+  strVal_ True
+
+strNum : Num -> String
+strNum  = toString
+-- strNumDot  = strNum >> (\s -> if String.contains "[.]" s then s else s ++ ".0")
+
+strNumTrunc : Int -> Num -> String
+strNumTrunc k =
+  strNum >> (\s -> if String.length s > k then String.left k s ++ ".." else s)
+
+strVal_ : Bool -> Val -> String
+strVal_ showTraces v =
+  let foo = strVal_ showTraces in
+  let sTrace = if showTraces then Utils.braces (toString v.vtrace) else "" in
+  sTrace ++
+  case v.v_ of
+    VConst maybeAxis (i,tr) -> strNum i ++ if showTraces then Utils.angleBracks (toString maybeAxis) ++ Utils.braces (strTrace tr) else ""
+    VBase b                 -> strBaseVal b
+    VClosure _ _ _ _        -> "<fun>"
+    VList vs                -> Utils.bracks (String.join " " (List.map foo vs))
+    VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (foo v)) |> String.join " ") ++ ">"
+
+strOp : Op_ -> String
+strOp op = case op of
+  Plus          -> "+"
+  Minus         -> "-"
+  Mult          -> "*"
+  Div           -> "/"
+  Lt            -> "<"
+  Eq            -> "="
+  Pi            -> "pi"
+  Cos           -> "cos"
+  Sin           -> "sin"
+  ArcCos        -> "arccos"
+  ArcSin        -> "arcsin"
+  ArcTan2       -> "arctan2"
+  Floor         -> "floor"
+  Ceil          -> "ceiling"
+  Round         -> "round"
+  ToStr         -> "toString"
+  Explode       -> "explode"
+  Sqrt          -> "sqrt"
+  Mod           -> "mod"
+  Pow           -> "pow"
+  DictEmpty     -> "empty"
+  DictInsert    -> "insert"
+  DictGet       -> "get"
+  DictRemove    -> "remove"
+  DebugLog      -> "debug"
+
+strLoc : Loc -> String
+strLoc (k, b, mx) =
+  "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
+
+strTrace : Trace -> String
+strTrace tr = case tr of
+  TrLoc l   -> strLoc l
+  TrOp op l ->
+    Utils.parens (String.concat
+      [strOp op, " ", String.join " " (List.map strTrace l)])

@@ -28,7 +28,7 @@ import Keys
 import Eval -- used to determine bounding box of LambdaAnchor tools
             -- for the purposes of rendering icons in drawing toolbox
 import Config
-import Syntax
+import Syntax exposing (Syntax)
 
 import String
 import Regex
@@ -853,8 +853,8 @@ switchToCursorTool old =
 --------------------------------------------------------------------------------
 -- Lambda Tool
 
-lambdaToolOptionsOf : LittleProgram -> Env -> List LambdaTool
-lambdaToolOptionsOf (defs, mainExp) finalEnv =
+lambdaToolOptionsOf : Syntax -> LittleProgram -> Env -> List LambdaTool
+lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
   case mainExp of
 
     Blobs blobs _ ->
@@ -914,7 +914,7 @@ lambdaToolOptionsOf (defs, mainExp) finalEnv =
                   exp =
                     withDummyExpInfo (EApp space1 (eVar0 f) argsAndAnchor space0)
                   val =
-                    Eval.doEval finalEnv exp
+                    Eval.doEval syntax finalEnv exp
                       |> Utils.fromOkay "lambdaToolOptionsOf LambdaAnchor"
                       |> Tuple.first
                       |> Tuple.first

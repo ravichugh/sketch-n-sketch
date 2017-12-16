@@ -341,72 +341,6 @@ patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId) =
   in
     (referenceScopeId, targetPath)
 
-------------------------------------------------------------------------------
--- Unparsing
-
-strBaseVal v = case v of
-  VBool True  -> "true"
-  VBool False -> "false"
-  VString s   -> "'" ++ s ++ "'"
-  VNull       -> "null"
-
-strVal     = strVal_ False
-strValLocs = strVal_ True
-
-strNum     = toString
--- strNumDot  = strNum >> (\s -> if String.contains "[.]" s then s else s ++ ".0")
-
-strNumTrunc k =
-  strNum >> (\s -> if String.length s > k then String.left k s ++ ".." else s)
-
-strVal_ : Bool -> Val -> String
-strVal_ showTraces v =
-  let foo = strVal_ showTraces in
-  let sTrace = if showTraces then Utils.braces (toString v.vtrace) else "" in
-  sTrace ++
-  case v.v_ of
-    VConst maybeAxis (i,tr) -> strNum i ++ if showTraces then Utils.angleBracks (toString maybeAxis) ++ Utils.braces (strTrace tr) else ""
-    VBase b                 -> strBaseVal b
-    VClosure _ _ _ _        -> "<fun>"
-    VList vs                -> Utils.bracks (String.join " " (List.map foo vs))
-    VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (foo v)) |> String.join " ") ++ ">"
-
-strOp op = case op of
-  Plus          -> "+"
-  Minus         -> "-"
-  Mult          -> "*"
-  Div           -> "/"
-  Lt            -> "<"
-  Eq            -> "="
-  Pi            -> "pi"
-  Cos           -> "cos"
-  Sin           -> "sin"
-  ArcCos        -> "arccos"
-  ArcSin        -> "arcsin"
-  ArcTan2       -> "arctan2"
-  Floor         -> "floor"
-  Ceil          -> "ceiling"
-  Round         -> "round"
-  ToStr         -> "toString"
-  Explode       -> "explode"
-  Sqrt          -> "sqrt"
-  Mod           -> "mod"
-  Pow           -> "pow"
-  DictEmpty     -> "empty"
-  DictInsert    -> "insert"
-  DictGet       -> "get"
-  DictRemove    -> "remove"
-  DebugLog      -> "debug"
-
-strLoc (k, b, mx) =
-  "k" ++ toString k ++ (if mx == "" then "" else "_" ++ mx) ++ b
-
-strTrace tr = case tr of
-  TrLoc l   -> strLoc l
-  TrOp op l ->
-    Utils.parens (String.concat
-      [strOp op, " ", String.join " " (List.map strTrace l)])
-
 traceToMaybeIdent tr =
   case tr of
     TrLoc (_, _, ident) -> if ident /= "" then Just ident else Nothing
@@ -1413,7 +1347,7 @@ getOptions e = case e.val.e__ of
 ------------------------------------------------------------------------------
 -- Error Messages
 
-errorPrefix = "[Little Error]" -- NOTE: same as errorPrefix in Native/codeBox.js
+errorPrefix = "[Evaluation Error]" -- NOTE: same as errorPrefix in Native/codeBox.js
 crashWithMsg s  = Debug.crash <| errorPrefix ++ "\n\n" ++ s
 errorMsg s      = Err <| errorPrefix ++ "\n\n" ++ s
 

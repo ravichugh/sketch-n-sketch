@@ -165,6 +165,7 @@ debugLog = Config.debugLog Config.debugController
 
 refreshLiveInfo m =
   case mkLive
+         m.syntax
          m.syncOptions
          m.slideNumber m.movieNumber m.movieTime
          m.inputExp
@@ -510,8 +511,8 @@ applyTrigger zoneKey trigger (mx0, my0) (mx, my) old =
   in
   let dragInfo_ = (trigger, (mx0, my0), True) in
 
-  Eval.run newExp |> Result.andThen (\(newVal, newWidgets) ->
-  LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
+  Eval.run old.syntax newExp |> Result.andThen (\(newVal, newWidgets) ->
+  LangSvg.resolveToIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
           , lastRunCode = newCode
@@ -562,16 +563,16 @@ tryRun old =
           --
           let rewrittenE = rewriteInnerMostExpToMain e in
 
-          Eval.doEval Eval.initEnv rewrittenE |>
+          Eval.doEval old.syntax Eval.initEnv rewrittenE |>
           Result.andThen (\((newVal,ws),finalEnv) ->
-            LangSvg.fetchEverything old.slideNumber old.movieNumber 0.0 newVal
+            LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
               let newCode = Syntax.unparser old.syntax e in -- unnecessary, if parse/unparse were inverses
               let lambdaTools_ =
                 -- TODO should put program into Model
                 -- TODO actually, ideally not. caching introduces bugs
                 let program = splitExp e in
-                Draw.lambdaToolOptionsOf program finalEnv ++ initModel.lambdaTools
+                Draw.lambdaToolOptionsOf old.syntax program finalEnv ++ initModel.lambdaTools
               in
               let new =
                 loadLambdaToolIcons finalEnv { old | lambdaTools = lambdaTools_ }
@@ -1255,7 +1256,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
             , preview          = Nothing
               -- we already ran it successfully once so it shouldn't crash the second time
             , liveSyncInfo     = Utils.fromOk "DigHole MkLive" <|
-                                   mkLive old.syncOptions
+                                   mkLive old.syntax old.syncOptions
                                      old.slideNumber old.movieNumber old.movieTime reparsed
                                      (newVal, newWidgets)
       }
@@ -1266,7 +1267,7 @@ msgMakeEqual = Msg "Make Equal" doMakeEqual
 doMakeEqual old =
   let synthesisResults =
     ValueBasedTransform.makeEqual
-        (Syntax.unparser old.syntax)
+        old.syntax
         old.inputExp
         old.selectedFeatures
         old.slideNumber
@@ -1279,7 +1280,7 @@ doMakeEqual old =
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
     ValueBasedTransform.relate
-        (Syntax.unparser old.syntax)
+        old.syntax
         old.inputExp
         old.selectedFeatures
         old.slideNumber
@@ -1292,7 +1293,7 @@ msgRelate = Msg "Relate" <| \old ->
 msgIndexedRelate = Msg "Indexed Relate" <| \old ->
   let synthesisResults =
     ValueBasedTransform.indexedRelate
-        (Syntax.unparser old.syntax)
+        old.syntax
         old.inputExp
         old.selectedFeatures
         old.selectedShapes
@@ -1437,6 +1438,7 @@ updateHeuristics heuristic old =
     case old.outputMode of
       Live ->
         case mkLive
+               old.syntax
                newSyncOptions
                old.slideNumber
                old.movieNumber
@@ -1467,7 +1469,7 @@ msgStartAnimation = Msg "Start Animation" <| \old ->
   upstate msgRedraw { old | movieTime = 0, runAnimation = True }
 
 msgRedraw = Msg "Redraw" <| \old ->
-  case LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime old.inputVal of
+  case LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber old.movieTime old.inputVal of
     Ok (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
       { old | slideCount    = newSlideCount
             , movieCount    = newMovieCount
@@ -1504,9 +1506,9 @@ msgPreviousSlide = Msg "Previous Slide" <| \old ->
   else
     let previousSlideNumber = old.slideNumber - 1 in
     let result =
-      Eval.run old.inputExp |>
+      Eval.run old.syntax old.inputExp |>
       Result.andThen (\(previousVal, _) ->
-        LangSvg.resolveToMovieCount previousSlideNumber previousVal
+        LangSvg.resolveToMovieCount old.syntax previousSlideNumber previousVal
         |> Result.map (\previousMovieCount ->
              upstate msgStartAnimation
                { old | slideNumber = previousSlideNumber
@@ -1558,7 +1560,7 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
         , synthesisResults = []
         , tool          = Cursor
         , liveSyncInfo  = Utils.fromOk "SelectOption mkLive" <|
-                            mkLive old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
+                            mkLive old.syntax old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
                               (val, []) -- TODO
         }
 
@@ -1684,7 +1686,7 @@ loadIcon env icon old =
     oldIcons =
       old.icons
     iconHtml =
-      Canvas.iconify env syntax actualCode
+      Canvas.iconify syntax env actualCode
     newIcons =
       Dict.insert icon.filename.name iconHtml oldIcons
   in
@@ -1748,9 +1750,9 @@ handleNew template = (\old ->
       let so = Sync.syncOptionsOf old.syncOptions e in
       let outputMode =
         Utils.fromOk "SelectExample mkLive" <|
-          mkLive so old.slideNumber old.movieNumber old.movieTime e (v,ws)
+          mkLive old.syntax so old.slideNumber old.movieNumber old.movieTime e (v,ws)
       in
-      LangSvg.fetchEverything old.slideNumber old.movieNumber old.movieTime v
+      LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
         let code = Syntax.unparser old.syntax e in
         { initModel | inputExp      = e

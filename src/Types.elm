@@ -1,6 +1,7 @@
 module Types exposing (..)
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
 import Pos exposing (..)
 import Info exposing (..)
 import FastParser as Parser

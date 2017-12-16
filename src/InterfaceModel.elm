@@ -603,7 +603,7 @@ type alias DeuceToolResultPreviews =
 runAndResolve : Model -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolve model exp =
   let thunk () =
-    Eval.run exp
+    Eval.run model.syntax exp
     |> Result.andThen (\(val, widgets) -> slateAndCode model (exp, val)
     |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
   in
@@ -613,15 +613,15 @@ runAndResolve model exp =
 
 slateAndCode : Model -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
 slateAndCode old (exp, val) =
-  LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
+  LangSvg.resolveToIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime val
   |> Result.map (\slate -> (slate, Syntax.unparser old.syntax exp))
 
 --------------------------------------------------------------------------------
 
-mkLive : Sync.Options -> Int -> Int -> Float -> Exp -> (Val, Widgets) -> Result String Sync.LiveInfo
-mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
-  LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
-  Sync.prepareLiveUpdates opts e (slate, widgets)                    |> Result.andThen (\liveInfo ->
+mkLive : Syntax -> Sync.Options -> Int -> Int -> Float -> Exp -> (Val, Widgets) -> Result String Sync.LiveInfo
+mkLive syntax opts slideNumber movieNumber movieTime e (val, widgets) =
+  LangSvg.resolveToIndexedTree syntax slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
+  Sync.prepareLiveUpdates opts e (slate, widgets)                           |> Result.andThen (\liveInfo ->
     Ok liveInfo
   ))
 
@@ -970,9 +970,9 @@ initModel =
   in
   let unwrap = Utils.fromOk "generating initModel" in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
-    unwrap (LangSvg.fetchEverything 1 1 0.0 v)
+    unwrap (LangSvg.fetchEverything Syntax.Little 1 1 0.0 v)
   in
-  let liveSyncInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
+  let liveSyncInfo = unwrap (mkLive Syntax.Little Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = LangUnparser.unparse e in
     { code          = code
     , lastRunCode   = code

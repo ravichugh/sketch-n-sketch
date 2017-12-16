@@ -4,10 +4,12 @@ module Solver exposing
   )
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
 import Eval
 import LocEqn exposing (LocEquation(..), locEqnEval, locEqnTerms, locEqnLocIdSet)
 import Utils
 import Config
+import Syntax
 
 import Set
 import Dict
@@ -56,7 +58,7 @@ evalTrace subst t = case t of
   TrLoc (k,_,_) -> Dict.get k subst
   TrOp op ts ->
     Utils.mapMaybe
-      (Eval.evalDelta [] op)
+      (Eval.evalDelta Syntax.Little [] op)
       (Utils.projJusts (List.map (evalTrace subst) ts))
 
 evalLoc : Subst -> Trace -> Maybe (Maybe Num)

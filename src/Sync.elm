@@ -8,6 +8,7 @@ module Sync exposing
   )
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
 import Pos exposing (..)
 import Info exposing (..)
 import LangSvg exposing

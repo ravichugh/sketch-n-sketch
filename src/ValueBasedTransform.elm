@@ -7,6 +7,7 @@
 module ValueBasedTransform exposing (..)
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
 import LangTools exposing (..)
 import FastParser exposing (prelude, freshen, substOf)
 import LangUnparser exposing (unparseWD)
@@ -18,6 +19,7 @@ import Utils
 import LangSvg exposing (NodeId, ShapeKind, Attr)
 import ShapeWidgets exposing (FeatureEquation)
 import Config
+import Syntax exposing (Syntax)
 
 import Dict
 import Set
@@ -165,12 +167,12 @@ digHole originalExp selectedFeatures slate widgets syncOptions =
 
 
 
-evalToSlateAndWidgetsResult : Exp -> Int -> Int -> Float -> Result String (LangSvg.RootedIndexedTree, Widgets)
-evalToSlateAndWidgetsResult exp slideNumber movieNumber movieTime =
-  Eval.run exp |>
+evalToSlateAndWidgetsResult : Syntax -> Exp -> Int -> Int -> Float -> Result String (LangSvg.RootedIndexedTree, Widgets)
+evalToSlateAndWidgetsResult syntax exp slideNumber movieNumber movieTime =
+  Eval.run syntax exp |>
   Result.andThen
     (\(val, widgets) ->
-      LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val
+      LangSvg.resolveToIndexedTree syntax slideNumber movieNumber movieTime val
       |> Result.map (\tree -> (tree, widgets))
     )
 
@@ -205,9 +207,9 @@ indexedRelateDistanceScore subst indexedLocIdsWithTarget locEqn =
   sumOfSquares / toFloat (List.length indexedLocIdsWithTarget)
 
 
-indexedRelate : (Exp -> String) -> Exp -> Set.Set ShapeWidgets.SelectedShapeFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
-indexedRelate unparse originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
-  case evalToSlateAndWidgetsResult originalExp slideNumber movieNumber movieTime of
+indexedRelate : Syntax -> Exp -> Set.Set ShapeWidgets.SelectedShapeFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
+indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
+  case evalToSlateAndWidgetsResult syntax originalExp slideNumber movieNumber movieTime of
     Err _    -> []
     Ok (slate, widgets) ->
       let (_, tree) = slate in
@@ -268,7 +270,7 @@ indexedRelate unparse originalExp selectedFeatures selectedShapes slideNumber mo
             in
             let (locsLifted, locIdToNewName) = liftLocsSoVisibleTo originalExp (Set.fromList locsToLift) (Set.fromList locEIds) in
             let description =
-              let eqnDesc = unparse <| locEqnToExp unann Dict.empty (Dict.insert indexLocId "i" locIdToNewName) eqn in
+              let eqnDesc = Syntax.unparser syntax <| locEqnToExp unann Dict.empty (Dict.insert indexLocId "i" locIdToNewName) eqn in
               let locDescs = locsToRevolutionize |> List.map (locDescription originalExp) in
               "compute " ++ String.join ", " locDescs ++ " by " ++ eqnDesc
             in
@@ -391,11 +393,11 @@ synthesizeRelation unparse relateType originalExp selectedFeatures slideNumber m
 
 
 -- If given more than two features, run relate_ on each overlapping pair.
-relateOverlappingPairs unparse relateType priorResults features slideNumber movieNumber movieTime syncOptions =
+relateOverlappingPairs syntax relateType priorResults features slideNumber movieNumber movieTime syncOptions =
   let relateMore results =
     case features of
       _::remainingFeatues ->
-        relateOverlappingPairs unparse relateType results remainingFeatues slideNumber movieNumber movieTime syncOptions
+        relateOverlappingPairs syntax relateType results remainingFeatues slideNumber movieNumber movieTime syncOptions
 
       _ ->
         -- Shouldn't happen.
@@ -407,11 +409,11 @@ relateOverlappingPairs unparse relateType priorResults features slideNumber movi
       |> List.concatMap
           (\{description, exp, sortKey, dependentLocIds} ->
             let priorExp = exp in
-            case evalToSlateAndWidgetsResult priorExp slideNumber movieNumber movieTime of
+            case evalToSlateAndWidgetsResult syntax priorExp slideNumber movieNumber movieTime of
               Err s -> []
               Ok (slate, widgets) ->
                 let newResults =
-                  relate_ unparse relateType priorExp featureA featureB slate widgets syncOptions
+                  relate_ syntax relateType priorExp featureA featureB slate widgets syncOptions
                 in
                 case newResults of
                   [] ->
@@ -501,7 +503,7 @@ relateOverlappingPairs unparse relateType priorResults features slideNumber movi
 --       originalExp
 
 
-relate_ unparse relateType originalExp featureA featureB slate widgets syncOptions =
+relate_ syntax relateType originalExp featureA featureB slate widgets syncOptions =
   let (_, tree) = slate in
   let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
   let featureDescription (nodeId, featureName) tree = featureName in
@@ -520,11 +522,11 @@ relate_ unparse relateType originalExp featureA featureB slate widgets syncOptio
            Equalize -> (featureDescription featureA tree) ++ " = " ++ (featureDescription featureB tree) ++ " "
            Relate   -> ""
        in
-       relate__ unparse relateType originalExp featureAEqn featureBEqn syncOptions
+       relate__ syntax relateType originalExp featureAEqn featureBEqn syncOptions
        |> List.map (InterfaceModel.prependDescription descriptionPrefix)
 
 
-relate__ unparse relateType originalExp featureAEqn featureBEqn syncOptions =
+relate__ syntax relateType originalExp featureAEqn featureBEqn syncOptions =
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
      (frozenLocIdsAndNumbers prelude))
@@ -697,7 +699,7 @@ relate__ unparse relateType originalExp featureAEqn featureBEqn syncOptions =
             in
             case relateType of
               Equalize -> {description = description, exp = newExp, sortKey = [], dependentLocIds = [dependentLocId]}
-              Relate   -> {description = description ++ unparse dependentLocExp, exp = newExp, sortKey = [], dependentLocIds = [dependentLocId]}
+              Relate   -> {description = description ++ Syntax.unparser syntax dependentLocExp, exp = newExp, sortKey = [], dependentLocIds = [dependentLocId]}
           )
       )
 

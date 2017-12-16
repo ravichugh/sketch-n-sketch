@@ -1,6 +1,7 @@
 module LocEqn exposing (..)
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
 import Config
 import Utils exposing (infinity)
 

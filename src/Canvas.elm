@@ -9,6 +9,7 @@ import HtmlUtils exposing (handleEventAndStop)
 import UserStudy
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
 import LangSvg exposing (NodeId, ShapeKind, attr)
 import ShapeWidgets exposing
   ( ZoneName, RealZone(..)
@@ -166,18 +167,18 @@ buildSvg_ stuff d i =
 -- for basic icons, env will be Eval.initEnv.
 -- for LambdaTool icons, env will be from result of running main program.
 --
-iconify : Env -> Syntax -> String -> Html Msg
-iconify env syntax code =
+iconify : Syntax -> Env -> String -> Html Msg
+iconify syntax env code =
   let
     exp =
       Utils.fromOkay "Error parsing icon"
         <| Syntax.parser syntax code
     ((val, _), _) =
       Utils.fromOkay "Error evaluating icon"
-        <| Eval.doEval env exp
+        <| Eval.doEval syntax env exp
     tree =
       Utils.fromOkay "Error resolving index tree of icon"
-        <| LangSvg.resolveToIndexedTree 1 1 0 val
+        <| LangSvg.resolveToIndexedTree syntax 1 1 0 val
     svgElements =
       buildSvg ({ initModel | showGhosts = False }, False) tree
     subPadding x =

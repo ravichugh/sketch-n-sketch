@@ -44,10 +44,12 @@ import Regex
 import ColorNum
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
 import Eval
 import Utils
 import Either exposing (Either(..))
 import ImpureGoodies
+import Syntax exposing (Syntax)
 
 ------------------------------------------------------------------------------
 
@@ -686,40 +688,40 @@ type alias AnimationKey = (Int, Int, Float)
 vNumFrozen n = val (VConst Nothing (n, TrLoc (-999, frozen, toString n)))
 vIntFrozen i = vNumFrozen (toFloat i)
 
-resolveToMovieCount : Int -> Val -> Result String Int
-resolveToMovieCount slideNumber val =
-  fetchSlideVal slideNumber val
+resolveToMovieCount : Syntax -> Int -> Val -> Result String Int
+resolveToMovieCount syntax slideNumber val =
+  fetchSlideVal syntax slideNumber val
   |> Result.map fetchMovieCount
 
-resolveToMovieFrameVal : Int -> Int -> Float -> Val -> Result String Val
-resolveToMovieFrameVal slideNumber movieNumber movieTime val =
-  fetchEverything_ slideNumber movieNumber movieTime val
+resolveToMovieFrameVal : Syntax -> Int -> Int -> Float -> Val -> Result String Val
+resolveToMovieFrameVal syntax slideNumber movieNumber movieTime val =
+  fetchEverything_ syntax slideNumber movieNumber movieTime val
   |> Result.map (\(_, _, _, _, movieFrameVal) -> movieFrameVal)
 
-resolveToIndexedTree : Int -> Int -> Float -> Val -> Result String RootedIndexedTree
-resolveToIndexedTree slideNumber movieNumber movieTime val =
-  fetchEverything slideNumber movieNumber movieTime val
+resolveToIndexedTree : Syntax -> Int -> Int -> Float -> Val -> Result String RootedIndexedTree
+resolveToIndexedTree syntax slideNumber movieNumber movieTime val =
+  fetchEverything syntax slideNumber movieNumber movieTime val
   |> Result.map (\(_, _, _, _, indexedTree) -> indexedTree)
 
-fetchEverything_ : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, Val)
-fetchEverything_ slideNumber movieNumber movieTime val =
+fetchEverything_ : Syntax -> Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, Val)
+fetchEverything_ syntax slideNumber movieNumber movieTime val =
   let slideCount = fetchSlideCount val in
-  fetchSlideVal slideNumber val |>
+  fetchSlideVal syntax slideNumber val |>
   Result.andThen (\slideVal ->
     let movieCount = fetchMovieCount slideVal in
-    fetchMovieVal movieNumber slideVal |>
+    fetchMovieVal syntax movieNumber slideVal |>
     Result.andThen (\movieVal ->
       let (movieDuration, continue) = fetchMovieDurationAndContinueBool movieVal in
-      fetchMovieFrameVal slideNumber movieNumber movieTime movieVal
+      fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal
       |> Result.map (\movieFrameVal ->
         (slideCount, movieCount, movieDuration, continue, movieFrameVal)
       )
     )
   )
 
-fetchEverything : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
-fetchEverything slideNumber movieNumber movieTime val =
-  fetchEverything_ slideNumber movieNumber movieTime val |>
+fetchEverything : Syntax -> Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
+fetchEverything syntax slideNumber movieNumber movieTime val =
+  fetchEverything_ syntax slideNumber movieNumber movieTime val |>
   Result.andThen (\(slideCount, movieCount, movieDuration, continue, movieVal) ->
     valToIndexedTree movieVal
     |> Result.map (\indexedTree -> (slideCount, movieCount, movieDuration, continue, indexedTree))
@@ -737,8 +739,8 @@ fetchMovieCount slideVal =
     Just [VConst _ (movieCount, _), _] -> round movieCount
     _ -> 1 -- Program returned a plain SVG array structure...we hope.
 
-fetchSlideVal : Int -> Val -> Result String Val
-fetchSlideVal slideNumber val =
+fetchSlideVal : Syntax -> Int -> Val -> Result String Val
+fetchSlideVal syntax slideNumber val =
   case unwrapVList val of
     Just [VConst _ (slideCount, _), VClosure _ pat fexp fenv] ->
       -- Program returned the slide count and a
@@ -747,20 +749,20 @@ fetchSlideVal slideNumber val =
         PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
           let fenv_ = (argumentName, vIntFrozen slideNumber) :: fenv in
-          Eval.doEval fenv_ fexp
+          Eval.doEval syntax fenv_ fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok val -- Program returned a plain SVG array structure...we hope.
 
 -- This is nasty b/c a two-arg function is really a function that returns a function...
-fetchMovieVal : Int -> Val -> Result String Val
-fetchMovieVal movieNumber slideVal =
+fetchMovieVal : Syntax -> Int -> Val -> Result String Val
+fetchMovieVal syntax movieNumber slideVal =
   case unwrapVList slideVal of
     Just [VConst _ (movieCount, _), VClosure _ pat fexp fenv] ->
       case pat.val.p__ of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
           let fenv_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenv in
-          Eval.doEval fenv_ fexp
+          Eval.doEval syntax fenv_ fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok slideVal -- Program returned a plain SVG array structure...we hope.
@@ -776,19 +778,19 @@ fetchMovieDurationAndContinueBool movieVal =
       (0.0, False) -- Program returned a plain SVG array structure...we hope.
 
 -- This is nasty b/c a two-arg function is really a function that returns a function...
-fetchMovieFrameVal : Int -> Int -> Float -> Val -> Result String Val
-fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
+fetchMovieFrameVal : Syntax -> Int -> Int -> Float -> Val -> Result String Val
+fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal =
   case unwrapVList movieVal of
     Just [VBase (VString "Static"), VClosure _ pat fexp fenv] ->
       case pat.val.p__ of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
-          case Eval.doEval fenv_ fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
+          case Eval.doEval syntax fenv_ fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
             Ok (VClosure _ patInner fexpInner fenvInner) ->
               case patInner.val.p__ of
                 PVar _ movieNumberArgumentName _ ->
                   let fenvInner_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner in
-                  Eval.doEval fenvInner_ fexpInner
+                  Eval.doEval syntax fenvInner_ fexpInner
                   |> Result.map (\((returnVal, _), _) -> returnVal)
                 _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val.p__))
             Ok v_ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString v_))
@@ -798,17 +800,17 @@ fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
       case pat.val.p__ of -- Find the function's argument names
         PVar _ slideNumberArgumentName _ ->
           let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
-          case Eval.doEval fenv_ fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
+          case Eval.doEval syntax fenv_ fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
             Ok (VClosure _ patInner1 fexpInner1 fenvInner1) ->
               case patInner1.val.p__ of
                 PVar _ movieNumberArgumentName _ ->
                   let fenvInner1_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner1 in
-                  case Eval.doEval fenvInner1_ fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
+                  case Eval.doEval syntax fenvInner1_ fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
                     Ok (VClosure _ patInner2 fexpInner2 fenvInner2) ->
                       case patInner2.val.p__ of
                         PVar _ movieSecondsArgumentName _ ->
                           let fenvInner2_ = (movieSecondsArgumentName, vNumFrozen movieTime) :: fenvInner2 in
-                          Eval.doEval fenvInner2_ fexpInner2
+                          Eval.doEval syntax fenvInner2_ fexpInner2
                           |> Result.map (\((returnVal, _), _) -> returnVal)
                         _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val.p__))
                     Ok innerV2_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV2_))
