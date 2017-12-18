@@ -229,8 +229,8 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
               (\nodeId ->
                 let (kind, attrs) = LangSvg.justGetSvgNode "ValueBasedTransform.indexedRelate" nodeId slate in
                 ShapeWidgets.featuresOfShape kind attrs
-                |> List.concatMap ShapeWidgets.featureNumsOfFeature
-                |> List.map (\featureNum -> (nodeId, (kind, featureNum)))
+                |> List.concatMap ShapeWidgets.shapeFeaturesOfFeature
+                |> List.map (\shapeFeature -> (nodeId, shapeFeature))
                 |> List.take 1
               )
       in

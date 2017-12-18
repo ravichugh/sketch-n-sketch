@@ -97,7 +97,7 @@ import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
 import ColorScheme
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
-import ShapeWidgets exposing (Feature(..), FeatureNum(..), RealZone(..), PointFeature(..), DistanceFeature(..), OtherFeature(..))
+import ShapeWidgets exposing (Feature(..), ShapeFeature(..), RealZone(..), PointFeature(..), DistanceFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
@@ -349,7 +349,7 @@ onMouseClick click old maybeClickable =
 onClickPrimaryZone : LangSvg.NodeId -> LangSvg.ShapeKind -> ShapeWidgets.RealZone -> Model -> Model
 onClickPrimaryZone i k realZone old =
   let hoveredCrosshairs_ =
-    case ShapeWidgets.zoneToCrosshair k realZone of
+    case ShapeWidgets.zoneToCrosshair realZone of
       Just (xFeature, yFeature) ->
         Set.insert (i, xFeature, yFeature) old.hoveredCrosshairs
       _ ->
@@ -358,7 +358,7 @@ onClickPrimaryZone i k realZone old =
   let (selectedFeatures_, selectedShapes_, selectedBlobs_) =
     if i < -2 then -- Clicked a widget
       if realZone == ZOffset1D then
-        let selectedShapeFeatureToToggle = (i, ("offset", DFeat Offset)) in
+        let selectedShapeFeatureToToggle = (i, DFeat Offset) in
         let update = if Set.member selectedShapeFeatureToToggle old.selectedFeatures then Set.remove else Set.insert in
         (update selectedShapeFeatureToToggle old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
       else
@@ -467,7 +467,7 @@ onMouseDrag lastPosition newPosition old =
                   |> List.concatMap
                       (\(feature, (xEqn, yEqn)) ->
                         case (ShapeWidgets.evaluateFeatureEquation xEqn, ShapeWidgets.evaluateFeatureEquation yEqn) of
-                          (Just x, Just y) -> feature |> ShapeWidgets.featureNumsOfFeature |> List.map (\featureNum -> ((nodeId, (shapeKind, featureNum)), (x, y)))
+                          (Just x, Just y) -> feature |> ShapeWidgets.shapeFeaturesOfFeature |> List.map (\shapeFeature -> ((nodeId, shapeFeature), (x, y)))
                           _                -> []
                       )
             )
@@ -482,22 +482,22 @@ onMouseDrag lastPosition newPosition old =
                 WIntSlider _ _ _ _ _ _ _ -> []
                 WNumSlider _ _ _ _ _ _ _ -> []
                 WPoint (x, xTr) _ (y, yTr) _ ->
-                  [ ((idAsShape, ("point", XFeat LonePoint)), (x, y))
-                  , ((idAsShape, ("point", YFeat LonePoint)), (x, y))
+                  [ ((idAsShape, XFeat LonePoint), (x, y))
+                  , ((idAsShape, YFeat LonePoint), (x, y))
                   ]
                 WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _ ->
                   let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
                     offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
                   in
-                  [ ((idAsShape, ("offset", XFeat EndPoint)), (endX, endY))
-                  , ((idAsShape, ("offset", YFeat EndPoint)), (endX, endY))
+                  [ ((idAsShape, XFeat EndPoint), (endX, endY))
+                  , ((idAsShape, YFeat EndPoint), (endX, endY))
                   ]
                 WCall _ _ _ _ -> []
             )
       in
       let shapesAndBounds =
         selectableShapeFeaturesAndPositions
-        |> Utils.groupBy (\((nodeId, shapeFeatureStr), (x, y)) -> nodeId)
+        |> Utils.groupBy (\((nodeId, shapeFeature), (x, y)) -> nodeId)
         |> Dict.toList
         |> List.map
             (\(nodeId, featuresAndPositions) ->
@@ -517,8 +517,8 @@ onMouseDrag lastPosition newPosition old =
       in
       let featuresToSelect =
         selectableShapeFeaturesAndPositions ++ selectableWidgetFeaturesAndPositions
-        |> List.filter (\((nodeId, shapeFeatureStr), (x, y)) -> not (List.member nodeId shapesToSelect) && selectLeft <= round x && round x <= selectRight && selectTop <= round y && round y <= selectBot)
-        |> List.map    (\(selectableShapeFeature,    (x, y)) -> selectableShapeFeature)
+        |> List.filter (\((nodeId, shapeFeature), (x, y)) -> not (List.member nodeId shapesToSelect) && selectLeft <= round x && round x <= selectRight && selectTop <= round y && round y <= selectBot)
+        |> List.map    (\(selectableShapeFeature, (x, y)) -> selectableShapeFeature)
       in
       if old.keysDown == [Keys.keyShift] then
         { old | selectedShapes   = Utils.multiToggleSet (Set.fromList shapesToSelect) initialSelectedShapes

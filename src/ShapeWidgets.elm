@@ -14,9 +14,6 @@ import Set exposing (Set)
 import String
 
 
-------------------------------------------------------------------------------
--- Shape Features
-
 type Feature
   = PointFeature PointFeature
   | DistanceFeature DistanceFeature
@@ -42,6 +39,20 @@ type OtherFeature
   | StrokeColor | StrokeOpacity | StrokeWidth
   | Rotation
   | Quantity
+
+
+type ShapeFeature
+  = XFeat PointFeature
+  | YFeat PointFeature
+  | DFeat DistanceFeature
+  | OFeat OtherFeature
+
+
+type alias SelectedShapeFeature = (NodeId, ShapeFeature)
+
+
+------------------------------------------------------------------------------
+-- Features (what kind of things does each shape have?)
 
 eightPointFeatures =
   List.map PointFeature
@@ -103,56 +114,35 @@ pointFeaturesOfShape kind attrs =
 
 
 ------------------------------------------------------------------------------
--- FeatureNum (for selecting/relating individual values)
+-- ShapeFeature (for selecting/relating individual values)
 
-type FeatureNum
-  = XFeat PointFeature
-  | YFeat PointFeature
-  | DFeat DistanceFeature
-  | OFeat OtherFeature
-
-
-featureNumsOfFeature : Feature -> List FeatureNum
-featureNumsOfFeature feature =
+shapeFeaturesOfFeature : Feature -> List ShapeFeature
+shapeFeaturesOfFeature feature =
   case feature of
     PointFeature pf    -> [XFeat pf, YFeat pf]
     DistanceFeature df -> [DFeat df]
     OtherFeature feat  -> [OFeat feat]
 
 
-featureNumDesc : FeatureNum -> String
-featureNumDesc featureNum =
-  toString featureNum
+-- Slightly nicer if we had shape kind here, but not worth the complexity.
+shapeFeatureDesc : ShapeFeature -> String
+shapeFeatureDesc shapeFeature =
+  toString shapeFeature
   |> Utils.stringReplace " " ""
   |> Utils.stringReplace "(" ""
   |> Utils.stringReplace ")" ""
 
 
-------------------------------------------------------------------------------
-
-type alias ShapeFeature = (ShapeKind, FeatureNum)
-
-
-shapeFeatureDesc : ShapeFeature -> String
-shapeFeatureDesc (shapeKind, featureNum) =
-  shapeKind ++ featureNumDesc featureNum
-
-
-parseFeatureNum : ShapeFeature -> FeatureNum
-parseFeatureNum (_, featureNum) =
-  featureNum
-
-
 shapeFeatureIsX : ShapeFeature -> Bool
-shapeFeatureIsX (_, featureNum) =
-  case featureNum of
+shapeFeatureIsX shapeFeature =
+  case shapeFeature of
     XFeat _ -> True
     _       -> False
 
 
 shapeFeatureIsY : ShapeFeature -> Bool
-shapeFeatureIsY (_, featureNum) =
-  case featureNum of
+shapeFeatureIsY shapeFeature =
+  case shapeFeature of
     YFeat _ -> True
     _       -> False
 
@@ -168,9 +158,8 @@ selectedShapeFeatureIsX (_, shapeFeature) =
 
 
 shapeFeaturesAreXYPairs : ShapeFeature -> ShapeFeature -> Bool
-shapeFeaturesAreXYPairs (shapeKind1, featureNum1) (shapeKind2, featureNum2) =
-  shapeKind1 == shapeKind2 &&
-  case (featureNum1, featureNum2) of
+shapeFeaturesAreXYPairs shapeFeature1 shapeFeature2 =
+  case (shapeFeature1, shapeFeature2) of
     (XFeat pointFeature1, YFeat pointFeature2) -> pointFeature1 == pointFeature2
     (YFeat pointFeature1, XFeat pointFeature2) -> pointFeature1 == pointFeature2
     _                                          -> False
@@ -185,8 +174,6 @@ selectedShapeFeaturesAreXYPairs (nodeId1, shapeFeature1) (nodeId2, shapeFeature2
 ------------------------------------------------------------------------------
 -- Selected Shape Features
 
-type alias SelectedShapeFeature = (NodeId, ShapeFeature)
-
 selectedPointFeatureOf : SelectedShapeFeature -> SelectedShapeFeature
                       -> Maybe (NodeId, PointFeature)
 selectedPointFeatureOf selected1 selected2 =
@@ -200,7 +187,7 @@ selectedPointFeatureOf selected1 selected2 =
 
 pointFeatureOf : ShapeFeature -> ShapeFeature -> Maybe PointFeature
 pointFeatureOf feature1 feature2 =
-  case (parseFeatureNum feature1, parseFeatureNum feature2) of
+  case (feature1, feature2) of
     (XFeat pointFeature1, YFeat pointFeature2) ->
       if pointFeature1 == pointFeature2
       then Just pointFeature1
@@ -240,7 +227,7 @@ selectedShapeToValEquation nodeId shapeTree =
 
 
 selectedShapeFeatureToEquation_
-  :  (ShapeFeature -> List Attr -> FeatureEquationOf a)
+  :  (ShapeFeature -> ShapeKind -> List Attr -> FeatureEquationOf a)
   -> (ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquationOf a)
   -> SelectedShapeFeature
   -> IndexedTree
@@ -252,7 +239,7 @@ selectedShapeFeatureToEquation_ getFeatureEquation getWidgetFeatureEquation (nod
     -- shape feature
     case Dict.get nodeId tree |> Maybe.map .interpreted of
       Just (LangSvg.SvgNode kind nodeAttrs _) ->
-        Just (getFeatureEquation shapeFeature nodeAttrs)
+        Just (getFeatureEquation shapeFeature kind nodeAttrs)
 
       Just (LangSvg.TextNode _) ->
         Nothing
@@ -297,8 +284,8 @@ minus a b = EqnOp Minus [a, b]
 div a b   = EqnOp Div [a, b]
 
 
-featureEquation : ShapeFeature -> List Attr -> FeatureEquation
-featureEquation (kind, featureNum) nodeAttrs =
+featureEquation : ShapeFeature -> ShapeKind -> List Attr -> FeatureEquation
+featureEquation shapeFeature kind nodeAttrs =
   let toOpacity attr =
     case attr.interpreted of
       LangSvg.AColorNum (_, Just opacity) -> opacity
@@ -313,10 +300,10 @@ featureEquation (kind, featureNum) nodeAttrs =
       twoNumTr
       kind
       nodeAttrs
-      featureNum
+      shapeFeature
 
-featureValEquation : ShapeFeature -> List Attr -> FeatureValEquation
-featureValEquation (kind, featureNum) nodeAttrs =
+featureValEquation : ShapeFeature -> ShapeKind -> List Attr -> FeatureValEquation
+featureValEquation shapeFeature kind nodeAttrs =
   let getAttr attrName attrList =
     (Utils.find ("featureValEquation: getAttr " ++ attrName) attrList attrName).val
   in
@@ -386,7 +373,7 @@ featureValEquation (kind, featureNum) nodeAttrs =
       twoVal
       kind
       nodeAttrs
-      featureNum
+      shapeFeature
 
 
 widgetFeatureEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquation
@@ -403,19 +390,17 @@ widgetFeatureEquation shapeFeature widget locIdToNumberAndLoc =
       in
       EqnNum (n, TrLoc loc)
     WPoint (x, xTr) xProvenance (y, yTr) yProvenance ->
-      let featureNum = parseFeatureNum shapeFeature in
-      case featureNum of
+      case shapeFeature of
         XFeat LonePoint -> EqnNum (x, xTr)
         YFeat LonePoint -> EqnNum (y, yTr)
         _               -> Debug.crash <| "WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ toString shapeFeature
     WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountProvenance endXProvenance endYProvenance ->
-      let featureNum = parseFeatureNum shapeFeature in
       let op =
         case sign of
           Positive -> Plus
           Negative -> Minus
       in
-      case (featureNum, axis) of
+      case (shapeFeature, axis) of
         (DFeat Offset, _)   -> EqnNum (amount, amountTr)
         (XFeat EndPoint, X) -> EqnOp op [EqnNum (baseX, baseXTr), EqnNum (amount, amountTr)]
         (XFeat EndPoint, Y) -> EqnNum (baseX, baseXTr)
@@ -432,19 +417,17 @@ widgetFeatureValEquation shapeFeature widget locIdToNumberAndLoc =
     WIntSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
     WNumSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
     WPoint (x, xTr) xVal (y, yTr) yVal ->
-      let featureNum = parseFeatureNum shapeFeature in
-      case featureNum of
+      case shapeFeature of
         XFeat LonePoint -> EqnNum xVal
         YFeat LonePoint -> EqnNum yVal
         _               -> Debug.crash <| "widgetFeatureValEquation WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ toString shapeFeature
     WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountVal endXVal endYVal ->
-      let featureNum = parseFeatureNum shapeFeature in
       let op =
         case sign of
           Positive -> Plus
           Negative -> Minus
       in
-      case featureNum of
+      case shapeFeature of
         DFeat Offset   -> EqnNum amountVal
         XFeat EndPoint -> EqnNum endXVal
         YFeat EndPoint -> EqnNum endYVal
@@ -462,16 +445,16 @@ featureEquationOf
   -> FeatureEquationOf a
   -> ShapeKind
   -> List Attr
-  -> FeatureNum
+  -> ShapeFeature
   -> FeatureEquationOf a
-featureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot two kind attrs featureNum =
+featureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot two kind attrs shapeFeature =
 
   let get attr  = EqnNum <| getAttrNum attr attrs in
   let crash _ = -- Elm compiler crashes if this is instead written as "let crash () ="
-    Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, toString featureNum ] in
+    Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, toString shapeFeature ] in
 
   let handleLine () =
-    case featureNum of
+    case shapeFeature of
       XFeat (Point 1) -> get "x1"
       XFeat (Point 2) -> get "x2"
       YFeat (Point 1) -> get "y1"
@@ -482,7 +465,7 @@ featureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot 
 
   let handleBoxyShape () =
     let equations = boxyFeatureEquationsOf getAttrNum two kind attrs in
-    case featureNum of
+    case shapeFeature of
 
       XFeat TopLeft   -> equations.left
       YFeat TopLeft   -> equations.top
@@ -504,7 +487,7 @@ featureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot 
       YFeat Center    -> equations.cy
 
       DFeat distanceFeature ->
-        let cap = Utils.spaces ["shapeFeatureEquationOf:", kind, toString featureNum] in
+        let cap = Utils.spaces ["shapeFeatureEquationOf:", kind, toString shapeFeature] in
         case distanceFeature of
           Width     -> Utils.fromJust_ cap equations.mWidth
           Height    -> Utils.fromJust_ cap equations.mHeight
@@ -518,7 +501,7 @@ featureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot 
   let handlePath () =
     let x i = EqnNum <| Tuple.first <| getPathPoint attrs i in
     let y i = EqnNum <| Tuple.second <| getPathPoint attrs i in
-    case featureNum of
+    case shapeFeature of
       XFeat (Point i) -> x i
       YFeat (Point i) -> y i
       _           -> crash () in
@@ -527,7 +510,7 @@ featureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot 
     let ptCount = LangSvg.getPtCount attrs in
     let x i = EqnNum <| Tuple.first <| getPolyPoint attrs i in
     let y i = EqnNum <| Tuple.second <| getPolyPoint attrs i in
-    case featureNum of
+    case shapeFeature of
 
       XFeat (Point i) -> x i
       YFeat (Point i) -> y i
@@ -541,7 +524,7 @@ featureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot 
 
       _  -> crash () in
 
-  case featureNum of
+  case shapeFeature of
 
     OFeat FillColor   -> get "fill"
     OFeat StrokeColor -> get "stroke"
@@ -678,7 +661,7 @@ evaluateLineFeatures attrs =
   , XFeat (Point 2), YFeat (Point 2)
   , XFeat Center, YFeat Center
   ]
-  |> List.map (\featureNum -> featureEquation ("line", featureNum) attrs |> evaluateFeatureEquation_)
+  |> List.map (\shapeFeature -> featureEquation shapeFeature "line" attrs |> evaluateFeatureEquation_)
   |> Utils.unwrap6
 
 
@@ -721,8 +704,8 @@ type alias PointEquations = (FeatureEquation, FeatureEquation)
 
 getPointEquations : ShapeKind -> List Attr -> PointFeature -> PointEquations
 getPointEquations kind attrs pointFeature =
-  ( featureEquation (kind, XFeat pointFeature) attrs
-  , featureEquation (kind, XFeat pointFeature) attrs )
+  ( featureEquation (XFeat pointFeature) kind attrs
+  , featureEquation (XFeat pointFeature) kind attrs )
 
 getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
 getPrimitivePointEquations (_, tree) nodeId =
@@ -866,15 +849,11 @@ realZoneDesc realZone =
 -- that double as selection and drag widgets. If so, then
 -- eliminate this connection.
 --
-zoneToCrosshair : ShapeKind -> RealZone -> Maybe (ShapeFeature, ShapeFeature)
-zoneToCrosshair shapeKind realZone =
+zoneToCrosshair : RealZone -> Maybe (ShapeFeature, ShapeFeature)
+zoneToCrosshair realZone =
   case realZone of
-    ZPoint point ->
-      let xFeature = (shapeKind, XFeat point) in
-      let yFeature = (shapeKind, YFeat point) in
-      Just (xFeature, yFeature)
-    _ ->
-      Nothing
+    ZPoint point -> Just (XFeat point, YFeat point)
+    _            -> Nothing
 
 
 ------------------------------------------------------------------------------
