@@ -7,7 +7,7 @@ import Eval
 import Sync exposing (ZoneKey)
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
-import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature)
+import ShapeWidgets exposing (ShapeFeature, SelectableFeature)
 import ExamplesGenerated as Examples
 import DefaultIconTheme
 import LangUnparser exposing (unparse, unparsePat)
@@ -131,7 +131,7 @@ type alias Model =
   , hoveredShapes : Set.Set NodeId
   , hoveredCrosshairs : Set.Set (NodeId, ShapeFeature, ShapeFeature)
   , selectedShapes : Set.Set NodeId
-  , selectedFeatures : Set.Set SelectedShapeFeature
+  , selectedFeatures : Set.Set SelectableFeature
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
@@ -231,10 +231,10 @@ type MouseMode
         , Bool ))               -- dragged at least one pixel
 
   | MouseDragSelect
-      Mouse.Position                 -- initial mouse position
-      (Set.Set NodeId)               -- initial selected shapes
-      (Set.Set SelectedShapeFeature) -- initial selected features
-      (Dict Int NodeId)              -- initial selected blobs
+      Mouse.Position              -- initial mouse position
+      (Set.Set NodeId)            -- initial selected shapes
+      (Set.Set SelectableFeature) -- initial selected features
+      (Dict Int NodeId)           -- initial selected blobs
 
   | MouseDrawNew ShapeBeingDrawn
       -- invariant on length n of list of points:

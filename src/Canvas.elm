@@ -12,7 +12,7 @@ import LangTools
 import LangSvg exposing (NodeId, ShapeKind, attr)
 import ShapeWidgets exposing
   ( RealZone, RealZone(..)
-  , Feature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..), ShapeFeature(..)
+  , SelectableFeature(..), GenericFeature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..), ShapeFeature(..)
   )
 import SleekLayout exposing (canvasPosition)
 import Sync
@@ -367,11 +367,11 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         ]
     in
     let box =
-      let selectableShapeFeature = (idAsShape, OFeat Quantity) in
+      let selectableFeature = ShapeFeature idAsShape (OFeat Quantity) in
       let color =
         case model.tool of
           Cursor ->
-            if Set.member selectableShapeFeature model.selectedFeatures
+            if Set.member selectableFeature model.selectedFeatures
               then colorPointSelected
               else strOldInterfaceColor -- colorPointNotSelected
           _ -> strOldInterfaceColor
@@ -382,7 +382,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         , attr "x" (toString (xL  + c*wWidget + pad))
         , attr "y" (toString (yBL - r*hWidget + pad))
         , attr "width" (toString wSlider) , attr "height" (toString hSlider)
-        , onMouseDownAndStop (toggleSelected [selectableShapeFeature])
+        , onMouseDownAndStop (toggleSelected [selectableFeature])
         ]
     in
     let ball =
@@ -417,7 +417,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
   in
   let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) endXVal endYVal =
     let idAsShape = -2 - i_ in
-    let isSelected = Set.member (idAsShape, DFeat Offset) model.selectedFeatures in
+    let isSelected = Set.member (ShapeFeature idAsShape (DFeat Offset)) model.selectedFeatures in
     let dragStyle =
       if model.tool == Cursor then
         [ attr "cursor" "pointer"
@@ -841,9 +841,9 @@ zoneRotate_ model id shape cx cy r cmds =
     let (strokeColor, maybeEventHandler) =
       case (cmds, model.tool) of
         ([LangSvg.Rot (_,trace) _ _], Cursor) ->
-          let selectableShapeFeature = (id, OFeat Rotation) in
-          let handler = [onMouseDownAndStop (toggleSelected [selectableShapeFeature])] in
-          if Set.member selectableShapeFeature model.selectedFeatures
+          let selectableFeature = ShapeFeature id (OFeat Rotation) in
+          let handler = [onMouseDownAndStop (toggleSelected [selectableFeature])] in
+          if Set.member selectableFeature model.selectedFeatures
             then (colorPointSelected, handler)
             else (colorPointNotSelected, handler)
         _ ->
@@ -916,9 +916,9 @@ maybeColorNumAttr k l =
 zoneColor realZone shapeFeature model id shape x y maybeColor =
   let pred z = isPrimaryZone z || isRotateZone z in
   let shapeSelected = Set.member id model.selectedShapes in
-  let selectableShapeFeature = (id, shapeFeature) in
+  let selectableFeature = ShapeFeature id shapeFeature in
   let featureSelected =
-    Set.member selectableShapeFeature
+    Set.member selectableFeature
                model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
@@ -932,7 +932,7 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wGradient, hZoneColor, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
-  let selectableShapeFeature = (id, shapeFeature) in
+  let selectableFeature = ShapeFeature id shapeFeature in
   let ball =
     let cx = x + (n / LangSvg.maxColorNum) * wGradient in
     let cy = y - yOff + (h/2) in
@@ -947,7 +947,7 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
   let box =
     flip Svg.rect [] <|
       [ attr "fill" <|
-          if Set.member selectableShapeFeature model.selectedFeatures
+          if Set.member selectableFeature model.selectedFeatures
             then colorPointSelected
             else "none" -- colorPointNotSelected
       , attr "stroke" stroke , attr "stroke-width" strokeWidth
@@ -970,7 +970,7 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
         ]) (List.map toFloat (List.range 0 w))
   in
   [ Svg.g
-      [onMouseDownAndStop (toggleSelected [selectableShapeFeature])]
+      [onMouseDownAndStop (toggleSelected [selectableFeature])]
       (gradient () ++ [box])
   , ball
   ]
@@ -985,8 +985,8 @@ wOpacityBox = ShapeWidgets.wOpacitySlider
 zoneOpacity realZone shapeFeature model id shape x y maybeOpacity =
   let pred z = isPrimaryZone z || isRotateZone z in
   let shapeSelected = Set.member id model.selectedShapes in
-  let selectableShapeFeature = (id, shapeFeature) in
-  let featureSelected = Set.member selectableShapeFeature model.selectedFeatures in
+  let selectableFeature = ShapeFeature id shapeFeature in
+  let featureSelected = Set.member selectableFeature model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
        , maybeOpacity ) of
@@ -1000,7 +1000,7 @@ zoneOpacity_ realZone shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wOpacityBox, 20, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
-  let selectableShapeFeature = (id, shapeFeature) in
+  let selectableFeature = ShapeFeature id shapeFeature in
   let ball =
     let cx = x + n * wOpacityBox in
     let cy = y - yOff + (h/2) in
@@ -1015,7 +1015,7 @@ zoneOpacity_ realZone shapeFeature model id shape x y (n, trace) =
   let box =
     flip Svg.rect [] <|
       [ attr "fill" <|
-          if Set.member selectableShapeFeature model.selectedFeatures
+          if Set.member selectableFeature model.selectedFeatures
             then colorPointSelected
             else "white" -- colorPointNotSelected
       , attr "stroke" stroke , attr "stroke-width" strokeWidth
@@ -1024,7 +1024,7 @@ zoneOpacity_ realZone shapeFeature model id shape x y (n, trace) =
       ]
   in
   [ Svg.g
-      [onMouseDownAndStop (toggleSelected [selectableShapeFeature])]
+      [onMouseDownAndStop (toggleSelected [selectableFeature])]
       ([box])
   , ball
   ]
@@ -1045,8 +1045,8 @@ maybeStrokeWidthNumAttr l =
 zoneStrokeWidth model id shape x y maybeStrokeWidth =
   let pred z = isPrimaryZone z || isRotateZone z in
   let shapeSelected = Set.member id model.selectedShapes in
-  let selectableShapeFeature = (id, OFeat StrokeWidth) in
-  let featureSelected = Set.member selectableShapeFeature model.selectedFeatures in
+  let selectableFeature = ShapeFeature id (OFeat StrokeWidth) in
+  let featureSelected = Set.member selectableFeature model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
        , maybeStrokeWidth ) of
@@ -1057,11 +1057,11 @@ zoneStrokeWidth_ model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wStrokeWidthBox, LangSvg.maxStrokeWidthNum, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
-  let selectableShapeFeature = (id, OFeat StrokeWidth) in
+  let selectableFeature = ShapeFeature id (OFeat StrokeWidth) in
   let box =
     flip Svg.rect [] <|
       [ attr "fill" <|
-          if Set.member selectableShapeFeature model.selectedFeatures
+          if Set.member selectableFeature model.selectedFeatures
             then colorPointSelected
             else "white" -- colorPointNotSelected
       , attr "stroke" stroke , attr "stroke-width" strokeWidth
@@ -1093,7 +1093,7 @@ zoneStrokeWidth_ model id shape x y (n, trace) =
        ]
   in
   [ Svg.g
-      [onMouseDownAndStop (toggleSelected [selectableShapeFeature])]
+      [onMouseDownAndStop (toggleSelected [selectableFeature])]
       [box, triangle]
   , ball
   ]
@@ -1196,15 +1196,15 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
   let thisCrosshair = (id, xShapeFeature, yShapeFeature) in
 
   let len = 20 in
-  let color selectableShapeFeatures =
-    if List.all (flip Set.member model.selectedFeatures) selectableShapeFeatures
+  let color selectableFeatures =
+    if List.all (flip Set.member model.selectedFeatures) selectableFeatures
     then colorPointSelected
     else colorPointNotSelected
   in
   let
-    xSelectableShapeFeature = (id, xShapeFeature)
-    ySelectableShapeFeature = (id, yShapeFeature)
-    (xColor, yColor) = (color [xSelectableShapeFeature], color [ySelectableShapeFeature])
+    xSelectableFeature = ShapeFeature id xShapeFeature
+    ySelectableFeature = ShapeFeature id yShapeFeature
+    (xColor, yColor) = (color [xSelectableFeature], color [ySelectableFeature])
   in
   let (backDisc, frontDisc) =
     let r =
@@ -1248,7 +1248,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
       if model.tool == Cursor then
         [ onMouseDownAndStop <| Msg "Select Cross Dot..." <| \model ->
             if Set.member thisCrosshair model.hoveredCrosshairs
-              then toggleSelectedLambda [xSelectableShapeFeature, ySelectableShapeFeature] model
+              then toggleSelectedLambda [xSelectableFeature, ySelectableFeature] model
               else { model | hoveredCrosshairs = Set.insert thisCrosshair model.hoveredCrosshairs }
         ]
       else if model.tool == PointOrOffset then
@@ -1266,26 +1266,26 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
       [ attr "stroke" yColor
       , attr "stroke-width" <|
           if (Set.member thisCrosshair model.hoveredCrosshairs && model.tool == Cursor) ||
-             Set.member ySelectableShapeFeature model.selectedFeatures
+             Set.member ySelectableFeature model.selectedFeatures
           then hairStrokeWidth
           else "0"
       , attr "x1" (toString (x-len)) , attr "y1" (toString y)
       , attr "x2" (toString (x+len)) , attr "y2" (toString y)
       ] ++ if model.tool /= Cursor then [] else
-        [ onMouseDownAndStop (toggleSelected [ySelectableShapeFeature]) ]
+        [ onMouseDownAndStop (toggleSelected [ySelectableFeature]) ]
   in
   let xLine =
     svgLine <|
       [ attr "stroke" xColor
       , attr "stroke-width" <|
           if (Set.member thisCrosshair model.hoveredCrosshairs && model.tool == Cursor) ||
-             Set.member xSelectableShapeFeature model.selectedFeatures
+             Set.member xSelectableFeature model.selectedFeatures
           then hairStrokeWidth
           else "0"
       , attr "y1" (toString (y-len)) , attr "x1" (toString x)
       , attr "y2" (toString (y+len)) , attr "x2" (toString x)
       ] ++ if model.tool /= Cursor then [] else
-        [ onMouseDownAndStop (toggleSelected [xSelectableShapeFeature]) ]
+        [ onMouseDownAndStop (toggleSelected [xSelectableFeature]) ]
   in
   -- using nested group for onMouseLeave handler
   List.singleton <| Svg.g
@@ -1297,18 +1297,18 @@ maybeZoneSelectLine sideLength model nodeId shapeFeature pt1 pt2 =
   else zoneSelectLine model nodeId shapeFeature pt1 pt2
 
 zoneSelectLine model nodeId shapeFeature pt1 pt2 =
-  let selectableShapeFeature = (nodeId, shapeFeature) in
+  let selectableFeature = ShapeFeature nodeId shapeFeature in
   case model.mouseMode of
     MouseDragZone _ _ -> []
     _ ->
      if Set.member nodeId model.hoveredShapes ||
-        Set.member selectableShapeFeature model.selectedFeatures
-     then zoneSelectLine_ model selectableShapeFeature pt1 pt2
+        Set.member selectableFeature model.selectedFeatures
+     then zoneSelectLine_ model selectableFeature pt1 pt2
      else []
 
-zoneSelectLine_ model selectableShapeFeature (x1,y1) (x2,y2) =
+zoneSelectLine_ model selectableFeature (x1,y1) (x2,y2) =
   let color =
-    if Set.member selectableShapeFeature model.selectedFeatures
+    if Set.member selectableFeature model.selectedFeatures
     then colorLineSelected
     else colorLineNotSelected
   in
@@ -1318,7 +1318,7 @@ zoneSelectLine_ model selectableShapeFeature (x1,y1) (x2,y2) =
       , attr "stroke-width" hairStrokeWidth
       , attr "x1" (toString x1) , attr "y1" (toString y1)
       , attr "x2" (toString x2) , attr "y2" (toString y2)
-      , onMouseDownAndStop (toggleSelected [selectableShapeFeature])
+      , onMouseDownAndStop (toggleSelected [selectableFeature])
       ]
   in
   [line]
@@ -1361,7 +1361,7 @@ boxySelectZones model id kind boxyNums =
 
       _ -> [] in
 
-  let features = Utils.find "boxySelectZones" ShapeWidgets.simpleKindFeatures kind in
+  let features = Utils.find "boxySelectZones" ShapeWidgets.simpleKindGenericFeatures kind in
   List.concatMap distanceZone features ++ List.concatMap pointZone features
     -- draw distance zones below point zones
 
@@ -1369,7 +1369,7 @@ boxySelectZones model id kind boxyNums =
 --------------------------------------------------------------------------------
 
 -- TODO significantly refactor point selection zones, by using
--- ShapeWidgets.featuresOfShape, BoxyFeatureEquations, eval FeatureEquation, etc.
+-- ShapeWidgets.genericFeaturesOfShape, BoxyFeatureEquations, eval FeatureEquation, etc.
 
 makeZones : Model -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List (Svg Msg)
 makeZones model shape id l =

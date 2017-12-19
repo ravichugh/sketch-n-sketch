@@ -97,7 +97,7 @@ import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
 import ColorScheme
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
-import ShapeWidgets exposing (Feature(..), ShapeFeature(..), RealZone(..), PointFeature(..), DistanceFeature(..), OtherFeature(..))
+import ShapeWidgets exposing (SelectableFeature(..), GenericFeature(..), ShapeFeature(..), RealZone(..), PointFeature(..), DistanceFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
 import Config exposing (params)
 import Either exposing (Either(..))
@@ -358,9 +358,9 @@ onClickPrimaryZone i k realZone old =
   let (selectedFeatures_, selectedShapes_, selectedBlobs_) =
     if i < -2 then -- Clicked a widget
       if realZone == ZOffset1D then
-        let selectedShapeFeatureToToggle = (i, DFeat Offset) in
-        let update = if Set.member selectedShapeFeatureToToggle old.selectedFeatures then Set.remove else Set.insert in
-        (update selectedShapeFeatureToToggle old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
+        let selectableFeatureToToggle = ShapeFeature i (DFeat Offset) in
+        let update = if Set.member selectableFeatureToToggle old.selectedFeatures then Set.remove else Set.insert in
+        (update selectableFeatureToToggle old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
       else
         (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
     else
@@ -457,7 +457,7 @@ onMouseDrag lastPosition newPosition old =
               case svgNode.interpreted of
                 LangSvg.TextNode _ -> []
                 LangSvg.SvgNode shapeKind shapeAttrs childIds ->
-                  ShapeWidgets.featuresOfShape shapeKind shapeAttrs
+                  ShapeWidgets.genericFeaturesOfShape shapeKind shapeAttrs
                   |> List.filterMap
                       (\feature ->
                         case feature of
@@ -467,7 +467,7 @@ onMouseDrag lastPosition newPosition old =
                   |> List.concatMap
                       (\(feature, (xEqn, yEqn)) ->
                         case (ShapeWidgets.evaluateFeatureEquation xEqn, ShapeWidgets.evaluateFeatureEquation yEqn) of
-                          (Just x, Just y) -> feature |> ShapeWidgets.shapeFeaturesOfFeature |> List.map (\shapeFeature -> ((nodeId, shapeFeature), (x, y)))
+                          (Just x, Just y) -> feature |> ShapeWidgets.shapeFeaturesOfGenericFeature |> List.map (\shapeFeature -> ((nodeId, shapeFeature), (x, y)))
                           _                -> []
                       )
             )
@@ -518,7 +518,7 @@ onMouseDrag lastPosition newPosition old =
       let featuresToSelect =
         selectableShapeFeaturesAndPositions ++ selectableWidgetFeaturesAndPositions
         |> List.filter (\((nodeId, shapeFeature), (x, y)) -> not (List.member nodeId shapesToSelect) && selectLeft <= round x && round x <= selectRight && selectTop <= round y && round y <= selectBot)
-        |> List.map    (\(selectableShapeFeature, (x, y)) -> selectableShapeFeature)
+        |> List.map    (\((nodeId, shapeFeature), (x, y)) -> ShapeFeature nodeId shapeFeature)
       in
       if old.keysDown == [Keys.keyShift] then
         { old | selectedShapes   = Utils.multiToggleSet (Set.fromList shapesToSelect) initialSelectedShapes
@@ -2151,7 +2151,6 @@ handleNew template = (\old ->
                     , lastSelectedTemplate = Just template
 
                     , dimensions    = old.dimensions
-                    , syncOptions   = old.syncOptions
                     , localSaves    = old.localSaves
                     , basicCodeBox  = old.basicCodeBox
                     , randomColor   = old.randomColor

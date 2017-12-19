@@ -14,7 +14,7 @@ module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
 import Lang exposing (..)
 import LangUnparser exposing (unparse, unparsePat)
 import LangSvg exposing (NodeId)
-import ShapeWidgets exposing (PointFeature, SelectedShapeFeature)
+import ShapeWidgets exposing (PointFeature, SelectableFeature)
 import Blobs exposing (..)
 import LangTools exposing (..)
 import LangSimplify
@@ -964,13 +964,13 @@ rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds =
 -- Rewrite and Group Blobs with Anchor
 
 anchorOfSelectedFeatures
-    : Set.Set SelectedShapeFeature
+    : Set.Set SelectableFeature
    -> Result String (Maybe (NodeId, PointFeature))
 anchorOfSelectedFeatures selectedFeatures =
   let err = Err "To group around an anchor, need to select exactly one point." in
   case Set.toList selectedFeatures of
     [selected1, selected2] ->
-      case ShapeWidgets.selectedPointFeatureOf selected1 selected2 of
+      case ShapeWidgets.featuresToMaybeSelectablePoint selected1 selected2 of
         Just result -> Ok (Just result)
         Nothing     -> err
     [] -> Ok Nothing

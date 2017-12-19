@@ -17,7 +17,7 @@ import LocEqn exposing (..)
 import CodeMotion
 import Utils
 import LangSvg exposing (NodeId, ShapeKind, Attr)
-import ShapeWidgets exposing (FeatureEquation)
+import ShapeWidgets exposing (FeatureEquation, SelectableFeature(..))
 import Config
 
 import Dict
@@ -30,22 +30,23 @@ debugLog = Config.debugLog Config.debugSync
 
 
 
+digHole : Exp -> Set.Set ShapeWidgets.SelectableFeature -> LangSvg.RootedIndexedTree -> List Widget -> Sync.Options -> Exp
 digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
   let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
-  let shapeFeaturesWithEquation =
+  let featuresWithEquation =
     selectedFeatures
     |> Set.toList
     |> List.filterMap
-        (\(nodeId, shapeFeature) ->
-          ShapeWidgets.selectedShapeFeatureToEquation (nodeId, shapeFeature) tree widgets locIdToNumberAndLoc
-          |> Maybe.map (\eqn -> (shapeFeature, eqn))
+        (\feature ->
+          ShapeWidgets.featureToEquation feature tree widgets locIdToNumberAndLoc
+          |> Maybe.map (\eqn -> (feature, eqn))
         )
-    |> debugLog "shapeFeaturesWithEquation"
+    |> debugLog "featuresWithEquation"
   in
   -- If any locs are annotated with "?", only dig those.
   let locset =
     let selectedTraces =
-      let (_, equations) = List.unzip shapeFeaturesWithEquation in
+      let (_, equations) = List.unzip featuresWithEquation in
       equations
       |> List.concatMap ShapeWidgets.equationNumTrs
       |> List.map Tuple.second
@@ -110,9 +111,9 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
         (\(locId, _, _) -> findExpByLocId commonScope locId |> Utils.fromJust_ "ValueBasedTransform.digHole valueExps")
   in
   let featureNamesWithEquationWithScopes =
-    shapeFeaturesWithEquation
+    featuresWithEquation
     |> List.map
-        (\(shapeFeature, eqn) ->
+        (\(feature, eqn) ->
           let featureLocs = equationLocs syncOptions eqn in
           let scopeNamesLocsLiftedThrough =
             List.map
@@ -123,7 +124,7 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
             Utils.commonPrefix scopeNamesLocsLiftedThrough
           in
           let featureName =
-            String.join "_" (commonScopeNamesLocsLiftedThrough ++ [ShapeWidgets.shapeFeatureDesc shapeFeature])
+            String.join "_" (commonScopeNamesLocsLiftedThrough ++ [ShapeWidgets.featureDesc feature])
           in
           (featureName, eqn)
         )
@@ -213,7 +214,7 @@ indexedRelateDistanceScore subst indexedLocIdsWithTarget locEqn =
   sumOfSquares / toFloat (List.length indexedLocIdsWithTarget)
 
 
-indexedRelate : Exp -> Set.Set ShapeWidgets.SelectedShapeFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
+indexedRelate : Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
 indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
   case evalToSlateAndWidgetsResult originalExp slideNumber movieNumber movieTime of
     Err _    -> []
@@ -228,9 +229,7 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
           |> List.concatMap
               (\nodeId ->
                 let (kind, attrs) = LangSvg.justGetSvgNode "ValueBasedTransform.indexedRelate" nodeId slate in
-                ShapeWidgets.featuresOfShape kind attrs
-                |> List.concatMap ShapeWidgets.shapeFeaturesOfFeature
-                |> List.map (\shapeFeature -> (nodeId, shapeFeature))
+                ShapeWidgets.featuresOfShape nodeId kind attrs
                 |> List.take 1
               )
       in
@@ -238,7 +237,7 @@ indexedRelate originalExp selectedFeatures selectedShapes slideNumber movieNumbe
         let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
         let featureEqns =
           featuresToRevolutionize
-          |> List.map (\feature -> ShapeWidgets.selectedShapeFeatureToEquation feature tree widgets locIdToNumberAndLoc)
+          |> List.map (\feature -> ShapeWidgets.featureToEquation feature tree widgets locIdToNumberAndLoc)
           |> Utils.projJusts
           |> Maybe.withDefault []
         in
@@ -336,7 +335,7 @@ type alias PartialSynthesisResult =
   , removedLocIdToLocEquation : List (LocId, LocEquation)
   }
 
-type alias SelectedShapeFeatureAndEquation = (ShapeWidgets.SelectedShapeFeature, Maybe FeatureEquation)
+type alias SelectedFeatureAndEquation = (ShapeWidgets.SelectableFeature, Maybe FeatureEquation)
 
 type RelationToSynthesize a
   = Equalize a a
@@ -384,34 +383,34 @@ rankComparedTo originalExp synthesisResults =
       )
 
 
-selectedFeaturesToShapeFeaturesAndEquations : Set.Set ShapeWidgets.SelectedShapeFeature -> Exp -> Int -> Int -> Float -> List SelectedShapeFeatureAndEquation
-selectedFeaturesToShapeFeaturesAndEquations selectedShapeFeatures program slideNumber movieNumber movieTime =
+selectedFeaturesToFeaturesAndEquations : Set.Set ShapeWidgets.SelectableFeature -> Exp -> Int -> Int -> Float -> List SelectedFeatureAndEquation
+selectedFeaturesToFeaturesAndEquations selectedFeatures program slideNumber movieNumber movieTime =
   case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime } program of
     Err s -> []
     Ok (_, widgets, (rootI, tree), _) ->
       let locIdToNumberAndLoc = locIdToNumberAndLocOf program in
-      selectedShapeFeatures
+      selectedFeatures
       |> Set.toList
       |> List.map
-          (\selectedShapeFeature ->
-            ( selectedShapeFeature
-            , ShapeWidgets.selectedShapeFeatureToEquation selectedShapeFeature tree widgets locIdToNumberAndLoc
+          (\selectableFeature ->
+            ( selectableFeature
+            , ShapeWidgets.featureToEquation selectableFeature tree widgets locIdToNumberAndLoc
             )
           )
 
 
 makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
   -- Have to convert to equations early: some transformations may move or create widgets which messes up feature indexing.
-  let shapeFeaturesAndEquations =
-    selectedFeaturesToShapeFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
+  let featuresAndEquations =
+    selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
   in
-  let relateByPairs priorResults shapeFeaturesAndEquations =
-    equalizeOverlappingPairs priorResults shapeFeaturesAndEquations syncOptions
+  let relateByPairs priorResults featuresAndEquations =
+    equalizeOverlappingPairs priorResults featuresAndEquations syncOptions
   in
   synthesizeRelationCoordinateWiseAndSortResults
       relateByPairs
       originalExp
-      shapeFeaturesAndEquations
+      featuresAndEquations
       slideNumber
       movieNumber
       movieTime
@@ -420,15 +419,15 @@ makeEqual originalExp selectedFeatures slideNumber movieNumber movieTime syncOpt
 
 relate originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
   -- Have to convert to equations early: some transformations may move or create widgets which messes up feature indexing.
-  let shapeFeaturesAndEquations =
-    selectedFeaturesToShapeFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
+  let featuresAndEquations =
+    selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
   in
-  let relateOneInTermsOfAllOthers priorResults shapeFeaturesAndEquations =
+  let relateOneInTermsOfAllOthers priorResults featuresAndEquations =
     priorResults
     |> List.concatMap
         (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToLocEquation} as priorResult) ->
           let priorExp = exp in
-          relate_ (Relate shapeFeaturesAndEquations) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
+          relate_ (Relate featuresAndEquations) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
           |> List.map (InterfaceModel.prependDescription (description ++ " → "))
           |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
         )
@@ -436,7 +435,7 @@ relate originalExp selectedFeatures slideNumber movieNumber movieTime syncOption
   synthesizeRelationCoordinateWiseAndSortResults
       relateOneInTermsOfAllOthers
       originalExp
-      shapeFeaturesAndEquations
+      featuresAndEquations
       slideNumber
       movieNumber
       movieTime
@@ -446,18 +445,18 @@ relate originalExp selectedFeatures slideNumber movieNumber movieTime syncOption
 -- When points selected, relates x's and y's separately.
 -- Ranks all results
 synthesizeRelationCoordinateWiseAndSortResults
-  :  (List PartialSynthesisResult -> List SelectedShapeFeatureAndEquation -> List PartialSynthesisResult)
+  :  (List PartialSynthesisResult -> List SelectedFeatureAndEquation -> List PartialSynthesisResult)
   -> Exp
-  -> List SelectedShapeFeatureAndEquation
+  -> List SelectedFeatureAndEquation
   -> Int
   -> Int
   -> Num
   -> Sync.Options
   -> List InterfaceModel.SynthesisResult
-synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp shapeFeaturesAndEquations slideNumber movieNumber movieTime syncOptions =
-  let selectedPoints = featurePoints shapeFeaturesAndEquations in
+synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresAndEquations slideNumber movieNumber movieTime syncOptions =
+  let selectedPoints = featurePoints featuresAndEquations in
   let startingResult = { description = "Original", exp = originalExp, maybeTermShape = Nothing, dependentLocIds = [], removedLocIdToLocEquation = [] } in
-  if 2 * (List.length selectedPoints) == List.length shapeFeaturesAndEquations then
+  if 2 * (List.length selectedPoints) == List.length featuresAndEquations then
     -- We have only selected x&y of several points.
     -- Make all the selected points overlap, that is: make all the x's equal to
     -- each other and all the y's equal to each other.
@@ -470,14 +469,14 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp shapeFeat
   else
     -- We have not selected only x&y of different points.
     -- Equalize all selected attributes naively.
-    doSynthesis [startingResult] shapeFeaturesAndEquations
+    doSynthesis [startingResult] featuresAndEquations
     |> rankComparedTo originalExp
 
 
 -- If given more than two features, run relate_ on each overlapping pair.
-equalizeOverlappingPairs priorResults shapeFeaturesAndEquations syncOptions =
+equalizeOverlappingPairs priorResults featuresAndEquations syncOptions =
   let equalizeMore results =
-    case shapeFeaturesAndEquations of
+    case featuresAndEquations of
       _::remainingFeatues ->
         equalizeOverlappingPairs results remainingFeatues syncOptions
 
@@ -485,14 +484,14 @@ equalizeOverlappingPairs priorResults shapeFeaturesAndEquations syncOptions =
         -- Shouldn't happen.
         Debug.crash "equalizeOverlappingPairs equalizeMore"
   in
-  case List.take 2 shapeFeaturesAndEquations of
-    [shapeFeatureAndEquationA, shapeFeatureAndEquationB] ->
+  case List.take 2 featuresAndEquations of
+    [featureAndEquationA, featureAndEquationB] ->
       priorResults
       |> List.concatMap
           (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToLocEquation} as priorResult) ->
             let priorExp = exp in
             let newResults =
-              relate_ (Equalize shapeFeatureAndEquationA shapeFeatureAndEquationB) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
+              relate_ (Equalize featureAndEquationA featureAndEquationB) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
             in
             case newResults of
               [] ->
@@ -559,9 +558,9 @@ equalizeOverlappingPairs priorResults shapeFeaturesAndEquations syncOptions =
 --     [featureA, featureB, featureC] ->
 --       let maybeNewExp =
 --         let (_, tree) = slate in
---         let maybeAEqn = ShapeWidgets.selectedShapeFeatureToEquation featureA tree locIdToNumberAndLoc in
---         let maybeBEqn = ShapeWidgets.selectedShapeFeatureToEquation featureB tree locIdToNumberAndLoc in
---         let maybeCEqn = ShapeWidgets.selectedShapeFeatureToEquation featureC tree locIdToNumberAndLoc in
+--         let maybeAEqn = ShapeWidgets.selectableShapeFeatureToEquation featureA tree locIdToNumberAndLoc in
+--         let maybeBEqn = ShapeWidgets.selectableShapeFeatureToEquation featureB tree locIdToNumberAndLoc in
+--         let maybeCEqn = ShapeWidgets.selectableShapeFeatureToEquation featureC tree locIdToNumberAndLoc in
 --         case (maybeAEqn, maybeBEqn, maybeCEqn) of
 --           (Just aEqn, Just bEqn, Just cEqn) ->
 --             let distanceAB = ShapeWidgets.EqnOp Minus [bEqn, aEqn] in
@@ -582,7 +581,7 @@ equalizeOverlappingPairs priorResults shapeFeaturesAndEquations syncOptions =
 
 
 relate_
-    :  RelationToSynthesize SelectedShapeFeatureAndEquation
+    :  RelationToSynthesize SelectedFeatureAndEquation
     -> Exp
     -> Maybe LocEquation
     -> List (LocId, LocEquation)
@@ -590,17 +589,17 @@ relate_
     -> List PartialSynthesisResult
 relate_ relationToSynthesize originalExp maybeTermShape removedLocIdToLocEquation syncOptions =
   case relationToSynthesize of
-    Equalize ((nodeIdA, shapeFeatureA), Just featureAEqn) ((nodeIdB, shapeFeatureB), Just featureBEqn) ->
+    Equalize (featureA, Just featureAEqn) (featureB, Just featureBEqn) ->
       let descriptionPrefix =
-        ShapeWidgets.shapeFeatureDesc shapeFeatureA ++ " = " ++ ShapeWidgets.shapeFeatureDesc shapeFeatureB ++ " "
+        ShapeWidgets.featureDesc featureA ++ " = " ++ ShapeWidgets.featureDesc featureB ++ " "
       in
       relate__ (Equalize featureAEqn featureBEqn) originalExp maybeTermShape removedLocIdToLocEquation syncOptions
       |> List.map (InterfaceModel.prependDescription descriptionPrefix)
 
-    Relate shapeFeaturesAndEquations ->
+    Relate featuresAndEquations ->
       let maybeFeatureEquations =
-        shapeFeaturesAndEquations
-        |> List.map (\(shapeFeature, maybeFeatureEquation) -> maybeFeatureEquation)
+        featuresAndEquations
+        |> List.map (\(feature, maybeFeatureEquation) -> maybeFeatureEquation)
         |> Utils.projJusts
       in
       case maybeFeatureEquations of
@@ -995,9 +994,9 @@ locIdToWidgetDeclLittleOf exp =
   |> Dict.map (\locId wd -> LangUnparser.unparseWD wd)
 
 
-evaluateFeature selectableShapeFeature slate widgets locIdToNumberAndLoc =
+evaluateFeature selectableFeature slate widgets locIdToNumberAndLoc =
   let (_, tree) = slate in
-  case (ShapeWidgets.selectedShapeFeatureToEquation selectableShapeFeature tree widgets locIdToNumberAndLoc) of
+  case (ShapeWidgets.featureToEquation selectableFeature tree widgets locIdToNumberAndLoc) of
     Just eqn -> ShapeWidgets.evaluateFeatureEquation eqn
     Nothing  -> Nothing
 
@@ -1061,35 +1060,35 @@ applyRemovedLocIdToLocEquation_ (removedLocId, replacementLocEqn) locEqn =
 
 
 -- Extract all point x,y features pairs
-featurePoints : List SelectedShapeFeatureAndEquation -> List (SelectedShapeFeatureAndEquation, SelectedShapeFeatureAndEquation)
-featurePoints shapeFeaturesAndEquations =
-  case shapeFeaturesAndEquations of
+featurePoints : List SelectedFeatureAndEquation -> List (SelectedFeatureAndEquation, SelectedFeatureAndEquation)
+featurePoints featuresAndEquations =
+  case featuresAndEquations of
     [] ->
       []
 
-    nodeIdAndShapeFeatureAndEquation::otherShapeFeaturesAndEquations ->
-      let ((nodeId, shapeFeature), featureEquation) = nodeIdAndShapeFeatureAndEquation in
-      if not <| ShapeWidgets.shapeFeatureIsXOrY shapeFeature then
-        featurePoints otherShapeFeaturesAndEquations
+    selectableFeatureAndEquation::otherFeaturesAndEquations ->
+      let (feature, featureEquation) = selectableFeatureAndEquation in
+      if not <| ShapeWidgets.featureIsXOrY feature then
+        featurePoints otherFeaturesAndEquations
       else
-        let nodeFeatures = List.filter (\((otherNodeId, _), _) ->  otherNodeId == nodeId) otherShapeFeaturesAndEquations in
         let maybePairedFeature =
-          Utils.findFirst (\((_, otherShapeFeature), _) -> ShapeWidgets.shapeFeaturesAreXYPairs shapeFeature otherShapeFeature) nodeFeatures
+          otherFeaturesAndEquations
+          |> Utils.findFirst (\(otherFeature, _) -> ShapeWidgets.featuresAreXYPairs feature otherFeature)
         in
         case maybePairedFeature of
           Just pairedFeature ->
             let pairToReturn =
-              if ShapeWidgets.shapeFeatureIsX shapeFeature
-              then (nodeIdAndShapeFeatureAndEquation, pairedFeature)
-              else (pairedFeature, nodeIdAndShapeFeatureAndEquation)
+              if ShapeWidgets.featureIsX feature
+              then (selectableFeatureAndEquation, pairedFeature)
+              else (pairedFeature, selectableFeatureAndEquation)
             in
             let remainingFeatures =
-              Utils.removeFirst pairedFeature otherShapeFeaturesAndEquations
+              Utils.removeFirst pairedFeature otherFeaturesAndEquations
             in
             pairToReturn::(featurePoints remainingFeatures)
 
           Nothing ->
-            featurePoints otherShapeFeaturesAndEquations
+            featurePoints otherFeaturesAndEquations
 
 
 traceToLittle : SubstStr -> Trace -> String
