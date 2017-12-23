@@ -753,7 +753,7 @@ type alias PointEquations = (FeatureEquation, FeatureEquation)
 getPointEquations : ShapeKind -> List Attr -> PointFeature -> PointEquations
 getPointEquations kind attrs pointFeature =
   ( shapeFeatureEquation (XFeat pointFeature) kind attrs
-  , shapeFeatureEquation (XFeat pointFeature) kind attrs )
+  , shapeFeatureEquation (YFeat pointFeature) kind attrs )
 
 getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
 getPrimitivePointEquations (_, tree) nodeId =
