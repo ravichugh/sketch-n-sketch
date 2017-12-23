@@ -7,7 +7,7 @@ import Eval
 import Sync exposing (ZoneKey)
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
-import ShapeWidgets exposing (ShapeFeature, SelectableFeature)
+import ShapeWidgets exposing (SelectableFeature, SelectablePoint)
 import ExamplesGenerated as Examples
 import DefaultIconTheme
 import LangUnparser exposing (unparse, unparsePat)
@@ -129,7 +129,7 @@ type alias Model =
   , genSymCount : Int
   , tool : Tool
   , hoveredShapes : Set.Set NodeId
-  , hoveredCrosshairs : Set.Set (NodeId, ShapeFeature, ShapeFeature)
+  , hoveredCrosshairs : Set.Set SelectablePoint
   , selectedShapes : Set.Set NodeId
   , selectedFeatures : Set.Set SelectableFeature
   -- line/g ids assigned by blobs function

@@ -349,9 +349,9 @@ onMouseClick click old maybeClickable =
 onClickPrimaryZone : LangSvg.NodeId -> LangSvg.ShapeKind -> ShapeWidgets.RealZone -> Model -> Model
 onClickPrimaryZone i k realZone old =
   let hoveredCrosshairs_ =
-    case ShapeWidgets.zoneToCrosshair realZone of
-      Just (xFeature, yFeature) ->
-        Set.insert (i, xFeature, yFeature) old.hoveredCrosshairs
+    case ShapeWidgets.zoneToMaybePointFeature realZone of
+      Just pointFeature ->
+        Set.insert (i, pointFeature) old.hoveredCrosshairs
       _ ->
         old.hoveredCrosshairs
   in

@@ -739,10 +739,10 @@ zonePoint model alwaysShow id shapeKind realZone transform attrs =
       else
         Nothing
     in
-    case ShapeWidgets.zoneToCrosshair realZone of
+    case ShapeWidgets.zoneToMaybePointFeature realZone of
       Nothing -> maybeStyles_ ()
-      Just (xFeature, yFeature) ->
-        if Set.member (id, xFeature, yFeature) model.hoveredCrosshairs
+      Just pointFeature ->
+        if Set.member (id, pointFeature) model.hoveredCrosshairs
         then Nothing
         else maybeStyles_ ()
   in
@@ -1191,10 +1191,7 @@ zoneSelectCrossDot : Model -> Bool -> (Int, ShapeKind, PointFeature)
 zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNumTr yVal =
   let ((xFloat, _), (yFloat, _)) = (xNumTr, yNumTr) in
   let (x, y) = (round xFloat, round yFloat) in
-  let xShapeFeature = XFeat pointFeature in
-  let yShapeFeature = YFeat pointFeature in
-  let thisCrosshair = (id, xShapeFeature, yShapeFeature) in
-
+  let thisCrosshair = (id, pointFeature) in
   let len = 20 in
   let color selectableFeatures =
     if List.all (flip Set.member model.selectedFeatures) selectableFeatures
@@ -1202,8 +1199,8 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
     else colorPointNotSelected
   in
   let
-    xSelectableFeature = ShapeFeature id xShapeFeature
-    ySelectableFeature = ShapeFeature id yShapeFeature
+    xSelectableFeature = ShapeFeature id (XFeat pointFeature)
+    ySelectableFeature = ShapeFeature id (YFeat pointFeature)
     (xColor, yColor) = (color [xSelectableFeature], color [ySelectableFeature])
   in
   let (backDisc, frontDisc) =

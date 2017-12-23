@@ -897,11 +897,11 @@ realZoneDesc realZone =
 -- that double as selection and drag widgets. If so, then
 -- eliminate this connection.
 --
-zoneToCrosshair : RealZone -> Maybe (ShapeFeature, ShapeFeature)
-zoneToCrosshair realZone =
+zoneToMaybePointFeature : RealZone -> Maybe PointFeature
+zoneToMaybePointFeature realZone =
   case realZone of
-    ZPoint point -> Just (XFeat point, YFeat point)
-    _            -> Nothing
+    ZPoint pf -> Just pf
+    _         -> Nothing
 
 
 ------------------------------------------------------------------------------
