@@ -237,6 +237,18 @@ featuresAreXYPairs feature1 feature2 =
   |> Utils.maybeToBool
 
 
+featuresToSelectablePoints : List SelectableFeature -> List SelectablePoint
+featuresToSelectablePoints features =
+  case features of
+    feature1::otherFeatures ->
+      otherFeatures
+      |> List.filterMap (\otherFeature -> featuresToMaybeSelectablePoint feature1 otherFeature)
+      |> (++) (featuresToSelectablePoints otherFeatures)
+
+    [] ->
+      []
+
+
 ------------------------------------------------------------------------------
 -- Feature Equations
 

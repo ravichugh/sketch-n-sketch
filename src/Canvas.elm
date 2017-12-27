@@ -106,9 +106,9 @@ build wCanvas hCanvas model =
   in
   let outputShapes = buildSvg (model, addZones) slate in
   let newShape = drawNewShape model in
-  let svgWidgets =
+  let widgetsAndDistances =
     case (model.mode, model.showGhosts) of
-      (Live _, True ) -> buildSvgWidgets wCanvas hCanvas widgets model
+      (Live _, True ) -> buildSvgWidgets wCanvas hCanvas widgets model ++ buildDistances model slate widgets
       _               -> []
   in
   let selectBox = drawSelectBox model in
@@ -120,7 +120,7 @@ build wCanvas hCanvas model =
          , ("height", pixels hCanvas)
          ]
      ]
-     ([outputShapes] ++ newShape ++ svgWidgets ++ selectBox)
+     ([outputShapes] ++ newShape ++ widgetsAndDistances ++ selectBox)
 
 
 --------------------------------------------------------------------------------
@@ -531,6 +531,22 @@ buildSvgWidgets wCanvas hCanvas widgets model =
   in
 
   List.concat <| Utils.mapi1 draw widgets
+
+
+buildDistances : Model -> LangSvg.RootedIndexedTree -> Widgets -> List (Svg Msg)
+buildDistances model slate widgets =
+  []
+  -- let selectedPoints = ShapeWidgets.featuresToSelectablePoints (Set.toList model.selectedFeatures) in
+  -- Utils.cartProd selectedPoints selectedPoints
+  -- |> List.map (\(selectedPt1, selectedPt2) -> Set.fromList [selectedPt1, selectedPt2])
+  -- |> List.filter (Set.size >> (==) 2)
+  -- |> Utils.dedup
+  -- |> List.map
+  --     (\pointPair ->
+  --       let (selectedPt1, selectedPt2) = ShapeWidgets.extractSelectablePoints pointPair in
+  --       ...
+  --     )
+
 
 --------------------------------------------------------------------------------
 -- Select Box
