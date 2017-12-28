@@ -35,6 +35,7 @@ expNonControlFlowChildren exp =
     ETyp _ _ _ _ _                           -> childExps exp
     EColonType _ _ _ _ _                     -> childExps exp
     ETypeAlias _ _ _ _ _                     -> childExps exp
+    EParens _ _ _                            -> childExps exp
 
 
 -- Attempt to consume as many parents as possible.
