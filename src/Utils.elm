@@ -8,6 +8,20 @@ import Regex
 
 infinity = 1/0
 
+-- Change e.g. 1.4999999999999 to 1.5.
+correctFloatError : Float -> Float
+correctFloatError x =
+  if x == 0.0 then
+    x
+  else
+    let tens = -(logBase 10 (abs x) |> round |> toFloat) in
+    let multiplier = 2*2*2*3*3*5*5*7*11*13*17*19*23*(10.0^(tens + 1)) in
+    let corrected = (x*multiplier |> round |> toFloat) / multiplier in
+    if abs (corrected - x) /  x < 0.0000001
+    then corrected
+    else x
+
+
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
   []            -> Nothing
@@ -22,7 +36,7 @@ find err d k =
 
 find_ d k = find ("[" ++ toString k ++ "]") d k
 
-update : (comparable, v) -> List (comparable, v) -> List (comparable, v)
+update : (k, v) -> List (k, v) -> List (k, v)
 update (k1, v1) vals =
   case vals of
     [] -> []
@@ -48,7 +62,7 @@ maybeZip xs ys = case (xs, ys) of
   ([], [])         -> Just []
   _                -> Nothing
 
-maybeZipDicts : Dict comparable b -> Dict comparable c -> Maybe (Dict comparable (b,c))
+maybeZipDicts : Dict a b -> Dict a c -> Maybe (Dict a (b,c))
 maybeZipDicts d1 d2 =
   if Dict.keys d1 /= Dict.keys d2 then
     Nothing
@@ -165,12 +179,12 @@ listsEqualBy elementEqualityFunc xs ys =
 
 
 -- Preserves original list order
-dedup : List comparable -> List comparable
+dedup : List a -> List a
 dedup xs = dedupBy identity xs
 
 -- Preserves original list order
 -- Dedups based on a provided function (first seen element for each key is preserved)
-dedupBy : (a -> comparable) -> List a -> List a
+dedupBy : (a -> b) -> List a -> List a
 dedupBy f xs =
   let (deduped, _) =
     List.foldl (\x (dd, seen) ->
@@ -180,16 +194,17 @@ dedupBy f xs =
   in
   deduped
 
--- O(n^2). Elements do not need to be comparable.
-dedupByEquality : List a -> List a
-dedupByEquality xs =
-  List.foldr addAsSet [] xs
+-- -- O(n^2). Elements do not need to be comparable.
+-- Shouldn't need now that sets can hold anything.
+-- dedup : List a -> List a
+-- dedup xs =
+--   List.foldr addAsSet [] xs
 
-listDiffSet : List comparable -> Set.Set comparable -> List comparable
+listDiffSet : List a -> Set a -> List a
 listDiffSet list setToRemove =
   List.filter (\element -> not <| Set.member element setToRemove) list
 
-listDiff : List comparable -> List comparable -> List comparable
+listDiff : List a -> List a -> List a
 listDiff l1 l2 =
   listDiffSet l1 (Set.fromList l2)
 
@@ -199,6 +214,10 @@ addAsSet x xs =
   then xs
   else x::xs
 
+addAllAsSet : List a -> List a -> List a
+addAllAsSet xs ys =
+  ys |> List.foldl addAsSet xs
+
 removeAsSet : a -> List a -> List a
 removeAsSet x xs =
   List.filter ((/=) x) xs
@@ -207,6 +226,21 @@ removeAsSet x xs =
 diffAsSet : List a -> List a -> List a
 diffAsSet xs ys =
   ys |> List.foldl removeAsSet xs
+
+-- O(nm)
+intersectAsSet : List a -> List a -> List a
+intersectAsSet xs ys =
+  xs |> List.filter (\x -> List.member x ys)
+
+intersectAllAsSet : List (List a) -> List a
+intersectAllAsSet lists =
+  case lists of
+    first::rest -> List.foldl intersectAsSet first rest
+    _           -> []
+
+unionAllAsSet : List (List a) -> List a
+unionAllAsSet lists =
+  List.foldl addAllAsSet [] lists
 
 removeAll = diffAsSet
 
@@ -221,7 +255,7 @@ equalAsSets a b =
   isSublistAsSet a b && isSublistAsSet b a
 
 
-groupBy : (a -> comparable) -> List a -> Dict.Dict comparable (List a)
+groupBy : (a -> b) -> List a -> Dict.Dict b (List a)
 groupBy f xs =
   List.foldl
       (\x dict ->
@@ -336,38 +370,39 @@ oneOfEach xss = case xss of
 --       ...
 --   sn'  =  sn - s1 - s2 - ... - s(n-1)
 --
-cartProdWithDiff : List (Set comparable) -> List (List comparable)
+cartProdWithDiff : List (Set a) -> List (List a)
 cartProdWithDiff = oneOfEach << List.map Set.toList << manySetDiffs
 
-isSubset : Set comparable -> Set comparable -> Bool
+isSubset : Set a -> Set a -> Bool
 isSubset sub sup =
   sub
   |> Set.toList
   |> List.all (\elem -> Set.member elem sup)
 
-intersectMany : List (Set.Set comparable) -> Set.Set comparable
+intersectMany : List (Set a) -> Set a
 intersectMany list = case list of
   set::sets -> List.foldl Set.intersect set sets
   []        -> Debug.crash "intersectMany"
 
-manySetDiffs : List (Set comparable) -> List (Set.Set comparable)
+-- Leave behind the elements unique to each set.
+manySetDiffs : List (Set a) -> List (Set a)
 manySetDiffs sets =
-  mapi1 (\(i,locs_i) ->
-    foldli1 (\(j,locs_j) acc ->
+  mapi1 (\(i,ithSet) ->
+    foldli1 (\(j,jthSet) acc ->
       if i == j
         then acc
-        else Set.diff acc locs_j
-    ) locs_i sets
+        else Set.diff acc jthSet
+    ) ithSet sets
   ) sets
 
-unionAll : List (Set comparable) -> Set.Set comparable
+unionAll : List (Set a) -> Set a
 unionAll sets =
   List.foldl Set.union Set.empty sets
 
--- Returns false if any two sets share an element.
+-- Returns true if any two sets share an element.
 -- Can help answer, "Is this a valid partition?"
 -- Or if sets are disjoint
-anyOverlap : List (Set comparable) -> Bool
+anyOverlap : List (Set a) -> Bool
 anyOverlap sets =
   Set.size (unionAll sets) < List.sum (List.map Set.size sets)
 
@@ -666,6 +701,10 @@ maybeToBool m = case m of
   Just _  -> True
   Nothing -> False
 
+resultToBool r = case r of
+  Ok _  -> True
+  Err _ -> False
+
 fromJust m = case m of
   Just x -> x
   Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
@@ -714,45 +753,45 @@ getWithDefault key default dict =
     Just val -> val
     Nothing -> default
 
-toggleSet : comparable -> Set comparable -> Set comparable
+toggleSet : a -> Set a -> Set a
 toggleSet x set =
   if Set.member x set then Set.remove x set else Set.insert x set
 
-toggleDict : (comparable, v) -> Dict comparable v -> Dict comparable v
+multiToggleSet : Set a -> Set a -> Set a
+multiToggleSet insertSet set =
+  Set.diff
+    (Set.union insertSet set)
+    (Set.intersect insertSet set)
+
+toggleDict : (k, v) -> Dict k v -> Dict k v
 toggleDict (k,v) dict =
   if Dict.member k dict then Dict.remove k dict else Dict.insert k v dict
 
-flipDict : Dict comparable1 comparable2 -> Dict comparable2 comparable1
+flipDict : Dict a b -> Dict b a
 flipDict dict =
   dict
   |> Dict.toList
   |> List.map flip
   |> Dict.fromList
 
-multiKeySingleValue : List comparable -> v -> Dict comparable v
+multiKeySingleValue : List k -> v -> Dict k v
 multiKeySingleValue keys value =
   List.foldl
       (\key dict -> Dict.insert key value dict)
       Dict.empty
       keys
 
-dictAddToSet
-   : comparableK -> comparableV
-  -> Dict comparableK (Set comparableV)
-  -> Dict comparableK (Set comparableV)
+dictAddToSet : k -> v -> Dict k (Set v) -> Dict k (Set v)
 dictAddToSet k v dict =
   case Dict.get k dict of
     Just vs -> Dict.insert k (Set.insert v vs) dict
     Nothing -> Dict.insert k (Set.singleton v) dict
 
-dictGetSet : comparableK -> Dict comparableK (Set comparableV) -> Set comparableV
+dictGetSet : k -> Dict k (Set v) -> Set v
 dictGetSet k d =
   Maybe.withDefault Set.empty (Dict.get k d)
 
-dictUnionSet
-   : comparableK -> (Set comparableV)
-  -> Dict comparableK (Set comparableV)
-  -> Dict comparableK (Set comparableV)
+dictUnionSet : k -> (Set v) -> Dict k (Set v) -> Dict k (Set v)
 dictUnionSet k more dict =
   Dict.insert k (Set.union more (dictGetSet k dict)) dict
 
@@ -878,6 +917,15 @@ projOk list =
       (Ok [])
       list
 
+-- Returns Err if function ever returns Err
+foldlResult : (a -> b -> Result err b) -> Result err b -> List a -> Result err b
+foldlResult f resultAcc list =
+  case (resultAcc, list) of
+    (Err err, _)    -> resultAcc
+    (Ok acc, x::xs) -> foldlResult f (f x acc) xs
+    (_, [])         -> resultAcc
+
+
 -- Use Tuple.mapFirst
 -- mapFst : (a -> a_) -> (a, b) -> (a_, b)
 -- mapFst f (a, b) = (f a, b)
@@ -910,7 +958,6 @@ bindResult res f =
 
 setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
-setCardinal = List.length << Set.toList
 
 parseInt   = fromOk_ << String.toInt
 parseFloat = fromOk_ << String.toFloat
@@ -1028,6 +1075,11 @@ uniPlusMinus   = "±"
 
 
 --------------------------------------------------------------------------------
+
+unwrapSingletonSet : Set a -> a
+unwrapSingletonSet set = case Set.toList set of
+  [x] -> x
+  _   -> Debug.crash "unwrapSingletonSet"
 
 unwrap1 xs = case xs of
   [x1] -> x1

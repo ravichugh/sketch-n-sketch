@@ -6,7 +6,6 @@ import Types
 import Eval
 import Utils
 import PreludeGenerated as Prelude
-import LangSvg
 import DefaultIconTheme
 import Syntax
 
@@ -3754,8 +3753,8 @@ spiralSpiralGraph =
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
 blank =
- """(blobs [
-])
+ """(svg (concat [
+]))
 
 """
 

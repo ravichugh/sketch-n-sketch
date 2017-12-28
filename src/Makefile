@@ -2,20 +2,20 @@ ELMMAKE=elm-make
   # for locally-modified Elm compiler, create a symlink to something like:
   # /PATH/TO/elm-make/.stack-work/install/x86_64-osx/lts-3.22/7.10.2/bin/elm-make
 
-all:
+all: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
 
-html:
+html: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
 	cp Native/aceCodeBox.js ../build/out/
 	cp Native/aceTooltips.js ../build/out/
 	cp Native/animationLoop.js ../build/out/
 	cp Native/fileHandler.js ../build/out/
 	cp Native/deucePopupPanelInfo.js ../build/out/
-	cp Native/proseScroller.js ../build/out/
 	cp Native/dotGraph.js ../build/out/
 	cp Native/colorScheme.js ../build/out/
 	cp Native/syntaxHighlight.js ../build/out/
+	cp Native/focus.js ../build/out/
 	cp Native/keyBlocker.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
@@ -26,6 +26,16 @@ html:
 	cp ../img/sketch-n-sketch-logo.png ../build/out/img/
 	cp ../img/light_logo.svg ../build/out/img/
 	cp ../img/*.png ../build/out/img/
+
+elm-stuff/packages:
+	# Use our custom version of core that allows anything in sets.
+	#
+	# Wacky, but have to do it this way to avoid circular dependency b/c Basics is auto-included in everything.
+	#
+	# Based on tests/run-tests.sh in elm-lang/core.
+	elm-package install
+	rm -rf elm-stuff/packages/elm-lang/core/5.1.1
+	cd elm-stuff/packages/elm-lang/core && git clone --branch flexible_sets https://github.com/brianhempel/core.git && mv core 5.1.1
 
 remove_build_artifacts:
 	rm -r elm-stuff/build-artifacts/0.*/user; rm -r ../tests/elm-stuff/build-artifacts/0.*/user; true
@@ -62,7 +72,6 @@ loc:
     AnimationLoop.elm Native/animationLoop.js \
     File.elm FileHandler.elm Native/fileHandler.js \
     DeucePopupPanelInfo.elm Native/deucePopupPanelInfo.js \
-    Prose.elm ProseScroller.elm Native/proseScroller.js \
     ColorScheme.elm Native/colorScheme.js \
     SyntaxHighlight.elm Native/syntaxHighlight.js \
     Main.elm Config.elm \
@@ -71,8 +80,7 @@ loc:
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm \
     DefaultIconTheme.elm \
-    UserStudy.elm UserStudyLog.elm \
-    Native/UserStudyLog.js Native/ImpureGoodies.js
+    Native/ImpureGoodies.js
 
 littleloc:
 	# wc -l ../examples/*

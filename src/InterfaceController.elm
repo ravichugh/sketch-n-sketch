@@ -1,7 +1,5 @@
-module InterfaceController exposing
+port module InterfaceController exposing
   ( update
-  , timeLeft
-  , currentTaskDuration
   , msgNoop
   , msgWindowDimensions
   , msgVisibilityChange
@@ -12,11 +10,13 @@ module InterfaceController exposing
   , msgAceUpdate
   , msgUserHasTyped
   , msgUndo, msgRedo, msgCleanCode
-  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate
+  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
-  , msgGroupBlobs, msgDuplicateBlobs, msgMergeBlobs, msgAbstractBlobs
+  , msgActivateRenameInOutput, msgUpdateRenameInOutputTextBox, msgDoRename
+  , msgAddArg, msgRemoveArg
+  , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
   , msgSetOutputLive, msgSetOutputPrint
@@ -33,7 +33,6 @@ module InterfaceController exposing
   , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
   , msgAskNew, msgAskOpen
   , msgConfirmFileOperation, msgCancelFileOperation
-  , msgConfirmGiveUp, msgCancelGiveUp
   , msgToggleAutosave
   , msgExportCode, msgExportSvg
   , msgImportCode, msgAskImportCode
@@ -54,21 +53,15 @@ module InterfaceController exposing
   , msgDragEditCodePopupPanel
   , msgDragDeuceRightClickMenu
   , msgTextSelect
-  , msgUserStudyStep
-  , msgUserStudyNext
-  , msgUserStudyPrev
-  , msgUserStudyEverySecondTick
   , msgSetEnableDeuceBoxSelection
   , msgSetEnableDeuceTextSelection
   , msgSetCodeToolsMenuMode
   , msgSetTextSelectMode
   , msgSetEnableTextEdits
   , msgSetAllowMultipleTargetPositions
-  , msgSetEnableDomainSpecificCodeTools
   , msgSetSelectedDeuceTool
   , msgDeuceRightClick
   , msgDragMainResizer
-  , msgDragProseResizer
   , msgResetInterfaceLayout
   , msgReceiveDeucePopupPanelInfo
   , msgSetColorScheme
@@ -93,7 +86,8 @@ import Utils
 import Keys
 import InterfaceModel as Model exposing (..)
 import SleekLayout exposing
-  ( clickToCanvasPoint
+  ( canvasPosition
+  , clickToCanvasPoint
   , deucePopupPanelMouseOffset
   , deuceRightClickMenuMouseOffset
   )
@@ -101,18 +95,15 @@ import AceCodeBox
 import AnimationLoop
 import FileHandler exposing (ExternalFileMessage(..), InternalFileMessage(..))
 import File exposing (File)
-import ProseScroller
 import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
 import ColorScheme
 import SyntaxHighlight exposing (ExternalSyntaxHighlightMessage(..))
 -- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
-import ShapeWidgets exposing (RealZone(..), PointFeature(..), OtherFeature(..))
+import ShapeWidgets exposing (SelectableFeature(..), GenericFeature(..), ShapeFeature(..), RealZone(..), PointFeature(..), DistanceFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
-import Prose
 import Config exposing (params)
 import Either exposing (Either(..))
-import Canvas
 import DefaultIconTheme
 import DependenceGraph exposing (lookupIdent)
 import CodeMotion
@@ -120,12 +111,9 @@ import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
 import Syntax exposing (Syntax)
-import FileHandler exposing (ExternalFileMessage(..))
+import LangUnparser -- for comparing expressions for equivalence
 
 import ImpureGoodies
-
-import UserStudy
-import UserStudyLog
 
 import VirtualDom
 
@@ -175,7 +163,7 @@ refreshLiveInfo m =
       liveInfo
 
     Err s ->
-      let _ = UserStudyLog.log "refreshLiveInfo Error" (toString s) in
+      let _ = Debug.log "refreshLiveInfo Error" (toString s) in
       { initSubstPlus = FastParser.substPlusOf m.inputExp
       , triggers = Dict.empty
       }
@@ -286,7 +274,8 @@ rewriteInnerMostExpToMain exp =
 --------------------------------------------------------------------------------
 -- Mouse Events
 
-onMouseClick click old =
+onMouseClick click old maybeClickable =
+  let (isOnCanvas, (canvasX, canvasY) as pointOnCanvas) = clickToCanvasPoint old click in
   case (old.tool, old.mouseMode) of
 
     -- Inactive zone
@@ -297,26 +286,40 @@ onMouseClick click old =
     (Cursor, MouseDragZone (i, k, z) (Just (_, _, False))) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
-    (Poly stk, MouseDrawNew NoPointsYet) ->
-      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
-      { old | mouseMode = MouseDrawNew (PolyPoints [pointOnCanvas]) }
+    (Cursor, _) ->
+      { old | mouseMode = MouseNothing }
 
-    (Poly stk, MouseDrawNew (PolyPoints points)) ->
-      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
-      if points == [] then Debug.crash "invalid state, PolyPoints should always be nonempty"
-      else
-        let initialPoint = Utils.last_ points in
-        if Utils.distanceInt pointOnCanvas initialPoint > Draw.drawDotSize then { old | mouseMode = MouseDrawNew (PolyPoints (pointOnCanvas :: points)) }
-        else if List.length points == 2 then { old | mouseMode = MouseNothing }
-        else if List.length points == 1 then switchToCursorTool old
-        else upstateRun <| switchToCursorTool <| Draw.addPolygon stk old points
+    (Poly stk, MouseDrawNew polyPoints) ->
+      let pointToAdd =
+        case maybeClickable of
+          -- TODO revisit with better provenance smarts
+          Just (PointWithProvenance (snapX, snapXTr) xVal (snapY, snapYTr) yVal) ->
+            let (Provenance snapXEnv snapXExp snapXBasedOn) = xVal.provenance in
+            let (Provenance snapYEnv snapYExp snapYBasedOn) = yVal.provenance in
+            -- TODO static check
+            if snapXExp.val.eid > 0 && snapYExp.val.eid > 0 then
+              ((round snapX, SnapEId snapXExp.val.eid), (round snapY, SnapEId snapYExp.val.eid))
+            else
+              ((canvasX, NoSnap), (canvasY, NoSnap))
+          Nothing ->
+            ((canvasX, NoSnap), (canvasY, NoSnap))
+      in
+      case polyPoints of
+        NoPointsYet   -> { old | mouseMode = MouseDrawNew (PolyPoints [pointToAdd]) }
+        PolyPoints [] -> Debug.crash "invalid state, PolyPoints should always be nonempty"
+        PolyPoints points ->
+          let ((initialX, _), (initialY, _)) = Utils.last_ points in
+          let ((thisX, _), (thisY, _))       = pointToAdd in
+          if Utils.distanceInt (thisX, thisY) (initialX, initialY) > Draw.drawDotSize then { old | mouseMode = MouseDrawNew (PolyPoints (pointToAdd :: points)) }
+          else if List.length points == 2 then { old | mouseMode = MouseNothing }
+          else if List.length points == 1 then switchToCursorTool old
+          else upstateRun <| switchToCursorTool <| Draw.addPolygon stk old points
+        _ -> Debug.crash "invalid state, points shoudl be NoPointsYet or PolyPoints for polygon tool"
 
     (Path stk, MouseDrawNew NoPointsYet) ->
-      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
       { old | mouseMode = MouseDrawNew (PathPoints [(old.keysDown, pointOnCanvas)]) }
 
     (Path stk, MouseDrawNew (PathPoints points)) ->
-      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
       let add new =
         let points_ = (old.keysDown, new) :: points in
         (points_, { old | mouseMode = MouseDrawNew (PathPoints points_) })
@@ -340,7 +343,6 @@ onMouseClick click old =
               Tuple.second (add pointOnCanvas)
 
     (PointOrOffset, _) ->
-      let (isOnCanvas, pointOnCanvas) = clickToCanvasPoint old click in
       if isOnCanvas then
         upstateRun <| Draw.addPoint old pointOnCanvas
       else
@@ -351,25 +353,26 @@ onMouseClick click old =
     _ ->
       old
 
-onClickPrimaryZone : LangSvg.NodeId -> LangSvg.ShapeKind -> ShapeWidgets.ZoneName -> Model -> Model
-onClickPrimaryZone i k z old =
-  let realZone = ShapeWidgets.parseZone z in
+
+onClickPrimaryZone : LangSvg.NodeId -> LangSvg.ShapeKind -> ShapeWidgets.RealZone -> Model -> Model
+onClickPrimaryZone i k realZone old =
   let hoveredCrosshairs_ =
-    case ShapeWidgets.zoneToCrosshair k realZone of
-      Just (xFeature, yFeature) ->
-        Set.insert (i, xFeature, yFeature) old.hoveredCrosshairs
+    case ShapeWidgets.zoneToMaybePointFeature realZone of
+      Just pointFeature ->
+        Set.insert (i, pointFeature) old.hoveredCrosshairs
       _ ->
         old.hoveredCrosshairs
   in
   let (selectedFeatures_, selectedShapes_, selectedBlobs_) =
     if i < -2 then -- Clicked a widget
-      if z == "Offset1D" then
-        let update = if Set.member (i,"offset") old.selectedFeatures then Set.remove else Set.insert in
-        (update (i,"offset") old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
+      if realZone == ZOffset1D then
+        let selectableFeatureToToggle = ShapeFeature i (DFeat Offset) in
+        let update = if Set.member selectableFeatureToToggle old.selectedFeatures then Set.remove else Set.insert in
+        (update selectableFeatureToToggle old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
       else
         (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
     else
-      let selectThisShape () =
+      let toggleThisShape () =
         Set.insert i <|
           if old.keysDown == [Keys.keyShift]
           then old.selectedShapes
@@ -382,15 +385,15 @@ onClickPrimaryZone i k z old =
           else Dict.empty
       in
       let maybeBlobId =
-        case Dict.get i (Tuple.second old.slate) of
+        case Dict.get i (Tuple.second old.slate) |> Maybe.map .interpreted of
           Just (LangSvg.SvgNode _ l _) -> LangSvg.maybeFindBlobId l
           _                            -> Debug.crash "onClickPrimaryZone"
       in
       case (k, realZone, maybeBlobId) of
-        ("line", ZLineEdge, Just blobId) -> (old.selectedFeatures, selectThisShape (), selectBlob blobId)
-        (_,      ZInterior, Just blobId) -> (old.selectedFeatures, selectThisShape (), selectBlob blobId)
-        ("line", ZLineEdge, Nothing)     -> (old.selectedFeatures, selectThisShape (), old.selectedBlobs)
-        (_,      ZInterior, Nothing)     -> (old.selectedFeatures, selectThisShape (), old.selectedBlobs)
+        ("line", ZLineEdge, Just blobId) -> (old.selectedFeatures, toggleThisShape (), selectBlob blobId)
+        (_,      ZInterior, Just blobId) -> (old.selectedFeatures, toggleThisShape (), selectBlob blobId)
+        ("line", ZLineEdge, Nothing)     -> (old.selectedFeatures, toggleThisShape (), old.selectedBlobs)
+        (_,      ZInterior, Nothing)     -> (old.selectedFeatures, toggleThisShape (), old.selectedBlobs)
         _                                -> (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
   in
   { old | hoveredCrosshairs = hoveredCrosshairs_
@@ -400,8 +403,7 @@ onClickPrimaryZone i k z old =
         }
 
 
-onMouseDrag lastPosition old =
-  let newPosition = Tuple.second old.mouseState in
+onMouseDrag lastPosition newPosition old =
   let (mx0, my0) = (newPosition.x, newPosition.y) in
   let (isOnCanvas, (mx, my)) = clickToCanvasPoint old newPosition in
   let (_, (mxLast, myLast))  = clickToCanvasPoint old lastPosition in
@@ -427,6 +429,95 @@ onMouseDrag lastPosition old =
           -- single value being manipulated, rather than the entire program.
           old
 
+    MouseDragSelect initialPosition initialSelectedShapes initialSelectedFeatures initialSelectedBlobs ->
+      let pos1 = canvasPosition old initialPosition in
+      let pos2 = canvasPosition old (mousePosition old) in
+      let selectTop   = min pos1.y pos2.y in
+      let selectLeft  = min pos1.x pos2.x in
+      let selectBot   = max pos1.y pos2.y in
+      let selectRight = max pos1.x pos2.x in
+      let (root, shapeTree) = old.slate in
+      let selectableShapeFeaturesAndPositions =
+        shapeTree
+        |> Dict.toList
+        |> List.concatMap
+            (\(nodeId, svgNode) ->
+              case svgNode.interpreted of
+                LangSvg.TextNode _ -> []
+                LangSvg.SvgNode shapeKind shapeAttrs childIds ->
+                  ShapeWidgets.genericFeaturesOfShape shapeKind shapeAttrs
+                  |> List.filterMap
+                      (\feature ->
+                        case feature of
+                          PointFeature pf -> Just (feature, ShapeWidgets.getPointEquations shapeKind shapeAttrs pf)
+                          _               -> Nothing
+                      )
+                  |> List.concatMap
+                      (\(feature, (xEqn, yEqn)) ->
+                        case (ShapeWidgets.evaluateFeatureEquation xEqn, ShapeWidgets.evaluateFeatureEquation yEqn) of
+                          (Just x, Just y) -> feature |> ShapeWidgets.shapeFeaturesOfGenericFeature |> List.map (\shapeFeature -> ((nodeId, shapeFeature), (x, y)))
+                          _                -> []
+                      )
+            )
+      in
+      let selectableWidgetFeaturesAndPositions =
+        old.widgets
+        |> Utils.zipi1
+        |> List.concatMap
+            (\(widgetI, widget) ->
+              let idAsShape = -2 - widgetI in
+              case widget of
+                WIntSlider _ _ _ _ _ _ _ -> []
+                WNumSlider _ _ _ _ _ _ _ -> []
+                WPoint (x, xTr) _ (y, yTr) _ ->
+                  [ ((idAsShape, XFeat LonePoint), (x, y))
+                  , ((idAsShape, YFeat LonePoint), (x, y))
+                  ]
+                WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _ ->
+                  let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
+                    offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
+                  in
+                  [ ((idAsShape, XFeat EndPoint), (endX, endY))
+                  , ((idAsShape, YFeat EndPoint), (endX, endY))
+                  ]
+                WCall _ _ _ _ -> []
+            )
+      in
+      let shapesAndBounds =
+        selectableShapeFeaturesAndPositions
+        |> Utils.groupBy (\((nodeId, shapeFeature), (x, y)) -> nodeId)
+        |> Dict.toList
+        |> List.map
+            (\(nodeId, featuresAndPositions) ->
+              let xs = featuresAndPositions |> List.map (\(_, (x, y)) -> x) in
+              let ys = featuresAndPositions |> List.map (\(_, (x, y)) -> y) in
+              let (left, right) = (List.minimum xs |> Maybe.withDefault -100000, List.maximum xs |> Maybe.withDefault -100000) in
+              let (top, bot)    = (List.minimum ys |> Maybe.withDefault -100000, List.maximum ys |> Maybe.withDefault -100000) in
+              (nodeId, (top, left, bot, right))
+            )
+      in
+      let blobsAndBounds = [] in -- Ignore for now. Blobs are going to go bye-bye.
+      let blobsToSelect = [] in  -- Ignore for now. Blobs are going to go bye-bye.
+      let shapesToSelect =
+        shapesAndBounds
+        |> List.filter (\(nodeId, (top, left, bot, right)) -> selectLeft <= left && right <= selectRight && selectTop <= top && bot <= selectBot)
+        |> List.map    (\(nodeId, _) -> nodeId)
+      in
+      let featuresToSelect =
+        selectableShapeFeaturesAndPositions ++ selectableWidgetFeaturesAndPositions
+        |> List.filter (\((nodeId, shapeFeature), (x, y)) -> not (List.member nodeId shapesToSelect) && selectLeft <= round x && round x <= selectRight && selectTop <= round y && round y <= selectBot)
+        |> List.map    (\((nodeId, shapeFeature), (x, y)) -> ShapeFeature nodeId shapeFeature)
+      in
+      if old.keysDown == [Keys.keyShift] then
+        { old | selectedShapes   = Utils.multiToggleSet (Set.fromList shapesToSelect) initialSelectedShapes
+              , selectedFeatures = Utils.multiToggleSet (Set.fromList featuresToSelect) initialSelectedFeatures
+              , selectedBlobs    = initialSelectedBlobs }
+      else
+        { old | selectedShapes   = Set.fromList shapesToSelect
+              , selectedFeatures = Set.fromList featuresToSelect
+              , selectedBlobs    = Dict.fromList blobsToSelect }
+
+
     MouseDrawNew shapeBeingDrawn ->
       case (old.tool, shapeBeingDrawn) of
         (Poly _, _) -> old -- handled by onMouseClick instead
@@ -441,8 +532,42 @@ onMouseDrag lastPosition old =
           let pointOnCanvas = (old.keysDown, (mx, my)) in
           { old | mouseMode = MouseDrawNew (TwoPoints pointOnCanvas point1) }
 
-        (_, OffsetFromExisting _ basePoint) ->
-          { old | mouseMode = MouseDrawNew (OffsetFromExisting (mx, my) basePoint) }
+        (_, Offset1DFromExisting _ _ basePoint) ->
+          let ((effectiveMX, effectiveMY), snap) =
+            let ((x0,_), (y0,_)) = basePoint in
+            let (dxRaw, dyRaw) = (mx - round x0, my - round y0) in
+            -- Hmm, shoudn't assume this here. Yolo.
+            let (axis, sign, amount) = Draw.horizontalVerticalSnap (0, 0) (dxRaw, dyRaw) in
+            let possibleSnaps =
+              flattenExpTree old.inputExp
+              |> List.filterMap (\e -> LangTools.expToMaybeNum e |> Maybe.map (\n -> (round n, e.val.eid)))
+              |> List.filter (\(n,_) -> n >= 2)
+              |> List.sort
+            in
+            let pixelsPerSnap = 20 in
+            let snapRanges =
+              possibleSnaps
+              |> Utils.mapi0
+                  (\(i, (numberToSnapTo, eid))->
+                    ((numberToSnapTo + pixelsPerSnap * i, numberToSnapTo + pixelsPerSnap * (i+1)), numberToSnapTo, eid)
+                  )
+              |> Debug.log "snapRanges"
+            in
+            let maybeInSnapRange = Utils.findFirst (\((low, high), _, _) -> amount >= low && amount < high) snapRanges in
+            case maybeInSnapRange of
+              Just (_, snapToNumber, eid) ->
+                if      axis == X && sign == Positive then ((round x0 + snapToNumber, my), SnapEId eid)
+                else if axis == X && sign == Negative then ((round x0 - snapToNumber, my), SnapEId eid)
+                else if axis == Y && sign == Positive then ((mx, round y0 + snapToNumber), SnapEId eid)
+                else                                       ((mx, round y0 - snapToNumber), SnapEId eid)
+              Nothing ->
+                let numberOfSnapsPassed = Utils.count (\((_, high), _, _) -> amount >= high) snapRanges in
+                if      axis == X && sign == Positive then ((mx - numberOfSnapsPassed*pixelsPerSnap, my), NoSnap)
+                else if axis == X && sign == Negative then ((mx + numberOfSnapsPassed*pixelsPerSnap, my), NoSnap)
+                else if axis == Y && sign == Positive then ((mx, my - numberOfSnapsPassed*pixelsPerSnap), NoSnap)
+                else                                       ((mx, my + numberOfSnapsPassed*pixelsPerSnap), NoSnap)
+          in
+          { old | mouseMode = MouseDrawNew (Offset1DFromExisting (effectiveMX, effectiveMY) snap basePoint) }
 
         _ -> old
 
@@ -461,7 +586,7 @@ onMouseUp old =
         False ->
           finishTrigger zoneKey old
         True ->
-          let (isOnCanvas, (mx, my)) = clickToCanvasPoint old (Tuple.second old.mouseState) in
+          let (isOnCanvas, (mx, my)) = clickToCanvasPoint old (mousePosition old) in
           old
             |> applyTrigger zoneKey trigger (mx0, my0) (mx, my)
             |> finishTrigger zoneKey
@@ -490,8 +615,8 @@ onMouseUp old =
 
         (Text, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addTextBox old pt2 pt1
 
-        (PointOrOffset, TwoPoints (_, pt2) (_, (x1,y1)), _)  -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) pt2
-        (PointOrOffset, OffsetFromExisting pt2 basePoint, _) -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old basePoint pt2
+        (PointOrOffset, TwoPoints (_, pt2) (_, (x1,y1)), _)         -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old NoSnap ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) pt2
+        (PointOrOffset, Offset1DFromExisting pt2 snap basePoint, _) -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old snap basePoint pt2
 
         (_, NoPointsYet, _)     -> switchToCursorTool old
 
@@ -512,7 +637,7 @@ applyTrigger zoneKey trigger (mx0, my0) (mx, my) old =
   let dragInfo_ = (trigger, (mx0, my0), True) in
 
   Eval.run old.syntax newExp |> Result.andThen (\(newVal, newWidgets) ->
-  LangSvg.resolveToIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
+  LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
           , lastRunCode = newCode
@@ -539,11 +664,7 @@ tryRun : Model -> Result (Model, String, Maybe Ace.Annotation) Model
 tryRun old =
   let
     oldWithUpdatedHistory =
-      let
-        updatedHistory =
-          addToHistory old.code old.history
-      in
-        { old | history = updatedHistory }
+      { old | history = addToHistory old.code old.history }
   in
     case Syntax.parser old.syntax old.code of
       Err err ->
@@ -597,7 +718,7 @@ tryRun old =
                       , errorBox      = Nothing
                       , scopeGraph    = DependenceGraph.compute e
                       , preview       = Nothing
-                      , synthesisResults = maybeRunAutoSynthesis old e
+                      , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
                 }
               in
               let taskProgressAnnotation =
@@ -707,6 +828,7 @@ upstate : Msg -> Model -> Model
 upstate (Msg caption updateModel) old =
   -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
   -- let _ = Debug.log "Msg" caption in
+  -- let _ = if {-String.contains "Key" caption-} True then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
   let _ = debugLog "Msg" caption in
   updateModel old
 
@@ -717,6 +839,8 @@ hooks : List (Model -> Model -> (Model, Cmd Msg))
 hooks =
   [ handleSavedSelectionsHook
   , handleSyntaxHook
+  -- , handleOutputSelectionChanges
+  , focusJustShownRenameBox
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
@@ -759,6 +883,28 @@ handleSyntaxHook oldModel newModel =
   in
     (newModel, cmd)
 
+-- This function is not used.
+handleOutputSelectionChanges : Model -> Model -> (Model, Cmd Msg)
+handleOutputSelectionChanges oldModel newModel =
+  if oldModel.selectedFeatures /= newModel.selectedFeatures || oldModel.selectedShapes /= newModel.selectedShapes || oldModel.selectedBlobs /= newModel.selectedBlobs then
+    let
+      selectedEIdInterpretations = ShapeWidgets.selectionsProximalDistalEIdInterpretations newModel.inputExp newModel.slate newModel.widgets newModel.selectedFeatures newModel.selectedShapes newModel.selectedBlobs
+      deuceWidgetInterpretations = selectedEIdInterpretations |> List.map (List.map DeuceExp)
+      finalModel = { newModel | deuceToolsAndResults = DeuceTools.createToolCacheMultipleInterpretations newModel deuceWidgetInterpretations }
+    in
+    (finalModel, Cmd.none)
+  else
+    (newModel, Cmd.none)
+
+port doFocusJustShownRenameBox : () -> Cmd msg
+
+focusJustShownRenameBox : Model -> Model -> (Model, Cmd Msg)
+focusJustShownRenameBox oldModel newModel =
+  if oldModel.renamingInOutput == Nothing && newModel.renamingInOutput /= Nothing then
+    (newModel, doFocusJustShownRenameBox ())
+  else
+    (newModel, Cmd.none)
+
 --------------------------------------------------------------------------------
 
 updateCommands : Model -> List (Cmd Msg)
@@ -778,8 +924,6 @@ updateCommands model =
     List.concat
       [ ifNeedsUpdate .enableTextEdits <|
           AceCodeBox.setReadOnly << not
-      , ifNeedsUpdate .prose <|
-          ProseScroller.resetProseScroll << always ()
       ]
 
 issueCommand : Msg -> Model -> Model -> Cmd Msg
@@ -965,18 +1109,22 @@ msgUserHasTyped =
     }
 
 upstateRun old =
+  let newFailuresInARowAfterFail    = if old.runFailuresInARowCount < 0 then 1 else old.runFailuresInARowCount + 1 in
+  let newFailuresInARowAfterSuccess = if old.runFailuresInARowCount > 0 then 0 else old.runFailuresInARowCount - 1 in
   case tryRun old of
     Err (oldWithUpdatedHistory, err, Just annot) ->
       { oldWithUpdatedHistory
           | errorBox = Just err
           , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo
+          , runFailuresInARowCount = newFailuresInARowAfterFail
       }
     Err (oldWithUpdatedHistory, err, Nothing) ->
       { oldWithUpdatedHistory
           | errorBox = Just err
+          , runFailuresInARowCount = newFailuresInARowAfterFail
       }
     Ok newModel ->
-      newModel
+      { newModel | runFailuresInARowCount = newFailuresInARowAfterSuccess }
 
 msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
   case tryRun newModel of
@@ -1040,13 +1188,13 @@ doRedo old =
 
 msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
   let new =
-    let {x,y} = Tuple.second old.mouseState in
+    let {x,y} = mousePosition old in
     let lightestColor = 470 in
     { old | randomColor = (old.randomColor + x + y) % lightestColor }
   in
   case (b, new.mouseState) of
 
-    (True, (Nothing, pos)) -> -- mouse down
+    (True, (Nothing, pos, _)) -> -- mouse down
       let _ = debugLog "mouse down" () in
       if old.hoveringCodeBox
       -- TODO disabling MouseDownInCodeBox because onMouseDragged is disabled
@@ -1054,23 +1202,23 @@ msgMouseIsDown b = Msg ("MouseIsDown " ++ toString b) <| \old ->
       then { new | mouseState = (Just False, pos),
                    mouseMode = MouseDownInCodebox pos }
 -}
-      then { new | mouseState = (Just False, pos) }
-      else { new | mouseState = (Just False, pos) }
+      then { new | mouseState = (Just False, pos, Nothing) }
+      else { new | mouseState = (Just False, pos, Nothing) }
 
-    (False, (Just False, pos)) -> -- click (mouse up after not being dragged)
+    (False, (Just False, pos, maybeClickable)) -> -- click (mouse up after not being dragged)
       let _ = debugLog "mouse click" () in
-      onMouseClick pos { new | mouseState = (Nothing, pos) }
+      onMouseClick pos { new | mouseState = (Nothing, pos, Nothing) } maybeClickable
 
-    (False, (Just True, pos)) -> -- mouse up (after being dragged)
+    (False, (Just True, pos, _)) -> -- mouse up (after being dragged)
       let _ = debugLog "mouse up" () in
-      onMouseUp { new | mouseState = (Nothing, pos) }
+      onMouseUp { new | mouseState = (Nothing, pos, Nothing) }
 
-    (False, (Nothing, _)) ->
+    (False, (Nothing, _, _)) ->
       let _ = debugLog "mouse down was preempted by a handler in View" () in
       new
 
     -- (True, (Just _, _)) -> Debug.crash "upstate MouseIsDown: impossible"
-    (True, (Just _, _)) ->
+    (True, (Just _, _, _)) ->
       let _ = Debug.log "upstate MouseIsDown: impossible" () in
       new
 
@@ -1078,26 +1226,25 @@ msgMousePosition pos_ =
   let
     mouseStateUpdater old =
       case old.mouseState of
-        (Nothing, _) ->
-          { old | mouseState = (Nothing, pos_) }
-        (Just _, oldPos_) ->
-          onMouseDrag oldPos_ { old | mouseState = (Just True, pos_) }
+        (Nothing, _, _) ->
+          { old | mouseState = (Nothing, pos_, Nothing) }
+        (Just _, oldPos_, maybeClickable) ->
+          onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_, maybeClickable) }
+
     deucePopupPanelPositionUpdater old =
-      if Model.noWidgetsSelected old then
+      if noCodeWidgetsSelected old then
         let
-          -- Compute new position
           newDeucePopupPanelPosition =
             ( pos_.x + deucePopupPanelMouseOffset.x
             , pos_.y + deucePopupPanelMouseOffset.y
             )
-          -- Get old position
+
           oldPopupPanelPositions =
             old.popupPanelPositions
-          -- Update old position
+
           newPopupPanelPositions =
             { oldPopupPanelPositions | deuce = newDeucePopupPanelPosition }
         in
-          -- Update model
           { old | popupPanelPositions = newPopupPanelPositions }
       else
         old
@@ -1157,7 +1304,7 @@ msgKeyDown keyCode =
           else
             let
               new =
-                old
+                { old | renamingInOutput = Nothing }
                   |> Model.hideDeuceRightClickMenu
                   |> resetDeuceState
                   |> \m -> { m | deucePopupPanelAbove = True }
@@ -1169,10 +1316,13 @@ msgKeyDown keyCode =
                 _                   -> new
         else if keyCode == Keys.keyE && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           let newModel = doMakeEqual old in
-          newModel.synthesisResults
-          |> Utils.findFirst isResultSafe
-          |> Maybe.map (\synthesisResult -> { newModel | code = Syntax.unparser old.syntax (resultExp synthesisResult) } |> clearSynthesisResults |> upstateRun )
+          newModel.synthesisResultsDict
+          |> Dict.get "Make Equal"
+          |> Maybe.andThen (Utils.findFirst isResultSafe)
+          |> Maybe.map (\synthesisResult -> { newModel | code = Syntax.unparser old.syntax  (resultExp synthesisResult) } |> clearSynthesisResults |> upstateRun )
           |> Maybe.withDefault old
+        else if keyCode == Keys.keyBackspace then
+          deleteInOutput old
         else if keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doDuplicate old
         else if keyCode == Keys.keyG && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
@@ -1210,7 +1360,7 @@ msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
 
 cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, children}) =
   SynthesisResult <|
-    { description = description ++ " -> Cleaned"
+    { description = description ++ " → Cleaned"
     , exp         = LangSimplify.cleanCode exp
     , isSafe      = isSafe
     , sortKey     = sortKey
@@ -1219,13 +1369,13 @@ cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, childr
 
 cleanDedupSortSynthesisResults model synthesisResults =
   synthesisResults
-  |> List.map cleanSynthesisResult
+  -- |> List.map cleanSynthesisResult
   |> Utils.dedupBy (\(SynthesisResult {description, exp, sortKey, children}) -> Syntax.unparser model.syntax exp)
   |> List.sortBy (\(SynthesisResult {description, exp, sortKey, children}) -> (LangTools.nodeCount exp, sortKey, description))
 
-maybeRunAutoSynthesis m e =
-  if m.autoSynthesis
-    then cleanDedupSortSynthesisResults m (ETransform.passiveSynthesisSearch e)
+perhapsRunAutoSynthesis model program =
+  if model.autoSynthesis
+    then cleanDedupSortSynthesisResults model (ETransform.passiveSynthesisSearch model program)
     else []
 
 msgCleanCode = Msg "Clean Code" <| \old ->
@@ -1275,7 +1425,7 @@ doMakeEqual old =
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSortSynthesisResults old synthesisResults }
+  { old | synthesisResultsDict = Dict.insert "Make Equal" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
@@ -1288,7 +1438,7 @@ msgRelate = Msg "Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSortSynthesisResults old synthesisResults }
+  { old | synthesisResultsDict = Dict.insert "Relate" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
 msgIndexedRelate = Msg "Indexed Relate" <| \old ->
   let synthesisResults =
@@ -1302,7 +1452,7 @@ msgIndexedRelate = Msg "Indexed Relate" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResults = cleanDedupSortSynthesisResults old synthesisResults }
+  { old | synthesisResultsDict = Dict.insert "Indexed Relate" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
 -- msgMakeEquidistant = Msg "Make Equidistant" <| \old ->
 --   let newExp =
@@ -1333,6 +1483,105 @@ msgIndexedRelate = Msg "Indexed Relate" <| \old ->
 --       }
 --   )
 
+msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
+  let synthesisResults =
+    ValueBasedTransform.buildAbstraction
+        old.syntax
+        old.inputExp
+        old.selectedFeatures
+        old.selectedShapes
+        old.selectedBlobs
+        old.slideNumber
+        old.movieNumber
+        old.movieTime
+        old.syncOptions
+  in
+  { old | synthesisResultsDict = Dict.insert "Build Abstraction" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
+
+deleteInOutput old =
+  let
+    proximalInterpretations =
+      ShapeWidgets.selectionsUniqueProximalEIdInterpretations
+          old.inputExp
+          old.slate
+          old.widgets
+          old.selectedFeatures
+          old.selectedShapes
+          old.selectedBlobs
+
+    deleteEId eidToDelete program =
+      case findExpByEId program eidToDelete of
+        Just expToDelete ->
+          let programWithDistalExpressionRemoved =
+            case LangTools.findLetAndPatMatchingExpLoose expToDelete.val.eid program of
+              Just (letExp, patBindingExpToDelete) ->
+                let identsToDelete = LangTools.identifiersListInPat patBindingExpToDelete in
+                let scopeAreas = LangTools.findScopeAreas (letExp.val.eid, 1) letExp in
+                let varUses = scopeAreas |> List.concatMap (LangTools.identifierSetUses (Set.fromList identsToDelete)) in
+                let deleteVarUses program =
+                  varUses
+                  |> List.map (.val >> .eid)
+                  |> List.foldr deleteEId program
+                  |> LangSimplify.simplifyAssignments
+                in
+                case CodeMotion.pluckByPId patBindingExpToDelete.val.pid program of -- TODO allow unsafe pluck out of as-pattern
+                  Just (_, programWithoutBinding) -> deleteVarUses programWithoutBinding
+                  Nothing                         -> deleteVarUses program
+
+              Nothing ->
+                case parentByEId program (LangTools.outerSameValueExp program expToDelete).val.eid of
+                  (Just (Just parent)) ->
+                    case parent.val.e__ of
+                      EFun _ _ _ _ ->
+                        deleteEId parent.val.eid program
+
+                      EList ws1 heads ws2 maybeTail ws3 ->
+                        case heads |> Utils.findi (eidIs eidToDelete) of
+                          Just iToDelete -> program |> replaceExpNodeE__ parent (EList ws1 (Utils.removei iToDelete heads |> imitateExpListWhitespace heads) ws2 maybeTail ws3)
+                          Nothing ->
+                            if Maybe.map (eidIs eidToDelete) maybeTail == Just True
+                            then program |> replaceExpNodeE__ parent (EList ws1 heads ws2 Nothing ws3)
+                            else program
+
+                      _ ->
+                        let _ = Utils.log <| "can't remove from parent " ++ Syntax.unparser old.syntax parent in
+                        program
+
+                  _ ->
+                    let _ = Utils.log <| "can't find parent to remove from" in
+                    program
+          in
+          -- This seems to remove too much (e.g. will remove function if an application is deleted).
+          -- let varEIdsPerhapsRemoved = LangTools.freeVars expToDelete |> List.map (.val >> .eid) |> Set.fromList in
+          let varEIdsPerhapsRemoved =
+            case LangTools.expToMaybeVar (LangTools.expValueExp expToDelete) of
+              Just varExp -> Set.singleton (varExp.val.eid)
+              _           -> Set.empty
+          in
+          let pidsToMaybeRemove =
+            program
+            |> LangTools.allVarEIdsToBindingPId
+            |> Dict.filter (\varEId _ -> Set.member varEId varEIdsPerhapsRemoved)
+            |> Dict.values
+            |> Utils.filterJusts -- Vars free in program are marked bound to "Nothing"
+            |> Set.fromList
+          in
+          programWithDistalExpressionRemoved
+          |> LangSimplify.removeUnusedLetPatsMatching (\pat -> Set.member pat.val.pid pidsToMaybeRemove)
+
+        _ ->
+          program
+
+
+    deleteResults =
+      proximalInterpretations
+      |> List.take 1
+      |> List.map (\eids -> eids |> List.foldl deleteEId old.inputExp)
+  in
+  case deleteResults of
+    []              -> old
+    deleteResult::_ -> upstateRun <| clearSelections { old | code = Syntax.unparser old.syntax deleteResult }
+
 --------------------------------------------------------------------------------
 
 msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
@@ -1342,18 +1591,18 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
     { old | code = newCode
           , lastRunCode = newCode
           , history = addToHistory newCode old.history
-          , synthesisResults = []
+          , synthesisResultsDict = Dict.empty
           }
   in
   runWithErrorHandling new newExp (\reparsed newVal newWidgets newSlate newCode ->
     -- debugLog "new model" <|
       let newer =
-      { new | inputExp         = reparsed -- newExp
-            , inputVal         = newVal
-            , slate            = newSlate
-            , widgets          = newWidgets
-            , preview          = Nothing
-            , synthesisResults = maybeRunAutoSynthesis old reparsed
+      { new | inputExp             = reparsed -- newExp
+            , inputVal             = newVal
+            , slate                = newSlate
+            , widgets              = newWidgets
+            , preview              = Nothing
+            , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old reparsed)
       } |> clearSelections
       in
       { newer | liveSyncInfo = refreshLiveInfo newer
@@ -1363,11 +1612,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
 
 clearSynthesisResults : Model -> Model
 clearSynthesisResults old =
-  { old | preview = Nothing, synthesisResults = [] }
-
-setAutoSynthesis : Bool -> Model -> Model
-setAutoSynthesis shouldUseAutoSynthesis old =
-  { old | autoSynthesis = shouldUseAutoSynthesis }
+  { old | preview = Nothing, synthesisResultsDict = Dict.empty }
 
 msgClearSynthesisResults : Msg
 msgClearSynthesisResults =
@@ -1375,12 +1620,13 @@ msgClearSynthesisResults =
 
 msgStartAutoSynthesis : Msg
 msgStartAutoSynthesis =
-  Msg "Start Auto Synthesis" (setAutoSynthesis True)
+  Msg "Start Auto Synthesis" <| \old ->
+    { old | autoSynthesis = True }
 
 msgStopAutoSynthesisAndClear : Msg
 msgStopAutoSynthesisAndClear =
-  Msg "Stop Auto Synthesis and Clear" <|
-    clearSynthesisResults << (setAutoSynthesis False)
+  Msg "Stop Auto Synthesis and Clear" <| \old ->
+    clearSynthesisResults { old | autoSynthesis = False }
 
 --------------------------------------------------------------------------------
 
@@ -1399,10 +1645,76 @@ doGroup =
           (Ok (Just anchor), _) -> upstateRun <| ETransform.groupSelectedBlobsAround old simple anchor
           (Err err, _)          -> let _ = Debug.log "bad anchor" err in old
 
-msgDuplicateBlobs = Msg "Duplicate Blobs" doDuplicate
 
+-- Find a single expression that explains everything selected: duplicate it.
+--
+-- Could change to instead duplicate everything selected, inidividually.
+msgDuplicate = Msg "Duplicate " doDuplicate
+
+
+-- (def r 15)
+--
+-- (def circles
+--   (map (\i
+--       (let [cx cy r] [208 168 (+ (* i 18) r)]
+--       (let color (if (= (mod i 2) 0) 499 0)
+--         (rawCircle color 360 0 cx cy r))))
+--     (reverse (zeroTo 8!{0-15}))))
+--
+-- (svg (concat [
+--   circles
+-- ]))
+
+doDuplicate : Model -> Model
 doDuplicate old =
-  upstateRun <| ETransform.duplicateSelectedBlobs old
+  let
+    singleExpressionInterpretations =
+      ShapeWidgets.selectionsSingleEIdInterpretations
+          old.inputExp
+          old.slate
+          old.widgets
+          old.selectedFeatures
+          old.selectedShapes
+          old.selectedBlobs
+          (always True)
+
+  -- let _ = Utils.log <| LangUnparser.unparseWithIds old.inputExp in
+
+    maybeNewProgram =
+      singleExpressionInterpretations
+      -- |> Debug.log "possible eids to duplicate"
+      -- |> List.map (\eid -> let _ = Utils.log <| unparse <| LangTools.justFindExpByEId old.inputExp eid in eid)
+      |> List.map (LangTools.outerSameValueExpByEId old.inputExp >> .val >> .eid)
+      |> Utils.dedup
+      |> List.map (LangTools.justFindExpByEId old.inputExp)
+      |> List.filter (not << isVar << LangTools.expValueExp)
+      |> List.sortBy LangTools.expToLocation -- Choose earliest single expression in program.
+      |> List.head -- No multiple synthesis options for now.
+      |> Maybe.map
+          (\expToDuplicate ->
+            let name = LangTools.expNameForExp old.inputExp expToDuplicate |> LangTools.removeTrailingDigits in
+            -- Attempt 1: Try to add to output as a shape.
+            let newProgram = Draw.addShape old name expToDuplicate (Set.size old.selectedShapes + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) in
+            if not <| LangUnparser.expsEquivalent newProgram old.inputExp then
+              newProgram
+            else
+              -- Attempt 2: Simply duplicate the definition.
+              -- TODO: Duplicate entire equation if selected.
+              -- TODO: Lift free vars? Should be uncommon.
+              let
+                eidToInsertBefore =
+                  case LangTools.findLetAndPatMatchingExpLoose expToDuplicate.val.eid old.inputExp of
+                    Nothing          -> expToDuplicate.val.eid
+                    Just (letExp, _) -> letExp.val.eid
+
+                (_, newProgram) = LangTools.newVariableVisibleTo -1 name 1 expToDuplicate [expToDuplicate.val.eid] old.inputExp
+              in
+              newProgram
+          )
+  in
+  maybeNewProgram
+  |> Maybe.map (\newProgram -> { old | code = Syntax.unparser old.syntax newProgram } |> clearSelections |> upstateRun)
+  |> Maybe.withDefault old
 
 msgMergeBlobs = Msg "Merge Blobs" <| \old ->
   if Dict.size old.selectedBlobs <= 1 then old
@@ -1557,14 +1869,14 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
         , history       = addToHistory code old.history
         , slate         = slate
         , preview       = Nothing
-        , synthesisResults = []
+        , synthesisResultsDict = Dict.empty
         , tool          = Cursor
         , liveSyncInfo  = Utils.fromOk "SelectOption mkLive" <|
                             mkLive old.syntax old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
                               (val, []) -- TODO
         }
 
-msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
+msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <| \old ->
   let maybeFindResult path results =
     case path of
       []    -> Nothing
@@ -1577,7 +1889,8 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
       [i]   -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) -> SynthesisResult { attrs | children = Just childResults})
       i::is -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) -> SynthesisResult { attrs | children = Just (setResultChildren is childResults (attrs.children |> Maybe.withDefault []))})
   in
-  case maybeFindResult pathByIndices old.synthesisResults of
+  let oldResults = Utils.getWithDefault resultsKey [] old.synthesisResultsDict in
+  case maybeFindResult pathByIndices oldResults of
     Just (SynthesisResult {description, exp, sortKey, children}) ->
       let newModel = { old | hoveredSynthesisResultPathByIndices = pathByIndices } in
       let newModel2 =
@@ -1586,9 +1899,9 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
           (False, _)   -> newModel -- Don't compute children if auto-synth off
           _            ->
             -- Compute child results.
-            let childResults = cleanDedupSortSynthesisResults newModel (ETransform.passiveSynthesisSearch exp) in
-            let newTopLevelResults = setResultChildren pathByIndices childResults old.synthesisResults in
-            { newModel | synthesisResults = newTopLevelResults
+            let childResults = cleanDedupSortSynthesisResults newModel (ETransform.passiveSynthesisSearch newModel exp) in
+            let newTopLevelResults = Dict.insert resultsKey (setResultChildren pathByIndices childResults oldResults) old.synthesisResultsDict in
+            { newModel | synthesisResultsDict = newTopLevelResults
                        , hoveredSynthesisResultPathByIndices = pathByIndices }
       in
       showExpPreview newModel2 exp
@@ -1610,6 +1923,115 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
   upstateRun
     { old | liveSyncInfo = refreshLiveInfo old }
 
+msgActivateRenameInOutput pid = Msg ("Active Rename Box for PId " ++ toString pid) <| \old ->
+  let oldName =
+    findPatByPId old.inputExp pid
+    |> Maybe.andThen LangTools.patToMaybeIdent
+    |> Maybe.withDefault ""
+  in
+  { old | renamingInOutput = Just (pid, oldName) }
+
+msgUpdateRenameInOutputTextBox newText = Msg ("Update Rename In Output: " ++ newText) <| \old ->
+  case old.renamingInOutput of
+    Just (pid, _) -> { old | renamingInOutput = Just (pid, newText) }
+    Nothing       -> old
+
+-- Shouldn't need pid b/c there should only be one rename box at a time, but I hate state.
+msgDoRename pid = Msg ("Rename PId " ++ toString pid) <| \old ->
+  case old.renamingInOutput of
+    Just (renamingPId, newName) ->
+      if renamingPId == pid then
+        let newProgram =
+          CodeMotion.renamePatByPId pid newName old.inputExp
+          |> List.filter isResultSafe
+          |> List.head
+          |> Maybe.map resultExp
+          |> Maybe.withDefault old.inputExp
+        in
+        { old | code             = Syntax.unparser old.syntax newProgram
+              , renamingInOutput = Nothing
+        } |> upstateRun
+      else
+        old
+
+    Nothing ->
+      old
+
+
+msgAddArg funcBody = Msg "Add Arg to Function in Output" <| \old ->
+  let maybeMaybeParent = parentByEId old.inputExp funcBody.val.eid in
+  case Maybe.map (Maybe.map (\parent -> (parent, parent.val.e__))) maybeMaybeParent of
+    Just (Just (funcExp, EFun _ argPats funcBody _)) ->
+      let targetPPId =
+        ( (funcExp.val.eid, 1)
+        , [ 1 + List.length argPats ] -- By default, insert argument at the end
+        )
+      in
+      let possibleArgEIds =
+        let domain = flattenExpTree funcBody |> List.map (.val >> .eid) |> Set.fromList in
+        let expFilter = .val >> .eid >> (flip Set.member) domain in
+        -- let singleEIdInterps =
+        --   ShapeWidgets.selectionsSingleEIdInterpretations
+        --       old.inputExp
+        --       old.slate
+        --       old.widgets
+        --       old.selectedFeatures
+        --       old.selectedShapes
+        --       old.selectedBlobs
+        --       expFilter
+        -- in
+        -- let distalInterps =
+        --   ShapeWidgets.selectionsDistalEIdInterpretations
+        --       old.inputExp
+        --       old.slate
+        --       old.widgets
+        --       old.selectedFeatures
+        --       old.selectedShapes
+        --       old.selectedBlobs
+        --       expFilter
+        --   |> List.concat
+        -- in
+        -- singleEIdInterps ++ distalInterps
+        -- |> Utils.dedup
+        ShapeWidgets.selectionsEIdsTouched
+            old.inputExp
+            old.slate
+            old.widgets
+            old.selectedFeatures
+            old.selectedShapes
+            old.selectedBlobs
+            expFilter
+      in
+      let results =
+        possibleArgEIds
+        |> List.concatMap
+            (\eid ->
+              let (line, col) = LangTools.locationInProgram old.inputExp eid in
+              CodeMotion.addArg old.syntax eid targetPPId old.inputExp
+              |> List.map (setResultSortKey [toFloat line, toFloat col])
+            )
+        |> List.sortBy (\(SynthesisResult result) -> (if result.isSafe then 0 else 1, result.sortKey))
+      in
+      case results of
+        []             -> old
+        [singleResult] -> upstateRun { old | code = Syntax.unparser old.syntax (resultExp singleResult) }
+        _              -> { old | synthesisResultsDict = Dict.insert "Auto-Synthesis" results old.synthesisResultsDict } -- Commandere auto-synth results for now.
+
+    _ ->
+      let _ = Utils.log "could not find func to add argument to" in
+      old
+
+
+msgRemoveArg pid = Msg ("Remove Arg PId " ++ toString pid) <| \old ->
+  case pidToPathedPatternId old.inputExp pid of
+    Nothing              -> old
+    Just pathedPatternId ->
+      CodeMotion.removeArg old.syntax pathedPatternId old.inputExp
+      |> List.head
+      |> Maybe.map (\result -> upstateRun { old | code = Syntax.unparser old.syntax (resultExp result) })
+      |> Maybe.withDefault old
+
+
 --------------------------------------------------------------------------------
 
 requireSaveAsker ((Msg name _) as msg) needsSave =
@@ -1620,16 +2042,6 @@ requireSaveAsker ((Msg name _) as msg) needsSave =
         >> Model.openDialogBox AlertSave
   else
     msg
-
-giveUpAsker : Msg -> Msg
-giveUpAsker msg =
-  Msg "Give Up Asker" <| \old ->
-    { old
-        | pendingGiveUpMsg =
-            Just msg
-        , giveUpConfirmed =
-            False
-    } |> Model.openDialogBox AlertGiveUp
 
 --------------------------------------------------------------------------------
 -- Dialog Box
@@ -1686,11 +2098,39 @@ loadIcon env icon old =
     oldIcons =
       old.icons
     iconHtml =
-      Canvas.iconify syntax env actualCode
+      iconify syntax env actualCode
     newIcons =
       Dict.insert icon.filename.name iconHtml oldIcons
   in
     { old | icons = newIcons }
+
+-- for basic icons, env will be Eval.initEnv.
+-- for LambdaTool icons, env will be from result of running main program.
+iconify : Syntax -> Env -> String -> Html.Html Msg
+iconify syntax env code =
+  let
+    exp =
+      Utils.fromOkay "Error parsing icon"
+        <| Syntax.parser syntax code
+    ((val, _), _) =
+      Utils.fromOkay "Error evaluating icon"
+        <| Eval.doEval syntax env exp
+    slate =
+      Utils.fromOkay "Error resolving index tree of icon"
+        <| LangSvg.resolveToRootedIndexedTree syntax 1 1 0 val
+    svgElements =
+      LangSvg.buildSvgSimple slate
+    subPadding x =
+      x - 10
+  in
+    Svg.svg
+      [ Svg.Attributes.width <|
+          (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
+      , Svg.Attributes.height <|
+          (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
+      ]
+      [ svgElements ]
+
 
 loadLambdaToolIcons finalEnv old =
   let foo tool acc =
@@ -1781,7 +2221,6 @@ handleNew template = (\old ->
                     , lastSelectedTemplate = Just template
 
                     , dimensions    = old.dimensions
-                    , syncOptions   = old.syncOptions
                     , localSaves    = old.localSaves
                     , basicCodeBox  = old.basicCodeBox
                     , randomColor   = old.randomColor
@@ -1789,21 +2228,15 @@ handleNew template = (\old ->
                     , fileIndex     = old.fileIndex
                     , icons         = old.icons
 
-                    , userStudyStateIndex      = old.userStudyStateIndex
-                    , userStudyTaskCurrentTime = old.userStudyTaskCurrentTime
-                    , userStudyTaskStartTime   = old.userStudyTaskCurrentTime
                     , enableDeuceBoxSelection  = old.enableDeuceBoxSelection
                     , enableDeuceTextSelection = old.enableDeuceTextSelection
                     , codeToolsMenuMode        = old.codeToolsMenuMode
                     , textSelectMode           = old.textSelectMode
                     , enableTextEdits          = old.enableTextEdits
                     , allowMultipleTargetPositions  = old.allowMultipleTargetPositions
-                    , enableDomainSpecificCodeTools = old.enableDomainSpecificCodeTools
                     , mainResizerX             = old.mainResizerX
-                    , proseResizerY            = old.proseResizerY
                     , colorScheme              = old.colorScheme
                     } |> resetDeuceState
-                      |> Prose.extractFromUserStudyTemplate
       ) |> handleError old) >> closeDialogBox New
 
 msgAskNew template = requireSaveAsker (msgNew template)
@@ -1850,20 +2283,6 @@ msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
   { old | autosave = not old.autosave }
 
 --------------------------------------------------------------------------------
-
-msgCancelGiveUp : Msg
-msgCancelGiveUp =
-  Msg "Cancel Give Up" Model.cancelGiveUp
-
-msgConfirmGiveUp : Msg
-msgConfirmGiveUp =
-  Msg "Confirm Give Up" <| \old ->
-    { old
-        | giveUpConfirmed =
-            True
-    } |> Model.closeDialogBox AlertGiveUp
-
---------------------------------------------------------------------------------
 -- Exporting
 
 msgExportCode = Msg "Export Code" identity
@@ -1884,12 +2303,7 @@ msgAskImportCode = requireSaveAsker msgImportCode
 resetDeuceState m =
   let layoutOffsets = m.layoutOffsets in
   { m | deuceState = emptyDeuceState
-      , deuceToolsAndResults =
-          DeuceTools.createToolCache
-            { initModel
-                | enableDomainSpecificCodeTools =
-                    m.enableDomainSpecificCodeTools
-            }
+      , deuceToolsAndResults = DeuceTools.createToolCache initModel
       , deuceToolResultPreviews = Dict.empty
       , selectedDeuceTool = Nothing
       , preview = Nothing
@@ -2260,59 +2674,6 @@ msgTextSelect allowSingleSelection =
     textSelect allowSingleSelection
 
 --------------------------------------------------------------------------------
--- User Study Operations
-
-msgUserStudyStep label offset = Msg label <| \old ->
-  changeUserStudyStep label offset old
-
-changeUserStudyStep label offset old =
-  let i = old.userStudyStateIndex in
-  let newState = Utils.geti (i + offset) UserStudy.sequence in
-  let template = UserStudy.getTemplate newState in
-  let _ = UserStudyLog.log label (toString newState) in
-  { old | userStudyStateIndex = i + offset }
-      |> handleNew template
-      |> (\m ->
-           let finalCode = UserStudy.postProcessCode newState m.code in
-           { m | code = finalCode, history = ([finalCode], []) }
-         )
-      |> UserStudy.enableFeaturesForEditorMode newState
-      |> UserStudy.postProcessProse newState
-      |> upstateRun
-
-currentTaskDuration : Model -> Time.Time
-currentTaskDuration model =
-  let userStudyState = UserStudy.getState model.userStudyStateIndex in
-  UserStudy.stepTimeoutDuration userStudyState
-
-timeLeft : Model -> Time.Time
-timeLeft model =
-  let timeoutTime = model.userStudyTaskStartTime + currentTaskDuration model in
-  timeoutTime - model.userStudyTaskCurrentTime
-
-msgUserStudyNext isDone =
-  let
-    asker =
-      if isDone then
-        identity
-      else
-        giveUpAsker
-  in
-    asker <|
-      msgUserStudyStep "New: User Study Next" 1
-
-msgUserStudyPrev = msgUserStudyStep "New: User Study Prev" (-1)
-
-msgUserStudyEverySecondTick : Time.Time -> Msg
-msgUserStudyEverySecondTick currentTime =
-  Model.Msg "Time Tick" <| \old ->
-    if timeLeft old <= 0 then
-      let _ = UserStudyLog.log "Task Timeout" ("{ " ++ UserStudyLog.modelSummaryJsonInner old ++ " }") in
-      changeUserStudyStep "New: User Study Next" 1 { old | userStudyTaskCurrentTime = currentTime }
-    else
-      { old | userStudyTaskCurrentTime = currentTime }
-
---------------------------------------------------------------------------------
 -- Some Flags
 
 msgSetEnableDeuceBoxSelection : Bool -> Msg
@@ -2363,22 +2724,6 @@ msgSetAllowMultipleTargetPositions bool =
             bool
     } |> resetDeuceState
 
-msgSetEnableDomainSpecificCodeTools : Bool -> Msg
-msgSetEnableDomainSpecificCodeTools bool =
-  Msg "Set Enable Domain Specific Code Tools" <| \model ->
-    let almostNewModel =
-      { model
-          | enableDomainSpecificCodeTools =
-              bool
-      }
-    in
-      { almostNewModel
-          | deuceToolsAndResults =
-              DeuceTools.createToolCache almostNewModel
-          , deuceToolResultPreviews =
-              Dict.empty
-      }
-
 --------------------------------------------------------------------------------
 -- Set the selected Deuce tool
 
@@ -2409,7 +2754,7 @@ msgDeuceRightClick menuMode =
   Msg "Deuce Right Click" <| \model ->
     if
       model.enableDeuceTextSelection &&
-      (Model.noWidgetsSelected model)
+      (Model.noCodeWidgetsSelected model)
     then
       let
         modelAfterTextSelection =
@@ -2418,12 +2763,9 @@ msgDeuceRightClick menuMode =
             |> textSelect True
       in
         -- Make sure we selected at least one code object
-        if Model.noWidgetsSelected modelAfterTextSelection then
+        if Model.noCodeWidgetsSelected modelAfterTextSelection then
           model
         else
-          let _ =
-            UserStudyLog.log "Showing Right Click Menu" ""
-          in
           showDeuceRightClickMenu
             deuceRightClickMenuMouseOffset.x
             deuceRightClickMenuMouseOffset.y
@@ -2456,34 +2798,11 @@ msgDragMainResizer =
     Msg "Drag Main Resizer" <| \model ->
       { model | mouseMode = Model.MouseDrag updater }
 
-msgDragProseResizer : Msg
-msgDragProseResizer =
-  let
-    updater oldPosition newPosition old =
-      let
-        topBound =
-          SleekLayout.proseResizerTopBound old
-        bottomBound =
-          SleekLayout.proseResizerBottomBound old
-        oldProseResizerY =
-          (SleekLayout.proseResizer old).y
-        newProseResizerY =
-          Utils.clamp topBound bottomBound <|
-            oldProseResizerY +
-              (Tuple.second <| deltaMouse oldPosition newPosition)
-      in
-        { old | proseResizerY = Just newProseResizerY }
-  in
-    Msg "Drag Prose Resizer" <| \model ->
-      { model | mouseMode = Model.MouseDrag updater }
-
 msgResetInterfaceLayout : Msg
 msgResetInterfaceLayout =
   Msg "Reset Interface Layout" <| \model ->
     { model
         | mainResizerX =
-            Nothing
-        , proseResizerY =
             Nothing
     }
 

@@ -89,3 +89,5 @@ isInfixOperator op =
       False
     DebugLog ->
       False
+    NoWidgets ->
+      False

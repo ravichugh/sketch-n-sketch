@@ -6,6 +6,7 @@ import Dict
 import Utils
 import Lang exposing (..)
 
+
 strBaseVal : VBaseVal -> String
 strBaseVal v =
   case v of
@@ -36,15 +37,15 @@ strNumTrunc k =
 
 strVal_ : Bool -> Val -> String
 strVal_ showTraces v =
-  let foo = strVal_ showTraces in
-  let sTrace = if showTraces then Utils.braces (toString v.vtrace) else "" in
-  sTrace ++
+  let recurse = strVal_ showTraces in
+  -- let sTrace = if showTraces then Utils.braces (toString v.provenance) else "" in
+  -- sTrace ++
   case v.v_ of
     VConst maybeAxis (i,tr) -> strNum i ++ if showTraces then Utils.angleBracks (toString maybeAxis) ++ Utils.braces (strTrace tr) else ""
     VBase b                 -> strBaseVal b
     VClosure _ _ _ _        -> "<fun>"
-    VList vs                -> Utils.bracks (String.join " " (List.map foo vs))
-    VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (foo v)) |> String.join " ") ++ ">"
+    VList vs                -> Utils.bracks (String.join " " (List.map recurse vs))
+    VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (recurse v)) |> String.join " ") ++ ">"
 
 strOp : Op_ -> String
 strOp op = case op of
@@ -73,6 +74,7 @@ strOp op = case op of
   DictGet       -> "get"
   DictRemove    -> "remove"
   DebugLog      -> "debug"
+  NoWidgets     -> "noWidgets"
 
 strLoc : Loc -> String
 strLoc (k, b, mx) =

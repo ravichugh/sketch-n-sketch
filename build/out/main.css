@@ -176,7 +176,7 @@ code {
   /* transition: background-color 0.1s; */
 }
 
-.main:not(.user-study-enabled) .main-bar .menu:nth-child(2) .menu-heading {
+.main .main-bar .menu:nth-child(2) .menu-heading {
   font-weight: bold;
 }
 
@@ -328,61 +328,6 @@ code {
 }
 
 /******************************************************************************
- * Prose Panel                                                                *
- ******************************************************************************/
-
-.prose-panel {
-  /* width: DYNAMIC */
-  /* height: DYNAMIC */
-
-  background-color: var(--panel-bg-color);
-  padding: 15px;
-  overflow-y: scroll;
-
-  position: absolute;
-  /* top: DYNAMIC */
-  /* left: DYNAMIC */
-}
-
-/* Prose Panel Content */
-
-.prose-panel * {
-  margin-bottom: 0.5rem;
-}
-
-.prose-panel *:last-child {
-  margin-bottom: 0;
-}
-
-.prose-panel *:empty {
-  display: none;
-}
-
-.prose-panel h3 {
-  font-size: 1.2em;
-}
-
-.prose-panel li h3 {
-  font-size: 1.1em;
-  font-style: italic;
-}
-
-.prose-panel li {
-  margin-left: 1.5em;
-}
-
-.prose-panel a {
-  color: lightblue;
-  text-decoration: underline;
-}
-
-.prose-panel code {
-  background-color: var(--prose-code-bg-color);
-  padding: 2px 4px;
-  border-radius: 5px;
-}
-
-/******************************************************************************
  * Code Panel                                                                 *
  ******************************************************************************/
 
@@ -473,20 +418,30 @@ code {
   padding: 0 15px;
 }
 
-.action-bar .run {
+.action-bar .run,
+.action-bar .emoji {
   display: inline-block;
 
   white-space: nowrap;
   height: 25px;
   line-height: 25px;
-  padding: 0 15px;
-  cursor: pointer;
 
   position: relative;
-  top: 5px; /* (height of bar - height of button) / 2 */
 
   float: right;
   margin-right: 10px;
+}
+
+.action-bar .emoji {
+  font-size: 28px;
+  top: 7px;
+}
+
+.action-bar .run {
+  top: 5px; /* (height of bar - height of button) / 2 */
+  padding: 0 15px;
+
+  cursor: pointer;
 
   background-color: #33AA00;
   color: #FFFFFF;
@@ -539,30 +494,6 @@ code {
   position: absolute;
   /* top: DYNAMIC */
   /* left: DYNAMIC */
-}
-
-.prose-resizer {
-  cursor: row-resize;
-
-  position: absolute;
-  /* top: DYNAMIC */
-  /* left: DYNAMIC */
-}
-
-.prose-resizer .sideways {
-  display: inline-block;
-
-  -webkit-transform: rotate(90deg);
-  -moz-transform: rotate(90deg);
-  -ms-transform: rotate(90deg);
-  -o-transform: rotate(90deg);
-  transform: rotate(90deg);
-
-  -webkit-transform-origin: 50% 25%;
-  -moz-transform-origin: 50% 25%;
-  -ms-transform-origin: 50% 25%;
-  -o-transform-origin: 50% 25%;
-  transform-origin: 50% 25%;
 }
 
 /******************************************************************************
@@ -836,7 +767,7 @@ code {
  ******************************************************************************/
 
 .synthesis-results .hover-menu .text-button {
-  width: 300px;
+  width: 450px;
   height: auto;
   padding: 7px;
   line-height: 1.4em;
@@ -925,11 +856,34 @@ code {
   background-color: rgba(255, 0, 0, 0.2);
 }
 
+/* Deuce rename box */
 .rename-input {
   width: 100%;
   margin-top: 0.4em; /* 1em - synthesis-results.line-height */
   font-size: 16px;
   padding: 5px;
+}
+
+/* Rename in output box */
+#rename-box {
+  font-family: Tahoma, sans-serif;
+  font-size: 11pt;
+}
+
+.pats {
+}
+
+.pat {
+  display: inline-block;
+  margin-right: 10px;
+  width: 90px;
+  cursor: text;
+}
+
+.remove-arg {
+  margin-left: 5px;
+  font-size: 9pt;
+  cursor: pointer;
 }
 
 /******************************************************************************

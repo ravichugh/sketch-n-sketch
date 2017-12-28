@@ -1227,8 +1227,8 @@
   (let [xs ys] [(map fst pts) (map snd pts)]
   (let [xMin xMax] [(minimum xs) (maximum xs)]
   (let [yMin yMax] [(minimum ys) (maximum ys)]
-  (let xMiddle (+ xMin (* 0.5 (- xMax xMin)))
-  (let yMiddle (+ yMin (* 0.5 (- yMax yMin)))
+  (let xMiddle (noWidgets (+ xMin (* 0.5 (- xMax xMin))))
+  (let yMiddle (noWidgets (+ yMin (* 0.5 (- yMax yMin))))
     [xMiddle yMiddle] )))))))
 
 (typ polygonPoints (-> SVG Points))

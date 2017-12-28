@@ -16,7 +16,7 @@ import LangSvg exposing
   , AVal, AVal_(..), TransformCmd(..), PathCmd(..)
   )
 import ShapeWidgets exposing
-  ( ZoneName, RealZone(..), PointFeature(..), OtherFeature(..)
+  ( RealZone, RealZone(..), PointFeature(..), OtherFeature(..)
   )
 import Solver exposing (Equation)
 import FastParser exposing (isPreludeLoc, substPlusOf)
@@ -133,7 +133,7 @@ getLocationCounts options (slate, widgets) =
       -- because literal bounds will be unambiguously controlled by
       -- corner zones (and because bounding boxes are used often for
       -- stretchy shapes and groups), increase the bias against them
-      case (kind, attrName, attrVal.av_) of
+      case (kind, attrName, attrVal.interpreted) of
         ("BOX", "LEFT",  ANum (_, TrLoc _)) -> 2
         ("BOX", "RIGHT", ANum (_, TrLoc _)) -> 2
         ("BOX", "TOP",   ANum (_, TrLoc _)) -> 2
@@ -154,10 +154,11 @@ getLocationCounts options (slate, widgets) =
   in
   let addTriggerWidget widget acc =
     case widget of
-      WIntSlider _ _ _ _ loc _  -> updateCount loc acc
-      WNumSlider _ _ _ _ loc _  -> updateCount loc acc
-      WPoint (_, t1) (_, t2)    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
-      WOffset1D _ _ _ _ (_, tr) -> Set.foldl updateCount acc (locsOfTrace options tr)
+      WIntSlider _ _ _ _ _ loc _      -> updateCount loc acc
+      WNumSlider _ _ _ _ _ loc _      -> updateCount loc acc
+      WPoint (_, t1) _ (_, t2) _      -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
+      WOffset1D _ _ _ _ (_, tr) _ _ _ -> Set.foldl updateCount acc (locsOfTrace options tr)
+      WCall _ _ _ _                   -> acc
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
   let d_ = List.foldl addTriggerWidget d widgets in
@@ -170,7 +171,7 @@ tracesOfAVals avals = List.foldl (\av acc -> tracesOfAVal av ++ acc) [] avals
 
 tracesOfAVal : AVal -> List Trace
 tracesOfAVal aval =
-  case aval.av_ of
+  case aval.interpreted of
     ANum (_,t) -> [t]
 
     AColorNum ((_,t), Nothing)     -> [t]
@@ -298,7 +299,7 @@ type alias Trigger = List TriggerElement
 
 -- keeping these separate (rather than an Either key, which isn't comparable)
 --
-type alias Triggers = Dict (NodeId, ZoneName) (Trigger, Set Loc, Set Loc)
+type alias Triggers = Dict (NodeId, RealZone) (Trigger, Set Loc, Set Loc)
 
 type alias LiveInfo =
   { triggers : Triggers
@@ -388,7 +389,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
     let idAsShape = -2 - i in
     case widget of
 
-      WNumSlider minVal maxVal _ curVal loc _ ->
+      WNumSlider minVal maxVal _ curVal _ loc _ ->
         let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
             |> clamp minVal maxVal
@@ -403,7 +404,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WIntSlider a b _ c loc _ ->
+      WIntSlider a b _ c _ loc _ ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
@@ -421,7 +422,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WPoint (x, xTrace) (y, yTrace) ->
+      WPoint (x, xTrace) xProvenance (y, yTrace) yProvenance ->
         addTrigger options idAsShape (ZPoint LonePoint) [xTrace, yTrace]
         ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
             mapMaybeToList xMaybeLoc (\xLoc ->
@@ -435,7 +436,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WOffset1D baseXNumTr baseYNumTr axis sign (amount, amountTrace) ->
+      WOffset1D baseXNumTr baseYNumTr axis sign (amount, amountTrace) amountProvenance endXProvenance endYProvenance ->
         addTrigger options idAsShape ZOffset1D [amountTrace]
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
@@ -444,6 +445,9 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
             ))
         )
         accResult
+
+      WCall _ _ _ _ ->
+        accResult
   in
   Utils.foldli1 processWidget (Dict.empty, initMaybeCounts) widgets
 
@@ -451,7 +455,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
 -- Helpers --
 
 addTrigger options id realZone traces makeTrigger (dict, maybeCounts) =
-  let key = (id, ShapeWidgets.unparseZone realZone) in
+  let key = (id, realZone) in
   let (assignedMaybeLocs, allLocs, maybeCounts_) =
     pickLocs options maybeCounts traces in
   let trigger = makeTrigger assignedMaybeLocs in
@@ -484,7 +488,7 @@ computeRectTriggers
      : (Options, Subst)
     -> MaybeCounts
     -> (NodeId, ShapeKind, List Attr)
-    -> (Dict (NodeId, ZoneName) (Trigger, Set Loc, Set Loc), MaybeCounts)
+    -> (Dict (NodeId, RealZone) (Trigger, Set Loc, Set Loc), MaybeCounts)
 
 computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
   let finishTrigger = addTrigger options id in
@@ -1014,7 +1018,7 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
   let finishTrigger = addTrigger options id in
 
   let maybeAddColorTrigger realZone fillOrStroke (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind fillOrStroke attrs) of
+    case Utils.maybeFind fillOrStroke attrs |> Maybe.map .interpreted of
 
       Just (AColorNum ((color, colorTrace), _)) ->
         finishTrigger realZone [colorTrace] (\assignedMaybeLocs ->
@@ -1030,7 +1034,7 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
       _ -> (dict, maybeCounts) in
 
   let maybeAddOpacityTrigger realZone fillOrStroke (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind fillOrStroke attrs) of
+    case Utils.maybeFind fillOrStroke attrs |> Maybe.map .interpreted of
 
       Just (AColorNum (_, (Just (opacity, opacityTrace)))) ->
         finishTrigger realZone [opacityTrace] (\assignedMaybeLocs ->
@@ -1046,7 +1050,7 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
       _ -> (dict, maybeCounts) in
 
   let maybeAddStrokeWidthTrigger realZone (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind "stroke-width" attrs) of
+    case Utils.maybeFind "stroke-width" attrs |> Maybe.map .interpreted of
 
       Just (ANum (width, widthTrace)) ->
         finishTrigger realZone [widthTrace] (\assignedMaybeLocs ->
@@ -1062,7 +1066,7 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
       _ -> (dict, maybeCounts) in
 
   let maybeAddRotationTrigger realZone (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind "transform" attrs) of
+    case Utils.maybeFind "transform" attrs |> Maybe.map .interpreted of
 
       Just (ATransform [Rot (rot, rotTrace) (cx, _) (cy ,_)]) ->
         finishTrigger realZone [rotTrace] (\assignedMaybeLocs ->
@@ -1117,7 +1121,7 @@ type alias MouseTrigger2 a = (Int, Int) -> (Int, Int) -> a
 type alias LiveTrigger = MouseTrigger2 (Exp, List Ace.Highlight)
 
 -- ShapeKind in zone key is used for display in caption, but not for keying the triggers dictionary.
-type alias ZoneKey = (NodeId, ShapeKind, ZoneName) -- node id for a widget is -2 - (widget number starting from 1)
+type alias ZoneKey = (NodeId, ShapeKind, RealZone) -- node id for a widget is -2 - (widget number starting from 1)
 
 lookupZoneKey : ZoneKey -> LiveInfo -> (Trigger, Set Loc, Set Loc)
 lookupZoneKey zoneKey info =
@@ -1201,13 +1205,13 @@ yellowAndGrayHighlights zoneKey info =
 
 hoverInfo zoneKey info =
   let line1 =
-    let (nodeId, shapeKind, zoneName) = zoneKey in
+    let (nodeId, shapeKind, realZone) = zoneKey in
     let displayId =
       if nodeId < -2
       then -nodeId - 2 -- Widget
       else nodeId
     in
-    (shapeKind ++ toString displayId) ++ " " ++ zoneName
+    (shapeKind ++ toString displayId) ++ " " ++ ShapeWidgets.realZoneDesc realZone
   in
   let maybeLine2 =
     let (triggerElements, _, _) = lookupZoneKey zoneKey info in

@@ -145,6 +145,8 @@ unparseOp op =
       "remove"
     DebugLog ->
       "debug"
+    NoWidgets ->
+      "noWidgets"
 
 unparseBranch : Branch -> String
 unparseBranch branch =

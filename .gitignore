@@ -17,6 +17,7 @@ build/out/dotGraph.js
 build/out/mode-little.js
 build/out/mode-elm.js
 build/out/theme-chrome.js
+build/out/focus.js
 build/out/keyBlocker.js
 build/out/img/*
 *swp
@@ -31,3 +32,5 @@ tests/build
 user_study_logs/
 user_study_surveys/
 *.pyc
+solver_server/reduce-algebra
+solver_server/log.txt

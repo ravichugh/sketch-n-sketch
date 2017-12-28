@@ -38,6 +38,9 @@ type LocEquation
 -- Remove add or subtract by 0
 -- Remove multiply/divide by 0
 -- Combine operations on constants
+--
+-- This is superceded by normalizeSimplify.
+-- Remove when it's clear that normalizeSimplify is good enough.
 locEqnSimplify : LocEquation -> LocEquation
 locEqnSimplify eqn =
   let simplified =
@@ -705,30 +708,47 @@ normPolyAddToLocEquation normPolyAdd =
           normPolyMultToLocEquation multTerm
 
         multTerm::otherMultTerms ->
-          let (negativeTerms, nonNegativeTerms) =
-            normPolyMultTerms
-            |> List.partition (\(NormPolyMult coeff normPolyPowTerms) -> coeff < 0)
-          in
-          case (negativeTerms, nonNegativeTerms) of
-            (_, firstNonNegTerm::secondNonNegTerm::otherNonNegTerms) ->
-              -- We have at least two non-negative terms. Wait to do the subtraction.
-              let remainingTerms = secondNonNegTerm::otherNonNegTerms ++ negativeTerms in
-              LocEqnOp Plus [normPolyMultToLocEquation firstNonNegTerm, normPolyAddToLocEquation (NormPolyAdd remainingTerms)]
+          -- Simplest factoring case only right now: all same coeff (modulo sign).
+          let coeffs = normPolyMultTerms |> List.map (\(NormPolyMult coeff _) -> coeff) in
+          let possibleCoeffFactor = Utils.last_ (List.sort coeffs) in
+          if Utils.allSame (List.map abs coeffs) && possibleCoeffFactor /= 1 then
+            let coeffFactor = possibleCoeffFactor in
+            let factoredTerms =
+              normPolyMultTerms
+              |> List.map
+                  (\(NormPolyMult coeff normPolyPowTerms) ->
+                    if coeff == coeffFactor then
+                      NormPolyMult 1 normPolyPowTerms
+                    else
+                      NormPolyMult -1 normPolyPowTerms
+                  )
+            in
+            normPolyMultToLocEquation (NormPolyMult coeffFactor [NormPolyPow (NormPolyAdd factoredTerms) (NormPolyAdd [NormPolyMult 1 []])])
+          else
+            let (negativeTerms, nonNegativeTerms) =
+              normPolyMultTerms
+              |> List.partition (\(NormPolyMult coeff normPolyPowTerms) -> coeff < 0)
+            in
+            case (negativeTerms, nonNegativeTerms) of
+              (_, firstNonNegTerm::secondNonNegTerm::otherNonNegTerms) ->
+                -- We have at least two non-negative terms. Wait to do the subtraction.
+                let remainingTerms = secondNonNegTerm::otherNonNegTerms ++ negativeTerms in
+                LocEqnOp Plus [normPolyMultToLocEquation firstNonNegTerm, normPolyAddToLocEquation (NormPolyAdd remainingTerms)]
 
-            (_::_, onlyNonNegTerm::[]) ->
-              let negNegativeTerms = negativeTerms |> List.map (normPolyMultScalarMult -1) in
-              LocEqnOp Minus [normPolyMultToLocEquation onlyNonNegTerm, normPolyAddToLocEquation (NormPolyAdd negNegativeTerms)]
+              (_::_, onlyNonNegTerm::[]) ->
+                let negNegativeTerms = negativeTerms |> List.map (normPolyMultScalarMult -1) in
+                LocEqnOp Minus [normPolyMultToLocEquation onlyNonNegTerm, normPolyAddToLocEquation (NormPolyAdd negNegativeTerms)]
 
-            (_::_, []) ->
-              -- Only negative terms. :(
-              -- Will build a common factor extractor later.
-              LocEqnOp Plus [normPolyMultToLocEquation multTerm, normPolyAddToLocEquation (NormPolyAdd otherMultTerms)]
+              (_::_, []) ->
+                -- Only negative terms. :(
+                -- Will build a common factor extractor later.
+                LocEqnOp Plus [normPolyMultToLocEquation multTerm, normPolyAddToLocEquation (NormPolyAdd otherMultTerms)]
 
-            ([], _::[]) ->
-              Debug.crash "LocEqn.normPolyAddToLocEquation shouldn't get here; single term handled in earlier case statement"
+              ([], _::[]) ->
+                Debug.crash "LocEqn.normPolyAddToLocEquation shouldn't get here; single term handled in earlier case statement"
 
-            ([], []) ->
-              Debug.crash "LocEqn.normPolyAddToLocEquation shouldn't get here; empty term list in earlier case statement"
+              ([], []) ->
+                Debug.crash "LocEqn.normPolyAddToLocEquation shouldn't get here; empty term list in earlier case statement"
 
 
 
@@ -830,9 +850,19 @@ normalizeSimplify eqn =
   -- let _ = Debug.log ("Poly version " ++ polyToString polyEqn) () in
   let normPolyResult = polyNorm polyEqn in
   -- let _ = Debug.log ("Got " ++ normPolyToString normPolyResult) () in
-  let littleResult = normPolyToLocEquation normPolyResult in
+  let locEqnResult = normPolyToLocEquation normPolyResult |> correctFloatErrors in
   -- let _ = Debug.log ("As little " ++ locEqnToLittle Dict.empty littleResult) () in
-  littleResult
+  locEqnResult
+
+
+-- Find e.g. 1.4999999999999 and change to 1.5.
+correctFloatErrors : LocEquation -> LocEquation
+correctFloatErrors eqn =
+  case eqn of
+    LocEqnConst n         -> LocEqnConst (Utils.correctFloatError n)
+    LocEqnLoc _           -> eqn
+    LocEqnOp op_ children -> LocEqnOp op_ (List.map correctFloatErrors children)
+
 
 -- locEqnsOfSize astSize locsToUse =
 --   if astSize < 1 then
@@ -1061,13 +1091,19 @@ littleConstants = -- From stats of all our little programs so far.
 -- Fill in template with all combinations of locId's in the various locations.
 -- Then choose a single best number for filling in a constant.
 -- (Expects no more than one constant.)
+--
+-- This function is not actually used, just a demo. In practice may want to filter after each step.
 locEqnTemplateFillings targetValue subst locIdSet template =
   let allLocFillings = locEqnTemplateLocFillings (locIdSet |> Set.toList) template in
+  locEqnTemplateFillingsLocsFilled targetValue subst littleConstants allLocFillings
+
+locEqnTemplateFillingsLocsFilled : Num -> Subst -> List Num -> List LocEquation -> List LocEquation
+locEqnTemplateFillingsLocsFilled targetValue subst constants locFillings =
   let filledWithNiceNumber =
-    allLocFillings
+    locFillings
     |> List.map
         (\locFilledEqn ->
-          locEqnTemplateConstantFillings littleConstants locFilledEqn
+          locEqnTemplateConstantFillings constants locFilledEqn
           |> List.sortBy (\eqn -> abs (locEqnEval subst eqn - targetValue))
           |> Utils.head "LocEqn.locEqnTemplateFillings ranking"
         )
@@ -1079,12 +1115,19 @@ locEqnTemplateFillings targetValue subst locIdSet template =
         LocEqnLoc _          -> eqn
         LocEqnOp op children -> LocEqnOp op (List.map (fillInConstant const) children)
     in
-    allLocFillings
+    locFillings
     |> List.filterMap
         (\locFilledEqn ->
-          -- Only produce an exact solution if no locs appear more than once.
-          -- Cuts down on *some* junk.
-          if Set.size (locEqnLocIdSet locFilledEqn) == List.length (locEqnLocIds locFilledEqn) then
+          -- -- Only produce an exact solution if no locs appear more than once.
+          -- -- Cuts down on *some* junk.
+          -- if Set.size (locEqnLocIdSet locFilledEqn) == List.length (locEqnLocIds locFilledEqn) then
+          --   solveForConst subst locFilledEqn targetValue
+          --   |> Maybe.map (\const -> fillInConstant const locFilledEqn)
+          -- else
+          --   Nothing
+
+          -- Only produce an exact solution if only one loc in eqn.
+          if List.length (locEqnLocIds locFilledEqn) <= 1 then
             solveForConst subst locFilledEqn targetValue
             |> Maybe.map (\const -> fillInConstant const locFilledEqn)
           else
@@ -1094,6 +1137,7 @@ locEqnTemplateFillings targetValue subst locIdSet template =
   filledWithNiceNumber ++ filledWithExactNumber
 
 
+-- locIds should be unique.
 locEqnTemplateLocFillings : List LocId -> LocEquation -> List LocEquation
 locEqnTemplateLocFillings locIds eqn =
   case eqn of
@@ -1128,7 +1172,7 @@ locEqnTemplateConstantFillings constants eqn =
       |> List.map (LocEqnOp op)
 
 
-atLeastNLocs     n template = Set.size (locEqnLocIdSet template) >= n
+atLeastNLocs     n template = List.length (locEqnLocIds template) >= n
 atMostNConstants n template = List.length (locEqnConsts template) <= n
 
 -- Templates for synthesis:
@@ -1139,6 +1183,8 @@ locEqnsTemplatesOfSize minLocs maxConsts astSize =
   |> List.filter (atLeastNLocs minLocs)
   |> List.filter (atMostNConstants maxConsts)
 
+-- Could be more time and memory effecient with explicit memoization (build up from size 1)
+-- But I don't think this part is the bottleneck
 locEqnsTemplatesOfSize_ astSize =
   if astSize < 1 then
     []
@@ -1172,14 +1218,7 @@ locEqnSize eqn =
 
 locEqnLocIdSet : LocEquation -> Set.Set LocId
 locEqnLocIdSet eqn =
-  case eqn of
-    LocEqnConst _       -> Set.empty
-    LocEqnLoc locId     -> Set.singleton locId
-    LocEqnOp _ children ->
-      List.foldl
-          (\child locs -> Set.union locs <| locEqnLocIdSet child)
-          Set.empty
-          children
+  locEqnLocIds eqn |> Set.fromList
 
 locEqnConsts : LocEquation -> List Num
 locEqnConsts eqn =
@@ -1249,6 +1288,18 @@ constantifyLocs locIdToNum eqn =
 
     LocEqnOp op childEqns ->
       LocEqnOp op <| List.map (constantifyLocs locIdToNum) childEqns
+
+
+-- For debuging
+locEqnToString : LocEquation -> String
+locEqnToString eqn =
+  case eqn of
+    LocEqnConst n   -> toString n
+    LocEqnLoc locId -> "k" ++ toString locId
+    LocEqnOp op [left, right] ->
+      "(" ++ locEqnToString left ++ " " ++ strOp op ++ " " ++ locEqnToString right ++ ")"
+    LocEqnOp op children ->
+      "(" ++ strOp op ++ " " ++ String.join " " (List.map locEqnToString children) ++ ")"
 
 
 locEqnToLittle : Dict.Dict LocId Ident -> LocEquation -> String

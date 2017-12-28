@@ -1,5 +1,5 @@
 module FastParser exposing
-  ( prelude, isPreludeLoc, isPreludeLocId, isPreludeEId
+  ( prelude, isPreludeLoc, isPreludeLocId, isPreludeEId, isActualEId, isProgramEId
   , substOf, substStrOf, substPlusOf
   , parseE, parseT
   , sanitizeVariableName
@@ -30,6 +30,7 @@ import Pos exposing (..)
 import Info exposing (..)
 
 import ImpureGoodies
+import LangUnparser
 
 --==============================================================================
 --= PARSER WITH INFO
@@ -50,7 +51,7 @@ block
 block combiner openSymbol closeSymbol p =
   delayedCommitMap
     ( \(wsStart, open) (result, wsEnd, close) ->
-        withInfo
+        WithInfo
           (combiner wsStart result wsEnd)
           open.start
           close.end
@@ -309,6 +310,7 @@ keywords =
     , "get"
     , "remove"
     , "debug"
+    , "noWidgets"
     ]
 
 --------------------------------------------------------------------------------
@@ -428,7 +430,7 @@ asPattern =
       lazy <| \_ ->
         delayedCommitMap
           ( \(wsStart, name, wsAt) pat ->
-              withInfo (PAs wsStart name.val wsAt pat) name.start pat.end
+              WithInfo (PAs wsStart name.val wsAt pat) name.start pat.end
           )
           ( succeed (,,)
               |= spaces
@@ -466,7 +468,7 @@ baseType context combiner token =
   inContext context <|
     delayedCommitMap
       ( \ws _ ->
-          withInfo (combiner ws) ws.start ws.end
+          WithInfo (combiner ws) ws.start ws.end
       )
       ( spaces )
       ( keyword token )
@@ -679,7 +681,7 @@ constantExpression =
   mapExp_ <|
     delayedCommitMap
       ( \ws (n, fa, w) ->
-          withInfo
+          WithInfo
             (EConst ws n.val (dummyLocWithDebugInfo fa.val n.val) w)
             n.start
             w.end
@@ -764,6 +766,8 @@ operator =
                 |. keywordWithSpace "remove"
             , succeed DebugLog
                 |. keywordWithSpace "debug"
+            , succeed NoWidgets
+                |. keywordWithSpace "noWidgets"
             ]
     in
       inContext "operator" <|
@@ -883,7 +887,7 @@ typeCaseExpression =
     lazy <| \_ ->
       genericCase
         "type case expression" "typecase"
-        ETypeCase TBranch_ pattern typ
+        ETypeCase TBranch_ exp typ
 
 --------------------------------------------------------------------------------
 -- Functions
@@ -954,7 +958,7 @@ genericDefBinding context kword isRec =
     inContext context <|
       delayedCommitMap
         ( \(wsStart, open) (name, binding, wsEnd, close, rest) ->
-            withInfo
+            WithInfo
               (ELet wsStart Def isRec name binding rest wsEnd)
               open.start
               close.end
@@ -1014,7 +1018,7 @@ option =
       lazy <| \_ ->
         delayedCommitMap
           ( \wsStart (open, opt, wsMid, val, rest) ->
-              withInfo
+              WithInfo
                 (EOption wsStart opt wsMid val rest)
                 open.start
                 val.end
@@ -1047,7 +1051,7 @@ typeDeclaration =
     inContext "type declaration" <|
       delayedCommitMap
         ( \(wsStart, open) (pat, t, wsEnd, close, rest) ->
-            withInfo
+            WithInfo
               (ETyp wsStart pat t rest wsEnd)
               open.start
               close.end
@@ -1075,7 +1079,7 @@ typeAlias =
     inContext "type alias" <|
       delayedCommitMap
         ( \(wsStart, open, pat) (t, wsEnd, close, rest) ->
-            withInfo
+            WithInfo
               (ETypeAlias wsStart pat t rest wsEnd)
               open.start
               close.end
@@ -1129,7 +1133,7 @@ comment =
       lazy <| \_ ->
         delayedCommitMap
           ( \wsStart (semicolon, text, rest) ->
-              withInfo
+              WithInfo
                 (EComment wsStart text.val rest)
                 semicolon.start
                 text.end
@@ -1236,7 +1240,7 @@ topLevelTypeAlias =
   inContext "top-level type alias" <|
     delayedCommitMap
       ( \(wsStart, open, pat) (t, wsEnd, close) ->
-          withInfo
+          WithInfo
             (\rest -> (exp_ <| ETypeAlias wsStart pat t rest wsEnd))
             open.start
             close.end
@@ -1262,7 +1266,7 @@ topLevelComment =
   inContext "top-level comment" <|
     delayedCommitMap
       ( \wsStart (semicolon, text) ->
-          withInfo
+          WithInfo
             ( \rest ->
                 exp_ <| EComment wsStart text.val rest
             )
@@ -1338,7 +1342,7 @@ implicitMain =
     builder p =
       let
         withCorrectInfo x =
-          withInfo x p p
+          WithInfo x p p
         name =
           withCorrectInfo << pat_ <|
             PVar space1 "_IMPLICIT_MAIN" (withDummyInfo NoWidgetDecl)
@@ -1417,6 +1421,12 @@ isPreludeLocId k = k < initK
 isPreludeEId : EId -> Bool
 isPreludeEId k = k < initK
 
+isActualEId : EId -> Bool
+isActualEId eid = eid >= 0
+
+isProgramEId : EId -> Bool
+isProgramEId eid = isActualEId eid && not (isPreludeEId eid)
+
 clearAllIds : Exp -> Exp
 clearAllIds root =
   mapExp clearNodeIds root
@@ -1482,11 +1492,6 @@ freshenPreserving idsToPreserve initK e =
                 ([], k)
           in
           (ECase ws1 scrutinee newBranches ws2, newK)
-
-        -- TypeCase scrutinee will be changed to an exp eventually.
-        ETypeCase ws1 pat tbranches ws2 ->
-          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
-          (ETypeCase ws1 newPat tbranches ws2, newK)
 
         ETyp ws1 pat tipe e ws2 ->
           let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
@@ -1562,7 +1567,6 @@ allIdsRaw exp =
             ELet ws1 kind b p e1 e2 ws2           -> pidsInPat p
             EFun ws1 pats body ws2                -> pidsInPats pats
             ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
-            ETypeCase ws1 pat tbranches ws2       -> pidsInPat pat
             ETyp ws1 pat tipe e ws2               -> pidsInPat pat
             ETypeAlias ws1 pat tipe e ws2         -> pidsInPat pat
             _                                     -> []
@@ -1635,7 +1639,10 @@ substPlusOf_ substPlus exp =
           Nothing ->
             Dict.insert locId { e | val = n } s
           Just existing ->
-            if n == existing.val then s else Debug.crash <| "substPlusOf_ Constant: " ++ (toString n)
+            if n == existing.val then
+              s
+            else
+              Debug.crash <| "substPlusOf_ Duplicate locId " ++ toString locId ++ " with differing value " ++ toString n ++ "\n" ++ LangUnparser.unparseWithIds exp
       _ -> s
   in
   foldExp accumulator substPlus exp
