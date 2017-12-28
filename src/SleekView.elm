@@ -1109,9 +1109,7 @@ synthesisResultsSelect model resultsKey =
                   in
                     [ synthesisResultHoverMenu
                         resultsKey
-                        (if splash_i_2017_demo
-                           then ("Option " ++ toString (i+1))
-                           else (desc description exp isSafe sortKey))
+                        (desc description exp isSafe sortKey)
                         thisElementPath
                         exp
                         nextMenu

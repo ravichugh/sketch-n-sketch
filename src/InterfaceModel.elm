@@ -1139,5 +1139,3 @@ initModel =
     , lastSelectedTemplate = Nothing
     , syntax = Syntax.Elm
     }
-
-splash_i_2017_demo = False
