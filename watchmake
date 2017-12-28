@@ -15,12 +15,12 @@ THIS_DIR = File.expand_path("..", __FILE__)
 
 FileUtils.cd THIS_DIR
 
-FSWATCH_COMMAND = "fswatch --latency 0.1 -Ee 'git|build/|elm-stuff/|solver_server/|user_study_logs/|Generated' ."
+FSWATCH_COMMAND = "fswatch --latency 0.1 -Ee 'git|build/|elm-stuff/|solver_server/|user_study_logs/|Generated|.DS_Store|watchmake' ."
 MAKE_ARGS       = ARGV.size == 0 ? ["html"] : ARGV
 MAKE_COMMAND    = "cd src; make #{MAKE_ARGS.join(" ")}"
 
 IO.popen(FSWATCH_COMMAND) do |fswatch|
-  puts "Will run #{MAKE_COMMAND} on file changes noticed by"
+  puts "Will run `#{MAKE_COMMAND}` on file changes noticed by"
   puts FSWATCH_COMMAND
   loop do
     changed_files = fswatch.readpartial(1_000_000)
