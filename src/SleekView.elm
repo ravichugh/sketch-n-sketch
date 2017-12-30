@@ -28,7 +28,7 @@ import ExamplesGenerated as Examples
 import Deuce
 import DeuceTools
 
-import OutputTools
+import OutputTools exposing (OutputTool)
 
 import SleekLayout exposing (px, half)
 import Canvas
@@ -480,6 +480,39 @@ editCodeEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
           , attributes = logMouseOver ("Edit Code Top Menu Item \"" ++ name ++ "\"")
       }
 
+outputToolEntry : Model -> OutputTool -> Html Msg
+outputToolEntry model tool =
+  let
+    prettyName =
+      case tool.shortcut of
+        Just shortcut ->
+          tool.name ++ " (⌘" ++ shortcut ++ ")"
+        _ ->
+          tool.name
+
+    (disabled, action) =
+      case tool.func of
+        Just msg ->
+          (not <| List.all Model.predicateSatisfied tool.reqs, msg)
+
+        Nothing ->
+          (True, Controller.msgNoop)
+  in
+    case tool.kind of
+      OutputTools.Single ->
+        disableableTextButton
+          disabled
+          prettyName
+          action
+
+      OutputTools.Multi ->
+        synthesisHoverMenu
+          model
+          tool.name
+          prettyName
+          action
+          disabled
+
 menuHeading : String -> Html Msg
 menuHeading heading =
   let attributes =
@@ -700,42 +733,9 @@ menuBar model =
 --        ]
 
     outputToolsMenu =
-      let
-        outputToolMenuEntry tool =
-          let
-            prettyName =
-              case tool.shortcut of
-                Just shortcut ->
-                  tool.name ++ " (⌘" ++ shortcut ++ ")"
-                _ ->
-                  tool.name
-
-            (disabled, action) =
-              case tool.func of
-                Just msg ->
-                  (not <| List.all Model.predicateSatisfied tool.reqs, msg)
-
-                Nothing ->
-                  (True, Controller.msgNoop)
-          in
-            case tool.kind of
-              OutputTools.Single ->
-                disableableTextButton
-                  disabled
-                  prettyName
-                  action
-
-              OutputTools.Multi ->
-                synthesisHoverMenu
-                  model
-                  tool.name
-                  prettyName
-                  action
-                  disabled
-      in
-        menu "Output Tools" <|
-          List.map (List.map outputToolMenuEntry) <|
-            OutputTools.tools model
+      menu "Output Tools" <|
+        List.map (List.map <| outputToolEntry model) <|
+          OutputTools.tools model
 
     viewMenu =
       menu "View" <|
@@ -2073,6 +2073,23 @@ popupPanel args =
       dragger ++ args.content
 
 --------------------------------------------------------------------------------
+-- No Available Tools Helper
+--------------------------------------------------------------------------------
+
+noAvailableTools : Html Msg
+noAvailableTools =
+  Html.div
+    [ Attr.class "no-available-tools"
+    ]
+    [ Html.text
+        "There are no available tools based on these selections. Press "
+    , Html.i []
+        [ Html.text "Escape" ]
+    , Html.text
+        " to clear."
+    ]
+
+--------------------------------------------------------------------------------
 -- Deuce Popup Panel
 --------------------------------------------------------------------------------
 
@@ -2105,16 +2122,7 @@ deucePopupPanel model =
                   |> Utils.mapi1 (deuceHoverMenu model)
             in
               if List.isEmpty activeTools then
-                Html.div
-                  [ Attr.class "no-available-tools"
-                  ]
-                  [ Html.text
-                      "There are no available tools based on these selections. Press "
-                  , Html.i []
-                      [ Html.text "Escape" ]
-                  , Html.text
-                      " to clear."
-                  ]
+                noAvailableTools
               else
                 Html.div
                   []
@@ -2212,6 +2220,41 @@ editCodePopupPanel model =
       }
 
 --------------------------------------------------------------------------------
+-- Auto Output Tools Popup Panel
+--------------------------------------------------------------------------------
+
+autoOutputToolsPopupPanel : Model -> Html Msg
+autoOutputToolsPopupPanel model =
+  popupPanel
+    { pos =
+        model.popupPanelPositions.autoOutputTools
+    , disabled =
+        not <| Model.autoOutputToolsPopupPanelShown model
+    , dragHandler =
+        Controller.msgDragAutoOutputToolsPopupPanel
+    , class =
+        "auto-output-tools"
+    , title =
+        [ Html.text "Output Tools"
+        ]
+    , content =
+        [ let
+            activeTools =
+              OutputTools.tools model
+                |> List.concatMap
+                     (List.filter <| List.all Model.predicateSatisfied << .reqs)
+                |> List.map (outputToolEntry model)
+          in
+            if List.isEmpty activeTools then
+              noAvailableTools
+            else
+              Html.div
+                []
+                activeTools
+        ]
+    }
+
+--------------------------------------------------------------------------------
 -- All Popup Panels
 --------------------------------------------------------------------------------
 
@@ -2219,6 +2262,7 @@ popupPanels : Model -> List (Html Msg)
 popupPanels model =
   [ deucePopupPanel model
   , editCodePopupPanel model
+  , autoOutputToolsPopupPanel model
   ]
 
 --------------------------------------------------------------------------------

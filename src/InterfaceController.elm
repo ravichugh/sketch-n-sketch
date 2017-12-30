@@ -50,6 +50,7 @@ port module InterfaceController exposing
   , msgUpdateRenameVarTextBox
   , msgClearDrag
   , msgDragDeucePopupPanel
+  , msgDragAutoOutputToolsPopupPanel
   , msgDragEditCodePopupPanel
   , msgDragDeuceRightClickMenu
   , msgTextSelect
@@ -2623,6 +2624,18 @@ msgDragDeucePopupPanel =
       .deuce
       ( \ppp pos ->
           { ppp | deuce = pos }
+      )
+
+--------------------------------------------------------------------------------
+-- Auto Output Tools Popup Panel
+
+msgDragAutoOutputToolsPopupPanel : Msg
+msgDragAutoOutputToolsPopupPanel =
+  Msg "Drag Auto Output Tools Popup Panel" <|
+    updatePopupPanelPosition
+      .autoOutputTools
+      ( \ppp pos ->
+          { ppp | autoOutputTools = pos }
       )
 
 --------------------------------------------------------------------------------

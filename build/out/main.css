@@ -1021,3 +1021,11 @@ code {
   content: " (Invalid Selections)";
   font-style: italic;
 }
+
+/******************************************************************************
+ * Auto Output Tools Popup Panel                                              *
+ ******************************************************************************/
+
+.auto-output-tools .text-button {
+  display: flex;
+}

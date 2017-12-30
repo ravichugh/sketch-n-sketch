@@ -65,6 +65,7 @@ type alias PopupPanelPositions =
   { deuce : (Int, Int)
   , editCode : (Int, Int)
   , deuceRightClickMenu : (Int, Int)
+  , autoOutputTools : (Int, Int)
   }
 
 type ColorScheme
@@ -1003,6 +1004,14 @@ deucePopupPanelShown model =
     , not <| configurationPanelShown model
     ]
 
+autoOutputToolsPopupPanelShown : Model -> Bool
+autoOutputToolsPopupPanelShown model =
+  Utils.or
+    [ not <| Set.isEmpty model.selectedFeatures
+    , not <| Set.isEmpty model.selectedShapes
+    , not <| Dict.isEmpty model.selectedBlobs
+    ]
+
 --------------------------------------------------------------------------------
 
 initTemplate : String
@@ -1120,6 +1129,7 @@ initModel =
         { deuce = (200, 200)
         , editCode = (400, 400)
         , deuceRightClickMenu = (400, 400)
+        , autoOutputTools = (400, 100)
         }
     , deuceRightClickMenuMode = Nothing
     , enableDeuceBoxSelection = True

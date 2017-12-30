@@ -1,5 +1,6 @@
 module OutputTools exposing
   ( OutputToolKind(..)
+  , OutputTool
   , tools
   )
 
