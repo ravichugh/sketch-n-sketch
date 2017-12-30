@@ -28,6 +28,8 @@ import ExamplesGenerated as Examples
 import Deuce
 import DeuceTools
 
+import OutputTools
+
 import SleekLayout exposing (px, half)
 import Canvas
 import LangTools
@@ -195,28 +197,30 @@ booleanOption test onString offString handler =
       (handler False)
   ]
 
-relateTextButton : Model -> String -> Msg -> Html Msg
-relateTextButton model text onClickHandler =
-  let
-    noFeatures =
-      Set.isEmpty model.selectedFeatures
-  in
-    disableableTextButton noFeatures text onClickHandler
+-- Logic moved to OutputTools
+-- relateTextButton : Model -> String -> Msg -> Html Msg
+-- relateTextButton model text onClickHandler =
+--   let
+--     noFeatures =
+--       Set.isEmpty model.selectedFeatures
+--   in
+--     disableableTextButton noFeatures text onClickHandler
 
-groupTextButton : Model -> String -> Msg -> Bool -> Html Msg
-groupTextButton model text onClickHandler disallowSelectedFeatures =
-  let
-    noFeatures =
-      Set.isEmpty model.selectedFeatures
-    noShapes =
-      Set.isEmpty model.selectedShapes
-    noBlobs =
-      Dict.isEmpty model.selectedBlobs
-  in
-    disableableTextButton
-      ((noBlobs && noShapes && noFeatures) || (disallowSelectedFeatures && (not noFeatures)))
-      text
-      onClickHandler
+-- Logic moved to OutputTools
+-- groupTextButton : Model -> String -> Msg -> Bool -> Html Msg
+-- groupTextButton model text onClickHandler disallowSelectedFeatures =
+--   let
+--     noFeatures =
+--       Set.isEmpty model.selectedFeatures
+--     noShapes =
+--       Set.isEmpty model.selectedShapes
+--     noBlobs =
+--       Dict.isEmpty model.selectedBlobs
+--   in
+--     disableableTextButton
+--       ((noBlobs && noShapes && noFeatures) || (disallowSelectedFeatures && (not noFeatures)))
+--       text
+--       onClickHandler
 
 -- UI Buttons
 
@@ -629,71 +633,109 @@ menuBar model =
           Nothing ->
             []
 
+--    outputToolsMenu =
+--      menu "Output Tools"
+--        [ [ relateTextButton
+--              model
+--              "Dig Hole"
+--              Controller.msgDigHole
+--          , relateHoverMenu
+--              model
+--              "Make Equal"
+--              "Make Equal (⌘E)"
+--              Controller.msgMakeEqual
+--          , relateHoverMenu
+--              model
+--              "Relate"
+--              "Relate"
+--              Controller.msgRelate
+--          , relateHoverMenu
+--              model
+--              "Indexed Relate"
+--              "Indexed Relate"
+--              Controller.msgIndexedRelate
+--          , relateHoverMenu
+--              model
+--              "Build Abstraction"
+--              "Build Abstraction"
+--              Controller.msgBuildAbstraction
+--          ]
+--        , [ groupTextButton
+--              model
+--              "Dupe (⌘D)"
+--              Controller.msgDuplicate
+--              False
+--          , groupTextButton
+--              model
+--              "Merge"
+--              Controller.msgMergeBlobs
+--              True
+--          , groupTextButton
+--              model
+--              "Group (⌘G)"
+--              Controller.msgGroupBlobs
+--              False
+--          , groupTextButton
+--              model
+--              "Abstract"
+--              Controller.msgAbstractBlobs
+--              True
+--          ]
+--        , [ groupTextButton
+--              model
+--              "Repeat Right"
+--              (Controller.msgReplicateBlob HorizontalRepeat)
+--              True
+--          , groupTextButton
+--              model
+--              "Repeat To"
+--              (Controller.msgReplicateBlob LinearRepeat)
+--              True
+--          , groupTextButton
+--              model
+--              "Repeat Around"
+--              (Controller.msgReplicateBlob RadialRepeat)
+--              True
+--          ]
+--        ]
+
     outputToolsMenu =
-      menu "Output Tools"
-        [ [ relateTextButton
-              model
-              "Dig Hole"
-              Controller.msgDigHole
-          , relateHoverMenu
-              model
-              "Make Equal"
-              "Make Equal (⌘E)"
-              Controller.msgMakeEqual
-          , relateHoverMenu
-              model
-              "Relate"
-              "Relate"
-              Controller.msgRelate
-          , relateHoverMenu
-              model
-              "Indexed Relate"
-              "Indexed Relate"
-              Controller.msgIndexedRelate
-          , relateHoverMenu
-              model
-              "Build Abstraction"
-              "Build Abstraction"
-              Controller.msgBuildAbstraction
-          ]
-        , [ groupTextButton
-              model
-              "Dupe (⌘D)"
-              Controller.msgDuplicate
-              False
-          , groupTextButton
-              model
-              "Merge"
-              Controller.msgMergeBlobs
-              True
-          , groupTextButton
-              model
-              "Group (⌘G)"
-              Controller.msgGroupBlobs
-              False
-          , groupTextButton
-              model
-              "Abstract"
-              Controller.msgAbstractBlobs
-              True
-          ]
-        , [ groupTextButton
-              model
-              "Repeat Right"
-              (Controller.msgReplicateBlob HorizontalRepeat)
-              True
-          , groupTextButton
-              model
-              "Repeat To"
-              (Controller.msgReplicateBlob LinearRepeat)
-              True
-          , groupTextButton
-              model
-              "Repeat Around"
-              (Controller.msgReplicateBlob RadialRepeat)
-              True
-          ]
-        ]
+      let
+        outputToolMenuEntry tool =
+          let
+            prettyName =
+              case tool.shortcut of
+                Just shortcut ->
+                  tool.name ++ " (⌘" ++ shortcut ++ ")"
+                _ ->
+                  tool.name
+
+            (disabled, action) =
+              case tool.func of
+                Just msg ->
+                  (not <| List.all Model.predicateSatisfied tool.reqs, msg)
+
+                Nothing ->
+                  (True, Controller.msgNoop)
+          in
+            case tool.kind of
+              OutputTools.Single ->
+                disableableTextButton
+                  disabled
+                  prettyName
+                  action
+
+              OutputTools.Multi ->
+                synthesisHoverMenu
+                  model
+                  tool.name
+                  prettyName
+                  action
+                  disabled
+      in
+        menu "Output Tools" <|
+          List.map (List.map outputToolMenuEntry) <|
+            OutputTools.tools model
 
     viewMenu =
       menu "View" <|
