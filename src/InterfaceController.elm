@@ -446,18 +446,12 @@ onMouseDrag lastPosition newPosition old =
               case svgNode.interpreted of
                 LangSvg.TextNode _ -> []
                 LangSvg.SvgNode shapeKind shapeAttrs childIds ->
-                  ShapeWidgets.genericFeaturesOfShape shapeKind shapeAttrs
-                  |> List.filterMap
-                      (\feature ->
-                        case feature of
-                          PointFeature pf -> Just (feature, ShapeWidgets.getPointEquations shapeKind shapeAttrs pf)
-                          _               -> Nothing
-                      )
+                  ShapeWidgets.pointFeaturesOfShape shapeKind shapeAttrs
                   |> List.concatMap
-                      (\(feature, (xEqn, yEqn)) ->
-                        case (ShapeWidgets.evaluateFeatureEquation xEqn, ShapeWidgets.evaluateFeatureEquation yEqn) of
-                          (Just x, Just y) -> feature |> ShapeWidgets.shapeFeaturesOfGenericFeature |> List.map (\shapeFeature -> ((nodeId, shapeFeature), (x, y)))
-                          _                -> []
+                      (\pf ->
+                        case ShapeWidgets.maybeEvaluateShapePointFeature shapeKind shapeAttrs pf of
+                          Just (x, y) -> [((nodeId, XFeat pf), (x, y)), ((nodeId, YFeat pf), (x, y))]
+                          Nothing     -> []
                       )
             )
       in
@@ -467,42 +461,26 @@ onMouseDrag lastPosition newPosition old =
         |> List.concatMap
             (\(widgetI, widget) ->
               let idAsShape = -2 - widgetI in
-              case widget of
-                WIntSlider _ _ _ _ _ _ _ -> []
-                WNumSlider _ _ _ _ _ _ _ -> []
-                WPoint (x, xTr) _ (y, yTr) _ ->
-                  [ ((idAsShape, XFeat LonePoint), (x, y))
-                  , ((idAsShape, YFeat LonePoint), (x, y))
-                  ]
-                WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _ ->
-                  let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
-                    offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
-                  in
-                  [ ((idAsShape, XFeat EndPoint), (endX, endY))
-                  , ((idAsShape, YFeat EndPoint), (endX, endY))
-                  ]
-                WCall _ _ _ _ -> []
-            )
-      in
-      let shapesAndBounds =
-        selectableShapeFeaturesAndPositions
-        |> Utils.groupBy (\((nodeId, shapeFeature), (x, y)) -> nodeId)
-        |> Dict.toList
-        |> List.map
-            (\(nodeId, featuresAndPositions) ->
-              let xs = featuresAndPositions |> List.map (\(_, (x, y)) -> x) in
-              let ys = featuresAndPositions |> List.map (\(_, (x, y)) -> y) in
-              let (left, right) = (List.minimum xs |> Maybe.withDefault -100000, List.maximum xs |> Maybe.withDefault -100000) in
-              let (top, bot)    = (List.minimum ys |> Maybe.withDefault -100000, List.maximum ys |> Maybe.withDefault -100000) in
-              (nodeId, (top, left, bot, right))
+              ShapeWidgets.pointFeaturesOfWidget widget
+              |> List.concatMap
+                  (\pf ->
+                    case ShapeWidgets.maybeEvaluateWidgetPointFeature widget pf of
+                      Just (x, y) -> [((idAsShape, XFeat pf), (x, y)), ((idAsShape, YFeat pf), (x, y))]
+                      Nothing     -> []
+                  )
             )
       in
       let blobsAndBounds = [] in -- Ignore for now. Blobs are going to go bye-bye.
       let blobsToSelect = [] in  -- Ignore for now. Blobs are going to go bye-bye.
       let shapesToSelect =
-        shapesAndBounds
-        |> List.filter (\(nodeId, (top, left, bot, right)) -> selectLeft <= left && right <= selectRight && selectTop <= top && bot <= selectBot)
-        |> List.map    (\(nodeId, _) -> nodeId)
+        shapeTree
+        |> Dict.filter
+            (\nodeId svgNode ->
+              case ShapeWidgets.maybeShapeBounds svgNode of
+                Just (left, top, right, bot) -> selectLeft <= round left && round right <= selectRight && selectTop <= round top && round bot <= selectBot
+                Nothing                      -> False
+            )
+        |> Dict.keys -- List of node ids
       in
       let featuresToSelect =
         selectableShapeFeaturesAndPositions ++ selectableWidgetFeaturesAndPositions
