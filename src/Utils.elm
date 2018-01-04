@@ -522,11 +522,11 @@ inserti i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop (i-1) xs
 
 -- 0-based
 maybeGeti0 : Int -> List a -> Maybe a
-maybeGeti0 i list = list |> List.drop i |> List.head
+maybeGeti0 i list = if i >= 0 then list |> List.drop i |> List.head else Nothing
 
 -- 1-based
 maybeGeti1 : Int -> List a -> Maybe a
-maybeGeti1 i list = list |> List.drop (i-1) |> List.head
+maybeGeti1 i list = if i >= 1 then list |> List.drop (i-1) |> List.head else Nothing
 
 -- 0-based
 getReplacei0 : Int -> (a -> a) -> List a -> List a
@@ -1017,6 +1017,8 @@ distance (x1,y1) (x2,y2) = sqrt <| (x2-x1)^2 + (y2-y1)^2
 
 distanceInt (x1,y1) (x2,y2) =
   distance (toFloat x1, toFloat y1) (toFloat x2, toFloat y2)
+
+midpoint (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
 
 -- n:number -> i:[0,n) -> RGB
 numToColor n i =

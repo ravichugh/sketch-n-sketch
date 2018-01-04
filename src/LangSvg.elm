@@ -18,7 +18,7 @@ module LangSvg exposing
   , getPolyPoints, getPolyPoint, getPtCount
   , pathIndexPoints, getPathPoint
   , maybeFindBounds, maybeFindBlobId
-  , justGetSvgNode
+  , maybeGetSvgNode, justGetSvgNode
   , descendantNodeIds
   , resolveToRootedIndexedTree, resolveToMovieCount, fetchEverything
   )
@@ -659,11 +659,17 @@ maybeFindBounds l =
           Nothing
 
 
-justGetSvgNode : String -> NodeId -> RootedIndexedTree -> (ShapeKind, List Attr)
-justGetSvgNode cap nodeId (_, indexedTree) =
-  case Utils.justGet_ cap nodeId indexedTree |> .interpreted of
-    SvgNode kind attrs _ -> (kind, attrs)
-    TextNode _           -> Debug.crash (cap ++ ": TextNode ?")
+maybeGetSvgNode : NodeId -> RootedIndexedTree -> Maybe (ShapeKind, List Attr, List NodeId)
+maybeGetSvgNode nodeId (_, indexedTree) =
+  case Dict.get nodeId indexedTree |> Maybe.map .interpreted of
+    Just (SvgNode kind attrs childIds) -> Just (kind, attrs, childIds)
+    _                                  -> Nothing
+
+
+justGetSvgNode : String -> NodeId -> RootedIndexedTree -> (ShapeKind, List Attr, List NodeId)
+justGetSvgNode cap nodeId slate =
+  maybeGetSvgNode nodeId slate
+  |> Utils.fromJust_ ("justGetSvgNode: " ++ cap)
 
 
 childNodeIds : IndexedTreeNode -> List NodeId

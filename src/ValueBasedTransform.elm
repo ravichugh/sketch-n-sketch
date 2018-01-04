@@ -230,7 +230,7 @@ indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber mov
           |> Set.toList
           |> List.concatMap
               (\nodeId ->
-                let (kind, attrs) = LangSvg.justGetSvgNode "ValueBasedTransform.indexedRelate" nodeId slate in
+                let (kind, attrs, _) = LangSvg.justGetSvgNode "ValueBasedTransform.indexedRelate" nodeId slate in
                 ShapeWidgets.featuresOfShape nodeId kind attrs
                 |> List.take 1
               )

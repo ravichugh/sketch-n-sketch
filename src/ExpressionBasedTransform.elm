@@ -978,7 +978,7 @@ anchorOfSelectedFeatures selectedFeatures =
 
 
 groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
-  let (anchorKind, anchorAttrs) =
+  let (anchorKind, anchorAttrs, _) =
     LangSvg.justGetSvgNode "groupSelectedBlobsAround" anchorId model.slate in
 
   -- TODO

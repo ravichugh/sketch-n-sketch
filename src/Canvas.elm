@@ -110,7 +110,7 @@ build wCanvas hCanvas model =
   let newShape = drawNewShape model in
   let widgetsAndDistances =
     case (model.outputMode, model.showGhosts) of
-      (Live, True) -> buildSvgWidgets wCanvas hCanvas widgets model ++ buildDistances model slate widgets
+      (Live, True) -> buildDistances model slate widgets ++ buildSvgWidgets wCanvas hCanvas widgets model -- Draw distances below other widgets
       _            -> []
   in
   let selectBox = drawSelectBox model in
@@ -537,17 +537,53 @@ buildSvgWidgets wCanvas hCanvas widgets model =
 
 buildDistances : Model -> LangSvg.RootedIndexedTree -> Widgets -> List (Svg Msg)
 buildDistances model slate widgets =
-  []
-  -- let selectedPoints = ShapeWidgets.featuresToSelectablePoints (Set.toList model.selectedFeatures) in
-  -- Utils.cartProd selectedPoints selectedPoints
-  -- |> List.map (\(selectedPt1, selectedPt2) -> Set.fromList [selectedPt1, selectedPt2])
-  -- |> List.filter (Set.size >> (==) 2)
-  -- |> Utils.dedup
-  -- |> List.map
-  --     (\pointPair ->
-  --       let (selectedPt1, selectedPt2) = ShapeWidgets.extractSelectablePoints pointPair in
-  --       ...
-  --     )
+  let selectedPoints = ShapeWidgets.featuresToSelectablePoints (Set.toList model.selectedFeatures) in
+  let pointsAtEndOfSelectedDistances =
+    model.selectedFeatures
+    |> Set.toList
+    |> List.concatMap
+        (\selectedFeature ->
+          case selectedFeature of
+            DistanceBetweenFeatures selectablePointPair -> Set.toList selectablePointPair
+            _                                           -> []
+        )
+  in
+  let candidateEndpoints = selectedPoints ++ pointsAtEndOfSelectedDistances |> Utils.dedup in
+  Utils.cartProd candidateEndpoints candidateEndpoints
+  |> List.map (\(selectedPt1, selectedPt2) -> Set.fromList [selectedPt1, selectedPt2])
+  |> List.filter (Set.size >> (==) 2)
+  |> Utils.dedup -- Cartesian product produces both {a,b} and {b,a}, which are equivalent
+  |> List.sortBy (\pointPairSet -> if Set.member (DistanceBetweenFeatures pointPairSet) model.selectedFeatures then 1 else 0) -- Draw selected distances on top of non-selected distances
+  |> List.concatMap
+      (\pointPairSet ->
+        let (selectablePoint1, selectablePoint2) = ShapeWidgets.extractSelectablePoints pointPairSet in
+        -- ...evaluates to concrete values...could speed up by evaluating earlier (here is n^2)...
+        case ( ShapeWidgets.selectablePointToMaybeXY selectablePoint1 slate widgets
+             , ShapeWidgets.selectablePointToMaybeXY selectablePoint2 slate widgets ) of
+          (Just (x1, y1), Just (x2, y2)) ->
+            let selectableFeature = DistanceBetweenFeatures (Set.fromList [selectablePoint1, selectablePoint2]) in
+            let isSelected = Set.member selectableFeature model.selectedFeatures in
+            let color = if isSelected then colorPointSelected else colorLineNotSelected in
+            let deselectEndPoints model =
+              if isSelected then
+                model
+              else
+                let featuresToDeselect = List.concatMap ShapeWidgets.selectablePointToSelectableFeatures [selectablePoint1, selectablePoint2] in
+                { model | selectedFeatures = model.selectedFeatures |> Set.filter (\selectedFeature -> not <| List.member selectedFeature featuresToDeselect) }
+            in
+            let line =
+              svgLine [
+                  attr "stroke" color
+                , attr "stroke-width" hairStrokeWidth
+                , attr "x1" (toString x1) , attr "y1" (toString y1)
+                , attr "x2" (toString x2) , attr "y2" (toString y2)
+                , onMouseDownAndStop (Msg "Toggle Selected Distance..." <| toggleSelectedLambda [selectableFeature] >> deselectEndPoints)
+                ]
+            in
+            [line]
+          _ ->
+            []
+      )
 
 
 --------------------------------------------------------------------------------
@@ -876,12 +912,6 @@ zoneRotate_ model id shape cx cy r cmds =
   in
   [circle, line, ball]
 
-halfwayBetween (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
-distance (x1,y1) (x2,y2)       = sqrt ((x2-x1)^2 + (y2-y1)^2)
-
-projPt (x,y)                   = (Tuple.first x, Tuple.first y)
-halfwayBetween_ pt1 pt2        = halfwayBetween (projPt pt1) (projPt pt2)
-distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
 
 -- TODO redo callsite
 zoneRotatePolyOrPath model id kind pts nodeAttrs =
@@ -1159,7 +1189,7 @@ zoneDelete_ id shape x y transform =
 
 -- http://www.colorpicker.com/
 
-colorPointSelected      = "#38F552" -- "rgba(0,128,0,1.0)"
+colorPointSelected      = "#38F552" -- bright green
 colorPointNotSelected   = "#F5B038" -- "orange"
 colorLineSelected       = "#B4FADB" -- "blue"
 colorLineNotSelected    = "#FAB4D3" -- "red"
@@ -1172,20 +1202,22 @@ type alias NodeIdAndTwoAttrNames = (LangSvg.NodeId, String, String)
 type alias NodeIdAndFeature      = (LangSvg.NodeId, ShapeWidgets.ShapeFeature)
 
 
-toggleSelected nodeIdAndFeatures =
-  Msg "Toggle Selected..." <| toggleSelectedLambda nodeIdAndFeatures
+toggleSelected : List ShapeWidgets.SelectableFeature -> Msg
+toggleSelected selectableFeatures =
+  Msg "Toggle Selected..." <| toggleSelectedLambda selectableFeatures
 
-toggleSelectedLambda nodeIdAndFeatures =
+toggleSelectedLambda : List ShapeWidgets.SelectableFeature -> Model -> Model
+toggleSelectedLambda selectableFeatures =
   \model ->
     -- If only some of the features were selected, we want to select all of
     -- them, not toggle individually.
-    let deselect = List.all (flip Set.member model.selectedFeatures) nodeIdAndFeatures in
-    let updateSet nodeIdAndFeature acc =
+    let deselect = List.all (flip Set.member model.selectedFeatures) selectableFeatures in
+    let updateSet selectableFeature acc =
       if deselect
-        then Set.remove nodeIdAndFeature acc
-        else Set.insert nodeIdAndFeature acc
+        then Set.remove selectableFeature acc
+        else Set.insert selectableFeature acc
     in
-    { model | selectedFeatures = List.foldl updateSet model.selectedFeatures nodeIdAndFeatures }
+    { model | selectedFeatures = List.foldl updateSet model.selectedFeatures selectableFeatures }
 
 svgXYDot (x, y) fill isVisible extraAttrs =
   svgCircle <|
@@ -1415,7 +1447,7 @@ makeZonesLine model id l =
   in
   let zonesSelect =
     List.concat
-       [ maybeZoneSelectCrossDot (distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) dummyVal (cy, dummyTrace) dummyVal
+       [ maybeZoneSelectCrossDot (Utils.distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) dummyVal (cy, dummyTrace) dummyVal
        , zoneSelectCrossDot model False (id, "line", Point 1) (x1, dummyTrace) dummyVal (y1, dummyTrace) dummyVal
        , zoneSelectCrossDot model False (id, "line", Point 2) (x2, dummyTrace) dummyVal (y2, dummyTrace) dummyVal]
   in
@@ -1426,8 +1458,8 @@ makeZonesLine model id l =
       zonePoints2 model id "line" transform [pt1, pt2]
   in
   let extraWidgets =
-    let c = halfwayBetween pt1 pt2 in
-    let r = (distance pt1 pt2 / 2) - rotZoneDelta in
+    let c = Utils.midpoint pt1 pt2 in
+    let r = (Utils.distance pt1 pt2 / 2) - rotZoneDelta in
     zoneRotate model id "line" (cx, cy) r (maybeTransformCmds l) ++
     zonesStroke model id "line" x2 y2 l
   in

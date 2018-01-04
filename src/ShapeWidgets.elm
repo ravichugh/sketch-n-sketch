@@ -45,14 +45,11 @@ type ShapeFeature
   | OFeat OtherFeature
 
 
-type alias SelectablePoint = (NodeId, PointFeature) -- Only used in SelectableDistanceBetweenFeatures
-
-type alias SelectableDistanceBetweenFeatures = Set SelectablePoint -- Invariant: Set size == 2
-
+type alias SelectablePoint = (NodeId, PointFeature)
 
 type SelectableFeature
   = ShapeFeature NodeId ShapeFeature
-  | DistanceBetweenFeatures SelectableDistanceBetweenFeatures
+  | DistanceBetweenFeatures (Set SelectablePoint) -- Invariant: Set size == 2
 
 
 ------------------------------------------------------------------------------
@@ -121,6 +118,15 @@ pointFeaturesOfShape kind attrs =
       _               -> []
   )
 
+pointFeaturesOfWidget : Widget -> List PointFeature
+pointFeaturesOfWidget widget =
+  case widget of
+    WIntSlider _ _ _ _ _ _ _  -> []
+    WNumSlider _ _ _ _ _ _ _  -> []
+    WPoint _ _ _ _            -> [LonePoint]
+    WOffset1D _ _ _ _ _ _ _ _ -> [EndPoint]
+    WCall _ _ _ _             -> []
+
 
 ------------------------------------------------------------------------------
 -- ShapeFeature (features of shapes)
@@ -138,33 +144,6 @@ shapeFeaturesOfShape : ShapeKind -> List Attr -> List ShapeFeature
 shapeFeaturesOfShape kind attrs =
   genericFeaturesOfShape kind attrs
   |> List.concatMap shapeFeaturesOfGenericFeature
-
-
--- shapeFeatureIsX : ShapeFeature -> Bool
--- shapeFeatureIsX shapeFeature =
---   case shapeFeature of
---     XFeat _ -> True
---     _       -> False
---
---
--- shapFeatureIsY : ShapeFeature -> Bool
--- shapFeatureIsY shapeFeature =
---   case shapeFeature of
---     YFeat _ -> True
---     _       -> False
---
---
--- shapeFeatureIsXOrY : ShapeFeature -> Bool
--- shapeFeatureIsXOrY shapeFeature =
---   shapeFeatureIsX shapeFeature || shapeFeatureIsY shapeFeature
---
---
--- shapeFeaturesAreXYPairs : ShapeFeature -> ShapeFeature -> Bool
--- shapeFeaturesAreXYPairs shapeFeature1 shapeFeature2 =
---   case (shapeFeature1, shapeFeature2) of
---     (XFeat pointFeature1, YFeat pointFeature2) -> pointFeature1 == pointFeature2
---     (YFeat pointFeature1, XFeat pointFeature2) -> pointFeature1 == pointFeature2
---     _                                          -> False
 
 
 ------------------------------------------------------------------------------
@@ -191,7 +170,7 @@ extractSelectablePoints selectablePointsPair =
     _          -> Debug.crash "extractSelectablePoints: expected distancePair set to have two elements"
 
 
-selectableDistanceBetweenFeaturesDesc : SelectableDistanceBetweenFeatures -> String
+selectableDistanceBetweenFeaturesDesc : Set SelectablePoint -> String -- Set size should have exactly two elements
 selectableDistanceBetweenFeaturesDesc selectablePointsPair =
   let ((nodeId1, pointFeature1), (nodeId2, pointFeature2)) = extractSelectablePoints selectablePointsPair in
   simpleDesc pointFeature1 ++ "To" ++ simpleDesc pointFeature2
@@ -237,6 +216,7 @@ featuresAreXYPairs feature1 feature2 =
   |> Utils.maybeToBool
 
 
+-- Find all XY pairs in a list of features.
 featuresToSelectablePoints : List SelectableFeature -> List SelectablePoint
 featuresToSelectablePoints features =
   case features of
@@ -247,6 +227,48 @@ featuresToSelectablePoints features =
 
     [] ->
       []
+
+
+selectablePointToSelectableFeatures : SelectablePoint -> List SelectableFeature
+selectablePointToSelectableFeatures (nodeId, pointFeature) =
+  [ ShapeFeature nodeId (XFeat pointFeature)
+  , ShapeFeature nodeId (YFeat pointFeature)
+  ]
+
+
+maybeEvaluateShapePointFeature : ShapeKind -> List Attr -> PointFeature -> Maybe (Num, Num)
+maybeEvaluateShapePointFeature shapeKind shapeAttrs pointFeature =
+  let (xEqn, yEqn) = getPointEquations shapeKind shapeAttrs pointFeature in
+  case (evaluateFeatureEquation xEqn, evaluateFeatureEquation yEqn) of
+    (Just x, Just y) -> Just (x, y)
+    _                -> Nothing
+
+
+maybeEvaluateWidgetPointFeature : Widget -> PointFeature -> Maybe (Num, Num)
+maybeEvaluateWidgetPointFeature widget pointFeature =
+  case (widget, pointFeature) of
+    (WIntSlider _ _ _ _ _ _ _, _)             -> Nothing
+    (WNumSlider _ _ _ _ _ _ _, _)             -> Nothing
+    (WPoint (x, xTr) _ (y, yTr) _, LonePoint) -> Just (x, y)
+    (WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _, EndPoint) ->
+      let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
+        offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
+      in
+      Just (endX, endY)
+    (WCall _ _ _ _, _) -> Nothing
+    _                  -> Debug.crash <| "bad feature for widget: " ++ toString pointFeature
+
+
+selectablePointToMaybeXY : SelectablePoint -> LangSvg.RootedIndexedTree -> Widgets -> Maybe (Num, Num)
+selectablePointToMaybeXY (nodeId, pointFeature) slate widgets =
+  if nodeId < -2 then
+    let idAsShape = -2 - nodeId in
+    Utils.maybeGeti1 idAsShape widgets
+    |> Maybe.andThen (\widget -> maybeEvaluateWidgetPointFeature widget pointFeature)
+  else
+    LangSvg.maybeGetSvgNode nodeId slate
+    |> Maybe.andThen (\(shapeKind, shapeAttrs, _) -> maybeEvaluateShapePointFeature shapeKind shapeAttrs pointFeature)
+
 
 
 ------------------------------------------------------------------------------
@@ -309,7 +331,7 @@ featureToEquation_ getFeatureEquation getWidgetFeatureEquation feature tree widg
         let widgetId = -nodeId - 2 in -- widget nodeId's are encoded at -2 and count down. (And they are 1-indexed, so actually they start at -3)
         case Utils.maybeGeti1 widgetId widgets of
           Just widget -> Just (getWidgetFeatureEquation shapeFeature widget locIdToNumberAndLoc)
-          Nothing     -> Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation can't find widget " ++ (toString widgetId) ++ " " ++ (toString widgets)
+          Nothing     -> Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation can't find widget " ++ (toString widgetId) ++ " in " ++ (toString widgets)
 
     _ ->
       Debug.crash "featureToEquation_ TODO"
@@ -840,45 +862,27 @@ maybeShapeBounds svgNode =
   case svgNode.interpreted of
     LangSvg.TextNode _ -> Nothing
     LangSvg.SvgNode shapeKind shapeAttrs childIds ->
-      let (xs, ys) =
-        genericFeaturesOfShape shapeKind shapeAttrs
-        |> List.filterMap
-            (\feature ->
-              case feature of
-                PointFeature pf ->
-                  let (xEqn, yEqn) = getPointEquations shapeKind shapeAttrs pf in
-                  case (evaluateFeatureEquation xEqn, evaluateFeatureEquation yEqn) of
-                    (Just x, Just y) -> Just (x, y)
-                    _                -> Nothing
-
-                _ -> Nothing
-            )
-        |> List.unzip
-      in
-      case Utils.projJusts [ List.minimum xs, List.minimum ys, List.maximum xs, List.maximum ys ] of
-        Just [ left, top, right, bot ] -> Just (left, top, right, bot)
-        _                              -> Nothing
+      pointFeaturesOfShape shapeKind shapeAttrs
+      |> List.filterMap (maybeEvaluateShapePointFeature shapeKind shapeAttrs)
+      |> pointsToMaybeBounds
 
 
 -- Returns Maybe (left, top, right, bot)
 maybeWidgetBounds : Widget -> Maybe (Num, Num, Num, Num)
 maybeWidgetBounds widget =
-  case widget of
-    WIntSlider _ _ _ _ _ _ _     -> Nothing
-    WNumSlider _ _ _ _ _ _ _     -> Nothing
-    WPoint (x, xTr) _ (y, yTr) _ -> Just (x, y, x, y)
-    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _ ->
-      let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
-        offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
-      in
-      Just
-          ( min baseX endX
-          , min baseY endY
-          , max baseX endY
-          , max baseY endY
-          )
+  pointFeaturesOfWidget widget
+  |> List.filterMap (maybeEvaluateWidgetPointFeature widget)
+  |> pointsToMaybeBounds
 
-    WCall _ _ _ _ -> Nothing
+
+-- Returns Nothing if list is empty; otherwise returns Just (left, top, right, bot)
+-- Yet unused, but will be needed for code dedduplication between selectablePointToMaybeXY and maybeShapeBounds and maybeWidgetBounds.
+pointsToMaybeBounds : List (Num, Num) -> Maybe (Num, Num, Num, Num)
+pointsToMaybeBounds points =
+  let (xs, ys) = List.unzip points in
+  case Utils.projJusts [ List.minimum xs, List.minimum ys, List.maximum xs, List.maximum ys ] of
+    Just [ left, top, right, bot ] -> Just (left, top, right, bot)
+    _                              -> Nothing
 
 
 ------------------------------------------------------------------------------
