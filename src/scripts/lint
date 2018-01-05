@@ -1,0 +1,89 @@
+#!/usr/bin/env ruby
+
+#
+# Usage: ./lint File1.elm File2.elm File3.elm
+#
+# If no files given, looks at files dirty/untracked in git
+#
+# Only finds unused variables, for now.
+#
+
+THIS_DIR    = File.expand_path("..", __FILE__)
+SNS_JS_PATH = "#{THIS_DIR}/../../build/out/sns.js"
+
+ELM_FILES =
+  if ARGV.empty?
+    # Look at files modified/untracked in git
+    `git status --porcelain`.scan(/src\/(\w+\.elm)/).flatten
+  else
+    ARGV
+  end
+
+if ELM_FILES.empty?
+  puts "No files to lint: no files given, or no files dirty/untracked in git."
+  exit 1
+else
+  puts "Linting #{ELM_FILES.join(" ")}"
+end
+
+
+### Read sns.js to figure out what range of line numbers corresponds to each given Elm source file. ###
+
+sns_js_lines = File.read(SNS_JS_PATH).lines.to_a
+
+file_ranges = []
+
+current_file_name  = nil
+current_file_start = 0
+
+line_number = 1
+
+sns_js_lines.each_with_index do |line, i|
+  line_number = i + 1
+  if line =~ /^var _user\$project\$(\w+)\$/
+    if $1 != current_file_name
+      file_ranges << [current_file_name, current_file_start..line_number-1] if current_file_name && ELM_FILES.include?("#{current_file_name}.elm")
+      current_file_name  = $1
+      current_file_start = line_number
+    end
+  end
+end
+
+file_ranges << [current_file_name, current_file_start..line_number-1] if current_file_name && ELM_FILES.include?("#{current_file_name}.elm")
+
+system "which eslint || npm install -g eslint"
+
+problem_count = 0
+
+# Extract line number and identifier from lines that look like:
+#   97409:5    error  '_user$project$SleekView$groupDisabled' is assigned a value but never used    no-unused-vars
+#   97439:40   error  'sortKey' is defined but never used                                           no-unused-vars
+#   97447:17   error  '_p65' is defined but never used                                              no-unused-vars
+`eslint --no-color --no-eslintrc --rule 'no-unused-vars: [error]' #{SNS_JS_PATH}`.
+  scan(/(\d+):\d+\s+error\s+'([\w\$]+)'/).
+  each do |line_number_str, ident|
+    line_number = line_number_str.to_i
+
+    file_name, _ = file_ranges.find { |_, line_number_range| line_number_range.cover?(line_number) }
+
+    if file_name && ident !~ /\A_p\d+|\A_\z/ # _p123 identifiers seem to mostly be () and _'s in anonymous functions.
+      problem_count += 1
+      nice_ident = "#{ident.sub(/\A_user\$project\$/, "").gsub("$", ".")} is not used"
+      puts nice_ident
+      if nice_ident !~ /\./ # Show sns.js lines if not a top-level defintion
+        first_line = sns_js_lines[line_number-1]
+        first_line_indentation = first_line[/\A\s*/]
+        lines = [first_line] + sns_js_lines[line_number..-1].take_while { |line| line[/\A\s*/].size > first_line_indentation.size }
+        puts lines
+      end
+    end
+  end
+
+if problem_count > 0
+  puts "#{problem_count} problem#{problem_count == 1 ? "" : "s"}."
+  exit 1
+else
+  puts "0 problems."
+  puts "All good!"
+  exit 0
+end

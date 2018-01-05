@@ -48,6 +48,13 @@ prelude:
 examples:
 	../scripts/expandTemplate.py Examples
 
+lint:
+	# Just looks for unused vars, for now; and only in files dirty in git.
+	scripts/lint
+
+lintall:
+	scripts/lint *.elm | less
+
 loc:
 	wc -l \
     ../build/out/index.html ../build/out/main.css \
