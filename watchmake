@@ -22,8 +22,9 @@ MAKE_COMMAND    = "cd src; make #{MAKE_ARGS.join(" ")}"
 IO.popen(FSWATCH_COMMAND) do |fswatch|
   puts "Will run `#{MAKE_COMMAND}` on file changes noticed by"
   puts FSWATCH_COMMAND
+  changed_files = ""
   loop do
-    changed_files = fswatch.readpartial(1_000_000)
+    changed_files = fswatch.readpartial(1_000_000) if changed_files == ""
     loop do
       sleep(0.1 + 0.1 * Math.log(changed_files.lines.size, 10)) # File changes might still be coming (e.g. git checkout)
       break unless more_changed_files = (fswatch.read_nonblock(1_000_000) rescue nil)
@@ -32,5 +33,12 @@ IO.popen(FSWATCH_COMMAND) do |fswatch|
     puts changed_files
     puts MAKE_COMMAND
     system MAKE_COMMAND
+    begin
+      changed_files = ""
+      changed_files = fswatch.read_nonblock(1_000_000)
+    rescue
+      # If no files changed while building, lint.
+      system "cd src; make lint"
+    end
   end
 end
