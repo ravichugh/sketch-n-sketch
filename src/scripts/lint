@@ -9,7 +9,8 @@
 #
 
 THIS_DIR    = File.expand_path("..", __FILE__)
-SNS_JS_PATH = "#{THIS_DIR}/../../build/out/sns.js"
+SRC_DIR     = File.expand_path("..", THIS_DIR)
+SNS_JS_PATH = File.expand_path("../../build/out/sns.js", THIS_DIR)
 
 ELM_FILES =
   if ARGV.empty?
@@ -27,9 +28,41 @@ else
 end
 
 
+class String
+  def red
+    "\x1B[31m#{self}\x1B[0m"
+  end
+
+  def green
+    "\x1B[32m#{self}\x1B[0m"
+  end
+
+  def yellow
+    "\x1B[33m#{self}\x1B[0m"
+  end
+
+  def blue
+    "\x1B[34m#{self}\x1B[0m"
+  end
+
+  def cyan
+    "\x1B[36m#{self}\x1B[0m"
+  end
+
+  def grey
+    "\x1B[90m#{self}\x1B[0m"
+  end
+
+  def gray
+    grey
+  end
+end
+
+
 ### Read sns.js to figure out what range of line numbers corresponds to each given Elm source file. ###
 
 sns_js_lines = File.read(SNS_JS_PATH).lines.to_a
+sns_js_lines_with_numbers = sns_js_lines.each_with_index.map { |line, i| [line, i+1] }
 
 file_ranges = []
 
@@ -38,8 +71,7 @@ current_file_start = 0
 
 line_number = 1
 
-sns_js_lines.each_with_index do |line, i|
-  line_number = i + 1
+sns_js_lines_with_numbers.each do |line, line_number|
   if line =~ /^var _user\$project\$(\w+)\$/
     if $1 != current_file_name
       file_ranges << [current_file_name, current_file_start..line_number-1] if current_file_name && ELM_FILES.include?("#{current_file_name}.elm")
@@ -50,6 +82,18 @@ sns_js_lines.each_with_index do |line, i|
 end
 
 file_ranges << [current_file_name, current_file_start..line_number-1] if current_file_name && ELM_FILES.include?("#{current_file_name}.elm")
+
+
+functions_with_ranges =
+  sns_js_lines_with_numbers.
+    chunk_while { |_, (next_line, _)| next_line =~ /\A\s/ }.
+    map do |chunk|
+      _, first_line_number = chunk.first
+      _, last_line_number  = chunk.last
+      function = chunk.map { |line, _| line }.join
+      [function, first_line_number..last_line_number]
+    end
+
 
 system "which eslint || npm install -g eslint"
 
@@ -66,24 +110,51 @@ problem_count = 0
 
     file_name, _ = file_ranges.find { |_, line_number_range| line_number_range.cover?(line_number) }
 
-    if file_name && ident !~ /\A_p\d+|\A_\z/ # _p123 identifiers seem to mostly be () and _'s in anonymous functions.
+    if file_name
+      next if ident =~ /\A_p\d+|\A_\z/ # _p123 identifiers seem to mostly be () and _'s in anonymous functions
+      nice_ident                              = ident.sub(/\A_user\$project\$/, "").gsub("$", ".")
+      base_ident                              = ident[/[^\$]+\z/]
+      source_path                             = File.join(SRC_DIR, "#{file_name}.elm")
+      source                                  = File.read(source_path)
+      function, function_line_range           = functions_with_ranges.find { |_, line_number_range| line_number_range.cover?(line_number) }
+      function_base_name                      = function[/\A.*\$(\w+) =/, 1]
+      source_function_line, source_line_index = source.lines.each_with_index.find { |line, _| line =~ /\A(|port\s+|type\s+alias\s+)#{function_base_name}\s/ } || ["", 0]
+
+      if source_function_line == ""
+        # Might be a constructor, perform a looser search.
+        source_function_line, source_line_index = source.lines.each_with_index.find { |line, _| line =~ /\A\s+#{function_base_name}\s|[\|=]\s+#{function_base_name}\s/ } || ["", 0]
+        if source_function_line == ""
+          require "irb"
+          binding.irb
+        end
+      end
+
+      next if source_function_line =~ /type\s+alias\s/ # auto-generated record constructors are often unused
+
+      # Attempt to narrow down Elm source line number; will be imprecise if there are multiple variables with the same name in a function.
+      _, line_index_within_function = source.lines[source_line_index..-1].each_with_index.find { |line, _| line =~ /\b#{base_ident}\b/ }
+      source_line_index += line_index_within_function if line_index_within_function
+
       problem_count += 1
-      nice_ident = "#{ident.sub(/\A_user\$project\$/, "").gsub("$", ".")} is not used"
-      puts nice_ident
+      print "Unused: "
+      location_string = "\t#{source_path}:#{source_line_index+1}".blue # in iTerm 2, you can cmd-click on this to go directly to the problem
       if nice_ident !~ /\./ # Show sns.js lines if not a top-level defintion
-        first_line = sns_js_lines[line_number-1]
-        first_line_indentation = first_line[/\A\s*/]
-        lines = [first_line] + sns_js_lines[line_number..-1].take_while { |line| line[/\A\s*/].size > first_line_indentation.size }
-        puts lines
+        puts "#{nice_ident} (in #{file_name}.#{function_base_name})".yellow + location_string
+        function.lines.each_with_index do |line, line_index_within_function|
+          current_line_number = function_line_range.begin + line_index_within_function
+          current_line_number == line_number ? puts(line.rstrip) : puts(line.rstrip.gray)
+        end
+      else
+        puts nice_ident.yellow + location_string
       end
     end
   end
 
 if problem_count > 0
-  puts "#{problem_count} problem#{problem_count == 1 ? "" : "s"}."
+  puts "#{problem_count} problem#{problem_count == 1 ? "" : "s"}.".red
   exit 1
 else
-  puts "0 problems."
-  puts "All good!"
+  puts "0 problems.".green
+  puts "All good!".green
   exit 0
 end

@@ -49,11 +49,10 @@ examples:
 	../scripts/expandTemplate.py Examples
 
 lint:
-	# Just looks for unused vars, for now; and only in files dirty in git.
-	scripts/lint
+	scripts/lint # Just looks for unused vars for now, and only in files dirty in git.
 
 lintall:
-	scripts/lint *.elm | less
+	scripts/lint *.elm | less --RAW-CONTROL-CHARS
 
 loc:
 	wc -l \
