@@ -248,6 +248,10 @@ groupTextButton model text onClickHandler disallowSelectedFeatures =
 
 -- UI Buttons
 
+closeUiButton : Msg -> Html Msg
+closeUiButton =
+  styledUiButton "close" ""
+
 uiButton : String -> Msg -> Html Msg
 uiButton =
   styledUiButton ""
@@ -1699,10 +1703,8 @@ dialogBox
   elements =
     let
       closeDialogBoxButton =
-        styledUiButton
-          "circle"
-          "×"
-          (Controller.msgCloseDialogBox db)
+        closeUiButton <|
+          Controller.msgCloseDialogBox db
       closeButton =
         if closable then
           [ closeDialogBoxButton ]
