@@ -1,6 +1,6 @@
 module Main exposing (main)
 
-import InterfaceModel as Model exposing (Msg, Model)
+import InterfaceModel as Model exposing (Msg(..), Model)
 import SleekView as View
 import InterfaceController as Controller
 import AceCodeBox
@@ -8,7 +8,9 @@ import AnimationLoop
 import FileHandler
 import DeucePopupPanelInfo
 import ColorScheme
--- import DependenceGraph
+import Solver
+import SolverServer
+import ImpureGoodies
 
 import Html exposing (Html)
 import Mouse
@@ -40,7 +42,13 @@ view = View.view
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
-  Controller.update msg model
+  case msg of
+    ResponseFromSolver str ->
+      SolverServer.handleReduceResponse str model
+    Msg _ _ ->
+      ImpureGoodies.tryCatch "NeedSolution"
+        (\()                            -> Controller.update msg model)
+        (\(Solver.NeedSolution problem) -> SolverServer.askForSolution problem msg model)
 
 initCmd : Cmd Msg
 initCmd =
@@ -79,4 +87,5 @@ subscriptions model =
     , DeucePopupPanelInfo.receiveDeucePopupPanelInfo
         Controller.msgReceiveDeucePopupPanelInfo
     -- , DependenceGraph.receiveImage Controller.msgReceiveDotImage
+    , SolverServer.reduceResponse ResponseFromSolver
     ]

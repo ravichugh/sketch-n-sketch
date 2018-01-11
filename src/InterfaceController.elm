@@ -424,7 +424,7 @@ onMouseDrag lastPosition newPosition old =
     MouseDragZone zoneKey (Just (trigger, (mx0, my0), _)) ->
       case old.liveSyncDelay of
         False ->
-          applyTrigger zoneKey trigger (mx0, my0) (mx, my) old
+          applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my) old
         True ->
           -- TODO: define and run a version of trigger that applies to the
           -- single value being manipulated, rather than the entire program.
@@ -567,7 +567,7 @@ onMouseUp old =
         True ->
           let (isOnCanvas, (mx, my)) = clickToCanvasPoint old (mousePosition old) in
           old
-            |> applyTrigger zoneKey trigger (mx0, my0) (mx, my)
+            |> applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my)
             |> finishTrigger zoneKey
 
     (_, MouseDrawNew points) ->
@@ -603,11 +603,11 @@ onMouseUp old =
 
     _ -> { old | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old }
 
-applyTrigger zoneKey trigger (mx0, my0) (mx, my) old =
+applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
   let dy = if old.keysDown == Keys.x then 0 else (my - my0) in
 
-  let (newExp, highlights) = trigger (mx0, my0) (dx, dy) in
+  let (newExp, highlights) = trigger solutionsCache (mx0, my0) (dx, dy) in
 
   let codeBoxInfo_ =
     let codeBoxInfo = old.codeBoxInfo in
@@ -804,12 +804,17 @@ update msg oldModel =
       )
 
 upstate : Msg -> Model -> Model
-upstate (Msg caption updateModel) old =
-  -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
-  -- let _ = Debug.log "Msg" caption in
-  -- let _ = if {-String.contains "Key" caption-} True then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
-  let _ = debugLog "Msg" caption in
-  updateModel old
+upstate msg old =
+  case msg of
+    Msg caption updateModel ->
+      -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
+      -- let _ = Debug.log "Msg" caption in
+      -- let _ = if {-String.contains "Key" caption-} True then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
+      let _ = debugLog "Msg" caption in
+      updateModel old
+
+    _ ->
+      Debug.crash "InterfaceController.upstate: solver response messages should never hit here"
 
 --------------------------------------------------------------------------------
 -- Hooks to be run after every message
@@ -906,122 +911,128 @@ updateCommands model =
       ]
 
 issueCommand : Msg -> Model -> Model -> Cmd Msg
-issueCommand (Msg kind _) oldModel newModel =
-  case kind of
-    "Toggle Code Box" ->
-      if newModel.basicCodeBox
-        then Cmd.none
-        else AceCodeBox.initializeAndDisplay newModel
-          -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
+issueCommand msg oldModel newModel =
+  case msg of
+    Msg kind _ ->
+      case kind of
+        "Toggle Code Box" ->
+          if newModel.basicCodeBox
+            then Cmd.none
+            else AceCodeBox.initializeAndDisplay newModel
+              -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
 
-    "Save As" ->
-      if newModel.filename.name /= Model.bufferName then
-        FileHandler.sendMessage <|
-          Write newModel.filename newModel.code
-      else
-        Cmd.none
+        "Save As" ->
+          if newModel.filename.name /= Model.bufferName then
+            FileHandler.sendMessage <|
+              Write newModel.filename newModel.code
+          else
+            Cmd.none
 
-    "Save" ->
-      if newModel.filename.name /= Model.bufferName then
-        FileHandler.sendMessage <|
-          Write newModel.filename newModel.code
-      else
-        FileHandler.sendMessage RequestFileIndex
+        "Save" ->
+          if newModel.filename.name /= Model.bufferName then
+            FileHandler.sendMessage <|
+              Write newModel.filename newModel.code
+          else
+            FileHandler.sendMessage RequestFileIndex
 
-    "Confirm Write" ->
-      Cmd.batch <| iconCommand newModel.filename
+        "Confirm Write" ->
+          Cmd.batch <| iconCommand newModel.filename
 
-    "Open" ->
-      FileHandler.sendMessage <|
-        RequestFile newModel.filename
-
-    "Delete" ->
-      FileHandler.sendMessage <|
-        Delete newModel.fileToDelete
-
-    "Confirm Delete" ->
-      Cmd.batch <| iconCommand newModel.fileToDelete
-
-    "Export Code" ->
-      FileHandler.sendMessage <|
-        Download
-          (Model.prettyFilename WithoutExtension newModel ++ ".little")
-          newModel.code
-
-    "Export SVG" ->
-      FileHandler.sendMessage <|
-        Download
-          (Model.prettyFilename WithoutExtension newModel ++ ".svg")
-          (LangSvg.printSvg newModel.showGhosts newModel.slate)
-
-    "Import Code" ->
-      FileHandler.sendMessage <|
-        RequestUploadedFile Model.importCodeFileInputId
-
-    -- Do not send changes back to the editor, because this is the command where
-    -- we receieve changes (if this is removed, an infinite feedback loop
-    -- occurs).
-    "Ace Update" ->
-        if newModel.autosave && newModel.needsSave then
+        "Open" ->
           FileHandler.sendMessage <|
-            Write newModel.filename newModel.code
-        else
-          Cmd.none
+            RequestFile newModel.filename
 
-    "Enable Text Edits" ->
-      AceCodeBox.setReadOnly False
+        "Delete" ->
+          FileHandler.sendMessage <|
+            Delete newModel.fileToDelete
 
-    "Disable Text Edits" ->
-      AceCodeBox.setReadOnly True
+        "Confirm Delete" ->
+          Cmd.batch <| iconCommand newModel.fileToDelete
+
+        "Export Code" ->
+          FileHandler.sendMessage <|
+            Download
+              (Model.prettyFilename WithoutExtension newModel ++ ".little")
+              newModel.code
+
+        "Export SVG" ->
+          FileHandler.sendMessage <|
+            Download
+              (Model.prettyFilename WithoutExtension newModel ++ ".svg")
+              (LangSvg.printSvg newModel.showGhosts newModel.slate)
+
+        "Import Code" ->
+          FileHandler.sendMessage <|
+            RequestUploadedFile Model.importCodeFileInputId
+
+        -- Do not send changes back to the editor, because this is the command where
+        -- we receieve changes (if this is removed, an infinite feedback loop
+        -- occurs).
+        "Ace Update" ->
+            if newModel.autosave && newModel.needsSave then
+              FileHandler.sendMessage <|
+                Write newModel.filename newModel.code
+            else
+              Cmd.none
+
+        "Enable Text Edits" ->
+          AceCodeBox.setReadOnly False
+
+        "Disable Text Edits" ->
+          AceCodeBox.setReadOnly True
+
+        _ ->
+          Cmd.batch
+            [ if kind == "Update Font Size" then
+                AceCodeBox.updateFontSize newModel
+              else if
+                newModel.code /= oldModel.code ||
+                newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
+                newModel.preview /= oldModel.preview ||
+                kind == "Turn Off Caption" ||
+                kind == "Mouse Enter CodeBox" ||
+                kind == "Mouse Leave CodeBox"
+                 {- ||
+                 String.startsWith "Key Up" kind ||
+                 String.startsWith "Key Down" kind
+                 -}
+                   -- ideally this last condition would not be necessary.
+                   -- and onMouseLeave from point/crosshair zones still leave
+                   -- stale yellow highlights.
+              then
+                AceCodeBox.display newModel
+              else if kind == "Drag Layout Widget Trigger" then
+                -- TODO: only want to do this for resize code box widget.
+                -- and need to resize during and after the MouseDragLayout trigger.
+                -- (onMouseUp). workaround for now: click widget again.
+                AceCodeBox.resize newModel
+              else if kind == "Toggle Output" && newModel.outputMode == PrintScopeGraph Nothing then
+                DependenceGraph.render newModel.scopeGraph
+              else if newModel.runAnimation then
+                AnimationLoop.requestFrame ()
+              else
+                Cmd.none
+            , if String.startsWith "New" kind then
+                AceCodeBox.resetScroll newModel
+              else
+                Cmd.none
+            , if String.startsWith "msgMouseClickDeuceWidget" kind then
+                DeucePopupPanelInfo.requestDeucePopupPanelInfo ()
+              else
+                Cmd.none
+            , if String.startsWith "Open Dialog Box" kind then
+                FileHandler.sendMessage RequestFileIndex
+              else
+                Cmd.none
+            , if kind == "Set Color Scheme" then
+                ColorScheme.updateColorScheme newModel.colorScheme
+              else
+                Cmd.none
+            ]
 
     _ ->
-      Cmd.batch
-        [ if kind == "Update Font Size" then
-            AceCodeBox.updateFontSize newModel
-          else if
-            newModel.code /= oldModel.code ||
-            newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
-            newModel.preview /= oldModel.preview ||
-            kind == "Turn Off Caption" ||
-            kind == "Mouse Enter CodeBox" ||
-            kind == "Mouse Leave CodeBox"
-             {- ||
-             String.startsWith "Key Up" kind ||
-             String.startsWith "Key Down" kind
-             -}
-               -- ideally this last condition would not be necessary.
-               -- and onMouseLeave from point/crosshair zones still leave
-               -- stale yellow highlights.
-          then
-            AceCodeBox.display newModel
-          else if kind == "Drag Layout Widget Trigger" then
-            -- TODO: only want to do this for resize code box widget.
-            -- and need to resize during and after the MouseDragLayout trigger.
-            -- (onMouseUp). workaround for now: click widget again.
-            AceCodeBox.resize newModel
-          else if kind == "Toggle Output" && newModel.outputMode == PrintScopeGraph Nothing then
-            DependenceGraph.render newModel.scopeGraph
-          else if newModel.runAnimation then
-            AnimationLoop.requestFrame ()
-          else
-            Cmd.none
-        , if String.startsWith "New" kind then
-            AceCodeBox.resetScroll newModel
-          else
-            Cmd.none
-        , if String.startsWith "msgMouseClickDeuceWidget" kind then
-            DeucePopupPanelInfo.requestDeucePopupPanelInfo ()
-          else
-            Cmd.none
-        , if String.startsWith "Open Dialog Box" kind then
-            FileHandler.sendMessage RequestFileIndex
-          else
-            Cmd.none
-        , if kind == "Set Color Scheme" then
-            ColorScheme.updateColorScheme newModel.colorScheme
-          else
-            Cmd.none
-        ]
+      Debug.crash "InterfaceController.issueCommand shouldn't get a solver response message!!"
+
 
 iconCommand filename =
   let
@@ -2013,14 +2024,19 @@ msgRemoveArg pid = Msg ("Remove Arg PId " ++ toString pid) <| \old ->
 
 --------------------------------------------------------------------------------
 
-requireSaveAsker ((Msg name _) as msg) needsSave =
-  if needsSave then
-    Msg ("Ask " ++ name) <| (\old ->
-      { old | pendingFileOperation = Just <| msg
-            , fileOperationConfirmed = False })
-        >> Model.openDialogBox AlertSave
-  else
-    msg
+requireSaveAsker msg needsSave =
+  case msg of
+    Msg name _ ->
+      if needsSave then
+        Msg ("Ask " ++ name) <| (\old ->
+          { old | pendingFileOperation = Just <| msg
+                , fileOperationConfirmed = False })
+            >> Model.openDialogBox AlertSave
+      else
+        msg
+
+    _ ->
+      Debug.crash "InterfaceController.requireSaveAsker shouldn't get a solver response message!!"
 
 --------------------------------------------------------------------------------
 -- Dialog Box

@@ -1,179 +1,158 @@
-module Solver exposing
-  ( Equation
-  , solve
-  )
+module Solver exposing (..)
 
-import Lang exposing (..)
-import ValUnparser exposing (..)
-import Eval
-import LocEqn exposing (LocEquation(..), locEqnEval, locEqnTerms, locEqnLocIdSet)
+import ImpureGoodies
+import Lang exposing (Num, Op_, Trace(..), Subst)
 import Utils
-import Config
-import Syntax
 
-import Set
-import Dict
-import Debug
+import Dict exposing (Dict)
 
 
 --------------------------------------------------------------------------------
 
-debugLog = Config.debugLog Config.debugSync
+-- TODO streamline Equation/LocEquation/Trace; see note in LocEqn.elm
 
---------------------------------------------------------------------------------
+type EqnTerm
+  = EqnConst Num
+  | EqnVar Int -- Variable identifiers, often locIds
+  | EqnOp Op_ (List EqnTerm)
 
--- TODO streamline Equation/LocEquation/Trace
+type alias Eqn = (EqnTerm, EqnTerm) -- LHS, RHS
 
-type alias Equation = (Num, Trace)
+type alias Problem  = (List Eqn, List Int) -- System of equations, and varIds to solve for (usually a singleton).
+type alias Solution = List (EqnTerm, Int)
 
-solve : Subst -> Equation -> Maybe Num
-solve subst eqn =
-  Utils.plusMaybe (termSolve subst eqn) (solveTopDown subst eqn)
+type alias SolutionsCache = Dict Problem (List Solution)
 
-  -- both solvers assume that a single variable is being solved for
+type NeedSolutionException = NeedSolution Problem
 
 
---------------------------------------------------------------------------------
--- "Make Equal" Solver
+traceToEqnTerm : Trace -> EqnTerm
+traceToEqnTerm trace =
+  case trace of
+    TrLoc (locId, _, _) -> EqnVar locId
+    TrOp op_ children   -> EqnOp op_ (List.map traceToEqnTerm children)
 
--- Use the Make Equal solver
-termSolve : Subst -> Equation -> Maybe Num
-termSolve subst (newN, trace) =
-  -- The locId missing from subst is what we are solving for
-  let locEqn = LocEqn.traceToLocEquation trace in
-  let locIds = locEqnLocIdSet locEqn |> Set.toList in
-  let targetLocId =
-    locIds
-    |> Utils.findFirst (\locId -> Dict.get locId subst == Nothing)
-    |> Utils.fromJust_ "subst should be missing a locId"
+
+-- Some locId should be missing from the Subst: the missing locId will be solved for.
+--
+-- Side effect: throws exception if solution not in cache; controller should ask solver for solution and retry action.
+solveTrace : SolutionsCache -> Subst -> Trace -> Num -> Maybe Num
+solveTrace solutionsCache subst trace targetVal =
+  let eqnTerm = traceToEqnTerm trace in
+  let targetVarId = Utils.diffAsSet (eqnTermVarIds eqnTerm) (Dict.keys subst) |> Utils.head "Solver.solveTrace: expected trace to have a locId remaining after applying subst" in
+  -- Apply subst as late as possible so we can have the most general form of equations in the cache.
+  case symbolicSolve solutionsCache [(eqnTerm, EqnConst targetVal)] [targetVarId] of
+    [(solvedTerm, targetVarId)]::_ -> solvedTerm |> applySubst subst |> evalToMaybeNum
+    _                              -> Nothing
+
+
+-- Assumes no variables remain, otherwise returns Nothing with a debug message.
+evalToMaybeNum : EqnTerm -> Maybe Num
+evalToMaybeNum eqnTerm =
+  case eqnTerm of
+    EqnConst n        -> Just n
+    EqnVar _          -> let _ = Utils.log ("Solver.evalToMaybeNum: Found " ++ toString eqnTerm ++ " in an EqnTerm that shouldn't have any variables.") in Nothing
+    EqnOp op operands ->
+      operands
+      |> List.map evalToMaybeNum
+      |> Utils.projJusts
+      |> Maybe.andThen (\operandNums -> Lang.maybeEvalMathOp op operandNums)
+
+
+-- The targetVarIds had better occur inside of the eqns!
+--
+-- Maybe multiple solutions: returns a list.
+--
+-- Side effect: throws exception if solution not in cache; controller should ask solver for solution and retry action.
+symbolicSolve : SolutionsCache -> List (EqnTerm, EqnTerm) -> List Int -> List Solution
+symbolicSolve solutionsCache eqns targetVarIds =
+  let allEqnTerms = List.concatMap Utils.pairToList eqns in
+  let (oldToNormalizedVarIds, normalizedToOldVarIds) = normalizedVarIdMapping allEqnTerms in
+  let normalizedEquations =
+    eqns
+    |> List.map
+        (\(lhs, rhs) ->
+          case (remapVarIds oldToNormalizedVarIds lhs, remapVarIds oldToNormalizedVarIds rhs) of
+            (Just normalizedLHS, Just normalizedRHS) -> Just (normalizedLHS, normalizedRHS)
+            _                                        -> Debug.crash "Shouldn't happen: Bug in Solver.symbolicSolve/normalizedVarIdMapping"
+        )
+    |> Utils.projJusts
+    |> Utils.fromJust_ "Also shouldn't happen: Bug in Solver.symbolicSolve"
   in
-  LocEqn.solveForLocValue targetLocId subst locEqn newN
+  case targetVarIds |> List.map (\targetVarId -> Dict.get targetVarId oldToNormalizedVarIds) |> Utils.projJusts of
+    Just normalizedTargetVarIds ->
+      let problem = (normalizedEquations, normalizedTargetVarIds) in
+      case Dict.get problem solutionsCache of
+        Just solutions ->
+          -- Now convert back to given varIds
+          solutions |> List.filterMap (remapSolutionVarIds normalizedToOldVarIds)
+
+        Nothing ->
+          ImpureGoodies.throw (NeedSolution problem)
+
+    Nothing ->
+      let _ = Debug.log "WARNING: Asked to solve for variable(s) not in equation! No solutions." (eqns, targetVarIds) in
+      []
 
 
---------------------------------------------------------------------------------
--- "Top-Down" Solver (a.k.a. Solver B)
-
-evalTrace : Subst -> Trace -> Maybe Num
-evalTrace subst t = case t of
-  TrLoc (k,_,_) -> Dict.get k subst
-  TrOp op ts ->
-    Utils.mapMaybe
-      (Eval.evalDelta Syntax.Little [] op)
-      (Utils.projJusts (List.map (evalTrace subst) ts))
-
-evalLoc : Subst -> Trace -> Maybe (Maybe Num)
-  -- Just (Just i)   tr is a location bound in subst
-  -- Just Nothing    tr is a location not bound (i.e. it's being solved for)
-  -- Nothing         tr is not a location
-evalLoc subst tr =
-  case tr of
-    TrOp _ _    -> Nothing
-    TrLoc (k,_,_) -> Just (Dict.get k subst)
-
-solveTopDown subst (n, t) = case t of
-
-  TrLoc (k,_,_) ->
-    case Dict.get k subst of
-      Nothing -> Just n
-      Just _  -> Nothing
-
-  TrOp op [t1,t2] ->
-    let left  = (evalTrace subst t1, evalLoc   subst t2) in
-    let right = (evalLoc   subst t1, evalTrace subst t2) in
-    case (isNumBinop op, left, right) of
-
-      -- four cases are of the following form,
-      -- where k is the single location variable being solved for:
-      --
-      --    1.   n =  i op k
-      --    2.   n =  i op t2
-      --    3.   n =  k op j
-      --    4.   n = t1 op j
-
-      (True, (Just i, Just Nothing), _) -> solveR op n i
-      (True, (Just i, Nothing), _)      -> Utils.bindMaybe
-                                             (\n -> solveTopDown subst (n, t2))
-                                             (solveR op n i)
-      (True, _, (Just Nothing, Just j)) -> solveL op n j
-      (True, _, (Nothing, Just j))      -> Utils.bindMaybe
-                                             (\n -> solveTopDown subst (n, t1))
-                                             (solveL op n j)
-
-      _ ->
-        let _ = debugLog "Sync.solveTopDown" <| strTrace t in
-        Nothing
-
-  TrOp op [t1] ->
-    case evalTrace subst t1 of
-      Just _  -> Nothing
-      Nothing ->
-        case op of
-          Cos     -> maybeFloat <| acos n
-          Sin     -> maybeFloat <| asin n
-          ArcCos  -> Just <| cos n
-          ArcSin  -> Just <| sin n
-          Sqrt    -> Just <| n * n
-          Round   -> Nothing
-          Floor   -> Nothing
-          Ceil    -> Nothing
-          _       -> let _ = debugLog "TODO solveTopDown" t in
-                     Nothing
-
-  _ ->
-    let _ = debugLog "TODO solveTopDown" t in
-    Nothing
-
-isNumBinop = (/=) Lt
-
-maybeFloat n =
-  let thresh = 1000 in
-  if isNaN n || isInfinite n then debugLog "maybeFloat Nothing" Nothing
-  else if abs n > thresh     then debugLog "maybeFloat (above thresh)" Nothing
-  else                            Just n
-
--- n = i op j
-solveR op n i = case op of
-  Plus    -> maybeFloat <| n - i
-  Minus   -> maybeFloat <| i - n
-  Mult    -> maybeFloat <| n / i
-  Div     -> maybeFloat <| i / n
-  Pow     -> Just <| logBase i n
-  Mod     -> Nothing
-  ArcTan2 -> maybeFloat <| tan(n) * i
-  _       -> Debug.crash "solveR"
-
--- n = i op j
-solveL op n j = case op of
-  Plus  -> maybeFloat <| n - j
-  Minus -> maybeFloat <| j + n
-  Mult  -> maybeFloat <| n / j
-  Div   -> maybeFloat <| j * n
-  Pow   -> Just <| n ^ (1/j)
-  Mod   -> Nothing
-  ArcTan2 -> maybeFloat <| j / tan(n)
-  _     -> Debug.crash "solveL"
-
-
---------------------------------------------------------------------------------
--- "Addition-Only" Solver (a.k.a. Solver A)
-
-simpleSolve subst (sum, tr) =
-  let walkTrace t = case t of
-    TrLoc (k,_,_) ->
-      case Dict.get k subst of
-        Nothing -> Just (0, 1)
-        Just i  -> Just (i, 0)
-    TrOp Plus ts ->
-      let foo mx macc =
-        case (mx, macc) of
-          (Just (a,b), Just (acc1,acc2)) -> Just (a+acc1, b+acc2)
-          _                              -> Nothing
-      in
-        List.foldl foo (Just (0,0)) (List.map walkTrace ts)
-    _ ->
-      let _ = debugLog "Sync.simpleSolve" <| strTrace tr in
-      Nothing
+-- Let the first variable encountered be 1, second 2, etc...
+--
+-- Want our symbolic solutions to be general so we don't have to round-trip to the solver all the time.
+normalizedVarIdMapping : List EqnTerm -> (Dict Int Int, Dict Int Int)
+normalizedVarIdMapping eqnTerms =
+  let (_, oldToNew, newToOld) =
+    eqnTerms
+    |> List.concatMap eqnTermVarIds
+    |> List.foldl
+        (\oldVarId (i, oldToNormalizedVarIds, normalizedToOldVarIds) ->
+          case Dict.get oldVarId oldToNormalizedVarIds of
+            Just _  -> (i, oldToNormalizedVarIds, normalizedToOldVarIds)
+            Nothing ->
+              ( i+1
+              , Dict.insert oldVarId i oldToNormalizedVarIds
+              , Dict.insert i oldVarId normalizedToOldVarIds
+              )
+        )
+        (1, Dict.empty, Dict.empty)
   in
-  Utils.mapMaybe
-    (\(partialSum,n) -> (sum - partialSum) / n)
-    (walkTrace tr)
+  (oldToNew, newToOld)
+
+
+eqnTermVarIds : EqnTerm -> List Int
+eqnTermVarIds eqnTerm =
+  case eqnTerm of
+    EqnConst _         -> []
+    EqnVar varId       -> [varId]
+    EqnOp _ childTerms -> List.concatMap eqnTermVarIds childTerms
+
+
+remapVarIds : Dict Int Int -> EqnTerm -> Maybe EqnTerm
+remapVarIds oldToNew eqnTerm =
+  case eqnTerm of
+    EqnConst _           -> Just eqnTerm
+    EqnVar varId         -> Dict.get varId oldToNew |> Maybe.map EqnVar
+    EqnOp op_ childTerms -> childTerms |> List.map (remapVarIds oldToNew) |> Utils.projJusts |> Maybe.map (EqnOp op_)
+
+
+remapSolutionVarIds : Dict Int Int -> Solution -> Maybe Solution
+remapSolutionVarIds oldToNew solution =
+  solution
+  |> List.map
+      (\(eqnTerm, targetVarId) ->
+        Maybe.map2
+            (,)
+            (remapVarIds oldToNew eqnTerm)
+            (Dict.get targetVarId oldToNew)
+      )
+  |> Utils.projJusts
+
+
+applySubst : Dict Int Num -> EqnTerm -> EqnTerm
+applySubst subst eqnTerm =
+  case eqnTerm of
+    EqnConst n   -> eqnTerm
+    EqnVar varId ->
+      case Dict.get varId subst of
+        Just n  -> EqnConst n
+        Nothing -> eqnTerm
+    EqnOp op_ childTerms -> EqnOp op_ (childTerms |> List.map (applySubst subst))

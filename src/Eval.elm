@@ -503,29 +503,9 @@ evalTBranches syntax env bt val tbranches =
 
 
 evalDelta syntax bt op is =
-  case (op, is) of
-
-    (Plus,    [i,j]) -> (+) i j
-    (Minus,   [i,j]) -> (-) i j
-    (Mult,    [i,j]) -> (*) i j
-    (Div,     [i,j]) -> (/) i j
-    (Pow,     [i,j]) -> (^) i j
-    (Mod,     [i,j]) -> toFloat <| (%) (floor i) (floor j)
-                         -- might want an error/warning for non-int
-    (ArcTan2, [i,j]) -> atan2 i j
-
-    (Cos,     [n])   -> cos n
-    (Sin,     [n])   -> sin n
-    (ArcCos,  [n])   -> acos n
-    (ArcSin,  [n])   -> asin n
-    (Floor,   [n])   -> toFloat <| floor n
-    (Ceil,    [n])   -> toFloat <| ceiling n
-    (Round,   [n])   -> toFloat <| round n
-    (Sqrt,    [n])   -> sqrt n
-
-    (Pi,      [])    -> pi
-
-    _                -> crashWithBacktrace syntax bt <| "Little evaluator bug: Eval.evalDelta " ++ strOp op
+  case Lang.maybeEvalMathOp op is of
+    Just result -> result
+    Nothing     -> crashWithBacktrace syntax bt <| "Little evaluator bug: Eval.evalDelta " ++ strOp op
 
 
 -- Using this recursive function rather than desugaring to single

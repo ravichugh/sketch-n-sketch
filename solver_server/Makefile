@@ -16,6 +16,11 @@ run:
 	# This will open a websocket server at localhost:7444/reduce
 	./sketch-n-sketch_solver_server
 
+# For playing with Reduce
+reduce-repl:
+	(echo "" | reduce-algebra/bin/redcsl > /dev/null) || make reduce-algebra/bin/redcsl
+	reduce-algebra/bin/redcsl
+
 
 ### Debian Only ###
 

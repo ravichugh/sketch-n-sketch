@@ -93,6 +93,29 @@ type Op_
   -- trinary ops
   | DictInsert
 
+
+maybeEvalMathOp : Op_ -> List Num -> Maybe Num
+maybeEvalMathOp op_ operands =
+  case (op_, operands) of
+    (Plus,    [l,r]) -> Just <| (+) l r
+    (Minus,   [l,r]) -> Just <| (-) l r
+    (Mult,    [l,r]) -> Just <| (*) l r
+    (Div,     [l,r]) -> Just <| (/) l r
+    (Pow,     [l,r]) -> Just <| (^) l r
+    (Mod,     [l,r]) -> Just <| toFloat <| (%) (floor l) (floor r) -- might want an error/warning for non-int
+    (ArcTan2, [l,r]) -> Just <| atan2 l r
+    (Cos,     [n])   -> Just <| cos n
+    (Sin,     [n])   -> Just <| sin n
+    (ArcCos,  [n])   -> Just <| acos n
+    (ArcSin,  [n])   -> Just <| asin n
+    (Floor,   [n])   -> Just <| toFloat <| floor n
+    (Ceil,    [n])   -> Just <| toFloat <| ceiling n
+    (Round,   [n])   -> Just <| toFloat <| round n
+    (Sqrt,    [n])   -> Just <| sqrt n
+    (Pi,      [])    -> Just <| pi
+    _                -> Nothing
+
+
 type alias Operator =
   (WS, Ident)
 

@@ -19,6 +19,7 @@ build/out/mode-elm.js
 build/out/theme-chrome.js
 build/out/focus.js
 build/out/keyBlocker.js
+build/out/solverServer.js
 build/out/img/*
 *swp
 src/*swp

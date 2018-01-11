@@ -18,7 +18,7 @@ import LangSvg exposing
 import ShapeWidgets exposing
   ( RealZone, RealZone(..), PointFeature(..), OtherFeature(..)
   )
-import Solver exposing (Equation)
+import Solver
 import FastParser exposing (isPreludeLoc, substPlusOf)
 import Ace
 import Config exposing (params)
@@ -290,7 +290,8 @@ type alias AttrName = String
   --   e.g. fillOpacity
 
 type alias UpdateFunction
-    = (Int, Int)   -- initial click (mx0, my0)
+    = Solver.SolutionsCache
+   -> (Int, Int)   -- initial click (mx0, my0)
    -> (Int, Int)   -- change in mouse position (dx, dy)
    -> Maybe Num
 
@@ -399,7 +400,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
             ( "", "dx", loc_, TrLoc loc
-            , \_ (dx,_) -> solveOne subst loc_ (updateX dx) (TrLoc loc)
+            , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst loc_ (updateX dx) (TrLoc loc)
             ))
         )
         accResult
@@ -417,7 +418,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
             ( "", "dx", loc_, TrLoc loc
-            , \_ (dx,_) -> solveOne subst loc_ (updateX dx) (TrLoc loc)
+            , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst loc_ (updateX dx) (TrLoc loc)
             ))
         )
         accResult
@@ -427,11 +428,11 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
             mapMaybeToList xMaybeLoc (\xLoc ->
               ( "", "dx", xLoc, xTrace
-              , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+              , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst xLoc (x + toFloat dx) xTrace
               )) ++
             mapMaybeToList yMaybeLoc (\yLoc ->
               ( "", "dy", yLoc, yTrace
-              , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+              , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst yLoc (y + toFloat dy) yTrace
               ))
         )
         accResult
@@ -441,7 +442,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
             ( "", if axis == X then "dx" else "dy", loc_, amountTrace
-            , \_ (dx,dy) -> solveOne subst loc_ ((if sign == Positive then (+) else (-)) amount (if axis == X then toFloat dx else toFloat dy)) amountTrace
+            , \solutionsCache _ (dx,dy) -> solveOne solutionsCache subst loc_ ((if sign == Positive then (+) else (-)) amount (if axis == X then toFloat dx else toFloat dy)) amountTrace
             ))
         )
         accResult
@@ -470,9 +471,10 @@ addTrigger options id realZone traces makeTrigger (dict, maybeCounts) =
   (dict_, maybeCounts_)
 
 
-solveOne subst (k,_,_) n_ t =
+solveOne : Solver.SolutionsCache -> Subst -> Loc -> Num -> Trace -> Maybe Num
+solveOne solutionsCache subst (k,_,_) n_ t =
   let subst_ = Dict.remove k subst in
-  let maybeSolution = Solver.solve subst_ (n_,t) in
+  let maybeSolution = Solver.solveTrace solutionsCache subst_ t n_ in
   maybeSolution
 
 
@@ -501,33 +503,33 @@ computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
   let leftEdge xMaybeLoc wMaybeLoc =
     mapMaybeToList xMaybeLoc (\xLoc ->
       ( "x", "dx", xLoc, xTrace
-      , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst xLoc (x + toFloat dx) xTrace
       )) ++
     mapMaybeToList wMaybeLoc (\wLoc ->
       ( "width", "dx", wLoc, wTrace
-      , \_ (dx,_) -> solveOne subst wLoc (w - toFloat dx) wTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst wLoc (w - toFloat dx) wTrace
       )) in
 
   let rightEdge wMaybeLoc =
     mapMaybeToList wMaybeLoc (\wLoc ->
       ( "width", "dx", wLoc, wTrace
-      , \_ (dx,_) -> solveOne subst wLoc (w + toFloat dx) wTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst wLoc (w + toFloat dx) wTrace
       )) in
 
   let topEdge yMaybeLoc hMaybeLoc =
     mapMaybeToList yMaybeLoc (\yLoc ->
       ( "y", "dy", yLoc, yTrace
-      , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst yLoc (y + toFloat dy) yTrace
       )) ++
     mapMaybeToList hMaybeLoc (\hLoc ->
       ( "height", "dy", hLoc, hTrace
-      , \_ (_,dy) -> solveOne subst hLoc (h - toFloat dy) hTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst hLoc (h - toFloat dy) hTrace
       )) in
 
   let botEdge hMaybeLoc =
     mapMaybeToList hMaybeLoc (\hLoc ->
       ( "height", "dy", hLoc, hTrace
-      , \_ (_,dy) -> solveOne subst hLoc (h + toFloat dy) hTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst hLoc (h + toFloat dy) hTrace
       )) in
 
   (Dict.empty, maybeCounts)
@@ -536,11 +538,11 @@ computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
        let (xMaybeLoc, yMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
        mapMaybeToList xMaybeLoc (\xLoc ->
          ( "x", "dx", xLoc, xTrace
-         , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+         , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst xLoc (x + toFloat dx) xTrace
          )) ++
        mapMaybeToList yMaybeLoc (\yLoc ->
          ( "y", "dy", yLoc, yTrace
-         , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+         , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst yLoc (y + toFloat dy) yTrace
          ))
      )
 
@@ -602,11 +604,11 @@ computeLineTriggers (options, subst) maybeCounts (id, _, attrs) =
     in
     mapMaybeToList xMaybeLoc (\xLoc ->
       ( "x" ++ toString i, "dx", xLoc, xTrace
-      , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst xLoc (x + toFloat dx) xTrace
       )) ++
     mapMaybeToList yMaybeLoc (\yLoc ->
       ( "y" ++ toString i, "dy", yLoc, yTrace
-      , \_ (_, dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+      , \solutionsCache _ (_, dy) -> solveOne solutionsCache subst yLoc (y + toFloat dy) yTrace
       )) in
 
   (Dict.empty, maybeCounts)
@@ -643,25 +645,25 @@ computeEllipseTriggers (options, subst) maybeCounts (id, _, attrs) =
   let leftEdge rxMaybeLoc =
     mapMaybeToList rxMaybeLoc (\rxLoc ->
       ( "rx", "dx", rxLoc, rxTrace
-      , \_ (dx,_) -> solveOne subst rxLoc (rx - toFloat dx) rxTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst rxLoc (rx - toFloat dx) rxTrace
       )) in
 
   let rightEdge rxMaybeLoc =
     mapMaybeToList rxMaybeLoc (\rxLoc ->
       ( "rx", "dx", rxLoc, rxTrace
-      , \_ (dx,_) -> solveOne subst rxLoc (rx + toFloat dx) rxTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst rxLoc (rx + toFloat dx) rxTrace
       )) in
 
   let topEdge ryMaybeLoc =
     mapMaybeToList ryMaybeLoc (\ryLoc ->
       ( "ry", "dy", ryLoc, ryTrace
-      , \_ (_,dy) -> solveOne subst ryLoc (ry - toFloat dy) ryTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst ryLoc (ry - toFloat dy) ryTrace
       )) in
 
   let botEdge ryMaybeLoc =
     mapMaybeToList ryMaybeLoc (\ryLoc ->
       ( "ry", "dy", ryLoc, ryTrace
-      , \_ (_,dy) -> solveOne subst ryLoc (ry + toFloat dy) ryTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst ryLoc (ry + toFloat dy) ryTrace
       )) in
 
   (Dict.empty, maybeCounts)
@@ -670,11 +672,11 @@ computeEllipseTriggers (options, subst) maybeCounts (id, _, attrs) =
        let (cxMaybeLoc, cyMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
        mapMaybeToList cxMaybeLoc (\cxLoc ->
          ( "cx", "dx", cxLoc, cxTrace
-         , \_ (dx,_) -> solveOne subst cxLoc (cx + toFloat dx) cxTrace
+         , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst cxLoc (cx + toFloat dx) cxTrace
          )) ++
        mapMaybeToList cyMaybeLoc (\cyLoc ->
          ( "cy", "dy", cyLoc, cyTrace
-         , \_ (_,dy) -> solveOne subst cyLoc (cy + toFloat dy) cyTrace
+         , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst cyLoc (cy + toFloat dy) cyTrace
          ))
      )
 
@@ -737,33 +739,33 @@ computeCircleTriggers (options, subst) maybeCounts (id, _, attrs) =
   let leftEdge rMaybeLoc =
     mapMaybeToList rMaybeLoc (\rLoc ->
       ( "r", "dx", rLoc, rTrace
-      , \_ (dx,_) -> solveOne subst rLoc (r - toFloat dx) rTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst rLoc (r - toFloat dx) rTrace
       )) in
 
   let rightEdge rMaybeLoc =
     mapMaybeToList rMaybeLoc (\rLoc ->
       ( "r", "dx", rLoc, rTrace
-      , \_ (dx,_) -> solveOne subst rLoc (r + toFloat dx) rTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst rLoc (r + toFloat dx) rTrace
       )) in
 
   let topEdge rMaybeLoc =
     mapMaybeToList rMaybeLoc (\rLoc ->
       ( "r", "dy", rLoc, rTrace
-      , \_ (_,dy) -> solveOne subst rLoc (r - toFloat dy) rTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst rLoc (r - toFloat dy) rTrace
       )) in
 
   let botEdge rMaybeLoc =
     mapMaybeToList rMaybeLoc (\rLoc ->
       ( "r", "dy", rLoc, rTrace
-      , \_ (_,dy) -> solveOne subst rLoc (r + toFloat dy) rTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst rLoc (r + toFloat dy) rTrace
       )) in
 
   let corner rMaybeLoc fx fy =
     mapMaybeToList rMaybeLoc (\rLoc ->
       ( "r", "dxy", rLoc, rTrace
-      , \_ (dx,dy) ->
+      , \solutionsCache _ (dx,dy) ->
           let d = max (fx dx) (fy dy) in
-          solveOne subst rLoc (r + toFloat d) rTrace
+          solveOne solutionsCache subst rLoc (r + toFloat d) rTrace
       )) in
 
   (Dict.empty, maybeCounts)
@@ -772,12 +774,12 @@ computeCircleTriggers (options, subst) maybeCounts (id, _, attrs) =
        let (cxMaybeLoc, cyMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
        mapMaybeToList cxMaybeLoc (\cxLoc ->
          ( "cx", "dx", cxLoc, cxTrace
-         , \_ (dx,_) -> solveOne subst cxLoc (cx + toFloat dx) cxTrace
+         , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst cxLoc (cx + toFloat dx) cxTrace
          )
        ) ++
        mapMaybeToList cyMaybeLoc (\cyLoc ->
          ( "cy", "dy", cyLoc, cyTrace
-         , \_ (_,dy) -> solveOne subst cyLoc (cy + toFloat dy) cyTrace
+         , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst cyLoc (cy + toFloat dy) cyTrace
          )
        )
      )
@@ -836,25 +838,25 @@ computeBoxOrOvalTriggers (options, subst) maybeCounts (id, _, attrs) =
   let leftEdge leftMaybeLoc =
     mapMaybeToList leftMaybeLoc (\leftLoc ->
       ( "LEFT", "dx", leftLoc, leftTrace
-      , \_ (dx,_) -> solveOne subst leftLoc (left + toFloat dx) leftTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst leftLoc (left + toFloat dx) leftTrace
       )) in
 
   let rightEdge rightMaybeLoc =
     mapMaybeToList rightMaybeLoc (\rightLoc ->
       ( "RIGHT", "dx", rightLoc, rightTrace
-      , \_ (dx,_) -> solveOne subst rightLoc (right + toFloat dx) rightTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst rightLoc (right + toFloat dx) rightTrace
       )) in
 
   let topEdge topMaybeLoc =
     mapMaybeToList topMaybeLoc (\topLoc ->
       ( "TOP", "dy", topLoc, topTrace
-      , \_ (_,dy) -> solveOne subst topLoc (top + toFloat dy) topTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst topLoc (top + toFloat dy) topTrace
       )) in
 
   let botEdge botMaybeLoc =
     mapMaybeToList botMaybeLoc (\botLoc ->
       ( "BOT", "dy", botLoc, botTrace
-      , \_ (_,dy) -> solveOne subst botLoc (bot + toFloat dy) botTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst botLoc (bot + toFloat dy) botTrace
       )) in
 
   (Dict.empty, maybeCounts)
@@ -912,13 +914,13 @@ computeBoxOrOvalTriggers (options, subst) maybeCounts (id, _, attrs) =
 pointX_ subst i xMaybeLoc x xTrace =
   mapMaybeToList xMaybeLoc (\xLoc ->
     ( "X" ++ toString i, "dx", xLoc, xTrace
-    , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+    , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst xLoc (x + toFloat dx) xTrace
     ))
 
 pointY_ subst i yMaybeLoc y yTrace =
   mapMaybeToList yMaybeLoc (\yLoc ->
     ( "Y" ++ toString i, "dy", yLoc, yTrace
-    , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+    , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst yLoc (y + toFloat dy) yTrace
     ))
 
 addPointZones_ finishTrigger pointX pointY indexedPoints result =
@@ -1025,9 +1027,9 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
           let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
           mapMaybeToList maybeLoc (\colorLoc ->
             ( fillOrStroke, "dx", colorLoc, colorTrace
-            , \_ (dx,_) ->
+            , \solutionsCache _ (dx,_) ->
                 let color_ = colorNumPlus color dx in
-                solveOne subst colorLoc color_ colorTrace
+                solveOne solutionsCache subst colorLoc color_ colorTrace
             ))
         ) (dict, maybeCounts)
 
@@ -1041,9 +1043,9 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
           let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
           mapMaybeToList maybeLoc (\opacityLoc ->
             ( fillOrStroke ++ "Opacity", "dx", opacityLoc, opacityTrace
-            , \_ (dx,_) ->
+            , \solutionsCache _ (dx,_) ->
                 let opacity_ = opacityNumPlus opacity dx in
-                solveOne subst opacityLoc opacity_ opacityTrace
+                solveOne solutionsCache subst opacityLoc opacity_ opacityTrace
             ))
         ) (dict, maybeCounts)
 
@@ -1057,9 +1059,9 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
           let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
           mapMaybeToList maybeLoc (\widthLoc ->
             ( "stroke-width", "dx", widthLoc, widthTrace
-            , \_ (dx,_) ->
+            , \solutionsCache _ (dx,_) ->
                 let width_ = strokeWidthNumPlus width dx in
-                solveOne subst widthLoc width_  widthTrace
+                solveOne solutionsCache subst widthLoc width_  widthTrace
             ))
         ) (dict, maybeCounts)
 
@@ -1073,14 +1075,14 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
           let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
           mapMaybeToList maybeLoc (\rotLoc ->
             ( "transformRot", "dxy", rotLoc, rotTrace
-            , \(mx0,my0) (dx,dy) ->
+            , \solutionsCache (mx0,my0) (dx,dy) ->
                 let (mx1, my1) = (mx0 + dx, my0 + dy) in
                 let
                   radToDeg = Utils.radiansToDegrees
                   a0 = radToDeg <| atan2 (cy - toFloat my0) (toFloat mx0 - cx)
                   a1 = radToDeg <| atan2 (cy - toFloat my1) (toFloat mx1 - cx)
                 in
-                solveOne subst rotLoc (rot + (a0 - a1)) rotTrace
+                solveOne solutionsCache subst rotLoc (rot + (a0 - a1)) rotTrace
             ))
         ) (dict, maybeCounts)
 
@@ -1116,9 +1118,7 @@ opacityNumPlus n dx =
 ------------------------------------------------------------------------------
 -- Preparing Live Triggers
 
-type alias MouseTrigger2 a = (Int, Int) -> (Int, Int) -> a
-
-type alias LiveTrigger = MouseTrigger2 (Exp, List Ace.Highlight)
+type alias LiveTrigger = Solver.SolutionsCache -> (Int, Int) -> (Int, Int) -> (Exp, List Ace.Highlight)
 
 -- ShapeKind in zone key is used for display in caption, but not for keying the triggers dictionary.
 type alias ZoneKey = (NodeId, ShapeKind, RealZone) -- node id for a widget is -2 - (widget number starting from 1)
@@ -1135,7 +1135,7 @@ lookupZoneKey zoneKey info =
   |> Maybe.withDefault default
 
 prepareLiveTrigger : LiveInfo -> Exp -> ZoneKey -> LiveTrigger
-prepareLiveTrigger info exp zoneKey (mx0,my0) (dx,dy) =
+prepareLiveTrigger info exp zoneKey solutionsCache (mx0,my0) (dx,dy) =
 
   let (trigger, yellowLocs, _) = lookupZoneKey zoneKey info in
   let initSubst = Dict.map (always .val) info.initSubstPlus in
@@ -1143,7 +1143,7 @@ prepareLiveTrigger info exp zoneKey (mx0,my0) (dx,dy) =
   let updates =
      List.foldl (\triggerElement acc ->
        let (_, _, (k,_,_), _, updateFunction) = triggerElement in
-       case (Dict.get k acc, updateFunction (mx0,my0) (dx,dy)) of
+       case (Dict.get k acc, updateFunction solutionsCache (mx0,my0) (dx,dy)) of
 
          (Nothing, maybeSolution) -> Dict.insert k maybeSolution acc
 
