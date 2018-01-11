@@ -103,7 +103,9 @@ problem_count = 0
 #   97409:5    error  '_user$project$SleekView$groupDisabled' is assigned a value but never used    no-unused-vars
 #   97439:40   error  'sortKey' is defined but never used                                           no-unused-vars
 #   97447:17   error  '_p65' is defined but never used                                              no-unused-vars
-`eslint --no-color --no-eslintrc --rule 'no-unused-vars: [error]' #{SNS_JS_PATH}`.
+eslint_out = `eslint --no-color --no-eslintrc --rule 'no-unused-vars: [error]' #{SNS_JS_PATH}`
+
+eslint_out.
   scan(/(\d+):\d+\s+error\s+'([\w\$]+)'/).
   each do |line_number_str, ident|
     line_number = line_number_str.to_i
@@ -140,10 +142,11 @@ problem_count = 0
       location_string = "\t#{source_path}:#{source_line_index+1}".blue # in iTerm 2, you can cmd-click on this to go directly to the problem
       if nice_ident !~ /\./ # Show sns.js lines if not a top-level defintion
         puts "#{nice_ident} (in #{file_name}.#{function_base_name})".yellow + location_string
-        function.lines.each_with_index do |line, line_index_within_function|
-          current_line_number = function_line_range.begin + line_index_within_function
-          current_line_number == line_number ? puts(line.rstrip) : puts(line.rstrip.gray)
-        end
+        # # Print out JS source of enclosing function.
+        # function.lines.each_with_index do |line, line_index_within_function|
+        #   current_line_number = function_line_range.begin + line_index_within_function
+        #   current_line_number == line_number ? puts(line.rstrip) : puts(line.rstrip.gray)
+        # end
       else
         puts nice_ident.yellow + location_string
       end
@@ -154,7 +157,12 @@ if problem_count > 0
   puts "#{problem_count} problem#{problem_count == 1 ? "" : "s"}.".red
   exit 1
 else
-  puts "0 problems.".green
-  puts "All good!".green
-  exit 0
+  if $?.success?
+    puts "0 problems.".green
+    puts "All good!".green
+    exit 0
+  else
+    puts eslint_out
+    exit 1
+  end
 end

@@ -35,9 +35,9 @@ IO.popen(FSWATCH_COMMAND) do |fswatch|
     system MAKE_COMMAND
     begin
       changed_files = ""
-      changed_files = fswatch.read_nonblock(1_000_000)
+      # Only lint if no files changed while building and build was a success.
+      changed_files = fswatch.read_nonblock(1_000_000) if $?.success?
     rescue
-      # If no files changed while building, lint.
       system "cd src; make lint"
     end
   end
