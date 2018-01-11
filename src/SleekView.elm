@@ -23,6 +23,7 @@ import Updatable
 import InterfaceModel as Model exposing (..)
 
 import InterfaceController as Controller
+import Keys
 import ExamplesGenerated as Examples
 
 import Deuce
@@ -2196,8 +2197,8 @@ popupPanel args =
           [ Attr.class "dragger"
           , E.onMouseDown args.dragHandler
           , E.onMouseUp Controller.msgClearDrag
-          ]
-          args.title
+          ] <|
+          args.title ++ [closeUiButton <| Controller.msgKeyDown Keys.keyEsc]
       ]
     (xString, yString) =
       Utils.mapBoth px args.pos
@@ -2210,7 +2211,7 @@ popupPanel args =
           , ("top", yString)
           ]
       ] <|
-      dragger ++ args.content
+        dragger ++ args.content
 
 --------------------------------------------------------------------------------
 -- Deuce Popup Panel
