@@ -130,7 +130,7 @@ unparseOp op =
     Lt ->
       "<"
     Eq ->
-      "="
+      "=="
     Mod ->
       "mod"
     Pow ->

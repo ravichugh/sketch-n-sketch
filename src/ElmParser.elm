@@ -694,7 +694,7 @@ opFromIdentifier identifier =
       Just Div
     "<" ->
       Just Lt
-    "=" ->
+    "==" ->
       Just Eq
     "mod" ->
       Just Mod
