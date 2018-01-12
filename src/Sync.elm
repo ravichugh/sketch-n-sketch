@@ -305,10 +305,10 @@ type alias LiveInfo =
 
 prepareLiveUpdates : Options -> Exp -> Canvas -> Result String LiveInfo
 prepareLiveUpdates options e (slate, widgets) =
-  -- prepareLiveUpdates_ options e (slate, widgets)
-  ImpureGoodies.logTimedRun "Sync.prepareLiveUpdates" (\() ->
-    prepareLiveUpdates_ options e (slate, widgets)
-  )
+  prepareLiveUpdates_ options e (slate, widgets)
+  -- ImpureGoodies.logTimedRun "Sync.prepareLiveUpdates" (\() ->
+  --   prepareLiveUpdates_ options e (slate, widgets)
+  -- )
 
 prepareLiveUpdates_ : Options -> Exp -> Canvas -> Result String LiveInfo
 prepareLiveUpdates_ options e (slate, widgets) =

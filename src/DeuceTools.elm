@@ -2111,10 +2111,10 @@ deuceTools model =
 
 createToolCache : Model -> List (List CachedDeuceTool)
 createToolCache model =
-  -- createToolCache_ model
-  ImpureGoodies.logTimedRun "DeuceTools.createToolCachce" (\() ->
-    createToolCache_ model
-  )
+  createToolCache_ model
+  -- ImpureGoodies.logTimedRun "DeuceTools.createToolCachce" (\() ->
+  --   createToolCache_ model
+  -- )
 
 createToolCache_ : Model -> List (List CachedDeuceTool)
 createToolCache_ model =
