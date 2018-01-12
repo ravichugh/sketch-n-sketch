@@ -18,6 +18,7 @@ import Either exposing (Either(..))
 import Keys
 import Svg
 import LangSvg exposing (attr)
+import History exposing (History)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -32,9 +33,6 @@ import VirtualDom
 import ImpureGoodies
 
 type alias Code = String
-
-type alias History a =
-  (List a, List a)
 
 type alias Filename = String
 
@@ -59,7 +57,7 @@ type alias ViewState =
   }
 
 type alias Preview =
-  Maybe (Code, List DeuceWidgets.DeuceWidget, Result String (Val, Widgets, RootedIndexedTree))
+  Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
 
 type TextSelectMode
     -- Only match the exact range
@@ -96,7 +94,7 @@ type alias Model =
   { code : Code
   , lastRunCode : Code
   , preview : Preview
-  , history : History (Code, List DeuceWidgets.DeuceWidget)
+  , history : History Code
   , inputExp : Exp
   , inputVal : Val
   , slideNumber : Int
@@ -649,10 +647,9 @@ liveInfoToHighlights zoneKey model =
 
 --------------------------------------------------------------------------------
 
-codeToShow : Model -> Code
 codeToShow model =
   case model.preview of
-     Just (string, _, _) -> string
+     Just (string, _) -> string
      Nothing          -> model.code
 
 --------------------------------------------------------------------------------
@@ -950,6 +947,17 @@ deucePopupPanelShown model =
 
 --------------------------------------------------------------------------------
 
+historyUpdateCondition : Code -> Code -> Bool
+historyUpdateCondition previousCode currentCode =
+  -- trimRight to tolerate differences in newlines at the end
+  String.trimRight previousCode /= String.trimRight currentCode
+
+commitModelHistory : Code -> History Code -> History Code
+commitModelHistory =
+  History.commit historyUpdateCondition
+
+--------------------------------------------------------------------------------
+
 initTemplate : String
 initTemplate = "BLANK"
 
@@ -972,7 +980,7 @@ initModel =
     { code          = code
     , lastRunCode   = code
     , preview       = Nothing
-    , history       = ([(code, [])], [])
+    , history       = History.begin code
     , inputExp      = e
     , inputVal      = v
     , slideNumber   = 1

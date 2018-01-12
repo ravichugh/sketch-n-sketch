@@ -117,6 +117,7 @@ import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
+import History
 
 import ImpureGoodies
 
@@ -180,30 +181,6 @@ refreshHighlights zoneKey model =
   let codeBoxInfo = model.codeBoxInfo in
   let hi = liveInfoToHighlights zoneKey model in
   { model | codeBoxInfo = { codeBoxInfo | highlights = hi } }
-
--- may want to eventually have a maximum history length
-addToHistory : History (Code, List DeuceWidget) -> Code -> List DeuceWidget -> History (Code, List DeuceWidget)
-addToHistory history currentCode currentSelectedWidgets =
-  let
-    (past, _) = history
-  in
-    case past of
-      [] ->
-        ([(currentCode, currentSelectedWidgets)], [])
-
-      (lastCode, lastSelectedWidgets)::older ->
-        let
-          -- trimRight to tolerate differences in newlines at the end
-          codeUnchanged =
-            String.trimRight currentCode == String.trimRight lastCode
-          -- TODO might need to be sorted to disregard ordering somehow
-          widgetsUnchanged =
-            Set.fromList lastSelectedWidgets == Set.fromList currentSelectedWidgets
-        in
-          if codeUnchanged && widgetsUnchanged then
-            history
-          else
-            ((currentCode, currentSelectedWidgets) :: past, [])
 
 between1 i (j,k) = Utils.between i (j+1, k+1)
 
@@ -535,7 +512,7 @@ finishTrigger zoneKey old =
   let old_ = { old | inputExp = e } in
   refreshHighlights zoneKey
     { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
-           , history = addToHistory old_.history old.code old.deuceState.selectedWidgets }
+           , history = commitModelHistory old.code old_.history }
 
 
 --------------------------------------------------------------------------------
@@ -546,7 +523,7 @@ tryRun old =
     oldWithUpdatedHistory =
       let
         updatedHistory =
-          addToHistory old.history old.code old.deuceState.selectedWidgets
+          commitModelHistory old.code old.history
       in
         { old | history = updatedHistory }
   in
@@ -595,7 +572,7 @@ tryRun old =
                       , runAnimation  = newMovieDuration > 0
                       , slate         = newSlate
                       , widgets       = ws
-                      , history       = addToHistory old.history newCode old.deuceState.selectedWidgets
+                      , history       = commitModelHistory newCode old.history
                       , caption       = Nothing
                       , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                       , lambdaTools   = lambdaTools_
@@ -948,7 +925,6 @@ msgUserHasTyped =
             emptyDeuceState
     }
 
-upstateRun : Model -> Model
 upstateRun old =
   case tryRun old of
     Err (oldWithUpdatedHistory, err, Just annot) ->
@@ -963,7 +939,6 @@ upstateRun old =
     Ok newModel ->
       newModel
 
-msgTryParseRun : Model -> Msg
 msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
   case tryRun newModel of
     Err (oldWithUpdatedHistory, err, Just annot) ->
@@ -982,77 +957,87 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 
 msgUndo = Msg "Undo" doUndo
 
+doUndo : Model -> Model
 doUndo old =
-  let _ = Debug.log "Past" <| List.length <| Tuple.first old.history in
-  let _ = Debug.log "Future" <| List.length <| Tuple.second old.history in
-  case old.history of
-    ([], _) ->
+  case History.backward old.history of
+    Just newHistory ->
+      case History.mostRecent newHistory of
+        Just recent ->
+          let
+            new =
+              { old
+                  | history = newHistory
+                  , code = recent
+              }
+          in
+            upstateRun new
+
+        Nothing ->
+          old
+
+    Nothing ->
       old
-    ([firstRun], _) ->
-      old
-    ((lastCode, lastWidgets)::(secondToLastCode, secondToLastWidgets)::older, future) ->
-      let
-        toBeRun =
-          { old
-              | history =
-                  ((secondToLastCode, secondToLastWidgets)::older, (lastCode, lastWidgets)::future)
-              , code =
-                  secondToLastCode
-          }
-            |> Model.hideDeuceRightClickMenu
-            |> resetDeuceState
-        ran =
-          if old.code /= toBeRun.code then
-            upstateRun toBeRun
-          else
-            toBeRun
-        ranDeuceState =
-          ran.deuceState
-        newDeuceState =
-          { ranDeuceState
-              | selectedWidgets = secondToLastWidgets
-          }
-        new =
-          { ran
-              | deuceState = newDeuceState
-          }
-      in
-        new
+
+--  case old.history of
+--    ([], _) ->
+--      old
+--    ([firstRun], _) ->
+--      old
+--    (lastRun::secondToLast::older, future) ->
+--      let
+--        new =
+--          { old
+--              | history =
+--                  (secondToLast::older, lastRun::future)
+--              , code =
+--                  secondToLast
+--          }
+--            |> Model.hideDeuceRightClickMenu
+--            |> resetDeuceState
+--      in
+--        upstateRun new
 
 msgRedo = Msg "Redo" doRedo
 
+doRedo : Model -> Model
 doRedo old =
-  case old.history of
-    (_, []) ->
+  case History.forward old.history of
+    Just newHistory ->
+      case History.mostRecent newHistory of
+        Just recent ->
+          let
+            new =
+              { old
+                  | history = newHistory
+                  , code = recent
+              }
+                |> Model.hideDeuceRightClickMenu
+                |> resetDeuceState
+          in
+            upstateRun new
+
+        Nothing ->
+          old
+
+    Nothing ->
       old
-    (past, (nextCode, nextWidgets)::future) ->
-      let
-        toBeRun =
-          { old
-              | history =
-                  ((nextCode, nextWidgets)::past, future)
-              , code =
-                  nextCode
-          }
-            |> Model.hideDeuceRightClickMenu
-            |> resetDeuceState
-        ran =
-          if old.code /= toBeRun.code then
-            upstateRun toBeRun
-          else
-            toBeRun
-        ranDeuceState =
-          ran.deuceState
-        newDeuceState =
-          { ranDeuceState
-              | selectedWidgets = nextWidgets
-          }
-        new =
-          { ran
-              | deuceState = newDeuceState
-          }
-      in
-        new
+
+--  case old.history of
+--    (_, []) ->
+--      old
+--    (past, next::future) ->
+--      let
+--        new =
+--          { old
+--              | history =
+--                  (next::past, future)
+--              , code =
+--                  next
+--          }
+--            |> Model.hideDeuceRightClickMenu
+--            |> resetDeuceState
+--      in
+--        upstateRun new
 
 --------------------------------------------------------------------------------
 
@@ -1178,9 +1163,7 @@ msgKeyDown keyCode =
                 old
                   |> Model.hideDeuceRightClickMenu
                   |> resetDeuceState
-                  |> \m -> { m | deucePopupPanelAbove = True
-                               , history = addToHistory m.history m.code m.deuceState.selectedWidgets
-                               }
+                  |> \m -> { m | deucePopupPanelAbove = True }
             in
               case (old.tool, old.mouseMode) of
                 (Cursor, _)         -> clearSelections new
@@ -1270,7 +1253,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
-            , history          = addToHistory old.history newCode old.deuceState.selectedWidgets
+            , history          = commitModelHistory newCode old.history
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
@@ -1358,7 +1341,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   let new =
     { old | code = newCode
           , lastRunCode = newCode
-          , history = addToHistory old.history newCode old.deuceState.selectedWidgets
+          , history = commitModelHistory newCode old.history
           , synthesisResults = []
           }
   in
@@ -1555,24 +1538,22 @@ msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
 
 --------------------------------------------------------------------------------
 
-showCodePreview : Model -> Code -> List DeuceWidget -> Model
-showCodePreview old code deuceWidgets =
+showCodePreview old code =
   case parseE code of
-    Ok exp  -> showExpPreview old exp deuceWidgets
-    Err err -> { old | preview = Just (code, deuceWidgets, Err (showError err)) }
+    Ok exp  -> showExpPreview old exp
+    Err err -> { old | preview = Just (code, Err (showError err)) }
 
-showExpPreview : Model -> Exp -> List DeuceWidget -> Model
-showExpPreview old exp deuceWidgets =
+showExpPreview old exp =
   let code = unparse exp in
   case runAndResolve old exp of
-    Ok (val, widgets, slate, _) -> { old | preview = Just (code, deuceWidgets, Ok (val, widgets, slate)) }
-    Err s                       -> { old | preview = Just (code, deuceWidgets, Err s) }
+    Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, slate)) }
+    Err s                       -> { old | preview = Just (code, Err s) }
 
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
         , inputVal      = val
-        , history       = addToHistory old.history code old.deuceState.selectedWidgets
+        , history       = commitModelHistory code old.history
         , slate         = slate
         , preview       = Nothing
         , synthesisResults = []
@@ -1609,16 +1590,17 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
             { newModel | synthesisResults = newTopLevelResults
                        , hoveredSynthesisResultPathByIndices = pathByIndices }
       in
-      showExpPreview newModel2 exp []
+      showExpPreview newModel2 exp
 
     Nothing ->
       { old | preview = Nothing
             , hoveredSynthesisResultPathByIndices = [] }
 
 
-msgPreview : (Code, List DeuceWidget) -> Msg
-msgPreview (code, deuceWidgets) = Msg "Preview" <| \old ->
-  showCodePreview old code deuceWidgets
+msgPreview expOrCode = Msg "Preview" <| \old ->
+  case expOrCode of
+    Left exp   -> showExpPreview old exp
+    Right code -> showCodePreview old code
 
 msgClearPreview = Msg "Clear Preview" <| \old ->
   { old | preview = Nothing }
@@ -1679,7 +1661,7 @@ readFile : File -> Model -> Model
 readFile file old =
   { old | filename = file.filename
         , code = file.code
-        , history = ([(file.code, [])], [])
+        , history = History.begin file.code
         , lastSaveState = Just file.code
         , needsSave = False }
 
@@ -1716,7 +1698,7 @@ readFileFromInput : File -> Model -> Model
 readFileFromInput file old =
   { old | filename = file.filename
         , code = file.code
-        , history = ([(file.code, [])], [])
+        , history = History.begin file.code
         , lastSaveState = Nothing
         , needsSave = True }
 
@@ -1768,7 +1750,7 @@ handleNew template = (\old ->
                     , inputVal      = v
                     , code          = code
                     , lastRunCode   = code
-                    , history       = ([(code, [])],[])
+                    , history       = History.begin code
                     , liveSyncInfo  = outputMode
                     , syncOptions   = so
                     , slideNumber   = 1
@@ -1960,8 +1942,6 @@ toggleDeuceWidget widget model =
               newDeuceState
           , deuceRightClickMenuMode =
               newDeuceRightClickMenuMode
-          , history =
-              addToHistory model.history model.code newDeuceState.selectedWidgets
       }
   in
     { almostNewModel
@@ -2108,14 +2088,14 @@ msgHoverDeuceResult isRenamer (SynthesisResult result) path =
             -- CSS classes from SleekView leak out here. Oh, well.
             case (result.isSafe, runAndResolve m result.exp) of
               (True, Ok (val, widgets, slate, code)) ->
-                (Just (code, [], Ok (val, widgets, slate)), "expected-safe")
+                (Just (code, Ok (val, widgets, slate)), "expected-safe")
               (True, Err err) ->
                 let _ = Debug.log "not safe after all!" err in
-                (Just (LangUnparser.unparse result.exp, [], Err err), "unexpected-unsafe")
+                (Just (LangUnparser.unparse result.exp, Err err), "unexpected-unsafe")
               (False, Ok (val, widgets, slate, code)) ->
-                (Just (code, [], Ok (val, widgets, slate)), "unexpected-safe")
+                (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
               (False, Err err) ->
-                (Just (LangUnparser.unparse result.exp, [], Err err), "expected-unsafe")
+                (Just (LangUnparser.unparse result.exp, Err err), "expected-unsafe")
 
           deuceToolResultPreviews =
             Dict.insert path (preview, class) m.deuceToolResultPreviews
@@ -2284,7 +2264,7 @@ changeUserStudyStep label offset old =
       |> handleNew template
       |> (\m ->
            let finalCode = UserStudy.postProcessCode newState m.code in
-           { m | code = finalCode, history = ([(finalCode, [])], []) }
+           { m | code = finalCode, history = History.begin finalCode }
          )
       |> UserStudy.enableFeaturesForEditorMode newState
       |> UserStudy.postProcessProse newState

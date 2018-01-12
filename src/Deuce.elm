@@ -185,7 +185,6 @@ type alias CodeInfo =
   , untrimmedLineHulls : LineHulls
   , trimmedLineHulls : LineHulls
   , deuceState : DeuceState
-  , previewDeuceWidgets : Maybe (List DeuceWidget)
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
   }
@@ -660,13 +659,7 @@ codeObjectPolygon codeInfo codeObject color =
         hovered =
           List.member deuceWidget codeInfo.deuceState.hoveredWidgets
         active =
-          let
-            activeWidgets =
-              Maybe.withDefault
-                codeInfo.deuceState.selectedWidgets
-                codeInfo.previewDeuceWidgets
-          in
-            List.member deuceWidget activeWidgets
+          List.member deuceWidget codeInfo.deuceState.selectedWidgets
         baseAlpha =
           if active && hovered then
             1
@@ -676,7 +669,7 @@ codeObjectPolygon codeInfo codeObject color =
             1 -- 0.5
           else
             0
-        cursorStyle =
+        (cursorStyle) =
           if hovered || active then
             "pointer"
           else
@@ -826,8 +819,6 @@ overlay model =
           trimmedLineHulls
       , deuceState =
           model.deuceState
-      , previewDeuceWidgets =
-          Maybe.map (\(_, dws, _) -> dws) model.preview
       , patMap =
           patMap
       , maxLineLength =

@@ -28,7 +28,6 @@ resize                = sendCmd "resize"
 updateFontSize        = sendCmd "updateFontSize"
 resetScroll           = sendCmd "resetScroll"
 
-sendCmd : String -> Model -> Cmd msg
 sendCmd message model =
   aceCodeBoxCmd <|
     { message = message

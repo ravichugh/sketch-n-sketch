@@ -19,6 +19,7 @@ import Utils
 import HtmlUtils exposing (handleEventAndStop, styleListToString)
 import Either exposing (..)
 import Updatable
+import History
 
 import InterfaceModel as Model exposing (..)
 
@@ -1244,11 +1245,11 @@ codePanel model =
     undoButton =
       let
         past =
-          Tuple.first model.history
+          History.prior model.history
         attributes =
           case (UserStudy.enabled, past) of
-            (False, _ :: prev :: _) ->
-              [ E.onMouseEnter <| Controller.msgPreview prev
+            (False, Just prevCode) ->
+              [ E.onMouseEnter <| Controller.msgPreview (Right prevCode)
               , E.onMouseLeave Controller.msgClearPreview
               ]
             _ ->
@@ -1259,16 +1260,16 @@ codePanel model =
               | attributes = attributes ++ logMouseOver "Undo"
               , content = [Html.text "⟲ Undo"]
               , onClick = Controller.msgUndo
-              , disabled = List.length past <= 1
+              , disabled = not <| History.hasExtendedPast model.history
           }
     redoButton =
       let
         future =
-          Tuple.second model.history
+          History.next model.history
         attributes =
           case (UserStudy.enabled, future) of
-            (False, next :: _) ->
-              [ E.onMouseEnter <| Controller.msgPreview next
+            (False, Just futureCode) ->
+              [ E.onMouseEnter <| Controller.msgPreview (Right futureCode)
               , E.onMouseLeave Controller.msgClearPreview
               ]
             _ ->
@@ -1279,7 +1280,7 @@ codePanel model =
               | attributes = attributes ++ logMouseOver "Redo"
               , content = [Html.text "⟳ Redo"]
               , onClick = Controller.msgRedo
-              , disabled = List.length future == 0
+              , disabled = not <| History.hasFuture model.history
           }
     cleanButton =
       let
@@ -1427,9 +1428,9 @@ outputPanel model =
       SleekLayout.outputCanvas model
     output =
       case (model.errorBox, model.outputMode, model.preview) of
-        (_, _, Just (_, _, Err errorMsg)) ->
+        (_, _, Just (_, Err errorMsg)) ->
           textOutput errorMsg
-        (_, _, Just (_, _, Ok _)) ->
+        (_, _, Just (_, Ok _)) ->
           Canvas.build dim.width dim.height model
         (Just errorMsg, _, Nothing) ->
           textOutput errorMsg
@@ -2061,9 +2062,15 @@ deuceOverlay model =
         "auto"
       else
         "none"
+    disabledFlag =
+      case model.preview of
+        Just _ ->
+          " disabled"
+        Nothing ->
+          ""
   in
     Html.div
-      [ Attr.class <| "deuce-overlay-container"
+      [ Attr.class <| "deuce-overlay-container" ++ disabledFlag
       , Attr.style
           [ ( "pointer-events"
             , pointerEvents
