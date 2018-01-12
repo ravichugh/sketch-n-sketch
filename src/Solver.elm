@@ -40,9 +40,11 @@ solveTrace : SolutionsCache -> Subst -> Trace -> Num -> Maybe Num
 solveTrace solutionsCache subst trace targetVal =
   let eqnTerm = traceToEqnTerm trace in
   let targetVarId = Utils.diffAsSet (eqnTermVarIds eqnTerm) (Dict.keys subst) |> Utils.head "Solver.solveTrace: expected trace to have a locId remaining after applying subst" in
-  -- Apply subst as late as possible so we can have the most general form of equations in the cache.
-  case symbolicSolve solutionsCache [(eqnTerm, EqnConst targetVal)] [targetVarId] of
-    [(solvedTerm, targetVarId)]::_ -> solvedTerm |> applySubst subst |> evalToMaybeNum
+  -- Variablify everything to have the most general form of equations in the cache.
+  -- (May push into symbolicSolve in the future.)
+  let targetValInsertedVarId = 1 + (eqnTermVarIds eqnTerm |> List.maximum |> Maybe.withDefault 0) in
+  case symbolicSolve solutionsCache [(eqnTerm, EqnVar targetValInsertedVarId)] [targetVarId] |> Debug.log "symbolicSolve result" of
+    [(solvedTerm, targetVarId)]::_ -> solvedTerm |> applySubst (Dict.insert targetValInsertedVarId targetVal subst) |> Debug.log "eqn substed" |> evalToMaybeNum
     _                              -> Nothing
 
 
