@@ -15,6 +15,7 @@ import InterfaceModel
 import Eval
 import Sync
 import LocEqn exposing (..)
+import Solver exposing (EqnTerm(..))
 import CodeMotion
 import Utils
 import LangSvg exposing (NodeId, ShapeKind, Attr)
@@ -717,9 +718,9 @@ relate__ syntax relationToSynthesize originalExp maybeTermShape removedLocIdToLo
             Just termShape ->
               let matchesTermShape termShape locEqn =
                 case (termShape, locEqn) of
-                  (LocEqnConst n1,          LocEqnConst n2)          -> n1 == n2
-                  (LocEqnLoc featureI,      LocEqnLoc locId)         -> featureI == 0 || (featureEqnLocIds |> Utils.findi (Set.member locId) |> Maybe.withDefault 0) == featureI
-                  (LocEqnOp op1_ children1, LocEqnOp op2_ children2) -> op1_ == op2_ && (Utils.maybeZip children1 children2 |> Maybe.map (List.all (uncurry matchesTermShape)) |> Maybe.withDefault False)
+                  (EqnConst n1,          EqnConst n2)          -> n1 == n2
+                  (EqnVar featureI,      EqnVar locId)         -> featureI == 0 || (featureEqnLocIds |> Utils.findi (Set.member locId) |> Maybe.withDefault 0) == featureI
+                  (EqnOp op1_ children1, EqnOp op2_ children2) -> op1_ == op2_ && (Utils.maybeZip children1 children2 |> Maybe.map (List.all (uncurry matchesTermShape)) |> Maybe.withDefault False)
                   _                                                  -> False
               in
               let astSize = locEqnSize termShape in
@@ -762,9 +763,9 @@ relate__ syntax relationToSynthesize originalExp maybeTermShape removedLocIdToLo
             -- TermShape uses feature index instead of LocId. (As a go-between between the x and y coordinate of a point.)
             let termShape locEqn =
               case locEqn of
-                LocEqnConst _         -> locEqn
-                LocEqnLoc locId       -> LocEqnLoc (featureEqnLocIds |> Utils.findi (Set.member locId) |> Maybe.withDefault 0)
-                LocEqnOp op_ children -> LocEqnOp op_ (children |> List.map termShape)
+                EqnConst _         -> locEqn
+                EqnVar locId       -> EqnVar (featureEqnLocIds |> Utils.findi (Set.member locId) |> Maybe.withDefault 0)
+                EqnOp op_ children -> EqnOp op_ (children |> List.map termShape)
             in
             let basicResult =
               { description = description
@@ -994,16 +995,16 @@ featureEquationToLocEquation_ featureEqn =
     -- locId of 0 means it's a constant that's part of the feature equation,
     -- not the program
     ShapeWidgets.EqnNum (n, TrLoc (0, _, _)) ->
-      LocEqnConst n
+      EqnConst n
 
     ShapeWidgets.EqnNum (n, TrLoc (locId, _, _)) ->
-      LocEqnLoc locId
+      EqnVar locId
 
     ShapeWidgets.EqnNum (n, TrOp op traces) ->
-      LocEqnOp op (List.map traceToLocEquation traces)
+      EqnOp op (List.map traceToLocEquation traces)
 
     ShapeWidgets.EqnOp op featureEqns ->
-      LocEqnOp op (List.map featureEquationToLocEquation_ featureEqns)
+      EqnOp op (List.map featureEquationToLocEquation_ featureEqns)
 
 
 applyRemovedLocIdToLocEquation : List (LocId, LocEquation) -> LocEquation -> LocEquation
@@ -1018,9 +1019,9 @@ applyRemovedLocIdToLocEquation removedLocIdToLocEquation locEqn =
 applyRemovedLocIdToLocEquation_ : (LocId, LocEquation) -> LocEquation -> LocEquation
 applyRemovedLocIdToLocEquation_ (removedLocId, replacementLocEqn) locEqn =
   case locEqn of
-    LocEqnConst n       -> locEqn
-    LocEqnLoc locId     -> if locId == removedLocId then replacementLocEqn else locEqn
-    LocEqnOp op locEqns -> LocEqnOp op (List.map (applyRemovedLocIdToLocEquation_ (removedLocId, replacementLocEqn)) locEqns)
+    EqnConst n       -> locEqn
+    EqnVar locId     -> if locId == removedLocId then replacementLocEqn else locEqn
+    EqnOp op locEqns -> EqnOp op (List.map (applyRemovedLocIdToLocEquation_ (removedLocId, replacementLocEqn)) locEqns)
 
 
 -- Extract all point x,y features pairs

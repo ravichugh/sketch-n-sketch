@@ -4,6 +4,7 @@ import Lang exposing (..)
 import ValUnparser exposing (..)
 import Config
 import Utils exposing (infinity)
+import Solver exposing (EqnTerm(..))
 
 import Dict
 import Set
@@ -23,11 +24,13 @@ debugLog = Config.debugLog Config.debugSync
 --
 
 
--- For solving.
-type LocEquation
-  = LocEqnConst Num
-  | LocEqnLoc LocId
-  | LocEqnOp Op_ (List LocEquation)
+-- Holdover until we can discard this file.
+type alias LocEquation = Solver.EqnTerm
+-- type LocEquation
+--   = LocEqnConst Num
+--   | LocEqnLoc LocId
+--   | LocEqnOp Op_ (List LocEquation)
+
 
 -- Repeated perform simple simplifications:
 -- Remove multiply/divide by 1
@@ -45,101 +48,101 @@ locEqnSimplify : LocEquation -> LocEquation
 locEqnSimplify eqn =
   let simplified =
     case eqn of
-      LocEqnConst n ->
+      EqnConst n ->
         eqn
 
-      LocEqnLoc locId ->
+      EqnVar locId ->
         eqn
 
-      LocEqnOp op children ->
+      EqnOp op children ->
         let children_ = List.map locEqnSimplify children in
-        let eqn_ = LocEqnOp op children_ in
+        let eqn_ = EqnOp op children_ in
         case children_ of
           [left, right] ->
             case op of
               Plus ->
                 case (left, right) of
-                  (LocEqnConst 0, _) -> right
-                  (_, LocEqnConst 0) -> left
+                  (EqnConst 0, _) -> right
+                  (_, EqnConst 0) -> left
                   -- (+ (- a b) b) to a
-                  (LocEqnOp Minus [a, b], c) -> if b == c then a else eqn_
-                  (c, LocEqnOp Minus [a, b]) -> if b == c then a else eqn_
-                  (LocEqnConst a,
-                   LocEqnConst b)    -> LocEqnConst (a + b)
+                  (EqnOp Minus [a, b], c) -> if b == c then a else eqn_
+                  (c, EqnOp Minus [a, b]) -> if b == c then a else eqn_
+                  (EqnConst a,
+                   EqnConst b)    -> EqnConst (a + b)
                   _                  -> eqn_
 
               Minus ->
                 case (left, right) of
-                  (_, LocEqnConst 0) -> left
+                  (_, EqnConst 0) -> left
                   -- Double minus to plus
-                  (LocEqnConst 0,
-                   LocEqnOp Minus [LocEqnConst 0, stuff]) -> stuff
+                  (EqnConst 0,
+                   EqnOp Minus [EqnConst 0, stuff]) -> stuff
                   -- (- 0! (- l r)) to (- r l)
-                  (LocEqnConst 0,
-                   LocEqnOp Minus [subleft, subright]) -> LocEqnOp Minus [subright, subleft]
+                  (EqnConst 0,
+                   EqnOp Minus [subleft, subright]) -> EqnOp Minus [subright, subleft]
                   -- (- 0! (* k stuff)) to (* -k stuff)
-                  (LocEqnConst 0,
-                   LocEqnOp Mult [LocEqnConst k, stuff]) -> LocEqnOp Mult [LocEqnConst -k, stuff]
-                  (LocEqnConst 0,
-                   LocEqnOp Mult [stuff, LocEqnConst k]) -> LocEqnOp Mult [LocEqnConst -k, stuff]
+                  (EqnConst 0,
+                   EqnOp Mult [EqnConst k, stuff]) -> EqnOp Mult [EqnConst -k, stuff]
+                  (EqnConst 0,
+                   EqnOp Mult [stuff, EqnConst k]) -> EqnOp Mult [EqnConst -k, stuff]
                   -- (- 0! (/ k stuff)) to (/ -k stuff)
-                  (LocEqnConst 0,
-                   LocEqnOp Div [LocEqnConst k, stuff]) -> LocEqnOp Div [LocEqnConst -k, stuff]
+                  (EqnConst 0,
+                   EqnOp Div [EqnConst k, stuff]) -> EqnOp Div [EqnConst -k, stuff]
                   -- (- a (- b c)) to (+ a (- c b))
                   -- allows (- a (- 0 c)) to become (+ a (- c 0)) which becomes
                   -- (+ a c)
-                  (a, LocEqnOp Minus [b, c]) -> LocEqnOp Plus [a, LocEqnOp Minus [c, b]]
+                  (a, EqnOp Minus [b, c]) -> EqnOp Plus [a, EqnOp Minus [c, b]]
                   -- (- (+ a b) b) to a
-                  (LocEqnOp Plus [a, b], c) ->
+                  (EqnOp Plus [a, b], c) ->
                     if b == c then a
                     else if a == c then b
                     else eqn_
                   -- (- b (+ a b)) to (- 0 a)
-                  (c, LocEqnOp Plus [a, b]) ->
-                    if b == c then LocEqnOp Minus [LocEqnConst 0, a]
-                    else if a == c then LocEqnOp Minus [LocEqnConst 0, b]
+                  (c, EqnOp Plus [a, b]) ->
+                    if b == c then EqnOp Minus [EqnConst 0, a]
+                    else if a == c then EqnOp Minus [EqnConst 0, b]
                     else eqn_
-                  (LocEqnConst a,
-                   LocEqnConst b)    -> LocEqnConst (a - b)
+                  (EqnConst a,
+                   EqnConst b)    -> EqnConst (a - b)
                   _                  ->
                     -- Alas, this is syntactic equality not semantic.
                     if left == right then
-                      LocEqnConst 0
+                      EqnConst 0
                     else
                       eqn_
 
               Mult ->
                 case (left, right) of
-                  (LocEqnConst 1, _) -> right
-                  (_, LocEqnConst 1) -> left
-                  (LocEqnConst 0, _) -> LocEqnConst 0
-                  (_, LocEqnConst 0) -> LocEqnConst 0
-                  (LocEqnConst a,
-                   LocEqnConst b)    -> LocEqnConst (a * b)
+                  (EqnConst 1, _) -> right
+                  (_, EqnConst 1) -> left
+                  (EqnConst 0, _) -> EqnConst 0
+                  (_, EqnConst 0) -> EqnConst 0
+                  (EqnConst a,
+                   EqnConst b)    -> EqnConst (a * b)
                   -- Multiplication by -1 of subtraction...just flip operands:
-                  (LocEqnConst -1, LocEqnOp Minus  [subleft, subright]) -> LocEqnOp Minus  [subright, subleft]
-                  (LocEqnOp Minus [subleft, subright], LocEqnConst -1)  -> LocEqnOp Minus  [subright, subleft]
+                  (EqnConst -1, EqnOp Minus  [subleft, subright]) -> EqnOp Minus  [subright, subleft]
+                  (EqnOp Minus [subleft, subright], EqnConst -1)  -> EqnOp Minus  [subright, subleft]
                   -- Turn 6 * (x * 7) into 42 * x
-                  (LocEqnConst c1, LocEqnOp Mult [LocEqnConst c2, sub]) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
-                  (LocEqnConst c1, LocEqnOp Mult [sub, LocEqnConst c2]) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
-                  (LocEqnOp Mult [LocEqnConst c2, sub], LocEqnConst c1) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
-                  (LocEqnOp Mult [sub, LocEqnConst c2], LocEqnConst c1) -> LocEqnOp Mult [LocEqnConst (c1 * c2), sub]
+                  (EqnConst c1, EqnOp Mult [EqnConst c2, sub]) -> EqnOp Mult [EqnConst (c1 * c2), sub]
+                  (EqnConst c1, EqnOp Mult [sub, EqnConst c2]) -> EqnOp Mult [EqnConst (c1 * c2), sub]
+                  (EqnOp Mult [EqnConst c2, sub], EqnConst c1) -> EqnOp Mult [EqnConst (c1 * c2), sub]
+                  (EqnOp Mult [sub, EqnConst c2], EqnConst c1) -> EqnOp Mult [EqnConst (c1 * c2), sub]
                   _ -> eqn_
 
               Div ->
                 case (left, right) of
-                  (_, LocEqnConst 1)  -> left
-                  (_, LocEqnConst -1) -> LocEqnOp Mult [(LocEqnConst -1), left]
+                  (_, EqnConst 1)  -> left
+                  (_, EqnConst -1) -> EqnOp Mult [(EqnConst -1), left]
                   -- Division by 0 will be handled elsewhere.
                   -- We don_t want to produce infinity here.
-                  (LocEqnConst a,
-                   LocEqnConst b)     -> if b /= 0 then LocEqnConst (a / b) else eqn_
-                  (LocEqnConst 0, _)  -> LocEqnConst 0
-                  (_, LocEqnConst b)  -> if b /= 0 then LocEqnOp Mult [(LocEqnConst (1 / b)), left] else eqn_
+                  (EqnConst a,
+                   EqnConst b)     -> if b /= 0 then EqnConst (a / b) else eqn_
+                  (EqnConst 0, _)  -> EqnConst 0
+                  (_, EqnConst b)  -> if b /= 0 then EqnOp Mult [(EqnConst (1 / b)), left] else eqn_
                   _                   ->
                     -- Alas, this is syntactic equality not semantic.
-                    if left == right && right /= LocEqnConst 0 then
-                      LocEqnConst 1
+                    if left == right && right /= EqnConst 0 then
+                      EqnConst 1
                     else
                       eqn_
 
@@ -166,15 +169,15 @@ locEqnSimplify eqn =
 locEqnTerms : LocId -> LocEquation -> Maybe (Float, LocEquation, LocEquation)
 locEqnTerms targetLocId eqn =
   case eqn of
-    LocEqnConst n ->
-      Just (1, LocEqnConst 0, eqn)
+    EqnConst n ->
+      Just (1, EqnConst 0, eqn)
 
-    LocEqnLoc locId ->
+    EqnVar locId ->
       if locId == targetLocId
-      then Just (1, LocEqnConst 1, LocEqnConst 0)
-      else Just (1, LocEqnConst 0, eqn)
+      then Just (1, EqnConst 1, EqnConst 0)
+      else Just (1, EqnConst 0, eqn)
 
-    LocEqnOp op children ->
+    EqnOp op children ->
       let children_ = List.map (locEqnTerms targetLocId) children in
       let result =
         case children_ of
@@ -184,8 +187,8 @@ locEqnTerms targetLocId eqn =
               Plus ->
                 if leftLocPow == rightLocPow then
                   Just (leftLocPow,
-                        LocEqnOp Plus [leftCoeff, rightCoeff],
-                        LocEqnOp Plus [leftRest, rightRest])
+                        EqnOp Plus [leftCoeff, rightCoeff],
+                        EqnOp Plus [leftRest, rightRest])
                 else
                   -- Not easily solvable, powers of the target loc don't match.
                   Nothing
@@ -193,8 +196,8 @@ locEqnTerms targetLocId eqn =
               Minus ->
                 if leftLocPow == rightLocPow then
                   Just (leftLocPow,
-                        LocEqnOp Minus [leftCoeff, rightCoeff],
-                        LocEqnOp Minus [leftRest, rightRest])
+                        EqnOp Minus [leftCoeff, rightCoeff],
+                        EqnOp Minus [leftRest, rightRest])
                 else
                   -- Not easily solvable, powers of the target loc don't match.
                   Nothing
@@ -202,26 +205,26 @@ locEqnTerms targetLocId eqn =
               Mult ->
                 case (leftCoeff, leftRest, rightCoeff, rightRest) of
                   -- Left side doesn't contain target loc
-                  (LocEqnConst 0, _, _, _) ->
+                  (EqnConst 0, _, _, _) ->
                     Just (rightLocPow,
-                          LocEqnOp Mult [leftRest, rightCoeff],
-                          LocEqnOp Mult [leftRest, rightRest])
+                          EqnOp Mult [leftRest, rightCoeff],
+                          EqnOp Mult [leftRest, rightRest])
 
                   -- Right side doesn't contain target loc
-                  (_, _, LocEqnConst 0, _) ->
+                  (_, _, EqnConst 0, _) ->
                     Just (leftLocPow,
-                          LocEqnOp Mult [leftCoeff, rightRest],
-                          LocEqnOp Mult [leftRest, rightRest])
+                          EqnOp Mult [leftCoeff, rightRest],
+                          EqnOp Mult [leftRest, rightRest])
 
                   -- Both sides only contain terms of the coeff
-                  (_, LocEqnConst 0, _, LocEqnConst 0) ->
+                  (_, EqnConst 0, _, EqnConst 0) ->
                     let newPow = leftLocPow + rightLocPow in
                     if newPow == 0 then
-                      Just (1, LocEqnConst 0, LocEqnConst 1)
+                      Just (1, EqnConst 0, EqnConst 1)
                     else
                       Just (newPow,
-                            LocEqnOp Mult [leftCoeff, rightCoeff],
-                            LocEqnConst 0)
+                            EqnOp Mult [leftCoeff, rightCoeff],
+                            EqnConst 0)
 
                   _ ->
                     -- Equation is too difficult for us :-(
@@ -231,38 +234,38 @@ locEqnTerms targetLocId eqn =
                 -- Division is problematic
                 case (leftCoeff, leftRest, rightCoeff, rightRest) of
                   -- Division by 0
-                  (_, _, LocEqnConst 0, LocEqnConst 0) ->
+                  (_, _, EqnConst 0, EqnConst 0) ->
                     Nothing
 
                   -- Denominator doesn't contain target loc,
                   -- simple distribution.
-                  (_, _, LocEqnConst 0, _) ->
+                  (_, _, EqnConst 0, _) ->
                     Just (leftLocPow,
-                          LocEqnOp Div [leftCoeff, rightRest],
-                          LocEqnOp Div [leftRest, rightRest])
+                          EqnOp Div [leftCoeff, rightRest],
+                          EqnOp Div [leftRest, rightRest])
 
                   -- Denominator is some power and coeff of target loc,
                   -- numerator does not contain target loc
-                  (LocEqnConst 0, _, LocEqnConst 1, LocEqnConst 0) ->
+                  (EqnConst 0, _, EqnConst 1, EqnConst 0) ->
                     Just (-rightLocPow,
-                          LocEqnOp Div [leftRest, rightCoeff],
-                          LocEqnConst 0)
+                          EqnOp Div [leftRest, rightCoeff],
+                          EqnConst 0)
 
                   -- Numerator and denominator are both terms of the target loc
-                  (_, LocEqnConst 0, _, LocEqnConst 0) ->
+                  (_, EqnConst 0, _, EqnConst 0) ->
                     if leftLocPow == rightLocPow then
-                      Just (1, LocEqnConst 0, LocEqnOp Div [leftCoeff, rightCoeff])
+                      Just (1, EqnConst 0, EqnOp Div [leftCoeff, rightCoeff])
                     else
                       Just (rightLocPow - leftLocPow,
-                            LocEqnOp Div [leftCoeff, rightCoeff],
-                            LocEqnConst 0)
+                            EqnOp Div [leftCoeff, rightCoeff],
+                            EqnConst 0)
 
                   _ ->
                     -- Maybe the numerator and denominator are magically
                     -- syntactically equal.
                     -- (Not smart enough to detect multiples)
                     if leftLocPow == rightLocPow && leftCoeff == rightCoeff && leftRest == rightRest then
-                      Just (1, LocEqnConst 0, LocEqnConst 1)
+                      Just (1, EqnConst 0, EqnConst 1)
                     else
                       Nothing
 
@@ -661,25 +664,25 @@ polyNorm poly =
 locEquationToPoly : LocEquation -> Poly
 locEquationToPoly locEqn =
   case locEqn of
-    LocEqnConst n ->
+    EqnConst n ->
       PolyMult n []
 
-    LocEqnLoc locId ->
+    EqnVar locId ->
       PolyLoc locId
 
-    LocEqnOp Plus children ->
+    EqnOp Plus children ->
       PolyAdd <| List.map locEquationToPoly children
 
-    LocEqnOp Minus (leftChild::otherChildren) ->
+    EqnOp Minus (leftChild::otherChildren) ->
       PolyAdd <| (locEquationToPoly leftChild)::(List.map (\child -> PolyMult -1 [locEquationToPoly child]) otherChildren)
 
-    LocEqnOp Mult children ->
+    EqnOp Mult children ->
       PolyMult 1 <| List.map locEquationToPoly children
 
-    LocEqnOp Div (leftChild::otherChildren) ->
+    EqnOp Div (leftChild::otherChildren) ->
       PolyMult 1 <| (locEquationToPoly leftChild)::(List.map (\child -> PolyPow (locEquationToPoly child) (PolyMult -1 [])) otherChildren)
 
-    LocEqnOp _ _ ->
+    EqnOp _ _ ->
       Debug.crash <| "LocEqn.locEquationToPoly can only handle Plus/Minus/Mult/Div, got " ++ (toString locEqn)
 
 
@@ -697,12 +700,12 @@ normPolyAddToLocEquation : NormPolyAdd -> LocEquation
 normPolyAddToLocEquation normPolyAdd =
   case normPolyAdd of
     NormPolyLoc locId ->
-      LocEqnLoc locId
+      EqnVar locId
 
     NormPolyAdd normPolyMultTerms ->
       case normPolyMultTerms of
         [] ->
-          LocEqnConst 0
+          EqnConst 0
 
         multTerm::[] ->
           normPolyMultToLocEquation multTerm
@@ -733,16 +736,16 @@ normPolyAddToLocEquation normPolyAdd =
               (_, firstNonNegTerm::secondNonNegTerm::otherNonNegTerms) ->
                 -- We have at least two non-negative terms. Wait to do the subtraction.
                 let remainingTerms = secondNonNegTerm::otherNonNegTerms ++ negativeTerms in
-                LocEqnOp Plus [normPolyMultToLocEquation firstNonNegTerm, normPolyAddToLocEquation (NormPolyAdd remainingTerms)]
+                EqnOp Plus [normPolyMultToLocEquation firstNonNegTerm, normPolyAddToLocEquation (NormPolyAdd remainingTerms)]
 
               (_::_, onlyNonNegTerm::[]) ->
                 let negNegativeTerms = negativeTerms |> List.map (normPolyMultScalarMult -1) in
-                LocEqnOp Minus [normPolyMultToLocEquation onlyNonNegTerm, normPolyAddToLocEquation (NormPolyAdd negNegativeTerms)]
+                EqnOp Minus [normPolyMultToLocEquation onlyNonNegTerm, normPolyAddToLocEquation (NormPolyAdd negNegativeTerms)]
 
               (_::_, []) ->
                 -- Only negative terms. :(
                 -- Will build a common factor extractor later.
-                LocEqnOp Plus [normPolyMultToLocEquation multTerm, normPolyAddToLocEquation (NormPolyAdd otherMultTerms)]
+                EqnOp Plus [normPolyMultToLocEquation multTerm, normPolyAddToLocEquation (NormPolyAdd otherMultTerms)]
 
               ([], _::[]) ->
                 Debug.crash "LocEqn.normPolyAddToLocEquation shouldn't get here; single term handled in earlier case statement"
@@ -779,13 +782,13 @@ normPolyMultToLocEquation (NormPolyMult coeff normPolyPowTerms) =
   in
   case (negativePowers, otherPowers, coeff) of
     (_, _, 0) ->
-      LocEqnConst 0
+      EqnConst 0
 
     ([], [], _) ->
-      LocEqnConst coeff
+      EqnConst coeff
 
     (_::_, _, _) ->
-      LocEqnOp Div
+      EqnOp Div
           [ normPolyMultToLocEquation (NormPolyMult coeff otherPowers)
           , normPolyMultToLocEquation (NormPolyMult 1 (List.map flipExponentSign negativePowers))
           ]
@@ -797,7 +800,7 @@ normPolyMultToLocEquation (NormPolyMult coeff normPolyPowTerms) =
           normPolyPowToLocEquation term
 
         headTerm::otherTerms ->
-          LocEqnOp Mult
+          EqnOp Mult
               [ normPolyPowToLocEquation headTerm
               , normPolyMultToLocEquation (NormPolyMult 1 otherTerms)
               ]
@@ -807,31 +810,31 @@ normPolyMultToLocEquation (NormPolyMult coeff normPolyPowTerms) =
 
     ([], _, _) ->
       if abs coeff >= 1 then
-        LocEqnOp Mult
+        EqnOp Mult
           [ normPolyMultToLocEquation (NormPolyMult 1 otherPowers)
-          , LocEqnConst coeff
+          , EqnConst coeff
           ]
       else
-        LocEqnOp Div
+        EqnOp Div
           [ normPolyMultToLocEquation (NormPolyMult 1 otherPowers)
-          , LocEqnConst (1 / coeff)
+          , EqnConst (1 / coeff)
           ]
 
 
 normPolyPowToLocEquation (NormPolyPow normPolyBase normPolyExponent) =
   case normPolyExponent of
     NormPolyAdd [] ->
-      LocEqnConst 1
+      EqnConst 1
 
     NormPolyAdd [NormPolyMult 0 []] ->
-      LocEqnConst 1
+      EqnConst 1
 
     NormPolyAdd [NormPolyMult 1 []] ->
       normPolyAddToLocEquation normPolyBase
 
     NormPolyAdd [NormPolyMult n []] ->
       if n > 1 && n == toFloat (round n) then
-        LocEqnOp Mult
+        EqnOp Mult
           [ normPolyAddToLocEquation normPolyBase
           , normPolyPowToLocEquation (NormPolyPow normPolyBase (NormPolyAdd [NormPolyMult (toFloat (round n) - 1) []]))
           ]
@@ -859,9 +862,9 @@ normalizeSimplify eqn =
 correctFloatErrors : LocEquation -> LocEquation
 correctFloatErrors eqn =
   case eqn of
-    LocEqnConst n         -> LocEqnConst (Utils.correctFloatError n)
-    LocEqnLoc _           -> eqn
-    LocEqnOp op_ children -> LocEqnOp op_ (List.map correctFloatErrors children)
+    EqnConst n         -> EqnConst (Utils.correctFloatError n)
+    EqnVar _           -> eqn
+    EqnOp op_ children -> EqnOp op_ (List.map correctFloatErrors children)
 
 
 -- locEqnsOfSize astSize locsToUse =
@@ -869,31 +872,31 @@ correctFloatErrors eqn =
 --     []
 --   else if astSize == 1 then
 --     -- From stats of all our little programs so far.
---     [ LocEqnConst 0
---     , LocEqnConst 1
---     , LocEqnConst 2
---     , LocEqnConst 10
---     , LocEqnConst 3
---     , LocEqnConst 20
---     , LocEqnConst 50
---     , LocEqnConst 4
---     , LocEqnConst 300
---     , LocEqnConst 5
---     , LocEqnConst 0.5
---     , LocEqnConst 100
---     , LocEqnConst 200
---     , LocEqnConst 30
---     , LocEqnConst 60
---     , LocEqnConst 80
---     , LocEqnConst 15
---     , LocEqnConst 360
---     , LocEqnConst 180
---     , LocEqnConst 120
---     , LocEqnConst 6
---     , LocEqnConst 150
---     , LocEqnConst 40
---     , LocEqnConst 8
---     ] ++ (Set.toList locsToUse |> List.map (\(locId, _, _) -> LocEqnLoc locId))
+--     [ EqnConst 0
+--     , EqnConst 1
+--     , EqnConst 2
+--     , EqnConst 10
+--     , EqnConst 3
+--     , EqnConst 20
+--     , EqnConst 50
+--     , EqnConst 4
+--     , EqnConst 300
+--     , EqnConst 5
+--     , EqnConst 0.5
+--     , EqnConst 100
+--     , EqnConst 200
+--     , EqnConst 30
+--     , EqnConst 60
+--     , EqnConst 80
+--     , EqnConst 15
+--     , EqnConst 360
+--     , EqnConst 180
+--     , EqnConst 120
+--     , EqnConst 6
+--     , EqnConst 150
+--     , EqnConst 40
+--     , EqnConst 8
+--     ] ++ (Set.toList locsToUse |> List.map (\(locId, _, _) -> EqnVar locId))
 --   else if astSize == 2 then
 --     -- No unops in LocEqns yet
 --     []
@@ -907,7 +910,7 @@ correctFloatErrors eqn =
 --           let rightSize = astSize - leftSize - 1 in
 --           locEqnsOfSize rightSize locsToUse
 --           |> List.map (\rightEqn ->
---             LocEqnOp op [leftEqn, rightEqn]
+--             EqnOp op [leftEqn, rightEqn]
 --           )
 --         )
 --       )
@@ -917,7 +920,7 @@ correctFloatErrors eqn =
 solveForLocValue : LocId -> Subst -> LocEquation -> Num -> Maybe Num
 solveForLocValue targetLocId subst eqn eqnTargetValue =
   let eqnEqualToZero =
-    constantifyLocs (Dict.remove targetLocId subst) (LocEqnOp Minus [eqn, LocEqnConst eqnTargetValue])
+    constantifyLocs (Dict.remove targetLocId subst) (EqnOp Minus [eqn, EqnConst eqnTargetValue])
   in
   case locEqnTerms targetLocId eqnEqualToZero of
     Just (pow, coeffEqn, restEqn) ->
@@ -939,9 +942,9 @@ solveForConst : Subst -> LocEquation -> Num -> Maybe Num
 solveForConst subst eqn eqnTargetValue =
   let locifyConstant eqn =
     case eqn of
-      LocEqnConst _        -> LocEqnLoc -2
-      LocEqnLoc _          -> eqn
-      LocEqnOp op children -> LocEqnOp op (List.map locifyConstant children)
+      EqnConst _        -> EqnVar -2
+      EqnVar _          -> eqn
+      EqnOp op children -> EqnOp op (List.map locifyConstant children)
   in
   solveForLocValue -2 subst (locifyConstant eqn) eqnTargetValue
 
@@ -970,17 +973,17 @@ solveForLocUnchecked locId locIdToNum lhs rhs =
         -- Transform   rhs_ - lhs_ = 0
         -- to          coeff*x^pow + rest = 0
         -- where x is our target loc
-        case locEqnTerms locId (LocEqnOp Minus [lhs__, rhs__]) of
+        case locEqnTerms locId (EqnOp Minus [lhs__, rhs__]) of
           Just (locPow, locCoeff, rest) ->
-            if locPow == 0 || locCoeff == LocEqnConst 0 then
+            if locPow == 0 || locCoeff == EqnConst 0 then
               Nothing
             else if locPow == 1 then
               -- We have: coeff*x + rest = 0
               -- We want: x = something
               Just <|
               normalizeSimplify <|
-                LocEqnOp Div
-                    [ LocEqnOp Minus [LocEqnConst 0, rest]
+                EqnOp Div
+                    [ EqnOp Minus [EqnConst 0, rest]
                     , locCoeff]
 
             else if locPow == -1 then
@@ -988,9 +991,9 @@ solveForLocUnchecked locId locIdToNum lhs rhs =
               -- We want: x = something
               Just <|
               normalizeSimplify <|
-                LocEqnOp Div
+                EqnOp Div
                     [ locCoeff
-                    , LocEqnOp Minus [LocEqnConst 0, rest]]
+                    , EqnOp Minus [EqnConst 0, rest]]
             else
               -- Just need to add a pow op and then we can handle more pows.
               Nothing
@@ -1022,17 +1025,17 @@ solveForLoc locId locIdToNum subst lhs rhs =
 maybeExtractUnsharedExpression : LocEquation -> LocEquation -> Maybe (LocEquation, LocEquation)
 maybeExtractUnsharedExpression lhs rhs =
   case (lhs, rhs) of
-    (LocEqnConst ln, LocEqnConst rn) ->
+    (EqnConst ln, EqnConst rn) ->
       if ln == rn
       then Nothing
       else Just (lhs, rhs)
 
-    (LocEqnLoc lLocId, LocEqnLoc rLocId) ->
+    (EqnVar lLocId, EqnVar rLocId) ->
       if lLocId == rLocId
       then Nothing
       else Just (lhs, rhs)
 
-    (LocEqnOp lOp lChildren, LocEqnOp rOp rChildren) ->
+    (EqnOp lOp lChildren, EqnOp rOp rChildren) ->
       if lOp /= rOp then
         Just (lhs, rhs)
       else
@@ -1111,9 +1114,9 @@ locEqnTemplateFillingsLocsFilled targetValue subst constants locFillings =
   let filledWithExactNumber =
     let fillInConstant const eqn =
       case eqn of
-        LocEqnConst _        -> LocEqnConst const
-        LocEqnLoc _          -> eqn
-        LocEqnOp op children -> LocEqnOp op (List.map (fillInConstant const) children)
+        EqnConst _        -> EqnConst const
+        EqnVar _          -> eqn
+        EqnOp op children -> EqnOp op (List.map (fillInConstant const) children)
     in
     locFillings
     |> List.filterMap
@@ -1141,9 +1144,9 @@ locEqnTemplateFillingsLocsFilled targetValue subst constants locFillings =
 locEqnTemplateLocFillings : List LocId -> LocEquation -> List LocEquation
 locEqnTemplateLocFillings locIds eqn =
   case eqn of
-    LocEqnConst _        -> [eqn]
-    LocEqnLoc _          -> List.map LocEqnLoc locIds
-    LocEqnOp op children ->
+    EqnConst _        -> [eqn]
+    EqnVar _          -> List.map EqnVar locIds
+    EqnOp op children ->
       children
       |> List.foldl
         (\child priorCombos ->
@@ -1152,15 +1155,15 @@ locEqnTemplateLocFillings locIds eqn =
           |> List.concatMap (\childFilling -> priorCombos |> List.map (\priorArgs -> priorArgs ++ [childFilling]))
         )
         [[]]
-      |> List.map (LocEqnOp op)
+      |> List.map (EqnOp op)
 
 
 locEqnTemplateConstantFillings : List Num -> LocEquation -> List LocEquation
 locEqnTemplateConstantFillings constants eqn =
   case eqn of
-    LocEqnConst _        -> List.map LocEqnConst constants
-    LocEqnLoc _          -> [eqn]
-    LocEqnOp op children ->
+    EqnConst _        -> List.map EqnConst constants
+    EqnVar _          -> [eqn]
+    EqnOp op children ->
       children
       |> List.foldl
         (\child priorCombos ->
@@ -1169,7 +1172,7 @@ locEqnTemplateConstantFillings constants eqn =
           |> List.concatMap (\childFilling -> priorCombos |> List.map (\priorArgs -> priorArgs ++ [childFilling]))
         )
         [[]]
-      |> List.map (LocEqnOp op)
+      |> List.map (EqnOp op)
 
 
 atLeastNLocs     n template = List.length (locEqnLocIds template) >= n
@@ -1189,7 +1192,7 @@ locEqnsTemplatesOfSize_ astSize =
   if astSize < 1 then
     []
   else if astSize == 1 then
-    [ LocEqnConst -1, LocEqnLoc -1 ]
+    [ EqnConst -1, EqnVar -1 ]
   else if astSize == 2 then
     -- No unops in LocEqns yet
     []
@@ -1203,7 +1206,7 @@ locEqnsTemplatesOfSize_ astSize =
           let rightSize = astSize - leftSize - 1 in
           locEqnsTemplatesOfSize_ rightSize
           |> List.map (\rightEqn ->
-            LocEqnOp op [leftEqn, rightEqn]
+            EqnOp op [leftEqn, rightEqn]
           )
         )
       )
@@ -1212,9 +1215,9 @@ locEqnsTemplatesOfSize_ astSize =
 locEqnSize : LocEquation -> Int
 locEqnSize eqn =
   case eqn of
-    LocEqnConst _       -> 1
-    LocEqnLoc _         -> 1
-    LocEqnOp _ children -> 1 + List.sum (List.map locEqnSize children)
+    EqnConst _       -> 1
+    EqnVar _         -> 1
+    EqnOp _ children -> 1 + List.sum (List.map locEqnSize children)
 
 locEqnLocIdSet : LocEquation -> Set.Set LocId
 locEqnLocIdSet eqn =
@@ -1223,16 +1226,16 @@ locEqnLocIdSet eqn =
 locEqnConsts : LocEquation -> List Num
 locEqnConsts eqn =
   case eqn of
-    LocEqnConst n       -> [n]
-    LocEqnLoc locId     -> []
-    LocEqnOp _ children -> List.concatMap locEqnConsts children
+    EqnConst n       -> [n]
+    EqnVar locId     -> []
+    EqnOp _ children -> List.concatMap locEqnConsts children
 
 locEqnLocIds : LocEquation -> List LocId
 locEqnLocIds eqn =
   case eqn of
-    LocEqnConst _       -> []
-    LocEqnLoc locId     -> [locId]
-    LocEqnOp _ children -> List.concatMap locEqnLocIds children
+    EqnConst _       -> []
+    EqnVar locId     -> [locId]
+    EqnOp _ children -> List.concatMap locEqnLocIds children
 
 
 locEqnEval locIdToNum eqn =
@@ -1241,9 +1244,9 @@ locEqnEval locIdToNum eqn =
 
 locEqnEval_ eqn =
   case eqn of
-    LocEqnConst n       -> n
-    LocEqnLoc locId     -> Debug.crash "shouldn't have locs in constantified eqn"
-    LocEqnOp op [leftChild, rightChild] ->
+    EqnConst n       -> n
+    EqnVar locId     -> Debug.crash "shouldn't have locs in constantified eqn"
+    EqnOp op [leftChild, rightChild] ->
       let (leftEvaled, rightEvaled) = (locEqnEval_ leftChild, locEqnEval_ rightChild) in
       case op of
         Plus  -> leftEvaled + rightEvaled
@@ -1264,56 +1267,56 @@ traceToLocEquation trace =
     -- HACK: see LangSvg.vNumFrozen...
     -- TODO: streamline Trace, LocEquation, etc.
     TrLoc (-999, _, numString) ->
-      LocEqnConst (Utils.fromOkay "traceToLocEquation" (String.toFloat numString))
+      EqnConst (Utils.fromOkay "traceToLocEquation" (String.toFloat numString))
 
     TrLoc (locId, _, _) ->
-      LocEqnLoc locId
+      EqnVar locId
 
     TrOp op traces ->
-      LocEqnOp op (List.map traceToLocEquation traces)
+      EqnOp op (List.map traceToLocEquation traces)
 
 
 -- For all locId's in the locIdToNum dictionary, replace
--- corresponding LocEqnLoc nodes with LocEqnConst nodes.
+-- corresponding EqnVar nodes with EqnConst nodes.
 constantifyLocs : Dict.Dict LocId Num -> LocEquation -> LocEquation
 constantifyLocs locIdToNum eqn =
   case eqn of
-    LocEqnConst n ->
+    EqnConst n ->
       eqn
 
-    LocEqnLoc locId ->
+    EqnVar locId ->
       case Dict.get locId locIdToNum of
-        Just n  -> LocEqnConst n
+        Just n  -> EqnConst n
         Nothing -> eqn
 
-    LocEqnOp op childEqns ->
-      LocEqnOp op <| List.map (constantifyLocs locIdToNum) childEqns
+    EqnOp op childEqns ->
+      EqnOp op <| List.map (constantifyLocs locIdToNum) childEqns
 
 
 -- For debuging
 locEqnToString : LocEquation -> String
 locEqnToString eqn =
   case eqn of
-    LocEqnConst n   -> toString n
-    LocEqnLoc locId -> "k" ++ toString locId
-    LocEqnOp op [left, right] ->
+    EqnConst n   -> toString n
+    EqnVar locId -> "k" ++ toString locId
+    EqnOp op [left, right] ->
       "(" ++ locEqnToString left ++ " " ++ strOp op ++ " " ++ locEqnToString right ++ ")"
-    LocEqnOp op children ->
+    EqnOp op children ->
       "(" ++ strOp op ++ " " ++ String.join " " (List.map locEqnToString children) ++ ")"
 
 
 locEqnToLittle : Dict.Dict LocId Ident -> LocEquation -> String
 locEqnToLittle locIdToLittle eqn =
   case eqn of
-    LocEqnConst n ->
+    EqnConst n ->
       toString n ++ "!"
 
-    LocEqnLoc locId ->
+    EqnVar locId ->
       case Dict.get locId locIdToLittle of
         Just littleStr -> littleStr
         Nothing        -> let _ = (debugLog "missing locId" locId) in "?"
 
-    LocEqnOp op childEqns ->
+    EqnOp op childEqns ->
       let childLittleStrs = List.map (locEqnToLittle locIdToLittle) childEqns in
       "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
 
@@ -1321,10 +1324,10 @@ locEqnToLittle locIdToLittle eqn =
 locEqnToExp : Frozen -> Dict.Dict LocId Num -> Dict.Dict LocId Ident -> LocEquation -> Exp
 locEqnToExp constantAnnotation locIdToFrozenNum locIdToIdent eqn =
   case eqn of
-    LocEqnConst n ->
+    EqnConst n ->
       eConst n (dummyLoc_ constantAnnotation)
 
-    LocEqnLoc locId ->
+    EqnVar locId ->
       case Dict.get locId locIdToIdent of
         Just ident -> eVar ident
         Nothing    ->
@@ -1332,6 +1335,6 @@ locEqnToExp constantAnnotation locIdToFrozenNum locIdToIdent eqn =
             Just n  -> eConst n (dummyLoc_ frozen)
             Nothing -> eVar ("couldNotFindLocId" ++ toString locId)
 
-    LocEqnOp op childEqns ->
+    EqnOp op childEqns ->
       let childExps = List.map (locEqnToExp constantAnnotation locIdToFrozenNum locIdToIdent) childEqns in
       eOp op childExps

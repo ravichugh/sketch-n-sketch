@@ -30,7 +30,8 @@ import InterfaceModel exposing
   ( Model, SynthesisResult(..)
   , synthesisResult, setResultSafe, mapResultSafe, oneSafeResult, isResultSafe, setResultDescription
   )
-import LocEqn exposing ( LocEquation(..) )
+import LocEqn                        -- For twiddling
+import Solver exposing (EqnTerm(..)) -- For twiddling
 import Utils
 import Either exposing (..)
 import Syntax exposing (Syntax)
@@ -683,14 +684,14 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
   in
   let expToMaybeLocEqn exp =
     case exp.val.e__ of
-      EConst _ n _ _      -> Just (LocEqnConst n)
-      EVar _ ident        -> Dict.get ident identToEqnLocId |> Maybe.map LocEqnLoc
+      EConst _ n _ _      -> Just (EqnConst n)
+      EVar _ ident        -> Dict.get ident identToEqnLocId |> Maybe.map EqnVar
       EOp _ op operands _ ->
         case op.val of
-          Plus  -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (LocEqnOp Plus)
-          Minus -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (LocEqnOp Minus)
-          Mult  -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (LocEqnOp Mult)
-          Div   -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (LocEqnOp Div)
+          Plus  -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (EqnOp Plus)
+          Minus -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (EqnOp Minus)
+          Mult  -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (EqnOp Mult)
+          Div   -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (EqnOp Div)
           _     -> Nothing
 
       EComment _ _ body       -> expToMaybeLocEqn body

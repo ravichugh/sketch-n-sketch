@@ -31,7 +31,7 @@ import String
 --------------------------------------------------------------------------------
 -- Expression Rewriting
 
--- x TODO: don't freeze all LocEqnConsts
+-- x TODO: don't freeze all EqnConsts
 -- x TODO: Split abstraction -> mapping into two steps
 -- x TODO: revisit clone detection -- lists of constants are ignored if >1 constant differs
 -- x TODO: abstract with n parameters
