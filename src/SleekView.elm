@@ -407,10 +407,9 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
         italicizeQuotes "'" result.description
       else
         [ Html.text <|
-            -- indicating whether or not tool has been run and cached
-            -- TODO either remove this, or show a nicer, subtle indicator
+            -- if desired, can indicate whether this tool has been run and cached
             if alreadyRun
-              then result.description ++ " ✓"
+              then result.description
               else result.description
         ]
   in
