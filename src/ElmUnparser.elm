@@ -183,11 +183,31 @@ unparse e =
         ++ unparse body
 
     EApp wsBefore function arguments _ ->
+      -- NOTE: to help with converting Little to Elm
+      let unparseArg e =
+        case e.val.e__ of
+          EApp ws1 f args ws2 ->
+            ws1.val
+              ++ "("
+              ++ unparse (replaceE__ e (EApp { ws1 | val = "" } f args ws2))
+              ++ ")"
+          EOp ws1 f args ws2 ->
+            ws1.val
+              ++ "("
+              ++ unparse (replaceE__ e (EOp { ws1 | val = "" } f args ws2))
+              ++ ")"
+          _ ->
+            unparse e
+      in
       wsBefore.val
         ++ unparse function
-        ++ String.concat (List.map unparse arguments)
+        -- NOTE: to help with converting Little to Elm
+        -- ++ String.concat (List.map unparse arguments)
+        ++ String.concat (List.map unparseArg arguments)
 
     EOp wsBefore op arguments _ ->
+      -- TODO: help convert Little to Elm by inserting parens
+      -- for nested EOps, based on precedence/associativity
       let
         default =
           wsBefore.val
@@ -238,13 +258,24 @@ unparse e =
 
             _ ->
               ([], binding_)
+
+        strParametersDefault =
+          String.concat (List.map unparsePattern parameters)
+
+        -- NOTE: to help with converting Little to Elm
+        strParameters =
+          case (parameters, String.startsWith " " strParametersDefault) of
+            (_::_, False) -> " " ++ strParametersDefault
+            _             -> strParametersDefault
       in
       case letKind of
         Let ->
           wsBefore.val
             ++ "let"
             ++ unparsePattern name
-            ++ String.concat (List.map unparsePattern parameters)
+            -- NOTE: to help with converting Little to Elm
+            -- ++ String.concat (List.map unparsePattern parameters)
+            ++ strParameters
             ++ " ="
             ++ unparse binding
             ++ " in"
@@ -252,8 +283,19 @@ unparse e =
 
         Def ->
           wsBefore.val
-            ++ unparsePattern name
-            ++ String.concat (List.map unparsePattern parameters)
+            -- NOTE: to help with converting Little to Elm
+            -- ++ unparsePattern name
+            ++ ( let
+                   strName =
+                     unparsePattern name
+                 in
+                   if String.startsWith " " strName
+                     then String.dropLeft 1 strName
+                     else strName
+               )
+            -- NOTE: to help with converting Little to Elm
+            -- ++ String.concat (List.map unparsePattern parameters)
+            ++ strParameters
             ++ " ="
             ++ unparse binding
             ++ wsBeforeSemicolon.val
