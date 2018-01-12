@@ -1,6 +1,6 @@
 // Open a connection to the server, and send and receive data from it.
 //
-// Looks for a local server first ($ make run in the solver_server directory).
+// Looks for a local server first ($ make run-server in the solver_server directory).
 // Otherwise, tries to connect to a global server.
 
 function forwardReduceResponseToElm(event) {

@@ -1,5 +1,4 @@
-test_reduce:
-	(echo "" | reduce-algebra/bin/redcsl > /dev/null) || make reduce-algebra/bin/redcsl
+test_reduce: ensure-reduce
 	cd reduce-algebra && scripts/testall.sh --csl
 
 reduce-algebra:
@@ -10,16 +9,23 @@ reduce-algebra/bin/redcsl: reduce-algebra
 	# May need to run sudo apt-get install libtool-bin
 	rm reduce-algebra/bin/redcsl; cd reduce-algebra && ./configure --with-csl --without-gui && make
 
-run:
+ensure-reduce:
 	(echo "" | reduce-algebra/bin/redcsl > /dev/null) || make reduce-algebra/bin/redcsl
+
+run-server: ensure-reduce
 	# Requires websocketd (e.g. $ brew install websocketd) and Ruby
 	# This will open a websocket server at localhost:7444/reduce
 	./sketch-n-sketch_solver_server
 
-# For playing with Reduce
-reduce-repl:
-	(echo "" | reduce-algebra/bin/redcsl > /dev/null) || make reduce-algebra/bin/redcsl
+
+### For playing with REDUCE ###
+
+reduce-repl: ensure-reduce
 	reduce-algebra/bin/redcsl
+
+examples: ensure-reduce
+	# See Section 7.10 in the REDUCE manual http://www.reduce-algebra.com/reduce38-docs/reduce.pdf#section.7.10
+	cat examples.txt | tee /dev/tty | reduce-algebra/bin/redcsl
 
 
 ### Debian Only ###
