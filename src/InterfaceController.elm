@@ -1408,6 +1408,7 @@ doMakeEqual old =
   let synthesisResults =
     ValueBasedTransform.makeEqual
         old.syntax
+        old.solutionsCache
         old.inputExp
         old.selectedFeatures
         old.slideNumber
@@ -1421,6 +1422,7 @@ msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
     ValueBasedTransform.relate
         old.syntax
+        old.solutionsCache
         old.inputExp
         old.selectedFeatures
         old.slideNumber

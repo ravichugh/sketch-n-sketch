@@ -402,13 +402,13 @@ selectedFeaturesToFeaturesAndEquations selectedFeatures program slideNumber movi
           )
 
 
-makeEqual syntax originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
+makeEqual syntax solutionsCache originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
   -- Have to convert to equations early: some transformations may move or create widgets which messes up feature indexing.
   let featuresAndEquations =
     selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
   in
   let relateByPairs priorResults featuresAndEquations =
-    equalizeOverlappingPairs syntax priorResults featuresAndEquations syncOptions
+    equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations syncOptions
   in
   synthesizeRelationCoordinateWiseAndSortResults
       relateByPairs
@@ -416,7 +416,7 @@ makeEqual syntax originalExp selectedFeatures slideNumber movieNumber movieTime 
       featuresAndEquations
 
 
-relate syntax originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
+relate syntax solutionsCache originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
   -- Have to convert to equations early: some transformations may move or create widgets which messes up feature indexing.
   let featuresAndEquations =
     selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
@@ -427,7 +427,7 @@ relate syntax originalExp selectedFeatures slideNumber movieNumber movieTime syn
     |> List.concatMap
         (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToLocEquation} as priorResult) ->
           let priorExp = exp in
-          relate__ syntax (Relate featureEqns) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
+          relate__ syntax solutionsCache (Relate featureEqns) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
           |> List.map (InterfaceModel.prependDescription (description ++ " → "))
           |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
         )
@@ -468,10 +468,10 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresA
 
 -- If given more than two features, equalizes each overlapping pair.
 -- Terminates if given only zero or one feature.
-equalizeOverlappingPairs : Syntax -> List PartialSynthesisResult -> List SelectedFeatureAndEquation -> Sync.Options -> List PartialSynthesisResult
-equalizeOverlappingPairs syntax priorResults featuresAndEquations syncOptions =
+equalizeOverlappingPairs : Syntax -> Solver.SolutionsCache -> List PartialSynthesisResult -> List SelectedFeatureAndEquation -> Sync.Options -> List PartialSynthesisResult
+equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations syncOptions =
   let equalizeMore results =
-    equalizeOverlappingPairs syntax results (List.drop 1 featuresAndEquations) syncOptions
+    equalizeOverlappingPairs syntax solutionsCache results (List.drop 1 featuresAndEquations) syncOptions
   in
   case featuresAndEquations of
     (featureA, featureAEqn)::(featureB, featureBEqn)::_ ->
@@ -481,7 +481,7 @@ equalizeOverlappingPairs syntax priorResults featuresAndEquations syncOptions =
             let priorExp = exp in
             let descriptionPrefix = ShapeWidgets.featureDesc featureA ++ " = " ++ ShapeWidgets.featureDesc featureB ++ " " in
             let newResults =
-              relate__ syntax (Equalize featureAEqn featureBEqn) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
+              relate__ syntax solutionsCache (Equalize featureAEqn featureBEqn) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
               |> List.map (InterfaceModel.prependDescription descriptionPrefix)
             in
             case newResults of
@@ -574,13 +574,14 @@ equalizeOverlappingPairs syntax priorResults featuresAndEquations syncOptions =
 
 relate__
     :  Syntax
+    -> Solver.SolutionsCache
     -> RelationToSynthesize FeatureEquation
     -> Exp
     -> Maybe LocEquation
     -> List (LocId, LocEquation)
     -> Sync.Options
     -> List PartialSynthesisResult
-relate__ syntax relationToSynthesize originalExp maybeTermShape removedLocIdToLocEquation syncOptions =
+relate__ syntax solutionsCache relationToSynthesize originalExp maybeTermShape removedLocIdToLocEquation syncOptions =
   let removedLocIds = List.map Tuple.first removedLocIdToLocEquation |> Set.fromList in
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
@@ -611,15 +612,12 @@ relate__ syntax relationToSynthesize originalExp maybeTermShape removedLocIdToLo
     let dependentIdentDesc = locDescription originalExp dependentLoc in
     case relationToSynthesize |> Debug.log "relationToSynthesize" of
       Equalize featureAEqn featureBEqn ->
-        let featureALocEqn = featureEquationToLocEquation removedLocIdToLocEquation featureAEqn in
-        let featureBLocEqn = featureEquationToLocEquation removedLocIdToLocEquation featureBEqn in
+        let featureAEqnTerm = featureEquationToLocEquation removedLocIdToLocEquation featureAEqn in
+        let featureBEqnTerm = featureEquationToLocEquation removedLocIdToLocEquation featureBEqn in
         -- Make equal ignores termShape.
-        case LocEqn.solveForLoc dependentLocId frozenLocIdToNum subst featureALocEqn featureBLocEqn |> Debug.log ("solution for dependentLocId " ++ toString dependentLocId) of
-          Nothing ->
-            []
-
-          Just resultLocEqn ->
-            [(resultLocEqn, "by removing " ++ dependentIdentDesc)]
+        Solver.solveOne solutionsCache (featureAEqnTerm, featureBEqnTerm) dependentLocId
+        |> Debug.log ("solutions for dependentLocId " ++ toString dependentLocId)
+        |> List.map (\resultEqnTerm -> (resultEqnTerm, "by removing " ++ dependentIdentDesc))
 
       Relate _ ->
         let featureLocEqns =

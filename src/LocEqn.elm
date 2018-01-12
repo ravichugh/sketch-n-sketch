@@ -1004,19 +1004,19 @@ solveForLocUnchecked locId locIdToNum lhs rhs =
   maybeEqn
 
 
-solveForLoc : LocId -> Dict.Dict LocId Num -> Subst -> LocEquation -> LocEquation -> Maybe LocEquation
-solveForLoc locId locIdToNum subst lhs rhs =
-  -- Check that equation doesn't produce NaN or similar...
-  case solveForLocUnchecked locId locIdToNum lhs rhs of
-    Just eqn ->
-      -- Need the full subst, not just frozen constants.
-      let evaled = locEqnEval subst eqn in
-      if (isNaN evaled) || (isInfinite evaled)
-      then Nothing
-      else Just eqn
-
-    Nothing ->
-      Nothing
+-- solveForLoc : LocId -> Dict.Dict LocId Num -> Subst -> LocEquation -> LocEquation -> Maybe LocEquation
+-- solveForLoc locId locIdToNum subst lhs rhs =
+--   -- Check that equation doesn't produce NaN or similar...
+--   case solveForLocUnchecked locId locIdToNum lhs rhs of
+--     Just eqn ->
+--       -- Need the full subst, not just frozen constants.
+--       let evaled = locEqnEval subst eqn in
+--       if (isNaN evaled) || (isInfinite evaled)
+--       then Nothing
+--       else Just eqn
+--
+--     Nothing ->
+--       Nothing
 
 
 -- Help out our not-so-smart simplifier.

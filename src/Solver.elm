@@ -41,11 +41,11 @@ solveTrace solutionsCache subst trace targetVal =
   let eqnTerm = traceToEqnTerm trace in
   let targetVarId = Utils.diffAsSet (eqnTermVarIds eqnTerm) (Dict.keys subst) |> Utils.head "Solver.solveTrace: expected trace to have a locId remaining after applying subst" in
   -- Variablify everything to have the most general form of equations in the cache.
-  -- (May push into symbolicSolve in the future.)
+  -- (May push into solve in the future.)
   let targetValInsertedVarId = 1 + (eqnTermVarIds eqnTerm |> List.maximum |> Maybe.withDefault 0) in
-  case symbolicSolve solutionsCache [(eqnTerm, EqnVar targetValInsertedVarId)] [targetVarId] |> Debug.log "symbolicSolve result" of
-    [(solvedTerm, targetVarId)]::_ -> solvedTerm |> applySubst (Dict.insert targetValInsertedVarId targetVal subst) |> Debug.log "eqn substed" |> evalToMaybeNum
-    _                              -> Nothing
+  case solveOne solutionsCache (eqnTerm, EqnVar targetValInsertedVarId) targetVarId |> Debug.log "solveOne result" of
+    solvedTerm::_ -> solvedTerm |> applySubst (Dict.insert targetValInsertedVarId targetVal subst) |> Debug.log "eqn substed" |> evalToMaybeNum
+    _             -> Nothing
 
 
 -- Assumes no variables remain, otherwise returns Nothing with a debug message.
@@ -61,13 +61,26 @@ evalToMaybeNum eqnTerm =
       |> Maybe.andThen (\operandNums -> Lang.maybeEvalMathOp op operandNums)
 
 
+-- Solve one equation for one variable. Return a list of possible terms for that variable.
+solveOne : SolutionsCache -> (EqnTerm, EqnTerm) -> Int -> List EqnTerm
+solveOne solutionsCache eqn targetVarId =
+  solve solutionsCache [eqn] [targetVarId]
+  |> List.filterMap
+      (\solution ->
+        case solution of
+          []             -> Nothing
+          [(eqnTerm, _)] -> Just eqnTerm
+          _              -> Debug.crash "Solver.solveOne why does a solution for one variable list multiple variables??" <| toString solution
+      )
+
+
 -- The targetVarIds had better occur inside of the eqns!
 --
 -- Maybe multiple solutions: returns a list.
 --
 -- Side effect: throws exception if solution not in cache; controller should ask solver for solution and retry action.
-symbolicSolve : SolutionsCache -> List (EqnTerm, EqnTerm) -> List Int -> List Solution
-symbolicSolve solutionsCache eqns targetVarIds =
+solve : SolutionsCache -> List (EqnTerm, EqnTerm) -> List Int -> List Solution
+solve solutionsCache eqns targetVarIds =
   let allEqnTerms = List.concatMap Utils.pairToList eqns in
   let (oldToNormalizedVarIds, normalizedToOldVarIds) = normalizedVarIdMapping allEqnTerms in
   let normalizedEquations =
@@ -76,10 +89,10 @@ symbolicSolve solutionsCache eqns targetVarIds =
         (\(lhs, rhs) ->
           case (remapVarIds oldToNormalizedVarIds lhs, remapVarIds oldToNormalizedVarIds rhs) of
             (Just normalizedLHS, Just normalizedRHS) -> Just (normalizedLHS, normalizedRHS)
-            _                                        -> Debug.crash "Shouldn't happen: Bug in Solver.symbolicSolve/normalizedVarIdMapping"
+            _                                        -> Debug.crash "Shouldn't happen: Bug in Solver.solve/normalizedVarIdMapping"
         )
     |> Utils.projJusts
-    |> Utils.fromJust_ "Also shouldn't happen: Bug in Solver.symbolicSolve"
+    |> Utils.fromJust_ "Also shouldn't happen: Bug in Solver.solve"
   in
   case targetVarIds |> List.map (\targetVarId -> Dict.get targetVarId oldToNormalizedVarIds) |> Utils.projJusts of
     Just normalizedTargetVarIds ->
