@@ -4,33 +4,32 @@ import InterfaceModel exposing (Msg, Model)
 import InterfaceController
 import Lang
 import Parser exposing (Parser, Count(..), (|.), (|=), succeed, symbol, keyword, int, float, ignore, repeat, zeroOrMore, oneOf, lazy, delayedCommit, delayedCommitMap, inContext, end)
+import BinaryOperatorParser exposing (PrecedenceTable(..), Associativity(..), Precedence, binaryOperator)
 import Solver exposing (..)
+import Utils
+import ImpureGoodies
 
 import Dict
 import Task
-import Utils
 
--- type EqnTerm
---   = EqnConst Num
---   | EqnVar Int -- Variable identifiers, often locIds
---   | EqnOp Op_ (List EqnTerm)
---
--- type alias Eqn = (EqnTerm, EqnTerm) -- LHS, RHS
---
--- type alias Problem  = (List Eqn, List Int) -- System of equations, and varIds to solve for (usually a singleton).
--- type alias Solution = List (EqnTerm, Int)
---
--- type alias SolutionsCache = Dict Problem (List Solution)
---
--- type NeedSolutionException = NeedSolution problem
-
+-- All REDUCE-specific code should appear here or in the associated native JS file.
 
 -- Send:
 -- solve({(x2-x1)^2 + (y2-y1)^2 = (x3-x2)^2 + (y3-y2)^2,(x3-x2)^2 + (y3-y2)^2 = (x1-x3)^2 + (y1-y3)^2,(x1-x3)^2 + (y1-y3)^2 = (x2-x1)^2 + (y2-y1)^2}, {x3,y3});
 -- Receive:
 -- {{x3=(sqrt(3)*y1 - sqrt(3)*y2 + x1 + x2)/2, y3=( - sqrt(3)*x1 + sqrt(3)*x2 + y1 + y2)/2}, {x3=( - sqrt(3)*y1 + sqrt(3)*y2 + x1 + x2)/2, y3=(sqrt(3)*x1 - sqrt(3)*x2 + y1 + y2)/2}}
 
--- All REDUCE-specific code should appear here or in the associated native JS file.
+-- See Section 7.10 in the REDUCE manual http://www.reduce-algebra.com/reduce38-docs/reduce.pdf#section.7.10
+--
+-- If you ask reduce to solve a system of multiple equations and you get no result but
+-- you think you should, you many need to ask it to solve for more variables:
+--
+-- solve({x=y,y=z},{x});    => {}
+-- solve({x=y,y=z},{x,y});  => {{x=z,y=z}}
+-- solve({x=y,y=z},{x,z});  => {{x=y,z=y}}
+--
+-- (The ending semicolon is optional over the websocket.)
+
 
 
 -- Outgoing port
@@ -60,9 +59,11 @@ handleReduceResponse reduceResponse oldModel=
   case oldModel.problemsSentToSolver of
     (oldestProblem, interruptedMsg)::outstandingProblems ->
       let solutions =
-        case Parser.run parseReduceResponse reduceResponse of
-          Ok solutions -> solutions
-          Err error    -> let _ = Utils.log ("Reduce response parse error: " ++ toString error.problem ++ "\n" ++ toString error.context) in []
+        -- As of v2.0.1 the elm-tools/parser library sometimes hard crashes on a bad parse rather than returning an Err value.
+        case ImpureGoodies.crashToError (\_ -> Parser.run parseReduceResponse reduceResponse) of
+          Ok (Ok solutions) -> solutions
+          Ok (Err error)    -> let _ = Utils.log ("Reduce response parse error: " ++ toString error.problem ++ "\n" ++ toString error.context) in []
+          Err errorStr      -> let _ = Utils.log ("Reduce response parse crash: " ++ errorStr) in []
       in
       let newModel =
         { oldModel | problemsSentToSolver = outstandingProblems
@@ -100,7 +101,7 @@ eqnTermToREDUCE eqnTerm =
         (Lang.Minus,   [l,r]) -> childPerhapsParensToREDUCE l ++ "-" ++ childPerhapsParensToREDUCE r
         (Lang.Mult,    [l,r]) -> childPerhapsParensToREDUCE l ++ "*" ++ childPerhapsParensToREDUCE r
         (Lang.Div,     [l,r]) -> childPerhapsParensToREDUCE l ++ "/" ++ childPerhapsParensToREDUCE r
-        (Lang.Pow,     [l,r]) -> childPerhapsParensToREDUCE l ++ "^" ++ childPerhapsParensToREDUCE r
+        (Lang.Pow,     [l,r]) -> "(" ++ eqnTermToREDUCE l ++ ")^" ++ childPerhapsParensToREDUCE r  -- Extra parens to prevent misinterpreting negative signs before powers
         (Lang.Mod,     [l,r]) -> childPerhapsParensToREDUCE l ++ " mod " ++ childPerhapsParensToREDUCE r
         (Lang.ArcTan2, [l,r]) -> "atan2(" ++ eqnTermToREDUCE l ++ "," ++ eqnTermToREDUCE r ++ ")"
         (Lang.Cos,     [n])   -> "cos(" ++ eqnTermToREDUCE n ++ ")"
@@ -117,6 +118,25 @@ eqnTermToREDUCE eqnTerm =
 
 
 -- Parsing ---------
+
+
+binaryOperatorList : List (String, Associativity, Precedence, Lang.Op_)
+binaryOperatorList =
+  [ ("+",   Left,  2, Lang.Plus)
+  , ("-",   Left,  2, Lang.Minus)
+  , ("*",   Left,  3, Lang.Mult)
+  , ("/",   Left,  3, Lang.Div)
+  , ("^",   Right, 4, Lang.Pow)
+  , ("mod", Left,  1, Lang.Mod)
+  ]
+
+
+precedenceTable : PrecedenceTable
+precedenceTable =
+  binaryOperatorList
+  |> List.foldl
+      (\(str, assoc, prec, _) pt -> BinaryOperatorParser.addOperator (str, assoc, prec) pt)
+      BinaryOperatorParser.emptyPrecedenceTable
 
 
 (.|) : Parser ignore -> Parser keep -> Parser keep
@@ -187,19 +207,42 @@ parseVarToVarId = inContext "parseVarToVarId" <| eatChar 'x' .| int
 
 
 parseEqnTerm : Parser EqnTerm
-parseEqnTerm = inContext "parseEqnTerm" <| lazy (\_ -> parseEqnAtom)
+parseEqnTerm =
+  inContext "parseEqnTerm" <|
+    lazy (\_ ->
+      binaryOperator
+        { precedenceTable   = precedenceTable
+        , minimumPrecedence = 1
+        , expression        = parseEqnAtom
+        , operator          = parseBinaryOperatorStr
+        , representation    = identity -- convert output of parseBinaryOperator to what's in the precedence table
+        , combine           =
+            (\left opStr right ->
+              case binaryOperatorList |> Utils.findFirst (\(str, _, _, _) -> str == opStr) of
+                Just (_, _, _, op_) -> EqnOp op_ [left, right]
+                Nothing             -> Debug.crash <| "REDUCE parsing: Should not happen: could not find binary op " ++ opStr
+            )
+        }
+    )
 
 
 parseEqnAtom : Parser EqnTerm
 parseEqnAtom =
   inContext "parseEqnAtom" <|
-    oneOf <|
-      [ parseEqnConst
-      , parseEqnVar
-      , parseEqnParens
-      , parseEqnFunction
-      , parseEqnPi
-      ]
+    skipSpaces .|
+      oneOf
+        [ parseEqnConst
+        , parseEqnVar
+        , parseEqnParens
+        , parseEqnFunction
+        , parseEqnPi
+        ]
+
+
+parseBinaryOperatorStr : Parser String
+parseBinaryOperatorStr =
+  oneOf <|
+    List.map (\(str, _, _, _) -> wsSymbol str |> Parser.map (always str)) binaryOperatorList
 
 
 parseEqnConst : Parser EqnTerm
@@ -209,7 +252,7 @@ parseEqnConst = parseNumber |> Parser.map EqnConst |> inContext "parseEqnConst"
 parseNumber : Parser Lang.Num
 parseNumber =
   oneOf <|
-    [ delayedCommitMap (\_ posFloat -> -posFloat) (symbol "-") (skipSpaces .| float)
+    [ delayedCommitMap (\_ posFloat -> -posFloat) (symbol "-" |. skipSpaces) float
     , float
     ]
 
