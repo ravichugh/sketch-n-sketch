@@ -337,7 +337,7 @@ type alias PartialSynthesisResult =
   , removedLocIdToLocEquation : List (LocId, LocEquation)
   }
 
-type alias SelectedFeatureAndEquation = (ShapeWidgets.SelectableFeature, Maybe FeatureEquation)
+type alias SelectedFeatureAndEquation = (ShapeWidgets.SelectableFeature, FeatureEquation)
 
 type RelationToSynthesize a
   = Equalize a a
@@ -393,11 +393,11 @@ selectedFeaturesToFeaturesAndEquations selectedFeatures program slideNumber movi
       let locIdToNumberAndLoc = locIdToNumberAndLocOf program in
       selectedFeatures
       |> Set.toList
-      |> List.map
+      |> List.filterMap
           (\selectableFeature ->
-            ( selectableFeature
-            , ShapeWidgets.featureToEquation selectableFeature tree widgets locIdToNumberAndLoc
-            )
+            case ShapeWidgets.featureToEquation selectableFeature tree widgets locIdToNumberAndLoc of
+              Just featureEqn -> Just (selectableFeature, featureEqn)
+              Nothing         -> Debug.crash "Could not generate an equation for " <| toString selectableFeature -- Could make this a Utils.log, we'll see.
           )
 
 
@@ -413,10 +413,6 @@ makeEqual syntax originalExp selectedFeatures slideNumber movieNumber movieTime 
       relateByPairs
       originalExp
       featuresAndEquations
-      slideNumber
-      movieNumber
-      movieTime
-      syncOptions
 
 
 relate syntax originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
@@ -425,11 +421,12 @@ relate syntax originalExp selectedFeatures slideNumber movieNumber movieTime syn
     selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
   in
   let relateOneInTermsOfAllOthers priorResults featuresAndEquations =
+    let (_, featureEqns) = List.unzip featuresAndEquations in
     priorResults
     |> List.concatMap
         (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToLocEquation} as priorResult) ->
           let priorExp = exp in
-          relate_ syntax (Relate featuresAndEquations) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
+          relate__ syntax (Relate featureEqns) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
           |> List.map (InterfaceModel.prependDescription (description ++ " → "))
           |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
         )
@@ -438,10 +435,6 @@ relate syntax originalExp selectedFeatures slideNumber movieNumber movieTime syn
       relateOneInTermsOfAllOthers
       originalExp
       featuresAndEquations
-      slideNumber
-      movieNumber
-      movieTime
-      syncOptions
 
 
 -- Returns list of synthesis results
@@ -451,12 +444,8 @@ synthesizeRelationCoordinateWiseAndSortResults
   :  (List PartialSynthesisResult -> List SelectedFeatureAndEquation -> List PartialSynthesisResult)
   -> Exp
   -> List SelectedFeatureAndEquation
-  -> Int
-  -> Int
-  -> Num
-  -> Sync.Options
   -> List InterfaceModel.SynthesisResult
-synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresAndEquations slideNumber movieNumber movieTime syncOptions =
+synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresAndEquations =
   let selectedPoints = featurePoints featuresAndEquations in
   let startingResult = { description = "Original", exp = originalExp, maybeTermShape = Nothing, dependentLocIds = [], removedLocIdToLocEquation = [] } in
   if 2 * (List.length selectedPoints) == List.length featuresAndEquations then
@@ -477,28 +466,27 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresA
 
 
 -- If given more than two features, equalizes each overlapping pair.
+-- Terminates if given only zero or one feature.
+equalizeOverlappingPairs : Syntax -> List PartialSynthesisResult -> List SelectedFeatureAndEquation -> Sync.Options -> List PartialSynthesisResult
 equalizeOverlappingPairs syntax priorResults featuresAndEquations syncOptions =
   let equalizeMore results =
-    case featuresAndEquations of
-      _::remainingFeatues ->
-        equalizeOverlappingPairs syntax results remainingFeatues syncOptions
-
-      _ ->
-        -- Shouldn't happen.
-        Debug.crash "equalizeOverlappingPairs equalizeMore"
+    equalizeOverlappingPairs syntax results (List.drop 1 featuresAndEquations) syncOptions
   in
-  case List.take 2 featuresAndEquations of
-    [featureAndEquationA, featureAndEquationB] ->
+  case featuresAndEquations of
+    (featureA, featureAEqn)::(featureB, featureBEqn)::_ ->
       priorResults
       |> List.concatMap
           (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToLocEquation} as priorResult) ->
             let priorExp = exp in
+            let descriptionPrefix = ShapeWidgets.featureDesc featureA ++ " = " ++ ShapeWidgets.featureDesc featureB ++ " " in
             let newResults =
-              relate_ syntax (Equalize featureAndEquationA featureAndEquationB) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
+              relate__ syntax (Equalize featureAEqn featureBEqn) priorExp maybeTermShape removedLocIdToLocEquation syncOptions
+              |> List.map (InterfaceModel.prependDescription descriptionPrefix)
             in
             case newResults of
               [] ->
-                equalizeMore [priorResult]
+                let _ = Debug.log "ValueBasedTransform.equalizeOverlappingPairs: could not equalize" ((featureA, featureAEqn), (featureB, featureBEqn)) in
+                []
 
               _ ->
                 newResults
@@ -583,36 +571,6 @@ equalizeOverlappingPairs syntax priorResults featuresAndEquations syncOptions =
 --       originalExp
 
 
-relate_
-    :  Syntax
-    -> RelationToSynthesize SelectedFeatureAndEquation
-    -> Exp
-    -> Maybe LocEquation
-    -> List (LocId, LocEquation)
-    -> Sync.Options
-    -> List PartialSynthesisResult
-relate_ syntax relationToSynthesize originalExp maybeTermShape removedLocIdToLocEquation syncOptions =
-  case relationToSynthesize of
-    Equalize (featureA, Just featureAEqn) (featureB, Just featureBEqn) ->
-      let descriptionPrefix =
-        ShapeWidgets.featureDesc featureA ++ " = " ++ ShapeWidgets.featureDesc featureB ++ " "
-      in
-      relate__ syntax (Equalize featureAEqn featureBEqn) originalExp maybeTermShape removedLocIdToLocEquation syncOptions
-      |> List.map (InterfaceModel.prependDescription descriptionPrefix)
-
-    Relate featuresAndEquations ->
-      let maybeFeatureEquations =
-        featuresAndEquations
-        |> List.map (\(feature, maybeFeatureEquation) -> maybeFeatureEquation)
-        |> Utils.projJusts
-      in
-      case maybeFeatureEquations of
-        Just featureEquations -> relate__ syntax (Relate featureEquations) originalExp maybeTermShape removedLocIdToLocEquation syncOptions
-        Nothing               -> []
-
-    _ -> []
-
-
 relate__
     :  Syntax
     -> RelationToSynthesize FeatureEquation
@@ -650,12 +608,12 @@ relate__ syntax relationToSynthesize originalExp maybeTermShape removedLocIdToLo
   let solutionsForLoc dependentLoc =
     let (dependentLocId, dependentFrozen, dependentIdent) = dependentLoc in
     let dependentIdentDesc = locDescription originalExp dependentLoc in
-    case relationToSynthesize of
+    case relationToSynthesize |> Debug.log "relationToSynthesize" of
       Equalize featureAEqn featureBEqn ->
         let featureALocEqn = featureEquationToLocEquation removedLocIdToLocEquation featureAEqn in
         let featureBLocEqn = featureEquationToLocEquation removedLocIdToLocEquation featureBEqn in
         -- Make equal ignores termShape.
-        case LocEqn.solveForLoc dependentLocId frozenLocIdToNum subst featureALocEqn featureBLocEqn of
+        case LocEqn.solveForLoc dependentLocId frozenLocIdToNum subst featureALocEqn featureBLocEqn |> Debug.log ("solution for dependentLocId " ++ toString dependentLocId) of
           Nothing ->
             []
 
@@ -1073,23 +1031,23 @@ featurePoints featuresAndEquations =
       []
 
     selectableFeatureAndEquation::otherFeaturesAndEquations ->
-      let (feature, featureEquation) = selectableFeatureAndEquation in
+      let (feature, _) = selectableFeatureAndEquation in
       if not <| ShapeWidgets.featureIsXOrY feature then
         featurePoints otherFeaturesAndEquations
       else
-        let maybePairedFeature =
+        let maybePairedFeatureAndEquation =
           otherFeaturesAndEquations
           |> Utils.findFirst (\(otherFeature, _) -> ShapeWidgets.featuresAreXYPairs feature otherFeature)
         in
-        case maybePairedFeature of
-          Just pairedFeature ->
+        case maybePairedFeatureAndEquation of
+          Just pairedFeatureAndEquation ->
             let pairToReturn =
               if ShapeWidgets.featureIsX feature
-              then (selectableFeatureAndEquation, pairedFeature)
-              else (pairedFeature, selectableFeatureAndEquation)
+              then (selectableFeatureAndEquation, pairedFeatureAndEquation)
+              else (pairedFeatureAndEquation, selectableFeatureAndEquation)
             in
             let remainingFeatures =
-              Utils.removeFirst pairedFeature otherFeaturesAndEquations
+              Utils.removeFirst pairedFeatureAndEquation otherFeaturesAndEquations
             in
             pairToReturn::(featurePoints remainingFeatures)
 
