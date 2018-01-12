@@ -33,6 +33,9 @@ import ImpureGoodies
 
 type alias Code = String
 
+type alias History a =
+  (List a, List a)
+
 type alias Filename = String
 
 type alias FileIndex = List Filename
@@ -56,7 +59,7 @@ type alias ViewState =
   }
 
 type alias Preview =
-  Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
+  Maybe (Code, List DeuceWidgets.DeuceWidget, Result String (Val, Widgets, RootedIndexedTree))
 
 type TextSelectMode
     -- Only match the exact range
@@ -93,7 +96,7 @@ type alias Model =
   { code : Code
   , lastRunCode : Code
   , preview : Preview
-  , history : (List Code, List Code)
+  , history : History (Code, List DeuceWidgets.DeuceWidget)
   , inputExp : Exp
   , inputVal : Val
   , slideNumber : Int
@@ -646,9 +649,10 @@ liveInfoToHighlights zoneKey model =
 
 --------------------------------------------------------------------------------
 
+codeToShow : Model -> Code
 codeToShow model =
   case model.preview of
-     Just (string, _) -> string
+     Just (string, _, _) -> string
      Nothing          -> model.code
 
 --------------------------------------------------------------------------------
@@ -968,7 +972,7 @@ initModel =
     { code          = code
     , lastRunCode   = code
     , preview       = Nothing
-    , history       = ([code], [])
+    , history       = ([(code, [])], [])
     , inputExp      = e
     , inputVal      = v
     , slideNumber   = 1

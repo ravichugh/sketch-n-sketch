@@ -1247,8 +1247,8 @@ codePanel model =
           Tuple.first model.history
         attributes =
           case (UserStudy.enabled, past) of
-            (False, _ :: prevCode :: _) ->
-              [ E.onMouseEnter <| Controller.msgPreview (Right prevCode)
+            (False, _ :: prev :: _) ->
+              [ E.onMouseEnter <| Controller.msgPreview prev
               , E.onMouseLeave Controller.msgClearPreview
               ]
             _ ->
@@ -1267,8 +1267,8 @@ codePanel model =
           Tuple.second model.history
         attributes =
           case (UserStudy.enabled, future) of
-            (False, futureCode :: _) ->
-              [ E.onMouseEnter <| Controller.msgPreview (Right futureCode)
+            (False, next :: _) ->
+              [ E.onMouseEnter <| Controller.msgPreview next
               , E.onMouseLeave Controller.msgClearPreview
               ]
             _ ->
@@ -1427,9 +1427,9 @@ outputPanel model =
       SleekLayout.outputCanvas model
     output =
       case (model.errorBox, model.outputMode, model.preview) of
-        (_, _, Just (_, Err errorMsg)) ->
+        (_, _, Just (_, _, Err errorMsg)) ->
           textOutput errorMsg
-        (_, _, Just (_, Ok _)) ->
+        (_, _, Just (_, _, Ok _)) ->
           Canvas.build dim.width dim.height model
         (Just errorMsg, _, Nothing) ->
           textOutput errorMsg
@@ -2061,15 +2061,9 @@ deuceOverlay model =
         "auto"
       else
         "none"
-    disabledFlag =
-      case model.preview of
-        Just _ ->
-          " disabled"
-        Nothing ->
-          ""
   in
     Html.div
-      [ Attr.class <| "deuce-overlay-container" ++ disabledFlag
+      [ Attr.class <| "deuce-overlay-container"
       , Attr.style
           [ ( "pointer-events"
             , pointerEvents

@@ -182,18 +182,28 @@ refreshHighlights zoneKey model =
   { model | codeBoxInfo = { codeBoxInfo | highlights = hi } }
 
 -- may want to eventually have a maximum history length
-addToHistory currentCode h =
-  let (past, _) = h in
-  case past of
-    [] ->
-      (currentCode::past, [])
+addToHistory : History (Code, List DeuceWidget) -> Code -> List DeuceWidget -> History (Code, List DeuceWidget)
+addToHistory history currentCode currentSelectedWidgets =
+  let
+    (past, _) = history
+  in
+    case past of
+      [] ->
+        ([(currentCode, currentSelectedWidgets)], [])
 
-    last::older ->
-      -- trimRight to tolerate differences in newlines at the end
-      if String.trimRight currentCode == String.trimRight last
-      then h
-      else (currentCode::past, [])
-
+      (lastCode, lastSelectedWidgets)::older ->
+        let
+          -- trimRight to tolerate differences in newlines at the end
+          codeUnchanged =
+            String.trimRight currentCode == String.trimRight lastCode
+          -- TODO might need to be sorted to disregard ordering somehow
+          widgetsUnchanged =
+            Set.fromList lastSelectedWidgets == Set.fromList currentSelectedWidgets
+        in
+          if codeUnchanged && widgetsUnchanged then
+            history
+          else
+            ((currentCode, currentSelectedWidgets) :: past, [])
 
 between1 i (j,k) = Utils.between i (j+1, k+1)
 
@@ -525,7 +535,7 @@ finishTrigger zoneKey old =
   let old_ = { old | inputExp = e } in
   refreshHighlights zoneKey
     { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
-           , history = addToHistory old.code old_.history }
+           , history = addToHistory old_.history old.code old.deuceState.selectedWidgets }
 
 
 --------------------------------------------------------------------------------
@@ -536,7 +546,7 @@ tryRun old =
     oldWithUpdatedHistory =
       let
         updatedHistory =
-          addToHistory old.code old.history
+          addToHistory old.history old.code old.deuceState.selectedWidgets
       in
         { old | history = updatedHistory }
   in
@@ -585,7 +595,7 @@ tryRun old =
                       , runAnimation  = newMovieDuration > 0
                       , slate         = newSlate
                       , widgets       = ws
-                      , history       = addToHistory newCode old.history
+                      , history       = addToHistory old.history newCode old.deuceState.selectedWidgets
                       , caption       = Nothing
                       , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                       , lambdaTools   = lambdaTools_
@@ -938,6 +948,7 @@ msgUserHasTyped =
             emptyDeuceState
     }
 
+upstateRun : Model -> Model
 upstateRun old =
   case tryRun old of
     Err (oldWithUpdatedHistory, err, Just annot) ->
@@ -952,6 +963,7 @@ upstateRun old =
     Ok newModel ->
       newModel
 
+msgTryParseRun : Model -> Msg
 msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
   case tryRun newModel of
     Err (oldWithUpdatedHistory, err, Just annot) ->
@@ -971,24 +983,41 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 msgUndo = Msg "Undo" doUndo
 
 doUndo old =
+  let _ = Debug.log "Past" <| List.length <| Tuple.first old.history in
+  let _ = Debug.log "Future" <| List.length <| Tuple.second old.history in
   case old.history of
     ([], _) ->
       old
     ([firstRun], _) ->
       old
-    (lastRun::secondToLast::older, future) ->
+    ((lastCode, lastWidgets)::(secondToLastCode, secondToLastWidgets)::older, future) ->
       let
-        new =
+        toBeRun =
           { old
               | history =
-                  (secondToLast::older, lastRun::future)
+                  ((secondToLastCode, secondToLastWidgets)::older, (lastCode, lastWidgets)::future)
               , code =
-                  secondToLast
+                  secondToLastCode
           }
             |> Model.hideDeuceRightClickMenu
             |> resetDeuceState
+        ran =
+          if old.code /= toBeRun.code then
+            upstateRun toBeRun
+          else
+            toBeRun
+        ranDeuceState =
+          ran.deuceState
+        newDeuceState =
+          { ranDeuceState
+              | selectedWidgets = secondToLastWidgets
+          }
+        new =
+          { ran
+              | deuceState = newDeuceState
+          }
       in
-        upstateRun new
+        new
 
 msgRedo = Msg "Redo" doRedo
 
@@ -996,19 +1025,34 @@ doRedo old =
   case old.history of
     (_, []) ->
       old
-    (past, next::future) ->
+    (past, (nextCode, nextWidgets)::future) ->
       let
-        new =
+        toBeRun =
           { old
               | history =
-                  (next::past, future)
+                  ((nextCode, nextWidgets)::past, future)
               , code =
-                  next
+                  nextCode
           }
             |> Model.hideDeuceRightClickMenu
             |> resetDeuceState
+        ran =
+          if old.code /= toBeRun.code then
+            upstateRun toBeRun
+          else
+            toBeRun
+        ranDeuceState =
+          ran.deuceState
+        newDeuceState =
+          { ranDeuceState
+              | selectedWidgets = nextWidgets
+          }
+        new =
+          { ran
+              | deuceState = newDeuceState
+          }
       in
-        upstateRun new
+        new
 
 --------------------------------------------------------------------------------
 
@@ -1134,7 +1178,9 @@ msgKeyDown keyCode =
                 old
                   |> Model.hideDeuceRightClickMenu
                   |> resetDeuceState
-                  |> \m -> { m | deucePopupPanelAbove = True }
+                  |> \m -> { m | deucePopupPanelAbove = True
+                               , history = addToHistory m.history m.code m.deuceState.selectedWidgets
+                               }
             in
               case (old.tool, old.mouseMode) of
                 (Cursor, _)         -> clearSelections new
@@ -1224,7 +1270,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
-            , history          = addToHistory newCode old.history
+            , history          = addToHistory old.history newCode old.deuceState.selectedWidgets
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
@@ -1312,7 +1358,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   let new =
     { old | code = newCode
           , lastRunCode = newCode
-          , history = addToHistory newCode old.history
+          , history = addToHistory old.history newCode old.deuceState.selectedWidgets
           , synthesisResults = []
           }
   in
@@ -1509,22 +1555,24 @@ msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
 
 --------------------------------------------------------------------------------
 
-showCodePreview old code =
+showCodePreview : Model -> Code -> List DeuceWidget -> Model
+showCodePreview old code deuceWidgets =
   case parseE code of
-    Ok exp  -> showExpPreview old exp
-    Err err -> { old | preview = Just (code, Err (showError err)) }
+    Ok exp  -> showExpPreview old exp deuceWidgets
+    Err err -> { old | preview = Just (code, deuceWidgets, Err (showError err)) }
 
-showExpPreview old exp =
+showExpPreview : Model -> Exp -> List DeuceWidget -> Model
+showExpPreview old exp deuceWidgets =
   let code = unparse exp in
   case runAndResolve old exp of
-    Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, slate)) }
-    Err s                       -> { old | preview = Just (code, Err s) }
+    Ok (val, widgets, slate, _) -> { old | preview = Just (code, deuceWidgets, Ok (val, widgets, slate)) }
+    Err s                       -> { old | preview = Just (code, deuceWidgets, Err s) }
 
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
         , inputVal      = val
-        , history       = addToHistory code old.history
+        , history       = addToHistory old.history code old.deuceState.selectedWidgets
         , slate         = slate
         , preview       = Nothing
         , synthesisResults = []
@@ -1561,17 +1609,16 @@ msgHoverSynthesisResult pathByIndices = Msg "Hover SynthesisResult" <| \old ->
             { newModel | synthesisResults = newTopLevelResults
                        , hoveredSynthesisResultPathByIndices = pathByIndices }
       in
-      showExpPreview newModel2 exp
+      showExpPreview newModel2 exp []
 
     Nothing ->
       { old | preview = Nothing
             , hoveredSynthesisResultPathByIndices = [] }
 
 
-msgPreview expOrCode = Msg "Preview" <| \old ->
-  case expOrCode of
-    Left exp   -> showExpPreview old exp
-    Right code -> showCodePreview old code
+msgPreview : (Code, List DeuceWidget) -> Msg
+msgPreview (code, deuceWidgets) = Msg "Preview" <| \old ->
+  showCodePreview old code deuceWidgets
 
 msgClearPreview = Msg "Clear Preview" <| \old ->
   { old | preview = Nothing }
@@ -1616,19 +1663,23 @@ msgUpdateFilenameInput str = Msg "Update Filename Input" <| \old ->
 --------------------------------------------------------------------------------
 -- File Handling API
 
+confirmWrite : Filename -> Model -> Model
 confirmWrite savedFilename old =
   { old | needsSave = False
         , lastSaveState = Just old.code }
 
+confirmDelete : Filename -> Model -> Model
 confirmDelete deletedFilename = identity
 
+requestFile : Filename -> Model -> Model
 requestFile requestedFilename old =
   { old | filename = requestedFilename }
 
+readFile : File -> Model -> Model
 readFile file old =
   { old | filename = file.filename
         , code = file.code
-        , history = ([file.code], [])
+        , history = ([(file.code, [])], [])
         , lastSaveState = Just file.code
         , needsSave = False }
 
@@ -1661,13 +1712,15 @@ loadLambdaToolIcons finalEnv old =
   in
   List.foldl foo old old.lambdaTools
 
+readFileFromInput : File -> Model -> Model
 readFileFromInput file old =
   { old | filename = file.filename
         , code = file.code
-        , history = ([file.code], [])
+        , history = ([(file.code, [])], [])
         , lastSaveState = Nothing
         , needsSave = True }
 
+updateFileIndex : FileIndex -> Model -> Model
 updateFileIndex fileIndex old =
   { old | fileIndex = fileIndex }
 
@@ -1715,7 +1768,7 @@ handleNew template = (\old ->
                     , inputVal      = v
                     , code          = code
                     , lastRunCode   = code
-                    , history       = ([code],[])
+                    , history       = ([(code, [])],[])
                     , liveSyncInfo  = outputMode
                     , syncOptions   = so
                     , slideNumber   = 1
@@ -1907,6 +1960,8 @@ toggleDeuceWidget widget model =
               newDeuceState
           , deuceRightClickMenuMode =
               newDeuceRightClickMenuMode
+          , history =
+              addToHistory model.history model.code newDeuceState.selectedWidgets
       }
   in
     { almostNewModel
@@ -2053,14 +2108,14 @@ msgHoverDeuceResult isRenamer (SynthesisResult result) path =
             -- CSS classes from SleekView leak out here. Oh, well.
             case (result.isSafe, runAndResolve m result.exp) of
               (True, Ok (val, widgets, slate, code)) ->
-                (Just (code, Ok (val, widgets, slate)), "expected-safe")
+                (Just (code, [], Ok (val, widgets, slate)), "expected-safe")
               (True, Err err) ->
                 let _ = Debug.log "not safe after all!" err in
-                (Just (LangUnparser.unparse result.exp, Err err), "unexpected-unsafe")
+                (Just (LangUnparser.unparse result.exp, [], Err err), "unexpected-unsafe")
               (False, Ok (val, widgets, slate, code)) ->
-                (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
+                (Just (code, [], Ok (val, widgets, slate)), "unexpected-safe")
               (False, Err err) ->
-                (Just (LangUnparser.unparse result.exp, Err err), "expected-unsafe")
+                (Just (LangUnparser.unparse result.exp, [], Err err), "expected-unsafe")
 
           deuceToolResultPreviews =
             Dict.insert path (preview, class) m.deuceToolResultPreviews
@@ -2229,7 +2284,7 @@ changeUserStudyStep label offset old =
       |> handleNew template
       |> (\m ->
            let finalCode = UserStudy.postProcessCode newState m.code in
-           { m | code = finalCode, history = ([finalCode], []) }
+           { m | code = finalCode, history = ([(finalCode, [])], []) }
          )
       |> UserStudy.enableFeaturesForEditorMode newState
       |> UserStudy.postProcessProse newState

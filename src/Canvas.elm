@@ -97,8 +97,8 @@ build wCanvas hCanvas model =
   in
   let (widgets, slate) =
     case model.preview of
-      Just (_, Ok (val, widgets, slate)) -> (widgets, slate)
-      _                                  -> (model.widgets, model.slate)
+      Just (_, _, Ok (val, widgets, slate)) -> (widgets, slate)
+      _                                     -> (model.widgets, model.slate)
   in
   let outputShapes = buildSvg (model, addZones) slate in
   let newShape = drawNewShape model in
