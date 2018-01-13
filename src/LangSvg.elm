@@ -758,8 +758,8 @@ foldSlateNodeInfo slate acc f =
 -- TODO use this to reduce clutter
 type alias AnimationKey = (Int, Int, Float)
 
--- HACK: see LocEqn.traceToLocEquation...
--- TODO: streamline Trace, LocEquation, etc.
+-- HACK: see LocEqn.traceToMathExp...
+-- TODO: streamline Trace, MathExp, etc.
 vNumFrozen n = { v_ = VConst Nothing (n, TrLoc (-999, frozen, toString n)), provenance = Provenance [] (eConstDummyLoc0 n) [], parents = Parents [] }
 vIntFrozen i = vNumFrozen (toFloat i)
 

@@ -673,37 +673,37 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
     then inlineInvalidFreeNumericIdentsUntilConvergence programInlinedOnce
     else freshened
   in
-  -- Hijacking the locEqn solving/simplification architecture. Need to give a number to each identifier.
+  -- Need to give a number to each identifier.
   -- Hmmm. Could also use pid of ident's defining pattern.
-  let identToEqnLocId =
+  let identToVarId =
     identifiersSetPlusPrelude programUniqueNames
     |> Set.toList
     |> Utils.zipi1
     |> List.map Utils.flip
     |> Dict.fromList
   in
-  let expToMaybeLocEqn exp =
+  let expToMaybeMathExp exp =
     case exp.val.e__ of
       EConst _ n _ _      -> Just (MathNum n)
-      EVar _ ident        -> Dict.get ident identToEqnLocId |> Maybe.map MathVar
+      EVar _ ident        -> Dict.get ident identToVarId |> Maybe.map MathVar
       EOp _ op operands _ ->
         case op.val of
-          Plus  -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (MathOp Plus)
-          Minus -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (MathOp Minus)
-          Mult  -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (MathOp Mult)
-          Div   -> operands |> List.map expToMaybeLocEqn |> Utils.projJusts |> Maybe.map (MathOp Div)
+          Plus  -> operands |> List.map expToMaybeMathExp |> Utils.projJusts |> Maybe.map (MathOp Plus)
+          Minus -> operands |> List.map expToMaybeMathExp |> Utils.projJusts |> Maybe.map (MathOp Minus)
+          Mult  -> operands |> List.map expToMaybeMathExp |> Utils.projJusts |> Maybe.map (MathOp Mult)
+          Div   -> operands |> List.map expToMaybeMathExp |> Utils.projJusts |> Maybe.map (MathOp Div)
           _     -> Nothing
 
-      EComment _ _ body       -> expToMaybeLocEqn body
-      EOption _ _ _ _ body    -> expToMaybeLocEqn body
-      ELet _ _ _ _ _ body _   -> expToMaybeLocEqn body
-      ETyp _ _ _ body _       -> expToMaybeLocEqn body
-      EColonType _ e _ _ _    -> expToMaybeLocEqn e
-      ETypeAlias _ _ _ body _ -> expToMaybeLocEqn body
+      EComment _ _ body       -> expToMaybeMathExp body
+      EOption _ _ _ _ body    -> expToMaybeMathExp body
+      ELet _ _ _ _ _ body _   -> expToMaybeMathExp body
+      ETyp _ _ _ body _       -> expToMaybeMathExp body
+      EColonType _ e _ _ _    -> expToMaybeMathExp e
+      ETypeAlias _ _ _ body _ -> expToMaybeMathExp body
       _                       -> Nothing
   in
-  let locEqnToExp locEqn =
-    LocEqn.locEqnToExp unann Dict.empty (Utils.flipDict identToEqnLocId) locEqn
+  let mathExpToExp mathExp =
+    LocEqn.mathExpToExp unann Dict.empty (Utils.flipDict identToVarId) mathExp
   in
   let inlinedSimplifiedProgram =
     let inlinedProgram = inlineInvalidFreeNumericIdentsUntilConvergence programUniqueNames in
@@ -720,9 +720,9 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
     |> mapExp
         (\exp ->
           if Set.member exp.val.eid boundEIdsToSimplify then
-            case expToMaybeLocEqn exp of
+            case expToMaybeMathExp exp of
               -- TODO: constant annotations thrown away (can't always be helped, but trivial cases should be saved)
-              Just locEqn -> LocEqn.normalizeSimplify locEqn |> locEqnToExp |> copyPrecedingWhitespace exp
+              Just mathExp -> LocEqn.normalizeSimplify mathExp |> mathExpToExp |> copyPrecedingWhitespace exp
               Nothing     -> exp
           else
             exp
@@ -747,13 +747,13 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
           if Set.member identInvalidlyFree identsInvalidlyFreeRewritten || Set.member identOfDefWhereUsedInvalidly identsWithInvalidlyFreeVarsHandled then
             noChange
           else
-            case expToMaybeLocEqn boundExpWhereUsedInvalidly of
+            case expToMaybeMathExp boundExpWhereUsedInvalidly of
               Nothing  -> noChange
               Just rhs ->
-                let lhs = expToMaybeLocEqn (eVar identOfDefWhereUsedInvalidly) |> Utils.fromJust_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic expToMaybeLocEqn (eVar identOfDefWhereUsedInvalidly)" in
-                let locIdInvalidlyFree = Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic Utils.justGet_ identInvalidlyFree identToEqnLocId" identInvalidlyFree identToEqnLocId in
+                let lhs = expToMaybeMathExp (eVar identOfDefWhereUsedInvalidly) |> Utils.fromJust_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic expToMaybeMathExp (eVar identOfDefWhereUsedInvalidly)" in
+                let locIdInvalidlyFree = Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic Utils.justGet_ identInvalidlyFree identToVarId" identInvalidlyFree identToVarId in
                 -- TODO: Explore all options non-deterministically.
-                case LocEqn.solveForLocUnchecked locIdInvalidlyFree Dict.empty lhs rhs |> Maybe.map locEqnToExp of
+                case LocEqn.solveForLocUnchecked locIdInvalidlyFree Dict.empty lhs rhs |> Maybe.map mathExpToExp of
                   Nothing     -> noChange
                   Just invalidlyFreeIdentBoundExpNew ->
                     let simpleLetBindings = allSimplyResolvableLetBindings program |> Dict.fromList in
@@ -799,10 +799,10 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
                         if inlined == boundExpWhereUsedInvalidlyPartiallyReduced then
                           inlined
                         else
-                          case expToMaybeLocEqn inlined of
+                          case expToMaybeMathExp inlined of
                             -- TODO: constant annotations thrown away (can't always be helped, but trivial cases should be saved)
-                            Just locEqn -> LocEqn.normalizeSimplify locEqn |> locEqnToExp
-                            Nothing     -> inlined
+                            Just mathExp -> LocEqn.normalizeSimplify mathExp |> mathExpToExp
+                            Nothing      -> inlined
                       in
                       -- let _ = Debug.log ("simplified:\n" ++ unparseWithIds inlinedSimplified) () in
                       inlinedSimplified

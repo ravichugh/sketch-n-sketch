@@ -9,7 +9,7 @@ import Dict exposing (Dict)
 
 --------------------------------------------------------------------------------
 
--- TODO streamline Equation/LocEquation/Trace; see note in LocEqn.elm
+-- TODO streamline Equation/MathExp/Trace; see note in LocEqn.elm
 
 type MathExp
   = MathNum Num

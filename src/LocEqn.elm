@@ -17,11 +17,20 @@ debugLog = Config.debugLog Config.debugSync
 --
 -- Trace           - terminals are locs (LocId, Frozen, Ident); no plain numbers.
 -- FeatureEquation - terminals are are numTrs (Num, Trace); allows introduction of constants like 0.5 for midpoint calculation.
--- LocEquation     - traces inlined, terminals are locIds and plain numbers; only Plus/Minus/Mult/Div supported.
+-- MathExp     - traces inlined, terminals are locIds and plain numbers; only Plus/Minus/Mult/Div supported.
 -- Poly/NormPoly   - wider tree to ease simplification; can represent arbitrary exponents but only constant exponents supported right now.
 --
--- If traces supported constants (perhaps as another field to the loc), then Trace & FeatureEquation & LocEquation could be consolidated.
+-- If traces supported constants (perhaps as another field to the loc), then Trace & FeatureEquation & MathExp could be consolidated.
 --
+
+
+-- The old "LocEquation" and the new "MathExp" have identical structure and are now consolidated.
+-- All functions below are renamed to be "mathExp" functions. Previously they were "locEqn" functions.
+--
+-- The functions in this file are all candidates for deletion or for moving to a new location.
+--
+-- Goal is to delete a lot of code.
+
 
 
 -- Holdover until we can discard this file.
@@ -29,7 +38,7 @@ type alias LocEquation = Solver.MathExp
 -- type LocEquation
 --   = LocMathNum Num
 --   | LocEqnLoc LocId
---   | LocMathOp Op_ (List LocEquation)
+--   | LocMathOp Op_ (List MathExp)
 
 
 -- Repeated perform simple simplifications:
@@ -44,19 +53,19 @@ type alias LocEquation = Solver.MathExp
 --
 -- This is superceded by normalizeSimplify.
 -- Remove when it's clear that normalizeSimplify is good enough.
-locEqnSimplify : LocEquation -> LocEquation
-locEqnSimplify eqn =
+mathExpSimplify : MathExp -> MathExp
+mathExpSimplify mathExp =
   let simplified =
-    case eqn of
+    case mathExp of
       MathNum n ->
-        eqn
+        mathExp
 
       MathVar locId ->
-        eqn
+        mathExp
 
       MathOp op children ->
-        let children_ = List.map locEqnSimplify children in
-        let eqn_ = MathOp op children_ in
+        let children_ = List.map mathExpSimplify children in
+        let mathExp_ = MathOp op children_ in
         case children_ of
           [left, right] ->
             case op of
@@ -65,11 +74,11 @@ locEqnSimplify eqn =
                   (MathNum 0, _) -> right
                   (_, MathNum 0) -> left
                   -- (+ (- a b) b) to a
-                  (MathOp Minus [a, b], c) -> if b == c then a else eqn_
-                  (c, MathOp Minus [a, b]) -> if b == c then a else eqn_
+                  (MathOp Minus [a, b], c) -> if b == c then a else mathExp_
+                  (c, MathOp Minus [a, b]) -> if b == c then a else mathExp_
                   (MathNum a,
                    MathNum b)    -> MathNum (a + b)
-                  _              -> eqn_
+                  _              -> mathExp_
 
               Minus ->
                 case (left, right) of
@@ -96,12 +105,12 @@ locEqnSimplify eqn =
                   (MathOp Plus [a, b], c) ->
                     if b == c then a
                     else if a == c then b
-                    else eqn_
+                    else mathExp_
                   -- (- b (+ a b)) to (- 0 a)
                   (c, MathOp Plus [a, b]) ->
                     if b == c then MathOp Minus [MathNum 0, a]
                     else if a == c then MathOp Minus [MathNum 0, b]
-                    else eqn_
+                    else mathExp_
                   (MathNum a,
                    MathNum b)    -> MathNum (a - b)
                   _                  ->
@@ -109,7 +118,7 @@ locEqnSimplify eqn =
                     if left == right then
                       MathNum 0
                     else
-                      eqn_
+                      mathExp_
 
               Mult ->
                 case (left, right) of
@@ -127,7 +136,7 @@ locEqnSimplify eqn =
                   (MathNum c1, MathOp Mult [sub, MathNum c2]) -> MathOp Mult [MathNum (c1 * c2), sub]
                   (MathOp Mult [MathNum c2, sub], MathNum c1) -> MathOp Mult [MathNum (c1 * c2), sub]
                   (MathOp Mult [sub, MathNum c2], MathNum c1) -> MathOp Mult [MathNum (c1 * c2), sub]
-                  _ -> eqn_
+                  _ -> mathExp_
 
               Div ->
                 case (left, right) of
@@ -136,49 +145,49 @@ locEqnSimplify eqn =
                   -- Division by 0 will be handled elsewhere.
                   -- We don_t want to produce infinity here.
                   (MathNum a,
-                   MathNum b)     -> if b /= 0 then MathNum (a / b) else eqn_
+                   MathNum b)     -> if b /= 0 then MathNum (a / b) else mathExp_
                   (MathNum 0, _)  -> MathNum 0
-                  (_, MathNum b)  -> if b /= 0 then MathOp Mult [(MathNum (1 / b)), left] else eqn_
+                  (_, MathNum b)  -> if b /= 0 then MathOp Mult [(MathNum (1 / b)), left] else mathExp_
                   _                   ->
                     -- Alas, this is syntactic equality not semantic.
                     if left == right && right /= MathNum 0 then
                       MathNum 1
                     else
-                      eqn_
+                      mathExp_
 
               _ ->
-                eqn_
+                mathExp_
 
           _ ->
-            Debug.crash <| "locEqnSimplify: op without 2 children " ++ (toString eqn)
+            Debug.crash <| "mathExpSimplify: op without 2 children " ++ (toString mathExp)
   in
-  if simplified == eqn then
-    eqn
+  if simplified == mathExp then
+    mathExp
   else
     debugLog "double simplification"
-    <| locEqnSimplify simplified
+    <| mathExpSimplify simplified
 
 
 -- Returns (locPow, coefficient of targetLoc, everything else)
 --
--- i.e. (coeff eqn)*targetLoc^locPow + (everything else eqn)
+-- i.e. (coeff mathExp)*targetLoc^locPow + (everything else mathExp)
 --
 -- Because once in that form, we can solve for the targetLoc.
 --
 -- Returns Nothing if equation is not linear in LocId
-locEqnTerms : LocId -> LocEquation -> Maybe (Float, LocEquation, LocEquation)
-locEqnTerms targetLocId eqn =
-  case eqn of
+mathExpTerms : LocId -> MathExp -> Maybe (Float, MathExp, MathExp)
+mathExpTerms targetLocId mathExp =
+  case mathExp of
     MathNum n ->
-      Just (1, MathNum 0, eqn)
+      Just (1, MathNum 0, mathExp)
 
     MathVar locId ->
       if locId == targetLocId
       then Just (1, MathNum 1, MathNum 0)
-      else Just (1, MathNum 0, eqn)
+      else Just (1, MathNum 0, mathExp)
 
     MathOp op children ->
-      let children_ = List.map (locEqnTerms targetLocId) children in
+      let children_ = List.map (mathExpTerms targetLocId) children in
       let result =
         case children_ of
           [Just (leftLocPow,  leftCoeff,  leftRest),
@@ -286,7 +295,7 @@ locEqnTerms targetLocId eqn =
 
 
 -- Expands all equations into a form of xy + yz^2 + y(z+1)^-1 etc
--- then packages back up into a LocEqn
+-- then packages back up into a MathExp
 --
 -- Not perfect but the best we have so far and simpler than
 -- incorporating a full Computer Algebra System
@@ -661,9 +670,9 @@ polyNorm poly =
   -- let _ = Debug.log ("polyNorm " ++ polyToString poly ++ " = " ++ normPolyToString result) result in
   normPolySort result
 
-locEquationToPoly : LocEquation -> Poly
-locEquationToPoly locEqn =
-  case locEqn of
+mathExpToPoly : MathExp -> Poly
+mathExpToPoly mathExp =
+  case mathExp of
     MathNum n ->
       PolyMult n []
 
@@ -671,19 +680,19 @@ locEquationToPoly locEqn =
       PolyLoc locId
 
     MathOp Plus children ->
-      PolyAdd <| List.map locEquationToPoly children
+      PolyAdd <| List.map mathExpToPoly children
 
     MathOp Minus (leftChild::otherChildren) ->
-      PolyAdd <| (locEquationToPoly leftChild)::(List.map (\child -> PolyMult -1 [locEquationToPoly child]) otherChildren)
+      PolyAdd <| (mathExpToPoly leftChild)::(List.map (\child -> PolyMult -1 [mathExpToPoly child]) otherChildren)
 
     MathOp Mult children ->
-      PolyMult 1 <| List.map locEquationToPoly children
+      PolyMult 1 <| List.map mathExpToPoly children
 
     MathOp Div (leftChild::otherChildren) ->
-      PolyMult 1 <| (locEquationToPoly leftChild)::(List.map (\child -> PolyPow (locEquationToPoly child) (PolyMult -1 [])) otherChildren)
+      PolyMult 1 <| (mathExpToPoly leftChild)::(List.map (\child -> PolyPow (mathExpToPoly child) (PolyMult -1 [])) otherChildren)
 
     MathOp _ _ ->
-      Debug.crash <| "LocEqn.locEquationToPoly can only handle Plus/Minus/Mult/Div, got " ++ (toString locEqn)
+      Debug.crash <| "LocEqn.mathExpToPoly can only handle Plus/Minus/Mult/Div, got " ++ (toString mathExp)
 
 
 -- type NormPoly     = NormPolyTopLevelAdd (List NormPolyMult)
@@ -692,12 +701,12 @@ locEquationToPoly locEqn =
 -- type NormPolyAdd  = NormPolyAdd (List NormPolyMult)
 --                   | NormPolyLoc LocId
 
-normPolyToLocEquation : NormPoly -> LocEquation
-normPolyToLocEquation (NormPolyTopLevelAdd normPolyMultTerms) =
-  normPolyAddToLocEquation (NormPolyAdd normPolyMultTerms)
+normPolyToMathExp : NormPoly -> MathExp
+normPolyToMathExp (NormPolyTopLevelAdd normPolyMultTerms) =
+  normPolyAddToMathExp (NormPolyAdd normPolyMultTerms)
 
-normPolyAddToLocEquation : NormPolyAdd -> LocEquation
-normPolyAddToLocEquation normPolyAdd =
+normPolyAddToMathExp : NormPolyAdd -> MathExp
+normPolyAddToMathExp normPolyAdd =
   case normPolyAdd of
     NormPolyLoc locId ->
       MathVar locId
@@ -708,7 +717,7 @@ normPolyAddToLocEquation normPolyAdd =
           MathNum 0
 
         multTerm::[] ->
-          normPolyMultToLocEquation multTerm
+          normPolyMultToMathExp multTerm
 
         multTerm::otherMultTerms ->
           -- Simplest factoring case only right now: all same coeff (modulo sign).
@@ -726,7 +735,7 @@ normPolyAddToLocEquation normPolyAdd =
                       NormPolyMult -1 normPolyPowTerms
                   )
             in
-            normPolyMultToLocEquation (NormPolyMult coeffFactor [NormPolyPow (NormPolyAdd factoredTerms) (NormPolyAdd [NormPolyMult 1 []])])
+            normPolyMultToMathExp (NormPolyMult coeffFactor [NormPolyPow (NormPolyAdd factoredTerms) (NormPolyAdd [NormPolyMult 1 []])])
           else
             let (negativeTerms, nonNegativeTerms) =
               normPolyMultTerms
@@ -736,27 +745,27 @@ normPolyAddToLocEquation normPolyAdd =
               (_, firstNonNegTerm::secondNonNegTerm::otherNonNegTerms) ->
                 -- We have at least two non-negative terms. Wait to do the subtraction.
                 let remainingTerms = secondNonNegTerm::otherNonNegTerms ++ negativeTerms in
-                MathOp Plus [normPolyMultToLocEquation firstNonNegTerm, normPolyAddToLocEquation (NormPolyAdd remainingTerms)]
+                MathOp Plus [normPolyMultToMathExp firstNonNegTerm, normPolyAddToMathExp (NormPolyAdd remainingTerms)]
 
               (_::_, onlyNonNegTerm::[]) ->
                 let negNegativeTerms = negativeTerms |> List.map (normPolyMultScalarMult -1) in
-                MathOp Minus [normPolyMultToLocEquation onlyNonNegTerm, normPolyAddToLocEquation (NormPolyAdd negNegativeTerms)]
+                MathOp Minus [normPolyMultToMathExp onlyNonNegTerm, normPolyAddToMathExp (NormPolyAdd negNegativeTerms)]
 
               (_::_, []) ->
                 -- Only negative terms. :(
                 -- Will build a common factor extractor later.
-                MathOp Plus [normPolyMultToLocEquation multTerm, normPolyAddToLocEquation (NormPolyAdd otherMultTerms)]
+                MathOp Plus [normPolyMultToMathExp multTerm, normPolyAddToMathExp (NormPolyAdd otherMultTerms)]
 
               ([], _::[]) ->
-                Debug.crash "LocEqn.normPolyAddToLocEquation shouldn't get here; single term handled in earlier case statement"
+                Debug.crash "LocEqn.normPolyAddToMathExp shouldn't get here; single term handled in earlier case statement"
 
               ([], []) ->
-                Debug.crash "LocEqn.normPolyAddToLocEquation shouldn't get here; empty term list in earlier case statement"
+                Debug.crash "LocEqn.normPolyAddToMathExp shouldn't get here; empty term list in earlier case statement"
 
 
 
-normPolyMultToLocEquation : NormPolyMult -> LocEquation
-normPolyMultToLocEquation (NormPolyMult coeff normPolyPowTerms) =
+normPolyMultToMathExp : NormPolyMult -> MathExp
+normPolyMultToMathExp (NormPolyMult coeff normPolyPowTerms) =
   let isNegativeExponent (NormPolyPow _ exponentTerm) =
     case exponentTerm of
       NormPolyAdd [NormPolyMult n []] -> n < 0
@@ -778,7 +787,7 @@ normPolyMultToLocEquation (NormPolyMult coeff normPolyPowTerms) =
   let flipExponentSign (NormPolyPow baseTerm exponentTerm) =
     case exponentTerm of
       NormPolyAdd [NormPolyMult n []] -> NormPolyPow baseTerm (polyConst -n)
-      _                               -> Debug.crash <| "LocEqn.normPolyMultToLocEquation shouldn't reach here; got " ++ toString (NormPolyPow baseTerm exponentTerm)
+      _                               -> Debug.crash <| "LocEqn.normPolyMultToMathExp shouldn't reach here; got " ++ toString (NormPolyPow baseTerm exponentTerm)
   in
   case (negativePowers, otherPowers, coeff) of
     (_, _, 0) ->
@@ -789,39 +798,39 @@ normPolyMultToLocEquation (NormPolyMult coeff normPolyPowTerms) =
 
     (_::_, _, _) ->
       MathOp Div
-          [ normPolyMultToLocEquation (NormPolyMult coeff otherPowers)
-          , normPolyMultToLocEquation (NormPolyMult 1 (List.map flipExponentSign negativePowers))
+          [ normPolyMultToMathExp (NormPolyMult coeff otherPowers)
+          , normPolyMultToMathExp (NormPolyMult 1 (List.map flipExponentSign negativePowers))
           ]
 
     ([], _, 1) ->
       -- This is the main branch; other branches reduce to this.
       case otherPowers of
         term::[] ->
-          normPolyPowToLocEquation term
+          normPolyPowToMathExp term
 
         headTerm::otherTerms ->
           MathOp Mult
-              [ normPolyPowToLocEquation headTerm
-              , normPolyMultToLocEquation (NormPolyMult 1 otherTerms)
+              [ normPolyPowToMathExp headTerm
+              , normPolyMultToMathExp (NormPolyMult 1 otherTerms)
               ]
 
         [] ->
-          Debug.crash <| "LocEqn.normPolyMultToLocEquation shouldn't get here; should have at least some terms"
+          Debug.crash <| "LocEqn.normPolyMultToMathExp shouldn't get here; should have at least some terms"
 
     ([], _, _) ->
       if abs coeff >= 1 then
         MathOp Mult
-          [ normPolyMultToLocEquation (NormPolyMult 1 otherPowers)
+          [ normPolyMultToMathExp (NormPolyMult 1 otherPowers)
           , MathNum coeff
           ]
       else
         MathOp Div
-          [ normPolyMultToLocEquation (NormPolyMult 1 otherPowers)
+          [ normPolyMultToMathExp (NormPolyMult 1 otherPowers)
           , MathNum (1 / coeff)
           ]
 
 
-normPolyPowToLocEquation (NormPolyPow normPolyBase normPolyExponent) =
+normPolyPowToMathExp (NormPolyPow normPolyBase normPolyExponent) =
   case normPolyExponent of
     NormPolyAdd [] ->
       MathNum 1
@@ -830,44 +839,44 @@ normPolyPowToLocEquation (NormPolyPow normPolyBase normPolyExponent) =
       MathNum 1
 
     NormPolyAdd [NormPolyMult 1 []] ->
-      normPolyAddToLocEquation normPolyBase
+      normPolyAddToMathExp normPolyBase
 
     NormPolyAdd [NormPolyMult n []] ->
       if n > 1 && n == toFloat (round n) then
         MathOp Mult
-          [ normPolyAddToLocEquation normPolyBase
-          , normPolyPowToLocEquation (NormPolyPow normPolyBase (NormPolyAdd [NormPolyMult (toFloat (round n) - 1) []]))
+          [ normPolyAddToMathExp normPolyBase
+          , normPolyPowToMathExp (NormPolyPow normPolyBase (NormPolyAdd [NormPolyMult (toFloat (round n) - 1) []]))
           ]
       else
-        Debug.crash <| "LocEqn.normPolyPowToLocEquation unexpected exponent: should only be positive integers >1 by now: got " ++ (toString (NormPolyPow normPolyBase normPolyExponent))
+        Debug.crash <| "LocEqn.normPolyPowToMathExp unexpected exponent: should only be positive integers >1 by now: got " ++ (toString (NormPolyPow normPolyBase normPolyExponent))
 
     _ ->
-      Debug.crash <| "LocEqn.normPolyPowToLocEquation can't handle non-integer, non-constant powers yet: got " ++ (toString (NormPolyPow normPolyBase normPolyExponent))
+      Debug.crash <| "LocEqn.normPolyPowToMathExp can't handle non-integer, non-constant powers yet: got " ++ (toString (NormPolyPow normPolyBase normPolyExponent))
 
 
 
-normalizeSimplify : LocEquation -> LocEquation
-normalizeSimplify eqn =
-  -- let _ = Debug.log ("Simplifying " ++ locEqnToLittle Dict.empty eqn) () in
-  let polyEqn = locEquationToPoly eqn in
+normalizeSimplify : MathExp -> MathExp
+normalizeSimplify mathExp =
+  -- let _ = Debug.log ("Simplifying " ++ mathExpToLittle Dict.empty mathExp) () in
+  let polyEqn = mathExpToPoly mathExp in
   -- let _ = Debug.log ("Poly version " ++ polyToString polyEqn) () in
   let normPolyResult = polyNorm polyEqn in
   -- let _ = Debug.log ("Got " ++ normPolyToString normPolyResult) () in
-  let locEqnResult = normPolyToLocEquation normPolyResult |> correctFloatErrors in
-  -- let _ = Debug.log ("As little " ++ locEqnToLittle Dict.empty littleResult) () in
-  locEqnResult
+  let mathExpResult = normPolyToMathExp normPolyResult |> correctFloatErrors in
+  -- let _ = Debug.log ("As little " ++ mathExpToLittle Dict.empty littleResult) () in
+  mathExpResult
 
 
 -- Find e.g. 1.4999999999999 and change to 1.5.
-correctFloatErrors : LocEquation -> LocEquation
-correctFloatErrors eqn =
-  case eqn of
+correctFloatErrors : MathExp -> MathExp
+correctFloatErrors mathExp =
+  case mathExp of
     MathNum n           -> MathNum (Utils.correctFloatError n)
-    MathVar _           -> eqn
+    MathVar _           -> mathExp
     MathOp op_ children -> MathOp op_ (List.map correctFloatErrors children)
 
 
--- locEqnsOfSize astSize locsToUse =
+-- mathExpsOfSize astSize locsToUse =
 --   if astSize < 1 then
 --     []
 --   else if astSize == 1 then
@@ -898,36 +907,36 @@ correctFloatErrors eqn =
 --     , MathNum 8
 --     ] ++ (Set.toList locsToUse |> List.map (\(locId, _, _) -> MathVar locId))
 --   else if astSize == 2 then
---     -- No unops in LocEqns yet
+--     -- No unops in MathExps yet
 --     []
 --   else
 --     [Plus, Minus, Mult, Div]
 --     |> List.concatMap (\op ->
 --       (List.range 1 (astSize - 2))
 --       |> List.concatMap (\leftSize ->
---         locEqnsOfSize leftSize locsToUse
---         |> List.concatMap (\leftEqn ->
+--         mathExpsOfSize leftSize locsToUse
+--         |> List.concatMap (\leftMathExp ->
 --           let rightSize = astSize - leftSize - 1 in
---           locEqnsOfSize rightSize locsToUse
---           |> List.map (\rightEqn ->
---             MathOp op [leftEqn, rightEqn]
+--           mathExpsOfSize rightSize locsToUse
+--           |> List.map (\rightMathExp ->
+--             MathOp op [leftMathExp, rightMathExp]
 --           )
 --         )
 --       )
 --     )
 
 
-solveForLocValue : LocId -> Subst -> LocEquation -> Num -> Maybe Num
-solveForLocValue targetLocId subst eqn eqnTargetValue =
-  let eqnEqualToZero =
-    constantifyLocs (Dict.remove targetLocId subst) (MathOp Minus [eqn, MathNum eqnTargetValue])
+solveForLocValue : LocId -> Subst -> MathExp -> Num -> Maybe Num
+solveForLocValue targetLocId subst mathExp mathExpTargetValue =
+  let mathExpEqualToZero =
+    constantifyLocs (Dict.remove targetLocId subst) (MathOp Minus [mathExp, MathNum mathExpTargetValue])
   in
-  case locEqnTerms targetLocId eqnEqualToZero of
-    Just (pow, coeffEqn, restEqn) ->
+  case mathExpTerms targetLocId mathExpEqualToZero of
+    Just (pow, coeffMathExp, restMathExp) ->
       -- We have: coeff*x^pow + rest = 0
       -- We want: x = (-rest / coeff)^(1/pow)
-      let coeffEvaled = locEqnEval Dict.empty coeffEqn in
-      let restEvaled  = locEqnEval Dict.empty restEqn in
+      let coeffEvaled = mathExpEval Dict.empty coeffMathExp in
+      let restEvaled  = mathExpEval Dict.empty restMathExp in
       let x = (-restEvaled / coeffEvaled)^(1/pow) in
       if (isNaN x) || (isInfinite x) then
         Nothing
@@ -938,15 +947,15 @@ solveForLocValue targetLocId subst eqn eqnTargetValue =
       Nothing
 
 
-solveForConst : Subst -> LocEquation -> Num -> Maybe Num
-solveForConst subst eqn eqnTargetValue =
-  let locifyConstant eqn =
-    case eqn of
+solveForConst : Subst -> MathExp -> Num -> Maybe Num
+solveForConst subst mathExp mathExpTargetValue =
+  let locifyConstant mathExp =
+    case mathExp of
       MathNum _          -> MathVar -2
-      MathVar _          -> eqn
+      MathVar _          -> mathExp
       MathOp op children -> MathOp op (List.map locifyConstant children)
   in
-  solveForLocValue -2 subst (locifyConstant eqn) eqnTargetValue
+  solveForLocValue -2 subst (locifyConstant mathExp) mathExpTargetValue
 
 
 -- Will abort if any op other than + - * /
@@ -954,9 +963,9 @@ solveForConst subst eqn eqnTargetValue =
 -- Must be linear in the locId solved for.
 --
 -- Convert to just locIds (variables) and constants
-solveForLocUnchecked : LocId -> Dict.Dict LocId Num -> LocEquation -> LocEquation -> Maybe LocEquation
+solveForLocUnchecked : LocId -> Dict.Dict LocId Num -> MathExp -> MathExp -> Maybe MathExp
 solveForLocUnchecked locId locIdToNum lhs rhs =
-  let maybeEqn =
+  let maybeMathExp =
     -- Help out the silly simplifier.
     case maybeExtractUnsharedExpression rhs lhs of  -- TODO: why is this backwards???
       Nothing ->
@@ -973,7 +982,7 @@ solveForLocUnchecked locId locIdToNum lhs rhs =
         -- Transform   rhs_ - lhs_ = 0
         -- to          coeff*x^pow + rest = 0
         -- where x is our target loc
-        case locEqnTerms locId (MathOp Minus [lhs__, rhs__]) of
+        case mathExpTerms locId (MathOp Minus [lhs__, rhs__]) of
           Just (locPow, locCoeff, rest) ->
             if locPow == 0 || locCoeff == MathNum 0 then
               Nothing
@@ -1001,19 +1010,19 @@ solveForLocUnchecked locId locIdToNum lhs rhs =
           Nothing ->
             Nothing
   in
-  maybeEqn
+  maybeMathExp
 
 
--- solveForLoc : LocId -> Dict.Dict LocId Num -> Subst -> LocEquation -> LocEquation -> Maybe LocEquation
+-- solveForLoc : LocId -> Dict.Dict LocId Num -> Subst -> MathExp -> MathExp -> Maybe MathExp
 -- solveForLoc locId locIdToNum subst lhs rhs =
 --   -- Check that equation doesn't produce NaN or similar...
 --   case solveForLocUnchecked locId locIdToNum lhs rhs of
---     Just eqn ->
+--     Just mathExp ->
 --       -- Need the full subst, not just frozen constants.
---       let evaled = locEqnEval subst eqn in
+--       let evaled = mathExpEval subst mathExp in
 --       if (isNaN evaled) || (isInfinite evaled)
 --       then Nothing
---       else Just eqn
+--       else Just mathExp
 --
 --     Nothing ->
 --       Nothing
@@ -1022,7 +1031,7 @@ solveForLocUnchecked locId locIdToNum lhs rhs =
 -- Help out our not-so-smart simplifier.
 -- If lhs and rhs are identical but for some sub-expression,
 -- return just the differing sub-expressions.
-maybeExtractUnsharedExpression : LocEquation -> LocEquation -> Maybe (LocEquation, LocEquation)
+maybeExtractUnsharedExpression : MathExp -> MathExp -> Maybe (MathExp, MathExp)
 maybeExtractUnsharedExpression lhs rhs =
   case (lhs, rhs) of
     (MathNum ln, MathNum rn) ->
@@ -1096,43 +1105,43 @@ littleConstants = -- From stats of all our little programs so far.
 -- (Expects no more than one constant.)
 --
 -- This function is not actually used, just a demo. In practice may want to filter after each step.
-locEqnTemplateFillings targetValue subst locIdSet template =
-  let allLocFillings = locEqnTemplateLocFillings (locIdSet |> Set.toList) template in
-  locEqnTemplateFillingsLocsFilled targetValue subst littleConstants allLocFillings
+mathExpTemplateFillings targetValue subst locIdSet template =
+  let allLocFillings = mathExpTemplateLocFillings (locIdSet |> Set.toList) template in
+  mathExpTemplateFillingsLocsFilled targetValue subst littleConstants allLocFillings
 
-locEqnTemplateFillingsLocsFilled : Num -> Subst -> List Num -> List LocEquation -> List LocEquation
-locEqnTemplateFillingsLocsFilled targetValue subst constants locFillings =
+mathExpTemplateFillingsLocsFilled : Num -> Subst -> List Num -> List MathExp -> List MathExp
+mathExpTemplateFillingsLocsFilled targetValue subst constants locFillings =
   let filledWithNiceNumber =
     locFillings
     |> List.map
-        (\locFilledEqn ->
-          locEqnTemplateConstantFillings constants locFilledEqn
-          |> List.sortBy (\eqn -> abs (locEqnEval subst eqn - targetValue))
-          |> Utils.head "LocEqn.locEqnTemplateFillings ranking"
+        (\locFilledMathExp ->
+          mathExpTemplateConstantFillings constants locFilledMathExp
+          |> List.sortBy (\mathExp -> abs (mathExpEval subst mathExp - targetValue))
+          |> Utils.head "LocEqn.mathExpTemplateFillings ranking"
         )
   in
   let filledWithExactNumber =
-    let fillInConstant const eqn =
-      case eqn of
+    let fillInConstant const mathExp =
+      case mathExp of
         MathNum _          -> MathNum const
-        MathVar _          -> eqn
+        MathVar _          -> mathExp
         MathOp op children -> MathOp op (List.map (fillInConstant const) children)
     in
     locFillings
     |> List.filterMap
-        (\locFilledEqn ->
+        (\locFilledMathExp ->
           -- -- Only produce an exact solution if no locs appear more than once.
           -- -- Cuts down on *some* junk.
-          -- if Set.size (locEqnLocIdSet locFilledEqn) == List.length (locEqnLocIds locFilledEqn) then
-          --   solveForConst subst locFilledEqn targetValue
-          --   |> Maybe.map (\const -> fillInConstant const locFilledEqn)
+          -- if Set.size (mathExpLocIdSet locFilledMathExp) == List.length (mathExpLocIds locFilledMathExp) then
+          --   solveForConst subst locFilledMathExp targetValue
+          --   |> Maybe.map (\const -> fillInConstant const locFilledMathExp)
           -- else
           --   Nothing
 
-          -- Only produce an exact solution if only one loc in eqn.
-          if List.length (locEqnLocIds locFilledEqn) <= 1 then
-            solveForConst subst locFilledEqn targetValue
-            |> Maybe.map (\const -> fillInConstant const locFilledEqn)
+          -- Only produce an exact solution if only one loc in mathExp.
+          if List.length (mathExpLocIds locFilledMathExp) <= 1 then
+            solveForConst subst locFilledMathExp targetValue
+            |> Maybe.map (\const -> fillInConstant const locFilledMathExp)
           else
             Nothing
         )
@@ -1141,16 +1150,16 @@ locEqnTemplateFillingsLocsFilled targetValue subst constants locFillings =
 
 
 -- locIds should be unique.
-locEqnTemplateLocFillings : List LocId -> LocEquation -> List LocEquation
-locEqnTemplateLocFillings locIds eqn =
-  case eqn of
-    MathNum _          -> [eqn]
+mathExpTemplateLocFillings : List LocId -> MathExp -> List MathExp
+mathExpTemplateLocFillings locIds mathExp =
+  case mathExp of
+    MathNum _          -> [mathExp]
     MathVar _          -> List.map MathVar locIds
     MathOp op children ->
       children
       |> List.foldl
         (\child priorCombos ->
-          let thisChildFillings = locEqnTemplateLocFillings locIds child in
+          let thisChildFillings = mathExpTemplateLocFillings locIds child in
           thisChildFillings
           |> List.concatMap (\childFilling -> priorCombos |> List.map (\priorArgs -> priorArgs ++ [childFilling]))
         )
@@ -1158,16 +1167,16 @@ locEqnTemplateLocFillings locIds eqn =
       |> List.map (MathOp op)
 
 
-locEqnTemplateConstantFillings : List Num -> LocEquation -> List LocEquation
-locEqnTemplateConstantFillings constants eqn =
-  case eqn of
+mathExpTemplateConstantFillings : List Num -> MathExp -> List MathExp
+mathExpTemplateConstantFillings constants mathExp =
+  case mathExp of
     MathNum _          -> List.map MathNum constants
-    MathVar _          -> [eqn]
+    MathVar _          -> [mathExp]
     MathOp op children ->
       children
       |> List.foldl
         (\child priorCombos ->
-          let thisChildFillings = locEqnTemplateConstantFillings constants child in
+          let thisChildFillings = mathExpTemplateConstantFillings constants child in
           thisChildFillings
           |> List.concatMap (\childFilling -> priorCombos |> List.map (\priorArgs -> priorArgs ++ [childFilling]))
         )
@@ -1175,139 +1184,139 @@ locEqnTemplateConstantFillings constants eqn =
       |> List.map (MathOp op)
 
 
-atLeastNLocs     n template = List.length (locEqnLocIds template) >= n
+atLeastNLocs     n template = List.length (mathExpLocIds template) >= n
 atMostNConstants n template = List.length (locMathNums template) <= n
 
 -- Templates for synthesis:
 -- Returns all terms of a certain shape.
 -- Exact numberic values and variables will be filled in later.
-locEqnsTemplatesOfSize minLocs maxConsts astSize =
-  locEqnsTemplatesOfSize_ astSize
+mathExpsTemplatesOfSize minLocs maxConsts astSize =
+  mathExpsTemplatesOfSize_ astSize
   |> List.filter (atLeastNLocs minLocs)
   |> List.filter (atMostNConstants maxConsts)
 
 -- Could be more time and memory effecient with explicit memoization (build up from size 1)
 -- But I don't think this part is the bottleneck
-locEqnsTemplatesOfSize_ astSize =
+mathExpsTemplatesOfSize_ astSize =
   if astSize < 1 then
     []
   else if astSize == 1 then
     [ MathNum -1, MathVar -1 ]
   else if astSize == 2 then
-    -- No unops in LocEqns yet
+    -- No unops in MathExps yet
     []
   else
     [Plus, Minus, Mult, Div]
     |> List.concatMap (\op ->
       (List.range 1 (astSize - 2))
       |> List.concatMap (\leftSize ->
-        locEqnsTemplatesOfSize_ leftSize
-        |> List.concatMap (\leftEqn ->
+        mathExpsTemplatesOfSize_ leftSize
+        |> List.concatMap (\leftMathExp ->
           let rightSize = astSize - leftSize - 1 in
-          locEqnsTemplatesOfSize_ rightSize
-          |> List.map (\rightEqn ->
-            MathOp op [leftEqn, rightEqn]
+          mathExpsTemplatesOfSize_ rightSize
+          |> List.map (\rightMathExp ->
+            MathOp op [leftMathExp, rightMathExp]
           )
         )
       )
     )
 
-locEqnSize : LocEquation -> Int
-locEqnSize eqn =
-  case eqn of
+mathExpSize : MathExp -> Int
+mathExpSize mathExp =
+  case mathExp of
     MathNum _         -> 1
     MathVar _         -> 1
-    MathOp _ children -> 1 + List.sum (List.map locEqnSize children)
+    MathOp _ children -> 1 + List.sum (List.map mathExpSize children)
 
-locEqnLocIdSet : LocEquation -> Set.Set LocId
-locEqnLocIdSet eqn =
-  locEqnLocIds eqn |> Set.fromList
+mathExpLocIdSet : MathExp -> Set.Set LocId
+mathExpLocIdSet mathExp =
+  mathExpLocIds mathExp |> Set.fromList
 
-locMathNums : LocEquation -> List Num
-locMathNums eqn =
-  case eqn of
+locMathNums : MathExp -> List Num
+locMathNums mathExp =
+  case mathExp of
     MathNum n         -> [n]
     MathVar locId     -> []
     MathOp _ children -> List.concatMap locMathNums children
 
-locEqnLocIds : LocEquation -> List LocId
-locEqnLocIds eqn =
-  case eqn of
+mathExpLocIds : MathExp -> List LocId
+mathExpLocIds mathExp =
+  case mathExp of
     MathNum _         -> []
     MathVar locId     -> [locId]
-    MathOp _ children -> List.concatMap locEqnLocIds children
+    MathOp _ children -> List.concatMap mathExpLocIds children
 
 
-locEqnEval locIdToNum eqn =
-  locEqnEval_ (constantifyLocs locIdToNum eqn)
+mathExpEval locIdToNum mathExp =
+  mathExpEval_ (constantifyLocs locIdToNum mathExp)
 
 
-locEqnEval_ eqn =
-  case eqn of
+mathExpEval_ mathExp =
+  case mathExp of
     MathNum n         -> n
-    MathVar locId     -> Debug.crash "shouldn't have locs in constantified eqn"
+    MathVar locId     -> Debug.crash "shouldn't have locs in constantified mathExp"
     MathOp op [leftChild, rightChild] ->
-      let (leftEvaled, rightEvaled) = (locEqnEval_ leftChild, locEqnEval_ rightChild) in
+      let (leftEvaled, rightEvaled) = (mathExpEval_ leftChild, mathExpEval_ rightChild) in
       case op of
         Plus  -> leftEvaled + rightEvaled
         Minus -> leftEvaled - rightEvaled
         Mult  -> leftEvaled * rightEvaled
         Div   -> leftEvaled / rightEvaled
         _     -> Debug.crash <| "Unknown loc equation op: " ++ (toString op)
-    _  -> Debug.crash <| "Loc equation only supports binary operations, but got: " ++ (toString eqn)
+    _  -> Debug.crash <| "Loc equation only supports binary operations, but got: " ++ (toString mathExp)
 
-traceToLocEquation : Trace -> LocEquation
-traceToLocEquation trace =
+traceToMathExp : Trace -> MathExp
+traceToMathExp trace =
   case trace of
     -- locId of 0 means it's a constant that's part of the feature equation,
     -- not the program. These should not be in traces produced by execution.
     TrLoc (0, _, _) ->
-      Debug.crash <| "traceToLocEquation: Found locId of 0 in trace. " ++ (toString trace)
+      Debug.crash <| "traceToMathExp: Found locId of 0 in trace. " ++ (toString trace)
 
     -- HACK: see LangSvg.vNumFrozen...
-    -- TODO: streamline Trace, LocEquation, etc.
+    -- TODO: streamline Trace, MathExp, etc.
     TrLoc (-999, _, numString) ->
-      MathNum (Utils.fromOkay "traceToLocEquation" (String.toFloat numString))
+      MathNum (Utils.fromOkay "traceToMathExp" (String.toFloat numString))
 
     TrLoc (locId, _, _) ->
       MathVar locId
 
     TrOp op traces ->
-      MathOp op (List.map traceToLocEquation traces)
+      MathOp op (List.map traceToMathExp traces)
 
 
 -- For all locId's in the locIdToNum dictionary, replace
 -- corresponding MathVar nodes with MathNum nodes.
-constantifyLocs : Dict.Dict LocId Num -> LocEquation -> LocEquation
-constantifyLocs locIdToNum eqn =
-  case eqn of
+constantifyLocs : Dict.Dict LocId Num -> MathExp -> MathExp
+constantifyLocs locIdToNum mathExp =
+  case mathExp of
     MathNum n ->
-      eqn
+      mathExp
 
     MathVar locId ->
       case Dict.get locId locIdToNum of
         Just n  -> MathNum n
-        Nothing -> eqn
+        Nothing -> mathExp
 
-    MathOp op childEqns ->
-      MathOp op <| List.map (constantifyLocs locIdToNum) childEqns
+    MathOp op childMathExps ->
+      MathOp op <| List.map (constantifyLocs locIdToNum) childMathExps
 
 
 -- For debuging
-locEqnToString : LocEquation -> String
-locEqnToString eqn =
-  case eqn of
+mathExpToString : MathExp -> String
+mathExpToString mathExp =
+  case mathExp of
     MathNum n     -> toString n
     MathVar locId -> "k" ++ toString locId
     MathOp op [left, right] ->
-      "(" ++ locEqnToString left ++ " " ++ strOp op ++ " " ++ locEqnToString right ++ ")"
+      "(" ++ mathExpToString left ++ " " ++ strOp op ++ " " ++ mathExpToString right ++ ")"
     MathOp op children ->
-      "(" ++ strOp op ++ " " ++ String.join " " (List.map locEqnToString children) ++ ")"
+      "(" ++ strOp op ++ " " ++ String.join " " (List.map mathExpToString children) ++ ")"
 
 
-locEqnToLittle : Dict.Dict LocId Ident -> LocEquation -> String
-locEqnToLittle locIdToLittle eqn =
-  case eqn of
+mathExpToLittle : Dict.Dict LocId Ident -> MathExp -> String
+mathExpToLittle locIdToLittle mathExp =
+  case mathExp of
     MathNum n ->
       toString n ++ "!"
 
@@ -1316,14 +1325,14 @@ locEqnToLittle locIdToLittle eqn =
         Just littleStr -> littleStr
         Nothing        -> let _ = (debugLog "missing locId" locId) in "?"
 
-    MathOp op childEqns ->
-      let childLittleStrs = List.map (locEqnToLittle locIdToLittle) childEqns in
+    MathOp op childMathExps ->
+      let childLittleStrs = List.map (mathExpToLittle locIdToLittle) childMathExps in
       "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
 
 
-locEqnToExp : Frozen -> Dict.Dict LocId Num -> Dict.Dict LocId Ident -> LocEquation -> Exp
-locEqnToExp constantAnnotation locIdToFrozenNum locIdToIdent eqn =
-  case eqn of
+mathExpToExp : Frozen -> Dict.Dict LocId Num -> Dict.Dict LocId Ident -> MathExp -> Exp
+mathExpToExp constantAnnotation locIdToFrozenNum locIdToIdent mathExp =
+  case mathExp of
     MathNum n ->
       eConst n (dummyLoc_ constantAnnotation)
 
@@ -1335,6 +1344,6 @@ locEqnToExp constantAnnotation locIdToFrozenNum locIdToIdent eqn =
             Just n  -> eConst n (dummyLoc_ frozen)
             Nothing -> eVar ("couldNotFindLocId" ++ toString locId)
 
-    MathOp op childEqns ->
-      let childExps = List.map (locEqnToExp constantAnnotation locIdToFrozenNum locIdToIdent) childEqns in
+    MathOp op childMathExps ->
+      let childExps = List.map (mathExpToExp constantAnnotation locIdToFrozenNum locIdToIdent) childMathExps in
       eOp op childExps
