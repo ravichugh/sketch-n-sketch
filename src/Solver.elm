@@ -11,26 +11,26 @@ import Dict exposing (Dict)
 
 -- TODO streamline Equation/LocEquation/Trace; see note in LocEqn.elm
 
-type EqnTerm
-  = EqnConst Num
-  | EqnVar Int -- Variable identifiers, often locIds
-  | EqnOp Op_ (List EqnTerm)
+type MathExp
+  = MathNum Num
+  | MathVar Int -- Variable identifiers, often locIds
+  | MathOp Op_ (List MathExp)
 
-type alias Eqn = (EqnTerm, EqnTerm) -- LHS, RHS
+type alias Eqn = (MathExp, MathExp) -- LHS, RHS
 
 type alias Problem  = (List Eqn, List Int) -- System of equations, and varIds to solve for (usually a singleton).
-type alias Solution = List (EqnTerm, Int)
+type alias Solution = List (MathExp, Int)
 
 type alias SolutionsCache = Dict Problem (List Solution)
 
 type NeedSolutionException = NeedSolution Problem
 
 
-traceToEqnTerm : Trace -> EqnTerm
-traceToEqnTerm trace =
+traceToMathExp : Trace -> MathExp
+traceToMathExp trace =
   case trace of
-    TrLoc (locId, _, _) -> EqnVar locId
-    TrOp op_ children   -> EqnOp op_ (List.map traceToEqnTerm children)
+    TrLoc (locId, _, _) -> MathVar locId
+    TrOp op_ children   -> MathOp op_ (List.map traceToMathExp children)
 
 
 -- Some locId should be missing from the Subst: the missing locId will be solved for.
@@ -38,23 +38,23 @@ traceToEqnTerm trace =
 -- Side effect: throws exception if solution not in cache; controller should ask solver for solution and retry action.
 solveTrace : SolutionsCache -> Subst -> Trace -> Num -> Maybe Num
 solveTrace solutionsCache subst trace targetVal =
-  let eqnTerm = traceToEqnTerm trace in
-  let targetVarId = Utils.diffAsSet (eqnTermVarIds eqnTerm) (Dict.keys subst) |> Utils.head "Solver.solveTrace: expected trace to have a locId remaining after applying subst" in
+  let mathExp = traceToMathExp trace in
+  let targetVarId = Utils.diffAsSet (mathExpVarIds mathExp) (Dict.keys subst) |> Utils.head "Solver.solveTrace: expected trace to have a locId remaining after applying subst" in
   -- Variablify everything to have the most general form of equations in the cache.
   -- (May push into solve in the future.)
-  let targetValInsertedVarId = 1 + (eqnTermVarIds eqnTerm |> List.maximum |> Maybe.withDefault 0) in
-  case solveOne solutionsCache (eqnTerm, EqnVar targetValInsertedVarId) targetVarId |> Debug.log "solveOne result" of
+  let targetValInsertedVarId = 1 + (mathExpVarIds mathExp |> List.maximum |> Maybe.withDefault 0) in
+  case solveOne solutionsCache (mathExp, MathVar targetValInsertedVarId) targetVarId |> Debug.log "solveOne result" of
     solvedTerm::_ -> solvedTerm |> applySubst (Dict.insert targetValInsertedVarId targetVal subst) |> Debug.log "eqn substed" |> evalToMaybeNum
     _             -> Nothing
 
 
 -- Assumes no variables remain, otherwise returns Nothing with a debug message.
-evalToMaybeNum : EqnTerm -> Maybe Num
-evalToMaybeNum eqnTerm =
-  case eqnTerm of
-    EqnConst n        -> Just n
-    EqnVar _          -> let _ = Utils.log ("Solver.evalToMaybeNum: Found " ++ toString eqnTerm ++ " in an EqnTerm that shouldn't have any variables.") in Nothing
-    EqnOp op operands ->
+evalToMaybeNum : MathExp -> Maybe Num
+evalToMaybeNum mathExp =
+  case mathExp of
+    MathNum n          -> Just n
+    MathVar _          -> let _ = Utils.log ("Solver.evalToMaybeNum: Found " ++ toString mathExp ++ " in an MathExp that shouldn't have any variables.") in Nothing
+    MathOp op operands ->
       operands
       |> List.map evalToMaybeNum
       |> Utils.projJusts
@@ -62,14 +62,14 @@ evalToMaybeNum eqnTerm =
 
 
 -- Solve one equation for one variable. Return a list of possible terms for that variable.
-solveOne : SolutionsCache -> (EqnTerm, EqnTerm) -> Int -> List EqnTerm
+solveOne : SolutionsCache -> (MathExp, MathExp) -> Int -> List MathExp
 solveOne solutionsCache eqn targetVarId =
   solve solutionsCache [eqn] [targetVarId]
   |> List.filterMap
       (\solution ->
         case solution of
           []             -> Nothing
-          [(eqnTerm, _)] -> Just eqnTerm
+          [(mathExp, _)] -> Just mathExp
           _              -> Debug.crash "Solver.solveOne why does a solution for one variable list multiple variables??" <| toString solution
       )
 
@@ -79,10 +79,10 @@ solveOne solutionsCache eqn targetVarId =
 -- Maybe multiple solutions: returns a list.
 --
 -- Side effect: throws exception if solution not in cache; controller should ask solver for solution and retry action.
-solve : SolutionsCache -> List (EqnTerm, EqnTerm) -> List Int -> List Solution
+solve : SolutionsCache -> List (MathExp, MathExp) -> List Int -> List Solution
 solve solutionsCache eqns targetVarIds =
-  let allEqnTerms = List.concatMap Utils.pairToList eqns in
-  let (oldToNormalizedVarIds, normalizedToOldVarIds) = normalizedVarIdMapping allEqnTerms in
+  let allMathExps = List.concatMap Utils.pairToList eqns in
+  let (oldToNormalizedVarIds, normalizedToOldVarIds) = normalizedVarIdMapping allMathExps in
   let normalizedEquations =
     eqns
     |> List.map
@@ -113,11 +113,11 @@ solve solutionsCache eqns targetVarIds =
 -- Let the first variable encountered be 1, second 2, etc...
 --
 -- Want our symbolic solutions to be general so we don't have to round-trip to the solver all the time.
-normalizedVarIdMapping : List EqnTerm -> (Dict Int Int, Dict Int Int)
-normalizedVarIdMapping eqnTerms =
+normalizedVarIdMapping : List MathExp -> (Dict Int Int, Dict Int Int)
+normalizedVarIdMapping mathExps =
   let (_, oldToNew, newToOld) =
-    eqnTerms
-    |> List.concatMap eqnTermVarIds
+    mathExps
+    |> List.concatMap mathExpVarIds
     |> List.foldl
         (\oldVarId (i, oldToNormalizedVarIds, normalizedToOldVarIds) ->
           case Dict.get oldVarId oldToNormalizedVarIds of
@@ -133,41 +133,41 @@ normalizedVarIdMapping eqnTerms =
   (oldToNew, newToOld)
 
 
-eqnTermVarIds : EqnTerm -> List Int
-eqnTermVarIds eqnTerm =
-  case eqnTerm of
-    EqnConst _         -> []
-    EqnVar varId       -> [varId]
-    EqnOp _ childTerms -> List.concatMap eqnTermVarIds childTerms
+mathExpVarIds : MathExp -> List Int
+mathExpVarIds mathExp =
+  case mathExp of
+    MathNum _           -> []
+    MathVar varId       -> [varId]
+    MathOp _ childTerms -> List.concatMap mathExpVarIds childTerms
 
 
-remapVarIds : Dict Int Int -> EqnTerm -> Maybe EqnTerm
-remapVarIds oldToNew eqnTerm =
-  case eqnTerm of
-    EqnConst _           -> Just eqnTerm
-    EqnVar varId         -> Dict.get varId oldToNew |> Maybe.map EqnVar
-    EqnOp op_ childTerms -> childTerms |> List.map (remapVarIds oldToNew) |> Utils.projJusts |> Maybe.map (EqnOp op_)
+remapVarIds : Dict Int Int -> MathExp -> Maybe MathExp
+remapVarIds oldToNew mathExp =
+  case mathExp of
+    MathNum _             -> Just mathExp
+    MathVar varId         -> Dict.get varId oldToNew |> Maybe.map MathVar
+    MathOp op_ childTerms -> childTerms |> List.map (remapVarIds oldToNew) |> Utils.projJusts |> Maybe.map (MathOp op_)
 
 
 remapSolutionVarIds : Dict Int Int -> Solution -> Maybe Solution
 remapSolutionVarIds oldToNew solution =
   solution
   |> List.map
-      (\(eqnTerm, targetVarId) ->
+      (\(mathExp, targetVarId) ->
         Maybe.map2
             (,)
-            (remapVarIds oldToNew eqnTerm)
+            (remapVarIds oldToNew mathExp)
             (Dict.get targetVarId oldToNew)
       )
   |> Utils.projJusts
 
 
-applySubst : Dict Int Num -> EqnTerm -> EqnTerm
-applySubst subst eqnTerm =
-  case eqnTerm of
-    EqnConst n   -> eqnTerm
-    EqnVar varId ->
+applySubst : Dict Int Num -> MathExp -> MathExp
+applySubst subst mathExp =
+  case mathExp of
+    MathNum n     -> mathExp
+    MathVar varId ->
       case Dict.get varId subst of
-        Just n  -> EqnConst n
-        Nothing -> eqnTerm
-    EqnOp op_ childTerms -> EqnOp op_ (childTerms |> List.map (applySubst subst))
+        Just n  -> MathNum n
+        Nothing -> mathExp
+    MathOp op_ childTerms -> MathOp op_ (childTerms |> List.map (applySubst subst))

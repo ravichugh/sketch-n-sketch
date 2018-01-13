@@ -45,7 +45,7 @@ askForSolution ((equations, targetVarIds) as problem) failedMsg oldModel =
   let reduceQueryString =
     let eqnStrings =
       equations
-      |> List.map (\(lhs, rhs) -> eqnTermToREDUCE lhs ++ "=" ++ eqnTermToREDUCE rhs)
+      |> List.map (\(lhs, rhs) -> mathExpToREDUCE lhs ++ "=" ++ mathExpToREDUCE rhs)
     in
     "solve({" ++ String.join "," eqnStrings ++ "},{" ++ String.join "," (List.map varIdToREDUCE targetVarIds) ++ "})"
   in
@@ -84,36 +84,36 @@ varIdToREDUCE : Int -> String
 varIdToREDUCE varId = "x" ++ toString varId
 
 
-eqnTermToREDUCE : EqnTerm -> String
-eqnTermToREDUCE eqnTerm =
-  case eqnTerm of
-    EqnConst n   -> toString n
-    EqnVar varId -> varIdToREDUCE varId
-    EqnOp op_ children ->
+mathExpToREDUCE : MathExp -> String
+mathExpToREDUCE mathExp =
+  case mathExp of
+    MathNum n     -> toString n
+    MathVar varId -> varIdToREDUCE varId
+    MathOp op_ children ->
       let childPerhapsParensToREDUCE childTerm =
         case childTerm of
-          EqnOp Lang.ArcTan2 _  -> eqnTermToREDUCE childTerm
-          EqnOp _ [_, _]        -> "(" ++ eqnTermToREDUCE childTerm ++ ")"
-          _                     -> eqnTermToREDUCE childTerm
+          MathOp Lang.ArcTan2 _ -> mathExpToREDUCE childTerm
+          MathOp _ [_, _]       -> "(" ++ mathExpToREDUCE childTerm ++ ")"
+          _                     -> mathExpToREDUCE childTerm
       in
       case (op_, children) of
         (Lang.Plus,    [l,r]) -> childPerhapsParensToREDUCE l ++ "+" ++ childPerhapsParensToREDUCE r
         (Lang.Minus,   [l,r]) -> childPerhapsParensToREDUCE l ++ "-" ++ childPerhapsParensToREDUCE r
         (Lang.Mult,    [l,r]) -> childPerhapsParensToREDUCE l ++ "*" ++ childPerhapsParensToREDUCE r
         (Lang.Div,     [l,r]) -> childPerhapsParensToREDUCE l ++ "/" ++ childPerhapsParensToREDUCE r
-        (Lang.Pow,     [l,r]) -> "(" ++ eqnTermToREDUCE l ++ ")^" ++ childPerhapsParensToREDUCE r  -- Extra parens to prevent misinterpreting negative signs before powers
+        (Lang.Pow,     [l,r]) -> "(" ++ mathExpToREDUCE l ++ ")^" ++ childPerhapsParensToREDUCE r  -- Extra parens to prevent misinterpreting negative signs before powers
         (Lang.Mod,     [l,r]) -> childPerhapsParensToREDUCE l ++ " mod " ++ childPerhapsParensToREDUCE r
-        (Lang.ArcTan2, [l,r]) -> "atan2(" ++ eqnTermToREDUCE l ++ "," ++ eqnTermToREDUCE r ++ ")"
-        (Lang.Cos,     [n])   -> "cos(" ++ eqnTermToREDUCE n ++ ")"
-        (Lang.Sin,     [n])   -> "sin(" ++ eqnTermToREDUCE n ++ ")"
-        (Lang.ArcCos,  [n])   -> "acos(" ++ eqnTermToREDUCE n ++ ")"
-        (Lang.ArcSin,  [n])   -> "asin(" ++ eqnTermToREDUCE n ++ ")"
-        (Lang.Floor,   [n])   -> "floor(" ++ eqnTermToREDUCE n ++ ")"
-        (Lang.Ceil,    [n])   -> "ceiling(" ++ eqnTermToREDUCE n ++ ")"
-        (Lang.Round,   [n])   -> "round(" ++ eqnTermToREDUCE n ++ ")"
-        (Lang.Sqrt,    [n])   -> "sqrt(" ++ eqnTermToREDUCE n ++ ")"
+        (Lang.ArcTan2, [l,r]) -> "atan2(" ++ mathExpToREDUCE l ++ "," ++ mathExpToREDUCE r ++ ")"
+        (Lang.Cos,     [n])   -> "cos(" ++ mathExpToREDUCE n ++ ")"
+        (Lang.Sin,     [n])   -> "sin(" ++ mathExpToREDUCE n ++ ")"
+        (Lang.ArcCos,  [n])   -> "acos(" ++ mathExpToREDUCE n ++ ")"
+        (Lang.ArcSin,  [n])   -> "asin(" ++ mathExpToREDUCE n ++ ")"
+        (Lang.Floor,   [n])   -> "floor(" ++ mathExpToREDUCE n ++ ")"
+        (Lang.Ceil,    [n])   -> "ceiling(" ++ mathExpToREDUCE n ++ ")"
+        (Lang.Round,   [n])   -> "round(" ++ mathExpToREDUCE n ++ ")"
+        (Lang.Sqrt,    [n])   -> "sqrt(" ++ mathExpToREDUCE n ++ ")"
         (Lang.Pi,      [])    -> "pi"
-        _                     -> let _ = Debug.log "Didn't know how to convert this to REDUCE syntax" eqnTerm in "unknown"
+        _                     -> let _ = Debug.log "Didn't know how to convert this to REDUCE syntax" mathExp in "unknown"
 
 
 
@@ -189,16 +189,16 @@ parseSolutions : Parser (List Solution)
 parseSolutions = inContext "parseSolutions" <| parseCommaSeparatedList parseSolution
 
 
--- e.g. {x1=123,x2=123} to [(EqnConst 123, 1), (EqnConst 123, 2)]
+-- e.g. {x1=123,x2=123} to [(MathNum 123, 1), (MathNum 123, 2)]
 parseSolution : Parser Solution
 parseSolution =
   inContext "parseSolution" <|
     parseCurlies <|
       parseCommaSeparatedList <|
-        succeed (\varId eqnTerm -> (eqnTerm, varId))
+        succeed (\varId mathExp -> (mathExp, varId))
           |= parseVarToVarId
           |. wsSymbol "="
-          |= parseEqnTerm
+          |= parseMathExp
 
 
 -- e.g. x2 to 2
@@ -206,9 +206,9 @@ parseVarToVarId : Parser Int
 parseVarToVarId = inContext "parseVarToVarId" <| eatChar 'x' .| int
 
 
-parseEqnTerm : Parser EqnTerm
-parseEqnTerm =
-  inContext "parseEqnTerm" <|
+parseMathExp : Parser MathExp
+parseMathExp =
+  inContext "parseMathExp" <|
     lazy (\_ ->
       binaryOperator
         { precedenceTable   = precedenceTable
@@ -219,20 +219,20 @@ parseEqnTerm =
         , combine           =
             (\left opStr right ->
               case binaryOperatorList |> Utils.findFirst (\(str, _, _, _) -> str == opStr) of
-                Just (_, _, _, op_) -> EqnOp op_ [left, right]
+                Just (_, _, _, op_) -> MathOp op_ [left, right]
                 Nothing             -> Debug.crash <| "REDUCE parsing: Should not happen: could not find binary op " ++ opStr
             )
         }
     )
 
 
-parseEqnAtom : Parser EqnTerm
+parseEqnAtom : Parser MathExp
 parseEqnAtom =
   inContext "parseEqnAtom" <|
     skipSpaces .|
       oneOf
-        [ parseEqnConst
-        , parseEqnVar
+        [ parseMathNum
+        , parseMathVar
         , parseEqnParens
         , parseEqnFunction
         , parseEqnPi
@@ -245,8 +245,8 @@ parseBinaryOperatorStr =
     List.map (\(str, _, _, _) -> wsSymbol str |> Parser.map (always str)) binaryOperatorList
 
 
-parseEqnConst : Parser EqnTerm
-parseEqnConst = parseNumber |> Parser.map EqnConst |> inContext "parseEqnConst"
+parseMathNum : Parser MathExp
+parseMathNum = parseNumber |> Parser.map MathNum |> inContext "parseMathNum"
 
 
 parseNumber : Parser Lang.Num
@@ -257,28 +257,28 @@ parseNumber =
     ]
 
 
-parseEqnVar : Parser EqnTerm
-parseEqnVar = parseVarToVarId |> Parser.map EqnVar |> inContext "parseEqnVar"
+parseMathVar : Parser MathExp
+parseMathVar = parseVarToVarId |> Parser.map MathVar |> inContext "parseMathVar"
 
 
-parseEqnParens : Parser EqnTerm
-parseEqnParens = parseParens parseEqnTerm
+parseEqnParens : Parser MathExp
+parseEqnParens = parseParens parseMathExp
 
 
-parseEqnFunction : Parser EqnTerm
+parseEqnFunction : Parser MathExp
 parseEqnFunction =
   let parseUnaryFunction funcName op_ =
-    succeed (\argTerm -> EqnOp op_ [argTerm])
+    succeed (\argTerm -> MathOp op_ [argTerm])
       |. wsSymbol (funcName ++ "(")
-      |= parseEqnTerm
+      |= parseMathExp
       |. wsSymbol ")"
   in
   let parseBinaryFunction funcName op_ =
-    succeed (\argTerm1 argTerm2 -> EqnOp op_ [argTerm1, argTerm2])
+    succeed (\argTerm1 argTerm2 -> MathOp op_ [argTerm1, argTerm2])
       |. wsSymbol (funcName ++ "(")
-      |= parseEqnTerm
+      |= parseMathExp
       |. wsSymbol ","
-      |= parseEqnTerm
+      |= parseMathExp
       |. wsSymbol ")"
   in
   inContext "parseEqnFunction" <|
@@ -295,5 +295,5 @@ parseEqnFunction =
       ]
 
 
-parseEqnPi : Parser EqnTerm
-parseEqnPi = inContext "parseEqnPi" <| wsSymbol "pi" .| succeed (EqnOp Lang.Pi [])
+parseEqnPi : Parser MathExp
+parseEqnPi = inContext "parseEqnPi" <| wsSymbol "pi" .| succeed (MathOp Lang.Pi [])
