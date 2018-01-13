@@ -954,8 +954,14 @@ deucePopupPanelShown model =
 
 historyUpdateCondition : TrackedValues -> TrackedValues -> Bool
 historyUpdateCondition previousValues currentValues =
-  -- trimRight to tolerate differences in newlines at the end
-  String.trimRight previousValues.code /= String.trimRight currentValues.code
+  Utils.or
+    [ -- trimRight to tolerate differences in newlines at the end
+      String.trimRight previousValues.code
+        /= String.trimRight currentValues.code
+    -- Might need some sort of sorting because not a set?
+    , previousValues.selectedDeuceWidgets
+        /= currentValues.selectedDeuceWidgets
+    ]
 
 modelCommit
   :  Code -> List DeuceWidgets.DeuceWidget

@@ -117,7 +117,7 @@ import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
-import History
+import History exposing (History)
 
 import ImpureGoodies
 
@@ -512,7 +512,7 @@ finishTrigger zoneKey old =
   let old_ = { old | inputExp = e } in
   refreshHighlights zoneKey
     { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
-           , history = modelCommit old.code old.deuceState.selectedWidgets old_.history }
+           , history = modelCommit old.code [] old_.history }
 
 
 --------------------------------------------------------------------------------
@@ -523,7 +523,7 @@ tryRun old =
     oldWithUpdatedHistory =
       let
         updatedHistory =
-          modelCommit old.code old.deuceState.selectedWidgets old.history
+          modelCommit old.code [] old.history
       in
         { old | history = updatedHistory }
   in
@@ -698,6 +698,7 @@ upstate (Msg caption updateModel) old =
 hooks : List (Model -> Model -> (Model, Cmd Msg))
 hooks =
   [ handleSavedSelectionsHook
+  , debugModel .history
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
@@ -727,6 +728,24 @@ handleSavedSelectionsHook oldModel newModel =
         (newModel, Cmd.none)
   else
     (newModel, Cmd.none)
+
+debugModel : (Model -> a) -> Model -> Model -> (Model, Cmd Msg)
+debugModel get old new =
+  let
+    oldProperty =
+      get old
+    newProperty =
+      get new
+    returnValue =
+      (new, Cmd.none)
+  in
+    if oldProperty /= newProperty then
+      let
+        _ = Debug.log "" newProperty
+      in
+        returnValue
+    else
+      returnValue
 
 --------------------------------------------------------------------------------
 
@@ -955,6 +974,40 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 
 --------------------------------------------------------------------------------
 
+updateTrackedValues : History TrackedValues -> TrackedValues -> Model -> Model
+updateTrackedValues newHistory recent old =
+  let
+    toBeRun =
+      { old
+          | code = recent.code
+      }
+        |> Model.hideDeuceRightClickMenu
+        |> resetDeuceState
+    ran =
+      upstateRun toBeRun
+    ranDeuceState =
+      ran.deuceState
+    newDeuceState =
+      { ranDeuceState
+          | selectedWidgets =
+              recent.selectedDeuceWidgets
+      }
+    almostNew =
+      { ran
+          | deuceState =
+              newDeuceState
+          , history =
+              newHistory
+      }
+  in
+    { almostNew
+        | deuceToolsAndResults =
+            DeuceTools.createToolCache almostNew
+        , deuceToolResultPreviews =
+            Dict.empty
+    }
+      |> DeuceTools.reselectDeuceTool
+
 msgUndo = Msg "Undo" doUndo
 
 doUndo : Model -> Model
@@ -963,14 +1016,7 @@ doUndo old =
     Just newHistory ->
       case History.mostRecent newHistory of
         Just recent ->
-          let
-            new =
-              { old
-                  | history = newHistory
-                  , code = recent.code
-              }
-          in
-            upstateRun new
+          updateTrackedValues newHistory recent old
 
         Nothing ->
           old
@@ -1005,16 +1051,7 @@ doRedo old =
     Just newHistory ->
       case History.mostRecent newHistory of
         Just recent ->
-          let
-            new =
-              { old
-                  | history = newHistory
-                  , code = recent.code
-              }
-                |> Model.hideDeuceRightClickMenu
-                |> resetDeuceState
-          in
-            upstateRun new
+          updateTrackedValues newHistory recent old
 
         Nothing ->
           old
@@ -1942,6 +1979,8 @@ toggleDeuceWidget widget model =
               newDeuceState
           , deuceRightClickMenuMode =
               newDeuceRightClickMenuMode
+          , history =
+              modelCommit model.code newDeuceState.selectedWidgets model.history
       }
   in
     { almostNewModel
