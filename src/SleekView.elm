@@ -1248,8 +1248,8 @@ codePanel model =
           History.prior model.history
         attributes =
           case (UserStudy.enabled, past) of
-            (False, Just prevCode) ->
-              [ E.onMouseEnter <| Controller.msgPreview (Right prevCode)
+            (False, Just snapshot) ->
+              [ E.onMouseEnter <| Controller.msgPreview (Right snapshot.code)
               , E.onMouseLeave Controller.msgClearPreview
               ]
             _ ->
@@ -1268,8 +1268,8 @@ codePanel model =
           History.next model.history
         attributes =
           case (UserStudy.enabled, future) of
-            (False, Just futureCode) ->
-              [ E.onMouseEnter <| Controller.msgPreview (Right futureCode)
+            (False, Just snapshot) ->
+              [ E.onMouseEnter <| Controller.msgPreview (Right snapshot.code)
               , E.onMouseLeave Controller.msgClearPreview
               ]
             _ ->

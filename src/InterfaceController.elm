@@ -512,7 +512,7 @@ finishTrigger zoneKey old =
   let old_ = { old | inputExp = e } in
   refreshHighlights zoneKey
     { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
-           , history = commitModelHistory old.code old_.history }
+           , history = modelCommit old.code old.deuceState.selectedWidgets old_.history }
 
 
 --------------------------------------------------------------------------------
@@ -523,7 +523,7 @@ tryRun old =
     oldWithUpdatedHistory =
       let
         updatedHistory =
-          commitModelHistory old.code old.history
+          modelCommit old.code old.deuceState.selectedWidgets old.history
       in
         { old | history = updatedHistory }
   in
@@ -572,7 +572,7 @@ tryRun old =
                       , runAnimation  = newMovieDuration > 0
                       , slate         = newSlate
                       , widgets       = ws
-                      , history       = commitModelHistory newCode old.history
+                      , history       = modelCommit newCode [] old.history
                       , caption       = Nothing
                       , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                       , lambdaTools   = lambdaTools_
@@ -967,7 +967,7 @@ doUndo old =
             new =
               { old
                   | history = newHistory
-                  , code = recent
+                  , code = recent.code
               }
           in
             upstateRun new
@@ -1009,7 +1009,7 @@ doRedo old =
             new =
               { old
                   | history = newHistory
-                  , code = recent
+                  , code = recent.code
               }
                 |> Model.hideDeuceRightClickMenu
                 |> resetDeuceState
@@ -1253,7 +1253,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
-            , history          = commitModelHistory newCode old.history
+            , history          = modelCommit newCode [] old.history
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
@@ -1341,7 +1341,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   let new =
     { old | code = newCode
           , lastRunCode = newCode
-          , history = commitModelHistory newCode old.history
+          , history = modelCommit newCode [] old.history
           , synthesisResults = []
           }
   in
@@ -1553,7 +1553,7 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
         , inputVal      = val
-        , history       = commitModelHistory code old.history
+        , history       = modelCommit code [] old.history
         , slate         = slate
         , preview       = Nothing
         , synthesisResults = []
@@ -1661,7 +1661,7 @@ readFile : File -> Model -> Model
 readFile file old =
   { old | filename = file.filename
         , code = file.code
-        , history = History.begin file.code
+        , history = History.begin { code = file.code, selectedDeuceWidgets = [] }
         , lastSaveState = Just file.code
         , needsSave = False }
 
@@ -1698,7 +1698,7 @@ readFileFromInput : File -> Model -> Model
 readFileFromInput file old =
   { old | filename = file.filename
         , code = file.code
-        , history = History.begin file.code
+        , history = History.begin { code = file.code, selectedDeuceWidgets = [] }
         , lastSaveState = Nothing
         , needsSave = True }
 
@@ -1750,7 +1750,7 @@ handleNew template = (\old ->
                     , inputVal      = v
                     , code          = code
                     , lastRunCode   = code
-                    , history       = History.begin code
+                    , history       = History.begin { code = code, selectedDeuceWidgets = [] }
                     , liveSyncInfo  = outputMode
                     , syncOptions   = so
                     , slideNumber   = 1
@@ -2264,7 +2264,7 @@ changeUserStudyStep label offset old =
       |> handleNew template
       |> (\m ->
            let finalCode = UserStudy.postProcessCode newState m.code in
-           { m | code = finalCode, history = History.begin finalCode }
+           { m | code = finalCode, history = History.begin { code = finalCode, selectedDeuceWidgets = [] } }
          )
       |> UserStudy.enableFeaturesForEditorMode newState
       |> UserStudy.postProcessProse newState

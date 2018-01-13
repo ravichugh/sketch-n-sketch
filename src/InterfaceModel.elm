@@ -34,6 +34,11 @@ import ImpureGoodies
 
 type alias Code = String
 
+type alias TrackedValues =
+  { code : Code
+  , selectedDeuceWidgets : List DeuceWidgets.DeuceWidget
+  }
+
 type alias Filename = String
 
 type alias FileIndex = List Filename
@@ -94,7 +99,7 @@ type alias Model =
   { code : Code
   , lastRunCode : Code
   , preview : Preview
-  , history : History Code
+  , history : History TrackedValues
   , inputExp : Exp
   , inputVal : Val
   , slideNumber : Int
@@ -947,14 +952,18 @@ deucePopupPanelShown model =
 
 --------------------------------------------------------------------------------
 
-historyUpdateCondition : Code -> Code -> Bool
-historyUpdateCondition previousCode currentCode =
+historyUpdateCondition : TrackedValues -> TrackedValues -> Bool
+historyUpdateCondition previousValues currentValues =
   -- trimRight to tolerate differences in newlines at the end
-  String.trimRight previousCode /= String.trimRight currentCode
+  String.trimRight previousValues.code /= String.trimRight currentValues.code
 
-commitModelHistory : Code -> History Code -> History Code
-commitModelHistory =
-  History.commit historyUpdateCondition
+modelCommit
+  :  Code -> List DeuceWidgets.DeuceWidget
+  -> History TrackedValues -> History TrackedValues
+modelCommit code dws =
+  History.commit
+    historyUpdateCondition
+    { code = code, selectedDeuceWidgets = dws }
 
 --------------------------------------------------------------------------------
 
@@ -980,7 +989,7 @@ initModel =
     { code          = code
     , lastRunCode   = code
     , preview       = Nothing
-    , history       = History.begin code
+    , history       = History.begin { code = code, selectedDeuceWidgets = [] }
     , inputExp      = e
     , inputVal      = v
     , slideNumber   = 1
