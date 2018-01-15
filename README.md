@@ -330,7 +330,7 @@ However, if you want to run the solver server locally:
 2. Make sure you have any version of [Ruby](https://www.ruby-lang.org/) installed, check with e.g. `$ ruby --version`
 3. `$ cd solver_server`
 4. `$ make test_reduce` This will download, build, and test REDUCE.
-5. `$ make run-server`
+5. `$ make run_server`
 
 If a local server is running, Sketch-n-Sketch will try to connect to it first.
 
