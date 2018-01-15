@@ -198,7 +198,7 @@ drawNewShape model =
 drawNewPointAndOffset shouldHighlight (x2, y2) (x1, y1) =
   let (axis, sign, amount) = Draw.horizontalVerticalSnap (x1, y1) (x2, y2) in
   let xyDot = svgXYDot (x1, y1) pointZoneStyles.fill.shown True [] in
-  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) Nothing shouldHighlight [] in
+  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
   [xyDot] ++ arrowParts
 
 
@@ -208,7 +208,7 @@ drawNewPointAndOffset shouldHighlight (x2, y2) (x1, y1) =
 dummyVal : Val
 dummyVal = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] }
 
-svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) maybeCaptionText isSelected extraStyles =
+svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) amountVal isSelected extraStyles =
   let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
     offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
   in
@@ -248,9 +248,9 @@ svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis
   in
   let caption =
     let string =
-      case maybeCaptionText of
-        Just ident -> ident
-        Nothing    -> toString amount
+      if amountVal /= dummyVal
+      then Syntax.unparser Syntax.Elm (provenanceExp amountVal.provenance) |> Utils.squish
+      else toString amount
     in
     let (x, y, textAnchor) =
       case axis of
@@ -417,7 +417,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xVal (cy, cyTr) yVal
     ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] [attrNum "cx" cx, attrNum "cy" cy]
   in
-  let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) endXVal endYVal =
+  let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) amountVal endXVal endYVal =
     let idAsShape = -2 - i_ in
     let isSelected = Set.member (ShapeFeature idAsShape (DFeat Offset)) model.selectedFeatures in
     let dragStyle =
@@ -428,12 +428,11 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       else
         [ attr "cursor" "default" ]
     in
-    let maybeCaptionText = traceToMaybeIdent amountTr in
     let (arrowParts, (endXNumTr, endYNumTr)) =
       let shouldHighlight =
         isSelected || isTraceInModelHighlights model amountTr
       in
-      svgOffsetWidget1DArrowPartsAndEndPoint (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) maybeCaptionText shouldHighlight dragStyle
+      svgOffsetWidget1DArrowPartsAndEndPoint (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
     in
     let endPt =
       zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXVal endYNumTr endYVal
@@ -526,7 +525,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         drawPointWidget i_ widget xNumTr xVal yNumTr yVal
 
       WOffset1D baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal ->
-        drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr endXVal endYVal
+        drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal
 
       WCall funcVal argVals retVal retWs ->
         drawCallWidget funcVal argVals retVal retWs model

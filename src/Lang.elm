@@ -399,11 +399,6 @@ patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId) =
   in
     (referenceScopeId, targetPath)
 
-traceToMaybeIdent tr =
-  case tr of
-    TrLoc (_, _, ident) -> if ident /= "" then Just ident else Nothing
-    _                   -> Nothing
-
 tab k = String.repeat k "  "
 
 -- TODO take into account indent and other prefix of current line
