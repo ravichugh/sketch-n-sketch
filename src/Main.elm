@@ -20,6 +20,7 @@ import Window
 import Keyboard
 import Time
 import PageVisibility
+import Update
 
 import Task exposing (Task, andThen)
 
