@@ -2,14 +2,14 @@ port module SolverServer exposing (..)
 
 import InterfaceModel exposing (Msg, Model)
 import InterfaceController
-import Lang
-import Parser exposing (Parser, Count(..), (|.), (|=), succeed, symbol, keyword, int, float, ignore, repeat, zeroOrMore, oneOf, lazy, delayedCommit, delayedCommitMap, inContext, end)
+import Lang exposing (Num, Op_(..))
+import Parser exposing (Parser, Count(..), (|.), (|=), succeed, symbol, int, float, ignore, repeat, zeroOrMore, oneOf, lazy, delayedCommit, delayedCommitMap, inContext, end)
 import BinaryOperatorParser exposing (PrecedenceTable(..), Associativity(..), Precedence, binaryOperator)
 import Solver exposing (..)
 import Utils
-import ImpureGoodies
 
 import Dict
+import String
 import Task
 
 -- All REDUCE-specific code should appear here or in the associated native JS file.
@@ -47,7 +47,8 @@ askForSolution ((equations, targetVarIds) as problem) failedMsg oldModel =
       equations
       |> List.map (\(lhs, rhs) -> mathExpToREDUCE lhs ++ "=" ++ mathExpToREDUCE rhs)
     in
-    "solve({" ++ String.join "," eqnStrings ++ "},{" ++ String.join "," (List.map varIdToREDUCE targetVarIds) ++ "})"
+    -- "on factor" tells REDUCE to try to factor the results. May or may not always want this.
+    "on factor; solve({" ++ String.join "," eqnStrings ++ "},{" ++ String.join "," (List.map varIdToREDUCE targetVarIds) ++ "})"
   in
   ( { oldModel | problemsSentToSolver = oldModel.problemsSentToSolver ++ [(problem, failedMsg)] }
   , queryReduce reduceQueryString
@@ -55,15 +56,17 @@ askForSolution ((equations, targetVarIds) as problem) failedMsg oldModel =
 
 
 handleReduceResponse : String -> Model -> (Model, Cmd Msg)
-handleReduceResponse reduceResponse oldModel=
+handleReduceResponse reduceResponse oldModel =
   case oldModel.problemsSentToSolver of
     (oldestProblem, interruptedMsg)::outstandingProblems ->
       let solutions =
-        -- As of v2.0.1 the elm-tools/parser library sometimes hard crashes on a bad parse rather than returning an Err value.
-        case ImpureGoodies.crashToError (\_ -> Parser.run parseReduceResponse reduceResponse) of
-          Ok (Ok solutions) -> solutions
-          Ok (Err error)    -> let _ = Utils.log ("Reduce response parse error: " ++ toString error.problem ++ "\n" ++ toString error.context) in []
-          Err errorStr      -> let _ = Utils.log ("Reduce response parse crash: " ++ errorStr) in []
+        let perhapsParsedSolutions = parseReduceResponse reduceResponse in
+        let parsedSolutions        = Utils.filterOks  perhapsParsedSolutions in
+        let failedParses           = Utils.filterErrs perhapsParsedSolutions in
+        case (parsedSolutions, failedParses) of
+          (_::_, _)         -> parsedSolutions |> mapSolutionsExps distributeNegation
+          ([], badParse::_) -> let _ = Utils.log ("Reduce response parse error: " ++ toString badParse) in []
+          ([], [])          -> []
       in
       let newModel =
         { oldModel | problemsSentToSolver = outstandingProblems
@@ -76,8 +79,22 @@ handleReduceResponse reduceResponse oldModel=
       (oldModel, Cmd.none)
 
 
+-- For whatever reason, REDUCE would sometimes rather return -(x - y - z) instead of (y + z - x)
+-- I can't otherwise figure out how to tell it to produce the desired output.
+distributeNegation : MathExp -> MathExp
+distributeNegation mathExp =
+  case mathExp of
+    MathNum _                                     -> mathExp
+    MathVar _                                     -> mathExp
+    MathOp Minus [MathNum 0, MathOp Minus [l, r]] -> distributeNegation <| MathOp Minus [r, l]
+    MathOp op_ children                           -> MathOp op_ (List.map distributeNegation children)
 
--- Serializing -----
+
+
+
+
+-- Serializing ----------------
+
 
 
 varIdToREDUCE : Int -> String
@@ -92,42 +109,54 @@ mathExpToREDUCE mathExp =
     MathOp op_ children ->
       let childPerhapsParensToREDUCE childTerm =
         case childTerm of
-          MathOp Lang.ArcTan2 _ -> mathExpToREDUCE childTerm
+          MathOp ArcTan2 _ -> mathExpToREDUCE childTerm
           MathOp _ [_, _]       -> "(" ++ mathExpToREDUCE childTerm ++ ")"
           _                     -> mathExpToREDUCE childTerm
       in
       case (op_, children) of
-        (Lang.Plus,    [l,r]) -> childPerhapsParensToREDUCE l ++ "+" ++ childPerhapsParensToREDUCE r
-        (Lang.Minus,   [l,r]) -> childPerhapsParensToREDUCE l ++ "-" ++ childPerhapsParensToREDUCE r
-        (Lang.Mult,    [l,r]) -> childPerhapsParensToREDUCE l ++ "*" ++ childPerhapsParensToREDUCE r
-        (Lang.Div,     [l,r]) -> childPerhapsParensToREDUCE l ++ "/" ++ childPerhapsParensToREDUCE r
-        (Lang.Pow,     [l,r]) -> "(" ++ mathExpToREDUCE l ++ ")^" ++ childPerhapsParensToREDUCE r  -- Extra parens to prevent misinterpreting negative signs before powers
-        (Lang.Mod,     [l,r]) -> childPerhapsParensToREDUCE l ++ " mod " ++ childPerhapsParensToREDUCE r
-        (Lang.ArcTan2, [l,r]) -> "atan2(" ++ mathExpToREDUCE l ++ "," ++ mathExpToREDUCE r ++ ")"
-        (Lang.Cos,     [n])   -> "cos(" ++ mathExpToREDUCE n ++ ")"
-        (Lang.Sin,     [n])   -> "sin(" ++ mathExpToREDUCE n ++ ")"
-        (Lang.ArcCos,  [n])   -> "acos(" ++ mathExpToREDUCE n ++ ")"
-        (Lang.ArcSin,  [n])   -> "asin(" ++ mathExpToREDUCE n ++ ")"
-        (Lang.Floor,   [n])   -> "floor(" ++ mathExpToREDUCE n ++ ")"
-        (Lang.Ceil,    [n])   -> "ceiling(" ++ mathExpToREDUCE n ++ ")"
-        (Lang.Round,   [n])   -> "round(" ++ mathExpToREDUCE n ++ ")"
-        (Lang.Sqrt,    [n])   -> "sqrt(" ++ mathExpToREDUCE n ++ ")"
-        (Lang.Pi,      [])    -> "pi"
+        (Plus,    [l,r]) -> childPerhapsParensToREDUCE l ++ "+" ++ childPerhapsParensToREDUCE r
+        (Minus,   [l,r]) -> childPerhapsParensToREDUCE l ++ "-" ++ childPerhapsParensToREDUCE r
+        (Mult,    [l,r]) -> childPerhapsParensToREDUCE l ++ "*" ++ childPerhapsParensToREDUCE r
+        (Div,     [l,r]) -> childPerhapsParensToREDUCE l ++ "/" ++ childPerhapsParensToREDUCE r
+        (Pow,     [l,r]) -> "(" ++ mathExpToREDUCE l ++ ")**" ++ childPerhapsParensToREDUCE r  -- Extra parens to prevent misinterpreting negative signs before powers
+        (Mod,     [l,r]) -> childPerhapsParensToREDUCE l ++ " mod " ++ childPerhapsParensToREDUCE r
+        (ArcTan2, [l,r]) -> "atan2(" ++ mathExpToREDUCE l ++ "," ++ mathExpToREDUCE r ++ ")"
+        (Cos,     [n])   -> "cos(" ++ mathExpToREDUCE n ++ ")"
+        (Sin,     [n])   -> "sin(" ++ mathExpToREDUCE n ++ ")"
+        (ArcCos,  [n])   -> "acos(" ++ mathExpToREDUCE n ++ ")"
+        (ArcSin,  [n])   -> "asin(" ++ mathExpToREDUCE n ++ ")"
+        (Floor,   [n])   -> "floor(" ++ mathExpToREDUCE n ++ ")"
+        (Ceil,    [n])   -> "ceiling(" ++ mathExpToREDUCE n ++ ")"
+        (Round,   [n])   -> "round(" ++ mathExpToREDUCE n ++ ")"
+        (Sqrt,    [n])   -> "sqrt(" ++ mathExpToREDUCE n ++ ")"
+        (Pi,      [])    -> "pi"
         _                     -> let _ = Debug.log "Didn't know how to convert this to REDUCE syntax" mathExp in "unknown"
 
 
 
--- Parsing ---------
 
 
-binaryOperatorList : List (String, Associativity, Precedence, Lang.Op_)
+-- Parsing ----------------
+
+
+
+-- Because defintions are not always ordered correctly in generated code,
+-- need more lazy's than should otherwise be required.
+--
+-- If you hit a compiler bug of any kind, add more lazy's.
+-- (There were multiple manifestions of the same problem.)
+--
+-- (See https://github.com/elm-lang/elm-compiler/issues/873)
+
+
+binaryOperatorList : List (String, Associativity, Precedence, Op_)
 binaryOperatorList =
-  [ ("+",   Left,  2, Lang.Plus)
-  , ("-",   Left,  2, Lang.Minus)
-  , ("*",   Left,  3, Lang.Mult)
-  , ("/",   Left,  3, Lang.Div)
-  , ("^",   Right, 4, Lang.Pow)
-  , ("mod", Left,  1, Lang.Mod)
+  [ ("+",   Left,  2, Plus)
+  , ("-",   Left,  2, Minus)
+  , ("*",   Left,  3, Mult)
+  , ("/",   Left,  3, Div)
+  , ("**",  Left,  4, Pow) -- Left associative in REDUCE.
+  , ("mod", Left,  1, Mod)
   ]
 
 
@@ -140,15 +169,20 @@ precedenceTable =
 
 
 (.|) : Parser ignore -> Parser keep -> Parser keep
--- (.|) ignore keep = ignore |> Parser.andThen (\_ -> keep)
 (.|) = delayedCommit
 
 
 -- {{x1=123,x2=123},{x1=456,x2=456}} or {x1=123}
-parseReduceResponse : Parser (List Solution)
-parseReduceResponse =
-  inContext "parseReduceResponse" <|
-    oneOf [parseCurlies parseSolutions, parseSolutions] |. end
+--
+-- REDUCE will sometimes send solutions we cannot deal with (imaginary numbers), so need to be
+-- able to skip those solutions without destroying the whole parse.
+parseReduceResponse : String -> List (Result Parser.Error Solution)
+parseReduceResponse responseStr  =
+  let solutionStrs = String.split "}," responseStr in
+  solutionStrs
+  |> List.map (Utils.stringReplace "{" "")
+  |> List.map (Utils.stringReplace "}" "")
+  |> List.map (Parser.run (parseSolution |. skipSpaces |. end))
 
 
 wsSymbol : String -> Parser ()
@@ -169,36 +203,34 @@ between openStr closeStr innerParser =
     wsSymbol openStr .| (innerParser |. wsSymbol closeStr)
 
 
-parseCurlies : Parser a -> Parser a
-parseCurlies innerParser = between "{" "}" innerParser
-
-
 parseParens : Parser a -> Parser a
 parseParens innerParser = between "(" ")" innerParser
 
 
 parseCommaSeparatedList : Parser a -> Parser (List a)
 parseCommaSeparatedList itemParser =
-  oneOf <|
+  oneOf
     [ succeed (::) |= itemParser |= repeat zeroOrMore (wsSymbol "," .| itemParser)
     , succeed []
     ]
-
-
-parseSolutions : Parser (List Solution)
-parseSolutions = inContext "parseSolutions" <| parseCommaSeparatedList parseSolution
 
 
 -- e.g. {x1=123,x2=123} to [(MathNum 123, 1), (MathNum 123, 2)]
 parseSolution : Parser Solution
 parseSolution =
   inContext "parseSolution" <|
-    parseCurlies <|
+    -- parseCurlies <|
       parseCommaSeparatedList <|
-        succeed (\varId mathExp -> (mathExp, varId))
-          |= parseVarToVarId
-          |. wsSymbol "="
-          |= parseMathExp
+        parseResultEqn
+
+
+parseResultEqn : Parser (MathExp, Int)
+parseResultEqn =
+  succeed (\varId mathExp -> (mathExp, varId))
+    |. skipSpaces
+    |= parseVarToVarId
+    |. wsSymbol "="
+    |= parseMathExp
 
 
 -- e.g. x2 to 2
@@ -208,8 +240,8 @@ parseVarToVarId = inContext "parseVarToVarId" <| eatChar 'x' .| int
 
 parseMathExp : Parser MathExp
 parseMathExp =
-  inContext "parseMathExp" <|
-    lazy (\_ ->
+  lazy <| \_ ->
+    inContext "parseMathExp" <|
       binaryOperator
         { precedenceTable   = precedenceTable
         , minimumPrecedence = 1
@@ -223,35 +255,37 @@ parseMathExp =
                 Nothing             -> Debug.crash <| "REDUCE parsing: Should not happen: could not find binary op " ++ opStr
             )
         }
-    )
 
 
 parseEqnAtom : Parser MathExp
 parseEqnAtom =
-  inContext "parseEqnAtom" <|
-    skipSpaces .|
-      oneOf
-        [ parseMathNum
-        , parseMathVar
-        , parseEqnParens
-        , parseEqnFunction
-        , parseEqnPi
-        ]
+  lazy <| \_ ->
+    inContext "parseEqnAtom" <|
+      skipSpaces .|
+        oneOf
+          [ parseMathNum
+          , parseMathVar
+          , parseEqnParens
+          , parseEqnFunction
+          , parseEqnPi
+          , parseNegation
+          ]
 
 
 parseBinaryOperatorStr : Parser String
 parseBinaryOperatorStr =
-  oneOf <|
-    List.map (\(str, _, _, _) -> wsSymbol str |> Parser.map (always str)) binaryOperatorList
+  inContext "parseBinaryOperatorStr" <|
+    oneOf <|
+      List.map (\(str, _, _, _) -> wsSymbol str |> Parser.map (always str)) binaryOperatorList
 
 
 parseMathNum : Parser MathExp
 parseMathNum = parseNumber |> Parser.map MathNum |> inContext "parseMathNum"
 
 
-parseNumber : Parser Lang.Num
+parseNumber : Parser Num
 parseNumber =
-  oneOf <|
+  oneOf
     [ delayedCommitMap (\_ posFloat -> -posFloat) (symbol "-" |. skipSpaces) float
     , float
     ]
@@ -265,35 +299,49 @@ parseEqnParens : Parser MathExp
 parseEqnParens = parseParens parseMathExp
 
 
+parseUnaryFunction : String -> Op_ -> Parser MathExp
+parseUnaryFunction funcName op_ =
+  succeed (\argTerm -> MathOp op_ [argTerm])
+    |. wsSymbol (funcName ++ "(")
+    |= parseMathExp
+    |. wsSymbol ")"
+
+
+parseBinaryFunction : String -> Op_ -> Parser MathExp
+parseBinaryFunction funcName op_ =
+  succeed (\argTerm1 argTerm2 -> MathOp op_ [argTerm1, argTerm2])
+    |. wsSymbol (funcName ++ "(")
+    |= parseMathExp
+    |. wsSymbol ","
+    |= parseMathExp
+    |. wsSymbol ")"
+
+
 parseEqnFunction : Parser MathExp
 parseEqnFunction =
-  let parseUnaryFunction funcName op_ =
-    succeed (\argTerm -> MathOp op_ [argTerm])
-      |. wsSymbol (funcName ++ "(")
-      |= parseMathExp
-      |. wsSymbol ")"
-  in
-  let parseBinaryFunction funcName op_ =
-    succeed (\argTerm1 argTerm2 -> MathOp op_ [argTerm1, argTerm2])
-      |. wsSymbol (funcName ++ "(")
-      |= parseMathExp
-      |. wsSymbol ","
-      |= parseMathExp
-      |. wsSymbol ")"
-  in
-  inContext "parseEqnFunction" <|
-    oneOf <|
-      [ parseBinaryFunction "atan2"   Lang.ArcTan2
-      , parseUnaryFunction  "cos"     Lang.Cos
-      , parseUnaryFunction  "sin"     Lang.Sin
-      , parseUnaryFunction  "acos"    Lang.ArcCos
-      , parseUnaryFunction  "asin"    Lang.ArcSin
-      , parseUnaryFunction  "floor"   Lang.Floor
-      , parseUnaryFunction  "ceiling" Lang.Ceil
-      , parseUnaryFunction  "round"   Lang.Round
-      , parseUnaryFunction  "sqrt"    Lang.Sqrt
-      ]
+  lazy <| \_ ->
+    inContext "parseEqnFunction" <|
+      oneOf
+        [ parseBinaryFunction "atan2"   ArcTan2
+        , parseUnaryFunction  "cos"     Cos
+        , parseUnaryFunction  "sin"     Sin
+        , parseUnaryFunction  "acos"    ArcCos
+        , parseUnaryFunction  "asin"    ArcSin
+        , parseUnaryFunction  "floor"   Floor
+        , parseUnaryFunction  "ceiling" Ceil
+        , parseUnaryFunction  "round"   Round
+        , parseUnaryFunction  "sqrt"    Sqrt
+        ]
 
 
 parseEqnPi : Parser MathExp
-parseEqnPi = inContext "parseEqnPi" <| wsSymbol "pi" .| succeed (MathOp Lang.Pi [])
+parseEqnPi = inContext "parseEqnPi" <| wsSymbol "pi" .| succeed (MathOp Pi [])
+
+
+parseNegation : Parser MathExp
+parseNegation =
+  lazy <| \_ ->
+    delayedCommitMap (\_ mathExp -> MathOp Minus [MathNum 0, mathExp]) (symbol "-") parseEqnAtom
+
+
+-- test = Debug.log "REDUCE parsing test" <| parseReduceResponse "{{x3=(sqrt(3)*x1 - sqrt(3)*x2 + x1 + x2)/2, x3=( - sqrt(3)*x1 + sqrt(3)*x2 + x1 + x2)/2}, {x3=( - sqrt(3)*x1 + sqrt(3)*x2 + x1 + x2)/2, x3=(sqrt(3)*x1 - sqrt(3)*x2 + x1 + x2)/2}}"

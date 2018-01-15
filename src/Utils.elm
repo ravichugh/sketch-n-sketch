@@ -882,6 +882,18 @@ filterJusts mxs = case mxs of
   Just x  :: rest -> x :: filterJusts rest
   Nothing :: rest -> filterJusts rest
 
+filterOks : List (Result e a) -> List a
+filterOks mxs = case mxs of
+  []            -> []
+  Ok x  :: rest -> x :: filterOks rest
+  Err _ :: rest -> filterOks rest
+
+filterErrs : List (Result e a) -> List e
+filterErrs mxs = case mxs of
+  []            -> []
+  Ok _  :: rest -> filterErrs rest
+  Err x :: rest -> x :: filterErrs rest
+
 bindMaybe2 : (a -> b -> Maybe c) -> Maybe a -> Maybe b -> Maybe c
 bindMaybe2 f mx my = bindMaybe (\x -> bindMaybe (f x) my) mx
 

@@ -6,6 +6,7 @@ module ParserUtils exposing
   , token
   , inside
   , char
+  -- , oneOfBacktracking
   , ParserI
   , getPos
   , trackInfo
@@ -15,9 +16,11 @@ module ParserUtils exposing
 
 import Pos exposing (..)
 import Info exposing (..)
+-- import Utils
 
 import Parser exposing (..)
 import Parser.LowLevel as LL
+
 
 --------------------------------------------------------------------------------
 -- General
@@ -100,6 +103,30 @@ char =
     )
     ( keep (Exactly 1) (always True)
     )
+
+-- Remove when confident in Reduce response parsing
+--
+-- oneOfBacktracking : String -> List (Parser a) -> Parser a
+-- oneOfBacktracking failReason parsers =
+--   let
+--     getParser =
+--       succeed
+--         ( \offset source ->
+--             let
+--               remainingCode =
+--                 String.dropLeft offset source
+--             in
+--               parsers
+--               |> Utils.findFirst (\parser -> run parser remainingCode |> Result.toMaybe |> (/=) Nothing)
+--               |> Maybe.withDefault (fail failReason)
+--
+--         )
+--         |= LL.getOffset
+--         |= LL.getSource
+--   in
+--     getParser
+--       |> andThen (\parser -> parser)
+
 
 --------------------------------------------------------------------------------
 -- Parser With Info

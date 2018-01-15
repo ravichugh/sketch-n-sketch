@@ -1,9 +1,8 @@
 # Filters input to reduce.
 #
-# Sets the formatting to draw fractions with a / instead of pretty printing.
-#
 
-puts("off ratpri;")
+puts("off nat;")        # Turn off pretty printing to facilitate parsing.
+puts("on combineexpt;") # More simplification of exponential terms multiplied by each other (uncommon).
 
 while raw_line = gets
   if raw_line !~ /;\s*\z/

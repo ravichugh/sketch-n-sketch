@@ -43,8 +43,8 @@ solveTrace solutionsCache subst trace targetVal =
   -- Variablify everything to have the most general form of equations in the cache.
   -- (May push into solve in the future.)
   let targetValInsertedVarId = 1 + (mathExpVarIds mathExp |> List.maximum |> Maybe.withDefault 0) in
-  case solveOne solutionsCache (mathExp, MathVar targetValInsertedVarId) targetVarId |> Debug.log "solveOne result" of
-    solvedTerm::_ -> solvedTerm |> applySubst (Dict.insert targetValInsertedVarId targetVal subst) |> Debug.log "eqn substed" |> evalToMaybeNum
+  case solveOne solutionsCache (mathExp, MathVar targetValInsertedVarId) targetVarId of
+    solvedTerm::_ -> solvedTerm |> applySubst (Dict.insert targetValInsertedVarId targetVal subst) |> evalToMaybeNum
     _             -> Nothing
 
 
@@ -96,7 +96,7 @@ solve solutionsCache eqns targetVarIds =
   in
   case targetVarIds |> List.map (\targetVarId -> Dict.get targetVarId oldToNormalizedVarIds) |> Utils.projJusts of
     Just normalizedTargetVarIds ->
-      let problem = (normalizedEquations, normalizedTargetVarIds) in
+      let problem = (List.map removeCommonSuperExps normalizedEquations, normalizedTargetVarIds) in
       case Dict.get problem solutionsCache of
         Just solutions ->
           -- Now convert back to given varIds
@@ -149,6 +149,14 @@ remapVarIds oldToNew mathExp =
     MathOp op_ childTerms -> childTerms |> List.map (remapVarIds oldToNew) |> Utils.projJusts |> Maybe.map (MathOp op_)
 
 
+-- REDUCE doesn't find the appropriate distance solution when everything is wrapped in "sqrt". Help it out.
+removeCommonSuperExps : (MathExp, MathExp) -> (MathExp, MathExp)
+removeCommonSuperExps eqn =
+  case eqn of
+    (MathOp lOp_ [lChild], MathOp rOp_ [rChild]) -> if lOp_ == rOp_ then removeCommonSuperExps (lChild, rChild) else eqn
+    _                                            -> eqn
+
+
 remapSolutionVarIds : Dict Int Int -> Solution -> Maybe Solution
 remapSolutionVarIds oldToNew solution =
   solution
@@ -171,3 +179,10 @@ applySubst subst mathExp =
         Just n  -> MathNum n
         Nothing -> mathExp
     MathOp op_ childTerms -> MathOp op_ (childTerms |> List.map (applySubst subst))
+
+
+mapSolutionsExps : (MathExp -> MathExp) -> List Solution -> List Solution
+mapSolutionsExps f solutions =
+  solutions
+  |> List.map (List.map (\(mathExp, varId) -> (f mathExp, varId)))
+
