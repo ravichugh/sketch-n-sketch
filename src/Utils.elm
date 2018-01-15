@@ -99,19 +99,6 @@ maybeZipN lists =
       _                        -> Nothing
 
 
--- In:  [1, 2, 3]
--- Out: [(1,2), (2,3), (3,1)]
--- c.f. adjacentPairs
-selfZipCircConsecPairs : List a -> List (a, a)
-selfZipCircConsecPairs list =
-  let shiftList =
-    case list of
-      x::xs -> xs ++ [x]
-      _     -> []
-  in
-  zip list shiftList
-
-
 zipi0 : List a -> List (Int, a)
 zipi0 = zipi_ 0
 
@@ -253,6 +240,14 @@ isSublistAsSet sub super =
 equalAsSets : List a -> List a -> Bool
 equalAsSets a b =
   isSublistAsSet a b && isSublistAsSet b a
+
+-- Assumes list already deduplicated.
+combinationsAsSet : Int -> List a -> List (List a)
+combinationsAsSet n list =
+  case (n, list) of
+    (0, _)     -> [[]]
+    (_, [])    -> []
+    (_, x::xs) -> List.map ((::) x) (combinationsAsSet (n-1) xs) ++ combinationsAsSet n xs -- combinations that include x ++ those that don't
 
 
 groupBy : (a -> b) -> List a -> Dict.Dict b (List a)
@@ -484,16 +479,24 @@ firstOrLazySecond maybe1 lazyMaybe2 =
     Just x  -> maybe1
     Nothing -> lazyMaybe2 ()
 
--- c.f. selfZipCircConsecPairs
-adjacentPairs : Bool -> List a -> List (a, a)
-adjacentPairs includeLast list = case list of
-  [] -> []
-  x0::xs ->
-    let f xi (xPrev,acc) = (xi, (xPrev,xi) :: acc) in
-    let (xn,pairs) = List.foldl f (x0,[]) xs in
-    if includeLast
-      then List.reverse ((xn,x0) :: pairs)
-      else List.reverse (pairs)
+-- In:  [1, 2, 3]
+-- Out: [(1,2), (2,3), (3,1)]
+circOverlappingAdjacentPairs : List a -> List (a, a)
+circOverlappingAdjacentPairs list = overlappingAdjacentPairs_ True list
+
+-- In:  [1, 2, 3]
+-- Out: [(1,2), (2,3)]
+overlappingAdjacentPairs : List a -> List (a, a)
+overlappingAdjacentPairs list = overlappingAdjacentPairs_ False list
+
+overlappingAdjacentPairs_ : Bool -> List a -> List (a, a)
+overlappingAdjacentPairs_ includeLast list =
+  let shiftList =
+    case list of
+      x::xs -> if includeLast then xs ++ [x] else xs
+      _     -> []
+  in
+  zip list shiftList
 
 -- 1-based
 findi : (a -> Bool) -> List a -> Maybe Int
@@ -1089,6 +1092,9 @@ uniPlusMinus   = "±"
 
 
 --------------------------------------------------------------------------------
+
+pairToList : (a, a) -> List a
+pairToList (x1, x2) = [x1, x2]
 
 unwrapSingletonSet : Set a -> a
 unwrapSingletonSet set = case Set.toList set of

@@ -265,17 +265,13 @@ indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber mov
       let (_, locIds, targets) = Utils.unzip3 indexedLocIdsWithTarget in
       let locEIds =
         locIds
-        |> List.map (\locId -> locIdToEId originalExp locId |> Utils.fromJust_ "ValueBasedTransform.liftLocsSoVisibleTo locEIds")
+        |> List.map (\locId -> locIdToEId originalExp locId |> Utils.fromJust_ "ValueBasedTransform.indexedRelate locEIds")
       in
       possibleMathExps
       |> List.map
           (\mathExp ->
             let mathExpLocIds = mathExpLocIdSet mathExp in
-            let locsToLift =
-              locsToRevolutionize
-              |> List.filter (\(locId, _, _) -> Set.member locId mathExpLocIds)
-            in
-            let (locsLifted, locIdToNewName, locIdToVarEId) = copyLocsSoVisibleTo originalExp (Set.fromList locsToLift) (Set.fromList locEIds) in
+            let (locsLifted, locIdToNewName, locIdToVarEId) = copyLocsSoVisibleTo originalExp mathExpLocIds (Set.fromList locEIds) in
             -- let _ = Utils.log <| "locsLifted:\n" ++ unparseWithIds locsLifted in
             let description =
               let mathExpDesc = Syntax.unparser syntax <| mathExpToExp unann Dict.empty (Dict.insert indexLocId "i" locIdToNewName) mathExp in
@@ -340,9 +336,9 @@ type alias PartialSynthesisResult =
 
 type alias SelectedFeatureAndEquation = (ShapeWidgets.SelectableFeature, FeatureEquation)
 
-type RelationToSynthesize a
-  = Equalize a a
-  | Relate (List a)
+type RelationToSynthesize
+  = Equalize
+  | Relate
 
 
 -- Rank synthesis results by:
@@ -408,7 +404,19 @@ makeEqual syntax solutionsCache originalExp selectedFeatures slideNumber movieNu
     selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
   in
   let relateByPairs priorResults featuresAndEquations =
-    equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations syncOptions
+    -- equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations syncOptions
+    let (features, featureEqns) = List.unzip featuresAndEquations in
+    let descriptionPrefix = features |> List.map ShapeWidgets.featureDesc |> String.join " = " in
+    priorResults
+    |> List.concatMap
+        (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToMathExp} as priorResult) ->
+          let priorExp = exp in
+          relate__ syntax solutionsCache Equalize featureEqns priorExp maybeTermShape removedLocIdToMathExp syncOptions
+          |> List.map (InterfaceModel.prependDescription (description ++ " → " ++ descriptionPrefix ++ " "))
+          |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
+          -- |> List.map (\result -> let _ = if True then Debug.log ("Before:\n" ++ LangUnparser.unparseWithIds priorExp ++ "\nAfter:\n" ++ LangUnparser.unparseWithIds result.exp) () else () in result)
+        )
+
   in
   synthesizeRelationCoordinateWiseAndSortResults
       relateByPairs
@@ -427,7 +435,7 @@ relate syntax solutionsCache originalExp selectedFeatures slideNumber movieNumbe
     |> List.concatMap
         (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToMathExp} as priorResult) ->
           let priorExp = exp in
-          relate__ syntax solutionsCache (Relate featureEqns) priorExp maybeTermShape removedLocIdToMathExp syncOptions
+          relate__ syntax solutionsCache Relate featureEqns priorExp maybeTermShape removedLocIdToMathExp syncOptions
           |> List.map (InterfaceModel.prependDescription (description ++ " → "))
           |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
         )
@@ -453,8 +461,7 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresA
     -- We have only selected x&y of several points.
     -- Make all the selected points overlap, that is: make all the x's equal to
     -- each other and all the y's equal to each other.
-    let xFeatures = List.map Tuple.first selectedPoints in
-    let yFeatures = List.map Tuple.second selectedPoints in
+    let (xFeatures, yFeatures) = List.unzip selectedPoints in
     let xsRelated  = doSynthesis [startingResult] xFeatures in
     let xysRelated = doSynthesis xsRelated yFeatures in
     xysRelated
@@ -466,39 +473,39 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresA
     |> rankComparedTo originalExp
 
 
--- If given more than two features, equalizes each overlapping pair.
--- Terminates if given only zero or one feature.
-equalizeOverlappingPairs : Syntax -> Solver.SolutionsCache -> List PartialSynthesisResult -> List SelectedFeatureAndEquation -> Sync.Options -> List PartialSynthesisResult
-equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations syncOptions =
-  let equalizeMore results =
-    equalizeOverlappingPairs syntax solutionsCache results (List.drop 1 featuresAndEquations) syncOptions
-  in
-  case featuresAndEquations of
-    (featureA, featureAEqn)::(featureB, featureBEqn)::_ ->
-      priorResults
-      |> List.concatMap
-          (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToMathExp} as priorResult) ->
-            let priorExp = exp in
-            let descriptionPrefix = ShapeWidgets.featureDesc featureA ++ " = " ++ ShapeWidgets.featureDesc featureB ++ " " in
-            let newResults =
-              relate__ syntax solutionsCache (Equalize featureAEqn featureBEqn) priorExp maybeTermShape removedLocIdToMathExp syncOptions
-              |> List.map (InterfaceModel.prependDescription descriptionPrefix)
-            in
-            case newResults of
-              [] ->
-                let _ = Debug.log "ValueBasedTransform.equalizeOverlappingPairs: could not equalize" ((featureA, featureAEqn), (featureB, featureBEqn)) in
-                []
-
-              _ ->
-                newResults
-                |> List.map (InterfaceModel.prependDescription (description ++ " → "))
-                |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
-                -- |> List.map (\result -> let _ = if True then Debug.log ("Before:\n" ++ LangUnparser.unparseWithIds priorExp ++ "\nAfter:\n" ++ LangUnparser.unparseWithIds result.exp) () else () in result)
-                |> equalizeMore
-          )
-
-    _ ->
-      priorResults
+-- -- If given more than two features, equalizes each overlapping pair.
+-- -- Terminates if given only zero or one feature.
+-- equalizeOverlappingPairs : Syntax -> Solver.SolutionsCache -> List PartialSynthesisResult -> List SelectedFeatureAndEquation -> Sync.Options -> List PartialSynthesisResult
+-- equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations syncOptions =
+--   let equalizeMore results =
+--     equalizeOverlappingPairs syntax solutionsCache results (List.drop 1 featuresAndEquations) syncOptions
+--   in
+--   case featuresAndEquations of
+--     (featureA, featureAEqn)::(featureB, featureBEqn)::_ ->
+--       priorResults
+--       |> List.concatMap
+--           (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToMathExp} as priorResult) ->
+--             let priorExp = exp in
+--             let descriptionPrefix = ShapeWidgets.featureDesc featureA ++ " = " ++ ShapeWidgets.featureDesc featureB ++ " " in
+--             let newResults =
+--               relate__ syntax solutionsCache (Equalize featureAEqn featureBEqn) priorExp maybeTermShape removedLocIdToMathExp syncOptions
+--               |> List.map (InterfaceModel.prependDescription descriptionPrefix)
+--             in
+--             case newResults of
+--               [] ->
+--                 let _ = Debug.log "ValueBasedTransform.equalizeOverlappingPairs: could not equalize" ((featureA, featureAEqn), (featureB, featureBEqn)) in
+--                 []
+--
+--               _ ->
+--                 newResults
+--                 |> List.map (InterfaceModel.prependDescription (description ++ " → "))
+--                 |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
+--                 -- |> List.map (\result -> let _ = if True then Debug.log ("Before:\n" ++ LangUnparser.unparseWithIds priorExp ++ "\nAfter:\n" ++ LangUnparser.unparseWithIds result.exp) () else () in result)
+--                 |> equalizeMore
+--           )
+--
+--     _ ->
+--       priorResults
 
 
 -- makeEquidistant originalExp selectedFeatures slideNumber movieNumber movieTime slate syncOptions =
@@ -575,23 +582,19 @@ equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations
 relate__
     :  Syntax
     -> Solver.SolutionsCache
-    -> RelationToSynthesize FeatureEquation
+    -> RelationToSynthesize
+    -> List FeatureEquation
     -> Exp
     -> Maybe MathExp
     -> List (LocId, MathExp)
     -> Sync.Options
     -> List PartialSynthesisResult
-relate__ syntax solutionsCache relationToSynthesize originalExp maybeTermShape removedLocIdToMathExp syncOptions =
+relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp maybeTermShape removedLocIdToMathExp syncOptions =
   let removedLocIds = List.map Tuple.first removedLocIdToMathExp |> Set.fromList in
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
      (frozenLocIdsAndNumbers prelude))
     |> Dict.fromList
-  in
-  let featureEqns =
-    case relationToSynthesize of
-      Equalize featureAEqn featureBEqn -> [featureAEqn, featureBEqn]
-      Relate   featureEqns             -> featureEqns
   in
   let unfrozenLocset =
     featureEqns
@@ -606,24 +609,33 @@ relate__ syntax solutionsCache relationToSynthesize originalExp maybeTermShape r
   in
   let eqnsUniqueLocIds = Utils.manySetDiffs featureEqnLocIds in -- For each set, subtract all the other sets.
   let subst = substOf originalExp in
+  let featureMathExps =
+    featureEqns
+    |> List.map (featureEquationToMathExp removedLocIdToMathExp)
+  in
+  let locCombosToSolveFor =
+    case relationToSynthesize of
+      Equalize -> unfrozenLocset |> Set.toList |> Utils.combinationsAsSet (List.length featureEqns - 1)
+      Relate   -> unfrozenLocset |> Set.toList |> List.map List.singleton
+  in
   -- let _ = Utils.log (LangUnparser.unparseWithIds originalExp) in
-  let solutionsForLoc dependentLoc =
-    let (dependentLocId, dependentFrozen, dependentIdent) = dependentLoc in
-    let dependentIdentDesc = locDescription originalExp dependentLoc in
-    case relationToSynthesize |> Debug.log "relationToSynthesize" of
-      Equalize featureAEqn featureBEqn ->
-        let featureAMathExp = featureEquationToMathExp removedLocIdToMathExp featureAEqn in
-        let featureBMathExp = featureEquationToMathExp removedLocIdToMathExp featureBEqn in
+  let solutionsForLocs dependentLocs =
+    case (relationToSynthesize, dependentLocs) of
+      (Equalize, _) ->
         -- Make equal ignores termShape.
-        Solver.solveOne solutionsCache (featureAMathExp, featureBMathExp) dependentLocId
-        |> Debug.log ("solutions for dependentLocId " ++ toString dependentLocId)
-        |> List.map (\resultMathExp -> (resultMathExp, "by removing " ++ dependentIdentDesc))
-
-      Relate _ ->
-        let featureMathExps =
+        let (dependentLocIds, _, _) = Utils.unzip3 dependentLocs in
+        let equations =
           featureEqns
           |> List.map (featureEquationToMathExp removedLocIdToMathExp)
+          |> Utils.overlappingAdjacentPairs
         in
+        let dependentIdentDescs = dependentLocs |> List.map (locDescription originalExp) in
+        Solver.solve solutionsCache equations dependentLocIds
+        -- |> Debug.log ("solutions for dependentLocIds " ++ toString dependentLocIds)
+        |> List.map (\solution -> (solution, "by removing " ++ Utils.toSentence dependentIdentDescs))
+
+      (Relate, [(dependentLocId, _, _) as dependentLoc]) ->
+        let dependentIdentDesc = locDescription originalExp dependentLoc in
         -- Solution should be in terms of locs unique to the other equations.
         -- In some cases such cases you could relax this constraint and still get
         -- meaningful relations but that requires smarts that we don't have yet.
@@ -716,7 +728,7 @@ relate__ syntax solutionsCache relationToSynthesize originalExp maybeTermShape r
             Just termShape ->
               let matchesTermShape termShape mathExp =
                 case (termShape, mathExp) of
-                  (MathNum n1,          MathNum n2)              -> n1 == n2
+                  (MathNum n1,            MathNum n2)            -> n1 == n2
                   (MathVar featureI,      MathVar locId)         -> featureI == 0 || (featureEqnLocIds |> Utils.findi (Set.member locId) |> Maybe.withDefault 0) == featureI
                   (MathOp op1_ children1, MathOp op2_ children2) -> op1_ == op2_ && (Utils.maybeZip children1 children2 |> Maybe.map (List.all (uncurry matchesTermShape)) |> Maybe.withDefault False)
                   _                                              -> False
@@ -731,52 +743,52 @@ relate__ syntax solutionsCache relationToSynthesize originalExp maybeTermShape r
               |> Utils.dedup
         in
         resultMathExps
-        |> List.map (\resultMathExp -> (resultMathExp, dependentIdentDesc ++ " = "))
+        |> List.map (\resultMathExp -> ([(resultMathExp, dependentLocId)], dependentIdentDesc ++ " = "))
+
+      _ ->
+        Debug.crash "relate__: Relation type \"Relate\" should only look for an expression for a single loc at a time!"
   in
-  unfrozenLocset
-  |> Set.toList
-  |> List.concatMap
-      (\dependentLoc ->
-        let (dependentLocId, dependentFrozen, dependentIdent) = dependentLoc in
-        solutionsForLoc dependentLoc
-        |> List.map (\(resultMathExp, description) ->
-            -- We don't need to dig out higher than the frozen locs.
-            let independentLocIdSet = Set.intersect (mathExpLocIdSet resultMathExp) unfrozenLocIdSet in
-            let independentLocset = unfrozenLocset |> Set.filter (\(locId, _, _) -> Set.member locId independentLocIdSet) in
-            let dependentEId = locIdToEId originalExp dependentLocId |> Utils.fromJust_ "relate__: dependendLocId locIdToEId" in
-            let (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo originalExp independentLocset (Set.singleton dependentEId) in
-            let dependentLocExp =
-              let constantAnnotation =
-                case relationToSynthesize of
-                  Equalize _ _ -> frozen
-                  Relate _     -> unann
+  locCombosToSolveFor
+  |> List.concatMap solutionsForLocs
+  |> List.map
+      (\(resultMathExpsAndLocIds, description) ->
+        let (newProgram, dependentLocExps) =
+          resultMathExpsAndLocIds
+          |> List.foldl
+              (\(resultMathExp, dependentLocId) (programSoFar, dependentLocExpsSoFar) ->
+                let independentLocIdSet = Set.intersect (mathExpLocIdSet resultMathExp) unfrozenLocIdSet in
+                let dependentEId = locIdToEId originalExp dependentLocId |> Utils.fromJust_ "relate__: dependendLocId locIdToEId" in
+                let (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo programSoFar independentLocIdSet (Set.singleton dependentEId) in
+                let dependentLocExp =
+                  mathExpToExp (if relationToSynthesize == Equalize then frozen else unann) frozenLocIdToNum locIdToNewName resultMathExp
+                in
+                ( programWithLocsLifted |> replaceExpNode dependentEId dependentLocExp
+                , dependentLocExpsSoFar ++ [dependentLocExp]
+                )
+              )
+              (originalExp, [])
+        in
+        let maybeTermShape =
+          case (relationToSynthesize, resultMathExpsAndLocIds) of
+            (Relate, [(resultMathExp, _)]) -> -- Relate should always have only 1 dependent loc.
+              -- TermShape uses feature index instead of LocId. (As a go-between between the x and y coordinate of a point.)
+              let termShape mathExp =
+                case mathExp of
+                  MathNum _           -> mathExp
+                  MathVar locId       -> MathVar (featureEqnLocIds |> Utils.findi (Set.member locId) |> Maybe.withDefault 0)
+                  MathOp op_ children -> MathOp op_ (children |> List.map termShape)
               in
-              mathExpToExp constantAnnotation frozenLocIdToNum locIdToNewName resultMathExp
-            in
-            let newProgram =
-              programWithLocsLifted
-              |> replaceExpNode dependentEId dependentLocExp
-              |> freshen
-            in
-            -- TermShape uses feature index instead of LocId. (As a go-between between the x and y coordinate of a point.)
-            let termShape mathExp =
-              case mathExp of
-                MathNum _           -> mathExp
-                MathVar locId       -> MathVar (featureEqnLocIds |> Utils.findi (Set.member locId) |> Maybe.withDefault 0)
-                MathOp op_ children -> MathOp op_ (children |> List.map termShape)
-            in
-            let basicResult =
-              { description = description
-              , exp = newProgram
-              , maybeTermShape = Just (termShape resultMathExp)
-              , dependentLocIds = [dependentLocId]
-              , removedLocIdToMathExp = removedLocIdToMathExp ++ [ (dependentLocId, resultMathExp) ]
-              }
-            in
-            case relationToSynthesize of
-              Equalize _ _ -> basicResult
-              Relate _     -> { basicResult | description = description ++ Syntax.unparser syntax dependentLocExp }
-          )
+              Just (termShape resultMathExp)
+            _ ->
+              Nothing
+        in
+        let (_, dependentLocIds) = List.unzip resultMathExpsAndLocIds in
+        { description           = description ++ if relationToSynthesize == Equalize then "" else Syntax.unparser syntax (Utils.head "relate__ description" dependentLocExps)
+        , exp                   = let _ = Utils.log (Syntax.unparser syntax newProgram) in freshen newProgram
+        , maybeTermShape        = maybeTermShape
+        , dependentLocIds       = dependentLocIds
+        , removedLocIdToMathExp = removedLocIdToMathExp ++ List.map Utils.flip resultMathExpsAndLocIds
+        }
       )
 
 
@@ -860,24 +872,24 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
       )
 
 
-liftLocsSoVisibleTo : Exp -> Set.Set Loc -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
-liftLocsSoVisibleTo program mobileLocset viewerEIds =
-  liftLocsSoVisibleTo_ False program mobileLocset viewerEIds
+liftLocsSoVisibleTo : Exp -> Set.Set LocId -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
+liftLocsSoVisibleTo program mobileLocIdSet viewerEIds =
+  liftLocsSoVisibleTo_ False program mobileLocIdSet viewerEIds
 
-copyLocsSoVisibleTo : Exp -> Set.Set Loc -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
-copyLocsSoVisibleTo program mobileLocset viewerEIds =
-  liftLocsSoVisibleTo_ True program mobileLocset viewerEIds
+copyLocsSoVisibleTo : Exp -> Set.Set LocId -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
+copyLocsSoVisibleTo program mobileLocIdSet viewerEIds =
+  liftLocsSoVisibleTo_ True program mobileLocIdSet viewerEIds
 
-liftLocsSoVisibleTo_ : Bool -> Exp -> Set.Set Loc -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
-liftLocsSoVisibleTo_ copyOriginal program mobileLocset viewerEIds =
+liftLocsSoVisibleTo_ : Bool -> Exp -> Set.Set LocId -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
+liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
   let makeEIdVisibleToEIds =
     if copyOriginal
     then CodeMotion.makeEIdVisibleToEIdsByInsertingNewBinding
     else CodeMotion.makeEIdVisibleToEIds
   in
-  mobileLocset
+  mobileLocIdSet
   |> Set.foldl
-      (\(mobileLocId, _, _) (program, locIdToNewName, locIdToVarEId) ->
+      (\mobileLocId (program, locIdToNewName, locIdToVarEId) ->
         case locIdToEId program mobileLocId of
           Just mobileEId ->
             case makeEIdVisibleToEIds program mobileEId viewerEIds of

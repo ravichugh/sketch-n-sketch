@@ -985,10 +985,10 @@ computePolyTriggers (options, subst) maybeCounts (id, kind, attrs) =
 
   let indexedPoints = Utils.mapi1 identity (LangSvg.getPolyPoints attrs) in
   let edges =
-    if kind == "polygon" then Utils.selfZipCircConsecPairs indexedPoints
+    if kind == "polygon" then Utils.circOverlappingAdjacentPairs indexedPoints
     else {- if kind == "polyline" -}
       let n = List.length indexedPoints in
-      Utils.selfZipCircConsecPairs (List.take (n-1) indexedPoints)
+      Utils.circOverlappingAdjacentPairs (List.take (n-1) indexedPoints)
   in
 
   (Dict.empty, maybeCounts)

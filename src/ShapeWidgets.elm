@@ -229,11 +229,11 @@ featuresToSelectablePoints features =
       []
 
 
-selectablePointToSelectableFeatures : SelectablePoint -> List SelectableFeature
+selectablePointToSelectableFeatures : SelectablePoint -> (SelectableFeature, SelectableFeature)
 selectablePointToSelectableFeatures (nodeId, pointFeature) =
-  [ ShapeFeature nodeId (XFeat pointFeature)
+  ( ShapeFeature nodeId (XFeat pointFeature)
   , ShapeFeature nodeId (YFeat pointFeature)
-  ]
+  )
 
 
 maybeEvaluateShapePointFeature : ShapeKind -> List Attr -> PointFeature -> Maybe (Num, Num)
@@ -291,27 +291,29 @@ type FeatureEquationOf a
 
 featureToEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureEquation
 featureToEquation selectableFeature tree widgets locIdToNumberAndLoc =
-  featureToEquation_ shapeFeatureEquation widgetFeatureEquation selectableFeature tree widgets locIdToNumberAndLoc
+  featureToEquation_ shapeFeatureEquation widgetFeatureEquation (\n -> (n, dummyTrace)) selectableFeature tree widgets locIdToNumberAndLoc
 
 featureToValEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureValEquation
 featureToValEquation selectableFeature tree widgets locIdToNumberAndLoc =
-  featureToEquation_ shapeFeatureValEquation widgetFeatureValEquation selectableFeature tree widgets locIdToNumberAndLoc
+  let vConst n = { v_ = VConst Nothing (n, dummyTrace), provenance = dummyProvenance, parents = Parents [] } in
+  featureToEquation_ shapeFeatureValEquation widgetFeatureValEquation vConst selectableFeature tree widgets locIdToNumberAndLoc
 
 selectedShapeToValEquation : NodeId -> IndexedTree -> Maybe FeatureValEquation
 selectedShapeToValEquation nodeId shapeTree =
   Dict.get nodeId shapeTree
   |> Maybe.map (\shape -> EqnNum shape.val)
 
-
+-- The first three args are sort of a type class...but only used here so no need to pull it out into a record.
 featureToEquation_
   :  (ShapeFeature -> ShapeKind -> List Attr -> FeatureEquationOf a)
   -> (ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquationOf a)
+  -> (Num -> a)
   -> SelectableFeature
   -> IndexedTree
   -> Widgets
   -> Dict.Dict LocId (Num, Loc)
   -> Maybe (FeatureEquationOf a)
-featureToEquation_ getFeatureEquation getWidgetFeatureEquation feature tree widgets locIdToNumberAndLoc =
+featureToEquation_ getFeatureEquation getWidgetFeatureEquation makeConst feature tree widgets locIdToNumberAndLoc =
   case feature of
     ShapeFeature nodeId shapeFeature ->
       if not <| nodeId < -2 then
@@ -324,17 +326,31 @@ featureToEquation_ getFeatureEquation getWidgetFeatureEquation feature tree widg
             Nothing
 
           Nothing ->
-            Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation " ++ (toString nodeId) ++ " " ++ (toString tree)
+            Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation " ++ toString nodeId ++ " " ++ toString tree
       else
         -- widget feature
         -- change to index widgets by position in widget list; then pull feature from widget type
         let widgetId = -nodeId - 2 in -- widget nodeId's are encoded at -2 and count down. (And they are 1-indexed, so actually they start at -3)
         case Utils.maybeGeti1 widgetId widgets of
           Just widget -> Just (getWidgetFeatureEquation shapeFeature widget locIdToNumberAndLoc)
-          Nothing     -> Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation can't find widget " ++ (toString widgetId) ++ " in " ++ (toString widgets)
+          Nothing     -> Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation can't find widget " ++ toString widgetId ++ " in " ++ toString widgets
 
-    _ ->
-      Debug.crash "featureToEquation_ TODO"
+    DistanceBetweenFeatures pointPairSet ->
+      let (selectablePoint1, selectablePoint2) = extractSelectablePoints pointPairSet in
+      let (x1Feature, y1Feature) = selectablePointToSelectableFeatures selectablePoint1 in
+      let (x2Feature, y2Feature) = selectablePointToSelectableFeatures selectablePoint2 in
+      let getEqn feature = featureToEquation_ getFeatureEquation getWidgetFeatureEquation makeConst feature tree widgets locIdToNumberAndLoc in
+      case (getEqn x1Feature, getEqn y1Feature, getEqn x2Feature, getEqn y2Feature) of
+        (Just x1Eqn, Just y1Eqn, Just x2Eqn, Just y2Eqn) ->
+          let deltaXEqn = EqnOp Minus [x2Eqn, x1Eqn] in -- x2 - x1
+          let deltaYEqn = EqnOp Minus [y2Eqn, y1Eqn] in -- y2 - y1
+          let deltaXSquaredEqn = EqnOp Pow [deltaXEqn, EqnNum (makeConst 2)] in -- (x2 - x1)^2
+          let deltaYSquaredEqn = EqnOp Pow [deltaYEqn, EqnNum (makeConst 2)] in -- (y2 - y1)^2
+          let distanceEqn = EqnOp Sqrt [EqnOp Plus [deltaXSquaredEqn, deltaYSquaredEqn]] in -- sqrt( (x2-x1)^2 + (y2-y1)^2 )
+          Just distanceEqn
+
+        _ ->
+          Nothing
 
 
 equationNumTrs featureEqn =

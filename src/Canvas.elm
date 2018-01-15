@@ -109,9 +109,9 @@ build wCanvas hCanvas model =
   let outputShapes = buildSvg (model, addZones) slate in
   let newShape = drawNewShape model in
   let widgetsAndDistances =
-    case (model.outputMode, model.showGhosts) of
-      (Live, True) -> buildDistances model slate widgets ++ buildSvgWidgets wCanvas hCanvas widgets model -- Draw distances below other widgets
-      _            -> []
+    case (model.outputMode, model.showGhosts, model.preview) of
+      (Live, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets wCanvas hCanvas widgets model -- Draw distances below other widgets
+      _                     -> []
   in
   let selectBox = drawSelectBox model in
   Svg.svg
@@ -568,7 +568,7 @@ buildDistances model slate widgets =
               if isSelected then
                 model
               else
-                let featuresToDeselect = List.concatMap ShapeWidgets.selectablePointToSelectableFeatures [selectablePoint1, selectablePoint2] in
+                let featuresToDeselect = List.concatMap (ShapeWidgets.selectablePointToSelectableFeatures >> Utils.pairToList) [selectablePoint1, selectablePoint2] in
                 { model | selectedFeatures = model.selectedFeatures |> Set.filter (\selectedFeature -> not <| List.member selectedFeature featuresToDeselect) }
             in
             let line =
@@ -1545,7 +1545,7 @@ makeZonesPoly model shape id l =
   let pts = LangSvg.getPolyPoints l in
   let zPts = zonePoints model id shape transform pts in
   let zLines =
-    let pairs = Utils.adjacentPairs (shape == "polygon") pts in
+    let pairs = Utils.overlappingAdjacentPairs_ (shape == "polygon") pts in
     let f (i,(pti,ptj)) = zoneLine model id shape (ZPolyEdge i) pti ptj transform in
     Utils.mapi1 f pairs in
   let zInterior =
@@ -1583,7 +1583,7 @@ makeZonesPoly model shape id l =
     in
     let midptCrossDots =
       let ptsI = Utils.mapi1 identity pts in
-      let ptsIPairs = Utils.selfZipCircConsecPairs ptsI in
+      let ptsIPairs = Utils.circOverlappingAdjacentPairs ptsI in
       List.concatMap midptCrossDot ptsIPairs
     in
     let crossDots = List.concat <| Utils.mapi1 ptCrossDot pts in

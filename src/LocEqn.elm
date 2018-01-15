@@ -1248,22 +1248,11 @@ mathExpLocIds mathExp =
 
 
 mathExpEval locIdToNum mathExp =
-  mathExpEval_ (constantifyLocs locIdToNum mathExp)
+  mathExp
+  |> Solver.applySubst locIdToNum
+  |> Solver.evalToMaybeNum
+  |> Utils.fromJust__ (\_ -> "LocEqn.mathExpEval incomplete subst " ++ toString (locIdToNum, mathExp))
 
-
-mathExpEval_ mathExp =
-  case mathExp of
-    MathNum n         -> n
-    MathVar locId     -> Debug.crash "shouldn't have locs in constantified mathExp"
-    MathOp op [leftChild, rightChild] ->
-      let (leftEvaled, rightEvaled) = (mathExpEval_ leftChild, mathExpEval_ rightChild) in
-      case op of
-        Plus  -> leftEvaled + rightEvaled
-        Minus -> leftEvaled - rightEvaled
-        Mult  -> leftEvaled * rightEvaled
-        Div   -> leftEvaled / rightEvaled
-        _     -> Debug.crash <| "Unknown loc equation op: " ++ (toString op)
-    _  -> Debug.crash <| "Loc equation only supports binary operations, but got: " ++ (toString mathExp)
 
 traceToMathExp : Trace -> MathExp
 traceToMathExp trace =
