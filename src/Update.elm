@@ -1,4 +1,5 @@
 module Update exposing  (..)
+
 import Tuple exposing (first)
 import Lang exposing (..)
 import Eval exposing (doEval)
@@ -90,7 +91,7 @@ triCombine: Env -> Env -> Env -> Env
 triCombine originalEnv newEnv1 newEnv2 =
   let aux acc originalEnv newEnv1 newEnv2 =
     case (originalEnv, newEnv1, newEnv2) of
-      ([], [], []) -> []
+      ([], [], []) -> acc
       ((x, v1)::oe, (y, v2)::ne1, (z, v3)::ne2) ->
         if x /= y || y /= z || x /= z then
           Debug.crash <| "Expected environments to have the same variables, got\n" ++
