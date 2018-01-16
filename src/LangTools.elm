@@ -17,7 +17,7 @@ import Utils
 import LangUnparser exposing (unparseWithIds)
 import Types
 
-import Dict
+import Dict exposing (Dict)
 import Regex
 import Set
 
@@ -246,7 +246,7 @@ extraExpsDiff baseExp otherExp =
     _                                                                            -> [otherExp]
 
 
-replaceConstsWithVars : Dict.Dict LocId Ident -> Exp -> Exp
+replaceConstsWithVars : Dict LocId Ident -> Exp -> Exp
 replaceConstsWithVars locIdToNewName exp =
   let replacer exp__ =
     case exp__ of
@@ -1238,6 +1238,13 @@ expToMaybeLetBody exp =
     _                     -> Nothing
 
 
+expToLetScopeAreas : Exp -> List Exp
+expToLetScopeAreas exp =
+  case exp.val.e__ of
+    ELet _ _ isRec _ boundExp body _ -> if isRec then [boundExp, body] else [body]
+    _                                -> Debug.crash <| "LangTools.expToLetScopeAreas exp is not an ELet: " ++ unparseWithIds exp
+
+
 expToFuncPats : Exp -> List Pat
 expToFuncPats exp =
   case exp.val.e__ of
@@ -1377,7 +1384,7 @@ identifiersListInPats pats =
     pats
 
 
-identifierCounts : Exp -> Dict.Dict Ident Int
+identifierCounts : Exp -> Dict Ident Int
 identifierCounts exp =
   List.foldl
     (\ident counts ->
@@ -1411,7 +1418,7 @@ nonCollidingNames suggestedNames i existingNames =
     suggestedNames
     |> List.map (Utils.stringReplace "{n}" "")
   in
-  if not <| Utils.anyOverlap [existingNames, Set.fromList plainSuggestedNames] then
+  if not <| Utils.anyOverlapListSet plainSuggestedNames existingNames then
     plainSuggestedNames
   else
     let newNames =
@@ -1421,10 +1428,10 @@ nonCollidingNames suggestedNames i existingNames =
             if String.contains "{n}" name then
               Utils.stringReplace "{n}" (toString i) name
             else
-              name ++ (toString i)
+              name ++ toString i
           )
     in
-    if not <| Utils.anyOverlap [existingNames, Set.fromList newNames]
+    if not <| Utils.anyOverlapListSet newNames existingNames
     then newNames
     else nonCollidingNames suggestedNames (i+1) existingNames
 
@@ -1477,7 +1484,7 @@ renameIdentifier old new exp =
   renameIdentifiers (Dict.singleton old new) exp
 
 
-renameIdentifiers : Dict.Dict Ident Ident -> Exp -> Exp
+renameIdentifiers : Dict Ident Ident -> Exp -> Exp
 renameIdentifiers subst exp =
   let exp__Renamer e__ =
     case e__ of
@@ -1618,11 +1625,9 @@ findScopeAreasByIdent ident exp =
   |> List.concatMap
       (\e ->
         case e.val.e__ of
-          ELet _ _ isRec pat boundExp body _ ->
+          ELet _ _ _ pat _ _ _ ->
             if List.member ident (identifiersListInPat pat) then
-              if isRec
-              then [boundExp, body]
-              else [body]
+              expToLetScopeAreas e
             else
               []
 
@@ -1645,6 +1650,39 @@ findScopeAreasByIdent ident exp =
           _ ->
             []
       )
+
+
+-- -- Only useful if program run through assignUniqueNames
+-- allIdentsToScopeAreas : Exp -> Dict Ident (List Exp)
+-- allIdentsToScopeAreas program =
+--   program
+--   |> flattenExpTree
+--   |> List.concatMap -- Make list of (ident, scopeExp) pairs
+--       (\e ->
+--         case e.val.e__ of
+--           ELet _ _ _ pat _ _ _ ->
+--             identifiersListInPat pat
+--             |> Utils.dedup -- With ppl moving stuff around everywhere, you could have duplicate names in a pat.
+--             |> flip Utils.cartProd (expToLetScopeAreas e)
+--
+--           EFun _ pats body _ ->
+--             identifiersListInPats pats
+--             |> Utils.dedup
+--             |> List.map (\ident -> (ident, body))
+--
+--           ECase _ _ branches _ ->
+--             branchPatExps branches
+--             |> List.concatMap
+--                 (\(bPat, bExp) ->
+--                   identifiersListInPat bPat
+--                   |> Utils.dedup
+--                   |> List.map (\ident -> (ident, bExp))
+--                 )
+--
+--           _ ->
+--             []
+--       )
+--   |> Utils.pairsToDictOfLists
 
 
 -- Nothing means not found or can't match pattern.
@@ -2161,7 +2199,7 @@ renameVarUntilBound oldName newName exp =
 
 -- Renames free variables only, which is great!
 -- Preserves EIds (for Brainstorm)
-renameVarsUntilBound : Dict.Dict Ident Ident -> Exp -> Exp
+renameVarsUntilBound : Dict Ident Ident -> Exp -> Exp
 renameVarsUntilBound renamings exp =
   let renamer newName e =
     -- let _ = Debug.log ("Renaming " ++ newName ++ " on") e in
@@ -2179,7 +2217,7 @@ renameVarsUntilBound renamings exp =
 -- Transforms only free variables.
 -- Preserves EIds (for Brainstorm)
 -- Might be able to rewrite using freeVars or mapFoldExpTopDownWithScope
-transformVarsUntilBound : Dict.Dict Ident (Exp -> Exp) -> Exp -> Exp
+transformVarsUntilBound : Dict Ident (Exp -> Exp) -> Exp -> Exp
 transformVarsUntilBound subst exp =
   let recurse e = transformVarsUntilBound subst e in
   let recurseWithout introducedIdents e =
@@ -2348,7 +2386,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     -- EDict _                   -> Debug.crash "LangTools.visibleIdentifiersAtEIds_: shouldn't have an EDict in given expression"
 
 
-assignUniqueNames : Exp -> (Exp, Dict.Dict Ident Ident)
+assignUniqueNames : Exp -> (Exp, Dict Ident Ident)
 assignUniqueNames program =
   let initialUsedNames =
     -- Want to rename _everything_ so that there's multiple options for how to rename back to the originals
@@ -2360,7 +2398,7 @@ assignUniqueNames program =
   (newProgram, newNameToOldName)
 
 
-assignUniqueNames_ : Exp -> Set.Set Ident -> Dict.Dict Ident Ident -> (Exp, Set.Set Ident, Dict.Dict Ident Ident)
+assignUniqueNames_ : Exp -> Set.Set Ident -> Dict Ident Ident -> (Exp, Set.Set Ident, Dict Ident Ident)
 assignUniqueNames_ exp usedNames oldNameToNewName =
   let recurse = assignUniqueNames_ in
   let recurseExps es =
@@ -2609,14 +2647,14 @@ bindingScopeIdForIdentAtEId targetName targetEId program =
 
 
 -- "Nothing" means free in program
-allVarEIdsToBindingPId : Exp -> Dict.Dict EId (Maybe PId)
+allVarEIdsToBindingPId : Exp -> Dict EId (Maybe PId)
 allVarEIdsToBindingPId program =
   allVarEIdsToBindingPat program
   |> Dict.map (\_ maybePat -> Maybe.map (.val >> .pid) maybePat)
 
 
 -- "Nothing" means free in program
-allVarEIdsToBindingPat : Exp -> Dict.Dict EId (Maybe Pat)
+allVarEIdsToBindingPat : Exp -> Dict EId (Maybe Pat)
 allVarEIdsToBindingPat program =
   allVarEIdsToBindingPatList program
   |> Dict.fromList
@@ -2665,13 +2703,13 @@ allVarEIdsToBindingPatList program =
 
 -- Presumes program has been run through assignUniqueNames
 -- "Nothing" means no matching name in program
-allVarEIdsToBindingPIdBasedOnUniqueName : Exp -> Dict.Dict EId (Maybe PId)
+allVarEIdsToBindingPIdBasedOnUniqueName : Exp -> Dict EId (Maybe PId)
 allVarEIdsToBindingPIdBasedOnUniqueName program =
   allVarEIdsToBindingPatsBasedOnUniqueName program
   |> Dict.map (\_ maybePat -> Maybe.map (.val >> .pid) maybePat)
 
 
-allVarEIdsToBindingPatsBasedOnUniqueName : Exp -> Dict.Dict EId (Maybe Pat)
+allVarEIdsToBindingPatsBasedOnUniqueName : Exp -> Dict EId (Maybe Pat)
 allVarEIdsToBindingPatsBasedOnUniqueName program =
   let allIdentToPat =
     flattenExpTree program
@@ -2772,13 +2810,13 @@ type ExpressionBinding
 preludeExpEnv = expEnvAt_ prelude (lastExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludeExpEnv"
 
 -- Return bindings to expressions (as best as possible) at EId
-expEnvAt : Exp -> EId -> Maybe (Dict.Dict Ident ExpressionBinding)
+expEnvAt : Exp -> EId -> Maybe (Dict Ident ExpressionBinding)
 expEnvAt exp targetEId =
   expEnvAt_ exp targetEId
   |> Maybe.map
       (\bindings -> Dict.union bindings preludeExpEnv)
 
-expEnvAt_ : Exp -> EId -> Maybe (Dict.Dict Ident ExpressionBinding)
+expEnvAt_ : Exp -> EId -> Maybe (Dict Ident ExpressionBinding)
 expEnvAt_ exp targetEId =
   let recurse e = expEnvAt_ e targetEId in
   let recurseAllChildren () =

@@ -1018,6 +1018,11 @@ tryResolvingProblemsAfterTransform_
     maybeNewScopeEId
     |> Maybe.map (\newScopeEId -> justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat)
   in
+  let uniqueNameToIntendedUses =
+    flattenExpTree originalProgramUniqueNames
+    |> List.filterMap (\exp -> expToMaybeIdent exp |> Maybe.map (\ident -> (ident, exp.val.eid)))
+    |> Utils.pairsToDictOfLists
+  in
   let resultForOriginalNamesPriority uniqueNameToOldNameDescribedPrioritized movedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved insertedVarEIdToBindingPId programWithUniqueNames =
     let (newProgramPartiallyOriginalNames, _, renamingsPreserved) =
       -- Try revert back to original names one by one, as safe.
@@ -1025,7 +1030,8 @@ tryResolvingProblemsAfterTransform_
       uniqueNameToOldNameDescribedPrioritized
       |> List.foldl
           (\(nameDesc, uniqueName, oldName) (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved) ->
-            let intendedUses = varsWithName uniqueName originalProgramUniqueNames |> List.map (.val >> .eid) in
+            let intendedUses = Utils.getWithDefault uniqueName [] uniqueNameToIntendedUses in
+            -- let intendedUses = varsWithName uniqueName originalProgramUniqueNames |> List.map (.val >> .eid) in
             let usesInNewProgram = identifierUsesAfterDefiningPat uniqueName newProgramPartiallyOriginalNames |> List.map (.val >> .eid) in
             let identifiersInNewPat = maybeNewPatPartiallyOriginalNames |> Maybe.map identifiersListInPat |> Maybe.withDefault [] in
             -- If this name is part of the new pattern and renaming it would created a duplicate name, don't rename.

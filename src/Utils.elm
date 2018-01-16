@@ -251,15 +251,20 @@ combinationsAsSet n list =
 
 
 groupBy : (a -> b) -> List a -> Dict.Dict b (List a)
-groupBy f xs =
-  List.foldl
-      (\x dict ->
-        let key = f x in
+groupBy f list =
+  list
+  |> List.map (\x -> (f x, x))
+  |> pairsToDictOfLists
+
+pairsToDictOfLists : List (a, b) -> Dict.Dict a (List b)
+pairsToDictOfLists pairs =
+  pairs
+  |> List.foldr
+      (\(key, val) dict ->
         let equivalents = getWithDefault key [] dict in
-        Dict.insert key (equivalents ++ [x]) dict
+        Dict.insert key (val::equivalents) dict
       )
       Dict.empty
-      xs
 
 -- Is there a one-to-one mapping from the elements in l1 to the elements in l2?
 --
@@ -400,6 +405,13 @@ unionAll sets =
 anyOverlap : List (Set a) -> Bool
 anyOverlap sets =
   Set.size (unionAll sets) < List.sum (List.map Set.size sets)
+
+-- More performant version, if you have a list and a set (fixes a major performance bug in assignUniqueNames)
+anyOverlapListSet : List a -> Set a -> Bool
+anyOverlapListSet items set =
+  case items of
+    []    -> False
+    x::xs -> Set.member x set || anyOverlapListSet xs set
 
 -- TODO combine findFirst and removeFirst
 

@@ -862,7 +862,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
                       funcLet
                 caption = "Build abstraction of " ++ Utils.squish (unparse call)
                 funcBodyFreeIdents = funcBodyFreeVars |> List.map expToIdent |> Set.fromList
-                unusedArgs = argPats |> List.filter (\pat -> not <| Utils.anyOverlap [identifiersSetInPat pat, funcBodyFreeIdents])
+                unusedArgs = argPats |> List.filter (\pat -> not <| Utils.anyOverlapListSet (identifiersListInPat pat) funcBodyFreeIdents)
               in
               if List.length unusedArgs == List.length argPats then
                 Nothing
