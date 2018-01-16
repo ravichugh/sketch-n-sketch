@@ -2,14 +2,15 @@ module Update exposing  (..)
 
 import Tuple exposing (first)
 import Lang exposing (..)
+import LangUnparser exposing (unparse)
 import Eval exposing (doEval)
 import Utils
 
 -- Make sure that Env |- Exp evaluates to oldVal
-update : Env -> Exp__ -> Val -> Val -> Result String (Env, Exp__)
+update : Env -> Exp -> Val -> Val -> Result String (Env, Exp)
 update env e oldVal newVal =
-  case e of
-    EConst ws num loc widget -> Ok <| (env, val_to_exp ws newVal)
+  case e.val.e__ of
+    EConst ws num loc widget -> Ok <| (env, withDummyExpInfo <| EConst ws (getNum newVal) loc widget)
     EBase ws m -> Ok <| (env, val_to_exp ws newVal)
     EVar ws is ->
       (case env of
@@ -21,14 +22,14 @@ update env e oldVal newVal =
     EFun ws0 [p] e ws1 ->
       -- oldVal ==  VClosure Nothing p e env
       (case newVal.v_ of
-        VClosure Nothing newP newE newEnv -> Ok (newEnv, EFun ws0 [newP] newE ws1)
+        VClosure Nothing newP newE newEnv -> Ok (newEnv, withDummyExpInfo <| EFun ws0 [newP] newE ws1)
         _ -> Err <| "Expected non-recursive closure, got " ++ toString newVal
       )
     EFun ws0 ps e ws1 ->
-      update env (desugarEFun ps e).val.e__ oldVal newVal
+      update env (desugarEFun ps e) oldVal newVal
       |> Result.map (\(newEnv, newExp) ->
-        case newExp of
-          EFun _ [p] newBody _ -> (newEnv, EFun ws0 ps newBody ws1)
+        case newExp.val.e__ of
+          EFun _ [p] newBody _ -> (newEnv, withDummyExpInfo <| EFun ws0 ps newBody ws1)
           _ -> Debug.crash <| "Failed to recover a Fun, got " ++ toString newExp
         )
 
@@ -41,28 +42,28 @@ update env e oldVal newVal =
           Ok ((v2, _),_) ->
             case v1.v_ of
               VClosure Nothing p eBody env_ ->
-                case consWithInversion (p, v2) (Just (env_, \newEnv_ -> \newP -> \newBody -> val <| VClosure Nothing p eBody newEnv_)) of
+                case consWithInversion (p, v2) (Just (env_, \newEnv_ -> \newP -> \newBody -> val <| VClosure Nothing newP newBody newEnv_)) of
                   Just (env__, consBuilder) ->
                      -- consBuilder: Env -> ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure)
-                      update env__ eBody.val.e__ oldVal newVal
+                      update env__ eBody oldVal newVal
                       |> Result.map (\(newEnv, newBody) ->
                            (consBuilder newEnv, newBody)
                          )
                       |> Result.map (\(((newPat, newArg), patBodyToClosure), newBody) ->
                         let newClosure = patBodyToClosure newPat newBody in
-                        let e1_updated = update env e1.val.e__ v1 newClosure in
-                        let e2_updated = update env e2.val.e__ v2 newArg in
+                        let e1_updated = update env e1 v1 newClosure in
+                        let e2_updated = update env e2 v2 newArg in
                         Result.map2 (\(envE1, newE1) (envE2, newE2) ->
-                          (triCombine env envE1 envE2, EApp ws0 newE1 [newE2] ws1)
-                        ) (e1_updated |> Result.map (Tuple.mapSecond (replaceE__ e1))) (e2_updated |> Result.map (Tuple.mapSecond (replaceE__ e1)))
+                          (triCombine env envE1 envE2, withDummyExpInfo <| EApp ws0 newE1 [newE2] ws1)
+                        ) e1_updated e2_updated
                       )
                       |> Utils.unwrapNestedResult
                   _          -> Err <| strPos e1.start ++ "bad environment"
               VClosure (Just f) p eBody env_ ->
-                case consWithInversion (pVar f, v1) (consWithInversion (p, v2) (Just (env_, \newEnv_ -> \newP -> \newBody -> val <| VClosure (Just f) p eBody newEnv_))) of
+                case consWithInversion (pVar f, v1) (consWithInversion (p, v2) (Just (env_, \newEnv_ -> \newP -> \newBody -> val <| VClosure (Just f) newP newBody newEnv_))) of
                   Just (env__, consBuilder) ->
                      -- consBuilder: Env -> ((Pat, Val), ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure))
-                      update env__ eBody.val.e__ oldVal newVal
+                      update env__ eBody oldVal newVal
                       |> Result.map (\(newEnv, newBody) ->
                            (consBuilder newEnv, newBody)
                          )
@@ -72,11 +73,11 @@ update env e oldVal newVal =
                           else -- Regular replacement
                             patBodyToClosure newPat newBody in
 
-                        let e1_updated = update env e1.val.e__ v1 newClosure in
-                        let e2_updated = update env e2.val.e__ v2 newArg in
+                        let e1_updated = update env e1 v1 newClosure in
+                        let e2_updated = update env e2 v2 newArg in
                         Result.map2 (\(envE1, newE1) (envE2, newE2) ->
-                          (triCombine env envE1 envE2, EApp ws0 newE1 [newE2] ws1)
-                        ) (e1_updated |> Result.map (Tuple.mapSecond (replaceE__ e1))) (e2_updated |> Result.map (Tuple.mapSecond (replaceE__ e1)))
+                          (triCombine env envE1 envE2, withDummyExpInfo <| EApp ws0 newE1 [newE2] ws1)
+                        ) e1_updated e2_updated
                       )
                       |> Utils.unwrapNestedResult
                   _          -> Err <| strPos e1.start ++ "bad environment"
@@ -191,17 +192,24 @@ matchListWithInversion pvs =
       (newPats, newVals)
     ))
 
-val_to_exp: WS -> Val -> Exp__
+val_to_exp: WS -> Val -> Exp
 val_to_exp ws v =
-  case v.v_ of
+  withDummyExpInfo <| case v.v_ of
     VConst mb num     -> EConst ws (first num) (0, unann, "") (withDummyInfo NoWidgetDecl)
     VBase (VBool b)   -> EBase  ws <| EBool b
     VBase (VString s) -> EBase  ws <| EString defaultQuoteChar s
     VBase (VNull)     -> EBase  ws <| ENull
-    --VClosure Nothing pattern body env -> EFun ws (List pattern) body -- Not sure about this one.
-    VList vals -> EList ws (List.map (val_to_exp (withDummyInfo "") >> withDummyExpInfo) vals) (withDummyInfo "") Nothing <| withDummyInfo ""
+    VList vals -> EList ws (List.map (val_to_exp (withDummyInfo "")) vals) (withDummyInfo "") Nothing <| withDummyInfo ""
+    VClosure Nothing pattern body env -> EFun ws [pattern] body (ws) -- Not sure about this one.
     _ -> Debug.crash <| "Trying to get an exp of the value " ++ toString v
     --VDict vs ->
+
+getNum: Val -> Num
+getNum v =
+  case v.v_ of
+    VConst _ (num, _) -> num
+    _ -> Debug.crash <| "Espected VConst, got " ++ toString v
+
 
 eBaseToVBase eBaseVal =
   case eBaseVal of
