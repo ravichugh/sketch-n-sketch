@@ -4,14 +4,14 @@ import String
 
 import ExamplesGenerated as Examples
 
-import LangParser2 exposing (parseE)
+import FastParser exposing (parseE)
 import Eval
 import LangUnparser
 
 testEvalsWithoutErrors name code =
   case parseE code of
-    Err (s, _) ->
-      "can't parse " ++ name ++ ": " ++ s ++ "\n" ++ code
+    Err s ->
+      "can't parse " ++ name ++ ": " ++ toString s ++ "\n" ++ code
     Ok exp ->
       -- Elm will crash first if Eval fails.
       case Eval.run exp of
@@ -20,13 +20,13 @@ testEvalsWithoutErrors name code =
 
 testReparsedUnparsedEvalsWithoutErrors name code =
   case parseE code of
-    Err (s, _) ->
-      "can't parse " ++ name ++ ": " ++ s ++ "\n" ++ code
+    Err s ->
+      "can't parse " ++ name ++ ": " ++ toString s ++ "\n" ++ code
     Ok parsed ->
       let unparsed = LangUnparser.unparse parsed in
       case parseE unparsed of
-        Err (s, _) ->
-          "can't re-parse unparsed " ++ name ++ ": " ++ s ++ "\n" ++ unparsed
+        Err s ->
+          "can't re-parse unparsed " ++ name ++ ": " ++ toString s ++ "\n" ++ unparsed
         Ok reparsedExp ->
           -- Elm will crash first if Eval fails.
           case Eval.run reparsedExp of

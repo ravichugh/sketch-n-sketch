@@ -3,16 +3,16 @@ module Helpers.TestTemplates exposing (..)
 import Helpers.Matchers exposing (..)
 import Helpers.Utils exposing (..)
 
-import LangParser2
+import FastParser
 import LangUnparser
 import Lang
 
 
 testCodeTransform : (Lang.Exp -> Lang.Exp) -> String -> String -> String
 testCodeTransform transformer inputCode expectedOutputCode =
-  case LangParser2.parseE inputCode of
-    Err (s, _) ->
-      "can't parse: " ++ s ++ "\n" ++ inputCode
+  case FastParser.parseE inputCode of
+    Err s ->
+      "can't parse: " ++ toString s ++ "\n" ++ inputCode
 
     Ok inputExp ->
       let transformedExp  = transformer inputExp in
