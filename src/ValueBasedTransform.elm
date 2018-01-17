@@ -22,6 +22,7 @@ import LangSvg exposing (NodeId, ShapeKind, Attr)
 import ShapeWidgets exposing (FeatureEquation, SelectableFeature(..))
 import Config
 import Syntax exposing (Syntax)
+import ImpureGoodies exposing (logTimedRun)
 
 import Dict
 import Set
@@ -748,6 +749,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
       _ ->
         Debug.crash "relate__: Relation type \"Relate\" should only look for an expression for a single loc at a time!"
   in
+  logTimedRun "relate__ build all results" <| \_ -> -- baseline 3567 3561
   locCombosToSolveFor
   |> List.concatMap solutionsForLocs
   |> List.map
@@ -758,7 +760,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
               (\(resultMathExp, dependentLocId) (programSoFar, dependentLocExpsSoFar) ->
                 let independentLocIdSet = Set.intersect (mathExpLocIdSet resultMathExp) unfrozenLocIdSet in
                 let dependentEId = locIdToEId originalExp dependentLocId |> Utils.fromJust_ "relate__: dependendLocId locIdToEId" in
-                let (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo programSoFar independentLocIdSet (Set.singleton dependentEId) in
+                let (programWithLocsLifted, locIdToNewName, _) = logTimedRun "liftLocsSoVisibleTo" (\_ -> liftLocsSoVisibleTo programSoFar independentLocIdSet (Set.singleton dependentEId)) in
                 let dependentLocExp =
                   mathExpToExp (if relationToSynthesize == Equalize then frozen else unann) frozenLocIdToNum locIdToNewName resultMathExp
                 in
@@ -784,7 +786,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
         in
         let (_, dependentLocIds) = List.unzip resultMathExpsAndLocIds in
         { description           = description ++ if relationToSynthesize == Equalize then "" else Syntax.unparser syntax (Utils.head "relate__ description" dependentLocExps)
-        , exp                   = let _ = Utils.log (Syntax.unparser syntax newProgram) in freshen newProgram
+        , exp                   = freshen newProgram -- let _ = Utils.log (Syntax.unparser syntax newProgram) in
         , maybeTermShape        = maybeTermShape
         , dependentLocIds       = dependentLocIds
         , removedLocIdToMathExp = removedLocIdToMathExp ++ List.map Utils.flip resultMathExpsAndLocIds
@@ -892,7 +894,7 @@ liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
       (\mobileLocId (program, locIdToNewName, locIdToVarEId) ->
         case locIdToEId program mobileLocId of
           Just mobileEId ->
-            case makeEIdVisibleToEIds program mobileEId viewerEIds of
+            case logTimedRun "makeEIdVisibleToEIds" <| \_ -> makeEIdVisibleToEIds program mobileEId viewerEIds of
               Just (newName, insertedEId, newProgram) ->
                 -- let _ = Utils.log (newName ++ "\n" ++ LangUnparser.unparseWithIds newProgram) in
                 ( newProgram

@@ -35,6 +35,7 @@ import Solver exposing (MathExp(..)) -- For twiddling
 import Utils
 import Either exposing (..)
 import Syntax exposing (Syntax)
+import ImpureGoodies exposing (logTimedRun)
 
 import Dict
 import Regex
@@ -480,6 +481,7 @@ programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
   originalProgramUniqueNames
   newProgramUniqueNames
   =
+  logTimedRun "programOriginalNamesAndMaybeRenamedLiftedTwiddledResults" <| \_ ->
   let newProgramOriginalNamesResult =
     let newProgramOriginalNames = renameIdentifiers uniqueNameToOldName newProgramUniqueNames in
     [ makeResult
@@ -1014,6 +1016,7 @@ tryResolvingProblemsAfterTransform_
     originalProgramUniqueNames
     newProgramUniqueNames
     tryTwiddling =
+  logTimedRun "tryResolvingProblemsAfterTransform_" <| \_ ->
   let maybeNewPatUniqueNames =
     maybeNewScopeEId
     |> Maybe.map (\newScopeEId -> justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat)
@@ -2633,7 +2636,7 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
 -- Returns Maybe (newName, insertedVarEId, program)
 makeEIdVisibleToEIds : Exp -> EId -> Set.Set EId -> Maybe (Ident, EId, Exp)
 makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
-  let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
+  let (originalProgramUniqueNames, uniqueNameToOldName) = logTimedRun "assignUniqueNames" <| \_ -> assignUniqueNames originalProgram in
   let allViewerEIds = Set.insert mobileEId viewerEIds in
   let renameIfCollision mobileUniqueName uniqueNameToOldName viewerEIds program programUniqueNames =
     let mobileOriginalName = Utils.getWithDefault mobileUniqueName "" uniqueNameToOldName in
@@ -2651,47 +2654,53 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
       let newProgram = renameIdentifiers uniqueNameToOldNameWithoutMobileName programUniqueNames in
       Just (mobileUniqueName, mobileEId, newProgram)
   in
-  case findLetAndIdentBindingExp mobileEId originalProgramUniqueNames of
+  case logTimedRun "findLetAndIdentBindingExp" <| \_ -> findLetAndIdentBindingExp mobileEId originalProgramUniqueNames of
     Just (bindingLet, mobileUniqueName) ->
-      if viewerEIds |> Set.toList |> List.all (\viewerEId -> visibleIdentifiersAtEIds originalProgramUniqueNames (Set.singleton viewerEId) |> Set.member mobileUniqueName) then
+      if logTimedRun "check viewers" <| \_ -> (viewerEIds |> Set.toList |> List.all (\viewerEId -> visibleIdentifiersAtEIds originalProgramUniqueNames (Set.singleton viewerEId) |> Set.member mobileUniqueName)) then
         -- CASE 1: All viewers should already be able to see a variable binding the desired EId (discounting shadowing, which we handle by renaming below).
-        renameIfCollision mobileUniqueName uniqueNameToOldName viewerEIds originalProgram originalProgramUniqueNames
+        logTimedRun "renameIfCollision" <| \_ -> renameIfCollision mobileUniqueName uniqueNameToOldName viewerEIds originalProgram originalProgramUniqueNames
       else
         -- CASE 2: EId already bound, but some viewers are not in its scope. Try to move binding.
         let expToWrap =
+          logTimedRun "deepestCommonAncestorWithNewline" <| \_ ->
           deepestCommonAncestorWithNewline originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
         in
         let maybeProgramAfterMove =
           let bindingLetBoundExp = expToLetBoundExp bindingLet in
-          let freeVarsAtNewLocation = freeVars expToWrap in
+          let freeVarsAtNewLocation = logTimedRun "freeVars" <| \_ -> freeVars expToWrap in
           -- Case 2.1: If target position is at the same level and boundExp free vars are the same at both locations (no recursive lifting needed), move the entire let. This will nicely preserve (def point @ [x y] [30 40])
-          if List.member bindingLet (topLevelExps expToWrap) && List.all (\var -> List.member var freeVarsAtNewLocation) (freeVars bindingLetBoundExp) then
-            moveEquationsBeforeEId Syntax.Elm [bindingLet.val.eid] expToWrap.val.eid originalProgram -- Syntax only used for generating description, which we throw away
-            |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
-            |> Maybe.map (\(SynthesisResult {exp}) -> exp)
+          if logTimedRun "check top level" <| \_ -> List.member bindingLet (topLevelExps expToWrap) && List.all (\var -> List.member var freeVarsAtNewLocation) (freeVars bindingLetBoundExp) then
+            logTimedRun "moveEquationsBeforeEId" <| \_ ->
+              (moveEquationsBeforeEId Syntax.Elm [bindingLet.val.eid] expToWrap.val.eid originalProgram -- Syntax only used for generating description, which we throw away
+              |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
+              |> Maybe.map (\(SynthesisResult {exp}) -> exp))
           else
             -- Case 2.2: Move just the definition needed.
-            let pathedPatId = bindingPathedPatternIdForUniqueName mobileUniqueName bindingLet |> Utils.fromJust_ "makeEIdVisibleToEIds: bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames" in
-            moveDefinitionsBeforeEId Syntax.Elm [pathedPatId] expToWrap.val.eid originalProgram -- Syntax only used for generating description, which we throw away
-            |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
-            |> Maybe.map (\(SynthesisResult {exp}) -> exp)
+            let pathedPatId = logTimedRun "bindingPathedPatternIdForUniqueName" <| \_ -> (bindingPathedPatternIdForUniqueName mobileUniqueName bindingLet |> Utils.fromJust_ "makeEIdVisibleToEIds: bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames") in
+            logTimedRun "moveEquationsBeforeEId" <| \_ ->
+              (moveDefinitionsBeforeEId Syntax.Elm [pathedPatId] expToWrap.val.eid originalProgram -- Syntax only used for generating description, which we throw away
+              |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
+              |> Maybe.map (\(SynthesisResult {exp}) -> exp))
         in
         case maybeProgramAfterMove of
           Nothing ->
             -- Not safe to move definition (e.g. may require plucking out of an as-pattern).
             -- Back-up plan: adding a new binding.
+            logTimedRun "makeEIdVisibleToEIdsByInsertingNewBinding" <| \_ ->
             makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds
 
           Just programAfterMove ->
-            let (maybeProgramAfterMoveUniqueNames, afterMoveUniqueNameToOldName) = assignUniqueNames programAfterMove in
-            case findLetAndIdentBindingExp mobileEId maybeProgramAfterMoveUniqueNames of
+            let (maybeProgramAfterMoveUniqueNames, afterMoveUniqueNameToOldName) = logTimedRun "assignUniqueNames2" <| \_ -> assignUniqueNames programAfterMove in
+            case logTimedRun "findLetAndIdentBindingExp" <| \_ -> findLetAndIdentBindingExp mobileEId maybeProgramAfterMoveUniqueNames of
               Nothing -> Debug.crash "makeEIdVisibleToEIds eids got screwed up somewhere"
               Just (_, mobileUniqueName) ->
+                logTimedRun "renameIfCollision2" <| \_ ->
                 renameIfCollision mobileUniqueName afterMoveUniqueNameToOldName viewerEIds programAfterMove maybeProgramAfterMoveUniqueNames
 
 
     Nothing ->
       -- CASE 3: EId is not bound. Insert a new binding.
+      logTimedRun "makeEIdVisibleToEIdsByInsertingNewBinding2" <| \_ ->
       makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds
 
 

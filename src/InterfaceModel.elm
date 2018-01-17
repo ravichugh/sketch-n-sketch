@@ -216,7 +216,7 @@ type Clickable
 type MouseMode
   = MouseNothing
   | MouseDrag (Mouse.Position -> Mouse.Position -> Model -> Model)
-  | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
+  -- | MouseDragLayoutWidget (MouseTrigger (Model -> Model))
 
   | MouseDragZone
       ZoneKey               -- (nodeId, shapeKind, zoneName)
@@ -238,7 +238,7 @@ type MouseMode
       --   for helper dot,        n == 0 or n == 1
       --   for lambda,            n == 0 or n == 2
 
-  | MouseDownInCodebox Mouse.Position
+  -- | MouseDownInCodebox Mouse.Position
 
 type alias MouseTrigger a = (Int, Int) -> a
 
@@ -362,8 +362,8 @@ setResultSafe isSafe synthesisResult =
 isResultSafe (SynthesisResult {isSafe}) =
   isSafe
 
-resultDescription (SynthesisResult {description}) =
-  description
+-- resultDescription (SynthesisResult {description}) =
+--   description
 
 resultExp (SynthesisResult {exp}) =
   exp
@@ -459,11 +459,11 @@ dbToInt db =
     Just (i, _) -> i
     Nothing     -> Debug.crash <| "Undefined Dialog Box Type: " ++ toString db
 
-intToDb : Int -> DialogBox
-intToDb n =
-  case Utils.maybeFind n dialogBoxes of
-    Just db -> db
-    Nothing -> Debug.crash <| "Undefined Dialog Box Id: " ++ toString n
+-- intToDb : Int -> DialogBox
+-- intToDb n =
+--   case Utils.maybeFind n dialogBoxes of
+--     Just db -> db
+--     Nothing -> Debug.crash <| "Undefined Dialog Box Id: " ++ toString n
 
 openDialogBox : DialogBox -> Model -> Model
 openDialogBox db model =
@@ -562,17 +562,17 @@ type alias Predicate =
   , value : PredicateValue
   }
 
-predicateFullySatisfied : Predicate -> Bool
-predicateFullySatisfied pred =
-  case pred.value of
-    FullySatisfied ->
-      True
-    Satisfied ->
-      False
-    Possible ->
-      False
-    Impossible ->
-      False
+-- predicateFullySatisfied : Predicate -> Bool
+-- predicateFullySatisfied pred =
+--   case pred.value of
+--     FullySatisfied ->
+--       True
+--     Satisfied ->
+--       False
+--     Possible ->
+--       False
+--     Impossible ->
+--       False
 
 predicateSatisfied : Predicate -> Bool
 predicateSatisfied pred =
@@ -586,17 +586,17 @@ predicateSatisfied pred =
     Impossible ->
       False
 
-predicatePossible : Predicate -> Bool
-predicatePossible pred =
-  case pred.value of
-    FullySatisfied ->
-      True
-    Satisfied ->
-      True
-    Possible ->
-      True
-    Impossible ->
-      False
+-- predicatePossible : Predicate -> Bool
+-- predicatePossible pred =
+--   case pred.value of
+--     FullySatisfied ->
+--       True
+--     Satisfied ->
+--       True
+--     Possible ->
+--       True
+--     Impossible ->
+--       False
 
 predicateImpossible : Predicate -> Bool
 predicateImpossible pred =
@@ -1154,5 +1154,5 @@ initModel =
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
-    , syntax = Syntax.Elm
+    , syntax = Syntax.Little
     }

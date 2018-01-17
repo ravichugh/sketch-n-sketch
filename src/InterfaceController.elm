@@ -412,8 +412,8 @@ onMouseDrag lastPosition newPosition old =
 
     MouseNothing -> old
 
-    MouseDragLayoutWidget f ->
-      f (mx0, my0) old
+    -- MouseDragLayoutWidget f ->
+    --   f (mx0, my0) old
 
     MouseDrag f ->
       f lastPosition newPosition old
@@ -550,8 +550,8 @@ onMouseDrag lastPosition newPosition old =
 
         _ -> old
 
-    MouseDownInCodebox pos ->
-      old
+    -- MouseDownInCodebox pos ->
+    --   old
 
 onMouseUp old =
   case (old.outputMode, old.mouseMode) of
