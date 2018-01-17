@@ -24,18 +24,13 @@ assertEqualU x y z =
       _ -> Debug.crash <| "[" ++ z ++ "] Expected \n" ++ toString y ++ ", got\n" ++ toString x
 
 
-vOne = vConst (1, dummyTrace)
-vTwo = vConst (2, dummyTrace)
-vThree = vConst (3, dummyTrace)
-
 dws = ws "  "
+dws2 = ws "  "
 dws1 = ws " "
 dws3 = ws "   "
 dws4 = ws "    "
-dws5 = ws "    "
-dws6 = ws "    "
-
-const ws num = withDummyExpInfo <| EConst ws num dummyLoc noWidgetDecl
+dws5 = ws "     "
+dws6 = ws "      "
 
 
 test name body count =
@@ -47,51 +42,60 @@ summary: Int -> String
 summary count =
   Debug.log ("-------------------\nAll "++toString count++" tests passed\n-------------------") "ok"
 
+
+tVal n = vConst (n, dummyTrace)
+tConst ws num = withDummyExpInfo <| EConst ws num dummyLoc noWidgetDecl
+tBool space truth   = withDummyExpInfo <| EBase space (EBool truth)
+tString space chars = withDummyExpInfo <| EBase space (EString defaultQuoteChar chars)
+tVar space name =withDummyExpInfo <| EVar space name
+tFun sp0 pats body sp1 = (withDummyExpInfo <| EFun sp0 pats body sp1)
+tPVar space name = withDummyPatInfo <| PVar space name noWidgetDecl
+tApp sp0 fun args sp1 = withDummyExpInfo <| EApp sp0 fun args sp1
+
+
 all_tests = 0
   {--}
    |> test "triCombineTest" (\testing-> testing
       |> assertEqual
-          (triCombine [("x", vOne), ("y", vOne), ("z", vOne)]
-                    [("x", vOne), ("y", vTwo), ("z", vTwo)]
-                    [("x", vThree), ("y", vOne), ("z", vThree)])
-          [("x", vThree), ("y", vTwo), ("z", vTwo)]
+          (triCombine [("x", (tVal 1)), ("y", (tVal 1)), ("z", (tVal 1))]
+                      [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))]
+                      [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))]
+                     )[("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 2))]
     )
   |> test "update const" (\testing -> testing
       |> assertEqualU
-          (update [] (const dws 1) vOne vTwo)
-          (Ok ([], const dws 2))
+          (update [] (tConst dws 1) (tVal 1) (tVal 2))
+          (Ok    ([], tConst dws 2))
     )
   |> test "update boolean and strings" (\testing -> testing
       |> assertEqualU
-          (update [] (withDummyExpInfo <| EBase dws (EBool True)) vTrue vFalse)
-          (Ok ([], withDummyExpInfo <| EBase dws (EBool False)))
+          (update [] (tBool dws True) vTrue vFalse)
+          (Ok    ([], tBool dws False))
       |> assertEqualU
-          (update [] (withDummyExpInfo <| EBase dws (EString defaultQuoteChar "Hello")) (vStr "Hello") (vStr "World"))
-          (Ok ([], withDummyExpInfo <| EBase dws (EString defaultQuoteChar "World")))
+          (update [] (tString dws "Hello") (vStr "Hello") (vStr "World"))
+          (Ok    ([], tString dws "World"))
     )
   |> test "update var" (\testing -> testing
       |> assertEqualU
-          (update [("x", vOne)] (withDummyExpInfo <| EVar dws "x") vOne vTwo)
-          (Ok ([("x", vTwo)], withDummyExpInfo <| EVar dws "x"))
+          (update [("x", (tVal 1))] (tVar dws "x") (tVal 1) (tVal 2))
+          (Ok    ([("x", (tVal 2))], tVar dws "x"))
       |> assertEqualU
-          (update [("x", vOne), ("y", vThree)] (withDummyExpInfo <| EVar dws "x") vOne vTwo)
-          (Ok ([("x", vTwo), ("y", vThree)], withDummyExpInfo <| EVar dws "x"))
+          (update [("x", (tVal 1)), ("y", (tVal 3))] (tVar dws "x") (tVal 1) (tVal 2))
+          (Ok    ([("x", (tVal 2)), ("y", (tVal 3))], tVar dws "x"))
       |> assertEqualU
-          (update [("y", vThree), ("x", vOne)] (withDummyExpInfo <| EVar dws "x") vOne vTwo)
-          (Ok ([("y", vThree), ("x", vTwo)], withDummyExpInfo <| EVar dws "x"))
+          (update [("y", (tVal 3)), ("x", (tVal 1))] (tVar dws "x") (tVal 1) (tVal 2))
+          (Ok    ([("y", (tVal 3)), ("x", (tVal 2))], tVar dws "x"))
     )
   |> test "update app (\\x -> x) 1" (\testing -> testing
       |> assertEqualU
-        (update [] (withDummyExpInfo <| EApp dws5
-          (withDummyExpInfo <| EFun dws1 [withDummyPatInfo <| PVar dws4 "x" noWidgetDecl] (eVar "x") dws3) [const dws 1] dws6) vOne vTwo)
-        (Ok ([], withDummyExpInfo <| EApp dws5
-          (withDummyExpInfo <| EFun dws1 [withDummyPatInfo <| PVar dws4 "x" noWidgetDecl] (eVar "x") dws3) [const dws 2] dws6))
+        (update [] (tApp dws5 (tFun dws1 [tPVar dws4 "x"] (tVar dws6 "x") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2))
+        (Ok    ([], tApp dws5 (tFun dws1 [tPVar dws4 "x"] (tVar dws6 "x") dws3) [tConst dws 2] dws6))
     ) --}
   |> test "update app (\\x -> 1) 3" (\testing -> testing
       |> assertEqualU
-        (update [] (withDummyExpInfo <| EApp dws5
-          (withDummyExpInfo <| EFun dws1 [withDummyPatInfo <| PVar dws4 "x" noWidgetDecl] (eConst 1 dummyLoc) dws3) [const dws 3] dws6) vOne vTwo)
-        (Ok ([], withDummyExpInfo <| EApp dws5
-          (withDummyExpInfo <| EFun dws1 [withDummyPatInfo <| PVar dws4 "x" noWidgetDecl] (eConst 2 dummyLoc) dws3) [const dws 3] dws6))
+        (update [] (tApp dws5
+          (tFun dws1 [tPVar dws4 "x"] (tConst dws2 1) dws3) [tConst dws 3] dws6) (tVal 1) (tVal 2))
+        (Ok ([], tApp dws5
+          (tFun dws1 [tPVar dws4 "x"] (tConst dws2 2) dws3) [tConst dws 3] dws6))
     )
   |> summary
