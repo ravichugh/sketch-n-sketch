@@ -6,6 +6,14 @@ import LangUnparser exposing (unparse)
 import Eval exposing (doEval)
 import Utils
 
+collectEFun n exp =
+  if n == 0 then ([], exp) else
+  case exp.val.e__ of
+    EFun _ [p] funBody _ ->
+      let (pats, e) = collectEFun (n-1) funBody in
+      ([p] ++ pats, e)
+    _ -> Debug.crash <| "Could not recover " ++ toString n ++ " patterns from function " ++ unparse exp
+
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Val -> Result String (Env, Exp)
 update env e oldVal newVal =
@@ -28,10 +36,8 @@ update env e oldVal newVal =
     EFun ws0 ps e ws1 ->
       update env (desugarEFun ps e) oldVal newVal
       |> Result.map (\(newEnv, newExp) ->
-        case newExp.val.e__ of
-          EFun _ [p] newBody _ -> (newEnv, withDummyExpInfo <| EFun ws0 ps newBody ws1)
-          _ -> Debug.crash <| "Failed to recover a Fun, got " ++ toString newExp
-        )
+        let (newPats, realBody) = collectEFun (List.length ps) newExp in
+        (newEnv, withDummyExpInfo <| EFun ws0 newPats realBody ws1))
 
     EApp ws0 e1 [e2] ws1 ->
       case doEval env e1 of
@@ -84,9 +90,7 @@ update env e oldVal newVal =
               _ ->
                 Err <| strPos e1.start ++ " not a function"
 
-    _ -> Debug.crash <| "Non-supported update " ++ toString (env, e, oldVal, newVal)
-
-
+    _ -> Debug.crash <| "Non-supported update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
 
 triCombine: Env -> Env -> Env -> Env
 triCombine originalEnv newEnv1 newEnv2 =
@@ -216,3 +220,12 @@ eBaseToVBase eBaseVal =
     EBool b     -> VBool b
     EString _ b -> VString b
     ENull       -> VNull
+
+envToString: Env -> String
+envToString env =
+  case env of
+    [] -> ""
+    (v, value)::tail -> v ++ "->" ++ unparse (val_to_exp (ws "") value) ++ " " ++ (envToString tail)
+
+valToString: Val -> String
+valToString = unparse << val_to_exp (ws "")
