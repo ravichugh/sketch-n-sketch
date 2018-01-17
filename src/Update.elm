@@ -18,7 +18,7 @@ collectEFun n exp =
 update : Env -> Exp -> Val -> Val -> Result String (Env, Exp)
 update env e oldVal newVal =
   case e.val.e__ of
-    EConst ws num loc widget -> Ok <| (env, withDummyExpInfo <| EConst ws (getNum newVal) loc widget)
+    EConst ws num loc widget -> Ok <| (env, replaceE__ e <| EConst ws (getNum newVal) loc widget)
     EBase ws m -> Ok <| (env, val_to_exp ws newVal)
     EVar ws is ->
       (case env of
@@ -36,7 +36,7 @@ update env e oldVal newVal =
               ) elems origVals newOutVals
             |> updateList env
             |> Result.map (\(env, l) ->
-              (env, withDummyExpInfo <| EList ws l ws2 Nothing ws3)
+              (env, replaceE__ e <| EList ws l ws2 Nothing ws3)
             )
           else Err <| "Cannot (yet) update a list " ++ unparse e ++ " with list of different length: " ++ valToString newVal
         _ -> Err <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
@@ -46,14 +46,14 @@ update env e oldVal newVal =
     EFun ws0 [p] e ws1 ->
       -- oldVal ==  VClosure Nothing p e env
       (case newVal.v_ of
-        VClosure Nothing newP newE newEnv -> Ok (newEnv, withDummyExpInfo <| EFun ws0 [newP] newE ws1)
+        VClosure Nothing newP newE newEnv -> Ok (newEnv, replaceE__ e <| EFun ws0 [newP] newE ws1)
         _ -> Err <| "Expected non-recursive closure, got " ++ toString newVal
       )
     EFun ws0 ps e ws1 ->
       update env (desugarEFun ps e) oldVal newVal
       |> Result.map (\(newEnv, newExp) ->
         let (newPats, realBody) = collectEFun (List.length ps) newExp in
-        (newEnv, withDummyExpInfo <| EFun ws0 newPats realBody ws1))
+        (newEnv, replaceE__ e <| EFun ws0 newPats realBody ws1))
 
     EApp ws0 e1 [e2] ws1 ->
       case doEval env e1 of
@@ -76,7 +76,7 @@ update env e oldVal newVal =
                         let e1_updated = update env e1 v1 newClosure in
                         let e2_updated = update env e2 v2 newArg in
                         Result.map2 (\(envE1, newE1) (envE2, newE2) ->
-                          (triCombine env envE1 envE2, withDummyExpInfo <| EApp ws0 newE1 [newE2] ws1)
+                          (triCombine env envE1 envE2, replaceE__ e <| EApp ws0 newE1 [newE2] ws1)
                         ) e1_updated e2_updated
                       )
                       |> Utils.unwrapNestedResult
@@ -98,7 +98,7 @@ update env e oldVal newVal =
                         let e1_updated = update env e1 v1 newClosure in
                         let e2_updated = update env e2 v2 newArg in
                         Result.map2 (\(envE1, newE1) (envE2, newE2) ->
-                          (triCombine env envE1 envE2, withDummyExpInfo <| EApp ws0 newE1 [newE2] ws1)
+                          (triCombine env envE1 envE2, replaceE__ e <| EApp ws0 newE1 [newE2] ws1)
                         ) e1_updated e2_updated
                       )
                       |> Utils.unwrapNestedResult
@@ -106,6 +106,23 @@ update env e oldVal newVal =
               _ ->
                 Err <| strPos e1.start ++ " not a function"
 
+    EIf ws0 cond thn els ws1 ->
+      case doEval env cond of
+        Ok (({ v_ }, _), _) ->
+          case v_ of
+            VBase (VBool b) ->
+              if b then
+                update env thn oldVal newVal
+                |> Result.map (\(env, newThn) ->
+                  (env, replaceE__ e <| EIf ws0 cond newThn els ws1)
+                )
+              else
+                update env els oldVal newVal
+                |> Result.map (\(env, newEls) ->
+                  (env, replaceE__ e <| EIf ws0 cond thn newEls ws1)
+                )
+            _ -> Err <| "Expected boolean condition, got " ++ toString v_
+        Err s -> Err s
     _ -> Err <| "Non-supported update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
 
 updateList: Env -> List (Result String (Env, Exp)) -> Result String (Env, List Exp)
@@ -198,7 +215,7 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
         -- dummy VTrace, since VList itself doesn't matter
   (PList _ _ _ _ _, _) -> Nothing
   (PConst _ n, VConst _ (n_,_)) -> if n == n_ then Just ([], \newEnv -> (p, v)) else Nothing
-  (PBase _ bv, VBase bv_) -> if (eBaseToVBase bv) == bv_ then Just ([], \newEnv -> (p, v)) else Nothing
+  (PBase _ bv, VBase bv_) -> if eBaseToVBase bv == bv_ then Just ([], \newEnv -> (p, v)) else Nothing
   _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
 
 matchListWithInversion : List (Pat, Val) -> Maybe (Env, Env -> (List Pat, List Val))
