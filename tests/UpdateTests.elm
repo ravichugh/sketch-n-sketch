@@ -35,7 +35,7 @@ assertEqual x y state =
       toString y ++ ", got\n" ++ toString x
   }
 
-assertEqualU: Result string (Env, Exp) -> Result string (Env, Exp)  -> State  -> State
+assertEqualU: Result String (Env, Exp) -> Result String (Env, Exp)  -> State  -> State
 assertEqualU x y state =
   if x == y then { state |
     numTests = state.numTests + 1,
@@ -47,8 +47,10 @@ assertEqualU x y state =
     nthAssertion = state.nthAssertion + 1,
     errors = state.errors ++ "\n[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] Expected \n" ++
       case (x, y) of
-        (Ok (envX, expX), Ok (envY, expY)) -> envToString envX ++ " |- " ++ unparse expY ++
-          ", got\n" ++ envToString envY ++ " |- " ++ unparse expX
+        (Ok (envX, expX), Ok (envY, expY)) -> envToString envY ++ " |- " ++ unparse expY ++
+          ", got\n" ++ envToString envX ++ " |- " ++ unparse expX
+        (Err msg, Ok (envY, expY)) -> envToString envY ++ " |- " ++ unparse expY ++
+          ", got\n" ++ msg
         _ -> toString y ++ ", got\n" ++ toString x
   }
 
@@ -59,15 +61,24 @@ dws3 = ws "   "
 dws4 = ws "    "
 dws5 = ws "     "
 dws6 = ws "      "
+
 tVal n = vConst (n, dummyTrace)
 tVClosure maybeIndent pats body env = val <| VClosure maybeIndent pats body env
+tVList vals = val <| VList vals
+
 tConst ws num = withDummyExpInfo <| EConst ws num dummyLoc noWidgetDecl
 tBool space truth   = withDummyExpInfo <| EBase space (EBool truth)
 tString space chars = withDummyExpInfo <| EBase space (EString defaultQuoteChar chars)
 tVar space name =withDummyExpInfo <| EVar space name
 tFun sp0 pats body sp1 = (withDummyExpInfo <| EFun sp0 pats body sp1)
-tPVar space name = withDummyPatInfo <| PVar space name noWidgetDecl
 tApp sp0 fun args sp1 = withDummyExpInfo <| EApp sp0 fun args sp1
+tList sp0 exps sp1 = withDummyExpInfo <| EList sp0 exps (ws "") Nothing sp1
+--tListCons sp0 exps sp1 tail sp2 = EList sp0 exps sp1 (Just tail) sp2
+
+tPVar space name = withDummyPatInfo <| PVar space name noWidgetDecl
+tPAs sp0 name sp1 pat= withDummyPatInfo <| PAs sp0 name sp1 pat
+tPList sp0 listPat sp1= withDummyPatInfo <| PList sp0 listPat (ws "") Nothing sp1
+--tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat sp1 (Just tailPat) sp1
 
 all_tests = init_state
   {--}
@@ -124,6 +135,29 @@ all_tests = init_state
           (tFun dws1 [tPVar dws4 "x"] (tConst dws2 1) dws3) [tConst dws 3] dws6) (tVal 1) (tVal 2))
         (Ok ([], tApp dws5
           (tFun dws1 [tPVar dws4 "x"] (tConst dws2 2) dws3) [tConst dws 3] dws6))
+  |> test "update pattern 'as' (\\x as y -> x [or y]) 1"
+      |> assertEqualU
+              (update [] (tApp dws5
+                (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "x") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2))
+              (Ok ([], tApp dws5
+                (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "x") dws3) [tConst dws 2] dws6))
+      |> assertEqualU
+            (update [] (tApp dws5
+              (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "y") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2))
+            (Ok ([], tApp dws5
+              (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "y") dws3) [tConst dws 2] dws6))
+  |> test "update pattern list (\\[x, y] -> x or y) [1, 2]"
+      |> assertEqualU
+              (update [] (tApp dws5
+                (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 1) (tVal 3))
+              (Ok    ([], tApp dws5
+                (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 3), (tConst dws 2)] dws] dws6))
+      |> assertEqualU
+              (update [] (tApp dws5
+                (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 2) (tVal 3))
+              (Ok    ([], tApp dws5
+                (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 3)] dws] dws6))
+
   {--
   |> test "update app (\\x y -> x) 1 2"
         |> assertEqualU

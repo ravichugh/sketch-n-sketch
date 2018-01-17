@@ -27,6 +27,22 @@ update env e oldVal newVal =
                            then Ok ((is, newVal) :: l_, e)
                            else
                              Result.map (Tuple.mapFirst (\newEnv -> (k0, v0) :: newEnv)) <| update l_ e oldVal newVal)
+    EList ws elems ws2 Nothing ws3 ->
+      case (oldVal.v_, newVal.v_) of
+        (VList origVals, VList newOutVals) ->
+          if List.length origVals == List.length newOutVals then
+            List.map3 (\inputExpr oldOut newOut ->
+              update env inputExpr oldOut newOut
+              ) elems origVals newOutVals
+            |> updateList env
+            |> Result.map (\(env, l) ->
+              (env, withDummyExpInfo <| EList ws l ws2 Nothing ws3)
+            )
+          else Err <| "Cannot (yet) update a list " ++ unparse e ++ " with list of different length: " ++ valToString newVal
+        _ -> Err <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
+
+    --EList ws elems ws2 Nothing ws3 ->
+    --  Err ""
     EFun ws0 [p] e ws1 ->
       -- oldVal ==  VClosure Nothing p e env
       (case newVal.v_ of
@@ -90,7 +106,19 @@ update env e oldVal newVal =
               _ ->
                 Err <| strPos e1.start ++ " not a function"
 
-    _ -> Debug.crash <| "Non-supported update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
+    _ -> Err <| "Non-supported update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
+
+updateList: Env -> List (Result String (Env, Exp)) -> Result String (Env, List Exp)
+updateList env results =
+  List.foldl (\elem acc ->
+    case (elem, acc) of
+      (Err msgElem, Err msg) -> Err (msg ++ "\n" ++ msgElem)
+      (_, Err msg) -> Err msg
+      (Ok (newEnvElem, newExpElem), Ok (envAcc, lAcc)) ->
+        Ok ((triCombine env envAcc newEnvElem), lAcc ++ [newExpElem])
+      (Err msgElem, Ok (envAcc, lAcc)) ->
+        Err msgElem
+    ) (Ok (env, [])) results
 
 triCombine: Env -> Env -> Env -> Env
 triCombine originalEnv newEnv1 newEnv2 =
@@ -178,23 +206,29 @@ matchListWithInversion pvs =
   List.foldl (\pv acc -> --: Maybe (Env, List (Env -> (Pat, Val, Env)))
     case (acc, matchWithInversion pv) of
       (Just (old, oldEnvBuilders), Just (new, newEnvBuilder)) -> Just (new ++ old,
-          oldEnvBuilders ++ [\newEnv ->
+           [\newEnv ->
             let (headNewEnv, tailNewEnv) = Utils.split (List.length new) newEnv in
             let (newPat, newVal) = newEnvBuilder headNewEnv in
             (newPat, newVal, tailNewEnv)
-          ]
+          ] ++ oldEnvBuilders
         )
       _                    -> Nothing
   ) (Just ([], [])) pvs
-  |> Maybe.map (\(finalEnv, res) -> -- res: List (Env -> (Pat, Val, Env)), but we want Env -> (Pat, Val), combining pattern/values into lists
+  |> Maybe.map (\(finalEnv, envBuilders) -> -- envBuilders: List (Env -> (Pat, Val, Env)), but we want Env -> (Pat, Val), combining pattern/values into lists
     (finalEnv, \newEnv ->
       let (newPats, newVals, _) =
         List.foldl (\eToPVE (pats, vals, env)->
           let (p, v, e) = eToPVE env in
-          (pats ++ [p], vals ++ [v], e)
-          )  ([], [], newEnv) res in
+          ([p] ++ pats, [v] ++ vals, e)
+          )  ([], [], newEnv) envBuilders in
       (newPats, newVals)
     ))
+  {--|> (\x -> case x of
+     Just (env, envBuilder) ->
+       let _ = Debug.log ("matchListWithinversion" ++ toString pvs) (envBuilder env) in
+       x
+     Nothing -> Nothing
+  )--}
 
 val_to_exp: WS -> Val -> Exp
 val_to_exp ws v =
@@ -228,4 +262,4 @@ envToString env =
     (v, value)::tail -> v ++ "->" ++ unparse (val_to_exp (ws "") value) ++ " " ++ (envToString tail)
 
 valToString: Val -> String
-valToString = unparse << val_to_exp (ws "")
+valToString = unparse << val_to_exp (ws " ")
