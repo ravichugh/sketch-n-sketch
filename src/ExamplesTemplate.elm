@@ -6,8 +6,8 @@ import Types
 import Eval
 import Utils
 import PreludeGenerated as Prelude
-import LangSvg
 import DefaultIconTheme
+import Syntax
 
 makeExample name s =
   let thunk () =
@@ -20,7 +20,7 @@ makeExample name s =
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
     -- else
     -----------------------------------------------------
-    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run e in
+    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run Syntax.Little e in
     {e=e, v=v, ws=ws, ati=ati}
   in
   (name, (s, thunk))

@@ -5,6 +5,7 @@
 
 module DeuceTools exposing
   ( createToolCache
+  , createToolCacheMultipleInterpretations
   , reselectDeuceTool
   , updateRenameToolsInCache
   , isActive
@@ -17,7 +18,6 @@ import Dict
 import Either exposing (..)
 import Utils
 import ImpureGoodies
-import UserStudyLog
 import ColorNum
 
 import InterfaceModel as Model exposing
@@ -33,8 +33,7 @@ import InterfaceModel as Model exposing
 
 import Lang exposing (..)
 import LangTools
-import LangUnparser
-import UserStudy
+import Syntax
 
 import DeuceWidgets exposing
   ( DeuceWidget(..)
@@ -58,19 +57,20 @@ type alias Selections =
   )
 
 selectedNumsAndBaseVals
-    : Model
+    : Exp
+   -> List DeuceWidget
    -> ( List (LocId, (WS, Num, Loc, WidgetDecl))
       , List (EId, (WS, EBaseVal))
       )
-selectedNumsAndBaseVals model =
+selectedNumsAndBaseVals program selectedWidgets =
   let noMatches = ([], []) in
   -- TODO may want to distinguish between different kinds of selected
   -- items earlier
-  model.deuceState.selectedWidgets
+  selectedWidgets
   |> List.map (\deuceWidget ->
        case deuceWidget of
          DeuceExp eid ->
-           case findExpByEId model.inputExp eid of
+           case findExpByEId program eid of
              Just ePlucked ->
                case ePlucked.val.e__ of
                  EConst ws n loc wd -> ([(eid, (ws, n, loc, wd))], [])
@@ -83,44 +83,44 @@ selectedNumsAndBaseVals model =
   |> List.unzip
   |> (\(l1,l2) -> (List.concat l1, List.concat l2))
 
-selectedNums : Model -> List (LocId, (WS, Num, Loc, WidgetDecl))
-selectedNums =
-  selectedNumsAndBaseVals >> Tuple.first
+selectedNums : Exp -> List DeuceWidget -> List (LocId, (WS, Num, Loc, WidgetDecl))
+selectedNums program selectedWidgets =
+  selectedNumsAndBaseVals program selectedWidgets |> Tuple.first
 
-selectedBaseVals : Model -> List (EId, (WS, EBaseVal))
-selectedBaseVals =
-  selectedNumsAndBaseVals >> Tuple.second
+selectedBaseVals : Exp -> List DeuceWidget -> List (EId, (WS, EBaseVal))
+selectedBaseVals program selectedWidgets =
+  selectedNumsAndBaseVals program selectedWidgets |> Tuple.second
 
-selectedExps : List DeuceWidget -> List EId
-selectedExps deuceWidgets =
+selectedEIds : List DeuceWidget -> List EId
+selectedEIds deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
       DeuceExp x -> [x]
       _ -> []
 
-selectedPats : List DeuceWidget -> List PathedPatternId
-selectedPats deuceWidgets =
+selectedPathedPatIds : List DeuceWidget -> List PathedPatternId
+selectedPathedPatIds deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
       DeucePat x -> [x]
       _ -> []
 
-selectedEquations : List DeuceWidget -> List EId
-selectedEquations deuceWidgets =
+selectedEquationEIds : List DeuceWidget -> List EId
+selectedEquationEIds deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
       DeuceLetBindingEquation x -> [x]
       _ -> []
 
-selectedExpTargets : List DeuceWidget -> List ExpTargetPosition
-selectedExpTargets deuceWidgets =
+selectedEIdTargets : List DeuceWidget -> List ExpTargetPosition
+selectedEIdTargets deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
       DeuceExpTarget x -> [x]
       _ -> []
 
-selectedPatTargets : List DeuceWidget -> List PatTargetPosition
-selectedPatTargets deuceWidgets =
+selectedPathedPatIdTargets : List DeuceWidget -> List PatTargetPosition
+selectedPathedPatIdTargets deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
       DeucePatTarget x -> [x]
@@ -366,7 +366,7 @@ swapExpressionsTool model selections =
         (_, _, _, _::_, _, _, _)             -> (Nothing, Impossible) -- no pattern selection allowed (yet)
         (_, _, _, _, _::_, _, _)             -> (Nothing, Impossible) -- no equation selection allowed (yet?)
         (_, _, [_], _, _, [], [])            -> (Nothing, Possible)
-        (_, _, [eid1, eid2], [], [], [], []) -> (CodeMotion.swapExpressionsTransformation model.inputExp eid1 eid2, Satisfied)
+        (_, _, [eid1, eid2], [], [], [], []) -> (CodeMotion.swapExpressionsTransformation model.syntax model.inputExp eid1 eid2, Satisfied)
         _                                    -> (Nothing, Impossible)
   in
     { name = "Swap Expressions"
@@ -402,8 +402,8 @@ swapDefinitionsTool model selections =
         (_, _, [], [], [], [], [])                 -> (Nothing, Possible)
         (_, _, [], [ppid], [], [], [])             -> if ppidIsInLet ppid then (Nothing, Possible) else (Nothing, Impossible)
         (_, _, [], [], [letEId], [], [])           -> (Nothing, Possible)
-        (_, _, [], [ppid1, ppid2], [], [], [])     -> (CodeMotion.swapDefinitionsTransformation model.inputExp (LangTools.pathedPatternIdToPId ppid1 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool") (LangTools.pathedPatternIdToPId ppid2 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool"), Satisfied)
-        (_, _, [], [], [letEId1, letEId2], [], []) -> (CodeMotion.swapDefinitionsTransformation model.inputExp (letEIdToTopPId letEId1) (letEIdToTopPId letEId2), Satisfied)
+        (_, _, [], [ppid1, ppid2], [], [], [])     -> (CodeMotion.swapDefinitionsTransformation model.syntax model.inputExp (LangTools.pathedPatternIdToPId ppid1 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool") (LangTools.pathedPatternIdToPId ppid2 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool"), Satisfied)
+        (_, _, [], [], [letEId1, letEId2], [], []) -> (CodeMotion.swapDefinitionsTransformation model.syntax model.inputExp (letEIdToTopPId letEId1) (letEIdToTopPId letEId2), Satisfied)
         _                                          -> (Nothing, Impossible)
   in
     { name = "Swap Definitions"
@@ -437,13 +437,14 @@ inlineDefinitionTool model selections =
         ([], [], [], pathedPatIds, [], [], []) ->
           ( Utils.perhapsPluralizeList toolName pathedPatIds
           , Just <| \() ->
-              CodeMotion.inlineDefinitions pathedPatIds model.inputExp
+              CodeMotion.inlineDefinitions model.syntax pathedPatIds model.inputExp
           , Satisfied
           )
         ([], [], [], [], letEIds, [], []) ->
           ( Utils.perhapsPluralizeList toolName letEIds
           , Just <| \() ->
               CodeMotion.inlineDefinitions
+                model.syntax
                 (letEIds |> List.map (\letEId -> ((letEId, 1), [])))
                 model.inputExp
           , Satisfied
@@ -531,7 +532,7 @@ copyExpressionTool model selections =
         (_, _, _, _::_, _, _, _)     -> (Nothing, Impossible) -- no pattern selection allowed (yet)
         (_, _, _, _, _::_, _, _)     -> (Nothing, Impossible) -- no equation selection allowed (yet?)
         (_, _, [_], _, _, [], [])    -> (Nothing, Possible)
-        (_, _, eids, [], [], [], []) -> (CodeMotion.copyExpressionTransformation model.inputExp eids, Satisfied)
+        (_, _, eids, [], [], [], []) -> (CodeMotion.copyExpressionTransformation model.syntax model.inputExp eids, Satisfied)
         _                            -> (Nothing, Impossible)
   in
     { name = "Make Equal by Copying"
@@ -572,6 +573,7 @@ moveDefinitionTool model selections =
           ( Utils.perhapsPluralizeList toolName pathedPatIds
           , Just <| \() ->
               CodeMotion.moveDefinitionsBeforeEId
+                model.syntax
                 pathedPatIds
                 eId
                 model.inputExp
@@ -593,6 +595,7 @@ moveDefinitionTool model selections =
                 ( Utils.perhapsPluralizeList toolName pathedPatIds
                 , Just <| \() ->
                     CodeMotion.moveDefinitionsPat
+                      model.syntax
                       pathedPatIds
                       targetPathedPatId
                       model.inputExp
@@ -606,6 +609,7 @@ moveDefinitionTool model selections =
               -- Better result names if we hand the singular case directly to
               -- moveDefinitionsBeforeEId.
               CodeMotion.moveDefinitionsBeforeEId
+                model.syntax
                 [((letEId, 1), [])]
                 eId
                 model.inputExp
@@ -615,6 +619,7 @@ moveDefinitionTool model selections =
           ( Utils.perhapsPluralizeList toolName letEIds
           , Just <| \() ->
               CodeMotion.moveEquationsBeforeEId
+                model.syntax
                 letEIds
                 eId
                 model.inputExp
@@ -659,6 +664,7 @@ duplicateDefinitionTool model selections =
             ( Utils.perhapsPluralizeList toolName pathedPatIds
             , Just <| \() ->
                 CodeMotion.duplicateDefinitionsBeforeEId
+                  model.syntax
                   pathedPatIds
                   eId
                   model.inputExp
@@ -680,6 +686,7 @@ duplicateDefinitionTool model selections =
             ( Utils.perhapsPluralizeList toolName pathedPatIds
             , Just <| \() ->
                 CodeMotion.duplicateDefinitionsPat
+                  model.syntax
                   pathedPatIds
                   targetPathedPatId
                   model.inputExp
@@ -728,7 +735,7 @@ thawFreezeTool model selections =
         else
           let
             mode_ =
-              case Utils.dedupByEquality freezeAnnotations of
+              case Utils.dedup freezeAnnotations of
                 [frzn] ->
                   if model.syncOptions.thawedByDefault then
                     if frzn == unann then
@@ -820,7 +827,7 @@ showHideRangeTool model selections =
                   _ ->
                     Nothing
         in
-          case Utils.dedupByEquality freezeAnnotations of
+          case Utils.dedup freezeAnnotations of
             [Just b] ->
               Just b
             _ ->
@@ -920,7 +927,7 @@ addRemoveRangeTool model selections =
                 _ ->
                   False
       in
-        Utils.dedupByEquality freezeAnnotations
+        Utils.dedup freezeAnnotations
         |> Utils.maybeUnpackSingleton
 
     predVal =
@@ -1160,7 +1167,7 @@ createFunctionTool model selections =
           of
             Just (ELet _ _ _ _ _ _ _, PVar _ ident _) ->
               ( Just <| \() ->
-                  CodeMotion.abstractPVar pathedPatId [] model.inputExp
+                  CodeMotion.abstractPVar model.syntax pathedPatId [] model.inputExp
               , FullySatisfied
               )
             _ ->
@@ -1194,7 +1201,7 @@ createFunctionTool model selections =
                 |> Maybe.withDefault 0
           in
             if parameterCount > 0 && expSize >= 3 then
-              ( Just <| \() -> CodeMotion.abstractExp eid model.inputExp
+              ( Just <| \() -> CodeMotion.abstractExp model.syntax eid model.inputExp
               , FullySatisfied
               )
             else
@@ -1211,7 +1218,7 @@ createFunctionTool model selections =
                     let
                        pathedPatId = ((letEId, 1), [])
                     in
-                      CodeMotion.abstractPVar pathedPatId [] model.inputExp
+                      CodeMotion.abstractPVar model.syntax pathedPatId [] model.inputExp
               , FullySatisfied
               )
             _ ->
@@ -1260,7 +1267,7 @@ createFunctionFromArgsTool model selections =
                   (Nothing, Impossible)
 
                 _ ->
-                  ( Just (\() -> enclosingPPIds |> List.concatMap (\ppid -> CodeMotion.abstractPVar ppid argEIds model.inputExp))
+                  ( Just (\() -> enclosingPPIds |> List.concatMap (\ppid -> CodeMotion.abstractPVar model.syntax ppid argEIds model.inputExp))
                   , Satisfied
                   )
 
@@ -1388,7 +1395,7 @@ addArgumentsTool model selections =
           |> List.map
               (\targetPPId ->
                 ( targetPPId
-                , enclosingFuncs |> List.any (.val >> .eid >> (==) (pathedPatIdToScopeEId targetPPId))
+                , enclosingFuncs |> List.any (eidIs (pathedPatIdToScopeEId targetPPId))
                 )
               )
         in
@@ -1410,7 +1417,7 @@ addArgumentsTool model selections =
                 Just <|
                   \() ->
                     targetPPIdsToTry
-                    |> List.concatMap (\targetPPId -> CodeMotion.addArg eid targetPPId model.inputExp)
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArg model.syntax eid targetPPId model.inputExp)
             , reqs = makeReqs Satisfied
             , id = id
             }
@@ -1421,7 +1428,7 @@ addArgumentsTool model selections =
                 Just <|
                   \() ->
                     targetPPIdsToTry
-                    |> List.concatMap (\targetPPId -> CodeMotion.addArgs eids targetPPId model.inputExp)
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArgs model.syntax eids targetPPId model.inputExp)
             , reqs = makeReqs Satisfied
             , id = id
             }
@@ -1444,7 +1451,7 @@ addArgumentsTool model selections =
           |> List.map
               (\targetPPId ->
                 ( targetPPId
-                , enclosingFuncs |> List.any (.val >> .eid >> (==) (pathedPatIdToScopeEId targetPPId))
+                , enclosingFuncs |> List.any (eidIs (pathedPatIdToScopeEId targetPPId))
                 )
               )
         in
@@ -1466,7 +1473,7 @@ addArgumentsTool model selections =
                 Just <|
                   \() ->
                     targetPPIdsToTry
-                    |> List.concatMap (\targetPPId -> CodeMotion.addArgFromPat argSourcePathedPatId targetPPId model.inputExp)
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArgFromPat model.syntax argSourcePathedPatId targetPPId model.inputExp)
             , reqs = makeReqs Satisfied
             , id = id
             }
@@ -1477,7 +1484,7 @@ addArgumentsTool model selections =
                 Just <|
                   \() ->
                     targetPPIdsToTry
-                    |> List.concatMap (\targetPPId -> CodeMotion.addArgsFromPats argSourcePathedPatIds targetPPId model.inputExp)
+                    |> List.concatMap (\targetPPId -> CodeMotion.addArgsFromPats model.syntax argSourcePathedPatIds targetPPId model.inputExp)
             , reqs = makeReqs Satisfied
             , id = id
             }
@@ -1548,6 +1555,7 @@ removeArgumentsTool model selections =
                 Just <|
                   \() ->
                     CodeMotion.removeArg
+                      model.syntax
                       (Utils.head_ pathedPatIds)
                       model.inputExp
             , reqs = makeReqs Satisfied
@@ -1559,6 +1567,7 @@ removeArgumentsTool model selections =
                 Just <|
                   \() ->
                     CodeMotion.removeArgs
+                      model.syntax
                       pathedPatIds
                       model.inputExp
             , reqs = makeReqs Satisfied
@@ -1581,6 +1590,7 @@ removeArgumentsTool model selections =
                 Just <|
                   \() ->
                     CodeMotion.removeArg
+                      model.syntax
                       argPathedPatId
                       model.inputExp
             , reqs = makeReqs Satisfied
@@ -1592,8 +1602,9 @@ removeArgumentsTool model selections =
                 Just <|
                   \() ->
                     CodeMotion.removeArgs
-                    argPathedPatIds
-                    model.inputExp
+                      model.syntax
+                      argPathedPatIds
+                      model.inputExp
             , reqs = makeReqs Satisfied
             , id = id
             }
@@ -1691,8 +1702,7 @@ reorderArgumentsTool model selections =
 reorderExpressionsTool : Model -> Selections -> DeuceTool
 reorderExpressionsTool model selections =
   { name = "Reorder Expressions"
-  , func =
-      CodeMotion.reorderExpressionsTransformation model.inputExp selections
+  , func = CodeMotion.reorderExpressionsTransformation model.inputExp selections
   , reqs = [] -- TODO reqs
   , id = "reorderExpressions"
   }
@@ -1735,7 +1745,7 @@ makeSingleLineTool model selections =
             in
               if
                 LangTools.justFindExpByEId model.inputExp eid
-                  |> LangUnparser.unparse
+                  |> Syntax.unparser model.syntax
                   |> perhapsLeftTrimmer
                   |> String.contains "\n"
               then
@@ -1815,8 +1825,8 @@ makeSingleLineTool model selections =
                             ELet (deLine ws1) kind rec p e1 e2 space0
                           ECase ws1 e1 bs ws2 ->
                             ECase (deLine ws1) e1 bs space0
-                          ETypeCase ws1 pat bs ws2 ->
-                            ETypeCase (deLine ws1) pat bs space0
+                          ETypeCase ws1 e1 bs ws2 ->
+                            ETypeCase (deLine ws1) e1 bs space0
                           EComment ws s e1 ->
                             EComment ws s e1
                           EOption ws1 s1 ws2 s2 e1 ->
@@ -1827,6 +1837,8 @@ makeSingleLineTool model selections =
                             EColonType (deLine ws1) e (deLine ws2) tipe space0
                           ETypeAlias ws1 pat tipe e ws2 ->
                             ETypeAlias (deLine ws1) pat tipe e space0
+                          EParens ws1 e ws2 ->
+                            EParens (deLine ws1) e (deLine ws2)
                       deLineExp e =
                         mapExp (mapNodeE__ deLineE__) e
                     in
@@ -2038,76 +2050,64 @@ alignExpressionsTool model selections =
 -- All Tools
 --------------------------------------------------------------------------------
 
-deuceTools : Model -> List (List DeuceTool)
-deuceTools model =
+
+selectionsTuple : Exp -> List DeuceWidget -> Selections
+selectionsTuple program selectedWidgets =
+  ( selectedNums program selectedWidgets
+  , selectedBaseVals program selectedWidgets
+  , selectedEIds selectedWidgets
+  , selectedPathedPatIds selectedWidgets
+  , selectedEquationEIds selectedWidgets
+  , selectedEIdTargets selectedWidgets
+  , selectedPathedPatIdTargets selectedWidgets
+  )
+
+toolList =
+  [ [ createFunctionTool
+    , createFunctionFromArgsTool
+    , mergeTool
+    ]
+  , [ addArgumentsTool
+    , removeArgumentsTool
+    , reorderArgumentsTool
+    ]
+  , [ renameVariableTool
+    , introduceVariableTool
+    , swapNamesAndUsagesTool
+    , swapUsagesTool
+    ]
+  , [ makeEqualTool
+    , copyExpressionTool
+    ]
+  , [ moveDefinitionTool
+    , swapDefinitionsTool
+    , inlineDefinitionTool
+    , duplicateDefinitionTool
+    ]
+  , [ reorderExpressionsTool
+    , swapExpressionsTool
+    ]
+  , [ makeSingleLineTool
+    , makeMultiLineTool
+    , alignExpressionsTool
+    ]
+  , [ thawFreezeTool
+    , addRemoveRangeTool
+    , showHideRangeTool
+    , rewriteOffsetTool
+    , convertColorStringTool
+    ]
+  , [ flipBooleanTool
+    ]
+  ]
+
+deuceToolsOf : Model -> List (List DeuceTool)
+deuceToolsOf model =
   let
-    {selectedWidgets} =
-      model.deuceState
-    nums =
-      selectedNums model
-    baseVals =
-      selectedBaseVals model
-    exps =
-      selectedExps selectedWidgets
-    pathedPatIds =
-      selectedPats selectedWidgets
-    letBindingEquations =
-      selectedEquations selectedWidgets
-    expTargets =
-      selectedExpTargets selectedWidgets
-    patTargets =
-      selectedPatTargets selectedWidgets
-    selections =
-      ( nums
-      , baseVals
-      , exps
-      , pathedPatIds
-      , letBindingEquations
-      , expTargets
-      , patTargets
-      )
+    selections = selectionsTuple model.inputExp model.deuceState.selectedWidgets
   in
-    List.map (List.map (\tool -> tool model selections)) <|
-      [ [ createFunctionTool
-        , createFunctionFromArgsTool
-        , mergeTool
-        ]
-      , [ addArgumentsTool
-        , removeArgumentsTool
-        , reorderArgumentsTool
-        ]
-      , [ renameVariableTool
-        , introduceVariableTool
-        , swapNamesAndUsagesTool
-        , swapUsagesTool
-        ]
-      , [ makeEqualTool
-        , copyExpressionTool
-        ]
-      , [ moveDefinitionTool
-        , swapDefinitionsTool
-        , inlineDefinitionTool
-        , duplicateDefinitionTool
-        ]
-      , [ reorderExpressionsTool
-        , swapExpressionsTool
-        ]
-      , [ makeSingleLineTool
-        , makeMultiLineTool
-        , alignExpressionsTool
-        ]
-      , if model.enableDomainSpecificCodeTools && not UserStudy.enabled then
-          [ thawFreezeTool
-          , addRemoveRangeTool
-          , showHideRangeTool
-          , rewriteOffsetTool
-          , convertColorStringTool
-          ]
-        else
-          []
-      , [ flipBooleanTool
-        ]
-      ]
+  toolList
+  |> List.map (List.map (\tool -> tool model selections))
 
 createToolCache : Model -> List (List CachedDeuceTool)
 createToolCache model =
@@ -2118,13 +2118,34 @@ createToolCache model =
 
 createToolCache_ : Model -> List (List CachedDeuceTool)
 createToolCache_ model =
-  deuceTools model |> List.map (
+  deuceToolsOf model |> List.map (
     List.map (\deuceTool ->
-      case runTool model deuceTool of
+      case runTool deuceTool of
         Just results -> (deuceTool, results, False)
         Nothing      -> (deuceTool, [], True)
     )
   )
+
+-- This function is not used.
+createToolCacheMultipleInterpretations : Model -> List (List DeuceWidget)-> List (List CachedDeuceTool)
+createToolCacheMultipleInterpretations model interpretations =
+  let selectionInterpretations =
+    interpretations
+    |> List.map (selectionsTuple model.inputExp)
+  in
+  let toolToCacheResults tool =
+    let
+      toolInterpretations =
+        selectionInterpretations |> List.map (\selections -> tool model selections)
+      toolResults =
+        toolInterpretations |> List.map runTool |> Utils.filterJusts |> List.concat
+      -- I don't think the context-sensitive menu uses any tool properties that vary between intepretations.
+      deuceTool = Utils.head "createToolCacheMultipleInterpretations" toolInterpretations
+    in
+    (deuceTool, toolResults, toolResults == [])
+  in
+  toolList
+  |> List.map (List.map toolToCacheResults)
 
 reselectDeuceTool : Model -> Model
 reselectDeuceTool model =
@@ -2148,14 +2169,14 @@ updateRenameToolsInCache almostNewModel =
     cachedAndNewDeuceTools =
       Utils.zipWith Utils.zip
         almostNewModel.deuceToolsAndResults
-        (deuceTools almostNewModel)
+        (deuceToolsOf almostNewModel)
           -- assumes that the new tools computed by deuceTools
           -- are the same as the cached ones
   in
   cachedAndNewDeuceTools |> List.map (
     List.map (\((cachedDeuceTool, cachedResults, cachedBool), newDeuceTool) ->
       if isRenamer cachedDeuceTool then
-        case runTool almostNewModel newDeuceTool of
+        case runTool newDeuceTool of
           Just results -> (newDeuceTool, results, False)
           Nothing      -> (newDeuceTool, [], True)
       else
@@ -2168,23 +2189,23 @@ updateRenameToolsInCache almostNewModel =
 --------------------------------------------------------------------------------
 
 -- Run a tool, and maybe get some results back (if it is active)
-runTool : Model -> DeuceTool -> Maybe (List SynthesisResult)
-runTool model deuceTool =
+runTool : DeuceTool -> Maybe (List SynthesisResult)
+runTool deuceTool =
   -- let _ = Utils.log <| "running tool " ++ deuceTool.name in
   case deuceTool.func of
     Just thunk ->
       case ImpureGoodies.crashToError thunk of
         Ok results -> Just results
         Err errMsg ->
-          let _ = UserStudyLog.log ("Deuce Tool Crash \"" ++ deuceTool.name ++ "\"") (toString errMsg) in
+          let _ = Debug.log ("Deuce Tool Crash \"" ++ deuceTool.name ++ "\"") (toString errMsg) in
           Nothing
 
     _ ->
       Nothing
 
 -- Check if a tool is active without running it
-isActive : Model -> DeuceTool -> Bool
-isActive model deuceTool =
+isActive : DeuceTool -> Bool
+isActive deuceTool =
   deuceTool.func /= Nothing
 
 -- Check if a given tool is a renaming tool

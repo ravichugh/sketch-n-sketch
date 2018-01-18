@@ -2,15 +2,15 @@ module InterfaceModel exposing (..)
 
 import Updatable exposing (Updatable)
 import Lang exposing (..)
+import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
 import Sync exposing (ZoneKey)
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
-import ShapeWidgets exposing (ShapeFeature, SelectedShapeFeature)
+import ShapeWidgets exposing (SelectableFeature, SelectablePoint)
 import ExamplesGenerated as Examples
 import DefaultIconTheme
-import LangUnparser exposing (unparse, unparsePat)
 import DependenceGraph exposing (ScopeGraph)
 import Ace
 import DeuceWidgets exposing (DeuceState)
@@ -18,6 +18,10 @@ import Either exposing (Either(..))
 import Keys
 import Svg
 import LangSvg exposing (attr)
+import Syntax exposing (Syntax)
+import LangUnparser
+import File exposing (Filename, File, FileIndex)
+import Solver
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -33,23 +37,7 @@ import ImpureGoodies
 
 type alias Code = String
 
-type alias Filename = String
-
-type alias FileIndex = List Filename
-
-type alias File = {
-  filename : Filename,
-  code : Code
-}
-
 type alias Position = { col : Int, line : Int }
-
-type alias IconName = String
-
-type alias Icon =
-  { iconName : IconName
-  , code : Code
-  }
 
 type alias ViewState =
   { menuActive : Bool
@@ -78,6 +66,7 @@ type alias PopupPanelPositions =
   { deuce : (Int, Int)
   , editCode : (Int, Int)
   , deuceRightClickMenu : (Int, Int)
+  , autoOutputTools : (Int, Int)
   }
 
 type ColorScheme
@@ -92,6 +81,8 @@ type CodeToolsMenuMode
 type alias Model =
   { code : Code
   , lastRunCode : Code
+  , runFailuresInARowCount : Int
+  , codeClean : Bool
   , preview : Preview
   , history : (List Code, List Code)
   , inputExp : Exp
@@ -112,7 +103,7 @@ type alias Model =
   , mouseMode : MouseMode
   , dimensions : Window.Size
 
-  , mouseState : (Maybe Bool, Mouse.Position)
+  , mouseState : (Maybe Bool, Mouse.Position, Maybe Clickable)
       -- mouseState ~= (Mouse.isDown, Mouse.position)
       --  Nothing    : isDown = False
       --  Just False : isDown = True and position unchanged since isDown became True
@@ -130,15 +121,18 @@ type alias Model =
   , genSymCount : Int
   , tool : Tool
   , hoveredShapes : Set.Set NodeId
-  , hoveredCrosshairs : Set.Set (NodeId, ShapeFeature, ShapeFeature)
+  , hoveredCrosshairs : Set.Set SelectablePoint
   , selectedShapes : Set.Set NodeId
-  , selectedFeatures : Set.Set SelectedShapeFeature
+  , selectedFeatures : Set.Set SelectableFeature
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
   , autoSynthesis : Bool
-  , synthesisResults : List SynthesisResult
+  , problemsSentToSolver : List (Solver.Problem, Msg) -- Equation(s) sent to the solver server and and the message that should be re-run upon a reply. Shouldn't ever be more than a singleton in practice.
+  , solutionsCache : Solver.SolutionsCache
+  , synthesisResultsDict : Dict String (List SynthesisResult)
   , hoveredSynthesisResultPathByIndices : List Int
+  , renamingInOutput : Maybe (PId, String)
   , randomColor : Int
   , lambdaTools : List LambdaTool
   , layoutOffsets : LayoutOffsets
@@ -152,7 +146,7 @@ type alias Model =
   , fileToDelete : Filename
   , pendingFileOperation : Maybe Msg
   , fileOperationConfirmed : Bool
-  , icons : Dict IconName (Html Msg)
+  , icons : Dict String (Html Msg)
   , showAllDeuceWidgets : Bool
   , hoveringCodeBox : Bool
   , scopeGraph : ScopeGraph
@@ -165,27 +159,21 @@ type alias Model =
   , toolMode : ShapeToolKind
   , popupPanelPositions : PopupPanelPositions
   , deuceRightClickMenuMode : Maybe DeuceRightClickMenuMode
-  , userStudyStateIndex : Int
-  , userStudyTaskStartTime : Time.Time
-  , userStudyTaskCurrentTime : Time.Time
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
   , codeToolsMenuMode : CodeToolsMenuMode
   , textSelectMode : TextSelectMode
   , enableTextEdits : Updatable Bool
   , allowMultipleTargetPositions : Bool
-  , enableDomainSpecificCodeTools : Bool
-  , codeClean : Bool
   , mainResizerX : Maybe Int
-  , proseResizerY : Maybe Int
   , savedSelections : Maybe (List Ace.Range)
-  , prose : Updatable (Maybe String)
   , deucePopupPanelAbove : Bool
   , colorScheme : ColorScheme
   , pendingGiveUpMsg : Maybe Msg
   , giveUpConfirmed : Bool
   , lastSelectedTemplate : Maybe String
   , valueEditorString : String
+  , syntax : Syntax
   }
 
 type OutputMode
@@ -230,6 +218,9 @@ type alias OutputCanvasInfo =
 
 type alias RawSvg = String
 
+type Clickable
+  = PointWithProvenance NumTr Val NumTr Val
+
 type MouseMode
   = MouseNothing
   | MouseDrag (Mouse.Position -> Mouse.Position -> Model -> Model)
@@ -242,6 +233,12 @@ type MouseMode
         , (Int, Int)            -- initial click
         , Bool ))               -- dragged at least one pixel
 
+  | MouseDragSelect
+      Mouse.Position              -- initial mouse position
+      (Set.Set NodeId)            -- initial selected shapes
+      (Set.Set SelectableFeature) -- initial selected features
+      (Dict Int NodeId)           -- initial selected blobs
+
   | MouseDrawNew ShapeBeingDrawn
       -- invariant on length n of list of points:
       --   for line/rect/ellipse, n == 0 or n == 2
@@ -253,13 +250,55 @@ type MouseMode
 
 type alias MouseTrigger a = (Int, Int) -> a
 
+mousePosition : Model -> Mouse.Position
+mousePosition model = Utils.snd3 model.mouseState
+
+isMouseDown : Model -> Bool
+isMouseDown model =
+  case model.mouseState of
+    (Just _, _, _) -> True
+    _              -> False
+
+traceToMaybeEId model tr =
+  case tr of
+    TrLoc (locId, _, _) -> locIdToEId model.inputExp locId
+    _                   -> Nothing
+
+-- May or may not make this stateful. I don't like stateful.
+isTraceInModelHighlights model tr =
+  -- Only singular locs for now.
+  case (model.mouseMode, traceToMaybeEId model tr) of
+    (MouseDrawNew shapeBeingDrawn, Just traceEId) ->
+      snapsOfShapeBeingDrawn shapeBeingDrawn
+      |> List.any ((==) (SnapEId traceEId))
+
+    _ ->
+      False
+
+snapsOfShapeBeingDrawn shapeBeingDrawn =
+  case shapeBeingDrawn of
+    NoPointsYet                   -> []
+    TwoPoints _ _                 -> []
+    PolyPoints _                  -> []
+    PathPoints _                  -> []
+    Offset1DFromExisting _ snap _ -> [snap]
+
+
+type Snap
+  = NoSnap
+  | SnapEId EId
+
+type alias IntSnap = (Int, Snap) -- like NumTr
+
+type alias PointWithSnap = (IntSnap, IntSnap)
+
 -- Oldest/base point is last in all of these.
 type ShapeBeingDrawn
   = NoPointsYet -- For shapes drawn by dragging, no points until the mouse moves after the mouse-down.
   | TwoPoints (KeysDown, (Int, Int)) (KeysDown, (Int, Int)) -- KeysDown should probably be refactored out
-  | PolyPoints (List (Int, Int))
+  | PolyPoints (List PointWithSnap)
   | PathPoints (List (KeysDown, (Int, Int))) -- KeysDown should probably be replaced with a more semantic represenation of point type
-  | OffsetFromExisting (Int, Int) (NumTr, NumTr)
+  | Offset1DFromExisting (Int, Int) Snap (NumTr, NumTr) -- Snap is separate here because it is unidimensional
 
 
 -- type alias ShowZones = Bool
@@ -317,9 +356,10 @@ synthesisResult description exp =
     , children    = Nothing
     }
 
-synthesisResultsNotEmpty : Model -> Bool
-synthesisResultsNotEmpty =
-  not << List.isEmpty << .synthesisResults
+synthesisResultsNotEmpty : Model -> String -> Bool
+synthesisResultsNotEmpty model resultsKey =
+  Utils.getWithDefault resultsKey [] model.synthesisResultsDict
+  |> (not << List.isEmpty)
 
 mapResultSafe f (SynthesisResult result) =
   SynthesisResult { result | isSafe = f result.isSafe }
@@ -339,8 +379,14 @@ resultExp (SynthesisResult {exp}) =
 setResultDescription description (SynthesisResult result) =
   SynthesisResult { result | description = description }
 
+setResultSortKey sortKey (SynthesisResult result) =
+  SynthesisResult { result | sortKey = sortKey }
+
+
 type Msg
-  = Msg String (Model -> Model)
+  = ResponseFromSolver String
+  | Msg String (Model -> Model)
+
 
 type alias AceCodeBoxInfo = -- subset of Model
   { code : String
@@ -395,8 +441,6 @@ setAllUpdated model =
     { model
         | enableTextEdits =
             Updatable.setUpdated old.enableTextEdits
-        , prose =
-            Updatable.setUpdated old.prose
     }
 
 --------------------------------------------------------------------------------
@@ -407,13 +451,6 @@ type DialogBox
   | Open
   | AlertSave
   | ImportCode
-  | Help HelpInfo
-  | AlertGiveUp
-
-type HelpInfo
-  = HelpSyntax
-  | HelpTextSelectMode
-  | HelpBoxSelectMode
 
 dialogBoxes =
   Utils.mapi0 identity
@@ -422,10 +459,6 @@ dialogBoxes =
     , Open
     , AlertSave
     , ImportCode
-    , Help HelpSyntax
-    , Help HelpTextSelectMode
-    , Help HelpBoxSelectMode
-    , AlertGiveUp
     ]
 
 dbToInt : DialogBox -> Int
@@ -457,15 +490,6 @@ cancelFileOperation model =
       , fileOperationConfirmed = False
     }
 
-cancelGiveUp : Model -> Model
-cancelGiveUp model =
-  closeDialogBox
-    AlertGiveUp
-    { model
-      | pendingGiveUpMsg = Nothing
-      , giveUpConfirmed = False
-    }
-
 closeAllDialogBoxes : Model -> Model
 closeAllDialogBoxes model =
   let
@@ -489,7 +513,7 @@ showDeuceRightClickMenu
 showDeuceRightClickMenu offsetX offsetY menuMode model =
   let
     mousePos =
-      Tuple.second model.mouseState
+      mousePosition model
     oldPopupPanelPositions =
       model.popupPanelPositions
   in
@@ -620,10 +644,24 @@ type alias DeuceToolResultPreviews =
 
 --------------------------------------------------------------------------------
 
+
+-- Elm typechecker should properly subtype Model < { slideNumber : Int, movieNumber : Int, movieTime : Float }
+-- but for some reason it doesn't.
 runAndResolve : Model -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolve model exp =
+  runAndResolve_
+    { movieNumber = model.movieNumber
+    , movieTime   = model.movieTime
+    , slideNumber = model.slideNumber
+    , syntax      = model.syntax
+    }
+    exp
+
+
+runAndResolve_ : { slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolve_ model exp =
   let thunk () =
-    Eval.run exp
+    Eval.run model.syntax exp
     |> Result.andThen (\(val, widgets) -> slateAndCode model (exp, val)
     |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
   in
@@ -631,17 +669,17 @@ runAndResolve model exp =
   |> Utils.unwrapNestedResult
 
 
-slateAndCode : Model -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
+slateAndCode : { slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
 slateAndCode old (exp, val) =
-  LangSvg.resolveToIndexedTree old.slideNumber old.movieNumber old.movieTime val
-  |> Result.map (\slate -> (slate, unparse exp))
+  LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime val
+  |> Result.map (\slate -> (slate, Syntax.unparser old.syntax exp))
 
 --------------------------------------------------------------------------------
 
-mkLive : Sync.Options -> Int -> Int -> Float -> Exp -> (Val, Widgets) -> Result String Sync.LiveInfo
-mkLive opts slideNumber movieNumber movieTime e (val, widgets) =
-  LangSvg.resolveToIndexedTree slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
-  Sync.prepareLiveUpdates opts e (slate, widgets)                    |> Result.andThen (\liveInfo ->
+mkLive : Syntax -> Sync.Options -> Int -> Int -> Float -> Exp -> (Val, Widgets) -> Result String Sync.LiveInfo
+mkLive syntax opts slideNumber movieNumber movieTime e (val, widgets) =
+  LangSvg.resolveToRootedIndexedTree syntax slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
+  Sync.prepareLiveUpdates opts e (slate, widgets)                           |> Result.andThen (\liveInfo ->
     Ok liveInfo
   ))
 
@@ -662,7 +700,7 @@ codeToShow model =
 --------------------------------------------------------------------------------
 
 strLambdaTool lambdaTool =
-  let strExp = String.trim << unparse in
+  let strExp = String.trim << LangUnparser.unparse in
   case lambdaTool of
     LambdaBounds e -> Utils.parens <| "\\bounds. " ++ strExp e ++ " bounds"
     LambdaAnchor e _ -> Utils.parens <| "\\anchor. " ++ strExp e ++ " anchor"
@@ -676,10 +714,22 @@ prependDescription newPrefix synthesisResult =
 
 bufferName = ""
 
+bufferFilename : Model -> Filename
+bufferFilename model =
+  { name =
+      bufferName
+  , extension =
+      Syntax.sourceExtension model.syntax
+  }
+
 blankTemplate = "BLANK"
 
-prettyFilename model =
-  if model.filename == bufferName then
+type PrettyFileNameOption
+  = WithExtension
+  | WithoutExtension
+
+prettyFilename includeExtension model =
+  if model.filename.name == bufferName then
     let
       prettyTemplate =
         case model.lastSelectedTemplate of
@@ -693,11 +743,15 @@ prettyFilename model =
     in
       "Untitled" ++ prettyTemplate
   else
-    model.filename
-
-getFile model = { filename = model.filename
-                , code     = model.code
-                }
+    let
+      suffix =
+        case includeExtension of
+          WithExtension ->
+            "." ++ File.fileExtensionToString model.filename.extension
+          WithoutExtension ->
+            ""
+    in
+      model.filename.name ++ suffix
 
 --------------------------------------------------------------------------------
 
@@ -710,12 +764,17 @@ starLambdaTool = LambdaBounds (eVar "star")
 starLambdaToolIcon = lambdaToolIcon starLambdaTool
 
 lambdaToolIcon tool =
-  { iconName = Utils.naturalToCamelCase (strLambdaTool tool)
-  , code = case tool of
+  { filename =
+      { name =
+          Utils.naturalToCamelCase (strLambdaTool tool)
+      , extension =
+          File.LittleIcon
+      }
+  , contents = case tool of
       LambdaBounds func ->
-        "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10 90 90]))"
+        "(svgViewBox 100 100 (" ++ LangUnparser.unparse func ++ " [10 10 90 90]))"
       LambdaAnchor func Nothing ->
-        "(svgViewBox 100 100 (" ++ unparse func ++ " [10 10]))"
+        "(svgViewBox 100 100 (" ++ LangUnparser.unparse func ++ " [10 10]))"
       LambdaAnchor func (Just viewBoxAndAnchor) ->
         Utils.parens <|
           Utils.spaces <|
@@ -724,7 +783,7 @@ lambdaToolIcon tool =
             , toString viewBoxAndAnchor.height
             , Utils.parens <|
                 Utils.spaces <|
-                  [ unparse func
+                  [ LangUnparser.unparse func
                   , Utils.bracks <|
                       Utils.spaces
                         [ toString viewBoxAndAnchor.xAnchor
@@ -937,9 +996,15 @@ codeObjectFromSelection allowSingleSelection model =
 
 --------------------------------------------------------------------------------
 
-noWidgetsSelected : Model -> Bool
-noWidgetsSelected model =
+noCodeWidgetsSelected : Model -> Bool
+noCodeWidgetsSelected model =
   List.isEmpty model.deuceState.selectedWidgets
+
+nothingSelectedInOutput : Model -> Bool
+nothingSelectedInOutput model =
+  Set.isEmpty model.selectedFeatures &&
+  Set.isEmpty model.selectedShapes &&
+  Dict.isEmpty model.selectedBlobs
 
 --------------------------------------------------------------------------------
 
@@ -947,9 +1012,17 @@ deucePopupPanelShown : Model -> Bool
 deucePopupPanelShown model =
   Utils.and
     [ model.enableDeuceBoxSelection
-    , not <| noWidgetsSelected model
+    , not <| noCodeWidgetsSelected model
     , not <| deuceRightClickMenuShown model
     , not <| configurationPanelShown model
+    ]
+
+autoOutputToolsPopupPanelShown : Model -> Bool
+autoOutputToolsPopupPanelShown model =
+  Utils.or
+    [ not <| Set.isEmpty model.selectedFeatures
+    , not <| Set.isEmpty model.selectedShapes
+    , not <| Dict.isEmpty model.selectedBlobs
     ]
 
 --------------------------------------------------------------------------------
@@ -969,12 +1042,14 @@ initModel =
   in
   let unwrap = Utils.fromOk "generating initModel" in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
-    unwrap (LangSvg.fetchEverything 1 1 0.0 v)
+    unwrap (LangSvg.fetchEverything Syntax.Little 1 1 0.0 v)
   in
-  let liveSyncInfo = unwrap (mkLive Sync.defaultOptions 1 1 0.0 e (v, ws)) in
-  let code = unparse e in
+  let liveSyncInfo = unwrap (mkLive Syntax.Little Sync.defaultOptions 1 1 0.0 e (v, ws)) in
+  let code = LangUnparser.unparse e in
     { code          = code
     , lastRunCode   = code
+    , runFailuresInARowCount = 0
+    , codeClean     = True
     , preview       = Nothing
     , history       = ([code], [])
     , inputExp      = e
@@ -994,7 +1069,7 @@ initModel =
     , outputMode    = ShowValue
     , mouseMode     = MouseNothing
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
-    , mouseState    = (Nothing, {x = 0, y = 0})
+    , mouseState    = (Nothing, {x = 0, y = 0}, Nothing)
     , syncOptions   = Sync.defaultOptions
     , caption       = Nothing
     , showGhosts    = True
@@ -1038,19 +1113,22 @@ initModel =
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , autoSynthesis = False
-    , synthesisResults = []
+    , problemsSentToSolver = []
+    , solutionsCache = Dict.empty
+    , synthesisResultsDict = Dict.empty
     , hoveredSynthesisResultPathByIndices = []
+    , renamingInOutput = Nothing
     , randomColor   = 100
     , lambdaTools   = [starLambdaTool]
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
     , lastSaveState = Nothing
     , autosave      = False
-    , filename      = ""
+    , filename      = { name = "", extension = File.ElmFile }
     , fileIndex     = []
     , dialogBoxes   = Set.empty
     , filenameInput = ""
-    , fileToDelete  = ""
+    , fileToDelete  = { name = "", extension = File.ElmFile }
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
     , icons = Dict.empty
@@ -1070,11 +1148,9 @@ initModel =
         { deuce = (200, 200)
         , editCode = (400, 400)
         , deuceRightClickMenu = (400, 400)
+        , autoOutputTools = (400, 100)
         }
     , deuceRightClickMenuMode = Nothing
-    , userStudyStateIndex = 1
-    , userStudyTaskStartTime = 0.0
-    , userStudyTaskCurrentTime = 0.0
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
     , codeToolsMenuMode = CTAll
@@ -1083,19 +1159,13 @@ initModel =
         Updatable.setUpdated << Updatable.create <| True
     , allowMultipleTargetPositions =
         False
-    , enableDomainSpecificCodeTools = False
-    , codeClean = True
     , mainResizerX = Nothing
-    , proseResizerY = Nothing
     , savedSelections = Nothing
-    , prose =
-        Updatable.setUpdated << Updatable.create <| Nothing
     , deucePopupPanelAbove = True
     , colorScheme = initColorScheme
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
     , valueEditorString = strVal v
+    , syntax = Syntax.Elm
     }
-
-splash_i_2017_demo = False

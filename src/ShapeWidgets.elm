@@ -1,21 +1,20 @@
 module ShapeWidgets exposing (..)
 
 import Lang exposing (..)
-import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind, Attr)
+import FastParser
+import LangUnparser
+import LangSvg exposing (RootedIndexedTree, IndexedTree, NodeId, ShapeKind, Attr, AVal)
+import Provenance
 import Utils
+import ValUnparser exposing (strVal)
 
 import Dict
-import String
 import Regex
+import Set exposing (Set)
+import String
 
 
-------------------------------------------------------------------------------
--- Shape Features
-
-type Feature
-  = PointFeature PointFeature
-  | DistanceFeature DistanceFeature
-  | OtherFeature OtherFeature
+-- In most code, the plain word "feature" refers to a SelectableFeature
 
 type PointFeature
   = TopLeft | TopRight  | BotLeft | BotRight
@@ -36,389 +35,240 @@ type OtherFeature
   = FillColor | FillOpacity
   | StrokeColor | StrokeOpacity | StrokeWidth
   | Rotation
-
-eightPointFeatures =
-  List.map PointFeature
-     [ TopLeft , TopRight  , BotLeft , BotRight
-     , TopEdge , RightEdge , BotEdge , LeftEdge
-     ]
-
-ninePointFeatures =
-  eightPointFeatures ++ [PointFeature Center]
-
-simpleKindFeatures : List (ShapeKind, List Feature)
-simpleKindFeatures =
-  [ ( "rect", ninePointFeatures ++ List.map DistanceFeature [Width, Height])
-  , ( "BOX", ninePointFeatures ++ List.map DistanceFeature [Width, Height])
-  , ( "circle", ninePointFeatures ++ List.map DistanceFeature [Radius])
-  , ( "OVAL", ninePointFeatures ++ List.map DistanceFeature [RadiusX, RadiusY])
-  , ( "ellipse", ninePointFeatures ++ List.map DistanceFeature [RadiusX, RadiusY])
-  , ( "line", List.map PointFeature [Point 1, Point 2, Center])
-  ]
-
-polyKindFeatures : ShapeKind -> List Attr -> List Feature
-polyKindFeatures kind attrs =
-  let cap = "polyKindFeatures" in
-  let err s = Debug.crash <| Utils.spaces [cap, kind, ": ", s] in
-  if kind == "polygon" then
-    case (Utils.find cap attrs "points").av_ of
-      LangSvg.APoints pts ->
-        List.concatMap
-          (\i -> [PointFeature (Point i), PointFeature (Midpoint i)])
-          (List.range 1 (List.length pts))
-      _ ->
-        err "polyKindFeatures: points not found"
-  else if kind == "path" then
-    case (Utils.find cap attrs "d").av_ of
-      LangSvg.APath2 (_, pathCounts) ->
-        List.concatMap
-          (\i -> [PointFeature (Point i)])
-          (List.range 1 (pathCounts.numPoints))
-      _ ->
-        err "polyKindFeatures: d not found"
-  else
-    err <| "polyKindFeatures: " ++ kind
-
-featuresOfShape : ShapeKind -> List Attr -> List Feature
-featuresOfShape kind attrs =
-  case Utils.maybeFind kind simpleKindFeatures of
-    Just features -> features
-    Nothing       -> polyKindFeatures kind attrs
-
-pointFeaturesOfShape : ShapeKind -> List Attr -> List PointFeature
-pointFeaturesOfShape kind attrs =
-  featuresOfShape kind attrs |> List.concatMap (\feature ->
-    case feature of
-      PointFeature pf -> [pf]
-      _               -> []
-  )
+  | Quantity
 
 
-------------------------------------------------------------------------------
--- FeatureNum (for selecting/relating individual values)
-
-type FeatureNum
+type ShapeFeature
   = XFeat PointFeature
   | YFeat PointFeature
   | DFeat DistanceFeature
   | OFeat OtherFeature
 
 
-featureNumsOfFeature : Feature -> List FeatureNum
-featureNumsOfFeature feature =
-  case feature of
+type alias SelectablePoint = (NodeId, PointFeature)
+
+type SelectableFeature
+  = ShapeFeature NodeId ShapeFeature
+  | DistanceBetweenFeatures (Set SelectablePoint) -- Invariant: Set size == 2
+
+
+------------------------------------------------------------------------------
+-- GenericFeatures (what kind of things does each shape have?)
+
+type GenericFeature
+  = PointFeature PointFeature
+  | DistanceFeature DistanceFeature
+  -- | OtherFeature OtherFeature
+
+eightGenericPointFeatures =
+  List.map PointFeature
+     [ TopLeft , TopRight  , BotLeft , BotRight
+     , TopEdge , RightEdge , BotEdge , LeftEdge
+     ]
+
+nineGenericPointFeatures =
+  eightGenericPointFeatures ++ [PointFeature Center]
+
+simpleKindGenericFeatures : List (ShapeKind, List GenericFeature)
+simpleKindGenericFeatures =
+  [ ( "rect", nineGenericPointFeatures ++ List.map DistanceFeature [Width, Height])
+  , ( "BOX", nineGenericPointFeatures ++ List.map DistanceFeature [Width, Height])
+  , ( "circle", nineGenericPointFeatures ++ List.map DistanceFeature [Radius])
+  , ( "OVAL", nineGenericPointFeatures ++ List.map DistanceFeature [RadiusX, RadiusY])
+  , ( "ellipse", nineGenericPointFeatures ++ List.map DistanceFeature [RadiusX, RadiusY])
+  , ( "line", List.map PointFeature [Point 1, Point 2, Center])
+  ]
+
+polyKindGenericFeatures : ShapeKind -> List Attr -> List GenericFeature
+polyKindGenericFeatures kind attrs =
+  let cap = "polyKindGenericFeatures" in
+  let err s = Debug.crash <| Utils.spaces [cap, kind, ": ", s] in
+  if kind == "polygon" then
+    case (Utils.find cap attrs "points").interpreted of
+      LangSvg.APoints pts ->
+        List.concatMap
+          (\i -> [PointFeature (Point i), PointFeature (Midpoint i)])
+          (List.range 1 (List.length pts))
+      _ ->
+        err "polyKindGenericFeatures: points not found"
+  else if kind == "path" then
+    case (Utils.find cap attrs "d").interpreted of
+      LangSvg.APath2 (_, pathCounts) ->
+        List.concatMap
+          (\i -> [PointFeature (Point i)])
+          (List.range 1 (pathCounts.numPoints))
+      _ ->
+        err "polyKindGenericFeatures: d not found"
+  else
+    err <| "polyKindGenericFeatures: " ++ kind
+
+genericFeaturesOfShape : ShapeKind -> List Attr -> List GenericFeature
+genericFeaturesOfShape kind attrs =
+  case (Utils.maybeFind kind simpleKindGenericFeatures, kind) of
+    (Just features, _)   -> features
+    (Nothing, "polygon") -> polyKindGenericFeatures kind attrs
+    (Nothing, "path")    -> polyKindGenericFeatures kind attrs
+    _                    -> []
+
+pointFeaturesOfShape : ShapeKind -> List Attr -> List PointFeature
+pointFeaturesOfShape kind attrs =
+  genericFeaturesOfShape kind attrs |> List.concatMap (\feature ->
+    case feature of
+      PointFeature pf -> [pf]
+      _               -> []
+  )
+
+pointFeaturesOfWidget : Widget -> List PointFeature
+pointFeaturesOfWidget widget =
+  case widget of
+    WIntSlider _ _ _ _ _ _ _  -> []
+    WNumSlider _ _ _ _ _ _ _  -> []
+    WPoint _ _ _ _            -> [LonePoint]
+    WOffset1D _ _ _ _ _ _ _ _ -> [EndPoint]
+    WCall _ _ _ _             -> []
+
+
+------------------------------------------------------------------------------
+-- ShapeFeature (features of shapes)
+
+-- Used only in one place for point selection, may be able to remove.
+shapeFeaturesOfGenericFeature : GenericFeature -> List ShapeFeature
+shapeFeaturesOfGenericFeature genericFeature =
+  case genericFeature of
     PointFeature pf    -> [XFeat pf, YFeat pf]
     DistanceFeature df -> [DFeat df]
-    OtherFeature feat  -> [OFeat feat]
+    -- OtherFeature feat  -> [OFeat feat]
 
-featureNumsOfShape : ShapeKind -> List Attr -> List FeatureNum
-featureNumsOfShape kind attrs =
-  featuresOfShape kind attrs
-  |> List.concatMap featureNumsOfFeature
+
+shapeFeaturesOfShape : ShapeKind -> List Attr -> List ShapeFeature
+shapeFeaturesOfShape kind attrs =
+  genericFeaturesOfShape kind attrs
+  |> List.concatMap shapeFeaturesOfGenericFeature
 
 
 ------------------------------------------------------------------------------
--- ShapeFeature ~= a comparable version of ShapeKind + FeatureNum
+-- SelectableFeature (for selecting/relating individual values)
 
--- Must be a comparable to be put in a Set
--- Otherwise, this shouldn't be a string
--- For now, these are unnecessarily entangled with ShapeKinds.
--- See sanityChecks below for the output of unparseFeatureNum.
---
-type alias ShapeFeature = String
+featuresOfShape : Int -> ShapeKind -> List Attr -> List SelectableFeature
+featuresOfShape nodeId kind attrs =
+  shapeFeaturesOfShape kind attrs
+  |> List.map (\shapeFeature -> ShapeFeature nodeId shapeFeature)
 
-unparseFeatureNum : Maybe ShapeKind -> FeatureNum -> ShapeFeature
-unparseFeatureNum mKind featureNum =
-  case mKind of
-    Just kind -> String.toLower kind ++ strFeatureNum kind featureNum
-    Nothing   -> strFeatureNum "XXX" featureNum
 
-strFeatureNum : ShapeKind -> FeatureNum -> ShapeFeature
-strFeatureNum kind featureNum =
-  case (kind, featureNum) of
-    ("line", XFeat (Point 1)) -> "X1"
-    ("line", XFeat (Point 2)) -> "X2"
-    ("line", YFeat (Point 1)) -> "Y1"
-    ("line", YFeat (Point 2)) -> "Y2"
-    (_,      XFeat pf)        -> strPointFeature pf "X"
-    (_,      YFeat pf)        -> strPointFeature pf "Y"
-    (_,      DFeat df)        -> strDistanceFeature df
-    (_,      OFeat f)         -> strOtherFeature f
+simpleDesc : a -> String
+simpleDesc adt =
+  toString adt
+  |> Utils.stringReplace " " ""
+  |> Utils.stringReplace "(" ""
+  |> Utils.stringReplace ")" ""
 
-strPointFeature pointFeature xy =
-  case pointFeature of
-    TopLeft    -> "TL" ++ xy
-    TopRight   -> "TR" ++ xy
-    BotLeft    -> "BL" ++ xy
-    BotRight   -> "BR" ++ xy
-    TopEdge    -> "TC" ++ xy
-    RightEdge  -> "CR" ++ xy
-    BotEdge    -> "BC" ++ xy
-    LeftEdge   -> "CL" ++ xy
-    Center     -> "C" ++ xy
-    LonePoint  -> xy
-    Point i    -> "Pt" ++ xy ++ toString i
-    Midpoint i -> "Midpt" ++ xy ++ toString i
-    EndPoint   -> "Endpt" ++ xy
 
-strDistanceFeature distanceFeature =
-  case distanceFeature of
-    Width         -> "Width"
-    Height        -> "Height"
-    Radius        -> "R"
-    RadiusX       -> "RX"
-    RadiusY       -> "RY"
-    Offset        -> ""
+extractSelectablePoints : Set SelectablePoint -> (SelectablePoint, SelectablePoint)
+extractSelectablePoints selectablePointsPair =
+  case Set.toList selectablePointsPair of
+    [pt1, pt2] -> (pt1, pt2)
+    _          -> Debug.crash "extractSelectablePoints: expected distancePair set to have two elements"
 
-strOtherFeature otherFeature =
-  case otherFeature of
-    FillColor     -> "fill"
-    StrokeColor   -> "stroke"
-    FillOpacity   -> "fillOpacity"
-    StrokeOpacity -> "strokeOpacity"
-    StrokeWidth   -> "strokeWidth"
-    Rotation      -> "rotation"
 
-shapeKindRegexStr  = "line|rect|circle|ellipse|polygon|path|box|oval|point|offset"
-xShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)X(\\d*)$"
-yShapeFeatureRegex = Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(.*)Y(\\d*)$"
+selectableDistanceBetweenFeaturesDesc : Set SelectablePoint -> String -- Set size should have exactly two elements
+selectableDistanceBetweenFeaturesDesc selectablePointsPair =
+  let ((_{- nodeId1 -}, pointFeature1), (_{- nodeId2 -}, pointFeature2)) = extractSelectablePoints selectablePointsPair in
+  simpleDesc pointFeature1 ++ "To" ++ simpleDesc pointFeature2
 
-distanceFeatureRegex =
-  Regex.regex <| "^(" ++ shapeKindRegexStr ++ ")(Width|Height|R|RX|RY)$"
 
-parseFeatureNum : ShapeFeature -> FeatureNum
-parseFeatureNum shapeFeature =
-  if Regex.contains distanceFeatureRegex shapeFeature then
-    Regex.find (Regex.AtMost 1) distanceFeatureRegex shapeFeature
-      |> Utils.head_
-      |> (.submatches)
-      |> parseDistanceFeature
-      |> DFeat
-  else if Regex.contains xShapeFeatureRegex shapeFeature then
-    Regex.find (Regex.AtMost 1) xShapeFeatureRegex shapeFeature
-      |> Utils.head_
-      |> (.submatches)
-      |> parseShapeFeaturePoint
-      |> XFeat
-  else if Regex.contains yShapeFeatureRegex shapeFeature then
-    Regex.find (Regex.AtMost 1) yShapeFeatureRegex shapeFeature
-      |> Utils.head_
-      |> (.submatches)
-      |> parseShapeFeaturePoint
-      |> YFeat
+featureDesc : SelectableFeature -> String
+featureDesc feature =
+  case feature of
+    ShapeFeature nodeId shapeFeature             -> simpleDesc shapeFeature -- Slightly nicer if we had shape kind here, but not worth the complexity.
+    DistanceBetweenFeatures selectablePointsPair -> selectableDistanceBetweenFeaturesDesc selectablePointsPair
+
+
+featureIsX : SelectableFeature -> Bool
+featureIsX feature =
+  case feature of
+    ShapeFeature _ (XFeat _) -> True
+    _                        -> False
+
+
+featureIsY : SelectableFeature -> Bool
+featureIsY feature =
+  case feature of
+    ShapeFeature _ (YFeat _) -> True
+    _                        -> False
+
+
+featureIsXOrY : SelectableFeature -> Bool
+featureIsXOrY feature =
+  featureIsX feature || featureIsY feature
+
+
+featuresToMaybeSelectablePoint : SelectableFeature -> SelectableFeature -> Maybe SelectablePoint
+featuresToMaybeSelectablePoint feature1 feature2 =
+  case (feature1, feature2) of
+    (ShapeFeature nodeId1 (XFeat pf1), ShapeFeature nodeId2 (YFeat pf2)) -> if nodeId1 == nodeId2 && pf1 == pf2 then Just (nodeId1, pf1) else Nothing
+    (ShapeFeature nodeId1 (YFeat pf1), ShapeFeature nodeId2 (XFeat pf2)) -> if nodeId1 == nodeId2 && pf1 == pf2 then Just (nodeId1, pf1) else Nothing
+    _                                                                      -> Nothing
+
+
+featuresAreXYPairs : SelectableFeature -> SelectableFeature -> Bool
+featuresAreXYPairs feature1 feature2 =
+  featuresToMaybeSelectablePoint feature1 feature2
+  |> Utils.maybeToBool
+
+
+-- Find all XY pairs in a list of features.
+featuresToSelectablePoints : List SelectableFeature -> List SelectablePoint
+featuresToSelectablePoints features =
+  case features of
+    feature1::otherFeatures ->
+      otherFeatures
+      |> List.filterMap (\otherFeature -> featuresToMaybeSelectablePoint feature1 otherFeature)
+      |> (++) (featuresToSelectablePoints otherFeatures)
+
+    [] ->
+      []
+
+
+selectablePointToSelectableFeatures : SelectablePoint -> (SelectableFeature, SelectableFeature)
+selectablePointToSelectableFeatures (nodeId, pointFeature) =
+  ( ShapeFeature nodeId (XFeat pointFeature)
+  , ShapeFeature nodeId (YFeat pointFeature)
+  )
+
+
+maybeEvaluateShapePointFeature : ShapeKind -> List Attr -> PointFeature -> Maybe (Num, Num)
+maybeEvaluateShapePointFeature shapeKind shapeAttrs pointFeature =
+  let (xEqn, yEqn) = getPointEquations shapeKind shapeAttrs pointFeature in
+  case (evaluateFeatureEquation xEqn, evaluateFeatureEquation yEqn) of
+    (Just x, Just y) -> Just (x, y)
+    _                -> Nothing
+
+
+maybeEvaluateWidgetPointFeature : Widget -> PointFeature -> Maybe (Num, Num)
+maybeEvaluateWidgetPointFeature widget pointFeature =
+  case (widget, pointFeature) of
+    (WIntSlider _ _ _ _ _ _ _, _)             -> Nothing
+    (WNumSlider _ _ _ _ _ _ _, _)             -> Nothing
+    (WPoint (x, xTr) _ (y, yTr) _, LonePoint) -> Just (x, y)
+    (WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _, EndPoint) ->
+      let (_{- effectiveAmount -}, ((endX, _{- endXTr -}), (endY, _{- endYTr -}))) =
+        offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
+      in
+      Just (endX, endY)
+    (WCall _ _ _ _, _) -> Nothing
+    _                  -> Debug.crash <| "bad feature for widget: " ++ toString pointFeature
+
+
+selectablePointToMaybeXY : SelectablePoint -> LangSvg.RootedIndexedTree -> Widgets -> Maybe (Num, Num)
+selectablePointToMaybeXY (nodeId, pointFeature) slate widgets =
+  if nodeId < -2 then
+    let idAsShape = -2 - nodeId in
+    Utils.maybeGeti1 idAsShape widgets
+    |> Maybe.andThen (\widget -> maybeEvaluateWidgetPointFeature widget pointFeature)
   else
-    case shapeFeature of
-      "offset"        -> DFeat Offset
+    LangSvg.maybeGetSvgNode nodeId slate
+    |> Maybe.andThen (\(shapeKind, shapeAttrs, _) -> maybeEvaluateShapePointFeature shapeKind shapeAttrs pointFeature)
 
-      "fill"          -> OFeat FillColor
-      "stroke"        -> OFeat StrokeColor
-      "fillOpacity"   -> OFeat FillOpacity
-      "strokeOpacity" -> OFeat StrokeOpacity
-      "strokeWidth"   -> OFeat StrokeWidth
-      "rotation"      -> OFeat Rotation
-
-      _ -> Debug.crash <| "parseFeatureNum: " ++ shapeFeature
-
-parseDistanceFeature matches =
-  case matches of
-    [Just kind, Just "Width"]  -> Width
-    [Just kind, Just "Height"] -> Height
-    [Just kind, Just "R"]      -> Radius
-    [Just kind, Just "RX"]     -> RadiusX
-    [Just kind, Just "RY"]     -> RadiusY
-
-    _ -> Debug.crash <| "parseDistanceFeature: " ++ (toString matches)
-
-parseShapeFeaturePoint matches =
-  case matches of
-
-    [Just kind, Just "TL", Just ""] -> TopLeft
-    [Just kind, Just "TR", Just ""] -> TopRight
-    [Just kind, Just "BL", Just ""] -> BotLeft
-    [Just kind, Just "BR", Just ""] -> BotRight
-    [Just kind, Just "TC", Just ""] -> TopEdge
-    [Just kind, Just "CR", Just ""] -> RightEdge
-    [Just kind, Just "BC", Just ""] -> BotEdge
-    [Just kind, Just "CL", Just ""] -> LeftEdge
-    [Just kind, Just "C" , Just ""] -> Center
-
-    [Just kind, Just "",    Just ""] -> LonePoint
-
-    [Just kind, Just "", Just "1"] -> Point 1
-    [Just kind, Just "", Just "2"] -> Point 2
-
-    [Just kind, Just "Pt", Just s] -> Point (Utils.parseInt s)
-
-    [Just kind, Just "Midpt", Just s]  -> Midpoint (Utils.parseInt s)
-    [Just kind, Just "Endpt", Just ""] -> EndPoint
-
-    _ -> Debug.crash <| "parsePoint: " ++ toString matches
-
-
-------------------------------------------------------------------------------
--- Selected Shape Features
-
-type alias SelectedShapeFeature = (NodeId, ShapeFeature)
-
-selectedPointFeatureOf : SelectedShapeFeature -> SelectedShapeFeature
-                      -> Maybe (NodeId, PointFeature)
-selectedPointFeatureOf selected1 selected2 =
-  let (id1, feature1) = selected1 in
-  let (id2, feature2) = selected2 in
-  if id1 /= id2 then Nothing
-  else
-    case pointFeatureOf (feature1, feature2) of
-      Just pt -> Just (id1, pt)
-      Nothing -> selectedPointFeatureOf selected2 selected1
-
-pointFeatureOf : (ShapeFeature, ShapeFeature) -> Maybe PointFeature
-pointFeatureOf (feature1, feature2) =
-  case (parseFeatureNum feature1, parseFeatureNum feature2) of
-    (XFeat pointFeature1, YFeat pointFeature2) ->
-      if pointFeature1 == pointFeature2
-      then Just pointFeature1
-      else Nothing
-    _ ->
-      Nothing
-
-
-------------------------------------------------------------------------------
-
--- Keeping these Strings around to avoid pervasive changes to
--- ValueBasedTransform. Can remove them in favor of FeatureNums instead.
-
-assertString string result =
-  if result == string then string
-  else Debug.crash <| Utils.spaces ["assertString:", result, "/= ", string]
-
-sanityCheck string kind featureNum =
-  assertString string (unparseFeatureNum (Just kind) featureNum)
-
-sanityCheckOther string featureNum =
-  assertString string (unparseFeatureNum Nothing featureNum)
-
-shapeFill          = sanityCheckOther "fill" (OFeat FillColor)
-shapeStroke        = sanityCheckOther "stroke" (OFeat StrokeColor)
-shapeFillOpacity   = sanityCheckOther "fillOpacity" (OFeat FillOpacity)
-shapeStrokeOpacity = sanityCheckOther "strokeOpacity" (OFeat StrokeOpacity)
-shapeStrokeWidth   = sanityCheckOther "strokeWidth" (OFeat StrokeWidth)
-shapeRotation      = sanityCheckOther "rotation" (OFeat Rotation)
-
-{-
-rectTLX = sanityCheck "rectTLX" "rect" (X TopLeft)
-rectTLY = sanityCheck "rectTLY" "rect" (Y TopLeft)
-rectTRX = sanityCheck "rectTRX" "rect" (X TopRight)
-rectTRY = sanityCheck "rectTRY" "rect" (Y TopRight)
-rectBLX = sanityCheck "rectBLX" "rect" (X BotLeft)
-rectBLY = sanityCheck "rectBLY" "rect" (Y BotLeft)
-rectBRX = sanityCheck "rectBRX" "rect" (X BotRight)
-rectBRY = sanityCheck "rectBRY" "rect" (Y BotRight)
-rectTCX = sanityCheck "rectTCX" "rect" (X TopEdge)
-rectTCY = sanityCheck "rectTCY" "rect" (Y TopEdge)
-rectCRX = sanityCheck "rectCRX" "rect" (X RightEdge)
-rectCRY = sanityCheck "rectCRY" "rect" (Y RightEdge)
-rectBCX = sanityCheck "rectBCX" "rect" (X BotEdge)
-rectBCY = sanityCheck "rectBCY" "rect" (Y BotEdge)
-rectCLX = sanityCheck "rectCLX" "rect" (X LeftEdge)
-rectCLY = sanityCheck "rectCLY" "rect" (Y LeftEdge)
-rectCX  = sanityCheck "rectCX"  "rect" (X Center)
-rectCY  = sanityCheck "rectCY"  "rect" (Y Center)
-
-rectWidth  = sanityCheck "rectWidth"  "rect" (D Width)
-rectHeight = sanityCheck "rectHeight" "rect" (D Height)
-
-boxTLX = sanityCheck "boxTLX" "BOX" (X TopLeft)
-boxTLY = sanityCheck "boxTLY" "BOX" (Y TopLeft)
-boxTRX = sanityCheck "boxTRX" "BOX" (X TopRight)
-boxTRY = sanityCheck "boxTRY" "BOX" (Y TopRight)
-boxBLX = sanityCheck "boxBLX" "BOX" (X BotLeft)
-boxBLY = sanityCheck "boxBLY" "BOX" (Y BotLeft)
-boxBRX = sanityCheck "boxBRX" "BOX" (X BotRight)
-boxBRY = sanityCheck "boxBRY" "BOX" (Y BotRight)
-boxTCX = sanityCheck "boxTCX" "BOX" (X TopEdge)
-boxTCY = sanityCheck "boxTCY" "BOX" (Y TopEdge)
-boxCRX = sanityCheck "boxCRX" "BOX" (X RightEdge)
-boxCRY = sanityCheck "boxCRY" "BOX" (Y RightEdge)
-boxBCX = sanityCheck "boxBCX" "BOX" (X BotEdge)
-boxBCY = sanityCheck "boxBCY" "BOX" (Y BotEdge)
-boxCLX = sanityCheck "boxCLX" "BOX" (X LeftEdge)
-boxCLY = sanityCheck "boxCLY" "BOX" (Y LeftEdge)
-boxCX  = sanityCheck "boxCX"  "BOX" (X Center)
-boxCY  = sanityCheck "boxCY"  "BOX" (Y Center)
-
-boxWidth  = sanityCheck "boxWidth"  "BOX" (D Width)
-boxHeight = sanityCheck "boxHeight" "BOX" (D Height)
-
-ovalTLX = sanityCheck "ovalTLX" "OVAL" (X TopLeft)
-ovalTLY = sanityCheck "ovalTLY" "OVAL" (Y TopLeft)
-ovalTRX = sanityCheck "ovalTRX" "OVAL" (X TopRight)
-ovalTRY = sanityCheck "ovalTRY" "OVAL" (Y TopRight)
-ovalBLX = sanityCheck "ovalBLX" "OVAL" (X BotLeft)
-ovalBLY = sanityCheck "ovalBLY" "OVAL" (Y BotLeft)
-ovalBRX = sanityCheck "ovalBRX" "OVAL" (X BotRight)
-ovalBRY = sanityCheck "ovalBRY" "OVAL" (Y BotRight)
-ovalTCX = sanityCheck "ovalTCX" "OVAL" (X TopEdge)
-ovalTCY = sanityCheck "ovalTCY" "OVAL" (Y TopEdge)
-ovalCRX = sanityCheck "ovalCRX" "OVAL" (X RightEdge)
-ovalCRY = sanityCheck "ovalCRY" "OVAL" (Y RightEdge)
-ovalBCX = sanityCheck "ovalBCX" "OVAL" (X BotEdge)
-ovalBCY = sanityCheck "ovalBCY" "OVAL" (Y BotEdge)
-ovalCLX = sanityCheck "ovalCLX" "OVAL" (X LeftEdge)
-ovalCLY = sanityCheck "ovalCLY" "OVAL" (Y LeftEdge)
-ovalCX  = sanityCheck "ovalCX"  "OVAL" (X Center)
-ovalCY  = sanityCheck "ovalCY"  "OVAL" (Y Center)
-
-ovalRX = sanityCheck "ovalRX" "OVAL" (D RadiusX)
-ovalRY = sanityCheck "ovalRY" "OVAL" (D RadiusY)
-
-circleTCX = sanityCheck "circleTCX" "circle" (X TopEdge)
-circleTCY = sanityCheck "circleTCY" "circle" (Y TopEdge)
-circleCRX = sanityCheck "circleCRX" "circle" (X RightEdge)
-circleCRY = sanityCheck "circleCRY" "circle" (Y RightEdge)
-circleBCX = sanityCheck "circleBCX" "circle" (X BotEdge)
-circleBCY = sanityCheck "circleBCY" "circle" (Y BotEdge)
-circleCLX = sanityCheck "circleCLX" "circle" (X LeftEdge)
-circleCLY = sanityCheck "circleCLY" "circle" (Y LeftEdge)
-circleCX  = sanityCheck "circleCX"  "circle" (X Center)
-circleCY  = sanityCheck "circleCY"  "circle" (Y Center)
-
-circleR = sanityCheck "circleR" "circle" (D Radius)
-
-ellipseTCX = sanityCheck "ellipseTCX" "ellipse" (X TopEdge)
-ellipseTCY = sanityCheck "ellipseTCY" "ellipse" (Y TopEdge)
-ellipseCRX = sanityCheck "ellipseCRX" "ellipse" (X RightEdge)
-ellipseCRY = sanityCheck "ellipseCRY" "ellipse" (Y RightEdge)
-ellipseBCX = sanityCheck "ellipseBCX" "ellipse" (X BotEdge)
-ellipseBCY = sanityCheck "ellipseBCY" "ellipse" (Y BotEdge)
-ellipseCLX = sanityCheck "ellipseCLX" "ellipse" (X LeftEdge)
-ellipseCLY = sanityCheck "ellipseCLY" "ellipse" (Y LeftEdge)
-ellipseCX  = sanityCheck "ellipseCX"  "ellipse" (X Center)
-ellipseCY  = sanityCheck "ellipseCY"  "ellipse" (Y Center)
-
-ellipseRX = sanityCheck "ellipseRX" "ellipse" (D RadiusX)
-ellipseRY = sanityCheck "ellipseRY" "ellipse" (D RadiusY)
-
-lineX1 = sanityCheck "lineX1" "line" (X (Point 1))
-lineY1 = sanityCheck "lineY1" "line" (Y (Point 1))
-lineX2 = sanityCheck "lineX2" "line" (X (Point 2))
-lineY2 = sanityCheck "lineY2" "line" (Y (Point 2))
-lineCX = sanityCheck "lineCX" "line" (X Center)
-lineCY = sanityCheck "lineCY" "line" (Y Center)
-
-pathPtX i    = sanityCheck (pathPtXPrefix ++ toString i) "path" (X (Point i))
-pathPtY i    = sanityCheck (pathPtYPrefix ++ toString i) "path" (Y (Point i))
-polyPtX i    = sanityCheck (polyPtXPrefix ++ toString i) "polygon" (X (Point i))
-polyPtY i    = sanityCheck (polyPtYPrefix ++ toString i) "polygon" (Y (Point i))
-polyMidptX i = sanityCheck (polyMidptXPrefix ++ toString i) "polygon" (X (Midpoint i))
-polyMidptY i = sanityCheck (polyMidptYPrefix ++ toString i) "polygon" (Y (Midpoint i))
-
-pathPtXPrefix = "pathPtX"
-pathPtYPrefix = "pathPtY"
-polyPtXPrefix = "polygonPtX"
-polyPtYPrefix = "polygonPtY"
-polyMidptXPrefix = "polygonMidptX"
-polyMidptYPrefix = "polygonMidptY"
--}
 
 
 ------------------------------------------------------------------------------
@@ -429,85 +279,275 @@ polyMidptYPrefix = "polygonMidptY"
 -- If need more structured values in the future,
 -- add EqnVal AVal (rather than EqnVal Val).
 --
-type FeatureEquation
-  = EqnNum NumTr
-  | EqnOp Op_ (List FeatureEquation)
+-- See LocEqn.elm for a discussion of all the equation types in SnS.
+
+type alias FeatureEquation    = FeatureEquationOf NumTr
+type alias FeatureValEquation = FeatureEquationOf Val
+
+type FeatureEquationOf a
+  = EqnNum a
+  | EqnOp Op_ (List (FeatureEquationOf a))
 
 
-type alias BoxyFeatureEquations =
-  { left : FeatureEquation
-  , top : FeatureEquation
-  , right : FeatureEquation
-  , bottom : FeatureEquation
-  , cx : FeatureEquation
-  , cy : FeatureEquation
-  , mWidth : Maybe FeatureEquation
-  , mHeight : Maybe FeatureEquation
-  , mRadius : Maybe FeatureEquation
-  , mRadiusX : Maybe FeatureEquation
-  , mRadiusY : Maybe FeatureEquation
+featureToEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureEquation
+featureToEquation selectableFeature tree widgets locIdToNumberAndLoc =
+  featureToEquation_ shapeFeatureEquation widgetFeatureEquation (\n -> (n, dummyTrace)) selectableFeature tree widgets locIdToNumberAndLoc
+
+featureToValEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureValEquation
+featureToValEquation selectableFeature tree widgets locIdToNumberAndLoc =
+  let vConst n = { v_ = VConst Nothing (n, dummyTrace), provenance = dummyProvenance, parents = Parents [] } in
+  featureToEquation_ shapeFeatureValEquation widgetFeatureValEquation vConst selectableFeature tree widgets locIdToNumberAndLoc
+
+selectedShapeToValEquation : NodeId -> IndexedTree -> Maybe FeatureValEquation
+selectedShapeToValEquation nodeId shapeTree =
+  Dict.get nodeId shapeTree
+  |> Maybe.map (\shape -> EqnNum shape.val)
+
+-- The first three args are sort of a type class...but only used here so no need to pull it out into a record.
+featureToEquation_
+  :  (ShapeFeature -> ShapeKind -> List Attr -> FeatureEquationOf a)
+  -> (ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquationOf a)
+  -> (Num -> a)
+  -> SelectableFeature
+  -> IndexedTree
+  -> Widgets
+  -> Dict.Dict LocId (Num, Loc)
+  -> Maybe (FeatureEquationOf a)
+featureToEquation_ getFeatureEquation getWidgetFeatureEquation makeConst feature tree widgets locIdToNumberAndLoc =
+  case feature of
+    ShapeFeature nodeId shapeFeature ->
+      if not <| nodeId < -2 then
+        -- shape feature
+        case Dict.get nodeId tree |> Maybe.map .interpreted of
+          Just (LangSvg.SvgNode kind nodeAttrs _) ->
+            Just (getFeatureEquation shapeFeature kind nodeAttrs)
+
+          Just (LangSvg.TextNode _) ->
+            Nothing
+
+          Nothing ->
+            Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation " ++ toString nodeId ++ " " ++ toString tree
+      else
+        -- widget feature
+        -- change to index widgets by position in widget list; then pull feature from widget type
+        let widgetId = -nodeId - 2 in -- widget nodeId's are encoded at -2 and count down. (And they are 1-indexed, so actually they start at -3)
+        case Utils.maybeGeti1 widgetId widgets of
+          Just widget -> Just (getWidgetFeatureEquation shapeFeature widget locIdToNumberAndLoc)
+          Nothing     -> Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation can't find widget " ++ toString widgetId ++ " in " ++ toString widgets
+
+    DistanceBetweenFeatures pointPairSet ->
+      let (selectablePoint1, selectablePoint2) = extractSelectablePoints pointPairSet in
+      let (x1Feature, y1Feature) = selectablePointToSelectableFeatures selectablePoint1 in
+      let (x2Feature, y2Feature) = selectablePointToSelectableFeatures selectablePoint2 in
+      let getEqn feature = featureToEquation_ getFeatureEquation getWidgetFeatureEquation makeConst feature tree widgets locIdToNumberAndLoc in
+      case (getEqn x1Feature, getEqn y1Feature, getEqn x2Feature, getEqn y2Feature) of
+        (Just x1Eqn, Just y1Eqn, Just x2Eqn, Just y2Eqn) ->
+          let deltaXEqn = EqnOp Minus [x2Eqn, x1Eqn] in -- x2 - x1
+          let deltaYEqn = EqnOp Minus [y2Eqn, y1Eqn] in -- y2 - y1
+          let deltaXSquaredEqn = EqnOp Pow [deltaXEqn, EqnNum (makeConst 2)] in -- (x2 - x1)^2
+          let deltaYSquaredEqn = EqnOp Pow [deltaYEqn, EqnNum (makeConst 2)] in -- (y2 - y1)^2
+          let distanceEqn = EqnOp Sqrt [EqnOp Plus [deltaXSquaredEqn, deltaYSquaredEqn]] in -- sqrt( (x2-x1)^2 + (y2-y1)^2 )
+          Just distanceEqn
+
+        _ ->
+          Nothing
+
+
+equationNumTrs featureEqn =
+  case featureEqn of
+    EqnNum val   -> [val]
+    EqnOp _ eqns -> List.concatMap equationNumTrs eqns
+
+
+
+type alias BoxyFeatureEquationsOf a =
+  { left : FeatureEquationOf a
+  , top : FeatureEquationOf a
+  , right : FeatureEquationOf a
+  , bottom : FeatureEquationOf a
+  , cx : FeatureEquationOf a
+  , cy : FeatureEquationOf a
+  , mWidth : Maybe (FeatureEquationOf a)
+  , mHeight : Maybe (FeatureEquationOf a)
+  , mRadius : Maybe (FeatureEquationOf a)
+  , mRadiusX : Maybe (FeatureEquationOf a)
+  , mRadiusY : Maybe (FeatureEquationOf a)
   }
 
 
-two       = EqnNum (2, dummyTrace)
+twoNumTr  = EqnNum (2, dummyTrace)
+twoVal    = EqnNum (Val (VConst Nothing (2, dummyTrace)) (Provenance [] (eConst0 2 dummyLoc) []) (Parents []))
 plus a b  = EqnOp Plus [a, b]
 minus a b = EqnOp Minus [a, b]
 div a b   = EqnOp Div [a, b]
 
 
-featureEquation : ShapeKind -> ShapeFeature -> List Attr -> FeatureEquation
-featureEquation kind featureName nodeAttrs =
-  let featureNum = parseFeatureNum featureName in
-  featureEquationOf kind nodeAttrs featureNum
+shapeFeatureEquation : ShapeFeature -> ShapeKind -> List Attr -> FeatureEquation
+shapeFeatureEquation shapeFeature kind nodeAttrs =
+  let toOpacity attr =
+    case attr.interpreted of
+      LangSvg.AColorNum (_, Just opacity) -> opacity
+      _                                   -> Debug.crash "shapeFeatureEquation: toOpacity"
+  in
+  shapeFeatureEquationOf
+      LangSvg.findNumishAttr
+      LangSvg.getPathPoint
+      LangSvg.getPolyPoint
+      toOpacity
+      LangSvg.toTransformRot
+      twoNumTr
+      kind
+      nodeAttrs
+      shapeFeature
+
+shapeFeatureValEquation : ShapeFeature -> ShapeKind -> List Attr -> FeatureValEquation
+shapeFeatureValEquation shapeFeature kind nodeAttrs =
+  let getAttr attrName attrList =
+    (Utils.find ("featureValEquation: getAttr " ++ attrName) attrList attrName).val
+  in
+  let getPathPoint attrList i =
+    let toPointValPairs vListElems =
+      let commandIsAnyOf cmd options = String.contains (String.toUpper cmd) options in
+      case vListElems of
+        []     -> []
+        v::rest -> case v.v_ of
+          VBase (VString cmd) ->
+            if commandIsAnyOf cmd "Z" then
+              toPointValPairs rest
+            else if commandIsAnyOf cmd "MLT" then
+              case Utils.split 2 rest of
+                ([xVal, yVal], rest) -> (xVal, yVal) :: toPointValPairs rest
+                _                    -> let _ = Utils.log "toPointValPairs MLT parse fail" in []
+            else if commandIsAnyOf cmd "HV" then
+              toPointValPairs (List.drop 1 rest)
+            else if commandIsAnyOf cmd "C" then
+              case Utils.split 6 rest of
+                ([x1,y1,x2,y2,x,y], rest) -> (x1,y1) :: (x2,y2) :: (x,y) :: toPointValPairs rest
+                _                         -> let _ = Utils.log "toPointValPairs C parse fail" in []
+            else if commandIsAnyOf cmd "SQ" then
+              case Utils.split 4 rest of
+                ([x1,y1,x,y], rest) -> (x1,y1) :: (x,y) :: toPointValPairs rest
+                _                   -> let _ = Utils.log "toPointValPairs SQ parse fail" in []
+            else if commandIsAnyOf cmd "A" then
+              case Utils.split 7 rest of
+                ([rx,ry,axis,flag,sweep,x,y], rest) -> (x,y) :: toPointValPairs rest
+                _                                   -> let _ = Utils.log "toPointValPairs A parse fail" in []
+            else
+              let _ = Utils.log ("toPointValPairs bad command " ++ cmd) in
+              []
+
+          _ ->
+            let _ = Utils.log ("toPointValPairs expected command string, got " ++ strVal v) in
+            []
+    in
+    case (Utils.find "featureValEquation: getPathPoint d" attrList "d").val.v_ of
+      VList cmds -> toPointValPairs cmds |> Utils.geti i
+      _          -> Debug.crash "featureValEquation: getPathPoint2"
+  in
+  let getPolyPoint attrList i =
+    case (Utils.find "featureValEquation: getPolyPoint" attrList "points").val.v_ of
+      VList points ->
+        case (Utils.geti i points).v_ of
+          VList [xVal, yVal] -> (xVal, yVal)
+          _                  -> Debug.crash "featureValEquation: getPolyPoint2"
+      _            -> Debug.crash "featureValEquation: getPolyPoint3"
+  in
+  let toOpacity attrVal =
+    case attrVal.val.v_ of
+      VList [_, opacityVal] -> opacityVal
+      _                     -> Debug.crash "featureValEquation: toOpacity"
+  in
+  let toTransformRot attrVal =
+    case attrVal.val.v_ of
+      VList [cmd, rot, cx, cy] -> if cmd.v_ == VBase (VString "rotate") then (rot, cx, cy) else Debug.crash "featureValEquation: bad rotate command"
+      _                        -> Debug.crash "featureValEquation: toTransformRot"
+  in
+  shapeFeatureEquationOf
+      getAttr
+      getPathPoint
+      getPolyPoint
+      toOpacity
+      toTransformRot
+      twoVal
+      kind
+      nodeAttrs
+      shapeFeature
 
 
 widgetFeatureEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquation
-widgetFeatureEquation featureName widget locIdToNumberAndLoc =
+widgetFeatureEquation shapeFeature widget locIdToNumberAndLoc =
   case widget of
-    WIntSlider low high caption curVal (locId,_,_) _ ->
+    WIntSlider low high caption curVal provenance (locId,_,_) _ ->
       let (n, loc) =
         Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
       in
       EqnNum (n, TrLoc loc)
-    WNumSlider low high caption curVal (locId,_,_) _ ->
+    WNumSlider low high caption curVal provenance (locId,_,_) _ ->
       let (n, loc) =
         Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
       in
       EqnNum (n, TrLoc loc)
-    WPoint (x, xTr) (y, yTr) ->
-      let featureNum = parseFeatureNum featureName in
-      case featureNum of
+    WPoint (x, xTr) xProvenance (y, yTr) yProvenance ->
+      case shapeFeature of
         XFeat LonePoint -> EqnNum (x, xTr)
         YFeat LonePoint -> EqnNum (y, yTr)
-        _               -> Debug.crash <| "WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ featureName
-    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) ->
-      let featureNum = parseFeatureNum featureName in
+        _               -> Debug.crash <| "WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ toString shapeFeature
+    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountProvenance endXProvenance endYProvenance ->
       let op =
         case sign of
           Positive -> Plus
           Negative -> Minus
       in
-      case (featureNum, axis) of
+      case (shapeFeature, axis) of
         (DFeat Offset, _)   -> EqnNum (amount, amountTr)
         (XFeat EndPoint, X) -> EqnOp op [EqnNum (baseX, baseXTr), EqnNum (amount, amountTr)]
         (XFeat EndPoint, Y) -> EqnNum (baseX, baseXTr)
         (YFeat EndPoint, X) -> EqnNum (baseY, baseYTr)
         (YFeat EndPoint, Y) -> EqnOp op [EqnNum (baseY, baseYTr), EqnNum (amount, amountTr)]
-        _                   -> Debug.crash <| "WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ featureName
-    -- _ ->
-    --   Debug.crash <| "ShapeWidgets.widgetFeatureEquation: Widget type not supported yet " ++ toString widget
+        _                   -> Debug.crash <| "WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
+    WCall funcVal argVals retVal retWs ->
+      Debug.crash <| "WCall does not have any feature equations, but asked for " ++ toString shapeFeature
 
 
-featureEquationOf : ShapeKind -> List Attr -> FeatureNum -> FeatureEquation
-featureEquationOf kind attrs featureNum =
+widgetFeatureValEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureValEquation
+widgetFeatureValEquation shapeFeature widget _{- locIdToNumberAndLoc -} =
+  case widget of
+    WIntSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
+    WNumSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
+    WPoint (x, xTr) xVal (y, yTr) yVal ->
+      case shapeFeature of
+        XFeat LonePoint -> EqnNum xVal
+        YFeat LonePoint -> EqnNum yVal
+        _               -> Debug.crash <| "widgetFeatureValEquation WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ toString shapeFeature
+    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountVal endXVal endYVal ->
+      case shapeFeature of
+        DFeat Offset   -> EqnNum amountVal
+        XFeat EndPoint -> EqnNum endXVal
+        YFeat EndPoint -> EqnNum endYVal
+        _              -> Debug.crash <| "widgetFeatureValEquation WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
+    WCall funcVal argVals retVal retWs ->
+      Debug.crash <| "WCall does not have any feature val equations, but asked for " ++ toString shapeFeature
 
-  let get attr  = EqnNum <| LangSvg.findNumishAttr attr attrs in
-  let crash () =
-    let s = unparseFeatureNum (Just kind) featureNum in
-    Debug.crash <| Utils.spaces [ "featureEquationOf:", kind, s ] in
+
+shapeFeatureEquationOf
+  :  (String -> List Attr -> a)
+  -> (List Attr -> Int -> (a, a))
+  -> (List Attr -> Int -> (a, a))
+  -> (AVal -> a)
+  -> (AVal -> (a, a, a))
+  -> FeatureEquationOf a
+  -> ShapeKind
+  -> List Attr
+  -> ShapeFeature
+  -> FeatureEquationOf a
+shapeFeatureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot two kind attrs shapeFeature =
+
+  let get attr  = EqnNum <| getAttrNum attr attrs in
+  let crash _ = -- Elm compiler crashes if this is instead written as "let crash () ="
+    Debug.crash <| Utils.spaces [ "shapeFeatureEquationOf:", kind, toString shapeFeature ] in
 
   let handleLine () =
-    case featureNum of
+    case shapeFeature of
       XFeat (Point 1) -> get "x1"
       XFeat (Point 2) -> get "x2"
       YFeat (Point 1) -> get "y1"
@@ -517,8 +557,8 @@ featureEquationOf kind attrs featureNum =
       _           -> crash () in
 
   let handleBoxyShape () =
-    let equations = boxyFeatureEquationsOf kind attrs in
-    case featureNum of
+    let equations = boxyFeatureEquationsOf getAttrNum two kind attrs in
+    case shapeFeature of
 
       XFeat TopLeft   -> equations.left
       YFeat TopLeft   -> equations.top
@@ -540,8 +580,7 @@ featureEquationOf kind attrs featureNum =
       YFeat Center    -> equations.cy
 
       DFeat distanceFeature ->
-        let s = strDistanceFeature distanceFeature in
-        let cap = Utils.spaces ["shapeFeatureEquationOf:", kind, s] in
+        let cap = Utils.spaces ["shapeFeatureEquationOf:", kind, toString shapeFeature] in
         case distanceFeature of
           Width     -> Utils.fromJust_ cap equations.mWidth
           Height    -> Utils.fromJust_ cap equations.mHeight
@@ -553,18 +592,18 @@ featureEquationOf kind attrs featureNum =
       _ -> crash () in
 
   let handlePath () =
-    let x i = EqnNum <| Tuple.first <| LangSvg.getPathPoint attrs i in
-    let y i = EqnNum <| Tuple.second <| LangSvg.getPathPoint attrs i in
-    case featureNum of
+    let x i = EqnNum <| Tuple.first <| getPathPoint attrs i in
+    let y i = EqnNum <| Tuple.second <| getPathPoint attrs i in
+    case shapeFeature of
       XFeat (Point i) -> x i
       YFeat (Point i) -> y i
       _           -> crash () in
 
   let handlePoly () =
     let ptCount = LangSvg.getPtCount attrs in
-    let x i = EqnNum <| Tuple.first <| LangSvg.getPolyPoint attrs i in
-    let y i = EqnNum <| Tuple.second <| LangSvg.getPolyPoint attrs i in
-    case featureNum of
+    let x i = EqnNum <| Tuple.first <| getPolyPoint attrs i in
+    let y i = EqnNum <| Tuple.second <| getPolyPoint attrs i in
+    case shapeFeature of
 
       XFeat (Point i) -> x i
       YFeat (Point i) -> y i
@@ -578,22 +617,16 @@ featureEquationOf kind attrs featureNum =
 
       _  -> crash () in
 
-  case featureNum of
+  case shapeFeature of
 
     OFeat FillColor   -> get "fill"
     OFeat StrokeColor -> get "stroke"
     OFeat StrokeWidth -> get "stroke-width"
 
-    OFeat FillOpacity ->
-      case (Utils.find_ attrs "fill").av_ of
-        LangSvg.AColorNum (_, Just opacity) -> EqnNum opacity
-        _                                   -> Debug.crash "featureEquationOf: fillOpacity"
-    OFeat StrokeOpacity ->
-      case (Utils.find_ attrs "stroke").av_ of
-        LangSvg.AColorNum (_, Just opacity) -> EqnNum opacity
-        _                                   -> Debug.crash "featureEquationOf: strokeOpacity"
+    OFeat FillOpacity   -> EqnNum <| toOpacity <| Utils.find_ attrs "fill"
+    OFeat StrokeOpacity -> EqnNum <| toOpacity <| Utils.find_ attrs "stroke"
     OFeat Rotation ->
-      let (rot,cx,cy) = LangSvg.toTransformRot <| Utils.find_ attrs "transform" in
+      let (rot,_{- cx -},_{- cy -}) = toTransformRot <| Utils.find_ attrs "transform" in
       EqnNum rot
 
     _ ->
@@ -610,9 +643,9 @@ featureEquationOf kind attrs featureNum =
         _          -> crash ()
 
 
-boxyFeatureEquationsOf : ShapeKind -> List Attr -> BoxyFeatureEquations
-boxyFeatureEquationsOf kind attrs =
-  let get attr  = EqnNum <| LangSvg.findNumishAttr attr attrs in
+boxyFeatureEquationsOf : (String -> List Attr -> a) -> FeatureEquationOf a -> ShapeKind -> List Attr -> BoxyFeatureEquationsOf a
+boxyFeatureEquationsOf getAttrNum two kind attrs =
+  let get attr  = EqnNum <| getAttrNum attr attrs in
   case kind of
 
     "rect" ->
@@ -717,12 +750,12 @@ evaluateFeatureEquation_ =
 
 
 evaluateLineFeatures attrs =
-  Utils.unwrap6 <|
-    List.map (evaluateFeatureEquation_ << featureEquationOf "line" attrs) <|
-      [ XFeat (Point 1), YFeat (Point 1)
-      , XFeat (Point 2), YFeat (Point 2)
-      , XFeat Center, YFeat Center
-      ]
+  [ XFeat (Point 1), YFeat (Point 1)
+  , XFeat (Point 2), YFeat (Point 2)
+  , XFeat Center, YFeat Center
+  ]
+  |> List.map (\shapeFeature -> shapeFeatureEquation shapeFeature "line" attrs |> evaluateFeatureEquation_)
+  |> Utils.unwrap6
 
 
 type alias BoxyNums =
@@ -733,7 +766,7 @@ type alias BoxyNums =
 
 
 evaluateBoxyNums kind attrs =
-  let equations = boxyFeatureEquationsOf kind attrs in
+  let equations = boxyFeatureEquationsOf LangSvg.findNumishAttr twoNumTr kind attrs in
   let (left, top, right, bot, cx, cy) =
     ( evaluateFeatureEquation_ equations.left
     , evaluateFeatureEquation_ equations.top
@@ -764,12 +797,12 @@ type alias PointEquations = (FeatureEquation, FeatureEquation)
 
 getPointEquations : ShapeKind -> List Attr -> PointFeature -> PointEquations
 getPointEquations kind attrs pointFeature =
-  ( featureEquationOf kind attrs (XFeat pointFeature)
-  , featureEquationOf kind attrs (YFeat pointFeature) )
+  ( shapeFeatureEquation (XFeat pointFeature) kind attrs
+  , shapeFeatureEquation (YFeat pointFeature) kind attrs )
 
 getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
 getPrimitivePointEquations (_, tree) nodeId =
-  case Utils.justGet_ "LangSvg.getPrimitivePoints" nodeId tree of
+  case Utils.justGet_ "LangSvg.getPrimitivePoints" nodeId tree |> .interpreted of
     LangSvg.SvgNode kind attrs _ ->
       List.concatMap (\pointFeature ->
         case getPointEquations kind attrs pointFeature of
@@ -781,13 +814,90 @@ getPrimitivePointEquations (_, tree) nodeId =
 
 
 ------------------------------------------------------------------------------
+-- Shape Bounds
+
+-- Enclosing bounding box
+enclosureOfBoundsPair : (Num, Num, Num, Num) -> (Num, Num, Num, Num) -> (Num, Num, Num, Num)
+enclosureOfBoundsPair (left1, top1, right1, bot1) (left2, top2, right2, bot2) =
+  ( min  left1  left2
+  , min   top1   top2
+  , max right1 right2
+  , max   bot1   bot2
+  )
+
+maybeEnclosureOfAllBounds : List (Num, Num, Num, Num) -> Maybe (Num, Num, Num, Num)
+maybeEnclosureOfAllBounds bounds =
+  case bounds of
+    []          -> Nothing
+    first::rest -> Just (rest |> List.foldl enclosureOfBoundsPair first)
+
+
+valToMaybeBounds : Val -> Maybe (Num, Num, Num, Num)
+valToMaybeBounds val =
+  case valToMaybeAnnotatedPoint val of
+    Just (x, y) -> Just (x, y, x, y)
+    Nothing ->
+      case val.v_ of
+        VList vals ->
+          case LangSvg.valToIndexedTree val of
+            Ok (_, shapeDict) ->
+              let shapeNodes = Dict.values shapeDict in
+              shapeNodes
+              |> List.filterMap maybeShapeBounds
+              |> maybeEnclosureOfAllBounds
+
+            Err _ ->
+              -- Maybe this is a list of shapes or points?
+              vals
+              |> List.filterMap valToMaybeBounds
+              |> maybeEnclosureOfAllBounds -- Returns nothing if input list empty (no shapes found)
+        _ -> Nothing
+
+
+valToMaybeAnnotatedPoint : Val -> Maybe (Num, Num)
+valToMaybeAnnotatedPoint val =
+  case val.v_ of
+    VConst (Just (X, (y, _), _)) (x, _) -> Just (x, y)
+    VConst (Just (Y, (x, _), _)) (y, _) -> Just (x, y)
+    VList vals ->
+      case List.map .v_ vals of
+        [ VConst (Just (X, _, _)) (x, _)
+        , VConst (Just (Y, _, _)) (y, _) ] -> Just (x, y)
+        _                             -> Nothing
+    _ -> Nothing
+
+
+-- Returns Maybe (left, top, right, bot)
+maybeShapeBounds : LangSvg.IndexedTreeNode -> Maybe (Num, Num, Num, Num)
+maybeShapeBounds svgNode =
+  case svgNode.interpreted of
+    LangSvg.TextNode _ -> Nothing
+    LangSvg.SvgNode shapeKind shapeAttrs childIds ->
+      pointFeaturesOfShape shapeKind shapeAttrs
+      |> List.filterMap (maybeEvaluateShapePointFeature shapeKind shapeAttrs)
+      |> pointsToMaybeBounds
+
+
+-- Returns Maybe (left, top, right, bot)
+maybeWidgetBounds : Widget -> Maybe (Num, Num, Num, Num)
+maybeWidgetBounds widget =
+  pointFeaturesOfWidget widget
+  |> List.filterMap (maybeEvaluateWidgetPointFeature widget)
+  |> pointsToMaybeBounds
+
+
+-- Returns Nothing if list is empty; otherwise returns Just (left, top, right, bot)
+-- Yet unused, but will be needed for code dedduplication between selectablePointToMaybeXY and maybeShapeBounds and maybeWidgetBounds.
+pointsToMaybeBounds : List (Num, Num) -> Maybe (Num, Num, Num, Num)
+pointsToMaybeBounds points =
+  let (xs, ys) = List.unzip points in
+  case Utils.projJusts [ List.minimum xs, List.minimum ys, List.maximum xs, List.maximum ys ] of
+    Just [ left, top, right, bot ] -> Just (left, top, right, bot)
+    _                              -> Nothing
+
+
+------------------------------------------------------------------------------
 -- Zones
-
-type alias ZoneName = String
-
--- NOTE: would like to use only the following definition, but datatypes
--- aren't comparable... so using Strings for storing in dictionaries, but
--- using the following for pattern-matching purposes
 
 type RealZone
   = ZInterior
@@ -798,103 +908,13 @@ type RealZone
   | ZSlider               -- range annotations
   | ZOffset1D
 
-unparseZone : RealZone -> ZoneName
-unparseZone z =
-  case z of
-    ZInterior            -> "Interior"
 
-    ZPoint (Point i)     -> "Point" ++ toString i
-    ZPoint TopLeft       -> "TopLeft"
-    ZPoint TopRight      -> "TopRight"
-    ZPoint BotLeft       -> "BotLeft"
-    ZPoint BotRight      -> "BotRight"
-    ZPoint TopEdge       -> "TopEdge"
-    ZPoint RightEdge     -> "RightEdge"
-    ZPoint BotEdge       -> "BotEdge"
-    ZPoint LeftEdge      -> "LeftEdge"
-
-    ZPoint (Midpoint _)  -> Debug.crash <| "unparseZone: " ++ toString z
-    ZPoint Center        -> Debug.crash <| "unparseZone: " ++ toString z
-    ZPoint LonePoint     -> "LonePoint"
-    ZPoint EndPoint      -> Debug.crash <| "unparseZone: " ++ toString z
-
-    ZLineEdge            -> "Edge"
-    ZPolyEdge i          -> "Edge" ++ toString i
-
-    ZOther FillColor     -> "FillBall"
-    ZOther StrokeColor   -> "StrokeBall"
-    ZOther FillOpacity   -> "FillOpacityBall"
-    ZOther StrokeOpacity -> "StrokeOpacityBall"
-    ZOther StrokeWidth   -> "StrokeWidthBall"
-    ZOther Rotation      -> "RotateBall"
-
-    ZSlider              -> "SliderBall"
-    ZOffset1D            -> "Offset1D"
-
-
-parseZone : ZoneName -> RealZone
-parseZone s =
-  case realZoneOf s of
-    Just z  -> z
-    Nothing -> Debug.crash <| "parseZone: " ++ s
-
-realZoneOf s =
-  Utils.firstMaybe
-    [ toInteriorZone s
-    , toOtherWidgetZone s
-    , toCardinalPointZone s
-    , toSliderZone s
-    , toPointZone s
-    , toEdgeZone s
-    ]
-
-toInteriorZone s =
-  case s of
-    "Interior"  -> Just ZInterior
-    _           -> Nothing
-
-toOtherWidgetZone s =
-  case s of
-    "LonePoint" -> Just (ZPoint LonePoint)
-    "Offset1D"  -> Just ZOffset1D
-    _           -> Nothing
-
-toCardinalPointZone s =
-  case s of
-    "TopLeft"   -> Just (ZPoint TopLeft)
-    "TopRight"  -> Just (ZPoint TopRight)
-    "BotLeft"   -> Just (ZPoint BotLeft)
-    "BotRight"  -> Just (ZPoint BotRight)
-    "TopEdge"   -> Just (ZPoint TopEdge)
-    "BotEdge"   -> Just (ZPoint BotEdge)
-    "LeftEdge"  -> Just (ZPoint LeftEdge)
-    "RightEdge" -> Just (ZPoint RightEdge)
-    _           -> Nothing
-
-toSliderZone s =
-  case s of
-    "FillBall"          -> Just (ZOther FillColor)
-    "StrokeBall"        -> Just (ZOther StrokeColor)
-    "FillOpacityBall"   -> Just (ZOther FillOpacity)
-    "StrokeOpacityBall" -> Just (ZOther StrokeOpacity)
-    "StrokeWidthBall"   -> Just (ZOther StrokeWidth)
-    "RotateBall"        -> Just (ZOther Rotation)
-    "SliderBall"        -> Just ZSlider
-    _                   -> Nothing
-
-toPointZone s =
-  Utils.bindMaybe
-    (\suffix ->
-      if suffix == "" then Nothing
-      else Just (ZPoint (Point (Utils.fromOk_ (String.toInt suffix)))))
-    (Utils.munchString "Point" s)
-
-toEdgeZone s =
-  Utils.bindMaybe
-    (\suffix ->
-      if suffix == "" then Just ZLineEdge
-      else Just (ZPolyEdge (Utils.fromOk_ (String.toInt suffix))))
-    (Utils.munchString "Edge" s)
+realZoneDesc : RealZone -> String
+realZoneDesc realZone =
+  toString realZone
+  |> Utils.stringReplace " " ""
+  |> Utils.stringReplace "(" ""
+  |> Utils.stringReplace ")" ""
 
 
 ------------------------------------------------------------------------------
@@ -904,15 +924,11 @@ toEdgeZone s =
 -- that double as selection and drag widgets. If so, then
 -- eliminate this connection.
 --
-zoneToCrosshair : ShapeKind -> RealZone -> Maybe (ShapeFeature, ShapeFeature)
-zoneToCrosshair shape realZone =
+zoneToMaybePointFeature : RealZone -> Maybe PointFeature
+zoneToMaybePointFeature realZone =
   case realZone of
-    ZPoint point ->
-      let xFeature = unparseFeatureNum (Just shape) (XFeat point) in
-      let yFeature = unparseFeatureNum (Just shape) (YFeat point) in
-      Just (xFeature, yFeature)
-    _ ->
-      Nothing
+    ZPoint pf -> Just pf
+    _         -> Nothing
 
 
 ------------------------------------------------------------------------------
@@ -921,3 +937,412 @@ zoneToCrosshair shape realZone =
 wColorSlider = 250
 wStrokeWidthSlider = 60
 wOpacitySlider = 20
+
+
+------------------------------------------------------------------------------
+-- Mapping ouput selections to code EIds for synthesis suggestions.
+
+featureValEquationToValTree : FeatureValEquation -> Val
+featureValEquationToValTree valEqn =
+  case valEqn of
+    EqnNum val        -> val
+    EqnOp op children ->
+      let childVals = List.map featureValEquationToValTree children in
+      -- Only need Provenance basedOn list and the EId of the expression (dummy here)
+      { v_         = VList []
+      , provenance = Provenance [] (eTuple []) childVals
+      , parents    = Parents []
+      }
+
+-- Combinatorical explosion of interpretations.
+featureValEquationToEIdSets : (Exp -> Bool) -> FeatureValEquation -> List (Set EId)
+featureValEquationToEIdSets expFilter valEqn =
+  valEqn
+  |> featureValEquationToValTree
+  |> Provenance.valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter
+  -- |> Debug.log "eids"
+
+featureValEquationToProximalDistalEIdSets : (Exp -> Bool) -> FeatureValEquation -> (Set EId, Set EId)
+featureValEquationToProximalDistalEIdSets expFilter valEqn =
+  let valTree = valEqn |> featureValEquationToValTree in
+  ( Provenance.valTreeToMostProximalProgramEIdInterpretation expFilter valTree
+  , Provenance.valTreeToMostDistalProgramEIdInterpretation expFilter valTree
+  )
+
+-- featureValEquationToSingleEIds : Exp -> (Exp -> Bool) -> FeatureValEquation -> List EId
+-- featureValEquationToSingleEIds program expFilter valEqn =
+--   valEqn
+--   |> featureValEquationToValTree
+--   |> Provenance.valTreeToSingleEIdInterpretations program expFilter
+
+-- Only two interpretations: most proximal for each feature, and most distal.
+selectionsProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
+selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs =
+  let (proximalInterps, distalInterps) =
+    selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs (always True)
+  in
+  proximalInterps ++ distalInterps |> Utils.dedup
+
+-- selectionsProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
+-- selectionsProximalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs =
+--   let (proximalInterps, _{- proximalInterps -}) =
+--     selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs (always True)
+--   in
+--   proximalInterps
+
+-- selectionsDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
+-- selectionsDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+--   let (_{- proximalInterps -}, distalInterps) =
+--     selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter
+--   in
+--   distalInterps
+
+selectionsUniqueProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
+selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs =
+  let eidsToNotSelect =
+    -- If any shapes selected, diff against all other shapes.
+    let shapeProvenanceEIdsNotToSelect =
+      let effectiveSelectedNodeIds =
+        let selectedDescendentIds =
+          selectedShapes
+          |> Set.toList
+          |> List.filterMap (\nodeId -> Dict.get nodeId shapeTree)
+          |> List.concatMap (LangSvg.descendantNodeIds shapeTree)
+          |> Set.fromList
+        in
+        Set.union
+            selectedShapes
+            selectedDescendentIds
+      in
+      if Set.size selectedShapes == 0 then
+        Set.empty
+      else
+        shapeTree
+        |> Dict.toList
+        |> List.filter (\(nodeId, shape) -> not <| Utils.anyOverlap [Set.singleton nodeId, Set.fromList (LangSvg.descendantNodeIds shapeTree shape), effectiveSelectedNodeIds])
+        |> List.map (\(nodeId, shape) -> shape.val)
+        |> List.concatMap Provenance.flattenValBasedOnTree
+        |> List.map (valExp >> .val >> .eid)
+        -- |> List.map valExp
+        -- |> List.filter (.val >> .eid >> FastParser.isProgramEId)
+        -- |> List.map (\e -> let _ = Utils.log (LangUnparser.unparse e) in e)
+        -- |> List.map (.val >> .eid)
+        |> Set.fromList
+    in
+    -- TODO: If any features selected, diff against all other analogous features on other shapes.
+    let featureProvenanceEIdsNotToSelect =
+      if Set.size selectedFeatures == 0 then
+        Set.empty
+      else
+        Set.empty
+    in
+    Set.union shapeProvenanceEIdsNotToSelect featureProvenanceEIdsNotToSelect
+  in
+  let expFilter exp =
+    -- Exclude expressions touched by shapes NOT selected
+    not <| Set.member exp.val.eid eidsToNotSelect
+  in
+  let (proximalInterps, _{- distalInterps -}) =
+    selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter
+  in
+  proximalInterps
+
+-- EIds in interp must satisfy the predicate.
+selectionsProximalDistalEIdInterpretations_ : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> (List (List EId), List (List EId))
+selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+  let (featureProximalEIds, featureDistalEIds) =
+    selectedFeaturesToProximalDistalEIdInterpretations program slate widgets (Set.toList selectedFeatures) expFilter
+  in
+  let (otherProximalEIds, otherDistalEIds) =
+    [ selectedShapesToProximalDistalEIdInterpretations program slate (Set.toList selectedShapes) expFilter
+    , selectedBlobsToProximalDistalEIdInterpretations  program slate (Dict.toList selectedBlobs) expFilter
+    ]
+    |> List.unzip
+    |> Utils.mapBoth Utils.unionAll
+  in
+  let (pointProximalInterps, pointDistalInterps) =
+    selectedFeaturesToProximalDistalPointEIdInterpretations program slate widgets (Set.toList selectedFeatures) expFilter
+  in
+  -- Point interps first.
+  ( List.map (Set.union otherProximalEIds) pointProximalInterps ++ [Set.union featureProximalEIds otherProximalEIds] |> List.map Set.toList |> Utils.dedup
+  , List.map (Set.union otherDistalEIds)   pointDistalInterps   ++ [Set.union featureDistalEIds   otherDistalEIds]   |> List.map Set.toList |> Utils.dedup
+  )
+
+
+-- -- Combinatorical explosion of interpretations.
+-- selectionsEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
+-- selectionsEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+--   selectedFeaturesToEIdInterpretationLists program slate widgets (Set.toList selectedFeatures) expFilter ++
+--   selectedShapesToEIdInterpretationLists   program slate widgets (Set.toList selectedShapes)   expFilter ++
+--   selectedBlobsToEIdInterpretationLists    program slate widgets (Dict.toList selectedBlobs)   expFilter
+--   |> Utils.oneOfEach
+--   |> List.map Utils.unionAll
+--   |> List.map Set.toList
+--   |> Utils.dedup
+
+
+selectionsEIdsTouched : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List EId
+selectionsEIdsTouched program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+  [ selectedFeaturesValTrees slate widgets (Set.toList selectedFeatures)
+  , selectedShapesValTrees   slate         (Set.toList selectedShapes)
+  , selectedBlobsValTrees    slate         (Dict.toList selectedBlobs)
+  ]
+  |> List.concat
+  |> List.concatMap Provenance.flattenValBasedOnTree
+  |> List.map valExp
+  |> List.filter expFilter
+  |> List.map (.val >> .eid)
+  |> Utils.dedup
+
+
+-- Try to find single EIds in the program that explain everything selected.
+selectionsSingleEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List EId
+selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+  let
+    possibleExps = program |> flattenExpTree |> List.filter expFilter
+
+    valTrees =
+      [ selectedFeaturesValTrees slate widgets (Set.toList selectedFeatures)
+      , selectedShapesValTrees   slate         (Set.toList selectedShapes)
+      , selectedBlobsValTrees    slate         (Dict.toList selectedBlobs)
+      ] |> List.concat
+
+    directSingleEIdInterpretations =
+      -- Checking exp-by-exp avoids combinatorical explosion of building all interpretations and then filtering.
+      possibleExps
+      |> List.filter (\exp -> valTrees |> List.all (Provenance.isPossibleSingleEIdInterpretation program exp.val.eid))
+      |> List.map (.val >> .eid)
+
+    valExpIsInProgram val = valExp val |> .val |> .eid |> FastParser.isProgramEId
+
+    parentSingleEIdInterpretations =
+      case valTrees of
+        []          -> []
+        first::_ ->
+          let possibleParentVals = Provenance.flattenValBasedOnTree first |> List.concatMap valParents |> List.filter valExpIsInProgram |> Utils.dedup in
+          let firstNonTrivialChildren val =
+            case childVals val of
+              []               -> [val]
+              [singleChild]    -> firstNonTrivialChildren singleChild
+              multipleChildren -> multipleChildren
+          in
+          possibleParentVals
+          -- |> List.map (\parentVal -> let _ = Utils.log <| (++) "Possible parent: " <| LangUnparser.unparse <| valExp parentVal in parentVal)
+          |> List.filter
+              (\parentVal ->
+                let domain = flattenValTree parentVal in
+                let coveringsStillNeeded = [firstNonTrivialChildren parentVal] in
+                -- Try to cover the parent's children with interpretations.
+                let maybeNeededAfterCovering =
+                  valTrees
+                  |> Utils.foldlMaybe
+                      (\valTree coveringsStillNeeded ->
+                      --   let valInterps = Provenance.valInterpretationsAllInside domain valTree in
+                      --   -- Remove interpretations subsumed by a more proximal interpretation.
+                      --   let valInterpsSimplified =
+                      --     valInterps
+                      --     |> List.foldl
+                      --         (\valInterp valInterps ->
+                      --           valInterps
+                      --           |> List.filter (\existingValInterp -> not (valInterp /= existingValInterp && Utils.isSublistAsSet existingValInterp (List.concatMap flattenValTree valInterp)))
+                      --         )
+                      --         valInterps
+                      --   in
+                        let valInterpsSimplified = Provenance.proximalValInterpretationsAllInside domain valTree in
+                        case valInterpsSimplified of
+                          [] -> Nothing -- Value can't be interpreted inside parent, give up on this parent.
+                          _  ->
+                            Utils.cartProd coveringsStillNeeded valInterpsSimplified
+                            |> List.map (\(aCoveringNeeded, valInterp) -> Utils.diffAsSet aCoveringNeeded (List.concatMap flattenValTree valInterp))
+                            |> Utils.dedup
+                            |> Just
+                      )
+                      (Just coveringsStillNeeded)
+                in
+                case maybeNeededAfterCovering of
+                  Nothing                   -> False
+                  Just coveringsStillNeeded -> List.any ((==) []) coveringsStillNeeded
+              )
+          -- |> List.map (\parentVal -> let _ = Utils.log <| (++) "Passing parent: " <| LangUnparser.unparse <| valExp parentVal in parentVal)
+          |> List.map (valExp >> .val >> .eid)
+  in
+  directSingleEIdInterpretations ++ parentSingleEIdInterpretations
+
+-- Heuristic: Closest and farthest interpretation only.
+selectedFeaturesToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List SelectableFeature -> (Exp -> Bool) -> (Set EId, Set EId)
+selectedFeaturesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures expFilter =
+  let (proximalEIdSets, distalEIdSets) =
+    selectedFeatures
+    |> List.map
+        (\feature ->
+          featureToValEquation feature shapeTree widgets Dict.empty
+          |> Utils.fromJust_ "selectedFeaturesToEIdLists: can't make feature into val equation"
+          |> featureValEquationToProximalDistalEIdSets expFilter
+        )
+    |> List.unzip
+  in
+  ( Utils.unionAll proximalEIdSets
+  , Utils.unionAll distalEIdSets
+  )
+
+-- Returns multiple proximal and distal interpretations (b/c of some edge cases where most proximal/distal for x is not the most proximal/distal for y).
+--
+-- Features not part of points are still interpretated.
+selectedFeaturesToProximalDistalPointEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List SelectableFeature -> (Exp -> Bool) -> (List (Set EId), List (Set EId))
+selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures expFilter =
+  let recurse remainingFeatures =
+    selectedFeaturesToProximalDistalPointEIdInterpretations program slate widgets remainingFeatures expFilter
+  in
+  case selectedFeatures of
+    [] -> ([Set.empty], [Set.empty])
+    selectableFeature::rest ->
+      let returnNotPartOfAPoint () =
+        let (thisProximalInterp, thisDistalInterp) =
+          featureToValEquation selectableFeature shapeTree widgets Dict.empty
+          |> Utils.fromJust_ "selectedFeaturesToProximalDistalPointEIdInterpretations0: can't make feature into val equation"
+          |> featureValEquationToProximalDistalEIdSets expFilter
+        in
+        let (remainingProximalInterps, remainingDistalInterps) = recurse rest in
+        ( remainingProximalInterps |> List.map (Set.union thisProximalInterp)
+        , remainingDistalInterps   |> List.map (Set.union thisDistalInterp)
+        )
+      in
+      -- Try to interpret as point?
+      case rest |> Utils.findFirst (\otherSelectableFeature -> featuresAreXYPairs selectableFeature otherSelectableFeature) of
+        Just otherSelectableFeature ->
+          let (xSelectableFeature, ySelectableFeature) =
+            if featureIsX selectableFeature
+            then (selectableFeature, otherSelectableFeature)
+            else (otherSelectableFeature, selectableFeature)
+          in
+          let xValEqn = featureToValEquation xSelectableFeature shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists1: can't make feature into val equation" in
+          let yValEqn = featureToValEquation ySelectableFeature shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" in
+          let xValTree = featureValEquationToValTree xValEqn in
+          let yValTree = featureValEquationToValTree yValEqn in
+          let (proximalInterp1, proximalInterp2, distalInterp1, distalInterp2) =
+            Provenance.valsToProximalDistalPointInterpretations expFilter xValTree yValTree
+          in
+          -- If code written correctly, there should be a proximal interp iff there is an distal interp.
+          if (proximalInterp1 /= Set.empty || proximalInterp2 /= Set.empty) && (distalInterp1 /= Set.empty || distalInterp2 /= Set.empty) then
+            let (remainingProximalInterps, remainingDistalInterps) = recurse (Utils.removeAsSet otherSelectableFeature rest) in
+            ( remainingProximalInterps |> Utils.cartProd (List.filter ((/=) Set.empty) [proximalInterp1, proximalInterp2] |> Utils.dedup) |> List.map (uncurry Set.union)
+            , remainingDistalInterps   |> Utils.cartProd (List.filter ((/=) Set.empty) [distalInterp1,   distalInterp2]   |> Utils.dedup) |> List.map (uncurry Set.union)
+            )
+          else if proximalInterp1 /= Set.empty || proximalInterp2 /= Set.empty then
+            Debug.crash <| "selectedFeaturesToProximalDistalPointEIdInterpretations: proximal interpretation exists but distal does not!\n" ++ toString (proximalInterp1, proximalInterp2, distalInterp1, distalInterp2)
+          else if distalInterp1 /= Set.empty || distalInterp2 /= Set.empty then
+            Debug.crash <| "selectedFeaturesToProximalDistalPointEIdInterpretations: distal interpretation exists but proximal does not!\n" ++ toString (proximalInterp1, proximalInterp2, distalInterp1, distalInterp2)
+          else
+            returnNotPartOfAPoint ()
+
+        Nothing ->
+          returnNotPartOfAPoint ()
+
+
+-- No special handling of points.
+selectedFeaturesValTrees : RootedIndexedTree -> Widgets -> List SelectableFeature -> List Val
+selectedFeaturesValTrees ((rootI, shapeTree) as slate) widgets selectedFeatures =
+  selectedFeatures
+  |> List.map
+      (\feature ->
+        featureToValEquation feature shapeTree widgets Dict.empty
+        |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
+        |> featureValEquationToValTree
+      )
+
+
+
+-- Combinatorical explosion of interpretations.
+selectedFeaturesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List SelectableFeature -> (Exp -> Bool) -> List (List (Set EId))
+selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedFeatures expFilter =
+  let recurse remainingFeatures =
+    selectedFeaturesToEIdInterpretationLists program slate widgets remainingFeatures expFilter
+  in
+  case selectedFeatures of
+    [] -> []
+    selectableFeature::rest ->
+      let eidSets = featureValEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists: can't make feature into val equation" <| featureToValEquation selectableFeature shapeTree widgets Dict.empty in
+      -- Try to interpret as point?
+      case rest |> Utils.findFirst (\otherSelectableFeature -> featuresAreXYPairs selectableFeature otherSelectableFeature) of
+        Just otherSelectableFeature ->
+          let otherEIdSets = featureValEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" <| featureToValEquation otherSelectableFeature shapeTree widgets Dict.empty in
+          let singletonEIdSets      = eidSets      |> List.filter (Set.size >> (==) 1) in
+          let singletonOtherEIdSets = otherEIdSets |> List.filter (Set.size >> (==) 1) in
+          let pointTuples =
+            Utils.cartProd singletonEIdSets singletonOtherEIdSets
+            |> List.filterMap
+                (\(eidSingleton, otherEIdSingleton) ->
+                  case ( parentByEId program (Utils.unwrapSingletonSet eidSingleton)
+                       , parentByEId program (Utils.unwrapSingletonSet otherEIdSingleton) ) of
+                    (Just (Just parent), Just (Just otherParent)) ->
+                      if isPair parent && parent == otherParent
+                      then Just parent.val.eid
+                      else Nothing
+
+                    _ -> Nothing
+                )
+          in
+          case pointTuples of
+            []   -> eidSets :: recurse rest
+            _::_ -> List.map Set.singleton pointTuples :: recurse (Utils.removeAsSet otherSelectableFeature rest)
+
+        Nothing ->
+          eidSets :: recurse rest
+
+
+selectedShapesToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> List NodeId -> (Exp -> Bool) -> (Set EId, Set EId)
+selectedShapesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) selectedShapes expFilter =
+  let (proximalEIdSets, distalEIdSets) =
+    selectedShapes
+    |> List.map
+        (\nodeId ->
+          selectedShapeToValEquation nodeId shapeTree
+          |> Utils.fromJust_ "selectedShapesToProximalDistalEIdInterpretations: can't make shape into val equation"
+          |> featureValEquationToProximalDistalEIdSets expFilter
+        )
+    |> List.unzip
+  in
+  ( Utils.unionAll proximalEIdSets
+  , Utils.unionAll distalEIdSets
+  )
+
+
+selectedShapesValTrees : RootedIndexedTree -> List NodeId -> List Val
+selectedShapesValTrees ((rootI, shapeTree) as slate) selectedShapes =
+  selectedShapes
+  |> List.map
+      (\nodeId ->
+        selectedShapeToValEquation nodeId shapeTree
+        |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
+        |> featureValEquationToValTree
+      )
+
+
+-- -- Combinatorical explosion of interpretations.
+-- selectedShapesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List NodeId -> (Exp -> Bool) -> List (List (Set EId))
+-- selectedShapesToEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedShapes expFilter =
+--   selectedShapes
+--   |> List.map
+--       (\nodeId ->
+--         selectedShapeToValEquation nodeId shapeTree
+--         |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
+--         |> featureValEquationToEIdSets expFilter
+--       )
+
+
+selectedBlobsToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> List (Int, NodeId) -> (Exp -> Bool) -> (Set EId, Set EId)
+selectedBlobsToProximalDistalEIdInterpretations _ _ _ _ =
+  (Set.empty, Set.empty) -- blobs will go away sometime
+
+
+selectedBlobsValTrees : RootedIndexedTree -> List (Int, NodeId) -> List Val
+selectedBlobsValTrees _ _ =
+  [] -- blobs will go away sometime
+
+
+-- -- Unused. Combinatorical explosion of interpretations.
+-- selectedBlobsToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List (Int, NodeId) -> (Exp -> Bool) -> List (List (Set EId))
+-- selectedBlobsToEIdInterpretationLists program ((rootI, shapeTree) as slate) widgets selectedBlobs expFilter =
+--   selectedBlobs
+--   |> List.map (always []) -- blobs will go away sometime
+

@@ -4,7 +4,7 @@ module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
   , groupSelectedBlobs
   , abstractSelectedBlobs
   , replicateSelectedBlob
-  , duplicateSelectedBlobs
+  -- , duplicateSelectedBlobs
   , mergeSelectedBlobs
   , deleteSelectedBlobs
   , anchorOfSelectedFeatures
@@ -14,12 +14,12 @@ module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
 import Lang exposing (..)
 import LangUnparser exposing (unparse, unparsePat)
 import LangSvg exposing (NodeId)
-import ShapeWidgets exposing (PointFeature, SelectedShapeFeature)
+import ShapeWidgets exposing (PointFeature, SelectableFeature)
 import Blobs exposing (..)
 import LangTools exposing (..)
 import LangSimplify
 import Types
-import InterfaceModel exposing (Model, ReplicateKind(..))
+import InterfaceModel exposing (Model, ReplicateKind(..), resultExp)
 import Utils
 import Keys
 
@@ -31,7 +31,7 @@ import String
 --------------------------------------------------------------------------------
 -- Expression Rewriting
 
--- x TODO: don't freeze all LocEqnConsts
+-- x TODO: don't freeze all MathNums
 -- x TODO: Split abstraction -> mapping into two steps
 -- x TODO: revisit clone detection -- lists of constants are ignored if >1 constant differs
 -- x TODO: abstract with n parameters
@@ -56,12 +56,13 @@ import String
 -- TODO: turn off overlapping pairs relation
 
 
-passiveSynthesisSearch : Exp -> List InterfaceModel.SynthesisResult
-passiveSynthesisSearch originalExp =
+passiveSynthesisSearch : Model -> Exp -> List InterfaceModel.SynthesisResult
+passiveSynthesisSearch model originalExp =
   cloneEliminationSythesisResults (always True) 2 5 originalExp ++
   mapAbstractSynthesisResults originalExp ++
   rangeSynthesisResults originalExp ++
   inlineListSynthesisResults originalExp
+  |> List.filter (\synthesisResult -> InterfaceModel.runAndResolve model (resultExp synthesisResult) |> Utils.resultToBool)
 
 
 rangeSynthesisResults : Exp -> List InterfaceModel.SynthesisResult
@@ -135,14 +136,31 @@ inlineListSynthesisResults originalExp =
                       let usages = identifierSetUses (Set.fromList idents) letBody in
                       if List.map expToIdent usages == idents then -- Each should be used exactly once, in order
                         -- All idents used in only in same list
-                        let maybeParents =
-                          findAllWithAncestors (\e -> List.member e usages) letBody
-                          |> List.map (Utils.dropLast 1 >> Utils.maybeLast)
+                        -- Or wrapped in singleton lists in same list
+                        let usagesExpanded = usages |> List.map (outerSameValueExp letBody) in
+                        let usagesExpandedAncestors = findAllWithAncestors (\e -> List.member e usagesExpanded) letBody |> List.map (Utils.dropLast 1) in
+                        let maybeParents = usagesExpandedAncestors |> List.map Utils.maybeLast in
+                        let maybeParentSingletonParents =
+                          usagesExpandedAncestors
+                          |> List.map
+                              (\ancestors ->
+                                if Utils.maybeLast ancestors |> Maybe.map isSingletonList |> (==) (Just True) then
+                                  Utils.dropLast 1 ancestors |> Utils.maybeLast
+                                else
+                                  Nothing
+                              )
                         in
-                        case Utils.dedupByEquality maybeParents of
-                          [Just parentExp] ->
-                            -- Single, shared parent.
-
+                        let maybeSingleParentAndEffectiveUsages =
+                          case Utils.dedup maybeParents of
+                            [Just parentExp] -> Just (parentExp, usagesExpanded)
+                            _ ->
+                              case maybeParentSingletonParents |> Utils.projJusts |> Maybe.map Utils.dedup of
+                                Just [grandparentExp] -> Just (grandparentExp, Utils.filterJusts maybeParents) -- maybeParents are all Justs here.
+                                _ -> Nothing
+                        in
+                        case maybeSingleParentAndEffectiveUsages of
+                          Just (parentExp, effectiveUsages) ->
+                            -- Single, shared parent (or grandparent of singleton lists).
                             case parentExp.val.e__ of
                               EList listWs1 heads listWs2 maybeTail listW3 ->
                                 let listName =
@@ -159,22 +177,24 @@ inlineListSynthesisResults originalExp =
                                 let eConcatExp listExp = eApp (eVar0 "concat") [listExp] in
                                 let eConcat listExps = eApp (eVar0 "concat") [eTuple listExps] in
                                 let eAppend listExpA listExpB = eApp (eVar0 "append") (List.map (replacePrecedingWhitespace " ") [listExpA, listExpB]) in
-                                let usagePrecedingWhitespace = precedingWhitespace (Utils.head "ExpressionBasedTransform.inlineListSynthesisResults usages" usages) in
+                                let usagePrecedingWhitespace = precedingWhitespace (Utils.head "ExpressionBasedTransform.inlineListSynthesisResults effectiveUsages" effectiveUsages) in
                                 let useOldWs e = replacePrecedingWhitespace usagePrecedingWhitespace e in
                                 let newListExpCandidates =
                                   -- Must be used in the heads of the list, in order.
-                                  case heads |> Utils.splitBy usages of
+                                  case heads |> Utils.splitBy effectiveUsages of
                                     [[], []] ->
                                       -- Heads and target match exactly.
                                       case maybeTail of
                                         Nothing ->
                                           [ eVar listName
                                           , eTuple [eConcatExp (eVar listName) |> useOldWs]
+                                          , eTuple [eVar listName              |> useOldWs]
                                           ]
 
                                         Just tail ->
                                           [ eAppend (eVar listName) tail
                                           , eList [eConcatExp (eVar listName) |> useOldWs] (Just tail)
+                                          , eList [eVar listName              |> useOldWs] (Just tail)
                                           ]
 
                                     [[], restHeads] ->
@@ -183,13 +203,16 @@ inlineListSynthesisResults originalExp =
                                         Nothing ->
                                           [ eAppend (eVar listName) (eTuple restHeads)
                                           , eTuple <| useOldWs (eConcatExp (eVar listName)) :: restHeads
+                                          , eTuple <| useOldWs (eVar listName)              :: restHeads
                                           , eList [eConcatExp (eVar listName) |> useOldWs] (Just (eTuple restHeads))
+                                          , eList [eVar listName              |> useOldWs] (Just (eTuple restHeads))
                                           ]
 
                                         Just tail ->
                                           [ eConcat [eVar listName, eTuple restHeads, tail]
                                           , eAppend (eVar listName) (eList restHeads (Just tail))
                                           , eList (useOldWs (eConcatExp (eVar listName)) :: restHeads) (Just tail)
+                                          , eList (useOldWs (eVar listName)              :: restHeads) (Just tail)
                                           ]
 
                                     [restHeads, []] ->
@@ -199,6 +222,7 @@ inlineListSynthesisResults originalExp =
                                           [ eAppend (eTuple restHeads) (eVar listName)
                                           , eList restHeads (Just (eVar listName))
                                           , eTuple (restHeads ++ [eConcatExp (eVar listName) |> useOldWs])
+                                          , eTuple (restHeads ++ [eVar listName              |> useOldWs])
                                           , eList restHeads (Just (eConcatExp (eVar listName)))
                                           ]
 
@@ -206,6 +230,7 @@ inlineListSynthesisResults originalExp =
                                           [ eConcat [eTuple restHeads, eVar listName, tail]
                                           , eList restHeads (Just (eAppend (eVar listName) tail))
                                           , eList (restHeads ++ [eConcatExp (eVar listName) |> useOldWs]) (Just tail)
+                                          , eList (restHeads ++ [eVar listName              |> useOldWs]) (Just tail)
                                           ]
 
                                     [headsBefore, headsAfter] ->
@@ -214,11 +239,13 @@ inlineListSynthesisResults originalExp =
                                         Nothing ->
                                           [ eConcat [eTuple headsBefore, eVar listName, eTuple headsAfter]
                                           , eTuple (headsBefore ++ [eConcatExp (eVar listName) |> useOldWs] ++ headsAfter)
+                                          , eTuple (headsBefore ++ [eVar listName              |> useOldWs] ++ headsAfter)
                                           ]
 
                                         Just tail ->
                                           [ eConcat [eTuple headsBefore, eVar listName, eTuple headsAfter, tail]
                                           , eList (headsBefore ++ [eConcatExp (eVar listName) |> useOldWs] ++ headsAfter) (Just tail)
+                                          , eList (headsBefore ++ [eVar listName              |> useOldWs] ++ headsAfter) (Just tail)
                                           ]
 
                                     _ ->
@@ -289,8 +316,8 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (EApp ws1A fA esA ws2A,                EApp ws1B fB esB ws2B)                -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EApp ws1A (merge fA fB) newEs ws2A))) |> Maybe.withDefault argVar
       (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> if recA == recB && patternsEqual pA pB then replaceE__ expA (ELet ws1A kindA recA pA (merge e1A e1B) (merge e2A e2B) ws2A) else argVar
       (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> replaceE__ expA (EIf ws1A (merge e1A e1B) (merge e2A e2B) (merge e3A e3B) ws2A)
-      (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA branchesB |> Maybe.andThen (\branchPairs -> let bValPairs = branchPairs |> List.map (\(bA, bB) -> (bA.val, bB.val)) in if bValPairs |> List.all (\(Branch_ bws1A bpatA beA bws2A, Branch_ bws1B bpatB beB bws2B) -> patternsEqual bpatA bpatB) then Just (replaceE__ expA (ECase ws1A (merge eA eB) (Utils.zip branchPairs bValPairs |> List.map (\((bA, bB), (Branch_ bws1A bpatA beA bws2A, Branch_ bws1B bpatB beB bws2B)) -> {bA | val = Branch_ bws1A bpatA (merge beA beB) bws2A})) ws2A)) else Nothing) |> Maybe.withDefault argVar
-      (ETypeCase ws1A patA tbranchesA ws2A,  ETypeCase ws1B patB tbranchesB ws2B)  -> if patternsEqual patA patB then Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (replaceE__ expA (ETypeCase ws1A patA (Utils.zip tbranchPairs tbValPairs |> List.map (\((tbA, tbB), (TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B)) -> {tbA | val = TBranch_ tbws1A tbtypeA (merge tbeA tbeB) tbws2A})) ws2A)) else Nothing) |> Maybe.withDefault argVar else argVar
+      (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA, bB)   -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)   then Just (replaceE__ expA (ECase     ws1A (merge eA eB) (Utils.zip branchPairs  bValPairs  |> List.map (\((bA,  bB),  (Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B))  -> {bA  | val = Branch_  bws1A  bpatA   (merge beA  beB)  bws2A}))  ws2A)) else Nothing) |> Maybe.withDefault argVar
+      (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)    -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (replaceE__ expA (ETypeCase ws1A (merge eA eB) (Utils.zip tbranchPairs tbValPairs |> List.map (\((tbA, tbB), (TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B)) -> {tbA | val = TBranch_ tbws1A tbtypeA (merge tbeA tbeB) tbws2A})) ws2A)) else Nothing) |> Maybe.withDefault argVar
       (EComment wsA sA e1A,                  _)                                    -> replaceE__ expA (EComment wsA sA (merge e1A expB)) -- Keep only comments in expA.
       (_,                                    EComment wsB sB e1B)                  -> merge expA e1B
       (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> argVar
@@ -344,9 +371,9 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         ->
         let precondition = Utils.listsEqualBy patternsEqual (branchPats branchesA) (branchPats branchesB) in
         generalizedMerge precondition (Just (eA, eB)) Nothing Nothing (Just (branchExps branchesA, branchExps branchesB)) (\eMerged _ _ branchExpsMerged -> ECase ws1A eMerged (List.map2 replaceBranchExp branchesA branchExpsMerged) ws2A)
-      (ETypeCase ws1A patA tbranchesA ws2A,  ETypeCase ws1B patB tbranchesB ws2B)  ->
-        let precondition = patternsEqual patA patB && Utils.listsEqualBy Types.equal (tbranchTypes tbranchesA) (tbranchTypes tbranchesB) in
-        generalizedMerge precondition Nothing Nothing Nothing (Just (tbranchExps tbranchesA, tbranchExps tbranchesB)) (\_ _ _ tbranchExpsMerged -> ETypeCase ws1A patA (List.map2 replaceTBranchExp tbranchesA tbranchExpsMerged) ws2A)
+      (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)  ->
+        let precondition = Utils.listsEqualBy Types.equal (tbranchTypes tbranchesA) (tbranchTypes tbranchesB) in
+        generalizedMerge precondition (Just (eA, eB)) Nothing Nothing (Just (tbranchExps tbranchesA, tbranchExps tbranchesB)) (\eMerged _ _ tbranchExpsMerged -> ETypeCase ws1A eMerged (List.map2 replaceTBranchExp tbranchesA tbranchExpsMerged) ws2A)
       (EComment wsA sA e1A,                  _)                                    -> mergeSingleArg e1A expB |> (\(e1Merged, e1HasArgVar) -> (replaceE__ expA (EComment wsA sA e1Merged), e1HasArgVar))
       (_,                                    EComment wsB sB e1B)                  -> mergeSingleArg expA e1B
       (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> retArgVar
@@ -416,7 +443,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
           let fBody =
             mergedArgUsesEnumerated
             |> LangSimplify.changeRenamedVarsToOuter
-            |> LangSimplify.removeUnusedVars
+            |> LangSimplify.removeUnusedLetPats
             |> unindent
           in
           let fBodyReflowed =
@@ -526,7 +553,7 @@ cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToA
         in
         let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToNewE__ commonScope in
         let wrapped =
-          newLetFancyWhitespace -1 (pVar funcName) abstractedFuncIndented usagesReplaced originalExp
+          newLetFancyWhitespace -1 False (pVar funcName) abstractedFuncIndented usagesReplaced originalExp
         in
         let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
         let clonesName =
@@ -833,7 +860,7 @@ computeSelectedBlobsAndBounds model =
   Dict.map
      (\blobId nodeId ->
        undoGroupPadding <|
-       case Dict.get nodeId tree of
+       case Dict.get nodeId tree |> Maybe.map .interpreted of
 
          -- refactor the following cases for readability
 
@@ -937,13 +964,13 @@ rewriteBoundingBoxesOfSelectedBlobs model selectedBlobsAndBounds =
 -- Rewrite and Group Blobs with Anchor
 
 anchorOfSelectedFeatures
-    : Set.Set SelectedShapeFeature
+    : Set.Set SelectableFeature
    -> Result String (Maybe (NodeId, PointFeature))
 anchorOfSelectedFeatures selectedFeatures =
   let err = Err "To group around an anchor, need to select exactly one point." in
   case Set.toList selectedFeatures of
     [selected1, selected2] ->
-      case ShapeWidgets.selectedPointFeatureOf selected1 selected2 of
+      case ShapeWidgets.featuresToMaybeSelectablePoint selected1 selected2 of
         Just result -> Ok (Just result)
         Nothing     -> err
     [] -> Ok Nothing
@@ -951,7 +978,7 @@ anchorOfSelectedFeatures selectedFeatures =
 
 
 groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
-  let (anchorKind, anchorAttrs) =
+  let (anchorKind, anchorAttrs, _) =
     LangSvg.justGetSvgNode "groupSelectedBlobsAround" anchorId model.slate in
 
   -- TODO
@@ -1429,58 +1456,58 @@ deleteSelectedBlobs model =
 --------------------------------------------------------------------------------
 -- Duplicate Blobs
 
-duplicateSelectedBlobs model =
-  let (defs,mainExp) = splitExp model.inputExp in
-  case mainExp of
-    Blobs blobs f ->
-      let (nextGenSym, newDefs, newBlobs) =
-        let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
-        let (nextGenSym_, newDefs_, newVarBlobs_) =
-          List.foldl
-             (\def (k,acc1,acc2) ->
-               if not (matchesAnySelectedVarBlob selectedNiceBlobs def)
-               then (k, acc1, acc2)
-               else
-                 let (ws1,p,e,ws2) = def in
-                 case p.val.p__ of
-                   PVar pws x wd ->
-                     let x_ = x ++ "_copy" ++ toString k in
-                     let acc1_ = (ws1, withDummyPatInfo (PVar pws x_ wd), e, ws2) :: acc1 in
-                     let acc2_ = varBlob (withDummyExpInfo (EVar (ws "\n  ") x_)) x_ :: acc2 in
-                     (1 + k, acc1_, acc2_)
-                   _ ->
-                     let _ = Debug.log "duplicateSelectedBlobs: weird..." () in
-                     (k, acc1, acc2)
-             )
-             (model.genSymCount, [], [])
-             defs
-        in
-        let newWithAndCallBlobs =
-          List.concatMap
-             (\(_,e,niceBlob) ->
-               case niceBlob of
-                 WithBoundsBlob _ -> [NiceBlob e niceBlob]
-                 WithAnchorBlob _ -> [NiceBlob e niceBlob]
-                 CallBlob _       -> [NiceBlob e niceBlob]
-                 VarBlob _        -> []
-             )
-             selectedNiceBlobs
-        in
-        let newDefs = List.reverse newDefs_ in
-        let newBlobs = List.reverse newVarBlobs_ ++ newWithAndCallBlobs in
-        (nextGenSym_, newDefs, newBlobs)
-      in
-      let code_ =
-        let blobs_ = blobs ++ newBlobs in
-        let defs_ = defs ++ newDefs in
-        unparse (fuseExp (defs_, Blobs blobs_ f))
-      in
-      -- upstate Run
-        { model | code = code_
-                , genSymCount = List.length newBlobs + model.genSymCount
-                }
-    _ ->
-      model
+-- duplicateSelectedBlobs model =
+--   let (defs,mainExp) = splitExp model.inputExp in
+--   case mainExp of
+--     Blobs blobs f ->
+--       let (nextGenSym, newDefs, newBlobs) =
+--         let selectedNiceBlobs = selectedBlobsToSelectedNiceBlobs model blobs in
+--         let (nextGenSym_, newDefs_, newVarBlobs_) =
+--           List.foldl
+--              (\def (k,acc1,acc2) ->
+--                if not (matchesAnySelectedVarBlob selectedNiceBlobs def)
+--                then (k, acc1, acc2)
+--                else
+--                  let (ws1,p,e,ws2) = def in
+--                  case p.val.p__ of
+--                    PVar pws x wd ->
+--                      let x_ = x ++ "_copy" ++ toString k in
+--                      let acc1_ = (ws1, withDummyPatInfo (PVar pws x_ wd), e, ws2) :: acc1 in
+--                      let acc2_ = varBlob (withDummyExpInfo (EVar (ws "\n  ") x_)) x_ :: acc2 in
+--                      (1 + k, acc1_, acc2_)
+--                    _ ->
+--                      let _ = Debug.log "duplicateSelectedBlobs: weird..." () in
+--                      (k, acc1, acc2)
+--              )
+--              (model.genSymCount, [], [])
+--              defs
+--         in
+--         let newWithAndCallBlobs =
+--           List.concatMap
+--              (\(_,e,niceBlob) ->
+--                case niceBlob of
+--                  WithBoundsBlob _ -> [NiceBlob e niceBlob]
+--                  WithAnchorBlob _ -> [NiceBlob e niceBlob]
+--                  CallBlob _       -> [NiceBlob e niceBlob]
+--                  VarBlob _        -> []
+--              )
+--              selectedNiceBlobs
+--         in
+--         let newDefs = List.reverse newDefs_ in
+--         let newBlobs = List.reverse newVarBlobs_ ++ newWithAndCallBlobs in
+--         (nextGenSym_, newDefs, newBlobs)
+--       in
+--       let code_ =
+--         let blobs_ = blobs ++ newBlobs in
+--         let defs_ = defs ++ newDefs in
+--         unparse (fuseExp (defs_, Blobs blobs_ f))
+--       in
+--       -- upstate Run
+--         { model | code = code_
+--                 , genSymCount = List.length newBlobs + model.genSymCount
+--                 }
+--     _ ->
+--       model
 
 {-
 shiftNum (n, t) = (30 + n, t)
@@ -1756,6 +1783,16 @@ mergeExpressions eFirst eRest =
     EOption _ _ _ _ _ ->
       let _ = Debug.log "mergeExpressions: options shouldn't appear nested: " () in
       Nothing
+
+    EParens ws1 e ws2 ->
+      let match eNext = case eNext.val.e__ of
+        EParens _ e_ _  -> Just e_
+        _               -> Nothing
+      in
+      matchAllAndBind match eRest <| \es ->
+        Utils.bindMaybe
+          (\(e_,l) -> return (EParens ws1 e_ ws2) l)
+          (mergeExpressions e es)
 
 matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
 matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))

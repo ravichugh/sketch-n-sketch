@@ -1,8 +1,9 @@
+(function() {
 "use strict";
 
-var ICON_PREFIX = "__ui__"
-
-// Helpers
+/******************************************************************************
+ * Helpers
+ ******************************************************************************/
 
 function stripExtension(str) {
   var lastDotIndex = str.lastIndexOf(".");
@@ -13,52 +14,66 @@ function stripExtension(str) {
   }
 }
 
-// Main Functions
+/******************************************************************************
+ * Constants
+ ******************************************************************************/
+
+var STORAGE_NAME = "sns-files";
+
+/******************************************************************************
+ * Core Functions
+ ******************************************************************************/
 
 function getFiles() {
-  return JSON.parse(localStorage.getItem("sketch-files")) || {};
+  return JSON.parse(localStorage.getItem(STORAGE_NAME)) || {};
 }
 
 function setFiles(files) {
-  localStorage.setItem("sketch-files", JSON.stringify(files));
+  localStorage.setItem(STORAGE_NAME, JSON.stringify(files));
 }
 
-function write(file) {
+function fileUID(name, extension) {
+  return name + "." + extension;
+}
+
+function writeFile(name, extension, contents) {
   var files = getFiles();
-  files[file.filename] = {
-    code: file.code
+  var uid = fileUID(name, extension);
+  files[uid] = {
+    "name": name,
+    "extension": extension,
+    "contents": contents
   };
   setFiles(files);
 }
 
-function read(filename) {
+function readFile(name, extension) {
   var files = getFiles();
-  var file = files[filename];
-  var code = "";
-  if (file !== undefined) {
-    code = file.code;
-  }
-  return code;
+  var uid = fileUID(name, extension);
+  var file = files[uid];
+  var contents = file === undefined ? "" : file.contents;
+  return contents;
 }
 
-function deleteFile(filename) {
+function deleteFile(name, extension) {
   var files = getFiles();
-  delete files[filename];
+  var uid = fileUID(name, extension);
+  delete files[uid];
   setFiles(files);
 }
 
 // http://stackoverflow.com/questions/3665115/create-a-file-in-memory-for-user-to-download-not-through-server
-function download(filename, text) {
-  var downloadLink = document.createElement('a');
+function downloadTextAsFile(title, text) {
+  var downloadLink = document.createElement("a");
 
   downloadLink.setAttribute(
     "href", "data:text/plain;charset=utf-8," + encodeURIComponent(text)
   );
   downloadLink.setAttribute(
-    "download", filename
+    "download", title
   );
 
-  downloadLink.style.display = 'none';
+  downloadLink.style.display = "none";
   document.body.appendChild(downloadLink);
 
   downloadLink.click();
@@ -66,81 +81,129 @@ function download(filename, text) {
   document.body.removeChild(downloadLink);
 }
 
-function handleWrite(file) {
-  write(file);
-  handleRequestFileIndex(); // send back new file index
-  app.ports.writeConfirmation.send(file.filename);
-}
-app.ports.write.subscribe(handleWrite);
+/******************************************************************************
+ * Message Delegator
+ ******************************************************************************/
 
-function handleRequestFile(filename) {
-  var code = read(filename);
-  var file = {
-    filename: filename,
-    code: code
-  }
-  app.ports.receiveFile.send(file);
+function sendMessage(tag, data) {
+  app.ports.internalFileMessage.send({ tag: tag, data: data });
 }
-app.ports.requestFile.subscribe(handleRequestFile);
 
-function handleRequestIcon(iconName) {
-  var filename = ICON_PREFIX + iconName;
-  var code = read(filename);
-  var icon = {
-    iconName: iconName,
-    code: code
-  }
-  // Fixes weird timing with init commands
-  // See https://github.com/elm-lang/core/issues/595
-  setTimeout(function() {
-    app.ports.receiveIcon.send(icon)
-  }, 0);
-}
-app.ports.requestIcon.subscribe(handleRequestIcon);
-
-function handleRequestFileIndex() {
+function sendFileIndex() {
   var files = getFiles();
-  var fileIndex = Object.keys(files)
-  app.ports.receiveFileIndex.send(fileIndex);
-}
-app.ports.requestFileIndex.subscribe(handleRequestFileIndex);
-
-function handleDelete(filename) {
-  deleteFile(filename);
-  handleRequestFileIndex(); // send back new file index
-  app.ports.deleteConfirmation.send(filename);
-}
-app.ports.delete.subscribe(handleDelete);
-
-function handleDownload(downloadInfo) {
-  var filename = downloadInfo.filename;
-  var text = downloadInfo.text;
-  download(filename, text);
-}
-app.ports.download.subscribe(handleDownload);
-
-function handleRequestFileFromInput(inputId) {
-  var input = document.getElementById(inputId);
-
-  if (input.files.length === 0) {
-      return;
+  var uids = Object.keys(files);
+  var fileIndex = [];
+  for (var i = 0; i < uids.length; i++) {
+    var uid = uids[i];
+    fileIndex.push({
+      "name": files[uid].name,
+      "extension": files[uid].extension,
+    });
   }
+  sendMessage("ReceiveFileIndex", fileIndex);
+}
 
-  var realFile = input.files[0];
-  var reader = new FileReader();
+function sendFile(file, needsSave) {
+  sendMessage("ReceiveFile", {
+    "file": file,
+    "needsSave": needsSave
+  });
+}
 
-  reader.onload = function(event) {
-    var filename = stripExtension(realFile.name);
-    var code = event.target.result;
+app.ports.externalFileMessage.subscribe(function(msg) {
+  if (msg.tag === "Write") {
+    var filename = msg.data.filename;
+    var contents = msg.data.contents;
+    writeFile(
+      filename.name,
+      filename.extension,
+      contents
+    );
+    sendFileIndex();
+    sendMessage("ConfirmWrite", filename);
+  } else if (msg.tag === "Delete") {
+    var filename = msg.data;
+    deleteFile(
+      filename.name,
+      filename.extension
+    );
+    sendFileIndex();
+    sendMessage("ConfirmDelete", filename);
+  } else if (msg.tag === "Download") {
+    var title = msg.data.title;
+    var contents = msg.data.contents;
+    downloadTextAsFile(title, contents);
+  } else if (msg.tag === "RequestFile") {
+    var filename = msg.data;
+    var contents = readFile(filename.name, filename.extension);
     var file = {
-      filename: filename,
-      code: code
+      "filename": filename,
+      "contents": contents
+    };
+    sendFile(file, false);
+  } else if (msg.tag === "RequestIcon") {
+    var name = msg.data.iconName;
+    // In order of precedence
+    var extensions = msg.data.iconExtensionPrecedences;
+    for (var i = 0; i < extensions.length; i++) {
+      var contents = readFile(name, extensions[i]);
+      if (contents !== "") {
+        var file = {
+          "filename": {
+            "name": name,
+            "extension": extensions[i]
+          },
+          "contents": contents
+        };
+        console.log("ICON GET");
+        sendMessage("ReceiveIcon", file);
+        return;
+      }
+    }
+    sendMessage("ReceiveIcon", {
+      "filename": {
+        "name": name,
+        "extension": extensions[0]
+      },
+      "contents": ""
+    });
+  } else if (msg.tag === "RequestUploadedFile") {
+    var inputId = msg.data;
+    var input = document.getElementById(inputId);
+
+    if (input.files.length === 0) {
+        return;
     }
 
-    input.value = "";
-    app.ports.receiveFileFromInput.send(file);
-  }
+    var realFile = input.files[0];
+    var reader = new FileReader();
 
-  reader.readAsText(realFile, "UTF-8");
-}
-app.ports.requestFileFromInput.subscribe(handleRequestFileFromInput);
+    reader.onload = function(event) {
+      var name = stripExtension(realFile.name);
+      var extension = "elm"; // TODO don't assume extension
+      var contents = event.target.result;
+      var file = {
+        "filename": {
+          name: name,
+          extension: extension
+        },
+        "contents": contents
+      };
+
+      input.value = "";
+      sendFile(file, true);
+    };
+
+    reader.readAsText(realFile, "UTF-8");
+  } else if (msg.tag === "RequestFileIndex") {
+    sendFileIndex();
+  } else {
+    console.error(
+      "WARN (fileHandler.js): unknown external file message '"
+        + msg.tag
+        + "' with data: "
+        + msg.data.toString()
+    );
+  }
+});
+})();

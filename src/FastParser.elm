@@ -1,12 +1,11 @@
 module FastParser exposing
-  ( prelude, isPreludeLoc, isPreludeLocId, isPreludeEId
+  ( prelude, isPreludeLoc, isPreludeLocId, isPreludeEId, isActualEId, isProgramEId
   , substOf, substStrOf, substPlusOf
   , parseE, parseT
   , sanitizeVariableName
   , clearAllIds
   , freshen
   , maxId
-  , showError
   )
 
 import List
@@ -18,13 +17,20 @@ import Dict exposing (Dict)
 
 import Parser exposing (..)
 import Parser.LanguageKit exposing (..)
-import Parser.LowLevel exposing (getPosition, getOffset, getSource)
+import Parser.LowLevel exposing (getOffset, getSource)
+
+import ParserUtils exposing (..)
+import LangParserUtils exposing (..)
 
 import Utils as U
 import PreludeGenerated as Prelude
 import Lang exposing (..)
+import TopLevelExp exposing (TopLevelExp, fuseTopLevelExps)
+import Pos exposing (..)
+import Info exposing (..)
 
 import ImpureGoodies
+import LangUnparser
 
 --==============================================================================
 --= PARSER WITH INFO
@@ -37,109 +43,6 @@ type alias ParserI a = Parser (WithInfo a)
 --==============================================================================
 
 --------------------------------------------------------------------------------
--- Helper Functions
---------------------------------------------------------------------------------
-
-singleton : a -> List a
-singleton x = [x]
-
---------------------------------------------------------------------------------
--- Parser Combinators
---------------------------------------------------------------------------------
-
-try : Parser a -> Parser a
-try parser =
-  delayedCommitMap always parser (succeed ())
-
-token : String -> Parser String
-token s =
-  map (always s) (keyword s)
-
-guard : String -> Bool -> Parser ()
-guard failReason pred =
-  if pred then (succeed ()) else (fail failReason)
-
---------------------------------------------------------------------------------
--- Info Helpers
---------------------------------------------------------------------------------
-
-getPos : Parser Pos
-getPos =
-  map posFromRowCol getPosition
-
-trackInfo : Parser a -> ParserI a
-trackInfo p =
-  delayedCommitMap
-    ( \start (a, end) ->
-        withInfo a start end
-    )
-    getPos
-    ( succeed (,)
-        |= p
-        |= getPos
-    )
-
-untrackInfo : ParserI a -> Parser a
-untrackInfo =
-  map (.val)
-
---------------------------------------------------------------------------------
--- Whitespace
---------------------------------------------------------------------------------
-
-isSpace : Char -> Bool
-isSpace c =
-  c == ' ' || c == '\n'
-
-isOnlySpaces : String -> Bool
-isOnlySpaces =
-  String.all isSpace
-
-spaces : Parser WS
-spaces =
-  trackInfo <| keep zeroOrMore isSpace
-
-guardSpace : ParserI ()
-guardSpace =
-  trackInfo
-    ( ( succeed (,)
-        |= getOffset
-        |= getSource
-      )
-      |> andThen
-      ( \(offset, source) ->
-          guard "expecting space" <|
-            isOnlySpaces <| String.slice offset (offset + 1) source
-      )
-    )
-
-spacedKeyword : String -> ParserI ()
-spacedKeyword kword =
-  trackInfo <|
-    succeed ()
-      |. keyword kword
-      |. guardSpace
-
-spaceSaverKeyword : String -> (WS -> a) -> ParserI a
-spaceSaverKeyword kword combiner =
-  delayedCommitMap
-    ( \ws _ ->
-        withInfo (combiner ws) ws.start ws.end
-    )
-    ( spaces )
-    ( keyword kword )
-
-
-spacesBefore : (WS -> a -> b) -> ParserI a -> ParserI b
-spacesBefore combiner p =
-  delayedCommitMap
-    ( \ws x ->
-        withInfo (combiner ws x.val) x.start x.end
-    )
-    spaces
-    p
-
---------------------------------------------------------------------------------
 -- Block Helper
 --------------------------------------------------------------------------------
 
@@ -148,7 +51,7 @@ block
 block combiner openSymbol closeSymbol p =
   delayedCommitMap
     ( \(wsStart, open) (result, wsEnd, close) ->
-        withInfo
+        WithInfo
           (combiner wsStart result wsEnd)
           open.start
           close.end
@@ -285,7 +188,7 @@ widgetDecl cap =
           [ succeed combiner
               |. symbol "{"
               |= num
-              |= trackInfo (token "-")
+              |= trackInfo (token "-" "-")
               |= num
               |. symbol "}"
           , succeed NoWidgetDecl
@@ -300,7 +203,7 @@ frozenAnnotation =
   inContext "frozen annotation" <|
     trackInfo <|
       oneOf <|
-        List.map token [frozen, thawed, assignOnlyOnce, unann]
+        List.map (\a -> token a a) [frozen, thawed, assignOnlyOnce, unann]
 
 --==============================================================================
 --= BASE VALUES
@@ -407,6 +310,7 @@ keywords =
     , "get"
     , "remove"
     , "debug"
+    , "noWidgets"
     ]
 
 --------------------------------------------------------------------------------
@@ -442,20 +346,13 @@ typeIdentifierString =
 --==============================================================================
 
 --------------------------------------------------------------------------------
--- General Pattern Helpers
---------------------------------------------------------------------------------
-
-mapPat_ : ParserI Pat__ -> Parser Pat
-mapPat_ = (map << mapInfo) pat_
-
---------------------------------------------------------------------------------
 -- Name Pattern Helper
 --------------------------------------------------------------------------------
 
 namePattern : ParserI Ident -> Parser Pat
 namePattern ident =
   mapPat_ <|
-    spacesBefore (\ws name -> PVar ws name noWidgetDecl) ident
+    paddedBefore (\ws name -> PVar ws name noWidgetDecl) ident
 
 --------------------------------------------------------------------------------
 -- Variable Pattern
@@ -483,7 +380,7 @@ constantPattern : Parser Pat
 constantPattern =
   mapPat_ <|
     inContext "constant pattern" <|
-      spacesBefore PConst num
+      paddedBefore PConst num
 
 --------------------------------------------------------------------------------
 -- Base Value Pattern
@@ -493,7 +390,7 @@ baseValuePattern : Parser Pat
 baseValuePattern =
   mapPat_ <|
     inContext "base value pattern" <|
-      spacesBefore PBase baseValue
+      paddedBefore PBase baseValue
 
 --------------------------------------------------------------------------------
 -- Pattern Lists
@@ -533,7 +430,7 @@ asPattern =
       lazy <| \_ ->
         delayedCommitMap
           ( \(wsStart, name, wsAt) pat ->
-              withInfo (PAs wsStart name.val wsAt pat) name.start pat.end
+              WithInfo (PAs wsStart name.val wsAt pat) name.start pat.end
           )
           ( succeed (,,)
               |= spaces
@@ -571,7 +468,7 @@ baseType context combiner token =
   inContext context <|
     delayedCommitMap
       ( \ws _ ->
-          withInfo (combiner ws) ws.start ws.end
+          WithInfo (combiner ws) ws.start ws.end
       )
       ( spaces )
       ( keyword token )
@@ -599,7 +496,7 @@ stringType =
 namedType : Parser Type
 namedType =
   inContext "named type" <|
-    spacesBefore TNamed typeIdentifierString
+    paddedBefore TNamed typeIdentifierString
 
 --------------------------------------------------------------------------------
 -- Variable Types
@@ -608,7 +505,7 @@ namedType =
 variableType : Parser Type
 variableType =
   inContext "variable type" <|
-    spacesBefore TVar variableIdentifierString
+    paddedBefore TVar variableIdentifierString
 
 --------------------------------------------------------------------------------
 -- Function Type
@@ -620,7 +517,7 @@ functionType =
     inContext "function type" <|
       parenBlock TArrow <|
         succeed identity
-          |. spacedKeyword "->"
+          |. keywordWithSpace "->"
           |= repeat oneOrMore typ
 
 --------------------------------------------------------------------------------
@@ -633,7 +530,7 @@ listType =
     lazy <| \_ ->
       parenBlock TList <|
         succeed identity
-          |. spacedKeyword "List"
+          |. keywordWithSpace "List"
           |= typ
 
 --------------------------------------------------------------------------------
@@ -649,7 +546,7 @@ dictType =
             TDict wsStart tKey tVal wsEnd
         )
         ( succeed (,)
-            |. spacedKeyword "TDict"
+            |. keywordWithSpace "TDict"
             |= typ
             |= typ
         )
@@ -711,7 +608,7 @@ forallType =
               TForall wsStart qs t wsEnd
           )
           ( succeed (,)
-              |. spacedKeyword "forall"
+              |. keywordWithSpace "forall"
               |= quantifiers
               |= typ
           )
@@ -726,7 +623,7 @@ unionType =
     lazy <| \_ ->
       parenBlock TUnion <|
         succeed identity
-          |. spacedKeyword "union"
+          |. keywordWithSpace "union"
           |= repeat oneOrMore typ
 
 --------------------------------------------------------------------------------
@@ -767,35 +664,24 @@ typ =
 --==============================================================================
 
 --------------------------------------------------------------------------------
--- General Expression Helpers
---------------------------------------------------------------------------------
-
-mapExp_ : ParserI Exp__ -> Parser Exp
-mapExp_ = (map << mapInfo) exp_
-
---------------------------------------------------------------------------------
 -- Identifier Expressions
 --------------------------------------------------------------------------------
 
 variableExpression : Parser Exp
 variableExpression =
   mapExp_ <|
-    spacesBefore EVar variableIdentifierString
+    paddedBefore EVar variableIdentifierString
 
 --------------------------------------------------------------------------------
 -- Constant Expressions
 --------------------------------------------------------------------------------
-
--- TODO interacts badly with auto-abstracted variable names...
-dummyLocWithDebugInfo : Frozen -> Num -> Loc
-dummyLocWithDebugInfo b n = (0, b, "")
 
 constantExpression : Parser Exp
 constantExpression =
   mapExp_ <|
     delayedCommitMap
       ( \ws (n, fa, w) ->
-          withInfo
+          WithInfo
             (EConst ws n.val (dummyLocWithDebugInfo fa.val n.val) w)
             n.start
             w.end
@@ -813,8 +699,9 @@ constantExpression =
 
 baseValueExpression : Parser Exp
 baseValueExpression =
-  mapExp_ <|
-    spacesBefore EBase baseValue
+  inContext "base value expression" <|
+    mapExp_ <|
+      paddedBefore EBase baseValue
 
 --------------------------------------------------------------------------------
 -- Primitive Operators
@@ -834,51 +721,53 @@ operator =
                 |. keyword "empty"
               -- Non-unary operators
             , succeed Cos
-                |. spacedKeyword "cos"
+                |. keywordWithSpace "cos"
             , succeed Sin
-                |. spacedKeyword "sin"
+                |. keywordWithSpace "sin"
             , succeed ArcCos
-                |. spacedKeyword "arccos"
+                |. keywordWithSpace "arccos"
             , succeed ArcSin
-                |. spacedKeyword "arcsin"
+                |. keywordWithSpace "arcsin"
             , succeed Floor
-                |. spacedKeyword "floor"
+                |. keywordWithSpace "floor"
             , succeed Ceil
-                |. spacedKeyword "ceiling"
+                |. keywordWithSpace "ceiling"
             , succeed Round
-                |. spacedKeyword "round"
+                |. keywordWithSpace "round"
             , succeed ToStr
-                |. spacedKeyword "toString"
+                |. keywordWithSpace "toString"
             , succeed Sqrt
-                |. spacedKeyword "sqrt"
+                |. keywordWithSpace "sqrt"
             , succeed Explode
-                |. spacedKeyword "explode"
+                |. keywordWithSpace "explode"
             , succeed Plus
-                |. spacedKeyword "+"
+                |. keywordWithSpace "+"
             , succeed Minus
-                |. spacedKeyword "-"
+                |. keywordWithSpace "-"
             , succeed Mult
-                |. spacedKeyword "*"
+                |. keywordWithSpace "*"
             , succeed Div
-                |. spacedKeyword "/"
+                |. keywordWithSpace "/"
             , succeed Lt
-                |. spacedKeyword "<"
+                |. keywordWithSpace "<"
             , succeed Eq
-                |. spacedKeyword "="
+                |. keywordWithSpace "="
             , succeed Mod
-                |. spacedKeyword "mod"
+                |. keywordWithSpace "mod"
             , succeed Pow
-                |. spacedKeyword "pow"
+                |. keywordWithSpace "pow"
             , succeed ArcTan2
-                |. spacedKeyword "arctan2"
+                |. keywordWithSpace "arctan2"
             , succeed DictInsert
-                |. spacedKeyword "insert"
+                |. keywordWithSpace "insert"
             , succeed DictGet
-                |. spacedKeyword "get"
+                |. keywordWithSpace "get"
             , succeed DictRemove
-                |. spacedKeyword "remove"
+                |. keywordWithSpace "remove"
             , succeed DebugLog
-                |. spacedKeyword "debug"
+                |. keywordWithSpace "debug"
+            , succeed NoWidgets
+                |. keywordWithSpace "noWidgets"
             ]
     in
       inContext "operator" <|
@@ -906,7 +795,7 @@ conditional =
               EIf wsStart c a b wsEnd
           )
           ( succeed (,,)
-             |. spacedKeyword "if"
+             |. keywordWithSpace "if"
              |= exp
              |= exp
              |= exp
@@ -973,7 +862,7 @@ genericCase context kword combiner branchCombiner parser branchParser =
                 combiner wsStart c branches wsEnd
             )
             ( succeed (,)
-                |. spacedKeyword kword
+                |. keywordWithSpace kword
                 |= parser
                 |= repeat zeroOrMore path
             )
@@ -998,7 +887,7 @@ typeCaseExpression =
     lazy <| \_ ->
       genericCase
         "type case expression" "typecase"
-        ETypeCase TBranch_ pattern typ
+        ETypeCase TBranch_ exp typ
 
 --------------------------------------------------------------------------------
 -- Functions
@@ -1009,7 +898,7 @@ function =
   let
     parameters =
       oneOf
-        [ map singleton pattern
+        [ map List.singleton pattern
         , untrackInfo <| parenBlockIgnoreWS <| repeat oneOrMore pattern
         ]
   in
@@ -1057,7 +946,7 @@ genericLetBinding context kword isRec =
             ELet wsStart Let isRec name binding rest wsEnd
         )
         ( succeed (,,)
-            |. spacedKeyword kword
+            |. keywordWithSpace kword
             |= pattern
             |= exp
             |= exp
@@ -1069,7 +958,7 @@ genericDefBinding context kword isRec =
     inContext context <|
       delayedCommitMap
         ( \(wsStart, open) (name, binding, wsEnd, close, rest) ->
-            withInfo
+            WithInfo
               (ELet wsStart Def isRec name binding rest wsEnd)
               open.start
               close.end
@@ -1079,7 +968,7 @@ genericDefBinding context kword isRec =
             |= trackInfo (symbol "(")
         )
         ( succeed (,,,,)
-            |. spacedKeyword kword
+            |. keywordWithSpace kword
             |= pattern
             |= exp
             |= spaces
@@ -1129,7 +1018,7 @@ option =
       lazy <| \_ ->
         delayedCommitMap
           ( \wsStart (open, opt, wsMid, val, rest) ->
-              withInfo
+              WithInfo
                 (EOption wsStart opt wsMid val rest)
                 open.start
                 val.end
@@ -1162,7 +1051,7 @@ typeDeclaration =
     inContext "type declaration" <|
       delayedCommitMap
         ( \(wsStart, open) (pat, t, wsEnd, close, rest) ->
-            withInfo
+            WithInfo
               (ETyp wsStart pat t rest wsEnd)
               open.start
               close.end
@@ -1172,7 +1061,7 @@ typeDeclaration =
             |= trackInfo (symbol "(")
         )
         ( succeed (,,,,)
-            |. spacedKeyword "typ"
+            |. keywordWithSpace "typ"
             |= variablePattern
             |= typ
             |= spaces
@@ -1190,7 +1079,7 @@ typeAlias =
     inContext "type alias" <|
       delayedCommitMap
         ( \(wsStart, open, pat) (t, wsEnd, close, rest) ->
-            withInfo
+            WithInfo
               (ETypeAlias wsStart pat t rest wsEnd)
               open.start
               close.end
@@ -1198,7 +1087,7 @@ typeAlias =
         ( succeed (,,)
             |= spaces
             |= trackInfo (symbol "(")
-            |. spacedKeyword "def "
+            |. keywordWithSpace "def "
             |= typePattern
         )
         ( succeed (,,,)
@@ -1244,7 +1133,7 @@ comment =
       lazy <| \_ ->
         delayedCommitMap
           ( \wsStart (semicolon, text, rest) ->
-              withInfo
+              WithInfo
                 (EComment wsStart text.val rest)
                 semicolon.start
                 text.end
@@ -1289,24 +1178,6 @@ exp =
 --==============================================================================
 
 --------------------------------------------------------------------------------
--- Data Types
---------------------------------------------------------------------------------
-
-type alias TopLevelExp = WithInfo (Exp -> Exp_)
-
---------------------------------------------------------------------------------
--- Top-Level Expression Fusing
---------------------------------------------------------------------------------
-
-fuseTopLevelExp : TopLevelExp -> Exp -> Exp
-fuseTopLevelExp tld rest =
-  withInfo (tld.val rest) tld.start tld.end
-
-fuseTopLevelExps : (List TopLevelExp) -> Exp -> Exp
-fuseTopLevelExps tlds rest =
-  List.foldr fuseTopLevelExp rest tlds
-
---------------------------------------------------------------------------------
 -- Top-Level Defs
 --------------------------------------------------------------------------------
 
@@ -1320,7 +1191,7 @@ genericTopLevelDef context kword isRec =
           )
       )
       ( succeed (,)
-          |. spacedKeyword kword
+          |. keywordWithSpace kword
           |= pattern
           |= exp
       )
@@ -1355,7 +1226,7 @@ topLevelTypeDeclaration =
           )
       )
       ( succeed (,)
-          |. spacedKeyword "typ"
+          |. keywordWithSpace "typ"
           |= variablePattern
           |= typ
       )
@@ -1369,7 +1240,7 @@ topLevelTypeAlias =
   inContext "top-level type alias" <|
     delayedCommitMap
       ( \(wsStart, open, pat) (t, wsEnd, close) ->
-          withInfo
+          WithInfo
             (\rest -> (exp_ <| ETypeAlias wsStart pat t rest wsEnd))
             open.start
             close.end
@@ -1377,7 +1248,7 @@ topLevelTypeAlias =
       ( succeed (,,)
           |= spaces
           |= trackInfo (symbol "(")
-          |. spacedKeyword "def"
+          |. keywordWithSpace "def"
           |= typePattern
       )
       ( succeed (,,)
@@ -1395,7 +1266,7 @@ topLevelComment =
   inContext "top-level comment" <|
     delayedCommitMap
       ( \wsStart (semicolon, text) ->
-          withInfo
+          WithInfo
             ( \rest ->
                 exp_ <| EComment wsStart text.val rest
             )
@@ -1419,7 +1290,7 @@ topLevelComment =
 topLevelOption : Parser TopLevelExp
 topLevelOption =
   inContext "top-level option" <|
-    spacesBefore
+    paddedBefore
       ( \wsStart (opt, wsMid, val) ->
           ( \rest ->
               exp_ <| EOption wsStart opt wsMid val rest
@@ -1471,7 +1342,7 @@ implicitMain =
     builder p =
       let
         withCorrectInfo x =
-          withInfo x p p
+          WithInfo x p p
         name =
           withCorrectInfo << pat_ <|
             PVar space1 "_IMPLICIT_MAIN" (withDummyInfo NoWidgetDecl)
@@ -1522,80 +1393,6 @@ parseT : String -> Result Error Type
 parseT = run typ
 
 --------------------------------------------------------------------------------
--- Error Handling
---------------------------------------------------------------------------------
-
-showIndentedProblem : Int -> Problem -> String
-showIndentedProblem n prob =
-  let
-    indent =
-      String.repeat (2 * n) " "
-  in
-    case prob of
-      BadOneOf probs ->
-        indent ++ "One of:\n" ++
-          String.concat (List.map (showIndentedProblem (n + 1)) probs)
-      BadInt ->
-        indent ++ "Bad integer value\n"
-      BadFloat ->
-        indent ++ "Bad float value\n"
-      BadRepeat ->
-        indent ++ "Parse of zero-length input indefinitely\n"
-      ExpectingEnd ->
-        indent ++ "Expecting end\n"
-      ExpectingSymbol s ->
-        indent ++ "Expecting symbol '" ++ s ++ "'\n"
-      ExpectingKeyword s ->
-        indent ++ "Expecting keyword '" ++ s ++ "'\n"
-      ExpectingVariable ->
-        indent ++ "Expecting variable\n"
-      ExpectingClosing s ->
-        indent ++ "Expecting closing string '" ++ s ++ "'\n"
-      Fail s ->
-        indent ++ "Parser failure: " ++ s ++ "\n"
-
-showError : Error -> String
-showError err =
-  let
-    prettyError =
-      let
-        sourceLines =
-          String.lines err.source
-        problemLine =
-          List.head (List.drop (err.row - 1) sourceLines)
-        arrow =
-          (String.repeat (err.col - 1) " ") ++ "^"
-      in
-        case problemLine of
-          Just line ->
-            line ++ "\n" ++ arrow ++ "\n\n"
-          Nothing ->
-            ""
-    showContext c =
-      "  (row: " ++ (toString c.row) ++", col: " ++ (toString c.col)
-      ++ ") Error while parsing '" ++ c.description ++ "'\n"
-    deepestContext =
-      case List.head err.context of
-        Just c ->
-          "Error while parsing '" ++ c.description ++ "':\n"
-        Nothing ->
-          ""
-  in
-    "[Parser Error]\n\n" ++
-      deepestContext ++ "\n" ++
-      prettyError ++
-    "Position\n" ++
-    "========\n" ++
-    "  Row: " ++ (toString err.row) ++ "\n" ++
-    "  Col: " ++ (toString err.col) ++ "\n\n" ++
-    "Problem\n" ++
-    "=======\n" ++
-      (showIndentedProblem 1 err.problem) ++ "\n" ++
-    "Context Stack\n" ++
-    "=============\n" ++
-      (String.concat <| List.map showContext err.context) ++ "\n\n"
-
---------------------------------------------------------------------------------
 -- Code from old parser
 --------------------------------------------------------------------------------
 
@@ -1623,6 +1420,12 @@ isPreludeLocId k = k < initK
 
 isPreludeEId : EId -> Bool
 isPreludeEId k = k < initK
+
+isActualEId : EId -> Bool
+isActualEId eid = eid >= 0
+
+isProgramEId : EId -> Bool
+isProgramEId eid = isActualEId eid && not (isPreludeEId eid)
 
 clearAllIds : Exp -> Exp
 clearAllIds root =
@@ -1689,11 +1492,6 @@ freshenPreserving idsToPreserve initK e =
                 ([], k)
           in
           (ECase ws1 scrutinee newBranches ws2, newK)
-
-        -- TypeCase scrutinee will be changed to an exp eventually.
-        ETypeCase ws1 pat tbranches ws2 ->
-          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
-          (ETypeCase ws1 newPat tbranches ws2, newK)
 
         ETyp ws1 pat tipe e ws2 ->
           let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
@@ -1769,7 +1567,6 @@ allIdsRaw exp =
             ELet ws1 kind b p e1 e2 ws2           -> pidsInPat p
             EFun ws1 pats body ws2                -> pidsInPats pats
             ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
-            ETypeCase ws1 pat tbranches ws2       -> pidsInPat pat
             ETyp ws1 pat tipe e ws2               -> pidsInPat pat
             ETypeAlias ws1 pat tipe e ws2         -> pidsInPat pat
             _                                     -> []
@@ -1842,7 +1639,10 @@ substPlusOf_ substPlus exp =
           Nothing ->
             Dict.insert locId { e | val = n } s
           Just existing ->
-            if n == existing.val then s else Debug.crash <| "substPlusOf_ Constant: " ++ (toString n)
+            if n == existing.val then
+              s
+            else
+              Debug.crash <| "substPlusOf_ Duplicate locId " ++ toString locId ++ " with differing value " ++ toString n ++ "\n" ++ LangUnparser.unparseWithIds exp
       _ -> s
   in
   foldExp accumulator substPlus exp

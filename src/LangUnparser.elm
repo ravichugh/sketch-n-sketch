@@ -1,11 +1,13 @@
 module LangUnparser exposing
-  ( unparse, unparsePat, unparseWD, unparseType
+  ( expsEquivalent, patsEquivalent
+  , unparse, unparsePat, unparseWD, unparseType
   , unparseWithIds
   , unparseWithUniformWhitespace, unparsePatWithUniformWhitespace
   , bumpCol, incCol
   )
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
 import Utils
 import Config
 import ImpureGoodies
@@ -25,6 +27,16 @@ debugLog = Config.debugLog Config.debugParser
 
 bumpCol n pos = { pos | col = n + pos.col }
 incCol = bumpCol 1
+
+------------------------------------------------------------------------------
+
+expsEquivalent : Exp -> Exp -> Bool
+expsEquivalent exp1 exp2 =
+  unparseWithUniformWhitespace True True exp1 == unparseWithUniformWhitespace True True exp2
+
+patsEquivalent : Pat -> Pat -> Bool
+patsEquivalent pat1 pat2 =
+  unparsePatWithUniformWhitespace True pat1 == unparsePatWithUniformWhitespace True pat2
 
 ------------------------------------------------------------------------------
 
@@ -203,13 +215,13 @@ unparse_ e = case e.val.e__ of
         <| List.map (.val) bs
     in
     ws1.val ++ "(case" ++ unparse_ e1 ++ branchesStr ++ ws2.val ++ ")"
-  ETypeCase ws1 pat tbranches ws2 ->
+  ETypeCase ws1 e1 tbranches ws2 ->
     let tbranchesStr =
       String.concat
         <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparse_ exp ++ bws2.val ++ ")")
         <| List.map (.val) tbranches
     in
-    ws1.val ++ "(typecase" ++ unparsePat pat ++ tbranchesStr ++ ws2.val ++ ")"
+    ws1.val ++ "(typecase" ++ unparse_ e1 ++ tbranchesStr ++ ws2.val ++ ")"
   EComment ws s e1 ->
     ws.val ++ ";" ++ s ++ "\n" ++ unparse_ e1
   EOption ws1 s1 ws2 s2 e1 ->
@@ -220,6 +232,8 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "(" ++ (unparse_ e) ++ ws2.val ++ ":" ++ (unparseType tipe) ++ ws3.val ++ ")"
   ETypeAlias ws1 pat tipe e ws2 ->
     ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
+  EParens ws1 e ws2 ->
+    unparse_ e
 
 
 unparseWithIds : Exp -> String
@@ -260,13 +274,13 @@ unparseWithIds e =
           <| List.map (.val) bs
       in
       ws1.val ++ "(" ++ eidTag ++ "case" ++ unparseWithIds e1 ++ branchesStr ++ ws2.val ++ ")"
-    ETypeCase ws1 pat tbranches ws2 ->
+    ETypeCase ws1 e1 tbranches ws2 ->
       let tbranchesStr =
         String.concat
           <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparseWithIds exp ++ bws2.val ++ ")")
           <| List.map (.val) tbranches
       in
-      ws1.val ++ "(" ++ eidTag ++ "typecase" ++ unparsePatWithIds pat ++ tbranchesStr ++ ws2.val ++ ")"
+      ws1.val ++ "(" ++ eidTag ++ "typecase" ++ unparseWithIds e1 ++ tbranchesStr ++ ws2.val ++ ")"
     EComment ws s e1 ->
       ws.val ++ ";" ++ eidTag ++ s ++ "\n" ++ unparseWithIds e1
     EOption ws1 s1 ws2 s2 e1 ->
@@ -277,6 +291,8 @@ unparseWithIds e =
       ws1.val ++ "(" ++ (unparseWithIds e) ++ ws2.val ++ ":" ++ eidTag ++ (unparseType tipe) ++ ws3.val ++ ")"
     ETypeAlias ws1 pat tipe e ws2 ->
       ws1.val ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
+    EParens ws1 e ws2 ->
+      ws1.val ++ "(" ++ eidTag ++ unparseWithIds e ++ ws2.val ++ ")"
 
 
 -- Ignores given whitespace.
@@ -321,13 +337,13 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
           <| List.map (.val) bs
       in
       " " ++ "(case" ++ recurse e1 ++ branchesStr ++ " " ++ ")"
-    ETypeCase _ pat tbranches _ ->
+    ETypeCase _ e1 tbranches _ ->
       let tbranchesStr =
         String.concat
           <| List.map (\(TBranch_ _ tipe exp _) -> " " ++ "(" ++ unparseTypeWithUniformWhitespace tipe ++ recurse exp ++ " " ++ ")")
           <| List.map (.val) tbranches
       in
-      " " ++ "(typecase" ++ recursePat pat ++ tbranchesStr ++ " " ++ ")"
+      " " ++ "(typecase" ++ recurse e1 ++ tbranchesStr ++ " " ++ ")"
     EComment _ s e1 ->
       " " ++ ";" ++ s ++ "\n" ++ recurse e1
     EOption _ s1 _ s2 e1 ->
@@ -338,3 +354,5 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       " " ++ "(" ++ (recurse e) ++ " " ++ ":" ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")"
     ETypeAlias _ pat tipe e _ ->
       " " ++ "(def" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")" ++ recurse e
+    EParens _ e _ ->
+      recurse e

@@ -17,7 +17,7 @@ function initialize() {
   editor.$blockScrolling = Infinity;
   editor.setTheme("ace/theme/tomorrow_night");
   editor.setFontSize(fontSize);
-  editor.getSession().setMode("ace/mode/little");
+  editor.getSession().setMode("ace/mode/elm");
   editor.setOption("dragEnabled", true); // true by default anyway
   editor.setOption("highlightActiveLine", false);
   editor.setShowPrintMargin(false);

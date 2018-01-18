@@ -1,6 +1,6 @@
 module Main exposing (main)
 
-import InterfaceModel as Model exposing (Msg, Model)
+import InterfaceModel as Model exposing (Msg(..), Model)
 import SleekView as View
 import InterfaceController as Controller
 import AceCodeBox
@@ -9,10 +9,9 @@ import AnimationLoop
 import FileHandler
 import DeucePopupPanelInfo
 import ColorScheme
--- import DependenceGraph
-
-import UserStudyLog
-import UserStudy
+import Solver
+import SolverServer
+import ImpureGoodies
 
 import Html exposing (Html)
 import Mouse
@@ -45,7 +44,13 @@ view = View.view
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
-  UserStudyLog.logModelUpdate Controller.update msg model
+  case msg of
+    ResponseFromSolver str ->
+      SolverServer.handleReduceResponse str model
+    Msg _ _ ->
+      ImpureGoodies.tryCatch "NeedSolution"
+        (\()                            -> Controller.update msg model)
+        (\(Solver.NeedSolution problem) -> SolverServer.askForSolution problem msg model)
 
 initCmd : Cmd Msg
 initCmd =
@@ -53,19 +58,17 @@ initCmd =
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
     , OutputCanvas.initialize
-    , FileHandler.requestFileIndex ()
-    , Cmd.batch <| List.map FileHandler.requestIcon Model.iconNames
-    , Task.perform Controller.msgLoadIcon (Task.succeed (Model.starLambdaToolIcon))
+    , FileHandler.sendMessage FileHandler.RequestFileIndex
+    , Cmd.batch <|
+        List.map
+          (FileHandler.sendMessage << FileHandler.RequestIcon)
+          Model.iconNames
+    , Task.perform
+        Controller.msgLoadIcon
+        (Task.succeed (Model.starLambdaToolIcon))
     , ColorScheme.updateColorScheme Model.initColorScheme
-    ] ++
-    -- Fixes model not correctly handling initial user study step
-    ( if UserStudy.enabled then
-        [ Task.perform (Controller.msgUserStudyStep "") (Task.succeed 0)
-        ]
-      else
-        [ Task.perform Controller.msgNew (Task.succeed Model.initTemplate)
-        ]
-    )
+    , Task.perform Controller.msgNew (Task.succeed Model.initTemplate)
+    ]
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -82,14 +85,11 @@ subscriptions model =
     , AceCodeBox.userHasTyped (always Controller.msgUserHasTyped)
     , OutputCanvas.receiveOutputCanvasState Controller.msgOutputCanvasUpdate
     , AnimationLoop.receiveFrame Controller.msgTickDelta
-    , FileHandler.writeConfirmation Controller.msgConfirmWrite
-    , FileHandler.deleteConfirmation Controller.msgConfirmDelete
-    , FileHandler.receiveFile Controller.msgReadFile
-    , FileHandler.receiveIcon Controller.msgLoadIcon
-    , FileHandler.receiveFileFromInput Controller.msgReadFileFromInput
-    , FileHandler.receiveFileIndex Controller.msgUpdateFileIndex
+    , FileHandler.receiveMessage
+        Controller.fileMessageHandler
+        Controller.fileMessageError
     , DeucePopupPanelInfo.receiveDeucePopupPanelInfo
         Controller.msgReceiveDeucePopupPanelInfo
     -- , DependenceGraph.receiveImage Controller.msgReceiveDotImage
-    -- , Time.every Time.second Controller.msgUserStudyEverySecondTick
+    , SolverServer.reduceResponse ResponseFromSolver
     ]

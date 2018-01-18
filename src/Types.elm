@@ -1,8 +1,11 @@
 module Types exposing (..)
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
+import Pos exposing (..)
+import Info exposing (..)
 import FastParser as Parser
-import LangUnparser exposing (unparsePat, unparseType)
+import LangUnparser exposing (unparse, unparsePat, unparseType)
 import Utils
 import Ace
 import Config
@@ -429,8 +432,8 @@ lookupTypeAlias typeEnv x =
     Just _  -> True
     Nothing -> False
 
-narrowUnionType : Pat -> List Type -> Type -> TypeEnv -> Result TypeError (List Type, TypeEnv)
-narrowUnionType p tAfterPreviousCases tThisCase typeEnv =
+narrowUnionType : List Type -> Type -> List Type
+narrowUnionType tAfterPreviousCases tThisCase =
   let tThisCase_ =
     case (tThisCase.val, tAfterPreviousCases) of
       (TWildcard _, [t1]) -> t1
@@ -438,9 +441,10 @@ narrowUnionType p tAfterPreviousCases tThisCase typeEnv =
       _                   -> tThisCase
   in
   let tAfterThisCase = subtractType tAfterPreviousCases tThisCase_ in
-  case addBindingsOne (p, tThisCase_) typeEnv of
-    Err err     -> Err err
-    Ok typeEnv_ -> Ok (tAfterThisCase, typeEnv_)
+  tAfterThisCase
+  -- case addBindingsOne (p, tThisCase_) typeEnv of
+  --   Err err     -> Err err
+  --   Ok typeEnv_ -> Ok (tAfterThisCase, typeEnv_)
 
 subtractType : List Type -> Type -> List Type
 subtractType union1 tipe2 =
@@ -622,29 +626,26 @@ checkType typeInfo typeEnv e goalType =
               { result = False
               , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
 
-    ETypeCase _ p tbranches _ -> -- [TC-Typecase]
-      case lookupPat typeEnv p of
+    ETypeCase _ e0 tbranches _ -> -- [TC-Typecase]
+      let result1 = synthesizeType typeInfo typeEnv e0 in
+      case result1.result of
         Nothing ->
-          let err = "no type for the pattern: " ++ unparsePat p in
-          { result = False, typeInfo = addTypeErrorAt p.start err typeInfo }
+          let err = "checkType: no type for typecase scrutinee " ++ unparse e0 in
+          { result = False, typeInfo = addTypeErrorAt e0.start err typeInfo }
 
-        Just tp ->
-          case tp.val of
+        Just t1 ->
+          -- Typecase scrutinee must be a union type?
+          case t1.val of
             TUnion _ union _ ->
               let (unionResidual, result_branches) =
                  List.foldl (\te (acc1, acc2) ->
                    let (TBranch_ _ ti ei _) = te.val in
-                   case narrowUnionType p acc1 ti typeEnv of
-                     Err err ->
-                       let acc2_ = { result = False
-                                   , typeInfo = addTypeErrorAt p.start err acc2.typeInfo } in
-                       (acc1, acc2_)
-                     Ok (acc1_, typeEnvi) ->
-                       let resulti = checkType acc2.typeInfo typeEnvi ei goalType in
-                       let acc2_ = { result = resulti.result && acc2.result
-                                   , typeInfo = resulti.typeInfo } in
-                       (acc1_, acc2_)
-                 ) (union, { result = True, typeInfo = typeInfo }) tbranches
+                   let acc1_ = narrowUnionType acc1 ti in
+                   let resulti = checkType acc2.typeInfo typeEnv ei goalType in -- may not be necessary
+                   let acc2_ = { result = resulti.result && acc2.result
+                               , typeInfo = resulti.typeInfo } in
+                   (acc1_, acc2_)
+                 ) (union, { result = True, typeInfo = result1.typeInfo }) tbranches
               in
               -- TODO could check unionResidual for exhaustiveness
               case result_branches.result of
@@ -655,8 +656,8 @@ checkType typeInfo typeEnv e goalType =
                   , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
 
             _ ->
-              let err = "pattern is not a union type: " ++ unparseType tp in
-              { result = False, typeInfo = addTypeErrorAt p.start err typeInfo }
+              let err = "typecase scrutinee is not a union type: " ++ unparseType t1 in
+              { result = False, typeInfo = addTypeErrorAt e0.start err typeInfo }
 
     -- TODO [TC-Let]
 
@@ -874,30 +875,30 @@ synthesizeType typeInfo typeEnv e =
                     Err err -> finish.withError err result2.typeInfo
                     Ok t    -> finish.withType t result2.typeInfo
 
-    ETypeCase _ p tbranches _ -> -- [TS-Typecase]
-      case lookupPat typeEnv p of
+    ETypeCase _ e0 tbranches _ -> -- [TS-Typecase]
+      let result1 = synthesizeType typeInfo typeEnv e0 in
+      case result1.result of
         Nothing ->
-          let err = "no type for the pattern: " ++ unparsePat p in
-          { result = Nothing, typeInfo = addTypeErrorAt p.start err typeInfo }
+          let err = "synthesizeType: no type for typecase scrutinee " ++ unparse e0 in
+          { result = Nothing, typeInfo = addTypeErrorAt e0.start err result1.typeInfo }
 
-        Just tp ->
-          case tp.val of
+        Just t1 ->
+          case t1.val of
             TUnion _ union _ ->
               let (_, maybeThings) =
                  List.foldl (\te (acc1, acc2) ->
                    let (TBranch_ _ ti ei _) = te.val in
-                   case (acc2, narrowUnionType p acc1 ti typeEnv) of
-                     (Ok things, Ok (acc1_, typeEnvi)) -> (acc1_, Ok ((typeEnvi,ei) :: things))
-                     (Err err, _)                      -> (acc1, Err err)
-                     (_, Err err)                      -> (acc1, Err err)
+                   case (acc2, narrowUnionType acc1 ti) of
+                     (Ok things, acc1_) -> (acc1_, Ok ((typeEnv,ei) :: things))
+                     (Err err, _)       -> (acc1, Err err)
                  ) (union, (Ok [])) tbranches
               in
               case maybeThings of
                 Err err ->
                   let err_ = Utils.spaces [ "ETypeCase: could not typecheck all patterns", err ] in
-                  finish.withError err_ typeInfo
+                  finish.withError err_ result1.typeInfo
                 Ok things ->
-                  let result2 = synthesizeBranchTypes typeInfo things in
+                  let result2 = synthesizeBranchTypes result1.typeInfo things in
                   case Utils.projJusts result2.result of
                     Nothing ->
                       let err = "ETypeCase: could not typecheck all branches" in
@@ -908,8 +909,8 @@ synthesizeType typeInfo typeEnv e =
                         Ok t    -> finish.withType t result2.typeInfo
 
             _ ->
-              let err = "pattern is not a union type: " ++ unparseType tp in
-              { result = Nothing, typeInfo = addTypeErrorAt p.start err typeInfo }
+              let err = "typecase scrutinee is not a union type: " ++ unparseType t1 in
+              { result = Nothing, typeInfo = addTypeErrorAt e0.start err result1.typeInfo }
 
     ELet ws1 letKind rec p e1 e2 ws2 ->
       case (p.val.p__, lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
@@ -984,6 +985,9 @@ synthesizeType typeInfo typeEnv e =
       -- TODO check well-formedness
       let typeEnv_ = TypeAlias p t :: typeEnv in
       propagateResult <| synthesizeType typeInfo typeEnv_ e1
+
+    EParens _ e1 _ ->
+      propagateResult <| synthesizeType typeInfo typeEnv e1
 
 -- TODO need to instantiateTypes of arguments, as in tsAppPoly
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
@@ -1743,7 +1747,7 @@ displayRawTypes typeInfo =
     case maybeType of
       Nothing -> ()
       Just t  ->
-        let s = LangUnparser.unparseType t in
+        let s = unparseType t in
         let _ = debugLog "synthesized type: " (eid, s) in
         ()
   ) () typeInfo.rawTypes
@@ -1765,14 +1769,14 @@ displayNamedExps : TypeInfo -> ()
 displayNamedExps typeInfo =
   let _ = debugLog "NAMED EXPS" () in
   List.foldr (\(p, eid) () ->
-    let s1 = String.trim (LangUnparser.unparsePat p) in
+    let s1 = String.trim (unparsePat p) in
     case (Dict.get eid typeInfo.finalTypes, Dict.get eid typeInfo.rawTypes) of
       (Just (Just t), _) ->
-        let s2 = String.trim (LangUnparser.unparseType t) in
+        let s2 = String.trim (unparseType t) in
         let _ = debugLog (s1 ++ " : " ++ s2 ++ " ") (strPos p.start) in
         ()
       (_, Just (_, Just t)) ->
-        let s2 = String.trim (LangUnparser.unparseType t) in
+        let s2 = String.trim (unparseType t) in
         let _ = debugLog (s1 ++ " : " ++ s2 ++ " (raw) ") (strPos p.start) in
         ()
       _ -> ()
@@ -1795,13 +1799,13 @@ aceTypeInfo typeInfo =
   let annots =
      -- for now, displaying (one of the) bindings for each line
      List.foldr (\(p, eid) acc ->
-       let s1 = String.trim (LangUnparser.unparsePat p) in
+       let s1 = String.trim (unparsePat p) in
        case (Dict.get eid typeInfo.finalTypes, Dict.get eid typeInfo.rawTypes) of
          (Just (Just t), _) ->
-           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           let text = s1 ++ " : " ++ String.trim (unparseType t) ++ " " in
            { row = p.start.line - 1, text = text, type_ = "info" } :: acc
          (_, Just (_, Just t)) ->
-           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           let text = s1 ++ " : " ++ String.trim (unparseType t) ++ " " in
            { row = p.start.line - 1, text = text, type_ = "info" } :: acc
          _ ->
            acc
@@ -1829,13 +1833,13 @@ aceTypeInfo typeInfo =
   in
   let varTypeTips =
      List.foldr (\(p, eid) acc ->
-       let s1 = String.trim (LangUnparser.unparsePat p) in
+       let s1 = String.trim (unparsePat p) in
        case (Dict.get eid typeInfo.finalTypes, Dict.get eid typeInfo.rawTypes) of
          (Just (Just t), _) ->
-           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           let text = s1 ++ " : " ++ String.trim (unparseType t) ++ " " in
            { row = p.start.line - 1, col = p.start.col - 1, text = text } :: acc
          (_, Just (_, Just t)) ->
-           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           let text = s1 ++ " : " ++ String.trim (unparseType t) ++ " " in
            { row = p.start.line - 1, col = p.start.col - 1, text = text } :: acc
          _ ->
            acc

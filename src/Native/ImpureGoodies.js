@@ -10,9 +10,13 @@ var _user$project$Native_ImpureGoodies = {
         var result = thunk({ctor: '_Tuple0'});
         return _elm_lang$core$Maybe$Just(result);
       } catch(err) {
-        // Nothing
-        console.log(err);
-        return _elm_lang$core$Maybe$Nothing;
+        if (err.ctor === undefined) { // Internal crash, not something thrown with ImpureGoodies.throw below.
+          // Nothing
+          console.log(err);
+          return _elm_lang$core$Maybe$Nothing;
+        } else {
+          throw err;
+        }
       }
     },
 
@@ -22,10 +26,40 @@ var _user$project$Native_ImpureGoodies = {
         var result = thunk({ctor: '_Tuple0'});
         return _elm_lang$core$Result$Ok(result);
       } catch(err) {
-        // Err (toString err)
-        return _elm_lang$core$Result$Err(err.toString());
+        if (err.ctor === undefined) { // Internal crash, not something thrown with ImpureGoodies.throw below.
+          // Err (toString err)
+          return _elm_lang$core$Result$Err(err.toString());
+        } else {
+          throw err;
+        }
       }
     },
+
+    throw : function(exception) {
+      throw(exception)
+    },
+
+    tryCatch : function(exceptionConstructorName) { return function(thunk) { return function(catchThunk) {
+      try {
+        return thunk({ctor: '_Tuple0'});
+      } catch(exception) {
+        if (exception.ctor === exceptionConstructorName) {
+          return catchThunk(exception);
+        } else {
+          throw exception;
+        }
+      }
+    }}},
+
+    mutateRecordField : function(record) { return function(fieldName) { return function(newValue) {
+      // Sanity check.
+      if (typeof record[fieldName] == typeof newValue) {
+        record[fieldName] = newValue;
+        return record;
+      } else {
+        throw "ImpureGoodies.mutateRecordField: types do not match" + (typeof record[fieldName]) + " vs " + (typeof newValue);
+      }
+    }}},
 
     timedRun : function(thunk) {
       var start = (new Date()).getTime();
