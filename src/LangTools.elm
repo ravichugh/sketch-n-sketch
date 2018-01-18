@@ -16,7 +16,6 @@ import FastParser exposing (prelude, isPreludeLocId, isPreludeEId)
 import Utils
 import LangUnparser exposing (unparseWithIds)
 import Types
-import ImpureGoodies exposing (logTimedRun)
 
 import Dict exposing (Dict)
 import Regex
@@ -2391,11 +2390,9 @@ assignUniqueNames : Exp -> (Exp, Dict Ident Ident)
 assignUniqueNames program =
   let initialUsedNames =
     -- Want to rename _everything_ so that there's multiple options for how to rename back to the originals
-    logTimedRun "identifiersSetPlusPrelude" <| \_ ->
     identifiersSetPlusPrelude program
   in
   let (newProgram, usedNames, newNameToOldName) =
-    logTimedRun "assignUniqueNames_" <| \_ ->
     assignUniqueNames_ program initialUsedNames Dict.empty
   in
   (newProgram, newNameToOldName)
