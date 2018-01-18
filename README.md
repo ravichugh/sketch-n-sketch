@@ -288,6 +288,31 @@ Note: The parser has a performance issue that we have not yet addressed.
 If the application runs out of stack space,
 [try this](https://github.com/ravichugh/sketch-n-sketch/issues/84).
 
+Welcome to the sketch-n-sketch wiki!
+
+### Steps to recompile Elm in Windows
+
+Make sure to run these commands with administrator rights.
+
+- First install Haskell platform 7.10.3 https://www.haskell.org/platform/prior.html
+- Go to a fresh cloned version of https://github.com/elm-lang/elm-platform.git
+- Go to the folder `installers`
+- Run
+  `runhaskell BuildFromSource.hs 0.18`     (note the 0.18)
+- Go to the (newly created) folder `installers\Elm-Platform\elm-compiler`
+- Use Brian’s branch for elm-compile: https://github.com/brianhempel/elm-compiler/tree/faster_exhaustiveness_checker_0.18  
+  For that you can execute the following command:  
+  `git remote add brian https://github.com/brianhempel/elm-compiler.git`  
+  `git fetch brian`  
+  `git checkout faster_exhaustiveness_checker_0.18`  
+
+- Comment out line 188 in the file `installers\BuildFromSource.hs` which should look like 
+  `--      mapM_ (uncurry (makeRepo root)) repos`
+- Re-run the install script again in `installers\`  
+  `runhaskell BuildFromSource.hs 0.18`
+- It will throw some fatal errors but that’s fine.
+- Last step: copy elm-make.exe from `installers\Elm-Platform\0.18\elm-make\dist\dist-sandbox-6fb8af3\build\elm-make` to replace the `elm-make.exe` of a fresh 0.18 Elm installation.
+
 
 ## Little "REPL"
 
