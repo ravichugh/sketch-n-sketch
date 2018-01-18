@@ -115,6 +115,7 @@ type alias Model =
   , localSaves : List String
   , startup : Bool
   , codeBoxInfo : CodeBoxInfo
+  , outputCanvasInfo : OutputCanvasInfo
   , basicCodeBox : Bool
   , errorBox : Maybe String
   , genSymCount : Int
@@ -205,6 +206,11 @@ type alias CodeBoxInfo =
   , scrollerHeight : Float
   , contentLeft : Float
   , scrollTop : Float
+  , scrollLeft : Float
+  }
+
+type alias OutputCanvasInfo =
+  { scrollTop : Float
   , scrollLeft : Float
   }
 
@@ -1090,6 +1096,10 @@ initModel =
                       , scrollLeft = 0.0
                       , scrollTop = 0.0
                       }
+    , outputCanvasInfo =
+        { scrollLeft = 0.0
+        , scrollTop = 0.0
+        }
     , basicCodeBox  = False
     , errorBox      = Nothing
     , genSymCount   = 1 -- starting at 1 to match shape ids on blank canvas

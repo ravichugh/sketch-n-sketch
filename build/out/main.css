@@ -532,7 +532,24 @@ code {
 }
 
 #outputCanvas {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
   cursor: default;
+  overflow: auto;
+  position: relative;
+}
+
+#svgWidgetsLayer {
+  /* left : DYNAMIC */
+  /* top : DYNAMIC */
+  /* width : DYNAMIC */
+  /* height : DYNAMIC */
+  position: fixed;
+  pointer-events: none;
+}
+
+#svgWidgetsLayer * {
+  pointer-events: auto;
 }
 
 .output-panel-warning {

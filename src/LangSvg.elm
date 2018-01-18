@@ -6,9 +6,11 @@ module LangSvg exposing
   , NodeInfo, foldSlateNodeInfo
   , maxColorNum, maxStrokeWidthNum
   , dummySvgNode
+  , isSvg
   , valToIndexedTree
   , printSvg
-  , compileAttr, compileAttrs, desugarShapeAttrs -- TODO remove in favor of compileSvg
+  , compileAttr, compileAttrs
+  , desugarShapeAttrs
   , buildSvgSimple
   , strAVal
   , aNum, aPoints, aTransform
@@ -81,6 +83,7 @@ type AVal_
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
   | ABounds (NumTr, NumTr, NumTr, NumTr)
+  | AStyle (List (String, AVal))
 
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
@@ -103,6 +106,9 @@ type alias PathCounts = {numPoints : Int}
 type alias Cmd = String -- single uppercase/lowercase letter
 
 type alias IdPoint = (Maybe Int, Point)
+
+replaceAv_ : AVal -> AVal_ -> AVal
+replaceAv_ av av_ = { interpreted = av_, val = av.val }
 
 
 -- Max Attribute Values for Shape Widget Sliders --
@@ -185,6 +191,15 @@ valToIndexedTree_ v (nextId, d) =
   ImpureGoodies.crashToError thunk
   |> Utils.unwrapNestedResult
 
+isSvg v =
+  case v.v_ of
+    VList vs ->
+      case List.map .v_ vs of
+        [VBase (VString "svg"), VList _, VList _] -> True
+        _                                         -> False
+    _ ->
+      False
+
 
 ------------------------------------------------------------------------------
 -- Convert Raw Value to SVG Attribute
@@ -217,6 +232,8 @@ valToAttr v = case v.v_ of
           ("transform", VList vs) -> valsToTransform vs |> Result.map ATransform
 
           ("BOUNDS", VList vs)    -> valToBounds vs |> Result.map ABounds
+
+          ("style", VList vs)     -> valToStyle vs |> Result.map AStyle
 
           (_, VConst _ it)        -> Ok <| ANum it
           (_, VBase (VString s))  -> Ok <| AString s
@@ -403,6 +420,25 @@ strBounds (left,top,right,bot) =
   Utils.spaces (List.map (toString << Tuple.first) [left,top,right,bot])
 
 
+-- CSS Styles --
+
+valToCssAttr : Val -> Result String Attr
+valToCssAttr = valToAttr
+
+valToStyle vs =
+  List.foldr (\v acc ->
+    acc |> Result.andThen (\styles ->
+    valToCssAttr v |> Result.andThen (\attr ->
+      Ok (attr :: styles)
+    ))
+  ) (Ok []) vs
+
+strStyle styles =
+  styles
+    |> List.map (\(k,v) -> k ++ ": " ++ strAVal v)
+    |> String.join "; "
+
+
 ------------------------------------------------------------------------------
 -- Compiling to SVG (Text Format)
 
@@ -415,7 +451,7 @@ printNode showGhosts k slate i =
   case Utils.justGet i slate |> .interpreted of
     TextNode s -> s
     SvgNode kind_ l1_ l2 ->
-      let (kind,l1) = desugarShapeAttrs kind_ l1_ in
+      let (kind,l1) = desugarShapeAttrs 0 0 kind_ l1_ in
       case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
         (False, Just _) -> ""
         _ ->
@@ -451,32 +487,39 @@ specialAttrs = ["HIDDEN", "ZONES"]
 removeSpecialAttrs =
   List.filter (\(s,_) -> not (List.member s specialAttrs))
 
-desugarShapeAttrs shape0 attrs0 =
-  let mkNum n = aNum (n, dummyTrace) in
+desugarShapeAttrs : Int -> Int -> ShapeKind -> List Attr -> (ShapeKind, List Attr)
+desugarShapeAttrs xCanvas yCanvas shape0 attrs0 =
   Maybe.withDefault (shape0, attrs0) <|
-    case shape0 of
-      "BOX" ->
-        Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
-          let newAttrs =
-             [ ("x", mkNum left)
-             , ("y", mkNum top)
-             , ("width", mkNum (right - left))
-             , ("height", mkNum (bot - top))
-             ]
-          in ("rect", newAttrs ++ restOfAttrs)
-        ) (getBoundsAttrs attrs0)
-      "OVAL" ->
-        Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
-          let newAttrs =
-             [ ("cx", mkNum (left + (right - left) / 2))
-             , ("cy", mkNum (top + (bot - top) / 2))
-             , ("rx", mkNum ((right - left) / 2))
-             , ("ry", mkNum ((bot - top) / 2))
-             ]
-          in ("ellipse", newAttrs ++ restOfAttrs)
-        ) (getBoundsAttrs attrs0)
-      _ ->
-        Nothing
+    Utils.plusMaybe
+      (desugarFixedPosition xCanvas yCanvas shape0 attrs0)
+      (desugarBoundedShapes shape0 attrs0)
+
+desugarBoundedShapes : ShapeKind -> List Attr -> Maybe (ShapeKind, List Attr)
+desugarBoundedShapes shape0 attrs0 =
+  let mkNum n = aNum (n, dummyTrace) in
+  case shape0 of
+    "BOX" ->
+      Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
+        let newAttrs =
+           [ ("x", mkNum left)
+           , ("y", mkNum top)
+           , ("width", mkNum (right - left))
+           , ("height", mkNum (bot - top))
+           ]
+        in ("rect", newAttrs ++ restOfAttrs)
+      ) (getBoundsAttrs attrs0)
+    "OVAL" ->
+      Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
+        let newAttrs =
+           [ ("cx", mkNum (left + (right - left) / 2))
+           , ("cy", mkNum (top + (bot - top) / 2))
+           , ("rx", mkNum ((right - left) / 2))
+           , ("ry", mkNum ((bot - top) / 2))
+           ]
+        in ("ellipse", newAttrs ++ restOfAttrs)
+      ) (getBoundsAttrs attrs0)
+    _ ->
+      Nothing
 
 getBoundsAttrs attrs0 =
   Utils.maybeRemoveFirst "LEFT"  attrs0 |> Maybe.andThen (\(vL,attrs1) ->
@@ -488,6 +531,37 @@ getBoundsAttrs attrs0 =
         Just (left, top, right, bot, attrs4)
       _ -> Nothing
   ))))
+
+desugarFixedPosition : Int -> Int -> ShapeKind -> List Attr -> Maybe (ShapeKind, List Attr)
+desugarFixedPosition xCanvas yCanvas shape0 attrs0 =
+  Utils.maybeRemoveFirst "style" attrs0 |> Maybe.andThen (\(vStyle,attrs1) ->
+    case vStyle.interpreted of
+      AStyle styles0 ->
+        -- implicitly assuming ("position", AString "fixed") is in styles0
+        Utils.maybeRemoveFirst "FIXED_LEFT" styles0 |> Maybe.andThen (\(vLeft,styles1) ->
+        Utils.maybeRemoveFirst "FIXED_TOP"  styles1 |> Maybe.andThen (\(vTop,styles2) ->
+          case (vLeft.interpreted, vTop.interpreted) of
+            (ANum ntLeft, ANum ntTop) ->
+              let
+                newLeft =
+                  plusNumTr ntLeft (toFloat xCanvas, TrLoc (dummyLoc_ frozen))
+                newTop =
+                  plusNumTr ntTop  (toFloat yCanvas, TrLoc (dummyLoc_ frozen))
+                newStyle =
+                  replaceAv_ vStyle <|
+                    AStyle <|
+                      ("left", replaceAv_ vLeft <| ANum newLeft)
+                        :: ("top", replaceAv_ vTop <| ANum newTop)
+                        :: styles2
+              in
+              Just (shape0, ("style", newStyle) :: attrs1)
+            _ ->
+              Nothing
+        ))
+
+      _ -> Nothing
+  )
+
 
 strAVal : AVal -> String
 strAVal a = case a.interpreted of
@@ -504,6 +578,7 @@ strAVal a = case a.interpreted of
   AColorNum (n, Just (opacity, _)) ->
     let (r,g,b) = Utils.numToColor maxColorNum (Tuple.first n) in
     strRgba_ [toFloat r, toFloat g, toFloat b, opacity]
+  AStyle styles -> strStyle styles
 
 
 ------------------------------------------------------------------------------
@@ -534,7 +609,7 @@ buildSvgSimple_ tree i  =
               Just (_, rest) -> rest
           in
           let children = List.map (buildSvgSimple_ tree) childIndices in
-          let (rawKind, rawAttrs) = desugarShapeAttrs shape attrs_ in
+          let (rawKind, rawAttrs) = desugarShapeAttrs 0 0 shape attrs_ in
           Svg.node rawKind (compileAttrs rawAttrs) children
 
 

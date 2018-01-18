@@ -1,4 +1,4 @@
-module Canvas exposing (build, buildSvg)
+module Canvas exposing (build)
 
 -- Sketch-n-Sketch Libraries ---------------------------------------------------
 
@@ -96,7 +96,8 @@ msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
 --------------------------------------------------------------------------------
 
 
-build wCanvas hCanvas model =
+build : SleekLayout.BoundingBox -> Model -> List (Html Msg)
+build dim model =
   let addZones = case (model.outputMode, model.preview) of
     (Live, Nothing) -> model.tool == Cursor
     _               -> False
@@ -106,35 +107,48 @@ build wCanvas hCanvas model =
       Just (_, Ok (val, widgets, slate)) -> (widgets, slate)
       _                                  -> (model.widgets, model.slate)
   in
-  let outputShapes = buildSvg (model, addZones) slate in
+  let outputElement = buildHtml (model, addZones) slate in
   let newShape = drawNewShape model in
   let widgetsAndDistances =
     case (model.outputMode, model.showGhosts, model.preview) of
-      (Live, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets wCanvas hCanvas widgets model -- Draw distances below other widgets
+      (Live, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets model -- Draw distances below other widgets
       _                     -> []
   in
   let selectBox = drawSelectBox model in
-  Svg.svg
-     [ Attr.id "outputCanvas"
-     , onMouseDown msgMouseClickCanvas
-     , Attr.style
-         [ ("width", pixels wCanvas)
-         , ("height", pixels hCanvas)
-         ]
-     ]
-     ([outputShapes] ++ newShape ++ widgetsAndDistances ++ selectBox)
+  if LangSvg.isSvg model.inputVal then
+    [ Svg.svg
+        [ onMouseDown msgMouseClickCanvas
+        , Attr.style
+            [ ("width", pixels dim.width)
+            , ("height", pixels dim.height)
+            ]
+        ]
+        ([outputElement] ++ newShape ++ widgetsAndDistances ++ selectBox)
+    ]
+  else
+    [ outputElement
+    , Svg.svg
+        [ Attr.id "svgWidgetsLayer"
+        , Attr.style
+            [ ("left", pixels dim.x)
+            , ("top", pixels dim.y)
+            , ("width", pixels dim.width)
+            , ("height", pixels dim.height)
+            ]
+        ]
+        (widgetsAndDistances ++ selectBox)
+    ]
 
 
 --------------------------------------------------------------------------------
--- Compiling to Svg
+-- Compiling to Svg/Html
 
-buildSvg : (Model, Bool) -> LangSvg.RootedIndexedTree -> (Svg Msg)
-buildSvg (model, addZones) (i,d) = buildSvg_ (model, addZones) d i
+buildHtml : (Model, Bool) -> LangSvg.RootedIndexedTree -> (Svg Msg)
+buildHtml (model, addZones) (i,d) = buildHtml_ (model, addZones) False d i
 
-
-buildSvg_ : (Model, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> (Svg Msg)
-buildSvg_ (model, addZones) d i =
-  case Utils.justGet_ ("buildSvg_ " ++ toString i) i d |> .interpreted of
+buildHtml_ : (Model, Bool) -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> (Svg Msg)
+buildHtml_ (model, addZones) insideSvgNode d i =
+  case Utils.justGet_ ("buildHtml_ " ++ toString i) i d |> .interpreted of
    LangSvg.TextNode text -> VirtualDom.text text
    LangSvg.SvgNode shape attrs childIndices ->
     case (model.showGhosts, Utils.maybeRemoveFirst "HIDDEN" attrs) of
@@ -157,14 +171,31 @@ buildSvg_ (model, addZones) d i =
             LangSvg.AString "basic" ->
               let options' = { options | addRot = False, addColor = False } in
               (makeZones model options_ shape i attrs, l)
-            _ -> Debug.crash "buildSvg_"
+            _ -> Debug.crash "buildHtml_"
 -}
       in
-      let children = List.map (buildSvg_ (model, addZones) d) childIndices in
-      -- let mainshape = (Svg.node shape) (LangSvg.compileAttrs attrs') children in
-      let mainshape =
-        let (rawKind, rawAttrs) = LangSvg.desugarShapeAttrs shape attrs_ in
-        (Svg.node rawKind) (LangSvg.compileAttrs rawAttrs) children in
+      let (rawKind, compiledAttrs) =
+        let canvasDim = SleekLayout.outputCanvas model in
+        attrs_
+          |> LangSvg.desugarShapeAttrs canvasDim.x canvasDim.y shape
+          |> Tuple.mapSecond LangSvg.compileAttrs
+      in
+{-
+      Not simply doing the following because want to treat 'text' node
+      differently when it's inside an 'svg' node.
+
+      let node =
+        if List.member rawKind ["svg", "line", "rect", ...]
+          then Svg.node   -- adds http://www.w3.org/2000/svg namespace attribute
+          else Html.node
+-}
+      let (node, isSvgNode) =
+        if rawKind == "svg" then (Svg.node, True)
+        else if insideSvgNode then (Svg.node, True)
+        else (Html.node, False)
+      in
+      let children = List.map (buildHtml_ (model, addZones) isSvgNode d) childIndices in
+      let mainshape = (node rawKind) compiledAttrs children in
       if zones == []
         then mainshape
         else Svg.svg [] (mainshape :: zones)
@@ -187,17 +218,17 @@ drawNewShape model =
     (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewEllipse model.keysDown pt2 pt1
     (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))                      -> Draw.drawNewPolygon ptLast pts
     (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))                      -> Draw.drawNewPath ptLast pts
-    (PointOrOffset, MouseDrawNew (Offset1DFromExisting pt2 snap ((x1,_),(y1,_)))) -> drawNewPointAndOffset (snap /= NoSnap) pt2 (round x1, round y1)
-    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))                   -> drawNewPointAndOffset False pt2 pt1
+    (PointOrOffset, MouseDrawNew (Offset1DFromExisting pt2 snap ((x1,_),(y1,_)))) -> drawNewPointAndOffset model (snap /= NoSnap) pt2 (round x1, round y1)
+    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))                   -> drawNewPointAndOffset model False pt2 pt1
     (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewLine model pt2 pt1
     (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
     (Text,          MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
     _                                                                             -> []
 
 
-drawNewPointAndOffset shouldHighlight (x2, y2) (x1, y1) =
+drawNewPointAndOffset model shouldHighlight (x2, y2) (x1, y1) =
   let (axis, sign, amount) = Draw.horizontalVerticalSnap (x1, y1) (x2, y2) in
-  let xyDot = svgXYDot (x1, y1) pointZoneStyles.fill.shown True [] in
+  let xyDot = svgXYDot model (x1, y1) pointZoneStyles.fill.shown True [] in
   let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
   [xyDot] ++ arrowParts
 
@@ -415,7 +446,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
   let drawPointWidget i_ widget (cx, cxTr) xVal (cy, cyTr) yVal =
     let idAsShape = -2 - i_ in
     zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xVal (cy, cyTr) yVal
-    ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] [attrNum "cx" cx, attrNum "cy" cy]
+    ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] (cx, cy)
   in
   let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) amountVal endXVal endYVal =
     let idAsShape = -2 - i_ in
@@ -749,7 +780,7 @@ eightCardinalZones model id shape transform (left, top, right, bot) =
   let (width, height) = (right - left, bot - top) in
   let ifEnoughSpace len xs = if len < minLengthForMiddleZones then [] else xs in
   let mkPoint realZone cx cy =
-    zonePoint model False id shape realZone transform [attrNum "cx" cx, attrNum "cy" cy]
+    zonePoint model False id shape realZone transform (cx, cy)
   in
     mkPoint (ZPoint TopLeft) left top ++
     mkPoint (ZPoint TopRight) right top ++
@@ -778,7 +809,11 @@ pointZoneStylesFillSelected model nodeId =
     then pointZoneStyles.fill.selectedShape
     else pointZoneStyles.fill.selectedBlob
 
-zonePoint model alwaysShow id shapeKind realZone transform attrs =
+zonePoint model alwaysShow id shapeKind realZone transform (x_,y_) =
+  let
+    x = x_ - model.outputCanvasInfo.scrollLeft
+    y = y_ - model.outputCanvasInfo.scrollTop
+  in
   let maybeStyles =
     let maybeStyles_ () =
       if objectZoneIsCurrentlyBeingManipulated model id ((==) realZone) then
@@ -803,26 +838,26 @@ zonePoint model alwaysShow id shapeKind realZone transform attrs =
     Nothing -> []
     Just fill ->
       List.singleton <| svgCircle <|
-        [ attr "r" pointZoneStyles.radius
+        [ attrNum "cx" x, attrNum "cy" y
+        , attr "r" pointZoneStyles.radius
         , attr "fill" fill
         , attr "stroke" pointZoneStyles.stroke
         , attr "stroke-width" pointZoneStyles.strokeWidth
         , cursorOfZone realZone "pointer"
         ] ++
         dragZoneEvents id shapeKind realZone ++
-        transform ++
-        attrs
+        transform
 
 zonePoints model id shape transform pts =
   List.concat <| flip Utils.mapi1 pts <| \(i, (x,y)) ->
     zonePoint model False id shape (ZPoint (Point i)) transform
-      [ attrNumTr "cx" x, attrNumTr "cy" y ]
+      (Tuple.first x, Tuple.first y)
 
 -- TODO rename this once original zonePoints is removed
 zonePoints2 model id shape transform pts =
   List.concat <| flip Utils.mapi1 pts <| \(i, (x,y)) ->
     zonePoint model False id shape (ZPoint (Point i)) transform
-      [ attrNum "cx" x, attrNum "cy" y ]
+      (x, y)
 
 zoneLine model id shape realZone (x1,y1) (x2,y2) attrs =
   draggableZone Svg.line True model id shape realZone <|
@@ -1218,7 +1253,11 @@ toggleSelectedLambda selectableFeatures =
     in
     { model | selectedFeatures = List.foldl updateSet model.selectedFeatures selectableFeatures }
 
-svgXYDot (x, y) fill isVisible extraAttrs =
+svgXYDot model (x_, y_) fill isVisible extraAttrs =
+  let
+    x = toFloat x_ - model.outputCanvasInfo.scrollLeft
+    y = toFloat y_ - model.outputCanvasInfo.scrollTop
+  in
   svgCircle <|
     [ attr "cx" (toString x) , attr "cy" (toString y)
     , attr "fill" fill
@@ -1305,7 +1344,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
         [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->
             { model | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xNumTr xVal yNumTr yVal)) } ]
     in
-    svgXYDot (x, y) dotFill isVisible extraAttrs
+    svgXYDot model (x, y) dotFill isVisible extraAttrs
   in
   let yLine =
     svgLine <|

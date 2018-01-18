@@ -4,6 +4,7 @@ import InterfaceModel as Model exposing (Msg(..), Model)
 import SleekView as View
 import InterfaceController as Controller
 import AceCodeBox
+import OutputCanvas
 import AnimationLoop
 import FileHandler
 import DeucePopupPanelInfo
@@ -55,6 +56,7 @@ initCmd =
   Cmd.batch <|
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
+    , OutputCanvas.initialize
     , FileHandler.sendMessage FileHandler.RequestFileIndex
     , Cmd.batch <|
         List.map
@@ -80,6 +82,7 @@ subscriptions model =
     , Keyboard.ups Controller.msgKeyUp
     , AceCodeBox.receiveEditorState Controller.msgAceUpdate
     , AceCodeBox.userHasTyped (always Controller.msgUserHasTyped)
+    , OutputCanvas.receiveOutputCanvasState Controller.msgOutputCanvasUpdate
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.receiveMessage
         Controller.fileMessageHandler

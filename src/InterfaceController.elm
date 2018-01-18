@@ -9,6 +9,7 @@ port module InterfaceController exposing
   , msgRun, upstateRun, msgTryParseRun
   , msgAceUpdate
   , msgUserHasTyped
+  , msgOutputCanvasUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction
   , msgSelectSynthesisResult, msgClearSynthesisResults
@@ -93,6 +94,7 @@ import SleekLayout exposing
   , deuceRightClickMenuMouseOffset
   )
 import AceCodeBox
+import OutputCanvas
 import AnimationLoop
 import FileHandler exposing (ExternalFileMessage(..), InternalFileMessage(..))
 import File exposing (File)
@@ -630,8 +632,22 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   )) |> handleError old
 
 finishTrigger zoneKey old =
-  let e = Utils.fromOkay "onMouseUp" <| Syntax.parser old.syntax old.code in
-  let old_ = { old | inputExp = e } in
+  --
+  -- Sync.highlightChanges takes into account character length
+  -- changes to constants during live sync (via applyTrigger).
+  -- but Sync.yellowAndGrayHighlights does not, so workaround
+  -- is to re-parse and refreshHighlights.
+  --
+  --   let e = Utils.fromOkay "onMouseUp" <| Syntax.parser old.syntax old.code in
+  --   let old_ = { old | inputExp = e } in
+  --
+  -- But this requires another Eval.run, which can be slow.
+  -- Removing this workaround (which means the yellow highlights
+  -- can be off after a live sync, until the next parse).
+  --
+  -- TODO: make a Sync.finishTrigger function that takes care of this.
+  --
+  let old_ = old in
   refreshHighlights zoneKey
     { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
            , history = addToHistory old.code old_.history }
@@ -1013,7 +1029,14 @@ issueCommand msg oldModel newModel =
               else
                 Cmd.none
             , if String.startsWith "New" kind then
-                AceCodeBox.resetScroll newModel
+                Cmd.batch
+                  [ AceCodeBox.resetScroll newModel
+                  , OutputCanvas.resetScroll
+                  ]
+              else
+                Cmd.none
+            , if String.startsWith "Read File" kind then
+                OutputCanvas.resetScroll
               else
                 Cmd.none
             , if String.startsWith "msgMouseClickDeuceWidget" kind then
@@ -1097,6 +1120,9 @@ msgUserHasTyped =
         | deuceState =
             emptyDeuceState
     }
+
+msgOutputCanvasUpdate outputCanvasInfo = Msg "Output Canvas Update" <| \old ->
+  { old | outputCanvasInfo = outputCanvasInfo }
 
 upstateRun old =
   let newFailuresInARowAfterFail    = if old.runFailuresInARowCount < 0 then 1 else old.runFailuresInARowCount + 1 in
@@ -2116,7 +2142,13 @@ iconify syntax env code =
       Utils.fromOkay "Error resolving index tree of icon"
         <| LangSvg.resolveToRootedIndexedTree syntax 1 1 0 val
     svgElements =
+      -- Not using Canvas.buildHtml because can't have circular dependency between InterfaceController and Canvas
+      -- Various widgets in Canvas defined their model update functions inline to avoid this, but now we're
+      -- invoking more complicated transforms from the output, so Canvas has to depend on InterfaceController.
+      --
+      -- So icons are limited to SVG for now, which is probably fine.
       LangSvg.buildSvgSimple slate
+      -- Canvas.buildHtml ({ initModel | showGhosts = False }, False) slate
     subPadding x =
       x - 10
   in
@@ -2127,7 +2159,6 @@ iconify syntax env code =
           (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
       ]
       [ svgElements ]
-
 
 loadLambdaToolIcons finalEnv old =
   let foo tool acc =
