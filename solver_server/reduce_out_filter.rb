@@ -17,8 +17,12 @@ response_buf = ""
 
 while chunk = get_more
   response_buf << chunk
-  if response_buf =~ /\n\d+: \z/ # Response over, or very first prompt.
-    to_print = response_buf.gsub(/\d+: \z/, "").gsub(/\s+/, " ").strip.chomp("$")
+  if response_buf =~ /\n\d+: \z/ # Response(s) over, or very first prompt. (Responses can pile up if we send lots of queries really fast.)
+    to_print =
+      response_buf.split(/\n\d+: /).map do |response|
+        response.gsub(/\s+/, " ").strip.chomp("$")
+      end.join("\n").strip
+
     if to_print != ""
       puts to_print
       STDOUT.flush
