@@ -81,7 +81,7 @@ sns_js_lines_with_numbers.each do |line, line_number|
   end
 end
 
-file_ranges << [current_file_name, current_file_start..line_number-1] if current_file_name && ELM_FILES.include?("#{current_file_name}.elm")
+file_ranges << [current_file_name, current_file_start..sns_js_lines.size] if current_file_name && ELM_FILES.include?("#{current_file_name}.elm")
 
 
 functions_with_ranges =
