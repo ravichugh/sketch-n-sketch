@@ -1,9 +1,10 @@
 module Results exposing
-  ( Results(..)
+  ( Results(Oks, Errs)
   , withDefault
-  , mapLazy --, map2, map3, map4, map5
-  , andThen
+  , ok1, oks, errs
+  , map, map2, map2withError, andThen, flatten
   , toMaybe, fromMaybe, mapErrors
+  , LazyList(LazyNil, LazyCons)
   )
 
 import Lazy
@@ -36,12 +37,33 @@ andThenLazy f l =
     LazyNil -> LazyNil
     LazyCons head tail -> appendLazyLazy (f head) (Lazy.map (\v -> andThenLazy f v) tail)
 
+flattenLazy: LazyList (LazyList a) -> LazyList a
+flattenLazy l =
+  case l of
+    LazyNil -> LazyNil
+    LazyCons head tail ->
+      appendLazyLazy head (Lazy.map flattenLazy tail)
+
+lazyFromList: List a -> LazyList a
+lazyFromList l =
+  case l of
+    [] -> LazyNil
+    head::tail -> LazyCons head (Lazy.lazy (\() -> lazyFromList tail))
+
 {-| `Results` is either `Oks` meaning the computation succeeded, or it is an
 `Errs` meaning that there was some failure.
 -}
 type Results error values
     = Oks (LazyList values)
     | Errs error
+
+ok1: a -> Results e a
+ok1 a = Oks (LazyCons a (Lazy.lazy (\() -> LazyNil)))
+
+oks: (List a) -> Results e a
+oks a = Oks (lazyFromList a)
+
+errs msg = Errs msg
 
 keepOks: LazyList (Results e a) -> LazyList a
 keepOks l =
@@ -88,6 +110,34 @@ map func ra =
     case ra of
       Oks a -> Oks (mapLazy func a)
       Errs e -> Errs e
+
+-- Performs the operation on every pair (a, b). Lists all values of b for every value of a
+map2 : ((a, b) -> value) -> Results x a -> Results x b -> Results x value
+map2 func ra rb =
+    case (ra,rb) of
+      (Oks a, Oks b) -> Oks (mapLazy func (lazyCartProd a b))
+      (Errs x, _) -> Errs x
+      (_, Errs x) -> Errs x
+
+map2withError : ((x, x) -> x) -> ((a, b) -> value) -> Results x a -> Results x b -> Results x value
+map2withError errorFunc func ra rb =
+    case (ra,rb) of
+      (Errs x, Errs y) -> Errs (errorFunc (x, y))
+      (Errs x, _) -> Errs x
+      (_, Errs x) -> Errs x
+      (Oks a, Oks b) -> Oks (mapLazy func (lazyCartProd a b))
+
+
+
+flatten: Results e (Results e a) -> Results e a
+flatten r =
+  case r of
+    Errs msg -> Errs msg
+    Oks ll -> projOks ll
+
+lazyCartProd : LazyList a -> LazyList b -> LazyList (a, b)
+lazyCartProd xs ys =
+   flattenLazy (mapLazy (\x -> mapLazy ((,) x) ys) xs)
 
 {-| Chain together a sequence of computations that may fail. It is helpful
 to see its definition:

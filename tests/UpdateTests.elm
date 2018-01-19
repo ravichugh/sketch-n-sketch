@@ -10,6 +10,8 @@ import Utils
 import Eval
 import Syntax
 
+import Results
+
 type alias State = { numTests: Int, nthAssertion: Int, numSuccess: Int, numFailed: Int, currentName: String, errors: String }
 init_state = State 0 0 0 0 "" ""
 summary: State -> String
@@ -47,13 +49,17 @@ updateAssert env exp origOut newOut expectedEnv expectedExp state =
     envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
     " (was " ++ valToString origOut ++ ")") in
   case update env exp origOut newOut of
-    Ok (envX, expX) ->
+    Results.Oks (Results.LazyCons (envX, expX) _) ->
       let obtained = envToString envX ++ " |- " ++ unparse expX in
       if obtained == expected then success state else
         fail state <|
           "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++
           "] Expected \n" ++ expected ++  ", got\n" ++ envToString envX ++ " |- " ++ unparse expX ++ problemdesc
-    Err msg ->
+    Results.Oks Results.LazyNil ->
+       fail state <|
+                   "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++
+                   "] Expected \n" ++ expected ++  ", got no solutions without error" ++ problemdesc
+    Results.Errs msg ->
        fail state <|
                  "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++
                  "] Expected \n" ++ expected ++  ", got\n" ++ msg ++ problemdesc
