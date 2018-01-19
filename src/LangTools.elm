@@ -384,6 +384,7 @@ expSameValueExps exp =
     EParens _ e _           -> exp :: expSameValueExps e
     EComment _ _ e          -> exp :: expSameValueExps e
     EOption _ _ _ _ e       -> exp :: expSameValueExps e
+    EOp _ {val} [operand] _ -> if val == DebugLog || val == NoWidgets then exp :: expSameValueExps operand else [exp]
     _                       -> [exp]
 
 
