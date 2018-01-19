@@ -76,7 +76,7 @@ updateElmAssert envStr expStr newOutStr expectedEnvStr expectedExpStr state =
 parse = Syntax.parser Syntax.Elm >> Result.mapError (\p -> toString p)
 unparse = Syntax.unparser Syntax.Elm
 evalEnv env exp = Eval.doEval Syntax.Elm env exp |> Result.map (Tuple.first >> Tuple.first)
-eval exp = Eval.run Syntax.Elm exp |> Result.map Tuple.first
+eval exp = Eval.doEval Syntax.Elm [] exp |> Result.map (Tuple.first >> Tuple.first)
 
 parseEnv: List (String, String) -> Result String Env
 parseEnv envStr =
@@ -85,8 +85,7 @@ parseEnv envStr =
     parse exp
     |> Result.mapError (\pError -> toString pError)
     |> Result.andThen (\x ->
-      Eval.run Syntax.Elm x
-      |> Result.map Tuple.first
+      evalEnv [] x
       |> Result.map (\x -> (name, x))))
   |> Utils.projOk
   |> Result.mapError (\pError -> toString pError)
@@ -146,8 +145,8 @@ all_tests = init_state
   |> updateElmAssert [("y", "3"), ("x", "1")] "  x"   "2"
                      [("y", "3"), ("x", "2")] "  x"
   |> test "update fun"
-  --|> updateElmAssert [] "\\x -> 1"   "\\x -> 2"
-  --                   [] "\\x -> 2"
+  |> updateElmAssert [] "\\x -> 1"   "\\x -> 2"
+                     [] "\\x -> 2"
   |> updateAssert
             [] (tFun dws [tPVar dws1 "x"] (tConst dws2 1) dws3) (tVClosure Nothing [tPVar dws1 "x"] (tConst dws2 1) [])
                                                                 (tVClosure Nothing [tPVar dws1 "y"] (tConst dws2 2) [])

@@ -18,6 +18,7 @@ collectEFun n exp =
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Val -> Result String (Env, Exp)
 update env e oldVal newVal =
+  --let _ = Debug.log (String.concat [envToString env, unparse e] ++ " <-- " ++ (valToString newVal)) 1 in
   case e.val.e__ of
     EConst ws num loc widget -> Ok <| (env, replaceE__ e <| EConst ws (getNum newVal) loc widget)
     EBase ws m -> Ok <| (env, val_to_exp ws newVal)
@@ -264,7 +265,7 @@ val_to_exp ws v =
     VBase (VString s) -> EBase  ws <| EString defaultQuoteChar s
     VBase (VNull)     -> EBase  ws <| ENull
     VList vals -> EList ws (List.map (val_to_exp ws) vals) ws Nothing <| ws
-    VClosure Nothing patterns body env -> EFun ws patterns body (ws) -- Not sure about this one.
+    VClosure Nothing patterns body env -> EFun ws patterns body ws -- Not sure about this one.
     _ -> Debug.crash <| "Trying to get an exp of the value " ++ toString v
     --VDict vs ->
 
@@ -288,4 +289,6 @@ envToString env =
     (v, value)::tail -> v ++ "->" ++ unparse (val_to_exp (ws "") value) ++ " " ++ (envToString tail)
 
 valToString: Val -> String
-valToString = unparse << val_to_exp (ws " ")
+valToString v = case v.v_ of
+   VClosure Nothing patterns body env -> envToString env ++ "|-" ++ ((unparse << val_to_exp (ws " ")) v)
+   _ -> (unparse << val_to_exp (ws " ")) v
