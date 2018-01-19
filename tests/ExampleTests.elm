@@ -4,6 +4,8 @@ import String
 
 import ExamplesGenerated as Examples
 
+import Syntax
+
 import FastParser exposing (parseE)
 import Eval
 import LangUnparser
@@ -14,7 +16,7 @@ testEvalsWithoutErrors name code =
       "can't parse " ++ name ++ ": " ++ toString s ++ "\n" ++ code
     Ok exp ->
       -- Elm will crash first if Eval fails.
-      case Eval.run exp of
+      case Eval.run Syntax.Little exp of
         Ok (val, widgets) -> "ok"
         Err s             -> "evaluation error running " ++ name ++ ":\n" ++ s
 
@@ -29,7 +31,7 @@ testReparsedUnparsedEvalsWithoutErrors name code =
           "can't re-parse unparsed " ++ name ++ ": " ++ toString s ++ "\n" ++ unparsed
         Ok reparsedExp ->
           -- Elm will crash first if Eval fails.
-          case Eval.run reparsedExp of
+          case Eval.run Syntax.Little reparsedExp of
             Ok (val, widgets) -> "ok"
             Err s             -> "evaluation error running unparsed/reparsed " ++ name ++ ":\n" ++ s
 

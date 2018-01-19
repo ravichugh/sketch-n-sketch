@@ -914,6 +914,9 @@ foldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAcc i
   in
   finalGlobalAcc
 
+replaceV_ : Val -> Val_ -> Val
+replaceV_ v v_ = { v | v_ = v_ }
+
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
   VList vs         -> f { v | v_ = VList (List.map (mapVal f) vs) }

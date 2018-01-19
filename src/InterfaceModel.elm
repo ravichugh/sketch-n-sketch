@@ -22,6 +22,7 @@ import Syntax exposing (Syntax)
 import LangUnparser
 import File exposing (Filename, File, FileIndex)
 import Solver
+import ValUnparser
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -1166,6 +1167,6 @@ initModel =
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
-    , valueEditorString = strVal v
+    , valueEditorString = ValUnparser.strVal v
     , syntax = Syntax.Elm
     }

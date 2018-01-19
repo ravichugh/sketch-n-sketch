@@ -35,8 +35,9 @@ assertEqual x y state =
       toString y ++ ", got\n" ++ toString x
   }
 
-assertEqualU: Result String (Env, Exp) -> Result String (Env, Exp)  -> State  -> State
-assertEqualU x y state =
+updateAssert: Env -> Exp -> Val -> Val -> Result String (Env, Exp)  -> State  -> State
+updateAssert env exp origOut newOut y state =
+  let x = update env exp origOut newOut in
   if x == y then { state |
     numTests = state.numTests + 1,
     numSuccess = state.numSuccess + 1,
@@ -48,9 +49,11 @@ assertEqualU x y state =
     errors = state.errors ++ "\n[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] Expected \n" ++
       case (x, y) of
         (Ok (envX, expX), Ok (envY, expY)) -> envToString envY ++ " |- " ++ unparse expY ++
-          ", got\n" ++ envToString envX ++ " |- " ++ unparse expX
+          ", got\n" ++ envToString envX ++ " |- " ++ unparse expX ++ "\nFor problem:" ++
+          envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++ " (was " ++ valToString origOut ++ ")"
         (Err msg, Ok (envY, expY)) -> envToString envY ++ " |- " ++ unparse expY ++
-          ", got\n" ++ msg
+          ", got\n" ++ msg ++ "\nFor problem:" ++
+          envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++ " (was " ++ valToString origOut ++ ")"
         _ -> toString y ++ ", got\n" ++ toString x
   }
 
@@ -62,9 +65,13 @@ dws4 = ws "    "
 dws5 = ws "     "
 dws6 = ws "      "
 
-tVal n = vConst (n, dummyTrace)
+val x = Val x (Provenance [] (tConst (ws "") 0) []) (Parents [])
+
+tVal n = val <| (VConst Nothing (n, dummyTrace))
 tVClosure maybeIndent pats body env = val <| VClosure maybeIndent pats body env
 tVList vals = val <| VList vals
+tVBool truth = val <| VBase (VBool truth)
+tVStr chars = val <| VBase (VString chars)
 
 tConst ws num = withDummyExpInfo <| EConst ws num dummyLoc noWidgetDecl
 tBool space truth   = withDummyExpInfo <| EBase space (EBool truth)
@@ -89,83 +96,83 @@ all_tests = init_state
                   [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))]
                  )[("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 2))]
   |> test "update const"
-  |> assertEqualU
-      (update [] (tConst dws 1) (tVal 1) (tVal 2))
+  |> updateAssert
+              [] (tConst dws 1) (tVal 1) (tVal 2)
       (Ok    ([], tConst dws 2))
   |> test "update boolean and strings"
-  |> assertEqualU
-      (update [] (tBool dws True) vTrue vFalse)
+  |> updateAssert
+              [] (tBool dws True) (tVBool True) (tVBool False)
       (Ok    ([], tBool dws False))
-  |> assertEqualU
-      (update [] (tString dws "Hello") (vStr "Hello") (vStr "World"))
+  |> updateAssert
+              [] (tString dws "Hello") (tVStr "Hello") (tVStr "World")
       (Ok    ([], tString dws "World"))
   |> test "update var"
-  |> assertEqualU
-      (update [("x", (tVal 1))] (tVar dws "x") (tVal 1) (tVal 2))
+  |> updateAssert
+              [("x", (tVal 1))] (tVar dws "x") (tVal 1) (tVal 2)
       (Ok    ([("x", (tVal 2))], tVar dws "x"))
-  |> assertEqualU
-      (update [("x", (tVal 1)), ("y", (tVal 3))] (tVar dws "x") (tVal 1) (tVal 2))
+  |> updateAssert
+              [("x", (tVal 1)), ("y", (tVal 3))] (tVar dws "x") (tVal 1) (tVal 2)
       (Ok    ([("x", (tVal 2)), ("y", (tVal 3))], tVar dws "x"))
-  |> assertEqualU
-      (update [("y", (tVal 3)), ("x", (tVal 1))] (tVar dws "x") (tVal 1) (tVal 2))
+  |> updateAssert
+              [("y", (tVal 3)), ("x", (tVal 1))] (tVar dws "x") (tVal 1) (tVal 2)
       (Ok    ([("y", (tVal 3)), ("x", (tVal 2))], tVar dws "x"))
   |> test "update fun"
-  |> assertEqualU
-    (update [] (tFun dws [tPVar dws1 "x"] (tConst dws2 1) dws3) (tVClosure Nothing (tPVar dws1 "x") (tConst dws2 1) [])
-                                                                 (tVClosure Nothing (tPVar dws1 "y") (tConst dws2 2) []))
+  |> updateAssert
+            [] (tFun dws [tPVar dws1 "x"] (tConst dws2 1) dws3) (tVClosure Nothing [tPVar dws1 "x"] (tConst dws2 1) [])
+                                                                (tVClosure Nothing [tPVar dws1 "y"] (tConst dws2 2) [])
     (Ok    ([], tFun dws [tPVar dws1 "y"] (tConst dws2 2) dws3))
   |> test "update fun with 2 arguments"
-  |> assertEqualU
-    (update [] (tFun dws [tPVar dws1 "x", tPVar dws1 "y"] (tConst dws2 1) dws3) (tVClosure Nothing (tPVar dws1 "x") (tFun dws [tPVar dws1 "y"] (tConst dws2 1) dws) [])
-                                                                                (tVClosure Nothing (tPVar dws1 "y") (tFun dws [tPVar dws1 "x"] (tConst dws2 2) dws) []))
+  |> updateAssert
+            [] (tFun dws [tPVar dws1 "x", tPVar dws1 "y"] (tConst dws2 1) dws3) (tVClosure Nothing [tPVar dws1 "x",tPVar dws1 "y"] (tConst dws2 1) [])
+                                                                                (tVClosure Nothing [tPVar dws1 "y",tPVar dws1 "x"] (tConst dws2 2) [])
     (Ok    ([], tFun dws [tPVar dws1 "y", tPVar dws1 "x"] (tConst dws2 2) dws3))
   |> test "update nested fun with 2 and 1 arguments"
-  |> assertEqualU
-    (update [] (tFun dws [tPVar dws1 "x", tPVar dws1 "y"] (tFun dws [tPVar dws1 "z"] (tConst dws2 1) dws3) dws3)
-                    (tVClosure Nothing (tPVar dws1 "x") (tFun dws [tPVar dws1 "y"] (tFun dws [tPVar dws1 "z"] (tConst dws2 1) dws3) dws) [])
-                    (tVClosure Nothing (tPVar dws1 "y") (tFun dws [tPVar dws1 "z"] (tFun dws [tPVar dws1 "x"] (tConst dws2 3) dws3) dws) []))
-    (Ok    ([], tFun dws [tPVar dws1 "y", tPVar dws1 "z"] (tFun dws [tPVar dws1 "x"] (tConst dws2 3) dws3) dws3))
+  |> updateAssert
+            []               (tFun dws [tPVar dws1 "x", tPVar dws1 "y"] (tFun dws [tPVar dws1 "z"] (tConst dws2 1) dws3) dws3)
+                    (tVClosure Nothing [tPVar dws1 "x", tPVar dws1 "y"] (tFun dws [tPVar dws1 "z"] (tConst dws2 1) dws3) [])
+                    (tVClosure Nothing [tPVar dws1 "y", tPVar dws1 "z"] (tFun dws [tPVar dws1 "x"] (tConst dws2 3) dws3) [])
+    (Ok    ([],               tFun dws [tPVar dws1 "y", tPVar dws1 "z"] (tFun dws [tPVar dws1 "x"] (tConst dws2 3) dws3) dws3))
   |> test "update app (\\x -> x) 1"
-  |> assertEqualU
-    (update [] (tApp dws5 (tFun dws1 [tPVar dws4 "x"] (tVar dws6 "x") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2))
+  |> updateAssert
+            [] (tApp dws5 (tFun dws1 [tPVar dws4 "x"] (tVar dws6 "x") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2)
     (Ok    ([], tApp dws5 (tFun dws1 [tPVar dws4 "x"] (tVar dws6 "x") dws3) [tConst dws 2] dws6))
   |> test "update app (\\x -> 1) 3"
-  |> assertEqualU
-    (update [] (tApp dws5
-      (tFun dws1 [tPVar dws4 "x"] (tConst dws2 1) dws3) [tConst dws 3] dws6) (tVal 1) (tVal 2))
+  |> updateAssert
+            [] (tApp dws5
+      (tFun dws1 [tPVar dws4 "x"] (tConst dws2 1) dws3) [tConst dws 3] dws6) (tVal 1) (tVal 2)
     (Ok ([], tApp dws5
       (tFun dws1 [tPVar dws4 "x"] (tConst dws2 2) dws3) [tConst dws 3] dws6))
   |> test "update pattern 'as' (\\x as y -> x [or y]) 1"
-  |> assertEqualU
-          (update [] (tApp dws5
-            (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "x") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2))
+  |> updateAssert
+                  [] (tApp dws5
+            (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "x") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2)
           (Ok ([], tApp dws5
             (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "x") dws3) [tConst dws 2] dws6))
-  |> assertEqualU
-        (update [] (tApp dws5
-          (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "y") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2))
+  |> updateAssert
+                [] (tApp dws5
+          (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "y") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2)
         (Ok ([], tApp dws5
           (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "y") dws3) [tConst dws 2] dws6))
   |> test "update pattern list (\\[x, y] -> x or y) [1, 2]"
-  |> assertEqualU
-          (update [] (tApp dws5
-            (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 1) (tVal 3))
+  |> updateAssert
+                  [] (tApp dws5
+            (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 1) (tVal 3)
           (Ok    ([], tApp dws5
             (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 3), (tConst dws 2)] dws] dws6))
-  |> assertEqualU
-          (update [] (tApp dws5
-            (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 2) (tVal 3))
+  |> updateAssert
+                  [] (tApp dws5
+            (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 2) (tVal 3)
           (Ok    ([], tApp dws5
             (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 3)] dws] dws6))
   |> test "update pattern list with tail (\\[x | [y]] -> x or y) [1, 2]"
-    |> assertEqualU
-            (update [] (tApp dws5
-              (tFun dws1 [tPListCons dws2 [tPVar dws3 "x"] dws1 (tPVar dws4 "y") dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 1) (tVal 3))
+    |> updateAssert
+                    [] (tApp dws5
+              (tFun dws1 [tPListCons dws2 [tPVar dws3 "x"] dws1 (tPVar dws4 "y") dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 1) (tVal 3)
             (Ok    ([], tApp dws5
               (tFun dws1 [tPListCons dws2 [tPVar dws3 "x"] dws1 (tPVar dws4 "y") dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 3), (tConst dws 2)] dws] dws6))
-    |> assertEqualU
-            (update [] (tApp dws5
-              (tFun dws1 [tPListCons dws2 [tPVar dws3 "x"] dws1 (tPVar dws4 "y") dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVList [tVal 2]) (tVList [tVal 3]))
+    |> updateAssert
+                    [] (tApp dws5
+              (tFun dws1 [tPListCons dws2 [tPVar dws3 "x"] dws1 (tPVar dws4 "y") dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVList [tVal 2]) (tVList [tVal 3])
             (Ok    ([], tApp dws5
               (tFun dws1 [tPListCons dws2 [tPVar dws3 "x"] dws1 (tPVar dws4 "y") dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 3)] dws] dws6))
     {--

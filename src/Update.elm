@@ -5,6 +5,7 @@ import Lang exposing (..)
 import LangUnparser exposing (unparse)
 import Eval exposing (doEval)
 import Utils
+import Syntax
 
 collectEFun n exp =
   if n == 0 then ([], exp) else
@@ -31,10 +32,7 @@ update env e oldVal newVal =
       case (oldVal.v_, newVal.v_) of
         (VList origVals, VList newOutVals) ->
           if List.length origVals == List.length newOutVals then
-            List.map3 (\inputExpr oldOut newOut ->
-              update env inputExpr oldOut newOut
-              ) elems origVals newOutVals
-            |> updateList env
+            updateList env elems origVals newOutVals
             |> Result.map (\(env, l) ->
               (env, replaceE__ e <| EList ws l ws2 Nothing ws3)
             )
@@ -43,63 +41,59 @@ update env e oldVal newVal =
 
     --EList ws elems ws2 Nothing ws3 ->
     --  Err ""
-    EFun ws0 [p] e ws1 ->
+    EFun ws0 ps e ws1 ->
       -- oldVal ==  VClosure Nothing p e env
       (case newVal.v_ of
-        VClosure Nothing newP newE newEnv -> Ok (newEnv, replaceE__ e <| EFun ws0 [newP] newE ws1)
+        VClosure Nothing newPs newE newEnv -> Ok (newEnv, replaceE__ e <| EFun ws0 newPs newE ws1)
         _ -> Err <| "Expected non-recursive closure, got " ++ toString newVal
       )
-    EFun ws0 ps e ws1 ->
-      update env (desugarEFun ps e) oldVal newVal
-      |> Result.map (\(newEnv, newExp) ->
-        let (newPats, realBody) = collectEFun (List.length ps) newExp in
-        (newEnv, replaceE__ e <| EFun ws0 newPats realBody ws1))
 
-    EApp ws0 e1 [e2] ws1 ->
-      case doEval env e1 of
+    EApp ws0 e1 e2s ws1 ->
+      case doEval Syntax.Elm env e1 of
       Err s       -> Err s
       Ok ((v1, _),_) ->
-        case doEval env e2 of
+        case List.map (doEval Syntax.Elm env) e2s |> Utils.projOk of
           Err s       -> Err s
-          Ok ((v2, _),_) ->
+          Ok v2ls ->
+            let v2s = List.map (\((v2, _), _) -> v2) v2ls in
             case v1.v_ of
-              VClosure Nothing p eBody env_ ->
-                case consWithInversion (p, v2) (Just (env_, \newEnv_ -> \newP -> \newBody -> val <| VClosure Nothing newP newBody newEnv_)) of
+              VClosure Nothing ps eBody env_ as vClosure ->
+                case conssWithInversion (ps, v2s) (Just (env_, \newEnv_ newPs newBody -> replaceV_ v1 <| VClosure Nothing newPs newBody newEnv_)) of
                   Just (env__, consBuilder) ->
                      -- consBuilder: Env -> ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure)
                       update env__ eBody oldVal newVal
                       |> Result.map (\(newEnv, newBody) ->
                            (consBuilder newEnv, newBody)
                          )
-                      |> Result.map (\(((newPat, newArg), patBodyToClosure), newBody) ->
-                        let newClosure = patBodyToClosure newPat newBody in
+                      |> Result.map (\(((newPats, newArgs), patsBodyToClosure), newBody) ->
+                        let newClosure = patsBodyToClosure newPats newBody in
                         let e1_updated = update env e1 v1 newClosure in
-                        let e2_updated = update env e2 v2 newArg in
-                        Result.map2 (\(envE1, newE1) (envE2, newE2) ->
-                          (triCombine env envE1 envE2, replaceE__ e <| EApp ws0 newE1 [newE2] ws1)
-                        ) e1_updated e2_updated
+                        let e2s_updated = updateList env e2s v2s newArgs in
+                        Result.map2 (\(envE1, newE1) (envE2, newE2s) ->
+                          (triCombine env envE1 envE2, replaceE__ e <| EApp ws0 newE1 newE2s ws1)
+                        ) e1_updated e2s_updated
                       )
                       |> Utils.unwrapNestedResult
                   _          -> Err <| strPos e1.start ++ "bad environment"
-              VClosure (Just f) p eBody env_ ->
-                case consWithInversion (pVar f, v1) (consWithInversion (p, v2) (Just (env_, \newEnv_ -> \newP -> \newBody -> val <| VClosure (Just f) newP newBody newEnv_))) of
+              VClosure (Just f) ps eBody env_ ->
+                case consWithInversion (pVar f, v1) (conssWithInversion (ps, v2s) (Just (env_, \newEnv_ newPs newBody -> replaceV_ v1 <| VClosure (Just f) newPs newBody newEnv_))) of
                   Just (env__, consBuilder) ->
                      -- consBuilder: Env -> ((Pat, Val), ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure))
                       update env__ eBody oldVal newVal
                       |> Result.map (\(newEnv, newBody) ->
                            (consBuilder newEnv, newBody)
                          )
-                      |> Result.map (\(((newPatFun, newArgFun), ((newPat, newArg), patBodyToClosure)), newBody) ->
+                      |> Result.map (\(((newPatFun, newArgFun), ((newPats, newArgs), patsBodyToClosure)), newBody) ->
                         let newClosure = if newArgFun /= v1 then -- Just propagate the change to the closure itself
                             newArgFun
                           else -- Regular replacement
-                            patBodyToClosure newPat newBody in
+                            patsBodyToClosure newPats newBody in
 
                         let e1_updated = update env e1 v1 newClosure in
-                        let e2_updated = update env e2 v2 newArg in
-                        Result.map2 (\(envE1, newE1) (envE2, newE2) ->
-                          (triCombine env envE1 envE2, replaceE__ e <| EApp ws0 newE1 [newE2] ws1)
-                        ) e1_updated e2_updated
+                        let e2s_updated = updateList env e2s v2s newArgs in
+                        Result.map2 (\(envE1, newE1) (envE2, newE2s) ->
+                          (triCombine env envE1 envE2, replaceE__ e <| EApp ws0 newE1 newE2s ws1)
+                        ) e1_updated e2s_updated
                       )
                       |> Utils.unwrapNestedResult
                   _          -> Err <| strPos e1.start ++ "bad environment"
@@ -107,7 +101,7 @@ update env e oldVal newVal =
                 Err <| strPos e1.start ++ " not a function"
 
     EIf ws0 cond thn els ws1 ->
-      case doEval env cond of
+      case doEval Syntax.Elm env cond of
         Ok (({ v_ }, _), _) ->
           case v_ of
             VBase (VBool b) ->
@@ -125,8 +119,12 @@ update env e oldVal newVal =
         Err s -> Err s
     _ -> Err <| "Non-supported update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
 
-updateList: Env -> List (Result String (Env, Exp)) -> Result String (Env, List Exp)
-updateList env results =
+updateList: Env -> List Exp -> List Val -> List Val -> Result String (Env, List Exp)
+updateList env elems origVals newOutVals =
+  let results =
+    List.map3 (\inputExpr oldOut newOut ->
+              update env inputExpr oldOut newOut
+              ) elems origVals newOutVals in
   List.foldl (\elem acc ->
     case (elem, acc) of
       (Err msgElem, Err msg) -> Err (msg ++ "\n" ++ msgElem)
@@ -166,6 +164,17 @@ consWithInversion pv menv =
       )
     _                     -> Nothing
 
+
+conssWithInversion : (List Pat, List Val) -> Maybe (Env, Env -> a) -> Maybe (Env, Env -> ((List Pat, List Val), a))
+conssWithInversion pvs menv =
+  case (menv, matchListWithInversion pvs) of
+    (Just (env, envToA), Just (env_, envToPatsVals)) -> Just (env_ ++ env,
+      \newEnv ->
+        let (newEnv_, newEnvTail) = Utils.split (List.length env_) newEnv in
+        (envToPatsVals newEnv_, envToA newEnvTail)
+      )
+    _                     -> Nothing
+
 matchWithInversion : (Pat, Val) -> Maybe (Env, Env -> (Pat, Val))
 matchWithInversion (p,v) = case (p.val.p__, v.v_) of
   (PVar ws x wd, _) -> Just ([(x,v)], \newEnv ->
@@ -189,11 +198,11 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
       ))
 
   (PList ws0 ps ws1 Nothing ws2, VList vs) ->
-    (Utils.maybeZip ps vs)
+    (if List.length ps == List.length vs then Just (ps,vs) else Nothing)
     |> Maybe.andThen matchListWithInversion
     |> Maybe.map (\(env, envRenewer) ->
       (env, envRenewer >> \(newPats, newVals) ->
-        (replaceP__ p <| PList ws0 newPats ws1 Nothing ws2, val <| VList newVals)
+        (replaceP__ p <| PList ws0 newPats ws1 Nothing ws2, replaceV_ v <| VList newVals)
       )
     )
   (PList ws0 ps ws1 (Just rest) ws2, VList vs) ->
@@ -201,14 +210,14 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
     if n > m then Nothing
     else
       let (vs1,vs2) = Utils.split n vs in
-      Utils.zip ps vs1
+      (ps, vs1)
       |> matchListWithInversion
-      |> consWithInversion (rest, vList vs2) -- Maybe (Env, Env -> ((Pat, Val), (List Pat, List Val)))
+      |> consWithInversion (rest, replaceV_ v <| VList vs2) -- Maybe (Env, Env -> ((Pat, Val), (List Pat, List Val)))
       |> Maybe.map (\(env, envRenewer) ->
         (env, envRenewer >> (\((newPat, newVal), (newPats, newVals)) ->
           case newVal.v_ of
             VList otherVals ->
-              (replaceP__ p <| PList ws0 newPats ws1 (Just newPat) ws2, val <| (VList <| newVals ++ otherVals))
+              (replaceP__ p <| PList ws0 newPats ws1 (Just newPat) ws2, replaceV_ v <| (VList <| newVals ++ otherVals))
             _ -> Debug.crash <| "RHS of list pattern is not a list: " ++ toString newVal
         ))
       )
@@ -218,8 +227,8 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
   (PBase _ bv, VBase bv_) -> if eBaseToVBase bv == bv_ then Just ([], \newEnv -> (p, v)) else Nothing
   _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
 
-matchListWithInversion : List (Pat, Val) -> Maybe (Env, Env -> (List Pat, List Val))
-matchListWithInversion pvs =
+matchListWithInversion : (List Pat, List Val) -> Maybe (Env, Env -> (List Pat, List Val))
+matchListWithInversion (ps, vs) =
   List.foldl (\pv acc -> --: Maybe (Env, List (Env -> (Pat, Val, Env)))
     case (acc, matchWithInversion pv) of
       (Just (old, oldEnvBuilders), Just (new, newEnvBuilder)) -> Just (new ++ old,
@@ -230,7 +239,7 @@ matchListWithInversion pvs =
           ] ++ oldEnvBuilders
         )
       _                    -> Nothing
-  ) (Just ([], [])) pvs
+  ) (Just ([], [])) (Utils.zip ps vs)
   |> Maybe.map (\(finalEnv, envBuilders) -> -- envBuilders: List (Env -> (Pat, Val, Env)), but we want Env -> (Pat, Val), combining pattern/values into lists
     (finalEnv, \newEnv ->
       let (newPats, newVals, _) =
@@ -250,12 +259,12 @@ matchListWithInversion pvs =
 val_to_exp: WS -> Val -> Exp
 val_to_exp ws v =
   withDummyExpInfo <| case v.v_ of
-    VConst mb num     -> EConst ws (first num) (0, unann, "") (withDummyInfo NoWidgetDecl)
+    VConst mb num     -> EConst ws (first num) dummyLoc noWidgetDecl
     VBase (VBool b)   -> EBase  ws <| EBool b
     VBase (VString s) -> EBase  ws <| EString defaultQuoteChar s
     VBase (VNull)     -> EBase  ws <| ENull
-    VList vals -> EList ws (List.map (val_to_exp (withDummyInfo "")) vals) (withDummyInfo "") Nothing <| withDummyInfo ""
-    VClosure Nothing pattern body env -> EFun ws [pattern] body (ws) -- Not sure about this one.
+    VList vals -> EList ws (List.map (val_to_exp ws) vals) ws Nothing <| ws
+    VClosure Nothing patterns body env -> EFun ws patterns body (ws) -- Not sure about this one.
     _ -> Debug.crash <| "Trying to get an exp of the value " ++ toString v
     --VDict vs ->
 
