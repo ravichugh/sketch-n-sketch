@@ -151,56 +151,33 @@ all_tests = init_state
   |> updateElmAssert [("y", "3"), ("x", "1")] "  x"   "2"
                      [("y", "3"), ("x", "2")] "  x"
   |> test "update fun"
-  |> updateElmAssert [] "\\x -> 1"   "\\x -> 2"
-                     [] "\\x -> 2"
-  |> updateAssert
-            [] (tFun dws [tPVar dws1 "x"] (tConst dws2 1) dws3) (tVClosure Nothing [tPVar dws1 "x"] (tConst dws2 1) [])
-                                                                (tVClosure Nothing [tPVar dws1 "y"] (tConst dws2 2) [])
-            [] (tFun dws [tPVar dws1 "y"] (tConst dws2 2) dws3)
+  |> updateElmAssert [] "\\  x ->   1"   "\\  x ->   2"
+                     [] "\\  x ->   2"
   |> test "update fun with 2 arguments"
-  |> updateAssert
-            [] (tFun dws [tPVar dws1 "x", tPVar dws1 "y"] (tConst dws2 1) dws3) (tVClosure Nothing [tPVar dws1 "x",tPVar dws1 "y"] (tConst dws2 1) [])
-                                                                                (tVClosure Nothing [tPVar dws1 "y",tPVar dws1 "x"] (tConst dws2 2) [])
-            [] (tFun dws [tPVar dws1 "y", tPVar dws1 "x"] (tConst dws2 2) dws3)
+  |> updateElmAssert [] "\\x y -> 1" "\\y x -> 2"
+                     [] "\\y x -> 2"
   |> test "update nested fun with 2 and 1 arguments"
-  |> updateAssert
-            []               (tFun dws [tPVar dws1 "x", tPVar dws1 "y"] (tFun dws [tPVar dws1 "z"] (tConst dws2 1) dws3) dws3)
-                    (tVClosure Nothing [tPVar dws1 "x", tPVar dws1 "y"] (tFun dws [tPVar dws1 "z"] (tConst dws2 1) dws3) [])
-                    (tVClosure Nothing [tPVar dws1 "y", tPVar dws1 "z"] (tFun dws [tPVar dws1 "x"] (tConst dws2 3) dws3) [])
-            [] (              tFun dws [tPVar dws1 "y", tPVar dws1 "z"] (tFun dws [tPVar dws1 "x"] (tConst dws2 3) dws3) dws3)
-  |> test "update app (\\x -> x) 1"
-  |> updateAssert
-            [] (tApp dws5 (tFun dws1 [tPVar dws4 "x"] (tVar dws6 "x") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2)
-            [] (tApp dws5 (tFun dws1 [tPVar dws4 "x"] (tVar dws6 "x") dws3) [tConst dws 2] dws6)
-  |> test "update app (\\x -> 1) 3"
-  |> updateAssert
-            [] (tApp dws5
-      (tFun dws1 [tPVar dws4 "x"] (tConst dws2 1) dws3) [tConst dws 3] dws6) (tVal 1) (tVal 2)
-            [] (tApp dws5
-      (tFun dws1 [tPVar dws4 "x"] (tConst dws2 2) dws3) [tConst dws 3] dws6)
+  |> updateElmAssert [] "\\x y -> \\z -> 1" "\\y z -> \\x -> 3"
+                     [] "\\y z -> \\x -> 3"
+  |> test "update app identity"
+  |> updateElmAssert [] "(\\x -> x)   1" "2"
+                     [] "(\\x -> x)   2"
+  |> test "update app constant"
+  |> updateElmAssert [] "(\\x -> 1)   3" "2"
+                     [] "(\\x -> 2)   3"
   |> test "update pattern 'as' (\\x as y -> x [or y]) 1"
-  |> updateAssert
-                  [] (tApp dws5
-            (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "x") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2)
-                  []  (tApp dws5
-            (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "x") dws3) [tConst dws 2] dws6)
-  |> updateAssert
-                [] (tApp dws5
-          (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "y") dws3) [tConst dws 1] dws6) (tVal 1) (tVal 2)
-                [] (tApp dws5
-          (tFun dws1 [tPAs dws2 "x" dws3 (tPVar dws4 "y")] (tVar dws6 "y") dws3) [tConst dws 2] dws6)
+  |> updateElmAssert [] "(\\(x  as y) -> x)   1" "2"
+                     [] "(\\(x  as y) -> x)   2"
+  |> updateElmAssert [] "(\\(x  as y) -> y)   1" "2"
+                     [] "(\\(x  as y) -> y)   2"
   |> test "update pattern list (\\[x, y] -> x or y) [1, 2]"
-  |> updateAssert
-                  [] (tApp dws5
-            (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 1) (tVal 3)
-                  [] (tApp dws5
-            (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 3), (tConst dws 2)] dws] dws6)
-  |> updateAssert
-                  [] (tApp dws5
-            (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 2) (tVal 3)
-                  [] (tApp dws5
-            (tFun dws1 [tPList dws2 [tPVar dws3 "x", tPVar dws4 "y"] dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 3)] dws] dws6)
-  |> test "update pattern list with tail (\\[x | [y]] -> x or y) [1, 2]"
+  |> updateElmAssert [] "(\\[x,  y] -> x)   [1, 2]" "3"
+                     [] "(\\[x,  y] -> x)   [3, 2]"
+  |> updateElmAssert [] "(\\[x,  y] -> y)   [1, 2]" "3"
+                     [] "(\\[x,  y] -> y)   [1, 3]"
+  |> test "update pattern list with tail (\\[x | y] -> x or y) [1, 2]"
+  --|> updateElmAssert [] "(\\[x | y] -> x)   [1, 2]" "3"
+  --                   [] "(\\[x | y] -> x)   [3, 2]"
     |> updateAssert
                     [] (tApp dws5
               (tFun dws1 [tPListCons dws2 [tPVar dws3 "x"] dws1 (tPVar dws4 "y") dws1] (tVar dws6 "x") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVal 1) (tVal 3)

@@ -111,6 +111,9 @@ update env e oldVal newVal =
                 )
             _ -> errs <| "Expected boolean condition, got " ++ toString v_
         Err s -> errs s
+    EParens ws0 eInside ws1 ->
+      update env eInside oldVal newVal
+      |> Results.map (\(env, eReturn) -> (env, replaceE__ e <| EParens ws0 eReturn ws1))
     _ -> errs <| "Non-supported update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
 
 updateList: Env -> List Exp -> List Val -> List Val -> Results String (Env, List Exp)
