@@ -6,6 +6,7 @@ import LangUnparser exposing (unparse)
 import Eval exposing (doEval)
 import Utils
 import Syntax
+import Results
 
 collectEFun n exp =
   if n == 0 then ([], exp) else
