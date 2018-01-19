@@ -296,14 +296,16 @@ onMouseClick click old maybeClickable =
       let pointToAdd =
         case maybeClickable of
           -- TODO revisit with better provenance smarts
-          Just (PointWithProvenance (snapX, snapXTr) xVal (snapY, snapYTr) yVal) ->
-            let (Provenance snapXEnv snapXExp snapXBasedOn) = xVal.provenance in
-            let (Provenance snapYEnv snapYExp snapYBasedOn) = yVal.provenance in
+          Just (PointWithProvenance xVal yVal) ->
+            -- let (Provenance snapXEnv snapXExp snapXBasedOn) = xVal.provenance in
+            -- let (Provenance snapYEnv snapYExp snapYBasedOn) = yVal.provenance in
             -- TODO static check
-            if snapXExp.val.eid > 0 && snapYExp.val.eid > 0 then
-              ((round snapX, SnapEId snapXExp.val.eid), (round snapY, SnapEId snapYExp.val.eid))
-            else
-              ((canvasX, NoSnap), (canvasY, NoSnap))
+            -- if snapXExp.val.eid > 0 && snapYExp.val.eid > 0 then
+            ( (round (valToNum xVal), SnapVal xVal)
+            , (round (valToNum yVal), SnapVal yVal)
+            )
+            -- else
+            --   ((canvasX, NoSnap), (canvasY, NoSnap))
           Nothing ->
             ((canvasX, NoSnap), (canvasY, NoSnap))
       in
@@ -317,7 +319,7 @@ onMouseClick click old maybeClickable =
           else if List.length points == 2 then { old | mouseMode = MouseNothing }
           else if List.length points == 1 then switchToCursorTool old
           else upstateRun <| switchToCursorTool <| Draw.addPolygon stk old points
-        _ -> Debug.crash "invalid state, points shoudl be NoPointsYet or PolyPoints for polygon tool"
+        _ -> Debug.crash "invalid state, points should be NoPointsYet or PolyPoints for polygon tool"
 
     (Path stk, MouseDrawNew NoPointsYet) ->
       { old | mouseMode = MouseDrawNew (PathPoints [(old.keysDown, pointOnCanvas)]) }
@@ -519,28 +521,32 @@ onMouseDrag lastPosition newPosition old =
             let (dxRaw, dyRaw) = (mx - round x0, my - round y0) in
             -- Hmm, shoudn't assume this here. Yolo.
             let (axis, sign, amount) = Draw.horizontalVerticalSnap (0, 0) (dxRaw, dyRaw) in
+            -- Only snap to other offsets (for now)
             let possibleSnaps =
-              flattenExpTree old.inputExp
-              |> List.filterMap (\e -> LangTools.expToMaybeNum e |> Maybe.map (\n -> (round n, e.val.eid)))
-              |> List.filter (\(n,_) -> n >= 2)
-              |> List.sort
+              old.widgets
+              |> List.filterMap
+                  (\widget ->
+                    case widget of
+                      WOffset1D _ _ _ _ (amount, _) amountVal _ _ -> Just (round amount, amountVal)
+                      _                                           -> Nothing
+                  )
+              |> List.sortBy Tuple.first
             in
             let pixelsPerSnap = 20 in
             let snapRanges =
               possibleSnaps
               |> Utils.mapi0
-                  (\(i, (numberToSnapTo, eid))->
-                    ((numberToSnapTo + pixelsPerSnap * i, numberToSnapTo + pixelsPerSnap * (i+1)), numberToSnapTo, eid)
+                  (\(i, (numberToSnapTo, val))->
+                    ((numberToSnapTo + pixelsPerSnap * i, numberToSnapTo + pixelsPerSnap * (i+1)), numberToSnapTo, val)
                   )
-              |> Debug.log "snapRanges"
             in
             let maybeInSnapRange = Utils.findFirst (\((low, high), _, _) -> amount >= low && amount < high) snapRanges in
             case maybeInSnapRange of
-              Just (_, snapToNumber, eid) ->
-                if      axis == X && sign == Positive then ((round x0 + snapToNumber, my), SnapEId eid)
-                else if axis == X && sign == Negative then ((round x0 - snapToNumber, my), SnapEId eid)
-                else if axis == Y && sign == Positive then ((mx, round y0 + snapToNumber), SnapEId eid)
-                else                                       ((mx, round y0 - snapToNumber), SnapEId eid)
+              Just (_, snapToNumber, val) ->
+                if      axis == X && sign == Positive then ((round x0 + snapToNumber, my), SnapVal val)
+                else if axis == X && sign == Negative then ((round x0 - snapToNumber, my), SnapVal val)
+                else if axis == Y && sign == Positive then ((mx, round y0 + snapToNumber), SnapVal val)
+                else                                       ((mx, round y0 - snapToNumber), SnapVal val)
               Nothing ->
                 let numberOfSnapsPassed = Utils.count (\((_, high), _, _) -> amount >= high) snapRanges in
                 if      axis == X && sign == Positive then ((mx - numberOfSnapsPassed*pixelsPerSnap, my), NoSnap)

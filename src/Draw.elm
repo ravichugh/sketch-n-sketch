@@ -468,7 +468,7 @@ horizontalVerticalSnap (x1, y1) (x2, y2) =
 
 
 addOffsetAndMaybePoint : Model -> Snap -> (NumTr, NumTr) -> (Int, Int) -> Model
-addOffsetAndMaybePoint old snaps ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
+addOffsetAndMaybePoint old snap ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let originalProgram = old.inputExp in
   let (axis, sign, offsetAmount) = horizontalVerticalSnap (round x1, round y1) (x2, y2) in
@@ -500,11 +500,13 @@ addOffsetAndMaybePoint old snaps ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
                 originalProgram
                 |> mapExpNode insertBeforeEId (\e -> LangTools.newLetFancyWhitespace -1 False (pVar offsetName) offsetExp e originalProgram)
               in
-              case snaps of
+              case snap of
                 NoSnap ->
                   insertOffset (eConstDummyLoc (toFloat offsetAmount)) body.val.eid originalProgram
 
-                SnapEId snapToEId ->
+                -- SnapEId snapToEId ->
+                SnapVal snapVal ->
+                  let snapToEId = valEId snapVal in -- A little simplisitic for now.
                   let possibleInsertLocations =
                     [ Just body.val.eid
                     , LangTools.expToMaybeLetBody body |> Maybe.map (.val >> .eid)
@@ -591,7 +593,7 @@ addRawPolygon old pointsWithSnap =
           (\(snap) ->
             case snap of
               NoSnap          -> Nothing
-              SnapEId snapEId -> Just snapEId
+              SnapVal snapVal -> Just (valExp snapVal).val.eid -- for now
           )
       |> Utils.dedup
     in
@@ -611,7 +613,8 @@ addRawPolygon old pointsWithSnap =
           let xExp =
             case xSnap of
               NoSnap  -> eConstDummyLoc0 (toFloat x)
-              SnapEId snapEId ->
+              SnapVal snapVal ->
+                let snapEId = (valExp snapVal).val.eid in
                 case Utils.maybeFind snapEId eidAndName of
                   Nothing       -> eConstDummyLoc0 (toFloat x)
                   Just snapName -> eVar0 snapName
@@ -619,7 +622,8 @@ addRawPolygon old pointsWithSnap =
           let yExp =
             case ySnap of
               NoSnap  -> eConstDummyLoc (toFloat y)
-              SnapEId snapEId ->
+              SnapVal snapVal ->
+                let snapEId = (valExp snapVal).val.eid in
                 case Utils.maybeFind snapEId eidAndName of
                   Nothing       -> eConstDummyLoc (toFloat y)
                   Just snapName -> eVar snapName
@@ -922,7 +926,7 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
         )
   in
   -- 5. Finally, use list the others do not depend on.
-  let listEIds = listEIdWithPossiblePrograms |> List.map Tuple.first in
+  let (listEIds, _) = List.unzip listEIdWithPossiblePrograms in
   let grossDependencies = StaticAnalysis.grossDependencies program in
   let (_, bestProgram) =
     listEIdWithPossiblePrograms

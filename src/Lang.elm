@@ -278,8 +278,12 @@ provenanceEnv     (Provenance env exp basedOn) = env
 provenanceExp     (Provenance env exp basedOn) = exp
 provenanceBasedOn (Provenance env exp basedOn) = basedOn
 
+-- If using these, you may also want LangTools.expValueExp and friends.
 valExp : Val -> Exp
 valExp val = val.provenance |> provenanceExp
+
+valEId : Val -> EId
+valEId val = (valExp val).val.eid
 
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
@@ -1257,10 +1261,10 @@ allEIds exp =
 ------------------------------------------------------------------------------
 -- Conversion
 
-valToTrace : Val -> Trace
-valToTrace v = case v.v_ of
-  VConst _  (_, trace) -> trace
-  _                    -> Debug.crash "valToTrace"
+valToNum : Val -> Num
+valToNum v = case v.v_ of
+  VConst _  (n, _) -> n
+  _                -> Debug.crash "Lang.valToNum"
 
 
 ------------------------------------------------------------------------------

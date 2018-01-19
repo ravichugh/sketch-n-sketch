@@ -220,7 +220,7 @@ type alias OutputCanvasInfo =
 type alias RawSvg = String
 
 type Clickable
-  = PointWithProvenance NumTr Val NumTr Val
+  = PointWithProvenance Val Val
 
 type MouseMode
   = MouseNothing
@@ -260,34 +260,35 @@ isMouseDown model =
     (Just _, _, _) -> True
     _              -> False
 
-traceToMaybeEId model tr =
-  case tr of
-    TrLoc (locId, _, _) -> locIdToEId model.inputExp locId
-    _                   -> Nothing
-
--- May or may not make this stateful. I don't like stateful.
-isTraceInModelHighlights model tr =
+isShapeBeingDrawnSnappingToVal : Model -> Val -> Bool
+isShapeBeingDrawnSnappingToVal model val =
   -- Only singular locs for now.
-  case (model.mouseMode, traceToMaybeEId model tr) of
-    (MouseDrawNew shapeBeingDrawn, Just traceEId) ->
-      snapsOfShapeBeingDrawn shapeBeingDrawn
-      |> List.any ((==) (SnapEId traceEId))
+  case model.mouseMode of
+    MouseDrawNew shapeBeingDrawn ->
+      snapValsOfShapeBeingDrawn shapeBeingDrawn
+      |> List.any
+          (\valOfShapeBeingDraw ->
+            valToNum val == valToNum valOfShapeBeingDraw &&
+            valEId val   == valEId valOfShapeBeingDraw -- Maybe overly strict
+          )
 
     _ ->
       False
 
-snapsOfShapeBeingDrawn shapeBeingDrawn =
+snapValsOfShapeBeingDrawn : ShapeBeingDrawn -> List Val
+snapValsOfShapeBeingDrawn shapeBeingDrawn =
   case shapeBeingDrawn of
-    NoPointsYet                   -> []
-    TwoPoints _ _                 -> []
-    PolyPoints _                  -> []
-    PathPoints _                  -> []
-    Offset1DFromExisting _ snap _ -> [snap]
+    NoPointsYet                            -> []
+    TwoPoints _ _                          -> []
+    PolyPoints _                           -> []
+    PathPoints _                           -> []
+    Offset1DFromExisting _ NoSnap _        -> []
+    Offset1DFromExisting _ (SnapVal val) _ -> [val]
 
 
 type Snap
   = NoSnap
-  | SnapEId EId
+  | SnapVal Val
 
 type alias IntSnap = (Int, Snap) -- like NumTr
 

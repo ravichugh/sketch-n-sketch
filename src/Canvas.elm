@@ -461,7 +461,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     in
     let (arrowParts, (endXNumTr, endYNumTr)) =
       let shouldHighlight =
-        isSelected || isTraceInModelHighlights model amountTr
+        isSelected || isShapeBeingDrawnSnappingToVal model amountVal
       in
       svgOffsetWidget1DArrowPartsAndEndPoint (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
     in
@@ -1342,7 +1342,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
         ]
       else
         [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->
-            { model | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xNumTr xVal yNumTr yVal)) } ]
+            { model | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xVal yVal)) } ]
     in
     svgXYDot model (x, y) dotFill isVisible extraAttrs
   in
