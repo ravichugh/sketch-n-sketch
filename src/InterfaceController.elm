@@ -974,6 +974,16 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 
 --------------------------------------------------------------------------------
 
+resetDeucePopupPanelPosition : Model -> Model
+resetDeucePopupPanelPosition m =
+  let
+    oldPopupPanelPositions =
+      m.popupPanelPositions
+    newPopupPanelPositions =
+      { oldPopupPanelPositions | deuce = (400, 400) }
+  in
+    { m | popupPanelPositions = newPopupPanelPositions }
+
 updateTrackedValues : History TrackedValues -> TrackedValues -> Model -> Model
 updateTrackedValues newHistory recent old =
   let
@@ -1007,6 +1017,7 @@ updateTrackedValues newHistory recent old =
             Dict.empty
     }
       |> DeuceTools.reselectDeuceTool
+      |> resetDeucePopupPanelPosition
 
 msgUndo = Msg "Undo" doUndo
 
@@ -1982,8 +1993,6 @@ toggleDeuceWidget widget model =
               newDeuceState
           , deuceRightClickMenuMode =
               newDeuceRightClickMenuMode
-          , history =
-              modelCommit model.code newDeuceState.selectedWidgets model.history
       }
   in
     { almostNewModel
@@ -2010,8 +2019,19 @@ msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString w
               | hoveredWidgets = [] } }
 
 msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m ->
-  -- TODO version of tryRun/upstateRun starting with parsed expression
-  upstateRun (resetDeuceState { m | code = unparse exp })
+  let
+    modifiedHistory =
+      modelModify m.code m.deuceState.selectedWidgets m.history
+    modelWithCorrectHistory =
+      case modifiedHistory of
+        Just h ->
+          { m | history = h }
+
+        Nothing ->
+          m
+  in
+    -- TODO version of tryRun/upstateRun starting with parsed expression
+    upstateRun ( { modelWithCorrectHistory | code = unparse exp })
 
 --------------------------------------------------------------------------------
 -- DOT

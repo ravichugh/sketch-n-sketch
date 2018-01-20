@@ -3,6 +3,7 @@ module History exposing
   , blank
   , commit
   , alwaysCommit
+  , modify
   , begin
   , hasPast
   , hasExtendedPast
@@ -48,6 +49,12 @@ alwaysCommit =
 begin : a -> History a
 begin snapshot =
   alwaysCommit snapshot blank
+
+modify : a -> History a -> Maybe (History a)
+modify snapshot history =
+  history
+    |> backward
+    |> Maybe.map (alwaysCommit snapshot)
 
 hasPast : History a -> Bool
 hasPast (H (past, _)) =

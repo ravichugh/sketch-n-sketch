@@ -971,6 +971,13 @@ modelCommit code dws =
     historyUpdateCondition
     { code = code, selectedDeuceWidgets = dws }
 
+modelModify
+  :  Code -> List DeuceWidgets.DeuceWidget
+  -> History TrackedValues -> Maybe (History TrackedValues)
+modelModify code dws =
+  History.modify
+    { code = code, selectedDeuceWidgets = dws }
+
 --------------------------------------------------------------------------------
 
 initTemplate : String
