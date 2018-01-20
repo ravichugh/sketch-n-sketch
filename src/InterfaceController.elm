@@ -1211,10 +1211,7 @@ msgKeyDown keyCode =
                 old
                   |> Model.hideDeuceRightClickMenu
                   |> resetDeuceState
-                  |> \m -> { m
-                               | deucePopupPanelAbove = True
-                               , history = modelCommit m.code [] m.history
-                           }
+                  |> \m -> { m | deucePopupPanelAbove = True }
             in
               case (old.tool, old.mouseMode) of
                 (Cursor, _)         -> clearSelections new
