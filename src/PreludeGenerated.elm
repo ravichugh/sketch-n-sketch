@@ -1809,8 +1809,12 @@ prelude =
 
 (def placeAt (\\([x y] node)
   (let _ ([x y] : Point)
+  ; TODO px suffix should be added in LangSvg/Html translation
   (setStyles
-    [['position' 'absolute'] ['left' x] ['top' y]]
+    [ ['position' 'absolute']
+      ['left' (+ (toString x) 'px')]
+      ['top' (+ (toString y) 'px')]
+    ]
     node))))
 
 (def placeAtFixed (\\([x y] node)

@@ -557,8 +557,11 @@ desugarFixedPosition xCanvas yCanvas shape0 attrs0 =
                 newStyle =
                   replaceAv_ vStyle <|
                     AStyle <|
-                      ("left", replaceAv_ vLeft <| ANum newLeft)
-                        :: ("top", replaceAv_ vTop <| ANum newTop)
+                      -- TODO "px" should be added by strAVal translation, not here
+                      -- ("left", replaceAv_ vLeft <| ANum newLeft)
+                      --   :: ("top", replaceAv_ vTop <| ANum newTop)
+                      ("left", replaceAv_ vLeft <| AString (toString (Tuple.first newLeft) ++ "px"))
+                        :: ("top", replaceAv_ vTop <| AString (toString (Tuple.first newTop) ++ "px"))
                         :: styles2
               in
               Just (shape0, ("style", newStyle) :: attrs1)
