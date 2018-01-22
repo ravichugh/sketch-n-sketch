@@ -17,6 +17,8 @@ module CodeMotion exposing
   , swapDefinitionsTransformation
   , rewriteOffsetTransformation
   , makeEIdVisibleToEIds, makeEIdVisibleToEIdsByInsertingNewBinding
+  , liftLocsSoVisibleTo, copyLocsSoVisibleTo
+  , resolveValueHoles
   )
 
 import Lang exposing (..)
@@ -32,9 +34,9 @@ import InterfaceModel exposing
   )
 import LocEqn                        -- For twiddling
 import Solver exposing (MathExp(..)) -- For twiddling
-import Utils
-import Either exposing (..)
+import Sync
 import Syntax exposing (Syntax)
+import Utils
 
 import Dict
 import Regex
@@ -2749,6 +2751,72 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
       in
       let visibleName = nonCollidingName visibleNameSuggestion 2 namesToAvoid in
       Just (visibleName, insertedVarEId, renameIdentifier "*EXTRACTED EXPRESSION*" visibleName newProgramWithLiftedDependenciesOldNames)
+
+
+-- Returns (newProgram, locIdToNewName, locIdToVarEId)
+liftLocsSoVisibleTo : Exp -> Set LocId -> Set EId -> (Exp, Dict LocId Ident, Dict LocId EId)
+liftLocsSoVisibleTo program mobileLocIdSet viewerEIds =
+  liftLocsSoVisibleTo_ False program mobileLocIdSet viewerEIds
+
+
+-- Returns (newProgram, locIdToNewName, locIdToVarEId)
+copyLocsSoVisibleTo : Exp -> Set LocId -> Set EId -> (Exp, Dict LocId Ident, Dict LocId EId)
+copyLocsSoVisibleTo program mobileLocIdSet viewerEIds =
+  liftLocsSoVisibleTo_ True program mobileLocIdSet viewerEIds
+
+
+-- Returns (newProgram, locIdToNewName, locIdToVarEId)
+liftLocsSoVisibleTo_ : Bool -> Exp -> Set LocId -> Set EId -> (Exp, Dict LocId Ident, Dict LocId EId)
+liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
+  let makeEIdVisible =
+    if copyOriginal
+    then makeEIdVisibleToEIdsByInsertingNewBinding
+    else makeEIdVisibleToEIds
+  in
+  mobileLocIdSet
+  |> Set.foldl
+      (\mobileLocId (program, locIdToNewName, locIdToVarEId) ->
+        case locIdToEId program mobileLocId of
+          Just mobileEId ->
+            case makeEIdVisible program mobileEId viewerEIds of
+              Just (newName, insertedEId, newProgram) ->
+                -- let _ = Utils.log (newName ++ "\n" ++ LangUnparser.unparseWithIds newProgram) in
+                ( newProgram
+                , Dict.insert mobileLocId newName locIdToNewName
+                , Dict.insert mobileLocId insertedEId locIdToVarEId
+                )
+              Nothing ->
+                let _ = Utils.log "liftLocsSoVisibleTo: makeEIdVisible could not lift" in
+                (program, locIdToNewName, locIdToVarEId)
+
+          Nothing ->
+            let _ = Utils.log "liftLocsSoVisibleTo: could not convert locId to EId" in
+            (program, locIdToNewName, locIdToVarEId)
+      )
+      (program, Dict.empty, Dict.empty)
+
+
+-- Right now, does simple loc lifting.
+resolveValueHoles : Sync.Options -> Exp -> List Exp
+resolveValueHoles syncOptions programWithHolesUnfresh =
+  let
+    programWithHoles = Parser.freshen programWithHolesUnfresh -- Need EIds on all inserted expressions.
+    valHoles = programWithHoles |> flattenExpTree |> List.filter (expToMaybeHoleVal >> Utils.maybeToBool)
+    holeVals = programWithHoles |> flattenExpTree |> List.filterMap expToMaybeHoleVal
+    holeEIds = valHoles |> List.map (.val >> .eid)
+    holeTraces = holeVals |> List.map valToTrace
+    locIdsNeeded = holeTraces |> List.map (Sync.locsOfTrace syncOptions >> Set.map locToLocId) |> Utils.unionAll
+    (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo programWithHoles locIdsNeeded (Set.fromList holeEIds)
+    locIdToExp = locIdToExpFromFrozenSubstAndNewNames (Parser.substOf programWithHoles) locIdToNewName
+  in
+  Utils.zip holeEIds holeTraces
+  |> List.foldl
+      (\(holeEId, holeTrace) programSoFar ->
+        let filledHole = traceToExp locIdToExp holeTrace in
+        programSoFar |> replaceExpNode holeEId filledHole
+      )
+      programWithLocsLifted
+  |> List.singleton
 
 
 ------------------------------------------------------------------------------

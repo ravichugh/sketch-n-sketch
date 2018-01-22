@@ -153,6 +153,7 @@ type Exp__
   | EColonType WS Exp WS Type WS
   | ETypeAlias WS Pat Type Exp WS
   | EParens WS Exp WS
+  | EHole WS (Maybe Val) -- Internal intermediate, should not appear in code. (Yet.)
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -556,6 +557,8 @@ mapFoldExp f initAcc e =
       let (newE, newAcc) = recurse initAcc e in
       wrapAndMap (EParens ws1 newE ws2) newAcc
 
+    EHole _ _ -> f e initAcc
+
 
 -- Children visited/replaced first. (Post-order traversal.)
 --
@@ -701,6 +704,8 @@ mapFoldExpTopDown f initAcc e =
     EParens ws1 e ws2 ->
       let (newE, newAcc2) = recurse newAcc e in
       ret (EParens ws1 newE ws2) newAcc2
+
+    EHole _ _ -> (newE, newAcc)
 
 
 -- Nodes visited/replaced in top-down, left-to-right order.
@@ -866,6 +871,8 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
     EParens ws1 e ws2 ->
       let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e in
       ret (EParens ws1 newE ws2) newGlobalAcc2
+
+    EHole _ _ -> (newE, newGlobalAcc)
 
 
 mapExp : (Exp -> Exp) -> Exp -> Exp
@@ -1251,6 +1258,7 @@ childExps e =
     EColonType ws1 e ws2 tipe ws3   -> [e]
     ETypeAlias ws1 pat tipe e ws2   -> [e]
     EParens _ e _                   -> [e]
+    EHole _ _                       -> []
 
 
 allEIds : Exp -> List EId
@@ -1266,6 +1274,15 @@ valToNum v = case v.v_ of
   VConst _  (n, _) -> n
   _                -> Debug.crash "Lang.valToNum"
 
+valToTrace : Val -> Trace
+valToTrace v = case v.v_ of
+  VConst _  (n, tr) -> tr
+  _                 -> Debug.crash "Lang.valToTrace"
+
+valIsNum : Val -> Bool
+valIsNum v = case v.v_ of
+  VConst _  _ -> True
+  _           -> False
 
 ------------------------------------------------------------------------------
 -- Location Substitutions
@@ -1339,6 +1356,28 @@ applyESubst esubst =
     _          -> e__
 -}
 
+-- Idents take priority if in locId is in both dicts.
+locIdToExpFromFrozenSubstAndNewNames : Dict LocId Num -> Dict LocId Ident -> Dict LocId Exp
+locIdToExpFromFrozenSubstAndNewNames locIdToFrozenNum locIdToIdent =
+  Dict.merge
+      (\locId n       locIdToExp -> locIdToExp |> Dict.insert locId (eConst n (dummyLoc_ frozen)))
+      (\locId n ident locIdToExp -> locIdToExp |> Dict.insert locId (eVar ident))
+      (\locId   ident locIdToExp -> locIdToExp |> Dict.insert locId (eVar ident))
+      locIdToFrozenNum
+      locIdToIdent
+      Dict.empty
+
+traceToExp : Dict LocId Exp -> Trace -> Exp
+traceToExp locIdToExp trace =
+  case trace of
+    TrLoc (locId, _, _) ->
+      case Dict.get locId locIdToExp of
+        Just exp -> exp
+        Nothing  -> eVar ("couldNotFindLocId" ++ toString locId ++ "InLocIdToExpDict")
+
+    TrOp op childTraces ->
+      let childExps = List.map (traceToExp locIdToExp) childTraces in
+      eOp op childExps
 
 -----------------------------------------------------------------------------
 -- Utility
@@ -1650,6 +1689,8 @@ eList0 a b        = withDummyExpInfo <| EList space0 a space0 b space0
 eList a b         = withDummyExpInfo <| EList space1 a space0 b space0
 eTuple0 a         = eList0 a Nothing
 eTuple a          = eList a Nothing
+eHoleVal0 v       = withDummyExpInfo <| EHole space0 (Just v)
+eHoleVal v        = withDummyExpInfo <| EHole space1 (Just v)
 
 eColonType e t    = withDummyExpInfo <| EColonType space1 e space1 (withDummyRange t) space0
 
@@ -1850,6 +1891,7 @@ allWhitespaces_ exp =
     EColonType ws1 e ws2 tipe ws3       -> [ws1] ++ allWhitespaces_ e ++ [ws2] ++ allWhitespacesType_ tipe ++ [ws2]
     ETypeAlias ws1 pat tipe e ws2       -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
     EParens    ws1 e ws2                -> [ws1] ++ allWhitespaces_ e ++ [ws2]
+    EHole      ws mv                    -> [ws]
 
 
 allWhitespacesPat : Pat -> List String
@@ -1939,7 +1981,8 @@ mapPrecedingWhitespace stringMap exp =
         ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
         EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
         ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
-        EParens    ws1 e ws2                -> EParens    (mapWs ws1) e ws2
+        EParens    ws e ws2                 -> EParens    (mapWs ws) e ws2
+        EHole      ws mv                    -> EHole      (mapWs ws) mv
   in
     replaceE__ exp e__New
 
@@ -2435,6 +2478,8 @@ modifyWsBefore f codeObject =
               ETypeAlias (f ws) a b c d
             EParens ws a b ->
               EParens (f ws) a b
+            EHole ws mv ->
+              EHole (f ws) mv
       in
         E { e | val = { eVal | e__ = newE__ } }
     P e p ->
@@ -2750,6 +2795,8 @@ childCodeObjects co =
             , E e1
             , ET After ws2 e1
             ]
+          EHole ws _ ->
+            [ ET Before ws e ]
       P e p ->
         case p.val.p__ of
           PVar ws1 _ _ ->

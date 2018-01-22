@@ -295,17 +295,10 @@ onMouseClick click old maybeClickable =
     (Poly stk, MouseDrawNew polyPoints) ->
       let pointToAdd =
         case maybeClickable of
-          -- TODO revisit with better provenance smarts
           Just (PointWithProvenance xVal yVal) ->
-            -- let (Provenance snapXEnv snapXExp snapXBasedOn) = xVal.provenance in
-            -- let (Provenance snapYEnv snapYExp snapYBasedOn) = yVal.provenance in
-            -- TODO static check
-            -- if snapXExp.val.eid > 0 && snapYExp.val.eid > 0 then
             ( (round (valToNum xVal), SnapVal xVal)
             , (round (valToNum yVal), SnapVal yVal)
             )
-            -- else
-            --   ((canvasX, NoSnap), (canvasY, NoSnap))
           Nothing ->
             ((canvasX, NoSnap), (canvasY, NoSnap))
       in

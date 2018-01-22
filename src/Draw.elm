@@ -570,6 +570,23 @@ qMark n  = toString n ++ "?"
 qMarkLoc = dummyLoc_ thawed
 -}
 
+pointWithSnapToXYExps ((x, xSnap), (y, ySnap)) =
+  let xExp =
+    case xSnap of
+      NoSnap          -> eConstDummyLoc0 (toFloat x)
+      SnapVal snapVal -> eHoleVal0 snapVal
+  in
+  let yExp =
+    case ySnap of
+      NoSnap          -> eConstDummyLoc (toFloat y)
+      SnapVal snapVal -> eHoleVal snapVal
+  in
+  (xExp, yExp)
+
+pointWithSnapToPairExp pointWithSnap =
+  let (xExp, yExp) = pointWithSnapToXYExps pointWithSnap in
+  eTuple [xExp, yExp]
+
 addPolygon stk old pointsWithSnap =
   let points = pointsWithSnap |> List.map (\((x, _), (y, _)) -> (x, y)) in
   case stk of
@@ -578,58 +595,9 @@ addPolygon stk old pointsWithSnap =
     Sticky   -> addStickyPolygon old points
 
 addRawPolygon old pointsWithSnap =
-  let lastNonDef exp =
-    -- Based on logic of splitExp
-    case exp.val.e__ of
-      ELet ws1 Def False p1 e1 e2 ws2 -> lastNonDef e2
-      _                               -> exp
-  in
-  let viewerEId = (lastNonDef old.inputExp).val.eid in
-  let (program, eidAndName) =
-    let snapEIds =
-      pointsWithSnap
-      |> List.concatMap (\((_, xSnap), (_, ySnap)) -> [xSnap, ySnap])
-      |> List.filterMap
-          (\(snap) ->
-            case snap of
-              NoSnap          -> Nothing
-              SnapVal snapVal -> Just (valExp snapVal).val.eid -- for now
-          )
-      |> Utils.dedup
-    in
-    snapEIds
-    |> List.foldl
-        (\snapEId (program, eidAndName) ->
-          case CodeMotion.makeEIdVisibleToEIds program snapEId (Set.singleton viewerEId) of
-            Nothing                        -> (program, eidAndName)
-            Just (snapName, _, newProgram) -> (newProgram, (snapEId, snapName)::eidAndName)
-        )
-        (old.inputExp, [])
-  in
   let ePts =
     List.reverse pointsWithSnap
-    |> List.map
-        (\((x, xSnap), (y, ySnap)) ->
-          let xExp =
-            case xSnap of
-              NoSnap  -> eConstDummyLoc0 (toFloat x)
-              SnapVal snapVal ->
-                let snapEId = (valExp snapVal).val.eid in
-                case Utils.maybeFind snapEId eidAndName of
-                  Nothing       -> eConstDummyLoc0 (toFloat x)
-                  Just snapName -> eVar0 snapName
-          in
-          let yExp =
-            case ySnap of
-              NoSnap  -> eConstDummyLoc (toFloat y)
-              SnapVal snapVal ->
-                let snapEId = (valExp snapVal).val.eid in
-                case Utils.maybeFind snapEId eidAndName of
-                  Nothing       -> eConstDummyLoc (toFloat y)
-                  Just snapName -> eVar snapName
-          in
-          eTuple [xExp, yExp]
-        )
+    |> List.map pointWithSnapToPairExp
   in
   let polygonExp =
     makeCallWithLocals
@@ -888,9 +856,10 @@ addShapeToModel model newShapeName newShapeExp =
 
 -- 1. Find all list literals.
 -- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
--- 3. Keep those programs that do not crash.
--- 4. Keep those programs that result in one more shape in the output.
--- 5. Finally, use list the others do not depend on.
+-- 3. Resolve value holes.
+-- 4. Keep those programs that do not crash.
+-- 5. Keep those programs that result in one more shape in the output.
+-- 6. Finally, use list the others do not depend on.
 addShape : Model -> String -> Exp -> Int -> Exp
 addShape model newShapeName newShapeExp numberOfNewShapesExpected =
   let program = model.inputExp in
@@ -916,8 +885,11 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
           , (listExp.val.eid, newProgramSingleton)
           ]
         )
-    -- 3. Keep those programs that do not crash.
-    -- 4. Keep those programs that result in one more shape in the output.
+    -- 3. Resolve value holes.
+    |> List.concatMap
+        (\(listEId, newProgramWithHoles) -> CodeMotion.resolveValueHoles model.syncOptions newProgramWithHoles |> List.map ((,) listEId))
+    -- 4. Keep those programs that do not crash.
+    -- 5. Keep those programs that result in one more shape in the output.
     |> List.filter
         (\(listEId, newProgram) ->
           case runAndResolve model newProgram of
@@ -925,7 +897,7 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
             _                               -> False
         )
   in
-  -- 5. Finally, use list the others do not depend on.
+  -- 6. Finally, use list the others do not depend on.
   let (listEIds, _) = List.unzip listEIdWithPossiblePrograms in
   let grossDependencies = StaticAnalysis.grossDependencies program in
   let (_, bestProgram) =

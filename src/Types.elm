@@ -989,6 +989,9 @@ synthesizeType typeInfo typeEnv e =
     EParens _ e1 _ ->
       propagateResult <| synthesizeType typeInfo typeEnv e1
 
+    EHole _ v ->
+      { result = Nothing, typeInfo = typeInfo }
+
 -- TODO need to instantiateTypes of arguments, as in tsAppPoly
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
   let checkArgs argsAndTypes retType =

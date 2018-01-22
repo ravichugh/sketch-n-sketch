@@ -49,6 +49,7 @@ nodeCount exp =
     EColonType _ e1 _ t _   -> 1 + typeNodeCount t + nodeCount e1
     ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
     EParens _ e1 _          -> 1 + nodeCount e1
+    EHole _ _               -> 1
 
 
 -- O(n); for clone detection
@@ -93,6 +94,7 @@ subExpsOfSizeAtLeast_ min exp =
         EColonType _ e1 _ t _   -> 1 + typeNodeCount t
         ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t
         EParens _ _ _           -> 1
+        EHole _ _               -> 1
     in
     if largeSubExps /= [] then
       Debug.crash "LangTools.thisSizeWithoutChildren bug"
@@ -625,6 +627,7 @@ simpleExpNameWithDefault default exp =
     EBase _ (EString _ _) -> "string"
     EBase _ (EBool _)     -> "bool"
     EFun _ _ _ _          -> "func"
+    EHole _ _             -> "hole"
     _                     -> default
 
 -- Suggest a name for the expression at eid in program
@@ -1261,6 +1264,13 @@ expToCaseScrutinee exp =
   case exp.val.e__ of
     ECase _ scrutinee _ _ -> scrutinee
     _                     -> Debug.crash <| "LangTools.expToScrutinee exp is not an ECase: " ++ unparseWithIds exp
+
+
+expToMaybeHoleVal : Exp -> Maybe Val
+expToMaybeHoleVal exp =
+  case exp.val.e__ of
+    EHole _ maybeVal -> maybeVal
+    _                -> Nothing
 
 
 -- This is a rather generous definition of literal.
@@ -2180,6 +2190,8 @@ numericLetBoundIdentifiers program =
       EColonType _ e _ _ _      -> recurse e
       ETypeAlias _ _ _ body _   -> recurse body
       EParens _ e _             -> recurse e
+      EHole _ Nothing           -> False
+      EHole _ (Just val)        -> valIsNum val
   in
   let expBindings = allSimplyResolvableLetBindings program in
   let findAllNumericIdents numericIdents =
@@ -2237,7 +2249,6 @@ transformVarsUntilBound subst exp =
       transformVarsUntilBound newSubst e
   in
   case exp.val.e__ of
-    -- EVal _                      -> exp
     EConst _ _ _ _              -> exp
     EBase _ _                   -> exp
     EVar _ ident                ->
@@ -2285,8 +2296,7 @@ transformVarsUntilBound subst exp =
     EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
     ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
     EParens ws1 e ws2               -> replaceE__ exp (EParens ws1 (recurse e) ws2)
-
-    -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
+    EHole _ _                       -> exp
 
 
 -- Find EVars using the given name, until name is rebound.
@@ -2386,8 +2396,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     EColonType _ e _ tipe _   -> ret <| recurse e
     ETypeAlias _ pat tipe e _ -> ret <| recurse e
     EParens _ e _             -> ret <| recurse e
-
-    -- EDict _                   -> Debug.crash "LangTools.visibleIdentifiersAtEIds_: shouldn't have an EDict in given expression"
+    EHole _ _                 -> ret Set.empty
 
 
 assignUniqueNames : Exp -> (Exp, Dict Ident Ident)
@@ -2594,7 +2603,7 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       , newNameToOldName
       )
 
-    -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
+    EHole _ _ -> leafUnchanged
 
 
 -- Compute the PathedPatternId that assigned the binding referenced by varExp
@@ -2890,6 +2899,7 @@ expEnvAt_ exp targetEId =
       EColonType _ e _ tipe _    -> recurse e
       ETypeAlias _ pat tipe e _  -> recurse e
       EParens _ e _              -> recurse e
+      EHole _ _                  -> Nothing
 
 --------------------------------------------------------------------------------
 

@@ -1800,6 +1800,14 @@ mergeExpressions eFirst eRest =
           (\(e_,l) -> return (EParens ws1 e_ ws2) l)
           (mergeExpressions e es)
 
+    EHole ws mv ->
+      let match eNext = case eNext.val.e__ of
+        EHole _ mvNext -> Just mvNext
+        _              -> Nothing
+      in
+      matchAllAndBind match eRest <| \maybeVals ->
+        if List.all ((==) mv) maybeVals then return eFirst.val.e__ [] else Nothing
+
 matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
 matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))
 
