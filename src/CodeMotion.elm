@@ -38,9 +38,9 @@ import Sync
 import Syntax exposing (Syntax)
 import Utils
 
-import Dict
+import Dict exposing (Dict)
 import Regex
-import Set
+import Set exposing (Set)
 
 type alias PatBoundExp = (Pat, Exp)
 
@@ -837,13 +837,13 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
 -- TODO: verify this is correct and simplify the below if so.
 makeResult
     :  String
-    -> Dict.Dict String Ident
+    -> Dict String Ident
     -> List ( String, Ident, Ident )
     -> List Ident
     -> List Ident
     -> List Ident
     -> List EId
-    -> Dict.Dict EId (Maybe PId)
+    -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
     -> SynthesisResult
@@ -927,12 +927,12 @@ makeResult
 
 tryResolvingProblemsAfterTransform
     :  String
-    -> Dict.Dict String Ident
+    -> Dict String Ident
     -> Maybe EId
     -> (String, String)
-    -> Set.Set Ident
+    -> Set Ident
     -> List EId
-    -> Dict.Dict EId (Maybe PId)
+    -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
     -> List SynthesisResult
@@ -961,12 +961,12 @@ tryResolvingProblemsAfterTransform
 
 tryResolvingProblemsAfterTransformNoTwiddling
     :  String
-    -> Dict.Dict String Ident
+    -> Dict String Ident
     -> Maybe EId
     -> (String, String)
-    -> Set.Set Ident
+    -> Set Ident
     -> List EId
-    -> Dict.Dict EId (Maybe PId)
+    -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
     -> List SynthesisResult
@@ -995,12 +995,12 @@ tryResolvingProblemsAfterTransformNoTwiddling
 
 tryResolvingProblemsAfterTransform_
     :  String
-    -> Dict.Dict String Ident
+    -> Dict String Ident
     -> Maybe EId
     -> (String, String)
-    -> Set.Set Ident
+    -> Set Ident
     -> List EId
-    -> Dict.Dict EId (Maybe PId)
+    -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
     -> Bool
@@ -2633,7 +2633,7 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
 -- If EId already bound to a variable, either do nothing, or rename, or move the binding, as needed.
 -- If EId is not bound to a variable, try to lift it and any dependencies.
 -- Returns Maybe (newName, insertedVarEId, program)
-makeEIdVisibleToEIds : Exp -> EId -> Set.Set EId -> Maybe (Ident, EId, Exp)
+makeEIdVisibleToEIds : Exp -> EId -> Set EId -> Maybe (Ident, EId, Exp)
 makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
   let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
   let allViewerEIds = Set.insert mobileEId viewerEIds in
@@ -2699,7 +2699,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
 
 -- If you need to force the binding to be copied. makeEIdVisibleToEIds calls this as a last resort.
 -- Returns Maybe (newName, insertedVarEId, program)
-makeEIdVisibleToEIdsByInsertingNewBinding : Exp -> EId -> Set.Set EId -> Maybe (Ident, EId, Exp)
+makeEIdVisibleToEIdsByInsertingNewBinding : Exp -> EId -> Set EId -> Maybe (Ident, EId, Exp)
 makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
   let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
   let allViewerEIds = Set.insert mobileEId viewerEIds in

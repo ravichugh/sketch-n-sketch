@@ -617,7 +617,7 @@ simpleExpName exp =
   simpleExpNameWithDefault defaultExpName exp
 
 simpleExpNameWithDefault default exp =
-  case exp.val.e__ of
+  case (expValueExp exp).val.e__ of
     EConst _ _ _ _        -> "num"
     EVar _ ident          -> ident
     EApp _ funE _ _       -> expToMaybeIdent funE |> Maybe.withDefault default

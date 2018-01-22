@@ -240,7 +240,7 @@ type Val_
   | VList (List Val)
   | VDict VDict_
 
-type alias VDict_ = Dict.Dict (String, String) Val
+type alias VDict_ = Dict (String, String) Val
 
 type alias NumTr = (Num, Trace)
 
@@ -999,7 +999,7 @@ replaceExpNodeE__ByEId eid newE__ root =
   applyESubst esubst root
 
 -- Like applyESubst, but you give Exp not E__
-replaceExpNodes : (Dict.Dict EId Exp) -> Exp -> Exp
+replaceExpNodes : (Dict EId Exp) -> Exp -> Exp
 replaceExpNodes eidToNewNode root =
   mapExpTopDown -- top down to handle replacements that are subtrees of each other; a naive eidToNewNode could however make this loop forever
     (\exp ->
@@ -1009,7 +1009,7 @@ replaceExpNodes eidToNewNode root =
     )
     root
 
-replaceExpNodesPreservingPrecedingWhitespace : (Dict.Dict EId Exp) -> Exp -> Exp
+replaceExpNodesPreservingPrecedingWhitespace : (Dict EId Exp) -> Exp -> Exp
 replaceExpNodesPreservingPrecedingWhitespace eidToNewNode root =
   mapExpTopDown -- top down to handle replacements that are subtrees of each other; a naive eidToNewNode could however make this loop forever
     (\exp ->
@@ -1288,16 +1288,16 @@ valIsNum v = case v.v_ of
 -- Location Substitutions
 -- Expression Substitutions
 
-type alias Subst = Dict.Dict LocId Num
-type alias SubstPlus = Dict.Dict LocId (WithInfo Num)
-type alias SubstMaybeNum = Dict.Dict LocId (Maybe Num)
+type alias Subst = Dict LocId Num
+type alias SubstPlus = Dict LocId (WithInfo Num)
+type alias SubstMaybeNum = Dict LocId (Maybe Num)
 
-type alias ESubst = Dict.Dict EId Exp__
+type alias ESubst = Dict EId Exp__
 
 type alias TwoSubsts = { lsubst : Subst, esubst : ESubst }
 
 -- For unparsing traces, possibily inserting variables: d
-type alias SubstStr = Dict.Dict LocId String
+type alias SubstStr = Dict LocId String
 
 applyLocSubst : Subst -> Exp -> Exp
 applyLocSubst s = applySubst { lsubst = s, esubst = Dict.empty }
@@ -1345,7 +1345,7 @@ applyESubstPreservingPrecedingWhitespace esubst exp =
 
 {-
 -- for now, LocId instead of EId
-type alias ESubst = Dict.Dict LocId Exp__
+type alias ESubst = Dict LocId Exp__
 
 applyESubst : ESubst -> Exp -> Exp
 applyESubst esubst =
@@ -1837,25 +1837,28 @@ precedingWhitespacePat pat =
 
 precedingWhitespaceExp__ : Exp__ -> String
 precedingWhitespaceExp__ e__ =
-  .val <|
-    case e__ of
-      EBase      ws v                     -> ws
-      EConst     ws n l wd                -> ws
-      EVar       ws x                     -> ws
-      EFun       ws1 ps e1 ws2            -> ws1
-      EApp       ws1 e1 es ws2            -> ws1
-      EList      ws1 es ws2 rest ws3      -> ws1
-      EOp        ws1 op es ws2            -> ws1
-      EIf        ws1 e1 e2 e3 ws2         -> ws1
-      ELet       ws1 kind rec p e1 e2 ws2 -> ws1
-      ECase      ws1 e1 bs ws2            -> ws1
-      ETypeCase  ws1 e1 bs ws2            -> ws1
-      EComment   ws s e1                  -> ws
-      EOption    ws1 s1 ws2 s2 e1         -> ws1
-      ETyp       ws1 pat tipe e ws2       -> ws1
-      EColonType ws1 e ws2 tipe ws3       -> ws1
-      ETypeAlias ws1 pat tipe e ws2       -> ws1
-      EParens    ws _ _                   -> ws
+  (precedingWhitespaceWithInfoExp__ e__).val
+
+precedingWhitespaceWithInfoExp__ : Exp__ -> WS
+precedingWhitespaceWithInfoExp__ e__ =
+  case e__ of
+    EBase      ws v                     -> ws
+    EConst     ws n l wd                -> ws
+    EVar       ws x                     -> ws
+    EFun       ws1 ps e1 ws2            -> ws1
+    EApp       ws1 e1 es ws2            -> ws1
+    EList      ws1 es ws2 rest ws3      -> ws1
+    EOp        ws1 op es ws2            -> ws1
+    EIf        ws1 e1 e2 e3 ws2         -> ws1
+    ELet       ws1 kind rec p e1 e2 ws2 -> ws1
+    ECase      ws1 e1 bs ws2            -> ws1
+    ETypeCase  ws1 e1 bs ws2            -> ws1
+    EComment   ws s e1                  -> ws
+    EOption    ws1 s1 ws2 s2 e1         -> ws1
+    ETyp       ws1 pat tipe e ws2       -> ws1
+    EColonType ws1 e ws2 tipe ws3       -> ws1
+    ETypeAlias ws1 pat tipe e ws2       -> ws1
+    EParens    ws1 e ws2                -> ws1
 
 
 allWhitespaces : Exp -> List String
@@ -1939,12 +1942,12 @@ addPrecedingWhitespace newWs exp =
 
 replacePrecedingWhitespace : String -> Exp -> Exp
 replacePrecedingWhitespace newWs exp =
-  mapPrecedingWhitespace (\oldWs -> newWs) exp
+  mapPrecedingWhitespace (\_ -> newWs) exp
 
 
 replacePrecedingWhitespacePat : String -> Pat -> Pat
 replacePrecedingWhitespacePat newWs pat =
-  mapPrecedingWhitespacePat (\oldWs -> newWs) pat
+  mapPrecedingWhitespacePat (\_ -> newWs) pat
 
 
 copyPrecedingWhitespace : Exp -> Exp -> Exp
@@ -2345,41 +2348,8 @@ wsBefore : CodeObject -> WS
 wsBefore codeObject =
   case codeObject of
     E e ->
-      case e.val.e__ of
-        EConst ws _ _ _ ->
-          ws
-        EBase ws _ ->
-          ws
-        EVar ws _ ->
-          ws
-        EFun ws _ _ _ ->
-          ws
-        EApp ws _ _ _ ->
-          ws
-        EOp ws _ _ _ ->
-          ws
-        EList ws _ _ _ _ ->
-          ws
-        EIf ws _ _ _ _ ->
-          ws
-        ECase ws _ _ _ ->
-          ws
-        ETypeCase ws _ _ _ ->
-          ws
-        ELet ws _ _ _ _ _ _ ->
-          ws
-        EComment ws _ _ ->
-          ws
-        EOption ws _ _ _ _ ->
-          ws
-        ETyp ws _ _ _ _ ->
-          ws
-        EColonType ws _ _ _ _ ->
-          ws
-        ETypeAlias ws _ _ _ _ ->
-          ws
-        EParens ws _ _ ->
-          ws
+      precedingWhitespaceWithInfoExp__ e.val.e__
+
     P _ p ->
       case p.val.p__ of
         PVar ws _ _ ->

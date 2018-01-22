@@ -725,8 +725,8 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs
              -- if needed, could split a multi-binding into smaller chunks
              let (_,p,_,_) = beforeDef in
              let vars = varsOfPat p in
-             let someVarAppearsIn e = List.any (\x -> occursFreeIn x e) vars in
-             let noVarAppearsIn e = List.all (\x -> not (occursFreeIn x e)) vars in
+             let someVarAppearsIn e = let free = freeIdentifiers e in List.any (\ident -> Set.member ident free) vars in
+             let noVarAppearsIn e   = let free = freeIdentifiers e in List.all (\ident -> not (Set.member ident free)) vars in
              if List.any someVarAppearsIn (getExps (plucked ++ acc1)) &&
                 List.all noVarAppearsIn (getExps (after ++ acc2))
              then (beforeDef :: acc1, acc2)
@@ -812,18 +812,6 @@ offsetXY program base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
         Nothing  -> eSubst
     _ ->
       eSubst
-
--- TODO for now, just checking occursIn
-occursFreeIn : Ident -> Exp -> Bool
-occursFreeIn x e =
-  let vars =
-    foldExpViaE__ (\e__ acc ->
-      case e__ of
-        EVar _ x -> Set.insert x acc
-        _        -> acc
-      ) Set.empty e
-  in
-  Set.member x vars
 
 
 --------------------------------------------------------------------------------
