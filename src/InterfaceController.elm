@@ -277,8 +277,8 @@ rewriteInnerMostExpToMain exp =
 --------------------------------------------------------------------------------
 -- Mouse Events
 
-onMouseClick click old maybeClickable =
-  let (isOnCanvas, (canvasX, canvasY) as pointOnCanvas) = clickToCanvasPoint old click in
+onMouseClick clickPos old maybeClickable =
+  let (isOnCanvas, (canvasX, canvasY) as pointOnCanvas) = clickToCanvasPoint old clickPos in
   case (old.tool, old.mouseMode) of
 
     -- Inactive zone

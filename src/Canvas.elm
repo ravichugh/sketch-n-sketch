@@ -86,11 +86,15 @@ msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
       then { old | mouseMode = dragMode }
       else { old | mouseMode = dragMode, selectedShapes = Set.empty, selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
 
-    (_ , MouseNothing) ->
-      { old | mouseMode = MouseDrawNew NoPointsYet -- No points until drag begins, or (for paths/polys) mouse-up
-            , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+    (_ , MouseNothing) -> startDrawing old
+    _                  -> old
 
-    _ -> old
+
+startDrawing : Model -> Model
+startDrawing old =
+  { old | mouseMode = MouseDrawNew NoPointsYet -- No points until drag begins, or (for paths/polys) mouse-up
+        , selectedShapes = Set.empty
+        , selectedBlobs = Dict.empty }
 
 
 --------------------------------------------------------------------------------
@@ -1342,7 +1346,8 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
         ]
       else
         [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->
-            { model | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xVal yVal)) } ]
+            let newModel = if model.mouseMode == MouseNothing then startDrawing model else model in
+            { newModel | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xVal yVal)) } ]
     in
     svgXYDot model (x, y) dotFill isVisible extraAttrs
   in

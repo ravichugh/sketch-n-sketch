@@ -1859,6 +1859,7 @@ precedingWhitespaceWithInfoExp__ e__ =
     EColonType ws1 e ws2 tipe ws3       -> ws1
     ETypeAlias ws1 pat tipe e ws2       -> ws1
     EParens    ws1 e ws2                -> ws1
+    EHole      ws mv                    -> ws
 
 
 allWhitespaces : Exp -> List String
