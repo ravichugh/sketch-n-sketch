@@ -188,18 +188,12 @@ all_tests = init_state
               (tFun dws1 [tPListCons dws2 [tPVar dws3 "x"] dws1 (tPVar dws4 "y") dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 2)] dws] dws6) (tVList [tVal 2]) (tVList [tVal 3])
                     [] (tApp dws5
               (tFun dws1 [tPListCons dws2 [tPVar dws3 "x"] dws1 (tPVar dws4 "y") dws1] (tVar dws6 "y") dws3) [tList dws [(tConst dws 1), (tConst dws 3)] dws] dws6)
-      {--
+
   |> test "update app (\\x y -> x) 1 2"
-        |> assertEqualU
-          (update [] (tApp dws5
-            (tFun dws1 [tPVar dws4 "x", tPVar dws4 "y"] (tVar dws6 "x") dws3) [tConst dws 1, tConst dws 2] dws6) (tVal 1) (tVal 3))
-          (Ok ([], tApp dws5
-            (tFun dws1 [tPVar dws4 "x", tPVar dws4 "y"] (tVar dws6 "x") dws3) [tConst dws 3, tConst dws 2] dws6))
+  |> updateElmAssert [] "(\\x y -> x) 1 2" "3"
+                     [] "(\\x y -> x) 3 2"
   |> test "update app (\\x y -> y) 1 2"
-        |> assertEqualU
-          (update [] (tApp dws5
-            (tFun dws1 [tPVar dws4 "x", tPVar dws4 "y"] (tVar dws6 "x") dws3) [tConst dws 1, tConst dws 2] dws6) (tVal 2) (tVal 3))
-          (Ok ([], tApp dws5
-            (tFun dws1 [tPVar dws4 "x", tPVar dws4 "y"] (tVar dws6 "x") dws3) [tConst dws 1, tConst dws 3] dws6))
-   --}
+  |> updateElmAssert
+    [] "(\\x y -> y) 1 2" "3"
+    [] "(\\x y -> y) 1 3"
   |> summary
