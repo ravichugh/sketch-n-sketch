@@ -243,6 +243,9 @@ extraExpsDiff baseExp otherExp =
     (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
     (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
     (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (EParens ws1A e1A ws2A,                EParens ws1B e1B ws2B)                -> extraExpsDiff e1A e1B
+    (EParens ws1A e1A ws2A,                _)                                    -> extraExpsDiff e1A otherExp
+    (_,                                    EParens ws1B e1B ws2B)                -> extraExpsDiff baseExp e1B
     _                                                                            -> [otherExp]
 
 
