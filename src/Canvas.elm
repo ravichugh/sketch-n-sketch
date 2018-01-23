@@ -217,17 +217,17 @@ dragZoneEvents id shapeKind realZone =
 
 drawNewShape model =
   case (model.tool, model.mouseMode) of
-    (Line _,        MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewLine model pt2 pt1
-    (Rect _,        MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewEllipse model.keysDown pt2 pt1
-    (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))                      -> Draw.drawNewPolygon ptLast pts
-    (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))                      -> Draw.drawNewPath ptLast pts
-    (PointOrOffset, MouseDrawNew (Offset1DFromExisting pt2 snap ((x1,_),(y1,_)))) -> drawNewPointAndOffset model (snap /= NoSnap) pt2 (round x1, round y1)
-    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))                   -> drawNewPointAndOffset model False pt2 pt1
-    (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewLine model pt2 pt1
-    (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Text,          MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
-    _                                                                             -> []
+    (Line _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewLine model pt2 pt1
+    (Rect _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewEllipse model.keysDown pt2 pt1
+    (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))                     -> Draw.drawNewPolygon ptLast pts
+    (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))                     -> Draw.drawNewPath ptLast pts
+    (PointOrOffset, MouseDrawNew (Offset1DFromExisting pt2 snap (x1Val, y1Val))) -> drawNewPointAndOffset model (snap /= NoSnap) pt2 (round (valToNum x1Val), round (valToNum y1Val))
+    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))                  -> drawNewPointAndOffset model False pt2 pt1
+    (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewLine model pt2 pt1
+    (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Text,          MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    _                                                                            -> []
 
 
 drawNewPointAndOffset model shouldHighlight (x2, y2) (x1, y1) =
@@ -1342,7 +1342,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
         ]
       else if model.tool == PointOrOffset then
         [ onMouseDown <| Msg "Begin Offset From Point..." <| \model ->
-            { model | mouseMode = MouseDrawNew (Offset1DFromExisting (x, y) NoSnap (xNumTr, yNumTr)) }
+            { model | mouseMode = MouseDrawNew (Offset1DFromExisting (x, y) NoSnap (xVal, yVal)) }
         ]
       else
         [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->

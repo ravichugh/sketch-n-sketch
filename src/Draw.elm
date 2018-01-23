@@ -12,7 +12,7 @@ module Draw exposing
   , addRawCircle , addRawOval , addStretchyCircle , addStretchyOval
   , addPath , addPolygon
   , addLambda
-  , addPoint , addOffsetAndMaybePoint , horizontalVerticalSnap
+  , addPoint , addOffset , addOffsetAndPoint , horizontalVerticalSnap
   , addTextBox
   , lambdaToolOptionsOf
   )
@@ -24,7 +24,9 @@ import Blobs exposing (..)
 import InterfaceModel exposing (..)
 import FastParser
 import LangTools
+import LangUnparser
 import StaticAnalysis
+import Provenance
 import Utils
 import Either exposing (..)
 import Keys
@@ -467,87 +469,57 @@ horizontalVerticalSnap (x1, y1) (x2, y2) =
     else (Y, Negative, y1 - y2)
 
 
-addOffsetAndMaybePoint : Model -> Snap -> (NumTr, NumTr) -> (Int, Int) -> Model
-addOffsetAndMaybePoint old snap ((x1, x1Tr), (y1, y1Tr)) (x2, y2) =
+addOffsetAndPoint : Model -> Snap -> (Num, Num) -> (Int, Int) -> Model
+addOffsetAndPoint old snap (x1, y1) (x2, y2) =
+  addOffsetAndMaybePoint old snap (x1, y1) Nothing (x2, y2)
+
+
+addOffset : Model -> Snap -> (Val, Val) -> (Int, Int) -> Model
+addOffset old snap (x1Val, y1Val) (x2, y2) =
+  addOffsetAndMaybePoint old snap (valToNum x1Val, valToNum y1Val) (Just (x1Val, y1Val)) (x2, y2)
+
+
+addOffsetAndMaybePoint : Model -> Snap -> (Num, Num) -> Maybe (Val, Val) -> (Int, Int) -> Model
+addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let originalProgram = old.inputExp in
   let (axis, sign, offsetAmount) = horizontalVerticalSnap (round x1, round y1) (x2, y2) in
   let plusOrMinus = if sign == Positive then Plus else Minus in
-  let offsetFromExistingTrace trace =
-    case trace of
-      TrLoc (locId, _, offsetFromName) ->
-        let maybeOffsetBaseLet =
-          originalProgram
-          |> findFirstNode
-              (\e ->
-                case e.val.e__ of
-                  ELet ws1 letKind isRec pat boundExp body ws2 ->
-                    let bindings = LangTools.tryMatchExpReturningList pat boundExp in
-                    List.any (\(boundIdent, _) -> boundIdent == offsetFromName) bindings
-
-                  _ ->
-                    False
-              )
-        in
-        case maybeOffsetBaseLet of
-          Nothing -> old
-          Just offsetBaseLet ->
-            let (ws1, letKind, isRec, pat, boundExp, body, ws2) = LangTools.expToLetParts offsetBaseLet in
-            let newProgram =
-              let offsetName = LangTools.nonCollidingName (offsetFromName ++ "Offset") 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp body).val.eid) in
-              let insertOffset offsetAmountExp insertBeforeEId originalProgram =
-                let offsetExp  = (eOp plusOrMinus [eVar offsetFromName, offsetAmountExp]) in
-                originalProgram
-                |> mapExpNode insertBeforeEId (\e -> LangTools.newLetFancyWhitespace -1 False (pVar offsetName) offsetExp e originalProgram)
-              in
-              case snap of
-                NoSnap ->
-                  insertOffset (eConstDummyLoc (toFloat offsetAmount)) body.val.eid originalProgram
-
-                -- SnapEId snapToEId ->
-                SnapVal snapVal ->
-                  let snapToEId = valEId snapVal in -- A little simplisitic for now.
-                  let possibleInsertLocations =
-                    [ Just body.val.eid
-                    , LangTools.expToMaybeLetBody body |> Maybe.map (.val >> .eid)
-                    ] |> Utils.filterJusts
-                  in
-                  let maybeInsertBeforeEIdAndSnapIdentAndProgramWithSnapVisible =
-                    -- Need to try both in case one of these eids is actually a definition that we need to move.
-                    possibleInsertLocations
-                    |> Utils.mapFirstSuccess
-                        (\viewerEId -> CodeMotion.makeEIdVisibleToEIds originalProgram snapToEId (Set.singleton viewerEId) |> Maybe.map ((,) viewerEId))
-                  in
-                  case maybeInsertBeforeEIdAndSnapIdentAndProgramWithSnapVisible of
-                    Nothing ->
-                      let _ = Debug.log "couldn't reconfigure program to enforce snap" () in
-                      originalProgram
-
-                    Just (insertBeforeEId, (snapIdent, _, programWithSnapVisible)) ->
-                      insertOffset (eVar snapIdent) insertBeforeEId programWithSnapVisible
-            in
-            { old | code = Syntax.unparser old.syntax newProgram }
-
-      _ ->
-        old
+  let offsetFromExisting baseVal =
+    let insertBeforeEId = (LangTools.lastTopLevelExp originalProgram).val.eid in
+    let offsetSuggestedName = Provenance.nameForVal originalProgram baseVal in
+    let offsetName = LangTools.nonCollidingName (offsetSuggestedName ++ "Offset") 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
+    let offsetAmountExp =
+      case snap of
+        NoSnap          -> eConstDummyLoc (toFloat offsetAmount)
+        SnapVal snapVal -> eHoleVal snapVal
+    in
+    let offsetExp = eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp] in
+    let newProgram =
+      originalProgram
+      |> mapExpNode insertBeforeEId (\lastTopLevelExp -> LangTools.newLetFancyWhitespace -1 False (pVar offsetName) offsetExp lastTopLevelExp originalProgram)
+      |> CodeMotion.resolveValueHoles old.syncOptions
+      |> List.head
+      |> Maybe.withDefault originalProgram
+    in
+    { old | code = Syntax.unparser old.syntax newProgram }
   in
-  if axis == X && x1Tr /= dummyTrace then
-    offsetFromExistingTrace x1Tr
-  else if axis == Y && y1Tr /= dummyTrace then
-    offsetFromExistingTrace y1Tr
-  else
-    case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
-      [pointName, xName, yName, offsetXName, offsetYName] ->
-        let
-          (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
-          programWithOffset =
-            LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> FastParser.freshen
-          programWithOffsetAndPoint =
-            LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TNamed space1 "Point"))
-        in
-        { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
+  case (axis, maybeExistingPoint) of
+    (X, Just (x1Val, _)) -> offsetFromExisting x1Val
+    (Y, Just (_, y1Val)) -> offsetFromExisting y1Val
+    _                    ->
+      case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
+        [pointName, xName, yName, offsetXName, offsetYName] ->
+          let
+            (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
+            programWithOffset =
+              LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> FastParser.freshen
+            programWithOffsetAndPoint =
+              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TNamed space1 "Point"))
+          in
+          { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 
-      _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addOffsetAndMaybePoint"
+        _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addOffsetAndMaybePoint"
 
 
 --------------------------------------------------------------------------------

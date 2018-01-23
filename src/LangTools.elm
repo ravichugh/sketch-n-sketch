@@ -351,7 +351,7 @@ maybeTopLevelChild exp =
     ETyp _ _ _ body _       -> Just body
     EColonType _ body _ _ _ -> Just body
     ETypeAlias _ _ _ body _ -> Just body
-    ELet _ Def _ _ _ body _ -> Just body
+    ELet _ _ _ _ _ body _   -> Just body
     EComment _ _ e          -> Just e
     EOption _ _ _ _ e       -> Just e
     _                       -> Nothing
@@ -362,6 +362,10 @@ topLevelExps program =
   case maybeTopLevelChild program of
     Just child -> program::(topLevelExps child)
     Nothing    -> [program]
+
+
+lastTopLevelExp : Exp -> Exp
+lastTopLevelExp exp = maybeTopLevelChild exp |> Maybe.map lastTopLevelExp |> Maybe.withDefault exp
 
 
 lastExp : Exp -> Exp

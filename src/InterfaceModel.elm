@@ -300,7 +300,7 @@ type ShapeBeingDrawn
   | TwoPoints (KeysDown, (Int, Int)) (KeysDown, (Int, Int)) -- KeysDown should probably be refactored out
   | PolyPoints (List PointWithSnap)
   | PathPoints (List (KeysDown, (Int, Int))) -- KeysDown should probably be replaced with a more semantic represenation of point type
-  | Offset1DFromExisting (Int, Int) Snap (NumTr, NumTr) -- Snap is separate here because it is unidimensional
+  | Offset1DFromExisting (Int, Int) Snap (Val, Val) -- Snap is separate here because it is unidimensional
 
 
 -- type alias ShowZones = Bool

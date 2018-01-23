@@ -508,9 +508,9 @@ onMouseDrag lastPosition newPosition old =
           let pointOnCanvas = (old.keysDown, (mx, my)) in
           { old | mouseMode = MouseDrawNew (TwoPoints pointOnCanvas point1) }
 
-        (_, Offset1DFromExisting _ _ basePoint) ->
+        (_, Offset1DFromExisting _ _ ((x0Val, y0Val) as basePoint)) ->
           let ((effectiveMX, effectiveMY), snap) =
-            let ((x0,_), (y0,_)) = basePoint in
+            let (x0, y0) = (valToNum x0Val, valToNum y0Val) in
             let (dxRaw, dyRaw) = (mx - round x0, my - round y0) in
             -- Hmm, shoudn't assume this here. Yolo.
             let (axis, sign, amount) = Draw.horizontalVerticalSnap (0, 0) (dxRaw, dyRaw) in
@@ -595,8 +595,8 @@ onMouseUp old =
 
         (Text, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addTextBox old pt2 pt1
 
-        (PointOrOffset, TwoPoints (_, pt2) (_, (x1,y1)), _)         -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old NoSnap ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) pt2
-        (PointOrOffset, Offset1DFromExisting pt2 snap basePoint, _) -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old snap basePoint pt2
+        (PointOrOffset, TwoPoints (_, pt2) (_, (x1,y1)), _)         -> upstateRun <| resetMouseMode <| Draw.addOffsetAndPoint old NoSnap (toFloat x1, toFloat y1) pt2
+        (PointOrOffset, Offset1DFromExisting pt2 snap basePoint, _) -> upstateRun <| resetMouseMode <| Draw.addOffset old snap basePoint pt2
 
         (_, NoPointsYet, _)     -> switchToCursorTool old
 
