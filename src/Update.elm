@@ -7,6 +7,7 @@ import Eval exposing (doEval)
 import Utils
 import Syntax
 import Results exposing (Results, ok1, oks, errs)
+import MissingNumberMethods exposing (..)
 
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Val -> Results String (Env, Exp)
@@ -111,10 +112,174 @@ update env e oldVal newVal =
                 )
             _ -> errs <| "Expected boolean condition, got " ++ toString v_
         Err s -> errs s
+
     EParens ws0 eInside ws1 ->
       update env eInside oldVal newVal
       |> Results.map (\(env, eReturn) -> (env, replaceE__ e <| EParens ws0 eReturn ws1))
+
+    EOp sp1 op opArgs sp2 ->
+      case (op.val, opArgs) of
+        (NoWidgets, [arg]) -> update env arg oldVal newVal |> Results.map (\(newEnv, newArg) -> (newEnv, replaceE__ e <| EOp sp1 op [newArg] sp2))
+        _ ->
+          case Utils.projOk <| List.map (doEval Syntax.Elm env) opArgs of
+            Err msg -> errs msg
+            Ok argsEvaled ->
+              let ((vs, wss), envs) = Tuple.mapFirst List.unzip <| List.unzip argsEvaled in
+              let args = List.map .v_ vs in
+              let rebuildOp newOpArgs =
+                newOpArgs
+                |> Results.andThen (\newArgs ->
+                     updateList env opArgs vs newArgs
+                   )
+                |> Results.map (\(newEnv, newOpArgs) ->
+                  (newEnv, replaceE__ e <| EOp sp1 op newOpArgs sp2)) in
+              case op.val of
+                Plus    -> case args of
+                  [VBase (VString s1), VBase (VString s2)] -> errs "String concat not implemented" --VBase (VString (s1 ++ s2)) |> addProvenanceOk
+                  _                                        -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Minus     -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Mult      -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Div       -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Mod       -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Pow       -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                ArcTan2   -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Pi         -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                {--Lt        -> case args of
+                  [VConst _ (i,it), VConst _ (j,jt)] -> VBase (VBool (i < j)) |> addProvenanceOk
+                  _                                  -> error ()
+                Eq        -> case args of
+                  [VConst _ (i,it), VConst _ (j,jt)]       -> VBase (VBool (i == j)) |> addProvenanceOk
+                  [VBase (VString s1), VBase (VString s2)] -> VBase (VBool (s1 == s2)) |> addProvenanceOk
+                  [_, _]                                   -> VBase (VBool False) |> addProvenanceOk -- polymorphic inequality, added for Prelude.addExtras
+                  _                                        -> error ()
+                DictEmpty  -> nullaryOp args (VDict Dict.empty)
+                DictInsert -> case vs of
+                  [vkey, val, {v_}] -> case v_ of
+                    VDict d -> valToDictKey syntax bt vkey.v_ |> Result.map (\dkey -> VDict (Dict.insert dkey val d) |> addProvenance)
+                    _       -> error()
+                  _                 -> error ()
+                DictGet    -> case args of
+                  [key, VDict d] -> valToDictKey syntax bt key |> Result.map (\dkey -> Utils.getWithDefault dkey (VBase VNull |> addProvenance) d)
+                  _              -> error ()
+                DictRemove -> case args of
+                  [key, VDict d] -> valToDictKey syntax bt key |> Result.map (\dkey -> VDict (Dict.remove dkey d) |> addProvenance)
+                  _              -> error ()
+                --}
+                Cos        -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Sin        -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                ArcCos     -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                ArcSin     -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Floor      -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Ceil       -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Round      -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Sqrt       -> maybeUpdateMathOp op vs oldVal newVal |> rebuildOp
+                Explode    -> Debug.crash "Not implemented: update Explode "
+                DebugLog   -> Debug.crash "Not implemented: update DebugLog "
+                ToStr      ->
+                  case newVal.v_ of
+                    VBase (VString s) ->
+                      case Syntax.parser Syntax.Elm s of
+                        Err msg -> errs <| "Could not parse new output value '"++s++"' for ToStr expression " ++ toString msg
+                        Ok parsed ->
+                          case doEval Syntax.Elm [] parsed of
+                            Err msg -> errs msg
+                            Ok ((v, _), _) ->
+                              case (opArgs, vs) of
+                                ([opArg], [arg]) -> update env opArg arg v
+                                  |> Results.map (\(env, newOpArg) -> (env, replaceE__ e <| EOp sp1 op [newOpArg] sp2))
+                                e -> errs <| "[internal error] Wrong number of arguments in update: " ++ toString e
+                    e -> errs <| "Expected string, got " ++ toString e
+                _ -> errs <| "Not yet supported operation update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
     _ -> errs <| "Non-supported update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
+
+
+-- Compares the new reference with and original (which are at distance at most 2PI) and reports the relative smallest change to n
+angleUpdate: Float -> Float -> Float -> Results String (List Num)
+angleUpdate new old n =
+   let increment = new - old in
+  --Two directions are possible, we take the closest first modulo 2 PI
+   if increment <= pi && increment >= -pi then
+     ok1 [n + increment]
+   else if increment > pi then
+     ok1 [n + increment - 2*pi]
+   else
+     ok1 [n + increment + 2*pi]
+
+maybeUpdateMathOp : Op -> List Val -> Val -> Val -> Results String (List Val)
+maybeUpdateMathOp op operandVals oldOutVal newOutVal =
+  case (oldOutVal.v_, newOutVal.v_) of
+    (VConst _ (oldOut, _), VConst _ (newOut, _)) ->
+      if oldOut == newOut then ok1 operandVals else
+      let operands = operandVals
+        |> List.map (\operand ->
+            case operand.v_ of
+              VConst _ (v, _) -> Just v
+              _ -> Nothing
+            )
+        |> Utils.projJusts in
+      case operands of
+        Nothing -> errs <| "Operands do not form a list of numbers: " ++ toString operandVals
+        Just operands ->
+          let result = case (op.val, operands) of
+                (Plus,    [l,r]) -> oks [[newOut - r, r], [l, newOut - l]]
+                (Minus,   [l,r]) -> oks [[r + newOut, r], [l, l - newOut]]
+                (Mult,    [l,r]) -> oks [[l, newOut / l], [newOut / r, r]]
+                (Div,     [l,r]) -> if newOut /= 0 then oks [[r * newOut, r], [l, l / newOut]]
+                                    else ok1 [r * newOut, r]
+                (Pow,     [l,r]) -> if l < 0 && r >= 0 && floor r == ceiling r then --Powers of negative must be with integer numbers
+                                      if (floor r) % 2 == 0 then -- The result should be positive
+                                        if newOut >= 0 then ok1 [0 - newOut ** (1 / r), r]
+                                        else if newOut == -1 && l == -1 then
+                                          if r > 0 then oks [[l, r - 1], [l, r + 1]]
+                                          else ok1 [l, r + 1]
+                                        else  errs "No way to invert l^r <-- out where l < 0, r is even, out < 0 and out /= -1"
+                                      else -- r is odd, so we preserve the negative sign.
+                                        if newOut >= 0 then ok1 [newOut ** (1/r), r] else ok1 [0 - ( 0 - newOut) ** (1/r), r]
+                                    else if l >= 0 then
+                                      if newOut > 0 then oks [[newOut ** (1 / r), r], [l, logBase l newOut]]
+                                      else if floor (1 / r) == ceiling (1/r) && 1/r < 0 then oks [[0 - (-newOut) ** (1 / r), r]]
+                                      else errs "No way to invert l^r <-- out where l >= 0, out < 0 and 1/r not an integer or not < 0"
+                                    else errs "No way to invert l^r <-- out where l < 0 and r < 0 or r is not an integer"
+                (Mod,     [l,r]) -> ok1 [l + newOut - oldOut, r]
+                (ArcTan2, [l,r]) -> -- We keep the same radius but change the angle
+                                    let (radius, theta) = toPolar (l, r) in
+                                    let (newL, newR) = fromPolar (radius, theta + newOut - oldOut) in
+                                    ok1 [newL, newR]
+                (Cos,     [n])   -> let newOutClamped = clamp -1 1 newOut in
+                                    let moved = acos newOutClamped in -- value between 0 and PI
+                                    -- We stay on the same quadrant
+                                    let movedAbsolute  = -- value between 0 and 2*PI
+                                      if ((n %% (2 * pi) + 3 * pi) %% (2 * pi) - pi >= 0) then moved
+                                      else 2*pi - moved in
+                                    let original = (n %% (2 * pi) + 2 * pi) %% (2 * pi) in
+                                    angleUpdate movedAbsolute original n
+
+                (Sin,     [n])   -> let newOutClamped = clamp -1 1 newOut in
+                                    let moved = asin newOutClamped in -- value between -pi / 2 and pi / 2
+                                    -- But n might be beyond [-pi/2, pi/2] !
+                                    let movedAbsolute = -- value between -PI and PI
+                                      if ((n %% (2 * pi) + 2 * pi + pi / 2) %% (2 * pi) - pi <= 0) then moved
+                                      else if moved > 0 then pi - moved
+                                      else -pi - moved in
+                                    let original = (n %% (2 * pi) + 3 * pi) %% (2 * pi) - pi in
+                                    angleUpdate movedAbsolute original n
+                (ArcCos,  [n])   -> ok1 [cos newOut]
+                (ArcSin,  [n])   -> ok1 [sin newOut]
+                (Floor,   [n])   -> ok1 [n + newOut - oldOut]
+                (Ceil,    [n])   -> ok1 [n + newOut - oldOut]
+                (Round,   [n])   -> ok1 [n + newOut - oldOut]
+                (Sqrt,    [n])   -> ok1 [newOut * newOut]
+                (Pi,      [])    -> if newOut == pi then ok1 [] else errs <| "Pi's value is 3.14159... and cannot be changed"
+                _                -> errs <| "Not the correct number of arguments for " ++ toString op ++ "(" ++ toString operandVals ++ ")"
+          in
+          Results.map (
+            List.map2 (\original newNumber ->
+              case original.v_ of
+                VConst m0 (oldNumber, m1) -> replaceV_ original <| VConst m0 (newNumber, m1)
+                x -> Debug.crash <| "[internal error] Did not get a VConst: " ++ toString x
+            ) operandVals
+          ) result
+    _ -> errs <| "Do not know how to revert computation " ++ toString op ++ "(" ++ toString operandVals ++ ") <-- " ++ toString newOutVal
 
 updateList: Env -> List Exp -> List Val -> List Val -> Results String (Env, List Exp)
 updateList env elems origVals newOutVals =

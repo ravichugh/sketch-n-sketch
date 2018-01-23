@@ -115,7 +115,6 @@ maybeEvalMathOp op_ operands =
     (Pi,      [])    -> Just <| pi
     _                -> Nothing
 
-
 type alias Operator =
   (WS, Ident)
 

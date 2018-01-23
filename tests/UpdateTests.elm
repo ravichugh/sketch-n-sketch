@@ -196,4 +196,11 @@ all_tests = init_state
   |> updateElmAssert
     [] "(\\x y -> y) 1 2" "3"
     [] "(\\x y -> y) 1 3"
+  |> test "update if-then-else"
+  |> updateElmAssert
+    [] "if True then 1 else 2" "3"
+    [] "if True then 3 else 2"
+  |> updateElmAssert
+    [] "if False then 1 else 2" "3"
+    [] "if False then 1 else 3"
   |> summary
