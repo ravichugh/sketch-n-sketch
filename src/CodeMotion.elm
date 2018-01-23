@@ -2717,19 +2717,15 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
         (\e -> newLetFancyWhitespace -1 False (pVar "*EXTRACTED EXPRESSION*" |> setPId newBindingPId) extractedExp e originalProgramUniqueNames )
   in
   let maybeNewProgramWithLiftedDependenciesOldNames =
-    -- tryResolvingProblemsAfterTransform will always return at least one result.
-    -- We're just using it here to lift any needed dependencies and handle any shadowing that introduces.
-    -- The results are marked unsafe because `makeResult` doesn't know what to do with our inserted variable.
-    -- We should rework `tryResolvingProblemsAfterTransform` to handle that and mark it as safe, and then only pick a safe result.
-    -- Because otherwise we might be lifting arguments outside their funcitons.
+    -- We're using tryResolvingProblemsAfterTransformNoTwiddling here to lift any needed dependencies and handle any shadowing that introduces.
     tryResolvingProblemsAfterTransformNoTwiddling
-        ""
-        (Dict.insert "*EXTRACTED EXPRESSION*" "*EXTRACTED EXPRESSION*" uniqueNameToOldName)
-        Nothing
-        ("", "")
-        Set.empty
-        []
-        (Dict.singleton insertedVarEId (Just newBindingPId))
+        ""        -- baseDescription
+        (Dict.insert "*EXTRACTED EXPRESSION*" "*EXTRACTED EXPRESSION*" uniqueNameToOldName) -- uniqueNameToOldName
+        Nothing   -- maybeNewScopeEId
+        ("", "")  -- (touchedAdjective, untouchedAdjective)
+        Set.empty -- namesUniqueTouched
+        []        -- varEIdsPreviouslyDeliberatelyRemoved
+        (Dict.singleton insertedVarEId (Just newBindingPId)) -- insertedVarEIdToBindingPId
         originalProgramUniqueNames
         newProgramUniqueNames
     |> Utils.findFirst isResultSafe
@@ -2746,6 +2742,7 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
           |> List.filter (expToMaybeIdent >> (==) (Just "*EXTRACTED EXPRESSION*"))
           |> List.map (.val >> .eid)
           |> Set.fromList
+          |> Set.union viewerEIds
         in
         visibleIdentifiersAtEIds newProgramWithLiftedDependenciesOldNames finalViewerEIds
       in
