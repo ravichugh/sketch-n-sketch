@@ -324,6 +324,9 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then replaceE__ expA (ETyp ws1A patA typeA (merge eA eB) ws2A) else argVar
       (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then replaceE__ expA (EColonType ws1A (merge eA eB) ws2A typeA ws3A) else argVar
       (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then replaceE__ expA (ETypeAlias ws1A patA typeA (merge eA eB) ws2A) else argVar
+      (EParens ws1A e1A ws2A,                EParens ws1B e1B ws2B)                -> replaceE__ expA (EParens ws1A (merge e1A e1B) ws2A)
+      (EParens ws1A e1A ws2A,                _)                                    -> replaceE__ expA (EParens ws1A (merge e1A expB) ws2A)
+      (_,                                    EParens ws1B e1B ws2B)                -> replaceE__ expB (EParens ws1B (merge expA e1B) ws2B)
       _                                                                            -> argVar
   in
   -- This version is limited to at most a single argVar: if multiple subtrees differ, their common ancestor becomes a single argVar.
@@ -380,6 +383,9 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> generalizedMerge (patternsEqual patA patB && Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> ETyp ws1A patA typeA mergedE ws2A)
       (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> generalizedMerge (Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> EColonType ws1A mergedE ws2A typeA ws3A)
       (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> generalizedMerge (patternsEqual patA patB && Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> ETypeAlias ws1A patA typeA mergedE ws2A)
+      (EParens ws1A e1A ws2A,                EParens ws1B e1B ws2B)                -> mergeSingleArg e1A e1B  |> (\(e1Merged, e1HasArgVar) -> (replaceE__ expA (EParens ws1A e1Merged ws2A), e1HasArgVar))
+      (EParens ws1A e1A ws2A,                _)                                    -> mergeSingleArg e1A expB |> (\(e1Merged, e1HasArgVar) -> (replaceE__ expA (EParens ws1A e1Merged ws2A), e1HasArgVar))
+      (_,                                    EParens ws1B e1B ws2B)                -> mergeSingleArg expA e1B |> (\(e1Merged, e1HasArgVar) -> (replaceE__ expB (EParens ws1B e1Merged ws2B), e1HasArgVar))
       _                                                                            -> retArgVar
   in
   let mergeFunc = if argCount == 1 then (\eA eB -> mergeSingleArg eA eB |> Tuple.first) else merge in
@@ -719,8 +725,8 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs
              -- if needed, could split a multi-binding into smaller chunks
              let (_,p,_,_) = beforeDef in
              let vars = varsOfPat p in
-             let someVarAppearsIn e = List.any (\x -> occursFreeIn x e) vars in
-             let noVarAppearsIn e = List.all (\x -> not (occursFreeIn x e)) vars in
+             let someVarAppearsIn e = let free = freeIdentifiers e in List.any (\ident -> Set.member ident free) vars in
+             let noVarAppearsIn e   = let free = freeIdentifiers e in List.all (\ident -> not (Set.member ident free)) vars in
              if List.any someVarAppearsIn (getExps (plucked ++ acc1)) &&
                 List.all noVarAppearsIn (getExps (after ++ acc2))
              then (beforeDef :: acc1, acc2)
@@ -806,18 +812,6 @@ offsetXY program base1 base2 baseVal1 baseVal2 ws (n,t) eSubst =
         Nothing  -> eSubst
     _ ->
       eSubst
-
--- TODO for now, just checking occursIn
-occursFreeIn : Ident -> Exp -> Bool
-occursFreeIn x e =
-  let vars =
-    foldExpViaE__ (\e__ acc ->
-      case e__ of
-        EVar _ x -> Set.insert x acc
-        _        -> acc
-      ) Set.empty e
-  in
-  Set.member x vars
 
 
 --------------------------------------------------------------------------------
@@ -1793,6 +1787,14 @@ mergeExpressions eFirst eRest =
         Utils.bindMaybe
           (\(e_,l) -> return (EParens ws1 e_ ws2) l)
           (mergeExpressions e es)
+
+    EHole ws mv ->
+      let match eNext = case eNext.val.e__ of
+        EHole _ mvNext -> Just mvNext
+        _              -> Nothing
+      in
+      matchAllAndBind match eRest <| \maybeVals ->
+        if List.all ((==) mv) maybeVals then return eFirst.val.e__ [] else Nothing
 
 matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
 matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))

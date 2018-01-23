@@ -326,6 +326,10 @@ unparse e =
         ++ wsAfter.val
         ++ ")"
 
+    EHole wsBefore val ->
+      wsBefore.val
+        ++ "??"
+
     Lang.EColonType wsBefore term wsBeforeColon typ wsAfter ->
       wsBefore.val
         ++ "("

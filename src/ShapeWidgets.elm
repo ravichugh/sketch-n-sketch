@@ -1110,7 +1110,7 @@ selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets
     directSingleEIdInterpretations =
       -- Checking exp-by-exp avoids combinatorical explosion of building all interpretations and then filtering.
       possibleExps
-      |> List.filter (\exp -> valTrees |> List.all (Provenance.isPossibleSingleEIdInterpretation program exp.val.eid))
+      |> List.filter (\exp -> valTrees |> List.all (Provenance.isPossibleSingleEIdInterpretation exp.val.eid))
       |> List.map (.val >> .eid)
 
     valExpIsInProgram val = valExp val |> .val |> .eid |> FastParser.isProgramEId

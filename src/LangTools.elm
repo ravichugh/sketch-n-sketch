@@ -49,6 +49,7 @@ nodeCount exp =
     EColonType _ e1 _ t _   -> 1 + typeNodeCount t + nodeCount e1
     ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
     EParens _ e1 _          -> 1 + nodeCount e1
+    EHole _ _               -> 1
 
 
 -- O(n); for clone detection
@@ -93,6 +94,7 @@ subExpsOfSizeAtLeast_ min exp =
         EColonType _ e1 _ t _   -> 1 + typeNodeCount t
         ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t
         EParens _ _ _           -> 1
+        EHole _ _               -> 1
     in
     if largeSubExps /= [] then
       Debug.crash "LangTools.thisSizeWithoutChildren bug"
@@ -243,6 +245,9 @@ extraExpsDiff baseExp otherExp =
     (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
     (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
     (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (EParens ws1A e1A ws2A,                EParens ws1B e1B ws2B)                -> extraExpsDiff e1A e1B
+    (EParens ws1A e1A ws2A,                _)                                    -> extraExpsDiff e1A otherExp
+    (_,                                    EParens ws1B e1B ws2B)                -> extraExpsDiff baseExp e1B
     _                                                                            -> [otherExp]
 
 
@@ -346,7 +351,7 @@ maybeTopLevelChild exp =
     ETyp _ _ _ body _       -> Just body
     EColonType _ body _ _ _ -> Just body
     ETypeAlias _ _ _ body _ -> Just body
-    ELet _ Def _ _ _ body _ -> Just body
+    ELet _ _ _ _ _ body _   -> Just body
     EComment _ _ e          -> Just e
     EOption _ _ _ _ e       -> Just e
     _                       -> Nothing
@@ -357,6 +362,10 @@ topLevelExps program =
   case maybeTopLevelChild program of
     Just child -> program::(topLevelExps child)
     Nothing    -> [program]
+
+
+lastTopLevelExp : Exp -> Exp
+lastTopLevelExp exp = maybeTopLevelChild exp |> Maybe.map lastTopLevelExp |> Maybe.withDefault exp
 
 
 lastExp : Exp -> Exp
@@ -384,6 +393,7 @@ expSameValueExps exp =
     EParens _ e _           -> exp :: expSameValueExps e
     EComment _ _ e          -> exp :: expSameValueExps e
     EOption _ _ _ _ e       -> exp :: expSameValueExps e
+    EOp _ {val} [operand] _ -> if val == DebugLog || val == NoWidgets then exp :: expSameValueExps operand else [exp]
     _                       -> [exp]
 
 
@@ -611,7 +621,7 @@ simpleExpName exp =
   simpleExpNameWithDefault defaultExpName exp
 
 simpleExpNameWithDefault default exp =
-  case exp.val.e__ of
+  case (expValueExp exp).val.e__ of
     EConst _ _ _ _        -> "num"
     EVar _ ident          -> ident
     EApp _ funE _ _       -> expToMaybeIdent funE |> Maybe.withDefault default
@@ -621,6 +631,7 @@ simpleExpNameWithDefault default exp =
     EBase _ (EString _ _) -> "string"
     EBase _ (EBool _)     -> "bool"
     EFun _ _ _ _          -> "func"
+    EHole _ _             -> "hole"
     _                     -> default
 
 -- Suggest a name for the expression at eid in program
@@ -1257,6 +1268,13 @@ expToCaseScrutinee exp =
   case exp.val.e__ of
     ECase _ scrutinee _ _ -> scrutinee
     _                     -> Debug.crash <| "LangTools.expToScrutinee exp is not an ECase: " ++ unparseWithIds exp
+
+
+expToMaybeHoleVal : Exp -> Maybe Val
+expToMaybeHoleVal exp =
+  case exp.val.e__ of
+    EHole _ maybeVal -> maybeVal
+    _                -> Nothing
 
 
 -- This is a rather generous definition of literal.
@@ -2176,6 +2194,8 @@ numericLetBoundIdentifiers program =
       EColonType _ e _ _ _      -> recurse e
       ETypeAlias _ _ _ body _   -> recurse body
       EParens _ e _             -> recurse e
+      EHole _ Nothing           -> False
+      EHole _ (Just val)        -> valIsNum val
   in
   let expBindings = allSimplyResolvableLetBindings program in
   let findAllNumericIdents numericIdents =
@@ -2233,7 +2253,6 @@ transformVarsUntilBound subst exp =
       transformVarsUntilBound newSubst e
   in
   case exp.val.e__ of
-    -- EVal _                      -> exp
     EConst _ _ _ _              -> exp
     EBase _ _                   -> exp
     EVar _ ident                ->
@@ -2281,8 +2300,7 @@ transformVarsUntilBound subst exp =
     EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
     ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
     EParens ws1 e ws2               -> replaceE__ exp (EParens ws1 (recurse e) ws2)
-
-    -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
+    EHole _ _                       -> exp
 
 
 -- Find EVars using the given name, until name is rebound.
@@ -2382,8 +2400,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     EColonType _ e _ tipe _   -> ret <| recurse e
     ETypeAlias _ pat tipe e _ -> ret <| recurse e
     EParens _ e _             -> ret <| recurse e
-
-    -- EDict _                   -> Debug.crash "LangTools.visibleIdentifiersAtEIds_: shouldn't have an EDict in given expression"
+    EHole _ _                 -> ret Set.empty
 
 
 assignUniqueNames : Exp -> (Exp, Dict Ident Ident)
@@ -2590,7 +2607,7 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       , newNameToOldName
       )
 
-    -- EDict _                         -> Debug.crash "LangTools.transformVarsUntilBound: shouldn't have an EDict in given expression"
+    EHole _ _ -> leafUnchanged
 
 
 -- Compute the PathedPatternId that assigned the binding referenced by varExp
@@ -2886,6 +2903,7 @@ expEnvAt_ exp targetEId =
       EColonType _ e _ tipe _    -> recurse e
       ETypeAlias _ pat tipe e _  -> recurse e
       EParens _ e _              -> recurse e
+      EHole _ _                  -> Nothing
 
 --------------------------------------------------------------------------------
 

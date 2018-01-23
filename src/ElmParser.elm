@@ -979,6 +979,16 @@ parens =
           )
 
 --------------------------------------------------------------------------------
+-- Holes
+--------------------------------------------------------------------------------
+
+hole : Parser Exp
+hole =
+  inContext "hole" <|
+    mapExp_ <|
+      paddedBefore EHole (trackInfo <| token "??" Nothing)
+
+--------------------------------------------------------------------------------
 -- Colon Types TODO
 --------------------------------------------------------------------------------
 
@@ -1023,6 +1033,7 @@ simpleExpression =
       , lazy <| \_ -> option
       , lazy <| \_ -> colonType
       , lazy <| \_ -> parens
+      , lazy <| \_ -> hole
       -- , lazy <| \_ -> typeCaseExpression
       -- , lazy <| \_ -> typeAlias
       -- , lazy <| \_ -> typeDeclaration

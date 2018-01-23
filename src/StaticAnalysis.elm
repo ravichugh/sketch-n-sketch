@@ -109,6 +109,7 @@ grossDependencies_ identToDepEId program =
         EColonType _ body _ _ _             -> [(expValueExp body).val.eid]
         ETypeAlias _ _ _ body _             -> [(expValueExp body).val.eid]
         EParens _ body _                    -> [(expValueExp body).val.eid]
+        EHole _ _                           -> []
     in
     newDepEIds
     |> List.foldl

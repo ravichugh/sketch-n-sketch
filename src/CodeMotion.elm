@@ -17,6 +17,8 @@ module CodeMotion exposing
   , swapDefinitionsTransformation
   , rewriteOffsetTransformation
   , makeEIdVisibleToEIds, makeEIdVisibleToEIdsByInsertingNewBinding
+  , liftLocsSoVisibleTo, copyLocsSoVisibleTo
+  , resolveValueHoles
   )
 
 import Lang exposing (..)
@@ -32,13 +34,13 @@ import InterfaceModel exposing
   )
 import LocEqn                        -- For twiddling
 import Solver exposing (MathExp(..)) -- For twiddling
-import Utils
-import Either exposing (..)
+import Sync
 import Syntax exposing (Syntax)
+import Utils
 
-import Dict
+import Dict exposing (Dict)
 import Regex
-import Set
+import Set exposing (Set)
 
 type alias PatBoundExp = (Pat, Exp)
 
@@ -835,13 +837,13 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
 -- TODO: verify this is correct and simplify the below if so.
 makeResult
     :  String
-    -> Dict.Dict String Ident
+    -> Dict String Ident
     -> List ( String, Ident, Ident )
     -> List Ident
     -> List Ident
     -> List Ident
     -> List EId
-    -> Dict.Dict EId (Maybe PId)
+    -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
     -> SynthesisResult
@@ -925,12 +927,12 @@ makeResult
 
 tryResolvingProblemsAfterTransform
     :  String
-    -> Dict.Dict String Ident
+    -> Dict String Ident
     -> Maybe EId
     -> (String, String)
-    -> Set.Set Ident
+    -> Set Ident
     -> List EId
-    -> Dict.Dict EId (Maybe PId)
+    -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
     -> List SynthesisResult
@@ -959,12 +961,12 @@ tryResolvingProblemsAfterTransform
 
 tryResolvingProblemsAfterTransformNoTwiddling
     :  String
-    -> Dict.Dict String Ident
+    -> Dict String Ident
     -> Maybe EId
     -> (String, String)
-    -> Set.Set Ident
+    -> Set Ident
     -> List EId
-    -> Dict.Dict EId (Maybe PId)
+    -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
     -> List SynthesisResult
@@ -993,12 +995,12 @@ tryResolvingProblemsAfterTransformNoTwiddling
 
 tryResolvingProblemsAfterTransform_
     :  String
-    -> Dict.Dict String Ident
+    -> Dict String Ident
     -> Maybe EId
     -> (String, String)
-    -> Set.Set Ident
+    -> Set Ident
     -> List EId
-    -> Dict.Dict EId (Maybe PId)
+    -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
     -> Bool
@@ -2631,7 +2633,7 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
 -- If EId already bound to a variable, either do nothing, or rename, or move the binding, as needed.
 -- If EId is not bound to a variable, try to lift it and any dependencies.
 -- Returns Maybe (newName, insertedVarEId, program)
-makeEIdVisibleToEIds : Exp -> EId -> Set.Set EId -> Maybe (Ident, EId, Exp)
+makeEIdVisibleToEIds : Exp -> EId -> Set EId -> Maybe (Ident, EId, Exp)
 makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
   let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
   let allViewerEIds = Set.insert mobileEId viewerEIds in
@@ -2697,7 +2699,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
 
 -- If you need to force the binding to be copied. makeEIdVisibleToEIds calls this as a last resort.
 -- Returns Maybe (newName, insertedVarEId, program)
-makeEIdVisibleToEIdsByInsertingNewBinding : Exp -> EId -> Set.Set EId -> Maybe (Ident, EId, Exp)
+makeEIdVisibleToEIdsByInsertingNewBinding : Exp -> EId -> Set EId -> Maybe (Ident, EId, Exp)
 makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
   let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
   let allViewerEIds = Set.insert mobileEId viewerEIds in
@@ -2715,19 +2717,15 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
         (\e -> newLetFancyWhitespace -1 False (pVar "*EXTRACTED EXPRESSION*" |> setPId newBindingPId) extractedExp e originalProgramUniqueNames )
   in
   let maybeNewProgramWithLiftedDependenciesOldNames =
-    -- tryResolvingProblemsAfterTransform will always return at least one result.
-    -- We're just using it here to lift any needed dependencies and handle any shadowing that introduces.
-    -- The results are marked unsafe because `makeResult` doesn't know what to do with our inserted variable.
-    -- We should rework `tryResolvingProblemsAfterTransform` to handle that and mark it as safe, and then only pick a safe result.
-    -- Because otherwise we might be lifting arguments outside their funcitons.
+    -- We're using tryResolvingProblemsAfterTransformNoTwiddling here to lift any needed dependencies and handle any shadowing that introduces.
     tryResolvingProblemsAfterTransformNoTwiddling
-        ""
-        (Dict.insert "*EXTRACTED EXPRESSION*" "*EXTRACTED EXPRESSION*" uniqueNameToOldName)
-        Nothing
-        ("", "")
-        Set.empty
-        []
-        (Dict.singleton insertedVarEId (Just newBindingPId))
+        ""        -- baseDescription
+        (Dict.insert "*EXTRACTED EXPRESSION*" "*EXTRACTED EXPRESSION*" uniqueNameToOldName) -- uniqueNameToOldName
+        Nothing   -- maybeNewScopeEId
+        ("", "")  -- (touchedAdjective, untouchedAdjective)
+        Set.empty -- namesUniqueTouched
+        []        -- varEIdsPreviouslyDeliberatelyRemoved
+        (Dict.singleton insertedVarEId (Just newBindingPId)) -- insertedVarEIdToBindingPId
         originalProgramUniqueNames
         newProgramUniqueNames
     |> Utils.findFirst isResultSafe
@@ -2744,11 +2742,78 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
           |> List.filter (expToMaybeIdent >> (==) (Just "*EXTRACTED EXPRESSION*"))
           |> List.map (.val >> .eid)
           |> Set.fromList
+          |> Set.union viewerEIds
         in
         visibleIdentifiersAtEIds newProgramWithLiftedDependenciesOldNames finalViewerEIds
       in
       let visibleName = nonCollidingName visibleNameSuggestion 2 namesToAvoid in
       Just (visibleName, insertedVarEId, renameIdentifier "*EXTRACTED EXPRESSION*" visibleName newProgramWithLiftedDependenciesOldNames)
+
+
+-- Returns (newProgram, locIdToNewName, locIdToVarEId)
+liftLocsSoVisibleTo : Exp -> Set LocId -> Set EId -> (Exp, Dict LocId Ident, Dict LocId EId)
+liftLocsSoVisibleTo program mobileLocIdSet viewerEIds =
+  liftLocsSoVisibleTo_ False program mobileLocIdSet viewerEIds
+
+
+-- Returns (newProgram, locIdToNewName, locIdToVarEId)
+copyLocsSoVisibleTo : Exp -> Set LocId -> Set EId -> (Exp, Dict LocId Ident, Dict LocId EId)
+copyLocsSoVisibleTo program mobileLocIdSet viewerEIds =
+  liftLocsSoVisibleTo_ True program mobileLocIdSet viewerEIds
+
+
+-- Returns (newProgram, locIdToNewName, locIdToVarEId)
+liftLocsSoVisibleTo_ : Bool -> Exp -> Set LocId -> Set EId -> (Exp, Dict LocId Ident, Dict LocId EId)
+liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
+  let makeEIdVisible =
+    if copyOriginal
+    then makeEIdVisibleToEIdsByInsertingNewBinding
+    else makeEIdVisibleToEIds
+  in
+  mobileLocIdSet
+  |> Set.foldl
+      (\mobileLocId (program, locIdToNewName, locIdToVarEId) ->
+        case locIdToEId program mobileLocId of
+          Just mobileEId ->
+            case makeEIdVisible program mobileEId viewerEIds of
+              Just (newName, insertedEId, newProgram) ->
+                -- let _ = Utils.log (newName ++ "\n" ++ LangUnparser.unparseWithIds newProgram) in
+                ( newProgram
+                , Dict.insert mobileLocId newName locIdToNewName
+                , Dict.insert mobileLocId insertedEId locIdToVarEId
+                )
+              Nothing ->
+                let _ = Utils.log "liftLocsSoVisibleTo: makeEIdVisible could not lift" in
+                (program, locIdToNewName, locIdToVarEId)
+
+          Nothing ->
+            let _ = Utils.log "liftLocsSoVisibleTo: could not convert locId to EId" in
+            (program, locIdToNewName, locIdToVarEId)
+      )
+      (program, Dict.empty, Dict.empty)
+
+
+-- Right now, does simple loc lifting.
+resolveValueHoles : Sync.Options -> Exp -> List Exp
+resolveValueHoles syncOptions programWithHolesUnfresh =
+  let
+    programWithHoles = Parser.freshen programWithHolesUnfresh -- Need EIds on all inserted expressions.
+    valHoles = programWithHoles |> flattenExpTree |> List.filter (expToMaybeHoleVal >> Utils.maybeToBool)
+    holeVals = programWithHoles |> flattenExpTree |> List.filterMap expToMaybeHoleVal
+    holeEIds = valHoles |> List.map (.val >> .eid)
+    holeTraces = holeVals |> List.map valToTrace
+    locIdsNeeded = holeTraces |> List.map (Sync.locsOfTrace syncOptions >> Set.map locToLocId) |> Utils.unionAll
+    (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo programWithHoles locIdsNeeded (Set.fromList holeEIds)
+    locIdToExp = locIdToExpFromFrozenSubstAndNewNames (Parser.substOf programWithHoles) locIdToNewName
+  in
+  Utils.zip holeEIds holeTraces
+  |> List.foldl
+      (\(holeEId, holeTrace) programSoFar ->
+        let filledHole = traceToExp locIdToExp holeTrace in
+        programSoFar |> replaceExpNode holeEId filledHole
+      )
+      programWithLocsLifted
+  |> List.singleton
 
 
 ------------------------------------------------------------------------------

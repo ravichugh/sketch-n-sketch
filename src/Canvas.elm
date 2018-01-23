@@ -10,6 +10,7 @@ import HtmlUtils exposing (..)
 import Lang exposing (..)
 import ValUnparser exposing (..)
 import LangTools
+import Provenance
 import LangSvg exposing (NodeId, ShapeKind, attr)
 import ShapeWidgets exposing
   ( RealZone, RealZone(..)
@@ -86,11 +87,15 @@ msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
       then { old | mouseMode = dragMode }
       else { old | mouseMode = dragMode, selectedShapes = Set.empty, selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
 
-    (_ , MouseNothing) ->
-      { old | mouseMode = MouseDrawNew NoPointsYet -- No points until drag begins, or (for paths/polys) mouse-up
-            , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+    (_ , MouseNothing) -> startDrawing old
+    _                  -> old
 
-    _ -> old
+
+startDrawing : Model -> Model
+startDrawing old =
+  { old | mouseMode = MouseDrawNew NoPointsYet -- No points until drag begins, or (for paths/polys) mouse-up
+        , selectedShapes = Set.empty
+        , selectedBlobs = Dict.empty }
 
 
 --------------------------------------------------------------------------------
@@ -213,23 +218,23 @@ dragZoneEvents id shapeKind realZone =
 
 drawNewShape model =
   case (model.tool, model.mouseMode) of
-    (Line _,        MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewLine model pt2 pt1
-    (Rect _,        MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewEllipse model.keysDown pt2 pt1
-    (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))                      -> Draw.drawNewPolygon ptLast pts
-    (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))                      -> Draw.drawNewPath ptLast pts
-    (PointOrOffset, MouseDrawNew (Offset1DFromExisting pt2 snap ((x1,_),(y1,_)))) -> drawNewPointAndOffset model (snap /= NoSnap) pt2 (round x1, round y1)
-    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))                   -> drawNewPointAndOffset model False pt2 pt1
-    (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewLine model pt2 pt1
-    (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Text,          MouseDrawNew (TwoPoints pt2 pt1))                             -> Draw.drawNewRect model.keysDown pt2 pt1
-    _                                                                             -> []
+    (Line _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewLine model pt2 pt1
+    (Rect _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewEllipse model.keysDown pt2 pt1
+    (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))                     -> Draw.drawNewPolygon ptLast pts
+    (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))                     -> Draw.drawNewPath ptLast pts
+    (PointOrOffset, MouseDrawNew (Offset1DFromExisting pt2 snap (x1Val, y1Val))) -> drawNewPointAndOffset model (snap /= NoSnap) pt2 (round (valToNum x1Val), round (valToNum y1Val))
+    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))                  -> drawNewPointAndOffset model False pt2 pt1
+    (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewLine model pt2 pt1
+    (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Text,          MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    _                                                                            -> []
 
 
 drawNewPointAndOffset model shouldHighlight (x2, y2) (x1, y1) =
   let (axis, sign, amount) = Draw.horizontalVerticalSnap (x1, y1) (x2, y2) in
   let xyDot = svgXYDot model (x1, y1) pointZoneStyles.fill.shown True [] in
-  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
+  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp Nothing ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
   [xyDot] ++ arrowParts
 
 
@@ -239,7 +244,7 @@ drawNewPointAndOffset model shouldHighlight (x2, y2) (x1, y1) =
 dummyVal : Val
 dummyVal = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] }
 
-svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) amountVal isSelected extraStyles =
+svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) amountVal isSelected extraStyles =
   let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
     offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
   in
@@ -278,28 +283,27 @@ svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis
       ] ++ lineStyle ++ extraStyles
   in
   let caption =
-    let string =
-      if amountVal /= dummyVal
-      then Syntax.unparser Syntax.Elm (provenanceExp amountVal.provenance) |> Utils.squish
-      else toString amount
-    in
-    let (x, y, textAnchor) =
+    let (x, y, left, top, textAnchor) =
       case axis of
-        X -> ((baseX + endX) / 2, baseY - 10, "middle")
-        Y -> (baseX + 10, (baseY + endY) / 2, "start")
+        X -> ((baseX + endX) / 2, baseY - 10,        (baseX + endX) / 2 - 25, baseY,                   "middle")
+        Y -> (baseX + 10,         (baseY + endY) / 2, baseX + 10,             (baseY + endY) / 2 + 10, "start")
     in
     let maybeBold =
       if isSelected
       then [ attr "font-weight" "bold" ]
       else []
     in
-    flip Svg.text_ [VirtualDom.text string] <|
-      [ attr "font-family" params.mainSection.uiWidgets.font
-      , attr "font-size" params.mainSection.uiWidgets.fontSize
-      , attr "text-anchor" textAnchor
-      , attr "x" (toString x)
-      , attr "y" (toString y)
-      ] ++ maybeBold ++ extraStyles
+    case Provenance.valToMaybeLetPat program amountVal of
+      Just pat -> patInOutput modelRenamingInOutput False pat left top
+      Nothing ->
+        let string = toString amount in
+        flip Svg.text_ [VirtualDom.text string] <|
+          [ attr "font-family" params.mainSection.uiWidgets.font
+          , attr "font-size" params.mainSection.uiWidgets.fontSize
+          , attr "text-anchor" textAnchor
+          , attr "x" (toString x)
+          , attr "y" (toString y)
+          ] ++ maybeBold ++ extraStyles
   in
   ([line, caption, endArrow], ((endX, endXTr), (endY, endYTr)))
 
@@ -461,9 +465,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     in
     let (arrowParts, (endXNumTr, endYNumTr)) =
       let shouldHighlight =
-        isSelected || isTraceInModelHighlights model amountTr
+        isSelected || isShapeBeingDrawnSnappingToVal model amountVal
       in
-      svgOffsetWidget1DArrowPartsAndEndPoint (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
+      svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp model.renamingInOutput (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
     in
     let endPt =
       zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXVal endYNumTr endYVal
@@ -1338,11 +1342,12 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
         ]
       else if model.tool == PointOrOffset then
         [ onMouseDown <| Msg "Begin Offset From Point..." <| \model ->
-            { model | mouseMode = MouseDrawNew (Offset1DFromExisting (x, y) NoSnap (xNumTr, yNumTr)) }
+            { model | mouseMode = MouseDrawNew (Offset1DFromExisting (x, y) NoSnap (xVal, yVal)) }
         ]
       else
         [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->
-            { model | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xNumTr xVal yNumTr yVal)) } ]
+            let newModel = if model.mouseMode == MouseNothing then startDrawing model else model in
+            { newModel | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xVal yVal)) } ]
     in
     svgXYDot model (x, y) dotFill isVisible extraAttrs
   in

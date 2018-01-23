@@ -1839,6 +1839,8 @@ makeSingleLineTool model selections =
                             ETypeAlias (deLine ws1) pat tipe e space0
                           EParens ws1 e ws2 ->
                             EParens (deLine ws1) e (deLine ws2)
+                          EHole ws mv ->
+                            EHole (deLine ws) mv
                       deLineExp e =
                         mapExp (mapNodeE__ deLineE__) e
                     in

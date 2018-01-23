@@ -9,6 +9,21 @@ import Utils
 import Set exposing (Set)
 
 
+nameForVal : Exp -> Val -> String
+nameForVal program val =
+  valTreeToSingleEIdInterpretations program (always True) val
+  |> List.head
+  |> Maybe.map (LangTools.expNameForEId program)
+  |> Maybe.withDefault (LangTools.simpleExpName (valExp val))
+
+
+valToMaybeLetPat : Exp -> Val -> Maybe Pat
+valToMaybeLetPat program val =
+  LangTools.allSimplyResolvableLetPatBindings program
+  |> Utils.findFirst (\(_, boundExp) -> isPossibleSingleEIdInterpretation (LangTools.expValueExp boundExp).val.eid val)
+  |> Maybe.map (\(pat, _) -> pat)
+
+
 -- Mirror of basedOn provenance in Eval.eval
 --
 -- Though note: if code branches, the value produced by the branch
@@ -36,6 +51,7 @@ expNonControlFlowChildren exp =
     EColonType _ _ _ _ _                     -> childExps exp
     ETypeAlias _ _ _ _ _                     -> childExps exp
     EParens _ _ _                            -> childExps exp
+    EHole _ _                                -> []
 
 
 -- Attempt to consume as many parents as possible.
@@ -409,10 +425,19 @@ valTreeToMostDistalProgramEIdInterpretation expFilter val =
     Set.empty
 
 
--- Still combinatorically explosive :/
--- Using isPossibleSingleEIdInterpretation instead.
 valTreeToSingleEIdInterpretations : Exp -> (Exp -> Bool) -> Val -> List EId
 valTreeToSingleEIdInterpretations program expFilter val =
+  program
+  |> flattenExpTree
+  |> List.filter expFilter
+  |> List.filter (\exp -> isPossibleSingleEIdInterpretation exp.val.eid val)
+  |> List.map (.val >> .eid)
+
+
+-- Still combinatorically explosive :/
+-- Using isPossibleSingleEIdInterpretation instead.
+valTreeToSingleEIdInterpretationsSlow : Exp -> (Exp -> Bool) -> Val -> List EId
+valTreeToSingleEIdInterpretationsSlow program expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
   let perhapsThisExp = if FastParser.isProgramEId exp.val.eid && expFilter exp then [exp.val.eid] else [] in
   basedOnVals
@@ -445,14 +470,14 @@ interpretationIsNonEmpty val =
   FastParser.isProgramEId exp.val.eid || List.any interpretationIsNonEmpty basedOnVals
 
 
-isPossibleSingleEIdInterpretation : Exp -> EId -> Val -> Bool
-isPossibleSingleEIdInterpretation program eid val =
+isPossibleSingleEIdInterpretation : EId -> Val -> Bool
+isPossibleSingleEIdInterpretation eid val =
   let (Provenance _ exp basedOnVals) = val.provenance in
   (exp.val.eid == eid && FastParser.isProgramEId exp.val.eid)
   || let relevantChildren = List.filter interpretationIsNonEmpty basedOnVals in
   case relevantChildren of
     [] -> False
-    _  -> List.all (\basedOnVal -> isPossibleSingleEIdInterpretation program eid basedOnVal) basedOnVals
+    _  -> List.all (\basedOnVal -> isPossibleSingleEIdInterpretation eid basedOnVal) basedOnVals
 
 --
 -- isPossibleEIdInterpretation : Exp -> EId -> Val -> Bool

@@ -271,7 +271,7 @@ indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber mov
       |> List.map
           (\mathExp ->
             let mathExpLocIds = mathExpLocIdSet mathExp in
-            let (locsLifted, locIdToNewName, locIdToVarEId) = copyLocsSoVisibleTo originalExp mathExpLocIds (Set.fromList locEIds) in
+            let (locsLifted, locIdToNewName, locIdToVarEId) = CodeMotion.copyLocsSoVisibleTo originalExp mathExpLocIds (Set.fromList locEIds) in
             -- let _ = Utils.log <| "locsLifted:\n" ++ unparseWithIds locsLifted in
             let description =
               let mathExpDesc = Syntax.unparser syntax <| mathExpToExp unann Dict.empty (Dict.insert indexLocId "i" locIdToNewName) mathExp in
@@ -758,7 +758,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
               (\(resultMathExp, dependentLocId) (programSoFar, dependentLocExpsSoFar) ->
                 let independentLocIdSet = Set.intersect (mathExpLocIdSet resultMathExp) unfrozenLocIdSet in
                 let dependentEId = locIdToEId originalExp dependentLocId |> Utils.fromJust_ "relate__: dependendLocId locIdToEId" in
-                let (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo programSoFar independentLocIdSet (Set.singleton dependentEId) in
+                let (programWithLocsLifted, locIdToNewName, _) = CodeMotion.liftLocsSoVisibleTo programSoFar independentLocIdSet (Set.singleton dependentEId) in
                 let dependentLocExp =
                   mathExpToExp (if relationToSynthesize == Equalize then frozen else unann) frozenLocIdToNum locIdToNewName resultMathExp
                 in
@@ -870,44 +870,6 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
                 Just (InterfaceModel.synthesisResult caption programWithCallAndFunc |> InterfaceModel.setResultSafe False)
         )
       )
-
-
-liftLocsSoVisibleTo : Exp -> Set.Set LocId -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
-liftLocsSoVisibleTo program mobileLocIdSet viewerEIds =
-  liftLocsSoVisibleTo_ False program mobileLocIdSet viewerEIds
-
-copyLocsSoVisibleTo : Exp -> Set.Set LocId -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
-copyLocsSoVisibleTo program mobileLocIdSet viewerEIds =
-  liftLocsSoVisibleTo_ True program mobileLocIdSet viewerEIds
-
-liftLocsSoVisibleTo_ : Bool -> Exp -> Set.Set LocId -> Set.Set EId -> (Exp, Dict.Dict LocId Ident, Dict.Dict LocId EId)
-liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
-  let makeEIdVisibleToEIds =
-    if copyOriginal
-    then CodeMotion.makeEIdVisibleToEIdsByInsertingNewBinding
-    else CodeMotion.makeEIdVisibleToEIds
-  in
-  mobileLocIdSet
-  |> Set.foldl
-      (\mobileLocId (program, locIdToNewName, locIdToVarEId) ->
-        case locIdToEId program mobileLocId of
-          Just mobileEId ->
-            case makeEIdVisibleToEIds program mobileEId viewerEIds of
-              Just (newName, insertedEId, newProgram) ->
-                -- let _ = Utils.log (newName ++ "\n" ++ LangUnparser.unparseWithIds newProgram) in
-                ( newProgram
-                , Dict.insert mobileLocId newName locIdToNewName
-                , Dict.insert mobileLocId insertedEId locIdToVarEId
-                )
-              Nothing ->
-                let _ = Utils.log "liftLocsSoVisibleTo: makeEIdVisibleToEIds could not lift" in
-                (program, locIdToNewName, locIdToVarEId)
-
-          Nothing ->
-            let _ = Utils.log "liftLocsSoVisibleTo: could not convert locId to EId" in
-            (program, locIdToNewName, locIdToVarEId)
-      )
-      (program, Dict.empty, Dict.empty)
 
 
 deepestCommonAncestorWithNewlineByLocSet : Exp -> LocSet -> Exp
@@ -1078,22 +1040,6 @@ traceToLittle substStr trace =
       "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
 
 
-traceToExp : Dict.Dict LocId Num -> Dict.Dict LocId Ident -> Trace -> Exp
-traceToExp locIdToFrozenNum locIdToIdent trace =
-  case trace of
-    TrLoc (locId, _, _) ->
-      case Dict.get locId locIdToIdent of
-        Just ident -> eVar ident
-        Nothing    ->
-          case Dict.get locId locIdToFrozenNum of
-            Just n  -> eConst n (dummyLoc_ frozen)
-            Nothing -> eVar ("couldNotFindLocId" ++ toString locId)
-
-    TrOp op childTraces ->
-      let childExps = List.map (traceToExp locIdToFrozenNum locIdToIdent) childTraces in
-      eOp op childExps
-
-
 equationToLittle : SubstStr -> FeatureEquation -> String
 equationToLittle substStr eqn =
   case eqn of
@@ -1114,9 +1060,10 @@ equationToLittle substStr eqn =
 
 equationToExp : Dict.Dict LocId Num -> Dict.Dict LocId Ident -> FeatureEquation -> Exp
 equationToExp locIdToFrozenNum locIdToIdent eqn =
+  let locIdToExp = locIdToExpFromFrozenSubstAndNewNames locIdToFrozenNum locIdToIdent in
   case eqn of
     ShapeWidgets.EqnNum (n, trace) ->
-      traceToExp locIdToFrozenNum locIdToIdent trace
+      traceToExp locIdToExp trace
 
     ShapeWidgets.EqnOp op childEqns ->
       let childExps = List.map (equationToExp locIdToFrozenNum locIdToIdent) childEqns in
