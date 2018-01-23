@@ -203,4 +203,80 @@ all_tests = init_state
   |> updateElmAssert
     [] "if False then 1 else 2" "3"
     [] "if False then 1 else 3"
+  |> test "update arithmetic operations"
+  |> updateElmAssert
+    [("x", "1"), ("y", "2")] "  x+ y" "4"
+    [("x", "2"), ("y", "2")] "  x+ y"
+  |> updateElmAssert
+    [("x", "5"), ("y", "2")] "  x- y" "1"
+    [("x", "3"), ("y", "2")] "  x- y"
+  |> updateElmAssert
+    [("x", "2"), ("y", "3")] "  x* y" "8"
+    [("x", "2"), ("y", "4")] "  x* y"
+  |> updateElmAssert
+    [("x", "18"), ("y", "3")] "  x/ y" "7"
+    [("x", "21"), ("y", "3")] "  x/ y"
+  |> updateElmAssert
+    [("x", "3"), ("y", "4")] " pow x   y" "16"
+    [("x", "2"), ("y", "4")] " pow x   y"
+  |> updateElmAssert
+    [("x", "-1"), ("y", "3")] " pow x   y" "1"
+    [("x", "1"), ("y", "3")] " pow x   y"
+  |> updateElmAssert
+      [("x", "-2"), ("y", "3")] " pow x   y" "27"
+      [("x", "3"), ("y", "3")] " pow x   y"
+  |> updateElmAssert
+    [("x", "-1"), ("y", "0")] " pow x   y" "-1"
+    [("x", "-1"), ("y", "1")] " pow x   y"
+  |> updateElmAssert
+    [("x", "-1"), ("y", "3")] " pow x   y" "-8"
+    [("x", "-2"), ("y", "3")] " pow x   y"
+  |> updateElmAssert
+    [("x", "17"), ("y", "8")] " mod x  y" "3"
+    [("x", "19"), ("y", "8")] " mod x  y"
+  |> updateElmAssert
+    [("x", "1"), ("y", "0")] "arctan2 y x" "1.5707963267948966"
+    [("x", "6.123233995736766e-17"), ("y", "1")] "arctan2 y x"
+  |> updateElmAssert
+    [("x", "1"), ("y", "0")] "arctan2 y x" "3.141592653589793"
+    [("x", "-1"), ("y", "1.2246467991473532e-16")] "arctan2 y x"
+  |> updateElmAssert
+    [("x", "1"), ("y", "0")] "arctan2 y x" "-1.5707963267948966"
+    [("x", "6.123233995736766e-17"), ("y", "-1")] "arctan2 y x  "
+  |> updateElmAssert
+    [("x", "0.1")] "cos x" "0"
+    [("x", "1.570796326794897")] "cos x"
+  |> updateElmAssert
+    [("x", "-0.1")] "cos x" "0"
+    [("x", "-1.570796326794897")] "cos x"
+  |> updateElmAssert
+    [("x", "0.1")] "cos x" "0"
+    [("x", "1.570796326794897")] "cos x"
+  |> updateElmAssert
+    [("x", "0.1")] "sin x" "1"
+    [("x", "1.570796326794897")] "sin x"
+  |> updateElmAssert
+    [("x", "-0.1")] "sin x" "-1"
+    [("x", "-1.570796326794897")] "sin x"
+  |> updateElmAssert
+    [("x", "0")] "arccos x" "0"
+    [("x", "1")] "arccos x"
+  |> updateElmAssert
+    [("x", "0")] "arcsin x" "1.5707963267948966"
+    [("x", "1")] "arcsin x"
+  |> updateElmAssert
+    [("x", "17.5")] "floor x" "15"
+    [("x", "15.5")] "floor x"
+  |> updateElmAssert
+    [("x", "17.5")] "ceiling x" "15"
+    [("x", "14.5")] "ceiling x"
+  |> updateElmAssert
+    [("x", "17.75")] "round x" "15"
+    [("x", "14.75")] "round x"
+  |> updateElmAssert
+    [("x", "17.25")] "round x" "15"
+    [("x", "15.25")] "round x"
+  |> updateElmAssert
+    [("x", "16")] "sqrt x" "3"
+    [("x", "9")] "sqrt x"
   |> summary

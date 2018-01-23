@@ -242,8 +242,8 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
                                     else errs "No way to invert l^r <-- out where l < 0 and r < 0 or r is not an integer"
                 (Mod,     [l,r]) -> ok1 [l + newOut - oldOut, r]
                 (ArcTan2, [l,r]) -> -- We keep the same radius but change the angle
-                                    let (radius, theta) = toPolar (l, r) in
-                                    let (newL, newR) = fromPolar (radius, theta + newOut - oldOut) in
+                                    let (radius, theta) = toPolar (r, l) in
+                                    let (newR, newL) = fromPolar (radius, theta + newOut - oldOut) in
                                     ok1 [newL, newR]
                 (Cos,     [n])   -> let newOutClamped = clamp -1 1 newOut in
                                     let moved = acos newOutClamped in -- value between 0 and PI
