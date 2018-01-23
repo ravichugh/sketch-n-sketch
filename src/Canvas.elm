@@ -10,6 +10,7 @@ import HtmlUtils exposing (..)
 import Lang exposing (..)
 import ValUnparser exposing (..)
 import LangTools
+import Provenance
 import LangSvg exposing (NodeId, ShapeKind, attr)
 import ShapeWidgets exposing
   ( RealZone, RealZone(..)
@@ -233,7 +234,7 @@ drawNewShape model =
 drawNewPointAndOffset model shouldHighlight (x2, y2) (x1, y1) =
   let (axis, sign, amount) = Draw.horizontalVerticalSnap (x1, y1) (x2, y2) in
   let xyDot = svgXYDot model (x1, y1) pointZoneStyles.fill.shown True [] in
-  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
+  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp Nothing ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
   [xyDot] ++ arrowParts
 
 
@@ -243,7 +244,7 @@ drawNewPointAndOffset model shouldHighlight (x2, y2) (x1, y1) =
 dummyVal : Val
 dummyVal = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] }
 
-svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) amountVal isSelected extraStyles =
+svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) amountVal isSelected extraStyles =
   let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
     offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
   in
@@ -282,28 +283,27 @@ svgOffsetWidget1DArrowPartsAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis
       ] ++ lineStyle ++ extraStyles
   in
   let caption =
-    let string =
-      if amountVal /= dummyVal
-      then Syntax.unparser Syntax.Elm (provenanceExp amountVal.provenance) |> Utils.squish
-      else toString amount
-    in
-    let (x, y, textAnchor) =
+    let (x, y, left, top, textAnchor) =
       case axis of
-        X -> ((baseX + endX) / 2, baseY - 10, "middle")
-        Y -> (baseX + 10, (baseY + endY) / 2, "start")
+        X -> ((baseX + endX) / 2, baseY - 10,        (baseX + endX) / 2 - 25, baseY,                   "middle")
+        Y -> (baseX + 10,         (baseY + endY) / 2, baseX + 10,             (baseY + endY) / 2 + 10, "start")
     in
     let maybeBold =
       if isSelected
       then [ attr "font-weight" "bold" ]
       else []
     in
-    flip Svg.text_ [VirtualDom.text string] <|
-      [ attr "font-family" params.mainSection.uiWidgets.font
-      , attr "font-size" params.mainSection.uiWidgets.fontSize
-      , attr "text-anchor" textAnchor
-      , attr "x" (toString x)
-      , attr "y" (toString y)
-      ] ++ maybeBold ++ extraStyles
+    case Provenance.valToMaybeLetPat program amountVal of
+      Just pat -> patInOutput modelRenamingInOutput False pat left top
+      Nothing ->
+        let string = toString amount in
+        flip Svg.text_ [VirtualDom.text string] <|
+          [ attr "font-family" params.mainSection.uiWidgets.font
+          , attr "font-size" params.mainSection.uiWidgets.fontSize
+          , attr "text-anchor" textAnchor
+          , attr "x" (toString x)
+          , attr "y" (toString y)
+          ] ++ maybeBold ++ extraStyles
   in
   ([line, caption, endArrow], ((endX, endXTr), (endY, endYTr)))
 
@@ -467,7 +467,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       let shouldHighlight =
         isSelected || isShapeBeingDrawnSnappingToVal model amountVal
       in
-      svgOffsetWidget1DArrowPartsAndEndPoint (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
+      svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp model.renamingInOutput (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
     in
     let endPt =
       zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXVal endYNumTr endYVal

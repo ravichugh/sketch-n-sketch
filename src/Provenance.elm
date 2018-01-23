@@ -17,6 +17,13 @@ nameForVal program val =
   |> Maybe.withDefault (LangTools.simpleExpName (valExp val))
 
 
+valToMaybeLetPat : Exp -> Val -> Maybe Pat
+valToMaybeLetPat program val =
+  LangTools.allSimplyResolvableLetPatBindings program
+  |> Utils.findFirst (\(_, boundExp) -> isPossibleSingleEIdInterpretation (LangTools.expValueExp boundExp).val.eid val)
+  |> Maybe.map (\(pat, _) -> pat)
+
+
 -- Mirror of basedOn provenance in Eval.eval
 --
 -- Though note: if code branches, the value produced by the branch
