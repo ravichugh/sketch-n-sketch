@@ -6,7 +6,7 @@ import LangUnparser exposing (unparse)
 import Eval exposing (doEval)
 import Utils
 import Syntax
-import Results exposing (Results, ok1, oks, errs)
+import Results exposing (Results, ok1, oks, errs, fromMaybe)
 import MissingNumberMethods exposing (..)
 
 -- Make sure that Env |- Exp evaluates to oldVal
@@ -190,6 +190,32 @@ update env e oldVal newVal =
                                 e -> errs <| "[internal error] Wrong number of arguments in update: " ++ toString e
                     e -> errs <| "Expected string, got " ++ toString e
                 _ -> errs <| "Not yet supported operation update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
+
+    ECase sp1 input branches sp2 ->
+      case doEval Syntax.Elm env input of
+        Err msg -> errs msg
+        Ok ((inputVal, _), _) ->
+          case branchWithInversion env inputVal branches of
+            Nothing -> errs <| "Match error: " ++ valToString inputVal ++ " on branches " ++ Syntax.unparser Syntax.Elm e
+            Just ((newEnv, newExp), newEnvValBranchBuilder) ->
+              update newEnv newExp oldVal newVal
+              |> Results.andThen (\(upEnv, upExpr) ->
+                let (newBranchEnv, newInputVal, nBranches) = newEnvValBranchBuilder (upEnv, upExpr) in
+                update env input inputVal newInputVal
+                |> Results.map (\(newInputEnv, newInputExp) ->
+                  let finalEnv = triCombine env newInputEnv newBranchEnv in
+                  (finalEnv, replaceE__ e <| ECase sp1 newInputExp nBranches sp2)
+                )
+              )
+    --  ETypeCase WS Exp (List TBranch) WS
+     -- ELet WS LetKind Rec Pat Exp Exp WS
+     -- EComment WS String Exp
+     -- EOption WS (WithInfo String) WS (WithInfo String) Exp
+     -- ETyp WS Pat Type Exp WS
+     -- EColonType WS Exp WS Type WS
+     -- ETypeAlias WS Pat Type Exp WS
+     -- EParens WS Exp WS
+     -- EHole WS (Maybe Val)
     _ -> errs <| "Non-supported update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
 
 
@@ -310,6 +336,28 @@ triCombine originalEnv newEnv1 newEnv2 =
            toString originalEnv ++ ", " ++ toString newEnv1 ++ ", " ++ toString newEnv2
     in
   aux [] originalEnv newEnv1 newEnv2
+
+branchWithInversion: Env -> Val -> List Branch -> Maybe ((Env, Exp), (Env, Exp) -> (Env, Val, List Branch))
+branchWithInversion env input branches =
+  case branches of
+    [] -> Nothing
+    head::tail ->
+      case head.val of
+        Branch_ sp1 pat exp sp2 ->
+          case consWithInversion (pat, input) (Just (env, \newEnv -> newEnv)) of
+            Nothing ->
+              Maybe.map (\((augEnv, exp), patValEnvRebuilder) ->
+                ((augEnv, exp),
+                (\(newEnv, newExp) ->
+                  let (updatedEnv, updatedVal, newTailBranches) = patValEnvRebuilder (newEnv, newExp) in
+                  (updatedEnv, updatedVal, head::newTailBranches)
+                  ))
+              ) <| branchWithInversion env input tail
+            Just (augEnv, patValEnvRebuilder) ->
+              Just ((augEnv, exp), \(newAugEnv, newExp) ->
+                let ((newPat, newVal), newEnv) = patValEnvRebuilder newAugEnv in
+                (newEnv, newVal, (replaceB__ head <| Branch_ sp1 newPat newExp sp2) :: tail)
+              )
 
 consWithInversion : (Pat, Val) -> Maybe (Env, Env -> a) -> Maybe (Env, Env -> ((Pat, Val), a))
 consWithInversion pv menv =

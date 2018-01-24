@@ -1558,6 +1558,9 @@ replaceP__ p p__ = let p_ = p.val in { p | val = { p_ | p__ = p__ } }
 mapNodeP__ : (Pat__ -> Pat__ ) -> Pat -> Pat
 mapNodeP__ f p = replaceP__ p (f p.val.p__)
 
+replaceB__ : Branch -> Branch_ -> Branch
+replaceB__ b b_ = { b | val = b_ }
+
 replaceP__PreservingPrecedingWhitespace  : Pat -> Pat__ -> Pat
 replaceP__PreservingPrecedingWhitespace  p p__ =
   replaceP__ p p__ |> replacePrecedingWhitespacePat (precedingWhitespacePat p)
