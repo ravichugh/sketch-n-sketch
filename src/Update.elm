@@ -2,17 +2,19 @@ module Update exposing  (..)
 
 import Tuple exposing (first)
 import Lang exposing (..)
-import LangUnparser exposing (unparse)
 import Eval exposing (doEval)
 import Utils
 import Syntax
 import Results exposing (Results, ok1, oks, errs, fromMaybe)
 import MissingNumberMethods exposing (..)
+import ValUnparser exposing (strVal)
+
+unparse = Syntax.unparser Syntax.Elm
 
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Val -> Results String (Env, Exp)
 update env e oldVal newVal =
-  --let _ = Debug.log (String.concat [envToString env, unparse e] ++ " <-- " ++ (valToString newVal)) 1 in
+  --let _ = Debug.log (String.concat ["update: ", envToString env, "|-", unparse e] ++ " <-- " ++ (valToString newVal)) () in
   case e.val.e__ of
     EConst ws num loc widget -> ok1 <| (env, replaceE__ e <| EConst ws (getNum newVal) loc widget)
     EBase ws m -> ok1 <| (env, val_to_exp ws newVal)
@@ -208,14 +210,66 @@ update env e oldVal newVal =
                 )
               )
     --  ETypeCase WS Exp (List TBranch) WS
-     -- ELet WS LetKind Rec Pat Exp Exp WS
-     -- EComment WS String Exp
-     -- EOption WS (WithInfo String) WS (WithInfo String) Exp
-     -- ETyp WS Pat Type Exp WS
-     -- EColonType WS Exp WS Type WS
-     -- ETypeAlias WS Pat Type Exp WS
-     -- EParens WS Exp WS
-     -- EHole WS (Maybe Val)
+    ELet sp1 letKind False p e1 body sp2 ->
+        case doEval Syntax.Elm env e1 of
+          Err s       -> errs s
+          Ok ((oldE1Val,_), _) ->
+            case consWithInversion (p, oldE1Val) (Just (env, (\newEnv -> newEnv))) of
+               Just (envWithE1, consBuilder) ->
+                 update envWithE1 body oldVal newVal
+                 |> Results.andThen (\(newEnvWithE1, newBody) ->
+                   case consBuilder newEnvWithE1 of
+                     ((newPat, newE1Val), newEnvFromBody) ->
+                       update env e1 oldE1Val newE1Val
+                       |> Results.map (\(newEnvFromE1, newE1) ->
+                         let finalEnv = triCombine env newEnvFromE1 newEnvFromBody in
+                         (finalEnv, replaceE__ e <| ELet sp1 letKind False newPat newE1 newBody sp2)
+                       )
+                 )
+               Nothing ->
+                 errs <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
+    ELet sp1 letKind True p e1 body sp2 ->
+        case doEval Syntax.Elm env e1 of
+          Err s       -> errs s
+          Ok ((oldE1Val,_), _) ->
+            case (p.val.p__, oldE1Val.v_) of
+              (PVar _ fname _, VClosure Nothing x closureBody env_) ->
+                --let _   = Utils.assert "eval letrec" (env == env_) in
+                let oldE1ValNamed = { oldE1Val | v_ = VClosure (Just fname) x closureBody env } in
+                case consWithInversion (p, oldE1ValNamed) (Just (env, (\newEnv -> newEnv))) of
+                   Just (envWithE1, consBuilder) ->
+                     update envWithE1 body oldVal newVal
+                     |> Results.andThen (\(newEnvWithE1, newBody) ->
+                       case consBuilder newEnvWithE1 of
+                         ((newPat, newE1ValNamed), newEnvFromBody) ->
+                           let newE1Val = case newE1ValNamed.v_ of
+                             VClosure (Just _) x vBody newEnv -> { newE1ValNamed | v_ = VClosure Nothing x vBody newEnv }
+                             _ -> Debug.crash "[internal error] This should have been a recursive method"
+                           in
+                           update env e1 oldE1Val newE1Val
+                           |> Results.map (\(newEnvFromE1, newE1) ->
+                             let finalEnv = triCombine env newEnvFromE1 newEnvFromBody in
+                             (finalEnv, replaceE__ e <| ELet sp1 letKind True newPat newE1 newBody sp2)
+                           )
+                     )
+                   Nothing ->
+                     errs <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
+              (PList _ _ _ _ _, _) ->
+                  errs <| strPos e1.start ++
+                    """mutually recursive functions (i.e. letrec [...] [...] e) \
+                       not yet implemented""" --"
+                     -- Implementation also requires modifications to LangSimplify.simply
+                     -- so that clean up doesn't prune the funtions.
+              _ ->
+                errs <| strPos e.start ++ " bad letrec"
+
+    -- EComment WS String Exp
+    -- EOption WS (WithInfo String) WS (WithInfo String) Exp
+    -- ETyp WS Pat Type Exp WS
+    -- EColonType WS Exp WS Type WS
+    -- ETypeAlias WS Pat Type Exp WS
+    -- EParens WS Exp WS
+    -- EHole WS (Maybe Val)
     _ -> errs <| "Non-supported update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ valToString newVal ++ " (was " ++ valToString oldVal ++ ")"
 
 
@@ -469,7 +523,7 @@ val_to_exp ws v =
     VBase (VString s) -> EBase  ws <| EString defaultQuoteChar s
     VBase (VNull)     -> EBase  ws <| ENull
     VList vals -> EList ws (List.map (val_to_exp ws) vals) ws Nothing <| ws
-    VClosure Nothing patterns body env -> EFun ws patterns body ws -- Not sure about this one.
+    VClosure _ patterns body env -> EFun ws patterns body ws -- Not sure about this one.
     _ -> Debug.crash <| "Trying to get an exp of the value " ++ toString v
     --VDict vs ->
 
@@ -490,9 +544,12 @@ envToString: Env -> String
 envToString env =
   case env of
     [] -> ""
-    (v, value)::tail -> v ++ "->" ++ unparse (val_to_exp (ws "") value) ++ " " ++ (envToString tail)
+    (v, value)::tail -> v ++ "->" ++ (valToString value) ++ " " ++ (envToString tail)
 
 valToString: Val -> String
 valToString v = case v.v_ of
-   VClosure Nothing patterns body env -> envToString env ++ "|-" ++ ((unparse << val_to_exp (ws " ")) v)
+   VClosure Nothing patterns body [] -> (unparse << val_to_exp (ws " ")) v
+   VClosure (Just name) patterns body [] -> "(" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
+   VClosure Nothing patterns body env -> "(" ++ envToString env ++ "|-" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
+   VClosure (Just name) patterns body env -> "(" ++ envToString env ++ "|" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
    _ -> (unparse << val_to_exp (ws " ")) v

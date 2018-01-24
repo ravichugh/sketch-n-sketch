@@ -133,6 +133,7 @@ keywords : Set String
 keywords =
   Set.fromList
     [ "let"
+    , "letrec"
     , "in"
     , "case"
     , "of"
@@ -872,8 +873,16 @@ caseExpression =
 --------------------------------------------------------------------------------
 
 letBinding : Parser Exp
-letBinding =
-  inContext "let binding" <|
+letBinding =     lazy <| \_ ->
+  genericLetBinding "let" False
+
+letrecBinding : Parser Exp
+letrecBinding =      lazy <| \_ ->
+  genericLetBinding "letrec" True
+
+genericLetBinding : String -> Bool -> Parser Exp
+genericLetBinding letkeyword isRec =
+  inContext (letkeyword ++ " binding") <|
     lazy <| \_ ->
       mapExp_ <|
         paddedBefore
@@ -888,10 +897,10 @@ letBinding =
                       binding_.start
                       binding_.end
               in
-                ELet wsBefore Let False name binding body space0
+                ELet wsBefore Let isRec name binding body space0
           )
           ( trackInfo <|
-              delayedCommit (keywordWithSpace "let") <|
+              delayedCommit (keywordWithSpace letkeyword) <|
                 succeed (,,,)
                   |= pattern
                   |= repeat zeroOrMore pattern
@@ -1028,6 +1037,7 @@ simpleExpression =
       , lazy <| \_ -> list
       , lazy <| \_ -> conditional
       , lazy <| \_ -> caseExpression
+      , lazy <| \_ -> letrecBinding
       , lazy <| \_ -> letBinding
       , lazy <| \_ -> lineComment
       , lazy <| \_ -> option

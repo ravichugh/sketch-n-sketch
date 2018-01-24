@@ -12,8 +12,8 @@ import Syntax
 
 import Results
 
-type alias State = { numTests: Int, nthAssertion: Int, numSuccess: Int, numFailed: Int, currentName: String, errors: String }
-init_state = State 0 0 0 0 "" ""
+type alias State = { numTests: Int, nthAssertion: Int, numSuccess: Int, numFailed: Int, currentName: String, errors: String, ignore: Bool }
+init_state = State 0 0 0 0 "" "" False
 summary: State -> String
 summary state =
   Debug.log (state.errors ++ "\n-------------------\n "++toString state.numSuccess ++"/" ++ toString state.numTests++ " tests passed\n-------------------") "ok"
@@ -23,6 +23,10 @@ test name state =
   --let _ = Debug.log name "testing" in
   --let res = body <| name in
   {state | nthAssertion = 1, currentName = name} -- Debug.log name "all tests passed"
+
+ignore: Bool -> State -> State
+ignore b state =
+  {state | ignore = b}
 
 success state = { state |
   numTests = state.numTests + 1,
@@ -44,6 +48,7 @@ assertEqual x y state =
 
 updateAssert: Env -> Exp -> Val -> Val -> Env -> Exp  -> State  -> State
 updateAssert env exp origOut newOut expectedEnv expectedExp state =
+  if state.ignore then state else
   let expected = envToString expectedEnv ++ " |- " ++ unparse expectedExp in
   let problemdesc = ("\nFor problem:" ++
     envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
@@ -66,6 +71,7 @@ updateAssert env exp origOut newOut expectedEnv expectedExp state =
 
 updateElmAssert: List (String, String) -> String -> String -> List (String, String) -> String -> State -> State
 updateElmAssert envStr expStr newOutStr expectedEnvStr expectedExpStr state =
+  if state.ignore then state else
   case Utils.projOk [parseEnv envStr, parseEnv expectedEnvStr] of
     Err error -> fail state error
     Ok [env, expectedEnv] ->
@@ -130,6 +136,7 @@ tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat s
 all_tests = init_state
   {--}
   |> test "triCombineTest"
+  --|> ignore True
   |> assertEqual
       (triCombine [("x", (tVal 1)), ("y", (tVal 1)), ("z", (tVal 1))]
                   [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))]
@@ -286,5 +293,14 @@ all_tests = init_state
       |> updateElmAssert
         [("x", "[7]")] "case x of\n  [a, b] -> a + b;\n  u -> 0;" "5"
         [("x", "[7]")] "case x of\n  [a, b] -> a + b;\n  u -> 5;"
+  |> test "non-rec let"
+      |> updateElmAssert
+        [] "let   x= 5 in\nlet y  =2  in [x, y]" "[6, 3]"
+        [] "let   x= 6 in\nlet y  =3  in [x, y]"
+  --|> ignore False
+  |> test "rec let"
+      |> updateElmAssert
+        [] "letrec f = \\x -> if x == 0 then x else (f (x - 1)) in\n f 2" "3"
+        [] "letrec f = \\x -> if x == 0 then x else (f (x - 1)) in\n f 5"
   |> test "Recursive calls"
   |> summary

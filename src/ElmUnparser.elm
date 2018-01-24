@@ -249,7 +249,7 @@ unparse e =
         ++ " of"
         ++ String.concat (List.map unparseBranch branches)
 
-    ELet wsBefore letKind _ name binding_ body wsBeforeSemicolon ->
+    ELet wsBefore letKind isRec name binding_ body wsBeforeSemicolon ->
       let
         (parameters, binding) =
           case binding_.val.e__ of
@@ -271,7 +271,7 @@ unparse e =
       case letKind of
         Let ->
           wsBefore.val
-            ++ "let"
+            ++ (if isRec then "letrec" else "let")
             ++ unparsePattern name
             -- NOTE: to help with converting Little to Elm
             -- ++ String.concat (List.map unparsePattern parameters)
