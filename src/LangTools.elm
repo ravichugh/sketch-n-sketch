@@ -2824,7 +2824,7 @@ type ExpressionBinding
 
 
 -- Too much recursion here, for some reason.
-preludeExpEnv = expEnvAt_ prelude (lastExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludeExpEnv"
+preludeExpEnv = expEnvAt_ prelude (lastTopLevelExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludeExpEnv"
 
 -- Return bindings to expressions (as best as possible) at EId
 expEnvAt : Exp -> EId -> Maybe (Dict Ident ExpressionBinding)

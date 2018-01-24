@@ -14,6 +14,24 @@ import Dict
 import Set
 import String
 
+typeToMaybeAliasIdent : Type -> Maybe Ident
+typeToMaybeAliasIdent tipe =
+  case tipe.val of
+    TNamed _ aliasName -> Just aliasName
+    _                  -> Nothing
+
+
+typeToMaybeArgTypesAndReturnType : Type -> Maybe (List Type, Type)
+typeToMaybeArgTypesAndReturnType tipe =
+  case tipe.val of
+    TArrow _ types _ ->
+      case (Utils.dropLast 1 types, Utils.maybeLast types) of
+        (argTypes, Just returnType) -> Just (argTypes, returnType)
+        _                           -> Nothing
+
+    _ -> Nothing
+
+
 equal : Type -> Type -> Bool
 equal t1 t2 =
   (astsMatch t1 t2) && (identifiersEquivalent t1 t2)

@@ -318,6 +318,7 @@ type Tool
   | Path ShapeToolKind
   | HelperLine
   | Lambda Int -- 1-based index of selected LambdaTool
+  | Function Ident -- Generalized lambda tool, hopefully will subsume Lambda tool
 
 type ShapeToolKind
   = Raw

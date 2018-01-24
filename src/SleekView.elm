@@ -32,6 +32,7 @@ import OutputTools exposing (OutputTool)
 
 import SleekLayout exposing (px, half)
 import Canvas
+import Draw
 import LangTools
 import Sync
 import Lang exposing (Exp)
@@ -1472,7 +1473,7 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
     iconHtml =
       case Dict.get (Utils.naturalToCamelCase iconName) model.icons of
         Just h -> h
-        Nothing -> Html.text ""
+        Nothing -> Html.text iconName
   in
   let commonAttrs =
     [ Attr.disabled disabled
@@ -1516,6 +1517,8 @@ toolButton model tool =
         "(Rule)"
       Lambda _ ->
         "Lambda" -- Utils.uniLambda
+      Function fName ->
+        fName
     -- TODO temporarily disabling a couple tools
     (btnKind, disabled) =
      case (model.tool == tool, tool) of
@@ -1548,6 +1551,21 @@ lambdaTools model =
       ) model.lambdaTools
   in
     buttons
+
+functionTools : Model -> List (Html Msg)
+functionTools model =
+  Draw.getDrawableFunctions model
+  |> List.map
+      (\(funcName, _) ->
+        Html.div
+          [ Attr.class "tool"
+          ]
+          [ iconButton model funcName
+              (Msg (funcName ++ " Function Tool") (\m -> { m | tool = Function funcName }))
+              (if model.tool == Function funcName then Selected else Unselected)
+              False
+          ]
+      )
 
 toolModeIndicator : Model -> Html Msg
 toolModeIndicator model =
@@ -1599,8 +1617,9 @@ toolPanel model =
         , toolButton model (Oval model.toolMode)
         , toolButton model (Poly model.toolMode)
         , toolButton model (Path model.toolMode)
-        ]
-        ++ (lambdaTools model) ++
+        ] ++
+        lambdaTools model ++
+        functionTools model ++
         [ toolModeIndicator model
         ]
       )
