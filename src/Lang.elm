@@ -1623,6 +1623,7 @@ eStr   = withDummyExpInfo << EBase space1 << EString defaultQuoteChar
 eStr0  = withDummyExpInfo << EBase space0 << EString defaultQuoteChar
 eTrue  = eBool True
 eFalse = eBool False
+eNull  = withDummyExpInfo <| EBase space1 <| ENull
 
 eApp e es      = withDummyExpInfo <| EApp space1 e es space0
 eCall fName es = eApp (eVar0 fName) es

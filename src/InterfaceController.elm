@@ -588,7 +588,8 @@ onMouseUp old =
         (Oval Stretchy, TwoPoints pt2 pt1, False) -> upstateRun <| resetMouseMode <| Draw.addStretchyOval old pt2 pt1
         (Oval Stretchy, TwoPoints pt2 pt1, True)  -> upstateRun <| resetMouseMode <| Draw.addStretchyCircle old pt2 pt1
 
-        (Lambda i, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLambda i old pt2 pt1
+        (Lambda i,       TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLambda i old pt2 pt1
+        (Function fName, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addFunction fName old pt2 pt1
 
         (Poly _, _, _) -> old
         (Path _, _, _) -> old
@@ -1652,7 +1653,7 @@ msgGroupBlobs = Msg "Group Blobs" doGroup
 
 doGroup =
   \old ->
-    case Blobs.isSimpleProgram old.inputExp of
+    case Blobs.maybeSimpleProgram old.inputExp of
       Nothing -> old
       Just simple ->
         let maybeAnchorPoint = ETransform.anchorOfSelectedFeatures old.selectedFeatures in
@@ -1742,7 +1743,7 @@ msgAbstractBlobs = Msg "Abstract Blobs" <| \old ->
   upstateRun <| ETransform.abstractSelectedBlobs old
 
 msgReplicateBlob option = Msg "Replicate Blob" <| \old ->
-  case Blobs.isSimpleProgram old.inputExp of
+  case Blobs.maybeSimpleProgram old.inputExp of
     Nothing     -> old
     Just simple -> upstateRun <| ETransform.replicateSelectedBlob option old simple
 
@@ -2501,6 +2502,8 @@ msgSetToolMode mode =
             HelperLine
           Lambda i ->
             Lambda i
+          Function fName ->
+            Function fName
     in
       { old | toolMode = mode
             , tool = newTool

@@ -11,15 +11,17 @@ module Draw exposing
   , addRawSquare , addRawRect , addStretchySquare , addStretchyRect
   , addRawCircle , addRawOval , addStretchyCircle , addStretchyOval
   , addPath , addPolygon
-  , addLambda
+  , addLambda , addFunction
   , addPoint , addOffset , addOffsetAndPoint , horizontalVerticalSnap
   , addTextBox
   , lambdaToolOptionsOf
+  , getDrawableFunctions
   )
 
 import CodeMotion
 import Lang exposing (..)
 import LangSvg
+import Types
 import Blobs exposing (..)
 import InterfaceModel exposing (..)
 import FastParser
@@ -479,6 +481,21 @@ addOffset old snap (x1Val, y1Val) (x2, y2) =
   addOffsetAndMaybePoint old snap (valToNum x1Val, valToNum y1Val) (Just (x1Val, y1Val)) (x2, y2)
 
 
+addToEndOfProgram : Model -> Ident -> Exp -> Model
+addToEndOfProgram old varSuggestedName exp =
+  let originalProgram = old.inputExp in
+  let insertBeforeEId = (LangTools.lastTopLevelExp originalProgram).val.eid in
+  let varName = LangTools.nonCollidingName varSuggestedName 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
+  let newProgram =
+    originalProgram
+    |> mapExpNode insertBeforeEId (\lastTopLevelExp -> LangTools.newLetFancyWhitespace -1 False (pVar varName) exp lastTopLevelExp originalProgram)
+    |> CodeMotion.resolveValueHoles old.syncOptions
+    |> List.head
+    |> Maybe.withDefault originalProgram
+  in
+  { old | code = Syntax.unparser old.syntax newProgram }
+
+
 addOffsetAndMaybePoint : Model -> Snap -> (Num, Num) -> Maybe (Val, Val) -> (Int, Int) -> Model
 addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
@@ -486,23 +503,16 @@ addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
   let (axis, sign, offsetAmount) = horizontalVerticalSnap (round x1, round y1) (x2, y2) in
   let plusOrMinus = if sign == Positive then Plus else Minus in
   let offsetFromExisting baseVal =
-    let insertBeforeEId = (LangTools.lastTopLevelExp originalProgram).val.eid in
-    let offsetSuggestedName = Provenance.nameForVal originalProgram baseVal in
-    let offsetName = LangTools.nonCollidingName (offsetSuggestedName ++ "Offset") 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
-    let offsetAmountExp =
-      case snap of
-        NoSnap          -> eConstDummyLoc (toFloat offsetAmount)
-        SnapVal snapVal -> eHoleVal snapVal
+    let offsetSuggestedName = Provenance.nameForVal originalProgram baseVal ++ "Offset" in
+    let offsetExp =
+      let offsetAmountExp =
+        case snap of
+          NoSnap          -> eConstDummyLoc (toFloat offsetAmount)
+          SnapVal snapVal -> eHoleVal snapVal
+      in
+      eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp]
     in
-    let offsetExp = eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp] in
-    let newProgram =
-      originalProgram
-      |> mapExpNode insertBeforeEId (\lastTopLevelExp -> LangTools.newLetFancyWhitespace -1 False (pVar offsetName) offsetExp lastTopLevelExp originalProgram)
-      |> CodeMotion.resolveValueHoles old.syncOptions
-      |> List.head
-      |> Maybe.withDefault originalProgram
-    in
-    { old | code = Syntax.unparser old.syntax newProgram }
+    addToEndOfProgram old offsetSuggestedName offsetExp
   in
   case (axis, maybeExistingPoint) of
     (X, Just (x1Val, _)) -> offsetFromExisting x1Val
@@ -797,6 +807,45 @@ addLambdaAnchor old click2 click1 func =
   let code = Syntax.unparser old.syntax (fuseExp (defs, mainExp_)) in
   { old | code = code }
 
+
+addFunction : Ident -> Model -> (KeysDown, (Int, Int)) -> (KeysDown, (Int, Int)) -> Model
+addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
+  let fillInArgPrimitive argType =
+    case argType.val of
+      TNum _                         -> Just <| eConstDummyLoc 0
+      TBool _                        -> Just <| eFalse
+      TString _                      -> Just <| eStr "string"
+      TNull _                        -> Just <| eNull
+      TList _ _ _                    -> Just <| eTuple []
+      TDict _ _ _ _                  -> Just <| eOp DictEmpty []
+      TTuple _ headTypes _ Nothing _ -> List.map fillInArgPrimitive headTypes |> Utils.projJusts |> Maybe.map eTuple
+      TUnion _ (firstType::_) _      -> fillInArgPrimitive firstType
+      TVar _ _                       -> Just <| eTuple []
+      TWildcard _                    -> Just <| eTuple []
+      TNamed _ "Color"               -> Just <| eConstDummyLoc 0
+      TNamed _ "Point"               -> Just <| eTuple (makeInts [0,0])
+      _                              -> Nothing
+  in
+  case getDrawableFunctions old |> Utils.maybeFind fName |> Maybe.andThen Types.typeToMaybeArgTypesAndReturnType of
+    Just (argTypes, returnType) ->
+      let (_, argMaybeExps) =
+        argTypes
+        |> List.foldl
+            (\argType (ptsRemaining, argMaybeExps) ->
+              case (ptsRemaining, argType.val) of
+                ((x,y)::otherPts, TNamed _ "Point") -> (otherPts,     argMaybeExps ++ [Just (eTuple (makeInts [x,y]))])
+                _                                   -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
+            )
+            ([(x1, y1), (x2, y2)], [])
+      in
+      case (Utils.projJusts argMaybeExps, returnType.val) of
+        (Just argExps, TNamed _ "Point") -> addToEndOfProgram old fName (eCall fName argExps)
+        (Just argExps, TNamed _ "Shape") -> addShapeToModel   old fName (eCall fName argExps)
+        _                                -> let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
+
+    Nothing -> let _ = Utils.log <| "Could not find function " ++ fName ++ " to draw!" in old
+
+
 addTextBox old click2 click1 =
   let (xa, xb, ya, yb) = boundingBox (Tuple.second click2) (Tuple.second click1) in
   let fontSize =
@@ -943,7 +992,7 @@ switchToCursorTool old =
 --------------------------------------------------------------------------------
 -- Lambda Tool
 
-lambdaToolOptionsOf : Syntax -> LittleProgram -> Env -> List LambdaTool
+lambdaToolOptionsOf : Syntax -> SplitProgram -> Env -> List LambdaTool
 lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
   case mainExp of
 
@@ -952,16 +1001,16 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
         -- will be easier with better TopDefs
         List.concatMap (\(_,p,e,_) ->
           case (p.val.p__, e.val.e__) of
-            (PVar _ f _, EFun _ params _ _) ->
+            (PVar _ fName _, EFun _ params _ _) ->
               case List.reverse params of
                 lastParam :: _ ->
                   case varsOfPat lastParam of
-                    ["bounds"]                            -> [Left f]
-                    ["left","top","right","bot"]          -> [Left f]
-                    ["bounds","left","top","right","bot"] -> [Left f]
-                    ["anchor"]                            -> [Right f]
-                    ["xAnchor","yAnchor"]                 -> [Right f]
-                    ["anchor","xAnchor","yAnchor"]        -> [Right f]
+                    ["bounds"]                            -> [Left fName]
+                    ["left","top","right","bot"]          -> [Left fName]
+                    ["bounds","left","top","right","bot"] -> [Left fName]
+                    ["anchor"]                            -> [Right fName]
+                    ["xAnchor","yAnchor"]                 -> [Right fName]
+                    ["anchor","xAnchor","yAnchor"]        -> [Right fName]
                     _                                     -> []
                 [] -> []
             _ -> []
@@ -971,13 +1020,14 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
         List.reverse <| -- reverse so that most recent call wins
           List.concatMap (\blob ->
             case blob of
-              NiceBlob _ (WithBoundsBlob (_, f, args)) -> [Left (f,args)]
-              NiceBlob _ (WithAnchorBlob (_, f, args)) -> [Right (f,args)]
+              NiceBlob _ (WithBoundsBlob (_, fName, argExps)) -> [Left (fName, argExps)]
+              NiceBlob _ (WithAnchorBlob (_, fName, argExps)) -> [Right (fName, argExps)]
               _                                        -> []
             ) blobs
       in
       let lambdaCalls =
-        List.concatMap (\preFunc ->
+        lambdaPreFuncs
+        |> List.concatMap (\preFunc ->
           let pred withBlob =
             case (preFunc, withBlob) of
               (Left f, Left (g, _))   -> f == g
@@ -1003,11 +1053,9 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
                     args ++ [eTuple [eConstDummyLoc xAnchor, eConstDummyLoc yAnchor]]
                   exp =
                     withDummyExpInfo (EApp space1 (eVar0 f) argsAndAnchor space0)
-                  val =
+                  ((val, _), _) =
                     Eval.doEval syntax finalEnv exp
                       |> Utils.fromOkay "lambdaToolOptionsOf LambdaAnchor"
-                      |> Tuple.first
-                      |> Tuple.first
                 in
                 case val.v_ of
                   VList [v1] ->
@@ -1037,8 +1085,85 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
               [LambdaAnchor
                  (withDummyExpInfo (EApp space1 (eVar0 f) args space0))
                  maybeViewBoxAndAnchor]
-          ) lambdaPreFuncs
+          )
       in
       lambdaCalls
 
     _ -> []
+
+
+--------------------------------------------------------------------------------
+-- Function Tool (generalized lambda tool)
+
+
+preludeDrawableFunctions : List (Ident, Type)
+preludeDrawableFunctions =
+  getDrawableFunctions_ FastParser.prelude (LangTools.lastTopLevelExp FastParser.prelude).val.eid
+
+
+getDrawableFunctions : Model -> List (Ident, Type)
+getDrawableFunctions model =
+  getDrawableFunctions_
+      model.inputExp
+      (LangTools.lastTopLevelExp model.inputExp).val.eid ++
+  preludeDrawableFunctions
+  |> Utils.dedupBy Tuple.first -- Remove shadowed prelude functions.
+
+
+-- Supported inputs:
+-- 2 Points
+--
+-- Supported outputs:
+-- Shape
+-- Point
+isDrawableType : Type -> Bool
+isDrawableType tipe =
+  case tipe.val of
+    TArrow _ argTypes _ ->
+      case (Utils.maybeLast argTypes |> Maybe.map .val, Utils.dropLast 1 argTypes) of
+        (Just (TNamed _ retAliasName), otherArgs) ->
+          if retAliasName == "Shape" || retAliasName == "Point" then
+            let aliasArgIdents = List.filterMap Types.typeToMaybeAliasIdent otherArgs in
+            Utils.count ((==) "Point") aliasArgIdents == 2
+          else
+            False
+        _ ->
+          False
+    _ ->
+      False
+
+
+getDrawableFunctions_ : Exp -> EId -> List (Ident, Type)
+getDrawableFunctions_ program viewerEId =
+  let boundExpsInScope =
+    LangTools.expEnvAt_ program viewerEId
+    |> Utils.fromJust_ "getDrawableFunctions_ expEnvAt_"
+    |> Dict.toList
+    |> List.filterMap
+        (\(ident, boundExp) ->
+          case boundExp of
+            LangTools.Bound exp    -> Just (LangTools.expValueExp exp)
+            LangTools.BoundUnknown -> Nothing
+        )
+  in
+  findWithAncestorsByEId program viewerEId
+  |> Utils.fromJust_ "getDrawableFunctions_ findWithAncestorsByEId"
+  |> List.filterMap
+      (\exp ->
+        case exp.val.e__ of
+          ETyp _ typePat tipe body _ -> -- Only single types at a time for now.
+            if isDrawableType tipe then
+              case LangTools.expToMaybeLetPatAndBoundExp body of
+                Just (letPat, boundExp) ->
+                  case (typePat.val.p__, letPat.val.p__) of
+                    (PVar _ typeIdent _, PVar _ letIdent _) ->
+                      if typeIdent == letIdent && List.member (LangTools.expValueExp boundExp) boundExpsInScope
+                      then Just (typeIdent, tipe)
+                      else Nothing
+                    _ -> Nothing
+                _ -> Nothing
+            else
+              Nothing
+          _ -> Nothing
+      )
+

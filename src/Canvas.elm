@@ -227,6 +227,7 @@ drawNewShape model =
     (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))                  -> drawNewPointAndOffset model False pt2 pt1
     (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewLine model pt2 pt1
     (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Function _,    MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
     (Text,          MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
     _                                                                            -> []
 
