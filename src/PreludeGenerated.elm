@@ -364,6 +364,7 @@ prelude =
 (def Point [Num Num])
 (def RGBA [Num Num Num Num])
 (def Color (union String Num RGBA))
+(def StrokeWidth Num)
 (def PathCmds (List (union String Num)))
 (def Points (List Point))
 (def RotationCmd [[String Num Num Num]])
@@ -544,7 +545,7 @@ prelude =
 
 ;; argument order - color, width, x, y, radius
 ;; Just as circle, except new width parameter determines thickness of ring
-(typ ring (-> Color Num Num Num Num SVG))
+(typ ring (-> Color StrokeWidth Num Num Num SVG))
 (def ring (\\(c w x y r)
   ['circle'
      [ ['cx' x] ['cy' y] ['r' r] ['fill' 'none'] ['stroke' c] ['stroke-width' w] ]
@@ -832,13 +833,13 @@ prelude =
 
 ;; argument order - color, width, x1, y1, x1, y2
 ;; creates a line from (x1, y1) to (x2,y2) with given color and width
-(typ line (-> Color Num Num Num Num Num Line))
+(typ line (-> Color StrokeWidth Num Num Num Num Line))
 (def line (\\(stroke w x1 y1 x2 y2)
   ['line'
      [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' stroke] ['stroke-width' w] ]
      []]))
 
-(typ lineBetween (-> Color Num Point Point Line))
+(typ lineBetween (-> Color StrokeWidth Point Point Line))
 (def lineBetween (\\(stroke w [x1 y1] [x2 y2])
   (line stroke w x1 y1 x2 y2)))
 
@@ -866,7 +867,7 @@ prelude =
 
 ;; argument order - fill, stroke, width, points
 ;; creates a polygon following the list of points, with given fill color and a border with given width and stroke
-(typ polygon (-> Color Color Num Points SVG))
+(typ polygon (-> Color Color StrokeWidth Points SVG))
 (def polygon (\\(fill stroke w pts)
   ['polygon'
      [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
@@ -874,7 +875,7 @@ prelude =
 
 ;; argument order - fill, stroke, width, points
 ;; See polygon
-(typ polyline (-> Color Color Num Points SVG))
+(typ polyline (-> Color Color StrokeWidth Points SVG))
 (def polyline (\\(fill stroke w pts)
   ['polyline'
      [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
@@ -883,7 +884,7 @@ prelude =
 ;; argument order - fill, stroke, width, d
 ;; Given SVG path command d, create path with given fill color, stroke and width
 ;; See https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths for path command info
-(typ path (-> Color Color Num PathCmds SVG))
+(typ path (-> Color Color StrokeWidth PathCmds SVG))
 (def path (\\(fill stroke w d)
   ['path'
      [ ['fill' fill] ['stroke' stroke] ['stroke-width' w] ['d' d] ]
@@ -987,7 +988,7 @@ prelude =
   (let pts (nPointsOnUnitCircle n rot)
   (map (\\[x y] [(+ cx (* x r)) (+ cy (* y r))]) pts))))
 
-(typ nStar (-> Color Color Num Num Num Num Num Num Num SVG))
+(typ nStar (-> Color Color StrokeWidth Num Num Num Num Num Num SVG))
 ;; argument order -
 ;; fill color - interior color of star
 ;; stroke color - border color of star

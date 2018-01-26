@@ -1255,6 +1255,13 @@ expToCaseScrutinee exp =
     _                     -> Debug.crash <| "LangTools.expToScrutinee exp is not an ECase: " ++ unparseWithIds exp
 
 
+expToAppArgs : Exp -> List Exp
+expToAppArgs exp =
+  case exp.val.e__ of
+    EApp _ _ args _ _ -> args
+    _                 -> Debug.crash <| "LangTools.expToAppArgs exp is not an EApp: " ++ unparseWithIds exp
+
+
 expToMaybeHoleVal : Exp -> Maybe Val
 expToMaybeHoleVal exp =
   case exp.val.e__ of

@@ -2297,19 +2297,14 @@ iconify syntax env code =
     exp =
       Utils.fromOkay "Error parsing icon"
         <| Syntax.parser syntax code
-    ((val, _), _) =
-      Utils.fromOkay "Error evaluating icon"
-        <| Eval.doEval syntax env exp
-    slate =
-      Utils.fromOkay "Error resolving index tree of icon"
-        <| LangSvg.resolveToRootedIndexedTree syntax 1 1 0 val
-    svgElements =
+    svgElement =
       -- Not using Canvas.buildHtml because can't have circular dependency between InterfaceController and Canvas
       -- Various widgets in Canvas defined their model update functions inline to avoid this, but now we're
       -- invoking more complicated transforms from the output, so Canvas has to depend on InterfaceController.
       --
       -- So icons are limited to SVG for now, which is probably fine.
-      LangSvg.buildSvgSimple slate
+      Utils.fromOkay "Error creating icon"
+        <| LangSvg.evalToSvg syntax env exp
       -- Canvas.buildHtml ({ initModel | showGhosts = False }, False) slate
     subPadding x =
       x - 10
@@ -2320,7 +2315,8 @@ iconify syntax env code =
       , Svg.Attributes.height <|
           (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
       ]
-      [ svgElements ]
+      [ svgElement ]
+
 
 loadLambdaToolIcons finalEnv old =
   let foo tool acc =

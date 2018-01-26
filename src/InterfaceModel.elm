@@ -658,10 +658,7 @@ type alias DeuceToolResultPreviews =
 
 --------------------------------------------------------------------------------
 
-
--- Elm typechecker should properly subtype Model < { slideNumber : Int, movieNumber : Int, movieTime : Float }
--- but for some reason it doesn't.
-runAndResolve : Model -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolve : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolve model exp =
   runAndResolve_
     { movieNumber = model.movieNumber
@@ -672,7 +669,7 @@ runAndResolve model exp =
     exp
 
 
-runAndResolve_ : { slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolve_ : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolve_ model exp =
   let thunk () =
     Eval.run model.syntax exp
@@ -683,7 +680,7 @@ runAndResolve_ model exp =
   |> Utils.unwrapNestedResult
 
 
-slateAndCode : { slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
+slateAndCode : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
 slateAndCode old (exp, val) =
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime val
   |> Result.map (\slate -> (slate, Syntax.unparser old.syntax exp))

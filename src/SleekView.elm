@@ -1582,7 +1582,7 @@ functionTools : Model -> List (Html Msg)
 functionTools model =
   Draw.getDrawableFunctions model
   |> List.map
-      (\(funcName, _) ->
+      (\(funcName, _, _) ->
         Html.div
           [ Attr.class "tool"
           ]

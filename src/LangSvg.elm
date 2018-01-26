@@ -12,6 +12,7 @@ module LangSvg exposing
   , compileAttr, compileAttrs
   , desugarShapeAttrs
   , buildSvgSimple
+  , evalToSvg
   , strAVal
   , aNum, aPoints, aTransform
   , toNum, toColorNum, toTransformRot, toPath
@@ -622,6 +623,15 @@ buildSvgSimple_ tree i  =
           let (rawKind, rawAttrs) = desugarShapeAttrs 0 0 shape attrs_ in
           Svg.node rawKind (compileAttrs rawAttrs) children
 
+
+evalToSvg : Syntax -> Env -> Exp -> Result String (Svg.Svg a)
+evalToSvg syntax env exp =
+  Eval.doEval syntax env exp
+  |> Result.andThen
+      (\((val, _), _) ->
+        resolveToRootedIndexedTree syntax 1 1 0 val
+        |> Result.map buildSvgSimple
+      )
 
 ------------------------------------------------------------------------------
 -- Misc AVal Helpers

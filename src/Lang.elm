@@ -1324,10 +1324,20 @@ valToNum v = case v.v_ of
   VConst _  (n, _) -> n
   _                -> Debug.crash "Lang.valToNum"
 
+valToInt : Val -> Int
+valToInt = valToNum >> round
+
 valToTrace : Val -> Trace
 valToTrace v = case v.v_ of
   VConst _  (n, tr) -> tr
   _                 -> Debug.crash "Lang.valToTrace"
+
+valToMaybePoint : Val -> Maybe (Num, Num)
+valToMaybePoint v = case v.v_ of
+  VList vs -> case List.map .v_ vs of
+    [VConst _ (x, _), VConst _ (y, _)] -> Just (x, y)
+    _                                  -> Nothing
+  _  -> Nothing
 
 valIsNum : Val -> Bool
 valIsNum v = case v.v_ of

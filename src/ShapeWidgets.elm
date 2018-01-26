@@ -887,7 +887,6 @@ maybeWidgetBounds widget =
 
 
 -- Returns Nothing if list is empty; otherwise returns Just (left, top, right, bot)
--- Yet unused, but will be needed for code dedduplication between selectablePointToMaybeXY and maybeShapeBounds and maybeWidgetBounds.
 pointsToMaybeBounds : List (Num, Num) -> Maybe (Num, Num, Num, Num)
 pointsToMaybeBounds points =
   let (xs, ys) = List.unzip points in

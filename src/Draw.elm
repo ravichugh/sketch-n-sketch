@@ -5,6 +5,7 @@ module Draw exposing
   -- , drawNewEllipse
   -- , drawNewPolygon
   -- , drawNewPath
+  , newFunctionCallExp
   , boundingBoxOfPoints_
   , addShape
   , addLine
@@ -467,7 +468,7 @@ addPoint old (x, y) =
     [pointName, xName, yName] ->
       let
         programWithPoint =
-          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (TNamed space1 "Point"))
+          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x, eInt y]) (TNamed space1 "Point"))
       in
       { old | code = Syntax.unparser old.syntax programWithPoint }
 
@@ -507,36 +508,39 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
   let originalProgram = old.inputExp in
   let ((x1Int, _), (y1Int, _)) = pt1 in
   let (axis, sign, offsetAmount) = horizontalVerticalSnap (x1Int, y1Int) (x2Int, y2Int) in
-  let plusOrMinus = if sign == Positive then Plus else Minus in
-  let offsetFromExisting baseVal =
-    let offsetSuggestedName = Provenance.nameForVal originalProgram baseVal ++ "Offset" in
-    let offsetExp =
-      let offsetAmountExp =
-        case amountSnap of
-          NoSnap          -> eInt offsetAmount
-          SnapVal snapVal -> eHoleVal snapVal
+  if offsetAmount <= 1 && amountSnap == NoSnap then
+    addPoint old (x1Int, y1Int)
+  else
+    let plusOrMinus = if sign == Positive then Plus else Minus in
+    let offsetFromExisting baseVal =
+      let offsetSuggestedName = Provenance.nameForVal originalProgram baseVal ++ "Offset" in
+      let offsetExp =
+        let offsetAmountExp =
+          case amountSnap of
+            NoSnap          -> eInt offsetAmount
+            SnapVal snapVal -> eHoleVal snapVal
+        in
+        eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp]
       in
-      eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp]
+      addToEndOfProgram old offsetSuggestedName offsetExp
     in
-    addToEndOfProgram old offsetSuggestedName offsetExp
-  in
-  case (axis, pt1) of
-    (X, ((_, SnapVal x1Val), _)) -> offsetFromExisting x1Val
-    (Y, (_, (_, SnapVal y1Val))) -> offsetFromExisting y1Val
-    _                    ->
-      case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
-        [pointName, xName, yName, offsetXName, offsetYName] ->
-          let
-            (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
-            programWithOffset =
-              LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> FastParser.freshen
-            -- pt1 snaps ignored here, which is fine because we can't yet get an input pt1 with a snap on only one axis (an hence on only the non-offset axis not handled above with offsetFromExisting)
-            programWithOffsetAndPoint =
-              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x1Int, eInt y1Int]) (TNamed space1 "Point"))
-          in
-          { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
+    case (axis, pt1) of
+      (X, ((_, SnapVal x1Val), _)) -> offsetFromExisting x1Val
+      (Y, (_, (_, SnapVal y1Val))) -> offsetFromExisting y1Val
+      _                    ->
+        case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
+          [pointName, xName, yName, offsetXName, offsetYName] ->
+            let
+              (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
+              programWithOffset =
+                LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> FastParser.freshen
+              -- pt1 snaps ignored here, which is fine because we can't yet get an input pt1 with a snap on only one axis (an hence on only the non-offset axis not handled above with offsetFromExisting)
+              programWithOffsetAndPoint =
+                LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x1Int, eInt y1Int]) (TNamed space1 "Point"))
+            in
+            { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 
-        _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addOffsetAndMaybePoint"
+          _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addOffsetAndMaybePoint"
 
 
 --------------------------------------------------------------------------------
@@ -817,6 +821,14 @@ addLambdaAnchor old click2 click1 func =
 
 addFunction : Ident -> Model -> PointWithSnap -> PointWithSnap -> Model
 addFunction fName old pt1 pt2 =
+  case newFunctionCallExp fName old pt1 pt2 of
+    Just (callExp, _, TNamed _ "Point") -> addToEndOfProgram old fName callExp
+    Just (callExp, _, _)                -> addShapeToModel   old fName callExp
+    _                                   -> let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
+
+-- Returns (funcCall, funcExp, returnType_), funcExp is an EFun
+newFunctionCallExp : Ident -> Model -> PointWithSnap -> PointWithSnap -> Maybe (Exp, Exp, Type_)
+newFunctionCallExp fName old pt1 pt2 =
   let fillInArgPrimitive argType =
     case argType.val of
       TNum _                         -> Just <| eConstDummyLoc 0
@@ -830,27 +842,30 @@ addFunction fName old pt1 pt2 =
       TVar _ _                       -> Just <| eTuple []
       TWildcard _                    -> Just <| eTuple []
       TNamed _ "Color"               -> Just <| eConstDummyLoc 0
+      TNamed _ "StrokeWidth"         -> Just <| eConstDummyLoc 5
       TNamed _ "Point"               -> Just <| eTuple (makeInts [0,0])
       _                              -> Nothing
   in
-  case getDrawableFunctions old |> Utils.maybeFind fName |> Maybe.andThen Types.typeToMaybeArgTypesAndReturnType of
-    Just (argTypes, returnType) ->
-      let (_, argMaybeExps) =
-        argTypes
-        |> List.foldl
-            (\argType (ptsRemaining, argMaybeExps) ->
-              case (ptsRemaining, argType.val) of
-                (pt::otherPts, TNamed _ "Point") -> (otherPts,     argMaybeExps ++ [Just (makePointExpFromPointWithSnap pt)])
-                _                                -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
-            )
-            ([pt1, pt2], [])
-      in
-      case (Utils.projJusts argMaybeExps, returnType.val) of
-        (Just argExps, TNamed _ "Point") -> addToEndOfProgram old fName (eCall fName argExps)
-        (Just argExps, TNamed _ "Shape") -> addShapeToModel   old fName (eCall fName argExps)
-        _                                -> let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
+  case getDrawableFunctions old |> Utils.findFirst (Utils.fst3 >> (==) fName) of
+    Just (_, funcExp, funcType) ->
+      case Types.typeToMaybeArgTypesAndReturnType funcType of
+        Just (argTypes, returnType) ->
+          let (_, argMaybeExps) =
+            argTypes
+            |> List.foldl
+                (\argType (ptsRemaining, argMaybeExps) ->
+                  case (ptsRemaining, argType.val) of
+                    (pt::otherPts, TNamed _ "Point") -> (otherPts,     argMaybeExps ++ [Just (makePointExpFromPointWithSnap pt)])
+                    _                                -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
+                )
+                ([pt1, pt2], [])
+          in
+          Utils.projJusts argMaybeExps
+          |> Maybe.map (\argExps -> (eCall fName argExps, funcExp, returnType.val))
 
-    Nothing -> let _ = Utils.log <| "Could not find function " ++ fName ++ " to draw!" in old
+        Nothing -> Debug.crash <| "Draw.newFunctionCallExp bad function type: " ++ toString funcType
+
+    Nothing -> let _ = Utils.log <| "Could not find function " ++ fName ++ " to draw!" in Nothing
 
 
 -- addTextBox old click2 click1 =
@@ -1119,44 +1134,40 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
 -- Function Tool (generalized lambda tool)
 
 
-preludeDrawableFunctions : List (Ident, Type)
+-- Returns list of (fName, fExp, typeSig), fExp is an EFun
+preludeDrawableFunctions : List (Ident, Exp, Type)
 preludeDrawableFunctions =
   getDrawableFunctions_ FastParser.prelude (LangTools.lastTopLevelExp FastParser.prelude).val.eid
 
 
-getDrawableFunctions : Model -> List (Ident, Type)
+-- Returns list of (fName, fExp, typeSig), fExp is an EFun
+getDrawableFunctions : Model -> List (Ident, Exp, Type)
 getDrawableFunctions model =
   getDrawableFunctions_
       model.inputExp
       (LangTools.lastTopLevelExp model.inputExp).val.eid ++
   preludeDrawableFunctions
-  |> Utils.dedupBy Tuple.first -- Remove shadowed prelude functions.
+  |> Utils.dedupBy Utils.fst3 -- Remove shadowed prelude functions.
 
 
 -- Supported inputs:
 -- 2 Points
 --
 -- Supported outputs:
--- Shape
--- Point
+-- Anything
 isDrawableType : Type -> Bool
 isDrawableType tipe =
   case tipe.val of
     TArrow _ argTypes _ ->
-      case (Utils.maybeLast argTypes |> Maybe.map .val, Utils.dropLast 1 argTypes) of
-        (Just (TNamed _ retAliasName), otherArgs) ->
-          if retAliasName == "Shape" || retAliasName == "Point" then
-            let aliasArgIdents = List.filterMap Types.typeToMaybeAliasIdent otherArgs in
-            Utils.count ((==) "Point") aliasArgIdents == 2
-          else
-            False
-        _ ->
-          False
-    _ ->
-      False
+      let inputTypes = Utils.dropLast 1 argTypes in
+      let inputTypeAliasIdents = List.filterMap Types.typeToMaybeAliasIdent inputTypes in
+      Utils.count ((==) "Point") inputTypeAliasIdents == 2
+
+    _ -> False
 
 
-getDrawableFunctions_ : Exp -> EId -> List (Ident, Type)
+-- Returns list of (fName, fExp, typeSig), fExp is an EFun
+getDrawableFunctions_ : Exp -> EId -> List (Ident, Exp, Type)
 getDrawableFunctions_ program viewerEId =
   let boundExpsInScope =
     LangTools.expEnvAt_ program viewerEId
@@ -1181,7 +1192,7 @@ getDrawableFunctions_ program viewerEId =
                   case (typePat.val.p__, letPat.val.p__) of
                     (PVar _ typeIdent _, PVar _ letIdent _) ->
                       if typeIdent == letIdent && List.member (expEffectiveExp boundExp) boundExpsInScope
-                      then Just (typeIdent, tipe)
+                      then Just (typeIdent, expEffectiveExp boundExp, tipe)
                       else Nothing
                     _ -> Nothing
                 _ -> Nothing
