@@ -225,9 +225,6 @@ type alias OutputCanvasInfo =
 
 type alias RawSvg = String
 
-type Clickable
-  = PointWithProvenance Val Val
-
 type MouseMode
   = MouseNothing
   | MouseDrag (Mouse.Position -> Mouse.Position -> Model -> Model)
@@ -284,17 +281,25 @@ isShapeBeingDrawnSnappingToVal model val =
 snapValsOfShapeBeingDrawn : ShapeBeingDrawn -> List Val
 snapValsOfShapeBeingDrawn shapeBeingDrawn =
   case shapeBeingDrawn of
-    NoPointsYet                            -> []
-    TwoPoints _ _                          -> []
-    PolyPoints _                           -> []
-    PathPoints _                           -> []
-    Offset1DFromExisting _ NoSnap _        -> []
-    Offset1DFromExisting _ (SnapVal val) _ -> [val]
+    DrawJustStarted _                                               -> []
+    TwoPoints ((_, x1Snap), (_, y1Snap)) ((_, x2Snap), (_, y2Snap)) -> filterSnapVals [x1Snap, y1Snap, x2Snap, y2Snap]
+    PolyPoints _                                                    -> []
+    PathPoints _                                                    -> []
+    Offset1D ((_, x1Snap), (_, y1Snap)) amountSnap _                -> filterSnapVals [x1Snap, y1Snap, amountSnap]
 
+type Clickable
+  = PointWithProvenance Val Val
 
 type Snap
   = NoSnap
   | SnapVal Val
+
+filterSnapVals : List Snap -> List Val
+filterSnapVals snaps =
+  case snaps of
+    SnapVal snapVal :: rest -> snapVal :: filterSnapVals rest
+    NoSnap          :: rest -> filterSnapVals rest
+    []                      -> []
 
 type alias IntSnap = (Int, Snap) -- like NumTr
 
@@ -302,11 +307,11 @@ type alias PointWithSnap = (IntSnap, IntSnap)
 
 -- Oldest/base point is last in all of these.
 type ShapeBeingDrawn
-  = NoPointsYet -- For shapes drawn by dragging, no points until the mouse moves after the mouse-down.
-  | TwoPoints (KeysDown, (Int, Int)) (KeysDown, (Int, Int)) -- KeysDown should probably be refactored out
+  = DrawJustStarted (Maybe Clickable) -- For shapes drawn by dragging, no points until the mouse moves after the mouse-down.
+  | TwoPoints PointWithSnap PointWithSnap
   | PolyPoints (List PointWithSnap)
   | PathPoints (List (KeysDown, (Int, Int))) -- KeysDown should probably be replaced with a more semantic represenation of point type
-  | Offset1DFromExisting (Int, Int) Snap (Val, Val) -- Snap is separate here because it is unidimensional
+  | Offset1D PointWithSnap Snap (Int, Int) -- Middle snap is for offset amount, second point never snaps.
 
 
 -- type alias ShowZones = Bool

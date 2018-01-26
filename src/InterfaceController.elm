@@ -267,6 +267,18 @@ rewriteInnerMostExpToMain exp =
 --------------------------------------------------------------------------------
 -- Mouse Events
 
+
+maybeClickableToPointWithSnap : (Int, Int) -> Maybe Clickable -> PointWithSnap
+maybeClickableToPointWithSnap (defaultX, defaultY) maybeClickable =
+  case maybeClickable of
+    Just (PointWithProvenance xVal yVal) ->
+      ( (round (valToNum xVal), SnapVal xVal)
+      , (round (valToNum yVal), SnapVal yVal)
+      )
+    Nothing ->
+      ((defaultX, NoSnap), (defaultY, NoSnap))
+
+
 onMouseClick clickPos old maybeClickable =
   let (isOnCanvas, (canvasX, canvasY) as pointOnCanvas) = clickToCanvasPoint old clickPos in
   case (old.tool, old.mouseMode) of
@@ -283,17 +295,9 @@ onMouseClick clickPos old maybeClickable =
       { old | mouseMode = MouseNothing }
 
     (Poly stk, MouseDrawNew polyPoints) ->
-      let pointToAdd =
-        case maybeClickable of
-          Just (PointWithProvenance xVal yVal) ->
-            ( (round (valToNum xVal), SnapVal xVal)
-            , (round (valToNum yVal), SnapVal yVal)
-            )
-          Nothing ->
-            ((canvasX, NoSnap), (canvasY, NoSnap))
-      in
+      let pointToAdd = maybeClickableToPointWithSnap (canvasX, canvasY) maybeClickable in
       case polyPoints of
-        NoPointsYet   -> { old | mouseMode = MouseDrawNew (PolyPoints [pointToAdd]) }
+        DrawJustStarted _ -> { old | mouseMode = MouseDrawNew (PolyPoints [pointToAdd]) } -- maybeClickable of DrawJustStarted will be same as the given maybeClickable
         PolyPoints [] -> Debug.crash "invalid state, PolyPoints should always be nonempty"
         PolyPoints points ->
           let ((initialX, _), (initialY, _)) = Utils.last_ points in
@@ -302,9 +306,9 @@ onMouseClick clickPos old maybeClickable =
           else if List.length points == 2 then { old | mouseMode = MouseNothing }
           else if List.length points == 1 then switchToCursorTool old
           else upstateRun <| switchToCursorTool <| Draw.addPolygon stk old points
-        _ -> Debug.crash "invalid state, points should be NoPointsYet or PolyPoints for polygon tool"
+        _ -> Debug.crash "invalid state, points should be DrawJustStarted or PolyPoints for polygon tool"
 
-    (Path stk, MouseDrawNew NoPointsYet) ->
+    (Path stk, MouseDrawNew (DrawJustStarted _)) ->
       { old | mouseMode = MouseDrawNew (PathPoints [(old.keysDown, pointOnCanvas)]) }
 
     (Path stk, MouseDrawNew (PathPoints points)) ->
@@ -336,7 +340,7 @@ onMouseClick clickPos old maybeClickable =
       else
         old
 
-    (_, MouseDrawNew NoPointsYet) -> switchToCursorTool old
+    (_, MouseDrawNew (DrawJustStarted _)) -> switchToCursorTool old
 
     _ ->
       old
@@ -489,19 +493,20 @@ onMouseDrag lastPosition newPosition old =
         (Poly _, _) -> old -- handled by onMouseClick instead
         (Path _, _) -> old -- handled by onMouseClick instead
 
-        (_, NoPointsYet) ->
-          let pointOnCanvas     = (old.keysDown, (mx, my)) in
-          let lastPointOnCanvas = (old.keysDown, (mxLast, myLast)) in
-          { old | mouseMode = MouseDrawNew (TwoPoints pointOnCanvas lastPointOnCanvas) }
+        (_, DrawJustStarted maybeClickable) ->
+          let lastPointOnCanvas = maybeClickableToPointWithSnap (mxLast, myLast) maybeClickable in
+          let pointOnCanvas = ((mx, NoSnap), (my, NoSnap)) in
+          case old.tool of
+            PointOrOffset -> { old | mouseMode = MouseDrawNew (Offset1D lastPointOnCanvas NoSnap (mx, my)) }
+            _             -> { old | mouseMode = MouseDrawNew (TwoPoints lastPointOnCanvas pointOnCanvas) }
 
-        (_, TwoPoints _ point1) ->
-          let pointOnCanvas = (old.keysDown, (mx, my)) in
-          { old | mouseMode = MouseDrawNew (TwoPoints pointOnCanvas point1) }
+        (_, TwoPoints startingPoint _) ->
+          let pointOnCanvas = ((mx, NoSnap), (my, NoSnap)) in
+          { old | mouseMode = MouseDrawNew (TwoPoints startingPoint pointOnCanvas) }
 
-        (_, Offset1DFromExisting _ _ ((x0Val, y0Val) as basePoint)) ->
-          let ((effectiveMX, effectiveMY), snap) =
-            let (x0, y0) = (valToNum x0Val, valToNum y0Val) in
-            let (dxRaw, dyRaw) = (mx - round x0, my - round y0) in
+        (_, Offset1D (((x1Int, _), (y1Int, _)) as basePoint) _ _) ->
+          let ((effectiveMX, effectiveMY), amountSnap) =
+            let (dxRaw, dyRaw) = (mx - x1Int, my - y1Int) in
             -- Hmm, shoudn't assume this here. Yolo.
             let (axis, sign, amount) = Draw.horizontalVerticalSnap (0, 0) (dxRaw, dyRaw) in
             -- Only snap to other offsets (for now)
@@ -526,10 +531,10 @@ onMouseDrag lastPosition newPosition old =
             let maybeInSnapRange = Utils.findFirst (\((low, high), _, _) -> amount >= low && amount < high) snapRanges in
             case maybeInSnapRange of
               Just (_, snapToNumber, val) ->
-                if      axis == X && sign == Positive then ((round x0 + snapToNumber, my), SnapVal val)
-                else if axis == X && sign == Negative then ((round x0 - snapToNumber, my), SnapVal val)
-                else if axis == Y && sign == Positive then ((mx, round y0 + snapToNumber), SnapVal val)
-                else                                       ((mx, round y0 - snapToNumber), SnapVal val)
+                if      axis == X && sign == Positive then ((x1Int + snapToNumber, my), SnapVal val)
+                else if axis == X && sign == Negative then ((x1Int - snapToNumber, my), SnapVal val)
+                else if axis == Y && sign == Positive then ((mx, y1Int + snapToNumber), SnapVal val)
+                else                                       ((mx, y1Int - snapToNumber), SnapVal val)
               Nothing ->
                 let numberOfSnapsPassed = Utils.count (\((_, high), _, _) -> amount >= high) snapRanges in
                 if      axis == X && sign == Positive then ((mx - numberOfSnapsPassed*pixelsPerSnap, my), NoSnap)
@@ -537,7 +542,7 @@ onMouseDrag lastPosition newPosition old =
                 else if axis == Y && sign == Positive then ((mx, my - numberOfSnapsPassed*pixelsPerSnap), NoSnap)
                 else                                       ((mx, my + numberOfSnapsPassed*pixelsPerSnap), NoSnap)
           in
-          { old | mouseMode = MouseDrawNew (Offset1DFromExisting (effectiveMX, effectiveMY) snap basePoint) }
+          { old | mouseMode = MouseDrawNew (Offset1D basePoint amountSnap (effectiveMX, effectiveMY)) }
 
         _ -> old
 
@@ -563,33 +568,40 @@ onMouseUp old =
 
     (_, MouseDrawNew points) ->
       let resetMouseMode model = { model | mouseMode = MouseNothing } in
-      case (old.tool, points, old.keysDown == [Keys.keyShift]) of
+      -- TODO Possibly resolve the second point to a snap
+      let pointsWithSnaps =
+        case points of
+          TwoPoints pt1 ((x2, NoSnap), (y2, NoSnap)) ->
+            TwoPoints pt1 ((x2, NoSnap), (y2, NoSnap))
+          _ ->
+            points
+      in
+      case (old.tool, pointsWithSnaps, old.keysDown == [Keys.keyShift]) of
 
-        (Line _,     TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt2 pt1
-        (HelperLine, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt2 pt1
+        (Line _,     TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt1 pt2
+        (HelperLine, TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt1 pt2
 
-        (Rect Raw,      TwoPoints pt2 pt1, False) -> upstateRun <| resetMouseMode <| Draw.addRawRect old pt2 pt1
-        (Rect Raw,      TwoPoints pt2 pt1, True)  -> upstateRun <| resetMouseMode <| Draw.addRawSquare old pt2 pt1
-        (Rect Stretchy, TwoPoints pt2 pt1, False) -> upstateRun <| resetMouseMode <| Draw.addStretchyRect old pt2 pt1
-        (Rect Stretchy, TwoPoints pt2 pt1, True)  -> upstateRun <| resetMouseMode <| Draw.addStretchySquare old pt2 pt1
+        -- (Rect Raw,      TwoPoints pt1 pt2, False) -> upstateRun <| resetMouseMode <| Draw.addRawRect old pt1 pt2
+        -- (Rect Raw,      TwoPoints pt1 pt2, True)  -> upstateRun <| resetMouseMode <| Draw.addRawSquare old pt1 pt2
+        -- (Rect Stretchy, TwoPoints pt1 pt2, False) -> upstateRun <| resetMouseMode <| Draw.addStretchyRect old pt1 pt2
+        -- (Rect Stretchy, TwoPoints pt1 pt2, True)  -> upstateRun <| resetMouseMode <| Draw.addStretchySquare old pt1 pt2
+        --
+        -- (Oval Raw,      TwoPoints pt1 pt2, False) -> upstateRun <| resetMouseMode <| Draw.addRawOval old pt1 pt2
+        -- (Oval Raw,      TwoPoints pt1 pt2, True)  -> upstateRun <| resetMouseMode <| Draw.addRawCircle old pt1 pt2
+        -- (Oval Stretchy, TwoPoints pt1 pt2, False) -> upstateRun <| resetMouseMode <| Draw.addStretchyOval old pt1 pt2
+        -- (Oval Stretchy, TwoPoints pt1 pt2, True)  -> upstateRun <| resetMouseMode <| Draw.addStretchyCircle old pt1 pt2
 
-        (Oval Raw,      TwoPoints pt2 pt1, False) -> upstateRun <| resetMouseMode <| Draw.addRawOval old pt2 pt1
-        (Oval Raw,      TwoPoints pt2 pt1, True)  -> upstateRun <| resetMouseMode <| Draw.addRawCircle old pt2 pt1
-        (Oval Stretchy, TwoPoints pt2 pt1, False) -> upstateRun <| resetMouseMode <| Draw.addStretchyOval old pt2 pt1
-        (Oval Stretchy, TwoPoints pt2 pt1, True)  -> upstateRun <| resetMouseMode <| Draw.addStretchyCircle old pt2 pt1
+        -- (Lambda i,       TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLambda i old pt1 pt2
+        (Function fName, TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addFunction fName old pt1 pt2
 
-        (Lambda i,       TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addLambda i old pt2 pt1
-        (Function fName, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addFunction fName old pt2 pt1
+        -- (Poly _, _, _) -> old
+        -- (Path _, _, _) -> old
+        --
+        -- (Text, TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addTextBox old pt1 pt2
 
-        (Poly _, _, _) -> old
-        (Path _, _, _) -> old
+        (PointOrOffset, Offset1D pt1 snap pt2, _) -> upstateRun <| resetMouseMode <| Draw.addOffsetAndMaybePoint old pt1 snap pt2
 
-        (Text, TwoPoints pt2 pt1, _) -> upstateRun <| resetMouseMode <| Draw.addTextBox old pt2 pt1
-
-        (PointOrOffset, TwoPoints (_, pt2) (_, (x1,y1)), _)         -> upstateRun <| resetMouseMode <| Draw.addOffsetAndPoint old NoSnap (toFloat x1, toFloat y1) pt2
-        (PointOrOffset, Offset1DFromExisting pt2 snap basePoint, _) -> upstateRun <| resetMouseMode <| Draw.addOffset old snap basePoint pt2
-
-        (_, NoPointsYet, _)     -> switchToCursorTool old
+        (_, (DrawJustStarted _), _)     -> switchToCursorTool old
 
         _              -> resetMouseMode old
 

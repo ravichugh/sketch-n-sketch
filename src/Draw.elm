@@ -1,19 +1,20 @@
 module Draw exposing
   ( drawDotSize
-  , drawNewLine
-  , drawNewRect
-  , drawNewEllipse
-  , drawNewPolygon
-  , drawNewPath
+  -- , drawNewLine
+  -- , drawNewRect
+  -- , drawNewEllipse
+  -- , drawNewPolygon
+  -- , drawNewPath
   , boundingBoxOfPoints_
   , addShape
   , addLine
-  , addRawSquare , addRawRect , addStretchySquare , addStretchyRect
-  , addRawCircle , addRawOval , addStretchyCircle , addStretchyOval
+  -- , addRawSquare , addRawRect , addStretchySquare , addStretchyRect
+  -- , addRawCircle , addRawOval , addStretchyCircle , addStretchyOval
   , addPath , addPolygon
-  , addLambda , addFunction
-  , addPoint , addOffset , addOffsetAndPoint , horizontalVerticalSnap
-  , addTextBox
+  -- , addLambda
+  , addFunction
+  , addPoint , addOffsetAndMaybePoint , horizontalVerticalSnap
+  -- , addTextBox
   , lambdaToolOptionsOf
   , getDrawableFunctions
   )
@@ -105,11 +106,11 @@ drawDot fill (cx,cy) =
     ]
 
 boundingBox : (Int, Int) -> (Int, Int) -> (Int, Int, Int, Int)
-boundingBox (x2,y2) (x1,y1) =
+boundingBox (x1,y1) (x2,y2) =
   (min x1 x2, max x1 x2, min y1 y2, max y1 y2)
 
 squareBoundingBox : (Int, Int) -> (Int, Int) -> (Int, Int, Int, Int)
-squareBoundingBox (x2,y2) (x1,y1) =
+squareBoundingBox (x1,y1) (x2,y2) =
   let (xDiff, yDiff) = (abs (x2 - x1), abs (y2 - y1)) in
   case (yDiff > xDiff, x1 < x2, y1 < y2) of
     (True,  True , _    ) -> (x1, x1 + yDiff, min y1 y2, max y1 y2)
@@ -120,7 +121,7 @@ squareBoundingBox (x2,y2) (x1,y1) =
 slicesPerQuadrant = 2 -- can toggle this parameter
 radiansPerSlice   = pi / (2 * slicesPerQuadrant)
 
-snapLine keysDown (_,(x2,y2)) (_,(x1,y1)) =
+snapLine keysDown ((x1, _), (y1, _)) ((x2, _), (y2, _)) =
   if keysDown == [Keys.keyShift] then
     let (dx, dy) = (x2 - x1, y2 - y1) in
     let angle = atan2 (toFloat (-dy)) (toFloat dx) in
@@ -132,128 +133,128 @@ snapLine keysDown (_,(x2,y2)) (_,(x1,y1)) =
   else
     (x2, y2)
 
-drawNewLine model click2 click1 =
-  let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
-  let stroke = if model.tool == HelperLine then guideStroke else defaultStroke in
-  let (xb, yb) = snapLine model.keysDown click2 click1 in
-  let line =
-    svgLine [
-        stroke , defaultStrokeWidth , defaultOpacity
-      , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
-      , LangSvg.attr "x2" (toString xb) , LangSvg.attr "y2" (toString yb)
-      ]
-  in
-  let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(x2,y2),(x1,y1)] in
-  clearDots ++ [ line ]
-
-drawNewRect keysDown (_,pt2) (_,pt1) =
-  let (xa, xb, ya, yb) =
-    if keysDown == [Keys.keyShift]
-    then squareBoundingBox pt2 pt1
-    else boundingBox pt2 pt1
-  in
-  let rect =
-    svgRect [
-        defaultFill , defaultOpacity
-      , LangSvg.attr "x" (toString xa) , LangSvg.attr "width" (toString (xb-xa))
-      , LangSvg.attr "y" (toString ya) , LangSvg.attr "height" (toString (yb-ya))
-      ]
-  in
-  let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(xa,ya),pt2,pt1] in
-  clearDots ++ [ rect ]
-
-drawNewEllipse keysDown (_,pt2) (_,pt1) =
-  let (xa, xb, ya, yb) =
-    if keysDown == [Keys.keyShift]
-    then squareBoundingBox pt2 pt1
-    else boundingBox pt2 pt1
-  in
-  let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
-  let ellipse =
-    svgEllipse [
-        defaultFill , defaultOpacity
-      , LangSvg.attr "cx" (toString (xa + rx))
-      , LangSvg.attr "cy" (toString (ya + ry))
-      , LangSvg.attr "rx" (toString rx)
-      , LangSvg.attr "ry" (toString ry)
-      ]
-  in
-  let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(xa,ya),pt2,pt1] in
-  clearDots ++ [ ellipse ]
-
-drawNewPolygon : PointWithSnap -> List PointWithSnap -> List (Svg.Svg Msg)
-drawNewPolygon ptLast points =
-  let allRawPoints =
-    ptLast::points |> List.map (\((x, _), (y, _)) -> (x, y))
-  in
-  let (xInit,yInit) = Utils.last_ allRawPoints in
-  let redDot = drawDot dotFill (xInit,yInit) in
-  let clearDots = List.map (drawDot dotFillCursor) allRawPoints in
-  let maybeShape =
-    case allRawPoints of
-      [_] -> []
-      _ ->
-        -- don't need to reverse, but keeping it same as resulting shape
-        let polyPoints = List.reverse allRawPoints in
-        let sPoints =
-          Utils.spaces <|
-            List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
-                     polyPoints
-        in
-        [ svgPolygon [
-            defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
-          , LangSvg.attr "points" sPoints
-          ] ]
-   in
-   redDot :: clearDots ++ maybeShape
+-- drawNewLine model click2 click1 =
+--   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
+--   let stroke = if model.tool == HelperLine then guideStroke else defaultStroke in
+--   let (xb, yb) = snapLine model.keysDown click2 click1 in
+--   let line =
+--     svgLine [
+--         stroke , defaultStrokeWidth , defaultOpacity
+--       , LangSvg.attr "x1" (toString x1) , LangSvg.attr "y1" (toString y1)
+--       , LangSvg.attr "x2" (toString xb) , LangSvg.attr "y2" (toString yb)
+--       ]
+--   in
+--   let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(x2,y2),(x1,y1)] in
+--   clearDots ++ [ line ]
+--
+-- drawNewRect keysDown (_,pt2) (_,pt1) =
+--   let (xa, xb, ya, yb) =
+--     if keysDown == [Keys.keyShift]
+--     then squareBoundingBox pt1 pt2
+--     else boundingBox pt1 pt2
+--   in
+--   let rect =
+--     svgRect [
+--         defaultFill , defaultOpacity
+--       , LangSvg.attr "x" (toString xa) , LangSvg.attr "width" (toString (xb-xa))
+--       , LangSvg.attr "y" (toString ya) , LangSvg.attr "height" (toString (yb-ya))
+--       ]
+--   in
+--   let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(xa,ya),pt2,pt1] in
+--   clearDots ++ [ rect ]
+--
+-- drawNewEllipse keysDown (_,pt2) (_,pt1) =
+--   let (xa, xb, ya, yb) =
+--     if keysDown == [Keys.keyShift]
+--     then squareBoundingBox pt1 pt2
+--     else boundingBox pt1 pt2
+--   in
+--   let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
+--   let ellipse =
+--     svgEllipse [
+--         defaultFill , defaultOpacity
+--       , LangSvg.attr "cx" (toString (xa + rx))
+--       , LangSvg.attr "cy" (toString (ya + ry))
+--       , LangSvg.attr "rx" (toString rx)
+--       , LangSvg.attr "ry" (toString ry)
+--       ]
+--   in
+--   let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(xa,ya),pt2,pt1] in
+--   clearDots ++ [ ellipse ]
+--
+-- drawNewPolygon : PointWithSnap -> List PointWithSnap -> List (Svg.Svg Msg)
+-- drawNewPolygon ptLast points =
+--   let allRawPoints =
+--     ptLast::points |> List.map (\((x, _), (y, _)) -> (x, y))
+--   in
+--   let (xInit,yInit) = Utils.last_ allRawPoints in
+--   let redDot = drawDot dotFill (xInit,yInit) in
+--   let clearDots = List.map (drawDot dotFillCursor) allRawPoints in
+--   let maybeShape =
+--     case allRawPoints of
+--       [_] -> []
+--       _ ->
+--         -- don't need to reverse, but keeping it same as resulting shape
+--         let polyPoints = List.reverse allRawPoints in
+--         let sPoints =
+--           Utils.spaces <|
+--             List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
+--                      polyPoints
+--         in
+--         [ svgPolygon [
+--             defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
+--           , LangSvg.attr "points" sPoints
+--           ] ]
+--    in
+--    redDot :: clearDots ++ maybeShape
 
 strPt (x,y) = Utils.spaces [toString x, toString y]
 
-drawNewPath (keysLast,ptLast) keysAndPoints =
-  let points = List.map Tuple.second keysAndPoints in
-  let redDot = [drawDot dotFill (Utils.last_ (ptLast::points))] in
-  let yellowDot =
-    case points of
-      [] -> []
-      _  -> [drawDot dotFill2 ptLast]
-  in
-  let pathAndPoints =
-    let plus (s1,l1) (s2,l2) = (s1 ++ s2, l1 ++ l2) in
-    let foo list0 = case list0 of
-      [] -> ("", [])
-      (modifiers1,click1) :: list1 ->
-        if modifiers1 == Keys.q then
-          case list1 of
-            [] -> ("", [click1])
-            (_,click2) :: list2 ->
-              let cmd = Utils.spaces [" Q", strPt click1, strPt click2] in
-              plus (cmd, [click1]) (foo list2)
-        else if modifiers1 == Keys.c then
-          case list1 of
-            [] -> ("", [click1])
-            (_,click2) :: [] -> ("", [click1, click2])
-            (_,click2) :: (_,click3) :: list3 ->
-              let cmd = Utils.spaces [" C", strPt click1, strPt click2, strPt click3] in
-              plus (cmd, [click1, click2]) (foo list3)
-        else
-          plus (Utils.spaces [" L", strPt click1], []) (foo list1)
-    in
-    case List.reverse ((keysLast,ptLast)::keysAndPoints) of
-      []  -> []
-      [_] -> []
-      (_,firstClick) :: rest ->
-        let (sPath, controlPoints) =
-          plus (Utils.spaces ["M", strPt firstClick], []) (foo rest) in
-        let path =
-          svgPath [
-              defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
-            , LangSvg.attr "d" sPath
-            ] in
-        let points = List.map (drawDot dotFillControlPt) controlPoints in
-        path :: points
-  in
-  let clearDots = List.map (drawDot dotFillCursor) (ptLast::points) in
-  redDot ++ yellowDot ++ clearDots ++ pathAndPoints
+-- drawNewPath (keysLast,ptLast) keysAndPoints =
+--   let points = List.map Tuple.second keysAndPoints in
+--   let redDot = [drawDot dotFill (Utils.last_ (ptLast::points))] in
+--   let yellowDot =
+--     case points of
+--       [] -> []
+--       _  -> [drawDot dotFill2 ptLast]
+--   in
+--   let pathAndPoints =
+--     let plus (s1,l1) (s2,l2) = (s1 ++ s2, l1 ++ l2) in
+--     let foo list0 = case list0 of
+--       [] -> ("", [])
+--       (modifiers1,click1) :: list1 ->
+--         if modifiers1 == Keys.q then
+--           case list1 of
+--             [] -> ("", [click1])
+--             (_,click2) :: list2 ->
+--               let cmd = Utils.spaces [" Q", strPt click1, strPt click2] in
+--               plus (cmd, [click1]) (foo list2)
+--         else if modifiers1 == Keys.c then
+--           case list1 of
+--             [] -> ("", [click1])
+--             (_,click2) :: [] -> ("", [click1, click2])
+--             (_,click2) :: (_,click3) :: list3 ->
+--               let cmd = Utils.spaces [" C", strPt click1, strPt click2, strPt click3] in
+--               plus (cmd, [click1, click2]) (foo list3)
+--         else
+--           plus (Utils.spaces [" L", strPt click1], []) (foo list1)
+--     in
+--     case List.reverse ((keysLast,ptLast)::keysAndPoints) of
+--       []  -> []
+--       [_] -> []
+--       (_,firstClick) :: rest ->
+--         let (sPath, controlPoints) =
+--           plus (Utils.spaces ["M", strPt firstClick], []) (foo rest) in
+--         let path =
+--           svgPath [
+--               defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
+--             , LangSvg.attr "d" sPath
+--             ] in
+--         let points = List.map (drawDot dotFillControlPt) controlPoints in
+--         path :: points
+--   in
+--   let clearDots = List.map (drawDot dotFillCursor) (ptLast::points) in
+--   redDot ++ yellowDot ++ clearDots ++ pathAndPoints
 
 
 --------------------------------------------------------------------------------
@@ -274,9 +275,13 @@ randomColor1WithSlider model =
 --------------------------------------------------------------------------------
 
 -- when line is snapped, not enforcing the angle in code
-addLine old click2 click1 =
-  let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
-  let (xb, yb) = snapLine old.keysDown click2 click1 in
+addLine : Model -> PointWithSnap -> PointWithSnap -> Model
+addLine old pt1 pt2 =
+  let ((x1Exp, y1Exp), (x2Exp, y2Exp)) =
+    case pt2 of
+      ((_, NoSnap), (_, NoSnap)) -> (makeIntPairOrSnap pt1, makeIntPair (snapLine old.keysDown pt1 pt2))
+      _                          -> (makeIntPairOrSnap pt1, makeIntPairOrSnap pt2)
+  in
   let color =
     if old.tool == HelperLine
       then eStr "aqua"
@@ -289,7 +294,7 @@ addLine old click2 click1 =
   in
   let lineExp =
     makeCallWithLocals
-        [ makeLet ["x1","y1","x2","y2"] (makeInts [x1,y1,xb,yb])
+        [ makeLet ["x1","y1","x2","y2"] [removePrecedingWhitespace x1Exp, y1Exp, x2Exp, y2Exp]
         , makeLet ["color", "width"]
                   [ color , eConst 5 dummyLoc ]
         ]
@@ -314,133 +319,143 @@ addLine old click2 click1 =
 
 --------------------------------------------------------------------------------
 
-addRawRect old (_,pt2) (_,pt1) =
-  let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
-  let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
-  let (fill, stroke, strokeWidth) = (old.randomColor, old.randomColor, 0) in
-  let (rot) = 0 in
-  addShapeToModel old "rect"
-    (stencilRawRect x y w h fill stroke strokeWidth rot)
-
-stencilRawRect x y w h fill stroke strokeWidth rot =
-  makeCallWithLocals
-    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
-    , makeLet ["fill", "stroke","strokeWidth"] (makeInts [fill, stroke, strokeWidth])
-    , makeLet ["rot"] [eConst (toFloat rot) dummyLoc] ]
-    (eVar0 "rawRect")
-    [ eVar "fill", eVar "stroke", eVar "strokeWidth"
-    , eVar "x", eVar "y", eVar "w", eVar "h", eVar "rot" ]
-
---------------------------------------------------------------------------------
-
-addRawSquare old (_,pt2) (_,pt1) =
-  let (xa, xb, ya, yb) = squareBoundingBox pt2 pt1 in
-  let (x, y, side) = (xa, ya, xb - xa) in
-  let squareExp =
-    makeCallWithLocals
-        [ makeLet ["x","y","side"] (makeInts [x,y,side])
-        , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
-        (eVar0 "rawRect")
-        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
-        , eVar "x", eVar "y", eVar "side", eVar "side", eVar "rot" ]
-  in
-  addShapeToModel old "square" squareExp
-
---------------------------------------------------------------------------------
-
-addStretchyRect old (_,pt2) (_,pt1) =
-  let (xMin, xMax, yMin, yMax) = boundingBox pt2 pt1 in
-  let (fill) = (old.randomColor) in
-  let (stroke, strokeWidth, rot) = (360, 0, 0) in
-  addShapeToModel old "rect"
-    (stencilStretchyRect xMin yMin xMax yMax fill stroke strokeWidth rot)
-
-stencilStretchyRect left top right bot fill stroke strokeWidth rot =
-  makeCallWithLocals
-    [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [left,top,right,bot])
-    , makeLet ["color"] [eConst (toFloat fill) dummyLoc] ]
-    (eVar0 "rectangle")
-    [eVar "color", eConst (toFloat stroke) dummyLoc, eConst (toFloat strokeWidth) dummyLoc
-    , eConst (toFloat rot) dummyLoc, eVar "bounds"]
-
---------------------------------------------------------------------------------
-
-addStretchySquare old (_,pt2) (_,pt1) =
-  let (xMin, xMax, yMin, _) = squareBoundingBox pt2 pt1 in
-  let side = (xMax - xMin) in
-  let squareExp =
-    makeCallWithLocals
-        [ makeLet ["left","top","side"] (makeInts [xMin,yMin,side])
-        , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
-        , makeLet ["rot"] [eConst 0 dummyLoc]
-        , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
-        (eVar0 "rectangle")
-        (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
-  in
-  addShapeToModel old "square" squareExp
-
---------------------------------------------------------------------------------
-
-addRawOval old (_,pt2) (_,pt1) =
-  let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
-  let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
-  let (cx, cy) = (xa + rx, ya + ry) in
-  let ellipseExp =
-    makeCallWithLocals
-        [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
-        , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
-        (eVar0 "rawEllipse")
-        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
-        , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
-  in
-  addShapeToModel old "ellipse" ellipseExp
-
---------------------------------------------------------------------------------
-
-addRawCircle old (_,pt2) (_,pt1) =
-  let (xa, xb, ya, yb) = squareBoundingBox pt2 pt1 in
-  let r = (xb-xa)//2 in
-  let (cx, cy) = (xa + r, ya + r) in
-  let circleExp =
-    makeCallWithLocals
-        [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
-        , makeLet ["color"] [randomColor1 old] ]
-        (eVar0 "rawCircle")
-        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
-        , eVar "cx", eVar "cy", eVar "r" ]
-  in
-  addShapeToModel old "circle" circleExp
-
---------------------------------------------------------------------------------
-
-addStretchyOval old (_,pt2) (_,pt1) =
-  let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
-  let ellipseExp =
-    makeCallWithLocals
-        [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
-        , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
-        (eVar0 "oval")
-        (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
-  in
-  addShapeToModel old "ellipse" ellipseExp
-
---------------------------------------------------------------------------------
-
-addStretchyCircle old (_,pt2) (_,pt1) =
-  let (left, right, top, _) = squareBoundingBox pt2 pt1 in
-  let circleExp =
-    makeCallWithLocals
-        [ makeLet ["left", "top", "r"] (makeInts [left, top, (right-left)//2])
-        , makeLet ["bounds"]
-            [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing]
-        , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
-        (eVar0 "oval")
-        (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
-  in
-  addShapeToModel old "circle" circleExp
+-- addRawRect : Model -> PointWithSnap -> PointWithSnap -> Model
+-- addRawRect old (_,pt2) (_,pt1) =
+--   let (xa, xb, ya, yb) = boundingBox pt1 pt2 in
+--   let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
+--   let (fill, stroke, strokeWidth) = (old.randomColor, old.randomColor, 0) in
+--   let (rot) = 0 in
+--   addShapeToModel old "rect"
+--     (stencilRawRect x y w h fill stroke strokeWidth rot)
+--
+-- stencilRawRect : Exp -> Exp -> Exp -> Exp -> Exp -> Exp -> Exp -> Exp -> Exp
+-- stencilRawRect x y w h fill stroke strokeWidth rot =
+--   makeCallWithLocals
+--     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
+--     , makeLet ["fill", "stroke","strokeWidth"] (makeInts [fill, stroke, strokeWidth])
+--     , makeLet ["rot"] [eConst (toFloat rot) dummyLoc] ]
+--     (eVar0 "rawRect")
+--     [ eVar "fill", eVar "stroke", eVar "strokeWidth"
+--     , eVar "x", eVar "y", eVar "w", eVar "h", eVar "rot" ]
+--
+-- --------------------------------------------------------------------------------
+--
+-- addRawSquare : Model -> PointWithSnap -> PointWithSnap -> Model
+-- addRawSquare old (_,pt2) (_,pt1) =
+--   let (xa, xb, ya, yb) = squareBoundingBox pt1 pt2 in
+--   let (x, y, side) = (xa, ya, xb - xa) in
+--   let squareExp =
+--     makeCallWithLocals
+--         [ makeLet ["x","y","side"] (makeInts [x,y,side])
+--         , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
+--         (eVar0 "rawRect")
+--         [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+--         , eVar "x", eVar "y", eVar "side", eVar "side", eVar "rot" ]
+--   in
+--   addShapeToModel old "square" squareExp
+--
+-- --------------------------------------------------------------------------------
+--
+-- addStretchyRect : Model -> PointWithSnap -> PointWithSnap -> Model
+-- addStretchyRect old (_,pt2) (_,pt1) =
+--   let (xMin, xMax, yMin, yMax) = boundingBox pt1 pt2 in
+--   let (fill) = (old.randomColor) in
+--   let (stroke, strokeWidth, rot) = (360, 0, 0) in
+--   addShapeToModel old "rect"
+--     (stencilStretchyRect xMin yMin xMax yMax fill stroke strokeWidth rot)
+--
+-- stencilStretchyRect : Exp -> Exp -> Exp -> Exp -> Exp -> Exp -> Exp -> Exp -> Exp
+-- stencilStretchyRect left top right bot fill stroke strokeWidth rot =
+--   makeCallWithLocals
+--     [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [left,top,right,bot])
+--     , makeLet ["color"] [eConst (toFloat fill) dummyLoc] ]
+--     (eVar0 "rectangle")
+--     [eVar "color", eConst (toFloat stroke) dummyLoc, eConst (toFloat strokeWidth) dummyLoc
+--     , eConst (toFloat rot) dummyLoc, eVar "bounds"]
+--
+-- --------------------------------------------------------------------------------
+--
+-- addStretchySquare : Model -> PointWithSnap -> PointWithSnap -> Model
+-- addStretchySquare old (_,pt2) (_,pt1) =
+--   let (xMin, xMax, yMin, _) = squareBoundingBox pt1 pt2 in
+--   let side = (xMax - xMin) in
+--   let squareExp =
+--     makeCallWithLocals
+--         [ makeLet ["left","top","side"] (makeInts [xMin,yMin,side])
+--         , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
+--         , makeLet ["rot"] [eConst 0 dummyLoc]
+--         , makeLet ["color","strokeColor","strokeWidth"]
+--                   [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+--         (eVar0 "rectangle")
+--         (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
+--   in
+--   addShapeToModel old "square" squareExp
+--
+-- --------------------------------------------------------------------------------
+--
+-- addRawOval : Model -> PointWithSnap -> PointWithSnap -> Model
+-- addRawOval old (_,pt2) (_,pt1) =
+--   let (xa, xb, ya, yb) = boundingBox pt1 pt2 in
+--   let (rx, ry) = ((xb-xa)//2, (yb-ya)//2) in
+--   let (cx, cy) = (xa + rx, ya + ry) in
+--   let ellipseExp =
+--     makeCallWithLocals
+--         [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
+--         , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
+--         (eVar0 "rawEllipse")
+--         [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+--         , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
+--   in
+--   addShapeToModel old "ellipse" ellipseExp
+--
+-- --------------------------------------------------------------------------------
+--
+-- addRawCircle : Model -> PointWithSnap -> PointWithSnap -> Model
+-- addRawCircle old (_,pt2) (_,pt1) =
+--   let (xa, xb, ya, yb) = squareBoundingBox pt1 pt2 in
+--   let r = (xb-xa)//2 in
+--   let (cx, cy) = (xa + r, ya + r) in
+--   let circleExp =
+--     makeCallWithLocals
+--         [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
+--         , makeLet ["color"] [randomColor1 old] ]
+--         (eVar0 "rawCircle")
+--         [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+--         , eVar "cx", eVar "cy", eVar "r" ]
+--   in
+--   addShapeToModel old "circle" circleExp
+--
+-- --------------------------------------------------------------------------------
+--
+-- addStretchyOval : Model -> PointWithSnap -> PointWithSnap -> Model
+-- addStretchyOval old (_,pt2) (_,pt1) =
+--   let (xa, xb, ya, yb) = boundingBox pt1 pt2 in
+--   let ellipseExp =
+--     makeCallWithLocals
+--         [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
+--         , makeLet ["color","strokeColor","strokeWidth"]
+--                   [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+--         (eVar0 "oval")
+--         (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
+--   in
+--   addShapeToModel old "ellipse" ellipseExp
+--
+-- --------------------------------------------------------------------------------
+--
+-- addStretchyCircle : Model -> PointWithSnap -> PointWithSnap -> Model
+-- addStretchyCircle old (_,pt2) (_,pt1) =
+--   let (left, right, top, _) = squareBoundingBox pt1 pt2 in
+--   let circleExp =
+--     makeCallWithLocals
+--         [ makeLet ["left", "top", "r"] (makeInts [left, top, (right-left)//2])
+--         , makeLet ["bounds"]
+--             [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing]
+--         , makeLet ["color","strokeColor","strokeWidth"]
+--                   [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+--         (eVar0 "oval")
+--         (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
+--   in
+--   addShapeToModel old "circle" circleExp
 
 --------------------------------------------------------------------------------
 
@@ -471,16 +486,6 @@ horizontalVerticalSnap (x1, y1) (x2, y2) =
     else (Y, Negative, y1 - y2)
 
 
-addOffsetAndPoint : Model -> Snap -> (Num, Num) -> (Int, Int) -> Model
-addOffsetAndPoint old snap (x1, y1) (x2, y2) =
-  addOffsetAndMaybePoint old snap (x1, y1) Nothing (x2, y2)
-
-
-addOffset : Model -> Snap -> (Val, Val) -> (Int, Int) -> Model
-addOffset old snap (x1Val, y1Val) (x2, y2) =
-  addOffsetAndMaybePoint old snap (valToNum x1Val, valToNum y1Val) (Just (x1Val, y1Val)) (x2, y2)
-
-
 addToEndOfProgram : Model -> Ident -> Exp -> Model
 addToEndOfProgram old varSuggestedName exp =
   let originalProgram = old.inputExp in
@@ -496,27 +501,28 @@ addToEndOfProgram old varSuggestedName exp =
   { old | code = Syntax.unparser old.syntax newProgram }
 
 
-addOffsetAndMaybePoint : Model -> Snap -> (Num, Num) -> Maybe (Val, Val) -> (Int, Int) -> Model
-addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
+addOffsetAndMaybePoint : Model -> PointWithSnap -> Snap -> (Int, Int) -> Model
+addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let originalProgram = old.inputExp in
-  let (axis, sign, offsetAmount) = horizontalVerticalSnap (round x1, round y1) (x2, y2) in
+  let ((x1Int, _), (y1Int, _)) = pt1 in
+  let (axis, sign, offsetAmount) = horizontalVerticalSnap (x1Int, y1Int) (x2Int, y2Int) in
   let plusOrMinus = if sign == Positive then Plus else Minus in
   let offsetFromExisting baseVal =
     let offsetSuggestedName = Provenance.nameForVal originalProgram baseVal ++ "Offset" in
     let offsetExp =
       let offsetAmountExp =
-        case snap of
-          NoSnap          -> eConstDummyLoc (toFloat offsetAmount)
+        case amountSnap of
+          NoSnap          -> eInt offsetAmount
           SnapVal snapVal -> eHoleVal snapVal
       in
       eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp]
     in
     addToEndOfProgram old offsetSuggestedName offsetExp
   in
-  case (axis, maybeExistingPoint) of
-    (X, Just (x1Val, _)) -> offsetFromExisting x1Val
-    (Y, Just (_, y1Val)) -> offsetFromExisting y1Val
+  case (axis, pt1) of
+    (X, ((_, SnapVal x1Val), _)) -> offsetFromExisting x1Val
+    (Y, (_, (_, SnapVal y1Val))) -> offsetFromExisting y1Val
     _                    ->
       case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
         [pointName, xName, yName, offsetXName, offsetYName] ->
@@ -524,8 +530,9 @@ addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
             (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
             programWithOffset =
               LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> FastParser.freshen
+            -- pt1 snaps ignored here, which is fine because we can't yet get an input pt1 with a snap on only one axis (an hence on only the non-offset axis not handled above with offsetFromExisting)
             programWithOffsetAndPoint =
-              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TNamed space1 "Point"))
+              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x1Int, eInt y1Int]) (TNamed space1 "Point"))
           in
           { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 
@@ -754,17 +761,17 @@ addLambda old (_,pt2) (_,pt1) =
     Utils.geti selectedIdx exps
   in
 -}
-addLambda selectedIdx old pt2 pt1 =
+addLambda selectedIdx old pt1 pt2 =
   let exps = old.lambdaTools in
   case Utils.geti selectedIdx exps of
-    LambdaBounds func -> addLambdaBounds old pt2 pt1 func
-    LambdaAnchor func _ -> addLambdaAnchor old pt2 pt1 func
+    LambdaBounds func -> addLambdaBounds old pt1 pt2 func
+    LambdaAnchor func _ -> addLambdaAnchor old pt1 pt2 func
 
 addLambdaBounds old (_,pt2) (_,pt1) func =
   let (xa, xb, ya, yb) =
     if old.keysDown == [Keys.keyShift]
-      then squareBoundingBox pt2 pt1
-      else boundingBox pt2 pt1
+      then squareBoundingBox pt1 pt2
+      else boundingBox pt1 pt2
   in
 
   {- this version adds a call to main: -}
@@ -808,8 +815,8 @@ addLambdaAnchor old click2 click1 func =
   { old | code = code }
 
 
-addFunction : Ident -> Model -> (KeysDown, (Int, Int)) -> (KeysDown, (Int, Int)) -> Model
-addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
+addFunction : Ident -> Model -> PointWithSnap -> PointWithSnap -> Model
+addFunction fName old pt1 pt2 =
   let fillInArgPrimitive argType =
     case argType.val of
       TNum _                         -> Just <| eConstDummyLoc 0
@@ -833,10 +840,10 @@ addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
         |> List.foldl
             (\argType (ptsRemaining, argMaybeExps) ->
               case (ptsRemaining, argType.val) of
-                ((x,y)::otherPts, TNamed _ "Point") -> (otherPts,     argMaybeExps ++ [Just (eTuple (makeInts [x,y]))])
-                _                                   -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
+                (pt::otherPts, TNamed _ "Point") -> (otherPts,     argMaybeExps ++ [Just (makePointExpFromPointWithSnap pt)])
+                _                                -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
             )
-            ([(x1, y1), (x2, y2)], [])
+            ([pt1, pt2], [])
       in
       case (Utils.projJusts argMaybeExps, returnType.val) of
         (Just argExps, TNamed _ "Point") -> addToEndOfProgram old fName (eCall fName argExps)
@@ -846,22 +853,22 @@ addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
     Nothing -> let _ = Utils.log <| "Could not find function " ++ fName ++ " to draw!" in old
 
 
-addTextBox old click2 click1 =
-  let (xa, xb, ya, yb) = boundingBox (Tuple.second click2) (Tuple.second click1) in
-  let fontSize =
-    eConst0 (toFloat (yb - ya)) dummyLoc
-    -- withDummyExpInfo (EConst "" (toFloat (yb - ya)) dummyLoc (intSlider 0 128))
-  in
-  let textExp =
-    makeCallWithLocals
-        [ makeLet ["fontSize","textVal"] [fontSize, eStr "Text"] ]
-        (eVar0 "simpleText")
-        [ eStr "Tahoma, sans-serif", eStr "black", eVar "fontSize"
-        , eConst (toFloat xa) dummyLoc, eConst (toFloat xb) dummyLoc
-        , eConst (toFloat yb) dummyLoc
-        , eConst 1.5 dummyLoc, eVar "textVal" ]
-  in
-  addShapeToModel old "text" textExp
+-- addTextBox old click2 click1 =
+--   let (xa, xb, ya, yb) = boundingBox (Tuple.second click2) (Tuple.second click1) in
+--   let fontSize =
+--     eConst0 (toFloat (yb - ya)) dummyLoc
+--     -- withDummyExpInfo (EConst "" (toFloat (yb - ya)) dummyLoc (intSlider 0 128))
+--   in
+--   let textExp =
+--     makeCallWithLocals
+--         [ makeLet ["fontSize","textVal"] [fontSize, eStr "Text"] ]
+--         (eVar0 "simpleText")
+--         [ eStr "Tahoma, sans-serif", eStr "black", eVar "fontSize"
+--         , eConst (toFloat xa) dummyLoc, eConst (toFloat xb) dummyLoc
+--         , eConst (toFloat yb) dummyLoc
+--         , eConst 1.5 dummyLoc, eVar "textVal" ]
+--   in
+--   addShapeToModel old "text" textExp
 
 --------------------------------------------------------------------------------
 
@@ -961,10 +968,26 @@ makeInts : List Int -> List Exp
 makeInts nums =
   case nums of
     []    -> Debug.crash "makeInts"
-    [n]   -> [eConst0 (toFloat n) dummyLoc]
-    n::ns -> let e = eConst0 (toFloat n) dummyLoc in
-             let es = List.map (\n_ -> eConst (toFloat n_) dummyLoc) ns in
-             e::es
+    [n]   -> [eInt0 n]
+    n::ns -> eInt0 n :: List.map eInt ns
+
+-- Don't always throw into a pair, so both have preceding whitespace.
+makeIntPair : (Int, Int) -> (Exp, Exp)
+makeIntPair (x, y) = (eInt x, eInt y)
+
+-- Don't always throw into a pair, so both have preceding whitespace.
+makeIntPairOrSnap : PointWithSnap -> (Exp, Exp)
+makeIntPairOrSnap ((x, xSnap), (y, ySnap)) =
+  case (xSnap, ySnap) of
+    (NoSnap,       NoSnap)       -> (eInt x,        eInt y)
+    (SnapVal xVal, NoSnap)       -> (eHoleVal xVal, eInt y)
+    (NoSnap,       SnapVal yVal) -> (eInt x,        eHoleVal yVal)
+    (SnapVal xVal, SnapVal yVal) -> (eHoleVal xVal, eHoleVal yVal)
+
+makePointExpFromPointWithSnap : PointWithSnap -> Exp
+makePointExpFromPointWithSnap pt =
+  let (xExp, yExp) = makeIntPairOrSnap pt in
+  ePair (removePrecedingWhitespace xExp) yExp
 
 addToMainExp : BlobExp -> MainExp -> MainExp
 addToMainExp newBlob mainExp =

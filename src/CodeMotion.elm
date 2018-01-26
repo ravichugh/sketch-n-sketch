@@ -2871,7 +2871,7 @@ resolveValueHoles syncOptions programWithHolesUnfresh =
   |> List.foldl
       (\(holeEId, holeTrace) programSoFar ->
         let filledHole = traceToExp locIdToExp holeTrace in
-        programSoFar |> replaceExpNode holeEId filledHole
+        programSoFar |> replaceExpNodePreservingPrecedingWhitespace holeEId filledHole
       )
       programWithLocsLifted
   |> List.singleton

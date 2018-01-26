@@ -1693,8 +1693,6 @@ desugarEFun ps e = case ps of
   [p]     -> eFun [p] e
   p::ps_  -> eFun [p] (desugarEFun ps_ e)
 
-ePair e1 e2 = withDummyExpInfo <| EList space1 [e1,e2] space0 Nothing space0
-
 noWidgetDecl = withDummyRange NoWidgetDecl
 
 rangeSlider kind a b =
@@ -1742,10 +1740,13 @@ eConst0 a b       = withDummyExpInfo <| EConst space0 a b noWidgetDecl
 eConst a b        = withDummyExpInfo <| EConst space1 a b noWidgetDecl
 eConstDummyLoc0 a = withDummyExpInfo <| EConst space0 a dummyLoc noWidgetDecl
 eConstDummyLoc a  = withDummyExpInfo <| EConst space1 a dummyLoc noWidgetDecl
+eInt0 n           = eConstDummyLoc0 (toFloat n)
+eInt n            = eConstDummyLoc (toFloat n)
 eList0 a b        = withDummyExpInfo <| EList space0 (List.map ((,) space0) a) space0 b space0
 eList a b         = withDummyExpInfo <| EList space1 (List.map ((,) space0) a) space0 b space0
 eTuple0 a         = eList0 a Nothing
 eTuple a          = eList a Nothing
+ePair e1 e2       = eTuple [e1, e2]
 eHoleVal0 v       = withDummyExpInfo <| EHole space0 (Just v)
 eHoleVal v        = withDummyExpInfo <| EHole space1 (Just v)
 
@@ -2080,6 +2081,10 @@ mapPrecedingWhitespacePat stringMap pat =
         PParens ws1 p ws2          -> PParens (mapWs ws1) p ws2
   in
     replaceP__ pat p__
+
+
+removePrecedingWhitespace : Exp -> Exp
+removePrecedingWhitespace = replacePrecedingWhitespace ""
 
 
 ensureWhitespace : String -> String

@@ -87,13 +87,13 @@ msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
       then { old | mouseMode = dragMode }
       else { old | mouseMode = dragMode, selectedShapes = Set.empty, selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
 
-    (_ , MouseNothing) -> startDrawing old
+    (_ , MouseNothing) -> startDrawing old Nothing
     _                  -> old
 
 
-startDrawing : Model -> Model
-startDrawing old =
-  { old | mouseMode = MouseDrawNew NoPointsYet -- No points until drag begins, or (for paths/polys) mouse-up
+startDrawing : Model -> Maybe Clickable -> Model
+startDrawing old maybeClickable =
+  { old | mouseMode = MouseDrawNew (DrawJustStarted maybeClickable) -- No points until drag begins, or (for paths/polys) mouse-up
         , selectedShapes = Set.empty
         , selectedBlobs = Dict.empty }
 
@@ -218,17 +218,17 @@ dragZoneEvents id shapeKind realZone =
 
 drawNewShape model =
   case (model.tool, model.mouseMode) of
-    (Line _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewLine model pt2 pt1
-    (Rect _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewEllipse model.keysDown pt2 pt1
-    (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))                     -> Draw.drawNewPolygon ptLast pts
-    (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))                     -> Draw.drawNewPath ptLast pts
-    (PointOrOffset, MouseDrawNew (Offset1DFromExisting pt2 snap (x1Val, y1Val))) -> drawNewPointAndOffset model (snap /= NoSnap) pt2 (round (valToNum x1Val), round (valToNum y1Val))
-    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))                  -> drawNewPointAndOffset model False pt2 pt1
-    (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewLine model pt2 pt1
-    (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Function _,    MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Text,          MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    -- (Line _,        MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewLine model pt1 pt2
+    -- (Rect _,        MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewRect model.keysDown pt1 pt2
+    -- (Oval _,        MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewEllipse model.keysDown pt1 pt2
+    -- (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))                     -> Draw.drawNewPolygon ptLast pts
+    -- (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))                     -> Draw.drawNewPath ptLast pts
+    -- (PointOrOffset, MouseDrawNew (Offset1D pt2 snap (x1Val, y1Val))) -> drawNewPointAndOffset model (snap /= NoSnap) pt2 (round (valToNum x1Val), round (valToNum y1Val))
+    -- (PointOrOffset, MouseDrawNew (TwoPoints (_, pt1) (_, pt2)))                  -> drawNewPointAndOffset model False pt1 pt2
+    -- (HelperLine,    MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewLine model pt1 pt2
+    -- (Lambda _,      MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewRect model.keysDown pt1 pt2
+    -- (Function _,    MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewRect model.keysDown pt1 pt2
+    -- (Text,          MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewRect model.keysDown pt1 pt2
     _                                                                            -> []
 
 
@@ -1341,14 +1341,11 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
               then toggleSelectedLambda [xSelectableFeature, ySelectableFeature] model
               else { model | hoveredCrosshairs = Set.insert thisCrosshair model.hoveredCrosshairs }
         ]
-      else if model.tool == PointOrOffset then
-        [ onMouseDown <| Msg "Begin Offset From Point..." <| \model ->
-            { model | mouseMode = MouseDrawNew (Offset1DFromExisting (x, y) NoSnap (xVal, yVal)) }
-        ]
       else
         [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->
-            let newModel = if model.mouseMode == MouseNothing then startDrawing model else model in
-            { newModel | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xVal yVal)) } ]
+            let maybeClickable = Just (PointWithProvenance xVal yVal) in
+            let newModel = if model.mouseMode == MouseNothing then startDrawing model maybeClickable else model in -- maybeClickable for drag drawings
+            { newModel | mouseState = (Just False, { x = x, y = y }, maybeClickable) } ] -- maybeClickable for click drawings (poly/path)
     in
     svgXYDot model (x, y) dotFill isVisible extraAttrs
   in
