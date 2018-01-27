@@ -572,7 +572,21 @@ onMouseUp old =
       let pointsWithSnaps =
         case points of
           TwoPoints pt1 ((x2, NoSnap), (y2, NoSnap)) ->
-            TwoPoints pt1 ((x2, NoSnap), (y2, NoSnap))
+            -- Currently, only point widgets have the Vals on then to snap to.
+            -- Everything else has dummy vals. Need to move features to Prelude rather than hard coding.
+            -- So much work to do!
+            let maybeSnap =
+              old.widgets
+              |> Utils.mapFirstSuccess
+                  (\widget ->
+                    case widget of
+                      WPoint _ xVal _ yVal -> if Utils.distance (valToNum xVal, valToNum yVal) (toFloat x2, toFloat y2) <= 7.0 then Just (xVal, yVal) else Nothing
+                      _                    -> Nothing
+                  )
+            in
+            case maybeSnap of
+              Just (xVal, yVal) -> TwoPoints pt1 ((valToInt xVal, SnapVal xVal), (valToInt yVal, SnapVal yVal))
+              Nothing           -> points
           _ ->
             points
       in
