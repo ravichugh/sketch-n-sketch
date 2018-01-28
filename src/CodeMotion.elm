@@ -870,10 +870,10 @@ makeResult
     let allOldReferencesSame =
       originalVarRefs
       |> List.all
-          (\(oldVarEId, maybeOldPid) ->
+          (\(oldVarEId, maybeOldPId) ->
             List.member oldVarEId varEIdsDeliberatelyRemoved
-            || Utils.equalAsSets (List.filter (Tuple.first >> (==) oldVarEId) newVarRefs) [(oldVarEId, maybeOldPid)]
-            -- || Debug.log (toString (oldVarEId, maybeOldPid) ++ unparseWithIds originalProgramUniqueNames ++ unparseWithIds newProgram) False
+            || Utils.equalAsSets (List.filter (Tuple.first >> (==) oldVarEId) newVarRefs) [(oldVarEId, maybeOldPId)]
+            -- || Debug.log (toString (oldVarEId, maybeOldPId) ++ unparseWithIds originalProgramUniqueNames ++ unparseWithIds newProgram) False
           )
       -- |> Debug.log "allOldReferencesSame"
     in

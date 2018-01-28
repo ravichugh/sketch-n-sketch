@@ -1316,6 +1316,11 @@ allEIds exp =
   flattenExpTree exp |> List.map (.val >> .eid)
 
 
+allPIds : Pat -> List PId
+allPIds pat =
+  flattenPatTree pat |> List.map (.val >> .pid)
+
+
 ------------------------------------------------------------------------------
 -- Conversion
 
@@ -3018,17 +3023,17 @@ foldCode f acc code =
 
 -- Some helper functions that use CodeObjects
 
-hasPid : PId -> CodeObject -> Bool
-hasPid pid codeObject =
+hasPId : PId -> CodeObject -> Bool
+hasPId pid codeObject =
   case codeObject of
     P _ p ->
       p.val.pid == pid
     _ ->
       False
 
-hasPatWithPid : PId -> Exp -> Bool
-hasPatWithPid pid =
-  Utils.hasMatchingElement (hasPid pid) << childCodeObjects << E
+hasPatWithPId : PId -> Exp -> Bool
+hasPatWithPId pid =
+  Utils.hasMatchingElement (hasPId pid) << childCodeObjects << E
 
 --------------------------------------------------------------------------------
 -- Getting PathedPatternIds from PIds

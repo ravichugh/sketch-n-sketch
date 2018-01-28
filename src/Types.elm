@@ -139,6 +139,18 @@ valIsType val tipe =
     _                        -> False
 
 
+matchTypeAlias : Pat -> Type -> Maybe (List (Ident, Type))
+matchTypeAlias pat tipe =
+  case (pat.val.p__, tipe.val) of
+    (PVar _ ident _, _) ->
+      Just [(ident, tipe)]
+    (PList _ pHeads _ Nothing _, TTuple _ tHeads _ Nothing _) ->
+      Utils.maybeZip pHeads tHeads
+      |> Maybe.andThen (List.map (uncurry matchTypeAlias) >> Utils.projJusts)
+      |> Maybe.map List.concat
+    _ ->
+      Nothing
+
 ------------------------------------------------------------------------------
 -- Type Checking
 
@@ -227,43 +239,6 @@ strConstraint (i,rawConstraint) =
 
 -- Primitive Types -----------------------------------------------------------
 
--- could move these to (extern typ x T) definitions in Prelude...
-opTypeTable : List (Op_, Type)
-opTypeTable =
-  List.map (Tuple.mapSecond parseT)
-    [ (Pi         , " Num ") -- TODO
-
-    , (ToStr      , " (forall a (-> a String))")
-    , (DebugLog   , " (forall a (-> a String))")
-
-    , (Eq         , " (forall a (-> a a Bool))")
-
-    , (Cos        , " (-> Num Num)")
-    , (Sin        , " (-> Num Num)")
-    , (ArcCos     , " (-> Num Num)")
-    , (ArcSin     , " (-> Num Num)")
-    , (ArcTan2    , " (-> Num Num Num)")
-    , (Floor      , " (-> Num Num)")
-    , (Ceil       , " (-> Num Num)")
-    , (Round      , " (-> Num Num)")
-    , (Sqrt       , " (-> Num Num)")
-    -- hard-coding intersection type for Plus in EOp rule
-    -- , (Plus       , " (-> Num Num Num)")
-    , (Plus       , " DUMMY")
-    , (Minus      , " (-> Num Num Num)")
-    , (Mult       , " (-> Num Num Num)")
-    , (Div        , " (-> Num Num Num)")
-    , (Lt         , " (-> Num Num Bool)")
-    , (Mod        , " (-> Num Num Num)")
-    , (Pow        , " (-> Num Num Num)")
-
-    , (DictEmpty  , " TODO") -- " (forall (k v) (Dict k v))")
-    , (DictGet    , " TODO") -- " (forall (k v) (-> k (Dict k v) (union v Null)))"
-    , (DictRemove , " TODO") -- " (forall (k v) (-> k (Dict k v) (Dict k v)))"
-    , (DictInsert , " TODO") -- " (forall (k v) (-> k v (Dict k v) (Dict k v)))"
-    -- , (DictMem , " TODO") -- " (forall (k v) (-> k (Dict k v) Bool))"
-    ]
-
 parseT : String -> Type
 parseT s =
   -- TODO figure out why this is parsing as a TNamed
@@ -274,9 +249,35 @@ parseT s =
 
 opType : Op -> Type
 opType op =
-  case Utils.maybeFind op.val opTypeTable of
-    Just t  -> t
-    Nothing -> Debug.crash <| "opType not defined: " ++ strOp op.val
+  parseT <|
+    case op.val of
+      -- We don't actually allow partial application of operations, so this may not be what we want.
+      Pi         -> " Num " -- TODO
+      ToStr      -> " (forall a (-> a String))"
+      DebugLog   -> " (forall a (-> a ag))"
+      Eq         -> " (forall a (-> a a Bool))"
+      Cos        -> " (-> Num Num)"
+      Sin        -> " (-> Num Num)"
+      ArcCos     -> " (-> Num Num)"
+      ArcSin     -> " (-> Num Num)"
+      ArcTan2    -> " (-> Num Num Num)"
+      Floor      -> " (-> Num Num)"
+      Ceil       -> " (-> Num Num)"
+      Round      -> " (-> Num Num)"
+      Sqrt       -> " (-> Num Num)"
+      Plus       -> " DUMMY" -- TODO
+      Minus      -> " (-> Num Num Num)"
+      Mult       -> " (-> Num Num Num)"
+      Div        -> " (-> Num Num Num)"
+      Lt         -> " (-> Num Num Bool)"
+      Mod        -> " (-> Num Num Num)"
+      Pow        -> " (-> Num Num Num)"
+      DictEmpty  -> " TODO" -- " (forall (k v) (Dict k v))")
+      DictGet    -> " TODO" -- " (forall (k v) (-> k (Dict k v) (union v Null)))"
+      DictRemove -> " TODO" -- " (forall (k v) (-> k (Dict k v) (Dict k v)))"
+      DictInsert -> " TODO" -- " (forall (k v) (-> k v (Dict k v) (Dict k v)))"
+      NoWidgets  -> " (forall a (-> a a))"
+      Explode    -> " (-> String (List String))"
 
 -- Operations on Type Environments -------------------------------------------
 
@@ -977,7 +978,7 @@ synthesizeType typeInfo typeEnv e =
             if stopAtError then
               finish.withError err typeInfo
             else
-              let t1 = tVar "__NO_TYPE__" in
+              let t1 = tVar "__NO_TYPE3__" in
               let typeInfo_ = addTypeErrorAt t1.start err typeInfo in
               tsLetFinishE2 finish.withType typeInfo_ typeEnv p t1 (eInfoOf e1) e2
           else
@@ -1121,7 +1122,7 @@ tsLet finishWithType typeInfo typeEnv p e1 e2 =
     Nothing ->
       if stopAtError then result1
       else
-        let t1 = tVar "__NO_TYPE__" in
+        let t1 = tVar "__NO_TYPE1__" in
         tsLetFinishE2 finishWithType result1.typeInfo typeEnv p t1 (eInfoOf e1) e2
 
     Just t1 ->
@@ -1135,7 +1136,7 @@ tsLet finishWithType typeInfo typeEnv p e1 e2 =
         Nothing  ->
           if stopAtError then result1_
           else
-            let t1_ = tVar "__NO_TYPE__" in
+            let t1_ = tVar "__NO_TYPE2__" in
             tsLetFinishE2 finishWithType result1_.typeInfo typeEnv p t1_ (eInfoOf e1) e2
 
 tsLetFinishE2 finishWithType typeInfo typeEnv p t1 eInfo1 e2 =
@@ -1746,15 +1747,10 @@ initTypeInfo =
 
 preludeTypeEnv : TypeEnv
 preludeTypeEnv =
-  []
-{-
   let {typeInfo} = synthesizeType initTypeInfo [] Parser.prelude in
   case typeInfo.preludeTypeEnv of
     Just env -> env
-    Nothing ->
-      Debug.log "ERROR with preludeTypeEnv: \
-                 dummyPreludeMain not found in prelude.little" []
--}
+    Nothing  -> Debug.log "ERROR with preludeTypeEnv: dummyPreludeMain not found in prelude.little" []
 
 displayTypeInfo : TypeInfo -> ()
 displayTypeInfo typeInfo =

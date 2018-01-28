@@ -1206,5 +1206,5 @@ initModel =
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
     , valueEditorString = ValUnparser.strVal v
-    , syntax = Syntax.Elm
+    , syntax = Syntax.Little
     }

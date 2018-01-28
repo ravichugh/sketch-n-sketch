@@ -31,6 +31,7 @@ import LangTools
 import LangUnparser
 import StaticAnalysis
 import Provenance
+import SlowTypeInference
 import Utils
 import Either exposing (..)
 import Keys
@@ -1137,13 +1138,14 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
 -- Returns list of (fName, fExp, typeSig), fExp is an EFun
 preludeDrawableFunctions : List (Ident, Exp, Type)
 preludeDrawableFunctions =
-  getDrawableFunctions_ FastParser.prelude (LangTools.lastTopLevelExp FastParser.prelude).val.eid
+  getDrawableFunctions_ False FastParser.prelude (LangTools.lastTopLevelExp FastParser.prelude).val.eid
 
 
 -- Returns list of (fName, fExp, typeSig), fExp is an EFun
 getDrawableFunctions : Model -> List (Ident, Exp, Type)
 getDrawableFunctions model =
   getDrawableFunctions_
+      True
       model.inputExp
       (LangTools.lastTopLevelExp model.inputExp).val.eid ++
   preludeDrawableFunctions
@@ -1167,8 +1169,8 @@ isDrawableType tipe =
 
 
 -- Returns list of (fName, fExp, typeSig), fExp is an EFun
-getDrawableFunctions_ : Exp -> EId -> List (Ident, Exp, Type)
-getDrawableFunctions_ program viewerEId =
+getDrawableFunctions_ : Bool -> Exp -> EId -> List (Ident, Exp, Type)
+getDrawableFunctions_ tryTypeInference program viewerEId =
   let boundExpsInScope =
     LangTools.expEnvAt_ program viewerEId
     |> Utils.fromJust_ "getDrawableFunctions_ expEnvAt_"
@@ -1180,24 +1182,41 @@ getDrawableFunctions_ program viewerEId =
             LangTools.BoundUnknown -> Nothing
         )
   in
-  findWithAncestorsByEId program viewerEId
-  |> Utils.fromJust_ "getDrawableFunctions_ findWithAncestorsByEId"
-  |> List.filterMap
-      (\exp ->
-        case exp.val.e__ of
-          ETyp _ typePat tipe body _ -> -- Only single types at a time for now.
-            if isDrawableType tipe then
-              case LangTools.expToMaybeLetPatAndBoundExp body of
-                Just (letPat, boundExp) ->
-                  case (typePat.val.p__, letPat.val.p__) of
-                    (PVar _ typeIdent _, PVar _ letIdent _) ->
-                      if typeIdent == letIdent && List.member (expEffectiveExp boundExp) boundExpsInScope
-                      then Just (typeIdent, expEffectiveExp boundExp, tipe)
-                      else Nothing
-                    _ -> Nothing
-                _ -> Nothing
-            else
-              Nothing
-          _ -> Nothing
-      )
+  let explicitlyAnnotatedFunctions =
+    findWithAncestorsByEId program viewerEId
+    |> Utils.fromJust_ "getDrawableFunctions_ findWithAncestorsByEId"
+    |> List.filterMap
+        (\exp ->
+          case exp.val.e__ of
+            ETyp _ typePat tipe body _ -> -- Only single types at a time for now.
+              if isDrawableType tipe then
+                case LangTools.expToMaybeLetPatAndBoundExp body of
+                  Just (letPat, boundExp) ->
+                    case (typePat.val.p__, letPat.val.p__) of
+                      (PVar _ typeIdent _, PVar _ letIdent _) ->
+                        if typeIdent == letIdent && List.member (expEffectiveExp boundExp) boundExpsInScope
+                        then Just (typeIdent, expEffectiveExp boundExp, tipe)
+                        else Nothing
+                      _ -> Nothing
+                  _ -> Nothing
+              else
+                Nothing
+            _ -> Nothing
+        )
+  in
+  if tryTypeInference then
+    -- let {typeInfo} = Types.synthesizeType Types.initTypeInfo Types.preludeTypeEnv program in
+    -- let _ =
+    --   -- boundExpsInScope
+    --   flattenExpTree program
+    --   |> List.map
+    --       (\boundExp ->
+    --         case Dict.get boundExp.val.eid typeInfo.finalTypes of
+    --           Just (Just tipe) -> Utils.log <| "exp type: " ++ toString tipe ++ " for " ++ Syntax.unparser Syntax.Little boundExp
+    --           _                -> Utils.log <| "no type for " ++ Syntax.unparser Syntax.Little boundExp
+    --       )
+    -- in
+    explicitlyAnnotatedFunctions
+  else
+    explicitlyAnnotatedFunctions
 

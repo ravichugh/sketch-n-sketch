@@ -848,7 +848,7 @@ upstate msg old =
     Msg caption updateModel ->
       -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
       -- let _ = Debug.log "Msg" caption in
-      -- let _ = if {-String.contains "Key" caption-} True then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
+      let _ = if {-String.contains "Key" caption-} True then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
       let _ = debugLog "Msg" caption in
       updateModel old
 
