@@ -143,10 +143,10 @@ build dim model =
 --------------------------------------------------------------------------------
 -- Compiling to Svg/Html
 
-buildHtml : (Model, Bool) -> LangSvg.RootedIndexedTree -> (Svg Msg)
+buildHtml : (Model, Bool) -> LangSvg.RootedIndexedTree -> Html Msg
 buildHtml (model, addZones) (i,d) = buildHtml_ (model, addZones) False d i
 
-buildHtml_ : (Model, Bool) -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> (Svg Msg)
+buildHtml_ : (Model, Bool) -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> Html Msg
 buildHtml_ (model, addZones) insideSvgNode d i =
   case Utils.justGet_ ("buildHtml_ " ++ toString i) i d |> .interpreted of
    LangSvg.TextNode text -> VirtualDom.text text
@@ -195,10 +195,20 @@ buildHtml_ (model, addZones) insideSvgNode d i =
         else (Html.node, False)
       in
       let children = List.map (buildHtml_ (model, addZones) isSvgNode d) childIndices in
-      let mainshape = (node rawKind) compiledAttrs children in
+      if zones == [] then
+        let mainshape = (node rawKind) compiledAttrs children in
+        mainshape
+      else if isSvgNode then
+        let mainshape = (node rawKind) compiledAttrs children in
+        Svg.svg [] (mainshape :: zones)
+      else
+        let mainshape = (node rawKind) compiledAttrs (children ++ zones) in
+        mainshape
+{-
       if zones == []
         then mainshape
         else Svg.svg [] (mainshape :: zones)
+-}
 
 --------------------------------------------------------------------------------
 
@@ -1456,7 +1466,7 @@ boxySelectZones model id kind boxyNums =
 -- TODO significantly refactor point selection zones, by using
 -- ShapeWidgets.genericFeaturesOfShape, BoxyFeatureEquations, eval FeatureEquation, etc.
 
-makeZones : Model -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List (Svg Msg)
+makeZones : Model -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List (Html Msg)
 makeZones model shape id l =
   case shape of
     "line"     -> makeZonesLine model id l
@@ -1469,7 +1479,43 @@ makeZones model shape id l =
     "polyline" -> makeZonesPoly model shape id l
     "path"     -> makeZonesPath model shape id l
     -- "g"        -> makeZonesGroup model id l
+    "h1"       -> htmlZones
+    "td"       -> htmlZones
     _          -> []
+
+htmlZones =
+  let
+    interiorZone =
+      Html.div
+        [ Attr.style
+            [ ("background-color", "yellow"), ("opacity","0.50")
+            , ("position", "absolute")
+            , ("left","0"), ("top","0"), ("right","0"), ("bottom","0")
+            ]
+        ]
+        []
+    cornerZone leftOrRight topOrBottom =
+      let offset = 7 in
+      Html.div
+        [ Attr.style
+            [ ("background-color", "red")
+            , ("opacity","0.50")
+            , ("border-radius","50%")
+            , ("position", "absolute")
+            , (leftOrRight, pixels (-1 * offset))
+            , (topOrBottom, pixels (-1 * offset))
+            , ("width", pixels (2 * offset))
+            , ("height", pixels (2 * offset))
+            ]
+        ]
+        []
+  in
+  [ interiorZone
+  , cornerZone "left" "top"
+  , cornerZone "right" "top"
+  , cornerZone "right" "bottom"
+  , cornerZone "left" "bottom"
+  ]
 
 makeZonesLine model id l =
   let transform = maybeTransformAttr l in
