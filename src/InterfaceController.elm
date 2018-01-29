@@ -698,7 +698,7 @@ upstate (Msg caption updateModel) old =
 hooks : List (Model -> Model -> (Model, Cmd Msg))
 hooks =
   [ handleSavedSelectionsHook
-  , debugModel .history
+  -- , debugModel .history
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
