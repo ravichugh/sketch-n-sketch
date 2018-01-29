@@ -62,6 +62,13 @@ maybeZip xs ys = case (xs, ys) of
   ([], [])         -> Just []
   _                -> Nothing
 
+zipAndLeftovers : List a -> List b -> (List (a,b), List a, List b)
+zipAndLeftovers list1 list2 =
+  case (list1, list2) of
+    (x::xs, y::ys) -> mapFst3 ((::) (x, y)) (zipAndLeftovers xs ys)
+    (xs,    [])    -> ([], xs, [])
+    ([],    ys)    -> ([], [], ys)
+
 maybeZipDicts : Dict a b -> Dict a c -> Maybe (Dict a (b,c))
 maybeZipDicts d1 d2 =
   if Dict.keys d1 /= Dict.keys d2 then
