@@ -117,6 +117,7 @@ import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
+import History exposing (History)
 
 import ImpureGoodies
 
@@ -180,20 +181,6 @@ refreshHighlights zoneKey model =
   let codeBoxInfo = model.codeBoxInfo in
   let hi = liveInfoToHighlights zoneKey model in
   { model | codeBoxInfo = { codeBoxInfo | highlights = hi } }
-
--- may want to eventually have a maximum history length
-addToHistory currentCode h =
-  let (past, _) = h in
-  case past of
-    [] ->
-      (currentCode::past, [])
-
-    last::older ->
-      -- trimRight to tolerate differences in newlines at the end
-      if String.trimRight currentCode == String.trimRight last
-      then h
-      else (currentCode::past, [])
-
 
 between1 i (j,k) = Utils.between i (j+1, k+1)
 
@@ -525,7 +512,7 @@ finishTrigger zoneKey old =
   let old_ = { old | inputExp = e } in
   refreshHighlights zoneKey
     { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
-           , history = addToHistory old.code old_.history }
+           , history = modelCommit old.code [] old_.history }
 
 
 --------------------------------------------------------------------------------
@@ -536,7 +523,7 @@ tryRun old =
     oldWithUpdatedHistory =
       let
         updatedHistory =
-          addToHistory old.code old.history
+          modelCommit old.code [] old.history
       in
         { old | history = updatedHistory }
   in
@@ -585,7 +572,7 @@ tryRun old =
                       , runAnimation  = newMovieDuration > 0
                       , slate         = newSlate
                       , widgets       = ws
-                      , history       = addToHistory newCode old.history
+                      , history       = modelCommit newCode [] old.history
                       , caption       = Nothing
                       , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                       , lambdaTools   = lambdaTools_
@@ -711,6 +698,7 @@ upstate (Msg caption updateModel) old =
 hooks : List (Model -> Model -> (Model, Cmd Msg))
 hooks =
   [ handleSavedSelectionsHook
+  , debugModel .history
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
@@ -740,6 +728,24 @@ handleSavedSelectionsHook oldModel newModel =
         (newModel, Cmd.none)
   else
     (newModel, Cmd.none)
+
+debugModel : (Model -> a) -> Model -> Model -> (Model, Cmd Msg)
+debugModel get old new =
+  let
+    oldProperty =
+      get old
+    newProperty =
+      get new
+    returnValue =
+      (new, Cmd.none)
+  in
+    if oldProperty /= newProperty then
+      let
+        _ = Debug.log "" newProperty
+      in
+        returnValue
+    else
+      returnValue
 
 --------------------------------------------------------------------------------
 
@@ -968,47 +974,118 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 
 --------------------------------------------------------------------------------
 
+resetDeucePopupPanelPosition : Model -> Model
+resetDeucePopupPanelPosition m =
+  let
+    oldPopupPanelPositions =
+      m.popupPanelPositions
+    newPopupPanelPositions =
+      { oldPopupPanelPositions | deuce = (400, 400) }
+  in
+    { m | popupPanelPositions = newPopupPanelPositions }
+
+updateTrackedValues : History TrackedValues -> TrackedValues -> Model -> Model
+updateTrackedValues newHistory recent old =
+  let
+    toBeRun =
+      { old
+          | code = recent.code
+      }
+        |> Model.hideDeuceRightClickMenu
+        |> resetDeuceState
+    ran =
+      upstateRun toBeRun
+    ranDeuceState =
+      ran.deuceState
+    newDeuceState =
+      { ranDeuceState
+          | selectedWidgets =
+              recent.selectedDeuceWidgets
+      }
+    almostNew =
+      { ran
+          | deuceState =
+              newDeuceState
+          , history =
+              newHistory
+      }
+  in
+    { almostNew
+        | deuceToolsAndResults =
+            DeuceTools.createToolCache almostNew
+        , deuceToolResultPreviews =
+            Dict.empty
+    }
+      |> DeuceTools.reselectDeuceTool
+      |> resetDeucePopupPanelPosition
+
 msgUndo = Msg "Undo" doUndo
 
+doUndo : Model -> Model
 doUndo old =
-  case old.history of
-    ([], _) ->
+  case History.backward old.history of
+    Just newHistory ->
+      case History.mostRecent newHistory of
+        Just recent ->
+          updateTrackedValues newHistory recent old
+
+        Nothing ->
+          old
+
+    Nothing ->
       old
-    ([firstRun], _) ->
-      old
-    (lastRun::secondToLast::older, future) ->
-      let
-        new =
-          { old
-              | history =
-                  (secondToLast::older, lastRun::future)
-              , code =
-                  secondToLast
-          }
-            |> Model.hideDeuceRightClickMenu
-            |> resetDeuceState
-      in
-        upstateRun new
+
+--  case old.history of
+--    ([], _) ->
+--      old
+--    ([firstRun], _) ->
+--      old
+--    (lastRun::secondToLast::older, future) ->
+--      let
+--        new =
+--          { old
+--              | history =
+--                  (secondToLast::older, lastRun::future)
+--              , code =
+--                  secondToLast
+--          }
+--            |> Model.hideDeuceRightClickMenu
+--            |> resetDeuceState
+--      in
+--        upstateRun new
 
 msgRedo = Msg "Redo" doRedo
 
+doRedo : Model -> Model
 doRedo old =
-  case old.history of
-    (_, []) ->
+  case History.forward old.history of
+    Just newHistory ->
+      case History.mostRecent newHistory of
+        Just recent ->
+          updateTrackedValues newHistory recent old
+
+        Nothing ->
+          old
+
+    Nothing ->
       old
-    (past, next::future) ->
-      let
-        new =
-          { old
-              | history =
-                  (next::past, future)
-              , code =
-                  next
-          }
-            |> Model.hideDeuceRightClickMenu
-            |> resetDeuceState
-      in
-        upstateRun new
+
+--  case old.history of
+--    (_, []) ->
+--      old
+--    (past, next::future) ->
+--      let
+--        new =
+--          { old
+--              | history =
+--                  (next::past, future)
+--              , code =
+--                  next
+--          }
+--            |> Model.hideDeuceRightClickMenu
+--            |> resetDeuceState
+--      in
+--        upstateRun new
 
 --------------------------------------------------------------------------------
 
@@ -1224,7 +1301,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
-            , history          = addToHistory newCode old.history
+            , history          = modelCommit newCode [] old.history
             , slate            = newSlate
             , widgets          = newWidgets
             , preview          = Nothing
@@ -1312,7 +1389,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   let new =
     { old | code = newCode
           , lastRunCode = newCode
-          , history = addToHistory newCode old.history
+          , history = modelCommit newCode [] old.history
           , synthesisResults = []
           }
   in
@@ -1524,7 +1601,7 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
         , inputVal      = val
-        , history       = addToHistory code old.history
+        , history       = modelCommit code [] old.history
         , slate         = slate
         , preview       = Nothing
         , synthesisResults = []
@@ -1616,19 +1693,23 @@ msgUpdateFilenameInput str = Msg "Update Filename Input" <| \old ->
 --------------------------------------------------------------------------------
 -- File Handling API
 
+confirmWrite : Filename -> Model -> Model
 confirmWrite savedFilename old =
   { old | needsSave = False
         , lastSaveState = Just old.code }
 
+confirmDelete : Filename -> Model -> Model
 confirmDelete deletedFilename = identity
 
+requestFile : Filename -> Model -> Model
 requestFile requestedFilename old =
   { old | filename = requestedFilename }
 
+readFile : File -> Model -> Model
 readFile file old =
   { old | filename = file.filename
         , code = file.code
-        , history = ([file.code], [])
+        , history = History.begin { code = file.code, selectedDeuceWidgets = [] }
         , lastSaveState = Just file.code
         , needsSave = False }
 
@@ -1661,13 +1742,15 @@ loadLambdaToolIcons finalEnv old =
   in
   List.foldl foo old old.lambdaTools
 
+readFileFromInput : File -> Model -> Model
 readFileFromInput file old =
   { old | filename = file.filename
         , code = file.code
-        , history = ([file.code], [])
+        , history = History.begin { code = file.code, selectedDeuceWidgets = [] }
         , lastSaveState = Nothing
         , needsSave = True }
 
+updateFileIndex : FileIndex -> Model -> Model
 updateFileIndex fileIndex old =
   { old | fileIndex = fileIndex }
 
@@ -1715,7 +1798,7 @@ handleNew template = (\old ->
                     , inputVal      = v
                     , code          = code
                     , lastRunCode   = code
-                    , history       = ([code],[])
+                    , history       = History.begin { code = code, selectedDeuceWidgets = [] }
                     , liveSyncInfo  = outputMode
                     , syncOptions   = so
                     , slideNumber   = 1
@@ -1933,8 +2016,19 @@ msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString w
               | hoveredWidgets = [] } }
 
 msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m ->
-  -- TODO version of tryRun/upstateRun starting with parsed expression
-  upstateRun (resetDeuceState { m | code = unparse exp })
+  let
+    modifiedHistory =
+      modelModify m.code m.deuceState.selectedWidgets m.history
+    modelWithCorrectHistory =
+      case modifiedHistory of
+        Just h ->
+          { m | history = h }
+
+        Nothing ->
+          m
+  in
+    -- TODO version of tryRun/upstateRun starting with parsed expression
+    upstateRun ( { modelWithCorrectHistory | code = unparse exp })
 
 --------------------------------------------------------------------------------
 -- DOT
@@ -2229,7 +2323,7 @@ changeUserStudyStep label offset old =
       |> handleNew template
       |> (\m ->
            let finalCode = UserStudy.postProcessCode newState m.code in
-           { m | code = finalCode, history = ([finalCode], []) }
+           { m | code = finalCode, history = History.begin { code = finalCode, selectedDeuceWidgets = [] } }
          )
       |> UserStudy.enableFeaturesForEditorMode newState
       |> UserStudy.postProcessProse newState

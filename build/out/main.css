@@ -93,20 +93,84 @@ code {
   margin: 10px;
 }
 
-.ui-button.circle {
+.ui-button.close {
   display: inline-block;
-  width: 1em;
-  height: 1em;
-  text-align: center;
-  font-size: 0.5em;
-  border-bottom: none;
-  border: 1px solid var(--subtle-border-color);
-  border-radius: 50%;
-  -webkit-box-sizing: content-box;
-  -moz-box-sizing: content-box;
-  -ms-box-sizing: content-box;
-  -o-box-sizing: content-box;
-  box-sizing: content-box;
+  width: 0.75em;
+  height: 0.75em;
+
+  background-color: transparent;
+  border: none;
+
+  position: relative;
+
+  -webkit-transform: scale(0.8);
+  -moz-transform: scale(0.8);
+  -ms-transform: scale(0.8);
+  -o-transform: scale(0.8);
+  transform: scale(0.8);
+
+  -webkit-transition: -webkit-transform 0.5s;
+  -moz-transition: -moz-transform 0.5s;
+  -ms-transition: -ms-transform 0.5s;
+  -o-transition: -o-transform 0.5s;
+  transition: transform 0.5s;
+}
+
+.ui-button.close:hover {
+  -webkit-transform: scale(1);
+  -moz-transform: scale(1);
+  -ms-transform: scale(1);
+  -o-transform: scale(1);
+  transform: scale(1);
+
+  background-color: transparent;
+  border: none;
+}
+
+.ui-button.close:before, .ui-button.close:after {
+  content: "";
+  display: block;
+
+  width: 100%;
+  height: 0;
+
+  border-bottom: 3px solid var(--subtle-text-color);
+
+  margin: auto;
+
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+
+  -webkit-transform-origin: center;
+  -moz-transform-origin: center;
+  -ms-transform-origin: center;
+  -o-transform-origin: center;
+  transform-origin: center;
+
+  transition: border-color 0.5s;
+}
+
+.ui-button.close:hover:before, .ui-button.close:hover:after {
+  border-color: #880000;
+}
+
+.ui-button.close:before {
+  -webkit-transform: rotate(45deg);
+  -moz-transform: rotate(45deg);
+  -ms-transform: rotate(45deg);
+  -o-transform: rotate(45deg);
+  transform: rotate(45deg);
+}
+
+.ui-button.close:after {
+  -webkit-transform: rotate(-45deg);
+  -moz-transform: rotate(-45deg);
+  -ms-transform: rotate(-45deg);
+  -o-transform: rotate(-45deg);
+  transform: rotate(-45deg);
 }
 
 .icon-button {
@@ -287,6 +351,10 @@ code {
   /* The left triangle and the right triangle have different sizes, so just
    * use one of them for both left/right and flip it. */
   display: inline-block;
+  -webkit-transform: scale(-1);
+  -moz-transform: scale(-1);
+  -ms-transform: scale(-1);
+  -o-transform: scale(-1);
   transform: scale(-1);
 }
 
@@ -697,12 +765,12 @@ code {
 
   visibility: hidden;
   opacity: 0;
-  transition: visibility 0s linear 0.7s, opacity 0.7s;
+  transition: visibility 0s linear 0.2s, opacity 0.2s;
 }
 
 .main.has-dialogs .subtle-background {
   visibility: visible;
-  opacity: 0.85;
+  opacity: 0.5;
   transition-delay: 0s;
 }
 
@@ -713,7 +781,7 @@ code {
 
   background-color: var(--panel-bg-color);
   border: 1px solid var(--main-border-color);
-  box-shadow: 0 0 7px 0 var(--shadow-color);
+  box-shadow: 0 0 7px 0 rgba(0,0,0,0.5);
 
   display: flex;
   flex-direction: column;
@@ -721,17 +789,25 @@ code {
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translateY(-50%) translateX(-50%);
+  -webkit-transform: translateY(-50%) translateX(-50%) scale(0);
+  -moz-transform: translateY(-50%) translateX(-50%) scale(0);
+  -ms-transform: translateY(-50%) translateX(-50%) scale(0);
+  -o-transform: translateY(-50%) translateX(-50%) scale(0);
+  transform: translateY(-50%) translateX(-50%) scale(0);
 
-  visibility: hidden;
-  opacity: 0;
-  transition: visibility 0s linear 0.5s, opacity 0.5s;
+  -webkit-transition: -webkit-transform 0.2s;
+  -moz-transition: -moz-transform 0.2s;
+  -ms-transition: -ms-transform 0.2s;
+  -o-transition: -o-transform 0.2s;
+  transition: transform 0.2s;
 }
 
 .dialog-box.active {
-  visibility: visible;
-  opacity: 1;
-  transition-delay: 0s;
+  -webkit-transform: translateY(-50%) translateX(-50%) scale(1);
+  -moz-transform: translateY(-50%) translateX(-50%) scale(1);
+  -ms-transform: translateY(-50%) translateX(-50%) scale(1);
+  -o-transform: translateY(-50%) translateX(-50%) scale(1);
+  transform: translateY(-50%) translateX(-50%) scale(1);
 }
 
 .dialog-box h1 {
@@ -948,10 +1024,10 @@ code {
   /* top: DYNAMIC */
   /* left: DYNAMIC */
 
-  -webkit-transition: transform 0.3s;
-  -moz-transition: transform 0.3s;
-  -ms-transition: transform 0.3s;
-  -o-transition: transform 0.3s;
+  -webkit-transition: -webkit-transform 0.3s;
+  -moz-transition: -moz-transform 0.3s;
+  -ms-transition: -ms-transform 0.3s;
+  -o-transition: -o-transform 0.3s;
   transition: transform 0.3s;
 }
 
@@ -966,6 +1042,13 @@ code {
   text-align: center;
   padding: 2px 0;
   cursor: move;
+  position: relative;
+}
+
+.popup-panel .dragger .close {
+  position: absolute;
+  top: 1px;
+  right: 1px;
 }
 
 .popup-panel .text-button {

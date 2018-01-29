@@ -18,6 +18,7 @@ import Either exposing (Either(..))
 import Keys
 import Svg
 import LangSvg exposing (attr)
+import History exposing (History)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -32,6 +33,11 @@ import VirtualDom
 import ImpureGoodies
 
 type alias Code = String
+
+type alias TrackedValues =
+  { code : Code
+  , selectedDeuceWidgets : List DeuceWidgets.DeuceWidget
+  }
 
 type alias Filename = String
 
@@ -93,7 +99,7 @@ type alias Model =
   { code : Code
   , lastRunCode : Code
   , preview : Preview
-  , history : (List Code, List Code)
+  , history : History TrackedValues
   , inputExp : Exp
   , inputVal : Val
   , slideNumber : Int
@@ -946,6 +952,34 @@ deucePopupPanelShown model =
 
 --------------------------------------------------------------------------------
 
+historyUpdateCondition : TrackedValues -> TrackedValues -> Bool
+historyUpdateCondition previousValues currentValues =
+  Utils.or
+    [ -- trimRight to tolerate differences in newlines at the end
+      String.trimRight previousValues.code
+        /= String.trimRight currentValues.code
+    -- Might need some sort of sorting because not a set?
+    , previousValues.selectedDeuceWidgets
+        /= currentValues.selectedDeuceWidgets
+    ]
+
+modelCommit
+  :  Code -> List DeuceWidgets.DeuceWidget
+  -> History TrackedValues -> History TrackedValues
+modelCommit code dws =
+  History.commit
+    historyUpdateCondition
+    { code = code, selectedDeuceWidgets = dws }
+
+modelModify
+  :  Code -> List DeuceWidgets.DeuceWidget
+  -> History TrackedValues -> Maybe (History TrackedValues)
+modelModify code dws =
+  History.modify
+    { code = code, selectedDeuceWidgets = dws }
+
+--------------------------------------------------------------------------------
+
 initTemplate : String
 initTemplate = "BLANK"
 
@@ -968,7 +1002,7 @@ initModel =
     { code          = code
     , lastRunCode   = code
     , preview       = Nothing
-    , history       = ([code], [])
+    , history       = History.begin { code = code, selectedDeuceWidgets = [] }
     , inputExp      = e
     , inputVal      = v
     , slideNumber   = 1
