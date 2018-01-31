@@ -16,11 +16,10 @@ The unnarrated video below quickly clicks through all tutorial
 steps, and then quickly (~5 minutes total) completes the
 tasks without any pauses. To read the tasks, either launch
 the [user study app][userstudyversion] or look in Appendix C.
-Notes: (1) This video is not narrated.
-(2) This video was recorded using a lighter color scheme
-than deuce-user-study-version/index.html (the one used by
-participants).
-(3) For the Lambda task, the video shows a solution with one
+Notes: (i) This video is not narrated.
+(ii) This video was recorded using a lighter color scheme
+than the one used by participants.
+(iii) For the Lambda task, the video shows a solution with one
 more tool invoked (Move Definitions) than in the "optimal"
 path listed in Table 1.
 
