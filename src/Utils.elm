@@ -817,6 +817,17 @@ dictUnionSet : k -> (Set v) -> Dict k (Set v) -> Dict k (Set v)
 dictUnionSet k more dict =
   Dict.insert k (Set.union more (dictGetSet k dict)) dict
 
+insertAll : List (k, v) -> Dict k v -> Dict k v
+insertAll pairs dict =
+  pairs
+  |> List.foldl
+      (\(k, v) dict -> Dict.insert k v dict)
+      dict
+
+insertAllIntoSet : List a -> Set a -> Set a
+insertAllIntoSet items set =
+  items |> List.foldl Set.insert set
+
 maybeLast list =
   case list of
     []    -> Nothing
