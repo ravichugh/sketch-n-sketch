@@ -2,7 +2,7 @@
 
 *January 31, 2018* <br><br>
 
-Last summer, we ran a user study to evaluate Deuce, as implemented in
+Last summer we ran a user study to evaluate Deuce, as implemented in
 [Sketch-n-Sketch v0.6.2][v062]. Check out our [ICSE 2018 paper][ICSEpaper]
 for all the details.
 
