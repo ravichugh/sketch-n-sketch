@@ -432,10 +432,6 @@ findFirst p xs = case xs of
 findLast : (a -> Bool) -> List a -> Maybe a
 findLast p xs = findFirst p (List.reverse xs)
 
-hasMatchingElement : (a -> Bool) -> List a -> Bool
-hasMatchingElement p =
-  maybeToBool << findFirst p
-
 -- Search for a sublist in a list
 findSublistIndex : List a -> List a -> Maybe Int
 findSublistIndex targetList list =

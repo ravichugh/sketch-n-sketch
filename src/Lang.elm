@@ -3033,7 +3033,7 @@ hasPId pid codeObject =
 
 hasPatWithPId : PId -> Exp -> Bool
 hasPatWithPId pid =
-  Utils.hasMatchingElement (hasPId pid) << childCodeObjects << E
+  List.any (hasPId pid) << childCodeObjects << E
 
 --------------------------------------------------------------------------------
 -- Getting PathedPatternIds from PIds
