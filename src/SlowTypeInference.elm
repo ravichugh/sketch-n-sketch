@@ -69,21 +69,22 @@ type TypeConstraint
 -- Bottom up
 mapTC : (TypeConstraint -> TypeConstraint) -> TypeConstraint -> TypeConstraint
 mapTC f tc =
+  let recurse = mapTC f in
   case tc of
     TCEId _             -> f tc
     TCPId _             -> f tc
-    TCApp tc1 tcs       -> f <| TCApp (f tc1) (List.map f tcs)
+    TCApp tc1 tcs       -> f <| TCApp (recurse tc1) (List.map recurse tcs)
     TCNum               -> f tc
     TCBool              -> f tc
     TCString            -> f tc
     TCNull              -> f tc
-    TCList tc1          -> f <| TCList (f tc1)
-    TCTuple tcs mtc     -> f <| TCTuple (List.map f tcs) (Maybe.map f mtc)
-    TCArrow tcs         -> f <| TCArrow (List.map f tcs)
-    TCUnion tcs         -> f <| TCUnion (List.map f tcs)
+    TCList tc1          -> f <| TCList (recurse tc1)
+    TCTuple tcs mtc     -> f <| TCTuple (List.map recurse tcs) (Maybe.map recurse mtc)
+    TCArrow tcs         -> f <| TCArrow (List.map recurse tcs)
+    TCUnion tcs         -> f <| TCUnion (List.map recurse tcs)
     TCNamed _           -> f tc
     TCVar _             -> f tc
-    TCForall idents tc1 -> f <| TCForall idents (f tc1)
+    TCForall idents tc1 -> f <| TCForall idents (recurse tc1)
     TCWildcard          -> f tc
 
 
@@ -126,7 +127,7 @@ type TC2
   = TC2SameAs TC2Id      -- Graph edge
   | TC2Empty String      -- Type error
   | TC2Unify TC2Id TC2Id (Maybe TC2) (Maybe TC2) (Maybe TC2) -- Deferred unification; ids to unify, two constraints most recently unified, cached unification (Nothing means not computed yet i.e. Unknown)
-  | TC2UnifyOne TC2Id TC2 -- In-place constraint (can be narrowed)
+  | TC2UnifyOne TC2Id (Maybe TC2) TC2 -- In-place constraint (can be narrowed); Maybe TC2 is most recently left constraint used
   | TC2App TC2Id TC2Id
   | TC2Num
   | TC2Bool
@@ -142,6 +143,24 @@ type TC2
   -- | TC2Wildcard
 
 
+applyTC2IdSubst : Dict TC2Id TC2Id -> TC2 -> TC2
+applyTC2IdSubst tc2IdSubst tc2 =
+  let apply id = Utils.getWithDefault id id tc2IdSubst in
+  case tc2 of
+    TC2SameAs id              -> TC2SameAs (apply id)
+    TC2Empty _                -> tc2
+    TC2Unify idl idr ml mr mc -> TC2Unify (apply idl) (apply idr) ml mr mc
+    TC2UnifyOne id ml c       -> TC2UnifyOne (apply id) ml c
+    TC2App idl idr            -> TC2App (apply idl) (apply idr)
+    TC2Num                    -> tc2
+    TC2Bool                   -> tc2
+    TC2String                 -> tc2
+    TC2Null                   -> tc2
+    TC2Tuple headIds mTailId  -> TC2Tuple (List.map apply headIds) (Maybe.map apply mTailId)
+    TC2Arrow idl idr          -> TC2Arrow (apply idl) (apply idr)
+    TC2Union ids              -> TC2Union (List.map apply ids)
+
+
 tc2IsASameAs : TC2 -> Bool
 tc2IsASameAs tc2 =
   case tc2 of
@@ -155,14 +174,14 @@ tc2IsEmpty tc2 =
     _          -> False
 
 
-tc2IsUnifyOrUnifyOne : TC2 -> Bool
-tc2IsUnifyOrUnifyOne tc2 =
-  case tc2 of
-    TC2Unify _ _ _ _ _ -> True
-    TC2UnifyOne _ _    -> True
-    _                  -> False
-
-
+-- tc2IsUnifyOrUnifyOne : TC2 -> Bool
+-- tc2IsUnifyOrUnifyOne tc2 =
+--   case tc2 of
+--     TC2Unify _ _ _ _ _ -> True
+--     TC2UnifyOne _ _ _  -> True
+--     _                  -> False
+--
+--
 tc2ToMaybeSameAsId : TC2 -> Maybe TC2Id
 tc2ToMaybeSameAsId tc2 =
   case tc2 of
@@ -173,7 +192,7 @@ tc2ToMaybeSameAsId tc2 =
 tc2IdToSameAsIds : TC2Id -> TC2Graph -> List TC2Id
 tc2IdToSameAsIds tc2Id graph =
   case Dict.get tc2Id graph of
-    Just tc2set -> Set.toList tc2set |> List.filterMap tc2IdToSameAsIds
+    Just tc2set -> Set.toList tc2set |> List.filterMap tc2ToMaybeSameAsId
     Nothing     -> []
 
 
@@ -215,6 +234,11 @@ equivalentIds_ visited toVisit graph =
         equivalentIds_ newVisited newToVisit graph
 
 
+canonicalId : TC2Id -> TC2Graph -> TC2Id
+canonicalId id graph =
+  equivalentIds id graph |> Set.toList |> List.minimum |> Maybe.withDefault id
+
+
 -- 1. Add transitively connected edges to the graph.
 -- 2. For each such "component", put all non-SameAs constraints on a single node.
 -- "component" converges to a strongly connected component.
@@ -223,7 +247,7 @@ propagateGraphConstraints graph =
   let (_, newGraph) =
     graph
     |> Dict.foldl
-        (id tc2set (visited, graph) ->
+        (\id tc2set (visited, graph) ->
           if Set.member id visited then
             (visited, graph)
           else
@@ -231,7 +255,7 @@ propagateGraphConstraints graph =
             -- After several iterations of propagateGraphConstraints this will converge to a connected component.
             let
               equivIdSet = equivalentIds id graph
-              equivIds   = Set.toList equivIdSet in
+              equivIds   = Set.toList equivIdSet
               -- Gather all the constraints to unify
               thisComponentConstraints =
                 equivIds
@@ -245,8 +269,8 @@ propagateGraphConstraints graph =
 
               -- Put all the constraints on this node
               -- As well as pointers to all same nodes
-              tc2SameAsSet = equivIds |> List.map TC2SameAs |> Set.fromList in
-              newGraph2 = Dict.insert id (Set.union thisComponentConstraints tc2SameAsSet) graph
+              tc2SameAsSet = equivIds |> List.map TC2SameAs |> Set.fromList
+              newGraph2 = Dict.insert id (Set.union thisComponentConstraints tc2SameAsSet) newGraph
             in
             (Set.union equivIdSet visited, newGraph2)
         )
@@ -287,19 +311,19 @@ tc2IsImmediatelyUnifiable tc2 =
     TC2Empty _         -> False
     TC2App _ _         -> False
     TC2Unify _ _ _ _ _ -> False
-    TC2UnifyOne _ _    -> False
+    TC2UnifyOne _ _ _  -> False
     _                  -> True
 
 
 -- Unifications that will always result in one fewer TC2 on this node, at the cost of perhaps extra graph nodes.
 -- Returns unified TC2 and any new graph nodes (deferred unification).
 -- Assumes not given any: TC2SameAs, TC2Empty, TC2App, TC2Unify, or TC2UnifyOne
-unifyImmediate : TC2 -> TC2 -> TC2Graph -> (TC2, List [(TC2Id, Set TC2)])
+unifyImmediate : TC2 -> TC2 -> TC2Graph -> (TC2, List (TC2Id, Set TC2))
 unifyImmediate tc2A tc2B graph =
   let typeMismatch () =
-    (TC2Empty "Types don't match: " ++ toString tc2A ++ " vs. " ++ toString tc2B, [])
+    (TC2Empty <| "Types don't match: " ++ toString tc2A ++ " vs. " ++ toString tc2B, [])
   in
-  case tc2A tc2B of
+  case (tc2A, tc2B) of
     (TC2SameAs _, _)        -> Debug.crash "Shouldn't have TC2SameAs in unifyImmediate"
     (_, TC2SameAs _)        -> Debug.crash "Shouldn't have TC2SameAs in unifyImmediate"
     (TC2Empty _, _)         -> Debug.crash "Shouldn't have TC2Empty in unifyImmediate"
@@ -308,15 +332,15 @@ unifyImmediate tc2A tc2B graph =
     (_, TC2App _ _)         -> Debug.crash "Shouldn't have TC2App in unifyImmediate"
     (TC2Unify _ _ _ _ _, _) -> Debug.crash "Shouldn't have TC2Unify in unifyImmediate"
     (_, TC2Unify _ _ _ _ _) -> Debug.crash "Shouldn't have TC2Unify in unifyImmediate"
-    (TC2UnifyOne _ _, _)    -> Debug.crash "Shouldn't have TC2UnifyOne in unifyImmediate"
-    (_, TC2UnifyOne _ _)    -> Debug.crash "Shouldn't have TC2UnifyOne in unifyImmediate"
+    (TC2UnifyOne _ _ _, _)  -> Debug.crash "Shouldn't have TC2UnifyOne in unifyImmediate"
+    (_, TC2UnifyOne _ _ _)  -> Debug.crash "Shouldn't have TC2UnifyOne in unifyImmediate"
 
     (TC2Union tc2AIds, tc2B) ->
       let
         currentId = 1 + (Dict.keys graph |> List.maximum |> Maybe.withDefault 0)
         unificationNodes =
           tc2AIds
-          |> Utils.mapi0 (\(i, tc2AId)-> (currentId + i, Set.singleton <| TC2UnifyOne tc2AId tc2B))
+          |> Utils.mapi0 (\(i, tc2AId)-> (currentId + i, Set.singleton <| TC2UnifyOne tc2AId Nothing tc2B))
         (newIds, _) = List.unzip unificationNodes
       in
       ( TC2Union newIds
@@ -339,7 +363,7 @@ unifyImmediate tc2A tc2B graph =
 
     ( TC2Tuple tc2AIds Nothing
     , TC2Tuple tc2BIds Nothing ) ->
-      case maybeZip tc2AIds tc2BIds of
+      case Utils.maybeZip tc2AIds tc2BIds of
         Just headsMatched ->
           let
             currentId = 1 + (Dict.keys graph |> List.maximum |> Maybe.withDefault 0)
@@ -417,7 +441,7 @@ unifyImmediate tc2A tc2B graph =
         currentId = 1 + (Dict.keys graph |> List.maximum |> Maybe.withDefault 0)
         leftUnificatioNode  = (currentId,     Set.singleton <| TC2Unify tc2ALeftId  tc2BLeftId Nothing Nothing Nothing)
         rightUnificatioNode = (currentId + 1, Set.singleton <| TC2Unify tc2ARightId tc2BRightId Nothing Nothing Nothing)
-        ((leftId, _), (rightId, )) = (leftUnificatioNode, rightUnificatioNode)
+        ((leftId, _), (rightId, _)) = (leftUnificatioNode, rightUnificatioNode)
       in
       ( TC2Arrow leftId rightId
       , [leftUnificatioNode, rightUnificatioNode]
@@ -427,15 +451,13 @@ unifyImmediate tc2A tc2B graph =
 
 
 -- Take only one step at a node at a time.
---
--- Will only narrow a type at a node.
 unifyAcrossNodesStep : TC2Graph -> TC2Graph
 unifyAcrossNodesStep graph =
   graph
   |> Dict.foldl
       (\id tc2set graph ->
-        let (constraintsToUnify, otherConstraints) =
-          Set.toList tc2set |> List.partition tc2IsCrossNodeUnification
+        let constraintsToUnify =
+          Set.toList tc2set |> List.filter tc2IsCrossNodeUnification
         in
         constraintsToUnify
         |> List.foldl
@@ -443,14 +465,11 @@ unifyAcrossNodesStep graph =
               let
                 (newTC2s, graph2) = perhapsUnifyAcrossNodes id tc2 graph
                 newTC2Set         = tc2set |> Set.remove tc2 |> Utils.insertAllIntoSet newTC2s
-                newGraph          = Utils.insert id newTC2Set graph2
+                newGraph          = Dict.insert id newTC2Set graph2
               in
               newGraph
             )
             graph
-
-          _ ->
-            tc2set
       )
       graph
 
@@ -458,10 +477,9 @@ unifyAcrossNodesStep graph =
 tc2IsCrossNodeUnification : TC2 -> Bool
 tc2IsCrossNodeUnification tc2 =
   case tc2 of
-    TC2App _ _      -> True
-    TC2Unify _ _ _  -> True
-    TC2UnifyOne _ _ -> True
-    _               -> False
+    TC2Unify _ _ _ _ _ -> True
+    TC2UnifyOne _ _ _  -> True
+    _                  -> False
 
 
 tc2UnifyNodeCanUnify : TC2 -> Bool
@@ -477,8 +495,8 @@ constraintsOnSubgraph id graph =
   constraintsOnSubgraph_ Set.empty [id] graph
 
 
-constraintsOnSubgraph_ : Set TC2Id -> List TC2Id -> TC2Id -> TC2Graph -> List TC2
-constraintsOnSubgraph_ visited toVisit id graph =
+constraintsOnSubgraph_ : Set TC2Id -> List TC2Id -> TC2Graph -> List TC2
+constraintsOnSubgraph_ visited toVisit graph =
   case toVisit of
     []            -> []
     id::remaining ->
@@ -490,7 +508,7 @@ constraintsOnSubgraph_ visited toVisit id graph =
             let
               newVisited     = Set.insert id visited
               tc2list        = Set.toList tc2set
-              newToVisit     = (tc2list |> List.filterMap tc2IdToSameAsIds) ++ remaining
+              newToVisit     = (tc2list |> List.filterMap tc2ToMaybeSameAsId) ++ remaining
               newConstraints = List.filter (not << tc2IsASameAs) tc2list
             in
             newConstraints ++ constraintsOnSubgraph_ newVisited newToVisit graph
@@ -504,7 +522,6 @@ perhapsUnifyAcrossNodes : TC2Id -> TC2 -> TC2Graph -> (List TC2, TC2Graph)
 perhapsUnifyAcrossNodes thisId tc2 graph =
   let noChange = ([tc2], graph) in
   case tc2 of
-    TC2App leftId rightId -> noChange
     TC2Unify aId bId aLastUsedConstraint bLastUsedConstraint cached ->
       let aConstraints = constraintsOnSubgraph aId graph in
       let bConstraints = constraintsOnSubgraph bId graph in
@@ -523,9 +540,10 @@ perhapsUnifyAcrossNodes thisId tc2 graph =
             , graph |> addTC2ToGraph aId (TC2SameAs thisId) |> addTC2ToGraph bId (TC2SameAs thisId)
             )
 
+          -- Could probably find maximal superset (subtype) and insert that into other side instead.
           ([TC2Unify _ _ _ _ ((Just aUnified) as justAUnified)], []) ->
             let
-              rightSubgraphCanonicalId = equivalentIds bId graph |> List.minimum |> Maybe.withDefault bId
+              rightSubgraphCanonicalId = canonicalId bId graph
               justRightSubgraphSameAs  = Just (TC2SameAs rightSubgraphCanonicalId)
             in
             if aLastUsedConstraint == justAUnified && bLastUsedConstraint == justRightSubgraphSameAs then
@@ -537,7 +555,7 @@ perhapsUnifyAcrossNodes thisId tc2 graph =
 
           ([], [TC2Unify _ _ _ _ ((Just bUnified) as justBUnified)]) ->
             let
-              leftSubgraphCanonicalId = equivalentIds aId graph |> List.minimum |> Maybe.withDefault aId
+              leftSubgraphCanonicalId = canonicalId aId graph
               justLeftSubgraphSameAs  = Just (TC2SameAs leftSubgraphCanonicalId)
             in
             if aLastUsedConstraint == justLeftSubgraphSameAs && bLastUsedConstraint == justBUnified then
@@ -552,7 +570,7 @@ perhapsUnifyAcrossNodes thisId tc2 graph =
 
           ([aConstraint], []) ->
             let
-              rightSubgraphCanonicalId = equivalentIds bId graph |> List.minimum |> Maybe.withDefault bId
+              rightSubgraphCanonicalId = canonicalId bId graph
               justAConstraint          = Just aConstraint
               justRightSubgraphSameAs  = Just (TC2SameAs rightSubgraphCanonicalId)
             in
@@ -565,7 +583,7 @@ perhapsUnifyAcrossNodes thisId tc2 graph =
 
           ([], [bConstraint]) ->
             let
-              leftSubgraphCanonicalId = equivalentIds aId graph |> List.minimum |> Maybe.withDefault aId
+              leftSubgraphCanonicalId = canonicalId aId graph
               justBConstraint         = Just bConstraint
               justLeftSubgraphSameAs  = Just (TC2SameAs leftSubgraphCanonicalId)
             in
@@ -576,22 +594,172 @@ perhapsUnifyAcrossNodes thisId tc2 graph =
               , graph |> addTC2ToGraph leftSubgraphCanonicalId bConstraint
               )
 
-          ([TC2Unify _ _ _ _ ((Just aUnified) as justAUnified)], [TC2Unify _ _ _ _ ((Just bUnified) as justBUnified)]) ->
-
+          ( [TC2Unify _ _ _ _ ((Just aUnified) as justAUnified)]
+          , [TC2Unify _ _ _ _ ((Just bUnified) as justBUnified)] ) ->
+            if aLastUsedConstraint == justAUnified && bLastUsedConstraint == justBUnified then
+              noChange
+            else
+              let
+                (unifiedConstraint, newGraphNodes) = unifyImmediate aUnified bUnified graph
+              in
+              ( [TC2Unify aId bId justAUnified justBUnified (Just unifiedConstraint)]
+              , Utils.insertAll newGraphNodes graph
+              )
 
           ([aConstraint], [bConstraint]) ->
-            let
-              (unifiedConstraint, newGraphNodes) = unifyImmediate tc2A tc2B graph
-              newTC2Set = (unifiedConstraint::rest) ++ otherConstraints |> Set.fromList
-              newGraph  = Utils.insertAll newGraphNodes graph
-            in
-            (unifiedConstraint, )
+            if aLastUsedConstraint == (Just aConstraint) && bLastUsedConstraint == (Just bConstraint) then
+              noChange
+            else
+              let
+                (unifiedConstraint, newGraphNodes) = unifyImmediate aConstraint bConstraint graph
+              in
+              ( [TC2Unify aId bId (Just aConstraint) (Just bConstraint) (Just unifiedConstraint)]
+              , Utils.insertAll newGraphNodes graph
+              )
 
           _ ->
             -- Wait for downstream computation.
             noChange
 
-    _ -> tc2
+    TC2UnifyOne otherId lastUsedConstraint constraint ->
+      -- UnifyOne are produced by unions.
+      -- B/c unions represent alternative worlds, can't propagate constraints to existing graph nodes.
+      -- Would need self-contained worlds, here. However, instead we'll just try to narrow the given
+      -- constraint to a fixed depth and, if that fails, so be it.
+      let otherConstraints = constraintsOnSubgraph otherId graph in
+      if tc2IsEmpty constraint || List.any tc2IsEmpty otherConstraints then
+        -- Signal failed union path
+        ( [Utils.findFirst tc2IsEmpty (constraint::otherConstraints) |> Maybe.withDefault (TC2Empty "Dead union path")]
+        , graph
+        )
+      else if not <| List.all tc2UnifyNodeCanUnify otherConstraints then
+        -- Wait for downstream computation.
+        noChange
+      else
+        case (otherConstraints, constraint) of
+          ([], _) ->
+            -- Union shouldn't constrain a type var.
+            -- Should probably wait for graph to settle before resolving unions like this, however.
+            ( [TC2Empty "Union shouldn't constrain a type variable"]
+            , graph
+            )
+
+          (_, TC2Unify _ _ _ _ Nothing) -> -- Can this even happen??
+            -- Wait for downstream computation
+            noChange
+
+          ([otherConstraint], TC2Unify _ _ _ _ (Just constraint)) -> -- Can this even happen??
+            if Just otherConstraint == lastUsedConstraint then
+              noChange
+            else
+              let
+                (unifiedConstraint, newGraphNodes) = unifyImmediate otherConstraint constraint graph
+                newGraphNodesSimplified =
+                  newGraphNodes
+                  |> List.map
+                      (\(id, tc2set) ->
+                        case tc2set |> Set.toList of
+                          [TC2Unify aId bId _ _ _] ->
+                            if equivalentIds aId graph == equivalentIds bId graph
+                            then Just (id, aId)
+                            else Nothing
+
+                          _ ->
+                            Nothing
+                      )
+                  |> Utils.projJusts
+              in
+              case newGraphNodesSimplified of
+                Just tc2Subst ->
+                  ( [TC2UnifyOne otherId (Just otherConstraint) (applyTC2IdSubst (Dict.fromList tc2Subst) unifiedConstraint)]
+                  , graph
+                  )
+
+                Nothing ->
+                  ( [TC2Empty "Can't unify for union"]
+                  , graph
+                  )
+
+          ([otherConstraint], _) ->
+            if Just otherConstraint == lastUsedConstraint then
+              noChange
+            else
+              let
+                (unifiedConstraint, newGraphNodes) = unifyImmediate otherConstraint constraint graph
+                newGraphNodesSimplified =
+                  newGraphNodes
+                  |> List.map
+                      (\(id, tc2set) ->
+                        case tc2set |> Set.toList of
+                          [TC2Unify aId bId _ _ _] ->
+                            if equivalentIds aId graph == equivalentIds bId graph
+                            then Just (id, aId)
+                            else Nothing
+
+                          _ ->
+                            Nothing
+                      )
+                  |> Utils.projJusts
+              in
+              case newGraphNodesSimplified of
+                Just tc2Subst ->
+                  ( [TC2UnifyOne otherId (Just otherConstraint) (applyTC2IdSubst (Dict.fromList tc2Subst) unifiedConstraint)]
+                  , graph
+                  )
+
+                Nothing ->
+                  ( [TC2Empty "Can't unify for union"]
+                  , graph
+                  )
+
+          (_::_::_, _) ->
+            -- Wait for downstream computation
+            noChange
+
+    _ ->
+      noChange
+
+
+unifyAppsStep : TC2Graph -> TC2Graph
+unifyAppsStep graph =
+  graph
+  -- let (newGraph, _) =
+  --   graph
+  --   |> Dict.foldl
+  --       (\id _ (graph, visited) ->
+  --         if Set.member id visited then
+  --           (graph, visited)
+  --         else
+  --           let
+  --             constraints = constraintsOnSubgraph id graph
+  --             ids         = equivalentIds id graph
+  --             (appConstraints, otherConstraints) =
+  --               Set.toList constraints
+  --               |> List.partition
+  --                   (\tc2 ->
+  --                     case tc2 of
+  --                       TC2App -> True
+  --                       _      -> False
+  --                   )
+  --           in
+  --           constraintsToUnify
+  --           |> List.foldl
+  --               (\tc2 graph ->
+  --                 let
+  --                   (newTC2s, graph2) = perhapsUnifyAcrossNodes id tc2 graph
+  --                   newTC2Set         = tc2set |> Set.remove tc2 |> Utils.insertAllIntoSet newTC2s
+  --                   newGraph          = Utils.insert id newTC2Set graph2
+  --                 in
+  --                 newGraph
+  --               )
+  --               graph
+  --
+  --             _ ->
+  --               tc2set
+  --       )
+  --       (graph, Set.empty)
+  -- in
+  -- newGraph
 
 
 unifyConstraintsUntilFixpoint : Int -> TC2Graph -> TC2Graph
@@ -605,24 +773,82 @@ unifyConstraintsUntilFixpoint maxIterations graph =
   -- After this point, if need to add a SameAs node be sure to re-run buildConnectedComponents UNLESS
   -- (a) You are sure there are no constraints on at least one of the components you are connecting AND
   -- (b) You make sure the connecting edge is bidirectional
-  unifyConstraintsUntilFixpoint_ maxIterations
+  unifyConstraintsUntilFixpoint_ maxIterations (buildConnectedComponents graph)
 
 
 unifyConstraintsUntilFixpoint_ : Int -> TC2Graph -> TC2Graph
-unifyConstraintsUntilFixpoint_ maxIterations graph
+unifyConstraintsUntilFixpoint_ maxIterations graph =
   if maxIterations <= 0 then
     graph
   else
+    let _ = Debug.log ("Iterations remaining " ++ toString maxIterations) graph in
     let newGraph =
       graph
       |> unifyImmediatesStep
       |> unifyAcrossNodesStep
+      |> unifyAppsStep
     in
     if graph == newGraph then
       graph
     else
       unifyConstraintsUntilFixpoint_ (maxIterations - 1) newGraph
 
+
+tc2ToType : TC2 -> TC2Graph -> Maybe Type
+tc2ToType tc2 graph =
+  let recurse id = tc2IdToType id graph in
+  case tc2 of
+    TC2SameAs _                          -> Nothing
+    TC2Empty message                     -> Nothing
+    TC2Unify idl idr ml mr (Just cached) -> tc2ToType cached graph
+    TC2Unify idl idr ml mr Nothing       -> Nothing
+    TC2UnifyOne id ml cached             -> tc2ToType cached graph
+    TC2App idl idr                       -> Nothing
+    TC2Num                               -> Just <| withDummyRange <| TNum space1
+    TC2Bool                              -> Just <| withDummyRange <| TBool space1
+    TC2String                            -> Just <| withDummyRange <| TString space1
+    TC2Null                              -> Just <| withDummyRange <| TNull space1
+    TC2Tuple headIds mTailId             ->
+      List.map recurse headIds
+      |> Utils.projJusts
+      |> Maybe.andThen
+          (\heads ->
+            case Maybe.map recurse mTailId of
+              (Just Nothing) -> Nothing
+              mmTailType     ->
+                case (heads, mmTailType |> Maybe.withDefault Nothing) of
+                  ([], Just tail) -> Just <| withDummyRange <| TList space1 tail space0
+                  (_,  maybeTail) -> Just <| withDummyRange <| TTuple space1 heads space1 maybeTail space0
+          )
+    TC2Arrow idl idr                     ->
+      [recurse idl, recurse idr]
+      |> Utils.projJusts
+      |> Maybe.map (\types -> withDummyRange <| TArrow space1 types space0)
+    TC2Union ids                         ->
+      List.map recurse ids
+      |> Utils.projJusts
+      |> Maybe.map (\types -> withDummyRange <| TUnion space1 types space0)
+
+
+tc2IdToType : TC2Id -> TC2Graph -> Maybe Type
+tc2IdToType id graph =
+  case constraintsOnSubgraph id graph of
+    []           -> Just <| withDummyRange <| TVar space1 ("a" ++ toString (canonicalId id graph))
+    [constraint] -> tc2ToType constraint graph
+    _            -> Nothing
+
+
+maybeTypes : TC2Id -> TC2Graph -> List Type
+maybeTypes id graph =
+  case constraintsOnSubgraph id graph of
+    []          -> [withDummyRange <| TVar space1 ("a" ++ toString (canonicalId id graph))]
+    constraints ->
+      -- let _ = Debug.log "constraints" constraints in
+      constraints |> List.filterMap (\tc2 -> tc2ToType tc2 graph)
+
+
+maybeType : TC2Id -> TC2Graph -> Maybe Type
+maybeType id graph = tc2IdToType id graph
 
 ---------------------------------------------------------------------------
 
@@ -696,7 +922,7 @@ constraintsToTypeConstraints2 program constraints =
           in
           (currentId3 + 1, currentId3, finalGraph)
         TCArrow []           -> let _ = Utils.log <| "WAT: Why is there an empty TCArrow in addTCToGraph?" in (currentId + 1, currentId, addTC2ToGraph currentId (TC2Empty "Empty arrow") graph)
-        TCArrow [tc1]        -> addTCToGraph typeVarToTC2Id currentId [tc1] graph
+        TCArrow [tc1]        -> addTCToGraph typeVarToTC2Id currentId tc1 graph
         TCArrow (tc1::tcs)   ->
           let
             (currentId2, tc1_tc2Id, graph2) = addTCToGraph typeVarToTC2Id currentId tc1 graph
@@ -807,7 +1033,7 @@ maxIterations = 100
 
 typecheck : Exp -> TC2Graph
 typecheck program =
-  let (programUniqueNames, uniqueNameToOldName) = LangTools.assignUniqueNames program in
+  let (programUniqueNames, _) = LangTools.assignUniqueNames program in
   programUniqueNames
   |> gatherConstraints
   |> expandTypeAliases
@@ -888,7 +1114,7 @@ gatherConstraints exp =
         (Ceil,       [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
         (Round,      [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
         (Sqrt,       [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
-        (Plus,       [eid1, eid2]) -> eidIs (TCEId eid1) ++ eidIs (TCEId eid2) ++ eidIs (TCUnion [TCNum, TCString]) -- (a -> a -> a) where a is String or Num
+        (Plus,       [eid1, eid2]) -> eidIs (TCEId eid1) ++ eidIs (TCEId eid2) -- ++ eidIs (TCUnion [TCNum, TCString]) -- (a -> a -> a) where a is String or Num
         (Minus,      [eid1, eid2]) -> eidIs TCNum  ++ [EIdIsType eid1 TCNum, EIdIsType eid2 TCNum]
         (Mult,       [eid1, eid2]) -> eidIs TCNum  ++ [EIdIsType eid1 TCNum, EIdIsType eid2 TCNum]
         (Div,        [eid1, eid2]) -> eidIs TCNum  ++ [EIdIsType eid1 TCNum, EIdIsType eid2 TCNum]
@@ -930,9 +1156,9 @@ gatherConstraints exp =
       eidIs (expToTC e)
     ETypeAlias _ pat tipe e _ ->
       let aliasConstraints =
-      case Types.matchTypeAlias pat tipe of
-        Just identToType -> identToType |> List.map (\(ident, tipe) -> TypeAlias ident (typeToTC tipe))
-        Nothing          -> [PIdIsEmpty pat.val.pid "Type alias malformed"]
+        case Types.matchTypeAlias pat tipe of
+          Just identToType -> identToType |> List.map (\(ident, tipe) -> TypeAlias ident (typeToTC tipe))
+          Nothing          -> let _ = Debug.log "Could not match type alias" pat in [PIdIsEmpty pat.val.pid "Type alias malformed"]
       in
       aliasConstraints ++
       eidIs (expToTC e)
@@ -956,4 +1182,8 @@ gatherPatConstraints pat =
     PBase _ (EString _ _)       -> [PIdIsType pat.val.pid TCString]
     PBase _ ENull               -> [PIdIsType pat.val.pid TCNull]
     PAs _ ident _ child         -> [PIdVar pat.val.pid ident, PIdIsType pat.val.pid (TCPId child.val.pid)]
+
+
+-- preludeTypeGraph : TC2Graph
+-- preludeTypeGraph = typecheck FastParser.prelude
 

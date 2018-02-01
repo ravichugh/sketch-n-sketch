@@ -1205,6 +1205,18 @@ getDrawableFunctions_ tryTypeInference program viewerEId =
         )
   in
   if tryTypeInference then
+    let
+      typeGraph = SlowTypeInference.typecheck program
+      _ =
+        LangTools.allPats program
+        |> List.map
+            (\pat ->
+              case SlowTypeInference.maybeTypes pat.val.pid typeGraph of
+                []    -> Utils.log <| Syntax.patternUnparser Syntax.Elm pat ++ " : " ++ "?"
+                types -> types |> List.map (\tipe -> Utils.log <| Syntax.patternUnparser Syntax.Elm pat ++ " : " ++ Syntax.typeUnparser Syntax.Elm tipe) |> always ()
+            )
+    in
+
     -- let {typeInfo} = Types.synthesizeType Types.initTypeInfo Types.preludeTypeEnv program in
     -- let _ =
     --   -- boundExpsInScope

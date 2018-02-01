@@ -374,8 +374,8 @@ prelude =
 (def Attrs (List AttrPair))
 (def NodeKind String)
 ; TODO add recursive types properly
-(def SVG [NodeKind Attrs (List SVG_or_Text)])
-(def SVG_or_Text (union SVG [String String]))
+(def SVGOrText (union SVG [String String]))
+(def SVG [NodeKind Attrs (List SVGOrText)])
 (def Blob (List SVG))
 
 ; === Attribute Lookup ===
