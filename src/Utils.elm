@@ -799,6 +799,16 @@ multiKeySingleValue keys value =
       Dict.empty
       keys
 
+dictOverlaps : Dict k v -> Dict k w -> Dict k (v, w)
+dictOverlaps dict1 dict2 =
+  Dict.merge
+    (\_ _ result   -> result)
+    (\k v w result -> Dict.insert k (v, w) result)
+    (\_ _ result   -> result)
+    dict1
+    dict2
+    Dict.empty
+
 dictAddToSet : k -> v -> Dict k (Set v) -> Dict k (Set v)
 dictAddToSet k v dict =
   case Dict.get k dict of
@@ -837,9 +847,9 @@ head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail
 last_ = last "Utils.last_"
 
-uncons xs = case xs of
+uncons msg xs = case xs of
   x::xs -> (x, xs)
-  []    -> Debug.crash "uncons"
+  []    -> Debug.crash <| "uncons: " ++ msg
 
 maybeUncons list = case list of
   []    -> Nothing
@@ -864,6 +874,12 @@ dropWhile pred list =
     x::xs -> if pred x
              then dropWhile pred xs
              else list
+
+maybeToList : Maybe a -> List a
+maybeToList mx =
+  case mx of
+    Just x  -> [x]
+    Nothing -> []
 
 -- Use Maybe.map
 mapMaybe = Maybe.map
@@ -1121,6 +1137,12 @@ uniPlusMinus   = "±"
 
 pairToList : (a, a) -> List a
 pairToList (x1, x2) = [x1, x2]
+
+listToPair : String -> List a -> (a, a)
+listToPair msg list =
+  case list of
+    [x1, x2] -> (x1, x2)
+    _        -> Debug.crash <| "listToPair: " ++ msg
 
 unwrapSingletonSet : Set a -> a
 unwrapSingletonSet set = case Set.toList set of
