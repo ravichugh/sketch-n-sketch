@@ -2822,9 +2822,8 @@ type ExpressionBinding
   = Bound Exp
   | BoundUnknown
 
-
--- Too much recursion here, for some reason.
-preludeExpEnv = expEnvAt_ prelude (lastTopLevelExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludeExpEnv"
+preludePatExpEnv = expPatEnvAt_ prelude (lastTopLevelExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludePatExpEnv"
+preludeExpEnv    = expEnvAt_    prelude (lastTopLevelExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludeExpEnv"
 
 -- Return bindings to expressions (as best as possible) at EId
 expEnvAt : Exp -> EId -> Maybe (Dict Ident ExpressionBinding)
@@ -2835,34 +2834,52 @@ expEnvAt exp targetEId =
 
 expEnvAt_ : Exp -> EId -> Maybe (Dict Ident ExpressionBinding)
 expEnvAt_ exp targetEId =
-  let recurse e = expEnvAt_ e targetEId in
+  expPatEnvAt_ exp targetEId
+  |> Maybe.map (Dict.map (\_ (pat, boundExp) -> boundExp))
+
+
+expPatEnvAt : Exp -> EId -> Maybe (Dict Ident (Pat, ExpressionBinding))
+expPatEnvAt exp targetEId =
+  expPatEnvAt_ exp targetEId
+  |> Maybe.map
+      (\bindings -> Dict.union bindings preludePatExpEnv)
+
+
+expPatEnvAt_ : Exp -> EId -> Maybe (Dict Ident (Pat, ExpressionBinding))
+expPatEnvAt_ exp targetEId =
+  let recurse e = expPatEnvAt_ e targetEId in
   let recurseAllChildren () =
     Utils.mapFirstSuccess recurse (childExps exp)
   in
-  let addShallowerIdentifiers newIdents deeperBindings =
-    newIdents
+  let addShallowerBoundUnknowns newPats deeperBindings =
+    newPats
     |> List.foldl
-        (\ident bindings ->
-          if Dict.member ident bindings
-          then bindings
-          else Dict.insert ident BoundUnknown bindings
+        (\pat bindings ->
+          case patToMaybeIdent pat of
+            Just ident ->
+              if Dict.member ident bindings
+              then bindings
+              else Dict.insert ident (pat, BoundUnknown) bindings
+            Nothing -> bindings
         )
         deeperBindings
   in
-  let addShallowerBoundExps expEnv deeperBindings =
-    expEnv
+  let addShallowerBoundExps patExpMatchings deeperBindings =
+    patExpMatchings
     |> List.foldl
-        (\(ident, boundExp) bindings ->
-          if Dict.member ident bindings
-          then bindings
-          else Dict.insert ident (Bound boundExp) bindings
+        (\(pat, boundExp) bindings ->
+          case patToMaybeIdent pat of
+            Just ident ->
+              if Dict.member ident bindings
+              then bindings
+              else Dict.insert ident (pat, Bound boundExp) bindings
+            Nothing -> bindings
         )
         deeperBindings
   in
   let addBindingsFrom pat e deeperBindings =
-    case tryMatchExp pat e of
-      Match newBindings -> addShallowerBoundExps newBindings deeperBindings -- tryMatchExp only returns Match if it can bind all idents; no need to worry about partial matches
-      _                 -> addShallowerIdentifiers (identifiersListInPat pat) deeperBindings
+    addShallowerBoundExps (tryMatchExpPatToPats pat e) deeperBindings
+    |> addShallowerBoundUnknowns (flattenPatTree pat)
   in
   if exp.val.eid == targetEId then
     Just Dict.empty
@@ -2871,7 +2888,7 @@ expEnvAt_ exp targetEId =
       EConst _ _ _ _   -> Nothing
       EBase _ _        -> Nothing
       EVar _ ident     -> Nothing
-      EFun _ ps e _    -> recurse e |> Maybe.map (addShallowerIdentifiers (identifiersListInPats ps))
+      EFun _ ps e _    -> recurse e |> Maybe.map (addShallowerBoundUnknowns (List.concatMap flattenPatTree ps))
       EOp _ op es _    -> recurseAllChildren ()
       EList _ es _ m _ -> recurseAllChildren ()
       EIf _ e1 _ e2 _ e3 _ -> recurseAllChildren ()

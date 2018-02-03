@@ -15,6 +15,7 @@ module Draw exposing
   -- , addLambda
   , addFunction
   , addPoint , addOffsetAndMaybePoint , horizontalVerticalSnap
+  , isPointType
   -- , addTextBox
   , lambdaToolOptionsOf
   , getDrawableFunctions
@@ -823,12 +824,16 @@ addLambdaAnchor old click2 click1 func =
 addFunction : Ident -> Model -> PointWithSnap -> PointWithSnap -> Model
 addFunction fName old pt1 pt2 =
   case newFunctionCallExp fName old pt1 pt2 of
-    Just (callExp, _, TNamed _ "Point") -> addToEndOfProgram old fName callExp
-    Just (callExp, _, _)                -> addShapeToModel   old fName callExp
-    _                                   -> let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
+    Just (callExp, _, returnType) ->
+      if isPointType returnType then
+        addToEndOfProgram old fName callExp
+      else
+        addShapeToModel old fName callExp
+    _ ->
+      let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
 
 -- Returns (funcCall, funcExp, returnType_), funcExp is an EFun
-newFunctionCallExp : Ident -> Model -> PointWithSnap -> PointWithSnap -> Maybe (Exp, Exp, Type_)
+newFunctionCallExp : Ident -> Model -> PointWithSnap -> PointWithSnap -> Maybe (Exp, Exp, Type)
 newFunctionCallExp fName old pt1 pt2 =
   let fillInArgPrimitive argType =
     case argType.val of
@@ -855,14 +860,14 @@ newFunctionCallExp fName old pt1 pt2 =
             argTypes
             |> List.foldl
                 (\argType (ptsRemaining, argMaybeExps) ->
-                  case (ptsRemaining, argType.val) of
-                    (pt::otherPts, TNamed _ "Point") -> (otherPts,     argMaybeExps ++ [Just (makePointExpFromPointWithSnap pt)])
-                    _                                -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
+                  case (ptsRemaining, isPointType argType) of
+                    (pt::otherPts, True) -> (otherPts,     argMaybeExps ++ [Just (makePointExpFromPointWithSnap pt)])
+                    _                    -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
                 )
                 ([pt1, pt2], [])
           in
           Utils.projJusts argMaybeExps
-          |> Maybe.map (\argExps -> (eCall fName argExps, funcExp, returnType.val))
+          |> Maybe.map (\argExps -> (eCall fName argExps, funcExp, returnType))
 
         Nothing -> Debug.crash <| "Draw.newFunctionCallExp bad function type: " ++ toString funcType
 
@@ -1152,6 +1157,17 @@ getDrawableFunctions model =
   |> Utils.dedupBy Utils.fst3 -- Remove shadowed prelude functions.
 
 
+isPointType : Type -> Bool
+isPointType tipe =
+  (Types.typeToMaybeAliasIdent tipe == Just "Point") ||
+  case tipe.val of
+    TTuple _ heads _ Nothing _ ->
+      case heads |> List.map .val of
+        [TNum _, TNum _] -> True
+        _                -> False
+    _ -> False
+
+
 -- Supported inputs:
 -- 2 Points
 --
@@ -1162,8 +1178,7 @@ isDrawableType tipe =
   case tipe.val of
     TArrow _ argTypes _ ->
       let inputTypes = Utils.dropLast 1 argTypes in
-      let inputTypeAliasIdents = List.filterMap Types.typeToMaybeAliasIdent inputTypes in
-      Utils.count ((==) "Point") inputTypeAliasIdents == 2
+      Utils.count isPointType inputTypes == 2
 
     _ -> False
 
@@ -1176,12 +1191,17 @@ getDrawableFunctions_ tryTypeInference program viewerEId =
     |> Utils.fromJust_ "getDrawableFunctions_ expEnvAt_"
     |> Dict.toList
     |> List.filterMap
-        (\(ident, boundExp) ->
-          case boundExp of
-            LangTools.Bound exp    -> Just (expEffectiveExp exp)
-            LangTools.BoundUnknown -> Nothing
+        (\(ident, expBinding) ->
+          case expBinding of
+            LangTools.Bound boundExp -> Just (expEffectiveExp boundExp)
+            LangTools.BoundUnknown   -> Nothing
         )
   in
+  -- let typeGraph =
+  --   if tryTypeInference
+  --   then SlowTypeInference.typecheck program
+  --   else Dict.empty
+  -- in
   let explicitlyAnnotatedFunctions =
     findWithAncestorsByEId program viewerEId
     |> Utils.fromJust_ "getDrawableFunctions_ findWithAncestorsByEId"
@@ -1207,28 +1227,31 @@ getDrawableFunctions_ tryTypeInference program viewerEId =
   if tryTypeInference then
     let
       typeGraph = SlowTypeInference.typecheck program
-      _ =
-        LangTools.allPats program
-        |> List.map
-            (\pat ->
-              case SlowTypeInference.maybeTypes pat.val.pid typeGraph of
-                []    -> Utils.log <| Syntax.patternUnparser Syntax.Elm pat ++ " : " ++ "?"
-                types -> types |> List.map (\tipe -> Utils.log <| Syntax.patternUnparser Syntax.Elm pat ++ " : " ++ Syntax.typeUnparser Syntax.Elm tipe) |> always ()
+      otherDrawableFunctions =
+        LangTools.expPatEnvAt_ program viewerEId
+        |> Utils.fromJust_ "getDrawableFunctions_ expPatEnvAt_"
+        |> Dict.toList
+        |> List.filterMap
+            (\(ident, (pat, expBinding)) ->
+              case (SlowTypeInference.maybeTypes pat.val.pid typeGraph, expBinding) of
+                ([tipe], LangTools.Bound boundExp) ->
+                  if isDrawableType tipe
+                  then Just (ident, expEffectiveExp boundExp, tipe)
+                  else Nothing
+                _ -> Nothing
             )
-    in
 
-    -- let {typeInfo} = Types.synthesizeType Types.initTypeInfo Types.preludeTypeEnv program in
-    -- let _ =
-    --   -- boundExpsInScope
-    --   flattenExpTree program
-    --   |> List.map
-    --       (\boundExp ->
-    --         case Dict.get boundExp.val.eid typeInfo.finalTypes of
-    --           Just (Just tipe) -> Utils.log <| "exp type: " ++ toString tipe ++ " for " ++ Syntax.unparser Syntax.Little boundExp
-    --           _                -> Utils.log <| "no type for " ++ Syntax.unparser Syntax.Little boundExp
-    --       )
-    -- in
-    explicitlyAnnotatedFunctions
+      -- _ =
+      --   -- boundExpsInScope
+      --   flattenExpTree program
+      --   |> List.map
+      --       (\boundExp ->
+      --         case Dict.get boundExp.val.eid typeInfo.finalTypes of
+      --           Just (Just tipe) -> Utils.log <| "exp type: " ++ toString tipe ++ " for " ++ Syntax.unparser Syntax.Little boundExp
+      --           _                -> Utils.log <| "no type for " ++ Syntax.unparser Syntax.Little boundExp
+      --       )
+    in
+    explicitlyAnnotatedFunctions ++ otherDrawableFunctions |> Utils.dedupBy (\(ident, _, _) -> ident)
   else
     explicitlyAnnotatedFunctions
 

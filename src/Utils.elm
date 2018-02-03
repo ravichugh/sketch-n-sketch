@@ -847,20 +847,29 @@ head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail
 last_ = last "Utils.last_"
 
-uncons msg xs = case xs of
+uncons : String -> List a -> (a, List a)
+uncons msg list = case list of
   x::xs -> (x, xs)
   []    -> Debug.crash <| "uncons: " ++ msg
 
+maybeUncons : List a -> Maybe (a, List a)
 maybeUncons list = case list of
   []    -> Nothing
   x::xs -> Just (x, xs)
 
+maybeUnconsLast : List a -> Maybe (List a, a)
+maybeUnconsLast list = case List.reverse list of
+  []    -> Nothing
+  x::xs -> Just (List.reverse xs, x)
+
+takeLast : Int -> List a -> List a
 takeLast n list =
   list
   |> List.reverse
   |> List.take n
   |> List.reverse
 
+takeWhile : (a -> Bool) -> List a -> List a
 takeWhile pred list =
   case list of
     []    -> []
@@ -868,6 +877,7 @@ takeWhile pred list =
              then x::(takeWhile pred xs)
              else []
 
+dropWhile : (a -> Bool) -> List a -> List a
 dropWhile pred list =
   case list of
     []    -> []

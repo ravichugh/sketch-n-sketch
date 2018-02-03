@@ -32,11 +32,26 @@ typeToMaybeArgTypesAndReturnType tipe =
     _ -> Nothing
 
 
+inlineArrow : Type -> Type
+inlineArrow tipe =
+  case tipe.val of
+    TArrow ws1 types ws2 ->
+      case Utils.maybeUnconsLast types of
+        Just (leftTypes, lastType) ->
+          case (inlineArrow lastType).val of
+            TArrow _ rightTypes _ -> { tipe | val = TArrow ws1 (leftTypes ++ rightTypes) ws2 }
+            _                     -> tipe
+        Nothing -> tipe
+    _ -> tipe
+
+
 equal : Type -> Type -> Bool
 equal t1 t2 =
   (astsMatch t1 t2) && (identifiersEquivalent t1 t2)
 
+
 -- Do the types match, ignoring type variable names?
+astsMatch : Type -> Type -> Bool
 astsMatch t1 t2 =
   case (t1.val, t2.val) of
     (TNum _, TNum _)       -> True
@@ -252,32 +267,33 @@ opType op =
   parseT <|
     case op.val of
       -- We don't actually allow partial application of operations, so this may not be what we want.
-      Pi         -> " Num " -- TODO
-      ToStr      -> " (forall a (-> a String))"
-      DebugLog   -> " (forall a (-> a ag))"
-      Eq         -> " (forall a (-> a a Bool))"
-      Cos        -> " (-> Num Num)"
-      Sin        -> " (-> Num Num)"
-      ArcCos     -> " (-> Num Num)"
-      ArcSin     -> " (-> Num Num)"
-      ArcTan2    -> " (-> Num Num Num)"
-      Floor      -> " (-> Num Num)"
-      Ceil       -> " (-> Num Num)"
-      Round      -> " (-> Num Num)"
-      Sqrt       -> " (-> Num Num)"
-      Plus       -> " DUMMY" -- TODO
-      Minus      -> " (-> Num Num Num)"
-      Mult       -> " (-> Num Num Num)"
-      Div        -> " (-> Num Num Num)"
-      Lt         -> " (-> Num Num Bool)"
-      Mod        -> " (-> Num Num Num)"
-      Pow        -> " (-> Num Num Num)"
-      DictEmpty  -> " TODO" -- " (forall (k v) (Dict k v))")
-      DictGet    -> " TODO" -- " (forall (k v) (-> k (Dict k v) (union v Null)))"
-      DictRemove -> " TODO" -- " (forall (k v) (-> k (Dict k v) (Dict k v)))"
-      DictInsert -> " TODO" -- " (forall (k v) (-> k v (Dict k v) (Dict k v)))"
-      NoWidgets  -> " (forall a (-> a a))"
-      Explode    -> " (-> String (List String))"
+      Pi             -> " Num " -- TODO
+      ToStr          -> " (forall a (-> a String))"
+      DebugLog       -> " (forall a (-> a ag))"
+      Eq             -> " (forall a (-> a a Bool))"
+      Cos            -> " (-> Num Num)"
+      Sin            -> " (-> Num Num)"
+      ArcCos         -> " (-> Num Num)"
+      ArcSin         -> " (-> Num Num)"
+      ArcTan2        -> " (-> Num Num Num)"
+      Floor          -> " (-> Num Num)"
+      Ceil           -> " (-> Num Num)"
+      Round          -> " (-> Num Num)"
+      OptNumToString -> " (-> (union Num String) String)"
+      Sqrt           -> " (-> Num Num)"
+      Plus           -> " DUMMY" -- TODO
+      Minus          -> " (-> Num Num Num)"
+      Mult           -> " (-> Num Num Num)"
+      Div            -> " (-> Num Num Num)"
+      Lt             -> " (-> Num Num Bool)"
+      Mod            -> " (-> Num Num Num)"
+      Pow            -> " (-> Num Num Num)"
+      DictEmpty      -> " TODO" -- " (forall (k v) (Dict k v))")
+      DictGet        -> " TODO" -- " (forall (k v) (-> k (Dict k v) (union v Null)))"
+      DictRemove     -> " TODO" -- " (forall (k v) (-> k (Dict k v) (Dict k v)))"
+      DictInsert     -> " TODO" -- " (forall (k v) (-> k v (Dict k v) (Dict k v)))"
+      NoWidgets      -> " (forall a (-> a a))"
+      Explode        -> " (-> String (List String))"
 
 -- Operations on Type Environments -------------------------------------------
 

@@ -1447,6 +1447,11 @@ traceToExp locIdToExp trace =
 -----------------------------------------------------------------------------
 -- Utility
 
+headExps : List (WS, Exp) -> List Exp
+headExps listHeads =
+  let (_, headExps) = List.unzip listHeads in
+  headExps
+
 branchExp : Branch -> Exp
 branchExp branch =
   let (Branch_ _ _ exp _) = branch.val in

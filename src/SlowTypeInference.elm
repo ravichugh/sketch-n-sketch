@@ -781,7 +781,8 @@ unifyConstraintsUntilFixpoint_ maxIterations graph =
   if maxIterations <= 0 then
     graph
   else
-    let _ = Debug.log ("Iterations remaining " ++ toString maxIterations) graph in
+    -- let _ = Debug.log ("Iterations remaining " ++ toString maxIterations) graph in
+    let _ = Debug.log "unifyConstraintsUntilFixpoint_: Iterations remaining" maxIterations in
     let newGraph =
       graph
       |> unifyImmediatesStep
@@ -823,7 +824,7 @@ tc2ToType tc2 graph =
     TC2Arrow idl idr                     ->
       [recurse idl, recurse idr]
       |> Utils.projJusts
-      |> Maybe.map (\types -> withDummyRange <| TArrow space1 types space0)
+      |> Maybe.map (\types -> Types.inlineArrow <| withDummyRange <| TArrow space1 types space0)
     TC2Union ids                         ->
       List.map recurse ids
       |> Utils.projJusts
@@ -1097,8 +1098,8 @@ gatherConstraints exp =
     EFun _ argPats fBody _ ->
       gatherPatsConstraints argPats ++
       eidIs (TCArrow <| (argPats |> List.map (.val >> .pid >> TCPId)) ++ [TCEId fBody.val.eid])
-    EApp _ fExp argExps _        -> eidIs <| TCApp (expToTC fExp) (expsToTCs argExps)
-    EList _ heads _ maybeTail _  -> eidIs <| TCTuple (expsToTCs heads) (Maybe.map expToTC maybeTail)
+    EApp _ fExp argExps _ _      -> eidIs <| TCApp (expToTC fExp) (expsToTCs argExps)
+    EList _ heads _ maybeTail _  -> eidIs <| TCTuple (expsToTCs (headExps heads)) (Maybe.map expToTC maybeTail)
     EOp _ op operands _          ->
       case (op.val, operands |> List.map (.val >> .eid)) of
         (Pi,         [])           -> eidIs TCNum
@@ -1124,9 +1125,9 @@ gatherConstraints exp =
         (NoWidgets,  [eid])        -> eidIs (TCEId eid)
         (Explode,    [eid])        -> eidIs (TCList TCString) ++ [EIdIsType eid TCString] -- (String -> List String)
         _                          -> [EIdIsEmpty exp.val.eid "Bad operation"]
-    EIf _ condExp thenExp elseExp _ ->
+    EIf _ condExp _ thenExp _ elseExp _ ->
       eidIs (expToTC thenExp) ++ eidIs (expToTC elseExp) ++ [EIdIsType condExp.val.eid TCBool]
-    ELet _ _ _ pat boundExp letBody _ ->
+    ELet _ _ _ pat _ boundExp _ letBody _ ->
       -- tryMatchExpPatToPIds : Pat -> Exp -> List (PId, Exp)
       -- let
       --   pidToExp           = LangTools.tryMatchExpPatToPIds pat boundExp
@@ -1162,8 +1163,8 @@ gatherConstraints exp =
       in
       aliasConstraints ++
       eidIs (expToTC e)
-    EParens _ e _ -> eidIs (expToTC e)
-    EHole _ _     -> []
+    EParens _ e _ _ -> eidIs (expToTC e)
+    EHole _ _       -> []
 
 
 gatherPatsConstraints : List Pat -> List Constraint
@@ -1182,6 +1183,8 @@ gatherPatConstraints pat =
     PBase _ (EString _ _)       -> [PIdIsType pat.val.pid TCString]
     PBase _ ENull               -> [PIdIsType pat.val.pid TCNull]
     PAs _ ident _ child         -> [PIdVar pat.val.pid ident, PIdIsType pat.val.pid (TCPId child.val.pid)]
+    PParens _ child _           -> [PIdIsType pat.val.pid (TCPId child.val.pid)]
+    Lang.PWildcard _            -> []
 
 
 -- preludeTypeGraph : TC2Graph

@@ -239,20 +239,19 @@ drawNewFunction fName model pt1 pt2 =
   in
   Draw.newFunctionCallExp fName model pt1 pt2
   |> Maybe.andThen
-    (\(callExp, funcExp, returnType_) ->
-      case returnType_ of
-        TNamed _ "Point" ->
-          let maybePoint =
-            Eval.doEval Syntax.Elm Eval.initEnv (eApp funcExp (LangTools.expToAppArgs callExp))
-            |> perhapsLogError
-            |> Result.toMaybe
-            |> Maybe.andThen (\((val, _), _) -> valToMaybePoint val)
-          in
-          case maybePoint of
-            Just (x, y) -> Just <| svgXYDot (x, y) pointZoneStyles.fill.shown True []
-            _           -> Nothing
-
-        _ -> LangSvg.evalToSvg Syntax.Elm Eval.initEnv callExp |> Result.toMaybe
+    (\(callExp, funcExp, returnType) ->
+      if Draw.isPointType returnType then
+        let maybePoint =
+          Eval.doEval Syntax.Elm Eval.initEnv (eApp funcExp (LangTools.expToAppArgs callExp))
+          |> perhapsLogError
+          |> Result.toMaybe
+          |> Maybe.andThen (\((val, _), _) -> valToMaybePoint val)
+        in
+        case maybePoint of
+          Just (x, y) -> Just <| svgXYDot (x, y) pointZoneStyles.fill.shown True []
+          _           -> Nothing
+      else
+        LangSvg.evalToSvg Syntax.Elm Eval.initEnv callExp |> Result.toMaybe
     )
   |> Maybe.map List.singleton
   |> Maybe.withDefault []
