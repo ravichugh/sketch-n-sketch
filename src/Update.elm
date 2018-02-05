@@ -34,14 +34,6 @@ type UpdateStack = UpdateResult      Env Exp
 type Output = Raw Val | Program Exp
 type alias Input = Exp
 
-
-fact: Int -> (Int -> String) -> String
-fact n callback =
-  if n == 1 then
-    callback 1
-  else
-    fact (n - 1) (\newN -> Debug.log "" <| "The previous step was "  ++ toString n ++ ", the last step is " ++ toString newN)
-
 updateEnv: Env -> Ident -> Val -> Env
 updateEnv env k value =
   case env of
