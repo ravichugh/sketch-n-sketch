@@ -84,6 +84,7 @@ import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
+import Update
 import Utils
 import Keys
 import InterfaceModel as Model exposing (..)
@@ -696,6 +697,7 @@ tryRun old =
               let new_ =
                 { new | inputExp      = e
                       , inputVal      = newVal
+                      , valueEditorString = Update.valToString newVal
                       , code          = newCode
                       , lastRunCode   = newCode
                       , slideCount    = newSlideCount

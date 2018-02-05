@@ -20,7 +20,7 @@ summary state =
 
 test: String -> State -> State
 test name state =
-  --let _ = Debug.log name "testing" in
+  let _ = Debug.log name " [Start]" in
   --let res = body <| name in
   {state | nthAssertion = 1, currentName = name} -- Debug.log name "all tests passed"
 
@@ -53,7 +53,7 @@ updateAssert env exp origOut newOut expectedEnv expectedExp state =
   let problemdesc = ("\nFor problem:" ++
     envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
     " (was " ++ valToString origOut ++ ")") in
-  case update env exp origOut newOut of
+  case update env exp origOut (Update.Raw newOut) Results.LazyNil of
     Results.Oks (Results.LazyCons (envX, expX) _) ->
       let obtained = envToString envX ++ " |- " ++ unparse expX in
       if obtained == expected then success state else
@@ -302,5 +302,8 @@ all_tests = init_state
       |> updateElmAssert
         [] "letrec f = \\x -> if x == 0 then x else (f (x - 1)) in\n f 2" "3"
         [] "letrec f = \\x -> if x == 0 then x else (f (x - 1)) in\n f 5"
-  |> test "Recursive calls"
+  |> test "Comments"
+      |> updateElmAssert
+        [] "--This is a comment\n  1" "2"
+        [] "--This is a comment\n  2"
   |> summary

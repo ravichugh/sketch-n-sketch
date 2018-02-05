@@ -1,10 +1,12 @@
 module Results exposing
   ( Results(Oks, Errs)
   , withDefault
-  , ok1, oks, errs
+  , ok1, oks, okLazy, errs
   , map, map2, map2withError, andThen, flatten
   , toMaybe, fromMaybe, mapErrors
   , LazyList(LazyNil, LazyCons)
+  , lazyCons2
+  , appendLazy, appendLazyLazy, lazyFromList
   )
 
 import Lazy
@@ -12,6 +14,10 @@ import Lazy
 import Maybe exposing ( Maybe(Just, Nothing) )
 
 type LazyList v = LazyNil | LazyCons v (Lazy.Lazy (LazyList v))
+
+-- Useful if the tail is already computed.
+lazyCons2: v -> LazyList v -> LazyList v
+lazyCons2 head tail = LazyCons head (Lazy.lazy (\() -> tail))
 
 mapLazy: (v -> w) -> LazyList v -> LazyList w
 mapLazy f l =
@@ -58,10 +64,14 @@ type Results error values
     | Errs error
 
 ok1: a -> Results e a
-ok1 a = Oks (LazyCons a (Lazy.lazy (\() -> LazyNil)))
+ok1 a = Oks (lazyCons2 a LazyNil)
 
 oks: (List a) -> Results e a
 oks a = Oks (lazyFromList a)
+
+okLazy: a -> (() -> LazyList a) -> Results e a
+okLazy head tailLazy =
+  Oks (LazyCons head (Lazy.lazy tailLazy))
 
 errs msg = Errs msg
 
