@@ -20,7 +20,7 @@ summary state =
 
 test: String -> State -> State
 test name state =
-  let _ = Debug.log name " [Start]" in
+  --let _ = Debug.log name " [Start]" in
   --let res = body <| name in
   {state | nthAssertion = 1, currentName = name} -- Debug.log name "all tests passed"
 

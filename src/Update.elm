@@ -44,13 +44,13 @@ fact n callback =
 
 updateValue: Env -> Exp -> Output -> (Env, Exp)
 updateValue env e out =
-  let _ = Debug.log "UpdateValue" () in
+  --let _ = Debug.log "UpdateValue" () in
   case out of
     Program prog ->
-      let _ = Debug.log "Prog" (unparse prog) in
+      --let _ = Debug.log "Prog" (unparse prog) in
       (env, prog)
     Raw newVal ->
-      let _ = Debug.log "Raw" (valToString newVal) in
+      --let _ = Debug.log "Raw" (valToString newVal) in
       case e.val.e__ of
         EHole ws _ -> (env, val_to_exp ws newVal)
         EConst ws num loc widget
@@ -74,28 +74,28 @@ updateEnv env k value =
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Output -> LazyList NextAction -> Results String (Env, Exp)
 update env e oldVal out nextToUpdate =
-  let _ = Debug.log (String.concat ["update: ", envToString env, "|-", unparse e] ++ " <-- " ++ (case out of
-    Program p -> unparse p
-    Raw v -> valToString v)) () in
+  --let _ = Debug.log (String.concat ["update: ", envToString env, "|-", unparse e] ++ " <-- " ++ (case out of
+  --  Program p -> unparse p
+  --  Raw v -> valToString v)) () in
   let isBaseVal = case e.val.e__ of
     EConst _ _ _ _ -> True
     EBase _ _ -> True
     EHole _ _ -> True
+    EFun _ _ _ _-> True
     _ -> False
   in
   if isBaseVal then
+      let updatedEnvValue = updateValue env e out in
       case nextToUpdate of
-        LazyNil -> ok1 <| updateValue env e out
+        LazyNil -> ok1 <| updatedEnvValue
         LazyCons head lazyTail ->
           case head of
             Fork newEnv newExp newOldVal newOut nextToUpdate2 ->
-              let _ = Debug.log "ok lazy" "" in
-              okLazy (updateValue env e out) (\() ->
+              okLazy updatedEnvValue (\() ->
                 updateRec newEnv newExp newOldVal newOut (appendLazyLazy nextToUpdate2 lazyTail)
               )
             HandlePreviousResult f ->
-              let _ = Debug.log "Continue previous" "" in
-              case f (updateValue env e out) of
+              case f updatedEnvValue of
                 UpdateError msg ->
                   Errs msg
                 UpdateResult fEnv fOut ->
@@ -294,10 +294,8 @@ getUpdateStack env e oldVal out nextToUpdate =
                 UpdateContinue branchEnv branchExp oldVal out <| HandlePreviousResult <| \(upEnv, upExp) ->
                   let (newBranchEnv, newInputVal, nBranches) = envValBranchBuilder (upEnv, upExp) in
                   UpdateContinue env input inputVal (Raw newInputVal) <| HandlePreviousResult <| \(newInputEnv, newInputExp) ->
-                    let _ = Debug.log "triCombine" <| toString (envToString env, envToString newInputEnv, envToString newBranchEnv) in
                     let finalEnv = triCombine env newInputEnv newBranchEnv in
                     let finalExp = replaceE__ e <| ECase sp1 newInputExp nBranches sp2 in
-                    let _ = Debug.log "Returning UpdateResult" () in
                     UpdateResult finalEnv finalExp
       --  ETypeCase WS Exp (List TBranch) WS
       ELet sp1 letKind False p e1 body sp2 ->
