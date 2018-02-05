@@ -17,13 +17,13 @@ type LazyList v = LazyNil | LazyCons v (Lazy.Lazy (LazyList v))
 
 -- Useful if the tail is already computed.
 lazyCons2: v -> LazyList v -> LazyList v
-lazyCons2 head tail = LazyCons head (Lazy.lazy (\() -> tail))
+lazyCons2 head tail = LazyCons head <| Lazy.lazy <| \() -> tail
 
 mapLazy: (v -> w) -> LazyList v -> LazyList w
 mapLazy f l =
   case l of
     LazyNil -> LazyNil
-    LazyCons head tail -> LazyCons (f head) (Lazy.map (mapLazy f) tail)
+    LazyCons head tail -> LazyCons (f head) <| Lazy.map (mapLazy f) tail
 
 appendLazy: LazyList a -> LazyList a -> LazyList a
 appendLazy l1 l2 =
