@@ -757,8 +757,10 @@ addStickyPath old keysAndPoints =
 -- copied from ExpressionBasedTransform
 eAsPoint e =
   let e_ = replacePrecedingWhitespace "" e in
-  withDummyExpInfo <|
-    EColonType space1 e_ space1 (withDummyRange <| TNamed space1 "Point") space1
+  EColonType space1 e_ space1 (withDummyRange <| TNamed space1 "Point") space0
+  |> withDummyExpInfo
+  |> copyPrecedingWhitespace e
+
 
 {-
 addLambda old (_,pt2) (_,pt1) =
@@ -832,25 +834,26 @@ addFunction fName old pt1 pt2 =
     _ ->
       let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
 
--- Returns (funcCall, funcExp, returnType_), funcExp is an EFun
+-- Returns (funcCall, funcExp, returnType), funcExp is an EFun
 newFunctionCallExp : Ident -> Model -> PointWithSnap -> PointWithSnap -> Maybe (Exp, Exp, Type)
 newFunctionCallExp fName old pt1 pt2 =
   let fillInArgPrimitive argType =
-    case argType.val of
-      TNum _                         -> Just <| eConstDummyLoc 0
-      TBool _                        -> Just <| eFalse
-      TString _                      -> Just <| eStr "string"
-      TNull _                        -> Just <| eNull
-      TList _ _ _                    -> Just <| eTuple []
-      TDict _ _ _ _                  -> Just <| eOp DictEmpty []
-      TTuple _ headTypes _ Nothing _ -> List.map fillInArgPrimitive headTypes |> Utils.projJusts |> Maybe.map eTuple
-      TUnion _ (firstType::_) _      -> fillInArgPrimitive firstType
-      TVar _ _                       -> Just <| eTuple []
-      TWildcard _                    -> Just <| eTuple []
-      TNamed _ "Color"               -> Just <| eConstDummyLoc 0
-      TNamed _ "StrokeWidth"         -> Just <| eConstDummyLoc 5
-      TNamed _ "Point"               -> Just <| eTuple (makeInts [0,0])
-      _                              -> Nothing
+    Maybe.map (if isPointType argType then eAsPoint else identity) <|
+      case argType.val of
+        TNum _                         -> Just <| eConstDummyLoc 0
+        TBool _                        -> Just <| eFalse
+        TString _                      -> Just <| eStr "string"
+        TNull _                        -> Just <| eNull
+        TList _ _ _                    -> Just <| eTuple []
+        TDict _ _ _ _                  -> Just <| eOp DictEmpty []
+        TTuple _ headTypes _ Nothing _ -> List.map fillInArgPrimitive headTypes |> Utils.projJusts |> Maybe.map eTuple
+        TUnion _ (firstType::_) _      -> fillInArgPrimitive firstType
+        TVar _ _                       -> Just <| eTuple []
+        TWildcard _                    -> Just <| eTuple []
+        TNamed _ "Color"               -> Just <| eConstDummyLoc 0
+        TNamed _ "StrokeWidth"         -> Just <| eConstDummyLoc 5
+        TNamed _ "Point"               -> Just <| eTuple (makeInts [0,0])
+        _                              -> Nothing
   in
   case getDrawableFunctions old |> Utils.findFirst (Utils.fst3 >> (==) fName) of
     Just (_, funcExp, funcType) ->
@@ -1008,7 +1011,7 @@ makeIntPairOrSnap ((x, xSnap), (y, ySnap)) =
 makePointExpFromPointWithSnap : PointWithSnap -> Exp
 makePointExpFromPointWithSnap pt =
   let (xExp, yExp) = makeIntPairOrSnap pt in
-  ePair (removePrecedingWhitespace xExp) yExp
+  eAsPoint <| ePair (removePrecedingWhitespace xExp) yExp
 
 addToMainExp : BlobExp -> MainExp -> MainExp
 addToMainExp newBlob mainExp =
