@@ -226,10 +226,14 @@ unparse e =
         else
           default
 
-    EList wsBefore members _ _ wsBeforeEnd ->
+    EList wsBefore members wsmiddle tailBuilder wsBeforeEnd ->
       wsBefore.val
         ++ "["
         ++ String.join "," (List.map unparse members)
+        ++ (case tailBuilder of
+          Nothing -> ""
+          Just e -> wsmiddle.val ++ "|" ++ unparse e
+        )
         ++ wsBeforeEnd.val
         ++ "]"
 

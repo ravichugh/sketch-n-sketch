@@ -45,7 +45,7 @@ updateEnv env k value =
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Output -> LazyList NextAction -> Results String (Env, Exp)
 update env e oldVal out nextToUpdate =
-  --let _ = Debug.log (String.concat ["update: ", envToString env, "|-", unparse e] ++ " <-- " ++ (case out of
+  --let _ = Debug.log (String.concat ["update: ", envToString (pruneEnv env), "|-", unparse e] ++ " <-- " ++ (case out of
   --  Program p -> unparse p
   --  Raw v -> valToString v)) () in
   let updateStack = getUpdateStackOp env e oldVal out nextToUpdate in
@@ -137,8 +137,32 @@ getUpdateStackOp env e oldVal out nextToUpdate =
               else UpdateError <| "Cannot (yet) update a list " ++ unparse e ++ " with list of different length: " ++ valToString newVal
             _ -> UpdateError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
-    --EList ws elems sp2 (Just tail) ws3 ->
-    --  UpdateError ""
+    EList sp1 elems sp2 (Just tail) sp3 ->
+      case out of
+        Program prog -> Debug.crash <| "??? Don't know how to update a list with a program " ++ unparse prog
+        Raw newVal ->
+          case (oldVal.v_, newVal.v_) of
+            (VList origVals, VList newOutVals) ->
+              let elemsLength = List.length elems in
+              if elemsLength <= List.length newOutVals && elemsLength >= 1 then
+                let elemOrigVals = List.take elemsLength origVals in
+                let elemNewVals = List.take elemsLength newOutVals in
+                let tailOrigVals = List.drop elemsLength origVals in
+                let tailNewVals = List.drop elemsLength newOutVals in
+                let toEList eles = replaceE__ e <| EList sp1 eles sp2 Nothing sp3 in
+                let toVList elvs = replaceV_ newVal <| VList elvs in
+                UpdateContinue env (toEList elems) (toVList elemOrigVals) (Raw <| toVList elemNewVals) <|
+                  HandlePreviousResult <| \(newElemListEnv, newElemListExp) ->
+                    let newElems = case newElemListExp.val.e__ of
+                      EList _ ne _ _ _ -> ne
+                      o -> Debug.crash <| "Expected a list, got " ++ toString o
+                    in
+                    UpdateContinue env tail (toVList tailOrigVals) (Raw <| toVList tailNewVals) <|
+                      HandlePreviousResult <| \(newTailEnv, newTailExp) ->
+                        let finalEnv = triCombine env newElemListEnv newTailEnv in
+                        UpdateResult finalEnv <| replaceE__ e <| EList sp1 newElems sp2 (Just newTailExp) sp3
+              else UpdateError <| "Cannot (yet) update a list concatenation " ++ unparse e ++ " with " ++ toString elemsLength ++ " heads by list of smaller length: " ++ valToString newVal
+            _ -> UpdateError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
     EApp sp0 e1 e2s sp1 ->
       case doEval Syntax.Elm env e1 of
@@ -347,7 +371,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
         Program exp -> unparse exp
         Raw val -> valToString val
       in
-      UpdateError <| "Non-supported update " ++ envToString env ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
+      UpdateError <| "Non-supported update " ++ envToString (pruneEnv env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
 
 
 updateRec: Env -> Exp -> Val -> Output -> LazyList NextAction -> LazyList (Env, Exp)
@@ -373,6 +397,44 @@ angleUpdate new old n =
 maybeUpdateMathOp : Op -> List Val -> Val -> Val -> Results String (List Val)
 maybeUpdateMathOp op operandVals oldOutVal newOutVal =
   case (oldOutVal.v_, newOutVal.v_) of
+    (VBase (VString oldOut), VBase (VString newOut)) ->
+      let operandsStr = operandVals
+        |> List.map (\operand ->
+            case operand.v_ of
+              VBase v as vb-> Just vb
+              _ -> Nothing
+            )
+        |> Utils.projJusts in
+      case operandsStr of
+        Just [VBase (VString sa) as va, VBase (VString sb) as vb] ->
+          case op.val  of
+            Plus ->
+              let result = case newOutVal.v_ of
+                VBase (VString s) ->
+                  let saIsPrefix = String.startsWith sa s in
+                  let sbIsSuffix = String.endsWith sb s in
+                  if saIsPrefix && sbIsSuffix then -- Normally, we should check whitespaee to order. For now, append to left first.
+                    let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
+                    let newvb = VBase <| VString <| String.dropLeft (String.length sa) s in
+                    oks [[newva, vb], [va, newvb]]
+                  else if saIsPrefix then
+                   let newvb = VBase <| VString <| String.dropLeft (String.length sa) s in
+                   ok1 [va, newvb]
+                  else if sbIsSuffix then
+                   let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
+                   ok1 [newva, vb]
+                  else Errs <| "Cannot update with a string that is modifying two concatenated strings at the same time: '" ++
+                    sa ++ "' + '" ++ sb ++ "' <-- '" ++ s ++ "'"
+                _ -> Errs <| "Cannot update with non-string" ++ valToString newOutVal
+              in
+              Results.map (
+                  List.map2 (\original newString ->
+                    replaceV_ original <| newString
+                  ) operandVals
+                ) result
+            o -> Errs <| "This operation is not supported for strings : " ++ toString o
+        o -> Errs <| "Expected strings, got " ++ toString o
+
     (VConst _ (oldOut, _), VConst _ (newOut, _)) ->
       if oldOut == newOut then ok1 operandVals else
       let operands = operandVals
@@ -383,43 +445,7 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
             )
         |> Utils.projJusts in
       case operands of
-        Nothing -> -- It could be that we are not dealing with numbers but with strings
-          let operandsStr = operandVals
-            |> List.map (\operand ->
-                case operand.v_ of
-                  VBase v as vb-> Just vb
-                  _ -> Nothing
-                )
-            |> Utils.projJusts in
-          case operandsStr of
-            Just [VBase (VString sa) as va, VBase (VString sb) as vb] ->
-              case op.val  of
-                Plus ->
-                  let result = case newOutVal.v_ of
-                    VBase (VString s) ->
-                      let saIsPrefix = String.startsWith sa s in
-                      let sbIsSuffix = String.endsWith sb s in
-                      if saIsPrefix && sbIsSuffix then -- Normally, we should check whitespaee to order. For now, append to left first.
-                        let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
-                        let newvb = VBase <| VString <| String.dropLeft (String.length sa) s in
-                        oks [[newva, vb], [va, newvb]]
-                      else if saIsPrefix then
-                       let newvb = VBase <| VString <| String.dropLeft (String.length sa) s in
-                       ok1 [va, newvb]
-                      else if sbIsSuffix then
-                       let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
-                       ok1 [newva, vb]
-                      else Errs <| "Cannot update with a string that is modifying two concatenated strings at the same time: '" ++
-                        sa ++ "' + '" ++ sb ++ "' <-- '" ++ s ++ "'"
-                    _ -> Errs <| "Cannot update with non-string" ++ valToString newOutVal
-                  in
-                  Results.map (
-                      List.map2 (\original newString ->
-                        replaceV_ original <| newString
-                      ) operandVals
-                    ) result
-                o -> Errs <| "This operation is not supported for strings : " ++ toString o
-            _ -> Errs <| "Operands do not form a list of numbers: " ++ toString operandVals
+        Nothing -> Errs <| "Operands do not form a list of numbers: " ++ toString operandVals
         Just operands ->
           let result = case (op.val, operands) of
                 (Plus,    [l,r]) -> oks [[newOut - r, r], [l, newOut - l]]
@@ -494,7 +520,7 @@ triCombine originalEnv newEnv1 newEnv2 =
            toString y ++ " = " ++ toString v2 ++ "\n" ++
            toString z ++ " = " ++ toString v3
         else
-          if v2 == v1 then aux (acc ++ [(x, v3)]) oe ne1 ne2
+          if valEqual v2 v1 then aux (acc ++ [(x, v3)]) oe ne1 ne2
           else aux (acc ++ [(x, v2)]) oe ne1 ne2
       _ -> Debug.crash <| "Expected environments to have the same size, got\n" ++
            toString originalEnv ++ ", " ++ toString newEnv1 ++ ", " ++ toString newEnv2
@@ -650,6 +676,23 @@ eBaseToVBase eBaseVal =
     EString _ b -> VString b
     ENull       -> VNull
 
+removeCommonPrefix l1 l2 =
+  case (l1, l2) of
+    ([], _) -> (l1, l2)
+    (_, []) -> (l1, l2)
+    (head::tail, head2::tail2) ->
+      if head == head2 then
+        removeCommonPrefix tail tail2
+      else (l1, l2)
+
+pruneEnv: Env -> Env
+pruneEnv env = -- Remove all the initial environment that is on the right.
+  --let (p1, p2) = removeCommonPrefix (List.reverse Eval.initEnv) (List.reverse env) in
+  --List.reverse p1
+  --List.take 5 env
+  List.take (List.length env - List.length Eval.initEnv) env
+  --env
+
 envToString: Env -> String
 envToString env =
   case env of
@@ -660,6 +703,14 @@ valToString: Val -> String
 valToString v = case v.v_ of
    VClosure Nothing patterns body [] -> (unparse << val_to_exp (ws " ")) v
    VClosure (Just name) patterns body [] -> "(" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
-   VClosure Nothing patterns body env -> "(" ++ envToString env ++ "|-" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
-   VClosure (Just name) patterns body env -> "(" ++ envToString env ++ "|" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
+   VClosure Nothing patterns body env -> "(" ++ envToString (pruneEnv env) ++ "|-" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
+   VClosure (Just name) patterns body env -> "(" ++ envToString (pruneEnv env) ++ "|" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
    _ -> (unparse << val_to_exp (ws "")) v
+
+valEqual: Val -> Val -> Bool
+valEqual v1 v2 = case (v1.v_ , v2.v_) of
+  (VConst _ (n1, _), VConst _ (n2, _)) -> n1 == n2
+  (VBase vb1, VBase vb2) -> vb1 == vb2
+  (VClosure _ _ _ _ as c1, VClosure _ _ _ _ as c2) -> c1 == c2
+  (VList v1s, VList v2s) -> List.all (\x -> x) (List.map2 valEqual v1s v2s)
+  (_, _) -> False

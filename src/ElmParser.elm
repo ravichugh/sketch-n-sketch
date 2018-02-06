@@ -67,12 +67,45 @@ genericNonEmptyList { item, combiner }=
               |. symbol "]"
         )
 
+genericNonEmptyListWithTail
+  :  { item : Parser elem
+     , tailItem: Parser elem
+     , combinerTail : WS -> List elem -> WS -> elem -> WS -> list
+     }
+  -> ParserI list
+genericNonEmptyListWithTail { item, tailItem, combinerTail }=
+  lazy <| \_ ->
+    let
+      anotherItem =
+        delayedCommit spaces <|
+          succeed identity
+            |. symbol ","
+            |= item
+    in
+      paddedBefore
+        ( \wsBefore (members, wsMiddle, thetail, wsBeforeEnd) ->
+            combinerTail wsBefore members wsMiddle thetail wsBeforeEnd
+        )
+        ( trackInfo <|
+            succeed (\e es wsm t wse -> (e :: es, wsm, t, wse))
+              |. symbol "["
+              |= item
+              |= repeat zeroOrMore anotherItem
+              |= spaces
+              |. symbol "|"
+              |= tailItem
+              |= spaces
+              |. symbol "]"
+        )
+
 genericList
   :  { item : Parser elem
      , combiner : WS -> List elem -> WS -> list
+     , tailItem : Parser elem
+     , combinerTail : WS -> List elem -> WS -> elem -> WS -> list
      }
   -> ParserI list
-genericList { item, combiner } =
+genericList { item, tailItem, combiner, combinerTail } =
   lazy <| \_ ->
     oneOf
       [ try <|
@@ -80,13 +113,21 @@ genericList { item, combiner } =
             { combiner =
                 \wsBefore wsAfter -> combiner wsBefore [] wsAfter
             }
-      , lazy <| \_ ->
+      , try <|
           genericNonEmptyList
             { item =
                 item
             , combiner =
                 combiner
             }
+      , lazy <| \_ ->
+          genericNonEmptyListWithTail
+            { item =
+                item
+            , combinerTail =
+                combinerTail
+            , tailItem =
+                tailItem }
       ]
 
 --------------------------------------------------------------------------------
@@ -169,7 +210,7 @@ bigIdentifier =
 symbolIdentifier : ParserI Ident
 symbolIdentifier =
   trackInfo <|
-    keep oneOrMore ElmLang.isSymbol
+    keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|'))
 
 --==============================================================================
 --= Numbers
@@ -357,9 +398,14 @@ listPattern =
         genericList
           { item =
               pattern
+          , tailItem =
+              pattern
           , combiner =
               \wsBefore members wsBeforeEnd ->
                 PList wsBefore members space0 Nothing wsBeforeEnd
+          , combinerTail =
+              \wsBefore members wsMiddle tail wsBeforeEnd ->
+                PList wsBefore members wsMiddle (Just tail) wsBeforeEnd
           }
 
 --------------------------------------------------------------------------------
@@ -507,9 +553,15 @@ tupleType =
       genericList
         { item =
             typ
+        , tailItem =
+            typ
         , combiner =
             ( \wsBefore heads wsEnd ->
                 TTuple wsBefore heads space0 Nothing wsEnd
+            )
+        , combinerTail =
+            ( \wsBefore heads wsMiddle tail wsEnd ->
+                TTuple wsBefore heads wsMiddle (Just tail) wsEnd
             )
         }
 
@@ -801,9 +853,14 @@ list =
         genericList
           { item =
               expression
+          , tailItem =
+              expression
           , combiner =
               \wsBefore members wsBeforeEnd ->
                 EList wsBefore members space0 Nothing wsBeforeEnd
+          , combinerTail =
+              \wsBefore members wsMiddle tail wsBeforeEnd ->
+                EList wsBefore members wsMiddle (Just tail) wsBeforeEnd
           }
 
 --------------------------------------------------------------------------------

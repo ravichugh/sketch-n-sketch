@@ -3,9 +3,9 @@ module Results exposing
   , withDefault
   , ok1, oks, okLazy, errs
   , map, map2, map2withError, andThen, flatten
-  , toMaybe, fromMaybe, mapErrors
+  , toMaybe, fromMaybe, fromResult, mapErrors
   , LazyList(LazyNil, LazyCons)
-  , lazyCons2
+  , lazyCons2, findFirst
   , appendLazy, appendLazyLazy, lazyFromList
   )
 
@@ -55,6 +55,12 @@ lazyFromList l =
   case l of
     [] -> LazyNil
     head::tail -> LazyCons head (Lazy.lazy (\() -> lazyFromList tail))
+
+findFirst: (a -> Bool) -> LazyList a -> Maybe a
+findFirst pred l =
+  case l of
+    LazyNil -> Nothing
+    LazyCons head tail -> if pred head then Just head else findFirst pred (Lazy.force tail)
 
 {-| `Results` is either `Oks` meaning the computation succeeded, or it is an
 `Errs` meaning that there was some failure.
@@ -249,3 +255,9 @@ fromMaybe err maybe =
     case maybe of
       Just v  -> Oks v
       Nothing -> Errs err
+
+fromResult: Result x a -> Results x a
+fromResult res =
+  case res of
+    Err msg -> Errs msg
+    Ok a -> ok1 a

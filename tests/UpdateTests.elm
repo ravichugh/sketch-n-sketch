@@ -43,6 +43,7 @@ fail state newError = { state |
 
 assertEqual: a -> a -> State  -> State
 assertEqual x y state =
+  if state.ignore then state else
   if x == y then success state else fail state <| "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] Expected \n" ++
       toString y ++ ", got\n" ++ toString x
 
@@ -134,9 +135,13 @@ tPList sp0 listPat sp1= withDummyPatInfo <| PList sp0 listPat (ws "") Nothing sp
 tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat sp1 (Just tailPat) sp1
 
 all_tests = init_state
-  {--}
   |> test "triCombineTest"
   --|> ignore True
+  |> assertEqual
+      (triCombine [("y", (tVal 2)), ("x", (tVal 1))]
+                  [("y", (tVal 2)), ("x", (tVal 1))]
+                  [("y", (tVal 2)), ("x", (tVal 3))]
+                 )[("y", (tVal 2)), ("x", (tVal 3))]
   |> assertEqual
       (triCombine [("x", (tVal 1)), ("y", (tVal 1)), ("z", (tVal 1))]
                   [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))]
@@ -210,6 +215,9 @@ all_tests = init_state
   |> updateElmAssert
     [] "if False then 1 else 2" "3"
     [] "if False then 1 else 3"
+  |> test "String concatenation"
+    |> updateElmAssert [] "'Hello'  + 'world'" "'Hello world'"
+                       [] "'Hello '  + 'world'"
   |> test "update arithmetic operations"
       |> updateElmAssert
         [("x", "1"), ("y", "2")] "  x+ y" "4"
@@ -297,7 +305,28 @@ all_tests = init_state
       |> updateElmAssert
         [] "let   x= 5 in\nlet y  =2  in [x, y]" "[6, 3]"
         [] "let   x= 6 in\nlet y  =3  in [x, y]"
+        --}
+  |> test "list constructor"
+      |> updateElmAssert
+        [] "let   x= 1 in\nlet y  =[2]  in [x, x | y]" "[3, 1, 2]"
+        [] "let   x= 3 in\nlet y  =[2]  in [x, x | y]"
+      |> updateElmAssert
+        [] "let   x= 1 in\nlet y  =2  in [x, x, y]" "[3, 1, 2]"
+        [] "let   x= 3 in\nlet y  =2  in [x, x, y]"
   --|> ignore False
+      |> updateElmAssert
+        [] "let   x= 1 in\nlet y  =2  in [x, x, y]" "[1, 3, 2]"
+        [] "let   x= 3 in\nlet y  =2  in [x, x, y]"
+  --|> ignore True
+      |> updateElmAssert
+        [] "let   x= 1 in\nlet y  =2  in [x, x, y]" "[1, 1, 3]"
+        [] "let   x= 1 in\nlet y  =3  in [x, x, y]"
+      |> updateElmAssert
+        [] "let   x= 1 in\nlet y  =[2]  in [x, x | y]" "[1, 3, 2]"
+        [] "let   x= 3 in\nlet y  =[2]  in [x, x | y]"
+      |> updateElmAssert
+        [] "let   x= 1 in\nlet y  =[2]  in [x, x | y]" "[1, 1, 3]"
+        [] "let   x= 1 in\nlet y  =[3]  in [x, x | y]"
   |> test "rec let"
       |> updateElmAssert
         [] "letrec f = \\x -> if x == 0 then x else (f (x - 1)) in\n f 2" "3"
