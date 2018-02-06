@@ -5,6 +5,7 @@ module BinaryOperatorParser exposing
   , emptyPrecedenceTable
   , addOperator
   , buildPrecedenceTable
+  , getOperatorInfo
   , binaryOperator
   )
 

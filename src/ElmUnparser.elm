@@ -5,6 +5,8 @@ module ElmUnparser exposing
 
 import Lang exposing (..)
 import ElmLang
+import ElmParser
+import BinaryOperatorParser
 import Utils
 
 unparseWD : WidgetDecl -> String
@@ -206,8 +208,6 @@ unparse e =
         ++ String.concat (List.map unparseArg arguments)
 
     EOp wsBefore op arguments _ ->
-      -- TODO: help convert Little to Elm by inserting parens
-      -- for nested EOps, based on precedence/associativity
       let
         default =
           wsBefore.val
@@ -217,23 +217,36 @@ unparse e =
         if ElmLang.isInfixOperator op then
           case arguments of
             [ left, right ] ->
-              unparse left
+              wrapWithParensIfNeeded e left (unparse left)
                 ++ wsBefore.val
                 ++ unparseOp op
-                ++ unparse right
+                ++ wrapWithParensIfNeeded e right (unparse right)
             _ ->
               default
         else
           default
 
-    EList wsBefore members wsmiddle tailBuilder wsBeforeEnd ->
+    EList wsBefore members wsmiddle Nothing wsBeforeEnd ->
       wsBefore.val
         ++ "["
         ++ String.join "," (List.map unparse members)
-        ++ (case tailBuilder of
-          Nothing -> ""
-          Just e -> wsmiddle.val ++ "|" ++ unparse e
-        )
+        ++ wsBeforeEnd.val
+        ++ "]"
+
+    EList wsBefore [head] wsmiddle (Just tail) wsBeforeEnd ->
+      wsBefore.val -- Should be empty
+        ++ wrapWithParensIfNeeded e head (unparse head)
+        ++ wsmiddle.val
+        ++ "::"
+        ++ wrapWithParensIfNeeded e tail (unparse tail)
+        ++ wsBeforeEnd.val -- Should be empty
+
+    -- Obsolete, remove whenever we are sure.
+    EList wsBefore members wsmiddle (Just tail) wsBeforeEnd ->
+      wsBefore.val
+        ++ "["
+        ++ String.join "," (List.map unparse members)
+        ++ wsmiddle.val ++ "|" ++ unparse tail
         ++ wsBeforeEnd.val
         ++ "]"
 
@@ -361,3 +374,17 @@ unparse e =
 
     Lang.ETypeCase _ _ _ _ ->
       "{Error: typecase not yet implemented for Elm syntax}" -- TODO
+
+getExpPrecedence: Exp -> Int
+getExpPrecedence exp =
+  case exp.val.e__ of
+    EList _ [head] _ (Just tail) _ -> 5
+    EOp _ operator _ _ ->
+      case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
+        Nothing -> 10
+        Just (associativity, precedence) -> precedence
+    _ -> 10
+
+wrapWithParensIfNeeded: Exp -> Exp -> String -> String
+wrapWithParensIfNeeded outsideExp insideExp unparsedInsideExpr =
+  if getExpPrecedence insideExp < getExpPrecedence outsideExp then "(" ++ unparsedInsideExpr ++ ")" else unparsedInsideExpr

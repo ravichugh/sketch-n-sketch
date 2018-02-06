@@ -308,8 +308,8 @@ all_tests = init_state
         --}
   |> test "list constructor"
       |> updateElmAssert
-        [] "let   x= 1 in\nlet y  =[2]  in [x, x | y]" "[3, 1, 2]"
-        [] "let   x= 3 in\nlet y  =[2]  in [x, x | y]"
+        [] "let   x= 1 in\nlet y  =[2]  in x :: x :: y" "[3, 1, 2]"
+        [] "let   x= 3 in\nlet y  =[2]  in x :: x :: y"
       |> updateElmAssert
         [] "let   x= 1 in\nlet y  =2  in [x, x, y]" "[3, 1, 2]"
         [] "let   x= 3 in\nlet y  =2  in [x, x, y]"
@@ -322,11 +322,11 @@ all_tests = init_state
         [] "let   x= 1 in\nlet y  =2  in [x, x, y]" "[1, 1, 3]"
         [] "let   x= 1 in\nlet y  =3  in [x, x, y]"
       |> updateElmAssert
-        [] "let   x= 1 in\nlet y  =[2]  in [x, x | y]" "[1, 3, 2]"
-        [] "let   x= 3 in\nlet y  =[2]  in [x, x | y]"
+        [] "let   x= 1 in\nlet y  =[2]  in x   :: x :: y" "[1, 3, 2]"
+        [] "let   x= 3 in\nlet y  =[2]  in x   :: x :: y"
       |> updateElmAssert
-        [] "let   x= 1 in\nlet y  =[2]  in [x, x | y]" "[1, 1, 3]"
-        [] "let   x= 1 in\nlet y  =[3]  in [x, x | y]"
+        [] "let   x= 1 in\nlet y  =[2]  in x  :: x :: y" "[1, 1, 3]"
+        [] "let   x= 1 in\nlet y  =[3]  in x  :: x :: y"
   |> test "rec let"
       |> updateElmAssert
         [] "letrec f = \\x -> if x == 0 then x else (f (x - 1)) in\n f 2" "3"

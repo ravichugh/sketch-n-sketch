@@ -1,5 +1,6 @@
 module ElmParser exposing
-  ( parse
+  ( parse,
+    builtInPrecedenceTable
   )
 
 import Char
@@ -210,7 +211,10 @@ bigIdentifier =
 symbolIdentifier : ParserI Ident
 symbolIdentifier =
   trackInfo <|
-    keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|'))
+    oneOf
+      [ keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|'))
+      , keep (Exactly 2) (\x -> x == ':')
+      ]
 
 --==============================================================================
 --= Numbers
@@ -1188,21 +1192,26 @@ expression =
 
                   -- Should result in evaluator error
                   Nothing ->
-                    let
-                      opExp =
+                    if identifier == "::" then
+                      withInfo (exp_ <|
+                        EList space0 [left] wsBefore (Just right) space0
+                      ) left.start right.end
+                    else
+                      let
+                        opExp =
+                          withInfo
+                            ( exp_ <|
+                                EVar wsBefore identifier
+                            )
+                            operator.start
+                            operator.end
+                      in
                         withInfo
                           ( exp_ <|
-                              EVar wsBefore identifier
+                              EApp space0 opExp [ left, right ] space0
                           )
-                          operator.start
-                          operator.end
-                    in
-                      withInfo
-                        ( exp_ <|
-                            EApp space0 opExp [ left, right ] space0
-                        )
-                        left.start
-                        right.end
+                          left.start
+                          right.end
         }
 
 --==============================================================================
