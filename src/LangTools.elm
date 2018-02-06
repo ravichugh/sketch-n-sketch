@@ -20,7 +20,7 @@ import Types
 
 import Dict exposing (Dict)
 import Regex
-import Set
+import Set exposing (Set)
 
 
 -- For ranking synthesized expressions
@@ -581,7 +581,7 @@ newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingN
   (newName, newProgram)
 
 
-identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
+identifiersVisibleAtProgramEnd : Exp -> Set Ident
 identifiersVisibleAtProgramEnd program =
   let lastEId = (lastExp program).val.eid in
   visibleIdentifiersAtEIds program (Set.singleton lastEId)
@@ -727,12 +727,14 @@ commonNameForEIdsWithDefault defaultName program eids =
 -- Empty list if not found.
 expDescriptionParts : Exp -> EId -> List String
 expDescriptionParts program targetEId =
-  expDescriptionParts_ program program targetEId
+  let equivalentEIds =
+    outerSameValueExpByEId program targetEId |> expEffectiveExps |> List.map (.val >> .eid) |> Set.fromList
+  in
+  expDescriptionParts_ program program targetEId equivalentEIds
 
-
-expDescriptionParts_ : Exp -> Exp -> EId -> List String
-expDescriptionParts_ program exp targetEId =
-  let recurse e = expDescriptionParts_ program e targetEId in
+expDescriptionParts_ : Exp -> Exp -> EId -> Set EId -> List String
+expDescriptionParts_ program exp targetEId equivalentEIds =
+  let recurse e = expDescriptionParts_ program e targetEId equivalentEIds in
   let varIdentOrDefault e default = expToMaybeIdent e |> Maybe.withDefault default in
   let searchChildren () =
     -- Recurse lazily through children.
@@ -753,10 +755,10 @@ expDescriptionParts_ program exp targetEId =
         let namedAssigns = tryMatchExpReturningList pat assigns in
         case List.filter (\(ident, e) -> findExpByEId e targetEId /= Nothing) namedAssigns of
           [] ->
-            if assigns.val.eid == targetEId then
+            if Set.member assigns.val.eid equivalentEIds then
               -- e.g. want whole list, but the let only bound the individual list elements
               case identifiersListInPat pat of
-                []        -> [simpleExpName assigns]
+                []              -> [simpleExpName assigns]
                 pathedPatIdents -> [varIdentOrDefault assigns (String.join "" pathedPatIdents)]
             else
               let scopeNames =
@@ -776,7 +778,7 @@ expDescriptionParts_ program exp targetEId =
             -- Last match should be most specific.
             let (ident, matchingExp) = Utils.last "LangTools.expDescriptionParts" identsAndMatchingExp in
             let (idents, _) = identsAndMatchingExp |> List.unzip in
-            if matchingExp.val.eid == targetEId then
+            if Set.member matchingExp.val.eid equivalentEIds then
               (Utils.dropLast 1 idents) ++ [varIdentOrDefault matchingExp ident]
             else
               case recurse matchingExp of
@@ -802,9 +804,11 @@ expDescriptionParts_ program exp targetEId =
                                 case tryMatchExp pat e of
                                   Match bindings ->
                                     -- Not quite as complicated as the Let logic above; should be okay though.
+                                    -- If the argument given at the call is a variable name, use that variable name.
+                                    -- Otherwise, use the name in the function.
                                     bindings
-                                    |> Utils.findFirst (\(ident, e) -> e.val.eid == targetEId)
-                                    |> Maybe.map (\(ident, e) -> [varIdentOrDefault e ident])
+                                    |> Utils.findFirst (\(ident, e) -> Set.member e.val.eid equivalentEIds)
+                                    |> Maybe.map (\(ident, e) -> [varIdentOrDefault (expEffectiveExp e) ident])
                                   _ -> Nothing
                               )
 
@@ -915,82 +919,79 @@ tryMatchExp pat exp =
   --         Match expEnv
   --
   --   _ ->
-  case exp.val.e__ of
-    EColonType _ typedExp _ _ _ ->
-      tryMatchExp pat typedExp
+  let contractedExp = expEffectiveExp exp in
+  case pat.val.p__ of
+    PWildcard _            -> Match []
+    PVar _ ident _         -> Match [(ident, exp)]
+    PAs _ ident _ innerPat ->
+      tryMatchExp innerPat exp
+      |> matchMap (\env -> (ident, exp)::env)
 
-    _ ->
-      case pat.val.p__ of
-        PWildcard _            -> Match []
-        PVar _ ident _         -> Match [(ident, exp)]
-        PAs _ ident _ innerPat ->
-          tryMatchExp innerPat exp
-          |> matchMap (\env -> (ident, exp)::env)
+    PList _ ps _ Nothing _ ->
+      case contractedExp.val.e__ of
+        -- TODO: list must not have rest
+        EList _ es _ Nothing _ ->
+          case Utils.maybeZip ps (headExps es) of
+            Nothing    -> NoMatch
+            Just pairs ->
+              List.map (\(p, e) -> tryMatchExp p e) pairs
+              |> projMatches
 
-        PList _ ps _ Nothing _ ->
-          case exp.val.e__ of
-            -- TODO: list must not have rest
-            EList _ es _ Nothing _ ->
-              case Utils.maybeZip ps (List.map Tuple.second es) of
-                Nothing    -> NoMatch
-                Just pairs ->
-                  List.map (\(p, e) -> tryMatchExp p e) pairs
-                  |> projMatches
+        _ ->
+          CannotCompare
 
-            _ ->
-              CannotCompare
+    PList _ ps _ (Just restPat) _ ->
+      case contractedExp.val.e__ of
+        EList _ es _ Nothing _ ->
+          if List.length es < List.length ps then
+            NoMatch
+          else
+            let (headExps, tailExps) = Utils.split (List.length ps) (Lang.headExps es) in
+            let tryHeadMatch =
+              Utils.zip ps headExps
+              |> List.map (\(p, e) -> tryMatchExp p e)
+              |> projMatches
+            in
+            let tryTailMatch =
+              tryMatchExp restPat (eList tailExps Nothing)
+            in
+            [tryHeadMatch, tryTailMatch]
+            |> projMatches
 
-        PList _ ps _ (Just restPat) _ ->
-          case exp.val.e__ of
-            EList _ es _ Nothing _ ->
-              if List.length es < List.length ps then
-                NoMatch
-              else
-                let (headExps, tailExps) = Utils.split (List.length ps) (List.map Tuple.second es) in
-                let tryHeadMatch =
-                  Utils.zip ps headExps
-                  |> List.map (\(p, e) -> tryMatchExp p e)
-                  |> projMatches
-                in
-                let tryTailMatch =
-                  tryMatchExp restPat (eList tailExps Nothing)
-                in
-                [tryHeadMatch, tryTailMatch]
-                |> projMatches
+        -- TODO: must have same number of heads
+        EList _ es _ (Just restExp) _ ->
+          if List.length es < List.length ps then
+            NoMatch
+          else if List.length es /= List.length ps then
+            CannotCompare
+          else
+            let tryHeadMatch =
+              Utils.zip ps (headExps es)
+              |> List.map (\(p, e) -> tryMatchExp p e)
+              |> projMatches
+            in
+            let tryTailMatch =
+              tryMatchExp restPat restExp
+            in
+            [tryHeadMatch, tryTailMatch]
+            |> projMatches
 
-            -- TODO: must have same number of heads
-            EList _ es _ (Just restExp) _ ->
-              if List.length es < List.length ps then
-                NoMatch
-              else if List.length es /= List.length ps then
-                CannotCompare
-              else
-                let tryHeadMatch =
-                  Utils.zip ps (List.map Tuple.second es)
-                  |> List.map (\(p, e) -> tryMatchExp p e)
-                  |> projMatches
-                in
-                let tryTailMatch =
-                  tryMatchExp restPat restExp
-                in
-                [tryHeadMatch, tryTailMatch]
-                |> projMatches
+        _ ->
+          CannotCompare
 
-            _ ->
-              CannotCompare
+    PConst _ n ->
+      case contractedExp.val.e__ of
+        EConst _ num _ _ -> if n == num then Match [] else NoMatch
+        _                -> CannotCompare
 
-        PConst _ n ->
-          case exp.val.e__ of
-            EConst _ num _ _ -> if n == num then Match [] else NoMatch
-            _                -> CannotCompare
+    PBase _ bv ->
+      case contractedExp.val.e__ of
+        EBase _ ev -> if eBaseValsEqual bv ev then Match [] else NoMatch
+        _          -> CannotCompare
 
-        PBase _ bv ->
-          case exp.val.e__ of
-            EBase _ ev -> if eBaseValsEqual bv ev then Match [] else NoMatch
-            _          -> CannotCompare
+    PParens _ innerPat _  ->
+      tryMatchExp innerPat exp
 
-        PParens _ innerPat _  ->
-          tryMatchExp innerPat exp
 
 -- Returns the common ancestor just inside the deepest common scope -- the expression you want to wrap with new defintions.
 -- If the nearest common ancestor is itself a scope, returns that instead.
@@ -1282,24 +1283,24 @@ isLiteral exp =
 preludeIdentifiers = Eval.initEnv |> List.map Tuple.first |> Set.fromList
 
 
-identifiersSetPlusPrelude : Exp -> Set.Set Ident
+identifiersSetPlusPrelude : Exp -> Set Ident
 identifiersSetPlusPrelude exp =
   Set.union (identifiersSet exp) preludeIdentifiers
 
 
-identifiersSet : Exp -> Set.Set Ident
+identifiersSet : Exp -> Set Ident
 identifiersSet exp =
   identifiersList exp
   |> Set.fromList
 
 
-identifiersSetInPat : Pat -> Set.Set Ident
+identifiersSetInPat : Pat -> Set Ident
 identifiersSetInPat pat =
   identifiersListInPat pat
   |> Set.fromList
 
 
-identifiersSetInPats : List Pat -> Set.Set Ident
+identifiersSetInPats : List Pat -> Set Ident
 identifiersSetInPats pats =
   List.map identifiersSetInPat pats
   |> Utils.unionAll
@@ -1348,7 +1349,7 @@ allPats root =
 
 
 -- Look for all non-free identifiers in the expression.
-identifiersSetPatsOnly : Exp -> Set.Set Ident
+identifiersSetPatsOnly : Exp -> Set Ident
 identifiersSetPatsOnly exp =
   identifiersListPatsOnly exp
   |> Set.fromList
@@ -1414,7 +1415,7 @@ identifierCounts exp =
 -- If suggestedName is not in existing names, returns it.
 -- Otherwise appends a number (starting at i) that doesn't collide.
 -- If the name contains "{n}", place the number there instead.
-nonCollidingName : Ident -> Int -> Set.Set Ident -> Ident
+nonCollidingName : Ident -> Int -> Set Ident -> Ident
 nonCollidingName suggestedName i existingNames =
   nonCollidingNames [suggestedName] i existingNames |> Utils.head "LangTools.nonCollidingNames did not satisfy its invariant"
 
@@ -1422,7 +1423,7 @@ nonCollidingName suggestedName i existingNames =
 -- If suggestedName is not in existing names, returns it.
 -- Otherwise appends a number (starting at i) that doesn't collide.
 -- If the name contains "{n}", place the number there instead.
-nonCollidingNames : List Ident -> Int -> Set.Set Ident -> List Ident
+nonCollidingNames : List Ident -> Int -> Set Ident -> List Ident
 nonCollidingNames suggestedNames i existingNames =
   let plainSuggestedNames =
     suggestedNames
@@ -2085,7 +2086,7 @@ allVars root =
 
 -- Which var idents in this exp refer to something outside this exp?
 -- This is wrong for TypeCases; TypeCase scrutinee patterns not included. TypeCase scrutinee needs to turn into an expression (done on Brainstorm branch, I believe).
-freeIdentifiers : Exp -> Set.Set Ident
+freeIdentifiers : Exp -> Set Ident
 freeIdentifiers exp =
   freeVars exp
   |> List.map expToMaybeIdent
@@ -2143,7 +2144,7 @@ allSimplyResolvableLetPatBindings program =
 --
 -- Identify all numeric variables in the program.
 -- Not the smartest; there could be false negatives, but no false positives.
-numericLetBoundIdentifiers : Exp -> Set.Set Ident
+numericLetBoundIdentifiers : Exp -> Set Ident
 numericLetBoundIdentifiers program =
   let isSurelyNumeric numericIdents exp =
     let recurse e = isSurelyNumeric numericIdents e in
@@ -2317,7 +2318,7 @@ identifierUsageEIds ident exp =
 
 
 -- Find EVars in the set of identifiers, until name is rebound.
-identifierSetUses : Set.Set Ident -> Exp -> List Exp
+identifierSetUses : Set Ident -> Exp -> List Exp
 identifierSetUses identSet exp =
   freeVars exp
   |> List.filter (\varExp -> Set.member (expToIdent varExp) identSet)
@@ -2333,18 +2334,18 @@ identifierUsesAfterDefiningPat ident exp =
 
 -- What variable names are in use at any of the given locations?
 -- For help finding unused names during synthesis.
-visibleIdentifiersAtEIds : Exp -> Set.Set EId -> Set.Set Ident
+visibleIdentifiersAtEIds : Exp -> Set EId -> Set Ident
 visibleIdentifiersAtEIds program eids =
   let programIdents = visibleIdentifiersAtPredicateNoPrelude program (\exp -> Set.member exp.val.eid eids) in
   Set.union programIdents preludeIdentifiers
 
 
-visibleIdentifiersAtPredicateNoPrelude : Exp -> (Exp -> Bool) -> Set.Set Ident
+visibleIdentifiersAtPredicateNoPrelude : Exp -> (Exp -> Bool) -> Set Ident
 visibleIdentifiersAtPredicateNoPrelude exp pred =
   visibleIdentifiersAtPredicate_ Set.empty exp pred
 
 
-visibleIdentifiersAtPredicate_ : Set.Set Ident -> Exp -> (Exp -> Bool) -> Set.Set Ident
+visibleIdentifiersAtPredicate_ : Set Ident -> Exp -> (Exp -> Bool) -> Set Ident
 visibleIdentifiersAtPredicate_ idents exp pred =
   let ret deeperIdents =
     if (0 == Set.size deeperIdents) && pred exp then
@@ -2415,7 +2416,7 @@ assignUniqueNames program =
   (newProgram, newNameToOldName)
 
 
-assignUniqueNames_ : Exp -> Set.Set Ident -> Dict Ident Ident -> (Exp, Set.Set Ident, Dict Ident Ident)
+assignUniqueNames_ : Exp -> Set Ident -> Dict Ident Ident -> (Exp, Set Ident, Dict Ident Ident)
 assignUniqueNames_ exp usedNames oldNameToNewName =
   let recurse = assignUniqueNames_ in
   let recurseExps es =

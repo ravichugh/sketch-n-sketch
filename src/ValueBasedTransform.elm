@@ -808,8 +808,12 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
         -- are calculated based on the selected expressions?
         -- Or vice versa: select only output and infer arguments (similar to DeuceTools.createFunctionFromArgsTool, which is currently limited to converting an existing definition to a function)
         List.range 1 (List.length interpretation)
-        |> List.filterMap (\eidI ->
+        |> List.concatMap (\eidI ->
           let (outputEId, otherEIds) = (Utils.geti eidI interpretation, Utils.removei eidI interpretation) in
+          let expandedOutputEId = (outerSameValueExpByEId program outputEId).val.eid in
+          Utils.dedup [(outputEId, otherEIds), (expandedOutputEId, otherEIds)]
+        )
+        |> List.filterMap (\(outputEId, otherEIds) ->
           -- 2. Arguments: (a) selected patterns and (b) vars free at extracted expression but not at funcLocation
           case otherEIds |> List.map (\otherEId -> findLetAndPatMatchingExpLoose otherEId program) |> Utils.projJusts |> Maybe.map List.unzip of
             Nothing -> Nothing
