@@ -389,6 +389,7 @@ lookupPat typeEnv p =
 
     PVar _ x _  -> lookupVar typeEnv x
     PAs _ x _ _ -> lookupVar typeEnv x
+    PParens _ p _ -> lookupPat typeEnv p
 
     PConst _ _            -> Just tNum
     PBase _ (EBool _)     -> Just tBool

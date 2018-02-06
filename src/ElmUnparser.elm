@@ -46,21 +46,40 @@ unparsePattern p =
       wsBefore.val
         ++ unparseBaseValue baseValue
 
-    PList wsBefore members _ _ wsBeforeEnd ->
+    PParens wsBefore pat wsBeforeEnd ->
+      wsBefore.val
+        ++ "("
+        ++ unparsePattern pat
+        ++ wsBeforeEnd.val
+        ++ ")"
+
+    PList wsBefore members _ Nothing wsBeforeEnd ->
       wsBefore.val
         ++ "["
         ++ String.join "," (List.map unparsePattern members)
         ++ wsBeforeEnd.val
         ++ "]"
 
-    PAs wsBefore identifier wsBeforeAs pat ->
-      wsBefore.val
-        ++ "("
-        ++ identifier
+    PList wsBefore [head] wsMiddle (Just tail) wsBeforeEnd ->
+      wsBefore.val -- Should be empty
+        ++ wrapPatternWithParensIfNeeded p head (unparsePattern head)
+        ++ wsMiddle.val
+        ++ "::"
+        ++ wrapPatternWithParensIfNeeded p tail (unparsePattern tail)
+        ++ wsBeforeEnd.val -- Should be empty
+
+    PList wsBefore (head::headTail) wsMiddle (Just tail) wsBeforeEnd ->
+      unparsePattern <| replaceP__ p <| PList wsBefore [head] wsMiddle (Just (replaceP__ p <| PList wsBefore headTail wsMiddle (Just tail) wsBeforeEnd)) wsBeforeEnd
+
+    PList _ [] wsMiddle (Just tail) _ ->
+      unparsePattern tail
+
+    PAs wsName name wsBeforeAs pat ->
+      wrapPatternWithParensIfNeeded p pat (unparsePattern pat)
         ++ wsBeforeAs.val
         ++ "as"
-        ++ unparsePattern pat
-        ++ ")"
+        ++ wsName.val
+        ++ name
 
 -- TODO
 unparseType : Type -> String
@@ -241,14 +260,12 @@ unparse e =
         ++ wrapWithParensIfNeeded e tail (unparse tail)
         ++ wsBeforeEnd.val -- Should be empty
 
-    -- Obsolete, remove whenever we are sure.
-    EList wsBefore members wsmiddle (Just tail) wsBeforeEnd ->
-      wsBefore.val
-        ++ "["
-        ++ String.join "," (List.map unparse members)
-        ++ wsmiddle.val ++ "|" ++ unparse tail
-        ++ wsBeforeEnd.val
-        ++ "]"
+    -- Obsolete, remove whenever we are sure that there are no mutliple cons anymore.
+    EList wsBefore (head::headtail) wsmiddle (Just tail) wsBeforeEnd ->
+      unparse <| replaceE__ e <| EList wsBefore [head] wsmiddle (Just <| replaceE__ e <| EList wsBefore headtail wsmiddle (Just tail) wsBeforeEnd) wsBeforeEnd
+
+    EList wsBefore [] wsMiddle (Just tail) wsBeforeEnd ->
+      unparse tail
 
     EIf wsBefore condition trueBranch falseBranch _ ->
       wsBefore.val
@@ -388,3 +405,21 @@ getExpPrecedence exp =
 wrapWithParensIfNeeded: Exp -> Exp -> String -> String
 wrapWithParensIfNeeded outsideExp insideExp unparsedInsideExpr =
   if getExpPrecedence insideExp < getExpPrecedence outsideExp then "(" ++ unparsedInsideExpr ++ ")" else unparsedInsideExpr
+
+
+getPatPrecedence: Pat -> Int
+getPatPrecedence pat =
+  case pat.val.p__ of
+    PList _ _ _ (Just tail) _ ->
+      case BinaryOperatorParser.getOperatorInfo "::" ElmParser.builtInPatternPrecedenceTable of
+        Nothing -> 10
+        Just (associativity, precedence) -> precedence
+    PAs _ _ _ _ ->
+      case BinaryOperatorParser.getOperatorInfo "as" ElmParser.builtInPatternPrecedenceTable of
+        Nothing -> 10
+        Just (associativity, precedence) -> precedence
+    _ -> 10
+
+wrapPatternWithParensIfNeeded: Pat -> Pat -> String -> String
+wrapPatternWithParensIfNeeded outsidePat insidePat unparsedInsidePat =
+  if getPatPrecedence insidePat < getPatPrecedence outsidePat then "(" ++ unparsedInsidePat ++ ")" else unparsedInsidePat

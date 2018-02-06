@@ -69,6 +69,7 @@ type Pat__
   | PBase WS EBaseVal
   | PList WS (List Pat) WS (Maybe Pat) WS
   | PAs WS Ident WS Pat
+  | PParens WS Pat WS
 
 type Op_
   -- nullary ops
@@ -595,6 +596,9 @@ mapFoldPat f initAcc p =
       let (newPChild, newAcc) = recurse initAcc pChild in
       wrapAndMap (PAs ws1 ident ws2 newPChild) newAcc
 
+    PParens ws1 pChild ws2 ->
+      let (newPChild, newAcc) = recurse initAcc pChild in
+      wrapAndMap (PParens ws1 newPChild ws2) newAcc
 
 -- Nodes visited/replaced in top-down, left-to-right order.
 -- Careful, a poorly constructed mapping function can cause this to fail to terminate.
@@ -745,6 +749,9 @@ mapFoldPatTopDown f initAcc p =
       let (newPChild, newAcc2) = recurse newAcc pChild in
       ret (PAs ws1 ident ws2 newPChild) newAcc2
 
+    PParens ws1 pChild ws2 ->
+      let (newPChild, newAcc2) = recurse newAcc pChild in
+      ret (PParens ws1 newPChild ws2) newAcc2
 
 -- Nodes visited/replaced in top-down, left-to-right order.
 -- Includes user-defined scope information.
@@ -1483,6 +1490,7 @@ varsOfPat pat =
     PList _ ps _ Nothing _  -> List.concatMap varsOfPat ps
     PList _ ps _ (Just p) _ -> List.concatMap varsOfPat (p::ps)
     PAs _ x _ p             -> x::(varsOfPat p)
+    PParens _ p _           -> varsOfPat p
 
 
 flattenPatTree : Pat -> List Pat
@@ -1500,7 +1508,7 @@ childPats pat =
     PList _ ps _ Nothing _  -> ps
     PList _ ps _ (Just p) _ -> ps ++ [p]
     PAs _ _ _ p             -> [p]
-
+    PParens _ p _           -> [p]
 
 -----------------------------------------------------------------------------
 -- Lang Options
@@ -1836,6 +1844,7 @@ precedingWhitespacePat pat =
       PBase  ws v                -> ws
       PList  ws1 ps ws2 rest ws3 -> ws1
       PAs    ws1 ident ws2 p     -> ws1
+      PParens ws1 p ws2          -> ws1
 
 
 precedingWhitespaceExp__ : Exp__ -> String
@@ -1914,7 +1923,7 @@ allWhitespacesPat_ pat =
     PBase  ws v                -> [ws]
     PList  ws1 ps ws2 rest ws3 -> [ws1] ++ List.concatMap allWhitespacesPat_ ps ++ [ws2] ++ (rest |> Maybe.map allWhitespacesPat_ |> Maybe.withDefault []) ++ [ws3]
     PAs    ws1 ident ws2 p     -> [ws1, ws2] ++ allWhitespacesPat_ p
-
+    PParens ws1 p ws2          -> [ws1, ws2] ++ allWhitespacesPat_ p
 
 allWhitespacesType_ : Type -> List WS
 allWhitespacesType_ tipe =
@@ -2005,7 +2014,8 @@ mapPrecedingWhitespacePat stringMap pat =
         PConst ws n                -> PConst (mapWs ws) n
         PBase  ws v                -> PBase  (mapWs ws) v
         PList  ws1 ps ws2 rest ws3 -> PList  (mapWs ws1) ps ws2 rest ws3
-        PAs    ws1 ident ws2 p     -> PAs    (mapWs ws1) ident ws2 p
+        PAs    ws1 ident ws2 p     -> PAs    ws1 ident ws2 (mapPrecedingWhitespacePat stringMap p)
+        PParens ws1 p ws2          -> PParens (mapWs ws1) p ws2
   in
     replaceP__ pat p__
 
@@ -2354,7 +2364,7 @@ wsBefore codeObject =
     E e ->
       precedingWhitespaceWithInfoExp__ e.val.e__
 
-    P _ p ->
+    P e p ->
       case p.val.p__ of
         PVar ws _ _ ->
           ws
@@ -2364,7 +2374,9 @@ wsBefore codeObject =
           ws
         PList ws _ _ _ _ ->
           ws
-        PAs ws _ _ _ ->
+        PAs _ _ _ p ->
+          wsBefore <| P e p
+        PParens ws _ _ ->
           ws
     T t ->
       case t.val of
@@ -2470,8 +2482,12 @@ modifyWsBefore f codeObject =
               PBase (f ws) a
             PList ws a b c d ->
               PList (f ws) a b c d
-            PAs ws a b c ->
-              PAs (f ws) a b c
+            PAs ws ident ws2 p2 ->
+              case modifyWsBefore f (P e p2) of
+                P e3 p3 -> PAs ws ident ws2 p3
+                _ -> Debug.crash "Internal error: modifyWsBefore cannot return something else than P if provided with P"
+            PParens ws p2 ws2 ->
+              PParens (f ws) p2 ws2
       in
         P e { p | val = { pVal | p__ = newP__ } }
     T t ->
@@ -2807,6 +2823,10 @@ childCodeObjects co =
             [ PT Before ws1 e p
             , P e p1
             ]
+          PParens ws1 p1 ws2 ->
+            [ PT Before ws1 e p1
+            , P e p1
+            , PT After ws2 e p1 ]
       T t ->
         case t.val of
           TNum ws1 ->
@@ -2963,6 +2983,8 @@ tagSinglePat ppid pat =
           tagPatList ppid ps
         PList _ ps _ (Just pTail) _ ->
           tagPatList ppid (ps ++ [pTail])
+        PParens _ p1 _ ->
+          tagSinglePat ppid p1
 
 tagBranchList
   :  EId

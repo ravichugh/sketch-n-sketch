@@ -156,6 +156,7 @@ patNodeCount pat =
     PList _ pats _ (Just pat) _ -> 1 + patsNodeCount pats + patNodeCount pat
     PList _ pats _ Nothing    _ -> 1 + patsNodeCount pats
     PAs _ _ _ pat               -> 1 + patNodeCount pat
+    PParens _ pat _             -> 1 + patNodeCount pat
 
 patsNodeCount : List Pat -> Int
 patsNodeCount pats =
@@ -1006,6 +1007,8 @@ tryMatchExp pat exp =
             EBase _ ev -> if eBaseValsEqual bv ev then Match [] else NoMatch
             _          -> CannotCompare
 
+        PParens _ innerPat _  ->
+          tryMatchExp innerPat exp
 
 -- Returns the common ancestor just inside the deepest common scope -- the expression you want to wrap with new defintions.
 -- If the nearest common ancestor is itself a scope, returns that instead.
@@ -1608,7 +1611,7 @@ patToExp pat =
     PList ws1 heads ws2 maybeTail ws3 -> EList ws1 (List.map patToExp heads) ws2 (Maybe.map patToExp maybeTail) ws3
     PConst ws1 n                      -> EConst ws1 n dummyLoc noWidgetDecl
     PBase ws1 bv                      -> EBase ws1 bv
-
+    PParens ws1 p ws2                 -> (patToExp p).val.e__
 
 -- Return the first expression(s) that can see the bound variables.
 -- Returns [] if cannot find scope; letrec returns two expressions [boundExp, body]; others return singleton list.
@@ -1998,6 +2001,8 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
         EBase _ ev -> if eBaseValsEqual bv ev then Just thisMatch else Nothing
         _          -> Just thisMatch
 
+    PParens ws1 innerPat ws2 ->
+      recurse innerPat exp
 
 -- Given an EId, look for a name bound to it and the let scope that defined the binding.
 findLetAndIdentBindingExp : EId -> Exp -> Maybe (Exp, Ident)

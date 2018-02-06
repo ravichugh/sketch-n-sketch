@@ -77,6 +77,7 @@ unparsePat pat = case pat.val.p__ of
   PConst ws n -> ws.val ++ strNum n
   PBase ws bv -> ws.val ++ unparseBaseVal bv
   PAs ws1 ident ws2 p -> ws1.val ++ ident ++ ws2.val ++ "@" ++ (unparsePat p)
+  PParens ws1 p ws2 -> ws1.val ++ "(" ++ unparsePat p ++ ws2.val ++ ")"
 
 unparsePatWithIds : Pat -> String
 unparsePatWithIds pat =
@@ -91,6 +92,7 @@ unparsePatWithIds pat =
     PConst ws n -> ws.val ++ strNum n ++ pidTag
     PBase ws bv -> ws.val ++ unparseBaseVal bv ++ pidTag
     PAs ws1 ident ws2 p -> ws1.val ++ ident ++ pidTag ++ ws2.val ++ "@" ++ (unparsePatWithIds p)
+    PParens ws1 p ws2 -> ws1.val ++ "(" ++ pidTag ++ unparsePatWithIds p ++ ws2.val ++ ")"
 
 unparsePatWithUniformWhitespace includeWidgetDecls pat =
   let recurse p = unparsePatWithUniformWhitespace includeWidgetDecls p in
@@ -104,6 +106,7 @@ unparsePatWithUniformWhitespace includeWidgetDecls pat =
     PConst _ n -> " " ++ strNum n
     PBase _ bv -> " " ++ unparseBaseValWithUniformWhitespace bv
     PAs _ ident _ p -> " " ++ ident ++ " " ++ "@" ++ recurse p
+    PParens _ p _ -> " (" ++ recurse p ++ " )"
 
 unparseType : Type -> String
 unparseType tipe =

@@ -1,6 +1,7 @@
 module ElmParser exposing
   ( parse,
-    builtInPrecedenceTable
+    builtInPrecedenceTable,
+    builtInPatternPrecedenceTable
   )
 
 import Char
@@ -214,6 +215,14 @@ symbolIdentifier =
     oneOf
       [ keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|'))
       , keep (Exactly 2) (\x -> x == ':')
+      ]
+
+patternSymbolIdentifier : ParserI Ident
+patternSymbolIdentifier =
+  trackInfo <|
+    oneOf
+      [ source (symbol "::")
+      , source (keyword "as")
       ]
 
 --==============================================================================
@@ -435,6 +444,35 @@ asPattern =
                 |. symbol ")"
           )
 
+parensPattern : Parser Pat
+parensPattern =
+  inContext "parentheses" <|
+    mapPat_ <|
+      lazy <| \_ ->
+        paddedBefore
+          ( \wsBefore (innerPattern, wsBeforeEnd) ->
+              PParens wsBefore innerPattern wsBeforeEnd
+          )
+          ( trackInfo <|
+              succeed (,)
+                |. symbol "("
+                |= pattern
+                |= spaces
+                |. symbol ")"
+          )
+
+simplePattern : Parser Pat
+simplePattern =
+  inContext "simple pattern" <|
+    oneOf
+      [ lazy <| \_ -> listPattern
+      , lazy <| \_ -> parensPattern
+      --, lazy <| \_ -> asPattern
+      , constantPattern
+      , baseValuePattern
+      , variablePattern
+      ]
+
 --------------------------------------------------------------------------------
 -- General Patterns
 --------------------------------------------------------------------------------
@@ -442,13 +480,49 @@ asPattern =
 pattern : Parser Pat
 pattern =
   inContext "pattern" <|
-    oneOf
-      [ lazy <| \_ -> listPattern
-      , lazy <| \_ -> asPattern
-      , constantPattern
-      , baseValuePattern
-      , variablePattern
-      ]
+    lazy <| \_ ->
+      binaryOperator
+        { precedenceTable =
+            builtInPatternPrecedenceTable
+        , minimumPrecedence =
+            0
+        , expression =
+            simplePattern
+        , operator =
+            patternOperator
+        , representation =
+            .val >> Tuple.second
+        , combine =
+            \left operator right ->
+              let
+                (wsBefore, identifier) =
+                  operator.val
+              in
+                case identifier of
+                  "::" ->
+                    withInfo
+                      (
+                        pat_ <| PList space0 [left] wsBefore (Just right) space0
+                      ) left.start right.end
+                  "as" ->
+                    case right.val.p__ of
+                      PVar wsName name _ ->
+                        withInfo
+                          (
+                            pat_ <| PAs wsName name wsBefore left
+                          ) left.start right.end
+                      _ ->
+                        case left.val.p__ of
+                          PVar wsName name _ ->
+                            withInfo
+                              (
+                                pat_ <| PAs wsName name wsBefore right
+                              ) left.start right.end
+                          _ -> Debug.crash "Parser does not support conjunction of patterns" -- TODO: Let PAs support arbitrary conjonction of patterns.
+                  m -> Debug.crash <| "Internal error: Got pattern operator other than :: or as " ++ m
+        }
+
+
 
 --==============================================================================
 --= Types
@@ -704,9 +778,27 @@ builtInPrecedenceList =
     )
   ]
 
+builtInPatternPrecedenceList : List (Int, List String, List String)
+builtInPatternPrecedenceList =
+ [ ( 2
+   , []
+   , ["::"]
+   )
+ , ( 1
+   , ["as"]
+   , []
+   )
+ ]
+
 builtInPrecedenceTable : PrecedenceTable
 builtInPrecedenceTable =
   buildPrecedenceTable builtInPrecedenceList
+
+builtInPatternPrecedenceTable : PrecedenceTable
+builtInPatternPrecedenceTable =
+  buildPrecedenceTable builtInPatternPrecedenceList
+
+
 
 builtInOperators : List Ident
 builtInOperators =
@@ -777,6 +869,10 @@ opFromIdentifier identifier =
 operator : ParserI Operator
 operator =
   paddedBefore (,) symbolIdentifier
+
+patternOperator : ParserI Operator
+patternOperator =
+  paddedBefore (,) patternSymbolIdentifier
 
 --==============================================================================
 -- Expressions

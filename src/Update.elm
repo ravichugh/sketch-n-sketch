@@ -620,6 +620,13 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
   (PList _ _ _ _ _, _) -> Nothing
   (PConst _ n, VConst _ (n_,_)) -> if n == n_ then Just ([], \newEnv -> (p, v)) else Nothing
   (PBase _ bv, VBase bv_) -> if eBaseToVBase bv == bv_ then Just ([], \newEnv -> (p, v)) else Nothing
+  (PParens sp0 innerPat sp1, _) ->
+    matchWithInversion (innerPat, v)
+    |> Maybe.map
+      (\(env, envReverse) -> (env, \newEnv ->
+        case envReverse newEnv of
+          (newInnerPat, newVal) -> (replaceP__ p <| PParens sp0 newInnerPat sp1, newVal)
+      ))
   _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
 
 matchListWithInversion : (List Pat, List Val) -> Maybe (Env, Env -> (List Pat, List Val))
