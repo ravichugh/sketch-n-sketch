@@ -79,7 +79,7 @@ subscriptions model =
     , Mouse.ups (always (Controller.msgMouseIsDown False))
     , Mouse.moves Controller.msgMousePosition
     , Keyboard.presses Controller.msgKeyPress
-    , Keyboard.downs (if model.outputMode /= Model.ShowValue then Controller.msgKeyDown else \k -> Controller.msgNoop)
+    , Keyboard.downs Controller.msgKeyDown
     , Keyboard.ups Controller.msgKeyUp
     , AceCodeBox.receiveEditorState Controller.msgAceUpdate
     , AceCodeBox.userHasTyped (always Controller.msgUserHasTyped)
