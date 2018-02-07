@@ -105,6 +105,7 @@ projOks l =
     LazyCons (Errs msg) tail ->
       case projOks <| Lazy.force tail of
         Errs msgTail -> Errs msg
+        Oks LazyNil -> Errs msg
         result -> result
 
 {-| If the results is `Oks` return the value, but if the results is an `Errs` then
