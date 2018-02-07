@@ -333,6 +333,9 @@ deadPathsInPat pat =
         -- so we shouldn't be creating dead paths inside as-patterns
         []
 
+      PParens _ p _ ->
+        []
+
       PList ws1 ps ws2 maybeTail ws3 ->
         let deadPathsInTail =
           maybeTail

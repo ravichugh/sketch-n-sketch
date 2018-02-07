@@ -1785,6 +1785,11 @@ makeSingleLineTool model selections =
                               ident
                               space1
                               p
+                          PParens ws1 p ws2 ->
+                            PParens
+                              (deLine ws1)
+                              p
+                              ws2
                       deLinePat p =
                         mapPatTopDown (mapNodeP__ deLineP__) p
                       deLineE__ e__ =

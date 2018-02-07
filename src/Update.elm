@@ -45,9 +45,9 @@ updateEnv env k value =
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Output -> LazyList NextAction -> Results String (Env, Exp)
 update env e oldVal out nextToUpdate =
-  --let _ = Debug.log (String.concat ["update: ", envToString (pruneEnv env), "|-", unparse e] ++ " <-- " ++ (case out of
-  --  Program p -> unparse p
-  --  Raw v -> valToString v)) () in
+  let _ = Debug.log (String.concat ["update: ", envToString (pruneEnv env), "|-", unparse e] ++ " <-- " ++ (case out of
+    Program p -> unparse p
+    Raw v -> valToString v)) () in
   let updateStack = getUpdateStackOp env e oldVal out nextToUpdate in
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateError msg ->
@@ -582,7 +582,7 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
       (\(env, envReverse) -> ((x,v)::env, \newEnv ->
         case newEnv of
           (_, newV)::newEnv2 ->
-            if newV == v then
+            if valEqual newV v then
               case envReverse newEnv2 of
               (newInnerPat, newVal) -> (replaceP__ p <| PAs sp0 x sp1 newInnerPat, newVal)
             else

@@ -88,6 +88,7 @@ foldPatternsWithIds f (scopeId, path) pats init =
         PAs _ x _ p -> f pathedPatId x (doOne f pathedPatId p acc)
         PList _ ps _ Nothing _  -> doMany f pathedPatId ps acc
         PList _ ps _ (Just p) _ -> doMany f pathedPatId (ps ++ [p]) acc
+        PParens _ p _ -> doOne f pathedPatId p acc
 
     doMany f (scopeId, path) pats acc =
       Utils.foldli1 (\(i, pi) -> doOne f (scopeId, path ++ [i]) pi) acc pats
@@ -365,6 +366,12 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
           |> addDependencies pathedPatId
           |> traverseAndAddDependencies_ pathedPatId env p exp
                -- NOTE: exp gets traversed twice...
+
+    (PParens _ p _, _) ->
+      acc |> clearUsed
+          |> traverse env exp
+          |> addDependencies pathedPatId
+          |> traverseAndAddDependencies_ pathedPatId env p exp
 
     (PList _ ps_ _ pMaybe _, EList _ es_ _ eMaybe _) ->
 

@@ -1874,6 +1874,15 @@ mergePatterns pFirst pRest =
         Utils.bindMaybe
           (\() -> if List.all ((==) x) indentList then Just () else Nothing)
           (mergePatterns p pList)
+    PParens _ p _ ->
+      let match pNext = case pNext.val.p__ of
+        PParens _ p_ _ -> Just p_
+        _             -> Nothing
+      in
+      matchAllAndBind match pRest <| \pList ->
+        Utils.bindMaybe
+          (\() -> Just ())
+          (mergePatterns p pList)
 
 mergeTypes : Type -> List Type -> Maybe ()
 mergeTypes tFirst tRest =
