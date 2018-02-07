@@ -15,6 +15,8 @@ import Results exposing
 import MissingNumberMethods exposing (..)
 import ValUnparser exposing (strVal)
 import Lazy
+import LangTools
+import Set
 
 unparse = Syntax.unparser Syntax.Elm
 
@@ -45,9 +47,9 @@ updateEnv env k value =
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Output -> LazyList NextAction -> Results String (Env, Exp)
 update env e oldVal out nextToUpdate =
-  let _ = Debug.log (String.concat ["update: ", envToString (pruneEnv env), "|-", unparse e] ++ " <-- " ++ (case out of
+  let _ = Debug.log (String.concat ["update: ", unparse e, " <-- ", (case out of
     Program p -> unparse p
-    Raw v -> valToString v)) () in
+    Raw v -> valToString v), " -- env = " , envToString (pruneEnv e env), "|-"]) () in
   let updateStack = getUpdateStackOp env e oldVal out nextToUpdate in
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateError msg ->
@@ -371,7 +373,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
         Program exp -> unparse exp
         Raw val -> valToString val
       in
-      UpdateError <| "Non-supported update " ++ envToString (pruneEnv env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
+      UpdateError <| "Non-supported update " ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
 
 
 updateRec: Env -> Exp -> Val -> Output -> LazyList NextAction -> LazyList (Env, Exp)
@@ -692,13 +694,15 @@ removeCommonPrefix l1 l2 =
         removeCommonPrefix tail tail2
       else (l1, l2)
 
-pruneEnv: Env -> Env
-pruneEnv env = -- Remove all the initial environment that is on the right.
+pruneEnv: Exp -> Env -> Env
+pruneEnv exp env = -- Remove all the initial environment that is on the right.
   --let (p1, p2) = removeCommonPrefix (List.reverse Eval.initEnv) (List.reverse env) in
   --List.reverse p1
   --List.take 5 env
-  List.take (List.length env - List.length Eval.initEnv) env
+  --List.take (List.length env - List.length Eval.initEnv) env
   --env
+  let freeVars = LangTools.freeIdentifiers exp in
+  List.filter (\(x, _) -> Set.member x freeVars) env
 
 envToString: Env -> String
 envToString env =
@@ -710,8 +714,8 @@ valToString: Val -> String
 valToString v = case v.v_ of
    VClosure Nothing patterns body [] -> (unparse << val_to_exp (ws " ")) v
    VClosure (Just name) patterns body [] -> "(" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
-   VClosure Nothing patterns body env -> "(" ++ envToString (pruneEnv env) ++ "|-" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
-   VClosure (Just name) patterns body env -> "(" ++ envToString (pruneEnv env) ++ "|" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
+   VClosure Nothing patterns body env -> "(" ++ envToString (pruneEnv body env) ++ "|-" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
+   VClosure (Just name) patterns body env -> "(" ++ envToString (pruneEnv body env) ++ "|" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
    _ -> (unparse << val_to_exp (ws "")) v
 
 valEqual: Val -> Val -> Bool
