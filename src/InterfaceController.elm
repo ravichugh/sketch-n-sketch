@@ -682,7 +682,9 @@ tryRun old =
         updatedHistory =
           modelCommit old.code [] old.history
       in
-        { old | history = updatedHistory }
+        { old | history = updatedHistory
+              , lastRunCode = old.code
+        }
   in
     case Syntax.parser old.syntax old.code of
       Err err ->
