@@ -1405,6 +1405,11 @@ outputPanel model =
         (Nothing, ShowValue, _) ->
           [ Html.textarea
               [ E.onInput (\s -> Msg "Update Value Editor" (\m -> { m | valueEditorString = s } ))
+              , Attr.style -- TODO
+                  [ ("font-size", "24px")
+                  , ("width", "100%")
+                  , ("height", "80%")
+                  ]
               ]
               -- [ Html.text (Lang.strVal model.inputVal) ]
               [ Html.text model.valueEditorString ]
