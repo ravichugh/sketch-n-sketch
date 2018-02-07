@@ -10,7 +10,7 @@ import Dict exposing (Dict)
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
 import LangSvg exposing (NodeId)
-import ShapeWidgets exposing (SelectableFeature)
+import ShapeWidgets exposing (SelectableFeature(..), ShapeFeature(..), DistanceFeature(..))
 
 --==============================================================================
 --= Data Types
@@ -102,6 +102,49 @@ groupPredicate
 --==============================================================================
 --= Tools
 --==============================================================================
+
+--------------------------------------------------------------------------------
+-- Hide Widget
+--------------------------------------------------------------------------------
+
+-- Only shows tool for offsets for now, but tool should be able to handle others.
+hideWidgetTool : Selections a -> OutputTool
+hideWidgetTool { selectedFeatures, selectedShapes, selectedBlobs } =
+  let onlyOffsetsSelected =
+    let
+      allSelectedFeaturesAreOffsets =
+        selectedFeatures
+        |> Set.toList
+        |> List.all
+            (\feature ->
+              case feature of
+                ShapeFeature idAsShape (DFeat Offset) -> idAsShape < -2 -- Offset widget selected
+                _                                     -> False
+            )
+    in
+    { description =
+        "Select at least one offset widget"
+    , value =
+        if Set.size selectedFeatures > 0 && allSelectedFeaturesAreOffsets && Set.size selectedShapes == 0 && Dict.size selectedBlobs == 0 then
+          Satisfied
+        else
+          Impossible
+    }
+  in
+  { name =
+      "Hide Widget" ++ if Set.size selectedFeatures >= 2 then "s" else ""
+  , shortcut =
+      Nothing
+  , kind =
+      Single
+  , func =
+      Just Controller.msgHideWidgets
+  , reqs =
+      [ onlyOffsetsSelected
+      ]
+  , id =
+      "hideWidget"
+  }
 
 --------------------------------------------------------------------------------
 -- Dig Hole
@@ -362,7 +405,9 @@ repeatAroundTool selections =
 tools : Selections a -> List (List OutputTool)
 tools selections =
   List.map (List.map <| \tool -> tool selections) <|
-    [ [ digHoleTool
+    [ [ hideWidgetTool
+      ]
+    , [ digHoleTool
       , makeEqualTool
       , relateTool
       , indexedRelateTool

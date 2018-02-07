@@ -12,6 +12,7 @@ port module InterfaceController exposing
   , msgUserHasTyped
   , msgOutputCanvasUpdate
   , msgUndo, msgRedo, msgCleanCode
+  , msgHideWidgets
   , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
@@ -1541,6 +1542,61 @@ msgCleanCode = Msg "Clean Code" <| \old ->
       else
         let _ = debugLog "Cleaned: " code_ in
         upstateRun { old | inputExp = cleanedExp, code = code_ }
+
+msgHideWidgets = Msg "Hide Widget(s)" hideWidgets
+
+
+-- Should work for any selected widget, but only shows for offsets for now.
+hideWidgets : Model -> Model
+hideWidgets old =
+  if Set.size old.selectedShapes == 0 && Dict.size old.selectedBlobs == 0 then
+    let
+      (offsetAmountEIds, offsetExpressionEIds) =
+        old.selectedFeatures
+        |> Set.toList
+        |> List.filterMap
+            (\feature ->
+              case feature of
+                ShapeFeature idAsShape (DFeat Offset) ->
+                  case Utils.maybeGeti1 (-2 - idAsShape) old.widgets of
+                    Just (WOffset1D baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal) ->
+                      Just
+                        ( valEId amountVal
+                        , valEId (if axis == X then endXVal else endYVal)
+                        )
+                    _ -> Nothing
+                _ -> Nothing
+            )
+        |> List.unzip
+
+      proximalInterpretation =
+        ShapeWidgets.selectionsUniqueProximalEIdInterpretations
+            old.inputExp
+            old.slate
+            old.widgets
+            old.selectedFeatures
+            old.selectedShapes
+            old.selectedBlobs
+        |> List.head
+        |> Maybe.withDefault []
+
+      hideWidgetsAroundEIds =
+        Utils.removeAll proximalInterpretation offsetAmountEIds ++ offsetExpressionEIds
+
+      newProgram =
+        old.inputExp
+        |> mapExp
+            (\exp ->
+              if List.member exp.val.eid hideWidgetsAroundEIds then
+                eOp NoWidgets [replacePrecedingWhitespace " " exp] |> copyPrecedingWhitespace exp
+              else
+                exp
+            )
+    in
+    upstateRun <| clearSelections { old | code = Syntax.unparser old.syntax newProgram }
+  else
+    old
+
 
 msgDigHole = Msg "Dig Hole" <| \old ->
   let newExp =
