@@ -4,7 +4,7 @@ module Results exposing
   , ok1, oks, okLazy, errs
   , map, map2, map2withError, andThen, flatten
   , toMaybe, fromMaybe, fromResult, mapErrors
-  , LazyList(LazyNil, LazyCons)
+  , LazyList(LazyNil, LazyCons), mapLazy, andThenLazy, isLazyNil
   , lazyCons2, findFirst
   , appendLazy, appendLazyLazy, lazyFromList
   )
@@ -14,6 +14,11 @@ import Lazy
 import Maybe exposing ( Maybe(Just, Nothing) )
 
 type LazyList v = LazyNil | LazyCons v (Lazy.Lazy (LazyList v))
+
+isLazyNil: LazyList a -> Bool
+isLazyNil l = case l of
+  LazyNil -> True
+  _ -> False
 
 -- Useful if the tail is already computed.
 lazyCons2: v -> LazyList v -> LazyList v

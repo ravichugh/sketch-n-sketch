@@ -9,7 +9,7 @@ import Results exposing
   ( Results(..)
   , ok1, oks, okLazy
   , LazyList(..)
-  , appendLazy, appendLazyLazy
+  , appendLazy, appendLazyLazy, mapLazy, andThenLazy, isLazyNil
   , lazyFromList
   , lazyCons2)
 import MissingNumberMethods exposing (..)
@@ -25,6 +25,7 @@ type NextAction = HandlePreviousResult ((Env, Exp) -> UpdateStack)
                 | Fork Env Exp Val Output (LazyList NextAction)
 
 type UpdateStack = UpdateResult      Env Exp
+                 | UpdateResults     Env Exp (Lazy.Lazy (LazyList (Env, Exp)))
                  | UpdateIdem        Env Exp Val Output
                  | UpdateContinue    Env Exp Val Output NextAction
                  | UpdateRestart     Env Exp Val Output (LazyList NextAction)
@@ -48,9 +49,9 @@ updateEnv env k value =
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Output -> LazyList NextAction -> Results String (Env, Exp)
 update env e oldVal out nextToUpdate =
-  --let _ = Debug.log (String.concat ["update: ", unparse e, " <-- ", (case out of
-  --  Program p -> unparse p
-  --  Raw v -> valToString v), " -- env = " , envToString (pruneEnv e env), "|-"]) () in
+  let _ = Debug.log (String.concat ["update: ", unparse e, " <-- ", (case out of
+    Program p -> unparse p
+    Raw v -> valToString v), " -- env = " , envToString (pruneEnv e env), "|-"]) () in
   let updateStack = getUpdateStackOp env e oldVal out nextToUpdate in
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateError msg ->
@@ -63,6 +64,9 @@ update env e oldVal out nextToUpdate =
       update fEnv newE newOldVal newOut newNextToUpdate
     UpdateAlternative fEnv fOut fOldVal altEnv altE altOldVal altOut nextToUpdate2 ->
       update fEnv e fOldVal (Program fOut) <| appendLazy nextToUpdate <| lazyFromList [Fork altEnv altE altOldVal altOut nextToUpdate2]
+    UpdateResults fEnv fOut alternatives ->
+      update fEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program fOut) <|
+        appendLazy nextToUpdate <| Results.mapLazy (\(altEnv, altExp) -> Fork altEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program altExp) nextToUpdate) (Lazy.force alternatives)
     UpdateResult fEnv fOut -> -- Let's consume the stack !
       case nextToUpdate of
         LazyNil -> ok1 <| (fEnv, fOut)
@@ -77,6 +81,9 @@ update env e oldVal out nextToUpdate =
                   Errs msg
                 UpdateResult fEnv fOut ->
                   update fEnv e oldVal (Program fOut) (Lazy.force lazyTail)
+                UpdateResults fEnv fOut alternatives ->
+                  update fEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program fOut) <|
+                    appendLazy (Lazy.force lazyTail) <| Results.mapLazy (\(altEnv, altExp) -> Fork altEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program altExp) (Lazy.force lazyTail)) (Lazy.force alternatives)
                 UpdateIdem fEnv newE newOldVal newOut ->
                   update fEnv newE newOldVal newOut (Lazy.force lazyTail)
                 UpdateContinue fEnv newE newOldVal newOut g ->
@@ -137,7 +144,30 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                                 UpdateResult newEnv <| replaceE__ e <| EList sp1 (newHeadExp :: newTail) sp2 Nothing sp3
                               _ -> Debug.crash "Internal error: Should get a list back"
                   _ -> Debug.crash "The list's length were checked, what happened??"
-              else UpdateError <| "Cannot (yet) update a list " ++ unparse e ++ " with list of different length: " ++ valToString newVal
+              else
+                let results = indicesOfModification valEqual origVals newOutVals -- LazyList Exp
+                  |> Results.mapLazy (\(insertionIndex, deletedCount, inserted) ->
+                    -- Copy the whitespace of the previous list elements, if possible, and do this in a nested way
+                    let valtoexpWhitespace = if insertionIndex < List.length elems then
+                      case List.drop insertionIndex elems |> List.take 1 of
+                        [previousElem] -> (\v -> Lang.copyPrecedingWhitespace previousElem (val_to_exp (ws " " ) v))
+                        _ -> (\v -> val_to_exp (ws " " ) v)
+                      else if List.length elems > 0 then
+                        case List.drop (List.length elems - 1) elems of
+                        [previousElem] -> (\v -> Lang.copyPrecedingWhitespace previousElem (val_to_exp (ws " " ) v))
+                        _ -> (\v -> val_to_exp (ws " " ) v)
+                      else (\v -> val_to_exp (ws " " ) v)
+                    in
+                    let insertedExp = List.map valtoexpWhitespace inserted in
+                    (env, replaceE__ e <|
+                      EList sp1 (List.take insertionIndex elems ++ insertedExp ++ List.drop (insertionIndex + deletedCount) elems) sp2 Nothing sp3)
+                  )
+                in -- We need to convert this lazyList to a set of results
+                case results of
+                  LazyNil -> UpdateError <| "Internal error: there should have been at least one solution"
+                  LazyCons (newEnv, newExp) lazyTail ->
+                    UpdateResults newEnv newExp lazyTail
+
             _ -> UpdateError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
     EList sp1 elems sp2 (Just tail) sp3 ->
@@ -382,6 +412,43 @@ updateRec env e oldVal newVal nextToUpdate =
   case update env e oldVal newVal nextToUpdate of
     Oks l -> l
     Errs msg -> LazyNil
+
+listPrefixEqual: Int -> (a -> a -> Bool) -> List a -> List a -> Bool
+listPrefixEqual n pred l1 l2 =
+  if n == 0 then True else
+  case l1 of
+    [] -> False
+    hd::tl -> case l2 of
+      [] -> False
+      hd2::tl2 -> if pred hd hd2 then listPrefixEqual (n-1) pred tl tl2 else False
+
+listEqual: (a -> a -> Bool) -> List a -> List a -> Bool
+listEqual pred l1 l2 =
+    case l1 of
+      [] -> case l2 of
+        [] -> True
+        _ -> False
+      hd::tl -> case l2 of
+        [] -> False
+        hd2::tl2 -> if pred hd hd2 then listEqual pred tl tl2 else False
+
+indicesOfModification: (a -> a -> Bool) -> List a -> List a -> LazyList (Int, Int, List a)
+indicesOfModification equalTest input output =
+  let test sup = --: LazyList (Int, Int, List a)
+    let potentialWithSuppression =  --: LazyList (Int, Int, List a)
+      let insLength = List.length output - List.length input + sup in
+      lazyFromList (List.range 0 (List.length input - sup))
+      |> andThenLazy (\index ->
+        if (sup > 0 || insLength > 0 || index == 0) &&
+            listPrefixEqual index equalTest output input &&
+            listEqual equalTest (List.drop (List.length output - (List.length input - (index + sup))) output) (List.drop (index + sup) input) then
+          lazyFromList [(index, sup, List.drop index output |> List.take insLength)]
+        else LazyNil
+        )
+    in
+    if isLazyNil potentialWithSuppression then test (sup + 1) else potentialWithSuppression
+  in
+  test 0
 
 -- Compares the new reference with and original (which are at distance at most 2PI) and reports the relative smallest change to n
 angleUpdate: Float -> Float -> Float -> Results String (List Num)
