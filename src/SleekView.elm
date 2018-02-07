@@ -1435,9 +1435,9 @@ outputPanel model =
                           Results.LazyNil -> let _ = Debug.log "More precisely, there was no solution" () in
                             m
                           Results.LazyCons (_, newCodeExp) _ -> let _ = Debug.log "There was at least one solution, but the environments would have differed" () in
-                            { m | code = Syntax.unparser m.syntax newCodeExp }
+                            Controller.upstateRun { m | code = Syntax.unparser m.syntax newCodeExp }
                       Just (_, newCodeExp) ->
-                        { m | code = Syntax.unparser m.syntax newCodeExp } ))
+                        Controller.upstateRun { m | code = Syntax.unparser m.syntax newCodeExp } ))
               ]
               [ Html.text "Update" ]
           ]
