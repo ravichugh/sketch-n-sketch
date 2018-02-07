@@ -773,6 +773,7 @@ childNodeIds node =
     SvgNode kind attrs childIds -> childIds
     TextNode _                  -> []
 
+-- All descendants (deep), not including given node.
 descendantNodeIds : IndexedTree -> IndexedTreeNode -> List NodeId
 descendantNodeIds indexedTree node =
   let childIds = childNodeIds node in

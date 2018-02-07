@@ -1001,21 +1001,21 @@ selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate)
   let eidsToNotSelect =
     -- If any shapes selected, diff against all other shapes.
     let shapeProvenanceEIdsNotToSelect =
-      let effectiveSelectedNodeIds =
-        let selectedDescendentIds =
-          selectedShapes
-          |> Set.toList
-          |> List.filterMap (\nodeId -> Dict.get nodeId shapeTree)
-          |> List.concatMap (LangSvg.descendantNodeIds shapeTree)
-          |> Set.fromList
-        in
-        Set.union
-            selectedShapes
-            selectedDescendentIds
-      in
       if Set.size selectedShapes == 0 then
         Set.empty
       else
+        let effectiveSelectedNodeIds =
+          let selectedDescendentIds =
+            selectedShapes
+            |> Set.toList
+            |> List.filterMap (\nodeId -> Dict.get nodeId shapeTree)
+            |> List.concatMap (LangSvg.descendantNodeIds shapeTree)
+            |> Set.fromList
+          in
+          Set.union
+              selectedShapes
+              selectedDescendentIds
+        in
         shapeTree
         |> Dict.toList
         |> List.filter (\(nodeId, shape) -> not <| Utils.anyOverlap [Set.singleton nodeId, Set.fromList (LangSvg.descendantNodeIds shapeTree shape), effectiveSelectedNodeIds])

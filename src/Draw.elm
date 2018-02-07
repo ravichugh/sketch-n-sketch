@@ -869,8 +869,9 @@ newFunctionCallExp fName old pt1 pt2 =
                 )
                 ([pt1, pt2], [])
           in
+          let perhapsPointAnnotation = if isPointType returnType then eAsPoint else identity in
           Utils.projJusts argMaybeExps
-          |> Maybe.map (\argExps -> (eCall fName argExps, funcExp, returnType))
+          |> Maybe.map (\argExps -> (perhapsPointAnnotation (eCall fName argExps), funcExp, returnType))
 
         Nothing -> Debug.crash <| "Draw.newFunctionCallExp bad function type: " ++ toString funcType
 
