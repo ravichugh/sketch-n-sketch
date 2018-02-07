@@ -7,6 +7,7 @@ port module InterfaceController exposing
   , msgKeyPress, msgKeyDown, msgKeyUp
   , msgMouseIsDown, msgMousePosition
   , msgRun, upstateRun, msgTryParseRun
+  , msgCallUpdate
   , msgAceUpdate
   , msgUserHasTyped
   , msgOutputCanvasUpdate
@@ -85,6 +86,7 @@ import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
 import Update
+import Results
 import Utils
 import Keys
 import InterfaceModel as Model exposing (..)
@@ -625,6 +627,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
           , lastRunCode = newCode
           , inputExp = newExp
           , inputVal = newVal
+          , valueEditorString = Update.valToString newVal
           , slate = newSlate
           , widgets = newWidgets
           , codeBoxInfo = codeBoxInfo_
@@ -1356,7 +1359,18 @@ msgKeyDown keyCode =
           doRedo old
 
         else if keyCode == Keys.keyEnter && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
-          upstateRun old
+          case old.outputMode of
+            Live      -> upstateRun old
+            ShowValue -> doCallUpdate old
+            _         -> old
+
+        else if old.outputMode == Live && keyCode == Keys.keyDown &&
+                List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          { old | outputMode = ShowValue }
+        else if old.outputMode == ShowValue && keyCode == Keys.keyUp &&
+                List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          { old | outputMode = Live }
+
         else if
           not currentKeyDown &&
           keyCode == Keys.keyShift
@@ -1373,6 +1387,7 @@ msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
   if Keys.isCommandKey keyCode then
     -- When keyMeta (command key) is down and another key k is downed,
     -- there will not be a key up event for k.
+    --   (This is not true for all keys, for example, up and down...)
     -- So remove k when keyMeta goes up.
     { old | keysDown = List.filter ((==) Keys.keyShift) old.keysDown }
   else
@@ -1424,6 +1439,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
+            , valueEditorString = Update.valToString newVal
             , history          = addToHistory newCode old.history
             , slate            = newSlate
             , widgets          = newWidgets
@@ -1625,6 +1641,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
       let newer =
       { new | inputExp             = reparsed -- newExp
             , inputVal             = newVal
+            , valueEditorString    = Update.valToString newVal
             , slate                = newSlate
             , widgets              = newWidgets
             , preview              = Nothing
@@ -1878,6 +1895,37 @@ msgPreviousMovie = Msg "Previous Movie" <| \old ->
 msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
   { old | runAnimation = not old.runAnimation }
 
+
+--------------------------------------------------------------------------------
+
+msgCallUpdate = Msg "Call Update" doCallUpdate
+
+doCallUpdate m =
+  let updatedExp = Syntax.parser m.syntax m.valueEditorString
+    |> Result.mapError (\e -> toString e)
+    |> Result.andThen (Eval.doEval m.syntax [])
+    |> Result.map (\((v, _), _) -> Update.Raw v)
+    |> Results.fromResult
+    |> Results.andThen (\out -> Update.update Eval.initEnv m.inputExp m.inputVal out Results.LazyNil)
+  in
+  case updatedExp of
+    Results.Errs msg -> Debug.log ("Could not update: " ++ msg) m
+    Results.Oks solutions ->
+      let firstValidSolution = Results.findFirst (
+          \(env, exp) -> env == Eval.initEnv
+          ) solutions
+      in
+      case firstValidSolution of
+        Nothing -> let _ = Debug.log "No updates not modifying the environment." () in
+          case solutions of
+            Results.LazyNil -> let _ = Debug.log "More precisely, there was no solution" () in
+              m
+            Results.LazyCons (_, newCodeExp) _ -> let _ = Debug.log "There was at least one solution, but the environments would have differed" () in
+              upstateRun { m | code = Syntax.unparser m.syntax newCodeExp }
+        Just (_, newCodeExp) ->
+          upstateRun { m | code = Syntax.unparser m.syntax newCodeExp }
+
+
 --------------------------------------------------------------------------------
 
 showCodePreview old code =
@@ -1895,6 +1943,7 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
         , inputVal      = val
+        , valueEditorString = Update.valToString val
         , history       = addToHistory code old.history
         , slate         = slate
         , preview       = Nothing
@@ -2236,6 +2285,7 @@ handleNew template = (\old ->
         let code = Syntax.unparser old.syntax e in
         { initModel | inputExp      = e
                     , inputVal      = v
+                    , valueEditorString = Update.valToString v
                     , code          = code
                     , lastRunCode   = code
                     , history       = ([code],[])

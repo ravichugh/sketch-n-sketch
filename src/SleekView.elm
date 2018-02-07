@@ -39,8 +39,6 @@ import Lang exposing (Exp)
 import Syntax
 import File
 import Eval
-import Update
-import Results
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -1414,32 +1412,11 @@ outputPanel model =
               -- [ Html.text (Lang.strVal model.inputVal) ]
               [ Html.text model.valueEditorString ]
           , Html.button
-              [ E.onClick (Msg "Call Update" (\m ->
-                let updatedExp = Syntax.parser m.syntax m.valueEditorString
-                  |> Result.mapError (\e -> toString e)
-                  |> Result.andThen (Eval.doEval m.syntax [])
-                  |> Result.map (\((v, _), _) -> Update.Raw v)
-                  |> Results.fromResult
-                  |> Results.andThen (\out -> Update.update Eval.initEnv m.inputExp m.inputVal out Results.LazyNil)
-                in
-                case updatedExp of
-                  Results.Errs msg -> Debug.log ("Could not update: " ++ msg) m
-                  Results.Oks solutions ->
-                    let firstValidSolution = Results.findFirst (
-                        \(env, exp) -> env == Eval.initEnv
-                        ) solutions
-                    in
-                    case firstValidSolution of
-                      Nothing -> let _ = Debug.log "No updates not modifying the environment." () in
-                        case solutions of
-                          Results.LazyNil -> let _ = Debug.log "More precisely, there was no solution" () in
-                            m
-                          Results.LazyCons (_, newCodeExp) _ -> let _ = Debug.log "There was at least one solution, but the environments would have differed" () in
-                            Controller.upstateRun { m | code = Syntax.unparser m.syntax newCodeExp }
-                      Just (_, newCodeExp) ->
-                        Controller.upstateRun { m | code = Syntax.unparser m.syntax newCodeExp } ))
+              [ E.onClick Controller.msgCallUpdate
+              , Attr.style -- TODO
+                  [ ("font-size", "16px") ]
               ]
-              [ Html.text "Update" ]
+              [ Html.text "Update (⌘Enter)" ]
           ]
         (Nothing, _, _) ->
           Canvas.build canvasDim model
