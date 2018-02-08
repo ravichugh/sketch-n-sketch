@@ -40,8 +40,7 @@ nodeCount exp =
     -- Cases have a set of parens around each branch. I suppose each should count as a node.
     ECase _ e1 bs _         -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
     ETypeCase _ e1 tbs _    -> 1 + (List.length tbs) + nodeCount e1 + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
-    -- ETypeCase _ e1 tbranches _  ->
-    EApp _ e1 es _ _          -> 1 + nodeCount e1 + expsNodeCount es
+    EApp _ e1 es _ _        -> 1 + nodeCount e1 + expsNodeCount es
     ELet _ _ _ p e1 e2 _    -> 1 + patNodeCount p + nodeCount e1 + nodeCount e2
     EComment _ _ e1         -> 0 + nodeCount e1 -- Comments don't count.
     EOption _ _ _ _ e1      -> 1 + nodeCount e1
@@ -86,7 +85,7 @@ subExpsOfSizeAtLeast_ min exp =
         -- Cases have a set of parens around each branch. I suppose each should count as a node.
         ECase _ e1 bs _         -> 1 + (List.length bs) + patsNodeCount (branchPats bs)
         ETypeCase _ e1 tbs _    -> 1 + (List.length tbs) + typesNodeCount (tbranchTypes tbs)
-        EApp _ e1 es _ _          -> 1
+        EApp _ e1 es _ _        -> 1
         ELet _ _ _ p e1 e2 _    -> 1 + patNodeCount p
         EComment _ _ e1         -> 0 -- Comments don't count.
         EOption _ _ _ _ e1      -> 1
@@ -625,7 +624,7 @@ simpleExpNameWithDefault default exp =
   case (expValueExp exp).val.e__ of
     EConst _ _ _ _        -> "num"
     EVar _ ident          -> ident
-    EApp _ funE _ _ _       -> expToMaybeIdent funE |> Maybe.withDefault default
+    EApp _ funE _ _ _     -> expToMaybeIdent funE |> Maybe.withDefault default
     EList _ _ _ _ _       -> "list"
     EOp _ _ es _          -> List.map (simpleExpNameWithDefault default) es |> Utils.findFirst ((/=) default) |> Maybe.withDefault default
     EBase _ ENull         -> "null"
@@ -2158,7 +2157,7 @@ numericLetBoundIdentifiers program =
       EBase _ _      -> False
       EVar _ ident   -> Set.member ident numericIdents
       EFun _ _ _ _   -> False
-      EApp _ _ _ _ _   -> False -- Not smart here.
+      EApp _ _ _ _ _ -> False -- Not smart here.
       EOp _ op operands _ ->
         case op.val of
           Pi         -> True
@@ -2292,7 +2291,7 @@ transformVarsUntilBound subst exp =
       in
       replaceE__ exp (ETypeCase ws1 newScrutinee newTBranches ws2)
 
-    EApp ws1 e1 es appType ws2              -> replaceE__ exp (EApp ws1 (recurse e1) (List.map recurse es) appType ws2)
+    EApp ws1 e1 es appType ws2      -> replaceE__ exp (EApp ws1 (recurse e1) (List.map recurse es) appType ws2)
     ELet ws1 kind False p e1 e2 ws2 ->
       replaceE__ exp (ELet ws1 kind False p (recurse e1) (recurseWithout (identifiersSetInPat p) e2) ws2)
 
@@ -2388,7 +2387,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
       ret <| Utils.unionAll (scrutineeResult::branchResults)
 
     ETypeCase _ scrutinee tbranches _ -> ret <| recurseAllChildren ()
-    EApp _ e1 es _ _                    -> ret <| recurseAllChildren ()
+    EApp _ e1 es _ _                  -> ret <| recurseAllChildren ()
     ELet _ kind False p e1 e2 _       ->
       let assignResult = recurse e1 in
       let bodyResult   = recurseWithNewIdents [p] e2 in
@@ -2892,7 +2891,7 @@ expEnvAt_ exp targetEId =
                 (\(Branch_ _ bPat bExp _) -> recurse bExp |> Maybe.map (addBindingsFrom bPat bExp))
 
       ETypeCase _ scrutinee tbranches _ -> recurseAllChildren ()
-      EApp _ e1 es _ _                    -> recurseAllChildren ()
+      EApp _ e1 es _ _                  -> recurseAllChildren ()
       ELet _ kind False p e1 e2 _       ->
         case recurse e1 of
           Just bindings ->

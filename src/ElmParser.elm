@@ -861,6 +861,8 @@ opFromIdentifier identifier =
       Just DictRemove
     "debug" ->
       Just DebugLog
+    "noWidgets" ->
+      Just NoWidgets
     _ ->
       Nothing
 

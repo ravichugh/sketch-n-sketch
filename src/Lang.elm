@@ -1892,24 +1892,26 @@ allWhitespaces_ exp =
     [ws1] ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
   in
   case exp.val.e__ of
-    EBase      ws v                     -> [ws]
-    EConst     ws n l wd                -> [ws]
-    EVar       ws x                     -> [ws]
-    EFun       ws1 ps e1 ws2            -> [ws1] ++ List.concatMap allWhitespacesPat_ ps ++ allWhitespaces_ e1 ++ [ws2]
-    EApp       ws1 e1 es apptype ws2    -> [ws1] ++ List.concatMap allWhitespaces_ (e1::es) ++ [ws2]
-    EList      ws1 es ws2 rest ws3      -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2] ++ (rest |> Maybe.map allWhitespaces_ |> Maybe.withDefault []) ++ [ws3]
-    EOp        ws1 op es ws2            -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2]
-    EIf        ws1 e1 e2 e3 ws2         -> [ws1] ++ List.concatMap allWhitespaces_ [e1, e2, e3] ++ [ws2]
-    ELet       ws1 kind rec p e1 e2 ws2 -> [ws1] ++ allWhitespacesPat_ p ++ allWhitespaces_ e1 ++ allWhitespaces_ e2 ++ [ws2]
-    ECase      ws1 e1 bs ws2            -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesBranch bs ++ [ws2]
-    ETypeCase  ws1 e1 bs ws2            -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesTBranch bs ++ [ws2]
-    EComment   ws s e1                  -> [ws] ++ allWhitespaces_ e1
-    EOption    ws1 s1 ws2 s2 e1         -> [ws1, ws2] ++ allWhitespaces_ e1
-    ETyp       ws1 pat tipe e ws2       -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
-    EColonType ws1 e ws2 tipe ws3       -> [ws1] ++ allWhitespaces_ e ++ [ws2] ++ allWhitespacesType_ tipe ++ [ws2]
-    ETypeAlias ws1 pat tipe e ws2       -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
-    EParens    ws1 e ws2                -> [ws1] ++ allWhitespaces_ e ++ [ws2]
-    EHole      ws mv                    -> [ws]
+    EBase      ws v                         -> [ws]
+    EConst     ws n l wd                    -> [ws]
+    EVar       ws x                         -> [ws]
+    EFun       ws1 ps e1 ws2                -> [ws1] ++ List.concatMap allWhitespacesPat_ ps ++ allWhitespaces_ e1 ++ [ws2]
+    EApp       ws1 e1 es SpaceApp ws3       -> [ws1] ++ List.concatMap allWhitespaces_ (e1::es) ++ [ws3]
+    EApp       ws1 e1 es (LeftApp ws2) ws3  -> [ws1] ++ allWhitespaces_ e1 ++ [ws2] ++ List.concatMap allWhitespaces_ es ++ [ws3]
+    EApp       ws1 e1 es (RightApp ws2) ws3 -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2] ++ allWhitespaces_ e1 ++ [ws3]
+    EList      ws1 es ws2 rest ws3          -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2] ++ (rest |> Maybe.map allWhitespaces_ |> Maybe.withDefault []) ++ [ws3]
+    EOp        ws1 op es ws2                -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2]
+    EIf        ws1 e1 e2 e3 ws2             -> [ws1] ++ List.concatMap allWhitespaces_ [e1, e2, e3] ++ [ws2]
+    ELet       ws1 kind rec p e1 e2 ws2     -> [ws1] ++ allWhitespacesPat_ p ++ allWhitespaces_ e1 ++ allWhitespaces_ e2 ++ [ws2]
+    ECase      ws1 e1 bs ws2                -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesBranch bs ++ [ws2]
+    ETypeCase  ws1 e1 bs ws2                -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesTBranch bs ++ [ws2]
+    EComment   ws s e1                      -> [ws] ++ allWhitespaces_ e1
+    EOption    ws1 s1 ws2 s2 e1             -> [ws1, ws2] ++ allWhitespaces_ e1
+    ETyp       ws1 pat tipe e ws2           -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
+    EColonType ws1 e ws2 tipe ws3           -> [ws1] ++ allWhitespaces_ e ++ [ws2] ++ allWhitespacesType_ tipe ++ [ws2]
+    ETypeAlias ws1 pat tipe e ws2           -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
+    EParens    ws1 e ws2                    -> [ws1] ++ allWhitespaces_ e ++ [ws2]
+    EHole      ws mv                        -> [ws]
 
 
 allWhitespacesPat : Pat -> List String

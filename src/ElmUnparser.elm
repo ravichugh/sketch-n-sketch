@@ -179,6 +179,15 @@ unparseBranch branch =
         ++ unparse e
         ++ ";"
 
+wrapWithTightParens : String -> String
+wrapWithTightParens unparsed =
+  let
+    trimmed    = String.trimLeft unparsed
+    lengthDiff = String.length unparsed - String.length trimmed
+    ws         = String.left lengthDiff unparsed
+  in
+  ws ++ "(" ++ trimmed ++ ")"
+
 unparse : Exp -> String
 unparse e =
   case e.val.e__ of
@@ -204,21 +213,13 @@ unparse e =
         ++ unparse body
 
     EApp wsBefore function arguments appType _ ->
-      -- NOTE: to help with converting Little to Elm
+      -- Not just for help converting Little to Elm. Allows synthesis ot not have to worry about so many cases.
       let unparseArg e =
         case e.val.e__ of
-          EApp ws1 f args appType2 ws2 ->
-            ws1.val
-              ++ "("
-              ++ unparse (replaceE__ e (EApp { ws1 | val = "" } f args appType ws2))
-              ++ ")"
-          EOp ws1 f args ws2 ->
-            ws1.val
-              ++ "("
-              ++ unparse (replaceE__ e (EOp { ws1 | val = "" } f args ws2))
-              ++ ")"
-          _ ->
-            unparse e
+          EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
+          EOp _ _ _ _          -> wrapWithTightParens (unparse e)
+          EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
+          _                    -> unparse e
       in
       case appType of
         SpaceApp ->
@@ -235,7 +236,7 @@ unparse e =
                 ++ lws.val
                 ++ "<|"
                 ++ unparse arg
-            _ -> "?[internal error]?"
+            _ -> "?[internal error EApp LeftApp wrong number of arguments]?"
         RightApp rws ->
           case arguments of
             [arg] ->
@@ -244,7 +245,7 @@ unparse e =
                 ++ rws.val
                 ++ "|>"
                 ++ wrapWithParensIfLessEqPrecedence e function (unparse function)
-            _ -> "?[internal error]?"
+            _ -> "?[internal error EApp RightApp wrong number of arguments]?"
 
     EOp wsBefore op arguments _ ->
       let
@@ -414,8 +415,9 @@ getExpPrecedence: Exp -> Int
 getExpPrecedence exp =
   case exp.val.e__ of
     EList _ [head] _ (Just tail) _ -> 5
-    EApp _ _ _ (LeftApp _) _ -> 0
-    EApp _ _ _ (RightApp _) _ -> 0
+    EApp _ _ _ (LeftApp _) _       -> 0
+    EApp _ _ _ (RightApp _) _      -> 0
+    EColonType _ _ _ _ _           -> -1
     EOp _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
         Nothing -> 10
@@ -424,11 +426,11 @@ getExpPrecedence exp =
 
 wrapWithParensIfLessPrecedence: Exp -> Exp -> String -> String
 wrapWithParensIfLessPrecedence outsideExp insideExp unparsedInsideExpr =
-  if getExpPrecedence insideExp < getExpPrecedence outsideExp then "(" ++ unparsedInsideExpr ++ ")" else unparsedInsideExpr
+  if getExpPrecedence insideExp < getExpPrecedence outsideExp then wrapWithTightParens unparsedInsideExpr else unparsedInsideExpr
 
 wrapWithParensIfLessEqPrecedence: Exp -> Exp -> String -> String
 wrapWithParensIfLessEqPrecedence outsideExp insideExp unparsedInsideExpr =
-  if getExpPrecedence insideExp <= getExpPrecedence outsideExp then "(" ++ unparsedInsideExpr ++ ")" else unparsedInsideExpr
+  if getExpPrecedence insideExp <= getExpPrecedence outsideExp then wrapWithTightParens unparsedInsideExpr else unparsedInsideExpr
 
 getPatPrecedence: Pat -> Int
 getPatPrecedence pat =
@@ -445,8 +447,8 @@ getPatPrecedence pat =
 
 wrapPatternWithParensIfLessPrecedence: Pat -> Pat -> String -> String
 wrapPatternWithParensIfLessPrecedence outsidePat insidePat unparsedInsidePat =
-  if getPatPrecedence insidePat < getPatPrecedence outsidePat then "(" ++ unparsedInsidePat ++ ")" else unparsedInsidePat
+  if getPatPrecedence insidePat < getPatPrecedence outsidePat then wrapWithTightParens unparsedInsidePat else unparsedInsidePat
 
 wrapPatternWithParensIfLessEqPrecedence: Pat -> Pat -> String -> String
 wrapPatternWithParensIfLessEqPrecedence outsidePat insidePat unparsedInsidePat =
-  if getPatPrecedence insidePat <= getPatPrecedence outsidePat then "(" ++ unparsedInsidePat ++ ")" else unparsedInsidePat
+  if getPatPrecedence insidePat <= getPatPrecedence outsidePat then wrapWithTightParens unparsedInsidePat else unparsedInsidePat
