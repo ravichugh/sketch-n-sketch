@@ -366,13 +366,11 @@ unparse e =
 
     Lang.EColonType wsBefore term wsBeforeColon typ wsAfter ->
       wsBefore.val
-        ++ "("
         ++ unparse term
         ++ wsBeforeColon.val
         ++ ":"
         ++ unparseType typ
         ++ wsAfter.val
-        ++ ")"
 
     Lang.ETyp _ name typ rest wsBeforeColon ->
       unparsePattern name

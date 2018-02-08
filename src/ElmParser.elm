@@ -1184,8 +1184,8 @@ colonType =
 --------------------------------------------------------------------------------
 
 -- Not a function application nor a binary operator
-simpleExpression : Parser Exp
-simpleExpression =
+simpleUntypedExpression : Parser Exp
+simpleUntypedExpression =
   lazy <| \_ ->
     oneOf
       [ constantExpression
@@ -1198,7 +1198,6 @@ simpleExpression =
       , lazy <| \_ -> letBinding
       , lazy <| \_ -> lineComment
       , lazy <| \_ -> option
-      , lazy <| \_ -> colonType
       , lazy <| \_ -> parens
       , lazy <| \_ -> hole
       -- , lazy <| \_ -> typeCaseExpression
@@ -1206,6 +1205,32 @@ simpleExpression =
       -- , lazy <| \_ -> typeDeclaration
       , variableExpression
       ]
+
+simpleExpression : Parser Exp
+simpleExpression =
+  lazy <| \_ ->
+    ( succeed (\untypedExp mbType ->
+        case mbType of
+          Nothing -> untypedExp
+          Just (wsColon, typ) ->
+            withInfo
+              ( exp_ <|
+                  EColonType space0 untypedExp wsColon typ space0
+              )
+              untypedExp.start typ.end
+      )
+      |= simpleUntypedExpression
+      |= ParserUtils.optional spaceColonType
+    )
+
+spaceColonType: Parser (WS, Type)
+spaceColonType =
+  lazy <| \_ ->
+     try ( succeed (,)
+          |= spaces
+          |. symbol ":"
+          |= typ
+     )
 
 -- Either a simple expression or a function application
 simpleExpressionWithPossibleArguments : Parser Exp
