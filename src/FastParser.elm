@@ -926,7 +926,7 @@ functionApplication =
       lazy <| \_ ->
         parenBlock
           ( \wsStart (f, x) wsEnd ->
-              EApp wsStart f x wsEnd
+              EApp wsStart f x SpaceApp wsEnd
           )
           ( succeed (,)
               |= exp

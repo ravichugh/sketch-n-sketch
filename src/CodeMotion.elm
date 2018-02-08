@@ -1783,7 +1783,7 @@ abstractPVar syntax pathedPatId perhapsArgEIds originalProgram =
             in
             let newScopeBody =
               let varToApp varExp =
-                replaceE__PreservingPrecedingWhitespace varExp (EApp space0 (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") space0)
+                replaceE__PreservingPrecedingWhitespace varExp (EApp space0 (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") SpaceApp space0)
               in
               transformVarsUntilBound (Dict.singleton ident varToApp) scopeBody
             in
@@ -1896,14 +1896,14 @@ addArg_ syntax pathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody origin
                         |> mapFoldExp
                             (\exp funcVarUsagesTransformed ->
                               case exp.val.e__ of
-                                EApp appWs1 appFuncExp appArgs appWs2 ->
+                                EApp appWs1 appFuncExp appArgs appType appWs2 ->
                                   if Set.member appFuncExp.val.eid funcVarUsageEIds then
                                     case addExpToExpsByPath (Parser.clearAllIds argValExp) path appArgs of
                                       Nothing ->
                                         (exp, funcVarUsagesTransformed)
 
                                       Just newAppArgs ->
-                                        ( replaceE__ exp <| EApp appWs1 appFuncExp newAppArgs appWs2
+                                        ( replaceE__ exp <| EApp appWs1 appFuncExp newAppArgs appType appWs2
                                         , Set.insert appFuncExp.val.eid funcVarUsagesTransformed
                                         )
                                   else
@@ -2110,7 +2110,7 @@ removeArg syntax pathedPatId originalProgram =
                     |> List.filterMap
                         (\exp ->
                           case exp.val.e__ of
-                            EApp appWs1 appFuncExp appArgs appWs2 ->
+                            EApp appWs1 appFuncExp appArgs appType appWs2 ->
                               if Set.member appFuncExp.val.eid funcVarUsageEIds then
                                 pluckExpFromExpsByPath path appArgs
                                 |> Maybe.map
@@ -2120,7 +2120,7 @@ removeArg syntax pathedPatId originalProgram =
                                         then [ eTuple [] ]
                                         else remainingArgs
                                       in
-                                      (exp.val.eid, replaceE__ exp (EApp appWs1 appFuncExp newAppArgs appWs2), appFuncExp.val.eid, pluckedExp)
+                                      (exp.val.eid, replaceE__ exp (EApp appWs1 appFuncExp newAppArgs appType appWs2), appFuncExp.val.eid, pluckedExp)
                                     )
                               else
                                 Nothing
@@ -2343,11 +2343,11 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
                         |> mapFoldExp
                             (\exp funcVarUsagesTransformed ->
                               case exp.val.e__ of
-                                EApp appWs1 appFuncExp appArgs appWs2 ->
+                                EApp appWs1 appFuncExp appArgs appType appWs2 ->
                                   if Set.member appFuncExp.val.eid funcVarUsageEIds then
                                     case tryReorderExps pathsRemoved1 targetPath pathsRemoved2 appArgs of
                                       Just newExps ->
-                                        ( replaceE__ exp (EApp appWs1 appFuncExp newExps appWs2)
+                                        ( replaceE__ exp (EApp appWs1 appFuncExp newExps appType appWs2)
                                         , Set.insert appFuncExp.val.eid funcVarUsagesTransformed
                                         )
 
@@ -2424,7 +2424,7 @@ reorderExpressionsTransformation originalProgram selections =
           let sharedAncestorEId = sharedAncestor.val.eid in
           case sharedAncestor.val.e__ of
             EList ws1 listExps ws2 maybeTail ws3 -> reorder sharedAncestorEId listExps (\newListExps -> EList ws1 newListExps ws2 maybeTail ws3)
-            EApp ws1 fExp argExps ws2            -> reorder sharedAncestorEId argExps  (\newArgExps  -> EApp ws1 fExp newArgExps ws2)
+            EApp ws1 fExp argExps appType ws2    -> reorder sharedAncestorEId argExps  (\newArgExps  -> EApp ws1 fExp newArgExps appType ws2)
             EOp ws1 op operands ws2              -> reorder sharedAncestorEId operands (\newOperands -> EOp ws1 op newOperands ws2)
             _                                    -> Nothing
 

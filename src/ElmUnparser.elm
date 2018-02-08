@@ -62,10 +62,10 @@ unparsePattern p =
 
     PList wsBefore [head] wsMiddle (Just tail) wsBeforeEnd ->
       wsBefore.val -- Should be empty
-        ++ wrapPatternWithParensIfNeeded p head (unparsePattern head)
+        ++ wrapPatternWithParensIfLessPrecedence p head (unparsePattern head)
         ++ wsMiddle.val
         ++ "::"
-        ++ wrapPatternWithParensIfNeeded p tail (unparsePattern tail)
+        ++ wrapPatternWithParensIfLessPrecedence p tail (unparsePattern tail)
         ++ wsBeforeEnd.val -- Should be empty
 
     PList wsBefore (head::headTail) wsMiddle (Just tail) wsBeforeEnd ->
@@ -75,7 +75,7 @@ unparsePattern p =
       unparsePattern tail
 
     PAs wsName name wsBeforeAs pat ->
-      wrapPatternWithParensIfNeeded p pat (unparsePattern pat)
+      wrapPatternWithParensIfLessPrecedence p pat (unparsePattern pat)
         ++ wsBeforeAs.val
         ++ "as"
         ++ wsName.val
@@ -203,14 +203,14 @@ unparse e =
         ++ " ->"
         ++ unparse body
 
-    EApp wsBefore function arguments _ ->
+    EApp wsBefore function arguments appType _ ->
       -- NOTE: to help with converting Little to Elm
       let unparseArg e =
         case e.val.e__ of
-          EApp ws1 f args ws2 ->
+          EApp ws1 f args appType2 ws2 ->
             ws1.val
               ++ "("
-              ++ unparse (replaceE__ e (EApp { ws1 | val = "" } f args ws2))
+              ++ unparse (replaceE__ e (EApp { ws1 | val = "" } f args appType ws2))
               ++ ")"
           EOp ws1 f args ws2 ->
             ws1.val
@@ -220,26 +220,46 @@ unparse e =
           _ ->
             unparse e
       in
-      wsBefore.val
-        ++ unparse function
-        -- NOTE: to help with converting Little to Elm
-        -- ++ String.concat (List.map unparse arguments)
-        ++ String.concat (List.map unparseArg arguments)
+      case appType of
+        SpaceApp ->
+          wsBefore.val
+            ++ unparse function
+            -- NOTE: to help with converting Little to Elm
+            -- ++ String.concat (List.map unparse arguments)
+            ++ String.concat (List.map unparseArg arguments)
+        LeftApp lws ->
+          case arguments of
+            [arg] ->
+              wsBefore.val
+                ++ wrapWithParensIfLessEqPrecedence e function (unparse function)
+                ++ lws.val
+                ++ "<|"
+                ++ unparse arg
+            _ -> "?[internal error]?"
+        RightApp rws ->
+          case arguments of
+            [arg] ->
+              wsBefore.val
+                ++ unparse arg
+                ++ rws.val
+                ++ "|>"
+                ++ wrapWithParensIfLessEqPrecedence e function (unparse function)
+            _ -> "?[internal error]?"
 
     EOp wsBefore op arguments _ ->
       let
         default =
           wsBefore.val
             ++ unparseOp op
-            ++ String.concat (List.map (\x -> wrapWithParensIfNeeded e x (unparse x)) arguments)
+            ++ String.concat (List.map (\x -> wrapWithParensIfLessPrecedence e x (unparse x)) arguments)
       in
         if ElmLang.isInfixOperator op then
           case arguments of
             [ left, right ] ->
-              wrapWithParensIfNeeded e left (unparse left)
+              wrapWithParensIfLessPrecedence e left (unparse left)
                 ++ wsBefore.val
                 ++ unparseOp op
-                ++ wrapWithParensIfNeeded e right (unparse right)
+                ++ wrapWithParensIfLessPrecedence e right (unparse right)
             _ ->
               default
         else
@@ -254,10 +274,10 @@ unparse e =
 
     EList wsBefore [head] wsmiddle (Just tail) wsBeforeEnd ->
       wsBefore.val -- Should be empty
-        ++ wrapWithParensIfNeeded e head (unparse head)
+        ++ wrapWithParensIfLessPrecedence e head (unparse head)
         ++ wsmiddle.val
         ++ "::"
-        ++ wrapWithParensIfNeeded e tail (unparse tail)
+        ++ wrapWithParensIfLessPrecedence e tail (unparse tail)
         ++ wsBeforeEnd.val -- Should be empty
 
     -- Obsolete, remove whenever we are sure that there are no mutliple cons anymore.
@@ -394,16 +414,21 @@ getExpPrecedence: Exp -> Int
 getExpPrecedence exp =
   case exp.val.e__ of
     EList _ [head] _ (Just tail) _ -> 5
+    EApp _ _ _ (LeftApp _) _ -> 0
+    EApp _ _ _ (RightApp _) _ -> 0
     EOp _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
         Nothing -> 10
         Just (associativity, precedence) -> precedence
     _ -> 10
 
-wrapWithParensIfNeeded: Exp -> Exp -> String -> String
-wrapWithParensIfNeeded outsideExp insideExp unparsedInsideExpr =
+wrapWithParensIfLessPrecedence: Exp -> Exp -> String -> String
+wrapWithParensIfLessPrecedence outsideExp insideExp unparsedInsideExpr =
   if getExpPrecedence insideExp < getExpPrecedence outsideExp then "(" ++ unparsedInsideExpr ++ ")" else unparsedInsideExpr
 
+wrapWithParensIfLessEqPrecedence: Exp -> Exp -> String -> String
+wrapWithParensIfLessEqPrecedence outsideExp insideExp unparsedInsideExpr =
+  if getExpPrecedence insideExp <= getExpPrecedence outsideExp then "(" ++ unparsedInsideExpr ++ ")" else unparsedInsideExpr
 
 getPatPrecedence: Pat -> Int
 getPatPrecedence pat =
@@ -418,6 +443,10 @@ getPatPrecedence pat =
         Just (associativity, precedence) -> precedence
     _ -> 10
 
-wrapPatternWithParensIfNeeded: Pat -> Pat -> String -> String
-wrapPatternWithParensIfNeeded outsidePat insidePat unparsedInsidePat =
+wrapPatternWithParensIfLessPrecedence: Pat -> Pat -> String -> String
+wrapPatternWithParensIfLessPrecedence outsidePat insidePat unparsedInsidePat =
   if getPatPrecedence insidePat < getPatPrecedence outsidePat then "(" ++ unparsedInsidePat ++ ")" else unparsedInsidePat
+
+wrapPatternWithParensIfLessEqPrecedence: Pat -> Pat -> String -> String
+wrapPatternWithParensIfLessEqPrecedence outsidePat insidePat unparsedInsidePat =
+  if getPatPrecedence insidePat <= getPatPrecedence outsidePat then "(" ++ unparsedInsidePat ++ ")" else unparsedInsidePat

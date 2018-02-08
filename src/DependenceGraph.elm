@@ -291,7 +291,7 @@ traverse env exp acc =
     EConst _ _ _ _  -> acc
     EBase _ _       -> acc
 
-    EApp _ e es _     -> recurse (e::es)
+    EApp _ e es _ _     -> recurse (e::es)
     EOp _ _ es _      -> recurse es
     EIf _ e1 e2 e3 _  -> recurse [e1, e2, e3]
 

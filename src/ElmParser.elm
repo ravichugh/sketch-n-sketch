@@ -213,8 +213,10 @@ symbolIdentifier : ParserI Ident
 symbolIdentifier =
   trackInfo <|
     oneOf
-      [ keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|'))
-      , keep (Exactly 2) (\x -> x == ':')
+      [ source (symbol "<|")
+      , source (symbol "|>")
+      , source (symbol "::")
+      , keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|'))
       ]
 
 patternSymbolIdentifier : ParserI Ident
@@ -1184,8 +1186,8 @@ colonType =
 --------------------------------------------------------------------------------
 
 -- Not a function application nor a binary operator
-simpleUntypedExpression : Parser Exp
-simpleUntypedExpression =
+simpleExpression : Parser Exp
+simpleExpression =
   lazy <| \_ ->
     oneOf
       [ constantExpression
@@ -1206,23 +1208,6 @@ simpleUntypedExpression =
       , variableExpression
       ]
 
-simpleExpression : Parser Exp
-simpleExpression =
-  lazy <| \_ ->
-    ( succeed (\untypedExp mbType ->
-        case mbType of
-          Nothing -> untypedExp
-          Just (wsColon, typ) ->
-            withInfo
-              ( exp_ <|
-                  EColonType space0 untypedExp wsColon typ space0
-              )
-              untypedExp.start typ.end
-      )
-      |= simpleUntypedExpression
-      |= ParserUtils.optional spaceColonType
-    )
-
 spaceColonType: Parser (WS, Type)
 spaceColonType =
   lazy <| \_ ->
@@ -1233,8 +1218,8 @@ spaceColonType =
      )
 
 -- Either a simple expression or a function application
-simpleExpressionWithPossibleArguments : Parser Exp
-simpleExpressionWithPossibleArguments =
+simpleUntypedExpressionWithPossibleArguments : Parser Exp
+simpleUntypedExpressionWithPossibleArguments =
   let
     combine : Exp -> List Exp -> Exp
     combine first rest =
@@ -1253,7 +1238,7 @@ simpleExpressionWithPossibleArguments =
               exp_ <|
                 let
                   default =
-                    EApp space0 first rest space0
+                    EApp space0 first rest SpaceApp space0
                 in
                   case first.val.e__ of
                     EVar wsBefore identifier ->
@@ -1276,6 +1261,23 @@ simpleExpressionWithPossibleArguments =
       succeed combine
         |= simpleExpression
         |= repeat zeroOrMore simpleExpression
+
+simpleExpressionWithPossibleArguments : Parser Exp
+simpleExpressionWithPossibleArguments =
+  lazy <| \_ ->
+    ( succeed (\untypedExp mbType ->
+        case mbType of
+          Nothing -> untypedExp
+          Just (wsColon, typ) ->
+            withInfo
+              ( exp_ <|
+                  EColonType space0 untypedExp wsColon typ space0
+              )
+              untypedExp.start typ.end
+      )
+      |= simpleUntypedExpressionWithPossibleArguments
+      |= ParserUtils.optional spaceColonType
+    )
 
 expression : Parser Exp
 expression =
@@ -1317,6 +1319,14 @@ expression =
                       withInfo (exp_ <|
                         EList space0 [left] wsBefore (Just right) space0
                       ) left.start right.end
+                    else if identifier == "<|" then
+                      withInfo (exp_ <|
+                        EApp space0 left [right] (LeftApp wsBefore) space0
+                      ) left.start right.end
+                    else if identifier == "|>" then
+                      withInfo (exp_ <|
+                        EApp space0 right [left] (RightApp wsBefore) space0
+                      ) left.start right.end
                     else
                       let
                         opExp =
@@ -1329,7 +1339,7 @@ expression =
                       in
                         withInfo
                           ( exp_ <|
-                              EApp space0 opExp [ left, right ] space0
+                              EApp space0 opExp [ left, right ] SpaceApp space0
                           )
                           left.start
                           right.end

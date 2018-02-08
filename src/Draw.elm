@@ -772,7 +772,7 @@ addLambdaBounds old (_,pt2) (_,pt1) func =
   let bounds = eList (makeInts [xa,ya,xb,yb]) Nothing in
   let args = [] in
   let eNew =
-    withDummyExpInfo (EApp (ws "\n  ") (eVar0 "withBounds") [ bounds, func ] space0) in
+    withDummyExpInfo (EApp (ws "\n  ") (eVar0 "withBounds") [ bounds, func ] SpaceApp space0) in
   -- TODO refactor Program to keep (f,args) in sync with exp
   let newBlob = withBoundsBlob eNew (bounds, "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
@@ -799,7 +799,7 @@ addLambdaAnchor old click2 click1 func =
   let anchor = eAsPoint (eList (makeInts [x,y]) Nothing) in
   let args = [] in
   let eNew =
-    withDummyExpInfo (EApp (ws "\n  ") (eVar0 "withAnchor") [ anchor, func ] space0) in
+    withDummyExpInfo (EApp (ws "\n  ") (eVar0 "withAnchor") [ anchor, func ] SpaceApp space0) in
   -- TODO refactor Program to keep (f,args) in sync with exp
   let newBlob = withAnchorBlob eNew (anchor , "XXXXX", args) in
   let (defs, mainExp) = splitExp old.inputExp in
@@ -935,9 +935,9 @@ makeCallWithLocals locals func args =
     case locals of
       [] ->
         -- if multi then
-        withDummyExpInfo (EApp (ws "\n    ") func args space0)
+        withDummyExpInfo (EApp (ws "\n    ") func args SpaceApp space0)
         -- else
-        --   let app = withDummyExpInfo (EApp space1 func args space0) in
+        --   let app = withDummyExpInfo (EApp space1 func args SpaceApp space0) in
         --   withDummyExpInfo (EList (ws "\n    ") [app] space0 Nothing space1)
       (p,e)::locals_ -> withDummyExpInfo (ELet (ws "\n  ") Let False p e (recurse locals_) space0)
   in
@@ -974,11 +974,11 @@ addToMainExp newBlob mainExp =
     OtherExp main ->
       let wsN = ws "\n" in -- TODO take main into account
       OtherExp <| withDummyExpInfo <|
-        EApp (wsN) (eVar0 "addBlob") [fromBlobExp newBlob, main] space0
+        EApp (wsN) (eVar0 "addBlob") [fromBlobExp newBlob, main] SpaceApp space0
 
 maybeGhost b f args =
   if b
-    then (eVar0 "ghost", [ withDummyExpInfo (EApp space1 f args space0) ])
+    then (eVar0 "ghost", [ withDummyExpInfo (EApp space1 f args SpaceApp space0) ])
     else (f, args)
 
 ghost = maybeGhost True
@@ -1036,7 +1036,7 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
           in
           case Utils.findFirst pred withBlobs of
             Nothing               -> []
-            Just (Left (f,args))  -> [LambdaBounds <| withDummyExpInfo (EApp space1 (eVar0 f) args space0)]
+            Just (Left (f,args))  -> [LambdaBounds <| withDummyExpInfo (EApp space1 (eVar0 f) args SpaceApp space0)]
             Just (Right (f,args)) ->
               let maybeViewBoxAndAnchor =
                 --
@@ -1052,7 +1052,7 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
                   argsAndAnchor =
                     args ++ [eTuple [eConstDummyLoc xAnchor, eConstDummyLoc yAnchor]]
                   exp =
-                    withDummyExpInfo (EApp space1 (eVar0 f) argsAndAnchor space0)
+                    withDummyExpInfo (EApp space1 (eVar0 f) argsAndAnchor SpaceApp space0)
                   ((val, _), _) =
                     Eval.doEval syntax finalEnv exp
                       |> Utils.fromOkay "lambdaToolOptionsOf LambdaAnchor"
@@ -1083,7 +1083,7 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
                     debugLog "LambdaAnchor bounds not found (1)" Nothing
               in
               [LambdaAnchor
-                 (withDummyExpInfo (EApp space1 (eVar0 f) args space0))
+                 (withDummyExpInfo (EApp space1 (eVar0 f) args SpaceApp space0))
                  maybeViewBoxAndAnchor]
           )
       in

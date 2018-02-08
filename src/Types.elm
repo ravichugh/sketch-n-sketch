@@ -810,7 +810,7 @@ synthesizeType typeInfo typeEnv e =
         (_, Nothing) ->
           finish.withError "synthesizeType: EOp ..." typeInfo
 
-    EApp _ eFunc eArgs _ -> -- [TS-App]
+    EApp _ eFunc eArgs appType _ -> -- [TS-App]
       let result1 = synthesizeType typeInfo typeEnv eFunc in
       case result1.result of
         Nothing ->

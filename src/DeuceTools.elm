@@ -1809,11 +1809,12 @@ makeSingleLineTool model selections =
                               )
                               e1
                               space0
-                          EApp ws1 e1 es ws2 ->
+                          EApp ws1 e1 es appType ws2 ->
                             EApp
                               (deLine ws1)
                               (replacePrecedingWhitespace "" e1)
                               es
+                              appType
                               space0
                           EList ws1 es ws2 rest ws3 ->
                             EList
@@ -1932,7 +1933,7 @@ makeMultiLineTool model selections =
                                )
                           |> synthesisResult "Make Multi-line"
                           |> List.singleton
-              EApp ws1 e es ws2 ->
+              EApp ws1 e es appType ws2 ->
                 if
                   es |>
                     List.all (precedingWhitespace >> String.contains "\n")
@@ -1956,6 +1957,7 @@ makeMultiLineTool model selections =
                                        ("\n" ++ indentation)
                                        es
                                    )
+                                   appType
                                    space0
                                )
                           |> synthesisResult "Make Multi-line"

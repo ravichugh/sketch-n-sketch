@@ -101,7 +101,7 @@ grossDependencies_ identToDepEId program =
         EIf _ pred trueBranch falseBranch _ -> childrenValueExpEIds exp
         ECase _ scrutinee branches _        -> childrenValueExpEIds exp
         ETypeCase _ scrutinee tbranches _   -> childrenValueExpEIds exp
-        EApp _ funcExp argExps _            -> childrenValueExpEIds exp
+        EApp _ funcExp argExps _ _          -> childrenValueExpEIds exp
         ELet _ _ isRec pat boundExp body _  -> [(expValueExp body).val.eid]
         EComment _ _ body                   -> [(expValueExp body).val.eid]
         EOption _ _ _ _ body                -> [(expValueExp body).val.eid]

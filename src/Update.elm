@@ -197,7 +197,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
               else UpdateError <| "Cannot (yet) update a list concatenation " ++ unparse e ++ " with " ++ toString elemsLength ++ " heads by list of smaller length: " ++ valToString newVal
             _ -> UpdateError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
-    EApp sp0 e1 e2s sp1 ->
+    EApp sp0 e1 e2s appType sp1 ->
       case doEval Syntax.Elm env e1 of
       Err s       -> UpdateError s
       Ok ((v1, _),_) ->
@@ -219,7 +219,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                               case newE2List.val.e__ of
                                 EList _ newE2s _ _ _ ->
                                   let finalEnv = triCombine e env newE1Env newE2Env in
-                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 newE2s sp1
+                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 newE2s appType sp1
                                 x -> Debug.crash <| "Internal error, should have get a list, got " ++ toString x
                   _          -> UpdateError <| strPos e1.start ++ "bad environment"
               VClosure (Just f) ps eBody env_ ->
@@ -238,7 +238,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                               case newE2List.val.e__ of
                                 EList _ newE2s _ _ _ ->
                                   let finalEnv = triCombine e env newE1Env newE2Env in
-                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 newE2s sp1
+                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 newE2s appType sp1
                                 x -> Debug.crash <| "Unexpected result of updating a list " ++ toString x
                   _          -> UpdateError <| strPos e1.start ++ "bad environment"
               _ ->

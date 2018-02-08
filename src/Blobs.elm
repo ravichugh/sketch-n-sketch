@@ -79,16 +79,16 @@ fromMainExp me =
 maybeSvgConcat : Exp -> Maybe MainExp
 maybeSvgConcat main =
   case main.val.e__ of
-    EApp ws1 e1 [eAppConcat] ws2 ->
+    EApp ws1 e1 [eAppConcat] appType ws2 ->
       case (e1.val.e__, eAppConcat.val.e__) of
-        (EVar _ "svg", EApp ws3 eConcat [e2] ws4) ->
+        (EVar _ "svg", EApp ws3 eConcat [e2] appType2 ws4) ->
           case (eConcat.val.e__, e2.val.e__) of
             (EVar _ "concat", EList ws5 oldList ws6 Nothing ws7) ->
               let updateExpressionList newList =
                 let
                   e2New         = replaceE__ e2 <| EList ws5 newList ws6 Nothing ws7
-                  eAppConcatNew = replaceE__ eAppConcat <| EApp ws3 eConcat [e2New] ws4
-                  mainNew       = replaceE__ main <| EApp ws1 e1 [eAppConcatNew] ws2
+                  eAppConcatNew = replaceE__ eAppConcat <| EApp ws3 eConcat [e2New] appType2 ws4
+                  mainNew       = replaceE__ main <| EApp ws1 e1 [eAppConcatNew] appType ws2
                 in
                 if ws1.val == "" then addPrecedingWhitespace "\n\n" mainNew
                 else if ws1.val == "\n" then addPrecedingWhitespace "\n" mainNew
@@ -104,14 +104,14 @@ maybeSvgConcat main =
 maybeBlobs : Exp -> Maybe MainExp
 maybeBlobs main =
   case main.val.e__ of
-    EApp ws1 eBlobs [eArgs] ws2 ->
+    EApp ws1 eBlobs [eArgs] appType ws2 ->
       case (eBlobs.val.e__, eArgs.val.e__) of
         (EVar _ "blobs", EList ws5 oldList ws6 Nothing ws7) ->
           let rebuildExp newBlobExpList =
             let newExpList = List.map fromBlobExp newBlobExpList in
             let
               eArgsNew = replaceE__ eArgs <| EList ws5 newExpList ws6 Nothing ws7
-              mainNew  = replaceE__ main <| EApp ws1 eBlobs [eArgsNew] ws2
+              mainNew  = replaceE__ main <| EApp ws1 eBlobs [eArgsNew] appType ws2
             in
             if ws1.val == "" then addPrecedingWhitespace "\n\n" mainNew
             else if ws1.val == "\n" then addPrecedingWhitespace "\n" mainNew
@@ -127,7 +127,7 @@ toBlobExp : Exp -> BlobExp
 toBlobExp e =
   case e.val.e__ of
     EVar _ x -> varBlob e x
-    EApp _ eWith [eWithArg, eFunc] _ ->
+    EApp _ eWith [eWithArg, eFunc] appType _ ->
       case (eWith.val.e__) of
         EVar _ with ->
           case eFunc.val.e__ of
@@ -136,7 +136,7 @@ toBlobExp e =
                 "withBounds" -> NiceBlob e (WithBoundsBlob (eWithArg, x, []))
                 "withAnchor" -> NiceBlob e (WithAnchorBlob (eWithArg, x, []))
                 _            -> OtherBlob e
-            EApp _ eF eArgs _ ->
+            EApp _ eF eArgs appType2 _ ->
               case eF.val.e__ of
                 EVar _ f ->
                   case with of
@@ -146,7 +146,7 @@ toBlobExp e =
                 _        -> OtherBlob e
             _ -> OtherBlob e
         _ -> OtherBlob e
-    EApp _ eFunc eArgs _ ->
+    EApp _ eFunc eArgs appType _ ->
       case eFunc.val.e__ of
         EVar _ f -> NiceBlob e (CallBlob (f, eArgs))
         _        -> OtherBlob e

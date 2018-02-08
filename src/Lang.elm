@@ -133,6 +133,8 @@ type alias Pat_ = { p__ : Pat__, pid : PId }
 --   * type alias
 --------------------------------------------------------------------------------
 
+type ApplicationType = SpaceApp | LeftApp WS | RightApp WS
+
 type Exp__
   = EConst WS Num Loc WidgetDecl
   | EBase WS EBaseVal
@@ -140,7 +142,7 @@ type Exp__
   | EFun WS (List Pat) Exp WS -- WS: before (, before )
   -- TODO remember paren whitespace for multiple pats, like TForall
   -- | EFun WS (OneOrMany Pat) Exp WS
-  | EApp WS Exp (List Exp) WS
+  | EApp WS Exp (List Exp) ApplicationType WS
   | EOp WS Op (List Exp) WS
   | EList WS (List Exp) WS (Maybe Exp) WS
   | EIf WS Exp Exp Exp WS
@@ -477,10 +479,10 @@ mapFoldExp f initAcc e =
       let (newE1, newAcc) = recurse initAcc e1 in
       wrapAndMap (EFun ws1 ps newE1 ws2) newAcc
 
-    EApp ws1 e1 es ws2 ->
+    EApp ws1 e1 es apptype ws2 ->
       let (newEs, newAcc)  = recurseAll initAcc es in
       let (newE1, newAcc2) = recurse newAcc e1 in
-      wrapAndMap (EApp ws1 newE1 newEs ws2) newAcc2
+      wrapAndMap (EApp ws1 newE1 newEs apptype ws2) newAcc2
 
     EOp ws1 op es ws2 ->
       let (newEs, newAcc) = recurseAll initAcc es in
@@ -628,10 +630,10 @@ mapFoldExpTopDown f initAcc e =
       let (newE1, newAcc2) = recurse newAcc e1 in
       ret (EFun ws1 ps newE1 ws2) newAcc2
 
-    EApp ws1 e1 es ws2 ->
+    EApp ws1 e1 es appType ws2 ->
       let (newE1, newAcc2) = recurse newAcc e1 in
       let (newEs, newAcc3) = recurseAll newAcc2 es in
-      ret (EApp ws1 newE1 newEs ws2) newAcc3
+      ret (EApp ws1 newE1 newEs appType ws2) newAcc3
 
     EOp ws1 op es ws2 ->
       let (newEs, newAcc2) = recurseAll newAcc es in
@@ -791,10 +793,10 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc e1 in
       ret (EFun ws1 ps newE1 ws2) newGlobalAcc2
 
-    EApp ws1 e1 es ws2 ->
+    EApp ws1 e1 es apptype ws2 ->
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
       let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 initScopeTempAcc es in
-      ret (EApp ws1 newE1 newEs ws2) newGlobalAcc3
+      ret (EApp ws1 newE1 newEs apptype ws2) newGlobalAcc3
 
     EOp ws1 op es ws2 ->
       let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc es in
@@ -1253,7 +1255,7 @@ childExps e =
       case m of
         Just e  -> es ++ [e]
         Nothing -> es
-    EApp ws1 f es ws2               -> f :: es
+    EApp ws1 f es apptype ws2       -> f :: es
     ELet ws1 k b p e1 e2 ws2        -> [e1, e2]
     EIf ws1 e1 e2 e3 ws2            -> [e1, e2, e3]
     ECase ws1 e branches ws2        -> e :: branchExps branches
@@ -1633,7 +1635,7 @@ eTrue  = eBool True
 eFalse = eBool False
 eNull  = withDummyExpInfo <| EBase space1 <| ENull
 
-eApp e es      = withDummyExpInfo <| EApp space1 e es space0
+eApp e es      = withDummyExpInfo <| EApp space1 e es SpaceApp space0
 eCall fName es = eApp (eVar0 fName) es
 eFun ps e      = withDummyExpInfo <| EFun space1 ps e space0
 
@@ -1858,7 +1860,7 @@ precedingWhitespaceWithInfoExp__ e__ =
     EConst     ws n l wd                -> ws
     EVar       ws x                     -> ws
     EFun       ws1 ps e1 ws2            -> ws1
-    EApp       ws1 e1 es ws2            -> ws1
+    EApp       ws1 e1 es apptype  ws2   -> ws1
     EList      ws1 es ws2 rest ws3      -> ws1
     EOp        ws1 op es ws2            -> ws1
     EIf        ws1 e1 e2 e3 ws2         -> ws1
@@ -1894,7 +1896,7 @@ allWhitespaces_ exp =
     EConst     ws n l wd                -> [ws]
     EVar       ws x                     -> [ws]
     EFun       ws1 ps e1 ws2            -> [ws1] ++ List.concatMap allWhitespacesPat_ ps ++ allWhitespaces_ e1 ++ [ws2]
-    EApp       ws1 e1 es ws2            -> [ws1] ++ List.concatMap allWhitespaces_ (e1::es) ++ [ws2]
+    EApp       ws1 e1 es apptype ws2    -> [ws1] ++ List.concatMap allWhitespaces_ (e1::es) ++ [ws2]
     EList      ws1 es ws2 rest ws3      -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2] ++ (rest |> Maybe.map allWhitespaces_ |> Maybe.withDefault []) ++ [ws3]
     EOp        ws1 op es ws2            -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2]
     EIf        ws1 e1 e2 e3 ws2         -> [ws1] ++ List.concatMap allWhitespaces_ [e1, e2, e3] ++ [ws2]
@@ -1985,7 +1987,7 @@ mapPrecedingWhitespace stringMap exp =
         EConst     ws n l wd                -> EConst     (mapWs ws) n l wd
         EVar       ws x                     -> EVar       (mapWs ws) x
         EFun       ws1 ps e1 ws2            -> EFun       (mapWs ws1) ps e1 ws2
-        EApp       ws1 e1 es ws2            -> EApp       (mapWs ws1) e1 es ws2
+        EApp       ws1 e1 es apptype ws2    -> EApp       (mapWs ws1) e1 es apptype ws2
         EList      ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
         EOp        ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
         EIf        ws1 e1 e2 e3 ws2         -> EIf        (mapWs ws1) e1 e2 e3 ws2
@@ -2438,8 +2440,8 @@ modifyWsBefore f codeObject =
               EVar (f ws) a
             EFun ws a b c ->
               EFun (f ws) a b c
-            EApp ws a b c ->
-              EApp (f ws) a b c
+            EApp ws a b c d ->
+              EApp (f ws) a b c d
             EOp ws a b c ->
               EOp (f ws) a b c
             EList ws a b c d ->
@@ -2580,7 +2582,7 @@ childCodeObjects co =
             [ E e1
             , ET After ws2 e1
             ]
-          EApp ws1 e1 es ws2 ->
+          EApp ws1 e1 es aoptype ws2 ->
             [ ET Before ws1 e
             , E e1
             ] ++

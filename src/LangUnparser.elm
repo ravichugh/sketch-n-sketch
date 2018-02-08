@@ -190,7 +190,7 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "(\\" ++ unparsePat p ++ unparse_ e1 ++ ws2.val ++ ")"
   EFun ws1 ps e1 ws2 ->
     ws1.val ++ "(\\(" ++ (String.concat (List.map unparsePat ps)) ++ ")" ++ unparse_ e1 ++ ws2.val ++ ")"
-  EApp ws1 e1 es ws2 ->
+  EApp ws1 e1 es apptype ws2 ->
     ws1.val ++ "(" ++ unparse_ e1 ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
   EList ws1 es ws2 Nothing ws3 ->
     ws1.val ++ "[" ++ (String.concat (List.map unparse_ es)) ++ ws3.val ++ "]"
@@ -255,7 +255,7 @@ unparseWithIds e =
       ws1.val ++ "(" ++ eidTag ++ "\\" ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2.val ++ ")"
     EFun ws1 ps e1 ws2 ->
       ws1.val ++ "(" ++ eidTag ++ "\\(" ++ (String.concat (List.map unparsePatWithIds ps)) ++ ")" ++ unparseWithIds e1 ++ ws2.val ++ ")"
-    EApp ws1 e1 es ws2 ->
+    EApp ws1 e1 es apptype ws2 ->
       ws1.val ++ "(" ++ unparseWithIds e1 ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")" ++ eidTag
     EList ws1 es ws2 Nothing ws3 ->
       ws1.val ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws3.val ++ "]" ++ eidTag
@@ -320,7 +320,7 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       " " ++ "(\\" ++ recursePat p ++ recurse e1 ++ " " ++ ")"
     EFun _ ps e1 _ ->
       " " ++ "(\\(" ++ (String.concat (List.map recursePat ps)) ++ ")" ++ recurse e1 ++ " " ++ ")"
-    EApp _ e1 es _ ->
+    EApp _ e1 es apptype _ ->
       " " ++ "(" ++ recurse e1 ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
     EList _ es _ Nothing _ ->
       " " ++ "[" ++ (String.concat (List.map recurse es)) ++ " " ++ "]"

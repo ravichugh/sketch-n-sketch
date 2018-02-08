@@ -313,7 +313,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> if opA.val == opB.val then Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EOp ws1A opA newEs ws2A))) |> Maybe.withDefault argVar else argVar
       (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A newEs ws2A Nothing ws3A))) |> Maybe.withDefault argVar
       (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A newEs ws2A (Just (merge eA eB)) ws3A))) |> Maybe.withDefault argVar
-      (EApp ws1A fA esA ws2A,                EApp ws1B fB esB ws2B)                -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EApp ws1A (merge fA fB) newEs ws2A))) |> Maybe.withDefault argVar
+      (EApp ws1A fA esA appA ws2A,           EApp ws1B fB esB appB ws2B)           -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EApp ws1A (merge fA fB) newEs appA ws2A))) |> Maybe.withDefault argVar
       (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> if recA == recB && patternsEqual pA pB then replaceE__ expA (ELet ws1A kindA recA pA (merge e1A e1B) (merge e2A e2B) ws2A) else argVar
       (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> replaceE__ expA (EIf ws1A (merge e1A e1B) (merge e2A e2B) (merge e3A e3B) ws2A)
       (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA, bB)   -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)   then Just (replaceE__ expA (ECase     ws1A (merge eA eB) (Utils.zip branchPairs  bValPairs  |> List.map (\((bA,  bB),  (Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B))  -> {bA  | val = Branch_  bws1A  bpatA   (merge beA  beB)  bws2A}))  ws2A)) else Nothing) |> Maybe.withDefault argVar
@@ -368,7 +368,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> generalizedMerge (opA.val == opB.val) Nothing Nothing Nothing (Just (esA, esB)) (\_ _ _ mergedEs -> EOp ws1A opA mergedEs ws2A)
       (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> generalizedMerge True Nothing Nothing Nothing (Just (esA, esB)) (\_ _ _ headMergers -> EList ws1A headMergers ws2A Nothing ws3A)
       (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> generalizedMerge True (Just (eA, eB)) Nothing Nothing (Just (esA, esB)) (\tailMerged _ _ headMergers -> EList ws1A headMergers ws2A (Just tailMerged) ws3A)
-      (EApp ws1A fA esA ws2A,                EApp ws1B fB esB ws2B)                -> generalizedMerge True (Just (fA, fB)) Nothing Nothing (Just (esA, esB)) (\fMerged _ _ argMergers -> EApp ws1A fMerged argMergers ws2A)
+      (EApp ws1A fA esA appA ws2A,           EApp ws1B fB esB appB ws2B)           -> generalizedMerge True (Just (fA, fB)) Nothing Nothing (Just (esA, esB)) (\fMerged _ _ argMergers -> EApp ws1A fMerged argMergers appA ws2A)
       (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> generalizedMerge (recA == recB && patternsEqual pA pB) (Just (e1A, e1B)) (Just (e2A, e2B)) Nothing Nothing (\e1Merged e2Merged _ _ -> ELet ws1A kindA recA pA e1Merged e2Merged ws2A)
       (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> generalizedMerge True (Just (e1A, e1B)) (Just (e2A, e2B)) (Just (e3A, e3B)) Nothing (\e1Merged e2Merged e3Merged _ -> EIf ws1A e1Merged e2Merged e3Merged ws2A)
       (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         ->
@@ -468,13 +468,13 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
             explicitFunc
           else
             case fBody.val.e__ of
-              (EApp ws1 funcE args ws2) ->
+              (EApp ws1 funcE args appType ws2) ->
                 case Utils.takeLast 1 args of
                   [lastArg] ->
                     case lastArg.val.e__ of
                       EVar _ "INSERT_ARGUMENT1_HERE" ->
                         if List.length args >= 2 then
-                          replaceE__ fBody (EApp ws1 funcE (List.take (List.length args - 1) args) ws2)
+                          replaceE__ fBody (EApp ws1 funcE (List.take (List.length args - 1) args) appType ws2)
                           |> replacePrecedingWhitespace " " -- Presume a single line application.
                         else
                           -- funcE is almost certainly an EVar
@@ -554,7 +554,7 @@ cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToA
         in
         let eidToNewE__ =
           cloneEIdsAndExpsAndParameterExpLists
-          |> List.map (\(eid, _, parameterExps) -> (eid, EApp space1 (eVar0 funcName) (List.map (replacePrecedingWhitespace " ") parameterExps) space0))
+          |> List.map (\(eid, _, parameterExps) -> (eid, EApp space1 (eVar0 funcName) (List.map (replacePrecedingWhitespace " ") parameterExps) SpaceApp space0))
           |> Dict.fromList
         in
         let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToNewE__ commonScope in
@@ -834,8 +834,10 @@ groupSelectedBlobs model (defs, blobs, f) =
                , withDummyExpInfo <| EApp space1
                    (eVar0 "concat")
                    [withDummyExpInfo <| EList space1 pluckedBlobs_ space0 Nothing space1]
+                   SpaceApp
                    space0
                ]
+               SpaceApp
                space0
            ]
            space0 Nothing space1
@@ -1000,8 +1002,10 @@ groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
                        [ withDummyExpInfo <| EApp space1
                            (eVar0 "concat")
                            [withDummyExpInfo <| EList space1 pluckedBlobs_ space0 Nothing space1]
+                           SpaceApp
                            space0
                        ]
+                       SpaceApp
                        space0
                    ]
                    space0 Nothing space1
@@ -1154,9 +1158,9 @@ abstractOne (i, eBlob, x) (defs, blobs) =
               let eBlah =
                 case listOfAnnotatedNums1 (List.map Tuple.second restOfMapping) of
                   []   -> eVar x
-                  args -> withDummyExpInfo (EApp (ws "\n    ") (eVar0 x) args space0)
+                  args -> withDummyExpInfo (EApp (ws "\n    ") (eVar0 x) args SpaceApp space0)
               in
-              withDummyExpInfo (EApp (ws "\n  ") (eVar0 "withBounds") [eBounds, eBlah] space0)
+              withDummyExpInfo (EApp (ws "\n  ") (eVar0 "withBounds") [eBounds, eBlah] SpaceApp space0)
             in
             let newBlob = NiceBlob newCall (WithBoundsBlob (eBounds, x, [])) in
             ((ws1, p, newFunc, ws2), newBlob)
@@ -1180,9 +1184,9 @@ abstractOne (i, eBlob, x) (defs, blobs) =
               let eBlah =
                 case listOfAnnotatedNums1 (List.map Tuple.second restOfMapping) of
                   []   -> eVar x
-                  args -> withDummyExpInfo (EApp space1 (eVar0 x) args space0)
+                  args -> withDummyExpInfo (EApp space1 (eVar0 x) args SpaceApp space0)
               in
-              withDummyExpInfo (EApp (ws "\n  ") (eVar0 "withAnchor") [eAnchor, eBlah] space0)
+              withDummyExpInfo (EApp (ws "\n  ") (eVar0 "withAnchor") [eAnchor, eBlah] SpaceApp space0)
             in
             let newBlob = NiceBlob newCall (WithAnchorBlob (eAnchor, x, [])) in
             ((ws1, p, newFunc, ws2), newBlob)
@@ -1196,7 +1200,7 @@ abstractOne (i, eBlob, x) (defs, blobs) =
               case listOfAnnotatedNums1 (List.map Tuple.second mapping) of
                 []   -> varBlob (eVar x) x
                 args ->
-                  let newCall = withDummyExpInfo (EApp (ws "\n  ") (eVar0 x) args space0) in
+                  let newCall = withDummyExpInfo (EApp (ws "\n  ") (eVar0 x) args SpaceApp space0) in
                   callBlob newCall (x, args)
             in
             ((ws1, p, newFunc, ws2), newBlob)
@@ -1310,7 +1314,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
 
     [(i, _, WithAnchorBlob (anchor, g, args))] ->
 
-      let eGroupFunc = withDummyExpInfo <| EApp (ws "\n    ") (eVar0 g) args space0 in
+      let eGroupFunc = withDummyExpInfo <| EApp (ws "\n    ") (eVar0 g) args SpaceApp space0 in
       let eAnchor =  replacePrecedingWhitespace "\n    " anchor in
       let (arrayFunction, arrayArgs) =
         case replicateKind of
@@ -1352,7 +1356,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
       in
       let newBlob =
         NiceBlob
-           (withDummyExpInfo <| EApp (ws "\n  ") (eVar0 arrayFunction) arrayArgs space0)
+           (withDummyExpInfo <| EApp (ws "\n  ") (eVar0 arrayFunction) arrayArgs SpaceApp space0)
            (CallBlob (arrayFunction, arrayArgs))
       in
       let blobs_ = Utils.replacei i newBlob blobs in
@@ -1361,7 +1365,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
 
     [(i, _, WithBoundsBlob (bounds, g, args))] ->
 
-      let eGroupFunc = withDummyExpInfo <| EApp (ws "\n    ") (eVar0 g) args space0 in
+      let eGroupFunc = withDummyExpInfo <| EApp (ws "\n    ") (eVar0 g) args SpaceApp space0 in
       let eBounds =  replacePrecedingWhitespace "\n    " bounds in
       let (arrayFunction, arrayArgs) =
         case replicateKind of
@@ -1393,7 +1397,7 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
       in
       let newBlob =
         NiceBlob
-           (withDummyExpInfo <| EApp (ws "\n  ") (eVar0 arrayFunction) arrayArgs space0)
+           (withDummyExpInfo <| EApp (ws "\n  ") (eVar0 arrayFunction) arrayArgs SpaceApp space0)
            (CallBlob (arrayFunction, arrayArgs))
       in
       let blobs_ = Utils.replacei i newBlob blobs in
@@ -1581,7 +1585,7 @@ mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
             List.map
                (\nums ->
                   let args = listOfAnnotatedNums1 nums in
-                  let e = withDummyExpInfo <| EApp (ws "\n  ") (eVar0 f) args space0 in
+                  let e = withDummyExpInfo <| EApp (ws "\n  ") (eVar0 f) args SpaceApp space0 in
                   callBlob e (f, args)
                ) numLists in
 
@@ -1642,18 +1646,20 @@ mergeExpressions eFirst eRest =
           (mergePatternLists (ps::psList))
           (mergeExpressions eBody eBodyList)
 
-    EApp ws1 eFunc eArgs ws2 ->
+    EApp ws1 eFunc eArgs appType ws2 ->
       let match eNext = case eNext.val.e__ of
-        EApp _ eFunc_ eArgs_ _ -> Just (eFunc_, eArgs_)
+        EApp _ eFunc_ eArgs_ appType_ _ -> Just ((eFunc_, eArgs_), appType_)
         _                      -> Nothing
       in
       matchAllAndBind match eRest <| \stuff ->
-        let (eFuncList, eArgsList) = List.unzip stuff in
-        Utils.bindMaybe2
-          (\(eFunc_,l1) (eArgs_,l2) ->
-            return (EApp ws1 eFunc_ eArgs_ ws2) (l1 ++ l2))
+        let (eFuncArgList, eAppTypeList) = List.unzip stuff in
+        let (eFuncList, eArgsList) = List.unzip eFuncArgList in
+        Utils.bindMaybe3
+          (\(eFunc_,l1) (eArgs_,l2) appType_ ->
+            return (EApp ws1 eFunc_ eArgs_ appType_ ws2) (l1 ++ l2))
           (mergeExpressions eFunc eFuncList)
           (mergeExpressionLists (eArgs::eArgsList))
+          (Just appType)
 
     ELet ws1 letKind rec p1 e1 e2 ws2 ->
       let match eNext = case eNext.val.e__ of
