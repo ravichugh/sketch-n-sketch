@@ -42,6 +42,7 @@ match (p,v) = case (p.val.p__, v.v_) of
   (PList _ _ _ _ _, _) -> Nothing
   (PConst _ n, VConst _ (n_,_)) -> if n == n_ then Just [] else Nothing
   (PBase _ bv, VBase bv_) -> if (eBaseToVBase bv) == bv_ then Just [] else Nothing
+  (PParens _ innerPat _, _) -> match (innerPat, v)
   _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
 
 
@@ -230,10 +231,10 @@ eval syntax env bt e =
           Err s              -> Err s
           _                  -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive typecase statement"
 
-  EApp _ e1 [] _ ->
+  EApp _ e1 [] _ _ ->
     errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " application with no arguments"
 
-  EApp _ e1 es _ ->
+  EApp _ e1 es _ _ ->
     case eval_ syntax env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->
@@ -292,7 +293,7 @@ eval syntax env bt e =
             errorWithBacktrace syntax (e::bt) <|
               strPos e1.start ++
               """mutually recursive functions (i.e. letrec [...] [...] e) \
-                 not yet implemented"""
+                 not yet implemented""" --"
                -- Implementation also requires modifications to LangSimplify.simply
                -- so that clean up doesn't prune the funtions.
           _ ->
