@@ -231,7 +231,7 @@ unparse e =
         default =
           wsBefore.val
             ++ unparseOp op
-            ++ String.concat (List.map unparse arguments)
+            ++ String.concat (List.map (\x -> wrapWithParensIfNeeded e x (unparse x)) arguments)
       in
         if ElmLang.isInfixOperator op then
           case arguments of
