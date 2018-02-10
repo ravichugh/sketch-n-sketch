@@ -1536,11 +1536,41 @@ allTopLevelExpressions =
 -- Programs
 --=============================================================================
 
+implicitMain : Parser Exp
+implicitMain =
+  let
+    builder p =
+      let
+        withCorrectInfo x =
+          WithInfo x p p
+        name =
+          withCorrectInfo << pat_ <|
+            PVar space1 "_IMPLICIT_MAIN" (withDummyInfo NoWidgetDecl)
+        binding =
+          withCorrectInfo << exp_ <|
+            EBase space1 (EString defaultQuoteChar "...")
+        body =
+          withCorrectInfo << exp_ <|
+            EVar space1 "main"
+      in
+        withCorrectInfo << exp_ <|
+          ELet newline2 Let False name binding body space0
+  in
+    succeed builder
+      |= getPos
+
+mainExpression : Parser Exp
+mainExpression =
+  oneOf
+    [ expression
+    , implicitMain
+    ]
+
 program : Parser Exp
 program =
   succeed fuseTopLevelExps
     |= allTopLevelExpressions
-    |= expression
+    |= mainExpression
     |. spaces
     |. end
 

@@ -323,39 +323,44 @@ unparse e =
             (_::_, False) -> " " ++ strParametersDefault
             _             -> strParametersDefault
       in
-      case letKind of
-        Let ->
-          wsBefore.val
-            ++ (if isRec then "letrec" else "let")
-            ++ unparsePattern name
-            -- NOTE: to help with converting Little to Elm
-            -- ++ String.concat (List.map unparsePattern parameters)
-            ++ strParameters
-            ++ " ="
-            ++ unparse binding
-            ++ " in"
-            ++ unparse body
+        case letKind of
+          Let ->
+            case name.val.p__ of
+              PVar _ "_IMPLICIT_MAIN" _ ->
+                ""
 
-        Def ->
-          wsBefore.val
-            -- NOTE: to help with converting Little to Elm
-            -- ++ unparsePattern name
-            ++ ( let
-                   strName =
-                     unparsePattern name
-                 in
-                   if String.startsWith " " strName
-                     then String.dropLeft 1 strName
-                     else strName
-               )
-            -- NOTE: to help with converting Little to Elm
-            -- ++ String.concat (List.map unparsePattern parameters)
-            ++ strParameters
-            ++ " ="
-            ++ unparse binding
-            ++ wsBeforeSemicolon.val
-            ++ ";"
-            ++ unparse body
+              _ ->
+                wsBefore.val
+                  ++ (if isRec then "letrec" else "let")
+                  ++ unparsePattern name
+                  -- NOTE: to help with converting Little to Elm
+                  -- ++ String.concat (List.map unparsePattern parameters)
+                  ++ strParameters
+                  ++ " ="
+                  ++ unparse binding
+                  ++ " in"
+                  ++ unparse body
+
+          Def ->
+            wsBefore.val
+              -- NOTE: to help with converting Little to Elm
+              -- ++ unparsePattern name
+              ++ ( let
+                     strName =
+                       unparsePattern name
+                   in
+                     if String.startsWith " " strName
+                       then String.dropLeft 1 strName
+                       else strName
+                 )
+              -- NOTE: to help with converting Little to Elm
+              -- ++ String.concat (List.map unparsePattern parameters)
+              ++ strParameters
+              ++ " ="
+              ++ unparse binding
+              ++ wsBeforeSemicolon.val
+              ++ ";"
+              ++ unparse body
 
     EComment wsBefore text expAfter ->
       wsBefore.val
