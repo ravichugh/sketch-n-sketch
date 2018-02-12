@@ -21,6 +21,8 @@ import ElmLang
 import TopLevelExp exposing (TopLevelExp, fuseTopLevelExps)
 
 import FastParser
+import LongStringParser
+import Regex
 
 --==============================================================================
 --= Helpers
@@ -313,7 +315,8 @@ bool =
 -- Strings
 --------------------------------------------------------------------------------
 
--- Allows both 'these' and "these" for strings for compatibility
+-- Allows both 'these' and "these" for strings for compatibility.
+-- Escape character is one '\'
 singleLineString : ParserI EBaseVal
 singleLineString =
   let
@@ -321,9 +324,20 @@ singleLineString =
       let
         quoteString = String.fromChar quoteChar
       in
+      let
+        quoteEscapeRegex = Regex.regex <| "\n|\\\\|\\" ++ quoteString ++ "|" ++ quoteString
+      in
         succeed (EString quoteString)
           |. symbol quoteString
-          |= keep zeroOrMore (\c -> c /= quoteChar)
+          |= map String.concat (
+              repeat zeroOrMore <|
+                oneOf [
+                  map (\_ -> quoteString) <| symbol <| "\\" ++ quoteString,
+                  map (\_ -> "\\") <| symbol <| "\\\\",
+                  succeed (\a b -> a ++ b)
+                  |= keep (Exactly 1) (\c -> c /= quoteChar && c /= '\\' && c /= '\n')
+                  |= ParserUtils.keepUntilRegex quoteEscapeRegex
+                ])
           |. symbol quoteString
   in
     inContext "single-line string" <|
@@ -336,6 +350,18 @@ multiLineString =
     trackInfo <|
       map (EString "\"\"\"") <|
         inside "\"\"\""
+
+
+multiLineInterpolatedString : Parser Exp
+multiLineInterpolatedString =
+  inContext "multi-line string" <|
+    mapExp_ <|
+    trackInfo <|
+      succeed (\wsBefore e -> EParens wsBefore e LongStringSyntax space0 )
+      |= spaces
+      |. symbol "\"\"\""
+      |= LongStringParser.contentParser
+      |. symbol "\"\"\""
 
 --------------------------------------------------------------------------------
 -- General Base Values
@@ -439,25 +465,6 @@ listPattern =
 -- As-Patterns (@-Patterns)
 --------------------------------------------------------------------------------
 
-asPattern : Parser Pat
-asPattern =
-  inContext "as pattern" <|
-    lazy <| \_ ->
-      mapPat_ <|
-        paddedBefore
-          ( \wsBefore (identifier, wsBeforeAt, pat) ->
-              PAs wsBefore identifier.val wsBeforeAt pat
-          )
-          ( trackInfo <|
-              succeed (,,)
-                |. symbol "("
-                |= littleIdentifier
-                |= spaces
-                |. keywordWithSpace "as"
-                |= pattern
-                |. symbol ")"
-          )
-
 parensPattern : Parser Pat
 parensPattern =
   inContext "parentheses" <|
@@ -481,7 +488,6 @@ simplePattern =
     oneOf
       [ lazy <| \_ -> listPattern
       , lazy <| \_ -> parensPattern
-      --, lazy <| \_ -> asPattern
       , constantPattern
       , baseValuePattern
       , variablePattern
@@ -1151,7 +1157,7 @@ parens =
       lazy <| \_ ->
         paddedBefore
           ( \wsBefore (innerExpression, wsBeforeEnd) ->
-              EParens wsBefore innerExpression wsBeforeEnd
+              EParens wsBefore innerExpression Parens wsBeforeEnd
           )
           ( trackInfo <|
               succeed (,)

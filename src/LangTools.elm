@@ -47,7 +47,7 @@ nodeCount exp =
     ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
     EColonType _ e1 _ t _   -> 1 + typeNodeCount t + nodeCount e1
     ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
-    EParens _ e1 _          -> 1 + nodeCount e1
+    EParens _ e1 pStyle _   -> 1 + nodeCount e1
     EHole _ _               -> 1
 
 
@@ -92,7 +92,7 @@ subExpsOfSizeAtLeast_ min exp =
         ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t
         EColonType _ e1 _ t _   -> 1 + typeNodeCount t
         ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t
-        EParens _ _ _           -> 1
+        EParens _ _ _ _         -> 1
         EHole _ _               -> 1
     in
     if largeSubExps /= [] then
@@ -246,9 +246,9 @@ extraExpsDiff baseExp otherExp =
     (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
     (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
     (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
-    (EParens ws1A e1A ws2A,                EParens ws1B e1B ws2B)                -> extraExpsDiff e1A e1B
-    (EParens ws1A e1A ws2A,                _)                                    -> extraExpsDiff e1A otherExp
-    (_,                                    EParens ws1B e1B ws2B)                -> extraExpsDiff baseExp e1B
+    (EParens ws1A e1A pStyleA ws2A,        EParens ws1B e1B pStyleB ws2B)        -> extraExpsDiff e1A e1B
+    (EParens ws1A e1A pStyleA ws2A,        _)                                    -> extraExpsDiff e1A otherExp
+    (_,                                    EParens ws1B e1B pStyleB ws2B)        -> extraExpsDiff baseExp e1B
     _                                                                            -> [otherExp]
 
 
@@ -391,7 +391,7 @@ expSameValueExps exp =
     EColonType _ body _ _ _ -> exp :: expSameValueExps body
     ETypeAlias _ _ _ body _ -> exp :: expSameValueExps body
     ELet _ _ _ _ _ _ _ body _ -> exp :: expSameValueExps body
-    EParens _ e _           -> exp :: expSameValueExps e
+    EParens _ e _ _         -> exp :: expSameValueExps e
     EComment _ _ e          -> exp :: expSameValueExps e
     EOption _ _ _ _ e       -> exp :: expSameValueExps e
     EOp _ {val} [operand] _ -> if val == DebugLog || val == NoWidgets then exp :: expSameValueExps operand else [exp]
@@ -2208,7 +2208,7 @@ numericLetBoundIdentifiers program =
       ETyp _ _ _ body _         -> recurse body
       EColonType _ e _ _ _      -> recurse e
       ETypeAlias _ _ _ body _   -> recurse body
-      EParens _ e _             -> recurse e
+      EParens _ e _ _           -> recurse e
       EHole _ Nothing           -> False
       EHole _ (Just val)        -> valIsNum val
   in
@@ -2314,7 +2314,7 @@ transformVarsUntilBound subst exp =
     ETyp ws1 pat tipe e ws2         -> replaceE__ exp (ETyp ws1 pat tipe (recurse e) ws2)
     EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
     ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
-    EParens ws1 e ws2               -> replaceE__ exp (EParens ws1 (recurse e) ws2)
+    EParens ws1 e pStyle ws2        -> replaceE__ exp (EParens ws1 (recurse e) pStyle ws2)
     EHole _ _                       -> exp
 
 
@@ -2414,7 +2414,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     ETyp _ pat tipe e _       -> ret <| recurse e
     EColonType _ e _ tipe _   -> ret <| recurse e
     ETypeAlias _ pat tipe e _ -> ret <| recurse e
-    EParens _ e _             -> ret <| recurse e
+    EParens _ e _ _           -> ret <| recurse e
     EHole _ _                 -> ret Set.empty
 
 
@@ -2615,9 +2615,9 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       , newNameToOldName
       )
 
-    EParens ws1 e1 ws2 ->
+    EParens ws1 e1 pStyle ws2 ->
       let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
-      ( replaceE__ exp (EParens ws1 newE1 ws2)
+      ( replaceE__ exp (EParens ws1 newE1 pStyle ws2)
       , usedNames_
       , newNameToOldName
       )
@@ -2917,7 +2917,7 @@ expEnvAt_ exp targetEId =
       ETyp _ pat tipe e _        -> recurse e
       EColonType _ e _ tipe _    -> recurse e
       ETypeAlias _ pat tipe e _  -> recurse e
-      EParens _ e _              -> recurse e
+      EParens _ e _ _            -> recurse e
       EHole _ _                  -> Nothing
 
 --------------------------------------------------------------------------------

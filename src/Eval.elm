@@ -327,7 +327,7 @@ eval syntax env bt e =
   ETyp _ _ _ e1 _       -> eval syntax env bt e1
   -- EColonType _ e1 _ _ _ -> eval syntax env bt e1
   ETypeAlias _ _ _ e1 _ -> eval syntax env bt e1
-  EParens _ e1 _        -> eval syntax env bt e1
+  EParens _ e1 _ _      -> eval syntax env bt e1
   EHole _ (Just val)    -> Ok <| retV [val] val
   EHole _ Nothing       -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
 

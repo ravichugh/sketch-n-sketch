@@ -6,8 +6,10 @@ module ElmUnparser exposing
 import Lang exposing (..)
 import ElmLang
 import ElmParser
+import LongStringParser
 import BinaryOperatorParser
 import Utils
+import Regex
 
 unparseWD : WidgetDecl -> String
 unparseWD wd =
@@ -26,7 +28,10 @@ unparseBaseValue ebv =
       if b then "True" else "False"
 
     EString quoteChar text ->
-      quoteChar ++ text ++ quoteChar
+      quoteChar ++ Regex.replace Regex.All (Regex.regex <| "\\\\|\\" ++ quoteChar) (
+        \{match} -> if match == "\\" then "\\\\" else "\\" ++ quoteChar)
+        text ++
+      quoteChar
 
     ENull ->
       "null"
@@ -383,12 +388,22 @@ unparse e =
         ++ "\n"
         ++ unparse expAfter
 
-    EParens wsBefore innerExpression wsAfter ->
-      wsBefore.val
-        ++ "("
-        ++ unparse innerExpression
-        ++ wsAfter.val
-        ++ ")"
+    EParens wsBefore innerExpression pStyle wsAfter ->
+      case pStyle of
+        Parens ->
+          wsBefore.val
+            ++ "("
+            ++ unparse innerExpression
+            ++ wsAfter.val
+            ++ ")"
+        LongStringSyntax ->
+          wsBefore.val
+            ++ "\"\"\""
+            ++ LongStringParser.contentUnparse innerExpression
+            ++ wsAfter.val
+            ++ "\"\"\""
+        ElmSyntax -> -- We just unparse the inner expression as regular parentheses
+          unparse <| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
 
     EHole wsBefore val ->
       wsBefore.val

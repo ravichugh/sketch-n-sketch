@@ -107,7 +107,13 @@ getUpdateStackOp env e oldVal out nextToUpdate =
     EBase ws m ->
       case out of
         Program prog -> UpdateResult env prog
-        Raw newVal ->   UpdateResult env <| val_to_exp ws newVal
+        Raw newVal ->
+          case m of
+            EString quoteChar chars ->
+              case newVal.v_ of
+                VBase (VString newChars) ->   UpdateResult env <| replaceE__ e <| EBase ws (EString quoteChar newChars)
+                _ -> UpdateResult env <| val_to_exp ws newVal
+            _ -> UpdateResult env <| val_to_exp ws newVal
     EFun sp0 ps e sp1 ->
       case out of
         Program prog -> UpdateResult env prog
@@ -387,8 +393,8 @@ getUpdateStackOp env e oldVal out nextToUpdate =
       UpdateContinue env exp oldVal out <| HandlePreviousResult <| \(nv, ne) -> UpdateResult nv <| replaceE__ e <| EColonType a ne b c d
     ETypeAlias a b c exp d ->
       UpdateContinue env exp oldVal out <| HandlePreviousResult <| \(nv, ne) -> UpdateResult nv <| replaceE__ e <| ETypeAlias a b c ne d
-    EParens sp1 exp sp2->
-      UpdateContinue  env exp oldVal out <| HandlePreviousResult <| \(nv, ne) -> UpdateResult nv <| replaceE__ e <| EParens sp1 ne sp2
+    EParens sp1 exp pStyle sp2->
+      UpdateContinue  env exp oldVal out <| HandlePreviousResult <| \(nv, ne) -> UpdateResult nv <| replaceE__ e <| EParens sp1 ne pStyle sp2
     {--ETypeCase sp1 e1 tbranches sp2 ->
       case eval_ syntax env (e::bt) e1 of
         Err s -> UpdateError s
@@ -952,8 +958,8 @@ expEqual e1_ e2_ =
   (ETypeAlias sp1 pat1 t1 e1 sp2, ETypeAlias sp3 pat2 t2 e2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
     patEqual pat1 pat2 && expEqual e1 e2 && typeEqual t1 t2
-  (EParens sp1 e1 sp2, EParens sp3 e2 sp4) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4 && expEqual e1 e2
+  (EParens sp1 e1 pStyle1 sp2, EParens sp3 e2 pStyle2 sp4) ->
+    wsEqual sp1 sp3 && wsEqual sp2 sp4 && expEqual e1 e2 && pStyle
   (EHole sp1 (Just v1), EHole sp2 (Just v2)) ->
     wsEqual sp1 sp2 && valEqual v1 v2
   (EHole sp1 Nothing, EHole sp2 Nothing) ->

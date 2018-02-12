@@ -12,6 +12,7 @@ module ParserUtils exposing
   , trackInfo
   , untrackInfo
   , showError
+  , keepUntilRegex
   )
 
 import Pos exposing (..)
@@ -20,7 +21,7 @@ import Info exposing (..)
 
 import Parser exposing (..)
 import Parser.LowLevel as LL
-
+import Regex exposing (Regex, HowMany(..), find)
 
 --------------------------------------------------------------------------------
 -- General
@@ -87,6 +88,30 @@ keepUntil endString =
           |. keep zeroOrMore (\_ -> True)
           |= fail ("expecting closing string '" ++ endString ++ "'")
       ]
+
+-- Stop parsing the string until it hits an ending string or a string escape char.
+keepUntilRegex: Regex -> Parser String
+keepUntilRegex reg =
+  oneOf
+    [ ignoreUntilRegex reg
+        |> source
+    , succeed identity
+        |. keep zeroOrMore (\_ -> True)
+        |= fail ("expecting closing string '" ++ toString reg ++ "'")
+    ]
+
+-- A variant of ignoreUntil that ignores everything until two possible strings.
+ignoreUntilRegex : Regex -> Parser String
+ignoreUntilRegex reg =
+  succeed (\offset source ->
+    let sourceFromOffset = String.slice offset (String.length source) source in
+    let finding = find (AtMost 1) reg sourceFromOffset in
+    case finding of
+      {index}::_ -> String.slice offset (offset + index) source
+      _          -> sourceFromOffset
+  )
+  |= LL.getOffset
+  |= LL.getSource
 
 inside : String -> Parser String
 inside delimiter =
