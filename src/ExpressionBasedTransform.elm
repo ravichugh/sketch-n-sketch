@@ -315,7 +315,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A newEs ws2A (Just (merge eA eB)) ws3A))) |> Maybe.withDefault argVar
       (EApp ws1A fA esA appA ws2A,           EApp ws1B fB esB appB ws2B)           -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EApp ws1A (merge fA fB) newEs appA ws2A))) |> Maybe.withDefault argVar
       (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> if recA == recB && patternsEqual pA pB then replaceE__ expA (ELet ws1A kindA recA pA (merge e1A e1B) (merge e2A e2B) ws2A) else argVar
-      (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> replaceE__ expA (EIf ws1A (merge e1A e1B) (merge e2A e2B) (merge e3A e3B) ws2A)
+      (EIf ws1A e1A ws2A e2A ws3A e3A ws4A,  EIf ws1B e1B ws2B e2B ws3B e3B ws4B)  -> replaceE__ expA (EIf ws1A (merge e1A e1B) ws2A (merge e2A e2B) ws3A (merge e3A e3B) ws4A)
       (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA, bB)   -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)   then Just (replaceE__ expA (ECase     ws1A (merge eA eB) (Utils.zip branchPairs  bValPairs  |> List.map (\((bA,  bB),  (Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B))  -> {bA  | val = Branch_  bws1A  bpatA   (merge beA  beB)  bws2A}))  ws2A)) else Nothing) |> Maybe.withDefault argVar
       (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)    -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (replaceE__ expA (ETypeCase ws1A (merge eA eB) (Utils.zip tbranchPairs tbValPairs |> List.map (\((tbA, tbB), (TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B)) -> {tbA | val = TBranch_ tbws1A tbtypeA (merge tbeA tbeB) tbws2A})) ws2A)) else Nothing) |> Maybe.withDefault argVar
       (EComment wsA sA e1A,                  _)                                    -> replaceE__ expA (EComment wsA sA (merge e1A expB)) -- Keep only comments in expA.
@@ -370,7 +370,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> generalizedMerge True (Just (eA, eB)) Nothing Nothing (Just (esA, esB)) (\tailMerged _ _ headMergers -> EList ws1A headMergers ws2A (Just tailMerged) ws3A)
       (EApp ws1A fA esA appA ws2A,           EApp ws1B fB esB appB ws2B)           -> generalizedMerge True (Just (fA, fB)) Nothing Nothing (Just (esA, esB)) (\fMerged _ _ argMergers -> EApp ws1A fMerged argMergers appA ws2A)
       (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> generalizedMerge (recA == recB && patternsEqual pA pB) (Just (e1A, e1B)) (Just (e2A, e2B)) Nothing Nothing (\e1Merged e2Merged _ _ -> ELet ws1A kindA recA pA e1Merged e2Merged ws2A)
-      (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> generalizedMerge True (Just (e1A, e1B)) (Just (e2A, e2B)) (Just (e3A, e3B)) Nothing (\e1Merged e2Merged e3Merged _ -> EIf ws1A e1Merged e2Merged e3Merged ws2A)
+      (EIf ws1A e1A ws2A e2A ws3A e3A ws4A,  EIf ws1B e1B ws2B e2B ws3B e3B ws4B)  -> generalizedMerge True (Just (e1A, e1B)) (Just (e2A, e2B)) (Just (e3A, e3B)) Nothing (\e1Merged e2Merged e3Merged _ -> EIf ws1A e1Merged ws2A e2Merged ws3A e3Merged ws4A)
       (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         ->
         let precondition = Utils.listsEqualBy patternsEqual (branchPats branchesA) (branchPats branchesB) in
         generalizedMerge precondition (Just (eA, eB)) Nothing Nothing (Just (branchExps branchesA, branchExps branchesB)) (\eMerged _ _ branchExpsMerged -> ECase ws1A eMerged (List.map2 replaceBranchExp branchesA branchExpsMerged) ws2A)
@@ -1703,16 +1703,16 @@ mergeExpressions eFirst eRest =
         else
           Nothing
 
-    EIf ws1 e1 e2 e3 ws2 ->
+    EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       let match eNext = case eNext.val.e__ of
-        EIf _ e1_ e2_ e3_ _ -> Just ((e1_, e2_), e3_)
-        _                   -> Nothing
+        EIf _ e1_ _ e2_ _ e3_ _ -> Just ((e1_, e2_), e3_)
+        _                       -> Nothing
       in
       matchAllAndBind match eRest <| \stuff ->
         let ((e1List, e2List), e3List) = Tuple.mapFirst List.unzip (List.unzip stuff) in
         Utils.bindMaybe3
           (\(e1_,l1) (e2_,l2) (e3_,l3) ->
-            return (EIf ws1 e1_ e2_ e3_ ws2) (l1 ++ l2 ++ l3))
+            return (EIf ws1 e1_ ws2 e2_ ws3 e3_ ws4) (l1 ++ l2 ++ l3))
           (mergeExpressions e1 e1List)
           (mergeExpressions e2 e2List)
           (mergeExpressions e3 e3List)

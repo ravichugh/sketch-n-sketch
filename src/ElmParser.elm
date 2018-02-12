@@ -990,17 +990,17 @@ conditional =
     lazy <| \_ ->
       mapExp_ <|
         paddedBefore
-          ( \wsBefore (condition, trueBranch, falseBranch) ->
-              EIf wsBefore condition trueBranch falseBranch space0
+          ( \wsBefore (condition, wsThen, trueBranch, wsElse, falseBranch) ->
+              EIf wsBefore condition wsThen trueBranch wsElse falseBranch space0
           )
           ( trackInfo <|
               delayedCommit (keywordWithSpace "if") <|
-                succeed (,,)
+                succeed (,,,,)
                   |= expression
-                  |. spaces
+                  |= spaces
                   |. keywordWithSpace "then"
                   |= expression
-                  |. spaces
+                  |= spaces
                   |. keywordWithSpace "else"
                   |= expression
           )

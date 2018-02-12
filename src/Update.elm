@@ -244,17 +244,17 @@ getUpdateStackOp env e oldVal out nextToUpdate =
               _ ->
                 UpdateError <| strPos e1.start ++ " not a function"
 
-    EIf sp0 cond thn els sp1 ->
+    EIf sp0 cond sp1 thn sp2 els sp3 ->
       case doEval Syntax.Elm env cond of
         Ok ((v, _), _) ->
           case v.v_ of
             VBase (VBool b) ->
               if b then
                 UpdateContinue env thn oldVal out <| HandlePreviousResult <| \(newEnv, newThn) ->
-                  UpdateResult newEnv <| replaceE__ e <| EIf sp0 cond newThn els sp1
+                  UpdateResult newEnv <| replaceE__ e <| EIf sp0 cond sp1 newThn sp2 els sp3
               else
                 UpdateContinue env els oldVal out <| HandlePreviousResult <| \(newEnv, newEls) ->
-                  UpdateResult newEnv <| replaceE__ e <| EIf sp0 cond thn newEls sp1
+                  UpdateResult newEnv <| replaceE__ e <| EIf sp0 cond sp1 thn sp2 newEls sp3
             _ -> UpdateError <| "Expected boolean condition, got " ++ valToString v
         Err s -> UpdateError s
 
@@ -913,8 +913,11 @@ expEqual e1_ e2_ =
       (Just t1, Just t2) -> expEqual t1 t2
       _ -> False
     )
-  (EIf sp1 cond1 then1 else1 sp2, EIf sp3 cond2 then2 else2 sp4) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
+  (EIf sp11 cond1 sp12 then1 sp13 else1 sp14, EIf sp21 cond2 sp22 then2 sp23 else2 sp4) ->
+    wsEqual sp11 sp21 &&
+    wsEqual sp12 sp22 &&
+    wsEqual sp13 sp23 &&
+    wsEqual sp14 sp24 &&
     expEqual cond1 cond2 && expEqual then1 then2 && expEqual else1 else2
   (ECase sp1 input1 branches1 sp2, ECase sp3 input2 branches2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4 &&

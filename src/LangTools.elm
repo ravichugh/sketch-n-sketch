@@ -36,7 +36,7 @@ nodeCount exp =
     EOp _ op es _           -> 1 + expsNodeCount es
     EList _ es _ (Just e) _ -> 1 + expsNodeCount es + nodeCount e
     EList _ es _ Nothing _  -> 1 + expsNodeCount es
-    EIf _ e1 e2 e3 _        -> 1 + expsNodeCount [e1, e2, e3]
+    EIf _ e1 _ e2 _ e3 _    -> 1 + expsNodeCount [e1, e2, e3]
     -- Cases have a set of parens around each branch. I suppose each should count as a node.
     ECase _ e1 bs _         -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
     ETypeCase _ e1 tbs _    -> 1 + (List.length tbs) + nodeCount e1 + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
@@ -81,7 +81,7 @@ subExpsOfSizeAtLeast_ min exp =
         EOp _ op es _           -> 1
         EList _ es _ (Just e) _ -> 1
         EList _ es _ Nothing _  -> 1
-        EIf _ e1 e2 e3 _        -> 1
+        EIf _ e1 _ e2 _ e3 _    -> 1
         -- Cases have a set of parens around each branch. I suppose each should count as a node.
         ECase _ e1 bs _         -> 1 + (List.length bs) + patsNodeCount (branchPats bs)
         ETypeCase _ e1 tbs _    -> 1 + (List.length tbs) + typesNodeCount (tbranchTypes tbs)
@@ -237,7 +237,7 @@ extraExpsDiff baseExp otherExp =
     (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> childDiffs ()
     (EApp ws1A fA esA appTypeA ws2A,       EApp ws1B fB esB appTypeB ws2B)       -> childDiffs ()
     (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> if recA == recB && patternsEqual pA pB then extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B else [otherExp]
-    (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
+    (EIf ws1A e1A _ e2A _ e3A ws2A,        EIf ws1B e1B _ e2B _ e3B ws2B)        -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
     (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)  then  Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
     (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)    -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
     (EComment wsA sA e1A,                  _)                                    -> extraExpsDiff e1A otherExp
@@ -2195,7 +2195,7 @@ numericLetBoundIdentifiers program =
           DictInsert -> False
 
       EList _ _ _ _ _           -> False
-      EIf _ _ thenExp elseExp _ -> recurse thenExp && recurse elseExp
+      EIf _ _ _ thenExp _ elseExp _ -> recurse thenExp && recurse elseExp
       ECase _ _ branches _      -> List.all recurse (branchExps branches)
       ETypeCase _ _ tbranches _ -> List.all recurse (tbranchExps tbranches)
       EComment _ _ body         -> recurse body
@@ -2275,7 +2275,7 @@ transformVarsUntilBound subst exp =
     EOp ws1 op es ws2           -> replaceE__ exp (EOp ws1 op (List.map recurse es) ws2)
     EList ws1 es ws2 m ws3      -> replaceE__ exp (EList ws1 (List.map recurse es) ws2 (Maybe.map recurse m) ws3)
 
-    EIf ws1 e1 e2 e3 ws2        -> replaceE__ exp (EIf ws1 (recurse e1) (recurse e2) (recurse e3) ws2)
+    EIf ws1 e1 ws2 e2 ws3 e3 ws4 -> replaceE__ exp (EIf ws1 (recurse e1) ws2 (recurse e2) ws3 (recurse e3) ws4)
     ECase ws1 e1 bs ws2         ->
       let newScrutinee = recurse e1 in
       let newBranches =
@@ -2382,7 +2382,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     EFun _ ps e _    -> ret <| recurseWithNewIdents ps e
     EOp _ op es _    -> ret <| recurseAllChildren ()
     EList _ es _ m _ -> ret <| recurseAllChildren ()
-    EIf _ e1 e2 e3 _ -> ret <| recurseAllChildren ()
+    EIf _ e1 _ e2 _ e3 _ -> ret <| recurseAllChildren ()
     ECase _ e1 bs _  ->
       let scrutineeResult = recurse e1 in
       let branchResults =
@@ -2502,11 +2502,11 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       , newNameToOldName
       )
 
-    EIf ws1 e1 e2 e3 ws2 ->
+    EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       let (newEs, usedNames_, newNameToOldName) = recurseExps [e1, e2, e3] in
       case newEs of
         [newE1, newE2, newE3] ->
-          ( replaceE__ exp (EIf ws1 newE1 newE2 newE3 ws2)
+          ( replaceE__ exp (EIf ws1 newE1 ws2 newE2 ws3 newE3 ws4)
           , usedNames_
           , newNameToOldName
           )
@@ -2885,7 +2885,7 @@ expEnvAt_ exp targetEId =
       EFun _ ps e _    -> recurse e |> Maybe.map (addShallowerIdentifiers (identifiersListInPats ps))
       EOp _ op es _    -> recurseAllChildren ()
       EList _ es _ m _ -> recurseAllChildren ()
-      EIf _ e1 e2 e3 _ -> recurseAllChildren ()
+      EIf _ e1 _ e2 _ e3 _ -> recurseAllChildren ()
       ECase _ e1 bs _  ->
         case recurse e1 of
           Just bindings ->

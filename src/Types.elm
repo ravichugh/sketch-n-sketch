@@ -613,7 +613,7 @@ checkType typeInfo typeEnv e goalType =
             Err err -> { result = False, typeInfo = addTypeErrorAt e.start err typeInfo }
             Ok typeEnv_ -> checkType typeInfo typeEnv_ eBody returnType
 
-    EIf _ e1 e2 e3 _ -> -- [TC-If]
+    EIf _ e1 _ e2 _ e3 _ -> -- [TC-If]
       let result1 = checkType typeInfo typeEnv e1 tBool in
       let result2 = checkType result1.typeInfo typeEnv e2 goalType in
       let result3 = checkType result2.typeInfo typeEnv e3 goalType in
@@ -846,7 +846,7 @@ synthesizeType typeInfo typeEnv e =
                 Nothing -> finish.withError "synthesizeType: EList 2 ..." result.typeInfo
                 Just tRest -> finish.withType (tTupleRest ts (Just tRest)) result.typeInfo
 
-    EIf _ e1 e2 e3 _ -> -- [TS-If]
+    EIf _ e1 _ e2 _ e3 _ -> -- [TS-If]
       let result1 = checkType typeInfo typeEnv e1 tBool in
       if not result1.result then
         finish.withError "synthesizeType: EIf 1 ..." result1.typeInfo

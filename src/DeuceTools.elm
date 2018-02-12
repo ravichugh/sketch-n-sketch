@@ -1828,8 +1828,8 @@ makeSingleLineTool model selections =
                               space0
                           EOp ws1 op es ws2 ->
                             EOp (deLine ws1) op es space0
-                          EIf ws1 e1 e2 e3 ws2 ->
-                            EIf (deLine ws1) e1 e2 e3 space0
+                          EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
+                            EIf (deLine ws1) e1 ws2 e2 ws3 e3 space0
                           ELet ws1 kind rec p e1 e2 ws2 ->
                             ELet (deLine ws1) kind rec p e1 e2 space0
                           ECase ws1 e1 bs ws2 ->

@@ -792,7 +792,7 @@ conditional =
       lazy <| \_ ->
         parenBlock
           ( \wsStart (c, a, b) wsEnd ->
-              EIf wsStart c a b wsEnd
+              EIf wsStart c (ws "") a (ws "") b wsEnd
           )
           ( succeed (,,)
              |. keywordWithSpace "if"

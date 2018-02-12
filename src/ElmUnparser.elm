@@ -292,13 +292,13 @@ unparse e =
     EList wsBefore [] wsMiddle (Just tail) wsBeforeEnd ->
       unparse tail
 
-    EIf wsBefore condition trueBranch falseBranch _ ->
+    EIf wsBefore condition wsBeforeTrue trueBranch wsBeforeElse falseBranch _ ->
       wsBefore.val
         ++ "if"
         ++ unparse condition
-        ++ " then"
+        ++ wsBeforeTrue.val ++ "then"
         ++ unparse trueBranch
-        ++ " else"
+        ++ wsBeforeElse.val ++ "else"
         ++ unparse falseBranch
 
     ECase wsBefore examinedExpression branches _ ->

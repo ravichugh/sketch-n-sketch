@@ -204,7 +204,7 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "[" ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ "|" ++ unparse_ eRest ++ ws3.val ++ "]"
   EOp ws1 op es ws2 ->
     ws1.val ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
-  EIf ws1 e1 e2 e3 ws2 ->
+  EIf ws1 e1 _ e2 _ e3 ws2 ->
     ws1.val ++ "(if" ++ unparse_ e1 ++ unparse_ e2 ++ unparse_ e3 ++ ws2.val ++ ")"
   ELet ws1 Let b p e1 e2 ws2 ->
     case p.val.p__ of
@@ -269,7 +269,7 @@ unparseWithIds e =
       ws1.val ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ "|" ++ unparseWithIds eRest ++ ws3.val ++ "]" ++ eidTag
     EOp ws1 op es ws2 ->
       ws1.val ++ "(" ++ eidTag ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")"
-    EIf ws1 e1 e2 e3 ws2 ->
+    EIf ws1 e1 _ e2 _ e3 ws2 ->
       ws1.val ++ "(" ++ eidTag ++ "if" ++ unparseWithIds e1 ++ unparseWithIds e2 ++ unparseWithIds e3 ++ ws2.val ++ ")"
     ELet ws1 Let b p e1 e2 ws2 ->
       let tok = if b then "letrec" else "let" in
@@ -334,7 +334,7 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       " " ++ "[" ++ (String.concat (List.map recurse es)) ++ " " ++ "|" ++ recurse eRest ++ " " ++ "]"
     EOp _ op es _ ->
       " " ++ "(" ++ strOp op.val ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
-    EIf _ e1 e2 e3 _ ->
+    EIf _ e1 _ e2 _ e3 _ ->
       " " ++ "(if" ++ recurse e1 ++ recurse e2 ++ recurse e3 ++ " " ++ ")"
     ELet _ Let b p e1 e2 _ ->
       let tok = if b then "letrec" else "let" in

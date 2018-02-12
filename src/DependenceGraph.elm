@@ -294,7 +294,7 @@ traverse env exp acc =
 
     EApp _ e es _ _     -> recurse (e::es)
     EOp _ _ es _      -> recurse es
-    EIf _ e1 e2 e3 _  -> recurse [e1, e2, e3]
+    EIf _ e1 _ e2 _ e3 _  -> recurse [e1, e2, e3]
 
     EList _ es _ (Just eRest) _  -> recurse (es++[eRest])
     EList _ es _ Nothing _       -> recurse es

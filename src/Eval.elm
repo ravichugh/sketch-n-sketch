@@ -203,7 +203,7 @@ eval syntax env bt e =
 
   -- Alternatively, could choose not to add a basedOn record for if/case/typecase (simply pass value through, maybe add parent)
   -- But that would suggest that we *might* avoid doing so for EApp as well, which is more dubious. We'll see.
-  EIf _ e1 e2 e3 _ ->
+  EIf _ e1 _ e2 _ e3 _ ->
     case eval_ syntax env bt e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
