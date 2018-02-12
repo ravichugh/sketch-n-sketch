@@ -296,8 +296,8 @@ traverse env exp acc =
     EOp _ _ es _      -> recurse es
     EIf _ e1 _ e2 _ e3 _  -> recurse [e1, e2, e3]
 
-    EList _ es _ (Just eRest) _  -> recurse (es++[eRest])
-    EList _ es _ Nothing _       -> recurse es
+    EList _ es _ (Just eRest) _  -> recurse (List.map Tuple.second es ++ [eRest])
+    EList _ es _ Nothing _       -> recurse (List.map Tuple.second es)
 
     ECase _ e branches _ ->
       let _ = Debug.log "TODO: scope tree ECase" () in acc
@@ -379,7 +379,7 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
     (PList _ ps_ _ pMaybe _, EList _ es_ _ eMaybe _) ->
 
       let ps = Utils.snocMaybe ps_ pMaybe in
-      let es = Utils.snocMaybe es_ eMaybe in
+      let es = Utils.snocMaybe (List.map Tuple.second es_) eMaybe in
 
       if List.length ps == List.length es then
         let (scopeId, basePath) = pathedPatId in

@@ -199,9 +199,9 @@ unparse_ e = case e.val.e__ of
   EApp ws1 e1 es apptype ws2 ->
     ws1.val ++ "(" ++ unparse_ e1 ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
   EList ws1 es ws2 Nothing ws3 ->
-    ws1.val ++ "[" ++ (String.concat (List.map unparse_ es)) ++ ws3.val ++ "]"
+    ws1.val ++ "[" ++ (String.concat (List.map (unparse_ << Tuple.second) es)) ++ ws3.val ++ "]"
   EList ws1 es ws2 (Just eRest) ws3 ->
-    ws1.val ++ "[" ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ "|" ++ unparse_ eRest ++ ws3.val ++ "]"
+    ws1.val ++ "[" ++ (String.concat (List.map (unparse_ << Tuple.second) es)) ++ ws2.val ++ "|" ++ unparse_ eRest ++ ws3.val ++ "]"
   EOp ws1 op es ws2 ->
     ws1.val ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
   EIf ws1 e1 _ e2 _ e3 ws2 ->
@@ -264,9 +264,9 @@ unparseWithIds e =
     EApp ws1 e1 es apptype ws2 ->
       ws1.val ++ "(" ++ unparseWithIds e1 ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")" ++ eidTag
     EList ws1 es ws2 Nothing ws3 ->
-      ws1.val ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws3.val ++ "]" ++ eidTag
+      ws1.val ++ "[" ++ (String.concat (List.map (unparseWithIds << Tuple.second) es)) ++ ws3.val ++ "]" ++ eidTag
     EList ws1 es ws2 (Just eRest) ws3 ->
-      ws1.val ++ "[" ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ "|" ++ unparseWithIds eRest ++ ws3.val ++ "]" ++ eidTag
+      ws1.val ++ "[" ++ (String.concat (List.map (unparseWithIds << Tuple.second) es)) ++ ws2.val ++ "|" ++ unparseWithIds eRest ++ ws3.val ++ "]" ++ eidTag
     EOp ws1 op es ws2 ->
       ws1.val ++ "(" ++ eidTag ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")"
     EIf ws1 e1 _ e2 _ e3 ws2 ->
@@ -329,9 +329,9 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
     EApp _ e1 es apptype _ ->
       " " ++ "(" ++ recurse e1 ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
     EList _ es _ Nothing _ ->
-      " " ++ "[" ++ (String.concat (List.map recurse es)) ++ " " ++ "]"
+      " " ++ "[" ++ (String.concat (List.map (recurse << Tuple.second) es)) ++ " " ++ "]"
     EList _ es _ (Just eRest) _ ->
-      " " ++ "[" ++ (String.concat (List.map recurse es)) ++ " " ++ "|" ++ recurse eRest ++ " " ++ "]"
+      " " ++ "[" ++ (String.concat (List.map (recurse << Tuple.second) es)) ++ " " ++ "|" ++ recurse eRest ++ " " ++ "]"
     EOp _ op es _ ->
       " " ++ "(" ++ strOp op.val ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
     EIf _ e1 _ e2 _ e3 _ ->

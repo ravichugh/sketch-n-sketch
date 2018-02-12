@@ -133,7 +133,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                   ([], [], []) ->
                     UpdateIdem env (replaceE__ e <| EHole (ws "") Nothing) oldVal <| Program e
                   (expHead::expTail, origHead::origTail, newHead::newTail) ->
-                    UpdateContinue env expHead origHead (Raw newHead)
+                    UpdateContinue env (Tuple.second expHead) origHead (Raw newHead)
                       <| HandlePreviousResult <| \(newHeadEnv, newHeadExp) ->
                         UpdateContinue env (replaceE__ e <| EList sp1 expTail sp2 Nothing sp3) (replaceV_ oldVal (VList origTail))
                               (Raw (replaceV_ newVal (VList newTail)))
@@ -141,7 +141,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                             case newTailExp.val.e__ of
                               EList _ newTail _ _ _ ->
                                 let newEnv = triCombine e env newHeadEnv newTailEnv in
-                                UpdateResult newEnv <| replaceE__ e <| EList sp1 (newHeadExp :: newTail) sp2 Nothing sp3
+                                UpdateResult newEnv <| replaceE__ e <| EList sp1 ((Tuple.first expHead, newHeadExp) :: newTail) sp2 Nothing sp3
                               _ -> Debug.crash "Internal error: Should get a list back"
                   _ -> Debug.crash "The list's length were checked, what happened??"
               else
@@ -150,15 +150,16 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                     -- Copy the whitespace of the previous list elements, if possible, and do this in a nested way
                     let valtoexpWhitespace = if insertionIndex < List.length elems then
                       case List.drop insertionIndex elems |> List.take 1 of
-                        [previousElem] -> (\v -> Lang.copyPrecedingWhitespace previousElem (val_to_exp (ws " " ) v))
+                        [(_,previousElem)] -> (\v -> Lang.copyPrecedingWhitespace previousElem (val_to_exp (ws " " ) v))
                         _ -> (\v -> val_to_exp (ws " " ) v)
                       else if List.length elems > 0 then
                         case List.drop (List.length elems - 1) elems of
-                        [previousElem] -> (\v -> Lang.copyPrecedingWhitespace previousElem (val_to_exp (ws " " ) v))
+                        [(_,previousElem)] -> (\v -> Lang.copyPrecedingWhitespace previousElem (val_to_exp (ws " " ) v))
                         _ -> (\v -> val_to_exp (ws " " ) v)
                       else (\v -> val_to_exp (ws " " ) v)
                     in
-                    let insertedExp = List.map valtoexpWhitespace inserted in
+                    -- TODO copy space from existing element?
+                    let insertedExp = List.map ((,) space0 << valtoexpWhitespace) inserted in
                     (env, replaceE__ e <|
                       EList sp1 (List.take insertionIndex elems ++ insertedExp ++ List.drop (insertionIndex + deletedCount) elems) sp2 Nothing sp3)
                   )
@@ -214,12 +215,12 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                         let ((newPats, newArgs), patsBodyToClosure) = consBuilder newEnv in
                         let newClosure = patsBodyToClosure newPats newBody in
                         UpdateContinue env e1 v1 (Raw newClosure) <| HandlePreviousResult <| \(newE1Env, newE1) ->
-                          UpdateContinue env (replaceE__ e <| EList sp0 e2s sp1 Nothing sp1) (replaceV_ oldVal <| VList v2s) (Raw (replaceV_ oldVal <| VList newArgs)) <|
+                          UpdateContinue env (replaceE__ e <| EList sp0 (List.map ((,) space0) e2s) sp1 Nothing sp1) (replaceV_ oldVal <| VList v2s) (Raw (replaceV_ oldVal <| VList newArgs)) <|
                             HandlePreviousResult <| \(newE2Env, newE2List) ->
                               case newE2List.val.e__ of
                                 EList _ newE2s _ _ _ ->
                                   let finalEnv = triCombine e env newE1Env newE2Env in
-                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 newE2s appType sp1
+                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (List.map Tuple.second newE2s) appType sp1
                                 x -> Debug.crash <| "Internal error, should have get a list, got " ++ toString x
                   _          -> UpdateError <| strPos e1.start ++ "bad environment"
               VClosure (Just f) ps eBody env_ ->
@@ -233,12 +234,12 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                           else patsBodytoClosure newPats newBody -- Regular replacement
                         in
                         UpdateContinue env e1 v1 (Raw newClosure) <| HandlePreviousResult <| \(newE1Env, newE1) ->
-                          UpdateContinue env (replaceE__ e <| EList sp0 e2s sp1 Nothing sp1) (replaceV_ oldVal <| VList v2s) (Raw <| replaceV_ oldVal <| VList newArgs) <|
+                          UpdateContinue env (replaceE__ e <| EList sp0 (List.map ((,) space0) e2s) sp1 Nothing sp1) (replaceV_ oldVal <| VList v2s) (Raw <| replaceV_ oldVal <| VList newArgs) <|
                             HandlePreviousResult <| \(newE2Env, newE2List) ->
                               case newE2List.val.e__ of
                                 EList _ newE2s _ _ _ ->
                                   let finalEnv = triCombine e env newE1Env newE2Env in
-                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 newE2s appType sp1
+                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (List.map Tuple.second newE2s) appType sp1
                                 x -> Debug.crash <| "Unexpected result of updating a list " ++ toString x
                   _          -> UpdateError <| strPos e1.start ++ "bad environment"
               _ ->
@@ -269,12 +270,12 @@ getUpdateStackOp env e oldVal out nextToUpdate =
             Ok argsEvaled ->
               let ((vs, wss), envs) = Tuple.mapFirst List.unzip <| List.unzip argsEvaled in
               let args = List.map .v_ vs in
-              let argList = replaceE__ e <| EList (ws "") opArgs (ws "") Nothing (ws "") in
+              let argList = replaceE__ e <| EList (ws "") (List.map ((,) space0) opArgs) (ws "") Nothing (ws "") in
               let handleRemainingResults lazyTail nextToUpdate =
                 lazyCons2 (HandlePreviousResult <| \(newOpEnv, newOpArgList) ->
                   case newOpArgList.val.e__ of
                     EList _ newOpArgs _ _ _ ->
-                      let finalExp = replaceE__ e <| EOp sp1 op newOpArgs sp2 in
+                      let finalExp = replaceE__ e <| EOp sp1 op (List.map Tuple.second newOpArgs) sp2 in
                       case Lazy.force lazyTail of
                         LazyNil -> UpdateResult newOpEnv finalExp
                         LazyCons newHead newTail -> UpdateAlternative newOpEnv finalExp oldVal
@@ -738,7 +739,7 @@ val_to_exp ws v =
     VBase (VBool b)   -> EBase  ws <| EBool b
     VBase (VString s) -> EBase  ws <| EString defaultQuoteChar s
     VBase (VNull)     -> EBase  ws <| ENull
-    VList vals -> EList ws (List.map (val_to_exp ws) vals) ws Nothing <| ws
+    VList vals -> EList ws (List.map ((,) space0 << val_to_exp ws) vals) ws Nothing <| ws
     VClosure _ patterns body env -> EFun ws patterns body ws -- Not sure about this one.
     _ -> Debug.crash <| "Trying to get an exp of the value " ++ toString v
     --VDict vs ->

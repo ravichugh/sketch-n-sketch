@@ -186,7 +186,7 @@ eval syntax env bt e =
   EOp _ op es _ -> Result.map (\res -> addParentToRet (res, env)) <| evalOp syntax env e (e::bt) op es
 
   EList _ es _ m _ ->
-    case Utils.projOk <| List.map (eval_ syntax env bt_) es of
+    case Utils.projOk <| List.map (eval_ syntax env bt_) (List.map Tuple.second es) of
       Err s -> Err s
       Ok results ->
         let (vs,wss) = List.unzip results in

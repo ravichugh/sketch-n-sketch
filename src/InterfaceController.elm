@@ -1578,8 +1578,8 @@ deleteInOutput old =
                         deleteEId parent.val.eid program
 
                       EList ws1 heads ws2 maybeTail ws3 ->
-                        case heads |> Utils.findi (eidIs eidToDelete) of
-                          Just iToDelete -> program |> replaceExpNodeE__ parent (EList ws1 (Utils.removei iToDelete heads |> imitateExpListWhitespace heads) ws2 maybeTail ws3)
+                        case List.map Tuple.second heads |> Utils.findi (eidIs eidToDelete) of
+                          Just iToDelete -> program |> replaceExpNodeE__ parent (EList ws1 (List.map ((,) space0) (Utils.removei iToDelete (List.map Tuple.second heads) |> imitateExpListWhitespace (List.map Tuple.second heads))) ws2 maybeTail ws3)
                           Nothing ->
                             if Maybe.map (eidIs eidToDelete) maybeTail == Just True
                             then program |> replaceExpNodeE__ parent (EList ws1 heads ws2 Nothing ws3)

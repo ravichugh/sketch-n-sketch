@@ -147,7 +147,7 @@ type Exp__
   -- | EFun WS (OneOrMany Pat) Exp WS
   | EApp WS Exp (List Exp) ApplicationType WS
   | EOp WS Op (List Exp) WS
-  | EList WS (List Exp) WS (Maybe Exp) WS
+  | EList WS (List (WS{-,-}, Exp)) WS (Maybe Exp) WS -- the first WS{-,-} is a dummy
   | EIf WS Exp WS{-then-} Exp WS{-else-} Exp WS{-REMOVE-}
   | ECase WS Exp (List Branch) WS
   | ETypeCase WS Exp (List TBranch) WS
@@ -492,13 +492,13 @@ mapFoldExp f initAcc e =
       wrapAndMap (EOp ws1 op newEs ws2) newAcc
 
     EList ws1 es ws2 Nothing ws3 ->
-      let (newEs, newAcc) = recurseAll initAcc es in
-      wrapAndMap (EList ws1 newEs ws2 Nothing ws3) newAcc
+      let (newEs, newAcc) = recurseAll initAcc (List.map Tuple.second es) in
+      wrapAndMap (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 Nothing ws3) newAcc
 
     EList ws1 es ws2 (Just e1) ws3 ->
       let (newE1, newAcc)  = recurse initAcc e1 in
-      let (newEs, newAcc2) = recurseAll newAcc es in
-      wrapAndMap (EList ws1 newEs ws2 (Just newE1) ws3) newAcc2
+      let (newEs, newAcc2) = recurseAll newAcc (List.map Tuple.second es) in
+      wrapAndMap (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 (Just newE1) ws3) newAcc2
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       case recurseAll initAcc [e1, e2, e3] of
@@ -644,13 +644,13 @@ mapFoldExpTopDown f initAcc e =
       ret (EOp ws1 op newEs ws2) newAcc2
 
     EList ws1 es ws2 Nothing ws3 ->
-      let (newEs, newAcc2) = recurseAll newAcc es in
-      ret (EList ws1 newEs ws2 Nothing ws3) newAcc2
+      let (newEs, newAcc2) = recurseAll newAcc (List.map Tuple.second es) in
+      ret (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 Nothing ws3) newAcc2
 
     EList ws1 es ws2 (Just e1) ws3 ->
-      let (newEs, newAcc2) = recurseAll newAcc es in
+      let (newEs, newAcc2) = recurseAll newAcc (List.map Tuple.second es) in
       let (newE1, newAcc3) = recurse newAcc2 e1 in
-      ret (EList ws1 newEs ws2 (Just newE1) ws3) newAcc3
+      ret (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 (Just newE1) ws3) newAcc3
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       case recurseAll newAcc [e1, e2, e3] of
@@ -808,13 +808,13 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
       ret (EOp ws1 op newEs ws2) newGlobalAcc2
 
     EList ws1 es ws2 Nothing ws3 ->
-      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc es in
-      ret (EList ws1 newEs ws2 Nothing ws3) newGlobalAcc2
+      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc (List.map Tuple.second es) in
+      ret (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 Nothing ws3) newGlobalAcc2
 
     EList ws1 es ws2 (Just e1) ws3 ->
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
-      let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 initScopeTempAcc es in
-      ret (EList ws1 newEs ws2 (Just newE1) ws3) newGlobalAcc3
+      let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 initScopeTempAcc (List.map Tuple.second es) in
+      ret (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 (Just newE1) ws3) newGlobalAcc3
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       case recurseAll newGlobalAcc initScopeTempAcc [e1, e2, e3] of
@@ -1258,8 +1258,8 @@ childExps e =
     EOp ws1 op es ws2       -> es
     EList ws1 es ws2 m ws3  ->
       case m of
-        Just e  -> es ++ [e]
-        Nothing -> es
+        Just e  -> List.map Tuple.second es ++ [e]
+        Nothing -> List.map Tuple.second es
     EApp ws1 f es apptype ws2       -> f :: es
     ELet ws1 k b p ws2 e1 ws3 e2 ws4-> [e1, e2]
     EIf ws1 e1 ws2 e2 ws3 e3 ws4    -> [e1, e2, e3]
@@ -1705,8 +1705,8 @@ eConst0 a b       = withDummyExpInfo <| EConst space0 a b noWidgetDecl
 eConst a b        = withDummyExpInfo <| EConst space1 a b noWidgetDecl
 eConstDummyLoc0 a = withDummyExpInfo <| EConst space0 a dummyLoc noWidgetDecl
 eConstDummyLoc a  = withDummyExpInfo <| EConst space1 a dummyLoc noWidgetDecl
-eList0 a b        = withDummyExpInfo <| EList space0 a space0 b space0
-eList a b         = withDummyExpInfo <| EList space1 a space0 b space0
+eList0 a b        = withDummyExpInfo <| EList space0 (List.map ((,) space0) a) space0 b space0
+eList a b         = withDummyExpInfo <| EList space1 (List.map ((,) space0) a) space0 b space0
 eTuple0 a         = eList0 a Nothing
 eTuple a          = eList a Nothing
 eHoleVal0 v       = withDummyExpInfo <| EHole space0 (Just v)
@@ -1907,7 +1907,9 @@ allWhitespaces_ exp =
     EApp       ws1 e1 es SpaceApp ws3       -> [ws1] ++ List.concatMap allWhitespaces_ (e1::es) ++ [ws3]
     EApp       ws1 e1 es (LeftApp ws2) ws3  -> [ws1] ++ allWhitespaces_ e1 ++ [ws2] ++ List.concatMap allWhitespaces_ es ++ [ws3]
     EApp       ws1 e1 es (RightApp ws2) ws3 -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2] ++ allWhitespaces_ e1 ++ [ws3]
-    EList      ws1 es ws2 rest ws3          -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2] ++ (rest |> Maybe.map allWhitespaces_ |> Maybe.withDefault []) ++ [ws3]
+    EList      ws1 es ws2 rest ws3          -> [ws1]
+                                                 ++ List.concatMap (\(ws_i,e_i) -> ws_i :: allWhitespaces_ e_i) es
+                                                 ++ [ws2] ++ (rest |> Maybe.map allWhitespaces_ |> Maybe.withDefault []) ++ [ws3]
     EOp        ws1 op es ws2                -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2]
     EIf        ws1 e1 ws2 e2 ws3 e3 ws4     -> [ws1] ++ allWhitespaces_ e1
                                                  ++ [ws2] ++ allWhitespaces_ e2
@@ -2636,14 +2638,14 @@ childCodeObjects co =
             let
               lastHead =
                 case Utils.maybeLast es of
-                  Just lastHead ->
+                  Just (_,lastHead) ->
                     [ lastHead ]
                   Nothing ->
                     []
             in
               [ ET Before ws1 e
               ] ++
-              ( List.map E es
+              ( List.map (E << Tuple.second) es
               ) ++
               ( case m of
                   Just eTail ->

@@ -34,8 +34,8 @@ nodeCount exp =
     EVar _ x                -> 1
     EFun _ ps e _           -> 1 + patsNodeCount ps + nodeCount e
     EOp _ op es _           -> 1 + expsNodeCount es
-    EList _ es _ (Just e) _ -> 1 + expsNodeCount es + nodeCount e
-    EList _ es _ Nothing _  -> 1 + expsNodeCount es
+    EList _ es _ (Just e) _ -> 1 + expsNodeCount (List.map Tuple.second es) + nodeCount e
+    EList _ es _ Nothing _  -> 1 + expsNodeCount (List.map Tuple.second es)
     EIf _ e1 _ e2 _ e3 _    -> 1 + expsNodeCount [e1, e2, e3]
     -- Cases have a set of parens around each branch. I suppose each should count as a node.
     ECase _ e1 bs _         -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
@@ -954,7 +954,7 @@ tryMatchExp pat exp =
           case exp.val.e__ of
             -- TODO: list must not have rest
             EList _ es _ Nothing _ ->
-              case Utils.maybeZip ps es of
+              case Utils.maybeZip ps (List.map Tuple.second es) of
                 Nothing    -> NoMatch
                 Just pairs ->
                   List.map (\(p, e) -> tryMatchExp p e) pairs
@@ -969,7 +969,7 @@ tryMatchExp pat exp =
               if List.length es < List.length ps then
                 NoMatch
               else
-                let (headExps, tailExps) = Utils.split (List.length ps) es in
+                let (headExps, tailExps) = Utils.split (List.length ps) (List.map Tuple.second es) in
                 let tryHeadMatch =
                   Utils.zip ps headExps
                   |> List.map (\(p, e) -> tryMatchExp p e)
@@ -989,7 +989,7 @@ tryMatchExp pat exp =
                 CannotCompare
               else
                 let tryHeadMatch =
-                  Utils.zip ps es
+                  Utils.zip ps (List.map Tuple.second es)
                   |> List.map (\(p, e) -> tryMatchExp p e)
                   |> projMatches
                 in
@@ -1176,7 +1176,7 @@ patToMaybePVarIdent pat =
 expToListParts : Exp -> (WS, List Exp, WS, Maybe Exp, WS)
 expToListParts exp =
   case exp.val.e__ of
-    EList ws1 heads ws2 maybeTail ws3 -> (ws1, heads, ws2, maybeTail, ws3)
+    EList ws1 heads ws2 maybeTail ws3 -> (ws1, List.map Tuple.second heads, ws2, maybeTail, ws3)
     _                                 -> Debug.crash <| "LangTools.expToListParts exp is not an EList: " ++ unparseWithIds exp
 
 
@@ -1613,7 +1613,7 @@ patToExp pat =
   case pat.val.p__ of
     PVar ws1 ident _                  -> EVar ws1 ident
     PAs ws1 ident _ _                 -> EVar ws1 ident
-    PList ws1 heads ws2 maybeTail ws3 -> EList ws1 (List.map patToExp heads) ws2 (Maybe.map patToExp maybeTail) ws3
+    PList ws1 heads ws2 maybeTail ws3 -> EList ws1 (List.map ((,) space0) (List.map patToExp heads)) ws2 (Maybe.map patToExp maybeTail) ws3
     PConst ws1 n                      -> EConst ws1 n dummyLoc noWidgetDecl
     PBase ws1 bv                      -> EBase ws1 bv
     PParens ws1 p ws2                 -> (patToExp p).val.e__
@@ -1846,7 +1846,7 @@ expPathsInExpList exps =
   |> Utils.mapi1
       (\(i, exp) ->
         case exp.val.e__ of
-          EList _ es _ _ _ -> [(exp, [i])] ++ List.map (\(e, path) -> (e, i::path)) (expPathsInExpList es)
+          EList _ es _ _ _ -> [(exp, [i])] ++ List.map (\(e, path) -> (e, i::path)) (expPathsInExpList (List.map Tuple.second es))
           _                -> [(exp, [i])]
       )
   |> List.concat
@@ -1966,14 +1966,14 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
           if List.length ps /= List.length es then
             Nothing
           else
-            matchListsAsFarAsPossible ps es
+            matchListsAsFarAsPossible ps (List.map Tuple.second es)
             |> addThisMatch
 
         EList _ es _ (Just tail) _ ->
           if List.length es > List.length ps then
             Nothing
           else
-            matchListsAsFarAsPossible ps es
+            matchListsAsFarAsPossible ps (List.map Tuple.second es)
             |> addThisMatch
 
         _ ->
@@ -1986,16 +1986,16 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
             Nothing
           else
             -- Nothing in the tail has a definite path: skip it.
-            matchListsAsFarAsPossible ps es
+            matchListsAsFarAsPossible ps (List.map Tuple.second es)
             |> addThisMatch
 
         EList _ es _ (Just restExp) _ ->
           if List.length es /= List.length ps then
             -- Nothing in the tail has a definite path: skip it.
-            matchListsAsFarAsPossible ps es
+            matchListsAsFarAsPossible ps (List.map Tuple.second es)
             |> addThisMatch
           else
-            matchListsAsFarAsPossible (ps ++ [restPat]) (es ++ [restExp])
+            matchListsAsFarAsPossible (ps ++ [restPat]) (List.map Tuple.second es ++ [restExp])
             |> addThisMatch
 
         _ ->
@@ -2277,7 +2277,7 @@ transformVarsUntilBound subst exp =
 
     EFun ws1 ps e ws2           -> replaceE__ exp (EFun ws1 ps (recurseWithout (identifiersSetInPats ps) e) ws2)
     EOp ws1 op es ws2           -> replaceE__ exp (EOp ws1 op (List.map recurse es) ws2)
-    EList ws1 es ws2 m ws3      -> replaceE__ exp (EList ws1 (List.map recurse es) ws2 (Maybe.map recurse m) ws3)
+    EList ws1 es ws2 m ws3      -> replaceE__ exp (EList ws1 (Utils.zip (List.map Tuple.first es) (List.map recurse (List.map Tuple.second es))) ws2 (Maybe.map recurse m) ws3)
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 -> replaceE__ exp (EIf ws1 (recurse e1) ws2 (recurse e2) ws3 (recurse e3) ws4)
     ECase ws1 e1 bs ws2         ->
@@ -2492,16 +2492,16 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       )
 
     EList ws1 es ws2 Nothing ws3 ->
-      let (newEs, usedNames_, newNameToOldName) = recurseExps es in
-      ( replaceE__ exp (EList ws1 newEs ws2 Nothing ws3)
+      let (newEs, usedNames_, newNameToOldName) = recurseExps (List.map Tuple.second es) in
+      ( replaceE__ exp (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 Nothing ws3)
       , usedNames_
       , newNameToOldName
       )
 
     EList ws1 es ws2 (Just tail) ws3 ->
-      let (newEs, usedNames_, newNameToOldName) = recurseExps (es ++ [tail]) in
+      let (newEs, usedNames_, newNameToOldName) = recurseExps (List.map Tuple.second es ++ [tail]) in
       let (newHeads, newTail) = (Utils.removeLastElement newEs, Utils.last "assignUniqueNames_" newEs) in
-      ( replaceE__ exp (EList ws1 newHeads ws2 (Just newTail) ws3)
+      ( replaceE__ exp (EList ws1 (Utils.zip (List.map Tuple.first es) newHeads) ws2 (Just newTail) ws3)
       , usedNames_
       , newNameToOldName
       )

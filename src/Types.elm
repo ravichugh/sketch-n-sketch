@@ -833,7 +833,7 @@ synthesizeType typeInfo typeEnv e =
              let result = synthesizeType accTypeInfo typeEnv ei in
              (result.result :: accMaybeTypes, result.typeInfo))
            ([], typeInfo)
-           (List.reverse es)
+           (List.reverse (List.map Tuple.second es))
       in
       case Utils.projJusts maybeTypes of
         Nothing -> finish.withError "synthesizeType: EList 1 ..." typeInfo_

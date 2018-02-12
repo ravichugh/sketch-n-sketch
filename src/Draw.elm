@@ -898,8 +898,8 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
         (\listExp ->
           let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] program in
           let (ws1, heads, ws2, maybeTail, ws3) = LangTools.expToListParts listExp in
-          let newListFlat      = replaceE__ listExp <| EList ws1 (imitateExpListWhitespace_ heads ws3.val (heads ++ [eVar varName]))           ws2 maybeTail ws3 in
-          let newListSingleton = replaceE__ listExp <| EList ws1 (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [eVar0 varName]])) ws2 maybeTail ws3 in
+          let newListFlat      = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eVar varName])))           ws2 maybeTail ws3 in
+          let newListSingleton = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [eVar0 varName]]))) ws2 maybeTail ws3 in
           let newProgramFlat      = programWithNewDef |> replaceExpNode listExp.val.eid newListFlat in
           let newProgramSingleton = programWithNewDef |> replaceExpNode listExp.val.eid newListSingleton in
           [ (listExp.val.eid, newProgramFlat)

@@ -86,7 +86,7 @@ maybeSvgConcat main =
             (EVar _ "concat", EList ws5 oldList ws6 Nothing ws7) ->
               let updateExpressionList newList =
                 let
-                  e2New         = replaceE__ e2 <| EList ws5 newList ws6 Nothing ws7
+                  e2New         = replaceE__ e2 <| EList ws5 (Utils.zip (List.map Tuple.first oldList) newList) ws6 Nothing ws7
                   eAppConcatNew = replaceE__ eAppConcat <| EApp ws3 eConcat [e2New] appType2 ws4
                   mainNew       = replaceE__ main <| EApp ws1 e1 [eAppConcatNew] appType ws2
                 in
@@ -94,7 +94,7 @@ maybeSvgConcat main =
                 else if ws1.val == "\n" then addPrecedingWhitespace "\n" mainNew
                 else mainNew
               in
-              Just (SvgConcat oldList updateExpressionList)
+              Just (SvgConcat (List.map Tuple.second oldList) updateExpressionList)
 
             _ -> Nothing
         _     -> Nothing
@@ -110,14 +110,14 @@ maybeBlobs main =
           let rebuildExp newBlobExpList =
             let newExpList = List.map fromBlobExp newBlobExpList in
             let
-              eArgsNew = replaceE__ eArgs <| EList ws5 newExpList ws6 Nothing ws7
+              eArgsNew = replaceE__ eArgs <| EList ws5 (Utils.zip (List.map Tuple.first oldList) newExpList) ws6 Nothing ws7
               mainNew  = replaceE__ main <| EApp ws1 eBlobs [eArgsNew] appType ws2
             in
             if ws1.val == "" then addPrecedingWhitespace "\n\n" mainNew
             else if ws1.val == "\n" then addPrecedingWhitespace "\n" mainNew
             else mainNew
           in
-          let blobs = List.map toBlobExp oldList in
+          let blobs = List.map toBlobExp (List.map Tuple.second oldList) in
           Just (Blobs blobs rebuildExp)
 
         _     -> Nothing

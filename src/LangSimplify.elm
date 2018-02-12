@@ -178,7 +178,7 @@ removeUnusedLetPatsMatching predicate exp =
             if List.length pats /= List.length assigns then
               e__
             else
-              let patsAssigns = Utils.zip pats assigns in
+              let patsAssigns = Utils.zip pats (List.map Tuple.second assigns) in
               let usedPatsAssigns =
                 List.filter
                     (\(pat, assign) ->
@@ -204,7 +204,7 @@ removeUnusedLetPatsMatching predicate exp =
                   else
                     let (usedPats, usedAssigns) = List.unzip usedPatsAssigns in
                     let newPat    = replaceP__ pat    <| PList pws1 (usedPats    |> imitatePatListWhitespace pats)    pws2 Nothing pws3 in
-                    let newAssign = replaceE__ assign <| EList aws1 (usedAssigns |> imitateExpListWhitespace assigns) aws2 Nothing aws3 in
+                    let newAssign = replaceE__ assign <| EList aws1 (Utils.zip (List.map Tuple.first assigns) (usedAssigns |> imitateExpListWhitespace (List.map Tuple.second assigns))) aws2 Nothing aws3 in
                     ELet ws1 letKind False newPat ws2 newAssign ws3 body ws4
 
           _ ->
@@ -233,7 +233,7 @@ simplifyPatBoundExp pat boundExp =
     , EList ews1 es ews2 maybeETail ews3
     ) ->
       let (newPs, newEs) =
-        Utils.filterMapTogetherPreservingLeftovers simplifyPatBoundExp ps es
+        Utils.filterMapTogetherPreservingLeftovers simplifyPatBoundExp ps (List.map Tuple.second es)
       in
       let (newMaybePTail, newMaybeETail) =
         case (maybePTail, maybeETail) of
@@ -255,7 +255,7 @@ simplifyPatBoundExp pat boundExp =
         _ ->
           Just <|
               ( replaceP__ pat       <| PList pws1 (newPs |> imitatePatListWhitespace ps) pws2 newMaybePTail pws3
-              , replaceE__ boundExp <| EList ews1 (newEs |> imitateExpListWhitespace es) ews2 newMaybeETail ews3
+              , replaceE__ boundExp <| EList ews1 (Utils.zip (List.map Tuple.first es) (newEs |> imitateExpListWhitespace (List.map Tuple.second es))) ews2 newMaybeETail ews3
               )
 
     _ ->
@@ -295,7 +295,7 @@ simpleIdentsAndAssigns letPat letAssign =
 
     -- List assignment, no tail.
     (PList pws1 pats pws2 Nothing pws3, EList aws1 assigns aws2 Nothing aws3) ->
-      let patsAssigns = Utils.zip pats assigns in
+      let patsAssigns = Utils.zip pats (List.map Tuple.second assigns) in
       let simplePatsAssigns =
         List.filterMap
             (\(pat, assign) ->
@@ -342,10 +342,10 @@ inlineTrivialRenamings exp =
                       _ ->
                         assignExp
                   )
-                  assigns
+                  (List.map Tuple.second assigns)
             in
             let newAssignsListExp =
-              withDummyExpInfo <| EList aws1 newAssigns aws2 Nothing aws3
+              withDummyExpInfo <| EList aws1 (Utils.zip (List.map Tuple.first assigns) newAssigns) aws2 Nothing aws3
             in
             ELet ws1 letKind rec pat ws2 newAssignsListExp ws3 body ws4
 
@@ -466,7 +466,7 @@ changeRenamedVarsToOuter_ renamings exp =
 
       EApp ws1 e1 es appType ws2 -> EApp ws1 (recurse e1) (List.map recurse es) appType ws2
       EOp ws1 op es ws2          -> EOp ws1 op (List.map recurse es) ws2
-      EList ws1 es ws2 m ws3     -> EList ws1 (List.map recurse es) ws2 (Utils.mapMaybe recurse m) ws3
+      EList ws1 es ws2 m ws3     -> EList ws1 (Utils.zip (List.map Tuple.first es) (List.map recurse (List.map Tuple.second es))) ws2 (Utils.mapMaybe recurse m) ws3
       EIf ws1 e1 ws2 e2 ws3 e3 ws4 -> EIf ws1 (recurse e1) ws2 (recurse e2) ws3 (recurse e3) ws4
       ECase ws1 e1 branches ws2  ->
         -- TODO remove branch pat vars from renamings here (shadow
