@@ -325,6 +325,7 @@ deadPathsInPat pat =
   else
     case pat.val.p__ of
       PVar   _ _ _ -> []
+      PWildcard _  -> []
       PConst _ _   -> Debug.log "why do you put constants in your function arguments?!" []
       PBase  _ _   -> Debug.log "why do you put base vals in your function arguments?!"[]
 

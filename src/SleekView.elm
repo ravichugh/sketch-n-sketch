@@ -1410,7 +1410,9 @@ outputPanel model =
                   ]
               ]
               -- [ Html.text (Lang.strVal model.inputVal) ]
-              [ Html.text model.valueEditorString ]
+              [ -- let _ = Debug.log "valueEditorString" model.valueEditorString in
+                Html.text model.valueEditorString
+              ]
           , Html.button
               [ E.onClick Controller.msgCallUpdate
               , Attr.style -- TODO

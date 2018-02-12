@@ -1841,6 +1841,12 @@ mergeMaybeExpressions me mes =
 mergePatterns : Pat -> List Pat -> Maybe ()
 mergePatterns pFirst pRest =
   case pFirst.val.p__ of
+    PWildcard _ ->
+      let match pNext = case pNext.val.p__ of
+        PWildcard _ -> Just ()
+        _           -> Nothing
+      in
+      matchAllAndCheckEqual match pRest ()
     PVar _ x _ ->
       let match pNext = case pNext.val.p__ of
         PVar _ x_ _ -> Just x_

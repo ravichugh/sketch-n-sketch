@@ -1759,6 +1759,9 @@ makeSingleLineTool model selections =
                           ws
                       deLineP__ p__ =
                         case p__ of
+                          PWildcard ws ->
+                            PWildcard
+                              (deLine ws)
                           PVar ws ident wd ->
                             PVar
                               (deLine ws)

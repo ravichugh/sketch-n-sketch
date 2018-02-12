@@ -67,6 +67,7 @@ type Pat__
   = PVar WS Ident WidgetDecl
   | PConst WS Num
   | PBase WS EBaseVal
+  | PWildcard WS
   | PList WS (List Pat) WS (Maybe Pat) WS
   | PAs WS Ident WS Pat
   | PParens WS Pat WS
@@ -584,6 +585,7 @@ mapFoldPat f initAcc p =
     PVar ws ident wd -> f p initAcc
     PConst ws num    -> f p initAcc
     PBase ws ebv     -> f p initAcc
+    PWildcard ws     -> f p initAcc
 
     PList ws1 ps ws2 Nothing ws3 ->
       let (newPs, newAcc) = recurseAll initAcc ps in
@@ -737,6 +739,7 @@ mapFoldPatTopDown f initAcc p =
     PVar ws ident wd -> (newP, newAcc)
     PConst ws num    -> (newP, newAcc)
     PBase ws ebv     -> (newP, newAcc)
+    PWildcard ws     -> (newP, newAcc)
 
     PList ws1 ps ws2 Nothing ws3 ->
       let (newPs, newAcc2) = recurseAll newAcc ps in
@@ -1488,6 +1491,7 @@ varsOfPat pat =
   case pat.val.p__ of
     PConst _ _              -> []
     PBase _ _               -> []
+    PWildcard _             -> []
     PVar _ x _              -> [x]
     PList _ ps _ Nothing _  -> List.concatMap varsOfPat ps
     PList _ ps _ (Just p) _ -> List.concatMap varsOfPat (p::ps)
@@ -1507,6 +1511,7 @@ childPats pat =
     PConst _ _              -> []
     PBase _ _               -> []
     PVar _ _ _              -> []
+    PWildcard _             -> []
     PList _ ps _ Nothing _  -> ps
     PList _ ps _ (Just p) _ -> ps ++ [p]
     PAs _ _ _ p             -> [p]
@@ -1844,6 +1849,7 @@ precedingWhitespacePat pat =
       PVar   ws ident wd         -> ws
       PConst ws n                -> ws
       PBase  ws v                -> ws
+      PWildcard ws               -> ws
       PList  ws1 ps ws2 rest ws3 -> ws1
       PAs    ws1 ident ws2 p     -> ws1
       PParens ws1 p ws2          -> ws1
@@ -1925,6 +1931,7 @@ allWhitespacesPat_ pat =
     PVar   ws ident wd         -> [ws]
     PConst ws n                -> [ws]
     PBase  ws v                -> [ws]
+    PWildcard ws               -> [ws]
     PList  ws1 ps ws2 rest ws3 -> [ws1] ++ List.concatMap allWhitespacesPat_ ps ++ [ws2] ++ (rest |> Maybe.map allWhitespacesPat_ |> Maybe.withDefault []) ++ [ws3]
     PAs    ws1 ident ws2 p     -> [ws1, ws2] ++ allWhitespacesPat_ p
     PParens ws1 p ws2          -> [ws1, ws2] ++ allWhitespacesPat_ p
@@ -2017,6 +2024,7 @@ mapPrecedingWhitespacePat stringMap pat =
         PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
         PConst ws n                -> PConst (mapWs ws) n
         PBase  ws v                -> PBase  (mapWs ws) v
+        PWildcard ws               -> PWildcard (mapWs ws)
         PList  ws1 ps ws2 rest ws3 -> PList  (mapWs ws1) ps ws2 rest ws3
         PAs    ws1 ident ws2 p     -> PAs    ws1 ident ws2 (mapPrecedingWhitespacePat stringMap p)
         PParens ws1 p ws2          -> PParens (mapWs ws1) p ws2
@@ -2357,6 +2365,8 @@ isWord codeObject =
           True
         (PBase _ _) ->
           True
+        (PWildcard _) ->
+          True
         _ ->
           False
     _ ->
@@ -2375,6 +2385,8 @@ wsBefore codeObject =
         PConst ws _ ->
           ws
         PBase ws _ ->
+          ws
+        PWildcard ws ->
           ws
         PList ws _ _ _ _ ->
           ws
@@ -2484,6 +2496,8 @@ modifyWsBefore f codeObject =
               PConst (f ws) a
             PBase ws a ->
               PBase (f ws) a
+            PWildcard ws ->
+              PWildcard (f ws)
             PList ws a b c d ->
               PList (f ws) a b c d
             PAs ws ident ws2 p2 ->
@@ -2799,6 +2813,8 @@ childCodeObjects co =
             [ PT Before ws1 e p ]
           PBase ws1 _ ->
             [ PT Before ws1 e p ]
+          PWildcard ws1 ->
+            [ ]
           PList ws1 ps ws2 m ws3 ->
             let
               lastHead =
@@ -2978,6 +2994,8 @@ tagSinglePat ppid pat =
         PBase _ _ ->
           []
         PVar _ _ _  ->
+          []
+        PWildcard _ ->
           []
         PAs _ _ _ p1 ->
           -- TODO Unsure if this is the right ppid (it is the same as the

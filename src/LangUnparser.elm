@@ -68,6 +68,8 @@ unparseWDWithUniformWhitespace = unparseWD  -- WidgetDecls don't have any whites
 
 unparsePat : Pat -> String
 unparsePat pat = case pat.val.p__ of
+  PWildcard ws ->
+    ws.val ++ "_"
   PVar ws x wd ->
     ws.val ++ x ++ unparseWD wd
   PList ws1 ps ws2 Nothing ws3 ->
@@ -83,6 +85,8 @@ unparsePatWithIds : Pat -> String
 unparsePatWithIds pat =
   let pidTag = "«" ++ toString pat.val.pid ++ "»" in
   case pat.val.p__ of
+    PWildcard ws ->
+      ws.val ++ "_"
     PVar ws x wd ->
       ws.val ++ x ++ unparseWD wd ++ pidTag
     PList ws1 ps ws2 Nothing ws3 ->
@@ -97,6 +101,8 @@ unparsePatWithIds pat =
 unparsePatWithUniformWhitespace includeWidgetDecls pat =
   let recurse p = unparsePatWithUniformWhitespace includeWidgetDecls p in
   case pat.val.p__ of
+    PWildcard ws ->
+      " " ++ "_"
     PVar _ x wd ->
       " " ++ x ++ (if includeWidgetDecls then unparseWDWithUniformWhitespace wd else "")
     PList _ ps _ Nothing _ ->

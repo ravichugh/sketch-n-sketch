@@ -84,6 +84,7 @@ foldPatternsWithIds f (scopeId, path) pats init =
       case pat.val.p__ of
         PConst _ _  -> acc
         PBase _ _   -> acc
+        PWildcard _ -> acc
         PVar _ x _  -> f pathedPatId x acc
         PAs _ x _ p -> f pathedPatId x (doOne f pathedPatId p acc)
         PList _ ps _ Nothing _  -> doMany f pathedPatId ps acc
@@ -354,6 +355,8 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
     (PConst _ _, _) -> acc |> traverse env exp
 
     (PBase _ _, _) -> acc |> traverse env exp
+
+    (PWildcard _, _) -> acc |> traverse env exp
 
     (PVar _ x _, _) ->
       acc |> clearUsed

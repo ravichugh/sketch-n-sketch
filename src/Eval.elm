@@ -19,6 +19,7 @@ import ImpureGoodies
 
 match : (Pat, Val) -> Maybe Env
 match (p,v) = case (p.val.p__, v.v_) of
+  (PWildcard _, _) -> Just []
   (PVar _ x _, _) -> Just [(x,v)]
   (PAs _ x _ innerPat, _) ->
     case match (innerPat, v) of

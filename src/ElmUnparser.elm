@@ -46,6 +46,10 @@ unparsePattern p =
       wsBefore.val
         ++ unparseBaseValue baseValue
 
+    PWildcard wsBefore ->
+      wsBefore.val
+        ++ "_"
+
     PParens wsBefore pat wsBeforeEnd ->
       wsBefore.val
         ++ "("

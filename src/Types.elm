@@ -314,7 +314,7 @@ addBindingsOne (p, t) acc =
 
     (PConst _ _, _)     -> Ok acc
     (PBase _ _, _)      -> Ok acc
-    (PVar _ "_" _, _)   -> Ok acc
+    (PWildcard _, _)    -> Ok acc
     (PVar _ x _, _)     -> Ok (HasType x t :: acc)
     (PAs _ x _ xPat, _) -> addBindingsOne (xPat, t) (HasType x t :: acc)
 
@@ -387,6 +387,7 @@ lookupPat : TypeEnv -> Pat -> Maybe Type
 lookupPat typeEnv p =
   case p.val.p__ of
 
+    PWildcard _  -> Nothing
     PVar _ x _  -> lookupVar typeEnv x
     PAs _ x _ _ -> lookupVar typeEnv x
     PParens _ p _ -> lookupPat typeEnv p

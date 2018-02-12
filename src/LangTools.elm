@@ -149,6 +149,7 @@ subExpsOfSizeAtLeast_ min exp =
 patNodeCount : Pat -> Int
 patNodeCount pat =
   case pat.val.p__ of
+    PWildcard _                 -> 1
     PVar _ _ _                  -> 1
     PConst _ _                  -> 1
     PBase _ _                   -> 1
@@ -939,6 +940,7 @@ tryMatchExp pat exp =
 
     _ ->
       case pat.val.p__ of
+        PWildcard _            -> Match []
         PVar _ ident _         -> Match [(ident, exp)]
         PAs _ ident _ innerPat ->
           tryMatchExp innerPat exp
@@ -1611,6 +1613,8 @@ patToExp pat =
     PConst ws1 n                      -> EConst ws1 n dummyLoc noWidgetDecl
     PBase ws1 bv                      -> EBase ws1 bv
     PParens ws1 p ws2                 -> (patToExp p).val.e__
+    PWildcard ws1                     -> let _ = Debug.log "WARNING: patToExp: PWildcard" in
+                                         EConst ws1 (-9999) dummyLoc noWidgetDecl
 
 -- Return the first expression(s) that can see the bound variables.
 -- Returns [] if cannot find scope; letrec returns two expressions [boundExp, body]; others return singleton list.
@@ -1941,6 +1945,9 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
     |> Maybe.map List.concat
   in
   case pat.val.p__ of
+    PWildcard _ ->
+      Just thisMatch
+
     PVar _ ident _ ->
       Just thisMatch
 

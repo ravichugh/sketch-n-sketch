@@ -373,6 +373,18 @@ variablePattern =
     namePattern littleIdentifier
 
 --------------------------------------------------------------------------------
+-- Wildcards
+--------------------------------------------------------------------------------
+
+wildcardPattern : Parser Pat
+wildcardPattern =
+  inContext "wildcard pattern" <|
+    mapPat_ <|
+      paddedBefore
+        (\ws () -> PWildcard ws)
+        (trackInfo (symbol "_"))
+
+--------------------------------------------------------------------------------
 -- Types  (SPECIAL-USE ONLY; not included in `pattern`)
 --------------------------------------------------------------------------------
 
@@ -473,6 +485,7 @@ simplePattern =
       , constantPattern
       , baseValuePattern
       , variablePattern
+      , wildcardPattern
       ]
 
 --------------------------------------------------------------------------------
