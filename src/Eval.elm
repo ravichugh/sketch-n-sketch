@@ -263,7 +263,7 @@ eval syntax env bt e =
           _ ->
             errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
 
-  ELet _ _ False p e1 e2 _ ->
+  ELet _ _ False p _ e1 _ e2 _ ->
     case eval_ syntax env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->
@@ -277,7 +277,7 @@ eval syntax env bt e =
             errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser syntax >> Utils.squish) p ++ " with " ++ strVal v1
 
 
-  ELet _ _ True p e1 e2 _ ->
+  ELet _ _ True p _ e1 _ e2 _ ->
     case eval_ syntax env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->

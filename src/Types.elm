@@ -932,7 +932,7 @@ synthesizeType typeInfo typeEnv e =
               let err = "typecase scrutinee is not a union type: " ++ unparseType t1 in
               { result = Nothing, typeInfo = addTypeErrorAt e0.start err result1.typeInfo }
 
-    ELet ws1 letKind rec p e1 e2 ws2 ->
+    ELet ws1 letKind rec p ws2 e1 ws3 e2 ws4 ->
       case (p.val.p__, lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
 
         (PVar _ "dummyPreludeMain" _, _, _, _) ->
@@ -983,7 +983,7 @@ synthesizeType typeInfo typeEnv e =
           else
             let typeEnv_ = addRecBinding rec p t1 typeEnv in
             let e1_ = replaceE__ e1 (EColonType space0 e1 space0 t1 space0) in
-            let e_ = replaceE__ e (ELet ws1 letKind rec p e1_ e2 ws2) in
+            let e_ = replaceE__ e (ELet ws1 letKind rec p ws2 e1_ ws3 e2 ws4) in
             synthesizeType typeInfo typeEnv_ e_
 
     -- don't need Ace annotations for the remaining expression kinds,

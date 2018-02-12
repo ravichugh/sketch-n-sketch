@@ -330,7 +330,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                   let finalExp = replaceE__ e <| ECase sp1 newInputExp nBranches sp2 in
                   UpdateResult finalEnv finalExp
     --  ETypeCase WS Exp (List TBranch) WS
-    ELet sp1 letKind False p e1 body sp2 ->
+    ELet sp1 letKind False p sp2 e1 sp3 body sp4 ->
         case doEval Syntax.Elm env e1 of
           Err s       -> UpdateError s
           Ok ((oldE1Val,_), _) ->
@@ -341,11 +341,11 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                     ((newPat, newE1Val), newEnvFromBody) ->
                       UpdateContinue env e1 oldE1Val (Raw newE1Val) <| HandlePreviousResult <| \(newEnvFromE1, newE1) ->
                         let finalEnv = triCombine e env newEnvFromE1 newEnvFromBody in
-                        let finalExp = replaceE__ e <| ELet sp1 letKind False newPat newE1 newBody sp2 in
+                        let finalExp = replaceE__ e <| ELet sp1 letKind False newPat sp2 newE1 sp3 newBody sp4 in
                         UpdateResult finalEnv finalExp
                Nothing ->
                  UpdateError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
-    ELet sp1 letKind True p e1 body sp2 ->
+    ELet sp1 letKind True p sp2 e1 sp3 body sp4 ->
         case doEval Syntax.Elm env e1 of
           Err s       -> UpdateError s
           Ok ((oldE1Val,_), _) ->
@@ -364,7 +364,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                            in
                            UpdateContinue env e1 oldE1Val (Raw newE1Val) <| HandlePreviousResult <| \(newEnvFromE1, newE1) ->
                              let finalEnv = triCombine e env newEnvFromE1 newEnvFromBody in
-                             let finalExp = replaceE__ e <| ELet sp1 letKind True newPat newE1 newBody sp2 in
+                             let finalExp = replaceE__ e <| ELet sp1 letKind True newPat sp2 newE1 sp3 newBody sp4 in
                              UpdateResult finalEnv finalExp
                    Nothing ->
                      UpdateError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
@@ -928,8 +928,11 @@ expEqual e1_ e2_ =
     expEqual input1 input2 &&
     listForAll2 tbranchEqual tbranches1 tbranches2
 
-  (ELet sp1 lk1 rec1 pat1 exp1 body1 sp2, ELet sp3 lk2 rec2 pat2 exp2 body2 sp4) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
+  (ELet sp11 lk1 rec1 pat1 sp12 exp1 sp13 body1 sp14, ELet sp21 lk2 rec2 pat2 sp22 exp2 sp23 body2 sp24) ->
+    wsEqual sp11 sp21 &&
+    wsEqual sp12 sp22 &&
+    wsEqual sp13 sp23 &&
+    wsEqual sp14 sp24 &&
     lk1 == lk2 && rec1 == rec2 &&
     patEqual pat1 pat2 && expEqual body1 body2 && expEqual exp1 exp2
   (EComment sp1 s1 e1, EComment sp2 s2 e2) ->

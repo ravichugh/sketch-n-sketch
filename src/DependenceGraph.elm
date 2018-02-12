@@ -260,7 +260,7 @@ traverse env exp acc =
 
   case exp.val.e__ of
 
-    ELet _ _ _ p e1 e2 _ ->
+    ELet _ _ _ p _ e1 _ e2 _ ->
       let env1 = updateEnv newScopeId [p] env in
       acc
         |> addScopeNode newScopeId True

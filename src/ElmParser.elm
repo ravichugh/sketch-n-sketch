@@ -1060,7 +1060,7 @@ genericLetBinding letkeyword isRec =
     lazy <| \_ ->
       mapExp_ <|
         paddedBefore
-          ( \wsBefore (name, parameters, binding_, body) ->
+          ( \wsBefore (name, parameters, wsBeforeEq, binding_, wsBeforeIn, body) ->
               let
                 binding =
                   if List.isEmpty parameters then
@@ -1071,17 +1071,17 @@ genericLetBinding letkeyword isRec =
                       binding_.start
                       binding_.end
               in
-                ELet wsBefore Let isRec name binding body space0
+                ELet wsBefore Let isRec name wsBeforeEq binding wsBeforeIn body space0
           )
           ( trackInfo <|
               delayedCommit (keywordWithSpace letkeyword) <|
-                succeed (,,,)
+                succeed (,,,,,)
                   |= pattern
                   |= repeat zeroOrMore pattern
-                  |. spaces
+                  |= spaces
                   |. symbol "="
                   |= expression
-                  |. spaces
+                  |= spaces
                   |. keywordWithSpace "in"
                   |= expression
           )
@@ -1372,7 +1372,7 @@ topLevelDef : Parser TopLevelExp
 topLevelDef =
   inContext "top-level def binding" <|
     delayedCommitMap
-      ( \(wsBefore, name, parameters)
+      ( \(wsBefore, name, parameters, wsBeforeEq)
          (binding_, wsBeforeSemicolon, semicolon) ->
           let
             binding =
@@ -1392,18 +1392,20 @@ topLevelDef =
                       Def
                       False
                       name
+                      wsBeforeEq
                       binding
-                      rest
                       wsBeforeSemicolon
+                      rest
+                      space0
               )
               name.start
               semicolon.end
       )
-      ( succeed (,,)
+      ( succeed (,,,)
           |= spaces
           |= pattern
           |= repeat zeroOrMore pattern
-          |. spaces
+          |= spaces
           |. symbol "="
       )
       ( succeed (,,)
@@ -1567,7 +1569,7 @@ implicitMain =
             EVar space1 "main"
       in
         withCorrectInfo << exp_ <|
-          ELet newline2 Let False name binding body space0
+          ELet newline2 Let False name space1 binding space1 body space0
   in
     succeed builder
       |= getPos

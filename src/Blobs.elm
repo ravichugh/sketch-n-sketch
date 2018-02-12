@@ -47,7 +47,7 @@ maybeSimpleProgram e =
 splitExp : Exp -> SplitProgram
 splitExp e =
   case e.val.e__ of
-    ELet ws1 Def False p1 e1 e2 ws2 ->
+    ELet ws1 Def False p1 _ e1 _ e2 ws2 ->
       let (defs, main) = splitExp e2 in
       ((ws1,p1,e1,ws2)::defs, main)
     _ ->
@@ -59,7 +59,7 @@ fuseExp (defs, mainExp) =
     case defs of
       [] -> fromMainExp mainExp
       (ws1,p1,e1,ws2)::defs_ ->
-        withDummyExpInfo <| ELet ws1 Def False p1 e1 (recurse defs_) ws2
+        withDummyExpInfo <| ELet ws1 Def False p1 space1 e1 space1 (recurse defs_) ws2
   in
   recurse defs
 

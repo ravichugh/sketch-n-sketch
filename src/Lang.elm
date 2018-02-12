@@ -136,6 +136,8 @@ type alias Pat_ = { p__ : Pat__, pid : PId }
 
 type ApplicationType = SpaceApp | LeftApp WS | RightApp WS
 
+-- TODO once Little syntax is deprecated, remove some unused WS args
+
 type Exp__
   = EConst WS Num Loc WidgetDecl
   | EBase WS EBaseVal
@@ -146,10 +148,10 @@ type Exp__
   | EApp WS Exp (List Exp) ApplicationType WS
   | EOp WS Op (List Exp) WS
   | EList WS (List Exp) WS (Maybe Exp) WS
-  | EIf WS Exp WS Exp WS Exp WS
+  | EIf WS Exp WS{-then-} Exp WS{-else-} Exp WS{-REMOVE-}
   | ECase WS Exp (List Branch) WS
   | ETypeCase WS Exp (List TBranch) WS
-  | ELet WS LetKind Rec Pat Exp Exp WS
+  | ELet WS LetKind Rec Pat WS{-=-} Exp WS{-in or ;-} Exp WS{-REMOVE-}
   | EComment WS String Exp
   | EOption WS (WithInfo String) WS (WithInfo String) Exp
   | ETyp WS Pat Type Exp WS
@@ -416,9 +418,9 @@ fitsOnLine s =
   else True
 
 isLet e = case e.val.e__ of
-  ELet _ _ _ _ _ _ _ -> True
+  ELet _ _ _ _ _ _ _ _ _ -> True
   -- EComment _ _ e1    -> isLet e1
-  _                  -> False
+  _                      -> False
 
 isList e = case e.val.e__ of
   EList _ _ _ _ _ -> True
@@ -539,10 +541,10 @@ mapFoldExp f initAcc e =
       let (newE1, newAcc) = recurse initAcc e1 in
       wrapAndMap (EOption ws1 s1 ws2 s2 newE1) newAcc
 
-    ELet ws1 k b p e1 e2 ws2 ->
+    ELet ws1 k b p ws2 e1 ws3 e2 ws4 ->
       let (newE2, newAcc) = recurse initAcc e2 in
       let (newE1, newAcc2) = recurse newAcc e1 in
-      wrapAndMap (ELet ws1 k b p newE1 newE2 ws2) newAcc2
+      wrapAndMap (ELet ws1 k b p ws2 newE1 ws3 newE2 ws4) newAcc2
 
     ETyp ws1 pat tipe e1 ws2 ->
       let (newE1, newAcc) = recurse initAcc e1 in
@@ -691,10 +693,10 @@ mapFoldExpTopDown f initAcc e =
       let (newE1, newAcc2) = recurse newAcc e1 in
       ret (EOption ws1 s1 ws2 s2 newE1) newAcc2
 
-    ELet ws1 k b p e1 e2 ws2 ->
+    ELet ws1 k b p ws2 e1 ws3 e2 ws4 ->
       let (newE1, newAcc2) = recurse newAcc e1 in
       let (newE2, newAcc3) = recurse newAcc2 e2 in
-      ret (ELet ws1 k b p newE1 newE2 ws2) newAcc3
+      ret (ELet ws1 k b p ws2 newE1 ws3 newE2 ws4) newAcc3
 
     ETyp ws1 pat tipe e1 ws2 ->
       let (newE1, newAcc2) = recurse newAcc e1 in
@@ -857,7 +859,7 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
       ret (EOption ws1 s1 ws2 s2 newE1) newGlobalAcc2
 
-    ELet ws1 k isRec p e1 e2 ws2 ->
+    ELet ws1 k isRec p ws2 e1 ws3 e2 ws4 ->
       let newScopeTempAcc = handleELet newE initScopeTempAcc in
       let (newE1, newGlobalAcc2) =
         if isRec
@@ -865,7 +867,7 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
         else recurse newGlobalAcc initScopeTempAcc e1
       in
       let (newE2, newGlobalAcc3) = recurse newGlobalAcc2 newScopeTempAcc e2 in
-      ret (ELet ws1 k isRec p newE1 newE2 ws2) newGlobalAcc3
+      ret (ELet ws1 k isRec p ws2 newE1 ws3 newE2 ws4) newGlobalAcc3
 
     ETyp ws1 pat tipe e1 ws2 ->
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
@@ -1046,7 +1048,7 @@ mapPatNode pid f root =
   mapExpViaExp__
       (\e__ ->
         case e__ of
-          ELet ws1 kind isRec pat boundExp body ws2 -> ELet ws1 kind isRec (mapPatNodePat pid f pat) boundExp body ws2
+          ELet ws1 kind isRec pat ws2 boundExp ws3 body ws4 -> ELet ws1 kind isRec (mapPatNodePat pid f pat) ws2 boundExp ws3 body ws4
           EFun ws1 pats body ws2                    -> EFun ws1 (List.map (mapPatNodePat pid f) pats) body ws2
           ECase ws1 scrutinee branches ws2          -> ECase ws1 scrutinee (mapBranchPats (mapPatNodePat pid f) branches) ws2
           _                                         -> e__
@@ -1155,7 +1157,7 @@ findScopeExpAndPatByPId program targetPId =
       (\e ->
         let maybeTargetPat =
           case e.val.e__ of
-            ELet _ _ _ pat _ _ _ -> findPatInPat targetPId pat
+            ELet _ _ _ pat _ _ _ _ _ -> findPatInPat targetPId pat
             EFun _ pats _ _      -> Utils.mapFirstSuccess (findPatInPat targetPId) pats
             ECase _ _ branches _ -> Utils.mapFirstSuccess (findPatInPat targetPId) (branchPats branches)
             _                    -> Nothing
@@ -1214,7 +1216,7 @@ findAllWithAncestorsScopesTagged_ predicate ancestors exp =
   let recurseNoScope exp = findAllWithAncestorsScopesTagged_ predicate ancestorsAndThisNoScope exp in
   let recurseScope exp   = findAllWithAncestorsScopesTagged_ predicate ancestorsAndThisScope exp in
   case exp.val.e__ of
-    ELet _ _ _ _ boundExp body _ -> thisResult ++ recurseNoScope boundExp  ++ recurseScope body
+    ELet _ _ _ _ _ boundExp _ body _ -> thisResult ++ recurseNoScope boundExp  ++ recurseScope body
     ECase _ scrutinee branches _ -> thisResult ++ recurseNoScope scrutinee ++ List.concatMap recurseScope (branchExps branches)
     EFun _ _ body _              -> thisResult ++ recurseScope body
     _                            -> thisResult ++ List.concatMap recurseNoScope (childExps exp)
@@ -1259,7 +1261,7 @@ childExps e =
         Just e  -> es ++ [e]
         Nothing -> es
     EApp ws1 f es apptype ws2       -> f :: es
-    ELet ws1 k b p e1 e2 ws2        -> [e1, e2]
+    ELet ws1 k b p ws2 e1 ws3 e2 ws4-> [e1, e2]
     EIf ws1 e1 ws2 e2 ws3 e3 ws4    -> [e1, e2, e3]
     ECase ws1 e branches ws2        -> e :: branchExps branches
     ETypeCase ws1 e tbranches ws2   -> e :: tbranchExps tbranches
@@ -1450,7 +1452,7 @@ isScope : Maybe Exp -> Exp -> Bool
 isScope maybeParent exp =
   let isObviouslyScope =
     case exp.val.e__ of
-      ELet _ _ _ _ _ _ _ -> True
+      ELet _ _ _ _ _ _ _ _ _ -> True
       EFun _ _ _ _       -> True
       _                  -> False
   in
@@ -1609,7 +1611,7 @@ clearNodeIds e =
   let eidCleared = clearEId e in
   case eidCleared.val.e__ of
     EConst ws n (locId, annot, ident) wd  -> replaceE__ eidCleared (EConst ws n (0, annot, "") wd)
-    ELet ws1 kind b p e1 e2 ws2           -> replaceE__ eidCleared (ELet ws1 kind b (clearPIds p) e1 e2 ws2)
+    ELet ws1 kind b p ws2 e1 ws3 e2 ws4   -> replaceE__ eidCleared (ELet ws1 kind b (clearPIds p) ws2 e1 ws3 e2 ws4)
     EFun ws1 pats body ws2                -> replaceE__ eidCleared (EFun ws1 (List.map clearPIds pats) body ws2)
     ECase ws1 scrutinee branches ws2      -> replaceE__ eidCleared (ECase ws1 scrutinee (mapBranchPats clearPIds branches) ws2)
     ETypeCase ws1 scrutinee tbranches ws2 -> replaceE__ eidCleared (ETypeCase ws1 scrutinee tbranches ws2)
@@ -1682,7 +1684,7 @@ eLets xes eBody = case xes of
 eLetOrDef : LetKind -> List (Ident, Exp) -> Exp -> Exp
 eLetOrDef letKind namesAndAssigns bodyExp =
   let (pat, assign) = patBoundExpOf namesAndAssigns in
-  withDummyExpInfo <| ELet newline1 letKind False pat assign bodyExp space0
+  withDummyExpInfo <| ELet newline1 letKind False pat space1 assign space1 bodyExp space0
 
 patBoundExpOf : List (Ident, Exp) -> (Pat, Exp)
 patBoundExpOf namesAndAssigns =
@@ -1870,7 +1872,7 @@ precedingWhitespaceWithInfoExp__ e__ =
     EList      ws1 es ws2 rest ws3      -> ws1
     EOp        ws1 op es ws2            -> ws1
     EIf        ws1 e1 ws2 e2 ws3 e3 ws4 -> ws1
-    ELet       ws1 kind rec p e1 e2 ws2 -> ws1
+    ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ws1
     ECase      ws1 e1 bs ws2            -> ws1
     ETypeCase  ws1 e1 bs ws2            -> ws1
     EComment   ws s e1                  -> ws
@@ -1911,7 +1913,13 @@ allWhitespaces_ exp =
                                                  ++ [ws2] ++ allWhitespaces_ e2
                                                  ++ [ws3] ++ allWhitespaces_ e3
                                                  ++ [ws4]
-    ELet       ws1 kind rec p e1 e2 ws2     -> [ws1] ++ allWhitespacesPat_ p ++ allWhitespaces_ e1 ++ allWhitespaces_ e2 ++ [ws2]
+    ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> [ws1]
+                                                     ++ allWhitespacesPat_ p
+                                                     ++ [ws2]
+                                                     ++ allWhitespaces_ e1
+                                                     ++ [ws3]
+                                                     ++ allWhitespaces_ e2
+                                                     ++ [ws4]
     ECase      ws1 e1 bs ws2                -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesBranch bs ++ [ws2]
     ETypeCase  ws1 e1 bs ws2                -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesTBranch bs ++ [ws2]
     EComment   ws s e1                      -> [ws] ++ allWhitespaces_ e1
@@ -2003,7 +2011,7 @@ mapPrecedingWhitespace stringMap exp =
         EList      ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
         EOp        ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
         EIf        ws1 e1 ws2 e2 ws3 e3 ws4 -> EIf        (mapWs ws1) e1 ws2 e2 ws3 e3 ws4
-        ELet       ws1 kind rec p e1 e2 ws2 -> ELet       (mapWs ws1) kind rec p e1 e2 ws2
+        ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ELet       (mapWs ws1) kind rec p ws2 e1 ws3 e2 ws4
         ECase      ws1 e1 bs ws2            -> ECase      (mapWs ws1) e1 bs ws2
         ETypeCase  ws1 e1 bs ws2            -> ETypeCase  (mapWs ws1) e1 bs ws2
         EComment   ws s e1                  -> EComment   (mapWs ws) s e1
@@ -2469,8 +2477,8 @@ modifyWsBefore f codeObject =
               ECase (f ws) a b c
             ETypeCase ws a b c ->
               ETypeCase (f ws) a b c
-            ELet ws a b c d e_ f_ ->
-              ELet (f ws) a b c d e_ f_
+            ELet ws a b c d e_ f_ g h ->
+              ELet (f ws) a b c d e_ f_ g h
             EComment ws a b ->
               EComment (f ws) a b
             EOption ws a b c d ->
@@ -2555,7 +2563,7 @@ modifyWsBefore f codeObject =
 isImplicitMain : Exp -> Bool
 isImplicitMain e =
   case e.val.e__ of
-    ELet _ _ _ name _ _ _ ->
+    ELet _ _ _ name _ _ _ _ _ ->
       case name.val.p__ of
         PVar _ "_IMPLICIT_MAIN" _ ->
           True
@@ -2697,7 +2705,7 @@ childCodeObjects co =
                 )
                 tbranches
             )
-          ELet ws1 lk _ p1 e1 e2 ws2 ->
+          ELet ws1 lk _ p1 ws2 e1 ws3 e2 ws4 ->
             let
               -- Altered Whitespace
               --
@@ -2770,10 +2778,10 @@ childCodeObjects co =
               ( case lk of
                   Let ->
                     [ E e2
-                    , ET After ws2 e2
+                    , ET After ws4 e2
                     ]
                   Def ->
-                    [ ET After ws2 e1
+                    [ ET After ws4 e1
                     , E e2
                     ]
               )
@@ -3031,7 +3039,7 @@ taggedExpPats exp =
       tagPatList (rootPathedPatternId (exp.val.eid, 1)) ps
     ECase _ _ branches _ ->
       tagBranchList exp.val.eid branches
-    ELet _ _ _ p1 _ _ _ ->
+    ELet _ _ _ p1 _ _ _ _ _ ->
       tagSinglePat (rootPathedPatternId (exp.val.eid, 1)) p1
     ETyp _ p1 _ _ _ ->
       tagSinglePat (rootPathedPatternId (exp.val.eid, 1)) p1
@@ -3057,7 +3065,7 @@ pidToPathedPatternId program pid =
 firstNestedExp : Exp -> Exp
 firstNestedExp e =
   case e.val.e__ of
-    ELet _ Def _ _ _ eRest _ ->
+    ELet _ Def _ _ _ _ _ eRest _ ->
       firstNestedExp eRest
     EComment _ _ eRest ->
       firstNestedExp eRest

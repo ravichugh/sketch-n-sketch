@@ -206,14 +206,14 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
   EIf ws1 e1 _ e2 _ e3 ws2 ->
     ws1.val ++ "(if" ++ unparse_ e1 ++ unparse_ e2 ++ unparse_ e3 ++ ws2.val ++ ")"
-  ELet ws1 Let b p e1 e2 ws2 ->
+  ELet ws1 Let b p _ e1 _ e2 ws2 ->
     case p.val.p__ of
       PVar _ "_IMPLICIT_MAIN" _ ->
         ""
       _ ->
         let tok = if b then "letrec" else "let" in
         ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse_ e1 ++ unparse_ e2 ++ ws2.val ++ ")"
-  ELet ws1 Def b p e1 e2 ws2 ->
+  ELet ws1 Def b p _ e1 _ e2 ws2 ->
     -- TODO don't used nested defs until this is re-worked
     let tok = if b then "defrec" else "def" in
     ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse_ e1 ++ ws2.val ++ ")" ++ unparse_ e2
@@ -271,10 +271,10 @@ unparseWithIds e =
       ws1.val ++ "(" ++ eidTag ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")"
     EIf ws1 e1 _ e2 _ e3 ws2 ->
       ws1.val ++ "(" ++ eidTag ++ "if" ++ unparseWithIds e1 ++ unparseWithIds e2 ++ unparseWithIds e3 ++ ws2.val ++ ")"
-    ELet ws1 Let b p e1 e2 ws2 ->
+    ELet ws1 Let b p _ e1 _ e2 ws2 ->
       let tok = if b then "letrec" else "let" in
       ws1.val ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ unparseWithIds e2 ++ ws2.val ++ ")"
-    ELet ws1 Def b p e1 e2 ws2 ->
+    ELet ws1 Def b p _ e1 _ e2 ws2 ->
       -- TODO don't used nested defs until this is re-worked
       let tok = if b then "defrec" else "def" in
       ws1.val ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2.val ++ ")" ++ unparseWithIds e2
@@ -336,10 +336,10 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       " " ++ "(" ++ strOp op.val ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
     EIf _ e1 _ e2 _ e3 _ ->
       " " ++ "(if" ++ recurse e1 ++ recurse e2 ++ recurse e3 ++ " " ++ ")"
-    ELet _ Let b p e1 e2 _ ->
+    ELet _ Let b p _ e1 _ e2 _ ->
       let tok = if b then "letrec" else "let" in
       " " ++ "(" ++ tok ++ recursePat p ++ recurse e1 ++ recurse e2 ++ " " ++ ")"
-    ELet _ Def b p e1 e2 _ ->
+    ELet _ Def b p _ e1 _ e2 _ ->
       -- TODO don't used nested defs until this is re-worked
       let tok = if b then "defrec" else "def" in
       " " ++ "(" ++ tok ++ recursePat p ++ recurse e1 ++ " " ++ ")" ++ recurse e2

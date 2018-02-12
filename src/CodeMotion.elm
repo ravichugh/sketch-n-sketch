@@ -229,10 +229,10 @@ pluck ((scopeEId, scopeBranchI), path) program =
 
 pluck_ : Exp -> List Int -> Exp -> Maybe (PatBoundExp, Exp)
 pluck_ scopeExp path program =
-  let (maybePluckedAndNewPatAndBoundExp, ws1, letKind, isRec, e2, ws2) =
+  let (maybePluckedAndNewPatAndBoundExp, ws1, letKind, isRec, e2, ws2, ws3, ws4) =
     case scopeExp.val.e__ of
-      ELet ws1 letKind False p e1 e2 ws2 -> (pluck__ p e1 path, ws1, letKind, False, e2, ws2)
-      ELet ws1 letKind True  p e1 e2 ws2 -> let _ = Debug.log "pluck: letrec not supported" () in (Nothing, ws1, letKind, True, e2, ws2)
+      ELet ws1 letKind False p ws2 e1 ws3 e2 ws4 -> (pluck__ p e1 path, ws1, letKind, False, e2, ws2, ws3, ws4)
+      ELet ws1 letKind True  p ws2 e1 ws3 e2 ws4 -> let _ = Debug.log "pluck: letrec not supported" () in (Nothing, ws1, letKind, True, e2, ws2, ws3, ws4)
       _                                  -> Debug.crash <| "pluck_: bad Exp__ (note: case branches, and func args not supported) " ++ unparseWithIds scopeExp
   in
   case maybePluckedAndNewPatAndBoundExp of
@@ -242,7 +242,7 @@ pluck_ scopeExp path program =
     Just (pluckedPatBoundExp, newPat, newBoundExp) ->
       Just <|
         ( pluckedPatBoundExp
-        , replaceExpNodeE__ scopeExp (ELet ws1 letKind isRec newPat newBoundExp e2 ws2) program
+        , replaceExpNodeE__ scopeExp (ELet ws1 letKind isRec newPat ws2 newBoundExp ws3 e2 ws4) program
         )
 
 
@@ -702,7 +702,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
 
       EComment _ _ body       -> expToMaybeMathExp body
       EOption _ _ _ _ body    -> expToMaybeMathExp body
-      ELet _ _ _ _ _ body _   -> expToMaybeMathExp body
+      ELet _ _ _ _ _ _ _ body _ -> expToMaybeMathExp body
       ETyp _ _ _ body _       -> expToMaybeMathExp body
       EColonType _ e _ _ _    -> expToMaybeMathExp e
       ETypeAlias _ _ _ body _ -> expToMaybeMathExp body
@@ -1324,10 +1324,10 @@ duplicateDefinitionsPat syntax sourcePathedPatIds targetPathedPatId originalProg
 insertPat_ : PatBoundExp -> List Int -> Exp -> Exp
 insertPat_ (patToInsert, boundExp) targetPath exp =
   case exp.val.e__ of
-    ELet ws1 letKind rec p e1 e2 ws2 ->
+    ELet ws1 letKind rec p ws2 e1 ws3 e2 ws4 ->
       case insertPat__ (patToInsert, boundExp) p e1 targetPath of
         Just (newPat, newBoundExp) ->
-          replaceE__ exp (ELet ws1 letKind rec newPat newBoundExp e2 ws2)
+          replaceE__ exp (ELet ws1 letKind rec newPat ws2 newBoundExp ws3 e2 ws4)
 
         Nothing ->
           let _ = Debug.log "insertPat_: pattern, path " (p.val.p__, targetPath) in
@@ -1871,7 +1871,7 @@ addArg_ syntax pathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody origin
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
       case letExp.val.e__ of
-        ELet ws1 letKind isRec letPat func letBody ws2 ->
+        ELet ws1 letKind isRec letPat ws2 func ws3 letBody ws4 ->
           -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
           let funcVarUsageEIds =
             if isRec
@@ -2095,7 +2095,7 @@ removeArg syntax pathedPatId originalProgram =
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
       case letExp.val.e__ of
-        ELet ws1 letKind isRec letPat func letBody ws2 ->
+        ELet ws1 letKind isRec letPat ws2 func ws3 letBody ws4 ->
           -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
           let funcVarUsageEIds =
             if isRec
@@ -2287,7 +2287,7 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
       case letExp.val.e__ of
-        ELet ws1 letKind isRec letPat func letBody ws2 ->
+        ELet ws1 letKind isRec letPat ws2 func ws3 letBody ws4 ->
           -- If func is passed to itself as an arg, this probably breaks. (is fixable though, with flow craziness)
           let funcVarUsageEIds =
             if isRec
@@ -2490,8 +2490,8 @@ introduceVarTransformation_ m expIds addNewVarsAtThisId addNewEquationsAt =
     let targetBodyEId =
       let exp = justFindExpByEId m.inputExp addNewVarsAtThisId in
       case exp.val.e__ of
-        ELet _ _ _ _ _ e2 _ -> e2.val.eid
-        _                   -> exp.val.eid
+        ELet _ _ _ _ _ _ _ e2 _ -> e2.val.eid
+        _                       -> exp.val.eid
     in
     visibleIdentifiersAtEIds m.inputExp (Set.singleton targetBodyEId)
   in

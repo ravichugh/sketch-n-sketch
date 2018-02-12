@@ -939,7 +939,7 @@ makeCallWithLocals locals func args =
         -- else
         --   let app = withDummyExpInfo (EApp space1 func args SpaceApp space0) in
         --   withDummyExpInfo (EList (ws "\n    ") [app] space0 Nothing space1)
-      (p,e)::locals_ -> withDummyExpInfo (ELet (ws "\n  ") Let False p e (recurse locals_) space0)
+      (p,e)::locals_ -> withDummyExpInfo (ELet (ws "\n  ") Let False p space1 e space1 (recurse locals_) space0)
   in
   recurse locals
 

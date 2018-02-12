@@ -958,7 +958,7 @@ codeObjectFromSelection allowSingleSelection model =
               case codeObject of
                 E e ->
                   case e.val.e__ of
-                    (ELet _ Def _ _ _ _ _) ->
+                    (ELet _ Def _ _ _ _ _ _ _) ->
                       False
                     _ ->
                       True

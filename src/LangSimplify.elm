@@ -49,7 +49,7 @@ removeExtraPostfixes postfixes program =
     |> mapExpViaExp__
         (\e__ ->
           case e__ of
-            ELet ws1 letKind False pat assign body ws2 ->
+            ELet ws1 letKind False pat ws2 assign ws3 body ws4 ->
               let (newPat, newBody) =
                 identifiersListInPat pat
                 |> List.foldl
@@ -66,7 +66,7 @@ removeExtraPostfixes postfixes program =
                     (pat, body)
               in
               if pat /= newPat then
-                ELet ws1 letKind False newPat assign newBody ws2
+                ELet ws1 letKind False newPat ws2 assign ws3 newBody ws4
               else
                 e__
 
@@ -153,7 +153,7 @@ removeUnusedLetPatsMatching : (Pat -> Bool) -> Exp -> Exp
 removeUnusedLetPatsMatching predicate exp =
   let remover e__ =
     case e__ of
-      ELet ws1 letKind False pat assign body ws2 ->
+      ELet ws1 letKind False pat ws2 assign ws3 body ws4 ->
         let usedNames = freeIdentifiers body in
         let letRemoved =
           body.val.e__
@@ -171,7 +171,7 @@ removeUnusedLetPatsMatching predicate exp =
             if Set.member ident usedNames || not (predicate pat) then
               e__
             else
-              ELet ws1 letKind False (replacePrecedingWhitespacePat asWs.val innerPat) assign body ws2
+              ELet ws1 letKind False (replacePrecedingWhitespacePat asWs.val innerPat) ws3 assign ws4 body ws4
 
           -- List assignment, no tail.
           (PList pws1 pats pws2 Nothing pws3, EList aws1 assigns aws2 Nothing aws3) ->
@@ -196,7 +196,7 @@ removeUnusedLetPatsMatching predicate exp =
                   let (thePat, theAssign) = Utils.head_ usedPatsAssigns in
                   let newPat    = replacePrecedingWhitespacePat pws1.val thePat in
                   let newAssign = replacePrecedingWhitespace aws1.val theAssign in
-                  ELet ws1 letKind False newPat newAssign body ws2
+                  ELet ws1 letKind False newPat ws2 newAssign ws3 body ws4
 
                 _ ->
                   if List.length usedPatsAssigns == List.length pats then
@@ -205,7 +205,7 @@ removeUnusedLetPatsMatching predicate exp =
                     let (usedPats, usedAssigns) = List.unzip usedPatsAssigns in
                     let newPat    = replaceP__ pat    <| PList pws1 (usedPats    |> imitatePatListWhitespace pats)    pws2 Nothing pws3 in
                     let newAssign = replaceE__ assign <| EList aws1 (usedAssigns |> imitateExpListWhitespace assigns) aws2 Nothing aws3 in
-                    ELet ws1 letKind False newPat newAssign body ws2
+                    ELet ws1 letKind False newPat ws2 newAssign ws3 body ws4
 
           _ ->
             e__
@@ -270,10 +270,10 @@ simplifyAssignments program =
   |> mapExp
       (\exp ->
         case exp.val.e__ of
-          ELet ws1 letKind rec pat boundExp body ws2 ->
+          ELet ws1 letKind rec pat ws2 boundExp ws3 body ws4 ->
             case simplifyPatBoundExp pat boundExp of
               Just (newPat, newBoundExp) ->
-                replaceE__ exp (ELet ws1 letKind rec (ensureWhitespacePat newPat) (ensureWhitespaceExp newBoundExp) body ws2)
+                replaceE__ exp (ELet ws1 letKind rec (ensureWhitespacePat newPat) ws2 (ensureWhitespaceExp newBoundExp) ws3 body ws4)
 
               Nothing ->
                 body
@@ -316,13 +316,13 @@ inlineTrivialRenamings : Exp -> Exp
 inlineTrivialRenamings exp =
   let inlineReplaceIfTrivialRename targetIdent newExp e__ =
     case e__ of
-      ELet ws1 letKind rec pat assign body ws2 ->
+      ELet ws1 letKind rec pat ws2 assign ws3 body ws4 ->
         case (pat.val.p__, assign.val.e__) of
           -- Simple assignment.
           (PVar _ _ _, EVar oldWs assignIdent) ->
             if assignIdent == targetIdent then
               let newExpAdjustedWs = replacePrecedingWhitespace oldWs.val newExp in
-              ELet ws1 letKind rec pat newExpAdjustedWs body ws2
+              ELet ws1 letKind rec pat ws2 newExpAdjustedWs ws3 body ws4
             else
               e__
 
@@ -347,7 +347,7 @@ inlineTrivialRenamings exp =
             let newAssignsListExp =
               withDummyExpInfo <| EList aws1 newAssigns aws2 Nothing aws3
             in
-            ELet ws1 letKind rec pat newAssignsListExp body ws2
+            ELet ws1 letKind rec pat ws2 newAssignsListExp ws3 body ws4
 
           _ ->
             e__
@@ -357,7 +357,7 @@ inlineTrivialRenamings exp =
   in
   let inliner e__ =
     case e__ of
-      ELet ws1 letKind rec pat assign body ws2 ->
+      ELet ws1 letKind rec pat ws2 assign ws3 body ws4 ->
         let nameCounts = identifierCounts body in
         let letRemoved newBody =
           let oldPrecedingWs = precedingWhitespaceExp__ e__ in
@@ -378,7 +378,7 @@ inlineTrivialRenamings exp =
               body
               identsAndAssignsInliningCandidates
         in
-        ELet ws1 letKind rec pat assign newBody ws2
+        ELet ws1 letKind rec pat ws2 assign ws3 newBody ws4
 
       _ ->
         e__
@@ -430,7 +430,7 @@ changeRenamedVarsToOuter_ renamings exp =
           Just newName -> EVar ws newName
           Nothing      -> e__
 
-      ELet ws1 letKind rec pat assign body ws2 ->
+      ELet ws1 letKind rec pat ws2 assign ws3 body ws4 ->
         -- Newly assigned variables that shadow an outer variable should be
         -- removed from the renaming dictionary because that name means
         -- something else now, now what's in the dictionary.
@@ -454,7 +454,7 @@ changeRenamedVarsToOuter_ renamings exp =
         in
         let renamings_ = Dict.union (Dict.fromList simpleRenamings) renamingsShadowsRemoved in
         let body_ = changeRenamedVarsToOuter_ renamings_ body in
-        ELet ws1 letKind rec pat assign_ body_ ws2
+        ELet ws1 letKind rec pat ws2 assign_ ws3 body_ ws4
 
       EFun ws1 pats body ws2  ->
         let newlyAssignedIdents =

@@ -714,7 +714,7 @@ expPolygon codeInfo e =
   in
     case e.val.e__ of
       -- Do not show def polygons (for now, at least)
-      ELet _ Def _ _ _ _ _ ->
+      ELet _ Def _ _ _ _ _ _ _ ->
         []
       _ ->
         codeObjectPolygon codeInfo codeObject color

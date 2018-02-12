@@ -271,8 +271,8 @@ rewriteInnerMostExpToMain exp =
     EOption _ _ _ _ e    -> rewriteInnerMostExpToMain e
     ETyp _ _ _ e _       -> rewriteInnerMostExpToMain e
     ETypeAlias _ _ _ e _ -> rewriteInnerMostExpToMain e
-    ELet ws1 lk rec p1 e1 e2 ws2 ->
-      replaceE__ exp (ELet ws1 lk rec p1 e1 (rewriteInnerMostExpToMain e2) ws2)
+    ELet ws1 lk rec p1 ws2 e1 ws3 e2 ws4 ->
+      replaceE__ exp (ELet ws1 lk rec p1 ws2 e1 ws3 (rewriteInnerMostExpToMain e2) ws4)
     _ ->
       eLets [("main", exp)] (eVar "main")
 

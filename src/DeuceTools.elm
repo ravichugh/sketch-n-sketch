@@ -591,7 +591,7 @@ moveDefinitionTool model selections =
                   (pathedPatIdToScopeEId targetPathedPatId)
               ) |> Maybe.map (.val >> .e__)
             of
-              Just (ELet _ _ _ _ _ _ _) ->
+              Just (ELet _ _ _ _ _ _ _ _ _) ->
                 ( Utils.perhapsPluralizeList toolName pathedPatIds
                 , Just <| \() ->
                     CodeMotion.moveDefinitionsPat
@@ -1165,7 +1165,7 @@ createFunctionTool model selections =
             LangTools.findScopeExpAndPatByPathedPatternId pathedPatId model.inputExp
               |> Maybe.map (\(e,p) -> (e.val.e__, p.val.p__))
           of
-            Just (ELet _ _ _ _ _ _ _, PVar _ ident _) ->
+            Just (ELet _ _ _ _ _ _ _ _ _, PVar _ ident _) ->
               ( Just <| \() ->
                   CodeMotion.abstractPVar model.syntax pathedPatId [] model.inputExp
               , FullySatisfied
@@ -1830,8 +1830,8 @@ makeSingleLineTool model selections =
                             EOp (deLine ws1) op es space0
                           EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
                             EIf (deLine ws1) e1 ws2 e2 ws3 e3 space0
-                          ELet ws1 kind rec p e1 e2 ws2 ->
-                            ELet (deLine ws1) kind rec p e1 e2 space0
+                          ELet ws1 kind rec p ws2 e1 ws3 e2 ws4 ->
+                            ELet (deLine ws1) kind rec p ws2 e1 ws3 e2 space0
                           ECase ws1 e1 bs ws2 ->
                             ECase (deLine ws1) e1 bs space0
                           ETypeCase ws1 e1 bs ws2 ->

@@ -943,7 +943,7 @@ genericLetBinding context kword isRec =
     inContext context <|
       parenBlock
         ( \wsStart (name, binding, rest) wsEnd ->
-            ELet wsStart Let isRec name binding rest wsEnd
+            ELet wsStart Let isRec name space1 binding space1 rest wsEnd
         )
         ( succeed (,,)
             |. keywordWithSpace kword
@@ -959,7 +959,7 @@ genericDefBinding context kword isRec =
       delayedCommitMap
         ( \(wsStart, open) (name, binding, wsEnd, close, rest) ->
             WithInfo
-              (ELet wsStart Def isRec name binding rest wsEnd)
+              (ELet wsStart Def isRec name space1 binding space1 rest wsEnd)
               open.start
               close.end
         )
@@ -1198,7 +1198,7 @@ genericTopLevelDef context kword isRec =
     parenBlock
       ( \wsStart (name, binding) wsEnd ->
           ( \rest ->
-              exp_ <| ELet wsStart Def isRec name binding rest wsEnd
+              exp_ <| ELet wsStart Def isRec name space1 binding space1 rest wsEnd
           )
       )
       ( succeed (,)
@@ -1365,7 +1365,7 @@ implicitMain =
             EVar space1 "main"
       in
         withCorrectInfo << exp_ <|
-          ELet newline2 Let False name binding body space0
+          ELet newline2 Let False name (ws "") binding (ws "") body space0
   in
     succeed builder
       |= getPos
@@ -1482,10 +1482,10 @@ freshenPreserving idsToPreserve initK e =
             let locId = getId k in
             (EConst ws n (locId, frozen, ident) wd, locId + 1)
 
-        ELet ws1 kind b p e1 e2 ws2 ->
+        ELet ws1 kind b p ws2 e1 ws3 e2 ws4 ->
           let (newP, newK) = freshenPatPreserving idsToPreserve k p in
           let newE1 = recordIdentifiers (newP, e1) in
-          (ELet ws1 kind b newP newE1 e2 ws2, newK)
+          (ELet ws1 kind b newP ws2 newE1 ws3 e2 ws4, newK)
 
         EFun ws1 pats body ws2 ->
           let (newPats, newK) = freshenPatsPreserving idsToPreserve k pats in
@@ -1575,7 +1575,7 @@ allIdsRaw exp =
         (\exp ->
           case exp.val.e__ of
             EConst ws n (locId, frozen, ident) wd -> [locId]
-            ELet ws1 kind b p e1 e2 ws2           -> pidsInPat p
+            ELet ws1 kind b p _ e1 _ e2 ws2       -> pidsInPat p
             EFun ws1 pats body ws2                -> pidsInPats pats
             ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
             ETyp ws1 pat tipe e ws2               -> pidsInPat pat

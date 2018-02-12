@@ -308,7 +308,7 @@ unparse e =
         ++ " of"
         ++ String.concat (List.map unparseBranch branches)
 
-    ELet wsBefore letKind isRec name binding_ body wsBeforeSemicolon ->
+    ELet wsBefore letKind isRec name wsBeforeEq binding_ wsBeforeInOrSemi body _ ->
       let
         (parameters, binding) =
           case binding_.val.e__ of
@@ -340,9 +340,9 @@ unparse e =
                   -- NOTE: to help with converting Little to Elm
                   -- ++ String.concat (List.map unparsePattern parameters)
                   ++ strParameters
-                  ++ " ="
+                  ++ wsBeforeEq.val ++ "="
                   ++ unparse binding
-                  ++ " in"
+                  ++ wsBeforeInOrSemi.val ++ "in"
                   ++ unparse body
 
           Def ->
@@ -360,9 +360,9 @@ unparse e =
               -- NOTE: to help with converting Little to Elm
               -- ++ String.concat (List.map unparsePattern parameters)
               ++ strParameters
-              ++ " ="
+              ++ wsBeforeEq.val ++ "="
               ++ unparse binding
-              ++ wsBeforeSemicolon.val
+              ++ wsBeforeInOrSemi.val
               ++ ";"
               ++ unparse body
 
