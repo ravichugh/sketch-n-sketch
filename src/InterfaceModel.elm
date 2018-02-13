@@ -22,7 +22,7 @@ import Syntax exposing (Syntax)
 import LangUnparser
 import File exposing (Filename, File, FileIndex)
 import Solver
-import ValUnparser
+import Update -- move valToString to ValUnparser
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -801,6 +801,9 @@ lambdaToolIcon tool =
 needsRun m =
   m.code /= m.lastRunCode
 
+valueEditorNeedsCallUpdate model =
+  Update.valToString model.inputVal /= model.valueEditorString
+
 --------------------------------------------------------------------------------
 
 oneSafeResult newExp =
@@ -1026,6 +1029,7 @@ autoOutputToolsPopupPanelShown model =
     [ not <| Set.isEmpty model.selectedFeatures
     , not <| Set.isEmpty model.selectedShapes
     , not <| Dict.isEmpty model.selectedBlobs
+    , model.outputMode == ShowValue && valueEditorNeedsCallUpdate model
     ]
 
 --------------------------------------------------------------------------------
@@ -1169,6 +1173,6 @@ initModel =
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
-    , valueEditorString = ValUnparser.strVal v
+    , valueEditorString = Update.valToString v
     , syntax = Syntax.Elm
     }

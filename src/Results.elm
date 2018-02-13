@@ -7,6 +7,7 @@ module Results exposing
   , LazyList(LazyNil, LazyCons), mapLazy, andThenLazy, isLazyNil
   , lazyCons2, findFirst
   , appendLazy, appendLazyLazy, lazyFromList
+  , toList
   )
 
 import Lazy
@@ -267,3 +268,9 @@ fromResult res =
   case res of
     Err msg -> Errs msg
     Ok a -> ok1 a
+
+toList : LazyList a -> List a
+toList lazyList =
+  case lazyList of
+    LazyNil          -> []
+    LazyCons x thunk -> x :: toList (Lazy.force thunk)

@@ -1408,24 +1408,23 @@ outputPanel model =
         (Nothing, Print svgCode, Nothing) ->
           [textOutput svgCode]
         (Nothing, ShowValue, _) ->
-          [ Html.textarea
-              [ E.onInput (\s -> Msg "Update Value Editor" (\m -> { m | valueEditorString = s } ))
+          [ Html.div
+              []
+              [ Html.text <|
+                  "Make some edits."
+                    ++ if valueEditorNeedsCallUpdate model
+                         then " Now pick a new program from the pop-up menu."
+                         else ""
+              ]
+          , Html.textarea
+              [ E.onInput Controller.msgUpdateValueEditor
               , Attr.style -- TODO
                   [ ("font-size", "24px")
                   , ("width", "100%")
                   , ("height", "80%")
                   ]
               ]
-              -- [ Html.text (Lang.strVal model.inputVal) ]
-              [ -- let _ = Debug.log "valueEditorString" model.valueEditorString in
-                Html.text model.valueEditorString
-              ]
-          , Html.button
-              [ E.onClick Controller.msgCallUpdate
-              , Attr.style -- TODO
-                  [ ("font-size", "16px") ]
-              ]
-              [ Html.text "Update (⌘Enter)" ]
+              [ Html.text model.valueEditorString ]
           ]
         (Nothing, _, _) ->
           Canvas.build canvasDim model
