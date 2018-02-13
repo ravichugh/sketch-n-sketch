@@ -320,9 +320,16 @@ hoverMenu title dropdownContent =
 
 synthesisHoverMenu : Model -> String -> String -> Msg -> Bool -> Html Msg
 synthesisHoverMenu model resultsKey title onMouseEnter disabled =
+  let cached = Dict.member resultsKey model.synthesisResultsDict in
   generalHoverMenu
-    title
-    (if Dict.member resultsKey model.synthesisResultsDict then Controller.msgNoop else onMouseEnter)
+    ( if cached -- if desired, can indicate whether this tool has been run and cached
+        then title -- ++ " ✓"
+        else title
+    )
+    ( if cached
+        then Controller.msgNoop
+        else onMouseEnter
+    )
     Controller.msgNoop
     Controller.msgNoop
     disabled
@@ -389,7 +396,7 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
         [ Html.text <|
             -- if desired, can indicate whether this tool has been run and cached
             if alreadyRun
-              then result.description
+              then result.description -- ++ " ✓"
               else result.description
         ]
   in
