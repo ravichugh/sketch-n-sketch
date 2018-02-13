@@ -7,7 +7,7 @@ port module InterfaceController exposing
   , msgKeyPress, msgKeyDown, msgKeyUp
   , msgMouseIsDown, msgMousePosition
   , msgRun, upstateRun, msgTryParseRun
-  , msgCallUpdate
+  , msgUpdateValueEditor, msgCallUpdate
   , msgAceUpdate
   , msgUserHasTyped
   , msgOutputCanvasUpdate
@@ -1367,7 +1367,7 @@ msgKeyDown keyCode =
         else if keyCode == Keys.keyEnter && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           case old.outputMode of
             Live      -> upstateRun old
-            ShowValue -> doCallUpdate old
+            -- ShowValue -> doCallUpdate old
             _         -> old
 
         else if old.outputMode == Live && keyCode == Keys.keyDown &&
@@ -1656,6 +1656,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
       in
       { newer | liveSyncInfo = refreshLiveInfo newer
               , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
+              , outputMode  = Live -- switch out of ShowValue
               }
   )
 
@@ -1904,6 +1905,14 @@ msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
 
 --------------------------------------------------------------------------------
 
+msgUpdateValueEditor s = Msg "Update Value Editor" <| \m ->
+  { m
+      | valueEditorString =
+          s
+      , synthesisResultsDict =
+          Dict.remove "Update for New Output" m.synthesisResultsDict
+      }
+
 msgCallUpdate = Msg "Call Update" doCallUpdate
 
 doCallUpdate m =
@@ -1917,19 +1926,35 @@ doCallUpdate m =
   case updatedExp of
     Results.Errs msg -> Debug.log ("Could not update: " ++ msg) m
     Results.Oks solutions ->
-      let firstValidSolution = Results.findFirst (
-          \(env, exp) -> env == Eval.initEnv
-          ) solutions
-      in
-      case firstValidSolution of
-        Nothing -> let _ = Debug.log "No updates not modifying the environment." () in
-          case solutions of
-            Results.LazyNil -> let _ = Debug.log "More precisely, there was no solution" () in
-              m
-            Results.LazyCons (_, newCodeExp) _ -> let _ = Debug.log "There was at least one solution, but the environments would have differed" () in
-              upstateRun { m | code = Syntax.unparser m.syntax newCodeExp }
-        Just (_, newCodeExp) ->
-          upstateRun { m | code = Syntax.unparser m.syntax newCodeExp }
+      -- TODO flag for showing all options or just picking the first
+      if True then
+        let results =
+          Utils.mapi1
+             (\(i,(_,newCodeExp)) -> synthesisResult ("Program Update " ++ toString i) newCodeExp)
+             (Results.toList solutions)
+        in
+        let allResults =
+          results ++ [synthesisResult "Revert to Original Program" m.inputExp]
+        in
+        { m
+            | synthesisResultsDict =
+                Dict.insert "Update for New Output" allResults m.synthesisResultsDict
+            }
+
+      else
+        let firstValidSolution = Results.findFirst (
+            \(env, exp) -> env == Eval.initEnv
+            ) solutions
+        in
+        case firstValidSolution of
+          Nothing -> let _ = Debug.log "No updates not modifying the environment." () in
+            case solutions of
+              Results.LazyNil -> let _ = Debug.log "More precisely, there was no solution" () in
+                m
+              Results.LazyCons (_, newCodeExp) _ -> let _ = Debug.log "There was at least one solution, but the environments would have differed" () in
+                upstateRun { m | code = Syntax.unparser m.syntax newCodeExp }
+          Just (_, newCodeExp) ->
+            upstateRun { m | code = Syntax.unparser m.syntax newCodeExp }
 
 
 --------------------------------------------------------------------------------
@@ -1945,6 +1970,7 @@ showExpPreview old exp =
     Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, slate)) }
     Err s                       -> { old | preview = Just (code, Err s) }
 
+{-
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
@@ -1959,6 +1985,7 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
                             mkLive old.syntax old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
                               (val, []) -- TODO
         }
+-}
 
 msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <| \old ->
   let maybeFindResult path results =

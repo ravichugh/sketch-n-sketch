@@ -310,7 +310,7 @@ repeatRightTool selections =
       [ groupPredicate True selections
       ]
   , id =
-      "repeateRight"
+      "repeatRight"
   }
 
 --------------------------------------------------------------------------------
@@ -331,7 +331,7 @@ repeatToTool selections =
       [ groupPredicate True selections
       ]
   , id =
-      "repeateTo"
+      "repeatTo"
   }
 
 --------------------------------------------------------------------------------
@@ -352,7 +352,32 @@ repeatAroundTool selections =
       [ groupPredicate True selections
       ]
   , id =
-      "repeateAround"
+      "repeatAround"
+  }
+
+--------------------------------------------------------------------------------
+-- Update Output Value
+--------------------------------------------------------------------------------
+
+updateOutputValueTool : Selections a -> OutputTool
+updateOutputValueTool selections =
+  { name =
+      "Update for New Output"
+  , shortcut =
+      Nothing
+  , kind =
+      Multi
+  , func =
+      Just Controller.msgCallUpdate
+  , reqs =
+      [ { description =
+            "Make some edits in the value editor"
+        , value =
+            Satisfied
+        }
+      ]
+  , id =
+      "updateOutputValue"
   }
 
 --------------------------------------------------------------------------------
@@ -376,5 +401,7 @@ tools selections =
     , [ repeatRightTool
       , repeatToTool
       , repeatAroundTool
+      ]
+    , [ updateOutputValueTool
       ]
     ]

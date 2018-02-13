@@ -49,9 +49,11 @@ updateEnv env k value =
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Output -> LazyList NextAction -> Results String (Env, Exp)
 update env e oldVal out nextToUpdate =
+{-
   let _ = Debug.log (String.concat ["update: ", unparse e, " <-- ", (case out of
     Program p -> unparse p
     Raw v -> valToString v), " -- env = " , envToString (pruneEnv e env), "|-"]) () in
+-}
   let updateStack = getUpdateStackOp env e oldVal out nextToUpdate in
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateError msg ->
