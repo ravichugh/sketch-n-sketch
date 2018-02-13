@@ -654,7 +654,9 @@ finishTrigger zoneKey old =
   let old_ = old in
   refreshHighlights zoneKey
     { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
-           , history = addToHistory old.code old_.history }
+           , history = addToHistory old.code old_.history
+           , synthesisResultsDict = Dict.empty
+           }
 
 
 --------------------------------------------------------------------------------
