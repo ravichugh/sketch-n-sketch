@@ -844,7 +844,7 @@ hooks : List (Model -> Model -> (Model, Cmd Msg))
 hooks =
   [ handleSavedSelectionsHook
   , handleSyntaxHook
-  -- , handleOutputSelectionChanges
+  , handleOutputSelectionChanges
   , focusJustShownRenameBox
   ]
 
@@ -888,18 +888,24 @@ handleSyntaxHook oldModel newModel =
   in
     (newModel, cmd)
 
--- This function is not used.
 handleOutputSelectionChanges : Model -> Model -> (Model, Cmd Msg)
 handleOutputSelectionChanges oldModel newModel =
-  if oldModel.selectedFeatures /= newModel.selectedFeatures || oldModel.selectedShapes /= newModel.selectedShapes || oldModel.selectedBlobs /= newModel.selectedBlobs then
+  if oldModel.selectedFeatures == newModel.selectedFeatures &&
+     oldModel.selectedShapes == newModel.selectedShapes &&
+     oldModel.selectedBlobs == newModel.selectedBlobs
+  then
+    (newModel, Cmd.none)
+  else
+    let finalModel = { newModel | synthesisResultsDict = Dict.empty } in
+    (finalModel, Cmd.none)
+{-
     let
       selectedEIdInterpretations = ShapeWidgets.selectionsProximalDistalEIdInterpretations newModel.inputExp newModel.slate newModel.widgets newModel.selectedFeatures newModel.selectedShapes newModel.selectedBlobs
       deuceWidgetInterpretations = selectedEIdInterpretations |> List.map (List.map DeuceExp)
       finalModel = { newModel | deuceToolsAndResults = DeuceTools.createToolCacheMultipleInterpretations newModel deuceWidgetInterpretations }
     in
     (finalModel, Cmd.none)
-  else
-    (newModel, Cmd.none)
+-}
 
 port doFocusJustShownRenameBox : () -> Cmd msg
 
