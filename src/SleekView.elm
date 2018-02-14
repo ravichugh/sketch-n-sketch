@@ -1462,6 +1462,8 @@ outputPanel model =
               [ ("width", px canvasDim.width)
               , ("height", px canvasDim.height)
               ]
+          -- https://www.w3schools.com/tags/att_global_data.asp
+          , Attr.attribute "data-canvas-count" (toString model.slateCount)
           ]
           output
       , outputPanelWarning

@@ -26,9 +26,9 @@ module LangSvg exposing
   )
 
 import Html
-import Html.Attributes as HA
+import Html.Attributes
 import Svg
-import Svg.Attributes as A
+import Svg.Attributes
 import VirtualDom
 
 -- in Svg.elm:

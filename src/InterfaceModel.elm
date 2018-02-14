@@ -97,6 +97,7 @@ type alias Model =
   , movieContinue : Bool
   , runAnimation : Bool
   , slate : RootedIndexedTree
+  , slateCount : Int -- trying to count number of times translated to DOM
   , widgets : Widgets
   , liveSyncInfo : Sync.LiveInfo
   , liveSyncDelay : Bool
@@ -1070,6 +1071,7 @@ initModel =
     , movieContinue = movieContinue
     , runAnimation  = True
     , slate         = slate
+    , slateCount    = 1
     , widgets       = ws
     , liveSyncInfo  = liveSyncInfo
     , liveSyncDelay = False

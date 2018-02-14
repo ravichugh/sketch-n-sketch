@@ -1745,11 +1745,11 @@ prelude =
 
 (def td (\\text
   ['td' (onlyStyle [border padding])
-        [['text' [] [['TEXT' text]]]]]))
+        [['TEXT' text]]]))
 
 (def th (\\text
   ['th' (onlyStyle [border padding center])
-        [['text' [] [['TEXT' text]]]]]))
+        [['TEXT' text]]]))
 
 (def tr (\\children
   ['tr' (onlyStyle [border])

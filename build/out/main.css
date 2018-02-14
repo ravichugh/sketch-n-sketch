@@ -10,6 +10,7 @@
   -ms-box-sizing: border-box;
   -o-box-sizing: border-box;
   box-sizing: border-box;
+  caret-color: lightblue; /* for contenteditable nodes */
 }
 
 body {
