@@ -883,8 +883,12 @@ valToString: Val -> String
 valToString v = case v.v_ of
    VClosure Nothing patterns body [] -> (unparse << val_to_exp (ws " ")) v
    VClosure (Just name) patterns body [] -> "(" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
-   VClosure Nothing patterns body env -> "(" ++ envToString (pruneEnv body env) ++ "|-" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
-   VClosure (Just name) patterns body env -> "(" ++ envToString (pruneEnv body env) ++ "|" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
+   VClosure Nothing patterns body env ->
+     let e = val_to_exp (ws " ") v in
+     "(" ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ ")"
+   VClosure (Just name) patterns body env ->
+     let e = val_to_exp (ws " ") v in
+     "(" ++ envToString (pruneEnv e env) ++ "|" ++ name ++ "~" ++ unparse e ++ ")"
    _ -> (unparse << val_to_exp (ws "")) v
 
 

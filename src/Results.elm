@@ -4,7 +4,7 @@ module Results exposing
   , ok1, oks, okLazy, errs
   , map, map2, map2withError, andThen, flatten
   , toMaybe, fromMaybe, fromResult, mapErrors
-  , LazyList(LazyNil, LazyCons), mapLazy, andThenLazy, isLazyNil
+  , LazyList(LazyNil, LazyCons), mapLazy, andThenLazy, isLazyNil, filterLazy
   , lazyCons2, findFirst
   , appendLazy, appendLazyLazy, lazyFromList
   , toList
@@ -48,6 +48,14 @@ andThenLazy f l =
   case l of
     LazyNil -> LazyNil
     LazyCons head tail -> appendLazyLazy (f head) (Lazy.map (\v -> andThenLazy f v) tail)
+
+filterLazy: (v -> Bool) -> LazyList v -> LazyList v
+filterLazy isok l =
+  case l of
+    LazyNil -> LazyNil
+    LazyCons head lazyTail ->
+      if isok head then LazyCons head (Lazy.map (filterLazy isok) lazyTail)
+      else filterLazy isok <| Lazy.force lazyTail
 
 flattenLazy: LazyList (LazyList a) -> LazyList a
 flattenLazy l =
@@ -102,7 +110,8 @@ projOks l =
     LazyCons (Oks (LazyNil)) tail ->
       projOks (Lazy.force tail)
     LazyCons (Oks (LazyCons vhead vtail)) tail -> -- At this point, we discard future errors since at least 1 worked.
-      Oks (LazyCons vhead (Lazy.map keepOks tail))
+      Oks <| LazyCons vhead
+        <| Lazy.lazy (\_ -> appendLazyLazy (Lazy.force vtail) <| Lazy.map keepOks tail)
     LazyCons (Errs msg) tail ->
       case projOks <| Lazy.force tail of
         Errs msgTail -> Errs msg

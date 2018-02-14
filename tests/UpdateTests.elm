@@ -143,7 +143,6 @@ tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat s
 all_tests = init_state
   |> test "triCombineTest"
   --|> ignore True
-  --|> ignore False
   |> assertEqual
       (triCombine (tList space0  [tVar space0 "x", tVar space0 "y"] space0)
                   [("y", (tVal 2)), ("x", (tVal 1))]
@@ -353,11 +352,11 @@ all_tests = init_state
         [] "   'Hello\\' \" wo\\\\rld'"
   |> test "Many solutions"
       |> updateElmAssert
-        [("h3", "\\content -> ['h3', [], ['TEXT', content]]")] "let x = 0 + 0 in\nh3 (toString x)" "['h3', [], ['TEXT', '1']]"
-        [("h3", "\\content -> ['h3', [], ['TEXT', content]]")] "let x = 0 + 1 in\nh3 (toString x)"
+        [("h3", "\\text -> ['h3', [], [['TEXT', text]]]")] "x = 0 + 0\n\nh3 (toString x)" "['h3', [], [['TEXT', '1']]]"
+        [("h3", "\\text -> ['h3', [], [['TEXT', text]]]")] "x = 0 + 1\n\nh3 (toString x)"
       |> updateElmAssert
-        [("h3", "\\content -> ['h3', [], ['TEXT', content]]")] "let x = 0 + 0 in\nh3 (toString x)" "['h3', [], ['TEXT', '1']]"
-        [("h3", "\\content -> ['h3', [], ['TEXT', content]]")] "let x = 1 + 0 in\nh3 (toString x)"
+        [("h3", "\\text -> ['h3', [], [['TEXT', text]]]")] "x = 0 + 0\n\nh3 (toString x)" "['h3', [], [['TEXT', '1']]]"
+        [("h3", "\\text -> ['h3', [], [['TEXT', text]]]")] "x = 1 + 0\n\nh3 (toString x)"
   |> test "Multiline string literals"
       |> updateElmAssert
           [] "\"\"\"Hello @(if 1 == 2 then \"big\" else \"\"\"very @(\"small\")\"\"\") world\"\"\"" "\"Hello very tiny world\""

@@ -1929,37 +1929,52 @@ doCallUpdate m =
     |> Results.andThen (\out -> Update.update Eval.initEnv m.inputExp m.inputVal out Results.LazyNil)
   in
   case updatedExp of
-    Results.Errs msg -> Debug.log ("Could not update: " ++ msg) m
+    Results.Errs msg ->
+      let allResults =
+        [synthesisResult ("Error while updating: " ++ msg ++ ". Revert to original program?") m.inputExp]
+      in
+      { m
+          | synthesisResultsDict =
+              Dict.insert "Update for New Output" allResults m.synthesisResultsDict
+          }
     Results.Oks solutions ->
+      let solutionsNotModifyingEnv =
+         Results.filterLazy
+           (\(env, exp) -> Update.envEqual (Update.pruneEnv exp env) (Update.pruneEnv exp Eval.initEnv)) solutions
+      in
       -- TODO flag for showing all options or just picking the first
-      if True then
-        let results =
-          Utils.mapi1
-             (\(i,(_,newCodeExp)) -> synthesisResult ("Program Update " ++ toString i) newCodeExp)
-             (Results.toList solutions)
-        in
-        let allResults =
-          results ++ [synthesisResult "Revert to Original Program" m.inputExp]
-        in
-        { m
-            | synthesisResultsDict =
-                Dict.insert "Update for New Output" allResults m.synthesisResultsDict
-            }
-
-      else
-        let firstValidSolution = Results.findFirst (
-            \(env, exp) -> env == Eval.initEnv
-            ) solutions
-        in
-        case firstValidSolution of
-          Nothing -> let _ = Debug.log "No updates not modifying the environment." () in
-            case solutions of
-              Results.LazyNil -> let _ = Debug.log "More precisely, there was no solution" () in
-                m
-              Results.LazyCons (_, newCodeExp) _ -> let _ = Debug.log "There was at least one solution, but the environments would have differed" () in
-                upstateRun { m | code = Syntax.unparser m.syntax newCodeExp }
-          Just (_, newCodeExp) ->
-            upstateRun { m | code = Syntax.unparser m.syntax newCodeExp }
+      case solutionsNotModifyingEnv of
+        Results.LazyNil ->
+          case solutions of
+            Results.LazyNil ->
+              let allResults =
+                [synthesisResult "No solution found. Revert?" m.inputExp]
+              in
+              { m
+                  | synthesisResultsDict =
+                      Dict.insert "Update for New Output" allResults m.synthesisResultsDict
+                  }
+            _ ->
+              let allResults =
+                [synthesisResult "Only solutions modifying the library. Revert?" m.inputExp]
+              in
+              { m
+                  | synthesisResultsDict =
+                      Dict.insert "Update for New Output" allResults m.synthesisResultsDict
+                  }
+        _ ->
+          let results =
+            Utils.mapi1
+               (\(i,(_,newCodeExp)) -> synthesisResult ("Program Update " ++ toString i) newCodeExp)
+               (Results.toList solutionsNotModifyingEnv)
+          in
+          let allResults =
+            results ++ [synthesisResult "Revert to Original Program" m.inputExp]
+          in
+          { m
+              | synthesisResultsDict =
+                  Dict.insert "Update for New Output" allResults m.synthesisResultsDict
+              }
 
 
 --------------------------------------------------------------------------------
