@@ -327,7 +327,7 @@ eval syntax env bt e =
   ETyp _ _ _ e1 _       -> eval syntax env bt e1
   -- EColonType _ e1 _ _ _ -> eval syntax env bt e1
   ETypeAlias _ _ _ e1 _ -> eval syntax env bt e1
-  EParens _ e1 _        -> eval syntax env bt e1
+  EParens _ e1 _ _      -> eval syntax env bt e1
   EHole _ (Just val)    -> Ok <| retV [val] val
   EHole _ Nothing       -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
 
@@ -434,6 +434,12 @@ evalOp syntax env e bt opWithInfo es =
             _   -> error ()
           ToStr      -> case vs of
             [val] -> VBase (VString (strVal val)) |> addProvenanceOk
+            _     -> error ()
+          OptNumToString -> case vs of
+            [val] -> case val.v_ of
+              VConst _ (num, _) -> (VBase <| VString <| toString num) |> addProvenanceOk
+              VBase (VString v) as r -> r |> addProvenanceOk
+              _     -> error ()
             _     -> error ()
       in
       case newValRes of

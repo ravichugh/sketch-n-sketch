@@ -80,6 +80,7 @@ type Op_
   | Cos | Sin | ArcCos | ArcSin
   | Floor | Ceil | Round
   | ToStr
+  | OptNumToString -- Keeps every values as they are, convert numbers to their string representation
   | Sqrt
   | Explode
   | DebugLog
@@ -157,7 +158,7 @@ type Exp__
   | ETyp WS Pat Type Exp WS
   | EColonType WS Exp WS Type WS
   | ETypeAlias WS Pat Type Exp WS
-  | EParens WS Exp WS
+  | EParens WS Exp ParensStyle WS
   | EHole WS (Maybe Val) -- Internal intermediate, should not appear in code. (Yet.)
 
     -- EFun [] e     impossible
@@ -167,6 +168,8 @@ type Exp__
     -- EApp f []     impossible
     -- EApp f [x]    (f x)
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
+
+type ParensStyle = Parens | LongStringSyntax | ElmSyntax
 
 type Type_
   = TNum WS
@@ -558,9 +561,9 @@ mapFoldExp f initAcc e =
       let (newE1, newAcc) = recurse initAcc e1 in
       wrapAndMap (ETypeAlias ws1 pat tipe newE1 ws2) newAcc
 
-    EParens ws1 e ws2 ->
+    EParens ws1 e pStyle ws2 ->
       let (newE, newAcc) = recurse initAcc e in
-      wrapAndMap (EParens ws1 newE ws2) newAcc
+      wrapAndMap (EParens ws1 newE pStyle ws2) newAcc
 
     EHole _ _ -> f e initAcc
 
@@ -710,9 +713,9 @@ mapFoldExpTopDown f initAcc e =
       let (newE1, newAcc2) = recurse newAcc e1 in
       ret (ETypeAlias ws1 pat tipe newE1 ws2) newAcc2
 
-    EParens ws1 e ws2 ->
+    EParens ws1 e pStyle ws2 ->
       let (newE, newAcc2) = recurse newAcc e in
-      ret (EParens ws1 newE ws2) newAcc2
+      ret (EParens ws1 newE pStyle ws2) newAcc2
 
     EHole _ _ -> (newE, newAcc)
 
@@ -881,9 +884,9 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
       ret (ETypeAlias ws1 pat tipe newE1 ws2) newGlobalAcc2
 
-    EParens ws1 e ws2 ->
+    EParens ws1 e pStyle ws2 ->
       let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e in
-      ret (EParens ws1 newE ws2) newGlobalAcc2
+      ret (EParens ws1 newE pStyle ws2) newGlobalAcc2
 
     EHole _ _ -> (newE, newGlobalAcc)
 
@@ -1270,7 +1273,7 @@ childExps e =
     ETyp ws1 pat tipe e ws2         -> [e]
     EColonType ws1 e ws2 tipe ws3   -> [e]
     ETypeAlias ws1 pat tipe e ws2   -> [e]
-    EParens _ e _                   -> [e]
+    EParens _ e _ _                 -> [e]
     EHole _ _                       -> []
 
 
@@ -1880,7 +1883,7 @@ precedingWhitespaceWithInfoExp__ e__ =
     ETyp       ws1 pat tipe e ws2       -> ws1
     EColonType ws1 e ws2 tipe ws3       -> ws1
     ETypeAlias ws1 pat tipe e ws2       -> ws1
-    EParens    ws1 e ws2                -> ws1
+    EParens    ws1 e pStyle ws2         -> ws1
     EHole      ws mv                    -> ws
 
 
@@ -1929,7 +1932,7 @@ allWhitespaces_ exp =
     ETyp       ws1 pat tipe e ws2           -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
     EColonType ws1 e ws2 tipe ws3           -> [ws1] ++ allWhitespaces_ e ++ [ws2] ++ allWhitespacesType_ tipe ++ [ws2]
     ETypeAlias ws1 pat tipe e ws2           -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
-    EParens    ws1 e ws2                    -> [ws1] ++ allWhitespaces_ e ++ [ws2]
+    EParens    ws1 e pStyle ws2             -> [ws1] ++ allWhitespaces_ e ++ [ws2]
     EHole      ws mv                        -> [ws]
 
 
@@ -2021,7 +2024,7 @@ mapPrecedingWhitespace stringMap exp =
         ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
         EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
         ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
-        EParens    ws e ws2                 -> EParens    (mapWs ws) e ws2
+        EParens    ws e pStyle ws2          -> EParens    (mapWs ws) e pStyle ws2
         EHole      ws mv                    -> EHole      (mapWs ws) mv
   in
     replaceE__ exp e__New
@@ -2491,8 +2494,8 @@ modifyWsBefore f codeObject =
               EColonType (f ws) a b c d
             ETypeAlias ws a b c d  ->
               ETypeAlias (f ws) a b c d
-            EParens ws a b ->
-              EParens (f ws) a b
+            EParens ws a pStyle b ->
+              EParens (f ws) a pStyle b
             EHole ws mv ->
               EHole (f ws) mv
       in
@@ -2811,7 +2814,7 @@ childCodeObjects co =
             , TT After ws2 t1
             , E e1
             ]
-          EParens ws1 e1 ws2 ->
+          EParens ws1 e1 pStyle ws2 ->
             [ ET Before ws1 e
             , E e1
             , ET After ws2 e1

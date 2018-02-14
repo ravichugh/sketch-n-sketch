@@ -75,6 +75,7 @@ strOp op = case op of
   DictRemove    -> "remove"
   DebugLog      -> "debug"
   NoWidgets     -> "noWidgets"
+  OptNumToString-> "optNumToString"
 
 strLoc : Loc -> String
 strLoc (k, b, mx) =

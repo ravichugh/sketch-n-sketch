@@ -352,7 +352,7 @@ typeIdentifierString =
 namePattern : ParserI Ident -> Parser Pat
 namePattern ident =
   mapPat_ <|
-    paddedBefore (\ws name -> PVar ws name noWidgetDecl) ident
+    paddedBefore (\ws name -> PVar ws name noWidgetDecl) spaces ident
 
 --------------------------------------------------------------------------------
 -- Variable Pattern
@@ -380,7 +380,7 @@ constantPattern : Parser Pat
 constantPattern =
   mapPat_ <|
     inContext "constant pattern" <|
-      paddedBefore PConst num
+      paddedBefore PConst spaces num
 
 --------------------------------------------------------------------------------
 -- Base Value Pattern
@@ -390,7 +390,7 @@ baseValuePattern : Parser Pat
 baseValuePattern =
   mapPat_ <|
     inContext "base value pattern" <|
-      paddedBefore PBase baseValue
+      paddedBefore PBase spaces baseValue
 
 --------------------------------------------------------------------------------
 -- Pattern Lists
@@ -496,7 +496,7 @@ stringType =
 namedType : Parser Type
 namedType =
   inContext "named type" <|
-    paddedBefore TNamed typeIdentifierString
+    paddedBefore TNamed spaces typeIdentifierString
 
 --------------------------------------------------------------------------------
 -- Variable Types
@@ -505,7 +505,7 @@ namedType =
 variableType : Parser Type
 variableType =
   inContext "variable type" <|
-    paddedBefore TVar variableIdentifierString
+    paddedBefore TVar spaces variableIdentifierString
 
 --------------------------------------------------------------------------------
 -- Function Type
@@ -633,7 +633,7 @@ unionType =
 wildcardType : Parser Type
 wildcardType =
   inContext "wildcard type" <|
-    spaceSaverKeyword "_" TWildcard
+    spaceSaverKeyword spaces "_" TWildcard
 
 --------------------------------------------------------------------------------
 -- General Types
@@ -670,7 +670,7 @@ typ =
 variableExpression : Parser Exp
 variableExpression =
   mapExp_ <|
-    paddedBefore EVar variableIdentifierString
+    paddedBefore EVar spaces variableIdentifierString
 
 --------------------------------------------------------------------------------
 -- Constant Expressions
@@ -701,7 +701,7 @@ baseValueExpression : Parser Exp
 baseValueExpression =
   inContext "base value expression" <|
     mapExp_ <|
-      paddedBefore EBase baseValue
+      paddedBefore EBase spaces baseValue
 
 --------------------------------------------------------------------------------
 -- Primitive Operators
@@ -1049,7 +1049,7 @@ hole : Parser Exp
 hole =
   inContext "hole" <|
     mapExp_ <|
-      paddedBefore EHole (trackInfo <| token "??" Nothing)
+      paddedBefore EHole spaces (trackInfo <| token "??" Nothing)
 
 --------------------------------------------------------------------------------
 -- Type Declarations
@@ -1307,6 +1307,7 @@ topLevelOption =
               exp_ <| EOption wsStart opt wsMid val rest
           )
       )
+       spaces
       ( trackInfo <| succeed (,,)
           |. symbol "#"
           |. spaces

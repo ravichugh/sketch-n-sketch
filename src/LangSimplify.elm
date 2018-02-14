@@ -499,7 +499,7 @@ changeRenamedVarsToOuter_ renamings exp =
       ETyp ws1 pat tipe e ws2       -> ETyp ws1 pat tipe (recurse e) ws2
       EColonType ws1 e ws2 tipe ws3 -> EColonType ws1 (recurse e) ws2 tipe ws3
       ETypeAlias ws1 pat tipe e ws2 -> ETypeAlias ws1 pat tipe (recurse e) ws2
-      EParens ws1 e ws2             -> EParens ws1 (recurse e) ws2
+      EParens ws1 e pStyle ws2      -> EParens ws1 (recurse e) pStyle ws2
       EHole ws mv                   -> e__
   in
   replaceE__ exp e__New

@@ -1006,7 +1006,7 @@ synthesizeType typeInfo typeEnv e =
       let typeEnv_ = TypeAlias p t :: typeEnv in
       propagateResult <| synthesizeType typeInfo typeEnv_ e1
 
-    EParens _ e1 _ ->
+    EParens _ e1 _ _ ->
       propagateResult <| synthesizeType typeInfo typeEnv e1
 
     EHole _ v ->

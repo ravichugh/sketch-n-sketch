@@ -7,6 +7,7 @@ module LangParserUtils exposing
   , paddedBefore
   , paddedAfter
   , padded
+  , isOnlySpaces
   , mapPat_
   , mapExp_
   )
@@ -25,7 +26,7 @@ import Info exposing (..)
 
 isSpace : Char -> Bool
 isSpace c =
-  c == ' ' || c == '\n'
+  c == ' ' || c == '\n' || c == '\t' || c == '\r'
 
 isOnlySpaces : String -> Bool
 isOnlySpaces =
@@ -69,44 +70,44 @@ symbolWithSpace sym =
       |. symbol sym
       |. guardSpace
 
-spaceSaverKeyword : String -> (WS -> a) -> ParserI a
-spaceSaverKeyword kword combiner =
+spaceSaverKeyword : Parser WS -> String -> (WS -> a) -> ParserI a
+spaceSaverKeyword sp kword combiner =
   delayedCommitMap
     ( \ws _ ->
         withInfo (combiner ws) ws.start ws.end
     )
-    ( spaces )
+    ( sp )
     ( keyword kword )
 
 
-paddedBefore : (WS -> a -> b) -> ParserI a -> ParserI b
-paddedBefore combiner p =
+paddedBefore : (WS -> a -> b) -> Parser WS -> ParserI a -> ParserI b
+paddedBefore combiner spacePolicy p =
   delayedCommitMap
     ( \wsBefore x ->
         withInfo (combiner wsBefore x.val) x.start x.end
     )
-    spaces
+    spacePolicy
     p
 
-paddedAfter : (a -> WS -> b) -> ParserI a -> ParserI b
-paddedAfter combiner p =
+paddedAfter : (a -> WS -> b) -> ParserI a -> Parser WS -> ParserI b
+paddedAfter combiner p spacePolicy =
   succeed
     ( \x wsAfter ->
         withInfo (combiner x.val wsAfter) x.start x.end
     )
     |= p
-    |= spaces
+    |= spacePolicy
 
-padded : (WS -> a -> WS -> b) -> ParserI a -> ParserI b
-padded combiner p =
+padded : (WS -> a -> WS -> b) -> Parser WS -> ParserI a -> Parser WS -> ParserI b
+padded combiner spacePolicyBefore p spacePolicyAfter =
   delayedCommitMap
     ( \wsBefore (x, wsAfter) ->
         withInfo (combiner wsBefore x.val wsAfter) x.start x.end
     )
-    spaces
+    spacePolicyBefore
     ( succeed (,)
         |= p
-        |= spaces
+        |= spacePolicyAfter
     )
 
 --------------------------------------------------------------------------------

@@ -17,6 +17,7 @@ import ValUnparser exposing (strVal)
 import Lazy
 import LangTools
 import Set
+import LangParserUtils
 
 unparse = Syntax.unparser Syntax.Elm
 unparsePattern = Syntax.patternUnparser Syntax.Elm
@@ -49,11 +50,11 @@ updateEnv env k value =
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Output -> LazyList NextAction -> Results String (Env, Exp)
 update env e oldVal out nextToUpdate =
-{-
+{--
   let _ = Debug.log (String.concat ["update: ", unparse e, " <-- ", (case out of
     Program p -> unparse p
     Raw v -> valToString v), " -- env = " , envToString (pruneEnv e env), "|-"]) () in
--}
+--}
   let updateStack = getUpdateStackOp env e oldVal out nextToUpdate in
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateError msg ->
@@ -109,7 +110,13 @@ getUpdateStackOp env e oldVal out nextToUpdate =
     EBase ws m ->
       case out of
         Program prog -> UpdateResult env prog
-        Raw newVal ->   UpdateResult env <| val_to_exp ws newVal
+        Raw newVal ->
+          case m of
+            EString quoteChar chars ->
+              case newVal.v_ of
+                VBase (VString newChars) ->   UpdateResult env <| replaceE__ e <| EBase ws (EString quoteChar newChars)
+                _ -> UpdateResult env <| val_to_exp ws newVal
+            _ -> UpdateResult env <| val_to_exp ws newVal
     EFun sp0 ps e sp1 ->
       case out of
         Program prog -> UpdateResult env prog
@@ -288,8 +295,41 @@ getUpdateStackOp env e oldVal out nextToUpdate =
               case op.val of
                 Explode    -> Debug.crash "Not implemented: update Explode "
                 DebugLog   -> Debug.crash "Not implemented: update DebugLog "
+                OptNumToString ->
+                  case out of
+                    Program exp -> UpdateError <| "Don't know how to update a OptNumToString with a program"
+                    Raw vOut ->
+                      let default () =
+                        case vOut.v_ of
+                          VBase (VString s) ->
+                            case Syntax.parser Syntax.Elm s of
+                              Err msg -> UpdateError <| "Could not parse new output value '"++s++"' for ToStr expression " ++ toString msg
+                              Ok parsed ->
+                                case doEval Syntax.Elm [] parsed of
+                                  Err msg -> UpdateError msg
+                                  Ok ((v, _), _) ->
+                                    case (opArgs, vs) of
+                                      ([opArg], [arg]) -> UpdateContinue env opArg arg (Raw v) <|
+                                          HandlePreviousResult <| \(env, newOpArg) ->
+                                            UpdateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
+                                      e -> UpdateError <| "[internal error] Wrong number of arguments in update OptNumToString: " ++ toString e
+                          e -> UpdateError <| "Expected string, got " ++ toString e
+                      in
+                      case vs of
+                        [original] ->
+                          case original.v_ of
+                            VBase (VString origS) ->
+                              case opArgs of
+                                [opArg] -> UpdateContinue env opArg original out <|
+                                  HandlePreviousResult <| \(env, newOpArg) ->
+                                    UpdateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
+                                e -> UpdateError <| "[internal error] Wrong number of argument values in update OptNumToString: " ++ toString e
+                            _ -> -- Everything else is unparsed to a string, we just parse it.
+                              default ()
+                        _ -> UpdateError <| "[internale error] Wrong number or arguments in updateOptNumtoString: " ++ toString e
                 ToStr      ->
                   case out of
+                    Program exp -> UpdateError <| "Don't know how to update a ToStr with a program"
                     Raw v ->
                       case v.v_ of
                         VBase (VString s) ->
@@ -305,9 +345,9 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                                           UpdateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
                                     e -> UpdateError <| "[internal error] Wrong number of arguments in update: " ++ toString e
                         e -> UpdateError <| "Expected string, got " ++ toString e
-                    Program exp -> UpdateError <| "Don't know how to update a ToStr with a program"
                 _ ->
                   case out of
+                    Program exp -> UpdateError <| "Don't know how to update an operation with a program"
                     Raw newVal ->
                       case maybeUpdateMathOp op vs oldVal newVal of
                         Errs msg -> UpdateError msg
@@ -316,8 +356,6 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                           UpdateRestart env argList (replaceV_ oldVal <| VList vs)
                             (Raw <| replaceV_ oldVal <| VList head) <|
                             handleRemainingResults lazyTail nextToUpdate
-                    Program exp ->
-                      UpdateError <| "Don't know how to update an operation with a program"
 
     ECase sp1 input branches sp2 ->
       case doEval Syntax.Elm env input of
@@ -390,8 +428,8 @@ getUpdateStackOp env e oldVal out nextToUpdate =
       UpdateContinue env exp oldVal out <| HandlePreviousResult <| \(nv, ne) -> UpdateResult nv <| replaceE__ e <| EColonType a ne b c d
     ETypeAlias a b c exp d ->
       UpdateContinue env exp oldVal out <| HandlePreviousResult <| \(nv, ne) -> UpdateResult nv <| replaceE__ e <| ETypeAlias a b c ne d
-    EParens sp1 exp sp2->
-      UpdateContinue  env exp oldVal out <| HandlePreviousResult <| \(nv, ne) -> UpdateResult nv <| replaceE__ e <| EParens sp1 ne sp2
+    EParens sp1 exp pStyle sp2->
+      UpdateContinue  env exp oldVal out <| HandlePreviousResult <| \(nv, ne) -> UpdateResult nv <| replaceE__ e <| EParens sp1 ne pStyle sp2
     {--ETypeCase sp1 e1 tbranches sp2 ->
       case eval_ syntax env (e::bt) e1 of
         Err s -> UpdateError s
@@ -487,18 +525,62 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
                   let saIsPrefix = String.startsWith sa s in
                   let sbIsSuffix = String.endsWith sb s in
                   if saIsPrefix && sbIsSuffix then -- Normally, we should check whitespaee to order. For now, append to left first.
-                    let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
-                    let newvb = VBase <| VString <| String.dropLeft (String.length sa) s in
-                    oks [[newva, vb], [va, newvb]]
+                    let newsa = String.slice 0 (String.length s - String.length sb) s in
+                    let newsb = String.dropLeft (String.length sa) s in
+                    let newva = VBase <| VString <| newsa in
+                    let newvb = VBase <| VString <| newsb in
+                    if String.length newsa > String.length sa then -- Addition of elements, perhaps we need to stick them to a particular side.
+                      let insertion = String.slice (String.length sa) (String.length newsa) newsa in
+                      if String.length sa == 0 then --Fill empty string only with spaces by default
+                        if LangParserUtils.isOnlySpaces insertion then
+                          oks [[newva, vb], [va, newvb]]
+                        else
+                          oks [[va, newvb], [newva, vb]]
+                      else if String.length sb == 0 then
+                        if LangParserUtils.isOnlySpaces insertion then
+                          oks [[va, newvb], [newva, vb]]
+                        else
+                          oks [[newva, vb], [va, newvb]]
+                      else -- Both original strings had chars
+                        let aEndIsSspace = LangParserUtils.isOnlySpaces <| String.slice (-1) (String.length sa) sa in
+                        let bStartIsSspace = LangParserUtils.isOnlySpaces <| String.slice 0 1 sb in
+                        let insertedStartIsSspace = LangParserUtils.isOnlySpaces <| String.slice 0 1 insertion in
+                        let insertedEndIsSspace = LangParserUtils.isOnlySpaces <| String.slice (-1) (String.length insertion) insertion in
+                        -- Stick inserted expression if some end match and not the other, else keep left.
+                        if (bStartIsSspace == insertedEndIsSspace) && xor aEndIsSspace insertedStartIsSspace then
+                          oks [[va, newvb], [newva, vb]]
+                        else
+                          oks [[newva, vb], [va, newvb]]
+                         --LangParserUtils.isOnlySpaces (String.slice 0 1 insertion) &&
+                    else
+                      oks [[newva, vb], [va, newvb]]
                   else if saIsPrefix then
-                   let newvb = VBase <| VString <| String.dropLeft (String.length sa) s in
-                   ok1 [va, newvb]
+                    let newvb = VBase <| VString <| String.dropLeft (String.length sa) s in
+                    ok1 [va, newvb]
                   else if sbIsSuffix then
-                   let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
-                   ok1 [newva, vb]
-                  else Errs <| "Cannot update with a string that is modifying two concatenated strings at the same time: '" ++
-                    sa ++ "' + '" ++ sb ++ "' <-- '" ++ s ++ "'"
-                _ -> Errs <| "Cannot update with non-string" ++ valToString newOutVal
+                    let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
+                    ok1 [newva, vb]
+                  else -- Some parts on both strings were deleted, everything in between was added.
+                    let newsa = commonPrefix sa s in
+                    let newsb = commonSuffix sb s in
+                    let newva s = VBase <| VString <| newsa ++ s in
+                    let newvb s = VBase <| VString <| s ++ newsb in
+                    let insertion = String.slice (String.length newsa) (String.length s - String.length newsb) s in
+                    if String.length newsa == 0 then -- Everything inserted belongs to newsa by default
+                      oks [[newva insertion, newvb ""], [newva "", newvb insertion]]
+                    else if String.length newsb == 0 then --Everything inserted belongs to newvb by default
+                      oks [[newva "", newvb insertion], [newva insertion, newvb ""]]
+                    else
+                        let aEndIsSspace = LangParserUtils.isOnlySpaces <| String.slice (-1) (String.length newsa) newsa in
+                        let bStartIsSspace = LangParserUtils.isOnlySpaces <| String.slice 0 1 newsb in
+                        let insertedStartIsSspace = LangParserUtils.isOnlySpaces <| String.slice 0 1 insertion in
+                        let insertedEndIsSspace = LangParserUtils.isOnlySpaces <| String.slice (-1) (String.length insertion) insertion in
+                        -- Stick inserted expression if some end match and not the other, else keep left.
+                        if (bStartIsSspace == insertedEndIsSspace) && xor aEndIsSspace insertedStartIsSspace then
+                          oks [[newva "", newvb insertion], [newva insertion, newvb ""]]
+                        else
+                          oks [[newva insertion, newvb ""], [newva "", newvb insertion]]
+                _ -> Errs <| "Cannot yet update with non-string" ++ valToString newOutVal
               in
               Results.map (
                   List.map2 (\original newString ->
@@ -580,6 +662,19 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
             ) operandVals
           ) result
     _ -> Errs <| "Do not know how to revert computation " ++ toString op ++ "(" ++ toString operandVals ++ ") <-- " ++ toString newOutVal
+
+commonPrefix: String -> String -> String
+commonPrefix =
+  let aux prefix s1 s2 =
+    case (String.uncons s1, String.uncons s2) of
+      (Nothing, _) -> prefix
+      (_, Nothing) -> prefix
+      (Just (s1head, s1tail), Just (s2head, s2tail)) ->
+        if s1head == s2head then aux (prefix ++ String.fromChar s1head) s1tail s2tail else prefix
+  in aux ""
+
+commonSuffix: String -> String -> String
+commonSuffix s1 s2 = commonPrefix (String.reverse s1) (String.reverse s2) |> String.reverse
 
 -- Tri combine only checks dependencies that may have been changed.
 triCombine: Exp -> Env -> Env -> Env -> Env
@@ -955,8 +1050,8 @@ expEqual e1_ e2_ =
   (ETypeAlias sp1 pat1 t1 e1 sp2, ETypeAlias sp3 pat2 t2 e2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
     patEqual pat1 pat2 && expEqual e1 e2 && typeEqual t1 t2
-  (EParens sp1 e1 sp2, EParens sp3 e2 sp4) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4 && expEqual e1 e2
+  (EParens sp1 e1 pStyle1 sp2, EParens sp3 e2 pStyle2 sp4) ->
+    wsEqual sp1 sp3 && wsEqual sp2 sp4 && expEqual e1 e2 && pStyle
   (EHole sp1 (Just v1), EHole sp2 (Just v2)) ->
     wsEqual sp1 sp2 && valEqual v1 v2
   (EHole sp1 Nothing, EHole sp2 Nothing) ->
