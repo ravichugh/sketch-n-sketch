@@ -1,12 +1,13 @@
 module ElmParser exposing
   ( parse,
     builtInPrecedenceTable,
-    builtInPatternPrecedenceTable
+    builtInPatternPrecedenceTable,
+    isRestChar
   )
 
 import Char
 import Set exposing (Set)
-
+import Pos
 import Parser as P exposing (..)
 import Parser.LanguageKit as LK
 
@@ -21,7 +22,6 @@ import ElmLang
 import TopLevelExp exposing (TopLevelExp, fuseTopLevelExps)
 
 import FastParser
-import LongStringParser
 import Regex
 
 --==============================================================================
@@ -34,10 +34,11 @@ import Regex
 
 genericEmptyList
   :  { combiner : WS -> WS -> list
+     , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI list
-genericEmptyList { combiner } =
-  paddedBefore combiner <|
+genericEmptyList { combiner, beforeSpacePolicy } =
+  paddedBefore combiner beforeSpacePolicy <|
     trackInfo <|
       succeed identity
         |. symbol "["
@@ -47,9 +48,10 @@ genericEmptyList { combiner } =
 genericNonEmptyList
   :  { item : Parser elem
      , combiner : WS -> List elem -> WS -> list
+     , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI list
-genericNonEmptyList { item, combiner }=
+genericNonEmptyList { item, combiner, beforeSpacePolicy }=
   lazy <| \_ ->
     let
       anotherItem =
@@ -62,6 +64,7 @@ genericNonEmptyList { item, combiner }=
         ( \wsBefore (members, wsBeforeEnd) ->
             combiner wsBefore members wsBeforeEnd
         )
+        beforeSpacePolicy
         ( trackInfo <|
             succeed (\e es ws -> (e :: es, ws))
               |. symbol "["
@@ -75,9 +78,10 @@ genericNonEmptyListWithTail
   :  { item : Parser elem
      , tailItem: Parser elem
      , combinerTail : WS -> List elem -> WS -> elem -> WS -> list
+     , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI list
-genericNonEmptyListWithTail { item, tailItem, combinerTail }=
+genericNonEmptyListWithTail { item, tailItem, combinerTail, beforeSpacePolicy }=
   lazy <| \_ ->
     let
       anotherItem =
@@ -90,6 +94,7 @@ genericNonEmptyListWithTail { item, tailItem, combinerTail }=
         ( \wsBefore (members, wsMiddle, thetail, wsBeforeEnd) ->
             combinerTail wsBefore members wsMiddle thetail wsBeforeEnd
         )
+        beforeSpacePolicy
         ( trackInfo <|
             succeed (\e es wsm t wse -> (e :: es, wsm, t, wse))
               |. symbol "["
@@ -107,15 +112,17 @@ genericList
      , combiner : WS -> List elem -> WS -> list
      , tailItem : Parser elem
      , combinerTail : WS -> List elem -> WS -> elem -> WS -> list
+     , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI list
-genericList { item, tailItem, combiner, combinerTail } =
+genericList { item, tailItem, combiner, combinerTail, beforeSpacePolicy } =
   lazy <| \_ ->
     oneOf
       [ try <|
           genericEmptyList
             { combiner =
-                \wsBefore wsAfter -> combiner wsBefore [] wsAfter
+                \wsBefore wsAfter -> combiner wsBefore [] wsAfter,
+              beforeSpacePolicy = beforeSpacePolicy
             }
       , try <|
           genericNonEmptyList
@@ -123,6 +130,8 @@ genericList { item, tailItem, combiner, combinerTail } =
                 item
             , combiner =
                 combiner
+            , beforeSpacePolicy =
+                beforeSpacePolicy
             }
       , lazy <| \_ ->
           genericNonEmptyListWithTail
@@ -131,7 +140,9 @@ genericList { item, tailItem, combiner, combinerTail } =
             , combinerTail =
                 combinerTail
             , tailItem =
-                tailItem }
+                tailItem
+            , beforeSpacePolicy =
+                beforeSpacePolicy }
       ]
 
 --------------------------------------------------------------------------------
@@ -139,8 +150,8 @@ genericList { item, tailItem, combiner, combinerTail } =
 --------------------------------------------------------------------------------
 
 block
-  : (WS -> a -> WS -> b) -> String -> String -> Parser a -> ParserI b
-block combiner openSymbol closeSymbol p =
+  : (WS -> a -> WS -> b) -> SpacePolicy -> String -> String -> Parser a -> ParserI b
+block combiner sp openSymbol closeSymbol p =
   delayedCommitMap
     ( \(wsBefore, open) (result, wsEnd, close) ->
         withInfo
@@ -149,7 +160,7 @@ block combiner openSymbol closeSymbol p =
           close.end
     )
     ( succeed (,)
-        |= spaces
+        |= sp
         |= trackInfo (symbol openSymbol)
     )
     ( succeed (,,)
@@ -158,17 +169,17 @@ block combiner openSymbol closeSymbol p =
         |= trackInfo (symbol closeSymbol)
     )
 
-parenBlock : (WS -> a -> WS -> b) -> Parser a -> ParserI b
-parenBlock combiner = block combiner "(" ")"
+parenBlock : (WS -> a -> WS -> b) -> SpacePolicy -> Parser a -> ParserI b
+parenBlock combiner sp = block combiner sp "(" ")"
 
-bracketBlock : (WS -> a -> WS -> b) -> Parser a -> ParserI b
-bracketBlock combiner = block combiner "[" "]"
+bracketBlock : (WS -> a -> WS -> b) -> SpacePolicy -> Parser a -> ParserI b
+bracketBlock combiner sp = block combiner sp "[" "]"
 
-blockIgnoreWS : String -> String -> Parser a -> ParserI a
-blockIgnoreWS = block (\wsBefore x wsEnd -> x)
+blockIgnoreWS : SpacePolicy -> String -> String -> Parser a -> ParserI a
+blockIgnoreWS sp = block (\wsBefore x wsEnd -> x) sp
 
-parenBlockIgnoreWS : Parser a -> ParserI a
-parenBlockIgnoreWS = blockIgnoreWS "(" ")"
+parenBlockIgnoreWS : SpacePolicy -> Parser a -> ParserI a
+parenBlockIgnoreWS sp = blockIgnoreWS sp "(" ")"
 
 --==============================================================================
 --= Identifiers
@@ -344,24 +355,140 @@ singleLineString =
       trackInfo <|
         oneOf <| List.map stringHelper ['\'', '"']
 
-multiLineString : ParserI EBaseVal
-multiLineString =
-  inContext "multi-line string" <|
-    trackInfo <|
-      map (EString "\"\"\"") <|
-        inside "\"\"\""
-
-
-multiLineInterpolatedString : Parser Exp
-multiLineInterpolatedString =
-  inContext "multi-line string" <|
+multiLineInterpolatedString : SpacePolicy -> Parser Exp
+multiLineInterpolatedString sp =
+  inContext "multi-line interpolated string" <|
     mapExp_ <|
     trackInfo <|
-      succeed (\wsBefore e -> EParens wsBefore e LongStringSyntax space0 )
-      |= spaces
-      |. symbol "\"\"\""
-      |= LongStringParser.contentParser
-      |. symbol "\"\"\""
+      delayedCommitMap (\wsBefore e -> EParens wsBefore e LongStringSyntax space0 )
+      (succeed identity
+        |= sp
+        |. symbol "\"\"\""
+       )
+      (succeed identity
+        |= multilineContentParser
+        |. symbol "\"\"\""
+      )
+
+multilineParseUntilRegex = Regex.regex <| "@|\"\"\""
+
+multilineContentParser : Parser Exp
+multilineContentParser =
+  inContext "multi-line string content" <|
+  ((mapExp_ <| trackInfo <|
+    succeed (\str -> EBase space0 <| EString "\"" str)
+  |= ParserUtils.keepUntilRegex multilineParseUntilRegex
+  )
+  |> andThen (\exp -> multilineContentParserHelp [exp]))
+
+multilineConcatExp: List Exp -> Pos.Pos -> Exp
+multilineConcatExp exps startPosition =
+  case exps of
+    [] ->  Debug.crash "Internal error: No expression in longstring literal"
+    [head] -> head
+    head::tail ->
+      let tailPart = multilineConcatExp tail head.end in
+      case head.val.e__ of
+        ELet sp0 letType isRec pattern wsBeforeEq binding wsBeforeIn _ sp1 ->
+          replaceE__ head <| ELet sp0 letType isRec pattern wsBeforeEq binding wsBeforeIn tailPart sp1
+        _ ->
+          withInfo
+            (exp_ <| EOp space0 (withInfo Plus head.end tailPart.start) [head, tailPart] space0)
+            head.start tailPart.end
+
+multilineContentParserHelp: List Exp -> Parser Exp
+multilineContentParserHelp prevExps =
+  inContext "multi-line string end or escape" <|
+  oneOf
+    [ try <| ( -- Either this is the end of the string content
+        succeed (multilineConcatExp (List.reverse prevExps))
+        |. lookAhead (symbol "\"\"\"")
+        |= getPos
+      )
+    , (succeed (\x y -> (x, y))
+      |= (inContext "multi-line string @expression" <| oneOf [  --Or this is an @ followed by an @ resutling in a single @ char,
+             mapExp_ <| trackInfo <|
+               map (\_ -> EBase space0 (EString "\"" "@")) <| symbol "@@",
+             succeed identity -- Or this is an @ followed by an escaped Elm expression or a let/def definition
+          |. symbol "@"
+          |= (lazy <| \_ -> multilineEscapedElmExpression)
+        ])
+      |= (mapExp_ <| trackInfo <|
+             succeed (\str -> EBase space0 <| EString "\"" str)
+           |= ParserUtils.keepUntilRegex multilineParseUntilRegex
+         ))
+     |> andThen (\(potentialExp, stringExp) ->
+        case prevExps of
+          lastPrev :: lastTail ->
+            case (lastPrev.val.e__, potentialExp.val.e__, stringExp.val.e__) of
+              (EBase sp0 (EString qc prevChars), EBase sp1 (EString eqc expChars), EBase sp2 (EString sqc stringChars)) ->
+                multilineContentParserHelp <| (withInfo (
+                  exp_ <| EBase sp0 <| EString qc (prevChars ++ expChars ++ stringChars))
+                  lastPrev.start stringExp.end) :: prevExps
+              _ ->
+                multilineContentParserHelp (stringExp :: potentialExp:: prevExps)
+          [] -> Debug.crash "Internal error: There should be always at least one expression in a longstring literal."
+      )
+  ]
+
+multilineEscapedElmExpression: Parser Exp
+multilineEscapedElmExpression =
+  inContext "expression in multi-line string" <|
+  oneOf [
+    try <|
+      variableExpression spacesWithoutNewline,
+    try <| lazy <| \_ -> multilineGenericLetBinding,
+    lazy <| \_ ->
+      ( mapExp_ <| trackInfo <|
+          (succeed (\exp -> EParens space0 exp ElmSyntax space0)
+          |= parens spacesWithoutNewline)
+      )
+  ]
+
+multilineGenericLetBinding : Parser Exp
+multilineGenericLetBinding =
+  inContext ("let binding within a long string") <|
+    lazy <| \_ ->
+      succeed (\letdefWithInfo isRec pattern parameters wsBeforeEq binding_  ->
+         let
+           binding =
+             if List.isEmpty parameters then
+               binding_
+             else
+               withInfo
+                 (exp_ <| EFun space0 parameters binding_ space0)
+                 binding_.start
+                 binding_.end
+         in
+           withInfo
+             (
+                 exp_ <|
+                   ELet
+                     space0
+                     Let
+                     (case isRec of
+                       Just _ -> True
+                       _ -> False
+                     )
+                     pattern
+                     wsBeforeEq
+                     binding
+                     space0
+                     (withDummyExpInfo <| EHole space0 Nothing)
+                     space0
+             )
+             letdefWithInfo.start
+             binding.end
+       )
+      |= (trackInfo <| source <| keyword "let")
+      |= optional (keyword "rec")
+      |= pattern spacesWithoutNewline
+      |= repeat zeroOrMore (pattern spacesWithoutNewline)
+      |= spacesWithoutNewline
+      |. symbol "="
+      |= expression spacesWithoutNewline
+      |. ignore zeroOrMore (\c -> c == ' ' || c == '\t')-- This will remove trailing whitespace.
+      |. symbol "\n"
 
 --------------------------------------------------------------------------------
 -- General Base Values
@@ -371,8 +498,7 @@ baseValue : ParserI EBaseVal
 baseValue =
   inContext "base value" <|
     oneOf
-      [ multiLineString
-      , singleLineString
+      [ singleLineString
       , bool
       ]
 
@@ -384,89 +510,92 @@ baseValue =
 -- Names Helper
 --------------------------------------------------------------------------------
 
-namePattern : ParserI Ident -> Parser Pat
-namePattern ident =
+namePattern : SpacePolicy -> ParserI Ident -> Parser Pat
+namePattern sp ident =
   mapPat_ <|
-    paddedBefore (\ws name -> PVar ws name noWidgetDecl) ident
+    paddedBefore (\ws name -> PVar ws name noWidgetDecl) sp ident
 
 --------------------------------------------------------------------------------
 -- Variables
 --------------------------------------------------------------------------------
 
-variablePattern : Parser Pat
-variablePattern =
+variablePattern : SpacePolicy -> Parser Pat
+variablePattern sp =
   inContext "variable pattern" <|
-    namePattern littleIdentifier
+    namePattern sp littleIdentifier
 
 --------------------------------------------------------------------------------
 -- Wildcards
 --------------------------------------------------------------------------------
 
-wildcardPattern : Parser Pat
-wildcardPattern =
+wildcardPattern : SpacePolicy -> Parser Pat
+wildcardPattern sp =
   inContext "wildcard pattern" <|
     mapPat_ <|
       paddedBefore
         (\ws () -> PWildcard ws)
+        sp
         (trackInfo (symbol "_"))
 
 --------------------------------------------------------------------------------
 -- Types  (SPECIAL-USE ONLY; not included in `pattern`)
 --------------------------------------------------------------------------------
 
-typePattern : Parser Pat
-typePattern =
+typePattern : SpacePolicy -> Parser Pat
+typePattern sp =
   inContext "type pattern" <|
-    namePattern bigIdentifier
+    namePattern sp bigIdentifier
 
 --------------------------------------------------------------------------------
 -- Constants
 --------------------------------------------------------------------------------
 
-constantPattern : Parser Pat
-constantPattern =
+constantPattern : SpacePolicy -> Parser Pat
+constantPattern sp =
   inContext "constant pattern" <|
     mapPat_ <|
-      paddedBefore PConst num
+      paddedBefore PConst sp num
 
 --------------------------------------------------------------------------------
 -- Base Values
 --------------------------------------------------------------------------------
 
-baseValuePattern : Parser Pat
-baseValuePattern =
+baseValuePattern : SpacePolicy -> Parser Pat
+baseValuePattern sp =
   inContext "base value pattern" <|
     mapPat_ <|
-      paddedBefore PBase baseValue
+      paddedBefore PBase sp baseValue
 
 --------------------------------------------------------------------------------
 -- Lists
 --------------------------------------------------------------------------------
 
-listPattern : Parser Pat
-listPattern =
+listPattern : SpacePolicy -> Parser Pat
+listPattern sp =
   inContext "list pattern" <|
     lazy <| \_ ->
       mapPat_ <|
         genericList
           { item =
-              pattern
+              pattern spaces
           , tailItem =
-              pattern
+              pattern spaces
           , combiner =
               \wsBefore members wsBeforeEnd ->
                 PList wsBefore members space0 Nothing wsBeforeEnd
           , combinerTail =
               \wsBefore members wsMiddle tail wsBeforeEnd ->
                 PList wsBefore members wsMiddle (Just tail) wsBeforeEnd
+          , beforeSpacePolicy =
+              sp
           }
 
 --------------------------------------------------------------------------------
 -- As-Patterns (@-Patterns)
 --------------------------------------------------------------------------------
 
-parensPattern : Parser Pat
-parensPattern =
+parensPattern : SpacePolicy -> Parser Pat
+parensPattern sp =
   inContext "parentheses" <|
     mapPat_ <|
       lazy <| \_ ->
@@ -474,32 +603,33 @@ parensPattern =
           ( \wsBefore (innerPattern, wsBeforeEnd) ->
               PParens wsBefore innerPattern wsBeforeEnd
           )
+          sp
           ( trackInfo <|
               succeed (,)
                 |. symbol "("
-                |= pattern
+                |= pattern spaces
                 |= spaces
                 |. symbol ")"
           )
 
-simplePattern : Parser Pat
-simplePattern =
+simplePattern : SpacePolicy -> Parser Pat
+simplePattern sp =
   inContext "simple pattern" <|
     oneOf
-      [ lazy <| \_ -> listPattern
-      , lazy <| \_ -> parensPattern
-      , constantPattern
-      , baseValuePattern
-      , variablePattern
-      , wildcardPattern
+      [ lazy <| \_ -> listPattern sp
+      , lazy <| \_ -> parensPattern sp
+      , constantPattern sp
+      , baseValuePattern sp
+      , variablePattern sp
+      , wildcardPattern sp
       ]
 
 --------------------------------------------------------------------------------
 -- General Patterns
 --------------------------------------------------------------------------------
 
-pattern : Parser Pat
-pattern =
+pattern : SpacePolicy -> Parser Pat
+pattern sp =
   inContext "pattern" <|
     lazy <| \_ ->
       binaryOperator
@@ -508,9 +638,9 @@ pattern =
         , minimumPrecedence =
             0
         , expression =
-            simplePattern
+            simplePattern sp
         , operator =
-            patternOperator
+            patternOperator sp
         , representation =
             .val >> Tuple.second
         , combine =
@@ -553,107 +683,108 @@ pattern =
 -- Base Types
 --------------------------------------------------------------------------------
 
-baseType : String -> (WS -> Type_) -> String -> Parser Type
-baseType context combiner token =
+baseType : String -> (WS -> Type_) -> SpacePolicy -> String -> Parser Type
+baseType context combiner sp token =
   inContext context <|
     delayedCommitMap
       ( \ws _ ->
           withInfo (combiner ws) ws.start ws.end
       )
-      ( spaces )
+      ( sp )
       ( keyword token )
 
-nullType : Parser Type
-nullType =
-  baseType "null type" TNull "Null"
+nullType : SpacePolicy -> Parser Type
+nullType sp =
+  baseType "null type" TNull sp "Null"
 
-numType : Parser Type
-numType =
-  baseType "num type" TNum "Num"
+numType : SpacePolicy -> Parser Type
+numType sp =
+  baseType "num type" TNum sp "Num"
 
-boolType : Parser Type
-boolType =
-  baseType "bool type" TBool "Bool"
+boolType : SpacePolicy -> Parser Type
+boolType sp =
+  baseType "bool type" TBool sp "Bool"
 
-stringType : Parser Type
-stringType =
-  baseType "string type" TString "String"
+stringType : SpacePolicy -> Parser Type
+stringType sp =
+  baseType "string type" TString sp "String"
 
 --------------------------------------------------------------------------------
 -- Named Types
 --------------------------------------------------------------------------------
 
-namedType : Parser Type
-namedType =
+namedType : SpacePolicy -> Parser Type
+namedType sp =
   inContext "named type" <|
-    paddedBefore TNamed bigIdentifier
+    paddedBefore TNamed sp bigIdentifier
 
 --------------------------------------------------------------------------------
 -- Variable Types
 --------------------------------------------------------------------------------
 
-variableType : Parser Type
-variableType =
+variableType : SpacePolicy -> Parser Type
+variableType sp =
   inContext "variable type" <|
-    paddedBefore TVar littleIdentifier
+    paddedBefore TVar sp littleIdentifier
 
 --------------------------------------------------------------------------------
 -- Function Type
 --------------------------------------------------------------------------------
 
-functionType : Parser Type
-functionType =
+functionType : SpacePolicy -> Parser Type
+functionType sp =
   lazy <| \_ ->
     inContext "function type" <|
-      parenBlock TArrow <|
+      parenBlock TArrow sp <|
         succeed identity
           |. keywordWithSpace "->"
-          |= repeat oneOrMore typ
+          |= repeat oneOrMore (typ sp)
 
 --------------------------------------------------------------------------------
 -- List Type
 --------------------------------------------------------------------------------
 
-listType : Parser Type
-listType =
+listType : SpacePolicy -> Parser Type
+listType sp =
   inContext "list type" <|
     lazy <| \_ ->
-      parenBlock TList <|
+      parenBlock TList sp <|
         succeed identity
           |. keywordWithSpace "List"
-          |= typ
+          |= typ sp
 
 --------------------------------------------------------------------------------
 -- Dict Type
 --------------------------------------------------------------------------------
 
-dictType : Parser Type
-dictType =
+dictType : SpacePolicy -> Parser Type
+dictType sp =
   inContext "dictionary type" <|
     lazy <| \_ ->
       parenBlock
         ( \wsBefore (tKey, tVal) wsEnd ->
             TDict wsBefore tKey tVal wsEnd
         )
+        sp
         ( succeed (,)
             |. keywordWithSpace "TDict"
-            |= typ
-            |= typ
+            |= typ sp
+            |= typ sp
         )
 
 --------------------------------------------------------------------------------
 -- Tuple Type
 --------------------------------------------------------------------------------
 
-tupleType : Parser Type
-tupleType =
+tupleType : SpacePolicy -> Parser Type
+tupleType sp =
   inContext "tuple type" <|
     lazy <| \_ ->
       genericList
         { item =
-            typ
+            typ spaces
         , tailItem =
-            typ
+            typ spaces
         , combiner =
             ( \wsBefore heads wsEnd ->
                 TTuple wsBefore heads space0 Nothing wsEnd
@@ -662,14 +793,16 @@ tupleType =
             ( \wsBefore heads wsMiddle tail wsEnd ->
                 TTuple wsBefore heads wsMiddle (Just tail) wsEnd
             )
+        , beforeSpacePolicy =
+            sp 
         }
 
 --------------------------------------------------------------------------------
 -- Forall Type
 --------------------------------------------------------------------------------
 
-forallType : Parser Type
-forallType =
+forallType : SpacePolicy -> Parser Type
+forallType sp =
   let
     wsIdentifierPair =
       delayedCommitMap
@@ -684,7 +817,7 @@ forallType =
             map One wsIdentifierPair
         , inContext "forall type (many) "<|
             untrackInfo <|
-              parenBlock Many <|
+              parenBlock Many sp <|
                 repeat zeroOrMore wsIdentifierPair
         ]
   in
@@ -694,56 +827,57 @@ forallType =
           ( \wsBefore (qs, t) wsEnd ->
               TForall wsBefore qs t wsEnd
           )
+          sp
           ( succeed (,)
               |. keywordWithSpace "forall"
               |= quantifiers
-              |= typ
+              |= typ spaces
           )
 
 --------------------------------------------------------------------------------
 -- Union Type
 --------------------------------------------------------------------------------
 
-unionType : Parser Type
-unionType =
+unionType : SpacePolicy -> Parser Type
+unionType sp=
   inContext "union type" <|
     lazy <| \_ ->
-      parenBlock TUnion <|
+      parenBlock TUnion sp <|
         succeed identity
           |. keywordWithSpace "union"
-          |= repeat oneOrMore typ
+          |= repeat oneOrMore (typ spaces)
 
 --------------------------------------------------------------------------------
 -- Wildcard Type
 --------------------------------------------------------------------------------
 
-wildcardType : Parser Type
-wildcardType =
+wildcardType : SpacePolicy -> Parser Type
+wildcardType sp =
   inContext "wildcard type" <|
-    spaceSaverKeyword "_" TWildcard
+    spaceSaverKeyword sp "_" TWildcard
 
 --------------------------------------------------------------------------------
 -- General Types
 --------------------------------------------------------------------------------
 
-typ : Parser Type
-typ =
+typ : SpacePolicy -> Parser Type
+typ sp =
   inContext "type" <|
     lazy <| \_ ->
       oneOf
-        [ nullType
-        , numType
-        , boolType
-        , stringType
-        , wildcardType
-        , lazy <| \_ -> functionType
-        , lazy <| \_ -> listType
-        , lazy <| \_ -> dictType
-        , lazy <| \_ -> tupleType
-        , lazy <| \_ -> forallType
-        , lazy <| \_ -> unionType
-        , namedType
-        , variableType
+        [ nullType sp
+        , numType sp
+        , boolType sp
+        , stringType sp
+        , wildcardType sp
+        , lazy <| \_ -> functionType sp
+        , lazy <| \_ -> listType sp
+        , lazy <| \_ -> dictType sp
+        , lazy <| \_ -> tupleType sp
+        , lazy <| \_ -> forallType sp
+        , lazy <| \_ -> unionType sp
+        , namedType sp
+        , variableType sp
         ]
 
 --==============================================================================
@@ -889,13 +1023,13 @@ opFromIdentifier identifier =
 -- Operator Parsing
 --------------------------------------------------------------------------------
 
-operator : ParserI Operator
-operator =
-  paddedBefore (,) symbolIdentifier
+operator : SpacePolicy -> ParserI Operator
+operator sp =
+  paddedBefore (,) sp symbolIdentifier
 
-patternOperator : ParserI Operator
-patternOperator =
-  paddedBefore (,) patternSymbolIdentifier
+patternOperator : SpacePolicy -> ParserI Operator
+patternOperator sp =
+  paddedBefore (,) sp patternSymbolIdentifier
 
 --==============================================================================
 -- Expressions
@@ -905,8 +1039,8 @@ patternOperator =
 -- Constants
 --------------------------------------------------------------------------------
 
-constantExpression : Parser Exp
-constantExpression =
+constantExpression : SpacePolicy -> Parser Exp
+constantExpression sp =
   inContext "constant expression" <|
     mapExp_ <|
       delayedCommitMap
@@ -916,7 +1050,7 @@ constantExpression =
               n.start
               w.end
         )
-        spaces
+        sp
         ( succeed (,,)
             |= num
             |= frozenAnnotation
@@ -927,27 +1061,27 @@ constantExpression =
 -- Base Values
 --------------------------------------------------------------------------------
 
-baseValueExpression : Parser Exp
-baseValueExpression =
+baseValueExpression : SpacePolicy -> Parser Exp
+baseValueExpression sp =
   inContext "base value expression" <|
     mapExp_ <|
-      paddedBefore EBase baseValue
+      paddedBefore EBase sp baseValue
 
 --------------------------------------------------------------------------------
 -- Variables
 --------------------------------------------------------------------------------
 
-variableExpression : Parser Exp
-variableExpression =
+variableExpression : SpacePolicy -> Parser Exp
+variableExpression sp =
   mapExp_ <|
-    paddedBefore EVar littleIdentifier
+    paddedBefore EVar sp littleIdentifier
 
 --------------------------------------------------------------------------------
 -- Functions (lambdas)
 --------------------------------------------------------------------------------
 
-function : Parser Exp
-function =
+function : SpacePolicy -> Parser Exp
+function sp =
   inContext "function" <|
     lazy <| \_ ->
       mapExp_ <|
@@ -955,43 +1089,46 @@ function =
           ( \wsBefore (parameters, body) ->
               EFun wsBefore parameters body space0
           )
+          sp
           ( trackInfo <|
               succeed (,)
                 |. symbol "\\"
-                |= repeat oneOrMore pattern
+                |= repeat oneOrMore (pattern spaces)
                 |. spaces
                 |. symbol "->"
-                |= expression
+                |= expression sp
           )
 
 --------------------------------------------------------------------------------
 -- Lists
 --------------------------------------------------------------------------------
 
-list : Parser Exp
-list =
+list : SpacePolicy -> Parser Exp
+list sp =
   inContext "list" <|
     lazy <| \_ ->
       mapExp_ <|
         genericList
           { item =
-              expression
+              expression spaces
           , tailItem =
-              expression
+              expression spaces
           , combiner =
               \wsBefore members wsBeforeEnd ->
                 EList wsBefore members space0 Nothing wsBeforeEnd
           , combinerTail =
               \wsBefore members wsMiddle tail wsBeforeEnd ->
                 EList wsBefore members wsMiddle (Just tail) wsBeforeEnd
+          , beforeSpacePolicy =
+             sp
           }
 
 --------------------------------------------------------------------------------
 -- Conditionals
 --------------------------------------------------------------------------------
 
-conditional : Parser Exp
-conditional =
+conditional : SpacePolicy -> Parser Exp
+conditional sp =
   inContext "conditional" <|
     lazy <| \_ ->
       mapExp_ <|
@@ -999,52 +1136,55 @@ conditional =
           ( \wsBefore (condition, wsThen, trueBranch, wsElse, falseBranch) ->
               EIf wsBefore condition wsThen trueBranch wsElse falseBranch space0
           )
+          sp
           ( trackInfo <|
               delayedCommit (keywordWithSpace "if") <|
                 succeed (,,,,)
-                  |= expression
+                  |= expression spaces
                   |= spaces
                   |. keywordWithSpace "then"
-                  |= expression
+                  |= expression spaces
                   |= spaces
                   |. keywordWithSpace "else"
-                  |= expression
+                  |= expression sp
           )
 
 --------------------------------------------------------------------------------
 -- Case Expressions
 --------------------------------------------------------------------------------
 
-caseExpression : Parser Exp
-caseExpression =
+caseExpression : SpacePolicy -> Parser Exp
+caseExpression sp =
   inContext "case expression" <|
     lazy <| \_ ->
       let
         branch =
           paddedBefore
-            ( \wsBefore (p, e) ->
-                Branch_ wsBefore p e space0
+            ( \wsBefore (p, wsBeforeArrow, e) ->
+                Branch_ wsBefore p e wsBeforeArrow
             )
+            sp
             ( trackInfo <|
-                succeed (,)
-                  |= pattern
-                  |. spaces
+                succeed (,,)
+                  |= pattern sp
+                  |= sp
                   |. symbol "->"
-                  |= expression
+                  |= expression sp
                   |. symbol ";"
             )
       in
         mapExp_ <|
           paddedBefore
-            ( \wsBefore (examinedExpression, branches) ->
-                ECase wsBefore examinedExpression branches space0
+            ( \wsBefore (examinedExpression, wsBeforeOf, branches) ->
+                ECase wsBefore examinedExpression branches wsBeforeOf
             )
+            sp
             ( trackInfo <|
                 delayedCommit (keywordWithSpace "case") <|
-                  succeed (,)
-                    |= expression
-                    |. spaces
-                    |. keywordWithSpace "of"
+                  succeed (,,)
+                    |= expression spaces
+                    |= spaces
+                    |. keyword "of"
                     |= repeat oneOrMore branch
             )
 
@@ -1052,16 +1192,16 @@ caseExpression =
 -- Let Bindings
 --------------------------------------------------------------------------------
 
-letBinding : Parser Exp
-letBinding =     lazy <| \_ ->
-  genericLetBinding "let" False
+letBinding : SpacePolicy -> Parser Exp
+letBinding sp =     lazy <| \_ ->
+  genericLetBinding sp "let" False
 
-letrecBinding : Parser Exp
-letrecBinding =      lazy <| \_ ->
-  genericLetBinding "letrec" True
+letrecBinding : SpacePolicy -> Parser Exp
+letrecBinding sp =      lazy <| \_ ->
+  genericLetBinding sp "letrec" True
 
-genericLetBinding : String -> Bool -> Parser Exp
-genericLetBinding letkeyword isRec =
+genericLetBinding : SpacePolicy -> String -> Bool -> Parser Exp
+genericLetBinding sp letkeyword isRec =
   inContext (letkeyword ++ " binding") <|
     lazy <| \_ ->
       mapExp_ <|
@@ -1079,45 +1219,47 @@ genericLetBinding letkeyword isRec =
               in
                 ELet wsBefore Let isRec name wsBeforeEq binding wsBeforeIn body space0
           )
+          sp
           ( trackInfo <|
               delayedCommit (keywordWithSpace letkeyword) <|
                 succeed (,,,,,)
-                  |= pattern
-                  |= repeat zeroOrMore pattern
+                  |= pattern spaces
+                  |= repeat zeroOrMore (pattern spaces)
                   |= spaces
                   |. symbol "="
-                  |= expression
+                  |= expression spaces
                   |= spaces
                   |. keywordWithSpace "in"
-                  |= expression
+                  |= expression sp
           )
 
 --------------------------------------------------------------------------------
 -- Comments
 --------------------------------------------------------------------------------
 
-lineComment : Parser Exp
-lineComment =
+lineComment : SpacePolicy -> Parser Exp
+lineComment sp =
   inContext "line comment" <|
     mapExp_ <|
       paddedBefore
         ( \wsBefore (text, expAfter) ->
             EComment wsBefore text expAfter
         )
+        sp
         ( trackInfo <|
             succeed (,)
               |. symbol "--"
               |= keep zeroOrMore (\c -> c /= '\n')
               |. symbol "\n"
-              |= expression
+              |= expression sp
         )
 
 --------------------------------------------------------------------------------
 -- Options
 --------------------------------------------------------------------------------
 
-option : Parser Exp
-option =
+option : SpacePolicy -> Parser Exp
+option sp =
   inContext "option" <|
     mapExp_ <|
       lazy <| \_ ->
@@ -1128,7 +1270,7 @@ option =
                 open.start
                 val.end
           )
-          ( spaces )
+          ( sp )
           ( succeed (,,,,)
               |= trackInfo (symbol "#")
               |. spaces
@@ -1137,21 +1279,21 @@ option =
                        c /= '\n' && c /= ' ' && c /= ':'
                    )
               |. symbol ":"
-              |= spaces
+              |= sp
               |= trackInfo
                    ( keep zeroOrMore <| \c ->
                        c /= '\n'
                    )
               |. symbol "\n"
-              |= expression
+              |= expression sp
           )
 
 --------------------------------------------------------------------------------
 -- Parentheses
 --------------------------------------------------------------------------------
 
-parens : Parser Exp
-parens =
+parens : SpacePolicy -> Parser Exp
+parens sp =
   inContext "parentheses" <|
     mapExp_ <|
       lazy <| \_ ->
@@ -1159,10 +1301,11 @@ parens =
           ( \wsBefore (innerExpression, wsBeforeEnd) ->
               EParens wsBefore innerExpression Parens wsBeforeEnd
           )
+          sp
           ( trackInfo <|
               succeed (,)
                 |. symbol "("
-                |= expression
+                |= expression spaces
                 |= spaces
                 |. symbol ")"
           )
@@ -1171,18 +1314,18 @@ parens =
 -- Holes
 --------------------------------------------------------------------------------
 
-hole : Parser Exp
-hole =
+hole : SpacePolicy -> Parser Exp
+hole sp =
   inContext "hole" <|
     mapExp_ <|
-      paddedBefore EHole (trackInfo <| token "??" Nothing)
+      paddedBefore EHole sp (trackInfo <| token "??" Nothing)
 
 --------------------------------------------------------------------------------
 -- Colon Types TODO
 --------------------------------------------------------------------------------
 
-colonType : Parser Exp
-colonType =
+colonType : SpacePolicy -> Parser Exp
+colonType sp =
   inContext "colon type" <|
     mapExp_ <|
       lazy <| \_ ->
@@ -1190,16 +1333,17 @@ colonType =
           ( \wsBefore (e, wsColon, t) wsEnd ->
               EColonType wsBefore e wsColon t wsEnd
           )
+          sp
           ( delayedCommitMap
               ( \(e, wsColon) t ->
                   (e, wsColon, t)
               )
               ( succeed (,)
-                  |= expression
-                  |= spaces
+                  |= expression sp
+                  |= sp
                   |. symbol ":"
               )
-              typ
+              ( typ sp )
           )
 
 --------------------------------------------------------------------------------
@@ -1207,40 +1351,40 @@ colonType =
 --------------------------------------------------------------------------------
 
 -- Not a function application nor a binary operator
-simpleExpression : Parser Exp
-simpleExpression =
-  lazy <| \_ ->
-    oneOf
-      [ constantExpression
-      , baseValueExpression
-      , lazy <| \_ -> function
-      , lazy <| \_ -> list
-      , lazy <| \_ -> conditional
-      , lazy <| \_ -> caseExpression
-      , lazy <| \_ -> letrecBinding
-      , lazy <| \_ -> letBinding
-      , lazy <| \_ -> lineComment
-      , lazy <| \_ -> option
-      , lazy <| \_ -> parens
-      , lazy <| \_ -> hole
-      -- , lazy <| \_ -> typeCaseExpression
-      -- , lazy <| \_ -> typeAlias
-      -- , lazy <| \_ -> typeDeclaration
-      , variableExpression
-      ]
+simpleExpression : SpacePolicy -> Parser Exp
+simpleExpression sp =
+  oneOf
+    [ constantExpression sp
+    , lazy <| \_ -> multiLineInterpolatedString sp
+    , baseValueExpression sp
+    , lazy <| \_ -> function sp
+    , lazy <| \_ -> list sp
+    , lazy <| \_ -> conditional sp
+    , lazy <| \_ -> caseExpression sp
+    , lazy <| \_ -> letrecBinding sp
+    , lazy <| \_ -> letBinding sp
+    , lazy <| \_ -> lineComment sp
+    , lazy <| \_ -> option sp
+    , lazy <| \_ -> parens sp
+    , lazy <| \_ -> hole sp
+    -- , lazy <| \_ -> typeCaseExpression
+    -- , lazy <| \_ -> typeAlias
+    -- , lazy <| \_ -> typeDeclaration
+    , variableExpression sp
+    ]
 
-spaceColonType: Parser (WS, Type)
-spaceColonType =
+spaceColonType: SpacePolicy -> Parser (WS, Type)
+spaceColonType sp =
   lazy <| \_ ->
      try ( succeed (,)
-          |= spaces
+          |= sp
           |. symbol ":"
-          |= typ
+          |= typ sp
      )
 
 -- Either a simple expression or a function application
-simpleUntypedExpressionWithPossibleArguments : Parser Exp
-simpleUntypedExpressionWithPossibleArguments =
+simpleUntypedExpressionWithPossibleArguments : SpacePolicy -> Parser Exp
+simpleUntypedExpressionWithPossibleArguments sp =
   let
     combine : Exp -> List Exp -> Exp
     combine first rest =
@@ -1280,11 +1424,11 @@ simpleUntypedExpressionWithPossibleArguments =
   in
     lazy <| \_ ->
       succeed combine
-        |= simpleExpression
-        |= repeat zeroOrMore simpleExpression
+        |= simpleExpression sp
+        |= repeat zeroOrMore (simpleExpression sp)
 
-simpleExpressionWithPossibleArguments : Parser Exp
-simpleExpressionWithPossibleArguments =
+simpleExpressionWithPossibleArguments : SpacePolicy -> Parser Exp
+simpleExpressionWithPossibleArguments sp =
   lazy <| \_ ->
     ( succeed (\untypedExp mbType ->
         case mbType of
@@ -1296,12 +1440,29 @@ simpleExpressionWithPossibleArguments =
               )
               untypedExp.start typ.end
       )
-      |= simpleUntypedExpressionWithPossibleArguments
-      |= ParserUtils.optional spaceColonType
+      |= simpleUntypedExpressionWithPossibleArguments sp
+      |= ParserUtils.optional (spaceColonType sp)
     )
 
-expression : Parser Exp
-expression =
+-- This is useful to get rid of semicolon in the top-level language.
+-- Expressions at top-level cannot consume a newline that is followed by an identifier, or two newlines except if they are parsed inside parentheses.
+type alias SpacePolicy = Parser WS
+
+
+topLevelSpaceRegex = Regex.regex "((?!\n\n|\n\\w)\\s)*"
+
+topLevelSpacePolicy: SpacePolicy
+topLevelSpacePolicy =
+  trackInfo <| ParserUtils.keepRegex topLevelSpaceRegex
+
+spaceWithoutNLRegex = Regex.regex "((?!\n)\\s)*"
+
+spacesWithoutNewline: SpacePolicy
+spacesWithoutNewline =
+  trackInfo <| ParserUtils.keepRegex spaceWithoutNLRegex
+
+expression : SpacePolicy -> Parser Exp
+expression sp =
   inContext "expression" <|
     lazy <| \_ ->
       binaryOperator
@@ -1310,9 +1471,9 @@ expression =
         , minimumPrecedence =
             0
         , expression =
-            simpleExpressionWithPossibleArguments
+            simpleExpressionWithPossibleArguments sp
         , operator =
-            operator
+            operator sp
         , representation =
             .val >> Tuple.second
         , combine =
@@ -1370,6 +1531,9 @@ expression =
 -- Top-Level Expressions
 --=============================================================================
 
+-- The semicolon is now optional. Maybe remove that in the future?
+optionalTopLevelSemicolon = optional (paddedBefore (\_ _ _ -> ()) spaces (trackInfo <| symbol ";"))
+
 --------------------------------------------------------------------------------
 -- Top-Level Defs
 --------------------------------------------------------------------------------
@@ -1379,7 +1543,7 @@ topLevelDef =
   inContext "top-level def binding" <|
     delayedCommitMap
       ( \(wsBefore, name, parameters, wsBeforeEq)
-         (binding_, wsBeforeSemicolon, semicolon) ->
+         binding_ ->
           let
             binding =
               if List.isEmpty parameters then
@@ -1400,24 +1564,23 @@ topLevelDef =
                       name
                       wsBeforeEq
                       binding
-                      wsBeforeSemicolon
+                      space0
                       rest
                       space0
               )
               name.start
-              semicolon.end
+              binding.end
       )
       ( succeed (,,,)
           |= spaces
-          |= pattern
-          |= repeat zeroOrMore pattern
-          |= spaces
+          |= pattern (topLevelSpacePolicy)
+          |= repeat zeroOrMore (pattern topLevelSpacePolicy)
+          |= topLevelSpacePolicy
           |. symbol "="
       )
-      ( succeed (,,)
-          |= expression
-          |= spaces
-          |= trackInfo (symbol ";")
+      ( succeed identity
+          |= expression topLevelSpacePolicy
+          |. optionalTopLevelSemicolon
       )
 
 --------------------------------------------------------------------------------
@@ -1444,11 +1607,13 @@ topLevelTypeDeclaration =
               t.end
         )
         ( succeed (,)
-            |= pattern
-            |= spaces
+            |= pattern topLevelSpacePolicy
+            |= topLevelSpacePolicy
             |. symbol ":"
         )
-        ( typ
+        ( succeed identity
+          |= typ topLevelSpacePolicy
+          |. optionalTopLevelSemicolon
         )
 
 --------------------------------------------------------------------------------
@@ -1471,11 +1636,13 @@ topLevelTypeAlias =
       ( succeed (,,)
           |= spaces
           |= trackInfo (keywordWithSpace "type alias")
-          |= typePattern
-          |. spaces
+          |= typePattern topLevelSpacePolicy
+          |. topLevelSpacePolicy
           |. symbol "="
       )
-      ( typ
+      ( succeed identity
+        |= typ topLevelSpacePolicy
+        |. optionalTopLevelSemicolon
       )
 
 --------------------------------------------------------------------------------
@@ -1518,15 +1685,16 @@ topLevelOption =
               exp_ <| EOption wsBefore opt wsMid val rest
           )
       )
+      spaces
       ( trackInfo <| succeed (,,)
           |. symbol "#"
-          |. spaces
+          |. spacesWithoutNewline
           |= trackInfo
                ( keep zeroOrMore <| \c ->
                    c /= '\n' && c /= ' ' && c /= ':'
                )
           |. symbol ":"
-          |= spaces
+          |= spacesWithoutNewline
           |= trackInfo
                ( keep zeroOrMore <| \c ->
                    c /= '\n'
@@ -1583,7 +1751,7 @@ implicitMain =
 mainExpression : Parser Exp
 mainExpression =
   oneOf
-    [ expression
+    [ expression spaces
     , implicitMain
     ]
 

@@ -41,6 +41,9 @@ fail state newError = { state |
   errors = state.errors ++ "\n" ++ newError
   }
 
+log state msg =
+  "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] " ++ msg
+
 assertEqual: a -> a -> State  -> State
 assertEqual x y state =
   if state.ignore then state else
@@ -63,32 +66,27 @@ updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
             let obtained2 = envToString envX2 ++ " |- " ++ unparse expX2 in
             if obtained2 == expected then success state else
             fail state <|
-              "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++
-              "] Expected \n" ++ expected ++  ", got\n" ++ obtained ++ " and " ++ obtained2 ++ problemdesc
+              log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ " and " ++ obtained2 ++ problemdesc
           Results.LazyNil ->
             fail state <|
-              "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++
-              "] Expected \n" ++ expected ++  ", got\n" ++ obtained ++ problemdesc
+              log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ problemdesc
     Results.Oks Results.LazyNil ->
-       fail state <|
-                   "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++
-                   "] Expected \n" ++ expected ++  ", got no solutions without error" ++ problemdesc
+       fail state <| log state <| "Expected \n" ++ expected ++  ", got no solutions without error" ++ problemdesc
     Results.Errs msg ->
-       fail state <|
-                 "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++
-                 "] Expected \n" ++ expected ++  ", got\n" ++ msg ++ problemdesc
+       fail state <| log state <| "Expected \n" ++ expected ++  ", got\n" ++ msg ++ problemdesc
 
 updateElmAssert: List (String, String) -> String -> String -> List (String, String) -> String -> State -> State
 updateElmAssert envStr expStr newOutStr expectedEnvStr expectedExpStr state =
   if state.ignore then state else
   case Utils.projOk [parseEnv envStr, parseEnv expectedEnvStr] of
-    Err error -> fail state error
+    Err error -> fail state <| log state <| "Error while parsing environments: " ++ error
     Ok [env, expectedEnv] ->
        case Utils.projOk [parse expStr, parse newOutStr] of
-           Err error -> fail state error
+           Err error -> fail state <| log state <| "Error while parsing expressions or outputs: " ++ error
            Ok [exp, newOut] ->
+             --let _ = Debug.log (log state <| toString exp) () in
              case Utils.projOk [evalEnv env exp, eval newOut] of
-             Err error -> fail state error
+             Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ toString exp ++ "," ++ toString newOut ++ ": " ++ error
              Ok [out, newOut] -> updateAssert env exp out newOut expectedEnv expectedExpStr state
              Ok _ -> fail state "???"
            Ok _ -> fail state "???"
@@ -145,6 +143,7 @@ tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat s
 all_tests = init_state
   |> test "triCombineTest"
   --|> ignore True
+  --|> ignore False
   |> assertEqual
       (triCombine (tList space0  [tVar space0 "x", tVar space0 "y"] space0)
                   [("y", (tVal 2)), ("x", (tVal 1))]
@@ -352,4 +351,33 @@ all_tests = init_state
       |> updateElmAssert
         [] "   'This is a string'" "\"Hello' \\\" wo\\\\rld\""
         [] "   'Hello\\' \" wo\\\\rld'"
+  |> test "Many solutions"
+      |> updateElmAssert
+        [("h3", "\\content -> ['h3', [], ['TEXT', content]]")] "let x = 0 + 0 in\nh3 (toString x)" "['h3', [], ['TEXT', '1']]"
+        [("h3", "\\content -> ['h3', [], ['TEXT', content]]")] "let x = 0 + 1 in\nh3 (toString x)"
+      |> updateElmAssert
+        [("h3", "\\content -> ['h3', [], ['TEXT', content]]")] "let x = 0 + 0 in\nh3 (toString x)" "['h3', [], ['TEXT', '1']]"
+        [("h3", "\\content -> ['h3', [], ['TEXT', content]]")] "let x = 1 + 0 in\nh3 (toString x)"
+  |> test "Multiline string literals"
+      |> updateElmAssert
+          [] "\"\"\"Hello @(if 1 == 2 then \"big\" else \"\"\"very @(\"small\")\"\"\") world\"\"\"" "\"Hello very tiny world\""
+          [] "\"\"\"Hello @(if 1 == 2 then \"big\" else \"\"\"very @(\"tiny\")\"\"\") world\"\"\""
+      |> updateElmAssert
+        [] "let x = \"Hello\" in \"\"\"@x world\"\"\"" "\"Hello big world\""
+        [] "let x = \"Hello\" in \"\"\"@x big world\"\"\""
+      |> updateElmAssert
+        [] "let x = \"Hello\" in \"\"\"@x world\"\"\"" "\"Hello big world\""
+        [] "let x = \"Hello big\" in \"\"\"@x world\"\"\""
+      |> updateElmAssert
+        [] "let x = \"Hello\" in \"\"\"@x world\"\"\"" "\"Helloworld\""
+        [] "let x = \"Hello\" in \"\"\"@(x)world\"\"\""
+      |> updateElmAssert
+        [] "\"\"\"@let x = \"Hello\"\n@x world\"\"\"" "\"Hello big world\""
+        [] "\"\"\"@let x = \"Hello big\"\n@x world\"\"\""
+      |> updateElmAssert
+        [] "\"\"\"@let x = \"Hello\"\n@x world\"\"\"" "\"Hello big world\""
+        [] "\"\"\"@let x = \"Hello\"\n@x big world\"\"\""
+      |> updateElmAssert
+        [] "\"\"\"@let x = (\"Hello\" + \n \" big\")\n@x world\"\"\"" "\"Hello tall world\""
+        [] "\"\"\"@let x = (\"Hello\" + \n \" tall\")\n@x world\"\"\""
   |> summary

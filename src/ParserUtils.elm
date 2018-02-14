@@ -13,6 +13,7 @@ module ParserUtils exposing
   , untrackInfo
   , showError
   , keepUntilRegex
+  , keepRegex
   )
 
 import Pos exposing (..)
@@ -100,18 +101,49 @@ keepUntilRegex reg =
         |= fail ("expecting closing string '" ++ toString reg ++ "'")
     ]
 
--- A variant of ignoreUntil that ignores everything until two possible strings.
-ignoreUntilRegex : Regex -> Parser String
+-- A variant of ignoreUntil that ignores everything until the given regex appears
+ignoreUntilRegex : Regex -> Parser ()
 ignoreUntilRegex reg =
-  succeed (\offset source ->
-    let sourceFromOffset = String.slice offset (String.length source) source in
-    let finding = find (AtMost 1) reg sourceFromOffset in
-    case finding of
-      {index}::_ -> String.slice offset (offset + index) source
-      _          -> sourceFromOffset
-  )
-  |= LL.getOffset
-  |= LL.getSource
+   (succeed (,)
+   |= LL.getOffset
+   |= LL.getSource)
+   |> andThen (\(offset,source) ->
+     let sourceFromOffset = String.slice offset (String.length source) source in
+     let regexMatches = find (AtMost 1) reg sourceFromOffset in
+     case regexMatches of
+       {index}::_ ->
+         ignore (Exactly index) (\_ -> True)
+       _ -> succeed identity
+            |. keep zeroOrMore (\_ -> True)
+            |= fail ("expecting regex '" ++ toString reg ++ "'")
+   )
+
+-- Stop parsing the string until it hits an ending string or a string escape char.
+keepRegex: Regex -> Parser String
+keepRegex reg =
+  oneOf
+    [ ignoreRegex reg
+        |> source
+    , fail ("'" ++ toString reg ++ "' did not match")
+    ]
+
+-- A variant of ignoreUntil that ignores the first match at position zero of this regex.
+ignoreRegex : Regex -> Parser ()
+ignoreRegex reg =
+   (succeed (,)
+   |= LL.getOffset
+   |= LL.getSource)
+   |> andThen (\(offset,source) ->
+        let sourceFromOffset = String.slice offset (String.length source) source in
+        let finding = find (AtMost 1) reg sourceFromOffset in
+        case finding of
+          {index, match}::_ ->
+            if index == 0 then
+              ignore (Exactly <| String.length match) (\_ -> True)
+            else
+               fail ("expecting regex '" ++ toString reg ++ "' immediately but appeared only after " ++ toString index ++ " characters")
+          _ -> fail ("expecting regex '" ++ toString reg ++ "'")
+   )
 
 inside : String -> Parser String
 inside delimiter =

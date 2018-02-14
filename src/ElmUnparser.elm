@@ -6,7 +6,6 @@ module ElmUnparser exposing
 import Lang exposing (..)
 import ElmLang
 import ElmParser
-import LongStringParser
 import BinaryOperatorParser
 import Utils
 import Regex
@@ -28,7 +27,7 @@ unparseBaseValue ebv =
       if b then "True" else "False"
 
     EString quoteChar text ->
-      quoteChar ++ Regex.replace Regex.All (Regex.regex <| "\\\\|\\" ++ quoteChar) (
+      quoteChar ++ Regex.replace Regex.All (Regex.regex <| "\\\\|" ++ quoteChar) (
         \{match} -> if match == "\\" then "\\\\" else "\\" ++ quoteChar)
         text ++
       quoteChar
@@ -181,10 +180,11 @@ unparseOp op =
 unparseBranch : Branch -> String
 unparseBranch branch =
   case branch.val of
-    Branch_ wsBefore p e _ ->
+    Branch_ wsBefore p e wsBeforeArrow ->
       wsBefore.val
         ++ unparsePattern p
-        ++ " ->"
+        ++ wsBeforeArrow.val
+        ++ "->"
         ++ unparse e
         ++ ";"
 
@@ -306,11 +306,12 @@ unparse e =
         ++ wsBeforeElse.val ++ "else"
         ++ unparse falseBranch
 
-    ECase wsBefore examinedExpression branches _ ->
+    ECase wsBefore examinedExpression branches wsBeforeOf ->
       wsBefore.val
         ++ "case"
         ++ unparse examinedExpression
-        ++ " of"
+        ++ wsBeforeOf.val
+        ++ "of"
         ++ String.concat (List.map unparseBranch branches)
 
     ELet wsBefore letKind isRec name wsBeforeEq binding_ wsBeforeInOrSemi body _ ->
@@ -368,7 +369,6 @@ unparse e =
               ++ wsBeforeEq.val ++ "="
               ++ unparse binding
               ++ wsBeforeInOrSemi.val
-              ++ ";"
               ++ unparse body
 
     EComment wsBefore text expAfter ->
@@ -399,8 +399,7 @@ unparse e =
         LongStringSyntax ->
           wsBefore.val
             ++ "\"\"\""
-            ++ LongStringParser.contentUnparse innerExpression
-            ++ wsAfter.val
+            ++ multilineContentUnparse innerExpression
             ++ "\"\"\""
         ElmSyntax -> -- We just unparse the inner expression as regular parentheses
           unparse <| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
@@ -434,6 +433,60 @@ unparse e =
 
     Lang.ETypeCase _ _ _ _ ->
       "{Error: typecase not yet implemented for Elm syntax}" -- TODO
+
+
+multilineRegexEscape = Regex.regex <| "@"
+
+--Parses and unparses long interpolated strings.
+multilineContentUnparse : Exp -> String
+multilineContentUnparse e = case e.val.e__ of
+  EBase sp0 (EString _ s) ->
+    Regex.replace  Regex.All multilineRegexEscape (\m -> "@@") s
+  EOp sp1 op [left, right] sp2 ->
+    case op.val of
+      Plus ->
+        case left.val.e__ of
+          EBase sp0 (EString _ s) ->
+            multilineContentUnparse left ++ multilineContentUnparse right
+          EVar sp0 ident as left ->
+            case right.val.e__ of
+              EOp sp2 op2 [left2, _] sp4->
+                case op2.val of
+                  Plus ->
+                    case left2.val.e__ of
+                      EBase sp3 (EString _ s) ->
+                        let varRep = case String.uncons s of
+                          Nothing -> "@" ++ ident
+                          Just (c, r) -> if ElmParser.isRestChar c then "@(" ++ ident ++ ")" else "@" ++ ident
+                        in
+                        varRep ++ multilineContentUnparse right
+                      _ -> "@" ++ ident ++ multilineContentUnparse right
+                  _ -> "@" ++ ident ++ multilineContentUnparse right
+              EBase sp3 (EString _ s) ->
+                let varRep = case String.uncons s of
+                  Nothing -> "@" ++ ident
+                  Just (c, r) -> if ElmParser.isRestChar c then "@(" ++ ident ++ ")" else "@" ++ ident
+                in
+                varRep ++ multilineContentUnparse right
+              _ -> "@" ++ ident ++ multilineContentUnparse right
+          EParens sp0 innerElmExp ElmSyntax sp4 ->
+            "@" ++ unparse innerElmExp ++ multilineContentUnparse right
+          _ -> "@(" ++ unparse left ++ ")" ++ multilineContentUnparse right
+      _ -> "@(" ++ unparse e ++ ")"
+  ELet ws1 kind rec p ws2 e1 ws3 e2 ws4 ->
+    let remaining = multilineContentUnparse e2 in
+    let definition = unparse e1 in
+    let finalDefinition = if String.contains "\n" definition then
+      case String.uncons (String.trim definition) of
+        Just ('(', _) -> definition ++ "\n"
+        _ -> "(" ++ definition ++ ")\n"
+      else definition ++ "\n" in
+    "@" ++ (case kind of
+      Let -> "let"
+      Def -> "def"
+    ) ++ (if rec then "rec" else "") ++ ws1.val ++ unparsePattern p ++ ws2.val ++ "=" ++ finalDefinition ++ remaining
+  anyExp -> "@(" ++ unparse e ++ ")"
+
 
 getExpPrecedence: Exp -> Int
 getExpPrecedence exp =
