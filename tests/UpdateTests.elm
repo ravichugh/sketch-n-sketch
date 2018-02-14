@@ -132,7 +132,7 @@ tString space chars = withDummyExpInfo <| EBase space (EString defaultQuoteChar 
 tVar space name =withDummyExpInfo <| EVar space name
 tFun sp0 pats body sp1 = (withDummyExpInfo <| EFun sp0 pats body sp1)
 tApp sp0 fun args sp1 = withDummyExpInfo <| EApp sp0 fun args SpaceApp sp1
-tList sp0 exps sp1 = withDummyExpInfo <| EList sp0 exps (ws "") Nothing sp1
+tList sp0 exps sp1 = withDummyExpInfo <| EList sp0 (List.map (\e -> (ws "", e)) exps) (ws "") Nothing sp1
 --tListCons sp0 exps sp1 tail sp2 = EList sp0 exps sp1 (Just tail) sp2
 
 tPVar space name = withDummyPatInfo <| PVar space name noWidgetDecl

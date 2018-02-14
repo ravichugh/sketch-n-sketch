@@ -818,11 +818,11 @@ list =
             "multi cons literal"
         , listLiteralCombiner =
             ( \wsStart heads wsEnd ->
-                EList wsStart heads space0 Nothing wsEnd
+                EList wsStart (List.map ((,) space0) heads) space0 Nothing wsEnd
             )
         , multiConsCombiner =
             ( \wsStart heads wsBar tail wsEnd ->
-                EList wsStart heads wsBar (Just tail) wsEnd
+                EList wsStart (List.map ((,) space0) heads) wsBar (Just tail) wsEnd
             )
         , elem =
             exp
@@ -1624,14 +1624,14 @@ recordIdentifiers (p,e) =
   (PVar _ x _, EConst ws n (k, b, _) wd) -> ret <| EConst ws n (k, b, x) wd
 
   (PList _ ps _ mp _, EList ws1 es ws2 me ws3) ->
-    case U.maybeZip ps es of
+    case U.maybeZip ps (List.map Tuple.second es) of
       Nothing  -> ret <| EList ws1 es ws2 me ws3
       Just pes -> let es_ = List.map recordIdentifiers pes in
                   let me_ =
                     case (mp, me) of
                       (Just p1, Just e1) -> Just (recordIdentifiers (p1,e1))
                       _                  -> me in
-                  ret <| EList ws1 es_ ws2 me_ ws3
+                  ret <| EList ws1 (U.zip (List.map Tuple.first es) es_) ws2 me_ ws3
 
   (PAs _ _ _ p_, _) -> recordIdentifiers (p_,e)
 

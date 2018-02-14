@@ -1822,7 +1822,9 @@ makeSingleLineTool model selections =
                           EList ws1 es ws2 rest ws3 ->
                             EList
                               (deLine ws1)
-                              (setExpListWhitespace "" " " es)
+                              (Utils.zip
+                                (List.map Tuple.first es)
+                                (setExpListWhitespace "" " " (List.map Tuple.second es)))
                               (deLine ws2)
                               rest
                               space0
@@ -1909,7 +1911,7 @@ makeMultiLineTool model selections =
             case exp.val.e__ of
               EList ws1 es ws2 Nothing ws3 ->
                 if
-                  es |>
+                  List.map Tuple.second es |>
                     List.all (precedingWhitespace >> String.contains "\n")
                 then
                   Nothing
@@ -1925,10 +1927,13 @@ makeMultiLineTool model selections =
                                eid
                                ( EList
                                    ws1
-                                   ( setExpListWhitespace
-                                       ("\n" ++ indentation ++ "  ")
-                                       ("\n" ++ indentation ++ "  ")
-                                       es
+                                   (Utils.zip
+                                      (List.map Tuple.first es)
+                                      ( setExpListWhitespace
+                                          ("\n" ++ indentation ++ "  ")
+                                          ("\n" ++ indentation ++ "  ")
+                                          (List.map Tuple.second es)
+                                      )
                                    )
                                    ws2
                                    Nothing

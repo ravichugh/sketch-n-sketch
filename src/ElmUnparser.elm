@@ -278,11 +278,19 @@ unparse e =
     EList wsBefore members wsmiddle Nothing wsBeforeEnd ->
       wsBefore.val
         ++ "["
-        ++ String.join "," (List.map unparse members)
+        ++ ( case members of
+               [] ->
+                 ""
+               [(_,e1)] ->
+                 unparse e1
+               (_,e1) :: eRest ->
+                 unparse e1
+                   ++ String.concat (List.map (\(wsI,eI) -> wsI.val ++ "," ++ unparse eI) eRest)
+           )
         ++ wsBeforeEnd.val
         ++ "]"
 
-    EList wsBefore [head] wsmiddle (Just tail) wsBeforeEnd ->
+    EList wsBefore [(_,head)] wsmiddle (Just tail) wsBeforeEnd ->
       wsBefore.val -- Should be empty
         ++ wrapWithParensIfLessPrecedence e head (unparse head)
         ++ wsmiddle.val

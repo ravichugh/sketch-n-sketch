@@ -654,7 +654,9 @@ finishTrigger zoneKey old =
   let old_ = old in
   refreshHighlights zoneKey
     { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
-           , history = addToHistory old.code old_.history }
+           , history = addToHistory old.code old_.history
+           , synthesisResultsDict = Dict.empty
+           }
 
 
 --------------------------------------------------------------------------------
@@ -844,7 +846,7 @@ hooks : List (Model -> Model -> (Model, Cmd Msg))
 hooks =
   [ handleSavedSelectionsHook
   , handleSyntaxHook
-  -- , handleOutputSelectionChanges
+  , handleOutputSelectionChanges
   , focusJustShownRenameBox
   ]
 
@@ -888,18 +890,24 @@ handleSyntaxHook oldModel newModel =
   in
     (newModel, cmd)
 
--- This function is not used.
 handleOutputSelectionChanges : Model -> Model -> (Model, Cmd Msg)
 handleOutputSelectionChanges oldModel newModel =
-  if oldModel.selectedFeatures /= newModel.selectedFeatures || oldModel.selectedShapes /= newModel.selectedShapes || oldModel.selectedBlobs /= newModel.selectedBlobs then
+  if oldModel.selectedFeatures == newModel.selectedFeatures &&
+     oldModel.selectedShapes == newModel.selectedShapes &&
+     oldModel.selectedBlobs == newModel.selectedBlobs
+  then
+    (newModel, Cmd.none)
+  else
+    let finalModel = { newModel | synthesisResultsDict = Dict.empty } in
+    (finalModel, Cmd.none)
+{-
     let
       selectedEIdInterpretations = ShapeWidgets.selectionsProximalDistalEIdInterpretations newModel.inputExp newModel.slate newModel.widgets newModel.selectedFeatures newModel.selectedShapes newModel.selectedBlobs
       deuceWidgetInterpretations = selectedEIdInterpretations |> List.map (List.map DeuceExp)
       finalModel = { newModel | deuceToolsAndResults = DeuceTools.createToolCacheMultipleInterpretations newModel deuceWidgetInterpretations }
     in
     (finalModel, Cmd.none)
-  else
-    (newModel, Cmd.none)
+-}
 
 port doFocusJustShownRenameBox : () -> Cmd msg
 
@@ -1578,8 +1586,8 @@ deleteInOutput old =
                         deleteEId parent.val.eid program
 
                       EList ws1 heads ws2 maybeTail ws3 ->
-                        case heads |> Utils.findi (eidIs eidToDelete) of
-                          Just iToDelete -> program |> replaceExpNodeE__ parent (EList ws1 (Utils.removei iToDelete heads |> imitateExpListWhitespace heads) ws2 maybeTail ws3)
+                        case List.map Tuple.second heads |> Utils.findi (eidIs eidToDelete) of
+                          Just iToDelete -> program |> replaceExpNodeE__ parent (EList ws1 (List.map ((,) space0) (Utils.removei iToDelete (List.map Tuple.second heads) |> imitateExpListWhitespace (List.map Tuple.second heads))) ws2 maybeTail ws3)
                           Nothing ->
                             if Maybe.map (eidIs eidToDelete) maybeTail == Just True
                             then program |> replaceExpNodeE__ parent (EList ws1 heads ws2 Nothing ws3)

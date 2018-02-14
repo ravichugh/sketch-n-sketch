@@ -47,18 +47,21 @@ genericEmptyList { combiner, beforeSpacePolicy } =
 
 genericNonEmptyList
   :  { item : Parser elem
-     , combiner : WS -> List elem -> WS -> list
+     , combiner : WS -> List (WS, elem) -> WS -> list
      , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI list
 genericNonEmptyList { item, combiner, beforeSpacePolicy }=
   lazy <| \_ ->
     let
-      anotherItem =
-        delayedCommit spaces <|
-          succeed identity
+      anotherWsAndItem : Parser (WS, elem)
+      anotherWsAndItem =
+        delayedCommitMap (,)
+          spaces
+          (succeed identity
             |. symbol ","
             |= item
+          )
     in
       paddedBefore
         ( \wsBefore (members, wsBeforeEnd) ->
@@ -66,10 +69,10 @@ genericNonEmptyList { item, combiner, beforeSpacePolicy }=
         )
         beforeSpacePolicy
         ( trackInfo <|
-            succeed (\e es ws -> (e :: es, ws))
+            succeed (\e es ws -> ((space0, e) :: es, ws))
               |. symbol "["
               |= item
-              |= repeat zeroOrMore anotherItem
+              |= repeat zeroOrMore anotherWsAndItem
               |= spaces
               |. symbol "]"
         )
@@ -77,18 +80,21 @@ genericNonEmptyList { item, combiner, beforeSpacePolicy }=
 genericNonEmptyListWithTail
   :  { item : Parser elem
      , tailItem: Parser elem
-     , combinerTail : WS -> List elem -> WS -> elem -> WS -> list
+     , combinerTail : WS -> List (WS, elem) -> WS -> elem -> WS -> list
      , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI list
 genericNonEmptyListWithTail { item, tailItem, combinerTail, beforeSpacePolicy }=
   lazy <| \_ ->
     let
-      anotherItem =
-        delayedCommit spaces <|
-          succeed identity
+      anotherWsAndItem : Parser (WS, elem)
+      anotherWsAndItem =
+        delayedCommitMap (,)
+          spaces
+          (succeed identity
             |. symbol ","
             |= item
+          )
     in
       paddedBefore
         ( \wsBefore (members, wsMiddle, thetail, wsBeforeEnd) ->
@@ -96,10 +102,10 @@ genericNonEmptyListWithTail { item, tailItem, combinerTail, beforeSpacePolicy }=
         )
         beforeSpacePolicy
         ( trackInfo <|
-            succeed (\e es wsm t wse -> (e :: es, wsm, t, wse))
+            succeed (\e es wsm t wse -> ((space0, e) :: es, wsm, t, wse))
               |. symbol "["
               |= item
-              |= repeat zeroOrMore anotherItem
+              |= repeat zeroOrMore anotherWsAndItem
               |= spaces
               |. symbol "|"
               |= tailItem
@@ -109,9 +115,9 @@ genericNonEmptyListWithTail { item, tailItem, combinerTail, beforeSpacePolicy }=
 
 genericList
   :  { item : Parser elem
-     , combiner : WS -> List elem -> WS -> list
+     , combiner : WS -> List (WS, elem) -> WS -> list
      , tailItem : Parser elem
-     , combinerTail : WS -> List elem -> WS -> elem -> WS -> list
+     , combinerTail : WS -> List (WS, elem) -> WS -> elem -> WS -> list
      , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI list
@@ -582,10 +588,12 @@ listPattern sp =
               pattern spaces
           , combiner =
               \wsBefore members wsBeforeEnd ->
-                PList wsBefore members space0 Nothing wsBeforeEnd
+                -- PList wsBefore members space0 Nothing wsBeforeEnd
+                PList wsBefore (List.map Tuple.second members) space0 Nothing wsBeforeEnd
           , combinerTail =
               \wsBefore members wsMiddle tail wsBeforeEnd ->
-                PList wsBefore members wsMiddle (Just tail) wsBeforeEnd
+                -- PList wsBefore members wsMiddle (Just tail) wsBeforeEnd
+                PList wsBefore (List.map Tuple.second members) wsMiddle (Just tail) wsBeforeEnd
           , beforeSpacePolicy =
               sp
           }
@@ -787,11 +795,13 @@ tupleType sp =
             typ spaces
         , combiner =
             ( \wsBefore heads wsEnd ->
-                TTuple wsBefore heads space0 Nothing wsEnd
+                -- TTuple wsBefore heads space0 Nothing wsEnd
+                TTuple wsBefore (List.map Tuple.second heads) space0 Nothing wsEnd
             )
         , combinerTail =
             ( \wsBefore heads wsMiddle tail wsEnd ->
-                TTuple wsBefore heads wsMiddle (Just tail) wsEnd
+                -- TTuple wsBefore heads wsMiddle (Just tail) wsEnd
+                TTuple wsBefore (List.map Tuple.second heads) wsMiddle (Just tail) wsEnd
             )
         , beforeSpacePolicy =
             sp 
@@ -1499,7 +1509,7 @@ expression sp =
                   Nothing ->
                     if identifier == "::" then
                       withInfo (exp_ <|
-                        EList space0 [left] wsBefore (Just right) space0
+                        EList space0 [(space0, left)] wsBefore (Just right) space0
                       ) left.start right.end
                     else if identifier == "<|" then
                       withInfo (exp_ <|
