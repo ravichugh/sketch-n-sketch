@@ -114,6 +114,7 @@ build dim model =
   let widgetsAndDistances =
     case (model.outputMode, model.showGhosts, model.preview) of
       (Live, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets model -- Draw distances below other widgets
+      (Live, True, Just _)  -> buildSvgWidgets dim.width dim.height widgets model -- Don't show distances in preview
       _                     -> []
   in
   let selectBox = drawSelectBox model in
