@@ -7,6 +7,7 @@ module LangParserUtils exposing
   , paddedBefore
   , paddedAfter
   , padded
+  , isOnlySpaces
   , mapPat_
   , mapExp_
   )

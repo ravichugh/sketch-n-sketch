@@ -17,6 +17,7 @@ import ValUnparser exposing (strVal)
 import Lazy
 import LangTools
 import Set
+import LangParserUtils
 
 unparse = Syntax.unparser Syntax.Elm
 unparsePattern = Syntax.patternUnparser Syntax.Elm
@@ -522,18 +523,62 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
                   let saIsPrefix = String.startsWith sa s in
                   let sbIsSuffix = String.endsWith sb s in
                   if saIsPrefix && sbIsSuffix then -- Normally, we should check whitespaee to order. For now, append to left first.
-                    let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
-                    let newvb = VBase <| VString <| String.dropLeft (String.length sa) s in
-                    oks [[newva, vb], [va, newvb]]
+                    let newsa = String.slice 0 (String.length s - String.length sb) s in
+                    let newsb = String.dropLeft (String.length sa) s in
+                    let newva = VBase <| VString <| newsa in
+                    let newvb = VBase <| VString <| newsb in
+                    if String.length newsa > String.length sa then -- Addition of elements, perhaps we need to stick them to a particular side.
+                      let insertion = String.slice (String.length sa) (String.length newsa) newsa in
+                      if String.length sa == 0 then --Fill empty string only with spaces by default
+                        if LangParserUtils.isOnlySpaces insertion then
+                          oks [[newva, vb], [va, newvb]]
+                        else
+                          oks [[va, newvb], [newva, vb]]
+                      else if String.length sb == 0 then
+                        if LangParserUtils.isOnlySpaces insertion then
+                          oks [[va, newvb], [newva, vb]]
+                        else
+                          oks [[newva, vb], [va, newvb]]
+                      else -- Both original strings had chars
+                        let aEndIsSspace = LangParserUtils.isOnlySpaces <| String.slice (-1) (String.length sa) sa in
+                        let bStartIsSspace = LangParserUtils.isOnlySpaces <| String.slice 0 1 sb in
+                        let insertedStartIsSspace = LangParserUtils.isOnlySpaces <| String.slice 0 1 insertion in
+                        let insertedEndIsSspace = LangParserUtils.isOnlySpaces <| String.slice (-1) (String.length insertion) insertion in
+                        -- Stick inserted expression if some end match and not the other, else keep left.
+                        if (bStartIsSspace == insertedEndIsSspace) && xor aEndIsSspace insertedStartIsSspace then
+                          oks [[va, newvb], [newva, vb]]
+                        else
+                          oks [[newva, vb], [va, newvb]]
+                         --LangParserUtils.isOnlySpaces (String.slice 0 1 insertion) &&
+                    else
+                      oks [[newva, vb], [va, newvb]]
                   else if saIsPrefix then
-                   let newvb = VBase <| VString <| String.dropLeft (String.length sa) s in
-                   ok1 [va, newvb]
+                    let newvb = VBase <| VString <| String.dropLeft (String.length sa) s in
+                    ok1 [va, newvb]
                   else if sbIsSuffix then
-                   let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
-                   ok1 [newva, vb]
-                  else Errs <| "Cannot update with a string that is modifying two concatenated strings at the same time: '" ++
-                    sa ++ "' + '" ++ sb ++ "' <-- '" ++ s ++ "'"
-                _ -> Errs <| "Cannot update with non-string" ++ valToString newOutVal
+                    let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
+                    ok1 [newva, vb]
+                  else -- Some parts on both strings were deleted, everything in between was added.
+                    let newsa = commonPrefix sa s in
+                    let newsb = commonSuffix sb s in
+                    let newva s = VBase <| VString <| newsa ++ s in
+                    let newvb s = VBase <| VString <| s ++ newsb in
+                    let insertion = String.slice (String.length newsa) (String.length s - String.length newsb) s in
+                    if String.length newsa == 0 then -- Everything inserted belongs to newsa by default
+                      oks [[newva insertion, newvb ""], [newva "", newvb insertion]]
+                    else if String.length newsb == 0 then --Everything inserted belongs to newvb by default
+                      oks [[newva "", newvb insertion], [newva insertion, newvb ""]]
+                    else
+                        let aEndIsSspace = LangParserUtils.isOnlySpaces <| String.slice (-1) (String.length newsa) newsa in
+                        let bStartIsSspace = LangParserUtils.isOnlySpaces <| String.slice 0 1 newsb in
+                        let insertedStartIsSspace = LangParserUtils.isOnlySpaces <| String.slice 0 1 insertion in
+                        let insertedEndIsSspace = LangParserUtils.isOnlySpaces <| String.slice (-1) (String.length insertion) insertion in
+                        -- Stick inserted expression if some end match and not the other, else keep left.
+                        if (bStartIsSspace == insertedEndIsSspace) && xor aEndIsSspace insertedStartIsSspace then
+                          oks [[newva "", newvb insertion], [newva insertion, newvb ""]]
+                        else
+                          oks [[newva insertion, newvb ""], [newva "", newvb insertion]]
+                _ -> Errs <| "Cannot yet update with non-string" ++ valToString newOutVal
               in
               Results.map (
                   List.map2 (\original newString ->
@@ -615,6 +660,19 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
             ) operandVals
           ) result
     _ -> Errs <| "Do not know how to revert computation " ++ toString op ++ "(" ++ toString operandVals ++ ") <-- " ++ toString newOutVal
+
+commonPrefix: String -> String -> String
+commonPrefix =
+  let aux prefix s1 s2 =
+    case (String.uncons s1, String.uncons s2) of
+      (Nothing, _) -> prefix
+      (_, Nothing) -> prefix
+      (Just (s1head, s1tail), Just (s2head, s2tail)) ->
+        if s1head == s2head then aux (prefix ++ String.fromChar s1head) s1tail s2tail else prefix
+  in aux ""
+
+commonSuffix: String -> String -> String
+commonSuffix s1 s2 = commonPrefix (String.reverse s1) (String.reverse s2) |> String.reverse
 
 -- Tri combine only checks dependencies that may have been changed.
 triCombine: Exp -> Env -> Env -> Env -> Env
