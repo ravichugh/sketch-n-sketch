@@ -322,14 +322,14 @@ eval syntax env bt e =
       _ ->
         eval syntax env bt e1
 
-  EComment _ _ e1       -> eval syntax env bt e1
-  EOption _ _ _ _ e1    -> eval syntax env bt e1
-  ETyp _ _ _ e1 _       -> eval syntax env bt e1
-  -- EColonType _ e1 _ _ _ -> eval syntax env bt e1
-  ETypeAlias _ _ _ e1 _ -> eval syntax env bt e1
-  EParens _ e1 _ _      -> eval syntax env bt e1
-  EHole _ (Just val)    -> Ok <| retV [val] val
-  EHole _ Nothing       -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
+  EComment _ _ e1           -> eval syntax env bt e1
+  EOption _ _ _ _ e1        -> eval syntax env bt e1
+  ETyp _ _ _ e1 _           -> eval syntax env bt e1
+  ETypeAlias _ _ _ e1 _     -> eval syntax env bt e1
+  EParens _ e1 _ _          -> eval syntax env bt e1
+  EHole _ (HoleVal val)     -> Ok <| retV [val] val
+  EHole _ HoleEmpty         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
+  EHole _ (HolePredicate _) -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"
 
 
 evalOp : Syntax -> Env -> Exp -> Backtrace -> Op -> List Exp -> Result String (Val, Widgets)
@@ -446,22 +446,22 @@ evalOp syntax env e bt opWithInfo es =
         Err s     -> Err s
         Ok newVal ->
           let newWidgets =
-            case (op, args, vs) of
-              (Plus, [VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
+            case (FastParser.isProgramEId e.val.eid, op, args, vs) of
+              (True, Plus, [VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
                 let (baseXNumTr, baseYNumTr, endXVal, endYVal) =
                   if axis == X
                   then (numTr, otherDimNumTr, newVal, otherDirVal)
                   else (otherDimNumTr, numTr, otherDirVal, newVal)
                 in
                 [WOffset1D baseXNumTr baseYNumTr axis Positive amountNumTr amountVal endXVal endYVal]
-              (Plus, [VConst Nothing amountNumTr, VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr], [amountVal, _]) ->
+              (True, Plus, [VConst Nothing amountNumTr, VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr], [amountVal, _]) ->
                 let (baseXNumTr, baseYNumTr, endXVal, endYVal) =
                   if axis == X
                   then (numTr, otherDimNumTr, newVal, otherDirVal)
                   else (otherDimNumTr, numTr, otherDirVal, newVal)
                 in
                 [WOffset1D baseXNumTr baseYNumTr axis Positive amountNumTr amountVal endXVal endYVal]
-              (Minus, [VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
+              (True, Minus, [VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
                 let (baseXNumTr, baseYNumTr, endXVal, endYVal) =
                   if axis == X
                   then (numTr, otherDimNumTr, newVal, otherDirVal)

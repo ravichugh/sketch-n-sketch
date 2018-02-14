@@ -13,6 +13,7 @@ module LangSvg exposing
   , desugarShapeAttrs
   , buildSvgSimple
   , evalToSvg
+  , estimatedBounds
   , strAVal
   , aNum, aPoints, aTransform
   , toNum, toColorNum, toTransformRot, toPath
@@ -30,6 +31,7 @@ import Html
 import Html.Attributes as HA
 import Svg
 import Svg.Attributes as A
+import Native.LangSvg
 import VirtualDom
 
 -- in Svg.elm:
@@ -632,6 +634,14 @@ evalToSvg syntax env exp =
         resolveToRootedIndexedTree syntax 1 1 0 val
         |> Result.map buildSvgSimple
       )
+
+-- Would love to use getBBox() function provided by browsers, but you
+-- have to have an SVG DOM object, not a virtualDom object. And Javascript
+-- scoping hides the virtualDom.render function that could give us such a
+-- DOM object, so we're toast.
+estimatedBounds : Svg.Svg a -> Maybe { left : Float, top : Float, right : Float, bot : Float }
+estimatedBounds svg =
+  Native.LangSvg.estimatedBounds svg
 
 ------------------------------------------------------------------------------
 -- Misc AVal Helpers

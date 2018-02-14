@@ -2,6 +2,7 @@ module ElmUnparser exposing
   ( unparse
   , unparsePattern
   , unparseType
+  , debugLogExp, maybeDebugLogExp
   )
 
 import Lang exposing (..)
@@ -10,6 +11,18 @@ import ElmParser
 import BinaryOperatorParser
 import Utils
 import Regex
+
+
+maybeDebugLogExp : Maybe Exp -> Maybe Exp
+maybeDebugLogExp maybeExp =
+  case maybeExp of
+    Just exp -> let _ = debugLogExp exp    in maybeExp
+    Nothing  -> let _ = Utils.log "No exp" in maybeExp
+
+debugLogExp : Exp -> Exp
+debugLogExp exp =
+  let _ = Utils.log (unparse exp) in
+  exp
 
 unparseWD : WidgetDecl -> String
 unparseWD wd =

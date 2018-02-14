@@ -18,11 +18,10 @@ import ShapeWidgets exposing
   )
 import SleekLayout exposing (canvasPosition)
 import Sync
-import Draw
+import Draw exposing (pointZoneStyles)
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
 
-import Eval
 import Syntax exposing (Syntax)
 
 -- Elm Libraries ---------------------------------------------------------------
@@ -226,40 +225,14 @@ drawNewShape model =
       -- (PointOrOffset, MouseDrawNew (TwoPoints ((x1Int, _), (y1Int, _)) ((x1Int, _), (y1Int, _))))      -> drawNewPointAndOffset model False pt1 pt2
       -- (HelperLine,    MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewLine model pt1 pt2
       -- (Lambda _,      MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewRect model.keysDown pt1 pt2
-      (Function fName,    MouseDrawNew (TwoPoints pt1 pt2)) -> drawNewFunction fName model pt1 pt2
+      (Function fName,    MouseDrawNew (TwoPoints pt1 pt2)) -> Draw.drawNewFunction fName model pt1 pt2
       -- (Text,          MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewRect model.keysDown pt1 pt2
       _                                                                            -> []
 
 
-drawNewFunction fName model pt1 pt2 =
-  let perhapsLogError result =
-    case result of
-      Err s -> let _ = Utils.log <| "drawNewFunction error: " ++ s in result
-      _     -> result
-  in
-  Draw.newFunctionCallExp fName model pt1 pt2
-  |> Maybe.andThen
-    (\(callExp, funcExp, returnType) ->
-      if Draw.isPointType returnType then
-        let maybePoint =
-          Eval.doEval Syntax.Elm Eval.initEnv (eApp funcExp (LangTools.expToAppArgs callExp))
-          |> perhapsLogError
-          |> Result.toMaybe
-          |> Maybe.andThen (\((val, _), _) -> valToMaybePoint val)
-        in
-        case maybePoint of
-          Just (x, y) -> Just <| svgXYDot (x, y) pointZoneStyles.fill.shown True []
-          _           -> Nothing
-      else
-        LangSvg.evalToSvg Syntax.Elm Eval.initEnv callExp |> Result.toMaybe
-    )
-  |> Maybe.map List.singleton
-  |> Maybe.withDefault []
-
-
 drawNewPointAndOffset model shouldHighlight (x1, y1) (x2, y2) =
   let (axis, sign, amount) = Draw.horizontalVerticalSnap (x1, y1) (x2, y2) in
-  let xyDot = svgXYDot (x1, y1) pointZoneStyles.fill.shown True [] in
+  let xyDot = Draw.svgXYDot (x1, y1) pointZoneStyles.fill.shown True [] in
   let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp Nothing ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
   [xyDot] ++ arrowParts
 
@@ -821,18 +794,6 @@ eightCardinalZones model id shape transform (left, top, right, bot) =
     ifEnoughSpace width (mkPoint (ZPoint TopEdge) (left + width / 2) top) ++
     ifEnoughSpace width (mkPoint (ZPoint BotEdge) (left + width / 2) bot)
 
-pointZoneStyles =
-  { radius = "6"
-  , stroke = "black"
-  , strokeWidth = "2"
-  , fill =
-      { shown = "white" -- "silver" -- "rgba(255,0,0,0.5)"
-      , selectedShape = "yellow"
-      , selectedBlob = "aqua" -- "rgba(255,255,0,1.0)"
-      , hidden = "rgba(0,0,0,0.0)"
-      }
-  }
-
 pointZoneStylesFillSelected model nodeId =
   let d = Dict.filter (\_ nodeId_ -> nodeId == nodeId_) model.selectedBlobs in
   if Dict.isEmpty d
@@ -1283,22 +1244,6 @@ toggleSelectedLambda selectableFeatures =
     in
     { model | selectedFeatures = List.foldl updateSet model.selectedFeatures selectableFeatures }
 
-svgXYDot (x, y) fill isVisible extraAttrs =
-  -- let
-  --   x = toFloat x_ - model.outputCanvasInfo.scrollLeft
-  --   y = toFloat y_ - model.outputCanvasInfo.scrollTop
-  -- in
-  svgCircle <|
-    [ attr "cx" (toString x) , attr "cy" (toString y)
-    , attr "fill" fill
-    , attr "stroke" pointZoneStyles.stroke
-    , attr "stroke-width" pointZoneStyles.strokeWidth
-    , attr "r" <|
-        if isVisible
-        then pointZoneStyles.radius
-        else "0"
-    ] ++ extraAttrs
-
 
 maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr xVal yNumTr yVal =
   if sideLength < minLengthForMiddleZones then []
@@ -1372,7 +1317,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
             let newModel = if model.mouseMode == MouseNothing then startDrawing model maybeClickable else model in -- maybeClickable for drag drawings
             { newModel | mouseState = (Just False, { x = x, y = y }, maybeClickable) } ] -- maybeClickable for click drawings (poly/path)
     in
-    svgXYDot (x, y) dotFill isVisible extraAttrs
+    Draw.svgXYDot (x, y) dotFill isVisible extraAttrs
   in
   let yLine =
     svgLine <|

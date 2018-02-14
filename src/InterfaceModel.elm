@@ -713,8 +713,8 @@ codeToShow model =
 strLambdaTool lambdaTool =
   let strExp = String.trim << LangUnparser.unparse in
   case lambdaTool of
-    LambdaBounds e -> Utils.parens <| "\\bounds. " ++ strExp e ++ " bounds"
-    LambdaAnchor e _ -> Utils.parens <| "\\anchor. " ++ strExp e ++ " anchor"
+    LambdaBounds e   -> strExp e ++ " (bounds)"
+    LambdaAnchor e _ -> strExp e ++ " (anchor)"
 
 --------------------------------------------------------------------------------
 
@@ -1206,5 +1206,5 @@ initModel =
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
     , valueEditorString = ValUnparser.strVal v
-    , syntax = Syntax.Little
+    , syntax = Syntax.Elm
     }

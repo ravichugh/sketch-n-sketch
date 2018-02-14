@@ -1,11 +1,14 @@
 module Draw exposing
-  ( drawDotSize
+  ( pointZoneStyles
+  , drawDotSize
   -- , drawNewLine
   -- , drawNewRect
   -- , drawNewEllipse
   -- , drawNewPolygon
   -- , drawNewPath
-  , newFunctionCallExp
+  , drawNewFunction
+  , svgXYDot
+  -- , newFunctionCallExp
   , boundingBoxOfPoints_
   , addShape
   , addLine
@@ -38,6 +41,7 @@ import Either exposing (..)
 import Keys
 import Eval -- used to determine bounding box of LambdaAnchor tools
             -- for the purposes of rendering icons in drawing toolbox
+            -- Also for drawing function tools
 import Config
 import Syntax exposing (Syntax)
 
@@ -62,6 +66,17 @@ svgEllipse   = flip Svg.ellipse []
 svgPolygon   = flip Svg.polygon []
 svgPath      = flip Svg.path []
 
+pointZoneStyles =
+  { radius = "6"
+  , stroke = "black"
+  , strokeWidth = "2"
+  , fill =
+      { shown = "white" -- "silver" -- "rgba(255,0,0,0.5)"
+      , selectedShape = "yellow"
+      , selectedBlob = "aqua" -- "rgba(255,255,0,1.0)"
+      , hidden = "rgba(0,0,0,0.0)"
+      }
+  }
 
 --------------------------------------------------------------------------------
 -- Bounding Boxes
@@ -258,6 +273,57 @@ strPt (x,y) = Utils.spaces [toString x, toString y]
 --   in
 --   let clearDots = List.map (drawDot dotFillCursor) (ptLast::points) in
 --   redDot ++ yellowDot ++ clearDots ++ pathAndPoints
+
+
+drawNewFunction fName model pt1 pt2 =
+  let perhapsLogError result =
+    case result of
+      Err s -> let _ = Utils.log <| "drawNewFunction error: " ++ s in result
+      _     -> result
+  in
+  let inputPtDots =
+    let ((x1, _), (y1, _)) = pt1 in
+    let ((x2, _), (y2, _)) = pt2 in
+    [ svgXYDot (x1, y1) pointZoneStyles.fill.shown True [ LangSvg.attr "opacity" "0.4" ]
+    , svgXYDot (x2, y2) pointZoneStyles.fill.shown True [ LangSvg.attr "opacity" "0.4" ]
+    ]
+  in
+  newFunctionCallExp fName model pt1 pt2
+  |> Maybe.andThen
+    (\(callExp, funcExp, returnType) ->
+      if isPointType returnType then
+        let maybePoint =
+          Eval.doEval Syntax.Elm Eval.initEnv (eApp funcExp (LangTools.expToAppArgs (LangTools.expValueExp callExp)))
+          |> perhapsLogError
+          |> Result.toMaybe
+          |> Maybe.andThen (\((val, _), _) -> valToMaybePoint val)
+        in
+        case maybePoint of
+          Just (x, y) -> Just <| svgXYDot (x, y) pointZoneStyles.fill.shown True []
+          _           -> Nothing
+      else
+        LangSvg.evalToSvg Syntax.Elm Eval.initEnv callExp |> Result.toMaybe
+    )
+  |> Maybe.map List.singleton
+  |> Maybe.withDefault []
+  |> (flip (++) inputPtDots)
+
+
+svgXYDot (x, y) fill isVisible extraAttrs =
+  -- let
+  --   x = toFloat x_ - model.outputCanvasInfo.scrollLeft
+  --   y = toFloat y_ - model.outputCanvasInfo.scrollTop
+  -- in
+  svgCircle <|
+    [ LangSvg.attr "cx" (toString x) , LangSvg.attr "cy" (toString y)
+    , LangSvg.attr "fill" fill
+    , LangSvg.attr "stroke" pointZoneStyles.stroke
+    , LangSvg.attr "stroke-width" pointZoneStyles.strokeWidth
+    , LangSvg.attr "r" <|
+        if isVisible
+        then pointZoneStyles.radius
+        else "0"
+    ] ++ extraAttrs
 
 
 --------------------------------------------------------------------------------

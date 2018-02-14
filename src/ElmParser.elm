@@ -1330,7 +1330,7 @@ hole : SpacePolicy -> Parser Exp
 hole sp =
   inContext "hole" <|
     mapExp_ <|
-      paddedBefore EHole sp (trackInfo <| token "??" Nothing)
+      paddedBefore EHole sp (trackInfo <| token "??" HoleEmpty)
 
 --------------------------------------------------------------------------------
 -- Colon Types TODO
@@ -1415,7 +1415,7 @@ simpleUntypedExpressionWithPossibleArguments sp =
               exp_ <|
                 let
                   default =
-                    EApp space0 first rest SpaceApp space0
+                    EApp (ws (precedingWhitespace first)) (removePrecedingWhitespace first) rest SpaceApp space0
                 in
                   case first.val.e__ of
                     EVar wsBefore identifier ->
@@ -1514,12 +1514,14 @@ expression sp =
                         EList space0 [(space0, left)] wsBefore (Just right) space0
                       ) left.start right.end
                     else if identifier == "<|" then
+                      copyPrecedingWhitespace left <|
                       withInfo (exp_ <|
-                        EApp space0 left [right] (LeftApp wsBefore) space0
+                        EApp space0 (removePrecedingWhitespace left) [right] (LeftApp wsBefore) space0
                       ) left.start right.end
                     else if identifier == "|>" then
+                      copyPrecedingWhitespace left <|
                       withInfo (exp_ <|
-                        EApp space0 right [left] (RightApp wsBefore) space0
+                        EApp space0 right [(removePrecedingWhitespace left)] (RightApp wsBefore) space0
                       ) left.start right.end
                     else
                       let
@@ -1531,9 +1533,10 @@ expression sp =
                             operator.start
                             operator.end
                       in
+                        copyPrecedingWhitespace opExp <|
                         withInfo
                           ( exp_ <|
-                              EApp space0 opExp [ left, right ] SpaceApp space0
+                              EApp space0 (removePrecedingWhitespace opExp) [ left, right ] SpaceApp space0
                           )
                           left.start
                           right.end

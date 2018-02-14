@@ -782,7 +782,7 @@ unifyConstraintsUntilFixpoint_ maxIterations graph =
     graph
   else
     -- let _ = Debug.log ("Iterations remaining " ++ toString maxIterations) graph in
-    let _ = Debug.log "unifyConstraintsUntilFixpoint_: Iterations remaining" maxIterations in
+    -- let _ = Debug.log "unifyConstraintsUntilFixpoint_: Iterations remaining" maxIterations in
     let newGraph =
       graph
       |> unifyImmediatesStep
@@ -1098,9 +1098,9 @@ gatherConstraints exp =
     EFun _ argPats fBody _ ->
       gatherPatsConstraints argPats ++
       eidIs (TCArrow <| (argPats |> List.map (.val >> .pid >> TCPId)) ++ [TCEId fBody.val.eid])
-    EApp _ fExp argExps _ _      -> eidIs <| TCApp (expToTC fExp) (expsToTCs argExps)
-    EList _ heads _ maybeTail _  -> eidIs <| TCTuple (expsToTCs (headExps heads)) (Maybe.map expToTC maybeTail)
-    EOp _ op operands _          ->
+    EApp _ fExp argExps _ _     -> eidIs <| TCApp (expToTC fExp) (expsToTCs argExps)
+    EList _ heads _ maybeTail _ -> eidIs <| TCTuple (expsToTCs (headExps heads)) (Maybe.map expToTC maybeTail)
+    EOp _ op operands _         ->
       case (op.val, operands |> List.map (.val >> .eid)) of
         (Pi,         [])           -> eidIs TCNum
         (ToStr,      [_])          -> eidIs TCString

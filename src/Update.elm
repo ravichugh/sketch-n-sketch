@@ -66,8 +66,8 @@ update env e oldVal out nextToUpdate =
     UpdateAlternative fEnv fOut fOldVal altEnv altE altOldVal altOut nextToUpdate2 ->
       update fEnv e fOldVal (Program fOut) <| appendLazy nextToUpdate <| lazyFromList [Fork altEnv altE altOldVal altOut nextToUpdate2]
     UpdateResults fEnv fOut alternatives ->
-      update fEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program fOut) <|
-        appendLazy nextToUpdate <| Results.mapLazy (\(altEnv, altExp) -> Fork altEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program altExp) nextToUpdate) (Lazy.force alternatives)
+      update fEnv (replaceE__ e <| EHole (ws "") HoleEmpty) oldVal (Program fOut) <|
+        appendLazy nextToUpdate <| Results.mapLazy (\(altEnv, altExp) -> Fork altEnv (replaceE__ e <| EHole (ws "") HoleEmpty) oldVal (Program altExp) nextToUpdate) (Lazy.force alternatives)
     UpdateResult fEnv fOut -> -- Let's consume the stack !
       case nextToUpdate of
         LazyNil -> ok1 <| (fEnv, fOut)
@@ -83,8 +83,8 @@ update env e oldVal out nextToUpdate =
                 UpdateResult fEnv fOut ->
                   update fEnv e oldVal (Program fOut) (Lazy.force lazyTail)
                 UpdateResults fEnv fOut alternatives ->
-                  update fEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program fOut) <|
-                    appendLazy (Lazy.force lazyTail) <| Results.mapLazy (\(altEnv, altExp) -> Fork altEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program altExp) (Lazy.force lazyTail)) (Lazy.force alternatives)
+                  update fEnv (replaceE__ e <| EHole (ws "") HoleEmpty) oldVal (Program fOut) <|
+                    appendLazy (Lazy.force lazyTail) <| Results.mapLazy (\(altEnv, altExp) -> Fork altEnv (replaceE__ e <| EHole (ws "") HoleEmpty) oldVal (Program altExp) (Lazy.force lazyTail)) (Lazy.force alternatives)
                 UpdateIdem fEnv newE newOldVal newOut ->
                   update fEnv newE newOldVal newOut (Lazy.force lazyTail)
                 UpdateContinue fEnv newE newOldVal newOut g ->
@@ -127,7 +127,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
         Raw newVal ->
           let newEnv = updateEnv env is newVal in
           --update newEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program e) nextToUpdate
-          UpdateIdem newEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal <| Program e
+          UpdateIdem newEnv (replaceE__ e <| EHole (ws "") HoleEmpty) oldVal <| Program e
 
     EList sp1 elems sp2 Nothing sp3 ->
       case out of
@@ -138,7 +138,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
               if List.length origVals == List.length newOutVals then
                 case (elems, origVals, newOutVals) of
                   ([], [], []) ->
-                    UpdateIdem env (replaceE__ e <| EHole (ws "") Nothing) oldVal <| Program e
+                    UpdateIdem env (replaceE__ e <| EHole (ws "") HoleEmpty) oldVal <| Program e
                   (expHead::expTail, origHead::origTail, newHead::newTail) ->
                     UpdateContinue env (Tuple.second expHead) origHead (Raw newHead)
                       <| HandlePreviousResult <| \(newHeadEnv, newHeadExp) ->

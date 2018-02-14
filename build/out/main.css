@@ -35,6 +35,27 @@ code {
   font-size: 0.9em;
 }
 
+.outlined {
+  border: 1px solid var(--main-border-color);
+  box-shadow: 0 0 7px 0 var(--shadow-color);
+}
+
+/* Put the box-shadow under adjacent elements https://blog.dudak.me/2014/css-shadows-under-adjacent-elements/ */
+.tool {
+  position: relative;
+}
+
+.tool:before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: -1;
+  box-shadow: 0 0 7px 0 var(--shadow-color);
+}
+
 /******************************************************************************
  * Buttons                                                                    *
  ******************************************************************************/
@@ -390,11 +411,6 @@ code {
  * General Panels                                                             *
  ******************************************************************************/
 
-.panel {
-  border: 1px solid var(--main-border-color);
-  box-shadow: 0 0 7px 0 var(--shadow-color);
-}
-
 /******************************************************************************
  * Code Panel                                                                 *
  ******************************************************************************/
@@ -642,7 +658,7 @@ code {
 
 .tool-panel {
   /* width: DYNAMIC */
-  background-color: var(--panel-bg-color);
+/*  background-color: var(--panel-bg-color);*/
   /* margin-left: DYNAMIC */
 
   position: absolute;
@@ -654,6 +670,7 @@ code {
 }
 
 .tool-mode-indicator {
+/*  background-color: var(--panel-bg-color);*/
   text-align: center;
   font-size: 0.5em;
   line-height: 1.4em;

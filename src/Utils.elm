@@ -45,6 +45,15 @@ update (k1, v1) vals =
         then (k0, v1) :: vs
         else (k0, v0) :: update (k1, v1) vs
 
+
+-- Initial accumulator is the first arg so you can write: list |> Utils.foldl initAcc (\elem acc -> ...)
+foldl : b -> (a -> b -> b) -> List a -> b
+foldl acc f list = List.foldl f acc list
+
+-- Initial accumulator is the first arg so you can write: list |> Utils.foldr initAcc (\elem acc -> ...)
+foldr : b -> (a -> b -> b) -> List a -> b
+foldr acc f list = List.foldr f acc list
+
 -- Extra elements left off if the lists are different lengths.
 -- Resulting list length is minimum of (length xs, length ys)
 zip : List a -> List b -> List (a,b)

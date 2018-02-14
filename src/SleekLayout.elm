@@ -139,17 +139,15 @@ menuBarTotalHeight =
 -- Tool Panel
 --------------------------------------------------------------------------------
 
-toolPanel =
-  { width = 50
-  , right = spacing.width
-  , marginLeft = spacing.width
+iconButton =
+  { width  = 49
+  , height = 49
   }
 
-iconButton =
-  { width =
-      toolPanel.width - 2 * panelBorderWidth
-  , height =
-      toolPanel.width - 2 * panelBorderWidth
+toolPanel =
+  { width = 2 * iconButton.width
+  , right = spacing.width
+  , marginLeft = spacing.width
   }
 
 --------------------------------------------------------------------------------

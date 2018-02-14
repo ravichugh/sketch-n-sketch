@@ -16,7 +16,7 @@ module CodeMotion exposing
   , swapExpressionsTransformation
   , swapDefinitionsTransformation
   , rewriteOffsetTransformation
-  , makeEIdVisibleToEIds, makeEIdVisibleToEIdsByInsertingNewBinding
+  , makeEIdOriginVisibleToEIds, makeEIdVisibleToEIds, makeEIdVisibleToEIdsByInsertingNewBinding
   , liftLocsSoVisibleTo, copyLocsSoVisibleTo
   , resolveValueHoles
   )
@@ -25,6 +25,7 @@ import Lang exposing (..)
 import LangTools exposing (..)
 import LangSimplify
 import LangUnparser exposing (unparseWithIds, expsEquivalent, patsEquivalent, unparseWithUniformWhitespace)
+import ElmUnparser
 import FastParser as Parser
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
@@ -34,6 +35,7 @@ import InterfaceModel exposing
   )
 import LocEqn                        -- For twiddling
 import Solver exposing (MathExp(..)) -- For twiddling
+import Provenance
 import Sync
 import Syntax exposing (Syntax)
 import Utils
@@ -2691,6 +2693,30 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
 
 
 -- Tries to make minimal changes to expose EId to all viewers.
+-- If EId is a variable, tries to resolve to its origin (so we aren't just rebinding a variable with a new name).
+-- If EId already bound to a variable, either do nothing, or rename, or move the binding, as needed.
+-- If EId is not bound to a variable, try to lift it and any dependencies.
+-- Returns Maybe (newName, insertedVarEId, program)
+makeEIdOriginVisibleToEIds : Exp -> EId -> Set EId -> Maybe (Ident, EId, Exp)
+makeEIdOriginVisibleToEIds originalProgram mobileEId viewerEIds =
+  let performAsGiven () = makeEIdVisibleToEIds originalProgram mobileEId viewerEIds in
+  case findExpByEId originalProgram mobileEId |> Maybe.map expValueExp of
+    Just mobileExp ->
+      if isVar mobileExp then
+        case maybeResolveIdentifierToExp (expToIdent mobileExp) mobileExp.val.eid originalProgram of
+          Just boundExp ->
+            if Parser.isProgramEId boundExp.val.eid
+            then makeEIdVisibleToEIds originalProgram boundExp.val.eid viewerEIds
+            else performAsGiven ()
+          Nothing -> performAsGiven ()
+      else
+        performAsGiven ()
+
+    Nothing -> performAsGiven ()
+
+-- You may want makeEIdOriginVisibleToEIds instead.
+--
+-- Tries to make minimal changes to expose EId to all viewers.
 -- If EId already bound to a variable, either do nothing, or rename, or move the binding, as needed.
 -- If EId is not bound to a variable, try to lift it and any dependencies.
 -- Returns Maybe (newName, insertedVarEId, program)
@@ -2703,7 +2729,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
     -- Were the original name to be used, are we still good?
     let resolvesCorrectly viewerEId =
       maybeResolveIdentifierToExp mobileOriginalName viewerEId program
-      |> Maybe.map (\e -> e.val.eid == mobileEId)
+      |> Maybe.map (\e -> List.member mobileEId (expEffectiveEIds e))
       |> Maybe.withDefault False
     in
     if List.all resolvesCorrectly (Set.toList viewerEIds) then
@@ -2714,7 +2740,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
       let newProgram = renameIdentifiers uniqueNameToOldNameWithoutMobileName programUniqueNames in
       Just (mobileUniqueName, mobileEId, newProgram)
   in
-  case findLetAndIdentBindingExp mobileEId originalProgramUniqueNames of
+  case findLetAndIdentBindingExpLoose mobileEId originalProgramUniqueNames of
     Just (bindingLet, mobileUniqueName) ->
       if viewerEIds |> Set.toList |> List.all (\viewerEId -> visibleIdentifiersAtEIds originalProgramUniqueNames (Set.singleton viewerEId) |> Set.member mobileUniqueName) then
         -- CASE 1: All viewers should already be able to see a variable binding the desired EId (discounting shadowing, which we handle by renaming below).
@@ -2747,7 +2773,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
 
           Just programAfterMove ->
             let (maybeProgramAfterMoveUniqueNames, afterMoveUniqueNameToOldName) = assignUniqueNames programAfterMove in
-            case findLetAndIdentBindingExp mobileEId maybeProgramAfterMoveUniqueNames of
+            case findLetAndIdentBindingExpLoose mobileEId maybeProgramAfterMoveUniqueNames of
               Nothing -> Debug.crash "makeEIdVisibleToEIds eids got screwed up somewhere"
               Just (_, mobileUniqueName) ->
                 renameIfCollision mobileUniqueName afterMoveUniqueNameToOldName viewerEIds programAfterMove maybeProgramAfterMoveUniqueNames
@@ -2772,8 +2798,8 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
   let newProgramUniqueNames =
     let extractedExp = justFindExpByEId originalProgramUniqueNames mobileEId in
     originalProgramUniqueNames
-    |> mapExpNode mobileEId
-        (\e -> eVar "*EXTRACTED EXPRESSION*" |> setEId insertedVarEId)
+    |> replaceExpNodePreservingPrecedingWhitespace mobileEId
+        (eVar "*EXTRACTED EXPRESSION*" |> setEId insertedVarEId)
     |> mapExpNode expToWrap.val.eid
         (\e -> newLetFancyWhitespace -1 False (pVar "*EXTRACTED EXPRESSION*" |> setPId newBindingPId) extractedExp e originalProgramUniqueNames )
   in
@@ -2854,12 +2880,73 @@ liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
       (program, Dict.empty, Dict.empty)
 
 
--- Right now, does simple loc lifting.
+-- Resolves as many holes as possible by simple lifting.
+-- Then reverts to loc lifting + inlining traces.
 resolveValueHoles : Sync.Options -> Exp -> List Exp
 resolveValueHoles syncOptions programWithHolesUnfresh =
+  -- First, try to find and lift points.
   let
     programWithHoles = Parser.freshen programWithHolesUnfresh -- Need EIds on all inserted expressions.
-    valHoles = programWithHoles |> flattenExpTree |> List.filter (expToMaybeHoleVal >> Utils.maybeToBool)
+    programWithSomePointHolesResolvedByLifting =
+      programWithHoles
+      |> findExpMatches (ePair (eHolePred isValHole) (eHolePred isValHole))
+      |> List.foldl
+          (\(pairExpWithHoles, holes) program ->
+            case holes |> List.filterMap expToMaybeHoleVal of
+              [xHoleVal, yHoleVal] ->
+                case Provenance.pointPartsToProgramPointEIdsStrict (not << isVar << expValueExp) xHoleVal yHoleVal of -- Only want var origins so we aren't just rebinding variables.
+                  pointEIdInProgram::_ ->
+                    case makeEIdVisibleToEIds program pointEIdInProgram (Set.singleton pairExpWithHoles.val.eid) of
+                      Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace pairExpWithHoles.val.eid (eVar newName)
+                      Nothing                       -> program
+                  [] -> program
+              _ -> program
+          )
+          programWithHoles
+  in
+  -- Second, try to find and lift simple existing expressions.
+  let
+    valHoles = programWithSomePointHolesResolvedByLifting |> flattenExpTree |> List.filter isValHole
+    holeVals = valHoles |> List.filterMap expToMaybeHoleVal
+    programWithSomeHolesResolvedByLifting =
+      Utils.zip holeVals valHoles
+      |> List.foldl
+          (\(holeVal, valHoleExp) program ->
+            -- Trace back to non-var EId (unless free)
+            let valProvenanceToProgramExp val =
+              case (Parser.isProgramEId (valEId val), (expValueExp (valExp val)).val.e__, valBasedOn val) of
+                (True, EVar _ ident, [basedOnVal]) ->
+                  if resolveIdentifierToExp ident (valEId val) program == Nothing then -- Ident is free in program
+                    Just (valExp val)
+                  else
+                    valProvenanceToProgramExp basedOnVal -- Should be correct even though not on expValueExp (all expValueExp will have only one basedOn)
+
+                (True, _, _) ->
+                  Just (valExp val)
+
+                (False, _, _) ->
+                  -- Step backwards in the provenance by one step, if prior step is the same value.
+                  Provenance.valToMaybePreviousSameVal val
+                  |> Maybe.andThen valProvenanceToProgramExp
+            in
+            case valProvenanceToProgramExp holeVal of
+              Just expInProgram ->
+                case makeEIdVisibleToEIds program expInProgram.val.eid (Set.singleton valHoleExp.val.eid) of
+                  Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace valHoleExp.val.eid (eVar newName)
+                  Nothing                       -> program
+              Nothing -> program
+          )
+          programWithSomePointHolesResolvedByLifting
+  in
+  -- Resolve any remaining holes by loc lifting.
+  resolveValueHolesByLocLifting syncOptions programWithSomeHolesResolvedByLifting
+
+
+resolveValueHolesByLocLifting : Sync.Options -> Exp -> List Exp
+resolveValueHolesByLocLifting syncOptions programWithHolesUnfresh =
+  let
+    programWithHoles = Parser.freshen programWithHolesUnfresh -- Need EIds on all inserted expressions.
+    valHoles = programWithHoles |> flattenExpTree |> List.filter isValHole
     holeVals = programWithHoles |> flattenExpTree |> List.filterMap expToMaybeHoleVal
     holeEIds = valHoles |> List.map (.val >> .eid)
     holeTraces = holeVals |> List.map valToTrace
@@ -2867,9 +2954,9 @@ resolveValueHoles syncOptions programWithHolesUnfresh =
     (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo programWithHoles locIdsNeeded (Set.fromList holeEIds)
     locIdToExp = locIdToExpFromFrozenSubstAndNewNames (Parser.substOf programWithHoles) locIdToNewName
   in
-  Utils.zip holeEIds holeTraces
+  Utils.zip3 holeEIds holeVals holeTraces
   |> List.foldl
-      (\(holeEId, holeTrace) programSoFar ->
+      (\(holeEId, holeVal, holeTrace) programSoFar ->
         let filledHole = traceToExp locIdToExp holeTrace in
         programSoFar |> replaceExpNodePreservingPrecedingWhitespace holeEId filledHole
       )

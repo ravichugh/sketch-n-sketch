@@ -709,15 +709,7 @@ tryRun old =
             LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
               let newCode = Syntax.unparser old.syntax e in -- unnecessary, if parse/unparse were inverses
-              let lambdaTools_ =
-                -- TODO should put program into Model
-                -- TODO actually, ideally not. caching introduces bugs
-                let program = splitExp e in
-                Draw.lambdaToolOptionsOf old.syntax program finalEnv ++ initModel.lambdaTools
-              in
-              let new =
-                loadLambdaToolIcons finalEnv { old | lambdaTools = lambdaTools_ }
-              in
+              let new = loadLambdaAndFunctionToolIcons e finalEnv old in
               let new_ =
                 { new | inputExp      = e
                       , inputVal      = newVal
@@ -735,7 +727,6 @@ tryRun old =
                       , history       = modelCommit newCode [] old.history
                       , caption       = Nothing
                       , syncOptions   = Sync.syncOptionsOf old.syncOptions e
-                      , lambdaTools   = lambdaTools_
                       , errorBox      = Nothing
                       , scopeGraph    = DependenceGraph.compute e
                       , preview       = Nothing
@@ -851,7 +842,7 @@ upstate msg old =
     Msg caption updateModel ->
       -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
       -- let _ = Debug.log "Msg" caption in
-      let _ = if {-String.contains "Key" caption-} True then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
+      -- let _ = if {-String.contains "Key" caption-} True then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
       let _ = debugLog "Msg" caption in
       updateModel old
 
@@ -2334,8 +2325,8 @@ readFile file needsSave old =
         , needsSave = needsSave
         }
 
-loadIcon : Env -> File -> Model -> Model
-loadIcon env icon old =
+loadIconFromFile : Env -> File -> Model -> Model
+loadIconFromFile env icon old =
   let
     (actualCode, syntax) =
       if icon.contents /= "" then
@@ -2378,26 +2369,64 @@ iconify syntax env code =
       Utils.fromOkay "Error creating icon"
         <| LangSvg.evalToSvg syntax env exp
       -- Canvas.buildHtml ({ initModel | showGhosts = False }, False) slate
-    subPadding x =
-      x - 10
   in
-    Svg.svg
-      [ Svg.Attributes.width <|
-          (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
-      , Svg.Attributes.height <|
-          (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
-      ]
-      [ svgElement ]
+  wrapIconWithSvg False [ svgElement ]
 
 
-loadLambdaToolIcons finalEnv old =
-  let foo tool acc =
-    let icon = lambdaToolIcon tool in
-    if Dict.member icon.filename.name old.icons
-      then acc
-      else loadIcon finalEnv icon old
+wrapIconWithSvg computeViewBox svgElements =
+  let subPadding x = x - 10 in
+  let viewBoxAttrs =
+    if computeViewBox then
+      case LangSvg.estimatedBounds (Svg.svg [] svgElements) of
+        Nothing     -> [Svg.Attributes.viewBox "0 0 50 50"]
+        Just bounds ->
+          [ bounds.left
+          , bounds.top
+          , bounds.right - bounds.left
+          , bounds.bot   - bounds.top
+          ] |> List.map toString |> String.join " " |> Svg.Attributes.viewBox |> List.singleton
+    else
+      []
   in
-  List.foldl foo old old.lambdaTools
+  Svg.svg
+    ([ Svg.Attributes.width <|
+        (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
+    , Svg.Attributes.height <|
+        (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
+    ] ++ viewBoxAttrs)
+    svgElements
+
+
+
+loadLambdaAndFunctionToolIcons program finalEnv old =
+  let modelWithLambdaIconsLoaded =
+    let lambdaTools_ =
+      Draw.lambdaToolOptionsOf old.syntax (splitExp program) finalEnv ++ initModel.lambdaTools
+    in
+    lambdaTools_
+    |> Utils.foldl
+        { old | lambdaTools = lambdaTools_ }
+        (\tool model ->
+          let icon = lambdaToolIcon tool in
+          if Dict.member icon.filename.name model.icons
+            then model
+            else loadIconFromFile finalEnv icon model
+        )
+  in
+  let modelWithFunctionIconsLoaded =
+    Draw.getDrawableFunctions modelWithLambdaIconsLoaded
+    |> Utils.foldl
+        modelWithLambdaIconsLoaded
+        (\(funcName, _, _) model ->
+          if Dict.member funcName model.icons then
+            model
+          else
+            let iconHtml = wrapIconWithSvg True (Draw.drawNewFunction funcName model ((10, NoSnap), (10, NoSnap)) ((40, NoSnap), (40, NoSnap))) in
+            { model | icons = Dict.insert funcName iconHtml model.icons }
+        )
+  in
+  modelWithFunctionIconsLoaded
+
 
 updateFileIndex : FileIndex -> Model -> Model
 updateFileIndex fileIndex old =
@@ -2408,7 +2437,7 @@ updateFileIndex fileIndex old =
 msgLoadIcon : File -> Msg
 msgLoadIcon file =
   Msg "Load Icon" <|
-    loadIcon Eval.initEnv file
+    loadIconFromFile Eval.initEnv file
 
 fileMessageHandler : InternalFileMessage -> Msg
 fileMessageHandler ifm =
@@ -2497,7 +2526,7 @@ handleNew template = (\old ->
                     , mainResizerX             = old.mainResizerX
                     , colorScheme              = old.colorScheme
                     } |> resetDeuceState
-      ) |> handleError old) >> closeDialogBox New
+      ) |> handleError old) >> closeDialogBox New >> upstateRun -- Run to load custom tool icons
 
 msgAskNew template = requireSaveAsker (msgNew template)
 

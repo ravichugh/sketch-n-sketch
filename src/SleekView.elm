@@ -1350,7 +1350,7 @@ codePanel model =
         ]
   in
     Html.div
-      [ Attr.class "panel code-panel"
+      [ Attr.class "panel outlined code-panel"
       , Attr.style
           [ ("left", (px << .x) <| SleekLayout.codePanel model)
           , ("top", (px << .y) <| SleekLayout.codePanel model)
@@ -1451,7 +1451,7 @@ outputPanel model =
         []
   in
     Html.div
-      [ Attr.class "panel output-panel"
+      [ Attr.class "panel outlined output-panel"
       , Attr.style
           [ ("left", (px << .x) <| SleekLayout.outputPanel model)
           , ("top", (px << .y) <| SleekLayout.outputPanel model)
@@ -1497,17 +1497,20 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
         Unselected -> buttonRegularColor
         Selected   -> buttonSelectedColor
     iconHtml =
-      case Dict.get (Utils.naturalToCamelCase iconName) model.icons of
-        Just h -> h
-        Nothing -> Html.text iconName
+      case (Dict.get (Utils.naturalToCamelCase iconName) model.icons, Dict.get iconName model.icons) of
+        (Just html, _) -> html
+        (_, Just html) -> html
+        _              -> Html.text ""
   in
   let commonAttrs =
     [ Attr.disabled disabled
     , Attr.class "icon-button"
     , Attr.style
         [ ("width", (px << .width) SleekLayout.iconButton)
-        , ("height", (px << .height) SleekLayout.iconButton)
+        , ("height", (px << ((+) 25) << .height) SleekLayout.iconButton)
+        , ("word-wrap", "break-word")
         , ("background", color)
+        , ("overflow", "hidden")
         ]
     ]
   in
@@ -1518,7 +1521,7 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
       , Attr.title iconName
       ] ++
       extraAttrs)
-    [ iconHtml ]
+    [ iconHtml, Html.text iconName ]
 
 toolButton model tool =
   let
@@ -1554,6 +1557,7 @@ toolButton model tool =
   in
     Html.div
       [ Attr.class "tool"
+      , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
       ]
       [ iconButton
           model cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
@@ -1568,6 +1572,7 @@ lambdaTools model =
       in
         Html.div
           [ Attr.class "tool"
+          , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
           ]
           [ iconButton model iconName
               (Msg iconName (\m -> { m | tool = Lambda i }))
@@ -1585,6 +1590,7 @@ functionTools model =
       (\(funcName, _, _) ->
         Html.div
           [ Attr.class "tool"
+          , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
           ]
           [ iconButton model funcName
               (Msg (funcName ++ " Function Tool") (\m -> { m | tool = Function funcName }))
@@ -1631,8 +1637,12 @@ toolPanel model =
       [ Attr.class "panel tool-panel"
       , Attr.style
           [ ("width", (px << .width) SleekLayout.toolPanel)
+          , ("height", (px << .height) (SleekLayout.outputCanvas model))
           , ("right", (px << .right) SleekLayout.toolPanel)
           , ("marginLeft", (px << .marginLeft) SleekLayout.toolPanel)
+          , ("display", "flex")
+          , ("flex-direction", "column")
+          , ("flex-wrap", "wrap")
           ]
       ]
       ( [ toolButton model Cursor
@@ -1676,7 +1686,7 @@ synthesisPanel model =
         ]
     ]
     [ Html.div
-        [ Attr.class "panel synthesis-panel"
+        [ Attr.class "panel outlined synthesis-panel"
         ]
         [ Html.div
             [ Attr.class "dropdown-content synthesis-menu-holder"
@@ -2140,7 +2150,7 @@ popupPanel args =
   in
     Html.div
       [ Attr.class <|
-          "popup-panel panel " ++ disabledFlag ++ args.class
+          "popup-panel panel outlined " ++ disabledFlag ++ args.class
       , Attr.style
           [ ("left", xString)
           , ("top", yString)

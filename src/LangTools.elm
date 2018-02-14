@@ -212,6 +212,70 @@ patternsEqual patA patB =
     _                                                                        -> False
 
 
+-- Search for elements in the program that match the given structure.
+--
+-- Returns List (matching program exp, matches for holes in structure)
+findExpMatches : Exp -> Exp -> List (Exp, (List Exp))
+findExpMatches structure program =
+  flattenExpTree program
+  |> List.filterMap
+      (\exp ->
+        case matchExp structure exp of
+          Just holeMatches -> Just (exp, holeMatches)
+          Nothing          -> Nothing
+      )
+
+
+-- Find first.
+findExpMatch : Exp -> Exp -> Maybe (Exp, (List Exp))
+findExpMatch structure program =
+  program
+  |> mapFirstSuccessNode
+      (\exp ->
+        case matchExp structure exp of
+          Just holeMatches -> Just (exp, holeMatches)
+          Nothing          -> Nothing
+      )
+
+
+-- See if the given expression matches the structure.
+-- Strict (no special allowance for EComment). See extraExpsDiff below for looser matching.
+--
+-- Empty EHoles in the structure are treated as wildcards.
+-- Predicate EHoles match if the predicate matches.
+--
+-- Returns Maybe (List of expressions in the holes, left to right)
+matchExp : Exp -> Exp -> Maybe (List Exp)
+matchExp structure exp =
+  let childDiffs () =
+    case Utils.maybeZip (childExps structure) (childExps exp) of
+      Just childPairs -> childPairs |> List.map (\(aChild, bChild) -> matchExp aChild bChild) |> Utils.projJusts |> Maybe.map List.concat
+      Nothing         -> Nothing
+  in
+  case (structure.val.e__, exp.val.e__) of
+    (EHole _ HoleEmpty,                    _)                                    -> Just [exp]
+    (EHole _ (HolePredicate pred),         _)                                    -> if pred exp then Just [exp] else Nothing
+    (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then Just [] else Nothing
+    (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then Just [] else Nothing
+    (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then Just [] else Nothing
+    (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> if patternListsEqual psA psB then childDiffs () else Nothing
+    (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> if opA.val == opB.val then childDiffs () else Nothing
+    (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> childDiffs ()
+    (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> childDiffs ()
+    (EApp ws1A fA esA appTypeA ws2A,       EApp ws1B fB esB appTypeB ws2B)       -> childDiffs ()
+    (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> if recA == recB && patternsEqual pA pB then childDiffs () else Nothing
+    (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> childDiffs ()
+    (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)   then Just (childDiffs ()) else Nothing) |> Maybe.withDefault Nothing
+    (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)    -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault Nothing
+    (EComment wsA sA e1A,                  EComment wsB sB e1B)                  -> if sA == sB then childDiffs () else Nothing
+    (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> if s1A == s1B && s2A == s2B then childDiffs () else Nothing
+    (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then childDiffs () else Nothing
+    (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then matchExp eA eB else Nothing
+    (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then childDiffs () else Nothing
+    (EParens ws1A e1A ws2A,                EParens ws1B e1B ws2B)                -> childDiffs ()
+    _                                                                            -> Nothing
+
+
 -- Traverse baseExp and otherExp, comparing them to each other node by node.
 -- When they differ, adds the differing node in otherExp to the return list.
 --
@@ -728,7 +792,7 @@ commonNameForEIdsWithDefault defaultName program eids =
 expDescriptionParts : Exp -> EId -> List String
 expDescriptionParts program targetEId =
   let equivalentEIds =
-    outerSameValueExpByEId program targetEId |> expEffectiveExps |> List.map (.val >> .eid) |> Set.fromList
+    outerSameValueExpByEId program targetEId |> expEffectiveEIds |> Set.fromList
   in
   expDescriptionParts_ program program targetEId equivalentEIds
 
@@ -1266,8 +1330,8 @@ expToAppArgs exp =
 expToMaybeHoleVal : Exp -> Maybe Val
 expToMaybeHoleVal exp =
   case exp.val.e__ of
-    EHole _ maybeVal -> maybeVal
-    _                -> Nothing
+    EHole _ (HoleVal val) -> Just val
+    _                     -> Nothing
 
 
 -- This is a rather generous definition of literal.
@@ -1447,10 +1511,12 @@ nonCollidingNames suggestedNames i existingNames =
     else nonCollidingNames suggestedNames (i+1) existingNames
 
 
+renameIdentifierInPat : Ident -> Ident -> Pat -> Pat
 renameIdentifierInPat old new pat =
   renameIdentifiersInPat (Dict.singleton old new) pat
 
 
+renameIdentifiersInPat : Dict Ident Ident -> Pat -> Pat
 renameIdentifiersInPat subst pat =
   let recurse = renameIdentifiersInPat subst in
   let recurseList = List.map recurse in
@@ -1478,12 +1544,14 @@ renameIdentifiersInPat subst pat =
   replaceP__ pat pat__
 
 
+renameIdentifierInPats : Ident -> Ident -> List Pat -> List Pat
 renameIdentifierInPats old new pats =
   List.map
     (renameIdentifierInPat old new)
     pats
 
 
+renameIdentifiersInPats : Dict Ident Ident -> List Pat -> List Pat
 renameIdentifiersInPats subst pats =
   List.map
     (renameIdentifiersInPat subst)
@@ -1891,6 +1959,7 @@ tryMatchExpPatToPIds pat exp =
   |> List.map (\(p,e) -> (p.val.pid,e))
 
 -- Match exp and pat, returning all the pats that could be matched to an expression
+--
 tryMatchExpPatToPats : Pat -> Exp -> List (Pat, Exp)
 tryMatchExpPatToPats pat exp =
   tryMatchExpPatToPats_ pat exp
@@ -1904,6 +1973,7 @@ tryMatchExpPatToPaths_ pat exp =
       pat
       exp
 
+-- Invariant: In the case of equivalent nested expressions (e.g. type annotations), returns outmost (e.g. gives the type annotation)
 tryMatchExpPatToPats_ : Pat -> Exp -> Maybe (List (Pat, Exp))
 tryMatchExpPatToPats_ pat exp =
   tryMatchExpPatToSomething
@@ -1916,6 +1986,8 @@ tryMatchExpPatToPats_ pat exp =
 -- (For matching function calls with function arguments)
 --
 -- i.e. "Just ..." means partial or complete match
+--
+-- Invariant: In the case of equivalent nested expressions (e.g. type annotations), feeds outermost boundExp to makeThisMatch (e.g. gives the type annotation)
 tryMatchExpPatToSomething : (Pat -> Exp -> List a) -> (Int -> a -> a) -> Pat -> Exp -> Maybe (List a)
 tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
   let recurse pat exp = tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp in
@@ -1999,28 +2071,44 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
     PParens ws1 innerPat ws2 ->
       recurse innerPat exp
 
+
 -- Given an EId, look for a name bound to it and the let scope that defined the binding.
+--
+-- You probably want findLetAndIdentBindingExpLoose
 findLetAndIdentBindingExp : EId -> Exp -> Maybe (Exp, Ident)
 findLetAndIdentBindingExp targetEId program =
-  program
-  |> mapFirstSuccessNode
-      (\exp ->
-        case exp.val.e__ of
-          ELet _ _ _ pat _ boundExp _ _ _ ->
-            tryMatchExpReturningList pat boundExp
-            |> Utils.mapFirstSuccess
-                (\(ident, boundE) ->
-                  if boundE.val.eid == targetEId
-                  then Just (exp, ident)
-                  else Nothing
-                )
+  findLetAndPatMatchingExp_
+      targetEId
+      program
+      (\letExp (pat, boundE) ->
+        case (patToMaybeIdent pat, boundE.val.eid == targetEId) of
+          (Just ident, True) -> Just (letExp, ident)
+          _                  -> Nothing
+      )
 
-          _ ->
-            Nothing
+
+-- Given an EId, look for a name bound to it and the let scope that defined the binding.
+--
+-- Looser on EId matching: targetEId and bound expression just need to
+-- simply resolve to the same expression (i.e. discarding type annotations etc.)
+findLetAndIdentBindingExpLoose : EId -> Exp -> Maybe (Exp, Ident)
+findLetAndIdentBindingExpLoose targetEId program =
+  findLetAndPatMatchingExp_
+      targetEId
+      program
+      (\letExp (pat, boundE) ->
+        case patToMaybeIdent pat of -- Works because boundE returned by matching is always outermost
+          Just ident ->
+            if List.member targetEId (expEffectiveEIds boundE)
+            then Just (letExp, ident)
+            else Nothing
+          _ -> Nothing
       )
 
 
 -- Given an EId, look for a pat matching it and the let scope that defined the binding.
+--
+-- You probably want findLetAndPatMatchingExpLoose
 --
 -- Will match and return PLists even though they don't introduce variables
 findLetAndPatMatchingExp : EId -> Exp -> Maybe (Exp, Pat)
@@ -2047,13 +2135,9 @@ findLetAndPatMatchingExpLoose targetEId program =
       targetEId
       program
       (\letExp (pat, boundE) ->
-        case findExpByEId boundE targetEId of
-          Just targetExp ->
-            if (expEffectiveExp targetExp).val.eid == (expEffectiveExp boundE).val.eid
-            then Just (letExp, pat)
-            else Nothing
-          Nothing ->
-            Nothing
+        if List.member targetEId (expEffectiveEIds boundE)
+        then Just (letExp, pat)
+        else Nothing
       )
 
 
@@ -2156,33 +2240,33 @@ numericLetBoundIdentifiers program =
       EApp _ _ _ _ _ -> False -- Not smart here.
       EOp _ op operands _ ->
         case op.val of
-          Pi         -> True
-          DictEmpty  -> False
-          Cos        -> True
-          Sin        -> True
-          ArcCos     -> True
-          ArcSin     -> True
-          Floor      -> True
-          Ceil       -> True
-          Round      -> True
-          ToStr      -> False
-          Sqrt       -> True
-          Explode    -> False
-          DebugLog   -> List.any recurse operands
-          NoWidgets  -> List.any recurse operands
-          Plus       -> List.any recurse operands -- Can have string addition.
-          Minus      -> True
-          Mult       -> True
-          Div        -> True
-          Lt         -> False
-          Eq         -> False
-          Mod        -> True
-          Pow        -> True
-          ArcTan2    -> True
-          DictGet    -> False
-          DictRemove -> False
-          DictInsert -> False
-          OptNumToString -> List.any recurse operands
+          Pi             -> True
+          DictEmpty      -> False
+          Cos            -> True
+          Sin            -> True
+          ArcCos         -> True
+          ArcSin         -> True
+          Floor          -> True
+          Ceil           -> True
+          Round          -> True
+          ToStr          -> False
+          Sqrt           -> True
+          Explode        -> False
+          DebugLog       -> List.any recurse operands
+          NoWidgets      -> List.any recurse operands
+          Plus           -> List.any recurse operands -- Can have string addition.
+          Minus          -> True
+          Mult           -> True
+          Div            -> True
+          Lt             -> False
+          Eq             -> False
+          Mod            -> True
+          Pow            -> True
+          ArcTan2        -> True
+          DictGet        -> False
+          DictRemove     -> False
+          DictInsert     -> False
+          OptNumToString -> False
 
       EList _ _ _ _ _               -> False
       EIf _ _ _ thenExp _ elseExp _ -> recurse thenExp && recurse elseExp
@@ -2195,8 +2279,8 @@ numericLetBoundIdentifiers program =
       EColonType _ e _ _ _          -> recurse e
       ETypeAlias _ _ _ body _       -> recurse body
       EParens _ e _ _               -> recurse e
-      EHole _ Nothing               -> False
-      EHole _ (Just val)            -> valIsNum val
+      EHole _ (HoleVal val)         -> valIsNum val
+      EHole _ _                     -> False
   in
   let expBindings = allSimplyResolvableLetBindings program in
   let findAllNumericIdents numericIdents =

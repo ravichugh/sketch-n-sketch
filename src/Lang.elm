@@ -159,7 +159,12 @@ type Exp__
   | EColonType WS Exp WS Type WS
   | ETypeAlias WS Pat Type Exp WS
   | EParens WS Exp ParensStyle WS
-  | EHole WS (Maybe Val) -- Internal intermediate, should not appear in code. (Yet.)
+  | EHole WS HoleContents -- Internal intermediate, should not appear in code. (Yet.)
+
+type HoleContents
+  = HoleEmpty
+  | HoleVal Val
+  | HolePredicate (Exp -> Bool) -- For matching code structure, see LangTools.matchExp below.
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -293,6 +298,9 @@ valExp val = val.provenance |> provenanceExp
 
 valEId : Val -> EId
 valEId val = (valExp val).val.eid
+
+valBasedOn : Val -> List Val
+valBasedOn val = val.provenance |> provenanceBasedOn
 
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
@@ -444,6 +452,10 @@ isFunc e = case e.val.e__ of
   EFun _ _ _ _ -> True
   _            -> False
 
+isValHole e = case e.val.e__ of
+  EHole _ (HoleVal _) -> True
+  _                   -> False
+
 isPVar p = case p.val.p__ of
   PVar _ _ _ -> True
   _          -> False
@@ -468,6 +480,9 @@ expEffectiveExps exp =
     EOption _ _ _ _ e         -> exp :: expEffectiveExps e
     EOp _ {val} [operand] _   -> if val == DebugLog || val == NoWidgets then exp :: expEffectiveExps operand else [exp]
     _                         -> [exp]
+
+expEffectiveEIds : Exp -> List EId
+expEffectiveEIds = expSameValueExps >> List.map (.val >> .eid)
 
 -- Skip through PParens
 patEffectivePat : Pat -> Pat
@@ -1036,7 +1051,7 @@ replaceExpNodePreservingPrecedingWhitespace : EId -> Exp -> Exp -> Exp
 replaceExpNodePreservingPrecedingWhitespace eid newNode root =
   mapExpNode
       eid
-      (\exp -> replacePrecedingWhitespace (precedingWhitespace exp) newNode)
+      (\exp -> copyPrecedingWhitespace exp newNode)
       root
 
 replaceExpNodeE__ : Exp -> Exp__ -> Exp -> Exp
@@ -1064,7 +1079,7 @@ replaceExpNodesPreservingPrecedingWhitespace eidToNewNode root =
   mapExpTopDown -- top down to handle replacements that are subtrees of each other; a naive eidToNewNode could however make this loop forever
     (\exp ->
       case Dict.get exp.val.eid eidToNewNode of
-        Just newExp -> replacePrecedingWhitespace (precedingWhitespace exp) newExp
+        Just newExp -> copyPrecedingWhitespace exp newExp
         Nothing     -> exp
     )
     root
@@ -1096,7 +1111,7 @@ replacePatNodePreservingPrecedingWhitespace : PId -> Pat -> Exp -> Exp
 replacePatNodePreservingPrecedingWhitespace pid newPat root =
   mapPatNode
       pid
-      (\pat -> replacePrecedingWhitespacePat (precedingWhitespacePat pat) newPat)
+      (\pat -> copyPrecedingWhitespacePat pat newPat)
       root
 
 mapType : (Type -> Type) -> Type -> Type
@@ -1311,16 +1326,6 @@ childExps e =
     EHole _ _                        -> []
 
 
-allEIds : Exp -> List EId
-allEIds exp =
-  flattenExpTree exp |> List.map (.val >> .eid)
-
-
-allPIds : Pat -> List PId
-allPIds pat =
-  flattenPatTree pat |> List.map (.val >> .pid)
-
-
 ------------------------------------------------------------------------------
 -- Conversion
 
@@ -1446,6 +1451,14 @@ traceToExp locIdToExp trace =
 
 -----------------------------------------------------------------------------
 -- Utility
+
+allEIds : Exp -> List EId
+allEIds exp =
+  flattenExpTree exp |> List.map (.val >> .eid)
+
+allPIds : Pat -> List PId
+allPIds pat =
+  flattenPatTree pat |> List.map (.val >> .pid)
 
 headExps : List (WS, Exp) -> List Exp
 headExps listHeads =
@@ -1637,11 +1650,11 @@ replaceB__ b b_ = { b | val = b_ }
 
 replaceP__PreservingPrecedingWhitespace  : Pat -> Pat__ -> Pat
 replaceP__PreservingPrecedingWhitespace  p p__ =
-  replaceP__ p p__ |> replacePrecedingWhitespacePat (precedingWhitespacePat p)
+  replaceP__ p p__ |> copyPrecedingWhitespacePat p
 
 replaceE__PreservingPrecedingWhitespace : Exp -> Exp__ -> Exp
 replaceE__PreservingPrecedingWhitespace e e__ =
-  replaceE__ e e__ |> replacePrecedingWhitespace (precedingWhitespace e)
+  replaceE__ e e__ |> copyPrecedingWhitespace e
 
 replaceBranchExp : Branch -> Exp -> Branch
 replaceBranchExp branch exp =
@@ -1767,8 +1780,9 @@ eList a b         = withDummyExpInfo <| EList space1 (List.map ((,) space0) a) s
 eTuple0 a         = eList0 a Nothing
 eTuple a          = eList a Nothing
 ePair e1 e2       = eTuple [e1, e2]
-eHoleVal0 v       = withDummyExpInfo <| EHole space0 (Just v)
-eHoleVal v        = withDummyExpInfo <| EHole space1 (Just v)
+eHoleVal0 v       = withDummyExpInfo <| EHole space0 (HoleVal v)
+eHoleVal v        = withDummyExpInfo <| EHole space1 (HoleVal v)
+eHolePred p       = withDummyExpInfo <| EHole space1 (HolePredicate p)
 
 eColonType e t    = withDummyExpInfo <| EColonType space1 e space1 (withDummyRange t) space0
 
