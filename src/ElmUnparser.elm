@@ -176,6 +176,8 @@ unparseOp op =
       "debug"
     NoWidgets ->
       "noWidgets"
+    OptNumToString ->
+      "optNumToString"
 
 unparseBranch : Branch -> String
 unparseBranch branch =
@@ -453,7 +455,14 @@ multilineContentUnparse e = case e.val.e__ of
   EOp sp1 op [left, right] sp2 ->
     case op.val of
       Plus ->
-        case left.val.e__ of
+        let unwrapOptNumToString x =
+          case x of
+            EOp spm1 op [arg] spm2 -> case op.val of
+              OptNumToString -> arg.val.e__
+              _ -> x
+            _ -> x
+        in
+        case unwrapOptNumToString left.val.e__ of
           EBase sp0 (EString _ s) ->
             multilineContentUnparse left ++ multilineContentUnparse right
           EVar sp0 ident as left ->

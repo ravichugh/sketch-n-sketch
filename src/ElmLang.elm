@@ -91,3 +91,5 @@ isInfixOperator op =
       False
     NoWidgets ->
       False
+    OptNumToString ->
+      False

@@ -80,6 +80,7 @@ type Op_
   | Cos | Sin | ArcCos | ArcSin
   | Floor | Ceil | Round
   | ToStr
+  | OptNumToString -- Keeps every values as they are, convert numbers to their string representation
   | Sqrt
   | Explode
   | DebugLog

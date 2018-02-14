@@ -441,12 +441,13 @@ multilineEscapedElmExpression: Parser Exp
 multilineEscapedElmExpression =
   inContext "expression in multi-line string" <|
   oneOf [
-    try <|
-      variableExpression spacesWithoutNewline,
+    try <| trackInfo <|
+      succeed (\v -> exp_ <| EOp space0 (withInfo OptNumToString v.start v.start) [v] space0)
+      |= variableExpression spacesWithoutNewline,
     try <| lazy <| \_ -> multilineGenericLetBinding,
     lazy <| \_ ->
       ( mapExp_ <| trackInfo <|
-          (succeed (\exp -> EParens space0 exp ElmSyntax space0)
+          (succeed (\exp -> (EOp space0 (withInfo OptNumToString exp.start exp.start) [withInfo (exp_ <| EParens space0 exp ElmSyntax space0) exp.start exp.end] space0))
           |= parens spacesWithoutNewline)
       )
   ]

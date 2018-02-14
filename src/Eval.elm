@@ -435,6 +435,12 @@ evalOp syntax env e bt opWithInfo es =
           ToStr      -> case vs of
             [val] -> VBase (VString (strVal val)) |> addProvenanceOk
             _     -> error ()
+          OptNumToString -> case vs of
+            [val] -> case val.v_ of
+              VConst _ (num, _) -> (VBase <| VString <| toString num) |> addProvenanceOk
+              VBase (VString v) as r -> r |> addProvenanceOk
+              _     -> error ()
+            _     -> error ()
       in
       case newValRes of
         Err s     -> Err s

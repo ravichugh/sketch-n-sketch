@@ -292,8 +292,41 @@ getUpdateStackOp env e oldVal out nextToUpdate =
               case op.val of
                 Explode    -> Debug.crash "Not implemented: update Explode "
                 DebugLog   -> Debug.crash "Not implemented: update DebugLog "
+                OptNumToString ->
+                  case out of
+                    Program exp -> UpdateError <| "Don't know how to update a OptNumToString with a program"
+                    Raw vOut ->
+                      let default () =
+                        case vOut.v_ of
+                          VBase (VString s) ->
+                            case Syntax.parser Syntax.Elm s of
+                              Err msg -> UpdateError <| "Could not parse new output value '"++s++"' for ToStr expression " ++ toString msg
+                              Ok parsed ->
+                                case doEval Syntax.Elm [] parsed of
+                                  Err msg -> UpdateError msg
+                                  Ok ((v, _), _) ->
+                                    case (opArgs, vs) of
+                                      ([opArg], [arg]) -> UpdateContinue env opArg arg (Raw v) <|
+                                          HandlePreviousResult <| \(env, newOpArg) ->
+                                            UpdateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
+                                      e -> UpdateError <| "[internal error] Wrong number of arguments in update OptNumToString: " ++ toString e
+                          e -> UpdateError <| "Expected string, got " ++ toString e
+                      in
+                      case vs of
+                        [original] ->
+                          case original.v_ of
+                            VBase (VString origS) ->
+                              case opArgs of
+                                [opArg] -> UpdateContinue env opArg original out <|
+                                  HandlePreviousResult <| \(env, newOpArg) ->
+                                    UpdateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
+                                e -> UpdateError <| "[internal error] Wrong number of argument values in update OptNumToString: " ++ toString e
+                            _ -> -- Everything else is unparsed to a string, we just parse it.
+                              default ()
+                        _ -> UpdateError <| "[internale error] Wrong number or arguments in updateOptNumtoString: " ++ toString e
                 ToStr      ->
                   case out of
+                    Program exp -> UpdateError <| "Don't know how to update a ToStr with a program"
                     Raw v ->
                       case v.v_ of
                         VBase (VString s) ->
@@ -309,9 +342,9 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                                           UpdateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
                                     e -> UpdateError <| "[internal error] Wrong number of arguments in update: " ++ toString e
                         e -> UpdateError <| "Expected string, got " ++ toString e
-                    Program exp -> UpdateError <| "Don't know how to update a ToStr with a program"
                 _ ->
                   case out of
+                    Program exp -> UpdateError <| "Don't know how to update an operation with a program"
                     Raw newVal ->
                       case maybeUpdateMathOp op vs oldVal newVal of
                         Errs msg -> UpdateError msg
@@ -320,8 +353,6 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                           UpdateRestart env argList (replaceV_ oldVal <| VList vs)
                             (Raw <| replaceV_ oldVal <| VList head) <|
                             handleRemainingResults lazyTail nextToUpdate
-                    Program exp ->
-                      UpdateError <| "Don't know how to update an operation with a program"
 
     ECase sp1 input branches sp2 ->
       case doEval Syntax.Elm env input of
