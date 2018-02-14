@@ -1327,6 +1327,8 @@ msgKeyDown keyCode =
       let
         currentKeyDown =
           isKeyDown keyCode old
+        somethingSelectedInOutput =
+          not (nothingSelectedInOutput old)
       in
         if keyCode == Keys.keyEsc then
           if Model.anyDialogShown old then
@@ -1345,25 +1347,22 @@ msgKeyDown keyCode =
                 (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
                 _                   -> new
 
-        -- TODO:
-        --   make a better way than old.outputMode /= ShowValue to decide
-        --   whether to enable output-tool-specific keyboard shortcuts
-        else if old.outputMode /= ShowValue && keyCode == Keys.keyE && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+        else if somethingSelectedInOutput && keyCode == Keys.keyE && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           let newModel = doMakeEqual old in
           newModel.synthesisResultsDict
           |> Dict.get "Make Equal"
           |> Maybe.andThen (Utils.findFirst isResultSafe)
           |> Maybe.map (\synthesisResult -> { newModel | code = Syntax.unparser old.syntax  (resultExp synthesisResult) } |> clearSynthesisResults |> upstateRun )
           |> Maybe.withDefault old
-        else if old.outputMode /= ShowValue && keyCode == Keys.keyBackspace then
+        else if somethingSelectedInOutput && keyCode == Keys.keyBackspace then
           deleteInOutput old
-        else if old.outputMode /= ShowValue && keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+        else if somethingSelectedInOutput && keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doDuplicate old
-        else if old.outputMode /= ShowValue && keyCode == Keys.keyG && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+        else if somethingSelectedInOutput && keyCode == Keys.keyG && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doGroup old
-        else if old.outputMode /= ShowValue && keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+        else if somethingSelectedInOutput && keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doUndo old
-        else if old.outputMode /= ShowValue && keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.any ((==) Keys.keyShift) old.keysDown && List.length old.keysDown == 2 then
+        else if somethingSelectedInOutput && keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.any ((==) Keys.keyShift) old.keysDown && List.length old.keysDown == 2 then
           doRedo old
 
         else if keyCode == Keys.keyEnter && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
