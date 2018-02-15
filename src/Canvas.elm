@@ -18,7 +18,7 @@ import ShapeWidgets exposing
   )
 import SleekLayout exposing (canvasPosition)
 import Sync
-import Draw exposing (pointZoneStyles)
+import Draw exposing (pointZoneStyles, colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected)
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
 
@@ -126,7 +126,7 @@ build dim model =
             , ("height", pixels dim.height)
             ]
         ]
-        ([outputElement] ++ [newShape] ++ widgetsAndDistances ++ selectBox)
+        ([outputElement] ++ widgetsAndDistances ++ [newShape] ++ selectBox)
     ]
   else
     [ outputElement
@@ -1213,13 +1213,6 @@ zoneDelete_ id shape x y transform =
 --------------------------------------------------------------------------------
 -- Selection Zones
 
--- http://www.colorpicker.com/
-
-colorPointSelected      = "#38F552" -- bright green
-colorPointNotSelected   = "#F5B038" -- "orange"
-colorLineSelected       = "#B4FADB" -- "blue"
-colorLineNotSelected    = "#FAB4D3" -- "red"
-
 hairStrokeWidth         = "9"
 
 type alias NodeIdAndAttrName     = (LangSvg.NodeId, String)
@@ -1293,9 +1286,10 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
   in
   let xyDot =
     let dotFill =
-      if Set.member id model.selectedShapes
-        then pointZoneStylesFillSelected model id
-        else pointZoneStyles.fill.shown
+      case (isShapeBeingDrawnSnappingToPoint model xVal yVal, Set.member id model.selectedShapes) of
+        (True, _) -> colorPointSelected
+        (_, True) -> pointZoneStylesFillSelected model id
+        _         -> pointZoneStyles.fill.shown
     in
     let isVisible =
       not (objectIsCurrentlyBeingManipulated model id)

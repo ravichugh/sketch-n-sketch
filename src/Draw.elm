@@ -1,5 +1,6 @@
 module Draw exposing
   ( pointZoneStyles
+  , colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected
   , drawDotSize
   -- , drawNewLine
   -- , drawNewRect
@@ -77,6 +78,14 @@ pointZoneStyles =
       , hidden = "rgba(0,0,0,0.0)"
       }
   }
+
+-- http://www.colorpicker.com/
+
+colorPointSelected      = "#38F552" -- bright green
+colorPointNotSelected   = "#F5B038" -- "orange"
+colorLineSelected       = "#B4FADB" -- "blue"
+colorLineNotSelected    = "#FAB4D3" -- "red"
+
 
 --------------------------------------------------------------------------------
 -- Bounding Boxes
@@ -282,11 +291,11 @@ drawNewFunction fName model pt1 pt2 =
       _     -> result
   in
   let inputPtDots =
-    let ((x1, _), (y1, _)) = pt1 in
-    let ((x2, _), (y2, _)) = pt2 in
-    [ svgXYDot (x1, y1) pointZoneStyles.fill.shown True [ LangSvg.attr "opacity" "0.4" ]
-    , svgXYDot (x2, y2) pointZoneStyles.fill.shown True [ LangSvg.attr "opacity" "0.4" ]
-    ]
+    let ((x1, x1Snap), (y1, y1Snap)) = pt1 in
+    let ((x2, x2Snap), (y2, y2Snap)) = pt2 in
+    let dot1 = if x1Snap == NoSnap || y1Snap == NoSnap then [svgXYDot (x1, y1) pointZoneStyles.fill.shown True [ LangSvg.attr "opacity" "0.4" ]] else [] in
+    let dot2 = if x2Snap == NoSnap || y2Snap == NoSnap then [svgXYDot (x2, y2) pointZoneStyles.fill.shown True [ LangSvg.attr "opacity" "0.4" ]] else [] in
+    dot1 ++ dot2
   in
   newFunctionCallExp fName model pt1 pt2
   |> Maybe.andThen

@@ -502,8 +502,23 @@ onMouseDrag lastPosition newPosition old =
             _             -> { old | mouseMode = MouseDrawNew (TwoPoints lastPointOnCanvas pointOnCanvas) }
 
         (_, TwoPoints startingPoint _) ->
-          let pointOnCanvas = ((mx, NoSnap), (my, NoSnap)) in
-          { old | mouseMode = MouseDrawNew (TwoPoints startingPoint pointOnCanvas) }
+          -- Currently, only point widgets have the Vals on then to snap to.
+          -- Everything else has dummy vals. Need to move features to Prelude rather than hard coding.
+          -- So much work to do!
+          let pointPerhapsWithSnap =
+            old.widgets
+            |> Utils.mapFirstSuccess
+                (\widget ->
+                  case widget of
+                    WPoint _ xVal _ yVal ->
+                      if Utils.distance (valToNum xVal, valToNum yVal) (toFloat mx, toFloat my) <= 7.0
+                      then Just ((valToInt xVal, SnapVal xVal), (valToInt yVal, SnapVal yVal))
+                      else Nothing
+                    _ -> Nothing
+                )
+            |> Maybe.withDefault ((mx, NoSnap), (my, NoSnap))
+          in
+          { old | mouseMode = MouseDrawNew (TwoPoints startingPoint pointPerhapsWithSnap) }
 
         (_, Offset1D (((x1Int, _), (y1Int, _)) as basePoint) _ _) ->
           let ((effectiveMX, effectiveMY), amountSnap) =
@@ -569,29 +584,7 @@ onMouseUp old =
 
     (_, MouseDrawNew points) ->
       let resetMouseMode model = { model | mouseMode = MouseNothing } in
-      -- TODO Possibly resolve the second point to a snap
-      let pointsWithSnaps =
-        case points of
-          TwoPoints pt1 ((x2, NoSnap), (y2, NoSnap)) ->
-            -- Currently, only point widgets have the Vals on then to snap to.
-            -- Everything else has dummy vals. Need to move features to Prelude rather than hard coding.
-            -- So much work to do!
-            let maybeSnap =
-              old.widgets
-              |> Utils.mapFirstSuccess
-                  (\widget ->
-                    case widget of
-                      WPoint _ xVal _ yVal -> if Utils.distance (valToNum xVal, valToNum yVal) (toFloat x2, toFloat y2) <= 7.0 then Just (xVal, yVal) else Nothing
-                      _                    -> Nothing
-                  )
-            in
-            case maybeSnap of
-              Just (xVal, yVal) -> TwoPoints pt1 ((valToInt xVal, SnapVal xVal), (valToInt yVal, SnapVal yVal))
-              Nothing           -> points
-          _ ->
-            points
-      in
-      case (old.tool, pointsWithSnaps, old.keysDown == [Keys.keyShift]) of
+      case (old.tool, points, old.keysDown == [Keys.keyShift]) of
 
         (Line _,     TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt1 pt2
         (HelperLine, TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt1 pt2

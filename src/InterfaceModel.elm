@@ -278,6 +278,11 @@ isShapeBeingDrawnSnappingToVal model val =
     _ ->
       False
 
+isShapeBeingDrawnSnappingToPoint : Model -> Val -> Val -> Bool
+isShapeBeingDrawnSnappingToPoint model xVal yVal =
+  isShapeBeingDrawnSnappingToVal model xVal &&
+  isShapeBeingDrawnSnappingToVal model yVal
+
 snapValsOfShapeBeingDrawn : ShapeBeingDrawn -> List Val
 snapValsOfShapeBeingDrawn shapeBeingDrawn =
   case shapeBeingDrawn of
