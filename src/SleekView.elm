@@ -318,12 +318,16 @@ hoverMenu title dropdownContent =
     False
     dropdownContent
 
+-- Configuration flag to indicate whether Code and Output Tools
+--   have been run and cached.
+indicateWhetherToolIsCached = True
+
 synthesisHoverMenu : Model -> String -> String -> Msg -> Bool -> Html Msg
 synthesisHoverMenu model resultsKey title onMouseEnter disabled =
   let cached = Dict.member resultsKey model.synthesisResultsDict in
   generalHoverMenu
-    ( if cached -- if desired, can indicate whether this tool has been run and cached
-        then title -- ++ " ✓"
+    ( if cached && indicateWhetherToolIsCached
+        then title ++ " ✓"
         else title
     )
     ( if cached
@@ -394,9 +398,8 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
         italicizeQuotes "'" result.description
       else
         [ Html.text <|
-            -- if desired, can indicate whether this tool has been run and cached
-            if alreadyRun
-              then result.description -- ++ " ✓"
+            if alreadyRun && indicateWhetherToolIsCached
+              then result.description ++ " ✓"
               else result.description
         ]
   in
