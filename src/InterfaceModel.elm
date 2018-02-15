@@ -175,6 +175,8 @@ type alias Model =
   , giveUpConfirmed : Bool
   , lastSelectedTemplate : Maybe String
   , valueEditorString : String
+  , attributeValueUpdates : Dict (Int, String) String
+  , textValueUpdates : Dict Int String
   , syntax : Syntax
   }
 
@@ -805,6 +807,12 @@ needsRun m =
 valueEditorNeedsCallUpdate model =
   Update.valToString model.inputVal /= model.valueEditorString
 
+domEditorNeedsCallUpdate model =
+  Utils.or
+    [ not <| Dict.isEmpty model.attributeValueUpdates
+    , not <| Dict.isEmpty model.textValueUpdates
+    ]
+
 --------------------------------------------------------------------------------
 
 oneSafeResult newExp =
@@ -1031,6 +1039,7 @@ autoOutputToolsPopupPanelShown model =
     , not <| Set.isEmpty model.selectedShapes
     , not <| Dict.isEmpty model.selectedBlobs
     , model.outputMode == ShowValue && valueEditorNeedsCallUpdate model
+    , domEditorNeedsCallUpdate model
     ]
 
 --------------------------------------------------------------------------------
@@ -1176,5 +1185,7 @@ initModel =
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
     , valueEditorString = Update.valToString v
+    , attributeValueUpdates = Dict.empty
+    , textValueUpdates = Dict.empty
     , syntax = Syntax.Elm
     }

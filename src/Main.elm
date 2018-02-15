@@ -84,6 +84,8 @@ subscriptions model =
     , AceCodeBox.receiveEditorState Controller.msgAceUpdate
     , AceCodeBox.userHasTyped (always Controller.msgUserHasTyped)
     , OutputCanvas.receiveOutputCanvasState Controller.msgOutputCanvasUpdate
+    , OutputCanvas.receiveAttributeValueUpdate Controller.msgAttributeValueUpdate
+    , OutputCanvas.receiveTextValueUpdate Controller.msgTextValueUpdate
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.receiveMessage
         Controller.fileMessageHandler

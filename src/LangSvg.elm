@@ -119,6 +119,7 @@ maxStrokeWidthNum = 20
 
 ------------------------------------------------------------------------------
 -- RootedIndexedTree (a.k.a. "Slate"): tree representation of SVG Canvas Value
+-- TODO rename this to IndexedValue or LabeledValue or similar
 
 type alias ShapeKind = String
 type alias NodeId = Int
@@ -214,10 +215,12 @@ valToAttr v = case v.v_ of
 
           ("fill"  , VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
           ("stroke", VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
+          ("color", VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
           ("background-color", VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
 
           ("fill",   VConst _ it) -> Ok <| AColorNum (it, Nothing)
           ("stroke", VConst _ it) -> Ok <| AColorNum (it, Nothing)
+          ("color", VConst _ it) -> Ok <| AColorNum (it, Nothing)
           ("background-color", VConst _ it) -> Ok <| AColorNum (it, Nothing)
 
           ("fill",   VList [v1,v2]) ->
@@ -228,6 +231,11 @@ valToAttr v = case v.v_ of
             case (v1.v_, v2.v_) of
               (VConst _ it1, VConst _ it2) -> Ok  <| AColorNum (it1, Just it2)
               _                            -> Err <| "bad stroke: " ++ strVal v2
+
+          ("color", VList [v1,v2]) ->
+            case (v1.v_, v2.v_) of
+              (VConst _ it1, VConst _ it2) -> Ok  <| AColorNum (it1, Just it2)
+              _                            -> Err <| "bad color: " ++ strVal v2
 
           ("background-color", VList [v1,v2]) ->
             case (v1.v_, v2.v_) of

@@ -88,19 +88,33 @@ function listenForUpdatesToOutputValues() {
           + "New Value: " + newAttrValue
           );
 
+        app.ports.receiveAttributeValueUpdate.send
+          ([ parseInt(mutation.target.id.slice("_outputValue_".length))
+           , mutation.attributeName
+           , newAttrValue
+           ]);
+
       } else if (mutation.type == "characterData") {
 
         var parentId;
         if (mutation.target.parentNode) { // parentElement?
           parentId = mutation.target.parentNode.id;
         } else {
-          parentId = "NO PARENT";
+          // parentId = "NO PARENT";
         }
+
         console.log
           ( "Id: "        + parentId + "; "
           + "Old Text: "  + mutation.oldValue + "; "
           + "New Text : " + mutation.target.textContent // innerHtml?
           );
+
+        if (parentId) {
+          app.ports.receiveTextValueUpdate.send
+            ([ parseInt(parentId.slice("_outputValue_".length))
+             , mutation.target.textContent
+             ]);
+        }
 
       // https://www.w3schools.com/jsref/prop_node_nodename.asp
 

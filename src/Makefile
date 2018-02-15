@@ -68,6 +68,7 @@ loc:
 		ValUnparser.elm \
     Types.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
+    Update.elm \
     InterfaceModel.elm \
     Canvas.elm \
     SleekView.elm SleekLayout.elm \
@@ -85,7 +86,7 @@ loc:
     ColorScheme.elm Native/colorScheme.js \
     SyntaxHighlight.elm Native/syntaxHighlight.js \
     Main.elm Config.elm \
-    Utils.elm Either.elm Updatable.elm \
+    Utils.elm Either.elm Results.elm Updatable.elm \
     HtmlUtils.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm \

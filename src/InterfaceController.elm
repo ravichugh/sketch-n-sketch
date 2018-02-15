@@ -11,6 +11,7 @@ port module InterfaceController exposing
   , msgAceUpdate
   , msgUserHasTyped
   , msgOutputCanvasUpdate
+  , msgAttributeValueUpdate, msgTextValueUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction
   , msgSelectSynthesisResult, msgClearSynthesisResults
@@ -86,7 +87,7 @@ import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
 import Update
-import Results
+import Results exposing (Results(..), LazyList(..))
 import Utils
 import Keys
 import InterfaceModel as Model exposing (..)
@@ -1643,8 +1644,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
     { old | code = newCode
           , lastRunCode = newCode
           , history = addToHistory newCode old.history
-          , synthesisResultsDict = Dict.empty
-          }
+          } |> clearSynthesisResults
   in
   runWithErrorHandling new newExp (\reparsed newVal newWidgets newSlate newCode ->
     -- debugLog "new model" <|
@@ -1655,7 +1655,6 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
             , slate                = newSlate
             , slateCount           = 1 + old.slateCount
             , widgets              = newWidgets
-            , preview              = Nothing
             , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old reparsed)
       } |> clearSelections
       in
@@ -1667,7 +1666,12 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
 
 clearSynthesisResults : Model -> Model
 clearSynthesisResults old =
-  { old | preview = Nothing, synthesisResultsDict = Dict.empty }
+  { old
+      | preview = Nothing
+      , synthesisResultsDict = Dict.empty
+      , attributeValueUpdates = Dict.empty
+      , textValueUpdates = Dict.empty
+      }
 
 msgClearSynthesisResults : Msg
 msgClearSynthesisResults =
@@ -1921,60 +1925,72 @@ msgUpdateValueEditor s = Msg "Update Value Editor" <| \m ->
 msgCallUpdate = Msg "Call Update" doCallUpdate
 
 doCallUpdate m =
-  let updatedExp = Syntax.parser m.syntax m.valueEditorString
-    |> Result.mapError (\e -> toString e)
-    |> Result.andThen (Eval.doEval m.syntax [])
-    |> Result.map (\((v, _), _) -> Update.Raw v)
-    |> Results.fromResult
-    |> Results.andThen (\out -> Update.update Eval.initEnv m.inputExp m.inputVal out Results.LazyNil)
+  let updatedValResult =
+    if domEditorNeedsCallUpdate m then
+      (m.attributeValueUpdates, m.textValueUpdates)
+        |> Update.buildUpdatedValueFromDomListener m.slate
+        |> Ok
+    else
+      m.valueEditorString
+        |> Update.buildUpdatedValueFromEditorString m.syntax
   in
-  case updatedExp of
-    Results.Errs msg ->
-      let allResults =
-        [synthesisResult ("Error while updating: " ++ msg ++ ". Revert to original program?") m.inputExp]
-      in
-      { m
-          | synthesisResultsDict =
-              Dict.insert "Update for New Output" allResults m.synthesisResultsDict
-          }
-    Results.Oks solutions ->
+  let updatedExpResults =
+    Update.doUpdate m.inputExp m.inputVal updatedValResult
+  in
+  let revertChanges caption =
+    synthesisResult caption m.inputExp
+  in
+  let showSolutions results =
+    { m
+        | synthesisResultsDict =
+            Dict.insert "Update for New Output" results m.synthesisResultsDict
+        }
+  in
+  case updatedExpResults of
+    Errs msg ->
+      showSolutions [revertChanges ("Error while updating: " ++ msg ++ ". Revert?")]
+
+    Oks solutions ->
       let solutionsNotModifyingEnv =
          Results.filterLazy
-           (\(env, exp) -> Update.envEqual (Update.pruneEnv exp env) (Update.pruneEnv exp Eval.initEnv)) solutions
+           (\(env, exp) -> Update.envEqual (Update.pruneEnv exp env) (Update.pruneEnv exp Eval.initEnv))
+           solutions
       in
-      -- TODO flag for showing all options or just picking the first
       case solutionsNotModifyingEnv of
-        Results.LazyNil ->
+        LazyNil ->
           case solutions of
-            Results.LazyNil ->
-              let allResults =
-                [synthesisResult "No solution found. Revert?" m.inputExp]
-              in
-              { m
-                  | synthesisResultsDict =
-                      Dict.insert "Update for New Output" allResults m.synthesisResultsDict
-                  }
-            _ ->
-              let allResults =
-                [synthesisResult "Only solutions modifying the library. Revert?" m.inputExp]
-              in
-              { m
-                  | synthesisResultsDict =
-                      Dict.insert "Update for New Output" allResults m.synthesisResultsDict
-                  }
-        _ ->
-          let results =
-            Utils.mapi1
+            LazyNil ->
+              showSolutions [revertChanges "No solution found. Revert?"]
+
+            LazyCons _ _ ->
+              showSolutions [revertChanges "Only solutions modifying the library. Revert?"]
+
+        LazyCons _ _ ->
+          let allResults =
+             Utils.mapi1
                (\(i,(_,newCodeExp)) -> synthesisResult ("Program Update " ++ toString i) newCodeExp)
                (Results.toList solutionsNotModifyingEnv)
           in
-          let allResults =
-            results ++ [synthesisResult "Revert to Original Program" m.inputExp]
-          in
-          { m
-              | synthesisResultsDict =
-                  Dict.insert "Update for New Output" allResults m.synthesisResultsDict
-              }
+          showSolutions (allResults ++ [revertChanges "Revert to Original Program"])
+
+msgAttributeValueUpdate (i, attribute, newValue) =
+  Msg "Attribute Value Update" <| \m ->
+    { m
+        | attributeValueUpdates =
+            Dict.insert (i, attribute) newValue m.attributeValueUpdates
+        }
+
+msgTextValueUpdate (i, newText) =
+  Msg "Text Value Update" <| \m ->
+    { m
+        | textValueUpdates =
+            Dict.insert i newText m.textValueUpdates
+        }
+
+-- Attribute and text value updates through the DOM are received
+-- even when they are the result from hoving/leaving preview menu
+-- items. Oh well, they always get updated back to their previous
+-- values when previews are cleared.
 
 
 --------------------------------------------------------------------------------

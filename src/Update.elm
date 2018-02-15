@@ -1,23 +1,38 @@
-module Update exposing  (..)
+module Update exposing
+  ( valToString
+  , envEqual
+  , pruneEnv
+  , buildUpdatedValueFromEditorString
+  , buildUpdatedValueFromDomListener
+  , doUpdate
+  )
 
-import Tuple exposing (first)
 import Lang exposing (..)
 import Eval exposing (doEval)
 import Utils
-import Syntax
+import Syntax exposing (Syntax)
 import Results exposing
   ( Results(..)
   , ok1, oks, okLazy
   , LazyList(..)
   , appendLazy, appendLazyLazy, mapLazy, andThenLazy, isLazyNil
   , lazyFromList
-  , lazyCons2)
+  , lazyCons2
+  )
 import MissingNumberMethods exposing (..)
 import ValUnparser exposing (strVal)
-import Lazy
 import LangTools
+import LangSvg exposing
+  ( NodeId, ShapeKind
+  , AVal, AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
+  , Attr, IndexedTree, RootedIndexedTree, IndexedTreeNode, IndexedTreeNode_(..)
+  )
+
+import Tuple exposing (first)
 import Set
 import LangParserUtils
+import Dict exposing (Dict)
+import Lazy
 
 unparse = Syntax.unparser Syntax.Elm
 unparsePattern = Syntax.patternUnparser Syntax.Elm
@@ -39,13 +54,19 @@ type UpdateStack = UpdateResult      Env Exp
 type Output = Raw Val | Program Exp
 type alias Input = Exp
 
+doUpdate : Exp -> Val -> Result String Val -> Results String (Env, Exp)
+doUpdate oldExp oldVal newValResult =
+  newValResult
+    |> Result.map Raw
+    |> Results.fromResult
+    |> Results.andThen (\out -> update Eval.initEnv oldExp oldVal out LazyNil)
+
 updateEnv: Env -> Ident -> Val -> Env
 updateEnv env k value =
   case env of
     [] -> Debug.crash <| k ++ " not found in environment "
     ((kk, vv) as kv)::tail ->
       if kk == k then (kk, value)::tail else kv::updateEnv tail k value
-
 
 -- Make sure that Env |- Exp evaluates to oldVal
 update : Env -> Exp -> Val -> Output -> LazyList NextAction -> Results String (Env, Exp)
@@ -1062,3 +1083,149 @@ expEqual e1_ e2_ =
     wsEqual sp1 sp2
   _ -> False
 --}
+
+
+--------------------------------------------------------------------------------
+-- Value builders with dummy ids, brought back from the dead in Lang
+
+val : Val_ -> Val
+val v_ = Val v_ (Provenance [] (eVar "DUMMYEXP") []) (Parents [])
+
+-- vTrue    = vBool True
+-- vFalse   = vBool False
+-- vBool    = val << VBase << VBool
+vStr     = val << VBase << VString
+vConst   = val << VConst Nothing
+-- vBase    = val << VBase
+vList    = val << VList
+-- vDict    = val << VDict
+
+
+--------------------------------------------------------------------------------
+-- Updated value from changes through text-based value editor
+
+buildUpdatedValueFromEditorString : Syntax -> String -> Result String Val
+buildUpdatedValueFromEditorString syntax valueEditorString =
+  valueEditorString
+    |> Syntax.parser syntax
+    |> Result.mapError (\e -> toString e)
+    |> Result.andThen (Eval.doEval syntax [])
+    |> Result.map (\((v, _), _) -> v)
+
+
+--------------------------------------------------------------------------------
+-- Updated value from changes through DOM editor
+
+buildUpdatedValueFromDomListener
+   : RootedIndexedTree
+  -> (Dict (Int, String) String, Dict Int String)
+  -> Val
+buildUpdatedValueFromDomListener (rootId, oldTree) (attributeValueUpdates, textValueUpdates) =
+  let
+    oldValue : Val
+    oldValue =
+      oldTree
+        |> Utils.justGet rootId
+        |> .val
+
+    newValue : Val
+    newValue =
+      translateNode rootId rootId
+
+    translateNode : NodeId -> NodeId -> Val
+    translateNode parentId thisId =
+      let node = Utils.justGet_ "translateNode" thisId oldTree in
+      case Dict.get parentId textValueUpdates of
+        Just newText ->
+          let parentNode = Utils.justGet parentId oldTree in
+          case parentNode.interpreted of
+            SvgNode kind attrs [_] ->
+              vList
+                [ vStr kind
+                , vList (List.map (translateAttr thisId) attrs)
+                , vList [vList [vStr "TEXT", vStr newText]]
+                ]
+            _ ->
+              Debug.crash "translateNode"
+
+        Nothing ->
+          case node.interpreted of
+            TextNode s ->
+              vList [vStr "TEXT", vStr s]
+            SvgNode kind attrs childIndices ->
+              vList
+                [ vStr kind
+                , vList (List.map (translateAttr thisId) attrs)
+                , vList (List.map (translateNode parentId) childIndices)
+                ]
+
+    translateAttr : NodeId -> LangSvg.Attr -> Val
+    translateAttr thisId (attrName, attrAVal) =
+      case Dict.get (thisId, attrName) attributeValueUpdates of
+        Nothing ->
+          vList [vStr attrName, attrAVal.val]
+
+        Just newAttrValString ->
+          -- let _ = Debug.log "need to update" (thisId, attrName, newAttrValString) in
+          case (attrName, attrAVal.interpreted) of
+            ("style", AStyle list) ->
+              let newStylePairs =
+                newAttrValString
+                  |> String.split ";"
+                  |> List.map (String.split ":")
+                  |> List.concatMap (\list ->
+                       case list of
+                         []      -> []
+                         [s1,s2] -> [(s1,s2)]
+                         _       -> let _ = Debug.log "WARN: translateAttr style" list in
+                                    []
+                     )
+                  |> List.map (Utils.mapBoth String.trim)
+              in
+              -- let _ = Debug.log "style pairs" newStylePairs in
+              vList [vStr attrName, vList (translateStyleAttrs list newStylePairs)]
+            ("style", _) ->
+              let _ = Debug.log "WARN: translateAttr: bad style" (valToString attrAVal.val) in
+              vList [vStr attrName, attrAVal.val]
+            _ ->
+              vList [vStr attrName, updateAttrVal attrAVal newAttrValString]
+
+    updateAttrVal : AVal -> String -> Val
+    updateAttrVal oldAttrAVal newAttrValString =
+      let translationFailed () =
+        let _ =
+          Debug.log "WARN: updateAttrVal failed" (valToString oldAttrAVal.val, newAttrValString)
+        in
+        oldAttrAVal.val
+      in
+      case oldAttrAVal.interpreted of
+        AString _ ->
+          vStr newAttrValString
+        ANum _ ->
+          String.toFloat newAttrValString
+            |> Result.map (\n -> vConst (n, dummyTrace))
+            |> Result.withDefault (translationFailed ())
+        -- TODO: add more cases
+        -- TODO: can update support change in representation type?
+        _ ->
+          translationFailed ()
+
+    translateStyleAttrs : List (String, AVal) -> List (String, String) -> List Val
+    translateStyleAttrs oldList newList =
+      let translateOne (k, attrAVal) =
+        case Utils.maybeFind k newList of
+          Just newAttrValString  ->
+            updateAttrVal attrAVal newAttrValString
+          Nothing ->
+            attrAVal.val
+      in
+      List.map
+        (\pair -> vList [vStr (Tuple.first pair), translateOne pair])
+        oldList
+  in
+  -- let
+  --   _ = Debug.log "old value" (valToString oldValue)
+  --   _ = Debug.log "new value" (valToString newValue)
+  --   _ = Debug.log "values equal" (valEqual oldValue newValue)
+  -- in
+  newValue

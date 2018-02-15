@@ -2,6 +2,8 @@ port module OutputCanvas exposing
   ( initialize
   , resetScroll
   , receiveOutputCanvasState
+  , receiveAttributeValueUpdate
+  , receiveTextValueUpdate
   )
 
 import InterfaceModel as Model exposing (Model, OutputCanvasInfo)
@@ -28,3 +30,7 @@ sendCmd message =
 -- Incoming
 
 port receiveOutputCanvasState : (OutputCanvasInfo -> msg) -> Sub msg
+
+port receiveAttributeValueUpdate : ((Int, String, String) -> msg) -> Sub msg
+
+port receiveTextValueUpdate : ((Int, String) -> msg) -> Sub msg
