@@ -3,9 +3,11 @@ module UpdateTests exposing (..)
 import Helpers.Matchers exposing (..)
 
 import Update exposing (..)
-
+import UpdateRegex exposing (..)
+import UpdateStack exposing (..)
 import Lang exposing (..)
-
+import GroupStartMap exposing (..)
+import Regex
 import Utils
 import Eval
 import Syntax
@@ -45,10 +47,10 @@ log state msg =
   "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] " ++ msg
 
 assertEqual: a -> a -> State  -> State
-assertEqual x y state =
+assertEqual obtained expected state =
   if state.ignore then state else
-  if x == y then success state else fail state <| "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] Expected \n" ++
-      toString y ++ ", got\n" ++ toString x
+  if obtained == expected then success state else fail state <| "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] Expected \n" ++
+      toString expected ++ ", got\n" ++ toString obtained
 
 updateAssert: Env -> Exp -> Val -> Val -> Env -> String  -> State  -> State
 updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
@@ -57,7 +59,7 @@ updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
   let problemdesc = ("\nFor problem:" ++
     envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
     " (was " ++ valToString origOut ++ ")") in
-  case update env exp origOut (Update.Raw newOut) Results.LazyNil of
+  case update env exp origOut (Raw newOut) Results.LazyNil of
     Results.Oks (Results.LazyCons (envX, expX) lazyTail) ->
       let obtained = envToString envX ++ " |- " ++ unparse expX in
       if obtained == expected then success state else
@@ -142,7 +144,7 @@ tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat s
 
 all_tests = init_state
   |> test "triCombineTest"
-  --|> ignore True
+  |> ignore True
   |> assertEqual
       (triCombine (tList space0  [tVar space0 "x", tVar space0 "y"] space0)
                   [("y", (tVal 2)), ("x", (tVal 1))]
@@ -379,4 +381,23 @@ all_tests = init_state
       |> updateElmAssert
         [] "\"\"\"@let x = (\"Hello\" + \n \" big\")\n@x world\"\"\"" "\"Hello tall world\""
         [] "\"\"\"@let x = (\"Hello\" + \n \" tall\")\n@x world\"\"\""
+  |> test "Finding all regex matches"
+    |> assertEqual (Results.toList <| allInterleavingsIn ["A", "BB", "C"] "xAyBBBzAoBBpCC")
+      [ ["x","y","BzAoBBp","C"]
+      , ["x","y","BzAoBBpC",""]
+      , ["x", "yB", "zAoBBp","C"]
+      , ["x", "yB", "zAoBBpC",""]
+      , ["x", "yBBBzAo", "p","C"]
+      , ["x", "yBBBzAo", "pC",""]
+      , ["xAyBBBz", "o", "p","C"]
+      , ["xAyBBBz", "o", "pC",""]
+      ]
+  |> ignore False
+  |> test "GroupStartMap"
+    |> assertEqual (List.map (\{submatches} -> submatches) (GroupStartMap.find Regex.All "a((bc)|cd)d" "aabcdacdd"))
+        [[{match = Just "bc", start = 2}, {match = Just "bc", start = 2}], [{match = Just "cd", start = 6}, {match = Nothing, start = -1}]]
+    |> assertEqual (GroupStartMap.replace Regex.All "a((bc)|cd)d" (
+      \match -> String.concat <| List.map (\subm -> toString subm.start ++ Maybe.withDefault "null" subm.match) match.submatches
+      ) "aabcdacdd")
+        "a2bc2bc6cd-1null"
   |> summary

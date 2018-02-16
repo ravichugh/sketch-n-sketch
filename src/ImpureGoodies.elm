@@ -45,7 +45,6 @@ mutateRecordField : a -> String -> b -> a
 mutateRecordField record fieldName newValue =
   Native.ImpureGoodies.mutateRecordField record fieldName newValue
 
-
 timedRun : (() -> a) -> (a, Float)
 timedRun thunk =
   Native.ImpureGoodies.timedRun thunk
@@ -56,3 +55,7 @@ logTimedRun caption thunk =
   let (result, time) = timedRun thunk in
   let _ = Debug.log (caption ++ " milliseconds") time in
   result
+
+stringCharAt: Int -> String -> Maybe Char
+stringCharAt index string =
+  Native.ImpureGoodies.stringCharAt index string

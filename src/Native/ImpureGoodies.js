@@ -20,6 +20,16 @@ var _user$project$Native_ImpureGoodies = {
       }
     },
 
+    stringCharAt : function(index) {
+      return function(string) {
+        if(index >= string.length || index < 0) {
+          return _elm_lang$core$Maybe$Nothing;
+        } else {
+          return _elm_lang$core$Maybe$Just(string[index]);
+        }
+      }
+    },
+
     crashToError : function(thunk) {
       try {
         // Ok (thunk ())

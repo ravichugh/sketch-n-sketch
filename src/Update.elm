@@ -33,26 +33,12 @@ import Set
 import LangParserUtils
 import Dict exposing (Dict)
 import Lazy
+import Regex exposing (regex, HowMany(..), find, Match, escape)
+import UpdateStack exposing (NextAction(..), UpdateStack(..), Output(..))
+import UpdateRegex exposing (..)
 
 unparse = Syntax.unparser Syntax.Elm
 unparsePattern = Syntax.patternUnparser Syntax.Elm
-
-type NextAction = HandlePreviousResult ((Env, Exp) -> UpdateStack)
-                | Fork Env Exp Val Output (LazyList NextAction)
-
-type UpdateStack = UpdateResult      Env Exp
-                 | UpdateResults     Env Exp (Lazy.Lazy (LazyList (Env, Exp)))
-                 | UpdateIdem        Env Exp Val Output
-                 | UpdateContinue    Env Exp Val Output NextAction
-                 | UpdateRestart     Env Exp Val Output (LazyList NextAction)
-                 | UpdateAlternative Env Exp Val Env Exp Val Output (LazyList NextAction)
-                 | UpdateError String
-                 -- The new expression, the new output, what to add to the stack with the result of the update above.
-
-
-
-type Output = Raw Val | Program Exp
-type alias Input = Exp
 
 doUpdate : Exp -> Val -> Result String Val -> Results String (Env, Exp)
 doUpdate oldExp oldVal newValResult =
