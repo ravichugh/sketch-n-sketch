@@ -28,6 +28,7 @@ import FastParser
 import LangTools
 import LangUnparser
 import StaticAnalysis
+import ColorNum
 import Provenance
 import Utils
 import Either exposing (..)
@@ -259,9 +260,28 @@ drawNewPath (keysLast,ptLast) keysAndPoints =
 --------------------------------------------------------------------------------
 -- New Shapes (previously in Controller)
 
-randomColor model = eConst0 (toFloat model.randomColor) dummyLoc
+useColorNums = False
 
-randomColor1 model = eConst (toFloat model.randomColor) dummyLoc
+-- Uses of the following functions are a bit messier now because they
+-- return different types of Little expressions.
+
+randomColor model =
+  if useColorNums then
+    eConst0 (toFloat model.randomColor) dummyLoc
+  else
+    eStr0 (ColorNum.randomHtmlColorName model.randomColor)
+
+randomColor1 model =
+  if useColorNums then
+    eConst (toFloat model.randomColor) dummyLoc
+  else
+    eStr (ColorNum.randomHtmlColorName model.randomColor)
+
+eDefaultStroke =
+  if useColorNums then
+    eConst 360 dummyLoc
+  else
+    eStr "black"
 
 {-
 randomColorWithSlider model =
@@ -317,7 +337,7 @@ addLine old click2 click1 =
 addRawRect old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
   let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
-  let (fill, stroke, strokeWidth) = (old.randomColor, old.randomColor, 0) in
+  let (fill, stroke, strokeWidth) = (randomColor old, eDefaultStroke, 0) in
   let (rot) = 0 in
   addShapeToModel old "rect"
     (stencilRawRect x y w h fill stroke strokeWidth rot)
@@ -325,7 +345,7 @@ addRawRect old (_,pt2) (_,pt1) =
 stencilRawRect x y w h fill stroke strokeWidth rot =
   makeCallWithLocals
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
-    , makeLet ["fill", "stroke","strokeWidth"] (makeInts [fill, stroke, strokeWidth])
+    , makeLet ["fill", "stroke","strokeWidth"] [fill, stroke, eConstDummyLoc strokeWidth]
     , makeLet ["rot"] [eConst (toFloat rot) dummyLoc] ]
     (eVar0 "rawRect")
     [ eVar "fill", eVar "stroke", eVar "strokeWidth"
@@ -341,7 +361,7 @@ addRawSquare old (_,pt2) (_,pt1) =
         [ makeLet ["x","y","side"] (makeInts [x,y,side])
         , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
         (eVar0 "rawRect")
-        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+        [ eVar "color", eDefaultStroke, eConst 0 dummyLoc
         , eVar "x", eVar "y", eVar "side", eVar "side", eVar "rot" ]
   in
   addShapeToModel old "square" squareExp
@@ -350,17 +370,17 @@ addRawSquare old (_,pt2) (_,pt1) =
 
 addStretchyRect old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, yMax) = boundingBox pt2 pt1 in
-  let (fill) = (old.randomColor) in
-  let (stroke, strokeWidth, rot) = (360, 0, 0) in
+  let (fill) = (randomColor old) in
+  let (stroke, strokeWidth, rot) = (eDefaultStroke, 0, 0) in
   addShapeToModel old "rect"
     (stencilStretchyRect xMin yMin xMax yMax fill stroke strokeWidth rot)
 
 stencilStretchyRect left top right bot fill stroke strokeWidth rot =
   makeCallWithLocals
     [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [left,top,right,bot])
-    , makeLet ["color"] [eConst (toFloat fill) dummyLoc] ]
+    , makeLet ["color"] [fill] ]
     (eVar0 "rectangle")
-    [eVar "color", eConst (toFloat stroke) dummyLoc, eConst (toFloat strokeWidth) dummyLoc
+    [eVar "color", stroke, eConst (toFloat strokeWidth) dummyLoc
     , eConst (toFloat rot) dummyLoc, eVar "bounds"]
 
 --------------------------------------------------------------------------------
@@ -374,7 +394,7 @@ addStretchySquare old (_,pt2) (_,pt1) =
         , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
         , makeLet ["rot"] [eConst 0 dummyLoc]
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+                  [randomColor old, eDefaultStroke, eConst 0 dummyLoc] ]
         (eVar0 "rectangle")
         (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
   in
@@ -391,7 +411,7 @@ addRawOval old (_,pt2) (_,pt1) =
         [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
         , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
         (eVar0 "rawEllipse")
-        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+        [ eVar "color", eDefaultStroke, eConst 0 dummyLoc
         , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
   in
   addShapeToModel old "ellipse" ellipseExp
@@ -407,7 +427,7 @@ addRawCircle old (_,pt2) (_,pt1) =
         [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
         , makeLet ["color"] [randomColor1 old] ]
         (eVar0 "rawCircle")
-        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+        [ eVar "color", eDefaultStroke, eConst 0 dummyLoc
         , eVar "cx", eVar "cy", eVar "r" ]
   in
   addShapeToModel old "circle" circleExp
@@ -420,7 +440,7 @@ addStretchyOval old (_,pt2) (_,pt1) =
     makeCallWithLocals
         [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+                  [randomColor old, eDefaultStroke, eConst 0 dummyLoc] ]
         (eVar0 "oval")
         (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
   in
@@ -436,7 +456,7 @@ addStretchyCircle old (_,pt2) (_,pt1) =
         , makeLet ["bounds"]
             [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing]
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+                  [randomColor old, eDefaultStroke, eConst 0 dummyLoc] ]
         (eVar0 "oval")
         (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
   in
@@ -585,7 +605,7 @@ addRawPolygon old pointsWithSnap =
     makeCallWithLocals
         [ makeLet ["pts"] [eTuple ePts]
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
+                  [randomColor old, eDefaultStroke, eConst 2 dummyLoc]
         ]
         (eVar0 "rawPolygon")
         [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
@@ -609,7 +629,7 @@ addStretchablePolygon old points =
     makeCallWithLocals
         [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
+                  [randomColor old, eDefaultStroke, eConst 2 dummyLoc]
         , makeLet ["pcts"] [eRaw sPcts] ]
         (eVar0 "stretchyPolygon")
         (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
@@ -638,7 +658,7 @@ addStickyPolygon old points =
     makeCallWithLocals
         [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
+                  [randomColor old, eDefaultStroke, eConst 2 dummyLoc]
         , makeLet ["offsets"] [eRaw sOffsets] ]
         (eVar0 "stickyPolygon")
         (List.map eVar ["bounds","color","strokeColor","strokeWidth","offsets"])

@@ -252,6 +252,7 @@ type alias VDict_ = Dict (String, String) Val
 
 type alias NumTr = (Num, Trace)
 
+-- TODO okay to switch to "\"" ?
 defaultQuoteChar = "'"
 type alias QuoteChar = String
 
@@ -1639,8 +1640,8 @@ ePlus e1 e2 = eOp Plus [e1, e2]
 eMinus e1 e2 = eOp Minus [e1, e2]
 
 eBool  = withDummyExpInfo << EBase space1 << EBool
-eStr   = withDummyExpInfo << EBase space1 << EString defaultQuoteChar
-eStr0  = withDummyExpInfo << EBase space0 << EString defaultQuoteChar
+eStr   = withDummyExpInfo << EBase space1 << EString "\"" -- defaultQuoteChar
+eStr0  = withDummyExpInfo << EBase space0 << EString "\"" -- defaultQuoteChar
 eTrue  = eBool True
 eFalse = eBool False
 eNull  = withDummyExpInfo <| EBase space1 <| ENull
