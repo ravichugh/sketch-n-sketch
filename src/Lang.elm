@@ -287,7 +287,7 @@ provenanceEnv     (Provenance env exp basedOn) = env
 provenanceExp     (Provenance env exp basedOn) = exp
 provenanceBasedOn (Provenance env exp basedOn) = basedOn
 
--- If using these, you may also want LangTools.expValueExp and friends.
+-- If using these, you may also want expEffectiveExp and friends.
 valExp : Val -> Exp
 valExp val = val.provenance |> provenanceExp
 
@@ -441,11 +441,46 @@ isVar e = case e.val.e__ of
   EVar _ _ -> True
   _        -> False
 
-
 isFunc e = case e.val.e__ of
   EFun _ _ _ _ -> True
   _            -> False
 
+isPVar p = case p.val.p__ of
+  PVar _ _ _ -> True
+  _          -> False
+
+-- What exp actually determines the evaluated value of this exp?
+-- See LangTools.outerSameValueExp for expanding outward.
+expEffectiveExp : Exp -> Exp
+expEffectiveExp exp =
+  expEffectiveExps exp
+  |> Utils.last "expEffectiveExp shouldn't happen"
+
+-- What expressions will surely resolve to the same value?
+expEffectiveExps : Exp -> List Exp
+expEffectiveExps exp =
+  case exp.val.e__ of
+    ETyp _ _ _ body _         -> exp :: expEffectiveExps body
+    EColonType _ body _ _ _   -> exp :: expEffectiveExps body
+    ETypeAlias _ _ _ body _   -> exp :: expEffectiveExps body
+    ELet _ _ _ _ _ _ _ body _ -> exp :: expEffectiveExps body
+    EParens _ e _ _           -> exp :: expEffectiveExps e
+    EComment _ _ e            -> exp :: expEffectiveExps e
+    EOption _ _ _ _ e         -> exp :: expEffectiveExps e
+    EOp _ {val} [operand] _   -> if val == DebugLog || val == NoWidgets then exp :: expEffectiveExps operand else [exp]
+    _                         -> [exp]
+
+-- Skip through PParens
+patEffectivePat : Pat -> Pat
+patEffectivePat pat =
+  patEffectivePats pat
+  |> Utils.last "patEffectivePat shouldn't happen"
+
+patEffectivePats : Pat -> List Pat
+patEffectivePats pat =
+  case pat.val.p__ of
+    PParens _ innerPat _ -> pat :: patEffectivePats innerPat
+    _                    -> [pat]
 
 ------------------------------------------------------------------------------
 -- Mapping WithInfo/WithPos

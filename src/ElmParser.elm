@@ -805,7 +805,7 @@ tupleType sp =
                 TTuple wsBefore (List.map Tuple.second heads) wsMiddle (Just tail) wsEnd
             )
         , beforeSpacePolicy =
-            sp 
+            sp
         }
 
 --------------------------------------------------------------------------------
@@ -1553,7 +1553,7 @@ topLevelDef : Parser TopLevelExp
 topLevelDef =
   inContext "top-level def binding" <|
     delayedCommitMap
-      ( \(wsBefore, name, parameters, wsBeforeEq)
+      ( \(wsBefore, pat, parameters, wsBeforeEq)
          binding_ ->
           let
             binding =
@@ -1564,6 +1564,17 @@ topLevelDef =
                   (exp_ <| EFun space0 parameters binding_ space0)
                   binding_.start
                   binding_.end
+
+            isRec =
+              isPVar (patEffectivePat pat) && isFunc (expEffectiveExp binding)
+              -- Uncomment when mutually recursive functions implmented in eval
+              -- || case ((patEffectivePat pat).val.p__, (expEffectiveExp binding).val.e__) of
+              --       (PList _ pHeads _ Nothing _, EList _ eHeads _ Nothing _) ->
+              --         List.all (patEffectivePat >> isPVar) pHeads &&
+              --         List.all (expEffectiveExp >> isFunc) eHeads &&
+              --         List.length pHeads == List.length eHeads
+              --       _ ->
+              --         False
           in
             withInfo
               ( \rest ->
@@ -1571,15 +1582,15 @@ topLevelDef =
                     ELet
                       wsBefore
                       Def
-                      False
-                      name
+                      isRec
+                      pat
                       wsBeforeEq
                       binding
                       space0
                       rest
                       space0
               )
-              name.start
+              pat.start
               binding.end
       )
       ( succeed (,,,)

@@ -376,34 +376,12 @@ lastExp exp =
     lastChild::_ -> lastExp lastChild
 
 
--- What exp actually determines the evaluated value of this exp?
-expValueExp : Exp -> Exp
-expValueExp exp =
-  expSameValueExps exp
-  |> Utils.last "expValueExp shouldn't happen"
-
-
--- What expressions will surely resolve to the same value?
-expSameValueExps : Exp -> List Exp
-expSameValueExps exp =
-  case exp.val.e__ of
-    ETyp _ _ _ body _       -> exp :: expSameValueExps body
-    EColonType _ body _ _ _ -> exp :: expSameValueExps body
-    ETypeAlias _ _ _ body _ -> exp :: expSameValueExps body
-    ELet _ _ _ _ _ _ _ body _ -> exp :: expSameValueExps body
-    EParens _ e _ _         -> exp :: expSameValueExps e
-    EComment _ _ e          -> exp :: expSameValueExps e
-    EOption _ _ _ _ e       -> exp :: expSameValueExps e
-    EOp _ {val} [operand] _ -> if val == DebugLog || val == NoWidgets then exp :: expSameValueExps operand else [exp]
-    _                       -> [exp]
-
-
 -- Find outermost expression that resolves to the same value.
 outerSameValueExp : Exp -> Exp -> Exp
 outerSameValueExp program targetExp =
-  let targetEId = (expValueExp targetExp).val.eid in
+  let targetEId = (expEffectiveExp targetExp).val.eid in
   program
-  |> findFirstNode (\exp -> (expValueExp exp).val.eid == targetEId)
+  |> findFirstNode (\exp -> (expEffectiveExp exp).val.eid == targetEId)
   |> Maybe.withDefault targetExp
 
 
@@ -626,7 +604,7 @@ simpleExpName exp =
   simpleExpNameWithDefault defaultExpName exp
 
 simpleExpNameWithDefault default exp =
-  case (expValueExp exp).val.e__ of
+  case (expEffectiveExp exp).val.e__ of
     EConst _ _ _ _        -> "num"
     EVar _ ident          -> ident
     EApp _ funE _ _ _     -> expToMaybeIdent funE |> Maybe.withDefault default
@@ -1961,7 +1939,7 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
       |> addThisMatch
 
     PList _ ps _ Nothing _ ->
-      case (expValueExp exp).val.e__ of
+      case (expEffectiveExp exp).val.e__ of
         EList _ es _ Nothing _ ->
           if List.length ps /= List.length es then
             Nothing
@@ -1980,7 +1958,7 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
           Just thisMatch
 
     PList _ ps _ (Just restPat) _ ->
-      case (expValueExp exp).val.e__ of
+      case (expEffectiveExp exp).val.e__ of
         EList _ es _ Nothing _ ->
           if List.length es < List.length ps then
             Nothing
@@ -2002,12 +1980,12 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
           Just thisMatch
 
     PConst _ n ->
-      case (expValueExp exp).val.e__ of
+      case (expEffectiveExp exp).val.e__ of
         EConst _ num _ _ -> if n == num then Just thisMatch else Nothing
         _                -> Just thisMatch
 
     PBase _ bv ->
-      case (expValueExp exp).val.e__ of
+      case (expEffectiveExp exp).val.e__ of
         EBase _ ev -> if eBaseValsEqual bv ev then Just thisMatch else Nothing
         _          -> Just thisMatch
 
@@ -2064,7 +2042,7 @@ findLetAndPatMatchingExpLoose targetEId program =
       (\letExp (pat, boundE) ->
         case findExpByEId boundE targetEId of
           Just targetExp ->
-            if (expValueExp targetExp).val.eid == (expValueExp boundE).val.eid
+            if (expEffectiveExp targetExp).val.eid == (expEffectiveExp boundE).val.eid
             then Just (letExp, pat)
             else Nothing
           Nothing ->

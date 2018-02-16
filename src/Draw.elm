@@ -1142,7 +1142,7 @@ getDrawableFunctions_ program viewerEId =
     |> List.filterMap
         (\(ident, boundExp) ->
           case boundExp of
-            LangTools.Bound exp    -> Just (LangTools.expValueExp exp)
+            LangTools.Bound exp    -> Just (expEffectiveExp exp)
             LangTools.BoundUnknown -> Nothing
         )
   in
@@ -1157,7 +1157,7 @@ getDrawableFunctions_ program viewerEId =
                 Just (letPat, boundExp) ->
                   case (typePat.val.p__, letPat.val.p__) of
                     (PVar _ typeIdent _, PVar _ letIdent _) ->
-                      if typeIdent == letIdent && List.member (LangTools.expValueExp boundExp) boundExpsInScope
+                      if typeIdent == letIdent && List.member (expEffectiveExp boundExp) boundExpsInScope
                       then Just (typeIdent, tipe)
                       else Nothing
                     _ -> Nothing

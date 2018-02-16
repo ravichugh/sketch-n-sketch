@@ -20,7 +20,7 @@ nameForVal program val =
 valToMaybeLetPat : Exp -> Val -> Maybe Pat
 valToMaybeLetPat program val =
   LangTools.allSimplyResolvableLetPatBindings program
-  |> Utils.findFirst (\(_, boundExp) -> isPossibleSingleEIdInterpretation (LangTools.expValueExp boundExp).val.eid val)
+  |> Utils.findFirst (\(_, boundExp) -> isPossibleSingleEIdInterpretation (expEffectiveExp boundExp).val.eid val)
   |> Maybe.map (\(pat, _) -> pat)
 
 

@@ -54,7 +54,7 @@ grossDependencies_ identToDepEId program =
   in
   let childrenValueExpEIds exp =
     childExps exp
-    |> List.map (expValueExp >> .val >> .eid)
+    |> List.map (expEffectiveExp >> .val >> .eid)
   in
   let handleELet letExp identToDepEId =
     let (pat, boundExp) = expToLetPatAndBoundExp letExp in
@@ -95,20 +95,20 @@ grossDependencies_ identToDepEId program =
             Just eid -> [eid]
             Nothing  -> []
 
-        EFun _ pats body _                  -> [(expValueExp body).val.eid] -- The value of a function is how it transforms inputs into outputs, as determined by its body expression.
+        EFun _ pats body _                  -> [(expEffectiveExp body).val.eid] -- The value of a function is how it transforms inputs into outputs, as determined by its body expression.
         EOp _ op argExps _                  -> childrenValueExpEIds exp
         EList _ heads _ maybeRest _         -> childrenValueExpEIds exp
         EIf _ pred _ trueBranch _ falseBranch _ -> childrenValueExpEIds exp
         ECase _ scrutinee branches _        -> childrenValueExpEIds exp
         ETypeCase _ scrutinee tbranches _   -> childrenValueExpEIds exp
         EApp _ funcExp argExps _ _          -> childrenValueExpEIds exp
-        ELet _ _ isRec pat _ boundExp _ body _  -> [(expValueExp body).val.eid]
-        EComment _ _ body                   -> [(expValueExp body).val.eid]
-        EOption _ _ _ _ body                -> [(expValueExp body).val.eid]
-        ETyp _ _ _ body _                   -> [(expValueExp body).val.eid]
-        EColonType _ body _ _ _             -> [(expValueExp body).val.eid]
-        ETypeAlias _ _ _ body _             -> [(expValueExp body).val.eid]
-        EParens _ body _ _                  -> [(expValueExp body).val.eid]
+        ELet _ _ isRec pat _ boundExp _ body _  -> [(expEffectiveExp body).val.eid]
+        EComment _ _ body                   -> [(expEffectiveExp body).val.eid]
+        EOption _ _ _ _ body                -> [(expEffectiveExp body).val.eid]
+        ETyp _ _ _ body _                   -> [(expEffectiveExp body).val.eid]
+        EColonType _ body _ _ _             -> [(expEffectiveExp body).val.eid]
+        ETypeAlias _ _ _ body _             -> [(expEffectiveExp body).val.eid]
+        EParens _ body _ _                  -> [(expEffectiveExp body).val.eid]
         EHole _ _                           -> []
     in
     newDepEIds

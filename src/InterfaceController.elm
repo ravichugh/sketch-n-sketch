@@ -1604,7 +1604,7 @@ deleteInOutput old =
           -- This seems to remove too much (e.g. will remove function if an application is deleted).
           -- let varEIdsPerhapsRemoved = LangTools.freeVars expToDelete |> List.map (.val >> .eid) |> Set.fromList in
           let varEIdsPerhapsRemoved =
-            case LangTools.expToMaybeVar (LangTools.expValueExp expToDelete) of
+            case LangTools.expToMaybeVar (expEffectiveExp expToDelete) of
               Just varExp -> Set.singleton (varExp.val.eid)
               _           -> Set.empty
           in
@@ -1738,7 +1738,7 @@ doDuplicate old =
       |> List.map (LangTools.outerSameValueExpByEId old.inputExp >> .val >> .eid)
       |> Utils.dedup
       |> List.map (LangTools.justFindExpByEId old.inputExp)
-      |> List.filter (not << isVar << LangTools.expValueExp)
+      |> List.filter (not << isVar << expEffectiveExp)
       |> List.sortBy LangTools.expToLocation -- Choose earliest single expression in program.
       |> List.head -- No multiple synthesis options for now.
       |> Maybe.map
