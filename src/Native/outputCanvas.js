@@ -28,6 +28,10 @@ function getOutputCanvasState() {
 // If want to debug the SnS UI by watching all changes to the DOM, observe
 // document.documentElement with config.subtree = true.
 
+function dataValueIdOf(mutationTarget) {
+  return mutationTarget.attributes.getNamedItem("data-value-id").value;
+}
+
 function listenForUpdatesToCanvasCount() {
 
   function handleMutations(mutations) {
@@ -82,68 +86,57 @@ function listenForUpdatesToOutputValues() {
         }
 
         console.log
-          ( "Id: "        + mutation.target.id + "; "
+          ( "Value Id: "  + dataValueIdOf(mutation.target) + "; "
           + "Attribute: " + mutation.attributeName + "; "
           + "Old Value: " + mutation.oldValue + "; "
           + "New Value: " + newAttrValue
           );
 
         app.ports.receiveAttributeValueUpdate.send
-          ([ parseInt(mutation.target.id.slice("_outputValue_".length))
+          ([ parseInt(dataValueIdOf(mutation.target))
            , mutation.attributeName
            , newAttrValue
            ]);
 
       } else if (mutation.type == "characterData") {
 
-        var parentId;
-        if (mutation.target.parentNode) { // parentElement?
-          parentId = mutation.target.parentNode.id;
-        } else {
-          // parentId = "NO PARENT";
-        }
+        var parentValueId = dataValueIdOf(mutation.target.parentNode);
 
         console.log
-          ( "Id: "        + parentId + "; "
+          ( "Value Id: "  + parentValueId + "; "
           + "Old Text: "  + mutation.oldValue + "; "
           + "New Text : " + mutation.target.textContent // innerHtml?
           );
 
-        if (parentId) {
-          app.ports.receiveTextValueUpdate.send
-            ([ parseInt(parentId.slice("_outputValue_".length))
-             , mutation.target.textContent
-             ]);
-        }
+        app.ports.receiveTextValueUpdate.send
+          ([ parseInt(parentValueId)
+           , mutation.target.textContent
+           ]);
 
       // https://www.w3schools.com/jsref/prop_node_nodename.asp
 
       } else if (mutation.type == "childList" &&
                  mutation.removedNodes.length == 1 &&
-                 mutation.removedNodes[0].nodeName == "#text" &&
-                 mutation.target.id &&
-                 mutation.target.id.startsWith("_outputValue")) {
+                 mutation.removedNodes[0].nodeName == "#text") {
 
         console.log
-          ( "Id: "        + mutation.target.id + "; "
+          ( "Value Id: " + dataValueIdOf(mutation.target) + "; "
           + "Text Child Removed"
           );
 
       } else if (mutation.type == "childList" &&
-                 mutation.target.id &&
                  mutation.addedNodes.length == 1 &&
-                 mutation.addedNodes[0].nodeName == "#text" &&
-                 mutation.target.id.startsWith("_outputValue")) {
+                 mutation.addedNodes[0].nodeName == "#text") {
 
         console.log
-          ( "Id: "        + mutation.target.id + "; "
+          ( "Value Id: " + dataValueIdOf(mutation.target) + "; "
           + "Text Child Added"
           );
 
       } else {
 
         console.log
-          ( "Id: "            + mutation.target.id + "; "
+          ( "Value Id: "      + dataValueIdOf(mutation.target) + "; "
           + "mutation.type: " + mutation.type
           );
         console.log(mutation);

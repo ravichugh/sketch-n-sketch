@@ -194,6 +194,11 @@ buildHtml_ (model, addZones) insideSvgNode d i =
           then Svg.node   -- adds http://www.w3.org/2000/svg namespace attribute
           else Html.node
 -}
+      let (node, isSvgNode) =
+        if rawKind == "svg" then (Svg.node, True)
+        else if insideSvgNode then (Svg.node, True)
+        else (Html.node, False)
+      in
       let
         -- https://softwareengineering.stackexchange.com/questions/199166/why-does-a-contenteditable-div-not-behave-like-an-input-element
         maybeContentEditableAttr =
@@ -201,10 +206,8 @@ buildHtml_ (model, addZones) insideSvgNode d i =
             then [Attr.contenteditable True]
             else []
       in
-      let (node, isSvgNode, idClassAttrs) =
+      let valueIdAttrs =
         let
-          id =
-            "_outputValue_" ++ toString i
           class =
             -- TODO: this assumes a single text node, but contenteditable edits
             -- may create multiple text nodes with brs and divs sprinkled in
@@ -216,14 +219,13 @@ buildHtml_ (model, addZones) insideSvgNode d i =
               _ ->
                 "_outputValue"
         in
-        if rawKind == "svg" then
-          (Svg.node, True, [SAttr.id id, SAttr.class class])
-        else if insideSvgNode then
-          (Svg.node, True, [SAttr.id id, SAttr.class class])
-        else
-          (Html.node, False, [Attr.id id, Attr.class class])
+        [ Attr.attribute "data-value-id" (toString i)
+        , if isSvgNode then SAttr.class class else Attr.class class
+        ]
       in
-      let allAttrs = idClassAttrs ++ maybeContentEditableAttr ++ compiledAttrs in
+      let allAttrs =
+        valueIdAttrs ++ maybeContentEditableAttr ++ compiledAttrs
+      in
       let children = List.map (buildHtml_ (model, addZones) isSvgNode d) childIndices in
       let mainshape = (node rawKind) allAttrs children in
       if zones == []
