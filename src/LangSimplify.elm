@@ -316,13 +316,13 @@ inlineTrivialRenamings : Exp -> Exp
 inlineTrivialRenamings exp =
   let inlineReplaceIfTrivialRename targetIdent newExp e__ =
     case e__ of
-      ELet ws1 letKind rec pat ws2 assign ws3 body ws4 ->
+      ELet ws1 letKind False pat ws2 assign ws3 body ws4 ->
         case (pat.val.p__, assign.val.e__) of
           -- Simple assignment.
           (PVar _ _ _, EVar oldWs assignIdent) ->
             if assignIdent == targetIdent then
               let newExpAdjustedWs = replacePrecedingWhitespace oldWs.val newExp in
-              ELet ws1 letKind rec pat ws2 newExpAdjustedWs ws3 body ws4
+              ELet ws1 letKind False pat ws2 newExpAdjustedWs ws3 body ws4
             else
               e__
 
@@ -347,7 +347,7 @@ inlineTrivialRenamings exp =
             let newAssignsListExp =
               withDummyExpInfo <| EList aws1 (Utils.zip (List.map Tuple.first assigns) newAssigns) aws2 Nothing aws3
             in
-            ELet ws1 letKind rec pat ws2 newAssignsListExp ws3 body ws4
+            ELet ws1 letKind False pat ws2 newAssignsListExp ws3 body ws4
 
           _ ->
             e__
@@ -357,7 +357,7 @@ inlineTrivialRenamings exp =
   in
   let inliner e__ =
     case e__ of
-      ELet ws1 letKind rec pat ws2 assign ws3 body ws4 ->
+      ELet ws1 letKind False pat ws2 assign ws3 body ws4 ->
         let nameCounts = identifierCounts body in
         let letRemoved newBody =
           let oldPrecedingWs = precedingWhitespaceExp__ e__ in
@@ -378,7 +378,7 @@ inlineTrivialRenamings exp =
               body
               identsAndAssignsInliningCandidates
         in
-        ELet ws1 letKind rec pat ws2 assign ws3 newBody ws4
+        ELet ws1 letKind False pat ws2 assign ws3 newBody ws4
 
       _ ->
         e__

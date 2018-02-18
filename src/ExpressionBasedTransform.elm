@@ -616,8 +616,9 @@ mapAbstractSynthesisResults originalExp =
         let eidToVarE__ = Utils.zip eidsToReplace (varNames |> List.map (\name -> EVar space1 name)) |> Dict.fromList in
         let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToVarE__ commonScope in
         let wrapped =
-          let letKind = if isTopLevel commonScope originalExp then Def else Let in
-          withDummyExpInfo <| ELet (ws <| "\n" ++ oldIndentation) letKind False (pListOfPVars varNames) space1 mapCall space1 usagesReplaced space0
+          newLetFancyWhitespace -1 False (pListOfPVars varNames) mapCall usagesReplaced originalExp
+          -- let letKind = if isTopLevel commonScope originalExp then Def else Let in
+          -- withDummyExpInfo <| ELet (ws <| "\n" ++ oldIndentation) letKind False (pListOfPVars varNames) space1 mapCall space1 usagesReplaced space0
         in
         let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
         let clonesName =
@@ -1673,8 +1674,8 @@ mergeExpressions eFirst eRest =
 
     ELet ws1 letKind rec p1 ws2 e1 ws3 e2 ws4 ->
       let match eNext = case eNext.val.e__ of
-        ELet _ _ _ p1_ _ e1_ _ e2_ _ -> Just ((p1_, e1_), e2_)
-        _                            -> Nothing
+        ELet _ _ nextRec p1_ _ e1_ _ e2_ _ -> if rec == nextRec then Just ((p1_, e1_), e2_) else Nothing
+        _                                  -> Nothing
       in
       matchAllAndBind match eRest <| \stuff ->
         let ((p1List, e1List), e2List) =

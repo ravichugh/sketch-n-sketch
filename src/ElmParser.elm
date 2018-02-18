@@ -2,7 +2,8 @@ module ElmParser exposing
   ( parse,
     builtInPrecedenceTable,
     builtInPatternPrecedenceTable,
-    isRestChar
+    isRestChar,
+    isTopLevelDefImplicitlyRec
   )
 
 import Char
@@ -1549,6 +1550,18 @@ optionalTopLevelSemicolon = optional (paddedBefore (\_ _ _ -> ()) spaces (trackI
 -- Top-Level Defs
 --------------------------------------------------------------------------------
 
+isTopLevelDefImplicitlyRec : Pat -> Exp -> Bool
+isTopLevelDefImplicitlyRec pat binding =
+  isPVar (patEffectivePat pat) && isFunc (expEffectiveExp binding)
+  -- Uncomment when mutually recursive functions implmented in eval
+  -- || case ((patEffectivePat pat).val.p__, (expEffectiveExp binding).val.e__) of
+  --       (PList _ pHeads _ Nothing _, EList _ eHeads _ Nothing _) ->
+  --         List.all (patEffectivePat >> isPVar) pHeads &&
+  --         List.all (expEffectiveExp >> isFunc) eHeads &&
+  --         List.length pHeads == List.length eHeads
+  --       _ ->
+  --         False
+
 topLevelDef : Parser TopLevelExp
 topLevelDef =
   inContext "top-level def binding" <|
@@ -1566,15 +1579,7 @@ topLevelDef =
                   binding_.end
 
             isRec =
-              isPVar (patEffectivePat pat) && isFunc (expEffectiveExp binding)
-              -- Uncomment when mutually recursive functions implmented in eval
-              -- || case ((patEffectivePat pat).val.p__, (expEffectiveExp binding).val.e__) of
-              --       (PList _ pHeads _ Nothing _, EList _ eHeads _ Nothing _) ->
-              --         List.all (patEffectivePat >> isPVar) pHeads &&
-              --         List.all (expEffectiveExp >> isFunc) eHeads &&
-              --         List.length pHeads == List.length eHeads
-              --       _ ->
-              --         False
+              isTopLevelDefImplicitlyRec pat binding
           in
             withInfo
               ( \rest ->

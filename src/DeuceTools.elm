@@ -511,7 +511,7 @@ introduceVariableTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select one or more constants and, optionally, one target position (i.e. whitespace)"
+              "Select one or more expressions and, optionally, one target position (i.e. whitespace)"
           , value =
               predVal
           }

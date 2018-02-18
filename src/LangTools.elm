@@ -13,6 +13,7 @@ module LangTools exposing (..)
 import Eval
 import Lang exposing (..)
 import FastParser exposing (prelude, isPreludeLocId, isPreludeEId)
+import ElmParser
 import Utils
 import LangUnparser exposing (unparseWithIds)
 import Types
@@ -523,10 +524,14 @@ reflowLetWhitespace program letExp =
       Debug.crash <| "reflowLetWhitespace expected an ELet, got: " ++ unparseWithIds letExp
 
 
+-- Note: the isRec flag is ignored if the new let is placed at the top level.
 newLetFancyWhitespace : EId -> Bool -> Pat -> Exp -> Exp -> Exp -> Exp
 newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program =
   let isTopLevel = isTopLevelEId expToWrap.val.eid program in
   let letOrDef = if isTopLevel then Def else Let in
+  -- At the top level, rec is implicit. We create the exp as it will actually be reparsed so
+  -- any safety checks later in the pipeline work correctly.
+  let isActuallyRec = if isTopLevel then ElmParser.isTopLevelDefImplicitlyRec pat boundExp else isRec in
   let newLetIndentation =
     -- If target expression is the body of a existing let, then use the indentation of the existing let.
     -- Otherwise, copy indentation of the wrapped expression.
@@ -552,7 +557,7 @@ newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program =
     then expToWrap |> ensureWhitespaceNNewlinesExp newlineCountAfterLet |> replaceIndentation wrappedExpIndent
     else expToWrap |> ensureWhitespaceSmartExp newlineCountAfterLet wrappedExpIndent
   in
-  ELet space0 letOrDef isRec (ensureWhitespacePat pat) space1 (replaceIndentation "  " boundExp |> ensureWhitespaceExp) space1 expToWrapWithNewWs space0
+  ELet space0 letOrDef isActuallyRec (ensureWhitespacePat pat) space1 (replaceIndentation "  " boundExp |> ensureWhitespaceExp) space1 expToWrapWithNewWs space0
   |> withDummyExpInfoEId insertedLetEId
   |> replacePrecedingWhitespace (String.repeat newlineCountBeforeLet "\n")
   |> indent newLetIndentation
@@ -1158,18 +1163,18 @@ expToListParts exp =
     _                                 -> Debug.crash <| "LangTools.expToListParts exp is not an EList: " ++ unparseWithIds exp
 
 
-expToLetParts : Exp -> (WS, LetKind, Bool, Pat, Exp, Exp, WS)
+expToLetParts : Exp -> (WS, LetKind, Bool, Pat, WS, Exp, WS, Exp, WS)
 expToLetParts exp =
   case exp.val.e__ of
-    ELet ws1 letKind rec p1 _ e1 _ e2 ws2 -> (ws1, letKind, rec, p1, e1, e2, ws2)
-    _                                 -> Debug.crash <| "LangTools.expToLetParts exp is not an ELet: " ++ unparseWithIds exp
+    ELet ws1 letKind rec p1 ws2 e1 ws3 e2 ws4 -> (ws1, letKind, rec, p1, ws2, e1, ws3, e2, ws4)
+    _                                         -> Debug.crash <| "LangTools.expToLetParts exp is not an ELet: " ++ unparseWithIds exp
 
 
-expToMaybeLetParts : Exp -> Maybe (WS, LetKind, Bool, Pat, Exp, Exp, WS)
+expToMaybeLetParts : Exp -> Maybe (WS, LetKind, Bool, Pat, WS, Exp, WS, Exp, WS)
 expToMaybeLetParts exp =
   case exp.val.e__ of
-    ELet ws1 letKind rec p1 _ e1 _ e2 ws2 -> Just (ws1, letKind, rec, p1, e1, e2, ws2)
-    _                                 -> Nothing
+    ELet ws1 letKind rec p1 ws2 e1 ws3 e2 ws4 -> Just (ws1, letKind, rec, p1, ws2, e1, ws3, e2, ws4)
+    _                                         -> Nothing
 
 
 expToLetKind : Exp -> LetKind
