@@ -96,6 +96,7 @@ type alias Model =
   , movieDuration : Float
   , movieContinue : Bool
   , runAnimation : Bool
+  -- TODO rename slate/slateCount
   , slate : RootedIndexedTree
   , slateCount : Int -- trying to count number of times translated to DOM
   , widgets : Widgets
