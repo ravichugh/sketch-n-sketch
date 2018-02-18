@@ -33,6 +33,7 @@ import Set
 import LangParserUtils
 import Dict exposing (Dict)
 import Lazy
+import Regex exposing (regex, HowMany(All))
 
 unparse = Syntax.unparser Syntax.Elm
 unparsePattern = Syntax.patternUnparser Syntax.Elm
@@ -1130,65 +1131,132 @@ buildUpdatedValueFromDomListener (rootId, oldTree) (attributeValueUpdates, textV
 
     newValue : Val
     newValue =
-      translateNode rootId rootId
+      updateNode rootId rootId
 
-    translateNode : NodeId -> NodeId -> Val
-    translateNode parentId thisId =
-      let node = Utils.justGet_ "translateNode" thisId oldTree in
+    updateNode : NodeId -> NodeId -> Val
+    updateNode parentId thisId =
       case Dict.get parentId textValueUpdates of
         Just newText ->
           let parentNode = Utils.justGet parentId oldTree in
           case parentNode.interpreted of
             SvgNode kind attrs [_] ->
-              vList
-                [ vStr kind
-                , vList (List.map (translateAttr thisId) attrs)
-                , vList [vList [vStr "TEXT", vStr newText]]
-                ]
+              let newChild = vList [vStr "TEXT", vStr newText] in
+              updateSvgNode thisId kind attrs [newChild]
             _ ->
-              Debug.crash "translateNode"
+              Debug.crash "updateNode"
 
         Nothing ->
-          case node.interpreted of
+          let thisNode = Utils.justGet_ "updateNode" thisId oldTree in
+          case thisNode.interpreted of
             TextNode s ->
               vList [vStr "TEXT", vStr s]
             SvgNode kind attrs childIndices ->
-              vList
-                [ vStr kind
-                , vList (List.map (translateAttr thisId) attrs)
-                , vList (List.map (translateNode parentId) childIndices)
-                ]
+              let newChildren = List.map (updateNode parentId) childIndices in
+              updateSvgNode thisId kind attrs newChildren
 
-    translateAttr : NodeId -> LangSvg.Attr -> Val
-    translateAttr thisId (attrName, attrAVal) =
+    updateSvgNode : NodeId -> ShapeKind -> List Attr -> List Val -> Val
+    updateSvgNode thisId kind attrs children =
+      let
+        updatedAttributeNames =
+          attributeValueUpdates
+            |> Dict.foldl (\(i,s) _ acc -> if i == thisId then s::acc else acc) []
+
+        existingAttributeNames =
+          List.map Tuple.first attrs
+
+        newAttributeNames =
+          Utils.diffAsSet updatedAttributeNames existingAttributeNames
+            |> Utils.removeAsSet "contenteditable"
+
+        updatedOrRemovedAttributes =
+          Utils.filterJusts (List.map (updateAttr thisId) attrs)
+
+        newAttributes =
+          List.map (\k ->
+            vList [vStr k, vStr (Utils.justGet (thisId, k) attributeValueUpdates)]
+          ) newAttributeNames
+
+        finalAttributes =
+          updatedOrRemovedAttributes ++ newAttributes
+      in
+      let _ =
+        if newAttributes == [] then ()
+        else
+          let _ = Debug.log "new attributes" (thisId, List.map strVal newAttributes) in
+          ()
+      in
+      vList [ vStr kind, vList finalAttributes, vList children ]
+
+    updateAttr : NodeId -> LangSvg.Attr -> Maybe Val
+    updateAttr thisId (attrName, attrAVal) =
       case Dict.get (thisId, attrName) attributeValueUpdates of
         Nothing ->
-          vList [vStr attrName, attrAVal.val]
+          Just (vList [vStr attrName, attrAVal.val])
+
+        Just "NULL" ->
+          -- let _ = Debug.log "attribute removed" attrName in
+          Nothing
 
         Just newAttrValString ->
           -- let _ = Debug.log "need to update" (thisId, attrName, newAttrValString) in
           case (attrName, attrAVal.interpreted) of
             ("style", AStyle list) ->
-              let newStylePairs =
-                newAttrValString
-                  |> String.split ";"
-                  |> List.map (String.split ":")
-                  |> List.concatMap (\list ->
-                       case list of
-                         []      -> []
-                         [s1,s2] -> [(s1,s2)]
-                         _       -> let _ = Debug.log "WARN: translateAttr style" list in
-                                    []
-                     )
-                  |> List.map (Utils.mapBoth String.trim)
+              let
+                updatedStyleAttributes =
+                  newAttrValString
+                    |> Regex.replace All (regex "/\\*.*\\*/") (always "") -- e.g. /* color: blue */
+                    |> String.split ";"
+                    |> List.map (String.split ":")
+                    |> List.concatMap (\list ->
+                         case list of
+                           []      -> []
+                           [""]    -> []
+                           [s1,s2] -> [(s1,s2)]
+                           _       -> let _ = Debug.log "WARN: updateAttr style" list in
+                                      []
+                       )
+                    |> List.map (Utils.mapBoth String.trim)
+
+                updatedStyleAttributeNames =
+                  List.map Tuple.first updatedStyleAttributes
+
+                existingStyleAttributeNames =
+                  List.map Tuple.first list
+
+                newStyleAttributeNames =
+                  Utils.diffAsSet updatedStyleAttributeNames existingStyleAttributeNames
+
+                updatedOrRemovedStyleAttributes =
+                  updateStyleAttrs list updatedStyleAttributes
+
+                newStyleAttributes =
+                  List.map (\k ->
+                    vList [vStr k, vStr (Utils.find_ updatedStyleAttributes k)]
+                  ) newStyleAttributeNames
+
+                finalStyleAttributes =
+                  updatedOrRemovedStyleAttributes ++ newStyleAttributes
               in
-              -- let _ = Debug.log "style pairs" newStylePairs in
-              vList [vStr attrName, vList (translateStyleAttrs list newStylePairs)]
+              Just (vList [vStr attrName, vList finalStyleAttributes])
+
             ("style", _) ->
-              let _ = Debug.log "WARN: translateAttr: bad style" (valToString attrAVal.val) in
-              vList [vStr attrName, attrAVal.val]
+              let _ = Debug.log "WARN: updateAttr: bad style" (valToString attrAVal.val) in
+              Just (vList [vStr attrName, attrAVal.val])
+
             _ ->
-              vList [vStr attrName, updateAttrVal attrAVal newAttrValString]
+              Just (vList [vStr attrName, updateAttrVal attrAVal newAttrValString])
+
+    updateStyleAttrs : List (String, AVal) -> List (String, String) -> List Val
+    updateStyleAttrs oldList newList =
+      let updateStyleAttr (k, attrAVal) =
+        case Utils.maybeFind k newList of
+          Just newAttrValString  ->
+            Just (vList [vStr k, updateAttrVal attrAVal newAttrValString])
+          Nothing ->
+            -- let _ = Debug.log "style attribute removed" k in
+            Nothing
+      in
+      Utils.filterJusts (List.map updateStyleAttr oldList)
 
     updateAttrVal : AVal -> String -> Val
     updateAttrVal oldAttrAVal newAttrValString =
@@ -1209,23 +1277,8 @@ buildUpdatedValueFromDomListener (rootId, oldTree) (attributeValueUpdates, textV
         -- TODO: can update support change in representation type?
         _ ->
           translationFailed ()
-
-    translateStyleAttrs : List (String, AVal) -> List (String, String) -> List Val
-    translateStyleAttrs oldList newList =
-      let translateOne (k, attrAVal) =
-        case Utils.maybeFind k newList of
-          Just newAttrValString  ->
-            updateAttrVal attrAVal newAttrValString
-          Nothing ->
-            attrAVal.val
-      in
-      List.map
-        (\pair -> vList [vStr (Tuple.first pair), translateOne pair])
-        oldList
   in
-  -- let
-  --   _ = Debug.log "old value" (valToString oldValue)
-  --   _ = Debug.log "new value" (valToString newValue)
-  --   _ = Debug.log "values equal" (valEqual oldValue newValue)
-  -- in
+  let _ = Debug.log "old value" (valToString oldValue) in
+  let _ = Debug.log "new value" (valToString newValue) in
+  let _ = Debug.log "values equal" (valEqual oldValue newValue) in
   newValue
