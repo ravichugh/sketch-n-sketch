@@ -182,6 +182,7 @@ type alias Model =
   }
 
 type OutputMode
+  -- TODO rename Live to Graphics or GraphicsEditor; ShowValue to ValueEditor
   = Live
   | Print RawSvg
       -- TODO put rawSvg in Model

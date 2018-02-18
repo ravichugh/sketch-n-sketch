@@ -2227,6 +2227,7 @@ readFile file needsSave old =
         , history = ([file.contents], [])
         , lastSaveState = Just file.contents
         , needsSave = needsSave
+        , outputMode = Live
         }
 
 loadIcon : Env -> File -> Model -> Model
@@ -2395,6 +2396,9 @@ handleNew template = (\old ->
                     , allowMultipleTargetPositions  = old.allowMultipleTargetPositions
                     , mainResizerX             = old.mainResizerX
                     , colorScheme              = old.colorScheme
+
+                    , outputMode = Live
+
                     } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
 
