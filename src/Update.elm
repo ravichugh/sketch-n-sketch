@@ -1,6 +1,7 @@
 module Update exposing
   ( valToString
   , envEqual
+  , expEqual
   , pruneEnv
   , buildUpdatedValueFromEditorString
   , buildUpdatedValueFromDomListener
