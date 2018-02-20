@@ -729,6 +729,7 @@ expDescriptionParts : Exp -> EId -> List String
 expDescriptionParts program targetEId =
   expDescriptionParts_ program program targetEId
 
+
 expDescriptionParts_ : Exp -> Exp -> EId -> List String
 expDescriptionParts_ program exp targetEId =
   let recurse e = expDescriptionParts_ program e targetEId in
@@ -828,26 +829,17 @@ scopeNamesLocLiftedThrough : Exp -> Loc -> List Ident
 scopeNamesLocLiftedThrough newLetBody targetLoc =
   let (targetLocId, _, ident) = targetLoc in
   case scopeNamesLocLiftedThrough_ targetLocId [] newLetBody of
-    [] ->
+    Nothing ->
       []
 
-    scopeNames::[] ->
+    Just scopeNames ->
       -- Last element may be the original identifier: if so, remove it.
-      case List.head (List.reverse scopeNames) of
-        Nothing ->
-          []
-
-        Just lastScopeName ->
-          if lastScopeName == ident
-          then Utils.removeLastElement scopeNames
-          else scopeNames
-
-    _ ->
-      Debug.crash <| "Found locId " ++ toString targetLocId ++ " more than once in the expression: " ++ unparseWithIds newLetBody
+      if (Utils.maybeLast scopeNames) == Just ident
+      then Utils.removeLastElement scopeNames
+      else scopeNames
 
 
--- Returns array of matches (easiest to implement).
--- Should only be at most one match, though.
+scopeNamesLocLiftedThrough_ : LocId -> List Ident -> Exp -> Maybe (List Ident)
 scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
   case exp.val.e__ of
     ELet _ _ _ pat _ assigns _ body _ ->
@@ -859,17 +851,19 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
       in
       -- Ident should only be added to assigns. Otherwise you get lots of junk
       -- names.
-      (scopeNamesLocLiftedThrough_ targetLocId scopeNames_ assigns) ++
-      (scopeNamesLocLiftedThrough_ targetLocId scopeNames  body)
+      Utils.firstMaybe
+          [ scopeNamesLocLiftedThrough_ targetLocId scopeNames_ assigns
+          , scopeNamesLocLiftedThrough_ targetLocId scopeNames  body
+          ]
 
     EConst _ _ (locId, _, _) _ ->
        if locId == targetLocId
-       then [scopeNames]
-       else []
+       then Just scopeNames
+       else Nothing
 
     _ ->
       let recurse exp = scopeNamesLocLiftedThrough_ targetLocId scopeNames exp in
-      List.concatMap recurse (childExps exp)
+      Utils.mapFirstSuccess recurse (childExps exp)
 
 
 -- If tryMatchExp is made less strict (allow partial matches), then be sure to also return unmatch identifiers (for StaticAnalysis).
