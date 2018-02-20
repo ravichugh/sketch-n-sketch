@@ -253,27 +253,27 @@ matchExp structure exp =
       Nothing         -> Nothing
   in
   case (structure.val.e__, exp.val.e__) of
-    (EHole _ HoleEmpty,                    _)                                    -> Just [exp]
-    (EHole _ (HolePredicate pred),         _)                                    -> if pred exp then Just [exp] else Nothing
-    (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then Just [] else Nothing
-    (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then Just [] else Nothing
-    (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then Just [] else Nothing
-    (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> if patternListsEqual psA psB then childDiffs () else Nothing
-    (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> if opA.val == opB.val then childDiffs () else Nothing
-    (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> childDiffs ()
-    (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> childDiffs ()
-    (EApp ws1A fA esA appTypeA ws2A,       EApp ws1B fB esB appTypeB ws2B)       -> childDiffs ()
-    (ELet ws1A kindA recA pA e1A e2A ws2A, ELet ws1B kindB recB pB e1B e2B ws2B) -> if recA == recB && patternsEqual pA pB then childDiffs () else Nothing
-    (EIf ws1A e1A e2A e3A ws2A,            EIf ws1B e1B e2B e3B ws2B)            -> childDiffs ()
-    (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)   then Just (childDiffs ()) else Nothing) |> Maybe.withDefault Nothing
-    (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)    -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault Nothing
-    (EComment wsA sA e1A,                  EComment wsB sB e1B)                  -> if sA == sB then childDiffs () else Nothing
-    (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> if s1A == s1B && s2A == s2B then childDiffs () else Nothing
-    (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then childDiffs () else Nothing
-    (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then matchExp eA eB else Nothing
-    (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then childDiffs () else Nothing
-    (EParens ws1A e1A ws2A,                EParens ws1B e1B ws2B)                -> childDiffs ()
-    _                                                                            -> Nothing
+    (EHole _ HoleEmpty,                              _)                                              -> Just [exp]
+    (EHole _ (HolePredicate pred),                   _)                                              -> if pred exp then Just [exp] else Nothing
+    (EConst ws1A nA locA wdA,                        EConst ws1B nB locB wdB)                        -> if nA == nB then Just [] else Nothing
+    (EBase ws1A ebvA,                                EBase ws1B ebvB)                                -> if eBaseValsEqual ebvA ebvB then Just [] else Nothing
+    (EVar ws1A identA,                               EVar ws1B identB)                               -> if identA == identB then Just [] else Nothing
+    (EFun ws1A psA eA ws2A,                          EFun ws1B psB eB ws2B)                          -> if patternListsEqual psA psB then childDiffs () else Nothing
+    (EOp ws1A opA esA ws2A,                          EOp ws1B opB esB ws2B)                          -> if opA.val == opB.val then childDiffs () else Nothing
+    (EList ws1A esA ws2A Nothing ws3A,               EList ws1B esB ws2B Nothing ws3B)               -> childDiffs ()
+    (EList ws1A esA ws2A (Just eA) ws3A,             EList ws1B esB ws2B (Just eB) ws3B)             -> childDiffs ()
+    (EApp ws1A fA esA appTypeA ws2A,                 EApp ws1B fB esB appTypeB ws2B)                 -> childDiffs ()
+    (ELet ws1A kindA recA pA ws2A e1A ws3A e2A ws4A, ELet ws1B kindB recB pB ws2B e1B ws3B e2B ws4B) -> if recA == recB && patternsEqual pA pB then childDiffs () else Nothing
+    (EIf ws1A e1A ws2A e2A ws3A e3A ws4A,            EIf ws1B e1B ws2B e2B ws3B e3B ws4B)            -> childDiffs ()
+    (ECase ws1A eA branchesA ws2A,                   ECase ws1B eB branchesB ws2B)                   -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)   then Just (childDiffs ()) else Nothing) |> Maybe.withDefault Nothing
+    (ETypeCase ws1A eA tbranchesA ws2A,              ETypeCase ws1B eB tbranchesB ws2B)              -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault Nothing
+    (EComment wsA sA e1A,                            EComment wsB sB e1B)                            -> if sA == sB then childDiffs () else Nothing
+    (EOption ws1A s1A ws2A s2A e1A,                  EOption ws1B s1B ws2B s2B e1B)                  -> if s1A == s1B && s2A == s2B then childDiffs () else Nothing
+    (ETyp ws1A patA typeA eA ws2A,                   ETyp ws1B patB typeB eB ws2B)                   -> if patternsEqual patA patB && Types.equal typeA typeB then childDiffs () else Nothing
+    (EColonType ws1A eA ws2A typeA ws3A,             EColonType ws1B eB ws2B typeB ws3B)             -> if Types.equal typeA typeB then matchExp eA eB else Nothing
+    (ETypeAlias ws1A patA typeA eA ws2A,             ETypeAlias ws1B patB typeB eB ws2B)             -> if patternsEqual patA patB && Types.equal typeA typeB then childDiffs () else Nothing
+    (EParens ws1A e1A pStyleA ws2A,                  EParens ws1B e1B pStyleB ws2B)                  -> childDiffs ()
+    _                                                                                                -> Nothing
 
 
 -- Traverse baseExp and otherExp, comparing them to each other node by node.
@@ -293,28 +293,28 @@ extraExpsDiff baseExp otherExp =
       Nothing         -> [otherExp]
   in
   case (baseExp.val.e__, otherExp.val.e__) of
-    (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)                      -> if nA == nB then [] else [otherExp]
-    (EBase ws1A ebvA,                      EBase ws1B ebvB)                              -> if eBaseValsEqual ebvA ebvB then [] else [otherExp]
-    (EVar ws1A identA,                     EVar ws1B identB)                             -> if identA == identB then [] else [otherExp]
-    (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                        -> if patternListsEqual psA psB then extraExpsDiff eA eB else [otherExp]
-    (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                        -> if opA.val == opB.val then childDiffs () else [otherExp]
-    (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)             -> childDiffs ()
-    (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)           -> childDiffs ()
-    (EApp ws1A fA esA appTypeA ws2A,       EApp ws1B fB esB appTypeB ws2B)               -> childDiffs ()
-    (ELet ws1A kindA recA pA _ e1A _ e2A ws2A, ELet ws1B kindB recB pB _ e1B _ e2B ws2B) -> if recA == recB && patternsEqual pA pB then extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B else [otherExp]
-    (EIf ws1A e1A _ e2A _ e3A ws2A,        EIf ws1B e1B _ e2B _ e3B ws2B)                -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
-    (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)                 -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)  then  Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
-    (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)            -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
-    (EComment wsA sA e1A,                  _)                                            -> extraExpsDiff e1A otherExp
-    (_,                                    EComment wsB sB e1B)                          -> extraExpsDiff baseExp e1B
-    (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)                -> [otherExp]
-    (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)                 -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
-    (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)           -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
-    (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)           -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
-    (EParens ws1A e1A pStyleA ws2A,        EParens ws1B e1B pStyleB ws2B)                -> extraExpsDiff e1A e1B
-    (EParens ws1A e1A pStyleA ws2A,        _)                                            -> extraExpsDiff e1A otherExp
-    (_,                                    EParens ws1B e1B pStyleB ws2B)                -> extraExpsDiff baseExp e1B
-    _                                                                                    -> [otherExp]
+    (EConst ws1A nA locA wdA,                        EConst ws1B nB locB wdB)                        -> if nA == nB then [] else [otherExp]
+    (EBase ws1A ebvA,                                EBase ws1B ebvB)                                -> if eBaseValsEqual ebvA ebvB then [] else [otherExp]
+    (EVar ws1A identA,                               EVar ws1B identB)                               -> if identA == identB then [] else [otherExp]
+    (EFun ws1A psA eA ws2A,                          EFun ws1B psB eB ws2B)                          -> if patternListsEqual psA psB then extraExpsDiff eA eB else [otherExp]
+    (EOp ws1A opA esA ws2A,                          EOp ws1B opB esB ws2B)                          -> if opA.val == opB.val then childDiffs () else [otherExp]
+    (EList ws1A esA ws2A Nothing ws3A,               EList ws1B esB ws2B Nothing ws3B)               -> childDiffs ()
+    (EList ws1A esA ws2A (Just eA) ws3A,             EList ws1B esB ws2B (Just eB) ws3B)             -> childDiffs ()
+    (EApp ws1A fA esA appTypeA ws2A,                 EApp ws1B fB esB appTypeB ws2B)                 -> childDiffs ()
+    (ELet ws1A kindA recA pA ws2A e1A ws3A e2A ws4A, ELet ws1B kindB recB pB ws2B e1B ws3B e2B ws4B) -> if recA == recB && patternsEqual pA pB then extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B else [otherExp]
+    (EIf ws1A e1A ws2A e2A ws3A e3A ws4A,            EIf ws1B e1B ws2B e2B ws3B e3B ws4B)            -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
+    (ECase ws1A eA branchesA ws2A,                   ECase ws1B eB branchesB ws2B)                   -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)  then  Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
+    (ETypeCase ws1A eA tbranchesA ws2A,              ETypeCase ws1B eB tbranchesB ws2B)              -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
+    (EComment wsA sA e1A,                            _)                                              -> extraExpsDiff e1A otherExp
+    (_,                                              EComment wsB sB e1B)                            -> extraExpsDiff baseExp e1B
+    (EOption ws1A s1A ws2A s2A e1A,                  EOption ws1B s1B ws2B s2B e1B)                  -> [otherExp]
+    (ETyp ws1A patA typeA eA ws2A,                   ETyp ws1B patB typeB eB ws2B)                   -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (EColonType ws1A eA ws2A typeA ws3A,             EColonType ws1B eB ws2B typeB ws3B)             -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (ETypeAlias ws1A patA typeA eA ws2A,             ETypeAlias ws1B patB typeB eB ws2B)             -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (EParens ws1A e1A pStyleA ws2A,                  EParens ws1B e1B pStyleB ws2B)                  -> extraExpsDiff e1A e1B
+    (EParens ws1A e1A pStyleA ws2A,                  _)                                              -> extraExpsDiff e1A otherExp
+    (_,                                              EParens ws1B e1B pStyleB ws2B)                  -> extraExpsDiff baseExp e1B
+    _                                                                                                -> [otherExp]
 
 
 replaceConstsWithVars : Dict LocId Ident -> Exp -> Exp

@@ -302,7 +302,7 @@ drawNewFunction fName model pt1 pt2 =
     (\(callExp, funcExp, returnType) ->
       if isPointType returnType then
         let maybePoint =
-          Eval.doEval Syntax.Elm Eval.initEnv (eApp funcExp (LangTools.expToAppArgs (LangTools.expValueExp callExp)))
+          Eval.doEval Syntax.Elm Eval.initEnv (eApp funcExp (LangTools.expToAppArgs (expEffectiveExp callExp)))
           |> perhapsLogError
           |> Result.toMaybe
           |> Maybe.andThen (\((val, _), _) -> valToMaybePoint val)

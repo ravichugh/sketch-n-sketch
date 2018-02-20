@@ -2700,7 +2700,7 @@ makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
 makeEIdOriginVisibleToEIds : Exp -> EId -> Set EId -> Maybe (Ident, EId, Exp)
 makeEIdOriginVisibleToEIds originalProgram mobileEId viewerEIds =
   let performAsGiven () = makeEIdVisibleToEIds originalProgram mobileEId viewerEIds in
-  case findExpByEId originalProgram mobileEId |> Maybe.map expValueExp of
+  case findExpByEId originalProgram mobileEId |> Maybe.map expEffectiveExp of
     Just mobileExp ->
       if isVar mobileExp then
         case maybeResolveIdentifierToExp (expToIdent mobileExp) mobileExp.val.eid originalProgram of
@@ -2713,6 +2713,7 @@ makeEIdOriginVisibleToEIds originalProgram mobileEId viewerEIds =
         performAsGiven ()
 
     Nothing -> performAsGiven ()
+
 
 -- You may want makeEIdOriginVisibleToEIds instead.
 --
@@ -2894,7 +2895,7 @@ resolveValueHoles syncOptions programWithHolesUnfresh =
           (\(pairExpWithHoles, holes) program ->
             case holes |> List.filterMap expToMaybeHoleVal of
               [xHoleVal, yHoleVal] ->
-                case Provenance.pointPartsToProgramPointEIdsStrict (not << isVar << expValueExp) xHoleVal yHoleVal of -- Only want var origins so we aren't just rebinding variables.
+                case Provenance.pointPartsToProgramPointEIdsStrict (not << isVar << expEffectiveExp) xHoleVal yHoleVal of -- Only want var origins so we aren't just rebinding variables.
                   pointEIdInProgram::_ ->
                     case makeEIdVisibleToEIds program pointEIdInProgram (Set.singleton pairExpWithHoles.val.eid) of
                       Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace pairExpWithHoles.val.eid (eVar newName)
@@ -2914,7 +2915,7 @@ resolveValueHoles syncOptions programWithHolesUnfresh =
           (\(holeVal, valHoleExp) program ->
             -- Trace back to non-var EId (unless free)
             let valProvenanceToProgramExp val =
-              case (Parser.isProgramEId (valEId val), (expValueExp (valExp val)).val.e__, valBasedOn val) of
+              case (Parser.isProgramEId (valEId val), (expEffectiveExp (valExp val)).val.e__, valBasedOn val) of
                 (True, EVar _ ident, [basedOnVal]) ->
                   if resolveIdentifierToExp ident (valEId val) program == Nothing then -- Ident is free in program
                     Just (valExp val)

@@ -412,11 +412,11 @@ valToMaybePreviousSameVal val =
     EVar _ _                  -> success ()
     EApp _ _ _ _ _            -> success () -- Applications point to value produced by final exp of the function
     EOp _ _ _ _               ->
-      if LangTools.expValueExp (valExp val) /= valExp val -- If a noop
+      if expEffectiveExp (valExp val) /= valExp val -- If a noop
       then success ()
       else Nothing
-    ELet _ _ _ _ _ _ _        -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ELet shouldn't appear in provenance" in Nothing
-    EIf _ _ _ _ _             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EIf shouldn't appear in provenance" in Nothing
+    ELet _ _ _ _ _ _ _ _ _    -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ELet shouldn't appear in provenance" in Nothing
+    EIf _ _ _ _ _ _ _         -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EIf shouldn't appear in provenance" in Nothing
     ECase _ _ _ _             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ECase shouldn't appear in provenance" in Nothing
     ETypeCase _ _ _ _         -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeCase shouldn't appear in provenance" in Nothing
     EComment _ _ _            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EComment shouldn't appear in provenance" in Nothing
@@ -424,7 +424,7 @@ valToMaybePreviousSameVal val =
     ETyp _ _ _ _ _            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETyp shouldn't appear in provenance" in Nothing
     EColonType _ _ _ _ _      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EColonType shouldn't appear in provenance" in Nothing
     ETypeAlias _ _ _ _ _      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeAlias shouldn't appear in provenance" in Nothing
-    EParens _ _ _             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
+    EParens _ _ _ _           -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
     EHole _ (HoleVal _)       -> success ()
     EHole _ (HolePredicate _) -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
     EHole _ HoleEmpty         -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing
