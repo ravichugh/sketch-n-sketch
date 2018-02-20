@@ -482,7 +482,7 @@ expEffectiveExps exp =
     _                         -> [exp]
 
 expEffectiveEIds : Exp -> List EId
-expEffectiveEIds = expSameValueExps >> List.map (.val >> .eid)
+expEffectiveEIds = expEffectiveExps >> List.map (.val >> .eid)
 
 -- Skip through PParens
 patEffectivePat : Pat -> Pat
