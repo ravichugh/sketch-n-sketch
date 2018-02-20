@@ -482,7 +482,7 @@ multilineGenericLetBinding =
                      wsBeforeEq
                      binding
                      space0
-                     (withDummyExpInfo <| EHole space0 Nothing)
+                     (withDummyExpInfo <| EHole space0 HoleEmpty)
                      space0
              )
              letdefWithInfo.start
