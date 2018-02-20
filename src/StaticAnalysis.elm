@@ -95,21 +95,21 @@ grossDependencies_ identToDepEId program =
             Just eid -> [eid]
             Nothing  -> []
 
-        EFun _ pats body _                  -> [(expEffectiveExp body).val.eid] -- The value of a function is how it transforms inputs into outputs, as determined by its body expression.
-        EOp _ op argExps _                  -> childrenValueExpEIds exp
-        EList _ heads _ maybeRest _         -> childrenValueExpEIds exp
+        EFun _ pats body _                      -> [(expEffectiveExp body).val.eid] -- The value of a function is how it transforms inputs into outputs, as determined by its body expression.
+        EOp _ op argExps _                      -> childrenValueExpEIds exp
+        EList _ heads _ maybeRest _             -> childrenValueExpEIds exp
         EIf _ pred _ trueBranch _ falseBranch _ -> childrenValueExpEIds exp
-        ECase _ scrutinee branches _        -> childrenValueExpEIds exp
-        ETypeCase _ scrutinee tbranches _   -> childrenValueExpEIds exp
-        EApp _ funcExp argExps _ _          -> childrenValueExpEIds exp
+        ECase _ scrutinee branches _            -> childrenValueExpEIds exp
+        ETypeCase _ scrutinee tbranches _       -> childrenValueExpEIds exp
+        EApp _ funcExp argExps _ _              -> childrenValueExpEIds exp
         ELet _ _ isRec pat _ boundExp _ body _  -> [(expEffectiveExp body).val.eid]
-        EComment _ _ body                   -> [(expEffectiveExp body).val.eid]
-        EOption _ _ _ _ body                -> [(expEffectiveExp body).val.eid]
-        ETyp _ _ _ body _                   -> [(expEffectiveExp body).val.eid]
-        EColonType _ body _ _ _             -> [(expEffectiveExp body).val.eid]
-        ETypeAlias _ _ _ body _             -> [(expEffectiveExp body).val.eid]
-        EParens _ body _ _                  -> [(expEffectiveExp body).val.eid]
-        EHole _ _                           -> []
+        EComment _ _ body                       -> [(expEffectiveExp body).val.eid]
+        EOption _ _ _ _ body                    -> [(expEffectiveExp body).val.eid]
+        ETyp _ _ _ body _                       -> [(expEffectiveExp body).val.eid]
+        EColonType _ body _ _ _                 -> [(expEffectiveExp body).val.eid]
+        ETypeAlias _ _ _ body _                 -> [(expEffectiveExp body).val.eid]
+        EParens _ body _ _                      -> [(expEffectiveExp body).val.eid]
+        EHole _ _                               -> []
     in
     newDepEIds
     |> List.foldl

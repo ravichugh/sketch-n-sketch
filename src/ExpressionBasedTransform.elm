@@ -315,7 +315,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
                                                                                         |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A (Utils.zip (List.map Tuple.first esA) newEs) ws2A Nothing ws3A)))
                                                                                         |> Maybe.withDefault argVar
       (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> Utils.maybeZip (List.map Tuple.second esA) (List.map Tuple.second esB)
-                                                                                        |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A (Utils.zip (List.map Tuple.first esA) newEs) ws2A (Just (merge eA eB)) ws3A))) 
+                                                                                        |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A (Utils.zip (List.map Tuple.first esA) newEs) ws2A (Just (merge eA eB)) ws3A)))
                                                                                         |> Maybe.withDefault argVar
       (EApp ws1A fA esA appA ws2A,           EApp ws1B fB esB appB ws2B)           -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EApp ws1A (merge fA fB) newEs appA ws2A))) |> Maybe.withDefault argVar
       (ELet ws1A kindA recA pA ws2A e1A ws3A e2A ws4A, ELet _ kindB recB pB _ e1B _ e2B _) -> if recA == recB && patternsEqual pA pB then replaceE__ expA (ELet ws1A kindA recA pA ws2A (merge e1A e1B) ws3A (merge e2A e2B) ws4A) else argVar
@@ -1296,7 +1296,7 @@ removeRedundantBindings =
   mapExp <| \e ->
     case e.val.e__ of
       ELet _ _ _ p _ e1 _ e2 _ -> if redundantBinding (p, e1) then e2 else e
-      _                    -> e
+      _                        -> e
 
 redundantBinding (p, e) =
   case (p.val.p__, e.val.e__) of

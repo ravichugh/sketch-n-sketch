@@ -422,7 +422,6 @@ fitsOnLine s =
 
 isLet e = case e.val.e__ of
   ELet _ _ _ _ _ _ _ _ _ -> True
-  -- EComment _ _ e1    -> isLet e1
   _                      -> False
 
 isList e = case e.val.e__ of
@@ -1087,9 +1086,9 @@ mapPatNode pid f root =
       (\e__ ->
         case e__ of
           ELet ws1 kind isRec pat ws2 boundExp ws3 body ws4 -> ELet ws1 kind isRec (mapPatNodePat pid f pat) ws2 boundExp ws3 body ws4
-          EFun ws1 pats body ws2                    -> EFun ws1 (List.map (mapPatNodePat pid f) pats) body ws2
-          ECase ws1 scrutinee branches ws2          -> ECase ws1 scrutinee (mapBranchPats (mapPatNodePat pid f) branches) ws2
-          _                                         -> e__
+          EFun ws1 pats body ws2                            -> EFun ws1 (List.map (mapPatNodePat pid f) pats) body ws2
+          ECase ws1 scrutinee branches ws2                  -> ECase ws1 scrutinee (mapBranchPats (mapPatNodePat pid f) branches) ws2
+          _                                                 -> e__
       )
       root
 
@@ -1196,9 +1195,9 @@ findScopeExpAndPatByPId program targetPId =
         let maybeTargetPat =
           case e.val.e__ of
             ELet _ _ _ pat _ _ _ _ _ -> findPatInPat targetPId pat
-            EFun _ pats _ _      -> Utils.mapFirstSuccess (findPatInPat targetPId) pats
-            ECase _ _ branches _ -> Utils.mapFirstSuccess (findPatInPat targetPId) (branchPats branches)
-            _                    -> Nothing
+            EFun _ pats _ _          -> Utils.mapFirstSuccess (findPatInPat targetPId) pats
+            ECase _ _ branches _     -> Utils.mapFirstSuccess (findPatInPat targetPId) (branchPats branches)
+            _                        -> Nothing
         in
         maybeTargetPat |> Maybe.map (\pat -> (e, pat))
       )
@@ -1255,9 +1254,9 @@ findAllWithAncestorsScopesTagged_ predicate ancestors exp =
   let recurseScope exp   = findAllWithAncestorsScopesTagged_ predicate ancestorsAndThisScope exp in
   case exp.val.e__ of
     ELet _ _ _ _ _ boundExp _ body _ -> thisResult ++ recurseNoScope boundExp  ++ recurseScope body
-    ECase _ scrutinee branches _ -> thisResult ++ recurseNoScope scrutinee ++ List.concatMap recurseScope (branchExps branches)
-    EFun _ _ body _              -> thisResult ++ recurseScope body
-    _                            -> thisResult ++ List.concatMap recurseNoScope (childExps exp)
+    ECase _ scrutinee branches _     -> thisResult ++ recurseNoScope scrutinee ++ List.concatMap recurseScope (branchExps branches)
+    EFun _ _ body _                  -> thisResult ++ recurseScope body
+    _                                -> thisResult ++ List.concatMap recurseNoScope (childExps exp)
 
 commonAncestors : (Exp -> Bool) -> Exp -> List Exp
 commonAncestors pred exp =
@@ -1298,18 +1297,18 @@ childExps e =
       case m of
         Just e  -> List.map Tuple.second es ++ [e]
         Nothing -> List.map Tuple.second es
-    EApp ws1 f es apptype ws2       -> f :: es
-    ELet ws1 k b p ws2 e1 ws3 e2 ws4-> [e1, e2]
-    EIf ws1 e1 ws2 e2 ws3 e3 ws4    -> [e1, e2, e3]
-    ECase ws1 e branches ws2        -> e :: branchExps branches
-    ETypeCase ws1 e tbranches ws2   -> e :: tbranchExps tbranches
-    EComment ws s e1                -> [e1]
-    EOption ws1 s1 ws2 s2 e1        -> [e1]
-    ETyp ws1 pat tipe e ws2         -> [e]
-    EColonType ws1 e ws2 tipe ws3   -> [e]
-    ETypeAlias ws1 pat tipe e ws2   -> [e]
-    EParens _ e _ _                 -> [e]
-    EHole _ _                       -> []
+    EApp ws1 f es apptype ws2        -> f :: es
+    ELet ws1 k b p ws2 e1 ws3 e2 ws4 -> [e1, e2]
+    EIf ws1 e1 ws2 e2 ws3 e3 ws4     -> [e1, e2, e3]
+    ECase ws1 e branches ws2         -> e :: branchExps branches
+    ETypeCase ws1 e tbranches ws2    -> e :: tbranchExps tbranches
+    EComment ws s e1                 -> [e1]
+    EOption ws1 s1 ws2 s2 e1         -> [e1]
+    ETyp ws1 pat tipe e ws2          -> [e]
+    EColonType ws1 e ws2 tipe ws3    -> [e]
+    ETypeAlias ws1 pat tipe e ws2    -> [e]
+    EParens _ e _ _                  -> [e]
+    EHole _ _                        -> []
 
 
 allEIds : Exp -> List EId
@@ -1491,8 +1490,8 @@ isScope maybeParent exp =
   let isObviouslyScope =
     case exp.val.e__ of
       ELet _ _ _ _ _ _ _ _ _ -> True
-      EFun _ _ _ _       -> True
-      _                  -> False
+      EFun _ _ _ _           -> True
+      _                      -> False
   in
   case maybeParent of
     Just parent ->
@@ -1902,24 +1901,24 @@ precedingWhitespaceExp__ e__ =
 precedingWhitespaceWithInfoExp__ : Exp__ -> WS
 precedingWhitespaceWithInfoExp__ e__ =
   case e__ of
-    EBase      ws v                     -> ws
-    EConst     ws n l wd                -> ws
-    EVar       ws x                     -> ws
-    EFun       ws1 ps e1 ws2            -> ws1
-    EApp       ws1 e1 es apptype  ws2   -> ws1
-    EList      ws1 es ws2 rest ws3      -> ws1
-    EOp        ws1 op es ws2            -> ws1
-    EIf        ws1 e1 ws2 e2 ws3 e3 ws4 -> ws1
+    EBase      ws v                             -> ws
+    EConst     ws n l wd                        -> ws
+    EVar       ws x                             -> ws
+    EFun       ws1 ps e1 ws2                    -> ws1
+    EApp       ws1 e1 es apptype  ws2           -> ws1
+    EList      ws1 es ws2 rest ws3              -> ws1
+    EOp        ws1 op es ws2                    -> ws1
+    EIf        ws1 e1 ws2 e2 ws3 e3 ws4         -> ws1
     ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ws1
-    ECase      ws1 e1 bs ws2            -> ws1
-    ETypeCase  ws1 e1 bs ws2            -> ws1
-    EComment   ws s e1                  -> ws
-    EOption    ws1 s1 ws2 s2 e1         -> ws1
-    ETyp       ws1 pat tipe e ws2       -> ws1
-    EColonType ws1 e ws2 tipe ws3       -> ws1
-    ETypeAlias ws1 pat tipe e ws2       -> ws1
-    EParens    ws1 e pStyle ws2         -> ws1
-    EHole      ws mv                    -> ws
+    ECase      ws1 e1 bs ws2                    -> ws1
+    ETypeCase  ws1 e1 bs ws2                    -> ws1
+    EComment   ws s e1                          -> ws
+    EOption    ws1 s1 ws2 s2 e1                 -> ws1
+    ETyp       ws1 pat tipe e ws2               -> ws1
+    EColonType ws1 e ws2 tipe ws3               -> ws1
+    ETypeAlias ws1 pat tipe e ws2               -> ws1
+    EParens    ws1 e pStyle ws2                 -> ws1
+    EHole      ws mv                            -> ws
 
 
 allWhitespaces : Exp -> List String
@@ -2043,24 +2042,24 @@ mapPrecedingWhitespace stringMap exp =
       ws (stringMap s.val)
     e__New =
       case exp.val.e__ of
-        EBase      ws v                     -> EBase      (mapWs ws) v
-        EConst     ws n l wd                -> EConst     (mapWs ws) n l wd
-        EVar       ws x                     -> EVar       (mapWs ws) x
-        EFun       ws1 ps e1 ws2            -> EFun       (mapWs ws1) ps e1 ws2
-        EApp       ws1 e1 es apptype ws2    -> EApp       (mapWs ws1) e1 es apptype ws2
-        EList      ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
-        EOp        ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
-        EIf        ws1 e1 ws2 e2 ws3 e3 ws4 -> EIf        (mapWs ws1) e1 ws2 e2 ws3 e3 ws4
+        EBase      ws v                             -> EBase      (mapWs ws) v
+        EConst     ws n l wd                        -> EConst     (mapWs ws) n l wd
+        EVar       ws x                             -> EVar       (mapWs ws) x
+        EFun       ws1 ps e1 ws2                    -> EFun       (mapWs ws1) ps e1 ws2
+        EApp       ws1 e1 es apptype ws2            -> EApp       (mapWs ws1) e1 es apptype ws2
+        EList      ws1 es ws2 rest ws3              -> EList      (mapWs ws1) es ws2 rest ws3
+        EOp        ws1 op es ws2                    -> EOp        (mapWs ws1) op es ws2
+        EIf        ws1 e1 ws2 e2 ws3 e3 ws4         -> EIf        (mapWs ws1) e1 ws2 e2 ws3 e3 ws4
         ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ELet       (mapWs ws1) kind rec p ws2 e1 ws3 e2 ws4
-        ECase      ws1 e1 bs ws2            -> ECase      (mapWs ws1) e1 bs ws2
-        ETypeCase  ws1 e1 bs ws2            -> ETypeCase  (mapWs ws1) e1 bs ws2
-        EComment   ws s e1                  -> EComment   (mapWs ws) s e1
-        EOption    ws1 s1 ws2 s2 e1         -> EOption    (mapWs ws1) s1 ws2 s2 e1
-        ETyp       ws1 pat tipe e ws2       -> ETyp       (mapWs ws1) pat tipe e ws2
-        EColonType ws1 e ws2 tipe ws3       -> EColonType (mapWs ws1) e ws2 tipe ws3
-        ETypeAlias ws1 pat tipe e ws2       -> ETypeAlias (mapWs ws1) pat tipe e ws2
-        EParens    ws e pStyle ws2          -> EParens    (mapWs ws) e pStyle ws2
-        EHole      ws mv                    -> EHole      (mapWs ws) mv
+        ECase      ws1 e1 bs ws2                    -> ECase      (mapWs ws1) e1 bs ws2
+        ETypeCase  ws1 e1 bs ws2                    -> ETypeCase  (mapWs ws1) e1 bs ws2
+        EComment   ws s e1                          -> EComment   (mapWs ws) s e1
+        EOption    ws1 s1 ws2 s2 e1                 -> EOption    (mapWs ws1) s1 ws2 s2 e1
+        ETyp       ws1 pat tipe e ws2               -> ETyp       (mapWs ws1) pat tipe e ws2
+        EColonType ws1 e ws2 tipe ws3               -> EColonType (mapWs ws1) e ws2 tipe ws3
+        ETypeAlias ws1 pat tipe e ws2               -> ETypeAlias (mapWs ws1) pat tipe e ws2
+        EParens    ws e pStyle ws2                  -> EParens    (mapWs ws) e pStyle ws2
+        EHole      ws mv                            -> EHole      (mapWs ws) mv
   in
     replaceE__ exp e__New
 

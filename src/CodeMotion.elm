@@ -699,13 +699,13 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
           Div   -> operands |> List.map expToMaybeMathExp |> Utils.projJusts |> Maybe.map (MathOp Div)
           _     -> Nothing
 
-      EComment _ _ body       -> expToMaybeMathExp body
-      EOption _ _ _ _ body    -> expToMaybeMathExp body
+      EComment _ _ body         -> expToMaybeMathExp body
+      EOption _ _ _ _ body      -> expToMaybeMathExp body
       ELet _ _ _ _ _ _ _ body _ -> expToMaybeMathExp body
-      ETyp _ _ _ body _       -> expToMaybeMathExp body
-      EColonType _ e _ _ _    -> expToMaybeMathExp e
-      ETypeAlias _ _ _ body _ -> expToMaybeMathExp body
-      _                       -> Nothing
+      ETyp _ _ _ body _         -> expToMaybeMathExp body
+      EColonType _ e _ _ _      -> expToMaybeMathExp e
+      ETypeAlias _ _ _ body _   -> expToMaybeMathExp body
+      _                         -> Nothing
   in
   let mathExpToExp mathExp =
     LocEqn.mathExpToExp unann Dict.empty (Utils.flipDict identToVarId) mathExp

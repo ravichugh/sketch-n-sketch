@@ -30,26 +30,26 @@ nodeCount exp =
     exps |> List.map nodeCount |> List.sum
   in
   case exp.val.e__ of
-    EConst _ _ _ _          -> 1
-    EBase _ _               -> 1
-    EVar _ x                -> 1
-    EFun _ ps e _           -> 1 + patsNodeCount ps + nodeCount e
-    EOp _ op es _           -> 1 + expsNodeCount es
-    EList _ es _ (Just e) _ -> 1 + expsNodeCount (List.map Tuple.second es) + nodeCount e
-    EList _ es _ Nothing _  -> 1 + expsNodeCount (List.map Tuple.second es)
-    EIf _ e1 _ e2 _ e3 _    -> 1 + expsNodeCount [e1, e2, e3]
+    EConst _ _ _ _           -> 1
+    EBase _ _                -> 1
+    EVar _ x                 -> 1
+    EFun _ ps e _            -> 1 + patsNodeCount ps + nodeCount e
+    EOp _ op es _            -> 1 + expsNodeCount es
+    EList _ es _ (Just e) _  -> 1 + expsNodeCount (List.map Tuple.second es) + nodeCount e
+    EList _ es _ Nothing _   -> 1 + expsNodeCount (List.map Tuple.second es)
+    EIf _ e1 _ e2 _ e3 _     -> 1 + expsNodeCount [e1, e2, e3]
     -- Cases have a set of parens around each branch. I suppose each should count as a node.
-    ECase _ e1 bs _         -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
-    ETypeCase _ e1 tbs _    -> 1 + (List.length tbs) + nodeCount e1 + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
-    EApp _ e1 es _ _        -> 1 + nodeCount e1 + expsNodeCount es
+    ECase _ e1 bs _          -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
+    ETypeCase _ e1 tbs _     -> 1 + (List.length tbs) + nodeCount e1 + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
+    EApp _ e1 es _ _         -> 1 + nodeCount e1 + expsNodeCount es
     ELet _ _ _ p _ e1 _ e2 _ -> 1 + patNodeCount p + nodeCount e1 + nodeCount e2
-    EComment _ _ e1         -> 0 + nodeCount e1 -- Comments don't count.
-    EOption _ _ _ _ e1      -> 1 + nodeCount e1
-    ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
-    EColonType _ e1 _ t _   -> 1 + typeNodeCount t + nodeCount e1
-    ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
-    EParens _ e1 pStyle _   -> 1 + nodeCount e1
-    EHole _ _               -> 1
+    EComment _ _ e1          -> 0 + nodeCount e1 -- Comments don't count.
+    EOption _ _ _ _ e1       -> 1 + nodeCount e1
+    ETyp _ p t e1 _          -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+    EColonType _ e1 _ t _    -> 1 + typeNodeCount t + nodeCount e1
+    ETypeAlias _ p t e1 _    -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+    EParens _ e1 pStyle _    -> 1 + nodeCount e1
+    EHole _ _                -> 1
 
 
 -- O(n); for clone detection
@@ -75,26 +75,26 @@ subExpsOfSizeAtLeast_ min exp =
   else
     let thisSizeWithoutChildren =
       case exp.val.e__ of
-        EConst _ _ _ _          -> 1
-        EBase _ _               -> 1
-        EVar _ x                -> 1
-        EFun _ ps e _           -> 1 + patsNodeCount ps
-        EOp _ op es _           -> 1
-        EList _ es _ (Just e) _ -> 1
-        EList _ es _ Nothing _  -> 1
-        EIf _ e1 _ e2 _ e3 _    -> 1
+        EConst _ _ _ _           -> 1
+        EBase _ _                -> 1
+        EVar _ x                 -> 1
+        EFun _ ps e _            -> 1 + patsNodeCount ps
+        EOp _ op es _            -> 1
+        EList _ es _ (Just e) _  -> 1
+        EList _ es _ Nothing _   -> 1
+        EIf _ e1 _ e2 _ e3 _     -> 1
         -- Cases have a set of parens around each branch. I suppose each should count as a node.
-        ECase _ e1 bs _         -> 1 + (List.length bs) + patsNodeCount (branchPats bs)
-        ETypeCase _ e1 tbs _    -> 1 + (List.length tbs) + typesNodeCount (tbranchTypes tbs)
-        EApp _ e1 es _ _        -> 1
+        ECase _ e1 bs _          -> 1 + (List.length bs) + patsNodeCount (branchPats bs)
+        ETypeCase _ e1 tbs _     -> 1 + (List.length tbs) + typesNodeCount (tbranchTypes tbs)
+        EApp _ e1 es _ _         -> 1
         ELet _ _ _ p _ e1 _ e2 _ -> 1 + patNodeCount p
-        EComment _ _ e1         -> 0 -- Comments don't count.
-        EOption _ _ _ _ e1      -> 1
-        ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t
-        EColonType _ e1 _ t _   -> 1 + typeNodeCount t
-        ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t
-        EParens _ _ _ _         -> 1
-        EHole _ _               -> 1
+        EComment _ _ e1          -> 0 -- Comments don't count.
+        EOption _ _ _ _ e1       -> 1
+        ETyp _ p t e1 _          -> 1 + patNodeCount p + typeNodeCount t
+        EColonType _ e1 _ t _    -> 1 + typeNodeCount t
+        ETypeAlias _ p t e1 _    -> 1 + patNodeCount p + typeNodeCount t
+        EParens _ _ _ _          -> 1
+        EHole _ _                -> 1
     in
     if largeSubExps /= [] then
       Debug.crash "LangTools.thisSizeWithoutChildren bug"
@@ -229,28 +229,28 @@ extraExpsDiff baseExp otherExp =
       Nothing         -> [otherExp]
   in
   case (baseExp.val.e__, otherExp.val.e__) of
-    (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then [] else [otherExp]
-    (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then [] else [otherExp]
-    (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then [] else [otherExp]
-    (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> if patternListsEqual psA psB then extraExpsDiff eA eB else [otherExp]
-    (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> if opA.val == opB.val then childDiffs () else [otherExp]
-    (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> childDiffs ()
-    (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> childDiffs ()
-    (EApp ws1A fA esA appTypeA ws2A,       EApp ws1B fB esB appTypeB ws2B)       -> childDiffs ()
+    (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)                      -> if nA == nB then [] else [otherExp]
+    (EBase ws1A ebvA,                      EBase ws1B ebvB)                              -> if eBaseValsEqual ebvA ebvB then [] else [otherExp]
+    (EVar ws1A identA,                     EVar ws1B identB)                             -> if identA == identB then [] else [otherExp]
+    (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                        -> if patternListsEqual psA psB then extraExpsDiff eA eB else [otherExp]
+    (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                        -> if opA.val == opB.val then childDiffs () else [otherExp]
+    (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)             -> childDiffs ()
+    (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)           -> childDiffs ()
+    (EApp ws1A fA esA appTypeA ws2A,       EApp ws1B fB esB appTypeB ws2B)               -> childDiffs ()
     (ELet ws1A kindA recA pA _ e1A _ e2A ws2A, ELet ws1B kindB recB pB _ e1B _ e2B ws2B) -> if recA == recB && patternsEqual pA pB then extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B else [otherExp]
-    (EIf ws1A e1A _ e2A _ e3A ws2A,        EIf ws1B e1B _ e2B _ e3B ws2B)        -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
-    (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)  then  Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
-    (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)    -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
-    (EComment wsA sA e1A,                  _)                                    -> extraExpsDiff e1A otherExp
-    (_,                                    EComment wsB sB e1B)                  -> extraExpsDiff baseExp e1B
-    (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> [otherExp]
-    (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
-    (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
-    (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
-    (EParens ws1A e1A pStyleA ws2A,        EParens ws1B e1B pStyleB ws2B)        -> extraExpsDiff e1A e1B
-    (EParens ws1A e1A pStyleA ws2A,        _)                                    -> extraExpsDiff e1A otherExp
-    (_,                                    EParens ws1B e1B pStyleB ws2B)        -> extraExpsDiff baseExp e1B
-    _                                                                            -> [otherExp]
+    (EIf ws1A e1A _ e2A _ e3A ws2A,        EIf ws1B e1B _ e2B _ e3B ws2B)                -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
+    (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)                 -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)  then  Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
+    (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)            -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
+    (EComment wsA sA e1A,                  _)                                            -> extraExpsDiff e1A otherExp
+    (_,                                    EComment wsB sB e1B)                          -> extraExpsDiff baseExp e1B
+    (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)                -> [otherExp]
+    (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)                 -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)           -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)           -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (EParens ws1A e1A pStyleA ws2A,        EParens ws1B e1B pStyleB ws2B)                -> extraExpsDiff e1A e1B
+    (EParens ws1A e1A pStyleA ws2A,        _)                                            -> extraExpsDiff e1A otherExp
+    (_,                                    EParens ws1B e1B pStyleB ws2B)                -> extraExpsDiff baseExp e1B
+    _                                                                                    -> [otherExp]
 
 
 replaceConstsWithVars : Dict LocId Ident -> Exp -> Exp
@@ -350,13 +350,13 @@ isTopLevelEId eid program =
 maybeTopLevelChild : Exp -> Maybe Exp
 maybeTopLevelChild exp =
   case exp.val.e__ of
-    ETyp _ _ _ body _       -> Just body
-    EColonType _ body _ _ _ -> Just body
-    ETypeAlias _ _ _ body _ -> Just body
+    ETyp _ _ _ body _         -> Just body
+    EColonType _ body _ _ _   -> Just body
+    ETypeAlias _ _ _ body _   -> Just body
     ELet _ _ _ _ _ _ _ body _ -> Just body
-    EComment _ _ e          -> Just e
-    EOption _ _ _ _ e       -> Just e
-    _                       -> Nothing
+    EComment _ _ e            -> Just e
+    EOption _ _ _ _ e         -> Just e
+    _                         -> Nothing
 
 
 topLevelExps : Exp -> List Exp
@@ -1182,63 +1182,63 @@ expToLetPat : Exp -> Pat
 expToLetPat exp =
   case exp.val.e__ of
     ELet _ _ _ pat _ _ _ _ _ -> pat
-    _                    -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+    _                        -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToMaybeLetPat : Exp -> Maybe Pat
 expToMaybeLetPat exp =
   case exp.val.e__ of
     ELet _ _ _ pat _ _ _ _ _ -> Just pat
-    _                    -> Nothing
+    _                        -> Nothing
 
 
 expToLetBoundExp : Exp -> Exp
 expToLetBoundExp exp =
   case exp.val.e__ of
     ELet _ _ _ _ _ boundExp _ _ _ -> boundExp
-    _                         -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+    _                             -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToMaybeLetBoundExp : Exp -> Maybe Exp
 expToMaybeLetBoundExp exp =
   case exp.val.e__ of
     ELet _ _ _ _ _ boundExp _ _ _ -> Just boundExp
-    _                         -> Nothing
+    _                             -> Nothing
 
 
 expToLetPatAndBoundExp : Exp -> (Pat, Exp)
 expToLetPatAndBoundExp exp =
   case exp.val.e__ of
     ELet _ _ _ pat _ boundExp _ _ _ -> (pat, boundExp)
-    _                           -> Debug.crash <| "LangTools.expToLetPatAndBoundExp exp is not an ELet: " ++ unparseWithIds exp
+    _                               -> Debug.crash <| "LangTools.expToLetPatAndBoundExp exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToMaybeLetPatAndBoundExp : Exp -> Maybe (Pat, Exp)
 expToMaybeLetPatAndBoundExp exp =
   case exp.val.e__ of
     ELet _ _ _ pat _ boundExp _ _ _ -> Just (pat, boundExp)
-    _                           -> Nothing
+    _                               -> Nothing
 
 
 expToLetBody : Exp -> Exp
 expToLetBody exp =
   case exp.val.e__ of
     ELet _ _ _ _ _ _ _ body _ -> body
-    _                     -> Debug.crash <| "LangTools.expToLetBody exp is not an ELet: " ++ unparseWithIds exp
+    _                         -> Debug.crash <| "LangTools.expToLetBody exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToMaybeLetBody : Exp -> Maybe Exp
 expToMaybeLetBody exp =
   case exp.val.e__ of
     ELet _ _ _ _ _ _ _ body _ -> Just body
-    _                     -> Nothing
+    _                         -> Nothing
 
 
 expToLetScopeAreas : Exp -> List Exp
 expToLetScopeAreas exp =
   case exp.val.e__ of
     ELet _ _ isRec _ _ boundExp _ body _ -> if isRec then [boundExp, body] else [body]
-    _                                -> Debug.crash <| "LangTools.expToLetScopeAreas exp is not an ELet: " ++ unparseWithIds exp
+    _                                    -> Debug.crash <| "LangTools.expToLetScopeAreas exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToFuncPats : Exp -> List Pat
@@ -1331,12 +1331,12 @@ allPats root =
   |> List.concatMap
       (\exp ->
         case exp.val.e__ of
-          EFun _ pats _ _        -> pats
-          ECase _ _ branches _   -> branchPats branches
+          EFun _ pats _ _          -> pats
+          ECase _ _ branches _     -> branchPats branches
           ELet _ _ _ pat _ _ _ _ _ -> [pat]
-          ETyp _ pat _ _ _       -> [pat]
-          ETypeAlias _ pat _ _ _ -> [pat]
-          _                      -> []
+          ETyp _ pat _ _ _         -> [pat]
+          ETypeAlias _ pat _ _ _   -> [pat]
+          _                        -> []
       )
 
 
@@ -2094,9 +2094,9 @@ freeVars exp =
     vars |> List.filter (\var -> not <| List.member (expToIdent var) introduced)
   in
   case exp.val.e__ of
-    EVar _ x                           -> [exp]
-    EFun _ pats body _                 -> freeVars body |> removeIntroducedBy pats
-    ECase _ scrutinee branches _       ->
+    EVar _ x                     -> [exp]
+    EFun _ pats body _           -> freeVars body |> removeIntroducedBy pats
+    ECase _ scrutinee branches _ ->
       let freeInEachBranch =
         branchPatExps branches
         |> List.concatMap (\(bPat, bExp) -> freeVars bExp |> removeIntroducedBy [bPat])
@@ -2104,7 +2104,7 @@ freeVars exp =
       freeVars scrutinee ++ freeInEachBranch
     ELet _ _ False pat _ boundExp _ body _ -> freeVars boundExp ++ (freeVars body |> removeIntroducedBy [pat])
     ELet _ _ True  pat _ boundExp _ body _ -> freeVars boundExp ++ freeVars body |> removeIntroducedBy [pat]
-    _                                  -> childExps exp |> List.concatMap freeVars
+    _                                      -> childExps exp |> List.concatMap freeVars
 
 
 -- Probably not useful unless program has been run through assignUniqueNames
@@ -2116,7 +2116,7 @@ allSimplyResolvableLetBindings program =
       (\exp ->
         case exp.val.e__ of
           ELet _ _ _ pat _ boundExp _ _ _ -> tryMatchExpReturningList pat boundExp
-          _                           -> []
+          _                               -> []
       )
 
 
@@ -2128,7 +2128,7 @@ allSimplyResolvableLetPatBindings program =
       (\exp ->
         case exp.val.e__ of
           ELet _ _ _ pat _ boundExp _ _ _ -> tryMatchExpPatToPats pat boundExp
-          _                           -> []
+          _                               -> []
       )
 
 
@@ -2176,19 +2176,19 @@ numericLetBoundIdentifiers program =
           DictInsert -> False
           OptNumToString -> List.any recurse operands
 
-      EList _ _ _ _ _           -> False
+      EList _ _ _ _ _               -> False
       EIf _ _ _ thenExp _ elseExp _ -> recurse thenExp && recurse elseExp
-      ECase _ _ branches _      -> List.all recurse (branchExps branches)
-      ETypeCase _ _ tbranches _ -> List.all recurse (tbranchExps tbranches)
-      EComment _ _ body         -> recurse body
-      EOption _ _ _ _ body      -> recurse body
-      ELet _ _ _ _ _  _ _ body _ -> recurse body
-      ETyp _ _ _ body _         -> recurse body
-      EColonType _ e _ _ _      -> recurse e
-      ETypeAlias _ _ _ body _   -> recurse body
-      EParens _ e _ _           -> recurse e
-      EHole _ Nothing           -> False
-      EHole _ (Just val)        -> valIsNum val
+      ECase _ _ branches _          -> List.all recurse (branchExps branches)
+      ETypeCase _ _ tbranches _     -> List.all recurse (tbranchExps tbranches)
+      EComment _ _ body             -> recurse body
+      EOption _ _ _ _ body          -> recurse body
+      ELet _ _ _ _ _  _ _ body _    -> recurse body
+      ETyp _ _ _ body _             -> recurse body
+      EColonType _ e _ _ _          -> recurse e
+      ETypeAlias _ _ _ body _       -> recurse body
+      EParens _ e _ _               -> recurse e
+      EHole _ Nothing               -> False
+      EHole _ (Just val)            -> valIsNum val
   in
   let expBindings = allSimplyResolvableLetBindings program in
   let findAllNumericIdents numericIdents =
@@ -2726,10 +2726,10 @@ allVarEIdsToBindingPatsBasedOnUniqueName program =
     |> List.concatMap
         (\exp ->
           case exp.val.e__ of
-            EFun _ pats _ _      -> List.concatMap indentPatsInPat pats
+            EFun _ pats _ _          -> List.concatMap indentPatsInPat pats
             ELet _ _ _ pat _ _ _ _ _ -> indentPatsInPat pat
-            ECase _ _ branches _ -> List.concatMap indentPatsInPat (branchPats branches)
-            _                    -> []
+            ECase _ _ branches _     -> List.concatMap indentPatsInPat (branchPats branches)
+            _                        -> []
         )
     |> Dict.fromList
   in
