@@ -252,6 +252,10 @@ genericRecord
   :  { key : Parser elemKey
      , equalSign: Parser ()
      , value : SpacePolicy -> Parser elemValue
+     , fundef : Maybe { -- Optional arguments to records, e.g. { myfun arg1 arg2 = value }
+          arguments : Parser (List arguments),
+          buildValue : List arguments -> elemValue -> elemValue
+       }
      , combiner : WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
      , beforeSpacePolicy: SpacePolicy
      , optionalInitParser: Maybe
@@ -260,16 +264,19 @@ genericRecord
        }
      }
   -> ParserI record
-genericRecord { key, equalSign, value, combiner, beforeSpacePolicy, optionalInitParser } =
-  let keyValue = ((inContext "record key or }" <| trackInfo <| key) |>
+genericRecord { key, equalSign, value, fundef, combiner, beforeSpacePolicy, optionalInitParser } =
+  let keyValue = (inContext "record key or }" <| trackInfo <| key) |>
       andThen (\keyWithInfos ->
-        succeed (\wsBeforeKey v -> (keyWithInfos.val, wsBeforeKey, v))
+        succeed (\argList wsBeforeEq v ->
+           case argList of
+             Nothing -> (keyWithInfos.val, wsBeforeEq, v)
+             Just (builder, arguments) -> (keyWithInfos.val, wsBeforeEq, builder arguments v))
+        |= Maybe.withDefault (succeed Nothing) (Maybe.map (\f -> map (\r -> Just (f.buildValue, r)) f.arguments) fundef)
         |= spaces
         |. equalSign
         |= (let firstappargpolicy = sameLineOrIndentedByAtLeast (keyWithInfos.start.col - 1 {- The column index-} + 1 {- The indentation increment-}) in -- No newlines, or be at least indented after the keyword.
             inContext "record value" <| value firstappargpolicy
            )
-      )
       )
   in
   lazy <| \_ ->
@@ -766,6 +773,7 @@ recordPattern sp =
          { key = identifier
          , equalSign = symbol "="
          , value = pattern -- All spaces because = requires a value afterwards.
+         , fundef = Nothing
          , combiner =
             \wsBefore keyValues wsAfter ->
               PRecord wsBefore keyValues wsAfter
@@ -994,6 +1002,7 @@ recordType sp =
          { key = identifier
          , equalSign = symbol ":"
          , value = typ
+         , fundef = Nothing
          , combiner =
             \wsBefore keyValues wsAfter ->
               TRecord wsBefore Nothing keyValues wsAfter
@@ -1340,6 +1349,17 @@ record sp =
          { key =  identifier
          , equalSign = symbol "="
          , value = expression
+         , fundef = Just { -- Optional arguments to records, e.g. { myfun arg1 arg2 = value }
+           arguments = repeat zeroOrMore (pattern allSpacesPolicy),
+           buildValue = \parameters binding_ ->
+             if List.isEmpty parameters then
+               binding_
+             else
+               withInfo
+                 (exp_ <| EFun space0 parameters binding_ space0)
+                 binding_.start
+                 binding_.end
+         }
          , combiner =
             \wsBefore keyValues wsAfter ->
               ERecord wsBefore Nothing keyValues wsAfter

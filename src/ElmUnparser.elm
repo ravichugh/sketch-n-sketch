@@ -357,10 +357,12 @@ unparse e =
         ++ (case elems of
               [] -> ""
               (wsComma, wsKey, key, wsEq, value)::tail ->
-                wsComma.val ++ wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparse value ++
+                let (strParameters, binding) = getParametersBinding value in
+                wsComma.val ++ wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding ++
                 String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
+                  let (strParameters, binding) = getParametersBinding value in
                   (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
-                  wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparse value
+                  wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding
                 ) tail)
         )
         ++ wsAfter.val
@@ -387,24 +389,7 @@ unparse e =
         ++ unparseBranches branches
 
     ELet wsBefore letKind isRec name wsBeforeEq binding_ wsBeforeInOrSemi body _ ->
-      let
-        (parameters, binding) =
-          case binding_.val.e__ of
-            EFun _ parameters functionBinding _ ->
-              (parameters, functionBinding)
-
-            _ ->
-              ([], binding_)
-
-        strParametersDefault =
-          String.concat (List.map unparsePattern parameters)
-
-        -- NOTE: to help with converting Little to Elm
-        strParameters =
-          case (parameters, String.startsWith " " strParametersDefault) of
-            (_::_, False) -> " " ++ strParametersDefault
-            _             -> strParametersDefault
-      in
+        let (strParameters, binding) = getParametersBinding binding_ in
         case letKind of
           Let ->
             case name.val.p__ of
@@ -506,6 +491,26 @@ unparse e =
     Lang.ETypeCase _ _ _ _ ->
       "{Error: typecase not yet implemented for Elm syntax}" -- TODO
 
+-- If the expression is a EFun, prints the lists of parameters and returns its body.
+getParametersBinding: Exp -> (String, Exp)
+getParametersBinding binding_ =
+  let (parameters, binding) =
+    case binding_.val.e__ of
+      EFun _ parameters functionBinding _ ->
+        (parameters, functionBinding)
+
+      _ ->
+        ([], binding_)
+  in
+  let strParametersDefault =
+        String.concat (List.map unparsePattern parameters)
+  in
+  let strParameters = --To help to convert from little to Elm
+     case (parameters, String.startsWith " " strParametersDefault) of
+       (_::_, False) -> " " ++ strParametersDefault
+       _             -> strParametersDefault
+  in
+  (strParameters, binding)
 
 multilineRegexEscape = Regex.regex <| "@"
 
