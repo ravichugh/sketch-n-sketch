@@ -1,3 +1,4 @@
+-- TODO rename to LangHtml
 module LangSvg exposing
   ( attr
   , NodeId, ShapeKind
@@ -117,9 +118,46 @@ maxColorNum = 500
 maxStrokeWidthNum = 20
 
 
+{- TODO rename to either
+
+Option 1:
+
+------------------------------------------------------------------------------
+-- IndexedValue: Indexed Representation of HTML Value
+
+type alias Tag = String
+type alias ValueId = Int
+type alias ElementAttr = (String, AVal)
+
+type alias IndexedValue = (ValueId, Dict ValueId IndexedSubValue)
+
+type alias IndexedSubValue = WithVal IndexedSubValue_
+
+type IndexedSubValue_
+  = Text String
+  | Element Tag (List ElementAttr) (List ValueId)
+
+or Option 2:
+
+------------------------------------------------------------------------------
+-- IndexedHtmlValue
+
+type alias Tag = String
+type alias NodeId = Int
+type alias ElementAttr = (String, AVal)
+
+type alias IndexedHtmlValue = (NodeId, Dict NodeId Node)
+
+type alias Node = WithVal Node_
+
+type Node_
+  = Text String
+  | Element Tag (List ElementAttr) (List NodeId)
+
+-}
+
 ------------------------------------------------------------------------------
 -- RootedIndexedTree (a.k.a. "Slate"): tree representation of SVG Canvas Value
--- TODO rename this to IndexedValue or LabeledValue or similar
 
 type alias ShapeKind = String
 type alias NodeId = Int
@@ -464,6 +502,7 @@ printSvg showGhosts (rootId, tree) =
 
 printNode showGhosts k slate i =
   case Utils.justGet i slate |> .interpreted of
+    -- TODO escape strings in TextNode and TextListNode
     TextNode s -> s
     SvgNode kind_ l1_ l2 ->
       let (kind,l1) = desugarShapeAttrs 0 0 kind_ l1_ in

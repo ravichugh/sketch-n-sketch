@@ -43,7 +43,7 @@ function listenForUpdatesToCanvasCount() {
         if (attr) {
           newAttrValue = attr.value;
         } else {
-          newAttrValue = "???";
+          newAttrValue = "NULL";
         }
         console.log
           ( "Id: "        + mutation.target.id + "; "
@@ -82,7 +82,7 @@ function listenForUpdatesToOutputValues() {
         if (attr) {
           newAttrValue = attr.value;
         } else {
-          newAttrValue = "???";
+          newAttrValue = "NULL";
         }
 
         console.log

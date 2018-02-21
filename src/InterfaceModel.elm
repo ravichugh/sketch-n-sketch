@@ -97,6 +97,7 @@ type alias Model =
   , movieDuration : Float
   , movieContinue : Bool
   , runAnimation : Bool
+  -- TODO rename slate/slateCount
   , slate : RootedIndexedTree
   , slateCount : Int -- trying to count number of times translated to DOM
   , widgets : Widgets
@@ -182,6 +183,7 @@ type alias Model =
   }
 
 type OutputMode
+  -- TODO rename Live to Graphics or GraphicsEditor; ShowValue to ValueEditor
   = Live
   | Print RawSvg
       -- TODO put rawSvg in Model

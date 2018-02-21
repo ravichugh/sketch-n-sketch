@@ -1933,6 +1933,8 @@ doCallUpdate m =
     else
       m.valueEditorString
         |> Update.buildUpdatedValueFromEditorString m.syntax
+  -- TODO updated value may be back to original, so may want to
+  -- detect this and write a caption that says so.
   in
   let updatedExpResults =
     Update.doUpdate m.inputExp m.inputVal updatedValResult
@@ -1966,12 +1968,19 @@ doCallUpdate m =
               showSolutions [revertChanges "Only solutions modifying the library. Revert?"]
 
         LazyCons _ _ ->
-          let allResults =
-             Utils.mapi1
-               (\(i,(_,newCodeExp)) -> synthesisResult ("Program Update " ++ toString i) newCodeExp)
-               (Results.toList solutionsNotModifyingEnv)
+          let filteredResults =
+            solutionsNotModifyingEnv
+              |> Results.toList
+              |> List.filter (\(_,newCodeExp) -> not (Update.expEqual newCodeExp m.inputExp))
+              |> Utils.mapi1 (\(i,(_,newCodeExp)) ->
+                   synthesisResult ("Program Update " ++ toString i) newCodeExp
+                 )
           in
-          showSolutions (allResults ++ [revertChanges "Revert to Original Program"])
+          case filteredResults of
+            [] ->
+              showSolutions [revertChanges "Only Solution is Original Program"]
+            _ ->
+              showSolutions (filteredResults ++ [revertChanges "Revert to Original Program"])
 
 msgAttributeValueUpdate (i, attribute, newValue) =
   Msg "Attribute Value Update" <| \m ->
@@ -2227,6 +2236,7 @@ readFile file needsSave old =
         , history = ([file.contents], [])
         , lastSaveState = Just file.contents
         , needsSave = needsSave
+        , outputMode = Live
         }
 
 loadIcon : Env -> File -> Model -> Model
@@ -2395,6 +2405,9 @@ handleNew template = (\old ->
                     , allowMultipleTargetPositions  = old.allowMultipleTargetPositions
                     , mainResizerX             = old.mainResizerX
                     , colorScheme              = old.colorScheme
+
+                    , outputMode = Live
+
                     } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
 
