@@ -211,16 +211,26 @@ unparseOp op =
     RegexReplaceAllIn ->
       "replaceAllIn"
 
-unparseBranch : Branch -> String
-unparseBranch branch =
+unparseBranch : Bool -> Branch -> String
+unparseBranch   isNotFirst branch =
   case branch.val of
     Branch_ wsBefore p e wsBeforeArrow ->
-      wsBefore.val
+      (if isNotFirst && not (String.contains "\n" wsBefore.val)
+       then ";" ++ wsBefore.val
+       else wsBefore.val)
         ++ unparsePattern p
         ++ wsBeforeArrow.val
         ++ "->"
         ++ unparse e
-        ++ ";"
+
+unparseBranches : List Branch -> String
+unparseBranches =
+  let aux isNotFirst branches =
+      case branches of
+        [] -> ""
+        head::tail -> unparseBranch isNotFirst head ++ aux True tail
+  in aux False
+
 
 wrapWithTightParens : String -> String
 wrapWithTightParens unparsed =
@@ -349,7 +359,8 @@ unparse e =
               (wsComma, wsKey, key, wsEq, value)::tail ->
                 wsComma.val ++ wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparse value ++
                 String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
-                  wsComma.val ++ "," ++ wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparse value
+                  (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
+                  wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparse value
                 ) tail)
         )
         ++ wsAfter.val
@@ -373,7 +384,7 @@ unparse e =
         ++ unparse examinedExpression
         ++ wsBeforeOf.val
         ++ "of"
-        ++ String.concat (List.map unparseBranch branches)
+        ++ unparseBranches branches
 
     ELet wsBefore letKind isRec name wsBeforeEq binding_ wsBeforeInOrSemi body _ ->
       let

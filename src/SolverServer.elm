@@ -2,7 +2,7 @@ port module SolverServer exposing (..)
 
 import InterfaceModel exposing (Msg, Model)
 import InterfaceController
-import Lang exposing (Num, Op_(..))
+import Lang exposing (Num, Op_(..), ws)
 import Parser exposing (Parser, Count(..), (|.), (|=), succeed, symbol, int, float, ignore, repeat, zeroOrMore, oneOf, lazy, delayedCommit, delayedCommitMap, inContext, end)
 import BinaryOperatorParser exposing (PrecedenceTable(..), Associativity(..), Precedence, binaryOperator)
 import Solver exposing (..)
@@ -237,15 +237,16 @@ parseResultEqn =
 parseVarToVarId : Parser Int
 parseVarToVarId = inContext "parseVarToVarId" <| eatChar 'x' .| int
 
-
 parseMathExp : Parser MathExp
 parseMathExp =
   lazy <| \_ ->
     inContext "parseMathExp" <|
       binaryOperator
-        { precedenceTable   = precedenceTable
+        { spacePolicy       = { first = skipSpaces, apparg = skipSpaces}
+        , greedySpaceParser = skipSpaces
+        , precedenceTable   = precedenceTable
         , minimumPrecedence = 1
-        , expression        = parseEqnAtom
+        , expression        = (\_ -> parseEqnAtom)
         , operator          = parseBinaryOperatorStr
         , representation    = identity -- convert output of parseBinaryOperator to what's in the precedence table
         , combine           =

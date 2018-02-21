@@ -38,7 +38,7 @@ genericEmptyList
      }
   -> ParserI list
 genericEmptyList { combiner, beforeSpacePolicy } =
-  paddedBefore combiner beforeSpacePolicy <|
+  paddedBefore combiner beforeSpacePolicy.first <|
     trackInfo <|
       succeed identity
         |. symbol "["
@@ -67,7 +67,7 @@ genericNonEmptyList { item, combiner, beforeSpacePolicy }=
         ( \wsBefore (members, wsBeforeEnd) ->
             combiner wsBefore members wsBeforeEnd
         )
-        beforeSpacePolicy
+        beforeSpacePolicy.first
         ( trackInfo <|
             succeed (\e es ws -> ((space0, e) :: es, ws))
               |. symbol "["
@@ -100,7 +100,7 @@ genericNonEmptyListWithTail { item, tailItem, combinerTail, beforeSpacePolicy }=
         ( \wsBefore (members, wsMiddle, thetail, wsBeforeEnd) ->
             combinerTail wsBefore members wsMiddle thetail wsBeforeEnd
         )
-        beforeSpacePolicy
+        beforeSpacePolicy.first
         ( trackInfo <|
             succeed (\e es wsm t wse -> ((space0, e) :: es, wsm, t, wse))
               |. symbol "["
@@ -128,7 +128,8 @@ genericList { item, tailItem, combiner, combinerTail, beforeSpacePolicy } =
           genericEmptyList
             { combiner =
                 \wsBefore wsAfter -> combiner wsBefore [] wsAfter,
-              beforeSpacePolicy = beforeSpacePolicy
+              beforeSpacePolicy =
+                beforeSpacePolicy
             }
       , try <|
           genericNonEmptyList
@@ -161,7 +162,7 @@ genericEmptyRecord
   -> ParserI record
 genericEmptyRecord { combiner, beforeSpacePolicy } =
   inContext "generic empty record" <|
-  paddedBefore combiner beforeSpacePolicy <|
+  paddedBefore combiner beforeSpacePolicy.first <|
     trackInfo <|
       succeed identity
         |. symbol "{"
@@ -170,27 +171,24 @@ genericEmptyRecord { combiner, beforeSpacePolicy } =
 
 
 genericNonEmptyRecord
-  :  { key : Parser elemKey
-     , equalSign: Parser ()
-     , value : Parser elemValue
+  :  { keyValue : Parser (elemKey, WS, elemValue)
      , combiner : WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
      , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI record
-genericNonEmptyRecord { key, equalSign, value, combiner, beforeSpacePolicy }=
+genericNonEmptyRecord { keyValue, combiner, beforeSpacePolicy }=
   lazy <| \_ ->
     let
       anotherWsAndItem : Parser (WS, WS, elemKey, WS, elemValue)
       anotherWsAndItem =
-        delayedCommitMap (\ws (a, b, c, d) -> (ws, a, b, c, d))
-          spaces
-          (succeed (,,,)
-            |. symbol ","
+        delayedCommitMap (\ws (a, (b, c, d)) -> (ws, a, b, c, d))
+          (succeed identity
+          |= spaces
+          |. negativeLookAhead (symbol "}"))
+          (succeed (,)
+            |. optional (symbol ",")
             |= spaces
-            |= key
-            |= spaces
-            |. equalSign
-            |= value
+            |= keyValue
           )
     in
       inContext "generic non-empty record" <|
@@ -198,15 +196,12 @@ genericNonEmptyRecord { key, equalSign, value, combiner, beforeSpacePolicy }=
         ( \wsBefore (members, wsBeforeEnd) ->
             combiner wsBefore members wsBeforeEnd
         )
-        beforeSpacePolicy
+        beforeSpacePolicy.first
         ( trackInfo <|
-            succeed (\wsKey k wsEq v es wsEnd -> ((space0, wsKey, k, wsEq, v) :: es, wsEnd))
+            succeed (\wsKey (k, wsEq, v) es wsEnd -> ((space0, wsKey, k, wsEq, v) :: es, wsEnd))
               |. symbol "{"
               |= spaces
-              |= key
-              |= spaces
-              |. equalSign
-              |= value
+              |= keyValue
               |= repeat zeroOrMore anotherWsAndItem
               |= spaces
               |. symbol "}"
@@ -214,28 +209,24 @@ genericNonEmptyRecord { key, equalSign, value, combiner, beforeSpacePolicy }=
 
 
 genericNonEmptyRecordWithInit
-  :  { key : Parser elemKey
-     , equalSign: Parser ()
-     , value : Parser elemValue
+  :  { keyValue : Parser (elemKey, WS, elemValue)
      , initItem: Parser elemInit
      , combinerInit : WS-> elemInit -> WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
      , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI record
-genericNonEmptyRecordWithInit { key, equalSign, value, initItem, combinerInit, beforeSpacePolicy }=
+genericNonEmptyRecordWithInit { keyValue, initItem, combinerInit, beforeSpacePolicy }=
   lazy <| \_ ->
     let
       anotherWsAndItem : Parser (WS, WS, elemKey, WS, elemValue)
       anotherWsAndItem =
-        delayedCommitMap (\wsC (wsK, k, wsE, v) -> (wsC, wsK, k, wsE, v))
+        delayedCommitMap (\ws (a, (b, c, d)) -> (ws, a, b, c, d))
           spaces
-          (succeed (,,,)
-            |. symbol ","
+          (succeed (,)
+            |. negativeLookAhead (symbol "}")
+            |. optional (symbol ",")
             |= spaces
-            |= key
-            |= spaces
-            |. equalSign
-            |= value
+            |= keyValue
           )
     in
       inContext "generic non-empty record with init" <|
@@ -243,18 +234,15 @@ genericNonEmptyRecordWithInit { key, equalSign, value, initItem, combinerInit, b
           delayedCommitMap (\(wsBefore, init, wsBeforeBar) (members, wsEnd) ->
             combinerInit wsBefore init wsBeforeBar members wsEnd)
             (succeed (\wsBefore init wsBeforeBar -> (wsBefore, init, wsBeforeBar))
-              |= beforeSpacePolicy
+              |= beforeSpacePolicy.first
               |. symbol "{"
               |= initItem
               |= spaces)
-            (succeed (\wsKey k wsEq v es wsEnd ->
+            (succeed (\wsKey (k, wsEq, v) es wsEnd ->
                  ((space0, wsKey, k, wsEq, v) :: es, wsEnd))
               |. symbol "|"
               |= spaces
-              |= key
-              |= spaces
-              |. equalSign
-              |= value
+              |= keyValue
               |= repeat zeroOrMore anotherWsAndItem
               |= spaces
               |. symbol "}")
@@ -263,7 +251,7 @@ genericNonEmptyRecordWithInit { key, equalSign, value, initItem, combinerInit, b
 genericRecord
   :  { key : Parser elemKey
      , equalSign: Parser ()
-     , value : Parser elemValue
+     , value : SpacePolicy -> Parser elemValue
      , combiner : WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
      , beforeSpacePolicy: SpacePolicy
      , optionalInitParser: Maybe
@@ -273,6 +261,17 @@ genericRecord
      }
   -> ParserI record
 genericRecord { key, equalSign, value, combiner, beforeSpacePolicy, optionalInitParser } =
+  let keyValue = ((inContext "record key or }" <| trackInfo <| key) |>
+      andThen (\keyWithInfos ->
+        succeed (\wsBeforeKey v -> (keyWithInfos.val, wsBeforeKey, v))
+        |= spaces
+        |. equalSign
+        |= (let firstappargpolicy = sameLineOrIndentedByAtLeast (keyWithInfos.start.col - 1 {- The column index-} + 1 {- The indentation increment-}) in -- No newlines, or be at least indented after the keyword.
+            inContext "record value" <| value firstappargpolicy
+           )
+      )
+      )
+  in
   lazy <| \_ ->
     inContext "generic record" <|
     oneOf
@@ -280,19 +279,16 @@ genericRecord { key, equalSign, value, combiner, beforeSpacePolicy, optionalInit
           genericEmptyRecord
             { combiner =
                 \wsBefore wsAfter -> combiner wsBefore [] wsAfter,
-              beforeSpacePolicy = beforeSpacePolicy
+              beforeSpacePolicy =
+                beforeSpacePolicy
             }
       ] ++ (
         case optionalInitParser of
           Nothing -> []
           Just {initItem, combinerInit} ->
             [genericNonEmptyRecordWithInit
-              { key =
-                  key
-              , equalSign =
-                  equalSign
-              , value =
-                  value
+              { keyValue =
+                  keyValue
               , combinerInit =
                   combinerInit
               , initItem =
@@ -301,12 +297,8 @@ genericRecord { key, equalSign, value, combiner, beforeSpacePolicy, optionalInit
                   beforeSpacePolicy }]
       ) ++ [
           genericNonEmptyRecord
-            { key =
-                key
-            , equalSign =
-                equalSign
-            , value =
-                value
+            { keyValue =
+                keyValue
              , combiner =
                 combiner
             , beforeSpacePolicy =
@@ -329,7 +321,7 @@ block combiner sp openSymbol closeSymbol p =
           close.end
     )
     ( succeed (,)
-        |= sp
+        |= sp.first
         |= trackInfo (symbol openSymbol)
     )
     ( succeed (,,)
@@ -534,7 +526,7 @@ multiLineInterpolatedString sp =
     trackInfo <|
       delayedCommitMap (\wsBefore e -> EParens wsBefore e LongStringSyntax space0 )
       (succeed identity
-        |= sp
+        |= sp.first
         |. symbol "\"\"\""
        )
       (succeed identity
@@ -657,7 +649,7 @@ multilineGenericLetBinding =
       |= optional (keyword "rec")
       |= pattern spacesWithoutNewline
       |= repeat zeroOrMore (pattern spacesWithoutNewline)
-      |= spacesWithoutNewline
+      |= spacesWithoutNewline.first
       |. symbol "="
       |= expression spacesWithoutNewline
       |. ignore zeroOrMore (\c -> c == ' ' || c == '\t')-- This will remove trailing whitespace.
@@ -686,7 +678,7 @@ baseValue =
 namePattern : SpacePolicy -> ParserI Ident -> Parser Pat
 namePattern sp ident =
   mapPat_ <|
-    paddedBefore (\ws name -> PVar ws name noWidgetDecl) sp ident
+    paddedBefore (\ws name -> PVar ws name noWidgetDecl) sp.first ident
 
 --------------------------------------------------------------------------------
 -- Variables
@@ -707,7 +699,7 @@ wildcardPattern sp =
     mapPat_ <|
       paddedBefore
         (\ws () -> PWildcard ws)
-        sp
+        sp.first
         (trackInfo (symbol "_"))
 
 --------------------------------------------------------------------------------
@@ -727,7 +719,7 @@ constantPattern : SpacePolicy -> Parser Pat
 constantPattern sp =
   inContext "constant pattern" <|
     mapPat_ <|
-      paddedBefore PConst sp num
+      paddedBefore PConst sp.first num
 
 --------------------------------------------------------------------------------
 -- Base Values
@@ -737,7 +729,7 @@ baseValuePattern : SpacePolicy -> Parser Pat
 baseValuePattern sp =
   inContext "base value pattern" <|
     mapPat_ <|
-      paddedBefore PBase sp baseValue
+      paddedBefore PBase sp.first baseValue
 
 --------------------------------------------------------------------------------
 -- Lists
@@ -750,9 +742,9 @@ listPattern sp =
       mapPat_ <|
         genericList
           { item =
-              pattern spaces
+              pattern allSpacesPolicy
           , tailItem =
-              pattern spaces
+              pattern allSpacesPolicy
           , combiner =
               \wsBefore members wsBeforeEnd ->
                 -- PList wsBefore members space0 Nothing wsBeforeEnd
@@ -773,7 +765,7 @@ recordPattern sp =
         genericRecord
          { key = identifier
          , equalSign = symbol "="
-         , value = pattern spaces -- All spaces because = requires a value afterwards.
+         , value = pattern -- All spaces because = requires a value afterwards.
          , combiner =
             \wsBefore keyValues wsAfter ->
               PRecord wsBefore keyValues wsAfter
@@ -793,11 +785,11 @@ parensPattern sp =
           ( \wsBefore (innerPattern, wsBeforeEnd) ->
               PParens wsBefore innerPattern wsBeforeEnd
           )
-          sp
+          sp.first
           ( trackInfo <|
               succeed (,)
                 |. symbol "("
-                |= pattern spaces
+                |= pattern allSpacesPolicy
                 |= spaces
                 |. symbol ")"
           )
@@ -824,12 +816,16 @@ pattern sp =
   inContext "pattern" <|
     lazy <| \_ ->
       binaryOperator
-        { precedenceTable =
+        { spacePolicy =
+           sp
+        , greedySpaceParser =
+            spaces
+        , precedenceTable =
             builtInPatternPrecedenceTable
         , minimumPrecedence =
             0
         , expression =
-            simplePattern sp
+            simplePattern
         , operator =
             patternOperator sp
         , representation =
@@ -881,7 +877,7 @@ baseType context combiner sp token =
       ( \ws _ ->
           withInfo (combiner ws) ws.start ws.end
       )
-      ( sp )
+      ( sp.first )
       ( keyword token )
 
 nullType : SpacePolicy -> Parser Type
@@ -907,7 +903,7 @@ stringType sp =
 namedType : SpacePolicy -> Parser Type
 namedType sp =
   inContext "named type" <|
-    paddedBefore TNamed sp bigIdentifier
+    paddedBefore TNamed sp.first bigIdentifier
 
 --------------------------------------------------------------------------------
 -- Variable Types
@@ -916,7 +912,7 @@ namedType sp =
 variableType : SpacePolicy -> Parser Type
 variableType sp =
   inContext "variable type" <|
-    paddedBefore TVar sp littleIdentifier
+    paddedBefore TVar sp.first littleIdentifier
 
 --------------------------------------------------------------------------------
 -- Function Type
@@ -929,7 +925,7 @@ functionType sp =
       parenBlock TArrow sp <|
         succeed identity
           |. keywordWithSpace "->"
-          |= repeat oneOrMore (typ sp)
+          |= repeat oneOrMore (typ allSpacesPolicy)
 
 --------------------------------------------------------------------------------
 -- List Type
@@ -942,7 +938,7 @@ listType sp =
       parenBlock TList sp <|
         succeed identity
           |. keywordWithSpace "List"
-          |= typ sp
+          |= typ allSpacesPolicy
 
 --------------------------------------------------------------------------------
 -- Dict Type
@@ -959,8 +955,8 @@ dictType sp =
         sp
         ( succeed (,)
             |. keywordWithSpace "TDict"
-            |= typ sp
-            |= typ sp
+            |= typ allSpacesPolicy
+            |= typ allSpacesPolicy
         )
 
 --------------------------------------------------------------------------------
@@ -973,9 +969,9 @@ tupleType sp =
     lazy <| \_ ->
       genericList
         { item =
-            typ spaces
+            typ allSpacesPolicy
         , tailItem =
-            typ spaces
+            typ allSpacesPolicy
         , combiner =
             ( \wsBefore heads wsEnd ->
                 -- TTuple wsBefore heads space0 Nothing wsEnd
@@ -997,7 +993,7 @@ recordType sp =
         genericRecord
          { key = identifier
          , equalSign = symbol ":"
-         , value = typ spaces
+         , value = typ
          , combiner =
             \wsBefore keyValues wsAfter ->
               TRecord wsBefore Nothing keyValues wsAfter
@@ -1041,7 +1037,7 @@ forallType sp =
           ( succeed (,)
               |. keywordWithSpace "forall"
               |= quantifiers
-              |= typ spaces
+              |= typ allSpacesPolicy
           )
 
 --------------------------------------------------------------------------------
@@ -1055,7 +1051,7 @@ unionType sp=
       parenBlock TUnion sp <|
         succeed identity
           |. keywordWithSpace "union"
-          |= repeat oneOrMore (typ spaces)
+          |= repeat oneOrMore (typ allSpacesPolicy)
 
 --------------------------------------------------------------------------------
 -- Wildcard Type
@@ -1064,7 +1060,7 @@ unionType sp=
 wildcardType : SpacePolicy -> Parser Type
 wildcardType sp =
   inContext "wildcard type" <|
-    spaceSaverKeyword sp "_" TWildcard
+    spaceSaverKeyword sp.first "_" TWildcard
 
 --------------------------------------------------------------------------------
 -- General Types
@@ -1238,11 +1234,11 @@ opFromIdentifier identifier =
 
 operator : SpacePolicy -> ParserI Operator
 operator sp =
-  paddedBefore (,) sp symbolIdentifier
+  paddedBefore (,) sp.first symbolIdentifier
 
 patternOperator : SpacePolicy -> ParserI Operator
 patternOperator sp =
-  paddedBefore (,) sp patternSymbolIdentifier
+  paddedBefore (,) sp.first patternSymbolIdentifier
 
 --==============================================================================
 -- Expressions
@@ -1263,7 +1259,7 @@ constantExpression sp =
               n.start
               w.end
         )
-        sp
+        sp.first
         ( succeed (,,)
             |= num
             |= frozenAnnotation
@@ -1278,7 +1274,7 @@ baseValueExpression : SpacePolicy -> Parser Exp
 baseValueExpression sp =
   inContext "base value expression" <|
     mapExp_ <|
-      paddedBefore EBase sp baseValue
+      paddedBefore EBase sp.first baseValue
 
 --------------------------------------------------------------------------------
 -- Variables
@@ -1286,7 +1282,7 @@ baseValueExpression sp =
 
 variableExpression : SpacePolicy -> Parser Exp
 variableExpression sp =
-  mapExp_ <| paddedBefore EVar sp littleIdentifier
+  mapExp_ <| paddedBefore EVar sp.first littleIdentifier
 
 --------------------------------------------------------------------------------
 -- Functions (lambdas)
@@ -1301,11 +1297,11 @@ function sp =
           ( \wsBefore (parameters, body) ->
               EFun wsBefore parameters body space0
           )
-          sp
+          sp.first
           ( trackInfo <|
               succeed (,)
                 |. symbol "\\"
-                |= repeat oneOrMore (pattern spaces)
+                |= repeat oneOrMore (pattern allSpacesPolicy)
                 |. spaces
                 |. symbol "->"
                 |= expression sp
@@ -1322,9 +1318,9 @@ list sp =
       mapExp_ <|
         genericList
           { item =
-              expression spaces
+              expression allSpacesPolicy
           , tailItem =
-              expression spaces
+              expression allSpacesPolicy
           , combiner =
               \wsBefore members wsBeforeEnd ->
                 EList wsBefore members space0 Nothing wsBeforeEnd
@@ -1343,12 +1339,12 @@ record sp =
         genericRecord
          { key =  identifier
          , equalSign = symbol "="
-         , value = expression spaces
+         , value = expression
          , combiner =
             \wsBefore keyValues wsAfter ->
               ERecord wsBefore Nothing keyValues wsAfter
          , beforeSpacePolicy = sp
-         , optionalInitParser = Just { initItem = expression spaces
+         , optionalInitParser = Just { initItem = expression allSpacesPolicy
            , combinerInit = \wsBefore init wsBar elems wsEnd -> ERecord wsBefore (Just (init, wsBar)) elems wsEnd
            }
          }
@@ -1366,14 +1362,14 @@ conditional sp =
           ( \wsBefore (condition, wsThen, trueBranch, wsElse, falseBranch) ->
               EIf wsBefore condition wsThen trueBranch wsElse falseBranch space0
           )
-          sp
+          sp.first
           ( trackInfo <|
               delayedCommit (keywordWithSpace "if") <|
                 succeed (,,,,)
-                  |= expression spaces
+                  |= expression allSpacesPolicy
                   |= spaces
                   |. keywordWithSpace "then"
-                  |= expression spaces
+                  |= expression allSpacesPolicy
                   |= spaces
                   |. keywordWithSpace "else"
                   |= expression sp
@@ -1388,34 +1384,49 @@ caseExpression sp =
   inContext "case expression" <|
     lazy <| \_ ->
       let
-        branch =
+        branch: Parser WS -> Parser Branch
+        branch branchsp =
           paddedBefore
             ( \wsBefore (p, wsBeforeArrow, e) ->
                 Branch_ wsBefore p e wsBeforeArrow
             )
-            sp
-            ( trackInfo <|
-                succeed (,,)
-                  |= pattern sp
-                  |= sp
-                  |. symbol "->"
-                  |= expression sp
-                  |. symbol ";"
-            )
+            branchsp
+            ( inContext "Branch" <| trackInfo <|
+                succeed identity
+                  |= (pattern { spacesWithoutNewline | first = nospace }
+                     |> andThen (\p ->
+                        let minimumIndentation = sameLineOrIndentedByAtLeast ((p.start.col - 1) {- The column index-} + 1 {- The indentation increment-}) in
+                        let _ = Debug.log "Switching to a new minimum indentation: " minimumIndentation in
+                        succeed (\wsBeforeArrow e -> (p, wsBeforeArrow, e))
+                        |= spaces
+                        |. symbol "->"
+                        |= expression minimumIndentation
+                        |. optional (delayedCommit spaces (symbol ";"))
+                     ))
+                  )
       in
         mapExp_ <|
           paddedBefore
             ( \wsBefore (examinedExpression, wsBeforeOf, branches) ->
                 ECase wsBefore examinedExpression branches wsBeforeOf
             )
-            sp
+            sp.first
             ( trackInfo <|
                 delayedCommit (keywordWithSpace "case") <|
                   succeed (,,)
-                    |= expression spaces
+                    |= expression allSpacesPolicy
                     |= spaces
                     |. keyword "of"
-                    |= repeat oneOrMore branch
+                    |= (
+                        branch allSpacesPolicy.first |>
+                        andThen (\b ->
+                          case b.val of
+                            Branch_ wsBefore p e wsBeforeArrow ->
+                              let branchIndentation = sameLineOrIndentedByExactly (p.start.col - 1 {- The column index-}) in
+                              succeed (\x -> b::x)
+                              |= repeat zeroOrMore (branch branchIndentation.first)
+                        )
+                      )
             )
 
 --------------------------------------------------------------------------------
@@ -1449,15 +1460,15 @@ genericLetBinding sp letkeyword isRec =
               in
                 ELet wsBefore Let isRec name wsBeforeEq binding wsBeforeIn body space0
           )
-          sp
+          sp.first
           ( trackInfo <|
               delayedCommit (keywordWithSpace letkeyword) <|
                 succeed (,,,,,)
-                  |= pattern spaces
-                  |= repeat zeroOrMore (pattern spaces)
+                  |= pattern allSpacesPolicy
+                  |= repeat zeroOrMore (pattern allSpacesPolicy)
                   |= spaces
                   |. symbol "="
-                  |= expression spaces
+                  |= expression allSpacesPolicy
                   |= spaces
                   |. keywordWithSpace "in"
                   |= expression sp
@@ -1475,7 +1486,7 @@ lineComment sp =
         ( \wsBefore (text, expAfter) ->
             EComment wsBefore text expAfter
         )
-        sp
+        sp.first
         ( trackInfo <|
             succeed (,)
               |. symbol "--"
@@ -1500,7 +1511,7 @@ option sp =
                 open.start
                 val.end
           )
-          ( sp )
+          ( sp.first )
           ( succeed (,,,,)
               |= trackInfo (symbol "#")
               |. spaces
@@ -1509,7 +1520,7 @@ option sp =
                        c /= '\n' && c /= ' ' && c /= ':'
                    )
               |. symbol ":"
-              |= sp
+              |= spaces
               |= trackInfo
                    ( keep zeroOrMore <| \c ->
                        c /= '\n'
@@ -1531,11 +1542,11 @@ parens sp =
           ( \wsBefore (innerExpression, wsBeforeEnd) ->
               EParens wsBefore innerExpression Parens wsBeforeEnd
           )
-          sp
+          sp.first
           ( trackInfo <|
               succeed (,)
                 |. symbol "("
-                |= expression spaces
+                |= expression allSpacesPolicy
                 |= spaces
                 |. symbol ")"
           )
@@ -1548,33 +1559,7 @@ hole : SpacePolicy -> Parser Exp
 hole sp =
   inContext "hole" <|
     mapExp_ <|
-      paddedBefore EHole sp (trackInfo <| token "??" Nothing)
-
---------------------------------------------------------------------------------
--- Colon Types TODO
---------------------------------------------------------------------------------
-
-colonType : SpacePolicy -> Parser Exp
-colonType sp =
-  inContext "colon type" <|
-    mapExp_ <|
-      lazy <| \_ ->
-        parenBlock
-          ( \wsBefore (e, wsColon, t) wsEnd ->
-              EColonType wsBefore e wsColon t wsEnd
-          )
-          sp
-          ( delayedCommitMap
-              ( \(e, wsColon) t ->
-                  (e, wsColon, t)
-              )
-              ( succeed (,)
-                  |= expression sp
-                  |= sp
-                  |. symbol ":"
-              )
-              ( typ sp )
-          )
+      paddedBefore EHole sp.first (trackInfo <| token "??" Nothing)
 
 --------------------------------------------------------------------------------
 -- General Expressions
@@ -1586,10 +1571,10 @@ selection sp =
      withInfo (exp_ <| ESelect exp wsBeforeDot wsAfterDot idWithInfo.val)
         exp.start idWithInfo.end
     )
-    sp
+    sp.first
     (succeed (,)
      |. symbol "."
-     |= sp
+     |= sp.apparg
      |= (trackInfo <| identifier)
     )
 
@@ -1630,7 +1615,7 @@ spaceColonType: SpacePolicy -> Parser (WS, Type)
 spaceColonType sp =
   lazy <| \_ ->
      try ( succeed (,)
-          |= sp
+          |= sp.first
           |. symbol ":"
           |= typ sp
      )
@@ -1678,7 +1663,7 @@ simpleUntypedExpressionWithPossibleArguments sp =
     lazy <| \_ ->
       succeed combine
         |= simpleExpression sp
-        |= repeat zeroOrMore (simpleExpression sp)
+        |= repeat zeroOrMore (simpleExpression {sp | first = sp.apparg})
 
 simpleExpressionWithPossibleArguments : SpacePolicy -> Parser Exp
 simpleExpressionWithPossibleArguments sp =
@@ -1694,39 +1679,55 @@ simpleExpressionWithPossibleArguments sp =
               untypedExp.start typ.end
       )
       |= simpleUntypedExpressionWithPossibleArguments sp
-      |= ParserUtils.optional (spaceColonType sp)
+      |= ParserUtils.optional (spaceColonType { sp | first = sp.apparg })
     )
 
--- This is useful to get rid of semicolon in the top-level language.
--- Expressions at top-level cannot consume a newline that is followed by an identifier, or two newlines except if they are parsed inside parentheses.
-type alias SpacePolicy = Parser WS
+topLevelSpaceRegex = Regex.regex "((?!\n\n|\n\\S)\\s)*"
 
-
-topLevelSpaceRegex = Regex.regex "((?!\n\n|\n\\w)\\s)*"
-
-topLevelSpacePolicy: SpacePolicy
-topLevelSpacePolicy =
-  trackInfo <| ParserUtils.keepRegex topLevelSpaceRegex
+topLevelInsideDefSpacePolicy: SpacePolicy
+topLevelInsideDefSpacePolicy =
+  {first = trackInfo <| ParserUtils.keepRegex topLevelSpaceRegex,
+   apparg = trackInfo <| ParserUtils.keepRegex topLevelSpaceRegex }
 
 spaceWithoutNLRegex = Regex.regex "((?!\n)\\s)*"
 
 spacesWithoutNewline: SpacePolicy
 spacesWithoutNewline =
-  trackInfo <| ParserUtils.keepRegex spaceWithoutNLRegex
+  { first = trackInfo <| ParserUtils.keepRegex spaceWithoutNLRegex,
+    apparg = trackInfo <| ParserUtils.keepRegex spaceWithoutNLRegex }
+
+allSpacesPolicy: SpacePolicy
+allSpacesPolicy = { first = spaces, apparg = spaces }
+
+sameLineOrIndentedByAtLeast: Int -> SpacePolicy
+sameLineOrIndentedByAtLeast nSpaces =
+  let indentedParser = trackInfo <| ParserUtils.keepRegex <| Regex.regex <| "( |\\t)*((\\n *)*(\\n" ++ String.repeat nSpaces " " ++ " *))?" in
+  SpacePolicy indentedParser indentedParser
+
+
+sameLineOrIndentedByExactly: Int -> SpacePolicy
+sameLineOrIndentedByExactly nSpaces =
+  let indentedParser = trackInfo <| ParserUtils.keepRegex <|  Regex.regex <| "( |\\t)*((\\n *)*(\\n" ++ String.repeat nSpaces " " ++ "))?" in
+  SpacePolicy indentedParser (sameLineOrIndentedByAtLeast nSpaces).apparg
+
 
 expression : SpacePolicy -> Parser Exp
 expression sp =
   inContext "expression" <|
     lazy <| \_ ->
       binaryOperator
-        { precedenceTable =
+        { spacePolicy =
+            sp
+        , greedySpaceParser =
+            spaces
+        , precedenceTable =
             builtInPrecedenceTable
         , minimumPrecedence =
             0
         , expression =
-            simpleExpressionWithPossibleArguments sp
+            simpleExpressionWithPossibleArguments
         , operator =
-            operator sp
+            operator {sp | first = sp.apparg}
         , representation =
             .val >> Tuple.second
         , combine =
@@ -1826,13 +1827,13 @@ topLevelDef =
       )
       ( succeed (,,,)
           |= spaces
-          |= pattern (topLevelSpacePolicy)
-          |= repeat zeroOrMore (pattern topLevelSpacePolicy)
-          |= topLevelSpacePolicy
+          |= pattern (topLevelInsideDefSpacePolicy)
+          |= repeat zeroOrMore (pattern topLevelInsideDefSpacePolicy)
+          |= topLevelInsideDefSpacePolicy.first
           |. symbol "="
       )
       ( succeed identity
-          |= expression topLevelSpacePolicy
+          |= expression topLevelInsideDefSpacePolicy
           |. optionalTopLevelSemicolon
       )
 
@@ -1860,12 +1861,12 @@ topLevelTypeDeclaration =
               t.end
         )
         ( succeed (,)
-            |= pattern topLevelSpacePolicy
-            |= topLevelSpacePolicy
+            |= pattern topLevelInsideDefSpacePolicy
+            |= topLevelInsideDefSpacePolicy.first
             |. symbol ":"
         )
         ( succeed identity
-          |= typ topLevelSpacePolicy
+          |= typ topLevelInsideDefSpacePolicy
           |. optionalTopLevelSemicolon
         )
 
@@ -1889,12 +1890,12 @@ topLevelTypeAlias =
       ( succeed (,,)
           |= spaces
           |= trackInfo (keywordWithSpace "type alias")
-          |= typePattern topLevelSpacePolicy
-          |. topLevelSpacePolicy
+          |= typePattern topLevelInsideDefSpacePolicy
+          |. topLevelInsideDefSpacePolicy.first
           |. symbol "="
       )
       ( succeed identity
-        |= typ topLevelSpacePolicy
+        |= typ topLevelInsideDefSpacePolicy
         |. optionalTopLevelSemicolon
       )
 
@@ -1941,13 +1942,13 @@ topLevelOption =
       spaces
       ( trackInfo <| succeed (,,)
           |. symbol "#"
-          |. spacesWithoutNewline
+          |. spacesWithoutNewline.first
           |= trackInfo
                ( keep zeroOrMore <| \c ->
                    c /= '\n' && c /= ' ' && c /= ':'
                )
           |. symbol ":"
-          |= spacesWithoutNewline
+          |= spacesWithoutNewline.first
           |= trackInfo
                ( keep zeroOrMore <| \c ->
                    c /= '\n'
@@ -2004,7 +2005,7 @@ implicitMain =
 mainExpression : Parser Exp
 mainExpression =
   oneOf
-    [ expression spaces
+    [ expression allSpacesPolicy
     , implicitMain
     ]
 

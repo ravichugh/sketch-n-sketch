@@ -1,15 +1,15 @@
 module LangParserUtils exposing
   ( space
   , spaces
+  , nospace
   , keywordWithSpace
   , symbolWithSpace
   , spaceSaverKeyword
   , paddedBefore
-  , paddedAfter
-  , padded
   , isOnlySpaces
   , mapPat_
   , mapExp_
+  , SpacePolicy
   )
 
 import Parser exposing (..)
@@ -41,6 +41,10 @@ spaces : Parser WS
 spaces =
   trackInfo <|
     keep zeroOrMore isSpace
+
+nospace : Parser WS
+nospace =
+  trackInfo <| succeed ""
 
 guardSpace : ParserI ()
 guardSpace =
@@ -81,34 +85,13 @@ spaceSaverKeyword sp kword combiner =
 
 
 paddedBefore : (WS -> a -> b) -> Parser WS -> ParserI a -> ParserI b
-paddedBefore combiner spacePolicy p =
+paddedBefore combiner sp p =
   delayedCommitMap
     ( \wsBefore x ->
         withInfo (combiner wsBefore x.val) x.start x.end
     )
-    spacePolicy
+    sp
     p
-
-paddedAfter : (a -> WS -> b) -> ParserI a -> Parser WS -> ParserI b
-paddedAfter combiner p spacePolicy =
-  succeed
-    ( \x wsAfter ->
-        withInfo (combiner x.val wsAfter) x.start x.end
-    )
-    |= p
-    |= spacePolicy
-
-padded : (WS -> a -> WS -> b) -> Parser WS -> ParserI a -> Parser WS -> ParserI b
-padded combiner spacePolicyBefore p spacePolicyAfter =
-  delayedCommitMap
-    ( \wsBefore (x, wsAfter) ->
-        withInfo (combiner wsBefore x.val wsAfter) x.start x.end
-    )
-    spacePolicyBefore
-    ( succeed (,)
-        |= p
-        |= spacePolicyAfter
-    )
 
 --------------------------------------------------------------------------------
 -- Patterns
@@ -123,3 +106,9 @@ mapPat_ = (map << mapInfo) pat_
 
 mapExp_ : ParserI Exp__ -> Parser Exp
 mapExp_ = (map << mapInfo) exp_
+
+-- This is useful to get rid of semicolon or colons in the top-level language.
+-- app   how spaces before applications argument can be parsed (e.g. if they can go one line)
+-- any   how any other top-level space is parsed (e.g.
+type alias SpacePolicy = { first: Parser WS, apparg: Parser WS }
+-- Expressions at top-level cannot consume a newline that is followed by an identifier, or two newlines except if they are parsed inside parentheses.

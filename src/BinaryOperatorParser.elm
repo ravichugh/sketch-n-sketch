@@ -14,6 +14,7 @@ import ParserUtils exposing
   ( lookAhead
   , optional
   )
+import LangParserUtils exposing (SpacePolicy, spaces)
 
 import Dict exposing (Dict)
 
@@ -77,9 +78,11 @@ getOperatorInfo op (PT table) =
 --------------------------------------------------------------------------------
 
 binaryOperator
-  :  { precedenceTable : PrecedenceTable
+  :  { spacePolicy : {first: Parser spaceFirst, apparg: Parser spaceApparg}
+     , greedySpaceParser : Parser spaceFirst
+     , precedenceTable : PrecedenceTable
      , minimumPrecedence : Precedence
-     , expression : Parser exp
+     , expression : {first: Parser spaceFirst, apparg: Parser spaceApparg} -> Parser exp
      , operator : Parser op
      , representation : op -> String
      , combine : exp -> op -> exp -> exp
@@ -87,7 +90,9 @@ binaryOperator
   -> Parser exp
 binaryOperator args =
   let
-    { precedenceTable
+    { spacePolicy
+    , greedySpaceParser
+    , precedenceTable
     , minimumPrecedence
     , expression
     , operator
@@ -118,7 +123,7 @@ binaryOperator args =
 
                       rightHandSide =
                         binaryOperator
-                          { args | minimumPrecedence = nextMinimumPrecedence }
+                          { args | minimumPrecedence = nextMinimumPrecedence, spacePolicy = {first = greedySpaceParser, apparg = spacePolicy.apparg} }
 
                       continue rightExp =
                         let
@@ -147,5 +152,5 @@ binaryOperator args =
             succeed resultExp
 
   in
-    expression
+    expression spacePolicy
       |> andThen loop

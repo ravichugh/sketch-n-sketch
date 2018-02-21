@@ -1,5 +1,6 @@
 module ParserUtils exposing
-  ( lookAhead
+  ( negativeLookAhead
+  , lookAhead
   , try
   , optional
   , guard
@@ -55,6 +56,38 @@ lookAhead parser =
                    -- Consume input and fail (we know it will fail)
                    parser
            )
+
+
+negativeLookAhead : Parser a -> Parser ()
+negativeLookAhead parser =
+  let
+    getResult =
+      succeed
+        ( \offset source ->
+            let
+              remainingCode =
+                String.dropLeft offset source
+            in
+              run parser remainingCode
+        )
+        |= LL.getOffset
+        |= LL.getSource
+  in
+    getResult
+      |> andThen
+           ( \result ->
+               case result of
+                 Ok _ ->
+                   parser
+                   |> andThen (\_ -> fail "Don't want to parse this.")
+                   -- Return the result without consuming input
+
+                 Err _ ->
+                   -- Consume input and fail (we know it will fail)
+                   succeed ()
+           )
+
+
 
 try : Parser a -> Parser a
 try parser =
@@ -284,3 +317,4 @@ showError err =
     "Context Stack\n" ++
     "=============\n" ++
       (String.concat <| List.map showContext err.context) ++ "\n\n"
+
