@@ -2,10 +2,10 @@ module ValUnparser exposing
   (..)
 
 import Dict
-
+import Record
 import Utils
 import Lang exposing (..)
-
+import Set
 
 strBaseVal : VBaseVal -> String
 strBaseVal v =
@@ -46,6 +46,13 @@ strVal_ showTraces v =
     VClosure _ _ _ _        -> "<fun>"
     VList vs                -> Utils.bracks (String.join " " (List.map recurse vs))
     VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (recurse v)) |> String.join " ") ++ ">"
+    VRecord keys d          -> "<record " ++ String.join " " (List.map (\((k, i) as ki) ->
+      case Dict.get ki d of
+        Nothing -> ""
+        Just v -> k ++ ":" ++ recurse v
+      ) <| Record.mapWithNth (==) keys) ++ ">"
+
+
 
 strOp : Op_ -> String
 strOp op = case op of
@@ -75,7 +82,8 @@ strOp op = case op of
   DictRemove    -> "remove"
   DebugLog      -> "debug"
   NoWidgets     -> "noWidgets"
-  OptNumToString-> "optNumToString"
+  ToStrExceptStr-> "ToStrExceptStr"
+  RegexReplaceAllIn -> "replaceAllIn"
 
 strLoc : Loc -> String
 strLoc (k, b, mx) =
@@ -87,3 +95,6 @@ strTrace tr = case tr of
   TrOp op l ->
     Utils.parens (String.concat
       [strOp op, " ", String.join " " (List.map strTrace l)])
+
+
+-- Better rendering of values

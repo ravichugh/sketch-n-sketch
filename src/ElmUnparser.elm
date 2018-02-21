@@ -82,6 +82,20 @@ unparsePattern p =
     PList _ [] wsMiddle (Just tail) _ ->
       unparsePattern tail
 
+    PRecord wsBefore elems wsAfter ->
+      wsBefore.val
+        ++ "{"
+        ++ (case elems of
+              [] -> ""
+              (wsComma, wsKey, key, wsEq, value)::tail ->
+                wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparsePattern value ++
+                String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
+                  wsComma.val ++ "," ++ wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparsePattern value
+                ) tail)
+        )
+        ++ wsAfter.val
+        ++ "}"
+
     PAs wsName name wsBeforeAs pat ->
       wrapPatternWithParensIfLessPrecedence p pat (unparsePattern pat)
         ++ wsBeforeAs.val
@@ -103,6 +117,22 @@ unparseType tipe =
       case maybeRestType of
         Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"
         Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3.val ++ "]"
+    TRecord wsBefore mb elems wsAfter ->
+      wsBefore.val
+        ++ "{"
+        ++ (case mb of
+          Just (ident, wsIdent) -> ident ++ wsIdent.val
+          Nothing -> ""
+        ) ++ (case elems of
+              [] -> ""
+              (wsComma, wsKey, key, wsEq, value)::tail ->
+                wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparseType value ++
+                String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
+                  wsComma.val ++ "," ++ wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparseType value
+                ) tail)
+        )
+        ++ wsAfter.val
+        ++ "}"
     TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
@@ -176,8 +206,10 @@ unparseOp op =
       "debug"
     NoWidgets ->
       "noWidgets"
-    OptNumToString ->
-      "optNumToString"
+    ToStrExceptStr ->
+      "ToStrExceptStr"
+    RegexReplaceAllIn ->
+      "replaceAllIn"
 
 unparseBranch : Branch -> String
 unparseBranch branch =
@@ -283,8 +315,6 @@ unparse e =
         ++ ( case members of
                [] ->
                  ""
-               [(_,e1)] ->
-                 unparse e1
                (_,e1) :: eRest ->
                  unparse e1
                    ++ String.concat (List.map (\(wsI,eI) -> wsI.val ++ "," ++ unparse eI) eRest)
@@ -306,6 +336,27 @@ unparse e =
 
     EList wsBefore [] wsMiddle (Just tail) wsBeforeEnd ->
       unparse tail
+
+    ERecord wsBefore mi elems wsAfter ->
+      wsBefore.val
+        ++ "{"
+        ++ (case mi of
+              Just (m, ws) -> unparse m ++ ws.val ++ "|"
+              Nothing -> ""
+        )
+        ++ (case elems of
+              [] -> ""
+              (wsComma, wsKey, key, wsEq, value)::tail ->
+                wsComma.val ++ wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparse value ++
+                String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
+                  wsComma.val ++ "," ++ wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparse value
+                ) tail)
+        )
+        ++ wsAfter.val
+        ++ "}"
+
+    ESelect exp wsBeforeDot wsAfterDot id ->
+      unparse exp ++ wsBeforeDot.val ++ "." ++ wsAfterDot.val ++ id
 
     EIf wsBefore condition wsBeforeTrue trueBranch wsBeforeElse falseBranch _ ->
       wsBefore.val
@@ -455,14 +506,14 @@ multilineContentUnparse e = case e.val.e__ of
   EOp sp1 op [left, right] sp2 ->
     case op.val of
       Plus ->
-        let unwrapOptNumToString x =
+        let unwrapToStrExceptStr x =
           case x of
             EOp spm1 op [arg] spm2 -> case op.val of
-              OptNumToString -> arg.val.e__
+              ToStrExceptStr -> arg.val.e__
               _ -> x
             _ -> x
         in
-        case unwrapOptNumToString left.val.e__ of
+        case unwrapToStrExceptStr left.val.e__ of
           EBase sp0 (EString _ s) ->
             multilineContentUnparse left ++ multilineContentUnparse right
           EVar sp0 ident as left ->

@@ -267,18 +267,18 @@ pluck__ p e1 path =
     ) ->
       if List.length ps >= i && List.length es >= i then
         let pi = Utils.geti i ps in
-        let ei = Utils.geti i (List.map Tuple.second es) in
+        let ei = Utils.geti i (Utils.listValues es) in
         pluck__ pi ei is
         |> Maybe.map
             (\(plucked, newPat, newBoundExp) ->
               let (newPs, newEs) =
                 ( Utils.replacei i newPat ps
-                , Utils.replacei i newBoundExp (List.map Tuple.second es)
+                , Utils.replacei i newBoundExp (Utils.listValues es)
                 )
               in
               ( plucked
               , replaceP__ p  <| PList pws1 newPs pws2 maybePTail pws3
-              , replaceE__ e1 <| EList ews1 (Utils.zip (List.map Tuple.first es) newEs) ews2 maybeETail ews3
+              , replaceE__ e1 <| EList ews1 (Utils.listValuesMake es newEs) ews2 maybeETail ews3
               )
             )
       else if List.length ps == List.length es && i == 1 + List.length ps && Utils.maybeToBool maybePTail && Utils.maybeToBool maybeETail then
@@ -349,6 +349,8 @@ deadPathsInPat pat =
         in
         deadPathsInPats ps ++ deadPathsInTail
 
+      PRecord ws1 ps ws2 ->
+        deadPathsInPats (Utils.recordValues ps)
 
 -- Returns Maybe (pluckedPat, patsWithoutPlucked)
 pluckPatFromPats : List Int -> List Pat -> Maybe (Pat, List Pat)
@@ -443,10 +445,10 @@ pluckExpByPath path exp =
 
     (EList ws1 es ws2 maybeTail ws3, i::is) ->
       if i <= List.length es then
-        pluckExpFromExpsByPath (i::is) (List.map Tuple.second es)
+        pluckExpFromExpsByPath (i::is) (Utils.listValues es)
         |> Maybe.map
             (\(pluckedExp, remainingExps) ->
-              (pluckedExp, Just <| replaceE__ exp (EList ws1 (Utils.zip (List.map Tuple.first (Utils.tail_ es)) remainingExps) ws2 maybeTail ws3))
+              (pluckedExp, Just <| replaceE__ exp (EList ws1 (Utils.listValuesMake (Utils.tail_ es) remainingExps) ws2 maybeTail ws3))
             )
       else if i == List.length es + 1 then
         maybeTail
@@ -1361,7 +1363,7 @@ insertPat__ (patToInsert, boundExp) p e1 path =
       ) ->
         if List.length ps + 1 >= i && List.length es + 1 >= i then
           Just ( PList pws1 (Utils.inserti i patToInsert ps |> imitatePatListWhitespace ps) pws2 Nothing pws3
-               , EList ews1 (List.map ((,) space0) (Utils.inserti i boundExp (List.map Tuple.second es)    |> imitateExpListWhitespace (List.map Tuple.second es))) ews2 Nothing ews3 )
+               , EList ews1 (List.map ((,) space0) (Utils.inserti i boundExp (Utils.listValues es)    |> imitateExpListWhitespace (Utils.listValues es))) ews2 Nothing ews3 )
                -- TODO whitespace before commas
         else
           let _ = Debug.log "can't insert into this list (note: cannot insert on list tail)" (Syntax.patternUnparser Syntax.Elm p, Syntax.unparser Syntax.Elm e1, path) in
@@ -1372,13 +1374,13 @@ insertPat__ (patToInsert, boundExp) p e1 path =
       , i::is
       ) ->
         if List.length ps >= i && List.length es >= i then
-          let (pi, ei) = (Utils.geti i ps, Utils.geti i (List.map Tuple.second es)) in
+          let (pi, ei) = (Utils.geti i ps, Utils.geti i (Utils.listValues es)) in
           insertPat__ (patToInsert, boundExp) pi ei is
           |> Maybe.map
               (\(newPat, newBoundExp) ->
                 let (newPs, newEs) =
                   ( Utils.replacei i newPat ps      |> imitatePatListWhitespace ps
-                  , Utils.replacei i newBoundExp (List.map Tuple.second es) |> imitateExpListWhitespace (List.map Tuple.second es)
+                  , Utils.replacei i newBoundExp (Utils.listValues es) |> imitateExpListWhitespace (Utils.listValues es)
                   )
                 in
                 (PList pws1 newPs pws2 maybePTail pws3,
@@ -1488,7 +1490,7 @@ addExpToExpByPath expToInsert path exp =
         |> Maybe.andThen (addExpToExpByPath expToInsert is)
         |> Maybe.map (\newTail -> replaceE__ exp <| EList ws1 es ws2 (Just newTail) ws3 )
       else if i <= List.length es + 1 then
-        addExpToExpsByPath expToInsert (i::is) (List.map Tuple.second es)
+        addExpToExpsByPath expToInsert (i::is) (Utils.listValues es)
         |> Maybe.map (\newEs -> replaceE__ exp <| EList ws1 (List.map ((,) space0) newEs) ws2 maybeTail ws3)
         -- TODO whitespace before commas. can't just zip with old es here, since newEs has more elements.
       else
@@ -2427,7 +2429,7 @@ reorderExpressionsTransformation originalProgram selections =
         Just sharedAncestor ->
           let sharedAncestorEId = sharedAncestor.val.eid in
           case sharedAncestor.val.e__ of
-            EList ws1 listExps ws2 maybeTail ws3 -> reorder sharedAncestorEId (List.map Tuple.second listExps) (\newListExps -> EList ws1 (Utils.zip (List.map Tuple.first listExps) newListExps) ws2 maybeTail ws3)
+            EList ws1 listExps ws2 maybeTail ws3 -> reorder sharedAncestorEId (Utils.listValues listExps) (\newListExps -> EList ws1 (Utils.listValuesMake listExps newListExps) ws2 maybeTail ws3)
             EApp ws1 fExp argExps appType ws2    -> reorder sharedAncestorEId argExps  (\newArgExps  -> EApp ws1 fExp newArgExps appType ws2)
             EOp ws1 op operands ws2              -> reorder sharedAncestorEId operands (\newOperands -> EOp ws1 op newOperands ws2)
             _                                    -> Nothing

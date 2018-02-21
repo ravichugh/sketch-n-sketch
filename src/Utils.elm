@@ -54,6 +54,33 @@ zipWith f xs ys = case (xs, ys) of
   (x::xs_, y::ys_) -> f x y :: zipWith f xs_ ys_
   _                -> []
 
+zipWithIndex =
+  let aux i l =
+    case l of
+      [] -> []
+      (head::tail) -> ((head, i)::aux (i+1) tail)
+  in aux 0
+
+updated: List a -> Int -> a -> List a
+updated l index elem =
+  if index == 0 then
+    case l of
+      head::tail -> elem::tail
+      [] -> [elem]
+  else
+    case l of
+      [] -> [elem]
+      head::tail -> head  ::  updated tail (index - 1) elem
+
+inserted: List a -> Int -> a -> List a
+inserted l index elem =
+  if index == 0 then
+    elem :: l
+  else
+    case l of
+      [] -> [elem]
+      head::tail -> head  ::  inserted tail (index - 1) elem
+
 maybeZip : List a -> List b -> Maybe (List (a,b))
 maybeZip xs ys = case (xs, ys) of
   (x::xs_, y::ys_) -> case maybeZip xs_ ys_ of
@@ -309,6 +336,13 @@ maybeUnpackSingleton xs = case xs of
 
 snoc : List a -> a -> List a
 snoc xs x = xs ++ [x]
+
+snocUnapply : List a -> Maybe (List a, a)
+snocUnapply l = case l of
+  [] -> Nothing
+  [head]-> Just ([], head)
+  head::tail -> snocUnapply tail
+   |> Maybe.map (Tuple.mapFirst (\init -> head::init))
 
 snocMaybe : List a -> Maybe a -> List a
 snocMaybe xs mx = Maybe.withDefault xs (mapMaybe (snoc xs) mx)
@@ -592,6 +626,46 @@ count : (a -> Bool) -> List a -> Int
 count pred list =
   List.filter pred list |> List.length
 
+listValue: (ws, value) -> value
+listValue = Tuple.second
+
+listValues: List (ws, value) -> List value
+listValues = List.map listValue
+
+listValuesMake: List (ws, value) -> List a -> List (ws, a)
+listValuesMake = List.map2 (\(sp0, _) value -> (sp0, value))
+
+listValuesMap: (value -> a) -> List (ws, value) -> List (ws, a)
+listValuesMap f ts = listValuesMake ts (List.map f (listValues ts))
+
+recordKey: (sp0, sp1, name, sp2, value) -> name
+recordKey (_, _, k, _, _) = k
+
+recordValue: (sp0, sp1, name, sp2, value) -> value
+recordValue (_, _, _, _, v) = v
+
+recordKeys: List (sp0, sp1, name, sp2, value) -> List name
+recordKeys = List.map recordKey
+
+recordValues: List (sp0, sp1, name, sp2, value) -> List value
+recordValues = List.map recordValue
+
+recordValuesMake: List (sp0, sp1, name, sp2, value) -> List a -> List (sp0, sp1, name, sp2, a)
+recordValuesMake = List.map2 (\(sp0, sp1, name, sp2, _) value -> (sp0, sp1, name, sp2, value))
+
+recordValuesMap: (value -> a) -> List (sp0, sp1, name, sp2, value) -> List (sp0, sp1, name, sp2, a)
+recordValuesMap f ts = recordValuesMake ts (List.map f (recordValues ts))
+
+recordInitValue: Maybe (a, ws) -> Maybe a
+recordInitValue = Maybe.map Tuple.first
+
+recordInitMake: Maybe (a, ws) -> Maybe b -> Maybe (b, ws)
+recordInitMake m b =
+  m
+  |> Maybe.andThen (\(a, ws) ->
+     Maybe.map (\bv -> (bv, ws)) b
+  )
+
 delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"
@@ -816,12 +890,20 @@ maybeLast list =
     [x]   -> Just x
     _::xs -> maybeLast xs
 
+maybeInit list =
+  case list of
+    [] -> Nothing
+    [x] -> Just []
+    head::xs -> Maybe.map (\x -> head::x) <| maybeInit xs
+
 head msg = fromJust_ msg << List.head
 tail msg = fromJust_ msg << List.tail
 last msg = fromJust_ msg << maybeLast
+init msg = fromJust_ msg << maybeInit
 head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail
 last_ = last "Utils.last_"
+init_ = init "Utils.init_"
 
 uncons xs = case xs of
   x::xs -> (x, xs)
@@ -952,6 +1034,9 @@ foldlResult f resultAcc list =
     (Ok acc, x::xs) -> foldlResult f (f x acc) xs
     (_, [])         -> resultAcc
 
+
+mapFirstSecond : (a -> c) -> (b -> d) -> (a, b) -> (c, d)
+mapFirstSecond f g (a, b) = (f a, g b)
 
 -- Use Tuple.mapFirst
 -- mapFst : (a -> a_) -> (a, b) -> (a_, b)
@@ -1189,3 +1274,30 @@ fromResult result =
 
     Err x ->
       x
+
+-- Returns the strings from the first elements which are likely to be corrections of the string given in second.
+stringSuggestions : List String -> String -> List String
+stringSuggestions trueStrings wrongString =
+  let wrongStringCanonical = String.toLower <| String.trim <| wrongString in
+  let trueStringsCanonical = List.map (String.toLower << String.trim) trueStrings in
+  let trueMapping = zip trueStringsCanonical trueStrings in
+  let guess1 = trueMapping
+    |> List.filter (\(x, _) -> x == wrongStringCanonical)
+    |> List.map Tuple.second
+  in case guess1 of
+    head::tail -> guess1
+    [] -> -- Ok the error might come from somewhere else. We look for keys starting the same.
+      let firstChar = String.slice 0 1 wrongStringCanonical in
+      let guess2 = trueMapping
+          |> List.filter (\(x, _) -> String.slice 0 1 x == firstChar)
+          |> List.map Tuple.second
+      in case guess2 of
+        head::tail -> List.take 5 guess2
+        [] -> let lastChar = String.slice -1 (String.length wrongStringCanonical) wrongStringCanonical in
+          let guess3 = trueMapping
+              |> List.filter (\(x, _) -> String.slice -1 (String.length x) x == firstChar)
+              |> List.map Tuple.second
+          in case guess3 of
+            head::tail -> List.take 5 guess2
+            [] -> -- We are a bit puzzled here. No strings with the same start or same end. Just return the first 5 keys.
+              List.take 5 trueStrings

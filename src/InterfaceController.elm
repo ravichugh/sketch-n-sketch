@@ -628,7 +628,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
           , lastRunCode = newCode
           , inputExp = newExp
           , inputVal = newVal
-          , valueEditorString = Update.valToString newVal
+          , valueEditorString = LangTools.valToString newVal
           , slate = newSlate
           , slateCount = 1 + old.slateCount
           , widgets = newWidgets
@@ -704,7 +704,7 @@ tryRun old =
               let new_ =
                 { new | inputExp      = e
                       , inputVal      = newVal
-                      , valueEditorString = Update.valToString newVal
+                      , valueEditorString = LangTools.valToString newVal
                       , code          = newCode
                       , lastRunCode   = newCode
                       , slideCount    = newSlideCount
@@ -1449,7 +1449,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
-            , valueEditorString = Update.valToString newVal
+            , valueEditorString = LangTools.valToString newVal
             , history          = addToHistory newCode old.history
             , slate            = newSlate
             , slateCount       = 1 + old.slateCount
@@ -1589,8 +1589,8 @@ deleteInOutput old =
                         deleteEId parent.val.eid program
 
                       EList ws1 heads ws2 maybeTail ws3 ->
-                        case List.map Tuple.second heads |> Utils.findi (eidIs eidToDelete) of
-                          Just iToDelete -> program |> replaceExpNodeE__ parent (EList ws1 (List.map ((,) space0) (Utils.removei iToDelete (List.map Tuple.second heads) |> imitateExpListWhitespace (List.map Tuple.second heads))) ws2 maybeTail ws3)
+                        case Utils.listValues heads |> Utils.findi (eidIs eidToDelete) of
+                          Just iToDelete -> program |> replaceExpNodeE__ parent (EList ws1 (List.map ((,) space0) (Utils.removei iToDelete (Utils.listValues heads) |> imitateExpListWhitespace (Utils.listValues heads))) ws2 maybeTail ws3)
                           Nothing ->
                             if Maybe.map (eidIs eidToDelete) maybeTail == Just True
                             then program |> replaceExpNodeE__ parent (EList ws1 heads ws2 Nothing ws3)
@@ -1651,7 +1651,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
       let newer =
       { new | inputExp             = reparsed -- newExp
             , inputVal             = newVal
-            , valueEditorString    = Update.valToString newVal
+            , valueEditorString    = LangTools.valToString newVal
             , slate                = newSlate
             , slateCount           = 1 + old.slateCount
             , widgets              = newWidgets
@@ -1953,7 +1953,7 @@ doCallUpdate m =
     Oks solutions ->
       let solutionsNotModifyingEnv =
          Results.filterLazy
-           (\(env, exp) -> Update.envEqual (Update.pruneEnv exp env) (Update.pruneEnv exp Eval.initEnv))
+           (\(env, exp) -> Update.envEqual (LangTools.pruneEnv exp env) (LangTools.pruneEnv exp Eval.initEnv))
            solutions
       in
       case solutionsNotModifyingEnv of
@@ -2011,7 +2011,7 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
         , inputVal      = val
-        , valueEditorString = Update.valToString val
+        , valueEditorString = LangTools.valToString val
         , history       = addToHistory code old.history
         , slate         = slate
         , preview       = Nothing
@@ -2354,7 +2354,7 @@ handleNew template = (\old ->
         let code = Syntax.unparser old.syntax e in
         { initModel | inputExp      = e
                     , inputVal      = v
-                    , valueEditorString = Update.valToString v
+                    , valueEditorString = LangTools.valToString v
                     , code          = code
                     , lastRunCode   = code
                     , history       = ([code],[])

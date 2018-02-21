@@ -1782,6 +1782,11 @@ makeSingleLineTool model selections =
                               (deLine ws2)
                               rest
                               space0
+                          PRecord ws1 ps ws2 ->
+                            PRecord
+                              (deLine ws1)
+                              (Utils.recordValuesMake ps (setPatListWhitespace "" " " (Utils.recordValues ps)))
+                              (deLine ws2)
                           PAs ws1 ident ws2 p ->
                             PAs
                               (deLine ws1)
@@ -1822,12 +1827,18 @@ makeSingleLineTool model selections =
                           EList ws1 es ws2 rest ws3 ->
                             EList
                               (deLine ws1)
-                              (Utils.zip
-                                (List.map Tuple.first es)
-                                (setExpListWhitespace "" " " (List.map Tuple.second es)))
+                              (Utils.listValuesMake es (setExpListWhitespace "" " " (Utils.listValues es)))
                               (deLine ws2)
                               rest
                               space0
+                          ERecord ws1 mb es ws2 ->
+                            ERecord
+                              (deLine ws1)
+                              mb
+                              (Utils.recordValuesMake es (setExpListWhitespace "" " " (Utils.recordValues es)))
+                              (deLine ws2)
+                          ESelect e1 ws1 ws2 n ->
+                            ESelect e1 (deLine ws1) (deLine ws2) n
                           EOp ws1 op es ws2 ->
                             EOp (deLine ws1) op es space0
                           EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
@@ -1911,7 +1922,7 @@ makeMultiLineTool model selections =
             case exp.val.e__ of
               EList ws1 es ws2 Nothing ws3 ->
                 if
-                  List.map Tuple.second es |>
+                  Utils.listValues es |>
                     List.all (precedingWhitespace >> String.contains "\n")
                 then
                   Nothing
@@ -1932,7 +1943,7 @@ makeMultiLineTool model selections =
                                       ( setExpListWhitespace
                                           ("\n" ++ indentation ++ "  ")
                                           ("\n" ++ indentation ++ "  ")
-                                          (List.map Tuple.second es)
+                                          (Utils.listValues es)
                                       )
                                    )
                                    ws2

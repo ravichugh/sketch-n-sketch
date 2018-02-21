@@ -91,5 +91,6 @@ isInfixOperator op =
       False
     NoWidgets ->
       False
-    OptNumToString ->
+    ToStrExceptStr ->
       False
+    RegexReplaceAllIn -> False

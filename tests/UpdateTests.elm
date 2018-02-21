@@ -13,6 +13,7 @@ import Eval
 import Syntax
 import Lazy
 import Results
+import LangTools exposing (valToString, valToExp)
 
 type alias State = { numTests: Int, nthAssertion: Int, numSuccess: Int, numFailed: Int, currentName: String, errors: String, ignore: Bool }
 init_state = State 0 0 0 0 "" "" False
@@ -46,11 +47,19 @@ fail state newError = { state |
 log state msg =
   "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] " ++ msg
 
-assertEqual: a -> a -> State  -> State
-assertEqual obtained expected state =
+
+
+genericAssertEqual: (a -> String) -> (a -> a -> Bool) -> a -> a -> State  -> State
+genericAssertEqual eToString isEqual obtained expected state =
   if state.ignore then state else
-  if obtained == expected then success state else fail state <| "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] Expected \n" ++
-      toString expected ++ ", got\n" ++ toString obtained
+  if isEqual obtained expected then success state else fail state <| "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] Expected \n" ++
+      eToString expected ++ ", got\n" ++ eToString obtained
+
+assertEqual: a -> a -> State  -> State
+assertEqual = genericAssertEqual (toString) (==)
+
+assertEqualVal: Val -> Val -> State  -> State
+assertEqualVal = genericAssertEqual LangTools.valToString (\x y -> LangTools.valToString x == LangTools.valToString y)
 
 updateAssert: Env -> Exp -> Val -> Val -> Env -> String  -> State  -> State
 updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
@@ -76,6 +85,23 @@ updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
        fail state <| log state <| "Expected \n" ++ expected ++  ", got no solutions without error" ++ problemdesc
     Results.Errs msg ->
        fail state <| log state <| "Expected \n" ++ expected ++  ", got\n" ++ msg ++ problemdesc
+
+evalElmAssert: List (String, String) -> String -> String -> State -> State
+evalElmAssert envStr expStr expectedResStr state =
+  if state.ignore then state else
+    case Utils.projOk [parseEnv envStr] of
+      Err error -> fail state <| log state <| "Error while parsing environments: " ++ error
+      Ok [env] ->
+         case Utils.projOk [parse expStr, parse expectedResStr] of
+             Err error -> fail state <| log state <| "Error while parsing expressions or outputs: " ++ error
+             Ok [exp, res] ->
+               --let _ = Debug.log (log state <| toString exp) () in
+               case Utils.projOk [evalEnv env exp, eval res] of
+               Err error -> fail state <| log state <| "Error while evaluating the expression or the expected result: " ++ unparse exp ++ "," ++ unparse res ++ ": " ++ error
+               Ok [out, expectedOut] -> assertEqualVal out expectedOut state
+               Ok _ -> fail state "???"
+             Ok _ -> fail state "???"
+      Ok _ -> fail state "???"
 
 updateElmAssert: List (String, String) -> String -> String -> List (String, String) -> String -> State -> State
 updateElmAssert envStr expStr newOutStr expectedEnvStr expectedExpStr state =
@@ -143,8 +169,8 @@ tPList sp0 listPat sp1= withDummyPatInfo <| PList sp0 listPat (ws "") Nothing sp
 tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat sp1 (Just tailPat) sp1
 
 all_tests = init_state
-  |> test "triCombineTest"
   |> ignore True
+  |> test "triCombineTest"
   |> assertEqual
       (triCombine (tList space0  [tVar space0 "x", tVar space0 "y"] space0)
                   [("y", (tVal 2)), ("x", (tVal 1))]
@@ -392,7 +418,6 @@ all_tests = init_state
       , ["xAyBBBz", "o", "p","C"]
       , ["xAyBBBz", "o", "pC",""]
       ]
-  |> ignore False
   |> test "GroupStartMap"
     |> assertEqual (List.map (\{submatches} -> submatches) (GroupStartMap.find Regex.All "a((bc)|cd)d" "aabcdacdd"))
         [[{match = Just "bc", start = 2}, {match = Just "bc", start = 2}], [{match = Just "cd", start = 6}, {match = Nothing, start = -1}]]
@@ -400,4 +425,11 @@ all_tests = init_state
       \match -> String.concat <| List.map (\subm -> toString subm.start ++ Maybe.withDefault "null" subm.match) match.submatches
       ) "aabcdacdd")
         "a2bc2bc6cd-1null"
+  |> test "replaceAllIn"
+    |> evalElmAssert [] "replaceAllIn \"l\" \"L\" \"Hello world\"" "\"HeLLo worLd\""
+    |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null; in replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
+  |> ignore False
+    |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null; in replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
+  --|> test "Record construction, extraction and pattern "
+  --  |>
   |> summary

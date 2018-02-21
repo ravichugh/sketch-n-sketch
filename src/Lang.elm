@@ -71,6 +71,7 @@ type Pat__
   | PList WS (List Pat) WS (Maybe Pat) WS
   | PAs WS Ident WS Pat
   | PParens WS Pat WS
+  | PRecord WS {- { -}  (List (WS {- , -}, WS, Ident, WS{-=-}, Pat)) WS{- } -}
 
 type Op_
   -- nullary ops
@@ -80,7 +81,7 @@ type Op_
   | Cos | Sin | ArcCos | ArcSin
   | Floor | Ceil | Round
   | ToStr
-  | OptNumToString -- Keeps every values as they are, convert numbers to their string representation
+  | ToStrExceptStr -- Keeps strings, but use ToStr for everything else
   | Sqrt
   | Explode
   | DebugLog
@@ -95,6 +96,7 @@ type Op_
   | DictRemove
   -- trinary ops
   | DictInsert
+  | RegexReplaceAllIn
 
 
 maybeEvalMathOp : Op_ -> List Num -> Maybe Num
@@ -160,7 +162,8 @@ type Exp__
   | ETypeAlias WS Pat Type Exp WS
   | EParens WS Exp ParensStyle WS
   | EHole WS (Maybe Val) -- Internal intermediate, should not appear in code. (Yet.)
-
+  | ERecord WS {- { -} (Maybe (Exp, WS) {- | -}) (List (WS, {-,-} WS, Ident, WS{-=-}, Exp)) {- }-} WS
+  | ESelect Exp WS {-.-} WS Ident
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
     -- EFun ps e     (\(p1 ... pn) e) === (\p1 (\p2 (... (\pn e) ...)))
@@ -178,6 +181,7 @@ type Type_
   | TNull WS
   | TList WS Type WS
   | TDict WS Type Type WS
+  | TRecord WS (Maybe (Ident, WS {- | -})) (List (WS, {- , -} WS, Ident, WS{-:-}, Type)) {- }-} WS
   | TTuple WS (List Type) WS (Maybe Type) WS
   | TArrow WS (List Type) WS
   | TUnion WS (List Type) WS
@@ -246,6 +250,7 @@ type Val_
   | VBase VBaseVal
   | VClosure (Maybe Ident) (List Pat) Exp Env
   | VList (List Val)
+  | VRecord (List String) (Dict (String, Int) Val) -- It's a record indexed by the keys and order of multiplicity from the end.
   | VDict VDict_
 
 type alias VDict_ = Dict (String, String) Val
@@ -496,13 +501,26 @@ mapFoldExp f initAcc e =
       wrapAndMap (EOp ws1 op newEs ws2) newAcc
 
     EList ws1 es ws2 Nothing ws3 ->
-      let (newEs, newAcc) = recurseAll initAcc (List.map Tuple.second es) in
-      wrapAndMap (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 Nothing ws3) newAcc
+      let (newEs, newAcc) = recurseAll initAcc (Utils.listValues es) in
+      wrapAndMap (EList ws1 (Utils.listValuesMake es newEs) ws2 Nothing ws3) newAcc
 
     EList ws1 es ws2 (Just e1) ws3 ->
       let (newE1, newAcc)  = recurse initAcc e1 in
-      let (newEs, newAcc2) = recurseAll newAcc (List.map Tuple.second es) in
-      wrapAndMap (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 (Just newE1) ws3) newAcc2
+      let (newEs, newAcc2) = recurseAll newAcc (Utils.listValues es) in
+      wrapAndMap (EList ws1 (Utils.listValuesMake es newEs) ws2 (Just newE1) ws3) newAcc2
+
+    ERecord ws1 Nothing es ws2 ->
+      let (newEs, newAcc) = recurseAll initAcc (List.map Utils.recordValue es) in
+      wrapAndMap (ERecord ws1 Nothing (Utils.recordValuesMake es newEs) ws2) newAcc
+
+    ERecord ws1 (Just (mi, wsi)) es ws2 ->
+      let (newMi, newAcc) = recurse initAcc mi in
+      let (newEs, newAcc2) = recurseAll newAcc (List.map Utils.recordValue es) in
+      wrapAndMap (ERecord ws1 (Just (newMi, wsi)) (Utils.recordValuesMake es newEs) ws2) newAcc
+
+    ESelect e ws1 ws2 s ->
+      let (newE, newAcc) = recurse initAcc e in
+      wrapAndMap (ESelect newE ws1 ws2 s) newAcc
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       case recurseAll initAcc [e1, e2, e3] of
@@ -602,6 +620,10 @@ mapFoldPat f initAcc p =
       let (newPs, newAcc2)   = recurseAll newAcc ps in
       wrapAndMap (PList ws1 newPs ws2 (Just newPTail) ws3) newAcc2
 
+    PRecord ws1 ps ws2 ->
+      let (newPs, newAcc) = recurseAll initAcc (Utils.recordValues ps) in
+      wrapAndMap (PRecord ws1 (Utils.recordValuesMake ps newPs) ws2) newAcc
+
     PAs ws1 ident ws2 pChild ->
       let (newPChild, newAcc) = recurse initAcc pChild in
       wrapAndMap (PAs ws1 ident ws2 newPChild) newAcc
@@ -648,13 +670,26 @@ mapFoldExpTopDown f initAcc e =
       ret (EOp ws1 op newEs ws2) newAcc2
 
     EList ws1 es ws2 Nothing ws3 ->
-      let (newEs, newAcc2) = recurseAll newAcc (List.map Tuple.second es) in
-      ret (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 Nothing ws3) newAcc2
+      let (newEs, newAcc2) = recurseAll newAcc (Utils.listValues es) in
+      ret (EList ws1 (Utils.listValuesMake es newEs) ws2 Nothing ws3) newAcc2
 
     EList ws1 es ws2 (Just e1) ws3 ->
-      let (newEs, newAcc2) = recurseAll newAcc (List.map Tuple.second es) in
+      let (newEs, newAcc2) = recurseAll newAcc (Utils.listValues es) in
       let (newE1, newAcc3) = recurse newAcc2 e1 in
-      ret (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 (Just newE1) ws3) newAcc3
+      ret (EList ws1 (Utils.listValuesMake es newEs) ws2 (Just newE1) ws3) newAcc3
+
+    ERecord ws1 Nothing es ws2 ->
+      let (newEs, newAcc2) = recurseAll newAcc (Utils.recordValues es) in
+      ret (ERecord ws1 Nothing (Utils.recordValuesMake es newEs) ws2) newAcc2
+
+    ERecord ws1 (Just (mi, wsi)) es ws2 ->
+      let (newMi, newAcc2) = recurse newAcc mi in
+      let (newEs, newAcc3) = recurseAll newAcc2 (Utils.recordValues es) in
+      ret (ERecord ws1 (Just (newMi, wsi)) (Utils.recordValuesMake es newEs) ws2) newAcc3
+
+    ESelect e ws1 ws2 s ->
+      let (newE, newAcc2) = recurse newAcc e in
+      ret (ESelect newE ws1 ws2 s) newAcc2
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       case recurseAll newAcc [e1, e2, e3] of
@@ -756,6 +791,10 @@ mapFoldPatTopDown f initAcc p =
       let (newPTail, newAcc3) = recurse newAcc2 pTail in
       ret (PList ws1 newPs ws2 (Just newPTail) ws3) newAcc3
 
+    PRecord ws1 ps ws2 ->
+      let (newPsvalues, newAcc2)    = recurseAll newAcc (Utils.recordValues ps) in
+      ret (PRecord ws1 (Utils.recordValuesMake ps newPsvalues) ws2) newAcc2
+
     PAs ws1 ident ws2 pChild ->
       let (newPChild, newAcc2) = recurse newAcc pChild in
       ret (PAs ws1 ident ws2 newPChild) newAcc2
@@ -812,13 +851,26 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
       ret (EOp ws1 op newEs ws2) newGlobalAcc2
 
     EList ws1 es ws2 Nothing ws3 ->
-      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc (List.map Tuple.second es) in
-      ret (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 Nothing ws3) newGlobalAcc2
+      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc (Utils.listValues es) in
+      ret (EList ws1 (Utils.listValuesMake es newEs) ws2 Nothing ws3) newGlobalAcc2
 
     EList ws1 es ws2 (Just e1) ws3 ->
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
-      let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 initScopeTempAcc (List.map Tuple.second es) in
-      ret (EList ws1 (Utils.zip (List.map Tuple.first es) newEs) ws2 (Just newE1) ws3) newGlobalAcc3
+      let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 initScopeTempAcc (Utils.listValues es) in
+      ret (EList ws1 (Utils.listValuesMake es newEs) ws2 (Just newE1) ws3) newGlobalAcc3
+
+    ERecord ws1 Nothing es ws2 ->
+      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc (Utils.recordValues es) in
+      ret (ERecord ws1 Nothing (Utils.recordValuesMake es newEs) ws2) newGlobalAcc2
+
+    ERecord ws1 (Just (mi, wsi)) es ws2 ->
+      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc (Utils.recordValues es) in
+      let (newMi, newGlobalAcc3) = recurse newGlobalAcc2 initScopeTempAcc mi in
+      ret (ERecord ws1 (Just (newMi, wsi)) (Utils.recordValuesMake es newEs) ws2) newGlobalAcc3
+
+    ESelect e ws1 ws2 ident ->
+      let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e in
+      ret (ESelect newE ws1 ws2 ident) newGlobalAcc2
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       case recurseAll newGlobalAcc initScopeTempAcc [e1, e2, e3] of
@@ -949,6 +1001,7 @@ mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
   VList vs         -> f { v | v_ = VList (List.map (mapVal f) vs) }
   VDict d          -> f { v | v_ = VDict (Dict.map (\_ v -> mapVal f v) d) } -- keys ignored
+  VRecord keys d   -> f { v | v_ = VRecord keys <| Dict.map (\_ v -> mapVal f v) d } -- fields ignored
   VConst _ _       -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
@@ -957,6 +1010,7 @@ foldVal : (Val -> a -> a) -> Val -> a -> a
 foldVal f v a = case v.v_ of
   VList vs         -> f v (List.foldl (foldVal f) a vs)
   VDict d          -> f v (List.foldl (foldVal f) a (Dict.values d)) -- keys ignored
+  VRecord keys d   -> f v (List.foldl (foldVal f) a (Dict.values d)) -- keys ignored
   VConst _ _       -> f v a
   VBase _          -> f v a
   VClosure _ _ _ _ -> f v a
@@ -970,6 +1024,7 @@ childVals : Val -> List Val
 childVals val = case val.v_ of
   VList vs         -> vs
   VDict d          -> Dict.values d -- keys ignored
+  VRecord keys d   -> Dict.values d -- fields ignored
   VConst _ _       -> []
   VBase _          -> []
   VClosure _ _ _ _ -> []
@@ -1087,6 +1142,8 @@ mapType f tipe =
 
     TTuple ws1 ts ws2 mt ws3 ->
       f (wrap (TTuple ws1 (List.map recurse ts) ws2 (Utils.mapMaybe recurse mt) ws3))
+    TRecord ws1 mi ts ws2       ->
+      f (wrap (TRecord ws1 mi (Utils.recordValuesMap recurse ts) ws2))
 
 foldType : (Type -> a -> a) -> Type -> a -> a
 foldType f tipe acc =
@@ -1107,7 +1164,7 @@ foldType f tipe acc =
 
     TTuple _ ts _ Nothing _  -> acc |> foldTypes f ts |> f tipe
     TTuple _ ts _ (Just t) _ -> acc |> foldTypes f (ts++[t]) |> f tipe
-
+    TRecord _ _ ts _  -> acc |> foldTypes f (Utils.recordValues ts) |> f tipe
 
 ------------------------------------------------------------------------------
 -- Traversing
@@ -1262,8 +1319,13 @@ childExps e =
     EOp ws1 op es ws2       -> es
     EList ws1 es ws2 m ws3  ->
       case m of
-        Just e  -> List.map Tuple.second es ++ [e]
-        Nothing -> List.map Tuple.second es
+        Just e  -> Utils.listValues es ++ [e]
+        Nothing -> Utils.listValues es
+    ERecord ws1 mw es ws2 ->
+      case mw of
+        Just (e, w) -> [e] ++ Utils.recordValues es
+        Nothing -> Utils.recordValues es
+    ESelect e _ _ _ -> [e]
     EApp ws1 f es apptype ws2       -> f :: es
     ELet ws1 k b p ws2 e1 ws3 e2 ws4-> [e1, e2]
     EIf ws1 e1 ws2 e2 ws3 e3 ws4    -> [e1, e2, e3]
@@ -1501,6 +1563,7 @@ varsOfPat pat =
     PVar _ x _              -> [x]
     PList _ ps _ Nothing _  -> List.concatMap varsOfPat ps
     PList _ ps _ (Just p) _ -> List.concatMap varsOfPat (p::ps)
+    PRecord _ ps _          -> List.concatMap varsOfPat <| Utils.recordValues ps
     PAs _ x _ p             -> x::(varsOfPat p)
     PParens _ p _           -> varsOfPat p
 
@@ -1519,6 +1582,7 @@ childPats pat =
     PVar _ _ _              -> []
     PWildcard _             -> []
     PList _ ps _ Nothing _  -> ps
+    PRecord _ ps _          -> Utils.recordValues ps
     PList _ ps _ (Just p) _ -> ps ++ [p]
     PAs _ _ _ p             -> [p]
     PParens _ p _           -> [p]
@@ -1857,6 +1921,7 @@ precedingWhitespacePat pat =
       PBase  ws v                -> ws
       PWildcard ws               -> ws
       PList  ws1 ps ws2 rest ws3 -> ws1
+      PRecord ws1 es ws2      -> ws1
       PAs    ws1 ident ws2 p     -> ws1
       PParens ws1 p ws2          -> ws1
 
@@ -1874,6 +1939,8 @@ precedingWhitespaceWithInfoExp__ e__ =
     EFun       ws1 ps e1 ws2            -> ws1
     EApp       ws1 e1 es apptype  ws2   -> ws1
     EList      ws1 es ws2 rest ws3      -> ws1
+    ERecord    ws1 mi es ws2            -> ws1
+    ESelect    e ws1 ws2 s              -> precedingWhitespaceWithInfoExp__ e.val.e__
     EOp        ws1 op es ws2            -> ws1
     EIf        ws1 e1 ws2 e2 ws3 e3 ws4 -> ws1
     ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ws1
@@ -1914,6 +1981,11 @@ allWhitespaces_ exp =
     EList      ws1 es ws2 rest ws3          -> [ws1]
                                                  ++ List.concatMap (\(ws_i,e_i) -> ws_i :: allWhitespaces_ e_i) es
                                                  ++ [ws2] ++ (rest |> Maybe.map allWhitespaces_ |> Maybe.withDefault []) ++ [ws3]
+    ERecord    ws1 mi es ws2                -> [ws1]
+                                                 ++ (mi |> Maybe.map (Tuple.first >> allWhitespaces_) |> Maybe.withDefault [])
+                                                 ++ List.concatMap (\(wsc, wsk, _, wse, v) -> [wsc, wsk, wse] ++ allWhitespaces_ v) es
+                                                 ++ [ws2]
+    ESelect    e ws1 ws2 s                  -> allWhitespaces_ e ++ [ws1, ws2]
     EOp        ws1 op es ws2                -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2]
     EIf        ws1 e1 ws2 e2 ws3 e3 ws4     -> [ws1] ++ allWhitespaces_ e1
                                                  ++ [ws2] ++ allWhitespaces_ e2
@@ -1950,6 +2022,7 @@ allWhitespacesPat_ pat =
     PBase  ws v                -> [ws]
     PWildcard ws               -> [ws]
     PList  ws1 ps ws2 rest ws3 -> [ws1] ++ List.concatMap allWhitespacesPat_ ps ++ [ws2] ++ (rest |> Maybe.map allWhitespacesPat_ |> Maybe.withDefault []) ++ [ws3]
+    PRecord ws1 ps ws2         -> [ws1] ++ List.concatMap allWhitespacesPat_ (Utils.recordValues ps) ++ [ws2]
     PAs    ws1 ident ws2 p     -> [ws1, ws2] ++ allWhitespacesPat_ p
     PParens ws1 p ws2          -> [ws1, ws2] ++ allWhitespacesPat_ p
 
@@ -1966,6 +2039,9 @@ allWhitespacesType_ tipe =
       TString ws                          -> [ws]
       TNull ws                            -> [ws]
       TList ws1 elemType ws2              -> [ws1] ++ allWhitespacesType_ elemType ++ [ws2]
+      TRecord ws1 mb2 listWsIdWsExpWs ws2 -> [ws1] ++ (case mb2 of
+        Nothing -> []
+        Just (_, wsm) -> [wsm]) ++ List.concatMap allWhitespacesType_  (Utils.recordValues listWsIdWsExpWs) ++ [ws2]
       TDict ws1 keyType valueType ws2     -> [ws1] ++ allWhitespacesType_ keyType ++ allWhitespacesType_ valueType ++ [ws2]
       TTuple ws1 heads ws2 maybeTail ws3  -> [ws1] ++ List.concatMap allWhitespacesType_ heads ++ [ws2] ++ (maybeTail |> Maybe.map allWhitespacesType_ |> Maybe.withDefault []) ++ [ws3]
       TArrow ws1 ts ws2                   -> [ws1] ++ List.concatMap allWhitespacesType_ ts ++ [ws2]
@@ -2015,6 +2091,8 @@ mapPrecedingWhitespace stringMap exp =
         EFun       ws1 ps e1 ws2            -> EFun       (mapWs ws1) ps e1 ws2
         EApp       ws1 e1 es apptype ws2    -> EApp       (mapWs ws1) e1 es apptype ws2
         EList      ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
+        ERecord    ws1 mi es ws2            -> ERecord    (mapWs ws1) mi es ws2
+        ESelect    e ws1 ws2 s              -> ESelect    (mapPrecedingWhitespace stringMap e) ws1 ws2 s
         EOp        ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
         EIf        ws1 e1 ws2 e2 ws3 e3 ws4 -> EIf        (mapWs ws1) e1 ws2 e2 ws3 e3 ws4
         ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ELet       (mapWs ws1) kind rec p ws2 e1 ws3 e2 ws4
@@ -2043,6 +2121,7 @@ mapPrecedingWhitespacePat stringMap pat =
         PBase  ws v                -> PBase  (mapWs ws) v
         PWildcard ws               -> PWildcard (mapWs ws)
         PList  ws1 ps ws2 rest ws3 -> PList  (mapWs ws1) ps ws2 rest ws3
+        PRecord ws1 ps ws2         -> PRecord (mapWs ws1) ps ws2
         PAs    ws1 ident ws2 p     -> PAs    ws1 ident ws2 (mapPrecedingWhitespacePat stringMap p)
         PParens ws1 p ws2          -> PParens (mapWs ws1) p ws2
   in
@@ -2407,6 +2486,8 @@ wsBefore codeObject =
           ws
         PList ws _ _ _ _ ->
           ws
+        PRecord ws _ _ ->
+          ws
         PAs _ _ _ p ->
           wsBefore <| P e p
         PParens ws _ _ ->
@@ -2426,6 +2507,8 @@ wsBefore codeObject =
         TDict ws _ _ _ ->
           ws
         TTuple ws _ _ _ _ ->
+          ws
+        TRecord ws _ _ _ ->
           ws
         TArrow ws _ _ ->
           ws
@@ -2477,6 +2560,12 @@ modifyWsBefore f codeObject =
               EOp (f ws) a b c
             EList ws a b c d ->
               EList (f ws) a b c d
+            ERecord ws a b c ->
+              ERecord (f ws) a b c
+            ESelect e2 a b c ->
+              case (modifyWsBefore f (E e2)) of
+                E newE -> ESelect newE a b c
+                _ -> ESelect e2 a b c
             EIf ws a b c d e_ f_ ->
               EIf (f ws) a b c d e_ f_
             ECase ws a b c  ->
@@ -2517,6 +2606,8 @@ modifyWsBefore f codeObject =
               PWildcard (f ws)
             PList ws a b c d ->
               PList (f ws) a b c d
+            PRecord ws a b ->
+              PRecord (f ws) a b
             PAs ws ident ws2 p2 ->
               case modifyWsBefore f (P e p2) of
                 P e3 p3 -> PAs ws ident ws2 p3
@@ -2543,6 +2634,8 @@ modifyWsBefore f codeObject =
               TDict (f ws) a b c
             TTuple ws a b c d ->
               TTuple (f ws) a b c d
+            TRecord ws c a b ->
+              TRecord (f ws) c a b
             TArrow ws a b ->
               TArrow (f ws) a b
             TUnion ws a b ->
@@ -2662,6 +2755,27 @@ childCodeObjects co =
                     ( List.map (ET After ws3) lastHead
                     )
               )
+          ERecord ws1 mbExpWs listWsIdWsExpWs ws2 ->
+            let
+              firstValue =
+                case listWsIdWsExpWs of
+                  (_, _, _, _, firstValue) :: tail -> [firstValue]
+                  [] -> []
+            in
+            [ ET Before ws1 e
+            ] ++
+            ( case mbExpWs of
+                Just (eInit, ws2) ->
+                  ( List.map (ET Before ws2) firstValue
+                  ) ++
+                  [ E eInit
+                  , ET After ws2 eInit]
+                Nothing ->
+                  []
+            ) ++
+            ( List.map (E << (\(_, _, _, _, v) -> v)) listWsIdWsExpWs )
+          ESelect e _ _ _ ->
+              [ E e ]
           EIf ws1 e1 _ e2 _ e3 ws2 ->
               [ ET Before ws1 e
               , E e1
@@ -2856,6 +2970,21 @@ childCodeObjects co =
                     ( List.map (PT After ws3 e) lastHead
                     )
               )
+          PRecord ws1 ps ws2 ->
+            let
+              lastHead =
+                case Utils.maybeLast ps of
+                  Just lastHead ->
+                    [ Utils.recordValue lastHead ]
+                  Nothing ->
+                    []
+            in
+              [ PT Before ws1 e p
+              ] ++
+              List.map (P e) (Utils.recordValues ps)
+              ++
+              ( List.map (PT After ws2 e) lastHead
+              )
           PAs ws1 _ _ p1 ->
             [ PT Before ws1 e p
             , P e p1
@@ -2909,6 +3038,20 @@ childCodeObjects co =
                     ( List.map (TT After ws3) lastHead
                     )
               )
+          TRecord ws1 mb ts ws2 ->
+            let
+              lastHead =
+                case Utils.maybeLast ts of
+                  Just lastHead ->
+                    [ Utils.recordValue lastHead ]
+                  Nothing ->
+                    []
+            in
+            [ TT Before ws1 t
+            ]
+            ++ List.map T (Utils.recordValues ts)
+            ++
+            ( List.map (TT After ws2) lastHead )
           TArrow ws1 ts ws2 ->
             let
               lastHead =
@@ -3024,6 +3167,8 @@ tagSinglePat ppid pat =
           tagPatList ppid (ps ++ [pTail])
         PParens _ p1 _ ->
           tagSinglePat ppid p1
+        PRecord ws1 listWsIdWsExpWs ws2 ->
+          tagPatList ppid (Utils.recordValues listWsIdWsExpWs)
 
 tagBranchList
   :  EId

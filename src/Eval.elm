@@ -11,8 +11,10 @@ import FastParser exposing (parseE, prelude)
 import Syntax exposing (Syntax)
 import Types
 import Utils
+import Record
 
 import ImpureGoodies
+import UpdateRegex exposing (evalRegexReplaceAllByIn)
 
 ------------------------------------------------------------------------------
 -- Big-Step Operational Semantics
@@ -44,6 +46,17 @@ match (p,v) = case (p.val.p__, v.v_) of
   (PConst _ n, VConst _ (n_,_)) -> if n == n_ then Just [] else Nothing
   (PBase _ bv, VBase bv_) -> if (eBaseToVBase bv) == bv_ then Just [] else Nothing
   (PParens _ innerPat _, _) -> match (innerPat, v)
+  (PRecord _ ps _, VRecord vkeys values) ->
+    let vkeyNths = Record.mapWithNth (==) vkeys in
+    case Record.getPatternMatch Utils.recordKey Tuple.first ps vkeyNths of
+      Nothing -> Nothing
+      Just patsValues ->
+        matchList (List.map (\(p, vKeyNth) -> (Utils.recordValue p, case Dict.get vKeyNth values of
+          Just v -> v
+          Nothing -> Debug.crash <| "Internal error: key " ++ toString vKeyNth ++ " not found in record value."
+        )) patsValues)
+  (PRecord _ _ _ , _) -> Nothing
+
   _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
 
 
@@ -116,7 +129,6 @@ eval_ syntax env bt e = Result.map Tuple.first <| eval syntax env bt e
 
 eval : Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Env)
 eval syntax env bt e =
-
   let makeProvenance basedOn = Provenance env e basedOn in
 
   -- Deeply tag value's children to say the child flowed through here.
@@ -130,6 +142,7 @@ eval syntax env bt e =
         VClosure _ _ _ _ -> ()
         VList vals       -> let _ = List.map (addParent_ vParent) vals                 in ()
         VDict dict       -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) dict in ()
+        VRecord keys recs-> let _ = Dict.map (\_ val -> (addParent_ vParent) val) recs in ()
     in
     let priorParents = valParents v in
     let _ = ImpureGoodies.mutateRecordField v.parents "_0" (vParent::priorParents) in
@@ -143,6 +156,7 @@ eval syntax env bt e =
         VClosure _ _ _ _ -> v
         VList vals       -> let _ = List.map (addParent_ v) vals               in v -- non-mutating: { v | v_ = VList (List.map (addParent_ v) vals) }
         VDict dict       -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v -- non-mutating: { v | v_ = VDict (Dict.map (\_ val -> addParent_ v val) dict) }
+        VRecord keys recs-> let _ = Dict.map (\_ val -> addParent_ v val) recs in v
     else
       v
   in
@@ -186,7 +200,7 @@ eval syntax env bt e =
   EOp _ op es _ -> Result.map (\res -> addParentToRet (res, env)) <| evalOp syntax env e (e::bt) op es
 
   EList _ es _ m _ ->
-    case Utils.projOk <| List.map (eval_ syntax env bt_) (List.map Tuple.second es) of
+    case Utils.projOk <| List.map (eval_ syntax env bt_) (Utils.listValues es) of
       Err s -> Err s
       Ok results ->
         let (vs,wss) = List.unzip results in
@@ -200,6 +214,44 @@ eval syntax env bt e =
                 case vRest.v_ of
                   VList vs_ -> Ok <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_)
                   _         -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list."
+
+  ERecord _ mi es _ ->
+    case Utils.projOk <| List.map (eval_ syntax env bt_) (Utils.recordValues es) of
+      Err s -> Err s
+      Ok results ->
+       let (vs,wss) = List.unzip results in
+       let ws = List.concat wss in
+       let keys = Utils.recordKeys es in
+       let keysWithNth = Record.mapWithNth (==) keys in
+       let dict = Dict.fromList <| Utils.zip keysWithNth vs in
+       case mi of
+         Nothing -> Ok <| retBoth vs (VRecord keys dict, ws)
+         Just (e, init) ->
+           case eval_ syntax env bt_ e of
+             Err s -> Err s
+             Ok (vInit, ws_) ->
+               case vInit.v_ of
+                 VRecord keysInit dInit -> -- Completely wrong !
+                   let newKeys = Record.mergeLabelValues (==) keys keysInit in
+                   let newDict = Dict.union dict dInit in --The first overrides the second.
+                   Ok <| retBoth vs (VRecord newKeys newDict, ws)
+                 _ -> errorWithBacktrace syntax (e::bt) <| strPos init.start ++ " init expression not a dict."
+
+  ESelect e _ wsId id ->
+    case eval_ syntax env bt_ e of
+      Err s -> Err s
+      Ok (d, ws) ->
+        case d.v_ of
+          VRecord keys dict ->
+            case Dict.get (id, 1) dict of
+              Just v -> Ok <| retBoth [d] (v.v_, ws)
+              _ ->
+                  let suggestions = Utils.stringSuggestions keys id in
+                  errorWithBacktrace syntax (e::bt) <| strPos wsId.end ++ " Key " ++ id ++ " not found." ++ (case suggestions of
+                    [] -> ""
+                    l -> " Did you mean '" ++ String.join "', or '" l ++ "'?"
+                  )
+          _ -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " select expression applied to non-dict "
 
   -- Alternatively, could choose not to add a basedOn record for if/case/typecase (simply pass value through, maybe add parent)
   -- But that would suggest that we *might* avoid doing so for EApp as well, which is more dubious. We'll see.
@@ -435,11 +487,19 @@ evalOp syntax env e bt opWithInfo es =
           ToStr      -> case vs of
             [val] -> VBase (VString (strVal val)) |> addProvenanceOk
             _     -> error ()
-          OptNumToString -> case vs of
+          ToStrExceptStr -> case vs of
             [val] -> case val.v_ of
-              VConst _ (num, _) -> (VBase <| VString <| toString num) |> addProvenanceOk
               VBase (VString v) as r -> r |> addProvenanceOk
-              _     -> error ()
+              v -> VBase (VString (strVal val)) |> addProvenanceOk
+            _     -> error ()
+          RegexReplaceAllIn -> case vs of
+            [regexp, replacement, string] ->
+              (UpdateRegex.evalRegexReplaceAllByIn
+                env
+                (\newEnv newExp -> eval_ syntax newEnv bt newExp |> Result.map Tuple.first)
+                regexp
+                replacement
+                string)
             _     -> error ()
       in
       case newValRes of

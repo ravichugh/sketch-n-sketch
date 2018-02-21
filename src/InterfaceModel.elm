@@ -33,6 +33,7 @@ import Mouse
 import Html exposing (Html)
 import Html.Attributes as Attr
 import VirtualDom
+import LangTools
 
 import ImpureGoodies
 
@@ -805,7 +806,7 @@ needsRun m =
   m.code /= m.lastRunCode
 
 valueEditorNeedsCallUpdate model =
-  Update.valToString model.inputVal /= model.valueEditorString
+  LangTools.valToString model.inputVal /= model.valueEditorString
 
 domEditorNeedsCallUpdate model =
   Utils.or
@@ -1184,7 +1185,7 @@ initModel =
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
     , lastSelectedTemplate = Nothing
-    , valueEditorString = Update.valToString v
+    , valueEditorString = LangTools.valToString v
     , attributeValueUpdates = Dict.empty
     , textValueUpdates = Dict.empty
     , syntax = Syntax.Elm

@@ -1,10 +1,11 @@
 module Update exposing
-  ( valToString
-  , envEqual
-  , pruneEnv
+  ( envEqual
   , buildUpdatedValueFromEditorString
   , buildUpdatedValueFromDomListener
   , doUpdate
+  , envToString -- For tests
+  , triCombine -- For tests
+  , update -- For tests
   )
 
 import Lang exposing (..)
@@ -21,14 +22,13 @@ import Results exposing
   )
 import MissingNumberMethods exposing (..)
 import ValUnparser exposing (strVal)
-import LangTools
+import LangTools exposing (valToExp, pruneEnv, pruneEnvPattern, valToString)
 import LangSvg exposing
   ( NodeId, ShapeKind
   , AVal, AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
   , Attr, IndexedTree, RootedIndexedTree, IndexedTreeNode, IndexedTreeNode_(..)
   )
 
-import Tuple exposing (first)
 import Set
 import LangParserUtils
 import Dict exposing (Dict)
@@ -109,7 +109,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
     EHole ws _ ->
       case out of
         Program prog -> UpdateResult env prog
-        Raw newVal ->   UpdateResult env <| val_to_exp ws newVal
+        Raw newVal ->   UpdateResult env <| valToExp ws "" newVal
     EConst ws num loc widget ->
       case out of
         Program prog -> UpdateResult env prog
@@ -122,8 +122,8 @@ getUpdateStackOp env e oldVal out nextToUpdate =
             EString quoteChar chars ->
               case newVal.v_ of
                 VBase (VString newChars) ->   UpdateResult env <| replaceE__ e <| EBase ws (EString quoteChar newChars)
-                _ -> UpdateResult env <| val_to_exp ws newVal
-            _ -> UpdateResult env <| val_to_exp ws newVal
+                _ -> UpdateResult env <| valToExp ws "" newVal
+            _ -> UpdateResult env <| valToExp ws "" newVal
     EFun sp0 ps e sp1 ->
       case out of
         Program prog -> UpdateResult env prog
@@ -166,13 +166,13 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                     -- Copy the whitespace of the previous list elements, if possible, and do this in a nested way
                     let valtoexpWhitespace = if insertionIndex < List.length elems then
                       case List.drop insertionIndex elems |> List.take 1 of
-                        [(_,previousElem)] -> (\v -> Lang.copyPrecedingWhitespace previousElem (val_to_exp (ws " " ) v))
-                        _ -> (\v -> val_to_exp (ws " " ) v)
+                        [(_,previousElem)] -> (\v -> Lang.copyPrecedingWhitespace previousElem (valToExp (ws " " ) "" v))
+                        _ -> (\v -> valToExp (ws " ") "" v)
                       else if List.length elems > 0 then
                         case List.drop (List.length elems - 1) elems of
-                        [(_,previousElem)] -> (\v -> Lang.copyPrecedingWhitespace previousElem (val_to_exp (ws " " ) v))
-                        _ -> (\v -> val_to_exp (ws " " ) v)
-                      else (\v -> val_to_exp (ws " " ) v)
+                        [(_,previousElem)] -> (\v -> Lang.copyPrecedingWhitespace previousElem (valToExp (ws " " ) "" v))
+                        _ -> (\v -> valToExp (ws " ") "" v)
+                      else (\v -> valToExp (ws " ") "" v)
                     in
                     -- TODO copy space from existing element?
                     let insertedExp = List.map ((,) space0 << valtoexpWhitespace) inserted in
@@ -236,7 +236,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                               case newE2List.val.e__ of
                                 EList _ newE2s _ _ _ ->
                                   let finalEnv = triCombine e env newE1Env newE2Env in
-                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (List.map Tuple.second newE2s) appType sp1
+                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (Utils.listValues newE2s) appType sp1
                                 x -> Debug.crash <| "Internal error, should have get a list, got " ++ toString x
                   _          -> UpdateError <| strPos e1.start ++ "bad environment"
               VClosure (Just f) ps eBody env_ ->
@@ -255,7 +255,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                               case newE2List.val.e__ of
                                 EList _ newE2s _ _ _ ->
                                   let finalEnv = triCombine e env newE1Env newE2Env in
-                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (List.map Tuple.second newE2s) appType sp1
+                                  UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (Utils.listValues newE2s) appType sp1
                                 x -> Debug.crash <| "Unexpected result of updating a list " ++ toString x
                   _          -> UpdateError <| strPos e1.start ++ "bad environment"
               _ ->
@@ -291,7 +291,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                 lazyCons2 (HandlePreviousResult <| \(newOpEnv, newOpArgList) ->
                   case newOpArgList.val.e__ of
                     EList _ newOpArgs _ _ _ ->
-                      let finalExp = replaceE__ e <| EOp sp1 op (List.map Tuple.second newOpArgs) sp2 in
+                      let finalExp = replaceE__ e <| EOp sp1 op (Utils.listValues newOpArgs) sp2 in
                       case Lazy.force lazyTail of
                         LazyNil -> UpdateResult newOpEnv finalExp
                         LazyCons newHead newTail -> UpdateAlternative newOpEnv finalExp oldVal
@@ -302,9 +302,9 @@ getUpdateStackOp env e oldVal out nextToUpdate =
               case op.val of
                 Explode    -> Debug.crash "Not implemented: update Explode "
                 DebugLog   -> Debug.crash "Not implemented: update DebugLog "
-                OptNumToString ->
+                ToStrExceptStr ->
                   case out of
-                    Program exp -> UpdateError <| "Don't know how to update a OptNumToString with a program"
+                    Program exp -> UpdateError <| "Don't know how to update a ToStrExceptStr with a program"
                     Raw vOut ->
                       let default () =
                         case vOut.v_ of
@@ -319,7 +319,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                                       ([opArg], [arg]) -> UpdateContinue env opArg arg (Raw v) <|
                                           HandlePreviousResult <| \(env, newOpArg) ->
                                             UpdateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
-                                      e -> UpdateError <| "[internal error] Wrong number of arguments in update OptNumToString: " ++ toString e
+                                      e -> UpdateError <| "[internal error] Wrong number of arguments in update ToStrExceptStr: " ++ toString e
                           e -> UpdateError <| "Expected string, got " ++ toString e
                       in
                       case vs of
@@ -330,10 +330,10 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                                 [opArg] -> UpdateContinue env opArg original out <|
                                   HandlePreviousResult <| \(env, newOpArg) ->
                                     UpdateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
-                                e -> UpdateError <| "[internal error] Wrong number of argument values in update OptNumToString: " ++ toString e
+                                e -> UpdateError <| "[internal error] Wrong number of argument values in update ToStrExceptStr: " ++ toString e
                             _ -> -- Everything else is unparsed to a string, we just parse it.
                               default ()
-                        _ -> UpdateError <| "[internale error] Wrong number or arguments in updateOptNumtoString: " ++ toString e
+                        _ -> UpdateError <| "[internale error] Wrong number or arguments in updateToStrExceptStr: " ++ toString e
                 ToStr      ->
                   case out of
                     Program exp -> UpdateError <| "Don't know how to update a ToStr with a program"
@@ -836,18 +836,6 @@ matchListWithInversion (ps, vs) =
      Nothing -> Nothing
   )--}
 
-val_to_exp: WS -> Val -> Exp
-val_to_exp ws v =
-  withDummyExpInfo <| case v.v_ of
-    VConst mb num     -> EConst ws (first num) dummyLoc noWidgetDecl
-    VBase (VBool b)   -> EBase  ws <| EBool b
-    VBase (VString s) -> EBase  ws <| EString defaultQuoteChar s
-    VBase (VNull)     -> EBase  ws <| ENull
-    VList vals -> EList ws (List.map ((,) space0 << val_to_exp ws) vals) ws Nothing <| ws
-    VClosure _ patterns body env -> EFun ws patterns body ws -- Not sure about this one.
-    _ -> Debug.crash <| "Trying to get an exp of the value " ++ toString v
-    --VDict vs ->
-
 getNum: Val -> Num
 getNum v =
   case v.v_ of
@@ -870,35 +858,11 @@ removeCommonPrefix l1 l2 =
         removeCommonPrefix tail tail2
       else (l1, l2)
 
-pruneEnv: Exp -> Env -> Env
-pruneEnv exp env = -- Remove all the initial environment that is on the right.
-  --let (p1, p2) = removeCommonPrefix (List.reverse Eval.initEnv) (List.reverse env) in
-  --List.reverse p1
-  --List.take 5 env
-  --List.take (List.length env - List.length Eval.initEnv) env
-  --env
-  let freeVars = LangTools.freeIdentifiers exp in
-  List.filter (\(x, _) -> Set.member x freeVars) env
-
 envToString: Env -> String
 envToString env =
   case env of
     [] -> ""
     (v, value)::tail -> v ++ "->" ++ (valToString value) ++ " " ++ (envToString tail)
-
-valToString: Val -> String
-valToString v = case v.v_ of
-   VClosure Nothing patterns body [] -> (unparse << val_to_exp (ws " ")) v
-   VClosure (Just name) patterns body [] -> "(" ++ name ++ "~" ++ ((unparse << val_to_exp (ws " ")) v) ++ ")"
-   VClosure Nothing patterns body env ->
-     let e = val_to_exp (ws " ") v in
-     "(" ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ ")"
-   VClosure (Just name) patterns body env ->
-     let e = val_to_exp (ws " ") v in
-     "(" ++ envToString (pruneEnv e env) ++ "|" ++ name ++ "~" ++ unparse e ++ ")"
-   _ -> (unparse << val_to_exp (ws "")) v
-
-
 
 -- Equality checking
 valEqual: Val -> Val -> Bool

@@ -13,6 +13,7 @@ import Config
 import Dict
 import Set
 import String
+import Record
 
 typeToMaybeAliasIdent : Type -> Maybe Ident
 typeToMaybeAliasIdent tipe =
@@ -93,7 +94,10 @@ identifiersEquivalent t1 t2 =
             Nothing       -> []
         in
         (List.concatMap flatIdents typeList) ++ restTypeIdents
-
+      TRecord _ mb typeList _ ->
+        (case mb of
+          Just (ident, _) -> [ident]
+          Nothing -> []) ++ List.concatMap flatIdents (Utils.recordValues typeList)
       TArrow _ typeList _ -> List.concatMap flatIdents typeList
       TUnion _ typeList _ -> List.concatMap flatIdents typeList
       TNamed _ _          -> []
@@ -196,6 +200,8 @@ tVar x  = withDummyRange (TVar space1 x)
 
 tTupleRest ts tRest = withDummyRange (TTuple space1 ts space0 tRest space0)
 tTuple ts = tTupleRest ts Nothing
+
+tRecord ts = withDummyRange (TRecord space1 Nothing ts space0)
 
 tList t = withDummyRange (TList space1 t space0)
 
@@ -407,6 +413,9 @@ lookupPat typeEnv p =
             )
       )
 
+    PRecord _ ps _ ->
+      Utils.projJusts (List.map (lookupPat typeEnv) (Utils.recordValues ps)) |> Utils.bindMaybe (Utils.recordValuesMake ps >> tRecord >> Just)
+
 lookupTypAnnotation : TypeEnv -> Pat -> Maybe Type
 lookupTypAnnotation typeEnv p =
   case p.val.p__ of
@@ -524,7 +533,7 @@ stripPolymorphicArrow t =
     TForall _ (One typeVar) t0 _ ->
       stripArrow t0 |> Utils.bindMaybe (\arrow -> Just ([Tuple.second typeVar], arrow))
     TForall _ (Many _ typeVars _) t0 _ ->
-      stripArrow t0 |> Utils.bindMaybe (\arrow -> Just (List.map Tuple.second typeVars, arrow))
+      stripArrow t0 |> Utils.bindMaybe (\arrow -> Just (Utils.listValues typeVars, arrow))
     _ ->
       stripArrow t |> Utils.bindMaybe (\arrow -> Just ([], arrow))
 
@@ -574,7 +583,7 @@ isWellFormed : TypeEnv -> Type -> Bool
 isWellFormed typeEnv tipe =
   let (prenexVars, tipe_) =
     case tipe.val of
-      TForall _ (Many _ vars _) t _ -> (List.map Tuple.second vars, t)
+      TForall _ (Many _ vars _) t _ -> (Utils.listValues vars, t)
       TForall _ (One var) t _       -> ([Tuple.second var], t)
       _                             -> ([], tipe)
   in
@@ -833,7 +842,7 @@ synthesizeType typeInfo typeEnv e =
              let result = synthesizeType accTypeInfo typeEnv ei in
              (result.result :: accMaybeTypes, result.typeInfo))
            ([], typeInfo)
-           (List.reverse (List.map Tuple.second es))
+           (List.reverse (Utils.listValues es))
       in
       case Utils.projJusts maybeTypes of
         Nothing -> finish.withError "synthesizeType: EList 1 ..." typeInfo_
@@ -845,6 +854,44 @@ synthesizeType typeInfo typeEnv e =
               case result.result of
                 Nothing -> finish.withError "synthesizeType: EList 2 ..." result.typeInfo
                 Just tRest -> finish.withType (tTupleRest ts (Just tRest)) result.typeInfo
+
+    ERecord _ mi es _ ->
+      let (maybeTypes, typeInfo_) =
+              List.foldl
+                 (\ei (accMaybeTypes, accTypeInfo) ->
+                   let result = synthesizeType accTypeInfo typeEnv ei in
+                   (result.result :: accMaybeTypes, result.typeInfo))
+                 ([], typeInfo)
+                 (List.reverse (Utils.recordValues es))
+      in
+      case Utils.projJusts maybeTypes of
+        Nothing -> finish.withError "synthesizeType: ERecord 1 ..." typeInfo_
+        Just ts ->
+          let trecord = withDummyInfo <| TRecord space1 (Just ("a", space1)) (List.map2 (\(_, _, k, _, _) t -> (space0, space1, k, space1, t)) es ts) space0 in
+          case mi of
+            Nothing -> finish.withType trecord typeInfo_
+            Just (eRest, _) ->
+              let result = synthesizeType typeInfo_ typeEnv eRest in
+              case result.result of
+                Nothing -> finish.withError "synthesizeType: ERecord 2 ..." result.typeInfo
+                Just tRest ->
+                  case intersect tRest trecord of
+                    Err msg -> finish.withError msg typeInfo_
+                    Ok t ->    finish.withType t result.typeInfo
+
+    ESelect c _ _ s ->
+      let resultn = synthesizeType typeInfo typeEnv c in
+      case resultn.result of
+        Nothing -> finish.withError "synthesizeType: ESelect 1 ... " resultn.typeInfo
+        Just ts ->
+          case ts.val of
+            TRecord _ mb ts _ ->
+              case Utils.findLast (\(_, _, k, _, t) -> k == s) ts of
+                Just (_, _, _, _, t) -> finish.withType t resultn.typeInfo
+                Nothing ->
+                  finish.withError ("No field " ++ s ++ " in definition ") resultn.typeInfo
+
+            _ -> finish.withError "This does not evaluate to a dict" resultn.typeInfo
 
     EIf _ e1 _ e2 _ e3 _ -> -- [TS-If]
       let result1 = checkType typeInfo typeEnv e1 tBool in
@@ -1011,6 +1058,15 @@ synthesizeType typeInfo typeEnv e =
 
     EHole _ v ->
       { result = Nothing, typeInfo = typeInfo }
+
+-- Computes the intersection of types
+intersect: Type -> Type -> Result String Type
+intersect type1 type2 =
+  case (type1.val, type2.val) of
+    (TRecord _ m ts1 _, TRecord _ m2 ts2 _) ->
+       Ok <| withDummyRange <| TRecord space1 m (Record.mergeLabelValues (\(_, _, k1, _, _) (_, _, k2, _, _) -> k1 == k2)  ts1 ts2) space0
+      -- Populate the arguments in the order given.
+    (_, _) -> Err "Cannnot interect record types with anything else than records."
 
 -- TODO need to instantiateTypes of arguments, as in tsAppPoly
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =

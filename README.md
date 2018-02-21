@@ -288,6 +288,11 @@ Note: The parser has a performance issue that we have not yet addressed.
 If the application runs out of stack space,
 [try this](https://github.com/ravichugh/sketch-n-sketch/issues/84).
 
+Note: If the packages are not installed properly, you might see a message like TYPE MISMATCH and
+that you are expecting `Maybe (Dict a ( b, c ))` but a value is `Maybe (Dict comparable ( a, b ))`
+If that is the case, look at the `makefile`, the last two commands of `elm-stuff/packages` may not
+have been executed properly. This can happen if another software tries to mix with packages installation,
+such as Dropbox.
 
 ## Little "REPL"
 

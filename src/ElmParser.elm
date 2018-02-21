@@ -139,17 +139,180 @@ genericList { item, tailItem, combiner, combinerTail, beforeSpacePolicy } =
             , beforeSpacePolicy =
                 beforeSpacePolicy
             }
-      , lazy <| \_ ->
-          genericNonEmptyListWithTail
-            { item =
-                item
-            , combinerTail =
-                combinerTail
-            , tailItem =
-                tailItem
-            , beforeSpacePolicy =
-                beforeSpacePolicy }
+      , genericNonEmptyListWithTail
+          { item =
+              item
+          , combinerTail =
+              combinerTail
+          , tailItem =
+              tailItem
+          , beforeSpacePolicy =
+              beforeSpacePolicy }
       ]
+
+--------------------------------------------------------------------------------
+-- Records
+--------------------------------------------------------------------------------
+
+genericEmptyRecord
+  :  { combiner : WS -> WS -> record
+     , beforeSpacePolicy: SpacePolicy
+     }
+  -> ParserI record
+genericEmptyRecord { combiner, beforeSpacePolicy } =
+  inContext "generic empty record" <|
+  paddedBefore combiner beforeSpacePolicy <|
+    trackInfo <|
+      succeed identity
+        |. symbol "{"
+        |= spaces
+        |. symbol "}"
+
+
+genericNonEmptyRecord
+  :  { key : Parser elemKey
+     , equalSign: Parser ()
+     , value : Parser elemValue
+     , combiner : WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
+     , beforeSpacePolicy: SpacePolicy
+     }
+  -> ParserI record
+genericNonEmptyRecord { key, equalSign, value, combiner, beforeSpacePolicy }=
+  lazy <| \_ ->
+    let
+      anotherWsAndItem : Parser (WS, WS, elemKey, WS, elemValue)
+      anotherWsAndItem =
+        delayedCommitMap (\ws (a, b, c, d) -> (ws, a, b, c, d))
+          spaces
+          (succeed (,,,)
+            |. symbol ","
+            |= spaces
+            |= key
+            |= spaces
+            |. equalSign
+            |= value
+          )
+    in
+      inContext "generic non-empty record" <|
+      paddedBefore
+        ( \wsBefore (members, wsBeforeEnd) ->
+            combiner wsBefore members wsBeforeEnd
+        )
+        beforeSpacePolicy
+        ( trackInfo <|
+            succeed (\wsKey k wsEq v es wsEnd -> ((space0, wsKey, k, wsEq, v) :: es, wsEnd))
+              |. symbol "{"
+              |= spaces
+              |= key
+              |= spaces
+              |. equalSign
+              |= value
+              |= repeat zeroOrMore anotherWsAndItem
+              |= spaces
+              |. symbol "}"
+        )
+
+
+genericNonEmptyRecordWithInit
+  :  { key : Parser elemKey
+     , equalSign: Parser ()
+     , value : Parser elemValue
+     , initItem: Parser elemInit
+     , combinerInit : WS-> elemInit -> WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
+     , beforeSpacePolicy: SpacePolicy
+     }
+  -> ParserI record
+genericNonEmptyRecordWithInit { key, equalSign, value, initItem, combinerInit, beforeSpacePolicy }=
+  lazy <| \_ ->
+    let
+      anotherWsAndItem : Parser (WS, WS, elemKey, WS, elemValue)
+      anotherWsAndItem =
+        delayedCommitMap (\wsC (wsK, k, wsE, v) -> (wsC, wsK, k, wsE, v))
+          spaces
+          (succeed (,,,)
+            |. symbol ","
+            |= spaces
+            |= key
+            |= spaces
+            |. equalSign
+            |= value
+          )
+    in
+      inContext "generic non-empty record with init" <|
+        trackInfo <|
+          delayedCommitMap (\(wsBefore, init, wsBeforeBar) (members, wsEnd) ->
+            combinerInit wsBefore init wsBeforeBar members wsEnd)
+            (succeed (\wsBefore init wsBeforeBar -> (wsBefore, init, wsBeforeBar))
+              |= beforeSpacePolicy
+              |. symbol "{"
+              |= initItem
+              |= spaces)
+            (succeed (\wsKey k wsEq v es wsEnd ->
+                 ((space0, wsKey, k, wsEq, v) :: es, wsEnd))
+              |. symbol "|"
+              |= spaces
+              |= key
+              |= spaces
+              |. equalSign
+              |= value
+              |= repeat zeroOrMore anotherWsAndItem
+              |= spaces
+              |. symbol "}")
+
+
+genericRecord
+  :  { key : Parser elemKey
+     , equalSign: Parser ()
+     , value : Parser elemValue
+     , combiner : WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
+     , beforeSpacePolicy: SpacePolicy
+     , optionalInitParser: Maybe
+       { initItem : Parser elemInit
+       , combinerInit : WS -> elemInit -> WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
+       }
+     }
+  -> ParserI record
+genericRecord { key, equalSign, value, combiner, beforeSpacePolicy, optionalInitParser } =
+  lazy <| \_ ->
+    inContext "generic record" <|
+    oneOf
+      ([ try <|
+          genericEmptyRecord
+            { combiner =
+                \wsBefore wsAfter -> combiner wsBefore [] wsAfter,
+              beforeSpacePolicy = beforeSpacePolicy
+            }
+      ] ++ (
+        case optionalInitParser of
+          Nothing -> []
+          Just {initItem, combinerInit} ->
+            [genericNonEmptyRecordWithInit
+              { key =
+                  key
+              , equalSign =
+                  equalSign
+              , value =
+                  value
+              , combinerInit =
+                  combinerInit
+              , initItem =
+                  initItem
+              , beforeSpacePolicy =
+                  beforeSpacePolicy }]
+      ) ++ [
+          genericNonEmptyRecord
+            { key =
+                key
+            , equalSign =
+                equalSign
+            , value =
+                value
+             , combiner =
+                combiner
+            , beforeSpacePolicy =
+                beforeSpacePolicy
+            }
+      ])
 
 --------------------------------------------------------------------------------
 -- Block Helper (for types) TODO
@@ -212,13 +375,16 @@ isRestChar char =
   Char.isDigit char ||
   char == '_'
 
+identifier : Parser Ident
+identifier =
+  LK.variable
+    Char.isLower
+    isRestChar
+    keywords
+
 littleIdentifier : ParserI Ident
 littleIdentifier =
-  trackInfo <|
-    LK.variable
-      Char.isLower
-      isRestChar
-      keywords
+  trackInfo <| identifier
 
 bigIdentifier : ParserI Ident
 bigIdentifier =
@@ -442,12 +608,12 @@ multilineEscapedElmExpression =
   inContext "expression in multi-line string" <|
   oneOf [
     try <| trackInfo <|
-      succeed (\v -> exp_ <| EOp space0 (withInfo OptNumToString v.start v.start) [v] space0)
+      succeed (\v -> exp_ <| EOp space0 (withInfo ToStrExceptStr v.start v.start) [v] space0)
       |= variableExpression spacesWithoutNewline,
     try <| lazy <| \_ -> multilineGenericLetBinding,
     lazy <| \_ ->
       ( mapExp_ <| trackInfo <|
-          (succeed (\exp -> (EOp space0 (withInfo OptNumToString exp.start exp.start) [withInfo (exp_ <| EParens space0 exp ElmSyntax space0) exp.start exp.end] space0))
+          (succeed (\exp -> (EOp space0 (withInfo ToStrExceptStr exp.start exp.start) [withInfo (exp_ <| EParens space0 exp ElmSyntax space0) exp.start exp.end] space0))
           |= parens spacesWithoutNewline)
       )
   ]
@@ -590,14 +756,29 @@ listPattern sp =
           , combiner =
               \wsBefore members wsBeforeEnd ->
                 -- PList wsBefore members space0 Nothing wsBeforeEnd
-                PList wsBefore (List.map Tuple.second members) space0 Nothing wsBeforeEnd
+                PList wsBefore (Utils.listValues members) space0 Nothing wsBeforeEnd
           , combinerTail =
               \wsBefore members wsMiddle tail wsBeforeEnd ->
                 -- PList wsBefore members wsMiddle (Just tail) wsBeforeEnd
-                PList wsBefore (List.map Tuple.second members) wsMiddle (Just tail) wsBeforeEnd
+                PList wsBefore (Utils.listValues members) wsMiddle (Just tail) wsBeforeEnd
           , beforeSpacePolicy =
               sp
           }
+
+recordPattern : SpacePolicy -> Parser Pat
+recordPattern sp =
+  inContext "record pattern" <|
+    lazy <| \_ ->
+      mapPat_ <|
+        genericRecord
+         { key = identifier
+         , equalSign = symbol "="
+         , value = pattern spaces -- All spaces because = requires a value afterwards.
+         , combiner =
+            \wsBefore keyValues wsAfter ->
+              PRecord wsBefore keyValues wsAfter
+         , beforeSpacePolicy = sp
+         , optionalInitParser = Nothing}
 
 --------------------------------------------------------------------------------
 -- As-Patterns (@-Patterns)
@@ -626,6 +807,7 @@ simplePattern sp =
   inContext "simple pattern" <|
     oneOf
       [ lazy <| \_ -> listPattern sp
+      , lazy <| \_ -> recordPattern sp
       , lazy <| \_ -> parensPattern sp
       , constantPattern sp
       , baseValuePattern sp
@@ -797,16 +979,33 @@ tupleType sp =
         , combiner =
             ( \wsBefore heads wsEnd ->
                 -- TTuple wsBefore heads space0 Nothing wsEnd
-                TTuple wsBefore (List.map Tuple.second heads) space0 Nothing wsEnd
+                TTuple wsBefore (Utils.listValues heads) space0 Nothing wsEnd
             )
         , combinerTail =
             ( \wsBefore heads wsMiddle tail wsEnd ->
                 -- TTuple wsBefore heads wsMiddle (Just tail) wsEnd
-                TTuple wsBefore (List.map Tuple.second heads) wsMiddle (Just tail) wsEnd
+                TTuple wsBefore (Utils.listValues heads) wsMiddle (Just tail) wsEnd
             )
         , beforeSpacePolicy =
             sp 
         }
+
+recordType : SpacePolicy -> Parser Type
+recordType sp =
+  inContext "record type" <|
+    lazy <| \_ ->
+        genericRecord
+         { key = identifier
+         , equalSign = symbol ":"
+         , value = typ spaces
+         , combiner =
+            \wsBefore keyValues wsAfter ->
+              TRecord wsBefore Nothing keyValues wsAfter
+         , beforeSpacePolicy = sp
+         , optionalInitParser = Just { initItem = identifier
+           ,  combinerInit = \wsBefore init wsBar elems wsEnd -> TRecord wsBefore (Just (init, wsBar)) elems wsEnd
+           }
+         }
 
 --------------------------------------------------------------------------------
 -- Forall Type
@@ -885,6 +1084,7 @@ typ sp =
         , lazy <| \_ -> listType sp
         , lazy <| \_ -> dictType sp
         , lazy <| \_ -> tupleType sp
+        , lazy <| \_ -> recordType sp
         , lazy <| \_ -> forallType sp
         , lazy <| \_ -> unionType sp
         , namedType sp
@@ -1027,6 +1227,8 @@ opFromIdentifier identifier =
       Just DebugLog
     "noWidgets" ->
       Just NoWidgets
+    "replaceAllIn" ->
+      Just RegexReplaceAllIn
     _ ->
       Nothing
 
@@ -1084,8 +1286,7 @@ baseValueExpression sp =
 
 variableExpression : SpacePolicy -> Parser Exp
 variableExpression sp =
-  mapExp_ <|
-    paddedBefore EVar sp littleIdentifier
+  mapExp_ <| paddedBefore EVar sp littleIdentifier
 
 --------------------------------------------------------------------------------
 -- Functions (lambdas)
@@ -1133,6 +1334,24 @@ list sp =
           , beforeSpacePolicy =
              sp
           }
+
+record : SpacePolicy -> Parser Exp
+record sp =
+  inContext "record expression" <|
+    lazy <| \_ ->
+      mapExp_ <|
+        genericRecord
+         { key =  identifier
+         , equalSign = symbol "="
+         , value = expression spaces
+         , combiner =
+            \wsBefore keyValues wsAfter ->
+              ERecord wsBefore Nothing keyValues wsAfter
+         , beforeSpacePolicy = sp
+         , optionalInitParser = Just { initItem = expression spaces
+           , combinerInit = \wsBefore init wsBar elems wsEnd -> ERecord wsBefore (Just (init, wsBar)) elems wsEnd
+           }
+         }
 
 --------------------------------------------------------------------------------
 -- Conditionals
@@ -1361,6 +1580,28 @@ colonType sp =
 -- General Expressions
 --------------------------------------------------------------------------------
 
+selection : SpacePolicy -> Parser (Exp -> Exp)
+selection sp =
+  delayedCommitMap (\wsBeforeDot (wsAfterDot,idWithInfo) exp ->
+     withInfo (exp_ <| ESelect exp wsBeforeDot wsAfterDot idWithInfo.val)
+        exp.start idWithInfo.end
+    )
+    sp
+    (succeed (,)
+     |. symbol "."
+     |= sp
+     |= (trackInfo <| identifier)
+    )
+
+-- Add all following .identifier1.identifiers2 as wrappers to the original expression
+addSelections : SpacePolicy -> Parser Exp -> Parser Exp
+addSelections sp parser =
+  succeed (\simpExp selections ->
+      List.foldl (\sel updatedExp -> sel updatedExp) simpExp selections
+      )
+    |= parser
+    |= repeat zeroOrMore (selection sp)
+
 -- Not a function application nor a binary operator
 simpleExpression : SpacePolicy -> Parser Exp
 simpleExpression sp =
@@ -1369,20 +1610,21 @@ simpleExpression sp =
     , lazy <| \_ -> multiLineInterpolatedString sp
     , baseValueExpression sp
     , lazy <| \_ -> function sp
-    , lazy <| \_ -> list sp
+    , lazy <| \_ -> (addSelections sp <| list sp)
+    , lazy <| \_ -> (addSelections sp <| record sp)
     , lazy <| \_ -> conditional sp
     , lazy <| \_ -> caseExpression sp
     , lazy <| \_ -> letrecBinding sp
     , lazy <| \_ -> letBinding sp
     , lazy <| \_ -> lineComment sp
     , lazy <| \_ -> option sp
-    , lazy <| \_ -> parens sp
-    , lazy <| \_ -> hole sp
+    , lazy <| \_ -> (addSelections sp <| parens sp)
+    , lazy <| \_ -> (addSelections sp <| hole sp)
     -- , lazy <| \_ -> typeCaseExpression
     -- , lazy <| \_ -> typeAlias
     -- , lazy <| \_ -> typeDeclaration
-    , variableExpression sp
-    ]
+    , (addSelections sp <| variableExpression sp)
+  ]
 
 spaceColonType: SpacePolicy -> Parser (WS, Type)
 spaceColonType sp =
