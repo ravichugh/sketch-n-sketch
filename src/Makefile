@@ -68,7 +68,7 @@ loc:
 		ValUnparser.elm \
     Types.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
-    Update.elm \
+    UpdateStack.elm UpdateRegex.elm Update.elm \
     InterfaceModel.elm \
     Canvas.elm \
     SleekView.elm SleekLayout.elm \
