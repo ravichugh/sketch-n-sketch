@@ -261,11 +261,23 @@ unparse e =
         ++ identifier
 
     EFun wsBefore parameters body _ ->
-      wsBefore.val
+      let default =
+        wsBefore.val
         ++ "\\"
         ++ String.concat (List.map unparsePattern parameters)
         ++ " ->"
         ++ unparse body
+      in
+      case parameters of
+        [p] -> case p.val.p__ of
+          PVar _ " $implicitcase" _ -> case body.val.e__ of
+            ECase wsBefore examinedExpression branches wsBeforeOf -> case examinedExpression.val.e__ of
+              EVar _ " $implicitcase" ->
+                unparse (replaceE__ body <| ECase wsBefore (replaceE__ examinedExpression <| EVar space0 "") branches wsBeforeOf)
+              _ -> default
+            _ -> default
+          _ -> default
+        _ -> default
 
     EApp wsBefore function arguments appType _ ->
       -- Not just for help converting Little to Elm. Allows synthesis ot not have to worry about so many cases.

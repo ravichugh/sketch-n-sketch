@@ -1449,13 +1449,22 @@ caseExpression sp =
         mapExp_ <|
           paddedBefore
             ( \wsBefore (examinedExpression, wsBeforeOf, branches) ->
-                ECase wsBefore examinedExpression branches wsBeforeOf
+                case examinedExpression.val.e__ of
+                  EVar _ " $implicitcase" -> -- Needs to be wrapped in a lambda
+                    EFun space1 [withDummyPatInfo <| PVar space0 " $implicitcase" noWidgetDecl] (
+                      withInfo (exp_ <| ECase wsBefore examinedExpression branches wsBeforeOf)
+                        wsBefore.start wsBeforeOf.end
+                      ) space0
+                  _ -> ECase wsBefore examinedExpression branches wsBeforeOf
             )
             sp.first
             ( trackInfo <|
                 delayedCommit (keywordWithSpace "case") <|
                   succeed (,,)
-                    |= expression allSpacesPolicy
+                    |= oneOf [
+                         expression allSpacesPolicy,
+                         succeed (withDummyExpInfo <| EVar space1 " $implicitcase") -- Unparsable var
+                       ]
                     |= spaces
                     |. keyword "of"
                     |= (
