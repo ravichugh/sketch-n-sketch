@@ -303,7 +303,7 @@ traverse env exp acc =
     ERecord _ (Just (init, _)) es _ -> recurse ([init] ++ Utils.recordValues es)
     ERecord _ Nothing es _ -> recurse (Utils.recordValues es)
 
-    ESelect e _ _ s -> recurse [e]
+    ESelect _ e _ _ s -> recurse [e]
 
     ECase _ e branches _ ->
       let _ = Debug.log "TODO: scope tree ECase" () in acc

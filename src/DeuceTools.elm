@@ -1837,8 +1837,8 @@ makeSingleLineTool model selections =
                               mb
                               (Utils.recordValuesMake es (setExpListWhitespace "" " " (Utils.recordValues es)))
                               (deLine ws2)
-                          ESelect e1 ws1 ws2 n ->
-                            ESelect e1 (deLine ws1) (deLine ws2) n
+                          ESelect ws0 e1 ws1 ws2 n ->
+                            ESelect ws0 e1 (deLine ws1) (deLine ws2) n
                           EOp ws1 op es ws2 ->
                             EOp (deLine ws1) op es space0
                           EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->

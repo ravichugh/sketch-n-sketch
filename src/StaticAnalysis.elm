@@ -99,7 +99,7 @@ grossDependencies_ identToDepEId program =
         EOp _ op argExps _                  -> childrenValueExpEIds exp
         EList _ heads _ maybeRest _         -> childrenValueExpEIds exp
         ERecord _ mb es _                   -> childrenValueExpEIds exp
-        ESelect _ _ _ _                     -> childrenValueExpEIds exp
+        ESelect _ _ _ _ _                   -> childrenValueExpEIds exp
         EIf _ pred _ trueBranch _ falseBranch _ -> childrenValueExpEIds exp
         ECase _ scrutinee branches _        -> childrenValueExpEIds exp
         ETypeCase _ scrutinee tbranches _   -> childrenValueExpEIds exp

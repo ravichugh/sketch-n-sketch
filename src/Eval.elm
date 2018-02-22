@@ -46,14 +46,14 @@ match (p,v) = case (p.val.p__, v.v_) of
   (PConst _ n, VConst _ (n_,_)) -> if n == n_ then Just [] else Nothing
   (PBase _ bv, VBase bv_) -> if (eBaseToVBase bv) == bv_ then Just [] else Nothing
   (PParens _ innerPat _, _) -> match (innerPat, v)
-  (PRecord _ ps _, VRecord vkeys values) ->
-    let vkeyNths = Record.mapWithNth (==) vkeys in
-    case Record.getPatternMatch Utils.recordKey Tuple.first ps vkeyNths of
+  (PRecord _ ps _, VRecord values) ->
+    let vkeys = Dict.keys values in
+    case Record.getPatternMatch Utils.recordKey identity ps vkeys of
       Nothing -> Nothing
       Just patsValues ->
-        matchList (List.map (\(p, vKeyNth) -> (Utils.recordValue p, case Dict.get vKeyNth values of
+        matchList (List.map (\(p, vkey) -> (Utils.recordValue p, case Dict.get vkey values of
           Just v -> v
-          Nothing -> Debug.crash <| "Internal error: key " ++ toString vKeyNth ++ " not found in record value."
+          Nothing -> Debug.crash <| "Internal error: key " ++ toString vkey ++ " not found in record value."
         )) patsValues)
   (PRecord _ _ _ , _) -> Nothing
 
@@ -142,7 +142,7 @@ eval syntax env bt e =
         VClosure _ _ _ _ -> ()
         VList vals       -> let _ = List.map (addParent_ vParent) vals                 in ()
         VDict dict       -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) dict in ()
-        VRecord keys recs-> let _ = Dict.map (\_ val -> (addParent_ vParent) val) recs in ()
+        VRecord recs     -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) recs in ()
     in
     let priorParents = valParents v in
     let _ = ImpureGoodies.mutateRecordField v.parents "_0" (vParent::priorParents) in
@@ -156,7 +156,7 @@ eval syntax env bt e =
         VClosure _ _ _ _ -> v
         VList vals       -> let _ = List.map (addParent_ v) vals               in v -- non-mutating: { v | v_ = VList (List.map (addParent_ v) vals) }
         VDict dict       -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v -- non-mutating: { v | v_ = VDict (Dict.map (\_ val -> addParent_ v val) dict) }
-        VRecord keys recs-> let _ = Dict.map (\_ val -> addParent_ v val) recs in v
+        VRecord dict     -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v
     else
       v
   in
@@ -222,31 +222,29 @@ eval syntax env bt e =
        let (vs,wss) = List.unzip results in
        let ws = List.concat wss in
        let keys = Utils.recordKeys es in
-       let keysWithNth = Record.mapWithNth (==) keys in
-       let dict = Dict.fromList <| Utils.zip keysWithNth vs in
+       let dict = Dict.fromList <| Utils.zip keys vs in
        case mi of
-         Nothing -> Ok <| retBoth vs (VRecord keys dict, ws)
+         Nothing -> Ok <| retBoth vs (VRecord dict, ws)
          Just (e, init) ->
            case eval_ syntax env bt_ e of
              Err s -> Err s
              Ok (vInit, ws_) ->
                case vInit.v_ of
-                 VRecord keysInit dInit -> -- Completely wrong !
-                   let newKeys = Record.mergeLabelValues (==) keys keysInit in
+                 VRecord dInit -> -- Completely wrong !
                    let newDict = Dict.union dict dInit in --The first overrides the second.
-                   Ok <| retBoth vs (VRecord newKeys newDict, ws)
+                   Ok <| retBoth vs (VRecord newDict, ws)
                  _ -> errorWithBacktrace syntax (e::bt) <| strPos init.start ++ " init expression not a dict."
 
-  ESelect e _ wsId id ->
+  ESelect ws0 e _ wsId id ->
     case eval_ syntax env bt_ e of
       Err s -> Err s
       Ok (d, ws) ->
         case d.v_ of
-          VRecord keys dict ->
-            case Dict.get (id, 1) dict of
+          VRecord dict ->
+            case Dict.get id dict of
               Just v -> Ok <| retBoth [d] (v.v_, ws)
               _ ->
-                  let suggestions = Utils.stringSuggestions keys id in
+                  let suggestions = Utils.stringSuggestions (Dict.keys dict) id in
                   errorWithBacktrace syntax (e::bt) <| strPos wsId.end ++ " Key " ++ id ++ " not found." ++ (case suggestions of
                     [] -> ""
                     l -> " Did you mean '" ++ String.join "', or '" l ++ "'?"
@@ -445,6 +443,18 @@ evalOp syntax env e bt opWithInfo es =
             _                                        -> error ()
           Pi         -> nullaryOp args (VConst Nothing (pi, TrOp op []))
           DictEmpty  -> nullaryOp args (VDict Dict.empty)
+          DictFromList -> case vs of
+            [list] -> case list.v_ of
+              VList pairs ->
+                List.map (\p -> case p.v_ of
+                  VList [vkey, val] ->
+                    valToDictKey syntax bt vkey.v_ |> Result.map (\dkey -> (dkey, val))
+                  _                -> error ()
+                ) pairs
+                |> Utils.projOk
+                |> Result.map (Dict.fromList >> VDict >> addProvenance)
+              _                 -> error ()
+            _                 -> error ()
           DictInsert -> case vs of
             [vkey, val, {v_}] -> case v_ of
               VDict d -> valToDictKey syntax bt vkey.v_ |> Result.map (\dkey -> VDict (Dict.insert dkey val d) |> addProvenance)

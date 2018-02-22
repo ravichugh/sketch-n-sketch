@@ -41,7 +41,7 @@ expNonControlFlowChildren exp =
     EOp _ _ _ _                              -> childExps exp
     EList _ _ _ _ _                          -> childExps exp
     ERecord _ _ _ _                          -> childExps exp
-    ESelect _ _ _ _                          -> childExps exp
+    ESelect _ _ _ _ _                        -> childExps exp
     EApp _ func es _ _                       -> es -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
     ELet _ _ _ _ _ boundExp _ body _         -> [body] -- lets are actually pass-through and won't appear the val provenance tree; not sure it matters what we return here
     EIf _ predicate _ trueBranch _ falseBranch _ -> [trueBranch, falseBranch]

@@ -38,8 +38,8 @@ nodeCount exp =
     EList _ es _ (Just e) _ -> 1 + expsNodeCount (Utils.listValues es) + nodeCount e
     EList _ es _ Nothing _  -> 1 + expsNodeCount (Utils.listValues es)
     ERecord _ (Just (init, _)) es _ -> 1 + expsNodeCount (Utils.recordValues es) + nodeCount init
-    ERecord _ Nothing es _ -> 1 + expsNodeCount (Utils.recordValues es)
-    ESelect e _ _ _ -> 1 + nodeCount e
+    ERecord _ Nothing es _  -> 1 + expsNodeCount (Utils.recordValues es)
+    ESelect _ e _ _ _       -> 1 + nodeCount e
     EIf _ e1 _ e2 _ e3 _    -> 1 + expsNodeCount [e1, e2, e3]
     -- Cases have a set of parens around each branch. I suppose each should count as a node.
     ECase _ e1 bs _         -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
@@ -86,7 +86,7 @@ subExpsOfSizeAtLeast_ min exp =
         EList _ es _ (Just e) _ -> 1
         EList _ es _ Nothing _  -> 1
         ERecord _ _ _ _         -> 1
-        ESelect _ _ _ _         -> 1
+        ESelect _ _ _ _ _       -> 1
         EIf _ e1 _ e2 _ e3 _    -> 1
         -- Cases have a set of parens around each branch. I suppose each should count as a node.
         ECase _ e1 bs _         -> 1 + (List.length bs) + patsNodeCount (branchPats bs)
@@ -2208,6 +2208,7 @@ numericLetBoundIdentifiers program =
         case op.val of
           Pi         -> True
           DictEmpty  -> False
+          DictFromList -> False
           Cos        -> True
           Sin        -> True
           ArcCos     -> True
@@ -2237,7 +2238,7 @@ numericLetBoundIdentifiers program =
 
       EList _ _ _ _ _           -> False
       ERecord _ _ _ _           -> False
-      ESelect _ _ _ _           -> False
+      ESelect _ _ _ _ _         -> False
       EIf _ _ _ thenExp _ elseExp _ -> recurse thenExp && recurse elseExp
       ECase _ _ branches _      -> List.all recurse (branchExps branches)
       ETypeCase _ _ tbranches _ -> List.all recurse (tbranchExps tbranches)
@@ -2318,7 +2319,7 @@ transformVarsUntilBound subst exp =
     EOp ws1 op es ws2           -> replaceE__ exp (EOp ws1 op (List.map recurse es) ws2)
     EList ws1 es ws2 m ws3      -> replaceE__ exp (EList ws1 (Utils.listValuesMap recurse es) ws2 (Maybe.map recurse m) ws3)
     ERecord ws1 mb es ws2       -> replaceE__ exp (ERecord ws1 (Maybe.map (\(t1, t2) -> (recurse t1, t2)) mb) (Utils.recordValuesMake es (List.map recurse (Utils.recordValues es))) ws2)
-    ESelect e1 ws1 ws2 s        -> replaceE__ exp (ESelect (recurse e1) ws1 ws2 s)
+    ESelect ws0 e1 ws1 ws2 s    -> replaceE__ exp (ESelect ws0 (recurse e1) ws1 ws2 s)
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 -> replaceE__ exp (EIf ws1 (recurse e1) ws2 (recurse e2) ws3 (recurse e3) ws4)
     ECase ws1 e1 bs ws2         ->
       let newScrutinee = recurse e1 in
@@ -2427,7 +2428,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     EOp _ op es _    -> ret <| recurseAllChildren ()
     EList _ es _ m _ -> ret <| recurseAllChildren ()
     ERecord _ m es _ -> ret <| recurseAllChildren ()
-    ESelect _ _ _ _ -> ret <| recurseAllChildren ()
+    ESelect _ _ _ _ _ -> ret <| recurseAllChildren ()
     EIf _ e1 _ e2 _ e3 _ -> ret <| recurseAllChildren ()
     ECase _ e1 bs _  ->
       let scrutineeResult = recurse e1 in
@@ -2563,9 +2564,9 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       , newNameToOldName
       )
 
-    ESelect e1 ws1 ws2 s ->
+    ESelect ws0 e1 ws1 ws2 s ->
       let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
-       ( replaceE__ exp (ESelect newE1 ws1 ws2 s)
+       ( replaceE__ exp (ESelect ws0 newE1 ws1 ws2 s)
        , usedNames_
        , newNameToOldName
        )
@@ -2954,7 +2955,7 @@ expEnvAt_ exp targetEId =
       EOp _ op es _    -> recurseAllChildren ()
       EList _ es _ m _ -> recurseAllChildren ()
       ERecord _ _ _ _ -> recurseAllChildren ()
-      ESelect _ _ _ _ -> recurseAllChildren ()
+      ESelect _ _ _ _ _ -> recurseAllChildren ()
       EIf _ e1 _ e2 _ e3 _ -> recurseAllChildren ()
       ECase _ e1 bs _  ->
         case recurse e1 of
@@ -3071,13 +3072,13 @@ valToExp sp indentation v =
           let bigbody = List.foldl (\(n, v) body -> withDummyExpInfo <| ELet (ws <| "\n" ++ indentation) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (valToExp space1 (indentation ++ "  ") v) space1 body space0) startCase tail
           in
           ELet sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (valToExp space1 (indentation ++ "  ") v) space1 bigbody space0
-    VRecord keys values ->
-      ERecord sp Nothing (List.map (\((key, nth) as keynth, i)->
-        case Dict.get keynth values of
-          Nothing -> Debug.crash <| "Internal error: Could not retrieve key " ++ toString keynth
+    VRecord values ->
+      ERecord sp Nothing (List.indexedMap (\i key ->
+        case Dict.get key values of
+          Nothing -> Debug.crash <| "Internal error: Could not retrieve key " ++ toString key
           Just v -> if i == 0 then (space0, ws " ", key, ws " ", valToExp (ws " ") (indentation ++ "    ") v)
             else (space0, ws ("\n" ++ indentation ++ "  "), key, ws " ", valToExp (ws " ") (indentation ++ "    ") v)
-        ) (Record.mapWithNth (==) keys |> Utils.zipWithIndex)) space1
+        ) <| Dict.keys values) space1
     VDict vs -> Debug.crash "Dictionaries not supported at this moment"
 
 valToString: Val -> String

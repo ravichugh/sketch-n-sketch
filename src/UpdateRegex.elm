@@ -35,7 +35,7 @@ lambdaToString e =
 stringToLambda: Env -> Val -> String -> Val
 stringToLambda env vs s =
   let l = find All (regex "(\\\\\\$|\\$(\\d))") s |> List.map (\m -> (m, m.index, String.length m.match + m.index)) in
-  let m = EVar space1 "m" in
+  let m = EVar space0 "m" in
   let lastStart = { value = 0 } in
   let tmp = List.concatMap (\(mat, start, end) ->
       let groupIndexMaybe = case mat.submatches of
@@ -52,7 +52,7 @@ stringToLambda env vs s =
           let res = [ withDummyExpInfo <| EBase space1 (EString "\"" (removeSlashDollar (String.slice lastStart.value start s))),
                       withDummyExpInfo <|
                        EApp space1 (withDummyExpInfo <| EVar space1 "nth") [
-                         withDummyExpInfo <| ESelect (withDummyExpInfo m) space0 space0 "group",
+                         withDummyExpInfo <| ESelect space1 (withDummyExpInfo m) space0 space0 "group",
                          withDummyExpInfo <| EConst space1 (toFloat groupIndex) dummyLoc noWidgetDecl] SpaceApp space0 ] in
           let _ = ImpureGoodies.mutateRecordField lastStart "value" end in
           res
@@ -78,12 +78,12 @@ evalRegexReplaceAllByIn  env eval regexpV replacementV stringV =
           let newString = Regex.replace Regex.All (Regex.regex regexp) (\m ->
               let mainMatch = replaceV_ replacementV <| VBase (VString m.match) in
               let subMatches = List.map (replaceV_ replacementV << VBase << VString << Maybe.withDefault "") m.submatches in
-              let argument = replaceV_ replacementV <| VRecord ["match", "submatches", "group", "index", "number"] <|
-                Dict.fromList [(("match", 1),      mainMatch),
-                               (("submatches", 1), replaceV_ replacementV <| VList subMatches),
-                               (("group", 1),      replaceV_ replacementV <| VList <| mainMatch :: subMatches),
-                               (("index", 1),      replaceV_ replacementV <| VConst Nothing (toFloat m.index, dummyTrace)),
-                               (("number", 1),     replaceV_ replacementV <| VConst Nothing (toFloat m.number, dummyTrace))]
+              let argument = replaceV_ replacementV <| VRecord <|
+                Dict.fromList [("match",      mainMatch),
+                               ("submatches", replaceV_ replacementV <| VList subMatches),
+                               ("group",      replaceV_ replacementV <| VList <| mainMatch :: subMatches),
+                               ("index",      replaceV_ replacementV <| VConst Nothing (toFloat m.index, dummyTrace)),
+                               ("number",     replaceV_ replacementV <| VConst Nothing (toFloat m.number, dummyTrace))]
               in
               --let _ = Debug.log "The replacement body is" (Syntax.unparser Syntax.Elm body) in
               let res = eval (("UpdateRegex.replaceAll", replacementV)::("UpdateRegex.argument", argument)::env) (eOp ToStrExceptStr [withDummyExpInfo <|

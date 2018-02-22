@@ -78,8 +78,7 @@ negativeLookAhead parser =
            ( \result ->
                case result of
                  Ok _ ->
-                   parser
-                   |> andThen (\_ -> fail "Don't want to parse this.")
+                   fail "Don't want to parse this."
                    -- Return the result without consuming input
 
                  Err _ ->
@@ -164,7 +163,7 @@ keepRegex reg =
 ignoreRegex : Regex -> Parser ()
 ignoreRegex reg =
    (succeed (,)
-   |= LL.getOffset
+   |= LL.getOffset -- Because it is not delayed commit, this cannot fail
    |= LL.getSource)
    |> andThen (\(offset,source) ->
         let sourceFromOffset = String.slice offset (String.length source) source in

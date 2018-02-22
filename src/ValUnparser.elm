@@ -46,11 +46,11 @@ strVal_ showTraces v =
     VClosure _ _ _ _        -> "<fun>"
     VList vs                -> Utils.bracks (String.join " " (List.map recurse vs))
     VDict d                 -> "<dict " ++ (Dict.toList d |> List.map (\(k, v) -> (toString k) ++ ":" ++ (recurse v)) |> String.join " ") ++ ">"
-    VRecord keys d          -> "<record " ++ String.join " " (List.map (\((k, i) as ki) ->
-      case Dict.get ki d of
+    VRecord d               -> "<record " ++ String.join " " (List.map (\k ->
+      case Dict.get k d of
         Nothing -> ""
         Just v -> k ++ ":" ++ recurse v
-      ) <| Record.mapWithNth (==) keys) ++ ">"
+      ) <| Dict.keys d) ++ ">"
 
 
 
@@ -77,6 +77,7 @@ strOp op = case op of
   Mod           -> "mod"
   Pow           -> "pow"
   DictEmpty     -> "empty"
+  DictFromList  -> "dict"
   DictInsert    -> "insert"
   DictGet       -> "get"
   DictRemove    -> "remove"

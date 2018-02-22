@@ -78,6 +78,7 @@ type Op_
   = Pi
   | DictEmpty
   -- unary ops
+  | DictFromList
   | Cos | Sin | ArcCos | ArcSin
   | Floor | Ceil | Round
   | ToStr
@@ -163,7 +164,7 @@ type Exp__
   | EParens WS Exp ParensStyle WS
   | EHole WS (Maybe Val) -- Internal intermediate, should not appear in code. (Yet.)
   | ERecord WS {- { -} (Maybe (Exp, WS) {- | -}) (List (WS, {-,-} WS, Ident, WS{-=-}, Exp)) {- }-} WS
-  | ESelect Exp WS {-.-} WS Ident
+  | ESelect WS Exp WS {-.-} WS Ident
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
     -- EFun ps e     (\(p1 ... pn) e) === (\p1 (\p2 (... (\pn e) ...)))
@@ -250,8 +251,8 @@ type Val_
   | VBase VBaseVal
   | VClosure (Maybe Ident) (List Pat) Exp Env
   | VList (List Val)
-  | VRecord (List String) (Dict (String, Int) Val) -- It's a record indexed by the keys and order of multiplicity from the end.
-  | VDict VDict_
+  | VRecord (Dict String Val) -- It's a record indexed by the keys
+  | VDict VDict_ -- Can be constructed only by "Dict.fromList [[key, value], [key2, value2]] and so on
 
 type alias VDict_ = Dict (String, String) Val
 
@@ -518,9 +519,9 @@ mapFoldExp f initAcc e =
       let (newEs, newAcc2) = recurseAll newAcc (List.map Utils.recordValue es) in
       wrapAndMap (ERecord ws1 (Just (newMi, wsi)) (Utils.recordValuesMake es newEs) ws2) newAcc
 
-    ESelect e ws1 ws2 s ->
+    ESelect ws0 e ws1 ws2 s ->
       let (newE, newAcc) = recurse initAcc e in
-      wrapAndMap (ESelect newE ws1 ws2 s) newAcc
+      wrapAndMap (ESelect ws0 newE ws1 ws2 s) newAcc
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       case recurseAll initAcc [e1, e2, e3] of
@@ -687,9 +688,9 @@ mapFoldExpTopDown f initAcc e =
       let (newEs, newAcc3) = recurseAll newAcc2 (Utils.recordValues es) in
       ret (ERecord ws1 (Just (newMi, wsi)) (Utils.recordValuesMake es newEs) ws2) newAcc3
 
-    ESelect e ws1 ws2 s ->
+    ESelect ws0 e ws1 ws2 s ->
       let (newE, newAcc2) = recurse newAcc e in
-      ret (ESelect newE ws1 ws2 s) newAcc2
+      ret (ESelect ws0 newE ws1 ws2 s) newAcc2
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       case recurseAll newAcc [e1, e2, e3] of
@@ -868,9 +869,9 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
       let (newMi, newGlobalAcc3) = recurse newGlobalAcc2 initScopeTempAcc mi in
       ret (ERecord ws1 (Just (newMi, wsi)) (Utils.recordValuesMake es newEs) ws2) newGlobalAcc3
 
-    ESelect e ws1 ws2 ident ->
+    ESelect ws0 e ws1 ws2 ident ->
       let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e in
-      ret (ESelect newE ws1 ws2 ident) newGlobalAcc2
+      ret (ESelect ws0 newE ws1 ws2 ident) newGlobalAcc2
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
       case recurseAll newGlobalAcc initScopeTempAcc [e1, e2, e3] of
@@ -1000,8 +1001,8 @@ replaceV_ v v_ = { v | v_ = v_ }
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
   VList vs         -> f { v | v_ = VList (List.map (mapVal f) vs) }
-  VDict d          -> f { v | v_ = VDict (Dict.map (\_ v -> mapVal f v) d) } -- keys ignored
-  VRecord keys d   -> f { v | v_ = VRecord keys <| Dict.map (\_ v -> mapVal f v) d } -- fields ignored
+  VDict d          -> f { v | v_ = VDict     (Dict.map (\_ v -> mapVal f v) d) } -- keys ignored
+  VRecord d        -> f { v | v_ = VRecord <| Dict.map (\_ v -> mapVal f v) d } -- fields ignored
   VConst _ _       -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
@@ -1010,7 +1011,7 @@ foldVal : (Val -> a -> a) -> Val -> a -> a
 foldVal f v a = case v.v_ of
   VList vs         -> f v (List.foldl (foldVal f) a vs)
   VDict d          -> f v (List.foldl (foldVal f) a (Dict.values d)) -- keys ignored
-  VRecord keys d   -> f v (List.foldl (foldVal f) a (Dict.values d)) -- keys ignored
+  VRecord d        -> f v (List.foldl (foldVal f) a (Dict.values d)) -- keys ignored
   VConst _ _       -> f v a
   VBase _          -> f v a
   VClosure _ _ _ _ -> f v a
@@ -1024,7 +1025,7 @@ childVals : Val -> List Val
 childVals val = case val.v_ of
   VList vs         -> vs
   VDict d          -> Dict.values d -- keys ignored
-  VRecord keys d   -> Dict.values d -- fields ignored
+  VRecord d        -> Dict.values d -- fields ignored
   VConst _ _       -> []
   VBase _          -> []
   VClosure _ _ _ _ -> []
@@ -1325,7 +1326,7 @@ childExps e =
       case mw of
         Just (e, w) -> [e] ++ Utils.recordValues es
         Nothing -> Utils.recordValues es
-    ESelect e _ _ _ -> [e]
+    ESelect _ e _ _ _               -> [e]
     EApp ws1 f es apptype ws2       -> f :: es
     ELet ws1 k b p ws2 e1 ws3 e2 ws4-> [e1, e2]
     EIf ws1 e1 ws2 e2 ws3 e3 ws4    -> [e1, e2, e3]
@@ -1925,6 +1926,10 @@ precedingWhitespacePat pat =
       PAs    ws1 ident ws2 p     -> ws1
       PParens ws1 p ws2          -> ws1
 
+precedingWhitespaceWithInfoExp : Exp -> WS
+precedingWhitespaceWithInfoExp e =
+  precedingWhitespaceWithInfoExp__ e.val.e__
+
 
 precedingWhitespaceExp__ : Exp__ -> String
 precedingWhitespaceExp__ e__ =
@@ -1940,7 +1945,7 @@ precedingWhitespaceWithInfoExp__ e__ =
     EApp       ws1 e1 es apptype  ws2   -> ws1
     EList      ws1 es ws2 rest ws3      -> ws1
     ERecord    ws1 mi es ws2            -> ws1
-    ESelect    e ws1 ws2 s              -> precedingWhitespaceWithInfoExp__ e.val.e__
+    ESelect    ws0 e ws1 ws2 s          -> precedingWhitespaceWithInfoExp__ e.val.e__
     EOp        ws1 op es ws2            -> ws1
     EIf        ws1 e1 ws2 e2 ws3 e3 ws4 -> ws1
     ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ws1
@@ -1985,7 +1990,7 @@ allWhitespaces_ exp =
                                                  ++ (mi |> Maybe.map (Tuple.first >> allWhitespaces_) |> Maybe.withDefault [])
                                                  ++ List.concatMap (\(wsc, wsk, _, wse, v) -> [wsc, wsk, wse] ++ allWhitespaces_ v) es
                                                  ++ [ws2]
-    ESelect    e ws1 ws2 s                  -> allWhitespaces_ e ++ [ws1, ws2]
+    ESelect    ws0 e ws1 ws2 s              -> allWhitespaces_ e ++ [ws1, ws2]
     EOp        ws1 op es ws2                -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2]
     EIf        ws1 e1 ws2 e2 ws3 e3 ws4     -> [ws1] ++ allWhitespaces_ e1
                                                  ++ [ws2] ++ allWhitespaces_ e2
@@ -2092,7 +2097,7 @@ mapPrecedingWhitespace stringMap exp =
         EApp       ws1 e1 es apptype ws2    -> EApp       (mapWs ws1) e1 es apptype ws2
         EList      ws1 es ws2 rest ws3      -> EList      (mapWs ws1) es ws2 rest ws3
         ERecord    ws1 mi es ws2            -> ERecord    (mapWs ws1) mi es ws2
-        ESelect    e ws1 ws2 s              -> ESelect    (mapPrecedingWhitespace stringMap e) ws1 ws2 s
+        ESelect    ws0 e ws1 ws2 s          -> ESelect    (mapWs ws0) e ws1 ws2 s
         EOp        ws1 op es ws2            -> EOp        (mapWs ws1) op es ws2
         EIf        ws1 e1 ws2 e2 ws3 e3 ws4 -> EIf        (mapWs ws1) e1 ws2 e2 ws3 e3 ws4
         ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ELet       (mapWs ws1) kind rec p ws2 e1 ws3 e2 ws4
@@ -2562,10 +2567,8 @@ modifyWsBefore f codeObject =
               EList (f ws) a b c d
             ERecord ws a b c ->
               ERecord (f ws) a b c
-            ESelect e2 a b c ->
-              case (modifyWsBefore f (E e2)) of
-                E newE -> ESelect newE a b c
-                _ -> ESelect e2 a b c
+            ESelect ws a b c d ->
+              ESelect (f ws) a b c d
             EIf ws a b c d e_ f_ ->
               EIf (f ws) a b c d e_ f_
             ECase ws a b c  ->
@@ -2774,7 +2777,7 @@ childCodeObjects co =
                   []
             ) ++
             ( List.map (E << (\(_, _, _, _, v) -> v)) listWsIdWsExpWs )
-          ESelect e _ _ _ ->
+          ESelect ws0 e _ _ _ ->
               [ E e ]
           EIf ws1 e1 _ e2 _ e3 ws2 ->
               [ ET Before ws1 e

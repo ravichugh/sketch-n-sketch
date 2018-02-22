@@ -720,6 +720,8 @@ operator =
             , succeed DictEmpty
                 |. keyword "empty"
               -- Non-unary operators
+            , succeed DictFromList
+                |. keyword "dict"
             , succeed Cos
                 |. keywordWithSpace "cos"
             , succeed Sin

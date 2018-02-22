@@ -43,6 +43,8 @@ isInfixOperator op =
       False
     DictEmpty ->
       False
+    DictFromList ->
+      False
     Cos ->
       False
     Sin ->

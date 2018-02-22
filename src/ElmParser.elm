@@ -171,25 +171,30 @@ genericEmptyRecord { combiner, beforeSpacePolicy } =
 
 
 genericNonEmptyRecord
-  :  { keyValue : Parser (elemKey, WS, elemValue)
-     , combiner : WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
+  :  { keyValue : Parser (String, WS, elemValue)
+     , combiner : WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
      , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI record
 genericNonEmptyRecord { keyValue, combiner, beforeSpacePolicy }=
   lazy <| \_ ->
     let
-      anotherWsAndItem : Parser (WS, WS, elemKey, WS, elemValue)
-      anotherWsAndItem =
-        delayedCommitMap (\ws (a, (b, c, d)) -> (ws, a, b, c, d))
-          (succeed identity
-          |= spaces
-          |. negativeLookAhead (symbol "}"))
-          (succeed (,)
-            |. optional (symbol ",")
-            |= spaces
-            |= keyValue
-          )
+      keyValueSeqHelper : Set String -> List (WS, WS, String, WS, elemValue)-> Parser (List (WS, WS, String, WS, elemValue))
+      keyValueSeqHelper keys revKeyValues =
+        oneOf [
+          delayedCommitMap (\ws (a, (b, c, d)) -> (ws, a, b, c, d))
+            spaces
+            (succeed (,)
+              |. negativeLookAhead (symbol "}")
+              |. optional (symbol ",")
+              |= spaces
+              |= keyValue
+            )
+           |> andThen (\((ws, a, k, c, v) as r) ->
+             if Set.member k keys then fail <| "Records cannot have duplicate keys, but the key " ++ k ++ " appears at least twice"
+             else keyValueSeqHelper (Set.insert k keys) (r :: revKeyValues))
+          , succeed (List.reverse revKeyValues)
+        ]
     in
       inContext "generic non-empty record" <|
       paddedBefore
@@ -198,36 +203,45 @@ genericNonEmptyRecord { keyValue, combiner, beforeSpacePolicy }=
         )
         beforeSpacePolicy.first
         ( trackInfo <|
-            succeed (\wsKey (k, wsEq, v) es wsEnd -> ((space0, wsKey, k, wsEq, v) :: es, wsEnd))
+            succeed (\keyValues wsEnd -> (keyValues, wsEnd))
               |. symbol "{"
+              |= ((succeed (,)
+                  |= spaces
+                  |= keyValue)
+                  |> andThen (\((wsBefore, (k, w, v)) as kv) ->
+                    keyValueSeqHelper (Set.singleton k) [(space0, wsBefore, k, w, v)]
+                    )
+                 )
               |= spaces
-              |= keyValue
-              |= repeat zeroOrMore anotherWsAndItem
-              |= spaces
-              |. symbol "}"
-        )
+              |. symbol "}")
 
 
 genericNonEmptyRecordWithInit
-  :  { keyValue : Parser (elemKey, WS, elemValue)
+  :  { keyValue : Parser (String, WS, elemValue)
      , initItem: Parser elemInit
-     , combinerInit : WS-> elemInit -> WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
+     , combinerInit : WS-> elemInit -> WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
      , beforeSpacePolicy: SpacePolicy
      }
   -> ParserI record
 genericNonEmptyRecordWithInit { keyValue, initItem, combinerInit, beforeSpacePolicy }=
   lazy <| \_ ->
     let
-      anotherWsAndItem : Parser (WS, WS, elemKey, WS, elemValue)
-      anotherWsAndItem =
-        delayedCommitMap (\ws (a, (b, c, d)) -> (ws, a, b, c, d))
-          spaces
-          (succeed (,)
-            |. negativeLookAhead (symbol "}")
-            |. optional (symbol ",")
-            |= spaces
-            |= keyValue
-          )
+      keyValueSeqHelper : Set String -> List (WS, WS, String, WS, elemValue)-> Parser (List (WS, WS, String, WS, elemValue))
+      keyValueSeqHelper keys revKeyValues =
+        oneOf [
+          delayedCommitMap (\ws (a, (b, c, d)) -> (ws, a, b, c, d))
+            spaces
+            (succeed (,)
+              |. negativeLookAhead (symbol "}")
+              |. optional (symbol ",")
+              |= spaces
+              |= keyValue
+            )
+           |> andThen (\((ws, a, k, c, v) as r) ->
+             if Set.member k keys then fail <| "Records cannot have duplicate keys, but the key " ++ k ++ " appears at least twice"
+             else keyValueSeqHelper (Set.insert k keys) (r :: revKeyValues))
+          , succeed (List.reverse revKeyValues)
+        ]
     in
       inContext "generic non-empty record with init" <|
         trackInfo <|
@@ -238,29 +252,34 @@ genericNonEmptyRecordWithInit { keyValue, initItem, combinerInit, beforeSpacePol
               |. symbol "{"
               |= initItem
               |= spaces)
-            (succeed (\wsKey (k, wsEq, v) es wsEnd ->
-                 ((space0, wsKey, k, wsEq, v) :: es, wsEnd))
+            (succeed (\keyValues wsEnd ->
+                 (keyValues, wsEnd))
               |. symbol "|"
-              |= spaces
-              |= keyValue
-              |= repeat zeroOrMore anotherWsAndItem
+              |= ((succeed (,)
+                  |= spaces
+                  |= keyValue)
+                  |> andThen (\((wsBefore, (k, w, v)) as kv) ->
+                    keyValueSeqHelper (Set.singleton k) [(space0, wsBefore, k, w, v)]
+                    )
+                 )
               |= spaces
               |. symbol "}")
 
 
+
 genericRecord
-  :  { key : Parser elemKey
+  :  { key : Parser String
      , equalSign: Parser ()
      , value : SpacePolicy -> Parser elemValue
      , fundef : Maybe { -- Optional arguments to records, e.g. { myfun arg1 arg2 = value }
           arguments : Parser (List arguments),
           buildValue : List arguments -> elemValue -> elemValue
        }
-     , combiner : WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
+     , combiner : WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
      , beforeSpacePolicy: SpacePolicy
      , optionalInitParser: Maybe
        { initItem : Parser elemInit
-       , combinerInit : WS -> elemInit -> WS -> List (WS, WS, elemKey, WS, elemValue) -> WS -> record
+       , combinerInit : WS -> elemInit -> WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
        }
      }
   -> ParserI record
@@ -1184,6 +1203,8 @@ opFromIdentifier identifier =
       Just Pi
     "empty" ->
       Just DictEmpty
+    "dict" ->
+      Just DictFromList
     "cos" ->
       Just Cos
     "sin" ->
@@ -1406,22 +1427,22 @@ caseExpression sp =
       let
         branch: Parser WS -> Parser Branch
         branch branchsp =
-          paddedBefore
+          succeed
             ( \wsBefore (p, wsBeforeArrow, e) ->
-                Branch_ wsBefore p e wsBeforeArrow
+                withInfo (Branch_ wsBefore p e wsBeforeArrow) p.start e.end
             )
-            branchsp
-            ( inContext "Branch" <| trackInfo <|
+            |= branchsp
+            |= ( inContext "Branch" <|
                 succeed identity
                   |= (pattern { spacesWithoutNewline | first = nospace }
                      |> andThen (\p ->
                         let minimumIndentation = sameLineOrIndentedByAtLeast ((p.start.col - 1) {- The column index-} + 1 {- The indentation increment-}) in
-                        let _ = Debug.log "Switching to a new minimum indentation: " minimumIndentation in
+                        let _ = Debug.log "Switching to a new minimum indentation: " (p.start.col - 1 + 1) in
                         succeed (\wsBeforeArrow e -> (p, wsBeforeArrow, e))
                         |= spaces
                         |. symbol "->"
                         |= expression minimumIndentation
-                        |. optional (delayedCommit spaces (symbol ";"))
+                        |. optional (delayedCommit minimumIndentation.first (symbol ";"))
                      ))
                   )
       in
@@ -1443,6 +1464,7 @@ caseExpression sp =
                           case b.val of
                             Branch_ wsBefore p e wsBeforeArrow ->
                               let branchIndentation = sameLineOrIndentedByExactly (p.start.col - 1 {- The column index-}) in
+                              let _ = Debug.log "Switching to a branch indentation: " (p.start.col - 1) in
                               succeed (\x -> b::x)
                               |= repeat zeroOrMore (branch branchIndentation.first)
                         )
@@ -1588,8 +1610,10 @@ hole sp =
 selection : SpacePolicy -> Parser (Exp -> Exp)
 selection sp =
   delayedCommitMap (\wsBeforeDot (wsAfterDot,idWithInfo) exp ->
-     withInfo (exp_ <| ESelect exp wsBeforeDot wsAfterDot idWithInfo.val)
-        exp.start idWithInfo.end
+      let wsBefore = precedingWhitespaceWithInfoExp exp in
+      let expWithoutWhitespace = mapPrecedingWhitespace (\_ -> "") exp in
+      withInfo (exp_ <| ESelect wsBefore expWithoutWhitespace wsBeforeDot wsAfterDot idWithInfo.val)
+         exp.start idWithInfo.end
     )
     sp.first
     (succeed (,)

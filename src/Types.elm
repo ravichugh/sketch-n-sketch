@@ -264,6 +264,7 @@ opTypeTable =
     , (Pow        , " (-> Num Num Num)")
 
     , (DictEmpty  , " TODO") -- " (forall (k v) (Dict k v))")
+    , (DictFromList, " TODO") -- " (forall (k v) (-> List [k, v] -> Dict k v))
     , (DictGet    , " TODO") -- " (forall (k v) (-> k (Dict k v) (union v Null)))"
     , (DictRemove , " TODO") -- " (forall (k v) (-> k (Dict k v) (Dict k v)))"
     , (DictInsert , " TODO") -- " (forall (k v) (-> k v (Dict k v) (Dict k v)))"
@@ -879,7 +880,7 @@ synthesizeType typeInfo typeEnv e =
                     Err msg -> finish.withError msg typeInfo_
                     Ok t ->    finish.withType t result.typeInfo
 
-    ESelect c _ _ s ->
+    ESelect _ c _ _ s ->
       let resultn = synthesizeType typeInfo typeEnv c in
       case resultn.result of
         Nothing -> finish.withError "synthesizeType: ESelect 1 ... " resultn.typeInfo

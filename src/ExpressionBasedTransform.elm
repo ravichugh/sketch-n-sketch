@@ -1711,16 +1711,16 @@ mergeExpressions eFirst eRest =
           (mergeMaybeExpressions (Utils.recordInitValue mi) miList)
           (mergeExpressionLists  (Utils.recordValues es :: esList))
 
-    ESelect eRec ws1 ws2 m ->
+    ESelect ws0 eRec ws1 ws2 m ->
       let match eNext = case eNext.val.e__ of
-        ESelect eRec_ _ _ m2 -> if m == m2 then Just eRec_ else Nothing
+        ESelect _ eRec_ _ _ m2 -> if m == m2 then Just eRec_ else Nothing
         _                      -> Nothing
       in
       matchAllAndBind match eRest <| \stuff ->
         let eRecList = stuff in
         Utils.bindMaybe
           (\(eRec_,l1) ->
-            return (ESelect eRec_ ws1 ws2 m) l1)
+            return (ESelect ws0 eRec_ ws1 ws2 m) l1)
           (mergeExpressions eRec eRecList)
 
     EOp ws1 op es ws2 ->

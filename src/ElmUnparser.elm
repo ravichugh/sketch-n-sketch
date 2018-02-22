@@ -158,6 +158,8 @@ unparseOp op =
       "pi"
     DictEmpty ->
       "empty"
+    DictFromList ->
+      "dict"
     Cos ->
       "cos"
     Sin ->
@@ -368,8 +370,8 @@ unparse e =
         ++ wsAfter.val
         ++ "}"
 
-    ESelect exp wsBeforeDot wsAfterDot id ->
-      unparse exp ++ wsBeforeDot.val ++ "." ++ wsAfterDot.val ++ id
+    ESelect ws0 exp wsBeforeDot wsAfterDot id ->
+      ws0.val ++ unparse exp ++ wsBeforeDot.val ++ "." ++ wsAfterDot.val ++ id
 
     EIf wsBefore condition wsBeforeTrue trueBranch wsBeforeElse falseBranch _ ->
       wsBefore.val
