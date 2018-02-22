@@ -83,14 +83,23 @@ unparsePattern p =
       unparsePattern tail
 
     PRecord wsBefore elems wsAfter ->
+      let maybeJustKey eqSpace key value =
+        let default = eqSpace ++ "=" ++ unparsePattern value in
+        if eqSpace == "" then
+          case value.val.p__ of
+            PVar _ name _ -> if name == key then "" else default
+            _ -> default
+        else default
+      in
       wsBefore.val
         ++ "{"
         ++ (case elems of
               [] -> ""
               (wsComma, wsKey, key, wsEq, value)::tail ->
-                wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparsePattern value ++
+                wsKey.val ++ key ++ maybeJustKey wsEq.val key value ++
                 String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
-                  wsComma.val ++ "," ++ wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparsePattern value
+                   (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
+                   wsKey.val ++ key ++ maybeJustKey wsEq.val key value
                 ) tail)
         )
         ++ wsAfter.val
@@ -128,7 +137,8 @@ unparseType tipe =
               (wsComma, wsKey, key, wsEq, value)::tail ->
                 wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparseType value ++
                 String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
-                  wsComma.val ++ "," ++ wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparseType value
+                   (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
+                   wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparseType value
                 ) tail)
         )
         ++ wsAfter.val

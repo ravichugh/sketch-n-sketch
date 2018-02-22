@@ -270,6 +270,7 @@ genericNonEmptyRecordWithInit { keyValue, initItem, combinerInit, beforeSpacePol
 genericRecord
   :  { key : Parser String
      , equalSign: Parser ()
+     , optNoEqualSign: Maybe (String -> elemValue)
      , value : SpacePolicy -> Parser elemValue
      , fundef : Maybe { -- Optional arguments to records, e.g. { myfun arg1 arg2 = value }
           arguments : Parser (List arguments),
@@ -283,19 +284,27 @@ genericRecord
        }
      }
   -> ParserI record
-genericRecord { key, equalSign, value, fundef, combiner, beforeSpacePolicy, optionalInitParser } =
+genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, beforeSpacePolicy, optionalInitParser } =
   let keyValue = (inContext "record key or }" <| trackInfo <| key) |>
       andThen (\keyWithInfos ->
-        succeed (\argList wsBeforeEq v ->
+        succeed (\argList (wsBeforeEq, v) ->
            case argList of
              Nothing -> (keyWithInfos.val, wsBeforeEq, v)
              Just (builder, arguments) -> (keyWithInfos.val, wsBeforeEq, builder arguments v))
         |= Maybe.withDefault (succeed Nothing) (Maybe.map (\f -> map (\r -> Just (f.buildValue, r)) f.arguments) fundef)
-        |= spaces
-        |. equalSign
-        |= (let firstappargpolicy = sameLineOrIndentedByAtLeast (keyWithInfos.start.col - 1 {- The column index-} + 1 {- The indentation increment-}) in -- No newlines, or be at least indented after the keyword.
-            inContext "record value" <| value firstappargpolicy
-           )
+        |= oneOf [
+            succeed (,)
+            |= delayedCommitMap (\a b -> a) spaces equalSign
+            |= (let firstappargpolicy = sameLineOrIndentedByAtLeast (keyWithInfos.start.col - 1 {- The column index-} + 1 {- The indentation increment-}) in -- No newlines, or be at least indented after the keyword.
+              inContext "record value" <| value firstappargpolicy
+             )
+          , case optNoEqualSign of
+              Nothing -> fail "Expected ="
+              Just f ->
+                succeed identity
+                  |. oneOf [ lookAhead (symbol ","), lookAhead (symbol "\r"), lookAhead (symbol "\n"), lookAhead (symbol "}")]
+                  |= succeed (ws "", f keyWithInfos.val)
+          ]
       )
   in
   lazy <| \_ ->
@@ -791,6 +800,7 @@ recordPattern sp =
         genericRecord
          { key = identifier
          , equalSign = symbol "="
+         , optNoEqualSign = Just (\name -> withDummyPatInfo <| PVar space0 name noWidgetDecl)
          , value = pattern -- All spaces because = requires a value afterwards.
          , fundef = Nothing
          , combiner =
@@ -1020,6 +1030,7 @@ recordType sp =
         genericRecord
          { key = identifier
          , equalSign = symbol ":"
+         , optNoEqualSign = Nothing
          , value = typ
          , fundef = Nothing
          , combiner =
@@ -1369,6 +1380,7 @@ record sp =
         genericRecord
          { key =  identifier
          , equalSign = symbol "="
+         , optNoEqualSign = Nothing
          , value = expression
          , fundef = Just { -- Optional arguments to records, e.g. { myfun arg1 arg2 = value }
            arguments = repeat zeroOrMore (pattern allSpacesPolicy),
@@ -1431,13 +1443,12 @@ caseExpression sp =
             ( \wsBefore (p, wsBeforeArrow, e) ->
                 withInfo (Branch_ wsBefore p e wsBeforeArrow) p.start e.end
             )
-            |= branchsp
+            |= ( inContext "Indentation for branch" <| branchsp)
             |= ( inContext "Branch" <|
                 succeed identity
                   |= (pattern { spacesWithoutNewline | first = nospace }
                      |> andThen (\p ->
                         let minimumIndentation = sameLineOrIndentedByAtLeast ((p.start.col - 1) {- The column index-} + 1 {- The indentation increment-}) in
-                        let _ = Debug.log "Switching to a new minimum indentation: " (p.start.col - 1 + 1) in
                         succeed (\wsBeforeArrow e -> (p, wsBeforeArrow, e))
                         |= spaces
                         |. symbol "->"
@@ -1445,6 +1456,13 @@ caseExpression sp =
                         |. optional (delayedCommit minimumIndentation.first (symbol ";"))
                      ))
                   )
+      in
+      let branchHelper: List Branch -> Parser Branch -> Parser (List Branch)
+          branchHelper prevBranches branchParser =
+            oneOf [
+              branchParser |> andThen (\b -> branchHelper (b::prevBranches) branchParser)
+              , succeed (List.reverse prevBranches)
+            ]
       in
         mapExp_ <|
           paddedBefore
@@ -1473,9 +1491,7 @@ caseExpression sp =
                           case b.val of
                             Branch_ wsBefore p e wsBeforeArrow ->
                               let branchIndentation = sameLineOrIndentedByExactly (p.start.col - 1 {- The column index-}) in
-                              let _ = Debug.log "Switching to a branch indentation: " (p.start.col - 1) in
-                              succeed (\x -> b::x)
-                              |= repeat zeroOrMore (branch branchIndentation.first)
+                              branchHelper [b] (branch branchIndentation.first)
                         )
                       )
             )
@@ -1754,13 +1770,13 @@ allSpacesPolicy = { first = spaces, apparg = spaces }
 
 sameLineOrIndentedByAtLeast: Int -> SpacePolicy
 sameLineOrIndentedByAtLeast nSpaces =
-  let indentedParser = trackInfo <| ParserUtils.keepRegex <| Regex.regex <| "( |\\t)*((\\n *)*(\\n" ++ String.repeat nSpaces " " ++ " *))?" in
+  let indentedParser = trackInfo <| ParserUtils.keepRegex <| Regex.regex <| "( |\t)*((r?\n *)*(\r?\n" ++ String.repeat nSpaces " " ++ " *))?" in
   SpacePolicy indentedParser indentedParser
 
 
 sameLineOrIndentedByExactly: Int -> SpacePolicy
 sameLineOrIndentedByExactly nSpaces =
-  let indentedParser = trackInfo <| ParserUtils.keepRegex <|  Regex.regex <| "( |\\t)*((\\n *)*(\\n" ++ String.repeat nSpaces " " ++ "))?" in
+  let indentedParser = trackInfo <| ParserUtils.keepRegex <|  Regex.regex <| "( |\t)*((\r?\n *)*(\r?\n" ++ String.repeat nSpaces " " ++ "))?" in
   SpacePolicy indentedParser (sameLineOrIndentedByAtLeast nSpaces).apparg
 
 
