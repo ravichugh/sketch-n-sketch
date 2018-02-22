@@ -1081,28 +1081,22 @@ buildUpdatedValueFromDomListener (rootId, oldTree) (attributeValueUpdates, textV
 
     newValue : Val
     newValue =
-      updateNode rootId rootId
+      updateNode rootId
 
-    updateNode : NodeId -> NodeId -> Val
-    updateNode parentId thisId =
-      case Dict.get parentId textValueUpdates of
-        Just newText ->
-          let parentNode = Utils.justGet parentId oldTree in
-          case parentNode.interpreted of
-            SvgNode kind attrs [_] ->
-              let newChild = vList [vStr "TEXT", vStr newText] in
-              updateSvgNode thisId kind attrs [newChild]
-            _ ->
-              Debug.crash "updateNode"
+    updateNode : NodeId -> Val
+    updateNode thisId =
+      let thisNode = Utils.justGet thisId oldTree in
+      case (thisNode.interpreted, Dict.get thisId textValueUpdates) of
+        (TextNode s, _) ->
+          vList [vStr "TEXT", vStr s]
 
-        Nothing ->
-          let thisNode = Utils.justGet_ "updateNode" thisId oldTree in
-          case thisNode.interpreted of
-            TextNode s ->
-              vList [vStr "TEXT", vStr s]
-            SvgNode kind attrs childIndices ->
-              let newChildren = List.map (updateNode parentId) childIndices in
-              updateSvgNode thisId kind attrs newChildren
+        (SvgNode kind attrs [_], Just newText) ->
+          let newChild = vList [vStr "TEXT", vStr newText] in
+          updateSvgNode thisId kind attrs [newChild]
+
+        (SvgNode kind attrs childIndices, _) ->
+          let newChildren = List.map updateNode childIndices in
+          updateSvgNode thisId kind attrs newChildren
 
     updateSvgNode : NodeId -> ShapeKind -> List Attr -> List Val -> Val
     updateSvgNode thisId kind attrs children =
