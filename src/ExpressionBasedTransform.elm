@@ -13,6 +13,7 @@ module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
 
 import Lang exposing (..)
 import LangUnparser exposing (unparse, unparsePat)
+import Info exposing (parsedThingToLocation)
 import LangSvg exposing (NodeId)
 import ShapeWidgets exposing (PointFeature, SelectableFeature)
 import Blobs exposing (..)
@@ -427,7 +428,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       )
       []
   |> List.filter (\(merged, exps) -> List.length exps >= minCloneCount && argVarCount merged == argCount)
-  |> List.map (\(merged, exps) -> (merged, exps |> List.sortBy (\exp -> (exp.start.line, exp.start.col))))
+  |> List.map (\(merged, exps) -> (merged, exps |> List.sortBy parsedThingToLocation))
   |> List.map (\(merged, sortedExps) -> (merged, sortedExps, sortedExps |> List.map (\exp -> extraExpsDiff merged exp)))
   |> List.filter (\(merged, sortedExps, parameterExpLists) -> List.all (\e -> isLiteral e || nodeCount e <= 3) (List.concat parameterExpLists)) -- Exps that will become calling arguments must have no free variables or be small.
   |> List.sortBy (\(merged, sortedExps, parameterExpLists) -> -(List.length sortedExps)) -- For each abstraction, perserve only the largest set of clones matching it

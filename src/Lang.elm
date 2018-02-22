@@ -460,6 +460,10 @@ isPVar p = case p.val.p__ of
   PVar _ _ _ -> True
   _          -> False
 
+isPWildcard p = case p.val.p__ of
+  PWildcard _ -> True
+  _           -> False
+
 -- What exp actually determines the evaluated value of this exp?
 -- See LangTools.outerSameValueExp for expanding outward.
 expEffectiveExp : Exp -> Exp

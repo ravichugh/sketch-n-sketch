@@ -78,6 +78,7 @@ import Types
 import Ace
 import ParserUtils exposing (showError)
 import FastParser exposing (freshen)
+import Info
 import LangTools
 import LangSimplify
 import ValueBasedTransform
@@ -1886,7 +1887,7 @@ doDuplicate old =
       |> Utils.dedup
       |> List.map (LangTools.justFindExpByEId old.inputExp)
       |> List.filter (not << isVar << expEffectiveExp)
-      |> List.sortBy LangTools.expToLocation -- Choose earliest single expression in program.
+      |> List.sortBy Info.parsedThingToLocation -- Choose earliest single expression in program.
       |> List.head -- No multiple synthesis options for now.
       |> Maybe.map
           (\expToDuplicate ->

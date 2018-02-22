@@ -4,6 +4,7 @@ module Info exposing
   , withDummyInfo
   , hasDummyInfo
   , mapInfo
+  , parsedThingToLocation
   )
 
 import Pos exposing (Pos, dummyPos)
@@ -33,3 +34,6 @@ mapInfo : (a -> b) -> WithInfo a -> WithInfo b
 mapInfo f wa =
   { wa | val = f wa.val }
 
+parsedThingToLocation : WithInfo a -> (Int, Int)
+parsedThingToLocation parsedThing =
+  (parsedThing.start.line, parsedThing.start.col)

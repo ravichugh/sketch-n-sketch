@@ -217,6 +217,7 @@ addAsSet x xs =
   then xs
   else x::xs
 
+-- i.e. unionAsSet
 addAllAsSet : List a -> List a -> List a
 addAllAsSet xs ys =
   ys |> List.foldl addAsSet xs
@@ -794,12 +795,20 @@ toggleDict : (k, v) -> Dict k v -> Dict k v
 toggleDict (k,v) dict =
   if Dict.member k dict then Dict.remove k dict else Dict.insert k v dict
 
+-- If you know original values are unique or don't care about key collisions in resulting dict.
 flipDict : Dict a b -> Dict b a
 flipDict dict =
   dict
   |> Dict.toList
   |> List.map flip
   |> Dict.fromList
+
+-- flipDictToDictOfLists : Dict a b -> Dict.Dict b (List a)
+-- flipDictToDictOfLists dict =
+--   dict
+--   |> Dict.toList
+--   |> List.map flip
+--   |> pairsToDictOfLists
 
 multiKeySingleValue : List k -> v -> Dict k v
 multiKeySingleValue keys value =

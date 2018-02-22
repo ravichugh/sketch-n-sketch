@@ -13,6 +13,7 @@ module LangTools exposing (..)
 import Eval
 import Lang exposing (..)
 import FastParser exposing (prelude, isPreludeLocId, isPreludeEId)
+import Info exposing (parsedThingToLocation)
 import ElmParser
 import Utils
 import LangUnparser exposing (unparseWithIds)
@@ -360,6 +361,7 @@ allLocsAndNumbers exp =
     exp
 
 
+allLocIds : Exp -> List LocId
 allLocIds exp =
   allLocsAndNumbers exp
   |> List.map (\((locId, _, _), _) -> locId)
@@ -379,12 +381,7 @@ justFindExpWithAncestorsByEId root eid =
 
 locationInProgram : Exp -> EId -> (Int, Int)
 locationInProgram program eid =
-  expToLocation (justFindExpByEId program eid)
-
-
-expToLocation : Exp -> (Int, Int)
-expToLocation exp =
-  (exp.start.line, exp.start.col)
+  parsedThingToLocation (justFindExpByEId program eid)
 
 
 -- Is the expression in the body of only defs/comments/options?
@@ -951,6 +948,8 @@ tryMatchExpReturningList pat exp =
 --
 -- For the purposes of naming, this may be more strict than needed. (No bindings unless complete match.)
 --
+-- Consequently, you probably want the various functions based on tryMatchExpPatToSomething
+--
 -- TODO: perhaps rewrite in terms of tryMatchExpPatToSomething
 tryMatchExp : Pat -> Exp -> ExpMatchResult
 tryMatchExp pat exp =
@@ -1327,6 +1326,13 @@ expToAppArgs exp =
     _                 -> Debug.crash <| "LangTools.expToAppArgs exp is not an EApp: " ++ unparseWithIds exp
 
 
+expToMaybeAppFunc : Exp -> Maybe Exp
+expToMaybeAppFunc exp =
+  case exp.val.e__ of
+    EApp _ fExp _ _ _ -> Just fExp
+    _                 -> Nothing
+
+
 expToMaybeHoleVal : Exp -> Maybe Val
 expToMaybeHoleVal exp =
   case exp.val.e__ of
@@ -1397,12 +1403,12 @@ identifiersList exp =
     exp
 
 
-allPats : Exp -> List Pat
-allPats root =
-  flattenExpTree root
+allRootPats : Exp -> List Pat
+allRootPats exp =
+  flattenExpTree exp
   |> List.concatMap
-      (\exp ->
-        case exp.val.e__ of
+      (\e ->
+        case e.val.e__ of
           EFun _ pats _ _          -> pats
           ECase _ _ branches _     -> branchPats branches
           ELet _ _ _ pat _ _ _ _ _ -> [pat]
@@ -2901,6 +2907,17 @@ maybeResolveIdentifierToExp ident viewerEId program =
   case resolveIdentifierToExp ident viewerEId program of
     Just (Bound exp) -> Just exp
     _                -> Nothing
+
+
+-- -- No prelude.
+-- maybeResolveVarToExpInProgram : Exp -> Exp -> Maybe Exp
+-- maybeResolveVarToExpInProgram var program =
+--   expEnvAt_ program var.val.eid |> Maybe.andThen (\bindings ->
+--   expToMaybeIdent var           |> Maybe.andThen (\ident ->
+--   case Dict.get ident bindings of
+--     Just (Bound exp) -> Just exp
+--     _                -> Nothing
+--   ))
 
 
 type ExpressionBinding

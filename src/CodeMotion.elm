@@ -19,6 +19,7 @@ module CodeMotion exposing
   , makeEIdOriginVisibleToEIds, makeEIdVisibleToEIds, makeEIdVisibleToEIdsByInsertingNewBinding
   , liftLocsSoVisibleTo, copyLocsSoVisibleTo
   , resolveValueHoles
+  , programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
   )
 
 import Lang exposing (..)
@@ -27,6 +28,7 @@ import LangSimplify
 import LangUnparser exposing (unparseWithIds, expsEquivalent, patsEquivalent, unparseWithUniformWhitespace)
 import ElmUnparser
 import FastParser as Parser
+import Info exposing (parsedThingToLocation)
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
 import InterfaceModel exposing
@@ -744,8 +746,8 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
     identsOriginallySomewhereInvalidlyFreeWithDefWhereUsedInvalidly
     |> List.sortBy
         (\(identInvalidlyFree, identOfDefWhereUsedInvalidly, _) ->
-          ( Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic maybeTwiddledProgram sortBy1" identInvalidlyFree simpleLetBindings           |> expToLocation
-          , Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic maybeTwiddledProgram sortBy2" identOfDefWhereUsedInvalidly simpleLetBindings |> expToLocation
+          ( Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic maybeTwiddledProgram sortBy1" identInvalidlyFree simpleLetBindings           |> parsedThingToLocation
+          , Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic maybeTwiddledProgram sortBy2" identOfDefWhereUsedInvalidly simpleLetBindings |> parsedThingToLocation
           )
         )
     |> List.foldr
@@ -885,7 +887,7 @@ makeResult
       -- |> Debug.log "allNewReferencesGood"
     in
     let noDuplicateNamesInPats =
-      allPats newProgram
+      allRootPats newProgram
       |> List.all
           (\pat ->
             let namesDefinedAtPat = identifiersListInPat pat in
