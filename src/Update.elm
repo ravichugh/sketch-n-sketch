@@ -67,8 +67,6 @@ update env e oldVal out nextToUpdate =
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateError msg ->
       Errs msg
-    UpdateIdem fEnv newE newOldVal newOutput ->
-      update fEnv newE newOldVal newOutput nextToUpdate
     UpdateContinue fEnv newE newOldVal newOut g ->
       update fEnv newE newOldVal newOut (lazyCons2 g nextToUpdate)
     UpdateRestart fEnv newE newOldVal newOut newNextToUpdate ->
@@ -95,8 +93,6 @@ update env e oldVal out nextToUpdate =
                 UpdateResults fEnv fOut alternatives ->
                   update fEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program fOut) <|
                     appendLazy (Lazy.force lazyTail) <| Results.mapLazy (\(altEnv, altExp) -> Fork altEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program altExp) (Lazy.force lazyTail)) (Lazy.force alternatives)
-                UpdateIdem fEnv newE newOldVal newOut ->
-                  update fEnv newE newOldVal newOut (Lazy.force lazyTail)
                 UpdateContinue fEnv newE newOldVal newOut g ->
                   update fEnv newE newOldVal newOut (LazyCons g lazyTail)
                 UpdateRestart fEnv newE newOldVal newOut newNextToUpdate ->
@@ -141,8 +137,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
         Program e -> Debug.crash <| "Don't know how to update an environment with a program: " ++ unparse e
         Raw newVal ->
           let newEnv = updateEnv env is newVal in
-          --update newEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal (Program e) nextToUpdate
-          UpdateIdem newEnv (replaceE__ e <| EHole (ws "") Nothing) oldVal <| Program e
+          UpdateResult newEnv e
 
     EList sp1 elems sp2 Nothing sp3 ->
       case out of
@@ -153,7 +148,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
               if List.length origVals == List.length newOutVals then
                 case (elems, origVals, newOutVals) of
                   ([], [], []) ->
-                    UpdateIdem env (replaceE__ e <| EHole (ws "") Nothing) oldVal <| Program e
+                    UpdateResult env e
                   (expHead::expTail, origHead::origTail, newHead::newTail) ->
                     UpdateContinue env (Tuple.second expHead) origHead (Raw newHead)
                       <| HandlePreviousResult <| \(newHeadEnv, newHeadExp) ->

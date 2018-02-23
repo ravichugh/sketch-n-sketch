@@ -14,7 +14,6 @@ type NextAction = HandlePreviousResult ((Env, Exp) -> UpdateStack)
 
 type UpdateStack = UpdateResult      Env Exp
                  | UpdateResults     Env Exp (Lazy.Lazy (LazyList (Env, Exp)))
-                 | UpdateIdem        Env Exp Val Output
                  | UpdateContinue    Env Exp Val Output NextAction
                  | UpdateRestart     Env Exp Val Output (LazyList NextAction)
                  | UpdateAlternative Env Exp Val Env Exp Val Output (LazyList NextAction)
