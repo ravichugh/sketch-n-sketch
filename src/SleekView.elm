@@ -627,7 +627,9 @@ menuBar model =
 
     fileMenu =
       menu "File"
-        [ [ simpleTextButton "New..." <|
+        [ [ simpleTextButton "New" <|
+              Controller.msgAskNew Model.blankTemplate model.needsSave
+          , simpleTextButton "New From Template..." <|
               Controller.msgOpenDialogBox New
           , simpleTextButton "Save As..." <|
               Controller.msgOpenDialogBox SaveAs
@@ -1779,7 +1781,7 @@ fileNewDialogBox model =
       New
       model
       []
-      [Html.text "New from Template..."]
+      [Html.text "New From Template..."]
       []
       (List.map viewCategory Examples.templateCategories)
 
