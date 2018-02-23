@@ -1943,9 +1943,24 @@ doCallUpdate m =
     synthesisResult caption m.inputExp
   in
   let showSolutions results =
+    -- when the only option is to revert, hovering over that option
+    -- isn't correctly re-running and replacing the dirty slate.
+    -- here's a temporary workaround: add a second dummy option.
+    let results_ =
+      case results of
+        [_] ->
+          let dummyResult =
+            synthesisResult
+               "HACK: Hover over this before selecting the following..."
+               (eStr0 "HACK")
+          in
+          dummyResult :: results
+        _   ->
+          results
+    in
     { m
         | synthesisResultsDict =
-            Dict.insert "Update for New Output" results m.synthesisResultsDict
+            Dict.insert "Update for New Output" results_ m.synthesisResultsDict
         }
   in
   case updatedExpResults of
