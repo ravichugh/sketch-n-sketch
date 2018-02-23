@@ -111,10 +111,15 @@ getUpdateStackOp env e oldVal out nextToUpdate =
       case out of
         Program prog -> UpdateResult env prog
         Raw newVal ->   UpdateResult env <| valToExp ws "" newVal
+
     EConst ws num loc widget ->
       case out of
         Program prog -> UpdateResult env prog
-        Raw newVal ->   UpdateResult env <| replaceE__ e <| EConst ws (getNum newVal) loc widget
+        Raw newVal ->  case getNum newVal of
+          Err msg -> UpdateError msg
+          Ok numv ->
+           UpdateResult env <| replaceE__ e <| EConst ws numv loc widget
+
     EBase ws m ->
       case out of
         Program prog -> UpdateResult env prog
@@ -792,7 +797,7 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
           case newVal.v_ of
             VList otherVals ->
               (replaceP__ p <| PList sp0 newPats sp1 (Just newPat) sp2, replaceV_ v <| (VList <| newVals ++ otherVals))
-            _ -> Debug.crash <| "RHS of list pattern is not a list: " ++ toString newVal
+            _ -> Debug.crash <| "RHS of list pattern is not a list: " ++ valToString newVal
         ))
       )
         -- dummy VTrace, since VList itself doesn't matter
@@ -806,7 +811,7 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
         case envReverse newEnv of
           (newInnerPat, newVal) -> (replaceP__ p <| PParens sp0 newInnerPat sp1, newVal)
       ))
-  _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
+  _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (valToString v)
 
 matchListWithInversion : (List Pat, List Val) -> Maybe (Env, Env -> (List Pat, List Val))
 matchListWithInversion (ps, vs) =
@@ -837,11 +842,11 @@ matchListWithInversion (ps, vs) =
      Nothing -> Nothing
   )--}
 
-getNum: Val -> Num
+getNum: Val -> Result String Num
 getNum v =
   case v.v_ of
-    VConst _ (num, _) -> num
-    _ -> Debug.crash <| "Espected VConst, got " ++ toString v
+    VConst _ (num, _) -> Ok num
+    _ -> Err <| "Cannot replace a number with " ++ valToString v
 
 
 eBaseToVBase eBaseVal =

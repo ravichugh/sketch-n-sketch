@@ -252,7 +252,7 @@ type Val_
   | VClosure (Maybe Ident) (List Pat) Exp Env
   | VList (List Val)
   | VRecord (Dict String Val) -- It's a record indexed by the keys
-  | VDict VDict_ -- Can be constructed only by "Dict.fromList [[key, value], [key2, value2]] and so on
+  | VDict VDict_ -- Can be constructed only by "dict [[key, value], [key2, value2]] and 'empty'
 
 type alias VDict_ = Dict (String, String) Val
 
