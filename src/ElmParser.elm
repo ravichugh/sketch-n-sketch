@@ -1439,12 +1439,12 @@ caseExpression sp =
       let
         branch: Parser WS -> Parser Branch
         branch branchsp =
-          succeed
-            ( \wsBefore (p, wsBeforeArrow, e) ->
+          delayedCommitMap
+            (\wsBefore (p, wsBeforeArrow, e) ->
                 withInfo (Branch_ wsBefore p e wsBeforeArrow) p.start e.end
             )
-            |= ( inContext "Indentation for branch" <| branchsp)
-            |= ( inContext "Branch" <|
+            ( inContext "Indentation for branch" <| branchsp) -- Tries to consume spaces and correct indentation.
+            ( inContext "Branch" <|
                 succeed identity
                   |= (pattern { spacesWithoutNewline | first = nospace }
                      |> andThen (\p ->
@@ -1751,12 +1751,22 @@ simpleExpressionWithPossibleArguments sp =
       |= ParserUtils.optional (spaceColonType { sp | first = sp.apparg })
     )
 
-topLevelSpaceRegex = Regex.regex "((?!\n\n|\n\\S)\\s)*"
+-- No indentation for top-level expressions, at least one newline or the beginning of the string.
+topLevelBetweenSpaceRegex = Regex.regex "^|(?:\\s*\n)"
+
+topLevelBetweenDefSpacePolicty: SpacePolicy
+topLevelBetweenDefSpacePolicty =
+  { first = trackInfo <| ParserUtils.keepRegex topLevelBetweenSpaceRegex,
+    apparg = trackInfo <| ParserUtils.keepRegex topLevelInsideDefSpaceRegex
+  }
+
+
+topLevelInsideDefSpaceRegex = Regex.regex "((?!\n\n|\n\\S)\\s)*"
 
 topLevelInsideDefSpacePolicy: SpacePolicy
 topLevelInsideDefSpacePolicy =
-  {first = trackInfo <| ParserUtils.keepRegex topLevelSpaceRegex,
-   apparg = trackInfo <| ParserUtils.keepRegex topLevelSpaceRegex }
+  {first = trackInfo <| ParserUtils.keepRegex topLevelInsideDefSpaceRegex,
+   apparg = trackInfo <| ParserUtils.keepRegex topLevelInsideDefSpaceRegex }
 
 spaceWithoutNLRegex = Regex.regex "((?!\n)\\s)*"
 
@@ -1895,7 +1905,7 @@ topLevelDef =
               binding.end
       )
       ( succeed (,,,)
-          |= spaces
+          |= topLevelBetweenDefSpacePolicty.first
           |= pattern (topLevelInsideDefSpacePolicy)
           |= repeat zeroOrMore (pattern topLevelInsideDefSpacePolicy)
           |= topLevelInsideDefSpacePolicy.first
