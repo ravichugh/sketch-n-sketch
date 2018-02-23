@@ -3044,6 +3044,9 @@ pruneEnv exp env = -- Remove all the initial environment that is on the right.
   let freeVars = freeIdentifiers exp in
   List.filter (\(x, _) -> Set.member x freeVars) env
 
+-- NOTE: This function is mostly copied in Eval, as a temporary, hacky
+-- workaround to dependency issues.
+--
 valToExp: WS -> String -> Val -> Exp
 valToExp sp indentation v =
   withDummyExpInfo <| case v.v_ of

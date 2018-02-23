@@ -6,7 +6,8 @@ import String
 
 import ImpureGoodies
 import Lang exposing (..)
-import ValUnparser exposing (..)
+import ValUnparser exposing (strVal_, strOp, strLoc)
+import ElmUnparser
 import FastParser exposing (parseE, prelude)
 import Syntax exposing (Syntax)
 import Types
@@ -15,6 +16,60 @@ import Record
 
 import ImpureGoodies
 import UpdateRegex exposing (evalRegexReplaceAllByIn)
+
+
+------------------------------------------------------------------------------
+-- Temporary valToString in Elm syntax
+
+-- Use this instead of ValUnparser.strVal, which was specific to Little syntax.
+--
+valToString : Val -> String
+valToString v = ElmUnparser.unparse (anotherValToExp (ws "") "" v)
+
+-- Hacky workaround dependency issues for the moment:
+--
+-- Copying LangTools.valToExp and removing call to pruneEnv, since
+-- the common use case is to call valToString on values without closures.
+--
+anotherValToExp: WS -> String -> Val -> Exp
+anotherValToExp sp indentation v =
+  withDummyExpInfo <| case v.v_ of
+    VConst mb num     -> EConst sp (Tuple.first num) dummyLoc noWidgetDecl
+    VBase (VBool b)   -> EBase  sp <| EBool b
+    VBase (VString s) -> EBase  sp <| EString defaultQuoteChar s
+    VBase (VNull)     -> EBase  sp <| ENull
+    VList vals ->
+      case vals of
+        [] -> EList sp [] space0 Nothing space0
+        head::tail ->
+          let headExp = (ws "", anotherValToExp (ws " ") (indentation ++ "  ") head) in
+          let tailExps = List.map (\y -> (space0, anotherValToExp (ws <| "\n" ++ indentation ++ "  ") (indentation ++ "  ") y)) tail in
+          EList sp (headExp :: tailExps) space0 Nothing <| (ws <| "\n" ++ indentation)
+    VClosure mRec patterns body env ->
+      -- not pruning like LangTools.valToExp does
+      -- let prunedEnv = pruneEnvPattern patterns (pruneEnv body env) in
+      let prunedEnv = env in
+      case prunedEnv of
+        [] -> EFun sp patterns body space0
+        (name, v)::tail ->
+          let baseCase =  withDummyExpInfo <| EFun (ws <| "\n" ++ indentation) patterns body space0 in
+          let startCase =
+              case mRec of
+                Nothing -> baseCase
+                Just f -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| "\n" ++ indentation) f) space0
+          in
+          let bigbody = List.foldl (\(n, v) body -> withDummyExpInfo <| ELet (ws <| "\n" ++ indentation) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (anotherValToExp space1 (indentation ++ "  ") v) space1 body space0) startCase tail
+          in
+          ELet sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (anotherValToExp space1 (indentation ++ "  ") v) space1 bigbody space0
+    VRecord values ->
+      ERecord sp Nothing (List.indexedMap (\i key ->
+        case Dict.get key values of
+          Nothing -> Debug.crash <| "Internal error: Could not retrieve key " ++ toString key
+          Just v -> if i == 0 then (space0, ws " ", key, ws " ", anotherValToExp (ws " ") (indentation ++ "    ") v)
+            else (space0, ws ("\n" ++ indentation ++ "  "), key, ws " ", anotherValToExp (ws " ") (indentation ++ "    ") v)
+        ) <| Dict.keys values) space1
+    VDict vs -> Debug.crash "Dictionaries not supported at this moment"
+
 
 ------------------------------------------------------------------------------
 -- Big-Step Operational Semantics
@@ -92,7 +147,8 @@ mkCap mcap l =
   s ++ ": "
 
 
-
+-- TODO rename these to preludeEnv, because the initEnv name below
+-- is sometimes replaced by preludeEnv, sometimes the empty env.
 initEnvRes = Result.map Tuple.second <| (eval Syntax.Little [] [] prelude)
 initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
 
@@ -324,7 +380,7 @@ eval syntax env bt e =
             Result.map (addWidgets ws1) <| eval syntax env_ bt_ e2
 
           Nothing   ->
-            errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser syntax >> Utils.squish) p ++ " with " ++ strVal v1
+            errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser syntax >> Utils.squish) p ++ " with " ++ valToString v1
 
 
   ELet _ _ True p _ e1 _ e2 _ ->
@@ -393,7 +449,7 @@ evalOp syntax env e bt opWithInfo es =
       let error () =
         errorWithBacktrace syntax bt
           <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
-          ++ ":\n" ++ Utils.lines (Utils.zip vs es |> List.map (\(v,e) -> (strVal v) ++ " from " ++ (Syntax.unparser syntax e)))
+          ++ ":\n" ++ Utils.lines (Utils.zip vs es |> List.map (\(v,e) -> (valToString v) ++ " from " ++ (Syntax.unparser syntax e)))
       in
       let addProvenance val_   = Val val_ (Provenance env e vs) (Parents []) in
       let addProvenanceOk val_ = Ok (addProvenance val_) in
@@ -489,18 +545,18 @@ evalOp syntax env e bt opWithInfo es =
               |> addProvenanceOk
             _                   -> error ()
           DebugLog   -> case vs of
-            [v] -> let _ = Debug.log (strVal v) "" in Ok v
+            [v] -> let _ = Debug.log (valToString v) "" in Ok v
             _   -> error ()
           NoWidgets  -> case vs of
             [v] -> Ok v -- Widgets removed  below.
             _   -> error ()
           ToStr      -> case vs of
-            [val] -> VBase (VString (strVal val)) |> addProvenanceOk
+            [val] -> VBase (VString (valToString val)) |> addProvenanceOk
             _     -> error ()
           ToStrExceptStr -> case vs of
             [val] -> case val.v_ of
               VBase (VString v) as r -> r |> addProvenanceOk
-              v -> VBase (VString (strVal val)) |> addProvenanceOk
+              v -> VBase (VString (valToString val)) |> addProvenanceOk
             _     -> error ()
           RegexReplaceAllIn -> case vs of
             [regexp, replacement, string] ->
@@ -648,7 +704,7 @@ valToDictKey syntax bt val_ =
       |> List.map ((valToDictKey syntax bt) << .v_)
       |> Utils.projOk
       |> Result.map (\keyStrings -> (toString keyStrings, "list"))
-    _                 -> errorWithBacktrace syntax bt <| "Cannot use " ++ (strVal { v_ = val_, provenance = dummyProvenance, parents = Parents [] }) ++ " in a key to a dictionary."
+    _                 -> errorWithBacktrace syntax bt <| "Cannot use " ++ (valToString { v_ = val_, provenance = dummyProvenance, parents = Parents [] }) ++ " in a key to a dictionary."
 
 
 postProcessWidgets widgets =
@@ -672,7 +728,7 @@ postProcessWidgets widgets =
   rangeWidgets ++ pointWidgets
 
 parseAndRun : String -> String
-parseAndRun = strVal << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun" << parseE
+parseAndRun = valToString << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun" << parseE
 
 parseAndRun_ = strVal_ True << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun_" << parseE
 
