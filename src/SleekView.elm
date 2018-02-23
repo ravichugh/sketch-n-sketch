@@ -19,10 +19,12 @@ import Utils
 import HtmlUtils exposing (..)
 import Either exposing (..)
 import Updatable
+import History
 
 import InterfaceModel as Model exposing (..)
 
 import InterfaceController as Controller
+import Keys
 import ExamplesGenerated as Examples
 
 import Deuce
@@ -225,6 +227,10 @@ booleanOption test onString offString handler =
 --       onClickHandler
 
 -- UI Buttons
+
+closeUiButton : Msg -> Html Msg
+closeUiButton =
+  styledUiButton "close" ""
 
 uiButton : String -> Msg -> Html Msg
 uiButton =
@@ -1223,14 +1229,15 @@ codePanel model =
     undoButton =
       let
         past =
-          Tuple.first model.history
+          History.prior model.history
         attributes =
           case past of
-            _ :: prevCode :: _ ->
-              [ E.onMouseEnter <| Controller.msgPreview (Right prevCode)
+            Just snapshot ->
+              [ E.onMouseEnter <| Controller.msgPreview (Right snapshot.code)
               , E.onMouseLeave Controller.msgClearPreview
               ]
-            _ ->
+
+            Nothing ->
               []
       in
         textButton
@@ -1238,19 +1245,19 @@ codePanel model =
               | attributes = attributes ++ logMouseOver "Undo"
               , content = [Html.text "⟲ Undo"]
               , onClick = Controller.msgUndo
-              , disabled = List.length past <= 1
+              , disabled = not <| History.hasExtendedPast model.history
           }
     redoButton =
       let
         future =
-          Tuple.second model.history
+          History.next model.history
         attributes =
           case future of
-            futureCode :: _ ->
-              [ E.onMouseEnter <| Controller.msgPreview (Right futureCode)
+            Just snapshot ->
+              [ E.onMouseEnter <| Controller.msgPreview (Right snapshot.code)
               , E.onMouseLeave Controller.msgClearPreview
               ]
-            _ ->
+            Nothing ->
              []
       in
         textButton
@@ -1258,7 +1265,7 @@ codePanel model =
               | attributes = attributes ++ logMouseOver "Redo"
               , content = [Html.text "⟳ Redo"]
               , onClick = Controller.msgRedo
-              , disabled = List.length future == 0
+              , disabled = not <| History.hasFuture model.history
           }
     cleanButton =
       let
@@ -1720,10 +1727,8 @@ dialogBox
   elements =
     let
       closeDialogBoxButton =
-        styledUiButton
-          "circle"
-          "×"
-          (Controller.msgCloseDialogBox db)
+        closeUiButton <|
+          Controller.msgCloseDialogBox db
       closeButton =
         if closable then
           [ closeDialogBoxButton ]
@@ -2127,8 +2132,8 @@ popupPanel args =
           [ Attr.class "dragger"
           , E.onMouseDown args.dragHandler
           , E.onMouseUp Controller.msgClearDrag
-          ]
-          args.title
+          ] <|
+          args.title ++ [closeUiButton <| Controller.msgKeyDown Keys.keyEsc]
       ]
     (xString, yString) =
       Utils.mapBoth px args.pos
@@ -2141,7 +2146,7 @@ popupPanel args =
           , ("top", yString)
           ]
       ] <|
-      dragger ++ args.content
+        dragger ++ args.content
 
 --------------------------------------------------------------------------------
 -- No Available Tools Helper

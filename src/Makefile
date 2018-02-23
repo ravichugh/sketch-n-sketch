@@ -72,6 +72,7 @@ loc:
     Canvas.elm \
     SleekView.elm SleekLayout.elm \
     InterfaceController.elm \
+    History.elm \
     LangTools.elm LangSimplify.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
     DeuceWidgets.elm Deuce.elm DeuceTools.elm \
