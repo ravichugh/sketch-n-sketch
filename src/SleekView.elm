@@ -1101,8 +1101,6 @@ menuBar model =
             -- , [outputToolsMenu]
             , [viewMenu]
             , [optionsMenu]
-            -- temporary hack: just moving Output Tools menu farther to the right
-            , [Html.span [ Attr.style [ ("width", "200px") ] ] [ ]]
             , [outputToolsMenu]
             ]
           )
