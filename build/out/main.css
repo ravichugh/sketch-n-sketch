@@ -1126,6 +1126,10 @@ code {
  * Auto Output Tools Popup Panel                                              *
  ******************************************************************************/
 
+.auto-output-tools {
+  min-width: 150px;
+}
+
 .auto-output-tools .text-button {
   display: flex;
 }
