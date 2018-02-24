@@ -841,7 +841,7 @@ code {
 }
 
 .dialog-box .file-delete-button .ui-button {
-  color: #FF3300;
+  color: var(--alert-warning-text-color);
 }
 
 /* Help Dialog */
