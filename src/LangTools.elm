@@ -1403,6 +1403,10 @@ identifiersList exp =
     exp
 
 
+allPats : Exp -> List Pat
+allPats = allRootPats >> List.concatMap flattenPatTree
+
+
 allRootPats : Exp -> List Pat
 allRootPats exp =
   flattenExpTree exp

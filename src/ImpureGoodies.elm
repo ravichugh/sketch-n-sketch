@@ -56,3 +56,8 @@ logTimedRun caption thunk =
   let (result, time) = timedRun thunk in
   let _ = Debug.log (caption ++ " milliseconds") time in
   result
+
+
+logRaw : a -> ()
+logRaw thing =
+  Native.ImpureGoodies.logRaw thing

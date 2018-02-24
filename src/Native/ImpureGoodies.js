@@ -67,6 +67,10 @@ var _user$project$Native_ImpureGoodies = {
       var end = (new Date()).getTime();
 
       return _elm_lang$core$Native_Utils.Tuple2(result, end-start);
-    }
+    },
 
+    logRaw : function(thing) {
+      console.log(thing);
+      return {ctor: '_Tuple0'};
+    }
 };

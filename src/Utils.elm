@@ -833,6 +833,12 @@ dictAddToSet k v dict =
     Just vs -> Dict.insert k (Set.insert v vs) dict
     Nothing -> Dict.insert k (Set.singleton v) dict
 
+dictRemoveFromSet : k -> v -> Dict k (Set v) -> Dict k (Set v)
+dictRemoveFromSet k v dict =
+  case Dict.get k dict of
+    Just vs -> Dict.insert k (Set.remove v vs) dict
+    Nothing -> dict
+
 dictGetSet : k -> Dict k (Set v) -> Set v
 dictGetSet k d =
   Maybe.withDefault Set.empty (Dict.get k d)

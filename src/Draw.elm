@@ -33,7 +33,6 @@ import Blobs exposing (..)
 import InterfaceModel exposing (..)
 import FastParser
 import LangTools
-import LangUnparser
 import StaticAnalysis
 import Provenance
 import SlowTypeInference
@@ -1305,14 +1304,19 @@ getDrawableFunctions_ tryTypeInference program viewerEId =
   in
   if tryTypeInference then
     let
-      typeGraph = SlowTypeInference.typecheck program
+      typeGraph = SlowTypeInference.typecheck program -- |> Debug.log "type graph"
+      -- _ = Utils.log <| Syntax.unparser Syntax.Elm (LangTools.justFindExpByEId program viewerEId)
+      -- _ = ImpureGoodies.logRaw (SlowTypeInference.graphVizString program typeGraph)
       otherDrawableFunctions =
         LangTools.expPatEnvAt_ program viewerEId
         |> Utils.fromJust_ "getDrawableFunctions_ expPatEnvAt_"
         |> Dict.toList
         |> List.filterMap
             (\(ident, (pat, expBinding)) ->
-              case (SlowTypeInference.maybeTypes pat.val.pid typeGraph, expBinding) of
+              let inferred = SlowTypeInference.maybeTypes pat.val.pid typeGraph in
+              -- let _ = inferred |> List.map (\tipe -> Debug.log ident (Syntax.typeUnparser Syntax.Elm tipe)) in
+              -- let _ = Debug.log ident (SlowTypeInference.constraintsOnSubgraph pat.val.pid typeGraph) in
+              case (inferred, expBinding) of
                 ([tipe], LangTools.Bound boundExp) ->
                   if isDrawableType tipe
                   then Just (ident, expEffectiveExp boundExp, tipe)
