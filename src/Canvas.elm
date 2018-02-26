@@ -483,16 +483,11 @@ buildSvgWidgets wCanvas hCanvas widgets model =
   let drawCallWidget funcVal argVals retVal retWs model =
     let program = model.inputExp in
     let maybeBounds =
-      retVal::argVals
-      |> List.map ShapeWidgets.valToMaybeBounds
-      |> (++) (retWs |> List.map ShapeWidgets.maybeWidgetBounds)
-      |> Utils.filterJusts
-      |> ShapeWidgets.maybeEnclosureOfAllBounds
+      ShapeWidgets.maybeWidgetBounds (WCall funcVal argVals retVal retWs)
     in
     case maybeBounds of
       Nothing -> []
       Just (left, top, right, bot) ->
-        let padding = 25 in
         let (maybeFuncBody, maybeFuncPat, maybeArgPats) =
           case funcVal.v_ of
             VClosure maybeRecName argPats funcBody env ->
@@ -504,6 +499,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
                 _ -> (Just funcBody, Nothing, Just argPats)
             _ -> (Nothing, Nothing, Nothing)
         in
+        let boxTop = top + 25 in
         let maybeAddArg =
           -- TODO: ensure all selected items touch funcBody
           case (maybeFuncBody, nothingSelectedInOutput model) of
@@ -514,8 +510,8 @@ buildSvgWidgets wCanvas hCanvas widgets model =
                   , attr "font-size" params.mainSection.uiWidgets.fontSize
                   , attr "text-anchor" "end"
                   , attr "cursor" "pointer"
-                  , attr "x" (toString (right + padding))
-                  , attr "y" (toString (top - padding - 10))
+                  , attr "x" (toString right)
+                  , attr "y" (toString (boxTop - 10))
                   , onMouseDownAndStop (Controller.msgAddArg funcBody)
                   ]
             _ ->
@@ -528,17 +524,17 @@ buildSvgWidgets wCanvas hCanvas widgets model =
             , attr "stroke-width" "5px"
             , attr "stroke-dasharray" "20,10"
             , attr "opacity" "0.3"
-            , attr "rx" (toString padding)
-            , attr "ry" (toString padding)
-            , attr "x" (toString (left - padding))
-            , attr "y" (toString (top - padding))
-            , attr "width" (toString (right - left + padding*2))
-            , attr "height" (toString (bot - top + padding*2))
+            , attr "rx" "25"
+            , attr "ry" "25"
+            , attr "x" (toString left)
+            , attr "y" (toString boxTop)
+            , attr "width" (toString (right - left))
+            , attr "height" (toString (bot - boxTop))
             ]
         in
         [ Just box
-        , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat (left - padding) (top - padding - 20))
-        , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats (left - padding) (top - padding))
+        , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat left (top + 5))
+        , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop)
         , maybeAddArg
         ] |> Utils.filterJusts
   in

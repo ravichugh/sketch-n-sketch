@@ -881,9 +881,27 @@ maybeShapeBounds svgNode =
 -- Returns Maybe (left, top, right, bot)
 maybeWidgetBounds : Widget -> Maybe (Num, Num, Num, Num)
 maybeWidgetBounds widget =
-  pointFeaturesOfWidget widget
-  |> List.filterMap (maybeEvaluateWidgetPointFeature widget)
-  |> pointsToMaybeBounds
+  case widget of
+    WCall funcVal argVals retVal retWs ->
+      let padding = 25 in
+      retVal::argVals
+      |> List.map valToMaybeBounds
+      |> (++) (retWs |> List.map maybeWidgetBounds)
+      |> Utils.filterJusts
+      |> maybeEnclosureOfAllBounds
+      |> Maybe.map
+          (\(left, top, right, bot) ->
+            ( left  - padding
+            , top   - padding - 25
+            , right + padding
+            , bot   + padding
+            )
+          )
+
+    _ ->
+      pointFeaturesOfWidget widget
+      |> List.filterMap (maybeEvaluateWidgetPointFeature widget)
+      |> pointsToMaybeBounds
 
 
 -- Returns Nothing if list is empty; otherwise returns Just (left, top, right, bot)
