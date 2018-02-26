@@ -5,6 +5,7 @@ import Helpers.Matchers exposing (..)
 import Update exposing (..)
 import UpdateRegex exposing (..)
 import UpdateStack exposing (..)
+import UpdateUtils exposing (..)
 import Lang exposing (..)
 import GroupStartMap exposing (..)
 import Regex
@@ -187,6 +188,7 @@ all_tests = init_state
                   [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))]
                   [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))]
                  )[("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 2))]
+
   |> test "update const"
   |> updateElmAssert [] "   1"   "2"
                      [] "   2"
@@ -431,8 +433,8 @@ all_tests = init_state
         "a2bc2bc6cd-1null"
   |> test "replaceAllIn"
     |> evalElmAssert [] "replaceAllIn \"l\" \"L\" \"Hello world\"" "\"HeLLo worLd\""
-    |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null; in replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
-    |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null; in replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
+    |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null in replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
+    |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null in replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
   --|> test "Record construction, extraction and pattern "
   --  |>
   |> test "Partial application"

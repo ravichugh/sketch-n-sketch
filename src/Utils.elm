@@ -639,6 +639,9 @@ count pred list =
 listValue: (ws, value) -> value
 listValue = Tuple.second
 
+listValueMake: (ws, value) -> value -> (ws, value)
+listValueMake (a, b) c = (a, c)
+
 listValues: List (ws, value) -> List value
 listValues = List.map listValue
 
