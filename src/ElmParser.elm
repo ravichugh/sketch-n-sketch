@@ -1752,7 +1752,7 @@ simpleExpressionWithPossibleArguments sp =
     )
 
 -- No indentation for top-level expressions, at least one newline or the beginning of the string.
-topLevelBetweenSpaceRegex = Regex.regex "^|(?:\\s*\n)"
+topLevelBetweenSpaceRegex = Regex.regex "^(?:\\s*\n)*|(?:\\s*\n)"
 
 topLevelBetweenDefSpacePolicty: SpacePolicy
 topLevelBetweenDefSpacePolicty =
