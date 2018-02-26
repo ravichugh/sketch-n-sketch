@@ -669,19 +669,59 @@ simpleExpName : Exp -> String
 simpleExpName exp =
   simpleExpNameWithDefault defaultExpName exp
 
+simpleExpNameWithDefault : String -> Exp -> String
 simpleExpNameWithDefault default exp =
+  let recurse e = simpleExpNameWithDefault default e in
   case (expEffectiveExp exp).val.e__ of
-    EConst _ _ _ _        -> "num"
-    EVar _ ident          -> ident
-    EApp _ funE _ _ _     -> expToMaybeIdent funE |> Maybe.withDefault default
-    EList _ _ _ _ _       -> "list"
-    EOp _ _ es _          -> List.map (simpleExpNameWithDefault default) es |> Utils.findFirst ((/=) default) |> Maybe.withDefault default
-    EBase _ ENull         -> "null"
-    EBase _ (EString _ _) -> "string"
-    EBase _ (EBool _)     -> "bool"
-    EFun _ _ _ _          -> "func"
-    EHole _ _             -> "hole"
-    _                     -> default
+    EConst _ _ _ _             -> "num"
+    EVar _ ident               -> ident
+    EApp _ funE _ _ _          -> expToMaybeIdent funE |> Maybe.withDefault default
+    EList _ _ _ (Just rest) _  -> recurse rest ++ "List"
+    EList _ heads _ Nothing _  ->
+      let headNames = List.map recurse (headExps heads) in
+      case (Utils.dedup headNames, headNames) of
+        (_,          [])                    -> "unit"
+        (_,          [headName])            -> headName ++ "Singleton"
+        ([headName], [_, _])                -> headName ++ "Pair"
+        (_,          [name1, name2])        -> name1 ++ Utils.capitalize name2 ++ "Pair"
+        ([headName], [_, _, _])             -> headName ++ "Triple"
+        (_,          [name1, name2, name3]) -> name1 ++ Utils.capitalize name2 ++ Utils.capitalize name3 ++ "Triple"
+        (_,          name::names)           -> name ++ String.join "" (List.map Utils.capitalize names)
+    EOp _ _ es _               -> List.map recurse es |> Utils.findFirst ((/=) default) |> Maybe.withDefault default
+    EBase _ ENull              -> "null"
+    EBase _ (EString _ _)      -> "string"
+    EBase _ (EBool _)          -> "bool"
+    EFun _ _ body _            -> recurse body ++ "Func"
+    EHole _ _                  -> "hole"
+    _                          -> default
+
+typeToExpName : Type -> String
+typeToExpName tipe =
+  case tipe.val of
+    TNum _                      -> "num"
+    TBool _                     -> "bool"
+    TString _                   -> "string"
+    TNull _                     -> "null"
+    TList _ t1 _                -> typeToExpName t1 ++ "List"
+    TTuple _ _ _ (Just tRest) _ -> typeToExpName tRest ++ "List"
+    TTuple _ ts _ Nothing _     ->
+      let headNames = List.map typeToExpName ts in
+      case (Utils.dedup headNames, headNames) of
+        (_,          [])                    -> "unit"
+        (_,          [headName])            -> headName ++ "Singleton"
+        ([headName], [_, _])                -> headName ++ "Pair"
+        (_,          [name1, name2])        -> name1 ++ Utils.capitalize name2 ++ "Pair"
+        ([headName], [_, _, _])             -> headName ++ "Triple"
+        (_,          [name1, name2, name3]) -> name1 ++ Utils.capitalize name2 ++ Utils.capitalize name3 ++ "Triple"
+        (_,          name::names)           -> name ++ String.join "" (List.map Utils.capitalize names)
+    TDict _ t1 t2 _       -> typeToExpName t1 ++ "To" ++ Utils.capitalize (typeToExpName t2)
+    TArrow _ ts _         -> Utils.maybeLast ts |> Maybe.map (\retType -> typeToExpName retType ++ "Func") |> Maybe.withDefault "func"
+    TUnion _ [] _         -> "nothing"
+    TUnion _ (t1::ts) _   -> typeToExpName t1 :: List.map (typeToExpName >> Utils.capitalize) ts |> String.join "Or"
+    TNamed _ ident        -> Utils.uncapitalize ident
+    TVar _ ident          -> "thing"
+    TWildcard _           -> "anything"
+    TForall _ _ t1 _      -> typeToExpName t1
 
 -- Suggest a name for the expression at eid in program
 expNameForEId : Exp -> EId -> String
@@ -881,6 +921,19 @@ expDescriptionParts_ program exp targetEId equivalentEIds =
 
                 )
             |> Maybe.withDefault childrenResult
+
+      -- If deeper expressions produce a default name, use the type annotation instead.
+      -- Motivation: want to produce the name "point" instead of "pair" in ([10, 20] : Point).
+      EColonType _ typedExp _ tipe _ ->
+        case searchChildren () of
+          [] -> []
+          [childName] ->
+            if simpleExpName typedExp == childName
+            then [typeToExpName tipe]
+            else [childName]
+
+          scopedResults ->
+            scopedResults
 
       _ ->
         searchChildren ()

@@ -693,6 +693,12 @@ capitalize str =
     []          -> ""
     first::rest -> String.join "" (String.toUpper first :: rest)
 
+uncapitalize : String -> String
+uncapitalize str =
+  case String.split "" str of
+    []          -> ""
+    first::rest -> String.join "" (String.toLower first :: rest)
+
 -- https://stackoverflow.com/a/41124950
 stringReplace : String -> String -> String -> String
 stringReplace target replacement string =
