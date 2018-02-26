@@ -301,7 +301,13 @@ drawNewFunction fName model pt1 pt2 =
     (\(callExp, funcExp, returnType) ->
       if isPointType returnType then
         let maybePoint =
-          Eval.doEval Syntax.Elm Eval.initEnv (eApp funcExp (LangTools.expToAppArgs (expEffectiveExp callExp)))
+          let pseudoProgram =
+            model.inputExp
+            |> replaceExpNode
+                (LangTools.lastTopLevelExp model.inputExp).val.eid
+                (eApp funcExp (LangTools.expToAppArgs (expEffectiveExp callExp)))
+          in
+          Eval.doEval Syntax.Elm Eval.initEnv pseudoProgram
           |> perhapsLogError
           |> Result.toMaybe
           |> Maybe.andThen (\((val, _), _) -> valToMaybePoint val)
@@ -910,7 +916,7 @@ addFunction fName old pt1 pt2 =
 
 -- Returns (funcCall, funcExp, returnType), funcExp is an EFun
 newFunctionCallExp : Ident -> Model -> PointWithSnap -> PointWithSnap -> Maybe (Exp, Exp, Type)
-newFunctionCallExp fName old pt1 pt2 =
+newFunctionCallExp fName model pt1 pt2 =
   let fillInArgPrimitive argType =
     Maybe.map (if isPointType argType then eAsPoint else identity) <|
       case argType.val of
@@ -929,7 +935,7 @@ newFunctionCallExp fName old pt1 pt2 =
         TNamed _ "Point"               -> Just <| eTuple (makeInts [0,0])
         _                              -> Nothing
   in
-  case getDrawableFunctions old |> Utils.findFirst (Utils.fst3 >> (==) fName) of
+  case getDrawableFunctions model |> Utils.findFirst (Utils.fst3 >> (==) fName) of
     Just (_, funcExp, funcType) ->
       case Types.typeToMaybeArgTypesAndReturnType funcType of
         Just (argTypes, returnType) ->
