@@ -1,7 +1,8 @@
-module ExamplesGenerated exposing (list, templateCategories)
+module ExamplesGenerated exposing (list, initTemplate, templateCategories)
 
 import Lang
-import FastParser exposing (parseE)
+import FastParser
+import ElmParser
 import Types
 import Eval
 import Utils
@@ -9,10 +10,14 @@ import PreludeGenerated as Prelude
 import DefaultIconTheme
 import Syntax
 
-makeExample name s =
+makeExample = makeExample_ FastParser.parseE
+
+makeLeoExample = makeExample_ ElmParser.parse
+
+makeExample_ parser name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
-    let e = Utils.fromOkay ("Error parsing example " ++ name) (parseE s) in
+    let e = Utils.fromOkay ("Error parsing example " ++ name) (parser s) in
     -- let ati = Types.typecheck e in
     let ati = Types.dummyAceTypeInfo in
     -----------------------------------------------------
@@ -196,10 +201,35 @@ LITTLE_TO_ELM task_lambda
 
 --------------------------------------------------------------------------------
 
+LEO_TO_ELM blankDoc
+LEO_TO_ELM welcome1
+LEO_TO_ELM simpleHtmlTable
+LEO_TO_ELM simpleBudget
+
+--------------------------------------------------------------------------------
+
 generalCategory =
   ( "General"
   , [ makeExample "BLANK" blank
     , makeExample "*Prelude*" Prelude.src
+    ]
+  )
+
+welcomeCategory =
+  ( "Welcome"
+  , [ makeLeoExample "Get Started" welcome1
+    , makeLeoExample "Tutorial" blankDoc
+    ]
+  )
+
+docsCategory =
+  ( "Example Documents (ICFP 2018 Submission)"
+  , [ makeLeoExample "1: Simple Table" simpleHtmlTable
+    , makeLeoExample "2: Simple Budget" simpleBudget
+    , makeLeoExample "3: Small LaTeX-like DSL" blankDoc
+    , makeLeoExample "4: TODO" blankDoc
+    , makeLeoExample "5: TODO" blankDoc
+    , makeLeoExample "6: TODO" blankDoc
     ]
   )
 
@@ -384,7 +414,9 @@ deuceUserStudyCategory =
   )
 
 templateCategories =
-  [ generalCategory
+  [ welcomeCategory
+  , docsCategory
+  , generalCategory
   , deuceCategory
   , defaultIconCategory
   , logoCategory
@@ -397,3 +429,8 @@ list =
   templateCategories
     |> List.map Tuple.second
     |> List.concat
+
+initTemplate =
+  list
+    |> Utils.head "initTemplate"
+    |> Tuple.first

@@ -644,14 +644,14 @@ menuBar model =
           ]
         , [ simpleTextButton "Export Code"
               Controller.msgExportCode
-          , simpleTextButton "Export SVG"
+          , simpleTextButton "Export HTML"
               Controller.msgExportSvg
           ]
         , [ simpleTextButton "Import Code..." <|
               Controller.msgOpenDialogBox ImportCode
           , disableableTextButton
               True
-              "Import SVG"
+              "Import HTML"
               Controller.msgNoop
           ]
         ]
@@ -1082,6 +1082,31 @@ menuBar model =
           ]
         ]
 
+    templateNavigation =
+      Html.div
+        [ Attr.class "user-study-info"
+        ]
+        [ textButton
+            { defaultTb
+                | content =
+                    [ Html.span
+                        [ Attr.class "flip"
+                        ]
+                        [ Html.text "▸"
+                        ]
+                    , Html.text " Previous Example"
+                    ]
+                , onClick =
+                    Controller.msgAskPreviousTemplate (reallyNeedsSave model)
+                , disabled =
+                    False
+            }
+        , disableableTextButton
+            False
+            "Next Example ▸"
+            (Controller.msgAskNextTemplate (reallyNeedsSave model))
+        ]
+
   in
     Html.div
       [ Attr.class "menu-bar"
@@ -1102,6 +1127,7 @@ menuBar model =
             , [viewMenu]
             , [optionsMenu]
             , [outputToolsMenu]
+            , [templateNavigation]
             ]
           )
 
@@ -1201,7 +1227,7 @@ fileIndicator model =
     filenameHtml =
       Html.text <| Model.prettyFilename WithExtension model
     wrapper =
-      if model.needsSave then
+      if reallyNeedsSave model then
         Html.i
           []
           [ filenameHtml

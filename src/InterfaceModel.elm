@@ -175,7 +175,10 @@ type alias Model =
   , colorScheme : ColorScheme
   , pendingGiveUpMsg : Maybe Msg
   , giveUpConfirmed : Bool
-  , lastSelectedTemplate : Maybe String
+  -- would be nice if lastSelectedTemplate = Nothing meant that
+  -- this file did not start from a template (it started with a file
+  -- from local storage)
+  , lastSelectedTemplate : Maybe (String, Code)
   , valueEditorString : String
   , attributeValueUpdates : Dict (Int, String) String
   , textValueUpdates : Dict Int String
@@ -731,8 +734,6 @@ bufferFilename model =
       Syntax.sourceExtension model.syntax
   }
 
-blankTemplate = "BLANK"
-
 type PrettyFileNameOption
   = WithExtension
   | WithoutExtension
@@ -742,11 +743,12 @@ prettyFilename includeExtension model =
     let
       prettyTemplate =
         case model.lastSelectedTemplate of
-          Just template ->
-            if template /= blankTemplate then
-              " (" ++ template ++ ")"
-            else
-              ""
+          Just (template, _) ->
+            " (" ++ template ++ ")"
+            -- if template /= Examples.initTemplate then
+            --   " (" ++ template ++ ")"
+            -- else
+            --   ""
           Nothing ->
             ""
     in
@@ -761,6 +763,18 @@ prettyFilename includeExtension model =
             ""
     in
       model.filename.name ++ suffix
+
+--------------------------------------------------------------------------------
+
+-- if this looks okay, use it in more places in SleekView in place of model.needsSave
+reallyNeedsSave : Model -> Bool
+reallyNeedsSave model =
+  -- use of bufferName, following prettyFilename...
+  case (model.filename.name == bufferName, model.lastSelectedTemplate) of
+    (True, Just (templateName, templateCode)) ->
+      String.trimRight model.code /= String.trimRight templateCode
+    _ ->
+      model.needsSave
 
 --------------------------------------------------------------------------------
 
@@ -1047,9 +1061,6 @@ autoOutputToolsPopupPanelShown model =
 
 --------------------------------------------------------------------------------
 
-initTemplate : String
-initTemplate = "BLANK"
-
 initColorScheme : ColorScheme
 initColorScheme = Light
 
@@ -1057,7 +1068,7 @@ initModel : Model
 initModel =
   let
     -- TODO unnecessary process to initTemplate, because of initCmd
-    (_,f)    = Utils.find_ Examples.list initTemplate
+    (_,f)    = Utils.find_ Examples.list Examples.initTemplate
     {e,v,ws} = f ()
   in
   let unwrap = Utils.fromOk "generating initModel" in
@@ -1186,7 +1197,7 @@ initModel =
     , colorScheme = initColorScheme
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
-    , lastSelectedTemplate = Nothing
+    , lastSelectedTemplate = Just (Examples.initTemplate, code)
     , valueEditorString = LangTools.valToString v
     , attributeValueUpdates = Dict.empty
     , textValueUpdates = Dict.empty

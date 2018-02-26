@@ -254,6 +254,7 @@ code {
 }
 
 /* TODO User Study Info (temporary) */
+/* re-using this now for Previous/Next Example buttons */
 
 .user-study-info {
   position: absolute;

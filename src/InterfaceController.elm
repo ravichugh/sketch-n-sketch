@@ -70,6 +70,7 @@ port module InterfaceController exposing
   , msgReceiveDeucePopupPanelInfo
   , msgSetColorScheme
   , msgSetSyntax
+  , msgAskNextTemplate, msgAskPreviousTemplate
   )
 
 import Updatable exposing (Updatable)
@@ -2402,7 +2403,7 @@ handleNew template = (\old ->
                     , lastSaveState = Nothing
                     , scopeGraph    = DependenceGraph.compute e
 
-                    , lastSelectedTemplate = Just template
+                    , lastSelectedTemplate = Just (template, code)
 
                     , dimensions    = old.dimensions
                     , localSaves    = old.localSaves
@@ -3055,3 +3056,29 @@ msgSetSyntax newSyntax =
 
       Err _ ->
         old
+
+--------------------------------------------------------------------------------
+-- Navigating Previous/Next Templates
+
+msgAskNextTemplate =
+  requireSaveAsker msgNextTemplate
+
+msgAskPreviousTemplate =
+  requireSaveAsker msgPreviousTemplate
+
+msgNextTemplate =
+  Msg "Next Template" (navigateTemplate ((+) 1))
+
+msgPreviousTemplate =
+  Msg "Previous Template" (navigateTemplate (\i -> i-1))
+
+navigateTemplate offset m =
+  case m.lastSelectedTemplate of
+    Just (templateName, _) ->
+      Utils.findSublistIndex [templateName] (List.map Tuple.first Examples.list)
+        |> Utils.bindMaybe (\i -> Utils.maybeGeti0 (offset i) Examples.list)
+        |> Maybe.map (\(newTemplate,_) -> handleNew newTemplate m)
+        |> Maybe.withDefault m
+
+    Nothing ->
+      m

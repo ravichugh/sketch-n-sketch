@@ -2,6 +2,7 @@
 
 import sys
 from littleReader import *
+from leoReader import *
 
 if len(sys.argv) < 2 or len(sys.argv) > 3:
   print("Usage: expandTemplate.py BASENAME [SOURCEFOLDER]")
@@ -29,6 +30,13 @@ for s in inn:
     else:
       name = toks[1]
       for t in readLittle(name, sourceFolder): write(out, t)
+  elif toks[0] == "LEO_TO_ELM":
+    if len(toks) != 2:
+      print("Bad line:\n" + s)
+      sys.exit()
+    else:
+      name = toks[1]
+      for t in readLeo(name, sourceFolder): write(out, t)
   else:
     writeLn(out, s)
 
