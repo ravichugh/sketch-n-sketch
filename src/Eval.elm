@@ -327,7 +327,7 @@ eval syntax env bt e =
   ETyp _ _ _ e1 _           -> eval syntax env bt e1
   ETypeAlias _ _ _ e1 _     -> eval syntax env bt e1
   EParens _ e1 _ _          -> eval syntax env bt e1
-  EHole _ (HoleVal val)     -> Ok <| retV [val] val
+  EHole _ (HoleVal val)     -> Ok <| ret [] val.v_ -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape.
   EHole _ HoleEmpty         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
   EHole _ (HolePredicate _) -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"
 
