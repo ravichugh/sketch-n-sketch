@@ -983,9 +983,12 @@ issueCommand msg oldModel newModel =
           Cmd.batch <| iconCommand newModel.fileToDelete
 
         "Export Code" ->
+          -- not just using prettyFilename WithExtension, because that
+          -- function handles templates and local differently
+          let ext = if newModel.syntax == Syntax.Elm then ".elm" else ".little" in
           FileHandler.sendMessage <|
             Download
-              (Model.prettyFilename WithoutExtension newModel ++ ".little")
+              (Model.prettyFilename WithoutExtension newModel ++ ext)
               newModel.code
 
         "Export SVG" ->
