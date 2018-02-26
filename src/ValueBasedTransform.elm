@@ -892,7 +892,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
               includedPatExps
               |> List.sortBy (\(_, boundExp) -> parsedThingToLocation boundExp)
               |> Utils.foldr
-                  ((replaceIndentation "  " returnExp), originalProgramUniqueNames)
+                  (replacePrecedingWhitespace "\n  " (replaceIndentation "  " returnExp), originalProgramUniqueNames)
                   (\(pat, boundExp) (funcBodySoFar, programUniqueNamesSomeBindingsRemoved) ->
                     case CodeMotion.pluckByPId pat.val.pid programUniqueNamesSomeBindingsRemoved of
                       Just ((pat, boundExp, isRec), programUniqueNamesSomeBindingsRemoved) ->
