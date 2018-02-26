@@ -1194,8 +1194,8 @@ findExpByEId program targetEId =
   findFirstNode (eidIs targetEId) program
 
 -- justFindExpByEId is in LangTools (it needs the unparser for error messages).
--- LangTools.justFindExpByEId : EId -> Exp -> Exp
--- LangTools.justFindExpByEId eid exp =
+-- LangTools.justFindExpByEId : Exp -> EId -> Exp
+-- LangTools.justFindExpByEId exp eid =
 --   findExpByEId exp eid
 --   |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
 
@@ -1204,6 +1204,12 @@ findPatByPId : Exp -> PId -> Maybe Pat
 findPatByPId program targetPId =
   findScopeExpAndPatByPId program targetPId
   |> Maybe.map (\(scopeExp, pat) -> pat)
+
+-- justFindPatByPId is in LangTools (it needs the unparser for error messages).
+-- LangTools.justFindPatByPId : Exp -> PId -> Pat
+-- LangTools.justFindPatByPId exp pid =
+--   findPatByPId exp pid
+--   |> Utils.fromJust__ (\() -> "Couldn't find pid " ++ toString pid ++ " in " ++ unparseWithIds exp)
 
 
 findScopeExpAndPatByPId : Exp -> PId -> Maybe (Exp, Pat)

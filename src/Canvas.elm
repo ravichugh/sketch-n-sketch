@@ -310,7 +310,7 @@ svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput ((baseX, ba
 
 patAsHTML : Maybe (PId, String) -> Bool -> Pat -> Html Msg
 patAsHTML modelRenamingInOutput showRemover pat  =
-  let nameStr = LangTools.patToMaybeIdent pat |> Maybe.withDefault "" in
+  let nameStr = Syntax.patternUnparser Syntax.Elm pat |> Utils.squish in
   let pid = pat.val.pid in
   let text =
     Html.span

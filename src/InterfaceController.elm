@@ -119,6 +119,7 @@ import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import ColorNum
 import Syntax exposing (Syntax)
+import ElmParser
 import LangUnparser -- for comparing expressions for equivalence
 import History exposing (History)
 
@@ -2158,12 +2159,12 @@ msgCancelSync = Msg "Cancel Sync" <| \old ->
     { old | liveSyncInfo = refreshLiveInfo old }
 
 msgActivateRenameInOutput pid = Msg ("Active Rename Box for PId " ++ toString pid) <| \old ->
-  let oldName =
+  let oldPatStr =
     findPatByPId old.inputExp pid
-    |> Maybe.andThen LangTools.patToMaybeIdent
+    |> Maybe.map (Syntax.patternUnparser Syntax.Elm >> Utils.squish)
     |> Maybe.withDefault ""
   in
-  { old | renamingInOutput = Just (pid, oldName) }
+  { old | renamingInOutput = Just (pid, oldPatStr) }
 
 msgUpdateRenameInOutputTextBox newText = Msg ("Update Rename In Output: " ++ newText) <| \old ->
   case old.renamingInOutput of
@@ -2173,18 +2174,43 @@ msgUpdateRenameInOutputTextBox newText = Msg ("Update Rename In Output: " ++ new
 -- Shouldn't need pid b/c there should only be one rename box at a time, but I hate state.
 msgDoRename pid = Msg ("Rename PId " ++ toString pid) <| \old ->
   case old.renamingInOutput of
-    Just (renamingPId, newName) ->
+    Just (renamingPId, newPatStr) ->
       if renamingPId == pid then
-        let newProgram =
-          CodeMotion.renamePatByPId pid newName old.inputExp
-          |> List.filter isResultSafe
-          |> List.head
-          |> Maybe.map resultExp
-          |> Maybe.withDefault old.inputExp
+        let
+          pat = LangTools.justFindPatByPId old.inputExp pid
+          identPatsInOrder =
+            flattenPatTree pat
+            |> List.filter (LangTools.patToMaybeIdent >> Utils.maybeToBool)
+            |> List.sortBy Info.parsedThingToLocation
         in
-        { old | code             = Syntax.unparser old.syntax newProgram
-              , renamingInOutput = Nothing
-        } |> upstateRun
+        case ElmParser.parsePatternUnfresh newPatStr of
+          Ok newPat ->
+            let
+              newIdentsInOrder =
+                flattenPatTree newPat
+                |> List.sortBy Info.parsedThingToLocation
+                |> List.filterMap LangTools.patToMaybeIdent
+
+              newProgram =
+                Utils.zip identPatsInOrder newIdentsInOrder
+                |> Utils.foldl
+                    old.inputExp
+                    (\(oldPat, newName) programSoFar ->
+                      CodeMotion.renamePatByPId oldPat.val.pid newName programSoFar
+                      |> List.filter isResultSafe
+                      |> List.head
+                      |> Maybe.map resultExp
+                      |> Maybe.withDefault programSoFar
+                    )
+            in
+            { old | code             = Syntax.unparser old.syntax newProgram
+                  , renamingInOutput = Nothing
+            } |> upstateRun
+
+          Err _ ->
+            let _ = Utils.log <| "Couldn't parse new pattern " ++ newPatStr in
+            { old | renamingInOutput = Nothing }
+
       else
         old
 

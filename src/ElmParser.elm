@@ -1,5 +1,6 @@
 module ElmParser exposing
   ( parse,
+    parsePatternUnfresh,
     builtInPrecedenceTable,
     builtInPatternPrecedenceTable,
     isRestChar,
@@ -1804,3 +1805,8 @@ program =
 parse : String -> Result P.Error Exp
 parse =
   run (map FastParser.freshen program)
+
+
+parsePatternUnfresh : String -> Result P.Error Pat
+parsePatternUnfresh =
+  run (pattern spaces)

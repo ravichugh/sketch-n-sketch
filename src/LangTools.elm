@@ -379,6 +379,12 @@ justFindExpWithAncestorsByEId root eid =
   |> Utils.fromJust__ (\() -> "justFindExpWithAncestorsByEId: Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds root)
 
 
+justFindPatByPId : Exp -> PId -> Pat
+justFindPatByPId exp pid =
+  findPatByPId exp pid
+  |> Utils.fromJust__ (\() -> "Couldn't find pid " ++ toString pid ++ " in " ++ unparseWithIds exp)
+
+
 locationInProgram : Exp -> EId -> (Int, Int)
 locationInProgram program eid =
   parsedThingToLocation (justFindExpByEId program eid)
