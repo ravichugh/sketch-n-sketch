@@ -168,16 +168,18 @@ ignoreRegex reg =
    |> andThen (\(offset,source) ->
         let sourceFromOffset = String.slice offset (String.length source) source in
         let finding = find (AtMost 1) reg sourceFromOffset in
-        let _ = Debug.log ("Trying to ignore regex" ++ toString reg ++ " at pos " ++ toString (offset, source)) () in
+        -- let _ = Debug.log ("Trying to ignore regex" ++ toString reg ++ " at pos " ++ toString (offset, source)) () in
         case finding of
           {index, match}::_ ->
             if index == 0 then
-              let _ = Debug.log ("Found at index 0, length:") (String.length match) in
+              -- let _ = Debug.log ("Found at index 0, length:") (String.length match) in
               ignore (Exactly <| String.length match) (\_ -> True)
             else
-               let _ = Debug.log ("Found after index 0") () in
+               -- let _ = Debug.log ("Found after index 0") () in
                fail ("expecting regex '" ++ toString reg ++ "' immediately but appeared only after " ++ toString index ++ " characters")
-          _ -> let _ = Debug.log ("Not found") () in fail ("expecting regex '" ++ toString reg ++ "'")
+          _ ->
+            -- let _ = Debug.log ("Not found") () in
+            fail ("expecting regex '" ++ toString reg ++ "'")
    )
 
 inside : String -> Parser String
