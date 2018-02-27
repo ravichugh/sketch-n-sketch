@@ -449,8 +449,14 @@ buildSvgWidgets wCanvas hCanvas widgets model =
   in
   let drawPointWidget i_ widget (cx, cxTr) xVal (cy, cyTr) yVal =
     let idAsShape = -2 - i_ in
-    zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xVal (cy, cyTr) yVal
-    ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] (cx, cy)
+    let extraAttrs = [ onMouseEnter (addHoveredShape idAsShape), onMouseLeave (removeHoveredShape idAsShape) ] in
+    [ Svg.g
+        [ onMouseEnter (addHoveredShape idAsShape)
+        , onMouseLeave (removeHoveredShape idAsShape)
+        ] <|
+        zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xVal (cy, cyTr) yVal
+        ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] (cx, cy)
+    ]
   in
   let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) amountVal endXVal endYVal =
     let idAsShape = -2 - i_ in
@@ -480,63 +486,66 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     else
       []
   in
-  let drawCallWidget funcVal argVals retVal retWs model =
-    let program = model.inputExp in
-    let maybeBounds =
-      ShapeWidgets.maybeWidgetBounds (WCall funcVal argVals retVal retWs)
-    in
-    case maybeBounds of
-      Nothing -> []
-      Just (left, top, right, bot) ->
-        let (maybeFuncBody, maybeFuncPat, maybeArgPats) =
-          case funcVal.v_ of
-            VClosure maybeRecName argPats funcBody env ->
-              case parentByEId program funcBody.val.eid of
-                Just (Just funcExp) ->
-                  case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
-                    Just (_, funcPat) -> (Just funcBody, Just funcPat, Just argPats)
-                    _                 -> (Just funcBody, Nothing,      Just argPats)
-                _ -> (Just funcBody, Nothing, Just argPats)
-            _ -> (Nothing, Nothing, Nothing)
-        in
-        let boxTop = top + 25 in
-        let maybeAddArg =
-          -- TODO: ensure all selected items touch funcBody
-          case (maybeFuncBody, nothingSelectedInOutput model) of
-            (Just funcBody, False) ->
-              Just <|
-                flip Svg.text_ [Svg.title [] [VirtualDom.text "Add argument"], VirtualDom.text "➕"] <| -- plus symbol (doesn't show up on black editor background)
-                  [ attr "font-family" params.mainSection.uiWidgets.font
-                  , attr "font-size" params.mainSection.uiWidgets.fontSize
-                  , attr "text-anchor" "end"
-                  , attr "cursor" "pointer"
-                  , attr "x" (toString right)
-                  , attr "y" (toString (boxTop - 10))
-                  , onMouseDownAndStop (Controller.msgAddArg funcBody)
-                  ]
-            _ ->
-              Nothing
-        in
-        let box =
-          flip Svg.rect [] <|
-            [ attr "fill" "none"
-            , attr "stroke" "black"
-            , attr "stroke-width" "5px"
-            , attr "stroke-dasharray" "20,10"
-            , attr "opacity" "0.3"
-            , attr "rx" "25"
-            , attr "ry" "25"
-            , attr "x" (toString left)
-            , attr "y" (toString boxTop)
-            , attr "width" (toString (right - left))
-            , attr "height" (toString (bot - boxTop))
-            ]
-        in
-        [ Just box
-        , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat left (top + 5))
-        , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop)
-        , maybeAddArg
-        ] |> Utils.filterJusts
+  let drawCallWidget i_ funcVal argVals retVal retWs model =
+    if not <| List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredCallWidgets then
+      []
+    else
+      let program = model.inputExp in
+      let maybeBounds =
+        ShapeWidgets.maybeWidgetBounds (WCall funcVal argVals retVal retWs)
+      in
+      case maybeBounds of
+        Nothing -> []
+        Just (left, top, right, bot) ->
+          let (maybeFuncBody, maybeFuncPat, maybeArgPats) =
+            case funcVal.v_ of
+              VClosure maybeRecName argPats funcBody env ->
+                case parentByEId program funcBody.val.eid of
+                  Just (Just funcExp) ->
+                    case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
+                      Just (_, funcPat) -> (Just funcBody, Just funcPat, Just argPats)
+                      _                 -> (Just funcBody, Nothing,      Just argPats)
+                  _ -> (Just funcBody, Nothing, Just argPats)
+              _ -> (Nothing, Nothing, Nothing)
+          in
+          let boxTop = top + ShapeWidgets.heightForWCallPats in
+          let maybeAddArg =
+            -- TODO: ensure all selected items touch funcBody
+            case (maybeFuncBody, nothingSelectedInOutput model) of
+              (Just funcBody, False) ->
+                Just <|
+                  flip Svg.text_ [Svg.title [] [VirtualDom.text "Add argument"], VirtualDom.text "➕"] <| -- plus symbol (doesn't show up on black editor background)
+                    [ attr "font-family" params.mainSection.uiWidgets.font
+                    , attr "font-size" params.mainSection.uiWidgets.fontSize
+                    , attr "text-anchor" "end"
+                    , attr "cursor" "pointer"
+                    , attr "x" (toString right)
+                    , attr "y" (toString (boxTop - 10))
+                    , onMouseDownAndStop (Controller.msgAddArg funcBody)
+                    ]
+              _ ->
+                Nothing
+          in
+          let box =
+            flip Svg.rect [] <|
+              [ attr "fill" "none"
+              , attr "stroke" "black"
+              , attr "stroke-width" "5px"
+              , attr "stroke-dasharray" "20,10"
+              , attr "opacity" "0.3"
+              , attr "rx" "25"
+              , attr "ry" "25"
+              , attr "x" (toString left)
+              , attr "y" (toString boxTop)
+              , attr "width" (toString (right - left))
+              , attr "height" (toString (bot - boxTop))
+              ]
+          in
+          [ Just box
+          , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat left (boxTop - 20))
+          , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop)
+          , maybeAddArg
+          ] |> Utils.filterJusts
   in
 
   let draw (i_, widget) =
@@ -552,14 +561,14 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
-      WPoint xNumTr xVal yNumTr yVal ->
+      WPoint xNumTr xVal yNumTr yVal pairVal ->
         drawPointWidget i_ widget xNumTr xVal yNumTr yVal
 
       WOffset1D baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal ->
         drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal
 
       WCall funcVal argVals retVal retWs ->
-        drawCallWidget funcVal argVals retVal retWs model
+        drawCallWidget i_ funcVal argVals retVal retWs model
   in
 
   List.concat <| Utils.mapi1 draw widgets
@@ -655,16 +664,60 @@ onMouseDownAndStop = handleEventAndStop "mousedown"
 
 -- TODO use RealZones rather than Zones more
 
+shapeIdToMaybeVal id m =
+  let (_, shapeTree) = m.slate in
+  if -2 - id > 0 then
+    let widgetId = -2 - id in
+    case Utils.maybeGeti1 widgetId m.widgets of
+      Just (WNumSlider _ _ _ _ val _ _)        -> Just val
+      Just (WIntSlider _ _ _ _ val _ _)        -> Just val
+      Just (WPoint _ _ _ _ pairVal)            -> Just pairVal
+      Just (WOffset1D _ _ _ _ _ amountVal _ _) -> Just amountVal
+      Just (WCall _ _ retVal _)                -> Just retVal
+      Nothing                                  -> Nothing
+  else
+    Dict.get id shapeTree
+    |> Maybe.map .val
+
+
 removeHoveredShape id =
   Msg ("Remove Hovered Shape " ++ toString id) <| \m ->
     { m | hoveredShapes = Set.remove id m.hoveredShapes }
 
+
 addHoveredShape id =
   Msg ("Add Hovered Shape " ++ toString id) <| \m ->
-    if isMouseDown m
-    then m
-    else { m | hoveredShapes = Set.singleton id }
-    -- { m | hoveredShapes = Set.insert id m.hoveredShapes }
+    if isMouseDown m then
+      m
+    else
+      case shapeIdToMaybeVal id m of
+        Just hoveredVal ->
+          let (bounds, newHoveredCallWidgetIs) =
+            m.widgets
+            |> Utils.zipi1
+            |> List.filterMap
+                (\(i, widget) ->
+                  case (widget, ShapeWidgets.maybeWidgetBounds widget) of
+                    (WCall funcVal argVals retVal retWs, Just (left, top, right, bot)) ->
+                      if [] /= (Utils.intersectAsSet (Provenance.valToSameVals retVal) (Provenance.valToSameVals hoveredVal))
+                      then Just ((left, top, right, bot), i)
+                      else Nothing
+                    _ ->
+                      Nothing
+                )
+            |> List.unzip
+          in
+          case ShapeWidgets.maybeEnclosureOfAllBounds bounds of
+            Just bounds ->
+              { m | hoveredShapes      = Set.singleton id
+                  , hoveredCallWidgets = Utils.addAsSet (bounds, Set.fromList newHoveredCallWidgetIs) m.hoveredCallWidgets
+              }
+            Nothing ->
+              { m | hoveredShapes      = Set.singleton id }
+
+        Nothing ->
+          { m | hoveredShapes = Set.singleton id }
+
 
 addHoveredCrosshair tuple =
   Msg ("Add Hovered Crosshair " ++ toString tuple) <| \m ->

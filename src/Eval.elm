@@ -313,7 +313,7 @@ eval syntax env bt e =
                 case (v1.v_, v2.v_) of
                   (VConst _ nt1, VConst _ nt2) ->
                     let vNew = {v | v_ = VList [{v1 | v_ = VConst (Just (X, nt2, v2)) nt1}, {v2 | v_ = VConst (Just (Y, nt1, v1)) nt2}]} in
-                    ((vNew, ws ++ [WPoint nt1 v1 nt2 v2]), env_)
+                    ((vNew, ws ++ [WPoint nt1 v1 nt2 v2 v]), env_)
                   _ ->
                     result
               _ ->
@@ -594,7 +594,7 @@ postProcessWidgets widgets =
           WNumSlider _ _ _ _ _ _ False -> True
           WIntSlider _ _ _ _ _ _ True  -> False
           WNumSlider _ _ _ _ _ _ True  -> False
-          WPoint _ _ _ _               -> False
+          WPoint _ _ _ _ _             -> False
           WOffset1D _ _ _ _ _ _ _ _    -> False
           WCall _ _ _ _                -> False
       )

@@ -123,7 +123,7 @@ pointFeaturesOfWidget widget =
   case widget of
     WIntSlider _ _ _ _ _ _ _  -> []
     WNumSlider _ _ _ _ _ _ _  -> []
-    WPoint _ _ _ _            -> [LonePoint]
+    WPoint _ _ _ _ _          -> [LonePoint]
     WOffset1D _ _ _ _ _ _ _ _ -> [EndPoint]
     WCall _ _ _ _             -> []
 
@@ -247,9 +247,9 @@ maybeEvaluateShapePointFeature shapeKind shapeAttrs pointFeature =
 maybeEvaluateWidgetPointFeature : Widget -> PointFeature -> Maybe (Num, Num)
 maybeEvaluateWidgetPointFeature widget pointFeature =
   case (widget, pointFeature) of
-    (WIntSlider _ _ _ _ _ _ _, _)             -> Nothing
-    (WNumSlider _ _ _ _ _ _ _, _)             -> Nothing
-    (WPoint (x, xTr) _ (y, yTr) _, LonePoint) -> Just (x, y)
+    (WIntSlider _ _ _ _ _ _ _, _)               -> Nothing
+    (WNumSlider _ _ _ _ _ _ _, _)               -> Nothing
+    (WPoint (x, xTr) _ (y, yTr) _ _, LonePoint) -> Just (x, y)
     (WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _, EndPoint) ->
       let (_{- effectiveAmount -}, ((endX, _{- endXTr -}), (endY, _{- endYTr -}))) =
         offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
@@ -487,7 +487,7 @@ widgetFeatureEquation shapeFeature widget locIdToNumberAndLoc =
         Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
       in
       EqnNum (n, TrLoc loc)
-    WPoint (x, xTr) xProvenance (y, yTr) yProvenance ->
+    WPoint (x, xTr) xProvenance (y, yTr) yProvenance pairProvenance ->
       case shapeFeature of
         XFeat LonePoint -> EqnNum (x, xTr)
         YFeat LonePoint -> EqnNum (y, yTr)
@@ -514,7 +514,7 @@ widgetFeatureValEquation shapeFeature widget _{- locIdToNumberAndLoc -} =
   case widget of
     WIntSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
     WNumSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
-    WPoint (x, xTr) xVal (y, yTr) yVal ->
+    WPoint (x, xTr) xVal (y, yTr) yVal pairVal ->
       case shapeFeature of
         XFeat LonePoint -> EqnNum xVal
         YFeat LonePoint -> EqnNum yVal
@@ -834,9 +834,10 @@ maybeEnclosureOfAllBounds bounds =
 
 valToMaybeBounds : Val -> Maybe (Num, Num, Num, Num)
 valToMaybeBounds val =
-  case valToMaybeAnnotatedPoint val of
-    Just (x, y) -> Just (x, y, x, y)
-    Nothing ->
+  case (valToMaybeAnnotatedPoint val, valToMaybePoint val) of
+    (Just (x, y), _) -> Just (x, y, x, y)
+    (_, Just (x, y)) -> Just (x, y, x, y) -- (Assume pair of nums is a point.)
+    _ ->
       case val.v_ of
         VList vals ->
           case LangSvg.valToIndexedTree val of
@@ -851,6 +852,7 @@ valToMaybeBounds val =
               vals
               |> List.filterMap valToMaybeBounds
               |> maybeEnclosureOfAllBounds -- Returns nothing if input list empty (no shapes found)
+
         _ -> Nothing
 
 
@@ -878,6 +880,8 @@ maybeShapeBounds svgNode =
       |> pointsToMaybeBounds
 
 
+heightForWCallPats = 50
+
 -- Returns Maybe (left, top, right, bot)
 maybeWidgetBounds : Widget -> Maybe (Num, Num, Num, Num)
 maybeWidgetBounds widget =
@@ -892,7 +896,7 @@ maybeWidgetBounds widget =
       |> Maybe.map
           (\(left, top, right, bot) ->
             ( left  - padding
-            , top   - padding - 25
+            , top   - padding - heightForWCallPats
             , right + padding
             , bot   + padding
             )

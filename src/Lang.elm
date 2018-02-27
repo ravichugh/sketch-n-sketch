@@ -217,7 +217,7 @@ type Sign = Positive | Negative
 type Widget
   = WIntSlider Int Int String Int Val Loc Bool
   | WNumSlider Num Num String Num Val Loc Bool
-  | WPoint NumTr Val NumTr Val
+  | WPoint NumTr Val NumTr Val Val -- xNumTr xVal yNumTr yVal pairVal
   | WOffset1D NumTr NumTr Axis Sign NumTr Val Val Val -- baseXNumTr baseYNumTr axis sign amountNumTr amountProvenance endXProvenance endYProvenance
   | WCall Val (List Val) Val Widgets -- funcVal argVals retVal retWs
 

@@ -512,7 +512,7 @@ onMouseDrag lastPosition newPosition old =
             |> Utils.mapFirstSuccess
                 (\widget ->
                   case widget of
-                    WPoint _ xVal _ yVal ->
+                    WPoint _ xVal _ yVal _ ->
                       if Utils.distance (valToNum xVal, valToNum yVal) (toFloat mx, toFloat my) <= 7.0
                       then Just ((valToInt xVal, SnapVal xVal), (valToInt yVal, SnapVal yVal))
                       else Nothing
@@ -1372,9 +1372,27 @@ msgMousePosition pos_ =
           { old | popupPanelPositions = newPopupPanelPositions }
       else
         old
+
+    deHoverCallWidgets old =
+      if isMouseDown old || old.renamingInOutput /= Nothing then
+        old
+      else
+        let hoveredCallWidgets =
+          let {x, y} = canvasPosition old (mousePosition old) in
+          let extraMargin = 15 in
+          old.hoveredCallWidgets
+          |> List.filter
+              (\((left, top, right, bot), _) ->
+                round left  - extraMargin <= x &&
+                round top   - extraMargin <= y &&
+                round right + extraMargin >= x &&
+                round bot   + extraMargin >= y
+              )
+        in
+        { old | hoveredCallWidgets = hoveredCallWidgets }
   in
     Msg ("MousePosition " ++ toString pos_) <|
-      mouseStateUpdater >> deucePopupPanelPositionUpdater
+      mouseStateUpdater >> deucePopupPanelPositionUpdater >> deHoverCallWidgets
 
 --------------------------------------------------------------------------------
 

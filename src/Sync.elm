@@ -156,7 +156,7 @@ getLocationCounts options (slate, widgets) =
     case widget of
       WIntSlider _ _ _ _ _ loc _      -> updateCount loc acc
       WNumSlider _ _ _ _ _ loc _      -> updateCount loc acc
-      WPoint (_, t1) _ (_, t2) _      -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
+      WPoint (_, t1) _ (_, t2) _ _    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
       WOffset1D _ _ _ _ (_, tr) _ _ _ -> Set.foldl updateCount acc (locsOfTrace options tr)
       WCall _ _ _ _                   -> acc
   in
@@ -423,7 +423,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WPoint (x, xTrace) xProvenance (y, yTrace) yProvenance ->
+      WPoint (x, xTrace) xProvenance (y, yTrace) yProvenance pairProvenance ->
         addTrigger options idAsShape (ZPoint LonePoint) [xTrace, yTrace]
         ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
             mapMaybeToList xMaybeLoc (\xLoc ->

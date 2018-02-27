@@ -81,8 +81,8 @@ half x =
 canvasPosition : Model -> { x : Int, y : Int } -> { x : Int, y : Int }
 canvasPosition model {x, y} =
   let box = outputCanvas model in
-  { x = x - box.x
-  , y = y - box.y
+  { x = x - box.x + round model.outputCanvasInfo.scrollLeft
+  , y = y - box.y + round model.outputCanvasInfo.scrollTop
   }
 
 clickToCanvasPoint : Model -> { x : Int, y : Int } -> (Bool, (Int, Int))
@@ -91,9 +91,9 @@ clickToCanvasPoint model {x, y} =
     box =
       outputCanvas model
     canvasX =
-      x - box.x
+      x - box.x + round model.outputCanvasInfo.scrollLeft
     canvasY =
-      y - box.y
+      y - box.y + round model.outputCanvasInfo.scrollTop
     isOnCanvas =
       0 <= canvasX && canvasX <= box.width &&
       0 <= canvasY && canvasY <= box.height
