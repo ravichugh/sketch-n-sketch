@@ -595,6 +595,8 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
                         else
                           oks [[newva, vb], [va, newvb]]
                          --LangParserUtils.isOnlySpaces (String.slice 0 1 insertion) &&
+                    else if newva == va then --The strings did not change !!
+                      oks [[va, vb]]
                     else
                       oks [[newva, vb], [va, newvb]]
                   else if saIsPrefix then
