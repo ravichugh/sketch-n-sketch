@@ -187,6 +187,8 @@ eval : Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Env)
 eval syntax env bt e =
   let makeProvenance basedOn = Provenance env e basedOn in
 
+  --let _ = Debug.log ("Evaluating " ++ (Syntax.unparser Syntax.Elm e)) () in
+
   -- Deeply tag value's children to say the child flowed through here.
   --
   -- Need mutation in order to also affect values already bound to variables, etc.

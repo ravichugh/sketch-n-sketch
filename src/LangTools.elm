@@ -3068,9 +3068,9 @@ valToExp sp indentation v =
         (name, v)::tail ->
           let baseCase =  withDummyExpInfo <| EFun (ws <| "\n" ++ indentation) patterns body space0 in
           let startCase =
-              case mRec of
-                Nothing -> baseCase
-                Just f -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| "\n" ++ indentation) f) space0
+                case mRec of
+                  Nothing -> baseCase
+                  Just f -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| "\n" ++ indentation) f) space0
           in
           let bigbody = List.foldl (\(n, v) body -> withDummyExpInfo <| ELet (ws <| "\n" ++ indentation) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (valToExp space1 (indentation ++ "  ") v) space1 body space0) startCase tail
           in

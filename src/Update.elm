@@ -60,7 +60,7 @@ update : Env -> Exp -> Val -> Output -> LazyList NextAction -> Results String (E
 update env e oldVal out nextToUpdate =
 {--
   let _ = Debug.log (String.concat ["update: ", unparse e, " <-- ", (case out of
-    Program p -> unparse p
+    Program p -> "(program) " ++ unparse p
     Raw v -> valToString v), " -- env = " , envToString (pruneEnv e env), "|-"]) () in
 --}
   let updateStack = getUpdateStackOp env e oldVal out nextToUpdate in
@@ -204,48 +204,110 @@ getUpdateStackOp env e oldVal out nextToUpdate =
             case doEval Syntax.Elm env e1 of
             Err s       -> UpdateError s
             Ok ((v1, _),_) ->
-              case List.map (doEval Syntax.Elm env) e2s |> Utils.projOk of
-                Err s       -> UpdateError s
-                Ok v2ls ->
-                  let v2s = List.map (\((v2, _), _) -> v2) v2ls in
-                  case v1.v_ of
-                    VClosure Nothing ps eBody env_ as vClosure ->
-                      case conssWithInversion (ps, v2s) (Just (env_, \newEnv_ newPs newBody -> replaceV_ v1 <| VClosure Nothing newPs newBody newEnv_)) of
-                        Just (env__, consBuilder) ->
-                           -- consBuilder: Env -> ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure)
-                            UpdateContinue env__ eBody oldVal out <| HandlePreviousResult <| \(newEnv, newBody) ->
-                              let ((newPats, newArgs), patsBodyToClosure) = consBuilder newEnv in
-                              let newClosure = patsBodyToClosure newPats newBody in
-                              UpdateContinue env e1 v1 (Raw newClosure) <| HandlePreviousResult <| \(newE1Env, newE1) ->
-                                UpdateContinue env (replaceE__ e <| EList sp0 (List.map ((,) space0) e2s) sp1 Nothing sp1) (replaceV_ oldVal <| VList v2s) (Raw (replaceV_ oldVal <| VList newArgs)) <|
-                                  HandlePreviousResult <| \(newE2Env, newE2List) ->
-                                    case newE2List.val.e__ of
-                                      EList _ newE2s _ _ _ ->
-                                        let finalEnv = triCombine e env newE1Env newE2Env in
-                                        UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (Utils.listValues newE2s) appType sp1
-                                      x -> Debug.crash <| "Internal error, should have get a list, got " ++ toString x
-                        _          -> UpdateError <| strPos e1.start ++ "bad environment"
-                    VClosure (Just f) ps eBody env_ ->
-                      case consWithInversion (pVar f, v1) (conssWithInversion (ps, v2s) (Just (env_, \newEnv_ newPs newBody -> replaceV_ v1 <| VClosure (Just f) newPs newBody newEnv_))) of
-                        Just (env__, consBuilder) ->
-                           -- consBuilder: Env -> ((Pat, Val), ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure))
-                            UpdateContinue env__ eBody oldVal out <| HandlePreviousResult <| \(newEnv, newBody) ->
-                              let ((newPatFun, newArgFun), ((newPats, newArgs), patsBodytoClosure)) = consBuilder newEnv in
-                              let newClosure =
-                                if newArgFun /= v1 then newArgFun -- Just propagate the change to the closure itself
-                                else patsBodytoClosure newPats newBody -- Regular replacement
-                              in
-                              UpdateContinue env e1 v1 (Raw newClosure) <| HandlePreviousResult <| \(newE1Env, newE1) ->
-                                UpdateContinue env (replaceE__ e <| EList sp0 (List.map ((,) space0) e2s) sp1 Nothing sp1) (replaceV_ oldVal <| VList v2s) (Raw <| replaceV_ oldVal <| VList newArgs) <|
-                                  HandlePreviousResult <| \(newE2Env, newE2List) ->
-                                    case newE2List.val.e__ of
-                                      EList _ newE2s _ _ _ ->
-                                        let finalEnv = triCombine e env newE1Env newE2Env in
-                                        UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (Utils.listValues newE2s) appType sp1
-                                      x -> Debug.crash <| "Unexpected result of updating a list " ++ toString x
-                        _          -> UpdateError <| strPos e1.start ++ "bad environment"
-                    _ ->
-                      UpdateError <| strPos e1.start ++ " not a function"
+              case v1.v_ of
+                VClosure recName e1ps eBody env_ as vClosure ->
+                  let ne1ps = List.length e1ps in
+                  let es2ToEval = List.take ne1ps e2s in
+                  let es2ForLater = List.drop ne1ps e2s in
+
+                  if List.length es2ForLater > 0 then -- Rewriting of the expression so that it is two separate applications
+                    UpdateContinue env (replaceE__ e <| EApp sp0 (replaceE__ e <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1) oldVal out <| HandlePreviousResult <| (\(newEnv, newBody) ->
+                      case newBody.val.e__ of
+                        EApp _ innerApp newEsForLater _ _ ->
+                          case innerApp.val.e__ of
+                            EApp _ newE1 newEsToEval _ _ ->
+                              UpdateResult newEnv (replaceE__ e <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1)
+                            e -> Debug.crash <| "Internal error: expected EApp, got " ++ toString e
+                        e -> Debug.crash <| "Internal error: expected EApp, got " ++ toString e
+                    )
+                  else
+                  case List.map (doEval Syntax.Elm env) es2ToEval |> Utils.projOk of
+                    Err s       -> UpdateError s
+                    Ok v2ls ->
+                      let v2s = List.map (\((v2, _), _) -> v2) v2ls in
+                      let ne2 = List.length e2s in
+                      if ne1ps > ne2 then -- Less arguments than expected, hence partial application.
+                        --let _ = Debug.log ("Less arguments than expected, instead of " ++ toString ne1ps ++ " got " ++ toString ne2) () in
+                        let e1psNotUsed = List.drop ne2 e1ps in
+                        let e1psUsed = List.take ne2 e1ps in
+                        case newVal.v_ of
+                          VClosure _ psOut outBody envOut_ ->
+                            --let _ = Debug.log ("Updating with : " ++ valToString newVal) () in
+                            case recName of
+                              Nothing ->
+                                case conssWithInversion (e1psUsed, v2s)
+                                        (Just (env_, \newEnv_ newE1ps -> replaceV_ v1 <| VClosure recName newE1ps outBody newEnv_ )) of
+                                  Just (env__, consBuilder) -> --The environment now should align with envOut_
+                                    let ((newE1psUsed, newV2s), newE1psToClosure) = consBuilder envOut_ in
+                                    let newV1 = newE1psToClosure <| newE1psUsed ++ psOut in
+
+                                    UpdateContinue env e1 v1 (Raw newV1) <| HandlePreviousResult <| \(newE1Env, newE1) ->
+                                      updateContinueMultiple env (List.map3 (\e2 v2 newV2 -> (e2, v2, Raw newV2)) e2s v2s newV2s) <| \(newE2sEnv, newE2s) ->
+                                        let finalEnv = triCombine e env newE1Env newE2sEnv in
+                                        (finalEnv, replaceE__ e <| EApp sp0 newE1 newE2s appType sp1)
+
+                                  _          -> Debug.crash <| strPos e1.start ++ "bad environment, internal error in update"
+                              Just f ->
+                                --let _ = Debug.log ("Recursive updating with environment: " ++ envToString (List.take 4 envOut_)) () in
+                                case conssWithInversion (e1psUsed, v2s) (consWithInversion (pVar f, v1) -- This order to be consistent with eval, where f is put first in the environment.
+                                        (Just (env_, \newEnv_ newE1ps -> replaceV_ v1 <| VClosure recName newE1ps outBody newEnv_ ))) of
+                                  Just (env__, consBuilder) -> --The environment now should align with envOut_
+                                    --let _ = Debug.log ("Original environment : " ++ envToString (List.take 4 env__)) () in
+                                    let ((newE1psUsed, newV2s), ((newPatFun, newArgFun), newE1psToClosure)) = consBuilder envOut_ in
+                                    --let _ = Debug.log ("newArgFun : " ++ valToString newArgFun) () in
+                                    --let _ = Debug.log ("v1 : " ++ valToString v1) () in
+                                    let newV1  =
+                                      if not (valEqual newArgFun v1) then newArgFun -- Just propagate the change to the closure itself TODO: Merge instead of selecting manually
+                                      else newE1psToClosure <| newE1psUsed ++ psOut -- Regular replacement
+                                    in
+                                    --let _ = Debug.log ("newV1 : " ++ valToString newV1) () in
+                                    UpdateContinue env e1 v1 (Raw newV1) <| HandlePreviousResult <| \(newE1Env, newE1) ->
+                                      updateContinueMultiple env (List.map3 (\e2 v2 newV2 -> (e2, v2, Raw newV2)) e2s v2s newV2s) <| \(newE2sEnv, newE2s) ->
+                                        let finalEnv = triCombine e env newE1Env newE2sEnv in
+                                        (finalEnv, replaceE__ e <| EApp sp0 newE1 newE2s appType sp1)
+
+                                  _          -> Debug.crash <| strPos e1.start ++ "bad environment, internal error in update"
+                          v          -> UpdateError <| strPos e1.start ++ "Expected a closure in output, got " ++ valToString newVal
+
+                      else
+                      case recName of
+                        Nothing ->
+                          case conssWithInversion (e1ps, v2s) (Just (env_, \newEnv_ newPs newBody -> replaceV_ v1 <| VClosure Nothing newPs newBody newEnv_)) of
+                            Just (env__, consBuilder) ->
+                               -- consBuilder: Env -> ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure)
+                                UpdateContinue env__ eBody oldVal out <| HandlePreviousResult <| \(newEnv, newBody) ->
+                                  let ((newPats, newArgs), patsBodyToClosure) = consBuilder newEnv in
+                                  let newClosure = patsBodyToClosure newPats newBody in
+                                  UpdateContinue env e1 v1 (Raw newClosure) <| HandlePreviousResult <| \(newE1Env, newE1) ->
+                                    UpdateContinue env (replaceE__ e <| EList sp0 (List.map ((,) space0) e2s) sp1 Nothing sp1) (replaceV_ oldVal <| VList v2s) (Raw (replaceV_ oldVal <| VList newArgs)) <|
+                                      HandlePreviousResult <| \(newE2Env, newE2List) ->
+                                        case newE2List.val.e__ of
+                                          EList _ newE2s _ _ _ ->
+                                            let finalEnv = triCombine e env newE1Env newE2Env in
+                                            UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (Utils.listValues newE2s) appType sp1
+
+                                          x -> Debug.crash <| "Internal error, should have get a list, got " ++ toString x
+                            _          -> UpdateError <| strPos e1.start ++ "bad environment"
+                        Just f ->
+                          case conssWithInversion (e1ps, v2s) (consWithInversion (pVar f, v1) (Just (env_, \newEnv_ newPs newBody -> replaceV_ v1 <| VClosure (Just f) newPs newBody newEnv_))) of
+                            Just (env__, consBuilder) ->
+                               -- consBuilder: Env -> ((Pat, Val), ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure))
+                                UpdateContinue env__ eBody oldVal out <| HandlePreviousResult <| \(newEnv, newBody) ->
+                                  let ((newPats, newArgs), ((newPatFun, newArgFun), patsBodytoClosure)) = consBuilder newEnv in
+                                  let newClosure =
+                                    if not (valEqual newArgFun v1) then newArgFun -- Just propagate the change to the closure itself TODO: Merge instead of selecting manually
+                                    else patsBodytoClosure newPats newBody -- Regular replacement
+                                  in
+                                  UpdateContinue env e1 v1 (Raw newClosure) <| HandlePreviousResult <| \(newE1Env, newE1) ->
+                                    UpdateContinue env (replaceE__ e <| EList sp0 (List.map ((,) space0) e2s) sp1 Nothing sp1) (replaceV_ oldVal <| VList v2s) (Raw <| replaceV_ oldVal <| VList newArgs) <|
+                                      HandlePreviousResult <| \(newE2Env, newE2List) ->
+                                        case newE2List.val.e__ of
+                                          EList _ newE2s _ _ _ ->
+                                            let finalEnv = triCombine e env newE1Env newE2Env in
+                                            UpdateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (Utils.listValues newE2s) appType sp1
+                                          x -> Debug.crash <| "Unexpected result of updating a list " ++ toString x
+                            _          -> UpdateError <| strPos e1.start ++ "bad environment"
+                _ -> UpdateError <| strPos e1.start ++ " not a function"
 
           EIf sp0 cond sp1 thn sp2 els sp3 ->
             case doEval Syntax.Elm env cond of
@@ -664,20 +726,34 @@ triCombine origExp originalEnv newEnv1 newEnv2 =
   --let _ = Debug.log "TriCombine starts !" () in
   let aux acc originalEnv newEnv1 newEnv2 =
     case (originalEnv, newEnv1, newEnv2) of
-      ([], [], []) -> acc
-      ((x, v1)::oe, (y, v2)::ne1, (z, v3)::ne2) ->
-        if x /= y || y /= z || x /= z then
-          Debug.crash <| "Expected environments to have the same variables, got\n" ++
-           toString x ++ " = " ++ toString v1 ++ "\n" ++
-           toString y ++ " = " ++ toString v2 ++ "\n" ++
-           toString z ++ " = " ++ toString v3
-        else
-          if not (Set.member x fv) || not (valEqual v2 v1) then aux (acc ++ [(x, v2)]) oe ne1 ne2
-          else aux (acc ++ [(x, v3)]) oe ne1 ne2
-      _ -> Debug.crash <| "Expected environments to have the same size, got\n" ++
-           toString originalEnv ++ ", " ++ toString newEnv1 ++ ", " ++ toString newEnv2
+        ([], [], []) -> acc
+        ((x, v1)::oe, (y, v2)::ne1, (z, v3)::ne2) ->
+          if x /= y || y /= z || x /= z then
+            Debug.crash <| "Expected environments to have the same variables, got\n" ++
+             toString x ++ ", " ++ toString y ++ ", " ++ toString z ++ " = " ++ valToString v1 ++ ",\n" ++
+             valToString v2 ++ ",\n" ++
+             valToString v3
+          else
+            if not (Set.member x fv) || not (valEqual v2 v1) then aux (acc ++ [(x, v2)]) oe ne1 ne2
+            else aux (acc ++ [(x, v3)]) oe ne1 ne2
+        _ -> Debug.crash <| "Expected environments to have the same size, got\n" ++
+             toString originalEnv ++ ", " ++ toString newEnv1 ++ ", " ++ toString newEnv2
     in
   aux [] originalEnv newEnv1 newEnv2
+
+-- Constructor for updating multiple expressions evaluated in the same environment.
+updateContinueMultiple: Env -> List (Exp, Val, Output) -> ((Env, List Exp) -> (Env, Exp)) -> UpdateStack
+updateContinueMultiple env expValOut rebuilder =
+  let aux revAccExps envAcc expValOut =
+        case expValOut of
+          [] -> let (finalEnv, finalExp) =  rebuilder <| (envAcc, List.reverse revAccExps) in
+            UpdateResult finalEnv finalExp
+          (e, v, out)::tail ->
+            UpdateContinue env e v out <|
+              HandlePreviousResult <| \(newEnv, newExp) ->
+                let newEnvAcc = triCombine newExp env envAcc newEnv in
+                aux (newExp::revAccExps) newEnvAcc tail
+  in aux [] env expValOut
 
 branchWithInversion: Env -> Val -> List Branch -> Maybe ((Env, Exp), (Env, Exp) -> (Env, Val, List Branch))
 branchWithInversion env input branches =
@@ -703,8 +779,8 @@ branchWithInversion env input branches =
 
 consWithInversion : (Pat, Val) -> Maybe (Env, Env -> a) -> Maybe (Env, Env -> ((Pat, Val), a))
 consWithInversion pv menv =
-  case (menv, matchWithInversion pv) of
-    (Just (env, envToA), Just (env_, envToPatVal)) -> Just (env_ ++ env,
+  case (matchWithInversion pv, menv) of
+    (Just (env_, envToPatVal), Just (env, envToA)) -> Just (env_ ++ env,
       \newEnv ->
         let (newEnv_, newEnvTail) = Utils.split (List.length env_) newEnv in
         (envToPatVal newEnv_, envToA newEnvTail)
@@ -836,7 +912,7 @@ envToString: Env -> String
 envToString env =
   case env of
     [] -> ""
-    (v, value)::tail -> v ++ "->" ++ (valToString value) ++ " " ++ (envToString tail)
+    (v, value)::tail -> "\n"  ++ v ++ "->\n" ++ (valToString value) ++ (envToString tail)
 
 -- Equality checking
 valEqual: Val -> Val -> Bool

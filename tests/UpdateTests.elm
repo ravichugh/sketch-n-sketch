@@ -169,7 +169,7 @@ tPList sp0 listPat sp1= withDummyPatInfo <| PList sp0 listPat (ws "") Nothing sp
 tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat sp1 (Just tailPat) sp1
 
 all_tests = init_state
-  |> ignore True
+  --|> ignore True
   |> test "triCombineTest"
   |> assertEqual
       (triCombine (tList space0  [tVar space0 "x", tVar space0 "y"] space0)
@@ -326,11 +326,11 @@ all_tests = init_state
         [("x", "9")] "sqrt x"
   |> test "case of calls"
       |> updateElmAssert
-        [("x", "[7, 1]")] "case x of\n  [a, b] -> a + b;\n  u -> 0;" "5"
-        [("x", "[4, 1]")] "case x of\n  [a, b] -> a + b;\n  u -> 0;"
+        [("x", "[7, 1]")] "case x of\n  [a, b] -> a + b\n  u -> 0" "5"
+        [("x", "[4, 1]")] "case x of\n  [a, b] -> a + b\n  u -> 0"
       |> updateElmAssert
-        [("x", "[7]")] "case x of\n  [a, b] -> a + b;\n  u -> 0;" "5"
-        [("x", "[7]")] "case x of\n  [a, b] -> a + b;\n  u -> 5;"
+        [("x", "[7]")] "case x of\n  [a, b] -> a + b\n  u -> 0" "5"
+        [("x", "[7]")] "case x of\n  [a, b] -> a + b\n  u -> 5"
   |> test "non-rec let"
       |> updateElmAssert
         [] "let   x= 5 in\nlet y  =2  in [x, y]" "[6, 3]"
@@ -432,4 +432,9 @@ all_tests = init_state
     |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null; in replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
   --|> test "Record construction, extraction and pattern "
   --  |>
+  |> test "Partial application"
+    |> updateElmAssert
+      [] "letrec map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'green') ['hello', 'world']"
+         "[[ 'td', [['style', ['border', 'padding', ['background-color', 'red']]]], [['TEXT', 'hello']]], [ 'td', [['style', ['border', 'padding', ['background-color', 'green']]]], [['TEXT', 'world']]]]"
+      [] "letrec map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'red') ['hello', 'world']"
   |> summary
