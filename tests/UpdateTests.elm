@@ -68,8 +68,9 @@ updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
   let problemdesc = ("\nFor problem:" ++
     envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
     " (was " ++ valToString origOut ++ ")") in
-  case update env exp origOut (Raw newOut) Results.LazyNil of
-    Results.Oks (Results.LazyCons (envX, expX) lazyTail) ->
+  case update (UpdateContext env exp origOut (Raw newOut)) Results.LazyNil of
+    Results.Oks (Results.LazyCons (envX, expX) lazyTail as ll) ->
+      let _ = Results.toList ll in
       let obtained = envToString envX ++ " |- " ++ unparse expX in
       if obtained == expected then success state else
         case Lazy.force lazyTail of
@@ -428,7 +429,6 @@ all_tests = init_state
   |> test "replaceAllIn"
     |> evalElmAssert [] "replaceAllIn \"l\" \"L\" \"Hello world\"" "\"HeLLo worLd\""
     |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null; in replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
-  |> ignore False
     |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null; in replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
   --|> test "Record construction, extraction and pattern "
   --  |>
@@ -437,4 +437,10 @@ all_tests = init_state
       [] "letrec map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'green') ['hello', 'world']"
          "[[ 'td', [['style', ['border', 'padding', ['background-color', 'red']]]], [['TEXT', 'hello']]], [ 'td', [['style', ['border', 'padding', ['background-color', 'green']]]], [['TEXT', 'world']]]]"
       [] "letrec map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'red') ['hello', 'world']"
+  --|> ignore False
+  |> test "Multiple solutions"
+      |> updateElmAssert
+        [] "['A' + 'B', 'C' + 'D']" "['AGB', 'CGD']"
+        [] "['AG' + 'B', 'CG' + 'D']"
+
   |> summary

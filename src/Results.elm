@@ -6,7 +6,7 @@ module Results exposing
   , toMaybe, fromMaybe, fromResult, mapErrors
   , LazyList(LazyNil, LazyCons), mapLazy, andThenLazy, isLazyNil, filterLazy
   , lazyCons2, findFirst
-  , appendLazy, appendLazyLazy, lazyFromList
+  , appendLazy, appendLazyLazy, lazyFromList, lazyTakeWhile
   , toList
   )
 
@@ -75,6 +75,12 @@ findFirst pred l =
   case l of
     LazyNil -> Nothing
     LazyCons head tail -> if pred head then Just head else findFirst pred (Lazy.force tail)
+
+lazyTakeWhile: (a -> Bool) -> LazyList a -> LazyList a
+lazyTakeWhile pred l =
+  case l of
+    LazyNil -> LazyNil
+    LazyCons head lazyTail -> if pred head then LazyCons head (Lazy.map (lazyTakeWhile pred) lazyTail) else LazyNil
 
 {-| `Results` is either `Oks` meaning the computation succeeded, or it is an
 `Errs` meaning that there was some failure.
