@@ -891,7 +891,11 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
                 x -> Debug.crash <| "[internal error] Did not get a VConst: " ++ toString x
             ) operandVals
           ) result
-    _ -> Errs <| "Do not know how to revert computation " ++ toString op ++ "(" ++ toString operandVals ++ ") <-- " ++ toString newOutVal
+    _ -> Errs <|
+           "Do not know how to revert computation "
+             ++ toString op ++ "("
+             ++ String.join ", " (List.map valToString operandVals)
+             ++ ") <-- " ++ valToString newOutVal
 
 commonPrefix: String -> String -> String
 commonPrefix =
@@ -986,6 +990,11 @@ conssWithInversion pvs menv =
 
 matchWithInversion : (Pat, Val) -> Maybe (Env, Env -> (Pat, Val))
 matchWithInversion (p,v) = case (p.val.p__, v.v_) of
+  (PWildcard _, _) -> Just ([], \newEnv ->
+     case newEnv of
+       [] -> (p, v) -- TODO: Mikael, is this PWildcard case okay?
+       _ -> Debug.crash <| "Not the same shape before/after pattern update: " ++ toString newEnv ++ " should have length 0"
+     )
   (PVar ws x wd, _) -> Just ([(x,v)], \newEnv ->
      case newEnv of
        [(x, newV)] -> (p, newV)
