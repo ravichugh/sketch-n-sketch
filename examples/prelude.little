@@ -1709,58 +1709,58 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def columnsToRows (\columns
-  (let numColumns (len columns)
-  (let numRows ; maxColumnSize
-    (if (= numColumns 0) 0 (maximum (map len columns)))
-  (foldr
-    (\(col rows)
-      (let paddedCol (append col (repeat (- numRows (len col)) "."))
-      (map
-        (\[datum row] [ datum | row ])
-        (zip paddedCol rows))))
-    (repeat numRows [])
-    columns)
-))))
+; (def columnsToRows (\columns
+;   (let numColumns (len columns)
+;   (let numRows ; maxColumnSize
+;     (if (= numColumns 0) 0 (maximum (map len columns)))
+;   (foldr
+;     (\(col rows)
+;       (let paddedCol (append col (repeat (- numRows (len col)) "."))
+;       (map
+;         (\[datum row] [ datum | row ])
+;         (zip paddedCol rows))))
+;     (repeat numRows [])
+;     columns)
+; ))))
+; 
+; (def addColToRows (\(col rows)
+;   (let width (maximum (map len rows))
+;   (letrec foo (\(col rows)
+;     (case [col rows]
+;       ([ []     []     ] [                                          ])
+;       ([ [x|xs] [r|rs] ] [ (snoc x r)                 | (foo xs rs) ])
+;       ([ []     [r|rs] ] [ (snoc '' r)                | (foo [] rs) ])
+;       ([ [x|xs] []     ] [ (snoc x (repeat width '')) | (foo xs []) ])
+;     ))
+;   (foo col rows)))))
 
-(def addColToRows (\(col rows)
-  (let width (maximum (map len rows))
-  (letrec foo (\(col rows)
-    (case [col rows]
-      ([ []     []     ] [                                          ])
-      ([ [x|xs] [r|rs] ] [ (snoc x r)                 | (foo xs rs) ])
-      ([ []     [r|rs] ] [ (snoc '' r)                | (foo [] rs) ])
-      ([ [x|xs] []     ] [ (snoc x (repeat width '')) | (foo xs []) ])
-    ))
-  (foo col rows)))))
-
-(def border ['border' '1px solid black'])
-(def padding ['padding' '5px'])
-(def center ['align' 'center'])
-(def style (\list ['style' list]))
-(def onlyStyle (\list [(style list)]))
-
-(def td (\text
-  ['td' (onlyStyle [border padding])
-        [['TEXT' text]]]))
-
-(def th (\text
-  ['th' (onlyStyle [border padding center])
-        [['TEXT' text]]]))
-
-(def tr (\children
-  ['tr' (onlyStyle [border])
-        children]))
-
-; TODO div name is already taken...
-
-(def div_ (\children ['div' [] children]))
-(def h1 (\text ['h1' [] [['TEXT' text]]]))
-(def h2 (\text ['h2' [] [['TEXT' text]]]))
-(def h3 (\text ['h3' [] [['TEXT' text]]]))
-
-(def table (\children
-  ['table' (onlyStyle [border padding]) children]))
+; (def border ['border' '1px solid black'])
+; (def padding ['padding' '5px'])
+; (def center ['align' 'center'])
+; (def style (\list ['style' list]))
+; (def onlyStyle (\list [(style list)]))
+; 
+; (def td (\text
+;   ['td' (onlyStyle [border padding])
+;         [['TEXT' text]]]))
+; 
+; (def th (\text
+;   ['th' (onlyStyle [border padding center])
+;         [['TEXT' text]]]))
+; 
+; (def tr (\children
+;   ['tr' (onlyStyle [border])
+;         children]))
+; 
+; ; TODO div name is already taken...
+; 
+; (def div_ (\children ['div' [] children]))
+; (def h1 (\text ['h1' [] [['TEXT' text]]]))
+; (def h2 (\text ['h2' [] [['TEXT' text]]]))
+; (def h3 (\text ['h3' [] [['TEXT' text]]]))
+; 
+; (def table (\children
+;   ['table' (onlyStyle [border padding]) children]))
 
 ; (def table (\children
 ;   (let [x y] [100 100]
@@ -1769,17 +1769,46 @@
 ;                       ["left" (toString x)]
 ;                       ["top" (toString y)]]) children])))
 
-(def tableOfData (\data
-  (let letters (explode " ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-  (let data (mapi (\[i row] [(+ i 1) | row]) data)
-  (let tableWidth (maximum (map len data))
-  (let headers
-    (tr (map (\letter (th letter)) (take letters tableWidth)))
-  (let rows
-    (map (\row (tr (map (\col (td (toString col))) row))) data)
-  (table
-    [ headers | rows ]
-))))))))
+; (def tableOfData (\data
+;   (let letters (explode " ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+;   (let data (mapi (\[i row] [(+ i 1) | row]) data)
+;   (let tableWidth (maximum (map len data))
+;   (let headers
+;     (tr (map (\letter (th letter)) (take letters tableWidth)))
+;   (let rows
+;     (map (\row (tr (map (\col (td (toString col))) row))) data)
+;   (table
+;     [ headers | rows ]
+; ))))))))
+
+
+(def textNode (\text
+  ["TEXT" text]))
+
+(def textElementHelper (\(tag styles attrs text)
+  [ tag [ ["style" styles] | attrs ] [ (textNode text) ] ]))
+
+(def elementHelper (\(tag styles attrs children)
+  [ tag [ ["style" styles] | attrs ] children ]))
+
+(def p (textElementHelper "p"))
+(def th (textElementHelper "th"))
+(def td (textElementHelper "td"))
+(def h1 (textElementHelper "h1"))
+(def h2 (textElementHelper "h2"))
+(def h3 (textElementHelper "h3"))
+
+(def div_ (elementHelper "div"))
+(def tr (elementHelper "tr"))
+(def table (elementHelper "table"))
+
+; absolutePositionStyles x y = let _ = [x, y] : Point in
+;   [ ["position", "absolute"]
+;   , ["left", toString x + "px"]
+;   , ["top", toString y + "px"]
+;   ] 
+
+
 
 (def setStyles (\(newStyles [kind attrs children])
   (let attrs
@@ -1787,6 +1816,9 @@
     (typecase styleAttr
       (Null [ ['style' []] | attrs ])
       (_    attrs)))
+    ; (if (= styleAttr null)
+    ;   [ ['style' []] | attrs ]
+    ;   attrs)
   (let attrs
     (map (\[key val]
       (case key
