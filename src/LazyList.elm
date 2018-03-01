@@ -80,3 +80,8 @@ takeWhile pred l =
 cartesianProduct : LazyList a -> LazyList b -> LazyList (a, b)
 cartesianProduct xs ys =
    flatten (map (\x -> map ((,) x) ys) xs)
+
+maybeCons: Maybe a -> LazyList a -> LazyList a
+maybeCons x l = case x of
+  Nothing -> l
+  Just v -> Cons v (Lazy.lazy <| \_ -> l)

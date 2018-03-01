@@ -168,6 +168,11 @@ concatMapi1 f xs =
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
 
+maybeCons: Maybe a -> List a -> List a
+maybeCons x l = case x of
+  Nothing -> l
+  Just v -> v::l
+
 -- If lists are different lengths, extra elements preserved changed.
 filterMapTogetherPreservingLeftovers : (a -> b -> Maybe (a, b)) -> List a -> List b -> (List a, List b)
 filterMapTogetherPreservingLeftovers f l1 l2 =
