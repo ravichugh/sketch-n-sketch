@@ -9,6 +9,8 @@ import Lazy
 import Syntax
 import ValUnparser exposing (strVal)
 
+
+-- TODO: Split the list of NextAction to HandlePreviousResult (for continuation wrapper) and a list of Forks
 type NextAction = HandlePreviousResult String (Env -> Exp -> UpdateStack)
                 | Fork String UpdateStack (LazyList NextAction)
 

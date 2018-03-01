@@ -789,6 +789,26 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
                      let newva = VBase <| VString <| String.slice 0 (String.length s - String.length sb) s in
                      ok1 [newva, vb]
                    else -- Some parts on both strings were deleted, everything in between was added.
+                     -- First, we look for suffixes of a that appear in the output. They will be prefered as split point
+                     -- Second we look for prefixes of b that appear in the output. They will be prefered as split point
+                     let positionsWeighted =
+                       List.range 0 (String.length s)
+                       |> List.foldl (\i acc ->
+                          let prefixS = String.slice 0 i s in
+                          let suffixS = String.dropLeft i s in
+                          let strengthsa = commonSuffix sa prefixS in
+                          let strengthsb = commonPrefix sb suffixS in
+                          let weight = String.length strengthsa + String.length strengthsb in
+                          if weight == 0 then acc else -- remove this condition to consider all possible splits.
+                            ((prefixS, suffixS), 0 - weight)::acc
+                            ) []
+                       |> List.sortBy Tuple.second
+                       |> List.map (\((newsa, newsb), _) ->
+                           [VBase <| VString <| newsa, VBase <| VString <| newsb]
+                       )
+                     in
+                     if not <| List.isEmpty positionsWeighted then oks positionsWeighted
+                     else
                      let newsa = commonPrefix sa s in
                      let newsb = commonSuffix sb s in
                      let newva s = VBase <| VString <| newsa ++ s in
