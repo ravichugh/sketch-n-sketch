@@ -1,2 +1,2 @@
 main =
-  h1 "Budget"
+  h1 [] [] "Budget"

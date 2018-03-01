@@ -1,4 +1,5 @@
-module ExamplesGenerated exposing (list, initTemplate, templateCategories)
+module ExamplesGenerated exposing
+  (list, blankTemplate, initTemplate, templateCategories)
 
 import Lang
 import FastParser
@@ -203,7 +204,8 @@ LITTLE_TO_ELM task_lambda
 
 LEO_TO_ELM blankDoc
 LEO_TO_ELM welcome1
-LEO_TO_ELM simpleHtmlTable
+LEO_TO_ELM tableOfStatesA
+LEO_TO_ELM tableOfStatesC
 LEO_TO_ELM simpleBudget
 
 --------------------------------------------------------------------------------
@@ -217,14 +219,18 @@ generalCategory =
 
 welcomeCategory =
   ( "Welcome"
-  , [ makeLeoExample "Get Started" welcome1
+  , [ makeLeoExample "Blank Document" blankDoc
+    , makeLeoExample "Get Started" welcome1
     , makeLeoExample "Tutorial" blankDoc
     ]
   )
 
 docsCategory =
-  ( "Example Documents (ICFP 2018 Submission)"
-  , [ makeLeoExample "1: Simple Table" simpleHtmlTable
+  ( "Examples (ICFP 2018 Submission)"
+  , [ makeLeoExample "1a: Table of States" tableOfStatesA
+    , makeLeoExample "1b: TODO" blankDoc
+    , makeLeoExample "1c: Table of States" tableOfStatesC
+    , makeLeoExample "1d: TODO: minus rows" blankDoc
     , makeLeoExample "2: Simple Budget" simpleBudget
     , makeLeoExample "3: Small LaTeX-like DSL" blankDoc
     , makeLeoExample "4: TODO" blankDoc
@@ -430,7 +436,6 @@ list =
     |> List.map Tuple.second
     |> List.concat
 
-initTemplate =
-  list
-    |> Utils.head "initTemplate"
-    |> Tuple.first
+initTemplate = "Get Started"
+
+blankTemplate = "Blank Document"

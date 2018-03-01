@@ -1,4 +1,5 @@
-module ExamplesGenerated exposing (list, initTemplate, templateCategories)
+module ExamplesGenerated exposing
+  (list, blankTemplate, initTemplate, templateCategories)
 
 import Lang
 import FastParser
@@ -5732,15 +5733,205 @@ welcome1 =
 
 """
 
-simpleHtmlTable =
- """main =
-  h3 \"hello\"
+tableOfStatesA =
+ """------------------------------------------------
+--- misc library
+
+indexedMap f xs = mapi (\\[i,x] -> f i x) xs
+
+
+headers =
+  [\"State\", \"Abbreviation\", \"Capital\"]
+
+states = [
+  [\"Alabama\", \"AL?\", \"\"],
+  [\"Alaska\", \"AL?\", \"\"],
+  [\"Arizona\", \"AR?\", \"\"],
+  [\"Arkansas\", \"AR?\", \"\"],
+  [\"California\", \"CA\", \"\"],
+  [\"Colorado\", \"CO?\", \"\"],
+  [\"Connecticut\", \"CO?\", \"\"]
+]
+
+padding =
+  [\"padding\", \"3px\"]
+
+theTable =
+  let headerRow =
+    let styles = [padding] in
+    tr [] []
+      [ th styles [] (nth headers 0)
+      , th styles [] (nth headers 1)
+      , th styles [] (nth headers 2)
+      ]
+  in
+  let stateRows =
+    let colors = [\"lightgray\", \"white\"] in
+    indexedMap (\\i row ->
+      let color =
+        nth colors (mod i (len colors))
+      in
+      let columns =
+        map (td [padding, [\"background-color\", color]] []) row
+      in
+      tr [] [] columns
+    ) states
+  in
+  table [padding] [] (headerRow :: stateRows)
+
+main =
+  theTable
+
+"""
+
+tableOfStatesC =
+ """--- misc library
+
+indexedMap f xs = mapi (\\[i,x] -> f i x) xs
+
+nothing = [\"Nothing\"]
+just x  = [\"Just\", x]
+
+------- library helpers for user-defined updates ------
+
+apply record x = record.apply x
+
+lens record x = apply record x
+
+unapply record = record.unapply
+
+------- library helpers for adding rows ------
+
+addRowFlags =
+  { apply =
+      map <| \\row -> [False,row]
+  , unapply rows =
+      just <|
+        concatMap (\\[flag,row] ->
+          if flag == True
+            then [ row, row ]
+            else [ row ]
+        ) rows
+  }
+
+-- addAndIgnoreRowFlags rows =
+--   rows
+--     |> lens addRowFlags
+--     |> map snd
+
+trWithButton showButton flag styles attrs children =
+  if showButton == False then
+    tr styles attrs children
+
+  else
+    let [hasBeenClicked, nope, yep] =
+      -- TODO want to freeze gray and coral (! or library)
+      [\"has-been-clicked\", \"gray\", \"coral\"]
+    in
+    let onclick =
+      \"\"\"
+      var hasBeenClicked = document.createAttribute(\"@hasBeenClicked\");
+      var buttonStyle = document.createAttribute(\"style\");
+      
+      if (this.parentNode.getAttribute(\"@hasBeenClicked\") == \"False\") {
+        hasBeenClicked.value = \"True\";
+        buttonStyle.value = \"color: @yep;\";
+      } else {
+        hasBeenClicked.value = \"False\";
+        buttonStyle.value = \"color: @nope;\";
+      }
+      
+      this.parentNode.setAttributeNode(hasBeenClicked);
+      this.setAttributeNode(buttonStyle);
+      \"\"\"
+    in
+    let button = -- text-button.enabled is an SnS class
+      [ \"span\"
+      , [ [\"class\", \"text-button.enabled\"]
+        , [\"onclick\", onclick]
+        , [\"style\", [[\"color\", nope]]]
+        ]
+      , [textNode \"+\"]
+      ]
+    in
+    tr styles
+      ([hasBeenClicked, toString flag] :: attrs)
+      (snoc button children)
+
+-- TODO just for testing.
+simulateButtonClicks indices rows =
+  let setFlags =
+    indexedMap <| \\i [flag,row] ->
+      if elem i indices
+        then [True,row]
+        else [flag,row]
+  in
+  rows |> setFlags
+       |> unapply addRowFlags
+       |> apply addRowFlags
+
+------------------------------------------------
+
+headers =
+  [\"State\", \"Abbreviation\", \"Capital\"]
+
+states = [
+  [\"Alabama\", \"AL\", \"Montgomery\"],
+  [\"Alaska\", \"AK\", \"Juneau\"],
+  [\"Arizona\", \"AZ\", \"Phoenix\"],
+  [\"Arkansas\", \"AR\", \"Little Rock\"],
+  [\"California\", \"CA\", \"Sacramento\"],
+  [\"Colorado\", \"CO\", \"Denver\"],
+  [\"Connecticut\", \"CT\", \"Hartford\"]
+]
+
+-- states =
+--   states
+--     |> map (\\[a,b,c] -> [b,a,c])
+--     |> addAndIgnoreRowFlags
+
+-- TODO not working until map lens
+
+states =
+  states
+    |> lens addRowFlags
+
+padding =
+  [\"padding\", \"3px\"]
+
+theTable =
+  let headerRow =
+    let styles = [padding, [\"text-align\", \"left\"], [\"background-color\", \"coral\"]] in
+    tr [] []
+      [ th styles [[\"colspan\", \"2\"]] (nth headers 0)
+      , th styles [] (nth headers 2)
+      ]
+  in
+  let stateRows =
+    let colors = [\"lightyellow\", \"white\"] in
+    indexedMap (\\i [flag,row] ->
+      let color =
+        nth colors (mod i (len colors))
+      in
+      let columns =
+        map (td [padding, [\"background-color\", color]] []) row
+      in
+      trWithButton True flag [] [] columns
+    ) states
+  in
+  table
+    [padding, [\"border\", \"8px solid lightgray\"]]
+    []
+    (headerRow :: stateRows)
+
+main =
+  theTable
 
 """
 
 simpleBudget =
  """main =
-  h1 \"Budget\"
+  h1 [] [] \"Budget\"
 
 """
 
@@ -5756,14 +5947,18 @@ generalCategory =
 
 welcomeCategory =
   ( "Welcome"
-  , [ makeLeoExample "Get Started" welcome1
+  , [ makeLeoExample "Blank Document" blankDoc
+    , makeLeoExample "Get Started" welcome1
     , makeLeoExample "Tutorial" blankDoc
     ]
   )
 
 docsCategory =
-  ( "Example Documents (ICFP 2018 Submission)"
-  , [ makeLeoExample "1: Simple Table" simpleHtmlTable
+  ( "Examples (ICFP 2018 Submission)"
+  , [ makeLeoExample "1a: Table of States" tableOfStatesA
+    , makeLeoExample "1b: TODO" blankDoc
+    , makeLeoExample "1c: Table of States" tableOfStatesC
+    , makeLeoExample "1d: TODO: minus rows" blankDoc
     , makeLeoExample "2: Simple Budget" simpleBudget
     , makeLeoExample "3: Small LaTeX-like DSL" blankDoc
     , makeLeoExample "4: TODO" blankDoc
@@ -5969,7 +6164,6 @@ list =
     |> List.map Tuple.second
     |> List.concat
 
-initTemplate =
-  list
-    |> Utils.head "initTemplate"
-    |> Tuple.first
+initTemplate = "Get Started"
+
+blankTemplate = "Blank Document"

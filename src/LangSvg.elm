@@ -645,7 +645,9 @@ compileAttrs : List Attr -> List (Svg.Attribute a)
 compileAttrs = List.map (uncurry compileAttr)
 
 compileAttr : String -> AVal -> Svg.Attribute a
-compileAttr k v = (attr k) (strAVal v)
+compileAttr k v =
+  let _ = Debug.log "WARN: lowercase attribute name may not be handled correctly by DOM listener" k in
+  (attr k) (strAVal v)
 
 
 buildSvgSimple : RootedIndexedTree -> Svg.Svg a
