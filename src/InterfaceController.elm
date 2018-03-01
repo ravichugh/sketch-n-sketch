@@ -78,7 +78,8 @@ import Lang exposing (..) --For access to what makes up the Vals
 import Types
 import Ace
 import ParserUtils exposing (showError)
-import FastParser exposing (freshen)
+-- import FastParser exposing (freshen)
+import FastParser as Parser
 import LangTools
 import LangSimplify
 import ValueBasedTransform
@@ -173,7 +174,7 @@ refreshLiveInfo m =
 
     Err s ->
       let _ = Debug.log "refreshLiveInfo Error" (toString s) in
-      { initSubstPlus = FastParser.substPlusOf m.inputExp
+      { initSubstPlus = Parser.substPlusOf m.inputExp
       , triggers = Dict.empty
       }
 
@@ -702,6 +703,7 @@ tryRun old =
               in
               let new =
                 loadLambdaToolIcons finalEnv { old | lambdaTools = lambdaTools_ }
+                |> clearSynthesisResults
               in
               let new_ =
                 { new | inputExp      = e
@@ -1993,7 +1995,8 @@ doCallUpdate m =
               |> LazyList.toList
               |> List.filter (\(_,newCodeExp) -> not (Update.expEqual newCodeExp m.inputExp))
               |> Utils.mapi1 (\(i,(_,newCodeExp)) ->
-                   synthesisResult (Update.diffs m.inputExp newCodeExp) newCodeExp
+                   synthesisResult ("Program Update " ++ toString i) newCodeExp
+                   -- synthesisResult (Update.diffs m.inputExp newCodeExp) newCodeExp
                  )
           in
           case filteredResults of
@@ -2745,7 +2748,7 @@ msgUpdateRenameVarTextBox text =
             | deuceState =
                 { oldDeuceState
                     | renameVarTextBox =
-                        FastParser.sanitizeVariableName text
+                        Parser.sanitizeVariableName text
                 }
         }
     in
