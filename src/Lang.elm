@@ -258,8 +258,7 @@ type alias VDict_ = Dict (String, String) Val
 
 type alias NumTr = (Num, Trace)
 
--- TODO okay to switch to "\"" ?
-defaultQuoteChar = "'"
+defaultQuoteChar = "\""
 type alias QuoteChar = String
 
 -- TODO combine all base exps/vals into PBase/EBase/VBase
