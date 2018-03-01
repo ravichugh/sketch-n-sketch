@@ -1993,7 +1993,7 @@ doCallUpdate m =
               |> LazyList.toList
               |> List.filter (\(_,newCodeExp) -> not (Update.expEqual newCodeExp m.inputExp))
               |> Utils.mapi1 (\(i,(_,newCodeExp)) ->
-                   synthesisResult ("Program Update " ++ toString i) newCodeExp
+                   synthesisResult (Update.diffs m.inputExp newCodeExp) newCodeExp
                  )
           in
           case filteredResults of

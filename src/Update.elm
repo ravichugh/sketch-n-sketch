@@ -7,6 +7,7 @@ module Update exposing
   , envToString -- For tests
   , triCombine -- For tests
   , update -- For tests
+  , diffs
   )
 
 import Lang exposing (..)
@@ -1262,7 +1263,108 @@ expEqual e1_ e2_ =
     wsEqual sp1 sp2
   _ -> False
 --}
+{-
+compareExp:     (WS -> WS -> comparison)
+            -> (Num -> Num -> comparison)
+            -> (EBaseVal -> EBaseVal -> comparison)
+            -> (String -> String -> comparison) --Identifiers
+            -> (Pat -> Pat -> comparison)
+            -> (Exp -> Exp -> comparison) -- General case when the exps don't match.
+            -> (List comparison -> comparison)
+            -> Exp -> Exp -> comparison
+compareExp wsCmp numCmp bvCmp idCmp patCmp defaultCmp fold e1_ e2_ =
+  let recurse = compareExp wsCmp numCmp bvCmp idCmd patCmp defaultCmp fold in
+  --let _ = Debug.log "expEqual " (unparse e1_, unparse e2_) in
+  case (e1_.val.e__, e2_.val.e__) of
+  (EConst sp1 num1 _ _, EConst sp2 num2 _ _) -> fold [wsCmp sp1 sp2, numCmp num1 num2]
+  (EBase sp1 bv1, EBase sp2 bv2) -> fold [wsCmp sp1 sp2, bvCmp bv1 bv2]
+  (EVar sp1 id1, EVar sp2 id2) -> fold [wsCmp sp1 sp2, idCmp id1 id2]
+  (EFun sp1 pats body sp2, EFun sp3 pats2 body2 sp4) -> fold ([wsCmp sp1 sp3, wsCmp sp2 sp4] ++ (List.map2 patCmp pats pats2) ++ [recurse body body2])
+  (EApp sp1 fun args sp2, EApp sp3 fun2 args2 sp4) -> fold ([wsCmp sp1 sp3, wsCmp sp2 sp4] ++ [recurse fun fun2] ++ List.map2 recurse args args2)
+  (EOp sp1 op1 args sp2, EOp sp3 op2 args2 sp4) ->
+    wsCmp sp1 sp3 && wsCmp sp2 sp4 && op1.val == op2.val &&
+    listForAll2 expEqual args args2
+  (EList sp1 args sp2 mTail sp2e, EList sp3 args2 sp4 mTail2 sp4e) ->
+    wsCmp sp1 sp3 && wsCmp sp2 sp4 && wsCmp sp2e sp4e &&
+    listForAll2 expEqual args args2 &&
+    ( case (mTail, mTail2) of
+      (Nothing, Nothing) -> True
+      (Just t1, Just t2) -> expEqual t1 t2
+      _ -> False
+    )
+  (EIf sp11 cond1 sp12 then1 sp13 else1 sp14, EIf sp21 cond2 sp22 then2 sp23 else2 sp4) ->
+    wsCmp sp11 sp21 &&
+    wsCmp sp12 sp22 &&
+    wsCmp sp13 sp23 &&
+    wsCmp sp14 sp24 &&
+    expEqual cond1 cond2 && expEqual then1 then2 && expEqual else1 else2
+  (ECase sp1 input1 branches1 sp2, ECase sp3 input2 branches2 sp4) ->
+    wsCmp sp1 sp3 && wsCmp sp2 sp4 &&
+    expEqual input1 input2 &&
+    listForAll2 branchEqual branches1 branches2
+  (ETypeCase sp1 input1 tbranches1 sp2, ETypeCase sp3 input2 tbranches2 sp4) ->
+    wsCmp sp1 sp3 && wsCmp sp2 sp4 &&
+    expEqual input1 input2 &&
+    listForAll2 tbranchEqual tbranches1 tbranches2
 
+  (ELet sp11 lk1 rec1 pat1 sp12 exp1 sp13 body1 sp14, ELet sp21 lk2 rec2 pat2 sp22 exp2 sp23 body2 sp24) ->
+    wsCmp sp11 sp21 &&
+    wsCmp sp12 sp22 &&
+    wsCmp sp13 sp23 &&
+    wsCmp sp14 sp24 &&
+    lk1 == lk2 && rec1 == rec2 &&
+    patEqual pat1 pat2 && expEqual body1 body2 && expEqual exp1 exp2
+  (EComment sp1 s1 e1, EComment sp2 s2 e2) ->
+    wsCmp sp1 sp2 && s1 == s2 && expEqual e1 e2
+  (EOption sp1 wStr1 sp2 wStr2 exp1, EOption sp3 wStr3 sp4 wStr4 exp2) ->
+    wsCmp sp1 sp3 && wsCmp sp2 sp4 &&
+    wStr1.val == wStr3.val && wStr2.val == wStr4.val &&
+    expEqual exp1 exp2
+  (ETyp sp1 pat1 t1 e1 sp2, ETyp sp3 pat2 t2 e2 sp4) ->
+    wsCmp sp1 sp3 && wsCmp sp2 sp4 &&
+    patEqual pat1 pat2 &&
+    typeEqual t1 t2 &&
+    expEqual e1 e2
+  (EColonType sp1 e1 sp2 t1 sp2e, EColonType sp3 e2 sp4 t2 sp4e) ->
+    wsCmp sp1 sp3 && wsCmp sp2 sp4 && wsCmp sp2e sp4e &&
+    expEqual e1 e2 && typeEqual t1 t2
+  (ETypeAlias sp1 pat1 t1 e1 sp2, ETypeAlias sp3 pat2 t2 e2 sp4) ->
+    wsCmp sp1 sp3 && wsCmp sp2 sp4 &&
+    patEqual pat1 pat2 && expEqual e1 e2 && typeEqual t1 t2
+  (EParens sp1 e1 pStyle1 sp2, EParens sp3 e2 pStyle2 sp4) ->
+    wsCmp sp1 sp3 && wsCmp sp2 sp4 && expEqual e1 e2 && pStyle
+  (EHole sp1 (Just v1), EHole sp2 (Just v2)) ->
+    wsCmp sp1 sp2 && valEqual v1 v2
+  (EHole sp1 Nothing, EHole sp2 Nothing) ->
+    wsCmp sp1 sp2
+  _ -> False
+
+bvToString: EBaseVal -> String
+bvToString b = unparse <| withDummyExpInfo <| EBase space0 <| b
+
+-- Reports the difference between two expressions
+diffs: Exp -> Exp -> List String
+diffs e1_ e2_ =
+  compareExp (\ws1 ws2 -> if ws1.val == ws2.val then [] else ["Whitespace:'"++ws1.val++"' -> '"++ws2.val++"'"])
+     (\n1 n2 -> if n1 == n2 then [] else [toString n1 ++ " -> " ++ toString n2])
+     (\bv1 bv2 -> if bv1 == bv2 then [] else
+       [bvToString bv1 ++ " -> " ++ bvToString bv2])
+     (\id1 id2 -> if id1 == id2 then [] else [id1 ++ " -> " ++ id2])
+     (\p1 p2 -> if patEqual p1 p2 then [] else [unparsePattern p1 ++ " -> " ++ unparsePattern p2])
+     (\e1 e2 -> if expEqqual e1 e2 then [] else [unparse e1 ++ " -> " ++ unparse e2])
+     (\lString -> List.concatMap identity lString)
+ -}
+diffs: Exp -> Exp -> String
+diffs e1 e2 =
+   let s1 = unparse e1 in
+   let s2 = unparse e2 in
+   let pref = commonPrefix s1 s2 in
+   let s1minusPref = String.dropLeft (String.length pref - 2) s1 in
+   let s2minusPref = String.dropLeft (String.length pref - 2) s2 in
+   let suff = commonSuffix s1minusPref s2minusPref in
+   let s1minusSuff = String.dropRight (String.length suff - 2) s1minusPref in
+   let s2minusSuff = String.dropRight (String.length suff - 2) s2minusPref in
+   s1minusSuff ++ " -> " ++ s2minusSuff
 
 --------------------------------------------------------------------------------
 -- Value builders with dummy ids, brought back from the dead in Lang
