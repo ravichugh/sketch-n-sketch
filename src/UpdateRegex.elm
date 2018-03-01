@@ -1,13 +1,10 @@
 module UpdateRegex exposing (updateRegexReplaceAllByIn, evalRegexReplaceAllByIn, allInterleavingsIn)
 
-import UpdateStack exposing (NextAction(..), UpdateStack(..), Output(..))
+import UpdateStack exposing (NextAction(..), UpdateStack(..), Output)
 import Results exposing
   ( Results(..)
-  , ok1, oks, okLazy
-  , LazyList(..)
-  , appendLazy, appendLazyLazy, mapLazy, andThenLazy, isLazyNil
-  , lazyFromList
-  , lazyCons2)
+  , ok1, oks, okLazy )
+import LazyList exposing (LazyList(..))
 import Lang exposing (..)
 import Regex exposing (..)
 import Lazy
@@ -149,13 +146,13 @@ allInterleavingsIn separators string =
   let findMatchFor indexRepToModify numRep =
     let r = regex <| "^" ++ aux separators numRep ++ "$" in
     let default () =
-      if indexRepToModify == 0 then LazyNil
+      if indexRepToModify == 0 then LazyList.Nil
       else findMatchFor (indexRepToModify - 1) <| next (indexRepToModify - 1) numRep in
     case find (AtMost 1) r string of
       [{ match, submatches, index, number }] ->
         case Utils.projJusts submatches of
           Just m ->
-            LazyCons m <| Lazy.lazy <| \_ ->
+            LazyList.Cons m <| Lazy.lazy <| \_ ->
             findMatchFor lastIndex <| next lastIndex numRep
           Nothing ->
             default ()

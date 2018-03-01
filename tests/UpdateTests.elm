@@ -13,7 +13,8 @@ import Eval
 import Syntax
 import Lazy
 import Results
-import LangTools exposing (valToString, valToExp)
+import LazyList
+import LangTools exposing (valToString)
 
 type alias State = { numTests: Int, nthAssertion: Int, numSuccess: Int, numFailed: Int, currentName: String, errors: String, ignore: Bool }
 init_state = State 0 0 0 0 "" "" False
@@ -68,21 +69,21 @@ updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
   let problemdesc = ("\nFor problem:" ++
     envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
     " (was " ++ valToString origOut ++ ")") in
-  case update (UpdateContext env exp origOut (Raw newOut)) Results.LazyNil of
-    Results.Oks (Results.LazyCons (envX, expX) lazyTail as ll) ->
-      let _ = Results.toList ll in
+  case update (UpdateContext env exp origOut newOut) LazyList.Nil of
+    Results.Oks (LazyList.Cons (envX, expX) lazyTail as ll) ->
+      let _ = LazyList.toList ll in
       let obtained = envToString envX ++ " |- " ++ unparse expX in
       if obtained == expected then success state else
         case Lazy.force lazyTail of
-          Results.LazyCons (envX2, expX2) lazyTail2 ->
+          LazyList.Cons (envX2, expX2) lazyTail2 ->
             let obtained2 = envToString envX2 ++ " |- " ++ unparse expX2 in
             if obtained2 == expected then success state else
             fail state <|
               log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ " and " ++ obtained2 ++ problemdesc
-          Results.LazyNil ->
+          LazyList.Nil ->
             fail state <|
               log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ problemdesc
-    Results.Oks Results.LazyNil ->
+    Results.Oks LazyList.Nil ->
        fail state <| log state <| "Expected \n" ++ expected ++  ", got no solutions without error" ++ problemdesc
     Results.Errs msg ->
        fail state <| log state <| "Expected \n" ++ expected ++  ", got\n" ++ msg ++ problemdesc
@@ -409,7 +410,7 @@ all_tests = init_state
         [] "\"\"\"@let x = (\"Hello\" + \n \" big\")\n@x world\"\"\"" "\"Hello tall world\""
         [] "\"\"\"@let x = (\"Hello\" + \n \" tall\")\n@x world\"\"\""
   |> test "Finding all regex matches"
-    |> assertEqual (Results.toList <| allInterleavingsIn ["A", "BB", "C"] "xAyBBBzAoBBpCC")
+    |> assertEqual (LazyList.toList <| allInterleavingsIn ["A", "BB", "C"] "xAyBBBzAoBBpCC")
       [ ["x","y","BzAoBBp","C"]
       , ["x","y","BzAoBBpC",""]
       , ["x", "yB", "zAoBBp","C"]
@@ -442,5 +443,76 @@ all_tests = init_state
       |> updateElmAssert
         [] "['A' + 'B', 'C' + 'D']" "['AGB', 'CGD']"
         [] "['AG' + 'B', 'CG' + 'D']"
-
+  |> test "Records"
+      |> updateElmAssert
+        [] "{ a= 1, b= 2}.b" "3"
+        [] "{ a= 1, b= 3}.b"
+      |> updateElmAssert
+        [] "{ a= 1, b= 2}.a" "3"
+        [] "{ a= 3, b= 2}.a"
+      |> updateElmAssert
+        [] "let x = { a= 1, b= 2} in { x | a = 2 }.a" "3"
+        [] "let x = { a= 1, b= 2} in { x | a = 3 }.a"
+      |> updateElmAssert
+        [] "let x = { a= 1, b= 2} in { x | a = 2 }.b" "3"
+        [] "let x = { a= 1, b= 3} in { x | a = 2 }.b"
+  |> test "Indented lists, second position of list > 1 elements"
+      |> updateElmAssert
+        [] "[1, 2, 3, 4]" "[1, 5, 2, 3, 4]"
+        [] "[1, 5, 2, 3, 4]"
+      |> updateElmAssert
+        [] "[ 1,\n 2,\n 3,\n 4]" "[1, 5, 2, 3, 4]"
+        [] "[ 1,\n 5,\n 2,\n 3,\n 4]"
+      |> updateElmAssert
+        [] "[ 1\n,  2\n,  3\n,  4]" "[1, 5, 2, 3, 4]"
+        [] "[ 1\n,  5\n,  2\n,  3\n,  4]"
+      |> updateElmAssert
+        [] "  [ 1\n,    2\n,    3\n,    4]" "[1, 5, 2, 3, 4]"
+        [] "  [ 1\n,    5\n,    2\n,    3\n,    4]"
+  |> test "Indented lists, second position of list with 1 element"
+      |> updateElmAssert
+        [] "[1]" "[1, 2]"
+        [] "[1, 2]"
+      |> updateElmAssert
+        [] "[ 1]" "[ 1, 2]"
+        [] "[ 1, 2]"
+      |> updateElmAssert
+        [] "[ 1\n]" "[ 1, 2]"
+        [] "[ 1\n, 2]"
+      |> updateElmAssert
+        [] "[\n  1]" "[ 1, 2]"
+        [] "[\n  1,\n  2]"
+  |> test "Indented lists, first position of list with 1 element"
+        |> updateElmAssert
+          [] "[1]" "[2, 1]"
+          [] "[2, 1]"
+        |> updateElmAssert
+          [] "[ 1]" "[2, 1]"
+          [] "[ 2, 1]"
+        |> updateElmAssert
+          [] "[ 1\n]" "[2, 1]"
+          [] "[ 2\n, 1]"
+        |> updateElmAssert
+          [] "[\n  1]" "[2, 1]"
+          [] "[\n  2,\n  1]"
+  |> test "Indented lists, first position of list > 1 element"
+          |> updateElmAssert
+            [] "[1, 2]" "[0, 1, 2]"
+            [] "[0, 1, 2]"
+          |> updateElmAssert
+            [] "[ 1, 2]" "[0, 1, 2]"
+            [] "[0, 1, 2]"
+          |> updateElmAssert
+            [] "[ 1\n,  2\n,  3\n,  4]" "[0, 1, 2, 3, 4]"
+            [] "[ 0\n,  1\n,  2\n,  3\n,  4]"
+  |> test "Indented lists, first position of empty list"
+            |> updateElmAssert
+              [] "[]" "[1]"
+              [] "[1]"
+            |> updateElmAssert
+              [] "[ ]" "[1]"
+              [] "[1 ]"
+            |> updateElmAssert
+              [] "  []" "[[1, 2]]"
+              [] "  [[1, 2]]"
   |> summary

@@ -3046,9 +3046,23 @@ pruneEnv exp env = -- Remove all the initial environment that is on the right.
 
 -- NOTE: This function is mostly copied in Eval, as a temporary, hacky
 -- workaround to dependency issues.
---
-valToExp: WS -> String -> Val -> Exp
-valToExp sp indentation v =
+
+type IndentStyle = InlineSpace | IndentSpace String
+
+foldIndent: String -> IndentStyle -> String
+foldIndent inlineString style =
+  case style of
+    InlineSpace -> inlineString
+    IndentSpace m -> "\n" ++ m
+
+increaseIndent: IndentStyle -> IndentStyle
+increaseIndent style =
+  case style of
+      InlineSpace -> InlineSpace
+      IndentSpace m -> IndentSpace (m ++ "  ")
+
+valToExp: WS -> IndentStyle -> Val -> Exp
+valToExp sp indent v =
   withDummyExpInfo <| case v.v_ of
     VConst mb num     -> EConst sp (Tuple.first num) dummyLoc noWidgetDecl
     VBase (VBool b)   -> EBase  sp <| EBool b
@@ -3058,31 +3072,31 @@ valToExp sp indentation v =
       case vals of
         [] -> EList sp [] space0 Nothing space0
         head::tail ->
-          let headExp = (ws "", valToExp (ws " ") (indentation ++ "  ") head) in
-          let tailExps = List.map (\y -> (space0, valToExp (ws <| "\n" ++ indentation ++ "  ") (indentation ++ "  ") y)) tail in
-          EList sp (headExp :: tailExps) space0 Nothing <| (ws <| "\n" ++ indentation)
+          let headExp = (ws "", valToExp (ws " ") (increaseIndent indent) head) in
+          let tailExps = List.map (\y -> (space0, valToExp (ws <| foldIndent " " <| increaseIndent indent) (increaseIndent indent) y)) tail in
+          EList sp (headExp :: tailExps) space0 Nothing <| (ws <| foldIndent "" indent)
     VClosure mRec patterns body env ->
       let prunedEnv = pruneEnvPattern patterns (pruneEnv body env) in
       case prunedEnv of
         [] -> EFun sp patterns body space0
         (name, v)::tail ->
-          let baseCase =  withDummyExpInfo <| EFun (ws <| "\n" ++ indentation) patterns body space0 in
+          let baseCase =  withDummyExpInfo <| EFun (ws <| foldIndent "" indent) patterns body space0 in
           let startCase =
                 case mRec of
                   Nothing -> baseCase
-                  Just f -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| "\n" ++ indentation) f) space0
+                  Just f -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| foldIndent " " indent) f) space0
           in
-          let bigbody = List.foldl (\(n, v) body -> withDummyExpInfo <| ELet (ws <| "\n" ++ indentation) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (valToExp space1 (indentation ++ "  ") v) space1 body space0) startCase tail
+          let bigbody = List.foldl (\(n, v) body -> withDummyExpInfo <| ELet (ws <| foldIndent "" indent) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 body space0) startCase tail
           in
-          ELet sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (valToExp space1 (indentation ++ "  ") v) space1 bigbody space0
+          ELet sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 bigbody space0
     VRecord values ->
       ERecord sp Nothing (List.indexedMap (\i key ->
         case Dict.get key values of
           Nothing -> Debug.crash <| "Internal error: Could not retrieve key " ++ toString key
-          Just v -> if i == 0 then (space0, ws " ", key, ws " ", valToExp (ws " ") (indentation ++ "    ") v)
-            else (space0, ws ("\n" ++ indentation ++ "  "), key, ws " ", valToExp (ws " ") (indentation ++ "    ") v)
+          Just v -> if i == 0 then (space0, ws " ", key, ws " ", valToExp (ws " ") (increaseIndent <| increaseIndent indent) v)
+            else (space0, ws (foldIndent " " <| increaseIndent indent), key, ws " ", valToExp (ws " ") (increaseIndent <| increaseIndent indent) v)
         ) <| Dict.keys values) space1
     VDict vs -> Debug.crash "Dictionaries not supported at this moment"
 
 valToString: Val -> String
-valToString = Syntax.unparser Syntax.Elm << valToExp (ws "") ""
+valToString = Syntax.unparser Syntax.Elm << valToExp (ws "") (IndentSpace "")

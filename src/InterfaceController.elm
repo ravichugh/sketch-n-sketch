@@ -88,7 +88,8 @@ import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
 import Update
-import Results exposing (Results(..), LazyList(..))
+import Results exposing (Results(..))
+import LazyList
 import Utils
 import Keys
 import InterfaceModel as Model exposing (..)
@@ -1973,23 +1974,23 @@ doCallUpdate m =
 
     Oks solutions ->
       let solutionsNotModifyingEnv =
-         Results.filterLazy
+         LazyList.filter
            (\(env, exp) -> Update.envEqual (LangTools.pruneEnv exp env) (LangTools.pruneEnv exp Eval.initEnv))
            solutions
       in
       case solutionsNotModifyingEnv of
-        LazyNil ->
+        LazyList.Nil ->
           case solutions of
-            LazyNil ->
+            LazyList.Nil ->
               showSolutions [revertChanges "No solution found. Revert?"]
 
-            LazyCons _ _ ->
+            LazyList.Cons _ _ ->
               showSolutions [revertChanges "Only solutions modifying the library. Revert?"]
 
-        LazyCons _ _ ->
+        LazyList.Cons _ _ ->
           let filteredResults =
             solutionsNotModifyingEnv
-              |> Results.toList
+              |> LazyList.toList
               |> List.filter (\(_,newCodeExp) -> not (Update.expEqual newCodeExp m.inputExp))
               |> Utils.mapi1 (\(i,(_,newCodeExp)) ->
                    synthesisResult ("Program Update " ++ toString i) newCodeExp

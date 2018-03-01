@@ -644,6 +644,9 @@ recordKey (_, _, k, _, _) = k
 recordValue: (sp0, sp1, name, sp2, value) -> value
 recordValue (_, _, _, _, v) = v
 
+recordValueMap: (sp0, sp1, name, sp2, value) -> a -> (sp0, sp1, name, sp2, a)
+recordValueMap (sp0, sp1, name, sp3, value) a = (sp0, sp1, name, sp3, a)
+
 recordKeys: List (sp0, sp1, name, sp2, value) -> List name
 recordKeys = List.map recordKey
 
@@ -1301,3 +1304,6 @@ stringSuggestions trueStrings wrongString =
             head::tail -> List.take 5 guess2
             [] -> -- We are a bit puzzled here. No strings with the same start or same end. Just return the first 5 keys.
               List.take 5 trueStrings
+
+lastLine: String -> String
+lastLine s = snocUnapply (String.lines s) |> Maybe.map Tuple.second |> Maybe.withDefault ""
