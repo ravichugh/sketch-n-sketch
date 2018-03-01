@@ -494,12 +494,30 @@ evalOp syntax env e bt opWithInfo es =
           Lt        -> case args of
             [VConst _ (i,it), VConst _ (j,jt)] -> VBase (VBool (i < j)) |> addProvenanceOk
             _                                  -> error ()
-          Eq        -> case args of
-            [VConst _ (i,it), VConst _ (j,jt)]       -> VBase (VBool (i == j)) |> addProvenanceOk
-            [VBase baseVal1, VBase baseVal2]         -> VBase (VBool (baseVal1 == baseVal2)) |> addProvenanceOk
-            -- TODO needs to handle VLists
-            [_, _]                                   -> VBase (VBool False) |> addProvenanceOk -- polymorphic inequality, added for Prelude.addExtras
-            _                                        -> error ()
+          Eq        ->
+            let valEquals: List Val_ -> Result String Bool
+                valEquals args =
+                 case args of
+                   [VConst _ (i,it), VConst _ (j,jt)]       -> Ok <| i == j
+                   [VBase baseVal1, VBase baseVal2]         -> Ok <| baseVal1 == baseVal2
+                   [VDict d1, VDict d2]                     ->
+                     Dict.merge
+                       (\k1 v1 b -> Ok False)
+                       (\k v1 v2 b -> b |> Result.andThen (\bo -> if bo then valEquals [v1.v_, v2.v_] else Ok bo))
+                       (\k2 v2 b -> Ok False)
+                       d1 d2  (Ok True)
+                   [VRecord d1, VRecord d2]                 ->
+                     Dict.merge
+                       (\k1 v1 b -> Ok False)
+                       (\k v1 v2 b -> b |> Result.andThen (\bo -> if bo then valEquals [v1.v_, v2.v_] else Ok bo))
+                       (\k2 v2 b -> Ok False)
+                       d1 d2  (Ok True)
+                   [VList l1, VList l2]                     ->
+                     if List.length l1 /= List.length l2 then Ok False
+                     else List.foldl (\(v1, v2) b -> b |> Result.andThen(\bo -> if bo then valEquals [v1.v_, v2.v_] else Ok bo)) (Ok True) (Utils.zip l1 l2)
+                   [_, _]                                   -> Err "Values not comparable. Values should have the same types and not be closures"-- polymorphic inequality, added for Prelude.addExtras
+                   _                                        -> Err "Equality has exactly two arguments"
+            in valEquals args |> Result.map (\x -> VBase (VBool x) |> addProvenance)
           Pi         -> nullaryOp args (VConst Nothing (pi, TrOp op []))
           DictEmpty  -> nullaryOp args (VDict Dict.empty)
           DictFromList -> case vs of
