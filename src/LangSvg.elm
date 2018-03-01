@@ -646,7 +646,7 @@ compileAttrs = List.map (uncurry compileAttr)
 
 compileAttr : String -> AVal -> Svg.Attribute a
 compileAttr k v =
-  let _ = Debug.log "WARN: lowercase attribute name may not be handled correctly by DOM listener" k in
+  let _ = Debug.log "WARN: uppercase letter in attribute name may not be handled correctly by DOM listener" k in
   (attr k) (strAVal v)
 
 
