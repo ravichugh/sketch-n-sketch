@@ -1334,7 +1334,8 @@ codePanel model =
         ] <|
         [ undoButton
         , redoButton
-        , cleanButton
+        -- Suppress for Leo/Docs
+        -- , cleanButton
         ] ++
         if Updatable.extract model.enableTextEdits then
           [ runButton
@@ -1435,6 +1436,7 @@ outputPanel model =
         (Nothing, Print svgCode, Nothing) ->
           [textOutput svgCode]
         (Nothing, ShowValue, _) ->
+{-
           [ Html.div
               []
               [ Html.text <|
@@ -1444,12 +1446,10 @@ outputPanel model =
                          else ""
               ]
           , Html.textarea
+-}
+          [ Html.textarea
               [ E.onInput Controller.msgUpdateValueEditor
-              , Attr.style -- TODO
-                  [ ("font-size", "24px")
-                  , ("width", "100%")
-                  , ("height", "80%")
-                  ]
+              , Attr.class "text-output"
               ]
               [ Html.text model.valueEditorString ]
           ]
