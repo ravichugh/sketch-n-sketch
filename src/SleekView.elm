@@ -38,6 +38,7 @@ import Draw
 import LangTools
 import Sync
 import Lang exposing (Exp)
+import LangTools
 import Syntax
 import File
 import Eval
@@ -1406,6 +1407,12 @@ outputPanel model =
   let
     canvasDim =
       SleekLayout.outputCanvas model
+    contextBreadCrumbs =
+      case model.editingContext of
+        Nothing       -> [ Html.text <| "Context: Program" ]
+        Just (eid, _) ->
+          let breadCrumbs = "Program" :: LangTools.expDescriptionParts model.inputExp eid in
+          [ Html.text <| "Context: " ++ String.join " > " breadCrumbs ]
     output =
       case (model.errorBox, model.outputMode, model.preview) of
         (_, _, Just (_, Err errorMsg)) ->
@@ -1460,6 +1467,10 @@ outputPanel model =
           ]
       ]
       [ Html.div
+          [ Attr.class "context-bar"
+          ]
+          contextBreadCrumbs
+      , Html.div
           --
           -- Always create this div --- even when it's just showing a
           -- text box and not HTML/SVG nodes --- because outputCanvas.js

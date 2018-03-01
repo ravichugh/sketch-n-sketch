@@ -15,28 +15,7 @@
 --       be MANUALLY MODIFIED.
 --------------------------------------------------------------------------------
 
-module SleekLayout exposing
-  ( BoundingBox
-  , px
-  , half
-  , canvasPosition
-  , clickToCanvasPoint
-  , panelBorderWidth
-  , spacing
-  , deuceOverlayBleed
-  , menuBar
-  , toolPanel
-  , iconButton
-  , deucePopupPanelMouseOffset
-  , deuceRightClickMenuMouseOffset
-  , synthesisPanel
-  , mainResizer
-  , mainResizerLeftBound
-  , mainResizerRightBound
-  , codePanel
-  , outputPanel
-  , outputCanvas
-  )
+module SleekLayout exposing (..)
 
 import InterfaceModel as Model exposing (Model)
 
@@ -305,6 +284,8 @@ mainResizerRightBound model =
 -- Output Dimensions (descriptive)
 --------------------------------------------------------------------------------
 
+contextBarHeight = 35
+
 outputCanvas : Model -> BoundingBox
 outputCanvas model =
   let
@@ -314,9 +295,9 @@ outputCanvas model =
     { x =
         op.x + panelBorderWidth
     , y =
-        op.y + panelBorderWidth
+        op.y + panelBorderWidth + contextBarHeight
     , width =
         op.width - 2 * panelBorderWidth
     , height =
-        op.height - 2 * panelBorderWidth
+        op.height - 2 * panelBorderWidth - contextBarHeight
     }

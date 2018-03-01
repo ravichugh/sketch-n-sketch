@@ -125,7 +125,7 @@ pointFeaturesOfWidget widget =
     WNumSlider _ _ _ _ _ _ _  -> []
     WPoint _ _ _ _ _          -> [LonePoint]
     WOffset1D _ _ _ _ _ _ _ _ -> [EndPoint]
-    WCall _ _ _ _             -> []
+    WCall _ _ _ _ _           -> []
 
 
 ------------------------------------------------------------------------------
@@ -255,8 +255,8 @@ maybeEvaluateWidgetPointFeature widget pointFeature =
         offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
       in
       Just (endX, endY)
-    (WCall _ _ _ _, _) -> Nothing
-    _                  -> Debug.crash <| "bad feature for widget: " ++ toString pointFeature
+    (WCall _ _ _ _ _, _) -> Nothing
+    _                    -> Debug.crash <| "bad feature for widget: " ++ toString pointFeature
 
 
 selectablePointToMaybeXY : SelectablePoint -> LangSvg.RootedIndexedTree -> Widgets -> Maybe (Num, Num)
@@ -505,7 +505,7 @@ widgetFeatureEquation shapeFeature widget locIdToNumberAndLoc =
         (YFeat EndPoint, X) -> EqnNum (baseY, baseYTr)
         (YFeat EndPoint, Y) -> EqnOp op [EqnNum (baseY, baseYTr), EqnNum (amount, amountTr)]
         _                   -> Debug.crash <| "WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
-    WCall funcVal argVals retVal retWs ->
+    WCall callEId funcVal argVals retVal retWs ->
       Debug.crash <| "WCall does not have any feature equations, but asked for " ++ toString shapeFeature
 
 
@@ -525,7 +525,7 @@ widgetFeatureValEquation shapeFeature widget _{- locIdToNumberAndLoc -} =
         XFeat EndPoint -> EqnNum endXVal
         YFeat EndPoint -> EqnNum endYVal
         _              -> Debug.crash <| "widgetFeatureValEquation WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
-    WCall funcVal argVals retVal retWs ->
+    WCall callEId funcVal argVals retVal retWs ->
       Debug.crash <| "WCall does not have any feature val equations, but asked for " ++ toString shapeFeature
 
 
@@ -840,7 +840,7 @@ valToMaybeBounds val =
     _ ->
       case val.v_ of
         VList vals ->
-          case LangSvg.valToIndexedTree val of
+          case LangSvg.svgValToIndexedTree val of
             Ok (_, shapeDict) ->
               let shapeNodes = Dict.values shapeDict in
               shapeNodes
@@ -886,7 +886,7 @@ heightForWCallPats = 50
 maybeWidgetBounds : Widget -> Maybe (Num, Num, Num, Num)
 maybeWidgetBounds widget =
   case widget of
-    WCall funcVal argVals retVal retWs ->
+    WCall callEId funcVal argVals retVal retWs ->
       let padding = 25 in
       retVal::argVals
       |> List.map valToMaybeBounds

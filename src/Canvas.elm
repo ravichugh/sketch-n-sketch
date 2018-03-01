@@ -486,28 +486,33 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     else
       []
   in
-  let drawCallWidget i_ funcVal argVals retVal retWs model =
-    if not <| List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredCallWidgets then
+  let drawCallWidget i_ callEId funcVal argVals retVal retWs model =
+    let program = model.inputExp in
+    let (maybeFuncBody, maybeFuncPat, maybeArgPats, maybeFuncExp) =
+      case funcVal.v_ of
+        VClosure maybeRecName argPats funcBody env ->
+          case parentByEId program funcBody.val.eid of
+            Just (Just funcExp) ->
+              case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
+                Just (_, funcPat) -> (Just funcBody, Just funcPat, Just argPats, Just funcExp)
+                _                 -> (Just funcBody, Nothing,      Just argPats, Just funcExp)
+            _ -> (Just funcBody, Nothing, Just argPats, Nothing)
+        _ -> (Nothing, Nothing, Nothing, Nothing)
+    in
+    let isCurrentContext =
+      case (model.editingContext, maybeFuncExp) of
+        (Just (eid, _), Just funcExp) -> eid == funcExp.val.eid
+        _                             -> False
+    in
+    if not <| isCurrentContext || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredCallWidgets then
       []
     else
-      let program = model.inputExp in
       let maybeBounds =
-        ShapeWidgets.maybeWidgetBounds (WCall funcVal argVals retVal retWs)
+        ShapeWidgets.maybeWidgetBounds (WCall callEId funcVal argVals retVal retWs)
       in
       case maybeBounds of
         Nothing -> []
         Just (left, top, right, bot) ->
-          let (maybeFuncBody, maybeFuncPat, maybeArgPats) =
-            case funcVal.v_ of
-              VClosure maybeRecName argPats funcBody env ->
-                case parentByEId program funcBody.val.eid of
-                  Just (Just funcExp) ->
-                    case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
-                      Just (_, funcPat) -> (Just funcBody, Just funcPat, Just argPats)
-                      _                 -> (Just funcBody, Nothing,      Just argPats)
-                  _ -> (Just funcBody, Nothing, Just argPats)
-              _ -> (Nothing, Nothing, Nothing)
-          in
           let boxTop = top + ShapeWidgets.heightForWCallPats in
           let maybeAddArg =
             -- TODO: ensure all selected items touch funcBody
@@ -526,20 +531,36 @@ buildSvgWidgets wCanvas hCanvas widgets model =
               _ ->
                 Nothing
           in
+          let (perhapsSetContextEvent, perhapsTitleAttribute) =
+            case (isCurrentContext, maybeFuncExp) of
+              (True, _) ->
+                ( [ attr "cursor" "pointer"
+                  , onMouseDownAndStop Controller.msgClearEditingContext
+                  ]
+                , [ Svg.title [] [Svg.text "Click to leave editing this function."] ]
+                )
+              (_, Just funcExp) ->
+                ( [ attr "cursor" "pointer"
+                  , onMouseDownAndStop (Controller.msgSetEditingContext funcExp.val.eid (Just callEId))
+                  ]
+                , [ Svg.title [] [Svg.text "Click to edit this function."] ]
+                )
+              _ -> ([], [])
+          in
           let box =
-            flip Svg.rect [] <|
+            flip Svg.rect perhapsTitleAttribute <|
               [ attr "fill" "none"
-              , attr "stroke" "black"
-              , attr "stroke-width" "5px"
-              , attr "stroke-dasharray" "20,10"
-              , attr "opacity" "0.3"
+              , attr "stroke" (if isCurrentContext then colorPointSelected else "black")
+              , attr "stroke-width" "7px"
+              -- , attr "stroke-dasharray" "20,10"
+              , attr "opacity" (if isCurrentContext then "1.0" else "0.15")
               , attr "rx" "25"
               , attr "ry" "25"
               , attr "x" (toString left)
               , attr "y" (toString boxTop)
               , attr "width" (toString (right - left))
               , attr "height" (toString (bot - boxTop))
-              ]
+              ] ++ perhapsSetContextEvent
           in
           [ Just box
           , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat left (boxTop - 20))
@@ -567,8 +588,8 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       WOffset1D baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal ->
         drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal
 
-      WCall funcVal argVals retVal retWs ->
-        drawCallWidget i_ funcVal argVals retVal retWs model
+      WCall callEId funcVal argVals retVal retWs ->
+        drawCallWidget i_ callEId funcVal argVals retVal retWs model
   in
 
   List.concat <| Utils.mapi1 draw widgets
@@ -673,7 +694,7 @@ shapeIdToMaybeVal id m =
       Just (WIntSlider _ _ _ _ val _ _)        -> Just val
       Just (WPoint _ _ _ _ pairVal)            -> Just pairVal
       Just (WOffset1D _ _ _ _ _ amountVal _ _) -> Just amountVal
-      Just (WCall _ _ retVal _)                -> Just retVal
+      Just (WCall _ _ _ retVal _)              -> Just retVal
       Nothing                                  -> Nothing
   else
     Dict.get id shapeTree
@@ -698,7 +719,7 @@ addHoveredShape id =
             |> List.filterMap
                 (\(i, widget) ->
                   case (widget, ShapeWidgets.maybeWidgetBounds widget) of
-                    (WCall funcVal argVals retVal retWs, Just (left, top, right, bot)) ->
+                    (WCall callEId funcVal argVals retVal retWs, Just (left, top, right, bot)) ->
                       if [] /= (Utils.intersectAsSet (Provenance.valToSameVals retVal) (Provenance.valToSameVals hoveredVal))
                       then Just ((left, top, right, bot), i)
                       else Nothing

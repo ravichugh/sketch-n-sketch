@@ -1533,7 +1533,7 @@ moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
                 let insertedLetEId = Utils.justGet_ "moveEquationsBeforeEId" letEIdToDup letEIdToReinsertedLetEId in
                 let (ws1, _, isRec, pat, _, boundExp, _, _, _) = expToLetParts letExp in
                 newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program
-                -- let letOrDef = if isTopLevelEId targetEId program then Def else Let in
+                -- let letOrDef = if isSameLevelEId targetEId program then Def else Let in
                 -- let newLetIndentation =
                 --   -- If target expression is the body of a existing let, then use the indentation of the existing let.
                 --   case parentByEId program targetEId of
@@ -2757,7 +2757,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
           let bindingLetBoundExp = expToLetBoundExp bindingLet in
           let freeVarsAtNewLocation = freeVars expToWrap in
           -- Case 2.1: If target position is at the same level and boundExp free vars are the same at both locations (no recursive lifting needed), move the entire let. This will nicely preserve (def point @ [x y] [30 40])
-          if List.member bindingLet (topLevelExps expToWrap) && List.all (\var -> List.member var freeVarsAtNewLocation) (freeVars bindingLetBoundExp) then
+          if List.member bindingLet (sameLevelExps expToWrap) && List.all (\var -> List.member var freeVarsAtNewLocation) (freeVars bindingLetBoundExp) then
             moveEquationsBeforeEId Syntax.Elm [bindingLet.val.eid] expToWrap.val.eid originalProgram -- Syntax only used for generating description, which we throw away
             |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
             |> Maybe.map (\(SynthesisResult {exp}) -> exp)

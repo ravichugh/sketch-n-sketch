@@ -392,30 +392,31 @@ locationInProgram program eid =
 
 -- Is the expression in the body of only defs/comments/options?
 --
--- The "top level" is a single path on the tree, so walk it and look
+-- The "same level" is a single path on the tree, so walk it and look
 -- for the target expression.
-isTopLevel : Exp -> Exp -> Bool
-isTopLevel exp program =
-  if exp == program then
+isSameLevel : Exp -> Exp -> Bool
+isSameLevel exp superExp =
+  if exp == superExp then
     True
   else
-    case maybeTopLevelChild program of
-      Just child -> isTopLevel exp child
+    case maybeSameLevelChild superExp of
+      Just child -> isSameLevel exp child
       Nothing    -> False
 
 
-isTopLevelEId : EId -> Exp -> Bool
-isTopLevelEId eid program =
-  if eid == program.val.eid then
+isSameLevelEId : EId -> Exp -> Bool
+isSameLevelEId eid superExp =
+  if eid == superExp.val.eid then
     True
   else
-    case maybeTopLevelChild program of
-      Just child -> isTopLevelEId eid child
+    case maybeSameLevelChild superExp of
+      Just child -> isSameLevelEId eid child
       Nothing    -> False
 
 
-maybeTopLevelChild : Exp -> Maybe Exp
-maybeTopLevelChild exp =
+-- Only difference from expEffectiveExp is this terminates on EParens and pass-through EOp
+maybeSameLevelChild : Exp -> Maybe Exp
+maybeSameLevelChild exp =
   case exp.val.e__ of
     ETyp _ _ _ body _         -> Just body
     EColonType _ body _ _ _   -> Just body
@@ -426,15 +427,15 @@ maybeTopLevelChild exp =
     _                         -> Nothing
 
 
-topLevelExps : Exp -> List Exp
-topLevelExps program =
-  case maybeTopLevelChild program of
-    Just child -> program::(topLevelExps child)
-    Nothing    -> [program]
+sameLevelExps : Exp -> List Exp
+sameLevelExps exp =
+  case maybeSameLevelChild exp of
+    Just child -> exp::(sameLevelExps child)
+    Nothing    -> [exp]
 
 
-lastTopLevelExp : Exp -> Exp
-lastTopLevelExp exp = maybeTopLevelChild exp |> Maybe.map lastTopLevelExp |> Maybe.withDefault exp
+lastSameLevelExp : Exp -> Exp
+lastSameLevelExp exp = maybeSameLevelChild exp |> Maybe.map lastSameLevelExp |> Maybe.withDefault exp
 
 
 lastExp : Exp -> Exp
@@ -492,7 +493,7 @@ reflowLetWhitespace program letExp =
             longLineLength < String.length (LangUnparser.unparsePatWithUniformWhitespace True pat ++ String.join " " (List.map (LangUnparser.unparsePatWithUniformWhitespace True) fpats))
           in
           let (letWs_, funcWs_, fbodyWs_, newFBody, bodyMinimalNewlineCount) =
-            if isTopLevelEId letExp.val.eid program then
+            if isSameLevelEId letExp.val.eid program then
               let oldBodyWs = precedingWhitespace body in
               if      newLineForFunctionArgs   then ( "\n\n"                   , "\n  ", "\n    ", replaceIndentation "    " fbody, 2)
               else if multipleLinesForFunction then ( "\n\n"                   , " "   , "\n  "  , replaceIndentation "  " fbody  , 2)
@@ -560,7 +561,7 @@ reflowLetWhitespace program letExp =
           --   && longLineLength < String.length (LangUnparser.unparsePatWithUniformWhitespace True pat ++ LangUnparser.unparseWithUniformWhitespace True True boundExp)
           -- in
           -- let (letWs, boundExpWs, bodyMinimalNewlineCount) =
-          --   if isTopLevelEId letExp.val.eid program then
+          --   if isSameLevelEId letExp.val.eid program then
           --     let oldBodyWs = precedingWhitespace body in
           --     if addNewLineForBoundExp
           --     then ( "\n\n"                   , "\n  ", "\n\n" )
@@ -594,7 +595,7 @@ reflowLetWhitespace program letExp =
 -- Note: the isRec flag is ignored if the new let is placed at the top level.
 newLetFancyWhitespace : EId -> Bool -> Pat -> Exp -> Exp -> Exp -> Exp
 newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program =
-  let isTopLevel = isTopLevelEId expToWrap.val.eid program in
+  let isTopLevel = isSameLevelEId expToWrap.val.eid program in
   let letOrDef = if isTopLevel then Def else Let in
   -- At the top level, rec is implicit. We create the exp as it will actually be reparsed so
   -- any safety checks later in the pipeline work correctly.
@@ -2987,8 +2988,8 @@ type ExpressionBinding
   = Bound Exp
   | BoundUnknown
 
-preludePatExpEnv = expPatEnvAt_ prelude (lastTopLevelExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludePatExpEnv"
-preludeExpEnv    = expEnvAt_    prelude (lastTopLevelExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludeExpEnv"
+preludePatExpEnv = expPatEnvAt_ prelude (lastSameLevelExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludePatExpEnv"
+preludeExpEnv    = expEnvAt_    prelude (lastSameLevelExp prelude).val.eid |> Utils.fromJust_ "LangTools.preludeExpEnv"
 
 -- Return bindings to expressions (as best as possible) at EId
 expEnvAt : Exp -> EId -> Maybe (Dict Ident ExpressionBinding)

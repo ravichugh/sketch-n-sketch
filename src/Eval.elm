@@ -1,4 +1,4 @@
-module Eval exposing (run, doEval, parseAndRun, parseAndRun_, evalDelta, initEnv)
+module Eval exposing (run, doEval, doEvalEarlyAbort, parseAndRun, parseAndRun_, evalDelta, initEnv)
 
 import Debug
 import Dict
@@ -79,8 +79,10 @@ mkCap mcap l =
   s ++ ": "
 
 
+runUntilTheEnd : Exp -> Bool
+runUntilTheEnd = always False
 
-initEnvRes = Result.map Tuple.second <| (eval Syntax.Little [] [] prelude)
+initEnvRes = Result.map Tuple.second <| (eval runUntilTheEnd Syntax.Little [] [] prelude)
 initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
 
 run : Syntax -> Exp -> Result String (Val, Widgets)
@@ -91,8 +93,17 @@ run syntax e =
   )
 
 doEval : Syntax -> Env -> Exp -> Result String ((Val, Widgets), Env)
-doEval syntax initEnv e =
-  eval syntax initEnv [] e
+doEval = doEvalEarlyAbort runUntilTheEnd
+
+
+type EarlyAbort a = EarlyAbort a
+
+-- Return the value of some particular expression in the program the first time it is encountered.
+doEvalEarlyAbort : (Exp -> Bool) -> Syntax -> Env -> Exp -> Result String ((Val, Widgets), Env)
+doEvalEarlyAbort abortPred syntax initEnv e =
+  ImpureGoodies.tryCatch "EarlyAbort"
+    (\()               -> eval abortPred syntax initEnv [] e)
+    (\(EarlyAbort ret) -> ret)
   |> Result.map (\((val, widgets), env) -> ((val, postProcessWidgets widgets), env))
 
 
@@ -110,12 +121,12 @@ doEval syntax initEnv e =
 -- eval inserts dummyPos during evaluation
 
 -- Just like eval, but ignore envOut
-eval_ : Syntax -> Env -> Backtrace -> Exp -> Result String (Val, Widgets)
-eval_ syntax env bt e = Result.map Tuple.first <| eval syntax env bt e
+eval_ : (Exp -> Bool) -> Syntax -> Env -> Backtrace -> Exp -> Result String (Val, Widgets)
+eval_ abortPred syntax env bt e = Result.map Tuple.first <| eval abortPred syntax env bt e
 
 
-eval : Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Env)
-eval syntax env bt e =
+eval : (Exp -> Bool) -> Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Env)
+eval abortPred syntax env bt e =
 
   let makeProvenance basedOn = Provenance env e basedOn in
 
@@ -166,6 +177,11 @@ eval syntax env bt e =
     else bt
   in
 
+  (\ret ->
+    if abortPred e
+    then ImpureGoodies.throw (EarlyAbort ret)
+    else ret
+  ) <|
   case e.val.e__ of
 
   EConst _ n loc wd ->
@@ -183,18 +199,22 @@ eval syntax env bt e =
   EBase _ v     -> Ok <| ret [] <| VBase (eBaseToVBase v)
   EVar _ x      -> Result.map (\v -> retV [v] v) <| lookupVar syntax env (e::bt) x e.start
   EFun _ ps e _ -> Ok <| ret [] <| VClosure Nothing ps e env
-  EOp _ op es _ -> Result.map (\res -> addParentToRet (res, env)) <| evalOp syntax env e (e::bt) op es
+  EOp _ op es _ -> Result.map (\res -> addParentToRet (res, env)) <| evalOp abortPred syntax env e (e::bt) op es
 
   EList _ es _ m _ ->
-    case Utils.projOk <| List.map (eval_ syntax env bt_) (List.map Tuple.second es) of
+    case Utils.projOk <| List.map (eval_ abortPred syntax env bt_) (List.map Tuple.second es) of
       Err s -> Err s
       Ok results ->
         let (vs,wss) = List.unzip results in
         let ws = List.concat wss in
-        case m of
-          Nothing   -> Ok <| retBoth vs (VList vs, ws)
-          Just rest ->
-            case eval_ syntax env bt_ rest of
+        case (m, vs, FastParser.isProgramEId e.val.eid) of
+          (Nothing, [v1, v2], True) ->
+            case (v1.v_, v2.v_) of
+              (VConst _ nt1, VConst _ nt2) -> retBoth vs (VList vs, ws) |> (\((v, ws), env) -> ((v, ws ++ [WPoint nt1 v1 nt2 v2 v]), env)) |> Ok
+              _                            -> Ok <| retBoth vs (VList vs, ws)
+          (Nothing, _, _)                  -> Ok <| retBoth vs (VList vs, ws)
+          (Just rest, _, _) ->
+            case eval_ abortPred syntax env bt_ rest of
               Err s -> Err s
               Ok (vRest, ws_) ->
                 case vRest.v_ of
@@ -204,29 +224,29 @@ eval syntax env bt e =
   -- Alternatively, could choose not to add a basedOn record for if/case/typecase (simply pass value through, maybe add parent)
   -- But that would suggest that we *might* avoid doing so for EApp as well, which is more dubious. We'll see.
   EIf _ e1 _ e2 _ e3 _ ->
-    case eval_ syntax env bt e1 of
+    case eval_ abortPred syntax env bt e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
         case v1.v_ of
-          VBase (VBool True)  -> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] <| addWidgets ws1 result) <| eval syntax env bt e2 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
-          VBase (VBool False) -> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] <| addWidgets ws1 result) <| eval syntax env bt e3 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          VBase (VBool True)  -> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] <| addWidgets ws1 result) <| eval abortPred syntax env bt e2 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          VBase (VBool False) -> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] <| addWidgets ws1 result) <| eval abortPred syntax env bt e3 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           _                   -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " if-exp expected a Bool but got something else."
 
   ECase _ e1 bs _ ->
-    case eval_ syntax env (e::bt) e1 of
+    case eval_ abortPred syntax env (e::bt) e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
-        case evalBranches syntax env (e::bt) v1 bs of
+        case evalBranches abortPred syntax env (e::bt) v1 bs of
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
           Ok (Just (v2,ws2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s              -> Err s
           _                  -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
 
   ETypeCase _ e1 tbranches _ ->
-    case eval_ syntax env (e::bt) e1 of
+    case eval_ abortPred syntax env (e::bt) e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
-        case evalTBranches syntax env (e::bt) v1 tbranches of
+        case evalTBranches abortPred syntax env (e::bt) v1 tbranches of
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
           Ok (Just (v2,ws2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s              -> Err s
@@ -236,15 +256,15 @@ eval syntax env bt e =
     errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " application with no arguments"
 
   EApp _ e1 es _ _ ->
-    case eval_ syntax env bt_ e1 of
+    case eval_ abortPred syntax env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->
         case v1.v_ of
           VClosure maybeRecName ps funcBody closureEnv ->
             let argValsAndFuncRes =
               case maybeRecName of
-                Nothing    -> apply syntax env bt bt_ e ps es funcBody closureEnv
-                Just fName -> apply syntax env bt bt_ e ps es funcBody ((fName, v1)::closureEnv)
+                Nothing    -> apply abortPred syntax env bt bt_ e ps es funcBody closureEnv
+                Just fName -> apply abortPred syntax env bt bt_ e ps es funcBody ((fName, v1)::closureEnv)
             in
             -- Do not record dependence on closure (which function to execute is essentially control flow).
             -- Dependence on function is implicit by being dependent on some value computed by an expression in the function.
@@ -254,7 +274,7 @@ eval syntax env bt e =
             |> Result.map (\(argVals, (fRetVal, fRetWs)) ->
               let perhapsCallWidget =
                 if FastParser.isProgramEId e.val.eid && FastParser.isProgramEId funcBody.val.eid
-                then [WCall v1 argVals fRetVal fRetWs]
+                then [WCall e.val.eid v1 argVals fRetVal fRetWs]
                 else []
               in
               retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget)
@@ -264,31 +284,31 @@ eval syntax env bt e =
             errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
 
   ELet _ _ False p _ e1 _ e2 _ ->
-    case eval_ syntax env bt_ e1 of
+    case eval_ abortPred syntax env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->
         case cons (p, v1) (Just env) of
           Just env_ ->
             -- Don't add provenance: fine to say value is just from the let body.
             -- (We consider equations to be mobile).
-            Result.map (addWidgets ws1) <| eval syntax env_ bt_ e2
+            Result.map (addWidgets ws1) <| eval abortPred syntax env_ bt_ e2
 
           Nothing   ->
             errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser syntax >> Utils.squish) p ++ " with " ++ strVal v1
 
 
   ELet _ _ True p _ e1 _ e2 _ ->
-    case eval_ syntax env bt_ e1 of
+    case eval_ abortPred syntax env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->
         case ((patEffectivePat p).val.p__, v1.v_) of
           (PVar _ fname _, VClosure Nothing x body env_) ->
-            let _   = Utils.assert "eval letrec" (env == env_) in
+            let _   = Utils.assert "eval abortPred letrec" (env == env_) in
             let v1Named = { v1 | v_ = VClosure (Just fname) x body env } in
             case cons (pVar fname, v1Named) (Just env) of
               -- Don't add provenance: fine to say value is just from the let body.
               -- (We consider equations to be mobile).
-              Just env_ -> Result.map (addWidgets ws1) <| eval syntax env_ bt_ e2
+              Just env_ -> Result.map (addWidgets ws1) <| eval abortPred syntax env_ bt_ e2
               _         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ "bad ELet"
           (PList _ _ _ _ _, _) ->
             errorWithBacktrace syntax (e::bt) <|
@@ -305,37 +325,38 @@ eval syntax env bt e =
     case t1.val of
       -- using (e : Point) as a "point widget annotation"
       TNamed _ a ->
-        if String.trim a /= "Point" then eval syntax env bt e1
+        if String.trim a /= "Point" then eval abortPred syntax env bt e1
         else
-          eval syntax env bt e1 |> Result.map (\(((v,ws),env_) as result) ->
+          eval abortPred syntax env bt e1 |> Result.map (\(((v,ws),env_) as result) ->
             case v.v_ of
               VList [v1, v2] ->
                 case (v1.v_, v2.v_) of
                   (VConst _ nt1, VConst _ nt2) ->
                     let vNew = {v | v_ = VList [{v1 | v_ = VConst (Just (X, nt2, v2)) nt1}, {v2 | v_ = VConst (Just (Y, nt1, v1)) nt2}]} in
-                    ((vNew, ws ++ [WPoint nt1 v1 nt2 v2 v]), env_)
+                    ((vNew, ws), env_)
+                    -- ((vNew, ws ++ [WPoint nt1 v1 nt2 v2 v]), env_)
                   _ ->
                     result
               _ ->
                 result
             )
       _ ->
-        eval syntax env bt e1
+        eval abortPred syntax env bt e1
 
-  EComment _ _ e1           -> eval syntax env bt e1
-  EOption _ _ _ _ e1        -> eval syntax env bt e1
-  ETyp _ _ _ e1 _           -> eval syntax env bt e1
-  ETypeAlias _ _ _ e1 _     -> eval syntax env bt e1
-  EParens _ e1 _ _          -> eval syntax env bt e1
+  EComment _ _ e1           -> eval abortPred syntax env bt e1
+  EOption _ _ _ _ e1        -> eval abortPred syntax env bt e1
+  ETyp _ _ _ e1 _           -> eval abortPred syntax env bt e1
+  ETypeAlias _ _ _ e1 _     -> eval abortPred syntax env bt e1
+  EParens _ e1 _ _          -> eval abortPred syntax env bt e1
   EHole _ (HoleVal val)     -> Ok <| ret [] val.v_ -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape.
   EHole _ HoleEmpty         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
   EHole _ (HolePredicate _) -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"
 
 
-evalOp : Syntax -> Env -> Exp -> Backtrace -> Op -> List Exp -> Result String (Val, Widgets)
-evalOp syntax env e bt opWithInfo es =
+evalOp : (Exp -> Bool) -> Syntax -> Env -> Exp -> Backtrace -> Op -> List Exp -> Result String (Val, Widgets)
+evalOp abortPred syntax env e bt opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
-  let argsEvaledRes = List.map (eval_ syntax env bt) es |> Utils.projOk in
+  let argsEvaledRes = List.map (eval_ abortPred syntax env bt) es |> Utils.projOk in
   case argsEvaledRes of
     Err s -> Err s
     Ok argsEvaled ->
@@ -481,11 +502,11 @@ evalOp syntax env e bt opWithInfo es =
 -- Returns Ok Nothing if no branch matches
 -- Returns Ok (Just results) if branch matches and no execution errors
 -- Returns Err s if execution error
-evalBranches syntax env bt v bs =
+evalBranches abortPred syntax env bt v bs =
   List.foldl (\(Branch_ _ pat exp _) acc ->
     case (acc, cons (pat,v) (Just env)) of
       (Ok (Just done), _)     -> acc
-      (Ok Nothing, Just env_) -> eval_ syntax env_ bt exp |> Result.map Just
+      (Ok Nothing, Just env_) -> eval_ abortPred syntax env_ bt exp |> Result.map Just
       (Err s, _)              -> acc
       _                       -> Ok Nothing
 
@@ -495,7 +516,7 @@ evalBranches syntax env bt v bs =
 -- Returns Ok Nothing if no branch matches
 -- Returns Ok (Just results) if branch matches and no execution errors
 -- Returns Err s if execution error
-evalTBranches syntax env bt val tbranches =
+evalTBranches abortPred syntax env bt val tbranches =
   List.foldl (\(TBranch_ _ tipe exp _) acc ->
     case acc of
       Ok (Just done) ->
@@ -503,7 +524,7 @@ evalTBranches syntax env bt val tbranches =
 
       Ok Nothing ->
         if Types.valIsType val tipe then
-          eval_ syntax env bt exp |> Result.map Just
+          eval_ abortPred syntax env bt exp |> Result.map Just
         else
           acc
 
@@ -522,14 +543,14 @@ evalDelta syntax bt op is =
 -- applications: cleaner provenance (one record for entire app).
 --
 -- Returns: Result String (argVals, (functionResult, widgets))
-apply syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
-  let recurse = apply syntax env bt bt_ e in
+apply abortPred syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
+  let recurse = apply abortPred syntax env bt bt_ e in
   case (psLeft, esLeft) of
     ([], []) ->
-      eval_ syntax closureEnv bt_ funcBody |> Result.map (\valAndWs -> ([], valAndWs))
+      eval_ abortPred syntax closureEnv bt_ funcBody |> Result.map (\valAndWs -> ([], valAndWs))
 
     ([], esLeft) ->
-      eval_ syntax closureEnv bt_ funcBody
+      eval_ abortPred syntax closureEnv bt_ funcBody
       |> Result.andThen
           (\(fRetVal1, fRetWs1) ->
             case fRetVal1.v_ of
@@ -551,7 +572,7 @@ apply syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
       Ok ([], (finalVal, []))
 
     (p::psLeft, e::esLeft) ->
-      case eval_ syntax env bt_ e of
+      case eval_ abortPred syntax env bt_ e of
         Err s -> Err s
         Ok (argVal, argWs) ->
           case cons (p, argVal) (Just closureEnv) of
@@ -596,7 +617,7 @@ postProcessWidgets widgets =
           WNumSlider _ _ _ _ _ _ True  -> False
           WPoint _ _ _ _ _             -> False
           WOffset1D _ _ _ _ _ _ _ _    -> False
-          WCall _ _ _ _                -> False
+          WCall _ _ _ _ _              -> False
       )
   in
   rangeWidgets ++ pointWidgets

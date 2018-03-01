@@ -17,6 +17,7 @@ port module InterfaceController exposing
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
+  , msgSetEditingContext, msgClearEditingContext
   , msgActivateRenameInOutput, msgUpdateRenameInOutputTextBox, msgDoRename
   , msgAddArg, msgRemoveArg
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
@@ -122,6 +123,7 @@ import Syntax exposing (Syntax)
 import ElmParser
 import LangUnparser -- for comparing expressions for equivalence
 import History exposing (History)
+import SlowTypeInference
 
 import ImpureGoodies
 
@@ -629,7 +631,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   in
   let dragInfo_ = (trigger, (mx0, my0), True) in
 
-  Eval.run old.syntax newExp |> Result.andThen (\(newVal, newWidgets) ->
+  evalFocusedExpression old.syntax old.editingContext newExp |> Result.andThen (\((newVal, newWidgets), _) ->
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
@@ -669,6 +671,27 @@ finishTrigger zoneKey old =
 
 --------------------------------------------------------------------------------
 
+evalFocusedExpression : Syntax -> Maybe (EId, Maybe EId) -> Exp -> Result String ((Val, Widgets), Env)
+evalFocusedExpression syntax editingContext program =
+  case editingContext of
+    Just (focusedEId, maybeCallEId) ->
+      let abortEId = maybeCallEId |> Maybe.withDefault focusedEId in
+      Eval.doEvalEarlyAbort (\e -> e.val.eid == abortEId) syntax Eval.initEnv program
+
+    Nothing ->
+      -- want final environment of top-level definitions when evaluating e,
+      -- for the purposes of running Little code to generate icons.
+      -- but can't just use the output environment from eval directly.
+      -- for example, if the last expression was a function call (either
+      -- within the program or in Prelude), the final environment is from
+      -- that function body. so instead, calling rewriteInnerMostExpToMain
+      -- because the output environment from (let main eFinalBody main)
+      -- will be the top-level definitions (and main).
+      --
+      let rewrittenE = rewriteInnerMostExpToMain program in
+      Eval.doEval syntax Eval.initEnv rewrittenE
+
+
 tryRun : Model -> Result (Model, String, Maybe Ace.Annotation) Model
 tryRun old =
   let
@@ -688,18 +711,7 @@ tryRun old =
         let resultThunk () =
           -- let aceTypeInfo = Types.typecheck e in
 
-          -- want final environment of top-level definitions when evaluating e,
-          -- for the purposes of running Little code to generate icons.
-          -- but can't just use the output environment from eval directly.
-          -- for example, if the last expression was a function call (either
-          -- within the program or in Prelude), the final environment is from
-          -- that function body. so instead, calling rewriteInnerMostExpToMain
-          -- because the output environment from (let main eFinalBody main)
-          -- will be the top-level definitions (and main).
-          --
-          let rewrittenE = rewriteInnerMostExpToMain e in
-
-          Eval.doEval old.syntax Eval.initEnv rewrittenE |>
+          evalFocusedExpression old.syntax old.editingContext e |>
           Result.andThen (\((newVal,ws),finalEnv) ->
             LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
@@ -719,11 +731,11 @@ tryRun old =
                       , runAnimation  = newMovieDuration > 0
                       , slate         = newSlate
                       , widgets       = ws
+                      , typeGraph     = SlowTypeInference.typecheck e
                       , history       = modelCommit newCode [] old.history
                       , caption       = Nothing
                       , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                       , errorBox      = Nothing
-                      , scopeGraph    = DependenceGraph.compute e
                       , preview       = Nothing
                       , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
                 }
@@ -785,10 +797,15 @@ tryRun old =
                   _ ->
                     Types.dummyAceTypeInfo
               in
-              resetDeuceState <|
-              { new_ | liveSyncInfo = refreshLiveInfo new_
-                     , codeBoxInfo = updateCodeBoxInfo taskProgressAnnotation new_
-                     }
+              let new__ =
+                { new_ | liveSyncInfo = refreshLiveInfo new_
+                       , codeBoxInfo = updateCodeBoxInfo taskProgressAnnotation new_
+                       }
+                |> resetDeuceState
+              in
+              case new__.editingContext of
+                Just (eid, _) -> { new__ | deuceState = { emptyDeuceState | hoveredWidgets = [DeuceExp eid] } }
+                Nothing       -> new__
             )
           )
         in
@@ -1060,7 +1077,7 @@ issueCommand msg oldModel newModel =
                 -- (onMouseUp). workaround for now: click widget again.
                 AceCodeBox.resize newModel
               else if kind == "Toggle Output" && newModel.outputMode == PrintScopeGraph Nothing then
-                DependenceGraph.render newModel.scopeGraph
+                DependenceGraph.render (DependenceGraph.compute newModel.inputExp)
               else if newModel.runAnimation then
                 AnimationLoop.requestFrame ()
               else
@@ -2039,8 +2056,8 @@ msgPreviousSlide = Msg "Previous Slide" <| \old ->
   else
     let previousSlideNumber = old.slideNumber - 1 in
     let result =
-      Eval.run old.syntax old.inputExp |>
-      Result.andThen (\(previousVal, _) ->
+      evalFocusedExpression old.syntax old.editingContext old.inputExp |>
+      Result.andThen (\((previousVal, _), _) ->
         LangSvg.resolveToMovieCount old.syntax previousSlideNumber previousVal
         |> Result.map (\previousMovieCount ->
              upstate msgStartAnimation
@@ -2075,6 +2092,7 @@ msgPauseResumeMovie = Msg "Pause/Resume Movie" <| \old ->
 
 msgCallUpdate = Msg "Call Update" doCallUpdate
 
+-- Doesn't yet work with focused editing contexts.
 doCallUpdate m =
   let updatedExp = Syntax.parser m.syntax m.valueEditorString
     |> Result.mapError (\e -> toString e)
@@ -2113,21 +2131,6 @@ showExpPreview old exp =
   case runAndResolve old exp of
     Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, slate)) }
     Err s                       -> { old | preview = Just (code, Err s) }
-
-msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
-  { old | code          = code
-        , inputExp      = exp
-        , inputVal      = val
-        , valueEditorString = Update.valToString val
-        , history       = modelCommit code [] old.history
-        , slate         = slate
-        , preview       = Nothing
-        , synthesisResultsDict = Dict.empty
-        , tool          = Cursor
-        , liveSyncInfo  = Utils.fromOk "SelectOption mkLive" <|
-                            mkLive old.syntax old.syncOptions old.slideNumber old.movieNumber old.movieTime exp
-                              (val, []) -- TODO
-        }
 
 msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <| \old ->
   let maybeFindResult path results =
@@ -2172,9 +2175,20 @@ msgPreview expOrCode = Msg "Preview" <| \old ->
 msgClearPreview = Msg "Clear Preview" <| \old ->
   { old | preview = Nothing }
 
-msgCancelSync = Msg "Cancel Sync" <| \old ->
-  upstateRun
-    { old | liveSyncInfo = refreshLiveInfo old }
+-- msgCancelSync = Msg "Cancel Sync" <| \old ->
+--   upstateRun
+--     { old | liveSyncInfo = refreshLiveInfo old }
+
+msgSetEditingContext focusedEId maybeExampleCall = Msg "Set Editing Context" <| \old ->
+  let deuceState = old.deuceState in
+  { old | editingContext = Just (focusedEId, maybeExampleCall) }
+  |> clearSelections
+  |> upstateRun
+
+msgClearEditingContext = Msg "Clear Editing Context" <| \old ->
+  { old | editingContext = Nothing }
+  |> clearSelections
+  |> upstateRun
 
 msgActivateRenameInOutput pid = Msg ("Active Rename Box for PId " ++ toString pid) <| \old ->
   let oldPatStr =
@@ -2543,7 +2557,6 @@ handleNew template = (\old ->
                     , syntax        = old.syntax
                     , needsSave     = True
                     , lastSaveState = Nothing
-                    , scopeGraph    = DependenceGraph.compute e
 
                     , lastSelectedTemplate = Just template
 

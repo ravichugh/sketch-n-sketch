@@ -8,6 +8,7 @@ module LangSvg exposing
   , dummySvgNode
   , isSvg
   , valToIndexedTree
+  , svgValToIndexedTree
   , printSvg
   , compileAttr, compileAttrs
   , desugarShapeAttrs
@@ -140,8 +141,8 @@ type IndexedTreeNode_
 ------------------------------------------------------------------------------
 -- Convert Raw Value to SVG Slate
 
-valToIndexedTree : Val -> Result String RootedIndexedTree
-valToIndexedTree v =
+svgValToIndexedTree : Val -> Result String RootedIndexedTree
+svgValToIndexedTree v =
   let thunk () =
     valToIndexedTree_ v (1, Dict.empty)
     |> Result.map (\(nextId,tree) ->
@@ -151,6 +152,18 @@ valToIndexedTree v =
   in
   thunk ()
   -- ImpureGoodies.logTimedRun "LangSvg.valToIndexedTree" thunk
+
+-- Fallback to displaying text if can't interpret as SVG.
+--
+valToIndexedTree : Val -> Result String RootedIndexedTree
+valToIndexedTree v =
+  let asSvg = svgValToIndexedTree v in
+  case asSvg of
+    Ok _  -> asSvg
+    Err s ->
+      let _ = Utils.log s in
+      let node = { interpreted = TextNode (strVal v), val = v } in
+      Ok (1, Dict.singleton 1 node)
 
 valToIndexedTree_ : Val -> RootedIndexedTree -> Result String RootedIndexedTree
 valToIndexedTree_ v (nextId, d) =

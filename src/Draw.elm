@@ -304,7 +304,7 @@ drawNewFunction fName model pt1 pt2 =
           let pseudoProgram =
             model.inputExp
             |> replaceExpNode
-                (LangTools.lastTopLevelExp model.inputExp).val.eid
+                (LangTools.lastSameLevelExp model.inputExp).val.eid
                 (eApp funcExp (LangTools.expToAppArgs (expEffectiveExp callExp)))
           in
           Eval.doEval Syntax.Elm Eval.initEnv pseudoProgram
@@ -572,11 +572,11 @@ horizontalVerticalSnap (x1, y1) (x2, y2) =
 addToEndOfProgram : Model -> Ident -> Exp -> Model
 addToEndOfProgram old varSuggestedName exp =
   let originalProgram = old.inputExp in
-  let insertBeforeEId = (LangTools.lastTopLevelExp originalProgram).val.eid in
+  let insertBeforeEId = (LangTools.lastSameLevelExp originalProgram).val.eid in
   let varName = LangTools.nonCollidingName varSuggestedName 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
   let newProgram =
     originalProgram
-    |> mapExpNode insertBeforeEId (\lastTopLevelExp -> LangTools.newLetFancyWhitespace -1 False (pVar varName) exp lastTopLevelExp originalProgram)
+    |> mapExpNode insertBeforeEId (\lastSameLevelExp -> LangTools.newLetFancyWhitespace -1 False (pVar varName) exp lastSameLevelExp originalProgram)
     |> CodeMotion.resolveValueHoles old.syncOptions
     |> List.head
     |> Maybe.withDefault originalProgram
@@ -1187,7 +1187,7 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
                 in
                 case val.v_ of
                   VList [v1] ->
-                    case LangSvg.valToIndexedTree v1 of
+                    case LangSvg.svgValToIndexedTree v1 of
                       Ok (i, it) ->
                         case Utils.justGet i it |> .interpreted of
                           LangSvg.SvgNode "g" nodeAttrs _ ->
@@ -1227,16 +1227,24 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
 -- Returns list of (fName, fExp, typeSig), fExp is an EFun
 preludeDrawableFunctions : List (Ident, Exp, Type)
 preludeDrawableFunctions =
-  getDrawableFunctions_ False FastParser.prelude (LangTools.lastTopLevelExp FastParser.prelude).val.eid
+  getDrawableFunctions_ Dict.empty FastParser.prelude (LangTools.lastSameLevelExp FastParser.prelude).val.eid
+
+
+drawingScope : Model -> EId
+drawingScope model =
+  let defaultScope = (LangTools.lastSameLevelExp model.inputExp).val.eid in
+  case model.editingContext of
+    Just (eid, _) -> findExpByEId model.inputExp eid |> Maybe.map (LangTools.lastSameLevelExp >> .val >> .eid) |> Maybe.withDefault defaultScope
+    _             -> defaultScope
 
 
 -- Returns list of (fName, fExp, typeSig), fExp is an EFun
 getDrawableFunctions : Model -> List (Ident, Exp, Type)
 getDrawableFunctions model =
   getDrawableFunctions_
-      True
+      model.typeGraph
       model.inputExp
-      (LangTools.lastTopLevelExp model.inputExp).val.eid ++
+      (drawingScope model) ++
   preludeDrawableFunctions
   |> Utils.dedupBy Utils.fst3 -- Remove shadowed prelude functions.
 
@@ -1268,8 +1276,10 @@ isDrawableType tipe =
 
 
 -- Returns list of (fName, fExp, typeSig), fExp is an EFun
-getDrawableFunctions_ : Bool -> Exp -> EId -> List (Ident, Exp, Type)
-getDrawableFunctions_ tryTypeInference program viewerEId =
+--
+-- To skip finding functions by inferred type, pass an empty dict for the typeGraph
+getDrawableFunctions_ : SlowTypeInference.TC2Graph -> Exp -> EId -> List (Ident, Exp, Type)
+getDrawableFunctions_ typeGraph program viewerEId =
   let boundExpsInScope =
     LangTools.expEnvAt_ program viewerEId
     |> Utils.fromJust_ "getDrawableFunctions_ expEnvAt_"
@@ -1308,9 +1318,9 @@ getDrawableFunctions_ tryTypeInference program viewerEId =
             _ -> Nothing
         )
   in
-  if tryTypeInference then
+  if Dict.size typeGraph > 0 then
     let
-      typeGraph = SlowTypeInference.typecheck program -- |> Debug.log "type graph"
+      -- typeGraph = SlowTypeInference.typecheck program -- |> Debug.log "type graph"
       -- _ = Utils.log <| Syntax.unparser Syntax.Elm (LangTools.justFindExpByEId program viewerEId)
       -- _ = ImpureGoodies.logRaw (SlowTypeInference.graphVizString program typeGraph)
       otherDrawableFunctions =

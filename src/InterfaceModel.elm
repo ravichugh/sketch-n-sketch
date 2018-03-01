@@ -24,6 +24,7 @@ import File exposing (Filename, File, FileIndex)
 import Solver
 import ValUnparser
 import History exposing (History)
+import SlowTypeInference
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -43,8 +44,6 @@ type alias TrackedValues =
   { code : Code
   , selectedDeuceWidgets : List DeuceWidgets.DeuceWidget
   }
-
-type alias Position = { col : Int, line : Int }
 
 type alias ViewState =
   { menuActive : Bool
@@ -86,14 +85,14 @@ type CodeToolsMenuMode
   | CTDisabled
 
 type alias Model =
-  { code : Code
-  , lastRunCode : Code
+  { code : Code        -- Always whole program
+  , lastRunCode : Code -- Always whole program
   , runFailuresInARowCount : Int
   , codeClean : Bool
   , preview : Preview
   , history : History TrackedValues
-  , inputExp : Exp
-  , inputVal : Val
+  , inputExp : Exp -- Always whole program
+  , inputVal : Val -- Context sensitive
   , slideNumber : Int
   , slideCount : Int
   , movieNumber : Int
@@ -102,8 +101,10 @@ type alias Model =
   , movieDuration : Float
   , movieContinue : Bool
   , runAnimation : Bool
-  , slate : RootedIndexedTree
-  , widgets : Widgets
+  , slate : RootedIndexedTree -- Context sensitive
+  , widgets : Widgets         -- Context sensitive
+  , typeGraph : SlowTypeInference.TC2Graph
+  , editingContext : Maybe (EId, Maybe EId) -- Context, example environment at context, application if function
   , liveSyncInfo : Sync.LiveInfo
   , liveSyncDelay : Bool
   , outputMode : OutputMode
@@ -157,7 +158,6 @@ type alias Model =
   , icons : Dict String (Html Msg)
   , showAllDeuceWidgets : Bool
   , hoveringCodeBox : Bool
-  , scopeGraph : ScopeGraph
   , deuceState : DeuceWidgets.DeuceState
   , deuceToolsAndResults : List (List CachedDeuceTool)
   , deuceToolResultPreviews : DeuceToolResultPreviews
@@ -1109,6 +1109,8 @@ initModel =
     , runAnimation  = True
     , slate         = slate
     , widgets       = ws
+    , typeGraph     = Dict.empty
+    , editingContext = Nothing
     , liveSyncInfo  = liveSyncInfo
     , liveSyncDelay = False
     , outputMode    = Live
@@ -1178,7 +1180,6 @@ initModel =
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
     , icons = Dict.empty
-    , scopeGraph = DependenceGraph.compute e
     , showAllDeuceWidgets = False
     , hoveringCodeBox = False
     , deuceState = DeuceWidgets.emptyDeuceState

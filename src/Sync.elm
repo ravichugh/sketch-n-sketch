@@ -158,7 +158,7 @@ getLocationCounts options (slate, widgets) =
       WNumSlider _ _ _ _ _ loc _      -> updateCount loc acc
       WPoint (_, t1) _ (_, t2) _ _    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
       WOffset1D _ _ _ _ (_, tr) _ _ _ -> Set.foldl updateCount acc (locsOfTrace options tr)
-      WCall _ _ _ _                   -> acc
+      WCall _ _ _ _ _                 -> acc
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
   let d_ = List.foldl addTriggerWidget d widgets in
@@ -447,7 +447,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         )
         accResult
 
-      WCall _ _ _ _ ->
+      WCall _ _ _ _ _ ->
         accResult
   in
   Utils.foldli1 processWidget (Dict.empty, initMaybeCounts) widgets
@@ -1188,11 +1188,10 @@ acePos p = { row = p.line, column = p.col }
 aceRange : WithInfo a -> Ace.Range
 aceRange x = { start = acePos x.start, end = acePos x.end }
 
-makeHighlight : SubstPlus -> String -> Loc -> Ace.Highlight
+makeHighlight : SubstPlus -> String -> Loc -> Maybe Ace.Highlight
 makeHighlight subst color (locid,_,_) =
-  case Dict.get locid subst of
-    Just n  -> { color = color, range = aceRange n }
-    Nothing -> Debug.crash "makeHighlight: locid not in subst"
+  Dict.get locid subst
+  |> Maybe.map (\n -> { color = color, range = aceRange n })
 
 
 -- Colors and Captions for Zone Locations, Before Direct Manipulation --
@@ -1200,8 +1199,8 @@ makeHighlight subst color (locid,_,_) =
 yellowAndGrayHighlights zoneKey info =
   let subst = info.initSubstPlus in
   let (_, yellowLocs, grayLocs) = lookupZoneKey zoneKey info in
-  List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
-  ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
+  List.filterMap (makeHighlight subst yellow) (Set.toList yellowLocs)
+  ++ List.filterMap (makeHighlight subst gray) (Set.toList grayLocs)
 
 hoverInfo zoneKey info =
   let line1 =
@@ -1256,9 +1255,9 @@ highlightChanges initSubstPlus locs changes =
     --   where Pos is start pos of a highlight to offset by Int chars
     let f loc (acc1,acc2) =
       let (locid,_,_) = loc in
-      let highlight c = makeHighlight initSubstPlus c loc in
+      let highlight c = makeHighlight initSubstPlus c loc |> Utils.fromJust_ "highlightChanges highlight: should not happen, function only called if locid in initSubstsPlus" in
       case (Dict.get locid initSubstPlus, Dict.get locid changes) of
-        (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
+        (Nothing, _)             -> (acc1, acc2)
         (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
         (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
         (Just n, Just (Just n_)) ->
