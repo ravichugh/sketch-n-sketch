@@ -100,6 +100,7 @@ update updateStack nextToUpdate=
 
 getUpdateStackOp : Env -> Exp -> PrevOutput -> Output -> UpdateStack
 getUpdateStackOp env e oldVal newVal =
+  if oldVal == newVal then updateResult env e else
   case e.val.e__ of
     EHole ws _ -> updateResult env <| valToExp ws (IndentSpace "") newVal
 
@@ -304,72 +305,69 @@ getUpdateStackOp env e oldVal newVal =
 
     EApp sp0 e1 e2s appType sp1 ->
       let maybeUpdateStack = case e1.val.e__ of
-        EVar _ "apply" -> -- Special case here. apply takes a record and a value and applies the field apply to the value.
-           -- The user may provide the reverse function if "unapply" is given, or "update"
-           case e2s of
-            eRecord::tail ->
-              case doEval Syntax.Elm env eRecord of
-                Err s -> Just <| UpdateError s
-                Ok ((v1, _), _) ->
-                  case v1.v_ of
-                    VRecord d -> 
-                      if Dict.member "apply" d && (Dict.member "unapply" d || Dict.member "update" d) then
-                        case tail of
-                          [] -> Just <| UpdateError "To provide reverse semantics, apply must be applied to (at least) two arguments, the lens as a record and the value"
-                          [argument] ->
-                            let mbUpdateField = case Dict.get "update" d of
-                              Just fieldUpdateClosure ->
-                                 case doEval Syntax.Elm env argument of
-                                   Err s -> Just <| UpdateError s
-                                   Ok ((vArg, _), _) ->
-                                     let x = eVar "x" in
-                                     let y = eVar "y" in
-                                     let customArgument = replaceV_ vArg <| VRecord <| Dict.fromList [
-                                          ("input", vArg),
-                                          ("outputNew", newVal),
-                                          ("outputOriginal", oldVal)
-                                          ] in
-                                     let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
-                                     case doEval Syntax.Elm (("x", fieldUpdateClosure)::("y", customArgument)::env) customExpr of
-                                       Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
-                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
-                                         case interpreterListToList vResult of
-                                           Err msg -> Just <| UpdateError msg
-                                           Ok l ->
-                                             case LazyList.fromList l of
-                                               LazyList.Nil -> Nothing
-                                               LazyList.Cons head lazyTail ->
-                                                 Just <| updateContinueRepeat env argument vArg head lazyTail <| HandlePreviousResult "Lens update" <| \newEnvArg newArg ->
-                                                   let newExp = replaceE__ e <| EApp sp0 e1 [eRecord, newArg] appType sp1 in
-                                                   updateResult newEnvArg newExp
+        ESelect es0 eRecord es1 es2 "apply" -> -- Special case here. apply takes a record and a value and applies the field apply to the value.
+            -- The user may provide the reverse function if "unapply" is given, or "update"
+            case doEval Syntax.Elm env eRecord of
+              Err s -> Just <| UpdateError s
+              Ok ((v1, _), _) ->
+                case v1.v_ of
+                  VRecord d ->
+                    if Dict.member "apply" d && (Dict.member "unapply" d || Dict.member "update" d) then
+                      case e2s of
+                        [] -> Nothing
+                        [argument] ->
+                          let mbUpdateField = case Dict.get "update" d of
+                            Just fieldUpdateClosure ->
+                               case doEval Syntax.Elm env argument of
+                                 Err s -> Just <| UpdateError s
+                                 Ok ((vArg, _), _) ->
+                                   let x = eVar "x" in
+                                   let y = eVar "y" in
+                                   let customArgument = replaceV_ vArg <| VRecord <| Dict.fromList [
+                                        ("input", vArg),
+                                        ("outputNew", newVal),
+                                        ("outputOriginal", oldVal)
+                                        ] in
+                                   let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
+                                   case doEval Syntax.Elm (("x", fieldUpdateClosure)::("y", customArgument)::env) customExpr of
+                                     Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
+                                     Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
+                                       case interpreterListToList vResult of
+                                         Err msg -> Just <| UpdateError msg
+                                         Ok l ->
+                                           case LazyList.fromList l of
+                                             LazyList.Nil -> Nothing
+                                             LazyList.Cons head lazyTail ->
+                                               Just <| updateContinueRepeat env argument vArg head lazyTail <| HandlePreviousResult "Lens update" <| \newEnvArg newArg ->
+                                                 let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newArg] appType sp1 in
+                                                 updateResult newEnvArg newExp
+                            Nothing -> Nothing
+                          in
+                          updateMaybeFirst2 mbUpdateField <| \_ ->
+                            case Dict.get "unapply" d of
+                              Just fieldUnapplyClosure ->
+                                case doEval Syntax.Elm env argument of
+                                  Err s -> Just <| UpdateError s
+                                  Ok ((vArg, _), _) ->
+                                    let x = eVar "x" in
+                                    let y = eVar "y" in
+                                    let customArgument = newVal in
+                                    let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
+                                    case doEval Syntax.Elm (("x", fieldUnapplyClosure)::("y", customArgument)::env) customExpr of
+                                      Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
+                                      Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
+                                        case interpreterMaybeToMaybe vResult of
+                                          Err msg -> Just <| UpdateError msg
+                                          Ok Nothing -> Nothing
+                                          Ok (Just newOut) ->
+                                            Just <| updateContinue env argument vArg newOut <| HandlePreviousResult "Lens unapply" <| \newEnvArg newArg ->
+                                              let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newArg] appType sp1 in
+                                              updateResult newEnvArg newExp
                               Nothing -> Nothing
-                            in
-                            updateMaybeFirst2 mbUpdateField <| \_ ->
-                              case Dict.get "unapply" d of
-                                Just fieldUnapplyClosure ->
-                                  case doEval Syntax.Elm env argument of
-                                    Err s -> Just <| UpdateError s
-                                    Ok ((vArg, _), _) ->
-                                      let x = eVar "x" in
-                                      let y = eVar "y" in
-                                      let customArgument = newVal in
-                                      let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
-                                      case doEval Syntax.Elm (("x", fieldUnapplyClosure)::("y", customArgument)::env) customExpr of
-                                        Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
-                                        Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
-                                          case interpreterMaybeToMaybe vResult of
-                                            Err msg -> Just <| UpdateError msg
-                                            Ok Nothing -> Nothing
-                                            Ok (Just newOut) ->
-                                              Just <| updateContinue env argument vArg newOut <| HandlePreviousResult "Lens unapply" <| \newEnvArg newArg ->
-                                                let newExp = replaceE__ e <| EApp sp0 e1 [eRecord, newArg] appType sp1 in
-                                                updateResult newEnvArg newExp
-                                Nothing -> Nothing
-                          _ -> Nothing       
-                      else Nothing
-                    _ -> Nothing
-            [] -> Nothing -- more arguments or different semantics
-        _ -> 
+                        _ -> Nothing
+                    else Nothing
+                  _ -> Nothing
+        _ ->
           Nothing
       in
       updateMaybeFirst maybeUpdateStack <| \_ ->
