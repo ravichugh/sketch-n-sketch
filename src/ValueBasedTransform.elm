@@ -9,7 +9,7 @@ module ValueBasedTransform exposing (..)
 import Lang exposing (..)
 import ValUnparser exposing (..)
 import LangTools exposing (..)
-import FastParser exposing (prelude, freshen, substOf)
+import FastParser as Parser
 import LangUnparser exposing (unparseWD, unparseWithIds)
 import InterfaceModel
 import Eval
@@ -71,7 +71,7 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
   let locsetList =
     Set.toList locset
   in
-  let subst = substOf originalExp in
+  let subst = Parser.substOf originalExp in
   let commonScope = deepestCommonAncestorWithNewlineByLocSet originalExp locset in
   let existingNames = identifiersSet originalExp in
   let locIdNameOrigNamePrime =
@@ -188,7 +188,7 @@ evalToSlateAndWidgetsResult exp slideNumber movieNumber movieTime =
 
 
 getIndexedLocIdsWithTarget originalExp locsToRevolutionize =
-  let subst = substOf originalExp in
+  let subst = Parser.substOf originalExp in
   locsToRevolutionize
   |> List.map (\(locId, frozen, ident) -> (locId, Utils.justGet_ "ValueBasedTransform.stormTheBastille sortedLocs" locId subst))
   |> List.sortBy Tuple.second
@@ -259,7 +259,7 @@ indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber mov
         else
           []
       in
-      let subst = substOf originalExp in
+      let subst = Parser.substOf originalExp in
       let indexedLocIdsWithTarget = getIndexedLocIdsWithTarget originalExp locsToRevolutionize in
       let possibleMathExps = stormTheBastille subst indexedLocIdsWithTarget in
       let (_, locIds, targets) = Utils.unzip3 indexedLocIdsWithTarget in
@@ -593,7 +593,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
   let removedLocIds = List.map Tuple.first removedLocIdToMathExp |> Set.fromList in
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
-     (frozenLocIdsAndNumbers prelude))
+     (frozenLocIdsAndNumbers Parser.prelude))
     |> Dict.fromList
   in
   let unfrozenLocset =
@@ -608,7 +608,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
     featureEqns |> List.map (equationLocs syncOptions >> List.map locToLocId >> Set.fromList >> (flip Set.diff) removedLocIds)
   in
   let eqnsUniqueLocIds = Utils.manySetDiffs featureEqnLocIds in -- For each set, subtract all the other sets.
-  let subst = substOf originalExp in
+  let subst = Parser.substOf originalExp in
   let featureMathExps =
     featureEqns
     |> List.map (featureEquationToMathExp removedLocIdToMathExp)
@@ -784,7 +784,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
         in
         let (_, dependentLocIds) = List.unzip resultMathExpsAndLocIds in
         { description           = description ++ if relationToSynthesize == Equalize then "" else Syntax.unparser syntax (Utils.head "relate__ description" dependentLocExps)
-        , exp                   = let _ = Utils.log (Syntax.unparser syntax newProgram) in freshen newProgram
+        , exp                   = let _ = Utils.log (Syntax.unparser syntax newProgram) in Parser.freshen newProgram
         , maybeTermShape        = maybeTermShape
         , dependentLocIds       = dependentLocIds
         , removedLocIdToMathExp = removedLocIdToMathExp ++ List.map Utils.flip resultMathExpsAndLocIds
@@ -896,7 +896,7 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
         listOfListsOfNamesAndAssigns
         targetExp.val.eid
   in
-  freshen newProgram
+  Parser.freshen newProgram
 
 
 locIdToNumberAndLocOf : Exp -> Dict.Dict LocId (Num, Loc)

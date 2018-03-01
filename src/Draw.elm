@@ -24,7 +24,7 @@ import LangSvg
 import Types
 import Blobs exposing (..)
 import InterfaceModel exposing (..)
-import FastParser
+import FastParser as Parser
 import LangTools
 import LangUnparser
 import StaticAnalysis
@@ -543,7 +543,7 @@ addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
           let
             (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
             programWithOffset =
-              LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> FastParser.freshen
+              LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> Parser.freshen
             programWithOffsetAndPoint =
               LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TNamed space1 "Point"))
           in
@@ -1118,7 +1118,7 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
 
 preludeDrawableFunctions : List (Ident, Type)
 preludeDrawableFunctions =
-  getDrawableFunctions_ FastParser.prelude (LangTools.lastTopLevelExp FastParser.prelude).val.eid
+  getDrawableFunctions_ Parser.prelude (LangTools.lastTopLevelExp Parser.prelude).val.eid
 
 
 getDrawableFunctions : Model -> List (Ident, Type)

@@ -21,7 +21,7 @@ import String
 import Lang exposing (..)
 import LangTools exposing (..)
 import LangUnparser exposing (..)
-import FastParser exposing (freshen)
+import FastParser as Parser
 import Utils
 
 
@@ -31,7 +31,7 @@ cleanCode program =
   |> simplify
   |> removeExtraPostfixes ["_orig", "'"]
   |> mapExpTopDown (\e -> if isLet e then reflowLetWhitespace program e else e)
-  |> freshen
+  |> Parser.freshen
 
 
 -- Rename e.g. `x_orig_orig_orig` to `x_orig` (presuming there

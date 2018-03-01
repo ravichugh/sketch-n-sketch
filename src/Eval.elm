@@ -8,7 +8,7 @@ import ImpureGoodies
 import Lang exposing (..)
 import ValUnparser exposing (strVal_, strOp, strLoc)
 import ElmUnparser
-import FastParser exposing (parseE, prelude)
+import FastParser as Parser
 import Syntax exposing (Syntax)
 import Types
 import Utils
@@ -149,7 +149,7 @@ mkCap mcap l =
 
 -- TODO rename these to preludeEnv, because the initEnv name below
 -- is sometimes replaced by preludeEnv, sometimes the empty env.
-initEnvRes = Result.map Tuple.second <| (eval Syntax.Little [] [] prelude)
+initEnvRes = Result.map Tuple.second <| (eval Syntax.Little [] [] Parser.prelude)
 initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
 
 run : Syntax -> Exp -> Result String (Val, Widgets)
@@ -207,7 +207,7 @@ eval syntax env bt e =
     ()
   in
   let addParent v =
-    if FastParser.isProgramEId e.val.eid then
+    if Parser.isProgramEId e.val.eid then
       case v.v_ of
         VConst _ _       -> v
         VBase _          -> v
@@ -361,7 +361,7 @@ eval syntax env bt e =
             argValsAndFuncRes
             |> Result.map (\(argVals, (fRetVal, fRetWs)) ->
               let perhapsCallWidget =
-                if FastParser.isProgramEId e.val.eid && FastParser.isProgramEId funcBody.val.eid
+                if Parser.isProgramEId e.val.eid && Parser.isProgramEId funcBody.val.eid
                 then [WCall v1 argVals fRetVal fRetWs]
                 else []
               in
@@ -730,9 +730,9 @@ postProcessWidgets widgets =
   rangeWidgets ++ pointWidgets
 
 parseAndRun : String -> String
-parseAndRun = valToString << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun" << parseE
+parseAndRun = valToString << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun" << Parser.parse
 
-parseAndRun_ = strVal_ True << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun_" << parseE
+parseAndRun_ = strVal_ True << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun_" << Parser.parse
 
 btString : Syntax -> Backtrace -> String
 btString syntax bt =

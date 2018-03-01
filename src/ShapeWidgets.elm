@@ -1,7 +1,7 @@
 module ShapeWidgets exposing (..)
 
 import Lang exposing (..)
-import FastParser
+import FastParser as Parser
 import LangUnparser
 import LangSvg exposing (RootedIndexedTree, IndexedTree, NodeId, ShapeKind, Attr, AVal)
 import Provenance
@@ -1113,7 +1113,7 @@ selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets
       |> List.filter (\exp -> valTrees |> List.all (Provenance.isPossibleSingleEIdInterpretation exp.val.eid))
       |> List.map (.val >> .eid)
 
-    valExpIsInProgram val = valExp val |> .val |> .eid |> FastParser.isProgramEId
+    valExpIsInProgram val = valExp val |> .val |> .eid |> Parser.isProgramEId
 
     parentSingleEIdInterpretations =
       case valTrees of

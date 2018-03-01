@@ -1,6 +1,7 @@
 module FastParser exposing
   ( prelude, isPreludeLoc, isPreludeLocId, isPreludeEId, isActualEId, isProgramEId
   , substOf, substStrOf, substPlusOf
+  , parse
   , parseE, parseT
   , sanitizeVariableName
   , clearAllIds
@@ -1402,6 +1403,9 @@ parseE s =
   ImpureGoodies.logTimedRun "FastParser.parseE" (\() ->
     parseE_ freshen s
   )
+
+parse = parseE
+  -- so that FastParser and ElmParser (eventually) have same interface
 
 parseT : String -> Result Error Type
 parseT = run typ
