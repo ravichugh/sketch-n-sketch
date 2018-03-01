@@ -591,7 +591,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal
 
       WCall funcVal argVals retVal retWs ->
-        drawCallWidget funcVal argVals retVal retWs model
+        -- Suppress for Leo/Docs
+        -- drawCallWidget funcVal argVals retVal retWs model
+        []
   in
 
   List.concat <| Utils.mapi1 draw widgets
