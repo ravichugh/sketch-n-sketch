@@ -496,7 +496,8 @@ evalOp syntax env e bt opWithInfo es =
             _                                  -> error ()
           Eq        -> case args of
             [VConst _ (i,it), VConst _ (j,jt)]       -> VBase (VBool (i == j)) |> addProvenanceOk
-            [VBase (VString s1), VBase (VString s2)] -> VBase (VBool (s1 == s2)) |> addProvenanceOk
+            [VBase baseVal1, VBase baseVal2]         -> VBase (VBool (baseVal1 == baseVal2)) |> addProvenanceOk
+            -- TODO needs to handle VLists
             [_, _]                                   -> VBase (VBool False) |> addProvenanceOk -- polymorphic inequality, added for Prelude.addExtras
             _                                        -> error ()
           Pi         -> nullaryOp args (VConst Nothing (pi, TrOp op []))
