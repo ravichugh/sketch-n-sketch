@@ -369,6 +369,19 @@ getUpdateStackOp env e oldVal newVal =
                         _ -> Nothing
                     else Nothing
                   _ -> Nothing
+        EVar _ "freeze" -> --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
+          case e2s of  -- TODO: If freeze is not the first solution, it might prevent the updateError to show up.
+            [argument] ->
+              case doEval Syntax.Elm env argument of
+                Err s -> Just <| UpdateError s
+                Ok ((vArg, _), _) ->
+                  if valEqual vArg oldVal then -- OK, that's the correct freeze semantics
+                    if valEqual vArg newVal then
+                      Just <| updateResult env e
+                    else
+                      Just <| UpdateError ("You are trying to update " ++ unparse e ++ " with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'")
+                  else Nothing
+            _ -> Nothing
         _ ->
           Nothing
       in
