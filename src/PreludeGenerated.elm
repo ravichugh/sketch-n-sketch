@@ -196,6 +196,8 @@ prelude =
 (typ mapi (forall (a b) (-> (-> [Num a] b) (List a) (List b))))
 (def mapi (\\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
 
+(def indexedMap (\\(f xs) (mapi (\\[i x] (f i x)) xs)))
+
 
 (typ nth (forall a (-> (List a) Num (union Null a))))
 (defrec nth (\\(xs n)
@@ -1867,6 +1869,11 @@ prelude =
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(def nothing [\"Nothing\"])
+(def just (\\x [\"Just\"  x]))
+
+(def freeze (\\x x))
+
 
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
@@ -2069,6 +2076,8 @@ intersperse sep xs =
 
 --mapi: (forall (a b) (-> (-> [Num a] b) (List a) (List b)))
 mapi f xs = map f (zip (range 0 (len xs - 1)) xs)
+
+indexedMap f xs = mapi (\\[i,x] -> f i x) xs
 
 --nth: (forall a (-> (List a) Num (union Null a)))
 nth xs n =
@@ -2388,6 +2397,16 @@ workspace minSize children =
       children)
 
 --;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+-- Maybe --
+
+nothing = [\"Nothing\"]
+just x  = [\"Just\", x]
+
+-- Editor --
+
+freeze x = x
+
 
 
 -- The type checker relies on the name of this definition.

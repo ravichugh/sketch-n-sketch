@@ -513,6 +513,20 @@ workspace minSize children =
 
 --;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+-- List --
+
+indexedMap f xs = mapi (\[i,x] -> f i x) xs
+
+-- Maybe --
+
+nothing = ["Nothing"]
+just x  = ["Just", x]
+
+-- Editor --
+
+freeze x = x
+
+
 
 -- The type checker relies on the name of this definition.
 let dummyPreludeMain = ["svg", [], []] in dummyPreludeMain

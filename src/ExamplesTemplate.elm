@@ -228,9 +228,9 @@ welcomeCategory =
 docsCategory =
   ( "Examples (ICFP 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
-    , makeLeoExample "1b: TODO" blankDoc
+    -- , makeLeoExample "1b: TODO" blankDoc
     , makeLeoExample "1c: Table of States" tableOfStatesC
-    , makeLeoExample "1d: TODO: minus rows" blankDoc
+    -- , makeLeoExample "1d: TODO: minus rows" blankDoc
     , makeLeoExample "2: Simple Budget" simpleBudget
     , makeLeoExample "3: Small LaTeX-like DSL" blankDoc
     , makeLeoExample "4: TODO" blankDoc

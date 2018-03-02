@@ -1,21 +1,23 @@
 ------------------------------------------------
---- misc library
 
-indexedMap f xs = mapi (\[i,x] -> f i x) xs
-
+-- State, Abbreviation, Capital
+states = [
+  ["Alabama", "AL?", "?"],
+  ["Alaska", "AL?", "?"],
+  ["Arizona", "AR?", "?"],
+  ["Arkansas", "AR?", "?"],
+  ["California", "CA", "?"],
+  ["Colorado", "CO?", "?"],
+  ["Connecticut", "CO?", "?"]
+]
 
 headers =
-  ["State", "Abbreviation", "Capital"]
+  ["State", "Capital"]
 
-states = [
-  ["Alabama", "AL?", ""],
-  ["Alaska", "AL?", ""],
-  ["Arizona", "AR?", ""],
-  ["Arkansas", "AR?", ""],
-  ["California", "CA", ""],
-  ["Colorado", "CO?", ""],
-  ["Connecticut", "CO?", ""]
-]
+rows =
+  map
+    (\[state, abbrev, capital] -> [state, capital + " " + abbrev])
+    states
 
 padding =
   ["padding", "3px"]
@@ -23,11 +25,7 @@ padding =
 theTable =
   let headerRow =
     let styles = [padding] in
-    tr [] []
-      [ th styles [] (nth headers 0)
-      , th styles [] (nth headers 1)
-      , th styles [] (nth headers 2)
-      ]
+    tr [] [] (map (th styles []) headers)
   in
   let stateRows =
     let colors = ["lightgray", "white"] in
@@ -39,7 +37,7 @@ theTable =
         map (td [padding, ["background-color", color]] []) row
       in
       tr [] [] columns
-    ) states
+    ) rows
   in
   table [padding] [] (headerRow :: stateRows)
 

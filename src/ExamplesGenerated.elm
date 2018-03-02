@@ -5735,23 +5735,25 @@ welcome1 =
 
 tableOfStatesA =
  """------------------------------------------------
---- misc library
 
-indexedMap f xs = mapi (\\[i,x] -> f i x) xs
-
+-- State, Abbreviation, Capital
+states = [
+  [\"Alabama\", \"AL?\", \"?\"],
+  [\"Alaska\", \"AL?\", \"?\"],
+  [\"Arizona\", \"AR?\", \"?\"],
+  [\"Arkansas\", \"AR?\", \"?\"],
+  [\"California\", \"CA\", \"?\"],
+  [\"Colorado\", \"CO?\", \"?\"],
+  [\"Connecticut\", \"CO?\", \"?\"]
+]
 
 headers =
-  [\"State\", \"Abbreviation\", \"Capital\"]
+  [\"State\", \"Capital\"]
 
-states = [
-  [\"Alabama\", \"AL?\", \"\"],
-  [\"Alaska\", \"AL?\", \"\"],
-  [\"Arizona\", \"AR?\", \"\"],
-  [\"Arkansas\", \"AR?\", \"\"],
-  [\"California\", \"CA\", \"\"],
-  [\"Colorado\", \"CO?\", \"\"],
-  [\"Connecticut\", \"CO?\", \"\"]
-]
+rows =
+  map
+    (\\[state, abbrev, capital] -> [state, capital + \" \" + abbrev])
+    states
 
 padding =
   [\"padding\", \"3px\"]
@@ -5759,11 +5761,7 @@ padding =
 theTable =
   let headerRow =
     let styles = [padding] in
-    tr [] []
-      [ th styles [] (nth headers 0)
-      , th styles [] (nth headers 1)
-      , th styles [] (nth headers 2)
-      ]
+    tr [] [] (map (th styles []) headers)
   in
   let stateRows =
     let colors = [\"lightgray\", \"white\"] in
@@ -5775,7 +5773,7 @@ theTable =
         map (td [padding, [\"background-color\", color]] []) row
       in
       tr [] [] columns
-    ) states
+    ) rows
   in
   table [padding] [] (headerRow :: stateRows)
 
@@ -5785,39 +5783,30 @@ main =
 """
 
 tableOfStatesC =
- """--- misc library
+ """-- move to lens library
 
-indexedMap f xs = mapi (\\[i,x] -> f i x) xs
+customUpdate record x =
+  record.apply x
 
-nothing = [\"Nothing\"]
-just x  = [\"Just\", x]
+customUpdateFreeze =
+  customUpdate { apply x = x, update p = [p.input] }
 
-------- library helpers for user-defined updates ------
-
-apply record x = record.apply x
-
-lens record x = apply record x
-
-unapply record = record.unapply
-
-------- library helpers for adding rows ------
+-- move to table library
 
 addRowFlags =
   { apply =
-      map <| \\row -> [False,row]
+      map <| \\row -> [freeze False, row]
   , unapply rows =
       just <|
         concatMap (\\[flag,row] ->
           if flag == True
-            then [ row, row ]
+            then [ row, [\"\",\"\",\"\"] ]
             else [ row ]
         ) rows
   }
 
--- addAndIgnoreRowFlags rows =
---   rows
---     |> lens addRowFlags
---     |> map snd
+customUpdateTable =
+  customUpdate addRowFlags
 
 trWithButton showButton flag styles attrs children =
   if showButton == False then
@@ -5825,8 +5814,7 @@ trWithButton showButton flag styles attrs children =
 
   else
     let [hasBeenClicked, nope, yep] =
-      -- TODO want to freeze gray and coral (! or library)
-      [\"has-been-clicked\", \"gray\", \"coral\"]
+      [\"has-been-clicked\", customUpdateFreeze \"gray\", customUpdateFreeze \"coral\"]
     in
     let onclick =
       \"\"\"
@@ -5858,23 +5846,9 @@ trWithButton showButton flag styles attrs children =
       ([hasBeenClicked, toString flag] :: attrs)
       (snoc button children)
 
--- TODO just for testing.
-simulateButtonClicks indices rows =
-  let setFlags =
-    indexedMap <| \\i [flag,row] ->
-      if elem i indices
-        then [True,row]
-        else [flag,row]
-  in
-  rows |> setFlags
-       |> unapply addRowFlags
-       |> apply addRowFlags
-
 ------------------------------------------------
 
-headers =
-  [\"State\", \"Abbreviation\", \"Capital\"]
-
+-- State, Abbreviation, Capital
 states = [
   [\"Alabama\", \"AL\", \"Montgomery\"],
   [\"Alaska\", \"AK\", \"Juneau\"],
@@ -5885,16 +5859,12 @@ states = [
   [\"Connecticut\", \"CT\", \"Hartford\"]
 ]
 
--- states =
---   states
---     |> map (\\[a,b,c] -> [b,a,c])
---     |> addAndIgnoreRowFlags
+headers =
+  [\"State\", \"\", \"Capital\"]
 
--- TODO not working until map lens
-
-states =
+rows =
   states
-    |> lens addRowFlags
+    |> customUpdateTable
 
 padding =
   [\"padding\", \"3px\"]
@@ -5902,10 +5872,7 @@ padding =
 theTable =
   let headerRow =
     let styles = [padding, [\"text-align\", \"left\"], [\"background-color\", \"coral\"]] in
-    tr [] []
-      [ th styles [[\"colspan\", \"2\"]] (nth headers 0)
-      , th styles [] (nth headers 2)
-      ]
+    tr [] [] (map (th styles []) headers)
   in
   let stateRows =
     let colors = [\"lightyellow\", \"white\"] in
@@ -5917,7 +5884,7 @@ theTable =
         map (td [padding, [\"background-color\", color]] []) row
       in
       trWithButton True flag [] [] columns
-    ) states
+    ) rows
   in
   table
     [padding, [\"border\", \"8px solid lightgray\"]]
@@ -5956,9 +5923,9 @@ welcomeCategory =
 docsCategory =
   ( "Examples (ICFP 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
-    , makeLeoExample "1b: TODO" blankDoc
+    -- , makeLeoExample "1b: TODO" blankDoc
     , makeLeoExample "1c: Table of States" tableOfStatesC
-    , makeLeoExample "1d: TODO: minus rows" blankDoc
+    -- , makeLeoExample "1d: TODO: minus rows" blankDoc
     , makeLeoExample "2: Simple Budget" simpleBudget
     , makeLeoExample "3: Small LaTeX-like DSL" blankDoc
     , makeLeoExample "4: TODO" blankDoc
