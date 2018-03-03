@@ -14,8 +14,6 @@ splitByLength listLength list =
       [] -> []
   in aux listLength [] list
 
-freeze x = x
-
 map f l = {
   apply [f, l] =
     freeze <| -- No update allowed in this function
