@@ -353,7 +353,12 @@ snocMaybe : List a -> Maybe a -> List a
 snocMaybe xs mx = Maybe.withDefault xs (mapMaybe (snoc xs) mx)
 
 split : Int -> List a -> (List a, List a)
-split n xs = (List.take n xs, List.drop n xs)
+split n xs =
+  let aux prev n l = if n == 0 then (List.reverse prev, l) else
+    case l of
+    [] -> (List.reverse prev, [])
+    head::tail -> aux (head::prev) (n - 1) tail
+  in aux [] n xs
 
 -- Like String.split, but for lists.
 --

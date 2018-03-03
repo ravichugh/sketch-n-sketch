@@ -4,6 +4,7 @@ module Results exposing
   , ok1, oks, okLazy, errs
   , map, map2, map2withError, andThen, flatten
   , toMaybe, fromMaybe, fromResult, mapErrors
+  , fold
   )
 
 import Lazy
@@ -52,6 +53,11 @@ projOks l =
         Errs msgTail -> Errs msg
         Oks Nil -> Errs msg
         result -> result
+
+fold: (e -> x) -> (LazyList a -> x) -> Results e a -> x
+fold errsMap oksMap res = case res of
+  Errs e -> errsMap e
+  Oks l -> oksMap l
 
 {-| If the results is `Oks` return the value, but if the results is an `Errs` then
 return a given default value.

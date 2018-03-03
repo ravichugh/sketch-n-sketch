@@ -51,7 +51,10 @@ strVal_ showTraces v =
         Nothing -> ""
         Just v -> k ++ ":" ++ recurse v
       ) <| Dict.keys d) ++ ">"
-
+    VFun name i l m         -> "<fun name=" ++ name ++  " arity=" ++ toString i ++ (case m of
+        Just x -> " reversible"
+        Nothing -> ""
+      ) ++ ">"
 
 
 strOp : Op_ -> String

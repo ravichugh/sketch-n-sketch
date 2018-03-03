@@ -15,6 +15,8 @@ import Lazy
 import Results
 import LazyList
 import LangTools exposing (valToString)
+import ParserUtils
+
 
 type alias State = { numTests: Int, nthAssertion: Int, numSuccess: Int, numFailed: Int, currentName: String, errors: String, ignore: Bool }
 init_state = State 0 0 0 0 "" "" False
@@ -69,7 +71,7 @@ updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
   let problemdesc = ("\nFor problem:" ++
     envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
     " (was " ++ valToString origOut ++ ")") in
-  case update (UpdateContext env exp origOut newOut) LazyList.Nil of
+  case update (updateContext env exp origOut newOut) LazyList.Nil of
     Results.Oks (LazyList.Cons (envX, expX) lazyTail as ll) ->
       let _ = LazyList.toList ll in
       let obtained = envToString envX ++ " |- " ++ unparse expX in
@@ -122,7 +124,7 @@ updateElmAssert envStr expStr newOutStr expectedEnvStr expectedExpStr state =
            Ok _ -> fail state "???"
     Ok _ -> fail state "???"
 
-parse = Syntax.parser Syntax.Elm >> Result.mapError (\p -> toString p)
+parse = Syntax.parser Syntax.Elm >> Result.mapError (\p -> ParserUtils.showError p)
 unparse = Syntax.unparser Syntax.Elm
 evalEnv env exp = Eval.doEval Syntax.Elm env exp |> Result.map (Tuple.first >> Tuple.first)
 eval exp = Eval.doEval Syntax.Elm [] exp |> Result.map (Tuple.first >> Tuple.first)
@@ -478,7 +480,7 @@ all_tests = init_state
         [] "[ 1, 2]"
       |> updateElmAssert
         [] "[ 1\n]" "[ 1, 2]"
-        [] "[ 1\n, 2]"
+        [] "[ 1\n, 2\n]"
       |> updateElmAssert
         [] "[\n  1]" "[ 1, 2]"
         [] "[\n  1,\n  2]"
@@ -491,7 +493,7 @@ all_tests = init_state
           [] "[ 2, 1]"
         |> updateElmAssert
           [] "[ 1\n]" "[2, 1]"
-          [] "[ 2\n, 1]"
+          [] "[ 2\n, 1\n]"
         |> updateElmAssert
           [] "[\n  1]" "[2, 1]"
           [] "[\n  2,\n  1]"
@@ -501,7 +503,7 @@ all_tests = init_state
             [] "[0, 1, 2]"
           |> updateElmAssert
             [] "[ 1, 2]" "[0, 1, 2]"
-            [] "[0, 1, 2]"
+            [] "[ 0, 1, 2]"
           |> updateElmAssert
             [] "[ 1\n,  2\n,  3\n,  4]" "[0, 1, 2, 3, 4]"
             [] "[ 0\n,  1\n,  2\n,  3\n,  4]"

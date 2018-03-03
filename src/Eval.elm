@@ -1,4 +1,4 @@
-module Eval exposing (run, doEval, parseAndRun, parseAndRun_, evalDelta, initEnv)
+module Eval exposing (run, doEval, parseAndRun, parseAndRun_, evalDelta, initEnv, dictKeyToVal)
 
 import Debug
 import Dict
@@ -13,6 +13,8 @@ import Syntax exposing (Syntax)
 import Types
 import Utils
 import Record
+import Info
+import ParserUtils
 
 import ImpureGoodies
 import UpdateRegex exposing (evalRegexReplaceAllByIn)
@@ -54,9 +56,9 @@ anotherValToExp sp indentation v =
         (name, v)::tail ->
           let baseCase =  withDummyExpInfo <| EFun (ws <| "\n" ++ indentation) patterns body space0 in
           let startCase =
-              case mRec of
-                Nothing -> baseCase
-                Just f -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| "\n" ++ indentation) f) space0
+               case mRec of
+                 Nothing -> baseCase
+                 Just f -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| "\n" ++ indentation) f) space0
           in
           let bigbody = List.foldl (\(n, v) body -> withDummyExpInfo <| ELet (ws <| "\n" ++ indentation) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (anotherValToExp space1 (indentation ++ "  ") v) space1 body space0) startCase tail
           in
@@ -68,8 +70,14 @@ anotherValToExp sp indentation v =
           Just v -> if i == 0 then (space0, ws " ", key, ws " ", anotherValToExp (ws " ") (indentation ++ "    ") v)
             else (space0, ws ("\n" ++ indentation ++ "  "), key, ws " ", anotherValToExp (ws " ") (indentation ++ "    ") v)
         ) <| Dict.keys values) space1
-    VDict vs -> Debug.crash "Dictionaries not supported at this moment"
-
+    VDict vs ->
+      EOp sp (Info.withDummyInfo DictFromList) [withDummyExpInfo <|
+        EList space1 (
+          Dict.toList vs |> List.indexedMap (\i (key, value) ->
+            let spaceComma = if i == 0 then ws "" else ws <| "\n" ++ indentation in
+            (spaceComma, anotherValToExp (ws " ") (indentation ++ "  ") (replaceV_ v <| VList [dictKeyToVal Syntax.Elm key |> Utils.fromOk "anotherValToExp", value]))
+          )) space0 Nothing space0] space0
+    VFun name _ _ _ -> EVar sp name
 
 ------------------------------------------------------------------------------
 -- Big-Step Operational Semantics
@@ -201,6 +209,7 @@ eval syntax env bt e =
         VList vals       -> let _ = List.map (addParent_ vParent) vals                 in ()
         VDict dict       -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) dict in ()
         VRecord recs     -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) recs in ()
+        VFun _ _ _ _     -> ()
     in
     let priorParents = valParents v in
     let _ = ImpureGoodies.mutateRecordField v.parents "_0" (vParent::priorParents) in
@@ -215,6 +224,7 @@ eval syntax env bt e =
         VList vals       -> let _ = List.map (addParent_ v) vals               in v -- non-mutating: { v | v_ = VList (List.map (addParent_ v) vals) }
         VDict dict       -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v -- non-mutating: { v | v_ = VDict (Dict.map (\_ val -> addParent_ v val) dict) }
         VRecord dict     -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v
+        VFun _ _ _ _     -> v
     else
       v
   in
@@ -343,33 +353,50 @@ eval syntax env bt e =
   EApp _ e1 [] _ _ ->
     errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " application with no arguments"
 
-  EApp _ e1 es _ _ ->
+  EApp sp0 e1 es appStyle sp1 ->
     case eval_ syntax env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->
-        case v1.v_ of
-          VClosure maybeRecName ps funcBody closureEnv ->
-            let argValsAndFuncRes =
-              case maybeRecName of
-                Nothing    -> apply syntax env bt bt_ e ps es funcBody closureEnv
-                Just fName -> apply syntax env bt bt_ e ps es funcBody ((fName, v1)::closureEnv)
-            in
-            -- Do not record dependence on closure (which function to execute is essentially control flow).
-            -- Dependence on function is implicit by being dependent on some value computed by an expression in the function.
-            -- Instead, point to return value (and, hence, the final expression of) the function. This will also
-            -- transitively point to any arguments used.
-            argValsAndFuncRes
-            |> Result.map (\(argVals, (fRetVal, fRetWs)) ->
-              let perhapsCallWidget =
-                if Parser.isProgramEId e.val.eid && Parser.isProgramEId funcBody.val.eid
-                then [WCall v1 argVals fRetVal fRetWs]
-                else []
+        let evalVApp v1 es =
+          case v1.v_ of
+            VClosure maybeRecName ps funcBody closureEnv ->
+              let argValsAndFuncRes =
+                case maybeRecName of
+                  Nothing    -> apply syntax env bt bt_ e ps es funcBody closureEnv
+                  Just fName -> apply syntax env bt bt_ e ps es funcBody ((fName, v1)::closureEnv)
               in
-              retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget)
-            )
-
-          _ ->
-            errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
+              -- Do not record dependence on closure (which function to execute is essentially control flow).
+              -- Dependence on function is implicit by being dependent on some value computed by an expression in the function.
+              -- Instead, point to return value (and, hence, the final expression of) the function. This will also
+              -- transitively point to any arguments used.
+              argValsAndFuncRes
+              |> Result.map (\(argVals, (fRetVal, fRetWs)) ->
+                let perhapsCallWidget =
+                  if Parser.isProgramEId e.val.eid && Parser.isProgramEId funcBody.val.eid
+                  then [WCall v1 argVals fRetVal fRetWs]
+                  else []
+                in
+                retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget)
+              )
+            VFun name arity fundef _ ->
+              if List.length es < arity then errorWithBacktrace syntax (e::bt) <| strPos e1.start ++
+                " built-in function "++name++" should be called with " ++ toString arity ++ " argument" ++ (if arity > 1 then "s" else "")
+              else
+                let arguments = List.take arity es in
+                let remaining = List.drop arity es in
+                case Utils.projOk <| List.map (eval_ syntax env bt_) arguments of
+                  Err s -> Err s
+                  Ok argumentsVal ->
+                    let basicResult = fundef env (List.map Tuple.first argumentsVal) |> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] result) in
+                    if List.length remaining > 0 then
+                      case basicResult of
+                        Err s -> Err s
+                        Ok ((v, _), _) -> evalVApp v remaining
+                    else
+                      basicResult
+            _ ->
+              errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
+        in evalVApp v1 es
 
   ELet _ _ False p _ e1 _ e2 _ ->
     case eval_ syntax env bt_ e1 of
@@ -726,6 +753,15 @@ valToDictKey syntax bt val_ =
       |> Utils.projOk
       |> Result.map (\keyStrings -> (toString keyStrings, "list"))
     _                 -> errorWithBacktrace syntax bt <| "Cannot use " ++ (valToString { v_ = val_, provenance = dummyProvenance, parents = Parents [] }) ++ " in a key to a dictionary."
+
+dictKeyToVal: Syntax -> (String, String) -> Result String Val
+dictKeyToVal syntax (key, keyType) =
+  Syntax.parser syntax key
+  |> Result.mapError ParserUtils.showError
+  |> Result.andThen (\e ->
+      doEval syntax [] e
+    )
+  |> Result.map (\((v, _), _) -> v)
 
 
 postProcessWidgets widgets =

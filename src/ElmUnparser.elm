@@ -270,20 +270,20 @@ unparse e =
       wsBefore.val
         ++ identifier
 
-    EFun wsBefore parameters body _ ->
+    EFun wsBefore parameters functionBinding _ ->
       let default =
         wsBefore.val
         ++ "\\"
         ++ String.concat (List.map unparsePattern parameters)
         ++ " ->"
-        ++ unparse body
+        ++ unparse functionBinding
       in
       case parameters of
         [p] -> case p.val.p__ of
-          PVar _ " $implicitcase" _ -> case body.val.e__ of
+          PVar _ " $implicitcase" _ -> case functionBinding.val.e__ of
             ECase wsBefore examinedExpression branches wsBeforeOf -> case examinedExpression.val.e__ of
               EVar _ " $implicitcase" ->
-                unparse (replaceE__ body <| ECase wsBefore (replaceE__ examinedExpression <| EVar space0 "") branches wsBeforeOf)
+                unparse (replaceE__ functionBinding <| ECase wsBefore (replaceE__ examinedExpression <| EVar space0 "") branches wsBeforeOf)
               _ -> default
             _ -> default
           _ -> default
@@ -293,10 +293,10 @@ unparse e =
       -- Not just for help converting Little to Elm. Allows synthesis ot not have to worry about so many cases.
       let unparseArg e =
         case e.val.e__ of
-          EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
-          EOp _ _ _ _          -> wrapWithTightParens (unparse e)
-          EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
-          _                    -> unparse e
+           EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
+           EOp _ _ _ _          -> wrapWithTightParens (unparse e)
+           EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
+           _                    -> unparse e
       in
       case appType of
         SpaceApp ->
@@ -517,13 +517,22 @@ unparse e =
 
 -- If the expression is a EFun, prints the lists of parameters and returns its body.
 getParametersBinding: Exp -> (String, Exp)
-getParametersBinding binding_ =
+getParametersBinding binding_  =
   let (parameters, binding) =
     case binding_.val.e__ of
-      EFun _ parameters functionBinding _ ->
-        (parameters, functionBinding)
-
-      _ ->
+       EFun _ parameters functionBinding _ ->
+         let default = (parameters, functionBinding) in
+         case parameters of
+            [p] -> case p.val.p__ of
+              PVar _ " $implicitcase" _ -> case functionBinding.val.e__ of
+                ECase wsBefore examinedExpression branches wsBeforeOf -> case examinedExpression.val.e__ of
+                  EVar _ " $implicitcase" ->
+                    ([], binding_)
+                  _ -> default
+                _ -> default
+              _ -> default
+            _ -> default
+       _ ->
         ([], binding_)
   in
   let strParametersDefault =

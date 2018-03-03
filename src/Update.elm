@@ -17,13 +17,14 @@ import Eval exposing (doEval)
 import Utils
 import Syntax exposing (Syntax)
 import LazyList exposing (LazyList)
+import ParserUtils
 import Results exposing
   ( Results(..)
   , ok1, oks, okLazy
   )
 import MissingNumberMethods exposing (..)
 import ValUnparser exposing (strVal)
-import LangTools exposing (valToExp, IndentStyle(..), pruneEnv, pruneEnvPattern, valToString)
+import LangTools exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pruneEnvPattern, valToString)
 import LangSvg exposing
   ( NodeId, ShapeKind
   , AVal, AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
@@ -56,7 +57,6 @@ updateEnv env k value =
     ((kk, vv) as kv)::tail ->
       if kk == k then (kk, value)::tail else kv::updateEnv tail k value
 
-
 -- Make sure that Env |- Exp evaluates to oldVal
 -- NextAction is a list of HandlePreviousREsult followed by a list of Fork in the same list.
 update : UpdateStack -> LazyList NextAction -> Results String (Env, Exp)
@@ -67,13 +67,13 @@ update updateStack nextToUpdate=
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out mb ->
        {--
-         let _ = Debug.log (String.concat ["update: ", unparse e, " <-- ", valToString v, " -- env = " , envToString (pruneEnv e env), "|-"]) () in
+      let _ = Debug.log (String.concat ["update: ", unparse e, " <-- ", valToString out, " -- env = " , envToString (pruneEnv e env), "|-"]) () in
        --}
       update (getUpdateStackOp env e oldVal out) (LazyList.maybeCons mb nextToUpdate)
 
     UpdateResultS fEnv fOut mb -> -- Let's consume the stack !
        {--
-         let _ = Debug.log (String.concat ["update final result: ", unparse fOut, " -- env = " , envToString (pruneEnv fOut fEnv)]) () in
+      let _ = Debug.log (String.concat ["update final result: ", unparse fOut, " -- env = " , envToString (pruneEnv fOut fEnv)]) () in
        --}
       case (LazyList.maybeCons mb nextToUpdate) of -- Let's consume the stack !
         LazyList.Nil -> ok1 <| (fEnv, fOut)
@@ -135,89 +135,121 @@ getUpdateStackOp env e oldVal newVal =
               updateResult newEnv <| replaceE__ e <| EList sp1 (Utils.listValuesMake elems newElems) sp2 Nothing sp3
             )
           else
-            let results = indicesOfModification valEqual origVals newOutVals -- LazyList Exp
-                 |> LazyList.map (\(insertionIndex, deletedCount, inserted) ->
-                   -- Copy the whitespace of the previous list elements, if possible, and do this in a nested way
-                   let ((wsBeforeCommaHead, valToWSExpHead), (wsBeforeCommaTail, valToWSExpTail), changeElementAfterInsert) =
-                        if insertionIndex > 0 then
-                          if List.length elems > 1 then
-                            case List.drop (min insertionIndex (List.length elems - 1)) elems |> List.take 1 of
-                              [(wsComma,elemToCopy)] ->
-                                 let psWs = ws <| Lang.precedingWhitespace elemToCopy in
-                                 let indentation = if elemToCopy.start.line == elemToCopy.end.line
-                                       then InlineSpace
-                                       else IndentSpace (String.repeat (elemToCopy.start.col - 1) " ")
-                                 in
-                                 let policy = (wsComma, Lang.copyPrecedingWhitespace elemToCopy << valToExp psWs indentation) in
-                                 (policy, policy, identity)
-                              _   -> Debug.crash "Internal error: There should be an element in this list's position"
-                          else -- Insertion index == 1 and List.length elems == 1
-                            case elems of
-                              [head] ->
-                                let (wsComma, wsElem, indentation) = if e.start.line == e.end.line
-                                  then (ws "", ws " ", InlineSpace)
-                                  else (ws <| "\n" ++ String.repeat (e.end.col - 1) " ",
-                                        ws " ",
-                                        IndentSpace (String.repeat (e.end.col - 1) " "))
-                                in
-                                let policy = (wsComma, valToExp wsElem indentation) in
-                                (policy, policy, identity)
-                              _ ->  Debug.crash "Internal error: There should be an element in this list's position"
-                        else --if insertionIndex == 0 then -- Inserting the first element is always trickier
-                          case elems of
-                            [] ->
-                              if e.start.line == e.end.line then
-                                ( (ws "", valToExp (ws "") InlineSpace)
-                                , (ws " ", valToExp (ws " ") InlineSpace)
-                                , identity
-                                )
-                              else -- By default, multi-line lists will use the syntax [ elem1\n, elem2\n ...]
-                                let indentationSquareBracket = String.repeat (e.end.col - 1) " " in
-                                let indentation = indentationSquareBracket ++ "  " in
-                                ( (ws "", valToExp (ws " ") (IndentSpace indentation))
-                                , (ws <| "\n" ++ indentationSquareBracket, valToExp (ws " ") (IndentSpace indentation))
-                                , identity
-                                )
-                            (wsHead, head)::tail ->
-                              let (wsSecondBeforeComma, wsSecondBeforeValue, indent) =
-                                   case tail of
-                                     [] ->
-                                       if e.start.line == e.end.line then
-                                         (ws "", " ", InlineSpace)
-                                       else
-                                         let indentationSquareBracket = String.repeat (e.end.col - 1) " " in
-                                         let indentation = indentationSquareBracket ++ "  " in
-                                         (ws <| "\n" ++ indentationSquareBracket, " ", IndentSpace indentation)
-                                     (wsNext, elemNext)::tail2 ->
-                                       let indentationSquareBracket = String.repeat (e.end.col - 1) " " in
-                                       let indentation = if elemNext.start.line == elemNext.end.line then
-                                            InlineSpace
-                                            else IndentSpace (indentationSquareBracket  ++ "  ") in
-                                       (wsNext, Lang.precedingWhitespace elemNext, indentation)
-                              in
-                              ( (ws "", valToExp (ws " ") indent)
-                              , (wsSecondBeforeComma, valToExp (ws wsSecondBeforeValue) indent)
-                              , \(nextWsBeforeComma, nextElem)-> (wsSecondBeforeComma, Lang.replacePrecedingWhitespace wsSecondBeforeValue nextElem)
-                              )
-                              -- We need to copy the whitespace of second to head.
-                   in
-                   let insertedExp = List.indexedMap (\index inserted ->
-                        ( (if index == 0 then wsBeforeCommaHead else wsBeforeCommaTail)
-                        , (if index == 0 then valToWSExpHead    else valToWSExpTail) inserted) ) inserted
-                   in
-                   let replaceFirst f l = case l of
-                     [] -> []
-                     head::tail -> f head::tail
-                   in
-                   (env, replaceE__ e <|
-                     EList sp1 (List.take insertionIndex elems ++ insertedExp ++ replaceFirst changeElementAfterInsert (List.drop (insertionIndex + deletedCount) elems)) sp2 Nothing sp3)
-                 )
-            in -- We need to convert this lazyList to a set of results
-            case results of
-              LazyList.Nil -> UpdateError <| "Internal error: there should have been at least one solution"
-              LazyList.Cons (newEnv, newExp) lazyTail ->
-                updateResults (updateResult newEnv newExp) (Lazy.map (LazyList.map (\(x, y) -> updateResult x y)) lazyTail)
+            let thediff = diffVals origVals newOutVals in
+            let updateDiff collectedEnv newElems elemsToCollect thediff = case thediff of
+                  [] ->
+                    updateResult collectedEnv (replaceE__ e <| EList sp1 newElems sp2 Nothing sp3)
+                  DiffEqual same :: tailDiff-> let n = List.length same in
+                    updateDiff collectedEnv (newElems ++ List.take n elemsToCollect) (List.drop n elemsToCollect) tailDiff
+                  DiffRemoved deleted :: DiffAdded inserted :: tailDiff ->
+                    let deletedCount = List.length deleted in
+                    let insertedCount = List.length inserted in
+                    let updatedCount = min deletedCount insertedCount in
+                    let updatedBefore = List.take updatedCount deleted in
+                    let updatedAfter = List.take updatedCount inserted in
+                    let remaining =
+                      if deletedCount > insertedCount then [DiffRemoved (List.drop insertedCount deleted)]
+                      else if deletedCount == insertedCount then []
+                      else [DiffAdded (List.drop deletedCount inserted)]
+                    in
+                    let (updatedElems, elemsToCollectTail) = Utils.split deletedCount elemsToCollect in
+                    updateContinueMultiple "list" env (Utils.zip3 (Utils.listValues updatedElems) updatedBefore updatedAfter) (\newEnv newRawElems ->
+                         let newElems2 = Utils.listValuesMake updatedElems newRawElems in
+                         let collectedEnv2 = triCombine e env collectedEnv newEnv in
+                         updateDiff collectedEnv2 (newElems ++ newElems2) elemsToCollectTail (remaining ++ tailDiff)
+                      )
 
+                  DiffRemoved deleted::tailDiff ->
+                    let deletedCount = List.length deleted in
+                    let elemsToCollectTail = List.drop deletedCount elemsToCollect in
+                    updateDiff collectedEnv newElems elemsToCollectTail tailDiff
+
+                  DiffAdded inserted::tailDiff ->
+                    let insertionIndex = List.length newElems in
+                    let ((wsBeforeCommaHead, valToWSExpHead), (wsBeforeCommaTail, valToWSExpTail), changeElementAfterInsert) =
+                         let me = Just e in
+                         if insertionIndex > 0 then
+                           if List.length elems > 1 then
+                             case List.drop (min insertionIndex (List.length elems - 1)) elems |> List.take 1 of
+                               [(wsComma,elemToCopy)] ->
+                                  let psWs = ws <| Lang.precedingWhitespace elemToCopy in
+                                  let indentation = if elemToCopy.start.line == elemToCopy.end.line
+                                        then InlineSpace
+                                        else IndentSpace (String.repeat (elemToCopy.start.col - 1) " ")
+                                  in
+                                  let policy = (wsComma, Lang.copyPrecedingWhitespace elemToCopy << valToExpFull (Just elemToCopy) psWs indentation) in
+                                  (policy, policy, identity)
+                               _   -> Debug.crash "Internal error: There should be an element in this list's position"
+                           else -- Insertion index == 1 and List.length elems == 1
+                             case elems of
+                               [(wsHead, head)] ->
+                                 let (wsComma, wsElem, indentation) = if e.start.line == e.end.line
+                                   then (ws "", ws " ", InlineSpace)
+                                   else if e.end.col - 1 > head.start.col then -- If the ] is after the value, then let's put the commas after the values.
+                                      (ws "",
+                                       ws <| "\n" ++ String.repeat (head.start.col - 1) " ",
+                                       IndentSpace (String.repeat (head.start.col - 1) " ")
+                                      )
+                                   else
+                                      (ws <| "\n" ++ String.repeat (e.end.col - 2) " ",
+                                       ws (String.repeat (max (head.start.col - e.end.col - 1) 1) " "),
+                                       IndentSpace (String.repeat (e.end.col - 2) " "))
+                                 in
+                                 let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
+                                 (policy, policy, identity)
+                               _ ->  Debug.crash "Internal error: There should be an element in this list's position"
+                         else --if insertionIndex == 0 then -- Inserting the first element is always trickier
+                           case elems of
+                             [] ->
+                               if e.start.line == e.end.line then
+                                 ( (ws "", valToExpFull Nothing (ws "") InlineSpace)
+                                 , (ws " ", valToExpFull Nothing (ws " ") InlineSpace)
+                                 , identity
+                                 )
+                               else -- By default, multi-line lists will use the syntax [ elem1\n, elem2\n ...]
+                                 let indentationSquareBracket = String.repeat (e.end.col - 2) " " in
+                                 let indentation = indentationSquareBracket ++ "  " in
+                                 ( (ws "", valToExpFull Nothing (ws " ") (IndentSpace indentation))
+                                 , (ws <| "\n" ++ indentationSquareBracket, valToExpFull Nothing (ws " ") (IndentSpace indentation))
+                                 , identity
+                                 )
+                             (wsHead, head)::tail ->
+                               let (wsSecondBeforeComma, wsSecondBeforeValue, secondOrHead, indent) =
+                                    case tail of
+                                      [] ->
+                                        if e.start.line == e.end.line then
+                                          (ws "", " ", head, InlineSpace)
+                                        else if e.end.col - 1 > head.start.col then -- The square bracket is after the element
+                                          let indentation = String.repeat (head.start.col - 1) " " in
+                                          (ws "", "\n" ++ indentation, head, IndentSpace indentation)
+                                        else
+                                          let indentation = String.repeat (e.end.col - 2) " " in
+                                          (ws <| "\n" ++ indentation, " ", head, IndentSpace indentation)
+                                      (wsNext, elemNext)::tail2 ->
+                                        let indentationSquareBracket = String.repeat (e.end.col - 2) " " in
+                                        let indentation = if elemNext.start.line == elemNext.end.line then
+                                             InlineSpace
+                                             else IndentSpace (indentationSquareBracket  ++ "  ") in
+                                        (wsNext, Lang.precedingWhitespace elemNext, elemNext, indentation)
+                               in
+                               ( (ws "", valToExpFull (Just head) (ws " ") indent)
+                               , (wsSecondBeforeComma, valToExpFull (Just secondOrHead) (ws wsSecondBeforeValue) indent)
+                               , \(nextWsBeforeComma, nextElem)-> (wsSecondBeforeComma, Lang.replacePrecedingWhitespace wsSecondBeforeValue nextElem)
+                               )
+                               -- We need to copy the whitespace of second to head.
+                    in
+                    let insertedExp = List.indexedMap (\index inserted ->
+                         ( (if index + insertionIndex == 0 then wsBeforeCommaHead else wsBeforeCommaTail)
+                         , (if index + insertionIndex == 0 then valToWSExpHead    else valToWSExpTail) inserted) ) inserted
+                    in
+                    let replaceFirst f l = case l of
+                      [] -> []
+                      head::tail -> f head::tail
+                    in
+                    let elemsToAdd = insertedExp in
+                    updateDiff collectedEnv (newElems ++ elemsToAdd) (replaceFirst changeElementAfterInsert elemsToCollect) tailDiff
+            in
+            updateDiff env [] elems thediff
         _ -> UpdateError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
     EList sp1 elems sp2 (Just tail) sp3 ->
@@ -293,7 +325,7 @@ getUpdateStackOp env e oldVal newVal =
                     ))
                   )
             _ -> UpdateError ("Expected Record as original value, got " ++ valToString oldVal)
-        _ -> UpdateError ("Expected Record as value to update from, got " ++ valToString oldVal)
+        _ -> UpdateError ("Expected Record as value to update from, got " ++ valToString newVal)
 
     ESelect sp0 e1 sp1 sp2 ident ->
       case doEval Syntax.Elm env e1 of
@@ -328,10 +360,12 @@ getUpdateStackOp env e oldVal newVal =
                                    let customArgument = replaceV_ vArg <| VRecord <| Dict.fromList [
                                         ("input", vArg),
                                         ("outputNew", newVal),
-                                        ("outputOriginal", oldVal)
+                                        ("output", newVal), -- Sometimes it's much simpler to call output
+                                        ("outputOriginal", oldVal),
+                                        ("oldOutput", oldVal)
                                         ] in
                                    let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
-                                   case doEval Syntax.Elm (("x", fieldUpdateClosure)::("y", customArgument)::env) customExpr of
+                                   case doEval Syntax.Elm (("x", addUpdateCapability fieldUpdateClosure)::("y", customArgument)::env) customExpr of
                                      Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
                                      Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                        case interpreterListToList vResult of
@@ -555,7 +589,7 @@ getUpdateStackOp env e oldVal newVal =
                   case newVal.v_ of
                     VBase (VString s) ->
                       case Syntax.parser Syntax.Elm s of
-                        Err msg -> UpdateError <| "Could not parse new output value '"++s++"' for ToStr expression " ++ toString msg
+                        Err msg -> UpdateError <| "Could not parse new output value '"++s++"' for ToStr expression. " ++ (ParserUtils.showError msg)
                         Ok parsed ->
                           case doEval Syntax.Elm [] parsed of
                             Err msg -> UpdateError msg
@@ -677,6 +711,91 @@ updateRec updateStack nextToUpdate =
   case update updateStack nextToUpdate of
     Oks l -> l
     Errs msg -> LazyList.Nil
+
+addToVClosureEnv: Env -> Val -> Val
+addToVClosureEnv env v = case v.v_ of
+  VClosure recName pats body oldEnv -> replaceV_ v <| VClosure recName pats body (env ++ oldEnv)
+  _ -> v
+
+addUpdateCapability: Val -> Val
+addUpdateCapability v =
+  addToVClosureEnv [
+    ("updateApp", replaceV_ v <|
+      VFun "updateApp" 4 (\env args ->
+        case args of
+          [fun, oldArg, oldOut, newOut] ->
+            let reverseEnv = ("x", fun)::("y", oldArg)::env in
+            let exp = (withDummyExpInfo <| EApp space0 (withDummyExpInfo <| EVar space0 "x") [withDummyExpInfo <| EVar space1 "y"] SpaceApp space0) in
+            --let _ = Debug.log "calling back update" () in
+            let res =
+                 update (updateContext reverseEnv exp oldOut newOut) LazyList.Nil
+                 |> Results.fold Err
+                   (LazyList.toList
+                     >> List.concatMap (\(newReverseEnv, newExp) ->
+                        case newReverseEnv of
+                          ("x", newFun)::("y",newArg)::newEnv ->
+                            if envEqual newEnv env && valEqual fun newFun && expEqual newExp exp then
+                              [newArg]
+                            else []
+                          _ -> Debug.crash "Internal error: expected x and y in environment"
+                        )
+                     >> (\newArgs ->
+                        let _ = Debug.log ("Update finished: " ++ (valToString <| replaceV_ v <| VList newArgs)) () in
+                        Ok ((replaceV_ v <| VList newArgs, []), env)
+                     )
+                   )
+            in
+            --let _ = Debug.log "call to update completed" in
+            res
+          _ -> Err <| "updateApp expects 4 arguments (function argument oldvalue newvalue), but got " ++ toString (List.length args)
+      ) Nothing
+    ),
+    ("merge", replaceV_ v <|
+      VFun "merge" 2 (\env args ->
+        case args of
+          [original, modifications] ->
+            case modifications.v_ of
+              VList modifications ->
+                -- mergeVals original modifications
+                Debug.crash "merge not yet implemented" -- TODO: Once we retrieve back the merge function, expose it.
+              _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
+          _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
+      ) Nothing
+    ),
+    ("diff", replaceV_ v <|
+      VFun "diff" 2 (\env args ->
+        case args of
+          [before, after] ->
+            case [before.v_, after.v_] of
+              [VList beforeList, VList afterList] ->
+                --let _ = Debug.log ("going to do a diff:" ++ valToString before ++ " -> " ++ valToString after) () in
+                let thediff = diffVals beforeList afterList in
+                {-let _ = Debug.log ("the diff:" ++ ( String.join "," <|
+                                                 List.map
+                                                 (\d -> case d of
+                                                   DiffAdded x -> "DiffAdded " ++ valToString (replaceV_ v<| VList x)
+                                                   DiffRemoved x -> "DiffRemoved " ++ valToString (replaceV_ v<| VList x)
+                                                   DiffEqual x -> "DiffSame " ++ valToString (replaceV_ v<| VList x)
+                                                 ) thediff)) () in
+                -}
+                let res =  thediff
+                     |> List.map (\x ->
+                       replaceV_ v <| VRecord <| Dict.fromList <| case x of
+                          DiffEqual els   -> [("same",replaceV_ v <| VBase <| VString "+"),   ("elements", replaceV_ v <| VList els)]
+                          DiffAdded els   -> [("added",replaceV_ v <| VBase <| VString "-"),   ("elements", replaceV_ v <| VList els)]
+                          DiffRemoved els -> [("removed",replaceV_ v <| VBase <| VString "="),   ("elements", replaceV_ v <| VList els)]
+                       )
+                     |> (\x ->
+                       Ok ((replaceV_ v <| VList x, []), env)
+                     )
+                --in let _ = Debug.log "Diff done" ()
+                in
+                res
+              _ -> Err  <| "diff performs the diff on 2 lists, but got " ++ toString (List.length args)
+          _ -> Err <|   "diff performs the diff on 2 lists, but got " ++ toString (List.length args)
+      ) Nothing
+    )
+  ] v
 
 interpreterListToList: Val -> Result String (List Val)
 interpreterListToList v = case v.v_ of
@@ -1083,6 +1202,23 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
         case envReverse newEnv of
           (newInnerPat, newVal) -> (replaceP__ p <| PParens sp0 newInnerPat sp1, newVal)
       ))
+  (PRecord sp0 pd sp1, VRecord d) ->
+      pd |> List.map (\(_, _, k, _, p) ->
+        Dict.get k d |> Maybe.map (\v -> (p, v)))
+      |> Utils.projJusts
+      |> Maybe.andThen (matchListWithInversion << List.unzip)
+      |> Maybe.map (\(env, envRenewer) ->
+         (env, envRenewer >> \(newPats, newVals) ->
+           ( replaceP__ p <| PRecord sp0 (Utils.recordValuesMake pd newPats) sp1,
+             replaceV_ v <| VRecord (Utils.zip pd newVals |>
+             List.foldl (\(pe, newv) dTemp->
+               let k = Utils.recordKey pe in
+               Dict.insert k newv dTemp
+             ) d)
+           )
+         )
+      )
+  (PRecord _ _ _, _) -> Nothing
   _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (valToString v)
 
 matchListWithInversion : (List Pat, List Val) -> Maybe (Env, Env -> (List Pat, List Val))
@@ -1402,7 +1538,7 @@ diffExp e1 e2 =
    let s2 = unparse e2 in
    let before = Regex.split Regex.All (Regex.regex "\\b") s1 in
    let after = Regex.split Regex.All (Regex.regex "\\b") s2 in
-   let difference = diff before after in
+   let difference = diff identity before after in
    difference
    |> List.concatMap (\d ->
      case d of
@@ -1412,14 +1548,27 @@ diffExp e1 e2 =
    )
    |> String.join ","
 
+diffVals: List Val -> List Val -> List (DiffChunk (List Val))
+diffVals before after =
+  let vToString = Syntax.unparser Syntax.Elm << valToExp (ws "") InlineSpace in
+  let beforeStrings = List.map (\v -> (v, vToString v)) before in
+  let afterStrings = List.map (\v -> (v, vToString v)) after in
+  let diffRaw= diff Tuple.second beforeStrings afterStrings in
+  diffRaw |> List.map (diffChunkMap <| List.map Tuple.first)
+
 type DiffChunk a = DiffEqual a | DiffRemoved a | DiffAdded a
+
+diffChunkMap f d = case d of
+   DiffEqual a -> DiffEqual (f a)
+   DiffRemoved a -> DiffRemoved (f a)
+   DiffAdded a -> DiffAdded (f a)
 
 --diff before after =
 
 --diff: List a -> List a -> List (() -> List (DiffChunk (List a))) -> List (DiffChunk (List a))
 
-diff: List a -> List a -> List (DiffChunk (List a))
-diff before after =
+diff: (a -> String) -> List a -> List a -> List (DiffChunk (List a))
+diff keyOf before after =
     {- Adapted from https://github.com/paulgb/simplediff/blob/master/javascript/simplediff.js
         Find the differences between two lists. Returns a list of pairs, where the
         first value is in ['+','-','='] and represents an insertion, deletion, or
@@ -1451,16 +1600,14 @@ diff before after =
     -}
 
     -- Create a map from before values to their indices
-    let _ = Debug.log "started to diff the result" (before, after) in
     let oldIndexMapRev =
       List.foldl (\(b,i) d ->
-         Dict.update b (\mbv -> case mbv of
+         Dict.update (keyOf b) (\mbv -> case mbv of
           Just v -> Just <| i::v
           Nothing -> Just [i]
         ) d) Dict.empty (Utils.zipWithIndex before)
     in
     let oldIndexMap = Dict.map (\k -> List.reverse) oldIndexMapRev in
-    let _ = Debug.log "Built the table" (oldIndexMap) in
 
     -- Find the largest substring common to before and after.
     -- We use a dynamic programming approach here.
@@ -1485,7 +1632,7 @@ diff before after =
 
     let (overlap, startOld, startNew, subLength) =
          List.foldl (\(afterinew, inew) (overlap, startOld, startNew, subLength) ->
-           let oldIndexMapAfterInew = Dict.get afterinew oldIndexMap |> Maybe.withDefault [] in
+           let oldIndexMapAfterInew = Dict.get (keyOf afterinew) oldIndexMap |> Maybe.withDefault [] in
            List.foldl (\iold (overlap_, startOld, startNew, subLength) ->
               -- now we are considering all values of val such that
               -- `before[iold] == after[inew]`
@@ -1497,7 +1644,6 @@ diff before after =
            ) (Dict.empty, startOld, startNew, subLength) oldIndexMapAfterInew
          ) (Dict.empty, 0, 0, 0) (Utils.zipWithIndex after)
     in
-    let _ = Debug.log "Built the greatest string" (startOld, startNew, subLength) in
     if subLength == 0 then
         -- If no common substring is found, we return an insert and delete...
         (if List.isEmpty before then [] else [DiffRemoved before]) ++
@@ -1505,9 +1651,9 @@ diff before after =
     else
     -- otherwise, the common substring is unchanged and we recursively
     -- diff the text before and after that substring
-    diff (List.take startOld before) (List.take startNew after) ++
+    diff keyOf (List.take startOld before) (List.take startNew after) ++
     (DiffEqual (List.drop startNew after |> List.take subLength) ::
-      diff (List.drop (startOld + subLength) before) (List.drop (startNew + subLength) after))
+      diff keyOf  (List.drop (startOld + subLength) before) (List.drop (startNew + subLength) after))
 
 --------------------------------------------------------------------------------
 -- Value builders with dummy ids, brought back from the dead in Lang

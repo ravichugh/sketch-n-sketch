@@ -22,6 +22,7 @@ import Dict exposing (Dict)
 import Regex
 import Set
 import Record
+import Info
 
 -- For ranking synthesized expressions
 nodeCount : Exp -> Int
@@ -2941,8 +2942,8 @@ expEnvAt_ exp targetEId =
   in
   let addBindingsFrom pat e deeperBindings =
     case tryMatchExp pat e of
-      Match newBindings -> addShallowerBoundExps newBindings deeperBindings -- tryMatchExp only returns Match if it can bind all idents; no need to worry about partial matches
-      _                 -> addShallowerIdentifiers (identifiersListInPat pat) deeperBindings
+       Match newBindings -> addShallowerBoundExps newBindings deeperBindings -- tryMatchExp only returns Match if it can bind all idents; no need to worry about partial matches
+       _                 -> addShallowerIdentifiers (identifiersListInPat pat) deeperBindings
   in
   if exp.val.eid == targetEId then
     Just Dict.empty
@@ -3049,11 +3050,14 @@ pruneEnv exp env = -- Remove all the initial environment that is on the right.
 
 type IndentStyle = InlineSpace | IndentSpace String
 
-foldIndent: String -> IndentStyle -> String
-foldIndent inlineString style =
+foldIndentStyle: String -> (String -> String) -> IndentStyle -> String
+foldIndentStyle inlineString indentStringFun style =
   case style of
     InlineSpace -> inlineString
-    IndentSpace m -> "\n" ++ m
+    IndentSpace m -> indentStringFun m
+
+foldIndent: String -> IndentStyle -> String
+foldIndent inlineString = foldIndentStyle inlineString (\x -> "\n" ++ x)
 
 increaseIndent: IndentStyle -> IndentStyle
 increaseIndent style =
@@ -3062,19 +3066,36 @@ increaseIndent style =
       IndentSpace m -> IndentSpace (m ++ "  ")
 
 valToExp: WS -> IndentStyle -> Val -> Exp
-valToExp sp indent v =
+valToExp= valToExpFull Nothing
+
+valToExpFull: Maybe Exp -> WS -> IndentStyle -> Val -> Exp
+valToExpFull copyFrom sp_ indent v =
+  let sp = Maybe.map (ws << precedingWhitespace) copyFrom |> Maybe.withDefault sp_ in
   withDummyExpInfo <| case v.v_ of
     VConst mb num     -> EConst sp (Tuple.first num) dummyLoc noWidgetDecl
     VBase (VBool b)   -> EBase  sp <| EBool b
     VBase (VString s) -> EBase  sp <| EString defaultQuoteChar s
     VBase (VNull)     -> EBase  sp <| ENull
     VList vals ->
+      let defaultSpCommaHd = ws "" in
+      let defaultSpCommaTail = space0 in
+      let (precedingWS, ((spaceCommaHead, v2expHead), (spaceCommaTail, v2expTail)), spBeforeEnd) = copyFrom |> Maybe.andThen (\e -> case e.val.e__ of
+        EList csp0 celems _ _ cspend ->
+
+            let valToExps =  case celems of
+               (sphd1, hd1)::(sphd2, hd2)::tail -> ((sphd1, valToExpFull <| Just hd1), (sphd2, valToExpFull <| Just hd2))
+               [(sphd1, hd1)] -> ((sphd1, valToExpFull <| Just hd1), (defaultSpCommaTail, valToExpFull <| Just hd1))
+               [] -> ((defaultSpCommaHd, valToExp), (defaultSpCommaTail, valToExp))
+            in
+            Just (csp0, valToExps, cspend)
+        _ -> Nothing
+      ) |> Maybe.withDefault (sp, ((defaultSpCommaHd, valToExp), (defaultSpCommaTail, valToExp)), if List.isEmpty vals then space0 else ws <| foldIndent "" indent) in
       case vals of
-        [] -> EList sp [] space0 Nothing space0
+        [] -> EList precedingWS [] space0 Nothing spBeforeEnd
         head::tail ->
-          let headExp = (ws "", valToExp (ws " ") (increaseIndent indent) head) in
-          let tailExps = List.map (\y -> (space0, valToExp (ws <| foldIndent " " <| increaseIndent indent) (increaseIndent indent) y)) tail in
-          EList sp (headExp :: tailExps) space0 Nothing <| (ws <| foldIndent "" indent)
+            let headExp = (spaceCommaHead, v2expHead (ws <| foldIndentStyle "" (\_ -> " ") indent) (increaseIndent indent) head) in
+            let tailExps = List.map (\y -> (spaceCommaTail, v2expTail (ws <| foldIndent " " <| increaseIndent indent) (increaseIndent indent) y)) tail in
+            EList precedingWS (headExp :: tailExps) space0 Nothing spBeforeEnd
     VClosure mRec patterns body env ->
       let prunedEnv = pruneEnvPattern patterns (pruneEnv body env) in
       case prunedEnv of
@@ -3090,13 +3111,43 @@ valToExp sp indent v =
           in
           ELet sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 bigbody space0
     VRecord values ->
-      ERecord sp Nothing (List.indexedMap (\i key ->
+      let defaultspcHd = space0 in
+      let defaultspkHd =  ws " " in
+      let defaultspeHd = ws " " in
+      let defaultspcTl = space0 in
+      let defaultspkTl = ws (foldIndent " " <| increaseIndent indent) in
+      let defaultspeTl = ws " " in
+      let (precedingWS, keys, ((spaceComma, spaceKey, spaceEqual, v2expHead),
+                               (spaceCommaTail, spaceKeyTail, spaceEqualTail, v2expTail)), spBeforeEnd) = copyFrom |> Maybe.andThen (\e -> case e.val.e__ of
+           ERecord csp0 _ celems cspend ->
+             let existingkeys =  Utils.recordKeys celems in
+             let finalKeys = existingkeys ++ (Dict.keys values |> List.filter (\k -> not (List.any (\e -> e == k) existingkeys))) in
+             let valToExps = case celems of
+                    (spc1, spk1, _, spe1, hd1)::(spc2, spk2, _, spe2, hd2)::tail ->
+                      ((spc1, spk1, spe1, valToExpFull <| Just hd1), (spc2, spk2, spe2, valToExpFull <| Just hd2))
+                    [(spc1, spk1, _, spe1, hd1)] ->
+                      ((spc1, spk1, spe1, valToExpFull <| Just hd1), (defaultspcTl, defaultspkTl, defaultspeTl, valToExpFull <| Just hd1))
+                    [] -> ((defaultspcHd, defaultspkHd, defaultspeHd, valToExp), (defaultspcTl, defaultspkTl, defaultspeTl, valToExp))
+             in
+             Just (csp0, finalKeys, valToExps, cspend)
+           _ -> Nothing
+         ) |> Maybe.withDefault (sp, Dict.keys values, ((defaultspcHd, defaultspkHd, defaultspeHd, valToExp), (defaultspcTl, defaultspkTl, defaultspeTl, valToExp)),
+           if Dict.isEmpty values then space1 else ws <| foldIndent "" indent) in
+      ERecord precedingWS Nothing (List.indexedMap (\i key ->
         case Dict.get key values of
           Nothing -> Debug.crash <| "Internal error: Could not retrieve key " ++ toString key
-          Just v -> if i == 0 then (space0, ws " ", key, ws " ", valToExp (ws " ") (increaseIndent <| increaseIndent indent) v)
-            else (space0, ws (foldIndent " " <| increaseIndent indent), key, ws " ", valToExp (ws " ") (increaseIndent <| increaseIndent indent) v)
-        ) <| Dict.keys values) space1
-    VDict vs -> Debug.crash "Dictionaries not supported at this moment"
+          Just v -> if i == 0 then (spaceComma, spaceKey, key, spaceEqual, v2expHead (ws " ") (increaseIndent <| increaseIndent indent) v)
+            else (spaceCommaTail, spaceKeyTail, key, spaceEqualTail, v2expTail (ws " ") (increaseIndent <| increaseIndent indent) v)
+        ) keys) spBeforeEnd
+    VDict vs ->
+      EOp sp (Info.withDummyInfo DictFromList) [withDummyExpInfo <|
+        EList space1 (
+          Dict.toList vs |> List.indexedMap (\i (key, value) ->
+            let spaceComma = if i == 0 then ws "" else ws <| foldIndent "" indent in
+            let spaceElem = ws " " in
+            (spaceComma, valToExp  spaceElem (increaseIndent indent) (replaceV_ v <| VList [Eval.dictKeyToVal Syntax.Elm key |> Utils.fromOk "valToExp", value])))
+          ) space0 Nothing space0] space0
+    VFun name _ _ _ -> EVar sp name
 
 valToString: Val -> String
 valToString = Syntax.unparser Syntax.Elm << valToExp (ws "") (IndentSpace "")

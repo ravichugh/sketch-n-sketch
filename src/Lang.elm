@@ -253,8 +253,9 @@ type Val_
   | VList (List Val)
   | VRecord (Dict String Val) -- It's a record indexed by the keys
   | VDict VDict_ -- Can be constructed only by "dict [[key, value], [key2, value2]] and 'empty'
+  | VFun String Int (Env -> List Val -> Result String ((Val, Widgets), Env)) (Maybe (Env -> Val -> Val -> List (Env, List Val))) -- An Elm function. If the maybe is defined, it is reversible for update.
 
-type alias VDict_ = Dict (String, String) Val
+type alias VDict_ = Dict (String, String) Val -- First key string is unparsed key, the second type is the value. See Eval.valToDictKey
 
 type alias NumTr = (Num, Trace)
 
@@ -1005,6 +1006,7 @@ mapVal f v = case v.v_ of
   VConst _ _       -> f v
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
+  VFun _ _ _ _     -> f v
 
 foldVal : (Val -> a -> a) -> Val -> a -> a
 foldVal f v a = case v.v_ of
@@ -1014,6 +1016,7 @@ foldVal f v a = case v.v_ of
   VConst _ _       -> f v a
   VBase _          -> f v a
   VClosure _ _ _ _ -> f v a
+  VFun _ _ _ _     -> f v a
 
 -- Not using foldVal so we can get the children in a nicer order.
 flattenValTree : Val -> List Val
@@ -1028,6 +1031,7 @@ childVals val = case val.v_ of
   VConst _ _       -> []
   VBase _          -> []
   VClosure _ _ _ _ -> []
+  VFun _ _ _ _     -> []
 
 -- Fold through preorder traversal
 foldExp : (Exp -> a -> a) -> a -> Exp -> a
