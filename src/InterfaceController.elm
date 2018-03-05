@@ -93,6 +93,7 @@ import Results
 import Utils
 import Keys
 import InterfaceModel as Model exposing (..)
+import FocusedEditingContext
 import SleekLayout exposing
   ( canvasPosition
   , clickToCanvasPoint
@@ -223,17 +224,17 @@ discardErrorAnnotations : Result (String, Ace.Annotation) a -> Result String a
 discardErrorAnnotations result =
   result |> Result.mapError (\(string, annot) -> string)
 
-runWithErrorHandling model exp onOk =
-  let result =
-    -- runWithErrorHandling is called after synthesis. Recompute line numbers.
-    let reparsedResult = Syntax.unparser model.syntax exp |> Syntax.parser model.syntax |> (Result.mapError showError) in
-    reparsedResult
-    |> Result.andThen (\reparsed ->
-      runAndResolve model reparsed
-      |> Result.map (\(val, widgets, slate, code) -> onOk reparsed val widgets slate code)
-    )
-  in
-  handleError model result
+-- runWithErrorHandling model exp onOk =
+--   let result =
+--     -- runWithErrorHandling is called after synthesis. Recompute line numbers.
+--     let reparsedResult = Syntax.unparser model.syntax exp |> Syntax.parser model.syntax |> (Result.mapError showError) in
+--     reparsedResult
+--     |> Result.andThen (\reparsed ->
+--       runAndResolve model reparsed
+--       |> Result.map (\(val, widgets, slate, code) -> onOk reparsed val widgets slate code)
+--     )
+--   in
+--   handleError model result
 
 handleError : Model -> Result String Model -> Model
 handleError oldModel result =
@@ -711,32 +712,35 @@ tryRun old =
         let resultThunk () =
           -- let aceTypeInfo = Types.typecheck e in
 
-          evalFocusedExpression old.syntax old.editingContext e |>
+          let editingContext = FocusedEditingContext.editingContextFromMarkers e in
+
+          evalFocusedExpression old.syntax editingContext e |>
           Result.andThen (\((newVal,ws),finalEnv) ->
             LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
               let newCode = Syntax.unparser old.syntax e in -- unnecessary, if parse/unparse were inverses
               let new = loadLambdaAndFunctionToolIcons e finalEnv old in
               let new_ =
-                { new | inputExp      = e
-                      , inputVal      = newVal
-                      , valueEditorString = Update.valToString newVal
-                      , code          = newCode
-                      , lastRunCode   = newCode
-                      , slideCount    = newSlideCount
-                      , movieCount    = newMovieCount
-                      , movieTime     = 0
-                      , movieDuration = newMovieDuration
-                      , movieContinue = newMovieContinue
-                      , runAnimation  = newMovieDuration > 0
-                      , slate         = newSlate
-                      , widgets       = ws
-                      , typeGraph     = SlowTypeInference.typecheck e
-                      , history       = modelCommit newCode [] old.history
-                      , caption       = Nothing
-                      , syncOptions   = Sync.syncOptionsOf old.syncOptions e
-                      , errorBox      = Nothing
-                      , preview       = Nothing
+                { new | inputExp             = e
+                      , inputVal             = newVal
+                      , valueEditorString    = Update.valToString newVal
+                      , code                 = newCode
+                      , lastRunCode          = newCode
+                      , slideCount           = newSlideCount
+                      , movieCount           = newMovieCount
+                      , movieTime            = 0
+                      , movieDuration        = newMovieDuration
+                      , movieContinue        = newMovieContinue
+                      , runAnimation         = newMovieDuration > 0
+                      , slate                = newSlate
+                      , widgets              = ws
+                      , typeGraph            = SlowTypeInference.typecheck e
+                      , editingContext       = editingContext
+                      , history              = modelCommit newCode [] old.history
+                      , caption              = Nothing
+                      , syncOptions          = Sync.syncOptionsOf old.syncOptions e
+                      , errorBox             = Nothing
+                      , preview              = Nothing
                       , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
                 }
               in
@@ -1625,24 +1629,25 @@ msgDigHole = Msg "Dig Hole" <| \old ->
   let newExp =
     ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.widgets old.syncOptions
   in
-  runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
-    debugLog "new model" <|
-    clearSelections <|
-      { old | code             = newCode
-            , inputExp         = reparsed
-            , inputVal         = newVal
-            , valueEditorString = Update.valToString newVal
-            , history          = modelCommit newCode [] old.history
-            , slate            = newSlate
-            , widgets          = newWidgets
-            , preview          = Nothing
-              -- we already ran it successfully once so it shouldn't crash the second time
-            , liveSyncInfo     = Utils.fromOk "DigHole MkLive" <|
-                                   mkLive old.syntax old.syncOptions
-                                     old.slideNumber old.movieNumber old.movieTime reparsed
-                                     (newVal, newWidgets)
-      }
-  )
+  { old | code = Syntax.unparser old.syntax newExp } |> clearSelections |> upstateRun
+  -- runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
+  --   debugLog "new model" <|
+  --   clearSelections <|
+  --     { old | code             = newCode
+  --           , inputExp         = reparsed
+  --           , inputVal         = newVal
+  --           , valueEditorString = Update.valToString newVal
+  --           , history          = modelCommit newCode [] old.history
+  --           , slate            = newSlate
+  --           , widgets          = newWidgets
+  --           , preview          = Nothing
+  --             -- we already ran it successfully once so it shouldn't crash the second time
+  --           , liveSyncInfo     = Utils.fromOk "DigHole MkLive" <|
+  --                                  mkLive old.syntax old.syncOptions
+  --                                    old.slideNumber old.movieNumber old.movieTime reparsed
+  --                                    (newVal, newWidgets)
+  --     }
+  -- )
 
 msgMakeEqual = Msg "Make Equal" doMakeEqual
 
@@ -1819,31 +1824,31 @@ deleteInOutput old =
 --------------------------------------------------------------------------------
 
 msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
-  -- TODO unparse gets called twice, here and in runWith ...
   let newCode = Syntax.unparser old.syntax newExp in
-  let new =
-    { old | code = newCode
-          , lastRunCode = newCode
-          , synthesisResultsDict = Dict.empty
-          , history = modelCommit newCode [] old.history
-          }
-  in
-  runWithErrorHandling new newExp (\reparsed newVal newWidgets newSlate newCode ->
-    -- debugLog "new model" <|
-      let newer =
-      { new | inputExp             = reparsed -- newExp
-            , inputVal             = newVal
-            , valueEditorString    = Update.valToString newVal
-            , slate                = newSlate
-            , widgets              = newWidgets
-            , preview              = Nothing
-            , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old reparsed)
-      } |> clearSelections
-      in
-      { newer | liveSyncInfo = refreshLiveInfo newer
-              , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
-              }
-  )
+  { old | code = newCode } |> clearSelections |> upstateRun
+  -- let new =
+  --   { old | code = newCode
+  --         , lastRunCode = newCode
+  --         , synthesisResultsDict = Dict.empty
+  --         , history = modelCommit newCode [] old.history
+  --         }
+  -- in
+  -- runWithErrorHandling new newExp (\reparsed newVal newWidgets newSlate newCode ->
+  --   -- debugLog "new model" <|
+  --     let newer =
+  --     { new | inputExp             = reparsed -- newExp
+  --           , inputVal             = newVal
+  --           , valueEditorString    = Update.valToString newVal
+  --           , slate                = newSlate
+  --           , widgets              = newWidgets
+  --           , preview              = Nothing
+  --           , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old reparsed)
+  --     } |> clearSelections
+  --     in
+  --     { newer | liveSyncInfo = refreshLiveInfo newer
+  --             , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
+  --             }
+  -- )
 
 clearSynthesisResults : Model -> Model
 clearSynthesisResults old =
@@ -2179,14 +2184,20 @@ msgClearPreview = Msg "Clear Preview" <| \old ->
 --   upstateRun
 --     { old | liveSyncInfo = refreshLiveInfo old }
 
-msgSetEditingContext focusedEId maybeExampleCall = Msg "Set Editing Context" <| \old ->
+
+msgSetEditingContext focusedEId maybeExampleCallEId = Msg "Set Editing Context" <| \old ->
   let deuceState = old.deuceState in
-  { old | editingContext = Just (focusedEId, maybeExampleCall) }
+  let newProgram =
+    old.inputExp
+    |> FocusedEditingContext.clearEditingContextMarkers
+    |> FocusedEditingContext.setEditingContextMarkers focusedEId maybeExampleCallEId
+  in
+  { old | code = Syntax.unparser old.syntax newProgram }
   |> clearSelections
   |> upstateRun
 
 msgClearEditingContext = Msg "Clear Editing Context" <| \old ->
-  { old | editingContext = Nothing }
+  { old | code = Syntax.unparser old.syntax (FocusedEditingContext.clearEditingContextMarkers old.inputExp) }
   |> clearSelections
   |> upstateRun
 
@@ -2744,7 +2755,7 @@ msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m -
           m
   in
     -- TODO version of tryRun/upstateRun starting with parsed expression
-    upstateRun ( { modelWithCorrectHistory | code = Syntax.unparser m.syntax exp })
+    upstateRun { modelWithCorrectHistory | code = Syntax.unparser m.syntax exp }
 
 --------------------------------------------------------------------------------
 -- DOT

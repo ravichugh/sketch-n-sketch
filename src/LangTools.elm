@@ -649,10 +649,10 @@ newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingN
   (newName, newProgram)
 
 
-identifiersVisibleAtProgramEnd : Exp -> Set Ident
-identifiersVisibleAtProgramEnd program =
-  let lastEId = (lastExp program).val.eid in
-  visibleIdentifiersAtEIds program (Set.singleton lastEId)
+-- identifiersVisibleAtProgramEnd : Exp -> Set Ident
+-- identifiersVisibleAtProgramEnd program =
+--   let lastEId = (lastExp program).val.eid in
+--   visibleIdentifiersAtEIds program (Set.singleton lastEId)
 
 
 -- e.g. "rect1 x" for (def rect1 (let x = ... in ...) ...)
@@ -1216,16 +1216,18 @@ wrapWithLets listOfListsOfNamesAndAssigns eidToWrap program =
       program
 
 
-addFirstDef : Exp -> Pat -> Exp -> Exp
-addFirstDef program pat boundExp =
-  let firstNonCommentEId e =
-    case e.val.e__ of
-      EComment _ _ body -> firstNonCommentEId body
-      _                 -> e.val.eid
-  in
+firstNonComment : Exp -> Exp
+firstNonComment exp =
+  case exp.val.e__ of
+    EComment _ _ body -> firstNonComment body
+    _                 -> exp
+
+
+newLetAfterComments : EId -> Pat -> Exp -> Exp -> Exp
+newLetAfterComments eidToWrap pat boundExp program =
   program
   |> mapExpNode
-      (firstNonCommentEId program)
+      (firstNonComment (justFindExpByEId program eidToWrap)).val.eid
       (\nonComment ->
         newLetFancyWhitespace -1 False pat boundExp nonComment program
       )
@@ -1370,6 +1372,13 @@ expToFuncPats exp =
   case exp.val.e__ of
     EFun _ pats _ _ -> pats
     _               -> Debug.crash <| "LangTools.expToFuncPats exp is not an EFun: " ++ unparseWithIds exp
+
+
+expToMaybeFuncBody : Exp -> Maybe Exp
+expToMaybeFuncBody exp =
+  case exp.val.e__ of
+    EFun _ _ funcBody _ -> Just funcBody
+    _                   -> Nothing
 
 
 expToCaseScrutinee : Exp -> Exp

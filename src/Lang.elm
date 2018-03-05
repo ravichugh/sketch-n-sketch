@@ -452,6 +452,10 @@ isFunc e = case e.val.e__ of
   EFun _ _ _ _ -> True
   _            -> False
 
+isApp e = case e.val.e__ of
+  EApp _ _ _ _ _ -> True
+  _              -> False
+
 isValHole e = case e.val.e__ of
   EHole _ (HoleVal _) -> True
   _                   -> False
@@ -1913,12 +1917,22 @@ indentationAt eid program =
     Just ancestorsAndExp ->
       ancestorsAndExp
       |> List.reverse
-      |> List.map precedingWhitespace
       |> Utils.mapFirstSuccess
-          (\ws ->
-            if String.contains "\n" ws
-            then Just (extractIndentation ws)
-            else Nothing
+          (\exp ->
+            case (exp.val.e__, precedingWhitespace exp) of
+              -- EComment and EOption insert a newline not accounted for in following exp's whitespace.
+              (EComment _ _ commentBody, _)   ->
+                if indentationOf commentBody == ""
+                then Just (precedingWhitespace commentBody |> tabsToSpaces)
+                else Just (indentationOf commentBody)
+              (EOption _ _ _ _ optionBody, _) ->
+                if indentationOf optionBody == ""
+                then Just (precedingWhitespace optionBody |> tabsToSpaces)
+                else Just (indentationOf optionBody)
+              (_, ws) ->
+                if String.contains "\n" ws
+                then Just (extractIndentation ws)
+                else Nothing
           )
       |> Maybe.withDefault ""
 

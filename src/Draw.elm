@@ -107,6 +107,19 @@ boundingBoxOfPoints pts =
 
 
 --------------------------------------------------------------------------------
+-- Where to insert new shapes?
+
+drawingContextExp : Model -> Exp
+drawingContextExp model =
+  case model.editingContext of
+    Just (eid, _) ->
+      let contextExp = LangTools.justFindExpByEId model.inputExp eid in
+      contextExp |> LangTools.expToMaybeFuncBody |> Maybe.withDefault contextExp
+
+    _ -> model.inputExp
+
+
+--------------------------------------------------------------------------------
 -- Drawing Tools (previously in View)
 
 
@@ -546,11 +559,12 @@ addPoint : Model -> (Int, Int) -> Model
 addPoint old (x, y) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let originalProgram = old.inputExp in
-  case LangTools.nonCollidingNames ["point", "x", "y"] 2 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
+  let contextExp = drawingContextExp old in
+  case LangTools.nonCollidingNames ["point", "x", "y"] 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) of
     [pointName, xName, yName] ->
       let
         programWithPoint =
-          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x, eInt y]) (TNamed space1 "Point"))
+          LangTools.newLetAfterComments contextExp.val.eid (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x, eInt y]) (TNamed space1 "Point")) originalProgram
       in
       { old | code = Syntax.unparser old.syntax programWithPoint }
 
@@ -610,15 +624,16 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
       (X, ((_, SnapVal x1Val), _)) -> offsetFromExisting x1Val
       (Y, (_, (_, SnapVal y1Val))) -> offsetFromExisting y1Val
       _                    ->
-        case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
+        let contextExp = drawingContextExp old in
+        case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) of
           [pointName, xName, yName, offsetXName, offsetYName] ->
             let
               (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
               programWithOffset =
-                LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> FastParser.freshen
+                LangTools.newLetAfterComments contextExp.val.eid (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) originalProgram |> FastParser.freshen
               -- pt1 snaps ignored here, which is fine because we can't yet get an input pt1 with a snap on only one axis (an hence on only the non-offset axis not handled above with offsetFromExisting)
               programWithOffsetAndPoint =
-                LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x1Int, eInt y1Int]) (TNamed space1 "Point"))
+                LangTools.newLetAfterComments contextExp.val.eid (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x1Int, eInt y1Int]) (TNamed space1 "Point")) programWithOffset
             in
             { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 

@@ -2,6 +2,7 @@ module InterfaceModel exposing (..)
 
 import Updatable exposing (Updatable)
 import Lang exposing (..)
+import LangTools
 import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
@@ -104,7 +105,7 @@ type alias Model =
   , slate : RootedIndexedTree -- Context sensitive
   , widgets : Widgets         -- Context sensitive
   , typeGraph : SlowTypeInference.TC2Graph
-  , editingContext : Maybe (EId, Maybe EId) -- Context, example environment at context, application if function
+  , editingContext : Maybe (EId, Maybe EId) -- Context, example application if function
   , liveSyncInfo : Sync.LiveInfo
   , liveSyncDelay : Bool
   , outputMode : OutputMode
