@@ -522,6 +522,16 @@ indexedMap f xs = mapi (\[i,x] -> f i x) xs
 nothing = ["Nothing"]
 just x  = ["Just", x]
 
+-- Tuple --
+
+mapFirst f [x, y] = [f x, y]
+
+mapSecond f [x, y] = [x, f y]
+
+-- Custom Updates --
+
+-- TODO
+
 -- Editor --
 
 freeze x = x

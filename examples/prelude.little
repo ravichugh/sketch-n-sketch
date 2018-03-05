@@ -1869,6 +1869,9 @@
 (def nothing ["Nothing"])
 (def just (\x ["Just"  x]))
 
+(def mapFirst (\(f [x y]) [(f x) y]))
+(def mapSecond (\(f [x y]) [x (f y)]))
+
 (def freeze (\x x))
 
 

@@ -205,7 +205,9 @@ LITTLE_TO_ELM task_lambda
 LEO_TO_ELM blankDoc
 LEO_TO_ELM welcome1
 LEO_TO_ELM tableOfStatesA
+LEO_TO_ELM tableOfStatesB
 LEO_TO_ELM tableOfStatesC
+LEO_TO_ELM tableOfStatesD
 LEO_TO_ELM simpleBudget
 
 --------------------------------------------------------------------------------
@@ -228,9 +230,9 @@ welcomeCategory =
 docsCategory =
   ( "Examples (ICFP 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
-    -- , makeLeoExample "1b: TODO" blankDoc
+    , makeLeoExample "1b: Table of States" tableOfStatesB
     , makeLeoExample "1c: Table of States" tableOfStatesC
-    -- , makeLeoExample "1d: TODO: minus rows" blankDoc
+    , makeLeoExample "1d: Table of States" tableOfStatesD
     , makeLeoExample "2: Simple Budget" simpleBudget
     , makeLeoExample "3: Small LaTeX-like DSL" blankDoc
     , makeLeoExample "4: TODO" blankDoc

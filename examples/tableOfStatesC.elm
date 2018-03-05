@@ -1,3 +1,5 @@
+-- TODO match formatting in paper
+
 -- move to lens library
 
 customUpdate record x =
@@ -8,26 +10,22 @@ customUpdateFreeze =
 
 -- move to table library
 
-addRowFlags =
-  { apply =
-      map <| \row -> [freeze False, row]
-  , unapply rows =
-      just <|
-        concatMap (\[flag,row] ->
-          if flag == True
-            then [ row, ["","",""] ]
-            else [ row ]
-        ) rows
-  }
+tableWithButtons = {
 
-customUpdateTable =
-  customUpdate addRowFlags
+  wrapData =
+    { apply rows   = rows |> map (\row -> [freeze False, row])
+    , unapply rows = rows |> concatMap (\[flag,row] ->
+                               if flag == True
+                                 then [ row, ["","",""] ]
+                                 else [ row ]
+                             )
+                          |> just
+    }
 
-trWithButton showButton flag styles attrs children =
-  if showButton == False then
-    tr styles attrs children
+  mapData f =
+    map (mapSecond f)
 
-  else
+  tr flag styles attrs children =
     let [hasBeenClicked, nope, yep] =
       ["has-been-clicked", customUpdateFreeze "gray", customUpdateFreeze "coral"]
     in
@@ -61,9 +59,10 @@ trWithButton showButton flag styles attrs children =
       ([hasBeenClicked, toString flag] :: attrs)
       (snoc button children)
 
+}
+
 ------------------------------------------------
 
--- State, Abbreviation, Capital
 states = [
   ["Alabama", "AL", "Montgomery"],
   ["Alaska", "AK", "Juneau"],
@@ -75,16 +74,20 @@ states = [
 ]
 
 headers =
-  ["State", "", "Capital"]
+  ["State", "Capital"]
 
 rows =
   states
-    |> customUpdateTable
-
-padding =
-  ["padding", "3px"]
+    |> customUpdate tableWithButtons.wrapData
+    |> tableWithButtons.mapData
+         (\[state, abbrev, capital] -> [state, capital + " " + abbrev])
 
 theTable =
+  let padding = ["padding", "3px"] in
+  let headerRow =
+    let styles = [padding] in
+    tr [] [] (map (th styles []) headers)
+  in
   let headerRow =
     let styles = [padding, ["text-align", "left"], ["background-color", "coral"]] in
     tr [] [] (map (th styles []) headers)
@@ -98,7 +101,7 @@ theTable =
       let columns =
         map (td [padding, ["background-color", color]] []) row
       in
-      trWithButton True flag [] [] columns
+      tableWithButtons.tr flag [] [] columns
     ) rows
   in
   table

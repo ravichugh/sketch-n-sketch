@@ -1,6 +1,5 @@
-------------------------------------------------
+-- TODO match formatting in paper
 
--- State, Abbreviation, Capital
 states = [
   ["Alabama", "AL?", "?"],
   ["Alaska", "AL?", "?"],
@@ -19,16 +18,15 @@ rows =
     (\[state, abbrev, capital] -> [state, capital + " " + abbrev])
     states
 
-padding =
-  ["padding", "3px"]
-
 theTable =
+  let padding = ["padding", "3px"] in
   let headerRow =
     let styles = [padding] in
     tr [] [] (map (th styles []) headers)
   in
   let stateRows =
     let colors = ["lightgray", "white"] in
+    -- TODO pull out stateRow function if helpful for paper
     indexedMap (\i row ->
       let color =
         nth colors (mod i (len colors))

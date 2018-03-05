@@ -1872,6 +1872,9 @@ prelude =
 (def nothing [\"Nothing\"])
 (def just (\\x [\"Just\"  x]))
 
+(def mapFirst (\\(f [x y]) [(f x) y]))
+(def mapSecond (\\(f [x y]) [x (f y)]))
+
 (def freeze (\\x x))
 
 
@@ -2076,8 +2079,6 @@ intersperse sep xs =
 
 --mapi: (forall (a b) (-> (-> [Num a] b) (List a) (List b)))
 mapi f xs = map f (zip (range 0 (len xs - 1)) xs)
-
-indexedMap f xs = mapi (\\[i,x] -> f i x) xs
 
 --nth: (forall a (-> (List a) Num (union Null a)))
 nth xs n =
@@ -2398,10 +2399,24 @@ workspace minSize children =
 
 --;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+-- List --
+
+indexedMap f xs = mapi (\\[i,x] -> f i x) xs
+
 -- Maybe --
 
 nothing = [\"Nothing\"]
 just x  = [\"Just\", x]
+
+-- Tuple --
+
+mapFirst f [x, y] = [f x, y]
+
+mapSecond f [x, y] = [x, f y]
+
+-- Custom Updates --
+
+-- TODO
 
 -- Editor --
 
