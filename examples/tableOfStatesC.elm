@@ -63,51 +63,35 @@ tableWithButtons = {
 
 ------------------------------------------------
 
-states = [
-  ["Alabama", "AL", "Montgomery"],
-  ["Alaska", "AK", "Juneau"],
-  ["Arizona", "AZ", "Phoenix"],
-  ["Arkansas", "AR", "Little Rock"],
-  ["California", "CA", "Sacramento"],
-  ["Colorado", "CO", "Denver"],
-  ["Connecticut", "CT", "Hartford"]
-]
+states =
+  [ ["Alabama", "AL", "Montgomery"]
+  , ["Alaska", "AK", "Juneau"]
+  , ["Arizona", "AZ", "Phoenix"]
+  , ["Arkansas", "AR", "Little Rock"]
+  , ["California", "CA", "Sacramento"]
+  , ["Colorado", "CO", "Denver"]
+  , ["Connecticut", "CT", "Hartford"]
+  ]
 
-headers =
-  ["State", "Capital"]
-
-rows =
-  states
-    |> customUpdate tableWithButtons.wrapData
-    |> tableWithButtons.mapData
-         (\[state, abbrev, capital] -> [state, capital + " " + abbrev])
-
-theTable =
-  let padding = ["padding", "3px"] in
-  let headerRow =
-    let styles = [padding] in
-    tr [] [] (map (th styles []) headers)
+main =
+  let headers = ["State", "Capital"] in
+  let rows =
+    tableWithButtons.mapData
+      (\[state, abbrev, capital] -> [state, capital + ", " + abbrev])
+      (customUpdate tableWithButtons.wrapData states)
   in
+  let padding = ["padding", "3px"] in
   let headerRow =
     let styles = [padding, ["text-align", "left"], ["background-color", "coral"]] in
     tr [] [] (map (th styles []) headers)
   in
   let stateRows =
     let colors = ["lightyellow", "white"] in
-    indexedMap (\i [flag,row] ->
-      let color =
-        nth colors (mod i (len colors))
-      in
-      let columns =
-        map (td [padding, ["background-color", color]] []) row
-      in
+    let drawRow i [flag,row] =
+      let color = nth colors (mod i (len colors)) in
+      let columns = map (td [padding, ["background-color", color]] []) row in
       tableWithButtons.tr flag [] [] columns
-    ) rows
+    in
+    indexedMap drawRow rows
   in
-  table
-    [padding, ["border", "8px solid lightgray"]]
-    []
-    (headerRow :: stateRows)
-
-main =
-  theTable
+  table [padding] [] (headerRow :: stateRows)
