@@ -1934,12 +1934,12 @@ msgCallUpdate = Msg "Call Update" doCallUpdate
 doCallUpdate m =
   let updatedValResult =
     if domEditorNeedsCallUpdate m then
-      (m.attributeValueUpdates, m.textValueUpdates)
-        |> Update.buildUpdatedValueFromDomListener m.slate
-        |> Ok
+       (m.attributeValueUpdates, m.textValueUpdates)
+         |> Update.buildUpdatedValueFromDomListener m.slate
+         |> Ok
     else
-      m.valueEditorString
-        |> Update.buildUpdatedValueFromEditorString m.syntax
+       m.valueEditorString
+         |> Update.buildUpdatedValueFromEditorString m.syntax
   -- TODO updated value may be back to original, so may want to
   -- detect this and write a caption that says so.
   in
@@ -1954,16 +1954,16 @@ doCallUpdate m =
     -- isn't correctly re-running and replacing the dirty slate.
     -- here's a temporary workaround: add a second dummy option.
     let results_ =
-      case results of
-        [_] ->
-          let dummyResult =
-            synthesisResult
-               "HACK: Hover over this before selecting the following..."
-               (eStr0 "HACK")
-          in
-          dummyResult :: results
-        _   ->
-          results
+       case results of
+         [_] ->
+           let dummyResult =
+             synthesisResult
+                "HACK: Hover over this before selecting the following..."
+                (eStr0 "HACK")
+           in
+           dummyResult :: results
+         _   ->
+           results
     in
     { m
         | synthesisResultsDict =
@@ -1972,6 +1972,7 @@ doCallUpdate m =
   in
   case updatedExpResults of
     Errs msg ->
+      let _ = Debug.log msg () in
       showSolutions [revertChanges ("Error while updating: " ++ msg ++ ". Revert?")]
 
     Oks solutions ->

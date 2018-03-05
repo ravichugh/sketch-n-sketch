@@ -27,8 +27,8 @@ unparseBaseValue ebv =
       if b then "True" else "False"
 
     EString quoteChar text ->
-      quoteChar ++ Regex.replace Regex.All (Regex.regex <| "\\\\|" ++ quoteChar) (
-        \{match} -> if match == "\\" then "\\\\" else "\\" ++ quoteChar)
+      quoteChar ++ Regex.replace Regex.All (Regex.regex <| "\\\\|" ++ quoteChar ++ "|\r?\n") ( -- EStrings are not multiline.
+        \{match} -> if match == "\\" then "\\\\" else if match == "\n" then "\\n" else "\\" ++ quoteChar)
         text ++
       quoteChar
 

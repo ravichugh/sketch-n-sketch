@@ -607,7 +607,7 @@ getUpdateStackOp env e oldVal newVal =
                        case newVal.v_ of
                          VBase (VString s) ->
                            case Syntax.parser Syntax.Elm s of
-                             Err msg -> UpdateError <| "Could not parse new output value '"++s++"' for ToStr expression " ++ toString msg
+                             Err msg -> UpdateError <| "Could not parse new output value '"++s++"' for ToStr expression " ++ ParserUtils.showError msg
                              Ok parsed ->
                                case doEval Syntax.Elm [] parsed of
                                  Err msg -> UpdateError msg
@@ -617,7 +617,7 @@ getUpdateStackOp env e oldVal newVal =
                                          HandlePreviousResult "EOp ToStrExceptStr default"<| \env newOpArg ->
                                            updateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
                                      e -> UpdateError <| "[internal error] Wrong number of arguments in update ToStrExceptStr: " ++ toString e
-                         e -> UpdateError <| "Expected string, got " ++ toString e
+                         e -> UpdateError <| "Expected string, got " ++ valToString newVal
                   in
                   case vs of
                     [original] ->
@@ -645,7 +645,7 @@ getUpdateStackOp env e oldVal newVal =
                                     HandlePreviousResult "EOp ToStr"<| \env newOpArg ->
                                       updateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
                                 e -> UpdateError <| "[internal error] Wrong number of arguments in update: " ++ toString e
-                    e -> UpdateError <| "Expected string, got " ++ toString e
+                    e -> UpdateError <| "Expected string, got " ++ valToString newVal
                 _ ->
                   case maybeUpdateMathOp op vs oldVal newVal of
                     Errs msg -> UpdateError msg
@@ -1733,7 +1733,7 @@ buildUpdatedValueFromEditorString : Syntax -> String -> Result String Val
 buildUpdatedValueFromEditorString syntax valueEditorString =
   valueEditorString
     |> Syntax.parser syntax
-    |> Result.mapError (\e -> toString e)
+    |> Result.mapError (\e -> ParserUtils.showError e)
     |> Result.andThen (Eval.doEval syntax [])
     |> Result.map (\((v, _), _) -> v)
 

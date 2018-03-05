@@ -3074,7 +3074,12 @@ valToExpFull copyFrom sp_ indent v =
   withDummyExpInfo <| case v.v_ of
     VConst mb num     -> EConst sp (Tuple.first num) dummyLoc noWidgetDecl
     VBase (VBool b)   -> EBase  sp <| EBool b
-    VBase (VString s) -> EBase  sp <| EString defaultQuoteChar s
+    VBase (VString s) ->
+      let default = EBase  sp <| EString defaultQuoteChar s in
+      if String.length s > 50 && String.contains "\n" s then
+        EParens space0 (withDummyExpInfo default) LongStringSyntax space0
+      else
+        default
     VBase (VNull)     -> EBase  sp <| ENull
     VList vals ->
       let defaultSpCommaHd = ws "" in
