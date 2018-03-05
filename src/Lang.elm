@@ -253,7 +253,10 @@ type Val_
   | VList (List Val)
   | VRecord (Dict String Val) -- It's a record indexed by the keys
   | VDict VDict_ -- Can be constructed only by "dict [[key, value], [key2, value2]] and 'empty'
-  | VFun String Int (Env -> List Val -> Result String ((Val, Widgets), Env)) (Maybe (Env -> Val -> Val -> List (Env, List Val))) -- An Elm function. If the maybe is defined, it is reversible for update.
+  | VFun String -- Name
+         (List String) -- Name of arguments
+         (Env -> List Val -> Result String ((Val, Widgets), Env)) -- Evaluation rule
+         (Maybe (List Val -> Val -> Val -> List (List Val))) -- Maybe Update rule
 
 type alias VDict_ = Dict (String, String) Val -- First key string is unparsed key, the second type is the value. See Eval.valToDictKey
 

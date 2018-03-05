@@ -404,20 +404,20 @@ getUpdateStackOp env e oldVal newVal =
                     else Nothing
                   _ -> Nothing
         EVar _ "freeze" -> --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
-          case e2s of  -- TODO: If freeze is not the first solution, it might prevent the updateError to show up.
-            [argument] ->
-              case doEval Syntax.Elm env argument of
-                Err s -> Just <| UpdateError s
-                Ok ((vArg, _), _) ->
-                  if valEqual vArg oldVal then -- OK, that's the correct freeze semantics
-                    if valEqual vArg newVal then
-                      Just <| updateResult env e
-                    else
-                      Just <| UpdateError ("You are trying to update " ++ unparse e ++ " with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'")
-                  else Nothing
-            _ -> Nothing
+           case e2s of  -- TODO: If freeze is not the first solution, it might prevent the updateError to show up.
+             [argument] ->
+               case doEval Syntax.Elm env argument of
+                 Err s -> Just <| UpdateError s
+                 Ok ((vArg, _), _) ->
+                   if valEqual vArg oldVal then -- OK, that's the correct freeze semantics
+                     if valEqual vArg newVal then
+                       Just <| updateResult env e
+                     else
+                       Just <| UpdateError ("You are trying to update " ++ unparse e ++ " with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'")
+                   else Nothing
+             _ -> Nothing
         _ ->
-          Nothing
+           Nothing
       in
       updateMaybeFirst maybeUpdateStack <| \_ ->
         case doEval Syntax.Elm env e1 of
@@ -527,6 +527,52 @@ getUpdateStackOp env e oldVal newVal =
                                           updateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (Utils.listValues newE2s) appType sp1
                                         x -> Debug.crash <| "Unexpected result of updating a list " ++ toString x
                           _          -> UpdateError <| strPos e1.start ++ "bad environment"
+              VFun name argList evalDef maybeUpdateDef ->
+                case maybeUpdateDef of
+                  Nothing -> UpdateError ("No built-in definition to update " ++ name)
+                  Just updateDef ->
+                    let arity = List.length argList in
+                    let nAvailableArgs = List.length e2s in
+
+                    if arity < nAvailableArgs then -- Rewriting of the expression so that it is two separate applications
+                      let es2ToEval = List.take arity e2s in
+                      let es2ForLater = List.drop arity e2s in
+                      updateContinue env (replaceE__ e <|
+                        EApp sp0 (replaceE__ e <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1) oldVal newVal <| HandlePreviousResult "EApp VFun" <| (\newEnv newBody ->
+                        case newBody.val.e__ of
+                          EApp _ innerApp newEsForLater _ _ ->
+                            case innerApp.val.e__ of
+                              EApp _ newE1 newEsToEval _ _ ->
+                                updateResult newEnv (replaceE__ e <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1)
+                              e -> Debug.crash <| "Internal error: expected EApp, got " ++ Syntax.unparser Syntax.Elm innerApp
+                          e -> Debug.crash <| "Internal error: expected EApp, got " ++ Syntax.unparser Syntax.Elm newBody
+                      )
+                    else if arity > nAvailableArgs then  -- Rewrite using eta-expansion.
+                      let convertedBody = replaceE__ e1 <|
+                        EApp sp0 (replaceE__ e <| EVar space1 name) (List.map (withDummyExpInfo << EVar space1) <| argList) SpaceApp sp0 in
+                      let funconverted = replaceE__ e1 <| EFun
+                           space0
+                           (List.map (\n -> withDummyPatInfo <| PVar space1 n noWidgetDecl) <| argList)
+                           convertedBody space0 in
+                      updateContinue env
+                        (replaceE__ e <| EApp space0 funconverted e2s SpaceApp space0)
+                        oldVal
+                        newVal
+                        <| HandlePreviousResult "EApp VFun eta" <| \newEnv newBody ->
+                          case newBody.val.e__ of
+                            EApp _ funreconverted newEs _ _ ->
+                              if expEqual funreconverted funconverted then
+                                updateResult newEnv (replaceE__ e <| EApp sp0 e1 newEs SpaceApp sp1)
+                              else UpdateError "Cannot modify the definition of a built-in function"
+                            _ -> Debug.crash <| "Internal error: expected EApp, got" ++ Syntax.unparser Syntax.Elm e
+                    else -- Right arity
+                      case List.map (doEval Syntax.Elm env) e2s |> Utils.projOk of
+                        Err s       -> UpdateError s
+                        Ok v2ls     ->
+                          let v2s = List.map (\((v2, _), _) -> v2) v2ls in
+                          let results = updateDef v2s oldVal newVal in
+                          updateOpMultiple "op" env e2s (\newE2s -> replaceE__ e <| EApp sp0 e1 newE2s appType sp1) v2s (LazyList.fromList results)
+
               _ -> UpdateError <| strPos e1.start ++ " not a function"
     EIf sp0 cond sp1 thn sp2 els sp3 ->
       case doEval Syntax.Elm env cond of
@@ -603,20 +649,8 @@ getUpdateStackOp env e oldVal newVal =
                 _ ->
                   case maybeUpdateMathOp op vs oldVal newVal of
                     Errs msg -> UpdateError msg
-                    Oks LazyList.Nil -> UpdateError "[Internal error] No result for updating."
-                    Oks (LazyList.Cons head lazyTail) ->
-                      let headToUpdateStack: Int -> List Val-> Lazy.Lazy (LazyList (List Val)) -> UpdateStack
-                          headToUpdateStack nth head lazyTail =
-                            updateContinueMultiple ("op " ++ toString nth ++ "th") env (Utils.zip3 opArgs vs head) (\newEnv newOpArgs ->
-                              --let _ = Debug.log ("before an alternative " ++ (String.join "," <| List.map valToString head)) () in
-                              UpdateResultAlternative "UpdateResultAlternative maybeOp" (updateResult newEnv (replaceE__ e <| EOp sp1 op newOpArgs sp2))
-                                (lazyTail |> Lazy.map (\ll ->
-                                  --let _ = Debug.log ("Starting to evaluate another alternative if it exists ") () in
-                                  case ll of
-                                    LazyList.Nil -> Nothing
-                                    LazyList.Cons newHead newLazyTail -> Just <| headToUpdateStack (nth + 1) newHead newLazyTail
-                                )))
-                      in headToUpdateStack 1 head lazyTail
+                    Oks ll ->
+                      updateOpMultiple "op" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs ll
 
     ECase sp1 input branches sp2 ->
       case doEval Syntax.Elm env input of
@@ -721,7 +755,7 @@ addUpdateCapability: Val -> Val
 addUpdateCapability v =
   addToVClosureEnv [
     ("updateApp", replaceV_ v <|
-      VFun "updateApp" 4 (\env args ->
+      VFun "updateApp" ["function", "input", "prevOutput", "newOuput"] (\env args ->
         case args of
           [fun, oldArg, oldOut, newOut] ->
             let reverseEnv = ("x", fun)::("y", oldArg)::env in
@@ -751,7 +785,7 @@ addUpdateCapability v =
       ) Nothing
     ),
     ("merge", replaceV_ v <|
-      VFun "merge" 2 (\env args ->
+      VFun "merge" ["original", "list_of_modified"] (\env args ->
         case args of
           [original, modifications] ->
             case modifications.v_ of
@@ -763,7 +797,7 @@ addUpdateCapability v =
       ) Nothing
     ),
     ("diff", replaceV_ v <|
-      VFun "diff" 2 (\env args ->
+      VFun "diff" ["list_before", "list_after"] (\env args ->
         case args of
           [before, after] ->
             case [before.v_, after.v_] of
@@ -1096,6 +1130,27 @@ updateContinueMultiple msg env totalExpValOut continuation  =
                 let newEnvAcc = triCombine newExp env envAcc newEnv in
                 aux (i + 1) (newExp::revAccExps) newEnvAcc tail
   in aux 1 [] env totalExpValOut
+
+-- TODO: Move this method to UpdateStack once updateContinueMultiple is moved to UpdateStack
+-- Constructor for combining multiple expressions evaluated in the same environment, when tehre are multiple values available.
+updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> List PrevOutput -> LazyList (List Output) -> UpdateStack
+updateOpMultiple hint env es eBuilder prevOutputs outputs=
+  let aux nth outputsHead lazyTail =
+  updateContinueMultiple (hint ++ " #" ++ toString nth) env (Utils.zip3 es prevOutputs outputsHead) (\newEnv newOpArgs ->
+    --let _ = Debug.log ("before an alternative " ++ (String.join "," <| List.map valToString head)) () in
+    UpdateResultAlternative "UpdateResultAlternative maybeOp" (updateResult newEnv (eBuilder newOpArgs))
+       (lazyTail |> Lazy.map (\ll ->
+         --let _ = Debug.log ("Starting to evaluate another alternative if it exists ") () in
+         case ll of
+           LazyList.Nil -> Nothing
+           LazyList.Cons newHead newLazyTail -> Just <| aux (nth + 1) newHead newLazyTail
+       )))
+  in
+  case outputs of
+    LazyList.Nil -> UpdateError <| "[Internal error] No result for updating " ++ hint
+    LazyList.Cons outputsHead lazyTail ->
+      aux 1 outputsHead lazyTail
+
 
 branchWithInversion: Env -> Val -> List Branch -> Maybe ((Env, Exp), (Env, Exp) -> (Env, Val, List Branch))
 branchWithInversion env input branches =

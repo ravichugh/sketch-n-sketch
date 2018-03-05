@@ -378,16 +378,23 @@ eval syntax env bt e =
                 in
                 retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget)
               )
-            VFun name arity fundef _ ->
-              if List.length es < arity then errorWithBacktrace syntax (e::bt) <| strPos e1.start ++
-                " built-in function "++name++" should be called with " ++ toString arity ++ " argument" ++ (if arity > 1 then "s" else "")
+            VFun name argList evalDef _ ->
+              let arity = List.length argList in
+              let availableArgs = List.length es in
+              if availableArgs < arity then -- Partial application, hence eta expansion
+                let funconverted = replaceV_ v1 <| VClosure
+                     Nothing
+                     (List.map (\a -> withDummyPatInfo <| PVar space1 a noWidgetDecl) <| argList)
+                     (replaceE__ e <| EApp sp0 (replaceE__ e <| EVar space1 name)
+                       (List.map (withDummyExpInfo << EVar space1) <| argList) SpaceApp sp0) ((name, v1)::env) in
+                evalVApp funconverted es
               else
                 let arguments = List.take arity es in
                 let remaining = List.drop arity es in
                 case Utils.projOk <| List.map (eval_ syntax env bt_) arguments of
                   Err s -> Err s
                   Ok argumentsVal ->
-                    let basicResult = fundef env (List.map Tuple.first argumentsVal) |> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] result) in
+                    let basicResult = evalDef env (List.map Tuple.first argumentsVal) |> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] result) in
                     if List.length remaining > 0 then
                       case basicResult of
                         Err s -> Err s
