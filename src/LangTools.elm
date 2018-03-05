@@ -1937,7 +1937,7 @@ pathedPatternIdToPId pathedPatId exp =
 
 pathForIdentInPat : Ident -> Pat -> Maybe (List Int)
 pathForIdentInPat targetIdent pat =
-  indentPathsInPat pat
+  identPathsInPat pat
   |> Utils.mapFirstSuccess
       (\(ident, path) ->
         if ident == targetIdent
@@ -1946,13 +1946,13 @@ pathForIdentInPat targetIdent pat =
       )
 
 
-indentPathsInPat : Pat -> List (Ident, List Int)
-indentPathsInPat pat =
+identPathsInPat : Pat -> List (Ident, List Int)
+identPathsInPat pat =
   let childIdentPaths =
     childPats pat
     |> Utils.concatMapi1
         (\(i, childPat) ->
-          indentPathsInPat childPat
+          identPathsInPat childPat
           |> List.map (\(ident, path) -> (ident, i::path))
         )
   in

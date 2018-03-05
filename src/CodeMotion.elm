@@ -1616,7 +1616,7 @@ inlineDefinitions syntax selectedPathedPatIds originalProgram =
           case findPatByPathedPatternId (scopeId, []) programUniqueNames of
             Nothing  -> []
             Just pat ->
-              indentPathsInPat pat
+              identPathsInPat pat
               |> List.filter (\(ident, path) -> List.any (Utils.isPrefixOf path) paths)
               |> List.map    (\(ident, path) -> (scopeId, path))
         )
