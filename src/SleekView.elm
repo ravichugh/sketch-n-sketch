@@ -36,6 +36,7 @@ import Draw
 import LangTools
 import Sync
 import Lang exposing (Exp)
+import LangSvg
 import Syntax
 import File
 import Eval
@@ -1645,16 +1646,10 @@ toolPanel model =
       Html.div
         [ Attr.class "tool-separator" ]
         []
-  in
-    Html.div
-      [ Attr.class "panel tool-panel"
-      , Attr.style
-          [ ("width", (px << .width) SleekLayout.toolPanel)
-          , ("right", (px << .right) SleekLayout.toolPanel)
-          , ("marginLeft", (px << .marginLeft) SleekLayout.toolPanel)
-          ]
-      ]
-      ( [ toolButton model Cursor
+
+    toolButtons =
+      if LangSvg.isSvg model.inputVal then
+        [ toolButton model Cursor
         , toolButton model PointOrOffset
         , toolButton model Text
         , toolButton model (Line model.toolMode)
@@ -1667,7 +1662,20 @@ toolPanel model =
         functionTools model ++
         [ toolModeIndicator model
         ]
-      )
+
+      else
+        [ toolButton model Cursor
+        ]
+  in
+    Html.div
+      [ Attr.class "panel tool-panel"
+      , Attr.style
+          [ ("width", (px << .width) SleekLayout.toolPanel)
+          , ("right", (px << .right) SleekLayout.toolPanel)
+          , ("marginLeft", (px << .marginLeft) SleekLayout.toolPanel)
+          ]
+      ]
+      toolButtons
 
 --------------------------------------------------------------------------------
 -- Synthesis Panel
