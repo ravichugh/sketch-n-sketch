@@ -10,7 +10,7 @@ import Lang exposing (..)
 import ValUnparser exposing (..)
 import LangTools exposing (..)
 import LangUtils exposing (..)
-import FastParser as Parser
+import ElmParser as Parser
 import LangUnparser exposing (unparseWD, unparseWithIds)
 import InterfaceModel
 import Eval

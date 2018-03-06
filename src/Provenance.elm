@@ -1,6 +1,6 @@
 module Provenance exposing (..)
 
-import FastParser as Parser
+import ElmParser as Parser
 import Lang exposing (..)
 import LangTools
 import LangUnparser

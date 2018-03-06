@@ -5718,7 +5718,7 @@ blankDoc =
 welcome1 =
  """main =
   [ \"div\"
-  , []
+  , [[\"style\", [[\"padding\", \"20px\"]]]]
   , [ [\"h2\", [], [[\"TEXT\", \"Welcome to Sketch-n-Sketch Docs!\"]]]
     , [\"br\", [], []]
     , [\"p\", [], [[\"TEXT\", \"Type something here...\"]]]
@@ -5734,9 +5734,7 @@ welcome1 =
 """
 
 tableOfStatesA =
- """-- TODO match formatting in paper
-
-states =
+ """states =
   [ [\"Alabama\", \"AL?\", \"?\"]
   , [\"Alaska\", \"AL?\", \"?\"]
   , [\"Arizona\", \"AR?\", \"?\"]
@@ -5779,72 +5777,7 @@ h3 [] [] \"TODO\"
 """
 
 tableOfStatesC =
- """-- TODO match formatting in paper
-
--- move to lens library
-
-customUpdate record x =
-  record.apply x
-
-customUpdateFreeze =
-  customUpdate { apply x = x, update p = [p.input] }
-
--- move to table library
-
-tableWithButtons = {
-
-  wrapData =
-    { apply rows   = rows |> map (\\row -> [freeze False, row])
-    , unapply rows = rows |> concatMap (\\[flag,row] ->
-                               if flag == True
-                                 then [ row, [\"\",\"\",\"\"] ]
-                                 else [ row ]
-                             )
-                          |> just
-    }
-
-  mapData f =
-    map (mapSecond f)
-
-  tr flag styles attrs children =
-    let [hasBeenClicked, nope, yep] =
-      [\"has-been-clicked\", customUpdateFreeze \"gray\", customUpdateFreeze \"coral\"]
-    in
-    let onclick =
-      \"\"\"
-      var hasBeenClicked = document.createAttribute(\"@hasBeenClicked\");
-      var buttonStyle = document.createAttribute(\"style\");
-      
-      if (this.parentNode.getAttribute(\"@hasBeenClicked\") == \"False\") {
-        hasBeenClicked.value = \"True\";
-        buttonStyle.value = \"color: @yep;\";
-      } else {
-        hasBeenClicked.value = \"False\";
-        buttonStyle.value = \"color: @nope;\";
-      }
-      
-      this.parentNode.setAttributeNode(hasBeenClicked);
-      this.setAttributeNode(buttonStyle);
-      \"\"\"
-    in
-    let button = -- text-button.enabled is an SnS class
-      [ \"span\"
-      , [ [\"class\", \"text-button.enabled\"]
-        , [\"onclick\", onclick]
-        , [\"style\", [[\"color\", nope]]]
-        ]
-      , [textNode \"+\"]
-      ]
-    in
-    tr styles
-      ([hasBeenClicked, toString flag] :: attrs)
-      (snoc button children)
-
-}
-
-------------------------------------------------
-
-states =
+ """states =
   [ [\"Alabama\", \"AL\", \"Montgomery\"]
   , [\"Alaska\", \"AK\", \"Juneau\"]
   , [\"Arizona\", \"AZ\", \"Phoenix\"]

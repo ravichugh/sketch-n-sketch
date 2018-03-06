@@ -4,7 +4,7 @@ import Lang exposing (..)
 import ValUnparser exposing (..)
 import Pos exposing (..)
 import Info exposing (..)
-import FastParser as Parser
+import ElmParser as Parser
 import LangUnparser exposing (unparse, unparsePat, unparseType)
 import Utils
 import Ace

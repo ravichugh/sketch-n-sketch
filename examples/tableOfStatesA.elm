@@ -1,5 +1,3 @@
--- TODO match formatting in paper
-
 states =
   [ ["Alabama", "AL?", "?"]
   , ["Alaska", "AL?", "?"]

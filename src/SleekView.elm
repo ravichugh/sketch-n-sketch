@@ -1131,11 +1131,11 @@ menuBar model =
             [ [logo]
             , [snsMenu]
             , [fileMenu]
-            , maybeCodeToolsMenu
+            -- Suppress for Leo/Docs
+            -- , maybeCodeToolsMenu
             -- , [outputToolsMenu]
             , [viewMenu]
             , [optionsMenu]
-            , [outputToolsMenu]
             , [templateNavigation]
             ]
           )
