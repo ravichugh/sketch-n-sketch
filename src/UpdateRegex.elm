@@ -28,6 +28,8 @@ lambdaBodyToString e =
     EConst _ groupIndex _ _  -> "$" ++ toString groupIndex
     EOp space0 _ {-ToStrExceptStr-} [a] _-> lambdaBodyToString a
     EOp space1 _ {-Plus -} [a, b] space2 -> lambdaBodyToString a ++ lambdaBodyToString b
+    EParens _ e _ _ -> lambdaBodyToString e
+    ESelect _ e _ _ _ -> lambdaBodyToString e
     EBase _ (EString _ s) -> addSlashDollar s
     _ -> Debug.crash "[internal error] I should not have encountered a different case for UpdateRegex.lambdaBodyToString"
 
@@ -56,10 +58,11 @@ stringToLambda env vs s =
          Nothing -> [] --It was just a regular escaped dollar
          Just groupIndex ->
            let res = [ withDummyExpInfo <| EBase space1 (EString "\"" (removeSlashDollar (String.slice lastStart.value start s))),
-                       withDummyExpInfo <|
-                        EApp space1 (withDummyExpInfo <| EVar space1 "nth") [
-                          withDummyExpInfo <| ESelect space1 (withDummyExpInfo m) space0 space0 "group",
-                          withDummyExpInfo <| EConst space1 (toFloat groupIndex) dummyLoc noWidgetDecl] SpaceApp space0 ] in
+                        withDummyExpInfo <| ESelect space1 (withDummyExpInfo <| EParens space0 (withDummyExpInfo <|
+                          EApp space1 (withDummyExpInfo <| EVar space1 "nth") [
+                           withDummyExpInfo <| ESelect space0 (withDummyExpInfo m) space0 space0 "group",
+                            withDummyExpInfo <| EConst space1 (toFloat groupIndex) dummyLoc noWidgetDecl] SpaceApp space0
+                        ) Parens space0) space0 space0 "match"] in
            let _ = ImpureGoodies.mutateRecordField lastStart "value" end in
            res
        ) l
@@ -184,7 +187,8 @@ evalRegexReplaceAllByIn  env eval regexpV replacementV stringV =
                let replacementName = "UpdateRegex.replaceAll" in
                let localExp = matchToExpApp (eVar replacementName) m in
                let localEnv = [(replacementName, replacementV)] in
-               --let _ = Debug.log "The replacement body is" (Syntax.unparser Syntax.Elm body) in
+               --let _ = Debug.log ("The new env is" ++ LangUtils.envToString localEnv) () in
+               --let _ = Debug.log ("The replacement body is" ++ Syntax.unparser Syntax.Elm localExp) () in
                case eval localEnv localExp of
                  Err msg -> ImpureGoodies.throw (EvaluationError msg)
                  Ok v ->

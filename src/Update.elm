@@ -19,7 +19,7 @@ import Results exposing
   )
 import MissingNumberMethods exposing (..)
 import ValUnparser exposing (strVal)
-import LangUtils exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pruneEnvPattern, valToString)
+import LangUtils exposing (..)
 import LangSvg exposing
   ( NodeId, ShapeKind
   , AVal, AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
