@@ -40,6 +40,7 @@ unparsePattern = Syntax.patternUnparser Syntax.Elm
 doUpdate : Exp -> Val -> Result String Val -> Results String (Env, Exp)
 doUpdate oldExp oldVal newValResult =
   newValResult
+    --|> Result.map (\x -> let _ = Debug.log "#1" () in x)
     |> Results.fromResult
     |> Results.andThen (\out -> update (updateContext Eval.initEnv oldExp oldVal out) LazyList.Nil)
 
@@ -60,25 +61,32 @@ update updateStack nextToUpdate=
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out mb ->
        {--
-      let _ = Debug.log (String.concat ["update: ", unparse e, " <-- ", valToString out, " -- env = " , envToString (pruneEnv e env), "|-"]) () in
+      let _ = Debug.log (String.concat ["update: " {-, unparse e-}, " <-- "]) () in --, valToString out, " -- env = " , envToString (pruneEnv e env), "|-"]) () in
        --}
       update (getUpdateStackOp env e oldVal out) (LazyList.maybeCons mb nextToUpdate)
 
     UpdateResultS fEnv fOut mb -> -- Let's consume the stack !
        {--
-      let _ = Debug.log (String.concat ["update final result: ", unparse fOut, " -- env = " , envToString (pruneEnv fOut fEnv)]) () in
+      let _ = Debug.log (String.concat ["update final result: " {-, unparse fOut, " -- env = " , envToString (pruneEnv fOut fEnv)-}]) () in
        --}
       case (LazyList.maybeCons mb nextToUpdate) of -- Let's consume the stack !
-        LazyList.Nil -> ok1 <| (fEnv, fOut)
+        LazyList.Nil ->
+          --let _ = Debug.log "finished update with no fork" () in
+          ok1 <| (fEnv, fOut)
         LazyList.Cons head lazyTail ->
           case head of
             Fork _ newUpdateStack nextToUpdate2 ->
+              --let _ = Debug.log "finished update with one fork" () in
               okLazy (fEnv, fOut) <| (\lt -> \() ->
                 updateRec newUpdateStack <| LazyList.appendLazy nextToUpdate2 lt) lazyTail
-            HandlePreviousResult _ f ->
+            HandlePreviousResult msg f ->
+              --let _ = Debug.log ("update needs to continue: " ++ msg) () in
               update (f fEnv fOut) (Lazy.force lazyTail)
 
     UpdateResultAlternative msg updateStack maybeNext ->
+      {--
+      let _ = Debug.log (String.concat ["update result alternative ", msg, ": "]) () in
+      --}
       update updateStack <| LazyList.appendLazy nextToUpdate <| Lazy.map ((\nb -> \mb ->
           case mb of
             Nothing -> LazyList.Nil
@@ -564,7 +572,7 @@ getUpdateStackOp env e oldVal newVal =
                         Ok v2ls     ->
                           let v2s = List.map (\((v2, _), _) -> v2) v2ls in
                           let results = updateDef v2s oldVal newVal in
-                          updateOpMultiple "op" env e2s (\newE2s -> replaceE__ e <| EApp sp0 e1 newE2s appType sp1) v2s (LazyList.fromList results)
+                          updateOpMultiple "vfun" env e2s (\newE2s -> replaceE__ e <| EApp sp0 e1 newE2s appType sp1) v2s (LazyList.fromList results)
 
               _ -> UpdateError <| strPos e1.start ++ " not a function"
     EIf sp0 cond sp1 thn sp2 els sp3 ->
