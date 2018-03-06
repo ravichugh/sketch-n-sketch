@@ -318,7 +318,7 @@ mergeWS: WS -> WS -> WS -> WS -- No advanced strategy. No synthesis pushes concu
 mergeWS o e1 e2 = if o.val == e1.val then e2 else e1
 
 mergeString: String -> String -> String -> String
-mergeString o e1 e2 = if o == e1 then e2 else e2 -- Could do a better line-based diff.
+mergeString o e1 e2 = if o == e1 then e2 else e1 -- Could do a better line-based diff.
 
 mergeInfo: (a -> a -> a -> a) -> WithInfo a ->WithInfo a -> WithInfo a -> WithInfo a
 mergeInfo merger w1 w2 w3 = Info.replaceInfo w1 (merger w1.val w2.val w3.val)
