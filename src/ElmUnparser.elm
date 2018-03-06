@@ -223,6 +223,8 @@ unparseOp op =
       "ToStrExceptStr"
     RegexReplaceAllIn ->
       "replaceAllIn"
+    RegexExtractFirstIn ->
+      "extractFirstIn"
 
 unparseBranch : Bool -> Branch -> String
 unparseBranch   isNotFirst branch =

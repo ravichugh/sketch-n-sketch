@@ -68,6 +68,12 @@ updateContinueRepeat env e oldVal newVal otherNewVals nextAction =
       )
     )
 
+updateAlternatives: String -> Env -> Exp -> PrevOutput -> LazyList Output -> NextAction -> UpdateStack
+updateAlternatives msg env e oldVal newVals nextAction =
+  case newVals of
+    LazyList.Nil -> UpdateError msg
+    LazyList.Cons head lazyTail -> updateContinueRepeat env e oldVal head lazyTail nextAction
+
 updateMaybeFirst: (Maybe UpdateStack) -> (Bool -> UpdateStack) -> UpdateStack
 updateMaybeFirst mb ll =
    case mb of
@@ -84,6 +90,7 @@ updateMaybeFirst2 mb ll =
 -- Constructor for updating multiple expressions evaluated in the same environment.
 updateContinueMultiple: String -> Env -> List (Exp, PrevOutput, Output) -> (Env -> List Exp -> UpdateStack) -> UpdateStack
 updateContinueMultiple msg env totalExpValOut continuation  =
+  let totalExp = withDummyExpInfo <| EList space0 (totalExpValOut |> List.map (\(e, _, _) -> (space1, e))) space0 Nothing space0 in
   let aux i revAccExps envAcc expValOut =
         --let _ = Debug.log "continuing aux" () in
         case expValOut of
@@ -95,7 +102,7 @@ updateContinueMultiple msg env totalExpValOut continuation  =
             updateContinue env e v out <|
               HandlePreviousResult (toString i ++ "/" ++ toString (List.length totalExpValOut) ++ " " ++ msg)  <| \newEnv newExp ->
                 --let _ = Debug.log "started tricombine" () in
-                let newEnvAcc = triCombine newExp env envAcc newEnv in
+                let newEnvAcc = triCombine totalExp env envAcc newEnv in
                 --let _ = Debug.log "Finished tricombine" () in
                 aux (i + 1) (newExp::revAccExps) newEnvAcc tail
   in aux 1 [] env totalExpValOut

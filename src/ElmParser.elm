@@ -1281,6 +1281,8 @@ opFromIdentifier identifier =
       Just NoWidgets
     "replaceAllIn" ->
       Just RegexReplaceAllIn
+    "extractFirstIn" ->
+      Just RegexExtractFirstIn
     _ ->
       Nothing
 

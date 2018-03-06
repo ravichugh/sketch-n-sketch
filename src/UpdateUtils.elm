@@ -267,8 +267,9 @@ recursiveMergeExp = recursiveMerge mergeExp
 triCombine: Exp -> Env -> Env -> Env -> Env
 triCombine origExp originalEnv newEnv1 newEnv2 =
   let fv = LangUtils.freeIdentifiers origExp in
-  --let _ = Debug.log "TriCombine starts !" () in
+  --let _ = Debug.log ("TriCombine starts on " ++ Syntax.unparser Syntax.Elm origExp) (envToString originalEnv, envToString newEnv1, envToString newEnv2) in
   let aux acc originalEnv newEnv1 newEnv2 =
+       --let _ = Debug.log "aux " (envToString acc, envToString originalEnv, envToString newEnv1, envToString newEnv2) in
        case (originalEnv, newEnv1, newEnv2) of
          ([], [], []) -> acc
          ((x, v1)::oe, (y, v2)::ne1, (z, v3)::ne2) ->
@@ -280,11 +281,12 @@ triCombine origExp originalEnv newEnv1 newEnv2 =
            else if Set.member x fv then
              aux (acc ++ [(x, mergeVal v1 v2 v3)]) oe ne1 ne2
            else
+    --         let _ = Debug.log (x ++ " not member of free variables of " ++ Syntax.unparser Syntax.Elm origExp) "" in
              aux (acc ++ [(x, v1)]) oe ne1 ne2
          _ -> Debug.crash <| "Expected environments to have the same size, got\n" ++
               toString originalEnv ++ ", " ++ toString newEnv1 ++ ", " ++ toString newEnv2
        in
-  aux [] originalEnv newEnv1 newEnv2
+  aux [] originalEnv newEnv1 newEnv2 -- |> \x -> let _ = Debug.log "tricombine result" (envToString x) in x
 
 mergeInt: Int -> Int -> Int -> Int
 mergeInt original modified1 modified2 =
@@ -313,7 +315,10 @@ mergeVal original modified1 modified2 =
       --  Dict.keys originalElems
       else if valEqual original modified1 then modified2 else modified1
     _ ->
-      if valEqual original modified1 then modified2 else modified1
+      --let _ = Debug.log ("mergeVal" ++ valToString original ++ " "  ++ valToString modified1 ++ " " ++ valToString modified2) " " in
+      let result = if valEqual original modified1 then modified2 else modified1 in
+      --let _ = Debug.log ("mergeVal=" ++ valToString result) "" in
+      result
 
 patsEqual: List Pat -> List Pat -> List Pat -> Bool
 patsEqual pats1 pats2 pats3 = List.all identity <| List.map3 (\p0 p1 p2 -> patEqual p0 p1 && patEqual p1 p2) pats1 pats2 pats3

@@ -59,3 +59,18 @@ logTimedRun caption thunk =
 stringCharAt: Int -> String -> Maybe Char
 stringCharAt index string =
   Native.ImpureGoodies.stringCharAt index string
+
+-- Used to cache a value inside an expression. Careful: the field name must be available and not overriding
+putCache: record -> String -> value -> value
+putCache record cacheName newValue =
+  Native.ImpureGoodies.putCache record cacheName newValue
+
+getCache: record -> String -> Maybe b
+getCache record cacheName =
+  Native.ImpureGoodies.getCache record cacheName
+
+getOrUpdateCache: record -> String -> (() -> value) -> value
+getOrUpdateCache record cacheName default =
+  case getCache record cacheName of
+    Just v -> v
+    Nothing -> putCache record cacheName (default ())

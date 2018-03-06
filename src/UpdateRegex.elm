@@ -1,4 +1,4 @@
-module UpdateRegex exposing (updateRegexReplaceAllByIn, evalRegexReplaceAllByIn, allInterleavingsIn)
+module UpdateRegex exposing (updateRegexReplaceAllByIn, evalRegexReplaceAllByIn, evalRegexExtractFirstIn, updateRegexExtractFirstIn, allInterleavingsIn)
 
 import UpdateStack exposing (NextAction(..), UpdateStack(..), Output)
 import Results exposing
@@ -59,11 +59,11 @@ stringToLambda env vs s =
          Nothing -> [] --It was just a regular escaped dollar
          Just groupIndex ->
            let res = [ withDummyExpInfo <| EBase space1 (EString "\"" (removeSlashDollar (String.slice lastStart.value start s))),
-                        withDummyExpInfo <| ESelect space1 (withDummyExpInfo <| EParens space0 (withDummyExpInfo <|
+                       withDummyExpInfo <|
                           EApp space1 (withDummyExpInfo <| EVar space1 "nth") [
                            withDummyExpInfo <| ESelect space0 (withDummyExpInfo m) space0 space0 "group",
                             withDummyExpInfo <| EConst space1 (toFloat groupIndex) dummyLoc noWidgetDecl] SpaceApp space0
-                        ) Parens space0) space0 space0 "match"] in
+                        ] in
            let _ = ImpureGoodies.mutateRecordField lastStart "value" end in
            res
        ) l
@@ -81,10 +81,13 @@ matchToExpApp: Exp -> GroupStartMap.Match -> Exp
 matchToExpApp replacementVar m =
   let mainMatch = eStr m.match in
   let subMatches = List.map (\{match, start} -> eStr <| Maybe.withDefault "" match) m.submatches in
-  let subgroup= List.map (\{match, start} -> eRecord [("match", eStr <| Maybe.withDefault "" match), ("start", eConst (toFloat start) dummyLoc)]) m.submatches in
-  let argument = eRecord [("match", mainMatch),
+  let (subgroups, substarts) =
+    List.map (\{match, start} -> (eStr <| Maybe.withDefault "" match, eConst (toFloat start) dummyLoc)) m.submatches |> List.unzip in
+  let argument = eRecord [
+                   ("match", mainMatch),
                    ("submatches", eList subMatches Nothing),
-                   ("group",      eList ((eRecord [("match", mainMatch), ("start", eConst (toFloat m.index) dummyLoc)]) :: subgroup) Nothing),
+                   ("group",      eList (mainMatch :: subgroups) Nothing),
+                   ("start",      eList (eConst (toFloat m.index) dummyLoc ::substarts) Nothing),
                    ("index",      eConst (toFloat m.index) dummyLoc),
                    ("number",     eConst (toFloat m.number) dummyLoc)]
   in
@@ -107,8 +110,8 @@ extractHeadTail msg list continuation =
 -- Reverse operation of matchToExpApp
 expAppToStringMatch : Exp -> Result String String {- The matched string -}
 expAppToStringMatch  newE =
-  let extractFive names l = case List.unzip l of
-    (foundNames, [elem1, elem2, elem3, elem4, elem5]) -> if foundNames == names then Just (elem1, elem2, elem3, elem4, elem5) else Nothing
+  let extractSix names l = case List.unzip l of
+    (foundNames, [elem1, elem2, elem3, elem4, elem5, elem6]) -> if foundNames == names then Just (elem1, elem2, elem3, elem4, elem5, elem6) else Nothing
     _ -> Nothing
   in
   let extractTwo names ext1 ext2 l = case List.unzip l of
@@ -118,27 +121,28 @@ expAppToStringMatch  newE =
     _ -> Nothing
   in
   let eConstIntUnapply = eConstUnapply >> Maybe.map floor in
-  let extractRecord: Exp -> ((String, List String, List (String, Int), Int, Int) -> Result String e) -> Result String e
+  let extractRecord: Exp -> ((String, List String, List String, List Int, Int, Int) -> Result String e) -> Result String e
       extractRecord argument continuation =
        r "Internal error, Expected record, got something else" eRecordUnapply argument <| \recordElems ->
-       r "InternalError, expected 5 elements, got something else" (extractFive ["match", "submatches", "group", "index", "number"]) recordElems <| \(oldMatch, oldSubmatches, oldGroup, oldIndex, oldNumber) ->
+       r "InternalError, expected 5 elements, got something else" (extractSix ["match", "submatches", "group", "start", "index", "number"]) recordElems <| \(oldMatch, oldSubmatches, oldGroup, oldStart, oldIndex, oldNumber) ->
        r "InternalError, expected a string, got something else" eStrUnapply oldMatch <| \oldMatchString ->
        r "InternalError, expected a number, got something else" eConstIntUnapply oldIndex <| \oldIndexNum ->
        r "InternalError, expected a number, got something else" eConstIntUnapply oldNumber <| \oldNumberNum ->
        r "Internal error, expected a list of submatches" eListUnapply oldSubmatches <| \oldSubmatchesList ->
-       r "Internal error, expected a list of submatches" eListUnapply oldGroup <| \oldGroupList ->
+       r "Internal error, expected a list of groups" eListUnapply oldGroup <| \oldGroupList ->
+       r "Internal error, expected a list of starts" eListUnapply oldStart <| \oldStartList ->
        p "Submatch is supposed to be a list of strings." eStrUnapply oldSubmatchesList <| \oldSubmachesStringList ->
-       p "group is supposed to stay a list of record" eRecordUnapply oldGroupList <| \oldGroupRecordList ->
-       p "Internal error, expecting {match,start} for each group" (extractTwo ["match", "start"] eStrUnapply eConstIntUnapply) oldGroupRecordList <| \oldGroupValues ->
-       continuation (oldMatchString, oldSubmachesStringList, oldGroupValues, oldIndexNum, oldNumberNum)
+       p "group is supposed to stay a list of strings" eStrUnapply oldGroupList <| \oldGroupStringList ->
+       p "start is supposed to stay a list of integers" eConstIntUnapply oldStartList <| \oldStartNumList ->
+       continuation (oldMatchString, oldSubmachesStringList, oldGroupStringList, oldStartNumList, oldIndexNum, oldNumberNum)
   in
 
   r "Internal error, could not recover a let" eLetUnapply newE <| \((name, oldArgument), bodyExp) ->
   r "Internal error, could not recover a fundef" eFunUnapply oldArgument <| \(pats, originalRecordNotEvaluated) ->
-  extractRecord originalRecordNotEvaluated <| \(oldMatch, oldSubmatches, oldGroups, oldIndex, oldNumber) ->
+  extractRecord originalRecordNotEvaluated <| \(oldMatch, oldSubmatches, oldGroups, oldStarts, oldIndex, oldNumber) ->
   r "Internal error, expected ToStrExceptStr" (eOpUnapply1 ToStrExceptStr) bodyExp <| \theapp ->
   r "Internal error, expected Application" eAppUnapply1 theapp <| \(vfun, arg) ->
-  extractRecord arg <| \(newMatch, newSubmatches, newGroups, newIndex, newNumber) ->
+  extractRecord arg <| \(newMatch, newSubmatches, newGroups, newStarts, newIndex, newNumber) ->
       -- Now we need to look for the updated match.
     if newMatch /= oldMatch then
       Ok newMatch
@@ -148,16 +152,17 @@ expAppToStringMatch  newE =
       Err "Cannot update the index of a matched regular expression, only the string itself !"
     else if List.length newSubmatches /= List.length oldSubmatches then
       Err "Cannot change the length of the submatches, only the strings"
+    else if oldStarts /= newStarts then
+      Err "Cannot change the start positions of the subgroup, only the strings"
     else if List.length newGroups /= List.length oldGroups then
       Err "Cannot change the length of the group list, only the strings"
     else -- Maybe a subgroup has been changed ?
-     let allsubgroups = UpdateUtils.mergeList (mergeTuple mergeString mergeInt) oldGroups newGroups (Utils.zip (newMatch::newSubmatches) (List.map Tuple.second newGroups)) in
+     let allsubgroups = UpdateUtils.mergeList mergeString oldGroups newGroups (newMatch::newSubmatches) in
      -- We recover all changes and push only the biggest ones if there are conflicts.
-     List.map2 (\(mo, so) (m2, s2) ->
-       if so /= s2 then Err "Cannot change the position of a subrgoup"
-       else if mo == m2 then Ok Nothing
+     List.map3 (\mo so m2 ->
+       if mo == m2 then Ok Nothing
        else Ok <| Just (so, so + String.length mo, m2)
-     ) oldGroups allsubgroups
+     ) oldGroups oldStarts allsubgroups
      |> Utils.projOk |> Result.map (\transformations ->
        let finalMatch = List.filterMap identity transformations |> mergeTransformations oldMatch in
        finalMatch
@@ -169,12 +174,11 @@ mergeTransformations originalString replacements =
     [] -> string
     (start, end, newGroup)::remainingTransformations ->
        if end <= maxReplacementIndex then
-         let updatedString = (String.left start string) ++ newGroup ++ String.dropLeft (start + end) string in
+         let updatedString = (String.left start string) ++ newGroup ++ String.dropLeft end string in
          aux start updatedString remainingTransformations
        else
          aux maxReplacementIndex string remainingTransformations
   in aux (String.length originalString) originalString (List.sortBy (\(a, b, c) -> 0- a) replacements)
-
 
 
 evalRegexReplaceAllByIn: Env -> (Env -> Exp -> Result String Val)-> Val -> Val -> Val -> Result String Val
@@ -276,9 +280,53 @@ updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV ol
 --updateRegexReplaceFirstIn
 
 -- We can code extractFirstIn once we have records and record pattern matching.
---updateRegexExtractFirstIn: String ->
+evalRegexExtractFirstIn: Val -> Val -> Result String Val
+evalRegexExtractFirstIn regexpV stringV =
+  let vStr = replaceV_ stringV << VBase << VString in
+  let vList = replaceV_ stringV << VList in
+  case (regexpV.v_, stringV.v_) of
+    (VBase (VString regexp), VBase (VString string)) ->
+      let matches = GroupStartMap.find (Regex.AtMost 1) regexp string in
+      case matches of
+        [] -> Ok (vList [vStr "Nothing"])
+        m::_ ->
+          Ok (replaceV_ stringV <| VList [
+            vStr "Just",
+            vList <| List.map (\{match, start} -> vStr <| Maybe.withDefault "" match) m.submatches ])
+    _ -> Err "Expected two strings, a regex and a string, got something else"
 
+updateRegexExtractFirstIn: Val -> Val -> Val -> Val -> Results String Val
+updateRegexExtractFirstIn regexpV stringV oldVal newVal =
+  case (regexpV.v_, stringV.v_, oldVal.v_, newVal.v_) of
+    (VBase (VString regexp), VBase (VString string), VList oldGroups, VList newGroups) ->
+      let matches = GroupStartMap.find (Regex.AtMost 1) regexp string in
+      case matches of
+        [] ->
+--          let _ = Debug.log "No match, just return original string" () in
+          ok1 stringV
+        m::_ ->
+          case newGroups of
+            [just, v] ->
+              case v.v_ of
+                VList newGroupsList ->
+--                  let _ = Debug.log "One match, reverting" () in
 
+                  let newGroupStr = newGroupsList |> List.map (\c -> case c.v_ of
+                       VBase (VString v) -> Ok v
+                       _ -> Err <| "Not a string for updating a regex group: " ++ valToString c  )
+                       |> Utils.projOk
+                  in
+                  newGroupStr |> Results.fromResult |> Results.andThen (\newGroups ->
+                    let transformations =
+                         List.map2 (\{match,start} newValue -> match |> Maybe.andThen (\match -> if match == newValue then Nothing else Just (start, start + String.length match, newValue) )) m.submatches newGroups
+                         |> List.filterMap identity
+                    in
+                    --let _ = Debug.log "transformations to the string" transformations in
+                    ok1 (replaceV_ stringV <| VBase <| VString <| mergeTransformations string transformations)
+                  )
+                _ -> Errs "Updating from a just of not a list"
+            _ -> Errs "Updating from not a just"
+    _ -> Errs "Internal error: Expected two strings, a regex, a string, the old value and the new value, got something else"
 
 
 -- Given a list of strings, computes all the possible ways they split the string.

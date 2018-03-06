@@ -33,7 +33,7 @@ import ImpureGoodies exposing (stringCharAt, mutateRecordField)
 
 type alias Match =
     { match : String
-        , submatches : List { match: Maybe String, start: Int }
+    , submatches : List { match: Maybe String, start: Int }
     , index : Int
     , number : Int
     }

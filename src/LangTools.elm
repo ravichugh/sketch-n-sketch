@@ -2112,6 +2112,7 @@ numericLetBoundIdentifiers program =
           DictInsert -> False
           ToStrExceptStr -> List.any recurse operands
           RegexReplaceAllIn  -> False
+          RegexExtractFirstIn -> False
 
       EList _ _ _ _ _               -> False
       ERecord _ _ _ _               -> False

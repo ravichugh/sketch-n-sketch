@@ -98,6 +98,7 @@ type Op_
   -- trinary ops
   | DictInsert
   | RegexReplaceAllIn
+  | RegexExtractFirstIn
 
 
 maybeEvalMathOp : Op_ -> List Num -> Maybe Num

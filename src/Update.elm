@@ -61,13 +61,13 @@ update updateStack nextToUpdate=
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out mb ->
        {--
-      let _ = Debug.log (String.concat ["update: " {-, unparse e-}, " <-- "]) () in --, valToString out, " -- env = " , envToString (pruneEnv e env), "|-"]) () in
+      let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", valToString out, " -- env = " , envToString (pruneEnv e env), "|-"]) () in
        --}
       update (getUpdateStackOp env e oldVal out) (LazyList.maybeCons mb nextToUpdate)
 
     UpdateResultS fEnv fOut mb -> -- Let's consume the stack !
        {--
-      let _ = Debug.log (String.concat ["update final result: " {-, unparse fOut, " -- env = " , envToString (pruneEnv fOut fEnv)-}]) () in
+      let _ = Debug.log (String.concat ["update final result: ", unparse fOut, " -- env = " , envToString (pruneEnv fOut fEnv)]) () in
        --}
       case (LazyList.maybeCons mb nextToUpdate) of -- Let's consume the stack !
         LazyList.Nil ->
@@ -659,6 +659,16 @@ getUpdateStackOp env e oldVal newVal =
                         Errs msg -> UpdateError msg
                         Oks ll -> updateOpMultiple "replaceAllIn" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs (LazyList.map (\(a, b, c) -> [a, b, c]) ll)
                     _ -> UpdateError "replaceAllIn requires regexp, replacement (fun or string) and the string"
+                RegexExtractFirstIn ->
+                  case (vs, opArgs) of
+                    ([regexpV, stringV], [regexpE, stringE]) ->
+                      case UpdateRegex.updateRegexExtractFirstIn regexpV stringV oldVal newVal of
+                        Errs msg -> UpdateError msg
+                        Oks ll ->
+                          updateAlternatives "No solution for extractFirstIn" env stringE stringV ll <|
+                            HandlePreviousResult "extractFirstIn" <| \newEnv newStringE ->
+                              updateResult newEnv (replaceE__ e <| EOp sp1 op [regexpE, newStringE] sp2)
+                    _ -> UpdateError "extractFirstIn requires regexp, replacement (fun or string) and the string"
                 _ ->
                   case maybeUpdateMathOp op vs oldVal newVal of
                     Errs msg -> UpdateError msg

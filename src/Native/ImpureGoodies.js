@@ -71,6 +71,26 @@ var _user$project$Native_ImpureGoodies = {
       }
     }}},
 
+    putCache: function(record) { return function(cacheName) { return function(newValue) {
+      if(typeof record == "object") {
+        //record[" cache_" + cacheName] = newValue;
+        console.log("stored cache " + cacheName, record)
+      } else
+        throw "ImpureGoodies.putCache: this is not an object";
+      return newValue;
+    }}},
+
+    getCache: function(record) { return function(cacheName) {
+      if(typeof record != "object")
+        throw "ImpureGoodies.putCache: this is not an object";
+      console.log("getting cache " + cacheName, record)
+      var res = record[" cache_" + cacheName];
+      if (typeof res == "undefined")
+        return _elm_lang$core$Maybe$Nothing;
+      else
+        return _elm_lang$core$Maybe$Just(res);
+    }},
+
     timedRun : function(thunk) {
       var start = (new Date()).getTime();
       var result = thunk(_elm_lang$core$Native_Utils.Tuple0);

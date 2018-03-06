@@ -18,18 +18,46 @@ import LazyList
 import LangUtils exposing (..)
 import ParserUtils
 
+type StateChanger = StateChanger (State -> State)
 
-type alias State = { numTests: Int, nthAssertion: Int, numSuccess: Int, numFailed: Int, currentName: String, errors: String, ignore: Bool }
-init_state = State 0 0 0 0 "" "" False
+type alias State = { numTests: Int, nthAssertion: Int, numSuccess: Int, numFailed: Int, currentName: String, errors: String, ignore: Bool, toLaunch: List StateChanger, onlyOnly: Bool }
+init_state = State 0 0 0 0 "" "" False [] False
+
+-- Metacommands to gather states without executing them
+delay: (() -> State -> State) -> State -> State
+delay thetest state =
+  if state.ignore then state else
+  thetest () state
+
+only: (State -> State) -> State -> State
+only stateChanger state =
+  let newState = stateChanger { state | toLaunch = [], onlyOnly = False} in
+  let newState2 =flush newState in
+  {newState2  | onlyOnly = True, toLaunch = []} -- wipe out other tests not launched
+
+gather: (State -> State) -> State -> State
+gather stateChanger state =
+  { state | toLaunch = state.toLaunch ++ [StateChanger stateChanger] }
+
+flush: State -> State
+flush state =
+  let defaultState = {state | toLaunch = [] } in
+  if state.onlyOnly then defaultState else
+  List.foldl (\(StateChanger sc) s -> sc s) defaultState state.toLaunch
+
+
+
 summary: State -> String
-summary state =
+summary state_ =
+  let state = flush state_ in
   Debug.log (state.errors ++ "\n-------------------\n "++toString state.numSuccess ++"/" ++ toString state.numTests++ " tests passed\n-------------------") "ok"
 
-test: String -> State -> State
-test name state =
+test_: String -> State -> State
+test_ name state =
   --let _ = Debug.log name " [Start]" in
   --let res = body <| name in
   {state | nthAssertion = 1, currentName = name} -- Debug.log name "all tests passed"
+test s = gather <| test_ s
 
 ignore: Bool -> State -> State
 ignore b state =
@@ -59,14 +87,16 @@ genericAssertEqual eToString isEqual obtained expected state =
   if isEqual obtained expected then success state else fail state <| "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] Expected \n" ++
       eToString expected ++ ", got\n" ++ eToString obtained
 
-assertEqual: a -> a -> State  -> State
-assertEqual = genericAssertEqual (toString) (==)
+assertEqual_: a -> a -> State  -> State
+assertEqual_ = genericAssertEqual (toString) (==)
+assertEqual a b = gather <| assertEqual_ a b
 
-assertEqualVal: Val -> Val -> State  -> State
-assertEqualVal = genericAssertEqual valToString (\x y -> valToString x == valToString y)
+assertEqualVal_: Val -> Val -> State  -> State
+assertEqualVal_ = genericAssertEqual valToString (\x y -> valToString x == valToString y)
+assertEqualVal  v1 v2 = gather <| assertEqualVal_ v1 v2
 
-updateAssert: Env -> Exp -> Val -> Val -> Env -> String  -> State  -> State
-updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
+updateAssert_: Env -> Exp -> Val -> Val -> Env -> String  -> State  -> State
+updateAssert_ env exp origOut newOut expectedEnv expectedExpStr state =
   if state.ignore then state else
   let expected = envToString expectedEnv ++ " |- " ++ expectedExpStr in
   let problemdesc = ("\nFor problem:" ++
@@ -90,9 +120,11 @@ updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
        fail state <| log state <| "Expected \n" ++ expected ++  ", got no solutions without error" ++ problemdesc
     Results.Errs msg ->
        fail state <| log state <| "Expected \n" ++ expected ++  ", got\n" ++ msg ++ problemdesc
+updateAssert env exp origOut newOut expectedEnv expectedExpStr =
+  gather <| updateAssert_ env exp origOut newOut expectedEnv expectedExpStr
 
-evalElmAssert: List (String, String) -> String -> String -> State -> State
-evalElmAssert envStr expStr expectedResStr state =
+evalElmAssert_: List (String, String) -> String -> String -> State -> State
+evalElmAssert_ envStr expStr expectedResStr state =
   if state.ignore then state else
     case Utils.projOk [parseEnv envStr] of
       Err error -> fail state <| log state <| "Error while parsing environments: " ++ error
@@ -107,6 +139,7 @@ evalElmAssert envStr expStr expectedResStr state =
                Ok _ -> fail state "???"
              Ok _ -> fail state "???"
       Ok _ -> fail state "???"
+evalElmAssert envStr expStr expectedResStr = gather <| evalElmAssert_ envStr expStr expectedResStr
 
 updateElmAssert: List (String, String) -> String -> String -> List (String, String) -> String -> State -> State
 updateElmAssert envStr expStr newOutStr expectedEnvStr expectedExpStr state =
@@ -173,22 +206,23 @@ tPAs sp0 name sp1 pat= withDummyPatInfo <| PAs sp0 name sp1 pat
 tPList sp0 listPat sp1= withDummyPatInfo <| PList sp0 listPat (ws "") Nothing sp1
 tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat sp1 (Just tailPat) sp1
 
+onlySpecific = False
+
 all_tests = init_state
-  |> ignore True
+  |> ignore onlySpecific
   |> test "triCombineTest"
-  |> assertEqual
+  |> delay (\() -> assertEqual
       (triCombine (tList space0  [tVar space0 "x", tVar space0 "y"] space0)
                   [("y", (tVal 2)), ("x", (tVal 1))]
                   [("y", (tVal 2)), ("x", (tVal 1))]
                   [("y", (tVal 2)), ("x", (tVal 3))]
-                 )[("y", (tVal 2)), ("x", (tVal 3))]
-  |> assertEqual
+                 )[("y", (tVal 2)), ("x", (tVal 3))])
+  |> delay (\() -> assertEqual
       (triCombine (tList space0  [tVar space0 "x", tVar space0 "y", tVar space0 "z"] space0)
                   [("x", (tVal 1)), ("y", (tVal 1)), ("z", (tVal 1))]
                   [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))]
                   [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))]
-                 )[("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 2))]
-
+                 )[("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 2))])
   |> test "update const"
   |> updateElmAssert [] "   1"   "2"
                      [] "   2"
@@ -432,8 +466,7 @@ all_tests = init_state
   |> test "replaceAllIn"
     |> evalElmAssert [] "replaceAllIn \"l\" \"L\" \"Hello world\"" "\"HeLLo worLd\""
     |> evalElmAssert nthEnv "replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
-    |> evalElmAssert nthEnv "replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c.match == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
-    |> ignore False
+    |> evalElmAssert nthEnv "replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
     |> updateElmAssert nthEnv "replaceAllIn \"e\" \"ee\" \"\"\"See some examples from File...\"\"\"" "\"Seeee somee emexamplees from Filee...\""
                        nthEnv "replaceAllIn \"e\" \"eme\" \"\"\"See some examples from File...\"\"\""
     |> updateElmAssert nthEnv "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"ee\" \"\"\"\n            See some examples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
@@ -442,8 +475,10 @@ all_tests = init_state
     |> updateElmAssert nthEnv "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"ee\" \"\"\"\n            See some examples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
                               "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT',                           \"\"\"\n            Seeee somee eecxamplees from Filee -> Neew From Teemplatee in\n            thee meenu bar, or by preessing thee Preevious and Neext\n            buttons in thee top-right corneer.\n           \"\"\"]]]\n        ]\n      ]"
                        nthEnv "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"ee\" \"\"\"\n            See some ecxamples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
-    |> ignore True
-
+    |> only (
+      updateElmAssert [] "extractFirstIn \"^\\\\s*(S(\\\\w)+ (\\\\w))\" \"\"\" See some examples\"\"\" |> case of [\"Just\", [big, s1, s2]] -> big + s1 + s2; e -> \"not the right shape\"" "\"Sea ses\""
+                      [] "extractFirstIn \"^\\\\s*(S(\\\\w)+ (\\\\w))\" \"\"\" Sea some examples\"\"\" |> case of [\"Just\", [big, s1, s2]] -> big + s1 + s2; e -> \"not the right shape\""
+    )
   --|> test "Record construction, extraction and pattern "
   --  |>
   |> test "Partial application"

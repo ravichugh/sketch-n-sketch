@@ -18,7 +18,7 @@ import ParserUtils
 import LangUtils exposing (..)
 
 import ImpureGoodies
-import UpdateRegex exposing (evalRegexReplaceAllByIn)
+import UpdateRegex exposing (evalRegexReplaceAllByIn, evalRegexExtractFirstIn)
 
 valToDictKey : Syntax -> Backtrace -> Val -> Result String (String, String)
 valToDictKey syntax bt v =
@@ -566,12 +566,16 @@ evalOp syntax env e bt opWithInfo es =
             _     -> error ()
           RegexReplaceAllIn -> case vs of
             [regexp, replacement, string] ->
-              (UpdateRegex.evalRegexReplaceAllByIn
+              (evalRegexReplaceAllByIn
                 env
                 (\newEnv newExp -> eval_ syntax newEnv bt newExp |> Result.map Tuple.first)
                 regexp
                 replacement
                 string)
+            _     -> error ()
+          RegexExtractFirstIn -> case vs of
+            [regexp, string] ->
+              evalRegexExtractFirstIn regexp string
             _     -> error ()
       in
       case newValRes of

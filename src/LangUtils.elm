@@ -7,6 +7,7 @@ import Dict
 import Set
 import Info
 import ParserUtils
+import ImpureGoodies
 
 branchPatExps : List Branch -> List (Pat, Exp)
 branchPatExps branches =
@@ -108,12 +109,12 @@ freeVars exp =
 -- This is wrong for TypeCases; TypeCase scrutinee patterns not included. TypeCase scrutinee needs to turn into an expression (done on Brainstorm branch, I believe).
 freeIdentifiers : Exp -> Set.Set Ident
 freeIdentifiers exp =
+  --ImpureGoodies.getOrUpdateCache exp "freeIdentifiers" <| \() -> -- This is not working for now.
   freeVars exp
   |> List.map expToMaybeIdent
   |> Utils.projJusts
   |> Utils.fromJust_ "LangTools.freeIdentifiers"
   |> Set.fromList
-
 
 -- Removes from the environment all variables that are already bound by a pattern
 pruneEnvPattern: List Pat -> Env -> Env
