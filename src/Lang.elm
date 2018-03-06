@@ -1802,6 +1802,11 @@ eLetUnapply e = case e.val.e__ of
       _ -> Nothing
   _ -> Nothing
 
+eFunUnapply: Exp -> Maybe (List Pat, Exp)
+eFunUnapply e = case e.val.e__ of
+  EFun _ ps body _ -> Just (ps, body)
+  _ -> Nothing
+
 eRecordUnapply: Exp -> Maybe (List (String, Exp))
 eRecordUnapply e = case e.val.e__ of
   ERecord _ Nothing es _ -> Just <| List.map (\(_, _, k, _, v) -> (k, v)) es

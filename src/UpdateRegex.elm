@@ -72,7 +72,7 @@ stringToLambda env vs s =
          EBase _ (EString _ _) -> eOp Plus [a, b]
          _ -> eOp Plus [eOp ToStrExceptStr [a], b]
        ) (withDummyExpInfo <| EBase space1 (EString "\"" <| removeSlashDollar(String.dropLeft lastStart.value s))) tmp
-  in replaceV_ vs <| VClosure Nothing [withDummyPatInfo <| PVar space0 "m" noWidgetDecl] lambdaBody env
+  in replaceV_ vs <| VClosure Nothing [pVar "m"] lambdaBody env
 
 type EvaluationError = EvaluationError String
 
@@ -87,7 +87,7 @@ matchToExpApp replacementVar m =
                    ("index",      eConst (toFloat m.index) dummyLoc),
                    ("number",     eConst (toFloat m.number) dummyLoc)]
   in
-  eLet [("_", argument)] <|
+  eLet [("_", eFun [pVar "_"] argument)] <|
   (eOp ToStrExceptStr [
     eApp replacementVar [argument]])
 
@@ -133,7 +133,8 @@ expAppToStringMatch  newE =
   in
 
   r "Internal error, could not recover a let" eLetUnapply newE <| \((name, oldArgument), bodyExp) ->
-  extractRecord oldArgument <| \(oldMatch, oldSubmatches, oldGroups, oldIndex, oldNumber) ->
+  r "Internal error, could not recover a fundef" eFunUnapply oldArgument <| \(pats, originalRecordNotEvaluated) ->
+  extractRecord originalRecordNotEvaluated <| \(oldMatch, oldSubmatches, oldGroups, oldIndex, oldNumber) ->
   r "Internal error, expected ToStrExceptStr" (eOpUnapply1 ToStrExceptStr) bodyExp <| \theapp ->
   r "Internal error, expected Application" eAppUnapply1 theapp <| \(vfun, arg) ->
   extractRecord arg <| \(newMatch, newSubmatches, newGroups, newIndex, newNumber) ->
