@@ -7,7 +7,7 @@ import Utils
 
 import Dict exposing (Dict)
 import Set exposing (Set)
-
+import LangUtils exposing (..)
 
 type alias DependencyEnv = List (Ident, EId)
 

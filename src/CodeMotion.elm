@@ -23,6 +23,7 @@ module CodeMotion exposing
 
 import Lang exposing (..)
 import LangTools exposing (..)
+import LangUtils exposing (..)
 import LangSimplify
 import LangUnparser exposing (unparseWithIds, expsEquivalent, patsEquivalent, unparseWithUniformWhitespace)
 import FastParser as Parser
@@ -137,7 +138,7 @@ renamePat (scopeId, path) newName program =
           let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
           let newUseEIds = List.concatMap (LangTools.identifierUses newName) newScopeAreas |> List.map (.val >> .eid) in
           let isSafe =
-            oldUseEIds == newUseEIds && not (List.member newName (LangTools.identifiersListInPat pat))
+            oldUseEIds == newUseEIds && not (List.member newName (LangUtils.identifiersListInPat pat))
           in
           let newScopeExp =
             let scopeAreasReplaced =

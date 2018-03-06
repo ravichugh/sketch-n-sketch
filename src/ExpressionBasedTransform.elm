@@ -17,6 +17,7 @@ import LangSvg exposing (NodeId)
 import ShapeWidgets exposing (PointFeature, SelectableFeature)
 import Blobs exposing (..)
 import LangTools exposing (..)
+import LangUtils exposing (..)
 import LangSimplify
 import Types
 import InterfaceModel exposing (Model, ReplicateKind(..), resultExp)

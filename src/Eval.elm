@@ -1,4 +1,4 @@
-module Eval exposing (run, doEval, parseAndRun, parseAndRun_, evalDelta, initEnv, dictKeyToVal)
+module Eval exposing (run, doEval, parseAndRun, parseAndRun_, evalDelta, initEnv)
 
 import Debug
 import Dict
@@ -15,69 +15,16 @@ import Utils
 import Record
 import Info
 import ParserUtils
+import LangUtils exposing (..)
 
 import ImpureGoodies
 import UpdateRegex exposing (evalRegexReplaceAllByIn)
 
-
-------------------------------------------------------------------------------
--- Temporary valToString in Elm syntax
-
--- Use this instead of ValUnparser.strVal, which was specific to Little syntax.
---
-valToString : Val -> String
-valToString v = ElmUnparser.unparse (anotherValToExp (ws "") "" v)
-
--- Hacky workaround dependency issues for the moment:
---
--- Copying LangTools.valToExp and removing call to pruneEnv, since
--- the common use case is to call valToString on values without closures.
---
-anotherValToExp: WS -> String -> Val -> Exp
-anotherValToExp sp indentation v =
-  withDummyExpInfo <| case v.v_ of
-    VConst mb num     -> EConst sp (Tuple.first num) dummyLoc noWidgetDecl
-    VBase (VBool b)   -> EBase  sp <| EBool b
-    VBase (VString s) -> EBase  sp <| EString defaultQuoteChar s
-    VBase (VNull)     -> EBase  sp <| ENull
-    VList vals ->
-      case vals of
-        [] -> EList sp [] space0 Nothing space0
-        head::tail ->
-          let headExp = (ws "", anotherValToExp (ws " ") (indentation ++ "  ") head) in
-          let tailExps = List.map (\y -> (space0, anotherValToExp (ws <| "\n" ++ indentation ++ "  ") (indentation ++ "  ") y)) tail in
-          EList sp (headExp :: tailExps) space0 Nothing <| (ws <| "\n" ++ indentation)
-    VClosure mRec patterns body env ->
-      -- not pruning like LangTools.valToExp does
-      -- let prunedEnv = pruneEnvPattern patterns (pruneEnv body env) in
-      let prunedEnv = env in
-      case prunedEnv of
-        [] -> EFun sp patterns body space0
-        (name, v)::tail ->
-          let baseCase =  withDummyExpInfo <| EFun (ws <| "\n" ++ indentation) patterns body space0 in
-          let startCase =
-               case mRec of
-                 Nothing -> baseCase
-                 Just f -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| "\n" ++ indentation) f) space0
-          in
-          let bigbody = List.foldl (\(n, v) body -> withDummyExpInfo <| ELet (ws <| "\n" ++ indentation) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (anotherValToExp space1 (indentation ++ "  ") v) space1 body space0) startCase tail
-          in
-          ELet sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (anotherValToExp space1 (indentation ++ "  ") v) space1 bigbody space0
-    VRecord values ->
-      ERecord sp Nothing (List.indexedMap (\i key ->
-        case Dict.get key values of
-          Nothing -> Debug.crash <| "Internal error: Could not retrieve key " ++ toString key
-          Just v -> if i == 0 then (space0, ws " ", key, ws " ", anotherValToExp (ws " ") (indentation ++ "    ") v)
-            else (space0, ws ("\n" ++ indentation ++ "  "), key, ws " ", anotherValToExp (ws " ") (indentation ++ "    ") v)
-        ) <| Dict.keys values) space1
-    VDict vs ->
-      EOp sp (Info.withDummyInfo DictFromList) [withDummyExpInfo <|
-        EList space1 (
-          Dict.toList vs |> List.indexedMap (\i (key, value) ->
-            let spaceComma = if i == 0 then ws "" else ws <| "\n" ++ indentation in
-            (spaceComma, anotherValToExp (ws " ") (indentation ++ "  ") (replaceV_ v <| VList [dictKeyToVal Syntax.Elm key |> Utils.fromOk "anotherValToExp", value]))
-          )) space0 Nothing space0] space0
-    VFun name _ _ _ -> EVar sp name
+valToDictKey : Syntax -> Backtrace -> Val -> Result String (String, String)
+valToDictKey syntax bt v =
+  case LangUtils.valToDictKey syntax v of
+    Err msg -> errorWithBacktrace syntax bt msg
+    Ok i -> Ok i
 
 ------------------------------------------------------------------------------
 -- Big-Step Operational Semantics
@@ -559,7 +506,7 @@ evalOp syntax env e bt opWithInfo es =
               VList pairs ->
                 List.map (\p -> case p.v_ of
                   VList [vkey, val] ->
-                    valToDictKey syntax bt vkey.v_ |> Result.map (\dkey -> (dkey, val))
+                    valToDictKey syntax bt vkey |> Result.map (\dkey -> (dkey, val))
                   _                -> error ()
                 ) pairs
                 |> Utils.projOk
@@ -568,15 +515,19 @@ evalOp syntax env e bt opWithInfo es =
             _                 -> error ()
           DictInsert -> case vs of
             [vkey, val, {v_}] -> case v_ of
-              VDict d -> valToDictKey syntax bt vkey.v_ |> Result.map (\dkey -> VDict (Dict.insert dkey val d) |> addProvenance)
+              VDict d -> valToDictKey syntax bt vkey |> Result.map (\dkey -> VDict (Dict.insert dkey val d) |> addProvenance)
               _       -> error()
             _                 -> error ()
-          DictGet    -> case args of
-            [key, VDict d] -> valToDictKey syntax bt key |> Result.map (\dkey -> Utils.getWithDefault dkey (VBase VNull |> addProvenance) d)
-            _              -> error ()
-          DictRemove -> case args of
-            [key, VDict d] -> valToDictKey syntax bt key |> Result.map (\dkey -> VDict (Dict.remove dkey d) |> addProvenance)
-            _              -> error ()
+          DictGet    -> case vs of
+            [key, {v_}] -> case v_ of
+              VDict d     -> valToDictKey syntax bt key |> Result.map (\dkey -> Utils.getWithDefault dkey (VBase VNull |> addProvenance) d)
+              _           -> error()
+            _           -> error ()
+          DictRemove -> case vs of
+            [key, {v_}] -> case v_ of
+              VDict d      -> valToDictKey syntax bt key |> Result.map (\dkey -> VDict (Dict.remove dkey d) |> addProvenance)
+              _            -> error ()
+            _           -> error ()
           Cos        -> unaryMathOp op args
           Sin        -> unaryMathOp op args
           ArcCos     -> unaryMathOp op args
@@ -737,7 +688,7 @@ apply syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
         Ok (argVal, argWs) ->
           case cons (p, argVal) (Just closureEnv) of
             Just closureEnv -> recurse psLeft esLeft funcBody closureEnv |> Result.map (\(laterArgs, (v2, ws2)) -> (argVal::laterArgs, (v2, argWs ++ ws2)))
-            Nothing         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " bad arguments to function"
+            Nothing         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " bad arguments to function, cannot match " ++ toString p ++ " with " ++ Syntax.unparser Syntax.Elm e ++ "(evaluates to " ++ valToString argVal ++ ")"
 
 
 eBaseToVBase eBaseVal =
@@ -745,31 +696,6 @@ eBaseToVBase eBaseVal =
     EBool b     -> VBool b
     EString _ b -> VString b
     ENull       -> VNull
-
-
-valToDictKey : Syntax -> Backtrace -> Val_ -> Result String (String, String)
-valToDictKey syntax bt val_ =
-  case val_ of
-    VConst _ (n, tr)  -> Ok <| (toString n, "num")
-    VBase (VBool b)   -> Ok <| (toString b, "bool")
-    VBase (VString s) -> Ok <| (toString s, "string")
-    VBase VNull       -> Ok <| ("", "null")
-    VList vals        ->
-      vals
-      |> List.map ((valToDictKey syntax bt) << .v_)
-      |> Utils.projOk
-      |> Result.map (\keyStrings -> (toString keyStrings, "list"))
-    _                 -> errorWithBacktrace syntax bt <| "Cannot use " ++ (valToString { v_ = val_, provenance = dummyProvenance, parents = Parents [] }) ++ " in a key to a dictionary."
-
-dictKeyToVal: Syntax -> (String, String) -> Result String Val
-dictKeyToVal syntax (key, keyType) =
-  Syntax.parser syntax key
-  |> Result.mapError ParserUtils.showError
-  |> Result.andThen (\e ->
-      doEval syntax [] e
-    )
-  |> Result.map (\((v, _), _) -> v)
-
 
 postProcessWidgets widgets =
   let dedupedWidgets = Utils.dedup widgets in

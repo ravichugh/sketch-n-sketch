@@ -81,6 +81,7 @@ import ParserUtils exposing (showError)
 -- import FastParser exposing (freshen)
 import FastParser as Parser
 import LangTools
+import LangUtils
 import LangSimplify
 import ValueBasedTransform
 import Blobs exposing (..)
@@ -89,6 +90,7 @@ import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
 import Update
+import UpdateUtils
 import Results exposing (Results(..))
 import LazyList
 import Utils
@@ -631,7 +633,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
           , lastRunCode = newCode
           , inputExp = newExp
           , inputVal = newVal
-          , valueEditorString = LangTools.valToString newVal
+          , valueEditorString = LangUtils.valToString newVal
           , slate = newSlate
           , slateCount = 1 + old.slateCount
           , widgets = newWidgets
@@ -708,7 +710,7 @@ tryRun old =
               let new_ =
                 { new | inputExp      = e
                       , inputVal      = newVal
-                      , valueEditorString = LangTools.valToString newVal
+                      , valueEditorString = LangUtils.valToString newVal
                       , code          = newCode
                       , lastRunCode   = newCode
                       , slideCount    = newSlideCount
@@ -1456,7 +1458,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
-            , valueEditorString = LangTools.valToString newVal
+            , valueEditorString = LangUtils.valToString newVal
             , history          = addToHistory newCode old.history
             , slate            = newSlate
             , slateCount       = 1 + old.slateCount
@@ -1575,7 +1577,7 @@ deleteInOutput old =
           let programWithDistalExpressionRemoved =
             case LangTools.findLetAndPatMatchingExpLoose expToDelete.val.eid program of
               Just (letExp, patBindingExpToDelete) ->
-                let identsToDelete = LangTools.identifiersListInPat patBindingExpToDelete in
+                let identsToDelete = LangUtils.identifiersListInPat patBindingExpToDelete in
                 let scopeAreas = LangTools.findScopeAreas (letExp.val.eid, 1) letExp in
                 let varUses = scopeAreas |> List.concatMap (LangTools.identifierSetUses (Set.fromList identsToDelete)) in
                 let deleteVarUses program =
@@ -1658,7 +1660,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
       let newer =
       { new | inputExp             = reparsed -- newExp
             , inputVal             = newVal
-            , valueEditorString    = LangTools.valToString newVal
+            , valueEditorString    = LangUtils.valToString newVal
             , slate                = newSlate
             , slateCount           = 1 + old.slateCount
             , widgets              = newWidgets
@@ -1978,7 +1980,7 @@ doCallUpdate m =
     Oks solutions ->
       let solutionsNotModifyingEnv =
          LazyList.filter
-           (\(env, exp) -> Update.envEqual (LangTools.pruneEnv exp env) (LangTools.pruneEnv exp Eval.initEnv))
+           (\(env, exp) -> UpdateUtils.envEqual (LangUtils.pruneEnv exp env) (LangUtils.pruneEnv exp Eval.initEnv))
            solutions
       in
       case solutionsNotModifyingEnv of
@@ -1994,10 +1996,10 @@ doCallUpdate m =
           let filteredResults =
             solutionsNotModifyingEnv
               |> LazyList.toList
-              |> List.filter (\(_,newCodeExp) -> not (Update.expEqual newCodeExp m.inputExp))
+              |> List.filter (\(_,newCodeExp) -> not (UpdateUtils.expEqual newCodeExp m.inputExp))
               |> Utils.mapi1 (\(i,(_,newCodeExp)) ->
                    --synthesisResult ("Program Update " ++ toString i) newCodeExp
-                   synthesisResult (Update.diffExp m.inputExp newCodeExp) newCodeExp
+                   synthesisResult (UpdateUtils.diffExp m.inputExp newCodeExp) newCodeExp
                  )
           in
           case filteredResults of
@@ -2044,7 +2046,7 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
   { old | code          = code
         , inputExp      = exp
         , inputVal      = val
-        , valueEditorString = LangTools.valToString val
+        , valueEditorString = LangUtils.valToString val
         , history       = addToHistory code old.history
         , slate         = slate
         , preview       = Nothing
@@ -2388,7 +2390,7 @@ handleNew template = (\old ->
         let code = Syntax.unparser old.syntax e in
         { initModel | inputExp      = e
                     , inputVal      = v
-                    , valueEditorString = LangTools.valToString v
+                    , valueEditorString = LangUtils.valToString v
                     , code          = code
                     , lastRunCode   = code
                     , history       = ([code],[])

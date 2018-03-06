@@ -1513,13 +1513,6 @@ tbranchTypes : List TBranch -> List Type
 tbranchTypes tbranches =
   List.map tbranchType tbranches
 
-branchPatExps : List Branch -> List (Pat, Exp)
-branchPatExps branches =
-  List.map
-    (.val >> \(Branch_ _ pat exp _) -> (pat, exp))
-    branches
-
-
 -- Need parent expression since case expression branches into several scopes
 isScope : Maybe Exp -> Exp -> Bool
 isScope maybeParent exp =
@@ -1720,6 +1713,8 @@ eNull  = withDummyExpInfo <| EBase space1 <| ENull
 eApp e es      = withDummyExpInfo <| EApp space1 e es SpaceApp space0
 eCall fName es = eApp (eVar0 fName) es
 eFun ps e      = withDummyExpInfo <| EFun space1 ps e space0
+eRecord kvs    = withDummyExpInfo <| ERecord space1 Nothing (List.map (\(k, v) -> (space0, space1, k, space1, v)) kvs) space1
+
 
 desugarEApp e es = case es of
   []      -> Debug.crash "desugarEApp"
@@ -1798,6 +1793,39 @@ pList ps       = withDummyPatInfo <| PList space1 ps space0 Nothing space0
 pAs x p        = withDummyPatInfo <| PAs space1 x space1 p
 
 pListOfPVars names = pList (listOfPVars names)
+
+eLetUnapply: Exp -> Maybe ((Ident, Exp), Exp)
+eLetUnapply e = case e.val.e__ of
+  ELet _ _ False p _ assign _ bodyExp _ ->
+    case p.val.p__ of
+      PVar _ ident _ -> Just ((ident, assign), bodyExp)
+      _ -> Nothing
+  _ -> Nothing
+
+eRecordUnapply: Exp -> Maybe (List (String, Exp))
+eRecordUnapply e = case e.val.e__ of
+  ERecord _ Nothing es _ -> Just <| List.map (\(_, _, k, _, v) -> (k, v)) es
+  _ -> Nothing
+
+eStrUnapply e = case e.val.e__ of
+  EBase _ (EString _ s) -> Just s
+  _ -> Nothing
+
+eConstUnapply e = case e.val.e__ of
+  EConst _ n _ _ -> Just n
+  _ -> Nothing
+
+eListUnapply e = case e.val.e__ of
+  EList _ elems _ Nothing  _-> Just <| List.map Tuple.second elems
+  _ -> Nothing
+
+eOpUnapply1 expectedOp e = case e.val.e__ of
+  EOp _ op [arg] _ -> if op.val == expectedOp then Just arg else Nothing
+  _ -> Nothing
+
+eAppUnapply1 e = case e.val.e__ of
+  EApp _ e1 [e2] _ _ -> Just (e1, e2)
+  _ -> Nothing
 
 -- note: dummy ids...
 -- vTrue    = vBool True

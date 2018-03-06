@@ -1,6 +1,7 @@
 module ElmUnparser exposing
   ( unparse
   , unparsePattern
+  , unparseType -- Experimental
   )
 
 import Lang exposing (..)

@@ -3,6 +3,7 @@ module Syntax exposing
   , parser
   , unparser
   , patternUnparser
+  , typeUnparser
   , convertSyntax
   , sourceExtension
   , iconExtension
@@ -51,6 +52,15 @@ patternUnparser syntax =
 
     Elm ->
       ElmUnparser.unparsePattern
+
+typeUnparser : Syntax -> Lang.Type -> String
+typeUnparser syntax =
+  case syntax of
+    Little ->
+      LangUnparser.unparseType
+
+    Elm ->
+      ElmUnparser.unparseType
 
 convertSyntax : Syntax -> Syntax -> String -> Result Parser.Error String
 convertSyntax oldSyntax newSyntax code =

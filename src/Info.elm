@@ -4,6 +4,7 @@ module Info exposing
   , withDummyInfo
   , hasDummyInfo
   , mapInfo
+  , replaceInfo
   )
 
 import Pos exposing (Pos, dummyPos)
@@ -33,3 +34,5 @@ mapInfo : (a -> b) -> WithInfo a -> WithInfo b
 mapInfo f wa =
   { wa | val = f wa.val }
 
+replaceInfo: WithInfo a -> b -> WithInfo b
+replaceInfo wa b = WithInfo b wa.start wa.end

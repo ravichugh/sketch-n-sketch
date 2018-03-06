@@ -1,13 +1,8 @@
 module Update exposing
-  ( envEqual
-  , expEqual
-  , buildUpdatedValueFromEditorString
+  ( buildUpdatedValueFromEditorString
   , buildUpdatedValueFromDomListener
   , doUpdate
-  , envToString -- For tests
-  , update -- For tests
-  , diffExp
-  , diff
+  , update -- For test
   )
 
 import Info
@@ -24,7 +19,7 @@ import Results exposing
   )
 import MissingNumberMethods exposing (..)
 import ValUnparser exposing (strVal)
-import LangTools exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pruneEnvPattern, valToString)
+import LangUtils exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pruneEnvPattern, valToString)
 import LangSvg exposing
   ( NodeId, ShapeKind
   , AVal, AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
@@ -1299,147 +1294,6 @@ removeCommonPrefix l1 l2 =
       if head == head2 then
         removeCommonPrefix tail tail2
       else (l1, l2)
-
-bvToString: EBaseVal -> String
-bvToString b = unparse <| withDummyExpInfo <| EBase space0 <| b
-
--- Reports the difference between two expressions
-diffs: Exp -> Exp -> List String
-diffs e1_ e2_ =
-  compareExp (\ws1 ws2 -> if ws1.val == ws2.val then [] else ["Whitespace:'"++ws1.val++"' -> '"++ws2.val++"'"])
-     (\n1 n2 -> if n1 == n2 then [] else [toString n1 ++ " -> " ++ toString n2])
-     (\bv1 bv2 -> if bv1 == bv2 then [] else
-       [bvToString bv1 ++ " -> " ++ bvToString bv2])
-     (\id1 id2 -> if id1 == id2 then [] else [id1 ++ " -> " ++ id2])
-     (\p1 p2 -> if patEqual p1 p2 then [] else [unparsePattern p1 ++ " -> " ++ unparsePattern p2])
-     (\e1 e2 -> if expEqqual e1 e2 then [] else [unparse e1 ++ " -> " ++ unparse e2])
-     (\lString -> List.concatMap identity lString)
- -}
-diffExp: Exp -> Exp -> String
-diffExp e1 e2 =
-   let s1 = unparse e1 in
-   let s2 = unparse e2 in
-   let before = Regex.split Regex.All (Regex.regex "\\b") s1 in
-   let after = Regex.split Regex.All (Regex.regex "\\b") s2 in
-   let difference = diff identity before after in
-   difference
-   |> List.concatMap (\d ->
-     case d of
-       DiffEqual l -> []
-       DiffRemoved a -> [" -" ++ String.join "" a]
-       DiffAdded a ->   [" +" ++ String.join "" a]
-   )
-   |> String.join ","
-
-diffVals: List Val -> List Val -> List (DiffChunk (List Val))
-diffVals before after =
-  let vToString = Syntax.unparser Syntax.Elm << valToExp (ws "") InlineSpace in
-  let beforeStrings = List.map (\v -> (v, vToString v)) before in
-  let afterStrings = List.map (\v -> (v, vToString v)) after in
-  let diffRaw= diff Tuple.second beforeStrings afterStrings in
-  diffRaw |> List.map (diffChunkMap <| List.map Tuple.first)
-
-type DiffChunk a = DiffEqual a | DiffRemoved a | DiffAdded a
-
-diffChunkMap f d = case d of
-   DiffEqual a -> DiffEqual (f a)
-   DiffRemoved a -> DiffRemoved (f a)
-   DiffAdded a -> DiffAdded (f a)
-
---diff before after =
-
---diff: List a -> List a -> List (() -> List (DiffChunk (List a))) -> List (DiffChunk (List a))
-
-diff: (a -> String) -> List a -> List a -> List (DiffChunk (List a))
-diff keyOf before after =
-    {- Adapted from https://github.com/paulgb/simplediff/blob/master/javascript/simplediff.js
-        Find the differences between two lists. Returns a list of pairs, where the
-        first value is in ['+','-','='] and represents an insertion, deletion, or
-        no change for that list. The second value of the pair is the list
-        of elements.
-        Params:
-            before  the old list of immutable, comparable values (ie. a list
-                    of strings)
-            after   the new list of immutable, comparable values
-        Returns:
-            A list of pairs, with the first part of the pair being one of three
-            strings ('-', '+', '=') and the second part being a list of values from
-            the original before and/or after lists. The first part of the pair
-            corresponds to whether the list of values is a deletion, insertion, or
-            unchanged, respectively.
-        Examples:
-            diff([1,2,3,4],[1,3,4])
-            [["=",[1]],["-",[2]],["=",[3,4]]]
-            diff([1,2,3,4],[2,3,4,1])
-            [["-",[1]],["=",[2,3,4]],["+",[1]]]
-            diff('The quick brown fox jumps over the lazy dog'.split(/[ ]+/),
-                'The slow blue cheese drips over the lazy carrot'.split(/[ ]+/))
-            [["=",["The"]],
-             ["-",["quick","brown","fox","jumps"]],
-             ["+",["slow","blue","cheese","drips"]],
-             ["=",["over","the","lazy"]],
-             ["-",["dog"]],
-             ["+",["carrot"]]]
-    -}
-
-    -- Create a map from before values to their indices
-    let oldIndexMapRev =
-      List.foldl (\(b,i) d ->
-         Dict.update (keyOf b) (\mbv -> case mbv of
-          Just v -> Just <| i::v
-          Nothing -> Just [i]
-        ) d) Dict.empty (Utils.zipWithIndex before)
-    in
-    let oldIndexMap = Dict.map (\k -> List.reverse) oldIndexMapRev in
-
-    -- Find the largest substring common to before and after.
-    -- We use a dynamic programming approach here.
-    -- We iterate over each value in the `after` list.
-    -- At each iteration, `overlap[inew]` is the
-    -- length of the largest substring of `before.slice(0, iold)` equal
-    -- to a substring of `after.splice(0, iold)` (or unset when
-    -- `before[iold]` != `after[inew]`).
-    -- At each stage of iteration, the new `overlap` (called
-    -- `_overlap` until the original `overlap` is no longer needed)
-    -- is built from the old one.
-    -- If the length of overlap exceeds the largest substring
-    -- seen so far (`subLength`), we update the largest substring
-    -- to the overlapping strings.
-
-    -- `startOld` is the index of the beginning of the largest overlapping
-    -- substring in the before list. `startNew` is the index of the beginning
-    -- of the same substring in the after list. `subLength` is the length that
-    -- overlaps in both.
-    -- These track the largest overlapping substring seen so far, so naturally
-    -- we start with a 0-length substring.
-
-    let (overlap, startOld, startNew, subLength) =
-         List.foldl (\(afterinew, inew) (overlap, startOld, startNew, subLength) ->
-           let oldIndexMapAfterInew = Dict.get (keyOf afterinew) oldIndexMap |> Maybe.withDefault [] in
-           List.foldl (\iold (overlap_, startOld, startNew, subLength) ->
-              -- now we are considering all values of val such that
-              -- `before[iold] == after[inew]`
-              let newIoldValue = (if iold /= 0 then Dict.get (iold - 1) overlap |> Maybe.withDefault 0 else 0) + 1 in
-              let newOverlap_ = Dict.insert iold newIoldValue overlap_ in
-              if newIoldValue > subLength then
-                   (newOverlap_, iold - newIoldValue + 1, inew - newIoldValue + 1 , newIoldValue)
-              else (newOverlap_, startOld,             startNew,              subLength)
-           ) (Dict.empty, startOld, startNew, subLength) oldIndexMapAfterInew
-         ) (Dict.empty, 0, 0, 0) (Utils.zipWithIndex after)
-    in
-    if subLength == 0 then
-        -- If no common substring is found, we return an insert and delete...
-        (if List.isEmpty before then [] else [DiffRemoved before]) ++
-        (if List.isEmpty after then [] else [DiffAdded after])
-    else
-    -- otherwise, the common substring is unchanged and we recursively
-    -- diff the text before and after that substring
-    diff keyOf (List.take startOld before) (List.take startNew after) ++
-    (DiffEqual (List.drop startNew after |> List.take subLength) ::
-      diff keyOf  (List.drop (startOld + subLength) before) (List.drop (startNew + subLength) after))
-
---------------------------------------------------------------------------------
--- Value builders with dummy ids, brought back from the dead in Lang
 
 val : Val_ -> Val
 val v_ = Val v_ (Provenance [] (eVar "DUMMYEXP") []) (Parents [])

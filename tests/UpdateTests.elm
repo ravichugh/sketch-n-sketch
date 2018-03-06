@@ -15,7 +15,7 @@ import Syntax
 import Lazy
 import Results
 import LazyList
-import LangTools exposing (valToString)
+import LangUtils exposing (valToString)
 import ParserUtils
 
 
@@ -63,7 +63,7 @@ assertEqual: a -> a -> State  -> State
 assertEqual = genericAssertEqual (toString) (==)
 
 assertEqualVal: Val -> Val -> State  -> State
-assertEqualVal = genericAssertEqual LangTools.valToString (\x y -> LangTools.valToString x == LangTools.valToString y)
+assertEqualVal = genericAssertEqual valToString (\x y -> valToString x == valToString y)
 
 updateAssert: Env -> Exp -> Val -> Val -> Env -> String  -> State  -> State
 updateAssert env exp origOut newOut expectedEnv expectedExpStr state =
