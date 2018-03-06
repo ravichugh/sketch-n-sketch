@@ -24,13 +24,13 @@ map f l = {
   update {input = [f, input], output, outputOriginal} =
     letrec aux newFuns newInputs inputElements thediff = case thediff of
       [] -> [newFuns, newInputs]
-      {same,elements}::tailDiff ->
-        let [inputsElementsKept, inputElementsTail] = splitByLength elements inputElements in
+      {kept}::tailDiff ->
+        let [inputsElementsKept, inputElementsTail] = splitByLength kept inputElements in
         aux newFuns (append newInputs inputsElementsKept) inputElementsTail tailDiff
-      {removed,elements=deleted}::{added,elements=inserted}::tailDiff ->
+      {deleted}::{inserted}::tailDiff ->
         let [inputsRemoved, remainingInputs] = splitByLength deleted inputElements in
         let inputsAligned = copyLengthFrom inserted inputsRemoved in
-        -- inputsAligned has now the same size as added.
+        -- inputsAligned has now the same size as inserted.
         letrec recoverInputs newFs newIns oldIns newOuts = case [oldIns, newOuts] of
           [[], []] -> [newFs, newIns]
           [inHd::inTail, outHd::outTail] ->
@@ -41,10 +41,10 @@ map f l = {
         in
         let [newFs, inputsRecovered] = recoverInputs [] [] inputsAligned inserted in
         aux (append newFuns newFs) (append newInputs (inputsRecovered)) remainingInputs tailDiff
-      {removed,elements=deleted}::tailDiff ->
+      {deleted}::tailDiff ->
         let [_, remainingInputs] = splitByLength deleted inputElements in
         aux newFuns newInputs remainingInputs tailDiff
-      {added,elements=inserted}::tailDiff ->
+      {inserted}::tailDiff ->
         let oneInput = case inputElements of
           head::tail -> head
           _ -> case newInputs of
@@ -62,11 +62,7 @@ map f l = {
         aux (append newFuns newFs) (append newInputs inputsRecovered) inputElements tailDiff
     in
     let [funs, newInputs]  = aux [] [] input (diff outputOriginal output) in
-    let newFun = case funs of
-      head::tail -> -- We don't have merge for now so we just take the first.
-        head
-      _ -> f
-    in
+    let newFun = merge f funs in
     [[newFun, newInputs]]
   }.apply [f, l]
 -- move to lens library
@@ -178,7 +174,7 @@ theTable =
         map (td [padding, ["background-color", color]] []) row
       in
 --      trWithButton True flag [] [] columns
-      ["tr", [], columns]
+      ["tr", [["onclick", "this.parentElement.insertBefore(this.cloneNode(true), this);"]], columns]
     ) rows
   in
   table

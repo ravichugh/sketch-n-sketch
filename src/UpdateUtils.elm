@@ -257,8 +257,10 @@ recursiveMerge merge original modifications =
 
 recursiveMergeEnv exp = recursiveMerge (triCombine exp)
 
+recursiveMergeVal: Val -> List Val -> Val
 recursiveMergeVal = recursiveMerge mergeVal
 
+recursiveMergeExp: Exp -> List Exp -> Exp
 recursiveMergeExp = recursiveMerge mergeExp
 
 -- Tri combine only checks dependencies that may have been changed. It performs diffing though.

@@ -787,7 +787,7 @@ addUpdateCapability v =
                           _ -> Debug.crash "Internal error: expected x and y in environment"
                         )
                      >> (\newArgs ->
-                        let _ = Debug.log ("Update finished: " ++ (valToString <| replaceV_ v <| VList newArgs)) () in
+                        --let _ = Debug.log ("Update finished: " ++ (valToString <| replaceV_ v <| VList newArgs)) () in
                         Ok ((replaceV_ v <| VList newArgs, []), env)
                      )
                    )
@@ -803,8 +803,8 @@ addUpdateCapability v =
           [original, modifications] ->
             case modifications.v_ of
               VList modifications ->
-                -- mergeVals original modifications
-                Debug.crash "merge not yet implemented" -- TODO: Once we retrieve back the merge function, expose it.
+                let newVal = recursiveMergeVal original modifications in
+                Ok ((v, []), env)
               _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
           _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
       ) Nothing
@@ -828,9 +828,9 @@ addUpdateCapability v =
                 let res =  thediff
                      |> List.map (\x ->
                        replaceV_ v <| VRecord <| Dict.fromList <| case x of
-                          DiffEqual els   -> [("same",replaceV_ v <| VBase <| VString "+"),   ("elements", replaceV_ v <| VList els)]
-                          DiffAdded els   -> [("added",replaceV_ v <| VBase <| VString "-"),   ("elements", replaceV_ v <| VList els)]
-                          DiffRemoved els -> [("removed",replaceV_ v <| VBase <| VString "="),   ("elements", replaceV_ v <| VList els)]
+                          DiffEqual els   -> [("kept"      , replaceV_ v <| VList els)]
+                          DiffAdded els   -> [("inserted"  , replaceV_ v <| VList els)]
+                          DiffRemoved els -> [("deleted"   , replaceV_ v <| VList els)]
                        )
                      |> (\x ->
                        Ok ((replaceV_ v <| VList x, []), env)
