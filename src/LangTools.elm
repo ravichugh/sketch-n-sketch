@@ -13,6 +13,8 @@ module LangTools exposing (..)
 import Eval
 import Lang exposing (..)
 import FastParser as Parser
+-- import FastParser exposing (prelude, isPreludeLocId, isPreludeEId)
+import ElmParser
 import Utils
 import LangUnparser exposing (unparseWithIds)
 import Types
@@ -32,29 +34,29 @@ nodeCount exp =
     exps |> List.map nodeCount |> List.sum
   in
   case exp.val.e__ of
-    EConst _ _ _ _          -> 1
-    EBase _ _               -> 1
-    EVar _ x                -> 1
-    EFun _ ps e _           -> 1 + patsNodeCount ps + nodeCount e
-    EOp _ op es _           -> 1 + expsNodeCount es
-    EList _ es _ (Just e) _ -> 1 + expsNodeCount (Utils.listValues es) + nodeCount e
-    EList _ es _ Nothing _  -> 1 + expsNodeCount (Utils.listValues es)
+    EConst _ _ _ _           -> 1
+    EBase _ _                -> 1
+    EVar _ x                 -> 1
+    EFun _ ps e _            -> 1 + patsNodeCount ps + nodeCount e
+    EOp _ op es _            -> 1 + expsNodeCount es
+    EList _ es _ (Just e) _  -> 1 + expsNodeCount (Utils.listValues es) + nodeCount e
+    EList _ es _ Nothing _   -> 1 + expsNodeCount (Utils.listValues es)
     ERecord _ (Just (init, _)) es _ -> 1 + expsNodeCount (Utils.recordValues es) + nodeCount init
-    ERecord _ Nothing es _  -> 1 + expsNodeCount (Utils.recordValues es)
-    ESelect _ e _ _ _       -> 1 + nodeCount e
-    EIf _ e1 _ e2 _ e3 _    -> 1 + expsNodeCount [e1, e2, e3]
+    ERecord _ Nothing es _   -> 1 + expsNodeCount (Utils.recordValues es)
+    ESelect _ e _ _ _        -> 1 + nodeCount e
+    EIf _ e1 _ e2 _ e3 _     -> 1 + expsNodeCount [e1, e2, e3]
     -- Cases have a set of parens around each branch. I suppose each should count as a node.
-    ECase _ e1 bs _         -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
-    ETypeCase _ e1 tbs _    -> 1 + (List.length tbs) + nodeCount e1 + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
-    EApp _ e1 es _ _        -> 1 + nodeCount e1 + expsNodeCount es
+    ECase _ e1 bs _          -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
+    ETypeCase _ e1 tbs _     -> 1 + (List.length tbs) + nodeCount e1 + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
+    EApp _ e1 es _ _         -> 1 + nodeCount e1 + expsNodeCount es
     ELet _ _ _ p _ e1 _ e2 _ -> 1 + patNodeCount p + nodeCount e1 + nodeCount e2
-    EComment _ _ e1         -> 0 + nodeCount e1 -- Comments don't count.
-    EOption _ _ _ _ e1      -> 1 + nodeCount e1
-    ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
-    EColonType _ e1 _ t _   -> 1 + typeNodeCount t + nodeCount e1
-    ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
-    EParens _ e1 pStyle _   -> 1 + nodeCount e1
-    EHole _ _               -> 1
+    EComment _ _ e1          -> 0 + nodeCount e1 -- Comments don't count.
+    EOption _ _ _ _ e1       -> 1 + nodeCount e1
+    ETyp _ p t e1 _          -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+    EColonType _ e1 _ t _    -> 1 + typeNodeCount t + nodeCount e1
+    ETypeAlias _ p t e1 _    -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+    EParens _ e1 pStyle _    -> 1 + nodeCount e1
+    EHole _ _                -> 1
 
 
 -- O(n); for clone detection
@@ -80,28 +82,28 @@ subExpsOfSizeAtLeast_ min exp =
   else
     let thisSizeWithoutChildren =
       case exp.val.e__ of
-        EConst _ _ _ _          -> 1
-        EBase _ _               -> 1
-        EVar _ x                -> 1
-        EFun _ ps e _           -> 1 + patsNodeCount ps
-        EOp _ op es _           -> 1
-        EList _ es _ (Just e) _ -> 1
-        EList _ es _ Nothing _  -> 1
-        ERecord _ _ _ _         -> 1
-        ESelect _ _ _ _ _       -> 1
-        EIf _ e1 _ e2 _ e3 _    -> 1
+        EConst _ _ _ _           -> 1
+        EBase _ _                -> 1
+        EVar _ x                 -> 1
+        EFun _ ps e _            -> 1 + patsNodeCount ps
+        EOp _ op es _            -> 1
+        EList _ es _ (Just e) _  -> 1
+        EList _ es _ Nothing _   -> 1
+        ERecord _ _ _ _          -> 1
+        ESelect _ _ _ _ _        -> 1
+        EIf _ e1 _ e2 _ e3 _     -> 1
         -- Cases have a set of parens around each branch. I suppose each should count as a node.
-        ECase _ e1 bs _         -> 1 + (List.length bs) + patsNodeCount (branchPats bs)
-        ETypeCase _ e1 tbs _    -> 1 + (List.length tbs) + typesNodeCount (tbranchTypes tbs)
-        EApp _ e1 es _ _        -> 1
+        ECase _ e1 bs _          -> 1 + (List.length bs) + patsNodeCount (branchPats bs)
+        ETypeCase _ e1 tbs _     -> 1 + (List.length tbs) + typesNodeCount (tbranchTypes tbs)
+        EApp _ e1 es _ _         -> 1
         ELet _ _ _ p _ e1 _ e2 _ -> 1 + patNodeCount p
-        EComment _ _ e1         -> 0 -- Comments don't count.
-        EOption _ _ _ _ e1      -> 1
-        ETyp _ p t e1 _         -> 1 + patNodeCount p + typeNodeCount t
-        EColonType _ e1 _ t _   -> 1 + typeNodeCount t
-        ETypeAlias _ p t e1 _   -> 1 + patNodeCount p + typeNodeCount t
-        EParens _ _ _ _         -> 1
-        EHole _ _               -> 1
+        EComment _ _ e1          -> 0 -- Comments don't count.
+        EOption _ _ _ _ e1       -> 1
+        ETyp _ p t e1 _          -> 1 + patNodeCount p + typeNodeCount t
+        EColonType _ e1 _ t _    -> 1 + typeNodeCount t
+        ETypeAlias _ p t e1 _    -> 1 + patNodeCount p + typeNodeCount t
+        EParens _ _ _ _          -> 1
+        EHole _ _                -> 1
     in
     if largeSubExps /= [] then
       Debug.crash "LangTools.thisSizeWithoutChildren bug"
@@ -239,28 +241,28 @@ extraExpsDiff baseExp otherExp =
       Nothing         -> [otherExp]
   in
   case (baseExp.val.e__, otherExp.val.e__) of
-    (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then [] else [otherExp]
-    (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then [] else [otherExp]
-    (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then [] else [otherExp]
-    (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> if patternListsEqual psA psB then extraExpsDiff eA eB else [otherExp]
-    (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> if opA.val == opB.val then childDiffs () else [otherExp]
-    (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> childDiffs ()
-    (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> childDiffs ()
-    (EApp ws1A fA esA appTypeA ws2A,       EApp ws1B fB esB appTypeB ws2B)       -> childDiffs ()
+    (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)                      -> if nA == nB then [] else [otherExp]
+    (EBase ws1A ebvA,                      EBase ws1B ebvB)                              -> if eBaseValsEqual ebvA ebvB then [] else [otherExp]
+    (EVar ws1A identA,                     EVar ws1B identB)                             -> if identA == identB then [] else [otherExp]
+    (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                        -> if patternListsEqual psA psB then extraExpsDiff eA eB else [otherExp]
+    (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                        -> if opA.val == opB.val then childDiffs () else [otherExp]
+    (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)             -> childDiffs ()
+    (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)           -> childDiffs ()
+    (EApp ws1A fA esA appTypeA ws2A,       EApp ws1B fB esB appTypeB ws2B)               -> childDiffs ()
     (ELet ws1A kindA recA pA _ e1A _ e2A ws2A, ELet ws1B kindB recB pB _ e1B _ e2B ws2B) -> if recA == recB && patternsEqual pA pB then extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B else [otherExp]
-    (EIf ws1A e1A _ e2A _ e3A ws2A,        EIf ws1B e1B _ e2B _ e3B ws2B)        -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
-    (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)  then  Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
-    (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)    -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
-    (EComment wsA sA e1A,                  _)                                    -> extraExpsDiff e1A otherExp
-    (_,                                    EComment wsB sB e1B)                  -> extraExpsDiff baseExp e1B
-    (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> [otherExp]
-    (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
-    (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
-    (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
-    (EParens ws1A e1A pStyleA ws2A,        EParens ws1B e1B pStyleB ws2B)        -> extraExpsDiff e1A e1B
-    (EParens ws1A e1A pStyleA ws2A,        _)                                    -> extraExpsDiff e1A otherExp
-    (_,                                    EParens ws1B e1B pStyleB ws2B)        -> extraExpsDiff baseExp e1B
-    _                                                                            -> [otherExp]
+    (EIf ws1A e1A _ e2A _ e3A ws2A,        EIf ws1B e1B _ e2B _ e3B ws2B)                -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
+    (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)                 -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)  then  Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
+    (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)            -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
+    (EComment wsA sA e1A,                  _)                                            -> extraExpsDiff e1A otherExp
+    (_,                                    EComment wsB sB e1B)                          -> extraExpsDiff baseExp e1B
+    (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)                -> [otherExp]
+    (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)                 -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)           -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)           -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
+    (EParens ws1A e1A pStyleA ws2A,        EParens ws1B e1B pStyleB ws2B)                -> extraExpsDiff e1A e1B
+    (EParens ws1A e1A pStyleA ws2A,        _)                                            -> extraExpsDiff e1A otherExp
+    (_,                                    EParens ws1B e1B pStyleB ws2B)                -> extraExpsDiff baseExp e1B
+    _                                                                                    -> [otherExp]
 
 
 replaceConstsWithVars : Dict LocId Ident -> Exp -> Exp
@@ -360,13 +362,13 @@ isTopLevelEId eid program =
 maybeTopLevelChild : Exp -> Maybe Exp
 maybeTopLevelChild exp =
   case exp.val.e__ of
-    ETyp _ _ _ body _       -> Just body
-    EColonType _ body _ _ _ -> Just body
-    ETypeAlias _ _ _ body _ -> Just body
+    ETyp _ _ _ body _         -> Just body
+    EColonType _ body _ _ _   -> Just body
+    ETypeAlias _ _ _ body _   -> Just body
     ELet _ _ _ _ _ _ _ body _ -> Just body
-    EComment _ _ e          -> Just e
-    EOption _ _ _ _ e       -> Just e
-    _                       -> Nothing
+    EComment _ _ e            -> Just e
+    EOption _ _ _ _ e         -> Just e
+    _                         -> Nothing
 
 
 topLevelExps : Exp -> List Exp
@@ -387,34 +389,12 @@ lastExp exp =
     lastChild::_ -> lastExp lastChild
 
 
--- What exp actually determines the evaluated value of this exp?
-expValueExp : Exp -> Exp
-expValueExp exp =
-  expSameValueExps exp
-  |> Utils.last "expValueExp shouldn't happen"
-
-
--- What expressions will surely resolve to the same value?
-expSameValueExps : Exp -> List Exp
-expSameValueExps exp =
-  case exp.val.e__ of
-    ETyp _ _ _ body _       -> exp :: expSameValueExps body
-    EColonType _ body _ _ _ -> exp :: expSameValueExps body
-    ETypeAlias _ _ _ body _ -> exp :: expSameValueExps body
-    ELet _ _ _ _ _ _ _ body _ -> exp :: expSameValueExps body
-    EParens _ e _ _         -> exp :: expSameValueExps e
-    EComment _ _ e          -> exp :: expSameValueExps e
-    EOption _ _ _ _ e       -> exp :: expSameValueExps e
-    EOp _ {val} [operand] _ -> if val == DebugLog || val == NoWidgets then exp :: expSameValueExps operand else [exp]
-    _                       -> [exp]
-
-
 -- Find outermost expression that resolves to the same value.
 outerSameValueExp : Exp -> Exp -> Exp
 outerSameValueExp program targetExp =
-  let targetEId = (expValueExp targetExp).val.eid in
+  let targetEId = (expEffectiveExp targetExp).val.eid in
   program
-  |> findFirstNode (\exp -> (expValueExp exp).val.eid == targetEId)
+  |> findFirstNode (\exp -> (expEffectiveExp exp).val.eid == targetEId)
   |> Maybe.withDefault targetExp
 
 
@@ -556,10 +536,14 @@ reflowLetWhitespace program letExp =
       Debug.crash <| "reflowLetWhitespace expected an ELet, got: " ++ unparseWithIds letExp
 
 
+-- Note: the isRec flag is ignored if the new let is placed at the top level.
 newLetFancyWhitespace : EId -> Bool -> Pat -> Exp -> Exp -> Exp -> Exp
 newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program =
   let isTopLevel = isTopLevelEId expToWrap.val.eid program in
   let letOrDef = if isTopLevel then Def else Let in
+  -- At the top level, rec is implicit. We create the exp as it will actually be reparsed so
+  -- any safety checks later in the pipeline work correctly.
+  let isActuallyRec = if isTopLevel then ElmParser.isTopLevelDefImplicitlyRec pat boundExp else isRec in
   let newLetIndentation =
     -- If target expression is the body of a existing let, then use the indentation of the existing let.
     -- Otherwise, copy indentation of the wrapped expression.
@@ -585,7 +569,7 @@ newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program =
     then expToWrap |> ensureWhitespaceNNewlinesExp newlineCountAfterLet |> replaceIndentation wrappedExpIndent
     else expToWrap |> ensureWhitespaceSmartExp newlineCountAfterLet wrappedExpIndent
   in
-  ELet space0 letOrDef isRec (ensureWhitespacePat pat) space1 (replaceIndentation "  " boundExp |> ensureWhitespaceExp) space1 expToWrapWithNewWs space0
+  ELet space0 letOrDef isActuallyRec (ensureWhitespacePat pat) space1 (replaceIndentation "  " boundExp |> ensureWhitespaceExp) space1 expToWrapWithNewWs space0
   |> withDummyExpInfoEId insertedLetEId
   |> replacePrecedingWhitespace (String.repeat newlineCountBeforeLet "\n")
   |> indent newLetIndentation
@@ -637,7 +621,7 @@ simpleExpName exp =
   simpleExpNameWithDefault defaultExpName exp
 
 simpleExpNameWithDefault default exp =
-  case (expValueExp exp).val.e__ of
+  case (expEffectiveExp exp).val.e__ of
     EConst _ _ _ _        -> "num"
     EVar _ ident          -> ident
     EApp _ funE _ _ _     -> expToMaybeIdent funE |> Maybe.withDefault default
@@ -758,6 +742,7 @@ expDescriptionParts : Exp -> EId -> List String
 expDescriptionParts program targetEId =
   expDescriptionParts_ program program targetEId
 
+
 expDescriptionParts_ : Exp -> Exp -> EId -> List String
 expDescriptionParts_ program exp targetEId =
   let recurse e = expDescriptionParts_ program e targetEId in
@@ -857,26 +842,17 @@ scopeNamesLocLiftedThrough : Exp -> Loc -> List Ident
 scopeNamesLocLiftedThrough newLetBody targetLoc =
   let (targetLocId, _, ident) = targetLoc in
   case scopeNamesLocLiftedThrough_ targetLocId [] newLetBody of
-    [] ->
+    Nothing ->
       []
 
-    scopeNames::[] ->
+    Just scopeNames ->
       -- Last element may be the original identifier: if so, remove it.
-      case List.head (List.reverse scopeNames) of
-        Nothing ->
-          []
-
-        Just lastScopeName ->
-          if lastScopeName == ident
-          then Utils.removeLastElement scopeNames
-          else scopeNames
-
-    _ ->
-      Debug.crash <| "Found locId " ++ toString targetLocId ++ " more than once in the expression: " ++ unparseWithIds newLetBody
+      if (Utils.maybeLast scopeNames) == Just ident
+      then Utils.removeLastElement scopeNames
+      else scopeNames
 
 
--- Returns array of matches (easiest to implement).
--- Should only be at most one match, though.
+scopeNamesLocLiftedThrough_ : LocId -> List Ident -> Exp -> Maybe (List Ident)
 scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
   case exp.val.e__ of
     ELet _ _ _ pat _ assigns _ body _ ->
@@ -888,17 +864,19 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
       in
       -- Ident should only be added to assigns. Otherwise you get lots of junk
       -- names.
-      (scopeNamesLocLiftedThrough_ targetLocId scopeNames_ assigns) ++
-      (scopeNamesLocLiftedThrough_ targetLocId scopeNames  body)
+      Utils.firstMaybe
+          [ scopeNamesLocLiftedThrough_ targetLocId scopeNames_ assigns
+          , scopeNamesLocLiftedThrough_ targetLocId scopeNames  body
+          ]
 
     EConst _ _ (locId, _, _) _ ->
        if locId == targetLocId
-       then [scopeNames]
-       else []
+       then Just scopeNames
+       else Nothing
 
     _ ->
       let recurse exp = scopeNamesLocLiftedThrough_ targetLocId scopeNames exp in
-      List.concatMap recurse (childExps exp)
+      Utils.mapFirstSuccess recurse (childExps exp)
 
 
 -- If tryMatchExp is made less strict (allow partial matches), then be sure to also return unmatch identifiers (for StaticAnalysis).
@@ -1196,18 +1174,18 @@ expToListParts exp =
     _                                 -> Debug.crash <| "LangTools.expToListParts exp is not an EList: " ++ unparseWithIds exp
 
 
-expToLetParts : Exp -> (WS, LetKind, Bool, Pat, Exp, Exp, WS)
+expToLetParts : Exp -> (WS, LetKind, Bool, Pat, WS, Exp, WS, Exp, WS)
 expToLetParts exp =
   case exp.val.e__ of
-    ELet ws1 letKind rec p1 _ e1 _ e2 ws2 -> (ws1, letKind, rec, p1, e1, e2, ws2)
-    _                                 -> Debug.crash <| "LangTools.expToLetParts exp is not an ELet: " ++ unparseWithIds exp
+    ELet ws1 letKind rec p1 ws2 e1 ws3 e2 ws4 -> (ws1, letKind, rec, p1, ws2, e1, ws3, e2, ws4)
+    _                                         -> Debug.crash <| "LangTools.expToLetParts exp is not an ELet: " ++ unparseWithIds exp
 
 
-expToMaybeLetParts : Exp -> Maybe (WS, LetKind, Bool, Pat, Exp, Exp, WS)
+expToMaybeLetParts : Exp -> Maybe (WS, LetKind, Bool, Pat, WS, Exp, WS, Exp, WS)
 expToMaybeLetParts exp =
   case exp.val.e__ of
-    ELet ws1 letKind rec p1 _ e1 _ e2 ws2 -> Just (ws1, letKind, rec, p1, e1, e2, ws2)
-    _                                 -> Nothing
+    ELet ws1 letKind rec p1 ws2 e1 ws3 e2 ws4 -> Just (ws1, letKind, rec, p1, ws2, e1, ws3, e2, ws4)
+    _                                         -> Nothing
 
 
 expToLetKind : Exp -> LetKind
@@ -1221,63 +1199,63 @@ expToLetPat : Exp -> Pat
 expToLetPat exp =
   case exp.val.e__ of
     ELet _ _ _ pat _ _ _ _ _ -> pat
-    _                    -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+    _                        -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToMaybeLetPat : Exp -> Maybe Pat
 expToMaybeLetPat exp =
   case exp.val.e__ of
     ELet _ _ _ pat _ _ _ _ _ -> Just pat
-    _                    -> Nothing
+    _                        -> Nothing
 
 
 expToLetBoundExp : Exp -> Exp
 expToLetBoundExp exp =
   case exp.val.e__ of
     ELet _ _ _ _ _ boundExp _ _ _ -> boundExp
-    _                         -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
+    _                             -> Debug.crash <| "LangTools.expToLetPat exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToMaybeLetBoundExp : Exp -> Maybe Exp
 expToMaybeLetBoundExp exp =
   case exp.val.e__ of
     ELet _ _ _ _ _ boundExp _ _ _ -> Just boundExp
-    _                         -> Nothing
+    _                             -> Nothing
 
 
 expToLetPatAndBoundExp : Exp -> (Pat, Exp)
 expToLetPatAndBoundExp exp =
   case exp.val.e__ of
     ELet _ _ _ pat _ boundExp _ _ _ -> (pat, boundExp)
-    _                           -> Debug.crash <| "LangTools.expToLetPatAndBoundExp exp is not an ELet: " ++ unparseWithIds exp
+    _                               -> Debug.crash <| "LangTools.expToLetPatAndBoundExp exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToMaybeLetPatAndBoundExp : Exp -> Maybe (Pat, Exp)
 expToMaybeLetPatAndBoundExp exp =
   case exp.val.e__ of
     ELet _ _ _ pat _ boundExp _ _ _ -> Just (pat, boundExp)
-    _                           -> Nothing
+    _                               -> Nothing
 
 
 expToLetBody : Exp -> Exp
 expToLetBody exp =
   case exp.val.e__ of
     ELet _ _ _ _ _ _ _ body _ -> body
-    _                     -> Debug.crash <| "LangTools.expToLetBody exp is not an ELet: " ++ unparseWithIds exp
+    _                         -> Debug.crash <| "LangTools.expToLetBody exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToMaybeLetBody : Exp -> Maybe Exp
 expToMaybeLetBody exp =
   case exp.val.e__ of
     ELet _ _ _ _ _ _ _ body _ -> Just body
-    _                     -> Nothing
+    _                         -> Nothing
 
 
 expToLetScopeAreas : Exp -> List Exp
 expToLetScopeAreas exp =
   case exp.val.e__ of
     ELet _ _ isRec _ _ boundExp _ body _ -> if isRec then [boundExp, body] else [body]
-    _                                -> Debug.crash <| "LangTools.expToLetScopeAreas exp is not an ELet: " ++ unparseWithIds exp
+    _                                    -> Debug.crash <| "LangTools.expToLetScopeAreas exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToFuncPats : Exp -> List Pat
@@ -1325,12 +1303,12 @@ allPats root =
   |> List.concatMap
       (\exp ->
         case exp.val.e__ of
-          EFun _ pats _ _        -> pats
-          ECase _ _ branches _   -> branchPats branches
+          EFun _ pats _ _          -> pats
+          ECase _ _ branches _     -> branchPats branches
           ELet _ _ _ pat _ _ _ _ _ -> [pat]
-          ETyp _ pat _ _ _       -> [pat]
-          ETypeAlias _ pat _ _ _ -> [pat]
-          _                      -> []
+          ETyp _ pat _ _ _         -> [pat]
+          ETypeAlias _ pat _ _ _   -> [pat]
+          _                        -> []
       )
 
 
@@ -1916,7 +1894,7 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
       |> addThisMatch
 
     PList _ ps _ Nothing _ ->
-      case (expValueExp exp).val.e__ of
+      case (expEffectiveExp exp).val.e__ of
         EList _ es _ Nothing _ ->
           if List.length ps /= List.length es then
             Nothing
@@ -1935,7 +1913,7 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
           Just thisMatch
 
     PList _ ps _ (Just restPat) _ ->
-      case (expValueExp exp).val.e__ of
+      case (expEffectiveExp exp).val.e__ of
         EList _ es _ Nothing _ ->
           if List.length es < List.length ps then
             Nothing
@@ -1957,7 +1935,7 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
           Just thisMatch
 
     PRecord _ ps _ ->
-      case (expValueExp exp).val.e__ of
+      case (expEffectiveExp exp).val.e__ of
         ERecord _ _ es _ ->
           let psEsMaybes = Record.getPatternMatch Utils.recordKey Utils.recordKey ps es in
           case psEsMaybes of
@@ -1970,12 +1948,12 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
           Just thisMatch
 
     PConst _ n ->
-      case (expValueExp exp).val.e__ of
+      case (expEffectiveExp exp).val.e__ of
         EConst _ num _ _ -> if n == num then Just thisMatch else Nothing
         _                -> Just thisMatch
 
     PBase _ bv ->
-      case (expValueExp exp).val.e__ of
+      case (expEffectiveExp exp).val.e__ of
         EBase _ ev -> if eBaseValsEqual bv ev then Just thisMatch else Nothing
         _          -> Just thisMatch
 
@@ -2032,7 +2010,7 @@ findLetAndPatMatchingExpLoose targetEId program =
       (\letExp (pat, boundE) ->
         case findExpByEId boundE targetEId of
           Just targetExp ->
-            if (expValueExp targetExp).val.eid == (expValueExp boundE).val.eid
+            if (expEffectiveExp targetExp).val.eid == (expEffectiveExp boundE).val.eid
             then Just (letExp, pat)
             else Nothing
           Nothing ->
@@ -2075,7 +2053,7 @@ allSimplyResolvableLetBindings program =
       (\exp ->
         case exp.val.e__ of
           ELet _ _ _ pat _ boundExp _ _ _ -> tryMatchExpReturningList pat boundExp
-          _                           -> []
+          _                               -> []
       )
 
 
@@ -2087,7 +2065,7 @@ allSimplyResolvableLetPatBindings program =
       (\exp ->
         case exp.val.e__ of
           ELet _ _ _ pat _ boundExp _ _ _ -> tryMatchExpPatToPats pat boundExp
-          _                           -> []
+          _                               -> []
       )
 
 
@@ -2137,21 +2115,21 @@ numericLetBoundIdentifiers program =
           ToStrExceptStr -> List.any recurse operands
           RegexReplaceAllIn  -> False
 
-      EList _ _ _ _ _           -> False
-      ERecord _ _ _ _           -> False
-      ESelect _ _ _ _ _         -> False
+      EList _ _ _ _ _               -> False
+      ERecord _ _ _ _               -> False
+      ESelect _ _ _ _ _             -> False
       EIf _ _ _ thenExp _ elseExp _ -> recurse thenExp && recurse elseExp
-      ECase _ _ branches _      -> List.all recurse (branchExps branches)
-      ETypeCase _ _ tbranches _ -> List.all recurse (tbranchExps tbranches)
-      EComment _ _ body         -> recurse body
-      EOption _ _ _ _ body      -> recurse body
-      ELet _ _ _ _ _  _ _ body _ -> recurse body
-      ETyp _ _ _ body _         -> recurse body
-      EColonType _ e _ _ _      -> recurse e
-      ETypeAlias _ _ _ body _   -> recurse body
-      EParens _ e _ _           -> recurse e
-      EHole _ Nothing           -> False
-      EHole _ (Just val)        -> valIsNum val
+      ECase _ _ branches _          -> List.all recurse (branchExps branches)
+      ETypeCase _ _ tbranches _     -> List.all recurse (tbranchExps tbranches)
+      EComment _ _ body             -> recurse body
+      EOption _ _ _ _ body          -> recurse body
+      ELet _ _ _ _ _  _ _ body _    -> recurse body
+      ETyp _ _ _ body _             -> recurse body
+      EColonType _ e _ _ _          -> recurse e
+      ETypeAlias _ _ _ body _       -> recurse body
+      EParens _ e _ _               -> recurse e
+      EHole _ Nothing               -> False
+      EHole _ (Just val)            -> valIsNum val
   in
   let expBindings = allSimplyResolvableLetBindings program in
   let findAllNumericIdents numericIdents =
@@ -2714,10 +2692,10 @@ allVarEIdsToBindingPatsBasedOnUniqueName program =
     |> List.concatMap
         (\exp ->
           case exp.val.e__ of
-            EFun _ pats _ _      -> List.concatMap indentPatsInPat pats
+            EFun _ pats _ _          -> List.concatMap indentPatsInPat pats
             ELet _ _ _ pat _ _ _ _ _ -> indentPatsInPat pat
-            ECase _ _ branches _ -> List.concatMap indentPatsInPat (branchPats branches)
-            _                    -> []
+            ECase _ _ branches _     -> List.concatMap indentPatsInPat (branchPats branches)
+            _                        -> []
         )
     |> Dict.fromList
   in

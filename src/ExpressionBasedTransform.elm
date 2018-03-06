@@ -315,8 +315,13 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> Utils.maybeZip (Utils.listValues esA) (Utils.listValues esB)
                                                                                         |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A (Utils.listValuesMake esA newEs) ws2A Nothing ws3A)))
                                                                                         |> Maybe.withDefault argVar
+-- <<<<<<< HEAD
       (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> Utils.maybeZip (Utils.listValues esA) (Utils.listValues esB)
                                                                                         |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A (Utils.listValuesMake esA newEs) ws2A (Just (merge eA eB)) ws3A)))
+-- =======
+--       (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)   -> Utils.maybeZip (List.map Tuple.second esA) (List.map Tuple.second esB)
+--                                                                                         |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A (Utils.zip (List.map Tuple.first esA) newEs) ws2A (Just (merge eA eB)) ws3A)))
+-- >>>>>>> dev
                                                                                         |> Maybe.withDefault argVar
       (EApp ws1A fA esA appA ws2A,           EApp ws1B fB esB appB ws2B)           -> Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EApp ws1A (merge fA fB) newEs appA ws2A))) |> Maybe.withDefault argVar
       (ELet ws1A kindA recA pA ws2A e1A ws3A e2A ws4A, ELet _ kindB recB pB _ e1B _ e2B _) -> if recA == recB && patternsEqual pA pB then replaceE__ expA (ELet ws1A kindA recA pA ws2A (merge e1A e1B) ws3A (merge e2A e2B) ws4A) else argVar
@@ -617,8 +622,9 @@ mapAbstractSynthesisResults originalExp =
         let eidToVarE__ = Utils.zip eidsToReplace (varNames |> List.map (\name -> EVar space1 name)) |> Dict.fromList in
         let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToVarE__ commonScope in
         let wrapped =
-          let letKind = if isTopLevel commonScope originalExp then Def else Let in
-          withDummyExpInfo <| ELet (ws <| "\n" ++ oldIndentation) letKind False (pListOfPVars varNames) space1 mapCall space1 usagesReplaced space0
+          newLetFancyWhitespace -1 False (pListOfPVars varNames) mapCall usagesReplaced originalExp
+          -- let letKind = if isTopLevel commonScope originalExp then Def else Let in
+          -- withDummyExpInfo <| ELet (ws <| "\n" ++ oldIndentation) letKind False (pListOfPVars varNames) space1 mapCall space1 usagesReplaced space0
         in
         let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
         let clonesName =
@@ -1296,7 +1302,7 @@ removeRedundantBindings =
   mapExp <| \e ->
     case e.val.e__ of
       ELet _ _ _ p _ e1 _ e2 _ -> if redundantBinding (p, e1) then e2 else e
-      _                    -> e
+      _                        -> e
 
 redundantBinding (p, e) =
   case (p.val.p__, e.val.e__) of
@@ -1674,8 +1680,8 @@ mergeExpressions eFirst eRest =
 
     ELet ws1 letKind rec p1 ws2 e1 ws3 e2 ws4 ->
       let match eNext = case eNext.val.e__ of
-        ELet _ _ _ p1_ _ e1_ _ e2_ _ -> Just ((p1_, e1_), e2_)
-        _                            -> Nothing
+        ELet _ _ nextRec p1_ _ e1_ _ e2_ _ -> if rec == nextRec then Just ((p1_, e1_), e2_) else Nothing
+        _                                  -> Nothing
       in
       matchAllAndBind match eRest <| \stuff ->
         let ((p1List, e1List), e2List) =
