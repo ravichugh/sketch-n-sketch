@@ -10,6 +10,7 @@ import Info exposing (WithInfo)
 import LangUtils exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pruneEnvPattern, valToString)
 import Regex
 import Utils
+import Set
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -21,14 +22,7 @@ diffExp e1 e2 =
    let before = Regex.split Regex.All (Regex.regex "\\b") s1 in
    let after = Regex.split Regex.All (Regex.regex "\\b") s2 in
    let difference = diff identity before after in
-   difference
-   |> List.concatMap (\d ->
-     case d of
-       DiffEqual l -> []
-       DiffRemoved a -> [" -" ++ String.join "" a]
-       DiffAdded a ->   [" +" ++ String.join "" a]
-   )
-   |> String.join ","
+   displayDiff identity difference
 
 diffVals: List Val -> List Val -> List (DiffChunk (List Val))
 diffVals before after =
@@ -46,6 +40,17 @@ diffChunkMap f d = case d of
    DiffAdded a -> DiffAdded (f a)
 
 --diff before after =
+
+displayDiff: (a -> String) -> List (DiffChunk (List a)) -> String
+displayDiff tos difference =
+  difference
+     |> List.concatMap (\d ->
+       case d of
+         DiffEqual l -> []
+         DiffRemoved a -> [" -" ++ String.join "" (List.map tos a)]
+         DiffAdded a ->   [" +" ++ String.join "" (List.map tos a)]
+     )
+     |> String.join ","
 
 --diff: List a -> List a -> List (() -> List (DiffChunk (List a))) -> List (DiffChunk (List a))
 
@@ -270,8 +275,10 @@ triCombine origExp originalEnv newEnv1 newEnv2 =
               toString x ++ " = " ++ toString v1 ++ "\n" ++
               toString y ++ " = " ++ toString v2 ++ "\n" ++
               toString z ++ " = " ++ toString v3
-           else
+           else if Set.member x fv then
              aux (acc ++ [(x, mergeVal v1 v2 v3)]) oe ne1 ne2
+           else
+             aux (acc ++ [(x, v1)]) oe ne1 ne2
          _ -> Debug.crash <| "Expected environments to have the same size, got\n" ++
               toString originalEnv ++ ", " ++ toString newEnv1 ++ ", " ++ toString newEnv2
        in
@@ -446,7 +453,7 @@ mergeBranch o e1 e2 =
      Branch_ sp2 pat2 exp2 spe2) ->
        -- Check that the patterns are the same. If not takes the first pattern change.
        if patEqual pat0 pat1 && patEqual pat1 pat2 then
-         {o | val = Branch_ (mergeWS sp0 sp1 sp2) pat0 (mergeExp exp0 exp1 exp2) (mergeWS sp0 sp1 sp2) }
+         {o | val = Branch_ (mergeWS sp0 sp1 sp2) pat0 (mergeExp exp0 exp1 exp2) (mergeWS spe0 spe1 spe2) }
        else if Syntax.patternUnparser Syntax.Elm pat0 == Syntax.patternUnparser Syntax.Elm pat1 then e2 else e1
 
 mergeTBranch: TBranch -> TBranch -> TBranch -> TBranch

@@ -85,16 +85,22 @@ updateMaybeFirst2 mb ll =
 updateContinueMultiple: String -> Env -> List (Exp, PrevOutput, Output) -> (Env -> List Exp -> UpdateStack) -> UpdateStack
 updateContinueMultiple msg env totalExpValOut continuation  =
   let aux i revAccExps envAcc expValOut =
+        --let _ = Debug.log "continuing aux" () in
         case expValOut of
-          [] -> continuation envAcc (List.reverse revAccExps)
+          [] ->
+            --let _ = Debug.log "continuation" () in
+            continuation envAcc (List.reverse revAccExps)
           (e, v, out)::tail ->
+            --let _ = Debug.log "updateContinue" () in
             updateContinue env e v out <|
               HandlePreviousResult (toString i ++ "/" ++ toString (List.length totalExpValOut) ++ " " ++ msg)  <| \newEnv newExp ->
+                --let _ = Debug.log "started tricombine" () in
                 let newEnvAcc = triCombine newExp env envAcc newEnv in
+                --let _ = Debug.log "Finished tricombine" () in
                 aux (i + 1) (newExp::revAccExps) newEnvAcc tail
   in aux 1 [] env totalExpValOut
 
--- Constructor for combining multiple expressions evaluated in the same environment, when tehre are multiple values available.
+-- Constructor for combining multiple expressions evaluated in the same environment, when there are multiple values available.
 updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> List PrevOutput -> LazyList (List Output) -> UpdateStack
 updateOpMultiple hint env es eBuilder prevOutputs outputs=
   let aux nth outputsHead lazyTail =

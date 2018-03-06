@@ -15,6 +15,7 @@ import Syntax
 import Dict
 import UpdateUtils exposing (..)
 import LangUtils exposing (valToString)
+import UpdateStack exposing (..)
 --import LangTools exposing (valToString)
 
 removeSlashDollar s = replace All (regex "\\\\\\$") (\_ -> "\\$") s
@@ -222,6 +223,7 @@ updateRegexReplaceAllByIn: Env -> (Env -> Exp -> Result String Val)-> (Env -> Ex
 updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV oldOutV outV =
    case (regexpV.v_, replacementV.v_, stringV.v_, outV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string), _) ->
+        -- let _ = Debug.log "regex1" () in
         updateRegexReplaceAllByIn env eval updateRoutine regexpV (stringToLambda env replacementV replacement) stringV oldOutV outV
         |> Results.map (\(newRegexpV, newReplacementV, newStringV) ->
           (newRegexpV, replaceV_ replacementV <| VBase <| VString <| lambdaToString <| newReplacementV, newStringV)
@@ -231,6 +233,7 @@ updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV ol
        -- If possible, we are going to parse the result to recover each changed
        -- replaceAllIn (A|B) (case of "A" -> "a"; "B" -> "b") "A,B"  gives "a,b". What if it is now replaced by x,y ? Can we change "a" and "b" in the lambda?
        -- Now yes because we can merge all results.
+       -- let _ = Debug.log "regex2" () in
        let matches = GroupStartMap.find Regex.All regexp string in
        let (lastEnd, initStrings) = List.foldl (\m (lastEnd, strings) ->
             (m.index + String.length m.match, strings ++ [String.slice lastEnd m.index string])
@@ -239,13 +242,17 @@ updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV ol
        let lastString = String.dropLeft lastEnd string in -- Of size >= 2
        let replacementName = "UpdateRegex.replaceAll" in
        let expressionReplacement = concat <| (List.concatMap identity <| List.map2 (\m s -> [eStr s, matchToExpApp (eVar replacementName) m]) matches initStrings) ++ [eStr lastString] in
+       -- let _ = Debug.log "regex3" () in
        case evalRegexReplaceAllByIn env eval regexpV replacementV stringV of
          Err msg -> Errs msg
          Ok olvVal ->
+            -- let _ = Debug.log "regex4" () in
             let envWithReplacement= (replacementName, replacementV)::env in
             updateRoutine envWithReplacement expressionReplacement olvVal outV
             |> Results.andThen (\(newEnvWithReplacement, newExp) ->
+              -- let _ = Debug.log "regex6" () in
               let stringsAndLambdas = unconcat newExp in
+              -- let _ = Debug.log "regex7" () in
               stringsAndLambdas |> List.map (\e ->
                 case e.val.e__ of
                   EBase _ (EString delim s) -> Ok s
