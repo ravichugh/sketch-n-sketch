@@ -1,6 +1,6 @@
 main =
   [ "div"
-  , []
+  , [["style", [["padding", "20px"]]]]
   , [ ["h2", [], [["TEXT", "Welcome to Sketch-n-Sketch Docs!"]]]
     , ["br", [], []]
     , ["p", [], [["TEXT", "Type something here..."]]]

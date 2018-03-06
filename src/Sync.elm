@@ -19,7 +19,7 @@ import ShapeWidgets exposing
   ( RealZone, RealZone(..), PointFeature(..), OtherFeature(..)
   )
 import Solver
-import FastParser as Parser
+import ElmParser as Parser
 import Ace
 import Config exposing (params)
 import Utils

@@ -79,7 +79,7 @@ import Types
 import Ace
 import ParserUtils exposing (showError)
 -- import FastParser exposing (freshen)
-import FastParser as Parser
+import ElmParser as Parser
 import LangTools
 import LangUtils
 import LangSimplify
@@ -2378,7 +2378,11 @@ loadIcon env icon old =
     oldIcons =
       old.icons
     iconHtml =
-      iconify syntax env actualCode
+      -- Suppress for Leo/Docs for now, until preludeLeo.elm has SVG funcs
+      -- iconify syntax env actualCode
+      Html.span
+        []
+        [Html.text "TODO", Html.br [] [], Html.text "SVG Icons"]
     newIcons =
       Dict.insert icon.filename.name iconHtml oldIcons
   in

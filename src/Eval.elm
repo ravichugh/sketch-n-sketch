@@ -8,7 +8,7 @@ import ImpureGoodies
 import Lang exposing (..)
 import ValUnparser exposing (strVal_, strOp, strLoc)
 import ElmUnparser
-import FastParser as Parser
+import ElmParser as Parser
 import Syntax exposing (Syntax)
 import Types
 import Utils

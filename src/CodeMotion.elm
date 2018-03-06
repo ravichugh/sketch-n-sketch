@@ -26,7 +26,7 @@ import LangTools exposing (..)
 import LangUtils exposing (..)
 import LangSimplify
 import LangUnparser exposing (unparseWithIds, expsEquivalent, patsEquivalent, unparseWithUniformWhitespace)
-import FastParser as Parser
+import ElmParser as Parser
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
 import InterfaceModel exposing

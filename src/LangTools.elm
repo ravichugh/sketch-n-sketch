@@ -12,9 +12,7 @@ module LangTools exposing (..)
 
 import Eval
 import Lang exposing (..)
-import FastParser as Parser
--- import FastParser exposing (prelude, isPreludeLocId, isPreludeEId)
-import ElmParser
+import ElmParser as Parser
 import Utils
 import LangUnparser exposing (unparseWithIds)
 import Types
@@ -543,7 +541,7 @@ newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program =
   let letOrDef = if isTopLevel then Def else Let in
   -- At the top level, rec is implicit. We create the exp as it will actually be reparsed so
   -- any safety checks later in the pipeline work correctly.
-  let isActuallyRec = if isTopLevel then ElmParser.isTopLevelDefImplicitlyRec pat boundExp else isRec in
+  let isActuallyRec = if isTopLevel then Parser.isTopLevelDefImplicitlyRec pat boundExp else isRec in
   let newLetIndentation =
     -- If target expression is the body of a existing let, then use the indentation of the existing let.
     -- Otherwise, copy indentation of the wrapped expression.

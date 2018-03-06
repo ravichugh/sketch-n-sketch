@@ -528,14 +528,79 @@ mapFirst f [x, y] = [f x, y]
 
 mapSecond f [x, y] = [x, f y]
 
--- Custom Updates --
-
--- TODO
-
 -- Editor --
 
 freeze x = x
 
+-- Custom Updates --
+
+customUpdate record x =
+  record.apply x
+
+-- Custom Update: Freeze
+
+customUpdateFreeze =
+  customUpdate { apply x = x, update p = [p.input] }
+
+-- Custom Update: List Map, List Append, ...
+
+-- TODO
+
+-- Custom Update: Table Library
+
+  -- freeze and customUpdateFreeze aren't actually needed below,
+  -- because these definitions are now impicitly frozen in Prelude
+
+tableWithButtons = {
+
+  wrapData =
+    { apply rows   = rows |> map (\row -> [freeze False, row])
+    , unapply rows = rows |> concatMap (\[flag,row] ->
+                               if flag == True
+                                 then [ row, ["","",""] ]
+                                 else [ row ]
+                             )
+                          |> just
+    }
+
+  mapData f =
+    map (mapSecond f)
+
+  tr flag styles attrs children =
+    let [hasBeenClicked, nope, yep] =
+      ["has-been-clicked", customUpdateFreeze "gray", customUpdateFreeze "coral"]
+    in
+    let onclick =
+      """
+      var hasBeenClicked = document.createAttribute("@hasBeenClicked");
+      var buttonStyle = document.createAttribute("style");
+
+      if (this.parentNode.getAttribute("@hasBeenClicked") == "False") {
+        hasBeenClicked.value = "True";
+        buttonStyle.value = "color: @yep;";
+      } else {
+        hasBeenClicked.value = "False";
+        buttonStyle.value = "color: @nope;";
+      }
+
+      this.parentNode.setAttributeNode(hasBeenClicked);
+      this.setAttributeNode(buttonStyle);
+      """
+    in
+    let button = -- text-button.enabled is an SnS class
+      [ "span"
+      , [ ["class", "text-button.enabled"]
+        , ["onclick", onclick]
+        , ["style", [["color", nope]]]
+        ]
+      , [textNode "+"]
+      ]
+    in
+    tr styles
+      ([hasBeenClicked, toString flag] :: attrs)
+      (snoc button children)
+
+}
 
 
 -- The type checker relies on the name of this definition.
