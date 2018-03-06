@@ -10,6 +10,7 @@ import Info exposing (WithInfo)
 import LangUtils exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pruneEnvPattern, valToString)
 import Regex
 import Utils
+import Set
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -270,8 +271,10 @@ triCombine origExp originalEnv newEnv1 newEnv2 =
               toString x ++ " = " ++ toString v1 ++ "\n" ++
               toString y ++ " = " ++ toString v2 ++ "\n" ++
               toString z ++ " = " ++ toString v3
-           else
+           else if Set.member x fv then
              aux (acc ++ [(x, mergeVal v1 v2 v3)]) oe ne1 ne2
+           else
+             aux (acc ++ [(x, v1)]) oe ne1 ne2
          _ -> Debug.crash <| "Expected environments to have the same size, got\n" ++
               toString originalEnv ++ ", " ++ toString newEnv1 ++ ", " ++ toString newEnv2
        in
