@@ -2012,7 +2012,7 @@ msgUpdateValueEditor s = Msg "Update Value Editor" <| \m ->
 msgCallUpdate = Msg "Call Update" doCallUpdate
 
 doCallUpdate m =
-  let _ = Debug.log "I'll find the value" () in
+  --let _ = Debug.log "I'll find the value" () in
   let updatedValResult =
     if domEditorNeedsCallUpdate m then
        (m.attributeValueUpdates, m.textValueUpdates)
@@ -2024,11 +2024,11 @@ doCallUpdate m =
   -- TODO updated value may be back to original, so may want to
   -- detect this and write a caption that says so.
   in
-  let _ = Debug.log "Let's do update" () in
+  --let _ = Debug.log "Let's do update" () in
   let updatedExpResults =
     Update.doUpdate m.inputExp m.inputVal updatedValResult
   in
-  let _ = Debug.log "I'm here" () in
+  --let _ = Debug.log "I'm here" () in
   let revertChanges caption =
     synthesisResult caption m.inputExp
   in
@@ -2072,7 +2072,13 @@ doCallUpdate m =
             LazyList.Nil ->
               showSolutions [revertChanges "No solution found. Revert?"]
 
-            LazyList.Cons _ _ ->
+            LazyList.Cons (envModified, expModified) _ ->
+              let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified) "expModified" in
+              let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified) (LangUtils.pruneEnv expModified Eval.initEnv)
+                   |> UpdateUtils.displayDiff (\(k, v) -> "\n" ++ k ++ " = " ++ LangUtils.valToString v )
+                   ) "envModified"
+              in
+
               showSolutions [revertChanges "Only solutions modifying the library. Revert?"]
 
         LazyList.Cons _ _ ->

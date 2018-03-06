@@ -61,7 +61,12 @@ map f l = {
         let [newFs, inputsRecovered] = recoverInputs [] [] inserted in
         aux (append newFuns newFs) (append newInputs inputsRecovered) inputElements tailDiff
     in
-    let [newFun::_, newInputs]  = aux [] [] input (diff outputOriginal output) in
+    let [funs, newInputs]  = aux [] [] input (diff outputOriginal output) in
+    let newFun = case funs of
+      head::tail -> -- We don't have merge for now so we just take the first.
+        head
+      _ -> f
+    in
     [[newFun, newInputs]]
   }.apply [f, l]
 -- move to lens library
@@ -75,8 +80,8 @@ customUpdateFreeze =
 -- move to table library
 
 addRowFlags =
-  { apply =
-      map <| \row -> [freeze False, row]
+  { apply rows =
+      map (\row -> [freeze False, row]) rows
   , unapply rows =
       just <|
         concatMap (\[flag,row] ->
@@ -144,15 +149,15 @@ headers =
   ["State", "", "Capital"]
 
 rows =
+  --  |> customUpdateTable
   states
-    |> customUpdateTable
 
 padding =
   ["padding", "3px"]
 
 zipWithIndex xs =
   { apply x = zip (range 0 (len xs - 1)) xs
-    unapply {output} = map (\[i, x] -> x) output  }.apply xs
+    update {output} = [map (\[i, x] -> x) output]  }.apply xs
 
 mapi f xs = map f (zipWithIndex xs)
  
@@ -165,14 +170,15 @@ theTable =
   in
   let stateRows =
     let colors = ["lightyellow", "white"] in
-    indexedMap (\i [flag,row] ->
+    indexedMap (\i row ->
       let color =
         nth colors (mod i (len colors))
       in
       let columns =
         map (td [padding, ["background-color", color]] []) row
       in
-      trWithButton True flag [] [] columns
+--      trWithButton True flag [] [] columns
+      ["tr", [], columns]
     ) rows
   in
   table
