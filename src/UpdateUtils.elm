@@ -11,18 +11,13 @@ import LangUtils exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pr
 import Regex
 import Utils
 
-unparse = Syntax.unparser Syntax.Elm
-unparsePattern = Syntax.patternUnparser Syntax.Elm
-unparseType= Syntax.typeUnparser Syntax.Elm
-
-
 bvToString: EBaseVal -> String
-bvToString b = unparse <| withDummyExpInfo <| EBase space0 <| b
+bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
 
 diffExp: Exp -> Exp -> String --Summary in strings
 diffExp e1 e2 =
-   let s1 = unparse e1 in
-   let s2 = unparse e2 in
+   let s1 = Syntax.unparser Syntax.Elm e1 in
+   let s2 = Syntax.unparser Syntax.Elm e2 in
    let before = Regex.split Regex.All (Regex.regex "\\b") s1 in
    let after = Regex.split Regex.All (Regex.regex "\\b") s2 in
    let difference = diff identity before after in
@@ -452,7 +447,7 @@ mergeBranch o e1 e2 =
        -- Check that the patterns are the same. If not takes the first pattern change.
        if patEqual pat0 pat1 && patEqual pat1 pat2 then
          {o | val = Branch_ (mergeWS sp0 sp1 sp2) pat0 (mergeExp exp0 exp1 exp2) (mergeWS sp0 sp1 sp2) }
-       else if unparsePattern pat0 == unparsePattern pat1 then e2 else e1
+       else if Syntax.patternUnparser Syntax.Elm pat0 == Syntax.patternUnparser Syntax.Elm pat1 then e2 else e1
 
 mergeTBranch: TBranch -> TBranch -> TBranch -> TBranch
 mergeTBranch o e1 e2 =
@@ -463,7 +458,7 @@ mergeTBranch o e1 e2 =
        -- Check that the patterns are the same. If not takes the first pattern change.
        if typeEqual typ0 typ1 && typeEqual typ1 typ2 then
          {o | val = TBranch_ (mergeWS sp0 sp1 sp2) typ0 (mergeExp exp0 exp1 exp2) (mergeWS sp0 sp1 sp2) }
-       else if unparseType typ0 == unparseType typ1 then e2 else e1
+       else if Syntax.typeUnparser Syntax.Elm typ0 == Syntax.typeUnparser Syntax.Elm typ1 then e2 else e1
 
 mergeMaybe: (a -> a -> a -> a) -> Maybe a -> Maybe a -> Maybe a -> Maybe a
 mergeMaybe submerger o e1 e2 =

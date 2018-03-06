@@ -8,7 +8,8 @@ import LazyList exposing (..)
 import Lazy
 import Syntax
 import ValUnparser exposing (strVal)
-
+import UpdateUtils exposing (..)
+import Utils
 
 -- TODO: Split the list of NextAction to HandlePreviousResult (for continuation wrapper) and a list of Forks
 type NextAction = HandlePreviousResult String (Env -> Exp -> UpdateStack)
@@ -78,3 +79,37 @@ updateMaybeFirst2 mb ll =
    case mb of
      Nothing -> ll False
      Just u -> Just <| UpdateResultAlternative "fromMaybeFirst" u (Lazy.lazy <| (ll |> \ll _ -> ll True))
+
+
+-- Constructor for updating multiple expressions evaluated in the same environment.
+updateContinueMultiple: String -> Env -> List (Exp, PrevOutput, Output) -> (Env -> List Exp -> UpdateStack) -> UpdateStack
+updateContinueMultiple msg env totalExpValOut continuation  =
+  let aux i revAccExps envAcc expValOut =
+        case expValOut of
+          [] -> continuation envAcc (List.reverse revAccExps)
+          (e, v, out)::tail ->
+            updateContinue env e v out <|
+              HandlePreviousResult (toString i ++ "/" ++ toString (List.length totalExpValOut) ++ " " ++ msg)  <| \newEnv newExp ->
+                let newEnvAcc = triCombine newExp env envAcc newEnv in
+                aux (i + 1) (newExp::revAccExps) newEnvAcc tail
+  in aux 1 [] env totalExpValOut
+
+-- Constructor for combining multiple expressions evaluated in the same environment, when tehre are multiple values available.
+updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> List PrevOutput -> LazyList (List Output) -> UpdateStack
+updateOpMultiple hint env es eBuilder prevOutputs outputs=
+  let aux nth outputsHead lazyTail =
+  updateContinueMultiple (hint ++ " #" ++ toString nth) env (Utils.zip3 es prevOutputs outputsHead) (\newEnv newOpArgs ->
+    --let _ = Debug.log ("before an alternative " ++ (String.join "," <| List.map valToString head)) () in
+    UpdateResultAlternative "UpdateResultAlternative maybeOp" (updateResult newEnv (eBuilder newOpArgs))
+       (lazyTail |> Lazy.map (\ll ->
+         --let _ = Debug.log ("Starting to evaluate another alternative if it exists ") () in
+         case ll of
+           LazyList.Nil -> Nothing
+           LazyList.Cons newHead newLazyTail -> Just <| aux (nth + 1) newHead newLazyTail
+       )))
+  in
+  case outputs of
+    LazyList.Nil -> UpdateError <| "[Internal error] No result for updating " ++ hint
+    LazyList.Cons outputsHead lazyTail ->
+      aux 1 outputsHead lazyTail
+

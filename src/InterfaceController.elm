@@ -1980,7 +1980,7 @@ doCallUpdate m =
     Oks solutions ->
       let solutionsNotModifyingEnv =
          LazyList.filter
-           (\(env, exp) -> UpdateUtils.envEqual (LangUtils.pruneEnv exp env) (LangUtils.pruneEnv exp Eval.initEnv))
+           (\(env, exp) -> LangUtils.envEqual (LangUtils.pruneEnv exp env) (LangUtils.pruneEnv exp Eval.initEnv))
            solutions
       in
       case solutionsNotModifyingEnv of
@@ -1996,7 +1996,7 @@ doCallUpdate m =
           let filteredResults =
             solutionsNotModifyingEnv
               |> LazyList.toList
-              |> List.filter (\(_,newCodeExp) -> not (UpdateUtils.expEqual newCodeExp m.inputExp))
+              |> List.filter (\(_,newCodeExp) -> not (LangUtils.expEqual newCodeExp m.inputExp))
               |> Utils.mapi1 (\(i,(_,newCodeExp)) ->
                    --synthesisResult ("Program Update " ++ toString i) newCodeExp
                    synthesisResult (UpdateUtils.diffExp m.inputExp newCodeExp) newCodeExp

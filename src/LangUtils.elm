@@ -8,10 +8,6 @@ import Set
 import Info
 import ParserUtils
 
-unparse = Syntax.unparser Syntax.Elm
-unparsePattern = Syntax.patternUnparser Syntax.Elm
-unparseType= Syntax.typeUnparser Syntax.Elm
-
 branchPatExps : List Branch -> List (Pat, Exp)
 branchPatExps branches =
   List.map
@@ -321,8 +317,8 @@ wsEqual: WS -> WS -> Bool
 wsEqual ws1 ws2 = ws1.val == ws2.val
 
 patEqual: Pat -> Pat -> Bool
-patEqual p1_ p2_ = --let _ = Debug.log "patEqual " (unparsePattern p1_, unparsePattern p2_) in
-  unparsePattern p1_ == unparsePattern p2_
+patEqual p1_ p2_ = --let _ = Debug.log "patEqual " (Syntax.patternUnparser Syntax.Elm p1_, Syntax.patternUnparser Syntax.Elm p2_) in
+  Syntax.patternUnparser Syntax.Elm p1_ == Syntax.patternUnparser Syntax.Elm p2_
 {--  case (p1_.val.p__, p2_.val.p__) of
   (PVar sp1 ident1 _,PVar sp2 ident2 _) -> wsEqual sp1 sp2 && ident1 == ident2
   (PConst sp1 num1, PConst sp2 num2)  -> wsEqual sp1 sp2 && num1 == num2
@@ -399,8 +395,8 @@ typeEqual ty1 ty2 = --let _ = Debug.log "typeEqual " (ty1, ty2) in
 
 expEqual: Exp -> Exp -> Bool
 expEqual e1_ e2_ =
-  --let _ = Debug.log "expEqual " (unparse e1_, unparse e2_) in
-  unparse e1_ == unparse e2_
+  --let _ = Debug.log "expEqual " (Syntax.unparser Syntax.Elm e1_, Syntax.unparser Syntax.Elm e2_) in
+  Syntax.unparser Syntax.Elm e1_ == Syntax.unparser Syntax.Elm e2_
 {--
   case (e1_.val.e__, e2_.val.e__) of
   (EConst sp1 num1 _ _, EConst sp2 num2 _ _) -> wsEqual sp1 sp2 && num1 == num2

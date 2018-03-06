@@ -216,13 +216,14 @@ unconcat e = case e.val.e__ of
     _ -> [e]
   _ -> [e]
 
-updateRegexReplaceAllByIn: Env -> (Env -> Exp -> Result String Val)-> (Env -> Exp -> Val -> Val -> Results String (Env, Exp)) -> Val -> Val -> Val -> Val -> Val -> Results String (Env, Val, Val, Val)
+-- We need the environment just to make use of the function "nth" for lists, so we don't need to return it !!
+updateRegexReplaceAllByIn: Env -> (Env -> Exp -> Result String Val)-> (Env -> Exp -> Val -> Val -> Results String (Env, Exp)) -> Val -> Val -> Val -> Val -> Val -> Results String (Val, Val, Val)
 updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV oldOutV outV =
    case (regexpV.v_, replacementV.v_, stringV.v_, outV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string), _) ->
         updateRegexReplaceAllByIn env eval updateRoutine regexpV (stringToLambda env replacementV replacement) stringV oldOutV outV
-        |> Results.map (\(newEnv, newRegexpV, newReplacementV, newStringV) ->
-          (newEnv, newRegexpV, replaceV_ replacementV <| VBase <| VString <| lambdaToString <| newReplacementV, newStringV)
+        |> Results.map (\(newRegexpV, newReplacementV, newStringV) ->
+          (newRegexpV, replaceV_ replacementV <| VBase <| VString <| lambdaToString <| newReplacementV, newStringV)
         )
        -- Conver the string to a lambda with string concatenation
      (VBase (VString regexp), VClosure _ _ _ _ , VBase (VString string), VBase (VString out)) ->
@@ -258,7 +259,7 @@ updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV ol
                     (replacementName, newReplacementV)::newEnv -> (newReplacementV, newEnv)
                   in
                   let newString = String.join "" newStrings in
-                  ok1 (newEnv, regexpV, newLambda, replaceV_ stringV <| VBase (VString newString))
+                  ok1 (regexpV, newLambda, replaceV_ stringV <| VBase (VString newString))
                 )
              )
      _ -> Errs <| "Expected a string for the regexp, a string or a lambda returning a string for replacement, and the text to perform the replace on, and to update from a string. "

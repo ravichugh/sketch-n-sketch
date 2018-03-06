@@ -31,9 +31,7 @@ import LangParserUtils
 import Dict exposing (Dict)
 import Lazy
 import Regex exposing (regex, HowMany(..), find, Match, escape)
-import UpdateStack exposing (NextAction(..), UpdateStack(..), updateResults
-  , Output, PrevOutput, nextActionsToString_, updateStackName_, updateMaybeFirst, updateContinueRepeat
-  , updateMaybeFirst2, updateResult, updateContinue, updateContext)
+import UpdateStack exposing (..)
 import UpdateRegex exposing (..)
 
 unparse = Syntax.unparser Syntax.Elm
@@ -641,6 +639,18 @@ getUpdateStackOp env e oldVal newVal =
                                       updateResult env <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
                                 e -> UpdateError <| "[internal error] Wrong number of arguments in update: " ++ toString e
                     e -> UpdateError <| "Expected string, got " ++ valToString newVal
+                RegexReplaceAllIn -> -- TODO: Move this in maybeUpdateMathOp
+                  case vs of
+                    [regexpV, replacementV, stringV] ->
+                      let eRec env exp = doEval Syntax.Elm env exp |> Result.map (\((v, _), _) -> v) in
+                      let uRec: Env -> Exp -> Val -> Val -> Results String (Env, Exp)
+                          uRec env exp oldval newval = update (updateContext env exp oldval newval) LazyList.Nil
+                      in
+                      case UpdateRegex.updateRegexReplaceAllByIn
+                          env eRec uRec regexpV replacementV stringV oldVal newVal of
+                        Errs msg -> UpdateError msg
+                        Oks ll -> updateOpMultiple "replaceAllIn" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs (LazyList.map (\(a, b, c) -> [a, b, c]) ll)
+                    _ -> UpdateError "replaceAllIn requires regexp, replacement (fun or string) and the string"
                 _ ->
                   case maybeUpdateMathOp op vs oldVal newVal of
                     Errs msg -> UpdateError msg
@@ -1090,41 +1100,6 @@ commonPrefix =
 
 commonSuffix: String -> String -> String
 commonSuffix s1 s2 = commonPrefix (String.reverse s1) (String.reverse s2) |> String.reverse
-
--- Constructor for updating multiple expressions evaluated in the same environment.
--- TODO: Once triCombine is moved into aother file, move this method to UpdateStack
-updateContinueMultiple: String -> Env -> List (Exp, PrevOutput, Output) -> (Env -> List Exp -> UpdateStack) -> UpdateStack
-updateContinueMultiple msg env totalExpValOut continuation  =
-  let aux i revAccExps envAcc expValOut =
-        case expValOut of
-          [] -> continuation envAcc (List.reverse revAccExps)
-          (e, v, out)::tail ->
-            updateContinue env e v out <|
-              HandlePreviousResult (toString i ++ "/" ++ toString (List.length totalExpValOut) ++ " " ++ msg)  <| \newEnv newExp ->
-                let newEnvAcc = triCombine newExp env envAcc newEnv in
-                aux (i + 1) (newExp::revAccExps) newEnvAcc tail
-  in aux 1 [] env totalExpValOut
-
--- TODO: Move this method to UpdateStack once updateContinueMultiple is moved to UpdateStack
--- Constructor for combining multiple expressions evaluated in the same environment, when tehre are multiple values available.
-updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> List PrevOutput -> LazyList (List Output) -> UpdateStack
-updateOpMultiple hint env es eBuilder prevOutputs outputs=
-  let aux nth outputsHead lazyTail =
-  updateContinueMultiple (hint ++ " #" ++ toString nth) env (Utils.zip3 es prevOutputs outputsHead) (\newEnv newOpArgs ->
-    --let _ = Debug.log ("before an alternative " ++ (String.join "," <| List.map valToString head)) () in
-    UpdateResultAlternative "UpdateResultAlternative maybeOp" (updateResult newEnv (eBuilder newOpArgs))
-       (lazyTail |> Lazy.map (\ll ->
-         --let _ = Debug.log ("Starting to evaluate another alternative if it exists ") () in
-         case ll of
-           LazyList.Nil -> Nothing
-           LazyList.Cons newHead newLazyTail -> Just <| aux (nth + 1) newHead newLazyTail
-       )))
-  in
-  case outputs of
-    LazyList.Nil -> UpdateError <| "[Internal error] No result for updating " ++ hint
-    LazyList.Cons outputsHead lazyTail ->
-      aux 1 outputsHead lazyTail
-
 
 branchWithInversion: Env -> Val -> List Branch -> Maybe ((Env, Exp), (Env, Exp) -> (Env, Val, List Branch))
 branchWithInversion env input branches =
