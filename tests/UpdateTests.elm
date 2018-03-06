@@ -51,7 +51,7 @@ fail state newError = { state |
 log state msg =
   "[" ++ state.currentName ++ ", assertion #" ++ toString state.nthAssertion ++ "] " ++ msg
 
-
+nthEnv = [("nth", "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null in nth")]
 
 genericAssertEqual: (a -> String) -> (a -> a -> Bool) -> a -> a -> State  -> State
 genericAssertEqual eToString isEqual obtained expected state =
@@ -174,6 +174,7 @@ tPList sp0 listPat sp1= withDummyPatInfo <| PList sp0 listPat (ws "") Nothing sp
 tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat sp1 (Just tailPat) sp1
 
 all_tests = init_state
+  |> ignore True
   |> test "triCombineTest"
   |> assertEqual
       (triCombine (tList space0  [tVar space0 "x", tVar space0 "y"] space0)
@@ -348,11 +349,9 @@ all_tests = init_state
       |> updateElmAssert
         [] "let   x= 1 in\nlet y  =2  in [x, x, y]" "[3, 1, 2]"
         [] "let   x= 3 in\nlet y  =2  in [x, x, y]"
-  --|> ignore False
       |> updateElmAssert
         [] "let   x= 1 in\nlet y  =2  in [x, x, y]" "[1, 3, 2]"
         [] "let   x= 3 in\nlet y  =2  in [x, x, y]"
-  --|> ignore True
       |> updateElmAssert
         [] "let   x= 1 in\nlet y  =2  in [x, x, y]" "[1, 1, 3]"
         [] "let   x= 1 in\nlet y  =3  in [x, x, y]"
@@ -432,8 +431,13 @@ all_tests = init_state
         "a2bc2bc6cd-1null"
   |> test "replaceAllIn"
     |> evalElmAssert [] "replaceAllIn \"l\" \"L\" \"Hello world\"" "\"HeLLo worLd\""
-    |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null in replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
-    |> evalElmAssert [] "letrec nth list index = case list of head::tail -> if index == 0 then head else nth tail (index - 1); [] -> null in replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c.match == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
+    |> evalElmAssert nthEnv "replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
+    |> evalElmAssert nthEnv "replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c.match == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
+    |> ignore False
+    |> updateElmAssert nthEnv "replaceAllIn \"e\" \"ee\" \"\"\"See some examples from File...\"\"\"" "\"Seeee somee emexamplees from Filee...\""
+                       nthEnv "replaceAllIn \"e\" \"eme\" \"\"\"See some examples from File...\"\"\""
+    |> ignore True
+
   --|> test "Record construction, extraction and pattern "
   --  |>
   |> test "Partial application"

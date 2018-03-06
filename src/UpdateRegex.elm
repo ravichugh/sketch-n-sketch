@@ -237,7 +237,7 @@ updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV ol
        in
        let lastString = String.dropLeft lastEnd string in -- Of size >= 2
        let replacementName = "UpdateRegex.replaceAll" in
-       let expressionReplacement = concat <| List.concatMap identity <| List.map2 (\m s -> [matchToExpApp (eVar replacementName) m, eStr s]) matches initStrings in
+       let expressionReplacement = concat <| (List.concatMap identity <| List.map2 (\m s -> [eStr s, matchToExpApp (eVar replacementName) m]) matches initStrings) ++ [eStr lastString] in
        case evalRegexReplaceAllByIn env eval regexpV replacementV stringV of
          Err msg -> Errs msg
          Ok olvVal ->
@@ -248,8 +248,7 @@ updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV ol
               stringsAndLambdas |> List.map (\e ->
                 case e.val.e__ of
                   EBase _ (EString delim s) -> Ok s
-                  EOp _ _ [_] _ -> expAppToStringMatch e
-                  _ -> Debug.crash <| "[Internal error] Expected operator or base string, got " ++ toString e
+                  _ -> expAppToStringMatch e
                 )
               |> Utils.projOk
               |> Results.fromResult
