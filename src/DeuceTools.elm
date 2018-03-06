@@ -511,7 +511,7 @@ introduceVariableTool model selections =
     , func = func
     , reqs =
         [ { description =
-              "Select one or more constants and, optionally, one target position (i.e. whitespace)"
+              "Select one or more expressions and, optionally, one target position (i.e. whitespace)"
           , value =
               predVal
           }
@@ -2139,10 +2139,10 @@ deuceToolsOf model =
 
 createToolCache : Model -> List (List CachedDeuceTool)
 createToolCache model =
-  -- createToolCache_ model
-  ImpureGoodies.logTimedRun "DeuceTools.createToolCachce" (\() ->
-    createToolCache_ model
-  )
+  createToolCache_ model
+  -- ImpureGoodies.logTimedRun "DeuceTools.createToolCachce" (\() ->
+  --   createToolCache_ model
+  -- )
 
 createToolCache_ : Model -> List (List CachedDeuceTool)
 createToolCache_ model =

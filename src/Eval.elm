@@ -423,7 +423,7 @@ eval syntax env bt e =
     case eval_ syntax env bt_ e1 of
       Err s       -> Err s
       Ok (v1,ws1) ->
-        case (p.val.p__, v1.v_) of
+        case ((patEffectivePat p).val.p__, v1.v_) of
           (PVar _ fname _, VClosure Nothing x body env_) ->
             let _   = Utils.assert "eval letrec" (env == env_) in
             let v1Named = { v1 | v_ = VClosure (Just fname) x body env } in

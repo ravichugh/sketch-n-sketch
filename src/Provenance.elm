@@ -20,7 +20,7 @@ nameForVal program val =
 valToMaybeLetPat : Exp -> Val -> Maybe Pat
 valToMaybeLetPat program val =
   LangTools.allSimplyResolvableLetPatBindings program
-  |> Utils.findFirst (\(_, boundExp) -> isPossibleSingleEIdInterpretation (LangTools.expValueExp boundExp).val.eid val)
+  |> Utils.findFirst (\(_, boundExp) -> isPossibleSingleEIdInterpretation (expEffectiveExp boundExp).val.eid val)
   |> Maybe.map (\(pat, _) -> pat)
 
 
@@ -34,26 +34,26 @@ valToMaybeLetPat program val =
 expNonControlFlowChildren : Exp -> List Exp
 expNonControlFlowChildren exp =
   case exp.val.e__ of
-    EConst _ _ _ _                           -> []
-    EBase _ _                                -> []
-    EVar _ _                                 -> []
-    EFun _ _ _ _                             -> [] -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
-    EOp _ _ _ _                              -> childExps exp
-    EList _ _ _ _ _                          -> childExps exp
-    ERecord _ _ _ _                          -> childExps exp
-    ESelect _ _ _ _ _                        -> childExps exp
-    EApp _ func es _ _                       -> es -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
-    ELet _ _ _ _ _ boundExp _ body _         -> [body] -- lets are actually pass-through and won't appear the val provenance tree; not sure it matters what we return here
+    EConst _ _ _ _                               -> []
+    EBase _ _                                    -> []
+    EVar _ _                                     -> []
+    EFun _ _ _ _                                 -> [] -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
+    EOp _ _ _ _                                  -> childExps exp
+    EList _ _ _ _ _                              -> childExps exp
+    ERecord _ _ _ _                              -> childExps exp
+    ESelect _ _ _ _ _                            -> childExps exp
+    EApp _ func es _ _                           -> es -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
+    ELet _ _ _ _ _ boundExp _ body _             -> [body] -- lets are actually pass-through and won't appear the val provenance tree; not sure it matters what we return here
     EIf _ predicate _ trueBranch _ falseBranch _ -> [trueBranch, falseBranch]
-    ECase _ scrutinee branches _             -> branchExps branches
-    ETypeCase _ scrutinee tbranches _        -> tbranchExps tbranches
-    EComment _ _ _                           -> childExps exp
-    EOption _ _ _ _ _                        -> childExps exp
-    ETyp _ _ _ _ _                           -> childExps exp
-    EColonType _ _ _ _ _                     -> childExps exp
-    ETypeAlias _ _ _ _ _                     -> childExps exp
-    EParens _ _ _ _                          -> childExps exp
-    EHole _ _                                -> []
+    ECase _ scrutinee branches _                 -> branchExps branches
+    ETypeCase _ scrutinee tbranches _            -> tbranchExps tbranches
+    EComment _ _ _                               -> childExps exp
+    EOption _ _ _ _ _                            -> childExps exp
+    ETyp _ _ _ _ _                               -> childExps exp
+    EColonType _ _ _ _ _                         -> childExps exp
+    ETypeAlias _ _ _ _ _                         -> childExps exp
+    EParens _ _ _ _                              -> childExps exp
+    EHole _ _                                    -> []
 
 
 -- Attempt to consume as many parents as possible.
