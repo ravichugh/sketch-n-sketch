@@ -3,7 +3,10 @@ module GroupStartMap exposing (find, replace, Match)
 import Regex exposing (HowMany(..), Regex, regex)
 import Char
 import Dict exposing (Dict)
-import ImpureGoodies exposing (stringCharAt, mutateRecordField)
+import ImpureGoodies exposing (mutateRecordField)
+
+stringCharAt i = Maybe.map String.fromChar << ImpureGoodies.stringCharAt i
+
 -- GroupStartMap.find, .replace and everything else provide a Match with the position of all subgroups.
 
 {-* The goal of a GroupStartMap is to retrieve the start position of each
@@ -351,10 +354,12 @@ type alias GroupStartMap = {string: String, start: Int, pattern: String}
 find: HowMany -> String -> String -> List Match
 find howMany reg string =
   let node = parseRegex reg in
+  --let _ = Debug.log "computed node" node in
   let _ = setNewGroup node 1 in
   let groupNodeMap = getGroupNodeMap node in
   let _ = transformGroupNumber (Dict.map (\k v -> v.newGroup) groupNodeMap) node in
   let allMatchingRegexStr = buildRegex node in
+  --let _ = Debug.log ("previous:" ++ reg) () in
   --let _ = Debug.log ("allmatchingRegex:" ++ allMatchingRegexStr) () in
   let allMatchingRegex = regex allMatchingRegexStr in
   let findResult = Regex.find howMany allMatchingRegex string in
@@ -378,7 +383,7 @@ find howMany reg string =
 
 replace: HowMany -> String -> (Match -> String) -> String -> String
 replace howMany reg replacementFun string =
-  let node = parseRegex reg in
+    let node = parseRegex reg in
     let _ = setNewGroup node 1 in
     let groupNodeMap = getGroupNodeMap node in
     let _ = transformGroupNumber (Dict.map (\k v -> v.newGroup) groupNodeMap) node in
@@ -448,37 +453,40 @@ parseRegex pattern =
   let parseClosingParenthesis pIndex = pIndex + 1 in
   -- Returns the position just after the next ending brace
   let positionEndNextBrace pIndex =
-    if stringCharAt pIndex pattern == Just ')' then pIndex + 1
+    if stringCharAt pIndex pattern == Just ")" then pIndex + 1
     else if String.length pattern <= pIndex then pIndex
     else positionEndNextBrace (pIndex + 1)
   in
   -- Returns the position just after the next ending square bracket
   let positionEndSquareBracket pIndex =
+     --let _ = Debug.log ("Position at " ++ toString pIndex) (stringCharAt pIndex pattern |> Maybe.map (String.fromChar) ) in
+     --let _ = Debug.log (" = ']' ") ((stringCharAt pIndex pattern |> Maybe.map (String.fromChar)) == Just "]") in
      if String.length pattern <= pIndex then
        pIndex
-     else if stringCharAt pIndex pattern == Just '\\' && String.length pattern > 1  then
+     else if stringCharAt pIndex pattern == Just "\\" && String.length pattern > 1  then
        positionEndSquareBracket (pIndex + 2)
-     else if stringCharAt pIndex pattern == Just ']' then
+     else if stringCharAt pIndex pattern == Just "]" then
        pIndex + 1
      else
        positionEndSquareBracket (pIndex + 1)
   in
   let positionAfterLastDigit pIndex =
-    if pIndex < String.length pattern && Char.isDigit (Maybe.withDefault 'c' (stringCharAt pIndex pattern)) then
-      positionAfterLastDigit (pIndex + 1)
+    if pIndex < String.length pattern && (String.all Char.isDigit (Maybe.withDefault "c" (stringCharAt pIndex pattern))) then
+       positionAfterLastDigit (pIndex + 1)
     else
-      pIndex
+       pIndex
   in
   -- Returns a sequence of nodes, the remaining non-parsed, and the next group index
   -- Take care of escaped parentheses \( and \)
   -- Takes care of non-group parenthesis (?:)
   let parse pIndex nextGroupIndex = -- Int -> Int ->  (List Node, Int, Int)
+    --let _ = Debug.log "parse" (pIndex, nextGroupIndex) in
     if (pIndex >= String.length pattern) then
-      ([], pIndex, nextGroupIndex)
+       ([], pIndex, nextGroupIndex)
     else
      let simplify nodes = {-: List Node -> List Node}-}
        case nodes of
-         n :: n2 :: tail ->
+          n :: n2 :: tail ->
            case (nodeUnapply n, nodeUnapply n2) of
              ((OriginallyWrapped "" "", RegexLeaf(r1)),
               (OriginallyWrapped "" "", RegexLeaf(r2))) ->
@@ -497,71 +505,75 @@ parseRegex pattern =
                        simplify (nodeApply (OriginallyWrapped "" modifier) (ParentNode [n]) :: tail)
                  Nothing -> nodes
              _ -> nodes
-         _ -> nodes
+          _ -> nodes
      in
      let addSiblings node {-: Node-} remaining {-: Int-} nextGroupIndex{-: Int-} = ---> (List Node, Int, Int) = {
        let (siblings, finalRemaining, finalGroupIndex) = parse remaining nextGroupIndex in
        (simplify (node :: siblings), finalRemaining, finalGroupIndex)
      in
      let default e =
-       addSiblings (nodeApplyR <| String.fromChar e) (pIndex + 1) nextGroupIndex
+       addSiblings (nodeApplyR <| e) (pIndex + 1) nextGroupIndex
      in
      case (stringCharAt pIndex pattern) of
        Nothing -> Debug.crash "Internal error: should have not reached the end of regex"
        Just c ->
          case c of
-           '(' ->
-             if (String.length pattern >= pIndex + 3 && stringCharAt (pIndex + 1) pattern == Just '?' &&
-                 (stringCharAt (pIndex+2) pattern == Just '=' || stringCharAt (pIndex+2) pattern == Just '!')) then -- // Non-capturing test group
+           "(" ->
+             if (String.length pattern >= pIndex + 3 && stringCharAt (pIndex + 1) pattern == Just "?" &&
+                 (stringCharAt (pIndex+2) pattern == Just "=" || stringCharAt (pIndex+2) pattern == Just "!")) then -- // Non-capturing test group
                let (parsed, remaining, newNextGroupIndex) = parse (pIndex + 3) nextGroupIndex in
                let remaining1 = parseClosingParenthesis remaining in
-               addSiblings (nodeApply (OriginallyWrapped ("(?"++Maybe.withDefault "" (Maybe.map String.fromChar (stringCharAt (pIndex + 2) pattern))) ")")
+               addSiblings (nodeApply (OriginallyWrapped ("(?"++Maybe.withDefault "" (stringCharAt (pIndex + 2) pattern)) ")")
                                 (createParentNode parsed))
                            remaining1 newNextGroupIndex
-             else if (String.length pattern < pIndex + 3 || stringCharAt (pIndex + 1) pattern /= Just '?' ||
-                        stringCharAt (pIndex + 2) pattern /= Just ':') then --// Capturing group.
+             else if (String.length pattern < pIndex + 3 || stringCharAt (pIndex + 1) pattern /= Just "?" ||
+                        stringCharAt (pIndex + 2) pattern /= Just ":") then --// Capturing group.
+               --let _ = Debug.log "capturing group" () in
                let (parsed, remaining, newNextGroupIndex) = parse (pIndex + 1) (nextGroupIndex + 1) in
+               --let _ = Debug.log "parsed" (parsed, remaining, newNextGroupIndex) in
                let remaining1 = parseClosingParenthesis remaining in
                addSiblings (simplifyNode <| nodeApply (OriginallyGroupped nextGroupIndex) (createParentNode parsed))
                            remaining1 newNextGroupIndex
-             else if (String.length pattern >= pIndex + 3 && stringCharAt (pIndex + 1) pattern == Just '?' &&
-                        stringCharAt (pIndex + 2) pattern == Just ':') then -- Non-capturing group
+             else if (String.length pattern >= pIndex + 3 && stringCharAt (pIndex + 1) pattern == Just "?" &&
+                        stringCharAt (pIndex + 2) pattern == Just ":") then -- Non-capturing group
                let (parsedNodes, remaining, newNextGroupIndex) = parse (pIndex + 3) nextGroupIndex in
                let remaining1 = parseClosingParenthesis remaining in
                addSiblings (simplifyNode (nodeApplyP parsedNodes)) remaining1 newNextGroupIndex
              else default c -- Should not happen.
 
-           ')' -> ([], pIndex, nextGroupIndex)
+           ")" -> ([], pIndex, nextGroupIndex)
 
-           '\\' ->
+           "\\" ->
              if (String.length pattern >= pIndex + 2) then
-               let nextIndex = if (stringCharAt (pIndex + 1) pattern |> Maybe.map Char.isDigit |> Maybe.withDefault False) then positionAfterLastDigit (pIndex + 1) else pIndex + 2 in
+               let nextIndex = if (stringCharAt (pIndex + 1) pattern |> Maybe.map (String.all Char.isDigit) |> Maybe.withDefault False) then positionAfterLastDigit (pIndex + 1) else pIndex + 2 in
                let regexPart = String.slice pIndex nextIndex pattern in
                addSiblings (nodeApplyR regexPart) nextIndex nextGroupIndex
              else default c -- No escaped char, but this should not be called
 
-           '+' -> -- greedy or not greedy
-             let nextIndex = if (String.length pattern >= pIndex + 2 && stringCharAt (pIndex + 1) pattern == Just '?') then pIndex + 2 else pIndex + 1 in
+           "+" -> -- greedy or not greedy
+             let nextIndex = if (String.length pattern >= pIndex + 2 && stringCharAt (pIndex + 1) pattern == Just "?") then pIndex + 2 else pIndex + 1 in
              let repeater = String.slice pIndex nextIndex pattern in
              addSiblings (nodeApply (OriginallyWrapped "" repeater) (RegexLeaf "")) nextIndex nextGroupIndex
 
-           '*' -> -- greedy or not greedy
-             let nextIndex = if (String.length pattern >= pIndex + 2 && stringCharAt (pIndex + 1) pattern == Just '?') then pIndex + 2 else pIndex + 1 in
+           "*" -> -- greedy or not greedy
+             let nextIndex = if (String.length pattern >= pIndex + 2 && stringCharAt (pIndex + 1) pattern == Just "?") then pIndex + 2 else pIndex + 1 in
              let repeater = String.slice pIndex nextIndex pattern in
              addSiblings (nodeApply (OriginallyWrapped "" repeater) (RegexLeaf "")) nextIndex nextGroupIndex
 
-           '?' -> -- greedy or not greedy
-             let nextIndex = if (String.length pattern >= pIndex + 2 && stringCharAt (pIndex + 1) pattern == Just '?') then pIndex + 2 else pIndex + 1 in
+           "?" -> -- greedy or not greedy
+             let nextIndex = if (String.length pattern >= pIndex + 2 && stringCharAt (pIndex + 1) pattern == Just "?") then pIndex + 2 else pIndex + 1 in
              let repeater = String.slice pIndex nextIndex pattern in
              addSiblings (nodeApply (OriginallyWrapped "" repeater) (RegexLeaf "")) nextIndex nextGroupIndex
 
-           '{' -> -- parse until end of occurrence
+           "{" -> -- parse until end of occurrence
              let nextIndex = positionEndNextBrace (pIndex + 1) in
              let repeater = String.slice pIndex nextIndex pattern in
              addSiblings (nodeApply (OriginallyWrapped "" repeater) (RegexLeaf "")) nextIndex nextGroupIndex
 
-           '[' ->
+           "[" ->
+             --let _ = Debug.log "end position of square bracket" () in
              let remaining = positionEndSquareBracket (pIndex + 1) in
+             --let _ = Debug.log "remaining" (remaining) in
              let inside =  String.slice pIndex remaining pattern in
              addSiblings (nodeApplyR inside) remaining nextGroupIndex
 
