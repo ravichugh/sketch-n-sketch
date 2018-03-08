@@ -26,6 +26,7 @@ import Solver
 import ValUnparser
 import History exposing (History)
 import SlowTypeInference
+import FocusedEditingContext
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -674,6 +675,26 @@ runAndResolve model exp =
     , syntax      = model.syntax
     }
     exp
+
+
+runAndResolveAtContext : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolveAtContext model program =
+  let thunk () =
+    let evaledResult =
+      case FocusedEditingContext.editingContextFromMarkers program of
+        Just (focusedEId, maybeCallEId) ->
+          let abortEId = maybeCallEId |> Maybe.withDefault focusedEId in
+          Eval.doEvalEarlyAbort (.val >> .eid >> (==) abortEId) model.syntax Eval.initEnv program
+
+        Nothing ->
+          Eval.doEval model.syntax Eval.initEnv program
+    in
+    evaledResult
+    |> Result.andThen (\((val, widgets), env) -> slateAndCode model (program, val)
+    |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
+  in
+  ImpureGoodies.crashToError thunk
+  |> Utils.unwrapNestedResult
 
 
 runAndResolve_ : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)

@@ -928,7 +928,7 @@ handleOutputSelectionChanges oldModel newModel =
     (finalModel, Cmd.none)
 {-
     let
-      selectedEIdInterpretations = ShapeWidgets.selectionsProximalDistalEIdInterpretations newModel.inputExp newModel.slate newModel.widgets newModel.selectedFeatures newModel.selectedShapes newModel.selectedBlobs
+      selectedEIdInterpretations = ShapeWidgets.selectionsProximalDistalEIdInterpretations newModel.inputExp newModel.slate newModel.widgets newModel.selectedFeatures newModel.selectedShapes newModel.selectedBlobs (always True)
       deuceWidgetInterpretations = selectedEIdInterpretations |> List.map (List.map DeuceExp)
       finalModel = { newModel | deuceToolsAndResults = DeuceTools.createToolCacheMultipleInterpretations newModel deuceWidgetInterpretations }
     in
@@ -1472,11 +1472,12 @@ msgKeyDown keyCode =
                   |> resetDeuceState
                   |> \m -> { m | deucePopupPanelAbove = True }
             in
-              case (old.tool, old.mouseMode) of
-                (Cursor, _)         -> clearSelections new
-                (_, MouseNothing)   -> { new | tool = Cursor }
-                (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
-                _                   -> new
+              case (old.tool, old.mouseMode, Model.noCodeWidgetsSelected old, Model.nothingSelectedInOutput old) of
+                (Cursor, _, True, True)   -> doClearEditingContext new
+                (Cursor, _, _, _)         -> clearSelections new
+                (_, MouseNothing, _, _)   -> { new | tool = Cursor }
+                (_, MouseDrawNew _, _, _) -> { new | mouseMode = MouseNothing }
+                _                         -> new
 
         -- TODO:
         --   make a better way than old.outputMode /= ShowValue to decide
@@ -2196,7 +2197,9 @@ msgSetEditingContext focusedEId maybeExampleCallEId = Msg "Set Editing Context" 
   |> clearSelections
   |> upstateRun
 
-msgClearEditingContext = Msg "Clear Editing Context" <| \old ->
+msgClearEditingContext = Msg "Clear Editing Context" <| doClearEditingContext
+
+doClearEditingContext old =
   { old | code = Syntax.unparser old.syntax (FocusedEditingContext.clearEditingContextMarkers old.inputExp) }
   |> clearSelections
   |> upstateRun

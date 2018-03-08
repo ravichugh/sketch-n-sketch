@@ -6,7 +6,7 @@ module LangSvg exposing
   , NodeInfo, foldSlateNodeInfo
   , maxColorNum, maxStrokeWidthNum
   , dummySvgNode
-  , isSvg
+  , rootIsShapeOrText
   , valToIndexedTree
   , svgValToIndexedTree
   , printSvg
@@ -153,7 +153,7 @@ svgValToIndexedTree v =
   thunk ()
   -- ImpureGoodies.logTimedRun "LangSvg.valToIndexedTree" thunk
 
--- Fallback to displaying text if can't interpret as SVG.
+-- Fallback to displaying text if can't interpret as SVG or list of SVG.
 --
 valToIndexedTree : Val -> Result String RootedIndexedTree
 valToIndexedTree v =
@@ -161,9 +161,24 @@ valToIndexedTree v =
   case asSvg of
     Ok _  -> asSvg
     Err s ->
-      let _ = Utils.log s in
-      let node = { interpreted = TextNode (strVal v), val = v } in
-      Ok (1, Dict.singleton 1 node)
+      let asSvgList =
+        let valNoProvenance v_ = { v_ = v_, provenance = dummyProvenance, parents = Parents [] } in
+        let newSvg =
+          valNoProvenance <|
+            VList [
+              valNoProvenance (VBase (VString "svg")),
+              valNoProvenance (VList []),
+              v
+            ]
+        in
+        svgValToIndexedTree newSvg
+      in
+      case asSvgList of
+        Ok _  -> asSvgList
+        Err _ ->
+          let _ = Utils.log s in
+          let node = { interpreted = TextNode (strVal v), val = v } in
+          Ok (1, Dict.singleton 1 node)
 
 valToIndexedTree_ : Val -> RootedIndexedTree -> Result String RootedIndexedTree
 valToIndexedTree_ v (nextId, d) =
@@ -207,14 +222,13 @@ valToIndexedTree_ v (nextId, d) =
   ImpureGoodies.crashToError thunk
   |> Utils.unwrapNestedResult
 
-isSvg v =
-  case v.v_ of
-    VList vs ->
-      case List.map .v_ vs of
-        [VBase (VString "svg"), VList _, VList _] -> True
-        _                                         -> False
-    _ ->
-      False
+
+rootIsShapeOrText (rootI, shapeDict) =
+  case Dict.get rootI shapeDict |> Maybe.map .interpreted of
+    Just (TextNode _)       -> True
+    Just (SvgNode kind _ _) -> List.member kind ["svg", "g", "line", "rect", "circle", "ellipse", "path", "polygon", "polyline", "text", "image"] -- possibly add more from https://developer.mozilla.org/en-US/docs/Web/SVG/Element
+    _                       -> False
+
 
 
 ------------------------------------------------------------------------------

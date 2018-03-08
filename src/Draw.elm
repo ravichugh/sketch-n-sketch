@@ -583,14 +583,15 @@ horizontalVerticalSnap (x1, y1) (x2, y2) =
     else (Y, Negative, y1 - y2)
 
 
-addToEndOfProgram : Model -> Ident -> Exp -> Model
-addToEndOfProgram old varSuggestedName exp =
+addToEndOfDrawingContext : Model -> Ident -> Exp -> Model
+addToEndOfDrawingContext old varSuggestedName exp =
   let originalProgram = old.inputExp in
-  let insertBeforeEId = (LangTools.lastSameLevelExp originalProgram).val.eid in
-  let varName = LangTools.nonCollidingName varSuggestedName 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
+  let contextExp = drawingContextExp old in
+  let insertBeforeEId = (LangTools.lastSameLevelExp contextExp).val.eid in
+  let varName = LangTools.nonCollidingName varSuggestedName 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) in
   let newProgram =
     originalProgram
-    |> mapExpNode insertBeforeEId (\lastSameLevelExp -> LangTools.newLetFancyWhitespace -1 False (pVar varName) exp lastSameLevelExp originalProgram)
+    |> LangTools.newLetAfterComments insertBeforeEId (pVar varName) exp
     |> CodeMotion.resolveValueHoles old.syncOptions
     |> List.head
     |> Maybe.withDefault originalProgram
@@ -618,22 +619,22 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
         in
         eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp]
       in
-      addToEndOfProgram old offsetSuggestedName offsetExp
+      addToEndOfDrawingContext old offsetSuggestedName offsetExp
     in
     case (axis, pt1) of
       (X, ((_, SnapVal x1Val), _)) -> offsetFromExisting x1Val
       (Y, (_, (_, SnapVal y1Val))) -> offsetFromExisting y1Val
-      _                    ->
+      _                            ->
         let contextExp = drawingContextExp old in
         case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) of
           [pointName, xName, yName, offsetXName, offsetYName] ->
             let
               (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
-              programWithOffset =
-                LangTools.newLetAfterComments contextExp.val.eid (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) originalProgram |> FastParser.freshen
               -- pt1 snaps ignored here, which is fine because we can't yet get an input pt1 with a snap on only one axis (an hence on only the non-offset axis not handled above with offsetFromExisting)
+              programWithPoint =
+                LangTools.newLetAfterComments contextExp.val.eid (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x1Int, eInt y1Int]) (TNamed space1 "Point")) originalProgram |> FastParser.freshen
               programWithOffsetAndPoint =
-                LangTools.newLetAfterComments contextExp.val.eid (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x1Int, eInt y1Int]) (TNamed space1 "Point")) programWithOffset
+                LangTools.newLetAfterComments contextExp.val.eid (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) programWithPoint
             in
             { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 
@@ -923,7 +924,7 @@ addFunction fName old pt1 pt2 =
   case newFunctionCallExp fName old pt1 pt2 of
     Just (callExp, _, returnType) ->
       if isPointType returnType then
-        addToEndOfProgram old fName callExp
+        addToEndOfDrawingContext old fName callExp
       else
         addShapeToModel old fName callExp
     _ ->
@@ -1010,20 +1011,21 @@ addShapeToModel model newShapeName newShapeExp =
 -- 6. Finally, use list the others do not depend on.
 addShape : Model -> String -> Exp -> Int -> Exp
 addShape model newShapeName newShapeExp numberOfNewShapesExpected =
-  let program = model.inputExp in
+  let originalProgram = model.inputExp in
+  let contextExp = drawingContextExp model in
   let oldShapeTree =
-    case runAndResolve model program of
+    case runAndResolveAtContext model originalProgram of
       Ok (_, _, (root, shapeTree), _) -> shapeTree
       _                               -> Dict.empty
   in
   -- 1. Find all list literals.
-  let lists = flattenExpTree program |> List.filter isList in -- Possible optimization: exclude lists with numeric element
+  let lists = flattenExpTree contextExp |> List.filter isList in -- Possible optimization: exclude lists with numeric element
   -- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
   let listEIdWithPossiblePrograms =
     lists
     |> List.concatMap
         (\listExp ->
-          let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] program in
+          let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] originalProgram in
           let (ws1, heads, ws2, maybeTail, ws3) = LangTools.expToListParts listExp in
           let newListFlat      = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eVar varName])))           ws2 maybeTail ws3 in
           let newListSingleton = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [eVar0 varName]]))) ws2 maybeTail ws3 in
@@ -1040,19 +1042,19 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
     -- 5. Keep those programs that result in one more shape in the output.
     |> List.filter
         (\(listEId, newProgram) ->
-          case runAndResolve model newProgram of
+          case runAndResolveAtContext model newProgram of
             Ok (_, _, (root, shapeTree), _) -> Dict.size oldShapeTree + numberOfNewShapesExpected == Dict.size shapeTree
             _                               -> False
         )
   in
   -- 6. Finally, use list the others do not depend on.
   let (listEIds, _) = List.unzip listEIdWithPossiblePrograms in
-  let grossDependencies = StaticAnalysis.grossDependencies program in
+  let grossDependencies = StaticAnalysis.grossDependencies originalProgram in
   let (_, bestProgram) =
     listEIdWithPossiblePrograms
     |> Utils.findFirst
         (\(listEId, _) -> listEIds |> List.all (\otherListEId -> not <| StaticAnalysis.isDependentOn grossDependencies otherListEId listEId))
-    |> Maybe.withDefault (-1, program)
+    |> Maybe.withDefault (-1, originalProgram)
   in
   bestProgram
 

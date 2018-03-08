@@ -75,7 +75,7 @@ msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
     _ ->
       old
 
-msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
+msgMouseDownOnCanvas = Msg "MouseDownOnCanvas" <| \old ->
   case (old.tool, old.mouseMode) of
     (Cursor, MouseDragZone _ _) -> old
     (Cursor, MouseNothing) ->
@@ -109,7 +109,8 @@ build dim model =
       Just (_, Ok (val, widgets, slate)) -> (widgets, slate)
       _                                  -> (model.widgets, model.slate)
   in
-  let outputElement = buildHtml (model, addZones) slate in
+  let outputIsSvg = LangSvg.rootIsShapeOrText slate in
+  let outputElement = buildHtml (model, addZones) outputIsSvg slate in
   let newShape = drawNewShape model in
   let widgetsAndDistances =
     case (model.outputMode, model.showGhosts, model.preview) of
@@ -118,9 +119,9 @@ build dim model =
       _                     -> []
   in
   let selectBox = drawSelectBox model in
-  if LangSvg.isSvg model.inputVal then
+  if outputIsSvg then
     [ Svg.svg
-        [ onMouseDown msgMouseClickCanvas
+        [ onMouseDown msgMouseDownOnCanvas
         , Attr.style
             [ ("width", pixels dim.width)
             , ("height", pixels dim.height)
@@ -131,7 +132,7 @@ build dim model =
   else
     [ outputElement
     , Svg.svg
-        [ Attr.id "svgWidgetsLayer"
+        [ Attr.id "svgWidgetsLayer" -- Note: has pointer events turn off in CSS, so msgMouseDownOnCanvas not fired to trigger drawing
         , Attr.style
             [ ("left", pixels dim.x)
             , ("top", pixels dim.y)
@@ -139,15 +140,15 @@ build dim model =
             , ("height", pixels dim.height)
             ]
         ]
-        (widgetsAndDistances ++ selectBox)
+        (widgetsAndDistances ++ [newShape] ++ selectBox)
     ]
 
 
 --------------------------------------------------------------------------------
 -- Compiling to Svg/Html
 
-buildHtml : (Model, Bool) -> LangSvg.RootedIndexedTree -> (Svg Msg)
-buildHtml (model, addZones) (i,d) = buildHtml_ (model, addZones) False d i
+buildHtml : (Model, Bool) -> Bool -> LangSvg.RootedIndexedTree -> (Svg Msg)
+buildHtml (model, addZones) insideSvgNode (i,d) = buildHtml_ (model, addZones) insideSvgNode d i
 
 buildHtml_ : (Model, Bool) -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> (Svg Msg)
 buildHtml_ (model, addZones) insideSvgNode d i =
@@ -720,7 +721,7 @@ addHoveredShape id =
                 (\(i, widget) ->
                   case (widget, ShapeWidgets.maybeWidgetBounds widget) of
                     (WCall callEId funcVal argVals retVal retWs, Just (left, top, right, bot)) ->
-                      if [] /= (Utils.intersectAsSet (Provenance.valToSameVals retVal) (Provenance.valToSameVals hoveredVal))
+                      if [] /= (Utils.intersectAsSet (Provenance.valToSameVals retVal |> List.concatMap flattenValTree) (Provenance.valToSameVals hoveredVal |> List.concatMap flattenValTree))
                       then Just ((left, top, right, bot), i)
                       else Nothing
                     _ ->

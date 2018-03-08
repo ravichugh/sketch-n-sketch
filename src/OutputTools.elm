@@ -65,39 +65,45 @@ atLeastTwoFeatures selectedFeatures =
       nOrMore 2 selectedFeatures
   }
 
-groupPredicate : Bool -> Selections a -> Predicate
-groupPredicate
-  disallowSelectedFeatures
-  { selectedFeatures, selectedShapes, selectedBlobs } =
-    let
-      atLeastOneFeature =
-        not <| Set.isEmpty selectedFeatures
-      atLeastOneShape =
-        not <| Set.isEmpty selectedShapes
-      atLeastOneBlob =
-        not <| Dict.isEmpty selectedBlobs
-    in
-      if disallowSelectedFeatures then
-        { description =
-            "Select at least one shape or blob (and no features)"
-        , value =
-            if atLeastOneFeature then
-              Impossible
-            else if atLeastOneShape || atLeastOneBlob then
-              Satisfied
-            else
-              Possible
-        }
+atLeastOneSelection : Selections a -> Predicate
+atLeastOneSelection { selectedFeatures, selectedShapes, selectedBlobs } =
+  let
+    atLeastOneFeature =
+      not <| Set.isEmpty selectedFeatures
+    atLeastOneShape =
+      not <| Set.isEmpty selectedShapes
+    atLeastOneBlob =
+      not <| Dict.isEmpty selectedBlobs
+  in
+    { description =
+        "Select at least one feature, shape, or blob"
+    , value =
+        if atLeastOneFeature || atLeastOneShape || atLeastOneBlob then
+          Satisfied
+        else
+          Possible
+    }
 
-      else
-        { description =
-            "Select at least one feature, shape, or blob"
-        , value =
-            if atLeastOneFeature || atLeastOneShape || atLeastOneBlob then
-              Satisfied
-            else
-              Possible
-        }
+atLeastOneShapeNoFeatures : Selections a -> Predicate
+atLeastOneShapeNoFeatures { selectedFeatures, selectedShapes, selectedBlobs } =
+  let
+    atLeastOneFeature =
+      not <| Set.isEmpty selectedFeatures
+    atLeastOneShape =
+      not <| Set.isEmpty selectedShapes
+    atLeastOneBlob =
+      not <| Dict.isEmpty selectedBlobs
+  in
+    { description =
+        "Select at least one shape or blob (and no features)"
+    , value =
+        if atLeastOneFeature then
+          Impossible
+        else if atLeastOneShape || atLeastOneBlob then
+          Satisfied
+        else
+          Possible
+    }
 
 --==============================================================================
 --= Tools
@@ -235,7 +241,7 @@ indexedRelateTool { selectedFeatures } =
 --------------------------------------------------------------------------------
 
 buildAbstractionTool : Selections a -> OutputTool
-buildAbstractionTool { selectedFeatures } =
+buildAbstractionTool selections =
   { name =
       "Build Abstraction"
   , shortcut =
@@ -245,7 +251,7 @@ buildAbstractionTool { selectedFeatures } =
   , func =
       Just Controller.msgBuildAbstraction
   , reqs =
-      [ atLeastOneFeature selectedFeatures
+      [ atLeastOneSelection selections
       ]
   , id =
       "buildAbstraction"
@@ -266,7 +272,7 @@ dupeTool selections =
   , func =
       Just Controller.msgDuplicate
   , reqs =
-      [ groupPredicate False selections
+      [ atLeastOneSelection selections
       ]
   , id =
       "dupe"
@@ -287,7 +293,7 @@ mergeTool selections =
   , func =
       Just Controller.msgMergeBlobs
   , reqs =
-      [ groupPredicate True selections
+      [ atLeastOneShapeNoFeatures selections
       ]
   , id =
       "merge"
@@ -308,7 +314,7 @@ groupTool selections =
   , func =
       Just Controller.msgGroupBlobs
   , reqs =
-      [ groupPredicate False selections
+      [ atLeastOneSelection selections
       ]
   , id =
       "group"
@@ -329,7 +335,7 @@ abstractTool selections =
   , func =
       Just Controller.msgAbstractBlobs
   , reqs =
-      [ groupPredicate True selections
+      [ atLeastOneShapeNoFeatures selections
       ]
   , id =
       "abstract"
@@ -350,7 +356,7 @@ repeatRightTool selections =
   , func =
       Just <| Controller.msgReplicateBlob HorizontalRepeat
   , reqs =
-      [ groupPredicate True selections
+      [ atLeastOneShapeNoFeatures selections
       ]
   , id =
       "repeateRight"
@@ -371,7 +377,7 @@ repeatToTool selections =
   , func =
       Just <| Controller.msgReplicateBlob LinearRepeat
   , reqs =
-      [ groupPredicate True selections
+      [ atLeastOneShapeNoFeatures selections
       ]
   , id =
       "repeateTo"
@@ -392,7 +398,7 @@ repeatAroundTool selections =
   , func =
       Just <| Controller.msgReplicateBlob RadialRepeat
   , reqs =
-      [ groupPredicate True selections
+      [ atLeastOneShapeNoFeatures selections
       ]
   , id =
       "repeateAround"
