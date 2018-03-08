@@ -107,8 +107,8 @@ builtinEnv =
 
 -- TODO rename these to preludeEnv, because the initEnv name below
 -- is sometimes replaced by preludeEnv, sometimes the empty env.
-initEnvRes = Result.map Tuple.second <| (eval Syntax.Little [] [] Parser.prelude)
-initEnv = builtinEnv ++ (Utils.fromOk "Eval.initEnv" <| initEnvRes)
+initEnvRes = Result.map Tuple.second <| (eval Syntax.Little builtinEnv [] Parser.prelude)
+initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
 
 run : Syntax -> Exp -> Result String (Val, Widgets)
 run syntax e =

@@ -210,6 +210,8 @@ LEO_TO_ELM tableOfStatesC
 LEO_TO_ELM tableOfStatesD
 LEO_TO_ELM simpleBudget
 
+LEO_TO_ELM markdown
+
 --------------------------------------------------------------------------------
 
 generalCategory =
@@ -235,7 +237,7 @@ docsCategory =
     , makeLeoExample "1d: Table of States" tableOfStatesD
     , makeLeoExample "2: Simple Budget" simpleBudget
     , makeLeoExample "3: Small LaTeX-like DSL" blankDoc
-    , makeLeoExample "4: TODO" blankDoc
+    , makeLeoExample "4: Markdown" markdown
     , makeLeoExample "5: TODO" blankDoc
     , makeLeoExample "6: TODO" blankDoc
     ]
