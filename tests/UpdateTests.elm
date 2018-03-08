@@ -153,7 +153,7 @@ updateElmAssert_ envStr expStr newOutStr expectedEnvStr expectedExpStr state =
            Ok [exp, newOut] ->
              --let _ = Debug.log (log state <| toString exp) () in
              case Utils.projOk [evalEnv env exp, eval newOut] of
-             Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ toString exp ++ "," ++ toString newOut ++ ": " ++ error
+             Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ Syntax.unparser Syntax.Elm exp ++ "," ++ Syntax.unparser Syntax.Elm newOut ++ ": " ++ error
              Ok [out, newOut] -> updateAssert_ env exp out newOut expectedEnv expectedExpStr state
              Ok _ -> fail state "???"
            Ok _ -> fail state "???"
@@ -168,7 +168,7 @@ updateElmAssert2_ env expStr newOutStr expectedExpStr state =
       Ok [exp, newOut] ->
         --let _ = Debug.log (log state <| toString exp) () in
         case Utils.projOk [evalEnv env exp, eval newOut] of
-        Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ toString exp ++ "," ++ toString newOut ++ ": " ++ error
+        Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ Syntax.unparser Syntax.Elm exp ++ "," ++ Syntax.unparser Syntax.Elm newOut ++ ": " ++ error
         Ok [out, newOut] -> updateAssert_ env exp out newOut env expectedExpStr state
         Ok _ -> fail state "???"
       Ok _ -> fail state "???"
@@ -585,6 +585,6 @@ all_tests = init_state
                "parseHTML \"hello\""  "[[\"HTMLInner\",\"hello world\"]]"
                "parseHTML \"hello world\""
   |> only (updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
-               "parseHTML \"hello<br>world\""  "[[\"HTMLInner\",\"hello\"], [\"HTMLElement\", \"br\", [], \"\", [\"RegularEndOpening\"], [], [\"VoidClosing\"]] [\"HTMLInner\",\"world\"]]"
-               "parseHTML \"hello<br>world\"")
+               "parseHTML \"hello<br>world\""  "[[\"HTMLInner\",\"hello\"], [\"HTMLElement\", \"br\", [], \" \", [\"RegularEndOpening\"], [], [\"VoidClosing\"]], [\"HTMLInner\",\"sworld\"]]"
+               "parseHTML \"hello<br >sworld\"")
   |> summary
