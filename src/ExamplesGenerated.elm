@@ -5829,8 +5829,7 @@ simpleBudget =
 
 """
 
-
-markdown =
+fromleo_markdown =
  """let original =
 \"\"\"#[Markdown](https://fr.wikipedia.org/wiki/Markdown) demo
 This is *an **almost :\"bidirectional\":*** markdown
@@ -5973,12 +5972,19 @@ docsCategory =
     , makeLeoExample "1b: Table of States" tableOfStatesB
     , makeLeoExample "1c: Table of States" tableOfStatesC
     , makeLeoExample "1d: Table of States" tableOfStatesD
-    , makeLeoExample "2: Simple Budget" simpleBudget
-    , makeLeoExample "3: Small LaTeX-like DSL" blankDoc
-    , makeLeoExample "4: Markdown" markdown
-    , makeLeoExample "5: TODO" blankDoc
-    , makeLeoExample "6: TODO" blankDoc
-    ]
+    ] ++
+    (
+    List.indexedMap
+      (\i (caption, program) ->
+        makeLeoExample (toString (2+i) ++ ": " ++ caption) program
+      )
+      [ ("Markdown", fromleo_markdown)
+      , ("TODO", blankDoc)
+      , ("TODO", blankDoc)
+      , ("TODO", blankDoc)
+      , ("Simple Budget", simpleBudget)
+      ]
+    )
   )
 
 defaultIconCategory =

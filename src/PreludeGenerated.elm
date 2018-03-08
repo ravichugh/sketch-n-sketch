@@ -1884,8 +1884,7 @@ prelude =
 """
 
 preludeLeo =
- """parseHTML = parseHTML
-
+ """
 -- prelude.little
 --
 -- This little library is accessible by every program.
@@ -2439,17 +2438,17 @@ table = elementHelper \"table\"
 -- Returns a list of HTML nodes parsed from a string. It uses the API for loosely parsing HTML
 -- Example: html \"Hello<b>world</b>\" returns [[\"TEXT\",\"Hello\"],[\"b\",[], [[\"TEXT\", \"world\"]]]]
 html string =
-  let take n =
-    letrec aux l = if n == 0 then [] else
+  let take =
+    letrec aux n l = if n == 0 then [] else
       case l of
         [] -> []
-        head::tail -> head :: (take (n - 1) tail)
+        head::tail -> head :: (aux (n - 1) tail)
     in aux in
-  let drop n =
-    letrec aux l = if n == 0 then l else
+  let drop =
+    letrec aux n l = if n == 0 then l else
       case l of
         [] -> []
-        head::tail -> drop (n - 1) tail
+        head::tail -> aux (n - 1) tail
     in aux in {
   apply trees = 
     letrec domap tree = case tree of
@@ -2508,7 +2507,7 @@ html string =
           [ [[\"HTMLElement\", tagName, attrs, ws1, endOp, children, closing]],
             [tag1, attrs1, children1], [tag2, attrs2, children2] ] ->
              if tag2 == tagName then
-               [\"HTMLElement\", tag2, mergeAttrs [] attrs1 (diff attrs1 attrs2), ws1, endOp,
+               [\"HTMLElement\", tag2, mergeAttrs [] attrs (diff attrs1 attrs2), ws1, endOp,
                   mergeNodes [] children (diff children1 children2), closing]
              else toHTMLNode inserted
           _ -> toHTMLNode inserted

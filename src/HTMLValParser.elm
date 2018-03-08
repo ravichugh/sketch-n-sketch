@@ -117,7 +117,7 @@ valToHtmlNode v =
                 )
               )
             )
-          _ -> Err "Expected HTMLAttribute, got something else"
+          _ -> Err <| "Expected HTMLAttribute, got " ++ valToString attrV
         ) |> Utils.projOk |> Result.andThen (\attrs ->
           getString ws1V |> Result.andThen (\ws1 ->
             (case deconstruct endOpV of

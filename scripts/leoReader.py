@@ -7,6 +7,9 @@ def writeLn(f, s): f.write(s + '\n')
 def readLeo(name, folder='../examples/'):
   f = folder + name + '.elm'
 
+  # e.g. LEO_TO_ELM fromleo/markdown ---> fromleo_markdown = ...
+  name = name.replace('/', '_')
+
   ## yield (name + ' = \"\n')
   ## following version is to facilitate line/col numbers:
   yield (name + ' =\n \"\"\"')
