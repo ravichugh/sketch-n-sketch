@@ -1944,6 +1944,25 @@ ge x y = or (gt x y) (eq x y)
 --len: (forall a (-> (List a) Num))
 len xs = case xs of [] -> 0; (_ :: xs1) -> 1 + len xs1
 
+freeze x = x
+
+nil = []
+
+cons x xs = x :: xs
+
+zip xs ys =
+  case [xs, ys] of
+    [x::xsRest, y::ysRest] -> [x,y] :: zip xsRest ysRest
+    _                      -> []
+
+append xs ys =
+  case xs of [] -> ys; x::xs1 -> x :: append xs1 ys
+
+range i j =
+  if i < j + 1
+    then cons i (range (i + 1) j)
+    else nil
+
 --; Maps a function, f, over a list of values and returns the resulting list
 --map: (forall (a b) (-> (-> a b) (List a) (List b)))
 -- prepend lSmall with its own element until it reaches the size of lBig
@@ -2054,8 +2073,8 @@ foldr f acc xs =
 
 --; Given two lists, append the second list to the end of the first
 --append: (forall a (-> (List a) (List a) (List a)))
-append xs ys =
-  case xs of [] -> ys; x::xs1 -> x :: append xs1 ys
+-- append xs ys =
+--   case xs of [] -> ys; x::xs1 -> x :: append xs1 ys
 
 --; concatenate a list of lists into a single list
 --concat: (forall a (-> (List (List a)) (List a)))
@@ -2074,18 +2093,18 @@ cartProd xs ys =
 
 --; Takes elements at the same position from two input lists and returns a list of pairs of these elements
 --zip: (forall (a b) (-> (List a) (List b) (List [a b])))
-zip xs ys = map2 (\\x y -> [x, y]) xs ys
+-- zip xs ys = map2 (\\x y -> [x, y]) xs ys
 -- TODO eta-reduced version:
 -- (def zip (map2 (\\(x y) [x y])))
 
 --; The empty list
 --; (typ nil (forall a (List a)))
 --nil: []
-nil = []
+-- nil = []
 
 --; attaches an element to the front of a list
 --cons: (forall a (-> a (List a) (List a)))
-cons x xs = x :: xs
+-- cons x xs = x :: xs
 
 --; attaches an element to the end of a list
 --snoc: (forall a (-> a (List a) (List a)))
@@ -2114,10 +2133,10 @@ adjacentPairs xs = zip xs (tl xs)
 
 --; Given two numbers, creates the list between them (inclusive)
 --range: (-> Num Num (List Num))
-range i j =
-  if i < j + 1
-    then cons i (range (i + 1) j)
-    else nil
+-- range i j =
+--   if i < j + 1
+--     then cons i (range (i + 1) j)
+--     else nil
 
 --; Given a number, create the list of 0 to that number inclusive (number must be > 0)
 --list0N: (-> Num (List Num))
@@ -2486,7 +2505,7 @@ mapSecond f [x, y] = [x, f y]
 
 -- Editor --
 
-freeze x = x
+-- freeze x = x
 
 -- Custom Updates --
 
