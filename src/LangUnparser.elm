@@ -76,7 +76,8 @@ unparsePat pat = case pat.val.p__ of
     ws1.val ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws3.val ++ "]"
   PList ws1 ps ws2 (Just pRest) ws3 ->
     ws1.val ++ "[" ++ (String.concat (List.map unparsePat ps)) ++ ws2.val ++ "|" ++ unparsePat pRest ++ ws3.val ++ "]"
-  PRecord _ _ _ -> Debug.crash "internal error, cannot unparse pattern in LangUnparser"
+  -- PRecord _ _ _ -> Debug.crash "internal error, cannot unparse pattern in LangUnparser"
+  PRecord _ _ _ -> "internal error, cannot unparse pattern in LangUnparser"
   PConst ws n -> ws.val ++ strNum n
   PBase ws bv -> ws.val ++ unparseBaseVal bv
   PAs ws1 ident ws2 p -> ws1.val ++ ident ++ ws2.val ++ "@" ++ (unparsePat p)
@@ -95,7 +96,8 @@ unparsePatWithIds pat =
     PList ws1 ps ws2 (Just pRest) ws3 ->
       ws1.val ++ "[" ++ (String.concat (List.map unparsePatWithIds ps)) ++ ws2.val ++ "|" ++ unparsePatWithIds pRest ++ ws3.val ++ "]" ++ pidTag
     PConst ws n -> ws.val ++ strNum n ++ pidTag
-    PRecord _ _ _ -> Debug.crash "internal error, cannot unparse pattern with ids in LangUnparser"
+    -- PRecord _ _ _ -> Debug.crash "internal error, cannot unparse pattern with ids in LangUnparser"
+    PRecord _ _ _ -> "internal error, cannot unparse pattern with ids in LangUnparser"
     PBase ws bv -> ws.val ++ unparseBaseVal bv ++ pidTag
     PAs ws1 ident ws2 p -> ws1.val ++ ident ++ pidTag ++ ws2.val ++ "@" ++ (unparsePatWithIds p)
     PParens ws1 p ws2 -> ws1.val ++ "(" ++ pidTag ++ unparsePatWithIds p ++ ws2.val ++ ")"
@@ -111,7 +113,8 @@ unparsePatWithUniformWhitespace includeWidgetDecls pat =
       " " ++ "[" ++ (String.concat (List.map recurse ps)) ++ " " ++ "]"
     PList _ ps _ (Just pRest) _ ->
       " " ++ "[" ++ (String.concat (List.map recurse ps)) ++ " " ++ "|" ++ recurse pRest ++ " " ++ "]"
-    PRecord _ _ _ -> Debug.crash "internal error, cannot unparse pattern in LangUnparser"
+    -- PRecord _ _ _ -> Debug.crash "internal error, cannot unparse pattern in LangUnparser"
+    PRecord _ _ _ -> "internal error, cannot unparse pattern in LangUnparser"
     PConst _ n -> " " ++ strNum n
     PBase _ bv -> " " ++ unparseBaseValWithUniformWhitespace bv
     PAs _ ident _ p -> " " ++ ident ++ " " ++ "@" ++ recurse p
@@ -130,7 +133,8 @@ unparseType tipe =
       case maybeRestType of
         Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"
         Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3.val ++ "]"
-    TRecord _ _ _ _ -> Debug.crash "internal error: cannot unparse TRecord in LangUnparser"
+    -- TRecord _ _ _ _ -> Debug.crash "internal error: cannot unparse TRecord in LangUnparser"
+    TRecord _ _ _ _ -> "internal error: cannot unparse TRecord in LangUnparser"
     TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
@@ -163,7 +167,8 @@ unparseTypeWithUniformWhitespace tipe =
       case maybeRestType of
         Just restType -> " " ++ "[" ++ (String.concat (List.map recurse typeList)) ++ " " ++ "|" ++ (recurse restType) ++ " " ++ "]"
         Nothing       -> " " ++ "[" ++ (String.concat (List.map recurse typeList)) ++ " " ++ "]"
-    TRecord _ _ _ _ ->  Debug.crash "[internal error] Cannot unparse record type in Langunparser"
+    -- TRecord _ _ _ _ ->  Debug.crash "[internal error] Cannot unparse record type in Langunparser"
+    TRecord _ _ _ _ ->  "[internal error] Cannot unparse record type in Langunparser"
     TArrow _ typeList _ -> " " ++ "(->" ++ (String.concat (List.map recurse typeList)) ++ " " ++ ")"
     TUnion _ typeList _ -> " " ++ "(union" ++ (String.concat (List.map recurse typeList)) ++ " " ++ ")"
     TNamed _ "Num"      -> " " ++ "Bad_NUM"
@@ -207,8 +212,10 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "[" ++ (String.concat (List.map (unparse_ << Tuple.second) es)) ++ ws3.val ++ "]"
   EList ws1 es ws2 (Just eRest) ws3 ->
     ws1.val ++ "[" ++ (String.concat (List.map (unparse_ << Tuple.second) es)) ++ ws2.val ++ "|" ++ unparse_ eRest ++ ws3.val ++ "]"
-  ERecord _ _ _ _ -> Debug.crash "internal error, cannot unparse record in LangUnparser"
-  ESelect _ _ _ _ _ -> Debug.crash "internal error, cannot unparse recordselect in LangUnparser"
+  -- ERecord _ _ _ _ -> Debug.crash "internal error, cannot unparse record in LangUnparser"
+  -- ESelect _ _ _ _ _ -> Debug.crash "internal error, cannot unparse recordselect in LangUnparser"
+  ERecord _ _ _ _ -> "internal error, cannot unparse record in LangUnparser"
+  ESelect _ _ _ _ _ -> "internal error, cannot unparse recordselect in LangUnparser"
   EOp ws1 op es ws2 ->
     ws1.val ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
   EIf ws1 e1 _ e2 _ e3 ws2 ->
@@ -274,8 +281,10 @@ unparseWithIds e =
       ws1.val ++ "[" ++ (String.concat (List.map (unparseWithIds << Tuple.second) es)) ++ ws3.val ++ "]" ++ eidTag
     EList ws1 es ws2 (Just eRest) ws3 ->
       ws1.val ++ "[" ++ (String.concat (List.map (unparseWithIds << Tuple.second) es)) ++ ws2.val ++ "|" ++ unparseWithIds eRest ++ ws3.val ++ "]" ++ eidTag
-    ERecord _ _ _ _ -> Debug.crash "internal error, cannot unparse record in LangUnparser"
-    ESelect _ _ _ _ _ -> Debug.crash "internal error, cannot unparse select in LangUnparser"
+    -- ERecord _ _ _ _ -> Debug.crash "internal error, cannot unparse record in LangUnparser"
+    -- ESelect _ _ _ _ _ -> Debug.crash "internal error, cannot unparse select in LangUnparser"
+    ERecord _ _ _ _ -> "internal error, cannot unparse record in LangUnparser"
+    ESelect _ _ _ _ _ -> "internal error, cannot unparse select in LangUnparser"
     EOp ws1 op es ws2 ->
       ws1.val ++ "(" ++ eidTag ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")"
     EIf ws1 e1 _ e2 _ e3 ws2 ->
@@ -341,10 +350,14 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       " " ++ "[" ++ (String.concat (List.map (recurse << Tuple.second) es)) ++ " " ++ "]"
     EList _ es _ (Just eRest) _ ->
       " " ++ "[" ++ (String.concat (List.map (recurse << Tuple.second) es)) ++ " " ++ "|" ++ recurse eRest ++ " " ++ "]"
+    -- ERecord _ _ _ _ -> -- Don't need to reinvent the wheel.
+    --   Debug.crash "[Internal error] Cannot unparse records in FastParse"
+    -- ESelect _ _ _ _ _ -> -- Don't need to reinvent the wheel.
+    --   Debug.crash "[Internal error] Cannot unparse records in FastParse"
     ERecord _ _ _ _ -> -- Don't need to reinvent the wheel.
-      Debug.crash "[Internal error] Cannot unparse records in FastParse"
+      "[Internal error] Cannot unparse records in FastParse"
     ESelect _ _ _ _ _ -> -- Don't need to reinvent the wheel.
-      Debug.crash "[Internal error] Cannot unparse records in FastParse"
+      "[Internal error] Cannot unparse records in FastParse"
     EOp _ op es _ ->
       " " ++ "(" ++ strOp op.val ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
     EIf _ e1 _ e2 _ e3 _ ->
