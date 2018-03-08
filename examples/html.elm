@@ -1,3 +1,5 @@
+map f = case of [] -> []; head::tail -> f head::map f tail
+
 -- Returns a list of HTML nodes parsed from a string. This function is bidirectional
 html string = {
   apply trees = 
@@ -72,4 +74,4 @@ html string = {
     mergeNodes [] input (diff outputOld outputNew)
 }.apply (parseHTML string)
 
-html "<h3>Hello world</h3>"
+["span", [], html "<h3>Hello world</h3>"]

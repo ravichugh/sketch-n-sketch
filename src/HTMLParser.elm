@@ -159,7 +159,7 @@ parsed("<j>a</b></j>b") == "<j>a</j>b"
 -- parse the content until a node starts (either a comment, a node start element, or the end tag of this node)
 parseHTMLInner: Maybe String -> Parser HTMLNode
 parseHTMLInner untilEndTagName =
-  let regexToParseUntil = Regex.regex <| "<[a-zA-Z]|<?|<!|</ " ++
+  let regexToParseUntil = Regex.regex <| "<[a-zA-Z]|<\\?|<!|</ " ++
     (untilEndTagName |> Maybe.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> Maybe.withDefault "") in
   oneOf [
     try <| (keepUntilRegex regexToParseUntil |> andThen (\s ->

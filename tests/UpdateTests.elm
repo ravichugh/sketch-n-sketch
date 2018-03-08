@@ -136,11 +136,26 @@ evalElmAssert_ envStr expStr expectedResStr state =
                --let _ = Debug.log (log state <| toString exp) () in
                case Utils.projOk [evalEnv env exp, eval res] of
                Err error -> fail state <| log state <| "Error while evaluating the expression or the expected result: " ++ unparse exp ++ "," ++ unparse res ++ ": " ++ error
-               Ok [out, expectedOut] -> assertEqualVal out expectedOut state
+               Ok [out, expectedOut] -> assertEqualVal_ out expectedOut state
                Ok _ -> fail state "???"
              Ok _ -> fail state "???"
       Ok _ -> fail state "???"
 evalElmAssert envStr expStr expectedResStr = gather <| evalElmAssert_ envStr expStr expectedResStr
+
+evalElmAssert2_: Env -> String -> String -> State -> State
+evalElmAssert2_ env expStr expectedResStr state =
+  if state.ignore then state else
+  case Utils.projOk [parse expStr, parse expectedResStr] of
+      Err error -> fail state <| log state <| "Error while parsing expressions or outputs: " ++ error
+      Ok [exp, res] ->
+        --let _ = Debug.log (log state <| toString exp) () in
+        case Utils.projOk [evalEnv env exp, eval res] of
+        Err error -> fail state <| log state <| "Error while evaluating the expression or the expected result: " ++ unparse exp ++ "," ++ unparse res ++ ": " ++ error
+        Ok [out, expectedOut] -> assertEqualVal_ out expectedOut state
+        Ok _ -> fail state "???"
+      Ok _ -> fail state "???"
+evalElmAssert2 envStr expStr expectedResStr = gather <| evalElmAssert2_ envStr expStr expectedResStr
+
 
 updateElmAssert_: List (String, String) -> String -> String -> List (String, String) -> String -> State -> State
 updateElmAssert_ envStr expStr newOutStr expectedEnvStr expectedExpStr state =
@@ -587,7 +602,9 @@ all_tests = init_state
   |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
                "parseHTML \"hello<br>world\""  "[[\"HTMLInner\",\"hello\"], [\"HTMLElement\", \"br\", [], \" \", [\"RegularEndOpening\"], [], [\"VoidClosing\"]], [\"HTMLInner\",\"sworld\"]]"
                "parseHTML \"hello<br >sworld\""
-  |> only (updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
+  |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
                  "parseHTML \"<?help>\""  "[[\"HTMLComment\",\"Less_Greater\",\"Injection: adding more chars like >, <, and -->\"]]"
-                 "parseHTML \"<!--Injection: adding more chars like >, <, and ~~>-->\"")
-    |> summary
+                 "parseHTML \"<!--Injection: adding more chars like >, <, and ~~>-->\""
+  |> only (evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
+               "parseHTML \"<h3>Hello world</h3>\"" "[[\"HTMLElement\", \"h3\", [], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Hello world\"]], [\"RegularClosing\", \"\"]]]")
+  |> summary
