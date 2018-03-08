@@ -509,9 +509,13 @@ all_tests = init_state
     |>
       updateElmAssert [] "extractFirstIn \"^\\\\s*(S(\\\\w)+ (\\\\w))\" \"\"\" See some examples\"\"\" |> case of [\"Just\", [big, s1, s2]] -> big + s1 + s2; e -> \"not the right shape\"" "\"Sea ses\""
                       [] "extractFirstIn \"^\\\\s*(S(\\\\w)+ (\\\\w))\" \"\"\" Sea some examples\"\"\" |> case of [\"Just\", [big, s1, s2]] -> big + s1 + s2; e -> \"not the right shape\""
-    |>  evalElmAssert [] "extractFirstIn \"\"\"([\\w:_-]*)\"\"\" \"data-array=\\\"17\\\"\" |> case of [_, [id]] -> id; _ -> \"Nothing\" " "\"data-array\""
-    |> evalElmAssert nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"[Markdown](http://test)\""
-      "\"<a href='http://test'>Markdown</a>\""
+    |> evalElmAssert [] "extractFirstIn \"\"\"([\\w:_-]*)\"\"\" \"data-array=\\\"17\\\"\" |> case of [_, [id]] -> id; _ -> \"Nothing\" " "\"data-array\""
+    |> evalElmAssert nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"[Markdown](http://test)\"" "\"<a href='http://test'>Markdown</a>\""
+    |> evalElmAssert nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"[Markdown](https://fr.wikipedia.org/wiki/Markdown)\"" "\"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a>\""
+    |> updateElmAssert nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"#[Markdown](https://fr.wikipedia.org/wiki/Markdown)\"" "\"#<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdoooown</a>\""
+                       nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"#[Markdoooown](https://fr.wikipedia.org/wiki/Markdown)\""
+    |> only (updateElmAssert [] "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"5\" else \"7\") \"x,y\"" "\"6,8\""
+                             [] "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"6\" else \"8\") \"x,y\"")
   --|> test "Record construction, extraction and pattern "
   --  |>
   |> test "Partial application"

@@ -565,7 +565,7 @@ html string =
         head::tail -> aux (n - 1) tail
     in aux in {
   apply trees = 
-    letrec domap tree = case tree of
+    freeze (letrec domap tree = case tree of
       ["HTMLInner", v] -> ["TEXT", replaceAllIn "&amp;|&lt;|&gt;|</[^>]*>" (\{match} -> case match of "&amp;" -> "&"; "&lt;" -> "<"; "&gt;" -> ">"; _ -> "") v]
       ["HTMLElement", tagName, attrs, ws1, endOp, children, closing] ->
         [ tagName
@@ -576,7 +576,7 @@ html string =
             ["HTMLAttributeNoValue"] -> [name, ""]) attrs
         , map domap children]
       ["HTMLComment", _, content] -> ["comment", [["display", "none"]], [["TEXT", content]]]
-    in map domap trees
+    in map domap trees)
 
   update {input, outputOld, outputNew} =
     let toHTMLAttribute [name, value] = ["HTMLAttribute", " ", name, ["HTMLAttributeString", "", "", "\"", value]] in

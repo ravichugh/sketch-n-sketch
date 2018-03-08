@@ -77,9 +77,9 @@ update updateStack nextToUpdate=
           case head of
             Fork msg newUpdateStack nextToUpdate2 ->
               --let _ = Debug.log "finished update with one fork" () in
-              okLazy (fEnv, fOut) <| (\lt -> \() ->
-                let _ = Debug.log ("Starting to loof for other solutions, fork " ++ msg) () in
-                updateRec newUpdateStack <| LazyList.appendLazy nextToUpdate2 lt) lazyTail
+              okLazy (fEnv, fOut) <| (\lt m nus -> \() ->
+                let _ = Debug.log ("Starting to look for other solutions, fork " ++ m ++ ",\n" ++ updateStackName nus) () in
+                updateRec nus <| LazyList.appendLazy nextToUpdate2 lt) lazyTail msg newUpdateStack
             HandlePreviousResult msg f ->
               --let _ = Debug.log ("update needs to continue: " ++ msg) () in
               update (f fEnv fOut) (Lazy.force lazyTail)

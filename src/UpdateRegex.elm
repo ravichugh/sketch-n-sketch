@@ -120,6 +120,7 @@ extractHeadTail msg list continuation =
 -- Reverse operation of matchToExpApp
 expAppToStringMatch : Exp -> Result String String {- The matched string -}
 expAppToStringMatch  newE =
+  --let _ = LangUtils.logExp "New expression from which to recover a string" newE in
   let extractSix names l = case List.unzip l of
     (foundNames, [elem1, elem2, elem3, elem4, elem5, elem6]) -> if foundNames == names then Just (elem1, elem2, elem3, elem4, elem5, elem6) else Nothing
     _ -> Nothing
@@ -168,10 +169,15 @@ expAppToStringMatch  newE =
       Err "Cannot change the length of the group list, only the strings"
     else -- Maybe a subgroup has been changed ?
      let allsubgroups = UpdateUtils.mergeList mergeString oldGroups newGroups (newMatch::newSubmatches) in
+     --let _ = Debug.log "allsbugroups" allsubgroups in
+     let startMatch = case oldStarts of
+       head::tail -> head
+       _ -> 0
+     in
      -- We recover all changes and push only the biggest ones if there are conflicts.
      List.map3 (\mo so m2 ->
        if mo == m2 then Ok Nothing
-       else Ok <| Just (so, so + String.length mo, m2)
+       else Ok <| Just (so - startMatch, so - startMatch + String.length mo, m2)
      ) oldGroups oldStarts allsubgroups
      |> Utils.projOk |> Result.map (\transformations ->
        let finalMatch = List.filterMap identity transformations |> mergeTransformations oldMatch in

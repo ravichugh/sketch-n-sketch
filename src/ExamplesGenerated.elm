@@ -5924,7 +5924,7 @@ let markdown text =
   foldLeft finaltext rules (\\acc elem -> case elem of
       [regex, replacement] -> replaceAllIn regex replacement acc
       [regex, replacement, {postReverse = fun}] ->
-        let newAcc = { apply acc = acc, unapply out = [\"Just\",  fun out]}.apply acc in
+        let newAcc = { apply acc = freeze acc, unapply out = [\"Just\",  fun out]}.apply acc in
         replaceAllIn regex replacement newAcc 
   )
 in
