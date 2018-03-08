@@ -20,6 +20,7 @@ import BinaryOperatorParser exposing (..)
 import Utils
 import Regex
 import Parser
+import Parser.LanguageKit as LanguageKit
 
 type NameSpace  = HTML | Foreign
 
@@ -108,8 +109,10 @@ attributeSpaces =
        ]
      )
 
+-- parse("<i ====>Hello</i>") == "<i =="==">Hell</i>" (= is a valid start for an attribute name.
 parseHtmlAttributeName: Parser String
-parseHtmlAttributeName = keep oneOrMore (\c -> c /= '>' && c /= '/' && not (isSpace c))
+parseHtmlAttributeName =
+  LanguageKit.variable (\c -> c /= '>' && c /= '/' && not (isSpace c)) (\c -> c /= '>' && c /= '/' && c /= '=' && not (isSpace c)) (Set.fromList [])
 
 -- parse("<div> i<j =b / =hello=abc /a/ div / /> d") == "<div> i<j =b="" =hello="abc" a="" div=""> d</j></div>"
 parseHtmlAttributeValue: Parser HTMLAttributeValue
