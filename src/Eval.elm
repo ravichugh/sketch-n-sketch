@@ -103,7 +103,7 @@ mkCap mcap l =
   s ++ ": "
 
 builtinEnv =
-  [("parseHtml", HTMLValParser.htmlValParser)]
+  [("parseHTML", HTMLValParser.htmlValParser)]
 
 -- TODO rename these to preludeEnv, because the initEnv name below
 -- is sometimes replaced by preludeEnv, sometimes the empty env.

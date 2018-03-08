@@ -254,7 +254,7 @@ unparseNode node = case node of
         _ -> ""
       SlashEndOpening -> "/"
     ) ++ ">" ++ String.join "" (List.map unparseNode children) ++ (case closing of
-      RegularClosing sp -> "</" ++ tagName ++ sp.val ++ ">"
+      RegularClosing sp -> if isVoidElement tagName then "" else "</" ++ tagName ++ sp.val ++ ">"
       VoidClosing -> ""
       AutoClosing -> ""
       ForgotClosing -> ""
