@@ -4,8 +4,10 @@ map f = case of [] -> []; head::tail -> f head::map f tail
 html string = {
   apply trees = 
     letrec domap tree = case tree of
-      ["HTMLInner", v] -> ["TEXT", replaceAllIn "&amp;|&lt;|&gt;|</[^>]*>" (\{match} -> case match of "&amp;" -> "&"; "&lt;" -> "<"; "&gt;" -> ">"; _ -> "") v]
+      ["HTMLInner", v] -> let _ = debug ("HTMLInner" + v) in ["TEXT", replaceAllIn "&amp;|&lt;|&gt;|</[^>]*>" (\{match} -> case match of "&amp;" -> "&"; "&lt;" -> "<"; "&gt;" -> ">"; _ -> "") v]
       ["HTMLElement", tagName, attrs, ws1, endOp, children, closing] ->
+        let _ = debug "children" in
+        let _ = debug children in
         [ tagName
         , map (case of
           ["HTMLAttribute", ws0, name, value] -> case value of

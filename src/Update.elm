@@ -363,7 +363,8 @@ getUpdateStackOp env e oldVal newVal =
                                         ("outputNew", newVal),
                                         ("output", newVal), -- Sometimes it's much simpler to call output
                                         ("outputOriginal", oldVal),
-                                        ("oldOutput", oldVal)
+                                        ("oldOutput", oldVal),
+                                        ("outputOld", oldVal)
                                         ] in
                                    let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
                                    case doEval Syntax.Elm (("x", addUpdateCapability fieldUpdateClosure)::("y", customArgument)::env) customExpr of
