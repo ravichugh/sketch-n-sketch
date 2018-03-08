@@ -294,6 +294,7 @@ valToString = Syntax.unparser Syntax.Elm << valToExp (ws "") (IndentSpace "")
 
 logVal msg v = let _ = Debug.log (msg ++ ":" ++ valToString v) () in v
 logExp msg v = let _ = Debug.log (msg ++ ":" ++ Syntax.unparser Syntax.Elm v) () in v
+logEnv msg exp env = let _ = Debug.log (msg ++ ":" ++ envToString (pruneEnv exp env)) () in env
 
 envToString: Env -> String
 envToString env =

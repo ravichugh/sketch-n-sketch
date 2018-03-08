@@ -75,9 +75,10 @@ update updateStack nextToUpdate=
           ok1 <| (fEnv, fOut)
         LazyList.Cons head lazyTail ->
           case head of
-            Fork _ newUpdateStack nextToUpdate2 ->
+            Fork msg newUpdateStack nextToUpdate2 ->
               --let _ = Debug.log "finished update with one fork" () in
               okLazy (fEnv, fOut) <| (\lt -> \() ->
+              --let _ = Debug.log ("Starting to loof for other solutions, fork " ++ msg) () in
                 updateRec newUpdateStack <| LazyList.appendLazy nextToUpdate2 lt) lazyTail
             HandlePreviousResult msg f ->
               --let _ = Debug.log ("update needs to continue: " ++ msg) () in
@@ -91,7 +92,7 @@ update updateStack nextToUpdate=
           case mb of
             Nothing -> LazyList.Nil
             Just alternativeUpdateStack ->
-              LazyList.fromList [Fork "" alternativeUpdateStack nb]
+              LazyList.fromList [Fork msg alternativeUpdateStack nb]
         ) (LazyList.takeWhile (\nextAction ->
           case nextAction of
             HandlePreviousResult _ _-> True
@@ -828,7 +829,7 @@ addUpdateCapability v =
             case modifications.v_ of
               VList modifications ->
                 let newVal = recursiveMergeVal original modifications in
-                Ok ((v, []), env)
+                Ok ((newVal, []), env)
               _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
           _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
       ) Nothing
