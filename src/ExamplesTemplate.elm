@@ -209,6 +209,7 @@ LEO_TO_ELM tableOfStatesB
 LEO_TO_ELM tableOfStatesC
 LEO_TO_ELM tableOfStatesD
 LEO_TO_ELM simpleBudget
+LEO_TO_ELM fromleo/markdown
 
 --------------------------------------------------------------------------------
 
@@ -233,12 +234,19 @@ docsCategory =
     , makeLeoExample "1b: Table of States" tableOfStatesB
     , makeLeoExample "1c: Table of States" tableOfStatesC
     , makeLeoExample "1d: Table of States" tableOfStatesD
-    , makeLeoExample "2: Simple Budget" simpleBudget
-    , makeLeoExample "3: Small LaTeX-like DSL" blankDoc
-    , makeLeoExample "4: TODO" blankDoc
-    , makeLeoExample "5: TODO" blankDoc
-    , makeLeoExample "6: TODO" blankDoc
-    ]
+    ] ++
+    (
+    List.indexedMap
+      (\i (caption, program) ->
+        makeLeoExample (toString (2+i) ++ ": " ++ caption) program
+      )
+      [ ("Markdown", fromleo_markdown)
+      , ("TODO", blankDoc)
+      , ("TODO", blankDoc)
+      , ("TODO", blankDoc)
+      , ("Simple Budget", simpleBudget)
+      ]
+    )
   )
 
 defaultIconCategory =
