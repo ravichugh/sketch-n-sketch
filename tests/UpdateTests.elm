@@ -514,8 +514,8 @@ all_tests = init_state
     |> evalElmAssert nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"[Markdown](https://fr.wikipedia.org/wiki/Markdown)\"" "\"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a>\""
     |> updateElmAssert nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"#[Markdown](https://fr.wikipedia.org/wiki/Markdown)\"" "\"#<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdoooown</a>\""
                        nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"#[Markdoooown](https://fr.wikipedia.org/wiki/Markdown)\""
-    |> only (updateElmAssert [] "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"5\" else \"7\") \"x,y\"" "\"6,8\""
-                             [] "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"6\" else \"8\") \"x,y\"")
+    |> updateElmAssert [] "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"5\" else \"7\") \"x,y\"" "\"6,8\""
+                             [] "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"6\" else \"8\") \"x,y\""
   --|> test "Record construction, extraction and pattern "
   --  |>
   |> test "Partial application"
@@ -618,5 +618,9 @@ all_tests = init_state
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demo\""
                        "[[\"HTMLElement\", \"a\", [[\"HTMLAttribute\", \" \", \"href\", [\"HTMLAttributeString\", \"\", \"\", \"'\", \"https://fr.wikipedia.org/wiki/Markdown\"]]], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Markdown\"]], [\"RegularClosing\", \"\"]], [\"HTMLInner\",\" demonstration\"]]"
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demonstration\""
+  |> only (updateElmAssert [("color", "\"white\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
+                            "[[\"padding\", \"3px\"], [ \"background-color\", \"lightgray\"]]"
+                           [("color", "\"lightgray\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
+  )
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
   |> summary
