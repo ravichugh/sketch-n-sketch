@@ -584,7 +584,10 @@ all_tests = init_state
   |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
                "parseHTML \"hello\""  "[[\"HTMLInner\",\"hello world\"]]"
                "parseHTML \"hello world\""
-  |> only (updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
+  |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
                "parseHTML \"hello<br>world\""  "[[\"HTMLInner\",\"hello\"], [\"HTMLElement\", \"br\", [], \" \", [\"RegularEndOpening\"], [], [\"VoidClosing\"]], [\"HTMLInner\",\"sworld\"]]"
-               "parseHTML \"hello<br >sworld\"")
-  |> summary
+               "parseHTML \"hello<br >sworld\""
+  |> only (updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
+                 "parseHTML \"<?help>\""  "[[\"HTMLComment\",\"Less_Greater\",\"Injection: adding more chars like >, <, and -->\"]]"
+                 "parseHTML \"<!--Injection: adding more chars like >, <, and ~~>-->\"")
+    |> summary
