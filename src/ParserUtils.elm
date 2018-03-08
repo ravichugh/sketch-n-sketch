@@ -332,7 +332,7 @@ singleLineString =
         quoteString = String.fromChar quoteChar
       in
       let
-        quoteEscapeRegex = Regex.regex <| "\n|\\\\|\\" ++ quoteString ++ "|" ++ quoteString
+        quoteEscapeRegex = Regex.regex <| "\n|\r|\t|\\\\|\\" ++ quoteString ++ "|" ++ quoteString
       in
         succeed (\x -> (quoteString, x))
           |. symbol quoteString
@@ -341,6 +341,7 @@ singleLineString =
                 oneOf [
                   map (\_ -> quoteString) <| symbol <| "\\" ++ quoteString,
                   map (\_ -> "\n") <| symbol <| "\\n",
+                  map (\_ -> "\r") <| symbol <| "\\r",
                   map (\_ -> "\t") <| symbol <| "\\t",
                   map (\_ -> "\\") <| symbol <| "\\\\",
                   succeed (\a b -> a ++ b)

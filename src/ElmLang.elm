@@ -97,5 +97,7 @@ isInfixOperator op =
       False
     RegexReplaceAllIn ->
       False
+    RegexReplaceFirstIn ->
+      False
     RegexExtractFirstIn ->
       False

@@ -661,6 +661,18 @@ getUpdateStackOp env e oldVal newVal =
                         Errs msg -> UpdateError msg
                         Oks ll -> updateOpMultiple "replaceAllIn" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs (LazyList.map (\(a, b, c) -> [a, b, c]) ll)
                     _ -> UpdateError "replaceAllIn requires regexp, replacement (fun or string) and the string"
+                RegexReplaceFirstIn -> -- TODO: Move this in maybeUpdateMathOp
+                    case vs of
+                      [regexpV, replacementV, stringV] ->
+                        let eRec env exp = doEval Syntax.Elm env exp |> Result.map (\((v, _), _) -> v) in
+                        let uRec: Env -> Exp -> Val -> Val -> Results String (Env, Exp)
+                            uRec env exp oldval newval = update (updateContext env exp oldval newval) LazyList.Nil
+                        in
+                        case UpdateRegex.updateRegexReplaceFirstByIn
+                            env eRec uRec regexpV replacementV stringV oldVal newVal of
+                          Errs msg -> UpdateError msg
+                          Oks ll -> updateOpMultiple "replaceAllIn" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs (LazyList.map (\(a, b, c) -> [a, b, c]) ll)
+                      _ -> UpdateError "replaceAllIn requires regexp, replacement (fun or string) and the string"
                 RegexExtractFirstIn ->
                   case (vs, opArgs) of
                     ([regexpV, stringV], [regexpE, stringE]) ->

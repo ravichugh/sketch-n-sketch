@@ -292,6 +292,9 @@ valToExpFull copyFrom sp_ indent v =
 valToString: Val -> String
 valToString = Syntax.unparser Syntax.Elm << valToExp (ws "") (IndentSpace "")
 
+logVal msg v = let _ = Debug.log (msg ++ ":" ++ valToString v) () in v
+logExp msg v = let _ = Debug.log (msg ++ ":" ++ Syntax.unparser Syntax.Elm v) () in v
+
 envToString: Env -> String
 envToString env =
   case env of

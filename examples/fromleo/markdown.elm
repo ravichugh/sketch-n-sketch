@@ -29,12 +29,12 @@ and _partially_ edit the html on the right.
 
 """ in
 let trim s =
-  let trimmed_left = replaceAllIn "^\\s+" s "" in
-  replaceAllIn "\\s+$" trimmed_left "" in
+  let trimmed_left = replaceAllIn "^\\s+" "" s in
+  replaceAllIn "\\s+$" "" trimmed_left in
 letrec sprintf str inline = case inline of
-  a::tail -> sprintf (replaceFirstIn "%s" str a) tail
+  a::tail -> sprintf (replaceFirstIn "%s" a str) tail
   [] -> str
-  a -> replaceFirstIn "%s" str a
+  a -> replaceFirstIn "%s" a str
 in
 let strlen str = len (explode str)  in
 letrec foldLeft init list fun = case list of
@@ -46,25 +46,25 @@ in
 let markdown text =
   let self = {
     para regs =
-      let line = regs.group 2 in
+      let line = nth regs.group 2 in
       let trimmed = trim line in
       if (matchIn "^</?(ul|ol|li|h|p|bl)" trimmed) then (
-        (regs.group 1) + line
+        (nth regs.group 1) + line
       ) else (
-        sprintf "%s<p>%s</p>\n" [regs.group 1, line]
+        sprintf "%s<p>%s</p>\n" [nth regs.group 1, line]
       )
     ul_list regs = 
-      let item = regs.group 1 in
+      let item = nth regs.group 1 in
       sprintf "\n<ul>\n\t<li>%s</li>\n</ul>" (trim item)
     ol_list regs =
-      let item = regs.group 1 in
+      let item = nth regs.group 1 in
       sprintf "\n<ol>\n\t<li>%s</li>\n</ol>" (trim item)
     blockquote regs =
-      let item = regs.group 2 in
+      let item = nth regs.group 2 in
       sprintf "\n<blockquote>%s</blockquote>" (trim item)
     header regs =
       let {group= [tmp, nl, chars, header]} = regs in
-      let level = chars.length.toString in
+      let level = toString (strlen chars) in
       sprintf "<h%s>%s</h%s>" [level, trim header, level]
   } in
   let rules = [
@@ -75,46 +75,47 @@ let markdown text =
     ["\\~\\~(.*?)\\~\\~", "<del>$1</del>"],                       -- del
     ["\\:\"(.*?)\"\\:", "<q>$1</q>"],                             -- quote
     ["`\\b(.*?)\\b`", "<code>$1</code>"],                         -- inline code
-    ["\r?\n\\*(.*)", self.ul_list, {postReverse = 
-      \out. replaceAllIn """\r?\n<ul>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ul>""" out "\n* $1"
+    ["\r?\n\\*(.*)", self.ul_list, {
+      postReverse out = 
+        replaceAllIn """\r?\n<ul>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ul>""" "\n* $1" out
     }],                                  -- ul lists
-    ["\r?\n[0-9]+\\.(.*)", self.ol_list, {postReverse = 
-      \out. replaceAllIn """\r?\n<ol>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ol>""" out "\n1. $1"
+    ["\r?\n[0-9]+\\.(.*)", self.ol_list, {
+      postReverse out = 
+        replaceAllIn """\r?\n<ol>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ol>""" "\n1. $1" out
     }],                            -- ol lists
     ["\r?\n(&gt;|\\>)(.*)", self.blockquote],                        -- blockquotes
     ["\r?\n-{5,}", "\n<hr>"],                                        -- horizontal rule
     ["\r?\n\r?\n(?!<ul>|<ol>|<p>|<blockquote>)","<br>"],                -- add newlines
-    ["\r?\n</ul>\\s?<ul>", "", {postReverse = 
-      \out. replaceAllIn """(<(ul|ol)>(?:(?!</\2>)[\s\S])*)</li>\s*<li>""" out "$1</li>\n</$2>\n<$2>\n\t<li>"
+    ["\r?\n</ul>\\s?<ul>", "", {
+      postReverse out = 
+        replaceAllIn """(<(ul|ol)>(?:(?!</\2>)[\s\S])*)</li>\s*<li>""" "$1</li>\n</$2>\n<$2>\n\t<li>" out
     }],                                     -- fix extra ul
     ["\r?\n</ol>\\s?<ol>", ""],                                      -- fix extra ol, and extract blockquote
     ["</blockquote>\\s?<blockquote>", "\n"]
   ] in
   let finaltext = "\n" + text + "\n" in
-  foldLeft finaltext rules (\acc.\elem. case elem of
-      [regex, replacement] -> replaceAllIn regex acc replacement
+  foldLeft finaltext rules (\acc elem -> case elem of
+      [regex, replacement] -> replaceAllIn regex replacement acc
       [regex, replacement, {postReverse = fun}] ->
         let newAcc = { apply acc = acc, unapply out = ["Just",  fun out]}.apply acc in
-        replaceAllIn regex newAcc replacement
-    }
+        replaceAllIn regex replacement newAcc 
   )
 in
-let converter_lens x = {
-  apply x = x,
-  update {outputNew} =
-    case extractFirstIn """^<div>([\s\S]*)</div>""" inserted of
-      ["Just", [content]] ->
-        if (matchIn "(?:^|\n)#(.*)$" left) then ( -- Title, we jump only one line
-          {value = left + "\n" + content + right}
-        ) else -- we jump TWO lines
-          {value = left + "\n\n" + content + right}
-      _ ->    
-        if(matchIn """(?:^|\n)(#|\*|\d\.)(.*)$""" left) then
-          {value = outputNew }
-        else
-          let newInserted = replaceAllIn """<br>""" inserted "\n\n" in
-          {value = left + newInserted + right}
-    }.apply x
- } in
--- TODO: Need to implement innerHTML or html to tree lens
-["span", [], html (freeze markdown) (converter_lens original)]
+--let converter_lens x = {
+--  apply x = x,
+--  unapply {outputNew} =
+--    case extractFirstIn """^<div>([\s\S]*)</div>""" inserted of
+--      ["Just", [content]] ->
+--        if (matchIn "(?:^|\n)#(.*)$" left) then -- Title, we jump only one line
+--          ["Just", left + "\n" + content + right]
+--        else -- we jump TWO lines
+--          ["Just", left + "\n\n" + content + right]
+--      ["Nothing"] ->    
+--        if(matchIn """(?:^|\n)(#|\*|\d\.)(.*)$""" left) then
+--          ["Just", outputNew]
+--        else
+--          let newInserted = replaceAllIn """<br>"""  "\n\n" inserted in
+--          ["Just", left + newInserted + right]
+--  }.apply x in
+let converter_lens x = x in
+["span", [], html ((freeze markdown) (converter_lens original))]

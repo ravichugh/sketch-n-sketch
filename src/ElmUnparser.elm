@@ -223,6 +223,8 @@ unparseOp op =
       "ToStrExceptStr"
     RegexReplaceAllIn ->
       "replaceAllIn"
+    RegexReplaceFirstIn ->
+      "replaceFirstIn"
     RegexExtractFirstIn ->
       "extractFirstIn"
 

@@ -88,6 +88,7 @@ strOp op = case op of
   NoWidgets     -> "noWidgets"
   ToStrExceptStr-> "ToStrExceptStr"
   RegexReplaceAllIn -> "replaceAllIn"
+  RegexReplaceFirstIn -> "replaceFirstIn"
   RegexExtractFirstIn -> "extractFirstIn"
 
 strLoc : Loc -> String

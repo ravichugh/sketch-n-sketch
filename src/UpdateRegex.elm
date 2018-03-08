@@ -1,4 +1,14 @@
-module UpdateRegex exposing (updateRegexReplaceAllByIn, evalRegexReplaceAllByIn, evalRegexExtractFirstIn, updateRegexExtractFirstIn, allInterleavingsIn)
+module UpdateRegex exposing (
+    evalRegexReplaceAllByIn
+  , updateRegexReplaceAllByIn
+
+  , evalRegexReplaceFirstByIn
+  , updateRegexReplaceFirstByIn
+
+  , evalRegexExtractFirstIn
+  , updateRegexExtractFirstIn
+
+  , allInterleavingsIn)
 
 import UpdateStack exposing (NextAction(..), UpdateStack(..), Output)
 import Results exposing
@@ -44,9 +54,9 @@ lambdaToString v =
 stringToLambda: Env -> Val -> String -> Val
 stringToLambda env vs s =
   let l = find All (regex "(\\\\\\$|\\$(\\d))") s |> List.map (\m -> (m, m.index, String.length m.match + m.index)) in
+  let (finalLastStart, lWithPrevStart) = List.foldl (\(mat, start, end) (lastEnd, acc) -> (end, acc ++ [(mat, lastEnd, start, end)])) (0, []) l in
   let m = EVar space0 "m" in
-  let lastStart = { value = 0 } in
-  let tmp = List.concatMap (\(mat, start, end) ->
+  let tmp = List.concatMap (\(mat, lastEnd, start, end) ->
        let groupIndexMaybe = case mat.submatches of
          [_, Nothing] -> Nothing
          [_, Just submatch] ->
@@ -58,22 +68,22 @@ stringToLambda env vs s =
        case groupIndexMaybe of
          Nothing -> [] --It was just a regular escaped dollar
          Just groupIndex ->
-           let res = [ withDummyExpInfo <| EBase space1 (EString "\"" (removeSlashDollar (String.slice lastStart.value start s))),
+           let res = [ withDummyExpInfo <| EBase space1 (EString "\"" (removeSlashDollar (String.slice lastEnd start s))),
                        withDummyExpInfo <|
                           EApp space1 (withDummyExpInfo <| EVar space1 "nth") [
-                           withDummyExpInfo <| ESelect space0 (withDummyExpInfo m) space0 space0 "group",
+                           withDummyExpInfo <| ESelect space1 (withDummyExpInfo m) space0 space0 "group",
                             withDummyExpInfo <| EConst space1 (toFloat groupIndex) dummyLoc noWidgetDecl] SpaceApp space0
                         ] in
-           let _ = ImpureGoodies.mutateRecordField lastStart "value" end in
            res
-       ) l
+       ) lWithPrevStart
   in
   let lambdaBody = List.foldr (\a b ->
        case a.val.e__ of
          EBase _ (EString _ _) -> eOp Plus [a, b]
          _ -> eOp Plus [eOp ToStrExceptStr [a], b]
-       ) (withDummyExpInfo <| EBase space1 (EString "\"" <| removeSlashDollar(String.dropLeft lastStart.value s))) tmp
-  in replaceV_ vs <| VClosure Nothing [pVar "m"] lambdaBody env
+       ) (withDummyExpInfo <| EBase space1 (EString "\"" <| removeSlashDollar(String.dropLeft finalLastStart s))) tmp
+  in
+  replaceV_ vs <| VClosure Nothing [pVar "m"] lambdaBody env
 
 type EvaluationError = EvaluationError String
 
@@ -180,16 +190,18 @@ mergeTransformations originalString replacements =
          aux maxReplacementIndex string remainingTransformations
   in aux (String.length originalString) originalString (List.sortBy (\(a, b, c) -> 0- a) replacements)
 
+evalRegexReplaceAllByIn = evalRegexReplaceByIn Regex.All
+evalRegexReplaceFirstByIn = evalRegexReplaceByIn <| Regex.AtMost 1
 
-evalRegexReplaceAllByIn: Env -> (Env -> Exp -> Result String Val)-> Val -> Val -> Val -> Result String Val
-evalRegexReplaceAllByIn  env eval regexpV replacementV stringV =
+evalRegexReplaceByIn: Regex.HowMany -> Env -> (Env -> Exp -> Result String Val)-> Val -> Val -> Val -> Result String Val
+evalRegexReplaceByIn  howmany env eval regexpV replacementV stringV =
    case (regexpV.v_, replacementV.v_, stringV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string)) ->
-        evalRegexReplaceAllByIn env eval regexpV (stringToLambda env replacementV replacement) stringV
+        evalRegexReplaceByIn howmany env eval regexpV (stringToLambda env replacementV replacement) stringV
        -- Conver the string to a lambda with string concatenation
      (VBase (VString regexp), VClosure _ _ _ _, VBase (VString string)) ->
         ImpureGoodies.tryCatch "EvaluationError" (\() ->
-          let newString = GroupStartMap.replace Regex.All regexp (\m ->
+          let newString = GroupStartMap.replace howmany regexp (\m ->
                let replacementName = "UpdateRegex.replaceAll" in
                let localExp = matchToExpApp (eVar replacementName) m in
                let localEnv = [(replacementName, replacementV)] in
@@ -205,7 +217,7 @@ evalRegexReplaceAllByIn  env eval regexpV replacementV stringV =
           in
           Ok (replaceV_ replacementV <| VBase (VString newString))
         ) (\(EvaluationError msg) -> Err msg)
-     _ -> Err <| "Expected a string for the regexp, a string or a lambda returning a string for replacement, and the text to perform the replace on. "
+     _ -> Err <| "replaceAllIn expects a regex (String), a replacement (string/lambda), and the text. Got instead  " ++ valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
            -- Commented out because dependency cycle
            -- "Got " ++  valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
 
@@ -222,13 +234,16 @@ unconcat e = case e.val.e__ of
     _ -> [e]
   _ -> [e]
 
+updateRegexReplaceAllByIn  = updateRegexReplaceByIn Regex.All
+updateRegexReplaceFirstByIn = updateRegexReplaceByIn (Regex.AtMost 1)
+
 -- We need the environment just to make use of the function "nth" for lists, so we don't need to return it !!
-updateRegexReplaceAllByIn: Env -> (Env -> Exp -> Result String Val)-> (Env -> Exp -> Val -> Val -> Results String (Env, Exp)) -> Val -> Val -> Val -> Val -> Val -> Results String (Val, Val, Val)
-updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV oldOutV outV =
+updateRegexReplaceByIn: Regex.HowMany -> Env -> (Env -> Exp -> Result String Val)-> (Env -> Exp -> Val -> Val -> Results String (Env, Exp)) -> Val -> Val -> Val -> Val -> Val -> Results String (Val, Val, Val)
+updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV stringV oldOutV outV =
    case (regexpV.v_, replacementV.v_, stringV.v_, outV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string), _) ->
         -- let _ = Debug.log "regex1" () in
-        updateRegexReplaceAllByIn env eval updateRoutine regexpV (stringToLambda env replacementV replacement) stringV oldOutV outV
+        updateRegexReplaceByIn howmany env eval updateRoutine regexpV (stringToLambda env replacementV replacement) stringV oldOutV outV
         |> Results.map (\(newRegexpV, newReplacementV, newStringV) ->
           (newRegexpV, replaceV_ replacementV <| VBase <| VString <| lambdaToString <| newReplacementV, newStringV)
         )
@@ -238,7 +253,7 @@ updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV ol
        -- replaceAllIn (A|B) (case of "A" -> "a"; "B" -> "b") "A,B"  gives "a,b". What if it is now replaced by x,y ? Can we change "a" and "b" in the lambda?
        -- Now yes because we can merge all results.
        -- let _ = Debug.log "regex2" () in
-       let matches = GroupStartMap.find Regex.All regexp string in
+       let matches = GroupStartMap.find howmany regexp string in
        let (lastEnd, initStrings) = List.foldl (\m (lastEnd, strings) ->
             (m.index + String.length m.match, strings ++ [String.slice lastEnd m.index string])
             ) (0, []) matches
@@ -273,7 +288,7 @@ updateRegexReplaceAllByIn env eval updateRoutine regexpV replacementV stringV ol
                   ok1 (regexpV, newLambda, replaceV_ stringV <| VBase (VString newString))
                 )
              )
-     _ -> Errs <| "Expected a string for the regexp, a string or a lambda returning a string for replacement, and the text to perform the replace on, and to update from a string. "
+     _ -> Errs <| "replaceAllIn expects a regex (String), a replacement (string/lambda), and the text. Got instead  " ++ valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
            -- Commented out because dependency cycle
            -- "Got " ++  valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
 

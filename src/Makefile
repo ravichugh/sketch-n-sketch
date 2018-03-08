@@ -99,3 +99,6 @@ littleloc:
 	../scripts/exampleStats.sh
 	../scripts/exampleStats.sh | wc -l
 	../scripts/exampleStats.sh | awk '{ sum += $$1 } END { print sum }'
+
+tests:
+	cd ../tests && ./test.sh && cd ../src

@@ -511,6 +511,8 @@ all_tests = init_state
                       [] "extractFirstIn \"^\\\\s*(S(\\\\w)+ (\\\\w))\" \"\"\" Sea some examples\"\"\" |> case of [\"Just\", [big, s1, s2]] -> big + s1 + s2; e -> \"not the right shape\""
     |> 
       evalElmAssert [] "extractFirstIn \"\"\"([\\w:_-]*)\"\"\" \"data-array=\\\"17\\\"\" |> case of [_, [id]] -> id; _ -> \"Nothing\" " "\"data\""
+  |> only (evalElmAssert nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"[Markdown](http://test)\""
+      "\"<a href='http://test'>Markdown</a>\"")
   --|> test "Record construction, extraction and pattern "
   --  |>
   |> test "Partial application"
@@ -605,7 +607,7 @@ all_tests = init_state
   |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
                  "parseHTML \"<?help>\""  "[[\"HTMLComment\",\"Less_Greater\",\"Injection: adding more chars like >, <, and -->\"]]"
                  "parseHTML \"<!--Injection: adding more chars like >, <, and ~~>-->\""
-  |> only (evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
-               "parseHTML \"<h3>Hello world</h3>\"" "[[\"HTMLElement\", \"h3\", [], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Hello world\"]], [\"RegularClosing\", \"\"]]]")
+  |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
+               "parseHTML \"<h3>Hello world</h3>\"" "[[\"HTMLElement\", \"h3\", [], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Hello world\"]], [\"RegularClosing\", \"\"]]]"
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
   |> summary

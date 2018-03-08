@@ -19,7 +19,7 @@ import LangUtils exposing (..)
 import HTMLValParser
 
 import ImpureGoodies
-import UpdateRegex exposing (evalRegexReplaceAllByIn, evalRegexExtractFirstIn)
+import UpdateRegex exposing (evalRegexReplaceAllByIn, evalRegexReplaceFirstByIn, evalRegexExtractFirstIn)
 
 valToDictKey : Syntax -> Backtrace -> Val -> Result String (String, String)
 valToDictKey syntax bt v =
@@ -570,6 +570,15 @@ evalOp syntax env e bt opWithInfo es =
           RegexReplaceAllIn -> case vs of
             [regexp, replacement, string] ->
               (evalRegexReplaceAllByIn
+                env
+                (\newEnv newExp -> eval_ syntax newEnv bt newExp |> Result.map Tuple.first)
+                regexp
+                replacement
+                string)
+            _     -> error ()
+          RegexReplaceFirstIn -> case vs of
+            [regexp, replacement, string] ->
+              (evalRegexReplaceFirstByIn
                 env
                 (\newEnv newExp -> eval_ syntax newEnv bt newExp |> Result.map Tuple.first)
                 regexp

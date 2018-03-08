@@ -99,6 +99,7 @@ type Op_
   -- trinary ops
   | DictInsert
   | RegexReplaceAllIn
+  | RegexReplaceFirstIn
   | RegexExtractFirstIn
 
 
