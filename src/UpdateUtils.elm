@@ -275,9 +275,13 @@ triCombine origExp originalEnv newEnv1 newEnv2 =
          ((x, v1)::oe, (y, v2)::ne1, (z, v3)::ne2) ->
            if x /= y || y /= z || x /= z then
              Debug.crash <| "Expected environments to have the same variables, got\n" ++
-              toString x ++ " = " ++ toString v1 ++ "\n" ++
-              toString y ++ " = " ++ toString v2 ++ "\n" ++
-              toString z ++ " = " ++ toString v3
+              x ++ " = " ++ valToString v1 ++ "\n" ++
+              y ++ " = " ++ valToString v2 ++ "\n" ++
+              z ++ " = " ++ valToString v3 ++ "\n" ++
+              (List.take 5 originalEnv |> List.map Tuple.first |> String.join ",") ++ "\n" ++
+               (List.take 5 newEnv1 |> List.map Tuple.first |> String.join ",") ++ "\n" ++
+               (List.take 5 newEnv2 |> List.map Tuple.first |> String.join ",") ++ "\n" ++
+               Syntax.unparser Syntax.Elm origExp
            else if Set.member x fv then
              aux (acc ++ [(x, mergeVal v1 v2 v3)]) oe ne1 ne2
            else

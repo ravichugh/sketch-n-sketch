@@ -15,6 +15,7 @@ module ParserUtils exposing
   , showError
   , keepUntilRegex
   , keepRegex
+  , singleLineString
   )
 
 import Pos exposing (..)
@@ -322,3 +323,29 @@ showError err =
     "=============\n" ++
       (String.concat <| List.map showContext err.context) ++ "\n\n"
 
+-- returns the quote string and the string content itself.
+singleLineString : Parser (String, String)
+singleLineString =
+  let
+    stringHelper quoteChar =
+      let
+        quoteString = String.fromChar quoteChar
+      in
+      let
+        quoteEscapeRegex = Regex.regex <| "\n|\\\\|\\" ++ quoteString ++ "|" ++ quoteString
+      in
+        succeed (\x -> (quoteString, x))
+          |. symbol quoteString
+          |= map String.concat (
+              repeat zeroOrMore <|
+                oneOf [
+                  map (\_ -> quoteString) <| symbol <| "\\" ++ quoteString,
+                  map (\_ -> "\n") <| symbol <| "\\n",
+                  map (\_ -> "\\") <| symbol <| "\\\\",
+                  succeed (\a b -> a ++ b)
+                  |= keep (Exactly 1) (\c -> c /= quoteChar && c /= '\\' && c /= '\n')
+                  |= keepUntilRegex quoteEscapeRegex
+                ])
+          |. symbol quoteString
+  in
+    oneOf <| List.map stringHelper ['\'', '"']

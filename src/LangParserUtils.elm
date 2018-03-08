@@ -6,6 +6,7 @@ module LangParserUtils exposing
   , symbolWithSpace
   , spaceSaverKeyword
   , paddedBefore
+  , isSpace
   , isOnlySpaces
   , mapPat_
   , mapExp_

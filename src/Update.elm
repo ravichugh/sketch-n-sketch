@@ -571,8 +571,9 @@ getUpdateStackOp env e oldVal newVal =
                         Err s       -> UpdateError s
                         Ok v2ls     ->
                           let v2s = List.map (\((v2, _), _) -> v2) v2ls in
-                          let results = updateDef v2s oldVal newVal in
-                          updateOpMultiple "vfun" env e2s (\newE2s -> replaceE__ e <| EApp sp0 e1 newE2s appType sp1) v2s (LazyList.fromList results)
+                          case updateDef v2s oldVal newVal of
+                            Errs msg -> UpdateError msg
+                            Oks ll -> updateOpMultiple "vfun" env e2s (\newE2s -> replaceE__ e <| EApp sp0 e1 newE2s appType sp1) v2s ll
 
               _ -> UpdateError <| strPos e1.start ++ " not a function"
     EIf sp0 cond sp1 thn sp2 els sp3 ->

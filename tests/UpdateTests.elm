@@ -17,6 +17,7 @@ import Results
 import LazyList
 import LangUtils exposing (..)
 import ParserUtils
+import HTMLValParser
 
 type StateChanger = StateChanger (State -> State)
 
@@ -141,8 +142,8 @@ evalElmAssert_ envStr expStr expectedResStr state =
       Ok _ -> fail state "???"
 evalElmAssert envStr expStr expectedResStr = gather <| evalElmAssert_ envStr expStr expectedResStr
 
-updateElmAssert: List (String, String) -> String -> String -> List (String, String) -> String -> State -> State
-updateElmAssert envStr expStr newOutStr expectedEnvStr expectedExpStr state =
+updateElmAssert_: List (String, String) -> String -> String -> List (String, String) -> String -> State -> State
+updateElmAssert_ envStr expStr newOutStr expectedEnvStr expectedExpStr state =
   if state.ignore then state else
   case Utils.projOk [parseEnv envStr, parseEnv expectedEnvStr] of
     Err error -> fail state <| log state <| "Error while parsing environments: " ++ error
@@ -153,10 +154,25 @@ updateElmAssert envStr expStr newOutStr expectedEnvStr expectedExpStr state =
              --let _ = Debug.log (log state <| toString exp) () in
              case Utils.projOk [evalEnv env exp, eval newOut] of
              Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ toString exp ++ "," ++ toString newOut ++ ": " ++ error
-             Ok [out, newOut] -> updateAssert env exp out newOut expectedEnv expectedExpStr state
+             Ok [out, newOut] -> updateAssert_ env exp out newOut expectedEnv expectedExpStr state
              Ok _ -> fail state "???"
            Ok _ -> fail state "???"
     Ok _ -> fail state "???"
+updateElmAssert envStr expStr newOutStr expectedEnvStr expectedExpStr = gather <| updateElmAssert_ envStr expStr newOutStr expectedEnvStr expectedExpStr
+
+updateElmAssert2_: Env -> String -> String -> String -> State -> State
+updateElmAssert2_ env expStr newOutStr expectedExpStr state =
+  if state.ignore then state else
+  case Utils.projOk [parse expStr, parse newOutStr] of
+      Err error -> fail state <| log state <| "Error while parsing expressions or outputs: " ++ error
+      Ok [exp, newOut] ->
+        --let _ = Debug.log (log state <| toString exp) () in
+        case Utils.projOk [evalEnv env exp, eval newOut] of
+        Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ toString exp ++ "," ++ toString newOut ++ ": " ++ error
+        Ok [out, newOut] -> updateAssert_ env exp out newOut env expectedExpStr state
+        Ok _ -> fail state "???"
+      Ok _ -> fail state "???"
+updateElmAssert2 env expStr newOutStr expectedExpStr = gather <| updateElmAssert2_ env expStr newOutStr expectedExpStr
 
 parse = Syntax.parser Syntax.Elm >> Result.mapError (\p -> ParserUtils.showError p)
 unparse = Syntax.unparser Syntax.Elm
@@ -564,4 +580,11 @@ all_tests = init_state
             |> updateElmAssert
               [] "  []" "[[1, 2]]"
               [] "  [[1, 2]]"
+  |> test "parsing HTML"
+  |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
+               "parseHTML \"hello\""  "[[\"HTMLInner\",\"hello world\"]]"
+               "parseHTML \"hello world\""
+  |> only (updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
+               "parseHTML \"hello<br>world\""  "[[\"HTMLInner\",\"hello\"], [\"HTMLElement\", \"br\", [], \"\", [\"RegularEndOpening\"], [], [\"VoidClosing\"]] [\"HTMLInner\",\"world\"]]"
+               "parseHTML \"hello<br>world\"")
   |> summary

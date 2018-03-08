@@ -16,6 +16,7 @@ import Record
 import Info
 import ParserUtils
 import LangUtils exposing (..)
+import HTMLValParser
 
 import ImpureGoodies
 import UpdateRegex exposing (evalRegexReplaceAllByIn, evalRegexExtractFirstIn)
@@ -101,11 +102,13 @@ mkCap mcap l =
   in
   s ++ ": "
 
+builtinEnv =
+  [("parseHtml", HTMLValParser.htmlValParser)]
 
 -- TODO rename these to preludeEnv, because the initEnv name below
 -- is sometimes replaced by preludeEnv, sometimes the empty env.
 initEnvRes = Result.map Tuple.second <| (eval Syntax.Little [] [] Parser.prelude)
-initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
+initEnv = builtinEnv ++ (Utils.fromOk "Eval.initEnv" <| initEnvRes)
 
 run : Syntax -> Exp -> Result String (Val, Widgets)
 run syntax e =

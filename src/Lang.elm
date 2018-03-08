@@ -11,6 +11,7 @@ import Regex
 import Info exposing (..)
 import Pos exposing (..)
 import Utils
+import Results exposing (Results)
 
 --------------------------------------------------------------------------------
 -- Whitespace
@@ -257,7 +258,7 @@ type Val_
   | VFun String -- Name
          (List String) -- Name of arguments
          (Env -> List Val -> Result String ((Val, Widgets), Env)) -- Evaluation rule
-         (Maybe (List Val -> Val -> Val -> List (List Val))) -- Maybe Update rule
+         (Maybe (List Val -> Val -> Val -> Results String (List Val))) -- Maybe Update rule
 
 type alias VDict_ = Dict (String, String) Val -- First key string is unparsed key, the second type is the value. See Eval.valToDictKey
 

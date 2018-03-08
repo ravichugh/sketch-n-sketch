@@ -541,33 +541,11 @@ bool =
 
 -- Allows both 'these' and "these" for strings for compatibility.
 -- Escape character is one '\'
-singleLineString : ParserI EBaseVal
-singleLineString =
-  let
-    stringHelper quoteChar =
-      let
-        quoteString = String.fromChar quoteChar
-      in
-      let
-        quoteEscapeRegex = Regex.regex <| "\n|\\\\|\\" ++ quoteString ++ "|" ++ quoteString
-      in
-        succeed (EString quoteString)
-          |. symbol quoteString
-          |= map String.concat (
-              repeat zeroOrMore <|
-                oneOf [
-                  map (\_ -> quoteString) <| symbol <| "\\" ++ quoteString,
-                  map (\_ -> "\n") <| symbol <| "\\n",
-                  map (\_ -> "\\") <| symbol <| "\\\\",
-                  succeed (\a b -> a ++ b)
-                  |= keep (Exactly 1) (\c -> c /= quoteChar && c /= '\\' && c /= '\n')
-                  |= ParserUtils.keepUntilRegex quoteEscapeRegex
-                ])
-          |. symbol quoteString
-  in
-    inContext "single-line string" <|
-      trackInfo <|
-        oneOf <| List.map stringHelper ['\'', '"']
+eString : ParserI EBaseVal
+eString =
+  inContext "single-line string" <|
+    trackInfo <|
+      (singleLineString |> map (\(quoteChar, content) -> EString quoteChar content))
 
 multiLineInterpolatedString : SpacePolicy -> Parser Exp
 multiLineInterpolatedString sp =
@@ -713,7 +691,7 @@ baseValue : ParserI EBaseVal
 baseValue =
   inContext "base value" <|
     oneOf
-      [ singleLineString
+      [ eString
       , bool
       ]
 
