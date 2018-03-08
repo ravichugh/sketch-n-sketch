@@ -607,4 +607,5 @@ all_tests = init_state
                  "parseHTML \"<!--Injection: adding more chars like >, <, and ~~>-->\""
   |> only (evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
                "parseHTML \"<h3>Hello world</h3>\"" "[[\"HTMLElement\", \"h3\", [], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Hello world\"]], [\"RegularClosing\", \"\"]]]")
+    -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
   |> summary

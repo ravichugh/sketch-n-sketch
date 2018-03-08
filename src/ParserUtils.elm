@@ -341,6 +341,7 @@ singleLineString =
                 oneOf [
                   map (\_ -> quoteString) <| symbol <| "\\" ++ quoteString,
                   map (\_ -> "\n") <| symbol <| "\\n",
+                  map (\_ -> "\t") <| symbol <| "\\t",
                   map (\_ -> "\\") <| symbol <| "\\\\",
                   succeed (\a b -> a ++ b)
                   |= keep (Exactly 1) (\c -> c /= quoteChar && c /= '\\' && c /= '\n')

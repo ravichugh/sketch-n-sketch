@@ -288,7 +288,7 @@ eval syntax env bt e =
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
           Ok (Just (v2,ws2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s              -> Err s
-          _                  -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
+          _                  -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement, cannot match " ++ valToString v1
 
   ETypeCase _ e1 tbranches _ ->
     case eval_ syntax env (e::bt) e1 of
@@ -499,7 +499,7 @@ evalOp syntax env e bt opWithInfo es =
                    [VList l1, VList l2]                     ->
                      if List.length l1 /= List.length l2 then Ok False
                      else List.foldl (\(v1, v2) b -> b |> Result.andThen(\bo -> if bo then valEquals [v1.v_, v2.v_] else Ok bo)) (Ok True) (Utils.zip l1 l2)
-                   [_, _]                                   -> Err "Values not comparable. Values should have the same types and not be closures"-- polymorphic inequality, added for Prelude.addExtras
+                   [_, _]                                   -> Err <| "Values not comparable:" ++ String.join "==" (List.map valToString vs) ++ "Values should have the same types and not be closures"-- polymorphic inequality, added for Prelude.addExtras
                    _                                        -> Err "Equality has exactly two arguments"
             in valEquals args |> Result.map (\x -> VBase (VBool x) |> addProvenance)
           Pi         -> nullaryOp args (VConst Nothing (pi, TrOp op []))

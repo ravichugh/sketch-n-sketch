@@ -24,6 +24,7 @@ htmlValParser = Val (VFun "parseHTML" ["html"] (\env args ->
       _ -> Err "parseHTML expects a string, go something else"
     _ -> Err ("parseHTML expects exactly one argument, got " ++ toString (List.length args))
   ) (Just (\oldArgs oldOut newOut -> -- Update means just parsing the old
+    let _ = Debug.log (valToString newOut) "<-- newOut in htmlValParser" in
     case getList newOut of
       Err msg -> Errs msg
       Ok newOutL ->
