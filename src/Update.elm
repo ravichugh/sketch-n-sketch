@@ -47,7 +47,8 @@ doUpdate oldExp oldVal newValResult =
 
 updateEnv: Env -> Ident -> Val -> UpdatedEnv
 updateEnv env k value =
-  let aux i acc env =
+  let aux: Int -> Env -> Env -> UpdatedEnv
+      aux i acc env =
      case env of
        [] -> Debug.crash <| k ++ " not found in environment "
        ((kk, vv) as kv)::tail ->
@@ -68,9 +69,9 @@ update updateStack nextToUpdate=
        --}
       update (getUpdateStackOp env e oldVal out) (LazyList.maybeCons mb nextToUpdate)
 
-    UpdateResultS fUpdatedEnv modifs fOut mb -> -- Let's consume the stack !
+    UpdateResultS fUpdatedEnv fOut mb -> -- Let's consume the stack !
        {--
-      let _ = Debug.log (String.concat ["update final result: ", unparse fOut, " -- env = " , envToString (pruneEnv fOut fEnv)]) () in
+      let _ = Debug.log (String.concat ["update final result: ", unparse fOut, " -- env = " , UpdatedEnv.show fUpdatedEnv]) () in
        --}
       case (LazyList.maybeCons mb nextToUpdate) of -- Let's consume the stack !
         LazyList.Nil ->
@@ -80,18 +81,18 @@ update updateStack nextToUpdate=
           case head of
             Fork msg newUpdateStack nextToUpdate2 ->
               --let _ = Debug.log "finished update with one fork" () in
-              okLazy (fUpdatedEnv.val, fOut) <| (\lt m nus -> \() ->
-                let _ = Debug.log ("Starting to look for other solutions, fork " ++ m ++ ",\n" ++ updateStackName nus) () in
-                updateRec nus <| LazyList.appendLazy nextToUpdate2 lt) lazyTail msg newUpdateStack
+              okLazy (fUpdatedEnv.val, fOut) <| (\lt m nus ntu2 -> \() ->
+                --let _ = Debug.log ("Starting to look for other solutions, fork " ++ m ++ ",\n" ++ updateStackName nus) () in
+                updateRec nus <| LazyList.appendLazy ntu2 lt) lazyTail msg newUpdateStack nextToUpdate2
             HandlePreviousResult msg f ->
               --let _ = Debug.log ("update needs to continue: " ++ msg) () in
-              update (f fUpdatedEnv modifs fOut) (Lazy.force lazyTail)
+              update (f fUpdatedEnv fOut) (Lazy.force lazyTail)
 
     UpdateResultAlternative msg updateStack maybeNext ->
       {--
       let _ = Debug.log (String.concat ["update result alternative ", msg, ": "]) () in
       --}
-      update updateStack <| LazyList.appendLazy nextToUpdate <| Lazy.map ((\nb -> \mb ->
+      update updateStack <| LazyList.appendLazy nextToUpdate <| (\msg -> Lazy.map ((\nb -> \mb ->
           case mb of
             Nothing -> LazyList.Nil
             Just alternativeUpdateStack ->
@@ -100,14 +101,14 @@ update updateStack nextToUpdate=
           case nextAction of
             HandlePreviousResult _ _-> True
             Fork _ _ _-> False
-        ) nextToUpdate)) maybeNext
+        ) nextToUpdate)) maybeNext) msg -- We need to close on the variable msg
 
     UpdateError msg ->
       Errs msg
 
 getUpdateStackOp : Env -> Exp -> PrevOutput -> Output -> UpdateStack
 getUpdateStackOp env e oldVal newVal =
-  if oldVal == newVal then updateResultSameEnv env e else
+  if valEqual oldVal newVal then updateResultSameEnv env e else
   case e.val.e__ of
     EHole ws _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
 
@@ -129,8 +130,8 @@ getUpdateStackOp env e oldVal newVal =
         VClosure Nothing newPs newE newEnv -> updateResultSameEnv newEnv <| replaceE__ e <| EFun sp0 newPs newE sp1
         _ -> Debug.crash "Trying to update a function with non-closure " <| valToString newVal
     EVar sp is ->
-      let (newUpdatedEnv, newModifs) = updateEnv env is newVal in
-      updateResult newUpdatedEnv newModifs e
+      let newUpdatedEnv = updateEnv env is newVal in
+      updateResult newUpdatedEnv e
 
     EList sp1 elems sp2 Nothing sp3 ->
       case (oldVal.v_, newVal.v_) of
@@ -254,7 +255,7 @@ getUpdateStackOp env e oldVal newVal =
                     -- TODO: Here in modifications, detect if we can duplicate a variable instead.
                     updateDiff collectedUpdatedEnv (newElems ++ elemsToAdd) (replaceFirst changeElementAfterInsert elemsToCollect) tailDiff
             in
-            updateDiff env [] elems thediff
+            updateDiff (UpdatedEnv.original env) [] elems thediff
         _ -> UpdateError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
     EList sp1 elems sp2 (Just tail) sp3 ->
@@ -262,22 +263,14 @@ getUpdateStackOp env e oldVal newVal =
         (VList origVals, VList newOutVals) ->
           let elemsLength = List.length elems in
           if elemsLength <= List.length newOutVals && elemsLength >= 1 then
-            let elemOrigVals = List.take elemsLength origVals in
-            let elemNewVals = List.take elemsLength newOutVals in
-            let tailOrigVals = List.drop elemsLength origVals in
-            let tailNewVals = List.drop elemsLength newOutVals in
-            let toEList eles = replaceE__ e <| EList sp1 eles sp2 Nothing sp3 in
+            let (elemOrigVals,  tailOrigVals) = Utils.split elemsLength origVals in
+            let (elemNewVals, tailNewVals)  = Utils.split elemsLength newOutVals in
             let toVList elvs = replaceV_ newVal <| VList elvs in
-            updateContinue env (toEList elems) (toVList elemOrigVals) (toVList elemNewVals) <|
-              HandlePreviousResult "EList1" <| \newElemListUpdatedEnv newElemListExp ->
-                let newElems = case newElemListExp.val.e__ of
-                  EList _ ne _ _ _ -> ne
-                  o -> Debug.crash <| "Expected a list, got " ++ toString o
-                in
-                updateContinue env tail (toVList tailOrigVals) (toVList tailNewVals) <|
-                  HandlePreviousResult "EList2" <| \newTailUpdatedEnv newTailExp ->
-                    let finalUpdatedEnv = UpdatedEnv.merge env newElemListUpdatedEnv newTailUpdatedEnv in
-                    updateResult finalUpdatedEnv <| replaceE__ e <| EList sp1 newElems sp2 (Just newTailExp) sp3
+            updateContinueMultiple "EList" env (Utils.zip3 (Utils.listValues elems) elemOrigVals elemNewVals) <| \newElemListUpdatedEnv newElems ->
+              updateContinue env tail (toVList tailOrigVals) (toVList tailNewVals) <|
+                HandlePreviousResult "EList2" <| \newTailUpdatedEnv newTailExp ->
+                  let finalUpdatedEnv = UpdatedEnv.merge env newElemListUpdatedEnv newTailUpdatedEnv in
+                  updateResult finalUpdatedEnv <| replaceE__ e <| EList sp1 (Utils.listValuesMake elems newElems) sp2 (Just newTailExp) sp3
           else UpdateError <| "Cannot (yet) update a list concatenation " ++ unparse e ++ " with " ++ toString elemsLength ++ " heads by list of smaller length: " ++ valToString newVal
         _ -> UpdateError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
@@ -459,14 +452,16 @@ getUpdateStackOp env e oldVal newVal =
                       case newVal.v_ of
                         VClosure _ psOut outBody envOut_ ->
                           let possiblyUpdatedEnvIdentifiers = Set.diff (LangUtils.freeIdentifiers outBody) (LangUtils.identifiersSetInPats psOut) in
-                          let updatedEnvOut_ = UpdatedEnv.create possiblyUpdatedEnvIdentifiers env_ envOut
+
+                          let findModifications prevEnv =
+                            UpdatedEnv.create possiblyUpdatedEnvIdentifiers prevEnv envOut_ in
                           --let _ = Debug.log ("Updating with : " ++ valToString newVal) () in
                           let (newV1, newV2s, msg) = case recName of
                             Nothing ->
                                case conssWithInversion (e1psUsed, v2s)
                                        (Just (env_, \newUpdatedEnv_ newE1ps -> replaceV_ v1 <| VClosure recName newE1ps outBody newUpdatedEnv_.val )) of
                                  Just (env__, consBuilder) -> --The environment now should align with updatedEnvOut_
-                                   let ((newE1psUsed, newV2s), newE1psToClosure) = consBuilder updatedEnvOut_ in
+                                   let ((newE1psUsed, newV2s), newE1psToClosure) = consBuilder (findModifications env__) in
                                    let newV1 = newE1psToClosure <| newE1psUsed ++ psOut in
                                    (newV1, newV2s, "app")
 
@@ -477,7 +472,7 @@ getUpdateStackOp env e oldVal newVal =
                                        (Just (env_, \newUpdatedEnv_ newE1ps -> replaceV_ v1 <| VClosure recName newE1ps outBody newUpdatedEnv_.val ))) of
                                  Just (env__, consBuilder) -> --The environment now should align with updatedEnvOut_
                                    --let _ = Debug.log ("Original environment : " ++ envToString (List.take 4 env__)) () in
-                                   let ((newE1psUsed, newV2s), ((newPatFun, newArgFun), newE1psToClosure)) = consBuilder updatedEnvOut_ in
+                                   let ((newE1psUsed, newV2s), ((newPatFun, newArgFun), newE1psToClosure)) = consBuilder (findModifications env__) in
                                    --let _ = Debug.log ("newArgFun : " ++ valToString newArgFun) () in
                                    --let _ = Debug.log ("v1 : " ++ valToString v1) () in
                                    let newV1  =
@@ -499,12 +494,9 @@ getUpdateStackOp env e oldVal newVal =
                     let continuation newClosure newArgs msg = --Update the function and the arguments.
                        -- Cannot use the indices of because they are for the closure. But we could use other modifications at this stage, e.g. inserting a variable.
                       updateContinue env e1 v1 newClosure <| HandlePreviousResult msg <| \newE1UpdatedEnv newE1 ->
-                         updateContinue env (replaceE__ e <| EList sp0 (List.map ((,) space0) e2s) sp1 Nothing sp1) (replaceV_ oldVal <| VList v2s) (replaceV_ oldVal <| VList newArgs) <|
-                           HandlePreviousResult (msg + "2") <| \newE2UpdatedEnv newE2List ->
-                             case newE2List.val.e__ of
-                               EList _ newE2s _ _ _ ->
-                                 let finalEnv = UpdatedEnv.merge env newE1UpdatedEnv newE2UpdatedEnv in
-                                 updateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 (Utils.listValues newE2s) appType sp1
+                         updateContinueMultiple ("args of " ++ msg) env (Utils.zip3 e2s v2s newArgs) <| \newE2UpdatedEnv newE2s ->
+                           let finalEnv = UpdatedEnv.merge env newE1UpdatedEnv newE2UpdatedEnv in
+                           updateResult finalEnv <| replaceE__ e <| EApp sp0 newE1 newE2s appType sp1
                     in
                     case recName of
                       Nothing ->
@@ -517,7 +509,7 @@ getUpdateStackOp env e oldVal newVal =
                                  continuation newClosure newArgs "full app"
                            _          -> UpdateError <| strPos e1.start ++ "bad environment"
                       Just f ->
-                         case conssWithInversion (e1ps, v2s) (consWithInversion (pVar f, v1) (Just (env_, \newUpdatedEnv_ newPs newBody -> replaceV_ v1 <| VClosure (Just f) newPs newBody newUpdatedEnv_))) of
+                         case conssWithInversion (e1ps, v2s) (consWithInversion (pVar f, v1) (Just (env_, \newUpdatedEnv_ newPs newBody -> replaceV_ v1 <| VClosure (Just f) newPs newBody newUpdatedEnv_.val))) of
                            Just (env__, consBuilder) ->
                               -- consBuilder: Env -> ((Pat, Val), ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure))
                                updateContinue env__ eBody oldVal newVal <| HandlePreviousResult "VClosure6" <| \newUpdatedEnv newBody ->
@@ -581,7 +573,7 @@ getUpdateStackOp env e oldVal newVal =
             VBase (VBool b) ->
               if b then
                 updateContinue env thn oldVal newVal <| HandlePreviousResult "VClosureIfThen" <| \newUpdatedEnv newThn ->
-                  updateResult newUpdatedEnvs <| replaceE__ e <| EIf sp0 cond sp1 newThn sp2 els sp3
+                  updateResult newUpdatedEnv <| replaceE__ e <| EIf sp0 cond sp1 newThn sp2 els sp3
               else
                 updateContinue env els oldVal newVal <| HandlePreviousResult "VClosureIfElse"  <| \newUpdatedEnv newEls ->
                   updateResult newUpdatedEnv <| replaceE__ e <| EIf sp0 cond sp1 thn sp2 newEls sp3
@@ -696,7 +688,7 @@ getUpdateStackOp env e oldVal newVal =
               updateContinue branchEnv branchExp oldVal newVal <| HandlePreviousResult "ECase" <| \upUpdatedEnv upExp ->
                 let (newBranchUpdatedEnv, newInputVal, nBranches) = envValBranchBuilder (upUpdatedEnv, upExp) in
                 updateContinue env input inputVal newInputVal <| HandlePreviousResult "ECase 2"<| \newInputUpdatedEnv newInputExp ->
-                  let finalUpdatedEnv = mergeMOdifiedEnv env newBranchUpdatedEnv newInputUpdatedEnv in
+                  let finalUpdatedEnv = UpdatedEnv.merge env newBranchUpdatedEnv newInputUpdatedEnv in
                   let finalExp = replaceE__ e <| ECase sp1 newInputExp nBranches sp2 in
                   updateResult finalUpdatedEnv finalExp
     --  ETypeCase WS Exp (List TBranch) WS
@@ -711,6 +703,7 @@ getUpdateStackOp env e oldVal newVal =
                     ((newPat, newE1Val), newUpdatedEnvFromBody) ->
                       updateContinue env e1 oldE1Val newE1Val <| HandlePreviousResult "ELet2" <| \newUpdatedEnvFromE1 newE1 ->
                         let finalUpdatedEnv = UpdatedEnv.merge env newUpdatedEnvFromBody newUpdatedEnvFromE1 in
+                        let finalExp = replaceE__ e <| ELet sp1 letKind False newPat sp2 newE1 sp3 newBody sp4 in
                         updateResult finalUpdatedEnv finalExp
                Nothing ->
                  UpdateError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
@@ -733,6 +726,7 @@ getUpdateStackOp env e oldVal newVal =
                            in
                            updateContinue env e1 oldE1Val newE1Val <| HandlePreviousResult "ELetrec2"<| \newUpdatedEnvE1 newE1 ->
                              let finalUpdatedEnv = UpdatedEnv.merge env newUpdatedEnvFromBody newUpdatedEnvE1 in
+                             let finalExp = replaceE__ e <| ELet sp1 letKind True newPat sp2 newE1 sp3 newBody sp4 in
                              updateResult finalUpdatedEnv finalExp
                    Nothing ->
                      UpdateError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
@@ -1118,7 +1112,8 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
 
 commonPrefix: String -> String -> String
 commonPrefix =
-  let aux prefix s1 s2 =
+  let aux: String -> String -> String -> String
+      aux  prefix    s1        s2 =
        case (String.uncons s1, String.uncons s2) of
          (Nothing, _) -> prefix
          (_, Nothing) -> prefix
@@ -1258,7 +1253,7 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
       |> Utils.projJusts
       |> Maybe.andThen (matchListWithInversion << List.unzip)
       |> Maybe.map (\(env, envRenewer) ->
-         (env, (\newUpdatedEnv ->
+         (env, \newUpdatedEnv ->
            if UpdatedEnv.isUnmodified newUpdatedEnv then (p, v) else
            let (newPats, newVals) = envRenewer newUpdatedEnv in
            ( replaceP__ p <| PRecord sp0 (Utils.recordValuesMake pd newPats) sp1,
@@ -1271,7 +1266,6 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
          )
       )
   (PRecord _ _ _, _) -> Nothing
-  _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (valToString v)
 
 matchListWithInversion : (List Pat, List Val) -> Maybe (Env, UpdatedEnv -> (List Pat, List Val))
 matchListWithInversion (ps, vs) =

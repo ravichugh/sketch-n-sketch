@@ -34,6 +34,7 @@ diffVals before after =
 
 type DiffChunk a = DiffEqual a | DiffRemoved a | DiffAdded a
 
+diffChunkMap: (a -> b) -> DiffChunk a -> DiffChunk b
 diffChunkMap f d = case d of
    DiffEqual a -> DiffEqual (f a)
    DiffRemoved a -> DiffRemoved (f a)
@@ -144,6 +145,7 @@ diff keyOf before after =
 
 type Diff3Chunk a = Diff3Merged (DiffChunk a) | Diff3Conflict (List (DiffChunk a)) (List (DiffChunk a))
 
+diff3ChunkMap: (a -> b) -> Diff3Chunk a -> Diff3Chunk b
 diff3ChunkMap f d = case d of
    Diff3Merged a -> Diff3Merged (diffChunkMap f a)
    Diff3Conflict a b -> Diff3Conflict (List.map (diffChunkMap f) a) (List.map (diffChunkMap f) b)
@@ -263,7 +265,8 @@ recursiveMergeExp = recursiveMerge mergeExp
 
 mergeEnv: Env -> List Int  -> Env -> List Int -> Env -> (Env, List Int)
 mergeEnv originalEnv modifs2 env2 modifs3 env3 =
-  let aux i accEnv accModifs originalEnv modifs2 newEnv2 modifs3 newEnv3 =
+  let aux: Int -> Env -> List Int -> Env ->      List Int -> Env ->  List Int -> Env -> (Env, List Int)
+      aux  i      accEnv accModifs   originalEnv modifs2     newEnv2 modifs3     newEnv3 =
     case (originalEnv, modifs2, newEnv2, modifs3, newEnv3) of
        ([], [], [], [], []) -> (List.reverse accEnv, List.reverse accModifs)
        (_, [], _, _, _) ->     (List.reverse accEnv ++ newEnv3, List.reverse accModifs ++ modifs3)
@@ -277,7 +280,7 @@ mergeEnv originalEnv modifs2 env2 modifs3 env3 =
              (List.take 5 originalEnv |> List.map Tuple.first |> String.join ",") ++ "\n" ++
              (List.take 5 newEnv2 |> List.map Tuple.first |> String.join ",") ++ "\n" ++
              (List.take 5 newEnv3 |> List.map Tuple.first |> String.join ",") ++ "\n"
-         else if m2 == i && m3 == i then aux (i + 1) ((x, mergeVal v1 v2 v3)::accEnv) (i::accModifs) oe ne2 ne3
+         else if m2 == i && m3 == i then aux (i + 1) ((x, mergeVal v1 v2 v3)::accEnv) (i::accModifs) oe m2tail ne2 m3tail ne3
          else if m2 == i then aux (i + 1) ((x, v2)::accEnv) (i::accModifs) oe m2tail ne2 modifs3 ne3
          else if m3 == i then aux (i + 1) ((x, v3)::accEnv) (i::accModifs) oe modifs2 ne2 m3tail ne3
          else aux (i + 1) (xv1::accEnv) accModifs oe modifs2 ne2 modifs3 ne3
@@ -289,7 +292,8 @@ mergeEnv originalEnv modifs2 env2 modifs3 env3 =
 mergeEnvGeneral: Exp -> Set Ident -> Env -> Env -> Env -> Env
 mergeEnvGeneral origExp fv originalEnv newEnv1 newEnv2 =
   --let _ = Debug.log ("TriCombine starts on " ++ Syntax.unparser Syntax.Elm origExp) (envToString originalEnv, envToString newEnv1, envToString newEnv2) in
-  let aux revAcc fv originalEnv newEnv1 newEnv2 =
+  let aux: Env -> Set Ident -> Env ->      Env ->  Env ->  Env
+      aux  revAcc fv           originalEnv newEnv1 newEnv2 =
        --let _ = Debug.log "aux " (envToString acc, envToString originalEnv, envToString newEnv1, envToString newEnv2) in
        case (originalEnv, newEnv1, newEnv2) of
          ([], [], []) -> List.reverse revAcc
@@ -535,7 +539,8 @@ mergeListWithModifs keyOf submerger original modified1 modified2 =
         -- No previously removed before, so only additions or sames.
   in
   let thediff = autodiff3 keyOf conflictPolicy original modified1 modified2 in
-  let aux acc thediff = case thediff of
+  let aux: List a -> List (DiffChunk (List a)) -> List a
+      aux acc thediff = case thediff of
      [] -> acc
      DiffEqual same::diffTail -> aux (acc ++ same) diffTail
      DiffRemoved removed::diffTail -> aux acc diffTail
@@ -548,7 +553,8 @@ mergeListWithModifs keyOf submerger original modified1 modified2 =
 -- Would be better to have a real diffing algorithm.
 mergeList: (a -> a -> a -> a) -> List a -> List a -> List a -> List a
 mergeList submerger =
-  let aux originals modified1 modified2 =
+  let aux: List a -> List a -> List a -> List a
+      aux originals modified1 modified2 =
        case (originals, modified1, modified2) of
          ([], [], v) -> v -- Added elements
          ([], v, []) -> v -- Added elements

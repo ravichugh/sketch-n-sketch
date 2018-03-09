@@ -54,11 +54,14 @@ zipWith f xs ys = case (xs, ys) of
   (x::xs_, y::ys_) -> f x y :: zipWith f xs_ ys_
   _                -> []
 
+
+zipWithIndex: List a -> List (a, Int)
 zipWithIndex =
-  let aux i l =
+  let aux: Int -> List a -> List (a, Int)
+      aux i l =
     case l of
-      [] -> []
-      (head::tail) -> ((head, i)::aux (i+1) tail)
+       [] -> []
+       (head::tail) -> ((head, i)::aux (i+1) tail)
   in aux 0
 
 updated: List a -> Int -> a -> List a

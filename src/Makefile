@@ -38,7 +38,7 @@ elm-stuff/packages:
 	elm-package install
 	rm -rf elm-stuff/packages/elm-lang/core/5.1.1
 	cd elm-stuff/packages/elm-lang/core && git clone --branch flexible_sets https://github.com/brianhempel/core.git && mv core 5.1.1
-  cd ../../../..
+	cd ../../../..
 
 remove_build_artifacts:
 	rm -r elm-stuff/build-artifacts/0.*/user; rm -r ../tests/elm-stuff/build-artifacts/0.*/user; true

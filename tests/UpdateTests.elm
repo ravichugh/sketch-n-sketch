@@ -18,6 +18,7 @@ import LazyList
 import LangUtils exposing (..)
 import ParserUtils
 import HTMLValParser
+import Set
 
 type StateChanger = StateChanger (State -> State)
 
@@ -243,13 +244,13 @@ all_tests = init_state
   |> ignore onlySpecific
   |> test "triCombineTest"
   |> delay (\() -> assertEqual
-      (triCombine (tList space0  [tVar space0 "x", tVar space0 "y"] space0)
+      (mergeEnvGeneral (tList space0  [tVar space0 "x", tVar space0 "y"] space0)  (Set.fromList ["x", "y"])
                   [("y", (tVal 2)), ("x", (tVal 1))]
                   [("y", (tVal 2)), ("x", (tVal 1))]
                   [("y", (tVal 2)), ("x", (tVal 3))]
                  )[("y", (tVal 2)), ("x", (tVal 3))])
   |> delay (\() -> assertEqual
-      (triCombine (tList space0  [tVar space0 "x", tVar space0 "y", tVar space0 "z"] space0)
+      (mergeEnvGeneral (tList space0  [tVar space0 "x", tVar space0 "y", tVar space0 "z"] space0) (Set.fromList ["x", "y", "z"])
                   [("x", (tVal 1)), ("y", (tVal 1)), ("z", (tVal 1))]
                   [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))]
                   [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))]
@@ -618,9 +619,8 @@ all_tests = init_state
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demo\""
                        "[[\"HTMLElement\", \"a\", [[\"HTMLAttribute\", \" \", \"href\", [\"HTMLAttributeString\", \"\", \"\", \"'\", \"https://fr.wikipedia.org/wiki/Markdown\"]]], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Markdown\"]], [\"RegularClosing\", \"\"]], [\"HTMLInner\",\" demonstration\"]]"
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demonstration\""
-  |> only (updateElmAssert [("color", "\"white\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
+  |> updateElmAssert [("color", "\"white\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
                             "[[\"padding\", \"3px\"], [ \"background-color\", \"lightgray\"]]"
                            [("color", "\"lightgray\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
-  )
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
   |> summary
