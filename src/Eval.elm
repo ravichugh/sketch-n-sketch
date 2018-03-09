@@ -55,7 +55,9 @@ match (p,v) = case (p.val.p__, v.v_) of
         -- dummy Provenance, since VList itself doesn't matter
   (PList _ _ _ _ _, _) -> Nothing
   (PConst _ n, VConst _ (n_,_)) -> if n == n_ then Just [] else Nothing
+  (PConst _ n, _) -> Nothing
   (PBase _ bv, VBase bv_) -> if (eBaseToVBase bv) == bv_ then Just [] else Nothing
+  (PBase _ _, _) -> Nothing
   (PParens _ innerPat _, _) -> match (innerPat, v)
   (PRecord _ ps _, VRecord values) ->
     let vkeys = Dict.keys values in

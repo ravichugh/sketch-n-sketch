@@ -949,6 +949,13 @@ dropWhile pred list =
              then dropWhile pred xs
              else list
 
+spanWhile pred list =
+  let aux acc list =
+    case list of
+       [] -> (List.reverse acc, [])
+       head::tail -> if pred head then aux (head::acc) tail else (List.reverse acc, list)
+  in aux [] list
+
 -- Use Maybe.map
 mapMaybe = Maybe.map
 

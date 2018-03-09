@@ -10,7 +10,7 @@ import Info exposing (WithInfo)
 import LangUtils exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pruneEnvPattern, valToString)
 import Regex
 import Utils
-import Set
+import Set exposing (Set)
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -255,23 +255,44 @@ recursiveMerge merge original modifications =
     head1::head2::tail ->
       recursiveMerge merge original (merge original head1 head2 :: tail)
 
-recursiveMergeEnv exp = recursiveMerge (triCombine exp)
-
 recursiveMergeVal: Val -> List Val -> Val
 recursiveMergeVal = recursiveMerge mergeVal
 
 recursiveMergeExp: Exp -> List Exp -> Exp
 recursiveMergeExp = recursiveMerge mergeExp
 
+mergeEnv: Env -> List Int  -> Env -> List Int -> Env -> (Env, List Int)
+mergeEnv originalEnv modifs2 env2 modifs3 env3 =
+  let aux i accEnv accModifs originalEnv modifs2 newEnv2 modifs3 newEnv3 =
+    case (originalEnv, modifs2, newEnv2, modifs3, newEnv3) of
+       ([], [], [], [], []) -> (List.reverse accEnv, List.reverse accModifs)
+       (_, [], _, _, _) ->     (List.reverse accEnv ++ newEnv3, List.reverse accModifs ++ modifs3)
+       (_, _, _, [], _) ->     (List.reverse accEnv ++ newEnv2, List.reverse accModifs ++ modifs2)
+       (((x, v1) as xv1)::oe, m2::m2tail, (y, v2)::ne2, m3::m3tail, (z, v3)::ne3) ->
+         if x /= y || y /= z || x /= z then
+           Debug.crash <| "Expected environments to have the same variables, got\n" ++
+            x ++ " = " ++ valToString v1 ++ "\n" ++
+            y ++ " = " ++ valToString v2 ++ "\n" ++
+            z ++ " = " ++ valToString v3 ++ "\n" ++
+             (List.take 5 originalEnv |> List.map Tuple.first |> String.join ",") ++ "\n" ++
+             (List.take 5 newEnv2 |> List.map Tuple.first |> String.join ",") ++ "\n" ++
+             (List.take 5 newEnv3 |> List.map Tuple.first |> String.join ",") ++ "\n"
+         else if m2 == i && m3 == i then aux (i + 1) ((x, mergeVal v1 v2 v3)::accEnv) (i::accModifs) oe ne2 ne3
+         else if m2 == i then aux (i + 1) ((x, v2)::accEnv) (i::accModifs) oe m2tail ne2 modifs3 ne3
+         else if m3 == i then aux (i + 1) ((x, v3)::accEnv) (i::accModifs) oe modifs2 ne2 m3tail ne3
+         else aux (i + 1) (xv1::accEnv) accModifs oe modifs2 ne2 modifs3 ne3
+       _ -> Debug.crash <| "Expected environments to have the same size, got\n" ++
+                     envToString originalEnv ++ ", " ++ envToString newEnv2 ++ ", " ++ envToString newEnv3
+  in aux 0 [] []  originalEnv modifs2 env2 modifs3 env3
+
 -- Tri combine only checks dependencies that may have been changed. It performs diffing though.
-triCombine: Exp -> Env -> Env -> Env -> Env
-triCombine origExp originalEnv newEnv1 newEnv2 =
-  let fv = LangUtils.freeIdentifiers origExp in
+mergeEnvGeneral: Exp -> Set Ident -> Env -> Env -> Env -> Env
+mergeEnvGeneral origExp fv originalEnv newEnv1 newEnv2 =
   --let _ = Debug.log ("TriCombine starts on " ++ Syntax.unparser Syntax.Elm origExp) (envToString originalEnv, envToString newEnv1, envToString newEnv2) in
-  let aux acc originalEnv newEnv1 newEnv2 =
+  let aux revAcc fv originalEnv newEnv1 newEnv2 =
        --let _ = Debug.log "aux " (envToString acc, envToString originalEnv, envToString newEnv1, envToString newEnv2) in
        case (originalEnv, newEnv1, newEnv2) of
-         ([], [], []) -> acc
+         ([], [], []) -> List.reverse revAcc
          ((x, v1)::oe, (y, v2)::ne1, (z, v3)::ne2) ->
            if x /= y || y /= z || x /= z then
              Debug.crash <| "Expected environments to have the same variables, got\n" ++
@@ -283,14 +304,14 @@ triCombine origExp originalEnv newEnv1 newEnv2 =
                (List.take 5 newEnv2 |> List.map Tuple.first |> String.join ",") ++ "\n" ++
                Syntax.unparser Syntax.Elm origExp
            else if Set.member x fv then
-             aux (acc ++ [(x, mergeVal v1 v2 v3)]) oe ne1 ne2
+             aux ((x, mergeVal v1 v2 v3)::revAcc) (Set.remove x fv) oe ne1 ne2
            else
     --         let _ = Debug.log (x ++ " not member of free variables of " ++ Syntax.unparser Syntax.Elm origExp) "" in
-             aux (acc ++ [(x, v1)]) oe ne1 ne2
+             aux ((x, v1)::revAcc) fv oe ne1 ne2
          _ -> Debug.crash <| "Expected environments to have the same size, got\n" ++
               toString originalEnv ++ ", " ++ toString newEnv1 ++ ", " ++ toString newEnv2
        in
-  aux [] originalEnv newEnv1 newEnv2 -- |> \x -> let _ = Debug.log "tricombine result" (envToString x) in x
+  aux [] fv originalEnv newEnv1 newEnv2 -- |> \x -> let _ = Debug.log "tricombine result" (envToString x) in x
 
 mergeInt: Int -> Int -> Int -> Int
 mergeInt original modified1 modified2 =
@@ -311,7 +332,7 @@ mergeVal original modified1 modified2 =
     (VClosure mbRec0 pats0 body0 env0, VClosure mbRec1 pats1 body1 env1, VClosure mbRec2 pats2 body2 env2) ->
       if mbRec0 == mbRec1 && mbRec1 == mbRec2 then
         if patsEqual pats0 pats1 pats2 then
-          let newEnv = triCombine body0 env0 env1 env2 in
+          let newEnv = mergeEnvGeneral body0 (Set.diff (LangUtils.freeIdentifiers body0) (LangUtils.identifiersSetInPats pats0)) env0 env1 env2 in
           let newBody = mergeExp body0 body1 body2 in
           replaceV_ original <| VClosure mbRec0 pats0 newBody newEnv
         else if valEqual original modified1 then modified2 else modified1
