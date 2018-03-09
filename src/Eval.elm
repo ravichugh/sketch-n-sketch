@@ -70,7 +70,7 @@ match (p,v) = case (p.val.p__, v.v_) of
         )) patsValues)
   (PRecord _ _ _ , _) -> Nothing
 
-  _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
+  --_ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
 
 
 matchList : List (Pat, Val) -> Maybe Env
