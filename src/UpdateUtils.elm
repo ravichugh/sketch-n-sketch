@@ -11,6 +11,7 @@ import LangUtils exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pr
 import Regex
 import Utils
 import Set exposing (Set)
+import Pos exposing (Pos)
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -23,6 +24,15 @@ diffExp e1 e2 =
    let after = Regex.split Regex.All (Regex.regex "\\b") s2 in
    let difference = diff identity before after in
    displayDiff identity difference
+
+diffExpWithPositions: Exp -> Exp -> (String, List Exp)
+diffExpWithPositions e1 e2 =
+  let s1 = Syntax.unparser Syntax.Elm e1 in
+   let s2 = Syntax.unparser Syntax.Elm e2 in
+   let before = Regex.split Regex.All (Regex.regex "\\b") s1 in
+   let after = Regex.split Regex.All (Regex.regex "\\b") s2 in
+   let difference = diff identity before after in
+   displayDiffPositions identity difference
 
 diffVals: List Val -> List Val -> List (DiffChunk (List Val))
 diffVals before after =
@@ -52,6 +62,34 @@ displayDiff tos difference =
          DiffAdded a ->   [" +" ++ String.join "" (List.map tos a)]
      )
      |> String.join ","
+
+displayDiffPositions: (a -> String) -> List (DiffChunk (List a)) -> (String, List Exp)
+displayDiffPositions tos difference =
+  let dummyExp msg row col row2 col2 = WithInfo (Exp_ (EBase space0 <| EString "\"" msg) 0) (Pos row col) (Pos row2 col2) in
+  let lToString l = String.join "" (List.map tos l) in
+  let newStringRowCol prevRow prevCol l =
+    let kept = lToString l in
+    let rowAdded = (String.indexes "\n" kept) |> List.length in
+    let colAdded = String.length (Regex.replace Regex.All (Regex.regex "(.*\n)*") (\_ -> "") kept) in
+    if rowAdded == 0 then (kept, prevRow, prevCol + colAdded) else (kept, prevRow + rowAdded, colAdded)
+  in
+  let aux (prevRow, prevCol) (string, prevAcc) difference = case difference of
+    [] -> (string, prevAcc)
+    DiffEqual l::tail ->
+     let (_, newRow, newCol) = newStringRowCol prevRow prevCol l in
+     aux (newRow, newCol) (string, prevAcc) tail
+    DiffRemoved l::((DiffAdded d::tail) as thetail) ->
+     aux (prevRow, prevCol) (string, prevAcc) thetail
+    DiffRemoved l::tail ->
+     let removed = lToString l in
+     let e = dummyExp ("- " ++ removed) prevRow prevCol prevRow (prevCol + 1) in
+     aux (prevRow, prevCol) (string ++ " -" ++ removed, e ::prevAcc) tail
+    DiffAdded l::tail ->
+     let (added, newRow, newCol) = newStringRowCol prevRow prevCol l in
+     let e = dummyExp added prevRow prevCol newRow newCol in
+     let _ = Debug.log ("Highlighting " ++ toString prevRow ++ "," ++ toString prevCol ++ " -> " ++ toString newRow ++ "," ++ toString newCol) () in
+     aux (newRow, newCol) (string ++ " +" ++ added, e::prevAcc) tail
+  in aux (0, 0) ("", []) difference
 
 --diff: List a -> List a -> List (() -> List (DiffChunk (List a))) -> List (DiffChunk (List a))
 

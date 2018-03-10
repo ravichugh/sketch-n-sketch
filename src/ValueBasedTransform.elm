@@ -295,6 +295,7 @@ indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber mov
               { description = description
               , exp         = newProgram
               , isSafe      = True
+              , diffs       = []
               , sortKey     = [distanceScore]
               , children    = Nothing
               }
@@ -377,6 +378,7 @@ rankComparedTo originalExp synthesisResults =
           { description = description
           , exp         = exp
           , isSafe      = True
+          , diffs       = []
           , sortKey     = [removedLocDistance] ++ (locLineNums |> List.map negate |> List.reverse)
           , children    = Nothing
           }

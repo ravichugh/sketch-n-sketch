@@ -1499,6 +1499,7 @@ cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, childr
   SynthesisResult <|
     { description = description ++ " → Cleaned"
     , exp         = LangSimplify.cleanCode exp
+    , diffs       = []
     , isSafe      = isSafe
     , sortKey     = sortKey
     , children    = children
@@ -2088,7 +2089,8 @@ doCallUpdate m =
               |> List.filter (\(_,newCodeExp) -> not (LangUtils.expEqual newCodeExp m.inputExp))
               |> Utils.mapi1 (\(i,(_,newCodeExp)) ->
                    --synthesisResult ("Program Update " ++ toString i) newCodeExp
-                   synthesisResult (UpdateUtils.diffExp m.inputExp newCodeExp) newCodeExp
+                   let (diffResult, diffs) = UpdateUtils.diffExpWithPositions m.inputExp newCodeExp in
+                   synthesisResultDiffs diffResult newCodeExp diffs
                  )
           in
           case filteredResults of
@@ -2121,14 +2123,14 @@ msgTextValueUpdate (i, newText) =
 
 showCodePreview old code =
   case Syntax.parser old.syntax code of
-    Ok exp  -> showExpPreview old exp
-    Err err -> { old | preview = Just (code, Err (showError err)) }
+    Ok exp  -> showExpPreview old exp []
+    Err err -> { old | preview = Just (code, [], Err (showError err)) }
 
-showExpPreview old exp =
+showExpPreview old exp diffs =
   let code = Syntax.unparser old.syntax exp in
   case runAndResolve old exp of
-    Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, slate)) }
-    Err s                       -> { old | preview = Just (code, Err s) }
+    Ok (val, widgets, slate, _) -> { old | preview = Just (code, diffs, Ok (val, widgets, slate)) }
+    Err s                       -> { old | preview = Just (code, diffs, Err s) }
 
 {-
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
@@ -2162,7 +2164,7 @@ msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <
   in
   let oldResults = Utils.getWithDefault resultsKey [] old.synthesisResultsDict in
   case maybeFindResult pathByIndices oldResults of
-    Just (SynthesisResult {description, exp, sortKey, children}) ->
+    Just (SynthesisResult {description, exp, diffs, sortKey, children}) ->
       let newModel = { old | hoveredSynthesisResultPathByIndices = pathByIndices } in
       let newModel2 =
         case (old.autoSynthesis, children) of
@@ -2175,7 +2177,7 @@ msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <
             { newModel | synthesisResultsDict = newTopLevelResults
                        , hoveredSynthesisResultPathByIndices = pathByIndices }
       in
-      showExpPreview newModel2 exp
+      showExpPreview newModel2 exp diffs
 
     Nothing ->
       { old | preview = Nothing
@@ -2184,8 +2186,8 @@ msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <
 
 msgPreview expOrCode = Msg "Preview" <| \old ->
   case expOrCode of
-    Left exp   -> showExpPreview old exp
-    Right code -> showCodePreview old code
+    Left exp            -> showExpPreview old exp []
+    Right code          -> showCodePreview old code
 
 msgClearPreview = Msg "Clear Preview" <| \old ->
   { old | preview = Nothing }
@@ -2820,14 +2822,14 @@ msgHoverDeuceResult isRenamer (SynthesisResult result) path =
             -- CSS classes from SleekView leak out here. Oh, well.
             case (result.isSafe, runAndResolve m result.exp) of
               (True, Ok (val, widgets, slate, code)) ->
-                (Just (code, Ok (val, widgets, slate)), "expected-safe")
+                (Just (code, [], Ok (val, widgets, slate)), "expected-safe")
               (True, Err err) ->
                 let _ = Debug.log "not safe after all!" err in
-                (Just (Syntax.unparser m.syntax result.exp, Err err), "unexpected-unsafe")
+                (Just (Syntax.unparser m.syntax result.exp, [], Err err), "unexpected-unsafe")
               (False, Ok (val, widgets, slate, code)) ->
-                (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
+                (Just (code, [], Ok (val, widgets, slate)), "unexpected-safe")
               (False, Err err) ->
-                (Just (Syntax.unparser m.syntax result.exp, Err err), "expected-unsafe")
+                (Just (Syntax.unparser m.syntax result.exp, [], Err err), "expected-unsafe")
 
           deuceToolResultPreviews =
             Dict.insert path (preview, class) m.deuceToolResultPreviews

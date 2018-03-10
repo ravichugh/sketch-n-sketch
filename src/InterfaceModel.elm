@@ -37,6 +37,7 @@ import Html.Attributes as Attr
 import VirtualDom
 import LangTools
 import LangUtils
+import Pos exposing (Pos)
 
 import ImpureGoodies
 
@@ -53,8 +54,10 @@ type alias ViewState =
   { menuActive : Bool
   }
 
+type alias DiffPreview = List Exp
+
 type alias Preview =
-  Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
+  Maybe (Code, DiffPreview, Result String (Val, Widgets, RootedIndexedTree))
 
 type TextSelectMode
     -- Only match the exact range
@@ -362,6 +365,7 @@ type ReplicateKind
 type SynthesisResult =
   SynthesisResult { description : String
                   , exp         : Exp
+                  , diffs       : List Exp -- These exps can be virtual, only the start and end position matter
                   , isSafe      : Bool -- Is this transformation considered "safe"?
                   , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
                   , children    : Maybe (List SynthesisResult) -- Nothing means not calculated yet.
@@ -371,10 +375,21 @@ synthesisResult description exp =
   SynthesisResult <|
     { description = description
     , exp         = exp
+    , diffs       = []
     , isSafe      = True
     , sortKey     = []
     , children    = Nothing
     }
+
+synthesisResultDiffs description exp diffs =
+  SynthesisResult <|
+      { description = description
+      , exp         = exp
+      , diffs       = diffs
+      , isSafe      = True
+      , sortKey     = []
+      , children    = Nothing
+      }
 
 synthesisResultsNotEmpty : Model -> String -> Bool
 synthesisResultsNotEmpty model resultsKey =
@@ -714,7 +729,7 @@ liveInfoToHighlights zoneKey model =
 
 codeToShow model =
   case model.preview of
-     Just (string, _) -> string
+     Just (string, _, _) -> string
      Nothing          -> model.code
 
 --------------------------------------------------------------------------------

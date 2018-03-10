@@ -1437,9 +1437,9 @@ outputPanel model =
       SleekLayout.outputCanvas model
     output =
       case (model.errorBox, model.outputMode, model.preview) of
-        (_, _, Just (_, Err errorMsg)) ->
+        (_, _, Just (_, _, Err errorMsg)) ->
           [textOutput errorMsg]
-        (_, _, Just (_, Ok _)) ->
+        (_, _, Just (_, _, Ok _)) ->
           Canvas.build canvasDim model
         (Just errorMsg, _, Nothing) ->
           [textOutput errorMsg]
@@ -2074,6 +2074,58 @@ deuceOverlay model =
           ]
       ]
 
+
+diffOverlay : Model -> Html Msg
+diffOverlay model =
+  let
+    pointerEvents =
+      if Model.deuceActive model then
+        "auto"
+      else
+        "none"
+    (disabledFlag, exps) =
+      case model.preview of
+        Just (_, exps, _) ->
+          ("", exps)
+        Nothing ->
+          (" disabled", [])
+  in
+    Html.div
+      [ Attr.class <| "deuce-overlay-container" ++ disabledFlag
+      , Attr.style
+          [ ( "pointer-events"
+            , pointerEvents
+            )
+          , ( "top"
+            , px model.codeBoxInfo.scrollerTop
+            )
+          , ( "left"
+            , px <|
+                model.codeBoxInfo.scrollerLeft - SleekLayout.deuceOverlayBleed
+            )
+          , ( "width"
+            , px <|
+                model.codeBoxInfo.scrollerWidth + SleekLayout.deuceOverlayBleed
+            )
+          , ( "height"
+            , px model.codeBoxInfo.scrollerHeight
+            )
+          ]
+      ]
+      [ Svg.svg
+          [ SAttr.class "deuce-overlay"
+          , SAttr.width "10000000"
+          , SAttr.height "10000000"
+          , SAttr.style << styleListToString <|
+              [ ("top", px -model.codeBoxInfo.scrollTop)
+              , ("left", px -model.codeBoxInfo.scrollLeft)
+              ]
+          ]
+          [ Deuce.diffOverlay model exps
+          ]
+      ]
+
+
 --------------------------------------------------------------------------------
 -- Deuce Right Click Menu
 --------------------------------------------------------------------------------
@@ -2407,6 +2459,7 @@ view model =
         , menuBar model
         , workArea model
         , deuceOverlay model
+        , diffOverlay model
         , deuceRightClickMenu model
         ]
         ++ (popupPanels model)
