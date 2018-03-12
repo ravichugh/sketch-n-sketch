@@ -16,12 +16,14 @@ import Pos exposing (Pos)
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
 
+splitRegex = Regex.regex "\\b|(?=[\]\"'\[\)\(,-><\\\\])"
+
 diffExp: Exp -> Exp -> String --Summary in strings
 diffExp e1 e2 =
    let s1 = Syntax.unparser Syntax.Elm e1 in
    let s2 = Syntax.unparser Syntax.Elm e2 in
-   let before = Regex.split Regex.All (Regex.regex "\\b") s1 in
-   let after = Regex.split Regex.All (Regex.regex "\\b") s2 in
+   let before = Regex.split Regex.All splitRegex s1 in
+   let after = Regex.split Regex.All splitRegex s2 in
    let difference = diff identity before after in
    displayDiff identity difference
 
@@ -29,8 +31,8 @@ diffExpWithPositions: Exp -> Exp -> (String, List Exp)
 diffExpWithPositions e1 e2 =
   let s1 = Syntax.unparser Syntax.Elm e1 in
    let s2 = Syntax.unparser Syntax.Elm e2 in
-   let before = Regex.split Regex.All (Regex.regex "\\b") s1 in
-   let after = Regex.split Regex.All (Regex.regex "\\b") s2 in
+   let before = Regex.split Regex.All splitRegex s1 in
+   let after = Regex.split Regex.All splitRegex s2 in
    let difference = diff identity before after in
    displayDiffPositions identity difference
 
