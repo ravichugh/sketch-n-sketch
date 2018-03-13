@@ -127,7 +127,7 @@ getUpdateStackOp env e oldVal newVal =
          _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
     EFun sp0 ps e sp1 ->
       case newVal.v_ of
-        VClosure Nothing newPs newE newEnv -> updateResultSameEnv newEnv <| replaceE__ e <| EFun sp0 newPs newE sp1
+        VClosure Nothing newPs newE newEnv -> updateResult (UpdatedEnv.create (LangUtils.freeIdentifiers e) env newEnv) <| replaceE__ e <| EFun sp0 newPs newE sp1
         _ -> Debug.crash "Trying to update a function with non-closure " <| valToString newVal
     EVar sp is ->
       let newUpdatedEnv = updateEnv env is newVal in
