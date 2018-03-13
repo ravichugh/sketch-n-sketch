@@ -16,7 +16,7 @@ import Pos exposing (Pos)
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
 
-splitRegex = Regex.regex "\\b|(?=[\]\"'\[\)\(,-><\\\\])"
+splitRegex = Regex.regex "\\b|(?=[\\]\"'\\[\\)\\(,-><\\\\])"
 
 diffExp: Exp -> Exp -> String --Summary in strings
 diffExp e1 e2 =
