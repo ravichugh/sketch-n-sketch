@@ -75,7 +75,8 @@ displayDiffPositions tos difference =
     let colAdded = String.length (Regex.replace Regex.All (Regex.regex "(.*\n)*") (\_ -> "") kept) in
     if rowAdded == 0 then (kept, prevRow, prevCol + colAdded) else (kept, prevRow + rowAdded, colAdded)
   in
-  let aux (prevRow, prevCol) (string, prevAcc) difference = case difference of
+  let aux:(Int,     Int) ->  (String, List Exp) -> List (DiffChunk (List a)) -> (String, List Exp)
+      aux (prevRow, prevCol) (string, prevAcc)     difference = case difference of
     [] -> (string, prevAcc)
     DiffEqual l::tail ->
      let (_, newRow, newCol) = newStringRowCol prevRow prevCol l in
@@ -289,29 +290,193 @@ combineResults ((envo, expo) as original) results =
 -}
 -- Time to merge all possible results. May result in exponential blowup if each result is ambiguous.
 
-recursiveMerge: (a -> a -> a -> a) -> a -> List a -> a
+recursiveMerge: (a -> a -> ma -> a -> ma -> (a, ma)) -> a -> List (a, ma) -> (a, Maybe ma)
 recursiveMerge merge original modifications =
   case modifications of
-    [] -> original
-    [head] -> merge original head original
-    head1::head2::tail ->
-      recursiveMerge merge original (merge original head1 head2 :: tail)
+    [] -> (original, Nothing)
+    [(head, headDiff)] -> (head, Just headDiff)
+    (head1, head1Diff)::(head2, head2Diff)::tail ->
+      recursiveMerge merge original (merge original head1 head1Diff head2 head2Diff:: tail)
 
-recursiveMergeVal: Val -> List Val -> Val
+recursiveMergeVal: Val -> List (Val, VDiffs) -> (Val, Maybe VDiffs)
 recursiveMergeVal = recursiveMerge mergeVal
 
-recursiveMergeExp: Exp -> List Exp -> Exp
-recursiveMergeExp = recursiveMerge mergeExp
+type alias TupleDiffs a = List (Int, a)
 
-mergeEnv: Env -> List Int  -> Env -> List Int -> Env -> (Env, List Int)
-mergeEnv originalEnv modifs2 env2 modifs3 env3 =
-  let aux: Int -> Env -> List Int -> Env ->      List Int -> Env ->  List Int -> Env -> (Env, List Int)
-      aux  i      accEnv accModifs   originalEnv modifs2     newEnv2 modifs3     newEnv3 =
-    case (originalEnv, modifs2, newEnv2, modifs3, newEnv3) of
-       ([], [], [], [], []) -> (List.reverse accEnv, List.reverse accModifs)
-       (_, [], _, _, _) ->     (List.reverse accEnv ++ newEnv3, List.reverse accModifs ++ modifs3)
-       (_, _, _, [], _) ->     (List.reverse accEnv ++ newEnv2, List.reverse accModifs ++ modifs2)
-       (((x, v1) as xv1)::oe, m2::m2tail, (y, v2)::ne2, m3::m3tail, (z, v3)::ne3) ->
+type VListElemDiff = VListElemUpdate VDiffs | VListElemInsert Int | VListElemDelete Int
+
+type VDictElemDiff = VDictElemDelete | VDictElemInsert | VDictElemUpdate VDiffs
+
+type alias EnvDiffs = TupleDiffs VDiffs
+-- The environment of a closure if it was modified, the modifications of an environment else.
+type VDiffs = VClosureDiffs EnvDiffs (Maybe EDiffs)
+            | VListDiffs (List (Int, VListElemDiff))
+            | VDictDiffs (Dict (String, String) VDictElemDiff)
+            | VRecordDiffs (Dict String VDiffs)
+            | VConstDiffs
+
+type EDiffs = EChanged -- TODO: More diffs for expressions there.
+
+type PDiffs = PChanged -- TODO: More diffs for patterns there
+
+type BranchDiffs = BChanged -- TODO: More diffs for branches there
+
+offset: Int -> List (Int, a) -> List (Int, a)
+offset n defaultVDiffs = List.map (\(i, e) -> (i + n, e)) defaultVDiffs
+
+-- Invoke this only if strictly necessary.
+defaultVDiffs: Val -> Val -> Result String VDiffs
+defaultVDiffs original modified =
+  case (original.v_, modified.v_) of
+    (VList originals, VList modified) ->
+      defaultListDiff valToString defaultVDiffs originals modified
+    (VClosure isRec1 pats1 body1 env1, VClosure isRec2 pats2 body2 env2) ->
+      defaultEnvDiffs env1 env2 |> Result.map (\envDiff ->
+        VClosureDiffs envDiff (if Syntax.unparser Syntax.Elm body1 == Syntax.unparser Syntax.Elm body2 then Just EChanged else Nothing)
+      )
+    (VDict original, VDict modified) ->
+      defaultDictDiffs valToString defaultVDiffs original modified
+    (VRecord original, VRecord modified) ->
+      defaultRecordDiffs valToString defaultVDiffs original modified
+    (_, _) -> Ok VConstDiffs
+
+defaultListDiff: (a -> String) -> (a -> a -> Result String VDiffs) -> List a -> List a -> Result String VDiffs
+defaultListDiff keyOf defaultElemModif elems1 elems2 =
+  let difference = diff keyOf elems1 elems2 in
+  let aux: Int -> List (Int, VListElemDiff) -> List (DiffChunk (List a)) -> Result String VDiffs
+      aux i accDiffs diffs = case diffs of
+        [] -> Ok <| VListDiffs (List.reverse accDiffs)
+        DiffEqual elems::difftail ->
+          aux (i + List.length elems) accDiffs difftail
+        DiffRemoved removed::DiffAdded added::difftail ->
+          let lengthRemoved = List.length removed in
+          let lengthAdded = List.length added in
+          let toInsertRes = List.map3 (\i r a -> defaultElemModif r a |> Result.map (\v -> (i, VListElemUpdate v))) (List.range i (i + lengthAdded - 1)) removed added in
+          Utils.projOk toInsertRes |> Result.andThen (\toInsert ->
+            let accDiffs1 = reverseInsert toInsert accDiffs in
+            let accDiffs2 = if lengthRemoved > lengthAdded then
+                  (i + lengthAdded, VListElemDelete (lengthRemoved - lengthAdded))::accDiffs1
+                 else accDiffs1
+            in
+            let accDiffs3 = if lengthAdded > lengthRemoved then
+                    (i + lengthRemoved, VListElemInsert (lengthAdded - lengthRemoved))::accDiffs2
+                  else accDiffs2
+            in
+            aux (i + lengthRemoved) accDiffs3 difftail
+          )
+        DiffRemoved elems::difftail ->
+          let removedLength = List.length elems in
+          aux (i + removedLength) ((i, VListElemDelete removedLength)::accDiffs) difftail
+        DiffAdded elems::difftail ->
+          let addedLength = List.length elems in
+          aux i ((i, VListElemInsert addedLength)::accDiffs) difftail
+  in
+  aux 0 [] difference
+
+defaultEnvDiffs: Env -> Env -> Result String EnvDiffs -- lowercase val so that it can be applied to something else?
+defaultEnvDiffs elems1 elems2 =
+  let aux: Int -> List (Int, VDiffs) -> Env         -> Env -> Result String EnvDiffs
+      aux  i      revEnvDiffs          envToCollect1  envToCollect2 =
+        case (envToCollect1, envToCollect2) of
+          ([], []) ->
+           Ok <| List.reverse revEnvDiffs
+          (((k1, v1) as ehd1)::etl1, ((k2, v2) as ehd2)::etl2) ->
+            if k1 /= k2 then Err <| "trying to compute a diff on unaligned environments " ++ k1 ++ "," ++ k2 else
+            if valEqual v1 v2 then
+              aux (i + 1) revEnvDiffs etl1 etl2
+            else
+              defaultVDiffs v1 v2 |> Result.andThen (\v ->
+                aux (i + 1) ((i, v)::revEnvDiffs) etl1 etl2
+              )
+          _ -> Err <| "Environments do not have the same size: " ++ envToString envToCollect1 ++ ", " ++ envToString envToCollect2
+  in aux 0 [] elems1 elems2
+
+defaultTupleDiffs: (a -> String) -> (a -> a -> Result String VDiffs) -> List a -> List a -> Result String (TupleDiffs VDiffs) -- lowercase val so that it can be applied to something else?
+defaultTupleDiffs keyOf defaultElemModif elems1 elems2 =
+  let aux: Int -> List (Int, VDiffs) -> List a  -> List a -> Result String (TupleDiffs VDiffs)
+      aux  i      revEnvDiffs          l1         l2 =
+        case (l1, l2) of
+          ([], []) ->
+           Ok <| List.reverse revEnvDiffs
+          (v1::etl1, v2::etl2) ->
+            if keyOf v1 == keyOf v2 then
+              aux (i + 1) revEnvDiffs etl1 etl2
+            else
+              defaultElemModif v1 v2 |> Result.andThen (\v ->
+                 aux (i + 1) ((i, v)::revEnvDiffs) etl1 etl2)
+
+          _ -> Err <| "Tuples do not have the same size: " ++ toString l1 ++ ", " ++ toString l2
+  in aux 0 [] elems1 elems2
+
+defaultDictDiffs: (Val -> String) -> (Val -> Val -> Result String VDiffs) -> Dict (String, String) Val -> Dict (String, String) Val -> Result String VDiffs
+defaultDictDiffs keyOf defaultElemModif elems1 elems2 =
+  Result.map VDictDiffs <| Dict.merge
+    (\k1 v1 acc -> Result.map (Dict.insert k1 VDictElemDelete) acc)
+    (\k v1 v2 acc -> if keyOf v1 == keyOf v2 then acc
+       else
+         acc |> Result.andThen (\acc ->
+           defaultElemModif v1 v2 |> Result.map (\v ->
+           Dict.insert k (VDictElemUpdate v) acc)))
+    (\k2 v2 acc -> Result.map (Dict.insert k2 VDictElemInsert) acc)
+    elems1
+    elems2
+    (Ok Dict.empty)
+
+defaultRecordDiffs: (Val -> String) -> (Val -> Val -> Result String VDiffs) -> Dict String Val -> Dict String Val -> Result String VDiffs
+defaultRecordDiffs keyOf defaultElemModif elems1 elems2 =
+  Result.map VRecordDiffs <| Dict.merge
+    (\k1 v1 acc -> Err <| "Not allowed to remove a key from record:" ++ k1)
+    (\k v1 v2 acc -> if keyOf v1 == keyOf v2 then acc else acc |> Result.andThen (\acc ->
+      defaultElemModif v1 v2 |> Result.map (\v ->
+      Dict.insert k v acc)))
+    (\k2 v2 acc -> Err <| "Not allowed to insert a key to record:" ++ k2)
+    elems1
+    elems2
+    (Ok Dict.empty)
+
+-- Assume that the lists are always aligned
+autoMergeTuple: (o -> a -> a -> a) -> List o -> List a -> List a -> List a
+autoMergeTuple submerger original modified1 modified2 =
+  List.map3 submerger original modified1 modified2
+
+mergeTuple: (a -> a -> VDiffs -> a -> VDiffs -> (a, VDiffs)) -> List a -> List a -> TupleDiffs VDiffs -> List a -> TupleDiffs VDiffs -> (List a, TupleDiffs VDiffs)
+mergeTuple submerger =
+  let aux: Int -> List a -> List (Int,  VDiffs) -> List a -> List a -> TupleDiffs VDiffs -> List a -> TupleDiffs VDiffs -> (List a, TupleDiffs VDiffs)
+      aux  i      accTuple    accDiffs             origTuple newTup2   modifs2              newTup3   modifs3 =
+       case (origTuple, modifs2, newTup2, modifs3, newTup3) of
+         ([], [], [], [], []) -> (List.reverse accTuple, List.reverse accDiffs)
+         (_, [], _, _, _) ->     (List.reverse accTuple ++ newTup3, List.reverse accDiffs ++ modifs3)
+         (_, _, _, [], _) ->     (List.reverse accTuple ++ newTup2, List.reverse accDiffs ++ modifs2)
+         (v1::oe, (m2, md2)::m2tail, v2::ne2, (m3, md3)::m3tail, v3::ne3) ->
+           if m2 == i && m3 == i then
+            let (newVal, newDiffs) = submerger v1 v2 md2 v3 md3 in
+            aux (i + 1) (newVal::accTuple) ((i, newDiffs)::accDiffs) oe ne2 m2tail ne3 m3tail
+           else if m2 == i then
+             aux (i + 1) (v2::accTuple) ((i, md2)::accDiffs) oe ne2 m2tail ne3 modifs3
+           else if m3 == i then
+             aux (i + 1) (v3::accTuple) ((i, md3)::accDiffs) oe ne2 modifs2 ne3 m3tail
+           else
+             let countToIgnore = min (m3 - i) (m2 - i) in
+             let (toInsert, toRemain) = Utils.split countToIgnore origTuple in
+             aux (i + countToIgnore) (reverseInsert toInsert accTuple) accDiffs oe (List.drop countToIgnore ne2) modifs2 (List.drop countToIgnore ne3) modifs3
+         _ -> Debug.crash <| "Expected tuples to have the same size, got\n" ++
+                       toString origTuple ++ ", " ++ toString newTup2 ++ ", " ++ toString newTup3
+    in aux 0 [] []
+
+mergeEnv: Env -> Env -> EnvDiffs -> Env -> EnvDiffs -> (Env, EnvDiffs)
+mergeEnv originalEnv_ newEnv2_ modifs2_ newEnv3_ modifs3_ =
+  let aux: Int -> Env -> List (Int,  VDiffs) -> Env ->     Env ->  List (Int,  VDiffs) -> Env ->  List (Int,  VDiffs) -> (Env, EnvDiffs)
+      aux  i      accEnv accDiffs              originalEnv newEnv2 modifs2                newEnv3 modifs3=
+    {-let _ = Debug.log ("aux " ++ toString i ++ "\n" ++
+                                      (List.take 5 originalEnv |> List.map Tuple.first |> String.join ",") ++ "...\n" ++
+                                      (List.take 5 newEnv2 |> List.map Tuple.first |> String.join ",") ++ "...\n" ++
+                                      (List.take 5 newEnv3 |> List.map Tuple.first |> String.join ",") ++ "...\n" ++ "\nModifications:\n" ++
+                                      toString modifs2 ++ "\n" ++ toString modifs3) () in-}
+    case (originalEnv, newEnv2, modifs2, newEnv3, modifs3) of
+       ([], [], [], [], []) -> (List.reverse accEnv, List.reverse accDiffs)
+       (_, _, [], _, _) ->     (List.reverse accEnv ++ newEnv3, List.reverse accDiffs ++ modifs3)
+       (_, _, _, _, []) ->     (List.reverse accEnv ++ newEnv2, List.reverse accDiffs ++ modifs2)
+       (((x, v1) as xv1)::oe, (y, v2)::ne2, (m2, md2)::m2tail, (z, v3)::ne3, (m3, md3)::m3tail) ->
          if x /= y || y /= z || x /= z then
            Debug.crash <| "Expected environments to have the same variables, got\n" ++
             x ++ " = " ++ valToString v1 ++ "\n" ++
@@ -319,84 +484,92 @@ mergeEnv originalEnv modifs2 env2 modifs3 env3 =
             z ++ " = " ++ valToString v3 ++ "\n" ++
              (List.take 5 originalEnv |> List.map Tuple.first |> String.join ",") ++ "\n" ++
              (List.take 5 newEnv2 |> List.map Tuple.first |> String.join ",") ++ "\n" ++
-             (List.take 5 newEnv3 |> List.map Tuple.first |> String.join ",") ++ "\n"
-         else if m2 == i && m3 == i then aux (i + 1) ((x, mergeVal v1 v2 v3)::accEnv) (i::accModifs) oe m2tail ne2 m3tail ne3
-         else if m2 == i then aux (i + 1) ((x, v2)::accEnv) (i::accModifs) oe m2tail ne2 modifs3 ne3
-         else if m3 == i then aux (i + 1) ((x, v3)::accEnv) (i::accModifs) oe modifs2 ne2 m3tail ne3
-         else aux (i + 1) (xv1::accEnv) accModifs oe modifs2 ne2 modifs3 ne3
+             (List.take 5 newEnv3 |> List.map Tuple.first |> String.join ",") ++ "\n" ++ "\nOriginals:\n" ++
+             envToString originalEnv_ ++ "\n" ++ envToString newEnv2_ ++ "\n" ++ envToString newEnv3_++ "\nModifications:\n" ++
+             toString modifs2_ ++ "\n" ++ toString modifs3_
+         else if m2 == i && m3 == i then
+          let (newVal, newDiffs) = mergeVal v1 v2 md2 v3 md3 in
+          aux (i + 1) ((x, newVal)::accEnv) ((i, newDiffs)::accDiffs) oe ne2 m2tail ne3 m3tail
+         else if m2 == i then
+           aux (i + 1) ((x, v2)::accEnv) ((i, md2)::accDiffs) oe ne2 m2tail ne3 modifs3
+         else if m3 == i then
+           aux (i + 1) ((x, v3)::accEnv) ((i, md3)::accDiffs) oe ne2 modifs2 ne3 m3tail
+         else
+           let countToIgnore = min (m3 - i) (m2 - i) in
+           let (toInsert, toRemain) = Utils.split countToIgnore originalEnv in
+           aux (i + countToIgnore) (reverseInsert toInsert accEnv) accDiffs toRemain (List.drop countToIgnore newEnv2) modifs2 (List.drop countToIgnore newEnv3) modifs3
        _ -> Debug.crash <| "Expected environments to have the same size, got\n" ++
-                     envToString originalEnv ++ ", " ++ envToString newEnv2 ++ ", " ++ envToString newEnv3
-  in aux 0 [] []  originalEnv modifs2 env2 modifs3 env3
-
--- Tri combine only checks dependencies that may have been changed. It performs diffing though.
-mergeEnvGeneral: Exp -> Set Ident -> Env -> Env -> Env -> Env
-mergeEnvGeneral origExp fv originalEnv newEnv1 newEnv2 =
-  --let _ = Debug.log ("TriCombine starts on " ++ Syntax.unparser Syntax.Elm origExp) (envToString originalEnv, envToString newEnv1, envToString newEnv2) in
-  let aux: Env -> Set Ident -> Env ->      Env ->  Env ->  Env
-      aux  revAcc fv           originalEnv newEnv1 newEnv2 =
-       --let _ = Debug.log "aux " (envToString acc, envToString originalEnv, envToString newEnv1, envToString newEnv2) in
-       case (originalEnv, newEnv1, newEnv2) of
-         ([], [], []) -> List.reverse revAcc
-         ((x, v1)::oe, (y, v2)::ne1, (z, v3)::ne2) ->
-           if x /= y || y /= z || x /= z then
-             Debug.crash <| "Expected environments to have the same variables, got\n" ++
-              x ++ " = " ++ valToString v1 ++ "\n" ++
-              y ++ " = " ++ valToString v2 ++ "\n" ++
-              z ++ " = " ++ valToString v3 ++ "\n" ++
-              (List.take 5 originalEnv |> List.map Tuple.first |> String.join ",") ++ "\n" ++
-               (List.take 5 newEnv1 |> List.map Tuple.first |> String.join ",") ++ "\n" ++
-               (List.take 5 newEnv2 |> List.map Tuple.first |> String.join ",") ++ "\n" ++
-               Syntax.unparser Syntax.Elm origExp
-           else if Set.member x fv then
-             aux ((x, mergeVal v1 v2 v3)::revAcc) (Set.remove x fv) oe ne1 ne2
-           else
-    --         let _ = Debug.log (x ++ " not member of free variables of " ++ Syntax.unparser Syntax.Elm origExp) "" in
-             aux ((x, v1)::revAcc) fv oe ne1 ne2
-         _ -> Debug.crash <| "Expected environments to have the same size, got\n" ++
-              toString originalEnv ++ ", " ++ toString newEnv1 ++ ", " ++ toString newEnv2
-       in
-  aux [] fv originalEnv newEnv1 newEnv2 -- |> \x -> let _ = Debug.log "tricombine result" (envToString x) in x
+                     envToString originalEnv ++ ", " ++ envToString newEnv2 ++ ", " ++ envToString newEnv3 ++ "\nOriginals:\n" ++
+                     envToString originalEnv_ ++ ", " ++ envToString newEnv2_ ++ ", " ++ envToString newEnv3_
+  in aux 0 [] [] originalEnv_ newEnv2_ modifs2_ newEnv3_ modifs3_
 
 mergeInt: Int -> Int -> Int -> Int
 mergeInt original modified1 modified2 =
   if original == modified1 then modified2 else modified1
 
+mergeValMaybe: Val -> Val -> Maybe VDiffs -> Val -> Maybe VDiffs -> (Val, Maybe VDiffs)
+mergeValMaybe  original modified1 modifs1 modified2 modifs2 =
+  case modifs1 of
+    Nothing -> (modified2, modifs2)
+    Just m1 -> case modifs2 of
+      Nothing -> (modified1, modifs1)
+      Just m2 -> mergeVal original modified1 m1 modified2 m2 |> (\(v, vd) -> (v, Just vd))
+
 -- Merges values using a diffing algorithm.
-mergeVal: Val -> Val -> Val -> Val
-mergeVal original modified1 modified2 =
-  case (original.v_, modified1.v_, modified2.v_) of    -- TODO: Find multiple elem insertions and deletions
-    (VBase (VString originalString), VBase (VString modified1String), VBase (VString modified2String)) ->
-      replaceV_ original <| VBase (VString <| mergeString originalString modified1String modified2String)
-    (VList originalElems, VList modified1Elems, VList modified2Elems) ->
-      replaceV_ original <| VList <| mergeList mergeVal originalElems modified1Elems modified2Elems
-    (VRecord originalDict, VRecord modified1Dict, VRecord modified2Dict) ->
-      replaceV_ original <| VRecord <| mergeDict mergeVal originalDict modified1Dict modified2Dict
-    (VDict originalDict, VDict modified1Dict, VDict modified2Dict) ->
-      replaceV_ original <| VDict <| mergeDict mergeVal originalDict modified1Dict modified2Dict
-    (VClosure mbRec0 pats0 body0 env0, VClosure mbRec1 pats1 body1 env1, VClosure mbRec2 pats2 body2 env2) ->
+mergeVal: Val ->   Val ->    VDiffs -> Val ->    VDiffs -> (Val, VDiffs)
+mergeVal  original modified1 modifs1   modified2 modifs2 =
+  --let _ = Debug.log (valToString original ++ "<-(\n" ++ valToString modified1 ++ "("++toString modifs1++")" ++ "\n,\n" ++ valToString modified2++ "("++toString modifs2++")" ++ ")") () in
+  --(\x -> let _ = Debug.log (Tuple.first x |> valToString) () in x) <|
+  case (original.v_, modified1.v_, modifs1, modified2.v_, modifs2) of    -- TODO: Find multiple elem insertions and deletions
+    (VBase (VString originalString), VBase (VString modified1String), VConstDiffs, VBase (VString modified2String), VConstDiffs) ->
+      (replaceV_ original <| VBase (VString <| mergeString originalString modified1String modified2String), VConstDiffs)
+
+    (VList originalElems, VList modified1Elems, VListDiffs l1, VList modified2Elems, VListDiffs l2) ->
+      let (newList, newDiffs) = mergeList mergeVal originalElems modified1Elems l1 modified2Elems l2 in
+      (replaceV_ original <| VList <| newList, newDiffs)
+
+    (VRecord originalDict, VRecord modified1Dict, VRecordDiffs d1, VRecord modified2Dict, VRecordDiffs d2) ->
+      let (newDict, newDiffs) = mergeRecord mergeVal originalDict modified1Dict d1 modified2Dict d2 in
+      (replaceV_ original <| VRecord <| newDict, VRecordDiffs newDiffs)
+
+    (VDict originalDict, VDict modified1Dict, VDictDiffs d1, VDict modified2Dict, VDictDiffs d2) ->
+      let (newDict, newDiffs) = mergeDict mergeVal originalDict modified1Dict d1 modified2Dict d2 in
+      (replaceV_ original <| VDict <| newDict, VDictDiffs newDiffs)
+
+    (VClosure mbRec0 pats0 body0 env0, VClosure mbRec1 pats1 body1 env1, VClosureDiffs envmodifs1 bodymodifs1, VClosure mbRec2 pats2 body2 env2, VClosureDiffs envmodifs2 bodymodifs2) ->
       if mbRec0 == mbRec1 && mbRec1 == mbRec2 then
         if patsEqual pats0 pats1 pats2 then
-          let newEnv = mergeEnvGeneral body0 (Set.diff (LangUtils.freeIdentifiers body0) (LangUtils.identifiersSetInPats pats0)) env0 env1 env2 in
-          let newBody = mergeExp body0 body1 body2 in
-          replaceV_ original <| VClosure mbRec0 pats0 newBody newEnv
-        else if valEqual original modified1 then modified2 else modified1
+          let (newEnv, newEnvDiffs) = mergeEnv env0 env1 envmodifs1 env2 envmodifs2 in
+          let (newBody, newBodyModifs) = case (bodymodifs1, bodymodifs2) of
+            (Just emodif1, Just emodif2) -> (mergeExp body0 body1 body2, Just EChanged)
+            (Nothing, _) -> (body2, bodymodifs2)
+            (_, Nothing) -> (body1, bodymodifs1)
+          in
+          (replaceV_ original <| VClosure mbRec0 pats0 newBody newEnv, VClosureDiffs newEnvDiffs newBodyModifs)
+        else if valEqual original modified1 then (modified2, modifs2) else (modified1, modifs1)
       --(VRecord originalElems, VRecord modified1Elems, VRecord modified2Elems)->
       --  Dict.keys originalElems
-      else if valEqual original modified1 then modified2 else modified1
+      else if valEqual original modified1 then (modified2, modifs2) else (modified1, modifs1)
     _ ->
       --let _ = Debug.log ("mergeVal" ++ valToString original ++ " "  ++ valToString modified1 ++ " " ++ valToString modified2) " " in
-      let result = if valEqual original modified1 then modified2 else modified1 in
+      let result = if valEqual original modified1 then (modified2, modifs2) else (modified1, modifs1)
+      in
       --let _ = Debug.log ("mergeVal=" ++ valToString result) "" in
       result
 
 patsEqual: List Pat -> List Pat -> List Pat -> Bool
 patsEqual pats1 pats2 pats3 = List.all identity <| List.map3 (\p0 p1 p2 -> patEqual p0 p1 && patEqual p1 p2) pats1 pats2 pats3
 
-mergeWS: WS -> WS -> WS -> WS -- No advanced strategy. No synthesis pushes concurrent changes in whitespace.
+mergeWS: WS -> WS -> WS -> WS -- No advanced strategy. No synthesis pushes concurrent changes in whitespace, unless we allow editing of vclosures in the output
 mergeWS o e1 e2 = if o.val == e1.val then e2 else e1
 
 mergeString: String -> String -> String -> String
-mergeString o e1 e2 = if o == e1 then e2 else e1 -- Could do a better line-based diff.
+mergeString o s1 s2 =
+  let original = Regex.split Regex.All splitRegex o in
+  let modified1 = Regex.split Regex.All splitRegex s1 in
+  let modified2 = Regex.split Regex.All splitRegex s2 in
+  mergeListWithDiffs identity (\ori ss1 ss2 -> if ss1 == ori then ss2 else ss1) original modified1 modified2
+  |> String.join ""
 
 mergeInfo: (a -> a -> a -> a) -> WithInfo a ->WithInfo a -> WithInfo a -> WithInfo a
 mergeInfo merger w1 w2 w3 = Info.replaceInfo w1 (merger w1.val w2.val w3.val)
@@ -404,6 +577,7 @@ mergeInfo merger w1 w2 w3 = Info.replaceInfo w1 (merger w1.val w2.val w3.val)
 mergeExp: Exp -> Exp -> Exp -> Exp
 mergeExp o e1 e2 =
   let default () = (if expEqual o e1 then e2 else e1).val.e__ in
+  let mergexExpList = mergeListWithDiffs (Syntax.unparser Syntax.Elm) mergeExp in
   let result = case (o.val.e__, e1.val.e__, e2.val.e__) of
        (EFun sp0 pats0 body0 esp0,
         EFun sp1 pats1 body1 esp1,
@@ -414,19 +588,20 @@ mergeExp o e1 e2 =
        (EApp sp0 fun0 args0 appStyle1 esp0,
         EApp sp1 fun1 args1 appStyle2 esp1,
         EApp sp2 fun2 args2 appStyle3 esp2) ->
-         EApp (mergeWS sp0 sp1 sp2) (mergeExp fun0 fun1 fun2) (mergeList mergeExp args0 args1 args2) appStyle1 (mergeWS esp0 esp1 esp2)
+         EApp (mergeWS sp0 sp1 sp2) (mergeExp fun0 fun1 fun2) (mergexExpList args0 args1 args2) appStyle1 (mergeWS esp0 esp1 esp2)
 
        (EOp sp0 op0 args0 esp0,
         EOp sp1 op1 args1 esp1,
         EOp sp2 op2 args2 esp2) ->
          if op0.val == op1.val && op1.val == op2.val then
-           EOp (mergeWS sp0 sp1 sp2) op0 (mergeList mergeExp args0 args1 args2) (mergeWS esp0 esp1 esp2)
+           EOp (mergeWS sp0 sp1 sp2) op0 (mergexExpList args0 args1 args2) (mergeWS esp0 esp1 esp2)
          else default ()
 
        (EList sp0 args0 isp0 mTail0 esp0,
         EList sp1 args1 isp1 mTail1 esp1,
         EList sp2 args2 isp2 mTail2 esp2) ->
-         EList (mergeWS sp0 sp1 sp2) (mergeList (\(s0, v0) (s1, v1) (s2, v2) -> (mergeWS s0 s1 s2, mergeExp v0 v1 v2)) args0 args1 args2) (mergeWS isp0 isp1 isp2)
+         EList (mergeWS sp0 sp1 sp2) (mergeListWithDiffs (\(ws, e) -> ws.val ++ Syntax.unparser Syntax.Elm e)
+            (\(s0, v0) (s1, v1) (s2, v2) -> (mergeWS s0 s1 s2, mergeExp v0 v1 v2)) args0 args1 args2) (mergeWS isp0 isp1 isp2)
              (mergeMaybe mergeExp mTail0 mTail1 mTail2) (mergeWS esp0 esp1 esp2)
        (EIf spc0 cond0 spt0 then0 spe0 else0 esp0,
         EIf spc1 cond1 spt1 then1 spe1 else1 esp1,
@@ -439,13 +614,13 @@ mergeExp o e1 e2 =
         ECase sp1 input1 branches1 esp1,
         ECase sp2 input2 branches2 esp2) ->
          ECase (mergeWS sp0 sp1 sp2) (mergeExp input0 input1 input2)
-               (mergeList mergeBranch branches0 branches1 branches2)
+               (autoMergeTuple mergeBranch branches0 branches1 branches2)
               (mergeWS esp0 esp1 esp2)
        (ETypeCase sp0 input0 tbranches0 esp0,
         ETypeCase sp1 input1 tbranches1 esp1,
         ETypeCase sp2 input2 tbranches2 esp2) ->
          ETypeCase (mergeWS sp0 sp1 sp2) (mergeExp input0 input1 input2)
-           (mergeList mergeTBranch tbranches0 tbranches1 tbranches2)
+           (autoMergeTuple mergeTBranch tbranches0 tbranches1 tbranches2)
            (mergeWS esp0 esp1 esp2)
        (ELet sp0 lk0 rec0 pat0 spi0 exp0 spj0 body0 esp0,
         ELet sp1 lk1 rec1 pat1 spi1 exp1 spj1 body1 esp1,
@@ -516,7 +691,12 @@ mergeExp o e1 e2 =
        (EHole sp0 (Just v0),
         EHole sp1 (Just v1),
         EHole sp2 (Just v2)) ->
-         EHole (mergeWS sp0 sp1 sp2) (Just (mergeVal v0 v1 v2))
+         defaultVDiffs v0 v1 |> Result.andThen (\m1 ->
+           defaultVDiffs v0 v2 |> Result.map (\m2 ->
+              EHole (mergeWS sp0 sp1 sp2) (Just (Tuple.first (mergeVal v0 v1 m1 v2 m2)))
+           )
+         ) |> Result.withDefault (EHole sp0 (Just v0))
+
        _ -> default ()
   in
   replaceE__ o result
@@ -553,13 +733,13 @@ mergeMaybe submerger o e1 e2 =
     (Just o1, Nothing, _) -> Nothing
     (Just o1, Just m1, Just m2) ->  Just (submerger o1 m1 m2)
 
-mergeTuple: (a -> a -> a -> a) ->  (b -> b -> b -> b) -> (a, b) -> (a, b) -> (a, b) -> (a, b)
-mergeTuple merge1 merge2 (oa, ob) (ma1, mb1) (ma2, mb2) =
+mergeTuple2: (a -> a -> a -> a) ->  (b -> b -> b -> b) -> (a, b) -> (a, b) -> (a, b) -> (a, b)
+mergeTuple2 merge1 merge2 (oa, ob) (ma1, mb1) (ma2, mb2) =
   (merge1 oa ma1 ma2, merge2 ob mb1 mb2)
 
 -- This merger ensures that local delete/addition are merged properly.
-mergeListWithModifs: (a -> String) -> (a -> a -> a -> a) -> List a -> List a -> List a -> List a
-mergeListWithModifs keyOf submerger original modified1 modified2 =
+mergeListWithDiffs: (a -> String) -> (a -> a -> a -> a) -> List a -> List a -> List a -> List a
+mergeListWithDiffs keyOf submerger original modified1 modified2 =
   -- We must ensure that the modifications we generate are compatible with the original
   -- Notably, the sum of DiffEqual and DiffRemoved must be the original list
   let maybeRemoved r = List.map DiffRemoved r in
@@ -587,48 +767,167 @@ mergeListWithModifs keyOf submerger original modified1 modified2 =
      DiffAdded added::diffTail -> aux (acc ++ added) diffTail
   in aux [] thediff
 
+reverseInsert: List a -> List a -> List a
+reverseInsert elements revAcc =
+  case elements of
+    [] -> revAcc
+    head::tail -> reverseInsert tail (head::revAcc)
+
 -- Guarantees that
 -- * If updated lists have equal size, elements will be merged aligned.
 -- * A list which was not modified makes that the other lists replaces the original list.
 -- Would be better to have a real diffing algorithm.
-mergeList: (a -> a -> a -> a) -> List a -> List a -> List a -> List a
+mergeList: (a -> a -> VDiffs -> a -> VDiffs -> (a, VDiffs)) -> List a -> List a -> List (Int, VListElemDiff) -> List a -> List (Int, VListElemDiff) -> (List a, VDiffs)
 mergeList submerger =
-  let aux: List a -> List a -> List a -> List a
-      aux originals modified1 modified2 =
-       case (originals, modified1, modified2) of
-         ([], [], v) -> v -- Added elements
-         ([], v, []) -> v -- Added elements
-         ([], v1, v2) -> aux v1 v1 v2 -- Added elements
-         (o, [], v) ->  -- Deleted orgs. Maybe v had insertions from o that we need to carry over ?
-           {-if v == o then []
+  let aux: Int -> (List a,    List (Int, VListElemDiff)) -> List a -> List a -> List (Int, VListElemDiff) -> List a -> List (Int, VListElemDiff) -> (List a, VDiffs)
+      aux  i      (accMerged, accDiffs)                    originals modified1 modifs1                      modified2 modifs2 =
+       case (originals, modifs1, modifs2) of
+         (_, [], []) -> (List.reverse accMerged, VListDiffs (List.reverse accDiffs))
+         (_, [], _) -> (List.reverse accMerged ++ modified2, VListDiffs (List.reverse accDiffs ++ modifs2))
+         (_, _,  []) -> (List.reverse accMerged ++ modified1, VListDiffs (List.reverse accDiffs ++ modifs1))
+         ([], (i1, m1)::t1, (i2, m2)::t2) ->
+           if i1 /= i || i2 /= i || not (List.isEmpty t1) || not (List.isEmpty t2) then
+             Debug.crash <| "Expected only at most one modification at the end of a list, got " ++ toString (i, i1, i2, t1, t2)
            else
-             v
-             |> List.filter (\vElem ->
-                 not <|
-                 List.any (valEqual vElem) o
-               ) -- All the elements of v which do not belong to o-}
-           []
-         (o, v, []) ->
-           []
-           --aux originals modified2 modified1
-         (ohd::otl, v1hd::v1tl, v2hd::v2tl) ->
-           submerger ohd v1hd v2hd :: aux otl v1tl v2tl
-  in aux
+             case (m1, m2) of
+               (VListElemInsert a, VListElemInsert b) ->
+                 (List.reverse accMerged ++ modified1 ++ modified2, VListDiffs (List.reverse accDiffs ++ modifs1 ++ modifs2))
+               _ -> Debug.crash <| "Expected two insertions, got " ++ toString (m1, m2)
+         (oh::ot, (i1, m1)::t1, (i2, m2)::t2) ->
+           if i1 == i && i2 == i then -- Edition conflict
+              case (m1, m2) of
+                (VListElemUpdate mu1, VListElemUpdate mu2) ->
+                  case (modified1, modified2) of
+                    (hdModified1::tlModified1, hdModified2::tlModified2) ->
+                      let (newHd, newDiffs) = submerger oh hdModified1 mu1 hdModified2 mu2 in
+                      aux (i + 1) (newHd::accMerged, (i, VListElemUpdate newDiffs)::accDiffs) ot tlModified1 t1 tlModified2 t2
+                    _ -> Debug.crash "Expected non-empty modifications since they were updates"
+                (VListElemInsert count1, VListElemInsert count2) ->
+                  let (hdModified1, tlModified1) = Utils.split count1 modified1 in
+                  let (hdModified2, tlModified2) = Utils.split count2 modified2 in
+                  aux i (accMerged |> reverseInsert hdModified1 |> reverseInsert hdModified2, (i, VListElemInsert (count1 + count2))::accDiffs) originals tlModified1 t1 tlModified2 t2
+                (VListElemDelete count1, VListElemDelete count2) ->
+                  if count1 == count2 then
+                    aux i (accMerged, (i, m1)::accDiffs) originals modified1 t1 modified2 t2
+                  else if count1 < count2 then
+                    aux i (accMerged, accDiffs) originals modified1 modifs1 modified2 ((i, VListElemDelete count1)::(i + count1, VListElemDelete (count2 - count1))::t2)
+                  else
+                    aux i (accMerged, accDiffs) originals modified1 ((i, VListElemDelete count2)::(i + count2, VListElemDelete (count1 - count2))::t1) modified2 modifs2
+                (_, VListElemInsert count2) ->
+                  -- The insertion happens before.
+                  let (inserted, modified2Tail) = Utils.split count2 modified2 in
+                  aux i (reverseInsert inserted accMerged, (i, m2)::accDiffs) originals modified1 modifs2 modified2Tail t2
+                (VListElemInsert count1, _) ->
+                  -- The insertion happens before.
+                  let (inserted, modified1Tail) = Utils.split count1 modified1 in
+                  aux i (reverseInsert inserted accMerged, (i, m1)::accDiffs) originals modified1Tail t1 modified2 modifs2
+                (VListElemUpdate mu1, VListElemDelete count2) ->
+                  if count2 == 1 then -- Just delete it.
+                    let originalsTail = List.drop 1 originals in
+                    aux (i + 1) (accMerged, (i, m2)::accDiffs) originalsTail (List.drop 1 modified1) t1 modified2 t2
+                  else if count2 == 0 then Debug.crash "Unexpected 0 here"
+                  else
+                    aux i (accMerged, accDiffs) originals modified1 modifs1 modified2 ((i, VListElemDelete 1) :: (i, VListElemDelete 1) :: t2)
+                (VListElemDelete count1, VListElemUpdate mu2) ->
+                  if count1 == 1 then -- Just delete it.
+                    let originalsTail = List.drop 1 originals in
+                    aux (i + 1) (accMerged, (i, m1)::accDiffs) originalsTail modified1 t1 (List.drop 1 modified2) t2
+                  else if count1 == 0 then Debug.crash "Unexpected 0 here"
+                  else
+                    aux i (accMerged, accDiffs) originals modified1 ((i, VListElemDelete 1) :: (i, VListElemDelete 1) :: t1) modified2 modifs2
 
-mergeDict: (v -> v -> v -> v) -> Dict k v -> Dict k v -> Dict k v -> Dict k v
-mergeDict submerger originalDict modified1Dict modified2Dict =
-  let originalElems = Dict.toList originalDict |> List.map (\(k, v) -> (k, Just v)) in
-  let modified1Elems = originalElems |> List.map (\(k, v) -> (k, Dict.get k modified1Dict)) in
-  let modified2Elems = originalElems |> List.map (\(k, v) -> (k, Dict.get k modified2Dict)) in
-  let mergedKeyValues = mergeList (\o v1 v2 -> --Deletion only for now.
-         case (o, v1, v2) of
-           ((k, Nothing), _, _) -> Debug.crash "Impossible case in mergeVal"
-           (_, (k, Nothing), _) -> (k, Nothing)
-           (_, _, (k, Nothing)) -> (k, Nothing)
-           ((k, Just jo), (_, Just jv1), (_, Just jv2)) -> (k, Just <| submerger jo jv1 jv2)
-         ) originalElems modified1Elems modified2Elems
-       |> List.filterMap (\(k, mb) -> Maybe.map (\v -> (k, v)) mb)
-       |> Dict.fromList
-  in
-  let insertedKeyValues = Dict.union (Dict.diff modified1Dict originalDict) (Dict.diff modified2Dict originalDict) in
-  Dict.union insertedKeyValues mergedKeyValues
+           else if i2 == i then
+              case m2 of
+                VListElemInsert count ->
+                  let (inserted, modified2Tail) = Utils.split count modified2 in
+                  aux i (reverseInsert inserted accMerged, (i, m2)::accDiffs) originals modified1 modifs2 modified2Tail t2
+                VListElemDelete count -> --  Check that we are not taking over modif2's modifications.
+                  let maxCount = i1 - i2 in
+                  if count <= maxCount then
+                    let originalsTail = List.drop count originals in
+                    aux (i + count) (accMerged, (i, m2)::accDiffs) originalsTail modified1 modifs1 modified2 t2
+                  else
+                    aux i (accMerged, accDiffs) originals modified1 modifs1 modified2 ((i, VListElemDelete maxCount) :: (i + maxCount, VListElemDelete (count - maxCount)) :: t2)
+                VListElemUpdate defaultVDiffs ->
+                  case modified2 of
+                    hdModified2::tlModified2 ->
+                      aux (i + 1) (hdModified2::accMerged, (i, m2)::accDiffs) ot modified1 modifs1 tlModified2 t2
+                    _ -> Debug.crash "empty modified although it said it was updated"
+           else if i1 == i then
+             case m1 of
+               VListElemInsert count ->
+                 let (inserted, modified1Tail) = Utils.split count modified1 in
+                 aux i (reverseInsert inserted accMerged, (i, m1)::accDiffs) originals modified1Tail t1 modified2 modifs2
+               VListElemDelete count -> --  Check that we are not taking over modif2's modifications.
+                 let maxCount = i2 - i1 in
+                 if count <= maxCount then
+                   let originalsTail = List.drop count originals in
+                   aux (i + count) (accMerged, (i, m1)::accDiffs) originalsTail modified1 t1 modified2 modifs2
+                 else
+                   aux i (accMerged, accDiffs) originals modified1 ((i, VListElemDelete maxCount) :: (i + maxCount, VListElemDelete (count - maxCount)) :: t1) modified2 modifs2
+               VListElemUpdate defaultVDiffs ->
+                 case modified1 of
+                   hdModified1::tlModified1 ->
+                     aux (i + 1) (hdModified1::accMerged, (i, m1)::accDiffs) ot tlModified1 t1 modified2 modifs2
+                   _ -> Debug.crash "empty modified although it said it was updated"
+           else
+             let untouched = min (i2 - i) (i1 - i) in
+             let (originalUntouched, originalRemaining) = Utils.split untouched originals in
+             aux (i+untouched) (reverseInsert originalUntouched accMerged, accDiffs) originalRemaining (List.drop untouched modified1) modifs1 (List.drop untouched modified2) modifs2
+  in aux 0 ([], [])
+
+mergeDict: (v -> v -> VDiffs -> v -> VDiffs -> (v, VDiffs)) -> Dict k v -> Dict k v -> Dict k VDictElemDiff -> Dict k v -> Dict k VDictElemDiff -> (Dict k v, Dict k VDictElemDiff)
+mergeDict submerger originalDict modified1Dict modifs1 modified2Dict modifs2 =
+  let get0 name = Dict.get name originalDict  |> Utils.fromJust_ "mergeDict0" in
+  let get1 name = Dict.get name modified1Dict |> Utils.fromJust_ "mergeDict1" in
+  let get2 name = Dict.get name modified2Dict |> Utils.fromJust_ "mergeDict2" in
+  Dict.merge
+       (\kIn1 vIn1 (accDict, accDiffs) ->
+          case vIn1 of
+            VDictElemDelete ->  (Dict.remove kIn1 accDict, Dict.insert kIn1 vIn1 accDiffs)
+            VDictElemInsert ->  (Dict.insert kIn1 (get1 kIn1 ) accDict, Dict.insert kIn1 vIn1 accDiffs)
+            VDictElemUpdate mu -> (Dict.insert kIn1 (get1 kIn1) accDict, Dict.insert kIn1 vIn1 accDiffs)
+       )
+       (\kIn vIn1 vIn2 (accDict, accDiffs) ->
+          case (vIn1, vIn2) of
+            (_, VDictElemDelete) ->  (Dict.remove kIn accDict, Dict.insert kIn vIn2 accDiffs)
+            (VDictElemDelete, _) ->  (Dict.remove kIn accDict, Dict.insert kIn vIn2 accDiffs)
+            (VDictElemUpdate mu1, VDictElemUpdate mu2) ->
+              let (newV, mergedModif) = submerger (get0 kIn) (get1 kIn) mu1 (get2 kIn) mu2 in
+              (Dict.insert kIn newV accDict, Dict.insert kIn (VDictElemUpdate mergedModif) accDiffs)
+            (VDictElemInsert, VDictElemInsert) -> -- Insertion conflict ! We just take the first one.
+               (Dict.insert kIn (get1 kIn) accDict, Dict.insert kIn vIn1 accDiffs)
+            (VDictElemInsert, VDictElemUpdate mu2) ->
+              Debug.crash <| "Something pretended that it inserted a key, and the other pretended that it updated the key. This is not possible. Key = " ++ toString kIn
+            (VDictElemUpdate mu1, VDictElemInsert) ->
+              Debug.crash <| "Something pretended that it inserted a key, and the other pretended that it updated the key. This is not possible. Key = " ++ toString kIn
+       )
+       (\kIn2 vIn2 (accDict, accDiffs) ->
+          case vIn2 of
+            VDictElemDelete ->  (Dict.remove kIn2 accDict, Dict.insert kIn2 vIn2 accDiffs)
+            VDictElemInsert ->  (Dict.insert kIn2 (get2 kIn2) accDict, Dict.insert kIn2 vIn2 accDiffs)
+            VDictElemUpdate mu -> (Dict.insert kIn2 (get2 kIn2) accDict, Dict.insert kIn2 vIn2 accDiffs)
+       )
+       modifs1
+       modifs2
+       (originalDict, Dict.empty)
+
+mergeRecord: (v -> v -> VDiffs -> v -> VDiffs -> (v, VDiffs)) -> Dict k v -> Dict k v -> Dict k VDiffs -> Dict k v -> Dict k VDiffs -> (Dict k v, Dict k VDiffs)
+mergeRecord submerger originalDict modified1Dict modifs1 modified2Dict modifs2 =
+  let get0 name = Dict.get name originalDict  |> Utils.fromJust_ "mergeDict0" in
+  let get1 name = Dict.get name modified1Dict |> Utils.fromJust_ "mergeDict1" in
+  let get2 name = Dict.get name modified2Dict |> Utils.fromJust_ "mergeDict2" in
+  Dict.merge
+       (\kIn1 vIn1 (accDict, accDiffs) ->
+          (Dict.insert kIn1 (get1 kIn1) accDict, Dict.insert kIn1 vIn1 accDiffs)
+       )
+       (\kIn vIn1 vIn2 (accDict, accDiffs) ->
+          let (newV, mergedModif) = submerger (get0 kIn) (get1 kIn) vIn1 (get2 kIn) vIn2 in
+          (Dict.insert kIn newV accDict, Dict.insert kIn mergedModif accDiffs)
+       )
+       (\kIn2 vIn2 (accDict, accDiffs) ->
+          (Dict.insert kIn2 (get2 kIn2) accDict, Dict.insert kIn2 vIn2 accDiffs)
+       )
+       modifs1
+       modifs2
+       (originalDict, Dict.empty)

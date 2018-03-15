@@ -128,6 +128,8 @@ maybeZipN lists =
       (Just heads, Just tails) -> Maybe.map ((::) heads) (maybeZipN tails)
       _                        -> Nothing
 
+maybeIsEmpty: Maybe a -> Bool
+maybeIsEmpty mb = Maybe.map (\_ -> False) mb |> Maybe.withDefault True
 
 zipi0 : List a -> List (Int, a)
 zipi0 = zipi_ 0

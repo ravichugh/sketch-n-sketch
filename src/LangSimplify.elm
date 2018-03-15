@@ -271,10 +271,10 @@ simplifyAssignments program =
   |> mapExp
       (\exp ->
         case exp.val.e__ of
-          ELet ws1 letKind rec pat ws2 boundExp ws3 body ws4 ->
+          ELet ws1 letKind False pat ws2 boundExp ws3 body ws4 ->
             case simplifyPatBoundExp pat boundExp of
               Just (newPat, newBoundExp) ->
-                replaceE__ exp (ELet ws1 letKind rec (ensureWhitespacePat newPat) ws2 (ensureWhitespaceExp newBoundExp) ws3 body ws4)
+                replaceE__ exp (ELet ws1 letKind False (ensureWhitespacePat newPat) ws2 (ensureWhitespaceExp newBoundExp) ws3 body ws4)
 
               Nothing ->
                 body

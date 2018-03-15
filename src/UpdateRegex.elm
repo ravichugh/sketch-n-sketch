@@ -168,7 +168,11 @@ expAppToStringMatch  newE =
     else if List.length newGroups /= List.length oldGroups then
       Err "Cannot change the length of the group list, only the strings"
     else -- Maybe a subgroup has been changed ?
-     let allsubgroups = UpdateUtils.mergeList mergeString oldGroups newGroups (newMatch::newSubmatches) in
+      let defaultStringDiff o s = Ok VConstDiffs in
+      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups newGroups |> Result.andThen (\m1 ->
+      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups (newMatch::newSubmatches) |> Result.andThen (\m2 ->
+
+     let allsubgroups = Tuple.first <| UpdateUtils.mergeTuple (\o s1 m1 s2 m2 -> (UpdateUtils.mergeString o s1 s2, m1)) oldGroups newGroups m1 (newMatch::newSubmatches) m2 in
      --let _ = Debug.log "allsbugroups" allsubgroups in
      let startMatch = case oldStarts of
        head::tail -> head
@@ -183,6 +187,7 @@ expAppToStringMatch  newE =
        let finalMatch = List.filterMap identity transformations |> mergeTransformations oldMatch in
        finalMatch
      )
+     ))
 
 mergeTransformations: String -> List (Int, Int, String) -> String
 mergeTransformations originalString replacements =

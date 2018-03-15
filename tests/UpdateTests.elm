@@ -37,6 +37,13 @@ only stateChanger state =
   let newState2 =flush newState in
   {newState2  | onlyOnly = True, toLaunch = []} -- wipe out other tests not launched
 
+onlyThis: State -> State
+onlyThis state =
+  case Utils.maybeLast state.toLaunch of
+    Just (StateChanger stateChanger) ->
+      only stateChanger state
+    _ -> Debug.crash "No tests to only test before the use of 'onlyThis'. Add '|> onlyThis' after a test you want to run alone"
+
 gather: (State -> State) -> State -> State
 gather stateChanger state =
   { state | toLaunch = state.toLaunch ++ [StateChanger stateChanger] }
@@ -56,8 +63,7 @@ summary state_ =
 
 test_: String -> State -> State
 test_ name state =
-  --let _ = Debug.log name " [Start]" in
-  --let res = body <| name in
+  let _ = Debug.log name " [Start]" in
   {state | nthAssertion = 1, currentName = name} -- Debug.log name "all tests passed"
 test s = gather <| test_ s
 
@@ -104,24 +110,27 @@ updateAssert_ env exp origOut newOut expectedEnv expectedExpStr state =
   let problemdesc = ("\nFor problem:" ++
     envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
     " (was " ++ valToString origOut ++ ")") in
-  case update (updateContext env exp origOut newOut) LazyList.Nil of
-    Results.Oks (LazyList.Cons (envX, expX) lazyTail as ll) ->
-      let _ = LazyList.toList ll in
-      let obtained = envToString envX ++ " |- " ++ unparse expX in
-      if obtained == expected then success state else
-        case Lazy.force lazyTail of
-          LazyList.Cons (envX2, expX2) lazyTail2 ->
-            let obtained2 = envToString envX2 ++ " |- " ++ unparse expX2 in
-            if obtained2 == expected then success state else
-            fail state <|
-              log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ " and " ++ obtained2 ++ problemdesc
-          LazyList.Nil ->
-            fail state <|
-              log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ problemdesc
-    Results.Oks LazyList.Nil ->
-       fail state <| log state <| "Expected \n" ++ expected ++  ", got no solutions without error" ++ problemdesc
-    Results.Errs msg ->
-       fail state <| log state <| "Expected \n" ++ expected ++  ", got\n" ++ msg ++ problemdesc
+  case UpdateUtils.defaultVDiffs origOut newOut of
+    Err msg -> fail state <| log state <| "This diff is not allowed:" ++ msg
+    Ok diffs ->
+      case update (updateContext "initial" env exp origOut newOut diffs) LazyList.Nil of
+        Results.Oks (LazyList.Cons (envX, expX) lazyTail as ll) ->
+          let _ = LazyList.toList ll in
+          let obtained = envToString envX ++ " |- " ++ unparse expX in
+          if obtained == expected then success state else
+            case Lazy.force lazyTail of
+              LazyList.Cons (envX2, expX2) lazyTail2 ->
+                let obtained2 = envToString envX2 ++ " |- " ++ unparse expX2 in
+                if obtained2 == expected then success state else
+                fail state <|
+                  log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ " and " ++ obtained2 ++ problemdesc
+              LazyList.Nil ->
+                fail state <|
+                  log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ problemdesc
+        Results.Oks LazyList.Nil ->
+           fail state <| log state <| "Expected \n" ++ expected ++  ", got no solutions without error" ++ problemdesc
+        Results.Errs msg ->
+           fail state <| log state <| "Expected \n" ++ expected ++  ", got\n" ++ msg ++ problemdesc
 updateAssert env exp origOut newOut expectedEnv expectedExpStr =
   gather <| updateAssert_ env exp origOut newOut expectedEnv expectedExpStr
 
@@ -244,17 +253,17 @@ all_tests = init_state
   |> ignore onlySpecific
   |> test "triCombineTest"
   |> delay (\() -> assertEqual
-      (mergeEnvGeneral (tList space0  [tVar space0 "x", tVar space0 "y"] space0)  (Set.fromList ["x", "y"])
+      (mergeEnv
                   [("y", (tVal 2)), ("x", (tVal 1))]
-                  [("y", (tVal 2)), ("x", (tVal 1))]
-                  [("y", (tVal 2)), ("x", (tVal 3))]
-                 )[("y", (tVal 2)), ("x", (tVal 3))])
+                  [("y", (tVal 2)), ("x", (tVal 1))] []
+                  [("y", (tVal 2)), ("x", (tVal 3))] [(1, VConstDiffs)]
+                 ) ([("y", (tVal 2)), ("x", (tVal 3))], [(1, VConstDiffs)]))
   |> delay (\() -> assertEqual
-      (mergeEnvGeneral (tList space0  [tVar space0 "x", tVar space0 "y", tVar space0 "z"] space0) (Set.fromList ["x", "y", "z"])
+      (mergeEnv
                   [("x", (tVal 1)), ("y", (tVal 1)), ("z", (tVal 1))]
-                  [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))]
-                  [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))]
-                 )[("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 2))])
+                  [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))] [(1, VConstDiffs), (2, VConstDiffs)]
+                  [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))] [(0, VConstDiffs), (2, VConstDiffs)]
+                 ) ([("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 2))], [(0, VConstDiffs), (1, VConstDiffs), (2, VConstDiffs)]))
   |> test "update const"
   |> updateElmAssert [] "   1"   "2"
                      [] "   2"
