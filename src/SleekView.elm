@@ -1504,7 +1504,6 @@ outputPanel model =
           , Attr.attribute "data-canvas-count" (toString model.slateCount)
 
           -- allow right-clicks on canvas (e.g. to access Inspect Element)
-          -- TODO why does right-click also work on area to the right of outputCanvas?
           , onRightClickPreventDefault False Controller.msgNoop
           ]
           output
