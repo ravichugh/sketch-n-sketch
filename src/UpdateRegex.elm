@@ -26,6 +26,7 @@ import Dict
 import UpdateUtils exposing (..)
 import LangUtils exposing (valToString)
 import UpdateStack exposing (..)
+import UpdatedEnv exposing (UpdatedEnv)
 --import LangTools exposing (valToString)
 
 removeSlashDollar s = replace All (regex "\\\\\\$") (\_ -> "\\$") s
@@ -105,12 +106,6 @@ matchToExpApp replacementVar m =
   (eOp ToStrExceptStr [
     eApp replacementVar [argument]])
 
-r: String -> (a -> Maybe b) -> a -> (b -> Result String c) -> Result String c
-r msg unapply e c = Result.fromMaybe msg (unapply e) |> Result.andThen c
-
-p: String -> (b -> Maybe c) -> List b -> (List c -> Result String e) -> Result String e
-p msg transformer input c = List.map transformer input |> Utils.projJusts |> Result.fromMaybe msg |> Result.andThen c
-
 extractHeadTail: String -> List a -> ((a, List a) -> Result String e) -> Result String e
 extractHeadTail msg list continuation =
    case list of
@@ -132,10 +127,13 @@ expAppToStringMatch  newE =
     _ -> Nothing
   in
   let eConstIntUnapply = eConstUnapply >> Maybe.map floor in
+  let r = extractors.unapply
+      p = extractors.unapplySeq in
   let extractRecord: Exp -> ((String, List String, List String, List Int, Int, Int) -> Result String e) -> Result String e
       extractRecord argument continuation =
        r "Internal error, Expected record, got something else" eRecordUnapply argument <| \recordElems ->
-       r "InternalError, expected 5 elements, got something else" (extractSix ["match", "submatches", "group", "start", "index", "number"]) recordElems <| \(oldMatch, oldSubmatches, oldGroup, oldStart, oldIndex, oldNumber) ->
+       r "InternalError, expected 5 elements, got something else" (extractSix
+         ["match", "submatches", "group", "start", "index", "number"]) recordElems <| \(oldMatch, oldSubmatches, oldGroup, oldStart, oldIndex, oldNumber) ->
        r "InternalError, expected a string, got something else" eStrUnapply oldMatch <| \oldMatchString ->
        r "InternalError, expected a number, got something else" eConstIntUnapply oldIndex <| \oldIndexNum ->
        r "InternalError, expected a number, got something else" eConstIntUnapply oldNumber <| \oldNumberNum ->
@@ -168,26 +166,31 @@ expAppToStringMatch  newE =
     else if List.length newGroups /= List.length oldGroups then
       Err "Cannot change the length of the group list, only the strings"
     else -- Maybe a subgroup has been changed ?
-      let defaultStringDiff o s = Ok VConstDiffs in
-      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups newGroups |> Result.andThen (\m1 ->
-      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups (newMatch::newSubmatches) |> Result.andThen (\m2 ->
+      let defaultStringDiff o s = Ok (if o == s then Nothing else Just VConstDiffs) in
+      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups newGroups |> Result.andThen (\mb1 ->
+      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups (newMatch::newSubmatches) |> Result.andThen (\mb2 ->
 
-     let allsubgroups = Tuple.first <| UpdateUtils.mergeTuple (\o s1 m1 s2 m2 -> (UpdateUtils.mergeString o s1 s2, m1)) oldGroups newGroups m1 (newMatch::newSubmatches) m2 in
-     --let _ = Debug.log "allsbugroups" allsubgroups in
-     let startMatch = case oldStarts of
-       head::tail -> head
-       _ -> 0
-     in
-     -- We recover all changes and push only the biggest ones if there are conflicts.
-     List.map3 (\mo so m2 ->
+      let allsubgroups = case (mb1, mb2) of
+        (_, Nothing) -> newGroups
+        (Nothing, _) -> newMatch::newSubmatches
+        (Just m1, Just m2) ->
+           Tuple.first <| UpdateUtils.mergeTuple (\o s1 m1 s2 m2 -> (UpdateUtils.mergeString o s1 s2, m1)) oldGroups newGroups m1 (newMatch::newSubmatches) m2
+      in
+      --let _ = Debug.log "allsbugroups" allsubgroups in
+      let startMatch = case oldStarts of
+        head::tail -> head
+        _ -> 0
+      in
+      -- We recover all changes and push only the biggest ones if there are conflicts.
+      List.map3 (\mo so m2 ->
        if mo == m2 then Ok Nothing
        else Ok <| Just (so - startMatch, so - startMatch + String.length mo, m2)
-     ) oldGroups oldStarts allsubgroups
-     |> Utils.projOk |> Result.map (\transformations ->
-       let finalMatch = List.filterMap identity transformations |> mergeTransformations oldMatch in
-       finalMatch
-     )
-     ))
+      ) oldGroups oldStarts allsubgroups
+      |> Utils.projOk |> Result.map (\transformations ->
+        let finalMatch = List.filterMap identity transformations |> mergeTransformations oldMatch in
+        finalMatch
+      )
+      ))
 
 mergeTransformations: String -> List (Int, Int, String) -> String
 mergeTransformations originalString replacements =
@@ -249,7 +252,7 @@ updateRegexReplaceAllByIn  = updateRegexReplaceByIn Regex.All
 updateRegexReplaceFirstByIn = updateRegexReplaceByIn (Regex.AtMost 1)
 
 -- We need the environment just to make use of the function "nth" for lists, so we don't need to return it !!
-updateRegexReplaceByIn: Regex.HowMany -> Env -> (Env -> Exp -> Result String Val)-> (Env -> Exp -> Val -> Val -> Results String (Env, Exp)) -> Val -> Val -> Val -> Val -> Val -> Results String (Val, Val, Val)
+updateRegexReplaceByIn: Regex.HowMany -> Env -> (Env -> Exp -> Result String Val)-> (Env -> Exp -> Val -> Val -> Results String (UpdatedEnv, Exp)) -> Val -> Val -> Val -> Val -> Val -> Results String (Val, Val, Val)
 updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV stringV oldOutV outV =
    case (regexpV.v_, replacementV.v_, stringV.v_, outV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string), _) ->
@@ -291,7 +294,7 @@ updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV strin
               |> Utils.projOk
               |> Results.fromResult
               |> Results.andThen (\newStrings ->
-                  let (newLambda, newEnv) = case newEnvWithReplacement of
+                  let (newLambda, newEnv) = case newEnvWithReplacement.val of
                     [] -> Debug.crash "A variable disappeared from the environment"
                     (replacementName, newReplacementV)::newEnv -> (newReplacementV, newEnv)
                   in

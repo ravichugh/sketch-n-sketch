@@ -12,6 +12,8 @@ import Regex
 import Utils
 import Set exposing (Set)
 import Pos exposing (Pos)
+import ValBuilder as Vb
+import ValUnbuilder as Vu
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -321,39 +323,142 @@ type PDiffs = PChanged -- TODO: More diffs for patterns there
 
 type BranchDiffs = BChanged -- TODO: More diffs for branches there
 
+extractors: {
+  unapply: String -> (a -> Maybe b) -> a -> (b -> Result String c) -> Result String c,
+  unapplySeq: String -> (a -> Maybe b) -> List a -> (List b -> Result String c) -> Result String c
+  }
+extractors = {
+  unapply = \msg unapply e c -> Result.fromMaybe msg (unapply e) |> Result.andThen c,
+  unapplySeq = \msg transformer input c -> List.map transformer input |> Utils.projJusts |> Result.fromMaybe msg |> Result.andThen c
+  }
+
+maybeToVal: Val -> (a -> Val) -> Maybe a -> Val
+maybeToVal v subroutine mba = case mba of
+  Just x  -> Vb.constructor v "Just"    [subroutine x]
+  Nothing -> Vb.constructor v "Nothing" []
+
+valToMaybe: (Val -> Result String a)  -> Val -> Result String (Maybe a)
+valToMaybe subroutine v = case Vu.constructor Ok v of
+  Ok ("Just", [x]) -> subroutine x |> Result.map Just
+  Ok ("Nothing", []) -> Ok Nothing
+  Ok _ -> Err <| "Expected Just or Nothing, got " ++ valToString v
+  Err msg -> Err msg
+
+envDiffsToVal: Val -> EnvDiffs -> Val
+envDiffsToVal v = (Vb.list v) ((Vb.tuple2 v) (Vb.int v) (vDiffsToVal v))
+
+valToEnvDiffs: Val -> Result String EnvDiffs
+valToEnvDiffs = Vu.list (Vu.tuple2 Vu.int valToVDiffs)
+
+vListElemDiffToVal: Val -> VListElemDiff -> Val
+vListElemDiffToVal v velem = case velem of
+   VListElemUpdate d -> (Vb.constructor v) "VListElemUpdate" [vDiffsToVal v d]
+   VListElemInsert i -> (Vb.constructor v) "VListElemInsert" [(Vb.int v) i]
+   VListElemDelete i -> (Vb.constructor v) "VListElemDelete" [(Vb.int v) i]
+
+valToVListElemDiff: Val -> Result String VListElemDiff
+valToVListElemDiff v = case Vu.constructor Ok v of
+  Ok ("VListElemUpdate", [d]) -> valToVDiffs d |> Result.map VListElemUpdate
+  Ok ("VListElemInsert", [i]) -> Vu.int i |> Result.map VListElemInsert
+  Ok ("VListElemDelete", [i]) -> Vu.int i |> Result.map VListElemDelete
+  Ok _ -> Err <| "Expected VListElemUpdate[_], VListElemInsert[_], VListElemDelete[_], got " ++ valToString v
+  Err msg -> Err msg
+
+vDictElemDiffToVal: Val -> VDictElemDiff -> Val
+vDictElemDiffToVal v velem = case velem of
+  VDictElemDelete -> (Vb.constructor v) "VDictElemDelete" []
+  VDictElemInsert -> (Vb.constructor v) "VDictElemInsert" []
+  VDictElemUpdate u -> (Vb.constructor v) "VDictElemUpdate" [vDiffsToVal v u]
+
+valToVDictElemDiff: Val -> Result String VDictElemDiff
+valToVDictElemDiff v = case Vu.constructor Ok v of
+  Ok ("VDictElemDelete", []) -> Ok VDictElemDelete
+  Ok ("VDictElemInsert", []) -> Ok VDictElemInsert
+  Ok ("VDictElemUpdate", [u]) -> Result.map VDictElemUpdate <| valToVDiffs u
+  Ok _ -> Err <| "Expected VDictElemDelete[], VDictElemInsert[], VDictElemUpdate[_], got " ++ valToString v
+  Err msg -> Err msg
+
+-- Val encoding of VDiffs
+vDiffsToVal: Val -> VDiffs -> Val
+vDiffsToVal v vdiffs = case vdiffs of
+  VClosureDiffs e mbe -> (Vb.constructor v) "VClosureDiffs" [envDiffsToVal v e, maybeToVal v (eDiffsToVal v) mbe]
+  VListDiffs list     -> (Vb.constructor v) "VListDiffs"    [(Vb.list v) ((Vb.tuple2 v) (Vb.int v) (vListElemDiffToVal v)) list]
+  VConstDiffs         -> (Vb.constructor v) "VConstDiffs"   []
+  VDictDiffs d        -> (Vb.constructor v) "VDictDiffs"    [(Vb.dict v) (vDictElemDiffToVal v) d]
+  VRecordDiffs d      -> (Vb.constructor v) "VRecordDiffs " [(Vb.record v) (vDiffsToVal v) d]
+
+valToVDiffs: Val -> Result String VDiffs
+valToVDiffs v = case Vu.constructor Ok v of
+  Ok ("VClosureDiffs", [v1, v2]) -> Result.map2 VClosureDiffs (valToEnvDiffs v1) (valToMaybe valToEDiffs v2)
+  Ok ("VListDiffs"   , [l]) -> Vu.list (Vu.tuple2 Vu.int valToVListElemDiff) l |> Result.map VListDiffs
+  Ok ("VConstDiffs"  , []) -> Ok VConstDiffs
+  Ok ("VDictDiffs"   , [d]) -> Vu.dict valToVDictElemDiff d|> Result.map VDictDiffs
+  Ok ("VRecordDiffs ", [d]) -> Vu.record valToVDiffs d |> Result.map VRecordDiffs
+  Ok _ -> Err <| "Expected VDictElemDelete[], VDictElemInsert[], VDictElemUpdate[_], got " ++ valToString v
+  Err msg -> Err msg
+
+eDiffsToVal: Val -> EDiffs -> Val
+eDiffsToVal v ediffs = case ediffs of
+  EChanged -> (Vb.constructor v) "EChanged" []
+
+valToEDiffs: Val -> Result String EDiffs
+valToEDiffs v = case Vu.constructor Ok v of
+  Ok ("EChanged", []) -> Ok EChanged
+  Ok _ -> Err <| "Expected EChanged, got " ++ valToString v
+  Err msg -> Err msg
+
+{-
+pDiffsToVal: ValBuilders -> PDiffs -> Val
+pDiffsToVal v pdiffs = case pdiffs of
+  PChanged -> (Vb.constructor v) "PChanged" []
+
+bDiffsToVal: ValBuilders ->
+             BranchDiffs -> Val
+bDiffsToVal bdiffs = case bdiffs of
+  BChanged -> (Vb.constructor v) "BChanged" []
+-}
+
 offset: Int -> List (Int, a) -> List (Int, a)
 offset n defaultVDiffs = List.map (\(i, e) -> (i + n, e)) defaultVDiffs
 
 -- Invoke this only if strictly necessary.
-defaultVDiffs: Val -> Val -> Result String VDiffs
+defaultVDiffs: Val -> Val -> Result String (Maybe VDiffs)
 defaultVDiffs original modified =
   case (original.v_, modified.v_) of
     (VList originals, VList modified) ->
       defaultListDiff valToString defaultVDiffs originals modified
     (VClosure isRec1 pats1 body1 env1, VClosure isRec2 pats2 body2 env2) ->
-      defaultEnvDiffs env1 env2 |> Result.map (\envDiff ->
-        VClosureDiffs envDiff (if Syntax.unparser Syntax.Elm body1 == Syntax.unparser Syntax.Elm body2 then Just EChanged else Nothing)
+      defaultEnvDiffs env1 env2 |> Result.map (\mbEnvDiff ->
+        let mbBodyDiff = if Syntax.unparser Syntax.Elm body1 == Syntax.unparser Syntax.Elm body2 then Nothing else (Just EChanged) in
+        case mbEnvDiff of
+          Nothing ->
+            case mbBodyDiff of
+              Nothing -> Nothing
+              _ -> Just <| VClosureDiffs [] mbBodyDiff
+          Just x -> Just <| VClosureDiffs x mbBodyDiff
       )
     (VDict original, VDict modified) ->
       defaultDictDiffs valToString defaultVDiffs original modified
     (VRecord original, VRecord modified) ->
       defaultRecordDiffs valToString defaultVDiffs original modified
-    (_, _) -> Ok VConstDiffs
+    (v1, v2) -> if v1 == v2 then Ok Nothing else Ok (Just VConstDiffs)
 
-defaultListDiff: (a -> String) -> (a -> a -> Result String VDiffs) -> List a -> List a -> Result String VDiffs
+defaultListDiff: (a -> String) -> (a -> a -> Result String (Maybe VDiffs)) -> List a -> List a -> Result String (Maybe VDiffs)
 defaultListDiff keyOf defaultElemModif elems1 elems2 =
   let difference = diff keyOf elems1 elems2 in
-  let aux: Int -> List (Int, VListElemDiff) -> List (DiffChunk (List a)) -> Result String VDiffs
+  let aux: Int -> List (Int, VListElemDiff) -> List (DiffChunk (List a)) -> Result String (Maybe VDiffs)
       aux i accDiffs diffs = case diffs of
-        [] -> Ok <| VListDiffs (List.reverse accDiffs)
+        [] -> case List.reverse accDiffs of
+           [] -> Ok Nothing
+           diffs -> Ok <| Just <| VListDiffs diffs
         DiffEqual elems::difftail ->
           aux (i + List.length elems) accDiffs difftail
         DiffRemoved removed::DiffAdded added::difftail ->
           let lengthRemoved = List.length removed in
           let lengthAdded = List.length added in
-          let toInsertRes = List.map3 (\i r a -> defaultElemModif r a |> Result.map (\v -> (i, VListElemUpdate v))) (List.range i (i + lengthAdded - 1)) removed added in
+          let toInsertRes = List.map3 (\i r a -> defaultElemModif r a |> Result.map (\mbv -> mbv |> Maybe.map (\v -> (i, VListElemUpdate v)))) (List.range i (i + lengthAdded - 1)) removed added in
           Utils.projOk toInsertRes |> Result.andThen (\toInsert ->
-            let accDiffs1 = reverseInsert toInsert accDiffs in
+            let accDiffs1 = maybeReverseInsert toInsert accDiffs in
             let accDiffs2 = if lengthRemoved > lengthAdded then
                   (i + lengthAdded, VListElemDelete (lengthRemoved - lengthAdded))::accDiffs1
                  else accDiffs1
@@ -373,62 +478,76 @@ defaultListDiff keyOf defaultElemModif elems1 elems2 =
   in
   aux 0 [] difference
 
-defaultEnvDiffs: Env -> Env -> Result String EnvDiffs -- lowercase val so that it can be applied to something else?
+defaultEnvDiffs: Env -> Env -> Result String (Maybe EnvDiffs) -- lowercase val so that it can be applied to something else?
 defaultEnvDiffs elems1 elems2 =
-  let aux: Int -> List (Int, VDiffs) -> Env         -> Env -> Result String EnvDiffs
+  let aux: Int -> List (Int, VDiffs) -> Env         -> Env -> Result String (Maybe EnvDiffs)
       aux  i      revEnvDiffs          envToCollect1  envToCollect2 =
         case (envToCollect1, envToCollect2) of
           ([], []) ->
-           Ok <| List.reverse revEnvDiffs
+            case List.reverse revEnvDiffs of
+              [] -> Ok Nothing
+              envDiffs -> Ok <| Just envDiffs
           (((k1, v1) as ehd1)::etl1, ((k2, v2) as ehd2)::etl2) ->
             if k1 /= k2 then Err <| "trying to compute a diff on unaligned environments " ++ k1 ++ "," ++ k2 else
             if valEqual v1 v2 then
               aux (i + 1) revEnvDiffs etl1 etl2
             else
-              defaultVDiffs v1 v2 |> Result.andThen (\v ->
-                aux (i + 1) ((i, v)::revEnvDiffs) etl1 etl2
+              defaultVDiffs v1 v2 |> Result.andThen (\mbv ->
+                let newRevEnvDiffs = case mbv of
+                  Nothing -> revEnvDiffs
+                  Just v -> (i, v)::revEnvDiffs
+                in
+                aux (i + 1) newRevEnvDiffs etl1 etl2
               )
           _ -> Err <| "Environments do not have the same size: " ++ envToString envToCollect1 ++ ", " ++ envToString envToCollect2
   in aux 0 [] elems1 elems2
 
-defaultTupleDiffs: (a -> String) -> (a -> a -> Result String VDiffs) -> List a -> List a -> Result String (TupleDiffs VDiffs) -- lowercase val so that it can be applied to something else?
+defaultTupleDiffs: (a -> String) -> (a -> a -> Result String (Maybe VDiffs)) -> List a -> List a -> Result String (Maybe (TupleDiffs VDiffs)) -- lowercase val so that it can be applied to something else?
 defaultTupleDiffs keyOf defaultElemModif elems1 elems2 =
-  let aux: Int -> List (Int, VDiffs) -> List a  -> List a -> Result String (TupleDiffs VDiffs)
+  let aux: Int -> List (Int, VDiffs) -> List a  -> List a -> Result String (Maybe (TupleDiffs VDiffs))
       aux  i      revEnvDiffs          l1         l2 =
         case (l1, l2) of
           ([], []) ->
-           Ok <| List.reverse revEnvDiffs
+            case List.reverse revEnvDiffs of
+              [] -> Ok Nothing
+              tupleDiffs -> Ok (Just tupleDiffs)
+
           (v1::etl1, v2::etl2) ->
             if keyOf v1 == keyOf v2 then
               aux (i + 1) revEnvDiffs etl1 etl2
             else
-              defaultElemModif v1 v2 |> Result.andThen (\v ->
-                 aux (i + 1) ((i, v)::revEnvDiffs) etl1 etl2)
+              defaultElemModif v1 v2 |> Result.andThen (\mbv ->
+                 let newRevEnvDiffs = case mbv of
+                   Nothing -> revEnvDiffs
+                   Just v -> (i, v)::revEnvDiffs
+                 in
+                 aux (i + 1) newRevEnvDiffs etl1 etl2)
 
           _ -> Err <| "Tuples do not have the same size: " ++ toString l1 ++ ", " ++ toString l2
   in aux 0 [] elems1 elems2
 
-defaultDictDiffs: (Val -> String) -> (Val -> Val -> Result String VDiffs) -> Dict (String, String) Val -> Dict (String, String) Val -> Result String VDiffs
+defaultDictDiffs: (Val -> String) -> (Val -> Val -> Result String (Maybe VDiffs)) -> Dict (String, String) Val -> Dict (String, String) Val -> Result String (Maybe VDiffs)
 defaultDictDiffs keyOf defaultElemModif elems1 elems2 =
-  Result.map VDictDiffs <| Dict.merge
+  Result.map (\d -> if Dict.isEmpty d then Nothing else Just <| VDictDiffs d) <| Dict.merge
     (\k1 v1 acc -> Result.map (Dict.insert k1 VDictElemDelete) acc)
     (\k v1 v2 acc -> if keyOf v1 == keyOf v2 then acc
        else
          acc |> Result.andThen (\acc ->
-           defaultElemModif v1 v2 |> Result.map (\v ->
-           Dict.insert k (VDictElemUpdate v) acc)))
+           defaultElemModif v1 v2 |> Result.map (\mbv ->
+             mbv |> Maybe.map (\v -> Dict.insert k (VDictElemUpdate v) acc) |> Maybe.withDefault acc)))
     (\k2 v2 acc -> Result.map (Dict.insert k2 VDictElemInsert) acc)
     elems1
     elems2
     (Ok Dict.empty)
 
-defaultRecordDiffs: (Val -> String) -> (Val -> Val -> Result String VDiffs) -> Dict String Val -> Dict String Val -> Result String VDiffs
+defaultRecordDiffs: (Val -> String) -> (Val -> Val -> Result String (Maybe VDiffs)) -> Dict String Val -> Dict String Val -> Result String (Maybe VDiffs)
 defaultRecordDiffs keyOf defaultElemModif elems1 elems2 =
-  Result.map VRecordDiffs <| Dict.merge
+  Result.map (\d -> if Dict.isEmpty d then Nothing else Just <| VRecordDiffs d) <| Dict.merge
     (\k1 v1 acc -> Err <| "Not allowed to remove a key from record:" ++ k1)
     (\k v1 v2 acc -> if keyOf v1 == keyOf v2 then acc else acc |> Result.andThen (\acc ->
-      defaultElemModif v1 v2 |> Result.map (\v ->
-      Dict.insert k v acc)))
+      defaultElemModif v1 v2 |> Result.map (\mbv ->
+        mbv |> Maybe.map (\v ->
+         Dict.insert k v acc) |> Maybe.withDefault acc)))
     (\k2 v2 acc -> Err <| "Not allowed to insert a key to record:" ++ k2)
     elems1
     elems2
@@ -693,7 +812,7 @@ mergeExp o e1 e2 =
         EHole sp2 (Just v2)) ->
          defaultVDiffs v0 v1 |> Result.andThen (\m1 ->
            defaultVDiffs v0 v2 |> Result.map (\m2 ->
-              EHole (mergeWS sp0 sp1 sp2) (Just (Tuple.first (mergeVal v0 v1 m1 v2 m2)))
+              EHole (mergeWS sp0 sp1 sp2) (Just v0)
            )
          ) |> Result.withDefault (EHole sp0 (Just v0))
 
@@ -772,6 +891,15 @@ reverseInsert elements revAcc =
   case elements of
     [] -> revAcc
     head::tail -> reverseInsert tail (head::revAcc)
+
+maybeReverseInsert: List (Maybe a) -> List a -> List a
+maybeReverseInsert elements revAcc =
+  case elements of
+    [] -> revAcc
+    head::tail ->
+      case head of
+        Nothing -> maybeReverseInsert tail revAcc
+        Just h -> maybeReverseInsert tail (h::revAcc)
 
 -- Guarantees that
 -- * If updated lists have equal size, elements will be merged aligned.

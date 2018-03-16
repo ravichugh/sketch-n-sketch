@@ -2063,7 +2063,7 @@ doCallUpdate m =
       let _ = Debug.log "Filtering solutions" () in
       let solutionsNotModifyingEnv =
          LazyList.filter
-           (\(env, exp) -> LangUtils.envEqual (LangUtils.pruneEnv exp env) (LangUtils.pruneEnv exp Eval.initEnv))
+           (\(env, exp) -> List.isEmpty env.changes)
            solutions
       in
       let _ = Debug.log "Filtered solutions" () in
@@ -2075,7 +2075,7 @@ doCallUpdate m =
 
             LazyList.Cons (envModified, expModified) _ ->
               let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified) "expModified" in
-              let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified) (LangUtils.pruneEnv expModified Eval.initEnv)
+              let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified.val) (LangUtils.pruneEnv expModified Eval.initEnv)
                    |> UpdateUtils.displayDiff (\(k, v) -> "\n" ++ k ++ " = " ++ LangUtils.valToString v )
                    ) "envModified"
               in

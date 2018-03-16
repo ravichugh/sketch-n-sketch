@@ -34,11 +34,13 @@ import Regex exposing (regex, HowMany(..), find, Match, escape)
 import UpdateStack exposing (..)
 import UpdateRegex exposing (..)
 import UpdatedEnv exposing (UpdatedEnv)
+import ValBuilder as Vb
+import ValUnbuilder as Vu
 
 unparse = Syntax.unparser Syntax.Elm
 unparsePattern = Syntax.patternUnparser Syntax.Elm
 
-doUpdate : Exp -> Val -> Result String Val -> Results String (Env, Exp)
+doUpdate : Exp -> Val -> Result String Val -> Results String (UpdatedEnv, Exp)
 doUpdate oldExp oldVal newValResult =
   newValResult
     --|> Result.map (\x -> let _ = Debug.log "#1" () in x)
@@ -46,7 +48,8 @@ doUpdate oldExp oldVal newValResult =
     |> Results.andThen (\out ->
       case UpdateUtils.defaultVDiffs oldVal out of
         Err msg -> Errs msg
-        Ok diffs ->
+        Ok Nothing -> ok1 (UpdatedEnv.original Eval.initEnv, oldExp)
+        Ok (Just diffs) ->
           update (updateContext "initial update" Eval.initEnv oldExp oldVal out diffs) LazyList.Nil)
 
 updateEnv: Env -> Ident -> Val -> VDiffs -> UpdatedEnv
@@ -61,7 +64,7 @@ updateEnv env k newValue modif =
 
 -- Make sure that Env |- Exp evaluates to oldVal
 -- NextAction is a list of HandlePreviousREsult followed by a list of Fork in the same list.
-update : UpdateStack -> LazyList NextAction -> Results String (Env, Exp)
+update : UpdateStack -> LazyList NextAction -> Results String (UpdatedEnv, Exp)
 update updateStack nextToUpdate=
   --let _ = Debug.log ("\nUpdateStack "++updateStackName_ "  " updateStack) () in
   --let _ = Debug.log ("NextToUpdate" ++ (String.join "" <| List.map (nextActionsToString_ "  ") <| Results.toList nextToUpdate)) () in
@@ -80,12 +83,12 @@ update updateStack nextToUpdate=
       case (LazyList.maybeCons mb nextToUpdate) of -- Let's consume the stack !
         LazyList.Nil ->
           --let _ = Debug.log "finished update with no fork" () in
-          ok1 <| (fUpdatedEnv.val, fOut)
+          ok1 <| (fUpdatedEnv, fOut)
         LazyList.Cons head lazyTail ->
           case head of
             Fork msg newUpdateStack nextToUpdate2 ->
               --let _ = Debug.log "finished update with one fork" () in
-              okLazy (fUpdatedEnv.val, fOut) <| (\lt m nus ntu2 -> \() ->
+              okLazy (fUpdatedEnv, fOut) <| (\lt m nus ntu2 -> \() ->
                 --let _ = Debug.log ("Starting to look for other solutions, fork " ++ m ++ ",\n" ++ updateStackName nus) () in
                 updateRec nus <| LazyList.appendLazy ntu2 lt) lazyTail msg newUpdateStack nextToUpdate2
             HandlePreviousResult msg f ->
@@ -406,37 +409,67 @@ getUpdateStackOp env e oldVal newVal diffs =
                          [] -> Nothing
                          [argument] ->
                            let mbUpdateField = case Dict.get "update" d of
+                             Nothing -> Nothing
                              Just fieldUpdateClosure ->
                                 case doEval Syntax.Elm env argument of
                                   Err s -> Just <| UpdateError s
                                   Ok ((vArg, _), _) ->
                                     let x = eVar "x" in
                                     let y = eVar "y" in
-                                    let customArgument = replaceV_ vArg <| VRecord <| Dict.fromList [
+                                    let diffsVal = vDiffsToVal v1 diffs in
+                                    let customArgument = Vb.record vArg identity <| Dict.fromList [
                                          ("input", vArg),
-                                         ("outputNew", newVal),
-                                         ("output", newVal), -- Sometimes it's much simpler to call output
-                                         ("outputOriginal", oldVal),
-                                         ("oldOutput", oldVal),
-                                         ("outputOld", oldVal)
+                                         ("output", newVal),
+                                           ("outputNew", newVal), -- Redundant
+                                         ("outputOld", oldVal),
+                                           ("outputOriginal", oldVal), -- Redundant
+                                           ("oldOutput", oldVal), -- Redundant
+                                         ("diff", diffsVal),
+                                           ("outDiff", diffsVal), -- Redundant
+                                           ("diffOut", diffsVal) -- Redundant
                                          ] in
                                     let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
                                     case doEval Syntax.Elm (("x", addUpdateCapability fieldUpdateClosure)::("y", customArgument)::env) customExpr of
                                       Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
-                                        case interpreterListToList vResult of
-                                          Err msg -> Just <| UpdateError msg
-                                          Ok l ->
-                                            let resultDiffs = LazyList.fromList l
-                                              |> LazyList.map (\r -> (r, UpdateUtils.defaultVDiffs vArg r)) in
-                                            case resultDiffs of -- TODO: Allow an API for the user to return modifications as well
-                                              LazyList.Nil -> Nothing
-                                              LazyList.Cons (head, headDiff) lazyTail ->
-                                                Just <| updateContinueRepeat ".update" env argument vArg head headDiff lazyTail <|
-                                                  \newUpdatedEnvArg newArg ->
-                                                  let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newArg] appType sp1 in
-                                                  updateResult newUpdatedEnvArg newExp
-                             Nothing -> Nothing
+                                        case Vu.record Ok vResult of
+                                          Err msg -> Just <| UpdateError "updateApp should return either {values = [list of values]}, {error = \"Error string\"}, or more advanced { values = [...], diffs = [..Nothing/Just diff per value.]}"
+                                          Ok d ->
+                                            let error = case Dict.get "error" d of
+                                                Just errorv -> case Vu.string errorv of
+                                                  Ok e -> e
+                                                  Err x -> "the .error of the result of updateApp should be a string, got " ++ valToString errorv
+                                                Nothing -> ""
+                                            in
+                                            if error /= "" then Just <| UpdateError error
+                                            else
+                                              case Dict.get "values" d of
+                                                Nothing -> Just <| UpdateError <| "updateApp should return a record containing a .values field or an .error field"
+                                                Just values ->  case Vu.list Ok values of
+                                                  Err x -> Just <| UpdateError <| "updateApp should return a record whose .values field is a list. Got " ++ valToString values
+                                                  Ok valuesList ->
+                                                    let valuesListLazy = LazyList.fromList valuesList in
+                                                    let diffsListRes = case Dict.get "diffs" d of
+                                                      Nothing -> Utils.projOk <|
+                                                        List.map (\r ->
+                                                          if valToString vArg == valToString r then
+                                                            Ok Nothing
+                                                          else UpdateUtils.defaultVDiffs vArg r) <| valuesList
+                                                      Just resultDiffsV -> case Vu.list valToVDiffs resultDiffsV of
+                                                        Err msg -> Err <| "the .diffs of the result of updateApp should be a list of differences. " ++ msg
+                                                        Ok vdiffs -> Ok <| List.map Just vdiffs
+                                                    in
+                                                    case diffsListRes of
+                                                     Err msg -> Just <| UpdateError msg
+                                                     Ok diffsList ->
+                                                       let resultDiffs = LazyList.zip valuesListLazy (LazyList.fromList <| List.map Ok diffsList) in
+                                                       case resultDiffs of -- TODO: Allow an API for the user to return modifications as well
+                                                         LazyList.Nil -> Nothing
+                                                         LazyList.Cons (head, headDiff) lazyTail ->
+                                                           Just <| updateContinueRepeat ".update" env argument vArg head headDiff lazyTail <|
+                                                             \newUpdatedEnvArg newArg ->
+                                                             let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newArg] appType sp1 in
+                                                             updateResult newUpdatedEnvArg newExp
                            in
                            updateMaybeFirst2 mbUpdateField <| \_ ->
                              case Dict.get "unapply" d of
@@ -451,13 +484,14 @@ getUpdateStackOp env e oldVal newVal diffs =
                                      case doEval Syntax.Elm (("x", fieldUnapplyClosure)::("y", customArgument)::env) customExpr of
                                        Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
                                        Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
-                                         case interpreterMaybeToMaybe vResult of
+                                         case interpreterMaybeToMaybe "the result of executing 'unapply'" vResult of
                                            Err msg -> Just <| UpdateError msg
                                            Ok Nothing -> Nothing
                                            Ok (Just newOut) ->
                                              case UpdateUtils.defaultVDiffs vArg newOut of
                                                Err msg -> Just <| UpdateError msg
-                                               Ok newDiff ->
+                                               Ok Nothing -> Just <| updateResultSameEnv env e
+                                               Ok (Just newDiff) ->
                                                  Just <| updateContinue ".unapply" env argument vArg newOut newDiff <|
                                                    \newUpdatedEnvArg newArg ->
                                                    let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newArg] appType sp1 in
@@ -578,10 +612,11 @@ getUpdateStackOp env e oldVal newVal diffs =
                                   _          -> Debug.crash <| strPos e1.start ++ "bad environment, internal error in update"
                          v          -> UpdateError <| strPos e1.start ++ "Expected a closure in output, got " ++ valToString newVal
 
-                     else
+                     else -- The right number of arguments
                      let continuation newClosure newClosureDiffs newArgs newArgsDiffs msg = --Update the function and the arguments.
                        let e1_updater = case newClosureDiffs of
                          Nothing -> \continuation -> continuation (UpdatedEnv.original env) e1
+                         Just (VClosureDiffs [] Nothing) -> \continuation -> continuation (UpdatedEnv.original env) e1
                          Just closureDiffs -> updateContinue msg env e1 v1 newClosure closureDiffs
                        in
                        let e2s_updater = case newArgsDiffs of
@@ -725,11 +760,12 @@ getUpdateStackOp env e oldVal newVal diffs =
                                   Ok ((v, _), _) ->
                                     case (opArgs, vs) of
                                       ([opArg], [arg]) ->
-                                        case UpdateUtils.defaultVDiffs arg v of
-                                          Err msg -> UpdateError msg
-                                          Ok vDiff ->
-                                             updateContinue "EOp ToStrExceptStr default" env opArg arg v vDiff
-                                             <| \newUpdatedEnv newOpArg ->
+                                        let continue = case UpdateUtils.defaultVDiffs arg v of
+                                          Err msg -> \continuation -> UpdateError msg
+                                          Ok Nothing -> \continuation -> updateResultSameEnv env e
+                                          Ok (Just vDiff) -> updateContinue "EOp ToStrExceptStr default" env opArg arg v vDiff
+                                        in
+                                        continue <| \newUpdatedEnv newOpArg ->
                                             updateResult newUpdatedEnv <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
                                       e -> UpdateError <| "[internal error] Wrong number of arguments in update ToStrExceptStr: " ++ toString e
                           e -> UpdateError <| "Expected string, got " ++ valToString newVal
@@ -757,10 +793,12 @@ getUpdateStackOp env e oldVal newVal diffs =
                              Ok ((v, _), _) ->
                                case (opArgs, vs) of
                                  ([opArg], [arg]) ->
-                                   case UpdateUtils.defaultVDiffs arg v of
-                                     Err msg -> UpdateError msg
-                                     Ok vDiff ->
-                                       updateContinue "EOp ToStr" env opArg arg v vDiff <| \newUpdatedEnv newOpArg ->
+                                   let continue = case UpdateUtils.defaultVDiffs arg v of
+                                     Err msg -> \continuation -> UpdateError msg
+                                     Ok Nothing -> \continuation -> updateResultSameEnv env e
+                                     Ok (Just vDiff) -> updateContinue "EOp ToStr" env opArg arg v vDiff
+                                   in
+                                   continue <| \newUpdatedEnv newOpArg ->
                                          updateResult newUpdatedEnv <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
                                  e -> UpdateError <| "[internal error] Wrong number of arguments in update: " ++ toString e
                      e -> UpdateError <| "Expected string, got " ++ valToString newVal
@@ -768,11 +806,12 @@ getUpdateStackOp env e oldVal newVal diffs =
                    case vs of
                      [regexpV, replacementV, stringV] ->
                        let eRec env exp = doEval Syntax.Elm env exp |> Result.map (\((v, _), _) -> v) in
-                       let uRec: Env -> Exp -> Val -> Val -> Results String (Env, Exp)
+                       let uRec: Env -> Exp -> Val -> Val -> Results String (UpdatedEnv, Exp)
                            uRec env exp oldval newval =
                              case UpdateUtils.defaultVDiffs oldval newval of
                                Err msg -> Errs msg
-                               Ok newvalDiff -> update (updateContext "recursive update" env exp oldval newval newvalDiff) LazyList.Nil
+                               Ok Nothing -> ok1 (UpdatedEnv.original env, exp)
+                               Ok (Just newvalDiff) -> update (updateContext "recursive update" env exp oldval newval newvalDiff) LazyList.Nil
                        in
                        case UpdateRegex.updateRegexReplaceAllByIn
                            env eRec uRec regexpV replacementV stringV oldVal newVal of
@@ -787,11 +826,12 @@ getUpdateStackOp env e oldVal newVal diffs =
                      case vs of
                        [regexpV, replacementV, stringV] ->
                          let eRec env exp = doEval Syntax.Elm env exp |> Result.map (\((v, _), _) -> v) in
-                         let uRec: Env -> Exp -> Val -> Val -> Results String (Env, Exp)
+                         let uRec: Env -> Exp -> Val -> Val -> Results String (UpdatedEnv, Exp)
                              uRec env exp oldval newval =
                                case UpdateUtils.defaultVDiffs oldval newval of
                                  Err msg -> Errs msg
-                                 Ok newvalDiff -> update (updateContext "recursive update" env exp oldval newval newvalDiff) LazyList.Nil
+                                 Ok Nothing -> ok1 (UpdatedEnv.original env, exp)
+                                 Ok (Just newvalDiff) -> update (updateContext "recursive update" env exp oldval newval newvalDiff) LazyList.Nil
                          in
                          case UpdateRegex.updateRegexReplaceFirstByIn
                              env eRec uRec regexpV replacementV stringV oldVal newVal of
@@ -920,7 +960,7 @@ getUpdateStackOp env e oldVal newVal diffs =
        UpdateError <| "Non-supported update " ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
 
 -- Errors are converted to empty solutions because updateRec is called once a solution has been found already.
-updateRec: UpdateStack -> LazyList NextAction -> LazyList (Env, Exp)
+updateRec: UpdateStack -> LazyList NextAction -> LazyList (UpdatedEnv, Exp)
 updateRec updateStack nextToUpdate =
   case update updateStack nextToUpdate of
     Oks l -> l
@@ -936,36 +976,87 @@ addUpdateCapability: Val -> Val
 addUpdateCapability v =
   addToVClosureEnv [
     ("updateApp", replaceV_ v <|
-      VFun "updateApp" ["function", "input", "prevOutput", "newOuput"] (\env args ->
+      VFun "updateApp" ["{fun,input[,oldOutput],output[,outputDiff]}"] (\env args ->
         case args of
-          [fun, oldArg, oldOut, newOut] ->
-            let reverseEnv = ("x", fun)::("y", oldArg)::env in
-            let exp = (withDummyExpInfo <| EApp space0 (withDummyExpInfo <| EVar space0 "x") [withDummyExpInfo <| EVar space1 "y"] SpaceApp space0) in
-            --let _ = Debug.log "calling back update" () in
-            case UpdateUtils.defaultVDiffs oldOut newOut of
-              Err msg -> Err msg
-              Ok newOutDiffs ->
-                let res =
-                     update (updateContext "updateApp" reverseEnv exp oldOut newOut newOutDiffs) LazyList.Nil
-                     |> Results.fold Err
-                       (LazyList.toList
-                         >> List.concatMap (\(newReverseEnv, newExp) ->
-                            case newReverseEnv of
-                              ("x", newFun)::("y",newArg)::newEnv ->
-                                if envEqual newEnv env && valEqual fun newFun && expEqual newExp exp then
-                                  [newArg]
-                                else []
-                              _ -> Debug.crash "Internal error: expected x and y in environment"
-                            )
-                         >> (\newArgs ->
-                            --let _ = Debug.log ("Update finished: " ++ (valToString <| replaceV_ v <| VList newArgs)) () in
-                            Ok ((replaceV_ v <| VList newArgs, []), env)
-                         )
-                       )
-                in
-                --let _ = Debug.log "call to update completed" in
-                res
-          _ -> Err <| "updateApp expects 4 arguments (function argument oldvalue newvalue), but got " ++ toString (List.length args)
+          [arg] ->
+            case arg.v_ of
+              VRecord d ->
+                case (Dict.get "fun" d, Dict.get "input" d, Dict.get "output" d) of
+                  (Just fun, Just input, Just newVal) ->
+                    let reverseEnv = ("x", fun)::("y", input)::env in
+                    let exp = (withDummyExpInfo <| EApp space0 (withDummyExpInfo <| EVar space0 "x") [withDummyExpInfo <| EVar space1 "y"] SpaceApp space0) in
+                    let oldOut = case Dict.get "oldOutput" d of
+                      Nothing -> case Dict.get "oldout" d of
+                         Nothing -> case Dict.get "outputOld" d of
+                           Nothing ->
+                             Eval.doEval Syntax.Elm reverseEnv exp |> Result.map (\((v, _), _) -> v)
+                           Just v -> Ok v
+                         Just v -> Ok v
+                      Just v -> Ok v
+                    in
+                    case oldOut of
+                      Err msg -> Err msg
+                      Ok oldOut ->
+                        let outputDiff = case Dict.get "outputDiff" d of
+                          Nothing -> case Dict.get "diffOutput" d of
+                             Nothing -> case Dict.get "diffOut" d of
+                               Nothing -> case Dict.get "outDiff" d of
+                                 Nothing -> UpdateUtils.defaultVDiffs oldOut newVal
+                                 Just v -> valToVDiffs v |> Result.map Just
+                               Just v -> valToVDiffs v |> Result.map Just
+                             Just v -> valToVDiffs v |> Result.map Just
+                          Just v -> valToVDiffs v |> Result.map Just
+                        in
+                        --let _ = Debug.log "calling back update" () in
+                        case outputDiff of
+                          Err msg -> Err msg
+                          Ok Nothing -> -- No need to call update
+                            let resultingValue = (Vb.record v) identity (
+                                 Dict.fromList [("values", (Vb.list v) identity [input]),
+                                                ("diffs", (Vb.list v) identity [] )
+                                 ])
+                            in
+                            Ok ((resultingValue, []), env)
+                          Ok (Just newOutDiffs) ->
+                            let basicResult = case update (updateContext "updateApp" reverseEnv exp oldOut newVal newOutDiffs) LazyList.Nil of
+                              Errs msg -> (Vb.record v) (Vb.string v) (Dict.fromList [("error", msg)])
+                              Oks ll ->
+                                 let l = LazyList.toList ll in
+                                 let lFiltered = List.filter (\(newReverseEnv, newExp) ->
+                                   case newReverseEnv.changes of
+                                      [] -> True
+                                      [(1, _)] -> True
+                                      _ -> False) l
+                                 in
+                                 if List.isEmpty lFiltered then
+                                   if List.isEmpty l then
+                                     (Vb.record v) identity (Dict.fromList [("values", (Vb.list v) identity []), ("diffs", (Vb.list v) identity [])])
+                                   else
+                                     (Vb.record v) (Vb.string v) (Dict.fromList [("error", "Only solutions modifying the constant function of updateApp")])
+                                 else
+                                   let (results, diffs) = lFiltered |> List.map (\(newReverseEnv, newExp) ->
+                                     case newReverseEnv.val of
+                                        ("x", newFun)::("y",newArg)::newEnv ->
+                                          case newReverseEnv.changes of
+                                            [] -> (newArg, Nothing)
+                                            [(1, diff)] -> (newArg, Just diff)
+                                            _ -> Debug.crash "Internal error: expected not much than (1, diff) in environment changes"
+                                        _ -> Debug.crash "Internal error: expected x and y in environment"
+                                     ) |> List.unzip in
+                                   let maybeDiffsVal = diffs |> (Vb.list v) (maybeToVal v (vDiffsToVal v)) in
+                                   (Vb.record v) identity (
+                                        Dict.fromList [("values", (Vb.list v) identity results),
+                                                     ("diffs", maybeDiffsVal )
+                                        ])
+                            in Ok ((basicResult, []), env)
+                  (mbFun, mbInput, mbOutput) ->
+                    Err <|
+                    "updateApp requires a record with at least {fun,input,output}. Missing" ++
+                     (Maybe.map (\_ -> "") mbFun |> Maybe.withDefault " fun") ++
+                     (Maybe.map (\_ -> "") mbInput |> Maybe.withDefault " input") ++
+                     (Maybe.map (\_ -> "") mbOutput |> Maybe.withDefault " output")
+              _ -> Err <| "updateApp's argument should be a record {fun,input[,oldOutput],output[,outputDiff]}, but got " ++ valToString arg
+          _ -> Err <| "updateApp expects 1 arguments ({fun,input[,oldOutput],output[,outputDiff]}), but got " ++ toString (List.length args)
       ) Nothing
     ),
     ("merge", replaceV_ v <|
@@ -974,11 +1065,12 @@ addUpdateCapability v =
           [original, modifications] ->
             case modifications.v_ of
               VList modifications ->
-                let modificationsWithDiffs = List.map (\m -> UpdateUtils.defaultVDiffs original m |> Result.map (\modifs -> (m, modifs))) modifications in
+                let modificationsWithDiffs = List.map (\m -> UpdateUtils.defaultVDiffs original m |> Result.map (\mbmodifs -> mbmodifs |> Maybe.map (\modifs -> (m, modifs)))) modifications in
                 case modificationsWithDiffs |> Utils.projOk of
                    Err msg -> Err msg
+                   --Ok Nothing -> Ok ((original, []), env)
                    Ok withModifs ->
-                    let (newVal, _) = recursiveMergeVal original withModifs in  -- TODO: To bad, we are forgetting about diffs !
+                    let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
                     Ok ((newVal, []), env)
               _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
           _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
@@ -1019,22 +1111,22 @@ addUpdateCapability v =
     )
   ] v
 
-interpreterListToList: Val -> Result String (List Val)
-interpreterListToList v = case v.v_ of
+interpreterListToList: String -> Val -> Result String (List Val)
+interpreterListToList msg v = case v.v_ of
   VList elems -> Ok elems
-  _ -> Err <| "Expected a list, got " ++ valToString v
+  _ -> Err <| "Expected a list for " ++ msg ++ ", got " ++ valToString v
 
-interpreterMaybeToMaybe: Val -> Result String (Maybe Val)
-interpreterMaybeToMaybe v = case v.v_ of
+interpreterMaybeToMaybe: String -> Val -> Result String (Maybe Val)
+interpreterMaybeToMaybe msg v = case v.v_ of
   VList [tag, e] ->
     case tag.v_ of
       VBase (VString "Just") -> Ok (Just e)
-      _ -> Err <| "Expected 'Just' or 'Nothing', got " ++ valToString tag
+      _ -> Err <| "Expected 'Just' or 'Nothing' for " ++ msg ++ ", got " ++ valToString tag
   VList [tag] ->
     case tag.v_ of
       VBase (VString "Nothing") -> Ok Nothing
-      _ -> Err <| "Expected 'Just' or 'Nothing', got " ++ valToString tag
-  _ -> Err <| "Expected ['Just', x] or ['Nothing'], got " ++ valToString v
+      _ -> Err <| "Expected 'Just' or 'Nothing' for " ++ msg ++ ", got " ++ valToString tag
+  _ -> Err <| "Expected ['Just', x] or ['Nothing'] for " ++ msg ++ ", got " ++ valToString v
 
 -- Compares the new reference with and original (which are at distance at most 2PI) and reports the relative smallest change to n
 angleUpdate: Float -> Float -> Float -> Results String (List Num)

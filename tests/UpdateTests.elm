@@ -112,15 +112,16 @@ updateAssert_ env exp origOut newOut expectedEnv expectedExpStr state =
     " (was " ++ valToString origOut ++ ")") in
   case UpdateUtils.defaultVDiffs origOut newOut of
     Err msg -> fail state <| log state <| "This diff is not allowed:" ++ msg
-    Ok diffs ->
+    Ok Nothing -> fail state <| log state <| "There was no diff between the previous output and the new output"
+    Ok (Just diffs) ->
       case update (updateContext "initial" env exp origOut newOut diffs) LazyList.Nil of
         Results.Oks (LazyList.Cons (envX, expX) lazyTail as ll) ->
           let _ = LazyList.toList ll in
-          let obtained = envToString envX ++ " |- " ++ unparse expX in
+          let obtained = envToString envX.val ++ " |- " ++ unparse expX in
           if obtained == expected then success state else
             case Lazy.force lazyTail of
               LazyList.Cons (envX2, expX2) lazyTail2 ->
-                let obtained2 = envToString envX2 ++ " |- " ++ unparse expX2 in
+                let obtained2 = envToString envX2.val ++ " |- " ++ unparse expX2 in
                 if obtained2 == expected then success state else
                 fail state <|
                   log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ " and " ++ obtained2 ++ problemdesc
@@ -618,7 +619,7 @@ all_tests = init_state
                "parseHTML \"hello<br>world\""  "[[\"HTMLInner\",\"hello\"], [\"HTMLElement\", \"br\", [], \" \", [\"RegularEndOpening\"], [], [\"VoidClosing\"]], [\"HTMLInner\",\"sworld\"]]"
                "parseHTML \"hello<br >sworld\""
   |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
-                 "parseHTML \"<?help>\""  "[[\"HTMLComment\",\"Less_Greater\",\"Injection: adding more chars like >, <, and -->\"]]"
+                 "parseHTML \"<?help>\""  "[[\"HTMLComment\",[\"Less_Greater\",\"Injection: adding more chars like >, <, and -->\"]]]"
                  "parseHTML \"<!--Injection: adding more chars like >, <, and ~~>-->\""
   |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
                "parseHTML \"<h3>Hello world</h3>\"" "[[\"HTMLElement\", \"h3\", [], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Hello world\"]], [\"RegularClosing\", \"\"]]]"

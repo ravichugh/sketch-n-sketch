@@ -414,12 +414,13 @@ isRestChar char =
   Char.isLower char ||
   Char.isUpper char ||
   Char.isDigit char ||
-  char == '_'
+  char == '_' ||
+  char == '$'
 
 identifier : Parser Ident
 identifier =
   LK.variable
-    Char.isLower
+    isRestChar
     isRestChar
     keywords
 

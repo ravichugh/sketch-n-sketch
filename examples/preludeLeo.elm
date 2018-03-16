@@ -115,7 +115,7 @@ map f l =
             [[], []] -> [newFs, newIns]
             [inHd::inTail, outHd::outTail] ->
               case updateApp (\[f, x] -> f x) [f, inHd] (f inHd) outHd of
-                [newF, newIn]::_ -> recoverInputs (append newFs [newF]) (append newIns [newIn]) inTail outTail
+                {values = [newF, newIn]::_} -> recoverInputs (append newFs [newF]) (append newIns [newIn]) inTail outTail
                 _ -> "Error: no solution to update problem." + 1
             [inList, outList] -> ("Internal error: lists do not have the same type" + toString inList + ", " + toString outList) + 1
           in
@@ -135,7 +135,7 @@ map f l =
             [] -> [newFs, newIns]
             outHd::outTail ->
               case updateApp (\[f, x] -> f x) [f, oneInput] (f oneInput) outHd of
-                [newF, newIn]::_ -> recoverInputs (append newFs [newF]) (append newIns [newIn]) outTail
+                {values = [newF, newIn]::_} -> recoverInputs (append newFs [newF]) (append newIns [newIn]) outTail
                 _ -> "Error: no solution to update problem." + 1
           in
           let [newFs, inputsRecovered] = recoverInputs [] [] inserted in
@@ -143,13 +143,13 @@ map f l =
       in
       let [funs, newInputs]  = aux [] [] input (diff outputOriginal output) in
       let newFun = merge f funs in
-      [[newFun, newInputs]]
+      {values = [[newFun, newInputs]]}
   }.apply [f, l]
 -- move to lens library
 
 zipWithIndex xs =
   { apply x = zip (range 0 (len xs - 1)) xs
-    update {output} = [map (\[i, x] -> x) output]  }.apply xs
+    update {output} = {values = [map (\[i, x] -> x) output]}  }.apply xs
 
 
 -- HEREHEREHERE
@@ -632,7 +632,7 @@ html string =
       {inserted}::dt ->
         mergeNodes (append acc (map toHTMLNode inserted)) ins dt
     in
-    [mergeNodes [] input (diff outputOld outputNew)]
+    {values = [mergeNodes [] input (diff outputOld outputNew)]}
 }.apply (parseHTML string)
 
 matchIn r x = case extractFirstIn r x of
@@ -719,7 +719,7 @@ customUpdate record x =
 -- Custom Update: Freeze
 
 customUpdateFreeze =
-  customUpdate { apply x = x, update p = [p.input] }
+  customUpdate { apply x = x, update p = { values = [p.input] } }
 
 -- Custom Update: List Map, List Append, ...
 

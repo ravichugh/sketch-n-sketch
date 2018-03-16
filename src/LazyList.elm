@@ -85,3 +85,9 @@ maybeCons: Maybe a -> LazyList a -> LazyList a
 maybeCons x l = case x of
   Nothing -> l
   Just v -> Cons v (Lazy.lazy <| \_ -> l)
+
+zip: LazyList a -> LazyList b -> LazyList (a, b)
+zip la lb = case (la, lb) of
+  (Nil, _) -> Nil
+  (_, Nil) -> Nil
+  (Cons h1 t1, Cons h2 t2) -> Cons (h1, h2) (Lazy.map2 zip t1 t2)
