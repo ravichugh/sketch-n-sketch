@@ -583,6 +583,94 @@ horizontalVerticalSnap (x1, y1) (x2, y2) =
     else (Y, Negative, y1 - y2)
 
 
+-- Call this after drawing into a function to perhaps set up a recursive skeleton.
+perhapsPrepareRecursiveFunction : EId -> Exp -> Exp
+perhapsPrepareRecursiveFunction someEIdAtTopLevelOfFunction program =
+  let
+    funcBody     = LangTools.outerSameValueExp program (LangTools.justFindExpByEId program someEIdAtTopLevelOfFunction)
+    maybeFuncEId = parentByEId program funcBody.val.eid |> Maybe.withDefault Nothing |> Maybe.map (.val >> .eid)
+  in
+  case maybeFuncEId of
+    Just funcEId ->
+      case LangTools.findLetAndIdentBindingExpLoose funcEId program of
+        Just (letExp, funcName) ->
+          if LangTools.expToLetRec letExp then
+            case (expEffectiveExp funcBody).val.e__ of
+              EIf _ _ _ _ _ _ _ -> program
+              ECase _ _ _ _     -> program
+              ETypeCase _ _ _ _ -> program
+              _                 ->
+                if Set.member funcName (LangTools.freeIdentifiers funcBody) then
+                  let
+                    freshenedProgram = FastParser.freshen program -- Ensure everything has an EId. EId of func should not change b/c it shouldn't have been duplicated.
+                    dependencies  = StaticAnalysis.grossDependencies freshenedProgram
+                    freshFuncBody = LangTools.justFindExpByEId freshenedProgram funcBody.val.eid
+                    recursiveVars = LangTools.freeVars freshFuncBody |> List.filter (LangTools.expToIdent >> (==) funcName)
+
+                    -- From after a certain cutoff, put all remaining lets into the recursive case.
+                    findExpToWrap e =
+                      case (LangTools.expToMaybeLetBoundExp e, LangTools.maybeSameLevelChild e) of
+                        (Just boundExp, Just body) ->
+                          if [] /= Utils.intersectAsSet (flattenExpTree boundExp) recursiveVars
+                          then e
+                          else findExpToWrap body
+                        (_, Just body) -> findExpToWrap body
+                        (_, Nothing)   -> e
+
+                    expToWrap = findExpToWrap freshFuncBody
+
+                    -- If original return expression not dependent on anything in only the recursive case, put it in a variable outside the recursive case.
+                    originalRetExp = freshFuncBody |> LangTools.lastSameLevelExp
+                    retExpDependsOnAnythingInRecursiveCase =
+                      Utils.anyOverlapListSet
+                        (Utils.diffAsSet (allEIds expToWrap) (allEIds originalRetExp))
+                        (StaticAnalysis.eidDependencies dependencies originalRetExp.val.eid)
+
+
+                    indentationAtLet = indentationAt letExp.val.eid program
+                    newFuncBody =
+                      unindent freshFuncBody
+                      |> mapExpNode
+                          expToWrap.val.eid
+                          (\expToWrap ->
+                            if retExpDependsOnAnythingInRecursiveCase then
+                              -- newLetFancyWhitespace insertedLetEId isRec newPat newBoundExp expToWrap programToModify
+                              eIf
+                                  (eHoleNamed "terminationCondition")
+                                  (eTuple [] |> replacePrecedingWhitespace "\n  ")
+                                  (expToWrap |> replaceIndentation "  " |> replacePrecedingWhitespace "\n  ")
+                              |> replacePrecedingWhitespace "\n"
+                            else
+                              let
+                                suggestedName = LangTools.expNameForEId freshFuncBody originalRetExp.val.eid
+                                nameForRetExp = LangTools.nonCollidingName suggestedName 2 <| LangTools.visibleIdentifiersAtEIds program (Set.singleton (LangTools.lastExp funcBody).val.eid)
+                              in
+                              eLet [(nameForRetExp, LangTools.reflowBoundExpWhitespace originalRetExp)]
+                                (
+                                  eIf
+                                      (eHoleNamed "terminationCondition")
+                                      (eVar nameForRetExp |> replacePrecedingWhitespace "\n  ")
+                                      (expToWrap |> replaceIndentation "  " |> replaceExpNodePreservingPrecedingWhitespace originalRetExp.val.eid (eVar nameForRetExp) |> replacePrecedingWhitespace "\n  ")
+                                  |> replacePrecedingWhitespace "\n"
+                                )
+                          )
+                      |> indent (indentationAtLet ++ "  ")
+
+                  in
+                  program
+                  |> replaceExpNode funcBody.val.eid newFuncBody
+                else
+                  program
+          else
+            program
+
+        Nothing ->
+          program
+
+    Nothing ->
+      program
+
+
 addToEndOfDrawingContext : Model -> Ident -> Exp -> Model
 addToEndOfDrawingContext old varSuggestedName exp =
   let originalProgram = old.inputExp in
@@ -592,6 +680,7 @@ addToEndOfDrawingContext old varSuggestedName exp =
   let newProgram =
     originalProgram
     |> LangTools.newLetAfterComments insertBeforeEId (pVar varName) exp
+    |> perhapsPrepareRecursiveFunction insertBeforeEId
     |> CodeMotion.resolveValueHoles old.syncOptions
     |> List.head
     |> Maybe.withDefault originalProgram

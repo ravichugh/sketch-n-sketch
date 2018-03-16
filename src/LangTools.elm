@@ -472,6 +472,8 @@ longLineLength = 50 -- Not precisely 50, but roughly so. (using unparseWithUnifo
 
 -- O(n^2) if applied recursively to children
 -- O(n) if used once
+--
+-- Not fully updated for Elm
 reflowLetWhitespace : Exp -> Exp -> Exp
 reflowLetWhitespace program letExp =
   case letExp.val.e__ of
@@ -590,6 +592,26 @@ reflowLetWhitespace program letExp =
 
     _ ->
       Debug.crash <| "reflowLetWhitespace expected an ELet, got: " ++ unparseWithIds letExp
+
+
+-- For when inserting into a let; assumes let is left-flush (i.e. call indent afterwards to set the proper whitespace)
+-- Can call this on this on the boundExp before feeding into newLetFancyWhitespace.
+reflowBoundExpWhitespace : Exp -> Exp
+reflowBoundExpWhitespace boundExp =
+  case boundExp.val.e__ of
+    EFun ws1 pats body ws2 ->
+      -- Always put function body on a new line (but pats on)
+      replaceE__ boundExp <|
+        EFun
+          (ws " ") -- Unparser ignores this if boundExp is a function
+          (setPatListWhitespace " " " " pats)
+          (body |> removePrecedingWhitespace |> replaceIndentation "  " |> replacePrecedingWhitespace "\n  ")
+          ws2
+
+    _ ->
+      if expHasNewlines (removePrecedingWhitespace boundExp)
+      then boundExp |> removePrecedingWhitespace |> replaceIndentation "  " |> replacePrecedingWhitespace "\n  "
+      else boundExp |> replacePrecedingWhitespace " "
 
 
 -- Note: the isRec flag is ignored if the new let is placed at the top level.
@@ -1310,7 +1332,14 @@ expToLetKind : Exp -> LetKind
 expToLetKind exp =
   case exp.val.e__ of
     ELet _ lk _ _ _ _ _ _ _ -> lk
-    _                   -> Debug.crash <| "LangTools.expToLetKind exp is not an ELet: " ++ unparseWithIds exp
+    _                       -> Debug.crash <| "LangTools.expToLetKind exp is not an ELet: " ++ unparseWithIds exp
+
+
+expToLetRec : Exp -> Bool
+expToLetRec exp =
+  case exp.val.e__ of
+    ELet _ _ isRec _ _ _ _ _ _ -> isRec
+    _                          -> Debug.crash <| "LangTools.expToLetRec exp is not an ELet: " ++ unparseWithIds exp
 
 
 expToLetPat : Exp -> Pat

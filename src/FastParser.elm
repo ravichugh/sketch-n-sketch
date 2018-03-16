@@ -341,6 +341,16 @@ typeIdentifierString =
     trackInfo <|
       variable validTypeIdentifierFirstChar validIdentifierRestChar keywords
 
+--------------------------------------------------------------------------------
+-- Hole Identifiers
+--------------------------------------------------------------------------------
+
+holeIdentifier : ParserI Ident
+holeIdentifier =
+  inContext "hole identifier string" <|
+    trackInfo <|
+      variable validIdentifierRestChar validIdentifierRestChar keywords
+
 --==============================================================================
 --= PATTERNS
 --==============================================================================
@@ -1048,8 +1058,31 @@ option =
 hole : Parser Exp
 hole =
   inContext "hole" <|
-    mapExp_ <|
-      paddedBefore EHole spaces (trackInfo <| token "??" HoleEmpty)
+    oneOf
+      [ holeNamed
+      , holeEmpty
+      ]
+
+holeEmpty : Parser Exp
+holeEmpty =
+  mapExp_ <|
+    paddedBefore EHole spaces (trackInfo <| token "??" HoleEmpty)
+
+holeNamed : Parser Exp
+holeNamed =
+  mapExp_ <|
+    delayedCommitMap
+      ( \wsBefore (qq, ident) ->
+          withInfo
+            (EHole wsBefore (HoleNamed ident.val))
+            qq.start
+            ident.end
+      )
+      ( spaces )
+      ( succeed (,)
+          |= trackInfo (symbol "??")
+          |= holeIdentifier
+      )
 
 --------------------------------------------------------------------------------
 -- Type Declarations

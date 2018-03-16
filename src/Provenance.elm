@@ -405,29 +405,31 @@ valToMaybePreviousSameVal val =
   -- Try to roll back to an equivalent value in the program
   -- Not quite unevaluation (Perera et al.) because can only do obvious reversals; notably can't reverse applications.
   case (valExp val).val.e__ of
-    EConst _ _ _ _            -> Nothing
-    EBase _ _                 -> Nothing
-    EFun _ _ _ _              -> Nothing
-    EList _ _ _ _ _           -> Nothing
-    EVar _ _                  -> success ()
-    EApp _ _ _ _ _            -> success () -- Applications point to value produced by final exp of the function
-    EOp _ _ _ _               ->
+    EConst _ _ _ _                             -> Nothing
+    EBase _ _                                  -> Nothing
+    EFun _ _ _ _                               -> Nothing
+    EList _ _ _ _ _                            -> Nothing
+    EVar _ _                                   -> success ()
+    EApp _ _ _ _ _                             -> success () -- Applications point to value produced by final exp of the function
+    EOp _ _ _ _                                ->
       if expEffectiveExp (valExp val) /= valExp val -- If a noop
       then success ()
       else Nothing
-    ELet _ _ _ _ _ _ _ _ _    -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ELet shouldn't appear in provenance" in Nothing
-    EIf _ _ _ _ _ _ _         -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EIf shouldn't appear in provenance" in Nothing
-    ECase _ _ _ _             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ECase shouldn't appear in provenance" in Nothing
-    ETypeCase _ _ _ _         -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeCase shouldn't appear in provenance" in Nothing
-    EComment _ _ _            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EComment shouldn't appear in provenance" in Nothing
-    EOption _ _ _ _ _         -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EOption shouldn't appear in provenance" in Nothing
-    ETyp _ _ _ _ _            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETyp shouldn't appear in provenance" in Nothing
-    EColonType _ _ _ _ _      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EColonType shouldn't appear in provenance" in Nothing
-    ETypeAlias _ _ _ _ _      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeAlias shouldn't appear in provenance" in Nothing
-    EParens _ _ _ _           -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
-    EHole _ (HoleVal _)       -> success ()
-    EHole _ (HolePredicate _) -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
-    EHole _ HoleEmpty         -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing
+    ELet _ _ _ _ _ _ _ _ _                     -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ELet shouldn't appear in provenance" in Nothing
+    EIf _ _ _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EIf shouldn't appear in provenance" in Nothing
+    ECase _ _ _ _                              -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ECase shouldn't appear in provenance" in Nothing
+    ETypeCase _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeCase shouldn't appear in provenance" in Nothing
+    EComment _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EComment shouldn't appear in provenance" in Nothing
+    EOption _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EOption shouldn't appear in provenance" in Nothing
+    ETyp _ _ _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETyp shouldn't appear in provenance" in Nothing
+    EColonType _ _ _ _ _                       -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EColonType shouldn't appear in provenance" in Nothing
+    ETypeAlias _ _ _ _ _                       -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeAlias shouldn't appear in provenance" in Nothing
+    EParens _ _ _ _                            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
+    EHole _ (HoleNamed "terminationCondition") -> Nothing
+    EHole _ (HoleVal _)                        -> success ()
+    EHole _ (HolePredicate _)                  -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
+    EHole _ (HoleNamed _)                      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty named hole shouldn't appear in provenance" in Nothing
+    EHole _ HoleEmpty                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing
 
 
 -- Unwrap provenance a few steps through expressions that passed the value unchanged.

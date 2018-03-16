@@ -428,7 +428,12 @@ unparse e =
         ElmSyntax -> -- We just unparse the inner expression as regular parentheses
           unparse <| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
 
-    EHole wsBefore val ->
+    EHole wsBefore (HoleNamed name) ->
+      wsBefore.val
+        ++ "??"
+        ++ name
+
+    EHole wsBefore holeType ->
       wsBefore.val
         ++ "??"
 

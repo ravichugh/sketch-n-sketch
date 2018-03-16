@@ -224,29 +224,29 @@ eval abortPred syntax env bt e =
   -- Alternatively, could choose not to add a basedOn record for if/case/typecase (simply pass value through, maybe add parent)
   -- But that would suggest that we *might* avoid doing so for EApp as well, which is more dubious. We'll see.
   EIf _ e1 _ e2 _ e3 _ ->
-    case eval_ abortPred syntax env bt e1 of
+    case eval_ abortPred syntax env bt_ e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
         case v1.v_ of
-          VBase (VBool True)  -> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] <| addWidgets ws1 result) <| eval abortPred syntax env bt e2 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
-          VBase (VBool False) -> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] <| addWidgets ws1 result) <| eval abortPred syntax env bt e3 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          VBase (VBool True)  -> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] <| addWidgets ws1 result) <| eval abortPred syntax env bt_ e2 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          VBase (VBool False) -> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] <| addWidgets ws1 result) <| eval abortPred syntax env bt_ e3 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           _                   -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " if-exp expected a Bool but got something else."
 
   ECase _ e1 bs _ ->
-    case eval_ abortPred syntax env (e::bt) e1 of
+    case eval_ abortPred syntax env bt_ e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
-        case evalBranches abortPred syntax env (e::bt) v1 bs of
+        case evalBranches abortPred syntax env bt_ v1 bs of
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
           Ok (Just (v2,ws2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s              -> Err s
           _                  -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
 
   ETypeCase _ e1 tbranches _ ->
-    case eval_ abortPred syntax env (e::bt) e1 of
+    case eval_ abortPred syntax env bt_ e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
-        case evalTBranches abortPred syntax env (e::bt) v1 tbranches of
+        case evalTBranches abortPred syntax env bt_ v1 tbranches of
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
           Ok (Just (v2,ws2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s              -> Err s
@@ -325,9 +325,9 @@ eval abortPred syntax env bt e =
     case t1.val of
       -- using (e : Point) as a "point widget annotation"
       TNamed _ a ->
-        if String.trim a /= "Point" then eval abortPred syntax env bt e1
+        if String.trim a /= "Point" then eval abortPred syntax env bt_ e1
         else
-          eval abortPred syntax env bt e1 |> Result.map (\(((v,ws),env_) as result) ->
+          eval abortPred syntax env bt_ e1 |> Result.map (\(((v,ws),env_) as result) ->
             case v.v_ of
               VList [v1, v2] ->
                 case (v1.v_, v2.v_) of
@@ -341,16 +341,24 @@ eval abortPred syntax env bt e =
                 result
             )
       _ ->
-        eval abortPred syntax env bt e1
+        eval abortPred syntax env bt_ e1
 
-  EComment _ _ e1           -> eval abortPred syntax env bt e1
-  EOption _ _ _ _ e1        -> eval abortPred syntax env bt e1
-  ETyp _ _ _ e1 _           -> eval abortPred syntax env bt e1
-  ETypeAlias _ _ _ e1 _     -> eval abortPred syntax env bt e1
-  EParens _ e1 _ _          -> eval abortPred syntax env bt e1
-  EHole _ (HoleVal val)     -> Ok <| ret [] val.v_ -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape.
+  EComment _ _ e1       -> eval abortPred syntax env bt_ e1
+  EOption _ _ _ _ e1    -> eval abortPred syntax env bt_ e1
+  ETyp _ _ _ e1 _       -> eval abortPred syntax env bt_ e1
+  ETypeAlias _ _ _ e1 _ -> eval abortPred syntax env bt_ e1
+  EParens _ e1 _ _      -> eval abortPred syntax env bt_ e1
+
+  EHole _ (HoleNamed "terminationCondition") ->
+    let parentIf = List.head bt |> Maybe.withDefault (eHoleNamed " * Nothing * ") in
+    if Utils.count ((==) parentIf) bt >= 2 -- Recurse once.
+    then Ok <| ret [] <| VBase (VBool True)
+    else Ok <| ret [] <| VBase (VBool False)
+
+  EHole _ (HoleVal val)     -> Ok <| ret [] val.v_ -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape. UPDATE: the infinite loop problem should be fixed, should be okay to use `retV [val] val`, changed when needed.
   EHole _ HoleEmpty         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
   EHole _ (HolePredicate _) -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"
+  EHole _ (HoleNamed name)  -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole " ++ name ++ "!"
 
 
 evalOp : (Exp -> Bool) -> Syntax -> Env -> Exp -> Backtrace -> Op -> List Exp -> Result String (Val, Widgets)

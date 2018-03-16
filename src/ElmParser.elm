@@ -230,6 +230,14 @@ bigIdentifier =
       isRestChar
       keywords
 
+holeIdentifier : ParserI Ident
+holeIdentifier =
+  trackInfo <|
+    LK.variable
+      isRestChar
+      isRestChar
+      keywords
+
 symbolIdentifier : ParserI Ident
 symbolIdentifier =
   trackInfo <|
@@ -1330,8 +1338,32 @@ parens sp =
 hole : SpacePolicy -> Parser Exp
 hole sp =
   inContext "hole" <|
-    mapExp_ <|
-      paddedBefore EHole sp (trackInfo <| token "??" HoleEmpty)
+    oneOf
+      [ holeNamed sp
+      , holeEmpty sp
+      ]
+
+holeEmpty : SpacePolicy -> Parser Exp
+holeEmpty sp =
+  mapExp_ <|
+    paddedBefore EHole sp (trackInfo <| token "??" HoleEmpty)
+
+holeNamed : SpacePolicy -> Parser Exp
+holeNamed sp =
+  mapExp_ <|
+    delayedCommitMap
+      ( \wsBefore (qq, ident) ->
+          withInfo
+            (EHole wsBefore (HoleNamed ident.val))
+            qq.start
+            ident.end
+      )
+      ( sp )
+      ( succeed (,)
+          |= trackInfo (symbol "??")
+          |= holeIdentifier
+      )
+
 
 --------------------------------------------------------------------------------
 -- Colon Types TODO

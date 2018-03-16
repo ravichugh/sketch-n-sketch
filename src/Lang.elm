@@ -163,6 +163,7 @@ type Exp__
 
 type HoleContents
   = HoleEmpty
+  | HoleNamed Ident
   | HoleVal Val
   | HolePredicate (Exp -> Bool) -- For matching code structure, see LangTools.matchExp below.
 
@@ -1730,6 +1731,8 @@ eApp e es      = withDummyExpInfo <| EApp space1 e es SpaceApp space0
 eCall fName es = eApp (eVar0 fName) es
 eFun ps e      = withDummyExpInfo <| EFun space1 ps e space0
 
+eIf e1 e2 e3 = withDummyExpInfo <| EIf space1 e1 space1 e2 newline1 e3 space0
+
 desugarEApp e es = case es of
   []      -> Debug.crash "desugarEApp"
   [e1]    -> eApp e [e1]
@@ -1794,6 +1797,10 @@ eList a b         = withDummyExpInfo <| EList space1 (List.map ((,) space0) a) s
 eTuple0 a         = eList0 a Nothing
 eTuple a          = eList a Nothing
 ePair e1 e2       = eTuple [e1, e2]
+eHoleEmpty0       = withDummyExpInfo <| EHole space0 HoleEmpty
+eHoleEmpty        = withDummyExpInfo <| EHole space1 HoleEmpty
+eHoleNamed0 s     = withDummyExpInfo <| EHole space0 (HoleNamed s)
+eHoleNamed s      = withDummyExpInfo <| EHole space1 (HoleNamed s)
 eHoleVal0 v       = withDummyExpInfo <| EHole space0 (HoleVal v)
 eHoleVal v        = withDummyExpInfo <| EHole space1 (HoleVal v)
 eHolePred p       = withDummyExpInfo <| EHole space1 (HolePredicate p)
@@ -2141,6 +2148,36 @@ mapPrecedingWhitespacePat stringMap pat =
     replaceP__ pat p__
 
 
+-- Does not recurse.
+mapExpWhitespaces : (String -> String) -> Exp -> Exp
+mapExpWhitespaces stringMap exp =
+  let
+    mapWs s =
+      ws (stringMap s.val)
+    e__New =
+      case exp.val.e__ of
+        EBase      ws v                             -> EBase      (mapWs ws) v
+        EConst     ws n l wd                        -> EConst     (mapWs ws) n l wd
+        EVar       ws x                             -> EVar       (mapWs ws) x
+        EFun       ws1 ps e1 ws2                    -> EFun       (mapWs ws1) ps e1 (mapWs ws2)
+        EApp       ws1 e1 es apptype ws2            -> EApp       (mapWs ws1) e1 es apptype (mapWs ws2)
+        EList      ws1 es ws2 rest ws3              -> EList      (mapWs ws1) es (mapWs ws2) rest (mapWs ws3)
+        EOp        ws1 op es ws2                    -> EOp        (mapWs ws1) op es (mapWs ws2)
+        EIf        ws1 e1 ws2 e2 ws3 e3 ws4         -> EIf        (mapWs ws1) e1 (mapWs ws2) e2 (mapWs ws3) e3 (mapWs ws4)
+        ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ELet       (mapWs ws1) kind rec p (mapWs ws2) e1 (mapWs ws3) e2 (mapWs ws4)
+        ECase      ws1 e1 bs ws2                    -> ECase      (mapWs ws1) e1 bs (mapWs ws2)
+        ETypeCase  ws1 e1 bs ws2                    -> ETypeCase  (mapWs ws1) e1 bs (mapWs ws2)
+        EComment   ws s e1                          -> EComment   (mapWs ws) s e1
+        EOption    ws1 s1 ws2 s2 e1                 -> EOption    (mapWs ws1) s1 (mapWs ws2) s2 e1
+        ETyp       ws1 pat tipe e ws2               -> ETyp       (mapWs ws1) pat tipe e (mapWs ws2)
+        EColonType ws1 e ws2 tipe ws3               -> EColonType (mapWs ws1) e (mapWs ws2) tipe (mapWs ws3)
+        ETypeAlias ws1 pat tipe e ws2               -> ETypeAlias (mapWs ws1) pat tipe e (mapWs ws2)
+        EParens    ws e pStyle ws2                  -> EParens    (mapWs ws) e pStyle (mapWs ws2)
+        EHole      ws mv                            -> EHole      (mapWs ws) mv
+  in
+    replaceE__ exp e__New
+
+
 removePrecedingWhitespace : Exp -> Exp
 removePrecedingWhitespace = replacePrecedingWhitespace ""
 
@@ -2350,21 +2387,23 @@ replaceIndentation spaces exp =
 -- Finds lowest amount of indentation and then removes it from all expressions.
 unindent : Exp -> Exp
 unindent exp =
-  let expWsAsSpaces = mapExp (mapPrecedingWhitespace tabsToSpaces) exp in
+  let expWsAsSpaces = mapExp (mapExpWhitespaces tabsToSpaces) exp in
   let smallestIndentation =
     expWsAsSpaces
-    |> foldExpViaE__
-        (\e__ smallest ->
-          case Regex.find Regex.All (Regex.regex "\n( *)$") (precedingWhitespaceExp__ e__) |> List.map .submatches |> List.concat of
-            [Just indentation] -> if String.length indentation < String.length smallest then indentation else smallest
-            _                  -> smallest
+    |> allWhitespaces
+    |> List.filterMap
+        (\ws ->
+          case Regex.find Regex.All (Regex.regex "\n( *)$") ws |> List.map .submatches |> List.concat of
+            [Just indentation] -> Just (String.length indentation)
+            _                  -> Nothing
         )
-        (String.repeat 100 " ")
+    |> List.minimum
+    |> Maybe.withDefault 0
   in
   let removeIndentation ws =
-    ws |> Regex.replace Regex.All (Regex.regex ("\n" ++ smallestIndentation)) (\_ -> "\n")
+    ws |> Regex.replace Regex.All (Regex.regex ("\n" ++ String.repeat smallestIndentation " ")) (\_ -> "\n")
   in
-  mapExp (mapPrecedingWhitespace removeIndentation) expWsAsSpaces
+  mapExp (mapExpWhitespaces removeIndentation) expWsAsSpaces
 
 indentWs : String -> String -> String
 indentWs spaces ws =
@@ -2375,7 +2414,7 @@ indentWs spaces ws =
 -- Increases indentation by spaces string.
 indent : String -> Exp -> Exp
 indent spaces e =
-  mapExp (mapPrecedingWhitespace (indentWs spaces)) e
+  mapExp (mapExpWhitespaces (indentWs spaces)) e
 
 -- Same as indent, but always push top level exp right even if no newline.
 pushRight : String -> Exp -> Exp

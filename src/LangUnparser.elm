@@ -243,7 +243,9 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
   EParens ws1 e pStyle ws2 ->
     unparse_ e
-  EHole ws v ->
+  EHole ws (HoleNamed name) ->
+    ws.val ++ "??" ++ name
+  EHole ws holeType ->
     ws.val ++ "??"
 
 
@@ -304,7 +306,9 @@ unparseWithIds e =
       ws1.val ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
     EParens ws1 e pStyle ws2 ->
       ws1.val ++ "(" ++ eidTag ++ unparseWithIds e ++ ws2.val ++ ")"
-    EHole ws v ->
+    EHole ws (HoleNamed name) ->
+      ws.val ++ "??" ++ name ++ eidTag
+    EHole ws holeType ->
       ws.val ++ "??" ++ eidTag
 
 
@@ -369,5 +373,7 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       " " ++ "(def" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")" ++ recurse e
     EParens _ e _ _ ->
       recurse e
+    EHole _ (HoleNamed name) ->
+      " ??" ++ name
     EHole _ _ ->
       " ??"
