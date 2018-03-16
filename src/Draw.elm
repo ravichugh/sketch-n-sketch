@@ -564,7 +564,7 @@ addPoint old (x, y) =
     [pointName, xName, yName] ->
       let
         programWithPoint =
-          LangTools.newLetAfterComments contextExp.val.eid (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x, eInt y]) (TNamed space1 "Point")) originalProgram
+          LangTools.newLetAfterComments contextExp.val.eid (pAs pointName (pList [pVar0 xName, pVar yName])) (identity (eTuple [eInt0 x, eInt y])) originalProgram -- eAsPoint
       in
       { old | code = Syntax.unparser old.syntax programWithPoint }
 
@@ -721,7 +721,7 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
               (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
               -- pt1 snaps ignored here, which is fine because we can't yet get an input pt1 with a snap on only one axis (an hence on only the non-offset axis not handled above with offsetFromExisting)
               programWithPoint =
-                LangTools.newLetAfterComments contextExp.val.eid (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eInt0 x1Int, eInt y1Int]) (TNamed space1 "Point")) originalProgram |> FastParser.freshen
+                LangTools.newLetAfterComments contextExp.val.eid (pAs pointName (pList [pVar0 xName, pVar yName])) (identity (eTuple [eInt0 x1Int, eInt y1Int])) originalProgram |> FastParser.freshen -- eAsPoint
               programWithOffsetAndPoint =
                 LangTools.newLetAfterComments contextExp.val.eid (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) programWithPoint
             in
@@ -1023,7 +1023,7 @@ addFunction fName old pt1 pt2 =
 newFunctionCallExp : Ident -> Model -> PointWithSnap -> PointWithSnap -> Maybe (Exp, Exp, Type)
 newFunctionCallExp fName model pt1 pt2 =
   let fillInArgPrimitive argType =
-    Maybe.map (if isPointType argType then eAsPoint else identity) <|
+    Maybe.map (if isPointType argType then identity else identity) <| -- eAsPoint
       case argType.val of
         TNum _                         -> Just <| eConstDummyLoc 0
         TBool _                        -> Just <| eFalse
@@ -1054,7 +1054,7 @@ newFunctionCallExp fName model pt1 pt2 =
                 )
                 ([pt1, pt2], [])
           in
-          let perhapsPointAnnotation = if isPointType returnType then eAsPoint else identity in
+          let perhapsPointAnnotation = if isPointType returnType then identity else identity in -- eAsPoint
           Utils.projJusts argMaybeExps
           |> Maybe.map (\argExps -> (perhapsPointAnnotation (eCall fName argExps), funcExp, returnType))
 
@@ -1198,7 +1198,7 @@ makeIntPairOrSnap ((x, xSnap), (y, ySnap)) =
 makePointExpFromPointWithSnap : PointWithSnap -> Exp
 makePointExpFromPointWithSnap pt =
   let (xExp, yExp) = makeIntPairOrSnap pt in
-  eAsPoint <| ePair (removePrecedingWhitespace xExp) yExp
+  identity <| ePair (removePrecedingWhitespace xExp) yExp -- eAsPoint
 
 addToMainExp : BlobExp -> MainExp -> MainExp
 addToMainExp newBlob mainExp =

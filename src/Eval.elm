@@ -182,6 +182,26 @@ eval abortPred syntax env bt e =
     then ImpureGoodies.throw (EarlyAbort ret)
     else ret
   ) <|
+  (Result.map (\(((v, ws), env) as origRet) ->
+    case (v.v_, FastParser.isProgramEId e.val.eid) of
+      (VList [v1, v2], True) ->
+        case (v1.v_, v2.v_) of
+          (VConst _ nt1, VConst _ nt2) ->
+            let
+              priorPointValsToRemove = valToSameVals v
+              wsSamePointSubsumed =
+                ws
+                |> List.filter
+                    (\w ->
+                      case w of
+                        WPoint _ _ _ _ wv -> not <| List.member wv priorPointValsToRemove
+                        _                 -> True
+                    )
+            in
+            ((v, wsSamePointSubsumed ++ [WPoint nt1 v1 nt2 v2 v]), env)
+          _ -> origRet
+      _ -> origRet
+  )) <|
   case e.val.e__ of
 
   EConst _ n loc wd ->
@@ -210,9 +230,9 @@ eval abortPred syntax env bt e =
         case (m, vs, FastParser.isProgramEId e.val.eid) of
           (Nothing, [v1, v2], True) ->
             case (v1.v_, v2.v_) of
-              (VConst _ nt1, VConst _ nt2) -> retBoth vs (VList vs, ws) |> (\((v, ws), env) -> ((v, ws ++ [WPoint nt1 v1 nt2 v2 v]), env)) |> Ok
+              (VConst _ nt1, VConst _ nt2) -> Ok <| retBoth vs (VList [{v1 | v_ = VConst (Just (X, nt2, v2)) nt1}, {v2 | v_ = VConst (Just (Y, nt1, v1)) nt2}], ws) -- Tracing for drawing offsets.
               _                            -> Ok <| retBoth vs (VList vs, ws)
-          (Nothing, _, _)                  -> Ok <| retBoth vs (VList vs, ws)
+          (Nothing, _, _)   -> Ok <| retBoth vs (VList vs, ws)
           (Just rest, _, _) ->
             case eval_ abortPred syntax env bt_ rest of
               Err s -> Err s
@@ -322,26 +342,26 @@ eval abortPred syntax env bt e =
 
   EColonType _ e1 _ t1 _ ->
     -- Pass-through, so don't add provenance.
-    case t1.val of
-      -- using (e : Point) as a "point widget annotation"
-      TNamed _ a ->
-        if String.trim a /= "Point" then eval abortPred syntax env bt_ e1
-        else
-          eval abortPred syntax env bt_ e1 |> Result.map (\(((v,ws),env_) as result) ->
-            case v.v_ of
-              VList [v1, v2] ->
-                case (v1.v_, v2.v_) of
-                  (VConst _ nt1, VConst _ nt2) ->
-                    let vNew = {v | v_ = VList [{v1 | v_ = VConst (Just (X, nt2, v2)) nt1}, {v2 | v_ = VConst (Just (Y, nt1, v1)) nt2}]} in
-                    ((vNew, ws), env_)
-                    -- ((vNew, ws ++ [WPoint nt1 v1 nt2 v2 v]), env_)
-                  _ ->
-                    result
-              _ ->
-                result
-            )
-      _ ->
-        eval abortPred syntax env bt_ e1
+    -- case t1.val of
+    --   -- using (e : Point) as a "point widget annotation"
+    --   TNamed _ a ->
+    --     if String.trim a /= "Point" then eval abortPred syntax env bt_ e1
+    --     else
+    --       eval abortPred syntax env bt_ e1 |> Result.map (\(((v,ws),env_) as result) ->
+    --         case v.v_ of
+    --           VList [v1, v2] ->
+    --             case (v1.v_, v2.v_) of
+    --               (VConst _ nt1, VConst _ nt2) ->
+    --                 let vNew = {v | v_ = VList [{v1 | v_ = VConst (Just (X, nt2, v2)) nt1}, {v2 | v_ = VConst (Just (Y, nt1, v1)) nt2}]} in
+    --                 ((vNew, ws), env_)
+    --                 -- ((vNew, ws ++ [WPoint nt1 v1 nt2 v2 v]), env_)
+    --               _ ->
+    --                 result
+    --           _ ->
+    --             result
+    --         )
+    --   _ ->
+    eval abortPred syntax env bt_ e1
 
   EComment _ _ e1       -> eval abortPred syntax env bt_ e1
   EOption _ _ _ _ e1    -> eval abortPred syntax env bt_ e1
@@ -654,3 +674,55 @@ errorWithBacktrace syntax bt message =
 
 crashWithBacktrace syntax bt message =
   crashWithMsg <| (btString syntax bt) ++ "\n" ++ message
+
+
+
+
+------------ COPIED FROM PROVENANCE.ELM B/C CIRCULAR DEPENDENCY, SHOULD BE ABLE TO RESOLVE AFTER VALUE-EDITOR BRANCH MERGE -------------
+
+-- Step backwards in the provenance by one step, if, based on the expression evaluated, the prior step has to be the same value.
+-- That is, step backwards through eVars and noop operations.
+valToMaybePreviousSameVal : Val -> Maybe Val
+valToMaybePreviousSameVal val =
+  let success () =
+    case valBasedOn val of
+      [basedOnVal] -> Just basedOnVal -- Should be correct even though not on expValueExp (all expValueExp will have only one basedOn)
+      _            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: unexpected extra basedOnVals" in Nothing
+  in
+  -- Try to roll back to an equivalent value in the program
+  -- Not quite unevaluation (Perera et al.) because can only do obvious reversals; notably can't reverse applications.
+  case (valExp val).val.e__ of
+    EConst _ _ _ _                             -> Nothing
+    EBase _ _                                  -> Nothing
+    EFun _ _ _ _                               -> Nothing
+    EList _ _ _ _ _                            -> Nothing
+    EVar _ _                                   -> success ()
+    EApp _ _ _ _ _                             -> success () -- Applications point to value produced by final exp of the function
+    EOp _ _ _ _                                ->
+      if expEffectiveExp (valExp val) /= valExp val -- If a noop
+      then success ()
+      else Nothing
+    ELet _ _ _ _ _ _ _ _ _                     -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ELet shouldn't appear in provenance" in Nothing
+    EIf _ _ _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EIf shouldn't appear in provenance" in Nothing
+    ECase _ _ _ _                              -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ECase shouldn't appear in provenance" in Nothing
+    ETypeCase _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeCase shouldn't appear in provenance" in Nothing
+    EComment _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EComment shouldn't appear in provenance" in Nothing
+    EOption _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EOption shouldn't appear in provenance" in Nothing
+    ETyp _ _ _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETyp shouldn't appear in provenance" in Nothing
+    EColonType _ _ _ _ _                       -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EColonType shouldn't appear in provenance" in Nothing
+    ETypeAlias _ _ _ _ _                       -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeAlias shouldn't appear in provenance" in Nothing
+    EParens _ _ _ _                            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
+    EHole _ (HoleNamed "terminationCondition") -> Nothing
+    EHole _ (HoleVal _)                        -> success ()
+    EHole _ (HolePredicate _)                  -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
+    EHole _ (HoleNamed _)                      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty named hole shouldn't appear in provenance" in Nothing
+    EHole _ HoleEmpty                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing
+
+
+-- Unwrap provenance a few steps through expressions that passed the value unchanged.
+-- Includes given value.
+valToSameVals : Val -> List Val
+valToSameVals val =
+  case valToMaybePreviousSameVal val of
+    Just basedOnVal -> val :: valToSameVals basedOnVal
+    Nothing         -> [val]
