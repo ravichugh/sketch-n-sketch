@@ -327,7 +327,15 @@ unparse e =
                 ++ rws.val
                 ++ "|>"
                 ++ wrapWithParensIfLessEqPrecedence e function (unparse function)
-            _ -> "?[internal error EApp RightApp wrong number of arguments]?"
+            _ -> "?[internal error EApp RightApp did not have exactly 1 argument]?"
+        InfixApp ->
+          case arguments of
+            [arg1, arg2] ->
+              wsBefore.val
+                ++ wrapWithParensIfLessEqPrecedence e arg1 (unparse arg1)
+                ++ unparse function
+                ++ wrapWithParensIfLessEqPrecedence e arg2 (unparse arg2)
+            _ -> "?[internal error EApp InfixApp did not have exactly 2 arguments]?"
 
     EOp wsBefore op arguments _ ->
       let
@@ -616,6 +624,13 @@ getExpPrecedence exp =
     EList _ [head] _ (Just tail) _ -> 5
     EApp _ _ _ (LeftApp _) _       -> 0
     EApp _ _ _ (RightApp _) _      -> 0
+    EApp _ f _ (InfixApp) _        ->
+      case f.val.e__ of
+        EVar _ name ->
+          case BinaryOperatorParser.getOperatorInfo name ElmParser.builtInPrecedenceTable of
+            Nothing -> 10
+            Just (associativity, precedence) -> precedence
+        _ -> 0
     EColonType _ _ _ _ _           -> -1
     EOp _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of

@@ -110,8 +110,22 @@ update updateStack nextToUpdate=
             Fork _ _ _-> False
         ) nextToUpdate)) maybeNext) msg -- We need to close on the variable msg
 
-    UpdateError msg ->
-      Errs msg
+    UpdateError msg -> -- Let's explore other solutions. If there are none, return this error.
+      let dropped_nextToUpdate = LazyList.dropWhile (\nextAction -> case nextAction of
+                                     HandlePreviousResult msg f -> True
+                                     Fork _ _ _ -> False
+                                   ) nextToUpdate in
+      case dropped_nextToUpdate of -- Let's consume the stack !
+        LazyList.Nil ->
+          Errs msg
+        LazyList.Cons head lazyTail ->
+          --let _ = Debug.log "There are some forks available... testing the next one!" () in
+          case head of
+            Fork msg newUpdateStack nextToUpdate2 ->
+              --let _ = Debug.log "finished update with one fork" () in
+              update newUpdateStack <| LazyList.appendLazy nextToUpdate2 lazyTail
+            _ -> Errs <| "Internal error: There was something else than a fork. Plus an error: " ++ msg
+
 
 getUpdateStackOp : Env -> Exp -> PrevOutput -> Output -> VDiffs -> UpdateStack
 getUpdateStackOp env e oldVal newVal diffs =
@@ -396,6 +410,24 @@ getUpdateStackOp env e oldVal newVal diffs =
              _ -> UpdateError ("Expected Record, got " ++ valToString initv)
 
      EApp sp0 e1 e2s appType sp1 ->
+       let continueIfNotFrozen =
+       case e1.val.e__ of
+         EVar _ "freeze" -> --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
+           case e2s of
+             [argument] ->
+               case doEval Syntax.Elm env argument of
+                 Err s -> \continuation -> UpdateError s
+                 Ok ((vArg, _), _) ->
+                   if valEqual vArg oldVal then -- OK, that's the correct freeze semantics
+                     if valEqual vArg newVal then
+                       \continuation -> updateResultSameEnv env e
+                     else
+                       \continuation -> UpdateError ("You are trying to update " ++ unparse e ++ " with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'")
+                   else \continuation -> continuation()
+             _ -> \continuation -> continuation()
+         _ -> \continuation -> continuation()
+       in
+       continueIfNotFrozen <| \_ ->
        let maybeUpdateStack = case e1.val.e__ of
          ESelect es0 eRecord es1 es2 "apply" -> -- Special case here. apply takes a record and a value and applies the field apply to the value.
              -- The user may provide the reverse function if "unapply" is given, or "update"
@@ -502,19 +534,6 @@ getUpdateStackOp env e oldVal newVal diffs =
                          _ -> Nothing
                      else Nothing
                    _ -> Nothing
-         EVar _ "freeze" -> --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
-            case e2s of  -- TODO: If freeze is not the first solution, it might prevent the updateError to show up.
-              [argument] ->
-                case doEval Syntax.Elm env argument of
-                  Err s -> Just <| UpdateError s
-                  Ok ((vArg, _), _) ->
-                    if valEqual vArg oldVal then -- OK, that's the correct freeze semantics
-                      if valEqual vArg newVal then
-                        Just <| updateResultSameEnv env e
-                      else
-                        Just <| UpdateError ("You are trying to update " ++ unparse e ++ " with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'")
-                    else Nothing
-              _ -> Nothing
          _ ->
             Nothing
        in

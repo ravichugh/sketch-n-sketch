@@ -77,6 +77,12 @@ takeWhile pred l =
     Nil -> Nil
     Cons head lazyTail -> if pred head then Cons head (Lazy.map (takeWhile pred) lazyTail) else Nil
 
+dropWhile:  (a -> Bool) -> LazyList a -> LazyList a
+dropWhile pred l =
+  case l of
+    Nil -> Nil
+    Cons head lazyTail -> if pred head then dropWhile pred (Lazy.force lazyTail) else l
+
 cartesianProduct : LazyList a -> LazyList b -> LazyList (a, b)
 cartesianProduct xs ys =
    flatten (map (\x -> map ((,) x) ys) xs)

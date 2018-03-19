@@ -17,7 +17,7 @@ symbols =
     , '/'
     , '*'
     , '='
-    , '.'
+    --, '.' Disallowed to be able to assign records to operator symbols.
     , '<'
     , '>'
     -- Disallow ':' (reserved for colon types)

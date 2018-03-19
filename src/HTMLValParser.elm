@@ -11,7 +11,7 @@ import ValUnbuilder as Vu
 import ValBuilder as Vb
 
 htmlValParser: Val
-htmlValParser = Val (VFun "parseHTML" ["html"] (\env args ->
+htmlValParser = builtinVal "(Native)HTMLValParser.htmlValParser" <| VFun "parseHTML" ["html"] (\env args ->
   case args of
     [v] ->
       case v.v_ of
@@ -28,7 +28,7 @@ htmlValParser = Val (VFun "parseHTML" ["html"] (\env args ->
      |> Result.map unparseHtmlNodes
      |> Result.map (\s -> [replaceV_ newOut <| VBase (VString s)])
      |> Results.fromResult
-  ))) (Provenance [] (withDummyExpInfo (EVar space0 "(Native)HTMLValParser.htmlValParser" )) []) (Parents [])
+  ))
 
 htmlNodeToVal: Val -> HTMLNode -> Val
 htmlNodeToVal v n = case n of

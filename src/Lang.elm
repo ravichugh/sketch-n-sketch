@@ -141,7 +141,11 @@ type alias Pat_ = { p__ : Pat__, pid : PId }
 --   * type alias
 --------------------------------------------------------------------------------
 
-type ApplicationType = SpaceApp | LeftApp WS | RightApp WS
+-- SpaceApp: fun arg
+-- LeftApp: fun <| arg
+-- RightApp: arg |> fun
+-- InfixApp: arg1 fun arg2
+type ApplicationType = SpaceApp | LeftApp WS | RightApp WS | InfixApp
 
 -- TODO once Little syntax is deprecated, remove some unused WS args
 
@@ -1656,6 +1660,9 @@ strPos p =
 -- val : Val_ -> Val
 -- val = flip Val (Provenance [] dummyExp)
 
+builtinVal: String -> Val_ -> Val
+builtinVal msg x = Val x (Provenance [] (withDummyExpInfo (EVar space0 "msg" )) []) (Parents [])
+
 exp_ : Exp__ -> Exp_
 exp_ = flip Exp_ (-1)
 
@@ -2059,6 +2066,8 @@ allWhitespaces_ exp =
     EApp       ws1 e1 es SpaceApp ws3       -> [ws1] ++ List.concatMap allWhitespaces_ (e1::es) ++ [ws3]
     EApp       ws1 e1 es (LeftApp ws2) ws3  -> [ws1] ++ allWhitespaces_ e1 ++ [ws2] ++ List.concatMap allWhitespaces_ es ++ [ws3]
     EApp       ws1 e1 es (RightApp ws2) ws3 -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2] ++ allWhitespaces_ e1 ++ [ws3]
+    EApp       ws1 e1 [g1, g2] InfixApp ws3  -> [ws1] ++ allWhitespaces_ g1 ++ allWhitespaces_ e1 ++ allWhitespaces_ g2 ++ [ws3]
+    EApp       ws1 e1 es InfixApp ws3        -> [ws1] ++ List.concatMap allWhitespaces_ (e1::es) ++ [ws3]
     EList      ws1 es ws2 rest ws3          -> [ws1]
                                                  ++ List.concatMap (\(ws_i,e_i) -> ws_i :: allWhitespaces_ e_i) es
                                                  ++ [ws2] ++ (rest |> Maybe.map allWhitespaces_ |> Maybe.withDefault []) ++ [ws3]

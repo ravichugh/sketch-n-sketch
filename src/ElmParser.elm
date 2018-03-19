@@ -1852,7 +1852,7 @@ expression sp =
                       in
                         withInfo
                           ( exp_ <|
-                              EApp space0 opExp [ left, right ] SpaceApp space0
+                              EApp space0 opExp [ left, right ] InfixApp space0
                           )
                           left.start
                           right.end

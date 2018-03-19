@@ -105,7 +105,71 @@ mkCap mcap l =
   s ++ ": "
 
 builtinEnv =
-  [("parseHTML", HTMLValParser.htmlValParser)]
+  [ ("parseHTML", HTMLValParser.htmlValParser)
+   -- TODO: This && evaluates both sides, can we have something that does less?
+  , ("&&", builtinVal "Eval.&&" <| VFun "&&" ["left", "right"] (\env args ->
+     case args of
+       [left, right] ->
+         case left.v_ of
+           VBase (VBool True) -> Ok ((right, []), env)
+           VBase (VBool False) -> Ok ((left, []), env)
+           _ -> Err <| "&& expects two booleans, got " ++ valToString left
+       _ -> Err <| "&& expects 2 arguments, got " ++ (toString <| List.length args)
+     ) Nothing)
+  , ("||", builtinVal "Eval.||" <| VFun "||" ["left", "right"] (\env args ->
+     case args of
+       [left, right] ->
+         case left.v_ of
+           VBase (VBool True) -> Ok ((left, []), env)
+           VBase (VBool False) -> Ok ((right, []), env)
+           _ -> Err <| "|| expects two booleans, got " ++ valToString left
+       _ -> Err <| "|| expects 2 arguments, got " ++ (toString <| List.length args)
+     ) Nothing)
+  , ("<=", builtinVal "Eval.<=" <| VFun "<=" ["left", "right"] (\env args ->
+     case args of
+       [left, right] ->
+         case (left.v_, right.v_) of
+           (VConst _ (n1, _), VConst _ (n2, _))  -> Ok ((replaceV_ left <| VBase (VBool (n1 <= n2)), []), env)
+           _ -> Err <| "<= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
+       _ -> Err <| "<= expects 2 arguments, got " ++ (toString <| List.length args)
+     ) Nothing)
+  , (">=", builtinVal "Eval.>=" <| VFun ">=" ["left", "right"] (\env args ->
+     case args of
+       [left, right] ->
+         case (left.v_, right.v_) of
+           (VConst _ (n1, _), VConst _ (n2, _))  -> Ok ((replaceV_ left <| VBase (VBool (n1 >= n2)), []), env)
+           _ -> Err <| ">= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
+       _ -> Err <| ">= expects 2 arguments, got " ++ (toString <| List.length args)
+     ) Nothing)
+  , (">", builtinVal "Eval.>" <| VFun ">" ["left", "right"] (\env args ->
+     case args of
+       [left, right] ->
+         case (left.v_, right.v_) of
+           (VConst _ (n1, _), VConst _ (n2, _))  -> Ok ((replaceV_ left <| VBase (VBool (n1 > n2)), []), env)
+           _ -> Err <| "> expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
+       _ -> Err <| "> expects 2 arguments, got " ++ (toString <| List.length args)
+     ) Nothing)
+  , ("/=", builtinVal "Eval./=" <| VFun "/=" ["left", "right"] (\env args ->
+     case args of
+       [left, right] ->
+         case (left.v_, right.v_) of
+           (VConst _ (n1, _), VConst _ (n2, _))  -> Ok ((replaceV_ left <| VBase (VBool (n1 /= n2)), []), env)
+           _ -> Err <| "/= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
+       _ -> Err <| "/= expects 2 arguments, got " ++ (toString <| List.length args)
+     ) Nothing)
+  , ("%", builtinVal "Eval.%" <| VFun "%" ["left", "right"] (\env args ->
+     case args of
+       [left, right] ->
+         case (left.v_, right.v_) of
+           (VConst x (n1, y), VConst _ (n2, _))  ->
+             if n2 == 0 then
+               Err "Modulo by zero"
+             else
+               Ok ((replaceV_ left <| VConst x (toFloat (truncate n1 % truncate n2), y), []), env)
+           _ -> Err <| "% expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
+       _ -> Err <| "% expects 2 arguments, got " ++ (toString <| List.length args)
+     ) Nothing)
+  ]
 
 -- TODO rename these to preludeEnv, because the initEnv name below
 -- is sometimes replaced by preludeEnv, sometimes the empty env.

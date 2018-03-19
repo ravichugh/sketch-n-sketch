@@ -632,5 +632,8 @@ all_tests = init_state
   |> updateElmAssert [("color", "\"white\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
                             "[[\"padding\", \"3px\"], [ \"background-color\", \"lightgray\"]]"
                            [("color", "\"lightgray\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
+  |> test "freeze"
+  |> updateElmAssert [("freeze", "\\x -> x")] "freeze 0 + 1" "2"
+                     [("freeze", "\\x -> x")] "freeze 0 + 2"
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
   |> summary

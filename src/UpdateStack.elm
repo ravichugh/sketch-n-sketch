@@ -10,7 +10,7 @@ import Syntax
 import ValUnparser exposing (strVal)
 import UpdateUtils exposing (..)
 import Utils
-import LangUtils exposing (envToString)
+import LangUtils exposing (envToString, valToString)
 import Set exposing (Set)
 import UpdatedEnv exposing (UpdatedEnv, original)
 
@@ -140,6 +140,10 @@ updateContinueMultiple  msg       env    totalExpValOut                    diffs
 -- Constructor for combining multiple expressions evaluated in the same environment, when there are multiple values available.
 updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> List PrevOutput -> LazyList (List Output, Result String (Maybe (TupleDiffs VDiffs))) -> UpdateStack
 updateOpMultiple  hint     env    es          eBuilder             prevOutputs        outputs =
+  {-let _ = Debug.log ("updateOpMultiple called with " ++ String.join "," (List.map (Syntax.unparser Syntax.Elm) es) ++
+          "\nprevOutputs = " ++ (List.map valToString prevOutputs |> String.join ",") ++
+          "\nupdates = \n<--" ++ (outputs |> LazyList.toList |> List.map (\(o, d) -> (List.map valToString o |> String.join ",") ++ " (diffs " ++ toString d++ ")" ) |> String.join "\n<-- ")
+      ) () in-}
   let aux: Int -> List Output -> Result String (Maybe (TupleDiffs VDiffs))-> Lazy.Lazy (LazyList (List Output, Result String (Maybe (TupleDiffs VDiffs)))) -> UpdateStack
       aux  nth    outputsHead    diffResult                                  lazyTail =
     let continue = case diffResult of
@@ -147,8 +151,8 @@ updateOpMultiple  hint     env    es          eBuilder             prevOutputs  
        Ok Nothing -> \continuation -> continuation (UpdatedEnv.original env) es
        Ok (Just diff) -> updateContinueMultiple (hint ++ " #" ++ toString nth) env (Utils.zip3 es prevOutputs outputsHead) diff
     in
-    continue <| \newUpdatedEnv newOpArgs ->
-       UpdateResultAlternative "UpdateResultAlternative maybeOp" (updateResult newUpdatedEnv (eBuilder newOpArgs))
+       UpdateResultAlternative "UpdateResultAlternative maybeOp"
+         (continue <| \newUpdatedEnv newOpArgs -> updateResult newUpdatedEnv (eBuilder newOpArgs))
          (lazyTail |> Lazy.map (\ll ->
            --let _ = Debug.log ("Starting to evaluate another alternative if it exists ") () in
            case ll of
