@@ -433,7 +433,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                       Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                         case Vu.record Ok vResult of
-                                          Err msg -> Just <| UpdateError "updateApp should return either {values = [list of values]}, {error = \"Error string\"}, or more advanced { values = [...], diffs = [..Nothing/Just diff per value.]}"
+                                          Err msg -> Just <| UpdateError "The update closure should return either {values = [list of values]}, {error = \"Error string\"}, or more advanced { values = [...], diffs = [..Nothing/Just diff per value.]}"
                                           Ok d ->
                                             let error = case Dict.get "error" d of
                                                 Just errorv -> case Vu.string errorv of
@@ -455,9 +455,9 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                           if valToString vArg == valToString r then
                                                             Ok Nothing
                                                           else UpdateUtils.defaultVDiffs vArg r) <| valuesList
-                                                      Just resultDiffsV -> case Vu.list valToVDiffs resultDiffsV of
-                                                        Err msg -> Err <| "the .diffs of the result of updateApp should be a list of differences. " ++ msg
-                                                        Ok vdiffs -> Ok <| List.map Just vdiffs
+                                                      Just resultDiffsV ->
+                                                        Vu.list (UpdateUtils.valToMaybe valToVDiffs) resultDiffsV |>
+                                                          Result.mapError (\msg -> "the .diffs of the result of updateApp should be a list of (Maybe differences). " ++ msg)
                                                     in
                                                     case diffsListRes of
                                                      Err msg -> Just <| UpdateError msg
