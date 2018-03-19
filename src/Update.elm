@@ -433,7 +433,9 @@ getUpdateStackOp env e oldVal newVal diffs =
                                       Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                         case Vu.record Ok vResult of
-                                          Err msg -> Just <| UpdateError "The update closure should return either {values = [list of values]}, {error = \"Error string\"}, or more advanced { values = [...], diffs = [..Nothing/Just diff per value.]}"
+                                          Err msg -> Just <| UpdateError <|
+                                           "The update closure should return either {values = [list of values]}, {error = \"Error string\"}, or more advanced { values = [...], diffs = [..Nothing/Just diff per value.]}. Got "
+                                           ++ valToString vResult
                                           Ok d ->
                                             let error = case Dict.get "error" d of
                                                 Just errorv -> case Vu.string errorv of

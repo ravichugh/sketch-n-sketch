@@ -27,7 +27,7 @@ import Info exposing (..)
 
 isSpace : Char -> Bool
 isSpace c =
-  c == ' ' || c == '\n' || c == '\t' || c == '\r'
+  c == ' ' || c == '\n' || c == '\t' || c == '\r' || c == '\xa0'
 
 isOnlySpaces : String -> Bool
 isOnlySpaces =
