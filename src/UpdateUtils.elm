@@ -18,7 +18,7 @@ import ValUnbuilder as Vu
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
 
-splitRegex = Regex.regex "\\b|(?=[\\]\"'\\[\\)\\(,-><\\\\])"
+splitRegex = Regex.regex "\\b|(?=[-\\]\"'\\[\\)\\(,><\\\\])"
 
 diffExp: Exp -> Exp -> String --Summary in strings
 diffExp e1 e2 =
@@ -77,6 +77,7 @@ displayDiffPositions tos difference =
     let colAdded = String.length (Regex.replace Regex.All (Regex.regex "(.*\n)*") (\_ -> "") kept) in
     if rowAdded == 0 then (kept, prevRow, prevCol + colAdded) else (kept, prevRow + rowAdded, colAdded)
   in
+  let maybeComma s = if s == "" then s else s ++ ", \n" in
   let aux:(Int,     Int) ->  (String, List Exp) -> List (DiffChunk (List a)) -> (String, List Exp)
       aux (prevRow, prevCol) (string, prevAcc)     difference = case difference of
     [] -> (string, prevAcc)
@@ -84,16 +85,19 @@ displayDiffPositions tos difference =
      let (_, newRow, newCol) = newStringRowCol prevRow prevCol l in
      aux (newRow, newCol) (string, prevAcc) tail
     DiffRemoved l::((DiffAdded d::tail) as thetail) ->
-     aux (prevRow, prevCol) (string, prevAcc) thetail
+     let removed = lToString l in
+     let (added, newRow, newCol) = newStringRowCol prevRow prevCol d in
+     let e = dummyExp added prevRow prevCol newRow newCol in
+     aux (newRow, newCol) (maybeComma string ++ "Line " ++ toString prevRow ++ ": " ++ removed ++ " -> " ++ added, e::prevAcc) tail
     DiffRemoved l::tail ->
      let removed = lToString l in
      let e = dummyExp ("- " ++ removed) prevRow prevCol prevRow (prevCol + 1) in
-     aux (prevRow, prevCol) (string ++ " -" ++ removed, e ::prevAcc) tail
+     aux (prevRow, prevCol) (maybeComma string ++ "Line " ++ toString prevRow ++ ": -" ++ removed, e ::prevAcc) tail
     DiffAdded l::tail ->
      let (added, newRow, newCol) = newStringRowCol prevRow prevCol l in
      let e = dummyExp added prevRow prevCol newRow newCol in
      let _ = Debug.log ("Highlighting " ++ toString prevRow ++ "," ++ toString prevCol ++ " -> " ++ toString newRow ++ "," ++ toString newCol) () in
-     aux (newRow, newCol) (string ++ " +" ++ added, e::prevAcc) tail
+     aux (newRow, newCol) (maybeComma string ++ "Line " ++ toString prevRow ++ ": " ++ added, e::prevAcc) tail
   in aux (0, 0) ("", []) difference
 
 --diff: List a -> List a -> List (() -> List (DiffChunk (List a))) -> List (DiffChunk (List a))
@@ -660,7 +664,9 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
         if patsEqual pats0 pats1 pats2 then
           let (newEnv, newEnvDiffs) = mergeEnv env0 env1 envmodifs1 env2 envmodifs2 in
           let (newBody, newBodyModifs) = case (bodymodifs1, bodymodifs2) of
-            (Just emodif1, Just emodif2) -> (mergeExp body0 body1 body2, Just EChanged)
+            (Just emodif1, Just emodif2) ->
+              let _ = Debug.log "Merging two VClosures" () in
+              (mergeExp body0 body1 body2, Just EChanged)
             (Nothing, _) -> (body2, bodymodifs2)
             (_, Nothing) -> (body1, bodymodifs1)
           in
