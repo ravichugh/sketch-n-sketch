@@ -1,6 +1,6 @@
 notBelow bound x = {
   apply x = freeze x
-  update {input, outputNew} = 
+  update {input, outputNew} =
     if outputNew <= bound && input > bound then
       {values = [bound]}
     else if outputNew > bound then
@@ -8,7 +8,7 @@ notBelow bound x = {
     else {values = []} }.apply x
 
 exactly x = freeze x
-    
+
 days =
   exactly 3
 venue =

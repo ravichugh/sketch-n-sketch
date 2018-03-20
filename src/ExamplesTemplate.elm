@@ -210,6 +210,7 @@ LEO_TO_ELM tableOfStatesC
 LEO_TO_ELM tableOfStatesD
 LEO_TO_ELM simpleBudget
 LEO_TO_ELM fromleo/markdown
+LEO_TO_ELM fromleo/conference_budgetting
 
 --------------------------------------------------------------------------------
 
@@ -241,6 +242,7 @@ docsCategory =
         makeLeoExample (toString (2+i) ++ ": " ++ caption) program
       )
       [ ("Markdown", fromleo_markdown)
+      , ("Conference Budget", fromleo_conference_budgetting)
       , ("TODO", blankDoc)
       , ("TODO", blankDoc)
       , ("TODO", blankDoc)
