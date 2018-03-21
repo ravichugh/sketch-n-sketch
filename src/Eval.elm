@@ -105,7 +105,14 @@ mkCap mcap l =
   s ++ ": "
 
 builtinEnv =
-  [ ("parseHTML", HTMLValParser.htmlValParser)
+  [ ("error", builtinVal "Eval.error" <| VFun "error" ["msg"] (\env args ->
+    case args of
+      [arg] -> case arg.v_ of
+        VBase (VString s) -> Err s
+        _ -> Err <| valToString arg
+      _ -> Err <| "error requires 1 argument, was given " ++ toString (List.length args)
+    ) Nothing)
+  , ("parseHTML", HTMLValParser.htmlValParser)
    -- TODO: This && evaluates both sides, can we have something that does less?
   , ("&&", builtinVal "Eval.&&" <| VFun "&&" ["left", "right"] (\env args ->
      case args of
@@ -297,7 +304,7 @@ eval syntax env bt e =
               Ok (vRest, ws_) ->
                 case vRest.v_ of
                   VList vs_ -> Ok <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_)
-                  _         -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list."
+                  _         -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list, but " ++ valToString vRest
 
   ERecord _ mi es _ ->
     case Utils.projOk <| List.map (eval_ syntax env bt_) (Utils.recordValues es) of
@@ -371,7 +378,11 @@ eval syntax env bt e =
 
   EApp sp0 e1 es appStyle sp1 ->
     case eval_ syntax env bt_ e1 of
-      Err s       -> Err s
+      Err s       ->
+        case e1.val.e__ of
+          EVar spp "++" -> -- We rewrite ++ to a call to "append"
+            eval syntax env bt_ (replaceE__ e <| EApp sp0 (replaceE__ e1 <| EVar spp "append") es SpaceApp sp1)
+          _ -> Err s
       Ok (v1,ws1) ->
         let evalVApp v1 es =
           case v1.v_ of
@@ -441,8 +452,7 @@ eval syntax env bt e =
       Ok (v1,ws1) ->
         case ((patEffectivePat p).val.p__, v1.v_) of
           (PVar _ fname _, VClosure Nothing x body env_) ->
-            let _   = Utils.assert "eval letrec" (env == env_) in
-            let v1Named = { v1 | v_ = VClosure (Just fname) x body env } in
+            let v1Named = { v1 | v_ = VClosure (Just fname) x body env_ } in
             case cons (pVar fname, v1Named) (Just env) of
               -- Don't add provenance: fine to say value is just from the let body.
               -- (We consider equations to be mobile).

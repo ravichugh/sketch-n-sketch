@@ -315,9 +315,11 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, beforeS
           , case optNoEqualSign of
               Nothing -> fail "Expected ="
               Just f ->
-                succeed identity
-                  |. oneOf [ lookAhead (symbol ","), lookAhead (symbol "\r"), lookAhead (symbol "\n"), lookAhead (symbol "}")]
-                  |= succeed (ws "", f keyWithInfos.val)
+                delayedCommitMap (\a b -> (a, b))
+                  spaces
+                  ( succeed identity
+                   |. oneOf [ lookAhead (symbol ","), lookAhead (symbol "\r"), lookAhead (symbol "\n"), lookAhead (symbol "}")]
+                   |= succeed (f keyWithInfos.val))
           ]
       )
   in
@@ -1750,41 +1752,34 @@ simpleExpressionWithPossibleArguments sp =
     )
 
 -- No indentation for top-level expressions, at least one newline or the beginning of the string.
-topLevelBetweenSpaceRegex = Regex.regex "^(?:\\s*\n)*|(?:\\s*\n)"
-
 topLevelBetweenDefSpacePolicty: SpacePolicy
 topLevelBetweenDefSpacePolicty =
-  { first = trackInfo <| ParserUtils.keepRegex topLevelBetweenSpaceRegex,
-    apparg = trackInfo <| ParserUtils.keepRegex topLevelInsideDefSpaceRegex
+  { first = LangParserUtils.spacesWithoutIndentation,
+    apparg = LangParserUtils.spacesWithoutIndentation
   }
-
-
-topLevelInsideDefSpaceRegex = Regex.regex "((?!\n\n|\n\\S)\\s)*"
 
 topLevelInsideDefSpacePolicy: SpacePolicy
 topLevelInsideDefSpacePolicy =
-  {first = trackInfo <| ParserUtils.keepRegex topLevelInsideDefSpaceRegex,
-   apparg = trackInfo <| ParserUtils.keepRegex topLevelInsideDefSpaceRegex }
-
-spaceWithoutNLRegex = Regex.regex "((?!\n)\\s)*"
+  {first = LangParserUtils.spacesNotBetweenDefs,
+   apparg = LangParserUtils.spacesNotBetweenDefs }
 
 spacesWithoutNewline: SpacePolicy
 spacesWithoutNewline =
-  { first = trackInfo <| ParserUtils.keepRegex spaceWithoutNLRegex,
-    apparg = trackInfo <| ParserUtils.keepRegex spaceWithoutNLRegex }
+  { first = LangParserUtils.spacesWithoutNewline,
+    apparg = LangParserUtils.spacesWithoutNewline }
 
 allSpacesPolicy: SpacePolicy
 allSpacesPolicy = { first = spaces, apparg = spaces }
 
 sameLineOrIndentedByAtLeast: Int -> SpacePolicy
 sameLineOrIndentedByAtLeast nSpaces =
-  let indentedParser = trackInfo <| ParserUtils.keepRegex <| Regex.regex <| "( |\t)*((r?\n *)*(\r?\n" ++ String.repeat nSpaces " " ++ " *))?" in
+  let indentedParser = LangParserUtils.spacesDefault <| ParserUtils.keepRegex <| Regex.regex <| "( |\t)*((r?\n *)*(\r?\n" ++ String.repeat nSpaces " " ++ " *))?" in
   SpacePolicy indentedParser indentedParser
 
 
 sameLineOrIndentedByExactly: Int -> SpacePolicy
 sameLineOrIndentedByExactly nSpaces =
-  let indentedParser = trackInfo <| ParserUtils.keepRegex <|  Regex.regex <| "( |\t)*((\r?\n *)*(\r?\n" ++ String.repeat nSpaces " " ++ "))?" in
+  let indentedParser = LangParserUtils.spacesDefault <| ParserUtils.keepRegex <|  Regex.regex <| "( |\t)*((\r?\n *)*(\r?\n" ++ String.repeat nSpaces " " ++ "))?" in
   SpacePolicy indentedParser (sameLineOrIndentedByAtLeast nSpaces).apparg
 
 
@@ -2161,7 +2156,11 @@ sanitizeVariableName unsafeName =
 (prelude, initK) =
   Prelude.preludeLeo
     |> run program  -- not parse, since don't want to call freshen
-    |> Utils.fromOkay "parse preludeLeo.elm"
+    |> (\i ->
+        case i of
+          Ok k -> k
+          Err msg -> Debug.crash <|  "In prelude.leo" ++ ParserUtils.showError msg
+        )
     |> freshenClean 1 -- need this?
 
 preludeIds = allIds prelude

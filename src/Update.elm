@@ -455,10 +455,12 @@ getUpdateStackOp env e oldVal newVal diffs =
                                          ("input", vArg),
                                          ("output", newVal),
                                            ("outputNew", newVal), -- Redundant
+                                           ("newOutput", newVal), -- Redundant
                                          ("outputOld", oldVal),
                                            ("outputOriginal", oldVal), -- Redundant
                                            ("oldOutput", oldVal), -- Redundant
                                          ("diff", diffsVal),
+                                           ("diffs", diffsVal),
                                            ("outDiff", diffsVal), -- Redundant
                                            ("diffOut", diffsVal) -- Redundant
                                          ] in
@@ -541,7 +543,15 @@ getUpdateStackOp env e oldVal newVal diffs =
        in
        updateMaybeFirst maybeUpdateStack <| \_ ->
          case doEval Syntax.Elm env e1 of
-           Err s       -> UpdateCriticalError s
+           Err s       ->
+             case e1.val.e__ of
+               EVar spp "++" -> -- We rewrite ++ to a call to "append"
+                 updateContinue "Rewriting ++ to append" env (replaceE__ e <| EApp sp0 (replaceE__ e1 <| EVar spp "append") e2s SpaceApp sp1) oldVal newVal diffs <| \newEnv newE1 ->
+                   case newE1.val.e__ of
+                     EApp sp0p newE1 newE2s appType sp1p ->
+                       updateResult newEnv <| replaceE__ e <|EApp sp0p e1 newE2s appType sp1p
+                     _ -> UpdateCriticalError <| "ExpectedEApp, got " ++ Syntax.unparser Syntax.Elm newE1
+               _ -> UpdateCriticalError s
            Ok ((v1, _),_) ->
              case v1.v_ of
                VClosure recName e1ps eBody env_ as vClosure ->

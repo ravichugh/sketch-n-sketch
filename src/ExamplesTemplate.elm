@@ -11,11 +11,11 @@ import PreludeGenerated as Prelude
 import DefaultIconTheme
 import Syntax
 
-makeExample = makeExample_ FastParser.parseE
+makeExample = makeExample_ FastParser.parseE Syntax.Little
 
-makeLeoExample = makeExample_ ElmParser.parse
+makeLeoExample = makeExample_ ElmParser.parse Syntax.Elm
 
-makeExample_ parser name s =
+makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
     let e = Utils.fromOkay ("Error parsing example " ++ name) (parser s) in
@@ -26,7 +26,7 @@ makeExample_ parser name s =
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
     -- else
     -----------------------------------------------------
-    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run Syntax.Little e in
+    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run syntax e in
     {e=e, v=v, ws=ws, ati=ati}
   in
   (name, (s, thunk))
@@ -211,6 +211,7 @@ LEO_TO_ELM tableOfStatesD
 LEO_TO_ELM simpleBudget
 LEO_TO_ELM fromleo/markdown
 LEO_TO_ELM fromleo/conference_budgetting
+LEO_TO_ELM fromleo/recipe
 
 --------------------------------------------------------------------------------
 
@@ -243,7 +244,7 @@ docsCategory =
       )
       [ ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
-      , ("TODO", blankDoc)
+      , ("Proportional Recipe editor", fromleo_recipe)
       , ("TODO", blankDoc)
       , ("TODO", blankDoc)
       , ("Simple Budget", simpleBudget)

@@ -11,11 +11,11 @@ import PreludeGenerated as Prelude
 import DefaultIconTheme
 import Syntax
 
-makeExample = makeExample_ FastParser.parseE
+makeExample = makeExample_ FastParser.parseE Syntax.Little
 
-makeLeoExample = makeExample_ ElmParser.parse
+makeLeoExample = makeExample_ ElmParser.parse Syntax.Elm
 
-makeExample_ parser name s =
+makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
     let e = Utils.fromOkay ("Error parsing example " ++ name) (parser s) in
@@ -26,7 +26,7 @@ makeExample_ parser name s =
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
     -- else
     -----------------------------------------------------
-    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run Syntax.Little e in
+    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run syntax e in
     {e=e, v=v, ws=ws, ati=ati}
   in
   (name, (s, thunk))
@@ -5952,40 +5952,154 @@ fromleo_conference_budgetting =
  """notBelow bound x = {
   apply x = freeze x
   update {input, outputNew} =
-    if outputNew <= bound && input > bound then
-      {values = [bound]}
-    else if outputNew > bound then
-      { values = outputNew }
-    else {values = []} }.apply x
+    if outputNew <= bound &&
+       input     >  bound     then { values = [bound] }
+    else if outputNew > bound then { values = outputNew }
+    else                           { values = [] }
+  }.apply x
 
 exactly x = freeze x
 
-days =
-  exactly 3
-venue =
-  exactly (10000 * days)
-lunch =
-  (notBelow 20) 30
+days =  exactly 3
+venue = exactly (10000 * days)
+lunch = (notBelow 20) 30
 
-registeredParticipants =
-  200
-registrationFee =
-  50
-sponsors =
-  20000
+participants = 200
+fee          = 50
+sponsors     = 20000
 
-expenses =
-  exactly registeredParticipants * lunch * days + exactly venue
-income =
-  exactly registeredParticipants * registrationFee +  exactly sponsors
+expenses = exactly participants * lunch * days + venue
+income   = exactly participants * fee + sponsors
 
-surplus =
-  income - expenses
+surplus = income - expenses
 
 -- Change surplus to 0, it changes the lunch but will stop at 20, so the surplus will be negative.
 -- Change surplus to 0 again, it changes the registration fee.
-[\"h3\", [], [[\"TEXT\", toString surplus]]]
+[\"div\", [[\"style\", \"margin:20px\"]], [
+  [\"TEXT\", \"Current surplus of conference:\"],
+  [\"br\", [], []],
+  [\"h3\", [[\"id\", \"surplus\"]], [
+    [\"TEXT\", toString surplus]]],
+  if surplus /= 0 then
+    [\"button\", [[\"onclick\", \"document.getElementById('surplus').innerText = '0'\"]], [[\"TEXT\", \"Set to zero\"]]]
+  else
+    [\"TEXT\", \"Hurray, the budget is coherent!\"]
+    ]]
+"""
 
+fromleo_recipe =
+ """-- If you write prop[number] in the text, it will display this number but it will be proportional to the number of cakes !
+-- If you write plurs[number] in the text, it will display a \"s\" if the number is greater than 1 !
+
+base = 1000
+temperature = 180
+
+applyDict d x = get x d
+applyDict2 x d = applyDict d x
+
+strToInt =
+  let d = dict [[\"0\", 0], [\"1\", 1], [\"2\", 2], [\"3\", 3], [\"4\", 4], [\"5\", 5], [\"6\", 6], [\"7\", 7], [\"8\", 8], [\"9\", 9]] in
+  letrec aux x = 
+    case extractFirstIn \"^([0-9]*)([0-9])$\" x of
+      [\"Just\", [init, last]] -> (aux init)*10 + applyDict d last
+      [\"Nothing\"] -> 0
+  in
+  aux
+
+language = \"English\"
+otherLanguage = if language == \"French\" then \"English\" else \"French\"
+
+txt = dict [
+  [\"French\", \"\"\"
+<h1>Moelleux chocolat amandes</h1>
+Recette pour multdivby[20,1000] petits gâteaux.<br>
+Préchauffer le four à @(temperature)° (Celsius)
+<li>multdivby[4,1000] œufifmanys[4,1000]</li>
+<li>multdivby[1,2000] verre de sucre</li>
+<li>multdivby[200,1000]g de chocolat fondu</li>
+<li>multdivby[50,1000]g de poudre d’amande</li>
+<li>multdivby[2,1000] cs d’huile de tournesol</li>
+<li>Cannelle</li>
+<li>Pincée de sel</li>
+Au four pendant 10 minutes dans des moules à cupcakes.<br>
+On peut aussi mettre en déco des amandes effilées, ou remplacer le chocolat par un citron pressé\"\"\"],
+  [\"English\", \"\"\"
+<h1>Soft chocolate almond cakes</h1>
+Recipe for multdivby[20,1000] small cakes.<br>
+Preheat the oven at @(floor (temperature * freeze 9 / freeze 5) + freeze 32)° Fahrenheit
+<li>multdivby[4,1000] eggifmanys[4,1000]</li>
+<li>multdivby[1,2000] glass of sugar</li>
+<li>multdivby[200,1000]g of melted chocolate</li>
+<li>multdivby[50,1000]g of almond powder</li>
+<li>multdivby[2,1000] tbls of sunflower oil</li>
+<li>Cinnamon</li>
+<li>A pinch of salt</li>
+In the oven for 10 minutes in cupcakes pans.<br>
+One can also put as decoration sliced almonds, or replace chocolate by a squeezed lemon.\"\"\"]
+  ] |> applyDict2 language
+
+result = replaceAllIn \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\" (\\m ->
+  let mult = strToInt <| nth m.group 3 in
+  let div = strToInt <|  nth m.group 4 in
+  case nth m.group 1 of
+    \"multdivby\" ->
+      let res = floor (base * freeze mult / freeze div) in
+      if res < 6 then -- We take into account 1/2, 1/4 and 3/4 until 5, else it makes no sense, but no more.
+        { apply base = freeze <|
+           case floor (base * mult * 4 / div) - 4*res of
+             0 -> if res == 0 then \"<¼\" else toString res
+             1 -> if res == 0 then \"¼\" else if res >= 4 then toString res else toString res + \"¼\"
+             2 -> if res == 0 then \"½\" else toString res + \"3/4\"
+             3 -> if res == 0 then \"¾\" else if res >= 4 then toString res else toString res + \"¾\"
+          update {outputNew, outputOriginal} =
+            if outputNew == outputOriginal then {values=[base]} else
+            let quantityTimes4 = case extractFirstIn \"(.*)(¼|[ +]?[13]/[24]|½|¾)\" outputNew of
+              [\"Just\", [i, complement]] -> 
+                 let addi x = if i == \"\" then x else 4 * strToInt i + x in
+                 case complement of
+                   \"¼\"    -> addi 1
+                   \"1/4\"  -> addi 1
+                   \" 1/4\" -> addi 1
+                   \"+1/4\" -> addi 1
+                   \"½\"    -> addi 2
+                   \"1/2\"  -> addi 2
+                   \" 1/2\" -> addi 2
+                   \"+1/2\" -> addi 2
+                   \"¾\"    -> addi 3
+                   \"3/4\"  -> addi 3
+                   \" 3/4\" -> addi 3
+                   \"+3/4\" -> addi 3
+                   a      -> \"complement error: \" + complement + 1
+              [\"Nothing\"] -> 4 * strToInt i
+            in
+            {values = floor (quantityTimes4 * div / mult / 4) }
+        }.apply base
+      else toString res
+    ifmanyEnding ->
+      let ending = nth m.group 2 in
+      let res = floor (base * freeze mult * freeze 4 / freeze div) in
+      { apply x = if res > 4 then ending else \"\"
+        update {outputNew, outputOriginal} =
+          if outputNew == \"\" && outputOriginal == ending then {values=[4]} else {values = []} }.apply res) txt
+
+div_ [[\"margin\", \"20px\"]] [] <|
+html <| \"\"\"<button onclick=\"this.setAttribute('value','@otherLanguage')\" value=\"@language\">To @otherLanguage</button><br>\"\"\" +
+  ( dict [[\"English\", \"\"\"<i>Hint:</i> Use prop[5] for a proportional number 5, plurs[5] to place an s if the quantity (5) is greater than 1.\"\"\"],
+          [\"French\", \"\"\"<i>Astuce:</i> Ecrire prop[5] pour un nombre proportionel 5, plurs[5] pour un 's' conditionel si la quantité 5 est plus grande que 1.\"\"\"]] |> applyDict2 language) + 
+ { apply x = freeze x ,
+   update {output} =
+     { values = [replaceAllIn \"((prop)(\\\\w*)|(plur)(\\\\w+))\\\\[(\\\\d+)\\\\]\" (\\m ->
+        let amount = strToInt (nth m.group 6) in
+        case nth m.group 2 of
+           \"prop\" -> \"multdivby[\" + amount + \",\" + base + \"]\"
+           \"\" ->
+             case nth m.group 4 of
+               \"plur\" -> let plural = nth m.group 5 in
+                 \"ifmany\" + plural + \"[\" + amount + \",\" + base + \"]\"
+               _ -> \"plur error: \" + complement + 1
+           _ -> \"prop error: \" + complement + 1)
+         output] }
+ }.apply result
 """
 
 
@@ -6020,7 +6134,7 @@ docsCategory =
       )
       [ ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
-      , ("TODO", blankDoc)
+      , ("Proportional Recipe editor", fromleo_recipe)
       , ("TODO", blankDoc)
       , ("TODO", blankDoc)
       , ("Simple Budget", simpleBudget)

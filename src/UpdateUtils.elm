@@ -91,8 +91,8 @@ displayDiffPositions tos difference =
      aux (newRow, newCol) (maybeComma string ++ "Line " ++ toString prevRow ++ ": " ++ removed ++ " -> " ++ added, e::prevAcc) tail
     DiffRemoved l::tail ->
      let removed = lToString l in
-     let e = dummyExp ("- " ++ removed) prevRow prevCol prevRow (prevCol + 1) in
-     aux (prevRow, prevCol) (maybeComma string ++ "Line " ++ toString prevRow ++ ": -" ++ removed, e ::prevAcc) tail
+     let e = dummyExp ("- " ++ removed) prevRow prevCol prevRow (prevCol + List.length l) in
+     aux (prevRow, prevCol) (maybeComma string ++ "Line " ++ toString prevRow ++ ": -" ++ removed, e :: prevAcc) tail
     DiffAdded l::tail ->
      let (added, newRow, newCol) = newStringRowCol prevRow prevCol l in
      let e = dummyExp added prevRow prevCol newRow newCol in

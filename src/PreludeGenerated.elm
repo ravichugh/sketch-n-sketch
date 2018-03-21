@@ -1955,88 +1955,178 @@ zip xs ys =
     [x::xsRest, y::ysRest] -> [x,y] :: zip xsRest ysRest
     _                      -> []
 
-append xs ys =
-  case xs of [] -> ys; x::xs1 -> x :: append xs1 ys
-
 range i j =
   if i < j + 1
     then cons i (range (i + 1) j)
     else nil
 
+reverse l =
+  letrec r acc l = case l of [] -> acc; head::tail -> r (head::acc) tail in
+  { apply = r [], update {output}= {values = [r [] output]}}.apply l
+
+
+map1 f l =
+  case l of
+    []    -> []
+    x::xs -> f x :: map1 f xs
+
+-- Non-lens version of append
+__update_append__ xs ys =
+ case xs of
+   [] -> ys
+   x::xs1 -> x :: __update_append__ xs1 ys
+
+-- Non-lens version of split
+__update_split__ n l =
+    letrec aux acc n l =
+      if n == 0 then [reverse acc, l] else
+      case l of
+        [] -> [reverse acc, l]
+        head::tail -> aux (head::acc) (n - 1) tail
+    in aux [] n l
+
+-- type Results err ok = { values: List ok } | { error: err }
+
+-- every onFunction should either return a {values = ...} or an {error =... }
+-- start    : a
+-- onUpdate : a -> {oldOutput: b, newOutput: b, diffs: VDiffs} -> Results String a
+-- onInsert : a -> {newOutput: b, diffs: VDiffs}  -> Results String a
+-- onRemove : a -> {oldOutput: b, diffs! VDoffs}  -> Results String a
+-- onSkip   : a -> {count: Int, oldOutputs: List b, newOutputs: List b}  -> Results String a
+-- onFinish : a  -> Results String c
+-- oldOutput: List b
+-- newOutput: List b
+-- diffs    : VListDiffs
+foldDiff =
+  letrec append xs ys =
+    case xs of
+      [] -> ys
+      x::xs1 -> x :: append xs1 ys
+  in
+  let Results =
+    letrec keepOks l =
+      case l of
+        [] -> []
+        { error }::tail -> keepOks tail
+        { values =  ll }::tail -> ll ++ map1 keepOks tail
+    in
+    letrec projOks l =
+      case l of
+        [] -> {values = []}
+        {values = []}::tail -> projOks tail
+        {values = vhead::vtail}::tail -> {values = vhead::(vtail ++ keepOks tail)}
+        {error = msg}::tail ->
+          case projOks tail of
+            {error = msgTail} -> { error = msg }
+            { values = []}-> {error = msg}
+            result -> result
+    in
+    let andThen callback results =
+      --andThen : (a -> Results x b) -> Results x a -> Results x b
+      case results of
+        {values = ll} -> ll |> map1 callback |> projOks
+        {error = msg} -> results
+    in
+    {
+      keepOks = keepOks
+      projOks = projOks
+      andThen = andThen
+    }
+  in
+  \\{start, onSkip, onUpdate, onRemove, onInsert, onFinish} oldOutput newOutput diffs ->
+  let listDiffs = case diffs of
+    [\"VListDiffs\", l] -> l
+    _ -> error <| \"Expected VListDiffs, got \" + toString diffs
+  in
+  -- Returns either {error} or {values=list of values}
+  --     fold: Int -> List b -> List b -> List (Int, VListElemDiff) -> a -> Results String c
+  letrec fold  j      oldOutput newOutput listDiffs                    acc =
+      let next i oldOutput_ newOutput_ d newAcc =
+        newAcc |> Results.andThen (\\accCase ->
+          fold i oldOutput_ newOutput_ d accCase
+        )
+      in
+      case listDiffs of
+      [] ->
+        let count = len newOutput in
+        if count == 0 then onFinish acc
+        else
+         onSkip acc {count = count, oldOutputs = oldOutput, newOutputs = newOutput}
+         |> next (j + count) [] [] listDiffs
+
+      [i, diff]::dtail  ->
+        if i > j then
+          let count = i - j in
+          let [previous, remainingOld] = __update_split__ count oldOutput in
+          let [current,  remainingNew] = __update_split__ count newOutput in
+          onSkip acc {count = count, oldOutputs = previous, newOutputs = current}
+          |> next i remainingOld remainingNew listDiffs
+        else case diff of
+          [\"VListElemUpdate\", d]->
+            let previous::remainingOld = oldOutput in
+            let current::remainingNew = newOutput in
+            onUpdate acc {oldOutput = previous, output = current, newOutput = current, diffs = d}
+            |> next (i + 1) remainingOld remainingNew dtail
+          [\"VListElemInsert\", count] ->
+            if count >= 1 then
+              let current::remainingNew = newOutput in
+              onInsert acc {newOutput = current}
+              |> next i oldOutput remainingNew (if count == 1 then dtail else [i, [\"VListElemInsert\", count - 1]]::dtail)
+            else error <| \"insertion count should be >= 1, got \" + toString count
+          [\"VListElemDelete\", count] ->
+            if count >= 1 then
+              let dropped::remainingOld = oldOutput in
+              onRemove acc {oldOutput =dropped} |>
+              next (i + count) remainingOld newOutput (if count == 1 then dtail else [i + 1, [\"VListElemDelete\", count - 1]]::dtail)
+            else error <| \"deletion count should be >= 1, got \" ++ toString count
+      _ -> error <| \"Expected a list of diffs, got \" + toString diffs
+  in fold 0 oldOutput newOutput listDiffs start
+
+append xs ys = --This will be the real lens
+  __update_append__ xs ys
+
 --; Maps a function, f, over a list of values and returns the resulting list
 --map: (forall (a b) (-> (-> a b) (List a) (List b)))
 map f l =
-  case l of
-    []    -> []
-    x::xs -> f x :: map f xs
+  {
+  apply [f, l] = freeze (map1 f l)
+  update {input=[f, l], oldOutput, outputNew, diffs} =
+    foldDiff {
+      start =
+        --Start: the collected functions, the collected inputs, the inputs yet to process.
+        [[], [], l]
 
--- prepend lSmall with its own element until it reaches the size of lBig
--- map f l = 
---   { apply [f, l] = freeze <| -- No update allowed in this function anymore
---       letrec aux = case of
---         [] -> []
---         head::tail -> f head :: aux tail
---       in aux l
---     update {input = [f, input], output, outputOriginal} =
---       let copyLengthFrom lBig lSmall =
---         letrec aux acc lb ls = case [lb, ls] of
---           [[], ls] -> acc
---           [head::tail, []] -> aux acc lb lSmall
---           [head::tail, headS::tailS] -> aux (headS::acc) tail tailS
---         in aux [] lBig lSmall
---       in
---       let splitByLength listLength list =
---         letrec aux length lPrev l = case length of
---           [] -> [lPrev, l]
---           head::tail -> case l of
---             lHead::lTail -> aux tail (append lPrev [lHead]) lTail
---             [] -> []
---         in aux listLength [] list
---       in
---       letrec aux newFuns newInputs inputElements thediff = case thediff of
---         [] -> [newFuns, newInputs]
---         {kept}::tailDiff ->
---           let [inputsElementsKept, inputElementsTail] = splitByLength kept inputElements in
---           aux newFuns (append newInputs inputsElementsKept) inputElementsTail tailDiff
---         {deleted}::{inserted}::tailDiff ->
---           let [inputsRemoved, remainingInputs] = splitByLength deleted inputElements in
---           let inputsAligned = copyLengthFrom inserted inputsRemoved in
---           -- inputsAligned has now the same size as inserted.
---           letrec recoverInputs newFs newIns oldIns newOuts = case [oldIns, newOuts] of
---             [[], []] -> [newFs, newIns]
---             [inHd::inTail, outHd::outTail] ->
---               case updateApp (\\[f, x] -> f x) [f, inHd] (f inHd) outHd of
---                 {values = [newF, newIn]::_} -> recoverInputs (append newFs [newF]) (append newIns [newIn]) inTail outTail
---                 _ -> \"Error: no solution to update problem.\" + 1
---             [inList, outList] -> (\"Internal error: lists do not have the same type\" + toString inList + \", \" + toString outList) + 1
---           in
---           let [newFs, inputsRecovered] = recoverInputs [] [] inputsAligned inserted in
---           aux (append newFuns newFs) (append newInputs (inputsRecovered)) remainingInputs tailDiff
---         {deleted}::tailDiff ->
---           let [_, remainingInputs] = splitByLength deleted inputElements in
---           aux newFuns newInputs remainingInputs tailDiff
---         {inserted}::tailDiff ->
---           let oneInput = case inputElements of
---             head::tail -> head
---             _ -> case newInputs of
---               head::tail -> head
---               _ -> \"Error: Cannot update a call to a map if there is no input\" + 1
---           in
---           letrec recoverInputs newFs newIns newOuts = case newOuts of
---             [] -> [newFs, newIns]
---             outHd::outTail ->
---               case updateApp (\\[f, x] -> f x) [f, oneInput] (f oneInput) outHd of
---                 {values = [newF, newIn]::_} -> recoverInputs (append newFs [newF]) (append newIns [newIn]) outTail
---                 _ -> \"Error: no solution to update problem.\" + 1
---           in
---           let [newFs, inputsRecovered] = recoverInputs [] [] inserted in
---           aux (append newFuns newFs) (append newInputs inputsRecovered) inputElements tailDiff
---       in
---       let [funs, newInputs]  = aux [] [] input (diff outputOriginal output) in
---       let newFun = merge f funs in
---       {values = [[newFun, newInputs]]}
---   }.apply [f, l]
--- move to lens library
+
+      onSkip [fs, insA, insB] {count} =
+        --'outs' was the same in oldOutput and outputNew
+        let [skipped, remaining] = __update_split__ count insB in
+        {values = [[fs, insA ++ skipped, remaining]]}
+
+      onUpdate [fs, insA, insB] {oldOutput, newOutput, diffs} =
+        let input::remaining = insB in
+        case updateApp {fun [f,x] = f x, input = [f, input], output = newOutput, oldOutput = oldOutput, diffs = diffs} of
+          { error = msg } -> {error = msg}
+          { values = v } -> {values = v |>
+              map1 (\\[newF, newA] -> [newF :: fs, insA ++ [newA], remaining])}
+
+      onRemove [fs, insA, insB] {oldOutput} =
+        let _::remaining = insB in
+        { values = [[fs, insA, remaining]] }
+
+      onInsert [fs, insA, insB] {newOutput} =
+        let input = case insB of h::_ -> h; _ -> case insA of h::_ -> h; _ -> error \"Empty list for map, cannot insert\" in
+        case updateApp {fun [f,x] = f x, input = [f, input], output = newOutput} of
+          { error = msg } -> {error = msg }
+          { values = v} -> {values = v |>
+              map (\\[newF, newA] -> [newF::fs, insA++[newA], insB])}
+
+      onFinish [newFs, newIns, _] =
+       --after we finish, we need to return the new function
+       --as a merge of original functions with all other modifications
+       -- and the collected new inputs
+       {values = [[merge f newFs, newIns]] }
+    } oldOutput outputNew diffs
+  }.apply [f, l]
 
 zipWithIndex xs =
   { apply x = zip (range 0 (len xs - 1)) xs
@@ -2469,7 +2559,7 @@ html string =
       [\"HTMLComment\", _, content] -> [\"comment\", [[\"display\", \"none\"]], [[\"TEXT\", content]]]
     in map domap trees)
 
-  update {input, outputOld, outputNew} =
+  update {input, oldOutput, newOutput} =
     let toHTMLAttribute [name, value] = [\"HTMLAttribute\", \" \", name, [\"HTMLAttributeString\", \"\", \"\", \"\\\"\", value]] in
     let toHTMLInner text = [\"HTMLInner\", replaceAllIn \"<|>|&\" (\\{match} -> case match of \"&\" -> \"&amp;\"; \"<\" -> \"&lt;\"; \">\" -> \"&gt;\"; _ -> \"\") text] in
     letrec mergeAttrs acc ins d = case d of
@@ -2523,7 +2613,7 @@ html string =
       {inserted}::dt ->
         mergeNodes (append acc (map toHTMLNode inserted)) ins dt
     in
-    {values = [mergeNodes [] input (diff outputOld outputNew)]}
+    {values = [mergeNodes [] input (diff oldOutput newOutput)]}
 }.apply (parseHTML string)
 
 matchIn r x = case extractFirstIn r x of
@@ -2620,6 +2710,7 @@ customUpdateFreeze =
 
   -- freeze and customUpdateFreeze aren't actually needed below,
   -- because these definitions are now impicitly frozen in Prelude
+  -- But for performance it's better
 
 tableWithButtons = {
 

@@ -14,6 +14,7 @@ module ParserUtils exposing
   , untrackInfo
   , showError
   , keepUntilRegex
+  , ignoreRegex
   , keepRegex
   , singleLineString
   )
