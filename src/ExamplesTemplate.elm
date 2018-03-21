@@ -209,6 +209,7 @@ LEO_TO_ELM tableOfStatesB
 LEO_TO_ELM tableOfStatesC
 LEO_TO_ELM tableOfStatesD
 LEO_TO_ELM simpleBudget
+LEO_TO_ELM mapMaybeLens
 LEO_TO_ELM fromleo/markdown
 LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
@@ -231,7 +232,7 @@ welcomeCategory =
   )
 
 docsCategory =
-  ( "Examples (ICFP 2018 Submission)"
+  ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
     , makeLeoExample "1b: Table of States" tableOfStatesB
     , makeLeoExample "1c: Table of States" tableOfStatesC
@@ -242,7 +243,8 @@ docsCategory =
       (\i (caption, program) ->
         makeLeoExample (toString (2+i) ++ ": " ++ caption) program
       )
-      [ ("Markdown", fromleo_markdown)
+      [ ("Lens: Maybe Map", mapMaybeLens)
+      , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
       , ("Proportional Recipe editor", fromleo_recipe)
       , ("TODO", blankDoc)

@@ -1,4 +1,5 @@
 
+
 -- prelude.little
 --
 -- This little library is accessible by every program.
@@ -58,6 +59,7 @@ ge x y = or (gt x y) (eq x y)
 --len: (forall a (-> (List a) Num))
 len xs = case xs of [] -> 0; (_ :: xs1) -> 1 + len xs1
 
+-- TODO remove
 freeze x = x
 
 nil = []
@@ -617,25 +619,6 @@ parens = delimit "(" ")"
 -- ))))))))
 
 
-textNode text =
-  ["TEXT", text]
-
-textElementHelper tag styles attrs text =
-  [ tag,  ["style", styles] :: attrs , [ textNode text ] ]
-
-elementHelper tag styles attrs children =
-  [ tag,  ["style", styles] :: attrs , children ]
-
-p = textElementHelper "p"
-th = textElementHelper "th"
-td = textElementHelper "td"
-h1 = textElementHelper "h1"
-h2 = textElementHelper "h2"
-h3 = textElementHelper "h3"
-
-div_ = elementHelper "div"
-tr = elementHelper "tr"
-table = elementHelper "table"
 
 -- absolutePositionStyles x y = let _ = [x, y] : Point in
 --   [ ["position", "absolute"]
@@ -789,7 +772,21 @@ workspace minSize children =
 
 -- List --
 
-indexedMap f xs = mapi (\[i,x] -> f i x) xs
+List =
+  letrec simpleMap f l =
+    case l of
+      []    -> []
+      x::xs -> f x :: simpleMap f xs
+  in
+  { simpleMap = simpleMap
+    map =
+      -- TODO lensed version
+      simpleMap
+    length = -- TODO move all definitions here
+      len
+    nth = nth
+    indexedMap f xs = mapi (\[i,x] -> f i x) xs
+  }
 
 -- Maybe --
 
@@ -798,52 +795,91 @@ just x  = ["Just", x]
 
 -- Tuple --
 
-mapFirst f [x, y] = [f x, y]
-
-mapSecond f [x, y] = [x, f y]
+Tuple =
+  { mapFirst f [x, y] = [f x, y]
+    mapSecond f [x, y] = [x, f y]
+  }
 
 -- Editor --
 
--- freeze x = x
+Editor = {}
 
--- Custom Updates --
+-- Update --
 
-customUpdate record x =
-  record.apply x
+Update =
+  { freeze = freeze
+    applyLens lens x = lens.apply x
+  }
 
--- Custom Update: Freeze
+-- TODO remove this; add as imports as needed in examples
+{freeze, applyLens} = Update
 
-customUpdateFreeze =
-  customUpdate { apply x = x, update p = { values = [p.input] } }
+-- Lens: Constant Input
+
+SoftFreeze =
+  let
+    constantInputLens = { apply x = x, update {input} = { values = [input] } }
+  in
+  { wrap = Update.applyLens constantInputLens }
 
 -- Custom Update: List Map, List Append, ...
 
 -- TODO
 
--- Custom Update: Table Library
+-- HTML
 
-  -- freeze and customUpdateFreeze aren't actually needed below,
+Html =
+  let textNode text =
+    ["TEXT", text]
+  in
+  let textElementHelper tag styles attrs text =
+    [ tag,  ["style", styles] :: attrs , [ textNode text ] ]
+  in
+  let elementHelper tag styles attrs children =
+    [ tag,  ["style", styles] :: attrs , children ]
+  in
+  { textNode = textNode
+    p = textElementHelper "p"
+    th = textElementHelper "th"
+    td = textElementHelper "td"
+    h1 = textElementHelper "h1"
+    h2 = textElementHelper "h2"
+    h3 = textElementHelper "h3"
+    div_ = elementHelper "div"
+    tr = elementHelper "tr"
+    table = elementHelper "table"
+  }
+
+-- TODO remove this; add as imports as needed in examples
+{textNode, p, th, td, h1, h2, h3, div_, tr, table} = Html
+
+-- Lens: Table Library
+
+  -- freeze and constantInputLens aren't actually needed below,
   -- because these definitions are now impicitly frozen in Prelude
   -- But for performance it's better
 
-tableWithButtons = {
+  -- TODO in wrapData, use update. calculate length of rows to determine empties.
+
+TableWithButtons = {
 
   wrapData =
-    { apply rows   = rows |> map (\row -> [freeze False, row])
-    , unapply rows = rows |> concatMap (\[flag,row] ->
-                               if flag == True
-                                 then [ row, ["","",""] ]
-                                 else [ row ]
-                             )
-                          |> just
-    }
+    Update.applyLens
+      { apply rows   = rows |> map (\row -> [freeze False, row])
+      , unapply rows = rows |> concatMap (\[flag,row] ->
+                                 if flag == True
+                                   then [ row, ["","",""] ]
+                                   else [ row ]
+                               )
+                            |> just
+      }
 
   mapData f =
-    map (mapSecond f)
+    map (Tuple.mapSecond f)
 
   tr flag styles attrs children =
     let [hasBeenClicked, nope, yep] =
-      ["has-been-clicked", customUpdateFreeze "gray", customUpdateFreeze "coral"]
+      ["has-been-clicked", SoftFreeze.wrap "gray", SoftFreeze.wrap "coral"]
     in
     let onclick =
       """
@@ -871,7 +907,7 @@ tableWithButtons = {
       , [textNode "+"]
       ]
     in
-    tr styles
+    Html.tr styles
       ([hasBeenClicked, toString flag] :: attrs)
       (snoc button children)
 

@@ -5746,25 +5746,25 @@ tableOfStatesA =
 main =
   let headers = [\"State\", \"Capital\"] in
   let rows =
-    map
+    List.map
       (\\[state, abbrev, capital] -> [state, capital + \", \" + abbrev])
       states
   in
   let padding = [\"padding\", \"3px\"] in
   let headerRow =
     let styles = [padding] in
-    tr [] [] (map (th styles []) headers)
+    Html.tr [] [] (map (th styles []) headers)
   in
   let stateRows =
     let colors = [\"lightgray\", \"white\"] in
     let drawRow i row =
-      let color = nth colors (mod i (len colors)) in
-      let columns = map (td [padding, [\"background-color\", color]] []) row in
-      tr [] [] columns
+      let color = List.nth colors (mod i (List.length colors)) in
+      let columns = map (Html.td [padding, [\"background-color\", color]] []) row in
+      Html.tr [] [] columns
     in
-    indexedMap drawRow rows
+    List.indexedMap drawRow rows
   in
-  table [padding] [] (headerRow :: stateRows)
+  Html.table [padding] [] (headerRow :: stateRows)
 
 """
 
@@ -5790,25 +5790,25 @@ tableOfStatesC =
 main =
   let headers = [\"State\", \"Capital\"] in
   let rows =
-    tableWithButtons.mapData
+    TableWithButtons.mapData
       (\\[state, abbrev, capital] -> [state, capital + \", \" + abbrev])
-      (customUpdate tableWithButtons.wrapData states)
+      (TableWithButtons.wrapData states)
   in
   let padding = [\"padding\", \"3px\"] in
   let headerRow =
     let styles = [padding, [\"text-align\", \"left\"], [\"background-color\", \"coral\"]] in
-    tr [] [] (map (th styles []) headers)
+    Html.tr [] [] (List.map (Html.th styles []) headers)
   in
   let stateRows =
     let colors = [\"lightyellow\", \"white\"] in
     let drawRow i [flag,row] =
-      let color = nth colors (mod i (len colors)) in
-      let columns = map (td [padding, [\"background-color\", color]] []) row in
-      tableWithButtons.tr flag [] [] columns
+      let color = List.nth colors (mod i (List.length colors)) in
+      let columns = List.map (Html.td [padding, [\"background-color\", color]] []) row in
+      TableWithButtons.tr flag [] [] columns
     in
-    indexedMap drawRow rows
+    List.indexedMap drawRow rows
   in
-  table [padding] [] (headerRow :: stateRows)
+  Html.table [padding] [] (headerRow :: stateRows)
 
 """
 
@@ -5826,6 +5826,46 @@ h3 [] [] \"TODO\"
 simpleBudget =
  """main =
   h1 [] [] \"Budget\"
+
+"""
+
+mapMaybeLens =
+ """mapMaybeSimple f mx =
+  Update.freeze (case mx of [] -> []; [x] -> [f x])
+
+mapMaybeLens default =
+  { apply [f, mx] =
+      Update.freeze <| mapMaybeSimple f mx
+
+  , update {input = [f, mx], outputNew = my} =
+      case my of
+        []  -> { values = [[f, []]] }
+        [y] ->
+          let x = case mx of [x] -> x; [] -> default in
+          let results = updateApp {fun [f,x] = f x, input = [f, x], output = y} in
+          { values = List.map (\\[newF,newX] -> [newF, [newX]]) results.values }
+  }
+
+mapMaybe default f mx =
+  Update.applyLens (mapMaybeLens default) [f, mx]
+
+mapMaybeState =
+  mapMaybe [\"Alabama\", \"AL\", \"Montgomery\"]
+
+displayState =
+  (\\[a,b,c] -> [a, c + \", \" + b])
+
+maybeState1 = mapMaybeSimple displayState []
+maybeState2 = mapMaybeSimple displayState [[\"New Jersey\", \"NJ\", \"Edison\"]]
+
+maybeState3 = mapMaybeState displayState []
+maybeState4 = mapMaybeState displayState [[\"New Jersey\", \"NJ\", \"Edison\"]]
+
+showValues values =
+  Html.div_ [] [] (List.map (\\x -> Html.h3 [] [] (toString x)) values)
+
+main =
+  showValues [maybeState1, maybeState2, maybeState3, maybeState4]
 
 """
 
@@ -6121,7 +6161,7 @@ welcomeCategory =
   )
 
 docsCategory =
-  ( "Examples (ICFP 2018 Submission)"
+  ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
     , makeLeoExample "1b: Table of States" tableOfStatesB
     , makeLeoExample "1c: Table of States" tableOfStatesC
@@ -6132,7 +6172,8 @@ docsCategory =
       (\i (caption, program) ->
         makeLeoExample (toString (2+i) ++ ": " ++ caption) program
       )
-      [ ("Markdown", fromleo_markdown)
+      [ ("Lens: Maybe Map", mapMaybeLens)
+      , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
       , ("Proportional Recipe editor", fromleo_recipe)
       , ("TODO", blankDoc)
