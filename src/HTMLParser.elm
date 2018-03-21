@@ -160,10 +160,10 @@ parsed("<j>a</b></j>b") == "<j>a</j>b"
 --}
 -- Always succeed if not empty
 -- parse the content until a node starts (either a comment, a node start element, or the end tag of this node)
-parseHTMLInner: Maybe String -> Parser HTMLNode
-parseHTMLInner untilEndTagName =
-  let regexToParseUntil = Regex.regex <| "<[a-zA-Z]|<\\?|<!|</ " ++
-    (untilEndTagName |> Maybe.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> Maybe.withDefault "") in
+parseHTMLInner: List String -> Parser HTMLNode
+parseHTMLInner untilEndTagNames =
+  let regexToParseUntil = Regex.regex <| "<[a-zA-Z]|<\\?|<!|</ |$" ++
+    (untilEndTagNames |> List.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> String.join "") in
   oneOf [
     try <| (keepUntilRegex regexToParseUntil |> andThen (\s ->
       if s == "" then fail "[internal failure]"
@@ -182,8 +182,8 @@ parseHTMLAttribute =
 
 
 -- Always succeed if the string starts with <(letter)
-parseHTMLElement: NameSpace -> Parser HTMLNode
-parseHTMLElement namespace =
+parseHTMLElement: List String -> NameSpace -> Parser HTMLNode
+parseHTMLElement surroundingTagNames namespace =
   inContext "HTML Element" <| (
     nodeElementStart
     |> andThen (\tagName ->
@@ -209,7 +209,7 @@ parseHTMLElement namespace =
               )
             |= optional (symbol "/")
             |. symbol ">"
-            |= repeat zeroOrMore (parseNode (Just tagName) (if isForeignElement tagName then Foreign else namespace))
+            |= repeat zeroOrMore (parseNode (tagName::surroundingTagNames) (if isForeignElement tagName then Foreign else namespace))
             |= optional (try <|
                  succeed (\sp -> RegularClosing sp)
                  |. symbol "</"
@@ -222,18 +222,18 @@ parseHTMLElement namespace =
     )
 
 
-parseNode: Maybe String -> NameSpace -> Parser HTMLNode
-parseNode surroundingTagName namespace =
+parseNode: List String -> NameSpace -> Parser HTMLNode
+parseNode surroundingTagNames namespace =
   inContext "HTML Node" <|
     oneOf [
-      parseHTMLElement namespace,
+      parseHTMLElement surroundingTagNames namespace,
       parseHTMLComment,
-      parseHTMLInner surroundingTagName
+      parseHTMLInner surroundingTagNames
     ]
 
 parseTopLevelNode : Parser (List HTMLNode)
 parseTopLevelNode =
-  repeat zeroOrMore (parseNode Nothing HTML)
+  repeat zeroOrMore (parseNode [] HTML)
 
 parseHTMLString: String -> Result Parser.Error (List HTMLNode)
 parseHTMLString s =

@@ -38,12 +38,14 @@ updateStackName_ indent u = case u of
       Just u -> updateStackName_ (indent ++ " ") u ++ "]"
       Nothing -> "]"
     )
-  UpdateError msg  -> "\n" ++ indent ++ "UpdateError " ++ msg
+  UpdateFails msg  -> "\n" ++ indent ++ "UpdateFails " ++ msg
+  UpdateCriticalError msg -> "\n" ++ indent ++ "UpdateCriticalError " ++ msg
 
 type UpdateStack = UpdateResultS     UpdatedEnv Exp (Maybe NextAction)
                  | UpdateContextS    Env Exp PrevOutput Output VDiffs (Maybe NextAction)
                  | UpdateResultAlternative String UpdateStack (Lazy.Lazy (Maybe UpdateStack))
-                 | UpdateError String
+                 | UpdateFails String -- Soft fails, might try other branches. If no branch is available, will report this error.
+                 | UpdateCriticalError String
                  -- The new expression, the new output, what to add to the stack with the result of the update above.
 
 updateResultSameEnv: Env -> Exp -> UpdateStack
@@ -77,7 +79,7 @@ updateContinueRepeat: String -> Env -> Exp -> PrevOutput -> Output -> Result Str
                       (Lazy.Lazy (LazyList (Output, Result String (Maybe VDiffs)))) -> (UpdatedEnv -> Exp -> UpdateStack) -> UpdateStack
 updateContinueRepeat msg env e oldVal newVal diffsResult otherNewValModifs continuation =
   let updater = case diffsResult of
-    Err msg ->    \continuation -> UpdateError msg
+    Err msg ->    \continuation -> UpdateCriticalError msg
     Ok Nothing -> \continuation -> continuation (UpdatedEnv.original env) e
     Ok (Just diffs) -> updateContinue msg env e oldVal newVal diffs
   in updater <| \newUpdatedEnv newE ->
@@ -93,7 +95,7 @@ updateContinueRepeat msg env e oldVal newVal diffsResult otherNewValModifs conti
 updateAlternatives: String -> Env -> Exp -> PrevOutput -> LazyList (Output, Result String (Maybe VDiffs)) -> (UpdatedEnv -> Exp -> UpdateStack) -> UpdateStack
 updateAlternatives msg env e oldVal newValsDiffs continuation =
   case newValsDiffs of
-    LazyList.Nil -> UpdateError <| "No solution for " ++ msg
+    LazyList.Nil -> UpdateFails <| "No solution for " ++ msg
     LazyList.Cons (head, headModifs) lazyTail -> updateContinueRepeat msg env e oldVal head headModifs lazyTail continuation
 
 updateMaybeFirst: (Maybe UpdateStack) -> (Bool -> UpdateStack) -> UpdateStack
@@ -147,7 +149,7 @@ updateOpMultiple  hint     env    es          eBuilder             prevOutputs  
   let aux: Int -> List Output -> Result String (Maybe (TupleDiffs VDiffs))-> Lazy.Lazy (LazyList (List Output, Result String (Maybe (TupleDiffs VDiffs)))) -> UpdateStack
       aux  nth    outputsHead    diffResult                                  lazyTail =
     let continue = case diffResult of
-       Err msg -> \continuation -> UpdateError msg
+       Err msg -> \continuation -> UpdateCriticalError msg
        Ok Nothing -> \continuation -> continuation (UpdatedEnv.original env) es
        Ok (Just diff) -> updateContinueMultiple (hint ++ " #" ++ toString nth) env (Utils.zip3 es prevOutputs outputsHead) diff
     in
@@ -161,7 +163,7 @@ updateOpMultiple  hint     env    es          eBuilder             prevOutputs  
          ))
   in
   case outputs of
-    LazyList.Nil -> UpdateError <| "[Internal error] No result for updating " ++ hint
+    LazyList.Nil -> UpdateFails <| "[Internal error] No result for updating " ++ hint
     LazyList.Cons (outputsHead, headDiffs) lazyTail ->
       aux 1 outputsHead headDiffs lazyTail
 

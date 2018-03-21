@@ -110,7 +110,7 @@ update updateStack nextToUpdate=
             Fork _ _ _-> False
         ) nextToUpdate)) maybeNext) msg -- We need to close on the variable msg
 
-    UpdateError msg -> -- Let's explore other solutions. If there are none, return this error.
+    UpdateFails msg -> -- Let's explore other solutions. If there are none, return this error.
       let dropped_nextToUpdate = LazyList.dropWhile (\nextAction -> case nextAction of
                                      HandlePreviousResult msg f -> True
                                      Fork _ _ _ -> False
@@ -126,6 +126,8 @@ update updateStack nextToUpdate=
               update newUpdateStack <| LazyList.appendLazy nextToUpdate2 lazyTail
             _ -> Errs <| "Internal error: There was something else than a fork. Plus an error: " ++ msg
 
+    UpdateCriticalError msg -> -- Immediately stops without looking for new solutions
+      Errs msg
 
 getUpdateStackOp : Env -> Exp -> PrevOutput -> Output -> VDiffs -> UpdateStack
 getUpdateStackOp env e oldVal newVal diffs =
@@ -134,7 +136,7 @@ getUpdateStackOp env e oldVal newVal diffs =
 
      EConst ws num loc widget ->
        case getNum newVal of
-         Err msg -> UpdateError msg
+         Err msg -> UpdateCriticalError msg
          Ok numv ->
           updateResultSameEnv env <| replaceE__ e <| EConst ws numv loc widget
 
@@ -152,8 +154,8 @@ getUpdateStackOp env e oldVal newVal diffs =
            case diffs of
              VClosureDiffs envModifs bodyModif -> -- Whatever the body, modified or not, we take it again.
                updateResult (UpdatedEnv newEnv envModifs) <| replaceE__ e <| EFun sp0 newPs newE sp1
-             k -> Debug.crash <| "Unexpected modifications to a function: " ++ toString k
-         _ -> Debug.crash "Trying to update a function with non-closure " <| valToString newVal
+             k -> UpdateCriticalError <| "[internal error] Unexpected modifications to a function: " ++ toString k
+         _ -> UpdateCriticalError <| "[internal error] Trying to update a function with non-closure " ++ valToString newVal
 
      EVar sp is ->
        let newUpdatedEnv = updateEnv env is newVal diffs in
@@ -184,7 +186,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                      let finalEnv = UpdatedEnv.merge env collectedUpdatedEnv newUpdatedEnv in
                                      updateDiffs (i + 1) finalEnv ((sp, newRawElem)::revElems) tlToCollect origTail newValuesTail modiftail
                                     ) sp i revElems tlToCollect origTail newValuesTail
-                                 _ -> Debug.crash "Unexpected missing elements"
+                                 _ -> UpdateCriticalError "[internal error] Unexpected missing elements"
 
                              VListElemInsert count ->
                                let (inserted, remainingNewVals) = Utils.split count newValues in
@@ -202,7 +204,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                              in
                                              let policy = (wsComma, Lang.copyPrecedingWhitespace elemToCopy << valToExpFull (Just elemToCopy) psWs indentation) in
                                              (policy, policy, identity)
-                                          _   -> Debug.crash "Internal error: There should be an element in this list's position"
+                                          _   -> Debug.crash <| "[internal error] There should be an element in this list's position"
                                       else -- Insertion index == 1 and List.length elems == 1
                                         case elems of
                                           [(wsHead, head)] ->
@@ -220,7 +222,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                             in
                                             let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
                                             (policy, policy, identity)
-                                          _ ->  Debug.crash "Internal error: There should be an element in this list's position"
+                                          _ ->  Debug.crash <| "[internal error] There should be an element in this list's position"
                                     else --if insertionIndex == 0 then -- Inserting the first element is always trickier
                                       case elems of
                                         [] ->
@@ -277,10 +279,10 @@ getUpdateStackOp env e oldVal newVal diffs =
                            case (elemsToCollect, originalValues, newValues) of
                              (hd::tlToCollect, origValue::origTail, newValue::newValuesTail) ->
                                updateDiffs (i + 1) collectedUpdatedEnv (hd::revElems)  tlToCollect origTail newValuesTail diffs
-                             _ -> Debug.crash "Unexpected missing elements"
+                             _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements"
                in updateDiffs 0 (UpdatedEnv.original env) [] elems origVals newOutVals diffs
-             _ -> Debug.crash <| "Expected List modifications, got " ++ toString diffs
-         _ -> UpdateError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
+             _ -> UpdateCriticalError <| "[internal error] Expected List modifications, got " ++ toString diffs
+         _ -> UpdateCriticalError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
      EList sp1 elems sp2 (Just tail) sp3 ->
        case (oldVal.v_, newVal.v_) of
@@ -309,16 +311,16 @@ getUpdateStackOp env e oldVal newVal diffs =
                                    if (List.take count tailOrigVal |> List.all (valEqual headOrigVal)) && valEqual hdOut headOrigVal then
                                      updateDiffs (i + 1) elemSize collectedEnv (hdCollect::revElems) tlCollect tailOrigVal tlOut ((i + 1, VListElemDelete count)::tailmodif)
                                    else
-                                     UpdateError <| "Cannot delete elements appended to the left of a :: . Trying to remove element " ++ valToString headOrigVal
-                                 _ -> UpdateError <| "Expected non-empty lists, got at least one empty"
+                                     UpdateFails <| "Cannot delete elements appended to the left of a :: . Trying to remove element " ++ valToString headOrigVal
+                                 _ -> UpdateCriticalError <| "Expected non-empty lists, got at least one empty"
                              VListElemInsert count ->
                                case (origVals, elemsToCollect, newOutVals) of
                                  (headOrigVal::tailOrigVal, hdCollect::tlCollect, hdOut::tlOut) ->
                                    if (List.take count tlOut |> List.all (valEqual hdOut)) && valEqual hdOut headOrigVal then
                                      updateDiffs (i + 1) elemSize collectedEnv (hdCollect::revElems) tlCollect tailOrigVal tlOut ((i + 1, VListElemInsert count)::tailmodif)
                                    else
-                                     UpdateError <| "Cannot inserted before elements appended to the left of a :: . Trying to insert element " ++ valToString headOrigVal
-                                 _ -> UpdateError <| "Expected non-empty lists, got at least one empty"
+                                     UpdateFails <| "Cannot inserted before elements appended to the left of a :: . Trying to insert element " ++ valToString headOrigVal
+                                 _ -> UpdateCriticalError <| "Expected non-empty lists, got at least one empty"
                              VListElemUpdate newModifs ->
                                case (origVals, elemsToCollect, newOutVals) of
                                  (headOrigVal::tailOrigVal, (sp1, hdCollect)::tlCollect, hdOut::tlOut) ->
@@ -328,11 +330,11 @@ getUpdateStackOp env e oldVal newVal diffs =
                                        updateDiffs (i + 1) elemSize updatedEnv ((sp1, newhdCollect)::revElems) tlCollect tailOrigVal tlOut tailmodif
                                      ) elemSize env collectedEnv revElems sp1 tlCollect tailOrigVal tlOut tailmodif
 
-                                 _ -> UpdateError <| "Expected non-empty lists, got at least one empty"
+                                 _ -> UpdateCriticalError <| "Expected non-empty lists, got at least one empty"
                in
                updateDiffs 0 (List.length elems) (UpdatedEnv.original env) [] elems origVals newOutVals diffs
-             _ -> UpdateError ("Expected  a List diff, got " ++ toString diffs)
-         _ -> UpdateError ("Expected a list to update, got " ++ valToString newVal)
+             _ -> UpdateCriticalError ("Expected  a List diff, got " ++ toString diffs)
+         _ -> UpdateCriticalError ("Expected a list to update, got " ++ valToString newVal)
      ERecord sp1 mi es sp2 -> --Because records are typed, we should not allow the addition and removal of keys.
        case newVal.v_ of
          VRecord dOut ->
@@ -345,7 +347,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                     dOld dOut []
                in
                if not <| List.isEmpty errors then
-                 UpdateError <| String.join ", " errors ++ "is not allowed. Maybe you wanted to use dictionaries?"
+                 UpdateCriticalError <| String.join ", " errors ++ "is not allowed. Maybe you wanted to use dictionaries?"
                else
                  case diffs of
                    VRecordDiffs dModifs ->
@@ -356,11 +358,11 @@ getUpdateStackOp env e oldVal newVal diffs =
                            updateResult collectedEnv (replaceE__ e <| ERecord sp1 mi finalEs sp2)
                          else
                            case mi of
-                             Nothing -> UpdateError <| "Trying to touch keys " ++ (Dict.keys diffs |> String.join ",") ++ " but they do not exist in " ++ Syntax.unparser Syntax.Elm e
+                             Nothing -> UpdateCriticalError <| "Trying to touch keys " ++ (Dict.keys diffs |> String.join ",") ++ " but they do not exist in " ++ Syntax.unparser Syntax.Elm e
                              Just (init, spm) ->
                                let shadowingKeys = Set.fromList <| Utils.recordKeys es in
                                case doEval Syntax.Elm env init of
-                                 Err msg -> UpdateError msg
+                                 Err msg -> UpdateCriticalError msg
                                  Ok ((initv, _), _) ->
                                    case initv.v_ of
                                      VRecord dinit ->
@@ -377,7 +379,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                          let finalEnv = UpdatedEnv.merge env collectedEnv newInitEnv in
                                          updateResult finalEnv (replaceE__ e <| ERecord sp1 (Just (newInit, spm)) (List.reverse revCollectedEs) sp2))
                                          e env collectedEnv sp1 spm revCollectedEs sp2
-                                     _ -> UpdateError <| "Expected a record, got " ++ valToString initv
+                                     _ -> UpdateCriticalError <| "Expected a record, got " ++ valToString initv
                        ((sp3, sp4, k, sp5, ei) as e1)::esToCollectTail ->
                          case Dict.get k diffs of
                            Nothing -> updateDiff collectedEnv (e1::revCollectedEs) esToCollectTail diffs
@@ -392,13 +394,13 @@ getUpdateStackOp env e oldVal newVal diffs =
                                updateDiff finalEnv ((sp3, sp4, k, sp5, newEi)::revCollectedEs) esToCollectTail newDiffs
                              ) env collectedEnv sp3 sp4 k sp5 newDiffs
                      in updateDiff (UpdatedEnv.original env) [] es dModifs
-                   _ -> UpdateError ("Expected  a Record diff, got " ++ toString diffs)
-             _ -> UpdateError ("Expected Record as original value, got " ++ valToString oldVal)
-         _ -> UpdateError ("Expected Record as value to update from, got " ++ valToString newVal)
+                   _ -> UpdateCriticalError ("Expected  a Record diff, got " ++ toString diffs)
+             _ -> UpdateCriticalError ("Expected Record as original value, got " ++ valToString oldVal)
+         _ -> UpdateCriticalError ("Expected Record as value to update from, got " ++ valToString newVal)
 
      ESelect sp0 e1 sp1 sp2 ident ->
        case doEval Syntax.Elm env e1 of
-         Err msg -> UpdateError msg
+         Err msg -> UpdateCriticalError msg
          Ok ((initv, _), _) ->
            case initv.v_ of
              VRecord dinit ->
@@ -407,7 +409,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                updateContinue "ESelect" env e1 initv newE1Value propagatedDiff <|
                  \newE1UpdatedEnv newE1 ->
                    updateResult newE1UpdatedEnv <| replaceE__ e <| ESelect sp0 newE1 sp1 sp2 ident
-             _ -> UpdateError ("Expected Record, got " ++ valToString initv)
+             _ -> UpdateCriticalError ("Expected Record, got " ++ valToString initv)
 
      EApp sp0 e1 e2s appType sp1 ->
        let continueIfNotFrozen =
@@ -416,13 +418,13 @@ getUpdateStackOp env e oldVal newVal diffs =
            case e2s of
              [argument] ->
                case doEval Syntax.Elm env argument of
-                 Err s -> \continuation -> UpdateError s
+                 Err s -> \continuation -> UpdateCriticalError s
                  Ok ((vArg, _), _) ->
                    if valEqual vArg oldVal then -- OK, that's the correct freeze semantics
                      if valEqual vArg newVal then
                        \continuation -> updateResultSameEnv env e
                      else
-                       \continuation -> UpdateError ("You are trying to update " ++ unparse e ++ " with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'")
+                       \continuation -> UpdateFails ("You are trying to update " ++ unparse e ++ " (line " ++ toString e.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'")
                    else \continuation -> continuation()
              _ -> \continuation -> continuation()
          _ -> \continuation -> continuation()
@@ -432,7 +434,7 @@ getUpdateStackOp env e oldVal newVal diffs =
          ESelect es0 eRecord es1 es2 "apply" -> -- Special case here. apply takes a record and a value and applies the field apply to the value.
              -- The user may provide the reverse function if "unapply" is given, or "update"
              case doEval Syntax.Elm env eRecord of
-               Err s -> Just <| UpdateError s
+               Err s -> Just <| UpdateCriticalError s
                Ok ((v1, _), _) ->
                  case v1.v_ of
                    VRecord d ->
@@ -444,7 +446,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                              Nothing -> Nothing
                              Just fieldUpdateClosure ->
                                 case doEval Syntax.Elm env argument of
-                                  Err s -> Just <| UpdateError s
+                                  Err s -> Just <| UpdateCriticalError s
                                   Ok ((vArg, _), _) ->
                                     let x = eVar "x" in
                                     let y = eVar "y" in
@@ -462,25 +464,25 @@ getUpdateStackOp env e oldVal newVal diffs =
                                          ] in
                                     let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
                                     case doEval Syntax.Elm (("x", addUpdateCapability fieldUpdateClosure)::("y", customArgument)::env) customExpr of
-                                      Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
+                                      Err s -> Just <| UpdateCriticalError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                         case Vu.record Ok vResult of
-                                          Err msg -> Just <| UpdateError <|
+                                          Err msg -> Just <| UpdateCriticalError <|
                                            "The update closure should return either {values = [list of values]}, {error = \"Error string\"}, or more advanced { values = [...], diffs = [..Nothing/Just diff per value.]}. Got "
                                            ++ valToString vResult
                                           Ok d ->
                                             let error = case Dict.get "error" d of
                                                 Just errorv -> case Vu.string errorv of
                                                   Ok e -> e
-                                                  Err x -> "the .error of the result of updateApp should be a string, got " ++ valToString errorv
+                                                  Err x -> "Line " ++ toString e.start.line ++ ": the .error of the result of .update should be a string, got " ++ valToString errorv
                                                 Nothing -> ""
                                             in
-                                            if error /= "" then Just <| UpdateError error
+                                            if error /= "" then Just <| UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": " ++ error
                                             else
                                               case Dict.get "values" d of
-                                                Nothing -> Just <| UpdateError <| "updateApp should return a record containing a .values field or an .error field"
+                                                Nothing -> Just <| UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": .update  should return a record containing a .values field or an .error field"
                                                 Just values ->  case Vu.list Ok values of
-                                                  Err x -> Just <| UpdateError <| "updateApp should return a record whose .values field is a list. Got " ++ valToString values
+                                                  Err x -> Just <| UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": .update  should return a record whose .values field is a list. Got " ++ valToString values
                                                   Ok valuesList ->
                                                     let valuesListLazy = LazyList.fromList valuesList in
                                                     let diffsListRes = case Dict.get "diffs" d of
@@ -491,10 +493,10 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                           else UpdateUtils.defaultVDiffs vArg r) <| valuesList
                                                       Just resultDiffsV ->
                                                         Vu.list (UpdateUtils.valToMaybe valToVDiffs) resultDiffsV |>
-                                                          Result.mapError (\msg -> "the .diffs of the result of updateApp should be a list of (Maybe differences). " ++ msg)
+                                                          Result.mapError (\msg -> "Line " ++ toString e.start.line ++ ": the .diffs of the result of .update should be a list of (Maybe differences). " ++ msg)
                                                     in
                                                     case diffsListRes of
-                                                     Err msg -> Just <| UpdateError msg
+                                                     Err msg -> Just <| UpdateCriticalError msg
                                                      Ok diffsList ->
                                                        let resultDiffs = LazyList.zip valuesListLazy (LazyList.fromList <| List.map Ok diffsList) in
                                                        case resultDiffs of -- TODO: Allow an API for the user to return modifications as well
@@ -509,21 +511,21 @@ getUpdateStackOp env e oldVal newVal diffs =
                              case Dict.get "unapply" d of
                                Just fieldUnapplyClosure ->
                                  case doEval Syntax.Elm env argument of
-                                   Err s -> Just <| UpdateError s
+                                   Err s -> Just <| UpdateCriticalError s
                                    Ok ((vArg, _), _) ->
                                      let x = eVar "x" in
                                      let y = eVar "y" in
                                      let customArgument = newVal in
                                      let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
                                      case doEval Syntax.Elm (("x", fieldUnapplyClosure)::("y", customArgument)::env) customExpr of
-                                       Err s -> Just <| UpdateError <| "while evaluating a lens, " ++ s
+                                       Err s -> Just <| UpdateCriticalError <| "while evaluating the .unapply of a lens, " ++ s
                                        Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                          case interpreterMaybeToMaybe "the result of executing 'unapply'" vResult of
-                                           Err msg -> Just <| UpdateError msg
+                                           Err msg -> Just <| UpdateCriticalError msg
                                            Ok Nothing -> Nothing
                                            Ok (Just newOut) ->
                                              case UpdateUtils.defaultVDiffs vArg newOut of
-                                               Err msg -> Just <| UpdateError msg
+                                               Err msg -> Just <| UpdateCriticalError msg
                                                Ok Nothing -> Just <| updateResultSameEnv env e
                                                Ok (Just newDiff) ->
                                                  Just <| updateContinue ".unapply" env argument vArg newOut newDiff <|
@@ -539,7 +541,7 @@ getUpdateStackOp env e oldVal newVal diffs =
        in
        updateMaybeFirst maybeUpdateStack <| \_ ->
          case doEval Syntax.Elm env e1 of
-           Err s       -> UpdateError s
+           Err s       -> UpdateCriticalError s
            Ok ((v1, _),_) ->
              case v1.v_ of
                VClosure recName e1ps eBody env_ as vClosure ->
@@ -555,12 +557,12 @@ getUpdateStackOp env e oldVal newVal diffs =
                          case innerApp.val.e__ of
                            EApp _ newE1 newEsToEval _ _ ->
                              updateResult newUpdatedEnv (replaceE__ e <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1)
-                           e -> Debug.crash <| "Internal error: expected EApp, got " ++ toString e
-                       e -> Debug.crash <| "Internal error: expected EApp, got " ++ toString e
+                           e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ toString e
+                       e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ toString e
                    )
                  else
                  case List.map (doEval Syntax.Elm env) es2ToEval |> Utils.projOk of
-                   Err s       -> UpdateError s
+                   Err s       -> UpdateCriticalError s
                    Ok v2ls ->
                      let v2s = List.map (\((v2, _), _) -> v2) v2ls in
                      let ne2 = List.length e2s in
@@ -604,7 +606,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                      in
                                     continuation newV1 newV1Diffs newV2s newV2sDiffs "app"
 
-                                  _          -> Debug.crash <| strPos e1.start ++ "bad environment, internal error in update"
+                                  _          -> UpdateCriticalError <| "[internal error] " ++ strPos e1.start ++ " bad environment, internal error in update"
                              Just f ->
                                 --let _ = Debug.log ("Recursive updating with environment: " ++ envToString (List.take 4 updatedEnvOut_)) () in
                                 case conssWithInversion (e1psUsed, v2s)
@@ -630,8 +632,8 @@ getUpdateStackOp env e oldVal newVal diffs =
                                     in
                                     continuation newV1 newV1Diffs newV2s newV2sDiffs "rec app"
 
-                                  _          -> Debug.crash <| strPos e1.start ++ "bad environment, internal error in update"
-                         v          -> UpdateError <| strPos e1.start ++ "Expected a closure in output, got " ++ valToString newVal
+                                  _          -> UpdateCriticalError <| "[internal error] " ++ strPos e1.start ++ " bad environment, internal error in update"
+                         v          -> UpdateCriticalError <| strPos e1.start ++ "Expected a closure in output, got " ++ valToString newVal
 
                      else -- The right number of arguments
                      let continuation newClosure newClosureDiffs newArgs newArgsDiffs msg = --Update the function and the arguments.
@@ -661,7 +663,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                   let ((newPats, newPatsDiffs, newArgs, newArgsDiffs), patsBodyToClosure) = consBuilder newUpdatedEnv in
                                   let (newClosure, newClosureDiff) = patsBodyToClosure newPats newPatsDiffs newBody newBodyDiffs in -- TODO: Once we return the diff of the expression, check for it before invoking patsBody...
                                   continuation newClosure (Just newClosureDiff) newArgs newArgsDiffs "full app"
-                            _          -> UpdateError <| strPos e1.start ++ "bad environment"
+                            _          -> UpdateCriticalError <| strPos e1.start ++ "bad environment"
                        Just f ->
                           case conssWithInversion (e1ps, v2s) (
                                consWithInversion (pVar f, v1) (
@@ -685,11 +687,11 @@ getUpdateStackOp env e oldVal newVal diffs =
                                          mergeVal v1 newArgFun realArgFunDiffs vclosure vclosureDiff |> \(a, b) -> (a, Just b)
                                   in
                                   continuation newClosure newClosureDiff newArgs newArgsDiffs "full rec app"
-                            x -> Debug.crash <| "Internal error, should have get a list, got " ++ toString x
+                            x -> UpdateCriticalError <| "[internal error] should have got a list, got " ++ toString x
 
                VFun name argList evalDef maybeUpdateDef ->
                  case maybeUpdateDef of
-                   Nothing -> UpdateError ("No built-in definition to update " ++ name)
+                   Nothing -> UpdateFails ("No built-in definition to update " ++ name)
                    Just updateDef ->
                      let arity = List.length argList in
                      let nAvailableArgs = List.length e2s in
@@ -704,8 +706,8 @@ getUpdateStackOp env e oldVal newVal diffs =
                              case innerApp.val.e__ of
                                EApp _ newE1 newEsToEval _ _ ->
                                  updateResult newUpdatedEnv (replaceE__ e <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1)
-                               e -> Debug.crash <| "Internal error: expected EApp, got " ++ Syntax.unparser Syntax.Elm innerApp
-                           e -> Debug.crash <| "Internal error: expected EApp, got " ++ Syntax.unparser Syntax.Elm newBody
+                               e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Elm innerApp
+                           e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Elm newBody
                        )
                      else if arity > nAvailableArgs then  -- Rewrite using eta-expansion.
                        let convertedBody = replaceE__ e1 <|
@@ -724,21 +726,21 @@ getUpdateStackOp env e oldVal newVal diffs =
                              EApp _ funreconverted newEs _ _ ->
                                if expEqual funreconverted funconverted then
                                  updateResult newUpdatedEnv (replaceE__ e <| EApp sp0 e1 newEs SpaceApp sp1)
-                               else UpdateError "Cannot modify the definition of a built-in function"
-                             _ -> Debug.crash <| "Internal error: expected EApp, got" ++ Syntax.unparser Syntax.Elm e
+                               else UpdateFails "Cannot modify the definition of a built-in function"
+                             _ -> UpdateCriticalError <| "[internal error] expected EApp, got" ++ Syntax.unparser Syntax.Elm e
                      else -- Right arity
                        case List.map (doEval Syntax.Elm env) e2s |> Utils.projOk of
-                         Err s       -> UpdateError s
+                         Err s       -> UpdateCriticalError s
                          Ok v2ls     ->
                            let v2s = List.map (\((v2, _), _) -> v2) v2ls in
                            case updateDef v2s oldVal newVal of
-                             Errs msg -> UpdateError msg
+                             Errs msg -> UpdateCriticalError msg
                              Oks ll ->
                                let llWithDiffResult = ll |> LazyList.map (\outputs ->
                                  (outputs, UpdateUtils.defaultTupleDiffs valToString defaultVDiffs v2s outputs)) in
                                updateOpMultiple "vfun" env e2s (\newE2s -> replaceE__ e <| EApp sp0 e1 newE2s appType sp1) v2s llWithDiffResult
 
-               _ -> UpdateError <| strPos e1.start ++ " not a function"
+               _ -> UpdateCriticalError <| strPos e1.start ++ " not a function"
      EIf sp0 cond sp1 thn sp2 els sp3 ->
        case doEval Syntax.Elm env cond of
          Ok ((v, _), _) ->
@@ -750,8 +752,8 @@ getUpdateStackOp env e oldVal newVal diffs =
                else
                  updateContinue "IfElse" env els oldVal newVal diffs<| \newUpdatedEnv newEls ->
                    updateResult newUpdatedEnv <| replaceE__ e <| EIf sp0 cond sp1 thn sp2 newEls sp3
-             _ -> UpdateError <| "Expected boolean condition, got " ++ valToString v
-         Err s -> UpdateError s
+             _ -> UpdateCriticalError <| "Expected boolean condition, got " ++ valToString v
+         Err s -> UpdateCriticalError s
 
      EOp sp1 op opArgs sp2 ->
        case (op.val, opArgs) of
@@ -763,33 +765,173 @@ getUpdateStackOp env e oldVal newVal diffs =
              updateResult newUpdatedEnv <| replaceE__ e <| EOp sp1 op [newArg] sp2
          _ ->
            case Utils.projOk <| List.map (doEval Syntax.Elm env) opArgs of
-             Err msg -> UpdateError msg
+             Err msg -> UpdateCriticalError msg
              Ok argsEvaled ->
                let ((vs, wss), envs) = Tuple.mapFirst List.unzip <| List.unzip argsEvaled in
                let args = List.map .v_ vs in
                case op.val of
-                 Explode    -> Debug.crash "Not implemented: update Explode "
+                 Explode    -> UpdateCriticalError <| " Not implemented: update Explode "
+                 DictFromList ->
+                   case (vs, opArgs) of
+                     ([keyValuesList], [keyValuesListE]) ->
+                       case keyValuesList.v_ of
+                         VList keyValues ->
+                           keyValues |>
+                           List.map (\kv -> case kv.v_ of
+                             VList [key, value] ->
+                               case valToDictKey Syntax.Elm key of
+                                 Err msg -> Err msg
+                                 Ok dictKey -> Ok (key, dictKey, value)
+                             _ -> Err <| "Expected (key, value), got " ++ valToString kv
+                           ) |> Utils.projOk |> (\x -> case x of
+                             Err msg -> UpdateCriticalError msg
+                             Ok listKeyDictKeyValues ->
+                               case (newVal.v_, diffs) of
+                                 (VDict newDict, VDictDiffs dictDiffs) ->
+                                   let (newListRev, newDiffsRev) = List.foldl (\((k, dKey, v), i) (newListRev, newDiffsRev) ->
+                                       case (Dict.get dKey dictDiffs, Dict.get dKey newDict)  of
+                                         (Just VDictElemDelete, _) -> (newListRev, (i, VListElemDelete 1)::newDiffsRev)
+                                         (Just (VDictElemUpdate x), Just newElem)  -> ((k, newElem)::newListRev, (i, VListElemUpdate (VListDiffs [(1, VListElemUpdate x)]))::newDiffsRev)
+                                         (Nothing, _) -> ((k, v)::newListRev, newDiffsRev)
+                                         (d, v) -> Debug.crash <| "Unexpected diff: " ++ toString d ++ " on val " ++ (Maybe.map valToString v |> Maybe.withDefault "Nothing") ++ " when updating DictFromList -- if it was a VDictElemInsert, the key already existed"
+                                       ) ([], []) <| Utils.zipWithIndex listKeyDictKeyValues
+                                   in
+                                   let finalListRev = Dict.foldl (\k v newListRev ->
+                                         case v of
+                                           VDictElemInsert -> case Dict.get k newDict of
+                                             Just newV -> case dictKeyToVal Syntax.Elm k of
+                                               Ok thekey ->  (thekey, newV)::newListRev
+                                               Err msg -> Debug.crash <| "Could not get a key out of " ++ toString k ++ " because " ++ msg
+                                             _ -> Debug.crash <| "Unexpected VictElemInsert of " ++ toString k ++ " but this key was not found in the updating dictionary " ++ valToString newVal
+                                           _ -> newListRev
+                                         ) newListRev dictDiffs
+                                   in
+                                   let finalValuesList = replaceV_ keyValuesList <| VList <| List.reverse <| List.map (\(k, v) -> replaceV_ keyValuesList <| VList [k, v]) finalListRev in
+                                   let finalDiffsList = VListDiffs <| List.reverse newDiffsRev in
+                                   updateContinue "DictFromList" env keyValuesListE keyValuesList finalValuesList finalDiffsList <| \newEnv newKeyValuesListE ->
+                                     updateResult newEnv (replaceE__ e <| EOp sp1 op [newKeyValuesListE] sp2)
+                                 _ -> UpdateCriticalError <| "Expected VDictDiffs, got " ++ toString diffs
+                           )
+                         _ -> UpdateCriticalError <| " DictFromList Expected a list of key values, got " ++ valToString keyValuesList
+                     _ -> UpdateCriticalError <| " DictFromList expects one argument, got " ++ toString (List.length vs)
+                 DictGet ->
+                   case vs of
+                     [key, dict] ->
+                       case valToDictKey Syntax.Elm key of
+                         Err msg -> UpdateCriticalError <| "Could not convert this to a dictionary key: " ++ valToString key
+                         Ok dictKey ->
+                           case dict.v_ of
+                             VDict d ->
+                               case Dict.get dictKey d of
+                                 Nothing -> case newVal.v_ of
+                                   VBase VNull -> updateResultSameEnv env e
+                                   _ -> UpdateCriticalError <| "Trying to push value " ++ valToString newVal ++ " to a dictionary whose key " ++ valToString key ++ " could not be found."
+                                 _ -> -- We should have the old value there.
+                               case opArgs of
+                                 [keyE, dictE] ->
+                                   let newDiff = VDictDiffs <| Dict.fromList [(dictKey, VDictElemUpdate (VListDiffs [(1, VListElemUpdate diffs)]))] in
+                                   let newDict = replaceV_ dict <| VDict <| Dict.insert dictKey newVal d in
+                                   updateContinue "DictGet" env dictE dict newDict newDiff <| \newEnv newDictE ->
+                                     updateResult newEnv <| replaceE__ e <| EOp sp1 op [keyE, newDictE] sp2
+                                 _ -> UpdateCriticalError <| "[internal error] DictGet requires two arguments"
+                             _ -> UpdateCriticalError <| "DictGet requires the second argument to be a dictionary, got " ++ valToString dict
+                     _ -> UpdateCriticalError <| "DictGet requires two arguments, got " ++ toString (List.length vs)
+                 DictRemove ->
+                   case vs of
+                     [key, dict] ->
+                       case valToDictKey Syntax.Elm key of
+                         Err msg -> UpdateCriticalError <| "Could not convert this to a dictionary key: " ++ valToString key
+                         Ok dictKey ->
+                           case dict.v_ of
+                             VDict oldDict ->
+                               case Dict.get dictKey oldDict of
+                                 Nothing -> -- No key was deleted
+                                   case opArgs of
+                                     [keyE, dictE] ->
+                                        updateContinue "DictRemove" env dictE oldVal newVal diffs <| \newEnv newDictE ->
+                                          updateResult newEnv <| replaceE__ e <| EOp sp1 op [keyE, newDictE] sp2
+
+                                     _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
+                                 Just oldValue -> -- There was a value. In case we try to insert this key again, we either fail the insertion or convert it to an update.
+                                   -- Currently, we fail
+                                   let potentialErrors = case diffs of
+                                     VDictDiffs dDiffs -> Dict.foldl (\k v acc ->
+                                       acc |> Result.andThen (\_ ->
+                                       if k == dictKey then Err <| "Cannot insert/update the key " ++ valToString key ++ " to dictionary because it is removed (line " ++ toString e.start.line ++ ")"
+                                       else Ok ())) (Ok ()) dDiffs
+                                     _ -> Err <| "Expected VDictDiffs, got " ++ toString diffs
+                                   in
+                                   case potentialErrors of
+                                     Err msg -> UpdateFails msg
+                                     Ok _ ->
+                                       case opArgs of
+                                         [keyE, dictE] ->
+                                            updateContinue "DictRemove" env dictE oldVal newVal diffs <| \newEnv newDictE ->
+                                              updateResult newEnv <| replaceE__ e <| EOp sp1 op [keyE, newDictE] sp2
+                                         _ -> UpdateCriticalError <| "[internal error] DictGet requires two arguments"
+                             _ -> UpdateCriticalError <| "DictRemove requires the second argument to be a dictionary, got " ++ valToString dict
+                     _ -> UpdateCriticalError <| "DictRemove requires two arguments, got " ++ toString (List.length vs)
+                 DictInsert ->
+                   case (vs, opArgs) of
+                     ([key, insertedVal, dict], [keyE, insertedE, dictE]) ->
+                       case valToDictKey Syntax.Elm key of
+                         Err msg -> UpdateCriticalError <| "Could not convert this to a dictionary key: " ++ valToString key
+                         Ok dictKey ->
+                           case dict.v_ of
+                             VDict d ->
+                               case newVal.v_ of
+                                 VDict dNew ->
+                                   let valWIthoutKey = replaceV_ newVal <| VDict <| Dict.remove dictKey dNew in
+                                   case diffs of
+                                     VDictDiffs dDiffs ->
+                                       let newDictDiff = Dict.remove dictKey dDiffs in
+                                       let diffsWithoutKey = VDictDiffs <| newDictDiff in
+                                       let continuation = if Dict.isEmpty newDictDiff then
+                                         \continuation -> continuation (UpdatedEnv.original env) dictE
+                                         else
+                                          \continuation -> updateContinue "DictInsert - dict" env dictE oldVal valWIthoutKey diffsWithoutKey continuation
+                                       in
+                                       let continuationInserted = case (Dict.get dictKey dDiffs, Dict.get dictKey dNew) of
+                                           (Nothing, _) -> \continuation -> continuation (UpdatedEnv.original env) insertedE
+                                           (Just (VDictElemUpdate insertedDiff), Just newInsertedVal) -> \continuation ->
+                                             updateContinue "DictInsert - value" env insertedE insertedVal newInsertedVal insertedDiff continuation
+                                           (Just (VDictElemInsert), _) -> \continuation ->
+                                             UpdateCriticalError <| "Discrepancy, you are trying to insert a key which should already exist " ++ valToString key
+                                           (Just (VDictElemDelete), _) -> \continuation ->
+                                             UpdateFails <| "Cannot delete a key which was added by insertion" ++ valToString key
+                                           (Just (VDictElemUpdate _), Nothing) -> \continuation ->
+                                             UpdateFails <| "Incoherency: cannot update a key if it does not appear in the output value: " ++ valToString key
+                                       in
+                                       continuation <| \newEnv newDictE ->
+                                         continuationInserted  <| \newEnv2 newInsertedE ->
+                                           let finalEnv = UpdatedEnv.merge env newEnv newEnv2 in
+                                           updateResult finalEnv <| replaceE__ e <| EOp sp1 op [keyE, newInsertedE, newDictE] sp2
+
+                                     _ -> UpdateCriticalError <| "[Internal error] Expected a VDictDiffs, got " ++ toString diffs
+                                 _ -> UpdateCriticalError <| "DictInsert cannot be updated with something other than a dict, got " ++ valToString newVal
+                             _ -> UpdateCriticalError <| "DictInsert requires the second argument to be a dictionary, got " ++ valToString dict
+                     _ -> UpdateCriticalError <| "DictInsert requires tnree arguments, got " ++ toString (List.length vs)
                  ToStrExceptStr ->
                    let default () =
                         case newVal.v_ of
                           VBase (VString s) ->
                             case Syntax.parser Syntax.Elm s of
-                              Err msg -> UpdateError <| "Could not parse new output value '"++s++"' for ToStr expression " ++ ParserUtils.showError msg
+                              Err msg -> UpdateFails <| "Could not parse new output value '"++s++"' for ToStr expression " ++ ParserUtils.showError msg
                               Ok parsed ->
                                 case doEval Syntax.Elm [] parsed of
-                                  Err msg -> UpdateError msg
+                                  Err msg -> UpdateCriticalError msg
                                   Ok ((v, _), _) ->
                                     case (opArgs, vs) of
                                       ([opArg], [arg]) ->
                                         let continue = case UpdateUtils.defaultVDiffs arg v of
-                                          Err msg -> \continuation -> UpdateError msg
+                                          Err msg -> \continuation -> UpdateCriticalError msg
                                           Ok Nothing -> \continuation -> updateResultSameEnv env e
                                           Ok (Just vDiff) -> updateContinue "EOp ToStrExceptStr default" env opArg arg v vDiff
                                         in
                                         continue <| \newUpdatedEnv newOpArg ->
                                             updateResult newUpdatedEnv <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
-                                      e -> UpdateError <| "[internal error] Wrong number of arguments in update ToStrExceptStr: " ++ toString e
-                          e -> UpdateError <| "Expected string, got " ++ valToString newVal
+                                      e -> UpdateCriticalError <| "[internal error] Wrong number of arguments in update ToStrExceptStr: " ++ toString e
+                          e -> UpdateCriticalError <| "Expected string, got " ++ valToString newVal
                    in
                    case vs of
                      [original] ->
@@ -799,30 +941,30 @@ getUpdateStackOp env e oldVal newVal diffs =
                              [opArg] ->
                                updateContinue "EOp ToStrExceptStr" env opArg original newVal diffs <| \newUpdatedEnv newOpArg ->
                                  updateResult newUpdatedEnv <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
-                             e -> UpdateError <| "[internal error] Wrong number of argument values in update ToStrExceptStr: " ++ toString e
+                             e -> UpdateCriticalError <| "[internal error] Wrong number of argument values in update ToStrExceptStr: " ++ toString e
                          _ -> -- Everything else is unparsed to a string, we just parse it.
                            default ()
-                     _ -> UpdateError <| "[internale error] Wrong number or arguments in updateToStrExceptStr: " ++ toString e
+                     _ -> UpdateCriticalError <| "[internale error] Wrong number or arguments in updateToStrExceptStr: " ++ toString e
                  ToStr      ->
                    case newVal.v_ of
                      VBase (VString s) ->
                        case Syntax.parser Syntax.Elm s of
-                         Err msg -> UpdateError <| "Could not parse new output value '"++s++"' for ToStr expression. " ++ (ParserUtils.showError msg)
+                         Err msg -> UpdateFails <| "Could not parse new output value '"++s++"' for ToStr expression. " ++ (ParserUtils.showError msg)
                          Ok parsed ->
                            case doEval Syntax.Elm [] parsed of
-                             Err msg -> UpdateError msg
+                             Err msg -> UpdateCriticalError msg
                              Ok ((v, _), _) ->
                                case (opArgs, vs) of
                                  ([opArg], [arg]) ->
                                    let continue = case UpdateUtils.defaultVDiffs arg v of
-                                     Err msg -> \continuation -> UpdateError msg
+                                     Err msg -> \continuation -> UpdateCriticalError msg
                                      Ok Nothing -> \continuation -> updateResultSameEnv env e
                                      Ok (Just vDiff) -> updateContinue "EOp ToStr" env opArg arg v vDiff
                                    in
                                    continue <| \newUpdatedEnv newOpArg ->
                                          updateResult newUpdatedEnv <| replaceE__ e <| EOp sp1 op [newOpArg] sp2
-                                 e -> UpdateError <| "[internal error] Wrong number of arguments in update: " ++ toString e
-                     e -> UpdateError <| "Expected string, got " ++ valToString newVal
+                                 e -> UpdateCriticalError <| "[internal error] Wrong number of arguments in update: " ++ toString e
+                     e -> UpdateCriticalError <| "Expected string, got " ++ valToString newVal
                  RegexReplaceAllIn -> -- TODO: Move this in maybeUpdateMathOp
                    case vs of
                      [regexpV, replacementV, stringV] ->
@@ -836,13 +978,13 @@ getUpdateStackOp env e oldVal newVal diffs =
                        in
                        case UpdateRegex.updateRegexReplaceAllByIn
                            env eRec uRec regexpV replacementV stringV oldVal newVal of
-                         Errs msg -> UpdateError msg
+                         Errs msg -> UpdateCriticalError msg
                          Oks ll -> updateOpMultiple "replaceAllIn" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs
                            (LazyList.map (\(a, b, c) ->
                              let outputVs = [a, b, c] in
                              (outputVs, UpdateUtils.defaultTupleDiffs valToString UpdateUtils.defaultVDiffs vs outputVs)
                              ) ll)
-                     _ -> UpdateError "replaceAllIn requires regexp, replacement (fun or string) and the string"
+                     _ -> UpdateCriticalError "replaceAllIn requires regexp, replacement (fun or string) and the string"
                  RegexReplaceFirstIn -> -- TODO: Move this in maybeUpdateMathOp
                      case vs of
                        [regexpV, replacementV, stringV] ->
@@ -856,26 +998,26 @@ getUpdateStackOp env e oldVal newVal diffs =
                          in
                          case UpdateRegex.updateRegexReplaceFirstByIn
                              env eRec uRec regexpV replacementV stringV oldVal newVal of
-                           Errs msg -> UpdateError msg
+                           Errs msg -> UpdateCriticalError msg
                            Oks ll -> updateOpMultiple "replaceAllIn" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs
                              (LazyList.map (\(a, b, c) ->
                                let outputVs = [a, b, c] in
                                (outputVs, UpdateUtils.defaultTupleDiffs valToString UpdateUtils.defaultVDiffs vs outputVs)
                                ) ll)
-                       _ -> UpdateError "replaceAllIn requires regexp, replacement (fun or string) and the string"
+                       _ -> UpdateCriticalError "replaceAllIn requires regexp, replacement (fun or string) and the string"
                  RegexExtractFirstIn ->
                    case (vs, opArgs) of
                      ([regexpV, stringV], [regexpE, stringE]) ->
                        case UpdateRegex.updateRegexExtractFirstIn regexpV stringV oldVal newVal of
-                         Errs msg -> UpdateError msg
+                         Errs msg -> UpdateCriticalError msg
                          Oks ll ->
                            let llWithDiffs = LazyList.map (\newStringV -> (newStringV, UpdateUtils.defaultVDiffs stringV newStringV)) ll in
                            updateAlternatives "extractFirstIn" env stringE stringV llWithDiffs <| \newUpdatedEnv newStringE ->
                                updateResult newUpdatedEnv <| replaceE__ e <| EOp sp1 op [regexpE, newStringE] sp2
-                     _ -> UpdateError "extractFirstIn requires regexp, replacement (fun or string) and the string"
+                     _ -> UpdateCriticalError "extractFirstIn requires regexp, replacement (fun or string) and the string"
                  _ ->
                    case maybeUpdateMathOp op vs oldVal newVal of
-                     Errs msg -> UpdateError msg
+                     Errs msg -> UpdateCriticalError msg
                      Oks ll ->
                        updateOpMultiple "op" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs (LazyList.map (\outputVs ->
                          (outputVs, UpdateUtils.defaultTupleDiffs valToString UpdateUtils.defaultVDiffs vs outputVs)
@@ -883,10 +1025,10 @@ getUpdateStackOp env e oldVal newVal diffs =
 
      ECase sp1 input branches sp2 ->
        case doEval Syntax.Elm env input of
-         Err msg -> UpdateError msg
+         Err msg -> UpdateCriticalError msg
          Ok ((inputVal, _), _) ->
            case branchWithInversion env inputVal branches of
-             Nothing -> UpdateError <| "Match error: " ++ valToString inputVal ++ " on branches " ++ Syntax.unparser Syntax.Elm e
+             Nothing -> UpdateCriticalError <| "Match error: " ++ valToString inputVal ++ " on branches " ++ Syntax.unparser Syntax.Elm e
              Just ((branchEnv, branchExp), envValBranchBuilder) ->
                updateContinue "ECase" branchEnv branchExp oldVal newVal diffs <| \upUpdatedEnv upExp ->
                  let (newBranchUpdatedEnv, newInputVal, newInputValDiffs, nBranches, nBranchesDiffs) = envValBranchBuilder (upUpdatedEnv, upExp) in
@@ -901,7 +1043,7 @@ getUpdateStackOp env e oldVal newVal diffs =
      --  ETypeCase WS Exp (List TBranch) WS
      ELet sp1 letKind False p sp2 e1 sp3 body sp4 ->
          case doEval Syntax.Elm env e1 of
-           Err s       -> UpdateError s
+           Err s       -> UpdateCriticalError s
            Ok ((oldE1Val,_), _) ->
              case consWithInversion (p, oldE1Val) (Just (env, (\newUpdatedEnv -> newUpdatedEnv))) of
                 Just (envWithE1, consBuilder) ->
@@ -917,10 +1059,10 @@ getUpdateStackOp env e oldVal newVal diffs =
                          let finalExp = replaceE__ e <| ELet sp1 letKind False newPat sp2 newE1 sp3 newBody sp4 in
                          updateResult finalUpdatedEnv finalExp
                 Nothing ->
-                  UpdateError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
+                  UpdateCriticalError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
      ELet sp1 letKind True p sp2 e1 sp3 body sp4 ->
          case doEval Syntax.Elm env e1 of
-           Err s       -> UpdateError s
+           Err s       -> UpdateCriticalError s
            Ok ((oldE1Val,_), _) ->
              case (p.val.p__, oldE1Val.v_) of
                (PVar _ fname _, VClosure Nothing x closureBody env_) ->
@@ -936,7 +1078,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                               Just m ->
                                 let newE1Val = case newE1ValNamed.v_ of
                                   VClosure (Just _) x vBody newEnv -> { newE1ValNamed | v_ = VClosure Nothing x vBody newEnv }
-                                  _ -> Debug.crash "[internal error] This should have been a recursive method"
+                                  _ -> Debug.crash <| "[Internal error] This should have been a recursive method"
                                 in
                                 updateContinue "ELetrec2" env e1 oldE1Val newE1Val m
                             in e1_update <| \newUpdatedEnvE1 newE1 ->
@@ -944,15 +1086,15 @@ getUpdateStackOp env e oldVal newVal diffs =
                               let finalExp = replaceE__ e <| ELet sp1 letKind True newPat sp2 newE1 sp3 newBody sp4 in
                               updateResult finalUpdatedEnv finalExp
                     Nothing ->
-                      UpdateError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
+                      UpdateCriticalError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
                (PList _ _ _ _ _, _) ->
-                   UpdateError <| strPos e1.start ++
+                   UpdateCriticalError <| strPos e1.start ++
                      """mutually recursive functions (i.e. letrec [...] = [...] e) \
                         not yet implemented""" --"
                       -- Implementation also requires modifications to LangSimplify.simply
                       -- so that clean up doesn't prune the funtions.
                _ ->
-                 UpdateError <| strPos e.start ++ " bad letrec"
+                 UpdateCriticalError <| strPos e.start ++ " bad letrec"
 
      EComment sp msg exp ->
        updateContinue "EComment" env exp oldVal newVal diffs <| \nv ne -> updateResult nv <| replaceE__ e <| EComment sp msg ne
@@ -968,17 +1110,17 @@ getUpdateStackOp env e oldVal newVal diffs =
        updateContinue "EParens" env exp oldVal newVal diffs <| \nv ne -> updateResult nv <| replaceE__ e <| EParens sp1 ne pStyle sp2
      {--ETypeCase sp1 e1 tbranches sp2 ->
        case eval_ syntax env (e::bt) e1 of
-         Err s -> UpdateError s
+         Err s -> UpdateCriticalError s
          Ok (v1,sp1) ->
            case evalTBranches syntax env (e::bt) v1 tbranches of
              -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
-             Ok (Just (v2,sp2)) -> UpdateError "Typecase not updatable at this point"--Oks <| retVBoth [v2] (v2, sp1 ++ sp2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
-             UpdateError s              -> UpdateError s
-             _                  -> UpdateError "Typecase not updatable at this point" --errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive typecase statement"
+             Ok (Just (v2,sp2)) -> UpdateCriticalError "Typecase not updatable at this point"--Oks <| retVBoth [v2] (v2, sp1 ++ sp2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+             UpdateCriticalError s              -> UpdateCriticalError s
+             _                  -> UpdateCriticalError "Typecase not updatable at this point" --errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive typecase statement"
      --}
      _ ->
        let outStr = valToString newVal in
-       UpdateError <| "Non-supported update " ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
+       UpdateCriticalError <| "Non-supported update " ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
 
 -- Errors are converted to empty solutions because updateRec is called once a solution has been found already.
 updateRec: UpdateStack -> LazyList NextAction -> LazyList (UpdatedEnv, Exp)
@@ -1163,8 +1305,8 @@ angleUpdate new old n =
 
 maybeUpdateMathOp : Op -> List Val -> Val -> Val -> Results String (List Val)
 maybeUpdateMathOp op operandVals oldOutVal newOutVal =
-  case (oldOutVal.v_, newOutVal.v_) of
-    (VBase (VString oldOut), VBase (VString newOut)) ->
+  case (oldOutVal.v_, newOutVal.v_, op.val) of
+    (VBase (VString oldOut), VBase (VString newOut), Plus) ->
       let operandsStr = operandVals
         |> List.map (\operand ->
             case operand.v_ of
@@ -1266,9 +1408,9 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
                   ) operandVals
                 ) result
             o -> Errs <| "This operation is not supported for strings : " ++ toString o
-        o -> Errs <| "Expected strings, got " ++ toString o
+        o -> Errs <| "Expected two strings, got " ++ toString o ++ " -- actually (to update the operation " ++ (operandVals |> List.map valToString |> String.join " + ") ++ valToString oldOutVal ++ " <- " ++ valToString newOutVal ++ ")"
 
-    (VConst _ (oldOut, _), VConst _ (newOut, _)) ->
+    (VConst _ (oldOut, _), VConst _ (newOut, _), _) ->
       if oldOut == newOut then ok1 operandVals else
       let operands = operandVals
         |> List.map (\operand ->

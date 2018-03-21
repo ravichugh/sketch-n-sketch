@@ -44,6 +44,9 @@ onlyThis state =
       only stateChanger state
     _ -> Debug.crash "No tests to only test before the use of 'onlyThis'. Add '|> onlyThis' after a test you want to run alone"
 
+skipBefore: State -> State
+skipBefore state = { state | toLaunch = [] }
+
 gather: (State -> State) -> State -> State
 gather stateChanger state =
   { state | toLaunch = state.toLaunch ++ [StateChanger stateChanger] }
@@ -629,11 +632,22 @@ all_tests = init_state
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demo\""
                        "[[\"HTMLElement\", \"a\", [[\"HTMLAttribute\", \" \", \"href\", [\"HTMLAttributeString\", \"\", \"\", \"'\", \"https://fr.wikipedia.org/wiki/Markdown\"]]], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Markdown\"]], [\"RegularClosing\", \"\"]], [\"HTMLInner\",\" demonstration\"]]"
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demonstration\""
+  |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)] "parseHTML \"Hello world\""  "[[\"HTMLInner\",\"Hello world\"]]"
+  |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)] "parseHTML \"<i><b>Hello</i></b>World\""  "[ [ \"HTMLElement\",\"i\",[],\"\",[ \"RegularEndOpening\" ], [ [ \"HTMLElement\", \"b\", [], \"\", [ \"RegularEndOpening\" ], [ [ \"HTMLInner\", \"Hello\" ] ], [ \"ForgotClosing\" ] ] ], [ \"RegularClosing\", \"\" ] ], [ \"HTMLInner\", \"</b>World\" ] ]"
   |> updateElmAssert [("color", "\"white\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
                             "[[\"padding\", \"3px\"], [ \"background-color\", \"lightgray\"]]"
                            [("color", "\"lightgray\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
   |> test "freeze"
   |> updateElmAssert [("freeze", "\\x -> x")] "freeze 0 + 1" "2"
                      [("freeze", "\\x -> x")] "freeze 0 + 2"
+  |> test "dictionary"
+  |> updateElmAssert [("x", "1")] "get \"a\" (dict [[\"a\", x]])" "2"
+                     [("x", "2")] "get \"a\" (dict [[\"a\", x]])"
+  |> updateElmAssert [("x", "1")] "remove \"b\" (dict [[\"a\", x], [\"b\", 2]])" "dict [[\"a\", 2]]"
+                     [("x", "2")] "remove \"b\" (dict [[\"a\", x], [\"b\", 2]])"
+  |> updateElmAssert [("x", "1")] "insert \"b\" x (dict [[\"a\", x]])" "dict [[\"a\", 1], [\"b\", 2]]"
+                     [("x", "2")] "insert \"b\" x (dict [[\"a\", x]])"
+  |> updateElmAssert [] "insert \"b\" 1 (dict [[\"a\", 2], [\"b\", 3]])" "dict [[\"a\", 1], [\"b\", 2]]"
+                     [] "insert \"b\" 2 (dict [[\"a\", 1], [\"b\", 3]])"
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
   |> summary
