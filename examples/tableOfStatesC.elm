@@ -13,7 +13,7 @@ main =
   let rows =
     tableWithButtons.mapData
       (\[state, abbrev, capital] -> [state, capital + ", " + abbrev])
-      (customUpdate tableWithButtons.wrapData states)
+      (applyLens tableWithButtons.wrapData states)
   in
   let padding = ["padding", "3px"] in
   let headerRow =

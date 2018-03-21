@@ -2602,27 +2602,28 @@ mapSecond f [x, y] = [x, f y]
 
 -- freeze x = x
 
--- Custom Updates --
+-- Lenses --
 
-customUpdate record x =
-  record.apply x
+applyLens lens x =
+  lens.apply x
 
--- Custom Update: Freeze
+-- Lens: Constant Input
 
-customUpdateFreeze =
-  customUpdate { apply x = x, update p = { values = [p.input] } }
+constantInputLens =
+  applyLens { apply x = x, update {input} = { values = [input] } }
 
 -- Custom Update: List Map, List Append, ...
 
 -- TODO
 
--- Custom Update: Table Library
+-- Lens: Table Library
 
-  -- freeze and customUpdateFreeze aren't actually needed below,
+  -- freeze and constantInputLens aren't actually needed below,
   -- because these definitions are now impicitly frozen in Prelude
 
 tableWithButtons = {
 
+  -- TODO use update. calculate length of rows to determine empties.
   wrapData =
     { apply rows   = rows |> map (\\row -> [freeze False, row])
     , unapply rows = rows |> concatMap (\\[flag,row] ->
@@ -2638,7 +2639,7 @@ tableWithButtons = {
 
   tr flag styles attrs children =
     let [hasBeenClicked, nope, yep] =
-      [\"has-been-clicked\", customUpdateFreeze \"gray\", customUpdateFreeze \"coral\"]
+      [\"has-been-clicked\", constantInputLens \"gray\", constantInputLens \"coral\"]
     in
     let onclick =
       \"\"\"

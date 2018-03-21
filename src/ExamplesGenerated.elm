@@ -5792,7 +5792,7 @@ main =
   let rows =
     tableWithButtons.mapData
       (\\[state, abbrev, capital] -> [state, capital + \", \" + abbrev])
-      (customUpdate tableWithButtons.wrapData states)
+      (applyLens tableWithButtons.wrapData states)
   in
   let padding = [\"padding\", \"3px\"] in
   let headerRow =
@@ -5826,6 +5826,49 @@ h3 [] [] \"TODO\"
 simpleBudget =
  """main =
   h1 [] [] \"Budget\"
+
+"""
+
+mapMaybeLens =
+ """-- TODO library
+mapListSimple = map
+
+mapMaybeSimple f mx =
+  freeze (case mx of [] -> []; [x] -> [f x])
+
+mapMaybeLens default =
+  { apply [f, mx] =
+      freeze <| mapMaybeSimple f mx
+
+  , update {input = [f, mx], outputNew = my} =
+      case my of
+        []  -> { values = [[f, []]] }
+        [y] ->
+          let x = case mx of [x] -> x; [] -> default in
+          let results = updateApp {fun [f,x] = f x, input = [f, x], output = y} in
+          { values = mapListSimple (\\[newF,newX] -> [newF, [newX]]) results.values }
+  }
+
+mapMaybe default f mx =
+  applyLens (mapMaybeLens default) [f, mx]
+
+mapMaybeState =
+  mapMaybe [\"Alabama\", \"AL\", \"Montgomery\"]
+
+displayState =
+  (\\[a,b,c] -> [a, c + \", \" + b])
+
+maybeState1 = mapMaybeSimple displayState []
+maybeState2 = mapMaybeSimple displayState [[\"New Jersey\", \"NJ\", \"Edison\"]]
+
+maybeState3 = mapMaybeState displayState []
+maybeState4 = mapMaybeState displayState [[\"New Jersey\", \"NJ\", \"Edison\"]]
+
+showList list =
+  div_ [] [] (map (\\x -> h3 [] [] (toString x)) list)
+
+main =
+  showList [maybeState1, maybeState2, maybeState3, maybeState4]
 
 """
 
@@ -5952,40 +5995,39 @@ fromleo_conference_budgetting =
  """notBelow bound x = {
   apply x = freeze x
   update {input, outputNew} =
-    if outputNew <= bound && input > bound then
-      {values = [bound]}
-    else if outputNew > bound then
-      { values = outputNew }
-    else {values = []} }.apply x
+    if outputNew <= bound &&
+       input     >  bound     then { values = [bound] }
+    else if outputNew > bound then { values = outputNew }
+    else                           { values = [] }
+  }.apply x
 
 exactly x = freeze x
 
-days =
-  exactly 3
-venue =
-  exactly (10000 * days)
-lunch =
-  (notBelow 20) 30
+days =  exactly 3
+venue = exactly (10000 * days)
+lunch = (notBelow 20) 30
 
-registeredParticipants =
-  200
-registrationFee =
-  50
-sponsors =
-  20000
+participants = 200
+fee          = 50
+sponsors     = 20000
 
-expenses =
-  exactly registeredParticipants * lunch * days + exactly venue
-income =
-  exactly registeredParticipants * registrationFee +  exactly sponsors
+expenses = exactly participants * lunch * days + venue
+income   = exactly participants * fee + sponsors
 
-surplus =
-  income - expenses
+surplus = income - expenses
 
 -- Change surplus to 0, it changes the lunch but will stop at 20, so the surplus will be negative.
 -- Change surplus to 0 again, it changes the registration fee.
-[\"h3\", [], [[\"TEXT\", toString surplus]]]
-
+[\"div\", [[\"style\", \"margin:20px\"]], [
+  [\"TEXT\", \"Current surplus of conference:\"],
+  [\"br\", [], []],
+  [\"h3\", [[\"id\", \"surplus\"]], [
+    [\"TEXT\", toString surplus]]],
+  if surplus /= 0 then
+    [\"button\", [[\"onclick\", \"document.getElementById('surplus').innerText = '0'\"]], [[\"TEXT\", \"Set to zero\"]]]
+  else
+    [\"TEXT\", \"Hurray, the budget is coherent!\"]
+    ]]
 """
 
 
@@ -6007,7 +6049,7 @@ welcomeCategory =
   )
 
 docsCategory =
-  ( "Examples (ICFP 2018 Submission)"
+  ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
     , makeLeoExample "1b: Table of States" tableOfStatesB
     , makeLeoExample "1c: Table of States" tableOfStatesC
@@ -6018,11 +6060,9 @@ docsCategory =
       (\i (caption, program) ->
         makeLeoExample (toString (2+i) ++ ": " ++ caption) program
       )
-      [ ("Markdown", fromleo_markdown)
+      [ ("Lens: Maybe Map", mapMaybeLens)
+      , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
-      , ("TODO", blankDoc)
-      , ("TODO", blankDoc)
-      , ("TODO", blankDoc)
       , ("Simple Budget", simpleBudget)
       ]
     )
