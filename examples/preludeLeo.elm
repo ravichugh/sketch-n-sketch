@@ -735,9 +735,10 @@ constantInputLens =
   -- freeze and constantInputLens aren't actually needed below,
   -- because these definitions are now impicitly frozen in Prelude
 
+  -- TODO in wrapData, use update. calculate length of rows to determine empties.
+
 tableWithButtons = {
 
-  -- TODO use update. calculate length of rows to determine empties.
   wrapData =
     { apply rows   = rows |> map (\row -> [freeze False, row])
     , unapply rows = rows |> concatMap (\[flag,row] ->
