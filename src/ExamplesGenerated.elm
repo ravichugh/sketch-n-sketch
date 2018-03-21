@@ -5746,25 +5746,25 @@ tableOfStatesA =
 main =
   let headers = [\"State\", \"Capital\"] in
   let rows =
-    map
+    List.map
       (\\[state, abbrev, capital] -> [state, capital + \", \" + abbrev])
       states
   in
   let padding = [\"padding\", \"3px\"] in
   let headerRow =
     let styles = [padding] in
-    tr [] [] (map (th styles []) headers)
+    Html.tr [] [] (map (th styles []) headers)
   in
   let stateRows =
     let colors = [\"lightgray\", \"white\"] in
     let drawRow i row =
-      let color = nth colors (mod i (len colors)) in
-      let columns = map (td [padding, [\"background-color\", color]] []) row in
-      tr [] [] columns
+      let color = List.nth colors (mod i (List.length colors)) in
+      let columns = map (Html.td [padding, [\"background-color\", color]] []) row in
+      Html.tr [] [] columns
     in
-    indexedMap drawRow rows
+    List.indexedMap drawRow rows
   in
-  table [padding] [] (headerRow :: stateRows)
+  Html.table [padding] [] (headerRow :: stateRows)
 
 """
 
@@ -5790,25 +5790,25 @@ tableOfStatesC =
 main =
   let headers = [\"State\", \"Capital\"] in
   let rows =
-    tableWithButtons.mapData
+    TableWithButtons.mapData
       (\\[state, abbrev, capital] -> [state, capital + \", \" + abbrev])
-      (applyLens tableWithButtons.wrapData states)
+      (TableWithButtons.wrapData states)
   in
   let padding = [\"padding\", \"3px\"] in
   let headerRow =
     let styles = [padding, [\"text-align\", \"left\"], [\"background-color\", \"coral\"]] in
-    tr [] [] (map (th styles []) headers)
+    Html.tr [] [] (List.map (Html.th styles []) headers)
   in
   let stateRows =
     let colors = [\"lightyellow\", \"white\"] in
     let drawRow i [flag,row] =
-      let color = nth colors (mod i (len colors)) in
-      let columns = map (td [padding, [\"background-color\", color]] []) row in
-      tableWithButtons.tr flag [] [] columns
+      let color = List.nth colors (mod i (List.length colors)) in
+      let columns = List.map (Html.td [padding, [\"background-color\", color]] []) row in
+      TableWithButtons.tr flag [] [] columns
     in
-    indexedMap drawRow rows
+    List.indexedMap drawRow rows
   in
-  table [padding] [] (headerRow :: stateRows)
+  Html.table [padding] [] (headerRow :: stateRows)
 
 """
 
@@ -5830,15 +5830,12 @@ simpleBudget =
 """
 
 mapMaybeLens =
- """-- TODO library
-mapListSimple = map
-
-mapMaybeSimple f mx =
-  freeze (case mx of [] -> []; [x] -> [f x])
+ """mapMaybeSimple f mx =
+  Update.freeze (case mx of [] -> []; [x] -> [f x])
 
 mapMaybeLens default =
   { apply [f, mx] =
-      freeze <| mapMaybeSimple f mx
+      Update.freeze <| mapMaybeSimple f mx
 
   , update {input = [f, mx], outputNew = my} =
       case my of
@@ -5846,11 +5843,11 @@ mapMaybeLens default =
         [y] ->
           let x = case mx of [x] -> x; [] -> default in
           let results = updateApp {fun [f,x] = f x, input = [f, x], output = y} in
-          { values = mapListSimple (\\[newF,newX] -> [newF, [newX]]) results.values }
+          { values = List.map (\\[newF,newX] -> [newF, [newX]]) results.values }
   }
 
 mapMaybe default f mx =
-  applyLens (mapMaybeLens default) [f, mx]
+  Update.applyLens (mapMaybeLens default) [f, mx]
 
 mapMaybeState =
   mapMaybe [\"Alabama\", \"AL\", \"Montgomery\"]
@@ -5864,11 +5861,11 @@ maybeState2 = mapMaybeSimple displayState [[\"New Jersey\", \"NJ\", \"Edison\"]]
 maybeState3 = mapMaybeState displayState []
 maybeState4 = mapMaybeState displayState [[\"New Jersey\", \"NJ\", \"Edison\"]]
 
-showList list =
-  div_ [] [] (map (\\x -> h3 [] [] (toString x)) list)
+showValues values =
+  Html.div_ [] [] (List.map (\\x -> Html.h3 [] [] (toString x)) values)
 
 main =
-  showList [maybeState1, maybeState2, maybeState3, maybeState4]
+  showValues [maybeState1, maybeState2, maybeState3, maybeState4]
 
 """
 

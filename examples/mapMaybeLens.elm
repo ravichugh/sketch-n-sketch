@@ -1,12 +1,9 @@
--- TODO library
-mapListSimple = map
-
 mapMaybeSimple f mx =
-  freeze (case mx of [] -> []; [x] -> [f x])
+  Update.freeze (case mx of [] -> []; [x] -> [f x])
 
 mapMaybeLens default =
   { apply [f, mx] =
-      freeze <| mapMaybeSimple f mx
+      Update.freeze <| mapMaybeSimple f mx
 
   , update {input = [f, mx], outputNew = my} =
       case my of
@@ -14,11 +11,11 @@ mapMaybeLens default =
         [y] ->
           let x = case mx of [x] -> x; [] -> default in
           let results = updateApp {fun [f,x] = f x, input = [f, x], output = y} in
-          { values = mapListSimple (\[newF,newX] -> [newF, [newX]]) results.values }
+          { values = List.map (\[newF,newX] -> [newF, [newX]]) results.values }
   }
 
 mapMaybe default f mx =
-  applyLens (mapMaybeLens default) [f, mx]
+  Update.applyLens (mapMaybeLens default) [f, mx]
 
 mapMaybeState =
   mapMaybe ["Alabama", "AL", "Montgomery"]
@@ -32,8 +29,8 @@ maybeState2 = mapMaybeSimple displayState [["New Jersey", "NJ", "Edison"]]
 maybeState3 = mapMaybeState displayState []
 maybeState4 = mapMaybeState displayState [["New Jersey", "NJ", "Edison"]]
 
-showList list =
-  div_ [] [] (map (\x -> h3 [] [] (toString x)) list)
+showValues values =
+  Html.div_ [] [] (List.map (\x -> Html.h3 [] [] (toString x)) values)
 
 main =
-  showList [maybeState1, maybeState2, maybeState3, maybeState4]
+  showValues [maybeState1, maybeState2, maybeState3, maybeState4]
