@@ -105,14 +105,16 @@ __update_split__ n l =
 
 -- every onFunction should either return a {values = ...} or an {error =... }
 -- start    : a
--- onUpdate : a -> {oldOutput: b, newOutput: b, diffs: VDiffs} -> Results String a
--- onInsert : a -> {newOutput: b, diffs: VDiffs}  -> Results String a
--- onRemove : a -> {oldOutput: b, diffs! VDoffs}  -> Results String a
--- onSkip   : a -> {count: Int, oldOutputs: List b, newOutputs: List b}  -> Results String a
--- onFinish : a  -> Results String c
+-- onUpdate : a -> {oldOutput: b, newOutput: b, index: Int, diffs: VDiffs} -> Results String a
+-- onInsert : a -> {newOutput: b, index: Int, diffs: VDiffs}  -> Results String a
+-- onRemove : a -> {oldOutput: b, index: Int, diffs! VDoffs}  -> Results String a
+-- onSkip   : a -> {count: Int, index: Int, oldOutputs: List b, newOutputs: List b}  -> Results String a
+-- onFinish : a -> Results String c
+-- onGather : c -> ({value: d, diff: Maybe VDiffs } | { value: d })
 -- oldOutput: List b
 -- newOutput: List b
 -- diffs    : VListDiffs
+-- Returns  : {error: String} | {values: List d} | {values: List d, diffs: List (Maybe VDiffs)}
 foldDiff =
   letrec append xs ys =
     case xs of
@@ -149,15 +151,15 @@ foldDiff =
       andThen = andThen
     }
   in
-  \{start, onSkip, onUpdate, onRemove, onInsert, onFinish} oldOutput newOutput diffs ->
+  \{start, onSkip, onUpdate, onRemove, onInsert, onFinish, onGather} oldOutput newOutput diffs ->
   let listDiffs = case diffs of
     ["VListDiffs", l] -> l
     _ -> error <| "Expected VListDiffs, got " + toString diffs
   in
   -- Returns either {error} or {values=list of values}
   --     fold: Int -> List b -> List b -> List (Int, VListElemDiff) -> a -> Results String c
-  letrec fold  j      oldOutput newOutput listDiffs                    acc =
-      let next i oldOutput_ newOutput_ d newAcc =
+  letrec fold  j      oldOutput  newOutput  listDiffs                    acc =
+      let next i      oldOutput_ newOutput_ d newAcc =
         newAcc |> Results.andThen (\accCase ->
           fold i oldOutput_ newOutput_ d accCase
         )
@@ -165,9 +167,10 @@ foldDiff =
       case listDiffs of
       [] ->
         let count = len newOutput in
-        if count == 0 then onFinish acc
+        if count == 0 then
+          onFinish acc
         else
-         onSkip acc {count = count, oldOutputs = oldOutput, newOutputs = newOutput}
+         onSkip acc {count = count, index = j, oldOutputs = oldOutput, newOutputs = newOutput}
          |> next (j + count) [] [] listDiffs
 
       [i, diff]::dtail  ->
@@ -175,31 +178,95 @@ foldDiff =
           let count = i - j in
           let [previous, remainingOld] = __update_split__ count oldOutput in
           let [current,  remainingNew] = __update_split__ count newOutput in
-          onSkip acc {count = count, oldOutputs = previous, newOutputs = current}
+          onSkip acc {count = count, index = j, oldOutputs = previous, newOutputs = current}
           |> next i remainingOld remainingNew listDiffs
         else case diff of
           ["VListElemUpdate", d]->
             let previous::remainingOld = oldOutput in
             let current::remainingNew = newOutput in
-            onUpdate acc {oldOutput = previous, output = current, newOutput = current, diffs = d}
+            onUpdate acc {oldOutput = previous, index = i, output = current, newOutput = current, diffs = d}
             |> next (i + 1) remainingOld remainingNew dtail
           ["VListElemInsert", count] ->
             if count >= 1 then
               let current::remainingNew = newOutput in
-              onInsert acc {newOutput = current}
+              onInsert acc {newOutput = current, index = i}
               |> next i oldOutput remainingNew (if count == 1 then dtail else [i, ["VListElemInsert", count - 1]]::dtail)
             else error <| "insertion count should be >= 1, got " + toString count
           ["VListElemDelete", count] ->
             if count >= 1 then
               let dropped::remainingOld = oldOutput in
-              onRemove acc {oldOutput =dropped} |>
+              onRemove acc {oldOutput =dropped, index = i} |>
               next (i + count) remainingOld newOutput (if count == 1 then dtail else [i + 1, ["VListElemDelete", count - 1]]::dtail)
             else error <| "deletion count should be >= 1, got " ++ toString count
       _ -> error <| "Expected a list of diffs, got " + toString diffs
-  in fold 0 oldOutput newOutput listDiffs start
+  in
+  case fold 0 oldOutput newOutput listDiffs start of
+    { error = msg } -> {error = msg}
+    { values = values } -> -- values might be a pair of value and diffs. We use onGather to do the split.
+      letrec aux accValues accDiffs values = case values of
+        [] -> case accDiffs of
+          ["Nothing"] -> {values = accValues}
+          ["Just", diffs] -> {values = accValues, diffs = diffs}
+        head::tail -> case onGather head of
+          {value, diff} -> case accDiffs of
+            ["Nothing"] -> if len accValues > 0 then { error = "Diffs not specified for all values, e.g." + toString value } else
+              aux [value] ["Just", [diff]] tail
+            ["Just", diffs] ->
+              aux (accValues ++ [value]) ["Just", diffs ++ [diff]] tail
+          {value} -> case accDiffs of
+            ["Nothing"] -> aux [value] accDiffs tail
+            ["Just", diffs] -> { error = "Diffs not specified until " + toString value }
+      in aux [] ["Nothing"] values
 
-append xs ys = --This will be the real lens
-  __update_append__ xs ys
+append aas bs = {
+    apply [aas, bs] = freeze <| __update_append__ aas bs
+    update {input = [aas, bs], outputNew, outputOld, diffs} =
+      let asLength = len aas in
+      foldDiff {
+        start = [[], [], [], [], len aas, len bs]
+        onSkip [nas, nbs, diffas, diffbs, numA, numB] {count = n, newOutputs = outs} =
+          if n <= numA then
+            {values = [[nas ++ outs, nbs, diffas, diffbs, numA - n, numB]]}
+          else
+            let [forA, forB] = __update_split__ numA outs in
+            {values = [[nas ++ forA, nbs ++ forB, diffas, diffbs, 0, numB - (n - numA)]]}
+        onUpdate [nas, nbs, diffas, diffbs, numA, numB] {newOutput = out, diffs, index} =
+          { values = [if numA >= 1
+           then [nas ++ [out],                                      nbs,
+                 diffas ++ [[index, ["VListElemUpdate", [len nas, diffs]]]], diffbs,
+                 numA - 1,                                          numB]
+           else [nas,    nbs ++ [out],
+                 diffas, diffbs ++ [[index - asLength, ["VListElemUpdate", [len nbs, diffs]]]],
+                 0,      numB - 1]] }
+        onRemove  [nas, nbs, diffas, diffbs, numA, numB] {oldOutput, index} =
+          if 1 <= numA then
+            {values = [[nas, nbs, diffas ++ [[index, ["VListElemDelete", 1]]], diffbs, numA - 1, numB]] }
+          else
+            {values = [[nas, nbs, diffas, diffbs ++ [[index - asLength, ["VListElemDelete", 1]]], numA, numB - 1]] }
+        onInsert [nas, nbs, diffas, diffbs, numA, numB] {newOutput, index} =
+          {values =
+            (if numA > 0 || len nbs == 0 then
+              [[nas ++ [newOutput], nbs,
+                diffas ++ [[index, ["VListElemInsert", 1]]], diffbs,
+                numA, numB]]
+            else []) ++
+              (if len nbs > 0 || numA == 0 then
+                [[nas,    nbs ++ [newOutput],
+                  diffas, diffbs ++ [[index - asLength, ["VListElemInsert", 1]]],
+                  numA, numB]]
+              else [])
+            }
+
+        onFinish [nas, nbs, diffas, diffbs, _, _] = {
+           values = [[[nas, nbs], (if len diffas == 0 then [] else
+             [[0, ["VListElemUpdate", ["VListDiffs", diffas]]]]) ++
+                   (if len diffbs == 0 then [] else
+             [[1, ["VListElemUpdate", ["VListDiffs", diffbs]]]])]]
+          }
+        onGather [[nas, nbs], diffs] = {value = [nas, nbs],
+          diff = if len diffs == 0 then ["Nothing"] else ["Just", ["VListDiffs", diffs]]}
+      } outputOld outputNew diffs
+    }.apply [aas, bs]
 
 --; Maps a function, f, over a list of values and returns the resulting list
 --map: (forall (a b) (-> (-> a b) (List a) (List b)))
@@ -241,6 +308,10 @@ map f l =
        --as a merge of original functions with all other modifications
        -- and the collected new inputs
        {values = [[merge f newFs, newIns]] }
+
+      onGather result =
+        -- TODO: Later, include the , diff= here.
+        { value = result }
     } oldOutput outputNew diffs
   }.apply [f, l]
 

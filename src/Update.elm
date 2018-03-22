@@ -186,7 +186,11 @@ getUpdateStackOp env e oldVal newVal diffs =
                                      let finalEnv = UpdatedEnv.merge env collectedUpdatedEnv newUpdatedEnv in
                                      updateDiffs (i + 1) finalEnv ((sp, newRawElem)::revElems) tlToCollect origTail newValuesTail modiftail
                                     ) sp i revElems tlToCollect origTail newValuesTail
-                                 _ -> UpdateCriticalError "[internal error] Unexpected missing elements"
+                                 _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from:\n" ++
+                                   "diffs = " ++ toString diffs ++
+                                   "\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elemsToCollect |> String.join ",") ++
+                                   "\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
+                                   "\nnewValues = " ++  (List.map valToString newValues |> String.join ",")
 
                              VListElemInsert count ->
                                let (inserted, remainingNewVals) = Utils.split count newValues in
@@ -274,12 +278,17 @@ getUpdateStackOp env e oldVal newVal diffs =
                                let elemsToAdd = insertedExp in
                                -- TODO: Here in modifications, detect if we can duplicate a variable instead.
                                -- TODO: replaceFirst should be applied on the first not removed element from elemsToCollect
-                               updateDiffs (i + 1) collectedUpdatedEnv (UpdateUtils.reverseInsert elemsToAdd revElems) (replaceFirst changeElementAfterInsert elemsToCollect) originalValues remainingNewVals modiftail
+                               updateDiffs i collectedUpdatedEnv (UpdateUtils.reverseInsert elemsToAdd revElems) (replaceFirst changeElementAfterInsert elemsToCollect) originalValues remainingNewVals modiftail
                          else
                            case (elemsToCollect, originalValues, newValues) of
                              (hd::tlToCollect, origValue::origTail, newValue::newValuesTail) ->
                                updateDiffs (i + 1) collectedUpdatedEnv (hd::revElems)  tlToCollect origTail newValuesTail diffs
-                             _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements"
+                             _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to propagate diffs:\n" ++
+                                     "diffs = " ++ toString diffs ++
+                                     ",\ni=" ++ toString i ++
+                                     ",\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elemsToCollect |> String.join ",") ++
+                                     ",\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
+                                     ",\nnewValues = " ++  (List.map valToString newValues |> String.join ",")
                in updateDiffs 0 (UpdatedEnv.original env) [] elems origVals newOutVals diffs
              _ -> UpdateCriticalError <| "[internal error] Expected List modifications, got " ++ toString diffs
          _ -> UpdateCriticalError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
@@ -544,11 +553,12 @@ getUpdateStackOp env e oldVal newVal diffs =
        updateMaybeFirst maybeUpdateStack <| \_ ->
          case doEval Syntax.Elm env e1 of
            Err s       ->
+             if appType /= InfixApp then UpdateCriticalError s else
              case e1.val.e__ of
                EVar spp "++" -> -- We rewrite ++ to a call to "append"
                  updateContinue "Rewriting ++ to append" env (replaceE__ e <| EApp sp0 (replaceE__ e1 <| EVar spp "append") e2s SpaceApp sp1) oldVal newVal diffs <| \newEnv newE1 ->
                    case newE1.val.e__ of
-                     EApp sp0p newE1 newE2s appType sp1p ->
+                     EApp sp0p newE1 newE2s _ sp1p ->
                        updateResult newEnv <| replaceE__ e <|EApp sp0p e1 newE2s appType sp1p
                      _ -> UpdateCriticalError <| "ExpectedEApp, got " ++ Syntax.unparser Syntax.Elm newE1
                _ -> UpdateCriticalError s
