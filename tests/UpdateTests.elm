@@ -649,5 +649,11 @@ all_tests = init_state
                      [("x", "2")] "insert \"b\" x (dict [[\"a\", x]])"
   |> updateElmAssert [] "insert \"b\" 1 (dict [[\"a\", 2], [\"b\", 3]])" "dict [[\"a\", 1], [\"b\", 2]]"
                      [] "insert \"b\" 2 (dict [[\"a\", 1], [\"b\", 3]])"
+  |> skipBefore
+  |> test "recursive delayed"
+  |> updateElmAssert [] "f =\n  let x = 1 in\n  \\y -> x + y\n\nf 2" "4"
+                     [] "f =\n  let x = 2 in\n  \\y -> x + y\n\nf 2"
+  |> updateElmAssert [] "f =\n  let x = 1 in\n  \\y -> x + y\n\nf 2" "4"
+                     [] "f =\n  let x = 1 in\n  \\y -> x + y\n\nf 3"
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
   |> summary

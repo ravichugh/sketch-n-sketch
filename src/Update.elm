@@ -1076,25 +1076,24 @@ getUpdateStackOp env e oldVal newVal diffs =
            Ok ((oldE1Val,_), _) ->
              case (p.val.p__, oldE1Val.v_) of
                (PVar _ fname _, VClosure Nothing x closureBody env_) ->
-                 --let _   = Utils.assert "eval letrec" (env == env_) in
-                 let oldE1ValNamed = { oldE1Val | v_ = VClosure (Just fname) x closureBody env } in
+                 let oldE1ValNamed = replaceV_ oldE1Val <| VClosure (Just fname) x closureBody env_ in
                  case consWithInversion (p, oldE1ValNamed) (Just (env, (\newUpdatedEnv -> newUpdatedEnv))) of
                     Just (envWithE1, consBuilder) ->
                       updateContinue "ELetrec"  envWithE1 body oldVal newVal diffs <| \newUpdatedEnvBody newBody ->
                         case consBuilder newUpdatedEnvBody of
-                          ((newPat, newPatDiffs, newE1ValNamed, newE1ValNamedDiff), newUpdatedEnvFromBody) ->
+                          ((newPat, newPatDiffs, newE1ValNamed, newE1ValNamedDiff), newEnv_) ->
                             let e1_update = case newE1ValNamedDiff of
                               Nothing -> \continuation -> continuation (UpdatedEnv.original env) e1
                               Just m ->
                                 let newE1Val = case newE1ValNamed.v_ of
-                                  VClosure (Just _) x vBody newEnv -> { newE1ValNamed | v_ = VClosure Nothing x vBody newEnv }
+                                  VClosure (Just _) x vBody newEnv -> replaceV_ newE1ValNamed <| VClosure Nothing x vBody newEnv
                                   _ -> Debug.crash <| "[Internal error] This should have been a recursive method"
                                 in
                                 updateContinue "ELetrec2" env e1 oldE1Val newE1Val m
                             in e1_update <| \newUpdatedEnvE1 newE1 ->
-                              let finalUpdatedEnv = UpdatedEnv.merge env newUpdatedEnvFromBody newUpdatedEnvE1 in
+                              let finalEnv = UpdatedEnv.merge env newEnv_ newUpdatedEnvE1 in
                               let finalExp = replaceE__ e <| ELet sp1 letKind True newPat sp2 newE1 sp3 newBody sp4 in
-                              updateResult finalUpdatedEnv finalExp
+                              updateResult newUpdatedEnvE1 finalExp
                     Nothing ->
                       UpdateCriticalError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
                (PList _ _ _ _ _, _) ->
