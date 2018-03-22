@@ -81,6 +81,29 @@ reverse l =
   { apply = r [], update {output}= {values = [r [] output]}}.apply l
 
 
+-- The current diff primitive is something like:
+--
+--   diff : List Value -> List Value -> List (DiffChunk (List Value))
+--   diff ~= diffVals
+--
+-- The new diff primitive will be something like:
+--
+--   diff : Value -> Value -> Result String (Maybe VDiffs)
+--   diff ~= defaultVDiffs
+--
+-- Once diff has been changed, implement library function like:
+--
+--   getSimpleListDiffOps : List Value -> List Value -> VDiffs -> List SimpleListDiffOp
+--   getSimpleListDiffOps oldValues newValues vDiffs =
+--     case vDiffs of
+--       ["VListDiffs", values] ->
+--         ..
+--
+-- where
+--
+--   type SimpleListDiffOp = Keep | Delete | Insert Value | Update Value
+
+
 map1 f l =
   case l of
     []    -> []
