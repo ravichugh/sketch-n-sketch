@@ -74,7 +74,7 @@ displayDiffPositions tos difference =
   let newStringRowCol prevRow prevCol l =
     let kept = lToString l in
     let rowAdded = (String.indexes "\n" kept) |> List.length in
-    let colAdded = String.length (Regex.replace Regex.All (Regex.regex "(.*\n)*") (\_ -> "") kept) in
+    let colAdded = String.length (Regex.replace Regex.All (Regex.regex "(.*\r?\n)*") (\_ -> "") kept) in
     if rowAdded == 0 then (kept, prevRow, prevCol + colAdded) else (kept, prevRow + rowAdded, colAdded)
   in
   let maybeComma s = if s == "" then s else s ++ ", \n" in
@@ -82,9 +82,9 @@ displayDiffPositions tos difference =
       aux (prevRow, prevCol) (string, prevAcc)     difference = case difference of
     [] -> (string, prevAcc)
     DiffEqual l::tail ->
-     let (_, newRow, newCol) = newStringRowCol prevRow prevCol l in
+     let (sameString, newRow, newCol) = newStringRowCol prevRow prevCol l in
      aux (newRow, newCol) (string, prevAcc) tail
-    DiffRemoved l::((DiffAdded d::tail) as thetail) ->
+    DiffRemoved l::DiffAdded d::tail ->
      let removed = lToString l in
      let (added, newRow, newCol) = newStringRowCol prevRow prevCol d in
      let e = dummyExp added prevRow prevCol newRow newCol in

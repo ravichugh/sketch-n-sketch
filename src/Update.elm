@@ -504,7 +504,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                           else UpdateUtils.defaultVDiffs vArg r) <| valuesList
                                                       Just resultDiffsV ->
                                                         Vu.list (UpdateUtils.valToMaybe valToVDiffs) resultDiffsV |>
-                                                          Result.mapError (\msg -> "Line " ++ toString e.start.line ++ ": the .diffs of the result of .update should be a list of (Maybe differences). " ++ msg)
+                                                          Result.mapError (\msg -> "Line " ++ toString e.start.line ++ ": the .diffs of the result of .update should be a list of (Maybe differences). " ++ msg ++ ", got " ++ valToString resultDiffsV)
                                                     in
                                                     case diffsListRes of
                                                      Err msg -> Just <| UpdateCriticalError msg

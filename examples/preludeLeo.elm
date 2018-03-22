@@ -233,10 +233,10 @@ append aas bs = {
         onUpdate [nas, nbs, diffas, diffbs, numA, numB] {newOutput = out, diffs, index} =
           { values = [if numA >= 1
            then [nas ++ [out],                                      nbs,
-                 diffas ++ [[index, ["VListElemUpdate", [len nas, diffs]]]], diffbs,
+                 diffas ++ [[index, ["VListElemUpdate", diffs]]], diffbs,
                  numA - 1,                                          numB]
            else [nas,    nbs ++ [out],
-                 diffas, diffbs ++ [[index - asLength, ["VListElemUpdate", [len nbs, diffs]]]],
+                 diffas, diffbs ++ [[index - asLength, ["VListElemUpdate", diffs]]],
                  0,      numB - 1]] }
         onRemove  [nas, nbs, diffas, diffbs, numA, numB] {oldOutput, index} =
           if 1 <= numA then
