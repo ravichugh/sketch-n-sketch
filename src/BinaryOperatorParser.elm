@@ -14,7 +14,6 @@ import ParserUtils exposing
   ( lookAhead
   , optional
   )
-import LangParserUtils exposing (SpacePolicy, spaces)
 
 import Dict exposing (Dict)
 

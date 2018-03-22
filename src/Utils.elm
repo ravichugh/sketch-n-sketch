@@ -1332,3 +1332,8 @@ stringSuggestions trueStrings wrongString =
 
 lastLine: String -> String
 lastLine s = snocUnapply (String.lines s) |> Maybe.map Tuple.second |> Maybe.withDefault ""
+
+--------------------------------------------------------------------------------
+
+indexedMapFrom : Int -> (Int -> a -> b) -> List a -> List b
+indexedMapFrom n f = List.indexedMap (\i -> f (i + n))

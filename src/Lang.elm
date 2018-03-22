@@ -63,6 +63,8 @@ type alias Op      = WithInfo Op_
 type alias Branch  = WithInfo Branch_
 type alias TBranch = WithInfo TBranch_
 
+recordConstructorName = "$ctor"
+
 -- TODO add constant literals to patterns, and match 'svg'
 type Pat__
   = PVar WS Ident WidgetDecl

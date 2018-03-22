@@ -1619,6 +1619,56 @@ parens sp =
           )
 
 --------------------------------------------------------------------------------
+-- Tuples
+--------------------------------------------------------------------------------
+
+tuple : SpacePolicy -> Parser Exp
+tuple sp =
+  let
+    combiner wsBefore (fst, rest, wsBeforeEnd) =
+      let
+        name =
+          "Tuple" ++ toString (1 + List.length rest)
+        ctor =
+          ( space0, space0, Lang.recordConstructorName, space0
+          , withDummyExpInfo <|
+              EBase space0 <|
+                EString defaultQuoteChar name
+          )
+
+        entry : Int -> (WS, Exp) -> (WS, WS, Ident, WS, Exp)
+        entry index (wsBeforeComma, exp) =
+          (wsBeforeComma, space0, "_" ++ toString index, space0, exp)
+
+        firstEntry =
+          entry 1 (space0, fst)
+
+        restEntries =
+          Utils.indexedMapFrom 2 entry rest
+      in
+        ERecord wsBefore Nothing (ctor :: firstEntry :: restEntries) wsBeforeEnd
+  in
+  inContext "tuple" <|
+    mapExp_ <|
+      lazy <| \_ ->
+        paddedBefore
+          combiner
+          sp.first
+          ( trackInfo <|
+              succeed (,,)
+                |. symbol "("
+                |= expression allSpacesPolicy
+                |= repeat oneOrMore
+                     ( try <| succeed (,)
+                         |= spaces
+                         |. symbol ","
+                         |= expression allSpacesPolicy
+                     )
+                |= spaces
+                |. symbol ")"
+          )
+
+--------------------------------------------------------------------------------
 -- Holes
 --------------------------------------------------------------------------------
 
@@ -1672,6 +1722,7 @@ simpleExpression sp =
     , lazy <| \_ -> letBinding sp
     , lazy <| \_ -> lineComment sp
     , lazy <| \_ -> option sp
+    , lazy <| \_ -> (addSelections sp <| try <| tuple sp)
     , lazy <| \_ -> (addSelections sp <| parens sp)
     , lazy <| \_ -> (addSelections sp <| hole sp)
     -- , lazy <| \_ -> typeCaseExpression

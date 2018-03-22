@@ -385,25 +385,67 @@ unparse e =
       unparse tail
 
     ERecord wsBefore mi elems wsAfter ->
-      wsBefore.val
-        ++ "{"
-        ++ (case mi of
-              Just (m, ws) -> unparse m ++ ws.val ++ "|"
-              Nothing -> ""
-        )
-        ++ (case elems of
-              [] -> ""
-              (wsComma, wsKey, key, wsEq, value)::tail ->
-                let (strParameters, binding) = getParametersBinding value in
-                wsComma.val ++ wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding ++
-                String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
-                  let (strParameters, binding) = getParametersBinding value in
-                  (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
-                  wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding
-                ) tail)
-        )
-        ++ wsAfter.val
-        ++ "}"
+      let
+        default =
+          wsBefore.val
+            ++ "{"
+            ++ (case mi of
+                  Just (m, ws) -> unparse m ++ ws.val ++ "|"
+                  Nothing -> ""
+            )
+            ++ (case elems of
+                  [] -> ""
+                  (wsComma, wsKey, key, wsEq, value)::tail ->
+                    let (strParameters, binding) = getParametersBinding value in
+                    wsComma.val ++ wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding ++
+                    String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
+                      let (strParameters, binding) = getParametersBinding value in
+                      (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
+                      wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding
+                    ) tail)
+            )
+            ++ wsAfter.val
+            ++ "}"
+
+        pairs =
+          List.map (\(_, _, key, _, val) -> (key, val)) elems
+      in
+        case Utils.maybeFind Lang.recordConstructorName pairs of
+          Just binding ->
+            case binding.val.e__ of
+              EBase _ (EString _ name) ->
+                if String.startsWith "Tuple" name then
+                  let
+                    inside =
+                      elems
+                        |> List.filter
+                             ( \(_, _, elName, _, _) ->
+                                 String.startsWith "_" elName
+                             )
+                        |> List.sortBy
+                             ( \(_, _, elName, _, _) ->
+                                 Result.withDefault -1 << String.toInt << String.dropLeft 1 <|
+                                   elName
+                             )
+                        |> List.map
+                             ( \(wsBeforeComma, _, _, _, elBinding) ->
+                                 wsBeforeComma.val  ++ "," ++ unparse elBinding
+                             )
+                        |> String.concat
+                  in
+                    wsBefore.val
+                      ++ "("
+                      ++ String.dropLeft 1 inside -- removes first comma
+                      ++ wsAfter.val
+                      ++ ")"
+                else
+                  default
+
+              _ ->
+                default
+
+          Nothing ->
+            default
 
     ESelect ws0 exp wsBeforeDot wsAfterDot id ->
       ws0.val ++ unparse exp ++ wsBeforeDot.val ++ "." ++ wsAfterDot.val ++ id
