@@ -422,6 +422,124 @@ bDiffsToVal bdiffs = case bdiffs of
   BChanged -> (Vb.constructor v) "BChanged" []
 -}
 
+envDiffsToString_: String -> Env -> Env -> EnvDiffs -> String
+envDiffsToString_ indent originalEnv modifiedEnv envDiffs =
+  let aux i original modified diffs acc =
+    --let _ = Debug.log ("aux " ++ toString i ++ " [" ++ (List.take 5 original |> List.map Tuple.first |> String.join ",") ++ "] [" ++
+    --     " [" ++ (List.take 5 modified |> List.map Tuple.first |> String.join ",") ++ "] " ++ toString diffs ++ " '" ++ acc ++ "'") () in
+    case diffs of
+       [] -> acc
+       (j, change)::diffsTail ->
+        if j > i then
+          aux j (List.drop (j - i) original) (List.drop (j - i) modified) diffs acc
+        else if j == i then
+          case (original, modified) of
+            ((kOriginal, valueOriginal)::tailOriginal, (kModified, valueModified)::tailModified) ->
+              (if kOriginal /= kModified then
+                acc ++ "\n" ++ indent ++ "Weird: the name at position " ++ toString j ++ " changed from " ++ kOriginal ++ " to " ++ kModified
+                else acc) ++ "\n" ++ indent ++ "At position " ++ toString j ++ ", variable " ++ kOriginal ++", change to value:" ++
+                vDiffsToString_ (indent ++ "  ") valueOriginal valueModified change |>
+                aux (i + 1) tailOriginal tailModified diffsTail
+            _ -> Debug.crash "Expcted non-empty environments"
+        else
+          Debug.crash "Changes does not match the environment"
+  in
+   "\n" ++ indent ++ "Environment was modified:" ++
+   aux  0 originalEnv modifiedEnv envDiffs ""
+
+envDiffsToString = envDiffsToString_ ""
+
+vDiffsToString_: String -> Val -> Val -> VDiffs-> String
+vDiffsToString_ indent vOriginal vModified vDiffs =
+  case vDiffs of
+    VListDiffs diffs ->
+      case (vOriginal.v_, vModified.v_) of
+        (VList originals, VList modified) ->
+          "\n" ++ indent ++ "A list was modified:" ++ vListDiffsToString indent originals modified diffs
+        _ -> "[Internal error] vDiffsToString " ++ toString vDiffs ++ " expects lists here, got " ++ valToString vOriginal ++ ", " ++ valToString vModified
+    VDictDiffs diffs ->
+      case (vOriginal.v_, vModified.v_) of
+        (VDict originals, VDict modified) ->
+          "\n" ++ indent ++ "A dict was modified:" ++ vDictDiffsToString indent originals modified diffs
+
+        _ -> "[Internal error] vDiffsToString_ " ++ toString vDiffs ++ " expects dicts here, got " ++ valToString vOriginal ++ ", " ++ valToString vModified
+    VRecordDiffs diffs ->
+      case (vOriginal.v_, vModified.v_) of
+        (VRecord originals, VRecord modified) ->
+          "\n" ++ indent ++ "A record was modified:" ++ vRecordDiffsToString indent originals modified diffs
+        _ -> "[Internal error] vDiffsToString_ " ++ toString vDiffs ++ " expects records here, got " ++ valToString vOriginal ++ ", " ++ valToString vModified
+    VClosureDiffs envDiffs bodyDiffs ->
+      case (vOriginal.v_, vModified.v_) of
+        (VClosure _ _ body1 env1, VClosure _ _ body2 env2) ->
+          "\n" ++ indent ++ "A closure was modified:" ++ vClosureDiffsToString indent env1 body1 env2 body2 envDiffs bodyDiffs
+        _ -> "[Internal error] vDiffsToString_ " ++ toString vDiffs ++ " expects closures here, got " ++ valToString vOriginal ++ ", " ++ valToString vModified
+    VConstDiffs ->
+      "\n" ++ indent ++ "Was " ++ valToString vOriginal ++ ", now " ++ valToString vModified
+
+vDiffsToString = vDiffsToString_  ""
+
+vListDiffsToString: String -> List Val -> List Val -> List (Int, VListElemDiff) -> String
+vListDiffsToString indent originals modifieds diffs =
+  if List.isEmpty diffs then "[Internal error: Empty list diff]" else
+  let aux i original modifieds diffs acc =
+    case diffs of
+       [] -> acc
+       (j, change)::diffsTail ->
+        if j >i then
+          aux j (List.drop (j - i) original) (List.drop (j - i) modifieds) diffs acc
+        else
+          case change of
+            VListElemDelete count ->
+              let (originalRemoved, originalKept) = Utils.split count original in
+              acc ++ "\n" ++ indent ++ "At index " ++ toString i ++ ", " ++ toString count ++ " elements removed" |>
+              aux (i + 1) originalKept modifieds diffsTail
+            VListElemInsert count ->
+              let (modifiedInserted, modifiedTail) = Utils.split count modifieds in
+              acc ++ "\n" ++ indent ++ "At index " ++ toString i ++ ", " ++ toString count ++ " elements inserted" |>
+              aux (i + 1) original modifiedTail diffsTail
+
+            VListElemUpdate diff ->
+              case (original, modifieds) of
+                (ho::to, hm::tm) ->
+                  acc ++ "\n" ++ indent ++ "At index " ++ toString i ++ ", element modified:" ++
+                    vDiffsToString_ (indent ++ "  ") ho hm diff |>
+                  aux (i + 1) to tm diffsTail
+                _ -> "[Internal error] For diff " ++ toString diff ++ ", expected non-empty lists, got " ++ (List.map valToString originals |> String.join ",")  ++ "and" ++  (List.map valToString modifieds |> String.join ",")
+  in aux 0 originals modifieds diffs ""
+
+dictDiffsToString: String -> (String -> k -> Maybe a -> Maybe a -> b -> String) -> Dict k a -> Dict k a -> Dict k b -> String
+dictDiffsToString indent subroutine originals modified diffs =
+  Dict.foldl (\k diffb accStr ->
+    accStr ++ subroutine indent k (Dict.get k originals) (Dict.get k modified) diffb
+  ) "" diffs
+
+vDictDiffsToString: String -> Dict (String, String) Val -> Dict (String, String) Val -> Dict (String, String) VDictElemDiff -> String
+vDictDiffsToString indent originals modified diffs =
+  dictDiffsToString indent (\indent key maybeOriginal maybeModified diff ->
+    case (diff, maybeOriginal, maybeModified) of
+      (VDictElemInsert, Nothing, Just added) -> "\n" ++ indent ++ "element for '" ++ Tuple.first key ++ "' was inserted: " ++ valToString added
+      (VDictElemDelete, Just removed, Nothing) -> "\n" ++ indent ++ "element for '" ++ Tuple.first key ++ "' was removed: " ++ valToString removed
+      (VDictElemUpdate d, Just previous, Just after) -> "\n" ++ indent ++ "element for '" ++ Tuple.first key ++ "' was updated: " ++
+        vDiffsToString_ (indent ++ "  ") previous after d
+      _ -> "[Internal error] Inconsistency between diff and values " ++ toString diff ++ "," ++ (Maybe.map valToString maybeOriginal |> Maybe.withDefault "") ++ "," ++ (Maybe.map valToString maybeModified |> Maybe.withDefault "")
+  ) originals modified diffs
+
+vRecordDiffsToString: String -> Dict String Val -> Dict String Val -> Dict String VDiffs -> String
+vRecordDiffsToString indent originals modified diffs =
+    dictDiffsToString indent (\indent key maybeOriginal maybeModified diff ->
+      case (maybeOriginal, maybeModified) of
+        (Just original, Just modified) -> "\n" ++ indent ++ "value for '" ++ key ++ "' was updated: " ++ vDiffsToString_ (indent ++ "  ") original modified diff
+        _ -> "[Internal error] Inconsistency between diff and values " ++ toString diff ++ "," ++ (Maybe.map valToString maybeOriginal |> Maybe.withDefault "") ++ "," ++ (Maybe.map valToString maybeModified |> Maybe.withDefault "")
+    ) originals modified diffs
+
+vClosureDiffsToString: String -> Env -> Exp -> Env -> Exp -> EnvDiffs -> Maybe EDiffs -> String
+vClosureDiffsToString indent origEnv origBody modifEnv modifBody diffEnv maybeDiffBody =
+  envDiffsToString_ indent origEnv modifEnv diffEnv ++
+    (Maybe.map (\ediff ->
+      "\n" ++ indent ++ "Body changed:" ++ diffExp origBody modifBody
+    ) maybeDiffBody |> Maybe.withDefault "")
+
+
 offset: Int -> List (Int, a) -> List (Int, a)
 offset n defaultVDiffs = List.map (\(i, e) -> (i + n, e)) defaultVDiffs
 

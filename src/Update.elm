@@ -72,13 +72,13 @@ update updateStack nextToUpdate=
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out diffs mb ->
        {--
-      let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", valToString out, " -- env = " , envToString (pruneEnv e env), ", modifs = ", toString diffs]) () in
+      let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
        --}
       update (getUpdateStackOp env e oldVal out diffs) (LazyList.maybeCons mb nextToUpdate)
 
     UpdateResultS fUpdatedEnv fOut mb -> -- Let's consume the stack !
        {--
-      let _ = Debug.log (String.concat ["update final result: ", unparse fOut, " -- env = " , UpdatedEnv.show fUpdatedEnv]) () in
+      let _ = Debug.log (String.concat ["update final result: ", unparse fOut, {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes]) () in
        --}
       case (LazyList.maybeCons mb nextToUpdate) of -- Let's consume the stack !
         LazyList.Nil ->
@@ -89,7 +89,7 @@ update updateStack nextToUpdate=
             Fork msg newUpdateStack nextToUpdate2 ->
               --let _ = Debug.log "finished update with one fork" () in
               okLazy (fUpdatedEnv, fOut) <| (\lt m nus ntu2 -> \() ->
-                --let _ = Debug.log ("Starting to look for other solutions, fork " ++ m ++ ",\n" ++ updateStackName nus) () in
+                --let _ = Debug.log ("Starting to look for other solutions, fork " ++ m) () in
                 updateRec nus <| LazyList.appendLazy ntu2 lt) lazyTail msg newUpdateStack nextToUpdate2
             HandlePreviousResult msg f ->
               --let _ = Debug.log ("update needs to continue: " ++ msg) () in
@@ -518,7 +518,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                              let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newArg] appType sp1 in
                                                              updateResult newUpdatedEnvArg newExp
                            in
-                           updateMaybeFirst2 mbUpdateField <| \_ ->
+                           updateMaybeFirst2 "after testing update, testing unapply" mbUpdateField <| \_ ->
                              case Dict.get "unapply" d of
                                Just fieldUnapplyClosure ->
                                  case doEval Syntax.Elm env argument of
@@ -550,7 +550,7 @@ getUpdateStackOp env e oldVal newVal diffs =
          _ ->
             Nothing
        in
-       updateMaybeFirst maybeUpdateStack <| \_ ->
+       updateMaybeFirst "after testing update/unapply, testing apply" maybeUpdateStack <| \_ ->
          case doEval Syntax.Elm env e1 of
            Err s       ->
              if appType /= InfixApp then UpdateCriticalError s else

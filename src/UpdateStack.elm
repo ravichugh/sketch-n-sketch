@@ -98,17 +98,17 @@ updateAlternatives msg env e oldVal newValsDiffs continuation =
     LazyList.Nil -> UpdateFails <| "No solution for " ++ msg
     LazyList.Cons (head, headModifs) lazyTail -> updateContinueRepeat msg env e oldVal head headModifs lazyTail continuation
 
-updateMaybeFirst: (Maybe UpdateStack) -> (Bool -> UpdateStack) -> UpdateStack
-updateMaybeFirst mb ll =
+updateMaybeFirst: String -> (Maybe UpdateStack) -> (Bool -> UpdateStack) -> UpdateStack
+updateMaybeFirst msg mb ll =
    case mb of
      Nothing -> ll False
-     Just u -> UpdateResultAlternative "fromMaybeFirst" u (Lazy.lazy <| (ll |> \ll _ -> Just <| ll True))
+     Just u -> UpdateResultAlternative msg u (Lazy.lazy <| (ll |> \ll _ -> Just <| ll True))
 
-updateMaybeFirst2: (Maybe UpdateStack) -> (Bool -> Maybe UpdateStack) -> Maybe UpdateStack
-updateMaybeFirst2 mb ll =
+updateMaybeFirst2: String -> (Maybe UpdateStack) -> (Bool -> Maybe UpdateStack) -> Maybe UpdateStack
+updateMaybeFirst2 msg mb ll =
    case mb of
      Nothing -> ll False
-     Just u -> Just <| UpdateResultAlternative "fromMaybeFirst" u (Lazy.lazy <| (ll |> \ll _ -> ll True))
+     Just u -> Just <| UpdateResultAlternative msg u (Lazy.lazy <| (ll |> \ll _ -> ll True))
 
 
 -- Constructor for updating multiple expressions evaluated in the same environment.

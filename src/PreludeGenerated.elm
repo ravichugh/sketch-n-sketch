@@ -1964,7 +1964,7 @@ range i j =
 
 reverse l =
   letrec r acc l = case l of [] -> acc; head::tail -> r (head::acc) tail in
-  { apply = r [], update {output}= {values = [r [] output]}}.apply l
+  { apply = freeze <| r [], update {output}= {values = [r [] output]}}.apply l
 
 
 map1 f l =
@@ -2202,7 +2202,7 @@ map f l =
   }.apply [f, l]
 
 zipWithIndex xs =
-  { apply x = zip (range 0 (len xs - 1)) xs
+  { apply x = freeze <| zip (range 0 (len xs - 1)) xs
     update {output} = {values = [map (\\[i, x] -> x) output]}  }.apply xs
 
 
@@ -2336,7 +2336,7 @@ intersperse sep xs =
 
 --mapi: (forall (a b) (-> (-> [Num a] b) (List a) (List b)))
 mapi f xs = map f (zipWithIndex xs)
- 
+
 --nth: (forall a (-> (List a) Num (union Null a)))
 nth xs n =
   if n < 0 then null
@@ -2599,7 +2599,7 @@ html string =
         [] -> []
         head::tail -> aux (n - 1) tail
     in aux in {
-  apply trees = 
+  apply trees =
     freeze (letrec domap tree = case tree of
       [\"HTMLInner\", v] -> [\"TEXT\", replaceAllIn \"&amp;|&lt;|&gt;|</[^>]*>\" (\\{match} -> case match of \"&amp;\" -> \"&\"; \"&lt;\" -> \"<\"; \"&gt;\" -> \">\"; _ -> \"\") v]
       [\"HTMLElement\", tagName, attrs, ws1, endOp, children, closing] ->
@@ -2631,7 +2631,7 @@ html string =
                     [\"HTMLAttribute\", sp0, name2, [\"HTMLAttributeString\", sp1, sp2, \"\\\"\", value2]]
               [\"HTMLAttributeString\", sp1, sp2, delim, v] ->
                     [\"HTMLAttribute\", sp0, name2, [\"HTMLAttributeString\", sp1, sp2, delim, value2]]
-              [\"HTMLAttributeNoValue\"] -> 
+              [\"HTMLAttributeNoValue\"] ->
                  if value2 == \"\" then [\"HTMLAttribute\", sp0, name2, [\"HTMLAttributeNoValue\"]]
                  else toHTMLAttribute [name2, value2]
               _ -> \"Error, expected HTMLAttributeUnquoted, HTMLAttributeString, HTMLAttributeNoValue\" + 1
@@ -2775,7 +2775,7 @@ Update =
 
 SoftFreeze =
   let
-    constantInputLens = { apply x = x, update {input} = { values = [input] } }
+    constantInputLens = { apply x = freeze x, update {input} = { values = [input] } }
   in
   { wrap = Update.applyLens constantInputLens }
 
@@ -2822,7 +2822,7 @@ TableWithButtons = {
 
   wrapData =
     Update.applyLens
-      { apply rows   = rows |> map (\\row -> [freeze False, row])
+      { apply rows   = freeze <| (rows |> map (\\row -> [freeze False, row]))
       , unapply rows = rows |> concatMap (\\[flag,row] ->
                                  if flag == True
                                    then [ row, [\"\",\"\",\"\"] ]

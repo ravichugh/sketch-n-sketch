@@ -158,6 +158,8 @@ import Debug
 --Other libraries
 import PageVisibility exposing (Visibility(..))
 
+import UpdatedEnv
+
 --------------------------------------------------------------------------------
 
 debugLog = Config.debugLog Config.debugController
@@ -2075,10 +2077,13 @@ doCallUpdate m =
 
             LazyList.Cons (envModified, expModified) _ ->
               let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified) "expModified" in
-              let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified.val) (LangUtils.pruneEnv expModified Eval.initEnv)
-                   |> UpdateUtils.displayDiff (\(k, v) -> "\n" ++ k ++ " = " ++ LangUtils.valToString v )
-                   ) "envModified"
-              in
+              let _ = Debug.log (Eval.initEnv |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames original") in
+              let _ = Debug.log (envModified.val |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames modified") in
+              let _ = Debug.log (UpdateUtils.envDiffsToString Eval.initEnv envModified.val envModified.changes) ("EnvModified") in
+              --let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified.val) (LangUtils.pruneEnv expModified Eval.initEnv)
+              --     |> UpdateUtils.displayDiff (\(k, v) -> "\n" ++ k ++ " = " ++ LangUtils.valToString v )
+              --     ) "envModified"
+              --in
 
               showSolutions [revertChanges "Only solutions modifying the library. Revert?"]
 
