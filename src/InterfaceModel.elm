@@ -191,8 +191,7 @@ type alias Model =
   -- from local storage)
   , lastSelectedTemplate : Maybe (String, Code)
   , valueEditorString : String
-  , attributeValueUpdates : Dict (Int, String) String
-  , textValueUpdates : Dict Int String
+  , updatedValue: Maybe (Result String Val)
   , syntax : Syntax
   }
 
@@ -848,10 +847,7 @@ valueEditorNeedsCallUpdate model =
   LangUtils.valToString model.inputVal /= model.valueEditorString
 
 domEditorNeedsCallUpdate model =
-  Utils.or
-    [ not <| Dict.isEmpty model.attributeValueUpdates
-    , not <| Dict.isEmpty model.textValueUpdates
-    ]
+  not <| Utils.maybeIsEmpty model.updatedValue
 
 --------------------------------------------------------------------------------
 
@@ -1250,7 +1246,6 @@ initModel =
     , giveUpConfirmed = False
     , lastSelectedTemplate = Just (Examples.initTemplate, code)
     , valueEditorString = LangUtils.valToString v
-    , attributeValueUpdates = Dict.empty
-    , textValueUpdates = Dict.empty
+    , updatedValue = Nothing
     , syntax = Syntax.Elm
     }

@@ -2,11 +2,11 @@ port module OutputCanvas exposing
   ( initialize
   , resetScroll
   , receiveOutputCanvasState
-  , receiveAttributeValueUpdate
-  , receiveTextValueUpdate
+  , receiveValueUpdate
   )
 
 import InterfaceModel as Model exposing (Model, OutputCanvasInfo)
+import Json.Decode as JSDecode
 
 --------------------------------------------------------------------------------
 -- Ports
@@ -31,6 +31,4 @@ sendCmd message =
 
 port receiveOutputCanvasState : (OutputCanvasInfo -> msg) -> Sub msg
 
-port receiveAttributeValueUpdate : ((Int, String, String) -> msg) -> Sub msg
-
-port receiveTextValueUpdate : ((Int, String) -> msg) -> Sub msg
+port receiveValueUpdate : ((List Int, JSDecode.Value)-> msg) -> Sub msg

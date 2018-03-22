@@ -202,7 +202,7 @@ buildHtml_ (model, addZones) insideSvgNode d i =
       let
         -- https://softwareengineering.stackexchange.com/questions/199166/why-does-a-contenteditable-div-not-behave-like-an-input-element
         maybeContentEditableAttr =
-          if List.member shape ["th", "td", "p", "h1", "h2", "h3"]
+          if List.member shape ["th", "td", "p", "span", "pre", "h1", "h2", "h3", "h4", "h5", "h6"]
             then [Attr.contenteditable True]
             else []
       in
@@ -211,13 +211,7 @@ buildHtml_ (model, addZones) insideSvgNode d i =
           class =
             -- TODO: this assumes a single text node, but contenteditable edits
             -- may create multiple text nodes with brs and divs sprinkled in
-            case childIndices of
-              [child] ->
-                case Utils.justGet_ ("buildHtml_ " ++ toString child) child d |> .interpreted of
-                  LangSvg.TextNode text -> "_outputValueWithText"
-                  _                     -> "_outputValue"
-              _ ->
-                "_outputValue"
+            "_outputValue"
         in
         [ Attr.attribute "data-value-id" (toString i)
         , if isSvgNode then SAttr.class class else Attr.class class
