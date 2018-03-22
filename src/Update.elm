@@ -1103,7 +1103,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                             in e1_update <| \newUpdatedEnvE1 newE1 ->
                               let finalEnv = UpdatedEnv.merge env newEnv_ newUpdatedEnvE1 in
                               let finalExp = replaceE__ e <| ELet sp1 letKind True newPat sp2 newE1 sp3 newBody sp4 in
-                              updateResult newUpdatedEnvE1 finalExp
+                              updateResult finalEnv finalExp
                     Nothing ->
                       UpdateCriticalError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
                (PList _ _ _ _ _, _) ->
