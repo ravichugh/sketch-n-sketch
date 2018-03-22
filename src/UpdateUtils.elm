@@ -348,6 +348,18 @@ valToMaybe subroutine v = case Vu.constructor Ok v of
   Ok _ -> Err <| "Expected Just or Nothing, got " ++ valToString v
   Err msg -> Err msg
 
+resultToVal: Val -> (a -> Val) -> Result String a -> Val
+resultToVal v subroutine mba = case mba of
+  Ok x  -> Vb.constructor v "Ok"    [subroutine x]
+  Err msg-> Vb.constructor v "Err"  [Vb.string v msg]
+
+valToResult: (Val -> Result String a)  -> Val -> Result String (Result String a)
+valToResult subroutine v = case Vu.constructor Ok v of
+  Ok ("Ok", [x]) -> subroutine x |> Result.map Ok
+  Ok ("Err", [msg]) -> Vu.string msg |> Result.map Err
+  Ok _ -> Err <| "Expected Ok or Err, got " ++ valToString v
+  Err msg -> Err msg
+
 envDiffsToVal: Val -> EnvDiffs -> Val
 envDiffsToVal v = (Vb.list v) ((Vb.tuple2 v) (Vb.int v) (vDiffsToVal v))
 

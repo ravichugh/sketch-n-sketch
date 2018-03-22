@@ -468,8 +468,8 @@ getUpdateStackOp env e oldVal newVal diffs =
                                          ("outputOld", oldVal),
                                            ("outputOriginal", oldVal), -- Redundant
                                            ("oldOutput", oldVal), -- Redundant
-                                         ("diff", diffsVal),
-                                           ("diffs", diffsVal),
+                                         ("diffs", diffsVal),
+                                           ("diff", diffsVal),    -- Redundant
                                            ("outDiff", diffsVal), -- Redundant
                                            ("diffOut", diffsVal) -- Redundant
                                          ] in
@@ -1252,43 +1252,21 @@ addUpdateCapability v =
                    Err msg -> Err msg
                    --Ok Nothing -> Ok ((original, []), env)
                    Ok withModifs ->
-                    let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
-                    Ok ((newVal, []), env)
+                     let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
+                     Ok ((newVal, []), env)
               _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
           _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
       ) Nothing
     ),
     ("diff", replaceV_ v <|
-      VFun "diff" ["list_before", "list_after"] (\env args ->
+      VFun "diff" ["value_before", "value_after"] (\env args ->
         case args of
           [before, after] ->
-            case [before.v_, after.v_] of
-              [VList beforeList, VList afterList] ->
-                --let _ = Debug.log ("going to do a diff:" ++ valToString before ++ " -> " ++ valToString after) () in
-                let thediff = diffVals beforeList afterList in
-                {-let _ = Debug.log ("the diff:" ++ ( String.join "," <|
-                                                 List.map
-                                                 (\d -> case d of
-                                                   DiffAdded x -> "DiffAdded " ++ valToString (replaceV_ v<| VList x)
-                                                   DiffRemoved x -> "DiffRemoved " ++ valToString (replaceV_ v<| VList x)
-                                                   DiffEqual x -> "DiffSame " ++ valToString (replaceV_ v<| VList x)
-                                                 ) thediff)) () in
-                -}
-                let res =  thediff
-                     |> List.map (\x ->
-                       replaceV_ v <| VRecord <| Dict.fromList <| case x of
-                          DiffEqual els   -> [("kept"      , replaceV_ v <| VList els)]
-                          DiffAdded els   -> [("inserted"  , replaceV_ v <| VList els)]
-                          DiffRemoved els -> [("deleted"   , replaceV_ v <| VList els)]
-                       )
-                     |> (\x ->
-                       Ok ((replaceV_ v <| VList x, []), env)
-                     )
-                --in let _ = Debug.log "Diff done" ()
-                in
-                res
-              _ -> Err  <| "diff performs the diff on 2 lists, but got " ++ toString (List.length args)
-          _ -> Err <|   "diff performs the diff on 2 lists, but got " ++ toString (List.length args)
+            Ok ( ( defaultVDiffs before after
+                   |> UpdateUtils.resultToVal v (UpdateUtils.maybeToVal v (vDiffsToVal v))
+                 , [])
+               , env)
+          _ -> Err <|   "diff performs the diff on 2 values, but got " ++ toString (List.length args)
       ) Nothing
     )
   ] v

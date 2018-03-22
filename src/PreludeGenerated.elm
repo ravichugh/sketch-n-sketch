@@ -1966,7 +1966,6 @@ reverse l =
   letrec r acc l = case l of [] -> acc; head::tail -> r (head::acc) tail in
   { apply = freeze <| r [], update {output}= {values = [r [] output]}}.apply l
 
-
 map1 f l =
   case l of
     []    -> []
@@ -1986,6 +1985,60 @@ __update_split__ n l =
         [] -> [reverse acc, l]
         head::tail -> aux (head::acc) (n - 1) tail
     in aux [] n l
+
+
+-- The diff primitive IS something like:
+--
+--   diff : Value -> Value -> Result String (Maybe VDiffs)
+--   diff ~= defaultVDiffs
+--
+
+--   type SimpleListDiffOp = Keep | Delete | Insert Value | Update Value
+SimpleListDiffOp = {
+  Keep = [\"Keep\"]
+  Delete = [\"Delete\"]
+  Insert v = [\"Insert\", v]
+  Update v = [\"Update\", v]
+}
+
+-- getSimpleListDiffOps : List Value -> List Value -> VDiffs -> List SimpleListDiffOp
+getSimpleListDiffOps oldValues newValues vDiffs =
+   let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
+   let append = __update_append__ in
+   case vDiffs of
+      [\"VListDiffs\", listDiffs] ->
+        letrec aux i revAcc oldValues newValues listDiffs =
+          case listDiffs of
+            [] ->
+              reverse (map1 (\\_ -> Keep) oldValues ++ revAcc)
+            [j, listDiff]::diffTail ->
+              if j > i then
+                case [oldValues, newValues] of
+                  [_::oldTail, _::newTail] ->
+                    aux (i + 1) (Keep::revAcc) oldTail newTail listDiffs
+                  _ -> error <| \"[Internal error] Expected two non-empty tails, got  \" + toString [oldValues, newValues]
+              else if j == i then
+                case listDiff of
+                  [\"VListElemUpdate\", _] ->
+                    case [oldValues, newValues] of
+                      [oldHead::oldTail, newHead::newTail] ->
+                        aux (i + 1) (Update newHead :: revAcc) oldTail newTail diffTail
+                      _ -> error <| \"[Internal error] update but missing element\"
+                  [\"VListElemInsert\", count] ->
+                    case newValues of
+                      newHead::newTail ->
+                        aux i (Insert newHead::revAcc) oldValues newTail (if count == 1 then diffTail else [i, [\"VListElemInsert\", count - 1]]::diffTail)
+                      _ -> error <| \"[Internal error] insert but missing element\"
+                  [\"VListElemDelete\", count] ->
+                    case oldValues of
+                      oldHead::oldTail ->
+                        aux (i + 1) (Delete::revAcc) oldTail newValues (if count == 1 then diffTail else [i + 1, [\"VListElemDelete\", count - 1]]::diffTail)
+                      _ -> error <| \"[Internal error] insert but missing element\"
+              else error <| \"[Internal error] Differences not in order, got index \" + toString j + \" but already at index \" + toString i
+        in aux 0 [] oldValues newValues listDiffs
+
+      _ -> error (\"Expected VListDiffs, got \" + toString vDiffs)
+
 
 -- type Results err ok = { values: List ok } | { error: err }
 
