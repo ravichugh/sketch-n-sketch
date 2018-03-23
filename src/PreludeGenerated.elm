@@ -2561,6 +2561,16 @@ delimit a b s = concatStrings [a, s, b]
 --parens: (-> String String)
 parens = delimit \"(\" \")\"
 
+Debug = {
+  log msg value =
+    -- Call Debug.log \"msg\" value
+    let _ = debug (msg + \": \" + toString value) in
+    value
+  start msg value =
+    -- Call Debug.start \"msg\" <| \\_ -> (remaining)
+    let _ = debug msg in
+    value []
+}
 
 ------------------- TODO
 
@@ -2739,7 +2749,7 @@ html string = {
 
         onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
           let inputElem::inputRemaining = input in
-          Debug.start (\"onUpdate\" + toString (oldOutput, newOutput, diffs, index)) <| \\_ ->
+          --Debug.start (\"onUpdate\" + toString (oldOutput, newOutput, diffs, index)) <| \\_ ->
           let newInputElems = case (inputElem, oldOutput, newOutput) of
             ( [\"HTMLInner\", v], _, [\"TEXT\",v2]) -> { values = [toHTMLInner v2] }
             ( [\"HTMLElement\", tagName, attrs, ws1, endOp, children, closing],
@@ -2766,7 +2776,7 @@ html string = {
             _ -> {values = [toHTMLNode newOutput]}
           in
           newInputElems |>LensLess.Results.andThen (\\newInputElem ->
-            Debug.start (\"newInputElem:\" + toString newInputElem) <| \\_ ->
+            --Debug.start (\"newInputElem:\" + toString newInputElem) <| \\_ ->
             case diff inputElem newInputElem of
               [\"Err\", msg] -> {error = msg}
               [\"Ok\", maybeDiff] ->
@@ -2872,17 +2882,6 @@ List =
       concatMap (\\x -> map (\\y -> f x y) ys) xs
   }
 
-Debug = {
-  log msg value =
-    -- Call Debug.log \"msg\" value
-    let _ = debug (msg + \": \" + toString value) in
-    value
-  start msg value =
-    -- Call Debug.start \"msg\" <| \\_ -> (remaining)
-    let _ = debug msg in
-    value []
-}
-
 -- Maybe --
 
 -- old version
@@ -2923,7 +2922,7 @@ Editor = {}
 -- Update --
 
 Update =
-  { freeze = freeze
+  { freeze x = freeze x
     applyLens lens x = lens.apply x
   }
 
