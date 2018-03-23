@@ -2102,15 +2102,29 @@ doCallUpdate m =
               showSolutions [revertChanges "Only Solution is Original Program"]
             _ ->
               showSolutions (filteredResults ++ [revertChanges "Revert to Original Program"])
+decodeStyles : JSDecode.Decoder Val
+decodeStyles =
+  JSDecode.lazy <| \_ ->
+    JSDecode.map vList <|
+      JSDecode.list <|
+        JSDecode.map2 (\key value -> vList [vStr key, vStr value])
+          (JSDecode.index 0 JSDecode.string)
+          (JSDecode.index 1 JSDecode.string)
 
 decodeAttributes : JSDecode.Decoder Val
 decodeAttributes =
   JSDecode.lazy <| \_ ->
   JSDecode.map vList <|
     JSDecode.list <|
-      JSDecode.map2 (\key value -> vList [vStr key, vStr value])
-        (JSDecode.index 0 JSDecode.string)
-        (JSDecode.index 1 JSDecode.string)
+        (JSDecode.index 0 JSDecode.string
+         |> JSDecode.andThen (\key ->
+           JSDecode.map2 (\vKey vValue -> vList [vKey, vValue])
+             (JSDecode.succeed (vStr key))
+             (if key /= "style" then
+               (JSDecode.index 1 (JSDecode.map vStr JSDecode.string))
+             else
+               (JSDecode.index 1 decodeStyles))
+           ))
 
 decodeElem: JSDecode.Decoder Val
 decodeElem =
@@ -2136,8 +2150,8 @@ decodeNode : JSDecode.Decoder Val
 decodeNode = JSDecode.lazy <| \_ ->
   JSDecode.oneOf [
     -- Either an HTML element, and HTML text node, or a list of attributes
-    decodeElemChild,
-    decodeAttributes
+    decodeAttributes,
+    decodeElemChild
   ]
 
 integrateValue: List Int -> Val -> Val -> Result String Val
@@ -2169,7 +2183,7 @@ msgValuePathUpdate (path, newEncodedValue) =
         let  _ = Debug.log ("Going to decode " ++ toString newEncodedValue) () in
         let newValueResult: Result String Val
             newValueResult =
-             JSDecode.decodeValue decodeNode newEncodedValue |>
+             JSDecode.decodeValue decodeNode newEncodedValue |> Result.map (\x -> let _ = Debug.log ("Decoded Value: " ++ LangUtils.valToString x) () in x) |>
                 Result.andThen (\newSubValue ->
                  integrateValue path valueToUpdate newSubValue)
         in

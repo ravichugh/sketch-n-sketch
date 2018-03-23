@@ -87,13 +87,25 @@ function listenForUpdatesToOutputValues() {
       return res;
   }
   
-  function encodeAttributes(attrs) {
+  function encodeAttributes(attrs, node) {
     var attributes = [];
     for(var i = 0; i < attrs.length; i++) {
       var name = attrs[i].name;
       var value = attrs[i].value;
-      if((name != "contenteditable" || i > 0) && (name != "data-value-id"))
+      if((name != "contenteditable" || i > 0) && (name != "data-value-id")) {
+        if(name == "style") { // styles are encoded as list of (name, value)
+           var styles = []
+           var nodeStyles = value.split(/; ?/);
+           for(var j = 0; j < nodeStyles.length; j++) {
+             var nameVal = nodeStyles[j].split(/: ?/);
+             if(nameVal[0] != "") {
+               styles.push([nameVal[0], typeof nameVal[1] == "undefined" ? "" : nameVal[1]]);
+             }
+           }
+           value = styles;
+        }
         attributes.push([name, value]);
+      }
     }
     return attributes;
   }
@@ -104,7 +116,7 @@ function listenForUpdatesToOutputValues() {
     for(var i = 0; i < node.childNodes.length; i++) {
       children.push(encodeNode(node.childNodes[i]))
     }
-    return [node.tagName.toLowerCase(), encodeAttributes(node.attributes), children]
+    return [node.tagName.toLowerCase(), encodeAttributes(node.attributes, node), children]
   }
 
   function handleMutations(mutations) {
@@ -113,7 +125,7 @@ function listenForUpdatesToOutputValues() {
         var path = getPathUntilOutput(mutation.target)
         if(path != null) {
           path.push(1) // 1 for the attributes. We can be more precise if we know there are no insertion.
-          var attrs = encodeAttributes(mutation.target.attributes)
+          var attrs = encodeAttributes(mutation.target.attributes, mutation.target)
           app.ports.receiveValueUpdate.send([path, attrs])
         }
       } else {
