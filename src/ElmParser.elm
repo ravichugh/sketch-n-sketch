@@ -358,6 +358,62 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, beforeS
       ])
 
 --------------------------------------------------------------------------------
+-- Tuples
+--------------------------------------------------------------------------------
+-- If performance becomes an issue with the ambiguity between parentheses and
+-- tuples, it may be necessary to combine them into a single combinator, but
+-- for now we can just `try tuple` followed by `parens`.
+
+genericTuple
+  :  { beforeSpacePolicy : SpacePolicy
+     , term : SpacePolicy -> Parser t
+     , tagger : EBaseVal -> t
+     , record : WS -> List (WS, WS, Ident, WS, t) -> WS -> r
+     }
+  -> ParserI r
+genericTuple { beforeSpacePolicy, term, tagger, record } =
+  let
+    combiner wsBefore (fst, rest, wsBeforeEnd) =
+      let
+        name =
+          "Tuple" ++ toString (1 + List.length rest)
+        ctor =
+          ( space0, space0, Lang.recordConstructorName, space0
+          , tagger <|
+              EString defaultQuoteChar name
+          )
+
+        entry : Int -> (WS, t) -> (WS, WS, Ident, WS, t)
+        entry index (wsBeforeComma, binding) =
+          (wsBeforeComma, space0, "_" ++ toString index, space0, binding)
+
+        firstEntry =
+          entry 1 (space0, fst)
+
+        restEntries =
+          Utils.indexedMapFrom 2 entry rest
+      in
+        record wsBefore (ctor :: firstEntry :: restEntries) wsBeforeEnd
+  in
+    lazy <| \_ ->
+      paddedBefore
+        combiner
+        beforeSpacePolicy.first
+        ( trackInfo <|
+            succeed (,,)
+              |. symbol "("
+              |= term allSpacesPolicy
+              |= repeat oneOrMore
+                   ( try <| succeed (,)
+                       |= spaces
+                       |. symbol ","
+                       |= term allSpacesPolicy
+                   )
+              |= spaces
+              |. symbol ")"
+        )
+
+--------------------------------------------------------------------------------
 -- Block Helper (for types) TODO
 --------------------------------------------------------------------------------
 
@@ -789,6 +845,10 @@ listPattern sp =
               sp
           }
 
+--------------------------------------------------------------------------------
+-- Records
+--------------------------------------------------------------------------------
+
 recordPattern : SpacePolicy -> Parser Pat
 recordPattern sp =
   inContext "record pattern" <|
@@ -806,6 +866,25 @@ recordPattern sp =
          , beforeSpacePolicy = sp
          , optionalInitParser = Nothing}
 
+--------------------------------------------------------------------------------
+-- Tuples
+--------------------------------------------------------------------------------
+
+tuplePattern : SpacePolicy -> Parser Pat
+tuplePattern sp =
+  inContext "tuple pattern" <|
+    lazy <| \_ ->
+      mapPat_ <|
+        genericTuple
+          { beforeSpacePolicy =
+              sp
+          , term =
+              pattern
+          , tagger =
+              withDummyPatInfo << PBase space0
+          , record =
+              PRecord
+          }
 --------------------------------------------------------------------------------
 -- As-Patterns (@-Patterns)
 --------------------------------------------------------------------------------
@@ -834,6 +913,7 @@ simplePattern sp =
     oneOf
       [ lazy <| \_ -> listPattern sp
       , lazy <| \_ -> recordPattern sp
+      , lazy <| \_ -> try <| tuplePattern sp
       , lazy <| \_ -> parensPattern sp
       , constantPattern sp
       , baseValuePattern sp
@@ -1373,6 +1453,10 @@ list sp =
              sp
           }
 
+--------------------------------------------------------------------------------
+-- Records
+--------------------------------------------------------------------------------
+
 record : SpacePolicy -> Parser Exp
 record sp =
   inContext "record expression" <|
@@ -1620,6 +1704,27 @@ parens sp =
           )
 
 --------------------------------------------------------------------------------
+-- Tuples
+--------------------------------------------------------------------------------
+
+tuple : SpacePolicy -> Parser Exp
+tuple sp =
+  inContext "tuple" <|
+    lazy <| \_ ->
+      mapExp_ <|
+        genericTuple
+          { beforeSpacePolicy =
+              sp
+          , term =
+              expression
+          , tagger =
+              withDummyExpInfo << EBase space0
+          , record =
+              \ws1 entries ws2 ->
+                ERecord ws1 Nothing entries ws2
+          }
+
+--------------------------------------------------------------------------------
 -- Holes
 --------------------------------------------------------------------------------
 
@@ -1673,6 +1778,7 @@ simpleExpression sp =
     , lazy <| \_ -> letBinding sp
     , lazy <| \_ -> lineComment sp
     , lazy <| \_ -> option sp
+    , lazy <| \_ -> (addSelections sp <| try <| tuple sp)
     , lazy <| \_ -> (addSelections sp <| parens sp)
     , lazy <| \_ -> (addSelections sp <| hole sp)
     -- , lazy <| \_ -> typeCaseExpression
