@@ -85,20 +85,70 @@ map1 f l =
     []    -> []
     x::xs -> f x :: map1 f xs
 
--- Non-lens version of append
-__update_append__ xs ys =
- case xs of
-   [] -> ys
-   x::xs1 -> x :: __update_append__ xs1 ys
-
--- Non-lens version of split
-__update_split__ n l =
+LensLess =
+  letrec append xs ys =
+     case xs of
+       [] -> ys
+       x::xs1 -> x :: append xs1 ys
+  in
+  let split n l =
     letrec aux acc n l =
       if n == 0 then [reverse acc, l] else
       case l of
         [] -> [reverse acc, l]
         head::tail -> aux (head::acc) (n - 1) tail
-    in aux [] n l
+    in aux [] n l in
+  let take =
+    letrec aux n l = if n == 0 then [] else
+      case l of
+        [] -> []
+        head::tail -> head :: (aux (n - 1) tail)
+    in aux in
+  let drop =
+    letrec aux n l = if n == 0 then l else
+      case l of
+        [] -> []
+        head::tail -> aux (n - 1) tail
+    in aux in
+  letrec reverse_move n stack from = if n <= 0 then (stack, from) else case from of
+    [] -> (stack, from)
+    head::tail -> reverse_move (n - 1) (head::stack) tail
+  in
+  { append = append
+    split = split
+    take = take
+    drop = drop
+    reverse_move = reverse_move
+    Results =
+      letrec keepOks l =
+        case l of
+          [] -> []
+          { error }::tail -> keepOks tail
+          { values =  ll }::tail -> ll ++ map1 keepOks tail
+      in
+      letrec projOks l =
+        case l of
+          [] -> {values = []}
+          {values = []}::tail -> projOks tail
+          {values = vhead::vtail}::tail -> {values = vhead::(vtail ++ keepOks tail)}
+          {error = msg}::tail ->
+            case projOks tail of
+              {error = msgTail} -> { error = msg }
+              { values = []}-> {error = msg}
+              result -> result
+      in
+      let andThen callback results =
+        --andThen : (a -> Results x b) -> Results x a -> Results x b
+        case results of
+          {values = ll} -> ll |> map1 callback |> projOks
+          {error = msg} -> results
+      in
+      {
+        keepOks = keepOks
+        projOks = projOks
+        andThen = andThen
+      }
+  }
 
 
 -- The diff primitive IS something like:
@@ -118,7 +168,7 @@ SimpleListDiffOp = {
 -- getSimpleListDiffOps : List Value -> List Value -> VDiffs -> List SimpleListDiffOp
 getSimpleListDiffOps oldValues newValues vDiffs =
    let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
-   let append = __update_append__ in
+   let {append} = LensLess in
    case vDiffs of
       ["VListDiffs", listDiffs] ->
         letrec aux i revAcc oldValues newValues listDiffs =
@@ -169,41 +219,7 @@ getSimpleListDiffOps oldValues newValues vDiffs =
 -- diffs    : VListDiffs
 -- Returns  : {error: String} | {values: List d} | {values: List d, diffs: List (Maybe VDiffs)}
 foldDiff =
-  letrec append xs ys =
-    case xs of
-      [] -> ys
-      x::xs1 -> x :: append xs1 ys
-  in
-  let Results =
-    letrec keepOks l =
-      case l of
-        [] -> []
-        { error }::tail -> keepOks tail
-        { values =  ll }::tail -> ll ++ map1 keepOks tail
-    in
-    letrec projOks l =
-      case l of
-        [] -> {values = []}
-        {values = []}::tail -> projOks tail
-        {values = vhead::vtail}::tail -> {values = vhead::(vtail ++ keepOks tail)}
-        {error = msg}::tail ->
-          case projOks tail of
-            {error = msgTail} -> { error = msg }
-            { values = []}-> {error = msg}
-            result -> result
-    in
-    let andThen callback results =
-      --andThen : (a -> Results x b) -> Results x a -> Results x b
-      case results of
-        {values = ll} -> ll |> map1 callback |> projOks
-        {error = msg} -> results
-    in
-    {
-      keepOks = keepOks
-      projOks = projOks
-      andThen = andThen
-    }
-  in
+  let {append, split, Results} = LensLess in
   \{start, onSkip, onUpdate, onRemove, onInsert, onFinish, onGather} oldOutput newOutput diffs ->
   let listDiffs = case diffs of
     ["VListDiffs", l] -> l
@@ -229,8 +245,8 @@ foldDiff =
       [i, diff]::dtail  ->
         if i > j then
           let count = i - j in
-          let [previous, remainingOld] = __update_split__ count oldOutput in
-          let [current,  remainingNew] = __update_split__ count newOutput in
+          let [previous, remainingOld] = split count oldOutput in
+          let [current,  remainingNew] = split count newOutput in
           onSkip acc {count = count, index = j, oldOutputs = previous, newOutputs = current}
           |> next i remainingOld remainingNew listDiffs
         else case diff of
@@ -272,7 +288,7 @@ foldDiff =
       in aux [] ["Nothing"] values
 
 append aas bs = {
-    apply [aas, bs] = freeze <| __update_append__ aas bs
+    apply [aas, bs] = freeze <| LensLess.append aas bs
     update {input = [aas, bs], outputNew, outputOld, diffs} =
       let asLength = len aas in
       foldDiff {
@@ -281,7 +297,7 @@ append aas bs = {
           if n <= numA then
             {values = [[nas ++ outs, nbs, diffas, diffbs, numA - n, numB]]}
           else
-            let [forA, forB] = __update_split__ numA outs in
+            let [forA, forB] = LensLess.split numA outs in
             {values = [[nas ++ forA, nbs ++ forB, diffas, diffbs, 0, numB - (n - numA)]]}
         onUpdate [nas, nbs, diffas, diffbs, numA, numB] {newOutput = out, diffs, index} =
           { values = [if numA >= 1
@@ -335,7 +351,7 @@ map f l =
 
       onSkip [fs, insA, insB] {count} =
         --'outs' was the same in oldOutput and outputNew
-        let [skipped, remaining] = __update_split__ count insB in
+        let [skipped, remaining] = LensLess.split count insB in
         {values = [[fs, insA ++ skipped, remaining]]}
 
       onUpdate [fs, insA, insB] {oldOutput, newOutput, diffs} =
@@ -753,19 +769,7 @@ parens = delimit "(" ")"
 
 -- Returns a list of HTML nodes parsed from a string. It uses the API for loosely parsing HTML
 -- Example: html "Hello<b>world</b>" returns [["TEXT","Hello"],["b",[], [["TEXT", "world"]]]]
-html string =
-  let take =
-    letrec aux n l = if n == 0 then [] else
-      case l of
-        [] -> []
-        head::tail -> head :: (aux (n - 1) tail)
-    in aux in
-  let drop =
-    letrec aux n l = if n == 0 then l else
-      case l of
-        [] -> []
-        head::tail -> aux (n - 1) tail
-    in aux in {
+html string = {
   apply trees =
     freeze (letrec domap tree = case tree of
       ["HTMLInner", v] -> ["TEXT", replaceAllIn "&amp;|&lt;|&gt;|</[^>]*>" (\{match} -> case match of "&amp;" -> "&"; "&lt;" -> "<"; "&gt;" -> ">"; _ -> "") v]
@@ -780,61 +784,127 @@ html string =
       ["HTMLComment", _, content] -> ["comment", [["display", "none"]], [["TEXT", content]]]
     in map domap trees)
 
-  update {input, oldOutput, newOutput} =
+  update {input, oldOutput, newOutput, diffs} =
     let toHTMLAttribute [name, value] = ["HTMLAttribute", " ", name, ["HTMLAttributeString", "", "", "\"", value]] in
     let toHTMLInner text = ["HTMLInner", replaceAllIn "<|>|&" (\{match} -> case match of "&" -> "&amp;"; "<" -> "&lt;"; ">" -> "&gt;"; _ -> "") text] in
-    letrec mergeAttrs acc ins d = case d of
-      [] -> acc
-      {kept}::dt -> mergeAttrs (append acc (take (len kept) ins)) (drop (len kept) ins) dt
-      {deleted=[deleted]}::{inserted=[inserted]}::dt ->
-        let newIn = case [take 1 ins, inserted] of
-          [ [["HTMLAttribute", sp0, name, value]], [name2, value2 ]] ->
-            case value of
-              ["HTMLAttributeUnquoted", sp1, sp2, v] ->
-                case extractFirstIn "\\s" v of
-                  ["Nothing"] ->
-                    ["HTMLAttribute", sp0, name2, ["HTMLAttributeUnquoted", sp1, sp2, value2]]
-                  _ ->
-                    ["HTMLAttribute", sp0, name2, ["HTMLAttributeString", sp1, sp2, "\"", value2]]
-              ["HTMLAttributeString", sp1, sp2, delim, v] ->
-                    ["HTMLAttribute", sp0, name2, ["HTMLAttributeString", sp1, sp2, delim, value2]]
-              ["HTMLAttributeNoValue"] ->
-                 if value2 == "" then ["HTMLAttribute", sp0, name2, ["HTMLAttributeNoValue"]]
-                 else toHTMLAttribute [name2, value2]
-              _ -> "Error, expected HTMLAttributeUnquoted, HTMLAttributeString, HTMLAttributeNoValue" + 1
-        in mergeAttrs (append acc [newIn]) (drop 1 ins) dt
-      {deleted}::dt ->
-        mergeAttrs acc (drop (len deleted) ins) dt
-      {inserted}::dt ->
-        let newIns = map toHTMLAttribute inserted in
-        mergeAttrs (append acc newIns) ins dt
-    in
     letrec toHTMLNode e = case e of
       ["TEXT",v2] -> toHTMLInner v2
       [tag, attrs, children] -> ["HTMLElement", tag, map toHTMLAttribute attrs, "",
            ["RegularEndOpening"], map toHTMLNode children, ["RegularClosing", ""]]
     in
-    letrec mergeNodes acc ins d = case d of
-      [] -> acc
-      {kept}::dt -> mergeNodes (append acc (take (len kept) ins)) (drop (len kept) ins) dt
-      {deleted=[deleted]}::{inserted=[inserted]}::dt ->
-        let newElement = case [take 1 ins, deleted, inserted] of
-          [ [["HTMLInner", v]], _, ["TEXT",v2]] -> toHTMLInner v2
-          [ [["HTMLElement", tagName, attrs, ws1, endOp, children, closing]],
-            [tag1, attrs1, children1], [tag2, attrs2, children2] ] ->
-             if tag2 == tagName then
-               ["HTMLElement", tag2, mergeAttrs [] attrs (diff attrs1 attrs2), ws1, endOp,
-                  mergeNodes [] children (diff children1 children2), closing]
-             else toHTMLNode inserted
-          _ -> toHTMLNode inserted
-        in
-        mergeNodes (append acc [newElement]) (drop 1 ins) dt
-      {deleted}::dt ->
-        mergeNodes acc (drop (len deleted) ins) dt
-      {inserted}::dt ->
-        mergeNodes (append acc (map toHTMLNode inserted)) ins dt
+    let mergeAttrs input oldOutput newOutput diffs =
+      foldDiff {
+        start = 
+          -- Accumulator of HTMLAttributes, accumulator of differences, original list of HTMLAttributes
+          ([], [], input)
+        onSkip (revAcc, revDiffs, input) {count} =
+          --'outs' was the same in oldOutput and outputNew
+          let (newRevAcc, remainingInput) = LensLess.reverse_move count revAcc input in
+          {values = [(newRevAcc, revDiffs, remainingInput)]}
+        
+        onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
+          let inputElem::inputRemaining = input in
+          let newInputElem = case (inputElem, newOutput) of
+            (["HTMLAttribute", sp0, name, value], [name2, value2 ]) ->
+             case value of
+               ["HTMLAttributeUnquoted", sp1, sp2, v] ->
+                 case extractFirstIn "\\s" v of
+                   ["Nothing"] ->
+                     ["HTMLAttribute", sp0, name2, ["HTMLAttributeUnquoted", sp1, sp2, value2]]
+                   _ ->
+                     ["HTMLAttribute", sp0, name2, ["HTMLAttributeString", sp1, sp2, "\"", value2]]
+               ["HTMLAttributeString", sp1, sp2, delim, v] ->
+                     ["HTMLAttribute", sp0, name2, ["HTMLAttributeString", sp1, sp2, delim, value2]]
+               ["HTMLAttributeNoValue"] ->
+                  if value2 == "" then ["HTMLAttribute", sp0, name2, ["HTMLAttributeNoValue"]]
+                  else toHTMLAttribute [name2, value2]
+               _ -> error <| "expected HTMLAttributeUnquoted, HTMLAttributeString, HTMLAttributeNoValue, got " ++ toString (inputElem, newOutput)
+            _ -> error "Expected HTMLAttribute, got " ++ toString (inputElem, newOutput)
+          in
+          let newDiff = [index, ["VListElemUpdate", diff inputElem newInputElem]] in
+          {values = [(newInputElem::revAcc, newDiff::revDiffs, inputRemaining)]}
+
+        onRemove (revAcc, revDiffs, input) {oldOutput, index} =
+          let _::remainingInput = input in
+          { values = [(revAcc, [index, ["VListElemDelete", 1]]::revDiffs, remainingInput)] }
+        
+        onInsert (revAcc, revDiffs, input) {newOutput, index} =
+          { values = [(toHTMLNode newOutput :: revAcc, [index, ["VListElemInsert", 1]]::revDiffs, input)]}
+          
+        onFinish (revAcc, revDiffs, _) =
+         {values = [(reverse revAcc, reverse revDiffs)] }
+
+        onGather (acc, diffs) =
+          { value = acc,
+             diff = if len diffs == 0 then ["Nothing"] else ["Just", ["VListDiffs", diffs]]}
+      } oldOutput newOutput diffs
     in
-    {values = [mergeNodes [] input (diff oldOutput newOutput)]}
+    -- Returns {values = List (List HTMLNode)., diffs = List (Maybe VListDiff)} or { error = ... }
+    letrec mergeNodes input oldOutput newOutput diffs =
+      foldDiff {
+        start =
+          -- Accumulator of values, accumulator of differences, original input
+          ([], [], input)
+
+        onSkip (revAcc, revDiffs, input) {count} =
+          --'outs' was the same in oldOutput and outputNew
+          let (newRevAcc, remainingInput) = LensLess.reverse_move count revAcc input in
+          {values = [(newRevAcc, revDiffs, remainingInput)]}
+
+        onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
+          let inputElem::inputRemaining = input in
+          Debug.start ("onUpdate" + toString (oldOutput, newOutput, diffs, index)) <| \_ ->
+          let newInputElems = case (inputElem, oldOutput, newOutput) of
+            ( ["HTMLInner", v], _, ["TEXT",v2]) -> { values = [toHTMLInner v2] }
+            ( ["HTMLElement", tagName, attrs, ws1, endOp, children, closing],
+              [tag1, attrs1, children1], [tag2, attrs2, children2] ) ->
+               if tag2 == tagName then
+                 case diffs of
+                   ["VListDiffs", listDiffs] ->
+                     let (newAttrsMerged, otherDiffs) = case listDiffs of
+                       [1, ["VListElemUpdate", diffAttrs]]::tailDiff ->
+                         (mergeAttrs attrs attrs1 attrs2 diffAttrs, tailDiff)
+                       _ -> ({values = [attrs]}, listDiffs)
+                     in
+                     let newChildrenMerged = case otherDiffs of
+                       [2, ["VListElemUpdate", diffNodes]]::_ ->
+                         mergeNodes children children1 children2 diffNodes
+                       _ -> {values = [children]}
+                     in
+                     newAttrsMerged |>LensLess.Results.andThen (\newAttrs ->
+                       newChildrenMerged |>LensLess.Results.andThen (\newChildren ->
+                         {values = [["HTMLElement", tag2, newAttrs, ws1, endOp, newChildren, closing]]}
+                       )
+                     )
+               else {values = [toHTMLNode newOutput]}
+            _ -> {values = [toHTMLNode newOutput]}
+          in
+          newInputElems |>LensLess.Results.andThen (\newInputElem ->
+            Debug.start ("newInputElem:" + toString newInputElem) <| \_ ->
+            case diff inputElem newInputElem of
+              ["Err", msg] -> {error = msg}
+              ["Ok", maybeDiff] ->
+                let newRevDiffs = case maybeDiff of
+                  ["Nothing"] -> revDiffs
+                  ["Just", v] -> [index, ["VListElemUpdate", v]]::revDiffs in
+                {values = [ (newInputElem::revAcc, newRevDiffs, inputRemaining) ]}
+          )
+
+        onRemove (revAcc, revDiffs, input) {oldOutput, index} =
+          let _::remainingInput = input in
+          { values = [(revAcc, [index, ["VListElemDelete", 1]]::revDiffs, remainingInput)] }
+
+        onInsert (revAcc, revDiffs, input) {newOutput, index} =
+          { values = [(toHTMLNode newOutput :: revAcc, [index, ["VListElemInsert", 1]]::revDiffs, input)]}
+
+        onFinish (revAcc, revDiffs, _) =
+         {values = [(reverse revAcc, reverse revDiffs)] }
+
+        onGather (acc, diffs) =
+          { value = acc,
+             diff = if len diffs == 0 then ["Nothing"] else ["Just", ["VListDiffs", diffs]]}
+      } oldOutput newOutput diffs
+    in mergeNodes input oldOutput newOutput diffs
 }.apply (parseHTML string)
 
 matchIn r x = case extractFirstIn r x of
@@ -912,10 +982,38 @@ List =
     indexedMap f xs = mapi (\[i,x] -> f i x) xs
   }
 
+Debug = {
+  log msg value =
+    -- Call Debug.log "msg" value
+    let _ = debug (msg + ": " + toString value) in
+    value
+  start msg value =
+    -- Call Debug.start "msg" <| \_ -> (remaining)
+    let _ = debug msg in
+    value []
+}
+
 -- Maybe --
 
+-- old version
 nothing = ["Nothing"]
 just x  = ["Just", x]
+
+-- new version
+Nothing = ["Nothing"]
+Just x = ["Just", x]
+
+-- Sample deconstructors once generalized pattern matching works.
+Nothing$ = {
+  unapplySeq exp = case exp of
+    ["Nothing"] -> Just []
+    _ -> Nothing
+}
+Just$ = {
+  unapplySeq exp = case exp of
+    ["Just", x] -> Just [x]
+    _ -> Nothing
+}
 
 -- Tuple --
 

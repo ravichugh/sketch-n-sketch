@@ -75,11 +75,13 @@ function listenForUpdatesToOutputValues() {
   }
   
   function getPathUntilOutput(htmlElem) {
+    if(htmlElem == null) return null;
     if(htmlElem.parentNode && htmlElem.parentNode.getAttribute && htmlElem.parentNode.getAttribute("id") == "outputCanvas") // Single child !
       return []
     else
       //2 is for the children of a node (encoded [tag, attributes, children])
-      var res = getPathUntilOutput(htmlElem.parentNode)
+      var res = getPathUntilOutput(htmlElem.parentNode);
+      if(res == null) return null;
       res.push(2)
       res.push(whichChild(htmlElem))
       return res;
@@ -88,7 +90,10 @@ function listenForUpdatesToOutputValues() {
   function encodeAttributes(attrs) {
     var attributes = [];
     for(var i = 0; i < attrs.length; i++) {
-      attributes.push([attrs[i].name, attrs[i].value])
+      var name = attrs[i].name;
+      var value = attrs[i].value;
+      if((name != "contenteditable" || i > 0) && (name != "data-value-id"))
+        attributes.push([name, value]);
     }
     return attributes;
   }
@@ -99,25 +104,25 @@ function listenForUpdatesToOutputValues() {
     for(var i = 0; i < node.childNodes.length; i++) {
       children.push(encodeNode(node.childNodes[i]))
     }
-    return [node.tagName, encodeAttributes(node.attributes), children]
+    return [node.tagName.toLowerCase(), encodeAttributes(node.attributes), children]
   }
 
   function handleMutations(mutations) {
     mutations.forEach(function(mutation) {
       if (mutation.type == "attributes") {
         var path = getPathUntilOutput(mutation.target)
-        path.push(1) // 1 for the attributes. We can be more precise if we now there are no insertion.
-        
-        var attrs = encodeAttributes(mutation.target.attributes)
-      
-        app.ports.receiveValueUpdate.send([path, attrs])
+        if(path != null) {
+          path.push(1) // 1 for the attributes. We can be more precise if we know there are no insertion.
+          var attrs = encodeAttributes(mutation.target.attributes)
+          app.ports.receiveValueUpdate.send([path, attrs])
+        }
       } else {
-        
         var path = getPathUntilOutput(mutation.target) // We change the whole node.
-        var encodedNode = encodeNode(mutation.target);
-        console.log("encoded node", encodedNode)
-        app.ports.receiveValueUpdate.send([path, encodedNode])
-
+        if(path != null) {
+          var encodedNode = encodeNode(mutation.target);
+          console.log("encoded node", encodedNode)
+          app.ports.receiveValueUpdate.send([path, encodedNode])
+        }
       // https://www.w3schools.com/jsref/prop_node_nodename.asp
       }
     });
@@ -130,7 +135,7 @@ function listenForUpdatesToOutputValues() {
 
   outputValueObserver = new MutationObserver(handleMutations);
 
-  var outputValues = document.getElementsByClassName("_outputValue");
+  var outputValues = document.querySelectorAll("[data-value-id]");
 
   for (i = 0; i < outputValues.length; i++) {
     var currentNode = outputValues[i];

@@ -2103,18 +2103,41 @@ doCallUpdate m =
             _ ->
               showSolutions (filteredResults ++ [revertChanges "Revert to Original Program"])
 
-decodeVal : JSDecode.Decoder Val
-decodeVal =
+decodeAttributes : JSDecode.Decoder Val
+decodeAttributes =
+  JSDecode.lazy <| \_ ->
+  JSDecode.map vList <|
+    JSDecode.list <|
+      JSDecode.map2 (\key value -> vList [vStr key, vStr value])
+        (JSDecode.index 0 JSDecode.string)
+        (JSDecode.index 1 JSDecode.string)
+
+decodeElem: JSDecode.Decoder Val
+decodeElem =
+  JSDecode.lazy <| \_ ->
+  JSDecode.map3 (\tag attrs children ->
+     vList [vStr tag, attrs, vList children])
+     (JSDecode.index 0 JSDecode.string)
+     (JSDecode.index 1 decodeAttributes)
+     (JSDecode.index 2 <| JSDecode.list <| JSDecode.lazy <| \_ -> decodeElemChild)
+
+decodeText: JSDecode.Decoder Val
+decodeText = JSDecode.lazy <| \_ ->
+  JSDecode.string |> JSDecode.map (\str -> vList [vStr "TEXT", vStr str])
+
+decodeElemChild =
+  JSDecode.lazy <| \_ ->
+    JSDecode.oneOf [
+      decodeElem,
+      decodeText
+    ]
+
+decodeNode : JSDecode.Decoder Val
+decodeNode = JSDecode.lazy <| \_ ->
   JSDecode.oneOf [
-    JSDecode.map3 (\tag attrs children ->
-      vList [vStr tag, vList attrs, vList children])
-      (JSDecode.index 0 JSDecode.string)
-      (JSDecode.index 1 <| JSDecode.list <|
-        JSDecode.map2 (\key value -> vList [vStr key, vStr value])
-          (JSDecode.index 0 JSDecode.string)
-          (JSDecode.index 1 JSDecode.string))
-      (JSDecode.index 2 <| JSDecode.list <| JSDecode.lazy <| \_ -> decodeVal)
-    , JSDecode.string |> JSDecode.map (\str -> vList [vStr "TEXT", vStr str])
+    -- Either an HTML element, and HTML text node, or a list of attributes
+    decodeElemChild,
+    decodeAttributes
   ]
 
 integrateValue: List Int -> Val -> Val -> Result String Val
@@ -2146,7 +2169,7 @@ msgValuePathUpdate (path, newEncodedValue) =
         let  _ = Debug.log ("Going to decode " ++ toString newEncodedValue) () in
         let newValueResult: Result String Val
             newValueResult =
-             JSDecode.decodeValue decodeVal newEncodedValue |>
+             JSDecode.decodeValue decodeNode newEncodedValue |>
                 Result.andThen (\newSubValue ->
                  integrateValue path valueToUpdate newSubValue)
         in

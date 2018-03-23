@@ -207,18 +207,10 @@ buildHtml_ (model, addZones) insideSvgNode d i =
             else []
       in
       let valueIdAttrs =
-        let
-          class =
-            -- TODO: this assumes a single text node, but contenteditable edits
-            -- may create multiple text nodes with brs and divs sprinkled in
-            "_outputValue"
-        in
-        [ Attr.attribute "data-value-id" (toString i)
-        , if isSvgNode then SAttr.class class else Attr.class class
-        ]
+        [ Attr.attribute "data-value-id" (toString i)]
       in
       let allAttrs =
-        valueIdAttrs ++ maybeContentEditableAttr ++ compiledAttrs
+         maybeContentEditableAttr ++ valueIdAttrs ++ compiledAttrs
       in
       let children = List.map (buildHtml_ (model, addZones) isSvgNode d) childIndices in
       let mainshape = (node rawKind) allAttrs children in
