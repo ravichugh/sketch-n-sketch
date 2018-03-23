@@ -11,6 +11,10 @@ import BinaryOperatorParser
 import Utils
 import Regex
 
+--------------------------------------------------------------------------------
+-- Simple Values
+--------------------------------------------------------------------------------
+
 unparseWD : WidgetDecl -> String
 unparseWD wd =
   let strHidden bool = if bool then ",\"hidden\"" else "" in
@@ -35,6 +39,83 @@ unparseBaseValue ebv =
 
     ENull ->
       "null"
+
+--------------------------------------------------------------------------------
+-- Records as sugar for other types with `Lang.recordConstructorName`
+--------------------------------------------------------------------------------
+
+expName : Exp -> Maybe String
+expName e =
+  case e.val.e__ of
+    EBase _ baseVal ->
+      case baseVal of
+        EString _ name ->
+          Just name
+        _ ->
+          Nothing
+    _ ->
+      Nothing
+
+patName : Pat -> Maybe String
+patName p =
+  case p.val.p__ of
+    PBase _ baseVal ->
+      case baseVal of
+        EString _ name ->
+          Just name
+        _ ->
+          Nothing
+    _ ->
+      Nothing
+
+-- Tries to unparse a record as a tuple
+tryUnparseTuple
+  :  (t -> String) -> (t -> Maybe String)
+  -> WS -> List (WS, WS, Ident, WS, t) -> WS
+  -> String -> String
+tryUnparseTuple unparseTerm name wsBefore elems wsBeforeEnd default =
+  let
+    pairs =
+      List.map (\(_, _, key, _, val) -> (key, val)) elems
+  in
+    if
+      pairs
+        |> Utils.maybeFind Lang.recordConstructorName
+        |> Maybe.andThen name
+        |> Maybe.map (String.startsWith "Tuple")
+        |> Maybe.withDefault False
+    then
+      let
+        inside =
+          elems
+            |> List.filter
+                 ( \(_, _, elName, _, _) ->
+                     String.startsWith "_" elName
+                 )
+            |> List.sortBy
+                 ( \(_, _, elName, _, _) ->
+                     elName
+                       |> String.dropLeft 1
+                       |> String.toInt
+                       |> Result.withDefault -1
+                 )
+            |> List.map
+                 ( \(wsBeforeComma, _, _, _, elBinding) ->
+                     wsBeforeComma.val ++ "," ++ unparseTerm elBinding
+                 )
+            |> String.concat
+      in
+        wsBefore.val
+          ++ "("
+          ++ String.dropLeft 1 inside -- removes first comma
+          ++ wsBeforeEnd.val
+          ++ ")"
+    else
+      default
+
+--------------------------------------------------------------------------------
+-- Patterns
+--------------------------------------------------------------------------------
 
 unparsePattern : Pat -> String
 unparsePattern p =
@@ -84,27 +165,28 @@ unparsePattern p =
       unparsePattern tail
 
     PRecord wsBefore elems wsAfter ->
-      let maybeJustKey eqSpace key value =
-        let default = eqSpace ++ "=" ++ unparsePattern value in
-        if eqSpace == "" then
-          case value.val.p__ of
-            PVar _ name _ -> if name == key then "" else default
-            _ -> default
-        else default
-      in
-      wsBefore.val
-        ++ "{"
-        ++ (case elems of
-              [] -> ""
-              (wsComma, wsKey, key, wsEq, value)::tail ->
-                wsKey.val ++ key ++ maybeJustKey wsEq.val key value ++
-                String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
-                   (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
-                   wsKey.val ++ key ++ maybeJustKey wsEq.val key value
-                ) tail)
-        )
-        ++ wsAfter.val
-        ++ "}"
+      tryUnparseTuple unparsePattern patName wsBefore elems wsAfter <|
+        let maybeJustKey eqSpace key value =
+          let default = eqSpace ++ "=" ++ unparsePattern value in
+          if eqSpace == "" then
+            case value.val.p__ of
+              PVar _ name _ -> if name == key then "" else default
+              _ -> default
+          else default
+        in
+        wsBefore.val
+          ++ "{"
+          ++ (case elems of
+                [] -> ""
+                (wsComma, wsKey, key, wsEq, value)::tail ->
+                  wsKey.val ++ key ++ maybeJustKey wsEq.val key value ++
+                  String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
+                     (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
+                     wsKey.val ++ key ++ maybeJustKey wsEq.val key value
+                  ) tail)
+          )
+          ++ wsAfter.val
+          ++ "}"
 
     PAs wsName name wsBeforeAs pat ->
       wrapPatternWithParensIfLessPrecedence p pat (unparsePattern pat)
@@ -113,7 +195,11 @@ unparsePattern p =
         ++ wsName.val
         ++ name
 
+--------------------------------------------------------------------------------
+-- Types
+--------------------------------------------------------------------------------
 -- TODO
+
 unparseType : Type -> String
 unparseType tipe =
   case tipe.val of
@@ -161,6 +247,10 @@ unparseType tipe =
           Many ws1_ vars ws2_ -> ws1_.val ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2_.val)
       in
       ws1.val ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2.val)
+
+--------------------------------------------------------------------------------
+-- Operators
+--------------------------------------------------------------------------------
 
 unparseOp : Op -> String
 unparseOp op =
@@ -227,6 +317,10 @@ unparseOp op =
       "replaceFirstIn"
     RegexExtractFirstIn ->
       "extractFirstIn"
+
+--------------------------------------------------------------------------------
+-- Expressions
+--------------------------------------------------------------------------------
 
 unparseBranch : Bool -> Branch -> String
 unparseBranch   isNotFirst branch =
@@ -385,67 +479,26 @@ unparse e =
       unparse tail
 
     ERecord wsBefore mi elems wsAfter ->
-      let
-        default =
-          wsBefore.val
-            ++ "{"
-            ++ (case mi of
-                  Just (m, ws) -> unparse m ++ ws.val ++ "|"
-                  Nothing -> ""
-            )
-            ++ (case elems of
-                  [] -> ""
-                  (wsComma, wsKey, key, wsEq, value)::tail ->
+      tryUnparseTuple unparse expName wsBefore elems wsAfter <|
+        wsBefore.val
+          ++ "{"
+          ++ (case mi of
+                Just (m, ws) -> unparse m ++ ws.val ++ "|"
+                Nothing -> ""
+          )
+          ++ (case elems of
+                [] -> ""
+                (wsComma, wsKey, key, wsEq, value)::tail ->
+                  let (strParameters, binding) = getParametersBinding value in
+                  wsComma.val ++ wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding ++
+                  String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
                     let (strParameters, binding) = getParametersBinding value in
-                    wsComma.val ++ wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding ++
-                    String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
-                      let (strParameters, binding) = getParametersBinding value in
-                      (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
-                      wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding
-                    ) tail)
-            )
-            ++ wsAfter.val
-            ++ "}"
-
-        pairs =
-          List.map (\(_, _, key, _, val) -> (key, val)) elems
-      in
-        case Utils.maybeFind Lang.recordConstructorName pairs of
-          Just binding ->
-            case binding.val.e__ of
-              EBase _ (EString _ name) ->
-                if String.startsWith "Tuple" name then
-                  let
-                    inside =
-                      elems
-                        |> List.filter
-                             ( \(_, _, elName, _, _) ->
-                                 String.startsWith "_" elName
-                             )
-                        |> List.sortBy
-                             ( \(_, _, elName, _, _) ->
-                                 Result.withDefault -1 << String.toInt << String.dropLeft 1 <|
-                                   elName
-                             )
-                        |> List.map
-                             ( \(wsBeforeComma, _, _, _, elBinding) ->
-                                 wsBeforeComma.val  ++ "," ++ unparse elBinding
-                             )
-                        |> String.concat
-                  in
-                    wsBefore.val
-                      ++ "("
-                      ++ String.dropLeft 1 inside -- removes first comma
-                      ++ wsAfter.val
-                      ++ ")"
-                else
-                  default
-
-              _ ->
-                default
-
-          Nothing ->
-            default
+                    (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
+                    wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding
+                  ) tail)
+          )
+          ++ wsAfter.val
+          ++ "}"
 
     ESelect ws0 exp wsBeforeDot wsAfterDot id ->
       ws0.val ++ unparse exp ++ wsBeforeDot.val ++ "." ++ wsAfterDot.val ++ id
