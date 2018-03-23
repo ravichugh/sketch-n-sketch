@@ -132,7 +132,7 @@ function listenForUpdatesToOutputValues() {
         var path = getPathUntilOutput(mutation.target) // We change the whole node.
         if(path != null) {
           var encodedNode = encodeNode(mutation.target);
-          console.log("encoded node", encodedNode)
+          //console.log("encoded node", encodedNode)
           app.ports.receiveValueUpdate.send([path, encodedNode])
         }
       // https://www.w3schools.com/jsref/prop_node_nodename.asp

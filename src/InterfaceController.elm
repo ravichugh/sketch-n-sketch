@@ -2183,7 +2183,7 @@ msgValuePathUpdate (path, newEncodedValue) =
         let  _ = Debug.log ("Going to decode " ++ toString newEncodedValue) () in
         let newValueResult: Result String Val
             newValueResult =
-             JSDecode.decodeValue decodeNode newEncodedValue |> Result.map (\x -> let _ = Debug.log ("Decoded Value: " ++ LangUtils.valToString x) () in x) |>
+             JSDecode.decodeValue decodeNode newEncodedValue |> --Result.map (\x -> let _ = Debug.log ("Decoded Value: " ++ LangUtils.valToString x) () in x) |>
                 Result.andThen (\newSubValue ->
                  integrateValue path valueToUpdate newSubValue)
         in

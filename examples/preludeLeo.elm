@@ -1037,7 +1037,7 @@ Editor = {}
 -- Update --
 
 Update =
-  { freeze = freeze
+  { freeze x = freeze x
     applyLens lens x = lens.apply x
   }
 
