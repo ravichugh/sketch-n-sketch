@@ -72,7 +72,7 @@ patName p =
 tryUnparseTuple
   :  (t -> String) -> (t -> Maybe String)
   -> WS -> List (WS, WS, Ident, WS, t) -> WS
-  -> String -> String
+  -> (() -> String) -> String
 tryUnparseTuple unparseTerm name wsBefore elems wsBeforeEnd default =
   let
     pairs =
@@ -111,7 +111,7 @@ tryUnparseTuple unparseTerm name wsBefore elems wsBeforeEnd default =
           ++ wsBeforeEnd.val
           ++ ")"
     else
-      default
+      default ()
 
 --------------------------------------------------------------------------------
 -- Patterns
@@ -165,7 +165,7 @@ unparsePattern p =
       unparsePattern tail
 
     PRecord wsBefore elems wsAfter ->
-      tryUnparseTuple unparsePattern patName wsBefore elems wsAfter <|
+      tryUnparseTuple unparsePattern patName wsBefore elems wsAfter <| \_ ->
         let maybeJustKey eqSpace key value =
           let default = eqSpace ++ "=" ++ unparsePattern value in
           if eqSpace == "" then
@@ -479,7 +479,7 @@ unparse e =
       unparse tail
 
     ERecord wsBefore mi elems wsAfter ->
-      tryUnparseTuple unparse expName wsBefore elems wsAfter <|
+      tryUnparseTuple unparse expName wsBefore elems wsAfter <| \_ ->
         wsBefore.val
           ++ "{"
           ++ (case mi of
