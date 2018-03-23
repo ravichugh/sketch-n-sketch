@@ -2037,10 +2037,10 @@ LensLess =
   }
 
 
--- The diff primitive IS something like:
+-- The diff primitive is:
 --
 --   diff : Value -> Value -> Result String (Maybe VDiffs)
---   diff ~= defaultVDiffs
+--   diff ~= SnS.Update.defaultVDiffs
 --
 
 --   type SimpleListDiffOp = Keep | Delete | Insert Value | Update Value
@@ -2051,12 +2051,12 @@ SimpleListDiffOp = {
   Update v = [\"Update\", v]
 }
 
--- getSimpleListDiffOps : List Value -> List Value -> VDiffs -> List SimpleListDiffOp
-getSimpleListDiffOps oldValues newValues vDiffs =
+-- listDiff : _ -> List Value -> List Value -> List SimpleListDiffOp
+listDiff diffPrimitiveOp oldValues newValues =
    let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
    let {append} = LensLess in
-   case vDiffs of
-      [\"VListDiffs\", listDiffs] ->
+   case diffPrimitiveOp oldValues newValues of
+      [\"Ok\", [\"Just\", [\"VListDiffs\", listDiffs]]] ->
         letrec aux i revAcc oldValues newValues listDiffs =
           case listDiffs of
             [] ->
@@ -2087,7 +2087,7 @@ getSimpleListDiffOps oldValues newValues vDiffs =
               else error <| \"[Internal error] Differences not in order, got index \" + toString j + \" but already at index \" + toString i
         in aux 0 [] oldValues newValues listDiffs
 
-      _ -> error (\"Expected VListDiffs, got \" + toString vDiffs)
+      result -> error (\"Expected Ok (Just (VListDiffs listDiffs)), got \" + toString result)
 
 
 -- type Results err ok = { values: List ok } | { error: err }
@@ -2862,10 +2862,14 @@ List =
     map =
       -- TODO lensed version
       simpleMap
+    nil = nil
+    cons = cons
     length = -- TODO move all definitions here
       len
     nth = nth
     indexedMap f xs = mapi (\\[i,x] -> f i x) xs
+    cartesianProductWith f xs ys =
+      concatMap (\\x -> map (\\y -> f x y) ys) xs
   }
 
 Debug = {
@@ -2886,8 +2890,12 @@ nothing = [\"Nothing\"]
 just x  = [\"Just\", x]
 
 -- new version
-Nothing = [\"Nothing\"]
-Just x = [\"Just\", x]
+Maybe = {
+  Nothing = [\"Nothing\"]
+  Just x  = [\"Just\", x]
+}
+
+{Nothing, Just} = Maybe
 
 -- Sample deconstructors once generalized pattern matching works.
 Nothing$ = {

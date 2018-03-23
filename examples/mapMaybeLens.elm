@@ -3,7 +3,7 @@ mapMaybeSimple f mx =
 
 mapMaybeLens default =
   { apply [f, mx] =
-      Update.freeze <| mapMaybeSimple f mx
+      Update.freeze (mapMaybeSimple f mx)
 
   , update {input = [f, mx], outputNew = my} =
       case my of

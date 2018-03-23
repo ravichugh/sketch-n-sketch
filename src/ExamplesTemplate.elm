@@ -210,6 +210,7 @@ LEO_TO_ELM tableOfStatesC
 LEO_TO_ELM tableOfStatesD
 LEO_TO_ELM simpleBudget
 LEO_TO_ELM mapMaybeLens
+LEO_TO_ELM mapListLens_1
 LEO_TO_ELM fromleo/markdown
 LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
@@ -244,6 +245,7 @@ docsCategory =
         makeLeoExample (toString (2+i) ++ ": " ++ caption) program
       )
       [ ("Lens: Maybe Map", mapMaybeLens)
+      , ("Lens: List Map 1", mapListLens_1)
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
       , ("Proportional Recipe editor", fromleo_recipe)
