@@ -2071,7 +2071,7 @@ topLevelTypeAlias : Parser TopLevelExp
 topLevelTypeAlias =
   inContext "top-level type alias" <|
     delayedCommitMap
-      ( \(wsBefore, typeAliasKeyword, pat) t ->
+      ( \wsBefore (typeAliasKeyword, pat, t) ->
           withInfo
             ( \rest ->
                 exp_ <|
@@ -2080,14 +2080,12 @@ topLevelTypeAlias =
             typeAliasKeyword.start
             t.end
       )
+      spaces
       ( succeed (,,)
-          |= spaces
-          |= trackInfo (keywordWithSpace "type alias")
-          |= typePattern topLevelInsideDefSpacePolicy
-          |. topLevelInsideDefSpacePolicy.first
-          |. symbol "="
-      )
-      ( succeed identity
+        |= trackInfo (keywordWithSpace "type alias")
+        |= typePattern topLevelInsideDefSpacePolicy
+        |. topLevelInsideDefSpacePolicy.first
+        |. symbol "="
         |= typ topLevelInsideDefSpacePolicy
         |. optionalTopLevelSemicolon
       )
@@ -2158,8 +2156,8 @@ topLevelExpression =
   inContext "top-level expression" <|
     oneOf
       [ topLevelDef
-      , topLevelTypeDeclaration
       , topLevelTypeAlias
+      , topLevelTypeDeclaration
       , topLevelComment
       , topLevelOption
       ]
