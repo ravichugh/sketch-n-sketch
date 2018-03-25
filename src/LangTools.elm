@@ -186,7 +186,7 @@ typeNodeCount tipe =
     TRecord _ (Just _) ts _         -> 2 + typesNodeCount (Utils.recordValues ts)
     TArrow _ ts _                   -> 1 + typesNodeCount ts
     TUnion _ ts _                   -> 1 + typesNodeCount ts
-    TNamed _ _                      -> 1
+    TApp _ _ ts                     -> 1 + typesNodeCount ts
     TVar _ _                        -> 1
     TForall _ (One (_, _)) t _      -> 1 + typeNodeCount t
     TForall _ (Many _ idents _) t _ -> 1 + List.length idents + typeNodeCount t

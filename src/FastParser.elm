@@ -491,15 +491,6 @@ stringType =
   baseType "string type" TString "String"
 
 --------------------------------------------------------------------------------
--- Named Types
---------------------------------------------------------------------------------
-
-namedType : Parser Type
-namedType =
-  inContext "named type" <|
-    paddedBefore TNamed spaces typeIdentifierString
-
---------------------------------------------------------------------------------
 -- Variable Types
 --------------------------------------------------------------------------------
 
@@ -626,6 +617,22 @@ unionType =
         succeed identity
           |. keywordWithSpace "union"
           |= repeat oneOrMore typ
+
+--------------------------------------------------------------------------------
+-- Named Types
+--------------------------------------------------------------------------------
+-- Full `TApp` types not supported in little syntax
+
+namedType : Parser Type
+namedType =
+  inContext "named type" <|
+    paddedBefore
+      ( \wsBefore ident ->
+          TApp wsBefore ident []
+      )
+      spaces
+      typeIdentifierString
+
 
 --------------------------------------------------------------------------------
 -- Wildcard Type

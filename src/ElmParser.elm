@@ -1010,15 +1010,6 @@ stringType sp =
   baseType "string type" TString sp "String"
 
 --------------------------------------------------------------------------------
--- Named Types
---------------------------------------------------------------------------------
-
-namedType : SpacePolicy -> Parser Type
-namedType sp =
-  inContext "named type" <|
-    paddedBefore TNamed sp.first bigIdentifier
-
---------------------------------------------------------------------------------
 -- Variable Types
 --------------------------------------------------------------------------------
 
@@ -1169,6 +1160,25 @@ unionType sp=
           |= repeat oneOrMore (typ allSpacesPolicy)
 
 --------------------------------------------------------------------------------
+-- App Types
+--------------------------------------------------------------------------------
+
+appType : SpacePolicy -> Parser Type
+appType sp =
+  lazy <| \_ ->
+    inContext "app type" <|
+      trackInfo <|
+        delayedCommitMap
+          ( \wsBefore (ident, ts) ->
+              TApp wsBefore ident ts
+          )
+          sp.first
+          ( succeed (,)
+              |= untrackInfo bigIdentifier
+              |= repeat zeroOrMore (typ spacesWithoutNewline)
+          )
+
+--------------------------------------------------------------------------------
 -- Wildcard Type
 --------------------------------------------------------------------------------
 
@@ -1198,7 +1208,7 @@ typ sp =
         , lazy <| \_ -> recordType sp
         , lazy <| \_ -> forallType sp
         , lazy <| \_ -> unionType sp
-        , namedType sp
+        , lazy <| \_ -> appType sp
         , variableType sp
         ]
 

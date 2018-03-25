@@ -472,7 +472,7 @@ addPoint old (x, y) =
     [pointName, xName, yName] ->
       let
         programWithPoint =
-          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (TNamed space1 "Point"))
+          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (TApp space1 "Point" []))
       in
       { old | code = Syntax.unparser old.syntax programWithPoint }
 
@@ -545,7 +545,7 @@ addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
             programWithOffset =
               LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> Parser.freshen
             programWithOffsetAndPoint =
-              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TNamed space1 "Point"))
+              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TApp space1 "Point" []))
           in
           { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 
@@ -765,7 +765,7 @@ addStickyPath old keysAndPoints =
 eAsPoint e =
   let e_ = replacePrecedingWhitespace "" e in
   withDummyExpInfo <|
-    EColonType space1 e_ space1 (withDummyRange <| TNamed space1 "Point") space1
+    EColonType space1 e_ space1 (withDummyRange <| TApp space1 "Point" []) space1
 
 {-
 addLambda old (_,pt2) (_,pt1) =
@@ -842,8 +842,8 @@ addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
       TUnion _ (firstType::_) _      -> fillInArgPrimitive firstType
       TVar _ _                       -> Just <| eTuple []
       TWildcard _                    -> Just <| eTuple []
-      TNamed _ "Color"               -> Just <| eConstDummyLoc 0
-      TNamed _ "Point"               -> Just <| eTuple (makeInts [0,0])
+      TApp _ "Color" _               -> Just <| eConstDummyLoc 0
+      TApp _ "Point" _               -> Just <| eTuple (makeInts [0,0])
       _                              -> Nothing
   in
   case getDrawableFunctions old |> Utils.maybeFind fName |> Maybe.andThen Types.typeToMaybeArgTypesAndReturnType of
@@ -853,14 +853,14 @@ addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
         |> List.foldl
             (\argType (ptsRemaining, argMaybeExps) ->
               case (ptsRemaining, argType.val) of
-                ((x,y)::otherPts, TNamed _ "Point") -> (otherPts,     argMaybeExps ++ [Just (eTuple (makeInts [x,y]))])
+                ((x,y)::otherPts, TApp _ "Point" _) -> (otherPts,     argMaybeExps ++ [Just (eTuple (makeInts [x,y]))])
                 _                                   -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
             )
             ([(x1, y1), (x2, y2)], [])
       in
       case (Utils.projJusts argMaybeExps, returnType.val) of
-        (Just argExps, TNamed _ "Point") -> addToEndOfProgram old fName (eCall fName argExps)
-        (Just argExps, TNamed _ "Shape") -> addShapeToModel   old fName (eCall fName argExps)
+        (Just argExps, TApp _ "Point" _) -> addToEndOfProgram old fName (eCall fName argExps)
+        (Just argExps, TApp _ "Shape" _) -> addShapeToModel   old fName (eCall fName argExps)
         _                                -> let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
 
     Nothing -> let _ = Utils.log <| "Could not find function " ++ fName ++ " to draw!" in old
@@ -1141,7 +1141,7 @@ isDrawableType tipe =
   case tipe.val of
     TArrow _ argTypes _ ->
       case (Utils.maybeLast argTypes |> Maybe.map .val, Utils.dropLast 1 argTypes) of
-        (Just (TNamed _ retAliasName), otherArgs) ->
+        (Just (TApp _ retAliasName _), otherArgs) ->
           if retAliasName == "Shape" || retAliasName == "Point" then
             let aliasArgIdents = List.filterMap Types.typeToMaybeAliasIdent otherArgs in
             Utils.count ((==) "Point") aliasArgIdents == 2

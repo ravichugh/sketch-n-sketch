@@ -195,7 +195,7 @@ type Type_
   | TTuple WS (List Type) WS (Maybe Type) WS
   | TArrow WS (List Type) WS
   | TUnion WS (List Type) WS
-  | TNamed WS Ident
+  | TApp WS Ident (List Type)
   | TVar WS Ident
   | TForall WS (OneOrMany (WS, Ident)) Type WS
   | TWildcard WS
@@ -1180,7 +1180,6 @@ mapType f tipe =
     TBool _      -> f tipe
     TString _    -> f tipe
     TNull _      -> f tipe
-    TNamed _ _   -> f tipe
     TVar _ _     -> f tipe
     TWildcard _  -> f tipe
 
@@ -1188,6 +1187,7 @@ mapType f tipe =
     TDict ws1 t1 t2 ws2     -> f (wrap (TDict ws1 (recurse t1) (recurse t2) ws2))
     TArrow ws1 ts ws2       -> f (wrap (TArrow ws1 (List.map recurse ts) ws2))
     TUnion ws1 ts ws2       -> f (wrap (TUnion ws1 (List.map recurse ts) ws2))
+    TApp ws1 ident ts       -> f (wrap (TApp ws1 ident (List.map recurse ts)))
     TForall ws1 vars t1 ws2 -> f (wrap (TForall ws1 vars (recurse t1) ws2))
 
     TTuple ws1 ts ws2 mt ws3 ->
@@ -1203,7 +1203,6 @@ foldType f tipe acc =
     TBool _         -> acc |> f tipe
     TString _       -> acc |> f tipe
     TNull _         -> acc |> f tipe
-    TNamed _ _      -> acc |> f tipe
     TVar _ _        -> acc |> f tipe
     TWildcard _     -> acc |> f tipe
     TList _ t _     -> acc |> foldType f t |> f tipe
@@ -1211,6 +1210,7 @@ foldType f tipe acc =
     TForall _ _ t _ -> acc |> foldType f t |> f tipe
     TArrow _ ts _   -> acc |> foldTypes f ts |> f tipe
     TUnion _ ts _   -> acc |> foldTypes f ts |> f tipe
+    TApp _ _ ts     -> acc |> foldTypes f ts |> f tipe
 
     TTuple _ ts _ Nothing _  -> acc |> foldTypes f ts |> f tipe
     TTuple _ ts _ (Just t) _ -> acc |> foldTypes f (ts++[t]) |> f tipe
@@ -2138,7 +2138,7 @@ allWhitespacesType_ tipe =
       TTuple ws1 heads ws2 maybeTail ws3  -> [ws1] ++ List.concatMap allWhitespacesType_ heads ++ [ws2] ++ (maybeTail |> Maybe.map allWhitespacesType_ |> Maybe.withDefault []) ++ [ws3]
       TArrow ws1 ts ws2                   -> [ws1] ++ List.concatMap allWhitespacesType_ ts ++ [ws2]
       TUnion ws1 ts ws2                   -> [ws1] ++ List.concatMap allWhitespacesType_ ts ++ [ws2]
-      TNamed ws ident                     -> [ws]
+      TApp ws ident ts                    -> [ws] ++ List.concatMap allWhitespacesType_ ts
       TVar ws ident                       -> [ws]
       TForall ws1 innerOneOrMany tipe ws2 -> [ws1] ++ allWhitespacesForAllInner innerOneOrMany ++ allWhitespacesType_ tipe ++ [ws2]
       TWildcard ws                        -> [ws]
@@ -2606,7 +2606,7 @@ wsBefore codeObject =
           ws
         TUnion ws _ _ ->
           ws
-        TNamed ws _ ->
+        TApp ws _ _ ->
           ws
         TVar ws _ ->
           ws
@@ -2730,8 +2730,8 @@ modifyWsBefore f codeObject =
               TArrow (f ws) a b
             TUnion ws a b ->
               TUnion (f ws) a b
-            TNamed ws a ->
-              TNamed (f ws) a
+            TApp ws a b ->
+              TApp (f ws) a b
             TVar ws a ->
               TVar (f ws) a
             TForall ws a b c ->
@@ -3172,8 +3172,11 @@ childCodeObjects co =
               ) ++
               ( List.map (TT After ws2) lastHead
               )
-          TNamed ws1 _ ->
-            [ TT Before ws1 t ]
+          TApp ws1 _ ts ->
+            [ TT Before ws1 t
+            ] ++
+            ( List.map T ts
+            )
           TVar ws1 _ ->
             [ TT Before ws1 t ]
           TForall ws1 _ t1 ws2 ->

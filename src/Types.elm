@@ -18,7 +18,7 @@ import Record
 typeToMaybeAliasIdent : Type -> Maybe Ident
 typeToMaybeAliasIdent tipe =
   case tipe.val of
-    TNamed _ aliasName -> Just aliasName
+    TApp _ aliasName _ -> Just aliasName
     _                  -> Nothing
 
 
@@ -60,8 +60,8 @@ astsMatch t1 t2 =
      TArrow _ typeList2 _) -> Utils.listsEqualBy astsMatch typeList1 typeList2
     (TUnion _ typeList1 _,
      TUnion _ typeList2 _) -> Utils.listsEqualBy astsMatch typeList1 typeList2
-    (TNamed _ ident1,
-     TNamed _ ident2)      -> ident1 == ident2
+    (TApp _ ident1 typeList1, TApp _ ident2 typeList2) ->
+       ident1 == ident2 && Utils.listsEqualBy astsMatch typeList1 typeList2
     (TVar _ _, TVar _ _)   -> True
     (TWildcard _,
      TWildcard _)          -> True
@@ -100,7 +100,7 @@ identifiersEquivalent t1 t2 =
           Nothing -> []) ++ List.concatMap flatIdents (Utils.recordValues typeList)
       TArrow _ typeList _ -> List.concatMap flatIdents typeList
       TUnion _ typeList _ -> List.concatMap flatIdents typeList
-      TNamed _ _          -> []
+      TApp _ _ typeList   -> List.concatMap flatIdents typeList
       TVar _ ident        -> [ident]
       TWildcard _         -> []
       TForall _ _ _ _     -> Debug.crash "identifiersEquiv TForall TODO"
@@ -137,7 +137,7 @@ valIsType val tipe =
               (List.drop (List.length typeList) vlist)
     (_, TArrow _ _ _)        -> unsupported "arrow types"
     (_, TUnion _ typeList _) -> List.any (valIsType val) typeList
-    (_, TNamed _ _)          -> unsupported "type aliases"
+    (_, TApp _ _ _)          -> unsupported "app types"
     (_, TVar _ _)            -> unsupported "type variables"
     (_, TWildcard _)         -> True
     _                        -> False
@@ -314,9 +314,9 @@ addBindingsOne (p, t) acc =
 
   case (p.val.p__, t.val) of
 
-    (PList _ _ _ _ _, TNamed _ a) ->
+    (PList _ _ _ _ _, TApp _ a _) ->
       case expandTypeAlias acc a of
-        Nothing -> fail "Type alias not defined"
+        Nothing -> fail "App type not defined"
         Just ta -> addBindingsOne (p, ta) acc
 
     (PConst _ _, _)     -> Ok acc
@@ -599,7 +599,7 @@ isWellFormed typeEnv tipe =
   let allVarsBound =
     foldType (\t acc ->
        case t.val of
-         TNamed _ x -> acc && lookupTypeAlias typeEnv_ x
+         TApp _ x _ -> acc && lookupTypeAlias typeEnv_ x
          TVar _ x   -> if isConstraintVar x
                          then False
                          else acc && List.member (TypeVar x) typeEnv_
@@ -1297,26 +1297,40 @@ checkSubtype typeInfo typeEnv tipe1 tipe2 =
 
     -- take care to control unrolling of aliases...
 
-    (TNamed _ a, TNamed _ b) ->
-      if a == b then ok
-      else
-        let maybeNewGoal =
-          case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
-            (Just tipe1_, Just tipe2_) -> Just (tipe1_, tipe2_)
-            (Just tipe1_, Nothing)     -> Just (tipe1_, tipe2 )
-            (Nothing, Just tipe2_)     -> Just (tipe1 , tipe2_)
-            (Nothing, Nothing)         -> Nothing
-        in
-        case maybeNewGoal of
-          Just (tipe1_,tipe2_) -> checkSubtype typeInfo typeEnv tipe1_ tipe2_
-          Nothing              -> err
+    (TApp _ a tsa, TApp _ b tsb) ->
+      case Utils.maybeZip tsa tsb of
+        Nothing ->
+          errAdd "lengths of app types are not equal"
+        Just list ->
+          let
+            argsSame =
+              checkSubtypeList typeInfo typeEnv list
+          in
+            case argsSame.result of
+              Err _ -> err
+              Ok () ->
+                if a == b then
+                  ok
+                else
+                  let maybeNewGoal =
+                    case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
+                      (Just tipe1_, Just tipe2_) -> Just (tipe1_, tipe2_)
+                      (Just tipe1_, Nothing)     -> Just (tipe1_, tipe2 )
+                      (Nothing, Just tipe2_)     -> Just (tipe1 , tipe2_)
+                      (Nothing, Nothing)         -> Nothing
+                  in
+                    case maybeNewGoal of
+                      Just (tipe1_,tipe2_) -> checkSubtype typeInfo typeEnv tipe1_ tipe2_
+                      Nothing              -> err
 
-    (TNamed _ a, _) ->
+    -- TODO Ensure this works for `TApp`s with nonempty argument lists
+
+    (TApp _ a _, _) ->
       case expandTypeAlias typeEnv a of
         Just tipe1_ -> checkSubtype typeInfo typeEnv tipe1_ tipe2
         Nothing     -> err
 
-    (_, TNamed _ b) ->
+    (_, TApp _ b _) ->
       case expandTypeAlias typeEnv b of
         Just tipe2_ -> checkSubtype typeInfo typeEnv tipe1 tipe2_
         Nothing     -> err
@@ -1724,26 +1738,32 @@ unify typeEnv vars accActive accUnifier cs = case cs of
 
       -- the setup of the TNamed cases is very similar to checkSubtype...
 
-      (TNamed _ a, TNamed _ b) ->
-        let maybeNewGoal =
-          case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
-            (Just t1_, Just t2_) -> Just (t1_, t2_)
-            (Just t1_, Nothing)  -> Just (t1_, t2 )
-            (Nothing, Just t2_)  -> Just (t1 , t2_)
-            (Nothing, Nothing)   -> Nothing
-        in
-        case maybeNewGoal of
-          Just (t1_,t2_) -> let induced = [(-1, (t1_, t2_))] in
-                            recurse accActive accUnifier (induced ++ rest)
-          Nothing        -> Err err
+      (TApp _ a tsa, TApp _ b tsb) ->
+        case Utils.maybeZip tsa tsb of
+          Nothing ->
+            Err "unify TApp: different arity"
+          Just list ->
+            let maybeNewGoal =
+              case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
+                (Just t1_, Just t2_) -> Just (t1_, t2_)
+                (Just t1_, Nothing)  -> Just (t1_, t2 )
+                (Nothing, Just t2_)  -> Just (t1 , t2_)
+                (Nothing, Nothing)   -> Nothing
+            in
+            case maybeNewGoal of
+              Just (t1_,t2_) -> let induced = [(-1, (t1_, t2_))] ++ List.map (\raw -> (-1, raw)) list in
+                                recurse accActive accUnifier (induced ++ rest)
+              Nothing        -> Err err
 
-      (TNamed _ a, _) ->
+      -- TODO Ensure this works for `TApp`s with nonempty argument lists
+
+      (TApp _ a _, _) ->
         case expandTypeAlias typeEnv a of
           Just t1_ -> let induced = [(-1, (t1_, t2))] in
                       recurse accActive accUnifier (induced ++ rest)
           Nothing  -> Err err
 
-      (_, TNamed _ b) ->
+      (_, TApp _ b _) ->
         case expandTypeAlias typeEnv b of
           Just t2_ -> let induced = [(-1, (t1, t2_))] in
                       recurse accActive accUnifier (induced ++ rest)

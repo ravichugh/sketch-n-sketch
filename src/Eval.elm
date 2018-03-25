@@ -472,7 +472,7 @@ eval syntax env bt e =
     -- Pass-through, so don't add provenance.
     case t1.val of
       -- using (e : Point) as a "point widget annotation"
-      TNamed _ a ->
+      TApp _ a _ ->
         if String.trim a /= "Point" then eval syntax env bt e1
         else
           eval syntax env bt e1 |> Result.map (\(((v,ws),env_) as result) ->

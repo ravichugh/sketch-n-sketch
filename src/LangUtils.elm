@@ -382,8 +382,8 @@ typeEqual ty1 ty2 = --let _ = Debug.log "typeEqual " (ty1, ty2) in
   (TUnion sp1 types1 sp2, TUnion sp3 types2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4  &&
           listForAll2 typeEqual types1 types2
-  (TNamed sp1 ident1, TNamed sp2 ident2) ->
-    wsEqual sp1 sp2 && ident1 == ident2
+  (TApp sp1 ident1 types1, TApp sp2 ident2 types2) ->
+    wsEqual sp1 sp2 && ident1 == ident2 && listForAll2 typeEqual types1 types2
   (TVar sp1 ident1, TVar sp2 ident2) ->
     wsEqual sp1 sp2 && ident1 == ident2
   (TForall sp1 ts1 t1 sp2, TForall sp3 ts2 t2 sp4) ->

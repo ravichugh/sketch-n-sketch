@@ -137,11 +137,11 @@ unparseType tipe =
     TRecord _ _ _ _ -> "internal error: cannot unparse TRecord in LangUnparser"
     TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
-    TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
-    TNamed ws1 "Bool"       -> ws1.val ++ "Bad_BOOL"
-    TNamed ws1 "String"     -> ws1.val ++ "Bad_STRING"
-    TNamed ws1 "Null"       -> ws1.val ++ "Bad_NULL"
-    TNamed ws1 ident        -> ws1.val ++ ident
+    TApp ws1 "Num" _        -> ws1.val ++ "Bad_NUM"
+    TApp ws1 "Bool" _       -> ws1.val ++ "Bad_BOOL"
+    TApp ws1 "String" _     -> ws1.val ++ "Bad_STRING"
+    TApp ws1 "Null" _       -> ws1.val ++ "Bad_NULL"
+    TApp ws1 ident ts       -> ws1.val ++ ident ++ String.concat (List.map unparseType ts)
     TVar ws1 ident          -> ws1.val ++ ident
     TWildcard ws            -> ws.val ++ "_"
     TForall ws1 typeVars tipe1 ws2 ->
@@ -171,11 +171,11 @@ unparseTypeWithUniformWhitespace tipe =
     TRecord _ _ _ _ ->  "[internal error] Cannot unparse record type in Langunparser"
     TArrow _ typeList _ -> " " ++ "(->" ++ (String.concat (List.map recurse typeList)) ++ " " ++ ")"
     TUnion _ typeList _ -> " " ++ "(union" ++ (String.concat (List.map recurse typeList)) ++ " " ++ ")"
-    TNamed _ "Num"      -> " " ++ "Bad_NUM"
-    TNamed _ "Bool"     -> " " ++ "Bad_BOOL"
-    TNamed _ "String"   -> " " ++ "Bad_STRING"
-    TNamed _ "Null"     -> " " ++ "Bad_NULL"
-    TNamed _ ident      -> " " ++ ident
+    TApp _ "Num" _      -> " " ++ "Bad_NUM"
+    TApp _ "Bool" _     -> " " ++ "Bad_BOOL"
+    TApp _ "String" _   -> " " ++ "Bad_STRING"
+    TApp _ "Null" _     -> " " ++ "Bad_NULL"
+    TApp _ ident ts     -> " " ++ ident ++ String.concat (List.map unparseTypeWithUniformWhitespace ts)
     TVar _ ident        -> " " ++ ident
     TWildcard _          -> " " ++ "_"
     TForall _ typeVars tipe1 _ ->

@@ -232,11 +232,11 @@ unparseType tipe =
         ++ "}"
     TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
-    TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
-    TNamed ws1 "Bool"       -> ws1.val ++ "Bad_BOOL"
-    TNamed ws1 "String"     -> ws1.val ++ "Bad_STRING"
-    TNamed ws1 "Null"       -> ws1.val ++ "Bad_NULL"
-    TNamed ws1 ident        -> ws1.val ++ ident
+    TApp ws1 "Num" _        -> ws1.val ++ "Bad_NUM"
+    TApp ws1 "Bool" _       -> ws1.val ++ "Bad_BOOL"
+    TApp ws1 "String" _     -> ws1.val ++ "Bad_STRING"
+    TApp ws1 "Null" _       -> ws1.val ++ "Bad_NULL"
+    TApp ws1 ident ts       -> ws1.val ++ ident ++ String.concat (List.map unparseType ts)
     TVar ws1 ident          -> ws1.val ++ ident
     TWildcard ws            -> ws.val ++ "_"
     TForall ws1 typeVars tipe1 ws2 ->
