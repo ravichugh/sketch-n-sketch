@@ -71,7 +71,7 @@ type Pat__
   | PConst WS Num
   | PBase WS EBaseVal
   | PWildcard WS
-  | PList WS (List Pat) WS (Maybe Pat) WS
+  | PList WS (List Pat) WS (Maybe Pat) WS -- TODO store WS before commas, like EList
   | PAs WS Ident WS Pat
   | PParens WS Pat WS
   | PRecord WS {- { -}  (List (WS {- , -}, WS, Ident, WS{-=-}, Pat)) WS{- } -}

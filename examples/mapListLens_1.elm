@@ -3,12 +3,15 @@ mapListSimple f list =
 
 mapListLens =
   { apply [f,xs] =
-      Update.freeze (mapListSimple f xs)
+      mapListSimple f xs
 
   , update { input = [f,oldInputList]
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
 
+      let Update =
+        { Update | updateApp = updateApp, listDiff = Update.listDiffOp diff }
+      in
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case [diffOps, oldInputs] of
@@ -25,21 +28,21 @@ mapListLens =
 
           [["Update", newVal] :: moreDiffOps, oldHead :: oldTail] ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
-            let newHeads = updateApp {fun = f, input = oldHead, output = newVal} in
+            let newHeads = Update.updateApp {fun = f, input = oldHead, output = newVal} in
             List.cartesianProductWith List.cons newHeads.values newTails
 
           [["Insert", newVal] :: moreDiffOps, _] ->
             let headOrPreviousHead =
-              case [maybePreviousInput, oldInputs] of
-                [_                        , oldHead :: _] -> oldHead
-                [["Just", oldPreviousHead], []          ] -> oldPreviousHead
+              case [oldInputs, maybePreviousInput] of
+                [oldHead :: _, _] -> oldHead
+                [[], ["Just", previousOldHead]] -> previousOldHead
             in
             let newTails = walk moreDiffOps maybePreviousInput oldInputs acc in
-            let newHeads = updateApp {fun = f, input = headOrPreviousHead, output = newVal} in
+            let newHeads = Update.updateApp {fun = f, input = headOrPreviousHead, output = newVal} in
             List.cartesianProductWith List.cons newHeads.values newTails
       in
       let newInputLists =
-        walk (listDiff diff oldOutputList newOutputList) Nothing oldInputList [[]]
+        walk (Update.listDiff oldOutputList newOutputList) Nothing oldInputList [[]]
       in
       { values = mapListSimple (\newInputList -> [f, newInputList]) newInputLists }
   }

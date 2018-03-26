@@ -3,14 +3,15 @@ mapMaybeSimple f mx =
 
 mapMaybeLens default =
   { apply [f, mx] =
-      Update.freeze (mapMaybeSimple f mx)
+      mapMaybeSimple f mx
 
   , update {input = [f, mx], outputNew = my} =
       case my of
         []  -> { values = [[f, []]] }
         [y] ->
+          let Update = { Update | updateApp = updateApp } in
           let x = case mx of [x] -> x; [] -> default in
-          let results = updateApp {fun [f,x] = f x, input = [f, x], output = y} in
+          let results = Update.updateApp {fun [f,x] = f x, input = [f, x], output = y} in
           { values = List.map (\[newF,newX] -> [newF, [newX]]) results.values }
   }
 
