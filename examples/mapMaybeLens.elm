@@ -9,7 +9,8 @@ mapMaybeLens default =
       case my of
         []  -> { values = [[f, []]] }
         [y] ->
-          let Update = { Update | updateApp = updateApp } in
+          -- TODO this will happen automatically
+          let Update = __extendUpdateModule__ {updateApp=updateApp, diff=diff, merge=merge} in
           let x = case mx of [x] -> x; [] -> default in
           let results = Update.updateApp {fun [f,x] = f x, input = [f, x], output = y} in
           { values = List.map (\[newF,newX] -> [newF, [newX]]) results.values }

@@ -1064,6 +1064,14 @@ Update =
     listDiffOp = listDiffOp
   }
 
+__extendUpdateModule__ {updateApp,diff,merge} =
+  { Update
+     | updateApp = updateApp
+     , diff = diff
+     , merge = merge
+     , listDiff = Update.listDiffOp diff
+     }
+
 -- TODO remove this; add as imports as needed in examples
 {freeze, applyLens} = Update
 

@@ -9,9 +9,9 @@ mapListLens =
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
 
-      let Update =
-        { Update | updateApp = updateApp, listDiff = Update.listDiffOp diff }
-      in
+      -- TODO this will happen automatically
+      let Update = __extendUpdateModule__ {updateApp=updateApp, diff=diff, merge=merge} in
+
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case [diffOps, oldInputs] of
