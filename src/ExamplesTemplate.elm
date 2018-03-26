@@ -226,6 +226,7 @@ LEO_TO_ELM tableOfStatesD
 LEO_TO_ELM simpleBudget
 LEO_TO_ELM mapMaybeLens
 LEO_TO_ELM mapListLens_1
+LEO_TO_ELM mapListLens_2
 LEO_TO_ELM fromleo/markdown
 LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
@@ -254,6 +255,7 @@ docsCategory =
       )
       [ ("Lens: Maybe Map", mapMaybeLens)
       , ("Lens: List Map 1", mapListLens_1)
+      , ("Lens: List Map 2", mapListLens_2)
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
       , ("Proportional Recipe editor", fromleo_recipe)

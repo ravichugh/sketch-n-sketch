@@ -929,18 +929,38 @@ List =
       []    -> []
       x::xs -> f x :: simpleMap f xs
   in
+  let map =
+    -- TODO lensed version
+    simpleMap
+  in
+  -- TODO move all definitions here
+  let length =
+    len
+  in
+  let nth =
+    nth
+  in
+  let indexedMap f xs =
+    mapi (\[i,x] -> f i x) xs
+  in
+  let cartesianProductWith f xs ys =
+    concatMap (\x -> map (\y -> f x y) ys) xs
+  in
+  letrec unzip xys =
+    case xys of
+      []          -> [[], []]
+      [x,y]::rest -> let [xs,ys] = unzip rest in
+                     [x::xs, y::ys]
+  in
   { simpleMap = simpleMap
-    map =
-      -- TODO lensed version
-      simpleMap
+    map = map
     nil = nil
     cons = cons
-    length = -- TODO move all definitions here
-      len
+    length = length
     nth = nth
-    indexedMap f xs = mapi (\[i,x] -> f i x) xs
-    cartesianProductWith f xs ys =
-      concatMap (\x -> map (\y -> f x y) ys) xs
+    indexedMap = indexedMap
+    cartesianProductWith = cartesianProductWith
+    unzip = unzip
   }
 
 -- Maybe --
