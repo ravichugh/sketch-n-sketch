@@ -1,5 +1,5 @@
 module ExamplesGenerated exposing
-  (list, blankTemplate, initTemplate, templateCategories)
+  (list, blankTemplate, initTemplate, badPreludeTemplate, templateCategories)
 
 import Lang
 import FastParser
@@ -19,6 +19,20 @@ makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
     let e = Utils.fromOkay ("Error parsing example " ++ name) (parser s) in
+{-
+    -- TODO why isn't this working?
+    let e =
+      case parser s of
+        Ok exp -> exp
+        Err msg ->
+          -- TODO show msg in program
+          let s = "Error parsing example " ++ name in
+          -- case parser """main = [\"p\", [], [[\"TEXT\", \"blah\"]]]""" of
+          case ElmParser.parseNoFreshen """main = [\"p\", [], [[\"TEXT\", \"blah\"]]]""" of
+            Ok exp -> exp
+            Err _ -> Debug.crash "ExamplesTemplate: shouldn't happen!"
+    in
+-}
     -- let ati = Types.typecheck e in
     let ati = Types.dummyAceTypeInfo in
     -----------------------------------------------------
@@ -5706,6 +5720,20 @@ task_lambda =
 
 --------------------------------------------------------------------------------
 
+badPrelude =
+ """str =
+  \"\"\"
+  Oops! The prelude didn't parse... sorry!
+  But, you can still write programs without it. You can do it!
+  If you want to see where parsing failed, go to
+  File -> New From Template and select \"Standard Prelude\".
+  \"\"\"
+
+main =
+  [\"p\", [], [[\"TEXT\", str]]]
+
+"""
+
 blankDoc =
  """main =
   [ \"div\"
@@ -6229,13 +6257,6 @@ html <| \"\"\"<button onclick=\"this.setAttribute('value','@otherLanguage')\" va
 
 --------------------------------------------------------------------------------
 
-generalCategory =
-  ( "General"
-  , [ makeExample "BLANK" blank
-    , makeExample "*Prelude*" Prelude.src
-    ]
-  )
-
 welcomeCategory =
   ( "Welcome"
   , [ makeLeoExample "Blank Document" blankDoc
@@ -6448,16 +6469,23 @@ deuceUserStudyCategory =
     ]
   )
 
+internalCategory =
+ ( "(Internal Things...)"
+ , [ makeLeoExample "Standard Prelude" Prelude.preludeLeo
+   , makeLeoExample "Bad Prelude" badPrelude
+   ]
+ )
+
 templateCategories =
   [ welcomeCategory
   , docsCategory
-  , generalCategory
   , deuceCategory
   , defaultIconCategory
   , logoCategory
   , flagCategory
   , otherCategory
   , deuceUserStudyCategory
+  , internalCategory
   ]
 
 list =
@@ -6468,3 +6496,5 @@ list =
 initTemplate = "Get Started"
 
 blankTemplate = "Blank Document"
+
+badPreludeTemplate = "Bad Prelude"

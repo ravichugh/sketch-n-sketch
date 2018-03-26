@@ -2,6 +2,7 @@ module InterfaceModel exposing (..)
 
 import Updatable exposing (Updatable)
 import Lang exposing (..)
+import ElmParser
 import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
@@ -1111,11 +1112,15 @@ modelModify code dws =
 initColorScheme : ColorScheme
 initColorScheme = Light
 
+initTemplate =
+  if ElmParser.preludeParsed
+    then Examples.initTemplate
+    else Examples.badPreludeTemplate
+
 initModel : Model
 initModel =
   let
-    -- TODO unnecessary process to initTemplate, because of initCmd
-    (_,f)    = Utils.find_ Examples.list Examples.initTemplate
+    (_,f)    = Utils.find_ Examples.list initTemplate
     {e,v,ws} = f ()
   in
   let unwrap = Utils.fromOk "generating initModel" in

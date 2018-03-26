@@ -9,6 +9,7 @@ module ElmParser exposing
   -- so that ElmParser can be a drop-in replacement
   -- and FasterParser can be deprecated soon.
   , parseT
+  , preludeParsed
   , prelude, isPreludeLoc, isPreludeLocId, isPreludeEId, isActualEId, isProgramEId
   , substOf, substStrOf, substPlusOf
   , sanitizeVariableName
@@ -2260,15 +2261,16 @@ sanitizeVariableName unsafeName =
   |> Utils.changeTail (List.filter validIdentifierRestChar)
   |> String.fromList
 
-(prelude, initK) =
-  Prelude.preludeLeo
-    |> run program  -- not parse, since don't want to call freshen
-    |> (\i ->
-        case i of
-          Ok k -> k
-          Err msg -> Debug.crash <|  "In prelude.leo" ++ ParserUtils.showError msg
-        )
-    |> freshenClean 1 -- need this?
+(preludeParsed, (prelude, initK)) =
+  -- call run program, not parse, since don't want to call freshen
+  case run program Prelude.preludeLeo of
+    Ok k -> (True, freshenClean 1 k)
+    Err _ ->
+      case run program "0" of
+        Ok k -> (False, freshenClean 1 k)
+        Err err ->
+          Debug.crash <|
+            """ElmParser: "0" failed to parse?""" ++ ParserUtils.showError err
 
 preludeIds = allIds prelude
 

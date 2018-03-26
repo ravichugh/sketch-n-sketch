@@ -1,5 +1,5 @@
 module ExamplesGenerated exposing
-  (list, blankTemplate, initTemplate, templateCategories)
+  (list, blankTemplate, initTemplate, badPreludeTemplate, templateCategories)
 
 import Lang
 import FastParser
@@ -19,6 +19,20 @@ makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
     let e = Utils.fromOkay ("Error parsing example " ++ name) (parser s) in
+{-
+    -- TODO why isn't this working?
+    let e =
+      case parser s of
+        Ok exp -> exp
+        Err msg ->
+          -- TODO show msg in program
+          let s = "Error parsing example " ++ name in
+          -- case parser """main = [\"p\", [], [[\"TEXT\", \"blah\"]]]""" of
+          case ElmParser.parseNoFreshen """main = [\"p\", [], [[\"TEXT\", \"blah\"]]]""" of
+            Ok exp -> exp
+            Err _ -> Debug.crash "ExamplesTemplate: shouldn't happen!"
+    in
+-}
     -- let ati = Types.typecheck e in
     let ati = Types.dummyAceTypeInfo in
     -----------------------------------------------------
@@ -202,6 +216,7 @@ LITTLE_TO_ELM task_lambda
 
 --------------------------------------------------------------------------------
 
+LEO_TO_ELM badPrelude
 LEO_TO_ELM blankDoc
 LEO_TO_ELM welcome1
 LEO_TO_ELM tableOfStatesA
@@ -216,13 +231,6 @@ LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
 
 --------------------------------------------------------------------------------
-
-generalCategory =
-  ( "General"
-  , [ makeExample "BLANK" blank
-    , makeExample "*Prelude*" Prelude.src
-    ]
-  )
 
 welcomeCategory =
   ( "Welcome"
@@ -436,16 +444,23 @@ deuceUserStudyCategory =
     ]
   )
 
+internalCategory =
+ ( "(Internal Things...)"
+ , [ makeLeoExample "Standard Prelude" Prelude.preludeLeo
+   , makeLeoExample "Bad Prelude" badPrelude
+   ]
+ )
+
 templateCategories =
   [ welcomeCategory
   , docsCategory
-  , generalCategory
   , deuceCategory
   , defaultIconCategory
   , logoCategory
   , flagCategory
   , otherCategory
   , deuceUserStudyCategory
+  , internalCategory
   ]
 
 list =
@@ -456,3 +471,5 @@ list =
 initTemplate = "Get Started"
 
 blankTemplate = "Blank Document"
+
+badPreludeTemplate = "Bad Prelude"
