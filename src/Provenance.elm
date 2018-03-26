@@ -24,6 +24,110 @@ valToMaybeLetPat program val =
   |> Maybe.map (\(pat, _) -> pat)
 
 
+valsSame : Val -> Val -> Bool
+valsSame v1 v2 =
+  case (Utils.maybeLast (valToSameVals v1), Utils.maybeLast (valToSameVals v2)) of
+    (Just oldest1, Just oldest2) -> valEqFast oldest1 oldest2
+    _                            -> False
+
+valEqFast : Val -> Val -> Bool
+valEqFast v1 v2 =
+  -- This comparison order should abort earlier for unequal values.
+  v1.v_ == v2.v_ &&
+  v1.provenance == v2.provenance &&
+  v1.parents == v2.parents
+
+-- Step backwards in the provenance by one step, if, based on the expression evaluated, the prior step has to be the same value.
+-- That is, step backwards through eVars and noop operations.
+valToMaybePreviousSameVal : Val -> Maybe Val
+valToMaybePreviousSameVal val =
+  let success () =
+    case valBasedOn val of
+      [basedOnVal] -> Just basedOnVal -- Should be correct even though not on expValueExp (all expValueExp will have only one basedOn)
+      _            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: unexpected extra basedOnVals" in Nothing
+  in
+  -- Try to roll back to an equivalent value in the program
+  -- Not quite unevaluation (Perera et al.) because can only do obvious reversals; notably can't reverse applications.
+  case (valExp val).val.e__ of
+    EConst _ _ _ _                             -> Nothing
+    EBase _ _                                  -> Nothing
+    EFun _ _ _ _                               -> Nothing
+    EList _ _ _ _ _                            -> Nothing
+    EVar _ _                                   -> success ()
+    EApp _ _ _ _ _                             -> success () -- Applications point to value produced by final exp of the function
+    EOp _ _ _ _                                ->
+      if expEffectiveExp (valExp val) /= valExp val -- If a noop
+      then success ()
+      else Nothing
+    ELet _ _ _ _ _ _ _ _ _                     -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ELet shouldn't appear in provenance" in Nothing
+    EIf _ _ _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EIf shouldn't appear in provenance" in Nothing
+    ECase _ _ _ _                              -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ECase shouldn't appear in provenance" in Nothing
+    ETypeCase _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeCase shouldn't appear in provenance" in Nothing
+    EComment _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EComment shouldn't appear in provenance" in Nothing
+    EOption _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EOption shouldn't appear in provenance" in Nothing
+    ETyp _ _ _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETyp shouldn't appear in provenance" in Nothing
+    EColonType _ _ _ _ _                       -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EColonType shouldn't appear in provenance" in Nothing
+    ETypeAlias _ _ _ _ _                       -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeAlias shouldn't appear in provenance" in Nothing
+    EParens _ _ _ _                            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
+    EHole _ (HoleNamed "terminationCondition") -> Nothing
+    EHole _ (HoleVal _)                        -> success ()
+    EHole _ (HolePredicate _)                  -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
+    EHole _ (HoleNamed _)                      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty named hole shouldn't appear in provenance" in Nothing
+    EHole _ HoleEmpty                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing
+
+
+-- Unwrap provenance a few steps through expressions that passed the value unchanged.
+-- Includes given value.
+valToSameVals : Val -> List Val
+valToSameVals val =
+  case valToMaybePreviousSameVal val of
+    Just basedOnVal -> val :: valToSameVals basedOnVal
+    Nothing         -> [val]
+
+
+pointPartsToPointValsStrict : Val -> Val -> List Val
+pointPartsToPointValsStrict xValTree yValTree =
+  let parentPoints = coordinateIntermediatesToSharedPointParents (valToSameVals xValTree) (valToSameVals yValTree) in
+  parentPoints
+  |> List.concatMap valToSameVals
+  |> Utils.dedup
+
+
+-- Includes given val.
+flattenValBasedOnTree : Val -> List Val
+flattenValBasedOnTree val =
+  let (Provenance _ _ basedOnVals) = val.provenance in
+  val :: List.concatMap flattenValBasedOnTree basedOnVals
+
+
+coordinateIntermediatesToSharedPointParents : List Val -> List Val -> List Val
+coordinateIntermediatesToSharedPointParents xIntermediates yIntermediates =
+  let valsWherePossiblyXCoord =
+    xIntermediates
+    |> List.concatMap (\intermediateVal ->
+      valParents intermediateVal
+      |> List.filter (\parent ->
+        case parent.v_ of
+          VList [x, y] -> x == intermediateVal -- Would not be an exact match if we didn't mutate in the evaluator.
+          _            -> False
+      )
+    )
+  in
+  let valsWherePossiblyYCoord =
+    yIntermediates
+    |> List.concatMap (\intermediateVal ->
+      valParents intermediateVal
+      |> List.filter (\parent ->
+        case parent.v_ of
+          VList [x, y] -> y == intermediateVal -- Would not be an exact match if we didn't mutate in the evaluator.
+          _            -> False
+      )
+    )
+  in
+  let parentPoints = Utils.intersectAsSet valsWherePossiblyXCoord valsWherePossiblyYCoord in
+  parentPoints
+
+
 -- Mirror of basedOn provenance in Eval.eval
 --
 -- Though note: if code branches, the value produced by the branch
@@ -255,40 +359,6 @@ proximalValInterpretationsAllInside vals val =
     |> List.map Utils.unionAllAsSet
 
 
--- Includes given val.
-flattenValBasedOnTree : Val -> List Val
-flattenValBasedOnTree val =
-  let (Provenance _ _ basedOnVals) = val.provenance in
-  val :: List.concatMap flattenValBasedOnTree basedOnVals
-
-
-coordinateIntermediatesToSharedPointParents : List Val -> List Val -> List Val
-coordinateIntermediatesToSharedPointParents xIntermediates yIntermediates =
-  let valsWherePossiblyXCoord =
-    xIntermediates
-    |> List.concatMap (\intermediateVal ->
-      valParents intermediateVal
-      |> List.filter (\parent ->
-        case parent.v_ of
-          VList [x, y] -> x == intermediateVal -- Would not be an exact match if we didn't mutate in the evaluator.
-          _            -> False
-      )
-    )
-  in
-  let valsWherePossiblyYCoord =
-    yIntermediates
-    |> List.concatMap (\intermediateVal ->
-      valParents intermediateVal
-      |> List.filter (\parent ->
-        case parent.v_ of
-          VList [x, y] -> y == intermediateVal -- Would not be an exact match if we didn't mutate in the evaluator.
-          _            -> False
-      )
-    )
-  in
-  let parentPoints = Utils.intersectAsSet valsWherePossiblyXCoord valsWherePossiblyYCoord in
-  parentPoints
-
 -- There are two proximal and two distal intepretations.
 -- Proximal/distal to final x and proximal/distal to final y.
 --
@@ -393,61 +463,11 @@ valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals val =
           (Set.empty, [])
 
 
--- Step backwards in the provenance by one step, if, based on the expression evaluated, the prior step has to be the same value.
--- That is, step backwards through eVars and noop operations.
-valToMaybePreviousSameVal : Val -> Maybe Val
-valToMaybePreviousSameVal val =
-  let success () =
-    case valBasedOn val of
-      [basedOnVal] -> Just basedOnVal -- Should be correct even though not on expValueExp (all expValueExp will have only one basedOn)
-      _            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: unexpected extra basedOnVals" in Nothing
-  in
-  -- Try to roll back to an equivalent value in the program
-  -- Not quite unevaluation (Perera et al.) because can only do obvious reversals; notably can't reverse applications.
-  case (valExp val).val.e__ of
-    EConst _ _ _ _                             -> Nothing
-    EBase _ _                                  -> Nothing
-    EFun _ _ _ _                               -> Nothing
-    EList _ _ _ _ _                            -> Nothing
-    EVar _ _                                   -> success ()
-    EApp _ _ _ _ _                             -> success () -- Applications point to value produced by final exp of the function
-    EOp _ _ _ _                                ->
-      if expEffectiveExp (valExp val) /= valExp val -- If a noop
-      then success ()
-      else Nothing
-    ELet _ _ _ _ _ _ _ _ _                     -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ELet shouldn't appear in provenance" in Nothing
-    EIf _ _ _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EIf shouldn't appear in provenance" in Nothing
-    ECase _ _ _ _                              -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ECase shouldn't appear in provenance" in Nothing
-    ETypeCase _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeCase shouldn't appear in provenance" in Nothing
-    EComment _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EComment shouldn't appear in provenance" in Nothing
-    EOption _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EOption shouldn't appear in provenance" in Nothing
-    ETyp _ _ _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETyp shouldn't appear in provenance" in Nothing
-    EColonType _ _ _ _ _                       -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EColonType shouldn't appear in provenance" in Nothing
-    ETypeAlias _ _ _ _ _                       -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeAlias shouldn't appear in provenance" in Nothing
-    EParens _ _ _ _                            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
-    EHole _ (HoleNamed "terminationCondition") -> Nothing
-    EHole _ (HoleVal _)                        -> success ()
-    EHole _ (HolePredicate _)                  -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
-    EHole _ (HoleNamed _)                      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty named hole shouldn't appear in provenance" in Nothing
-    EHole _ HoleEmpty                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing
-
-
--- Unwrap provenance a few steps through expressions that passed the value unchanged.
--- Includes given value.
-valToSameVals : Val -> List Val
-valToSameVals val =
-  case valToMaybePreviousSameVal val of
-    Just basedOnVal -> val :: valToSameVals basedOnVal
-    Nothing         -> [val]
-
-
 -- Strict meaning only interpretations that are equal to [xVal, yVal]
 -- If only one possible parent point for the given x and y, then returns proximal to most distal for that point.
 pointPartsToProgramPointEIdsStrict : (Exp -> Bool) -> Val -> Val -> List EId
 pointPartsToProgramPointEIdsStrict expFilter xValTree yValTree =
-  let parentPoints = coordinateIntermediatesToSharedPointParents (valToSameVals xValTree) (valToSameVals yValTree) in
-  parentPoints
-  |> List.concatMap valToSameVals
+  pointPartsToPointValsStrict xValTree yValTree
   |> List.map valExp
   |> List.filter (\pointExp -> FastParser.isProgramEId pointExp.val.eid && expFilter pointExp)
   |> List.map (.val >> .eid)

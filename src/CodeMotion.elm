@@ -2885,11 +2885,15 @@ liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
 
 -- Resolves as many holes as possible by simple lifting.
 -- Then reverts to loc lifting + inlining traces.
-resolveValueHoles : Sync.Options -> Exp -> List Exp
-resolveValueHoles syncOptions programWithHolesUnfresh =
-  -- First, try to find and lift points.
+resolveValueHoles : Sync.Options -> Maybe Env -> Exp -> List Exp
+resolveValueHoles syncOptions maybeEnv programWithHolesUnfresh =
   let
-    programWithHoles = Parser.freshen programWithHolesUnfresh -- Need EIds on all inserted expressions.
+    env = maybeEnv |> Maybe.withDefault []
+
+    -- Need EIds on all inserted expressions.
+    programWithHoles = Parser.freshen programWithHolesUnfresh
+
+    -- First, try to find and lift points.
     programWithSomePointHolesResolvedByLifting =
       programWithHoles
       |> findExpMatches (ePair (eHolePred isValHole) (eHolePred isValHole))
@@ -2897,47 +2901,65 @@ resolveValueHoles syncOptions programWithHolesUnfresh =
           (\(pairExpWithHoles, holes) program ->
             case holes |> List.filterMap expToMaybeHoleVal of
               [xHoleVal, yHoleVal] ->
-                case Provenance.pointPartsToProgramPointEIdsStrict (not << isVar << expEffectiveExp) xHoleVal yHoleVal of -- Only want var origins so we aren't just rebinding variables.
-                  pointEIdInProgram::_ ->
-                    case makeEIdVisibleToEIds program pointEIdInProgram (Set.singleton pairExpWithHoles.val.eid) of
-                      Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace pairExpWithHoles.val.eid (eVar newName)
-                      Nothing                       -> program
-                  [] -> program
+                -- Look for values in env
+                let
+                  provenancePointVals = Provenance.pointPartsToPointValsStrict xHoleVal yHoleVal
+                in
+                case env |> Utils.removeShadowedKeys |> Utils.findFirst (\(ident, envVal) -> List.any (Provenance.valsSame envVal) provenancePointVals) of
+                  Just (ident, envVal) ->
+                    program
+                    |> replaceExpNodePreservingPrecedingWhitespace pairExpWithHoles.val.eid (eVar ident)
+
+                  _ ->
+                    -- Look for point exp in program
+                    case Provenance.pointPartsToProgramPointEIdsStrict (not << isVar << expEffectiveExp) xHoleVal yHoleVal of -- Only want var origins so we aren't just rebinding variables.
+                      pointEIdInProgram::_ ->
+                        case makeEIdVisibleToEIds program pointEIdInProgram (Set.singleton pairExpWithHoles.val.eid) of
+                          Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace pairExpWithHoles.val.eid (eVar newName)
+                          Nothing                       -> program
+                      [] -> program
               _ -> program
           )
           programWithHoles
-  in
-  -- Second, try to find and lift simple existing expressions.
-  let
+
+    -- Second, try to find and lift simple existing expressions.
     valHoles = programWithSomePointHolesResolvedByLifting |> flattenExpTree |> List.filter isValHole
     holeVals = valHoles |> List.filterMap expToMaybeHoleVal
     programWithSomeHolesResolvedByLifting =
       Utils.zip holeVals valHoles
       |> List.foldl
           (\(holeVal, valHoleExp) program ->
-            -- Trace back to non-var EId (unless free)
-            let valProvenanceToProgramExp val =
-              case (Parser.isProgramEId (valEId val), (expEffectiveExp (valExp val)).val.e__, valBasedOn val) of
-                (True, EVar _ ident, [basedOnVal]) ->
-                  if resolveIdentifierToExp ident (valEId val) program == Nothing then -- Ident is free in program
-                    Just (valExp val)
-                  else
-                    valProvenanceToProgramExp basedOnVal -- Should be correct even though not on expValueExp (all expValueExp will have only one basedOn)
+            -- Look for value in env
+            case env |> Utils.removeShadowedKeys |> Utils.findFirst (\(ident, envVal) -> Provenance.valsSame envVal holeVal) of
+              Just (ident, envVal) ->
+                program
+                |> replaceExpNodePreservingPrecedingWhitespace valHoleExp.val.eid (eVar ident)
 
-                (True, _, _) ->
-                  Just (valExp val)
+              _ ->
+                -- Look for exp in program
+                -- Trace back to non-var EId (unless free)
+                let valProvenanceToProgramExp val =
+                  case (Parser.isProgramEId (valEId val), (expEffectiveExp (valExp val)).val.e__, valBasedOn val) of
+                    (True, EVar _ ident, [basedOnVal]) ->
+                      if resolveIdentifierToExp ident (valEId val) program == Nothing then -- Ident is free in program
+                        Just (valExp val)
+                      else
+                        valProvenanceToProgramExp basedOnVal -- Should be correct even though not on expValueExp (all expValueExp will have only one basedOn)
 
-                (False, _, _) ->
-                  -- Step backwards in the provenance by one step, if prior step is the same value.
-                  Provenance.valToMaybePreviousSameVal val
-                  |> Maybe.andThen valProvenanceToProgramExp
-            in
-            case valProvenanceToProgramExp holeVal of
-              Just expInProgram ->
-                case makeEIdVisibleToEIds program expInProgram.val.eid (Set.singleton valHoleExp.val.eid) of
-                  Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace valHoleExp.val.eid (eVar newName)
-                  Nothing                       -> program
-              Nothing -> program
+                    (True, _, _) ->
+                      Just (valExp val)
+
+                    (False, _, _) ->
+                      -- Step backwards in the provenance by one step, if prior step is the same value.
+                      Provenance.valToMaybePreviousSameVal val
+                      |> Maybe.andThen valProvenanceToProgramExp
+                in
+                case valProvenanceToProgramExp holeVal of
+                  Just expInProgram ->
+                    case makeEIdVisibleToEIds program expInProgram.val.eid (Set.singleton valHoleExp.val.eid) of
+                      Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace valHoleExp.val.eid (eVar newName)
+                      Nothing                       -> program
+                  Nothing -> program
           )
           programWithSomePointHolesResolvedByLifting
   in

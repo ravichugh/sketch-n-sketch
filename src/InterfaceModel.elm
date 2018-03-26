@@ -95,6 +95,7 @@ type alias Model =
   , history : History TrackedValues
   , inputExp : Exp -- Always whole program
   , inputVal : Val -- Context sensitive
+  , maybeEnv : Maybe Env -- Context environment
   , slideNumber : Int
   , slideCount : Int
   , movieNumber : Int
@@ -680,16 +681,8 @@ runAndResolve model exp =
 runAndResolveAtContext : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolveAtContext model program =
   let thunk () =
-    let evaledResult =
-      case FocusedEditingContext.editingContextFromMarkers program of
-        Just (focusedEId, maybeCallEId) ->
-          let abortEId = maybeCallEId |> Maybe.withDefault focusedEId in
-          Eval.doEvalEarlyAbort (.val >> .eid >> (==) abortEId) model.syntax Eval.initEnv program
-
-        Nothing ->
-          Eval.doEval model.syntax Eval.initEnv program
-    in
-    evaledResult
+    let editingContext = FocusedEditingContext.editingContextFromMarkers program in
+    FocusedEditingContext.evalAtContext model.syntax editingContext program
     |> Result.andThen (\((val, widgets), env) -> slateAndCode model (program, val)
     |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
   in
@@ -1121,6 +1114,7 @@ initModel =
     , history       = History.begin { code = code, selectedDeuceWidgets = [] }
     , inputExp      = e
     , inputVal      = v
+    , maybeEnv      = Nothing
     , slideNumber   = 1
     , slideCount    = slideCount
     , movieNumber   = 1

@@ -32,9 +32,11 @@ import Types
 import Blobs exposing (..)
 import InterfaceModel exposing (..)
 import FastParser
+import LangUnparser
 import LangTools
 import StaticAnalysis
 import Provenance
+import FocusedEditingContext
 import SlowTypeInference
 import Utils
 import Either exposing (..)
@@ -104,19 +106,6 @@ boundingBoxOfPoints pts =
   let pts_ = List.map (\(x,y) -> (toFloat x, toFloat y)) pts in
   let (a,b,c,d) = boundingBoxOfPoints_ pts_ in
   (round a, round b, round c, round d)
-
-
---------------------------------------------------------------------------------
--- Where to insert new shapes?
-
-drawingContextExp : Model -> Exp
-drawingContextExp model =
-  case model.editingContext of
-    Just (eid, _) ->
-      let contextExp = LangTools.justFindExpByEId model.inputExp eid in
-      contextExp |> LangTools.expToMaybeFuncBody |> Maybe.withDefault contextExp
-
-    _ -> model.inputExp
 
 
 --------------------------------------------------------------------------------
@@ -559,7 +548,7 @@ addPoint : Model -> (Int, Int) -> Model
 addPoint old (x, y) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let originalProgram = old.inputExp in
-  let contextExp = drawingContextExp old in
+  let contextExp = FocusedEditingContext.drawingContextExp old.editingContext originalProgram in
   case LangTools.nonCollidingNames ["point", "x", "y"] 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) of
     [pointName, xName, yName] ->
       let
@@ -674,14 +663,14 @@ perhapsPrepareRecursiveFunction someEIdAtTopLevelOfFunction program =
 addToEndOfDrawingContext : Model -> Ident -> Exp -> Model
 addToEndOfDrawingContext old varSuggestedName exp =
   let originalProgram = old.inputExp in
-  let contextExp = drawingContextExp old in
+  let contextExp = FocusedEditingContext.drawingContextExp old.editingContext originalProgram in
   let insertBeforeEId = (LangTools.lastSameLevelExp contextExp).val.eid in
   let varName = LangTools.nonCollidingName varSuggestedName 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) in
   let newProgram =
     originalProgram
     |> LangTools.newLetAfterComments insertBeforeEId (pVar varName) exp
     |> perhapsPrepareRecursiveFunction insertBeforeEId
-    |> CodeMotion.resolveValueHoles old.syncOptions
+    |> CodeMotion.resolveValueHoles old.syncOptions old.maybeEnv
     |> List.head
     |> Maybe.withDefault originalProgram
   in
@@ -714,7 +703,7 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
       (X, ((_, SnapVal x1Val), _)) -> offsetFromExisting x1Val
       (Y, (_, (_, SnapVal y1Val))) -> offsetFromExisting y1Val
       _                            ->
-        let contextExp = drawingContextExp old in
+        let contextExp = FocusedEditingContext.drawingContextExp old.editingContext originalProgram in
         case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) of
           [pointName, xName, yName, offsetXName, offsetYName] ->
             let
@@ -1101,7 +1090,7 @@ addShapeToModel model newShapeName newShapeExp =
 addShape : Model -> String -> Exp -> Int -> Exp
 addShape model newShapeName newShapeExp numberOfNewShapesExpected =
   let originalProgram = model.inputExp in
-  let contextExp = drawingContextExp model in
+  let contextExp = FocusedEditingContext.drawingContextExp model.editingContext originalProgram in
   let oldShapeTree =
     case runAndResolveAtContext model originalProgram of
       Ok (_, _, (root, shapeTree), _) -> shapeTree
@@ -1126,7 +1115,7 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
         )
     -- 3. Resolve value holes.
     |> List.concatMap
-        (\(listEId, newProgramWithHoles) -> CodeMotion.resolveValueHoles model.syncOptions newProgramWithHoles |> List.map ((,) listEId))
+        (\(listEId, newProgramWithHoles) -> CodeMotion.resolveValueHoles model.syncOptions model.maybeEnv newProgramWithHoles |> List.map ((,) listEId))
     -- 4. Keep those programs that do not crash.
     -- 5. Keep those programs that result in one more shape in the output.
     |> List.filter

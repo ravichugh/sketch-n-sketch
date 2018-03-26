@@ -45,6 +45,8 @@ update (k1, v1) vals =
         then (k0, v1) :: vs
         else (k0, v0) :: update (k1, v1) vs
 
+removeShadowedKeys : List (a, b) -> List (a, b)
+removeShadowedKeys = dedupBy Tuple.first
 
 -- Initial accumulator is the first arg so you can write: list |> Utils.foldl initAcc (\elem acc -> ...)
 foldl : b -> (a -> b -> b) -> List a -> b
@@ -429,6 +431,10 @@ anyOverlapListSet items set =
   case items of
     []    -> False
     x::xs -> Set.member x set || anyOverlapListSet xs set
+
+anyOverlapTwoLists : List a -> List a -> Bool
+anyOverlapTwoLists l1 l2 =
+  l1 |> List.any (\item -> List.member item l2)
 
 -- TODO combine findFirst and removeFirst
 

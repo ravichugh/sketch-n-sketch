@@ -2,6 +2,74 @@ module FocusedEditingContext exposing (..)
 
 import Lang exposing (..)
 import LangTools
+import Eval
+import Syntax
+import WidgetsFromEnv
+import Utils
+
+import Dict
+
+
+-- Where to insert new shapes?
+drawingContextExp : Maybe (EId, Maybe EId) -> Exp -> Exp
+drawingContextExp editingContext program =
+  case editingContext of
+    Just (eid, _) ->
+      let contextExp = LangTools.justFindExpByEId program eid in
+      contextExp |> LangTools.expToMaybeFuncBody |> Maybe.withDefault contextExp
+
+    _ -> program
+
+
+maybeFocusedExp : Maybe (EId, Maybe EId) -> Exp -> Maybe Exp
+maybeFocusedExp editingContext program =
+  case editingContext of
+    Just (eid, _) -> findExpByEId program eid
+    _             -> Nothing
+
+
+evalAtContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Result String ((Val, Widgets), Maybe Env)
+evalAtContext syntax editingContext program =
+  -- let returnEnvAtExp ret env =
+  --   -- What env gets returned from the evaluator is wacky.
+  --   -- Here, we always want the env the expression saw.
+  --   ret |> Result.map (\((v, ws), badEnv) -> ((v, ws), env))
+  -- in
+  case editingContext of
+    Just (focusedEId, maybeCallEId) ->
+      -- InterfaceModel.evalAtFocusedContext need the environment present at the evaluated expression.
+      let
+        abortEId = maybeCallEId |> Maybe.withDefault focusedEId
+        abortPred = (.val >> .eid >> (==) abortEId)
+        contextExp = LangTools.justFindExpByEId program focusedEId
+        envEId =
+          contextExp
+          |> LangTools.expToMaybeFuncBody
+          |> Maybe.withDefault contextExp
+          |> expEffectiveExp
+          |> (.val >> .eid)
+      in
+      Eval.doEvalEarlyAbort (Just envEId) abortPred syntax Eval.initEnv program
+      |> Result.map
+          (\((val, widgets), maybeContextEnv) ->
+            case maybeContextEnv of
+              Just env ->
+                let
+                  withWidgetsFromEnv =
+                    WidgetsFromEnv.widgetsFromEnv env
+                    |> Utils.foldr
+                        widgets
+                        Eval.addSubsumingPriorWidgets
+                in
+                ((val, withWidgetsFromEnv), maybeContextEnv)
+
+              Nothing ->
+                ((val, widgets), maybeContextEnv)
+          )
+
+    Nothing ->
+      let envEId = (expEffectiveExp program).val.eid in
+      Eval.doEvalEarlyAbort (Just envEId) Eval.runUntilTheEnd syntax Eval.initEnv program
 
 
 editingContextFromMarkers : Exp -> Maybe (EId, Maybe EId)

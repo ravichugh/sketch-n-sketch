@@ -632,7 +632,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   in
   let dragInfo_ = (trigger, (mx0, my0), True) in
 
-  evalFocusedExpression old.syntax old.editingContext newExp |> Result.andThen (\((newVal, newWidgets), _) ->
+  FocusedEditingContext.evalAtContext old.syntax old.editingContext newExp |> Result.andThen (\((newVal, newWidgets), _) ->
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
@@ -672,25 +672,26 @@ finishTrigger zoneKey old =
 
 --------------------------------------------------------------------------------
 
-evalFocusedExpression : Syntax -> Maybe (EId, Maybe EId) -> Exp -> Result String ((Val, Widgets), Env)
-evalFocusedExpression syntax editingContext program =
-  case editingContext of
-    Just (focusedEId, maybeCallEId) ->
-      let abortEId = maybeCallEId |> Maybe.withDefault focusedEId in
-      Eval.doEvalEarlyAbort (\e -> e.val.eid == abortEId) syntax Eval.initEnv program
 
-    Nothing ->
-      -- want final environment of top-level definitions when evaluating e,
-      -- for the purposes of running Little code to generate icons.
-      -- but can't just use the output environment from eval directly.
-      -- for example, if the last expression was a function call (either
-      -- within the program or in Prelude), the final environment is from
-      -- that function body. so instead, calling rewriteInnerMostExpToMain
-      -- because the output environment from (let main eFinalBody main)
-      -- will be the top-level definitions (and main).
-      --
-      let rewrittenE = rewriteInnerMostExpToMain program in
-      Eval.doEval syntax Eval.initEnv rewrittenE
+-- -- Same as FocusedEditingContext.evalAtContext, except adds implicit main when we are not in an editing context.
+-- evalFocusedExpression : Syntax -> Maybe (EId, Maybe EId) -> Exp -> Result String ((Val, Widgets), Maybe Env)
+-- evalFocusedExpression syntax editingContext program =
+--   case editingContext of
+--     Just _ ->
+--       FocusedEditingContext.evalAtContext syntax editingContext program
+--
+--     Nothing ->
+--       -- -- want final environment of top-level definitions when evaluating e,
+--       -- -- for the purposes of running Little code to generate icons.
+--       -- -- but can't just use the output environment from eval directly.
+--       -- -- for example, if the last expression was a function call (either
+--       -- -- within the program or in Prelude), the final environment is from
+--       -- -- that function body. so instead, calling rewriteInnerMostExpToMain
+--       -- -- because the output environment from (let main eFinalBody main)
+--       -- -- will be the top-level definitions (and main).
+--       -- --
+--       -- let rewrittenE = rewriteInnerMostExpToMain program in
+--       -- Eval.doEval syntax Eval.initEnv rewrittenE
 
 
 tryRun : Model -> Result (Model, String, Maybe Ace.Annotation) Model
@@ -714,15 +715,16 @@ tryRun old =
 
           let editingContext = FocusedEditingContext.editingContextFromMarkers e in
 
-          evalFocusedExpression old.syntax editingContext e |>
-          Result.andThen (\((newVal,ws),finalEnv) ->
+          FocusedEditingContext.evalAtContext old.syntax editingContext e |>
+          Result.andThen (\((newVal,ws), maybeEnv) ->
             LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
               let newCode = Syntax.unparser old.syntax e in -- unnecessary, if parse/unparse were inverses
-              let new = loadLambdaAndFunctionToolIcons e finalEnv old in
+              let new = loadLambdaAndFunctionToolIcons e maybeEnv old in
               let new_ =
                 { new | inputExp             = e
                       , inputVal             = newVal
+                      , maybeEnv             = maybeEnv
                       , valueEditorString    = Update.valToString newVal
                       , code                 = newCode
                       , lastRunCode          = newCode
@@ -2062,7 +2064,7 @@ msgPreviousSlide = Msg "Previous Slide" <| \old ->
   else
     let previousSlideNumber = old.slideNumber - 1 in
     let result =
-      evalFocusedExpression old.syntax old.editingContext old.inputExp |>
+      FocusedEditingContext.evalAtContext old.syntax old.editingContext old.inputExp |>
       Result.andThen (\((previousVal, _), _) ->
         LangSvg.resolveToMovieCount old.syntax previousSlideNumber previousVal
         |> Result.map (\previousMovieCount ->
@@ -2464,34 +2466,39 @@ wrapIconWithSvg computeViewBox svgElements =
 
 
 
-loadLambdaAndFunctionToolIcons program finalEnv old =
-  let modelWithLambdaIconsLoaded =
-    let lambdaTools_ =
-      Draw.lambdaToolOptionsOf old.syntax (splitExp program) finalEnv ++ initModel.lambdaTools
-    in
-    lambdaTools_
-    |> Utils.foldl
-        { old | lambdaTools = lambdaTools_ }
-        (\tool model ->
-          let icon = lambdaToolIcon tool in
-          if Dict.member icon.filename.name model.icons
-            then model
-            else loadIconFromFile finalEnv icon model
-        )
-  in
-  let modelWithFunctionIconsLoaded =
-    Draw.getDrawableFunctions modelWithLambdaIconsLoaded
-    |> Utils.foldl
-        modelWithLambdaIconsLoaded
-        (\(funcName, _, _) model ->
-          if Dict.member funcName model.icons then
-            model
-          else
-            let iconHtml = wrapIconWithSvg True (Draw.drawNewFunction funcName model ((10, NoSnap), (10, NoSnap)) ((40, NoSnap), (40, NoSnap))) in
-            { model | icons = Dict.insert funcName iconHtml model.icons }
-        )
-  in
-  modelWithFunctionIconsLoaded
+loadLambdaAndFunctionToolIcons program maybeFinalEnv old =
+  case maybeFinalEnv of
+    Just finalEnv ->
+      let modelWithLambdaIconsLoaded =
+        let lambdaTools_ =
+          Draw.lambdaToolOptionsOf old.syntax (splitExp program) finalEnv ++ initModel.lambdaTools
+        in
+        lambdaTools_
+        |> Utils.foldl
+            { old | lambdaTools = lambdaTools_ }
+            (\tool model ->
+              let icon = lambdaToolIcon tool in
+              if Dict.member icon.filename.name model.icons
+                then model
+                else loadIconFromFile finalEnv icon model
+            )
+      in
+      let modelWithFunctionIconsLoaded =
+        Draw.getDrawableFunctions modelWithLambdaIconsLoaded
+        |> Utils.foldl
+            modelWithLambdaIconsLoaded
+            (\(funcName, _, _) model ->
+              if Dict.member funcName model.icons then
+                model
+              else
+                let iconHtml = wrapIconWithSvg True (Draw.drawNewFunction funcName model ((10, NoSnap), (10, NoSnap)) ((40, NoSnap), (40, NoSnap))) in
+                { model | icons = Dict.insert funcName iconHtml model.icons }
+            )
+      in
+      modelWithFunctionIconsLoaded
+
+    Nothing ->
+      { old | lambdaTools = [] }
 
 
 updateFileIndex : FileIndex -> Model -> Model
