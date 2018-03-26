@@ -1,6 +1,6 @@
 module Draw exposing
   ( pointZoneStyles
-  , colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected
+  , colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected, colorInput, colorOutput
   , drawDotSize
   -- , drawNewLine
   -- , drawNewRect
@@ -87,6 +87,8 @@ colorPointNotSelected   = "#F5B038" -- "orange"
 colorLineSelected       = "#B4FADB" -- "blue"
 colorLineNotSelected    = "#FAB4D3" -- "red"
 
+colorInput              = "#FFA340"
+colorOutput             = "#7ABAFF"
 
 --------------------------------------------------------------------------------
 -- Bounding Boxes

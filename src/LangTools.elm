@@ -1412,6 +1412,13 @@ expToFuncPats exp =
     _               -> Debug.crash <| "LangTools.expToFuncPats exp is not an EFun: " ++ unparseWithIds exp
 
 
+expToMaybeFuncPats : Exp -> Maybe (List Pat)
+expToMaybeFuncPats exp =
+  case exp.val.e__ of
+    EFun _ pats _ _ -> Just pats
+    _               -> Nothing
+
+
 expToMaybeFuncBody : Exp -> Maybe Exp
 expToMaybeFuncBody exp =
   case exp.val.e__ of

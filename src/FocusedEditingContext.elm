@@ -28,6 +28,37 @@ maybeFocusedExp editingContext program =
     _             -> Nothing
 
 
+contextInputVals : Maybe (EId, Maybe EId) -> Maybe Env -> Exp -> List Val
+contextInputVals editingContext maybeEnv program =
+  case (maybeEnv, maybeFocusedExp editingContext program) of
+    (Just env, Just focusedExp) ->
+      case LangTools.expToMaybeFuncPats focusedExp of
+        Just funcPats ->
+          let
+            -- Doing this right is a little annoying.
+            -- We need the non-shadowed variables introduced at the function.
+            -- So figure out which ones are not shadowed...
+            contextExp     = drawingContextExp editingContext program
+            patEnv         = LangTools.expPatEnvAt_ program (expEffectiveExp contextExp).val.eid |> Maybe.withDefault Dict.empty
+            inputIdentPats = funcPats |> List.concatMap LangTools.indentPatsInPat
+          in
+          inputIdentPats
+          |> List.filterMap
+              (\(ident, funcPat) ->
+                case Dict.get ident patEnv of
+                  Just (identPat, _) ->
+                    if identPat.val.pid == funcPat.val.pid
+                    then Utils.maybeFind ident env
+                    else Nothing
+                  _ -> Nothing
+              )
+        _ ->
+          []
+    _ ->
+      []
+
+
+
 evalAtContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Result String ((Val, Widgets), Maybe Env)
 evalAtContext syntax editingContext program =
   -- let returnEnvAtExp ret env =

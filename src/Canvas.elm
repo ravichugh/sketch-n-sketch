@@ -11,6 +11,7 @@ import Lang exposing (..)
 import ValUnparser exposing (..)
 import LangTools
 import Provenance
+import FocusedEditingContext
 import LangSvg exposing (NodeId, ShapeKind, attr)
 import ShapeWidgets exposing
   ( RealZone, RealZone(..)
@@ -18,7 +19,7 @@ import ShapeWidgets exposing
   )
 import SleekLayout exposing (canvasPosition)
 import Sync
-import Draw exposing (pointZoneStyles, colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected)
+import Draw exposing (pointZoneStyles, colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected, colorInput, colorOutput)
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
 
@@ -903,8 +904,8 @@ zonePoint model alwaysShow id shapeKind realZone transform (x, y) =
       List.singleton <| svgCircle <|
         [ attrNum "cx" x, attrNum "cy" y
         , attr "r" pointZoneStyles.radius
-        , attr "fill" fill
-        , attr "stroke" pointZoneStyles.stroke
+        , attr "fill" "transparent" -- fill -- was covering up the cross dots that had the correct color for input/output (not sure why we have/need two differentmethods anyway)
+        , attr "stroke" "transparent" -- pointZoneStyles.stroke -- was covering up the cross dots that had the correct color for input/output (not sure why we have/need two differentmethods anyway)
         , attr "stroke-width" pointZoneStyles.strokeWidth
         , cursorOfZone realZone "pointer"
         ] ++
@@ -1356,11 +1357,22 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
     (backDisc, frontDisc)
   in
   let xyDot =
+    let isContextOutputPoint model xVal yVal =
+      case valToMaybeXYVals model.inputVal of
+        Just (outputValX, outputValY) -> Provenance.valsSame xVal outputValX && Provenance.valsSame yVal outputValY
+        _                             -> False
+    in
+    let isContextInputPoint model xVal yVal =
+      (List.any (Provenance.valsSame xVal) model.contextInputVals && List.any (Provenance.valsSame yVal) model.contextInputVals) ||
+      (model.contextInputVals |> List.any (valToMaybeXYVals >> Maybe.map (\(inXVal, inYVal) -> Provenance.valsSame xVal inXVal && Provenance.valsSame yVal inYVal) >> Maybe.withDefault False))
+    in
     let dotFill =
-      case (isShapeBeingDrawnSnappingToPoint model xVal yVal, Set.member id model.selectedShapes) of
-        (True, _) -> colorPointSelected
-        (_, True) -> pointZoneStylesFillSelected model id
-        _         -> pointZoneStyles.fill.shown
+      case (isShapeBeingDrawnSnappingToPoint model xVal yVal, Set.member id model.selectedShapes, isContextInputPoint model xVal yVal, isContextOutputPoint model xVal yVal) of
+        (True, _, _, _) -> colorPointSelected
+        (_, True, _, _) -> pointZoneStylesFillSelected model id
+        (_, _, True, _) -> colorInput
+        (_, _, _, True) -> colorOutput
+        _               -> pointZoneStyles.fill.shown
     in
     let isVisible =
       not (objectIsCurrentlyBeingManipulated model id)

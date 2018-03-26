@@ -96,6 +96,7 @@ type alias Model =
   , inputExp : Exp -- Always whole program
   , inputVal : Val -- Context sensitive
   , maybeEnv : Maybe Env -- Context environment
+  , contextInputVals : List Val -- Cache which vals are fed in as arguments to a function
   , slideNumber : Int
   , slideCount : Int
   , movieNumber : Int
@@ -1115,6 +1116,7 @@ initModel =
     , inputExp      = e
     , inputVal      = v
     , maybeEnv      = Nothing
+    , contextInputVals = []
     , slideNumber   = 1
     , slideCount    = slideCount
     , movieNumber   = 1

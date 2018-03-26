@@ -1364,6 +1364,13 @@ valToMaybePoint v = case v.v_ of
     _                                  -> Nothing
   _  -> Nothing
 
+valToMaybeXYVals : Val -> Maybe (Val, Val)
+valToMaybeXYVals v = case v.v_ of
+  VList [v1, v2] -> case (v1.v_, v2.v_) of
+    (VConst _ _, VConst _ _) -> Just (v1, v2)
+    _                        -> Nothing
+  _  -> Nothing
+
 valIsNum : Val -> Bool
 valIsNum v = case v.v_ of
   VConst _  _ -> True

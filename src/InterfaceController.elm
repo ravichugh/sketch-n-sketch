@@ -725,6 +725,7 @@ tryRun old =
                 { new | inputExp             = e
                       , inputVal             = newVal
                       , maybeEnv             = maybeEnv
+                      , contextInputVals     = FocusedEditingContext.contextInputVals editingContext maybeEnv e
                       , valueEditorString    = Update.valToString newVal
                       , code                 = newCode
                       , lastRunCode          = newCode
