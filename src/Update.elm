@@ -48,11 +48,11 @@ doUpdate oldExp oldVal newValResult =
     --|> Result.map (\x -> let _ = Debug.log "#1" () in x)
     |> Results.fromResult
     |> Results.andThen (\out ->
-      case UpdateUtils.defaultVDiffs oldVal out of
+      case ImpureGoodies.logTimedRun "UpdateUtils.defaultVDiffs (doUpdate) " <| \_ -> UpdateUtils.defaultVDiffs oldVal out of
         Err msg -> Errs msg
         Ok Nothing -> ok1 (UpdatedEnv.original Eval.initEnv, UpdatedExp oldExp Nothing)
         Ok (Just diffs) ->
-          ImpureGoodies.logTimedRun "Update.update" <| \_ ->
+          ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
           update (updateContext "initial update" Eval.initEnv oldExp oldVal out diffs) LazyList.Nil)
 
 updateEnv: Env -> Ident -> Val -> VDiffs -> UpdatedEnv
@@ -74,13 +74,13 @@ update updateStack nextToUpdate=
   -- At the end of nextToUpdate, there are all the forks that can be explored later.
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out diffs mb ->
-       {--
+       {--}
       let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
        --}
       update (getUpdateStackOp env e oldVal out diffs) (LazyList.maybeCons mb nextToUpdate)
 
     UpdateResultS fUpdatedEnv fOut mb -> -- Let's consume the stack !
-       {--
+       {--}
       let _ = Debug.log (String.concat [
         "update final result: ", unparse fOut.val,
         {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes,
@@ -93,7 +93,7 @@ update updateStack nextToUpdate=
         LazyList.Cons head lazyTail ->
           case head of
             Fork msg newUpdateStack nextToUpdate2 ->
-              let _ = Debug.log "update finished, more solutions to explore." () in
+              let _ = Debug.log ("update finished, more solutions to explore: " ++ msg) () in
               okLazy (fUpdatedEnv, fOut) <| (\lt m nus ntu2 -> \() ->
                 let _ = Debug.log ("Exploring other updates: '" ++ m ++ "'") () in
                 updateRec nus <| LazyList.appendLazy ntu2 lt) lazyTail msg newUpdateStack nextToUpdate2
@@ -498,33 +498,41 @@ getUpdateStackOp env e oldVal newVal diffs =
              _ -> UpdateCriticalError ("Expected Record, got " ++ valToString initv)
 
      EApp sp0 e1 e2s appType sp1 ->
-       let continueIfNotFrozen =
-       case e1.val.e__ of
-         EVar _ "freeze" -> --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
-           case e2s of
-             [argument] ->
-               case doEval Syntax.Elm env argument of
-                 Err s -> \continuation -> UpdateCriticalError s
-                 Ok ((vArg, _), _) ->
-                   if valEqual vArg oldVal then -- OK, that's the correct freeze semantics
-                     if valEqual vArg newVal then
-                       \continuation -> updateResultSameEnvExp env e
-                     else
-                       \continuation -> UpdateFails ("You are trying to update " ++ unparse e ++ " (line " ++ toString e.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'")
-                   else \continuation -> continuation()
-             _ -> \continuation -> continuation()
-         _ -> \continuation -> continuation()
+       let isFreezing e1 =
+         --Debug.log ("Testing if " ++ unparse e1 ++ " is freezing:") <|
+         case e1.val.e__ of
+         EVar _ "freeze" -> True --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
+         ESelect _ e _ _ "freeze" -> case e.val.e__ of
+           EVar _ "Update" -> True
+           _ -> False
+         _ -> False
+       in
+       let continueIfNotFrozen = if isFreezing e1 then
+         --case e2s of
+           --[argument] -> -- Since we call this function only if there is a difference, freeze will fail !
+             --if valEqual oldVal newVal then -- OK, that's the correct freeze semantics
+             --  \continuation -> updateResultSameEnvExp env e
+             --else
+         \continuation -> UpdateFails "Hit a freeze" --("You are trying to update " ++ unparse e ++ " (line " ++ toString e.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'")
+           --_ -> \continuation -> continuation()
+         else \continuation -> continuation()
        in
        continueIfNotFrozen <| \_ ->
        let maybeUpdateStack = case e1.val.e__ of
          ESelect es0 eRecord es1 es2 "apply" -> -- Special case here. apply takes a record and a value and applies the field apply to the value.
              -- The user may provide the reverse function if "unapply" is given, or "update"
              case doEval Syntax.Elm env eRecord of
-               Err s -> Just <| UpdateCriticalError s
+               Err s -> Just <| (UpdateCriticalError s, False)
                Ok ((v1, _), _) ->
                  case v1.v_ of
                    VRecord d ->
                      if Dict.member "apply" d && (Dict.member "unapply" d || Dict.member "update" d) then
+                       let isApplyFrozen = case (Dict.get "apply" d |> Utils.fromJust_ "Update.maybeUpdateStack").v_ of
+                         VClosure _ _ body _ -> case body.val.e__ of
+                           EApp _ bodyFun _ _ _ -> isFreezing bodyFun
+                           _ -> False
+                         _ -> False
+                       in
                        case e2s of
                          [] -> Nothing
                          [argument] ->
@@ -554,7 +562,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                     case extendUpdateModule fieldUpdateClosure of
                                       Err msg -> Just <| UpdateCriticalError msg
                                       Ok xVal ->
-                                    case ImpureGoodies.logTimedRun ".update eval" <| \_ -> (doEval Syntax.Elm [("x", xVal), ("y", customArgument)] xyApplication) of
+                                    case ImpureGoodies.logTimedRun (".update eval line " ++ toString e1.start.line) <| \_ -> (doEval Syntax.Elm [("x", xVal), ("y", customArgument)] xyApplication) of
                                       Err s -> Just <| UpdateCriticalError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                         case Vu.record Ok vResult of
@@ -603,7 +611,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                              let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
                                                              updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
                            in
-                           updateMaybeFirst2 "after testing update, testing unapply" mbUpdateField <| \_ ->
+                           updateMaybeFirst2 "after testing update, testing unapply" (not isApplyFrozen) mbUpdateField <| \_ ->
                              case Dict.get "unapply" d of
                                Just fieldUnapplyClosure ->
                                  case doEval Syntax.Elm env argument of
@@ -636,7 +644,7 @@ getUpdateStackOp env e oldVal newVal diffs =
          _ ->
             Nothing
        in
-       updateMaybeFirst "after testing update/unapply, testing apply" maybeUpdateStack <| \_ ->
+       updateMaybeFirst ("after testing update/unapply, testing apply (line " ++ toString e.start.line ++ ")") maybeUpdateStack <| \_ ->
          case doEval Syntax.Elm env e1 of
            Err s       ->
              if appType /= InfixApp then UpdateCriticalError s else

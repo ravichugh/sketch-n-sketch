@@ -118,17 +118,22 @@ updateAlternatives msg env e oldVal newValsDiffs continuation =
     LazyList.Nil -> UpdateFails <| "No solution for " ++ msg
     LazyList.Cons (head, headModifs) lazyTail -> updateContinueRepeat msg env e oldVal head headModifs lazyTail continuation
 
-updateMaybeFirst: String -> (Maybe UpdateStack) -> (Bool -> UpdateStack) -> UpdateStack
+updateMaybeFirst: String -> (Maybe (UpdateStack, Bool)) -> (() -> UpdateStack) -> UpdateStack
 updateMaybeFirst msg mb ll =
    case mb of
-     Nothing -> ll False
-     Just u -> UpdateResultAlternative msg u (Lazy.lazy <| (ll |> \ll _ -> Just <| ll True))
+     Nothing -> ll ()
+     Just (u, b) ->
+       if b then
+         UpdateResultAlternative msg u (Lazy.lazy <| (\_ -> Just <| ll ()))
+       else
+         u
 
-updateMaybeFirst2: String -> (Maybe UpdateStack) -> (Bool -> Maybe UpdateStack) -> Maybe UpdateStack
-updateMaybeFirst2 msg mb ll =
+updateMaybeFirst2: String -> Bool -> Maybe UpdateStack -> (() -> Maybe UpdateStack) -> Maybe (UpdateStack, Bool)
+updateMaybeFirst2 msg canContinueAfter mb ll =
    case mb of
-     Nothing -> ll False
-     Just u -> Just <| UpdateResultAlternative msg u (Lazy.lazy <| (ll |> \ll _ -> ll True))
+     Nothing -> ll () |> Maybe.map (\u -> (u, canContinueAfter))
+     Just u ->
+       Just <| (UpdateResultAlternative msg u (Lazy.lazy <| (\_ -> ll ())), canContinueAfter)
 
 
 -- Constructor for updating multiple expressions evaluated in the same environment.
@@ -181,7 +186,7 @@ updateOpMultiple  hint     env    es          eBuilder             prevOutputs  
        Ok Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple es Nothing)
        Ok (Just diff) -> updateContinueMultiple (hint ++ " #" ++ toString nth) env (Utils.zip3 es prevOutputs outputsHead) diff
     in
-       UpdateResultAlternative "UpdateResultAlternative maybeOp"
+       UpdateResultAlternative (hint ++ " maybeOp")
          (continue <| \newUpdatedEnv newUpdatedOpArgs -> updateResult newUpdatedEnv (UpdatedExp (eBuilder newUpdatedOpArgs.val) (Maybe.map EChildDiffs newUpdatedOpArgs.changes)))
          (lazyTail |> Lazy.map (\ll ->
            --let _ = Debug.log ("Starting to evaluate another alternative if it exists ") () in

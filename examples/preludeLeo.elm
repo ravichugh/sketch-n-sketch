@@ -372,12 +372,12 @@ append aas bs = {
 
         onFinish [nas, nbs, diffas, diffbs, _, _] = {
            values = [[[nas, nbs], (if len diffas == 0 then [] else
-             [[0, ["ListElemUpdate", ["ListDiffs", diffas]]]]) ++
+             [[0, ["ListElemUpdate", ["VListDiffs", diffas]]]]) ++
                    (if len diffbs == 0 then [] else
-             [[1, ["ListElemUpdate", ["ListDiffs", diffbs]]]])]]
+             [[1, ["ListElemUpdate", ["VListDiffs", diffbs]]]])]]
           }
         onGather [[nas, nbs], diffs] = {value = [nas, nbs],
-          diff = if len diffs == 0 then ["Nothing"] else ["Just", ["ListDiffs", diffs]]}
+          diff = if len diffs == 0 then ["Nothing"] else ["Just", ["VListDiffs", diffs]]}
       } outputOld outputNew diffs
     }.apply [aas, bs]
 
@@ -1037,6 +1037,7 @@ List =
   let nth =
     nth
   in
+  let mapi f xs = map f (zipWithIndex xs) in
   let indexedMap f xs =
     mapi (\[i,x] -> f i x) xs
   in
@@ -1165,7 +1166,7 @@ TableWithButtons = {
 
   wrapData =
     Update.applyLens
-      { apply rows   = freeze <| (rows |> map (\row -> [freeze False, row]))
+      { apply rows   = freeze <| (rows |> List.map (\row -> [freeze False, row]))
       , unapply rows = rows |> concatMap (\[flag,row] ->
                                  if flag == True
                                    then [ row, ["","",""] ]
@@ -1175,7 +1176,7 @@ TableWithButtons = {
       }
 
   mapData f =
-    map (Tuple.mapSecond f)
+    List.map (Tuple.mapSecond f)
 
   tr flag styles attrs children =
     let [hasBeenClicked, nope, yep] =
