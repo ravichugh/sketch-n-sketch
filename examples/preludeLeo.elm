@@ -150,12 +150,6 @@ LensLess =
       }
   }
 
-
-                  ["ListElemUpdate", _] ->
-                  ["ListElemInsert", count] ->
-                        aux i (Insert newHead::revAcc) oldValues newTail (if count == 1 then diffTail else [i, ["ListElemInsert", count - 1]]::diffTail)
-                  ["ListElemDelete", count] ->
-                        aux (i + 1) (Delete::revAcc) oldTail newValues (if count == 1 then diffTail else [i + 1, ["ListElemDelete", count - 1]]::diffTail)
 -- type Results err ok = { values: List ok } | { error: err }
 
 -- every onFunction should either return a {values = ...} or an {error =... }
@@ -168,14 +162,14 @@ LensLess =
 -- onGather : c -> ({value: d, diff: Maybe VDiffs } | { value: d })
 -- oldOutput: List b
 -- newOutput: List b
--- diffs    : VListDiffs
+-- diffs    : ListDiffs
 -- Returns  : {error: String} | {values: List d} | {values: List d, diffs: List (Maybe VDiffs)}
 foldDiff =
   let {append, split, Results} = LensLess in
   \{start, onSkip, onUpdate, onRemove, onInsert, onFinish, onGather} oldOutput newOutput diffs ->
   let listDiffs = case diffs of
-    ["VListDiffs", l] -> l
-    _ -> error <| "Expected VListDiffs, got " + toString diffs
+    ["ListDiffs", l] -> l
+    _ -> error <| "Expected ListDiffs, got " + toString diffs
   in
   -- Returns either {error} or {values=list of values}
   --     fold: Int -> List b -> List b -> List (Int, ListElemDiff) -> a -> Results String c
@@ -203,17 +197,14 @@ foldDiff =
           |> next i remainingOld remainingNew listDiffs
         else case diff of
           ["ListElemUpdate", d]->
-          ["ListElemUpdate", d]->
             let previous::remainingOld = oldOutput in
             let current::remainingNew = newOutput in
             onUpdate acc {oldOutput = previous, index = i, output = current, newOutput = current, diffs = d}
             |> next (i + 1) remainingOld remainingNew dtail
           ["ListElemInsert", count] ->
-          ["ListElemInsert", count] ->
             if count >= 1 then
               let current::remainingNew = newOutput in
               onInsert acc {newOutput = current, index = i}
-              |> next i oldOutput remainingNew (if count == 1 then dtail else [i, ["ListElemInsert", count - 1]]::dtail)
               |> next i oldOutput remainingNew (if count == 1 then dtail else [i, ["ListElemInsert", count - 1]]::dtail)
             else error <| "insertion count should be >= 1, got " + toString count
           ["ListElemDelete", count] ->
@@ -283,12 +274,12 @@ append aas bs = {
 
         onFinish [nas, nbs, diffas, diffbs, _, _] = {
            values = [[[nas, nbs], (if len diffas == 0 then [] else
-             [[0, ["ListElemUpdate", ["VListDiffs", diffas]]]]) ++
+             [[0, ["ListElemUpdate", ["ListDiffs", diffas]]]]) ++
                    (if len diffbs == 0 then [] else
-             [[1, ["ListElemUpdate", ["VListDiffs", diffbs]]]])]]
+             [[1, ["ListElemUpdate", ["ListDiffs", diffbs]]]])]]
           }
         onGather [[nas, nbs], diffs] = {value = [nas, nbs],
-          diff = if len diffs == 0 then ["Nothing"] else ["Just", ["VListDiffs", diffs]]}
+          diff = if len diffs == 0 then ["Nothing"] else ["Just", ["ListDiffs", diffs]]}
       } outputOld outputNew diffs
     }.apply [aas, bs]
 
@@ -801,7 +792,7 @@ html string = {
 
         onGather (acc, diffs) =
           { value = acc,
-             diff = if len diffs == 0 then ["Nothing"] else ["Just", ["VListDiffs", diffs]]}
+             diff = if len diffs == 0 then ["Nothing"] else ["Just", ["ListDiffs", diffs]]}
       } oldOutput newOutput diffs
     in
     -- Returns {values = List (List HTMLNode)., diffs = List (Maybe VListDiff)} or { error = ... }
@@ -825,7 +816,7 @@ html string = {
               [tag1, attrs1, children1], [tag2, attrs2, children2] ) ->
                if tag2 == tagName then
                  case diffs of
-                   ["VListDiffs", listDiffs] ->
+                   ["ListDiffs", listDiffs] ->
                      let (newAttrsMerged, otherDiffs) = case listDiffs of
                        [1, ["ListElemUpdate", diffAttrs]]::tailDiff ->
                          (mergeAttrs attrs attrs1 attrs2 diffAttrs, tailDiff)
@@ -867,7 +858,7 @@ html string = {
 
         onGather (acc, diffs) =
           { value = acc,
-             diff = if len diffs == 0 then ["Nothing"] else ["Just", ["VListDiffs", diffs]]}
+             diff = if len diffs == 0 then ["Nothing"] else ["Just", ["ListDiffs", diffs]]}
       } oldOutput newOutput diffs
     in mergeNodes input oldOutput newOutput diffs
 }.apply (parseHTML string)
@@ -1046,7 +1037,7 @@ Update =
      let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
      let {append} = LensLess in
      case diffOp oldValues newValues of
-        ["Ok", ["Just", ["VListDiffs", listDiffs]]] ->
+        ["Ok", ["Just", ["ListDiffs", listDiffs]]] ->
           letrec aux i revAcc oldValues newValues listDiffs =
             case listDiffs of
               [] ->
@@ -1077,7 +1068,7 @@ Update =
                 else error <| "[Internal error] Differences not in order, got index " + toString j + " but already at index " + toString i
           in aux 0 [] oldValues newValues listDiffs
   
-        result -> error ("Expected Ok (Just (VListDiffs listDiffs)), got " + toString result)
+        result -> error ("Expected Ok (Just (ListDiffs listDiffs)), got " + toString result)
   in
   -- exports from Update module
   { freeze x =
