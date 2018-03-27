@@ -67,6 +67,22 @@ function listenForUpdatesToCanvasCount() {
 
 var outputValueObserver;
 
+var msBeforeAutoSync = 1000;
+
+var timerAutoSync = undefined;
+
+var enableAutoUpdate = true;
+
+function triggerAutoUpdate() {
+  if(!enableAutoUpdate) return;
+  if(typeof timerAutoSync !== "undefined") clearTimeout(timerAutoSync);
+  timerAutoSync = setTimeout(function() {
+    timerAutoSync = undefined;
+    if(!enableAutoUpdate) return;
+    app.ports.maybeAutoSync.send(msBeforeAutoSync);
+  }, msBeforeAutoSync)
+}
+
 function listenForUpdatesToOutputValues() {
   function whichChild(elem){
     var  i= 0;
@@ -127,6 +143,7 @@ function listenForUpdatesToOutputValues() {
           path.push(1) // 1 for the attributes. We can be more precise if we know there are no insertion.
           var attrs = encodeAttributes(mutation.target.attributes, mutation.target)
           app.ports.receiveValueUpdate.send([path, attrs])
+          triggerAutoUpdate()
         }
       } else {
         var path = getPathUntilOutput(mutation.target) // We change the whole node.
@@ -134,6 +151,7 @@ function listenForUpdatesToOutputValues() {
           var encodedNode = encodeNode(mutation.target);
           //console.log("encoded node", encodedNode)
           app.ports.receiveValueUpdate.send([path, encodedNode])
+          triggerAutoUpdate()
         }
       // https://www.w3schools.com/jsref/prop_node_nodename.asp
       }
@@ -216,3 +234,8 @@ app.ports.outputCanvasCmd.subscribe(function(cmd) {
   }
 
 });
+
+app.ports.enableAutoSync.subscribe(function(b) {
+  enableAutoUpdate = b;
+})
+

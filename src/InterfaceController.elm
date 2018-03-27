@@ -71,6 +71,7 @@ port module InterfaceController exposing
   , msgSetSyntax
   , msgAskNextTemplate, msgAskPreviousTemplate
   , msgValuePathUpdate
+  , msgAutoSync
   )
 
 import Updatable exposing (Updatable)
@@ -1037,7 +1038,8 @@ issueCommand msg oldModel newModel =
 
         _ ->
           Cmd.batch
-            [ if kind == "Update Font Size" then
+            [ OutputCanvas.enableAutoSync <| Utils.maybeIsEmpty newModel.preview,
+              if kind == "Update Font Size" then
                 AceCodeBox.updateFontSize newModel
               else if
                 newModel.code /= oldModel.code ||
@@ -1730,7 +1732,11 @@ deleteInOutput old =
 
 --------------------------------------------------------------------------------
 
-msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
+msgSelectSynthesisResult: Exp -> Msg
+msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| doSelectSynthesisResult newExp
+
+doSelectSynthesisResult: Exp -> Model -> Model
+doSelectSynthesisResult newExp old =
   -- TODO unparse gets called twice, here and in runWith ...
   let newCode = Syntax.unparser old.syntax newExp in
   let new =
@@ -2195,6 +2201,23 @@ msgValuePathUpdate (path, newEncodedValue) =
              | updatedValue = Just newValueResult
         }
 
+-- Computes the diff, and if it is not ambiguous, propagates the diff from the output.
+msgAutoSync: Int -> Msg
+msgAutoSync n =
+  Msg "autoSync" doAutoSync
+
+doAutoSync: Model -> Model
+doAutoSync m =
+    let newModel = doCallUpdate m in
+    case Dict.get "Update for New Output" newModel.synthesisResultsDict of
+      Nothing -> newModel
+      Just results -> -- If there are only two options (second is always revert to original program), and the first one is not a Hack, then we can apply it !
+        case results of
+          [SynthesisResult {description, exp, isSafe} , revert] ->
+            if String.startsWith "HACK: " description then newModel else
+              doSelectSynthesisResult exp newModel
+          _ -> newModel
+
 --------------------------------------------------------------------------------
 
 showCodePreview old code =
@@ -2225,7 +2248,11 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
         }
 -}
 
-msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <| \old ->
+msgHoverSynthesisResult: String -> List Int -> Msg
+msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <| doHoverSynthesisResult resultsKey pathByIndices
+
+doHoverSynthesisResult: String -> List Int -> Model -> Model
+doHoverSynthesisResult resultsKey pathByIndices old =
   let maybeFindResult path results =
     case path of
       []    -> Nothing
