@@ -150,6 +150,104 @@ LensLess =
       }
   }
 
+
+-- Update --
+
+-- The diff primitive is:
+--
+--   type alias DiffOp : Value -> Value -> Result String (Maybe VDiffs)
+--   diff : DiffOp
+--   diff ~= SnS.Update.defaultVDiffs
+--
+
+Update =
+  let freeze x =
+    x
+  in
+  let applyLens lens x =
+    lens.apply x
+  in
+  let softFreeze x =
+    -- Update.freeze x prevents changes to x (resulting in failure),
+    -- Update.softFreeze x ignores changes to x
+    let constantInputLens =
+      { apply x = freeze x, update {input} = { values = [input] } }
+    in
+    applyLens constantInputLens x
+  in
+  --   type SimpleListDiffOp = Keep | Delete | Insert Value | Update Value
+  let SimpleListDiffOp =
+    { Keep = ["Keep"]
+    , Delete = ["Delete"]
+    , Insert v = ["Insert", v]
+    , Update v = ["Update", v]
+    }
+  in
+  let listDiffOp diffOp oldValues newValues =
+   -- listDiffOp : DiffOp -> List Value -> List Value -> List SimpleListDiffOp
+
+     let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
+     let {append} = LensLess in
+     case diffOp oldValues newValues of
+        ["Ok", ["Just", ["VListDiffs", listDiffs]]] ->
+          letrec aux i revAcc oldValues newValues listDiffs =
+            case listDiffs of
+              [] ->
+                reverse (map1 (\_ -> Keep) oldValues ++ revAcc)
+              [j, listDiff]::diffTail ->
+                if j > i then
+                  case [oldValues, newValues] of
+                    [_::oldTail, _::newTail] ->
+                      aux (i + 1) (Keep::revAcc) oldTail newTail listDiffs
+                    _ -> error <| "[Internal error] Expected two non-empty tails, got  " + toString [oldValues, newValues]
+                else if j == i then
+                  case listDiff of
+                    ["ListElemUpdate", _] ->
+                      case [oldValues, newValues] of
+                        [oldHead::oldTail, newHead::newTail] ->
+                          aux (i + 1) (Update newHead :: revAcc) oldTail newTail diffTail
+                        _ -> error <| "[Internal error] update but missing element"
+                    ["ListElemInsert", count] ->
+                      case newValues of
+                        newHead::newTail ->
+                          aux i (Insert newHead::revAcc) oldValues newTail (if count == 1 then diffTail else [i, ["ListElemInsert", count - 1]]::diffTail)
+                        _ -> error <| "[Internal error] insert but missing element"
+                    ["ListElemDelete", count] ->
+                      case oldValues of
+                        oldHead::oldTail ->
+                          aux (i + 1) (Delete::revAcc) oldTail newValues (if count == 1 then diffTail else [i + 1, ["ListElemDelete", count - 1]]::diffTail)
+                        _ -> error <| "[Internal error] insert but missing element"
+                else error <| "[Internal error] Differences not in order, got index " + toString j + " but already at index " + toString i
+          in aux 0 [] oldValues newValues listDiffs
+
+        result -> error ("Expected Ok (Just (VListDiffs listDiffs)), got " + toString result)
+  in
+  -- exports from Update module
+  { freeze x =
+      -- eta-expanded because "freeze x" is a syntactic form for U-Freeze
+      freeze x
+
+    applyLens lens x =
+      -- "f.apply x" is a syntactic form for U-Lens, but eta-expanded anyway
+      applyLens lens x
+
+    softFreeze = softFreeze
+    listDiffOp = listDiffOp
+    updateApp {f, input, output}   = error "You can call Update.updateApp only within the .update of a lens. It returns {values=...} with the values input' such that E, x -> input |- f x--> output --> E, x -> input' |- f x    or {error=...}"
+    diff original modified         = error "You can call Update.diff only within the .update of a lens. It computes the diff between two values and returns a Maybe VDiffs"
+    merge original modified_values = error "You can call Update.merge only within the .update of a lens. It repeatedly computes the three-way merge of an original value modified several times."
+    listDiff original modified     = error "You can call Update.listDiff only within the .update of a lens. It computes a simplified list of differences between the original and the modified value."
+  }
+
+__extendUpdateModule__ {updateApp,diff,merge} =
+  { Update
+     | updateApp = updateApp
+     , diff = diff
+     , merge = merge
+     , listDiff = Update.listDiffOp diff
+     }
+
+
 -- type Results err ok = { values: List ok } | { error: err }
 
 -- every onFunction should either return a {values = ...} or an {error =... }
@@ -302,7 +400,7 @@ map f l =
 
       onUpdate [fs, insA, insB] {oldOutput, newOutput, diffs} =
         let input::remaining = insB in
-        case updateApp {fun [f,x] = f x, input = [f, input], output = newOutput, oldOutput = oldOutput, diffs = diffs} of
+        case Update.updateApp {fun [f,x] = f x, input = [f, input], output = newOutput, oldOutput = oldOutput, diffs = diffs} of
           { error = msg } -> {error = msg}
           { values = v } -> {values = v |>
               map1 (\[newF, newA] -> [newF :: fs, insA ++ [newA], remaining])}
@@ -313,7 +411,7 @@ map f l =
 
       onInsert [fs, insA, insB] {newOutput} =
         let input = case insB of h::_ -> h; _ -> case insA of h::_ -> h; _ -> error "Empty list for map, cannot insert" in
-        case updateApp {fun [f,x] = f x, input = [f, input], output = newOutput} of
+        case Update.updateApp {fun [f,x] = f x, input = [f, input], output = newOutput} of
           { error = msg } -> {error = msg }
           { values = v} -> {values = v |>
               map (\[newF, newA] -> [newF::fs, insA++[newA], insB])}
@@ -322,7 +420,7 @@ map f l =
        --after we finish, we need to return the new function
        --as a merge of original functions with all other modifications
        -- and the collected new inputs
-       {values = [[merge f newFs, newIns]] }
+       {values = [[Update.merge f newFs, newIns]] }
 
       onGather result =
         -- TODO: Later, include the , diff= here.
@@ -777,7 +875,7 @@ html string = {
                _ -> error <| "expected HTMLAttributeUnquoted, HTMLAttributeString, HTMLAttributeNoValue, got " ++ toString (inputElem, newOutput)
             _ -> error "Expected HTMLAttribute, got " ++ toString (inputElem, newOutput)
           in
-          let newDiff = [index, ["ListElemUpdate", diff inputElem newInputElem]] in
+          let newDiff = [index, ["ListElemUpdate", Update.diff inputElem newInputElem]] in
           {values = [(newInputElem::revAcc, newDiff::revDiffs, inputRemaining)]}
 
         onRemove (revAcc, revDiffs, input) {oldOutput, index} =
@@ -837,7 +935,7 @@ html string = {
           in
           newInputElems |>LensLess.Results.andThen (\newInputElem ->
             --Debug.start ("newInputElem:" + toString newInputElem) <| \_ ->
-            case diff inputElem newInputElem of
+            case Update.diff inputElem newInputElem of
               ["Err", msg] -> {error = msg}
               ["Ok", maybeDiff] ->
                 let newRevDiffs = case maybeDiff of
@@ -998,98 +1096,6 @@ Tuple =
 -- Editor --
 
 Editor = {}
-
--- Update --
-
--- The diff primitive is:
---
---   type alias DiffOp : Value -> Value -> Result String (Maybe VDiffs)
---   diff : DiffOp
---   diff ~= SnS.Update.defaultVDiffs
---
-
-Update =
-  let freeze x =
-    x
-  in
-  let applyLens lens x =
-    lens.apply x
-  in
-  let softFreeze x =
-    -- Update.freeze x prevents changes to x (resulting in failure),
-    -- Update.softFreeze x ignores changes to x
-    let constantInputLens =
-      { apply x = freeze x, update {input} = { values = [input] } }
-    in
-    applyLens constantInputLens x
-  in
-  --   type SimpleListDiffOp = Keep | Delete | Insert Value | Update Value
-  let SimpleListDiffOp =
-    { Keep = ["Keep"]
-    , Delete = ["Delete"]
-    , Insert v = ["Insert", v]
-    , Update v = ["Update", v]
-    }
-  in
-  let listDiffOp diffOp oldValues newValues =
-   -- listDiffOp : DiffOp -> List Value -> List Value -> List SimpleListDiffOp
-
-     let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
-     let {append} = LensLess in
-     case diffOp oldValues newValues of
-        ["Ok", ["Just", ["VListDiffs", listDiffs]]] ->
-          letrec aux i revAcc oldValues newValues listDiffs =
-            case listDiffs of
-              [] ->
-                reverse (map1 (\_ -> Keep) oldValues ++ revAcc)
-              [j, listDiff]::diffTail ->
-                if j > i then
-                  case [oldValues, newValues] of
-                    [_::oldTail, _::newTail] ->
-                      aux (i + 1) (Keep::revAcc) oldTail newTail listDiffs
-                    _ -> error <| "[Internal error] Expected two non-empty tails, got  " + toString [oldValues, newValues]
-                else if j == i then
-                  case listDiff of
-                    ["ListElemUpdate", _] ->
-                      case [oldValues, newValues] of
-                        [oldHead::oldTail, newHead::newTail] ->
-                          aux (i + 1) (Update newHead :: revAcc) oldTail newTail diffTail
-                        _ -> error <| "[Internal error] update but missing element"
-                    ["ListElemInsert", count] ->
-                      case newValues of
-                        newHead::newTail ->
-                          aux i (Insert newHead::revAcc) oldValues newTail (if count == 1 then diffTail else [i, ["ListElemInsert", count - 1]]::diffTail)
-                        _ -> error <| "[Internal error] insert but missing element"
-                    ["ListElemDelete", count] ->
-                      case oldValues of
-                        oldHead::oldTail ->
-                          aux (i + 1) (Delete::revAcc) oldTail newValues (if count == 1 then diffTail else [i + 1, ["ListElemDelete", count - 1]]::diffTail)
-                        _ -> error <| "[Internal error] insert but missing element"
-                else error <| "[Internal error] Differences not in order, got index " + toString j + " but already at index " + toString i
-          in aux 0 [] oldValues newValues listDiffs
-  
-        result -> error ("Expected Ok (Just (VListDiffs listDiffs)), got " + toString result)
-  in
-  -- exports from Update module
-  { freeze x =
-      -- eta-expanded because "freeze x" is a syntactic form for U-Freeze
-      freeze x
-
-    applyLens lens x =
-      -- "f.apply x" is a syntactic form for U-Lens, but eta-expanded anyway
-      applyLens lens x
-
-    softFreeze = softFreeze
-    listDiffOp = listDiffOp
-  }
-
-__extendUpdateModule__ {updateApp,diff,merge} =
-  { Update
-     | updateApp = updateApp
-     , diff = diff
-     , merge = merge
-     , listDiff = Update.listDiffOp diff
-     }
 
 -- TODO remove this; add as imports as needed in examples
 {freeze, applyLens} = Update

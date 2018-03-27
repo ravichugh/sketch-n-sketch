@@ -14,7 +14,7 @@ mapMaybe default f mx =
         []  -> {values = [[f, []]]}
         [y] ->
           let x = case mx of [x] -> x; [] -> default in
-          case updateApp {fun = applyFstToSnd, input = [f, x], output = y} of
+          case Update.updateApp {fun = applyFstToSnd, input = [f, x], output = y} of
             {values, diffs} -> 
               { values = map (\[f, newX] ->
                     [f, [newX]]

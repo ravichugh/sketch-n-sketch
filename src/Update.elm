@@ -550,8 +550,11 @@ getUpdateStackOp env e oldVal newVal diffs =
                                            ("outDiff", diffsVal), -- Redundant
                                            ("diffOut", diffsVal) -- Redundant
                                          ] in
-                                    let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
-                                    case ImpureGoodies.logTimedRun ".update eval" <| \_ -> (doEval Syntax.Elm (("x", addUpdateCapability fieldUpdateClosure)::("y", customArgument)::env) customExpr) of
+                                    let xyApplication = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
+                                    case extendUpdateModule fieldUpdateClosure of
+                                      Err msg -> Just <| UpdateCriticalError msg
+                                      Ok xVal ->
+                                    case ImpureGoodies.logTimedRun ".update eval" <| \_ -> (doEval Syntax.Elm [("x", xVal), ("y", customArgument)] xyApplication) of
                                       Err s -> Just <| UpdateCriticalError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                         case Vu.record Ok vResult of
@@ -1250,128 +1253,134 @@ updateRec updateStack nextToUpdate =
     Oks l -> l
     Errs msg -> LazyList.Nil
 
-addToVClosureEnv: Env -> Val -> Val
-addToVClosureEnv env v = case v.v_ of
-  VClosure recName pats body oldEnv -> replaceV_ v <| VClosure recName pats body (env ++ oldEnv)
-  _ -> v
+extendUpdateModule: Val -> Result String Val
+extendUpdateModule v = case v.v_ of
+  VClosure recName pats body oldEnv ->
+    case Utils.findFirst (\(name, _) -> name == "__extendUpdateModule__") oldEnv of
+      Just (name, extendUpdateModule) ->
+        let capabilities = replaceV_ v <| VRecord <| Dict.fromList <| [("updateApp", getUpdateAppVFun "updateApp" v), ("merge", getMergeVFun "merge" v), ("diff", getDiffVFun "diff" v)] in
+        case doEval Syntax.Elm [("input", capabilities), (name, extendUpdateModule)]
+          (withDummyExpInfo <| EApp space0 (withDummyExpInfo <| EVar space0 name) [withDummyExpInfo <|
+            EVar space1 "input"
+          ] SpaceApp space0) of
+          Ok ((newValUpdate, _), _) -> Ok <| replaceV_ v <| VClosure recName pats body (("Update", newValUpdate)::oldEnv)
+          Err msg -> Err msg
+      Nothing -> let _  = Debug.log "No function __extendUpdateModule__ found. Define it so that it is called with {updateApp, merge, diff} (primitive) and overwrites the variable Update with the result" () in
+        Ok v
+  _ -> Err <| "[Internal error] Expected a closure, got " ++ valToString v
 
--- Add more functions in the closure of a function, used for executing lenses
-addUpdateCapability: Val -> Val
-addUpdateCapability v =
-  addToVClosureEnv [
-    ("updateApp", replaceV_ v <|
-      VFun "updateApp" ["{fun,input[,oldOutput],output[,outputDiff]}"] (\env args ->
-        case args of
-          [arg] ->
-            case arg.v_ of
-              VRecord d ->
-                case (Dict.get "fun" d, Dict.get "input" d, Dict.get "output" d) of
-                  (Just fun, Just input, Just newVal) ->
-                    let reverseEnv = ("x", fun)::("y", input)::env in
-                    let exp = (withDummyExpInfo <| EApp space0 (withDummyExpInfo <| EVar space0 "x") [withDummyExpInfo <| EVar space1 "y"] SpaceApp space0) in
-                    let oldOut = case Dict.get "oldOutput" d of
-                      Nothing -> case Dict.get "oldout" d of
-                         Nothing -> case Dict.get "outputOld" d of
-                           Nothing ->
-                             Eval.doEval Syntax.Elm reverseEnv exp |> Result.map (\((v, _), _) -> v)
-                           Just v -> Ok v
-                         Just v -> Ok v
-                      Just v -> Ok v
-                    in
-                    case oldOut of
-                      Err msg -> Err msg
-                      Ok oldOut ->
-                        let outputDiff = case Dict.get "outputDiff" d of
-                          Nothing -> case Dict.get "diffOutput" d of
-                             Nothing -> case Dict.get "diffOut" d of
-                               Nothing -> case Dict.get "outDiff" d of
-                                 Nothing -> UpdateUtils.defaultVDiffs oldOut newVal
-                                 Just v -> valToVDiffs v |> Result.map Just
-                               Just v -> valToVDiffs v |> Result.map Just
+getUpdateAppVFun name v = replaceV_ v <|
+  VFun name ["{fun,input[,oldOutput],output[,outputDiff]}"] (\env args ->
+    case args of
+      [arg] ->
+        case arg.v_ of
+          VRecord d ->
+            case (Dict.get "fun" d, Dict.get "input" d, Dict.get "output" d) of
+              (Just fun, Just input, Just newVal) ->
+                let reverseEnv = ("x", fun)::("y", input)::env in
+                let exp = (withDummyExpInfo <| EApp space0 (withDummyExpInfo <| EVar space0 "x") [withDummyExpInfo <| EVar space1 "y"] SpaceApp space0) in
+                let oldOut = case Dict.get "oldOutput" d of
+                  Nothing -> case Dict.get "oldout" d of
+                     Nothing -> case Dict.get "outputOld" d of
+                       Nothing ->
+                         Eval.doEval Syntax.Elm reverseEnv exp |> Result.map (\((v, _), _) -> v)
+                       Just v -> Ok v
+                     Just v -> Ok v
+                  Just v -> Ok v
+                in
+                case oldOut of
+                  Err msg -> Err msg
+                  Ok oldOut ->
+                    let outputDiff = case Dict.get "outputDiff" d of
+                      Nothing -> case Dict.get "diffOutput" d of
+                         Nothing -> case Dict.get "diffOut" d of
+                           Nothing -> case Dict.get "outDiff" d of
+                             Nothing -> UpdateUtils.defaultVDiffs oldOut newVal
                              Just v -> valToVDiffs v |> Result.map Just
-                          Just v -> valToVDiffs v |> Result.map Just
+                           Just v -> valToVDiffs v |> Result.map Just
+                         Just v -> valToVDiffs v |> Result.map Just
+                      Just v -> valToVDiffs v |> Result.map Just
+                    in
+                    --let _ = Debug.log "calling back update" () in
+                    case outputDiff of
+                      Err msg -> Err msg
+                      Ok Nothing -> -- No need to call update
+                        let resultingValue = (Vb.record v) identity (
+                             Dict.fromList [("values", (Vb.list v) identity [input]),
+                                            ("diffs", (Vb.list v) identity [] )
+                             ])
                         in
-                        --let _ = Debug.log "calling back update" () in
-                        case outputDiff of
-                          Err msg -> Err msg
-                          Ok Nothing -> -- No need to call update
-                            let resultingValue = (Vb.record v) identity (
-                                 Dict.fromList [("values", (Vb.list v) identity [input]),
-                                                ("diffs", (Vb.list v) identity [] )
-                                 ])
-                            in
-                            Ok ((resultingValue, []), env)
-                          Ok (Just newOutDiffs) ->
-                            let basicResult = case update (updateContext "updateApp" reverseEnv exp oldOut newVal newOutDiffs) LazyList.Nil of
-                              Errs msg -> (Vb.record v) (Vb.string v) (Dict.fromList [("error", msg)])
-                              Oks ll ->
-                                 let l = LazyList.toList ll in
-                                 let lFiltered = List.filter (\(newReverseEnv, newExp) ->
-                                   case newReverseEnv.changes of
-                                      [] -> True
-                                      [(1, _)] -> True
-                                      _ -> False) l
-                                 in
-                                 if List.isEmpty lFiltered then
-                                   if List.isEmpty l then
-                                     (Vb.record v) identity (Dict.fromList [("values", (Vb.list v) identity []), ("diffs", (Vb.list v) identity [])])
-                                   else
-                                     (Vb.record v) (Vb.string v) (Dict.fromList [("error", "Only solutions modifying the constant function of updateApp")])
-                                 else
-                                   let (results, diffs) = lFiltered |> List.map (\(newReverseEnv, newExp) ->
-                                     case newReverseEnv.val of
-                                        ("x", newFun)::("y",newArg)::newEnv ->
-                                          case newReverseEnv.changes of
-                                            [] -> (newArg, Nothing)
-                                            [(1, diff)] -> (newArg, Just diff)
-                                            _ -> Debug.crash "Internal error: expected not much than (1, diff) in environment changes"
-                                        _ -> Debug.crash "Internal error: expected x and y in environment"
-                                     ) |> List.unzip in
-                                   let maybeDiffsVal = diffs |> (Vb.list v) (maybeToVal vDiffsToVal v) in
-                                   (Vb.record v) identity (
-                                        Dict.fromList [("values", (Vb.list v) identity results),
-                                                     ("diffs", maybeDiffsVal )
-                                        ])
-                            in Ok ((basicResult, []), env)
-                  (mbFun, mbInput, mbOutput) ->
-                    Err <|
-                    "updateApp requires a record with at least {fun,input,output}. Missing" ++
-                     (Maybe.map (\_ -> "") mbFun |> Maybe.withDefault " fun") ++
-                     (Maybe.map (\_ -> "") mbInput |> Maybe.withDefault " input") ++
-                     (Maybe.map (\_ -> "") mbOutput |> Maybe.withDefault " output")
-              _ -> Err <| "updateApp's argument should be a record {fun,input[,oldOutput],output[,outputDiff]}, but got " ++ valToString arg
-          _ -> Err <| "updateApp expects 1 arguments ({fun,input[,oldOutput],output[,outputDiff]}), but got " ++ toString (List.length args)
-      ) Nothing
-    ),
-    ("merge", replaceV_ v <|
-      VFun "merge" ["original", "list_of_modified"] (\env args ->
-        case args of
-          [original, modifications] ->
-            case modifications.v_ of
-              VList modifications ->
-                let modificationsWithDiffs = List.map (\m -> UpdateUtils.defaultVDiffs original m |> Result.map (\mbmodifs -> mbmodifs |> Maybe.map (\modifs -> (m, modifs)))) modifications in
-                case modificationsWithDiffs |> Utils.projOk of
-                   Err msg -> Err msg
-                   --Ok Nothing -> Ok ((original, []), env)
-                   Ok withModifs ->
-                     let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
-                     Ok ((newVal, []), env)
-              _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
-          _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
-      ) Nothing
-    ),
-    ("diff", replaceV_ v <|
-      VFun "diff" ["value_before", "value_after"] (\env args ->
-        case args of
-          [before, after] ->
-            Ok ( ( defaultVDiffs before after
-                   |> UpdateUtils.resultToVal v (UpdateUtils.maybeToVal vDiffsToVal v)
-                 , [])
-               , env)
-          _ -> Err <|   "diff performs the diff on 2 values, but got " ++ toString (List.length args)
-      ) Nothing
-    )
-  ] v
+                        Ok ((resultingValue, []), env)
+                      Ok (Just newOutDiffs) ->
+                        let basicResult = case update (updateContext name reverseEnv exp oldOut newVal newOutDiffs) LazyList.Nil of
+                          Errs msg -> (Vb.record v) (Vb.string v) (Dict.fromList [("error", msg)])
+                          Oks ll ->
+                             let l = LazyList.toList ll in
+                             let lFiltered = List.filter (\(newReverseEnv, newExp) ->
+                               case newReverseEnv.changes of
+                                  [] -> True
+                                  [(1, _)] -> True
+                                  _ -> False) l
+                             in
+                             if List.isEmpty lFiltered then
+                               if List.isEmpty l then
+                                 (Vb.record v) identity (Dict.fromList [("values", (Vb.list v) identity []), ("diffs", (Vb.list v) identity [])])
+                               else
+                                 (Vb.record v) (Vb.string v) (Dict.fromList [("error", "Only solutions modifying the constant function of " ++ name)])
+                             else
+                               let (results, diffs) = lFiltered |> List.map (\(newReverseEnv, newExp) ->
+                                 case newReverseEnv.val of
+                                    ("x", newFun)::("y",newArg)::newEnv ->
+                                      case newReverseEnv.changes of
+                                        [] -> (newArg, Nothing)
+                                        [(1, diff)] -> (newArg, Just diff)
+                                        _ -> Debug.crash "Internal error: expected not much than (1, diff) in environment changes"
+                                    _ -> Debug.crash "Internal error: expected x and y in environment"
+                                 ) |> List.unzip in
+                               let maybeDiffsVal = diffs |> (Vb.list v) (maybeToVal vDiffsToVal v) in
+                               (Vb.record v) identity (
+                                    Dict.fromList [("values", (Vb.list v) identity results),
+                                                 ("diffs", maybeDiffsVal )
+                                    ])
+                        in Ok ((basicResult, []), env)
+              (mbFun, mbInput, mbOutput) ->
+                Err <|
+                name ++ " requires a record with at least {fun,input,output}. Missing" ++
+                 (Maybe.map (\_ -> "") mbFun |> Maybe.withDefault " fun") ++
+                 (Maybe.map (\_ -> "") mbInput |> Maybe.withDefault " input") ++
+                 (Maybe.map (\_ -> "") mbOutput |> Maybe.withDefault " output")
+          _ -> Err <| name ++ "'s argument should be a record {fun,input[,oldOutput],output[,outputDiff]}, but got " ++ valToString arg
+      _ -> Err <| name ++ " expects 1 arguments ({fun,input[,oldOutput],output[,outputDiff]}), but got " ++ toString (List.length args)
+  ) Nothing
+
+getMergeVFun name v = replaceV_ v <|
+  VFun name ["original", "list_of_modified"] (\env args ->
+    case args of
+      [original, modifications] ->
+        case modifications.v_ of
+          VList modifications ->
+            let modificationsWithDiffs = List.map (\m -> UpdateUtils.defaultVDiffs original m |> Result.map (\mbmodifs -> mbmodifs |> Maybe.map (\modifs -> (m, modifs)))) modifications in
+            case modificationsWithDiffs |> Utils.projOk of
+               Err msg -> Err msg
+               --Ok Nothing -> Ok ((original, []), env)
+               Ok withModifs ->
+                 let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
+                 Ok ((newVal, []), env)
+          _ -> Err  <| name ++ " takes 2 lists, but got " ++ toString (List.length args)
+      _ -> Err  <| name ++ " takes 2 lists, but got " ++ toString (List.length args)
+  ) Nothing
+
+getDiffVFun name v = replaceV_ v <|
+  VFun name ["value_before", "value_after"] (\env args ->
+    case args of
+      [before, after] ->
+        Ok ( ( defaultVDiffs before after
+               |> UpdateUtils.resultToVal v (UpdateUtils.maybeToVal vDiffsToVal v)
+             , [])
+           , env)
+      _ -> Err <|  name ++ "performs the diff on 2 values, but got " ++ toString (List.length args)
+  ) Nothing
+
 
 interpreterListToList: String -> Val -> Result String (List Val)
 interpreterListToList msg v = case v.v_ of

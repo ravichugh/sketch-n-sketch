@@ -5869,8 +5869,6 @@ mapMaybeLens default =
       case my of
         []  -> { values = [[f, []]] }
         [y] ->
-          -- TODO this will happen automatically
-          let Update = __extendUpdateModule__ {updateApp=updateApp, diff=diff, merge=merge} in
           let x = case mx of [x] -> x; [] -> default in
           let results = Update.updateApp {fun [f,x] = f x, input = [f, x], output = y} in
           { values = List.map (\\[newF,newX] -> [newF, [newX]]) results.values }
@@ -5910,10 +5908,6 @@ mapListLens =
   , update { input = [f,oldInputList]
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
-
-      -- TODO this will happen automatically
-      let Update = __extendUpdateModule__ {updateApp=updateApp, diff=diff, merge=merge} in
-
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case [diffOps, oldInputs] of
@@ -5993,10 +5987,6 @@ mapListLens =
   , update { input = [f,oldInputList]
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
-
-      -- TODO this will happen automatically
-      let Update = __extendUpdateModule__ {updateApp=updateApp, diff=diff, merge=merge} in
-
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case [diffOps, oldInputs] of

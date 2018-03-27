@@ -33,7 +33,7 @@ map f l =
           letrec recoverInputs newFs newIns oldIns newOuts = case [oldIns, newOuts] of
             [[], []] -> [newFs, newIns]
             [inHd::inTail, outHd::outTail] ->
-              case updateApp (\[f, x] -> f x) [f, inHd] (f inHd) outHd of
+              case Update.updateApp (\[f, x] -> f x) [f, inHd] (f inHd) outHd of
                 [newF, newIn]::_ -> recoverInputs (append newFs [newF]) (append newIns [newIn]) inTail outTail
                 _ -> "Error: no solution to update problem." + 1
             [inList, outList] -> ("Internal error: lists do not have the same type" + toString inList + ", " + toString outList) + 1
@@ -53,7 +53,7 @@ map f l =
           letrec recoverInputs newFs newIns newOuts = case newOuts of
             [] -> [newFs, newIns]
             outHd::outTail ->
-              case updateApp (\[f, x] -> f x) [f, oneInput] (f oneInput) outHd of
+              case Update.updateApp (\[f, x] -> f x) [f, oneInput] (f oneInput) outHd of
                 [newF, newIn]::_ -> recoverInputs (append newFs [newF]) (append newIns [newIn]) outTail
                 _ -> "Error: no solution to update problem." + 1
           in
