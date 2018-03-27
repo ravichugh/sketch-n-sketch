@@ -168,8 +168,8 @@ foldDiff =
   let {append, split, Results} = LensLess in
   \{start, onSkip, onUpdate, onRemove, onInsert, onFinish, onGather} oldOutput newOutput diffs ->
   let listDiffs = case diffs of
-    ["ListDiffs", l] -> l
-    _ -> error <| "Expected ListDiffs, got " + toString diffs
+    ["VListDiffs", l] -> l
+    _ -> error <| "Expected VListDiffs, got " + toString diffs
   in
   -- Returns either {error} or {values=list of values}
   --     fold: Int -> List b -> List b -> List (Int, ListElemDiff) -> a -> Results String c
