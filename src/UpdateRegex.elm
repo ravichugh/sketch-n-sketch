@@ -252,7 +252,7 @@ updateRegexReplaceAllByIn  = updateRegexReplaceByIn Regex.All
 updateRegexReplaceFirstByIn = updateRegexReplaceByIn (Regex.AtMost 1)
 
 -- We need the environment just to make use of the function "nth" for lists, so we don't need to return it !!
-updateRegexReplaceByIn: Regex.HowMany -> Env -> (Env -> Exp -> Result String Val)-> (Env -> Exp -> Val -> Val -> Results String (UpdatedEnv, Exp)) -> Val -> Val -> Val -> Val -> Val -> Results String (Val, Val, Val)
+updateRegexReplaceByIn: Regex.HowMany -> Env -> (Env -> Exp -> Result String Val)-> (Env -> Exp -> Val -> Val -> Results String (UpdatedEnv, UpdatedExp)) -> Val -> Val -> Val -> Val -> Val -> Results String (Val, Val, Val)
 updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV stringV oldOutV outV =
    case (regexpV.v_, replacementV.v_, stringV.v_, outV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string), _) ->
@@ -282,9 +282,9 @@ updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV strin
             -- let _ = Debug.log "regex4" () in
             let envWithReplacement= (replacementName, replacementV)::env in
             updateRoutine envWithReplacement expressionReplacement olvVal outV
-            |> Results.andThen (\(newEnvWithReplacement, newExp) ->
+            |> Results.andThen (\(newEnvWithReplacement, newUpdatedExp) ->
               -- let _ = Debug.log "regex6" () in
-              let stringsAndLambdas = unconcat newExp in
+              let stringsAndLambdas = unconcat newUpdatedExp.val in
               -- let _ = Debug.log "regex7" () in
               stringsAndLambdas |> List.map (\e ->
                 case e.val.e__ of

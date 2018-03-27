@@ -561,9 +561,9 @@ mapFoldExp f initAcc e =
       wrapAndMap (ERecord ws1 Nothing (Utils.recordValuesMake es newEs) ws2) newAcc
 
     ERecord ws1 (Just (mi, wsi)) es ws2 ->
-      let (newMi, newAcc) = recurse initAcc mi in
-      let (newEs, newAcc2) = recurseAll newAcc (List.map Utils.recordValue es) in
-      wrapAndMap (ERecord ws1 (Just (newMi, wsi)) (Utils.recordValuesMake es newEs) ws2) newAcc
+      let (newEs, newAcc) = recurseAll initAcc (List.map Utils.recordValue es) in
+      let (newMi, newAcc2) = recurse newAcc mi in
+      wrapAndMap (ERecord ws1 (Just (newMi, wsi)) (Utils.recordValuesMake es newEs) ws2) newAcc2
 
     ESelect ws0 e ws1 ws2 s ->
       let (newE, newAcc) = recurse initAcc e in

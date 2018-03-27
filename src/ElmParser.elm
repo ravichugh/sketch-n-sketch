@@ -1624,7 +1624,7 @@ genericLetBinding sp letkeyword isRec =
                   |= expression allSpacesPolicy
                   |= spaces
                   |. keywordWithSpace "in"
-                  |= expression sp
+                  |= expression { sp | first = spaces }
           )
 
 --------------------------------------------------------------------------------

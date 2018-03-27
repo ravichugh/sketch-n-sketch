@@ -25,11 +25,11 @@ mapMaybe default f mx =
                       ["Just", ["VListDiffs", funxdiffs |>
                         map (case of
                           [0, funDiff] -> [0, funDiff]
-                          [  1, ["VListElemUpdate", xDiff]] ->
-                            [1, ["VListElemUpdate", ["VListDiffs", [[0, 
+                          [  1, ["ListElemUpdate", xDiff]] ->
+                            [1, ["ListElemUpdate", ["VListDiffs", [[0, 
                               case mx of 
-                                [_] -> ["VListElemUpdate", xDiff]
-                                [] -> ["VListElemInsert", 1]
+                                [_] -> ["ListElemUpdate", xDiff]
+                                [] -> ["ListElemInsert", 1]
                             ]]]]]
                         ) ] ]
                   ) diffs

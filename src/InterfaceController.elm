@@ -91,6 +91,7 @@ import Sync
 import Eval
 import Update exposing (vStr, vList)
 import UpdateUtils
+import UpdateStack
 import Results exposing (Results(..))
 import LazyList
 import Utils
@@ -2075,7 +2076,7 @@ doCallUpdate m =
               showSolutions [revertChanges "No solution found. Revert?"]
 
             LazyList.Cons (envModified, expModified) _ ->
-              let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified) "expModified" in
+              let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified.val) "expModified" in
               let _ = Debug.log (Eval.initEnv |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames original") in
               let _ = Debug.log (envModified.val |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames modified") in
               let _ = Debug.log (UpdateUtils.envDiffsToString Eval.initEnv envModified.val envModified.changes) ("EnvModified") in
@@ -2090,12 +2091,17 @@ doCallUpdate m =
           let filteredResults =
             solutionsNotModifyingEnv
               |> LazyList.toList
-              |> List.filter (\(_,newCodeExp) -> not (LangUtils.expEqual newCodeExp m.inputExp))
+              |> (\x -> let _ = Debug.log "Finished to obtain the list of solutions" () in x)
+              |> List.filter (\(_,newCodeExp) -> not <| Utils.maybeIsEmpty newCodeExp.changes)
+              |> (\x -> let _ = Debug.log "Finished to filter the list of solutions" () in x)
               |> Utils.mapi1 (\(i,(_,newCodeExp)) ->
                    --synthesisResult ("Program Update " ++ toString i) newCodeExp
-                   let (diffResult, diffs) = UpdateUtils.diffExpWithPositions m.inputExp newCodeExp in
-                   synthesisResultDiffs diffResult newCodeExp diffs
+                   --let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.diffExpWithPositions" <| \_ -> UpdateUtils.diffExpWithPositions m.inputExp newCodeExp in
+                   let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.updatedExpToString" <| \_ -> UpdateStack.updatedExpToStringWithPositions m.inputExp newCodeExp in -- TODO: Incorporate positions.
+                   --synthesisResult diffResult newCodeExp.val
+                   synthesisResultDiffs diffResult newCodeExp.val diffs
                  )
+              |> (\x -> let _ = Debug.log "Finished to diff the solutions" () in x)
           in
           case filteredResults of
             [] ->
@@ -2179,8 +2185,6 @@ msgValuePathUpdate (path, newEncodedValue) =
           Just (Ok u) -> u
           _ -> m.inputVal
         in
-        let  _ = Debug.log ("Path" ++ toString path) () in
-        let  _ = Debug.log ("Going to decode " ++ toString newEncodedValue) () in
         let newValueResult: Result String Val
             newValueResult =
              JSDecode.decodeValue decodeNode newEncodedValue |> --Result.map (\x -> let _ = Debug.log ("Decoded Value: " ++ LangUtils.valToString x) () in x) |>

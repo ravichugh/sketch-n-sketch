@@ -5892,7 +5892,7 @@ maybeState3 = mapMaybeState displayState []
 maybeState4 = mapMaybeState displayState [[\"New Jersey\", \"NJ\", \"Edison\"]]
 
 showValues values =
-  Html.div_ [] [] (List.map (\\x -> Html.h3 [] [] (toString x)) values)
+  Html.div_ [] [] (List.map (\\x -> [\"h3\", [], Html.text <| toString x]) values)
 
 main =
   showValues [maybeState1, maybeState2, maybeState3, maybeState4]
