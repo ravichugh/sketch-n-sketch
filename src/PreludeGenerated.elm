@@ -2678,10 +2678,10 @@ html string = {
 
         onGather (acc, diffs) =
           { value = acc,
-             diff = if len diffs == 0 then [\"Nothing\"] else [\"Just\", [\"ListDiffs\", diffs]]}
+             diff = if len diffs == 0 then [\"Nothing\"] else [\"Just\", [\"VListDiffs\", diffs]]}
       } oldOutput newOutput diffs
     in
-    -- Returns {values = List (List HTMLNode)., diffs = List (Maybe VListDiff)} or { error = ... }
+    -- Returns {values = List (List HTMLNode)., diffs = List (Maybe ListDiff)} or { error = ... }
     letrec mergeNodes input oldOutput newOutput diffs =
       foldDiff {
         start =
@@ -2702,7 +2702,7 @@ html string = {
               [tag1, attrs1, children1], [tag2, attrs2, children2] ) ->
                if tag2 == tagName then
                  case diffs of
-                   [\"ListDiffs\", listDiffs] ->
+                   [\"VListDiffs\", listDiffs] ->
                      let (newAttrsMerged, otherDiffs) = case listDiffs of
                        [1, [\"ListElemUpdate\", diffAttrs]]::tailDiff ->
                          (mergeAttrs attrs attrs1 attrs2 diffAttrs, tailDiff)
@@ -2744,7 +2744,7 @@ html string = {
 
         onGather (acc, diffs) =
           { value = acc,
-             diff = if len diffs == 0 then [\"Nothing\"] else [\"Just\", [\"ListDiffs\", diffs]]}
+             diff = if len diffs == 0 then [\"Nothing\"] else [\"Just\", [\"VListDiffs\", diffs]]}
       } oldOutput newOutput diffs
     in mergeNodes input oldOutput newOutput diffs
 }.apply (parseHTML string)
@@ -2923,7 +2923,7 @@ Update =
      let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
      let {append} = LensLess in
      case diffOp oldValues newValues of
-        [\"Ok\", [\"Just\", [\"ListDiffs\", listDiffs]]] ->
+        [\"Ok\", [\"Just\", [\"VListDiffs\", listDiffs]]] ->
           letrec aux i revAcc oldValues newValues listDiffs =
             case listDiffs of
               [] ->
@@ -2954,7 +2954,7 @@ Update =
                 else error <| \"[Internal error] Differences not in order, got index \" + toString j + \" but already at index \" + toString i
           in aux 0 [] oldValues newValues listDiffs
   
-        result -> error (\"Expected Ok (Just (ListDiffs listDiffs)), got \" + toString result)
+        result -> error (\"Expected Ok (Just (VListDiffs listDiffs)), got \" + toString result)
   in
   -- exports from Update module
   { freeze x =
