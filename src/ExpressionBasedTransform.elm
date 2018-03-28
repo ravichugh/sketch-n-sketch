@@ -1813,6 +1813,11 @@ mergeExpressions eFirst eRest =
           (mergeTypes tipe typeList)
           (mergeExpressions e eList)
 
+    ETypeDef _ _ _ _ _ _ _ ->
+      -- TODO-TD mergeExpressions for TypeDef
+      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
+      Nothing
+
     ECase _ _ _ _ ->
       let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
       Nothing

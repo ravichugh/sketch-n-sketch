@@ -497,13 +497,14 @@ changeRenamedVarsToOuter_ renamings exp =
               tbranches
         in
         ETypeCase ws1 exp newBranches ws2
-      EComment ws s e1              -> EComment ws s (recurse e1)
-      EOption ws1 s1 ws2 s2 e1      -> EOption ws1 s1 ws2 s2 (recurse e1)
-      ETyp ws1 pat tipe e ws2       -> ETyp ws1 pat tipe (recurse e) ws2
-      EColonType ws1 e ws2 tipe ws3 -> EColonType ws1 (recurse e) ws2 tipe ws3
-      ETypeAlias ws1 pat tipe e ws2 -> ETypeAlias ws1 pat tipe (recurse e) ws2
-      EParens ws1 e pStyle ws2      -> EParens ws1 (recurse e) pStyle ws2
-      EHole ws mv                   -> e__
+      EComment ws s e1                      -> EComment ws s (recurse e1)
+      EOption ws1 s1 ws2 s2 e1              -> EOption ws1 s1 ws2 s2 (recurse e1)
+      ETyp ws1 pat tipe e ws2               -> ETyp ws1 pat tipe (recurse e) ws2
+      EColonType ws1 e ws2 tipe ws3         -> EColonType ws1 (recurse e) ws2 tipe ws3
+      ETypeAlias ws1 pat tipe e ws2         -> ETypeAlias ws1 pat tipe (recurse e) ws2
+      ETypeDef ws1 ident vars ws2 dcs e ws3 -> ETypeDef ws1 ident vars ws2 dcs (recurse e) ws3
+      EParens ws1 e pStyle ws2              -> EParens ws1 (recurse e) pStyle ws2
+      EHole ws mv                           -> e__
   in
   replaceE__ exp e__New
 

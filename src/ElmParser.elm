@@ -1744,6 +1744,73 @@ hole sp =
       paddedBefore EHole sp.first (trackInfo <| token "??" Nothing)
 
 --------------------------------------------------------------------------------
+-- Type Aliases
+--------------------------------------------------------------------------------
+
+typeAlias : SpacePolicy -> Parser Exp
+typeAlias sp =
+  inContext "type alias" <|
+    lazy <| \_ ->
+      mapExp_ <|
+        paddedBefore
+          ( \wsBefore (pat, t, rest) ->
+              ETypeAlias wsBefore pat t rest space0
+          )
+          sp.first
+          ( trackInfo <|
+              succeed (,,)
+                |. keywordWithSpace "type alias"
+                |= typePattern sp
+                |. sp.first
+                |. symbol "="
+                |= typ sp
+                |= expression sp
+          )
+
+--------------------------------------------------------------------------------
+-- Type Definitions
+--------------------------------------------------------------------------------
+
+typeDefinition : SpacePolicy -> Parser Exp
+typeDefinition sp =
+  inContext "type definition" <|
+    lazy <| \_ ->
+      let
+        var =
+          delayedCommitMap (,)
+            sp.first
+            (untrackInfo littleIdentifier)
+        dc =
+          delayedCommitMap
+            ( \wsBefore (i, ts, wsAfter) ->
+                (wsBefore, i, ts, wsAfter)
+            )
+            sp.first
+            ( succeed (,,)
+                |= untrackInfo bigIdentifier
+                |= repeat zeroOrMore (typ sp)
+                |= sp.first
+            )
+      in
+        mapExp_ <|
+          paddedBefore
+            ( \wsBefore (wsBeforeIdent, ident, vars, wsBeforeEq, dcs, rest) ->
+                ETypeDef wsBefore (wsBeforeIdent, ident) vars wsBeforeEq dcs rest space0
+            )
+            sp.first
+            ( trackInfo <|
+                succeed (,,,,,)
+                  |. keywordWithSpace "type"
+                  |= sp.first
+                  |= untrackInfo bigIdentifier
+                  |= repeat zeroOrMore var
+                  |= sp.first
+                  |. symbol "="
+                  |= separateBy oneOrMore (symbol "|") dc
+                  |= expression sp
+            )
+
+--------------------------------------------------------------------------------
 -- General Expressions
 --------------------------------------------------------------------------------
 
@@ -1790,9 +1857,10 @@ simpleExpression sp =
     , lazy <| \_ -> (addSelections sp <| try <| tuple sp)
     , lazy <| \_ -> (addSelections sp <| parens sp)
     , lazy <| \_ -> (addSelections sp <| hole sp)
-    -- , lazy <| \_ -> typeCaseExpression
-    -- , lazy <| \_ -> typeAlias
-    -- , lazy <| \_ -> typeDeclaration
+    , lazy <| \_ -> typeAlias sp
+    , lazy <| \_ -> typeDefinition sp
+    -- , lazy <| \_ -> typeCaseExpression sp
+    -- , lazy <| \_ -> typeDeclaration sp
     , (addSelections sp <| variableExpression sp)
   ]
 
@@ -2066,7 +2134,6 @@ topLevelTypeDeclaration =
         ( succeed (,)
             |= pattern topLevelInsideDefSpacePolicy
             |= topLevelInsideDefSpacePolicy.first
-            |. symbol ":"
         )
         ( succeed identity
           |= typ topLevelInsideDefSpacePolicy
@@ -2074,31 +2141,82 @@ topLevelTypeDeclaration =
         )
 
 --------------------------------------------------------------------------------
--- Top Level Type Aliases
+-- Top-Level Type Aliases
 --------------------------------------------------------------------------------
 
 topLevelTypeAlias : Parser TopLevelExp
 topLevelTypeAlias =
   inContext "top-level type alias" <|
     delayedCommitMap
-      ( \wsBefore (typeAliasKeyword, pat, t) ->
+      ( \wsBefore (startPos, pat, t, endPos) ->
           withInfo
             ( \rest ->
                 exp_ <|
                   ETypeAlias wsBefore pat t rest space0
             )
-            typeAliasKeyword.start
-            t.end
+            startPos
+            endPos
       )
       spaces
-      ( succeed (,,)
-        |= trackInfo (keywordWithSpace "type alias")
+      ( succeed (,,,)
+        |= getPos
+        |. keywordWithSpace "type alias"
         |= typePattern topLevelInsideDefSpacePolicy
         |. topLevelInsideDefSpacePolicy.first
         |. symbol "="
         |= typ topLevelInsideDefSpacePolicy
         |. optionalTopLevelSemicolon
+        |= getPos
       )
+
+--------------------------------------------------------------------------------
+-- Top-Level Type Definitions
+--------------------------------------------------------------------------------
+
+topLevelTypeDefinition : Parser TopLevelExp
+topLevelTypeDefinition =
+  inContext "top-level type definition" <|
+    lazy <| \_ ->
+      let
+        var =
+          delayedCommitMap (,)
+            topLevelInsideDefSpacePolicy.first
+            (untrackInfo littleIdentifier)
+        dc =
+          delayedCommitMap
+            ( \wsBefore (i, ts, wsAfter) ->
+                (wsBefore, i, ts, wsAfter)
+            )
+            topLevelInsideDefSpacePolicy.first
+            ( succeed (,,)
+                |= untrackInfo bigIdentifier
+                |= repeat zeroOrMore (typ topLevelInsideDefSpacePolicy)
+                |= topLevelInsideDefSpacePolicy.first
+            )
+      in
+        delayedCommitMap
+          ( \wsBefore (startPos, wsBeforeIdent, ident, vars, wsBeforeEq, dcs, endPos) ->
+              withInfo
+                ( \rest ->
+                    exp_ <|
+                      ETypeDef wsBefore (wsBeforeIdent, ident) vars wsBeforeEq dcs rest space0
+                )
+                startPos
+                endPos
+          )
+          spaces
+          ( succeed (,,,,,,)
+            |= getPos
+            |. keywordWithSpace "type"
+            |= topLevelInsideDefSpacePolicy.first
+            |= untrackInfo bigIdentifier
+            |= repeat zeroOrMore var
+            |= topLevelInsideDefSpacePolicy.first
+            |. symbol "="
+            |= separateBy oneOrMore (symbol "|") dc
+            |= getPos
+            |. optionalTopLevelSemicolon
+          )
 
 --------------------------------------------------------------------------------
 -- Top-Level Comments
@@ -2167,6 +2285,7 @@ topLevelExpression =
     oneOf
       [ topLevelDef
       , topLevelTypeAlias
+      , topLevelTypeDefinition
       , topLevelTypeDeclaration
       , topLevelComment
       , topLevelOption

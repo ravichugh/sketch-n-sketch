@@ -1054,6 +1054,10 @@ synthesizeType typeInfo typeEnv e =
       let typeEnv_ = TypeAlias p t :: typeEnv in
       propagateResult <| synthesizeType typeInfo typeEnv_ e1
 
+    ETypeDef _ ident vars _ dcs e1 _ ->
+      -- TODO-TD add TypeDef type checking
+      propagateResult <| synthesizeType typeInfo typeEnv e1
+
     EParens _ e1 _ _ ->
       propagateResult <| synthesizeType typeInfo typeEnv e1
 

@@ -135,12 +135,17 @@ type alias Exp_ = { e__ : Exp__, eid : EId }
 type alias Pat_ = { p__ : Pat__, pid : PId }
 
 --------------------------------------------------------------------------------
+
+type alias DataConstructor = (WS, Ident, List Type, WS)
+
+--------------------------------------------------------------------------------
 -- The following expressions count as "top-level":
 --   * definition (def, not let)
 --   * comment
 --   * option
 --   * type declaration
 --   * type alias
+--   * type definition
 --------------------------------------------------------------------------------
 
 -- SpaceApp: fun arg
@@ -167,9 +172,10 @@ type Exp__
   | ELet WS LetKind Rec Pat WS{-=-} Exp WS{-in or ;-} Exp WS{-REMOVE-}
   | EComment WS String Exp
   | EOption WS (WithInfo String) WS (WithInfo String) Exp
-  | ETyp WS Pat Type Exp WS
-  | EColonType WS Exp WS Type WS
-  | ETypeAlias WS Pat Type Exp WS
+  | ETyp WS Pat Type Exp WS -- type declaration
+  | EColonType WS Exp WS Type WS -- type annotation
+  | ETypeAlias WS Pat Type Exp WS -- type alias
+  | ETypeDef WS (WS, Ident) (List (WS, Ident)) WS (List DataConstructor) Exp WS
   | EParens WS Exp ParensStyle WS
   | EHole WS (Maybe Val) -- Internal intermediate, should not appear in code. (Yet.)
   | ERecord WS {- { -} (Maybe (Exp, WS) {- | -}) (List (WS, {-,-} WS, Ident, WS{-=-}, Exp)) {- }-} WS
@@ -627,6 +633,10 @@ mapFoldExp f initAcc e =
       let (newE1, newAcc) = recurse initAcc e1 in
       wrapAndMap (ETypeAlias ws1 pat tipe newE1 ws2) newAcc
 
+    ETypeDef ws1 ident vars ws2 dcs e1 ws3 ->
+      let (newE1, newAcc) = recurse initAcc e1 in
+      wrapAndMap (ETypeDef ws1 ident vars ws2 dcs newE1 ws3) newAcc
+
     EParens ws1 e pStyle ws2 ->
       let (newE, newAcc) = recurse initAcc e in
       wrapAndMap (EParens ws1 newE pStyle ws2) newAcc
@@ -795,6 +805,10 @@ mapFoldExpTopDown f initAcc e =
     ETypeAlias ws1 pat tipe e1 ws2 ->
       let (newE1, newAcc2) = recurse newAcc e1 in
       ret (ETypeAlias ws1 pat tipe newE1 ws2) newAcc2
+
+    ETypeDef ws1 ident vars ws2 dcs e1 ws3 ->
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      ret (ETypeDef ws1 ident vars ws2 dcs newE1 ws3) newAcc2
 
     EParens ws1 e pStyle ws2 ->
       let (newE, newAcc2) = recurse newAcc e in
@@ -983,6 +997,10 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
     ETypeAlias ws1 pat tipe e1 ws2 ->
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
       ret (ETypeAlias ws1 pat tipe newE1 ws2) newGlobalAcc2
+
+    ETypeDef ws1 ident vars ws2 dcs e1 ws3 ->
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      ret (ETypeDef ws1 ident vars ws2 dcs newE1 ws3) newGlobalAcc2
 
     EParens ws1 e pStyle ws2 ->
       let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e in
@@ -1386,6 +1404,7 @@ childExps e =
     ETyp ws1 pat tipe e ws2          -> [e]
     EColonType ws1 e ws2 tipe ws3    -> [e]
     ETypeAlias ws1 pat tipe e ws2    -> [e]
+    ETypeDef _ _ _ _ _ e _           -> [e]
     EParens _ e _ _                  -> [e]
     EHole _ _                        -> []
 
@@ -2041,6 +2060,7 @@ precedingWhitespaceWithInfoExp__ e__ =
     ETyp       ws1 pat tipe e ws2               -> ws1
     EColonType ws1 e ws2 tipe ws3               -> ws1
     ETypeAlias ws1 pat tipe e ws2               -> ws1
+    ETypeDef   ws1 ident vars ws2 dcs rest ws3  -> ws1
     EParens    ws1 e pStyle ws2                 -> ws1
     EHole      ws mv                            -> ws
 
@@ -2097,6 +2117,19 @@ allWhitespaces_ exp =
     ETyp       ws1 pat tipe e ws2           -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
     EColonType ws1 e ws2 tipe ws3           -> [ws1] ++ allWhitespaces_ e ++ [ws2] ++ allWhitespacesType_ tipe ++ [ws2]
     ETypeAlias ws1 pat tipe e ws2           -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
+    ETypeDef ws1 (wsBeforeIdent, ident)
+             vars ws2 dcs rest ws3          -> [ws1, wsBeforeIdent] ++
+                                                 List.map Tuple.first vars ++
+                                                 [ws2] ++
+                                                 List.concatMap
+                                                   ( \(dcws1, _, ts, dcws2) ->
+                                                       [dcws1] ++
+                                                         List.concatMap allWhitespacesType_ ts ++
+                                                         [dcws2]
+                                                   )
+                                                   dcs ++
+                                                 allWhitespaces_ rest ++
+                                                 [ws3]
     EParens    ws1 e pStyle ws2             -> [ws1] ++ allWhitespaces_ e ++ [ws2]
     EHole      ws mv                        -> [ws]
 
@@ -2195,6 +2228,7 @@ mapPrecedingWhitespace stringMap exp =
         ETyp       ws1 pat tipe e ws2               -> ETyp       (mapWs ws1) pat tipe e ws2
         EColonType ws1 e ws2 tipe ws3               -> EColonType (mapWs ws1) e ws2 tipe ws3
         ETypeAlias ws1 pat tipe e ws2               -> ETypeAlias (mapWs ws1) pat tipe e ws2
+        ETypeDef   ws1 ident vars ws2 dcs rest ws3  -> ETypeDef   (mapWs ws1) ident vars ws2 dcs rest ws3
         EParens    ws e pStyle ws2                  -> EParens    (mapWs ws) e pStyle ws2
         EHole      ws mv                            -> EHole      (mapWs ws) mv
   in
@@ -2670,10 +2704,12 @@ modifyWsBefore f codeObject =
               EOption (f ws) a b c d
             ETyp ws a b c d  ->
               ETyp (f ws) a b c d
-            EColonType ws a b c d  ->
+            EColonType ws a b c d ->
               EColonType (f ws) a b c d
-            ETypeAlias ws a b c d  ->
+            ETypeAlias ws a b c d ->
               ETypeAlias (f ws) a b c d
+            ETypeDef ws a b c d e_ f_ ->
+              ETypeDef (f ws) a b c d e_ f_
             EParens ws a pStyle b ->
               EParens (f ws) a pStyle b
             EHole ws mv ->
@@ -3018,6 +3054,17 @@ childCodeObjects co =
             , T t1
             , TT After ws2 t1
             , E e1
+            ]
+          ETypeDef ws1 ident vars ws2 dcs e1 ws3 ->
+            [ ET Before ws1 e
+            ] ++
+            ( List.concatMap
+                ( \(_, _, ts, _) ->
+                    List.map T ts
+                )
+                dcs
+            ) ++
+            [ E e1
             ]
           EParens ws1 e1 pStyle ws2 ->
             [ ET Before ws1 e

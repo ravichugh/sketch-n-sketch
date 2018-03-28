@@ -597,7 +597,7 @@ unparse e =
       wsBefore.val
         ++ "??"
 
-    Lang.EColonType wsBefore term wsBeforeColon typ wsAfter ->
+    EColonType wsBefore term wsBeforeColon typ wsAfter ->
       wsBefore.val
         ++ unparse term
         ++ wsBeforeColon.val
@@ -605,14 +605,14 @@ unparse e =
         ++ unparseType typ
         ++ wsAfter.val
 
-    Lang.ETyp _ name typ rest wsBeforeColon ->
+    ETyp _ name typ rest wsBeforeColon ->
       unparsePattern name
         ++ wsBeforeColon.val
         ++ ":"
         ++ unparseType typ
         ++ unparse rest
 
-    Lang.ETypeAlias wsBefore pat typ rest _ ->
+    ETypeAlias wsBefore pat typ rest _ ->
       wsBefore.val
         ++ "type alias"
         ++ unparsePattern pat
@@ -620,7 +620,38 @@ unparse e =
         ++ unparseType typ
         ++ unparse rest
 
-    Lang.ETypeCase _ _ _ _ ->
+    ETypeDef wsBefore (wsBeforeIdent, ident) vars wsBeforeEqual dcs rest _ ->
+      let
+        unparsedVars =
+          String.concat <|
+            List.map
+              ( \(ws, name) ->
+                  ws.val ++ name
+              )
+              vars
+        unparsedDcs =
+          String.concat <|
+            List.intersperse "|" <|
+              List.map
+                ( \(ws1, name, ts, ws2) ->
+                    ws1.val
+                      ++ name
+                      ++ String.concat (List.map unparseType ts)
+                      ++ ws2.val
+                )
+                dcs
+      in
+        wsBefore.val
+          ++ "type"
+          ++ wsBeforeIdent.val
+          ++ ident
+          ++ unparsedVars
+          ++ wsBeforeEqual.val
+          ++ "="
+          ++ unparsedDcs
+          ++ unparse rest
+
+    ETypeCase _ _ _ _ ->
       "{Error: typecase not yet implemented for Elm syntax}" -- TODO
 
 -- If the expression is a EFun, prints the lists of parameters and returns its body.

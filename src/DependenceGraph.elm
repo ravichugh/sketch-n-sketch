@@ -311,13 +311,14 @@ traverse env exp acc =
     ETypeCase _ _ tbranches _ ->
       let _ = Debug.log "TODO: scope tree ETypeCase" () in acc
 
-    EComment _ _ e        -> recurse [e]
-    EOption _ _ _ _ e     -> recurse [e]
-    ETyp _ _ _ e _        -> recurse [e]
-    EColonType _ e _ _ _  -> recurse [e]
-    ETypeAlias _ _ _ e _  -> recurse [e]
-    EParens _ e _ _       -> recurse [e]
-    EHole _ _             -> let _ = Utils.log "DependenceGraph.traverse: EHole in exp!!" in acc
+    EComment _ _ e         -> recurse [e]
+    EOption _ _ _ _ e      -> recurse [e]
+    ETyp _ _ _ e _         -> recurse [e]
+    EColonType _ e _ _ _   -> recurse [e]
+    ETypeAlias _ _ _ e _   -> recurse [e]
+    ETypeDef _ _ _ _ _ e _ -> recurse [e]
+    EParens _ e _ _        -> recurse [e]
+    EHole _ _              -> let _ = Utils.log "DependenceGraph.traverse: EHole in exp!!" in acc
 
 -- In a let [pattern] = [definition], map each subpattern to its corresponding definition
 traverseAndAddDependencies newScopeId =

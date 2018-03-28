@@ -110,6 +110,7 @@ grossDependencies_ identToDepEId program =
         ETyp _ _ _ body _                       -> [(expEffectiveExp body).val.eid]
         EColonType _ body _ _ _                 -> [(expEffectiveExp body).val.eid]
         ETypeAlias _ _ _ body _                 -> [(expEffectiveExp body).val.eid]
+        ETypeDef _ _ _ _ _ body _               -> [(expEffectiveExp body).val.eid]
         EParens _ body _ _                      -> [(expEffectiveExp body).val.eid]
         EHole _ _                               -> []
     in
