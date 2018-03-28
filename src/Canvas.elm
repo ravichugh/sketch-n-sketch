@@ -21,7 +21,6 @@ import Sync
 import Draw
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
-import FastParser exposing (parseE)
 
 import LangUnparser
 import Eval
@@ -131,7 +130,13 @@ build dim model =
         ([outputElement] ++ newShape ++ widgetsAndDistances ++ selectBox)
     ]
   else
-    [ outputElement
+    let maybeWrappedCanvas =
+      case (model.preview, model.addDummyDivAroundCanvas) of
+        (Just _,  _)       -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        (Nothing, Just _)  -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        (Nothing, Nothing) -> outputElement
+    in
+    [ maybeWrappedCanvas
     , Svg.svg
         [ Attr.id "svgWidgetsLayer"
         , Attr.style

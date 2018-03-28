@@ -824,11 +824,20 @@ update msg oldModel =
                  , giveUpConfirmed = False }
     _ ->
       let newModel = upstate msg oldModel in
-      let cmd = issueCommand msg oldModel newModel in
-      let (hookedModel, hookedCommands) = applyAllHooks oldModel newModel in
+      let finalModel =
+        { newModel
+            | addDummyDivAroundCanvas =
+                case newModel.addDummyDivAroundCanvas of
+                  Just True  -> Just False
+                  Just False -> Nothing
+                  Nothing    -> Nothing
+            }
+      in
+      let cmd = issueCommand msg oldModel finalModel in
+      let (hookedModel, hookedCommands) = applyAllHooks oldModel finalModel in
       ( Model.setAllUpdated hookedModel
       , Cmd.batch <|
-          cmd :: updateCommands newModel ++ hookedCommands
+          cmd :: updateCommands finalModel ++ hookedCommands
       )
 
 upstate : Msg -> Model -> Model
@@ -2215,7 +2224,10 @@ doAutoSync m =
         case results of
           [SynthesisResult {description, exp, isSafe} , revert] ->
             if String.startsWith "HACK: " description then newModel else
-              doSelectSynthesisResult exp newModel
+              let newerModel = doSelectSynthesisResult exp newModel in
+              { newerModel
+                  | addDummyDivAroundCanvas = Just True
+                  }
           _ -> newModel
 
 --------------------------------------------------------------------------------
