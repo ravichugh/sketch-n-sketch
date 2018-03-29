@@ -863,7 +863,8 @@ defaultVDiffs original modified =
     (VList originals, VList modified) ->
       defaultListDiffs valToString defaultVDiffs originals modified |> Result.map (Maybe.map VListDiffs)
     (VClosure isRec1 pats1 body1 env1, VClosure isRec2 pats2 body2 env2) ->
-      defaultEnvDiffs env1 env2 |> Result.andThen (\mbEnvDiff ->
+      let ids = Set.union (LangUtils.identifiersSet body1) (LangUtils.identifiersSet body2) in
+      defaultEnvDiffs ids env1 env2 |> Result.andThen (\mbEnvDiff ->
          defaultEDiffs body1 body2 |> Result.map (\mbEDiff ->
           case mbEnvDiff of
             Nothing ->
@@ -913,8 +914,14 @@ defaultListDiffs keyOf defaultElemModif elems1 elems2 =
   in
   aux 0 [] difference
 
-defaultEnvDiffs: Env -> Env -> Result String (Maybe EnvDiffs) -- lowercase val so that it can be applied to something else?
-defaultEnvDiffs elems1 elems2 =
+valEqualDiff: Val -> Val -> Bool
+valEqualDiff original modified =
+  case defaultVDiffs original modified of
+    Ok Nothing -> True
+    _ -> False
+
+defaultEnvDiffs: Set Ident -> Env -> Env -> Result String (Maybe EnvDiffs) -- lowercase val so that it can be applied to something else?
+defaultEnvDiffs identsToCompare elems1 elems2 =
   let aux: Int -> List (Int, VDiffs) -> Env         -> Env -> Result String (Maybe EnvDiffs)
       aux  i      revEnvDiffs          envToCollect1  envToCollect2 =
         case (envToCollect1, envToCollect2) of
@@ -924,7 +931,7 @@ defaultEnvDiffs elems1 elems2 =
               envDiffs -> Ok <| Just envDiffs
           (((k1, v1) as ehd1)::etl1, ((k2, v2) as ehd2)::etl2) ->
             if k1 /= k2 then Err <| "trying to compute a diff on unaligned environments " ++ k1 ++ "," ++ k2 else
-            if valEqual v1 v2 then
+            if (if Set.member k1 identsToCompare then valEqualDiff v1 v2 else False) then
               aux (i + 1) revEnvDiffs etl1 etl2
             else
               defaultVDiffs v1 v2 |> Result.andThen (\mbv ->

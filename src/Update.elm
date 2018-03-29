@@ -548,7 +548,8 @@ getUpdateStackOp env e oldVal newVal diffs =
                                     case extendUpdateModule fieldUpdateClosure of
                                       Err msg -> Just <| UpdateCriticalError msg
                                       Ok xVal ->
-                                    case ImpureGoodies.logTimedRun (".update eval line " ++ toString e1.start.line) <| \_ -> (doEval Syntax.Elm [("x", xVal), ("y", customArgument)] xyApplication) of
+                                        let xyEnv = [("x", xVal), ("y", customArgument)] in
+                                    case ImpureGoodies.logTimedRun (".update eval line " ++ toString e1.start.line) <| \_ -> (doEval Syntax.Elm xyEnv xyApplication) of
                                       Err s -> Just <| UpdateCriticalError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                         case Vu.record Ok vResult of
@@ -1276,18 +1277,18 @@ getUpdateAppVFun name v = replaceV_ v <|
             case (Dict.get "fun" d, Dict.get "input" d, Dict.get "output" d) of
               (Just fun, Just input, Just newVal) ->
                 let xyEnv = [("x", fun),("y", input)] in
-                let exp = (withDummyExpInfo <| EApp space0 (withDummyExpInfo <| EVar space0 "x") [withDummyExpInfo <| EVar space1 "y"] SpaceApp space0) in
+                let xyExp = (withDummyExpInfo <| EApp space0 (eVar "x") [eVar "y"] SpaceApp space0) in
                 let oldOut = case Dict.get "oldOutput" d of
                   Nothing -> case Dict.get "oldout" d of
                      Nothing -> case Dict.get "outputOld" d of
                        Nothing ->
-                         Eval.doEval Syntax.Elm xyEnv exp |> Result.map (\((v, _), _) -> v)
+                         Eval.doEval Syntax.Elm xyEnv xyExp |> Result.map (\((v, _), _) -> v)
                        Just v -> Ok v
                      Just v -> Ok v
                   Just v -> Ok v
                 in
                 case oldOut of
-                  Err msg -> Err msg
+                  Err msg -> Err <| "while evaluating updateApp and trying to compute the old value, " ++ msg
                   Ok oldOut ->
                     let outputDiff = case Dict.get "outputDiff" d of
                       Nothing -> case Dict.get "diffOutput" d of
@@ -1301,7 +1302,7 @@ getUpdateAppVFun name v = replaceV_ v <|
                     in
                     --let _ = Debug.log "calling back update" () in
                     case outputDiff of
-                      Err msg -> Err msg
+                      Err msg -> Err <| "while evaluating updateApp and trying to compute the output diff, " ++ msg
                       Ok Nothing -> -- No need to call update
                         let resultingValue = (Vb.record v) identity (
                              Dict.fromList [("values", (Vb.list v) identity [input]),
@@ -1310,7 +1311,7 @@ getUpdateAppVFun name v = replaceV_ v <|
                         in
                         Ok (resultingValue, [])
                       Ok (Just newOutDiffs) ->
-                        let basicResult = case update (updateContext name [] exp oldOut newVal newOutDiffs) LazyList.Nil of
+                        let basicResult = case update (updateContext name xyEnv xyExp oldOut newVal newOutDiffs) LazyList.Nil of
                           Errs msg -> (Vb.record v) (Vb.string v) (Dict.fromList [("error", msg)])
                           Oks ll ->
                              let l = LazyList.toList ll in
@@ -1328,7 +1329,7 @@ getUpdateAppVFun name v = replaceV_ v <|
                              else
                                let (results, diffs) = lFiltered |> List.map (\(newXYEnv, newExp) ->
                                  case newXYEnv.val of
-                                    ("x", newFun)::("y",newArg)::newEnv ->
+                                    [("x", newFun), ("y",newArg)] ->
                                       case newXYEnv.changes of
                                         [] -> (newArg, Nothing)
                                         [(1, diff)] -> (newArg, Just diff)
