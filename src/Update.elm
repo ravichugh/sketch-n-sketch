@@ -844,8 +844,12 @@ getUpdateStackOp env e oldVal newVal diffs =
                              Errs msg -> UpdateCriticalError msg
                              Oks ll ->
                                let llWithDiffResult = ll |> LazyList.map (\outputs ->
-                                 (outputs, UpdateUtils.defaultTupleDiffs valToString defaultVDiffs v2s outputs)) in
-                               updateOpMultiple "vfun" env e2s (\newE2s -> replaceE__ e <| EApp sp0 e1 newE2s appType sp1) v2s llWithDiffResult
+                                 let resMaybeDiffs = UpdateUtils.defaultTupleDiffs valToString defaultVDiffs v2s outputs  in
+                                 let resMaybeDiffsOffsetted = Result.map (Maybe.map (UpdateUtils.offset 1)) resMaybeDiffs in
+                                 (v1::outputs, resMaybeDiffsOffsetted)) in
+                               updateOpMultiple "vfun" env (e1::e2s) (\funAndNewE2s ->
+                                     replaceE__ e <| EApp sp0 e1 (Utils.tail "vfun" funAndNewE2s) appType sp1
+                                   ) (v1::v2s) llWithDiffResult
 
                _ -> UpdateCriticalError <| strPos e1.start ++ " not a function"
      EIf sp0 cond sp1 thn sp2 els sp3 ->

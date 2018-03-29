@@ -1109,7 +1109,7 @@ Editor = {}
 
 -- Returns a list of one text element from a string, and updates by taking all the pasted text.
 textInner s = {
-  apply s = [["TEXT", s]]
+  apply s = freeze [["TEXT", s]]
   update {output} =
     letrec textOf = case of
       ["TEXT", s]::tail -> s + textOf tail
