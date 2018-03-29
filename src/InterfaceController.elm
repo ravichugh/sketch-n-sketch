@@ -812,6 +812,10 @@ tryRun old =
 --
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg oldModel =
+  let msgOverview = case msg of
+    Msg k _ -> k
+    _ -> ""
+  in
   case
     ( (oldModel.pendingFileOperation, oldModel.fileOperationConfirmed)
     , (oldModel.pendingGiveUpMsg, oldModel.giveUpConfirmed)
@@ -829,13 +833,21 @@ update msg oldModel =
                  , giveUpConfirmed = False }
     _ ->
       let newModel = upstate msg oldModel in
+      let newAddDummyDivAroundCanvas =
+        if String.startsWith "Ace" msgOverview then newModel.addDummyDivAroundCanvas else
+        case newModel.addDummyDivAroundCanvas of
+           Just True  -> Just False
+           Just False -> Nothing
+           Nothing    -> Nothing
+      in
+      let augmentSlateCondition =
+        (newAddDummyDivAroundCanvas /= oldModel.addDummyDivAroundCanvas && newAddDummyDivAroundCanvas == Nothing) ||
+        Utils.maybeIsEmpty (oldModel.preview) /= Utils.maybeIsEmpty (newModel.preview)
+      in
       let finalModel =
         { newModel
-            | addDummyDivAroundCanvas =
-                case newModel.addDummyDivAroundCanvas of
-                  Just True  -> Just False
-                  Just False -> Nothing
-                  Nothing    -> Nothing
+            | addDummyDivAroundCanvas = newAddDummyDivAroundCanvas
+            , slateCount = if augmentSlateCondition then newModel.slateCount + 1 else newModel.slateCount
             }
       in
       let cmd = issueCommand msg oldModel finalModel in
