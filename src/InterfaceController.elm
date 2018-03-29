@@ -1047,8 +1047,14 @@ issueCommand msg oldModel newModel =
           AceCodeBox.setReadOnly True
 
         _ ->
+          let dispatchIfChanged: (Model -> a) -> (a -> Cmd Msg) -> Cmd Msg
+              dispatchIfChanged submodel cmdBuilder =
+                let n = submodel newModel in
+                if submodel oldModel /= n then cmdBuilder n else Cmd.none
+          in
           Cmd.batch
-            [ OutputCanvas.enableAutoSync <| Utils.maybeIsEmpty newModel.preview,
+            [ dispatchIfChanged (\m -> (m.preview |> Utils.maybeIsEmpty) && m.enableAutoSync) OutputCanvas.enableAutoSync,
+              dispatchIfChanged .autoSyncDelay OutputCanvas.setAutoSyncDelay,
               if kind == "Update Font Size" then
                 AceCodeBox.updateFontSize newModel
               else if

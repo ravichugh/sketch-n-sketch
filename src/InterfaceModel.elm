@@ -198,6 +198,8 @@ type alias Model =
   , valueEditorString : String
   , updatedValue: Maybe (Result String Val)
   , syntax : Syntax
+  , enableAutoSync: Bool
+  , autoSyncDelay: Int --In milliseconds
   }
 
 type OutputMode
@@ -1258,4 +1260,6 @@ initModel =
     , valueEditorString = LangUtils.valToString v
     , updatedValue = Nothing
     , syntax = Syntax.Elm
+    , enableAutoSync = True
+    , autoSyncDelay = 1000
     }

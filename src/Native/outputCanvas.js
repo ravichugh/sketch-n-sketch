@@ -240,3 +240,6 @@ app.ports.enableAutoSync.subscribe(function(b) {
   enableAutoUpdate = b;
 })
 
+app.ports.setAutoSyncDelay.subscribe(function(n) {
+  msBeforeAutoSync = n;
+})

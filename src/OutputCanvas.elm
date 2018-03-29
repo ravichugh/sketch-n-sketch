@@ -5,6 +5,7 @@ port module OutputCanvas exposing
   , receiveValueUpdate
   , maybeAutoSync
   , enableAutoSync
+  , setAutoSyncDelay
   )
 
 import InterfaceModel as Model exposing (Model, OutputCanvasInfo)
@@ -30,6 +31,8 @@ sendCmd message =
     }
 
 port enableAutoSync: Bool -> Cmd msg
+
+port setAutoSyncDelay : Int -> Cmd msg
 
 -- Incoming
 

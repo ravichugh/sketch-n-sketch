@@ -60,7 +60,7 @@ update updateStack nextToUpdate=
   -- At the end of nextToUpdate, there are all the forks that can be explored later.
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out diffs mb ->
-       {--
+       {-
       let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
        --}
       update (getUpdateStackOp env e oldVal out diffs) (LazyList.maybeCons mb nextToUpdate)
@@ -672,8 +672,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                      let ne2 = List.length e2s in
                      if ne1ps > ne2 then -- Less arguments than expected, hence partial application.
                        --let _ = Debug.log ("Less arguments than expected, instead of " ++ toString ne1ps ++ " got " ++ toString ne2) () in
-                       let e1psNotUsed = List.drop ne2 e1ps in
-                       let e1psUsed = List.take ne2 e1ps in
+                       let (e1psUsed, e1psNotUsed) = Utils.split ne2 e1ps in
                        case (newVal.v_, diffs) of
                          (VClosure _ psOut outBody envOut_, VClosureDiffs modifEnv modifBody) ->
                            let updatedEnvOut = UpdatedEnv envOut_ modifEnv in
@@ -705,9 +704,12 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                  (replaceV_ v1 <| VClosure recName (e1psUsed ++ psOut) outBody newUpdatedEnv_.val, VClosureDiffs newUpdatedEnv_.changes modifBody))) of
                                   Just (env__, consBuilder) -> --The environment now should align with updatedEnvOut_
                                     let ((newV2s, newV2sDiffs), newClosureAndDiff) = consBuilder updatedEnvOut in
+                                    --let _ = Debug.log ("v1 : " ++ valToString v1) () in
+                                    --let _ = Debug.log ("newV2s : " ++ (List.map valToString newV2s |> String.join "")) () in
+                                    --let _ = Debug.log ("newV2sDiffs : " ++ (List.map toString newV2sDiffs |> String.join "")) () in
                                     let (newV1, newV1Diffs) =
-                                      case ( modifBody) of
-                                        (Nothing) -> (v1, Nothing)
+                                      case (modifEnv, modifBody) of
+                                        ([], Nothing) -> (v1, Nothing)
                                         _ -> newClosureAndDiff () |> (\(a, b) -> (a, Just b))
                                      in
                                     continuation newV1 newV1Diffs newV2s newV2sDiffs "app"
@@ -725,13 +727,16 @@ getUpdateStackOp env e oldVal newVal diffs =
                                     let ((newV2s, newV2sDiffs),
                                          ((newArgFun, newArgFunDiffs),
                                            newClosureAndDiff)) = consBuilder updatedEnvOut in
-                                    --let _ = Debug.log ("newArgFun : " ++ valToString newArgFun) () in
                                     --let _ = Debug.log ("v1 : " ++ valToString v1) () in
-                                    let (newV1, newV1Diffs)  = case (modifBody, newArgFunDiffs) of
-                                      (Nothing, Nothing) -> (v1, Nothing)
-                                      (Nothing, _) -> (newArgFun, newArgFunDiffs)
-                                      (_, Nothing) -> newClosureAndDiff () |> (\(a, b) -> (a, Just b))
-                                      (_, Just realArgFunDiffs) ->
+                                    --let _ = Debug.log ("newArgFun : " ++ valToString newArgFun) () in
+                                    --let _ = Debug.log ("newArgFunDiffs : " ++ toString newArgFunDiffs) () in
+                                    --let _ = Debug.log ("newV2s : " ++ (List.map valToString newV2s |> String.join "")) () in
+                                    --let _ = Debug.log ("newV2sDiffs : " ++ (List.map toString newV2sDiffs |> String.join "")) () in
+                                    let (newV1, newV1Diffs)  = case (modifEnv, modifBody, newArgFunDiffs) of
+                                      ([], Nothing, Nothing) -> (v1, Nothing)
+                                      ([], Nothing, _) -> (newArgFun, newArgFunDiffs)
+                                      (_, _, Nothing) -> newClosureAndDiff () |> (\(a, b) -> (a, Just b))
+                                      (_, _, Just realArgFunDiffs) ->
                                         let (closure, closuremodifs) = newClosureAndDiff () in
                                         let (newv, newDiffs) = mergeVal v1 newArgFun realArgFunDiffs closure closuremodifs in
                                         (newv, Just newDiffs)
