@@ -1592,6 +1592,17 @@ toolButton model tool =
           model cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
       ]
 
+
+customButton model name btnKind disabled onClickHandler =
+  let cap = name
+  in
+    Html.div
+      [ Attr.class "tool"
+      ]
+      [ iconButton
+          model name (Msg cap onClickHandler) btnKind disabled
+      ]
+
 lambdaTools : Model -> List (Html Msg)
 lambdaTools model =
   let buttons =
@@ -1677,7 +1688,18 @@ toolPanel model =
         ]
 
       else
-        [ toolButton model Cursor
+        [ customButton model "GUI" (if model.outputMode == Live then Selected else Unselected) False <| \m ->
+            {m | outputMode = Live }
+        , customButton model "Leo" (if model.outputMode == ShowValue then Selected else Unselected) False <| \m ->
+            {m | outputMode = ShowValue }
+        , customButton model "Html" (case model.outputMode of
+            Print _ -> Selected
+            _ -> Unselected) False  <| Controller.doSetOutputPrint
+        , toolSeparator
+        , toolSeparator
+        , toolSeparator
+        , customButton model "Auto-Sync" (if model.enableAutoSync then Selected else Unselected) False <| \m ->
+          { m | enableAutoSync = not m.enableAutoSync }
         ]
   in
     Html.div

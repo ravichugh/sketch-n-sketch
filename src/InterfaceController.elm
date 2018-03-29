@@ -21,7 +21,7 @@ port module InterfaceController exposing
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
-  , msgSetOutputLive, msgSetOutputPrint, msgSetOutputShowValue
+  , msgSetOutputLive, msgSetOutputPrint, doSetOutputPrint, msgSetOutputShowValue
   , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
   , msgSetLiveSyncDelay
   , msgStartAnimation, msgRedraw, msgTickDelta
@@ -1909,7 +1909,10 @@ msgToggleCodeBox = Msg "Toggle Code Box" <| \old ->
 msgSetOutputLive = Msg "Set Output Live" <| \old ->
   { old | outputMode = Live }
 
-msgSetOutputPrint = Msg "Set Output Print" <| \old ->
+msgSetOutputPrint = Msg "Set Output Print" doSetOutputPrint
+
+doSetOutputPrint: Model -> Model
+doSetOutputPrint old =
   { old | outputMode = Print (LangSvg.printSvg old.showGhosts old.slate) }
 
 msgSetOutputShowValue = Msg "Set Output Show Value" <| \old ->
