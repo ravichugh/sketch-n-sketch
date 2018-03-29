@@ -1444,7 +1444,12 @@ outputPanel model =
         (Just errorMsg, _, Nothing) ->
           [textOutput errorMsg]
         (Nothing, Print svgCode, Nothing) ->
-          [textOutput svgCode]
+          [ Html.textarea
+              [ E.onInput Controller.msgUpdateHTMLEditor
+              , Attr.class "text-output"
+              ]
+              [ Html.text (Maybe.withDefault svgCode model.htmlEditorString) ]
+          ]
         (Nothing, ShowValue, _) ->
 {-
           [ Html.div

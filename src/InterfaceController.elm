@@ -7,7 +7,7 @@ port module InterfaceController exposing
   , msgKeyPress, msgKeyDown, msgKeyUp
   , msgMouseIsDown, msgMousePosition
   , msgRun, upstateRun, msgTryParseRun
-  , msgUpdateValueEditor, msgCallUpdate
+  , msgUpdateValueEditor, msgUpdateHTMLEditor, msgCallUpdate
   , msgAceUpdate
   , msgUserHasTyped
   , msgOutputCanvasUpdate
@@ -628,6 +628,8 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
           , inputExp = newExp
           , inputVal = newVal
           , valueEditorString = LangUtils.valToString newVal
+          , outputMode        = maybeUpdateOutputMode old newSlate
+          , htmlEditorString = Nothing
           , slate = newSlate
           , slateCount = 1 + old.slateCount
           , widgets = newWidgets
@@ -708,6 +710,8 @@ tryRun old =
                 { new | inputExp      = e
                       , inputVal      = newVal
                       , valueEditorString = LangUtils.valToString newVal
+                      , outputMode    = maybeUpdateOutputMode old newSlate
+                      , htmlEditorString = Nothing
                       , code          = newCode
                       , lastRunCode   = newCode
                       , slideCount    = newSlideCount
@@ -1024,7 +1028,7 @@ issueCommand msg oldModel newModel =
           FileHandler.sendMessage <|
             Download
               (Model.prettyFilename WithoutExtension newModel ++ ".svg")
-              (LangSvg.printSvg newModel.showGhosts newModel.slate)
+              (LangSvg.printHTML newModel.showGhosts newModel.slate)
 
         "Import Code" ->
           FileHandler.sendMessage <|
@@ -1767,6 +1771,7 @@ doSelectSynthesisResult newExp old =
       { new | inputExp             = reparsed -- newExp
             , inputVal             = newVal
             , valueEditorString    = LangUtils.valToString newVal
+            , outputMode           = maybeUpdateOutputMode old newSlate
             , slate                = newSlate
             , slateCount           = 1 + old.slateCount
             , widgets              = newWidgets
@@ -1778,6 +1783,11 @@ doSelectSynthesisResult newExp old =
               , outputMode  = Live -- switch out of ShowValue
               }
   )
+
+maybeUpdateOutputMode: Model-> LangSvg.RootedIndexedTree -> OutputMode
+maybeUpdateOutputMode old newSlate =  case old.outputMode of
+  Print k -> Print (LangSvg.printHTML old.showGhosts newSlate)
+  x -> x
 
 clearSynthesisResults : Model -> Model
 clearSynthesisResults old =
@@ -1913,7 +1923,7 @@ msgSetOutputPrint = Msg "Set Output Print" doSetOutputPrint
 
 doSetOutputPrint: Model -> Model
 doSetOutputPrint old =
-  { old | outputMode = Print (LangSvg.printSvg old.showGhosts old.slate) }
+  { old | outputMode = Print (LangSvg.printHTML old.showGhosts old.slate) }
 
 msgSetOutputShowValue = Msg "Set Output Show Value" <| \old ->
   { old | outputMode = ShowValue }
@@ -2039,12 +2049,22 @@ msgUpdateValueEditor s = Msg "Update Value Editor" <| \m ->
           Dict.remove "Update for New Output" m.synthesisResultsDict
       }
 
+msgUpdateHTMLEditor s = Msg "Update HTML Editor" <| \m ->
+  { m
+      | htmlEditorString = Just s
+      , synthesisResultsDict =
+          Dict.remove "Update for New Output" m.synthesisResultsDict
+  }
+
 msgCallUpdate = Msg "Call Update" doCallUpdate
 
 doCallUpdate m =
   --let _ = Debug.log "I'll find the value" () in
   let updatedValResult =
-    if domEditorNeedsCallUpdate m then
+    if htmlEditorNeedsCallUpdate m then
+      Result.fromMaybe "No new HTML updated value available" m.htmlEditorString |>
+        Result.andThen Update.buildUpdatedValueFromHtmlString
+    else if domEditorNeedsCallUpdate m then
       Result.fromMaybe "No new updated value available" m.updatedValue |> Result.andThen (\i -> i)
     else
        m.valueEditorString
@@ -2615,6 +2635,8 @@ handleNew template = (\old ->
         { initModel | inputExp      = e
                     , inputVal      = v
                     , valueEditorString = LangUtils.valToString v
+                    , outputMode    = maybeUpdateOutputMode old slate
+                    , htmlEditorString = Nothing
                     , code          = code
                     , lastRunCode   = code
                     , history       = History.begin { code = code, selectedDeuceWidgets = [] }
@@ -2920,7 +2942,7 @@ msgSetGhostsShown shown =
       newMode =
         case old.outputMode of
           Print _ ->
-            Print (LangSvg.printSvg shown old.slate)
+            Print (LangSvg.printHTML shown old.slate)
           _ ->
             old.outputMode
     in

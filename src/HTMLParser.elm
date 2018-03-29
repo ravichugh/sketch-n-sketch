@@ -1,5 +1,7 @@
 module HTMLParser exposing (parseHTMLString,
   HTMLNode(..), HTMLEndOpeningStyle(..), HTMLClosingStyle(..), HTMLCommentStyle(..), HTMLAttribute(..), HTMLAttributeValue(..),
+  isVoidElement, isForeignElement,
+  NameSpace(..),
   unparseHtmlNodes,
   unparseNode)
 

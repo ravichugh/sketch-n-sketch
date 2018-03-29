@@ -1,5 +1,6 @@
 module Update exposing
   ( buildUpdatedValueFromEditorString
+  , buildUpdatedValueFromHtmlString
   , update
   , vStr
   , vList
@@ -37,6 +38,8 @@ import UpdatedEnv exposing (UpdatedEnv)
 import ValBuilder as Vb
 import ValUnbuilder as Vu
 import ImpureGoodies
+import HTMLValParser
+import HTMLParser
 
 unparse = Syntax.unparser Syntax.Elm
 unparsePattern = Syntax.patternUnparser Syntax.Elm
@@ -531,7 +534,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                     let x = eVar "x" in
                                     let y = eVar "y" in
                                     let diffsVal = ImpureGoodies.logTimedRun ".update vDiffsToVal" <| \_ -> vDiffsToVal v1 diffs in
-                                    let customArgument = Vb.record vArg identity <| Dict.fromList [
+                                    let customArgument = Vb.record Vb.identity vArg <| Dict.fromList [
                                          ("input", vArg),
                                          ("output", newVal),
                                            ("outputNew", newVal), -- Redundant
@@ -1309,15 +1312,15 @@ getUpdateAppVFun name v = replaceV_ v <|
                     case outputDiff of
                       Err msg -> Err <| "while evaluating updateApp and trying to compute the output diff, " ++ msg
                       Ok Nothing -> -- No need to call update
-                        let resultingValue = (Vb.record v) identity (
-                             Dict.fromList [("values", (Vb.list v) identity [input]),
-                                            ("diffs", (Vb.list v) identity [] )
+                        let resultingValue = Vb.record (Vb.list Vb.identity) v (
+                             Dict.fromList [("values", [input]),
+                                            ("diffs", [] )
                              ])
                         in
                         Ok (resultingValue, [])
                       Ok (Just newOutDiffs) ->
                         let basicResult = case update (updateContext name xyEnv xyExp oldOut newVal newOutDiffs) LazyList.Nil of
-                          Errs msg -> (Vb.record v) (Vb.string v) (Dict.fromList [("error", msg)])
+                          Errs msg -> Vb.record Vb.string v (Dict.fromList [("error", msg)])
                           Oks ll ->
                              let l = LazyList.toList ll in
                              let lFiltered = List.filter (\(newXYEnv, newExp) ->
@@ -1328,9 +1331,9 @@ getUpdateAppVFun name v = replaceV_ v <|
                              in
                              if List.isEmpty lFiltered then
                                if List.isEmpty l then
-                                 (Vb.record v) identity (Dict.fromList [("values", (Vb.list v) identity []), ("diffs", (Vb.list v) identity [])])
+                                 Vb.record (Vb.list Vb.identity) v (Dict.fromList [("values", []), ("diffs", [])])
                                else
-                                 (Vb.record v) (Vb.string v) (Dict.fromList [("error", "Only solutions modifying the constant function of " ++ name)])
+                                 Vb.record Vb.string v (Dict.fromList [("error", "Only solutions modifying the constant function of " ++ name)])
                              else
                                let (results, diffs) = lFiltered |> List.map (\(newXYEnv, newExp) ->
                                  case newXYEnv.val of
@@ -1341,9 +1344,9 @@ getUpdateAppVFun name v = replaceV_ v <|
                                         _ -> Debug.crash "Internal error: expected not much than (1, diff) in environment changes"
                                     _ -> Debug.crash "Internal error: expected x and y in environment"
                                  ) |> List.unzip in
-                               let maybeDiffsVal = diffs |> (Vb.list v) (maybeToVal vDiffsToVal v) in
-                               (Vb.record v) identity (
-                                    Dict.fromList [("values", (Vb.list v) identity results),
+                               let maybeDiffsVal = diffs |> Vb.list (maybeToVal vDiffsToVal) v in
+                               Vb.record Vb.identity v (
+                                    Dict.fromList [("values", Vb.list Vb.identity v results),
                                                  ("diffs", maybeDiffsVal )
                                     ])
                         in Ok (basicResult, [])
@@ -1861,3 +1864,13 @@ buildUpdatedValueFromEditorString syntax valueEditorString =
     |> Result.andThen (Eval.doEval syntax [])
     |> Result.map (\((v, _), _) -> v)
 
+buildUpdatedValueFromHtmlString: String -> Result String Val
+buildUpdatedValueFromHtmlString htmlEditorString =
+  HTMLParser.parseHTMLString htmlEditorString
+  |> Result.mapError ParserUtils.showError
+  |> Result.andThen (\nodes ->
+    case nodes of
+      [] -> Err "No nodes"
+      head::tail ->
+        Ok <| HTMLValParser.htmlNodeToElmViewInLeo (builtinVal "buildUpdatedValueFromHtmlString" <| VBase <| VString "") head
+  )

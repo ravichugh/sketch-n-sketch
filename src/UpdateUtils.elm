@@ -391,15 +391,15 @@ valToResult subroutine v = case Vu.constructor Ok v of
 
 -- Helpers for TupleDiffs and ListDiffs
 tupleDiffsToVal: (Val -> a -> Val) -> Val -> TupleDiffs a -> Val
-tupleDiffsToVal subroutine v =
-  (Vb.list v) ((Vb.tuple2 v) (Vb.int v) (subroutine v))
+tupleDiffsToVal subroutine =
+  Vb.list (Vb.tuple2 Vb.int subroutine)
 
 valToTupleDiffs: (Val -> Result String a) -> Val -> Result String (TupleDiffs a)
 valToTupleDiffs subroutine =
   Vu.list (Vu.tuple2 Vu.int subroutine)
 
 listDiffsToVal: (Val -> a -> Val) -> Val -> (ListDiffs a) -> Val
-listDiffsToVal subroutine v list= (Vb.list v) ((Vb.tuple2 v) (Vb.int v) (listElemDiffToVal subroutine v)) list
+listDiffsToVal subroutine= Vb.list (Vb.tuple2 Vb.int (listElemDiffToVal subroutine))
 
 valToListDiffs: (Val -> Result String a) -> Val -> Result String (ListDiffs a)
 valToListDiffs subroutine l = Vu.list (Vu.tuple2 Vu.int (valToListElemDiff subroutine)) l
@@ -445,8 +445,8 @@ vDiffsToVal v vdiffs = case vdiffs of
   VClosureDiffs e mbe -> (Vb.constructor v) "VClosureDiffs" [envDiffsToVal v e, maybeToVal eDiffsToVal v mbe]
   VListDiffs list     -> (Vb.constructor v) "VListDiffs"    [listDiffsToVal vDiffsToVal v list]
   VConstDiffs         -> (Vb.constructor v) "VConstDiffs"   []
-  VDictDiffs d        -> (Vb.constructor v) "VDictDiffs"    [(Vb.dict v) (vDictElemDiffToVal v) d]
-  VRecordDiffs d      -> (Vb.constructor v) "VRecordDiffs " [(Vb.record v) (vDiffsToVal v) d]
+  VDictDiffs d        -> (Vb.constructor v) "VDictDiffs"    [Vb.dict vDictElemDiffToVal v d]
+  VRecordDiffs d      -> (Vb.constructor v) "VRecordDiffs " [Vb.record vDiffsToVal v d]
 
 valToVDiffs: Val -> Result String VDiffs
 valToVDiffs v = case Vu.constructor Ok v of

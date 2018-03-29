@@ -431,7 +431,8 @@ patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId) =
   in
     (referenceScopeId, targetPath)
 
-tab k = String.repeat k "  "
+-- CAREFUL: This is non-breaking space (used in LangSVG.printHTML and also removed from parsing in THMLValParser)
+tab k = String.repeat k "  "
 
 -- TODO take into account indent and other prefix of current line
 fitsOnLine s =
@@ -2390,7 +2391,7 @@ imitatePatListWhitespace oldPats newPats =
 
 -- 4 spaces per tab.
 tabsToSpaces : String -> String
-tabsToSpaces ws = Regex.replace Regex.All (Regex.regex "\t") (\_ -> "    ") ws
+tabsToSpaces ws = Regex.replace Regex.All (Regex.regex "\t") (\_ -> "    ") ws
 
 
 -- The indentation difference from exp1 to exp2 is applied to exp.

@@ -196,6 +196,7 @@ type alias Model =
   -- from local storage)
   , lastSelectedTemplate : Maybe (String, Code)
   , valueEditorString : String
+  , htmlEditorString: Maybe String
   , updatedValue: Maybe (Result String Val)
   , syntax : Syntax
   , enableAutoSync: Bool
@@ -853,6 +854,13 @@ needsRun m =
 valueEditorNeedsCallUpdate model =
   LangUtils.valToString model.inputVal /= model.valueEditorString
 
+htmlEditorNeedsCallUpdate model =
+  case model.outputMode of
+    Print htmlCode -> case model.htmlEditorString of
+      Nothing -> False
+      Just h -> htmlCode /= h
+    _ -> False
+  
 domEditorNeedsCallUpdate model =
   not <| Utils.maybeIsEmpty model.updatedValue
 
@@ -1082,6 +1090,9 @@ autoOutputToolsPopupPanelShown model =
     , not <| Set.isEmpty model.selectedShapes
     , not <| Dict.isEmpty model.selectedBlobs
     , model.outputMode == ShowValue && valueEditorNeedsCallUpdate model
+    , case model.outputMode of
+        Print _ -> htmlEditorNeedsCallUpdate model
+        _ -> False
     , domEditorNeedsCallUpdate model
     ]
 
@@ -1258,6 +1269,7 @@ initModel =
     , giveUpConfirmed = False
     , lastSelectedTemplate = Just (Examples.initTemplate, code)
     , valueEditorString = LangUtils.valToString v
+    , htmlEditorString = Nothing
     , updatedValue = Nothing
     , syntax = Syntax.Elm
     , enableAutoSync = True
