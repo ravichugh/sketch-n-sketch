@@ -1,3 +1,5 @@
+# updatedelay:0
+
 modify defaultContent trigger f x = 
   { apply i = freeze defaultContent,
     update {input, outputNew} = if outputNew == trigger then {values = [f input]} else {value = [input]}

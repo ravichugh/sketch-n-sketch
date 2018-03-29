@@ -6286,7 +6286,9 @@ html <| \"\"\"<button onclick=\"this.setAttribute('v','@otherLanguage')\" v=\"@l
 """
 
 fromleo_modelviewcontroller =
- """modify defaultContent trigger f x = 
+ """# updatedelay:0
+
+modify defaultContent trigger f x = 
   { apply i = freeze defaultContent,
     update {input, outputNew} = if outputNew == trigger then {values = [f input]} else {value = [input]}
   }.apply x
