@@ -102,7 +102,7 @@ builtinEnv =
             Syntax.parser Syntax.Elm s
             |> Result.mapError (ParserUtils.showError)
             |> Result.andThen (\prog ->
-                Eval.doEval Syntax.Elm [] prog
+                Eval.doEval Syntax.Elm builtinEnv prog
               )
             |> Result.map Tuple.first
           _ -> Err <| "evaluate expects one string, got " ++ LangUtils.valToString  program
@@ -125,7 +125,7 @@ builtinEnv =
                       case mbDiff of
                         Nothing -> ok1 [oldProgram]
                         Just d -> -- Hack to avoid mutual recursion.
-                             Update.update (UpdateStack.updateContext "Eval.update" [] prog oldVal newVal d) LazyList.Nil
+                             Update.update (UpdateStack.updateContext "Eval.update" builtinEnv prog oldVal newVal d) LazyList.Nil
                           |> Results.map Tuple.second
                           |> Results.map .val
                           |> Results.map (Syntax.unparser Syntax.Elm)

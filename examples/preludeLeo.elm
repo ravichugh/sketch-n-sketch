@@ -316,19 +316,19 @@ foldDiff =
   case fold 0 oldOutput newOutput listDiffs start of
     { error = msg } -> {error = msg}
     { values = values } -> -- values might be a pair of value and diffs. We use onGather to do the split.
-      letrec aux accValues accDiffs values = case values of
-        [] -> case accDiffs of
-          ["Nothing"] -> {values = accValues}
-          ["Just", diffs] -> {values = accValues, diffs = diffs}
+      letrec aux revAccValues revAccDiffs values = case values of
+        [] -> case revAccDiffs of
+          ["Nothing"] -> {values = reverse revAccValues}
+          ["Just", revDiffs] -> {values = reverse revAccValues, diffs = reverse revDiffs}
         head::tail -> case onGather head of
-          {value, diff} -> case accDiffs of
-            ["Nothing"] -> if len accValues > 0 then { error = "Diffs not specified for all values, e.g." + toString value } else
+          {value, diff} -> case revAccDiffs of
+            ["Nothing"] -> if len revAccValues > 0 then { error = "Diffs not specified for all values, e.g." + toString value } else
               aux [value] ["Just", [diff]] tail
-            ["Just", diffs] ->
-              aux (accValues ++ [value]) ["Just", diffs ++ [diff]] tail
-          {value} -> case accDiffs of
-            ["Nothing"] -> aux [value] accDiffs tail
-            ["Just", diffs] -> { error = "Diffs not specified until " + toString value }
+            ["Just", revDiffs] ->
+              aux (value :: revAccValues) ["Just", diff::revDiffs] tail
+          {value} -> case revAccDiffs of
+            ["Nothing"] -> aux (value :: revAccValues) revAccDiffs tail
+            ["Just", revDiffs] -> { error = "Diffs not specified until " + toString value }
       in aux [] ["Nothing"] values
 
 append aas bs = {
@@ -1016,7 +1016,32 @@ workspace minSize children =
       (placeAt minSize (h3 "</workspace>"))
       children)
 
---;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+applyDict d x = get x d
+applyDict2 x d = get x d
+
+String =
+  let strToInt =
+    let d = dict [["0", 0], ["1", 1], ["2", 2], ["3", 3], ["4", 4], ["5", 5], ["6", 6], ["7", 7], ["8", 8], ["9", 9]] in
+    letrec aux x =
+      case extractFirstIn "^([0-9]*)([0-9])$" x of
+        ["Just", [init, last]] -> (aux init)*10 + applyDict d last
+        ["Nothing"] -> 0
+    in
+    aux
+  in
+  { toInt x =
+      { apply x = freeze <| strToInt x
+      , unapply output = ["Just", toString output]
+      }.apply x
+  }
+
+Dict = {
+  get x d = case get x d of
+    null -> ["Nothing"]
+    x -> ["Just", x]
+  apply d x = get x d
+  insert k v d = insert k v d
+}
 
 -- List --
 
@@ -1050,6 +1075,11 @@ List =
       [x,y]::rest -> let [xs,ys] = unzip rest in
                      [x::xs, y::ys]
   in
+  let split n l = {
+      apply [n, l] = freeze (LensLess.split n l)
+      unapply [l1, l2] = ["Just", [n, l1 ++ l2]]
+    }.apply [n, l]
+  in
   { simpleMap = simpleMap
     map = map
     nil = nil
@@ -1059,6 +1089,7 @@ List =
     indexedMap = indexedMap
     cartesianProductWith = cartesianProductWith
     unzip = unzip
+    split = split
   }
 
 -- Maybe --
@@ -1071,6 +1102,12 @@ just x  = ["Just", x]
 Maybe = {
   Nothing = ["Nothing"]
   Just x  = ["Just", x]
+  withDefault x mb = case mb of
+    ["Nothing"] -> x
+    ["Just", j] -> j
+  withDefaultLazy lazyX mb = case mb of
+    ["Nothing"] -> lazyX []
+    ["Just", j] -> j
 }
 
 {Nothing, Just} = Maybe
@@ -1126,7 +1163,7 @@ Html =
     ["TEXT", text]
   in
   let textElementHelper tag styles attrs text =
-    [ tag,  ["style", styles] :: attrs , [ textNode text ] ]
+    [ tag,  ["style", styles] :: attrs , textInner text ]
   in
   let elementHelper tag styles attrs children =
     [ tag,  ["style", styles] :: attrs , children ]
@@ -1149,6 +1186,7 @@ Html =
     i= elementHelper "i"
     element = elementHelper
     text = textInner
+    br = ["br", [], []]
   }
 
 -- TODO remove this; add as imports as needed in examples

@@ -231,6 +231,7 @@ LEO_TO_ELM mapListLens_2
 LEO_TO_ELM fromleo/markdown
 LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
+LEO_TO_ELM fromleo/modelviewcontroller
 
 --------------------------------------------------------------------------------
 
@@ -238,16 +239,16 @@ welcomeCategory =
   ( "Welcome"
   , [ makeLeoExample "Blank Document" blankDoc
     , makeLeoExample "Get Started" welcome1
-    , makeLeoExample "Tutorial" blankDoc
+--    , makeLeoExample "Tutorial" blankDoc
     ]
   )
 
 docsCategory =
   ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
-    , makeLeoExample "1b: Table of States" tableOfStatesB
+  --  , makeLeoExample "1b: Table of States" tableOfStatesB
     , makeLeoExample "1c: Table of States" tableOfStatesC
-    , makeLeoExample "1d: Table of States" tableOfStatesD
+--    , makeLeoExample "1d: Table of States" tableOfStatesD
     ] ++
     (
     List.indexedMap
@@ -260,8 +261,8 @@ docsCategory =
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
       , ("Proportional Recipe editor", fromleo_recipe)
-      , ("TODO", blankDoc)
-      , ("TODO", blankDoc)
+      , ("Model View Controller", fromleo_modelviewcontroller)
+--      , ("TODO", blankDoc)
       , ("Simple Budget", simpleBudget)
       ]
     )

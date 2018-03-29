@@ -6207,18 +6207,6 @@ fromleo_recipe =
 base = 1000
 temperature = 180
 
-applyDict d x = get x d
-applyDict2 x d = applyDict d x
-
-strToInt =
-  let d = dict [[\"0\", 0], [\"1\", 1], [\"2\", 2], [\"3\", 3], [\"4\", 4], [\"5\", 5], [\"6\", 6], [\"7\", 7], [\"8\", 8], [\"9\", 9]] in
-  letrec aux x = 
-    case extractFirstIn \"^([0-9]*)([0-9])$\" x of
-      [\"Just\", [init, last]] -> (aux init)*10 + applyDict d last
-      [\"Nothing\"] -> 0
-  in
-  aux
-
 language = \"English\"
 otherLanguage = if language == \"French\" then \"English\" else \"French\"
 
@@ -6252,8 +6240,8 @@ One can also put as decoration sliced almonds, or replace chocolate by a squeeze
   ] |> applyDict2 language
 
 result = replaceAllIn \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\" (\\m ->
-  let mult = strToInt <| nth m.group 3 in
-  let div = strToInt <|  nth m.group 4 in
+  let mult = String.toInt <| nth m.group 3 in
+  let div = String.toInt <|  nth m.group 4 in
   case nth m.group 1 of
     \"multdivby\" ->
       let res = floor (base * freeze mult / freeze div) in
@@ -6268,7 +6256,7 @@ result = replaceAllIn \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\" 
             if outputNew == outputOriginal then {values=[base]} else
             let quantityTimes4 = case extractFirstIn \"(.*)(¼|[ +]?[13]/[24]|½|¾)\" outputNew of
               [\"Just\", [i, complement]] -> 
-                 let addi x = if i == \"\" then x else 4 * strToInt i + x in
+                 let addi x = if i == \"\" then x else 4 * String.toInt i + x in
                  case complement of
                    \"¼\"    -> addi 1
                    \"1/4\"  -> addi 1
@@ -6283,7 +6271,7 @@ result = replaceAllIn \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\" 
                    \" 3/4\" -> addi 3
                    \"+3/4\" -> addi 3
                    a      -> \"complement error: \" + complement + 1
-              [\"Nothing\"] -> 4 * strToInt i
+              [\"Nothing\"] -> 4 * String.toInt i
             in
             {values = floor (quantityTimes4 * div / mult / 4) }
         }.apply base
@@ -6296,13 +6284,13 @@ result = replaceAllIn \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\" 
           if outputNew == \"\" && outputOriginal == ending then {values=[4]} else {values = []} }.apply res) txt
 
 div_ [[\"margin\", \"20px\"]] [] <|
-html <| \"\"\"<button onclick=\"this.setAttribute('value','@otherLanguage')\" value=\"@language\">To @otherLanguage</button><br>\"\"\" +
+html <| \"\"\"<button onclick=\"this.setAttribute('v','@otherLanguage')\" v=\"@language\">To @otherLanguage</button><br>\"\"\" +
   ( dict [[\"English\", \"\"\"<i>Hint:</i> Use prop[5] for a proportional number 5, plurs[5] to place an s if the quantity (5) is greater than 1.\"\"\"],
           [\"French\", \"\"\"<i>Astuce:</i> Ecrire prop[5] pour un nombre proportionel 5, plurs[5] pour un 's' conditionel si la quantité 5 est plus grande que 1.\"\"\"]] |> applyDict2 language) + 
  { apply x = freeze x ,
    update {output} =
      { values = [replaceAllIn \"((prop)(\\\\w*)|(plur)(\\\\w+))\\\\[(\\\\d+)\\\\]\" (\\m ->
-        let amount = strToInt (nth m.group 6) in
+        let amount = String.toInt (nth m.group 6) in
         case nth m.group 2 of
            \"prop\" -> \"multdivby[\" + amount + \",\" + base + \"]\"
            \"\" ->
@@ -6315,6 +6303,57 @@ html <| \"\"\"<button onclick=\"this.setAttribute('value','@otherLanguage')\" va
  }.apply result
 """
 
+fromleo_modelviewcontroller =
+ """modify defaultContent trigger f x = 
+  { apply i = freeze defaultContent,
+    update {input, outputNew} = if outputNew == trigger then {values = [f input]} else {value = [input]}
+  }.apply x
+
+UI model = {
+  button name controller = 
+    [\"button\", [
+      [\"trigger\", modify \"\" \"#\" controller model],
+       [\"onclick\", \"this.setAttribute('trigger', '#')\"]
+    ], [Html.textNode name]]
+}
+
+model = {
+  n = 16
+  custom = \"if n % 2 == 0 then n / 2 else n*3+1\"
+  multiplier = 2
+}
+
+{button} = UI model
+
+controllers = {
+  addOne model = { model | n = model.n + 1 }
+  changeN f model = { model | n = f model.n }
+  customEval model= { model | n = evaluate \"\"\"let n = @(model.n) in @(model.custom)\"\"\" }
+  changeMultiplier f model = { model | multiplier = f model.multiplier }
+}
+
+{addOne, changeN, customEval, changeMultiplier} = controllers
+
+view = 
+  Html.div_ [[\"margin\",\"20px\"]] [] (
+  [ Html.h1 [] [] \"Model-View-Controller\"] ++
+  html \"\"\"Using special lenses, you can architect your software as the usual model-view-controller.<br>
+n = <span>@(model.n)</span><br> What do you want to do?<br>\"\"\" ++ [
+  button \"\"\"Increment\"\"\" (changeN <| \\n -> n + 1),
+  button \"\"\"Decrement\"\"\" (changeN <| \\n -> n - 1), Html.br,
+  button \"\"\"Multiply by @(model.multiplier)\"\"\" (changeN <| \\n -> n * model.multiplier),
+  button \"\"\"Divide by @(model.multiplier)\"\"\"   (changeN <| \\n -> n / model.multiplier), Html.br,
+  button \"\"\"increase multiplier to @(model.multiplier + 1)\"\"\" (changeMultiplier <| \\m -> m + 1),
+  if model.multiplier > 2 then
+    button \"\"\"Decrease multiplier to @(model.multiplier - 1)\"\"\" (changeMultiplier <| \\m -> m - 1)
+  else
+    Html.span [] [] [],
+  Html.br,
+  button \"\"\"Custom:\"\"\" customEval, Html.span [[\"font-family\",\"monospace\"]] [] [Html.textNode (freeze \" \" + model.custom)]])
+  
+view
+"""
+
 
 --------------------------------------------------------------------------------
 
@@ -6322,16 +6361,16 @@ welcomeCategory =
   ( "Welcome"
   , [ makeLeoExample "Blank Document" blankDoc
     , makeLeoExample "Get Started" welcome1
-    , makeLeoExample "Tutorial" blankDoc
+--    , makeLeoExample "Tutorial" blankDoc
     ]
   )
 
 docsCategory =
   ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
-    , makeLeoExample "1b: Table of States" tableOfStatesB
+  --  , makeLeoExample "1b: Table of States" tableOfStatesB
     , makeLeoExample "1c: Table of States" tableOfStatesC
-    , makeLeoExample "1d: Table of States" tableOfStatesD
+--    , makeLeoExample "1d: Table of States" tableOfStatesD
     ] ++
     (
     List.indexedMap
@@ -6344,8 +6383,8 @@ docsCategory =
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
       , ("Proportional Recipe editor", fromleo_recipe)
-      , ("TODO", blankDoc)
-      , ("TODO", blankDoc)
+      , ("Model View Controller", fromleo_modelviewcontroller)
+--      , ("TODO", blankDoc)
       , ("Simple Budget", simpleBudget)
       ]
     )

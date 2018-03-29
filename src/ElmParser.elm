@@ -690,7 +690,7 @@ multilineEscapedElmExpression =
   oneOf [
     try <| trackInfo <|
       succeed (\v -> exp_ <| EOp space0 (withInfo ToStrExceptStr v.start v.start) [v] space0)
-      |= variableExpression spacesWithoutNewline,
+      |= (addSelections noSpacePolicy <| variableExpression spacesWithoutNewline),
     try <| lazy <| \_ -> multilineGenericLetBinding,
     lazy <| \_ ->
       ( mapExp_ <| trackInfo <|
@@ -1878,6 +1878,11 @@ spacesWithoutNewline =
 
 allSpacesPolicy: SpacePolicy
 allSpacesPolicy = { first = spaces, apparg = spaces }
+
+noSpacePolicy: SpacePolicy
+noSpacePolicy =
+  { first = succeed space0
+  , apparg = succeed space0 }
 
 sameLineOrIndentedByAtLeast: Int -> SpacePolicy
 sameLineOrIndentedByAtLeast nSpaces =
