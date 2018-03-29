@@ -74,3 +74,6 @@ getOrUpdateCache record cacheName default =
   case getCache record cacheName of
     Just v -> v
     Nothing -> putCache record cacheName (default ())
+
+evaluate: String -> a
+evaluate s = Native.ImpureGoodies.evaluate s

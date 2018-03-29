@@ -93,6 +93,7 @@ import Eval
 import Update exposing (vStr, vList)
 import UpdateUtils
 import UpdateStack
+import EvalUpdate
 import Results exposing (Results(..))
 import LazyList
 import Utils
@@ -619,7 +620,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   in
   let dragInfo_ = (trigger, (mx0, my0), True) in
 
-  Eval.run old.syntax newExp |> Result.andThen (\(newVal, newWidgets) ->
+  EvalUpdate.run old.syntax newExp |> Result.andThen (\(newVal, newWidgets) ->
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
@@ -645,7 +646,7 @@ finishTrigger zoneKey old =
   --   let e = Utils.fromOkay "onMouseUp" <| Syntax.parser old.syntax old.code in
   --   let old_ = { old | inputExp = e } in
   --
-  -- But this requires another Eval.run, which can be slow.
+  -- But this requires another EvalUpdate.run, which can be slow.
   -- Removing this workaround (which means the yellow highlights
   -- can be off after a live sync, until the next parse).
   --
@@ -688,7 +689,7 @@ tryRun old =
           --
           let rewrittenE = rewriteInnerMostExpToMain e in
 
-          Eval.doEval old.syntax Eval.initEnv rewrittenE |>
+          Eval.doEval old.syntax EvalUpdate.preludeEnv rewrittenE |>
           Result.andThen (\((newVal,ws),finalEnv) ->
             LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
@@ -1864,7 +1865,7 @@ doDuplicate old =
                     Nothing          -> expToDuplicate.val.eid
                     Just (letExp, _) -> letExp.val.eid
 
-                (_, newProgram) = LangTools.newVariableVisibleTo -1 name 1 expToDuplicate [expToDuplicate.val.eid] old.inputExp
+                (_, newProgram) = EvalUpdate.newVariableVisibleTo -1 name 1 expToDuplicate [expToDuplicate.val.eid] old.inputExp
               in
               newProgram
           )
@@ -1978,7 +1979,7 @@ msgPreviousSlide = Msg "Previous Slide" <| \old ->
   else
     let previousSlideNumber = old.slideNumber - 1 in
     let result =
-      Eval.run old.syntax old.inputExp |>
+      EvalUpdate.run old.syntax old.inputExp |>
       Result.andThen (\(previousVal, _) ->
         LangSvg.resolveToMovieCount old.syntax previousSlideNumber previousVal
         |> Result.map (\previousMovieCount ->
@@ -2035,7 +2036,7 @@ doCallUpdate m =
   in
   --let _ = Debug.log "Let's do update" () in
   let updatedExpResults =
-    Update.doUpdate m.inputExp m.inputVal updatedValResult
+    EvalUpdate.doUpdate m.inputExp m.inputVal updatedValResult
   in
   --let _ = Debug.log "I'm here" () in
   let revertChanges caption =
@@ -2083,10 +2084,10 @@ doCallUpdate m =
 
             LazyList.Cons (envModified, expModified) _ ->
               let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified.val) "expModified" in
-              let _ = Debug.log (Eval.initEnv |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames original") in
+              let _ = Debug.log (EvalUpdate.preludeEnv |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames original") in
               let _ = Debug.log (envModified.val |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames modified") in
-              let _ = Debug.log (UpdateUtils.envDiffsToString Eval.initEnv envModified.val envModified.changes) ("EnvModified") in
-              --let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified.val) (LangUtils.pruneEnv expModified Eval.initEnv)
+              let _ = Debug.log (UpdateUtils.envDiffsToString EvalUpdate.preludeEnv envModified.val envModified.changes) ("EnvModified") in
+              --let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified.val) (LangUtils.pruneEnv expModified EvalUpdate.preludeEnv)
               --     |> UpdateUtils.displayDiff (\(k, v) -> "\n" ++ k ++ " = " ++ LangUtils.valToString v )
               --     ) "envModified"
               --in
@@ -2228,8 +2229,8 @@ showCodePreview old code =
 showExpPreview old exp diffs =
   let code = Syntax.unparser old.syntax exp in
   case runAndResolve old exp of
-    Ok (val, widgets, slate, _) -> { old | preview = Just (code, diffs, Ok (val, widgets, slate)) }
-    Err s                       -> { old | preview = Just (code, diffs, Err s) }
+    Ok (val, widgets, slate, _) -> { old | slateCount = old.slateCount + 1, preview = Just (code, diffs, Ok (val, widgets, slate)) }
+    Err s                       -> { old | slateCount = old.slateCount + 1, preview = Just (code, diffs, Err s) }
 
 {-
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
@@ -2493,7 +2494,7 @@ loadIcon env icon old =
   in
     { old | icons = newIcons }
 
--- for basic icons, env will be Eval.initEnv.
+-- for basic icons, env will be EvalUpdate.preludeEnv.
 -- for LambdaTool icons, env will be from result of running main program.
 iconify : Syntax -> Env -> String -> Html.Html Msg
 iconify syntax env code =
@@ -2544,7 +2545,7 @@ updateFileIndex fileIndex old =
 msgLoadIcon : File -> Msg
 msgLoadIcon file =
   Msg "Load Icon" <|
-    loadIcon Eval.initEnv file
+    loadIcon EvalUpdate.preludeEnv file
 
 fileMessageHandler : InternalFileMessage -> Msg
 fileMessageHandler ifm =

@@ -42,6 +42,7 @@ import Utils
 import Dict exposing (Dict)
 import Regex
 import Set exposing (Set)
+import EvalUpdate exposing (assignUniqueNames, visibleIdentifiersAtEIds, preludeIdentifiers, identifiersSetPlusPrelude)
 
 type alias PatBoundExpIsRec = (Pat, Exp, Bool)
 

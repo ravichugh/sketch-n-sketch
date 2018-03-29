@@ -264,7 +264,7 @@ type Val_
   | VDict VDict_ -- Can be constructed only by "dict [[key, value], [key2, value2]] and 'empty'
   | VFun String -- Name
          (List String) -- Name of arguments
-         (Env -> List Val -> Result String ((Val, Widgets), Env)) -- Evaluation rule
+         (List Val -> Result String (Val, Widgets)) -- Evaluation rule
          (Maybe (List Val -> Val -> Val -> Results String (List Val))) -- Maybe Update rule
 
 type alias VDict_ = Dict (String, String) Val -- First key string is unparsed key, the second type is the value. See Eval.valToDictKey

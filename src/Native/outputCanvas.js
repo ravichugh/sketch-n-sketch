@@ -136,6 +136,7 @@ function listenForUpdatesToOutputValues() {
   }
 
   function handleMutations(mutations) {
+    if(!enableAutoUpdate) return;
     mutations.forEach(function(mutation) {
       if (mutation.type == "attributes") {
         var path = getPathUntilOutput(mutation.target)

@@ -11,14 +11,14 @@ import ValUnbuilder as Vu
 import ValBuilder as Vb
 
 htmlValParser: Val
-htmlValParser = builtinVal "(Native)HTMLValParser.htmlValParser" <| VFun "parseHTML" ["html"] (\env args ->
+htmlValParser = builtinVal "(Native)HTMLValParser.htmlValParser" <| VFun "parseHTML" ["html"] (\args ->
   case args of
     [v] ->
       case v.v_ of
       VBase (VString s) ->
         case parseHTMLString s of
           Err pe -> Err (showError pe)
-          Ok nodes -> Ok ((Vb.list v (htmlNodeToVal v) nodes, []), env)
+          Ok nodes -> Ok (Vb.list v (htmlNodeToVal v) nodes, [])
       _ -> Err <| "parseHTML expects a string, got " ++ valToString v
     _ -> Err ("parseHTML expects exactly one argument, got " ++ toString (List.length args))
   ) (Just (\oldArgs oldOut newOut -> -- Update means just parsing the old

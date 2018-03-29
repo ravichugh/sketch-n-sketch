@@ -128,11 +128,6 @@ pruneEnvPattern pats env =
 
 pruneEnv: Exp -> Env -> Env
 pruneEnv exp env = -- Remove all the initial environment that is on the right.
-  --let (p1, p2) = removeCommonPrefix (List.reverse Eval.initEnv) (List.reverse env) in
-  --List.reverse p1
-  --List.take 5 env
-  --List.take (List.length env - List.length Eval.initEnv) env
-  --env
   let freeVars = freeIdentifiers exp in
   List.filter (\(x, _) -> Set.member x freeVars) env
 

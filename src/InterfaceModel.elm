@@ -6,6 +6,7 @@ import ElmParser
 import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
+import EvalUpdate
 import Sync exposing (ZoneKey)
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
@@ -696,7 +697,7 @@ runAndResolve model exp =
 runAndResolve_ : { slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolve_ model exp =
   let thunk () =
-    Eval.run model.syntax exp
+    EvalUpdate.run model.syntax exp
     |> Result.andThen (\(val, widgets) -> slateAndCode model (exp, val)
     |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
   in

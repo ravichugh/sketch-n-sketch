@@ -455,7 +455,7 @@ anyOverlap : List (Set a) -> Bool
 anyOverlap sets =
   Set.size (unionAll sets) < List.sum (List.map Set.size sets)
 
--- More performant version, if you have a list and a set (fixes a major performance bug in assignUniqueNames)
+-- More performant version, if you have a list and a set (fixes a major performance bug in EvalUpdate.assignUniqueNames)
 anyOverlapListSet : List a -> Set a -> Bool
 anyOverlapListSet items set =
   case items of

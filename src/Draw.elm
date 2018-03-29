@@ -35,6 +35,7 @@ import Either exposing (..)
 import Keys
 import Eval -- used to determine bounding box of LambdaAnchor tools
             -- for the purposes of rendering icons in drawing toolbox
+import EvalUpdate
 import Config
 import Syntax exposing (Syntax)
 
@@ -468,7 +469,7 @@ addPoint : Model -> (Int, Int) -> Model
 addPoint old (x, y) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let originalProgram = old.inputExp in
-  case LangTools.nonCollidingNames ["point", "x", "y"] 2 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
+  case LangTools.nonCollidingNames ["point", "x", "y"] 2 <| EvalUpdate.identifiersVisibleAtProgramEnd originalProgram of
     [pointName, xName, yName] ->
       let
         programWithPoint =
@@ -505,7 +506,7 @@ addToEndOfProgram : Model -> Ident -> Exp -> Model
 addToEndOfProgram old varSuggestedName exp =
   let originalProgram = old.inputExp in
   let insertBeforeEId = (LangTools.lastTopLevelExp originalProgram).val.eid in
-  let varName = LangTools.nonCollidingName varSuggestedName 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
+  let varName = LangTools.nonCollidingName varSuggestedName 2 <| EvalUpdate.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
   let newProgram =
     originalProgram
     |> mapExpNode insertBeforeEId (\lastTopLevelExp -> LangTools.newLetFancyWhitespace -1 False (pVar varName) exp lastTopLevelExp originalProgram)
@@ -538,7 +539,7 @@ addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
     (X, Just (x1Val, _)) -> offsetFromExisting x1Val
     (Y, Just (_, y1Val)) -> offsetFromExisting y1Val
     _                    ->
-      case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
+      case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| EvalUpdate.identifiersVisibleAtProgramEnd originalProgram of
         [pointName, xName, yName, offsetXName, offsetYName] ->
           let
             (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
@@ -916,7 +917,7 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
     lists
     |> List.concatMap
         (\listExp ->
-          let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] program in
+          let (varName, programWithNewDef) = EvalUpdate.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] program in
           let (ws1, heads, ws2, maybeTail, ws3) = LangTools.expToListParts listExp in
           let newListFlat      = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eVar varName])))           ws2 maybeTail ws3 in
           let newListSingleton = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [eVar0 varName]]))) ws2 maybeTail ws3 in

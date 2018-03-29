@@ -97,6 +97,9 @@ var _user$project$Native_ImpureGoodies = {
       var end = (new Date()).getTime();
 
       return _elm_lang$core$Native_Utils.Tuple2(result, end-start);
-    }
+    },
 
+    evaluate : function(string) {
+      return eval(string);
+    }
 };
