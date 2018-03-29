@@ -2957,9 +2957,9 @@ List =
   in
   letrec unzip xys =
     case xys of
-      []          -> [[], []]
-      [x,y]::rest -> let [xs,ys] = unzip rest in
-                     [x::xs, y::ys]
+      []          -> ([], [])
+      (x,y)::rest -> let (xs,ys) = unzip rest in
+                     (x::xs, y::ys)
   in
   let split n l = {
       apply [n, l] = freeze (LensLess.split n l)
@@ -3013,8 +3013,8 @@ Just$ = {
 -- Tuple --
 
 Tuple =
-  { mapFirst f [x, y] = [f x, y]
-    mapSecond f [x, y] = [x, f y]
+  { mapFirst f (x, y) = (f x, y)
+    mapSecond f (x, y) = (x, f y)
   }
 
 -- Editor --
@@ -3090,8 +3090,8 @@ TableWithButtons = {
 
   wrapData =
     Update.applyLens
-      { apply rows   = freeze <| (rows |> List.map (\\row -> [freeze False, row]))
-      , unapply rows = rows |> concatMap (\\[flag,row] ->
+      { apply rows   = freeze <| (rows |> List.map (\\row -> (freeze False, row)))
+      , unapply rows = rows |> concatMap (\\(flag,row) ->
                                  if flag == True
                                    then [ row, [\"\",\"\",\"\"] ]
                                    else [ row ]
@@ -3103,8 +3103,8 @@ TableWithButtons = {
     List.map (Tuple.mapSecond f)
 
   tr flag styles attrs children =
-    let [hasBeenClicked, nope, yep] =
-      [\"has-been-clicked\", Update.softFreeze \"gray\", Update.softFreeze \"coral\"]
+    let (hasBeenClicked, nope, yep) =
+      (\"has-been-clicked\", Update.softFreeze \"gray\", Update.softFreeze \"coral\")
     in
     let onclick =
       \"\"\"

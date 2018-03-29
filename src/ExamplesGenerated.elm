@@ -5830,7 +5830,7 @@ main =
   in
   let stateRows =
     let colors = [\"lightyellow\", \"white\"] in
-    let drawRow i [flag,row] =
+    let drawRow i (flag,row) =
       let color = List.nth colors (mod i (List.length colors)) in
       let columns = List.map (Html.td [padding, [\"background-color\", color]] []) row in
       TableWithButtons.tr flag [] [] columns
@@ -5863,32 +5863,32 @@ mapMaybeLens =
   Update.freeze (case mx of [] -> []; [x] -> [f x])
 
 mapMaybeLens default =
-  { apply [f, mx] =
+  { apply (f, mx) =
       mapMaybeSimple f mx
 
-  , update {input = [f, mx], outputNew = my} =
+  , update {input = (f, mx), outputNew = my} =
       case my of
-        []  -> { values = [[f, []]] }
+        []  -> { values = [(f, [])] }
         [y] ->
           let x = case mx of [x] -> x; [] -> default in
-          let results = Update.updateApp {fun [f,x] = f x, input = [f, x], output = y} in
-          { values = List.map (\\[newF,newX] -> [newF, [newX]]) results.values }
+          let results = Update.updateApp {fun (f,x) = f x, input = (f, x), output = y} in
+          { values = List.map (\\(newF,newX) -> (newF, [newX])) results.values }
   }
 
 mapMaybe default f mx =
-  Update.applyLens (mapMaybeLens default) [f, mx]
+  Update.applyLens (mapMaybeLens default) (f, mx)
 
 mapMaybeState =
-  mapMaybe [\"Alabama\", \"AL\", \"Montgomery\"]
+  mapMaybe (\"Alabama\", \"AL\", \"Montgomery\")
 
 displayState =
-  (\\[a,b,c] -> [a, c + \", \" + b])
+  (\\(a,b,c) -> (a, c + \", \" + b))
 
 maybeState1 = mapMaybeSimple displayState []
-maybeState2 = mapMaybeSimple displayState [[\"New Jersey\", \"NJ\", \"Edison\"]]
+maybeState2 = mapMaybeSimple displayState [(\"New Jersey\", \"NJ\", \"Edison\")]
 
 maybeState3 = mapMaybeState displayState []
-maybeState4 = mapMaybeState displayState [[\"New Jersey\", \"NJ\", \"Edison\"]]
+maybeState4 = mapMaybeState displayState [(\"New Jersey\", \"NJ\", \"Edison\")]
 
 showValues values =
   Html.div_ [] [] (List.map (\\x -> [\"h3\", [], Html.text <| toString x]) values)
@@ -5900,36 +5900,36 @@ main =
 
 mapListLens_1 =
  """mapListLens =
-  { apply [f,xs] =
-      freeze (List.simpleMap f xs)
+  { apply (f,xs) =
+      Update.freeze (List.simpleMap f xs)
 
-  , update { input = [f,oldInputList]
+  , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
-        case [diffOps, oldInputs] of
-          [[], []] ->
+        case (diffOps, oldInputs) of
+          ([], []) ->
             acc
 
-          [[\"Keep\"] :: moreDiffOps, oldHead :: oldTail] ->
+          ([\"Keep\"] :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             List.simpleMap (\\newTail -> oldHead::newTail) newTails
 
-          [[\"Delete\"] :: moreDiffOps, oldHead :: oldTail] ->
+          ([\"Delete\"] :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             newTails
 
-          [[\"Update\", newVal] :: moreDiffOps, oldHead :: oldTail] ->
+          ([\"Update\", newVal] :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             let newHeads = Update.updateApp {fun = f, input = oldHead, output = newVal} in
             List.cartesianProductWith List.cons newHeads.values newTails
 
-          [[\"Insert\", newVal] :: moreDiffOps, _] ->
+          ([\"Insert\", newVal] :: moreDiffOps, _) ->
             let headOrPreviousHead =
-              case [oldInputs, maybePreviousInput] of
-                [oldHead :: _, _] -> oldHead
-                [[], [\"Just\", previousOldHead]] -> previousOldHead
+              case (oldInputs, maybePreviousInput) of
+                (oldHead :: _, _) -> oldHead
+                ([], [\"Just\", previousOldHead]) -> previousOldHead
             in
             let newTails = walk moreDiffOps maybePreviousInput oldInputs acc in
             let newHeads = Update.updateApp {fun = f, input = headOrPreviousHead, output = newVal} in
@@ -5938,31 +5938,13 @@ mapListLens_1 =
       let newInputLists =
         walk (Update.listDiff oldOutputList newOutputList) Nothing oldInputList [[]]
       in
-      { values = List.simpleMap (\\newInputList -> [f, newInputList]) newInputLists }
+      { values = List.simpleMap (\\newInputList -> (f, newInputList)) newInputLists }
   }
 
 mapList f xs =
-  Update.applyLens mapListLens [f, xs]
+  Update.applyLens mapListLens (f, xs)
 
 -----------------------------------------------
--- TODO not using this example yet
-
-states =
-  [ [\"Alabama\", \"AL\", \"Montgomery\"]
-  , [\"Alaska\", \"AK\", \"Juneau\"]
-  , [\"Arizona\", \"AZ\", \"Phoenix\"]
-  , [\"Arkansas\", \"AR\", \"Little Rock\"]
-  , [\"California\", \"CA\", \"Sacramento\"]
-  , [\"Colorado\", \"CO\", \"Denver\"]
-  , [\"Connecticut\", \"CT\", \"Hartford\"]
-  ]
-
-displayState =
-  (\\[a,b,c] -> [a, c + \", \" + b])
-
-transformedStates =
-  mapList displayState states
--------
 
 transformedValues =
   mapList
@@ -5976,42 +5958,42 @@ main =
 
 mapListLens_2 =
  """mapListLens =
-  { apply [f,xs] =
-      freeze (List.simpleMap f xs)
+  { apply (f,xs) =
+      Update.freeze (List.simpleMap f xs)
 
-  , update { input = [f,oldInputList]
+  , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
-        case [diffOps, oldInputs] of
-          [[], []] ->
+        case (diffOps, oldInputs) of
+          ([], []) ->
             acc
 
-          [[\"Keep\"] :: moreDiffOps, oldHead :: oldTail] ->
+          ([\"Keep\"] :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
-            List.simpleMap (\\newTail -> [f, oldHead] :: newTail) tails
+            List.simpleMap (\\newTail -> (f, oldHead) :: newTail) tails
 
-          [[\"Delete\"] :: moreDiffOps, oldHead :: oldTail] ->
+          ([\"Delete\"] :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             tails
 
-          [[\"Update\", newVal] :: moreDiffOps, oldHead :: oldTail] ->
+          ([\"Update\", newVal] :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             let heads =
-              (Update.updateApp {fun [a,b] = a b, input = [f, oldHead], output = newVal}).values
+              (Update.updateApp {fun (a,b) = a b, input = (f, oldHead), output = newVal}).values
             in
             List.cartesianProductWith List.cons heads tails
 
-          [[\"Insert\", newVal] :: moreDiffOps, _] ->
+          ([\"Insert\", newVal] :: moreDiffOps, _) ->
             let headOrPreviousHead =
-              case [oldInputs, maybePreviousInput] of
-                [oldHead :: _, _] -> oldHead
-                [[], [\"Just\", oldPreviousHead]] -> oldPreviousHead
+              case (oldInputs, maybePreviousInput) of
+                (oldHead :: _, _) -> oldHead
+                ([], [\"Just\", oldPreviousHead]) -> oldPreviousHead
             in
             let tails = walk moreDiffOps maybePreviousInput oldInputs acc in
             let heads =
-              (Update.updateApp {fun [a,b] = a b, input = [f, headOrPreviousHead], output = newVal}).values
+              (Update.updateApp {fun (a,b) = a b, input = (f, headOrPreviousHead), output = newVal}).values
             in
             List.cartesianProductWith List.cons heads tails
       in
@@ -6020,15 +6002,15 @@ mapListLens_2 =
       in
       { values =
           List.simpleMap (\\newList ->
-            let [newFuncs, newInputList] = List.unzip newList in
+            let (newFuncs, newInputList) = List.unzip newList in
             let newFunc = Update.merge f newFuncs in
-            [newFunc, newInputList]
+            (newFunc, newInputList)
           ) newLists
       }
   }
 
 mapList f xs =
-  Update.applyLens mapListLens [f, xs]
+  Update.applyLens mapListLens (f, xs)
 
 -----------------------------------------------
 
