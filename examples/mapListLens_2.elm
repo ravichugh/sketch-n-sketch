@@ -1,6 +1,6 @@
 mapListLens =
   { apply [f,xs] =
-      List.simpleMap f xs
+      freeze (List.simpleMap f xs)
 
   , update { input = [f,oldInputList]
            , outputOld = oldOutputList
@@ -44,9 +44,7 @@ mapListLens =
       { values =
           List.simpleMap (\newList ->
             let [newFuncs, newInputList] = List.unzip newList in
-            -- TODO this is slow, and being called many times
-            -- let newFunc = Update.merge f newFuncs in
-            let newFunc = f in
+            let newFunc = Update.merge f newFuncs in
             [newFunc, newInputList]
           ) newLists
       }

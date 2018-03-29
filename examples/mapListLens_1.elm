@@ -1,6 +1,6 @@
 mapListLens =
   { apply [f,xs] =
-      List.simpleMap f xs
+      freeze (List.simpleMap f xs)
 
   , update { input = [f,oldInputList]
            , outputOld = oldOutputList

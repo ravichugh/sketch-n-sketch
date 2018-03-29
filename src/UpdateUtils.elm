@@ -863,7 +863,9 @@ defaultVDiffs original modified =
     (VList originals, VList modified) ->
       defaultListDiffs valToString defaultVDiffs originals modified |> Result.map (Maybe.map VListDiffs)
     (VClosure isRec1 pats1 body1 env1, VClosure isRec2 pats2 body2 env2) ->
-      let ids = Set.union (LangUtils.identifiersSet body1) (LangUtils.identifiersSet body2) in
+      let ids = Set.union (Set.diff (LangUtils.identifiersSet body1) (LangUtils.identifiersSetInPats pats1))
+             (Set.diff (LangUtils.identifiersSet body2) (LangUtils.identifiersSetInPats pats2))
+      in
       defaultEnvDiffs ids env1 env2 |> Result.andThen (\mbEnvDiff ->
          defaultEDiffs body1 body2 |> Result.map (\mbEDiff ->
           case mbEnvDiff of
@@ -922,8 +924,13 @@ valEqualDiff original modified =
 
 defaultEnvDiffs: Set Ident -> Env -> Env -> Result String (Maybe EnvDiffs) -- lowercase val so that it can be applied to something else?
 defaultEnvDiffs identsToCompare elems1 elems2 =
-  let aux: Int -> List (Int, VDiffs) -> Env         -> Env -> Result String (Maybe EnvDiffs)
-      aux  i      revEnvDiffs          envToCollect1  envToCollect2 =
+  let aux: Int -> Set Ident    -> List (Int, VDiffs) -> Env         -> Env -> Result String (Maybe EnvDiffs)
+      aux  i      identsToCompare revEnvDiffs          envToCollect1  envToCollect2 =
+        if Set.isEmpty identsToCompare then
+          case List.reverse revEnvDiffs of
+            [] -> Ok Nothing
+            envDiffs -> Ok <| Just envDiffs
+        else
         case (envToCollect1, envToCollect2) of
           ([], []) ->
             case List.reverse revEnvDiffs of
@@ -931,18 +938,20 @@ defaultEnvDiffs identsToCompare elems1 elems2 =
               envDiffs -> Ok <| Just envDiffs
           (((k1, v1) as ehd1)::etl1, ((k2, v2) as ehd2)::etl2) ->
             if k1 /= k2 then Err <| "trying to compute a diff on unaligned environments " ++ k1 ++ "," ++ k2 else
-            if (if Set.member k1 identsToCompare then valEqualDiff v1 v2 else False) then
-              aux (i + 1) revEnvDiffs etl1 etl2
+            if not (Set.member k1 identsToCompare) then
+              aux (i + 1) identsToCompare revEnvDiffs etl1 etl2
+            else if valEqualDiff v1 v2 then
+              aux (i + 1) (Set.remove k1 identsToCompare) revEnvDiffs etl1 etl2
             else
               defaultVDiffs v1 v2 |> Result.andThen (\mbv ->
                 let newRevEnvDiffs = case mbv of
                   Nothing -> revEnvDiffs
                   Just v -> (i, v)::revEnvDiffs
                 in
-                aux (i + 1) newRevEnvDiffs etl1 etl2
+                aux (i + 1) (Set.remove k1 identsToCompare) newRevEnvDiffs etl1 etl2
               )
           _ -> Err <| "Environments do not have the same size: " ++ envToString envToCollect1 ++ ", " ++ envToString envToCollect2
-  in aux 0 [] elems1 elems2
+  in aux 0 identsToCompare  [] elems1 elems2
 
 defaultTupleDiffs: (a -> String) -> (a -> a -> Result String (Maybe b)) -> List a -> List a -> Result String (Maybe (TupleDiffs b)) -- lowercase val so that it can be applied to something else?
 defaultTupleDiffs keyOf defaultElemModif elems1 elems2 =
