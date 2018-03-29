@@ -1,40 +1,40 @@
 mapListLens =
-  { apply [f,xs] =
-      freeze (List.simpleMap f xs)
+  { apply (f,xs) =
+      Update.freeze (List.simpleMap f xs)
 
-  , update { input = [f,oldInputList]
+  , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
-        case [diffOps, oldInputs] of
-          [[], []] ->
+        case (diffOps, oldInputs) of
+          ([], []) ->
             acc
 
-          [["Keep"] :: moreDiffOps, oldHead :: oldTail] ->
+          (["Keep"] :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
-            List.simpleMap (\newTail -> [f, oldHead] :: newTail) tails
+            List.simpleMap (\newTail -> (f, oldHead) :: newTail) tails
 
-          [["Delete"] :: moreDiffOps, oldHead :: oldTail] ->
+          (["Delete"] :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             tails
 
-          [["Update", newVal] :: moreDiffOps, oldHead :: oldTail] ->
+          (["Update", newVal] :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             let heads =
-              (Update.updateApp {fun [a,b] = a b, input = [f, oldHead], output = newVal}).values
+              (Update.updateApp {fun (a,b) = a b, input = (f, oldHead), output = newVal}).values
             in
             List.cartesianProductWith List.cons heads tails
 
-          [["Insert", newVal] :: moreDiffOps, _] ->
+          (["Insert", newVal] :: moreDiffOps, _) ->
             let headOrPreviousHead =
-              case [oldInputs, maybePreviousInput] of
-                [oldHead :: _, _] -> oldHead
-                [[], ["Just", oldPreviousHead]] -> oldPreviousHead
+              case (oldInputs, maybePreviousInput) of
+                (oldHead :: _, _) -> oldHead
+                ([], ["Just", oldPreviousHead]) -> oldPreviousHead
             in
             let tails = walk moreDiffOps maybePreviousInput oldInputs acc in
             let heads =
-              (Update.updateApp {fun [a,b] = a b, input = [f, headOrPreviousHead], output = newVal}).values
+              (Update.updateApp {fun (a,b) = a b, input = (f, headOrPreviousHead), output = newVal}).values
             in
             List.cartesianProductWith List.cons heads tails
       in
@@ -43,15 +43,15 @@ mapListLens =
       in
       { values =
           List.simpleMap (\newList ->
-            let [newFuncs, newInputList] = List.unzip newList in
+            let (newFuncs, newInputList) = List.unzip newList in
             let newFunc = Update.merge f newFuncs in
-            [newFunc, newInputList]
+            (newFunc, newInputList)
           ) newLists
       }
   }
 
 mapList f xs =
-  Update.applyLens mapListLens [f, xs]
+  Update.applyLens mapListLens (f, xs)
 
 -----------------------------------------------
 

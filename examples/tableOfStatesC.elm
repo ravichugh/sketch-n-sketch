@@ -22,7 +22,7 @@ main =
   in
   let stateRows =
     let colors = ["lightyellow", "white"] in
-    let drawRow i [flag,row] =
+    let drawRow i (flag,row) =
       let color = List.nth colors (mod i (List.length colors)) in
       let columns = List.map (Html.td [padding, ["background-color", color]] []) row in
       TableWithButtons.tr flag [] [] columns
