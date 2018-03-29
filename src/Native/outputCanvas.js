@@ -73,12 +73,14 @@ var timerAutoSync = undefined;
 
 var enableAutoUpdate = true;
 
+var previewMode = false;
+
 function triggerAutoUpdate() {
-  if(!enableAutoUpdate) return;
+  if(!enableAutoUpdate || previewMode) return;
   if(typeof timerAutoSync !== "undefined") clearTimeout(timerAutoSync);
   timerAutoSync = setTimeout(function() {
     timerAutoSync = undefined;
-    if(!enableAutoUpdate) return;
+    if(!enableAutoUpdate || previewMode) return;
     app.ports.maybeAutoSync.send(msBeforeAutoSync);
   }, msBeforeAutoSync)
 }
@@ -136,7 +138,7 @@ function listenForUpdatesToOutputValues() {
   }
 
   function handleMutations(mutations) {
-    if(!enableAutoUpdate) return;
+    if(previewMode) return;
     mutations.forEach(function(mutation) {
       if (mutation.type == "attributes") {
         var path = getPathUntilOutput(mutation.target)
@@ -243,3 +245,8 @@ app.ports.enableAutoSync.subscribe(function(b) {
 app.ports.setAutoSyncDelay.subscribe(function(n) {
   msBeforeAutoSync = n;
 })
+
+app.ports.setPreviewMode.subscribe(function(b) {
+  previewMode = b;
+})
+

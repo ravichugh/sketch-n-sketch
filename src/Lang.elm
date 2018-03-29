@@ -3343,3 +3343,12 @@ firstNestedExp e =
 --
 --  in
 --    map fixOp
+
+getTopLevelOptions: Exp -> List (String, String)
+getTopLevelOptions e =
+  case e.val.e__ of
+    EOption _ wkey _ wValue following ->
+      (wkey.val, wValue.val)::getTopLevelOptions following
+    EComment _ _ eRest ->
+      getTopLevelOptions eRest
+    _ -> []

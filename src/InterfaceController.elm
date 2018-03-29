@@ -976,6 +976,12 @@ updateCommands model =
           AceCodeBox.setReadOnly << not
       ]
 
+getAutoSyncDelay: Model -> Int
+getAutoSyncDelay m =
+  case Dict.fromList (getTopLevelOptions m.inputExp) |> Dict.get "updatedelay" of
+    Just x -> String.toInt x |> Result.withDefault m.autoSyncDelay
+    Nothing -> m.autoSyncDelay
+
 issueCommand : Msg -> Model -> Model -> Cmd Msg
 issueCommand msg oldModel newModel =
   case msg of
@@ -1057,8 +1063,9 @@ issueCommand msg oldModel newModel =
                 if submodel oldModel /= n then cmdBuilder n else Cmd.none
           in
           Cmd.batch
-            [ dispatchIfChanged (\m -> (m.preview |> Utils.maybeIsEmpty) && m.enableAutoSync) OutputCanvas.enableAutoSync,
-              dispatchIfChanged .autoSyncDelay OutputCanvas.setAutoSyncDelay,
+            [ dispatchIfChanged (\m -> m.enableAutoSync) OutputCanvas.enableAutoSync,
+              dispatchIfChanged getAutoSyncDelay OutputCanvas.setAutoSyncDelay,
+              dispatchIfChanged (\m -> m.preview |> Utils.maybeIsEmpty |> not) OutputCanvas.setPreviewMode,
               if kind == "Update Font Size" then
                 AceCodeBox.updateFontSize newModel
               else if
