@@ -5899,12 +5899,9 @@ main =
 """
 
 mapListLens_1 =
- """mapListSimple f list =
-  Update.freeze (case list of [] -> []; x::xs -> f x :: mapListSimple f xs)
-
-mapListLens =
+ """mapListLens =
   { apply [f,xs] =
-      mapListSimple f xs
+      List.simpleMap f xs
 
   , update { input = [f,oldInputList]
            , outputOld = oldOutputList
@@ -5917,7 +5914,7 @@ mapListLens =
 
           [[\"Keep\"] :: moreDiffOps, oldHead :: oldTail] ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
-            map (\\newTail -> oldHead::newTail) newTails
+            List.simpleMap (\\newTail -> oldHead::newTail) newTails
 
           [[\"Delete\"] :: moreDiffOps, oldHead :: oldTail] ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
@@ -5941,11 +5938,11 @@ mapListLens =
       let newInputLists =
         walk (Update.listDiff oldOutputList newOutputList) Nothing oldInputList [[]]
       in
-      { values = mapListSimple (\\newInputList -> [f, newInputList]) newInputLists }
+      { values = List.simpleMap (\\newInputList -> [f, newInputList]) newInputLists }
   }
 
 mapList f xs =
-  applyLens mapListLens [f, xs]
+  Update.applyLens mapListLens [f, xs]
 
 -----------------------------------------------
 -- TODO not using this example yet
@@ -5978,12 +5975,9 @@ main =
 """
 
 mapListLens_2 =
- """mapListSimple f list =
-  Update.freeze (case list of [] -> []; x::xs -> f x :: mapListSimple f xs)
-
-mapListLens =
+ """mapListLens =
   { apply [f,xs] =
-      mapListSimple f xs
+      List.simpleMap f xs
 
   , update { input = [f,oldInputList]
            , outputOld = oldOutputList
@@ -5995,22 +5989,19 @@ mapListLens =
             acc
 
           [[\"Keep\"] :: moreDiffOps, oldHead :: oldTail] ->
-            let [newFuncs, newTails] = walk moreDiffOps (Just oldHead) oldTail acc in
-            [ newFuncs, map (\\newTail -> oldHead::newTail) newTails ]
+            let tails = walk moreDiffOps (Just oldHead) oldTail acc in
+            List.simpleMap (\\newTail -> [f, oldHead] :: newTail) tails
 
           [[\"Delete\"] :: moreDiffOps, oldHead :: oldTail] ->
-            let [newFuncs, newTails] = walk moreDiffOps (Just oldHead) oldTail acc in
-            [ newFuncs, newTails ]
+            let tails = walk moreDiffOps (Just oldHead) oldTail acc in
+            tails
 
           [[\"Update\", newVal] :: moreDiffOps, oldHead :: oldTail] ->
-            let [newFuncs1, newTails] = walk moreDiffOps (Just oldHead) oldTail acc in
-            let [newFuncs2, newHeads] =
-              List.unzip
-                (Update.updateApp {fun [a,b] = a b, input = [f, oldHead], output = newVal}).values
+            let tails = walk moreDiffOps (Just oldHead) oldTail acc in
+            let heads =
+              (Update.updateApp {fun [a,b] = a b, input = [f, oldHead], output = newVal}).values
             in
-            [ newFuncs1 ++ newFuncs2
-            , List.cartesianProductWith List.cons newHeads newTails
-            ]
+            List.cartesianProductWith List.cons heads tails
 
           [[\"Insert\", newVal] :: moreDiffOps, _] ->
             let headOrPreviousHead =
@@ -6018,20 +6009,24 @@ mapListLens =
                 [oldHead :: _, _] -> oldHead
                 [[], [\"Just\", oldPreviousHead]] -> oldPreviousHead
             in
-            let [newFuncs1, newTails] = walk moreDiffOps maybePreviousInput oldInputs acc in
-            let [newFuncs2, newHeads] =
-              List.unzip
-                (Update.updateApp {fun [a,b] = a b, input = [f, headOrPreviousHead], output = newVal}).values
+            let tails = walk moreDiffOps maybePreviousInput oldInputs acc in
+            let heads =
+              (Update.updateApp {fun [a,b] = a b, input = [f, headOrPreviousHead], output = newVal}).values
             in
-            [ newFuncs1 ++ newFuncs2
-            , List.cartesianProductWith List.cons newHeads newTails
-            ]
+            List.cartesianProductWith List.cons heads tails
       in
-      let [newFuncs, newInputLists] =
-        walk (Update.listDiff oldOutputList newOutputList) Nothing oldInputList [[],[]]
+      let newLists =
+        walk (Update.listDiff oldOutputList newOutputList) Nothing oldInputList [[]]
       in
-      -- TODO merge newFuncs
-      { values = mapListSimple (\\newInputList -> [f, newInputList]) newInputLists }
+      { values =
+          List.simpleMap (\\newList ->
+            let [newFuncs, newInputList] = List.unzip newList in
+            -- TODO this is slow, and being called many times
+            -- let newFunc = Update.merge f newFuncs in
+            let newFunc = f in
+            [newFunc, newInputList]
+          ) newLists
+      }
   }
 
 mapList f xs =

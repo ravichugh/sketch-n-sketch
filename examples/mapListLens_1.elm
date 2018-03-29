@@ -1,9 +1,6 @@
-mapListSimple f list =
-  Update.freeze (case list of [] -> []; x::xs -> f x :: mapListSimple f xs)
-
 mapListLens =
   { apply [f,xs] =
-      mapListSimple f xs
+      List.simpleMap f xs
 
   , update { input = [f,oldInputList]
            , outputOld = oldOutputList
@@ -16,7 +13,7 @@ mapListLens =
 
           [["Keep"] :: moreDiffOps, oldHead :: oldTail] ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
-            map (\newTail -> oldHead::newTail) newTails
+            List.simpleMap (\newTail -> oldHead::newTail) newTails
 
           [["Delete"] :: moreDiffOps, oldHead :: oldTail] ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
@@ -40,11 +37,11 @@ mapListLens =
       let newInputLists =
         walk (Update.listDiff oldOutputList newOutputList) Nothing oldInputList [[]]
       in
-      { values = mapListSimple (\newInputList -> [f, newInputList]) newInputLists }
+      { values = List.simpleMap (\newInputList -> [f, newInputList]) newInputLists }
   }
 
 mapList f xs =
-  applyLens mapListLens [f, xs]
+  Update.applyLens mapListLens [f, xs]
 
 -----------------------------------------------
 -- TODO not using this example yet

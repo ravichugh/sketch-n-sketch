@@ -113,6 +113,9 @@ type alias Model =
   -- TODO rename slate/slateCount
   , slate : RootedIndexedTree
   , slateCount : Int -- trying to count number of times translated to DOM
+  , addDummyDivAroundCanvas : Maybe Bool
+      -- Just False and Just True force previous VirtualDom to be
+      -- invalidated by adding a dummy div around canvas
   , widgets : Widgets
   , liveSyncInfo : Sync.LiveInfo
   , liveSyncDelay : Bool
@@ -1148,6 +1151,7 @@ initModel =
     , runAnimation  = True
     , slate         = slate
     , slateCount    = 1
+    , addDummyDivAroundCanvas = Nothing
     , widgets       = ws
     , liveSyncInfo  = liveSyncInfo
     , liveSyncDelay = False
