@@ -2721,7 +2721,7 @@ html string = {
             [\"HTMLAttributeString\", _, _, _, content ] -> [name, content]
             [\"HTMLAttributeNoValue\"] -> [name, \"\"]) attrs
         , map domap children]
-      [\"HTMLComment\", _, content] -> [\"comment\", [[\"display\", \"none\"]], [[\"TEXT\", content]]]
+      [\"HTMLComment\", [_, [content]]] -> [\"comment\", [[\"display\", \"none\"]], [[\"TEXT\", content]]]
     in map domap trees)
 
   update {input, oldOutput, newOutput, diffs} =
