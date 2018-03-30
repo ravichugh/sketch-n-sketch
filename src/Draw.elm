@@ -662,11 +662,48 @@ perhapsPrepareRecursiveFunction someEIdAtTopLevelOfFunction program =
       program
 
 
+findRecursiveBranch : Exp -> Exp -> Maybe Exp
+findRecursiveBranch program funcExp =
+  case LangTools.findLetAndIdentBindingExpLoose funcExp.val.eid program of
+    Just (letExp, funcName) ->
+      if LangTools.expToLetRec letExp == True then
+        LangTools.expToMaybeFuncBody funcExp
+        |> Maybe.andThen (LangTools.identifierUses funcName >> List.map (.val >> .eid >> parentByEId program >> Maybe.withDefault Nothing) >> Utils.projJusts >> Maybe.map (List.filter isApp))
+        |> Utils.filterMaybe (not << List.isEmpty)
+        |> Maybe.andThen
+            (\recCalls ->
+              funcExp
+              |> mapFirstSuccessNode
+                  (\e ->
+                    case e.val.e__ of
+                      EIf _ _ _ branchExp1 _ branchExp2 _ ->
+                        if Utils.isSublistAsSet recCalls (flattenExpTree branchExp1) then
+                          Just branchExp1
+                        else if  Utils.isSublistAsSet recCalls (flattenExpTree branchExp2) then
+                          Just branchExp2
+                        else
+                          Nothing
+                      _ ->
+                        Nothing
+                  )
+            )
+      else
+        Nothing
+
+    _ ->
+      Nothing
+
+
 addToEndOfDrawingContext : Model -> Ident -> Exp -> Model
 addToEndOfDrawingContext old varSuggestedName exp =
   let originalProgram = old.inputExp in
   let contextExp = FocusedEditingContext.drawingContextExp old.editingContext originalProgram in
-  let insertBeforeEId = (LangTools.lastSameLevelExp contextExp).val.eid in
+  let insertBeforeEId =
+    let maybeFocusedExp = FocusedEditingContext.maybeFocusedExp old.editingContext originalProgram in
+    case maybeFocusedExp |> Maybe.map (findRecursiveBranch originalProgram) of
+      Just (Just recursiveBranchExp)  -> recursiveBranchExp.val.eid
+      _                               -> (LangTools.lastSameLevelExp contextExp).val.eid
+  in
   let varName = LangTools.nonCollidingName varSuggestedName 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) in
   let newProgram =
     originalProgram
