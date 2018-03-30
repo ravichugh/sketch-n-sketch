@@ -1797,6 +1797,46 @@ spaceColonType sp =
           |= typ sp
      )
 
+maybeConvertToOp0 : Exp -> Exp
+maybeConvertToOp0 exp =
+  case exp.val.e__ of
+    EVar wsBefore identifier ->
+      case opFromIdentifier identifier of
+        Just op_ ->
+          replaceE__ exp <|
+            EOp
+              wsBefore
+              (withInfo op_ exp.start exp.end)
+              []
+              space0
+
+        Nothing ->
+          exp
+    _ ->
+      exp
+
+maybeConvertToOpN : Exp -> List Exp -> Exp__
+maybeConvertToOpN first rest =
+  let
+    default =
+      EApp space0 first (List.map maybeConvertToOp0 rest) SpaceApp space0
+  in
+    case first.val.e__ of
+      EVar wsBefore identifier ->
+        case opFromIdentifier identifier of
+          Just op_ ->
+            EOp
+              wsBefore
+              (withInfo op_ first.start first.end)
+              (List.map maybeConvertToOp0 rest)
+              space0
+
+          Nothing ->
+            default
+      _ ->
+        default
+
+
 -- Either a simple expression or a function application
 simpleUntypedExpressionWithPossibleArguments : SpacePolicy -> Parser Exp
 simpleUntypedExpressionWithPossibleArguments sp =
@@ -1809,31 +1849,12 @@ simpleUntypedExpressionWithPossibleArguments sp =
       case Utils.maybeLast rest of
         -- rest is empty
         Nothing ->
-          first
+          maybeConvertToOp0 first
 
         -- rest is non-empty
         Just last ->
           let
-            e_ =
-              exp_ <|
-                let
-                  default =
-                    EApp space0 first rest SpaceApp space0
-                in
-                  case first.val.e__ of
-                    EVar wsBefore identifier ->
-                      case opFromIdentifier identifier of
-                        Just op_ ->
-                          EOp
-                            wsBefore
-                            (withInfo op_ first.start first.end)
-                            rest
-                            space0
-
-                        Nothing ->
-                          default
-                    _ ->
-                      default
+            e_ = exp_ (maybeConvertToOpN first rest)
           in
             withInfo e_ first.start last.end
   in
