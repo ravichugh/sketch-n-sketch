@@ -502,9 +502,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         _ -> (Nothing, Nothing, Nothing, Nothing)
     in
     let isCurrentContext =
-      case (model.editingContext, maybeFuncExp) of
-        (Just (eid, _), Just funcExp) -> eid == funcExp.val.eid
-        _                             -> False
+      case model.editingContext of
+        Just (_, Just eid) -> eid == callEId
+        _                  -> False
     in
     if not <| isCurrentContext || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredCallWidgets then
       []
