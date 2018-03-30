@@ -1,5 +1,8 @@
 module ExamplesGenerated exposing
-  (list, blankTemplate, initTemplate, badPreludeTemplate, templateCategories)
+  ( list, templateCategories
+  , blankSvgTemplate, blankHtmlTemplate, initTemplate
+  , badPreludeTemplate
+  )
 
 import Lang
 import FastParser
@@ -11,6 +14,15 @@ import PreludeGenerated as Prelude
 import DefaultIconTheme
 import Syntax
 import EvalUpdate
+
+--------------------------------------------------------------------------------
+
+initTemplate = "Get Started"
+blankSvgTemplate = "Blank Svg Document"
+blankHtmlTemplate = "Blank Html Document"
+badPreludeTemplate = "Bad Prelude"
+
+--------------------------------------------------------------------------------
 
 makeExample = makeExample_ FastParser.parseE Syntax.Little
 
@@ -218,6 +230,7 @@ LITTLE_TO_ELM task_lambda
 --------------------------------------------------------------------------------
 
 LEO_TO_ELM badPrelude
+LEO_TO_ELM blankSvg
 LEO_TO_ELM blankDoc
 LEO_TO_ELM welcome1
 LEO_TO_ELM tableOfStatesA
@@ -237,8 +250,9 @@ LEO_TO_ELM fromleo/modelviewcontroller
 
 welcomeCategory =
   ( "Welcome"
-  , [ makeLeoExample "Blank Document" blankDoc
-    , makeLeoExample "Get Started" welcome1
+  , [ makeLeoExample blankSvgTemplate blankSvg
+    , makeLeoExample blankHtmlTemplate blankDoc
+    , makeLeoExample initTemplate welcome1
 --    , makeLeoExample "Tutorial" blankDoc
     ]
   )
@@ -451,7 +465,7 @@ deuceUserStudyCategory =
 internalCategory =
  ( "(Internal Things...)"
  , [ makeLeoExample "Standard Prelude" Prelude.preludeLeo
-   , makeLeoExample "Bad Prelude" badPrelude
+   , makeLeoExample badPreludeTemplate badPrelude
    ]
  )
 
@@ -471,9 +485,3 @@ list =
   templateCategories
     |> List.map Tuple.second
     |> List.concat
-
-initTemplate = "Get Started"
-
-blankTemplate = "Blank Document"
-
-badPreludeTemplate = "Bad Prelude"

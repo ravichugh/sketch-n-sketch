@@ -1,5 +1,8 @@
 module ExamplesGenerated exposing
-  (list, blankTemplate, initTemplate, badPreludeTemplate, templateCategories)
+  ( list, templateCategories
+  , blankSvgTemplate, blankHtmlTemplate, initTemplate
+  , badPreludeTemplate
+  )
 
 import Lang
 import FastParser
@@ -11,6 +14,15 @@ import PreludeGenerated as Prelude
 import DefaultIconTheme
 import Syntax
 import EvalUpdate
+
+--------------------------------------------------------------------------------
+
+initTemplate = "Get Started"
+blankSvgTemplate = "Blank Svg Document"
+blankHtmlTemplate = "Blank Html Document"
+badPreludeTemplate = "Bad Prelude"
+
+--------------------------------------------------------------------------------
 
 makeExample = makeExample_ FastParser.parseE Syntax.Little
 
@@ -5735,6 +5747,12 @@ main =
 
 """
 
+blankSvg =
+ """main =
+  svg (concat [])
+
+"""
+
 blankDoc =
  """main =
   [ \"div\"
@@ -5906,6 +5924,7 @@ mapListLens_1 =
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
+      -- TODO previous to Right or Next?
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
@@ -5938,7 +5957,10 @@ mapListLens_1 =
       let newInputLists =
         walk (Update.listDiff oldOutputList newOutputList) Nothing oldInputList [[]]
       in
-      { values = List.simpleMap (\\newInputList -> (f, newInputList)) newInputLists }
+      let newFuncAndInputLists =
+        List.simpleMap (\\newInputList -> (f, newInputList)) newInputLists
+      in
+      { values = newFuncAndInputLists }
   }
 
 mapList f xs =
@@ -5964,6 +5986,7 @@ mapListLens_2 =
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
+      -- TODO previous to Right or Next?
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
@@ -6000,13 +6023,14 @@ mapListLens_2 =
       let newLists =
         walk (Update.listDiff oldOutputList newOutputList) Nothing oldInputList [[]]
       in
-      { values =
-          List.simpleMap (\\newList ->
-            let (newFuncs, newInputList) = List.unzip newList in
-            let newFunc = Update.merge f newFuncs in
-            (newFunc, newInputList)
-          ) newLists
-      }
+      let newFuncAndInputLists =
+        List.simpleMap (\\newList ->
+          let (newFuncs, newInputList) = List.unzip newList in
+          let newFunc = Update.merge f newFuncs in
+          (newFunc, newInputList)
+        ) newLists
+      in
+      { values = newFuncAndInputLists }
   }
 
 mapList f xs =
@@ -6343,8 +6367,9 @@ view
 
 welcomeCategory =
   ( "Welcome"
-  , [ makeLeoExample "Blank Document" blankDoc
-    , makeLeoExample "Get Started" welcome1
+  , [ makeLeoExample blankSvgTemplate blankSvg
+    , makeLeoExample blankHtmlTemplate blankDoc
+    , makeLeoExample initTemplate welcome1
 --    , makeLeoExample "Tutorial" blankDoc
     ]
   )
@@ -6557,7 +6582,7 @@ deuceUserStudyCategory =
 internalCategory =
  ( "(Internal Things...)"
  , [ makeLeoExample "Standard Prelude" Prelude.preludeLeo
-   , makeLeoExample "Bad Prelude" badPrelude
+   , makeLeoExample badPreludeTemplate badPrelude
    ]
  )
 
@@ -6577,9 +6602,3 @@ list =
   templateCategories
     |> List.map Tuple.second
     |> List.concat
-
-initTemplate = "Get Started"
-
-blankTemplate = "Blank Document"
-
-badPreludeTemplate = "Bad Prelude"

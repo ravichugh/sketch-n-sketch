@@ -637,8 +637,10 @@ menuBar model =
 
     fileMenu =
       menu "File"
-        [ [ simpleTextButton "New" <|
-              Controller.msgAskNew Examples.blankTemplate model.needsSave
+        [ [ simpleTextButton "New SVG Document" <|
+              Controller.msgAskNew Examples.blankSvgTemplate model.needsSave
+          , simpleTextButton "New HTML Document" <|
+              Controller.msgAskNew Examples.blankHtmlTemplate model.needsSave
           , simpleTextButton "New From Template..." <|
               Controller.msgOpenDialogBox New
           , simpleTextButton "Save As..." <|
