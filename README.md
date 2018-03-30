@@ -15,7 +15,7 @@ users to freely mix between programmatic and direct manipulation.
 <span style="display: inline-block; width: 222px; text-align: right;">**Direct Manipulation Programming**</span>
   = Programmatic + Direct Manipulation <br/>
 <span style="display: inline-block; width: 222px; text-align: right;">**Sketch-n-Sketch**</span>
-  = Direct Manipulation Programming for SVG
+  = Direct Manipulation Programming for SVG/HTML Documents
 
 
 ## [Project Page][ProjectPage]
@@ -26,57 +26,62 @@ and to try out the latest release.
 
 ## Quick Syntax Reference
 
+TODO explain Elm-like syntax... Pick Little/Leo as a name..
+
 ```
+  program  ::=  x1 = e1; ...; xn = en; e
+            |   x1 = e1; ...; xn = en     -- where xi = main for some i
+
   e  ::=
       |   n
       |   s
-      |   (\p e)
-      |   (\(p1 ... pn) e)
-      |   (e1 e2)
-      |   (e1 e2 e3 ... en)
-      |   (let p e1 e2)
-      |   (letrec p e1 e2)
-      |   (def p e1) e2
-      |   (def p T) e
-      |   (defrec p e1) e2
-      |   (if e1 e2 e3)
-      |   (case e (p1 e1) ... (pn en))
-      |   (typecase p (t1 e1) ... (tn en))
+      |   \p -> e
+      |   \p1 ... pn -> e
+      |   e1 e2
+      |   e1 <| e2                  -- infix application
+      |   e2 |> e1                  -- infix reverse application
+      |   e1 e2 e3 ... en
+      |   opn e1 ... en
+      |   L p = e1 in e2
+      |   L x p1 ... pn = e1 in e2
+      |   if e1 then e2 else e3
+      |   case e of p1 -> e1; ...; pn -> en
+      |   e1 :: e2
       |   []
-      |   [e1 | e2]
-      |   [e1 .... en]
-      |   [e1 .... en | erest]
-      |   (op0)
-      |   (op1 e1)
-      |   (op2 e1 e2)
-      |   ;single-line-comment e
+      |   [e1, ..., en]
+      |   (e1, ..., en)
+      |   {f1 = e1; ...; fn = en}
+      |   e.f
+      |   TODO regular expressions
+      |   TODO eval
+      |   -- single-line-comment; e
       |   #option value e
-      |   (typ p T)
-      |   (e : T)
+      |   (e)
 
-  T  ::=
-      |   Num | Bool | String
-      |   TypeAliasName
-      |   (-> T1 ... Tn)
-      |   (List T)
-      |   [T1 .... Tn]
-      |   [T1 .... Tn | Trest]
-      |   (forall a T) | (forall (a1 ... an) T)
-      |   a | b | c | ...
-      |   _
+  L  ::=  let | letrec
 ```
 
-Extra parentheses are not permitted.
-(Don't you think there are enough already?)
+<!-- no types for now... -->
 
 ## Syntax Guide
+
+### Programs
+
+A program is a series of top-level definitions followed by an expression.
+If the final expression is omitted, it implicitly refers to the variable `main`.
+By convention, the `main` definition is often the last top-level definition.
+
+```
+  program  ::=  x1 = e1; ...; xn = en; e
+            |   x1 = e1; ...; main = e
+```
 
 ### Constants
 
 ```
   e  ::=
       |   n         -- numbers (all are floating point)
-      |   s         -- strings (use single-quotes, not double)
+      |   s         -- strings (use double- or single-quotes at the outermost level)
       |   b         -- booleans
 ```
 
@@ -94,20 +99,24 @@ Extra parentheses are not permitted.
 ```
 
 ```
-  s  ::=  'hello' | "world" | '"hello world"' |...
+  b  ::=  True | False
 ```
 
 ```
-  b  ::=  true | false
+  s  ::=  "hello" | 'world'
+      |   "'hello world'"     -- quotation marks can be nested
+      |   """S"""             -- long-string literals
 ```
+
+TODO describe long-string literals S
 
 ### Primitive Operators
 
 ```
   e  ::=  ...
-      |   (op0)
-      |   (op1 e1)
-      |   (op2 e1 e2)
+      |   op0
+      |   op1 e1
+      |   op2 e1 e2
 ```
 
 ```
@@ -117,80 +126,98 @@ Extra parentheses are not permitted.
         |   toString
         |   sqrt
         |   explode             : String -> List String
+        |   ...
   op2  ::=  + | - | * | /
-        |   < | =
+        |   == | < | <= | ...
         |   mod | pow
         |   arctan2
+        |   ...
 ```
+
+TODO empty dictionary and dictionary operators
 
 ### Conditionals
 
 ```
   e  ::=  ...
-      |   (if e1 e2 e3)
+      |   if e1 then e2 else e3
 ```
 
 ### Lists
 
 ```
   e  ::=  ...
+      |   e1 :: e2
       |   []
-      |   [e1 | e2]
-      |   [e1 .... en]           -- desugars to [e1 | [e2 | ... | [en | []]]]
-      |   [e1 .... en | erest]   -- desugars to [e1 | [e2 | ... | [en | erest]]]
+      |   [e1, ..., en]          -- desugars to e1 :: e2 :: ... :: []
 ```
+
+### Tuples
+
+TODO
+
+### Records
+
+TODO
+
+We sometimes say "module" to describe a records that begins with a capital
+letter.
 
 ### Patterns
 
 ```
   p  ::=  x
       |   n | s | b
-      |   [p1 | p2]
-      |   [p1 ... pn]
-      |   [p1 ... pn | prest]
+      |   p1 :: p2
+      |   []
+      |   [p1, ..., pn]
+      |   (p1, ..., pn)
       |   x@p
+      |   {f1 = p1; ..., fn = pn}
+      |   {f1, ..., fn}              -- desugars to {f1 = f1, ..., fn = fn}
 ```
 
 ### Case Expressions
 
 ```
   e  ::=  ...
-      |   (case e (p1 e1) ... (pn en))
+      |   case e of p1 -> e1; ...; pn -> en
+      |   case of p1 -> e1; ...; pn -> en     -- desugars to \x -> case x of p1 -> e1; ...; pn -> en
 ```
 
 ### Functions
 
 ```
   e  ::=  ...
-      |   (\p e)
-      |   (\(p1 ... pn) e)    -- desugars to (\p1 (\p2 (... (\pn) e)))
+      |   \p -> e
+      |   \p1 ... pn -> e     -- desugars to \p1 -> \p2 -> ... -> \pn -> e
 ```
-
 
 ### Function Application
 
 ```
   e  ::=  ...
-      |   (e1 e2)
-      |   (e1 e2 e3 ... en)   -- desugars to ((((e1 e2) e3) ...) en)
+      |   e1 e2
+      |   e1 <| e2                  -- infix application
+      |   e2 |> e1                  -- infix reverse application
+      |   e1 e2 e3 ... en           -- desugars to ((((e1 e2) e3) ...) en)
 ```
 
 ### Let-Bindings
 
 ```
+  L  ::=  let | letrec
   e  ::=  ...
-      |   (let p e1 e2)
-      |   (letrec f (\x e1) e2)
-      |   (def p e1) e2           -- desugars to (let p e1 e2)
-      |   (defrec f (\x e1)) e2   -- desugars to (letrec f (\x e1) e2)
+      |   L p = e1 in e2
+      |   L f p1 ... pn = e1 in e2   -- desugars to L f = \p1 ... pn -> e1 in e2
 ```
 
 ### Comments and Options
 
 ```
   e  ::=  ...
-      |   ;single-line-comment e
-      |   #option value e
+      |   --single-line-comment; e
+      |   --# option: value; e
 ```
 
 Comments and options are terminated by newlines.
@@ -199,7 +226,7 @@ non-comment expression.
 
 ### Standard Prelude
 
-See [`prelude.little`][Prelude] for the standard library included by every program.
+See [`preludeLeo.elm`][Prelude] for the standard library included by every program.
 
 ### SVG
 
@@ -207,65 +234,65 @@ The result of a `little` program should be an "HTML node."
 Nodes are either text elements or SVG elements, represented as
 
 ```
-  h  ::=  ['TEXT' e]
-      |   [shapeKind attrs children]
+  h  ::=  ["TEXT", e]
+      |   [shapeKind, attrs, children]
 ```
 
 where
 
 ```
-  shapeKind  ::=  'svg' | 'circle' | 'rect' | 'polygon' | 'text' | ...
-  attrs      ::=  [ ['attr1' e1] ... ['attrn' e2] ]
-  children   ::=  [ h1 ... hn ]
+  shapeKind  ::=  "svg" | "circle" | "rect" | "polygon" | "text" | ...
+  attrs      ::=  [ ["attr1", e1], ..., ["attrn", e2] ]
+  children   ::=  [ h1, ..., hn ]
 ```
 
 Each attribute expression should compute a pair value
 in one of the following forms
 
 ```
-  [ 'fill'          colorValue     ]
-  [ 'stroke'        colorValue     ]
-  [ 'stroke-width'  numValue       ]
-  [ 'points'        pointsValue    ]
-  [ 'd'             pathValue      ]
-  [ 'transform'     transformValue ]
-  [ anyStringValue  anyStringValue ]   -- thin wrapper over full SVG format
+  [ "fill"          , colorValue     ]
+  [ "stroke"        , colorValue     ]
+  [ "stroke-width"  , numValue       ]
+  [ "points"        , pointsValue    ]
+  [ "d"             , pathValue      ]
+  [ "transform"     , transformValue ]
+  [ anyStringValue  , anyStringValue ]   -- thin wrapper over full SVG format
 ```
 
 where
 
 ```
   colorValue      ::=  n                   -- color number [0, 500)
-                   |   [n n]               -- color number and transparency
-                   |   [n n n n]           -- RGBA
+                   |   [n, n]              -- color number and transparency
+                   |   [n, n, n, n]        -- RGBA
 
-  pointsValue     ::=  [[nx_1 ny_1] ... ]       -- list of points
+  pointsValue     ::=  [[nx_1, ny_1], ... ]     -- list of points
 
   pathValue       ::=  pcmd_1 ++ ... ++ pcmd_n  -- list of path commands
 
-  transformValue  ::=  [ tcmd_1 ... tcmd_n ]    -- list of transform commands
+  transformValue  ::=  [ tcmd_1, ..., tcmd_n ]  -- list of transform commands
 
-  pcmd            ::=  [ 'Z' ]                      -- close path
-                   |   [ 'M' n1 n2 n3 ]             -- move-to
-                   |   [ 'L' n1 n2 n3 ]             -- line-to
-                   |   [ 'Q' n1 n2 n3 n4 ]          -- quadratic Bezier
-                   |   [ 'C' n1 n2 n3 n4 n5 n6 ]    -- cubic Bezier
-                   |   [ 'H' n1 ]
-                   |   [ 'V' n1 ]
-                   |   [ 'T' n1 n2 n3 ]
-                   |   [ 'S' n1 n2 n3 n4 ]
-                   |   [ 'A' n1 n2 n3 n4 n5 n6 n7 ]
+  pcmd            ::=  [ "Z" ]                            -- close path
+                   |   [ "M", n1, n2, n3 ]                -- move-to
+                   |   [ "L", n1, n2, n3 ]                -- line-to
+                   |   [ "Q", n1, n2, n3, n4 ]            -- quadratic Bezier
+                   |   [ "C", n1, n2, n3, n4, n5, n6 ]    -- cubic Bezier
+                   |   [ "H", n1 ]
+                   |   [ "V", n1 ]
+                   |   [ "T", n1, n2, n3 ]
+                   |   [ "S", n1, n2, n3, n4 ]
+                   |   [ "A", n1, n2, n3, n4, n5, n6, n7 ]
 
-  tcmd            ::=  [ 'rotate' nAngle nx ny ]
-                   |   [ 'scale' n1 n2 ]
-                   |   [ 'translate' n1 n2 ]
+  tcmd            ::=  [ "rotate", nAngle, nx, ny ]
+                   |   [ "scale", n1, n2 ]
+                   |   [ "translate", n1, n2 ]
 ```
 
 See [this][SvgPath] and [this][SvgTransform] for more information
 about SVG paths and transforms. Notice that `pathValue` is a flat list,
 whereas `transformValue` is a list of lists.
 
-See [`prelude.little`][Prelude] for a small library of SVG-manipulating functions.
+See [`preludeLeo.elm`][Prelude] for a small library of SVG-manipulating functions.
 
 The [Prelude][Prelude], the examples that come with the editor,
 the [Tutorial](http://ravichugh.github.io/sketch-n-sketch/tutorial/index.html),
@@ -399,7 +426,7 @@ See [existing tests](https://github.com/ravichugh/sketch-n-sketch/tree/master/te
 
 If you add or remove a package from the project, the package list for the tests needs to be updated as well. Simply run `node tests/refresh_elm-packages.js` to copy over the main `elm-packages.json` into the tests directory.
 
-[Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little
+[Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/preludeLeo.elm
 [LangSvg]: https://github.com/ravichugh/sketch-n-sketch/blob/master/src/LangSvg.elm
 [ProjectPage]: http://ravichugh.github.io/sketch-n-sketch
 [SvgPath]: https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
