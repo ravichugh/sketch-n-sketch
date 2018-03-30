@@ -711,7 +711,7 @@ simpleExpNameWithDefault default exp =
       case (Utils.dedup headNames, headNames) of
         (_,          [])                    -> "unit"
         (_,          [headName])            -> headName ++ "Singleton"
-        ([headName], [_, _])                -> headName ++ "Pair"
+        ([headName], [_, _])                -> if headName == "num" then "point" else headName ++ "Pair" -- For now, we follow the convention that [Num, Num] == Point
         (_,          [name1, name2])        -> name1 ++ Utils.capitalize name2 ++ "Pair"
         ([headName], [_, _, _])             -> headName ++ "Triple"
         (_,          [name1, name2, name3]) -> name1 ++ Utils.capitalize name2 ++ Utils.capitalize name3 ++ "Triple"
@@ -738,7 +738,7 @@ typeToExpName tipe =
       case (Utils.dedup headNames, headNames) of
         (_,          [])                    -> "unit"
         (_,          [headName])            -> headName ++ "Singleton"
-        ([headName], [_, _])                -> headName ++ "Pair"
+        ([headName], [_, _])                -> if headName == "num" then "point" else headName ++ "Pair" -- For now, we follow the convention that [Num, Num] == Point
         (_,          [name1, name2])        -> name1 ++ Utils.capitalize name2 ++ "Pair"
         ([headName], [_, _, _])             -> headName ++ "Triple"
         (_,          [name1, name2, name3]) -> name1 ++ Utils.capitalize name2 ++ Utils.capitalize name3 ++ "Triple"
