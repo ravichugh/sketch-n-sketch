@@ -68,6 +68,22 @@ patName p =
     _ ->
       Nothing
 
+expArgs : Exp -> Maybe (List (WS, WS, Ident, WS, Exp))
+expArgs e =
+  case e.val.e__ of
+    ERecord _ _ entries _ ->
+      Just entries
+    _ ->
+      Nothing
+
+patArgs : Pat -> Maybe (List (WS, WS, Ident, WS, Pat))
+patArgs p =
+  case p.val.p__ of
+    PRecord _ entries _ ->
+      Just entries
+    _ ->
+      Nothing
+
 -- Tries to unparse a record as a tuple
 tryUnparseTuple
   :  (t -> String)
@@ -114,10 +130,10 @@ tryUnparseTuple unparseTerm wsBefore elems wsBeforeEnd =
 
 -- Tries to unparse a record as a data constructor
 tryUnparseDataConstructor
-  :  (t -> String) -> (t -> Maybe String)
+  :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (WS, WS, Ident, WS, t)))
   -> WS -> List (WS, WS, Ident, WS, t) -> WS
   -> Maybe String
-tryUnparseDataConstructor unparseTerm name wsBefore elems wsBeforeEnd =
+tryUnparseDataConstructor unparseTerm name args wsBefore elems wsBeforeEnd =
   let
     ctorString =
       stringifyCtorKind Lang.DataTypeCtor
@@ -127,42 +143,53 @@ tryUnparseDataConstructor unparseTerm name wsBefore elems wsBeforeEnd =
         |> List.map (\(_, _, key, _, val) -> (key, val))
         |> Utils.maybeFind ctorString
         |> Maybe.andThen name
+
+    maybeArgs =
+      elems
+        |> List.map (\(_, _, key, _, val) -> (key, val))
+        |> Utils.maybeFind Lang.ctorArgs
+        |> Maybe.andThen args
   in
-    flip Maybe.map maybeNameString <| \nameString ->
-      let
-        args =
-          elems
-            |> List.filter
-                 ( \(_, _, elName, _, _) ->
-                     String.startsWith "_" elName
-                 )
-            |> List.sortBy
-                 ( \(_, _, elName, _, _) ->
-                     elName
-                       |> String.dropLeft 1
-                       |> String.toInt
-                       |> Result.withDefault -1
-                 )
-            |> List.map
-                 ( \(_, _, _, _, elBinding) ->
-                     unparseTerm elBinding
-                 )
-            |> String.concat
-      in
-        wsBefore.val
-          ++ nameString
-          ++ args
+    case (maybeNameString, maybeArgs) of
+      (Just nameString, Just args) ->
+        let
+          argsString =
+            args
+              |> List.filter
+                   ( \(_, _, elName, _, _) ->
+                       String.startsWith "_" elName
+                   )
+              |> List.sortBy
+                   ( \(_, _, elName, _, _) ->
+                       elName
+                         |> String.dropLeft 1
+                         |> String.toInt
+                         |> Result.withDefault -1
+                   )
+              |> List.map
+                   ( \(_, _, _, _, elBinding) ->
+                       unparseTerm elBinding
+                   )
+              |> String.concat
+        in
+          Just <|
+            wsBefore.val
+              ++ nameString
+              ++ argsString
+
+      _ ->
+        Nothing
 
 tryUnparseRecordSugars
-  :  (t -> String) -> (t -> Maybe String)
+  :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (WS, WS, Ident, WS, t)))
   -> WS -> List (WS, WS, Ident, WS, t) -> WS
   -> (() -> String) -> String
-tryUnparseRecordSugars unparseTerm name wsBefore elems wsBeforeEnd default =
+tryUnparseRecordSugars unparseTerm name args wsBefore elems wsBeforeEnd default =
   case tryUnparseTuple unparseTerm wsBefore elems wsBeforeEnd of
     Just s ->
       s
     Nothing ->
-      case tryUnparseDataConstructor unparseTerm name wsBefore elems wsBeforeEnd of
+      case tryUnparseDataConstructor unparseTerm name args wsBefore elems wsBeforeEnd of
         Just s ->
           s
         Nothing ->
@@ -220,7 +247,7 @@ unparsePattern p =
       unparsePattern tail
 
     PRecord wsBefore elems wsAfter ->
-      tryUnparseRecordSugars unparsePattern patName wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars unparsePattern patName patArgs wsBefore elems wsAfter <| \_ ->
         let maybeJustKey eqSpace key value =
           let default = eqSpace ++ "=" ++ unparsePattern value in
           if eqSpace == "" then
@@ -534,7 +561,7 @@ unparse e =
       unparse tail
 
     ERecord wsBefore mi elems wsAfter ->
-      tryUnparseRecordSugars unparse expName wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars unparse expName expArgs wsBefore elems wsAfter <| \_ ->
         wsBefore.val
           ++ "{"
           ++ (case mi of

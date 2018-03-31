@@ -107,17 +107,16 @@ __update_split__ n l =
 --   diff ~= defaultVDiffs
 --
 
---   type SimpleListDiffOp = Keep | Delete | Insert Value | Update Value
-SimpleListDiffOp = {
-  Keep = ["Keep"]
-  Delete = ["Delete"]
-  Insert v = ["Insert", v]
-  Update v = ["Update", v]
-}
+type SimpleListDiffOp = Keep | Delete | Insert Value | Update Value
+-- SimpleListDiffOp = {
+--   Keep = ["Keep"]
+--   Delete = ["Delete"]
+--   Insert v = ["Insert", v]
+--   Update v = ["Update", v]
+-- }
 
 -- getSimpleListDiffOps : List Value -> List Value -> VDiffs -> List SimpleListDiffOp
 getSimpleListDiffOps oldValues newValues vDiffs =
-   let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
    let append = __update_append__ in
    case vDiffs of
       ["VListDiffs", listDiffs] ->

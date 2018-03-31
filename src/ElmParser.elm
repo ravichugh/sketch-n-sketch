@@ -476,9 +476,17 @@ identifier =
     isRestChar
     keywords
 
+anyIdentifier : ParserI Ident
+anyIdentifier =
+  trackInfo identifier
+
 littleIdentifier : ParserI Ident
 littleIdentifier =
-  trackInfo <| identifier
+  trackInfo <|
+    LK.variable
+      Char.isLower
+      isRestChar
+      keywords
 
 bigIdentifier : ParserI Ident
 bigIdentifier =
@@ -769,7 +777,7 @@ namePattern sp ident =
 variablePattern : SpacePolicy -> Parser Pat
 variablePattern sp =
   inContext "variable pattern" <|
-    namePattern sp littleIdentifier
+    namePattern sp anyIdentifier
 
 --------------------------------------------------------------------------------
 -- Wildcards
@@ -879,6 +887,60 @@ tuplePattern sp =
           , record =
               PRecord
           }
+
+--------------------------------------------------------------------------------
+-- Data Constructor Pattern
+--------------------------------------------------------------------------------
+
+dataConstructorPattern : SpacePolicy -> Parser Pat
+dataConstructorPattern sp =
+  inContext "data constructor pattern" <|
+    lazy <| \_ ->
+      let
+        combiner (wsBefore, start) (ctorName, args, end) =
+          let
+            ctorEntry =
+              Lang.ctor
+                (withDummyPatInfo << PBase space0)
+                Lang.DataTypeCtor
+                ctorName
+
+            insideArgsEntries =
+              args
+                |> List.map (\p -> (space0, p))
+                |> Utils.indexedMapFrom 1 Lang.numericalEntry
+
+            argsEntry =
+              ( space0
+              , space0
+              , Lang.ctorArgs
+              , space0
+              , withDummyPatInfo <|
+                  PRecord space0 insideArgsEntries space0
+              )
+          in
+            withInfo
+              ( pat_ <|
+                  PRecord
+                    wsBefore
+                    [ctorEntry, argsEntry]
+                    space0
+              )
+              start
+              end
+      in
+        delayedCommitMap
+          combiner
+          ( succeed (,)
+              |= sp.first
+              |= getPos
+          )
+          ( succeed (,,)
+              |= untrackInfo bigIdentifier
+              |= repeat zeroOrMore (pattern sp)
+              |= getPos
+          )
+
 --------------------------------------------------------------------------------
 -- As-Patterns (@-Patterns)
 --------------------------------------------------------------------------------
@@ -911,6 +973,7 @@ simplePattern sp =
       , lazy <| \_ -> parensPattern sp
       , constantPattern sp
       , baseValuePattern sp
+      , dataConstructorPattern sp
       , variablePattern sp
       , wildcardPattern sp
       ]
@@ -1371,14 +1434,14 @@ patternOperator sp =
 moduleNames : Set String
 moduleNames =
   Set.fromList
-    [ "SimpleListDiffOp"
-    , "List"
+    [ "List"
     , "Tuple"
     , "Editor"
     , "Update"
     , "SoftFreeze"
     , "Html"
     , "TableWithButtons"
+    , "Results"
     ]
 
 
@@ -1443,7 +1506,7 @@ baseValueExpression sp =
 
 variableExpression : SpacePolicy -> Parser Exp
 variableExpression sp =
-  mapExp_ <| paddedBefore EVar sp.first littleIdentifier
+  mapExp_ <| paddedBefore EVar sp.first anyIdentifier
 
 --------------------------------------------------------------------------------
 -- Functions (lambdas)
@@ -1923,17 +1986,26 @@ simpleUntypedExpressionWithPossibleArguments sp =
                       Lang.DataTypeCtor
                       identifier
 
-                  entries =
+                  insideArgsEntries =
                     rest
                       |> List.map (\e -> (space0, e))
                       |> Utils.indexedMapFrom 1 Lang.numericalEntry
+
+                  argsEntry =
+                    ( space0
+                    , space0
+                    , Lang.ctorArgs
+                    , space0
+                    , withDummyExpInfo <|
+                        ERecord space0 Nothing insideArgsEntries space0
+                    )
                 in
                   Just << exp_ <|
-                      ERecord
-                        wsBefore
-                        Nothing
-                        (ctorEntry :: entries)
-                        space0
+                    ERecord
+                      wsBefore
+                      Nothing
+                      [ctorEntry, argsEntry]
+                      space0
               else
                 -- Function application with op identifiers are EOps
                 case opFromIdentifier identifier of

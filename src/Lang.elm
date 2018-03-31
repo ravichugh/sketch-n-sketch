@@ -66,6 +66,10 @@ type alias TBranch = WithInfo TBranch_
 --------------------------------------------------------------------------------
 -- Constructing records
 
+ctorArgs : String
+ctorArgs =
+  "args"
+
 type CtorKind
   = TupleCtor
   | DataTypeCtor
