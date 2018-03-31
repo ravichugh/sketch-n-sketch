@@ -2544,11 +2544,7 @@ loadIcon env icon old =
     oldIcons =
       old.icons
     iconHtml =
-      -- Suppress for Leo/Docs for now, until preludeLeo.elm has SVG funcs
-      -- iconify syntax env actualCode
-      Html.span
-        []
-        [Html.text "TODO", Html.br [] [], Html.text "SVG Icons"]
+      iconify syntax env actualCode
     newIcons =
       Dict.insert icon.filename.name iconHtml oldIcons
   in
