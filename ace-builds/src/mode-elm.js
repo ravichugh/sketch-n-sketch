@@ -35,9 +35,11 @@ var oop = require("../lib/oop");
 var TextHighlightRules = require("./text_highlight_rules").TextHighlightRules;
 
 var ElmHighlightRules = function() {
+    // added for our Elm-like syntax:
+    //   letrec
     var keywordMapper = this.createKeywordMapper({
        "keyword": "as|case|class|data|default|deriving|do|else|export|foreign|" +
-            "hiding|jsevent|if|import|in|infix|infixl|infixr|instance|let|" +
+            "hiding|jsevent|if|import|in|infix|infixl|infixr|instance|let|letrec|" +
             "module|newtype|of|open|then|type|where|_|port|\u03BB"
     }, "identifier");
 

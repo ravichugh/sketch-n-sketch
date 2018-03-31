@@ -21,7 +21,6 @@ import Sync
 import Draw
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
-import FastParser exposing (parseE)
 
 import LangUnparser
 import Eval
@@ -69,7 +68,7 @@ svgPath      = flip Svg.path []
 
 msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.outputMode of
-    Live ->
+    Graphics ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
       let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (mousePosition old) in
       let trigger = Sync.prepareLiveTrigger old.liveSyncInfo old.inputExp zoneKey in
@@ -104,8 +103,8 @@ startDrawing old =
 build : SleekLayout.BoundingBox -> Model -> List (Html Msg)
 build dim model =
   let addZones = case (model.outputMode, model.preview) of
-    (Live, Nothing) -> model.tool == Cursor
-    _               -> False
+    (Graphics, Nothing) -> model.tool == Cursor
+    _                   -> False
   in
   let (widgets, slate) =
     case model.preview of
@@ -116,8 +115,8 @@ build dim model =
   let newShape = drawNewShape model in
   let widgetsAndDistances =
     case (model.outputMode, model.showGhosts, model.preview) of
-      (Live, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets model -- Draw distances below other widgets
-      _                     -> []
+      (Graphics, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets model -- Draw distances below other widgets
+      _                         -> []
   in
   let selectBox = drawSelectBox model in
   if LangSvg.isSvg model.inputVal then
@@ -131,7 +130,13 @@ build dim model =
         ([outputElement] ++ newShape ++ widgetsAndDistances ++ selectBox)
     ]
   else
-    [ outputElement
+    let maybeWrappedCanvas =
+      case (model.preview, model.addDummyDivAroundCanvas) of
+        (Just _,  _)       -> let _ = Debug.log "Wrapping canvas" () in Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        (Nothing, Just _)  -> let _ = Debug.log "Wrapping canvas" () in Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        (Nothing, Nothing) -> let _ = Debug.log "Not wrapping canvas" () in outputElement
+    in
+    [ maybeWrappedCanvas
     , Svg.svg
         [ Attr.id "svgWidgetsLayer"
         , Attr.style
@@ -202,23 +207,15 @@ buildHtml_ (model, addZones) insideSvgNode d i =
       let
         -- https://softwareengineering.stackexchange.com/questions/199166/why-does-a-contenteditable-div-not-behave-like-an-input-element
         maybeContentEditableAttr =
-          if List.member shape ["th", "td", "p", "span", "pre", "h1", "h2", "h3", "h4", "h5", "h6"]
+          if List.member shape ["th", "td", "p", "span", "pre", "li", "h1", "h2", "h3", "h4", "h5", "h6"]
             then [Attr.contenteditable True]
             else []
       in
       let valueIdAttrs =
-        let
-          class =
-            -- TODO: this assumes a single text node, but contenteditable edits
-            -- may create multiple text nodes with brs and divs sprinkled in
-            "_outputValue"
-        in
-        [ Attr.attribute "data-value-id" (toString i)
-        , if isSvgNode then SAttr.class class else Attr.class class
-        ]
+        [ Attr.attribute "data-value-id" (toString i)]
       in
       let allAttrs =
-        valueIdAttrs ++ maybeContentEditableAttr ++ compiledAttrs
+         maybeContentEditableAttr ++ valueIdAttrs ++ compiledAttrs
       in
       let children = List.map (buildHtml_ (model, addZones) isSvgNode d) childIndices in
       let mainshape = (node rawKind) allAttrs children in

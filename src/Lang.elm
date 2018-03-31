@@ -114,7 +114,7 @@ type Pat__
   | PConst WS Num
   | PBase WS EBaseVal
   | PWildcard WS
-  | PList WS (List Pat) WS (Maybe Pat) WS
+  | PList WS (List Pat) WS (Maybe Pat) WS -- TODO store WS before commas, like EList
   | PAs WS Ident WS Pat
   | PParens WS Pat WS
   | PRecord WS {- { -}  (List (WS {- , -}, WS, Ident, WS{-=-}, Pat)) WS{- } -}
@@ -313,7 +313,7 @@ type Val_
   | VDict VDict_ -- Can be constructed only by "dict [[key, value], [key2, value2]] and 'empty'
   | VFun String -- Name
          (List String) -- Name of arguments
-         (Env -> List Val -> Result String ((Val, Widgets), Env)) -- Evaluation rule
+         (List Val -> Result String (Val, Widgets)) -- Evaluation rule
          (Maybe (List Val -> Val -> Val -> Results String (List Val))) -- Maybe Update rule
 
 type alias VDict_ = Dict (String, String) Val -- First key string is unparsed key, the second type is the value. See Eval.valToDictKey
@@ -480,7 +480,8 @@ patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId) =
   in
     (referenceScopeId, targetPath)
 
-tab k = String.repeat k "  "
+-- CAREFUL: This is non-breaking space (used in LangSVG.printHTML and also removed from parsing in THMLValParser)
+tab k = String.repeat k "  "
 
 -- TODO take into account indent and other prefix of current line
 fitsOnLine s =
@@ -610,9 +611,9 @@ mapFoldExp f initAcc e =
       wrapAndMap (ERecord ws1 Nothing (Utils.recordValuesMake es newEs) ws2) newAcc
 
     ERecord ws1 (Just (mi, wsi)) es ws2 ->
-      let (newMi, newAcc) = recurse initAcc mi in
-      let (newEs, newAcc2) = recurseAll newAcc (List.map Utils.recordValue es) in
-      wrapAndMap (ERecord ws1 (Just (newMi, wsi)) (Utils.recordValuesMake es newEs) ws2) newAcc
+      let (newEs, newAcc) = recurseAll initAcc (List.map Utils.recordValue es) in
+      let (newMi, newAcc2) = recurse newAcc mi in
+      wrapAndMap (ERecord ws1 (Just (newMi, wsi)) (Utils.recordValuesMake es newEs) ws2) newAcc2
 
     ESelect ws0 e ws1 ws2 s ->
       let (newE, newAcc) = recurse initAcc e in
@@ -2467,7 +2468,7 @@ imitatePatListWhitespace oldPats newPats =
 
 -- 4 spaces per tab.
 tabsToSpaces : String -> String
-tabsToSpaces ws = Regex.replace Regex.All (Regex.regex "\t") (\_ -> "    ") ws
+tabsToSpaces ws = Regex.replace Regex.All (Regex.regex "\t") (\_ -> "    ") ws
 
 
 -- The indentation difference from exp1 to exp2 is applied to exp.
@@ -3435,3 +3436,12 @@ firstNestedExp e =
 --
 --  in
 --    map fixOp
+
+getTopLevelOptions: Exp -> List (String, String)
+getTopLevelOptions e =
+  case e.val.e__ of
+    EOption _ wkey _ wValue following ->
+      (wkey.val, wValue.val)::getTopLevelOptions following
+    EComment _ _ eRest ->
+      getTopLevelOptions eRest
+    _ -> []

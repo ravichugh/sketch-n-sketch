@@ -1,7 +1,6 @@
 module Main exposing (main)
 
 import InterfaceModel as Model exposing (Msg(..), Model)
-import ExamplesGenerated as Examples
 import SleekView as View
 import InterfaceController as Controller
 import AceCodeBox
@@ -68,7 +67,7 @@ initCmd =
         Controller.msgLoadIcon
         (Task.succeed (Model.starLambdaToolIcon))
     , ColorScheme.updateColorScheme Model.initColorScheme
-    , Task.perform Controller.msgNew (Task.succeed Examples.initTemplate)
+    , Task.perform Controller.msgNew (Task.succeed Model.initTemplate)
     ]
 
 subscriptions : Model -> Sub Msg
@@ -86,6 +85,7 @@ subscriptions model =
     , AceCodeBox.userHasTyped (always Controller.msgUserHasTyped)
     , OutputCanvas.receiveOutputCanvasState Controller.msgOutputCanvasUpdate
     , OutputCanvas.receiveValueUpdate Controller.msgValuePathUpdate
+    , OutputCanvas.maybeAutoSync Controller.msgAutoSync
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.receiveMessage
         Controller.fileMessageHandler

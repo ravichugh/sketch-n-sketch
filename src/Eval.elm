@@ -1,4 +1,4 @@
-module Eval exposing (run, doEval, parseAndRun, parseAndRun_, evalDelta, initEnv)
+module Eval exposing (doEval, eval, evalDelta)
 
 import Debug
 import Dict
@@ -20,6 +20,10 @@ import HTMLValParser
 
 import ImpureGoodies
 import UpdateRegex exposing (evalRegexReplaceAllByIn, evalRegexReplaceFirstByIn, evalRegexExtractFirstIn)
+import UpdateStack
+import UpdateUtils
+import Results exposing (Results(..), ok1)
+import LazyList
 
 valToDictKey : Syntax -> Backtrace -> Val -> Result String (String, String)
 valToDictKey syntax bt v =
@@ -104,95 +108,9 @@ mkCap mcap l =
   in
   s ++ ": "
 
-builtinEnv =
-  [ ("error", builtinVal "Eval.error" <| VFun "error" ["msg"] (\env args ->
-    case args of
-      [arg] -> case arg.v_ of
-        VBase (VString s) -> Err s
-        _ -> Err <| valToString arg
-      _ -> Err <| "error requires 1 argument, was given " ++ toString (List.length args)
-    ) Nothing)
-  , ("parseHTML", HTMLValParser.htmlValParser)
-   -- TODO: This && evaluates both sides, can we have something that does less?
-  , ("&&", builtinVal "Eval.&&" <| VFun "&&" ["left", "right"] (\env args ->
-     case args of
-       [left, right] ->
-         case left.v_ of
-           VBase (VBool True) -> Ok ((right, []), env)
-           VBase (VBool False) -> Ok ((left, []), env)
-           _ -> Err <| "&& expects two booleans, got " ++ valToString left
-       _ -> Err <| "&& expects 2 arguments, got " ++ (toString <| List.length args)
-     ) Nothing)
-  , ("||", builtinVal "Eval.||" <| VFun "||" ["left", "right"] (\env args ->
-     case args of
-       [left, right] ->
-         case left.v_ of
-           VBase (VBool True) -> Ok ((left, []), env)
-           VBase (VBool False) -> Ok ((right, []), env)
-           _ -> Err <| "|| expects two booleans, got " ++ valToString left
-       _ -> Err <| "|| expects 2 arguments, got " ++ (toString <| List.length args)
-     ) Nothing)
-  , ("<=", builtinVal "Eval.<=" <| VFun "<=" ["left", "right"] (\env args ->
-     case args of
-       [left, right] ->
-         case (left.v_, right.v_) of
-           (VConst _ (n1, _), VConst _ (n2, _))  -> Ok ((replaceV_ left <| VBase (VBool (n1 <= n2)), []), env)
-           _ -> Err <| "<= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
-       _ -> Err <| "<= expects 2 arguments, got " ++ (toString <| List.length args)
-     ) Nothing)
-  , (">=", builtinVal "Eval.>=" <| VFun ">=" ["left", "right"] (\env args ->
-     case args of
-       [left, right] ->
-         case (left.v_, right.v_) of
-           (VConst _ (n1, _), VConst _ (n2, _))  -> Ok ((replaceV_ left <| VBase (VBool (n1 >= n2)), []), env)
-           _ -> Err <| ">= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
-       _ -> Err <| ">= expects 2 arguments, got " ++ (toString <| List.length args)
-     ) Nothing)
-  , (">", builtinVal "Eval.>" <| VFun ">" ["left", "right"] (\env args ->
-     case args of
-       [left, right] ->
-         case (left.v_, right.v_) of
-           (VConst _ (n1, _), VConst _ (n2, _))  -> Ok ((replaceV_ left <| VBase (VBool (n1 > n2)), []), env)
-           _ -> Err <| "> expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
-       _ -> Err <| "> expects 2 arguments, got " ++ (toString <| List.length args)
-     ) Nothing)
-  , ("/=", builtinVal "Eval./=" <| VFun "/=" ["left", "right"] (\env args ->
-     case args of
-       [left, right] ->
-         case (left.v_, right.v_) of
-           (VConst _ (n1, _), VConst _ (n2, _))  -> Ok ((replaceV_ left <| VBase (VBool (n1 /= n2)), []), env)
-           _ -> Err <| "/= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
-       _ -> Err <| "/= expects 2 arguments, got " ++ (toString <| List.length args)
-     ) Nothing)
-  , ("%", builtinVal "Eval.%" <| VFun "%" ["left", "right"] (\env args ->
-     case args of
-       [left, right] ->
-         case (left.v_, right.v_) of
-           (VConst x (n1, y), VConst _ (n2, _))  ->
-             if n2 == 0 then
-               Err "Modulo by zero"
-             else
-               Ok ((replaceV_ left <| VConst x (toFloat (truncate n1 % truncate n2), y), []), env)
-           _ -> Err <| "% expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
-       _ -> Err <| "% expects 2 arguments, got " ++ (toString <| List.length args)
-     ) Nothing)
-  ]
-
--- TODO rename these to preludeEnv, because the initEnv name below
--- is sometimes replaced by preludeEnv, sometimes the empty env.
-initEnvRes = Result.map Tuple.second <| (eval Syntax.Little builtinEnv [] Parser.prelude)
-initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
-
-run : Syntax -> Exp -> Result String (Val, Widgets)
-run syntax e =
-  -- doEval syntax initEnv e |> Result.map Tuple.first
-  ImpureGoodies.logTimedRun "Eval.run" (\() ->
-    doEval syntax initEnv e |> Result.map Tuple.first
-  )
-
 doEval : Syntax -> Env -> Exp -> Result String ((Val, Widgets), Env)
-doEval syntax initEnv e =
-  eval syntax initEnv [] e
+doEval syntax env e =
+  eval syntax env [] e
   |> Result.map (\((val, widgets), env) -> ((val, postProcessWidgets widgets), env))
 
 
@@ -261,7 +179,8 @@ eval syntax env bt e =
   let retVBoth basedOn (v, ws)                   = ((addParent { v | provenance = makeProvenance basedOn}, ws), env) in
   let retAddWs ws1 (v1, ws2)                     = (v1, ws1 ++ ws2) in
   let addParentToRet ((v,ws),envOut)             = ((addParent v, ws), envOut) in
-  let addProvenanceToRet basedOn ((v,ws),envOut) = ((addParent { v | provenance = makeProvenance basedOn}, ws), envOut) in
+  let addProvenanceToValWidgets basedOn (v,ws)   = (addParent { v | provenance = makeProvenance basedOn}, ws) in
+  let addProvenanceToRet basedOn ((vws), envOut) = (addProvenanceToValWidgets basedOn vws, envOut) in
   let addWidgets ws1 ((v1,ws2),env1)             = ((v1, ws1 ++ ws2), env1) in
 
 
@@ -384,7 +303,8 @@ eval syntax env bt e =
             eval syntax env bt_ (replaceE__ e <| EApp sp0 (replaceE__ e1 <| EVar spp "append") es SpaceApp sp1)
           _ -> Err s
       Ok (v1,ws1) ->
-        let evalVApp v1 es =
+        let evalVApp: Val -> List Exp -> Result String ((Val, Widgets), Env)
+            evalVApp v1 es =
           case v1.v_ of
             VClosure maybeRecName ps funcBody closureEnv ->
               let argValsAndFuncRes =
@@ -416,18 +336,19 @@ eval syntax env bt e =
                        (List.map (withDummyExpInfo << EVar space1) <| argList) SpaceApp sp0) ((name, v1)::env) in
                 evalVApp funconverted es
               else
-                let arguments = List.take arity es in
-                let remaining = List.drop arity es in
+                let (arguments, remaining) = Utils.split arity es in
                 case Utils.projOk <| List.map (eval_ syntax env bt_) arguments of
                   Err s -> Err s
                   Ok argumentsVal ->
-                    let basicResult = evalDef env (List.map Tuple.first argumentsVal) |> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] result) in
+                    let basicResult = evalDef (List.map Tuple.first argumentsVal) |> Result.map (\((v,_) as result) -> addProvenanceToValWidgets [v] result) in
                     if List.length remaining > 0 then
                       case basicResult of
-                        Err s -> Err s
-                        Ok ((v, _), _) -> evalVApp v remaining
+                        Err s -> errorWithBacktrace syntax bt_ s
+                        Ok (v, _) -> evalVApp v remaining
                     else
-                      basicResult
+                      case basicResult of
+                        Err s -> errorWithBacktrace syntax bt_ s
+                        Ok vw -> Ok (vw, env)
             _ ->
               errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
         in evalVApp v1 es
@@ -600,7 +521,12 @@ evalOp syntax env e bt opWithInfo es =
             _                 -> error ()
           DictGet    -> case vs of
             [key, {v_}] -> case v_ of
-              VDict d     -> valToDictKey syntax bt key |> Result.map (\dkey -> Utils.getWithDefault dkey (VBase VNull |> addProvenance) d)
+              VDict d     ->
+                valToDictKey syntax bt key |> Result.map (\dkey ->
+                  case Dict.get dkey d of
+                    Nothing -> VList [VBase (VString "Nothing") |> addProvenance] |> addProvenance
+                    Just x -> VList [VBase (VString "Just") |> addProvenance, x] |> addProvenance
+                  )
               _           -> error()
             _           -> error ()
           DictRemove -> case vs of
@@ -809,11 +735,6 @@ postProcessWidgets widgets =
       )
   in
   rangeWidgets ++ pointWidgets
-
-parseAndRun : String -> String
-parseAndRun = valToString << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun" << Parser.parse
-
-parseAndRun_ = strVal_ True << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun_" << Parser.parse
 
 btString : Syntax -> Backtrace -> String
 btString syntax bt =

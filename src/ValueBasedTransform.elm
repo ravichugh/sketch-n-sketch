@@ -14,6 +14,7 @@ import ElmParser as Parser
 import LangUnparser exposing (unparseWD, unparseWithIds)
 import InterfaceModel
 import Eval
+import EvalUpdate
 import Sync
 import LocEqn exposing (..)
 import Solver exposing (MathExp(..))
@@ -534,7 +535,7 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresA
 --       -- If there's at least 3 more features...
 --       _::featureB::featureC::featureD::otherFeatures ->
 --         let newSlateRes =
---           Eval.run exp |>
+--           EvalUpdate.run exp |>
 --           Result.andThen (\(val, _) ->
 --               LangSvg.resolveToRootedIndexedTree slideNumber movieNumber movieTime val
 --             )
@@ -822,7 +823,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
                   nonCollidingName
                       (expNameForEId program outputEId ++ "Func")
                       2
-                      (visibleIdentifiersAtEIds program (Set.singleton outputEId))
+                      (EvalUpdate.visibleIdentifiersAtEIds program (Set.singleton outputEId))
                 funcBody = justFindExpByEId program outputEId
                 funcLocation = deepestCommonAncestorWithNewline program ((==) funcBody) -- Place function just before abstracted expression
                 expEnv = expEnvAt_ program funcLocation.val.eid -- Skip prelude

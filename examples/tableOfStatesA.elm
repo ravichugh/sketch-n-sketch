@@ -17,13 +17,13 @@ main =
   let padding = ["padding", "3px"] in
   let headerRow =
     let styles = [padding] in
-    Html.tr [] [] (map (th styles []) headers)
+    Html.tr [] [] (List.map (th styles []) headers)
   in
   let stateRows =
     let colors = ["lightgray", "white"] in
     let drawRow i row =
       let color = List.nth colors (mod i (List.length colors)) in
-      let columns = map (Html.td [padding, ["background-color", color]] []) row in
+      let columns = List.map (Html.td [padding, ["background-color", color]] []) row in
       Html.tr [] [] columns
     in
     List.indexedMap drawRow rows

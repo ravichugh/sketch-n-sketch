@@ -9,7 +9,7 @@ module LangSvg exposing
   , dummySvgNode
   , isSvg
   , valToIndexedTree
-  , printSvg
+  , printHTML
   , compileAttr, compileAttrs
   , desugarShapeAttrs
   , buildSvgSimple
@@ -55,6 +55,7 @@ import Utils
 import Either exposing (Either(..))
 import ImpureGoodies
 import Syntax exposing (Syntax)
+import HTMLParser
 
 ------------------------------------------------------------------------------
 
@@ -495,12 +496,14 @@ strStyle styles =
 ------------------------------------------------------------------------------
 -- Compiling to SVG (Text Format)
 
-printSvg : Bool -> RootedIndexedTree -> String
-printSvg showGhosts (rootId, tree) =
-  let s = printNode showGhosts 0 tree rootId in
-  Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
+printHTML : Bool -> RootedIndexedTree -> String
+printHTML showGhosts (rootId, tree) =
+  let s = printNode HTMLParser.HTML showGhosts 0 tree rootId in
+  --Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
+  s
 
-printNode showGhosts k slate i =
+printNode: HTMLParser.NameSpace -> Bool -> Int ->  IndexedTree -> NodeId -> String
+printNode namespace showGhosts indent slate i =
   case Utils.justGet i slate |> .interpreted of
     -- TODO escape strings in TextNode and TextListNode
     TextNode s -> s
@@ -509,18 +512,23 @@ printNode showGhosts k slate i =
       case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
         (False, Just _) -> ""
         _ ->
+          let ending = (case namespace of
+             HTMLParser.HTML -> if HTMLParser.isVoidElement kind then "" else
+               Utils.delimit "</" ">" kind
+             _ -> Utils.delimit "</" ">" kind)
+          in
+          let newKind = if HTMLParser.isForeignElement kind then HTMLParser.Foreign else namespace in
           if l2 == [] then
             let l1_ = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++
-            Utils.delimit "</" ">" kind
+            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ ending
           else
             let l1_ = addAttrs kind (removeSpecialAttrs l1) in
             Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ "\n" ++
-            printNodes showGhosts (k+1) slate l2 ++ "\n" ++
-            tab k ++ Utils.delimit "</" ">" kind
+            printNodes newKind showGhosts (indent+1) slate l2 ++ "\n" ++
+            tab indent ++ ending
 
-printNodes showGhosts k slate =
-  Utils.lines << List.map ((++) (tab k) << printNode showGhosts k slate)
+printNodes namespace showGhosts indent slate =
+  Utils.lines << List.map ((++) (tab indent) << printNode namespace showGhosts indent slate)
 
 printAttrs l = case l of
   [] -> ""

@@ -1,5 +1,5 @@
-let original =
-"""#[Markdown](https://fr.wikipedia.org/wiki/Markdown) demo
+original =
+  """#[Markdown](https://fr.wikipedia.org/wiki/Markdown) demo
 This is *an **almost :"bidirectional":*** markdown
 editor. You can **fully** edit the value of the variable `original` on the right,
 and _partially_ edit the html on the right.
@@ -22,23 +22,26 @@ and _partially_ edit the html on the right.
 >Markdown is a lightweight markup
 >language with plain text formatting syntax
 
-""" in
-let trim s =
-  let trimmed_left = replaceAllIn "^\\s+" "" s in
-  replaceAllIn "\\s+$" "" trimmed_left in
-letrec sprintf str inline = case inline of
+"""
+
+trim s =
+  Regex.replace "^\\s+" "" s |>
+  Regex.replace "\\s+$" ""
+
+sprintf str inline = case inline of
   a::tail -> sprintf (replaceFirstIn "%s" a str) tail
   [] -> str
   a -> replaceFirstIn "%s" a str
-in
-let strlen str = len (explode str)  in
-letrec foldLeft init list fun = case list of
+
+strlen str = String.length str
+
+foldLeft init list fun = case list of
   [] -> init
   head:: tail -> let newInit = (fun init head) in
     foldLeft newInit tail fun
-in
+
 -- Thanks to https://gist.github.com/jbroadway/2836900
-let markdown text =
+markdown text =
   let self = {
     para regs =
       let line = nth regs.group 2 in
@@ -72,34 +75,34 @@ let markdown text =
     ["`\\b(.*?)\\b`", "<code>$1</code>"],                         -- inline code
     ["\r?\n\\*(.*)", self.ul_list, {
       postReverse out = 
-        replaceAllIn """\r?\n<ul>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ul>""" "\n* $1" out
+        Regex.replace """\r?\n<ul>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ul>""" "\n* $1" out
     }],                                  -- ul lists
     ["\r?\n[0-9]+\\.(.*)", self.ol_list, {
       postReverse out = 
-        replaceAllIn """\r?\n<ol>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ol>""" "\n1. $1" out
+        Regex.replace """\r?\n<ol>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ol>""" "\n1. $1" out
     }],                            -- ol lists
     ["\r?\n(&gt;|\\>)(.*)", self.blockquote],                        -- blockquotes
     ["\r?\n-{5,}", "\n<hr>"],                                        -- horizontal rule
     ["\r?\n\r?\n(?!<ul>|<ol>|<p>|<blockquote>)","<br>"],                -- add newlines
     ["\r?\n</ul>\\s?<ul>", "", {
       postReverse out = 
-        replaceAllIn """(<(ul|ol)>(?:(?!</\2>)[\s\S])*)</li>\s*<li>""" "$1</li>\n</$2>\n<$2>\n\t<li>" out
+        Regex.replace """(<(ul|ol)>(?:(?!</\2>)[\s\S])*)</li>\s*<li>""" "$1</li>\n</$2>\n<$2>\n\t<li>" out
     }],                                     -- fix extra ul
     ["\r?\n</ol>\\s?<ol>", ""],                                      -- fix extra ol, and extract blockquote
     ["</blockquote>\\s?<blockquote>", "\n"]
   ] in
   let finaltext = "\n" + text + "\n" in
   foldLeft finaltext rules (\acc elem -> case elem of
-      [regex, replacement] -> replaceAllIn regex replacement acc
+      [regex, replacement] -> Regex.replace regex replacement acc
       [regex, replacement, {postReverse = fun}] ->
         let newAcc = { apply acc = freeze acc, unapply out = ["Just",  fun out]}.apply acc in
-        replaceAllIn regex replacement newAcc 
+        Regex.replace regex replacement newAcc 
   )
-in
+
 --let converter_lens x = {
 --  apply x = x,
 --  unapply {outputNew} =
---    case extractFirstIn """^<div>([\s\S]*)</div>""" inserted of
+--    case Regex.extract """^<div>([\s\S]*)</div>""" inserted of
 --      ["Just", [content]] ->
 --        if (matchIn "(?:^|\n)#(.*)$" left) then -- Title, we jump only one line
 --          ["Just", left + "\n" + content + right]
@@ -109,8 +112,10 @@ in
 --        if(matchIn """(?:^|\n)(#|\*|\d\.)(.*)$""" left) then
 --          ["Just", outputNew]
 --        else
---          let newInserted = replaceAllIn """<br>"""  "\n\n" inserted in
+--          let newInserted = Regex.replace """<br>"""  "\n\n" inserted in
 --          ["Just", left + newInserted + right]
 --  }.apply x in
-let converter_lens x = x in
-["span", [], html ((freeze markdown) (converter_lens original))]
+
+converter_lens x = x
+
+Html.span [] [] <| html ((freeze markdown) (converter_lens original))

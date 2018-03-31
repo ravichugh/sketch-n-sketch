@@ -67,6 +67,24 @@ function listenForUpdatesToCanvasCount() {
 
 var outputValueObserver;
 
+var msBeforeAutoSync = 1000;
+
+var timerAutoSync = undefined;
+
+var enableAutoUpdate = true;
+
+var previewMode = false;
+
+function triggerAutoUpdate() {
+  if(!enableAutoUpdate || previewMode) return;
+  if(typeof timerAutoSync !== "undefined") clearTimeout(timerAutoSync);
+  timerAutoSync = setTimeout(function() {
+    timerAutoSync = undefined;
+    if(!enableAutoUpdate || previewMode) return;
+    app.ports.maybeAutoSync.send(msBeforeAutoSync);
+  }, msBeforeAutoSync)
+}
+
 function listenForUpdatesToOutputValues() {
   function whichChild(elem){
     var  i= 0;
@@ -75,20 +93,37 @@ function listenForUpdatesToOutputValues() {
   }
   
   function getPathUntilOutput(htmlElem) {
+    if(htmlElem == null) return null;
     if(htmlElem.parentNode && htmlElem.parentNode.getAttribute && htmlElem.parentNode.getAttribute("id") == "outputCanvas") // Single child !
       return []
     else
       //2 is for the children of a node (encoded [tag, attributes, children])
-      var res = getPathUntilOutput(htmlElem.parentNode)
+      var res = getPathUntilOutput(htmlElem.parentNode);
+      if(res == null) return null;
       res.push(2)
       res.push(whichChild(htmlElem))
       return res;
   }
   
-  function encodeAttributes(attrs) {
+  function encodeAttributes(attrs, node) {
     var attributes = [];
     for(var i = 0; i < attrs.length; i++) {
-      attributes.push([attrs[i].name, attrs[i].value])
+      var name = attrs[i].name;
+      var value = attrs[i].value;
+      if((name != "contenteditable" || i > 0) && (name != "data-value-id")) {
+        if(name == "style") { // styles are encoded as list of (name, value)
+           var styles = []
+           var nodeStyles = value.split(/; ?/);
+           for(var j = 0; j < nodeStyles.length; j++) {
+             var nameVal = nodeStyles[j].split(/: ?/);
+             if(nameVal[0] != "") {
+               styles.push([nameVal[0], typeof nameVal[1] == "undefined" ? "" : nameVal[1]]);
+             }
+           }
+           value = styles;
+        }
+        attributes.push([name, value]);
+      }
     }
     return attributes;
   }
@@ -99,25 +134,28 @@ function listenForUpdatesToOutputValues() {
     for(var i = 0; i < node.childNodes.length; i++) {
       children.push(encodeNode(node.childNodes[i]))
     }
-    return [node.tagName, encodeAttributes(node.attributes), children]
+    return [node.tagName.toLowerCase(), encodeAttributes(node.attributes, node), children]
   }
 
   function handleMutations(mutations) {
+    if(previewMode) return;
     mutations.forEach(function(mutation) {
       if (mutation.type == "attributes") {
         var path = getPathUntilOutput(mutation.target)
-        path.push(1) // 1 for the attributes. We can be more precise if we now there are no insertion.
-        
-        var attrs = encodeAttributes(mutation.target.attributes)
-      
-        app.ports.receiveValueUpdate.send([path, attrs])
+        if(path != null) {
+          path.push(1) // 1 for the attributes. We can be more precise if we know there are no insertion.
+          var attrs = encodeAttributes(mutation.target.attributes, mutation.target)
+          app.ports.receiveValueUpdate.send([path, attrs])
+          triggerAutoUpdate()
+        }
       } else {
-        
         var path = getPathUntilOutput(mutation.target) // We change the whole node.
-        var encodedNode = encodeNode(mutation.target);
-        console.log("encoded node", encodedNode)
-        app.ports.receiveValueUpdate.send([path, encodedNode])
-
+        if(path != null) {
+          var encodedNode = encodeNode(mutation.target);
+          //console.log("encoded node", encodedNode)
+          app.ports.receiveValueUpdate.send([path, encodedNode])
+          triggerAutoUpdate()
+        }
       // https://www.w3schools.com/jsref/prop_node_nodename.asp
       }
     });
@@ -130,7 +168,7 @@ function listenForUpdatesToOutputValues() {
 
   outputValueObserver = new MutationObserver(handleMutations);
 
-  var outputValues = document.getElementsByClassName("_outputValue");
+  var outputValues = document.querySelectorAll("[data-value-id]");
 
   for (i = 0; i < outputValues.length; i++) {
     var currentNode = outputValues[i];
@@ -199,3 +237,16 @@ app.ports.outputCanvasCmd.subscribe(function(cmd) {
   }
 
 });
+
+app.ports.enableAutoSync.subscribe(function(b) {
+  enableAutoUpdate = b;
+})
+
+app.ports.setAutoSyncDelay.subscribe(function(n) {
+  msBeforeAutoSync = n;
+})
+
+app.ports.setPreviewMode.subscribe(function(b) {
+  previewMode = b;
+})
+

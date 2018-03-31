@@ -7,7 +7,7 @@ port module InterfaceController exposing
   , msgKeyPress, msgKeyDown, msgKeyUp
   , msgMouseIsDown, msgMousePosition
   , msgRun, upstateRun, msgTryParseRun
-  , msgUpdateValueEditor, msgCallUpdate
+  , msgUpdateValueEditor, msgUpdateHTMLEditor, msgCallUpdate
   , msgAceUpdate
   , msgUserHasTyped
   , msgOutputCanvasUpdate
@@ -21,9 +21,8 @@ port module InterfaceController exposing
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
-  , msgSetOutputLive, msgSetOutputPrint, msgSetOutputShowValue
+  , msgSetOutputGraphics, msgSetOutputHtmlText, doSetOutputHtmlText, msgSetOutputValueText
   , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
-  , msgSetLiveSyncDelay
   , msgStartAnimation, msgRedraw, msgTickDelta
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
@@ -71,6 +70,7 @@ port module InterfaceController exposing
   , msgSetSyntax
   , msgAskNextTemplate, msgAskPreviousTemplate
   , msgValuePathUpdate
+  , msgAutoSync
   )
 
 import Updatable exposing (Updatable)
@@ -91,6 +91,8 @@ import Sync
 import Eval
 import Update exposing (vStr, vList)
 import UpdateUtils
+import UpdateStack
+import EvalUpdate
 import Results exposing (Results(..))
 import LazyList
 import Utils
@@ -419,12 +421,14 @@ onMouseDrag lastPosition newPosition old =
       old
 
     MouseDragZone zoneKey (Just (trigger, (mx0, my0), _)) ->
-      case old.liveSyncDelay of
-        False ->
+      case old.syncMode of
+        TracesAndTriggers True ->
           applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my) old
-        True ->
+        TracesAndTriggers False ->
           -- TODO: define and run a version of trigger that applies to the
           -- single value being manipulated, rather than the entire program.
+          old
+        ValueBackprop _ ->
           old
 
     MouseDragSelect initialPosition initialSelectedShapes initialSelectedFeatures initialSelectedBlobs ->
@@ -557,19 +561,21 @@ onMouseDrag lastPosition newPosition old =
 onMouseUp old =
   case (old.outputMode, old.mouseMode) of
 
-    (Print _, _) -> old
+    (HtmlText _, _) -> old
 
     (PrintScopeGraph _, _) -> old
 
-    (Live, MouseDragZone zoneKey (Just (trigger, (mx0, my0), _))) ->
-      case old.liveSyncDelay of
-        False ->
+    (Graphics, MouseDragZone zoneKey (Just (trigger, (mx0, my0), _))) ->
+      case old.syncMode of
+        TracesAndTriggers True ->
           finishTrigger zoneKey old
-        True ->
+        TracesAndTriggers False ->
           let (isOnCanvas, (mx, my)) = clickToCanvasPoint old (mousePosition old) in
           old
             |> applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my)
             |> finishTrigger zoneKey
+        ValueBackprop _ ->
+          old
 
     (_, MouseDrawNew points) ->
       let resetMouseMode model = { model | mouseMode = MouseNothing } in
@@ -617,7 +623,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   in
   let dragInfo_ = (trigger, (mx0, my0), True) in
 
-  Eval.run old.syntax newExp |> Result.andThen (\(newVal, newWidgets) ->
+  EvalUpdate.run old.syntax newExp |> Result.andThen (\(newVal, newWidgets) ->
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
@@ -625,6 +631,8 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
           , inputExp = newExp
           , inputVal = newVal
           , valueEditorString = LangUtils.valToString newVal
+          , outputMode        = maybeUpdateOutputMode old newSlate
+          , htmlEditorString = Nothing
           , slate = newSlate
           , slateCount = 1 + old.slateCount
           , widgets = newWidgets
@@ -643,7 +651,7 @@ finishTrigger zoneKey old =
   --   let e = Utils.fromOkay "onMouseUp" <| Syntax.parser old.syntax old.code in
   --   let old_ = { old | inputExp = e } in
   --
-  -- But this requires another Eval.run, which can be slow.
+  -- But this requires another EvalUpdate.run, which can be slow.
   -- Removing this workaround (which means the yellow highlights
   -- can be off after a live sync, until the next parse).
   --
@@ -686,7 +694,7 @@ tryRun old =
           --
           let rewrittenE = rewriteInnerMostExpToMain e in
 
-          Eval.doEval old.syntax Eval.initEnv rewrittenE |>
+          Eval.doEval old.syntax EvalUpdate.preludeEnv rewrittenE |>
           Result.andThen (\((newVal,ws),finalEnv) ->
             LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
@@ -705,6 +713,8 @@ tryRun old =
                 { new | inputExp      = e
                       , inputVal      = newVal
                       , valueEditorString = LangUtils.valToString newVal
+                      , outputMode    = maybeUpdateOutputMode old newSlate
+                      , htmlEditorString = Nothing
                       , code          = newCode
                       , lastRunCode   = newCode
                       , slideCount    = newSlideCount
@@ -805,6 +815,10 @@ tryRun old =
 --
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg oldModel =
+  let msgOverview = case msg of
+    Msg k _ -> k
+    _ -> ""
+  in
   case
     ( (oldModel.pendingFileOperation, oldModel.fileOperationConfirmed)
     , (oldModel.pendingGiveUpMsg, oldModel.giveUpConfirmed)
@@ -822,11 +836,28 @@ update msg oldModel =
                  , giveUpConfirmed = False }
     _ ->
       let newModel = upstate msg oldModel in
-      let cmd = issueCommand msg oldModel newModel in
-      let (hookedModel, hookedCommands) = applyAllHooks oldModel newModel in
+      let newAddDummyDivAroundCanvas =
+        if String.startsWith "Ace" msgOverview then newModel.addDummyDivAroundCanvas else
+        case newModel.addDummyDivAroundCanvas of
+           Just True  -> Just False
+           Just False -> Nothing
+           Nothing    -> Nothing
+      in
+      let augmentSlateCondition =
+        (newAddDummyDivAroundCanvas /= oldModel.addDummyDivAroundCanvas && newAddDummyDivAroundCanvas == Nothing) ||
+        Utils.maybeIsEmpty (oldModel.preview) /= Utils.maybeIsEmpty (newModel.preview)
+      in
+      let finalModel =
+        { newModel
+            | addDummyDivAroundCanvas = newAddDummyDivAroundCanvas
+            , slateCount = if augmentSlateCondition then newModel.slateCount + 1 else newModel.slateCount
+            }
+      in
+      let cmd = issueCommand msg oldModel finalModel in
+      let (hookedModel, hookedCommands) = applyAllHooks oldModel finalModel in
       ( Model.setAllUpdated hookedModel
       , Cmd.batch <|
-          cmd :: updateCommands newModel ++ hookedCommands
+          cmd :: updateCommands finalModel ++ hookedCommands
       )
 
 upstate : Msg -> Model -> Model
@@ -960,6 +991,12 @@ updateCommands model =
           AceCodeBox.setReadOnly << not
       ]
 
+getAutoSyncDelay: Model -> Int
+getAutoSyncDelay m =
+  case Dict.fromList (getTopLevelOptions m.inputExp) |> Dict.get "updatedelay" of
+    Just x -> String.toInt x |> Result.withDefault m.autoSyncDelay
+    Nothing -> m.autoSyncDelay
+
 issueCommand : Msg -> Model -> Model -> Cmd Msg
 issueCommand msg oldModel newModel =
   case msg of
@@ -1012,7 +1049,7 @@ issueCommand msg oldModel newModel =
           FileHandler.sendMessage <|
             Download
               (Model.prettyFilename WithoutExtension newModel ++ ".svg")
-              (LangSvg.printSvg newModel.showGhosts newModel.slate)
+              (LangSvg.printHTML newModel.showGhosts newModel.slate)
 
         "Import Code" ->
           FileHandler.sendMessage <|
@@ -1035,8 +1072,21 @@ issueCommand msg oldModel newModel =
           AceCodeBox.setReadOnly True
 
         _ ->
+          let dispatchIfChanged: (Model -> a) -> (a -> Cmd Msg) -> Cmd Msg
+              dispatchIfChanged submodel cmdBuilder =
+                let n = submodel newModel in
+                if submodel oldModel /= n then cmdBuilder n else Cmd.none
+          in
           Cmd.batch
-            [ if kind == "Update Font Size" then
+            [ dispatchIfChanged
+                (\m -> m.syncMode)
+                (\syncMode -> case syncMode of
+                   ValueBackprop True -> OutputCanvas.enableAutoSync True
+                   _                  -> OutputCanvas.enableAutoSync False
+                )
+            , dispatchIfChanged getAutoSyncDelay OutputCanvas.setAutoSyncDelay
+            , dispatchIfChanged (\m -> m.preview |> Utils.maybeIsEmpty |> not) OutputCanvas.setPreviewMode
+            , if kind == "Update Font Size" then
                 AceCodeBox.updateFontSize newModel
               else if
                 newModel.code /= oldModel.code ||
@@ -1462,16 +1512,22 @@ msgKeyDown keyCode =
 
         else if keyCode == Keys.keyEnter && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           case old.outputMode of
-            Live      -> upstateRun old
+            Graphics  -> upstateRun old
             -- ShowValue -> doCallUpdate old
             _         -> old
 
-        else if old.outputMode == Live && keyCode == Keys.keyDown &&
+        else if old.outputMode == Graphics && keyCode == Keys.keyDown &&
                 List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
-          { old | outputMode = ShowValue }
-        else if old.outputMode == ShowValue && keyCode == Keys.keyUp &&
+          { old | outputMode = HtmlText (LangSvg.printHTML old.showGhosts old.slate) }
+        else if isHtmlText old.outputMode && keyCode == Keys.keyDown &&
                 List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
-          { old | outputMode = Live }
+          { old | outputMode = ValueText }
+        else if old.outputMode == ValueText && keyCode == Keys.keyUp &&
+                List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          { old | outputMode = HtmlText (LangSvg.printHTML old.showGhosts old.slate) }
+        else if isHtmlText old.outputMode && keyCode == Keys.keyUp &&
+                List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          { old | outputMode = Graphics }
 
         else if
           not currentKeyDown &&
@@ -1729,7 +1785,11 @@ deleteInOutput old =
 
 --------------------------------------------------------------------------------
 
-msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
+msgSelectSynthesisResult: Exp -> Msg
+msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| doSelectSynthesisResult newExp
+
+doSelectSynthesisResult: Exp -> Model -> Model
+doSelectSynthesisResult newExp old =
   -- TODO unparse gets called twice, here and in runWith ...
   let newCode = Syntax.unparser old.syntax newExp in
   let new =
@@ -1744,6 +1804,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
       { new | inputExp             = reparsed -- newExp
             , inputVal             = newVal
             , valueEditorString    = LangUtils.valToString newVal
+            , outputMode           = maybeUpdateOutputMode old newSlate
             , slate                = newSlate
             , slateCount           = 1 + old.slateCount
             , widgets              = newWidgets
@@ -1752,9 +1813,14 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
       in
       { newer | liveSyncInfo = refreshLiveInfo newer
               , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
-              , outputMode  = Live -- switch out of ShowValue
+              , outputMode  = Graphics -- switch out of ValueText
               }
   )
+
+maybeUpdateOutputMode: Model-> LangSvg.RootedIndexedTree -> OutputMode
+maybeUpdateOutputMode old newSlate =  case old.outputMode of
+  HtmlText k -> HtmlText (LangSvg.printHTML old.showGhosts newSlate)
+  x -> x
 
 clearSynthesisResults : Model -> Model
 clearSynthesisResults old =
@@ -1857,7 +1923,7 @@ doDuplicate old =
                     Nothing          -> expToDuplicate.val.eid
                     Just (letExp, _) -> letExp.val.eid
 
-                (_, newProgram) = LangTools.newVariableVisibleTo -1 name 1 expToDuplicate [expToDuplicate.val.eid] old.inputExp
+                (_, newProgram) = EvalUpdate.newVariableVisibleTo -1 name 1 expToDuplicate [expToDuplicate.val.eid] old.inputExp
               in
               newProgram
           )
@@ -1883,14 +1949,17 @@ msgReplicateBlob option = Msg "Replicate Blob" <| \old ->
 msgToggleCodeBox = Msg "Toggle Code Box" <| \old ->
   { old | basicCodeBox = not old.basicCodeBox }
 
-msgSetOutputLive = Msg "Set Output Live" <| \old ->
-  { old | outputMode = Live }
+msgSetOutputGraphics = Msg "Set Output Graphics" <| \old ->
+  { old | outputMode = Graphics }
 
-msgSetOutputPrint = Msg "Set Output Print" <| \old ->
-  { old | outputMode = Print (LangSvg.printSvg old.showGhosts old.slate) }
+msgSetOutputHtmlText = Msg "Set Output Html Text" doSetOutputHtmlText
 
-msgSetOutputShowValue = Msg "Set Output Show Value" <| \old ->
-  { old | outputMode = ShowValue }
+doSetOutputHtmlText : Model -> Model
+doSetOutputHtmlText old =
+  { old | outputMode = HtmlText (LangSvg.printHTML old.showGhosts old.slate) }
+
+msgSetOutputValueText = Msg "Set Output Value Text" <| \old ->
+  { old | outputMode = ValueText }
 
 updateHeuristics : Int -> Model -> Model
 updateHeuristics heuristic old =
@@ -1901,7 +1970,7 @@ updateHeuristics heuristic old =
       { oldSyncOptions | feelingLucky = heuristic }
   in
     case old.outputMode of
-      Live ->
+      Graphics ->
         case mkLive
                old.syntax
                newSyncOptions
@@ -1924,9 +1993,6 @@ msgSetHeuristicsNone =
 
 msgSetHeuristicsFair =
   Msg "Set Heuristics Fair" (updateHeuristics Sync.heuristicsFair)
-
-msgSetLiveSyncDelay b =
-  Msg "Set Live" (\m -> { m | liveSyncDelay = b })
 
 --------------------------------------------------------------------------------
 
@@ -1971,7 +2037,7 @@ msgPreviousSlide = Msg "Previous Slide" <| \old ->
   else
     let previousSlideNumber = old.slideNumber - 1 in
     let result =
-      Eval.run old.syntax old.inputExp |>
+      EvalUpdate.run old.syntax old.inputExp |>
       Result.andThen (\(previousVal, _) ->
         LangSvg.resolveToMovieCount old.syntax previousSlideNumber previousVal
         |> Result.map (\previousMovieCount ->
@@ -2013,12 +2079,22 @@ msgUpdateValueEditor s = Msg "Update Value Editor" <| \m ->
           Dict.remove "Update for New Output" m.synthesisResultsDict
       }
 
+msgUpdateHTMLEditor s = Msg "Update HTML Editor" <| \m ->
+  { m
+      | htmlEditorString = Just s
+      , synthesisResultsDict =
+          Dict.remove "Update for New Output" m.synthesisResultsDict
+  }
+
 msgCallUpdate = Msg "Call Update" doCallUpdate
 
 doCallUpdate m =
   --let _ = Debug.log "I'll find the value" () in
   let updatedValResult =
-    if domEditorNeedsCallUpdate m then
+    if htmlEditorNeedsCallUpdate m then
+      Result.fromMaybe "No new HTML updated value available" m.htmlEditorString |>
+        Result.andThen Update.buildUpdatedValueFromHtmlString
+    else if domEditorNeedsCallUpdate m then
       Result.fromMaybe "No new updated value available" m.updatedValue |> Result.andThen (\i -> i)
     else
        m.valueEditorString
@@ -2028,7 +2104,7 @@ doCallUpdate m =
   in
   --let _ = Debug.log "Let's do update" () in
   let updatedExpResults =
-    Update.doUpdate m.inputExp m.inputVal updatedValResult
+    EvalUpdate.doUpdate m.inputExp m.inputVal updatedValResult
   in
   --let _ = Debug.log "I'm here" () in
   let revertChanges caption =
@@ -2075,11 +2151,11 @@ doCallUpdate m =
               showSolutions [revertChanges "No solution found. Revert?"]
 
             LazyList.Cons (envModified, expModified) _ ->
-              let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified) "expModified" in
-              let _ = Debug.log (Eval.initEnv |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames original") in
+              let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified.val) "expModified" in
+              let _ = Debug.log (EvalUpdate.preludeEnv |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames original") in
               let _ = Debug.log (envModified.val |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames modified") in
-              let _ = Debug.log (UpdateUtils.envDiffsToString Eval.initEnv envModified.val envModified.changes) ("EnvModified") in
-              --let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified.val) (LangUtils.pruneEnv expModified Eval.initEnv)
+              let _ = Debug.log (UpdateUtils.envDiffsToString EvalUpdate.preludeEnv envModified.val envModified.changes) ("EnvModified") in
+              --let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified.val) (LangUtils.pruneEnv expModified EvalUpdate.preludeEnv)
               --     |> UpdateUtils.displayDiff (\(k, v) -> "\n" ++ k ++ " = " ++ LangUtils.valToString v )
               --     ) "envModified"
               --in
@@ -2090,31 +2166,73 @@ doCallUpdate m =
           let filteredResults =
             solutionsNotModifyingEnv
               |> LazyList.toList
-              |> List.filter (\(_,newCodeExp) -> not (LangUtils.expEqual newCodeExp m.inputExp))
+              |> (\x -> let _ = Debug.log "Finished to obtain the list of solutions" () in x)
+              |> List.filter (\(_,newCodeExp) -> not <| Utils.maybeIsEmpty newCodeExp.changes)
+              |> (\x -> let _ = Debug.log "Finished to filter the list of solutions" () in x)
               |> Utils.mapi1 (\(i,(_,newCodeExp)) ->
                    --synthesisResult ("Program Update " ++ toString i) newCodeExp
-                   let (diffResult, diffs) = UpdateUtils.diffExpWithPositions m.inputExp newCodeExp in
-                   synthesisResultDiffs diffResult newCodeExp diffs
+                   --let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.diffExpWithPositions" <| \_ -> UpdateUtils.diffExpWithPositions m.inputExp newCodeExp in
+                   let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.updatedExpToString" <| \_ -> UpdateStack.updatedExpToStringWithPositions m.inputExp newCodeExp in -- TODO: Incorporate positions.
+                   --synthesisResult diffResult newCodeExp.val
+                   synthesisResultDiffs diffResult newCodeExp.val diffs
                  )
+              |> (\x -> let _ = Debug.log "Finished to diff the solutions" () in x)
           in
           case filteredResults of
             [] ->
               showSolutions [revertChanges "Only Solution is Original Program"]
             _ ->
               showSolutions (filteredResults ++ [revertChanges "Revert to Original Program"])
-
-decodeVal : JSDecode.Decoder Val
-decodeVal =
-  JSDecode.oneOf [
-    JSDecode.map3 (\tag attrs children ->
-      vList [vStr tag, vList attrs, vList children])
-      (JSDecode.index 0 JSDecode.string)
-      (JSDecode.index 1 <| JSDecode.list <|
+decodeStyles : JSDecode.Decoder Val
+decodeStyles =
+  JSDecode.lazy <| \_ ->
+    JSDecode.map vList <|
+      JSDecode.list <|
         JSDecode.map2 (\key value -> vList [vStr key, vStr value])
           (JSDecode.index 0 JSDecode.string)
-          (JSDecode.index 1 JSDecode.string))
-      (JSDecode.index 2 <| JSDecode.list <| JSDecode.lazy <| \_ -> decodeVal)
-    , JSDecode.string |> JSDecode.map (\str -> vList [vStr "TEXT", vStr str])
+          (JSDecode.index 1 JSDecode.string)
+
+decodeAttributes : JSDecode.Decoder Val
+decodeAttributes =
+  JSDecode.lazy <| \_ ->
+  JSDecode.map vList <|
+    JSDecode.list <|
+        (JSDecode.index 0 JSDecode.string
+         |> JSDecode.andThen (\key ->
+           JSDecode.map2 (\vKey vValue -> vList [vKey, vValue])
+             (JSDecode.succeed (vStr key))
+             (if key /= "style" then
+               (JSDecode.index 1 (JSDecode.map vStr JSDecode.string))
+             else
+               (JSDecode.index 1 decodeStyles))
+           ))
+
+decodeElem: JSDecode.Decoder Val
+decodeElem =
+  JSDecode.lazy <| \_ ->
+  JSDecode.map3 (\tag attrs children ->
+     vList [vStr tag, attrs, vList children])
+     (JSDecode.index 0 JSDecode.string)
+     (JSDecode.index 1 decodeAttributes)
+     (JSDecode.index 2 <| JSDecode.list <| JSDecode.lazy <| \_ -> decodeElemChild)
+
+decodeText: JSDecode.Decoder Val
+decodeText = JSDecode.lazy <| \_ ->
+  JSDecode.string |> JSDecode.map (\str -> vList [vStr "TEXT", vStr str])
+
+decodeElemChild =
+  JSDecode.lazy <| \_ ->
+    JSDecode.oneOf [
+      decodeElem,
+      decodeText
+    ]
+
+decodeNode : JSDecode.Decoder Val
+decodeNode = JSDecode.lazy <| \_ ->
+  JSDecode.oneOf [
+    -- Either an HTML element, and HTML text node, or a list of attributes
+    decodeAttributes,
+    decodeElemChild
   ]
 
 integrateValue: List Int -> Val -> Val -> Result String Val
@@ -2142,17 +2260,35 @@ msgValuePathUpdate (path, newEncodedValue) =
           Just (Ok u) -> u
           _ -> m.inputVal
         in
-        let  _ = Debug.log ("Path" ++ toString path) () in
-        let  _ = Debug.log ("Going to decode " ++ toString newEncodedValue) () in
         let newValueResult: Result String Val
             newValueResult =
-             JSDecode.decodeValue decodeVal newEncodedValue |>
+             JSDecode.decodeValue decodeNode newEncodedValue |> --Result.map (\x -> let _ = Debug.log ("Decoded Value: " ++ LangUtils.valToString x) () in x) |>
                 Result.andThen (\newSubValue ->
                  integrateValue path valueToUpdate newSubValue)
         in
         { m
              | updatedValue = Just newValueResult
         }
+
+-- Computes the diff, and if it is not ambiguous, propagates the diff from the output.
+msgAutoSync: Int -> Msg
+msgAutoSync n =
+  Msg "autoSync" doAutoSync
+
+doAutoSync: Model -> Model
+doAutoSync m =
+    let newModel = doCallUpdate m in
+    case Dict.get "Update for New Output" newModel.synthesisResultsDict of
+      Nothing -> newModel
+      Just results -> -- If there are only two options (second is always revert to original program), and the first one is not a Hack, then we can apply it !
+        case results of
+          [SynthesisResult {description, exp, isSafe} , revert] ->
+            if String.startsWith "HACK: " description then newModel else
+              let newerModel = doSelectSynthesisResult exp newModel in
+              { newerModel
+                  | addDummyDivAroundCanvas = Just True
+                  }
+          _ -> newModel
 
 --------------------------------------------------------------------------------
 
@@ -2164,8 +2300,8 @@ showCodePreview old code =
 showExpPreview old exp diffs =
   let code = Syntax.unparser old.syntax exp in
   case runAndResolve old exp of
-    Ok (val, widgets, slate, _) -> { old | preview = Just (code, diffs, Ok (val, widgets, slate)) }
-    Err s                       -> { old | preview = Just (code, diffs, Err s) }
+    Ok (val, widgets, slate, _) -> { old | slateCount = old.slateCount + 1, preview = Just (code, diffs, Ok (val, widgets, slate)) }
+    Err s                       -> { old | slateCount = old.slateCount + 1, preview = Just (code, diffs, Err s) }
 
 {-
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
@@ -2184,7 +2320,11 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
         }
 -}
 
-msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <| \old ->
+msgHoverSynthesisResult: String -> List Int -> Msg
+msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <| doHoverSynthesisResult resultsKey pathByIndices
+
+doHoverSynthesisResult: String -> List Int -> Model -> Model
+doHoverSynthesisResult resultsKey pathByIndices old =
   let maybeFindResult path results =
     case path of
       []    -> Nothing
@@ -2391,7 +2531,7 @@ readFile file needsSave old =
         , history = History.begin { code = file.contents, selectedDeuceWidgets = [] }
         , lastSaveState = Just file.contents
         , needsSave = needsSave
-        , outputMode = Live
+        , outputMode = Graphics
         }
 
 loadIcon : Env -> File -> Model -> Model
@@ -2415,17 +2555,13 @@ loadIcon env icon old =
     oldIcons =
       old.icons
     iconHtml =
-      -- Suppress for Leo/Docs for now, until preludeLeo.elm has SVG funcs
-      -- iconify syntax env actualCode
-      Html.span
-        []
-        [Html.text "TODO", Html.br [] [], Html.text "SVG Icons"]
+      iconify syntax env actualCode
     newIcons =
       Dict.insert icon.filename.name iconHtml oldIcons
   in
     { old | icons = newIcons }
 
--- for basic icons, env will be Eval.initEnv.
+-- for basic icons, env will be EvalUpdate.preludeEnv.
 -- for LambdaTool icons, env will be from result of running main program.
 iconify : Syntax -> Env -> String -> Html.Html Msg
 iconify syntax env code =
@@ -2476,7 +2612,7 @@ updateFileIndex fileIndex old =
 msgLoadIcon : File -> Msg
 msgLoadIcon file =
   Msg "Load Icon" <|
-    loadIcon Eval.initEnv file
+    loadIcon EvalUpdate.preludeEnv file
 
 fileMessageHandler : InternalFileMessage -> Msg
 fileMessageHandler ifm =
@@ -2525,6 +2661,8 @@ handleNew template = (\old ->
         { initModel | inputExp      = e
                     , inputVal      = v
                     , valueEditorString = LangUtils.valToString v
+                    , outputMode    = maybeUpdateOutputMode old slate
+                    , htmlEditorString = Nothing
                     , code          = code
                     , lastRunCode   = code
                     , history       = History.begin { code = code, selectedDeuceWidgets = [] }
@@ -2566,7 +2704,8 @@ handleNew template = (\old ->
                     , mainResizerX             = old.mainResizerX
                     , colorScheme              = old.colorScheme
 
-                    , outputMode = Live
+                    , outputMode = Graphics
+                    , syncMode = old.syncMode
 
                     } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
@@ -2829,8 +2968,8 @@ msgSetGhostsShown shown =
     let
       newMode =
         case old.outputMode of
-          Print _ ->
-            Print (LangSvg.printSvg shown old.slate)
+          HtmlText _ ->
+            HtmlText (LangSvg.printHTML shown old.slate)
           _ ->
             old.outputMode
     in

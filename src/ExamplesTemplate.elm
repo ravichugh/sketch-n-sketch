@@ -1,5 +1,8 @@
 module ExamplesGenerated exposing
-  (list, blankTemplate, initTemplate, templateCategories)
+  ( list, templateCategories
+  , blankSvgTemplate, blankHtmlTemplate, initTemplate
+  , badPreludeTemplate
+  )
 
 import Lang
 import FastParser
@@ -10,6 +13,16 @@ import Utils
 import PreludeGenerated as Prelude
 import DefaultIconTheme
 import Syntax
+import EvalUpdate
+
+--------------------------------------------------------------------------------
+
+initTemplate = "Get Started"
+blankSvgTemplate = "Blank Svg Document"
+blankHtmlTemplate = "Blank Html Document"
+badPreludeTemplate = "Bad Prelude"
+
+--------------------------------------------------------------------------------
 
 makeExample = makeExample_ FastParser.parseE Syntax.Little
 
@@ -19,6 +32,20 @@ makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
     let e = Utils.fromOkay ("Error parsing example " ++ name) (parser s) in
+{-
+    -- TODO why isn't this working?
+    let e =
+      case parser s of
+        Ok exp -> exp
+        Err msg ->
+          -- TODO show msg in program
+          let s = "Error parsing example " ++ name in
+          -- case parser """main = [\"p\", [], [[\"TEXT\", \"blah\"]]]""" of
+          case ElmParser.parseNoFreshen """main = [\"p\", [], [[\"TEXT\", \"blah\"]]]""" of
+            Ok exp -> exp
+            Err _ -> Debug.crash "ExamplesTemplate: shouldn't happen!"
+    in
+-}
     -- let ati = Types.typecheck e in
     let ati = Types.dummyAceTypeInfo in
     -----------------------------------------------------
@@ -26,7 +53,7 @@ makeExample_ parser syntax name s =
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
     -- else
     -----------------------------------------------------
-    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run syntax e in
+    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| EvalUpdate.run syntax e in
     {e=e, v=v, ws=ws, ati=ati}
   in
   (name, (s, thunk))
@@ -202,6 +229,8 @@ LITTLE_TO_ELM task_lambda
 
 --------------------------------------------------------------------------------
 
+LEO_TO_ELM badPrelude
+LEO_TO_ELM blankSvg
 LEO_TO_ELM blankDoc
 LEO_TO_ELM welcome1
 LEO_TO_ELM tableOfStatesA
@@ -210,33 +239,31 @@ LEO_TO_ELM tableOfStatesC
 LEO_TO_ELM tableOfStatesD
 LEO_TO_ELM simpleBudget
 LEO_TO_ELM mapMaybeLens
+LEO_TO_ELM mapListLens_1
+LEO_TO_ELM mapListLens_2
 LEO_TO_ELM fromleo/markdown
 LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
+LEO_TO_ELM fromleo/modelviewcontroller
+LEO_TO_ELM fromleo/latexeditor
 
 --------------------------------------------------------------------------------
 
-generalCategory =
-  ( "General"
-  , [ makeExample "BLANK" blank
-    , makeExample "*Prelude*" Prelude.src
-    ]
-  )
-
 welcomeCategory =
   ( "Welcome"
-  , [ makeLeoExample "Blank Document" blankDoc
-    , makeLeoExample "Get Started" welcome1
-    , makeLeoExample "Tutorial" blankDoc
+  , [ makeLeoExample blankSvgTemplate blankSvg
+    , makeLeoExample blankHtmlTemplate blankDoc
+    , makeLeoExample initTemplate welcome1
+--    , makeLeoExample "Tutorial" blankDoc
     ]
   )
 
 docsCategory =
   ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
-    , makeLeoExample "1b: Table of States" tableOfStatesB
+  --  , makeLeoExample "1b: Table of States" tableOfStatesB
     , makeLeoExample "1c: Table of States" tableOfStatesC
-    , makeLeoExample "1d: Table of States" tableOfStatesD
+--    , makeLeoExample "1d: Table of States" tableOfStatesD
     ] ++
     (
     List.indexedMap
@@ -244,11 +271,14 @@ docsCategory =
         makeLeoExample (toString (2+i) ++ ": " ++ caption) program
       )
       [ ("Lens: Maybe Map", mapMaybeLens)
+      , ("Lens: List Map 1", mapListLens_1)
+      , ("Lens: List Map 2", mapListLens_2)
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
-      , ("Proportional Recipe editor", fromleo_recipe)
-      , ("TODO", blankDoc)
-      , ("TODO", blankDoc)
+--      , ("Proportional Recipe editor", fromleo_recipe)
+      , ("Model View Controller", fromleo_modelviewcontroller)
+      , ("LaTeX editor", fromleo_latexeditor)
+--      , ("TODO", blankDoc)
       , ("Simple Budget", simpleBudget)
       ]
     )
@@ -434,23 +464,26 @@ deuceUserStudyCategory =
     ]
   )
 
+internalCategory =
+ ( "(Internal Things...)"
+ , [ makeLeoExample "Standard Prelude" Prelude.preludeLeo
+   , makeLeoExample badPreludeTemplate badPrelude
+   ]
+ )
+
 templateCategories =
   [ welcomeCategory
   , docsCategory
-  , generalCategory
   , deuceCategory
   , defaultIconCategory
   , logoCategory
   , flagCategory
   , otherCategory
   , deuceUserStudyCategory
+  , internalCategory
   ]
 
 list =
   templateCategories
     |> List.map Tuple.second
     |> List.concat
-
-initTemplate = "Get Started"
-
-blankTemplate = "Blank Document"

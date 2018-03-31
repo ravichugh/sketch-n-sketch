@@ -9,6 +9,7 @@ module ElmParser exposing
   -- so that ElmParser can be a drop-in replacement
   -- and FasterParser can be deprecated soon.
   , parseT
+  , preludeParsed
   , prelude, isPreludeLoc, isPreludeLocId, isPreludeEId, isActualEId, isProgramEId
   , substOf, substStrOf, substPlusOf
   , sanitizeVariableName
@@ -310,7 +311,7 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, beforeS
             succeed (,)
             |= delayedCommitMap (\a b -> a) spaces equalSign
             |= (let firstappargpolicy = sameLineOrIndentedByAtLeast (keyWithInfos.start.col - 1 {- The column index-} + 1 {- The indentation increment-}) in -- No newlines, or be at least indented after the keyword.
-              inContext "record value" <| value firstappargpolicy
+              inContext "record value" <| value { firstappargpolicy | first = spaces }
              )
           , case optNoEqualSign of
               Nothing -> fail "Expected ="
@@ -691,7 +692,7 @@ multilineEscapedElmExpression =
   oneOf [
     try <| trackInfo <|
       succeed (\v -> exp_ <| EOp space0 (withInfo ToStrExceptStr v.start v.start) [v] space0)
-      |= variableExpression spacesWithoutNewline,
+      |= (addSelections noSpacePolicy <| variableExpression spacesWithoutNewline),
     try <| lazy <| \_ -> multilineGenericLetBinding,
     lazy <| \_ ->
       ( mapExp_ <| trackInfo <|
@@ -897,7 +898,7 @@ dataConstructorPattern sp =
   inContext "data constructor pattern" <|
     lazy <| \_ ->
       let
-        combiner (wsBefore, start) (ctorName, args, end) =
+        combiner (wsBefore, start, ctorName) (args, end) =
           let
             ctorEntry =
               Lang.ctor
@@ -931,13 +932,20 @@ dataConstructorPattern sp =
       in
         delayedCommitMap
           combiner
-          ( succeed (,)
+          ( succeed (,,)
               |= sp.first
               |= getPos
+              |= flip andThen
+                   ( untrackInfo bigIdentifier
+                   )
+                   ( \id ->
+                       map (always id) <|
+                         guard "not a data constructor" <|
+                           isDataConstructor id
+                   )
           )
-          ( succeed (,,)
-              |= untrackInfo bigIdentifier
-              |= repeat zeroOrMore (pattern sp)
+          ( succeed (,)
+              |= repeat zeroOrMore (pattern allSpacesPolicy)
               |= getPos
           )
 
@@ -1442,6 +1450,12 @@ moduleNames =
     , "Html"
     , "TableWithButtons"
     , "Results"
+    , "LensLess"
+    , "Regex"
+    , "String"
+    , "Dict"
+    , "Debug"
+    , "Tuple"
     ]
 
 
@@ -1725,7 +1739,7 @@ genericLetBinding sp letkeyword isRec =
                   |= expression allSpacesPolicy
                   |= spaces
                   |. keywordWithSpace "in"
-                  |= expression sp
+                  |= expression { sp | first = spaces }
           )
 
 --------------------------------------------------------------------------------
@@ -1854,7 +1868,7 @@ typeAlias sp =
               succeed (,,)
                 |. keywordWithSpace "type alias"
                 |= typePattern sp
-                |. sp.first
+                |. spaces
                 |. symbol "="
                 |= typ sp
                 |= expression sp
@@ -1871,18 +1885,18 @@ typeDefinition sp =
       let
         var =
           delayedCommitMap (,)
-            sp.first
+            spaces
             (untrackInfo littleIdentifier)
         dc =
           delayedCommitMap
             ( \wsBefore (i, ts, wsAfter) ->
                 (wsBefore, i, ts, wsAfter)
             )
-            sp.first
+            spaces
             ( succeed (,,)
                 |= untrackInfo bigIdentifier
                 |= repeat zeroOrMore (typ sp)
-                |= sp.first
+                |= spaces
             )
       in
         mapExp_ <|
@@ -1894,10 +1908,10 @@ typeDefinition sp =
             ( trackInfo <|
                 succeed (,,,,,)
                   |. keywordWithSpace "type"
-                  |= sp.first
+                  |= spaces
                   |= untrackInfo bigIdentifier
                   |= repeat zeroOrMore var
-                  |= sp.first
+                  |= spaces
                   |. symbol "="
                   |= separateBy oneOrMore (symbol "|") dc
                   |= expression sp
@@ -1966,6 +1980,46 @@ spaceColonType sp =
           |= typ sp
      )
 
+maybeConvertToOp0 : Exp -> Exp
+maybeConvertToOp0 exp =
+  case exp.val.e__ of
+    EVar wsBefore identifier ->
+      case opFromIdentifier identifier of
+        Just op_ ->
+          replaceE__ exp <|
+            EOp
+              wsBefore
+              (withInfo op_ exp.start exp.end)
+              []
+              space0
+
+        Nothing ->
+          exp
+    _ ->
+      exp
+
+maybeConvertToOpN : Exp -> List Exp -> Exp__
+maybeConvertToOpN first rest =
+  let
+    default =
+      EApp space0 first (List.map maybeConvertToOp0 rest) SpaceApp space0
+  in
+    case first.val.e__ of
+      EVar wsBefore identifier ->
+        case opFromIdentifier identifier of
+          Just op_ ->
+            EOp
+              wsBefore
+              (withInfo op_ first.start first.end)
+              (List.map maybeConvertToOp0 rest)
+              space0
+
+          Nothing ->
+            default
+      _ ->
+        default
+
+
 -- Either a simple expression or a function application or a data constructor
 simpleUntypedExpressionWithPossibleArguments : SpacePolicy -> Parser Exp
 simpleUntypedExpressionWithPossibleArguments sp =
@@ -2007,19 +2061,7 @@ simpleUntypedExpressionWithPossibleArguments sp =
                       [ctorEntry, argsEntry]
                       space0
               else
-                -- Function application with op identifiers are EOps
-                case opFromIdentifier identifier of
-                  Just op_ ->
-                    Just << exp_ <|
-                      EOp
-                        wsBefore
-                        (withInfo op_ first.start first.end)
-                        rest
-                        space0
-
-                  Nothing ->
-                    Nothing
-
+                Nothing
             _ ->
               Nothing
 
@@ -2042,15 +2084,17 @@ simpleUntypedExpressionWithPossibleArguments sp =
             -- If there are no arguments, then we do not have a function
             -- application, so just return the first expression. Otherwise,
             -- build a function application.
-            if List.isEmpty rest then
-              first
-            else
-              withInfo
-                ( exp_ <|
-                    EApp space0 first rest SpaceApp space0
-                )
-                start
-                end
+            case Utils.maybeLast rest of
+              -- rest is empty
+              Nothing ->
+                maybeConvertToOp0 first
+
+              -- rest is non-empty
+              Just last ->
+                let
+                  e_ = exp_ (maybeConvertToOpN first rest)
+                in
+                  withInfo e_ first.start last.end
   in
     lazy <| \_ ->
       succeed combine
@@ -2093,6 +2137,11 @@ spacesWithoutNewline =
 
 allSpacesPolicy: SpacePolicy
 allSpacesPolicy = { first = spaces, apparg = spaces }
+
+noSpacePolicy: SpacePolicy
+noSpacePolicy =
+  { first = succeed space0
+  , apparg = succeed space0 }
 
 sameLineOrIndentedByAtLeast: Int -> SpacePolicy
 sameLineOrIndentedByAtLeast nSpaces =
@@ -2525,15 +2574,16 @@ sanitizeVariableName unsafeName =
   |> Utils.changeTail (List.filter validIdentifierRestChar)
   |> String.fromList
 
-(prelude, initK) =
-  Prelude.preludeLeo
-    |> run program  -- not parse, since don't want to call freshen
-    |> (\i ->
-        case i of
-          Ok k -> k
-          Err msg -> Debug.crash <|  "In prelude.leo" ++ ParserUtils.showError msg
-        )
-    |> freshenClean 1 -- need this?
+(preludeParsed, (prelude, initK)) =
+  -- call run program, not parse, since don't want to call freshen
+  case run program Prelude.preludeLeo of
+    Ok k -> (True, freshenClean 1 k)
+    Err _ ->
+      case run program "0" of
+        Ok k -> (False, freshenClean 1 k)
+        Err err ->
+          Debug.crash <|
+            """ElmParser: "0" failed to parse?""" ++ ParserUtils.showError err
 
 preludeIds = allIds prelude
 
