@@ -501,6 +501,7 @@ symbolIdentifier =
       [ source (symbol "<|")
       , source (symbol "|>")
       , source (symbol "::")
+      , source (symbol "||")
       , keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|'))
       ]
 

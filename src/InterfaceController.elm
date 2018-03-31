@@ -11,7 +11,6 @@ port module InterfaceController exposing
   , msgAceUpdate
   , msgUserHasTyped
   , msgOutputCanvasUpdate
-  , msgAttributeValueUpdate, msgTextValueUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction
   , msgSelectSynthesisResult, msgClearSynthesisResults
@@ -71,6 +70,7 @@ port module InterfaceController exposing
   , msgSetColorScheme
   , msgSetSyntax
   , msgAskNextTemplate, msgAskPreviousTemplate
+  , msgValuePathUpdate
   )
 
 import Updatable exposing (Updatable)
@@ -89,7 +89,7 @@ import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
-import Update
+import Update exposing (vStr, vList)
 import UpdateUtils
 import Results exposing (Results(..))
 import LazyList
@@ -157,6 +157,10 @@ import Debug
 
 --Other libraries
 import PageVisibility exposing (Visibility(..))
+
+import UpdatedEnv
+
+import Json.Decode as JSDecode
 
 --------------------------------------------------------------------------------
 
@@ -1757,8 +1761,7 @@ clearSynthesisResults old =
   { old
       | preview = Nothing
       , synthesisResultsDict = Dict.empty
-      , attributeValueUpdates = Dict.empty
-      , textValueUpdates = Dict.empty
+      , updatedValue = Nothing
       }
 
 msgClearSynthesisResults : Msg
@@ -2016,9 +2019,7 @@ doCallUpdate m =
   --let _ = Debug.log "I'll find the value" () in
   let updatedValResult =
     if domEditorNeedsCallUpdate m then
-       (m.attributeValueUpdates, m.textValueUpdates)
-         |> Update.buildUpdatedValueFromDomListener m.slate
-         |> Ok
+      Result.fromMaybe "No new updated value available" m.updatedValue |> Result.andThen (\i -> i)
     else
        m.valueEditorString
          |> Update.buildUpdatedValueFromEditorString m.syntax
@@ -2075,10 +2076,13 @@ doCallUpdate m =
 
             LazyList.Cons (envModified, expModified) _ ->
               let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified) "expModified" in
-              let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified.val) (LangUtils.pruneEnv expModified Eval.initEnv)
-                   |> UpdateUtils.displayDiff (\(k, v) -> "\n" ++ k ++ " = " ++ LangUtils.valToString v )
-                   ) "envModified"
-              in
+              let _ = Debug.log (Eval.initEnv |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames original") in
+              let _ = Debug.log (envModified.val |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames modified") in
+              let _ = Debug.log (UpdateUtils.envDiffsToString Eval.initEnv envModified.val envModified.changes) ("EnvModified") in
+              --let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified.val) (LangUtils.pruneEnv expModified Eval.initEnv)
+              --     |> UpdateUtils.displayDiff (\(k, v) -> "\n" ++ k ++ " = " ++ LangUtils.valToString v )
+              --     ) "envModified"
+              --in
 
               showSolutions [revertChanges "Only solutions modifying the library. Revert?"]
 
@@ -2099,25 +2103,56 @@ doCallUpdate m =
             _ ->
               showSolutions (filteredResults ++ [revertChanges "Revert to Original Program"])
 
-msgAttributeValueUpdate (i, attribute, newValue) =
-  Msg "Attribute Value Update" <| \m ->
-    { m
-        | attributeValueUpdates =
-            Dict.insert (i, attribute) newValue m.attributeValueUpdates
+decodeVal : JSDecode.Decoder Val
+decodeVal =
+  JSDecode.oneOf [
+    JSDecode.map3 (\tag attrs children ->
+      vList [vStr tag, vList attrs, vList children])
+      (JSDecode.index 0 JSDecode.string)
+      (JSDecode.index 1 <| JSDecode.list <|
+        JSDecode.map2 (\key value -> vList [vStr key, vStr value])
+          (JSDecode.index 0 JSDecode.string)
+          (JSDecode.index 1 JSDecode.string))
+      (JSDecode.index 2 <| JSDecode.list <| JSDecode.lazy <| \_ -> decodeVal)
+    , JSDecode.string |> JSDecode.map (\str -> vList [vStr "TEXT", vStr str])
+  ]
+
+integrateValue: List Int -> Val -> Val -> Result String Val
+integrateValue path oldValue subValue =
+  case path of
+    [] -> Ok subValue
+    i::itail -> case oldValue.v_ of
+      VList elems ->
+        let (elemsBefore, elemsAfter) = Utils.split i elems in
+        case elemsAfter of
+          changedElem::elemsRemaining ->
+            integrateValue itail changedElem subValue |> Result.map (\newChangedElem ->
+              replaceV_ oldValue <| VList <| elemsBefore ++ (newChangedElem :: elemsRemaining)
+            )
+          _ -> Err <| "Could not recover the change. The old value was " ++ LangUtils.valToString oldValue ++ " but we need to access index " ++ toString i
+      _ -> Err <| "Expected to update a list, got " ++ LangUtils.valToString oldValue
+
+msgValuePathUpdate: (List Int, JSDecode.Value) -> Msg
+msgValuePathUpdate (path, newEncodedValue) =
+  Msg "Value update" <| \m ->
+    case m.updatedValue of
+      Just (Err msg) -> m
+      _ ->
+        let valueToUpdate = case m.updatedValue of
+          Just (Ok u) -> u
+          _ -> m.inputVal
+        in
+        let  _ = Debug.log ("Path" ++ toString path) () in
+        let  _ = Debug.log ("Going to decode " ++ toString newEncodedValue) () in
+        let newValueResult: Result String Val
+            newValueResult =
+             JSDecode.decodeValue decodeVal newEncodedValue |>
+                Result.andThen (\newSubValue ->
+                 integrateValue path valueToUpdate newSubValue)
+        in
+        { m
+             | updatedValue = Just newValueResult
         }
-
-msgTextValueUpdate (i, newText) =
-  Msg "Text Value Update" <| \m ->
-    { m
-        | textValueUpdates =
-            Dict.insert i newText m.textValueUpdates
-        }
-
--- Attribute and text value updates through the DOM are received
--- even when they are the result from hoving/leaving preview menu
--- items. Oh well, they always get updated back to their previous
--- values when previews are cleared.
-
 
 --------------------------------------------------------------------------------
 

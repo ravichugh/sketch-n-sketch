@@ -1,8 +1,9 @@
 module Update exposing
   ( buildUpdatedValueFromEditorString
-  , buildUpdatedValueFromDomListener
   , doUpdate
-  , update -- For test
+  , update
+  , vStr
+  , vList
   )
 
 import Info
@@ -72,13 +73,13 @@ update updateStack nextToUpdate=
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out diffs mb ->
        {--
-      let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", valToString out, " -- env = " , envToString (pruneEnv e env), ", modifs = ", toString diffs]) () in
+      let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
        --}
       update (getUpdateStackOp env e oldVal out diffs) (LazyList.maybeCons mb nextToUpdate)
 
     UpdateResultS fUpdatedEnv fOut mb -> -- Let's consume the stack !
        {--
-      let _ = Debug.log (String.concat ["update final result: ", unparse fOut, " -- env = " , UpdatedEnv.show fUpdatedEnv]) () in
+      let _ = Debug.log (String.concat ["update final result: ", unparse fOut, {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes]) () in
        --}
       case (LazyList.maybeCons mb nextToUpdate) of -- Let's consume the stack !
         LazyList.Nil ->
@@ -89,7 +90,7 @@ update updateStack nextToUpdate=
             Fork msg newUpdateStack nextToUpdate2 ->
               --let _ = Debug.log "finished update with one fork" () in
               okLazy (fUpdatedEnv, fOut) <| (\lt m nus ntu2 -> \() ->
-                --let _ = Debug.log ("Starting to look for other solutions, fork " ++ m ++ ",\n" ++ updateStackName nus) () in
+                --let _ = Debug.log ("Starting to look for other solutions, fork " ++ m) () in
                 updateRec nus <| LazyList.appendLazy ntu2 lt) lazyTail msg newUpdateStack nextToUpdate2
             HandlePreviousResult msg f ->
               --let _ = Debug.log ("update needs to continue: " ++ msg) () in
@@ -186,7 +187,11 @@ getUpdateStackOp env e oldVal newVal diffs =
                                      let finalEnv = UpdatedEnv.merge env collectedUpdatedEnv newUpdatedEnv in
                                      updateDiffs (i + 1) finalEnv ((sp, newRawElem)::revElems) tlToCollect origTail newValuesTail modiftail
                                     ) sp i revElems tlToCollect origTail newValuesTail
-                                 _ -> UpdateCriticalError "[internal error] Unexpected missing elements"
+                                 _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from:\n" ++
+                                   "diffs = " ++ toString diffs ++
+                                   "\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elemsToCollect |> String.join ",") ++
+                                   "\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
+                                   "\nnewValues = " ++  (List.map valToString newValues |> String.join ",")
 
                              VListElemInsert count ->
                                let (inserted, remainingNewVals) = Utils.split count newValues in
@@ -274,12 +279,17 @@ getUpdateStackOp env e oldVal newVal diffs =
                                let elemsToAdd = insertedExp in
                                -- TODO: Here in modifications, detect if we can duplicate a variable instead.
                                -- TODO: replaceFirst should be applied on the first not removed element from elemsToCollect
-                               updateDiffs (i + 1) collectedUpdatedEnv (UpdateUtils.reverseInsert elemsToAdd revElems) (replaceFirst changeElementAfterInsert elemsToCollect) originalValues remainingNewVals modiftail
+                               updateDiffs i collectedUpdatedEnv (UpdateUtils.reverseInsert elemsToAdd revElems) (replaceFirst changeElementAfterInsert elemsToCollect) originalValues remainingNewVals modiftail
                          else
                            case (elemsToCollect, originalValues, newValues) of
                              (hd::tlToCollect, origValue::origTail, newValue::newValuesTail) ->
                                updateDiffs (i + 1) collectedUpdatedEnv (hd::revElems)  tlToCollect origTail newValuesTail diffs
-                             _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements"
+                             _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to propagate diffs:\n" ++
+                                     "diffs = " ++ toString diffs ++
+                                     ",\ni=" ++ toString i ++
+                                     ",\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elemsToCollect |> String.join ",") ++
+                                     ",\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
+                                     ",\nnewValues = " ++  (List.map valToString newValues |> String.join ",")
                in updateDiffs 0 (UpdatedEnv.original env) [] elems origVals newOutVals diffs
              _ -> UpdateCriticalError <| "[internal error] Expected List modifications, got " ++ toString diffs
          _ -> UpdateCriticalError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
@@ -459,8 +469,8 @@ getUpdateStackOp env e oldVal newVal diffs =
                                          ("outputOld", oldVal),
                                            ("outputOriginal", oldVal), -- Redundant
                                            ("oldOutput", oldVal), -- Redundant
-                                         ("diff", diffsVal),
-                                           ("diffs", diffsVal),
+                                         ("diffs", diffsVal),
+                                           ("diff", diffsVal),    -- Redundant
                                            ("outDiff", diffsVal), -- Redundant
                                            ("diffOut", diffsVal) -- Redundant
                                          ] in
@@ -495,7 +505,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                           else UpdateUtils.defaultVDiffs vArg r) <| valuesList
                                                       Just resultDiffsV ->
                                                         Vu.list (UpdateUtils.valToMaybe valToVDiffs) resultDiffsV |>
-                                                          Result.mapError (\msg -> "Line " ++ toString e.start.line ++ ": the .diffs of the result of .update should be a list of (Maybe differences). " ++ msg)
+                                                          Result.mapError (\msg -> "Line " ++ toString e.start.line ++ ": the .diffs of the result of .update should be a list of (Maybe differences). " ++ msg ++ ", got " ++ valToString resultDiffsV)
                                                     in
                                                     case diffsListRes of
                                                      Err msg -> Just <| UpdateCriticalError msg
@@ -509,7 +519,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                              let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newArg] appType sp1 in
                                                              updateResult newUpdatedEnvArg newExp
                            in
-                           updateMaybeFirst2 mbUpdateField <| \_ ->
+                           updateMaybeFirst2 "after testing update, testing unapply" mbUpdateField <| \_ ->
                              case Dict.get "unapply" d of
                                Just fieldUnapplyClosure ->
                                  case doEval Syntax.Elm env argument of
@@ -541,14 +551,15 @@ getUpdateStackOp env e oldVal newVal diffs =
          _ ->
             Nothing
        in
-       updateMaybeFirst maybeUpdateStack <| \_ ->
+       updateMaybeFirst "after testing update/unapply, testing apply" maybeUpdateStack <| \_ ->
          case doEval Syntax.Elm env e1 of
            Err s       ->
+             if appType /= InfixApp then UpdateCriticalError s else
              case e1.val.e__ of
                EVar spp "++" -> -- We rewrite ++ to a call to "append"
                  updateContinue "Rewriting ++ to append" env (replaceE__ e <| EApp sp0 (replaceE__ e1 <| EVar spp "append") e2s SpaceApp sp1) oldVal newVal diffs <| \newEnv newE1 ->
                    case newE1.val.e__ of
-                     EApp sp0p newE1 newE2s appType sp1p ->
+                     EApp sp0p newE1 newE2s _ sp1p ->
                        updateResult newEnv <| replaceE__ e <|EApp sp0p e1 newE2s appType sp1p
                      _ -> UpdateCriticalError <| "ExpectedEApp, got " ++ Syntax.unparser Syntax.Elm newE1
                _ -> UpdateCriticalError s
@@ -1076,25 +1087,24 @@ getUpdateStackOp env e oldVal newVal diffs =
            Ok ((oldE1Val,_), _) ->
              case (p.val.p__, oldE1Val.v_) of
                (PVar _ fname _, VClosure Nothing x closureBody env_) ->
-                 --let _   = Utils.assert "eval letrec" (env == env_) in
-                 let oldE1ValNamed = { oldE1Val | v_ = VClosure (Just fname) x closureBody env } in
+                 let oldE1ValNamed = replaceV_ oldE1Val <| VClosure (Just fname) x closureBody env_ in
                  case consWithInversion (p, oldE1ValNamed) (Just (env, (\newUpdatedEnv -> newUpdatedEnv))) of
                     Just (envWithE1, consBuilder) ->
                       updateContinue "ELetrec"  envWithE1 body oldVal newVal diffs <| \newUpdatedEnvBody newBody ->
                         case consBuilder newUpdatedEnvBody of
-                          ((newPat, newPatDiffs, newE1ValNamed, newE1ValNamedDiff), newUpdatedEnvFromBody) ->
+                          ((newPat, newPatDiffs, newE1ValNamed, newE1ValNamedDiff), newEnv_) ->
                             let e1_update = case newE1ValNamedDiff of
                               Nothing -> \continuation -> continuation (UpdatedEnv.original env) e1
                               Just m ->
                                 let newE1Val = case newE1ValNamed.v_ of
-                                  VClosure (Just _) x vBody newEnv -> { newE1ValNamed | v_ = VClosure Nothing x vBody newEnv }
+                                  VClosure (Just _) x vBody newEnv -> replaceV_ newE1ValNamed <| VClosure Nothing x vBody newEnv
                                   _ -> Debug.crash <| "[Internal error] This should have been a recursive method"
                                 in
                                 updateContinue "ELetrec2" env e1 oldE1Val newE1Val m
                             in e1_update <| \newUpdatedEnvE1 newE1 ->
-                              let finalUpdatedEnv = UpdatedEnv.merge env newUpdatedEnvFromBody newUpdatedEnvE1 in
+                              let finalEnv = UpdatedEnv.merge env newEnv_ newUpdatedEnvE1 in
                               let finalExp = replaceE__ e <| ELet sp1 letKind True newPat sp2 newE1 sp3 newBody sp4 in
-                              updateResult finalUpdatedEnv finalExp
+                              updateResult finalEnv finalExp
                     Nothing ->
                       UpdateCriticalError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
                (PList _ _ _ _ _, _) ->
@@ -1243,43 +1253,21 @@ addUpdateCapability v =
                    Err msg -> Err msg
                    --Ok Nothing -> Ok ((original, []), env)
                    Ok withModifs ->
-                    let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
-                    Ok ((newVal, []), env)
+                     let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
+                     Ok ((newVal, []), env)
               _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
           _ -> Err  <| "updateApp merge 2 lists, but got " ++ toString (List.length args)
       ) Nothing
     ),
     ("diff", replaceV_ v <|
-      VFun "diff" ["list_before", "list_after"] (\env args ->
+      VFun "diff" ["value_before", "value_after"] (\env args ->
         case args of
           [before, after] ->
-            case [before.v_, after.v_] of
-              [VList beforeList, VList afterList] ->
-                --let _ = Debug.log ("going to do a diff:" ++ valToString before ++ " -> " ++ valToString after) () in
-                let thediff = diffVals beforeList afterList in
-                {-let _ = Debug.log ("the diff:" ++ ( String.join "," <|
-                                                 List.map
-                                                 (\d -> case d of
-                                                   DiffAdded x -> "DiffAdded " ++ valToString (replaceV_ v<| VList x)
-                                                   DiffRemoved x -> "DiffRemoved " ++ valToString (replaceV_ v<| VList x)
-                                                   DiffEqual x -> "DiffSame " ++ valToString (replaceV_ v<| VList x)
-                                                 ) thediff)) () in
-                -}
-                let res =  thediff
-                     |> List.map (\x ->
-                       replaceV_ v <| VRecord <| Dict.fromList <| case x of
-                          DiffEqual els   -> [("kept"      , replaceV_ v <| VList els)]
-                          DiffAdded els   -> [("inserted"  , replaceV_ v <| VList els)]
-                          DiffRemoved els -> [("deleted"   , replaceV_ v <| VList els)]
-                       )
-                     |> (\x ->
-                       Ok ((replaceV_ v <| VList x, []), env)
-                     )
-                --in let _ = Debug.log "Diff done" ()
-                in
-                res
-              _ -> Err  <| "diff performs the diff on 2 lists, but got " ++ toString (List.length args)
-          _ -> Err <|   "diff performs the diff on 2 lists, but got " ++ toString (List.length args)
+            Ok ( ( defaultVDiffs before after
+                   |> UpdateUtils.resultToVal v (UpdateUtils.maybeToVal v (vDiffsToVal v))
+                 , [])
+               , env)
+          _ -> Err <|   "diff performs the diff on 2 values, but got " ++ toString (List.length args)
       ) Nothing
     )
   ] v
@@ -1784,166 +1772,3 @@ buildUpdatedValueFromEditorString syntax valueEditorString =
     |> Result.andThen (Eval.doEval syntax [])
     |> Result.map (\((v, _), _) -> v)
 
-
---------------------------------------------------------------------------------
--- Updated value from changes through DOM editor
-
-buildUpdatedValueFromDomListener
-   : RootedIndexedTree
-  -> (Dict (Int, String) String, Dict Int String)
-  -> Val
-buildUpdatedValueFromDomListener (rootId, oldTree) (attributeValueUpdates, textValueUpdates) =
-  let
-    oldValue : Val
-    oldValue =
-      oldTree
-        |> Utils.justGet rootId
-        |> .val
-
-    newValue : Val
-    newValue =
-      updateNode rootId
-
-    updateNode : NodeId -> Val
-    updateNode thisId =
-      let thisNode = Utils.justGet thisId oldTree in
-      case (thisNode.interpreted, Dict.get thisId textValueUpdates) of
-        (TextNode s, _) ->
-          vList [vStr "TEXT", vStr s]
-
-        (SvgNode kind attrs [_], Just newText) ->
-          let newChild = vList [vStr "TEXT", vStr newText] in
-          updateSvgNode thisId kind attrs [newChild]
-
-        (SvgNode kind attrs childIndices, _) ->
-          let newChildren = List.map updateNode childIndices in
-          updateSvgNode thisId kind attrs newChildren
-
-    updateSvgNode : NodeId -> ShapeKind -> List Attr -> List Val -> Val
-    updateSvgNode thisId kind attrs children =
-      let
-        updatedAttributeNames =
-          attributeValueUpdates
-            |> Dict.foldl (\(i,s) _ acc -> if i == thisId then s::acc else acc) []
-
-        existingAttributeNames =
-          List.map Tuple.first attrs
-
-        newAttributeNames =
-          Utils.diffAsSet updatedAttributeNames existingAttributeNames
-            |> Utils.removeAsSet "contenteditable"
-
-        updatedOrRemovedAttributes =
-          Utils.filterJusts (List.map (updateAttr thisId) attrs)
-
-        newAttributes =
-          List.map (\k ->
-            vList [vStr k, vStr (Utils.justGet (thisId, k) attributeValueUpdates)]
-          ) newAttributeNames
-
-        finalAttributes =
-          updatedOrRemovedAttributes ++ newAttributes
-      in
-      let _ =
-        if newAttributes == [] then ()
-        else
-           let _ = Debug.log "new attributes" (thisId, List.map strVal newAttributes) in
-           ()
-      in
-      vList [ vStr kind, vList finalAttributes, vList children ]
-
-    updateAttr : NodeId -> LangSvg.Attr -> Maybe Val
-    updateAttr thisId (attrName, attrAVal) =
-      case Dict.get (thisId, attrName) attributeValueUpdates of
-        Nothing ->
-          Just (vList [vStr attrName, attrAVal.val])
-
-        Just "NULL" ->
-          -- let _ = Debug.log "attribute removed" attrName in
-          Nothing
-
-        Just newAttrValString ->
-          -- let _ = Debug.log "need to update" (thisId, attrName, newAttrValString) in
-          case (attrName, attrAVal.interpreted) of
-            ("style", AStyle list) ->
-              let
-                updatedStyleAttributes =
-                  newAttrValString
-                    |> Regex.replace All (regex "/\\*.*\\*/") (always "") -- e.g. /* color: blue */
-                    |> String.split ";"
-                    |> List.map (String.split ":")
-                    |> List.concatMap (\list ->
-                         case list of
-                           []      -> []
-                           [""]    -> []
-                           [s1,s2] -> [(s1,s2)]
-                           _       -> let _ = Debug.log "WARN: updateAttr style" list in
-                                      []
-                       )
-                    |> List.map (Utils.mapBoth String.trim)
-
-                updatedStyleAttributeNames =
-                  List.map Tuple.first updatedStyleAttributes
-
-                existingStyleAttributeNames =
-                  List.map Tuple.first list
-
-                newStyleAttributeNames =
-                  Utils.diffAsSet updatedStyleAttributeNames existingStyleAttributeNames
-
-                updatedOrRemovedStyleAttributes =
-                  updateStyleAttrs list updatedStyleAttributes
-
-                newStyleAttributes =
-                  List.map (\k ->
-                    vList [vStr k, vStr (Utils.find_ updatedStyleAttributes k)]
-                  ) newStyleAttributeNames
-
-                finalStyleAttributes =
-                  updatedOrRemovedStyleAttributes ++ newStyleAttributes
-              in
-              Just (vList [vStr attrName, vList finalStyleAttributes])
-
-            ("style", _) ->
-              let _ = Debug.log "WARN: updateAttr: bad style" (valToString attrAVal.val) in
-              Just (vList [vStr attrName, attrAVal.val])
-
-            _ ->
-              Just (vList [vStr attrName, updateAttrVal attrAVal newAttrValString])
-
-    updateStyleAttrs : List (String, AVal) -> List (String, String) -> List Val
-    updateStyleAttrs oldList newList =
-      let updateStyleAttr (k, attrAVal) =
-        case Utils.maybeFind k newList of
-          Just newAttrValString  ->
-            Just (vList [vStr k, updateAttrVal attrAVal newAttrValString])
-          Nothing ->
-            -- let _ = Debug.log "style attribute removed" k in
-            Nothing
-      in
-      Utils.filterJusts (List.map updateStyleAttr oldList)
-
-    updateAttrVal : AVal -> String -> Val
-    updateAttrVal oldAttrAVal newAttrValString =
-      let translationFailed () =
-        let _ =
-          Debug.log "WARN: updateAttrVal failed" (valToString oldAttrAVal.val, newAttrValString)
-        in
-        oldAttrAVal.val
-      in
-      case oldAttrAVal.interpreted of
-        AString _ ->
-          vStr newAttrValString
-        ANum _ ->
-          String.toFloat newAttrValString
-            |> Result.map (\n -> vConst (n, dummyTrace))
-            |> Result.withDefault (translationFailed ())
-        -- TODO: add more cases
-        -- TODO: can update support change in representation type?
-        _ ->
-          translationFailed ()
-  in
-  let _ = Debug.log "old value" (valToString oldValue) in
-  let _ = Debug.log "new value" (valToString newValue) in
-  let _ = Debug.log "values equal" (valEqual oldValue newValue) in
-  newValue
