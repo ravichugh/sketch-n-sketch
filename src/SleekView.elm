@@ -637,9 +637,9 @@ menuBar model =
 
     fileMenu =
       menu "File"
-        [ [ simpleTextButton "New SVG Document" <|
+        [ [ simpleTextButton "New SVG" <|
               Controller.msgAskNew Examples.blankSvgTemplate model.needsSave
-          , simpleTextButton "New HTML Document" <|
+          , simpleTextButton "New HTML" <|
               Controller.msgAskNew Examples.blankHtmlTemplate model.needsSave
           , simpleTextButton "New From Template..." <|
               Controller.msgOpenDialogBox New
@@ -761,7 +761,22 @@ menuBar model =
 
     viewMenu =
       menu "View" <|
-        [ [ disableableTextButton True "Main Layer" Controller.msgNoop
+        [ [ hoverMenu "Output Type"
+              [ simpleTextRadioButton
+                  (model.outputMode == Graphics)
+                  "Graphics"
+                  Controller.msgSetOutputGraphics
+              , simpleTextRadioButton
+                  (isHtmlText model.outputMode)
+                  "HTML (Text)"
+                  Controller.msgSetOutputHtmlText
+              , simpleTextRadioButton
+                  (model.outputMode == ValueText)
+                  "Value (Text)"
+                  Controller.msgSetOutputValueText
+              ]
+          ]
+        , [ disableableTextButton True "Main Layer" Controller.msgNoop
           , disableableTextButton True "Widget Layer" Controller.msgNoop
           , hoverMenu "Ghost Layer" <|
               booleanOption
@@ -909,7 +924,7 @@ menuBar model =
                 "False"
                 Controller.msgSetEnableDeuceTextSelection
           ]
-        , [ hoverMenu "Code Tools Menu Mode"
+        , [ hoverMenu "Code Tools Menu"
               [ simpleTextRadioButton
                   ( case model.codeToolsMenuMode of
                       CTAll ->
@@ -937,6 +952,14 @@ menuBar model =
                   )
                   "Disabled"
                   (Controller.msgSetCodeToolsMenuMode CTDisabled)
+              ]
+          , let toggle =
+              Msg "Toggle Output Tools Menu Mode" <| \m ->
+                { m | outputToolsMenuMode = not m.outputToolsMenuMode }
+            in
+            hoverMenu "Output Tools Menu"
+              [ simpleTextRadioButton model.outputToolsMenuMode "Enabled" toggle
+              , simpleTextRadioButton (not model.outputToolsMenuMode) "Disabled" toggle
               ]
           ]
         , [ hoverMenu "Text Selection Mode"
@@ -1009,15 +1032,27 @@ menuBar model =
                   "Off"
                   Controller.msgStopAutoSynthesisAndClear
               ]
-          , hoverMenu "Output Synchronization"
+          , let msgSetSyncMode mode =
+              Msg "Set Sync Mode" <| \m ->
+                { m | syncMode = mode }
+            in
+            hoverMenu "Output Synchronization"
               [ simpleTextRadioButton
-                  (model.liveSyncDelay == False)
-                  "Live"
-                  (Controller.msgSetLiveSyncDelay False)
+                  (model.syncMode == ValueBackprop True)
+                  "Auto (Value Backpropagation)"
+                  (msgSetSyncMode (ValueBackprop True))
               , simpleTextRadioButton
-                  (model.liveSyncDelay == True)
-                  "Delayed"
-                  (Controller.msgSetLiveSyncDelay True)
+                  (model.syncMode == ValueBackprop False)
+                  "Manual (Value Backpropagation)"
+                  (msgSetSyncMode (ValueBackprop False))
+              , simpleTextRadioButton
+                  (model.syncMode == TracesAndTriggers True)
+                  "Live (Traces / Triggers)"
+                  (msgSetSyncMode (TracesAndTriggers True))
+              , simpleTextRadioButton
+                  (model.syncMode == TracesAndTriggers False)
+                  "Delayed (Traces / Triggers)"
+                  (msgSetSyncMode (TracesAndTriggers False))
               ]
           , hoverMenu "Live Update Heuristics"
               [ simpleTextRadioButton
@@ -1040,6 +1075,7 @@ menuBar model =
                   Controller.msgSetHeuristicsFair
               ]
           ]
+          {-
           , [ hoverMenu "Syntax"
                 [ simpleTextRadioButton
                     ( case model.syntax of
@@ -1061,36 +1097,7 @@ menuBar model =
                     (Controller.msgSetSyntax Syntax.Little)
                 ]
             ]
-        , [ hoverMenu "Output Type"
-              [ simpleTextRadioButton
-                  ( case model.outputMode of
-                      Live ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Graphics"
-                  Controller.msgSetOutputLive
-              , simpleTextRadioButton
-                  ( case model.outputMode of
-                      Print _ ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Text"
-                  Controller.msgSetOutputPrint
-              , simpleTextRadioButton
-                  ( case model.outputMode of
-                      ShowValue ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Value Editor"
-                  Controller.msgSetOutputShowValue
-              ]
-          ]
+        -}
         ]
 
     templateNavigation =
@@ -1133,9 +1140,8 @@ menuBar model =
             [ [logo]
             , [snsMenu]
             , [fileMenu]
-            -- Suppress for Leo/Docs
-            -- , maybeCodeToolsMenu
-            -- , [outputToolsMenu]
+            , maybeCodeToolsMenu
+            , if model.outputToolsMenuMode then [outputToolsMenu] else []
             , [viewMenu]
             , [optionsMenu]
             , [templateNavigation]
@@ -1301,8 +1307,8 @@ codePanel model =
       let
         disabled =
           case model.outputMode of
-            Live -> False
-            _    -> True
+            Graphics -> False
+            _        -> True
       in
         disableableTextButton disabled "Clean Up" Controller.msgCleanCode
     emoji =
@@ -1331,7 +1337,7 @@ codePanel model =
       Html.div
         [ Attr.class "emoji"
         ]
-        [ Html.text emoji
+        [ -- Html.text emoji
         ]
     runButton =
       Html.div
@@ -1445,14 +1451,14 @@ outputPanel model =
           Canvas.build canvasDim model
         (Just errorMsg, _, Nothing) ->
           [textOutput errorMsg]
-        (Nothing, Print svgCode, Nothing) ->
+        (Nothing, HtmlText rawHtml, Nothing) ->
           [ Html.textarea
               [ E.onInput Controller.msgUpdateHTMLEditor
               , Attr.class "text-output"
               ]
-              [ Html.text (Maybe.withDefault svgCode model.htmlEditorString) ]
+              [ Html.text (Maybe.withDefault rawHtml model.htmlEditorString) ]
           ]
-        (Nothing, ShowValue, _) ->
+        (Nothing, ValueText, _) ->
 {-
           [ Html.div
               []
@@ -1695,18 +1701,35 @@ toolPanel model =
         ]
 
       else
-        [ customButton model "GUI" (if model.outputMode == Live then Selected else Unselected) False <| \m ->
-            {m | outputMode = Live }
-        , customButton model "Leo" (if model.outputMode == ShowValue then Selected else Unselected) False <| \m ->
-            {m | outputMode = ShowValue }
-        , customButton model "Html" (case model.outputMode of
-            Print _ -> Selected
-            _ -> Unselected) False  <| Controller.doSetOutputPrint
+        [ customButton model "GUI"
+            (if model.outputMode == Graphics then Selected else Unselected)
+            False
+            (\m -> { m | outputMode = Graphics })
+        , customButton model "Html"
+            (if isHtmlText model.outputMode then Selected else Unselected)
+            False
+            Controller.doSetOutputHtmlText
+        , customButton model "Leo"
+            (if model.outputMode == ValueText then Selected else Unselected)
+            False
+            (\m -> { m | outputMode = ValueText })
         , toolSeparator
         , toolSeparator
         , toolSeparator
-        , customButton model "Auto-Sync" (if model.enableAutoSync then Selected else Unselected) False <| \m ->
-          { m | enableAutoSync = not m.enableAutoSync }
+        , customButton model "Auto Sync"
+            ( case model.syncMode of
+                ValueBackprop True -> Selected
+                _                  -> Unselected
+            )
+            ( case model.syncMode of
+                TracesAndTriggers _ -> True
+                _                   -> False
+            )
+            (\m -> { m | syncMode = case m.syncMode of
+                           ValueBackprop True -> ValueBackprop False
+                           _                  -> ValueBackprop True
+                   }
+            )
         ]
   in
     Html.div

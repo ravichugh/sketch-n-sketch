@@ -117,9 +117,12 @@ type alias Model =
       -- Just False and Just True force previous VirtualDom to be
       -- invalidated by adding a dummy div around canvas
   , widgets : Widgets
-  , liveSyncInfo : Sync.LiveInfo
-  , liveSyncDelay : Bool
   , outputMode : OutputMode
+  , syncMode : SyncMode
+  , liveSyncInfo : Sync.LiveInfo
+      -- info for when syncMode == TracesAndTriggers _
+  , autoSyncDelay: Int
+      -- delay (in milliseconds) for when syncMode == ValueBackprop True
   , mouseMode : MouseMode
   , dimensions : Window.Size
 
@@ -182,6 +185,7 @@ type alias Model =
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
   , codeToolsMenuMode : CodeToolsMenuMode
+  , outputToolsMenuMode : Bool
   , textSelectMode : TextSelectMode
   , enableTextEdits : Updatable Bool
   , allowMultipleTargetPositions : Bool
@@ -199,20 +203,29 @@ type alias Model =
   , htmlEditorString: Maybe String
   , updatedValue: Maybe (Result String Val)
   , syntax : Syntax
-  , enableAutoSync: Bool
-  , autoSyncDelay: Int --In milliseconds
   }
 
 type OutputMode
-  -- TODO rename Live to Graphics or GraphicsEditor; ShowValue to ValueEditor
-  = Live
-  | Print RawSvg
-      -- TODO put rawSvg in Model
+  = Graphics
+  | HtmlText RawHtml
       -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
-  | ShowValue
+  | ValueText
   | PrintScopeGraph (Maybe String)
                       -- Nothing        after sending renderDotGraph request
                       -- Just dataURI   after receiving the encoded image
+
+isHtmlText outputMode =
+  case outputMode of
+    HtmlText _ -> True
+    _          -> False
+
+type SyncMode
+  = TracesAndTriggers Bool
+      -- True for live sync
+      -- False for delayed live sync
+  | ValueBackprop Bool
+      -- True for auto-sync with delay of model.autoSyncDelay
+      -- False for manual sync
 
 type alias CodeBoxInfo =
   { cursorPos : Ace.Pos
@@ -244,7 +257,7 @@ type alias OutputCanvasInfo =
   , scrollLeft : Float
   }
 
-type alias RawSvg = String
+type alias RawHtml = String
 
 type Clickable
   = PointWithProvenance Val Val
@@ -729,8 +742,8 @@ mkLive syntax opts slideNumber movieNumber movieTime e (val, widgets) =
 
 liveInfoToHighlights zoneKey model =
   case model.outputMode of
-    Live -> Sync.yellowAndGrayHighlights zoneKey model.liveSyncInfo
-    _    -> []
+    Graphics -> Sync.yellowAndGrayHighlights zoneKey model.liveSyncInfo
+    _        -> []
 
 --------------------------------------------------------------------------------
 
@@ -856,7 +869,7 @@ valueEditorNeedsCallUpdate model =
 
 htmlEditorNeedsCallUpdate model =
   case model.outputMode of
-    Print htmlCode -> case model.htmlEditorString of
+    HtmlText htmlCode -> case model.htmlEditorString of
       Nothing -> False
       Just h -> htmlCode /= h
     _ -> False
@@ -1085,16 +1098,21 @@ deucePopupPanelShown model =
 
 autoOutputToolsPopupPanelShown : Model -> Bool
 autoOutputToolsPopupPanelShown model =
-  Utils.or
-    [ not <| Set.isEmpty model.selectedFeatures
-    , not <| Set.isEmpty model.selectedShapes
-    , not <| Dict.isEmpty model.selectedBlobs
-    , model.outputMode == ShowValue && valueEditorNeedsCallUpdate model
-    , case model.outputMode of
-        Print _ -> htmlEditorNeedsCallUpdate model
-        _ -> False
-    , domEditorNeedsCallUpdate model
-    ]
+  case model.syncMode of
+    TracesAndTriggers _ ->
+      -- for now, predicating the Output Tools menu on live sync mode
+      Utils.or
+        [ not <| Set.isEmpty model.selectedFeatures
+        , not <| Set.isEmpty model.selectedShapes
+        , not <| Dict.isEmpty model.selectedBlobs
+        ]
+
+    ValueBackprop _ ->
+      Utils.or
+        [ model.outputMode == ValueText && valueEditorNeedsCallUpdate model
+        , isHtmlText model.outputMode && htmlEditorNeedsCallUpdate model
+        , domEditorNeedsCallUpdate model
+        ]
 
 --------------------------------------------------------------------------------
 
@@ -1166,9 +1184,10 @@ initModel =
     , slateCount    = 1
     , addDummyDivAroundCanvas = Nothing
     , widgets       = ws
+    , outputMode    = Graphics
+    , syncMode      = ValueBackprop True
     , liveSyncInfo  = liveSyncInfo
-    , liveSyncDelay = False
-    , outputMode    = Live
+    , autoSyncDelay = 1000
     , mouseMode     = MouseNothing
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
     , mouseState    = (Nothing, {x = 0, y = 0}, Nothing)
@@ -1255,7 +1274,8 @@ initModel =
     , deuceRightClickMenuMode = Nothing
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
-    , codeToolsMenuMode = CTAll
+    , codeToolsMenuMode = CTDisabled -- default for Sketch-n-Sketch Docs
+    , outputToolsMenuMode = False -- default for Sketch-n-Sketch Docs
     , textSelectMode = SubsetExtra
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True
@@ -1272,6 +1292,4 @@ initModel =
     , htmlEditorString = Nothing
     , updatedValue = Nothing
     , syntax = Syntax.Elm
-    , enableAutoSync = True
-    , autoSyncDelay = 1000
     }

@@ -21,9 +21,8 @@ port module InterfaceController exposing
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
-  , msgSetOutputLive, msgSetOutputPrint, doSetOutputPrint, msgSetOutputShowValue
+  , msgSetOutputGraphics, msgSetOutputHtmlText, doSetOutputHtmlText, msgSetOutputValueText
   , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
-  , msgSetLiveSyncDelay
   , msgStartAnimation, msgRedraw, msgTickDelta
   , msgNextSlide, msgPreviousSlide
   , msgNextMovie, msgPreviousMovie
@@ -422,12 +421,14 @@ onMouseDrag lastPosition newPosition old =
       old
 
     MouseDragZone zoneKey (Just (trigger, (mx0, my0), _)) ->
-      case old.liveSyncDelay of
-        False ->
+      case old.syncMode of
+        TracesAndTriggers True ->
           applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my) old
-        True ->
+        TracesAndTriggers False ->
           -- TODO: define and run a version of trigger that applies to the
           -- single value being manipulated, rather than the entire program.
+          old
+        ValueBackprop _ ->
           old
 
     MouseDragSelect initialPosition initialSelectedShapes initialSelectedFeatures initialSelectedBlobs ->
@@ -560,19 +561,21 @@ onMouseDrag lastPosition newPosition old =
 onMouseUp old =
   case (old.outputMode, old.mouseMode) of
 
-    (Print _, _) -> old
+    (HtmlText _, _) -> old
 
     (PrintScopeGraph _, _) -> old
 
-    (Live, MouseDragZone zoneKey (Just (trigger, (mx0, my0), _))) ->
-      case old.liveSyncDelay of
-        False ->
+    (Graphics, MouseDragZone zoneKey (Just (trigger, (mx0, my0), _))) ->
+      case old.syncMode of
+        TracesAndTriggers True ->
           finishTrigger zoneKey old
-        True ->
+        TracesAndTriggers False ->
           let (isOnCanvas, (mx, my)) = clickToCanvasPoint old (mousePosition old) in
           old
             |> applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my)
             |> finishTrigger zoneKey
+        ValueBackprop _ ->
+          old
 
     (_, MouseDrawNew points) ->
       let resetMouseMode model = { model | mouseMode = MouseNothing } in
@@ -1075,10 +1078,15 @@ issueCommand msg oldModel newModel =
                 if submodel oldModel /= n then cmdBuilder n else Cmd.none
           in
           Cmd.batch
-            [ dispatchIfChanged (\m -> m.enableAutoSync) OutputCanvas.enableAutoSync,
-              dispatchIfChanged getAutoSyncDelay OutputCanvas.setAutoSyncDelay,
-              dispatchIfChanged (\m -> m.preview |> Utils.maybeIsEmpty |> not) OutputCanvas.setPreviewMode,
-              if kind == "Update Font Size" then
+            [ dispatchIfChanged
+                (\m -> m.syncMode)
+                (\syncMode -> case syncMode of
+                   ValueBackprop True -> OutputCanvas.enableAutoSync True
+                   _                  -> OutputCanvas.enableAutoSync False
+                )
+            , dispatchIfChanged getAutoSyncDelay OutputCanvas.setAutoSyncDelay
+            , dispatchIfChanged (\m -> m.preview |> Utils.maybeIsEmpty |> not) OutputCanvas.setPreviewMode
+            , if kind == "Update Font Size" then
                 AceCodeBox.updateFontSize newModel
               else if
                 newModel.code /= oldModel.code ||
@@ -1504,16 +1512,22 @@ msgKeyDown keyCode =
 
         else if keyCode == Keys.keyEnter && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           case old.outputMode of
-            Live      -> upstateRun old
+            Graphics  -> upstateRun old
             -- ShowValue -> doCallUpdate old
             _         -> old
 
-        else if old.outputMode == Live && keyCode == Keys.keyDown &&
+        else if old.outputMode == Graphics && keyCode == Keys.keyDown &&
                 List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
-          { old | outputMode = ShowValue }
-        else if old.outputMode == ShowValue && keyCode == Keys.keyUp &&
+          { old | outputMode = HtmlText (LangSvg.printHTML old.showGhosts old.slate) }
+        else if isHtmlText old.outputMode && keyCode == Keys.keyDown &&
                 List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
-          { old | outputMode = Live }
+          { old | outputMode = ValueText }
+        else if old.outputMode == ValueText && keyCode == Keys.keyUp &&
+                List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          { old | outputMode = HtmlText (LangSvg.printHTML old.showGhosts old.slate) }
+        else if isHtmlText old.outputMode && keyCode == Keys.keyUp &&
+                List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+          { old | outputMode = Graphics }
 
         else if
           not currentKeyDown &&
@@ -1799,13 +1813,13 @@ doSelectSynthesisResult newExp old =
       in
       { newer | liveSyncInfo = refreshLiveInfo newer
               , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
-              , outputMode  = Live -- switch out of ShowValue
+              , outputMode  = Graphics -- switch out of ValueText
               }
   )
 
 maybeUpdateOutputMode: Model-> LangSvg.RootedIndexedTree -> OutputMode
 maybeUpdateOutputMode old newSlate =  case old.outputMode of
-  Print k -> Print (LangSvg.printHTML old.showGhosts newSlate)
+  HtmlText k -> HtmlText (LangSvg.printHTML old.showGhosts newSlate)
   x -> x
 
 clearSynthesisResults : Model -> Model
@@ -1935,17 +1949,17 @@ msgReplicateBlob option = Msg "Replicate Blob" <| \old ->
 msgToggleCodeBox = Msg "Toggle Code Box" <| \old ->
   { old | basicCodeBox = not old.basicCodeBox }
 
-msgSetOutputLive = Msg "Set Output Live" <| \old ->
-  { old | outputMode = Live }
+msgSetOutputGraphics = Msg "Set Output Graphics" <| \old ->
+  { old | outputMode = Graphics }
 
-msgSetOutputPrint = Msg "Set Output Print" doSetOutputPrint
+msgSetOutputHtmlText = Msg "Set Output Html Text" doSetOutputHtmlText
 
-doSetOutputPrint: Model -> Model
-doSetOutputPrint old =
-  { old | outputMode = Print (LangSvg.printHTML old.showGhosts old.slate) }
+doSetOutputHtmlText : Model -> Model
+doSetOutputHtmlText old =
+  { old | outputMode = HtmlText (LangSvg.printHTML old.showGhosts old.slate) }
 
-msgSetOutputShowValue = Msg "Set Output Show Value" <| \old ->
-  { old | outputMode = ShowValue }
+msgSetOutputValueText = Msg "Set Output Value Text" <| \old ->
+  { old | outputMode = ValueText }
 
 updateHeuristics : Int -> Model -> Model
 updateHeuristics heuristic old =
@@ -1956,7 +1970,7 @@ updateHeuristics heuristic old =
       { oldSyncOptions | feelingLucky = heuristic }
   in
     case old.outputMode of
-      Live ->
+      Graphics ->
         case mkLive
                old.syntax
                newSyncOptions
@@ -1979,9 +1993,6 @@ msgSetHeuristicsNone =
 
 msgSetHeuristicsFair =
   Msg "Set Heuristics Fair" (updateHeuristics Sync.heuristicsFair)
-
-msgSetLiveSyncDelay b =
-  Msg "Set Live" (\m -> { m | liveSyncDelay = b })
 
 --------------------------------------------------------------------------------
 
@@ -2520,7 +2531,7 @@ readFile file needsSave old =
         , history = History.begin { code = file.contents, selectedDeuceWidgets = [] }
         , lastSaveState = Just file.contents
         , needsSave = needsSave
-        , outputMode = Live
+        , outputMode = Graphics
         }
 
 loadIcon : Env -> File -> Model -> Model
@@ -2693,7 +2704,8 @@ handleNew template = (\old ->
                     , mainResizerX             = old.mainResizerX
                     , colorScheme              = old.colorScheme
 
-                    , outputMode = Live
+                    , outputMode = Graphics
+                    , syncMode = old.syncMode
 
                     } |> resetDeuceState
       ) |> handleError old) >> closeDialogBox New
@@ -2956,8 +2968,8 @@ msgSetGhostsShown shown =
     let
       newMode =
         case old.outputMode of
-          Print _ ->
-            Print (LangSvg.printHTML shown old.slate)
+          HtmlText _ ->
+            HtmlText (LangSvg.printHTML shown old.slate)
           _ ->
             old.outputMode
     in

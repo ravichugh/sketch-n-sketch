@@ -68,7 +68,7 @@ svgPath      = flip Svg.path []
 
 msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.outputMode of
-    Live ->
+    Graphics ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
       let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (mousePosition old) in
       let trigger = Sync.prepareLiveTrigger old.liveSyncInfo old.inputExp zoneKey in
@@ -103,8 +103,8 @@ startDrawing old =
 build : SleekLayout.BoundingBox -> Model -> List (Html Msg)
 build dim model =
   let addZones = case (model.outputMode, model.preview) of
-    (Live, Nothing) -> model.tool == Cursor
-    _               -> False
+    (Graphics, Nothing) -> model.tool == Cursor
+    _                   -> False
   in
   let (widgets, slate) =
     case model.preview of
@@ -115,8 +115,8 @@ build dim model =
   let newShape = drawNewShape model in
   let widgetsAndDistances =
     case (model.outputMode, model.showGhosts, model.preview) of
-      (Live, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets model -- Draw distances below other widgets
-      _                     -> []
+      (Graphics, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets model -- Draw distances below other widgets
+      _                         -> []
   in
   let selectBox = drawSelectBox model in
   if LangSvg.isSvg model.inputVal then
