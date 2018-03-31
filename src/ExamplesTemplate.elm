@@ -232,6 +232,7 @@ LEO_TO_ELM fromleo/markdown
 LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
 LEO_TO_ELM fromleo/modelviewcontroller
+LEO_TO_ELM fromleo/latexeditor
 
 --------------------------------------------------------------------------------
 
@@ -260,8 +261,9 @@ docsCategory =
       , ("Lens: List Map 2", mapListLens_2)
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
-      , ("Proportional Recipe editor", fromleo_recipe)
+--      , ("Proportional Recipe editor", fromleo_recipe)
       , ("Model View Controller", fromleo_modelviewcontroller)
+      , ("LaTeX editor", fromleo_latexeditor)
 --      , ("TODO", blankDoc)
       , ("Simple Budget", simpleBudget)
       ]

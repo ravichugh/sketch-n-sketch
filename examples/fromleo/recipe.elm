@@ -36,7 +36,7 @@ In the oven for 10 minutes in cupcakes pans.<br>
 One can also put as decoration sliced almonds, or replace chocolate by a squeezed lemon."""]
   ] |> applyDict2 language
 
-result = replaceAllIn "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
+result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
   let mult = String.toInt <| nth m.group 3 in
   let div = String.toInt <|  nth m.group 4 in
   case nth m.group 1 of
@@ -51,7 +51,7 @@ result = replaceAllIn "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
              3 -> if res == 0 then "¾" else if res >= 4 then toString res else toString res + "¾"
           update {outputNew, outputOriginal} =
             if outputNew == outputOriginal then {values=[base]} else
-            let quantityTimes4 = case extractFirstIn "(.*)(¼|[ +]?[13]/[24]|½|¾)" outputNew of
+            let quantityTimes4 = case Regex.extract "(.*)(¼|[ +]?[13]/[24]|½|¾)" outputNew of
               ["Just", [i, complement]] -> 
                  let addi x = if i == "" then x else 4 * String.toInt i + x in
                  case complement of
@@ -86,7 +86,7 @@ html <| """<button onclick="this.setAttribute('v','@otherLanguage')" v="@languag
           ["French", """<i>Astuce:</i> Ecrire prop[5] pour un nombre proportionel 5, plurs[5] pour un 's' conditionel si la quantité 5 est plus grande que 1."""]] |> applyDict2 language) + 
  { apply x = freeze x ,
    update {output} =
-     { values = [replaceAllIn "((prop)(\\w*)|(plur)(\\w+))\\[(\\d+)\\]" (\m ->
+     { values = [Regex.replace "((prop)(\\w*)|(plur)(\\w+))\\[(\\d+)\\]" (\m ->
         let amount = String.toInt (nth m.group 6) in
         case nth m.group 2 of
            "prop" -> "multdivby[" + amount + "," + base + "]"

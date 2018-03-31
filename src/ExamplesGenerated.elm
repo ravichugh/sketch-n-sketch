@@ -6025,8 +6025,8 @@ main =
 """
 
 fromleo_markdown =
- """let original =
-\"\"\"#[Markdown](https://fr.wikipedia.org/wiki/Markdown) demo
+ """original =
+  \"\"\"#[Markdown](https://fr.wikipedia.org/wiki/Markdown) demo
 This is *an **almost :\"bidirectional\":*** markdown
 editor. You can **fully** edit the value of the variable `original` on the right,
 and _partially_ edit the html on the right.
@@ -6049,23 +6049,26 @@ and _partially_ edit the html on the right.
 >Markdown is a lightweight markup
 >language with plain text formatting syntax
 
-\"\"\" in
-let trim s =
-  let trimmed_left = replaceAllIn \"^\\\\s+\" \"\" s in
-  replaceAllIn \"\\\\s+$\" \"\" trimmed_left in
-letrec sprintf str inline = case inline of
+\"\"\"
+
+trim s =
+  Regex.replace \"^\\\\s+\" \"\" s |>
+  Regex.replace \"\\\\s+$\" \"\"
+
+sprintf str inline = case inline of
   a::tail -> sprintf (replaceFirstIn \"%s\" a str) tail
   [] -> str
   a -> replaceFirstIn \"%s\" a str
-in
-let strlen str = len (explode str)  in
-letrec foldLeft init list fun = case list of
+
+strlen str = String.length str
+
+foldLeft init list fun = case list of
   [] -> init
   head:: tail -> let newInit = (fun init head) in
     foldLeft newInit tail fun
-in
+
 -- Thanks to https://gist.github.com/jbroadway/2836900
-let markdown text =
+markdown text =
   let self = {
     para regs =
       let line = nth regs.group 2 in
@@ -6099,34 +6102,34 @@ let markdown text =
     [\"`\\\\b(.*?)\\\\b`\", \"<code>$1</code>\"],                         -- inline code
     [\"\\r?\\n\\\\*(.*)\", self.ul_list, {
       postReverse out = 
-        replaceAllIn \"\"\"\\r?\\n<ul>\\r?\\n\\t<li>((?:(?!</li>)[\\s\\S])*)</li>\\r?\\n</ul>\"\"\" \"\\n* $1\" out
+        Regex.replace \"\"\"\\r?\\n<ul>\\r?\\n\\t<li>((?:(?!</li>)[\\s\\S])*)</li>\\r?\\n</ul>\"\"\" \"\\n* $1\" out
     }],                                  -- ul lists
     [\"\\r?\\n[0-9]+\\\\.(.*)\", self.ol_list, {
       postReverse out = 
-        replaceAllIn \"\"\"\\r?\\n<ol>\\r?\\n\\t<li>((?:(?!</li>)[\\s\\S])*)</li>\\r?\\n</ol>\"\"\" \"\\n1. $1\" out
+        Regex.replace \"\"\"\\r?\\n<ol>\\r?\\n\\t<li>((?:(?!</li>)[\\s\\S])*)</li>\\r?\\n</ol>\"\"\" \"\\n1. $1\" out
     }],                            -- ol lists
     [\"\\r?\\n(&gt;|\\\\>)(.*)\", self.blockquote],                        -- blockquotes
     [\"\\r?\\n-{5,}\", \"\\n<hr>\"],                                        -- horizontal rule
     [\"\\r?\\n\\r?\\n(?!<ul>|<ol>|<p>|<blockquote>)\",\"<br>\"],                -- add newlines
     [\"\\r?\\n</ul>\\\\s?<ul>\", \"\", {
       postReverse out = 
-        replaceAllIn \"\"\"(<(ul|ol)>(?:(?!</\\2>)[\\s\\S])*)</li>\\s*<li>\"\"\" \"$1</li>\\n</$2>\\n<$2>\\n\\t<li>\" out
+        Regex.replace \"\"\"(<(ul|ol)>(?:(?!</\\2>)[\\s\\S])*)</li>\\s*<li>\"\"\" \"$1</li>\\n</$2>\\n<$2>\\n\\t<li>\" out
     }],                                     -- fix extra ul
     [\"\\r?\\n</ol>\\\\s?<ol>\", \"\"],                                      -- fix extra ol, and extract blockquote
     [\"</blockquote>\\\\s?<blockquote>\", \"\\n\"]
   ] in
   let finaltext = \"\\n\" + text + \"\\n\" in
   foldLeft finaltext rules (\\acc elem -> case elem of
-      [regex, replacement] -> replaceAllIn regex replacement acc
+      [regex, replacement] -> Regex.replace regex replacement acc
       [regex, replacement, {postReverse = fun}] ->
         let newAcc = { apply acc = freeze acc, unapply out = [\"Just\",  fun out]}.apply acc in
-        replaceAllIn regex replacement newAcc 
+        Regex.replace regex replacement newAcc 
   )
-in
+
 --let converter_lens x = {
 --  apply x = x,
 --  unapply {outputNew} =
---    case extractFirstIn \"\"\"^<div>([\\s\\S]*)</div>\"\"\" inserted of
+--    case Regex.extract \"\"\"^<div>([\\s\\S]*)</div>\"\"\" inserted of
 --      [\"Just\", [content]] ->
 --        if (matchIn \"(?:^|\\n)#(.*)$\" left) then -- Title, we jump only one line
 --          [\"Just\", left + \"\\n\" + content + right]
@@ -6136,11 +6139,13 @@ in
 --        if(matchIn \"\"\"(?:^|\\n)(#|\\*|\\d\\.)(.*)$\"\"\" left) then
 --          [\"Just\", outputNew]
 --        else
---          let newInserted = replaceAllIn \"\"\"<br>\"\"\"  \"\\n\\n\" inserted in
+--          let newInserted = Regex.replace \"\"\"<br>\"\"\"  \"\\n\\n\" inserted in
 --          [\"Just\", left + newInserted + right]
 --  }.apply x in
-let converter_lens x = x in
-[\"span\", [], html ((freeze markdown) (converter_lens original))]
+
+converter_lens x = x
+
+Html.span [] [] <| html ((freeze markdown) (converter_lens original))
 """
 
 fromleo_conference_budgetting =
@@ -6221,7 +6226,7 @@ In the oven for 10 minutes in cupcakes pans.<br>
 One can also put as decoration sliced almonds, or replace chocolate by a squeezed lemon.\"\"\"]
   ] |> applyDict2 language
 
-result = replaceAllIn \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\" (\\m ->
+result = Regex.replace \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\" (\\m ->
   let mult = String.toInt <| nth m.group 3 in
   let div = String.toInt <|  nth m.group 4 in
   case nth m.group 1 of
@@ -6236,7 +6241,7 @@ result = replaceAllIn \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\" 
              3 -> if res == 0 then \"¾\" else if res >= 4 then toString res else toString res + \"¾\"
           update {outputNew, outputOriginal} =
             if outputNew == outputOriginal then {values=[base]} else
-            let quantityTimes4 = case extractFirstIn \"(.*)(¼|[ +]?[13]/[24]|½|¾)\" outputNew of
+            let quantityTimes4 = case Regex.extract \"(.*)(¼|[ +]?[13]/[24]|½|¾)\" outputNew of
               [\"Just\", [i, complement]] -> 
                  let addi x = if i == \"\" then x else 4 * String.toInt i + x in
                  case complement of
@@ -6271,7 +6276,7 @@ html <| \"\"\"<button onclick=\"this.setAttribute('v','@otherLanguage')\" v=\"@l
           [\"French\", \"\"\"<i>Astuce:</i> Ecrire prop[5] pour un nombre proportionel 5, plurs[5] pour un 's' conditionel si la quantité 5 est plus grande que 1.\"\"\"]] |> applyDict2 language) + 
  { apply x = freeze x ,
    update {output} =
-     { values = [replaceAllIn \"((prop)(\\\\w*)|(plur)(\\\\w+))\\\\[(\\\\d+)\\\\]\" (\\m ->
+     { values = [Regex.replace \"((prop)(\\\\w*)|(plur)(\\\\w+))\\\\[(\\\\d+)\\\\]\" (\\m ->
         let amount = String.toInt (nth m.group 6) in
         case nth m.group 2 of
            \"prop\" -> \"multdivby[\" + amount + \",\" + base + \"]\"
@@ -6338,6 +6343,497 @@ n = <span>@(model.n)</span><br> What do you want to do?<br>\"\"\" ++ [
 view
 """
 
+fromleo_latexeditor =
+ """String = { String |
+  uncons s = extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" s
+  length s = len (explode s)
+  }
+
+tokenize txt pos = 
+  case String.uncons txt of
+  [\"Nothing\"] -> [{tag=\"EOF\", pos = pos, origText = txt}]
+  [\"Just\", [first, rem]] ->
+    case first of
+      \"\\\\\" -> case String.uncons rem of
+        [\"Just\", [\"\\\\\", rem]] ->
+          case extractFirstIn \"\"\"(\\\\\\\\)([\\s\\S]*)\"\"\" txt of
+            [\"Just\", [bs, rem]] ->
+              [{tag=\"newline\", pos=pos, origText = bs}, rem, pos + 2]
+        _ ->
+          case extractFirstIn \"\"\"^((\\\\\\w+\\b|\\\\.)\\s*)([\\s\\S]*)\"\"\" txt of
+            [\"Just\", [commandspace, command, remainder]] ->
+              [{tag=\"command\", name=command, pos=pos, origText = commandspace}, remainder, pos + String.length commandspace]
+            _ ->
+              [{tag=\"error\", pos=pos, value=\"Expected a command after \\\\, got \" + txt}, rem, pos + 1]
+      \"%\" ->
+        case extractFirstIn \"^(%(.*(?:\\r?\\n|$)))([\\\\s\\\\S]*)\" txt of
+          [\"Just\", [percentcomment, comment, remainder]] ->
+            [{tag=\"linecomment\", value=comment, pos=pos, origText=percentcomment}, remainder, pos + String.length percentcomment]  
+      \"{\" ->
+        [{tag=\"open\", pos=pos, origText=first}, rem, pos + 1]
+      \"}\" ->
+        [{tag=\"close\", pos=pos, origText=first}, rem, pos + 1]
+      \"$\" ->
+        [{tag=\"equationdelimiter\", pos=pos, origText=first}, rem, pos + 1]
+      \"#\" ->
+        case extractFirstIn \"\"\"^(#(\\d))([\\s\\S]*)\"\"\" txt of
+          [\"Just\", [original, integer, rem]] ->
+            [{tag=\"replacement\", pos = pos, nth = String.toInt integer, origText = original}, rem, pos + 2]
+          _ -> 
+            [{tag=\"error\", pos = pos + 1, value=\"Expected number after #\"}, rem, pos + 1]
+      \"^\" ->
+        [{tag=\"command\", name=\"^\", pos=pos, origText=first}, rem, pos + 1]
+      \"_\" ->
+        [{tag=\"command\", name=\"_\", pos=pos, origText=first}, rem, pos + 1]
+      _ -> case extractFirstIn \"\"\"^(\\r?\\n\\r?\\n\\s*)([\\s\\S]*)\"\"\" txt of
+        [\"Just\", [rawspace, remainder]] ->
+          [{tag=\"newpar\", origText = rawspace}, remainder, pos + String.length rawspace]
+        _ ->
+          case extractFirstIn \"\"\"^((?:(?!\\r?\\n\\r?\\n)[^\\\\\\{\\}\\$%\\^_#])+)([\\s\\S]*)\"\"\" txt of
+            [\"Just\", [rawtext, remainder]] ->
+              [{tag=\"rawtext\", value=rawtext, pos = pos, origText = rawtext}, remainder, pos + String.length rawtext]
+            res ->
+              [{tag=\"error\", pos = pos, value=\"Expected text, got \" + txt}]
+
+tokens txt =
+  letrec aux txt revAcc pos =
+    case tokenize txt pos of
+      [{tag=\"EOF\"} as t] -> reverse (t::revAcc)
+      [{tag=\"error\", pos = pos, value = value}] -> value + \" at pos \" + pos + \":\" + txt
+      [t, rem, newPos] ->
+        let newAcc = t::revAcc in
+        aux rem newAcc newPos
+  in
+  aux txt [] 0
+
+parse tokens = -- Group blocks together.
+  letrec aux revAcc tokens =
+    case tokens of
+      [] -> [List.reverse revAcc, tokens]
+      [{tag=\"EOF\"}] -> [List.reverse revAcc, []]
+      ({tag=\"close\"} :: rem) -> 
+        [List.reverse revAcc, tokens]
+      (({tag=\"open\"} as x) :: rem) ->
+        case aux [] rem of
+          [res, rem] ->
+            case rem of
+              {tag=\"close\"}::r2 ->
+                let newrevAcc = {tag=\"block\", children=res}::revAcc in
+                aux newrevAcc r2
+              _ ->
+                [{tag=\"error\", value=\"Unclosed { at \" + x.pos }, []]
+          x -> x
+      (x :: rem) ->
+        let newrevAcc = x :: revAcc in
+        aux newrevAcc rem
+  in nth (aux [] tokens) 0
+
+incSectionCounter opts = 
+  let newCounter = opts.sectionCounter  + freeze 1 in
+  { opts |
+    sectionCounter = newCounter
+    subsectionCounter = 1
+    currentLabelName = toString newCounter
+  }
+
+incSubsectionCounter opts = 
+  let newCounter = opts.subsectionCounter + freeze 1 in
+  { opts |
+    subsectionCounter = newCounter
+    currentLabelName = toString (opts.sectionCounter) + \".\" + toString newCounter
+  }
+ 
+htmlError help display = Html.span [[\"color\", \"red\"]] [[\"title\", help]] [
+  case display of
+    [] -> display
+    head::tail -> display
+    d -> [\"TEXT\", d]
+  ]
+
+htmlWrapper htmlArgsWrapper =
+    { arity = 1
+      toHtml toHtml opts args =
+      let [argsHtml, newOpts] = toHtml opts args in
+      [htmlArgsWrapper argsHtml, newOpts]}
+
+htmlConst html =
+    { arity = 0
+      toHtml toHtml opts args = [html, opts] }
+
+newcommandinstantiate args parsed =
+  letrec aux parsed = case parsed of
+    {tag=\"block\", children=c} ->
+      { parsed | children = List.map aux c }
+    {tag=\"replacement\", nth=n} ->
+      if n <= len args then
+        nth args (n - 1)
+      else
+        parsed
+      aux head :: aux tail
+    _ -> parsed
+  in aux parsed
+
+-- commandsDict: Dict String { arity: Int, toHTML: (Options -> Lists Tree -> HTMLNode) -> Options -> Trees -> (HTMLNode, Options)}
+commandsDict = dict [
+  [\"\\\\label\",
+    { arity = 1
+    , toHtml toHtml opts args = case args of
+      [{tag = \"block\", children = [{tag = \"rawtext\", value = v}]}] ->
+        [[\"span\", [[\"id\", v],[\"class\", \"labellink\"], [\"title\", v]], [[\"TEXT\", \"🔗\"]]],
+          let currentLabelName = opts.currentLabelName in
+          { opts |
+             labelToName = opts.labelToName |>
+               Dict.insert v currentLabelName,
+             nameToLabel = opts.nameToLabel |>
+               Dict.insert currentLabelName v
+          }
+        ]
+      _ ->
+        let [argHtml, newOpts] = toHtml opts args in
+        [htmlError \"\\\\label must be followed by a {name}\" argHtml, newOpts]
+    }],
+  [\"\\\\ref\",
+    { arity = 1
+    , toHtml toHtml opts args = case args of
+      [{tag = \"block\", children = [{tag = \"rawtext\", value = v}]}] ->
+        [[\"ref\", v], opts]
+      _ -> 
+        let [argHtml, newOpts] = toHtml opts args in
+        [htmlError \"\\\\label must be followed by a {name}\" argHtml, newOpts]
+    }],
+  [\"\\\\LaTeX\",
+    { arity = 0
+    , toHtml toHtml opts arg =
+      [[\"span\", [[\"class\", \"latex\"]], html \"\"\"L<sup>a</sup>T<sub>e</sub>X\"\"\"], opts]
+    }],
+  [\"\\\\section\", 
+    { arity= 1
+    , toHtml toHtml opts arg =
+      let newOpts = { incSectionCounter opts | indent = False, newline = False } in
+      let [argHtml, newOpts2] = toHtml newOpts arg in
+      [[\"h1\", [], [[\"TEXT\", newOpts2.currentLabelName + \". \"]] ++ argHtml],
+        {newOpts2 | indent = True }]
+    }],
+  [\"\\\\subsection\", 
+    { arity= 1
+    , toHtml toHtml opts arg =
+      let newOpts = { incSubsectionCounter opts | indent = False, newline = False } in
+      let [argHtml, newOpts2] = toHtml newOpts arg in
+      [[\"h2\", [], [[\"TEXT\", newOpts2.currentLabelName + \". \"]] ++ argHtml],
+        {newOpts2 | indent = True }]
+    }],
+  [\"\\\\textbf\", htmlWrapper (\\argsHtml -> [\"b\", [], argsHtml])],
+  [\"\\\\textit\", htmlWrapper (\\argsHtml -> [\"i\", [], argsHtml])],
+  [\"\\\\textsc\", htmlWrapper (\\argsHtml -> [\"span\", [[\"style\", [[\"font-variant\", \"small-caps\"]]]], argsHtml])],
+  [\"\\\\ldots\", htmlConst [\"span\", [], [[\"TEXT\", \"…\"]]]],
+  [\"\\\\textbackslash\", htmlConst [\"span\", [], [[\"TEXT\", \"\\\\\"]]]],
+  [\"\\\\newcommand\",
+    let extractCommand block = case block of
+      {tag=\"command\", name=cmdName} -> {value = cmdName}
+      {tag=\"block\", children=[{tag=\"command\", name=cmdName}]} -> {value = cmdName}
+      _ -> {}
+    in
+    { inspect rightArgs = -- Returns the arguments to the command and the remaining that it does not parse.
+        case rightArgs of
+          cmdOpt::rem ->
+            case extractCommand cmdOpt of
+              {value= cmdName} -> case rem of
+                ({tag=\"rawtext\", value=text} :: definition :: rem) ->
+                  case extractFirstIn \"\"\"\\[(\\d+)\\]\"\"\" text of
+                    [\"Just\", [d]] -> [[cmdName, String.toInt d, definition], rem]
+                    _ -> [[\"Expected [number] for the number of arguments, got \" + text], rightArgs]
+                (definition :: rem) ->
+                  [[cmdName, 0, definition], rem]
+                _ -> [[\"Expected \\\\newcommand{\"+cmdName+\"}[optional num args]{definition}\"], rightArgs]
+              _ ->  [[\"No command name after \\\\newcommand, from \" + Debug.log \"\" cmdOpt], rightArgs]
+          _ ->  [[\"Expacted a command name after \\\\newcommand, from \" + Debug.log \"\" cmdOpt], rightArgs]
+    , toHtml toHtml opts args =
+        if len args == 1 then [htmlError (nth args 0) \"???\", opts] else (
+        let [cmdName, arity, definition] = args in
+        let newOpts = { opts |
+          customCommands = opts.customCommands |> Dict.insert cmdName {
+              arity = arity,
+              toHtml toHtml opts args =
+                -- Perform the replacement of #1 with argument 1, #2 with argument 2, and so on.
+                -- For now, just output the definition.
+                let instantiatedDefinition = newcommandinstantiate args definition in
+                case toHtml opts [instantiatedDefinition] of
+                  [[argHtml], newOpts] ->
+                    [argHtml, newOpts]
+                  [argsHtml, newOpts] -> error <| \"command \" + cmdName + \" returned more than 1 arg:\" + toString argsHtml
+            } }
+        in
+        [[\"span\", [[\"class\", \"newcommand\"]], []], newOpts]
+      )
+    }],
+  [\"\\\\frac\",
+  { arity = 2
+  , toHtml toHtml opts arg =
+      if opts.mathmode then
+        let [arg1html, newOpts1] = toHtml opts     [nth arg 0] in
+        let [arg2html, newOpts2] = toHtml newOpts1 [nth arg 1] in
+        [[\"div\", [[\"class\", \"fraction\"]], [
+         [\"span\", [[\"class\", \"fup\"]], arg1html],
+         [\"span\", [[\"class\", \"bar\"]], [[\"TEXT\", \"/\"]]],
+         [\"span\", [[\"class\", \"fdn\"]], arg2html]]], newOpts2]
+      else
+        [htmlError \"\\\\frac allowed only in math mode\" \"???\", opts]
+  }],
+  [\"\\\\_\", htmlConst [\"span\", [], [[\"TEXT\", \"_\"]]]],
+  [\"_\",
+  { arity = 1
+  , toHtml toHtml opts args =
+    if opts.mathmode then
+      let [arghtml, newOpts] = toHtml opts args in
+      [[\"sub\", [], arghtml], newOpts]
+    else
+      [htmlError \"_ allowed only in math mode\" \"???\", opts]
+  }],
+  [\"^\",
+  { arity = 1
+  , toHtml toHtml opts args =
+    if opts.mathmode then
+      let [arghtml, newOpts] = toHtml opts args in
+      [[\"sup\", [], arghtml], newOpts]
+    else
+      [htmlError \"^ allowed only in math mode\" \"???\", opts]
+  }]]
+
+commands x =
+  Dict.get x commandsDict |> Maybe.withDefaultLazy (\\_ ->
+    { arity = 0
+    , toHtml toHtml opts arg =    
+      [htmlError \"Unknown Command\" x, opts]})
+
+indent opts = if opts.indent then [[\"span\", [[\"class\", \"paraindent\"]], html \"&nbsp;\"]] else []
+
+newline opts = if opts.newline then [Html.br] else []
+
+splitargs n array =
+  letrec aux revAcc n array =
+    if n == 0 then [reverse revAcc, array] else
+    case array of
+      {tag=\"rawtext\", value=text}:: rem ->
+        case extractFirstIn \"\"\"^\\s*(\\S)(.*)\"\"\" text of
+          [\"Just\", [arg, other]] ->
+            let newAcc = {tag=\"rawtext\", value=arg}::revAcc in
+            let newN = n - 1 in
+            let newArray = {tag=\"rawtext\", value=other} :: rem in
+            aux newAcc newN newArray
+          _ ->
+            aux revAcc n rem
+      (head :: rem) ->
+        let newAcc = head::revAcc in
+        let newN = n - 1 in
+        aux newAcc newN rem
+      [] ->
+        [[], array]
+  in aux [] n array
+
+escape txt = txt |>
+  replaceAllIn \"\\\\\\\\\" \"\\\\textbackslash{}\" |>
+  replaceAllIn \"<B>(.*)</B>\" \"\\\\textbf{$1}\" |>
+  replaceAllIn \"<I>(.*)</I>\" \"\\\\textit{$1}\"
+
+toHtmlWithoutRefs opts tree =
+  letrec aux opts revAcc tree = case tree of
+    [] -> [List.reverse revAcc, opts]
+    (head::rem) -> case head of
+      {tag=\"block\", children=children} ->
+        let newTree = children ++ rem in
+        aux opts revAcc newTree
+      {tag=\"rawtext\", value=text} ->
+        let finalText = {
+           apply x = x,
+           update {input, oldOutput, newOutput} = 
+             {values = [Update.mapInserted escape oldOutput newOutput] }
+          }.apply text in
+        if opts.indent && Regex.matchIn \"\"\"^[\\s]*\\S\"\"\" text then
+          let newOpts = { opts | indent = False,  newline = False } in
+          let revAccWithParagraph = List.reverseInsert (newline opts ++ indent opts) revAcc in
+          let newrevAcc = [\"TEXT\",finalText]::revAccWithParagraph in
+          aux newOpts newrevAcc rem
+        else
+          let newrevAcc = [\"TEXT\",finalText]::revAcc in
+          aux opts newrevAcc rem
+      {tag=\"newpar\"} ->
+        let newOpts = { opts | indent = True, newline = True} in
+        aux newOpts revAcc rem
+      {tag=\"equationdelimiter\"} -> -- Todo: Group the equation into an inline span?
+        let newOpts = { opts | mathmode = if opts.mathmode then False else True } in
+        aux newOpts revAcc rem
+      {tag=\"replacement\", nth=n} -> -- Create a dummy tag that can be later replaced.
+        let newrevAcc = [\"span\", [[\"class\", \"replacement\"]], [n]]::revAcc in
+        aux opts newrevAcc rem
+      {tag=\"command\", name=cmdname} ->
+        let tmpOpt = if cmdname == \"\"\"\\noindent\"\"\" then { opts | indent = False } else opts in
+        -- TODO: Need to not convert to html, but expand the command first.
+        let cmddef = Dict.get cmdname tmpOpt.customCommands |> Maybe.withDefaultLazy (\\_ ->
+          commands cmdname) in
+        let [args, remainder] = case cmddef of
+          {arity=n} ->
+            splitargs n rem
+          {inspect=inspect} ->
+            inspect rem
+        in
+        let [toAdd, newOpts] = cmddef.toHtml toHtmlWithoutRefs tmpOpt args in
+        let newrevAcc = toAdd::revAcc in
+        aux newOpts newrevAcc remainder
+      
+      {tag=\"linecomment\", value=value} ->
+        let newrevAcc = [\"span\", [[\"styles\", [[\"background\",\"#888\"], [\"color\", \"#FFF\"]]]], [[\"TEXT\", \"(\" + value + \")\"]]]::revAcc in
+        aux opts newrevAcc rem
+  in 
+  aux opts [] tree
+
+initOptions = {
+  indent = False
+  newline = False
+  customCommands = Dict.fromList []
+  currentLabelName = freeze \"0\"
+  sectionCounter = freeze 0
+  subsectionCounter = freeze 0
+  mathmode = False
+  labelToName = Dict.fromList []
+  nameToLabel = Dict.fromList []
+}
+
+htmlMapOf htmlOf trees = case trees of
+  [] -> \"\"
+  (head::tail) -> htmlOf head + htmlMapOf tail
+
+htmlOf text_tree = case text_tree of
+  [\"TEXT\", value] -> -- Needs some escape here.
+    value 
+  [m, _, children] -> \"<\"+m+\">\" + htmlMapOf htmlOf children + \"</\"+m+\">\"
+
+toHtml x =
+  let [raw, opts] = toHtmlWithoutRefs initOptions x in
+  letrec replaceMap replaceReferences trees = case trees of
+    [] -> []
+    (head :: tail) -> {
+        apply x = x
+        update {input, outputNew, outputOriginal} =
+          if (len outputNew /= len outputOriginal && len outputOriginal == 1) then
+            {values = [[[\"TEXT\", htmlOf [outputNew]]]]} else {values=[input]}
+      }.apply [replaceReferences head] ++ replaceMap replaceReferences tail
+  in
+  letrec replaceReferences tree = case tree of
+    [\"ref\", refname] -> Dict.get refname opts.labelToName  |> case of
+      [\"Nothing\"] -> htmlError (\"Reference \" + refname + \" not found.\") \"???\"
+      [\"Just\", txt] ->
+        let replaceKey refNameTxt = {
+           apply [refname,txt] = Debug.log \"\"\"refname = @refname, txt= @txt\"\"\" txt,
+           update {input=[oldRefname, oldTxt], outputNew=newText} =  -- Lookup for the reference in the options.
+             case Dict.get newText opts.nameToLabel of
+              [\"Just\", newRefname] ->
+                {values = [[newRefname, oldTxt]]}
+              _ -> -- No solution, cancel update.
+                {error=\"could not find reference\" + toString newText}
+          }.apply refNameTxt
+        in
+        [\"span\", [
+          [\"class\",\"reference\"],
+          [\"onclick\", \"if(window.location.hash=='') window.location.hash = '\" + refname + \"';\"],
+          [\"title\", refname]
+          ], [[\"TEXT\", replaceKey [refname, txt]]]]
+    [tag, attrs, c] -> [tag, attrs, replaceMap replaceReferences c]
+    _ -> tree
+  in
+  replaceMap replaceReferences raw
+
+latex = \"\"\"\\newcommand{\\small}{mini}
+
+\\section{\\LaTeX{} editing in \\textsc{Html}\\label{sec:introduction}}
+This \\small{} \\LaTeX{} editor is \\textit{bidirectional} and supports \\small{} \\textbf{textual} changes. Rename '\\small{}' to 'lightweight' to see\\ldots
+
+\\section{It supports reference update\\label{sec:commands}}
+This editor features a subset of \\LaTeX{} commands, for example references.
+Section \\ref{sec:introduction}.
+Change the previous number to 2\"\"\"
+
+latexttoolong = \"\"\" or 2.1. See how it updates the source code.
+\\subsection{Others\\label{others}}
+Only frac, exponent and indices in math mode: $\\frac{b^2-4ac}{2}$.
+%TODO support more commands.\"\"\"
+
+[\"span\", [[\"style\", [[\"margin\",\"10px\"]]]], [
+[\"style\", [[\"type\", \"text/css\"]], [[\"TEXT\", \"\"\"
+#content {
+  font-family: 'Computer Modern Serif';
+}
+#content h1 {
+  font-size: 24px;
+  margin-top: 10px;
+}
+#content h2 {
+  font-size: 18px;
+  margin-top: 10px;
+}
+
+.tex sub, .latex sub, .latex sup {
+  text-transform: uppercase;
+}
+
+.tex sub, .latex sub {
+  vertical-align: 0.3em;
+  margin-left: -0.1667em;
+  margin-right: -0.125em;
+}
+
+.tex, .latex, .tex sub, .latex sub {
+  font-size: 1em;
+}
+
+.latex sup {
+  font-size: 0.85em;
+  vertical-align: -0.3em;
+  margin-left: -0.36em;
+  margin-right: -0.15em;
+}
+.fraction {
+  display: inline-block;
+  position: relative;
+  vertical-align: middle; 
+  letter-spacing: 0.001em;
+  text-align: center;
+  font-size: 12px;
+  }
+.fraction > span { 
+  display: block; 
+  padding: 0.1em; 
+  }
+.fraction span.fdn {border-top: thin solid black;}
+.fraction span.bar {display: none;}
+latex-sc {
+  font-variant: small-caps;
+}
+.labellink {
+  color: #CCC;
+  font-size: 0.5em;
+  opacity: 0.3;
+}
+.labellink:hover {
+  color: blue;
+  opacity: 1;
+}
+\"\"\"]]],
+[\"textarea\", [
+   [\"style\", [[\"font-family\", \"monospace\"], [\"width\", \"100%\"], [\"min-height\", \"200px\"]]],
+   [\"onchange\", \"this.textContent = this.value\"],
+   [\"onkeyup\", \"\"\"if(typeof timer != \"undefined\") clearTimeout(timer); timer = setTimeout((function(self){ return function() { self.textContent = self.value; } })(this), 2000);\"\"\"]]
+ , [[\"TEXT\", latex]]],
+[\"span\", [], html \"\"\"<button type=\"button\" class=\"btn btn-default btn-sm\" onclick=\"document.execCommand( 'bold',false,null)\" contenteditable=\"false\">
+          <span class=\"glyphicon glyphicon-bold\"></span> Bold
+   </button><button type=\"button\" class=\"btn btn-default btn-sm\" onclick=\"document.execCommand('italic',false,null);\" contenteditable=\"false\">
+     <span class=\"glyphicon glyphicon-italic\"></span> Italic
+   </button>
+   \"\"\"],[\"br\", [], []],
+[\"div\", [[\"style\", [[\"display\", \"inline-block\"]]], [\"id\", \"content\"]], Debug.log \"final HTML0\" <|
+toHtml <| parse <| tokens <| latex]]]
+
+"""
+
 
 --------------------------------------------------------------------------------
 
@@ -6366,8 +6862,9 @@ docsCategory =
       , ("Lens: List Map 2", mapListLens_2)
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
-      , ("Proportional Recipe editor", fromleo_recipe)
+--      , ("Proportional Recipe editor", fromleo_recipe)
       , ("Model View Controller", fromleo_modelviewcontroller)
+      , ("LaTeX editor", fromleo_latexeditor)
 --      , ("TODO", blankDoc)
       , ("Simple Budget", simpleBudget)
       ]

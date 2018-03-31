@@ -311,7 +311,7 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, beforeS
             succeed (,)
             |= delayedCommitMap (\a b -> a) spaces equalSign
             |= (let firstappargpolicy = sameLineOrIndentedByAtLeast (keyWithInfos.start.col - 1 {- The column index-} + 1 {- The indentation increment-}) in -- No newlines, or be at least indented after the keyword.
-              inContext "record value" <| value firstappargpolicy
+              inContext "record value" <| value { firstappargpolicy | first = spaces }
              )
           , case optNoEqualSign of
               Nothing -> fail "Expected ="

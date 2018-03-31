@@ -520,7 +520,12 @@ evalOp syntax env e bt opWithInfo es =
             _                 -> error ()
           DictGet    -> case vs of
             [key, {v_}] -> case v_ of
-              VDict d     -> valToDictKey syntax bt key |> Result.map (\dkey -> Utils.getWithDefault dkey (VBase VNull |> addProvenance) d)
+              VDict d     ->
+                valToDictKey syntax bt key |> Result.map (\dkey ->
+                  case Dict.get dkey d of
+                    Nothing -> VList [VBase (VString "Nothing") |> addProvenance] |> addProvenance
+                    Just x -> VList [VBase (VString "Just") |> addProvenance, x] |> addProvenance
+                  )
               _           -> error()
             _           -> error ()
           DictRemove -> case vs of

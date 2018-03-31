@@ -2123,6 +2123,9 @@ Update =
     diff original modified         = error \"You can call Update.diff only within the .update of a lens. It computes the diff between two values and returns a Maybe VDiffs\"
     merge original modified_values = error \"You can call Update.merge only within the .update of a lens. It repeatedly computes the three-way merge of an original value modified several times.\"
     listDiff original modified     = error \"You can call Update.listDiff only within the .update of a lens. It computes a simplified list of differences between the original and the modified value.\"
+    mapInserted f originalStr modifiedStr =
+      -- TODO: really map the insertions in the modified string by f: String -> String
+      modifiedStr
   }
 
 __extendUpdateModule__ {updateApp,diff,merge} =
@@ -2712,7 +2715,9 @@ Debug = {
 html string = {
   apply trees =
     freeze (letrec domap tree = case tree of
-      [\"HTMLInner\", v] -> [\"TEXT\", replaceAllIn \"&amp;|&lt;|&gt;|</[^>]*>\" (\\{match} -> case match of \"&amp;\" -> \"&\"; \"&lt;\" -> \"<\"; \"&gt;\" -> \">\"; _ -> \"\") v]
+      [\"HTMLInner\", v] -> [\"TEXT\",
+        replaceAllIn \"&nbsp;|&amp;|&lt;|&gt;|</[^>]*>\" (\\{match} ->
+          case match of \"&nbsp;\" -> \" \"; \"&amp;\" -> \"&\"; \"&lt;\" -> \"<\"; \"&gt;\" -> \">\"; _ -> \"\") v]
       [\"HTMLElement\", tagName, attrs, ws1, endOp, children, closing] ->
         [ tagName
         , map (case of
@@ -2721,7 +2726,7 @@ html string = {
             [\"HTMLAttributeString\", _, _, _, content ] -> [name, content]
             [\"HTMLAttributeNoValue\"] -> [name, \"\"]) attrs
         , map domap children]
-      [\"HTMLComment\", _, content] -> [\"comment\", [[\"display\", \"none\"]], [[\"TEXT\", content]]]
+      [\"HTMLComment\", [_, [content]]] -> [\"comment\", [[\"display\", \"none\"]], [[\"TEXT\", content]]]
     in map domap trees)
 
   update {input, oldOutput, newOutput, diffs} =
@@ -2847,11 +2852,6 @@ html string = {
     in mergeNodes input oldOutput newOutput diffs
 }.apply (parseHTML string)
 
-matchIn r x = case extractFirstIn r x of
-  [\"Nothing\"] -> False
-  _ -> True
-
-
 setStyles newStyles [kind, attrs, children] =
   let attrs =
     -- TODO
@@ -2905,6 +2905,22 @@ workspace minSize children =
 applyDict d x = get x d
 applyDict2 x d = get x d
 
+Regex =
+  letrec split regex s =
+    case extractFirstIn (\"^([\\\\s\\\\S]*)(\" + regex + \")([\\\\s\\\\S]*)$\") s of
+      [\"Just\", [before, _, after]] -> before :: split regex after
+      _ -> [s]
+  in
+  {
+  replace regex replacement string = replaceAllIn regex replacement string
+  replaceFirst regex replacement string = replaceFirstIn regex replacement string
+  extract regex string = extractFirstIn regex string
+  matchIn r x = case extractFirstIn r x of
+    [\"Nothing\"] -> False
+    _ -> True
+  split = split
+}
+
 String =
   let strToInt =
     let d = dict [[\"0\", 0], [\"1\", 1], [\"2\", 2], [\"3\", 3], [\"4\", 4], [\"5\", 5], [\"6\", 6], [\"7\", 7], [\"8\", 8], [\"9\", 9]] in
@@ -2915,19 +2931,38 @@ String =
     in
     aux
   in
+  let join delimiter list =
+    letrec aux acc list = case list of
+      [] -> acc
+      [head] -> acc + head
+      (head::tail) -> aux (acc + head + freeze delimiter) tail
+    in aux \"\" list
+  in
   { toInt x =
       { apply x = freeze <| strToInt x
       , unapply output = [\"Just\", toString output]
       }.apply x
+    join delimiter x = {
+        apply x = join delimiter x
+        update {output, oldOutput, diffs} =
+          if delimiter == \"\" then
+            -- Regular update, cannot add elements
+            -- TODO: We should be able to delete elements if they completely disappear !
+            Update.updateApp {fun = join delimiter, oldOutput = oldOutput, output = output, diffs = diffs}
+          else {values = [Regex.split delimiter output]}
+      }.apply x
+    length x = len (explode x)
   }
 
 Dict = {
-  get x d = case get x d of
-    null -> [\"Nothing\"]
-    x -> [\"Just\", x]
-  apply d x = get x d
+  get x d = get x d
+  apply d x = case get x d of
+    [\"Just\", x] -> x
+    _ -> error (\"Expected element \" + toString x + \" in dict, got nothing\")
   insert k v d = insert k v d
+  fromList l = dict l
 }
+
 
 -- List --
 
@@ -2966,6 +3001,11 @@ List =
       unapply [l1, l2] = [\"Just\", [n, l1 ++ l2]]
     }.apply [n, l]
   in
+  letrec reverseInsert elements revAcc =
+    case elements of
+      [] -> revAcc
+      head::tail -> reverseInsert tail (head::revAcc)
+  in
   { simpleMap = simpleMap
     map = map
     nil = nil
@@ -2976,6 +3016,8 @@ List =
     cartesianProductWith = cartesianProductWith
     unzip = unzip
     split = split
+    reverseInsert = reverseInsert
+    reverse = reverse
   }
 
 -- Maybe --
