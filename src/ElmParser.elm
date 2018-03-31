@@ -377,23 +377,17 @@ genericTuple { beforeSpacePolicy, term, tagger, record } =
       let
         name =
           "Tuple" ++ toString (1 + List.length rest)
-        ctor =
-          ( space0, space0, Lang.recordConstructorName, space0
-          , tagger <|
-              EString defaultQuoteChar name
-          )
 
-        entry : Int -> (WS, t) -> (WS, WS, Ident, WS, t)
-        entry index (wsBeforeComma, binding) =
-          (wsBeforeComma, space0, "_" ++ toString index, space0, binding)
+        ctorEntry =
+          Lang.ctor tagger Lang.TupleCtor name
 
         firstEntry =
-          entry 1 (space0, fst)
+          Lang.numericalEntry 1 (space0, fst)
 
         restEntries =
-          Utils.indexedMapFrom 2 entry rest
+          Utils.indexedMapFrom 2 Lang.numericalEntry rest
       in
-        record wsBefore (ctor :: firstEntry :: restEntries) wsBeforeEnd
+        record wsBefore (ctorEntry :: firstEntry :: restEntries) wsBeforeEnd
   in
     lazy <| \_ ->
       paddedBefore
@@ -1286,8 +1280,6 @@ builtInPatternPrecedenceTable : PrecedenceTable
 builtInPatternPrecedenceTable =
   buildPrecedenceTable builtInPatternPrecedenceList
 
-
-
 builtInOperators : List Ident
 builtInOperators =
   List.concatMap
@@ -1371,6 +1363,43 @@ operator sp =
 patternOperator : SpacePolicy -> ParserI Operator
 patternOperator sp =
   paddedBefore (,) sp.first patternSymbolIdentifier
+
+--==============================================================================
+-- Modules
+--==============================================================================
+
+moduleNames : Set String
+moduleNames =
+  Set.fromList
+    [ "SimpleListDiffOp"
+    , "List"
+    , "Tuple"
+    , "Editor"
+    , "Update"
+    , "SoftFreeze"
+    , "Html"
+    , "TableWithButtons"
+    ]
+
+
+--==============================================================================
+-- Data Constructors
+--==============================================================================
+
+isDataConstructor : String -> Bool
+isDataConstructor name =
+  let
+    startsLower =
+      name
+        |> String.uncons
+        |> Maybe.map (Tuple.first >> Char.isUpper)
+        |> Maybe.withDefault False
+
+    notModule =
+      not <|
+        Set.member name moduleNames
+  in
+    startsLower && notModule
 
 --==============================================================================
 -- Expressions
@@ -1874,45 +1903,82 @@ spaceColonType sp =
           |= typ sp
      )
 
--- Either a simple expression or a function application
+-- Either a simple expression or a function application or a data constructor
 simpleUntypedExpressionWithPossibleArguments : SpacePolicy -> Parser Exp
 simpleUntypedExpressionWithPossibleArguments sp =
   let
     combine : Exp -> List Exp -> Exp
     combine first rest =
-      -- If there are no arguments, then we do not have a function application,
-      -- so just return the first expression. Otherwise, build a function
-      -- application.
-      case Utils.maybeLast rest of
-        -- rest is empty
-        Nothing ->
-          first
-
-        -- rest is non-empty
-        Just last ->
-          let
-            e_ =
-              exp_ <|
+      let
+        -- Some special cases
+        maybeSpecial =
+          case first.val.e__ of
+            EVar wsBefore identifier ->
+              -- Datatypes desugar to records
+              if isDataConstructor identifier then
                 let
-                  default =
-                    EApp space0 first rest SpaceApp space0
-                in
-                  case first.val.e__ of
-                    EVar wsBefore identifier ->
-                      case opFromIdentifier identifier of
-                        Just op_ ->
-                          EOp
-                            wsBefore
-                            (withInfo op_ first.start first.end)
-                            rest
-                            space0
+                  ctorEntry =
+                    Lang.ctor
+                      (withDummyExpInfo << EBase space0)
+                      Lang.DataTypeCtor
+                      identifier
 
-                        Nothing ->
-                          default
-                    _ ->
-                      default
-          in
-            withInfo e_ first.start last.end
+                  entries =
+                    rest
+                      |> List.map (\e -> (space0, e))
+                      |> Utils.indexedMapFrom 1 Lang.numericalEntry
+                in
+                  Just << exp_ <|
+                      ERecord
+                        wsBefore
+                        Nothing
+                        (ctorEntry :: entries)
+                        space0
+              else
+                -- Function application with op identifiers are EOps
+                case opFromIdentifier identifier of
+                  Just op_ ->
+                    Just << exp_ <|
+                      EOp
+                        wsBefore
+                        (withInfo op_ first.start first.end)
+                        rest
+                        space0
+
+                  Nothing ->
+                    Nothing
+
+            _ ->
+              Nothing
+
+        start =
+          first.start
+
+        end =
+          case Utils.maybeLast rest of
+            Nothing ->
+              first.end
+
+            Just last ->
+              last.end
+      in
+        case maybeSpecial of
+          Just special ->
+            withInfo special start end
+
+          Nothing ->
+            -- If there are no arguments, then we do not have a function
+            -- application, so just return the first expression. Otherwise,
+            -- build a function application.
+            if List.isEmpty rest then
+              first
+            else
+              withInfo
+                ( exp_ <|
+                    EApp space0 first rest SpaceApp space0
+                )
+                start
+                end
   in
     lazy <| \_ ->
       succeed combine

@@ -63,7 +63,46 @@ type alias Op      = WithInfo Op_
 type alias Branch  = WithInfo Branch_
 type alias TBranch = WithInfo TBranch_
 
-recordConstructorName = "$ctor"
+--------------------------------------------------------------------------------
+-- Constructing records
+
+type CtorKind
+  = TupleCtor
+  | DataTypeCtor
+
+stringifyCtorKind : CtorKind -> String
+stringifyCtorKind ctorKind =
+  case ctorKind of
+    TupleCtor ->
+      "$t_ctor"
+    DataTypeCtor ->
+      "$d_ctor"
+
+ctorKind : String -> Maybe CtorKind
+ctorKind s =
+  case s of
+    "$t_ctor" ->
+      Just TupleCtor
+    "$d_ctor" ->
+      Just DataTypeCtor
+    _ ->
+      Nothing
+
+ctor : (EBaseVal -> t) -> CtorKind -> String -> (WS, WS, Ident, WS, t)
+ctor tagger ctorKind name =
+  ( space0, space0, stringifyCtorKind ctorKind, space0
+  , tagger <|
+      EString defaultQuoteChar name
+  )
+
+numericalEntry : Int -> (WS, t) -> (WS, WS, Ident, WS, t)
+numericalEntry index (wsBeforeComma, binding) =
+  (wsBeforeComma, space0, "_" ++ toString index, space0, binding)
+
+--------------------------------------------------------------------------------
+
+
+
 
 -- TODO add constant literals to patterns, and match 'svg'
 type Pat__
