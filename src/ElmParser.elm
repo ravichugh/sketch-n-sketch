@@ -2027,6 +2027,45 @@ simpleUntypedExpressionWithPossibleArguments sp =
     combine : Exp -> List Exp -> Exp
     combine first rest =
       let
+        constructedRest =
+          flip List.map rest <| \e ->
+            case e.val.e__ of
+              EVar wsBefore identifier ->
+                -- Datatypes desugar to records
+                if isDataConstructor identifier then
+                  let
+                    ctorEntry =
+                      Lang.ctor
+                        (withDummyExpInfo << EBase space0)
+                        Lang.DataTypeCtor
+                        identifier
+
+                    -- This must be a data constructor with no args because of
+                    -- precedence/associativity rules
+                    argsEntry =
+                      ( space0
+                      , space0
+                      , Lang.ctorArgs
+                      , space0
+                      , withDummyExpInfo <|
+                          ERecord space0 Nothing [] space0
+                      )
+                  in
+                    withInfo
+                      ( exp_ <|
+                          ERecord
+                            wsBefore
+                            Nothing
+                            [ctorEntry, argsEntry]
+                            space0
+                      )
+                      e.start
+                      e.end
+                else
+                  e
+              _ ->
+                e
+
         -- Some special cases
         maybeSpecial =
           case first.val.e__ of
@@ -2041,7 +2080,7 @@ simpleUntypedExpressionWithPossibleArguments sp =
                       identifier
 
                   insideArgsEntries =
-                    rest
+                    constructedRest
                       |> List.map (\e -> (space0, e))
                       |> Utils.indexedMapFrom 1 Lang.numericalEntry
 
@@ -2069,7 +2108,7 @@ simpleUntypedExpressionWithPossibleArguments sp =
           first.start
 
         end =
-          case Utils.maybeLast rest of
+          case Utils.maybeLast constructedRest of
             Nothing ->
               first.end
 
@@ -2084,7 +2123,7 @@ simpleUntypedExpressionWithPossibleArguments sp =
             -- If there are no arguments, then we do not have a function
             -- application, so just return the first expression. Otherwise,
             -- build a function application.
-            case Utils.maybeLast rest of
+            case Utils.maybeLast constructedRest of
               -- rest is empty
               Nothing ->
                 maybeConvertToOp0 first
@@ -2092,7 +2131,7 @@ simpleUntypedExpressionWithPossibleArguments sp =
               -- rest is non-empty
               Just last ->
                 let
-                  e_ = exp_ (maybeConvertToOpN first rest)
+                  e_ = exp_ (maybeConvertToOpN first constructedRest)
                 in
                   withInfo e_ first.start last.end
   in
