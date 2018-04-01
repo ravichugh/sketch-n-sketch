@@ -3808,8 +3808,8 @@ nStar fill stroke w n len1 len2 rot cx cy =
     let yi = cy + neg (len * sin anglei) in
       [xi, yi] in
   let lengths =
-    map \\b -> if b then len1 else len2
-         (concat (repeat n [True, False])) in
+    map (\\b -> if b then len1 else len2)
+        (concat (repeat n [True, False])) in
   let indices = list0N (2! * n - 1!) in
     polygon fill stroke w (map pti (zip indices lengths))
 
@@ -3951,8 +3951,8 @@ enumSlider x0 x1 ya::_as enum caption srcVal =
       [ wrap (circle 'black' x0 y 4!), wrap (circle 'black' x1 y 4!) ] in
     let tickpoints =
       let sep = (x1 - x0) / n in
-      map \\j -> wrap (circle 'grey' (x0 + mult j sep) y 4!)
-           (range 1! (n - 1!)) in
+      map (\\j -> wrap (circle 'grey' (x0 + mult j sep) y 4!))
+          (range 1! (n - 1!)) in
     let label = [ text (x1 + 10!) (y + 5!) (caption + toString item) ] in
     concat [ rail, endpoints, tickpoints, ball, label ] in
   [item, ghosts shapes] 
