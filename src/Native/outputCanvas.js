@@ -71,7 +71,8 @@ var msBeforeAutoSync = 1000;
 
 var timerAutoSync = undefined;
 
-var enableAutoUpdate = true;
+var enableAutoUpdate = false;
+  // InterfaceModel.elm: set initModel.syncMode = ValueBackprop True/False to match
 
 var previewMode = false;
 
