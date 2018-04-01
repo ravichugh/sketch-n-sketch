@@ -11,26 +11,26 @@ mapListLens =
           ([], []) ->
             acc
 
-          (["Keep"] :: moreDiffOps, oldHead :: oldTail) ->
+          (KeepValue :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             List.simpleMap (\newTail -> (f, oldHead) :: newTail) tails
 
-          (["Delete"] :: moreDiffOps, oldHead :: oldTail) ->
+          (DeleteValue :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             tails
 
-          (["Update", newVal] :: moreDiffOps, oldHead :: oldTail) ->
+          ((UpdateValue newVal) :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             let heads =
               (Update.updateApp {fun (a,b) = a b, input = (f, oldHead), output = newVal}).values
             in
             List.cartesianProductWith List.cons heads tails
 
-          (["Insert", newVal] :: moreDiffOps, _) ->
+          ((InsertValue newVal) :: moreDiffOps, _) ->
             let headOrPreviousHead =
               case (oldInputs, maybePreviousInput) of
                 (oldHead :: _, _) -> oldHead
-                ([], ["Just", oldPreviousHead]) -> oldPreviousHead
+                ([], Just oldPreviousHead) -> oldPreviousHead
             in
             let tails = walk moreDiffOps maybePreviousInput oldInputs acc in
             let heads =
@@ -41,13 +41,14 @@ mapListLens =
       let newLists =
         walk (Update.listDiff oldOutputList newOutputList) Nothing oldInputList [[]]
       in
-      { values =
-          List.simpleMap (\newList ->
-            let (newFuncs, newInputList) = List.unzip newList in
-            let newFunc = Update.merge f newFuncs in
-            (newFunc, newInputList)
-          ) newLists
-      }
+      let newFuncAndInputLists =
+        List.simpleMap (\newList ->
+          let (newFuncs, newInputList) = List.unzip newList in
+          let newFunc = Update.merge f newFuncs in
+          (newFunc, newInputList)
+        ) newLists
+      in
+      { values = newFuncAndInputLists }
   }
 
 mapList f xs =
