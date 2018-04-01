@@ -1102,7 +1102,7 @@ eAsPoint e =
 
   let e_ =  replacePrecedingWhitespace "" e in
   withDummyExpInfo <|
-    EColonType space1 e_ space1 (withDummyRange <| TNamed space1 "Point") space0
+    EColonType space1 e_ space1 (withDummyRange <| TApp space1 "Point" []) space0
 
 
 pAsTight x p =
@@ -1812,6 +1812,11 @@ mergeExpressions eFirst eRest =
           (mergePatterns pat patList)
           (mergeTypes tipe typeList)
           (mergeExpressions e eList)
+
+    ETypeDef _ _ _ _ _ _ _ ->
+      -- TODO-TD mergeExpressions for TypeDef
+      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
+      Nothing
 
     ECase _ _ _ _ ->
       let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in

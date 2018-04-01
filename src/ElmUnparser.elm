@@ -68,22 +68,36 @@ patName p =
     _ ->
       Nothing
 
+expArgs : Exp -> Maybe (List (WS, WS, Ident, WS, Exp))
+expArgs e =
+  case e.val.e__ of
+    ERecord _ _ entries _ ->
+      Just entries
+    _ ->
+      Nothing
+
+patArgs : Pat -> Maybe (List (WS, WS, Ident, WS, Pat))
+patArgs p =
+  case p.val.p__ of
+    PRecord _ entries _ ->
+      Just entries
+    _ ->
+      Nothing
+
 -- Tries to unparse a record as a tuple
 tryUnparseTuple
-  :  (t -> String) -> (t -> Maybe String)
+  :  (t -> String)
   -> WS -> List (WS, WS, Ident, WS, t) -> WS
-  -> (() -> String) -> String
-tryUnparseTuple unparseTerm name wsBefore elems wsBeforeEnd default =
+  -> Maybe String
+tryUnparseTuple unparseTerm wsBefore elems wsBeforeEnd =
   let
-    pairs =
-      List.map (\(_, _, key, _, val) -> (key, val)) elems
+    ctorString =
+      stringifyCtorKind Lang.TupleCtor
   in
     if
-      pairs
-        |> Utils.maybeFind Lang.recordConstructorName
-        |> Maybe.andThen name
-        |> Maybe.map (String.startsWith "Tuple")
-        |> Maybe.withDefault False
+      elems
+        |> List.map (\(_, _, key, _, _) -> key)
+        |> List.member ctorString
     then
       let
         inside =
@@ -105,13 +119,81 @@ tryUnparseTuple unparseTerm name wsBefore elems wsBeforeEnd default =
                  )
             |> String.concat
       in
-        wsBefore.val
-          ++ "("
-          ++ String.dropLeft 1 inside -- removes first comma
-          ++ wsBeforeEnd.val
-          ++ ")"
+        Just <|
+          wsBefore.val
+            ++ "("
+            ++ String.dropLeft 1 inside -- removes first comma
+            ++ wsBeforeEnd.val
+            ++ ")"
     else
-      default ()
+      Nothing
+
+-- Tries to unparse a record as a data constructor
+tryUnparseDataConstructor
+  :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (WS, WS, Ident, WS, t)))
+  -> WS -> List (WS, WS, Ident, WS, t) -> WS
+  -> Maybe String
+tryUnparseDataConstructor unparseTerm name args wsBefore elems wsBeforeEnd =
+  let
+    ctorString =
+      stringifyCtorKind Lang.DataTypeCtor
+
+    maybeNameString =
+      elems
+        |> List.map (\(_, _, key, _, val) -> (key, val))
+        |> Utils.maybeFind ctorString
+        |> Maybe.andThen name
+
+    maybeArgs =
+      elems
+        |> List.map (\(_, _, key, _, val) -> (key, val))
+        |> Utils.maybeFind Lang.ctorArgs
+        |> Maybe.andThen args
+  in
+    case (maybeNameString, maybeArgs) of
+      (Just nameString, Just args) ->
+        let
+          argsString =
+            args
+              |> List.filter
+                   ( \(_, _, elName, _, _) ->
+                       String.startsWith "_" elName
+                   )
+              |> List.sortBy
+                   ( \(_, _, elName, _, _) ->
+                       elName
+                         |> String.dropLeft 1
+                         |> String.toInt
+                         |> Result.withDefault -1
+                   )
+              |> List.map
+                   ( \(_, _, _, _, elBinding) ->
+                       unparseTerm elBinding
+                   )
+              |> String.concat
+        in
+          Just <|
+            wsBefore.val
+              ++ nameString
+              ++ argsString
+
+      _ ->
+        Nothing
+
+tryUnparseRecordSugars
+  :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (WS, WS, Ident, WS, t)))
+  -> WS -> List (WS, WS, Ident, WS, t) -> WS
+  -> (() -> String) -> String
+tryUnparseRecordSugars unparseTerm name args wsBefore elems wsBeforeEnd default =
+  case tryUnparseTuple unparseTerm wsBefore elems wsBeforeEnd of
+    Just s ->
+      s
+    Nothing ->
+      case tryUnparseDataConstructor unparseTerm name args wsBefore elems wsBeforeEnd of
+        Just s ->
+          s
+        Nothing ->
+          default ()
 
 --------------------------------------------------------------------------------
 -- Patterns
@@ -165,7 +247,7 @@ unparsePattern p =
       unparsePattern tail
 
     PRecord wsBefore elems wsAfter ->
-      tryUnparseTuple unparsePattern patName wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars unparsePattern patName patArgs wsBefore elems wsAfter <| \_ ->
         let maybeJustKey eqSpace key value =
           let default = eqSpace ++ "=" ++ unparsePattern value in
           if eqSpace == "" then
@@ -232,11 +314,11 @@ unparseType tipe =
         ++ "}"
     TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
-    TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
-    TNamed ws1 "Bool"       -> ws1.val ++ "Bad_BOOL"
-    TNamed ws1 "String"     -> ws1.val ++ "Bad_STRING"
-    TNamed ws1 "Null"       -> ws1.val ++ "Bad_NULL"
-    TNamed ws1 ident        -> ws1.val ++ ident
+    TApp ws1 "Num" _        -> ws1.val ++ "Bad_NUM"
+    TApp ws1 "Bool" _       -> ws1.val ++ "Bad_BOOL"
+    TApp ws1 "String" _     -> ws1.val ++ "Bad_STRING"
+    TApp ws1 "Null" _       -> ws1.val ++ "Bad_NULL"
+    TApp ws1 ident ts       -> ws1.val ++ ident ++ String.concat (List.map unparseType ts)
     TVar ws1 ident          -> ws1.val ++ ident
     TWildcard ws            -> ws.val ++ "_"
     TForall ws1 typeVars tipe1 ws2 ->
@@ -479,7 +561,7 @@ unparse e =
       unparse tail
 
     ERecord wsBefore mi elems wsAfter ->
-      tryUnparseTuple unparse expName wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars unparse expName expArgs wsBefore elems wsAfter <| \_ ->
         wsBefore.val
           ++ "{"
           ++ (case mi of
@@ -597,7 +679,7 @@ unparse e =
       wsBefore.val
         ++ "??"
 
-    Lang.EColonType wsBefore term wsBeforeColon typ wsAfter ->
+    EColonType wsBefore term wsBeforeColon typ wsAfter ->
       wsBefore.val
         ++ unparse term
         ++ wsBeforeColon.val
@@ -605,14 +687,14 @@ unparse e =
         ++ unparseType typ
         ++ wsAfter.val
 
-    Lang.ETyp _ name typ rest wsBeforeColon ->
+    ETyp _ name typ rest wsBeforeColon ->
       unparsePattern name
         ++ wsBeforeColon.val
         ++ ":"
         ++ unparseType typ
         ++ unparse rest
 
-    Lang.ETypeAlias wsBefore pat typ rest _ ->
+    ETypeAlias wsBefore pat typ rest _ ->
       wsBefore.val
         ++ "type alias"
         ++ unparsePattern pat
@@ -620,7 +702,38 @@ unparse e =
         ++ unparseType typ
         ++ unparse rest
 
-    Lang.ETypeCase _ _ _ _ ->
+    ETypeDef wsBefore (wsBeforeIdent, ident) vars wsBeforeEqual dcs rest _ ->
+      let
+        unparsedVars =
+          String.concat <|
+            List.map
+              ( \(ws, name) ->
+                  ws.val ++ name
+              )
+              vars
+        unparsedDcs =
+          String.concat <|
+            List.intersperse "|" <|
+              List.map
+                ( \(ws1, name, ts, ws2) ->
+                    ws1.val
+                      ++ name
+                      ++ String.concat (List.map unparseType ts)
+                      ++ ws2.val
+                )
+                dcs
+      in
+        wsBefore.val
+          ++ "type"
+          ++ wsBeforeIdent.val
+          ++ ident
+          ++ unparsedVars
+          ++ wsBeforeEqual.val
+          ++ "="
+          ++ unparsedDcs
+          ++ unparse rest
+
+    ETypeCase _ _ _ _ ->
       "{Error: typecase not yet implemented for Elm syntax}" -- TODO
 
 -- If the expression is a EFun, prints the lists of parameters and returns its body.

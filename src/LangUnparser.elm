@@ -137,11 +137,11 @@ unparseType tipe =
     TRecord _ _ _ _ -> "internal error: cannot unparse TRecord in LangUnparser"
     TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
-    TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
-    TNamed ws1 "Bool"       -> ws1.val ++ "Bad_BOOL"
-    TNamed ws1 "String"     -> ws1.val ++ "Bad_STRING"
-    TNamed ws1 "Null"       -> ws1.val ++ "Bad_NULL"
-    TNamed ws1 ident        -> ws1.val ++ ident
+    TApp ws1 "Num" _        -> ws1.val ++ "Bad_NUM"
+    TApp ws1 "Bool" _       -> ws1.val ++ "Bad_BOOL"
+    TApp ws1 "String" _     -> ws1.val ++ "Bad_STRING"
+    TApp ws1 "Null" _       -> ws1.val ++ "Bad_NULL"
+    TApp ws1 ident ts       -> ws1.val ++ ident ++ String.concat (List.map unparseType ts)
     TVar ws1 ident          -> ws1.val ++ ident
     TWildcard ws            -> ws.val ++ "_"
     TForall ws1 typeVars tipe1 ws2 ->
@@ -171,11 +171,11 @@ unparseTypeWithUniformWhitespace tipe =
     TRecord _ _ _ _ ->  "[internal error] Cannot unparse record type in Langunparser"
     TArrow _ typeList _ -> " " ++ "(->" ++ (String.concat (List.map recurse typeList)) ++ " " ++ ")"
     TUnion _ typeList _ -> " " ++ "(union" ++ (String.concat (List.map recurse typeList)) ++ " " ++ ")"
-    TNamed _ "Num"      -> " " ++ "Bad_NUM"
-    TNamed _ "Bool"     -> " " ++ "Bad_BOOL"
-    TNamed _ "String"   -> " " ++ "Bad_STRING"
-    TNamed _ "Null"     -> " " ++ "Bad_NULL"
-    TNamed _ ident      -> " " ++ ident
+    TApp _ "Num" _      -> " " ++ "Bad_NUM"
+    TApp _ "Bool" _     -> " " ++ "Bad_BOOL"
+    TApp _ "String" _   -> " " ++ "Bad_STRING"
+    TApp _ "Null" _     -> " " ++ "Bad_NULL"
+    TApp _ ident ts     -> " " ++ ident ++ String.concat (List.map unparseTypeWithUniformWhitespace ts)
     TVar _ ident        -> " " ++ ident
     TWildcard _          -> " " ++ "_"
     TForall _ typeVars tipe1 _ ->
@@ -255,6 +255,8 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "(" ++ (unparse_ e) ++ ws2.val ++ ":" ++ (unparseType tipe) ++ ws3.val ++ ")"
   ETypeAlias ws1 pat tipe e ws2 ->
     ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
+  ETypeDef _ _ _ _ _ _ _ ->
+    "{Error: typedef not implemented for Little syntax}"
   EParens ws1 e pStyle ws2 ->
     unparse_ e
   EHole ws v ->
@@ -320,6 +322,8 @@ unparseWithIds e =
       ws1.val ++ "(" ++ (unparseWithIds e) ++ ws2.val ++ ":" ++ eidTag ++ (unparseType tipe) ++ ws3.val ++ ")"
     ETypeAlias ws1 pat tipe e ws2 ->
       ws1.val ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
+    ETypeDef _ _ _ _ _ _ _ ->
+      "{Error: typedef not implemented for Little syntax}"
     EParens ws1 e pStyle ws2 ->
       ws1.val ++ "(" ++ eidTag ++ unparseWithIds e ++ ws2.val ++ ")"
     EHole ws v ->
@@ -393,6 +397,8 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       " " ++ "(" ++ (recurse e) ++ " " ++ ":" ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")"
     ETypeAlias _ pat tipe e _ ->
       " " ++ "(def" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")" ++ recurse e
+    ETypeDef _ _ _ _ _ _ _ ->
+      "{Error: typedef not implemented for Little syntax}"
     EParens _ e _ _ ->
       recurse e
     EHole _ _ ->

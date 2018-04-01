@@ -378,23 +378,17 @@ genericTuple { beforeSpacePolicy, term, tagger, record } =
       let
         name =
           "Tuple" ++ toString (1 + List.length rest)
-        ctor =
-          ( space0, space0, Lang.recordConstructorName, space0
-          , tagger <|
-              EString defaultQuoteChar name
-          )
 
-        entry : Int -> (WS, t) -> (WS, WS, Ident, WS, t)
-        entry index (wsBeforeComma, binding) =
-          (wsBeforeComma, space0, "_" ++ toString index, space0, binding)
+        ctorEntry =
+          Lang.ctor tagger Lang.TupleCtor name
 
         firstEntry =
-          entry 1 (space0, fst)
+          Lang.numericalEntry 1 (space0, fst)
 
         restEntries =
-          Utils.indexedMapFrom 2 entry rest
+          Utils.indexedMapFrom 2 Lang.numericalEntry rest
       in
-        record wsBefore (ctor :: firstEntry :: restEntries) wsBeforeEnd
+        record wsBefore (ctorEntry :: firstEntry :: restEntries) wsBeforeEnd
   in
     lazy <| \_ ->
       paddedBefore
@@ -483,9 +477,17 @@ identifier =
     isRestChar
     keywords
 
+anyIdentifier : ParserI Ident
+anyIdentifier =
+  trackInfo identifier
+
 littleIdentifier : ParserI Ident
 littleIdentifier =
-  trackInfo <| identifier
+  trackInfo <|
+    LK.variable
+      Char.isLower
+      isRestChar
+      keywords
 
 bigIdentifier : ParserI Ident
 bigIdentifier =
@@ -776,7 +778,7 @@ namePattern sp ident =
 variablePattern : SpacePolicy -> Parser Pat
 variablePattern sp =
   inContext "variable pattern" <|
-    namePattern sp littleIdentifier
+    namePattern sp anyIdentifier
 
 --------------------------------------------------------------------------------
 -- Wildcards
@@ -886,6 +888,67 @@ tuplePattern sp =
           , record =
               PRecord
           }
+
+--------------------------------------------------------------------------------
+-- Data Constructor Pattern
+--------------------------------------------------------------------------------
+
+dataConstructorPattern : SpacePolicy -> Parser Pat
+dataConstructorPattern sp =
+  inContext "data constructor pattern" <|
+    lazy <| \_ ->
+      let
+        combiner (wsBefore, start, ctorName) (args, end) =
+          let
+            ctorEntry =
+              Lang.ctor
+                (withDummyPatInfo << PBase space0)
+                Lang.DataTypeCtor
+                ctorName
+
+            insideArgsEntries =
+              args
+                |> List.map (\p -> (space0, p))
+                |> Utils.indexedMapFrom 1 Lang.numericalEntry
+
+            argsEntry =
+              ( space0
+              , space0
+              , Lang.ctorArgs
+              , space0
+              , withDummyPatInfo <|
+                  PRecord space0 insideArgsEntries space0
+              )
+          in
+            withInfo
+              ( pat_ <|
+                  PRecord
+                    wsBefore
+                    [ctorEntry, argsEntry]
+                    space0
+              )
+              start
+              end
+      in
+        delayedCommitMap
+          combiner
+          ( succeed (,,)
+              |= sp.first
+              |= getPos
+              |= flip andThen
+                   ( untrackInfo bigIdentifier
+                   )
+                   ( \id ->
+                       map (always id) <|
+                         guard "not a data constructor" <|
+                           isDataConstructor id
+                   )
+          )
+          ( succeed (,)
+              |= repeat zeroOrMore (pattern allSpacesPolicy)
+              |= getPos
+          )
+
 --------------------------------------------------------------------------------
 -- As-Patterns (@-Patterns)
 --------------------------------------------------------------------------------
@@ -918,6 +981,7 @@ simplePattern sp =
       , lazy <| \_ -> parensPattern sp
       , constantPattern sp
       , baseValuePattern sp
+      , dataConstructorPattern sp
       , variablePattern sp
       , wildcardPattern sp
       ]
@@ -1010,15 +1074,6 @@ boolType sp =
 stringType : SpacePolicy -> Parser Type
 stringType sp =
   baseType "string type" TString sp "String"
-
---------------------------------------------------------------------------------
--- Named Types
---------------------------------------------------------------------------------
-
-namedType : SpacePolicy -> Parser Type
-namedType sp =
-  inContext "named type" <|
-    paddedBefore TNamed sp.first bigIdentifier
 
 --------------------------------------------------------------------------------
 -- Variable Types
@@ -1171,6 +1226,25 @@ unionType sp=
           |= repeat oneOrMore (typ allSpacesPolicy)
 
 --------------------------------------------------------------------------------
+-- App Types
+--------------------------------------------------------------------------------
+
+appType : SpacePolicy -> Parser Type
+appType sp =
+  lazy <| \_ ->
+    inContext "app type" <|
+      trackInfo <|
+        delayedCommitMap
+          ( \wsBefore (ident, ts) ->
+              TApp wsBefore ident ts
+          )
+          sp.first
+          ( succeed (,)
+              |= untrackInfo bigIdentifier
+              |= repeat zeroOrMore (typ spacesWithoutNewline)
+          )
+
+--------------------------------------------------------------------------------
 -- Wildcard Type
 --------------------------------------------------------------------------------
 
@@ -1200,7 +1274,7 @@ typ sp =
         , lazy <| \_ -> recordType sp
         , lazy <| \_ -> forallType sp
         , lazy <| \_ -> unionType sp
-        , namedType sp
+        , lazy <| \_ -> appType sp
         , variableType sp
         ]
 
@@ -1276,8 +1350,6 @@ builtInPrecedenceTable =
 builtInPatternPrecedenceTable : PrecedenceTable
 builtInPatternPrecedenceTable =
   buildPrecedenceTable builtInPatternPrecedenceList
-
-
 
 builtInOperators : List Ident
 builtInOperators =
@@ -1364,6 +1436,53 @@ patternOperator sp =
   paddedBefore (,) sp.first patternSymbolIdentifier
 
 --==============================================================================
+-- Modules
+--==============================================================================
+
+moduleNames : Set String
+moduleNames =
+  Set.fromList
+    -- preludeLeo.elm
+    [ "List"
+    , "Tuple"
+    , "Editor"
+    , "Update"
+    , "SoftFreeze"
+    , "Html"
+    , "TableWithButtons"
+    , "Results"
+    , "LensLess"
+    , "Regex"
+    , "String"
+    , "Dict"
+    , "Debug"
+    , "Maybe"
+    , "Tuple"
+    -- built-in examples
+    , "UI" -- MVC
+    ]
+
+
+--==============================================================================
+-- Data Constructors
+--==============================================================================
+
+isDataConstructor : String -> Bool
+isDataConstructor name =
+  let
+    startsLower =
+      name
+        |> String.uncons
+        |> Maybe.map (Tuple.first >> Char.isUpper)
+        |> Maybe.withDefault False
+
+    notModule =
+      not <|
+        Set.member name moduleNames
+  in
+    startsLower && notModule
+
+--==============================================================================
 -- Expressions
 --==============================================================================
 
@@ -1405,7 +1524,7 @@ baseValueExpression sp =
 
 variableExpression : SpacePolicy -> Parser Exp
 variableExpression sp =
-  mapExp_ <| paddedBefore EVar sp.first littleIdentifier
+  mapExp_ <| paddedBefore EVar sp.first anyIdentifier
 
 --------------------------------------------------------------------------------
 -- Functions (lambdas)
@@ -1736,6 +1855,73 @@ hole sp =
       paddedBefore EHole sp.first (trackInfo <| token "??" Nothing)
 
 --------------------------------------------------------------------------------
+-- Type Aliases
+--------------------------------------------------------------------------------
+
+typeAlias : SpacePolicy -> Parser Exp
+typeAlias sp =
+  inContext "type alias" <|
+    lazy <| \_ ->
+      mapExp_ <|
+        paddedBefore
+          ( \wsBefore (pat, t, rest) ->
+              ETypeAlias wsBefore pat t rest space0
+          )
+          sp.first
+          ( trackInfo <|
+              succeed (,,)
+                |. keywordWithSpace "type alias"
+                |= typePattern sp
+                |. spaces
+                |. symbol "="
+                |= typ sp
+                |= expression sp
+          )
+
+--------------------------------------------------------------------------------
+-- Type Definitions
+--------------------------------------------------------------------------------
+
+typeDefinition : SpacePolicy -> Parser Exp
+typeDefinition sp =
+  inContext "type definition" <|
+    lazy <| \_ ->
+      let
+        var =
+          delayedCommitMap (,)
+            spaces
+            (untrackInfo littleIdentifier)
+        dc =
+          delayedCommitMap
+            ( \wsBefore (i, ts, wsAfter) ->
+                (wsBefore, i, ts, wsAfter)
+            )
+            spaces
+            ( succeed (,,)
+                |= untrackInfo bigIdentifier
+                |= repeat zeroOrMore (typ sp)
+                |= spaces
+            )
+      in
+        mapExp_ <|
+          paddedBefore
+            ( \wsBefore (wsBeforeIdent, ident, vars, wsBeforeEq, dcs, rest) ->
+                ETypeDef wsBefore (wsBeforeIdent, ident) vars wsBeforeEq dcs rest space0
+            )
+            sp.first
+            ( trackInfo <|
+                succeed (,,,,,)
+                  |. keywordWithSpace "type"
+                  |= spaces
+                  |= untrackInfo bigIdentifier
+                  |= repeat zeroOrMore var
+                  |= spaces
+                  |. symbol "="
+                  |= separateBy oneOrMore (symbol "|") dc
+                  |= expression sp
+            )
+
+--------------------------------------------------------------------------------
 -- General Expressions
 --------------------------------------------------------------------------------
 
@@ -1782,9 +1968,10 @@ simpleExpression sp =
     , lazy <| \_ -> (addSelections sp <| try <| tuple sp)
     , lazy <| \_ -> (addSelections sp <| parens sp)
     , lazy <| \_ -> (addSelections sp <| hole sp)
-    -- , lazy <| \_ -> typeCaseExpression
-    -- , lazy <| \_ -> typeAlias
-    -- , lazy <| \_ -> typeDeclaration
+    , lazy <| \_ -> typeAlias sp
+    , lazy <| \_ -> typeDefinition sp
+    -- , lazy <| \_ -> typeCaseExpression sp
+    -- , lazy <| \_ -> typeDeclaration sp
     , (addSelections sp <| variableExpression sp)
   ]
 
@@ -1837,26 +2024,120 @@ maybeConvertToOpN first rest =
         default
 
 
--- Either a simple expression or a function application
+-- Either a simple expression or a function application or a data constructor
 simpleUntypedExpressionWithPossibleArguments : SpacePolicy -> Parser Exp
 simpleUntypedExpressionWithPossibleArguments sp =
   let
     combine : Exp -> List Exp -> Exp
     combine first rest =
-      -- If there are no arguments, then we do not have a function application,
-      -- so just return the first expression. Otherwise, build a function
-      -- application.
-      case Utils.maybeLast rest of
-        -- rest is empty
-        Nothing ->
-          maybeConvertToOp0 first
+      let
+        constructedRest =
+          flip List.map rest <| \e ->
+            case e.val.e__ of
+              EVar wsBefore identifier ->
+                -- Datatypes desugar to records
+                if isDataConstructor identifier then
+                  let
+                    ctorEntry =
+                      Lang.ctor
+                        (withDummyExpInfo << EBase space0)
+                        Lang.DataTypeCtor
+                        identifier
 
-        -- rest is non-empty
-        Just last ->
-          let
-            e_ = exp_ (maybeConvertToOpN first rest)
-          in
-            withInfo e_ first.start last.end
+                    -- This must be a data constructor with no args because of
+                    -- precedence/associativity rules
+                    argsEntry =
+                      ( space0
+                      , space0
+                      , Lang.ctorArgs
+                      , space0
+                      , withDummyExpInfo <|
+                          ERecord space0 Nothing [] space0
+                      )
+                  in
+                    withInfo
+                      ( exp_ <|
+                          ERecord
+                            wsBefore
+                            Nothing
+                            [ctorEntry, argsEntry]
+                            space0
+                      )
+                      e.start
+                      e.end
+                else
+                  e
+              _ ->
+                e
+
+        -- Some special cases
+        maybeSpecial =
+          case first.val.e__ of
+            EVar wsBefore identifier ->
+              -- Datatypes desugar to records
+              if isDataConstructor identifier then
+                let
+                  ctorEntry =
+                    Lang.ctor
+                      (withDummyExpInfo << EBase space0)
+                      Lang.DataTypeCtor
+                      identifier
+
+                  insideArgsEntries =
+                    constructedRest
+                      |> List.map (\e -> (space0, e))
+                      |> Utils.indexedMapFrom 1 Lang.numericalEntry
+
+                  argsEntry =
+                    ( space0
+                    , space0
+                    , Lang.ctorArgs
+                    , space0
+                    , withDummyExpInfo <|
+                        ERecord space0 Nothing insideArgsEntries space0
+                    )
+                in
+                  Just << exp_ <|
+                    ERecord
+                      wsBefore
+                      Nothing
+                      [ctorEntry, argsEntry]
+                      space0
+              else
+                Nothing
+            _ ->
+              Nothing
+
+        start =
+          first.start
+
+        end =
+          case Utils.maybeLast constructedRest of
+            Nothing ->
+              first.end
+
+            Just last ->
+              last.end
+      in
+        case maybeSpecial of
+          Just special ->
+            withInfo special start end
+
+          Nothing ->
+            -- If there are no arguments, then we do not have a function
+            -- application, so just return the first expression. Otherwise,
+            -- build a function application.
+            case Utils.maybeLast constructedRest of
+              -- rest is empty
+              Nothing ->
+                maybeConvertToOp0 first
+
+              -- rest is non-empty
+              Just last ->
+                let
+                  e_ = exp_ (maybeConvertToOpN first constructedRest)
+                in
+                  withInfo e_ first.start last.end
   in
     lazy <| \_ ->
       succeed combine
@@ -2084,7 +2365,6 @@ topLevelTypeDeclaration =
         ( succeed (,)
             |= pattern topLevelInsideDefSpacePolicy
             |= topLevelInsideDefSpacePolicy.first
-            |. symbol ":"
         )
         ( succeed identity
           |= typ topLevelInsideDefSpacePolicy
@@ -2092,33 +2372,82 @@ topLevelTypeDeclaration =
         )
 
 --------------------------------------------------------------------------------
--- Top Level Type Aliases
+-- Top-Level Type Aliases
 --------------------------------------------------------------------------------
 
 topLevelTypeAlias : Parser TopLevelExp
 topLevelTypeAlias =
   inContext "top-level type alias" <|
     delayedCommitMap
-      ( \(wsBefore, typeAliasKeyword, pat) t ->
+      ( \wsBefore (startPos, pat, t, endPos) ->
           withInfo
             ( \rest ->
                 exp_ <|
                   ETypeAlias wsBefore pat t rest space0
             )
-            typeAliasKeyword.start
-            t.end
+            startPos
+            endPos
       )
-      ( succeed (,,)
-          |= spaces
-          |= trackInfo (keywordWithSpace "type alias")
-          |= typePattern topLevelInsideDefSpacePolicy
-          |. topLevelInsideDefSpacePolicy.first
-          |. symbol "="
-      )
-      ( succeed identity
+      spaces
+      ( succeed (,,,)
+        |= getPos
+        |. keywordWithSpace "type alias"
+        |= typePattern topLevelInsideDefSpacePolicy
+        |. topLevelInsideDefSpacePolicy.first
+        |. symbol "="
         |= typ topLevelInsideDefSpacePolicy
         |. optionalTopLevelSemicolon
+        |= getPos
       )
+
+--------------------------------------------------------------------------------
+-- Top-Level Type Definitions
+--------------------------------------------------------------------------------
+
+topLevelTypeDefinition : Parser TopLevelExp
+topLevelTypeDefinition =
+  inContext "top-level type definition" <|
+    lazy <| \_ ->
+      let
+        var =
+          delayedCommitMap (,)
+            topLevelInsideDefSpacePolicy.first
+            (untrackInfo littleIdentifier)
+        dc =
+          delayedCommitMap
+            ( \wsBefore (i, ts, wsAfter) ->
+                (wsBefore, i, ts, wsAfter)
+            )
+            topLevelInsideDefSpacePolicy.first
+            ( succeed (,,)
+                |= untrackInfo bigIdentifier
+                |= repeat zeroOrMore (typ topLevelInsideDefSpacePolicy)
+                |= topLevelInsideDefSpacePolicy.first
+            )
+      in
+        delayedCommitMap
+          ( \wsBefore (startPos, wsBeforeIdent, ident, vars, wsBeforeEq, dcs, endPos) ->
+              withInfo
+                ( \rest ->
+                    exp_ <|
+                      ETypeDef wsBefore (wsBeforeIdent, ident) vars wsBeforeEq dcs rest space0
+                )
+                startPos
+                endPos
+          )
+          spaces
+          ( succeed (,,,,,,)
+            |= getPos
+            |. keywordWithSpace "type"
+            |= topLevelInsideDefSpacePolicy.first
+            |= untrackInfo bigIdentifier
+            |= repeat zeroOrMore var
+            |= topLevelInsideDefSpacePolicy.first
+            |. symbol "="
+            |= separateBy oneOrMore (symbol "|") dc
+            |= getPos
+            |. optionalTopLevelSemicolon
+          )
 
 --------------------------------------------------------------------------------
 -- Top-Level Comments
@@ -2186,8 +2515,9 @@ topLevelExpression =
   inContext "top-level expression" <|
     oneOf
       [ topLevelDef
-      , topLevelTypeDeclaration
       , topLevelTypeAlias
+      , topLevelTypeDefinition
+      , topLevelTypeDeclaration
       , topLevelComment
       , topLevelOption
       ]

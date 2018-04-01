@@ -5924,31 +5924,30 @@ mapListLens_1 =
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
-      -- TODO previous to Right or Next?
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
           ([], []) ->
             acc
 
-          ([\"Keep\"] :: moreDiffOps, oldHead :: oldTail) ->
+          (KeepValue :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             List.simpleMap (\\newTail -> oldHead::newTail) newTails
 
-          ([\"Delete\"] :: moreDiffOps, oldHead :: oldTail) ->
+          (DeleteValue :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             newTails
 
-          ([\"Update\", newVal] :: moreDiffOps, oldHead :: oldTail) ->
+          ((UpdateValue newVal) :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             let newHeads = Update.updateApp {fun = f, input = oldHead, output = newVal} in
             List.cartesianProductWith List.cons newHeads.values newTails
 
-          ([\"Insert\", newVal] :: moreDiffOps, _) ->
+          ((InsertValue newVal) :: moreDiffOps, _) ->
             let headOrPreviousHead =
               case (oldInputs, maybePreviousInput) of
                 (oldHead :: _, _) -> oldHead
-                ([], [\"Just\", previousOldHead]) -> previousOldHead
+                ([], Just previousOldHead) -> previousOldHead
             in
             let newTails = walk moreDiffOps maybePreviousInput oldInputs acc in
             let newHeads = Update.updateApp {fun = f, input = headOrPreviousHead, output = newVal} in
@@ -5986,33 +5985,32 @@ mapListLens_2 =
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
-      -- TODO previous to Right or Next?
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
           ([], []) ->
             acc
 
-          ([\"Keep\"] :: moreDiffOps, oldHead :: oldTail) ->
+          (KeepValue :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             List.simpleMap (\\newTail -> (f, oldHead) :: newTail) tails
 
-          ([\"Delete\"] :: moreDiffOps, oldHead :: oldTail) ->
+          (DeleteValue :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             tails
 
-          ([\"Update\", newVal] :: moreDiffOps, oldHead :: oldTail) ->
+          ((UpdateValue newVal) :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             let heads =
               (Update.updateApp {fun (a,b) = a b, input = (f, oldHead), output = newVal}).values
             in
             List.cartesianProductWith List.cons heads tails
 
-          ([\"Insert\", newVal] :: moreDiffOps, _) ->
+          ((InsertValue newVal) :: moreDiffOps, _) ->
             let headOrPreviousHead =
               case (oldInputs, maybePreviousInput) of
                 (oldHead :: _, _) -> oldHead
-                ([], [\"Just\", oldPreviousHead]) -> oldPreviousHead
+                ([], Just oldPreviousHead) -> oldPreviousHead
             in
             let tails = walk moreDiffOps maybePreviousInput oldInputs acc in
             let heads =

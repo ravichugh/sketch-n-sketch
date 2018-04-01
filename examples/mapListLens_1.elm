@@ -11,24 +11,24 @@ mapListLens =
           ([], []) ->
             acc
 
-          (["Keep"] :: moreDiffOps, oldHead :: oldTail) ->
+          (KeepValue :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             List.simpleMap (\newTail -> oldHead::newTail) newTails
 
-          (["Delete"] :: moreDiffOps, oldHead :: oldTail) ->
+          (DeleteValue :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             newTails
 
-          (["Update", newVal] :: moreDiffOps, oldHead :: oldTail) ->
+          ((UpdateValue newVal) :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             let newHeads = Update.updateApp {fun = f, input = oldHead, output = newVal} in
             List.cartesianProductWith List.cons newHeads.values newTails
 
-          (["Insert", newVal] :: moreDiffOps, _) ->
+          ((InsertValue newVal) :: moreDiffOps, _) ->
             let headOrPreviousHead =
               case (oldInputs, maybePreviousInput) of
                 (oldHead :: _, _) -> oldHead
-                ([], ["Just", previousOldHead]) -> previousOldHead
+                ([], Just previousOldHead) -> previousOldHead
             in
             let newTails = walk moreDiffOps maybePreviousInput oldInputs acc in
             let newHeads = Update.updateApp {fun = f, input = headOrPreviousHead, output = newVal} in
@@ -37,7 +37,10 @@ mapListLens =
       let newInputLists =
         walk (Update.listDiff oldOutputList newOutputList) Nothing oldInputList [[]]
       in
-      { values = List.simpleMap (\newInputList -> (f, newInputList)) newInputLists }
+      let newFuncAndInputLists =
+        List.simpleMap (\newInputList -> (f, newInputList)) newInputLists
+      in
+      { values = newFuncAndInputLists }
   }
 
 mapList f xs =

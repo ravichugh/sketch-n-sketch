@@ -394,6 +394,13 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       , newNameToOldName
       )
 
+    ETypeDef ws1 ident vars ws2 dcs e1 ws3 ->
+      let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
+      ( replaceE__ exp (ETypeDef ws1 ident vars ws2 dcs newE1 ws3)
+      , usedNames_
+      , newNameToOldName
+      )
+
     EParens ws1 e1 pStyle ws2 ->
       let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
       ( replaceE__ exp (EParens ws1 newE1 pStyle ws2)

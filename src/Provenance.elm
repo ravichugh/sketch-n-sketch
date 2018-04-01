@@ -52,6 +52,7 @@ expNonControlFlowChildren exp =
     ETyp _ _ _ _ _                               -> childExps exp
     EColonType _ _ _ _ _                         -> childExps exp
     ETypeAlias _ _ _ _ _                         -> childExps exp
+    ETypeDef _ _ _ _ _ _ _                       -> childExps exp
     EParens _ _ _ _                              -> childExps exp
     EHole _ _                                    -> []
 

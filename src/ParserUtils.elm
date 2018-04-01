@@ -1,6 +1,7 @@
 module ParserUtils exposing
   ( negativeLookAhead
   , lookAhead
+  , separateBy
   , try
   , optional
   , guard
@@ -88,7 +89,35 @@ negativeLookAhead parser =
                    succeed ()
            )
 
+-- Parses (at least / at most) n occurrences of p separated by sep
+separateBy : Count -> Parser sep -> Parser a -> Parser (List a)
+separateBy count sep p =
+  let
+    sepThenP =
+      succeed identity
+        |. sep
+        |= p
+  in
+    case count of
+      AtLeast n ->
+        if n <= 0 then
+          oneOf
+            [ separateBy (AtLeast 1) sep p -- parse one or more
+            , succeed [] -- or just parse zero
+            ]
+        else
+          succeed (\x xs1 xs2 -> x :: xs1 ++ xs2)
+            |= p -- parse exactly one
+            |= repeat (Exactly (n - 1)) sepThenP -- then parse exactly (n - 1)
+            |= repeat zeroOrMore sepThenP -- then parse as many as possible
 
+      Exactly n ->
+        if n <= 0 then
+          succeed [] -- parse exactly zero
+        else
+          succeed (::)
+            |= p -- parse exactly one
+            |= repeat (Exactly (n - 1)) sepThenP -- then parse exactly (n - 1)
 
 try : Parser a -> Parser a
 try parser =
