@@ -1682,6 +1682,56 @@ toolModeIndicator model =
       , toolModeDisplay Sticky "Sticky"
       ]
 
+-- slight variation on toolModeDisplay above
+modeDisplay modeText textStyles modePredicate updateModel =
+  let
+    flag =
+      if modePredicate then
+         " active"
+      else
+        ""
+  in
+    Html.div
+      [ Attr.class <| "tool-mode" ++ flag
+      , Attr.style textStyles
+      , E.onClick (Msg modeText updateModel)
+      ]
+      [ Html.text modeText
+      ]
+
+outputModeIndicator : Model -> Html Msg
+outputModeIndicator model =
+  Html.div
+    [ Attr.class "tool-mode-indicator"
+    ]
+    [ modeDisplay "GUI" []
+        (model.outputMode == Graphics)
+        (\m -> { m | outputMode = Graphics })
+    , modeDisplay "HTML" []
+        (isHtmlText model.outputMode)
+        Controller.doSetOutputHtmlText
+    , modeDisplay "Value" []
+        (model.outputMode == ValueText)
+        (\m -> { m | outputMode = ValueText })
+    ]
+
+syncModeIndicator model =
+  -- not showing TracesAndTriggers modes, only ValueBackprop
+  Html.div
+    [ Attr.class "tool-mode-indicator"
+    ]
+    [ modeDisplay "Auto Sync"
+        ( if model.outputMode == Graphics
+            then []
+            else [("text-decoration", "line-through")]
+        )
+        (model.outputMode == Graphics && model.syncMode == ValueBackprop True)
+        (\m -> { m | syncMode = ValueBackprop True})
+    , modeDisplay "Manual" []
+        (model.outputMode /= Graphics || model.syncMode == ValueBackprop False)
+        (\m -> { m | syncMode = ValueBackprop False })
+    ]
+
 toolPanel : Model -> Html Msg
 toolPanel model =
   let
@@ -1692,7 +1742,9 @@ toolPanel model =
 
     toolButtons =
       if LangSvg.isSvg model.inputVal then
-        [ toolButton model Cursor
+        [ outputModeIndicator model
+        , syncModeIndicator model
+        , toolButton model Cursor
         , toolButton model PointOrOffset
         , toolButton model Text
         , toolButton model (Line model.toolMode)
@@ -1707,35 +1759,8 @@ toolPanel model =
         ]
 
       else
-        [ customButton model "GUI"
-            (if model.outputMode == Graphics then Selected else Unselected)
-            False
-            (\m -> { m | outputMode = Graphics })
-        , customButton model "Html"
-            (if isHtmlText model.outputMode then Selected else Unselected)
-            False
-            Controller.doSetOutputHtmlText
-        , customButton model "Leo"
-            (if model.outputMode == ValueText then Selected else Unselected)
-            False
-            (\m -> { m | outputMode = ValueText })
-        , toolSeparator
-        , toolSeparator
-        , toolSeparator
-        , customButton model "Auto Sync"
-            ( case model.syncMode of
-                ValueBackprop True -> Selected
-                _                  -> Unselected
-            )
-            ( case model.syncMode of
-                TracesAndTriggers _ -> True
-                _                   -> False
-            )
-            (\m -> { m | syncMode = case m.syncMode of
-                           ValueBackprop True -> ValueBackprop False
-                           _                  -> ValueBackprop True
-                   }
-            )
+        [ outputModeIndicator model
+        , syncModeIndicator model
         ]
   in
     Html.div
