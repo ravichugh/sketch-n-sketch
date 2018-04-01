@@ -1442,6 +1442,7 @@ patternOperator sp =
 moduleNames : Set String
 moduleNames =
   Set.fromList
+    -- preludeLeo.elm
     [ "List"
     , "Tuple"
     , "Editor"
@@ -1455,7 +1456,10 @@ moduleNames =
     , "String"
     , "Dict"
     , "Debug"
+    , "Maybe"
     , "Tuple"
+    -- built-in examples
+    , "UI" -- MVC
     ]
 
 

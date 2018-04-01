@@ -1167,23 +1167,34 @@ List =
 
 -- Maybe --
 
+-- TODO remove these and their uses
 -- old version
 nothing = ["Nothing"]
 just x  = ["Just", x]
 
--- new version
--- Maybe = {
---   Nothing = ["Nothing"]
---   Just x  = ["Just", x]
---   withDefault x mb = case mb of
---     ["Nothing"] -> x
---     ["Just", j] -> j
---   withDefaultLazy lazyX mb = case mb of
---     ["Nothing"] -> lazyX []
---     ["Just", j] -> j
--- }
+Maybe =
+  type Maybe a = Nothing | Just a
+  -- TODO use data constructor patterns instead
+  let withDefault x mb = case mb of
+    ["Nothing"] -> x
+    ["Just", j] -> j
+  in
+  let withDefaultLazy lazyX mb = case mb of
+    ["Nothing"] -> lazyX []
+    ["Just", j] -> j
+  in
+  { withDefault = withDefault
+    withDefaultLazy = withDefaultLazy
+  }
+
+-- if we decide to allow types to be defined within (and exported from) modules
 --
 -- {Nothing, Just} = Maybe
+--
+-- might look something more like
+--
+-- {Maybe(Nothing,Just)} = Maybe
+-- {Maybe(..)} = Maybe
 --
 -- -- Sample deconstructors once generalized pattern matching works.
 -- Nothing$ = {
