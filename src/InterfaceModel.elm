@@ -441,6 +441,8 @@ setResultSortKey sortKey (SynthesisResult result) =
 type Msg
   = ResponseFromSolver String
   | Msg String (Model -> Model)
+  -- would be nice to deprecate Msg in favor of just NewModelAndCmd...
+  | NewModelAndCmd String (Model -> (Model, Cmd Msg))
 
 
 type alias AceCodeBoxInfo = -- subset of Model

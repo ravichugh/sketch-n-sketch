@@ -203,6 +203,20 @@ function listenForUpdatesToOutputValues() {
 
 
 //////////////////////////////////////////////////////////////////////
+// DOM Updates from SnS Direct Manipulation UI
+
+app.ports.setDomNumAttribute.subscribe(function(args) {
+  // console.log("setDomNumAttribute:" + args.nodeId + " / " + args.attrName + " / " + args.attrValue);
+  var e = document.querySelector('[data-value-id="' + args.nodeId + '"]');
+  if (e) {
+    e.setAttribute(args.attrName, args.attrValue);
+  } else {
+    console.log("couldn't find data-value-id: " + args.nodeId);
+  }
+});
+
+
+//////////////////////////////////////////////////////////////////////
 // Initialization and Ports
 
 function initializeOutputCanvas() {

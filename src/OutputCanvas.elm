@@ -7,6 +7,7 @@ port module OutputCanvas exposing
   , enableAutoSync
   , setAutoSyncDelay
   , setPreviewMode
+  , setDomNumAttribute
   )
 
 import InterfaceModel as Model exposing (Model, OutputCanvasInfo)
@@ -36,6 +37,8 @@ port enableAutoSync: Bool -> Cmd msg
 port setAutoSyncDelay : Int -> Cmd msg
 
 port setPreviewMode: Bool -> Cmd msg
+
+port setDomNumAttribute : {nodeId:Int, attrName:String, attrValue:Float} -> Cmd msg
 
 -- Incoming
 

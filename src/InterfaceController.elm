@@ -403,35 +403,39 @@ onClickPrimaryZone i k realZone old =
         }
 
 
+onMouseDrag : {x:Int, y:Int} -> {x:Int, y:Int} -> Model -> (Model, Cmd Msg)
 onMouseDrag lastPosition newPosition old =
   let (mx0, my0) = (newPosition.x, newPosition.y) in
   let (isOnCanvas, (mx, my)) = clickToCanvasPoint old newPosition in
   let (_, (mxLast, myLast))  = clickToCanvasPoint old lastPosition in
+  let noCommand newModel = (newModel, Cmd.none) in
   case old.mouseMode of
 
-    MouseNothing -> old
+    MouseNothing -> noCommand old
 
     MouseDragLayoutWidget f ->
-      f (mx0, my0) old
+      noCommand <| f (mx0, my0) old
 
     MouseDrag f ->
-      f lastPosition newPosition old
+      noCommand <| f lastPosition newPosition old
 
     MouseDragZone zoneKey Nothing ->
-      old
+      noCommand old
 
     MouseDragZone zoneKey (Just (trigger, (mx0, my0), _)) ->
       case old.syncMode of
         TracesAndTriggers True ->
-          applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my) old
+          noCommand <|
+            applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my) old
         TracesAndTriggers False ->
           -- TODO: define and run a version of trigger that applies to the
           -- single value being manipulated, rather than the entire program.
-          old
+          noCommand old
         ValueBackprop _ ->
-          old
+          changeDomValue zoneKey (mx0,my0) (mx,my) old
 
     MouseDragSelect initialPosition initialSelectedShapes initialSelectedFeatures initialSelectedBlobs ->
+      noCommand <|
       let pos1 = canvasPosition old initialPosition in
       let pos2 = canvasPosition old (mousePosition old) in
       let selectTop   = min pos1.y pos2.y in
@@ -499,6 +503,7 @@ onMouseDrag lastPosition newPosition old =
 
 
     MouseDrawNew shapeBeingDrawn ->
+      noCommand <|
       case (old.tool, shapeBeingDrawn) of
         (Poly _, _) -> old -- handled by onMouseClick instead
         (Path _, _) -> old -- handled by onMouseClick instead
@@ -556,7 +561,7 @@ onMouseDrag lastPosition newPosition old =
         _ -> old
 
     MouseDownInCodebox pos ->
-      old
+      noCommand old
 
 onMouseUp old =
   case (old.outputMode, old.mouseMode) of
@@ -663,6 +668,34 @@ finishTrigger zoneKey old =
            , history = modelCommit old.code [] old_.history
            , synthesisResultsDict = Dict.empty
            }
+
+--------------------------------------------------------------------------------
+
+changeDomValue zoneKey (mx0,my0) (mx,my) old =
+  let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
+  let dy = if old.keysDown == Keys.x then 0 else (my - my0) in
+  case zoneKey of
+    -- TODO this can certainly be streamlined with
+    -- ShapeWidgets and live sync triggers, but not for now.
+    (i, "rect", ZInterior) ->
+      let (_,attrs,_) = LangSvg.justGetSvgNode "blah" i old.slate in
+      let (x,_) = LangSvg.findNumishAttr "x" attrs in
+      let (y,_) = LangSvg.findNumishAttr "y" attrs in
+      let xNew = x + toFloat dx in
+      let yNew = y + toFloat dy in
+      -- let _ = Debug.log "tell the DOM of rect new (x,y)" (xNew, yNew) in
+      let cmds =
+        -- TODO need to move the zones too...
+        Cmd.batch <|
+          [ OutputCanvas.setDomNumAttribute {nodeId=i, attrName="x", attrValue=xNew}
+          , OutputCanvas.setDomNumAttribute {nodeId=i, attrName="y", attrValue=yNew}
+          ]
+      in
+      (old, cmds)
+
+    _ ->
+      (old, Cmd.none)
+
 
 --------------------------------------------------------------------------------
 
@@ -815,9 +848,10 @@ tryRun old =
 --
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg oldModel =
-  let msgOverview = case msg of
-    Msg k _ -> k
-    _ -> ""
+  let msgCaption = case msg of
+    Msg caption _            -> caption
+    NewModelAndCmd caption _ -> caption
+    ResponseFromSolver _     -> "RESPONSE FROM SOLVER"
   in
   case
     ( (oldModel.pendingFileOperation, oldModel.fileOperationConfirmed)
@@ -835,9 +869,19 @@ update msg oldModel =
       { oldModel | pendingGiveUpMsg = Nothing
                  , giveUpConfirmed = False }
     _ ->
-      let newModel = upstate msg oldModel in
+      let (newModel, newCmd) =
+        let (caption, (newModel, cmd)) =
+          case msg of
+            Msg caption f -> (caption, (f oldModel, Cmd.none))
+            NewModelAndCmd caption f -> (caption, f oldModel)
+            ResponseFromSolver _ ->
+              Debug.crash "InterfaceController.update: solver response messages should never hit here"
+        in
+        let _ = debugLog "Msg (or MsgNewModelAndCmd)" caption in
+        (newModel, cmd)
+      in
       let newAddDummyDivAroundCanvas =
-        if String.startsWith "Ace" msgOverview then newModel.addDummyDivAroundCanvas else
+        if String.startsWith "Ace" msgCaption then newModel.addDummyDivAroundCanvas else
         case newModel.addDummyDivAroundCanvas of
            Just True  -> Just False
            Just False -> Nothing
@@ -853,13 +897,14 @@ update msg oldModel =
             , slateCount = if augmentSlateCondition then newModel.slateCount + 1 else newModel.slateCount
             }
       in
-      let cmd = issueCommand msg oldModel finalModel in
+      let anotherCmd = issueCommandBasedOnCaption msgCaption oldModel finalModel in
       let (hookedModel, hookedCommands) = applyAllHooks oldModel finalModel in
       ( Model.setAllUpdated hookedModel
       , Cmd.batch <|
-          cmd :: updateCommands finalModel ++ hookedCommands
+          newCmd :: anotherCmd :: updateCommands finalModel ++ hookedCommands
       )
 
+-- deprecate if/when Msg is removed in favor of just NewModelAndCmd
 upstate : Msg -> Model -> Model
 upstate msg old =
   case msg of
@@ -870,7 +915,11 @@ upstate msg old =
       let _ = debugLog "Msg" caption in
       updateModel old
 
-    _ ->
+    NewModelAndCmd caption _ ->
+      Debug.crash <|
+        "InterfaceController.upstate: shouldn't be called with a NewModelAndCmd: " ++ caption
+
+    ResponseFromSolver _ ->
       Debug.crash "InterfaceController.upstate: solver response messages should never hit here"
 
 --------------------------------------------------------------------------------
@@ -997,10 +1046,8 @@ getAutoSyncDelay m =
     Just x -> String.toInt x |> Result.withDefault m.autoSyncDelay
     Nothing -> m.autoSyncDelay
 
-issueCommand : Msg -> Model -> Model -> Cmd Msg
-issueCommand msg oldModel newModel =
-  case msg of
-    Msg kind _ ->
+issueCommandBasedOnCaption : String -> Model -> Model -> Cmd Msg
+issueCommandBasedOnCaption kind oldModel newModel =
       case kind of
         "Toggle Code Box" ->
           if newModel.basicCodeBox
@@ -1140,9 +1187,6 @@ issueCommand msg oldModel newModel =
               else
                 Cmd.none
             ]
-
-    _ ->
-      Debug.crash "InterfaceController.issueCommand shouldn't get a solver response message!!"
 
 
 iconCommand filename =
@@ -1402,7 +1446,7 @@ msgMousePosition pos_ =
     mouseStateUpdater old =
       case old.mouseState of
         (Nothing, _, _) ->
-          { old | mouseState = (Nothing, pos_, Nothing) }
+          ({ old | mouseState = (Nothing, pos_, Nothing) }, Cmd.none)
         (Just _, oldPos_, maybeClickable) ->
           onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_, maybeClickable) }
 
@@ -1424,8 +1468,9 @@ msgMousePosition pos_ =
       else
         old
   in
-    Msg ("MousePosition " ++ toString pos_) <|
-      mouseStateUpdater >> deucePopupPanelPositionUpdater
+    NewModelAndCmd
+      ("MousePosition " ++ toString pos_)
+      (mouseStateUpdater >> Tuple.mapFirst deucePopupPanelPositionUpdater)
 
 --------------------------------------------------------------------------------
 

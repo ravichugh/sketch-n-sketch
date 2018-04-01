@@ -51,6 +51,10 @@ update msg model =
       ImpureGoodies.tryCatch "NeedSolution"
         (\()                            -> Controller.update msg model)
         (\(Solver.NeedSolution problem) -> SolverServer.askForSolution problem msg model)
+    NewModelAndCmd _ _ ->
+      ImpureGoodies.tryCatch "NeedSolution"
+        (\()                            -> Controller.update msg model)
+        (\(Solver.NeedSolution problem) -> SolverServer.askForSolution problem msg model)
 
 initCmd : Cmd Msg
 initCmd =
