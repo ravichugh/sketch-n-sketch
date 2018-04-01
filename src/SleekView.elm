@@ -1385,6 +1385,11 @@ codePanel model =
             ]
             []
         ]
+    codePanelWarning =
+      Html.div
+        [ Attr.class "code-panel-warning"
+        ]
+        []
   in
     Html.div
       [ Attr.class "panel code-panel"
@@ -1398,6 +1403,7 @@ codePanel model =
       [ statusBar
       , actionBar
       , editor
+      , codePanelWarning
       ]
 
 --------------------------------------------------------------------------------
@@ -2502,12 +2508,18 @@ view model =
          " has-dialogs"
       else
         ""
+    needsValueBackpropFlag =
+      if Model.needsValueBackprop model then
+        " needs-value-backprop"
+      else
+        ""
   in
     Html.div
       [ Attr.class <|
           "main"
             ++ needsRunFlag
             ++ hasDialogFlag
+            ++ needsValueBackpropFlag
       , E.onClick Controller.msgHideMenu
       , onRightClick Controller.msgNoop
       ]

@@ -1108,6 +1108,14 @@ autoOutputToolsPopupPanelShown model =
         ]
 
     ValueBackprop _ ->
+      needsValueBackprop model
+
+needsValueBackprop model =
+  case model.syncMode of
+    TracesAndTriggers _ ->
+      False
+
+    ValueBackprop _ ->
       Utils.or
         [ model.outputMode == ValueText && valueEditorNeedsCallUpdate model
         , isHtmlText model.outputMode && htmlEditorNeedsCallUpdate model
