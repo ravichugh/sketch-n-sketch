@@ -1706,13 +1706,13 @@ outputModeIndicator model =
     ]
     [ modeDisplay "GUI" []
         (model.outputMode == Graphics)
-        (\m -> { m | outputMode = Graphics })
+        (\m -> { m | outputMode = Graphics, slateCount = m.slateCount + 1 })
     , modeDisplay "HTML" []
         (isHtmlText model.outputMode)
         Controller.doSetOutputHtmlText
     , modeDisplay "Value" []
         (model.outputMode == ValueText)
-        (\m -> { m | outputMode = ValueText })
+        (\m -> { m | outputMode = ValueText, slateCount = m.slateCount + 1 })
     ]
 
 syncModeIndicator model =

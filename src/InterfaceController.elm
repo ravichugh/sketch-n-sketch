@@ -2001,7 +2001,7 @@ msgSetOutputHtmlText = Msg "Set Output Html Text" doSetOutputHtmlText
 
 doSetOutputHtmlText : Model -> Model
 doSetOutputHtmlText old =
-  { old | outputMode = HtmlText (LangSvg.printHTML old.showGhosts old.slate) }
+  { old | outputMode = HtmlText (LangSvg.printHTML old.showGhosts old.slate), slateCount =  old.slateCount + 1 }
 
 msgSetOutputValueText = Msg "Set Output Value Text" <| \old ->
   { old | outputMode = ValueText }
@@ -2331,7 +2331,7 @@ doAutoSync m =
       Just results -> -- If there are only two options (second is always revert to original program), and the first one is not a Hack, then we can apply it !
         case results of
           [SynthesisResult {description, exp, isSafe} , revert] ->
-            if String.startsWith "HACK: " description then newModel else
+            --if String.startsWith "HACK: " description then newModel else
               let newerModel = doSelectSynthesisResult exp newModel in
               { newerModel
                   | addDummyDivAroundCanvas = Just True
