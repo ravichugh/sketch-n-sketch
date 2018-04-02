@@ -2160,6 +2160,8 @@ doCallUpdate m =
     -- isn't correctly re-running and replacing the dirty slate.
     -- here's a temporary workaround: add a second dummy option.
     let results_ =
+      results
+{-
        case results of
          [_] ->
            let dummyResult =
@@ -2170,6 +2172,7 @@ doCallUpdate m =
            dummyResult :: results
          _   ->
            results
+-}
     in
     { m
         | synthesisResultsDict =
