@@ -132,9 +132,9 @@ build dim model =
   else
     let maybeWrappedCanvas =
       case (model.preview, model.addDummyDivAroundCanvas) of
-        (Just _,  _)       -> let _ = Debug.log "Wrapping canvas" () in Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
-        (Nothing, Just _)  -> let _ = Debug.log "Wrapping canvas" () in Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
-        (Nothing, Nothing) -> let _ = Debug.log "Not wrapping canvas" () in outputElement
+        (Just _,  _)       -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        (Nothing, Just _)  -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        (Nothing, Nothing) -> outputElement
     in
     [ maybeWrappedCanvas
     , Svg.svg

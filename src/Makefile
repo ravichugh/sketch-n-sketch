@@ -4,6 +4,7 @@ ELMMAKE=elm-make
 
 all: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
+	sed -i 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].evaluate = _user$project$EvalUpdate$evaluate;\nElm["EvalUpdate"].valToString = _user$project$EvalUpdate$valToString;/g' ../build/out/sns.js
 
 html: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js

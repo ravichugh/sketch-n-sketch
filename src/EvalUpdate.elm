@@ -434,3 +434,15 @@ identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
 identifiersVisibleAtProgramEnd program =
   let lastEId = (lastExp program).val.eid in
   visibleIdentifiersAtEIds program (Set.singleton lastEId)
+
+-- External API
+evaluate: String -> Result String Val
+evaluate s =
+  Syntax.parser Syntax.Elm s
+  |> Result.mapError ParserUtils.showError
+  |> Result.andThen (\exp ->
+    run Syntax.Elm exp
+  ) |> Result.map Tuple.first
+
+valToString: Val -> String
+valToString v = LangUtils.valToString v
