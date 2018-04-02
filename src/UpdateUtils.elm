@@ -1094,6 +1094,10 @@ mergeValMaybe  original modified1 modifs1 modified2 modifs2 =
       Nothing -> (modified1, modifs1)
       Just m2 -> mergeVal original modified1 m1 modified2 m2 |> (\(v, vd) -> (v, Just vd))
 
+defaultMerge: Val ->   Val ->    VDiffs -> Val ->    VDiffs -> (Val, VDiffs)
+defaultMerge  original modified1 modifs1   modified2 modifs2 =
+  if valEqual original modified2 then (modified1, modifs1) else (modified2, modifs2)
+
 -- Merges values using a diffing algorithm.
 mergeVal: Val ->   Val ->    VDiffs -> Val ->    VDiffs -> (Val, VDiffs)
 mergeVal  original modified1 modifs1   modified2 modifs2 =
@@ -1127,16 +1131,14 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
             (_, Nothing) -> (body1, bodymodifs1)
           in
           (replaceV_ original <| VClosure mbRec0 pats0 newBody newEnv, VClosureDiffs newEnvDiffs newBodyModifs)
-        else if valEqual original modified1 then (modified2, modifs2) else (modified1, modifs1)
+        else defaultMerge original modified1 modifs1   modified2 modifs2
       --(VRecord originalElems, VRecord modified1Elems, VRecord modified2Elems)->
       --  Dict.keys originalElems
-      else if valEqual original modified1 then (modified2, modifs2) else (modified1, modifs1)
+      else defaultMerge original modified1 modifs1   modified2 modifs2
     _ ->
       --let _ = Debug.log ("mergeVal" ++ valToString original ++ " "  ++ valToString modified1 ++ " " ++ valToString modified2) " " in
-      let result = if valEqual original modified1 then (modified2, modifs2) else (modified1, modifs1)
-      in
+      defaultMerge original modified1 modifs1   modified2 modifs2
       --let _ = Debug.log ("mergeVal=" ++ valToString result) "" in
-      result
 
 patsEqual: List Pat -> List Pat -> List Pat -> Bool
 patsEqual pats1 pats2 pats3 = List.all identity <| List.map3 (\p0 p1 p2 -> patEqual p0 p1 && patEqual p1 p2) pats1 pats2 pats3
