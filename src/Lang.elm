@@ -113,6 +113,10 @@ numericalValEntry : Int -> t -> (Ident, t)
 numericalValEntry index binding =
   ("_" ++ toString index, binding)
 
+vTuple: List Val -> Val_
+vTuple vals =
+  VRecord <| Dict.fromList <| (ctorVal (builtinVal "Lang.vTuple" << VBase << VString) TupleCtor (ctorTupleName (List.length vals)))::Utils.indexedMapFrom 1 numericalValEntry vals
+
 --------------------------------------------------------------------------------
 
 

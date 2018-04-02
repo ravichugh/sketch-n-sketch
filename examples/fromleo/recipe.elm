@@ -8,7 +8,7 @@ language = "English"
 otherLanguage = if language == "French" then "English" else "French"
 
 txt = dict [
-  ["French", """
+  ("French", """
 <h1>Moelleux chocolat amandes</h1>
 Recette pour multdivby[20,1000] petits gâteaux.<br>
 Préchauffer le four à @(temperature)° (Celsius)
@@ -20,8 +20,8 @@ Préchauffer le four à @(temperature)° (Celsius)
 <li>Cannelle</li>
 <li>Pincée de sel</li>
 Au four pendant 10 minutes dans des moules à cupcakes.<br>
-On peut aussi mettre en déco des amandes effilées, ou remplacer le chocolat par un citron pressé"""],
-  ["English", """
+On peut aussi mettre en déco des amandes effilées, ou remplacer le chocolat par un citron pressé"""),
+  ("English", """
 <h1>Soft chocolate almond cakes</h1>
 Recipe for multdivby[20,1000] small cakes.<br>
 Preheat the oven at @(floor (temperature * freeze 9 / freeze 5) + freeze 32)° Fahrenheit
@@ -33,8 +33,8 @@ Preheat the oven at @(floor (temperature * freeze 9 / freeze 5) + freeze 32)° F
 <li>Cinnamon</li>
 <li>A pinch of salt</li>
 In the oven for 10 minutes in cupcakes pans.<br>
-One can also put as decoration sliced almonds, or replace chocolate by a squeezed lemon."""]
-  ] |> Dict.apply language
+One can also put as decoration sliced almonds, or replace chocolate by a squeezed lemon.""")
+  ] |> flip Dict.apply language
 
 result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
   let mult = String.toInt <| nth m.group 3 in
@@ -82,8 +82,8 @@ result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
 
 div_ [["margin", "20px"]] [] <|
 html <| """<button onclick="this.setAttribute('v','@otherLanguage')" v="@language">To @otherLanguage</button><br>""" +
-  ( dict [["English", """<i>Hint:</i> Use prop[5] for a proportional number 5, plurs[5] to place an s if the quantity (5) is greater than 1."""],
-          ["French", """<i>Astuce:</i> Ecrire prop[5] pour un nombre proportionel 5, plurs[5] pour un 's' conditionel si la quantité 5 est plus grande que 1."""]] |> applyDict2 language) + 
+  ( Dict.fromList [("English", """<i>Hint:</i> Use prop[5] for a proportional number 5, plurs[5] to place an s if the quantity (5) is greater than 1."""),
+          ("French", """<i>Astuce:</i> Ecrire prop[5] pour un nombre proportionel 5, plurs[5] pour un 's' conditionel si la quantité 5 est plus grande que 1.""")] |> flip Dict.apply language) + 
  { apply x = freeze x ,
    update {output} =
      { values = [Regex.replace "((prop)(\\w*)|(plur)(\\w+))\\[(\\d+)\\]" (\m ->

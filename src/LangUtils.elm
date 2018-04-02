@@ -280,7 +280,7 @@ valToExpFull copyFrom sp_ indent v =
           Dict.toList vs |> List.indexedMap (\i (key, value) ->
             let spaceComma = if i == 0 then ws "" else ws <| foldIndent "" indent in
             let spaceElem = ws " " in
-            (spaceComma, valToExp  spaceElem (increaseIndent indent) (replaceV_ v <| VList [dictKeyToVal Syntax.Elm key |> Utils.fromOk "valToExp", value])))
+            (spaceComma, valToExp  spaceElem (increaseIndent indent) (replaceV_ v <| vTuple [dictKeyToVal Syntax.Elm key |> Utils.fromOk "valToExp", value])))
           ) space0 Nothing space0] space0
     VFun name _ _ _ -> EVar sp name
 

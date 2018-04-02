@@ -277,7 +277,7 @@ docsCategory =
       , ("Lens: List Append", listAppendLens)
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
---      , ("Proportional Recipe editor", fromleo_recipe)
+      , ("Proportional Recipe editor", fromleo_recipe)
       , ("Model View Controller", fromleo_modelviewcontroller)
       , ("LaTeX editor", fromleo_latexeditor)
 --      , ("TODO", blankDoc)

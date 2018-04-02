@@ -1040,12 +1040,23 @@ Regex =
   split = split
 }
 
+
+Dict = {
+  get x d = get x d
+  apply d x = case get x d of
+    Just x -> x
+    _ -> error ("Expected element " + toString x + " in dict, got nothing")
+  insert k v d = insert k v d
+  fromList l = dict l
+}
+
+
 String =
   let strToInt =
-    let d = dict [["0", 0], ["1", 1], ["2", 2], ["3", 3], ["4", 4], ["5", 5], ["6", 6], ["7", 7], ["8", 8], ["9", 9]] in
+    let d = Dict.fromList [("0", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("6", 6), ("7", 7), ("8", 8), ("9", 9)] in
     letrec aux x =
       case extractFirstIn "^([0-9]*)([0-9])$" x of
-        Just [init, last] -> (aux init)*10 + applyDict d last
+        Just [init, last] -> (aux init)*10 + Dict.apply d last
         Nothing -> 0
     in
     aux
@@ -1072,15 +1083,6 @@ String =
       }.apply x
     length x = len (explode x)
   }
-
-Dict = {
-  get x d = get x d
-  apply d x = case get x d of
-    Just x -> x
-    _ -> error ("Expected element " + toString x + " in dict, got nothing")
-  insert k v d = insert k v d
-  fromList l = dict l
-}
 
 
 -- List --

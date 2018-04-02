@@ -552,11 +552,13 @@ getUpdateStackOp env e oldVal newVal diffs =
                                     case ImpureGoodies.logTimedRun (".update eval line " ++ toString e1.start.line) <| \_ -> (doEval Syntax.Elm xyEnv xyApplication) of
                                       Err s -> Just <| UpdateCriticalError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
+                                        let _ = Debug.log "Finished to execute .update" () in
                                         case Vu.record Ok vResult of
                                           Err msg -> Just <| UpdateCriticalError <|
                                            "The update closure should return either {values = [list of values]}, {error = \"Error string\"}, or more advanced { values = [...], diffs = [..Nothing/Just diff per value.]}. Got "
                                            ++ valToString vResult
                                           Ok d ->
+                                            let _ = Debug.log "recovered record of .update" () in
                                             let error = case Dict.get "error" d of
                                                 Just errorv -> case Vu.string errorv of
                                                   Ok e -> e
@@ -570,11 +572,15 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                 Just values ->  case Vu.list Ok values of
                                                   Err x -> Just <| UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": .update  should return a record whose .values field is a list. Got " ++ valToString values
                                                   Ok valuesList ->
+                                                    let _ = Debug.log "recovered value list of .update" () in
                                                     let valuesListLazy = LazyList.fromList valuesList in
                                                     let diffsListRes = case Dict.get "diffs" d of
                                                       Nothing ->
+                                                        let _ = Debug.log "No diffs of .update, computing them ..." () in
                                                         ImpureGoodies.logTimedRun ".update recomputing diffs" <| \_ ->
+                                                        let _ = Debug.log "computing value string" () in
                                                         let vArgStr = valToString vArg in
+                                                        let _ = Debug.log "computed value string" () in
                                                         Utils.projOk <|
                                                         List.map (\r ->
                                                           if vArgStr == valToString r then
@@ -585,6 +591,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                         Vu.list (UpdateUtils.valToMaybe valToVDiffs) resultDiffsV |>
                                                           Result.mapError (\msg -> "Line " ++ toString e.start.line ++ ": the .diffs of the result of .update should be a list of (Maybe differences). " ++ msg ++ ", for " ++ valToString resultDiffsV)
                                                     in
+                                                    let _ = Debug.log "computed diffsListRes" () in
                                                     case diffsListRes of
                                                      Err msg -> Just <| UpdateCriticalError msg
                                                      Ok diffsList ->

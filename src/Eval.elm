@@ -25,6 +25,7 @@ import UpdateUtils
 import Results exposing (Results(..), ok1)
 import LazyList
 import ValBuilder as Vb
+import ValUnbuilder as Vu
 
 valToDictKey : Syntax -> Backtrace -> Val -> Result String (String, String)
 valToDictKey syntax bt v =
@@ -504,13 +505,11 @@ evalOp syntax env e bt opWithInfo es =
           Pi         -> nullaryOp args (VConst Nothing (pi, TrOp op []))
           DictEmpty  -> nullaryOp args (VDict Dict.empty)
           DictFromList -> case vs of
-            [list] -> case list.v_ of
-              VList pairs ->
-                List.map (\p -> case p.v_ of
-                  VList [vkey, val] ->
-                    valToDictKey syntax bt vkey |> Result.map (\dkey -> (dkey, val))
-                  _                -> error ()
-                ) pairs
+            [list] -> case Vu.list (Vu.tuple2 Ok Ok) list of
+              Ok listPairs ->
+                List.map (\(vkey, vval) ->
+                  valToDictKey syntax bt vkey |> Result.map (\dkey -> (dkey, vval))
+                ) listPairs
                 |> Utils.projOk
                 |> Result.map (Dict.fromList >> VDict >> addProvenance)
               _                 -> error ()
