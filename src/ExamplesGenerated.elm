@@ -6111,7 +6111,7 @@ listAppend xs ys =
 main =
   -- h3 [] [] (toString (listConcat [[0,1], [2,3], [4,5]]))
   -- h3 [] [] (toString (listAppend [0,1] (listAppend [2,3] [4,5])))
-  h3 [] [] (toString (listAppend [0,1] [2,3]))
+  h3 [] [] (toString (listAppend [0,1] [2,3,4,5]))
 
 """
 
