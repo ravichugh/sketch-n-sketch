@@ -52,6 +52,15 @@ nodeCount exp =
     ETyp _ p t e1 _          -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
     EColonType _ e1 _ t _    -> 1 + typeNodeCount t + nodeCount e1
     ETypeAlias _ p t e1 _    -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+    ETypeDef _ _ _ _ dcs e _ -> 1 + ( List.sum <|
+                                        List.map
+                                          ( \(_, _, ts, _) ->
+                                              List.sum <|
+                                                List.map typeNodeCount ts
+                                          )
+                                        dcs
+                                    )
+                                  + nodeCount e
     EParens _ e1 pStyle _    -> 1 + nodeCount e1
     EHole _ _                -> 1
 
@@ -99,6 +108,14 @@ subExpsOfSizeAtLeast_ min exp =
         ETyp _ p t e1 _          -> 1 + patNodeCount p + typeNodeCount t
         EColonType _ e1 _ t _    -> 1 + typeNodeCount t
         ETypeAlias _ p t e1 _    -> 1 + patNodeCount p + typeNodeCount t
+        ETypeDef _ _ _ _ dcs _ _ -> 1 + ( List.sum <|
+                                            List.map
+                                              ( \(_, _, ts, _) ->
+                                                  List.sum <|
+                                                    List.map typeNodeCount ts
+                                              )
+                                            dcs
+                                        )
         EParens _ _ _ _          -> 1
         EHole _ _                -> 1
     in
@@ -185,7 +202,7 @@ typeNodeCount tipe =
     TRecord _ (Just _) ts _         -> 2 + typesNodeCount (Utils.recordValues ts)
     TArrow _ ts _                   -> 1 + typesNodeCount ts
     TUnion _ ts _                   -> 1 + typesNodeCount ts
-    TNamed _ _                      -> 1
+    TApp _ _ ts                     -> 1 + typesNodeCount ts
     TVar _ _                        -> 1
     TForall _ (One (_, _)) t _      -> 1 + typeNodeCount t
     TForall _ (Many _ idents _) t _ -> 1 + List.length idents + typeNodeCount t
@@ -2092,6 +2109,7 @@ numericLetBoundIdentifiers program =
       ETyp _ _ _ body _             -> recurse body
       EColonType _ e _ _ _          -> recurse e
       ETypeAlias _ _ _ body _       -> recurse body
+      ETypeDef _ _ _ _ _ body _     -> recurse body
       EParens _ e _ _               -> recurse e
       EHole _ Nothing               -> False
       EHole _ (Just val)            -> valIsNum val
@@ -2199,6 +2217,7 @@ transformVarsUntilBound subst exp =
     ETyp ws1 pat tipe e ws2         -> replaceE__ exp (ETyp ws1 pat tipe (recurse e) ws2)
     EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
     ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
+    ETypeDef ws1 i vs ws2 dcs e ws3 -> replaceE__ exp (ETypeDef ws1 i vs ws2 dcs (recurse e) ws3)
     EParens ws1 e pStyle ws2        -> replaceE__ exp (EParens ws1 (recurse e) pStyle ws2)
     EHole _ _                       -> exp
 
@@ -2293,9 +2312,9 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     ETyp _ pat tipe e _       -> ret <| recurse e
     EColonType _ e _ tipe _   -> ret <| recurse e
     ETypeAlias _ pat tipe e _ -> ret <| recurse e
+    ETypeDef _ _ _ _ _ e _    -> ret <| recurse e -- TODO-TD is this correct?
     EParens _ e _ _           -> ret <| recurse e
     EHole _ _                 -> ret Set.empty
-
 
 -- Compute the PathedPatternId that assigned the binding referenced by varExp
 --
@@ -2591,6 +2610,7 @@ expEnvAt_ exp targetEId =
       ETyp _ pat tipe e _        -> recurse e
       EColonType _ e _ tipe _    -> recurse e
       ETypeAlias _ pat tipe e _  -> recurse e
+      ETypeDef _ _ _ _ _ e _     -> recurse e
       EParens _ e _ _            -> recurse e
       EHole _ _                  -> Nothing
 

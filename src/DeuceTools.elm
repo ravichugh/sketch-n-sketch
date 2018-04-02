@@ -1859,6 +1859,25 @@ makeSingleLineTool model selections =
                             EColonType (deLine ws1) e (deLine ws2) tipe space0
                           ETypeAlias ws1 pat tipe e ws2 ->
                             ETypeAlias (deLine ws1) pat tipe e space0
+                          ETypeDef ws1 (wsIdent, ident) vars ws2 dcs e ws3 ->
+                            ETypeDef
+                              (deLine ws1)
+                              (deLine wsIdent, ident)
+                              ( List.map
+                                  ( \(ws, name) ->
+                                      (deLine ws, name)
+                                  )
+                                  vars
+                              )
+                              (deLine ws2)
+                              ( List.map
+                                  ( \(wsa, name, ts, wsb) ->
+                                      (deLine wsa, name, ts, deLine wsb)
+                                  )
+                                  dcs
+                              )
+                              e
+                              space0
                           EParens ws1 e pStyle ws2 ->
                             EParens (deLine ws1) e pStyle (deLine ws2)
                           EHole ws mv ->

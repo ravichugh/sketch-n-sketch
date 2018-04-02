@@ -2061,47 +2061,47 @@ Update =
     in
     applyLens constantInputLens x
   in
-  --   type SimpleListDiffOp = Keep | Delete | Insert Value | Update Value
-  let SimpleListDiffOp =
-    { Keep = [\"Keep\"]
-    , Delete = [\"Delete\"]
-    , Insert v = [\"Insert\", v]
-    , Update v = [\"Update\", v]
-    }
-  in
+  type SimpleListDiffOp = KeepValue | DeleteValue | InsertValue Value | UpdateValue Value
+  -- let SimpleListDiffOp =
+  --   { Keep = [\"Keep\"]
+  --   , Delete = [\"Delete\"]
+  --   , Insert v = [\"Insert\", v]
+  --   , Update v = [\"Update\", v]
+  --   }
+  -- in
   let listDiffOp diffOp oldValues newValues =
    -- listDiffOp : DiffOp -> List Value -> List Value -> List SimpleListDiffOp
 
-     let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
+    -- let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
      let {append} = LensLess in
      case diffOp oldValues newValues of
         [\"Ok\", [\"Just\", [\"VListDiffs\", listDiffs]]] ->
           letrec aux i revAcc oldValues newValues listDiffs =
             case listDiffs of
               [] ->
-                reverse (map1 (\\_ -> Keep) oldValues ++ revAcc)
+                reverse (map1 (\\_ -> KeepValue) oldValues ++ revAcc)
               [j, listDiff]::diffTail ->
                 if j > i then
                   case [oldValues, newValues] of
                     [_::oldTail, _::newTail] ->
-                      aux (i + 1) (Keep::revAcc) oldTail newTail listDiffs
+                      aux (i + 1) (KeepValue::revAcc) oldTail newTail listDiffs
                     _ -> error <| \"[Internal error] Expected two non-empty tails, got  \" + toString [oldValues, newValues]
                 else if j == i then
                   case listDiff of
                     [\"ListElemUpdate\", _] ->
                       case [oldValues, newValues] of
                         [oldHead::oldTail, newHead::newTail] ->
-                          aux (i + 1) (Update newHead :: revAcc) oldTail newTail diffTail
+                          aux (i + 1) (UpdateValue newHead :: revAcc) oldTail newTail diffTail
                         _ -> error <| \"[Internal error] update but missing element\"
                     [\"ListElemInsert\", count] ->
                       case newValues of
                         newHead::newTail ->
-                          aux i (Insert newHead::revAcc) oldValues newTail (if count == 1 then diffTail else [i, [\"ListElemInsert\", count - 1]]::diffTail)
+                          aux i (InsertValue newHead::revAcc) oldValues newTail (if count == 1 then diffTail else [i, [\"ListElemInsert\", count - 1]]::diffTail)
                         _ -> error <| \"[Internal error] insert but missing element\"
                     [\"ListElemDelete\", count] ->
                       case oldValues of
                         oldHead::oldTail ->
-                          aux (i + 1) (Delete::revAcc) oldTail newValues (if count == 1 then diffTail else [i + 1, [\"ListElemDelete\", count - 1]]::diffTail)
+                          aux (i + 1) (DeleteValue::revAcc) oldTail newValues (if count == 1 then diffTail else [i + 1, [\"ListElemDelete\", count - 1]]::diffTail)
                         _ -> error <| \"[Internal error] insert but missing element\"
                 else error <| \"[Internal error] Differences not in order, got index \" + toString j + \" but already at index \" + toString i
           in aux 0 [] oldValues newValues listDiffs
@@ -2127,6 +2127,44 @@ Update =
       -- TODO: really map the insertions in the modified string by f: String -> String
       modifiedStr
   }
+
+-- getSimpleListDiffOps : List Value -> List Value -> VDiffs -> List SimpleListDiffOp
+getSimpleListDiffOps oldValues newValues vDiffs =
+   -- let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
+   let append = __update_append__ in
+   case vDiffs of
+      [\"VListDiffs\", listDiffs] ->
+        letrec aux i revAcc oldValues newValues listDiffs =
+          case listDiffs of
+            [] ->
+              reverse (map1 (\\_ -> KeepValue) oldValues ++ revAcc)
+            [j, listDiff]::diffTail ->
+              if j > i then
+                case [oldValues, newValues] of
+                  [_::oldTail, _::newTail] ->
+                    aux (i + 1) (KeepValue::revAcc) oldTail newTail listDiffs
+                  _ -> error <| \"[Internal error] Expected two non-empty tails, got  \" + toString [oldValues, newValues]
+              else if j == i then
+                case listDiff of
+                  [\"VListElemUpdate\", _] ->
+                    case [oldValues, newValues] of
+                      [oldHead::oldTail, newHead::newTail] ->
+                        aux (i + 1) (UpdateValue newHead :: revAcc) oldTail newTail diffTail
+                      _ -> error <| \"[Internal error] update but missing element\"
+                  [\"VListElemInsert\", count] ->
+                    case newValues of
+                      newHead::newTail ->
+                        aux i (InsertValue newHead::revAcc) oldValues newTail (if count == 1 then diffTail else [i, [\"VListElemInsert\", count - 1]]::diffTail)
+                      _ -> error <| \"[Internal error] insert but missing element\"
+                  [\"VListElemDelete\", count] ->
+                    case oldValues of
+                      oldHead::oldTail ->
+                        aux (i + 1) (DeleteValue::revAcc) oldTail newValues (if count == 1 then diffTail else [i + 1, [\"VListElemDelete\", count - 1]]::diffTail)
+                      _ -> error <| \"[Internal error] insert but missing element\"
+              else error <| \"[Internal error] Differences not in order, got index \" + toString j + \" but already at index \" + toString i
+        in aux 0 [] oldValues newValues listDiffs
+
+      _ -> error (\"Expected VListDiffs, got \" + toString vDiffs)
 
 __extendUpdateModule__ {updateApp,diff,merge} =
   { Update
@@ -3015,35 +3053,46 @@ List =
 
 -- Maybe --
 
+-- TODO remove these and their uses
 -- old version
 nothing = [\"Nothing\"]
 just x  = [\"Just\", x]
 
--- new version
-Maybe = {
-  Nothing = [\"Nothing\"]
-  Just x  = [\"Just\", x]
-  withDefault x mb = case mb of
+Maybe =
+  type Maybe a = Nothing | Just a
+  -- TODO use data constructor patterns instead
+  let withDefault x mb = case mb of
     [\"Nothing\"] -> x
     [\"Just\", j] -> j
-  withDefaultLazy lazyX mb = case mb of
+  in
+  let withDefaultLazy lazyX mb = case mb of
     [\"Nothing\"] -> lazyX []
     [\"Just\", j] -> j
-}
+  in
+  { withDefault = withDefault
+    withDefaultLazy = withDefaultLazy
+  }
 
-{Nothing, Just} = Maybe
-
--- Sample deconstructors once generalized pattern matching works.
-Nothing$ = {
-  unapplySeq exp = case exp of
-    [\"Nothing\"] -> Just []
-    _ -> Nothing
-}
-Just$ = {
-  unapplySeq exp = case exp of
-    [\"Just\", x] -> Just [x]
-    _ -> Nothing
-}
+-- if we decide to allow types to be defined within (and exported from) modules
+--
+-- {Nothing, Just} = Maybe
+--
+-- might look something more like
+--
+-- {Maybe(Nothing,Just)} = Maybe
+-- {Maybe(..)} = Maybe
+--
+-- -- Sample deconstructors once generalized pattern matching works.
+-- Nothing$ = {
+--   unapplySeq exp = case exp of
+--     [\"Nothing\"] -> Just []
+--     _ -> Nothing
+-- }
+-- Just$ = {
+--   unapplySeq exp = case exp of
+--     [\"Just\", x] -> Just [x]
+--     _ -> Nothing
+-- }
 
 -- Tuple --
 
@@ -3759,8 +3808,8 @@ nStar fill stroke w n len1 len2 rot cx cy =
     let yi = cy + neg (len * sin anglei) in
       [xi, yi] in
   let lengths =
-    map \\b -> if b then len1 else len2
-         (concat (repeat n [True, False])) in
+    map (\\b -> if b then len1 else len2)
+        (concat (repeat n [True, False])) in
   let indices = list0N (2! * n - 1!) in
     polygon fill stroke w (map pti (zip indices lengths))
 
@@ -3902,8 +3951,8 @@ enumSlider x0 x1 ya::_as enum caption srcVal =
       [ wrap (circle 'black' x0 y 4!), wrap (circle 'black' x1 y 4!) ] in
     let tickpoints =
       let sep = (x1 - x0) / n in
-      map \\j -> wrap (circle 'grey' (x0 + mult j sep) y 4!)
-           (range 1! (n - 1!)) in
+      map (\\j -> wrap (circle 'grey' (x0 + mult j sep) y 4!))
+          (range 1! (n - 1!)) in
     let label = [ text (x1 + 10!) (y + 5!) (caption + toString item) ] in
     concat [ rail, endpoints, tickpoints, ball, label ] in
   [item, ghosts shapes] 

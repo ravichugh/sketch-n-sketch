@@ -393,7 +393,7 @@ eval syntax env bt e =
     -- Pass-through, so don't add provenance.
     case t1.val of
       -- using (e : Point) as a "point widget annotation"
-      TNamed _ a ->
+      TApp _ a _ ->
         if String.trim a /= "Point" then eval syntax env bt e1
         else
           eval syntax env bt e1 |> Result.map (\(((v,ws),env_) as result) ->
@@ -416,6 +416,7 @@ eval syntax env bt e =
   ETyp _ _ _ e1 _       -> eval syntax env bt e1
   -- EColonType _ e1 _ _ _ -> eval syntax env bt e1
   ETypeAlias _ _ _ e1 _ -> eval syntax env bt e1
+  ETypeDef _ _ _ _ _ e1 _ -> eval syntax env bt e1
   EParens _ e1 _ _      -> eval syntax env bt e1
   EHole _ (Just val)    -> Ok <| retV [val] val
   EHole _ Nothing       -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"

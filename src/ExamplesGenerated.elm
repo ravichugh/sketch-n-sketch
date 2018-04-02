@@ -5924,31 +5924,30 @@ mapListLens_1 =
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
-      -- TODO previous to Right or Next?
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
           ([], []) ->
             acc
 
-          ([\"Keep\"] :: moreDiffOps, oldHead :: oldTail) ->
+          (KeepValue :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             List.simpleMap (\\newTail -> oldHead::newTail) newTails
 
-          ([\"Delete\"] :: moreDiffOps, oldHead :: oldTail) ->
+          (DeleteValue :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             newTails
 
-          ([\"Update\", newVal] :: moreDiffOps, oldHead :: oldTail) ->
+          ((UpdateValue newVal) :: moreDiffOps, oldHead :: oldTail) ->
             let newTails = walk moreDiffOps (Just oldHead) oldTail acc in
             let newHeads = Update.updateApp {fun = f, input = oldHead, output = newVal} in
             List.cartesianProductWith List.cons newHeads.values newTails
 
-          ([\"Insert\", newVal] :: moreDiffOps, _) ->
+          ((InsertValue newVal) :: moreDiffOps, _) ->
             let headOrPreviousHead =
               case (oldInputs, maybePreviousInput) of
                 (oldHead :: _, _) -> oldHead
-                ([], [\"Just\", previousOldHead]) -> previousOldHead
+                ([], Just previousOldHead) -> previousOldHead
             in
             let newTails = walk moreDiffOps maybePreviousInput oldInputs acc in
             let newHeads = Update.updateApp {fun = f, input = headOrPreviousHead, output = newVal} in
@@ -5986,33 +5985,32 @@ mapListLens_2 =
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
-      -- TODO previous to Right or Next?
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
           ([], []) ->
             acc
 
-          ([\"Keep\"] :: moreDiffOps, oldHead :: oldTail) ->
+          (KeepValue :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             List.simpleMap (\\newTail -> (f, oldHead) :: newTail) tails
 
-          ([\"Delete\"] :: moreDiffOps, oldHead :: oldTail) ->
+          (DeleteValue :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             tails
 
-          ([\"Update\", newVal] :: moreDiffOps, oldHead :: oldTail) ->
+          ((UpdateValue newVal) :: moreDiffOps, oldHead :: oldTail) ->
             let tails = walk moreDiffOps (Just oldHead) oldTail acc in
             let heads =
               (Update.updateApp {fun (a,b) = a b, input = (f, oldHead), output = newVal}).values
             in
             List.cartesianProductWith List.cons heads tails
 
-          ([\"Insert\", newVal] :: moreDiffOps, _) ->
+          ((InsertValue newVal) :: moreDiffOps, _) ->
             let headOrPreviousHead =
               case (oldInputs, maybePreviousInput) of
                 (oldHead :: _, _) -> oldHead
-                ([], [\"Just\", oldPreviousHead]) -> oldPreviousHead
+                ([], Just oldPreviousHead) -> oldPreviousHead
             in
             let tails = walk moreDiffOps maybePreviousInput oldInputs acc in
             let heads =
@@ -6045,6 +6043,75 @@ transformedValues =
 
 main =
   Html.p [] [] (toString transformedValues)
+
+"""
+
+listAppendLens =
+ """listAppendSimple xs ys =
+  case xs of
+    []    -> ys
+    x::xs -> x :: listAppendSimple xs ys
+
+listAppendLens = {
+  apply (xs, ys) =
+    Update.freeze (listAppendSimple xs ys)
+
+  update {input = (xs,ys), outputOld, outputNew} =
+
+    -- consLefts, consRights : a -> List (List a, List a) -> List (List a, List a)
+    let consLefts v list = List.simpleMap (Tuple.mapFirst (List.cons v)) list in
+    let consRights v list = List.simpleMap (Tuple.mapSecond (List.cons v)) list in
+
+    letrec walk insertLeft diffOps xs ys acc =
+      case diffOps of
+        [] ->
+          case (xs, ys) of
+            ([], []) -> acc
+
+        KeepValue::diffOps ->
+          case (xs, ys) of
+            (x::xs, _) -> consLefts x (walk True diffOps xs ys acc)
+            ([], y::ys) -> consRights y (walk False diffOps xs ys acc)
+
+        DeleteValue::diffOps ->
+          case (xs, ys) of
+            (_::xs, _) -> walk True diffOps xs ys acc
+            ([], _::ys) -> walk False diffOps [] ys acc
+
+        (UpdateValue v)::diffOps ->
+          case (xs, ys) of
+            (_::xs, _) -> consLefts v (walk True diffOps xs ys acc)
+            ([], _::ys) -> consRights v (walk False diffOps [] ys acc)
+
+        (InsertValue v)::diffOps ->
+          case (xs, ys) of
+            (_::_, _) -> consLefts v (walk True diffOps xs ys acc)
+            ([], _) ->
+              if insertLeft then
+                listAppendSimple
+                  (consLefts v (walk True diffOps [] ys acc))
+                  (consRights v (walk False diffOps [] ys acc))
+              else
+                consRights v (walk False diffOps [] ys acc)
+    in
+    let newLists =
+      walk True (Update.listDiff outputOld outputNew) xs ys [([],[])]
+    in
+    { values = newLists }
+}
+
+listAppend xs ys =
+  Update.applyLens listAppendLens (xs, ys)
+
+-- listConcat xss =
+--   case xss of
+--     []      -> []
+--     ys::yss -> listAppend ys (listConcat yss)
+
+main =
+  -- h3 [] [] (toString (listConcat [[0,1], [2,3], [4,5]]))
+  -- h3 [] [] (toString (listAppend [0,1] (listAppend [2,3] [4,5])))
+  h3 [] [] (toString (listAppend [0,1] [2,3]))
 
 """
 
@@ -6885,6 +6952,7 @@ docsCategory =
       [ ("Lens: Maybe Map", mapMaybeLens)
       , ("Lens: List Map 1", mapListLens_1)
       , ("Lens: List Map 2", mapListLens_2)
+      , ("Lens: List Append", listAppendLens)
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
 --      , ("Proportional Recipe editor", fromleo_recipe)
