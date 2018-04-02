@@ -364,10 +364,10 @@ extractors = {
 
 
 -- Helpers to construct/deconstruct datatypes from Val
-maybeToVal: (Val -> a -> Val) -> Val -> Maybe a -> Val
-maybeToVal subroutine v mba = case mba of
-  Just x  -> Vb.constructor v "Just"    [subroutine v x]
-  Nothing -> Vb.constructor v "Nothing" []
+maybeToVal: (Vb.Vb -> a -> Val) -> Vb.Vb -> Maybe a -> Val
+maybeToVal subroutine vb mba = case mba of
+  Just x  -> Vb.constructor vb "Just"    [subroutine vb x]
+  Nothing -> Vb.constructor vb "Nothing" []
 
 valToMaybe: (Val -> Result String a)  -> Val -> Result String (Maybe a)
 valToMaybe subroutine v = case Vu.constructor Ok v of
@@ -376,10 +376,10 @@ valToMaybe subroutine v = case Vu.constructor Ok v of
   Ok _ -> Err <| "Expected Just or Nothing, got " ++ valToString v
   Err msg -> Err msg
 
-resultToVal: Val -> (a -> Val) -> Result String a -> Val
-resultToVal v subroutine mba = case mba of
-  Ok x  -> Vb.constructor v "Ok"    [subroutine x]
-  Err msg-> Vb.constructor v "Err"  [Vb.string v msg]
+resultToVal: (Vb.Vb -> a -> Val) -> Vb.Vb -> Result String a -> Val
+resultToVal subroutine vb mba = case mba of
+  Ok x  -> Vb.constructor vb "Ok"    [subroutine vb x]
+  Err msg-> Vb.constructor vb "Err"  [Vb.string vb msg]
 
 valToResult: (Val -> Result String a)  -> Val -> Result String (Result String a)
 valToResult subroutine v = case Vu.constructor Ok v of
@@ -390,7 +390,7 @@ valToResult subroutine v = case Vu.constructor Ok v of
 
 
 -- Helpers for TupleDiffs and ListDiffs
-tupleDiffsToVal: (Val -> a -> Val) -> Val -> TupleDiffs a -> Val
+tupleDiffsToVal: (Vb.Vb -> a -> Val) -> Vb.Vb -> TupleDiffs a -> Val
 tupleDiffsToVal subroutine =
   Vb.list (Vb.tuple2 Vb.int subroutine)
 
@@ -398,17 +398,17 @@ valToTupleDiffs: (Val -> Result String a) -> Val -> Result String (TupleDiffs a)
 valToTupleDiffs subroutine =
   Vu.list (Vu.tuple2 Vu.int subroutine)
 
-listDiffsToVal: (Val -> a -> Val) -> Val -> (ListDiffs a) -> Val
+listDiffsToVal: (Vb.Vb -> a -> Val) -> Vb.Vb -> (ListDiffs a) -> Val
 listDiffsToVal subroutine= Vb.list (Vb.tuple2 Vb.int (listElemDiffToVal subroutine))
 
 valToListDiffs: (Val -> Result String a) -> Val -> Result String (ListDiffs a)
 valToListDiffs subroutine l = Vu.list (Vu.tuple2 Vu.int (valToListElemDiff subroutine)) l
 
-listElemDiffToVal: (Val -> a -> Val) -> Val -> ListElemDiff a -> Val
-listElemDiffToVal subroutine v velem = case velem of
-   ListElemUpdate d -> (Vb.constructor v) "ListElemUpdate" [subroutine v d]
-   ListElemInsert i -> (Vb.constructor v) "ListElemInsert" [(Vb.int v) i]
-   ListElemDelete i -> (Vb.constructor v) "ListElemDelete" [(Vb.int v) i]
+listElemDiffToVal: (Vb.Vb -> a -> Val) -> Vb.Vb -> ListElemDiff a -> Val
+listElemDiffToVal subroutine vb velem = case velem of
+   ListElemUpdate d -> (Vb.constructor vb) "ListElemUpdate" [subroutine vb d]
+   ListElemInsert i -> (Vb.constructor vb) "ListElemInsert" [(Vb.int vb) i]
+   ListElemDelete i -> (Vb.constructor vb) "ListElemDelete" [(Vb.int vb) i]
 
 valToListElemDiff: (Val -> Result String a) -> Val -> Result String (ListElemDiff a)
 valToListElemDiff subroutine v = case Vu.constructor Ok v of
@@ -420,16 +420,16 @@ valToListElemDiff subroutine v = case Vu.constructor Ok v of
 
 
 -- Instantiation of differences
-envDiffsToVal: Val -> EnvDiffs -> Val
+envDiffsToVal: Vb.Vb -> EnvDiffs -> Val
 envDiffsToVal = tupleDiffsToVal vDiffsToVal
 valToEnvDiffs: Val -> Result String EnvDiffs
 valToEnvDiffs = valToTupleDiffs valToVDiffs
 
-vDictElemDiffToVal: Val -> VDictElemDiff -> Val
-vDictElemDiffToVal v velem = case velem of
-  VDictElemDelete -> (Vb.constructor v) "VDictElemDelete" []
-  VDictElemInsert -> (Vb.constructor v) "VDictElemInsert" []
-  VDictElemUpdate u -> (Vb.constructor v) "VDictElemUpdate" [vDiffsToVal v u]
+vDictElemDiffToVal: Vb.Vb -> VDictElemDiff -> Val
+vDictElemDiffToVal vb velem = case velem of
+  VDictElemDelete -> (Vb.constructor vb) "VDictElemDelete" []
+  VDictElemInsert -> (Vb.constructor vb) "VDictElemInsert" []
+  VDictElemUpdate u -> (Vb.constructor vb) "VDictElemUpdate" [vDiffsToVal vb u]
 
 valToVDictElemDiff: Val -> Result String VDictElemDiff
 valToVDictElemDiff v = case Vu.constructor Ok v of
@@ -440,13 +440,13 @@ valToVDictElemDiff v = case Vu.constructor Ok v of
   Err msg -> Err msg
 
 -- Val encoding of VDiffs
-vDiffsToVal: Val -> VDiffs -> Val
-vDiffsToVal v vdiffs = case vdiffs of
-  VClosureDiffs e mbe -> (Vb.constructor v) "VClosureDiffs" [envDiffsToVal v e, maybeToVal eDiffsToVal v mbe]
-  VListDiffs list     -> (Vb.constructor v) "VListDiffs"    [listDiffsToVal vDiffsToVal v list]
-  VConstDiffs         -> (Vb.constructor v) "VConstDiffs"   []
-  VDictDiffs d        -> (Vb.constructor v) "VDictDiffs"    [Vb.dict vDictElemDiffToVal v d]
-  VRecordDiffs d      -> (Vb.constructor v) "VRecordDiffs " [Vb.record vDiffsToVal v d]
+vDiffsToVal: Vb.Vb -> VDiffs -> Val
+vDiffsToVal vb vdiffs = case vdiffs of
+  VClosureDiffs e mbe -> (Vb.constructor vb) "VClosureDiffs" [envDiffsToVal vb e, maybeToVal eDiffsToVal vb mbe]
+  VListDiffs list     -> (Vb.constructor vb) "VListDiffs"    [listDiffsToVal vDiffsToVal vb list]
+  VConstDiffs         -> (Vb.constructor vb) "VConstDiffs"   []
+  VDictDiffs d        -> (Vb.constructor vb) "VDictDiffs"    [Vb.dict vDictElemDiffToVal vb d]
+  VRecordDiffs d      -> (Vb.constructor vb) "VRecordDiffs " [Vb.record vDiffsToVal vb d]
 
 valToVDiffs: Val -> Result String VDiffs
 valToVDiffs v = case Vu.constructor Ok v of
@@ -458,11 +458,11 @@ valToVDiffs v = case Vu.constructor Ok v of
   Ok _ -> Err <| "Expected VClosureDiffs[_, _], VListDiffs[_], VConstDiffs[], VDictDiffs[_], VRecordDiffs[_], got " ++ valToString v
   Err msg -> Err msg
 
-eDiffsToVal: Val -> EDiffs -> Val
-eDiffsToVal v ediffs = case ediffs of
-  EConstDiffs ws -> Vb.constructor v "EConstDiffs" [Vb.int v (if ws == EOnlyWhitespaceDiffs then 0 else 1)]
-  EListDiffs list -> Vb.constructor v "EListDiffs" [listDiffsToVal eDiffsToVal v list]
-  EChildDiffs children -> Vb.constructor v "EChildDiffs" [tupleDiffsToVal eDiffsToVal v children]
+eDiffsToVal: Vb.Vb -> EDiffs -> Val
+eDiffsToVal vb ediffs = case ediffs of
+  EConstDiffs ws -> Vb.constructor vb "EConstDiffs" [Vb.int vb (if ws == EOnlyWhitespaceDiffs then 0 else 1)]
+  EListDiffs list -> Vb.constructor vb "EListDiffs" [listDiffsToVal eDiffsToVal vb list]
+  EChildDiffs children -> Vb.constructor vb "EChildDiffs" [tupleDiffsToVal eDiffsToVal vb children]
 
 valToEDiffs: Val -> Result String EDiffs
 valToEDiffs v = case Vu.constructor Ok v of

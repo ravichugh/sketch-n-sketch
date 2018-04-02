@@ -368,7 +368,7 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, beforeS
 genericTuple
   :  { beforeSpacePolicy : SpacePolicy
      , term : SpacePolicy -> Parser t
-     , tagger : EBaseVal -> t
+     , tagger : String -> t
      , record : WS -> List (WS, WS, Ident, WS, t) -> WS -> r
      }
   -> ParserI r
@@ -377,7 +377,7 @@ genericTuple { beforeSpacePolicy, term, tagger, record } =
     combiner wsBefore (fst, rest, wsBeforeEnd) =
       let
         name =
-          "Tuple" ++ toString (1 + List.length rest)
+          Lang.ctorTupleName (1 + List.length rest)
 
         ctorEntry =
           Lang.ctor tagger Lang.TupleCtor name
@@ -884,7 +884,7 @@ tuplePattern sp =
           , term =
               pattern
           , tagger =
-              withDummyPatInfo << PBase space0
+              withDummyPatInfo << PBase space0 << EString defaultQuoteChar
           , record =
               PRecord
           }
@@ -902,7 +902,7 @@ dataConstructorPattern sp =
           let
             ctorEntry =
               Lang.ctor
-                (withDummyPatInfo << PBase space0)
+                (withDummyPatInfo << PBase space0 << EString defaultQuoteChar)
                 Lang.DataTypeCtor
                 ctorName
 
@@ -1457,7 +1457,6 @@ moduleNames =
     , "Dict"
     , "Debug"
     , "Maybe"
-    , "Tuple"
     -- built-in examples
     , "UI" -- MVC
     ]
@@ -1838,7 +1837,7 @@ tuple sp =
           , term =
               expression
           , tagger =
-              withDummyExpInfo << EBase space0
+              withDummyExpInfo << EBase space0 << EString defaultQuoteChar
           , record =
               \ws1 entries ws2 ->
                 ERecord ws1 Nothing entries ws2
@@ -2040,7 +2039,7 @@ simpleUntypedExpressionWithPossibleArguments sp =
                   let
                     ctorEntry =
                       Lang.ctor
-                        (withDummyExpInfo << EBase space0)
+                        (withDummyExpInfo << EBase space0 << EString defaultQuoteChar)
                         Lang.DataTypeCtor
                         identifier
 
@@ -2079,7 +2078,7 @@ simpleUntypedExpressionWithPossibleArguments sp =
                 let
                   ctorEntry =
                     Lang.ctor
-                      (withDummyExpInfo << EBase space0)
+                      (withDummyExpInfo << EBase space0 << EString defaultQuoteChar)
                       Lang.DataTypeCtor
                       identifier
 

@@ -27,6 +27,8 @@ import UpdateUtils exposing (..)
 import LangUtils exposing (valToString)
 import UpdateStack exposing (..)
 import UpdatedEnv exposing (UpdatedEnv)
+import ValBuilder as Vb
+import ValUnbuilder as Vu
 --import LangTools exposing (valToString)
 
 removeSlashDollar s = replace All (regex "\\\\\\$") (\_ -> "\\$") s
@@ -311,31 +313,28 @@ updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV strin
 -- We can code extractFirstIn once we have records and record pattern matching.
 evalRegexExtractFirstIn: Val -> Val -> Result String Val
 evalRegexExtractFirstIn regexpV stringV =
-  let vStr = replaceV_ stringV << VBase << VString in
-  let vList = replaceV_ stringV << VList in
   case (regexpV.v_, stringV.v_) of
     (VBase (VString regexp), VBase (VString string)) ->
       let matches = GroupStartMap.find (Regex.AtMost 1) regexp string in
       case matches of
-        [] -> Ok (vList [vStr "Nothing"])
+        [] -> Ok (Vb.constructor (Vb.fromVal stringV) "Nothing" [])
         m::_ ->
-          Ok (replaceV_ stringV <| VList [
-            vStr "Just",
-            vList <| List.map (\{match, start} -> vStr <| Maybe.withDefault "" match) m.submatches ])
+          Ok (Vb.constructor (Vb.fromVal stringV) "Just"
+               [Vb.list (\v {match} -> Vb.string v <| Maybe.withDefault "" match) (Vb.fromVal stringV) m.submatches])
     _ -> Err "Expected two strings, a regex and a string, got something else"
 
 updateRegexExtractFirstIn: Val -> Val -> Val -> Val -> Results String Val
 updateRegexExtractFirstIn regexpV stringV oldVal newVal =
-  case (regexpV.v_, stringV.v_, oldVal.v_, newVal.v_) of
-    (VBase (VString regexp), VBase (VString string), VList oldGroups, VList newGroups) ->
+  case (regexpV.v_, stringV.v_) of
+    (VBase (VString regexp), VBase (VString string)) ->
       let matches = GroupStartMap.find (Regex.AtMost 1) regexp string in
       case matches of
         [] ->
 --          let _ = Debug.log "No match, just return original string" () in
           ok1 stringV
         m::_ ->
-          case newGroups of
-            [just, v] ->
+          case Vu.constructor Ok newVal of
+            Ok ("Just", [v]) ->
               case v.v_ of
                 VList newGroupsList ->
 --                  let _ = Debug.log "One match, reverting" () in

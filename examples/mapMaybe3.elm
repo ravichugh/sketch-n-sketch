@@ -20,18 +20,18 @@ mapMaybe default f mx =
                     [f, [newX]]
                   ) values,
                 diffs = map (case of
-                    ["Nothing"] -> ["Nothing"]
-                    ["Just", ["VListDiffs", funxdiffs]] ->
-                      ["Just", ["VListDiffs", funxdiffs |>
+                    Nothing -> Nothing
+                    Just (VListDiffs funxdiffs) ->
+                      Just (VListDiffs (funxdiffs |>
                         map (case of
                           [0, funDiff] -> [0, funDiff]
-                          [  1, ["ListElemUpdate", xDiff]] ->
-                            [1, ["ListElemUpdate", ["VListDiffs", [[0, 
+                          [  1, ListElemUpdate xDiff] ->
+                            [1, ListElemUpdate (VListDiffs [[0, 
                               case mx of 
-                                [_] -> ["ListElemUpdate", xDiff]
-                                [] -> ["ListElemInsert", 1]
-                            ]]]]]
-                        ) ] ]
+                                [_] -> ListElemUpdate xDiff
+                                [] -> ListElemInsert 1
+                            ]])]
+                        )))
                   ) diffs
               }
   }

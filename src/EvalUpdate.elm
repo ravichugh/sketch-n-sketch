@@ -6,7 +6,7 @@ Eval.run has become EvalUpdate.run, because it depends on the prelude and on the
 import Update exposing (update)
 import UpdateStack exposing (UpdateStack, updateContext, UpdatedExp)
 import UpdatedEnv exposing (UpdatedEnv)
-import UpdateUtils
+import UpdateUtils exposing (defaultVDiffs, vDiffsToVal, valToVDiffs, recursiveMergeVal, maybeToVal)
 import Eval exposing (eval)
 import Lang exposing (..)
 import HTMLValParser
@@ -22,9 +22,10 @@ import Set exposing (Set)
 import Dict exposing (Dict)
 import ValUnparser exposing (strVal_, strOp, strLoc)
 import ParserUtils
+import ValBuilder as Vb
 
 builtinEnv =
-  [ ("error", builtinVal "Eval.error" <| VFun "error" ["msg"] (\args ->
+  [ ("error", builtinVal "EvalUpdate.error" <| VFun "error" ["msg"] (\args ->
     case args of
       [arg] -> case arg.v_ of
         VBase (VString s) -> Err s
@@ -33,7 +34,7 @@ builtinEnv =
     ) Nothing)
   , ("parseHTML", HTMLValParser.htmlValParser)
    -- TODO: This && evaluates both sides, can we have something that does less?
-  , ("&&", builtinVal "Eval.&&" <| VFun "&&" ["left", "right"] (\args ->
+  , ("&&", builtinVal "EvalUpdate.&&" <| VFun "&&" ["left", "right"] (\args ->
      case args of
        [left, right] ->
          case left.v_ of
@@ -42,7 +43,7 @@ builtinEnv =
            _ -> Err <| "&& expects two booleans, got " ++ valToString left
        _ -> Err <| "&& expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , ("||", builtinVal "Eval.||" <| VFun "||" ["left", "right"] (\args ->
+  , ("||", builtinVal "EvalUpdate.||" <| VFun "||" ["left", "right"] (\args ->
      case args of
        [left, right] ->
          case left.v_ of
@@ -51,7 +52,7 @@ builtinEnv =
            _ -> Err <| "|| expects two booleans, got " ++ valToString left
        _ -> Err <| "|| expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , ("<=", builtinVal "Eval.<=" <| VFun "<=" ["left", "right"] (\args ->
+  , ("<=", builtinVal "EvalUpdate.<=" <| VFun "<=" ["left", "right"] (\args ->
      case args of
        [left, right] ->
          case (left.v_, right.v_) of
@@ -59,7 +60,7 @@ builtinEnv =
            _ -> Err <| "<= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
        _ -> Err <| "<= expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , (">=", builtinVal "Eval.>=" <| VFun ">=" ["left", "right"] (\args ->
+  , (">=", builtinVal "EvalUpdate.>=" <| VFun ">=" ["left", "right"] (\args ->
      case args of
        [left, right] ->
          case (left.v_, right.v_) of
@@ -67,7 +68,7 @@ builtinEnv =
            _ -> Err <| ">= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
        _ -> Err <| ">= expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , (">", builtinVal "Eval.>" <| VFun ">" ["left", "right"] (\args ->
+  , (">", builtinVal "EvalUpdate.>" <| VFun ">" ["left", "right"] (\args ->
      case args of
        [left, right] ->
          case (left.v_, right.v_) of
@@ -75,7 +76,7 @@ builtinEnv =
            _ -> Err <| "> expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
        _ -> Err <| "> expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , ("/=", builtinVal "Eval./=" <| VFun "/=" ["left", "right"] (\args ->
+  , ("/=", builtinVal "EvalUpdate./=" <| VFun "/=" ["left", "right"] (\args ->
      case args of
        [left, right] ->
          case (left.v_, right.v_) of
@@ -83,7 +84,7 @@ builtinEnv =
            _ -> Err <| "/= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
        _ -> Err <| "/= expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , ("%", builtinVal "Eval.%" <| VFun "%" ["left", "right"] (\args ->
+  , ("%", builtinVal "EvalUpdate.%" <| VFun "%" ["left", "right"] (\args ->
      case args of
        [left, right] ->
          case (left.v_, right.v_) of
@@ -95,7 +96,7 @@ builtinEnv =
            _ -> Err <| "% expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
        _ -> Err <| "% expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , ("evaluate", builtinVal "Eval.evaluate" <| VFun "evaluate" ["program"] (\args ->
+  , ("evaluate", builtinVal "EvalUpdate.evaluate" <| VFun "evaluate" ["program"] (\args ->
       case args of
         [program] -> case program.v_ of
           VBase (VString s) ->
@@ -137,7 +138,115 @@ builtinEnv =
             _ -> Errs <| "evaluate expects one string, got " ++ LangUtils.valToString oldProgram
         _ -> Errs <| "evaluate expects 1 arguments, got " ++ (toString <| List.length args)
     ))
-  ]
+  , ("__updateApp__", builtinVal "EvalUpdate.updateApp" <|
+  VFun "__updateApp__" ["{fun,input[,oldOutput],output[,outputDiff]}"] (\args ->
+    case args of
+      [arg] ->
+        let vb = Vb.fromVal arg in
+        case arg.v_ of
+          VRecord d ->
+            case (Dict.get "fun" d, Dict.get "input" d, Dict.get "output" d) of
+              (Just fun, Just input, Just newVal) ->
+                let xyEnv = [("x", fun),("y", input)] in
+                let xyExp = (withDummyExpInfo <| EApp space0 (eVar "x") [eVar "y"] SpaceApp space0) in
+                let oldOut = case Dict.get "oldOutput" d of
+                  Nothing -> case Dict.get "oldout" d of
+                     Nothing -> case Dict.get "outputOld" d of
+                       Nothing ->
+                         Eval.doEval Syntax.Elm xyEnv xyExp |> Result.map (\((v, _), _) -> v)
+                       Just v -> Ok v
+                     Just v -> Ok v
+                  Just v -> Ok v
+                in
+                case oldOut of
+                  Err msg -> Err <| "while evaluating updateApp and trying to compute the old value, " ++ msg
+                  Ok oldOut ->
+                    let outputDiff = case Dict.get "outputDiff" d of
+                      Nothing -> case Dict.get "diffOutput" d of
+                         Nothing -> case Dict.get "diffOut" d of
+                           Nothing -> case Dict.get "outDiff" d of
+                             Nothing -> UpdateUtils.defaultVDiffs oldOut newVal
+                             Just v -> valToVDiffs v |> Result.map Just
+                           Just v -> valToVDiffs v |> Result.map Just
+                         Just v -> valToVDiffs v |> Result.map Just
+                      Just v -> valToVDiffs v |> Result.map Just
+                    in
+                    --let _ = Debug.log "calling back update" () in
+                    case outputDiff of
+                      Err msg -> Err <| "while evaluating updateApp and trying to compute the output diff, " ++ msg
+                      Ok Nothing -> -- No need to call update
+                        let resultingValue = Vb.record (Vb.list Vb.identity) vb (
+                             Dict.fromList [("values", [input]),
+                                            ("diffs", [] )
+                             ])
+                        in
+                        Ok (resultingValue, [])
+                      Ok (Just newOutDiffs) ->
+                        let basicResult = case update (updateContext "__updateApp__" xyEnv xyExp oldOut newVal newOutDiffs) LazyList.Nil of
+                          Errs msg -> Vb.record Vb.string vb (Dict.fromList [("error", msg)])
+                          Oks ll ->
+                             let l = LazyList.toList ll in
+                             let lFiltered = List.filter (\(newXYEnv, newExp) ->
+                               case newXYEnv.changes of
+                                  [] -> True
+                                  [(1, _)] -> True
+                                  _ -> False) l
+                             in
+                             if List.isEmpty lFiltered then
+                               if List.isEmpty l then
+                                 Vb.record (Vb.list Vb.identity) vb (Dict.fromList [("values", []), ("diffs", [])])
+                               else
+                                 Vb.record Vb.string vb (Dict.fromList [("error", "Only solutions modifying the constant function of __updateApp__")])
+                             else
+                               let (results, diffs) = lFiltered |> List.map (\(newXYEnv, newExp) ->
+                                 case newXYEnv.val of
+                                    [("x", newFun), ("y",newArg)] ->
+                                      case newXYEnv.changes of
+                                        [] -> (newArg, Nothing)
+                                        [(1, diff)] -> (newArg, Just diff)
+                                        _ -> Debug.crash "Internal error: expected not much than (1, diff) in environment changes"
+                                    _ -> Debug.crash "Internal error: expected x and y in environment"
+                                 ) |> List.unzip in
+                               let maybeDiffsVal = diffs |> Vb.list (maybeToVal vDiffsToVal) vb in
+                               Vb.record Vb.identity vb (
+                                    Dict.fromList [("values", Vb.list Vb.identity vb results),
+                                                 ("diffs", maybeDiffsVal )
+                                    ])
+                        in Ok (basicResult, [])
+              (mbFun, mbInput, mbOutput) ->
+                Err <|
+                  "__updateApp__ requires a record with at least {fun,input,output}. Missing" ++
+                 (Maybe.map (\_ -> "") mbFun |> Maybe.withDefault " fun") ++
+                 (Maybe.map (\_ -> "") mbInput |> Maybe.withDefault " input") ++
+                 (Maybe.map (\_ -> "") mbOutput |> Maybe.withDefault " output")
+          _ -> Err <| "__updateApp__ argument should be a record {fun,input[,oldOutput],output[,outputDiff]}, but got " ++ valToString arg
+      _ -> Err <| "__updateApp__ expects 1 arguments ({fun,input[,oldOutput],output[,outputDiff]}), but got " ++ toString (List.length args)
+  ) Nothing)
+  , ("__merge__",  builtinVal "EvalUpdate.merge" <|
+     VFun "__merge__" ["original", "list_of_modified"] (\args ->
+       case args of
+         [original, modifications] ->
+           case modifications.v_ of
+             VList modifications ->
+               let modificationsWithDiffs = List.map (\m -> UpdateUtils.defaultVDiffs original m |> Result.map (\mbmodifs -> mbmodifs |> Maybe.map (\modifs -> (m, modifs)))) modifications in
+               case modificationsWithDiffs |> Utils.projOk of
+                  Err msg -> Err msg
+                  Ok withModifs ->
+                    let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
+                    Ok (newVal, [])
+             _ -> Err  <| "__merge__ takes 2 lists, but got " ++ toString (List.length args)
+         _ -> Err  <| "__merge__ takes 2 lists, but got " ++ toString (List.length args)
+     ) Nothing)
+   , ("__diff__", builtinVal "EvalUpdate.diff" <|
+    VFun "__diff__" ["value_before", "value_after"] (\args ->
+      case args of
+        [before, after] ->
+          Ok ( defaultVDiffs before after
+                 |> UpdateUtils.resultToVal (UpdateUtils.maybeToVal vDiffsToVal) (Vb.fromVal before)
+               , [])
+        _ -> Err <|  "__diff__ performs the diff on 2 values, but got " ++ toString (List.length args)
+    ) Nothing
+  )]
 
 preludeEnvRes = Result.map Tuple.second <| (eval Syntax.Little builtinEnv [] Parser.prelude)
 preludeEnv = Utils.fromOk "Eval.preludeEnv" <| preludeEnvRes

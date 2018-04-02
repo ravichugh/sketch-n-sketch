@@ -24,6 +24,7 @@ import UpdateStack
 import UpdateUtils
 import Results exposing (Results(..), ok1)
 import LazyList
+import ValBuilder as Vb
 
 valToDictKey : Syntax -> Backtrace -> Val -> Result String (String, String)
 valToDictKey syntax bt v =
@@ -524,8 +525,8 @@ evalOp syntax env e bt opWithInfo es =
               VDict d     ->
                 valToDictKey syntax bt key |> Result.map (\dkey ->
                   case Dict.get dkey d of
-                    Nothing -> VList [VBase (VString "Nothing") |> addProvenance] |> addProvenance
-                    Just x -> VList [VBase (VString "Just") |> addProvenance, x] |> addProvenance
+                    Nothing -> Vb.constructor addProvenance "Nothing" []
+                    Just x -> Vb.constructor addProvenance "Just" [x]
                   )
               _           -> error()
             _           -> error ()

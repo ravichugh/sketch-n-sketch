@@ -87,7 +87,7 @@ addRowFlags =
   { apply rows =
       map (\row -> [freeze False, row]) rows
   , unapply rows =
-      just <|
+      (\x -> Just x) <|
         concatMap (\[flag,row] ->
           if flag == True
             then [ row, ["","",""] ]

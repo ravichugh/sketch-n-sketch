@@ -95,7 +95,7 @@ markdown text =
   foldLeft finaltext rules (\acc elem -> case elem of
       [regex, replacement] -> Regex.replace regex replacement acc
       [regex, replacement, {postReverse = fun}] ->
-        let newAcc = { apply acc = freeze acc, unapply out = ["Just",  fun out]}.apply acc in
+        let newAcc = { apply acc = freeze acc, unapply out = Just (fun out)}.apply acc in
         Regex.replace regex replacement newAcc 
   )
 
@@ -103,17 +103,17 @@ markdown text =
 --  apply x = x,
 --  unapply {outputNew} =
 --    case Regex.extract """^<div>([\s\S]*)</div>""" inserted of
---      ["Just", [content]] ->
+--      Just [content] ->
 --        if (matchIn "(?:^|\n)#(.*)$" left) then -- Title, we jump only one line
---          ["Just", left + "\n" + content + right]
+--          Just (left + "\n" + content + right)
 --        else -- we jump TWO lines
---          ["Just", left + "\n\n" + content + right]
---      ["Nothing"] ->    
+--          Just (left + "\n\n" + content + right)
+--      Nothing ->    
 --        if(matchIn """(?:^|\n)(#|\*|\d\.)(.*)$""" left) then
---          ["Just", outputNew]
+--          Just outputNew
 --        else
 --          let newInserted = Regex.replace """<br>"""  "\n\n" inserted in
---          ["Just", left + newInserted + right]
+--          Just (left + newInserted + right)
 --  }.apply x in
 
 converter_lens x = x

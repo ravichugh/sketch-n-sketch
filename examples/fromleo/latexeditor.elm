@@ -5,23 +5,23 @@ String = { String |
 
 tokenize txt pos = 
   case String.uncons txt of
-  ["Nothing"] -> [{tag="EOF", pos = pos, origText = txt}]
-  ["Just", [first, rem]] ->
+  Nothing -> [{tag="EOF", pos = pos, origText = txt}]
+  Just [first, rem] ->
     case first of
       "\\" -> case String.uncons rem of
-        ["Just", ["\\", rem]] ->
+        Just ["\\", rem] ->
           case extractFirstIn """(\\\\)([\s\S]*)""" txt of
-            ["Just", [bs, rem]] ->
+            Just [bs, rem] ->
               [{tag="newline", pos=pos, origText = bs}, rem, pos + 2]
         _ ->
           case extractFirstIn """^((\\\w+\b|\\.)\s*)([\s\S]*)""" txt of
-            ["Just", [commandspace, command, remainder]] ->
+            Just [commandspace, command, remainder] ->
               [{tag="command", name=command, pos=pos, origText = commandspace}, remainder, pos + String.length commandspace]
             _ ->
               [{tag="error", pos=pos, value="Expected a command after \\, got " + txt}, rem, pos + 1]
       "%" ->
         case extractFirstIn "^(%(.*(?:\r?\n|$)))([\\s\\S]*)" txt of
-          ["Just", [percentcomment, comment, remainder]] ->
+          Just [percentcomment, comment, remainder] ->
             [{tag="linecomment", value=comment, pos=pos, origText=percentcomment}, remainder, pos + String.length percentcomment]  
       "{" ->
         [{tag="open", pos=pos, origText=first}, rem, pos + 1]
@@ -31,7 +31,7 @@ tokenize txt pos =
         [{tag="equationdelimiter", pos=pos, origText=first}, rem, pos + 1]
       "#" ->
         case extractFirstIn """^(#(\d))([\s\S]*)""" txt of
-          ["Just", [original, integer, rem]] ->
+          Just [original, integer, rem] ->
             [{tag="replacement", pos = pos, nth = String.toInt integer, origText = original}, rem, pos + 2]
           _ -> 
             [{tag="error", pos = pos + 1, value="Expected number after #"}, rem, pos + 1]
@@ -40,11 +40,11 @@ tokenize txt pos =
       "_" ->
         [{tag="command", name="_", pos=pos, origText=first}, rem, pos + 1]
       _ -> case extractFirstIn """^(\r?\n\r?\n\s*)([\s\S]*)""" txt of
-        ["Just", [rawspace, remainder]] ->
+        Just [rawspace, remainder] ->
           [{tag="newpar", origText = rawspace}, remainder, pos + String.length rawspace]
         _ ->
           case extractFirstIn """^((?:(?!\r?\n\r?\n)[^\\\{\}\$%\^_#])+)([\s\S]*)""" txt of
-            ["Just", [rawtext, remainder]] ->
+            Just [rawtext, remainder] ->
               [{tag="rawtext", value=rawtext, pos = pos, origText = rawtext}, remainder, pos + String.length rawtext]
             res ->
               [{tag="error", pos = pos, value="Expected text, got " + txt}]
@@ -194,7 +194,7 @@ commandsDict = dict [
               {value= cmdName} -> case rem of
                 ({tag="rawtext", value=text} :: definition :: rem) ->
                   case extractFirstIn """\[(\d+)\]""" text of
-                    ["Just", [d]] -> [[cmdName, String.toInt d, definition], rem]
+                    Just [d] -> [[cmdName, String.toInt d, definition], rem]
                     _ -> [["Expected [number] for the number of arguments, got " + text], rightArgs]
                 (definition :: rem) ->
                   [[cmdName, 0, definition], rem]
@@ -269,7 +269,7 @@ splitargs n array =
     case array of
       {tag="rawtext", value=text}:: rem ->
         case extractFirstIn """^\s*(\S)(.*)""" text of
-          ["Just", [arg, other]] ->
+          Just [arg, other] ->
             let newAcc = {tag="rawtext", value=arg}::revAcc in
             let newN = n - 1 in
             let newArray = {tag="rawtext", value=other} :: rem in
@@ -374,13 +374,13 @@ toHtml x =
   in
   letrec replaceReferences tree = case tree of
     ["ref", refname] -> Dict.get refname opts.labelToName  |> case of
-      ["Nothing"] -> htmlError ("Reference " + refname + " not found.") "???"
-      ["Just", txt] ->
+      Nothing -> htmlError ("Reference " + refname + " not found.") "???"
+      Just txt ->
         let replaceKey refNameTxt = {
            apply [refname,txt] = Debug.log """refname = @refname, txt= @txt""" txt,
            update {input=[oldRefname, oldTxt], outputNew=newText} =  -- Lookup for the reference in the options.
              case Dict.get newText opts.nameToLabel of
-              ["Just", newRefname] ->
+              Just newRefname ->
                 {values = [[newRefname, oldTxt]]}
               _ -> -- No solution, cancel update.
                 {error="could not find reference" + toString newText}

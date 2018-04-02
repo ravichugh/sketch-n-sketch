@@ -92,20 +92,28 @@ ctorKind s =
     _ ->
       Nothing
 
-ctor : (EBaseVal -> t) -> CtorKind -> String -> (WS, WS, Ident, WS, t)
+ctorTupleName: Int -> String
+ctorTupleName i = "Tuple" ++ toString i
+
+ctor : (String -> t) -> CtorKind -> String -> (WS, WS, Ident, WS, t)
 ctor tagger ctorKind name =
   ( space0, space0, stringifyCtorKind ctorKind, space0
-  , tagger <|
-      EString defaultQuoteChar name
+  , tagger name
   )
+
+ctorVal : (String -> t) -> CtorKind -> String -> (Ident, t)
+ctorVal tagger ctorKind name =
+  ( stringifyCtorKind ctorKind, tagger name)
 
 numericalEntry : Int -> (WS, t) -> (WS, WS, Ident, WS, t)
 numericalEntry index (wsBeforeComma, binding) =
   (wsBeforeComma, space0, "_" ++ toString index, space0, binding)
 
+numericalValEntry : Int -> t -> (Ident, t)
+numericalValEntry index binding =
+  ("_" ++ toString index, binding)
+
 --------------------------------------------------------------------------------
-
-
 
 
 -- TODO add constant literals to patterns, and match 'svg'

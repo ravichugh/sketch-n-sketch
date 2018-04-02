@@ -19,7 +19,7 @@ htmlValParser = builtinVal "(Native)HTMLValParser.htmlValParser" <| VFun "parseH
       VBase (VString s) ->
         case parseHTMLString s of
           Err pe -> Err (showError pe)
-          Ok nodes -> Ok (Vb.list htmlNodeToVal v nodes, [])
+          Ok nodes -> Ok (Vb.list htmlNodeToVal (Vb.fromVal v) nodes, [])
       _ -> Err <| "parseHTML expects a string, got " ++ valToString v
     _ -> Err ("parseHTML expects exactly one argument, got " ++ toString (List.length args))
   ) (Just (\oldArgs oldOut newOut -> -- Update means just parsing the old
@@ -31,36 +31,36 @@ htmlValParser = builtinVal "(Native)HTMLValParser.htmlValParser" <| VFun "parseH
      |> Results.fromResult
   ))
 
-htmlNodeToVal: Val -> HTMLNode -> Val
-htmlNodeToVal v n = case n of
-  HTMLInner s -> Vb.constructor v "HTMLInner" [Vb.string v s]
+htmlNodeToVal: Vb.Vb -> HTMLNode -> Val
+htmlNodeToVal vb n = case n of
+  HTMLInner s -> Vb.constructor vb "HTMLInner" [Vb.string vb s]
   HTMLElement tagName attrs ws1 endOp children closing ->
-    Vb.constructor v "HTMLElement" [
-      Vb.string v tagName,
-      Vb.list (\v a -> case a of
-        HTMLAttribute ws0 name value -> Vb.constructor v "HTMLAttribute" [Vb.string v ws0.val, Vb.string v name, case value of
-          HTMLAttributeUnquoted ws1 ws2 content -> Vb.constructor v "HTMLAttributeUnquoted" [Vb.string v ws1.val, Vb.string v ws2.val, Vb.string v content]
-          HTMLAttributeString ws1 ws2 delimiter content -> Vb.constructor v "HTMLAttributeString" [Vb.string v ws1.val, Vb.string v ws2.val, Vb.string v delimiter, Vb.string v content]
-          HTMLAttributeNoValue -> Vb.constructor v "HTMLAttributeNoValue" []
-      ]) v attrs,
-      Vb.string v ws1.val,
+    Vb.constructor vb "HTMLElement" [
+      Vb.string vb tagName,
+      Vb.list (\vb a -> case a of
+        HTMLAttribute ws0 name value -> Vb.constructor vb "HTMLAttribute" [Vb.string vb ws0.val, Vb.string vb name, case value of
+          HTMLAttributeUnquoted ws1 ws2 content -> Vb.constructor vb "HTMLAttributeUnquoted" [Vb.string vb ws1.val, Vb.string vb ws2.val, Vb.string vb content]
+          HTMLAttributeString ws1 ws2 delimiter content -> Vb.constructor vb "HTMLAttributeString" [Vb.string vb ws1.val, Vb.string vb ws2.val, Vb.string vb delimiter, Vb.string vb content]
+          HTMLAttributeNoValue -> Vb.constructor vb "HTMLAttributeNoValue" []
+      ]) vb attrs,
+      Vb.string vb ws1.val,
       case endOp of
-        RegularEndOpening -> Vb.constructor v "RegularEndOpening" []
-        SlashEndOpening -> Vb.constructor v "SlashEndOpening" []
+        RegularEndOpening -> Vb.constructor vb "RegularEndOpening" []
+        SlashEndOpening -> Vb.constructor vb "SlashEndOpening" []
       ,
-      Vb.list htmlNodeToVal v children
+      Vb.list htmlNodeToVal vb children
       ,
       case closing of
-        RegularClosing wsc -> Vb.constructor v "RegularClosing" [Vb.string v wsc.val]
-        VoidClosing ->Vb.constructor v "VoidClosing" []
-        AutoClosing -> Vb.constructor v "AutoClosing" []
-        ForgotClosing ->Vb.constructor v "ForgotClosing" []
+        RegularClosing wsc -> Vb.constructor vb "RegularClosing" [Vb.string vb wsc.val]
+        VoidClosing ->Vb.constructor vb "VoidClosing" []
+        AutoClosing -> Vb.constructor vb "AutoClosing" []
+        ForgotClosing ->Vb.constructor vb "ForgotClosing" []
     ]
-  HTMLComment style -> Vb.constructor v "HTMLComment" [case style of
-      Less_Greater content -> Vb.constructor v "Less_Greater" [Vb.string v content]
-      LessSlash_Greater {- The string should start with a space -} content -> Vb.constructor v "LessSlash_Greater" [Vb.string v content]
-      LessBang_Greater content -> Vb.constructor v "LessBang_Greater" [Vb.string v content]
-      LessBangDashDash_DashDashGreater content -> Vb.constructor v "LessBangDashDash_DashDashGreater" [Vb.string v content]
+  HTMLComment style -> Vb.constructor vb "HTMLComment" [case style of
+      Less_Greater content -> Vb.constructor vb "Less_Greater" [Vb.string vb content]
+      LessSlash_Greater {- The string should start with a space -} content -> Vb.constructor vb "LessSlash_Greater" [Vb.string vb content]
+      LessBang_Greater content -> Vb.constructor vb "LessBang_Greater" [Vb.string vb content]
+      LessBangDashDash_DashDashGreater content -> Vb.constructor vb "LessBangDashDash_DashDashGreater" [Vb.string vb content]
     ]
 
 valToHtmlNode: Val -> Result String HTMLNode
@@ -127,12 +127,12 @@ valToHtmlNode v =
 
 -- Conversion between HTML nodes and true leo values
 
-styleATtrToElmViewInLeo: Val -> (String, String) -> Val
-styleATtrToElmViewInLeo v (name, content) =
+styleATtrToElmViewInLeo: Vb.Vb -> (String, String) -> Val
+styleATtrToElmViewInLeo vb (name, content) =
   if name /= "style" then
-    Vb.tuple2 Vb.string Vb.string v (name, content)
+    Vb.viewtuple2 Vb.string Vb.string vb (name, content)
   else
-    Vb.tuple2 Vb.string (Vb.list (Vb.tuple2 Vb.string Vb.string)) v (name,
+    Vb.viewtuple2 Vb.string (Vb.list (Vb.viewtuple2 Vb.string Vb.string)) vb (name,
           Regex.split Regex.All (Regex.regex "; *") content
        |> List.map (Regex.split Regex.All (Regex.regex ": *"))
        |> List.filterMap (\s -> case s of
@@ -154,10 +154,10 @@ filterHTMLInnerWhitespace nodes =
        node :: tail -> aux (node :: revAcc) tail
   in aux [] nodes
 
-htmlNodeToElmViewInLeo: Val -> HTMLNode -> Val
-htmlNodeToElmViewInLeo v tree =
+htmlNodeToElmViewInLeo: Vb.Vb -> HTMLNode -> Val
+htmlNodeToElmViewInLeo vb tree =
   case tree of
-    HTMLInner inner -> Vb.tuple2 Vb.string  Vb.string v ("TEXT", Regex.replace Regex.All
+    HTMLInner inner -> Vb.viewtuple2 Vb.string  Vb.string vb ("TEXT", Regex.replace Regex.All
        (Regex.regex "&amp;|&lt;|&gt;|</[^>]*>")
        (\{match} -> case match of
          "&amp;" -> "&"
@@ -165,7 +165,7 @@ htmlNodeToElmViewInLeo v tree =
          "&gt;" -> ">"
          _ -> "") inner)
     HTMLElement tagName attrs ws1 endOp children closing ->
-        Vb.tuple3 Vb.string (Vb.list styleATtrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) v (
+        Vb.viewtuple3 Vb.string (Vb.list styleATtrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
           tagName
         , List.map (\attr -> case attr of
           HTMLAttribute ws0 name value -> case value of
@@ -175,7 +175,7 @@ htmlNodeToElmViewInLeo v tree =
         , filterHTMLInnerWhitespace children)
     HTMLComment commentStyle ->
        let contentToVal content =
-         Vb.tuple3 Vb.string (Vb.list styleATtrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) v (
+         Vb.viewtuple3 Vb.string (Vb.list styleATtrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
             "comment",
             [("display", "none")],
             [HTMLInner content])

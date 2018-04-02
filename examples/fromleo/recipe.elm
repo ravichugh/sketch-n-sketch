@@ -34,7 +34,7 @@ Preheat the oven at @(floor (temperature * freeze 9 / freeze 5) + freeze 32)° F
 <li>A pinch of salt</li>
 In the oven for 10 minutes in cupcakes pans.<br>
 One can also put as decoration sliced almonds, or replace chocolate by a squeezed lemon."""]
-  ] |> applyDict2 language
+  ] |> Dict.apply language
 
 result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
   let mult = String.toInt <| nth m.group 3 in
@@ -52,7 +52,7 @@ result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
           update {outputNew, outputOriginal} =
             if outputNew == outputOriginal then {values=[base]} else
             let quantityTimes4 = case Regex.extract "(.*)(¼|[ +]?[13]/[24]|½|¾)" outputNew of
-              ["Just", [i, complement]] -> 
+              Just [i, complement] -> 
                  let addi x = if i == "" then x else 4 * String.toInt i + x in
                  case complement of
                    "¼"    -> addi 1
@@ -68,7 +68,7 @@ result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
                    " 3/4" -> addi 3
                    "+3/4" -> addi 3
                    a      -> "complement error: " + complement + 1
-              ["Nothing"] -> 4 * String.toInt i
+              Nothing -> 4 * String.toInt i
             in
             {values = floor (quantityTimes4 * div / mult / 4) }
         }.apply base

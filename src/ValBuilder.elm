@@ -2,33 +2,54 @@ module ValBuilder exposing (..)
 
 import Lang exposing (..)
 import Dict exposing (Dict)
+import Utils
 
-list: (Val -> a -> Val) -> Val -> List a -> Val
-list sub v = replaceV_ v << VList << List.map (sub v)
+type alias Vb = Val_ -> Val
 
-tuple2:  (Val -> a -> Val) -> (Val -> b -> Val) -> Val -> (a, b) -> Val
-tuple2 sub1 sub2 v (a, b) = replaceV_ v <| VList <| [sub1 v a, sub2 v b]
+fromVal: Val -> Vb
+fromVal v = replaceV_ v
 
-tuple3:  (Val -> a -> Val) -> (Val -> b -> Val) -> (Val -> c -> Val) -> Val -> (a, b, c) -> Val
-tuple3 sub1 sub2 sub3 v (a, b, c) = replaceV_ v <| VList <| [sub1 v a, sub2 v b, sub3 v c]
+list: (Vb -> a -> Val) -> Vb -> List a -> Val
+list sub vb = vb << VList << List.map (sub vb)
 
-string: Val -> String -> Val
-string v= replaceV_ v << VBase << VString
+viewtuple2:  (Vb -> a -> Val) -> (Vb -> b -> Val) -> Vb -> (a, b) -> Val
+viewtuple2 sub1 sub2 vb (a, b) = vb <| VList <| [sub1 vb a, sub2 vb b]
 
-int: Val -> Int -> Val
-int v= replaceV_ v << VConst Nothing << (\i -> (toFloat i, dummyTrace))
+tuple2:  (Vb -> a -> Val) -> (Vb -> b -> Val) -> Vb -> (a, b) -> Val
+tuple2 sub1 sub2 vb (a, b) =
+   vb <| VRecord <| Dict.fromList [
+     Lang.ctorVal (vb << VBase << VString) Lang.TupleCtor (Lang.ctorTupleName 2),
+     ("_1", sub1 vb a),
+     ("_2", sub2 vb b)]
 
-dict: (Val -> a -> Val) -> Val -> Dict (String, String) a -> Val
-dict sub v = replaceV_ v << VDict << Dict.map (\k a -> sub v a)
+viewtuple3:  (Vb -> a -> Val) -> (Vb -> b -> Val) -> (Vb -> c -> Val) -> Vb -> (a, b, c) -> Val
+viewtuple3 sub1 sub2 sub3 vb (a, b, c) = vb <| VList <| [sub1 vb a, sub2 vb b, sub3 vb c]
 
-record: (Val -> a -> Val) -> Val -> Dict String a -> Val
-record sub v = replaceV_ v << VRecord << Dict.map (\k a -> sub v a)
+tuple3:  (Vb -> a -> Val) -> (Vb -> b -> Val) -> (Vb -> c -> Val) -> Vb -> (a, b, c) -> Val
+tuple3 sub1 sub2 sub3 vb (a, b, c) =
+  vb <| VRecord <| Dict.fromList [
+     Lang.ctorVal (vb << VBase << VString) Lang.TupleCtor (Lang.ctorTupleName 3),
+     ("_1", sub1 vb a),
+     ("_2", sub2 vb b),
+     ("_3", sub3 vb c)]
 
-constructor: Val -> String -> List Val -> Val
-constructor v tagname vals =
-  vals
-  |>  (\tail -> VList ((replaceV_ v <| VBase (VString tagname))::tail))
-  |> replaceV_ v
+string: Vb -> String -> Val
+string vb= vb << VBase << VString
 
-identity: Val -> Val -> Val
-identity v theVal = theVal
+int: Vb -> Int -> Val
+int vb= vb << VConst Nothing << (\i -> (toFloat i, dummyTrace))
+
+dict: (Vb -> a -> Val) -> Vb -> Dict (String, String) a -> Val
+dict sub vb = vb << VDict << Dict.map (\k a -> sub vb a)
+
+record: (Vb -> a -> Val) -> Vb -> Dict String a -> Val
+record sub vb = vb << VRecord << Dict.map (\k a -> sub vb a)
+
+constructor: Vb -> String -> List Val -> Val
+constructor vb tagname vals =
+  vb <| VRecord <| Dict.fromList [
+    (Lang.stringifyCtorKind Lang.DataTypeCtor, string vb tagname),
+    (Lang.ctorArgs, vb <| VRecord <| Dict.fromList (vals |> Utils.indexedMapFrom 1 Lang.numericalValEntry))]
+
+identity: Vb -> Val -> Val
+identity vb theVal = theVal
