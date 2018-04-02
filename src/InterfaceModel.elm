@@ -99,6 +99,8 @@ type alias Model =
   , runFailuresInARowCount : Int
   , codeClean : Bool
   , preview : Preview
+  , previewdiffs : Maybe DiffPreview
+  , previewdiffsDelay: Int
   , history : History TrackedValues
   , inputExp : Exp
   , inputVal : Val
@@ -1179,6 +1181,8 @@ initModel =
     , runFailuresInARowCount = 0
     , codeClean     = True
     , preview       = Nothing
+    , previewdiffs  = Nothing
+    , previewdiffsDelay = 1000 --ms
     , history       = History.begin { code = code, selectedDeuceWidgets = [] }
     , inputExp      = e
     , inputVal      = v

@@ -2175,7 +2175,11 @@ diffOverlay model =
         Just (_, exps, _) ->
           ("", exps)
         Nothing ->
-          (" disabled", [])
+          case model.previewdiffs of
+            Just exps ->
+              ("", exps)
+            Nothing ->
+              (" disabled", [])
   in
     Html.div
       [ Attr.class <| "deuce-overlay-container" ++ disabledFlag

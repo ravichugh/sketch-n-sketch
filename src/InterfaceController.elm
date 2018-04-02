@@ -55,6 +55,7 @@ port module InterfaceController exposing
   , msgDragEditCodePopupPanel
   , msgDragDeuceRightClickMenu
   , msgTextSelect
+  , msgClearPreviewDiff
   , msgSetEnableDeuceBoxSelection
   , msgSetEnableDeuceTextSelection
   , msgSetCodeToolsMenuMode
@@ -105,7 +106,7 @@ import SleekLayout exposing
   , deuceRightClickMenuMouseOffset
   )
 import AceCodeBox
-import OutputCanvas
+import OutputCanvas exposing (DiffTimer)
 import AnimationLoop
 import FileHandler exposing (ExternalFileMessage(..), InternalFileMessage(..))
 import File exposing (FileExtension, Filename, File, FileIndex)
@@ -766,6 +767,7 @@ tryRun old =
                       , errorBox      = Nothing
                       , scopeGraph    = DependenceGraph.compute e
                       , preview       = Nothing
+                      , previewdiffs  = Nothing
                       , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
                 }
               in
@@ -1133,6 +1135,7 @@ issueCommandBasedOnCaption kind oldModel newModel =
                 )
             , dispatchIfChanged getAutoSyncDelay OutputCanvas.setAutoSyncDelay
             , dispatchIfChanged (\m -> m.preview |> Utils.maybeIsEmpty |> not) OutputCanvas.setPreviewMode
+            , dispatchIfChanged (\m -> m.previewdiffs |> Utils.maybeIsEmpty |> not) (OutputCanvas.setDiffTimer << DiffTimer newModel.previewdiffsDelay)
             , if kind == "Update Font Size" then
                 AceCodeBox.updateFontSize newModel
               else if
@@ -2330,13 +2333,21 @@ doAutoSync m =
       Nothing -> newModel
       Just results -> -- If there are only two options (second is always revert to original program), and the first one is not a Hack, then we can apply it !
         case results of
-          [SynthesisResult {description, exp, isSafe} , revert] ->
+          [SynthesisResult {description, exp, diffs, isSafe} , revert] ->
             --if String.startsWith "HACK: " description then newModel else
               let newerModel = doSelectSynthesisResult exp newModel in
               { newerModel
                   | addDummyDivAroundCanvas = Just True
+                  , previewdiffs = Just diffs
                   }
           _ -> newModel
+
+msgClearPreviewDiff: Int -> Msg
+msgClearPreviewDiff n = Msg "clearPreviewDiff" doClearPreviewDiff
+
+doClearPreviewDiff: Model -> Model
+doClearPreviewDiff m =
+  { m | previewdiffs = Nothing }
 
 --------------------------------------------------------------------------------
 
@@ -2404,6 +2415,7 @@ doHoverSynthesisResult resultsKey pathByIndices old =
 
     Nothing ->
       { old | preview = Nothing
+            , previewdiffs = Nothing
             , hoveredSynthesisResultPathByIndices = [] }
 
 
@@ -2413,7 +2425,7 @@ msgPreview expOrCode = Msg "Preview" <| \old ->
     Right code          -> showCodePreview old code
 
 msgClearPreview = Msg "Clear Preview" <| \old ->
-  { old | preview = Nothing }
+  { old | preview = Nothing, previewdiffs = Nothing }
 
 msgCancelSync = Msg "Cancel Sync" <| \old ->
   upstateRun
@@ -2826,6 +2838,7 @@ resetDeuceState m =
       , deuceToolResultPreviews = Dict.empty
       , selectedDeuceTool = Nothing
       , preview = Nothing
+      , previewdiffs = Nothing
       , layoutOffsets =
           { layoutOffsets |
               deuceToolBox =

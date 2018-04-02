@@ -265,3 +265,15 @@ app.ports.setPreviewMode.subscribe(function(b) {
   previewMode = b;
 })
 
+var timerClearDiff = undefined;
+app.ports.setDiffTimer.subscribe(function(b) {
+  if(b.activate) {
+    if(typeof timerClearDiff !== "undefined" ) {
+      clearTimeout(timerClearDiff)
+    }
+    timerClearDiff = setTimeout(function() {
+      timerClearDiff = undefined;
+      app.ports.clearPreviewDiff.send(1)
+    }, b.delay);
+  }
+})

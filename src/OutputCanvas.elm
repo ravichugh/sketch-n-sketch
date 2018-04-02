@@ -8,6 +8,9 @@ port module OutputCanvas exposing
   , setAutoSyncDelay
   , setPreviewMode
   , setDomNumAttribute
+  , setDiffTimer
+  , DiffTimer
+  , clearPreviewDiff
   )
 
 import InterfaceModel as Model exposing (Model, OutputCanvasInfo)
@@ -23,6 +26,8 @@ port outputCanvasCmd : OutputCanvasCmd -> Cmd msg
 type alias OutputCanvasCmd =
   { message : String
   }
+
+type alias DiffTimer = { delay: Int, activate: Bool}
 
 initialize  = sendCmd "initialize"
 resetScroll = sendCmd "resetScroll"
@@ -40,6 +45,8 @@ port setPreviewMode: Bool -> Cmd msg
 
 port setDomNumAttribute : {nodeId:Int, attrName:String, attrValue:Float} -> Cmd msg
 
+port setDiffTimer: DiffTimer-> Cmd msg
+
 -- Incoming
 
 port receiveOutputCanvasState : (OutputCanvasInfo -> msg) -> Sub msg
@@ -47,3 +54,5 @@ port receiveOutputCanvasState : (OutputCanvasInfo -> msg) -> Sub msg
 port receiveValueUpdate : ((List Int, JSDecode.Value)-> msg) -> Sub msg
 
 port maybeAutoSync : (Int -> msg) -> Sub msg
+
+port clearPreviewDiff : (Int -> msg) -> Sub msg
