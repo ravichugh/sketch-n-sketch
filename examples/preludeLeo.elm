@@ -974,55 +974,6 @@ html string = {
     in mergeNodes input oldOutput newOutput diffs
 }.apply (parseHTML string)
 
-setStyles newStyles [kind, attrs, children] =
-  let attrs =
-    -- TODO
-    if styleAttr == null
-      then ["style", []] :: attrs
-      else attrs
-  in
-  let attrs =
-    map \[key, val] ->
-      case key of
-        "style"->
-          let otherStyles =
-            concatMap \[k, v] ->
-              case elem k (map fst newStyles) of
-                True  ->  []
-                False -> [[k, v]]
-              val in
-          ["style", append newStyles otherStyles]
-        _->
-          [key, val]
-      attrs
-  in
-  [kind, attrs, children]
-
-placeAt [x, y] node =
-  let _ = [x, y] : Point in
-  -- TODO px suffix should be added in LangSvg/Html translation
-  setStyles
-    [ ["position", "absolute"],
-      ["left", toString x + "px"],
-      ["top", toString y + "px"]
-    ]
-    node
-
-placeAtFixed [x, y] node =
-  let _ = [x, y] : Point in
-  setStyles
-    [["position", "fixed"], ["FIXED_LEFT", x], ["FIXED_TOP", y]]
-    node
-
-placeSvgAt [x, y] w h shapes =
-  placeAt [x, y]
-    ["svg", [["width", w], ["height", h]], shapes]
-
-workspace minSize children =
-  div_
-    (cons
-      (placeAt minSize (h3 "</workspace>"))
-      children)
 
 Regex =
   letrec split regex s =
@@ -2552,6 +2503,56 @@ rectWithBorder stroke strokeWidth fill x y w h =
     (rect fill x y w h)
       ["stroke", stroke])
       ["stroke-width", strokeWidth] 
+
+setStyles newStyles [kind, attrs, children] =
+  let attrs =
+    -- TODO
+    if styleAttr == null
+      then ["style", []] :: attrs
+      else attrs
+  in
+  let attrs =
+    map \[key, val] ->
+      case key of
+        "style"->
+          let otherStyles =
+            concatMap \[k, v] ->
+              case elem k (map fst newStyles) of
+                True  ->  []
+                False -> [[k, v]]
+              val in
+          ["style", append newStyles otherStyles]
+        _->
+          [key, val]
+      attrs
+  in
+  [kind, attrs, children]
+
+placeAt [x, y] node =
+  let _ = [x, y] : Point in
+  -- TODO px suffix should be added in LangSvg/Html translation
+  setStyles
+    [ ["position", "absolute"],
+      ["left", toString x + "px"],
+      ["top", toString y + "px"]
+    ]
+    node
+
+placeAtFixed [x, y] node =
+  let _ = [x, y] : Point in
+  setStyles
+    [["position", "fixed"], ["FIXED_LEFT", x], ["FIXED_TOP", y]]
+    node
+
+placeSvgAt [x, y] w h shapes =
+  placeAt [x, y]
+    ["svg", [["width", w], ["height", h]], shapes]
+
+workspace minSize children =
+  div_
+    (cons
+      (placeAt minSize (h3 "</workspace>"))
+      children)
 
 -- End SVG Stuff ---------------------------------------------------------------
 
