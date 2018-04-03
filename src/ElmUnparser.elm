@@ -304,10 +304,10 @@ unparseType tipe =
         ) ++ (case elems of
               [] -> ""
               (wsComma, wsKey, key, wsEq, value)::tail ->
-                wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparseType value ++
+                wsKey.val ++ key ++ wsEq.val ++ ":" ++ unparseType value ++
                 String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
                    (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
-                   wsKey.val ++ key ++ wsEq.val ++ "=" ++ unparseType value
+                   wsKey.val ++ key ++ wsEq.val ++ ":" ++ unparseType value
                 ) tail)
         )
         ++ wsAfter.val
