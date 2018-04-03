@@ -101,5 +101,10 @@ var _user$project$Native_ImpureGoodies = {
 
     evaluate : function(string) {
       return eval(string);
+    },
+
+    log : function(string) {
+      console.log(string);
+      return string;
     }
 };

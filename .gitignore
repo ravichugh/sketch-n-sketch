@@ -36,3 +36,4 @@ user_study_surveys/
 *.pyc
 solver_server/reduce-algebra
 solver_server/log.txt
+/tests/pathtobenchmark.txt

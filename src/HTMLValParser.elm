@@ -109,7 +109,7 @@ valToHtmlNode v =
            Ok ("VoidClosing", [])        -> Ok VoidClosing
            Ok ("AutoClosing", [])        -> Ok AutoClosing
            Ok ("ForgotClosing", [])      -> Ok ForgotClosing
-           _ -> Err <| "Expected RegularClosing, VoidClosing, AutoClosing, ForgotClosing, got " ++ valToString closingV
+           _ -> Err <| "Expected RegularClosing space, VoidClosing, AutoClosing, ForgotClosing, got " ++ valToString closingV
          )
         )
   Ok ("HTMLComment", [styleV]) ->

@@ -77,3 +77,6 @@ getOrUpdateCache record cacheName default =
 
 evaluate: String -> a
 evaluate s = Native.ImpureGoodies.evaluate s
+
+log: String -> String
+log s = Native.ImpureGoodies.log s

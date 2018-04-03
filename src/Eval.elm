@@ -557,7 +557,9 @@ evalOp syntax env e bt opWithInfo es =
               |> addProvenanceOk
             _                   -> error ()
           DebugLog   -> case vs of
-            [v] -> let _ = Debug.log (valToString v) "" in Ok v
+            [val] -> case val.v_ of
+               VBase (VString v) as r -> let _ = ImpureGoodies.log v in Ok val
+               _  -> let _ = ImpureGoodies.log (valToString val) in Ok val
             _   -> error ()
           NoWidgets  -> case vs of
             [v] -> Ok v -- Widgets removed  below.

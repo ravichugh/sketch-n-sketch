@@ -2,6 +2,7 @@ module ExamplesGenerated exposing
   ( list, templateCategories
   , blankSvgTemplate, blankHtmlTemplate, initTemplate
   , badPreludeTemplate
+  , fromleo_markdown
   )
 
 import Lang
