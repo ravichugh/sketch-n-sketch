@@ -63,13 +63,13 @@ update updateStack nextToUpdate=
   -- At the end of nextToUpdate, there are all the forks that can be explored later.
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out diffs mb ->
-       {--}
+       {--
       let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
        --}
       update (getUpdateStackOp env e oldVal out diffs) (LazyList.maybeCons mb nextToUpdate)
 
     UpdateResultS fUpdatedEnv fOut mb -> -- Let's consume the stack !
-       {--}
+       {--
       let _ = Debug.log (String.concat [
         "update final result: ", unparse fOut.val,
         {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes,
@@ -77,14 +77,14 @@ update updateStack nextToUpdate=
        --}
       case (LazyList.maybeCons mb nextToUpdate) of -- Let's consume the stack !
         LazyList.Nil ->
-          let _ = Debug.log "update finished, no more solutions." () in
+          --let _ = Debug.log "update finished, no more solutions." () in
           ok1 <| (fUpdatedEnv, fOut)
         LazyList.Cons head lazyTail ->
           case head of
             Fork msg newUpdateStack nextToUpdate2 ->
-              let _ = Debug.log ("update finished, more solutions to explore: " ++ msg) () in
+              --let _ = Debug.log ("update finished, more solutions to explore: " ++ msg) () in
               okLazy (fUpdatedEnv, fOut) <| (\lt m nus ntu2 -> \() ->
-                let _ = Debug.log ("Exploring other updates: '" ++ m ++ "'") () in
+                --let _ = Debug.log ("Exploring other updates: '" ++ m ++ "'") () in
                 updateRec nus <| LazyList.appendLazy ntu2 lt) lazyTail msg newUpdateStack nextToUpdate2
             HandlePreviousResult msg f ->
               --let _ = Debug.log ("update needs to continue: " ++ msg) () in
@@ -164,7 +164,7 @@ getUpdateStackOp env e oldVal newVal diffs =
      EList sp1 elems sp2 Nothing sp3 ->
        case (oldVal.v_, newVal.v_) of
          (VList origVals, VList newOutVals) ->
-           case diffs of
+           case ifConstShallowDiff oldVal newVal diffs of
              VListDiffs diffs ->
                let updateDiffs: Int -> UpdatedEnv ->       List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> Maybe (WS -> Exp -> (WS, Exp)) ->  List Val ->    List Val -> (List (Int, ListElemDiff VDiffs)) -> UpdateStack
                    updateDiffs  i      collectedUpdatedEnv revElems          revEDiffs           elemsToCollect    changeWhitespaceNext               originalValues newValues   diffs =
@@ -318,7 +318,7 @@ getUpdateStackOp env e oldVal newVal diffs =
      EList sp1 elems sp2 (Just tail) sp3 ->
        case (oldVal.v_, newVal.v_) of
          (VList origVals, VList newOutVals) ->
-           case diffs of
+           case ifConstShallowDiff oldVal newVal diffs of
              VListDiffs diffs -> --We do not allow insertions or deletions of elemnts before the tail.
                let updateDiffs: Int -> Int ->     UpdatedEnv -> List (WS, Exp) -> TupleDiffs EDiffs -> List (WS, Exp) -> List Val -> List Val -> List (Int, ListElemDiff VDiffs) -> UpdateStack
                    updateDiffs  i      elemSize   collectedEnv  revElems          revEDiffs            elemsToCollect    origVals    newOutVals  diffs =
@@ -400,7 +400,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                if not <| List.isEmpty errors then
                  UpdateCriticalError <| String.join ", " errors ++ "is not allowed. Maybe you wanted to use dictionaries?"
                else
-                 case diffs of
+                 case ifConstShallowDiff oldVal newVal diffs of
                    VRecordDiffs dModifs ->
                      let updateDiff: Int -> UpdatedEnv -> List (WS, WS, String, WS, Exp) -> List (Int, EDiffs) -> List (WS, WS, String, WS, Exp) -> Dict String VDiffs -> UpdateStack
                          updateDiff i collectedEnv revCollectedEs revEDiffs esToCollect diffs = case esToCollect of
@@ -533,7 +533,9 @@ getUpdateStackOp env e oldVal newVal diffs =
                                   Ok ((vArg, _), _) ->
                                     let x = eVar "x" in
                                     let y = eVar "y" in
-                                    let diffsVal = ImpureGoodies.logTimedRun ".update vDiffsToVal" <| \_ -> vDiffsToVal (Vb.fromVal v1) diffs in
+                                    let diffsVal =
+                                      -- ImpureGoodies.logTimedRun ".update vDiffsToVal" <| \_ ->
+                                      vDiffsToVal (Vb.fromVal v1) (ifConstDeepDiff oldVal newVal diffs) in
                                     let customArgument = Vb.record Vb.identity (Vb.fromVal vArg) <| Dict.fromList [
                                          ("input", vArg),
                                          ("output", newVal),
@@ -549,16 +551,16 @@ getUpdateStackOp env e oldVal newVal diffs =
                                          ] in
                                     let xyApplication = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
                                     let xyEnv = [("x", fieldUpdateClosure), ("y", customArgument)] in
-                                    case ImpureGoodies.logTimedRun (".update eval line " ++ toString e1.start.line) <| \_ -> (doEval Syntax.Elm xyEnv xyApplication) of
+                                    case (
+                                        --ImpureGoodies.logTimedRun (".update eval line " ++ toString e1.start.line) <| \_ ->
+                                        doEval Syntax.Elm xyEnv xyApplication) of
                                       Err s -> Just <| UpdateCriticalError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
-                                        let _ = Debug.log "Finished to execute .update" () in
                                         case Vu.record Ok vResult of
                                           Err msg -> Just <| UpdateCriticalError <|
                                            "The update closure should return either {values = [list of values]}, {error = \"Error string\"}, or more advanced { values = [...], diffs = [..Nothing/Just diff per value.]}. Got "
                                            ++ valToString vResult
                                           Ok d ->
-                                            let _ = Debug.log "recovered record of .update" () in
                                             let error = case Dict.get "error" d of
                                                 Just errorv -> case Vu.string errorv of
                                                   Ok e -> e
@@ -572,26 +574,21 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                 Just values ->  case Vu.list Ok values of
                                                   Err x -> Just <| UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": .update  should return a record whose .values field is a list. Got " ++ valToString values
                                                   Ok valuesList ->
-                                                    let _ = Debug.log "recovered value list of .update" () in
                                                     let valuesListLazy = LazyList.fromList valuesList in
                                                     let diffsListRes = case Dict.get "diffs" d of
                                                       Nothing ->
-                                                        let _ = Debug.log "No diffs of .update, computing them ..." () in
-                                                        ImpureGoodies.logTimedRun ".update recomputing diffs" <| \_ ->
-                                                        let _ = Debug.log "computing value string" () in
+                                                        --ImpureGoodies.logTimedRun ".update recomputing diffs" <| \_ ->
                                                         let vArgStr = valToString vArg in
-                                                        let _ = Debug.log "computed value string" () in
                                                         Utils.projOk <|
                                                         List.map (\r ->
                                                           if vArgStr == valToString r then
                                                             Ok Nothing
-                                                          else UpdateUtils.defaultVDiffs vArg r) <| valuesList
+                                                          else (if diffs == VConstDiffs then defaultVDiffsShallow else defaultVDiffs) vArg r) <| valuesList
                                                       Just resultDiffsV ->
-                                                        ImpureGoodies.logTimedRun ".update recovering diffs" <| \_ ->
+                                                        --ImpureGoodies.logTimedRun ".update recovering diffs" <| \_ ->
                                                         Vu.list (UpdateUtils.valToMaybe valToVDiffs) resultDiffsV |>
                                                           Result.mapError (\msg -> "Line " ++ toString e.start.line ++ ": the .diffs of the result of .update should be a list of (Maybe differences). " ++ msg ++ ", for " ++ valToString resultDiffsV)
                                                     in
-                                                    let _ = Debug.log "computed diffsListRes" () in
                                                     case diffsListRes of
                                                      Err msg -> Just <| UpdateCriticalError msg
                                                      Ok diffsList ->
@@ -983,7 +980,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                      _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
                                  Just oldValue -> -- There was a value. In case we try to insert this key again, we either fail the insertion or convert it to an update.
                                    -- Currently, we fail
-                                   let potentialErrors = case diffs of
+                                   let potentialErrors = case ifConstShallowDiff oldVal newVal diffs of
                                      VDictDiffs dDiffs -> Dict.foldl (\k v acc ->
                                        acc |> Result.andThen (\_ ->
                                        if k == dictKey then Err <| "Cannot insert/update the key " ++ valToString key ++ " to dictionary because it is removed (line " ++ toString e.start.line ++ ")"
@@ -1011,7 +1008,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                case newVal.v_ of
                                  VDict dNew ->
                                    let valWIthoutKey = replaceV_ newVal <| VDict <| Dict.remove dictKey dNew in
-                                   case diffs of
+                                   case ifConstShallowDiff oldVal newVal diffs of
                                      VDictDiffs dDiffs ->
                                        let newDictDiff = Dict.remove dictKey dDiffs in
                                        let diffsWithoutKey = VDictDiffs <| newDictDiff in
@@ -1257,7 +1254,7 @@ getUpdateStackOp env e oldVal newVal diffs =
 -- Errors are converted to empty solutions because updateRec is called once a solution has been found already.
 updateRec: UpdateStack -> LazyList NextAction -> LazyList (UpdatedEnv, UpdatedExp)
 updateRec updateStack nextToUpdate =
-  ImpureGoodies.logTimedRun "Update.updateRec" <| \_ ->
+  --ImpureGoodies.logTimedRun "Update.updateRec" <| \_ ->
   case update updateStack nextToUpdate of
     Oks l -> l
     Errs msg -> LazyList.Nil

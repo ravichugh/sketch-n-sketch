@@ -105,3 +105,6 @@ littleloc:
 
 tests:
 	cd ../tests && ./test.sh && cd ../src
+
+benchmarks:
+	cd ../tests && ./benchmarks.sh && cd ../src

@@ -856,17 +856,42 @@ combineAppChanges newE1Changes newE2Changes =
     [] -> Nothing
     eChanges -> Just <| EChildDiffs eChanges
 
+ifConstShallowDiff: Val -> Val -> VDiffs -> VDiffs
+ifConstShallowDiff original modified vdiffs =
+  case vdiffs of
+    VConstDiffs ->
+      defaultVDiffsRec False (\_ _ -> Ok (Just VConstDiffs)) original modified  |>
+      Result.map (Maybe.withDefault VConstDiffs) |>
+      Result.withDefault VConstDiffs
+    _ -> vdiffs
+
+
+ifConstDeepDiff: Val -> Val -> VDiffs -> VDiffs
+ifConstDeepDiff original modified vdiffs =
+  case vdiffs of
+    VConstDiffs ->
+      defaultVDiffs original modified  |>
+      Result.map (Maybe.withDefault VConstDiffs) |>
+      Result.withDefault VConstDiffs
+    _ -> vdiffs
+
+defaultVDiffsShallow: Val -> Val -> Result String (Maybe VDiffs)
+defaultVDiffsShallow original modified = Ok (Just VConstDiffs)
+
 -- Invoke this only if strictly necessary.
 defaultVDiffs: Val -> Val -> Result String (Maybe VDiffs)
-defaultVDiffs original modified =
+defaultVDiffs original modified = defaultVDiffsRec True defaultVDiffs original modified
+
+defaultVDiffsRec: Bool -> (Val -> Val -> Result String (Maybe VDiffs)) -> Val -> Val -> Result String (Maybe VDiffs)
+defaultVDiffsRec testEquality recurse original modified =
   case (original.v_, modified.v_) of
     (VList originals, VList modified) ->
-      defaultListDiffs valToString defaultVDiffs originals modified |> Result.map (Maybe.map VListDiffs)
+      defaultListDiffs valToString recurse originals modified |> Result.map (Maybe.map VListDiffs)
     (VClosure isRec1 pats1 body1 env1, VClosure isRec2 pats2 body2 env2) ->
       let ids = Set.union (Set.diff (LangUtils.identifiersSet body1) (LangUtils.identifiersSetInPats pats1))
-             (Set.diff (LangUtils.identifiersSet body2) (LangUtils.identifiersSetInPats pats2))
+               (Set.diff (LangUtils.identifiersSet body2) (LangUtils.identifiersSetInPats pats2))
       in
-      defaultEnvDiffs ids env1 env2 |> Result.andThen (\mbEnvDiff ->
+      defaultEnvDiffsRec testEquality recurse ids env1 env2 |> Result.andThen (\mbEnvDiff ->
          defaultEDiffs body1 body2 |> Result.map (\mbEDiff ->
           case mbEnvDiff of
             Nothing ->
@@ -876,10 +901,10 @@ defaultVDiffs original modified =
             Just x -> Just <| VClosureDiffs x mbEDiff
       ))
     (VDict original, VDict modified) ->
-      defaultDictDiffs valToString defaultVDiffs original modified
+      defaultDictDiffs valToString recurse original modified
     (VRecord original, VRecord modified) ->
-      defaultRecordDiffs valToString defaultVDiffs original modified
-    (v1, v2) -> if v1 == v2 then Ok Nothing else Ok (Just VConstDiffs)
+      defaultRecordDiffs valToString recurse original modified
+    (v1, v2) -> if valEqual original modified then Ok Nothing else Ok (Just VConstDiffs)
 
 defaultListDiffs: (a -> String) -> (a -> a -> Result String (Maybe b)) -> List a -> List a -> Result String (Maybe (ListDiffs b))
 defaultListDiffs keyOf defaultElemModif elems1 elems2 =
@@ -922,8 +947,12 @@ valEqualDiff original modified =
     Ok Nothing -> True
     _ -> False
 
-defaultEnvDiffs: Set Ident -> Env -> Env -> Result String (Maybe EnvDiffs) -- lowercase val so that it can be applied to something else?
-defaultEnvDiffs identsToCompare elems1 elems2 =
+
+defaultEnvDiffs: Set Ident -> Env -> Env -> Result String (Maybe EnvDiffs)
+defaultEnvDiffs = defaultEnvDiffsRec True defaultVDiffs
+
+defaultEnvDiffsRec: Bool     -> (Val -> Val -> Result String (Maybe VDiffs)) -> Set Ident -> Env -> Env -> Result String (Maybe EnvDiffs)
+defaultEnvDiffsRec testEquality recurse identsToCompare elems1 elems2 =
   let aux: Int -> Set Ident    -> List (Int, VDiffs) -> Env         -> Env -> Result String (Maybe EnvDiffs)
       aux  i      identsToCompare revEnvDiffs          envToCollect1  envToCollect2 =
         if Set.isEmpty identsToCompare then
@@ -940,10 +969,10 @@ defaultEnvDiffs identsToCompare elems1 elems2 =
             if k1 /= k2 then Err <| "trying to compute a diff on unaligned environments " ++ k1 ++ "," ++ k2 else
             if not (Set.member k1 identsToCompare) then
               aux (i + 1) identsToCompare revEnvDiffs etl1 etl2
-            else if valEqualDiff v1 v2 then
+            else if testEquality && valEqualDiff v1 v2 then
               aux (i + 1) (Set.remove k1 identsToCompare) revEnvDiffs etl1 etl2
             else
-              defaultVDiffs v1 v2 |> Result.andThen (\mbv ->
+              recurse v1 v2 |> Result.andThen (\mbv ->
                 let newRevEnvDiffs = case mbv of
                   Nothing -> revEnvDiffs
                   Just v -> (i, v)::revEnvDiffs
