@@ -150,6 +150,36 @@ function listenForUpdatesToOutputValues() {
           triggerAutoUpdate()
         }
       } else {
+        for (var k = 0; k < mutation.addedNodes.length; k ++) { // We add the callback to each added node.
+          function walkAllChildren(currentNode) {
+            outputValueObserver.observe
+              ( currentNode
+              , { attributes: true
+                , childList: true
+                , characterData: true
+                , attributeOldValue: true
+                , characterDataOldValue: true
+                , subtree: false
+                }
+              );
+            for (j = 0; j < currentNode.childNodes.length; j++) {
+              var child = currentNode.childNodes[j];
+              if (child.nodeType == 3) {
+                outputValueObserver.observe
+                ( child
+                , { characterData: true
+                  , attributeOldValue: true
+                  , characterDataOldValue: true
+                  , subtree: false
+                  }
+                );
+              } else if (child.nodeType == 1) {
+                walkAllChildren(child)
+              }
+            }
+          }
+          walkAllChildren(mutation.addedNodes[k])
+        }
         var path = getPathUntilOutput(mutation.target) // We change the whole node.
         if(path != null) {
           var encodedNode = encodeNode(mutation.target);

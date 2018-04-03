@@ -857,7 +857,7 @@ html string = {
     letrec toHTMLNode e = case e of
       ["TEXT",v2] -> toHTMLInner v2
       [tag, attrs, children] -> HTMLElement tag (map toHTMLAttribute attrs) ""
-           RegularEndOpening (map toHTMLNode children) RegularClosing
+           RegularEndOpening (map toHTMLNode children) (RegularClosing "")
     in
     let mergeAttrs input oldOutput newOutput diffs =
       foldDiff {

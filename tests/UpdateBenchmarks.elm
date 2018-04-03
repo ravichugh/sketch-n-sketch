@@ -27,62 +27,128 @@ nToAverageOn = 10
 
 programs = Dict.fromList [("Markdown", ExamplesGenerated.fromleo_markdown)]
 
-type Benchmark = BUpdate String (String -> String)
+type Benchmark = BUpdate String (List (String -> String))
 
 benchmarks: List Benchmark
 benchmarks = [
-  BUpdate    "Markdown" (replace (AtMost 1) (regex "demo") (\_ -> "demonstration"))
+  BUpdate "Markdown" [replace (AtMost 1) (regex "demo") (\_ -> "demonstration"),
+                      replace (AtMost 1) (regex "bidirectional") (\_ -> "two-directional"),
+                      replace (AtMost 1) (regex "\"Do not use CTRL\\+V\"") (\_ -> "\"Do not use CTRL+V\"]]],[ \"li\", [], [ [ \"TEXT\", \"But use everything else\"")] --"
   ]
+
+applyTransform: (String -> String) -> Val -> Val
+applyTransform replacement oldOut =
+  valToString oldOut |> replacement |> parse |> Utils.fromOk "parse newout" |> eval |> Utils.fromOk "eval newout"
+
+
+mbcmp: (number -> number -> number) -> Maybe number -> number -> Maybe number
+mbcmp f x n = case x of
+  Nothing -> Just n
+  Just y -> Just (f y n)
+
+mbmin = mbcmp min
+mbmax = mbcmp max
+mbacc = mbcmp (+)
+
+toMinuteSeconds: Float -> String
+toMinuteSeconds ms =
+  let s = ceiling (ms / 1000) in
+  if s < 60 then "0:" ++ String.padLeft 2 '0' (toString s)
+  else toString (toFloat s / 60) ++ ":" ++ String.padLeft 2 '0' (toString (s % 60))
 
 runBenchmark: Benchmark -> String
 runBenchmark b = case b of
-  BUpdate progname replacement ->
-    let prog = Dict.get progname programs |> Utils.fromJust_ "Prog" in
+  BUpdate benchmarkname replacements ->
+    let numberOfUpdates = List.length replacements in
+    let prog = Dict.get benchmarkname programs |> Utils.fromJust_ "Prog" in
     let (progExp, (_, _, parseProgTime)) = averageTimedRun nToAverageOn (\_ -> parse prog |> Utils.fromOk "parse prog") in
     let (oldOut, (_, _, evalProgTime)) = averageTimedRun nToAverageOn (\_ -> evalEnv EvalUpdate.preludeEnv progExp |> Utils.fromOk "eval prog") in
     let evalTime = parseProgTime + evalProgTime in
-    let newOut = valToString oldOut |> replacement |> parse |> Utils.fromOk "parse newout" |> eval |> Utils.fromOk "eval newout" in
 
-    let (_, (fastestUnopt, slowestUnopt, averageUnopt)) =
-      averageTimedRun nToAverageOn (\_ -> update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut VConstDiffs) LazyList.Nil)
+    -- Returns (List of the total time of the session, and as many update times as there are replacements)
+    let session: Bool -> (Float, List Float)
+        session unopt =
+      let (_, _, updateTimes, evalTimes, modifTimes) = List.foldl (\replacement (progExp, oldOut, updateTimes, evalTimes, modifTimes) ->
+           let (newOut, newOutTime) = ImpureGoodies.timedRun <| \_ -> applyTransform replacement oldOut in
+           let (newProgExp, updateTime) = (if unopt then
+                ImpureGoodies.timedRun <| \_ ->
+                update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut VConstDiffs) LazyList.Nil
+              else
+                ImpureGoodies.timedRun <| \_ ->
+                let diffs = UpdateUtils.defaultVDiffs oldOut newOut |> Utils.fromOk (benchmarkname ++ "defaultVDiffs") |> Utils.fromJust_ (benchmarkname ++ "defaultVDiffs") in
+                update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut diffs) LazyList.Nil) |> \(x, t) -> case x of
+                   Results.Oks (LazyList.Cons (headEnv, headExp) lazyTail as ll) -> (headExp.val, t)
+                   Results.Errs msg -> Debug.crash msg
+                   _ -> Debug.crash <| "No solution for " ++ benchmarkname
+           in
+           let (realNewOut, realNewOutTime) = ImpureGoodies.timedRun <| \_ -> evalEnv EvalUpdate.preludeEnv progExp |> Utils.fromOk "eval prog" in
+           (newProgExp, realNewOut, updateTime::updateTimes, realNewOutTime::evalTimes, newOutTime::modifTimes)
+           ) (progExp, oldOut, [], [], []) replacements
+      in
+      (List.sum updateTimes + List.sum evalTimes + List.sum modifTimes, updateTimes)
     in
+    let unoptResults: List (Float, List Float)
+        unoptResults = tryMany nToAverageOn <| \_ ->
+         session True
+    in
+    let optResults: List (Float, List Float)
+        optResults = tryMany nToAverageOn <| \_ ->
+         session False
+    in
+    let allUpdateTimes = List.concatMap Tuple.second in
+    let allUnoptTimes = allUpdateTimes unoptResults in
+    let allOptTimes = allUpdateTimes optResults in
+    let fastestUnopt = List.minimum allUnoptTimes |> Utils.fromJust_ "minimum unopt" in
+    let fastestOpt   = List.minimum allOptTimes   |> Utils.fromJust_ "minimum opt" in
+    let slowestUnopt = List.maximum allUnoptTimes |> Utils.fromJust_ "maximum unopt" in
+    let slowestOpt   = List.maximum allOptTimes   |> Utils.fromJust_ "maximum opt" in
+    let averageUnopt = List.sum allUnoptTimes / toFloat (nToAverageOn * numberOfUpdates) in
+    let averageOpt   = List.sum allOptTimes   / toFloat (nToAverageOn * numberOfUpdates) in
 
-    let (newProgExp, (fastestOpt, slowestOpt, averageOpt)) = averageTimedRun nToAverageOn (\_ ->
-         let diffs = UpdateUtils.defaultVDiffs oldOut newOut |> Utils.fromOk "defaultVDiffs" |> Utils.fromJust_ "defaultVDiffs" in
-         case update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut diffs) LazyList.Nil of
-            Results.Oks (LazyList.Cons head lazyTail as ll) -> head
-            Results.Errs msg -> Debug.crash msg
-            _ -> Debug.crash <| "No solution for " ++ progname
-      )
-    in
+    let averageUnoptSessionTime = toMinuteSeconds ((List.map Tuple.first unoptResults |> List.sum) / nToAverageOn) in
+    let averageOptSessionTime   = toMinuteSeconds ((List.map Tuple.first optResults |> List.sum) / nToAverageOn) in
+
     let speedup unopt opt = " (" ++ toString (toFloat (floor (10 * unopt / opt)) / 10) ++ "x)" in
     let speedupfastest = speedup fastestUnopt fastestOpt in
     let speedupslowest = speedup slowestUnopt slowestOpt in
     let speedupaverage = speedup averageUnopt averageOpt in
-    "\\tableRow   {" ++
-    String.padLeft 20 ' ' progname ++ "} {" ++
+    let latexRow = "\\tableRow   {" ++
+    String.padLeft 20 ' ' benchmarkname ++ "} {" ++
     String.pad 3 ' ' (toString <| loc prog) ++ "} {" ++
-    String.pad 4 ' ' (toString <| ceiling evalTime) ++ "} { ?  } {  ?  } {" ++
+    String.pad 4 ' ' (toString <| ceiling evalTime) ++ "} { "++
+    String.pad 6 ' ' (averageUnoptSessionTime ++ "/" ++ averageOptSessionTime) ++"  } { "++
+    String.pad 3 ' ' (toString numberOfUpdates) ++" } {" ++
     String.pad 15 ' ' (toString fastestUnopt ++ "/" ++ toString fastestOpt ++ speedupfastest) ++ "} {" ++
     String.pad 15 ' ' (toString slowestUnopt ++ "/" ++ toString slowestOpt ++ speedupslowest) ++ "} {" ++
-    String.pad 15 ' ' (toString averageUnopt ++ "/" ++ toString averageOpt ++ speedupaverage) ++ "}"
-    |> ImpureGoodies.log
+    String.pad 15 ' ' (toString (ceiling averageUnopt) ++ "/" ++ toString (ceiling averageOpt) ++ speedupaverage) ++ "} \\\\"
+    in
+    let _ = ImpureGoodies.log latexRow in
+    let rendersession results = List.map (\(session, upds) ->
+       "\n% session: " ++ toString session ++ ", updates: " ++
+         (List.map toString upds |> String.join ",")) results |> String.join "" in
+    let rawdata = "\n% " ++ benchmarkname ++ " - Unopt" ++ rendersession unoptResults ++
+      "\n% " ++ benchmarkname ++ " - Opt" ++ rendersession optResults in
+    rawdata
 
 header =
   ImpureGoodies.log """
 %
 % Benchmark Rows
 %
-% \\tableRow {                    } {   } {    } {   Session  } {  Fastest Upd  } {  Slowest Upd  } {  Average Upd  }
-% \\tableRow {     Example        } {LOC} {Eval} {Time} {\\#Upd} {  Unopt / Opt  } {  Unopt / Opt  } {  Unopt / Opt  }"""
+% \\tableRow {                    } {   } {    } {     Session     } {  Fastest Upd  } {  Slowest Upd  } {  Average Upd  }
+% \\tableRow {     Example        } {LOC} {Eval} {  Time  } {\\#Upd} {  Unopt / Opt  } {  Unopt / Opt  } {  Unopt / Opt  }"""
 
-compute = header::List.map runBenchmark benchmarks
+compute = List.foldl (\b acc -> acc ++ runBenchmark b) "" benchmarks |> ImpureGoodies.log
 
 parse = Syntax.parser Syntax.Elm >> Result.mapError (\p -> ParserUtils.showError p)
 unparse = Syntax.unparser Syntax.Elm
 evalEnv env exp = Eval.doEval Syntax.Elm env exp |> Result.map (Tuple.first >> Tuple.first)
 eval exp = Eval.doEval Syntax.Elm [] exp |> Result.map (Tuple.first >> Tuple.first)
 
+tryMany: Int -> (() -> a) -> List a
+tryMany n callback =
+  List.range 1 n |>
+  List.map (\i -> callback ())
 
 averageTimedRun: Int -> (() -> a) -> (a, (Float, Float, Float))
 averageTimedRun n callback =
