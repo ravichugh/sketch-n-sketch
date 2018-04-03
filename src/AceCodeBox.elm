@@ -5,6 +5,7 @@ port module AceCodeBox exposing
   , receiveEditorState
   , userHasTyped
   , resetScroll
+  , aceCodeBoxScroll
   )
 
 import InterfaceModel as Model exposing (Model, AceCodeBoxInfo)
@@ -16,6 +17,7 @@ import Ace
 -- Outgoing
 
 port aceCodeBoxCmd : AceCodeBoxCmd -> Cmd msg
+port aceCodeBoxScroll: { line: Int, col: Int } -> Cmd msg
 
 type alias AceCodeBoxCmd =
   { message : String

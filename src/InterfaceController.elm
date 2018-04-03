@@ -1126,6 +1126,14 @@ issueCommandBasedOnCaption kind oldModel newModel =
                 let n = submodel newModel in
                 if submodel oldModel /= n then cmdBuilder n else Cmd.none
           in
+          let dispatchIfNonemptyChanged: (Model -> Maybe a) -> (a -> Cmd Msg) -> Cmd Msg
+              dispatchIfNonemptyChanged submodel cmdBuilder =
+                let n = submodel newModel in
+                case n of
+                  Nothing -> Cmd.none
+                  Just a ->
+                    if submodel oldModel /= n then cmdBuilder a else Cmd.none
+          in
           Cmd.batch
             [ dispatchIfChanged
                 (\m -> m.syncMode)
@@ -1136,6 +1144,8 @@ issueCommandBasedOnCaption kind oldModel newModel =
             , dispatchIfChanged getAutoSyncDelay OutputCanvas.setAutoSyncDelay
             , dispatchIfChanged (\m -> m.preview |> Utils.maybeIsEmpty |> not) OutputCanvas.setPreviewMode
             , dispatchIfChanged (\m -> m.previewdiffs |> Utils.maybeIsEmpty |> not) (OutputCanvas.setDiffTimer << DiffTimer newModel.previewdiffsDelay)
+            , dispatchIfNonemptyChanged (\m ->
+               m.previewdiffs |> Utils.maybeOrElse (Maybe.map (\(_, exps, _) -> exps) m.preview) |> Maybe.andThen List.head |> Maybe.map (\expHead -> expHead.start)) AceCodeBox.aceCodeBoxScroll
             , if kind == "Update Font Size" then
                 AceCodeBox.updateFontSize newModel
               else if

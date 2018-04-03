@@ -131,6 +131,11 @@ maybeZipN lists =
 maybeIsEmpty: Maybe a -> Bool
 maybeIsEmpty mb = Maybe.map (\_ -> False) mb |> Maybe.withDefault True
 
+maybeOrElse: Maybe a -> Maybe a -> Maybe a
+maybeOrElse mb ma = case ma of
+  Just _ -> ma
+  Nothing -> mb
+
 zipi0 : List a -> List (Int, a)
 zipi0 = zipi_ 0
 
