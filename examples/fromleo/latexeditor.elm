@@ -267,12 +267,12 @@ splitargs n array =
   letrec aux revAcc n array =
     if n == 0 then [reverse revAcc, array] else
     case array of
-      {tag="rawtext", value=text}:: rem ->
+      {tag="rawtext", value=text, pos = pos}:: rem ->
         case extractFirstIn """^\s*(\S)(.*)""" text of
           Just [arg, other] ->
-            let newAcc = {tag="rawtext", value=arg}::revAcc in
+            let newAcc = {tag="rawtext", value=arg, pos = pos}::revAcc in
             let newN = n - 1 in
-            let newArray = {tag="rawtext", value=other} :: rem in
+            let newArray = {tag="rawtext", value=other, pos = pos + String.length arg} :: rem in
             aux newAcc newN newArray
           _ ->
             aux revAcc n rem
@@ -296,7 +296,7 @@ toHtmlWithoutRefs opts tree =
       {tag="block", children=children} ->
         let newTree = children ++ rem in
         aux opts revAcc newTree
-      {tag="rawtext", value=text} ->
+      {tag="rawtext", value=text, pos = pos} ->
         let finalText = {
            apply x = x,
            update {input, oldOutput, newOutput} = 
@@ -305,10 +305,10 @@ toHtmlWithoutRefs opts tree =
         if opts.indent && Regex.matchIn """^[\s]*\S""" text then
           let newOpts = { opts | indent = False,  newline = False } in
           let revAccWithParagraph = List.reverseInsert (newline opts ++ indent opts) revAcc in
-          let newrevAcc = ["TEXT",finalText]::revAccWithParagraph in
+          let newrevAcc = ["span", [["start", toString pos]], [["TEXT",finalText]]]::revAccWithParagraph in
           aux newOpts newrevAcc rem
         else
-          let newrevAcc = ["TEXT",finalText]::revAcc in
+          let newrevAcc = ["span", [["start", toString pos]], [["TEXT",finalText]]]::revAcc in
           aux opts newrevAcc rem
       {tag="newpar"} ->
         let newOpts = { opts | indent = True, newline = True} in
@@ -411,6 +411,43 @@ latexttoolong = """ or 2.1. See how it updates the source code.
 Only frac, exponent and indices in math mode: $\frac{b^2-4ac}{2}$.
 %TODO support more commands."""
 
+latex2html latex = 
+  { apply latex = freeze <| toHtml <| parse <| tokens <| latex,
+    update {input, outputOld, outputNew, diffs} = 
+      let gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
+        [] -> {values = []}
+        ((j, VListElemUpdate d) :: tail) ->
+          if j > i then
+            gatherDiffsChild gatherDiffs j (List.drop (j - i) cOld) (List.drop (j - i) cNew) childDiffs
+          else
+            case (cOld, cNew) of
+              (oldHead::oldTail, newHead::newTail) ->
+                gatherDiffs oldHead newHead d |> LensLess.Result.andThen (\diffs ->
+                  gatherDiffsChild gatherDiffs (i + 1) oldTail newTail tail |> LensLess.Result.map (\diffsTail ->
+                    diffs ++ diffsTail
+                  )
+                )
+              _ -> error "Unexpected size of cOld and cNew"
+        _ -> {error = "Insertion or deletions, cannot short-circuit"}
+      in
+      letrec gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
+        (["span", [["start", p]], [["TEXT", vOld]]], 
+         ["span", [["start", p]], [["TEXT", vNew]]], VListDiffs [(2, _)]) -> 
+           { values = [(vNew, String.toInt p, String.toInt p + String.length vOld)] }
+        ([_, _, cOld], [_, _, cNew], VListDiffs [(2, VListElemUpdate childDiffs)]) ->
+           gatherDiffsChild gatherDiffs 0 cOld cNew childDiffs
+        _ -> {error = "Could not find text differences"}
+      in
+      case gatherDiffs outputOld outputNew diffs of
+        { values = replacements } -> 
+          List.foldl (\(newValue, start, end) acc ->
+            String.substring 0 start acc + newValue + String.drop end acc
+          ) input replacements
+        { error = msg } -> Update.updateApp {
+          fun (f,x) = f x, input = (\x -> toHtml <| parse <| tokens <| x, latex), output = outputNew, diffs = diffs }
+  }.apply latex
+
+
 ["span", [["style", [["margin","10px"]]]], [
 ["style", [["type", "text/css"]], [["TEXT", """
 #content {
@@ -483,5 +520,5 @@ latex-sc {
      <span class="glyphicon glyphicon-italic"></span> Italic
    </button>
    """],["br", [], []],
-["div", [["style", [["display", "inline-block"]]], ["id", "content"]], Debug.log "final HTML0" <|
-toHtml <| parse <| tokens <| latex]]]
+["div", [["style", [["display", "inline-block"]]], ["id", "content"]],
+latex2html latex]]]

@@ -2,6 +2,9 @@ module ExamplesGenerated exposing
   ( list, templateCategories
   , blankSvgTemplate, blankHtmlTemplate, initTemplate
   , badPreludeTemplate
+  , fromleo_markdown
+  , fromleo_recipe
+  , fromleo_conference_budgetting
   )
 
 import Lang

@@ -14,6 +14,7 @@ import Set exposing (Set)
 import Pos exposing (Pos)
 import ValBuilder as Vb
 import ValUnbuilder as Vu
+import UpdateUnoptimized
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -342,6 +343,7 @@ type VDiffs = VClosureDiffs EnvDiffs (Maybe EDiffs)
             | VDictDiffs (Dict (String, String) VDictElemDiff)
             | VRecordDiffs (Dict String VDiffs)
             | VConstDiffs
+            | VUnoptimizedDiffs -- For benchmarking against no diff
 
 type EDiffs = EConstDiffs EWhitespaceDiffs
             | EListDiffs (ListDiffs EDiffs)
@@ -361,33 +363,6 @@ extractors = {
   unapply = \msg unapply e c -> Result.fromMaybe msg (unapply e) |> Result.andThen c,
   unapplySeq = \msg transformer input c -> List.map transformer input |> Utils.projJusts |> Result.fromMaybe msg |> Result.andThen c
   }
-
-
--- Helpers to construct/deconstruct datatypes from Val
-maybeToVal: (Vb.Vb -> a -> Val) -> Vb.Vb -> Maybe a -> Val
-maybeToVal subroutine vb mba = case mba of
-  Just x  -> Vb.constructor vb "Just"    [subroutine vb x]
-  Nothing -> Vb.constructor vb "Nothing" []
-
-valToMaybe: (Val -> Result String a)  -> Val -> Result String (Maybe a)
-valToMaybe subroutine v = case Vu.constructor Ok v of
-  Ok ("Just", [x]) -> subroutine x |> Result.map Just
-  Ok ("Nothing", []) -> Ok Nothing
-  Ok _ -> Err <| "Expected Just or Nothing, got " ++ valToString v
-  Err msg -> Err msg
-
-resultToVal: (Vb.Vb -> a -> Val) -> Vb.Vb -> Result String a -> Val
-resultToVal subroutine vb mba = case mba of
-  Ok x  -> Vb.constructor vb "Ok"    [subroutine vb x]
-  Err msg-> Vb.constructor vb "Err"  [Vb.string vb msg]
-
-valToResult: (Val -> Result String a)  -> Val -> Result String (Result String a)
-valToResult subroutine v = case Vu.constructor Ok v of
-  Ok ("Ok", [x]) -> subroutine x |> Result.map Ok
-  Ok ("Err", [msg]) -> Vu.string msg |> Result.map Err
-  Ok _ -> Err <| "Expected Ok or Err, got " ++ valToString v
-  Err msg -> Err msg
-
 
 -- Helpers for TupleDiffs and ListDiffs
 tupleDiffsToVal: (Vb.Vb -> a -> Val) -> Vb.Vb -> TupleDiffs a -> Val
@@ -442,19 +417,21 @@ valToVDictElemDiff v = case Vu.constructor Ok v of
 -- Val encoding of VDiffs
 vDiffsToVal: Vb.Vb -> VDiffs -> Val
 vDiffsToVal vb vdiffs = case vdiffs of
-  VClosureDiffs e mbe -> (Vb.constructor vb) "VClosureDiffs" [envDiffsToVal vb e, maybeToVal eDiffsToVal vb mbe]
+  VClosureDiffs e mbe -> (Vb.constructor vb) "VClosureDiffs" [envDiffsToVal vb e, Vb.maybe eDiffsToVal vb mbe]
   VListDiffs list     -> (Vb.constructor vb) "VListDiffs"    [listDiffsToVal vDiffsToVal vb list]
   VConstDiffs         -> (Vb.constructor vb) "VConstDiffs"   []
   VDictDiffs d        -> (Vb.constructor vb) "VDictDiffs"    [Vb.dict vDictElemDiffToVal vb d]
   VRecordDiffs d      -> (Vb.constructor vb) "VRecordDiffs " [Vb.record vDiffsToVal vb d]
+  VUnoptimizedDiffs   -> (Vb.constructor vb) "VUnoptimizedDiffs" []
 
 valToVDiffs: Val -> Result String VDiffs
 valToVDiffs v = case Vu.constructor Ok v of
-  Ok ("VClosureDiffs", [v1, v2]) -> Result.map2 VClosureDiffs (valToEnvDiffs v1) (valToMaybe valToEDiffs v2)
+  Ok ("VClosureDiffs", [v1, v2]) -> Result.map2 VClosureDiffs (valToEnvDiffs v1) (Vu.maybe valToEDiffs v2)
   Ok ("VListDiffs"   , [l]) -> valToListDiffs valToVDiffs l |> Result.map VListDiffs
   Ok ("VConstDiffs"  , []) -> Ok VConstDiffs
   Ok ("VDictDiffs"   , [d]) -> Vu.dict valToVDictElemDiff d|> Result.map VDictDiffs
   Ok ("VRecordDiffs ", [d]) -> Vu.record valToVDiffs d |> Result.map VRecordDiffs
+  Ok ("VUnoptimizedDiffs", []) -> Ok VUnoptimizedDiffs
   Ok _ -> Err <| "Expected VClosureDiffs[_, _], VListDiffs[_], VConstDiffs[], VDictDiffs[_], VRecordDiffs[_], got " ++ valToString v
   Err msg -> Err msg
 
@@ -542,6 +519,8 @@ vDiffsToString_ indent vOriginal vModified vDiffs =
         _ -> "[Internal error] vDiffsToString_ " ++ toString vDiffs ++ " expects closures here, got " ++ valToString vOriginal ++ ", " ++ valToString vModified
     VConstDiffs ->
       "\n" ++ indent ++ "Was " ++ valToString vOriginal ++ ", now " ++ valToString vModified
+    VUnoptimizedDiffs ->
+      "\n" ++ indent ++ "Was " ++ valToString vOriginal ++ ", now (maybe not updated) " ++ valToString vModified
 
 vDiffsToString = vDiffsToString_  ""
 
@@ -856,27 +835,27 @@ combineAppChanges newE1Changes newE2Changes =
     [] -> Nothing
     eChanges -> Just <| EChildDiffs eChanges
 
-ifConstShallowDiff: Val -> Val -> VDiffs -> VDiffs
-ifConstShallowDiff original modified vdiffs =
+ifUnoptimizedShallowDiff: Val -> Val -> VDiffs -> VDiffs
+ifUnoptimizedShallowDiff original modified vdiffs =
   case vdiffs of
-    VConstDiffs ->
-      defaultVDiffsRec False (\_ _ -> Ok (Just VConstDiffs)) original modified  |>
-      Result.map (Maybe.withDefault VConstDiffs) |>
-      Result.withDefault VConstDiffs
+    VUnoptimizedDiffs ->
+      defaultVDiffsRec False (\_ _ -> Ok (Just VUnoptimizedDiffs)) original modified  |>
+      Result.map (Maybe.withDefault VUnoptimizedDiffs) |>
+      Result.withDefault VUnoptimizedDiffs
     _ -> vdiffs
 
 
-ifConstDeepDiff: Val -> Val -> VDiffs -> VDiffs
-ifConstDeepDiff original modified vdiffs =
+ifUnoptimizedDeepDiff: Val -> Val -> VDiffs -> VDiffs
+ifUnoptimizedDeepDiff original modified vdiffs =
   case vdiffs of
-    VConstDiffs ->
+    VUnoptimizedDiffs ->
       defaultVDiffs original modified  |>
-      Result.map (Maybe.withDefault VConstDiffs) |>
-      Result.withDefault VConstDiffs
+      Result.map (Maybe.withDefault VUnoptimizedDiffs) |>
+      Result.withDefault VUnoptimizedDiffs
     _ -> vdiffs
 
 defaultVDiffsShallow: Val -> Val -> Result String (Maybe VDiffs)
-defaultVDiffsShallow original modified = Ok (Just VConstDiffs)
+defaultVDiffsShallow original modified = Ok (Just VUnoptimizedDiffs)
 
 -- Invoke this only if strictly necessary.
 defaultVDiffs: Val -> Val -> Result String (Maybe VDiffs)
@@ -1133,6 +1112,8 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
   --let _ = Debug.log (valToString original ++ "<-(\n" ++ valToString modified1 ++ "("++toString modifs1++")" ++ "\n,\n" ++ valToString modified2++ "("++toString modifs2++")" ++ ")") () in
   --(\x -> let _ = Debug.log (Tuple.first x |> valToString) () in x) <|
   case (original.v_, modified1.v_, modifs1, modified2.v_, modifs2) of    -- TODO: Find multiple elem insertions and deletions
+    (_, _, VUnoptimizedDiffs, _, VUnoptimizedDiffs) ->
+      (UpdateUnoptimized.mergeVal original modified1 modified2, VUnoptimizedDiffs)
     (VBase (VString originalString), VBase (VString modified1String), VConstDiffs, VBase (VString modified2String), VConstDiffs) ->
       (replaceV_ original <| VBase (VString <| mergeString originalString modified1String modified2String), VConstDiffs)
 

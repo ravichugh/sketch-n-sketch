@@ -53,3 +53,14 @@ constructor vb tagname vals =
 
 identity: Vb -> Val -> Val
 identity vb theVal = theVal
+
+
+maybe: (Vb -> a -> Val) -> Vb -> Maybe a -> Val
+maybe subroutine vb mba = case mba of
+  Just x  -> constructor vb "Just"    [subroutine vb x]
+  Nothing -> constructor vb "Nothing" []
+
+result: (Vb -> a -> Val) -> Vb -> Result String a -> Val
+result subroutine vb mba = case mba of
+  Ok x  -> constructor vb "Ok"    [subroutine vb x]
+  Err msg-> constructor vb "Err"  [string vb msg]

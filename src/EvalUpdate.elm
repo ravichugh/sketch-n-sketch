@@ -6,7 +6,7 @@ Eval.run has become EvalUpdate.run, because it depends on the prelude and on the
 import Update exposing (update)
 import UpdateStack exposing (UpdateStack, updateContext, UpdatedExp)
 import UpdatedEnv exposing (UpdatedEnv)
-import UpdateUtils exposing (defaultVDiffs, vDiffsToVal, valToVDiffs, recursiveMergeVal, maybeToVal)
+import UpdateUtils exposing (defaultVDiffs, vDiffsToVal, valToVDiffs, recursiveMergeVal)
 import Eval exposing (eval)
 import Lang exposing (..)
 import HTMLValParser
@@ -207,7 +207,7 @@ builtinEnv =
                                         _ -> Debug.crash "Internal error: expected not much than (1, diff) in environment changes"
                                     _ -> Debug.crash "Internal error: expected x and y in environment"
                                  ) |> List.unzip in
-                               let maybeDiffsVal = diffs |> Vb.list (maybeToVal vDiffsToVal) vb in
+                               let maybeDiffsVal = diffs |> Vb.list (Vb.maybe vDiffsToVal) vb in
                                Vb.record Vb.identity vb (
                                     Dict.fromList [("values", Vb.list Vb.identity vb results),
                                                  ("diffs", maybeDiffsVal )
@@ -237,16 +237,16 @@ builtinEnv =
              _ -> Err  <| "__merge__ takes 2 lists, but got " ++ toString (List.length args)
          _ -> Err  <| "__merge__ takes 2 lists, but got " ++ toString (List.length args)
      ) Nothing)
-   , ("__diff__", builtinVal "EvalUpdate.diff" <|
+  , ("__diff__", builtinVal "EvalUpdate.diff" <|
     VFun "__diff__" ["value_before", "value_after"] (\args ->
       case args of
         [before, after] ->
           Ok ( defaultVDiffs before after
-                 |> UpdateUtils.resultToVal (UpdateUtils.maybeToVal vDiffsToVal) (Vb.fromVal before)
+                 |> Vb.result (Vb.maybe vDiffsToVal) (Vb.fromVal before)
                , [])
         _ -> Err <|  "__diff__ performs the diff on 2 values, but got " ++ toString (List.length args)
-    ) Nothing
-  )]
+    ) Nothing)
+  ]
 
 preludeEnvRes = Result.map Tuple.second <| (eval Syntax.Little builtinEnv [] Parser.prelude)
 preludeEnv = Utils.fromOk "Eval.preludeEnv" <| preludeEnvRes

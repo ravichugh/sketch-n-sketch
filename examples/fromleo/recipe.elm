@@ -1,5 +1,4 @@
--- If you write prop[number] in the text, it will display this number but it will be proportional to the number of cakes !
--- If you write plurs[number] in the text, it will display a "s" if the number is greater than 1 !
+# updatedelay: 0
 
 base = 1000
 temperature = 180
@@ -7,7 +6,9 @@ temperature = 180
 language = "English"
 otherLanguage = if language == "French" then "English" else "French"
 
-txt = dict [
+txt = """<br><button onclick="this.setAttribute('x', parseInt(this.getAttribute('x'))*2 + '')" x="multdivby[1024,1024]">x2</button>
+<button onclick="this.setAttribute('x', parseInt(this.getAttribute('x'))/2 + '')" x="multdivby[1024,1024]">/2</button>""" + (
+  Dict.fromList [
   ("French", """
 <h1>Moelleux chocolat amandes</h1>
 Recette pour multdivby[20,1000] petits gâteaux.<br>
@@ -26,7 +27,7 @@ On peut aussi mettre en déco des amandes effilées, ou remplacer le chocolat pa
 Recipe for multdivby[20,1000] small cakes.<br>
 Preheat the oven at @(floor (temperature * freeze 9 / freeze 5) + freeze 32)° Fahrenheit
 <li>multdivby[4,1000] eggifmanys[4,1000]</li>
-<li>multdivby[1,2000] glass of sugar</li>
+<li>multdivby[1,2000] cup of sugar</li>
 <li>multdivby[200,1000]g of melted chocolate</li>
 <li>multdivby[50,1000]g of almond powder</li>
 <li>multdivby[2,1000] tbls of sunflower oil</li>
@@ -34,7 +35,7 @@ Preheat the oven at @(floor (temperature * freeze 9 / freeze 5) + freeze 32)° F
 <li>A pinch of salt</li>
 In the oven for 10 minutes in cupcakes pans.<br>
 One can also put as decoration sliced almonds, or replace chocolate by a squeezed lemon.""")
-  ] |> flip Dict.apply language
+  ] |> flip Dict.apply language)
 
 result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
   let mult = String.toInt <| nth m.group 3 in
@@ -47,7 +48,7 @@ result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
            case floor (base * mult * 4 / div) - 4*res of
              0 -> if res == 0 then "<¼" else toString res
              1 -> if res == 0 then "¼" else if res >= 4 then toString res else toString res + "¼"
-             2 -> if res == 0 then "½" else toString res + "3/4"
+             2 -> if res == 0 then "½" else toString res + "½"
              3 -> if res == 0 then "¾" else if res >= 4 then toString res else toString res + "¾"
           update {outputNew, outputOriginal} =
             if outputNew == outputOriginal then {values=[base]} else
@@ -67,34 +68,36 @@ result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
                    "3/4"  -> addi 3
                    " 3/4" -> addi 3
                    "+3/4" -> addi 3
-                   a      -> "complement error: " + complement + 1
-              Nothing -> 4 * String.toInt i
+                   a      -> error <| "Unexpected complement: " + complement
+              Nothing -> 4 * String.toInt outputNew
             in
-            {values = floor (quantityTimes4 * div / mult / 4) }
+            {values = [floor (quantityTimes4 * div / mult / 4)] }
         }.apply base
       else toString res
     ifmanyEnding ->
       let ending = nth m.group 2 in
       let res = floor (base * freeze mult * freeze 4 / freeze div) in
-      { apply x = if res > 4 then ending else ""
-        update {outputNew, outputOriginal} =
-          if outputNew == "" && outputOriginal == ending then {values=[4]} else {values = []} }.apply res) txt
+      { apply (res, ending) = freeze <| if res > 4 then ending else ""
+        update {input=(res,ending), outputNew, outputOriginal} =
+          if outputNew == "" && outputOriginal == ending then
+            {values=[(4, ending)]}
+          else
+            if Regex.matchIn " " outputNew then {values = []} else
+            {values = [(res, outputNew)]} }.apply (res, ending)) txt
 
-div_ [["margin", "20px"]] [] <|
+Html.div_ [["margin", "20px"]] [] <| (\x -> [x]) <|
+Html.span [] [] <|
 html <| """<button onclick="this.setAttribute('v','@otherLanguage')" v="@language">To @otherLanguage</button><br>""" +
-  ( Dict.fromList [("English", """<i>Hint:</i> Use prop[5] for a proportional number 5, plurs[5] to place an s if the quantity (5) is greater than 1."""),
-          ("French", """<i>Astuce:</i> Ecrire prop[5] pour un nombre proportionel 5, plurs[5] pour un 's' conditionel si la quantité 5 est plus grande que 1.""")] |> flip Dict.apply language) + 
+  ( Dict.fromList [("English", """<i>Hint:</i> Use _5_ for a proportional number 5, _5es_ to place an s if the quantity (5) is greater than 1."""),
+          ("French", """<i>Astuce:</i> Ecrire _5_ pour un nombre proportionel 5, _5s_ pour un 's' conditionel si la quantité 5 est plus grande que 1.""")] |> flip Dict.apply language) + 
  { apply x = freeze x ,
    update {output} =
-     { values = [Regex.replace "((prop)(\\w*)|(plur)(\\w+))\\[(\\d+)\\]" (\m ->
-        let amount = String.toInt (nth m.group 6) in
-        case nth m.group 2 of
-           "prop" -> "multdivby[" + amount + "," + base + "]"
-           "" ->
-             case nth m.group 4 of
-               "plur" -> let plural = nth m.group 5 in
-                 "ifmany" + plural + "[" + amount + "," + base + "]"
-               _ -> "plur error: " + complement + 1
-           _ -> "prop error: " + complement + 1)
-         output] }
+     { values = [Regex.replace "_(\\d+)(\\w*)_" (\m ->
+        let amount = String.toInt (nth m.group 1) in
+        let plural = nth m.group 2 in
+        case plural of
+           "" -> """multdivby[@amount,@base]"""
+           _ ->
+            """ifmany@plural[@amount,@base]"""
+        ) output] }
  }.apply result

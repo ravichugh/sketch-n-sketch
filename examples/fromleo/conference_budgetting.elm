@@ -3,7 +3,7 @@ notBelow bound x = {
   update {input, outputNew} =
     if outputNew <= bound &&
        input     >  bound     then { values = [bound] }
-    else if outputNew > bound then { values = outputNew }
+    else if outputNew > bound then { values = [outputNew] }
     else                           { values = [] }
   }.apply x
 

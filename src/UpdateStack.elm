@@ -136,6 +136,7 @@ updateMaybeFirst2 msg canContinueAfter mb ll =
        Just <| (UpdateResultAlternative msg u (Lazy.lazy <| (\_ -> ll ())), canContinueAfter)
 
 
+
 -- Constructor for updating multiple expressions evaluated in the same environment.
 updateContinueMultiple: String -> Env -> List (Exp, PrevOutput, Output) -> TupleDiffs VDiffs -> (UpdatedEnv -> UpdatedExpTuple -> UpdateStack) -> UpdateStack
 updateContinueMultiple  msg       env    totalExpValOut                    diffs                continuation  =
@@ -160,7 +161,7 @@ updateContinueMultiple  msg       env    totalExpValOut                    diffs
                 (e, v, out)::tail ->
                   updateContinue (toString (i + 1) ++ "/" ++ toString (List.length totalExpValOut) ++ " " ++ msg) env e v out m <|  \newUpdatedEnv newUpdatedExp ->
                     --let _ = Debug.log "started tricombine" () in
-                    let newUpdatedEnvAcc = UpdatedEnv.merge env updatedEnvAcc newUpdatedEnv in
+                    let newUpdatedEnvAcc = UpdatedEnv.merge e m env updatedEnvAcc newUpdatedEnv in
                     let newRevAccEDiffs = case newUpdatedExp.changes of
                       Nothing -> revAccEDiffs
                       Just d -> (i, d)::revAccEDiffs
@@ -186,7 +187,7 @@ updateOpMultiple  hint     env    es          eBuilder             prevOutputs  
        Ok Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple es Nothing)
        Ok (Just diff) -> updateContinueMultiple (hint ++ " #" ++ toString nth) env (Utils.zip3 es prevOutputs outputsHead) diff
     in
-       UpdateResultAlternative (hint ++ " maybeOp")
+       UpdateResultAlternative "UpdateResultAlternative maybeOp"
          (continue <| \newUpdatedEnv newUpdatedOpArgs -> updateResult newUpdatedEnv (UpdatedExp (eBuilder newUpdatedOpArgs.val) (Maybe.map EChildDiffs newUpdatedOpArgs.changes)))
          (lazyTail |> Lazy.map (\ll ->
            --let _ = Debug.log ("Starting to evaluate another alternative if it exists ") () in

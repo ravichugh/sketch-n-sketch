@@ -1153,3 +1153,7 @@ code {
 .auto-output-tools .text-button {
   display: flex;
 }
+
+[contenteditable]:focus {
+  outline: 0px solid transparent;
+}

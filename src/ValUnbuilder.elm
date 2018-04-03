@@ -64,3 +64,30 @@ constructor argwhat v = record Ok v |> Result.andThen (\d ->
       )
     )
   )
+
+identity: Val -> Result String Val
+identity v = Ok v
+
+dup: (Val -> Result String a) -> (Val -> Result String b) -> Val -> Result String (a, b)
+dup sub1 sub2 v =
+  sub1 v |> Result.andThen (\a ->
+    sub2 v |> Result.map (\b ->
+      (a, b)
+    )
+  )
+
+-- Helpers to construct/deconstruct datatypes from Val
+maybe: (Val -> Result String a)  -> Val -> Result String (Maybe a)
+maybe subroutine v = case constructor Ok v of
+  Ok ("Just", [x]) -> subroutine x |> Result.map Just
+  Ok ("Nothing", []) -> Ok Nothing
+  Ok _ -> Err <| "Expected Just or Nothing, got " ++ valToString v
+  Err msg -> Err msg
+
+result: (Val -> Result String a)  -> Val -> Result String (Result String a)
+result subroutine v = case constructor Ok v of
+  Ok ("Ok", [x]) -> subroutine x |> Result.map Ok
+  Ok ("Err", [msg]) -> string msg |> Result.map Err
+  Ok _ -> Err <| "Expected Ok or Err, got " ++ valToString v
+  Err msg -> Err msg
+

@@ -1082,6 +1082,19 @@ String =
           else {values = [Regex.split delimiter output]}
       }.apply x
     length x = len (explode x)
+    substring start end x =
+      case Regex.extract ("^[\\s\\S]{0," + toString start + "}([\\s\\S]{0," + toString (end - start) + "})") x of
+        Just [substr] -> substr
+        Nothing -> error <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
+    take length x =
+      case Regex.extract ("^([\\s\\S]{0," + toString length + "})") x of
+        Just [substr] -> substr
+        Nothing -> error <| "bad arguments to String.take " + toString length + " " + toString x
+    drop length x =
+      case Regex.extract ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
+        Just [substr] -> substr
+        Nothing -> error <| "bad arguments to String.drop " + toString length + " " + toString x
+
   }
 
 

@@ -25,15 +25,32 @@ import ImpureGoodies
 
 nToAverageOn = 10
 
-programs = Dict.fromList [("Markdown", ExamplesGenerated.fromleo_markdown)]
+programs = Dict.fromList [
+  ("Markdown", ExamplesGenerated.fromleo_markdown),
+  ("Recipe", ExamplesGenerated.fromleo_recipe),
+  ("Budgetting", ExamplesGenerated.fromleo_conference_budgetting)
+  ]
 
 type Benchmark = BUpdate String (List (String -> String))
 
+replaceBy: String -> String -> (String -> String)
+replaceBy r result =
+  replace (AtMost 1) (regex r) (\_ -> result)
+
 benchmarks: List Benchmark
 benchmarks = [
-  BUpdate "Markdown" [replace (AtMost 1) (regex "demo") (\_ -> "demonstration"),
-                      replace (AtMost 1) (regex "bidirectional") (\_ -> "two-directional"),
-                      replace (AtMost 1) (regex "\"Do not use CTRL\\+V\"") (\_ -> "\"Do not use CTRL+V\"]]],[ \"li\", [], [ [ \"TEXT\", \"But use everything else\"")] --"
+  BUpdate "Budgetting" [replaceBy "-18000" "0"],
+  BUpdate "Markdown" [replaceBy "demo" "demonstration",
+                      replaceBy "bidirectional" "two-directional",
+                      replaceBy "\"Do not use CTRL\\+V\"" "\"Do not use CTRL+V\"]]],[ \"li\", [], [ [ \"TEXT\", \"But use everything else\""], --",
+  BUpdate "Recipe" [replaceBy "Soft chocolate" "Delicious soft chocolate"]--, --Text transformation
+  --                  replaceBy "20 small cakes" "80 small cakes" --Number lens
+   --                 replaceBy "small cakes"    "small cake_80s_", --Plural lens
+    --                replaceBy "cup of "        "cup_2s_ of " --Plural lens
+                    --replaceBy "cups of "       "cup of ",  -- Second lens
+                    --replaceBy "\"2000\""       "\"1000\"", -- Simulate press on button
+                    --replaceBy "\"A pinch of salt\"" "\"A pinch of salt\"]]],[ \"li\", [], [ [ \"TEXT\", \"Optional chocolate chips\""
+                    --]
   ]
 
 applyTransform: (String -> String) -> Val -> Val
@@ -69,10 +86,15 @@ runBenchmark b = case b of
     let session: Bool -> (Float, List Float)
         session unopt =
       let (_, _, updateTimes, evalTimes, modifTimes) = List.foldl (\replacement (progExp, oldOut, updateTimes, evalTimes, modifTimes) ->
+           --let _ = ImpureGoodies.log (toString unopt) in
+           --let _ = ImpureGoodies.log "Current program:" in
+           --let _ = ImpureGoodies.log (unparse progExp) in
+           --let _ = ImpureGoodies.log "New modifications:" in
            let (newOut, newOutTime) = ImpureGoodies.timedRun <| \_ -> applyTransform replacement oldOut in
+           --let _ = ImpureGoodies.log (valToString newOut) in
            let (newProgExp, updateTime) = (if unopt then
                 ImpureGoodies.timedRun <| \_ ->
-                update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut VConstDiffs) LazyList.Nil
+                update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut VUnoptimizedDiffs) LazyList.Nil
               else
                 ImpureGoodies.timedRun <| \_ ->
                 let diffs = UpdateUtils.defaultVDiffs oldOut newOut |> Utils.fromOk (benchmarkname ++ "defaultVDiffs") |> Utils.fromJust_ (benchmarkname ++ "defaultVDiffs") in
@@ -81,11 +103,13 @@ runBenchmark b = case b of
                    Results.Errs msg -> Debug.crash msg
                    _ -> Debug.crash <| "No solution for " ++ benchmarkname
            in
+           --let _ = ImpureGoodies.log "new program:" in
+           --let _ = ImpureGoodies.log (unparse newProgExp) in
            let (realNewOut, realNewOutTime) = ImpureGoodies.timedRun <| \_ -> evalEnv EvalUpdate.preludeEnv progExp |> Utils.fromOk "eval prog" in
            (newProgExp, realNewOut, updateTime::updateTimes, realNewOutTime::evalTimes, newOutTime::modifTimes)
            ) (progExp, oldOut, [], [], []) replacements
       in
-      (List.sum updateTimes + List.sum evalTimes + List.sum modifTimes, updateTimes)
+      (List.sum updateTimes + List.sum evalTimes + List.sum modifTimes, List.reverse updateTimes)
     in
     let unoptResults: List (Float, List Float)
         unoptResults = tryMany nToAverageOn <| \_ ->
@@ -136,7 +160,7 @@ header =
 % Benchmark Rows
 %
 % \\tableRow {                    } {   } {    } {     Session     } {  Fastest Upd  } {  Slowest Upd  } {  Average Upd  }
-% \\tableRow {     Example        } {LOC} {Eval} {  Time  } {\\#Upd} {  Unopt / Opt  } {  Unopt / Opt  } {  Unopt / Opt  }"""
+% \\tableRow {     Example        } {LOC} {Eval} {  Time  } {\\#Upd } {  Unopt / Opt  } {  Unopt / Opt  } {  Unopt / Opt  }"""
 
 compute = List.foldl (\b acc -> acc ++ runBenchmark b) "" benchmarks |> ImpureGoodies.log
 
