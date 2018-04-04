@@ -6106,15 +6106,13 @@ listAppendLens = {
 listAppend xs ys =
   Update.applyLens listAppendLens (xs, ys)
 
--- listConcat xss =
---   case xss of
---     []      -> []
---     ys::yss -> listAppend ys (listConcat yss)
+listConcat xss =
+  case xss of
+    []      -> Update.freeze []
+    ys::yss -> listAppend ys (listConcat yss)
 
 main =
-  -- h3 [] [] (toString (listConcat [[0,1], [2,3], [4,5]]))
-  -- h3 [] [] (toString (listAppend [0,1] (listAppend [2,3] [4,5])))
-  h3 [] [] (toString (listAppend [0,1] [2,3,4,5]))
+  h3 [] [] (toString (listConcat [[0,1], [2,3], [4,5]]))
 
 """
 
@@ -6861,7 +6859,7 @@ latex2html latex =
         [] -> {values = [[]]}
         ((j, ListElemUpdate d) :: diffTail) ->
           if j > i then
-            gatherDiffsChild gatherDiffs j (LensLess.drop (j - i) cOld) (LensLess.drop (j - i) cNew) childDiffs
+            gatherDiffsChild gatherDiffs j (LensLess.List.drop (j - i) cOld) (LensLess.List.drop (j - i) cNew) childDiffs
           else
             case (cOld, cNew) of
               (oldHead::oldTail, newHead::newTail) ->

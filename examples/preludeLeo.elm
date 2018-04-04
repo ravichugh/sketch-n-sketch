@@ -1,10 +1,8 @@
 
+-- This standard prelude library is accessible by every program.
 
--- prelude.little
---
--- This little library is accessible by every program.
--- This is not an example that generates an SVG canvas,
--- but we include it here for reference.
+--------------------------------------------------------------------------------
+-- TODO (re-)organize this section into modules
 
 --; The identity function - given a value, returns exactly that value
 -- id: (forall a (-> a a))
@@ -85,6 +83,10 @@ map1 f l =
     []    -> []
     x::xs -> f x :: map1 f xs
 
+--------------------------------------------------------------------------------
+-- TODO re-organize the scattered list definitions into
+-- LensLess.List --
+
 LensLess =
   letrec append xs ys =
      case xs of
@@ -114,11 +116,13 @@ LensLess =
     [] -> (stack, from)
     head::tail -> reverse_move (n - 1) (head::stack) tail
   in
-  { append = append
-    split = split
-    take = take
-    drop = drop
-    reverse_move = reverse_move
+  { List = {
+      append = append
+      split = split
+      take = take
+      drop = drop
+      reverse_move = reverse_move
+    },
     Results =
       letrec keepOks l =
         case l of
@@ -129,9 +133,9 @@ LensLess =
       letrec projOks l =
         case l of
           [] -> {values = []}
-          {values = []}::tail -> projOks tail
-          {values = vhead::vtail}::tail -> {values = vhead::(vtail ++ keepOks tail)}
-          {error = msg}::tail ->
+          ({values = []}::tail) -> projOks tail
+          ({values = vhead::vtail}::tail) -> {values = vhead::(vtail ++ keepOks tail)}
+          ({error = msg}::tail) ->
             case projOks tail of
               {error = msgTail} -> { error = msg }
               { values = []}-> {error = msg}
@@ -156,6 +160,8 @@ LensLess =
       }
   }
 
+--------------------------------------------------------------------------------
+-- Update --
 
 --type ListElemDiff a = ListElemUpdate a | ListElemInsert Int | ListElemDelete Int
 --type VDictElemDiff = VDictElemDelete | VDictElemInsert | VDictElemUpdate VDiffs
@@ -173,8 +179,6 @@ LensLess =
 
 --type EWhitespaceDiffs = EOnlyWhitespaceDiffs | EAnyDiffs
   
--- Update --
-
 -- The diff primitive is:
 --
 --   type alias DiffOp : Value -> Value -> Result String (Maybe VDiffs)
@@ -202,7 +206,7 @@ Update =
    -- listDiffOp : DiffOp -> List Value -> List Value -> List SimpleListDiffOp
 
     -- let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
-     let {append} = LensLess in
+     let {append} = LensLess.List in
      case diffOp oldValues newValues of
         Ok (Just (VListDiffs listDiffs)) ->
           letrec aux i revAcc oldValues newValues listDiffs =
@@ -257,6 +261,9 @@ Update =
       modifiedStr
   }
 
+--------------------------------------------------------------------------------
+-- Update.foldDiff
+
 -- type Results err ok = { values: List ok } | { error: err }
 
 -- every onFunction should either return a {values = ...} or an {error =... }
@@ -272,7 +279,8 @@ Update =
 -- diffs    : ListDiffs
 -- Returns  : {error: String} | {values: List d} | {values: List d, diffs: List (Maybe VDiffs)}
 foldDiff =
-  let {append, split, Results} = LensLess in
+  let {List, Results} = LensLess in
+  let {append, split} = List in
   \{start, onSkip, onUpdate, onRemove, onInsert, onFinish, onGather} oldOutput newOutput diffs ->
   let listDiffs = case diffs of
     VListDiffs l -> l
@@ -340,8 +348,11 @@ foldDiff =
             Just revDiffs -> { error = "Diffs not specified until " + toString value }
       in aux [] Nothing values
 
+--------------------------------------------------------------------------------
+-- ListLenses --
+
 append aas bs = {
-    apply [aas, bs] = freeze <| LensLess.append aas bs
+    apply [aas, bs] = freeze <| LensLess.List.append aas bs
     update {input = [aas, bs], outputNew, outputOld, diffs} =
       let asLength = len aas in
       foldDiff {
@@ -350,7 +361,7 @@ append aas bs = {
           if n <= numA then
             {values = [[nas ++ outs, nbs, diffas, diffbs, numA - n, numB]]}
           else
-            let [forA, forB] = LensLess.split numA outs in
+            let [forA, forB] = LensLess.List.split numA outs in
             {values = [[nas ++ forA, nbs ++ forB, diffas, diffbs, 0, numB - (n - numA)]]}
         onUpdate [nas, nbs, diffas, diffbs, numA, numB] {newOutput = out, diffs, index} =
           { values = [if numA >= 1
@@ -404,7 +415,7 @@ map f l =
 
       onSkip [fs, insA, insB] {count} =
         --'outs' was the same in oldOutput and outputNew
-        let [skipped, remaining] = LensLess.split count insB in
+        let [skipped, remaining] = LensLess.List.split count insB in
         {values = [[fs, insA ++ skipped, remaining]]}
 
       onUpdate [fs, insA, insB] {oldOutput, newOutput, diffs} =
@@ -441,7 +452,17 @@ zipWithIndex xs =
   { apply x = freeze <| zip (range 0 (len xs - 1)) xs
     update {output} = {values = [map (\[i, x] -> x) output]}  }.apply xs
 
+-- TODO re-organize the scattered list definitions into
+-- LensLess.List, ListLenses, and List = LensLess.List
 
+ListLenses =
+  { map = map
+    append = append
+    zipWithIndex = zipWithIndex
+  }
+
+--------------------------------------------------------------------------------
+-- TODO (re-)organize this section into modules
 -- HEREHEREHERE
 
 --; Combines two lists with a given function, extra elements are dropped
@@ -728,6 +749,9 @@ delimit a b s = concatStrings [a, s, b]
 --parens: (-> String String)
 parens = delimit "(" ")"
 
+--------------------------------------------------------------------------------
+-- Debug --
+
 Debug = {
   log msg value =
     -- Call Debug.log "msg" value
@@ -823,6 +847,9 @@ Debug = {
 --   ]
 
 
+--------------------------------------------------------------------------------
+-- Html.html
+
 --type HTMLAttributeValue = HTMLAttributeUnquoted WS WS String | HTMLAttributeString WS WS String {-Delimiter char-}  String | HTMLAttributeNoValue
 --type HTMLAttribute = HTMLAttribute WS String HTMLAttributeValue
 --type HTMLCommentStyle = Less_Greater String {- The string should start with a ? -}
@@ -872,7 +899,7 @@ html string = {
           ([], [], input)
         onSkip (revAcc, revDiffs, input) {count} =
           --'outs' was the same in oldOutput and outputNew
-          let (newRevAcc, remainingInput) = LensLess.reverse_move count revAcc input in
+          let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
           {values = [(newRevAcc, revDiffs, remainingInput)]}
         
         onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
@@ -921,7 +948,7 @@ html string = {
 
         onSkip (revAcc, revDiffs, input) {count} =
           --'outs' was the same in oldOutput and outputNew
-          let (newRevAcc, remainingInput) = LensLess.reverse_move count revAcc input in
+          let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
           {values = [(newRevAcc, revDiffs, remainingInput)]}
 
         onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
@@ -980,55 +1007,8 @@ html string = {
     in mergeNodes input oldOutput newOutput diffs
 }.apply (parseHTML string)
 
-setStyles newStyles [kind, attrs, children] =
-  let attrs =
-    -- TODO
-    if styleAttr == null
-      then ["style", []] :: attrs
-      else attrs
-  in
-  let attrs =
-    map \[key, val] ->
-      case key of
-        "style"->
-          let otherStyles =
-            concatMap \[k, v] ->
-              case elem k (map fst newStyles) of
-                True  ->  []
-                False -> [[k, v]]
-              val in
-          ["style", append newStyles otherStyles]
-        _->
-          [key, val]
-      attrs
-  in
-  [kind, attrs, children]
-
-placeAt [x, y] node =
-  let _ = [x, y] : Point in
-  -- TODO px suffix should be added in LangSvg/Html translation
-  setStyles
-    [ ["position", "absolute"],
-      ["left", toString x + "px"],
-      ["top", toString y + "px"]
-    ]
-    node
-
-placeAtFixed [x, y] node =
-  let _ = [x, y] : Point in
-  setStyles
-    [["position", "fixed"], ["FIXED_LEFT", x], ["FIXED_TOP", y]]
-    node
-
-placeSvgAt [x, y] w h shapes =
-  placeAt [x, y]
-    ["svg", [["width", w], ["height", h]], shapes]
-
-workspace minSize children =
-  div_
-    (cons
-      (placeAt minSize (h3 "</workspace>"))
-      children)
+--------------------------------------------------------------------------------
+-- Regex --
 
 Regex =
   letrec split regex s =
@@ -1046,6 +1026,8 @@ Regex =
   split = split
 }
 
+--------------------------------------------------------------------------------
+-- Dict --
 
 Dict = {
   get x d = get x d
@@ -1056,6 +1038,8 @@ Dict = {
   fromList l = dict l
 }
 
+--------------------------------------------------------------------------------
+-- String --
 
 String =
   let strToInt =
@@ -1104,7 +1088,10 @@ String =
   }
 
 
+--------------------------------------------------------------------------------
 -- List --
+-- TODO re-organize the scattered list definitions into
+-- LensLess.List, ListLenses, and List = LensLess.List
 
 List =
   letrec simpleMap f l =
@@ -1113,7 +1100,6 @@ List =
       x::xs -> f x :: simpleMap f xs
   in
   let map =
-    -- TODO lensed version
     simpleMap
   in
   -- TODO move all definitions here
@@ -1137,7 +1123,7 @@ List =
                      (x::xs, y::ys)
   in
   let split n l = {
-      apply [n, l] = freeze (LensLess.split n l)
+      apply [n, l] = freeze (LensLess.List.split n l)
       unapply [l1, l2] = Just [n, l1 ++ l2]
     }.apply [n, l]
   in
@@ -1158,14 +1144,14 @@ List =
     split = split
     reverseInsert = reverseInsert
     reverse = reverse
-    take = LensLess.take
-    drop = LensLess.drop
+    take = LensLess.List.take
+    drop = LensLess.List.drop
     foldl = foldl
   }
 
+--------------------------------------------------------------------------------
 -- Maybe --
--- TODO remove these and their uses
--- old version
+
 Maybe =
   type Maybe a = Nothing | Just a
   let withDefault x mb = case mb of
@@ -1201,6 +1187,7 @@ Maybe =
 --     _ -> Nothing
 -- }
 
+--------------------------------------------------------------------------------
 -- Tuple --
 
 Tuple =
@@ -1208,6 +1195,7 @@ Tuple =
     mapSecond f (x, y) = (x, f y)
   }
 
+--------------------------------------------------------------------------------
 -- Editor --
 
 Editor = {}
@@ -1235,6 +1223,8 @@ textInner s = {
     {values = [textOf output]}
 }.apply s
 
+--------------------------------------------------------------------------------
+-- Html
 
 Html =
   let textNode text =
@@ -1270,6 +1260,7 @@ Html =
 -- TODO remove this; add as imports as needed in examples
 {textNode, p, th, td, h1, h2, h3, div_, tr, table} = Html
 
+--------------------------------------------------------------------------------
 -- Lens: Table Library
 
   -- freeze and constantInputLens aren't actually needed below,
@@ -2574,6 +2565,56 @@ rectWithBorder stroke strokeWidth fill x y w h =
     (rect fill x y w h)
       ["stroke", stroke])
       ["stroke-width", strokeWidth] 
+
+setStyles newStyles [kind, attrs, children] =
+  let attrs =
+    -- TODO
+    if styleAttr == null
+      then ["style", []] :: attrs
+      else attrs
+  in
+  let attrs =
+    map \[key, val] ->
+      case key of
+        "style"->
+          let otherStyles =
+            concatMap \[k, v] ->
+              case elem k (map fst newStyles) of
+                True  ->  []
+                False -> [[k, v]]
+              val in
+          ["style", append newStyles otherStyles]
+        _->
+          [key, val]
+      attrs
+  in
+  [kind, attrs, children]
+
+placeAt [x, y] node =
+  let _ = [x, y] : Point in
+  -- TODO px suffix should be added in LangSvg/Html translation
+  setStyles
+    [ ["position", "absolute"],
+      ["left", toString x + "px"],
+      ["top", toString y + "px"]
+    ]
+    node
+
+placeAtFixed [x, y] node =
+  let _ = [x, y] : Point in
+  setStyles
+    [["position", "fixed"], ["FIXED_LEFT", x], ["FIXED_TOP", y]]
+    node
+
+placeSvgAt [x, y] w h shapes =
+  placeAt [x, y]
+    ["svg", [["width", w], ["height", h]], shapes]
+
+workspace minSize children =
+  div_
+    (cons
+      (placeAt minSize (h3 "</workspace>"))
+      children)
 
 -- End SVG Stuff ---------------------------------------------------------------
 

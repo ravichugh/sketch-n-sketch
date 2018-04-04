@@ -1452,6 +1452,7 @@ moduleNames =
     , "TableWithButtons"
     , "Results"
     , "LensLess"
+    , "ListLenses"
     , "Regex"
     , "String"
     , "Dict"

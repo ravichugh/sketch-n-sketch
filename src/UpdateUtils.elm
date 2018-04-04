@@ -421,7 +421,7 @@ vDiffsToVal vb vdiffs = case vdiffs of
   VListDiffs list     -> (Vb.constructor vb) "VListDiffs"    [listDiffsToVal vDiffsToVal vb list]
   VConstDiffs         -> (Vb.constructor vb) "VConstDiffs"   []
   VDictDiffs d        -> (Vb.constructor vb) "VDictDiffs"    [Vb.dict vDictElemDiffToVal vb d]
-  VRecordDiffs d      -> (Vb.constructor vb) "VRecordDiffs " [Vb.record vDiffsToVal vb d]
+  VRecordDiffs d      -> (Vb.constructor vb) "VRecordDiffs"  [Vb.record vDiffsToVal vb d]
   VUnoptimizedDiffs   -> (Vb.constructor vb) "VUnoptimizedDiffs" []
 
 valToVDiffs: Val -> Result String VDiffs

@@ -418,7 +418,7 @@ latex2html latex =
         [] -> {values = [[]]}
         ((j, ListElemUpdate d) :: diffTail) ->
           if j > i then
-            gatherDiffsChild gatherDiffs j (LensLess.drop (j - i) cOld) (LensLess.drop (j - i) cNew) childDiffs
+            gatherDiffsChild gatherDiffs j (LensLess.List.drop (j - i) cOld) (LensLess.List.drop (j - i) cNew) childDiffs
           else
             case (cOld, cNew) of
               (oldHead::oldTail, newHead::newTail) ->
