@@ -2105,7 +2105,7 @@ precedingWhitespaceWithInfoExp__ e__ =
     EApp       ws1 e1 es apptype  ws2           -> ws1
     EList      ws1 es ws2 rest ws3              -> ws1
     ERecord    ws1 mi es ws2                    -> ws1
-    ESelect    ws0 e ws1 ws2 s                  -> precedingWhitespaceWithInfoExp__ e.val.e__
+    ESelect    ws1 e ws2 ws3 s                  -> ws1
     EOp        ws1 op es ws2                    -> ws1
     EIf        ws1 e1 ws2 e2 ws3 e3 ws4         -> ws1
     ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ws1
@@ -2273,7 +2273,7 @@ mapPrecedingWhitespace stringMap exp =
         EApp       ws1 e1 es apptype ws2            -> EApp       (mapWs ws1) e1 es apptype ws2
         EList      ws1 es ws2 rest ws3              -> EList      (mapWs ws1) es ws2 rest ws3
         ERecord    ws1 mi es ws2                    -> ERecord    (mapWs ws1) mi es ws2
-        ESelect    ws0 e ws1 ws2 s                  -> ESelect    (mapWs ws0) e ws1 ws2 s
+        ESelect    ws1 e ws2 ws3 s                  -> ESelect    (mapWs ws1) e ws2 ws3 s
         EOp        ws1 op es ws2                    -> EOp        (mapWs ws1) op es ws2
         EIf        ws1 e1 ws2 e2 ws3 e3 ws4         -> EIf        (mapWs ws1) e1 ws2 e2 ws3 e3 ws4
         ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ELet       (mapWs ws1) kind rec p ws2 e1 ws3 e2 ws4
