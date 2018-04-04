@@ -593,7 +593,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                                         List.map (\r ->
                                                           if vArgStr == valToString r then
                                                             Ok Nothing
-                                                          else (if diffs == VConstDiffs then defaultVDiffsShallow else defaultVDiffs) vArg r) <| valuesList
+                                                          else (if diffs == VUnoptimizedDiffs then defaultVDiffsShallow else defaultVDiffs) vArg r) <| valuesList
                                                       Just resultDiffsV ->
                                                         --ImpureGoodies.logTimedRun ".update recovering diffs" <| \_ ->
                                                         Vu.list (Vu.maybe valToVDiffs) resultDiffsV |>
@@ -687,7 +687,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                      if ne1ps > ne2 then -- Less arguments than expected, hence partial application.
                        --let _ = Debug.log ("Less arguments than expected, instead of " ++ toString ne1ps ++ " got " ++ toString ne2) () in
                        let (e1psUsed, e1psNotUsed) = Utils.split ne2 e1ps in
-                       case (newVal.v_, diffs) of
+                       case (newVal.v_, ifUnoptimizedShallowDiff oldVal newVal diffs) of
                          (VClosure _ psOut outBody envOut_, VClosureDiffs modifEnv modifBody) ->
                            let updatedEnvOut = UpdatedEnv envOut_ modifEnv in
                            if UpdatedEnv.isUnmodified updatedEnvOut && Utils.maybeIsEmpty modifBody then
@@ -756,7 +756,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                     continuation newV1 newV1Diffs newV2s newV2sDiffs "rec app"
 
                                   _          -> UpdateCriticalError <| "[internal error] " ++ strPos e1.start ++ " bad environment, internal error in update"
-                         v          -> UpdateCriticalError <| strPos e1.start ++ "Expected a closure in output, got " ++ valToString newVal
+                         (v, vdiffs)      -> UpdateCriticalError <| strPos e1.start ++ "Expected a closure in output, got " ++ valToString newVal ++ " and diffs " ++ toString vdiffs
 
                      else -- The right number of arguments
                      let continuation newClosure newClosureDiffs newArgs newArgsDiffs msg = --Update the function and the arguments.
