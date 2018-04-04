@@ -453,7 +453,7 @@ parseRegex pattern =
   let parseClosingParenthesis pIndex = pIndex + 1 in
   -- Returns the position just after the next ending brace
   let positionEndNextBrace pIndex =
-    if stringCharAt pIndex pattern == Just ")" then pIndex + 1
+    if stringCharAt pIndex pattern == Just "}" then pIndex + 1
     else if String.length pattern <= pIndex then pIndex
     else positionEndNextBrace (pIndex + 1)
   in

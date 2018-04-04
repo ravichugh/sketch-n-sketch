@@ -430,9 +430,10 @@ valToVDiffs v = case Vu.constructor Ok v of
   Ok ("VListDiffs"   , [l]) -> valToListDiffs valToVDiffs l |> Result.map VListDiffs
   Ok ("VConstDiffs"  , []) -> Ok VConstDiffs
   Ok ("VDictDiffs"   , [d]) -> Vu.dict valToVDictElemDiff d|> Result.map VDictDiffs
-  Ok ("VRecordDiffs ", [d]) -> Vu.record valToVDiffs d |> Result.map VRecordDiffs
+  Ok ("VRecordDiffs", [d]) -> Vu.record valToVDiffs d |> Result.map VRecordDiffs
   Ok ("VUnoptimizedDiffs", []) -> Ok VUnoptimizedDiffs
-  Ok _ -> Err <| "Expected VClosureDiffs[_, _], VListDiffs[_], VConstDiffs[], VDictDiffs[_], VRecordDiffs[_], got " ++ valToString v
+  Ok (name, args) -> Err <| "Expected VClosureDiffs _ _, VListDiffs _, VConstDiffs, VDictDiffs _, VRecordDiffs _, got " ++
+    valToString v ++ " (constructor = " ++ name ++ " with " ++ toString (List.length args) ++ "arguments)"
   Err msg -> Err msg
 
 eDiffsToVal: Vb.Vb -> EDiffs -> Val

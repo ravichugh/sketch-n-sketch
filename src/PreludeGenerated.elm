@@ -2029,10 +2029,16 @@ LensLess =
           {values = ll} -> ll |> map1 callback |> projOks
           {error = msg} -> results
       in
+      let resultMap callback results =
+        case results of
+          {values = ll} -> {values = ll |> map1 callback }
+          { error = msg} -> results
+      in
       {
         keepOks = keepOks
         projOks = projOks
         andThen = andThen
+        map = resultMap
       }
   }
 
@@ -2968,6 +2974,19 @@ String =
           else {values = [Regex.split delimiter output]}
       }.apply x
     length x = len (explode x)
+    substring start end x =
+      case Regex.extract (\"^[\\\\s\\\\S]{0,\" + toString start + \"}([\\\\s\\\\S]{0,\" + toString (end - start) + \"})\") x of
+        Just [substr] -> substr
+        Nothing -> error <| \"bad arguments to String.substring \" + toString start + \" \" + toString end + \" \" + toString x
+    take length x =
+      case Regex.extract (\"^([\\\\s\\\\S]{0,\" + toString length + \"})\") x of
+        Just [substr] -> substr
+        Nothing -> error <| \"bad arguments to String.take \" + toString length + \" \" + toString x
+    drop length x =
+      case Regex.extract (\"^[\\\\s\\\\S]{0,\" + toString length + \"}([\\\\s\\\\S]*)\") x of
+        Just [substr] -> substr
+        Nothing -> error <| \"bad arguments to String.drop \" + toString length + \" \" + toString x
+
   }
 
 
@@ -3025,6 +3044,9 @@ List =
     split = split
     reverseInsert = reverseInsert
     reverse = reverse
+    take = LensLess.take
+    drop = LensLess.drop
+    foldl = foldl
   }
 
 -- Maybe --

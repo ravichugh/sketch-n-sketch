@@ -143,10 +143,16 @@ LensLess =
           {values = ll} -> ll |> map1 callback |> projOks
           {error = msg} -> results
       in
+      let resultMap callback results =
+        case results of
+          {values = ll} -> {values = ll |> map1 callback }
+          { error = msg} -> results
+      in
       {
         keepOks = keepOks
         projOks = projOks
         andThen = andThen
+        map = resultMap
       }
   }
 
@@ -1152,6 +1158,9 @@ List =
     split = split
     reverseInsert = reverseInsert
     reverse = reverse
+    take = LensLess.take
+    drop = LensLess.drop
+    foldl = foldl
   }
 
 -- Maybe --

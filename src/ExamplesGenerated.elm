@@ -6571,8 +6571,8 @@ newcommandinstantiate args parsed =
   in aux parsed
 
 -- commandsDict: Dict String { arity: Int, toHTML: (Options -> Lists Tree -> HTMLNode) -> Options -> Trees -> (HTMLNode, Options)}
-commandsDict = dict [
-  [\"\\\\label\",
+commandsDict = Dict.fromList [
+  (\"\\\\label\",
     { arity = 1
     , toHtml toHtml opts args = case args of
       [{tag = \"block\", children = [{tag = \"rawtext\", value = v}]}] ->
@@ -6588,8 +6588,8 @@ commandsDict = dict [
       _ ->
         let [argHtml, newOpts] = toHtml opts args in
         [htmlError \"\\\\label must be followed by a {name}\" argHtml, newOpts]
-    }],
-  [\"\\\\ref\",
+    }),
+  (\"\\\\ref\",
     { arity = 1
     , toHtml toHtml opts args = case args of
       [{tag = \"block\", children = [{tag = \"rawtext\", value = v}]}] ->
@@ -6597,34 +6597,34 @@ commandsDict = dict [
       _ -> 
         let [argHtml, newOpts] = toHtml opts args in
         [htmlError \"\\\\label must be followed by a {name}\" argHtml, newOpts]
-    }],
-  [\"\\\\LaTeX\",
+    }),
+  (\"\\\\LaTeX\",
     { arity = 0
     , toHtml toHtml opts arg =
       [[\"span\", [[\"class\", \"latex\"]], html \"\"\"L<sup>a</sup>T<sub>e</sub>X\"\"\"], opts]
-    }],
-  [\"\\\\section\", 
+    }),
+  (\"\\\\section\", 
     { arity= 1
     , toHtml toHtml opts arg =
       let newOpts = { incSectionCounter opts | indent = False, newline = False } in
       let [argHtml, newOpts2] = toHtml newOpts arg in
       [[\"h1\", [], [[\"TEXT\", newOpts2.currentLabelName + \". \"]] ++ argHtml],
         {newOpts2 | indent = True }]
-    }],
-  [\"\\\\subsection\", 
+    }),
+  (\"\\\\subsection\", 
     { arity= 1
     , toHtml toHtml opts arg =
       let newOpts = { incSubsectionCounter opts | indent = False, newline = False } in
       let [argHtml, newOpts2] = toHtml newOpts arg in
       [[\"h2\", [], [[\"TEXT\", newOpts2.currentLabelName + \". \"]] ++ argHtml],
         {newOpts2 | indent = True }]
-    }],
-  [\"\\\\textbf\", htmlWrapper (\\argsHtml -> [\"b\", [], argsHtml])],
-  [\"\\\\textit\", htmlWrapper (\\argsHtml -> [\"i\", [], argsHtml])],
-  [\"\\\\textsc\", htmlWrapper (\\argsHtml -> [\"span\", [[\"style\", [[\"font-variant\", \"small-caps\"]]]], argsHtml])],
-  [\"\\\\ldots\", htmlConst [\"span\", [], [[\"TEXT\", \"…\"]]]],
-  [\"\\\\textbackslash\", htmlConst [\"span\", [], [[\"TEXT\", \"\\\\\"]]]],
-  [\"\\\\newcommand\",
+    }),
+  (\"\\\\textbf\", htmlWrapper (\\argsHtml -> [\"b\", [], argsHtml])),
+  (\"\\\\textit\", htmlWrapper (\\argsHtml -> [\"i\", [], argsHtml])),
+  (\"\\\\textsc\", htmlWrapper (\\argsHtml -> [\"span\", [[\"style\", [[\"font-variant\", \"small-caps\"]]]], argsHtml])),
+  (\"\\\\ldots\", htmlConst [\"span\", [], [[\"TEXT\", \"…\"]]]),
+  (\"\\\\textbackslash\", htmlConst [\"span\", [], [[\"TEXT\", \"\\\\\"]]]),
+  (\"\\\\newcommand\",
     let extractCommand block = case block of
       {tag=\"command\", name=cmdName} -> {value = cmdName}
       {tag=\"block\", children=[{tag=\"command\", name=cmdName}]} -> {value = cmdName}
@@ -6662,8 +6662,8 @@ commandsDict = dict [
         in
         [[\"span\", [[\"class\", \"newcommand\"]], []], newOpts]
       )
-    }],
-  [\"\\\\frac\",
+    }),
+  (\"\\\\frac\",
   { arity = 2
   , toHtml toHtml opts arg =
       if opts.mathmode then
@@ -6675,9 +6675,9 @@ commandsDict = dict [
          [\"span\", [[\"class\", \"fdn\"]], arg2html]]], newOpts2]
       else
         [htmlError \"\\\\frac allowed only in math mode\" \"???\", opts]
-  }],
-  [\"\\\\_\", htmlConst [\"span\", [], [[\"TEXT\", \"_\"]]]],
-  [\"_\",
+  }),
+  (\"\\\\_\", htmlConst [\"span\", [], [[\"TEXT\", \"_\"]]]),
+  (\"_\",
   { arity = 1
   , toHtml toHtml opts args =
     if opts.mathmode then
@@ -6685,8 +6685,8 @@ commandsDict = dict [
       [[\"sub\", [], arghtml], newOpts]
     else
       [htmlError \"_ allowed only in math mode\" \"???\", opts]
-  }],
-  [\"^\",
+  }),
+  (\"^\",
   { arity = 1
   , toHtml toHtml opts args =
     if opts.mathmode then
@@ -6694,7 +6694,7 @@ commandsDict = dict [
       [[\"sup\", [], arghtml], newOpts]
     else
       [htmlError \"^ allowed only in math mode\" \"???\", opts]
-  }]]
+  })]
 
 commands x =
   Dict.get x commandsDict |> Maybe.withDefaultLazy (\\_ ->
@@ -6710,12 +6710,12 @@ splitargs n array =
   letrec aux revAcc n array =
     if n == 0 then [reverse revAcc, array] else
     case array of
-      {tag=\"rawtext\", value=text}:: rem ->
+      {tag=\"rawtext\", value=text, pos = pos}:: rem ->
         case extractFirstIn \"\"\"^\\s*(\\S)(.*)\"\"\" text of
           Just [arg, other] ->
-            let newAcc = {tag=\"rawtext\", value=arg}::revAcc in
+            let newAcc = {tag=\"rawtext\", value=arg, pos = pos}::revAcc in
             let newN = n - 1 in
-            let newArray = {tag=\"rawtext\", value=other} :: rem in
+            let newArray = {tag=\"rawtext\", value=other, pos = pos + String.length arg} :: rem in
             aux newAcc newN newArray
           _ ->
             aux revAcc n rem
@@ -6739,7 +6739,7 @@ toHtmlWithoutRefs opts tree =
       {tag=\"block\", children=children} ->
         let newTree = children ++ rem in
         aux opts revAcc newTree
-      {tag=\"rawtext\", value=text} ->
+      {tag=\"rawtext\", value=text, pos = pos} ->
         let finalText = {
            apply x = x,
            update {input, oldOutput, newOutput} = 
@@ -6748,10 +6748,10 @@ toHtmlWithoutRefs opts tree =
         if opts.indent && Regex.matchIn \"\"\"^[\\s]*\\S\"\"\" text then
           let newOpts = { opts | indent = False,  newline = False } in
           let revAccWithParagraph = List.reverseInsert (newline opts ++ indent opts) revAcc in
-          let newrevAcc = [\"TEXT\",finalText]::revAccWithParagraph in
+          let newrevAcc = [\"span\", [[\"start\", toString pos]], [[\"TEXT\",finalText]]]::revAccWithParagraph in
           aux newOpts newrevAcc rem
         else
-          let newrevAcc = [\"TEXT\",finalText]::revAcc in
+          let newrevAcc = [\"span\", [[\"start\", toString pos]], [[\"TEXT\",finalText]]]::revAcc in
           aux opts newrevAcc rem
       {tag=\"newpar\"} ->
         let newOpts = { opts | indent = True, newline = True} in
@@ -6854,6 +6854,52 @@ latexttoolong = \"\"\" or 2.1. See how it updates the source code.
 Only frac, exponent and indices in math mode: $\\frac{b^2-4ac}{2}$.
 %TODO support more commands.\"\"\"
 
+latex2html latex = 
+  { apply (f, latex) = freeze <| f latex,
+    update {input = (f, latex), outputOld, outputNew, diffs = VListDiffs diffs} = 
+      letrec gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
+        [] -> {values = [[]]}
+        ((j, ListElemUpdate d) :: diffTail) ->
+          if j > i then
+            gatherDiffsChild gatherDiffs j (LensLess.drop (j - i) cOld) (LensLess.drop (j - i) cNew) childDiffs
+          else
+            case (cOld, cNew) of
+              (oldHead::oldTail, newHead::newTail) ->
+                let subdiffs = gatherDiffs oldHead newHead d in
+                subdiffs |> LensLess.Results.andThen (\\replacements ->
+                  gatherDiffsChild gatherDiffs (i + 1) oldTail newTail diffTail |> LensLess.Results.map (\\replacementTails ->
+                    replacements ++ replacementTails
+                  )
+                )
+              _ -> error \"Unexpected size of cOld and cNew\"
+        ((j, subdiff)::diffTail) -> {error = \"Insertion or deletions, cannot short-circuit at \" + toString j + \", \" + toString subdiff}
+      in
+      letrec gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
+        ([\"span\", [[\"start\", p]], [[\"TEXT\", vOld]]], 
+         [\"span\", [[\"start\", p]], [[\"TEXT\", vNew]]], VListDiffs [(2, _)]) -> 
+           { values = [[(vNew, String.toInt p, String.toInt p + String.length vOld)]] }
+        ([_, _, cOld], [_, _, cNew], VListDiffs [(2, VListElemUpdate childDiffs)]) ->
+           gatherDiffsChild gatherDiffs 0 cOld cNew childDiffs
+        _ -> {error = \"Could not find text differences \" + toString (outputOld, outputNew, diffs)}
+      in
+      case gatherDiffsChild gatherDiffs 0 outputOld outputNew diffs of
+        { values = [replacements] } ->
+          let newLatex = foldl (\\(newValue, start, end) acc ->
+            String.substring 0 start acc + newValue + String.drop end acc
+          ) latex replacements in
+          let newDiffs = case Update.diff latex newLatex of
+            Ok (Just d) -> [Just (VRecordDiffs { _2 = d})]
+            Ok Nothing -> [Nothing]
+            Err msg -> error msg
+          in
+          { values = [(f, newLatex)], diffs = newDiffs}
+        { error = msg } ->
+          Update.updateApp {
+            fun (f, x) = f x, input = (f, x), outputOld = outputOld, output = outputNew, diffs = diffs
+          }
+  }.apply (\\x -> toHtml <| parse <| tokens x, latex)
+
+
 [\"span\", [[\"style\", [[\"margin\",\"10px\"]]]], [
 [\"style\", [[\"type\", \"text/css\"]], [[\"TEXT\", \"\"\"
 #content {
@@ -6926,8 +6972,8 @@ latex-sc {
      <span class=\"glyphicon glyphicon-italic\"></span> Italic
    </button>
    \"\"\"],[\"br\", [], []],
-[\"div\", [[\"style\", [[\"display\", \"inline-block\"]]], [\"id\", \"content\"]], Debug.log \"final HTML0\" <|
-toHtml <| parse <| tokens <| latex]]]
+[\"div\", [[\"style\", [[\"display\", \"inline-block\"]]], [\"id\", \"content\"]],
+latex2html latex]]]
 
 """
 

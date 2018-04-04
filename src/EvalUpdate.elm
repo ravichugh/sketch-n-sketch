@@ -552,6 +552,21 @@ identifiersVisibleAtProgramEnd program =
   visibleIdentifiersAtEIds program (Set.singleton lastEId)
 
 -- External API
+
+compileVal: Env -> String
+compileVal e = Debug.crash "not implemented compile yet"
+
+compileEnv: Env -> String
+compileEnv e = Debug.crash "not implemented compile yet"
+
+compile: Exp -> String
+compile e = Debug.crash "not implemented compile yet"
+
+parse: String -> Result String Exp
+parse s =
+  Syntax.parser Syntax.Elm s
+  |> Result.mapError ParserUtils.showError
+
 evaluate: String -> Result String Val
 evaluate s =
   Syntax.parser Syntax.Elm s
@@ -562,3 +577,9 @@ evaluate s =
 
 valToString: Val -> String
 valToString v = LangUtils.valToString v
+
+api = {
+  toString = valToString,
+  parse = parse,
+  compile = compile
+  }
