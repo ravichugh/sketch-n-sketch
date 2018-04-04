@@ -6367,7 +6367,7 @@ result = Regex.replace \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\"
             if Regex.matchIn \" \" outputNew then {values = []} else
             {values = [(res, outputNew)]} }.apply (res, ending)) txt
 
-Html.div_ [[\"margin\", \"20px\"]] [] <| (\\x -> [x]) <|
+Html.div_ [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] [] <| (\\x -> [x]) <|
 Html.span [] [] <|
 html <| \"\"\"<button onclick=\"this.setAttribute('v','@otherLanguage')\" v=\"@language\">To @otherLanguage</button><br>\"\"\" +
   ( Dict.fromList [(\"English\", \"\"\"<i>Hint:</i> Use _5_ for a proportional number 5, _5es_ to place an s if the quantity (5) is greater than 1.\"\"\"),
@@ -6436,6 +6436,59 @@ n = <span>@(model.n)</span><br> What do you want to do?<br>\"\"\" ++ [
   button \"\"\"Custom:\"\"\" customEval, Html.span [[\"font-family\",\"monospace\"]] [] [Html.textNode (freeze \" \" + model.custom)]])
   
 view
+"""
+
+fromleo_programmabledoc =
+ """find regex s =
+    case extractFirstIn (\"(\" + regex + \")([\\\\s\\\\S]*)\") s of
+      Nothing -> []
+      Just matchremaining ->
+        case (LensLess.List.split (len matchremaining - 1) matchremaining) of
+          [init, [last]] ->
+            init::find regex last
+
+Regex = { Regex | find = find }
+
+variables = [(\"document\", \"web $page\"),(\"page\", \"page\")]
+
+variablesDict = Dict.fromList variables
+
+replaceVariables variablesDict string =
+  Regex.replace \"\\\\$(?!_)(\\\\w+)\" (\\m -> 
+    let key = nth m.group 1 in
+    case Dict.get key variablesDict of
+      Nothing -> m.match
+      Just definition -> replaceVariables (remove key variablesDict) definition
+  ) string
+
+content = \"\"\"<h1>Programmable $document</h1>
+This $document is special. If you add a $ just before a word A, the $ disappear but now everywhere you write $_A, it clones the word.
+This means that if you edit such a word at one place, it will change at another place. '$document' was obtained from such a word, you can change it.<br><br>
+Additionally, to write $_x literally, just write $__x. You can also define shorter names by writing $_x=[longword] instead of $_[longword].
+\"\"\" |>
+  replaceVariables variablesDict |>
+  Regex.replace \"(\\\\$)_(\\\\w+)\" (\\m ->
+    nth m.group 1 + \"<span></span>\" + nth m.group 2) |>
+  (\\x ->
+    { apply (x, variables) = freeze x
+      update {input = (x, variables), output} =
+        Regex.find \"\\\\$(?!_)(\\\\w+)(?:=(\\\\w+))?\" output |>
+        List.foldl (\\(_::name::definition::_) variables ->
+          if Dict.member name variablesDict  then variables
+          else variables ++ [(name, if definition == \"\" then name else definition)]
+        ) variables |> \\newVariables ->
+          let newOutput = Regex.replace \"\\\\$(?!_)(\\\\w+)(?:=(\\\\w+))?\" (\\m -> 
+            let [_, name, _] = m.group in
+             if Dict.member name variablesDict then m.match else \"$\" + name
+          ) output in
+          { values = [(newOutput, newVariables)] }
+    }.apply (x, variables)
+  )
+
+Html.div_ [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] [] [
+  Html.span [] [] <|
+  html content
+]
 """
 
 fromleo_latexeditor =
@@ -7006,6 +7059,7 @@ docsCategory =
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
       , ("Proportional Recipe editor", fromleo_recipe)
+      , ("Programmable document", fromleo_programmabledoc)
       , ("Model View Controller", fromleo_modelviewcontroller)
       , ("LaTeX editor", fromleo_latexeditor)
 --      , ("TODO", blankDoc)

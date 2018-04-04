@@ -2906,6 +2906,14 @@ Regex =
       Just [before, _, after] -> before :: split regex after
       _ -> [s]
   in
+  letrec find regex s =
+    case extractFirstIn (\"(\" + regex + \")([\\\\s\\\\S]*)\") s of
+      Nothing -> []
+      Just matchremaining ->
+        case LensLess.List.split (len matchremaining - 1) matchremaining of
+          [init, [last]] ->
+            init::find regex last
+  in
   {
   replace regex replacement string = replaceAllIn regex replacement string
   replaceFirst regex replacement string = replaceFirstIn regex replacement string
@@ -2914,6 +2922,7 @@ Regex =
     Nothing -> False
     _ -> True
   split = split
+  find = find
 }
 
 --------------------------------------------------------------------------------
@@ -2926,6 +2935,9 @@ Dict = {
     _ -> error (\"Expected element \" + toString x + \" in dict, got nothing\")
   insert k v d = insert k v d
   fromList l = dict l
+  member x d = case get x d of
+    Just _ -> True
+    _ -> False
 }
 
 --------------------------------------------------------------------------------

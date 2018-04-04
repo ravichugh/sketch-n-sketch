@@ -1120,6 +1120,12 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
 
     (VList originalElems, VList modified1Elems, VListDiffs l1, VList modified2Elems, VListDiffs l2) ->
       let (newList, newDiffs) = mergeList mergeVal originalElems modified1Elems l1 modified2Elems l2 in
+      let _ = Debug.log ("mergeList " ++ "[" ++ (List.map valToString originalElems |> String.join ",") ++ "]" ++ " " ++
+            "[" ++ (List.map valToString modified1Elems |> String.join ",") ++ "]" ++ toString l1 ++
+            "[" ++ (List.map valToString modified2Elems |> String.join ",") ++ "]" ++ toString l2
+           ) ()
+      in
+      let _ = Debug.log ("=" ++ "[" ++ (List.map valToString newList |> String.join ",") ++ "], " ++ toString newDiffs) () in
       (replaceV_ original <| VList <| newList, newDiffs)
 
     (VRecord originalDict, VRecord modified1Dict, VRecordDiffs d1, VRecord modified2Dict, VRecordDiffs d2) ->
@@ -1511,7 +1517,7 @@ mergeList submerger =
                 ListElemUpdate defaultVDiffs ->
                   case modified2 of
                     hdModified2::tlModified2 ->
-                      aux (i + 1) (hdModified2::accMerged, (i, m2)::accDiffs) ot modified1 modifs1 tlModified2 t2
+                      aux (i + 1) (hdModified2::accMerged, (i, m2)::accDiffs) ot (List.drop 1 modified1) modifs1 tlModified2 t2
                     _ -> Debug.crash "empty modified although it said it was updated"
            else if i1 == i then
              case m1 of
@@ -1528,7 +1534,7 @@ mergeList submerger =
                ListElemUpdate defaultVDiffs ->
                  case modified1 of
                    hdModified1::tlModified1 ->
-                     aux (i + 1) (hdModified1::accMerged, (i, m1)::accDiffs) ot tlModified1 t1 modified2 modifs2
+                     aux (i + 1) (hdModified1::accMerged, (i, m1)::accDiffs) ot tlModified1 t1 (List.drop 1 modified2) modifs2
                    _ -> Debug.crash "empty modified although it said it was updated"
            else
              let untouched = min (i2 - i) (i1 - i) in

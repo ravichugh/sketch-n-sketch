@@ -1016,9 +1016,13 @@ getUpdateStackOp env e oldVal newVal diffs =
                                      Ok _ ->
                                        case opArgs of
                                          [keyE, dictE] ->
-                                            updateContinue "DictRemove" env dictE oldVal newVal diffs <| \newEnv newDictE ->
-                                              updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
-                                         _ -> UpdateCriticalError <| "[internal error] DictGet requires two arguments"
+                                            case newVal.v_ of
+                                              VDict newValDict ->
+                                                let argNewvalDict = replaceV_ newVal <| VDict (Dict.insert dictKey oldValue newValDict) in
+                                                updateContinue "DictRemove" env dictE dict argNewvalDict diffs <| \newEnv newDictE ->
+                                                  updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
+                                              _ -> UpdateCriticalError <| "[internal error] DictRemove was updated with a non-dict: " ++ valToString newVal
+                                         _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
                              _ -> UpdateCriticalError <| "DictRemove requires the second argument to be a dictionary, got " ++ valToString dict
                      _ -> UpdateCriticalError <| "DictRemove requires two arguments, got " ++ toString (List.length vs)
                  DictInsert ->

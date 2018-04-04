@@ -249,6 +249,7 @@ LEO_TO_ELM fromleo/markdown
 LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
 LEO_TO_ELM fromleo/modelviewcontroller
+LEO_TO_ELM fromleo/programmabledoc
 LEO_TO_ELM fromleo/latexeditor
 
 --------------------------------------------------------------------------------
@@ -281,6 +282,7 @@ docsCategory =
       , ("Markdown", fromleo_markdown)
       , ("Conference Budget", fromleo_conference_budgetting)
       , ("Proportional Recipe editor", fromleo_recipe)
+      , ("Programmable document", fromleo_programmabledoc)
       , ("Model View Controller", fromleo_modelviewcontroller)
       , ("LaTeX editor", fromleo_latexeditor)
 --      , ("TODO", blankDoc)
