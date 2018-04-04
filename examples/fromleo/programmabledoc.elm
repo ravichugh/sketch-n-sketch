@@ -1,13 +1,3 @@
-find regex s =
-    case extractFirstIn ("(" + regex + ")([\\s\\S]*)") s of
-      Nothing -> []
-      Just matchremaining ->
-        case (LensLess.List.split (len matchremaining - 1) matchremaining) of
-          [init, [last]] ->
-            init::find regex last
-
-Regex = { Regex | find = find }
-
 variables = [("document", "web $page"),("page", "page")]
 
 variablesDict = Dict.fromList variables
