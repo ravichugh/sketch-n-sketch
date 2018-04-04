@@ -2807,8 +2807,12 @@ html string = {
                _ -> error <| \"expected HTMLAttributeUnquoted, HTMLAttributeString, HTMLAttributeNoValue, got \" ++ toString (inputElem, newOutput)
             _ -> error \"Expected HTMLAttribute, got \" ++ toString (inputElem, newOutput)
           in
-          let newDiff = (index, ListElemUpdate Update.diff inputElem newInputElem) in
-          {values = [(newInputElem::revAcc, newDiff::revDiffs, inputRemaining)]}
+          let newRevDiffs = case Update.diff inputElem newInputElem of
+            Ok (Just d) -> (index, ListElemUpdate d)::revDiffs
+            Ok (Nothing) ->  revDiffs
+            Err msg -> error msg
+          in
+          {values = [(newInputElem::revAcc, newRevDiffs, inputRemaining)]}
 
         onRemove (revAcc, revDiffs, input) {oldOutput, index} =
           let _::remainingInput = input in

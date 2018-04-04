@@ -2,7 +2,7 @@ module Results exposing
   ( Results(Oks, Errs)
   , withDefault
   , ok1, oks, okLazy, errs
-  , map, map2, map2withError, andThen, flatten
+  , map, map2, map2withError, andThen, flatten, filter
   , toMaybe, fromMaybe, fromResult, mapErrors
   , fold
   )
@@ -30,6 +30,11 @@ okLazy head tailLazy =
   Oks <| Cons head <| Lazy.lazy tailLazy
 
 errs msg = Errs msg
+
+filter: (a -> Bool) -> Results e a -> Results e a
+filter pred r = case r of
+  Errs msg -> Errs msg
+  Oks l -> Oks (LazyList.filter pred l)
 
 keepOks: LazyList (Results e a) -> LazyList a
 keepOks l =

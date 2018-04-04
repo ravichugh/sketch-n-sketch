@@ -85,7 +85,7 @@ result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
             if Regex.matchIn " " outputNew then {values = []} else
             {values = [(res, outputNew)]} }.apply (res, ending)) txt
 
-Html.div_ [["margin", "20px"]] [] <| (\x -> [x]) <|
+Html.div_ [["margin", "20px"], ["cursor", "text"]] [] <| (\x -> [x]) <|
 Html.span [] [] <|
 html <| """<button onclick="this.setAttribute('v','@otherLanguage')" v="@language">To @otherLanguage</button><br>""" +
   ( Dict.fromList [("English", """<i>Hint:</i> Use _5_ for a proportional number 5, _5es_ to place an s if the quantity (5) is greater than 1."""),

@@ -96,6 +96,50 @@ builtinEnv =
            _ -> Err <| "% expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
        _ -> Err <| "% expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
+  , (">>", builtinVal "EvalUpdate.>>" <| VFun ">>" ["left", "right", "x"] (\args ->
+      case args of
+        [left, right, x] ->
+           let env = [("x", x), ("left", left), ("right", right)] in
+           Eval.doEval Syntax.Elm env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) |> Result.map Tuple.first
+        _ -> Err <| ">> expects 2 arguments, got " ++ toString (List.length args)
+      ) (Just (\args oldVal newVal -> case args of
+      [left, right, x] ->
+        let env = [("left", left), ("right", right), ("x", x)] in
+        case UpdateUtils.defaultVDiffs oldVal newVal of
+          Err msg -> Errs msg
+          Ok Nothing -> ok1 args
+          Ok (Just d) ->
+            Update.update (updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) oldVal newVal d) LazyList.Nil |>
+              Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
+              Results.map (\(newEnv, _) ->
+                case newEnv.val of
+                  [(_, newLeft), (_, newRight), (_, newX)] -> [newLeft, newRight, newX]
+                  _ -> Debug.crash "[internal error] >> Environment is empty !!!"
+                )
+      _ -> Errs <| ">> expects 2 arguments, got " ++ toString (List.length args)
+    )))
+  , ("<<", builtinVal "EvalUpdate.<<" <| VFun "<<" ["left", "right", "x"] (\args ->
+    case args of
+      [left, right, x] ->
+         let env = [("x", x), ("left", left), ("right", right)] in
+         Eval.doEval Syntax.Elm env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) |> Result.map Tuple.first
+      _ -> Err <| ">> expects 2 arguments, got " ++ toString (List.length args)
+    ) (Just (\args oldVal newVal -> case args of
+    [left, right, x] ->
+      let env = [("left", left), ("right", right), ("x", x)] in
+      case UpdateUtils.defaultVDiffs oldVal newVal of
+        Err msg -> Errs msg
+        Ok Nothing -> ok1 args
+        Ok (Just d) ->
+          Update.update (updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) oldVal newVal d) LazyList.Nil |>
+            Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
+            Results.map (\(newEnv, _) ->
+              case newEnv.val of
+                [(_, newLeft), (_, newRight), (_, newX)] -> [newLeft, newRight, newX]
+                _ -> Debug.crash "[internal error] << Environment is empty !!!"
+              )
+    _ -> Errs <| "<< expects 2 arguments, got " ++ toString (List.length args)
+  )))
   , ("evaluate", builtinVal "EvalUpdate.evaluate" <| VFun "evaluate" ["program"] (\args ->
       case args of
         [program] -> case program.v_ of

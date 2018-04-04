@@ -234,10 +234,10 @@ unparsePattern p =
 
     PList wsBefore [head] wsMiddle (Just tail) wsBeforeEnd ->
       wsBefore.val -- Should be empty
-        ++ wrapPatternWithParensIfLessPrecedence p head (unparsePattern head)
+        ++ wrapPatternWithParensIfLessPrecedence OpLeft p head (unparsePattern head)
         ++ wsMiddle.val
         ++ "::"
-        ++ wrapPatternWithParensIfLessPrecedence p tail (unparsePattern tail)
+        ++ wrapPatternWithParensIfLessPrecedence OpRight p tail (unparsePattern tail)
         ++ wsBeforeEnd.val -- Should be empty
 
     PList wsBefore (head::headTail) wsMiddle (Just tail) wsBeforeEnd ->
@@ -271,7 +271,7 @@ unparsePattern p =
           ++ "}"
 
     PAs wsName name wsBeforeAs pat ->
-      wrapPatternWithParensIfLessPrecedence p pat (unparsePattern pat)
+      wrapPatternWithParensIfLessPrecedence OpLeft p pat (unparsePattern pat)
         ++ wsBeforeAs.val
         ++ "as"
         ++ wsName.val
@@ -490,27 +490,27 @@ unparse e =
           case arguments of
             [arg] ->
               wsBefore.val
-                ++ wrapWithParensIfLessEqPrecedence e function (unparse function)
+                ++ wrapWithParensIfLessPrecedence OpLeft e function (unparse function)
                 ++ lws.val
                 ++ "<|"
-                ++ unparse arg
+                ++ wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)
             _ -> "?[internal error EApp LeftApp wrong number of arguments]?"
         RightApp rws ->
           case arguments of
             [arg] ->
               wsBefore.val
-                ++ unparse arg
+                ++ wrapWithParensIfLessPrecedence OpLeft e arg (unparse arg)
                 ++ rws.val
                 ++ "|>"
-                ++ wrapWithParensIfLessEqPrecedence e function (unparse function)
+                ++ wrapWithParensIfLessPrecedence OpRight e function (unparse function)
             _ -> "?[internal error EApp RightApp did not have exactly 1 argument]?"
         InfixApp ->
           case arguments of
             [arg1, arg2] ->
               wsBefore.val
-                ++ wrapWithParensIfLessEqPrecedence e arg1 (unparse arg1)
+                ++ wrapWithParensIfLessPrecedence OpLeft e arg1 (unparse arg1)
                 ++ unparse function
-                ++ wrapWithParensIfLessEqPrecedence e arg2 (unparse arg2)
+                ++ wrapWithParensIfLessPrecedence OpRight e arg2 (unparse arg2)
             _ -> "?[internal error EApp InfixApp did not have exactly 2 arguments]?"
 
     EOp wsBefore op arguments _ ->
@@ -518,15 +518,15 @@ unparse e =
         default =
           wsBefore.val
             ++ unparseOp op
-            ++ String.concat (List.map (\x -> wrapWithParensIfLessPrecedence e x (unparse x)) arguments)
+            ++ String.concat (List.map (\x -> wrapWithParensIfLessPrecedence OpRight e x (unparse x)) arguments)
       in
         if ElmLang.isInfixOperator op then
           case arguments of
             [ left, right ] ->
-              wrapWithParensIfLessPrecedence e left (unparse left)
+              wrapWithParensIfLessPrecedence OpLeft e left (unparse left)
                 ++ wsBefore.val
                 ++ unparseOp op
-                ++ wrapWithParensIfLessPrecedence e right (unparse right)
+                ++ wrapWithParensIfLessPrecedence OpRight e right (unparse right)
             _ ->
               default
         else
@@ -547,10 +547,10 @@ unparse e =
 
     EList wsBefore [(_,head)] wsmiddle (Just tail) wsBeforeEnd ->
       wsBefore.val -- Should be empty
-        ++ wrapWithParensIfLessPrecedence e head (unparse head)
+        ++ wrapWithParensIfLessPrecedence OpLeft e head (unparse head)
         ++ wsmiddle.val
         ++ "::"
-        ++ wrapWithParensIfLessPrecedence e tail (unparse tail)
+        ++ wrapWithParensIfLessPrecedence OpRight e tail (unparse tail)
         ++ wsBeforeEnd.val -- Should be empty
 
     -- Obsolete, remove whenever we are sure that there are no mutliple cons anymore.
@@ -825,52 +825,101 @@ multilineContentUnparse e = case e.val.e__ of
     ) ++ (if rec then "rec" else "") ++ ws1.val ++ unparsePattern p ++ ws2.val ++ "=" ++ finalDefinition ++ remaining
   anyExp -> "@(" ++ unparse e ++ ")"
 
-
-getExpPrecedence: Exp -> Int
+-- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-conatined
+getExpPrecedence: Exp -> Maybe Int
 getExpPrecedence exp =
   case exp.val.e__ of
-    EList _ [head] _ (Just tail) _ -> 5
-    EApp _ _ _ (LeftApp _) _       -> 0
-    EApp _ _ _ (RightApp _) _      -> 0
+    EList _ [head] _ (Just tail) _ -> Just 5
+    EApp _ _ _ (LeftApp _) _       -> Just 0
+    EApp _ _ _ (RightApp _) _      -> Just 0
     EApp _ f _ (InfixApp) _        ->
       case f.val.e__ of
         EVar _ name ->
           case BinaryOperatorParser.getOperatorInfo name ElmParser.builtInPrecedenceTable of
-            Nothing -> 10
-            Just (associativity, precedence) -> precedence
-        _ -> 0
-    EColonType _ _ _ _ _           -> -1
+            Nothing -> Nothing
+            Just (associativity, precedence) -> Just precedence
+        _ -> Nothing
+    EColonType _ _ _ _ _           -> Just -1
     EOp _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
-        Nothing -> 10
-        Just (associativity, precedence) -> precedence
-    _ -> 10
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just precedence
+    _ -> Nothing
 
-wrapWithParensIfLessPrecedence: Exp -> Exp -> String -> String
-wrapWithParensIfLessPrecedence outsideExp insideExp unparsedInsideExpr =
-  if getExpPrecedence insideExp < getExpPrecedence outsideExp then wrapWithTightParens unparsedInsideExpr else unparsedInsideExpr
+getExpAssociativity: Exp -> Maybe BinaryOperatorParser.Associativity
+getExpAssociativity exp =
+  case exp.val.e__ of
+    EList _ [head] _ (Just tail) _ -> Just BinaryOperatorParser.Right
+    EApp _ _ _ (LeftApp _) _       -> Just BinaryOperatorParser.Right
+    EApp _ _ _ (RightApp _) _      -> Just BinaryOperatorParser.Left
+    EApp _ f _ (InfixApp) _        ->
+      case f.val.e__ of
+        EVar _ name ->
+          case BinaryOperatorParser.getOperatorInfo name ElmParser.builtInPrecedenceTable of
+            Nothing -> Nothing
+            Just (associativity, precedence) -> Just associativity
+        _ -> Nothing
+    EColonType _ _ _ _ _           -> Just BinaryOperatorParser.Left
+    EOp _ operator _ _ ->
+      case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just associativity
+    _ -> Nothing
 
-wrapWithParensIfLessEqPrecedence: Exp -> Exp -> String -> String
-wrapWithParensIfLessEqPrecedence outsideExp insideExp unparsedInsideExpr =
-  if getExpPrecedence insideExp <= getExpPrecedence outsideExp then wrapWithTightParens unparsedInsideExpr else unparsedInsideExpr
+type OpDir = OpLeft | OpRight
 
-getPatPrecedence: Pat -> Int
+wrapWithParensIfLessPrecedence_: (a -> Maybe Int) -> (a -> Maybe BinaryOperatorParser.Associativity) -> OpDir -> a -> a -> String -> String
+wrapWithParensIfLessPrecedence_ getPrecedence getAssociativity opDir outsideExp insideExp unparsedInsideExpr =
+  let inPrecedenceMb  = getPrecedence insideExp in
+  case inPrecedenceMb of
+    Nothing -> unparsedInsideExpr
+    Just inPrecedence ->
+  let precedenceMb    = getPrecedence outsideExp in
+  case precedenceMb of
+      Nothing -> unparsedInsideExpr
+      Just precedence ->
+  let inAssociativity = getAssociativity insideExp in
+  let associativity = getAssociativity outsideExp in
+  if inPrecedence < precedence
+  then wrapWithTightParens unparsedInsideExpr
+  else if inPrecedence == precedence then
+    if associativity == inAssociativity && (
+            associativity == Just BinaryOperatorParser.Left && opDir == OpLeft
+         || associativity == Just BinaryOperatorParser.Right && opDir == OpRight) then
+         unparsedInsideExpr
+    else wrapWithTightParens unparsedInsideExpr -- Same associativity with conflicts, we put parentheses.
+  else unparsedInsideExpr
+
+wrapWithParensIfLessPrecedence: OpDir -> Exp -> Exp -> String -> String
+wrapWithParensIfLessPrecedence  =
+  wrapWithParensIfLessPrecedence_ getExpPrecedence getExpAssociativity
+
+getPatPrecedence: Pat -> Maybe Int
 getPatPrecedence pat =
   case pat.val.p__ of
     PList _ _ _ (Just tail) _ ->
       case BinaryOperatorParser.getOperatorInfo "::" ElmParser.builtInPatternPrecedenceTable of
-        Nothing -> 10
-        Just (associativity, precedence) -> precedence
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just precedence
     PAs _ _ _ _ ->
       case BinaryOperatorParser.getOperatorInfo "as" ElmParser.builtInPatternPrecedenceTable of
-        Nothing -> 10
-        Just (associativity, precedence) -> precedence
-    _ -> 10
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just precedence
+    _ -> Nothing
 
-wrapPatternWithParensIfLessPrecedence: Pat -> Pat -> String -> String
-wrapPatternWithParensIfLessPrecedence outsidePat insidePat unparsedInsidePat =
-  if getPatPrecedence insidePat < getPatPrecedence outsidePat then wrapWithTightParens unparsedInsidePat else unparsedInsidePat
+getPatAssociativity: Pat -> Maybe BinaryOperatorParser.Associativity
+getPatAssociativity pat =
+  case pat.val.p__ of
+    PList _ _ _ (Just tail) _ ->
+      case BinaryOperatorParser.getOperatorInfo "::" ElmParser.builtInPatternPrecedenceTable of
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just associativity
+    PAs _ _ _ _ ->
+      case BinaryOperatorParser.getOperatorInfo "as" ElmParser.builtInPatternPrecedenceTable of
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just associativity
+    _ -> Nothing
 
-wrapPatternWithParensIfLessEqPrecedence: Pat -> Pat -> String -> String
-wrapPatternWithParensIfLessEqPrecedence outsidePat insidePat unparsedInsidePat =
-  if getPatPrecedence insidePat <= getPatPrecedence outsidePat then wrapWithTightParens unparsedInsidePat else unparsedInsidePat
+wrapPatternWithParensIfLessPrecedence: OpDir -> Pat -> Pat -> String -> String
+wrapPatternWithParensIfLessPrecedence =
+  wrapWithParensIfLessPrecedence_ getPatPrecedence getPatAssociativity
