@@ -1933,6 +1933,10 @@ eRecordUnapply e = case e.val.e__ of
   ERecord _ Nothing es _ -> Just <| List.map (\(_, _, k, _, v) -> (k, v)) es
   _ -> Nothing
 
+eVarUnapply e = case e.val.e__ of
+  EVar _ s -> Just s
+  _ -> Nothing
+
 eStrUnapply e = case e.val.e__ of
   EBase _ (EString _ s) -> Just s
   _ -> Nothing

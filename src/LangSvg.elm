@@ -535,7 +535,15 @@ printAttrs l = case l of
   _  -> " " ++ Utils.spaces (List.map printAttr l)
 
 printAttr (k,v) =
-  k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
+  k ++ "=" ++ Utils.delimit "'" "'" (Regex.replace Regex.All (Regex.regex "\\\\|'|\n|\r|\t") (\m ->
+    case m.match of
+      "\\" -> "\\\\"
+      "'" -> "\\'"
+      "\n" -> "\\n"
+      "\r" -> "\\r"
+      "\t" -> "\\t"
+      e -> e
+  ) (strAVal v))
 
 addAttrs kind attrs =
   if kind == "svg"

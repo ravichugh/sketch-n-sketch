@@ -108,3 +108,6 @@ tests:
 
 benchmarks:
 	cd ../tests && ./benchmarks.sh && cd ../src
+
+testbenchmarks:
+	cd ../tests && ./benchmarks.sh --test && cd ../src

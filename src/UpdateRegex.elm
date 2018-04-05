@@ -90,23 +90,47 @@ stringToLambda env vs s =
 
 type EvaluationError = EvaluationError String
 
-matchToExpApp: Exp -> GroupStartMap.Match -> Exp
-matchToExpApp replacementVar m =
-  let mainMatch = eStr m.match in
-  let subMatches = List.map (\{match, start} -> eStr <| Maybe.withDefault "" match) m.submatches in
-  let (subgroups, substarts) =
-    List.map (\{match, start} -> (eStr <| Maybe.withDefault "" match, eConst (toFloat start) dummyLoc)) m.submatches |> List.unzip in
-  let argument = eRecord [
-                   ("match", mainMatch),
-                   ("submatches", eList subMatches Nothing),
-                   ("group",      eList (mainMatch :: subgroups) Nothing),
-                   ("start",      eList (eConst (toFloat m.index) dummyLoc ::substarts) Nothing),
-                   ("index",      eConst (toFloat m.index) dummyLoc),
-                   ("number",     eConst (toFloat m.number) dummyLoc)]
-  in
-  eLet [("_", eFun [pVar "_"] argument)] <|
-  (eOp ToStrExceptStr [
-    eApp replacementVar [argument]])
+-- API for this function
+type alias RegexMatch = {match: String, submatches: List String, group: List String, start: List Int, index: Int, number: Int}
+
+gsmMatchToRegexMatch: GroupStartMap.Match -> RegexMatch
+gsmMatchToRegexMatch m =
+  let submatches = m.submatches |> List.map (\{match} -> match |> Maybe.withDefault "") in
+  {
+  match = m.match,
+  submatches = submatches,
+  group = m.match :: submatches,
+  start =  m.index :: (m.submatches |> List.map (\{start} -> start)),
+  index = m.index,
+  number = m.number
+  }
+
+matchToVal: RegexMatch -> Val
+matchToVal m =
+  let vb = builtinVal "matchToVal" in
+  Vb.record Vb.identity vb <| Dict.fromList [
+    ("match", Vb.string vb m.match),
+    ("submatches", Vb.list Vb.string vb m.submatches),
+    ("group",      Vb.list Vb.string vb m.group),
+    ("start",      Vb.list Vb.int vb m.start),
+    ("index",      Vb.int vb m.index),
+    ("number",     Vb.int vb m.number)
+  ]
+
+-- Builds the expression consisting of calling the replacement callback to the argument
+matchApp: String -> String -> Exp
+matchApp replacementName argumentName =
+  eOp ToStrExceptStr [ eApp (eVar replacementName) [eVar argumentName]]
+
+-- Returns the name of the application in this match application
+appMatchArg: Exp -> Result String String
+appMatchArg e = case eOpUnapply1 ToStrExceptStr e of
+   Nothing -> Err <| "Expected ToStrExceptStr, got " ++ Syntax.unparser Syntax.Elm e
+   Just inside -> case eAppUnapply1 inside of
+     Nothing  -> Err <| "In ToStrExceptStr, expected f x, got " ++ Syntax.unparser Syntax.Elm inside
+     Just (r, a) -> case eVarUnapply a of
+       Nothing -> Err <| "In ToStrExceptStr (f x), expected x to be a variable name, got " ++ Syntax.unparser Syntax.Elm a
+       Just s -> Ok s
 
 extractHeadTail: String -> List a -> ((a, List a) -> Result String e) -> Result String e
 extractHeadTail msg list continuation =
@@ -114,46 +138,39 @@ extractHeadTail msg list continuation =
      [] -> Err msg
      head::tail -> continuation (head, tail)
 
--- Reverse operation of matchToExpApp
-expAppToStringMatch : Exp -> Result String String {- The matched string -}
-expAppToStringMatch  newE =
-  --let _ = LangUtils.logExp "New expression from which to recover a string" newE in
-  let extractSix names l = case List.unzip l of
-    (foundNames, [elem1, elem2, elem3, elem4, elem5, elem6]) -> if foundNames == names then Just (elem1, elem2, elem3, elem4, elem5, elem6) else Nothing
-    _ -> Nothing
-  in
-  let extractTwo names ext1 ext2 l = case List.unzip l of
-    (foundNames, [elem1, elem2]) -> if foundNames == names then
-        ext1 elem1 |> Maybe.andThen (\v1 -> ext2 elem2 |> Maybe.map (\v2 -> (v1, v2)))
-       else Nothing
-    _ -> Nothing
-  in
-  let eConstIntUnapply = eConstUnapply >> Maybe.map floor in
-  let r = extractors.unapply
-      p = extractors.unapplySeq in
-  let extractRecord: Exp -> ((String, List String, List String, List Int, Int, Int) -> Result String e) -> Result String e
-      extractRecord argument continuation =
-       r "Internal error, Expected record, got something else" eRecordUnapply argument <| \recordElems ->
-       r "InternalError, expected 5 elements, got something else" (extractSix
-         ["match", "submatches", "group", "start", "index", "number"]) recordElems <| \(oldMatch, oldSubmatches, oldGroup, oldStart, oldIndex, oldNumber) ->
-       r "InternalError, expected a string, got something else" eStrUnapply oldMatch <| \oldMatchString ->
-       r "InternalError, expected a number, got something else" eConstIntUnapply oldIndex <| \oldIndexNum ->
-       r "InternalError, expected a number, got something else" eConstIntUnapply oldNumber <| \oldNumberNum ->
-       r "Internal error, expected a list of submatches" eListUnapply oldSubmatches <| \oldSubmatchesList ->
-       r "Internal error, expected a list of groups" eListUnapply oldGroup <| \oldGroupList ->
-       r "Internal error, expected a list of starts" eListUnapply oldStart <| \oldStartList ->
-       p "Submatch is supposed to be a list of strings." eStrUnapply oldSubmatchesList <| \oldSubmachesStringList ->
-       p "group is supposed to stay a list of strings" eStrUnapply oldGroupList <| \oldGroupStringList ->
-       p "start is supposed to stay a list of integers" eConstIntUnapply oldStartList <| \oldStartNumList ->
-       continuation (oldMatchString, oldSubmachesStringList, oldGroupStringList, oldStartNumList, oldIndexNum, oldNumberNum)
-  in
+valToMatch: Val -> (RegexMatch -> Result String b) -> Result String b
+valToMatch v continuation =
+  let try: Result String a -> (a -> Result String b) -> Result String b
+      try = flip Result.andThen in
+  let get: Dict.Dict String a -> String -> (a -> Result String b) -> Result String b
+      get d k = try (Dict.get k d |> Result.fromMaybe ("Key " ++ k ++ " not found")) in
+  try (Vu.record Vu.identity v) <| \rd -> let g = get rd in
+    g "match" <| \vmatch -> g "submatches" <| \vsubmatches -> g "group"  <| \vgroup ->
+    g "start" <| \vstart    -> g "index"   <| \vindex ->      g "number" <| \vnumber ->
+    try (Vu.string vmatch) <| \match ->
+    try (Vu.int vindex) <| \index ->
+    try (Vu.int vnumber) <| \number ->
+    try (Vu.list Vu.string vsubmatches) <| \submatches ->
+    try (Vu.list Vu.string vgroup) <| \groups ->
+    try (Vu.list Vu.int vstart) <| \start ->
+    continuation (RegexMatch match submatches groups start index number)
 
-  r "Internal error, could not recover a let" eLetUnapply newE <| \((name, oldArgument), bodyExp) ->
-  r "Internal error, could not recover a fundef" eFunUnapply oldArgument <| \(pats, originalRecordNotEvaluated) ->
-  extractRecord originalRecordNotEvaluated <| \(oldMatch, oldSubmatches, oldGroups, oldStarts, oldIndex, oldNumber) ->
-  r "Internal error, expected ToStrExceptStr" (eOpUnapply1 ToStrExceptStr) bodyExp <| \theapp ->
-  r "Internal error, expected Application" eAppUnapply1 theapp <| \(vfun, arg) ->
-  extractRecord arg <| \(newMatch, newSubmatches, newGroups, newStarts, newIndex, newNumber) ->
+-- Reverse operation of matchToVal
+recoverMatchedString : RegexMatch -> Val -> Result String String {- The matched string -}
+recoverMatchedString  oldRegexMatch newV =
+  valToMatch newV <| \newRegexMatch ->
+    let oldMatch      = oldRegexMatch.match
+        oldIndex      = oldRegexMatch.index
+        oldNumber     = oldRegexMatch.number
+        oldSubmatches = oldRegexMatch.submatches
+        oldGroups     = oldRegexMatch.group
+        oldStarts     = oldRegexMatch.start in
+    let newMatch      = newRegexMatch.match
+        newIndex      = newRegexMatch.index
+        newNumber     = newRegexMatch.number
+        newSubmatches = newRegexMatch.submatches
+        newGroups     = newRegexMatch.group
+        newStarts     = newRegexMatch.start in
       -- Now we need to look for the updated match.
     if newMatch /= oldMatch then
       Ok newMatch
@@ -199,7 +216,7 @@ mergeTransformations originalString replacements =
   let aux maxReplacementIndex string transformations = case transformations of
     [] -> string
     (start, end, newGroup)::remainingTransformations ->
-       if end <= maxReplacementIndex then
+       if start >= 0 && end <= maxReplacementIndex then
          let updatedString = (String.left start string) ++ newGroup ++ String.dropLeft end string in
          aux start updatedString remainingTransformations
        else
@@ -219,8 +236,10 @@ evalRegexReplaceByIn  howmany env eval regexpV replacementV stringV =
         ImpureGoodies.tryCatch "EvaluationError" (\() ->
           let newString = GroupStartMap.replace howmany regexp (\m ->
                let replacementName = "UpdateRegex.replaceAll" in
-               let localExp = matchToExpApp (eVar replacementName) m in
-               let localEnv = [(replacementName, replacementV)] in
+               let argumentName = "x" in
+               let matchVal = matchToVal (gsmMatchToRegexMatch m) in
+               let localEnv = [(replacementName, replacementV), (argumentName, matchVal)] in
+               let localExp = matchApp replacementName argumentName in
                --let _ = Debug.log ("The new env is" ++ LangUtils.envToString localEnv) () in
                --let _ = Debug.log ("The replacement body is" ++ Syntax.unparser Syntax.Elm localExp) () in
                case eval localEnv localExp of
@@ -276,33 +295,46 @@ updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV strin
        in
        let lastString = String.dropLeft lastEnd string in -- Of size >= 2
        let replacementName = "UpdateRegex.replaceAll" in
-       let expressionReplacement = concat <| (List.concatMap identity <| List.map2 (\m s -> [eStr s, matchToExpApp (eVar replacementName) m]) matches initStrings) ++ [eStr lastString] in
        -- let _ = Debug.log "regex3" () in
        case evalRegexReplaceAllByIn env eval regexpV replacementV stringV of
          Err msg -> Errs msg
          Ok olvVal ->
+            let argName i = "match" ++ toString i in
+            let expressionReplacement = concat <| (
+              List.concatMap identity <|
+                 List.map2 (\(m, i) s ->
+                   [eStr s, matchApp replacementName (argName i)]) (Utils.zipWithIndex matches) initStrings) ++ [eStr lastString] in
             -- let _ = Debug.log "regex4" () in
-            let envWithReplacement= (replacementName, replacementV)::env in
+            let argumentsMatches = Utils.zipWithIndex matches |> List.map (\(m, i) -> (argName i, gsmMatchToRegexMatch m)) in
+            let argumentsEnv = argumentsMatches |> List.map (\(name, m) -> (name, matchToVal m)) in
+            let argumentsMatchesDict = Dict.fromList argumentsMatches in
+            let envWithReplacement= (replacementName, replacementV)::argumentsEnv in
             updateRoutine envWithReplacement expressionReplacement olvVal outV
             |> Results.andThen (\(newEnvWithReplacement, newUpdatedExp) ->
-              -- let _ = Debug.log "regex6" () in
-              let stringsAndLambdas = unconcat newUpdatedExp.val in
-              -- let _ = Debug.log "regex7" () in
-              stringsAndLambdas |> List.map (\e ->
-                case e.val.e__ of
-                  EBase _ (EString delim s) -> Ok s
-                  _ -> expAppToStringMatch e
-                )
-              |> Utils.projOk
-              |> Results.fromResult
-              |> Results.andThen (\newStrings ->
-                  let (newLambda, newEnv) = case newEnvWithReplacement.val of
-                    [] -> Debug.crash "A variable disappeared from the environment"
-                    (replacementName, newReplacementV)::newEnv -> (newReplacementV, newEnv)
-                  in
-                  let newString = String.join "" newStrings in
-                  ok1 (regexpV, newLambda, replaceV_ stringV <| VBase (VString newString))
-                )
+              case newEnvWithReplacement.val of
+                (_, newReplacementV)::newArguments ->
+                  -- let _ = Debug.log "regex6" () in
+                  let stringsAndLambdas = unconcat newUpdatedExp.val in
+                  let newArgumentsDicts = Dict.fromList newArguments in
+                  -- let _ = Debug.log "regex7" () in
+                  stringsAndLambdas |> List.map (\e ->
+                    case eStrUnapply e of
+                      Just s -> Ok s
+                      Nothing -> case appMatchArg e of
+                        Err s -> Err s
+                        Ok argname -> case Dict.get argname argumentsMatchesDict of
+                          Nothing -> Err <| "Could not find " ++ argname ++ " in " ++ toString argumentsMatchesDict
+                          Just oldMatch -> case Dict.get argname newArgumentsDicts of
+                            Just newVal -> recoverMatchedString oldMatch newVal
+                            Nothing -> Err <| "Could not find " ++ argname ++ " in new environment"
+                    )
+                  |> Utils.projOk
+                  |> Results.fromResult
+                  |> Results.andThen (\newStrings ->
+                      let newString = String.join "" newStrings in
+                      ok1 (regexpV, newReplacementV, Vb.string (Vb.fromVal stringV) newString)
+                    )
+                _ -> Debug.crash "A variable disappeared from the environment"
              )
      _ -> Errs <| "replaceAllIn expects a regex (String), a replacement (string/lambda), and the text. Got instead  " ++ valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
            -- Commented out because dependency cycle
@@ -335,24 +367,15 @@ updateRegexExtractFirstIn regexpV stringV oldVal newVal =
         m::_ ->
           case Vu.constructor Ok newVal of
             Ok ("Just", [v]) ->
-              case v.v_ of
-                VList newGroupsList ->
---                  let _ = Debug.log "One match, reverting" () in
-
-                  let newGroupStr = newGroupsList |> List.map (\c -> case c.v_ of
-                       VBase (VString v) -> Ok v
-                       _ -> Err <| "Not a string for updating a regex group: " ++ valToString c  )
-                       |> Utils.projOk
-                  in
-                  newGroupStr |> Results.fromResult |> Results.andThen (\newGroups ->
-                    let transformations =
-                         List.map2 (\{match,start} newValue -> match |> Maybe.andThen (\match -> if match == newValue then Nothing else Just (start, start + String.length match, newValue) )) m.submatches newGroups
-                         |> List.filterMap identity
-                    in
-                    --let _ = Debug.log "transformations to the string" transformations in
-                    ok1 (replaceV_ stringV <| VBase <| VString <| mergeTransformations string transformations)
-                  )
-                _ -> Errs "Updating from a just of not a list"
+              Vu.list Vu.string v |> Results.fromResult |> Results.andThen (\newGroups ->
+                let transformations =
+                     List.map2 (\{match,start} newValue ->
+                       match |> Maybe.andThen (\match -> if match == newValue then Nothing else Just (start, start + String.length match, newValue) )) m.submatches newGroups
+                     |> List.filterMap identity
+                in
+                --let _ = Debug.log "transformations to the string" transformations in
+                ok1 (Vb.string (Vb.fromVal stringV) <| mergeTransformations string transformations)
+              )
             _ -> Errs "Updating from not a just"
     _ -> Errs "Internal error: Expected two strings, a regex, a string, the old value and the new value, got something else"
 

@@ -63,13 +63,13 @@ update updateStack nextToUpdate=
   -- At the end of nextToUpdate, there are all the forks that can be explored later.
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out diffs mb ->
-       {--
+       {--}
       let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
        --}
       update (getUpdateStackOp env e oldVal out diffs) (LazyList.maybeCons mb nextToUpdate)
 
     UpdateResultS fUpdatedEnv fOut mb -> -- Let's consume the stack !
-       {--
+       {--}
       let _ = Debug.log (String.concat [
         "update final result: ", {-unparse fOut.val,-}
         {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes,
@@ -167,7 +167,8 @@ getUpdateStackOp env e oldVal newVal diffs =
        case (oldVal.v_, newVal.v_) of
          (VList origVals, VList newOutVals) ->
            case ifUnoptimizedShallowDiff oldVal newVal diffs of
-             VListDiffs ldiffs ->
+             Ok Nothing -> updateResultSameEnvExp env e
+             Ok (Just (VListDiffs ldiffs)) ->
                let updateDiffs: Int -> UpdatedEnv ->       List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> Maybe (WS -> Exp -> (WS, Exp)) ->  List Val ->    List Val -> (List (Int, ListElemDiff VDiffs)) -> UpdateStack
                    updateDiffs  i      collectedUpdatedEnv revElems          revEDiffs           elemsToCollect    changeWhitespaceNext               originalValues newValues   ldiffs =
                      case ldiffs of
@@ -314,14 +315,15 @@ getUpdateStackOp env e oldVal newVal diffs =
                                      ",\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
                                      ",\nnewValues = " ++  (List.map valToString newValues |> String.join ",") -}
                in updateDiffs 0 (UpdatedEnv.original env) [] [] elems Nothing origVals newOutVals ldiffs
-             _ -> UpdateCriticalError <| "[internal error] Expected List modifications, got " ++ toString diffs
+             m -> UpdateCriticalError <| "[internal error] Expected List modifications, got " ++ toString m
          _ -> UpdateCriticalError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
      EList sp1 elems sp2 (Just tail) sp3 ->
        case (oldVal.v_, newVal.v_) of
          (VList origVals, VList newOutVals) ->
            case ifUnoptimizedShallowDiff oldVal newVal diffs of
-             VListDiffs ldiffs -> --We do not allow insertions or deletions of elemnts before the tail.
+             Ok Nothing -> updateResultSameEnvExp env e
+             Ok (Just (VListDiffs ldiffs)) -> --We do not allow insertions or deletions of elemnts before the tail.
                let updateDiffs: Int -> Int ->     UpdatedEnv -> List (WS, Exp) -> TupleDiffs EDiffs -> List (WS, Exp) -> List Val -> List Val -> List (Int, ListElemDiff VDiffs) -> UpdateStack
                    updateDiffs  i      elemSize   collectedEnv  revElems          revEDiffs            elemsToCollect    origVals    newOutVals  ldiffs =
                      case ldiffs of
@@ -386,7 +388,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                  _ -> UpdateCriticalError <| "Expected non-empty lists, got at least one empty"
                in
                updateDiffs 0 (List.length elems) (UpdatedEnv.original env) [] [] elems origVals newOutVals ldiffs
-             _ -> UpdateCriticalError ("Expected  a List diff, got " ++ toString diffs)
+             m -> UpdateCriticalError ("Expected  a List diff, got " ++ toString m)
          _ -> UpdateCriticalError ("Expected a list to update, got " ++ valToString newVal)
      ERecord sp1 mi es sp2 -> --Because records are typed, we should not allow the addition and removal of keys.
        case newVal.v_ of
@@ -403,7 +405,8 @@ getUpdateStackOp env e oldVal newVal diffs =
                  UpdateCriticalError <| String.join ", " errors ++ "is not allowed. Maybe you wanted to use dictionaries?"
                else
                  case ifUnoptimizedShallowDiff oldVal newVal diffs of
-                   VRecordDiffs dModifs ->
+                   Ok Nothing -> updateResultSameEnvExp env e
+                   Ok (Just (VRecordDiffs dModifs)) ->
                      let updateDiff: Int -> UpdatedEnv -> List (WS, WS, String, WS, Exp) -> List (Int, EDiffs) -> List (WS, WS, String, WS, Exp) -> Dict String VDiffs -> UpdateStack
                          updateDiff i collectedEnv revCollectedEs revEDiffs esToCollect dModifs = case esToCollect of
                        [] ->
@@ -469,7 +472,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                updateDiff (i + 1) finalEnv ((sp3, sp4, k, sp5, newUpdatedEi.val)::revCollectedEs) finalRevEDiffs esToCollectTail newDiffs
                              ) env collectedEnv sp3 sp4 k sp5 newDiffs
                      in updateDiff 0 (UpdatedEnv.original env) [] [] es dModifs
-                   _ -> UpdateCriticalError ("Expected  a Record diff, got " ++ toString diffs)
+                   m-> UpdateCriticalError ("Expected  a Record diff, got " ++ toString m)
              _ -> UpdateCriticalError ("Expected Record as original value, got " ++ valToString oldVal)
          _ -> UpdateCriticalError ("Expected Record as value to update from, got " ++ valToString newVal)
 
@@ -688,7 +691,9 @@ getUpdateStackOp env e oldVal newVal diffs =
                        --let _ = Debug.log ("Less arguments than expected, instead of " ++ toString ne1ps ++ " got " ++ toString ne2) () in
                        let (e1psUsed, e1psNotUsed) = Utils.split ne2 e1ps in
                        case (newVal.v_, ifUnoptimizedShallowDiff oldVal newVal diffs) of
-                         (VClosure _ psOut outBody envOut_, VClosureDiffs modifEnv modifBody) ->
+                         (_, Ok Nothing) ->
+                           updateResultSameEnvExp env e
+                         (VClosure _ psOut outBody envOut_, Ok (Just (VClosureDiffs modifEnv modifBody))) ->
                            let updatedEnvOut = UpdatedEnv envOut_ modifEnv in
                            if UpdatedEnv.isUnmodified updatedEnvOut && Utils.maybeIsEmpty modifBody then
                              updateResultSameEnvExp env e -- at this point, no modifications
@@ -913,7 +918,8 @@ getUpdateStackOp env e oldVal newVal diffs =
                          Err msg -> UpdateCriticalError <| "Expected a list of key/values, got " ++ msg ++ " for " ++ valToString keyValuesList
                          Ok listKeyDictKeyValues ->
                             case (newVal.v_, ifUnoptimizedShallowDiff oldVal newVal diffs) of
-                              (VDict newDict, VDictDiffs dictDiffs) ->
+                              (_, Ok Nothing) -> updateResultSameEnvExp env e
+                              (VDict newDict, Ok (Just (VDictDiffs dictDiffs))) ->
                                 let (newListRev, newDiffsRev) = List.foldl (\(((k, dKey), v), i) (newListRev, newDiffsRev) ->
                                     case (Dict.get dKey dictDiffs, Dict.get dKey newDict)  of
                                       (Just VDictElemDelete, _) -> (newListRev, (i, ListElemDelete 1)::newDiffsRev)
@@ -937,7 +943,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                 updateContinue "DictFromList" env keyValuesListE keyValuesList finalValuesList finalDiffsList <| \newEnv newKeyValuesListE ->
                                   let finalExp = replaceE__ e <| EOp sp1 op [newKeyValuesListE.val] sp2 in
                                   updateResult newEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newKeyValuesListE.changes)
-                              _ -> UpdateCriticalError <| "Expected VDictDiffs, got " ++ toString diffs
+                              (_, d) -> UpdateCriticalError <| "Expected a VDictDiffs, got " ++ toString d
                      _ -> UpdateCriticalError <| " DictFromList expects one argument, got " ++ toString (List.length vs)
                  DictGet ->
                    case vs of
@@ -971,10 +977,12 @@ getUpdateStackOp env e oldVal newVal diffs =
                                            continuation newDict newDiff
                                          Ok ("Just", [newKeyVal]) -> -- Updates
                                            case ifUnoptimizedShallowDiff oldVal newVal diffs of
-                                             VRecordDiffs dDiffs ->
+                                             Ok Nothing -> updateResultSameEnvExp env e
+                                             Ok (Just (VRecordDiffs dDiffs)) ->
                                                case Dict.get Lang.ctorArgs dDiffs |> Maybe.map (ifUnoptimizedShallowDiff oldKeyVal newKeyVal) of
                                                  Nothing -> updateResultSameEnvExp env e
-                                                 Just (VRecordDiffs dDiffs2) ->
+                                                 Just (Ok Nothing) -> updateResultSameEnvExp env e
+                                                 Just (Ok (Just (VRecordDiffs dDiffs2))) ->
                                                    case Dict.get "_1" dDiffs2 of
                                                      Just thediff ->
                                                        let newDiff = VDictDiffs <| Dict.fromList [(dictKey, VDictElemUpdate thediff)] in
@@ -1004,25 +1012,27 @@ getUpdateStackOp env e oldVal newVal diffs =
                                      _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
                                  Just oldValue -> -- There was a value. In case we try to insert this key again, we either fail the insertion or convert it to an update.
                                    -- Currently, we fail
-                                   let potentialErrors = case ifUnoptimizedShallowDiff oldVal newVal diffs of
-                                     VDictDiffs dDiffs -> Dict.foldl (\k v acc ->
-                                       acc |> Result.andThen (\_ ->
-                                       if k == dictKey then Err <| "Cannot insert/update the key " ++ valToString key ++ " to dictionary because it is removed (line " ++ toString e.start.line ++ ")"
-                                       else Ok ())) (Ok ()) dDiffs
-                                     _ -> Err <| "Expected VDictDiffs, got " ++ toString diffs
-                                   in
-                                   case potentialErrors of
-                                     Err msg -> UpdateFails msg
-                                     Ok _ ->
-                                       case opArgs of
-                                         [keyE, dictE] ->
-                                            case newVal.v_ of
-                                              VDict newValDict ->
-                                                let argNewvalDict = replaceV_ newVal <| VDict (Dict.insert dictKey oldValue newValDict) in
-                                                updateContinue "DictRemove" env dictE dict argNewvalDict diffs <| \newEnv newDictE ->
-                                                  updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
-                                              _ -> UpdateCriticalError <| "[internal error] DictRemove was updated with a non-dict: " ++ valToString newVal
-                                         _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
+                                   case ifUnoptimizedShallowDiff oldVal newVal diffs of
+                                     Ok Nothing -> updateResultSameEnvExp env e
+                                     Ok (Just (VDictDiffs dDiffs)) ->
+                                       let potentialErrors =  Dict.foldl (\k v acc ->
+                                            acc |> Result.andThen (\_ ->
+                                              if k == dictKey then Err <| "Cannot insert/update the key " ++ valToString key ++ " to dictionary because it is removed (line " ++ toString e.start.line ++ ")"
+                                              else Ok ())) (Ok ()) dDiffs
+                                       in
+                                       case potentialErrors of
+                                         Err msg -> UpdateFails msg
+                                         Ok _ ->
+                                           case opArgs of
+                                             [keyE, dictE] ->
+                                                case newVal.v_ of
+                                                  VDict newValDict ->
+                                                    let argNewvalDict = replaceV_ newVal <| VDict (Dict.insert dictKey oldValue newValDict) in
+                                                    updateContinue "DictRemove" env dictE dict argNewvalDict diffs <| \newEnv newDictE ->
+                                                      updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
+                                                  _ -> UpdateCriticalError <| "[internal error] DictRemove was updated with a non-dict: " ++ valToString newVal
+                                             _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
+                                     d -> UpdateFails <| "DictRemove: Expected VDictDiffs, got " ++ toString d
                              _ -> UpdateCriticalError <| "DictRemove requires the second argument to be a dictionary, got " ++ valToString dict
                      _ -> UpdateCriticalError <| "DictRemove requires two arguments, got " ++ toString (List.length vs)
                  DictInsert ->
@@ -1037,7 +1047,8 @@ getUpdateStackOp env e oldVal newVal diffs =
                                  VDict dNew ->
                                    let valWIthoutKey = replaceV_ newVal <| VDict <| Dict.remove dictKey dNew in
                                    case ifUnoptimizedShallowDiff oldVal newVal diffs of
-                                     VDictDiffs dDiffs ->
+                                     Ok Nothing -> updateResultSameEnvExp env e
+                                     Ok (Just (VDictDiffs dDiffs)) ->
                                        let newDictDiff = Dict.remove dictKey dDiffs in
                                        let diffsWithoutKey = VDictDiffs <| newDictDiff in
                                        let continuation = if Dict.isEmpty newDictDiff then
@@ -1062,7 +1073,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                            let finalChanges = UpdateUtils.combineEChildDiffs [(1, newInsertedE.changes), (2, newDictE.changes)] in
                                            updateResult finalEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [keyE, newInsertedE.val, newDictE.val] sp2) finalChanges
 
-                                     _ -> UpdateCriticalError <| "[Internal error] Expected a VDictDiffs, got " ++ toString diffs
+                                     e -> UpdateCriticalError <| "[Internal error] Expected a VDictDiffs, got " ++ toString e
                                  _ -> UpdateCriticalError <| "DictInsert cannot be updated with something other than a dict, got " ++ valToString newVal
                              _ -> UpdateCriticalError <| "DictInsert requires the second argument to be a dictionary, got " ++ valToString dict
                      _ -> UpdateCriticalError <| "DictInsert requires tnree arguments, got " ++ toString (List.length vs)

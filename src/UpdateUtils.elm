@@ -836,14 +836,12 @@ combineAppChanges newE1Changes newE2Changes =
     [] -> Nothing
     eChanges -> Just <| EChildDiffs eChanges
 
-ifUnoptimizedShallowDiff: Val -> Val -> VDiffs -> VDiffs
+ifUnoptimizedShallowDiff: Val -> Val -> VDiffs -> Result String (Maybe VDiffs)
 ifUnoptimizedShallowDiff original modified vdiffs =
   case vdiffs of
     VUnoptimizedDiffs ->
-      defaultVDiffsRec False (\_ _ -> Ok (Just VUnoptimizedDiffs)) original modified  |>
-      Result.map (Maybe.withDefault VUnoptimizedDiffs) |>
-      Result.withDefault VUnoptimizedDiffs
-    _ -> vdiffs
+      defaultVDiffsRec False (\_ _ -> Ok (Just VUnoptimizedDiffs)) original modified
+    _ -> Ok (Just vdiffs)
 
 
 ifUnoptimizedDeepDiff: Val -> Val -> VDiffs -> VDiffs
