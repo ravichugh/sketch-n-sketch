@@ -53,12 +53,12 @@ replaceHtmlBy = replaceBy HTMLTransform
 
 benchmarks: List Benchmark
 benchmarks = [
-  {--
+  {--}
   BUpdate "Budgetting" [ NoTransform
                        , replaceHtmlBy "-18000" "0"
                        ],
   --}
-  {--
+  {--}
   BUpdate "Markdown" [ NoTransform
                      , replaceHtmlBy "demo" "demonstration"
                      , replaceHtmlBy "bidirectional" "two-directional"
