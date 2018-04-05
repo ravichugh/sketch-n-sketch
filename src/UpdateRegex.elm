@@ -10,7 +10,7 @@ module UpdateRegex exposing (
 
   , allInterleavingsIn)
 
-import UpdateStack exposing (NextAction(..), UpdateStack(..), Output)
+import UpdateStack exposing (UpdateStack(..), Output)
 import Results exposing
   ( Results(..)
   , ok1, oks, okLazy )
@@ -235,7 +235,7 @@ evalRegexReplaceByIn  howmany env eval regexpV replacementV stringV =
      (VBase (VString regexp), VClosure _ _ _ _, VBase (VString string)) ->
         ImpureGoodies.tryCatch "EvaluationError" (\() ->
           let newString = GroupStartMap.replace howmany regexp (\m ->
-               let replacementName = "UpdateRegex.replaceAll" in
+               let replacementName = "user_callback" in
                let argumentName = "x" in
                let matchVal = matchToVal (gsmMatchToRegexMatch m) in
                let localEnv = [(replacementName, replacementV), (argumentName, matchVal)] in
@@ -294,7 +294,7 @@ updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV strin
             ) (0, []) matches
        in
        let lastString = String.dropLeft lastEnd string in -- Of size >= 2
-       let replacementName = "UpdateRegex.replaceAll" in
+       let replacementName = "user_callback" in
        -- let _ = Debug.log "regex3" () in
        case evalRegexReplaceAllByIn env eval regexpV replacementV stringV of
          Err msg -> Errs msg

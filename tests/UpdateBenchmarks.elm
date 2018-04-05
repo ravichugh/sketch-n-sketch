@@ -22,8 +22,13 @@ import ExamplesGenerated
 import Dict
 import EvalUpdate
 import ImpureGoodies
+import LangSvg
+import HTMLParser
+import HTMLValParser
 
-nToAverageOn = 10
+finalMode = True
+
+nToAverageOn = if finalMode then 10 else 1
 
 programs = Dict.fromList [
   ("Markdown", ExamplesGenerated.fromleo_markdown),
@@ -31,32 +36,70 @@ programs = Dict.fromList [
   ("Budgetting", ExamplesGenerated.fromleo_conference_budgetting)
   ]
 
-type Benchmark = BUpdate String (List (String -> String))
+type OutTransform = NoTransform | StringTransform (String -> String) | ValTransform (Val -> Val) | HTMLTransform (String -> String)
 
-replaceBy: String -> String -> (String -> String)
-replaceBy r result =
-  replace (AtMost 1) (regex r) (\_ -> result)
+type Benchmark = BUpdate String (List OutTransform)
+
+replaceBy: ((String -> String) -> a) -> String -> String -> a
+replaceBy final r result =
+  final <| replace (AtMost 1) (regex r) (\_ -> result)
+
+
+replaceStringBy: String -> String -> OutTransform
+replaceStringBy = replaceBy StringTransform
+
+replaceHtmlBy: String -> String -> OutTransform
+replaceHtmlBy = replaceBy HTMLTransform
 
 benchmarks: List Benchmark
 benchmarks = [
-  BUpdate "Budgetting" [replaceBy "-18000" "0"],
-  BUpdate "Markdown" [replaceBy "demo" "demonstration",
-                      replaceBy "bidirectional" "two-directional",
-                      replaceBy "\"Do not use CTRL\\+V\"" "\"Do not use CTRL+V\"]]],[ \"li\", [], [ [ \"TEXT\", \"But use everything else\""], --",
-  BUpdate "Recipe" [replaceBy "Soft chocolate" "Delicious soft chocolate"]--, --Text transformation
-  --                  replaceBy "20 small cakes" "80 small cakes" --Number lens
-   --                 replaceBy "small cakes"    "small cake_80s_", --Plural lens
-    --                replaceBy "cup of "        "cup_2s_ of " --Plural lens
-                    --replaceBy "cups of "       "cup of ",  -- Second lens
-                    --replaceBy "\"2000\""       "\"1000\"", -- Simulate press on button
-                    --replaceBy "\"A pinch of salt\"" "\"A pinch of salt\"]]],[ \"li\", [], [ [ \"TEXT\", \"Optional chocolate chips\""
-                    --]
+  {--
+  BUpdate "Budgetting" [ NoTransform
+                       , replaceHtmlBy "-18000" "0"
+                       ],
+  --}
+  {--
+  BUpdate "Markdown" [ NoTransform
+                     , replaceHtmlBy "demo" "demonstration"
+                     , replaceHtmlBy "bidirectional" "two-directional"
+                     , replaceHtmlBy "Do not use CTRL\\+V" "Do not use CTRL+V</li><li>But use everything else"
+                     ],
+  --}
+  {--}
+  BUpdate "Recipe" [ NoTransform
+                   --, replaceHtmlBy "Soft chocolate" "Delicious soft chocolate" --Text transformation
+                   , replaceHtmlBy "20 small cakes" "80 small cakes" --Number lens
+                   , replaceHtmlBy "small cakes"    "small cake_80s_" --Plural lens
+                   , replaceHtmlBy "cup of "        "cup_2s_ of " --Plural lens
+                   , replaceHtmlBy "cups of "       "cup of "  -- Second lens
+                   , replaceHtmlBy "'2000'"       "'1000'" -- Simulate press on button
+                   , replaceStringBy "\"A pinch of salt\"" "\"A pinch of salt\"]]],[ \"li\", [], [ [ \"TEXT\", \"Optional chocolate chips\""
+                   ],
+  --}
+  BUpdate "" []
   ]
 
-applyTransform: (String -> String) -> Val -> Val
-applyTransform replacement oldOut =
-  valToString oldOut |> replacement |> parse |> Utils.fromOk "parse newout" |> eval |> Utils.fromOk "eval newout"
+valToHtml: Val -> String
+valToHtml oldOut =
+  let slate = LangSvg.resolveToRootedIndexedTree Syntax.Elm 1 1 0 oldOut |> Utils.fromOk "html newOut" in
+  let html = LangSvg.printHTML False slate in
+  html
 
+applyTransform: OutTransform -> Val -> Val
+applyTransform replacement oldOut =
+  case replacement of
+    NoTransform -> oldOut
+    StringTransform replacement ->
+      valToString oldOut |> replacement |>parse |> Utils.fromOk "parse newout" |> eval |> Utils.fromOk "eval newout"
+    ValTransform replacement -> replacement oldOut
+    HTMLTransform replacement ->
+      --let _ = ImpureGoodies.log html in
+      let newHTML = replacement (valToHtml oldOut) in
+      case HTMLParser.parseHTMLString newHTML of
+        Ok [node] ->
+          HTMLValParser.htmlNodeToElmViewInLeo (builtinVal "UpdateBenchmarks") node
+        Ok nodes -> Debug.crash <| "Expected only one node after applying HTML transformation, got " ++ toString (List.length nodes)
+        Err msg -> Debug.crash (ParserUtils.showError msg)
 
 mbcmp: (number -> number -> number) -> Maybe number -> number -> Maybe number
 mbcmp f x n = case x of
@@ -76,48 +119,61 @@ toMinuteSeconds ms =
 runBenchmark: Benchmark -> String
 runBenchmark b = case b of
   BUpdate benchmarkname replacements ->
-    let numberOfUpdates = List.length replacements in
-    let prog = Dict.get benchmarkname programs |> Utils.fromJust_ "Prog" in
+    if benchmarkname == "" then "" else
+    let finalReplacements = List.filter (\x -> x/= NoTransform) replacements in
+    let numberOfUpdates = List.length finalReplacements in
+    let prog = Dict.get benchmarkname programs |> Utils.fromJust_ "Prog"
+    in
     let (progExp, (_, _, parseProgTime)) = averageTimedRun nToAverageOn (\_ -> parse prog |> Utils.fromOk "parse prog") in
     let (oldOut, (_, _, evalProgTime)) = averageTimedRun nToAverageOn (\_ -> evalEnv EvalUpdate.preludeEnv progExp |> Utils.fromOk "eval prog") in
     let evalTime = parseProgTime + evalProgTime in
-
+    let origProgExp = progExp in
     -- Returns (List of the total time of the session, and as many update times as there are replacements)
-    let session: Bool -> (Float, List Float)
-        session unopt =
+    let session: Int -> Bool -> (Float, List Float)
+        session i unopt =
+      let _ = if not finalMode then ImpureGoodies.log <| "Session #" ++ toString i ++ " " ++
+            (if unopt then "unoptimized" else "optimized") ++" for " ++ benchmarkname  else "" in
       let (_, _, updateTimes, evalTimes, modifTimes) = List.foldl (\replacement (progExp, oldOut, updateTimes, evalTimes, modifTimes) ->
+           let _ = if not finalMode then ImpureGoodies.log <| "Apply transformation..."  else ""in
            --let _ = ImpureGoodies.log (toString unopt) in
            --let _ = ImpureGoodies.log "Current program:" in
            --let _ = ImpureGoodies.log (unparse progExp) in
-           --let _ = ImpureGoodies.log "New modifications:" in
+           --let _ = ImpureGoodies.log "Current out:" in
+           --let _ = ImpureGoodies.log (valToHtml oldOut) in
+           --let _ = ImpureGoodies.log ("New modifications: " ++ toString replacement)  in
            let (newOut, newOutTime) = ImpureGoodies.timedRun <| \_ -> applyTransform replacement oldOut in
-           --let _ = ImpureGoodies.log (valToString newOut) in
+           let _ = if not finalMode then ImpureGoodies.log <| "It took " ++ toString newOutTime ++ "ms. Update with newOut..."  else "" in
+           --let _ = ImpureGoodies.log (valToHtml newOut) in
            let (newProgExp, updateTime) = (if unopt then
                 ImpureGoodies.timedRun <| \_ ->
-                update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut VUnoptimizedDiffs) LazyList.Nil
+                update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut VUnoptimizedDiffs) LazyList.Nil LazyList.Nil
               else
                 ImpureGoodies.timedRun <| \_ ->
-                let diffs = UpdateUtils.defaultVDiffs oldOut newOut |> Utils.fromOk (benchmarkname ++ "defaultVDiffs") |> Utils.fromJust_ (benchmarkname ++ "defaultVDiffs") in
-                update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut diffs) LazyList.Nil) |> \(x, t) -> case x of
+                let diffs = UpdateUtils.defaultVDiffs oldOut newOut |> Utils.fromOk (benchmarkname ++ "-defaultVDiffs") |> Utils.fromJust_ (benchmarkname ++ ":defaultVDiffs") in
+                update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut diffs) LazyList.Nil LazyList.Nil) |> \(x, t) -> case x of
                    Results.Oks (LazyList.Cons (headEnv, headExp) lazyTail as ll) -> (headExp.val, t)
                    Results.Errs msg -> Debug.crash msg
                    _ -> Debug.crash <| "No solution for " ++ benchmarkname
            in
+           let _ = if not finalMode then ImpureGoodies.log <| "It took " ++ toString updateTime ++ "ms. Recomputing realOut..."  else "" in
            --let _ = ImpureGoodies.log "new program:" in
            --let _ = ImpureGoodies.log (unparse newProgExp) in
-           let (realNewOut, realNewOutTime) = ImpureGoodies.timedRun <| \_ -> evalEnv EvalUpdate.preludeEnv progExp |> Utils.fromOk "eval prog" in
+           let (realNewOut, realNewOutTime) = ImpureGoodies.timedRun <| \_ -> evalEnv EvalUpdate.preludeEnv newProgExp |> Utils.fromOk "eval prog" in
+           let _ = if not finalMode then ImpureGoodies.log <| "It took " ++ toString realNewOutTime ++ "ms."  else "" in
+           --let _ = ImpureGoodies.log "Real out:" in
+           --let _ = ImpureGoodies.log (valToHtml realNewOut) in
            (newProgExp, realNewOut, updateTime::updateTimes, realNewOutTime::evalTimes, newOutTime::modifTimes)
-           ) (progExp, oldOut, [], [], []) replacements
+           ) (progExp, oldOut, [], [], []) finalReplacements
       in
       (List.sum updateTimes + List.sum evalTimes + List.sum modifTimes, List.reverse updateTimes)
     in
     let unoptResults: List (Float, List Float)
-        unoptResults = tryMany nToAverageOn <| \_ ->
-         session True
+        unoptResults = tryMany nToAverageOn <| \i ->
+         session i True
     in
     let optResults: List (Float, List Float)
-        optResults = tryMany nToAverageOn <| \_ ->
-         session False
+        optResults = tryMany nToAverageOn <| \i ->
+         session i False
     in
     let allUpdateTimes = List.concatMap Tuple.second in
     let allUnoptTimes = allUpdateTimes unoptResults in
@@ -169,10 +225,10 @@ unparse = Syntax.unparser Syntax.Elm
 evalEnv env exp = Eval.doEval Syntax.Elm env exp |> Result.map (Tuple.first >> Tuple.first)
 eval exp = Eval.doEval Syntax.Elm [] exp |> Result.map (Tuple.first >> Tuple.first)
 
-tryMany: Int -> (() -> a) -> List a
+tryMany: Int -> (Int -> a) -> List a
 tryMany n callback =
   List.range 1 n |>
-  List.map (\i -> callback ())
+  List.map (\i -> callback i)
 
 averageTimedRun: Int -> (() -> a) -> (a, (Float, Float, Float))
 averageTimedRun n callback =

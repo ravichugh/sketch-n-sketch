@@ -56,70 +56,54 @@ updateEnv env k newValue modif =
 
 -- Make sure that Env |- Exp evaluates to oldVal
 -- NextAction is a list of HandlePreviousREsult followed by a list of Fork in the same list.
-update : UpdateStack -> LazyList NextAction -> Results String (UpdatedEnv, UpdatedExp)
-update updateStack nextToUpdate=
+update : UpdateStack -> LazyList HandlePreviousResult -> LazyList Fork -> Results String (UpdatedEnv, UpdatedExp)
+update updateStack callbacks forks =
   --let _ = Debug.log ("\nUpdateStack "++updateStackName_ "  " updateStack) () in
-  --let _ = Debug.log ("NextToUpdate" ++ (String.join "" <| List.map (nextActionsToString_ "  ") <| Results.toList nextToUpdate)) () in
-  -- At the end of nextToUpdate, there are all the forks that can be explored later.
+  --let _ = Debug.log ("NextToUpdate" ++ (String.join "" <| List.map (nextActionsToString_ "  ") <| Results.toList callbacks)) () in
+  -- At the end of callbacks, there are all the forks that can be explored later.
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out diffs mb ->
-       {--}
+       {--
       let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
        --}
-      update (getUpdateStackOp env e oldVal out diffs) (LazyList.maybeCons mb nextToUpdate)
+      update (getUpdateStackOp env e oldVal out diffs) (LazyList.maybeCons mb callbacks) forks
 
     UpdateResultS fUpdatedEnv fOut mb -> -- Let's consume the stack !
-       {--}
+       {--
       let _ = Debug.log (String.concat [
-        "update final result: ", {-unparse fOut.val,-}
+        "update final result: ", unparse fOut.val,
         {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes,
         ",\nExpModifs=" ++ toString fOut.changes]) () in
        --}
-      case (LazyList.maybeCons mb nextToUpdate) of -- Let's consume the stack !
+      case (LazyList.maybeCons mb callbacks) of -- Let's consume the stack !
         LazyList.Nil ->
-          --let _ = Debug.log "update finished, no more solutions." () in
-          ok1 <| (fUpdatedEnv, fOut)
-        LazyList.Cons head lazyTail ->
-          case head of
-            Fork msg newUpdateStack nextToUpdate2 ->
-              --let _ = Debug.log ("update finished, more solutions to explore: " ++ msg) () in
-              okLazy (fUpdatedEnv, fOut) <| (\lt m nus ntu2 -> \() ->
+          case forks of
+            LazyList.Nil ->
+              ok1 <| (fUpdatedEnv, fOut)
+            LazyList.Cons (Fork msg newUpdateStack callbacks2 forks2) lazyForkTail ->
+              okLazy (fUpdatedEnv, fOut) <| (\lft m nus cb2 fk2 -> \() ->
                 --let _ = Debug.log ("Exploring other updates: '" ++ m ++ "'") () in
-                updateRec nus <| LazyList.appendLazy ntu2 lt) lazyTail msg newUpdateStack nextToUpdate2
-            HandlePreviousResult msg f ->
-              --let _ = Debug.log ("update needs to continue: " ++ msg) () in
-              update (f fUpdatedEnv fOut) (Lazy.force lazyTail)
+                updateRec nus cb2 (Lazy.force lft)) lazyForkTail msg newUpdateStack callbacks2 forks2
+        LazyList.Cons (HandlePreviousResult msg f) lazyTail ->
+          update (f fUpdatedEnv fOut) (Lazy.force lazyTail) forks
 
     UpdateResultAlternative msg updateStack maybeNext ->
       {--
       let _ = Debug.log (String.concat ["update result alternative ", msg, ": "]) () in
       --}
-      update updateStack <| LazyList.appendLazy nextToUpdate <| (\msg -> Lazy.map ((\nb -> \mb ->
-          case mb of
-            Nothing -> LazyList.Nil
-            Just alternativeUpdateStack ->
-              LazyList.fromList [Fork msg alternativeUpdateStack nb]
-        ) (LazyList.takeWhile (\nextAction ->
-          case nextAction of
-            HandlePreviousResult _ _-> True
-            Fork _ _ _-> False
-        ) nextToUpdate)) maybeNext) msg -- We need to close on the variable msg
+      update updateStack callbacks <|
+        case Lazy.force maybeNext of
+          Nothing -> forks
+          Just alternativeUpdateStack ->
+             LazyList.append (LazyList.fromList [Fork msg alternativeUpdateStack callbacks LazyList.Nil]) forks
 
     UpdateFails msg -> -- Let's explore other solutions. If there are none, return this error.
-      let dropped_nextToUpdate = LazyList.dropWhile (\nextAction -> case nextAction of
-                                     HandlePreviousResult msg f -> True
-                                     Fork _ _ _ -> False
-                                   ) nextToUpdate in
-      case dropped_nextToUpdate of -- Let's consume the stack !
+      case forks of -- Let's consume the stack !
         LazyList.Nil ->
           Errs msg
-        LazyList.Cons head lazyTail ->
-          --let _ = Debug.log ("Got a non-critical error (" ++ msg ++ ") but there are some forks available... testing the next one!") () in
-          case head of
-            Fork msg newUpdateStack nextToUpdate2 ->
-              --let _ = Debug.log "finished update with one fork" () in
-              update newUpdateStack <| LazyList.appendLazy nextToUpdate2 lazyTail
-            _ -> Errs <| "Internal error: There was something else than a fork. Plus an error: " ++ msg
+        LazyList.Cons (Fork msgFork newUpdateStack callbacks2 forks2) lazyTail ->
+          --let _ = Debug.log ("Got a non-critical error (" ++ msg ++ ") but there are some forks available... testing the next one: " ++ msgFork) () in
+          update newUpdateStack callbacks2 <| LazyList.appendLazy forks2 lazyTail
 
     UpdateCriticalError msg -> -- Immediately stops without looking for new solutions
       Errs msg
@@ -1140,7 +1124,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                              case UpdateUtils.defaultVDiffs oldval newval of
                                Err msg -> Errs msg
                                Ok Nothing -> ok1 (UpdatedEnv.original env, UpdatedExp exp Nothing)
-                               Ok (Just newvalDiff) -> update (updateContext "recursive update" env exp oldval newval newvalDiff) LazyList.Nil
+                               Ok (Just newvalDiff) -> update (updateContext "recursive update" env exp oldval newval newvalDiff) LazyList.Nil LazyList.Nil
                        in
                        case UpdateRegex.updateRegexReplaceAllByIn
                            env eRec uRec regexpV replacementV stringV oldVal newVal of
@@ -1160,7 +1144,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                case UpdateUtils.defaultVDiffs oldval newval of
                                  Err msg -> Errs msg
                                  Ok Nothing -> ok1 (UpdatedEnv.original env, UpdatedExp exp Nothing)
-                                 Ok (Just newvalDiff) -> update (updateContext "recursive update" env exp oldval newval newvalDiff) LazyList.Nil
+                                 Ok (Just newvalDiff) -> update (updateContext "recursive update" env exp oldval newval newvalDiff) LazyList.Nil LazyList.Nil
                          in
                          case UpdateRegex.updateRegexReplaceFirstByIn
                              env eRec uRec regexpV replacementV stringV oldVal newVal of
@@ -1291,10 +1275,10 @@ getUpdateStackOp env e oldVal newVal diffs =
        UpdateCriticalError <| "Non-supported update " ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
 
 -- Errors are converted to empty solutions because updateRec is called once a solution has been found already.
-updateRec: UpdateStack -> LazyList NextAction -> LazyList (UpdatedEnv, UpdatedExp)
-updateRec updateStack nextToUpdate =
+updateRec: UpdateStack -> LazyList HandlePreviousResult -> LazyList Fork -> LazyList (UpdatedEnv, UpdatedExp)
+updateRec updateStack callbacks forks =
   --ImpureGoodies.logTimedRun "Update.updateRec" <| \_ ->
-  case update updateStack nextToUpdate of
+  case update updateStack callbacks forks of
     Oks l -> l
     Errs msg -> LazyList.Nil
 
@@ -1342,6 +1326,8 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
                 VBase (VString s) ->
                    let saIsPrefix = String.startsWith sa s in
                    let sbIsSuffix = String.endsWith sb s in
+                   --let _ = Debug.log ("reversing string op. :" ++ valToString (builtinVal "" va) ++ " " ++ valToString (builtinVal "" vb) ++ " <- " ++ valToString newOutVal) () in
+                   --let _ = Debug.log ("saIsPrefix :" ++ toString saIsPrefix ++ "\nsbIsSuffix : " ++ toString sbIsSuffix) () in
                    if saIsPrefix && sbIsSuffix then -- Normally, we should check whitespaee to order. For now, append to left first.
                      let newsa = String.slice 0 (String.length s - String.length sb) s in
                      let newsb = String.dropLeft (String.length sa) s in

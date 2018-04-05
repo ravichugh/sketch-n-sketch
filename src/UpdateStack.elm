@@ -29,25 +29,23 @@ updatedExpToStringWithPositions e ue =
 
 type alias UpdatedExpTuple = { val: List Exp, changes: Maybe (TupleDiffs EDiffs) }
 
--- TODO: Split the list of NextAction to HandlePreviousResult (for continuation wrapper) and a list of Forks
-type NextAction = HandlePreviousResult String (UpdatedEnv -> UpdatedExp -> UpdateStack)
-                | Fork String UpdateStack (LazyList NextAction)
-nextActionsToString: NextAction -> String
-nextActionsToString = nextActionsToString_ ""
+type HandlePreviousResult = HandlePreviousResult String (UpdatedEnv -> UpdatedExp -> UpdateStack)
+type Fork = Fork String UpdateStack (LazyList HandlePreviousResult) (LazyList Fork)
 
-nextActionsToString_: String -> NextAction -> String
-nextActionsToString_ indent nextAction = case nextAction of
+handleResultToString_: String -> HandlePreviousResult -> String
+handleResultToString_ indent handleResult = case handleResult of
   HandlePreviousResult msg _ -> "\n" ++ indent ++ "Prev " ++ msg
-  Fork msg u actions -> "\n" ++ indent ++ "Fork["++ updateStackName_ (indent ++ " ") u ++" => "  ++
-      String.join ", " (List.map (nextActionsToString_ (indent ++ " ")) (LazyList.toList actions)) ++ "] " ++ msg
+
+--  Fork msg u actions -> "\n" ++ indent ++ "Fork["++ updateStackName_ (indent ++ " ") u ++" => "  ++
+--      String.join ", " (List.map (handleResultToString_ (indent ++ " ")) (LazyList.toList actions)) ++ "] " ++ msg
 
 updateStackName: UpdateStack ->  String
 updateStackName = updateStackName_ ""
 
 updateStackName_: String -> UpdateStack ->  String
 updateStackName_ indent u = case u of
-  UpdateResultS _ exp mb -> "\n" ++ indent ++ "Res(" ++Syntax.unparser Syntax.Elm exp.val ++ (Maybe.map (nextActionsToString_ indent) mb |> Maybe.withDefault "") ++ ")"
-  UpdateContextS _ exp _ o _ (Just n) -> "\n" ++ indent ++ "Contn(" ++Syntax.unparser Syntax.Elm exp ++ " <-- " ++ outputToString o ++ ")[" ++ nextActionsToString_ (indent ++ " ") n ++ "]"
+  UpdateResultS _ exp mb -> "\n" ++ indent ++ "Res(" ++Syntax.unparser Syntax.Elm exp.val ++ (Maybe.map (handleResultToString_ indent) mb |> Maybe.withDefault "") ++ ")"
+  UpdateContextS _ exp _ o _ (Just n) -> "\n" ++ indent ++ "Contn(" ++Syntax.unparser Syntax.Elm exp ++ " <-- " ++ outputToString o ++ ")[" ++ handleResultToString_ (indent ++ " ") n ++ "]"
   UpdateContextS _ e _ o _ Nothing->   "\n" ++ indent ++ "Ctx " ++ Syntax.unparser Syntax.Elm e ++ "<--" ++ outputToString o
   UpdateResultAlternative msg u ll -> "\n" ++ indent ++ "Alt("++updateStackName u ++") then [" ++ (case Lazy.force ll of
       Just u -> updateStackName_ (indent ++ " ") u ++ "]"
@@ -56,8 +54,8 @@ updateStackName_ indent u = case u of
   UpdateFails msg  -> "\n" ++ indent ++ "UpdateFails " ++ msg
   UpdateCriticalError msg -> "\n" ++ indent ++ "UpdateCriticalError " ++ msg
 
-type UpdateStack = UpdateResultS     UpdatedEnv UpdatedExp (Maybe NextAction)
-                 | UpdateContextS    Env Exp PrevOutput Output VDiffs (Maybe NextAction)
+type UpdateStack = UpdateResultS     UpdatedEnv UpdatedExp (Maybe HandlePreviousResult)
+                 | UpdateContextS    Env Exp PrevOutput Output VDiffs (Maybe HandlePreviousResult)
                  | UpdateResultAlternative String UpdateStack (Lazy.Lazy (Maybe UpdateStack))
                  | UpdateFails String -- Soft fails, might try other branches. If no branch is available, will report this error.
                  | UpdateCriticalError String

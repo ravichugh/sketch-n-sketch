@@ -109,7 +109,7 @@ builtinEnv =
           Err msg -> Errs msg
           Ok Nothing -> ok1 args
           Ok (Just d) ->
-            Update.update (updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) oldVal newVal d) LazyList.Nil |>
+            Update.update (updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) oldVal newVal d) LazyList.Nil LazyList.Nil |>
               Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
               Results.map (\(newEnv, _) ->
                 case newEnv.val of
@@ -131,7 +131,7 @@ builtinEnv =
         Err msg -> Errs msg
         Ok Nothing -> ok1 args
         Ok (Just d) ->
-          Update.update (updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) oldVal newVal d) LazyList.Nil |>
+          Update.update (updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) oldVal newVal d) LazyList.Nil LazyList.Nil |>
             Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
             Results.map (\(newEnv, _) ->
               case newEnv.val of
@@ -170,7 +170,7 @@ builtinEnv =
                       case mbDiff of
                         Nothing -> ok1 [oldProgram]
                         Just d -> -- Hack to avoid mutual recursion.
-                             Update.update (UpdateStack.updateContext "Eval.update" builtinEnv prog oldVal newVal d) LazyList.Nil
+                             Update.update (UpdateStack.updateContext "Eval.update" builtinEnv prog oldVal newVal d) LazyList.Nil LazyList.Nil
                           |> Results.map Tuple.second
                           |> Results.map .val
                           |> Results.map (Syntax.unparser Syntax.Elm)
@@ -226,7 +226,7 @@ builtinEnv =
                         in
                         Ok (resultingValue, [])
                       Ok (Just newOutDiffs) ->
-                        let basicResult = case update (updateContext "__updateApp__" xyEnv xyExp oldOut newVal newOutDiffs) LazyList.Nil of
+                        let basicResult = case update (updateContext "__updateApp__" xyEnv xyExp oldOut newVal newOutDiffs) LazyList.Nil LazyList.Nil of
                           Errs msg -> Vb.record Vb.string vb (Dict.fromList [("error", msg)])
                           Oks ll ->
                              let l = LazyList.toList ll in
@@ -313,7 +313,7 @@ doUpdate oldExp oldVal newValResult =
         Ok Nothing -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
         Ok (Just diffs) ->
           ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
-          update (updateContext "initial update" preludeEnv oldExp oldVal out diffs) LazyList.Nil)
+          update (updateContext "initial update" preludeEnv oldExp oldVal out diffs) LazyList.Nil LazyList.Nil)
 
 -- Deprecated
 parseAndRun : String -> String
