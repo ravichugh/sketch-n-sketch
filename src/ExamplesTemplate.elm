@@ -266,9 +266,7 @@ welcomeCategory =
 docsCategory =
   ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
-  --  , makeLeoExample "1b: Table of States" tableOfStatesB
-    , makeLeoExample "1c: Table of States" tableOfStatesC
---    , makeLeoExample "1d: Table of States" tableOfStatesD
+    , makeLeoExample "1b: Table of States" tableOfStatesC
     ] ++
     (
     List.indexedMap

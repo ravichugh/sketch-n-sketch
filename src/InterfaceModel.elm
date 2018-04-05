@@ -229,6 +229,13 @@ type SyncMode
       -- True for auto-sync with delay of model.autoSyncDelay
       -- False for manual sync
 
+valueBackpropPopupMenuTitle =
+  "Output Editor"
+
+valueBackpropToolName =
+  -- "Update for New Output"
+  "Update Program?"
+
 type alias CodeBoxInfo =
   { cursorPos : Ace.Pos
   , selections : List Ace.Range

@@ -5791,7 +5791,8 @@ tableOfStatesA =
   , [\"Arkansas\", \"AR?\", \"?\"]
   , [\"California\", \"CA\", \"?\"]
   , [\"Colorado\", \"CO?\", \"?\"]
-  , [\"Connecticut\", \"CO?\", \"?\"] ]
+  , [\"Connecticut\", \"CO?\", \"?\"]
+  ]
 
 main =
   let headers = [\"State\", \"Capital\"] in
@@ -5809,7 +5810,9 @@ main =
     let colors = [\"lightgray\", \"white\"] in
     let drawRow i row =
       let color = List.nth colors (mod i (List.length colors)) in
-      let columns = List.map (Html.td [padding, [\"background-color\", color]] []) row in
+      let columns =
+        List.map (Html.td [padding, [\"background-color\", color]] []) row
+      in
       Html.tr [] [] columns
     in
     List.indexedMap drawRow rows
@@ -5846,14 +5849,16 @@ main =
   in
   let padding = [\"padding\", \"3px\"] in
   let headerRow =
-    let styles = [padding, [\"text-align\", \"left\"], [\"background-color\", \"coral\"]] in
+    let styles = [padding, [\"background-color\", \"coral\"]] in
     Html.tr [] [] (List.map (Html.th styles []) headers)
   in
   let stateRows =
     let colors = [\"lightyellow\", \"white\"] in
     let drawRow i (flag,row) =
       let color = List.nth colors (mod i (List.length colors)) in
-      let columns = List.map (Html.td [padding, [\"background-color\", color]] []) row in
+      let columns =
+        List.map (Html.td [padding, [\"background-color\", color]] []) row
+      in
       TableWithButtons.tr flag [] [] columns
     in
     List.indexedMap drawRow rows
@@ -7040,9 +7045,7 @@ welcomeCategory =
 docsCategory =
   ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
-  --  , makeLeoExample "1b: Table of States" tableOfStatesB
-    , makeLeoExample "1c: Table of States" tableOfStatesC
---    , makeLeoExample "1d: Table of States" tableOfStatesD
+    , makeLeoExample "1b: Table of States" tableOfStatesC
     ] ++
     (
     List.indexedMap
