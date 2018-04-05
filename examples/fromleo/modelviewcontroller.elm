@@ -31,7 +31,7 @@ controllers = {
 {addOne, changeN, customEval, changeMultiplier} = controllers
 
 view = 
-  Html.div_ [["margin","20px"]] [] (
+  Html.div [["margin","20px"]] [] (
   [ Html.h1 [] [] "Model-View-Controller"] ++
   html """Using special lenses, you can architect your software as the usual model-view-controller.<br>
 n = <span>@(model.n)</span><br> What do you want to do?<br>""" ++ [

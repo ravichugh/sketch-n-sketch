@@ -1,10 +1,11 @@
-mapListLens =
+listMapLens =
   { apply (f,xs) =
       Update.freeze (List.simpleMap f xs)
 
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
+
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
@@ -51,13 +52,13 @@ mapListLens =
       { values = newFuncAndInputLists }
   }
 
-mapList f xs =
-  Update.applyLens mapListLens (f, xs)
+listMap f xs =
+  Update.applyLens listMapLens (f, xs)
 
 -----------------------------------------------
 
 transformedValues =
-  mapList
+  listMap
     (\n -> n + 1)
     [0,1,2,3]
 
