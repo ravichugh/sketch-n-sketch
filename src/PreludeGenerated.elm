@@ -2929,6 +2929,7 @@ Regex =
 -- Dict --
 
 Dict = {
+  remove x d = remove x d
   get x d = get x d
   apply d x = case get x d of
     Just x -> x
@@ -3148,7 +3149,7 @@ Html =
     h4 = textElementHelper \"h4\"
     h5 = textElementHelper \"h5\"
     h6 = textElementHelper \"h6\"
-    div_ = elementHelper \"div\"
+    div = elementHelper \"div\"
     tr = elementHelper \"tr\"
     table = elementHelper \"table\"
     span = elementHelper \"span\"
@@ -3160,7 +3161,8 @@ Html =
   }
 
 -- TODO remove this; add as imports as needed in examples
-{textNode, p, th, td, h1, h2, h3, div_, tr, table} = Html
+{textNode, p, th, td, h1, h2, h3, tr, table} = Html
+div_ = Html.div
 
 --------------------------------------------------------------------------------
 -- Lens: Table Library

@@ -362,7 +362,7 @@ repeatAroundTool selections =
 updateOutputValueTool : Selections a -> OutputTool
 updateOutputValueTool selections =
   { name =
-      "Update for New Output"
+      valueBackpropToolName
   , shortcut =
       Nothing
   , kind =

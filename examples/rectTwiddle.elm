@@ -2,9 +2,9 @@ absolutePosition x y =
   [["position", "fixed"], ["FIXED_LEFT", x], ["FIXED_TOP", y]]
 
 drawFeaturesAndRect ({x,y,w,h,x2,y2} as features) =
-  [ h3 (absolutePosition 10 30) []
+  [ Html.h3 (absolutePosition 10 30) []
       (toString features)
-  , div_ (absolutePosition 10 100) []
+  , Html.div (absolutePosition 10 100) []
       [["svg", [["width", 1000], ["height", 1000]],
          [rect "yellow" x y w h]]]
   ]
@@ -54,7 +54,7 @@ strRectParams rectParams =
     ["Rect2", {x,y,x2,y2}] -> "Rect2 " + toString [x,y,x2,y2]
   
 main = (
-  Html.div_ [] []
+  Html.div [] []
     (p [] [] (strRectParams myRectangle) :: rect3_ myRectangle)
 
     

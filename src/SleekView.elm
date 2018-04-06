@@ -327,7 +327,7 @@ hoverMenu title dropdownContent =
 
 -- Configuration flag to indicate whether Code and Output Tools
 --   have been run and cached.
-indicateWhetherToolIsCached = True
+indicateWhetherToolIsCached = False
 
 synthesisHoverMenu : Model -> String -> String -> Msg -> Bool -> Html Msg
 synthesisHoverMenu model resultsKey title onMouseEnter disabled =
@@ -1692,7 +1692,7 @@ modeDisplay modeText textStyles modePredicate updateModel =
         ""
   in
     Html.div
-      [ Attr.class <| "tool-mode" ++ flag
+      [ Attr.class <| "tool-mode larger-text" ++ flag
       , Attr.style textStyles
       , E.onClick (Msg modeText updateModel)
       ]
@@ -1725,12 +1725,30 @@ syncModeIndicator model =
             then []
             else [("text-decoration", "line-through")]
         )
+        (model.syncMode == ValueBackprop True)
+        (\m ->
+          if m.outputMode == Graphics then
+            { m | syncMode = case m.syncMode of
+                    ValueBackprop True -> ValueBackprop False
+                    _                  -> ValueBackprop True
+            }
+          else
+           m
+        )
+    ]
+{-
+    [ modeDisplay "Auto Sync"
+        ( if model.outputMode == Graphics
+            then []
+            else [("text-decoration", "line-through")]
+        )
         (model.outputMode == Graphics && model.syncMode == ValueBackprop True)
         (\m -> { m | syncMode = ValueBackprop True})
     , modeDisplay "Manual" []
         (model.outputMode /= Graphics || model.syncMode == ValueBackprop False)
         (\m -> { m | syncMode = ValueBackprop False })
     ]
+-}
 
 toolPanel : Model -> Html Msg
 toolPanel model =
@@ -2490,7 +2508,11 @@ autoOutputToolsPopupPanel model =
     , class =
         "auto-output-tools"
     , title =
-        [ Html.text "Output Tools"
+        -- [ Html.text "Output Tools"
+        [ Html.text <|
+            case model.syncMode of
+              ValueBackprop _ -> valueBackpropPopupMenuTitle
+              _               -> "Output Tools"
         ]
     , content =
         [ let

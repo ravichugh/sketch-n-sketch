@@ -2134,14 +2134,14 @@ msgUpdateValueEditor s = Msg "Update Value Editor" <| \m ->
       | valueEditorString =
           s
       , synthesisResultsDict =
-          Dict.remove "Update for New Output" m.synthesisResultsDict
+          Dict.remove valueBackpropToolName m.synthesisResultsDict
       }
 
 msgUpdateHTMLEditor s = Msg "Update HTML Editor" <| \m ->
   { m
       | htmlEditorString = Just s
       , synthesisResultsDict =
-          Dict.remove "Update for New Output" m.synthesisResultsDict
+          Dict.remove valueBackpropToolName m.synthesisResultsDict
   }
 
 msgCallUpdate = Msg "Call Update" doCallUpdate
@@ -2189,7 +2189,7 @@ doCallUpdate m =
     in
     { m
         | synthesisResultsDict =
-            Dict.insert "Update for New Output" results_ m.synthesisResultsDict
+            Dict.insert valueBackpropToolName results_ m.synthesisResultsDict
         }
   in
   case updatedExpResults of
@@ -2339,7 +2339,7 @@ msgAutoSync n =
 doAutoSync: Model -> Model
 doAutoSync m =
     let newModel = doCallUpdate m in
-    case Dict.get "Update for New Output" newModel.synthesisResultsDict of
+    case Dict.get valueBackpropToolName newModel.synthesisResultsDict of
       Nothing -> newModel
       Just results -> -- If there are only two options (second is always revert to original program), and the first one is not a Hack, then we can apply it !
         case results of

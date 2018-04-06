@@ -5791,7 +5791,8 @@ tableOfStatesA =
   , [\"Arkansas\", \"AR?\", \"?\"]
   , [\"California\", \"CA\", \"?\"]
   , [\"Colorado\", \"CO?\", \"?\"]
-  , [\"Connecticut\", \"CO?\", \"?\"] ]
+  , [\"Connecticut\", \"CO?\", \"?\"]
+  ]
 
 main =
   let headers = [\"State\", \"Capital\"] in
@@ -5809,7 +5810,9 @@ main =
     let colors = [\"lightgray\", \"white\"] in
     let drawRow i row =
       let color = List.nth colors (mod i (List.length colors)) in
-      let columns = List.map (Html.td [padding, [\"background-color\", color]] []) row in
+      let columns =
+        List.map (Html.td [padding, [\"background-color\", color]] []) row
+      in
       Html.tr [] [] columns
     in
     List.indexedMap drawRow rows
@@ -5846,14 +5849,16 @@ main =
   in
   let padding = [\"padding\", \"3px\"] in
   let headerRow =
-    let styles = [padding, [\"text-align\", \"left\"], [\"background-color\", \"coral\"]] in
+    let styles = [padding, [\"background-color\", \"coral\"]] in
     Html.tr [] [] (List.map (Html.th styles []) headers)
   in
   let stateRows =
     let colors = [\"lightyellow\", \"white\"] in
     let drawRow i (flag,row) =
       let color = List.nth colors (mod i (List.length colors)) in
-      let columns = List.map (Html.td [padding, [\"background-color\", color]] []) row in
+      let columns =
+        List.map (Html.td [padding, [\"background-color\", color]] []) row
+      in
       TableWithButtons.tr flag [] [] columns
     in
     List.indexedMap drawRow rows
@@ -5880,39 +5885,41 @@ simpleBudget =
 """
 
 mapMaybeLens =
- """mapMaybeSimple f mx =
+ """maybeMapSimple f mx =
   Update.freeze (case mx of [] -> []; [x] -> [f x])
 
-mapMaybeLens default =
+maybeMapLens default =
   { apply (f, mx) =
-      mapMaybeSimple f mx
+      maybeMapSimple f mx
 
   , update {input = (f, mx), outputNew = my} =
       case my of
         []  -> { values = [(f, [])] }
         [y] ->
-          let x = case mx of [x] -> x; [] -> default in
-          let results = Update.updateApp {fun (f,x) = f x, input = (f, x), output = y} in
-          { values = List.map (\\(newF,newX) -> (newF, [newX])) results.values }
+          let z = case mx of [x] -> x; [] -> default in
+          let results =
+            Update.updateApp {fun (func, arg) = func arg, input = (f, z), output = y}
+          in
+          { values = List.map (\\(newF,newZ) -> (newF, [newZ])) results.values }
   }
 
-mapMaybe default f mx =
-  Update.applyLens (mapMaybeLens default) (f, mx)
+maybeMap default f mx =
+  Update.applyLens (maybeMapLens default) (f, mx)
 
-mapMaybeState =
-  mapMaybe (\"Alabama\", \"AL\", \"Montgomery\")
+maybeMapState =
+  maybeMap (\"Alabama\", \"AL\", \"Montgomery\")
 
 displayState =
   (\\(a,b,c) -> (a, c + \", \" + b))
 
-maybeState1 = mapMaybeSimple displayState []
-maybeState2 = mapMaybeSimple displayState [(\"New Jersey\", \"NJ\", \"Edison\")]
+maybeState1 = maybeMapSimple displayState []
+maybeState2 = maybeMapSimple displayState [(\"New Jersey\", \"NJ\", \"Edison\")]
 
-maybeState3 = mapMaybeState displayState []
-maybeState4 = mapMaybeState displayState [(\"New Jersey\", \"NJ\", \"Edison\")]
+maybeState3 = maybeMapState displayState []
+maybeState4 = maybeMapState displayState [(\"New Jersey\", \"NJ\", \"Edison\")]
 
 showValues values =
-  Html.div_ [] [] (List.map (\\x -> [\"h3\", [], Html.text <| toString x]) values)
+  Html.div [] [] (List.map (\\x -> [\"h3\", [], Html.text <| toString x]) values)
 
 main =
   showValues [maybeState1, maybeState2, maybeState3, maybeState4]
@@ -5920,13 +5927,14 @@ main =
 """
 
 mapListLens_1 =
- """mapListLens =
+ """listMapLens =
   { apply (f,xs) =
       Update.freeze (List.simpleMap f xs)
 
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
+
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
@@ -5965,13 +5973,13 @@ mapListLens_1 =
       { values = newFuncAndInputLists }
   }
 
-mapList f xs =
-  Update.applyLens mapListLens (f, xs)
+listMap f xs =
+  Update.applyLens listMapLens (f, xs)
 
 -----------------------------------------------
 
 transformedValues =
-  mapList
+  listMap
     (\\n -> n + 1)
     [0,1,2,3]
 
@@ -5981,13 +5989,14 @@ main =
 """
 
 mapListLens_2 =
- """mapListLens =
+ """listMapLens =
   { apply (f,xs) =
       Update.freeze (List.simpleMap f xs)
 
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
+
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
@@ -6034,13 +6043,13 @@ mapListLens_2 =
       { values = newFuncAndInputLists }
   }
 
-mapList f xs =
-  Update.applyLens mapListLens (f, xs)
+listMap f xs =
+  Update.applyLens listMapLens (f, xs)
 
 -----------------------------------------------
 
 transformedValues =
-  mapList
+  listMap
     (\\n -> n + 1)
     [0,1,2,3]
 
@@ -6367,7 +6376,7 @@ result = Regex.replace \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\"
             if Regex.matchIn \" \" outputNew then {values = []} else
             {values = [(res, outputNew)]} }.apply (res, ending)) txt
 
-Html.div_ [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] [] <| (\\x -> [x]) <|
+Html.div [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] [] <| (\\x -> [x]) <|
 Html.span [] [] <|
 html <| \"\"\"<button onclick=\"this.setAttribute('v','@otherLanguage')\" v=\"@language\">To @otherLanguage</button><br>\"\"\" +
   ( Dict.fromList [(\"English\", \"\"\"<i>Hint:</i> Use _5_ for a proportional number 5, _5es_ to place an s if the quantity (5) is greater than 1.\"\"\"),
@@ -6383,6 +6392,7 @@ html <| \"\"\"<button onclick=\"this.setAttribute('v','@otherLanguage')\" v=\"@l
             \"\"\"ifmany@plural[@amount,@base]\"\"\"
         ) output] }
  }.apply result
+
 """
 
 fromleo_modelviewcontroller =
@@ -6419,7 +6429,7 @@ controllers = {
 {addOne, changeN, customEval, changeMultiplier} = controllers
 
 view = 
-  Html.div_ [[\"margin\",\"20px\"]] [] (
+  Html.div [[\"margin\",\"20px\"]] [] (
   [ Html.h1 [] [] \"Model-View-Controller\"] ++
   html \"\"\"Using special lenses, you can architect your software as the usual model-view-controller.<br>
 n = <span>@(model.n)</span><br> What do you want to do?<br>\"\"\" ++ [
@@ -6436,6 +6446,7 @@ n = <span>@(model.n)</span><br> What do you want to do?<br>\"\"\" ++ [
   button \"\"\"Custom:\"\"\" customEval, Html.span [[\"font-family\",\"monospace\"]] [] [Html.textNode (freeze \" \" + model.custom)]])
   
 view
+
 """
 
 fromleo_programmabledoc =
@@ -6475,10 +6486,11 @@ Additionally, to write $_x literally, just write $__x. You can also define short
     }.apply (x, variables)
   )
 
-Html.div_ [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] [] [
+Html.div [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] [] [
   Html.span [] [] <|
   html content
 ]
+
 """
 
 fromleo_latexeditor =
@@ -7033,9 +7045,7 @@ welcomeCategory =
 docsCategory =
   ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
-  --  , makeLeoExample "1b: Table of States" tableOfStatesB
-    , makeLeoExample "1c: Table of States" tableOfStatesC
---    , makeLeoExample "1d: Table of States" tableOfStatesD
+    , makeLeoExample "1b: Table of States" tableOfStatesC
     ] ++
     (
     List.indexedMap

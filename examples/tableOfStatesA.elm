@@ -5,7 +5,8 @@ states =
   , ["Arkansas", "AR?", "?"]
   , ["California", "CA", "?"]
   , ["Colorado", "CO?", "?"]
-  , ["Connecticut", "CO?", "?"] ]
+  , ["Connecticut", "CO?", "?"]
+  ]
 
 main =
   let headers = ["State", "Capital"] in
@@ -23,7 +24,9 @@ main =
     let colors = ["lightgray", "white"] in
     let drawRow i row =
       let color = List.nth colors (mod i (List.length colors)) in
-      let columns = List.map (Html.td [padding, ["background-color", color]] []) row in
+      let columns =
+        List.map (Html.td [padding, ["background-color", color]] []) row
+      in
       Html.tr [] [] columns
     in
     List.indexedMap drawRow rows

@@ -649,7 +649,7 @@ code {
 
   border: 0px solid rgba(136, 0, 0, 0.7);
   transition: border-width 0.5s;
-  z-index: 5;
+  z-index: 6;
 }
 
 .needs-value-backprop .code-panel-warning {
@@ -687,6 +687,13 @@ code {
 
 .tool-mode-indicator .tool-mode.active {
   color: var(--active-text-color);
+}
+
+.tool-mode-indicator .larger-text {
+  font-size: 2.0em;
+  line-height: normal;
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 /******************************************************************************

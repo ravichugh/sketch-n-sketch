@@ -34,7 +34,7 @@ Additionally, to write $_x literally, just write $__x. You can also define short
     }.apply (x, variables)
   )
 
-Html.div_ [["margin", "20px"], ["cursor", "text"]] [] [
+Html.div [["margin", "20px"], ["cursor", "text"]] [] [
   Html.span [] [] <|
   html content
 ]
