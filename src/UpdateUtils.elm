@@ -725,7 +725,9 @@ tupleDiffsToString2  renderingStyle mbStructName    indent    lastEdit    origin
               let (incAcc, ((newLastEdit, _), newExps)) = eDiffsToStringPositions renderingStyle indent lastEdit b1 b2 change in
               (accStr ++ incAcc,  accList ++ newExps) |>
                 aux (i + 1) newLastEdit tailOriginal tailModified diffsTail
-            _ -> Debug.crash <| "Expcted non-empty " ++ (mbStructName |> Maybe.withDefault "structuro")
+            _ -> ("[Internal error] Expcted non-empty " ++ (mbStructName |> Maybe.withDefault "structuro") ++
+                ", diffs = " ++ toString childDiffs ++ ", original children = " ++ (List.map (Syntax.unparser Syntax.Elm) originalChildren |> String.join ",") ++
+                ", modified children: " ++ (List.map (Syntax.unparser Syntax.Elm) modifiedChildren |> String.join ""), (lastEdit, []))
         else
           Debug.crash <| "Changes does not match the " ++ (mbStructName |> Maybe.withDefault "structuro")
   in
@@ -797,12 +799,12 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
 offset: Int -> List (Int, a) -> List (Int, a)
 offset n defaultVDiffs = List.map (\(i, e) -> (i + n, e)) defaultVDiffs
 
--- When changes are to be made linear at the first index
+-- When f x y k z w was changed to (f x y k) z w (realElementNumber = 3 here), how to recover initial differences
 flattenFirstEChildDiffs: Int -> EDiffs -> EDiffs
 flattenFirstEChildDiffs realElementNumber ediffs =
   case ediffs of
-    EChildDiffs ((0, EChildDiffs l)::tail) -> EChildDiffs (l ++ offset (realElementNumber - 1) tail)
-    EChildDiffs diffs -> EChildDiffs (offset (realElementNumber - 1) diffs)
+    EChildDiffs ((0, EChildDiffs l)::tail) -> EChildDiffs (l ++ offset realElementNumber tail)
+    EChildDiffs diffs -> EChildDiffs (offset realElementNumber diffs)
     _ -> ediffs
 
 -- Wraps a change to a change in the outer expression at the given index

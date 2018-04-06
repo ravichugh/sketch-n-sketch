@@ -653,13 +653,13 @@ getUpdateStackOp env e oldVal newVal diffs =
                  let (es2ToEval, es2ForLater) = Utils.split ne1ps e2s in
 
                  if List.length es2ForLater > 0 then -- Rewriting of the expression so that it is two separate applications
-                   updateContinue "evaluating app with correct number of arguments" env (replaceE__ e <|
-                     EApp sp0 (replaceE__ e <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1) oldVal newVal diffs <| (\newUpdatedEnv newUpdatedBody ->
-                     case newUpdatedBody.val.val.e__ of
+                   let rewriting = replaceE__ e <| EApp sp0 (replaceE__ e <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1 in
+                   updateContinue "evaluating app with correct number of arguments" env rewriting oldVal newVal diffs <| (\newUpdatedEnv newRewriting ->
+                     case newRewriting.val.val.e__ of
                        EApp _ innerApp newEsForLater _ _ ->
                          case innerApp.val.e__ of
                            EApp _ newE1 newEsToEval _ _ ->
-                             let newChanges = newUpdatedBody.changes |> Maybe.map (UpdateUtils.flattenFirstEChildDiffs ne1ps) in
+                             let newChanges = newRewriting.changes |> Maybe.map (UpdateUtils.flattenFirstEChildDiffs ne1ps) in
                              let newExp = replaceE__ e <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1 in
                              updateResult newUpdatedEnv <| UpdatedExp newExp newChanges
                            e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ toString e
@@ -809,17 +809,17 @@ getUpdateStackOp env e oldVal newVal diffs =
 
                      if arity < nAvailableArgs then -- Rewriting of the expression so that it is two separate applications
                        let (es2ToEval, es2ForLater)  = Utils.split arity e2s in
-                       updateContinue "EApp VFun" env (replaceE__ e <|
-                         EApp sp0 (replaceE__ e <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1) oldVal newVal diffs <| (\newUpdatedEnv newUpdatedBody ->
-                         case newUpdatedBody.val.val.e__ of
+                       let rewriting = replaceE__ e <| EApp sp0 (replaceE__ e <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1 in
+                       updateContinue "EApp VFun" env rewriting oldVal newVal diffs <| (\newUpdatedEnv newRewriting ->
+                         case newRewriting.val.val.e__ of
                            EApp _ innerApp newEsForLater _ _ ->
                              case innerApp.val.e__ of
                                EApp _ newE1 newEsToEval _ _ ->
-                                 let finalChanges = newUpdatedBody.changes |> Maybe.map (UpdateUtils.flattenFirstEChildDiffs arity) in
+                                 let finalChanges = newRewriting.changes |> Maybe.map (UpdateUtils.flattenFirstEChildDiffs arity) in
                                  let finalExp = replaceE__ e <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1 in
                                  updateResult newUpdatedEnv <| UpdatedExp finalExp finalChanges
                                e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Elm innerApp
-                           e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Elm newUpdatedBody.val
+                           e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Elm newRewriting.val
                        )
                      else if arity > nAvailableArgs then  -- Rewrite using eta-expansion.
                        let convertedBody = replaceE__ e1 <|
