@@ -84,6 +84,15 @@ builtinEnv =
            _ -> Err <| "/= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
        _ -> Err <| "/= expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
+  , ("getCurrentTime", builtinVal "EvalUpdate.getCurrentTime" (VFun "getCurrentTime" ["unit"] (\_ ->
+      let n = ImpureGoodies.getCurrentTime () in
+      let v_ = VConst Nothing (n, dummyTrace) in
+      Ok (builtinVal "EvalUpdate.getCurrentTime.RESULT" v_, [])
+    ) Nothing))
+  , ("toggleGlobalBool", builtinVal "EvalUpdate.toggleGlobalBool" (VFun "toggleGlobalBool" ["unit"] (\_ ->
+      let v = VBase (VBool (ImpureGoodies.toggleGlobalBool ())) in
+      Ok (builtinVal "EvalUpdate.toggleGlobalBool.RESULT" v, [])
+    ) Nothing))
   , ("%", builtinVal "EvalUpdate.%" <| VFun "%" ["left", "right"] (\args ->
      case args of
        [left, right] ->

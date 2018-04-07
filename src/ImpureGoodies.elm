@@ -45,6 +45,17 @@ mutateRecordField : a -> String -> b -> a
 mutateRecordField record fieldName newValue =
   Native.ImpureGoodies.mutateRecordField record fieldName newValue
 
+
+toggleGlobalBool : () -> Bool
+toggleGlobalBool () =
+  Native.ImpureGoodies.toggleGlobalBool ()
+
+
+getCurrentTime : () -> Float
+getCurrentTime () =
+  Native.ImpureGoodies.getCurrentTime ()
+
+
 timedRun : (() -> a) -> (a, Float)
 timedRun thunk =
   Native.ImpureGoodies.timedRun thunk

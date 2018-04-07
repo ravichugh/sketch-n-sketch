@@ -132,9 +132,15 @@ build dim model =
   else
     let maybeWrappedCanvas =
       case (model.preview, model.addDummyDivAroundCanvas) of
-        (Just _,  _)       -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
-        (Nothing, Just _)  -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
-        (Nothing, Nothing) -> outputElement
+
+        -- not inserting dummy div. instead, libraries can use state of
+        -- toggleGlobalBool () to play tricks to work around Elm re-render issue.
+        --
+        -- (Just _,  _)       -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        -- (Nothing, Just _)  -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        -- (Nothing, Nothing) -> outputElement
+
+        _ -> outputElement
     in
     [ maybeWrappedCanvas
     , Svg.svg

@@ -1,3 +1,4 @@
+var __globalBoolState__ = false;
 var _user$project$Native_ImpureGoodies = {
 
     randomFloat : function(_) {
@@ -90,6 +91,15 @@ var _user$project$Native_ImpureGoodies = {
       else
         return _elm_lang$core$Maybe$Just(res);
     }},
+
+    toggleGlobalBool : function(_) {
+      __globalBoolState__ = !__globalBoolState__;
+      return __globalBoolState__;
+    },
+
+    getCurrentTime : function() {
+      return (new Date()).getTime();
+    },
 
     timedRun : function(thunk) {
       var start = (new Date()).getTime();

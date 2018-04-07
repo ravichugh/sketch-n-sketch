@@ -234,7 +234,7 @@ valueBackpropPopupMenuTitle =
 
 valueBackpropToolName =
   -- "Update for New Output"
-  "Update Program?"
+  "Update Program"
 
 type alias CodeBoxInfo =
   { cursorPos : Ace.Pos
