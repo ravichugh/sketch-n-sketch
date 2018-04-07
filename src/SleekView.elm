@@ -1167,8 +1167,8 @@ menuBar model =
 synthesisResultHoverMenu
   : String -> String -> (List Int) -> Exp -> (List (Html Msg)) -> Html Msg
 synthesisResultHoverMenu resultsKey description elementPath exp nextMenu =
-  generalHoverMenu
-    description
+  generalHtmlHoverMenu
+    "synthesisResult" [ Html.text description ]
     (Controller.msgHoverSynthesisResult resultsKey elementPath)
     (Controller.msgHoverSynthesisResult resultsKey <| allButLast elementPath)
     (Controller.msgSelectSynthesisResult exp)

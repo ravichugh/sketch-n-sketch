@@ -1144,8 +1144,9 @@ issueCommandBasedOnCaption kind oldModel newModel =
             , dispatchIfChanged getAutoSyncDelay OutputCanvas.setAutoSyncDelay
             , dispatchIfChanged (\m -> m.preview |> Utils.maybeIsEmpty |> not) OutputCanvas.setPreviewMode
             , dispatchIfChanged (\m -> m.previewdiffs |> Utils.maybeIsEmpty |> not) (OutputCanvas.setDiffTimer << DiffTimer newModel.previewdiffsDelay)
-            , dispatchIfNonemptyChanged (\m ->
-               m.previewdiffs |> Utils.maybeOrElse (Maybe.map (\(_, exps, _) -> exps) m.preview) |> Maybe.andThen List.head |> Maybe.map (\expHead -> expHead.start)) AceCodeBox.aceCodeBoxScroll
+            --, dispatchIfNonemptyChanged (\m ->
+            --   m.previewdiffs |> Utils.maybeOrElse (Maybe.map (\(_, exps, _) -> exps) m.preview) |>
+            --     Maybe.andThen List.head |> Maybe.map (\expHead -> expHead.start)) AceCodeBox.aceCodeBoxScroll
             , if kind == "Update Font Size" then
                 AceCodeBox.updateFontSize newModel
               else if
@@ -2235,7 +2236,7 @@ doCallUpdate m =
                    --let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.diffExpWithPositions" <| \_ -> UpdateUtils.diffExpWithPositions m.inputExp newCodeExp in
                    let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.updatedExpToString" <| \_ -> UpdateStack.updatedExpToStringWithPositions m.inputExp newCodeExp in -- TODO: Incorporate positions.
                    --synthesisResult diffResult newCodeExp.val
-                   synthesisResultDiffs diffResult newCodeExp.val diffs
+                   synthesisResultDiffs (String.trim diffResult) newCodeExp.val diffs
                  )
               |> (\x -> let _ = Debug.log "Finished to diff the solutions" () in x)
           in

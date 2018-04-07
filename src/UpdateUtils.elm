@@ -110,16 +110,16 @@ displayDiffPositions tos initialPosition difference =
      let (added, newRow, newCol) = newStringRowCol prevRow prevCol d in
      let _ = Debug.log ("Removed and added, " ++ toString prevRow ++ "," ++ toString prevCol) () in
      let e = dummyExp added prevRow prevCol newRow newCol in
-     aux (newRow, newCol) (maybeComma string ++ {-"Line " ++ toString prevRow ++ ": " ++ -}removed ++ " -> " ++ added, e::prevAcc) tail
+     aux (newRow, newCol) (maybeComma string ++ "Replaced by " {-"Line " ++ toString prevRow ++ ": " ++ removed ++ " -> "-} ++ added, e::prevAcc) tail
     DiffRemoved l::tail ->
      let removed = lToString l in
      let e = dummyExp ("- " ++ removed) prevRow prevCol prevRow (prevCol + List.length l) in
-     aux (prevRow, prevCol) (maybeComma string ++ {-"Line " ++ toString prevRow ++ ": " ++ -}removed, e :: prevAcc) tail
+     aux (prevRow, prevCol) (maybeComma string ++ "Removed " ++ {-"Line " ++ toString prevRow ++ ": " ++ -}removed, e :: prevAcc) tail
     DiffAdded l::tail ->
      let (added, newRow, newCol) = newStringRowCol prevRow prevCol l in
      let e = dummyExp added prevRow prevCol newRow newCol in
      let _ = Debug.log ("Highlighting " ++ toString prevRow ++ "," ++ toString prevCol ++ " -> " ++ toString newRow ++ "," ++ toString newCol) () in
-     aux (newRow, newCol) (maybeComma string ++ {-"Line " ++ toString prevRow ++ ": " ++ -} added, e::prevAcc) tail
+     aux (newRow, newCol) (maybeComma string ++ "Inserted " ++ {-"Line " ++ toString prevRow ++ ": " ++ -} added, e::prevAcc) tail
   in aux (initialPosition.line - 1, initialPosition.col - 1) ("", []) difference
 
 --diff: List a -> List a -> List (() -> List (DiffChunk (List a))) -> List (DiffChunk (List a))
@@ -750,7 +750,7 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
           let newLastEdit_newEnd = offsetFromStrings lastEdit origExp.start (Syntax.unparser Syntax.Elm origExp) (Syntax.unparser Syntax.Elm modifExp) in
           ("", (newLastEdit_newEnd, []))
         else (
-          let prefix = "\n" ++ indent ++ "L" ++ toString origExp.start.line ++ "C" ++ toString origExp.start.col ++ ": " in
+          let prefix = "\n" ++ indent ++ "L" ++ toString origExp.start.line {-++ "C" ++ toString origExp.start.col-} ++ ": " in
           case (origExp.val.e__, modifExp.val.e__) of
             (EBase _ (EString _ before), EBase _ (EString _  after)) ->
               let beforeNormalized = if renderingStyle == LongStringSyntax then before else String.trim (Syntax.unparser Syntax.Elm origExp) in
@@ -762,7 +762,7 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
             _ ->
              let beforeS = Syntax.unparser Syntax.Elm origExp in
              let afterS = Syntax.unparser Syntax.Elm modifExp in
-             let msg = "Was " ++ beforeS ++ ", now " ++ afterS in
+             let msg = "Replaced by " ++ {--beforeS ++ ", now " ++--} afterS in
              let newStart = offsetPosition lastEdit origExp.start  in
              let (newLastEdit, newEnd) = offsetFromStrings lastEdit origExp.start beforeS afterS in
              let diffExp = dummyExp1 afterS newStart.line newStart.col newEnd.line newEnd.col in
@@ -783,7 +783,8 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
           case origExp.val.e__ of
              ELet _ k b p _ e1 _ e2 _ ->
               if eDiffModifiedIndex 0 ediff then
-                Just <| Syntax.patternUnparser Syntax.Elm p
+                --Just <| Syntax.patternUnparser Syntax.Elm p
+                Nothing
               else
                 Nothing
              _ -> Nothing

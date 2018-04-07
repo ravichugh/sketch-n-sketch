@@ -1164,3 +1164,7 @@ code {
 [contenteditable]:focus {
   outline: 0px solid transparent;
 }
+
+.synthesisResult .hover-menu-content{
+  white-space: pre;
+}
