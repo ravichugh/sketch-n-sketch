@@ -112,7 +112,7 @@ displayDiffPositions tos initialPosition difference =
      let (added, newRow, newCol) = newStringRowCol prevRow prevCol d in
      let _ = Debug.log ("Removed and added, " ++ toString prevRow ++ "," ++ toString prevCol) () in
      let e = dummyExp added prevRow prevCol newRow newCol in
-     aux (newRow, newCol) (maybeComma string ++ "Replaced by " {-"Line " ++ toString prevRow ++ ": " ++ removed ++ " -> "-} ++ added, e::prevAcc) tail
+     aux (newRow, newCol) (maybeComma string ++ "Replaced " ++ removed ++ " by " ++ added, e::prevAcc) tail
     DiffRemoved l::tail ->
      let removed = lToString l in
      let e = dummyExp ("- " ++ removed) prevRow prevCol prevRow (prevCol + List.length l) in
@@ -855,6 +855,15 @@ offsetPosition (target, (newlines, newChars)) p  =
   else --if p.line > target.line
     { p | line = p.line + newlines }
 
+-- Given that p is the start of the (existing) string, what is the end of it?
+addOffsetFromString: Pos -> String -> Pos
+addOffsetFromString p s1 =
+  let (r1, c1) = deltaLineRow s1 in
+  collapseLastEdit (p, (r1, c1))
+
+displayPos: Pos -> String
+displayPos p = "L" ++ toString p.line ++ " "
+
 -- Given a last modification, it used to be that at position p we rendered s1. Now we render s2.
 -- What would be the new equivalent last modification?
 -- And what would be the new ending position?
@@ -907,8 +916,8 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
               let beforeS = originalRemoved |> List.indexedMap (\k (sp, e) -> (if i + k > 0 then sp.val ++ "," else "") ++ elementDisplay e) |> String.join "" in
               let afterS = "" in
               let (newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
-              let removedExp = dummyExp1 "removed" lastPos.line lastPos.col lastPos.line (lastPos.col + 1) in
-              ( accStr ++ "\n" ++ indent ++ "Removed " ++ beforeS,
+              let removedExp = dummyExp1 "-" lastPos.line lastPos.col lastPos.line (lastPos.col + 1) in
+              ( accStr ++ "\n" ++ indent ++ displayPos newEnd ++ "Removed '" ++ beforeS ++ "'",
                 removedExp::accList) |>
               aux (i + 1) newLastEdit lastPos originalKept modifieds diffsTail
             ListElemInsert count ->
@@ -916,8 +925,8 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
               let beforeS = "" in
               let afterS = modifiedInserted |> List.indexedMap (\k (sp, e) -> (if i + k > 0 then sp.val ++ "," else "") ++ elementDisplay e) |> String.join "" in
               let (newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
-              let insertedExp = dummyExp1 "inserted" lastPos.line lastPos.col newEnd.line newEnd.col in
-              (accStr ++ "\n" ++ indent ++ "Inserted " ++ afterS,
+              let insertedExp = dummyExp1 "+" lastPos.line lastPos.col newEnd.line newEnd.col in
+              (accStr ++ "\n" ++ indent ++ displayPos newEnd ++ "Inserted '" ++ afterS ++ "'",
                 insertedExp::accList) |>
               aux (i + 1) newLastEdit newEnd original modifiedTail diffsTail
 
@@ -947,29 +956,37 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
   let renderChars = if renderingStyle == LongStringSyntax
      then ElmUnparser.unparseLongStringContent
      else ElmUnparser.unparseStringContent quoteChar in
+  let initialLine = lastPos.line in
   -- If one-line string, characters \n \t \r and \\ count for double.
   let aux: LastEdit -> Pos -> Int -> Int -> List StringDiffs -> (List String, List Exp) -> (String, ((LastEdit, Pos), List Exp))
       aux lastEdit lastPos lastEnd offset diffs (revAcc, revAccExp) = case diffs of
-    [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), List.reverse revAccExp))
+    [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), Debug.log "final expressions" <| List.reverse revAccExp))
     StringUpdate start end replacement :: tail ->
        let betweenNormalized = renderChars <| String.slice lastEnd start original in
-       let (lastEdit1, lastPos1) = offsetFromStrings lastEdit lastPos betweenNormalized betweenNormalized in
+       let _ = ImpureGoodies.log <| "lastPos = " ++ toString lastPos  in
+       let lastPos1 = addOffsetFromString lastPos betweenNormalized in
+       let _ = ImpureGoodies.log <| "lastPos1 = " ++ toString lastPos1  in
        let beforeS = renderChars <| String.slice start end original in
        let afterS = renderChars <| String.slice (start + offset) (start + offset + replacement) modified in
-       let accInc = if start == end then -- Pure insertion
-            "\n" ++ indent ++ "Inserted: '" ++ afterS ++ "'"
+       let _ = ImpureGoodies.log <| "Computed beforeS from " ++ toString (StringUpdate start end replacement) ++ " and original = '"++original++"', = '" ++ beforeS ++ "'"  in
+       let _ = ImpureGoodies.log <| "Offset = " ++ toString offset  in
+       let _ = ImpureGoodies.log <| "Computed afterS from " ++ toString (StringUpdate start end replacement) ++ " and modified = '"++modified++"', = '" ++ beforeS ++ "'"  in
+       let (newLastEdit, newEndPos) = offsetFromStrings lastEdit lastPos1 beforeS afterS in
+       let newStartPos = offsetPosition lastEdit lastPos1 in
+       let (accInc, title) = if start == end then -- Pure insertion
+            ("\n" ++ indent ++ displayPos newEndPos ++ "Inserted [" ++ afterS ++ "]", "+")
          else if replacement == 0 then -- Pure deletion
-            "\n" ++ indent ++ "Removed: '" ++ beforeS ++ "'"
+            ("\n" ++ indent ++ displayPos newEndPos ++ "Removed [" ++ beforeS ++ "]", "-")
          else -- Replacement
-            "\n" ++ indent ++ "Replaced '" ++ beforeS ++ "' by '"++ afterS ++"'"
+            ("\n" ++ indent ++ displayPos newEndPos ++ "Replaced [" ++ beforeS ++ "] by ["++ afterS ++"]", "~")
        in
-       let (newLastEdit, newPos) = offsetFromStrings lastEdit1 lastPos1 beforeS afterS in
+       let _ = ImpureGoodies.log <| "newEndPos = " ++ toString newEndPos  in
        let newOffset = offset - (end - start) + replacement in
-       let newLastEnd = end + newOffset in
        let newRevAcc = accInc::revAcc in
-       let endCol = if lastPos1.line == newPos.line && lastPos1.col == newPos.col then newPos.col + 1 else newPos.col in
-       let insertedExp = dummyExp1 "replaced" lastPos1.line lastPos1.col newPos.line endCol in
-       aux newLastEdit newPos newLastEnd newOffset tail (newRevAcc, insertedExp::revAccExp)
+       let endCol = if newStartPos.line == newEndPos.line && newStartPos.col == newEndPos.col then newEndPos.col + 1 else newEndPos.col in
+       let duckTapeOffset = if renderingStyle == LongStringSyntax && initialLine < newStartPos.line then 1 else 0 in
+       let insertedExp = dummyExp1 title newStartPos.line (newStartPos.col + duckTapeOffset) newEndPos.line (endCol + duckTapeOffset) in
+       aux newLastEdit (Tuple.first newLastEdit) end newOffset tail (newRevAcc, insertedExp::revAccExp)
   in
   aux lastEdit lastPos 0 0 diffs ([], [])
 
@@ -1017,13 +1034,13 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
           let newLastEdit_newEnd = offsetFromStrings lastEdit origExp.start (Syntax.unparser Syntax.Elm origExp) (Syntax.unparser Syntax.Elm modifExp) in
           ("", (newLastEdit_newEnd, []))
         else (
-          let prefix = "\n" ++ indent ++ "L" ++ toString origExp.start.line {-++ "C" ++ toString origExp.start.col-} ++ ": " in
+          let prefix = "\n" ++ indent ++ displayPos origExp.start {-++ "C" ++ toString origExp.start.col-} ++ ": " in
           let beforeS = Syntax.unparser Syntax.Elm origExp in
           let afterS = Syntax.unparser Syntax.Elm modifExp in
           let msg = "Was " ++ beforeS ++ ", now " ++ afterS in
           let newStart = offsetPosition lastEdit origExp.start  in
           let (newLastEdit, newEnd) = offsetFromStrings lastEdit origExp.start beforeS afterS in
-          let diffExp = dummyExp1 afterS newStart.line newStart.col newEnd.line newEnd.col in
+          let diffExp = dummyExp1 "~" newStart.line newStart.col newEnd.line newEnd.col in
           (prefix ++ msg, ((newLastEdit, newEnd), [diffExp]))
          )
       EListDiffs diffs ->
@@ -1070,7 +1087,7 @@ offset: Int -> List (Int, a) -> List (Int, a)
 offset n diffs = List.map (\(i, e) -> (i + n, e)) diffs
 
 offsetStr: Int -> List StringDiffs -> List StringDiffs
-offsetStr n diffs = List.map (\sd -> case sd of
+offsetStr n diffs = Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <| List.map (\sd -> case sd of
   StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
 
 -- When f x y k z w was changed to (f x y k) z w (realElementNumber = 3 here), how to recover initial differences

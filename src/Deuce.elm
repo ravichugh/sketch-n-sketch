@@ -444,19 +444,19 @@ polygonOpacity : ColorScheme -> Float
 polygonOpacity colorScheme =
   0.2
 
-diffColor : ColorScheme -> Color
-diffColor colorScheme =
+diffColor : ColorScheme -> String -> Color
+diffColor colorScheme tag =
   case colorScheme of
     Light ->
-      { r = 0
-      , g = 255
-      , b = 0
-      }
+      case tag of
+        "+" -> { r = 0, g = 255, b = 0}
+        "-" -> { r = 255, g = 0, b = 0}
+        _ ->   { r = 255, g = 255, b = 0}
     Dark ->
-      { r = 0
-      , g = 80
-      , b = 0
-      }
+      case tag of
+        "+" -> { r = 0, g = 80, b = 0}
+        "-" -> { r = 80, g = 0, b = 0}
+        _ ->   { r = 80, g = 80, b = 0}
 
 objectColor : ColorScheme -> Color
 objectColor colorScheme =
@@ -720,7 +720,7 @@ codeObjectPolygon codeInfo codeObject color =
 
 diffpolygon: CodeInfo -> Exp -> Svg Msg
 diffpolygon codeInfo exp =
-  let color = diffColor codeInfo.displayInfo.colorScheme in
+  let color = diffColor codeInfo.displayInfo.colorScheme <| Maybe.withDefault "+" <| Lang.eStrUnapply exp in
   let thehull = hullPoints <| hull codeInfo True False exp.start.col exp.start.line exp.end.col exp.end.line in
     Svg.polygon
         [ SAttr.points thehull

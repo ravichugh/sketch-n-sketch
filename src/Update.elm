@@ -1378,22 +1378,26 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                       let finalDiffs = if revForSa == [] then [] else [(0, VStringDiffs (List.reverse revForSa))] in
                       ok1 ([newSa, newSb], finalDiffs)
                     ((StringUpdate start end replacement) as su) :: diffsTail ->
-                      if start > saLength then
-                        let indexCut = offset + saLength in
-                        let newSa = replaceV_ oldOutVal <| VBase <| VString <| String.left     indexCut newOut in
-                        let newSb = replaceV_ oldOutVal <| VBase <| VString <| String.dropLeft indexCut newOut in
+                      if start < saLength && end > saLength then -- We need to split the diffs, it cannot encompass two positions
+                        [aux offset revForSa (StringUpdate start saLength 0 ::StringUpdate saLength end replacement ::diffsTail),
+                         aux offset revForSa (StringUpdate start saLength replacement ::StringUpdate saLength end 0 ::diffsTail)] |>
+                           Results.projOk |> Results.andThen (LazyList.fromList >> Oks)
+                      else if start > saLength || start == saLength && end > start then -- The diff happens to the right of saLength
+                        let indexCutNew = saLength + offset in
+                        let newSa = replaceV_ oldOutVal <| VBase <| VString <| String.left     indexCutNew newOut in
+                        let newSb = replaceV_ oldOutVal <| VBase <| VString <| String.dropLeft indexCutNew newOut in
                         let finalDiffs =
                              (if revForSa == [] then [] else [(0, VStringDiffs (List.reverse revForSa))]) ++
-                             [(1, VStringDiffs (offsetStr (0 - indexCut) diffs))]
+                             [(1, VStringDiffs (offsetStr (0 - saLength) diffs))]
                         in
                         ok1 ([newSa, newSb], finalDiffs)
-                       else if start <= saLength && end >= saLength then -- Ambiguity here. We return both solutions with some preferences
+                       else if start == saLength && end == saLength then -- Ambiguity here. We return both solutions with some preferences
                         let aLeft = String.slice (max (start - 1) 0) start sa in
                         let bRight = String.slice (end - saLength) (end - saLength + 1) sb in
                         let inserted = String.slice (start + offset) (start + offset + replacement) newOut in
                         let replacements = [
-                           (offset + start + replacement, List.reverse (su :: revForSa), offsetStr (0 - offset - start - replacement) diffsTail),
-                           (offset + start, List.reverse revForSa, offsetStr (0 - offset - start) (su :: diffsTail))
+                           (offset + start + replacement, List.reverse (su :: revForSa), offsetStr (0 - saLength) diffsTail),
+                           (offset + start, List.reverse revForSa, offsetStr (0 - saLength) (su :: diffsTail))
                            ]
                         in
                         let orderedReplacementst =

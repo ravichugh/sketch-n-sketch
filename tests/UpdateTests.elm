@@ -469,7 +469,6 @@ all_tests = init_state
       |> updateElmAssert
         [] "   'Welcome to this world'" "\"Welcome again to this world\""
         [] "   'Welcome again to this world'"
-      |> onlyLast
   |> test "Strings concatenation"
       |> updateElmAssert [] "(\"Hello\" + \" \") + \"world\"" "\"Good morning world\""
                          [] "(\"Good morning\" + \" \") + \"world\""
