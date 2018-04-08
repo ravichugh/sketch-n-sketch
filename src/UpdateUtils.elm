@@ -960,7 +960,7 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
   -- If one-line string, characters \n \t \r and \\ count for double.
   let aux: LastEdit -> Pos -> Int -> Int -> List StringDiffs -> (List String, List Exp) -> (String, ((LastEdit, Pos), List Exp))
       aux lastEdit lastPos lastEnd offset diffs (revAcc, revAccExp) = case diffs of
-    [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), Debug.log "final expressions" <| List.reverse revAccExp))
+    [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), {-Debug.log "final expressions" <| -}List.reverse revAccExp))
     StringUpdate start end replacement :: tail ->
        let betweenNormalized = renderChars <| String.slice lastEnd start original in
        --let _ = ImpureGoodies.log <| "lastPos = " ++ toString lastPos  in
