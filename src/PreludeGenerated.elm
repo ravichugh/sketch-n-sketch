@@ -3167,43 +3167,50 @@ div_ = Html.div
 --------------------------------------------------------------------------------
 -- Lens: Table Library
 
-  -- freeze and constantInputLens aren't actually needed below,
-  -- because these definitions are now impicitly frozen in Prelude
-  -- But for performance it's better
+  -- Update.freeze and Update.softFreeze aren't needed below,
+  -- because library definitions are implicitly frozen.
+  -- But for performance it's better.
 
   -- TODO in wrapData, use update. calculate length of rows to determine empties.
 
-TableWithButtons = {
-
-  wrapData =
+TableWithButtons =
+  let wrapData =
     Update.applyLens
       { apply rows   = freeze <| (rows |> List.map (\\row -> (freeze False, row)))
       , unapply rows = rows |> concatMap (\\(flag,row) ->
                                  if flag == True
-                                   then [ row, [\"\",\"\",\"\"] ]
+                                   then [ row, [\"?\",\"?\",\"?\"] ]
                                    else [ row ]
                                )
                             |> (\\x -> Just x)
       }
-
-  mapData f =
+  in
+  let mapData f =
     List.map (Tuple.mapSecond f)
-
-  tr flag styles attrs children =
+  in
+  --
+  -- The globalBool flag is used to determined whether to insert \"\" or \" \"
+  -- before a couple attribute values. Toggling between these two choices
+  -- in subsequent runs helps work around our issue forcing Elm to re-render.
+  --
+  let tr globalBool flag styles attrs children =
     let (hasBeenClicked, nope, yep) =
       (\"has-been-clicked\", Update.softFreeze \"gray\", Update.softFreeze \"coral\")
+    in
+    let dummyStrPrefix =
+      Update.softFreeze <| if globalBool then \"\" else \" \"
     in
     let onclick =
       \"\"\"
       var hasBeenClicked = document.createAttribute(\"@hasBeenClicked\");
       var buttonStyle = document.createAttribute(\"style\");
 
-      if (this.parentNode.getAttribute(\"@hasBeenClicked\") == \"False\") {
-        hasBeenClicked.value = \"True\";
+      if (this.parentNode.getAttribute(\"@hasBeenClicked\").endsWith(\"False\")) {
+        hasBeenClicked.value = \"@(dummyStrPrefix)True\";
         buttonStyle.value = \"color: @yep;\";
       } else {
-        hasBeenClicked.value = \"False\";
-        buttonStyle.value = \"color: @nope;\";
+        hasBeenClicked.value = \"@(dummyStrPrefix)False\";
+        buttonStyle.value = \"color: @dummyStrPrefix@nope;\";
       }
 
       this.parentNode.setAttributeNode(hasBeenClicked);
@@ -3214,16 +3221,25 @@ TableWithButtons = {
       [ \"span\"
       , [ [\"class\", \"text-button.enabled\"]
         , [\"onclick\", onclick]
-        , [\"style\", [[\"color\", nope]]]
+        , [\"style\", [[\"color\", \"\"\"@dummyStrPrefix@nope\"\"\"]]]
         ]
       , [textNode \"+\"]
       ]
     in
     Html.tr styles
-      ([hasBeenClicked, toString flag] :: attrs)
+      ([hasBeenClicked, \"\"\"@dummyStrPrefix@flag\"\"\"] :: attrs)
       (snoc button children)
+  in
+  { wrapData = wrapData
+  , mapData = mapData
+  , tr = tr
+  }
 
-}
+TableWithButtons =
+  -- Toggle the global boolean flag, to workaround the force re-render issue.
+  { new _ =
+      { TableWithButtons | tr = TableWithButtons.tr (toggleGlobalBool []) }
+  }
 
 
 -- Begin SVG Stuff -------------------------------------------------------------
