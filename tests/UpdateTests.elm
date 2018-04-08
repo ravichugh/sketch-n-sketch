@@ -19,6 +19,7 @@ import LangUtils exposing (..)
 import ParserUtils
 import HTMLValParser
 import Set
+import ImpureGoodies
 
 type StateChanger = StateChanger (State -> State)
 
@@ -37,12 +38,12 @@ only stateChanger state =
   let newState2 =flush newState in
   {newState2  | onlyOnly = True, toLaunch = []} -- wipe out other tests not launched
 
-onlyThis: State -> State
-onlyThis state =
+onlyLast: State -> State
+onlyLast state =
   case Utils.maybeLast state.toLaunch of
     Just (StateChanger stateChanger) ->
       only stateChanger state
-    _ -> Debug.crash "No tests to only test before the use of 'onlyThis'. Add '|> onlyThis' after a test you want to run alone"
+    _ -> Debug.crash "No tests to only test before the use of 'onlyLast'. Add '|> onlyLast' after a test you want to run alone"
 
 skipBefore: State -> State
 skipBefore state = { state | toLaunch = [] }
@@ -118,9 +119,12 @@ updateAssert_ env exp origOut newOut expectedEnv expectedExpStr state =
     Oks (LazyList.Nil) -> fail state <| "Internal error: no diffs"
     Oks (LazyList.Cons Nothing _) -> fail state <| log state <| "There was no diff between the previous output and the new output"
     Oks ll->
+      let _ = ImpureGoodies.log <| "Diffs observed: " ++ toString (LazyList.toList ll) in
       case Oks (LazyList.filterMap identity ll) |> Results.andThen (\diffs -> update (updateContext "initial" env exp origOut newOut diffs) LazyList.Nil LazyList.Nil) of
         Results.Oks (LazyList.Cons (envX, expX) lazyTail as ll) ->
           let _ = LazyList.toList ll in
+          --let _ = ImpureGoodies.log <| toString expX.changes in
+          --let _ = ImpureGoodies.log <| eDiffsToString "" exp expX.val (expX.changes |> Maybe.withDefault (EConstDiffs EAnyDiffs)) in
           let obtained = envToString envX.val ++ " |- " ++ unparse expX.val in
           if obtained == expected then success state else
             case Lazy.force lazyTail of
@@ -462,6 +466,13 @@ all_tests = init_state
       |> updateElmAssert
         [] "   'This is a string'" "\"Hello' \\\" wo\\\\rld\""
         [] "   'Hello\\' \" wo\\\\rld'"
+      |> updateElmAssert
+        [] "   'Welcome to this world'" "\"Welcome again to this world\""
+        [] "   'Welcome again to this world'"
+      |> onlyLast
+  |> test "Strings concatenation"
+      |> updateElmAssert [] "(\"Hello\" + \" \") + \"world\"" "\"Good morning world\""
+                         [] "(\"Good morning\" + \" \") + \"world\""
   |> test "Many solutions"
       |> updateElmAssert
         [("h3", "\\text -> ['h3', [], [['TEXT', text]]]")] "x = 0 + 0\n\nh3 (toString x)" "['h3', [], [['TEXT', '1']]]"

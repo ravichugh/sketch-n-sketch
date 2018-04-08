@@ -62,10 +62,14 @@ type UpdateStack = UpdateResultS     UpdatedEnv UpdatedExp (Maybe HandlePrevious
                  -- The new expression, the new output, what to add to the stack with the result of the update above.
 
 updateResultSameEnvExp: Env -> Exp -> UpdateStack
-updateResultSameEnvExp env exp = UpdateResultS (UpdatedEnv.original env) (UpdatedExp exp Nothing) Nothing
+updateResultSameEnvExp env exp = updateResult (UpdatedEnv.original env) (UpdatedExp exp Nothing)
 
 updateResultSameEnv: Env -> Exp -> UpdateStack
-updateResultSameEnv env exp = UpdateResultS (UpdatedEnv.original env) (UpdatedExp exp (Just <| EConstDiffs EAnyDiffs)) Nothing
+updateResultSameEnv env exp = updateResult (UpdatedEnv.original env) (UpdatedExp exp (Just <| EConstDiffs EAnyDiffs))
+
+updateResultSameEnvDiffs: Env -> Exp -> EDiffs-> UpdateStack
+updateResultSameEnvDiffs env exp diffs = updateResult (UpdatedEnv.original env) (UpdatedExp exp (Just <| diffs))
+
 
 updateResult: UpdatedEnv-> UpdatedExp -> UpdateStack
 updateResult updatedEnv exp = UpdateResultS updatedEnv exp Nothing

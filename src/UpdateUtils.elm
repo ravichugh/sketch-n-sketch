@@ -712,11 +712,11 @@ stringDiffsToString  indent    original  modified  diffs =
     [] -> String.join ", " (List.reverse acc)
     StringUpdate start end replacement :: tail ->
        let accInc = if start == end then -- Pure insertion
-            "\n" ++ indent ++ "Inserted: '" ++ String.slice (start + offset) replacement modified ++ "'"
+            "\n" ++ indent ++ "Inserted: '" ++ String.slice (start + offset) (start + offset + replacement) modified ++ "'"
          else if replacement == 0 then -- Pure deletion
             "\n" ++ indent ++ "Removed: '" ++ String.slice start end original ++ "'"
          else -- Replacement
-            "\n" ++ indent ++ "Replaced '" ++ String.slice start end original ++ "' by '"++ String.slice (start + offset) replacement modified ++"'"
+            "\n" ++ indent ++ "Replaced '" ++ String.slice start end original ++ "' by '"++ String.slice (start + offset) (start + offset + replacement) modified ++"'"
        in
        let newOffset = offset - (end - start) + replacement in
        let newAcc = accInc::acc in
@@ -955,7 +955,7 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
        let betweenNormalized = renderChars <| String.slice lastEnd start original in
        let (lastEdit1, lastPos1) = offsetFromStrings lastEdit lastPos betweenNormalized betweenNormalized in
        let beforeS = renderChars <| String.slice start end original in
-       let afterS = renderChars <| String.slice (start + offset) replacement modified in
+       let afterS = renderChars <| String.slice (start + offset) (start + offset + replacement) modified in
        let accInc = if start == end then -- Pure insertion
             "\n" ++ indent ++ "Inserted: '" ++ afterS ++ "'"
          else if replacement == 0 then -- Pure deletion

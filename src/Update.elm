@@ -126,7 +126,11 @@ getUpdateStackOp env e oldVal newVal diffs =
        case m of
           EString quoteChar chars ->
             case newVal.v_ of
-              VBase (VString newChars) ->   updateResultSameEnv env  <| replaceE__ e <| EBase ws (EString quoteChar newChars)
+              VBase (VString newChars) ->
+                case diffs of
+                  VStringDiffs l ->
+                    updateResultSameEnvDiffs env  (replaceE__ e <| EBase ws (EString quoteChar newChars)) (EStringDiffs l)
+                  _ -> UpdateCriticalError <| "Exepcted VStringDiffs, got " ++ toString diffs
               _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
           _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
 
@@ -1362,12 +1366,15 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
           case op.val  of
             Plus ->
               let saLength = String.length sa in
+              --let _ = ImpureGoodies.log <| "Handling concatenation '" ++ sa ++ "' + '" ++ sb ++ "' <-- " ++ newOut in
               let aux: Int -> List StringDiffs -> List StringDiffs -> Results String (List Val, TupleDiffs VDiffs)
-                  aux  offset revForSa            diffs               = case diffs of
+                  aux  offset revForSa            diffs               =
+                    --let _ = ImpureGoodies.log <| "offset=" ++ toString offset ++ ", revForSa=" ++ toString revForSa ++", diffs=" ++ toString diffs in
+                    case diffs of
                     [] ->
                       let indexCut = offset + saLength in
                       let newSa = replaceV_ oldOutVal <| VBase <| VString <| String.left     indexCut newOut in
-                      let newSb = replaceV_ oldOutVal <| vb in
+                      let newSb = replaceV_ oldOutVal <| VBase <| VString <| String.dropLeft indexCut newOut in
                       let finalDiffs = if revForSa == [] then [] else [(0, VStringDiffs (List.reverse revForSa))] in
                       ok1 ([newSa, newSb], finalDiffs)
                     ((StringUpdate start end replacement) as su) :: diffsTail ->
@@ -1404,7 +1411,7 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                           in
                           ok1 ([newSa, newSb], finalDiffs))
                        else -- end < saLength
-                         aux (offset + end - start + replacement) (su::revForSa) diffsTail
+                         aux (offset - (end - start) + replacement) (su::revForSa) diffsTail
               in
               ifUnoptimizedShallowDiff oldOutVal newOutVal diffs |> Results.andThen (\mbvdiff ->
                 case mbvdiff of
