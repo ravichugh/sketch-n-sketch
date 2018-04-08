@@ -16,7 +16,7 @@ import ValBuilder as Vb
 import ValUnbuilder as Vu
 import UpdateUnoptimized
 import ElmUnparser
-import ImpureGoodies
+--import ImpureGoodies
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -963,14 +963,14 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
     [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), Debug.log "final expressions" <| List.reverse revAccExp))
     StringUpdate start end replacement :: tail ->
        let betweenNormalized = renderChars <| String.slice lastEnd start original in
-       let _ = ImpureGoodies.log <| "lastPos = " ++ toString lastPos  in
+       --let _ = ImpureGoodies.log <| "lastPos = " ++ toString lastPos  in
        let lastPos1 = addOffsetFromString lastPos betweenNormalized in
-       let _ = ImpureGoodies.log <| "lastPos1 = " ++ toString lastPos1  in
+       --let _ = ImpureGoodies.log <| "lastPos1 = " ++ toString lastPos1  in
        let beforeS = renderChars <| String.slice start end original in
        let afterS = renderChars <| String.slice (start + offset) (start + offset + replacement) modified in
-       let _ = ImpureGoodies.log <| "Computed beforeS from " ++ toString (StringUpdate start end replacement) ++ " and original = '"++original++"', = '" ++ beforeS ++ "'"  in
-       let _ = ImpureGoodies.log <| "Offset = " ++ toString offset  in
-       let _ = ImpureGoodies.log <| "Computed afterS from " ++ toString (StringUpdate start end replacement) ++ " and modified = '"++modified++"', = '" ++ beforeS ++ "'"  in
+       --let _ = ImpureGoodies.log <| "Computed beforeS from " ++ toString (StringUpdate start end replacement) ++ " and original = '"++original++"', = '" ++ beforeS ++ "'"  in
+       --let _ = ImpureGoodies.log <| "Offset = " ++ toString offset  in
+       --let _ = ImpureGoodies.log <| "Computed afterS from " ++ toString (StringUpdate start end replacement) ++ " and modified = '"++modified++"', = '" ++ beforeS ++ "'"  in
        let (newLastEdit, newEndPos) = offsetFromStrings lastEdit lastPos1 beforeS afterS in
        let newStartPos = offsetPosition lastEdit lastPos1 in
        let (accInc, title) = if start == end then -- Pure insertion
@@ -980,7 +980,7 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
          else -- Replacement
             ("\n" ++ indent ++ displayPos newEndPos ++ "Replaced [" ++ beforeS ++ "] by ["++ afterS ++"]", "~")
        in
-       let _ = ImpureGoodies.log <| "newEndPos = " ++ toString newEndPos  in
+       --let _ = ImpureGoodies.log <| "newEndPos = " ++ toString newEndPos  in
        let newOffset = offset - (end - start) + replacement in
        let newRevAcc = accInc::revAcc in
        let endCol = if newStartPos.line == newEndPos.line && newStartPos.col == newEndPos.col then newEndPos.col + 1 else newEndPos.col in
