@@ -1087,8 +1087,9 @@ offset: Int -> List (Int, a) -> List (Int, a)
 offset n diffs = List.map (\(i, e) -> (i + n, e)) diffs
 
 offsetStr: Int -> List StringDiffs -> List StringDiffs
-offsetStr n diffs = Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <| List.map (\sd -> case sd of
-  StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
+offsetStr n diffs = {-Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <| -}
+  List.map (\sd -> case sd of
+    StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
 
 -- When f x y k z w was changed to (f x y k) z w (realElementNumber = 3 here), how to recover initial differences
 flattenFirstEChildDiffs: Int -> EDiffs -> EDiffs
