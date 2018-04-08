@@ -2,6 +2,8 @@ module ElmUnparser exposing
   ( unparse
   , unparsePattern
   , unparseType -- Experimental
+  , unparseStringContent
+  , unparseLongStringContent
   )
 
 import Lang exposing (..)
@@ -25,6 +27,11 @@ unparseWD wd =
     NumSlider a tok b _ hidden ->
       "{" ++ toString a.val ++ tok.val ++ toString b.val ++ strHidden hidden ++ "}"
 
+unparseStringContent quoteChar text =
+  Regex.replace Regex.All (Regex.regex <| "\\\\|" ++ quoteChar ++ "|\r|\n|\t") ( -- EStrings are not multiline.
+    \{match} -> if match == "\\" then "\\\\" else if match == "\n" then "\\n" else if match == "\r" then "\\r" else if match == "\t" then "\\t" else "\\" ++ quoteChar)
+    text
+
 unparseBaseValue : EBaseVal -> String
 unparseBaseValue ebv =
   case ebv of
@@ -32,10 +39,7 @@ unparseBaseValue ebv =
       if b then "True" else "False"
 
     EString quoteChar text ->
-      quoteChar ++ Regex.replace Regex.All (Regex.regex <| "\\\\|" ++ quoteChar ++ "|\r|\n|\t") ( -- EStrings are not multiline.
-        \{match} -> if match == "\\" then "\\\\" else if match == "\n" then "\\n" else if match == "\r" then "\\r" else if match == "\t" then "\\t" else "\\" ++ quoteChar)
-        text ++
-      quoteChar
+      quoteChar ++ unparseStringContent quoteChar text ++ quoteChar
 
     ENull ->
       "null"
@@ -768,11 +772,14 @@ getParametersBinding binding_  =
 
 multilineRegexEscape = Regex.regex <| "@"
 
+unparseLongStringContent s =
+  Regex.replace  Regex.All multilineRegexEscape (\m -> "@@") s
+
 --Parses and unparses long interpolated strings.
 multilineContentUnparse : Exp -> String
 multilineContentUnparse e = case e.val.e__ of
   EBase sp0 (EString _ s) ->
-    Regex.replace  Regex.All multilineRegexEscape (\m -> "@@") s
+    unparseLongStringContent s
   EOp sp1 op [left, right] sp2 ->
     case op.val of
       Plus ->

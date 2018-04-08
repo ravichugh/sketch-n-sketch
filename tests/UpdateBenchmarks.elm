@@ -26,9 +26,9 @@ import LangSvg
 import HTMLParser
 import HTMLValParser
 
-finalMode = True
+finalMode = False
 
-nToAverageOn = if finalMode then 10 else 1
+nToAverageOn = if finalMode then 10 else 10
 
 programs = Dict.fromList [
   ("Markdown", ExamplesGenerated.fromleo_markdown),
@@ -227,8 +227,7 @@ eval exp = Eval.doEval Syntax.Elm [] exp |> Result.map (Tuple.first >> Tuple.fir
 
 tryMany: Int -> (Int -> a) -> List a
 tryMany n callback =
-  List.range 1 n |>
-  List.map (\i -> callback i)
+  List.reverse <| List.foldl (\i b -> callback i::b) [] (List.range 1 n)
 
 averageTimedRun: Int -> (() -> a) -> (a, (Float, Float, Float))
 averageTimedRun n callback =

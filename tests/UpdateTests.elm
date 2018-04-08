@@ -13,7 +13,7 @@ import Utils
 import Eval
 import Syntax
 import Lazy
-import Results
+import Results exposing (Results(..))
 import LazyList
 import LangUtils exposing (..)
 import ParserUtils
@@ -114,17 +114,18 @@ updateAssert_ env exp origOut newOut expectedEnv expectedExpStr state =
     envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
     " (was " ++ valToString origOut ++ ")") in
   case UpdateUtils.defaultVDiffs origOut newOut of
-    Err msg -> fail state <| log state <| "This diff is not allowed:" ++ msg
-    Ok Nothing -> fail state <| log state <| "There was no diff between the previous output and the new output"
-    Ok (Just diffs) ->
-      case update (updateContext "initial" env exp origOut newOut diffs) LazyList.Nil of
+    Errs msg -> fail state <| log state <| "This diff is not allowed:" ++ msg
+    Oks (LazyList.Nil) -> fail state <| "Internal error: no diffs"
+    Oks (LazyList.Cons Nothing _) -> fail state <| log state <| "There was no diff between the previous output and the new output"
+    Oks ll->
+      case Oks (LazyList.filterMap identity ll) |> Results.andThen (\diffs -> update (updateContext "initial" env exp origOut newOut diffs) LazyList.Nil LazyList.Nil) of
         Results.Oks (LazyList.Cons (envX, expX) lazyTail as ll) ->
           let _ = LazyList.toList ll in
-          let obtained = envToString envX.val ++ " |- " ++ unparse expX in
+          let obtained = envToString envX.val ++ " |- " ++ unparse expX.val in
           if obtained == expected then success state else
             case Lazy.force lazyTail of
               LazyList.Cons (envX2, expX2) lazyTail2 ->
-                let obtained2 = envToString envX2.val ++ " |- " ++ unparse expX2 in
+                let obtained2 = envToString envX2.val ++ " |- " ++ unparse expX2.val in
                 if obtained2 == expected then success state else
                 fail state <|
                   log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ " and " ++ obtained2 ++ problemdesc
@@ -265,7 +266,7 @@ all_tests = init_state
   |> delay (\() -> assertEqual
       (mergeEnv
                   [("x", (tVal 1)), ("y", (tVal 1)), ("z", (tVal 1))]
-                  [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))] [(1, VConstDiffs), (2, VConstDiffs)]
+                  [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal    2))] [(1, VConstDiffs), (2, VConstDiffs)]
                   [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))] [(0, VConstDiffs), (2, VConstDiffs)]
                  ) ([("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 2))], [(0, VConstDiffs), (1, VConstDiffs), (2, VConstDiffs)]))
   |> test "update const"
@@ -616,24 +617,24 @@ all_tests = init_state
               [] "  [[1, 2]]"
   |> test "parsing HTML"
   |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
-               "parseHTML \"hello\""  "[[\"HTMLInner\",\"hello world\"]]"
+               "parseHTML \"hello\""  "[HTMLInner \"hello world\"]"
                "parseHTML \"hello world\""
   |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
-               "parseHTML \"hello<br>world\""  "[[\"HTMLInner\",\"hello\"], [\"HTMLElement\", \"br\", [], \" \", [\"RegularEndOpening\"], [], [\"VoidClosing\"]], [\"HTMLInner\",\"sworld\"]]"
+               "parseHTML \"hello<br>world\""  "[HTMLInner \"hello\", HTMLElement \"br\" [] \" \" RegularEndOpening [] VoidClosing, HTMLInner \"sworld\"]"
                "parseHTML \"hello<br >sworld\""
   |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
-                 "parseHTML \"<?help>\""  "[[\"HTMLComment\",[\"Less_Greater\",\"Injection: adding more chars like >, <, and -->\"]]]"
+                 "parseHTML \"<?help>\""  "[HTMLComment (Less_Greater \"Injection: adding more chars like >, <, and -->\")]"
                  "parseHTML \"<!--Injection: adding more chars like >, <, and ~~>-->\""
   |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
-               "parseHTML \"<h3>Hello world</h3>\"" "[[\"HTMLElement\", \"h3\", [], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Hello world\"]], [\"RegularClosing\", \"\"]]]"
+               "parseHTML \"<h3>Hello world</h3>\"" "[HTMLElement \"h3\" [] \"\" RegularEndOpening [HTMLInner \"Hello world\"] (RegularClosing \"\")]"
   |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
-               "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a>\"" "[[\"HTMLElement\", \"a\", [[\"HTMLAttribute\", \" \", \"href\", [\"HTMLAttributeString\", \"\", \"\", \"'\", \"https://fr.wikipedia.org/wiki/Markdown\"]]], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Markdown\"]], [\"RegularClosing\", \"\"]]]"
+               "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a>\"" "[HTMLElement \"a\" [HTMLAttribute \" \" \"href\" (HTMLAttributeString \"\" \"\" \"'\" \"https://fr.wikipedia.org/wiki/Markdown\")] \"\" RegularEndOpening [HTMLInner \"Markdown\"] (RegularClosing \"\")]"
   |> updateElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)]
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demo\""
-                       "[[\"HTMLElement\", \"a\", [[\"HTMLAttribute\", \" \", \"href\", [\"HTMLAttributeString\", \"\", \"\", \"'\", \"https://fr.wikipedia.org/wiki/Markdown\"]]], \"\", [\"RegularEndOpening\"], [[\"HTMLInner\",\"Markdown\"]], [\"RegularClosing\", \"\"]], [\"HTMLInner\",\" demonstration\"]]"
+                       "[HTMLElement \"a\" [HTMLAttribute \" \" \"href\" (HTMLAttributeString \"\" \"\" \"'\" \"https://fr.wikipedia.org/wiki/Markdown\")] \"\" RegularEndOpening [HTMLInner \"Markdown\"] (RegularClosing \"\"), HTMLInner \" demonstration\"]"
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demonstration\""
-  |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)] "parseHTML \"Hello world\""  "[[\"HTMLInner\",\"Hello world\"]]"
-  |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)] "parseHTML \"<i><b>Hello</i></b>World\""  "[ [ \"HTMLElement\",\"i\",[],\"\",[ \"RegularEndOpening\" ], [ [ \"HTMLElement\", \"b\", [], \"\", [ \"RegularEndOpening\" ], [ [ \"HTMLInner\", \"Hello\" ] ], [ \"ForgotClosing\" ] ] ], [ \"RegularClosing\", \"\" ] ], [ \"HTMLInner\", \"</b>World\" ] ]"
+  |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)] "parseHTML \"Hello world\""  "[HTMLInner \"Hello world\"]"
+  |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)] "parseHTML \"<i><b>Hello</i></b>World\""  "[ HTMLElement \"i\" [] \"\" RegularEndOpening [ HTMLElement \"b\" [] \"\" RegularEndOpening [ HTMLInner \"Hello\"] ForgotClosing] (RegularClosing \"\"), HTMLInner \"</b>World\"]"
   |> updateElmAssert [("color", "\"white\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
                             "[[\"padding\", \"3px\"], [ \"background-color\", \"lightgray\"]]"
                            [("color", "\"lightgray\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
@@ -641,18 +642,31 @@ all_tests = init_state
   |> updateElmAssert [("freeze", "\\x -> x")] "freeze 0 + 1" "2"
                      [("freeze", "\\x -> x")] "freeze 0 + 2"
   |> test "dictionary"
-  |> updateElmAssert [("x", "1")] "get \"a\" (dict [[\"a\", x]])" "2"
-                     [("x", "2")] "get \"a\" (dict [[\"a\", x]])"
-  |> updateElmAssert [("x", "1")] "remove \"b\" (dict [[\"a\", x], [\"b\", 2]])" "dict [[\"a\", 2]]"
-                     [("x", "2")] "remove \"b\" (dict [[\"a\", x], [\"b\", 2]])"
-  |> updateElmAssert [("x", "1")] "insert \"b\" x (dict [[\"a\", x]])" "dict [[\"a\", 1], [\"b\", 2]]"
-                     [("x", "2")] "insert \"b\" x (dict [[\"a\", x]])"
-  |> updateElmAssert [] "insert \"b\" 1 (dict [[\"a\", 2], [\"b\", 3]])" "dict [[\"a\", 1], [\"b\", 2]]"
-                     [] "insert \"b\" 2 (dict [[\"a\", 1], [\"b\", 3]])"
+  |> updateElmAssert [("x", "1")] "get \"a\" (dict [(\"a\", x)])" "Just 2"
+                     [("x", "2")] "get \"a\" (dict [(\"a\", x)])"
+  |> updateElmAssert [("x", "1")] "remove \"b\" (dict [(\"a\", x), (\"b\", 2)])" "dict [(\"a\", 2)]"
+                     [("x", "2")] "remove \"b\" (dict [(\"a\", x), (\"b\", 2)])"
+  |> updateElmAssert [("x", "1")] "insert \"b\" x (dict [(\"a\", x)])" "dict [(\"a\", 1), (\"b\", 2)]"
+                     [("x", "2")] "insert \"b\" x (dict [(\"a\", x)])"
+  |> updateElmAssert [] "insert \"b\" 1 (dict [(\"a\", 2), (\"b\", 3)])" "dict [(\"a\", 1), (\"b\", 2)]"
+                     [] "insert \"b\" 2 (dict [(\"a\", 1), (\"b\", 3)])"
   |> test "recursive delayed"
   |> updateElmAssert [] "f =\n  let x = 1 in\n  \\y -> x + y\n\nf 2" "4"
                      [] "f =\n  let x = 2 in\n  \\y -> x + y\n\nf 2"
   |> updateElmAssert [] "f =\n  let x = 1 in\n  \\y -> x + y\n\nf 2" "4"
                      [] "f =\n  let x = 1 in\n  \\y -> x + y\n\nf 3"
+  |> test "All diffs"
+  |> assertEqual (allStringDiffs "abcabcabc" "abxabcabc" |> Results.toList)
+                    [[DiffEqual "ab", DiffRemoved "c",  DiffAdded "x", DiffEqual "abcabc"]]
+  |> assertEqual (allStringDiffs "ab3ab" "abab" |> Results.toList)
+                    [[DiffEqual "ab", DiffRemoved "3", DiffEqual "ab"]]
+  |> assertEqual (allStringDiffs "aa3aa" "aa" |> Results.toList)
+                    [[DiffEqual "aa", DiffRemoved "3aa"],
+                     [DiffRemoved "aa3", DiffEqual "aa"]]
+  |> assertEqual (alldiffs identity ["a", "b", "3", "a", "b"] ["a", "b", "a", "b"] |> Results.toList)
+                    [[DiffEqual ["a", "b"], DiffRemoved ["3"], DiffEqual ["a", "b"]]]
+  |> assertEqual (alldiffs identity ["a", "a", "3", "a", "a"] ["a", "a"] |> Results.toList)
+                    [[DiffEqual ["a", "a"], DiffRemoved ["3", "a", "a"]],
+                     [DiffRemoved ["a", "a", "3"], DiffEqual ["a", "a"]]]
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
   |> summary

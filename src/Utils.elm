@@ -966,6 +966,23 @@ spanWhile pred list =
        head::tail -> if pred head then aux (head::acc) tail else (List.reverse acc, list)
   in aux [] list
 
+foldLeft: b -> List a -> (b -> a -> b) -> b
+foldLeft acc list fold =
+  List.foldl (Basics.flip fold) acc list
+
+foldLeftWithIndex: b -> List a -> (b -> Int -> a -> b) -> b
+foldLeftWithIndex acc list fold =
+  List.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
+
+
+strFoldLeft: b -> String -> (b -> Char -> b) -> b
+strFoldLeft acc list fold =
+  String.foldl (Basics.flip fold) acc list
+
+strFoldLeftWithIndex: b -> String -> (b -> Int -> Char -> b) -> b
+strFoldLeftWithIndex acc list fold =
+  String.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
+
 -- Use Maybe.map
 mapMaybe = Maybe.map
 

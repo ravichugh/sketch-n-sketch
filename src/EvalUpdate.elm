@@ -105,18 +105,19 @@ builtinEnv =
       ) (Just (\args oldVal newVal -> case args of
       [left, right, x] ->
         let env = [("left", left), ("right", right), ("x", x)] in
-        case UpdateUtils.defaultVDiffs oldVal newVal of
-          Err msg -> Errs msg
-          Ok Nothing -> ok1 args
-          Ok (Just d) ->
-            Update.update (updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) oldVal newVal d) LazyList.Nil LazyList.Nil |>
-              Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
-              Results.map (\(newEnv, _) ->
-                case newEnv.val of
-                  [(_, newLeft), (_, newRight), (_, newX)] -> [newLeft, newRight, newX]
-                  _ -> Debug.crash "[internal error] >> Environment is empty !!!"
-                )
-      _ -> Errs <| ">> expects 2 arguments, got " ++ toString (List.length args)
+        UpdateUtils.defaultVDiffs oldVal newVal |> Results.andThen (\mbd ->
+          case mbd of
+            Nothing -> ok1 args
+            Just d ->
+              Update.update (updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) oldVal newVal d) LazyList.Nil LazyList.Nil |>
+                Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
+                Results.map (\(newEnv, _) ->
+                  case newEnv.val of
+                    [(_, newLeft), (_, newRight), (_, newX)] -> [newLeft, newRight, newX]
+                    _ -> Debug.crash "[internal error] >> Environment is empty !!!"
+                  )
+          )
+      _ -> Errs <| ">> expects 3 arguments, got " ++ toString (List.length args)
     )))
   , ("<<", builtinVal "EvalUpdate.<<" <| VFun "<<" ["left", "right", "x"] (\args ->
     case args of
@@ -127,18 +128,18 @@ builtinEnv =
     ) (Just (\args oldVal newVal -> case args of
     [left, right, x] ->
       let env = [("left", left), ("right", right), ("x", x)] in
-      case UpdateUtils.defaultVDiffs oldVal newVal of
-        Err msg -> Errs msg
-        Ok Nothing -> ok1 args
-        Ok (Just d) ->
-          Update.update (updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) oldVal newVal d) LazyList.Nil LazyList.Nil |>
-            Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
-            Results.map (\(newEnv, _) ->
-              case newEnv.val of
-                [(_, newLeft), (_, newRight), (_, newX)] -> [newLeft, newRight, newX]
-                _ -> Debug.crash "[internal error] << Environment is empty !!!"
-              )
-    _ -> Errs <| "<< expects 2 arguments, got " ++ toString (List.length args)
+      UpdateUtils.defaultVDiffs oldVal newVal |> Results.andThen (\mbd ->
+        case mbd of
+          Nothing -> ok1 args
+          Just d ->
+            Update.update (updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) oldVal newVal d) LazyList.Nil LazyList.Nil |>
+              Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
+              Results.map (\(newEnv, _) ->
+                case newEnv.val of
+                  [(_, newLeft), (_, newRight), (_, newX)] -> [newLeft, newRight, newX]
+                  _ -> Debug.crash "[internal error] << Environment is empty !!!"
+                ))
+    _ -> Errs <| "<< expects 3 arguments, got " ++ toString (List.length args)
   )))
   , ("evaluate", builtinVal "EvalUpdate.evaluate" <| VFun "evaluate" ["program"] (\args ->
       case args of
@@ -165,7 +166,6 @@ builtinEnv =
                 |> Results.andThen (\prog ->
                     -- update = UpdateStack -> LazyList NextAction -> Results (UpdatedEnv, UpdatedExp)
                     UpdateUtils.defaultVDiffs oldVal newVal
-                    |> Results.fromResult
                     |> Results.andThen (\mbDiff ->
                       case mbDiff of
                         Nothing -> ok1 [oldProgram]
@@ -209,7 +209,7 @@ builtinEnv =
                       Nothing -> case Dict.get "diffOutput" d of
                          Nothing -> case Dict.get "diffOut" d of
                            Nothing -> case Dict.get "outDiff" d of
-                             Nothing -> UpdateUtils.defaultVDiffs oldOut newVal
+                             Nothing -> UpdateUtils.defaultVDiffs oldOut newVal |> Results.firstResult
                              Just v -> valToVDiffs v |> Result.map Just
                            Just v -> valToVDiffs v |> Result.map Just
                          Just v -> valToVDiffs v |> Result.map Just
@@ -272,7 +272,8 @@ builtinEnv =
          [original, modifications] ->
            case modifications.v_ of
              VList modifications ->
-               let modificationsWithDiffs = List.map (\m -> UpdateUtils.defaultVDiffs original m |> Result.map (\mbmodifs -> mbmodifs |> Maybe.map (\modifs -> (m, modifs)))) modifications in
+               let modificationsWithDiffs =
+                 List.map (\m -> UpdateUtils.defaultVDiffs original m |> Results.firstResult |> Result.map (\mbmodifs -> mbmodifs |> Maybe.map (\modifs -> (m, modifs)))) modifications in
                case modificationsWithDiffs |> Utils.projOk of
                   Err msg -> Err msg
                   Ok withModifs ->
@@ -285,7 +286,7 @@ builtinEnv =
     VFun "__diff__" ["value_before", "value_after"] (\args ->
       case args of
         [before, after] ->
-          Ok ( defaultVDiffs before after
+          Ok ( defaultVDiffs before after |> Results.firstResult
                  |> Vb.result (Vb.maybe vDiffsToVal) (Vb.fromVal before)
                , [])
         _ -> Err <|  "__diff__ performs the diff on 2 values, but got " ++ toString (List.length args)
@@ -308,12 +309,17 @@ doUpdate oldExp oldVal newValResult =
     --|> Result.map (\x -> let _ = Debug.log "#1" () in x)
     |> Results.fromResult
     |> Results.andThen (\out ->
-      case ImpureGoodies.logTimedRun "UpdateUtils.defaultVDiffs (doUpdate) " <| \_ -> UpdateUtils.defaultVDiffs oldVal out of
-        Err msg -> Errs msg
-        Ok Nothing -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
-        Ok (Just diffs) ->
-          ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
-          update (updateContext "initial update" preludeEnv oldExp oldVal out diffs) LazyList.Nil LazyList.Nil)
+      let thediffs = ImpureGoodies.logTimedRun "UpdateUtils.defaultVDiffs (doUpdate) " <| \_ -> UpdateUtils.defaultVDiffs oldVal out
+      in
+      case thediffs of
+        Errs msg -> Errs msg
+        Oks (LazyList.Nil ) -> Errs "[Internal error] expected a diff or an error, got Nil"
+        Oks (LazyList.Cons Nothing _ ) -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
+        Oks ll ->
+           ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
+            Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
+             update (updateContext "initial update" preludeEnv oldExp oldVal out diffs) LazyList.Nil LazyList.Nil)
+           )
 
 -- Deprecated
 parseAndRun : String -> String

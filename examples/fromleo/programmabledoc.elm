@@ -11,9 +11,9 @@ replaceVariables variablesDict string =
   ) string
 
 content = """<h1>Programmable $document</h1>
-This $document is special. If you add a $ just before a word A, the $ disappear but now everywhere you write $_A, it clones the word.
-This means that if you edit such a word at one place, it will change at another place. '$document' was obtained from such a word, you can change it.<br><br>
-Additionally, to write $_x literally, just write $__x. You can also define shorter names by writing $_x=[longword] instead of $_[longword].
+This $document is special. If you prepend a word A with $, the $ disappears. Now, everywhere you write $_A, it clones the word A.
+This means that edits to A will be propagated to every other occurrences. '$document' was obtained from such a word, you can change it.<br><br>
+Additionally, to write $_x literally, just write $__x. You can also define shorter names by writing $_x=[longword] instead of $[longword].
 """ |>
   replaceVariables variablesDict |>
   Regex.replace "(\\$)_(\\w+)" (\m ->

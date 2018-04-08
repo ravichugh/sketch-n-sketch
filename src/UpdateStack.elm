@@ -71,10 +71,10 @@ updateResult: UpdatedEnv-> UpdatedExp -> UpdateStack
 updateResult updatedEnv exp = UpdateResultS updatedEnv exp Nothing
 
 updateContinue: String -> Env -> Exp -> Val -> Val -> VDiffs -> (UpdatedEnv -> UpdatedExp -> UpdateStack) -> UpdateStack
-updateContinue msg env exp oldVal newVal defaultVDiffs continuation = UpdateContextS env exp oldVal newVal defaultVDiffs (Just (HandlePreviousResult msg <| continuation))
+updateContinue msg env exp oldVal newVal newValDiffs continuation = UpdateContextS env exp oldVal newVal newValDiffs (Just (HandlePreviousResult msg <| continuation))
 
 updateContext: String -> Env -> Exp -> Val -> Val -> VDiffs -> UpdateStack
-updateContext msg env exp oldVal newVal defaultVDiffs = UpdateContextS env exp oldVal newVal defaultVDiffs Nothing
+updateContext msg env exp oldVal newVal newValDiffs = UpdateContextS env exp oldVal newVal newValDiffs Nothing
 
 type alias Output = Val
 type alias PrevOutput = Val
@@ -91,26 +91,32 @@ updateResults updateStack lazyAlternatives =
         Just (updateResults uStack lazyTail)
   ))
 
-updateContinueRepeat: String -> Env -> Exp -> PrevOutput -> Output -> Result String (Maybe VDiffs)->
-                      (Lazy.Lazy (LazyList (Output, Result String (Maybe VDiffs)))) -> (UpdatedEnv -> UpdatedExp -> UpdateStack) -> UpdateStack
-updateContinueRepeat msg env e oldVal newVal diffsResult otherNewValModifs continuation =
-  let updater = case diffsResult of
-    Err msg ->    \continuation -> UpdateCriticalError msg
-    Ok Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp e Nothing)
-    Ok (Just diffs) -> updateContinue msg env e oldVal newVal diffs
-  in updater <| \newUpdatedEnv newUpdatedE ->
+updateResultList: String -> LazyList UpdateStack -> UpdateStack
+updateResultList msg alternatives =
+  case alternatives of
+    LazyList.Nil -> UpdateFails msg
+    LazyList.Cons uStack lazyTail -> updateResults uStack lazyTail
+
+updateContinueRepeat: String -> Env -> Exp -> PrevOutput -> Output -> Results String (Maybe VDiffs)->
+                      (Lazy.Lazy (LazyList (Output, Results String (Maybe VDiffs)))) -> (UpdatedEnv -> UpdatedExp -> UpdateStack) -> UpdateStack
+updateContinueRepeat msg env e oldVal newVal diffsResults otherNewValModifs continuation =
+  updateMany diffsResults
+    (\() -> continuation (UpdatedEnv.original env) (UpdatedExp e Nothing))
+    <| \diffs ->
+  updateContinue msg env e oldVal newVal diffs <| \newUpdatedEnv newUpdatedE ->
     UpdateResultAlternative
       ("Alternative to " ++ msg)
-      (UpdateResultS newUpdatedEnv newUpdatedE <| Just (HandlePreviousResult ("alternative continuation to " ++ msg) continuation)) (otherNewValModifs |> Lazy.map
-      (\ll ->
-        case ll of
-          LazyList.Nil -> Nothing
-          LazyList.Cons (head, headModifs) lazyTail ->
-            Just <| updateContinueRepeat msg env e oldVal head headModifs lazyTail continuation
-      )
+      (UpdateResultS newUpdatedEnv newUpdatedE <| Just (HandlePreviousResult ("alternative continuation to " ++ msg) continuation))
+      (otherNewValModifs |> Lazy.map
+        (\ll ->
+          case ll of
+            LazyList.Nil -> Nothing
+            LazyList.Cons (head, headModifs) lazyTail ->
+              Just <| updateContinueRepeat msg env e oldVal head headModifs lazyTail continuation
+        )
     )
 
-updateAlternatives: String -> Env -> Exp -> PrevOutput -> LazyList (Output, Result String (Maybe VDiffs)) -> (UpdatedEnv -> UpdatedExp -> UpdateStack) -> UpdateStack
+updateAlternatives: String -> Env -> Exp -> PrevOutput -> LazyList (Output, Results String (Maybe VDiffs)) -> (UpdatedEnv -> UpdatedExp -> UpdateStack) -> UpdateStack
 updateAlternatives msg env e oldVal newValsDiffs continuation =
   case newValsDiffs of
     LazyList.Nil -> UpdateFails <| "No solution for " ++ msg
@@ -171,22 +177,34 @@ updateContinueMultiple  msg       env    totalExpValOut                    diffs
                    ", got nothing. We are at index " ++ toString i ++ " / length = " ++ toString (List.length totalExpValOut)
   in aux 0 [] [] (UpdatedEnv.original env) totalExpValOut diffs
 
+updateManyMbHeadTail: a -> Lazy.Lazy (LazyList (Maybe a)) -> (a -> UpdateStack) -> UpdateStack
+updateManyMbHeadTail  firstdiff otherdiffs builder =
+  updateResults (builder firstdiff) (otherdiffs |> Lazy.map (\otherdiffs -> otherdiffs |> LazyList.filterMap identity |> LazyList.map builder))
+
 -- Constructor for combining multiple expressions evaluated in the same environment, when there are multiple values available.
-updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> List PrevOutput -> LazyList (List Output, Result String (Maybe (TupleDiffs VDiffs))) -> UpdateStack
+updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> List PrevOutput -> LazyList (List Output, Results String (Maybe (TupleDiffs VDiffs))) -> UpdateStack
 updateOpMultiple  hint     env    es          eBuilder             prevOutputs        outputs =
   {-let _ = Debug.log ("updateOpMultiple called with " ++ String.join "," (List.map (Syntax.unparser Syntax.Elm) es) ++
           "\nprevOutputs = " ++ (List.map valToString prevOutputs |> String.join ",") ++
           "\nupdates = \n<--" ++ (outputs |> LazyList.toList |> List.map (\(o, d) -> (List.map valToString o |> String.join ",") ++ " (diffs " ++ toString d++ ")" ) |> String.join "\n<-- ")
       ) () in-}
-  let aux: Int -> List Output -> Result String (Maybe (TupleDiffs VDiffs))-> Lazy.Lazy (LazyList (List Output, Result String (Maybe (TupleDiffs VDiffs)))) -> UpdateStack
-      aux  nth    outputsHead    diffResult                                  lazyTail =
+  let aux: Int -> List Output -> Results String (Maybe (TupleDiffs VDiffs))-> Lazy.Lazy (LazyList (List Output, Results String (Maybe (TupleDiffs VDiffs)))) -> UpdateStack
+      aux  nth    outputsHead    diffResult                                   lazyTail =
     let continue = case diffResult of
-       Err msg -> \continuation -> UpdateCriticalError msg
-       Ok Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple es Nothing)
-       Ok (Just diff) -> updateContinueMultiple (hint ++ " #" ++ toString nth) env (Utils.zip3 es prevOutputs outputsHead) diff
+       Errs msg ->
+         \continuation -> UpdateCriticalError msg
+       Oks LazyList.Nil ->
+         \continuation -> UpdateCriticalError "[internal error] Empty diffs in updateOpMultiple"
+       Oks (LazyList.Cons Nothing _) ->
+         \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple es Nothing)
+       Oks (LazyList.Cons (Just d) tail) ->
+         \continuation -> updateManyMbHeadTail d tail <| \diff ->
+           updateContinueMultiple (hint ++ " #" ++ toString nth) env (Utils.zip3 es prevOutputs outputsHead) diff continuation
     in
        UpdateResultAlternative "UpdateResultAlternative maybeOp"
-         (continue <| \newUpdatedEnv newUpdatedOpArgs -> updateResult newUpdatedEnv (UpdatedExp (eBuilder newUpdatedOpArgs.val) (Maybe.map EChildDiffs newUpdatedOpArgs.changes)))
+         (continue <| \newUpdatedEnv newUpdatedOpArgs ->
+           let newUpdatedExp = UpdatedExp (eBuilder newUpdatedOpArgs.val) (Maybe.map EChildDiffs newUpdatedOpArgs.changes) in
+           updateResult newUpdatedEnv newUpdatedExp)
          (lazyTail |> Lazy.map (\ll ->
            --let _ = Debug.log ("Starting to evaluate another alternative if it exists ") () in
            case ll of
@@ -199,3 +217,27 @@ updateOpMultiple  hint     env    es          eBuilder             prevOutputs  
     LazyList.Cons (outputsHead, headDiffs) lazyTail ->
       aux 1 outputsHead headDiffs lazyTail
 
+updateMany: Results String (Maybe vdiffs) -> (() -> UpdateStack) -> (vdiffs -> UpdateStack) -> UpdateStack
+updateMany diffResult onSame builder =
+  case diffResult of
+    Errs msg -> UpdateCriticalError msg
+    Oks ll ->
+      case ll of
+        LazyList.Nil -> UpdateCriticalError "[internal error] Expected at least one diff, got nothing"
+        LazyList.Cons Nothing _ -> onSame ()
+        LazyList.Cons (Just d) tail ->
+          updateManyMbHeadTail d tail builder
+
+updateManyHeadTail: a -> Lazy.Lazy (LazyList a) -> (a -> UpdateStack) -> UpdateStack
+updateManyHeadTail  firstdiff otherdiffs builder =
+  updateResults (builder firstdiff) (otherdiffs |> Lazy.map (\otherdiffs -> otherdiffs |> LazyList.map builder))
+
+updateManys: Results String (List (Maybe vdiffs)) -> (List (Maybe vdiffs) -> UpdateStack) -> UpdateStack
+updateManys diffResult builder =
+  case diffResult of
+    Errs msg -> UpdateCriticalError msg
+    Oks ll ->
+      case ll of
+        LazyList.Nil -> UpdateCriticalError "[internal error] Expected at least one diff, got nothing"
+        LazyList.Cons l tail ->
+          updateManyHeadTail l tail builder

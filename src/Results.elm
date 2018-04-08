@@ -1,10 +1,11 @@
 module Results exposing
   ( Results(Oks, Errs)
-  , withDefault
+  , withDefault, withDefault1
   , ok1, oks, okLazy, errs
   , map, map2, map2withError, andThen, flatten, filter
-  , toMaybe, fromMaybe, fromResult, mapErrors
-  , fold
+  , toMaybe, fromMaybe, fromResult, mapErrors, projOk
+  , fold, toList
+  , firstResult
   )
 
 import Lazy
@@ -59,6 +60,15 @@ projOks l =
         Oks Nil -> Errs msg
         result -> result
 
+projOk: List (Results e a) -> Results e (List a)
+projOk l = case l of
+  [] -> ok1 []
+  head::tail -> head |> andThen (\a ->
+    projOk tail |> map (\atail ->
+      a::atail
+    )
+  )
+
 fold: (e -> x) -> (LazyList a -> x) -> Results e a -> x
 fold errsMap oksMap res = case res of
   Errs e -> errsMap e
@@ -76,6 +86,19 @@ withDefault def results =
     Errs _ ->
         def
 
+withDefault1 : a -> Results x a -> a
+withDefault1 def results =
+  case results of
+    Oks (LazyList.Cons value _) ->
+      value
+    _ ->
+      def
+
+firstResult: Results String a -> Result String a
+firstResult r = case r of
+  Errs msg -> Err msg
+  Oks LazyList.Nil -> Err "No result"
+  Oks (LazyList.Cons head _) -> Ok head
 
 {-| Apply a function to a results. If the results is `Oks`, it will be converted.
 If the results is an `Errs`, the same error value will propagate through.
@@ -219,3 +242,8 @@ fromResult res =
   case res of
     Err msg -> Errs msg
     Ok a -> ok1 a
+
+toList: Results e a -> List a
+toList r = case r of
+  Errs msg -> []
+  Oks ll -> LazyList.toList ll

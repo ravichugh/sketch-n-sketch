@@ -138,11 +138,11 @@ extractHeadTail msg list continuation =
      [] -> Err msg
      head::tail -> continuation (head, tail)
 
-valToMatch: Val -> (RegexMatch -> Result String b) -> Result String b
+valToMatch: Val -> (RegexMatch -> Results String b) -> Results String b
 valToMatch v continuation =
-  let try: Result String a -> (a -> Result String b) -> Result String b
-      try = flip Result.andThen in
-  let get: Dict.Dict String a -> String -> (a -> Result String b) -> Result String b
+  let try: Result String a -> (a -> Results String b) -> Results String b
+      try a b = Results.andThen b (Results.fromResult a) in
+  let get: Dict.Dict String a -> String -> (a -> Results String b) -> Results String b
       get d k = try (Dict.get k d |> Result.fromMaybe ("Key " ++ k ++ " not found")) in
   try (Vu.record Vu.identity v) <| \rd -> let g = get rd in
     g "match" <| \vmatch -> g "submatches" <| \vsubmatches -> g "group"  <| \vgroup ->
@@ -156,7 +156,7 @@ valToMatch v continuation =
     continuation (RegexMatch match submatches groups start index number)
 
 -- Reverse operation of matchToVal
-recoverMatchedString : RegexMatch -> Val -> Result String String {- The matched string -}
+recoverMatchedString : RegexMatch -> Val -> Results String String {- The matched string -}
 recoverMatchedString  oldRegexMatch newV =
   valToMatch newV <| \newRegexMatch ->
     let oldMatch      = oldRegexMatch.match
@@ -173,21 +173,21 @@ recoverMatchedString  oldRegexMatch newV =
         newStarts     = newRegexMatch.start in
       -- Now we need to look for the updated match.
     if newMatch /= oldMatch then
-      Ok newMatch
+      ok1 newMatch
     else if newIndex /= oldIndex then
-      Err "Cannot update the index of a matched regular expression, only the string itself !"
+      Errs "Cannot update the index of a matched regular expression, only the string itself !"
     else if newNumber /= oldNumber then
-      Err "Cannot update the index of a matched regular expression, only the string itself !"
+      Errs "Cannot update the index of a matched regular expression, only the string itself !"
     else if List.length newSubmatches /= List.length oldSubmatches then
-      Err "Cannot change the length of the submatches, only the strings"
+      Errs "Cannot change the length of the submatches, only the strings"
     else if oldStarts /= newStarts then
-      Err "Cannot change the start positions of the subgroup, only the strings"
+      Errs "Cannot change the start positions of the subgroup, only the strings"
     else if List.length newGroups /= List.length oldGroups then
-      Err "Cannot change the length of the group list, only the strings"
+      Errs "Cannot change the length of the group list, only the strings"
     else -- Maybe a subgroup has been changed ?
-      let defaultStringDiff o s = Ok (if o == s then Nothing else Just VConstDiffs) in
-      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups newGroups |> Result.andThen (\mb1 ->
-      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups (newMatch::newSubmatches) |> Result.andThen (\mb2 ->
+      let defaultStringDiff o s = ok1 (if o == s then Nothing else Just VConstDiffs) in
+      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups newGroups |> Results.andThen (\mb1 ->
+      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups (newMatch::newSubmatches) |> Results.andThen (\mb2 ->
 
       let allsubgroups = case (mb1, mb2) of
         (_, Nothing) -> newGroups
@@ -202,10 +202,10 @@ recoverMatchedString  oldRegexMatch newV =
       in
       -- We recover all changes and push only the biggest ones if there are conflicts.
       List.map3 (\mo so m2 ->
-       if mo == m2 then Ok Nothing
-       else Ok <| Just (so - startMatch, so - startMatch + String.length mo, m2)
+       if mo == m2 then ok1 Nothing
+       else ok1 <| Just (so - startMatch, so - startMatch + String.length mo, m2)
       ) oldGroups oldStarts allsubgroups
-      |> Utils.projOk |> Result.map (\transformations ->
+      |> Results.projOk |> Results.map (\transformations ->
         let finalMatch = List.filterMap identity transformations |> mergeTransformations oldMatch in
         finalMatch
       )
@@ -319,17 +319,16 @@ updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV strin
                   -- let _ = Debug.log "regex7" () in
                   stringsAndLambdas |> List.map (\e ->
                     case eStrUnapply e of
-                      Just s -> Ok s
+                      Just s -> ok1 s
                       Nothing -> case appMatchArg e of
-                        Err s -> Err s
+                        Err s -> Errs s
                         Ok argname -> case Dict.get argname argumentsMatchesDict of
-                          Nothing -> Err <| "Could not find " ++ argname ++ " in " ++ toString argumentsMatchesDict
+                          Nothing -> Errs <| "Could not find " ++ argname ++ " in " ++ toString argumentsMatchesDict
                           Just oldMatch -> case Dict.get argname newArgumentsDicts of
                             Just newVal -> recoverMatchedString oldMatch newVal
-                            Nothing -> Err <| "Could not find " ++ argname ++ " in new environment"
+                            Nothing -> Errs <| "Could not find " ++ argname ++ " in new environment"
                     )
-                  |> Utils.projOk
-                  |> Results.fromResult
+                  |> Results.projOk
                   |> Results.andThen (\newStrings ->
                       let newString = String.join "" newStrings in
                       ok1 (regexpV, newReplacementV, Vb.string (Vb.fromVal stringV) newString)

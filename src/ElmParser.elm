@@ -2367,6 +2367,7 @@ topLevelTypeDeclaration =
             |= topLevelInsideDefSpacePolicy.first
         )
         ( succeed identity
+          |. symbol ":"
           |= typ topLevelInsideDefSpacePolicy
           |. optionalTopLevelSemicolon
         )

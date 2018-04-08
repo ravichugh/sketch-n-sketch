@@ -10,6 +10,9 @@ isEmpty l = case l of
   Nil -> True
   _ -> False
 
+apply1: a -> LazyList a
+apply1 a = cons a Nil
+
 -- Useful if the tail is already computed.
 cons: v -> LazyList v -> LazyList v
 cons head tail = Cons head <| lazy <| \() -> tail
@@ -45,6 +48,15 @@ filter isok l =
     Cons head lazyTail ->
       if isok head then Cons head (Lazy.map (filter isok) lazyTail)
       else filter isok <| force lazyTail
+
+filterMap: (v -> Maybe w) -> LazyList v -> LazyList w
+filterMap f l =
+  case l of
+    Nil -> Nil
+    Cons head tail -> case f head of
+      Nothing ->  filterMap f (Lazy.force tail)
+      Just newHead -> Cons newHead <| Lazy.map (filterMap f) tail
+
 
 flatten: LazyList (LazyList a) -> LazyList a
 flatten l =

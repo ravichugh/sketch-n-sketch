@@ -3,18 +3,20 @@ module UpdateUtils exposing (..)
 import Lang exposing (..)
 import LangUtils exposing (..)
 import Syntax
-import Results exposing (Results(..), ok1)
+import Results exposing (Results(..), ok1, oks)
 import LazyList exposing (LazyList(..))
 import Dict exposing (Dict)
 import Info exposing (WithInfo)
 import LangUtils exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pruneEnvPattern, valToString)
 import Regex
-import Utils
+import Utils exposing (foldLeft, strFoldLeft, foldLeftWithIndex, strFoldLeftWithIndex)
 import Set exposing (Set)
 import Pos exposing (Pos)
 import ValBuilder as Vb
 import ValUnbuilder as Vu
 import UpdateUnoptimized
+import ElmUnparser
+import ImpureGoodies
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -212,6 +214,200 @@ diff keyOf before after =
     (DiffEqual (List.drop startNew after |> List.take subLength) ::
       diff keyOf  (List.drop (startOld + subLength) before) (List.drop (startNew + subLength) after))
 
+-- Returns all diffs that are equally probable, i.e. with the smaller number of added/removed chars.
+alldiffs: (a -> String) -> List a -> List a -> Results String (List (DiffChunk (List a)))
+alldiffs keyOf before after =
+    {- Adapted from https://github.com/paulgb/simplediff/blob/master/javascript/simplediff.js
+        Find the differences between two lists. Returns a list of pairs, where the
+        first value is in ['+','-','='] and represents an insertion, deletion, or
+        no change for that list. The second value of the pair is the list
+        of elements.
+        Params:
+            before  the old list of immutable, comparable values (ie. a list
+                    of strings)
+            after   the new list of immutable, comparable values
+        Returns:
+            A list of pairs, with the first part of the pair being one of three
+            strings ('-', '+', '=') and the second part being a list of values from
+            the original before and/or after lists. The first part of the pair
+            corresponds to whether the list of values is a deletion, insertion, or
+            unchanged, respectively.
+            diff(   [a,b,3,a,b],[a,b,a,b]) --Here there should not be any ambiguity (if yes, there is duplication of results)
+            overlap [1[0:1],0     ,0,1[0:1],0     ] weight = [1, _, _, 2 + 3, _]
+            overlap [0     ,2[0:2],0,0     ,2[0:2]] weight = [_, 1, _, _,   3+2]
+            overlap [1[2:3],0     ,0,1[2:3],0     ] weight = [2+3, _, _, 1, _]
+            overlap [0     ,2[2:3],0,0     ,2[2:3]] weight = [_, 3+2, _, _,  1]
+            Minimum weights for maximum coverage gives that [0:2] comes from [0:2] on one side, and [2:4] comes from [3:5].
+            We take the first one, because the other one will be found later anyway because it's on the right of [0:2]
+            diff(   [a,a,3,a,a],[a,a]) --Here there is ambiguity, do we remove a,a,3 or 3,a,a ?
+            overlap [1[0:1],1[0:1],0,1[0:1],1[0:1]] weight = [3, 1+2, _, 3, 4+1]
+            overlap [1[0:1],2[0:2],0,1[0:1],2[0:2]] weight = [1+4, 3, _, 2+1, 3]
+            Minimum weights for maximum coverage gives that [0:2] comes from [0:2] and [3:5] with equal weights, so there is ambiguity
+
+            How to measure the difference? We should give some weights to these maximum. If they are equal, there is ambiguity
+            If not, one is prefered.
+
+        Examples:
+            diff([1,2,3,4],[1,3,4])
+            [["=",[1]],["-",[2]],["=",[3,4]]]
+            diff([1,2,3,4],[2,3,4,1])
+            [["-",[1]],["=",[2,3,4]],["+",[1]]]
+            diff('The quick brown fox jumps over the lazy dog'.split(/[ ]+/),
+                'The slow blue cheese drips over the lazy carrot'.split(/[ ]+/))
+            [["=",["The"]],
+             ["-",["quick","brown","fox","jumps"]],
+             ["+",["slow","blue","cheese","drips"]],
+             ["=",["over","the","lazy"]],
+             ["-",["dog"]],
+             ["+",["carrot"]]]
+    -}
+
+    -- Create a Dict from before values to the list of every index at which they appears
+    -- In this variables, the biggest indices appear first
+    let oldIndexMapRev =
+      foldLeftWithIndex Dict.empty before <|
+              \d indexBeforeValue beforeValue ->
+         Dict.update (keyOf beforeValue) (
+           Just << (\v -> indexBeforeValue :: v) << Maybe.withDefault []
+         ) d
+    in
+    -- Here the smaller indices appear first.
+    let valueToIndexBefore = Dict.map (\k v -> List.reverse v) oldIndexMapRev in
+
+    -- Find the largest substring common to before and after.
+    -- We use a dynamic programming approach here.
+    -- We iterate over each value in the `after` list.
+    -- At each iteration, `overlap[inew]` is the
+    -- length of the largest substring of `before.slice(0, iold)` equal
+    -- to a substring of `after.splice(0, iold)` (or unset when
+    -- `before[iold]` != `after[inew]`).
+    -- At each stage of iteration, the new `overlap` (called
+    -- `_overlap` until the original `overlap` is no longer needed)
+    -- is built from the old one.
+    -- If the length of overlap exceeds the largest substring
+    -- seen so far (`subLength`), we update the largest substring
+    -- to the overlapping strings.
+
+    -- `startOldNew` is a list of pairs consisting of the index of the beginning of the largest overlapping
+    -- substring in the before list, and the index of the beginning
+    -- of the same substring in the after list. `subLength` is the length that
+    -- overlaps in both.
+    -- These track the largest overlapping substring seen so far, so naturally
+    -- we start with a 0-length substring.
+    -- overlap is a Dict (old index: Int) (length of greater common substring after index included: Int, weight: Int)
+    let afterLength = List.length after in
+    let beforeLength = List.length before in
+    let (overlap, startOldNew, subLength, weight) =
+         foldLeftWithIndex (Dict.empty, [],          0,        -(List.length before + List.length after))                    after <|
+                          \(overlap,    startOldNew, subLength, weight) afterIndex afterValue ->
+           let oldIndicesWhereAfterAppeared = valueToIndexBefore |> Dict.get (keyOf afterValue) |> Maybe.withDefault [] in
+           -- We look for the longest sequence in a row where after values appeared consecutively in before.
+           foldLeft (Dict.empty, startOldNew, subLength, weight) oldIndicesWhereAfterAppeared <|
+                   \(overlap_,   startOldNew, subLength_, weight_) oldIdxAfterValue ->
+              -- now we are considering all values of val such that
+              -- `before[oldIdxAfterValue] == after[afterIndex]`
+              let newSubLength = (if oldIdxAfterValue == 0 then 0 else Dict.get (oldIdxAfterValue - 1) overlap |>
+                   Maybe.map Tuple.first |> Maybe.withDefault 0) + 1 in
+              let newWeight = 0 - abs ((afterLength - afterIndex) - (beforeLength - oldIdxAfterValue)) -
+                abs (afterIndex - oldIdxAfterValue) in
+              let newOverlap_ = Dict.insert oldIdxAfterValue (newSubLength, newWeight) overlap_ in
+              if newSubLength + newWeight > subLength_ + weight_ then -- No ambiguity, we erase the previous startOldNew
+                   (newOverlap_, [(oldIdxAfterValue - newSubLength + 1, afterIndex - newSubLength + 1)] , newSubLength, newWeight)
+              else if newSubLength + newWeight == subLength_ + weight_ && subLength_ + weight_ > subLength + weight then -- Ambiguity
+                   (newOverlap_, (oldIdxAfterValue - newSubLength + 1, afterIndex - newSubLength + 1)::startOldNew , newSubLength, newWeight)
+              else (newOverlap_, startOldNew, subLength_, weight_)
+    in
+    if subLength == 0 then
+        -- If no common substring is found, we return an insert and delete...
+        ok1 <| (if List.isEmpty before then  [] else [DiffRemoved before]) ++
+               (if List.isEmpty after then [] else [DiffAdded after])
+    else
+      flip Results.andThen (oks (List.reverse startOldNew)) <| \(startOld, startNew) ->
+        -- otherwise, the common substring is unchanged and we recursively
+        -- diff the text before and after that substring
+        let left = alldiffs keyOf (List.take startOld before) (List.take startNew after) in
+        let right = alldiffs keyOf  (List.drop (startOld + subLength) before) (List.drop (startNew + subLength) after) in
+        flip Results.andThen left <| \leftDiffs ->
+          flip Results.map right <| \rightDiffs ->
+            leftDiffs ++ (DiffEqual (List.drop startNew after |> List.take subLength) :: rightDiffs)
+
+
+-- Faster implementation of allDiffs for tow strings
+allStringDiffs: String -> String -> Results String (List (DiffChunk String))
+allStringDiffs before after =
+    -- Create a Dict from before values to the list of every index at which they appears
+    -- In this variables, the biggest indices appear first
+    let oldIndexMapRev =
+      strFoldLeftWithIndex Dict.empty before <|
+              \d indexBeforeValue  beforeChar ->
+         Dict.update beforeChar (
+           Just << (\v -> indexBeforeValue :: v) << Maybe.withDefault []
+         ) d
+    in
+    -- Here the smaller indices appear first.
+    let valueToIndexBefore = Dict.map (\k v -> List.reverse v) oldIndexMapRev in
+
+    -- Find the largest substring common to before and after.
+    -- We use a dynamic programming approach here.
+    -- We iterate over each value in the `after` list.
+    -- At each iteration, `overlap[inew]` is the
+    -- length of the largest substring of `before.slice(0, iold)` equal
+    -- to a substring of `after.splice(0, iold)` (or unset when
+    -- `before[iold]` != `after[inew]`).
+    -- At each stage of iteration, the new `overlap` (called
+    -- `_overlap` until the original `overlap` is no longer needed)
+    -- is built from the old one.
+    -- If the length of overlap exceeds the largest substring
+    -- seen so far (`subLength`), we update the largest substring
+    -- to the overlapping strings.
+
+    -- `startOldNew` is a list of pairs consisting of the index of the beginning of the largest overlapping
+    -- substring in the before list, and the index of the beginning
+    -- of the same substring in the after list. `subLength` is the length that
+    -- overlaps in both.
+    -- These track the largest overlapping substring seen so far, so naturally
+    -- we start with a 0-length substring.
+    -- overlap is a Dict (old index: Int) (length of greater common substring after index included: Int, weight: Int)
+    let afterLength = String.length after in
+    let beforeLength = String.length before in
+    let (overlap, startOldNew, subLength, weight) =
+         strFoldLeftWithIndex (Dict.empty, [],          0,         -(String.length before + String.length after)) after <|
+                             \(overlap,    startOldNew, subLength, weight)                             afterIndex afterChar ->
+           let oldIndicesWhereAfterAppeared = valueToIndexBefore |> Dict.get afterChar |> Maybe.withDefault [] in
+           -- We look for the longest sequence in a row where after values appeared consecutively in before.
+           -- let _ = ImpureGoodies.log <| "start of round\noverlap="++toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
+           foldLeft    (Dict.empty, startOldNew, subLength, weight) oldIndicesWhereAfterAppeared <|
+                      \(overlap_,   startOldNew, subLength_, weight_) oldIdxAfterChar ->
+              -- now we are considering all values of val such that
+              -- `before[oldIdxAfterChar] == after[afterIndex]`
+              let newSubLength = (if oldIdxAfterChar == 0 then 0 else Dict.get (oldIdxAfterChar - 1) overlap |>
+                   Maybe.map Tuple.first |> Maybe.withDefault 0) + 1 in
+              --let _ = ImpureGoodies.log <| "overlap_=" ++ toString overlap_ ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength_=" ++ toString subLength_ ++ ", weight_=" ++ toString weight_ in
+              let newWeight = 0 - abs ((afterLength - afterIndex) - (beforeLength - oldIdxAfterChar)) -
+                abs (afterIndex - oldIdxAfterChar) in
+              let newOverlap_ = Dict.insert oldIdxAfterChar (newSubLength, newWeight) overlap_ in
+              if newSubLength + newWeight > subLength_ + weight_ then
+                   (newOverlap_, [(oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)] , newSubLength, newWeight)
+              else if newSubLength + newWeight == subLength_ + weight_ && subLength_ + weight_ > subLength + weight then -- Ambiguity
+                   (newOverlap_, (oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)::startOldNew , newSubLength, newWeight)
+              else (newOverlap_, startOldNew,                         subLength_, newWeight)
+    in
+    --let _ = ImpureGoodies.log <| "End of process\noverlap=" ++ toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
+    if subLength == 0 then
+        -- If no common substring is found, we return an insert and delete...
+        ok1 <| (if String.isEmpty before then [] else [DiffRemoved before]) ++
+               (if String.isEmpty after  then [] else [DiffAdded after])
+    else
+      flip Results.andThen (oks (List.reverse startOldNew)) <| \(startOld, startNew) ->
+        -- otherwise, the common substring is unchanged and we recursively
+        -- diff the text before and after that substring
+        let left = allStringDiffs (String.left startOld before) (String.left startNew after) in
+        let right = allStringDiffs  (String.dropLeft (startOld + subLength) before) (String.dropLeft (startNew + subLength) after) in
+        flip Results.andThen left <| \leftDiffs ->
+          flip Results.map right <| \rightDiffs ->
+            leftDiffs ++ (DiffEqual (String.slice startNew (startNew + subLength) after) :: rightDiffs)
+
+
 type Diff3Chunk a = Diff3Merged (DiffChunk a) | Diff3Conflict (List (DiffChunk a)) (List (DiffChunk a))
 
 diff3ChunkMap: (a -> b) -> Diff3Chunk a -> Diff3Chunk b
@@ -336,10 +532,13 @@ type ListElemDiff a = ListElemUpdate a | ListElemInsert Int | ListElemDelete Int
 
 type VDictElemDiff = VDictElemDelete | VDictElemInsert | VDictElemUpdate VDiffs
 
+type StringDiffs = StringUpdate {-original start: -}Int {-original end: -}Int {- chars replacing -}Int
+
 type alias EnvDiffs = TupleDiffs VDiffs
 -- The environment of a closure if it was modified, the modifications of an environment else.
 type VDiffs = VClosureDiffs EnvDiffs (Maybe EDiffs)
             | VListDiffs (ListDiffs VDiffs)
+            | VStringDiffs (List StringDiffs)
             | VDictDiffs (Dict (String, String) VDictElemDiff)
             | VRecordDiffs (Dict String VDiffs)
             | VConstDiffs
@@ -347,6 +546,7 @@ type VDiffs = VClosureDiffs EnvDiffs (Maybe EDiffs)
 
 type EDiffs = EConstDiffs EWhitespaceDiffs
             | EListDiffs (ListDiffs EDiffs)
+            | EStringDiffs (List StringDiffs)
             | EChildDiffs (TupleDiffs EDiffs) -- Also for records
 
 type EWhitespaceDiffs = EOnlyWhitespaceDiffs | EAnyDiffs
@@ -385,6 +585,16 @@ listElemDiffToVal subroutine vb velem = case velem of
    ListElemInsert i -> (Vb.constructor vb) "ListElemInsert" [(Vb.int vb) i]
    ListElemDelete i -> (Vb.constructor vb) "ListElemDelete" [(Vb.int vb) i]
 
+stringDiffsToVal: Vb.Vb -> StringDiffs -> Val
+stringDiffsToVal vb sd = case sd of
+  StringUpdate start end replaced -> Vb.constructor vb "StringUpdate" [Vb.int vb start, Vb.int vb end, Vb.int vb replaced]
+
+valToStringDiffs: Val -> Result String StringDiffs
+valToStringDiffs v = case Vu.constructor Ok v of
+  Ok ("StringUpdate", [startV, endV, replacedV]) ->
+    Result.map3 StringUpdate (Vu.int startV) (Vu.int endV) (Vu.int replacedV)
+  _ -> Err <| "Expected StringUpdate, got " ++ valToString v
+
 valToListElemDiff: (Val -> Result String a) -> Val -> Result String (ListElemDiff a)
 valToListElemDiff subroutine v = case Vu.constructor Ok v of
   Ok ("ListElemUpdate", [d]) -> subroutine d |> Result.map ListElemUpdate
@@ -419,6 +629,7 @@ vDiffsToVal: Vb.Vb -> VDiffs -> Val
 vDiffsToVal vb vdiffs = case vdiffs of
   VClosureDiffs e mbe -> (Vb.constructor vb) "VClosureDiffs" [envDiffsToVal vb e, Vb.maybe eDiffsToVal vb mbe]
   VListDiffs list     -> (Vb.constructor vb) "VListDiffs"    [listDiffsToVal vDiffsToVal vb list]
+  VStringDiffs list   -> (Vb.constructor vb) "VStringDiffs"  [Vb.list stringDiffsToVal vb list]
   VConstDiffs         -> (Vb.constructor vb) "VConstDiffs"   []
   VDictDiffs d        -> (Vb.constructor vb) "VDictDiffs"    [Vb.dict vDictElemDiffToVal vb d]
   VRecordDiffs d      -> (Vb.constructor vb) "VRecordDiffs"  [Vb.record vDiffsToVal vb d]
@@ -428,11 +639,12 @@ valToVDiffs: Val -> Result String VDiffs
 valToVDiffs v = case Vu.constructor Ok v of
   Ok ("VClosureDiffs", [v1, v2]) -> Result.map2 VClosureDiffs (valToEnvDiffs v1) (Vu.maybe valToEDiffs v2)
   Ok ("VListDiffs"   , [l]) -> valToListDiffs valToVDiffs l |> Result.map VListDiffs
+  Ok ("VStringDiffs",  [l]) -> Vu.list valToStringDiffs l |> Result.map VStringDiffs
   Ok ("VConstDiffs"  , []) -> Ok VConstDiffs
   Ok ("VDictDiffs"   , [d]) -> Vu.dict valToVDictElemDiff d|> Result.map VDictDiffs
   Ok ("VRecordDiffs", [d]) -> Vu.record valToVDiffs d |> Result.map VRecordDiffs
   Ok ("VUnoptimizedDiffs", []) -> Ok VUnoptimizedDiffs
-  Ok (name, args) -> Err <| "Expected VClosureDiffs _ _, VListDiffs _, VConstDiffs, VDictDiffs _, VRecordDiffs _, got " ++
+  Ok (name, args) -> Err <| "Expected VClosureDiffs _ _, VListDiffs _, VStringDiffs, VConstDiffs, VDictDiffs _, VRecordDiffs _, got " ++
     valToString v ++ " (constructor = " ++ name ++ " with " ++ toString (List.length args) ++ "arguments)"
   Err msg -> Err msg
 
@@ -440,14 +652,16 @@ eDiffsToVal: Vb.Vb -> EDiffs -> Val
 eDiffsToVal vb ediffs = case ediffs of
   EConstDiffs ws -> Vb.constructor vb "EConstDiffs" [Vb.int vb (if ws == EOnlyWhitespaceDiffs then 0 else 1)]
   EListDiffs list -> Vb.constructor vb "EListDiffs" [listDiffsToVal eDiffsToVal vb list]
+  EStringDiffs list -> Vb.constructor vb "EStringDiffs" [Vb.list stringDiffsToVal vb list]
   EChildDiffs children -> Vb.constructor vb "EChildDiffs" [tupleDiffsToVal eDiffsToVal vb children]
 
 valToEDiffs: Val -> Result String EDiffs
 valToEDiffs v = case Vu.constructor Ok v of
   Ok ("EConstDiffs", [i]) -> Vu.int i |> Result.map (\i -> EConstDiffs <| if i == 0 then EOnlyWhitespaceDiffs else EAnyDiffs)
   Ok ("EListDiffs", [list]) -> valToListDiffs valToEDiffs list |> Result.map EListDiffs
+  Ok ("EStringDiffs", [list]) -> Vu.list valToStringDiffs list |> Result.map EStringDiffs
   Ok ("EChildDiffs", [list]) -> valToTupleDiffs valToEDiffs list |> Result.map EChildDiffs
-  Ok _ -> Err <| "Expected EConstDiffs, EListDiffs, EChildDiffs, got " ++ valToString v
+  Ok _ -> Err <| "Expected EConstDiffs, EListDiffs, EStringDiffs, EChildDiffs, got " ++ valToString v
   Err msg -> Err msg
 
 {-
@@ -492,7 +706,23 @@ envDiffsToString_ = tupleDiffsToString (Just "environment") <| \indent (kOrigina
 
 envDiffsToString = envDiffsToString_ ""
 
-
+stringDiffsToString: String -> String -> String -> List StringDiffs -> String
+stringDiffsToString  indent    original  modified  diffs =
+  let aux acc offset diffs = case diffs of
+    [] -> String.join ", " (List.reverse acc)
+    StringUpdate start end replacement :: tail ->
+       let accInc = if start == end then -- Pure insertion
+            "\n" ++ indent ++ "Inserted: '" ++ String.slice (start + offset) replacement modified ++ "'"
+         else if replacement == 0 then -- Pure deletion
+            "\n" ++ indent ++ "Removed: '" ++ String.slice start end original ++ "'"
+         else -- Replacement
+            "\n" ++ indent ++ "Replaced '" ++ String.slice start end original ++ "' by '"++ String.slice (start + offset) replacement modified ++"'"
+       in
+       let newOffset = offset - (end - start) + replacement in
+       let newAcc = accInc::acc in
+       aux newAcc newOffset tail
+  in
+  aux [] 0 diffs
 
 vDiffsToString_: String -> Val -> Val -> VDiffs-> String
 vDiffsToString_ indent vOriginal vModified vDiffs =
@@ -502,6 +732,11 @@ vDiffsToString_ indent vOriginal vModified vDiffs =
         (VList originals, VList modified) ->
           "\n" ++ indent ++ "A list was modified:" ++ vListDiffsToString indent originals modified diffs
         _ -> "[Internal error] vDiffsToString " ++ toString vDiffs ++ " expects lists here, got " ++ valToString vOriginal ++ ", " ++ valToString vModified
+    VStringDiffs diffs ->
+      case (vOriginal.v_, vModified.v_) of
+        (VBase (VString original), VBase (VString modified)) ->
+          stringDiffsToString indent original modified diffs
+        _ -> "[Internal error] vDiffsToString_ " ++ toString vDiffs ++ " expects strings here, got " ++ valToString vOriginal ++ ", " ++ valToString vModified
     VDictDiffs diffs ->
       case (vOriginal.v_, vModified.v_) of
         (VDict originals, VDict modified) ->
@@ -538,11 +773,11 @@ listDiffsToString structName subroutine displayElemModif elementDisplay indent o
           case change of
             ListElemDelete count ->
               let (originalRemoved, originalKept) = Utils.split count original in
-              acc ++ "\n" ++ indent ++ "[removed] " ++ (List.map elementDisplay originalRemoved |> String.join ",") |>
+              acc ++ "\n" ++ indent ++ "Removed " ++ (List.map elementDisplay originalRemoved |> String.join ",") |>
               aux (i + 1) originalKept modifieds diffsTail
             ListElemInsert count ->
               let (modifiedInserted, modifiedTail) = Utils.split count modifieds in
-              acc ++ "\n" ++ indent ++ "[inserted] " ++ (List.map elementDisplay modifiedInserted |> String.join ",") |>
+              acc ++ "\n" ++ indent ++ "Inserted " ++ (List.map elementDisplay modifiedInserted |> String.join ",") |>
               aux (i + 1) original modifiedTail diffsTail
 
             ListElemUpdate diff ->
@@ -673,7 +908,7 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
               let afterS = "" in
               let (newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
               let removedExp = dummyExp1 "removed" lastPos.line lastPos.col lastPos.line (lastPos.col + 1) in
-              ( accStr ++ "\n" ++ indent ++ "[removed] " ++ beforeS,
+              ( accStr ++ "\n" ++ indent ++ "Removed " ++ beforeS,
                 removedExp::accList) |>
               aux (i + 1) newLastEdit lastPos originalKept modifieds diffsTail
             ListElemInsert count ->
@@ -682,7 +917,7 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
               let afterS = modifiedInserted |> List.indexedMap (\k (sp, e) -> (if i + k > 0 then sp.val ++ "," else "") ++ elementDisplay e) |> String.join "" in
               let (newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
               let insertedExp = dummyExp1 "inserted" lastPos.line lastPos.col newEnd.line newEnd.col in
-              (accStr ++ "\n" ++ indent ++ "[inserted] " ++ afterS,
+              (accStr ++ "\n" ++ indent ++ "Inserted " ++ afterS,
                 insertedExp::accList) |>
               aux (i + 1) newLastEdit newEnd original modifiedTail diffsTail
 
@@ -705,6 +940,38 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
                   (List.map elementDisplay (Utils.listValues originals) |> String.join ",")  ++ "and" ++
                   (List.map elementDisplay (Utils.listValues modifieds) |> String.join ","), ((lastEdit, lastPos), accList))
   in aux 0 lastEdit lastPos originals modifieds diffs ("", [])
+
+
+stringDiffsToString2: ParensStyle -> String -> LastEdit -> Pos   -> String -> String -> String -> List StringDiffs -> (String, ((LastEdit, Pos), List Exp))
+stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar original  modified  diffs =
+  let renderChars = if renderingStyle == LongStringSyntax
+     then ElmUnparser.unparseLongStringContent
+     else ElmUnparser.unparseStringContent quoteChar in
+  -- If one-line string, characters \n \t \r and \\ count for double.
+  let aux: LastEdit -> Pos -> Int -> Int -> List StringDiffs -> (List String, List Exp) -> (String, ((LastEdit, Pos), List Exp))
+      aux lastEdit lastPos lastEnd offset diffs (revAcc, revAccExp) = case diffs of
+    [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), List.reverse revAccExp))
+    StringUpdate start end replacement :: tail ->
+       let betweenNormalized = renderChars <| String.slice lastEnd start original in
+       let (lastEdit1, lastPos1) = offsetFromStrings lastEdit lastPos betweenNormalized betweenNormalized in
+       let beforeS = renderChars <| String.slice start end original in
+       let afterS = renderChars <| String.slice (start + offset) replacement modified in
+       let accInc = if start == end then -- Pure insertion
+            "\n" ++ indent ++ "Inserted: '" ++ afterS ++ "'"
+         else if replacement == 0 then -- Pure deletion
+            "\n" ++ indent ++ "Removed: '" ++ beforeS ++ "'"
+         else -- Replacement
+            "\n" ++ indent ++ "Replaced '" ++ beforeS ++ "' by '"++ afterS ++"'"
+       in
+       let (newLastEdit, newPos) = offsetFromStrings lastEdit1 lastPos1 beforeS afterS in
+       let newOffset = offset - (end - start) + replacement in
+       let newLastEnd = end + newOffset in
+       let newRevAcc = accInc::revAcc in
+       let endCol = if lastPos1.line == newPos.line && lastPos1.col == newPos.col then newPos.col + 1 else newPos.col in
+       let insertedExp = dummyExp1 "replaced" lastPos1.line lastPos1.col newPos.line endCol in
+       aux newLastEdit newPos newLastEnd newOffset tail (newRevAcc, insertedExp::revAccExp)
+  in
+  aux lastEdit lastPos 0 0 diffs ([], [])
 
 
 tupleDiffsToString2: ParensStyle -> Maybe String -> String -> LastEdit -> List Exp ->      List Exp ->      TupleDiffs EDiffs -> (String, (LastEdit, List Exp))
@@ -751,22 +1018,13 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
           ("", (newLastEdit_newEnd, []))
         else (
           let prefix = "\n" ++ indent ++ "L" ++ toString origExp.start.line {-++ "C" ++ toString origExp.start.col-} ++ ": " in
-          case (origExp.val.e__, modifExp.val.e__) of
-            (EBase _ (EString _ before), EBase _ (EString _  after)) ->
-              let beforeNormalized = if renderingStyle == LongStringSyntax then before else String.trim (Syntax.unparser Syntax.Elm origExp) in
-              let afterNormalized  = if renderingStyle == LongStringSyntax then after else String.trim (Syntax.unparser Syntax.Elm modifExp) in
-              let startPosition = origExp.start in
-              let (comments, diffExps) = diffStringPositions (offsetPosition lastEdit startPosition) beforeNormalized afterNormalized in
-              let (newLastEdit, newEndPos) = offsetFromStrings lastEdit startPosition beforeNormalized afterNormalized in
-              (prefix ++ comments, ((newLastEdit, newEndPos), diffExps))
-            _ ->
-             let beforeS = Syntax.unparser Syntax.Elm origExp in
-             let afterS = Syntax.unparser Syntax.Elm modifExp in
-             let msg = "Replaced by " ++ {--beforeS ++ ", now " ++--} afterS in
-             let newStart = offsetPosition lastEdit origExp.start  in
-             let (newLastEdit, newEnd) = offsetFromStrings lastEdit origExp.start beforeS afterS in
-             let diffExp = dummyExp1 afterS newStart.line newStart.col newEnd.line newEnd.col in
-             (prefix ++ msg, ((newLastEdit, newEnd), [diffExp]))
+          let beforeS = Syntax.unparser Syntax.Elm origExp in
+          let afterS = Syntax.unparser Syntax.Elm modifExp in
+          let msg = "Was " ++ beforeS ++ ", now " ++ afterS in
+          let newStart = offsetPosition lastEdit origExp.start  in
+          let (newLastEdit, newEnd) = offsetFromStrings lastEdit origExp.start beforeS afterS in
+          let diffExp = dummyExp1 afterS newStart.line newStart.col newEnd.line newEnd.col in
+          (prefix ++ msg, ((newLastEdit, newEnd), [diffExp]))
          )
       EListDiffs diffs ->
         case (origExp.val.e__, modifExp.val.e__) of
@@ -775,6 +1033,17 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
             let lastPos = Pos origExp.start.line (origExp.start.col + 1) in
             listDiffsToString2 "list" (Syntax.unparser Syntax.Elm) indent lastEdit lastPos originals modified diffs
           _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects lists here, got " ++ Syntax.unparser Syntax.Elm origExp ++ ", " ++ Syntax.unparser Syntax.Elm modifExp,
+            ((lastEdit, offsetPosition lastEdit origExp.end), []))
+      EStringDiffs diffs ->
+        case (origExp.val.e__, modifExp.val.e__) of
+          (EBase _ (EString quoteChar original), EBase _ (EString _ modified)) ->
+             let theStart =  origExp.start in
+             let lastPos = case renderingStyle of
+               LongStringSyntax -> theStart
+               _ -> { theStart | col = origExp.start.col + 1}
+             in
+             stringDiffsToString2 renderingStyle indent lastEdit lastPos quoteChar original modified diffs
+          _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects strings here, got " ++ Syntax.unparser Syntax.Elm origExp ++ ", " ++ Syntax.unparser Syntax.Elm modifExp,
             ((lastEdit, offsetPosition lastEdit origExp.end), []))
       EChildDiffs diffs ->
         -- If you want the trace of what was modified, just input here something
@@ -798,7 +1067,11 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
         (msg, ((newLastEdit, newLastPos), newExps))
 
 offset: Int -> List (Int, a) -> List (Int, a)
-offset n defaultVDiffs = List.map (\(i, e) -> (i + n, e)) defaultVDiffs
+offset n diffs = List.map (\(i, e) -> (i + n, e)) diffs
+
+offsetStr: Int -> List StringDiffs -> List StringDiffs
+offsetStr n diffs = List.map (\sd -> case sd of
+  StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
 
 -- When f x y k z w was changed to (f x y k) z w (realElementNumber = 3 here), how to recover initial differences
 flattenFirstEChildDiffs: Int -> EDiffs -> EDiffs
@@ -839,41 +1112,45 @@ combineAppChanges newE1Changes newE2Changes =
     [] -> Nothing
     eChanges -> Just <| EChildDiffs eChanges
 
-ifUnoptimizedShallowDiff: Val -> Val -> VDiffs -> Result String (Maybe VDiffs)
+ifUnoptimizedShallowDiff: Val -> Val -> VDiffs -> Results String (Maybe VDiffs)
 ifUnoptimizedShallowDiff original modified vdiffs =
   case vdiffs of
     VUnoptimizedDiffs ->
-      defaultVDiffsRec False (\_ _ -> Ok (Just VUnoptimizedDiffs)) original modified
-    _ -> Ok (Just vdiffs)
+      defaultVDiffsRec False (\_ _ -> ok1 <| Just VUnoptimizedDiffs) original modified
+    _ -> ok1 (Just vdiffs)
 
-
-ifUnoptimizedDeepDiff: Val -> Val -> VDiffs -> VDiffs
+ifUnoptimizedDeepDiff: Val -> Val -> VDiffs -> Results String (Maybe VDiffs)
 ifUnoptimizedDeepDiff original modified vdiffs =
   case vdiffs of
     VUnoptimizedDiffs ->
-      defaultVDiffs original modified  |>
-      Result.map (Maybe.withDefault VUnoptimizedDiffs) |>
-      Result.withDefault VUnoptimizedDiffs
-    _ -> vdiffs
+      defaultVDiffs original modified
+    _ -> ok1 (Just vdiffs)
 
-defaultVDiffsShallow: Val -> Val -> Result String (Maybe VDiffs)
-defaultVDiffsShallow original modified = Ok (Just VUnoptimizedDiffs)
+tupleDiffsToDiffs: TupleDiffs a -> Results String (Maybe (TupleDiffs a))
+tupleDiffsToDiffs t = case t of
+  []-> ok1 Nothing
+  l ->ok1 <| Just l
+
+defaultVDiffsShallow: Val -> Val -> Results String (Maybe VDiffs)
+defaultVDiffsShallow original modified = ok1 (Just VUnoptimizedDiffs)
 
 -- Invoke this only if strictly necessary.
-defaultVDiffs: Val -> Val -> Result String (Maybe VDiffs)
+defaultVDiffs: Val -> Val -> Results String (Maybe VDiffs)
 defaultVDiffs original modified = defaultVDiffsRec True defaultVDiffs original modified
 
-defaultVDiffsRec: Bool -> (Val -> Val -> Result String (Maybe VDiffs)) -> Val -> Val -> Result String (Maybe VDiffs)
+defaultVDiffsRec: Bool -> (Val -> Val -> Results String (Maybe VDiffs)) -> Val -> Val -> Results String (Maybe VDiffs)
 defaultVDiffsRec testEquality recurse original modified =
   case (original.v_, modified.v_) of
     (VList originals, VList modified) ->
-      defaultListDiffs valToString recurse originals modified |> Result.map (Maybe.map VListDiffs)
+      defaultListDiffs valToString recurse originals modified |> Results.map (Maybe.map VListDiffs)
+    (VBase (VString original), VBase (VString modified)) ->
+      defaultStringDiffs original modified |> Results.map (Maybe.map VStringDiffs)
     (VClosure isRec1 pats1 body1 env1, VClosure isRec2 pats2 body2 env2) ->
       let ids = Set.union (Set.diff (LangUtils.identifiersSet body1) (LangUtils.identifiersSetInPats pats1))
                (Set.diff (LangUtils.identifiersSet body2) (LangUtils.identifiersSetInPats pats2))
       in
-      defaultEnvDiffsRec testEquality recurse ids env1 env2 |> Result.andThen (\mbEnvDiff ->
-         defaultEDiffs body1 body2 |> Result.map (\mbEDiff ->
+      defaultEnvDiffsRec testEquality recurse ids env1 env2 |> Results.andThen (\mbEnvDiff ->
+         defaultEDiffs body1 body2 |> Results.map (\mbEDiff ->
           case mbEnvDiff of
             Nothing ->
               case mbEDiff of
@@ -885,23 +1162,50 @@ defaultVDiffsRec testEquality recurse original modified =
       defaultDictDiffs valToString recurse original modified
     (VRecord original, VRecord modified) ->
       defaultRecordDiffs valToString recurse original modified
-    (v1, v2) -> if valEqual original modified then Ok Nothing else Ok (Just VConstDiffs)
+    (v1, v2) -> if valEqual original modified then ok1 Nothing else ok1 (Just VConstDiffs)
 
-defaultListDiffs: (a -> String) -> (a -> a -> Result String (Maybe b)) -> List a -> List a -> Result String (Maybe (ListDiffs b))
+defaultStringDiffs: String -> String -> Results String (Maybe (List StringDiffs))
+defaultStringDiffs before after =
+  allStringDiffs before after |> Results.andThen (\difference ->
+    let aux: Int -> List (DiffChunk String) -> List StringDiffs -> Results String (Maybe (List StringDiffs))
+        aux  i      diffs                      revAccDiffs = case diffs of
+          [] -> case List.reverse revAccDiffs of
+            [] -> ok1 Nothing
+            diffs -> ok1 <| Just <| diffs
+          DiffEqual elems::diffTail ->
+            aux (i + String.length elems) diffTail revAccDiffs
+          DiffRemoved removed::DiffAdded added::diffTail ->
+            let lengthRemoved = String.length removed in
+            let lengthAdded = String.length added in
+            StringUpdate i (i + lengthRemoved) lengthAdded :: revAccDiffs |>
+              aux (i + lengthRemoved) diffTail
+          DiffRemoved removed::diffTail ->
+            let lengthRemoved = String.length removed in
+            StringUpdate i (i + lengthRemoved) 0 :: revAccDiffs  |>
+              aux (i + lengthRemoved) diffTail
+          DiffAdded added::diffTail ->
+            let lengthAdded = String.length added in
+            StringUpdate i i lengthAdded ::revAccDiffs |>
+              aux i diffTail
+    in aux 0 difference []
+  )
+
+defaultListDiffs: (a -> String) -> (a -> a -> Results String (Maybe b)) -> List a -> List a -> Results String (Maybe (ListDiffs b))
 defaultListDiffs keyOf defaultElemModif elems1 elems2 =
-  let difference = diff keyOf elems1 elems2 in
-  let aux: Int -> List (Int, ListElemDiff b) -> List (DiffChunk (List a)) -> Result String (Maybe (ListDiffs b))
+  alldiffs keyOf elems1 elems2 |> Results.andThen (\difference ->
+  let aux: Int -> List (Int, ListElemDiff b) -> List (DiffChunk (List a)) -> Results String (Maybe (ListDiffs b))
       aux i accDiffs diffs = case diffs of
         [] -> case List.reverse accDiffs of
-           [] -> Ok Nothing
-           diffs -> Ok <| Just <| diffs
+           [] -> ok1 Nothing
+           diffs -> ok1 <| Just <| diffs
         DiffEqual elems::difftail ->
           aux (i + List.length elems) accDiffs difftail
         DiffRemoved removed::DiffAdded added::difftail ->
           let lengthRemoved = List.length removed in
           let lengthAdded = List.length added in
-          let toInsertRes = List.map3 (\i r a -> defaultElemModif r a |> Result.map (\mbv -> mbv |> Maybe.map (\v -> (i, ListElemUpdate v)))) (List.range i (i + lengthAdded - 1)) removed added in
-          Utils.projOk toInsertRes |> Result.andThen (\toInsert ->
+          let toInsertRes = List.map3 (\i r a -> defaultElemModif r a |>
+            Results.map (Maybe.map (\v -> (i, ListElemUpdate v)))) (List.range i (i + lengthAdded - 1)) removed added in
+          Results.projOk toInsertRes |> Results.andThen ((\i lengthRemoved difftail toInsert ->
             let accDiffs1 = maybeReverseInsert toInsert accDiffs in
             let accDiffs2 = if lengthRemoved > lengthAdded then
                   (i + lengthAdded, ListElemDelete (lengthRemoved - lengthAdded))::accDiffs1
@@ -912,116 +1216,118 @@ defaultListDiffs keyOf defaultElemModif elems1 elems2 =
                   else accDiffs2
             in
             aux (i + lengthRemoved) accDiffs3 difftail
-          )
+          ) i lengthRemoved difftail)
         DiffRemoved elems::difftail ->
           let removedLength = List.length elems in
           aux (i + removedLength) ((i, ListElemDelete removedLength)::accDiffs) difftail
         DiffAdded elems::difftail ->
           let addedLength = List.length elems in
           aux i ((i, ListElemInsert addedLength)::accDiffs) difftail
-  in
-  aux 0 [] difference
+  in aux 0 [] difference
+  )
 
 valEqualDiff: Val -> Val -> Bool
 valEqualDiff original modified =
   case defaultVDiffs original modified of
-    Ok Nothing -> True
+    Oks (LazyList.Cons Nothing tail) -> True
     _ -> False
 
 
-defaultEnvDiffs: Set Ident -> Env -> Env -> Result String (Maybe EnvDiffs)
+defaultEnvDiffs: Set Ident -> Env -> Env -> Results String (Maybe EnvDiffs)
 defaultEnvDiffs = defaultEnvDiffsRec True defaultVDiffs
 
-defaultEnvDiffsRec: Bool     -> (Val -> Val -> Result String (Maybe VDiffs)) -> Set Ident -> Env -> Env -> Result String (Maybe EnvDiffs)
+defaultEnvDiffsRec: Bool     -> (Val -> Val -> Results String (Maybe VDiffs)) -> Set Ident -> Env -> Env -> Results String (Maybe EnvDiffs)
 defaultEnvDiffsRec testEquality recurse identsToCompare elems1 elems2 =
-  let aux: Int -> Set Ident    -> List (Int, VDiffs) -> Env         -> Env -> Result String (Maybe EnvDiffs)
-      aux  i      identsToCompare revEnvDiffs          envToCollect1  envToCollect2 =
+  let aux: Int -> Set Ident    -> List (Int, VDiffs) -> Env         -> Env -> Results String (Maybe EnvDiffs)
+      aux  i      identsToCompare revEnvDiffs           envToCollect1  envToCollect2 =
         if Set.isEmpty identsToCompare then
           case List.reverse revEnvDiffs of
-            [] -> Ok Nothing
-            envDiffs -> Ok <| Just envDiffs
+            [] -> ok1 Nothing
+            envDiffs -> ok1 <| Just envDiffs
         else
         case (envToCollect1, envToCollect2) of
           ([], []) ->
             case List.reverse revEnvDiffs of
-              [] -> Ok Nothing
-              envDiffs -> Ok <| Just envDiffs
+              [] -> ok1 Nothing
+              envDiffs -> ok1 <| Just envDiffs
           (((k1, v1) as ehd1)::etl1, ((k2, v2) as ehd2)::etl2) ->
-            if k1 /= k2 then Err <| "trying to compute a diff on unaligned environments " ++ k1 ++ "," ++ k2 else
+            if k1 /= k2 then Errs <| "trying to compute a diff on unaligned environments " ++ k1 ++ "," ++ k2 else
             if not (Set.member k1 identsToCompare) then
               aux (i + 1) identsToCompare revEnvDiffs etl1 etl2
             else if testEquality && valEqualDiff v1 v2 then
               aux (i + 1) (Set.remove k1 identsToCompare) revEnvDiffs etl1 etl2
             else
-              recurse v1 v2 |> Result.andThen (\mbv ->
+              recurse v1 v2 |> Results.andThen ((\i k1 identsToCompare etl1 etl2 revEnvDiffs mbv ->
                 let newRevEnvDiffs = case mbv of
                   Nothing -> revEnvDiffs
                   Just v -> (i, v)::revEnvDiffs
                 in
                 aux (i + 1) (Set.remove k1 identsToCompare) newRevEnvDiffs etl1 etl2
-              )
-          _ -> Err <| "Environments do not have the same size: " ++ envToString envToCollect1 ++ ", " ++ envToString envToCollect2
+              ) i k1 identsToCompare etl1 etl2 revEnvDiffs)
+          _ -> Errs <| "Environments do not have the same size: " ++ envToString envToCollect1 ++ ", " ++ envToString envToCollect2
   in aux 0 identsToCompare  [] elems1 elems2
 
-defaultTupleDiffs: (a -> String) -> (a -> a -> Result String (Maybe b)) -> List a -> List a -> Result String (Maybe (TupleDiffs b)) -- lowercase val so that it can be applied to something else?
+defaultTupleDiffs: (a -> String) -> (a -> a -> Results String (Maybe b)) -> List a -> List a -> Results String (Maybe (TupleDiffs b)) -- lowercase val so that it can be applied to something else?
 defaultTupleDiffs keyOf defaultElemModif elems1 elems2 =
-  let aux: Int -> List (Int, b) -> List a  -> List a -> Result String (Maybe (TupleDiffs b))
+  let aux: Int -> List (Int, b) -> List a  -> List a -> Results String (Maybe (TupleDiffs b))
       aux  i      revEnvDiffs          l1         l2 =
         case (l1, l2) of
           ([], []) ->
             case List.reverse revEnvDiffs of
-              [] -> Ok Nothing
-              tupleDiffs -> Ok (Just tupleDiffs)
+              [] -> ok1 Nothing
+              tupleDiffs -> ok1 <| Just tupleDiffs
 
           (v1::etl1, v2::etl2) ->
             if keyOf v1 == keyOf v2 then
               aux (i + 1) revEnvDiffs etl1 etl2
             else
-              defaultElemModif v1 v2 |> Result.andThen (\mbv ->
+              defaultElemModif v1 v2 |> Results.andThen ((\i etl1 etl2 revEnvDiffs mbv ->
                  let newRevEnvDiffs = case mbv of
                    Nothing -> revEnvDiffs
                    Just v -> (i, v)::revEnvDiffs
                  in
-                 aux (i + 1) newRevEnvDiffs etl1 etl2)
-
-          _ -> Err <| "Tuples do not have the same size: " ++ toString l1 ++ ", " ++ toString l2
+                 aux (i + 1) newRevEnvDiffs etl1 etl2) i etl1 etl2 revEnvDiffs)
+          _ -> Errs <| "Tuples do not have the same size: " ++ toString l1 ++ ", " ++ toString l2
   in aux 0 [] elems1 elems2
 
-defaultDictDiffs: (Val -> String) -> (Val -> Val -> Result String (Maybe VDiffs)) -> Dict (String, String) Val -> Dict (String, String) Val -> Result String (Maybe VDiffs)
+defaultDictDiffs: (Val -> String) -> (Val -> Val -> Results String (Maybe VDiffs)) -> Dict (String, String) Val -> Dict (String, String) Val -> Results String (Maybe VDiffs)
 defaultDictDiffs keyOf defaultElemModif elems1 elems2 =
-  Result.map (\d -> if Dict.isEmpty d then Nothing else Just <| VDictDiffs d) <| Dict.merge
-    (\k1 v1 acc -> Result.map (Dict.insert k1 VDictElemDelete) acc)
+  Results.map (\d -> if Dict.isEmpty d then Nothing else Just <| VDictDiffs d) <| Dict.merge
+    (\k1 v1 acc -> Results.map (Dict.insert k1 VDictElemDelete) acc)
     (\k v1 v2 acc -> if keyOf v1 == keyOf v2 then acc
        else
-         acc |> Result.andThen (\acc ->
-           defaultElemModif v1 v2 |> Result.map (\mbv ->
+         acc |> Results.andThen (\acc ->
+           defaultElemModif v1 v2 |> Results.map (\mbv ->
              mbv |> Maybe.map (\v -> Dict.insert k (VDictElemUpdate v) acc) |> Maybe.withDefault acc)))
-    (\k2 v2 acc -> Result.map (Dict.insert k2 VDictElemInsert) acc)
+    (\k2 v2 acc -> Results.map (Dict.insert k2 VDictElemInsert) acc)
     elems1
     elems2
-    (Ok Dict.empty)
+    (ok1 Dict.empty)
 
-defaultRecordDiffs: (Val -> String) -> (Val -> Val -> Result String (Maybe VDiffs)) -> Dict String Val -> Dict String Val -> Result String (Maybe VDiffs)
+defaultRecordDiffs: (Val -> String) -> (Val -> Val -> Results String (Maybe VDiffs)) -> Dict String Val -> Dict String Val -> Results String (Maybe VDiffs)
 defaultRecordDiffs keyOf defaultElemModif elems1 elems2 =
-  Result.map (\d -> if Dict.isEmpty d then Nothing else Just <| VRecordDiffs d) <| Dict.merge
-    (\k1 v1 acc -> Err <| "Not allowed to remove a key from record:" ++ k1)
-    (\k v1 v2 acc -> if keyOf v1 == keyOf v2 then acc else acc |> Result.andThen (\acc ->
-      defaultElemModif v1 v2 |> Result.map (\mbv ->
+  Results.map (\d -> if Dict.isEmpty d then Nothing else Just <| VRecordDiffs d) <| Dict.merge
+    (\k1 v1 acc -> Errs <| "Not allowed to remove a key from record:" ++ k1)
+    (\k v1 v2 acc -> if keyOf v1 == keyOf v2 then acc else acc |> Results.andThen (\acc ->
+      defaultElemModif v1 v2 |> Results.map (\mbv ->
         mbv |> Maybe.map (\v ->
          Dict.insert k v acc) |> Maybe.withDefault acc)))
-    (\k2 v2 acc -> Err <| "Not allowed to insert a key to record:" ++ k2)
+    (\k2 v2 acc -> Errs <| "Not allowed to insert a key to record:" ++ k2)
     elems1
     elems2
-    (Ok Dict.empty)
+    (ok1 Dict.empty)
 
-defaultEDiffs: Exp -> Exp -> Result String (Maybe EDiffs)
+defaultEDiffs: Exp -> Exp -> Results String (Maybe EDiffs)
 defaultEDiffs e1 e2 =
   case (e1.val.e__, e2.val.e__) of
-    (EConst _ n1 _ _, EConst _ n2 _ _) -> if n1 == n2 then Ok Nothing else Ok <| Just <| EConstDiffs EAnyDiffs
+    (EConst _ n1 _ _, EConst _ n2 _ _) -> if n1 == n2 then ok1 Nothing else ok1 <| Just <| EConstDiffs EAnyDiffs
+    (EBase _ (EString _ s1), EBase _ (EString _ s2)) ->
+       defaultStringDiffs s1 s2 |> Results.map (Maybe.map EStringDiffs)
+    (EBase _ x, EBase _ y) -> if x == y then ok1 <| Just <| EConstDiffs EAnyDiffs else ok1 <| Nothing
     (EList _ e1s _ Nothing _, EList _ e2s _ Nothing _) ->
-      defaultListDiffs (Syntax.unparser Syntax.Elm) defaultEDiffs (Utils.listValues e1s) (Utils.listValues e2s) |> Result.map (Maybe.map EListDiffs)
+      defaultListDiffs (Syntax.unparser Syntax.Elm) defaultEDiffs (Utils.listValues e1s) (Utils.listValues e2s) |> Results.map (Maybe.map EListDiffs)
     (_, _) ->
-      defaultTupleDiffs (Syntax.unparser Syntax.Elm) defaultEDiffs (childExps e1) (childExps e2) |> Result.map (Maybe.map EChildDiffs)
+      defaultTupleDiffs (Syntax.unparser Syntax.Elm) defaultEDiffs (childExps e1) (childExps e2) |> Results.map (Maybe.map EChildDiffs)
 
 -- Assume that the lists are always aligned
 autoMergeTuple: (o -> a -> a -> a) -> List o -> List a -> List a -> List a
@@ -1349,11 +1655,11 @@ mergeExp o e1 e2 =
        (EHole sp0 (Just v0),
         EHole sp1 (Just v1),
         EHole sp2 (Just v2)) ->
-         defaultVDiffs v0 v1 |> Result.andThen (\m1 ->
-           defaultVDiffs v0 v2 |> Result.map (\m2 ->
+         defaultVDiffs v0 v1 |> Results.andThen (\m1 ->
+           defaultVDiffs v0 v2 |> Results.map (\m2 ->
               EHole (mergeWS sp0 sp1 sp2) (Just v0)
            )
-         ) |> Result.withDefault (EHole sp0 (Just v0))
+         ) |> Results.withDefault1 (EHole sp0 (Just v0))
 
        _ -> default ()
   in
