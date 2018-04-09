@@ -3012,9 +3012,15 @@ List =
   let nth =
     nth
   in
+  let repeat =
+    repeat
+  in
   let mapi f xs = map f (zipWithIndex xs) in
   let indexedMap f xs =
     mapi (\\[i,x] -> f i x) xs
+  in
+  let concatMap =
+    concatMap
   in
   let cartesianProductWith f xs ys =
     concatMap (\\x -> map (\\y -> f x y) ys) xs
@@ -3041,7 +3047,9 @@ List =
     cons = cons
     length = length
     nth = nth
+    repeat = repeat
     indexedMap = indexedMap
+    concatMap = concatMap
     cartesianProductWith = cartesianProductWith
     unzip = unzip
     split = split
@@ -3174,24 +3182,37 @@ div_ = Html.div
   -- TODO in wrapData, use update. calculate length of rows to determine empties.
 
 TableWithButtons =
-  let wrapData =
+  let wrapData rows =
+    let blankRow =
+      let numColumns =
+        case rows of
+          []     -> 0
+          row::_ -> List.length row
+      in
+      List.repeat numColumns \"?\"
+    in
     Update.applyLens
-      { apply rows   = freeze <| (rows |> List.map (\\row -> (freeze False, row)))
-      , unapply rows = rows |> concatMap (\\(flag,row) ->
-                                 if flag == True
-                                   then [ row, [\"?\",\"?\",\"?\"] ]
-                                   else [ row ]
-                               )
-                            |> (\\x -> Just x)
+      { apply rows =
+          Update.freeze
+            (List.map (\\row -> (Update.freeze False, row)) rows)
+
+      , update {outputNew = flaggedRows} =
+          let processRow (flag, row) =
+            if flag == True
+              then [ row, blankRow ]
+              else [ row ]
+          in
+          { values = [List.concatMap processRow flaggedRows] }
       }
+      rows
   in
-  let mapData f =
-    List.map (Tuple.mapSecond f)
+  let mapData f flaggedRows =
+    List.map (Tuple.mapSecond f) flaggedRows
   in
   --
-  -- The globalBool flag is used to determined whether to insert \"\" or \" \"
-  -- before a couple attribute values. Toggling between these two choices
-  -- in subsequent runs helps work around our issue forcing Elm to re-render.
+  -- The globalBool flag is used to determine whether to insert \"\" or \" \"
+  -- before a couple attribute values. Toggling this choice in between
+  -- subsequent runs helps work around our issue forcing Elm to re-render.
   --
   let tr globalBool flag styles attrs children =
     let (hasBeenClicked, nope, yep) =
