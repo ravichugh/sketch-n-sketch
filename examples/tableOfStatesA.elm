@@ -5,8 +5,7 @@ states =
   , ["Arkansas", "AR?", "?"]
   , ["California", "CA", "?"]
   , ["Colorado", "CO?", "?"]
-  , ["Connecticut", "CO?", "?"]
-  ]
+  , ["Connecticut", "CO?", "?"] ]
 
 main =
   let headers = ["State", "Capital"] in
