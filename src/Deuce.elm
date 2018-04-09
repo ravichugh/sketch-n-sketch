@@ -451,12 +451,12 @@ diffColor colorScheme tag =
       case tag of
         "+" -> { r = 0, g = 255, b = 0}
         "-" -> { r = 255, g = 0, b = 0}
-        _ ->   { r = 255, g = 255, b = 0}
+        _ ->   { r = 255, g = 165, b = 0}
     Dark ->
       case tag of
-        "+" -> { r = 0, g = 80, b = 0}
-        "-" -> { r = 80, g = 0, b = 0}
-        _ ->   { r = 80, g = 80, b = 0}
+        "+" -> { r = 0, g = 200, b = 0}
+        "-" -> { r = 200, g = 0, b = 0}
+        _ ->   { r = 200, g = 200, b = 100}
 
 objectColor : ColorScheme -> Color
 objectColor colorScheme =

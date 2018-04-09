@@ -1898,6 +1898,7 @@ eConstDummyLoc0 a = withDummyExpInfo <| EConst space0 a dummyLoc noWidgetDecl
 eConstDummyLoc a  = withDummyExpInfo <| EConst space1 a dummyLoc noWidgetDecl
 eList0 a b        = withDummyExpInfo <| EList space0 (List.map ((,) space0) a) space0 b space0
 eList a b         = withDummyExpInfo <| EList space1 (List.map ((,) space0) a) space0 b space0
+eListWs a b       = withDummyExpInfo <| EList space1 a space0 b space0
 eTuple0 a         = eList0 a Nothing
 eTuple a          = eList a Nothing
 eHoleVal0 v       = withDummyExpInfo <| EHole space0 (Just v)

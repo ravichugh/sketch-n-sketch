@@ -778,7 +778,7 @@ listDiffsToString structName subroutine displayElemModif elementDisplay indent o
             ListElemInsert count ->
               let (modifiedInserted, modifiedTail) = Utils.split count modifieds in
               acc ++ "\n" ++ indent ++ "Inserted " ++ (List.map elementDisplay modifiedInserted |> String.join ",") |>
-              aux (i + 1) original modifiedTail diffsTail
+              aux i original modifiedTail diffsTail
 
             ListElemUpdate diff ->
               case (original, modifieds) of
@@ -900,14 +900,17 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
   if List.isEmpty diffs then ("[Internal error]: Empty " ++ structName ++ " diff]", ((lastEdit, lastPos), [])) else
   let aux: Int -> LastEdit -> Pos ->  List (WS, Exp) -> List (WS, Exp) -> ListDiffs EDiffs -> (String, List Exp) -> (String, ((LastEdit, Pos), List Exp))
       aux  i      lastEdit    lastPos original          modifieds         diffs               (accStr, accList) =
-    --let _ = Debug.log ("listDiffsToString.aux: lastEdit = " ++ toString lastEdit ++ ", lastPos = " ++ toString lastPos) () in
+    --let _ = Debug.log ("listDiffsToString.aux: i=" ++ toString i ++ ", lastEdit = " ++ toString lastEdit ++ ", lastPos = " ++ toString lastPos ++
+    --   ", original = " ++ Syntax.unparser Syntax.Elm (eListWs original Nothing) ++ ", modifieds = " ++
+    --   Syntax.unparser Syntax.Elm (eListWs modifieds Nothing) ++ ", diffs=" ++ toString diffs ++
+    --   ", acc=" ++ toString accStr ++ ", accList=" ++ toString accList) () in
     case diffs of
        [] -> (accStr, ((lastEdit, lastPos), accList))
        (j, change)::diffsTail ->
         if j > i then
           let count = j - i in
           let (originalDropped, originalTaken) = Utils.split count original in
-          let newLastPos = Utils.last "listDiffsToString2-0" originalDropped |> Tuple.second |> .end |> offsetPosition lastEdit in
+          let newLastPos = Utils.last "listDiffsToString2-0" originalDropped |> Tuple.second |> .end in
           aux j lastEdit newLastPos  (List.drop count original) (List.drop count modifieds) diffs (accStr, accList)
         else
           case change of
@@ -919,16 +922,17 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
               let removedExp = dummyExp1 "-" lastPos.line lastPos.col lastPos.line (lastPos.col + 1) in
               ( accStr ++ "\n" ++ indent ++ displayPos newEnd ++ "Removed '" ++ beforeS ++ "'",
                 removedExp::accList) |>
-              aux (i + 1) newLastEdit lastPos originalKept modifieds diffsTail
+              aux (i + 1) newLastEdit newEnd originalKept modifieds diffsTail
             ListElemInsert count ->
               let (modifiedInserted, modifiedTail) = Utils.split count modifieds in
               let beforeS = "" in
               let afterS = modifiedInserted |> List.indexedMap (\k (sp, e) -> (if i + k > 0 then sp.val ++ "," else "") ++ elementDisplay e) |> String.join "" in
-              let (newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
-              let insertedExp = dummyExp1 "+" lastPos.line lastPos.col newEnd.line newEnd.col in
+              let ((lastPos2, _) as newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
+              let newStartPos = offsetPosition lastEdit lastPos in
+              let insertedExp = dummyExp1 "+" newStartPos.line newStartPos.col newEnd.line newEnd.col in
               (accStr ++ "\n" ++ indent ++ displayPos newEnd ++ "Inserted '" ++ afterS ++ "'",
                 insertedExp::accList) |>
-              aux (i + 1) newLastEdit newEnd original modifiedTail diffsTail
+              aux i newLastEdit lastPos2 original modifiedTail diffsTail
 
             ListElemUpdate diff ->
               case (original, modifieds) of
@@ -962,6 +966,17 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
       aux lastEdit lastPos lastEnd offset diffs (revAcc, revAccExp) = case diffs of
     [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), {-Debug.log "final expressions" <| -}List.reverse revAccExp))
     StringUpdate start end replacement :: tail ->
+       -- We merge changes if the length of the "same" string is less than the length of the previous change or the next change.
+       let mbMergeDiffs = case tail of
+         StringUpdate start2 end2 replacement2 :: tail2->
+            if start2 - end <= end - start || start2 - end <= end2 - start2 then
+              Just (StringUpdate start end2 (replacement + replacement2 + (start2 - end)) :: tail2)
+            else Nothing
+         _ -> Nothing
+       in
+       case mbMergeDiffs of
+          Just newDiffs -> aux lastEdit lastPos lastEnd offset newDiffs (revAcc, revAccExp)
+          Nothing ->
        let betweenNormalized = renderChars <| String.slice lastEnd start original in
        --let _ = ImpureGoodies.log <| "lastPos = " ++ toString lastPos  in
        let lastPos1 = addOffsetFromString lastPos betweenNormalized in
