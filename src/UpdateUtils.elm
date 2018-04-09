@@ -214,6 +214,8 @@ diff keyOf before after =
     (DiffEqual (List.drop startNew after |> List.take subLength) ::
       diff keyOf  (List.drop (startOld + subLength) before) (List.drop (startNew + subLength) after))
 
+combineLengthWeight length weight = 2*length + weight
+
 -- Returns all diffs that are equally probable, i.e. with the smaller number of added/removed chars.
 alldiffs: (a -> String) -> List a -> List a -> Results String (List (DiffChunk (List a)))
 alldiffs keyOf before after =
@@ -313,9 +315,9 @@ alldiffs keyOf before after =
               let newWeight = 0 - abs ((afterLength - afterIndex) - (beforeLength - oldIdxAfterValue)) -
                 abs (afterIndex - oldIdxAfterValue) in
               let newOverlap_ = Dict.insert oldIdxAfterValue (newSubLength, newWeight) overlap_ in
-              if newSubLength + newWeight > subLength_ + weight_ then -- No ambiguity, we erase the previous startOldNew
+              if combineLengthWeight newSubLength newWeight > combineLengthWeight subLength_ weight_ then -- No ambiguity, we erase the previous startOldNew
                    (newOverlap_, [(oldIdxAfterValue - newSubLength + 1, afterIndex - newSubLength + 1)] , newSubLength, newWeight)
-              else if newSubLength + newWeight == subLength_ + weight_ && subLength_ + weight_ > subLength + weight then -- Ambiguity
+              else if combineLengthWeight newSubLength newWeight == combineLengthWeight subLength_ weight_ && combineLengthWeight subLength_ weight_ > combineLengthWeight subLength weight then -- Ambiguity
                    (newOverlap_, (oldIdxAfterValue - newSubLength + 1, afterIndex - newSubLength + 1)::startOldNew , newSubLength, newWeight)
               else (newOverlap_, startOldNew, subLength_, weight_)
     in
@@ -374,6 +376,7 @@ allStringDiffs before after =
     -- overlap is a Dict (old index: Int) (length of greater common substring after index included: Int, weight: Int)
     let afterLength = String.length after in
     let beforeLength = String.length before in
+    -- TODO: Put more  information in overlap so that we can obtain the result without this recursion.
     let (overlap, startOldNew, subLength, weight) =
          strFoldLeftWithIndex (Dict.empty, [],          0,         -(String.length before + String.length after)) after <|
                              \(overlap,    startOldNew, subLength, weight)                             afterIndex afterChar ->
@@ -390,9 +393,9 @@ allStringDiffs before after =
               let newWeight = 0 - abs ((afterLength - afterIndex) - (beforeLength - oldIdxAfterChar)) -
                 abs (afterIndex - oldIdxAfterChar) in
               let newOverlap_ = Dict.insert oldIdxAfterChar (newSubLength, newWeight) overlap_ in
-              if newSubLength + newWeight > subLength_ + weight_ then
+              if combineLengthWeight newSubLength newWeight > combineLengthWeight subLength_ weight_ then
                    (newOverlap_, [(oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)] , newSubLength, newWeight)
-              else if newSubLength + newWeight == subLength_ + weight_ && subLength_ + weight_ > subLength + weight then -- Ambiguity
+              else if combineLengthWeight newSubLength newWeight == combineLengthWeight subLength_ weight_ && combineLengthWeight subLength_ weight_ > combineLengthWeight subLength weight then -- Ambiguity
                    (newOverlap_, (oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)::startOldNew , newSubLength, newWeight)
               else (newOverlap_, startOldNew,                         subLength_, weight_)
     in

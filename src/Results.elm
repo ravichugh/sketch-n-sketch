@@ -6,6 +6,7 @@ module Results exposing
   , toMaybe, fromMaybe, fromResult, mapErrors, projOk
   , fold, toList
   , firstResult
+  , force
   )
 
 import Lazy
@@ -247,3 +248,8 @@ toList: Results e a -> List a
 toList r = case r of
   Errs msg -> []
   Oks ll -> LazyList.toList ll
+
+force: Results e a -> Results e a
+force r = case r of
+  Errs msg -> Errs msg
+  Oks ll -> Oks (LazyList.fromList (LazyList.toList ll))
