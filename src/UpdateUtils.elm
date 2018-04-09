@@ -16,7 +16,7 @@ import ValBuilder as Vb
 import ValUnbuilder as Vu
 import UpdateUnoptimized
 import ElmUnparser
---import ImpureGoodies
+import ImpureGoodies
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -32,7 +32,7 @@ diffString s1 s2 =
 
 diffStringPositions: Pos -> String -> String -> (String, List Exp)
 diffStringPositions initialPosition s1 s2 =
-  let _ = Debug.log ("diffStringPositions.initialPosition:" ++ toString initialPosition) () in
+  --let _ = Debug.log ("diffStringPositions.initialPosition:" ++ toString initialPosition) () in
   let before = Regex.split Regex.All splitRegex s1 in
   let after = Regex.split Regex.All splitRegex s2 in
   let difference = diff identity before after in
@@ -110,7 +110,7 @@ displayDiffPositions tos initialPosition difference =
     DiffRemoved l::DiffAdded d::tail ->
      let removed = lToString l in
      let (added, newRow, newCol) = newStringRowCol prevRow prevCol d in
-     let _ = Debug.log ("Removed and added, " ++ toString prevRow ++ "," ++ toString prevCol) () in
+     --let _ = Debug.log ("Removed and added, " ++ toString prevRow ++ "," ++ toString prevCol) () in
      let e = dummyExp added prevRow prevCol newRow newCol in
      aux (newRow, newCol) (maybeComma string ++ "Replaced " ++ removed ++ " by " ++ added, e::prevAcc) tail
     DiffRemoved l::tail ->
@@ -120,7 +120,7 @@ displayDiffPositions tos initialPosition difference =
     DiffAdded l::tail ->
      let (added, newRow, newCol) = newStringRowCol prevRow prevCol l in
      let e = dummyExp added prevRow prevCol newRow newCol in
-     let _ = Debug.log ("Highlighting " ++ toString prevRow ++ "," ++ toString prevCol ++ " -> " ++ toString newRow ++ "," ++ toString newCol) () in
+     --let _ = Debug.log ("Highlighting " ++ toString prevRow ++ "," ++ toString prevCol ++ " -> " ++ toString newRow ++ "," ++ toString newCol) () in
      aux (newRow, newCol) (maybeComma string ++ "Inserted " ++ {-"Line " ++ toString prevRow ++ ": " ++ -} added, e::prevAcc) tail
   in aux (initialPosition.line - 1, initialPosition.col - 1) ("", []) difference
 
@@ -217,6 +217,7 @@ diff keyOf before after =
 -- Returns all diffs that are equally probable, i.e. with the smaller number of added/removed chars.
 alldiffs: (a -> String) -> List a -> List a -> Results String (List (DiffChunk (List a)))
 alldiffs keyOf before after =
+    --let _ = ImpureGoodies.log <| "alldiffs " ++ (List.map keyOf before |> String.join ",") ++ " " ++ (List.map keyOf after |> String.join ",") in
     {- Adapted from https://github.com/paulgb/simplediff/blob/master/javascript/simplediff.js
         Find the differences between two lists. Returns a list of pairs, where the
         first value is in ['+','-','='] and represents an insertion, deletion, or
@@ -301,13 +302,14 @@ alldiffs keyOf before after =
          foldLeftWithIndex (Dict.empty, [],          0,        -(List.length before + List.length after))                    after <|
                           \(overlap,    startOldNew, subLength, weight) afterIndex afterValue ->
            let oldIndicesWhereAfterAppeared = valueToIndexBefore |> Dict.get (keyOf afterValue) |> Maybe.withDefault [] in
-           -- We look for the longest sequence in a row where after values appeared consecutively in before.
+           --let _ = ImpureGoodies.log <| "start of round\noverlap="++toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
            foldLeft (Dict.empty, startOldNew, subLength, weight) oldIndicesWhereAfterAppeared <|
                    \(overlap_,   startOldNew, subLength_, weight_) oldIdxAfterValue ->
               -- now we are considering all values of val such that
               -- `before[oldIdxAfterValue] == after[afterIndex]`
               let newSubLength = (if oldIdxAfterValue == 0 then 0 else Dict.get (oldIdxAfterValue - 1) overlap |>
                    Maybe.map Tuple.first |> Maybe.withDefault 0) + 1 in
+              --let _ = ImpureGoodies.log <| "overlap_=" ++ toString overlap_ ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength_=" ++ toString subLength_ ++ ", weight_=" ++ toString weight_ in
               let newWeight = 0 - abs ((afterLength - afterIndex) - (beforeLength - oldIdxAfterValue)) -
                 abs (afterIndex - oldIdxAfterValue) in
               let newOverlap_ = Dict.insert oldIdxAfterValue (newSubLength, newWeight) overlap_ in
@@ -317,6 +319,7 @@ alldiffs keyOf before after =
                    (newOverlap_, (oldIdxAfterValue - newSubLength + 1, afterIndex - newSubLength + 1)::startOldNew , newSubLength, newWeight)
               else (newOverlap_, startOldNew, subLength_, weight_)
     in
+    --let _ = ImpureGoodies.log <| "End of process\noverlap=" ++ toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
     if subLength == 0 then
         -- If no common substring is found, we return an insert and delete...
         ok1 <| (if List.isEmpty before then  [] else [DiffRemoved before]) ++
@@ -335,6 +338,7 @@ alldiffs keyOf before after =
 -- Faster implementation of allDiffs for tow strings
 allStringDiffs: String -> String -> Results String (List (DiffChunk String))
 allStringDiffs before after =
+    --let _ = ImpureGoodies.log <| "allStringDiffs '" ++ before ++ "' '" ++ after ++ "'" in
     -- Create a Dict from before values to the list of every index at which they appears
     -- In this variables, the biggest indices appear first
     let oldIndexMapRev =
@@ -375,7 +379,7 @@ allStringDiffs before after =
                              \(overlap,    startOldNew, subLength, weight)                             afterIndex afterChar ->
            let oldIndicesWhereAfterAppeared = valueToIndexBefore |> Dict.get afterChar |> Maybe.withDefault [] in
            -- We look for the longest sequence in a row where after values appeared consecutively in before.
-           -- let _ = ImpureGoodies.log <| "start of round\noverlap="++toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
+           --let _ = ImpureGoodies.log <| "start of round\noverlap="++toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
            foldLeft    (Dict.empty, startOldNew, subLength, weight) oldIndicesWhereAfterAppeared <|
                       \(overlap_,   startOldNew, subLength_, weight_) oldIdxAfterChar ->
               -- now we are considering all values of val such that
@@ -390,7 +394,7 @@ allStringDiffs before after =
                    (newOverlap_, [(oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)] , newSubLength, newWeight)
               else if newSubLength + newWeight == subLength_ + weight_ && subLength_ + weight_ > subLength + weight then -- Ambiguity
                    (newOverlap_, (oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)::startOldNew , newSubLength, newWeight)
-              else (newOverlap_, startOldNew,                         subLength_, newWeight)
+              else (newOverlap_, startOldNew,                         subLength_, weight_)
     in
     --let _ = ImpureGoodies.log <| "End of process\noverlap=" ++ toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
     if subLength == 0 then
@@ -926,28 +930,31 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
             ListElemInsert count ->
               let (modifiedInserted, modifiedTail) = Utils.split count modifieds in
               let beforeS = "" in
-              let afterS = modifiedInserted |> List.indexedMap (\k (sp, e) -> (if i + k > 0 then sp.val ++ "," else "") ++ elementDisplay e) |> String.join "" in
-              let ((lastPos2, _) as newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
+              let secondCommaSpace = List.tail modifiedInserted |> Maybe.andThen List.head |> Maybe.map (Tuple.first >> .val) |> Maybe.withDefault "" in
+              let afterS = modifiedInserted |> List.indexedMap (\k (sp, e) ->
+                (if i + k > 0 then sp.val ++ "," else "") ++ elementDisplay e ++
+                (if i + k == 0 then secondCommaSpace ++ "," else "")) |> String.join "" in
+              let (newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
               let newStartPos = offsetPosition lastEdit lastPos in
               let insertedExp = dummyExp1 "+" newStartPos.line newStartPos.col newEnd.line newEnd.col in
               (accStr ++ "\n" ++ indent ++ displayPos newEnd ++ "Inserted '" ++ afterS ++ "'",
                 insertedExp::accList) |>
-              aux i newLastEdit lastPos2 original modifiedTail diffsTail
+              aux i newLastEdit lastPos original modifiedTail diffsTail
 
             ListElemUpdate diff ->
               case (original, modifieds) of
                 ((spo, ho)::to, (spm, hm)::tm) ->
-                  let (incAcc, ((newLastEdit, newLastPos), newHighlights)) =
+                  let (incAcc, ((newLastEdit, lastPos2), newHighlights)) =
                     case diff of
                        EConstDiffs EOnlyWhitespaceDiffs ->
                         let (newLastEdit, newEndSpace) = offsetFromStrings lastEdit lastPos spo.val spm.val in
                         let newElemEnd = offsetPosition newLastEdit ho.end in
-                        ("", ((newLastEdit, newElemEnd), []))
+                        ("", ((newLastEdit, ho.end), []))
                        _ ->
                         eDiffsToStringPositions ElmSyntax indent lastEdit ho hm diff
                   in
                   (accStr ++ incAcc, newHighlights++accList)  |>
-                  aux (i + 1) newLastEdit newLastPos to tm diffsTail
+                  aux (i + 1) newLastEdit lastPos2 to tm diffsTail
                 _ ->
                   (accStr ++ "[Internal error] For diff " ++ toString diff ++ ", expected non-empty lists, got " ++
                   (List.map elementDisplay (Utils.listValues originals) |> String.join ",")  ++ "and" ++
@@ -967,16 +974,17 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
     [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), {-Debug.log "final expressions" <| -}List.reverse revAccExp))
     StringUpdate start end replacement :: tail ->
        -- We merge changes if the length of the "same" string is less than the length of the previous change or the next change.
-       let mbMergeDiffs = case tail of
-         StringUpdate start2 end2 replacement2 :: tail2->
-            if start2 - end <= end - start || start2 - end <= end2 - start2 then
-              Just (StringUpdate start end2 (replacement + replacement2 + (start2 - end)) :: tail2)
-            else Nothing
-         _ -> Nothing
-       in
-       case mbMergeDiffs of
-          Just newDiffs -> aux lastEdit lastPos lastEnd offset newDiffs (revAcc, revAccExp)
-          Nothing ->
+       -- Was useful when the diff was not colored.
+       --let mbMergeDiffs = case tail of
+       --  StringUpdate start2 end2 replacement2 :: tail2->
+       --     if start2 - end <= end - start || start2 - end <= end2 - start2 then
+       --       Just (StringUpdate start end2 (replacement + replacement2 + (start2 - end)) :: tail2)
+       --     else Nothing
+       --  _ -> Nothing
+       --in
+       --case mbMergeDiffs of
+       --   Just newDiffs -> aux lastEdit lastPos lastEnd offset newDiffs (revAcc, revAccExp)
+       --   Nothing ->
        let betweenNormalized = renderChars <| String.slice lastEnd start original in
        --let _ = ImpureGoodies.log <| "lastPos = " ++ toString lastPos  in
        let lastPos1 = addOffsetFromString lastPos betweenNormalized in
@@ -1460,12 +1468,12 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
 
     (VList originalElems, VList modified1Elems, VListDiffs l1, VList modified2Elems, VListDiffs l2) ->
       let (newList, newDiffs) = mergeList mergeVal originalElems modified1Elems l1 modified2Elems l2 in
-      let _ = Debug.log ("mergeList " ++ "[" ++ (List.map valToString originalElems |> String.join ",") ++ "]" ++ " " ++
-            "[" ++ (List.map valToString modified1Elems |> String.join ",") ++ "]" ++ toString l1 ++
-            "[" ++ (List.map valToString modified2Elems |> String.join ",") ++ "]" ++ toString l2
-           ) ()
-      in
-      let _ = Debug.log ("=" ++ "[" ++ (List.map valToString newList |> String.join ",") ++ "], " ++ toString newDiffs) () in
+      --let _ = Debug.log ("mergeList " ++ "[" ++ (List.map valToString originalElems |> String.join ",") ++ "]" ++ " " ++
+      --      "[" ++ (List.map valToString modified1Elems |> String.join ",") ++ "]" ++ toString l1 ++
+      --      "[" ++ (List.map valToString modified2Elems |> String.join ",") ++ "]" ++ toString l2
+      --     ) ()
+      --in
+      --let _ = Debug.log ("=" ++ "[" ++ (List.map valToString newList |> String.join ",") ++ "], " ++ toString newDiffs) () in
       (replaceV_ original <| VList <| newList, newDiffs)
 
     (VRecord originalDict, VRecord modified1Dict, VRecordDiffs d1, VRecord modified2Dict, VRecordDiffs d2) ->
@@ -1482,7 +1490,7 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
           let (newEnv, newEnvDiffs) = mergeEnv env0 env1 envmodifs1 env2 envmodifs2 in
           let (newBody, newBodyModifs) = case (bodymodifs1, bodymodifs2) of
             (Just emodif1, Just emodif2) ->
-               let _ = Debug.log "Merging two VClosures" () in
+               --let _ = Debug.log "Merging two VClosures' bodies, it's unusual enough to be noticed" () in
                (mergeExp body0 body1 body2, Just <| mergeEDiffs emodif1 emodif2)
             (Nothing, _) -> (body2, bodymodifs2)
             (_, Nothing) -> (body1, bodymodifs1)
