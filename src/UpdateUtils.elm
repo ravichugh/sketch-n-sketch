@@ -923,7 +923,8 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
               let beforeS = originalRemoved |> List.indexedMap (\k (sp, e) -> (if i + k > 0 then sp.val ++ "," else "") ++ elementDisplay e) |> String.join "" in
               let afterS = "" in
               let (newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
-              let removedExp = dummyExp1 "-" lastPos.line lastPos.col lastPos.line (lastPos.col + 1) in
+              let newStartPos = offsetPosition lastEdit lastPos in
+              let removedExp = dummyExp1 "-" newStartPos.line newStartPos.col newStartPos.line newStartPos.col in
               ( accStr ++ "\n" ++ indent ++ displayPos newEnd ++ "Removed '" ++ beforeS ++ "'",
                 removedExp::accList) |>
               aux (i + 1) newLastEdit newEnd originalKept modifieds diffsTail
@@ -1006,7 +1007,7 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
        --let _ = ImpureGoodies.log <| "newEndPos = " ++ toString newEndPos  in
        let newOffset = offset - (end - start) + replacement in
        let newRevAcc = accInc::revAcc in
-       let endCol = if newStartPos.line == newEndPos.line && newStartPos.col == newEndPos.col then newEndPos.col + 1 else newEndPos.col in
+       let endCol = if newStartPos.line == newEndPos.line && newStartPos.col == newEndPos.col then newEndPos.col {-+ 1-} else newEndPos.col in
        let duckTapeOffset = if renderingStyle == LongStringSyntax && initialLine < newStartPos.line then 1 else 0 in
        let insertedExp = dummyExp1 title newStartPos.line (newStartPos.col + duckTapeOffset) newEndPos.line (endCol + duckTapeOffset) in
        aux newLastEdit (Tuple.first newLastEdit) end newOffset tail (newRevAcc, insertedExp::revAccExp)

@@ -434,7 +434,8 @@ map f l =
         case Update.updateApp {fun [f,x] = f x, input = [f, input], output = newOutput} of
           { error = msg } -> {error = msg }
           { values = v} -> {values = v |>
-              map (\[newF, newA] -> [newF::fs, insA++[newA], insB])}
+              -- We disable the modification of f itself in the insertion (to prevent programmatic styling to change unexpectedly) newF::
+              map (\[newF, newA] -> [fs, insA++[newA], insB])}
 
       onFinish [newFs, newIns, _] =
        --after we finish, we need to return the new function
@@ -452,6 +453,8 @@ zipWithIndex xs =
   { apply x = freeze <| zip (range 0 (len xs - 1)) xs
     update {output} = {values = [map (\[i, x] -> x) output]}  }.apply xs
 
+indexedMap f l =
+  map (\[i, x] -> f i x) (zipWithIndex l)
 -- TODO re-organize the scattered list definitions into
 -- LensLess.List, ListLenses, and List = LensLess.List
 
@@ -459,6 +462,7 @@ ListLenses =
   { map = map
     append = append
     zipWithIndex = zipWithIndex
+    indexedMap = indexedMap
   }
 
 --------------------------------------------------------------------------------
