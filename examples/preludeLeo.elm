@@ -1358,7 +1358,7 @@ TableWithButtons =
       [ "span"
       , [ ["class", "text-button.enabled"]
         , ["onclick", onclick]
-        , ["style", [["color", """@dummyStrPrefix@nope"""]]]
+        , ["style", [["color", dummyStrPrefix + nope]]]
         ]
       , [textNode "+"]
       ]
