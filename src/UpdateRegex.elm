@@ -264,7 +264,7 @@ stringToLambda eval update nth join vs s =
        case groupIndexMaybe of
          Nothing -> [] --It was just a regular escaped dollar, or an escaped backslash
          Just groupIndex ->
-           [ eApp (eVar "escapeDollars") [eStr <| String.slice lastEnd start s],
+           [ eApp (eVar "unescapeSlashDollar") [eStr <| String.slice lastEnd start s],
              eApp (eVar "nth") [eSelect m "group", eConstDummyLoc <| toFloat groupIndex]
            ]
        ) lWithPrevStart
@@ -469,7 +469,7 @@ evalRegexReplaceByIn  howmany eval regexpV replacementV stringV =
         let (lambdaReplacement, _) = stringToLambda eval dummyUpdate nth join replacementV replacement
         in evalRegexReplaceByIn howmany eval regexpV lambdaReplacement stringV
        -- Conver the string to a lambda with string concatenation
-     (VBase (VString regexp), VClosure _ _ _ _, VBase (VString string)) ->
+     (VBase (VString regexp), _, VBase (VString string)) ->
         ImpureGoodies.tryCatch "EvaluationError" (\() ->
           let newString = GroupStartMap.replace howmany regexp (\m ->
                let replacementName = "user_callback" in

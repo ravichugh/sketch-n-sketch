@@ -20,6 +20,7 @@ import ParserUtils
 import HTMLValParser
 import Set
 import ImpureGoodies
+import EvalUpdate exposing (builtinEnv)
 
 type StateChanger = StateChanger (State -> State)
 
@@ -45,8 +46,14 @@ onlyLast state =
       only stateChanger state
     _ -> Debug.crash "No tests to only test before the use of 'onlyLast'. Add '|> onlyLast' after a test you want to run alone"
 
+onlyAfter = skipBefore
+
 skipBefore: State -> State
 skipBefore state = { state | toLaunch = [] }
+
+onlyBefore: State -> State
+onlyBefore =
+  flush >> ignore True
 
 gather: (State -> State) -> State -> State
 gather stateChanger state =
@@ -521,27 +528,29 @@ all_tests = init_state
       ) "aabcdacdd")
         "a2bc2bc6cd-1null"
   |> test "replaceAllIn"
-    |> evalElmAssert [] "replaceAllIn \"l\" \"L\" \"Hello world\"" "\"HeLLo worLd\""
-    |> evalElmAssert nthEnv "replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
-    |> evalElmAssert nthEnv "replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
-    |> updateElmAssert nthEnv "replaceAllIn \"e\" \"ee\" \"\"\"See some examples from File...\"\"\"" "\"Seeee somee emexamplees from Filee...\""
-                       nthEnv "replaceAllIn \"e\" \"eme\" \"\"\"See some examples from File...\"\"\""
-    |> updateElmAssert nthEnv "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"ee\" \"\"\"\n            See some examples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
+    |> onlyAfter
+    |> evalElmAssert2 builtinEnv "replaceAllIn \"l\" \"L\" \"Hello world\"" "\"HeLLo worLd\""
+    |> evalElmAssert2 builtinEnv "replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
+    |> evalElmAssert2 builtinEnv "replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
+    |> updateElmAssert2 builtinEnv "replaceAllIn \"e\" \"ee\" \"\"\"See some examples from File...\"\"\"" "\"Seeee somee emexamplees from Filee...\""
+                                   "replaceAllIn \"e\" \"eme\" \"\"\"See some examples from File...\"\"\""
+    |> updateElmAssert2 builtinEnv "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"ee\" \"\"\"\n            See some examples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
                               "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT',                           \"\"\"\n            Seeee somee eecxamplees from Filee -> Neew From Teemplatee in\n            thee meenu bar, or by preessing thee Preevious and Neext\n            buttons in thee top-right corneer.\n           \"\"\"]]]\n        ]\n      ]"
-                       nthEnv "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"eec\" \"\"\"\n            See some examples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
-    |> updateElmAssert nthEnv "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"ee\" \"\"\"\n            See some examples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
+                                   "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"eec\" \"\"\"\n            See some examples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
+    |> updateElmAssert2 builtinEnv "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"ee\" \"\"\"\n            See some examples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
                               "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT',                           \"\"\"\n            Seeee somee eecxamplees from Filee -> Neew From Teemplatee in\n            thee meenu bar, or by preessing thee Preevious and Neext\n            buttons in thee top-right corneer.\n           \"\"\"]]]\n        ]\n      ]"
-                       nthEnv "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"ee\" \"\"\"\n            See some ecxamples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
+                                   "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"ee\" \"\"\"\n            See some ecxamples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
     |>
       updateElmAssert [] "extractFirstIn \"^\\\\s*(S(\\\\w)+ (\\\\w))\" \"\"\" See some examples\"\"\" |> case of [\"Just\", [big, s1, s2]] -> big + s1 + s2; e -> \"not the right shape\"" "\"Sea ses\""
                       [] "extractFirstIn \"^\\\\s*(S(\\\\w)+ (\\\\w))\" \"\"\" Sea some examples\"\"\" |> case of [\"Just\", [big, s1, s2]] -> big + s1 + s2; e -> \"not the right shape\""
     |> evalElmAssert [] "extractFirstIn \"\"\"([\\w:_-]*)\"\"\" \"data-array=\\\"17\\\"\" |> case of [_, [id]] -> id; _ -> \"Nothing\" " "\"data-array\""
-    |> evalElmAssert nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"[Markdown](http://test)\"" "\"<a href='http://test'>Markdown</a>\""
-    |> evalElmAssert nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"[Markdown](https://fr.wikipedia.org/wiki/Markdown)\"" "\"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a>\""
-    |> updateElmAssert nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"#[Markdown](https://fr.wikipedia.org/wiki/Markdown)\"" "\"#<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdoooown</a>\""
-                       nthEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"#[Markdoooown](https://fr.wikipedia.org/wiki/Markdown)\""
-    |> updateElmAssert [] "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"5\" else \"7\") \"x,y\"" "\"6,8\""
-                             [] "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"6\" else \"8\") \"x,y\""
+    |> evalElmAssert2 builtinEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"[Markdown](http://test)\"" "\"<a href='http://test'>Markdown</a>\""
+    |> evalElmAssert2 builtinEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"[Markdown](https://fr.wikipedia.org/wiki/Markdown)\"" "\"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a>\""
+    |> updateElmAssert2 builtinEnv "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"#[Markdown](https://fr.wikipedia.org/wiki/Markdown)\"" "\"#<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdoooown</a>\""
+                                   "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"#[Markdoooown](https://fr.wikipedia.org/wiki/Markdown)\""
+    |> updateElmAssert2 builtinEnv "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"5\" else \"7\") \"x,y\"" "\"6,8\""
+                                   "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"6\" else \"8\") \"x,y\""
+    |> onlyBefore
   --|> test "Record construction, extraction and pattern "
   --  |>
   |> test "Partial application"
@@ -644,7 +653,6 @@ all_tests = init_state
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demo\""
                        "[HTMLElement \"a\" [HTMLAttribute \" \" \"href\" (HTMLAttributeString \"\" \"\" \"'\" \"https://fr.wikipedia.org/wiki/Markdown\")] \"\" RegularEndOpening [HTMLInner \"Markdown\"] (RegularClosing \"\"), HTMLInner \" demonstration\"]"
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demonstration\""
-  |> onlyLast
   |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)] "parseHTML \"Hello world\""  "[HTMLInner \"Hello world\"]"
   |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)] "parseHTML \"<i><b>Hello</i></b>World\""  "[ HTMLElement \"i\" [] \"\" RegularEndOpening [ HTMLElement \"b\" [] \"\" RegularEndOpening [ HTMLInner \"Hello\"] ForgotClosing] (RegularClosing \"\"), HTMLInner \"</b>World\"]"
   |> updateElmAssert [("color", "\"white\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"
