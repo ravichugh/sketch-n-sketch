@@ -527,13 +527,14 @@ all_tests = init_state
       \match -> String.concat <| List.map (\subm -> toString subm.start ++ Maybe.withDefault "null" subm.match) match.submatches
       ) "aabcdacdd")
         "a2bc2bc6cd-1null"
-  |> test "replaceAllIn"
     |> onlyAfter
+  |> test "replaceAllIn"
     |> evalElmAssert2 builtinEnv "replaceAllIn \"l\" \"L\" \"Hello world\"" "\"HeLLo worLd\""
     |> evalElmAssert2 builtinEnv "replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
     |> evalElmAssert2 builtinEnv "replaceAllIn \"a(b|c)\" (\\{group = [t, c]} -> \"oa\" + (if c == \"b\" then \"c\" else \"b\")) \"This is acknowledgeable\"" "\"This is oabknowledgeoacle\""
     |> updateElmAssert2 builtinEnv "replaceAllIn \"e\" \"ee\" \"\"\"See some examples from File...\"\"\"" "\"Seeee somee emexamplees from Filee...\""
                                    "replaceAllIn \"e\" \"eme\" \"\"\"See some examples from File...\"\"\""
+    |> onlyLast
     |> updateElmAssert2 builtinEnv "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"ee\" \"\"\"\n            See some examples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
                               "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT',                           \"\"\"\n            Seeee somee eecxamplees from Filee -> Neew From Teemplatee in\n            thee meenu bar, or by preessing thee Preevious and Neext\n            buttons in thee top-right corneer.\n           \"\"\"]]]\n        ]\n      ]"
                                    "[ 'div'\n      , []\n      , [ ['h2', [], [['TEXT', 'Welcome to Sketch-n-Sketch Docs!']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', 'Type something here...']]]\n        , ['br', [], []]\n        , ['p', [], [['TEXT', replaceAllIn \"e\" \"eec\" \"\"\"\n            See some examples from File -> New From Template in\n            the menu bar, or by pressing the Previous and Next\n            buttons in the top-right corner.\n           \"\"\"]]]\n        ]\n      ]"
