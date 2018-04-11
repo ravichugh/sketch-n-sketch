@@ -24,21 +24,9 @@ and _partially_ edit the html on the right.
 
 """
 
-trim s =
-  Regex.replace "^\\s+" "" s |>
-  Regex.replace "\\s+$" ""
-
-sprintf str inline = case inline of
-  a::tail -> sprintf (replaceFirstIn "%s" a str) tail
-  [] -> str
-  a -> replaceFirstIn "%s" a str
-
-strlen str = String.length str
-
-foldLeft init list fun = case list of
-  [] -> init
-  head:: tail -> let newInit = (fun init head) in
-    foldLeft newInit tail fun
+{trim, sprintf, length} = String
+{foldl = foldLeft} = List
+{freeze, strDiffToConcreteDiff} = Update
 
 -- Thanks to https://gist.github.com/jbroadway/2836900
 markdown text =
@@ -62,7 +50,7 @@ markdown text =
       sprintf "\n<blockquote>%s</blockquote>" (trim item)
     header regs =
       let {group= [tmp, nl, chars, header]} = regs in
-      let level = toString (strlen chars) in
+      let level = toString (length chars) in
       sprintf "<h%s>%s</h%s>" [level, trim header, level]
   } in
   let rules = [
@@ -92,30 +80,38 @@ markdown text =
     ["</blockquote>\\s?<blockquote>", "\n"]
   ] in
   let finaltext = "\n" + text + "\n" in
-  foldLeft finaltext rules (\acc elem -> case elem of
+  foldLeft (\elem acc -> case elem of
       [regex, replacement] -> Regex.replace regex replacement acc
       [regex, replacement, {postReverse = fun}] ->
         let newAcc = { apply acc = freeze acc, unapply out = Just (fun out)}.apply acc in
         Regex.replace regex replacement newAcc 
-  )
+  ) finaltext rules 
 
---let converter_lens x = {
---  apply x = x,
---  unapply {outputNew} =
---    case Regex.extract """^<div>([\s\S]*)</div>""" inserted of
---      Just [content] ->
---        if (matchIn "(?:^|\n)#(.*)$" left) then -- Title, we jump only one line
---          Just (left + "\n" + content + right)
---        else -- we jump TWO lines
---          Just (left + "\n\n" + content + right)
---      Nothing ->    
---        if(matchIn """(?:^|\n)(#|\*|\d\.)(.*)$""" left) then
---          Just outputNew
---        else
---          let newInserted = Regex.replace """<br>"""  "\n\n" inserted in
---          Just (left + newInserted + right)
---  }.apply x in
+-- Takes care of newlines inserted in the document.
+newlines_lens x = {
+  apply x = freeze x,
+  update {outputNew,diffs} =
+    letrec aux offset d strAcc = case d of
+      [] -> strAcc
+      ((ConcStringUpdate start end inserted) :: dtail) ->
+        let left = String.take (start + offset) strAcc in
+        let right =  String.dropLeft (start + offset + String.length inserted) strAcc in
+        let newInserted =
+          case Regex.extract """^<div>([\s\S]*)</div>""" inserted of
+            Just [content] ->
+              if Regex.matchIn "(?:^|\n)#(.*)$" left then -- Title, we jump only one line
+                "\n" + content
+              else -- we jump TWO lines
+                "\n\n" + content
+            Nothing ->    
+              if Regex.matchIn """(?:^|\n)(#|\*|\d\.)(.*)$""" left then
+                inserted
+              else
+                Regex.replace """<br>"""  "\n\n" inserted
+        in
+        left + newInserted + right |>
+        aux (offset + String.length inserted - (end - start)) dtail
+    in { values = [aux 0 (strDiffToConcreteDiff outputNew diffs) outputNew] }
+  }.apply x
 
-converter_lens x = x
-
-Html.span [] [] <| html ((freeze markdown) (converter_lens original))
+Html.span [] [] <| html ((freeze markdown) (newlines_lens original))

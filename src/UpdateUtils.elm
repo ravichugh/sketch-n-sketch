@@ -1115,7 +1115,7 @@ strDiffToConcreteDiff newString d =
     [] -> List.reverse revAcc
     StringUpdate start end replaced :: tail ->
        (start, end, String.slice (start + offset) (start + replaced + offset) newString)::revAcc |>
-       aux (end - start + replaced) tail
+       aux (replaced - (end - start)) tail
   in aux 0 d []
 
 
@@ -1402,7 +1402,7 @@ defaultRecordDiffs keyOf defaultElemModif elems1 elems2 =
       defaultElemModif v1 v2 |> Results.map (\mbv ->
         mbv |> Maybe.map (\v ->
          Dict.insert k v acc) |> Maybe.withDefault acc)))
-    (\k2 v2 acc -> Errs <| "Not allowed to insert a key to record:" ++ k2)
+    (\k2 v2 acc -> Errs <| "Not allowed to insert a key to record:" ++ k2 ++ " " ++ valToString v2)
     elems1
     elems2
     (ok1 Dict.empty)

@@ -65,8 +65,8 @@ join = let
              -- Hence we need to offset startHead + length head by deltaLengthHeadInput to compute endHead.
              let gather:Int ->     List String -> Int ->  Int ->    Int ->               Int ->       List StringDiffs -> Results String (List String, ListDiffs VDiffs)
                  gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput diffs =
-                --let _ = Debug.log ("gather@" ++ ":"  ++ toString lastIndexDeleted ++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) [] in
-                --Debug.log ("gather" ++ ":" ++ " " ++ toString lastIndexDeleted++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) <|
+               --let _ = Debug.log ("gather@" ++ ":"  ++ toString lastIndexDeleted ++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) [] in
+               --(\x -> let _ = Debug.log ("gather" ++ ":" ++ " " ++ toString lastIndexDeleted++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) (Results.toList x) in x) <|
                case diffs of
                [] -> ok1 (input, [])
                ((StringUpdate start end replaced) :: diffTail) ->
@@ -75,7 +75,7 @@ join = let
                      let inserted = substring (start + offsetOutput) (end + offsetOutput + replaced) newOutput in
                      ok1 ([inserted], [(indexInput, ListElemInsert 1)])
                    (head::tail) ->
-                     let endHead = startHead + length head - deltaLengthHeadInput in
+                     let endHead = startHead + length head + deltaLengthHeadInput in
                      --We assume that start >= startHead (invariant)
                      if start < endHead && end > endHead then
                        let firstReplaced =

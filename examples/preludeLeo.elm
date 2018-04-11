@@ -121,6 +121,7 @@ LensLess =
       split = split
       take = take
       drop = drop
+      reverse = reverse
       reverse_move = reverse_move
     },
     Results =
@@ -165,6 +166,50 @@ LensLess =
         andThen = andThen
         andElse = andElse
         map = resultMap
+      }
+    String =
+      let strToInt =
+        let d = dict [("0", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("6", 6), ("7", 7), ("8", 8), ("9", 9)] in
+        letrec aux x =
+          case extractFirstIn "^([0-9]*)([0-9])$" x of
+            Just [init, last] -> (aux init)*10 + case get d last of
+              Just x -> x
+              Nothing -> ""
+            Nothing -> 0
+        in
+        aux
+      in
+      let join delimiter list =
+        letrec aux acc list = case list of
+          [] -> acc
+          [head] -> acc + head
+          (head::tail) -> aux (acc + head + freeze delimiter) tail
+        in aux "" list
+      in
+      let substring start end x =
+        case extractFirstIn ("^[\\s\\S]{0," + toString start + "}([\\s\\S]{0," + toString (end - start) + "})") x of
+          Just [substr] -> substr
+          Nothing -> error <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
+      in
+      let take length x =
+          case extractFirstIn ("^([\\s\\S]{0," + toString length + "})") x of
+            Just [substr] -> substr
+            Nothing -> error <| "bad arguments to String.take " + toString length + " " + toString x
+      in
+      let drop length x =
+        case extractFirstIn ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
+                Just [substr] -> substr
+                Nothing -> error <| "bad arguments to String.drop " + toString length + " " + toString x
+      in
+      let length x = len (explode x) in
+      { strToInt = strToInt
+        join = join
+        substring = substring
+        slice = substring
+        take = take
+        drop = drop
+        dropLeft = drop
+        length = length
       }
   }
 
@@ -249,6 +294,19 @@ Update =
 
         result -> error ("Expected Ok (Just (VListDiffs listDiffs)), got " + toString result)
   in
+  type StringDiffs = StringUpdate Int Int Int
+  type ConcStringDiffs = ConcStringUpdate Int Int String
+  -- Converts a VStringDiffs -> List ConcStringDiffs
+  let strDiffToConcreteDiff newString diffs =
+    case diffs of
+      VStringDiffs d ->
+        letrec aux offset d revAcc = case d of
+          [] -> LensLess.List.reverse revAcc
+          ((StringUpdate start end replaced) :: tail) ->
+             ConcStringUpdate start end (LensLess.String.slice (start + offset) (start + replaced + offset) newString) :: revAcc |>
+             aux (replaced - (end - start)) tail
+        in aux 0 d []
+  in
   -- exports from Update module
   { freeze x =
       -- eta-expanded because "freeze x" is a syntactic form for U-Freeze
@@ -264,9 +322,18 @@ Update =
     diff = __diff__
     merge = __merge__
     listDiff = listDiffOp __diff__
+    strDiffToConcreteDiff = strDiffToConcreteDiff
     mapInserted f originalStr modifiedStr =
       -- TODO: really map the insertions in the modified string by f: String -> String
       modifiedStr
+    debug msg x =
+         { apply x = freeze x, update { input, newOutput, oldOutput, diffs} =
+           let _ = Debug.log ("""@msg:
+oldOutput:@oldOutput
+newOutput:@newOutput""") "end" in
+           { values = [newOutput],
+             diffs = [Just diffs]}
+         }.apply x
   }
 
 --------------------------------------------------------------------------------
@@ -974,7 +1041,7 @@ html string = {
             ( HTMLInner v, _, ["TEXT",v2]) -> { values = [toHTMLInner v2] }
             ( HTMLElement tagName attrs ws1 endOp children closing,
               [tag1, attrs1, children1], [tag2, attrs2, children2] ) ->
-               if tag2 == tagName then
+               if tag2 == tagName || attrs1 == attrs2 || children2 == children1  then
                  case diffs of
                    VListDiffs listDiffs ->
                      let (newAttrsMerged, otherDiffs) = case listDiffs of
@@ -1102,6 +1169,12 @@ String =
             Just [substr] -> substr
             Nothing -> error <| "bad arguments to String.drop " + toString length + " " + toString x
   in
+  let length x = len (explode x) in
+  letrec sprintf str inline = case inline of
+    a::tail -> sprintf (replaceFirstIn "%s" a str) tail
+    [] -> str
+    a -> replaceFirstIn "%s" a str
+  in
   { toInt x =
       { apply x = freeze <| strToInt x
       , unapply output = Just (toString output)
@@ -1111,13 +1184,34 @@ String =
         update {output, oldOutput, diffs} =
           {values = [Regex.split delimiter output]}
       }.apply x
-    length x = len (explode x)
+    length x = {
+      apply x = length x
+      update {input, oldOutput, newOutput} =
+        if newOutput < oldOutput then
+          { values = [take newOutput input], diffs = [Just (VStringDiffs [StringUpdate newOutput oldOutput 0])] }
+        else if newOutput == oldOutput then
+          { values = [input], diffs = [Nothing] }
+        else
+          letrec makeSize s targetLength =
+            let n = length s in
+            if n < targetLength then makeSize (s + s) targetLength
+            else if n == targetLength then s
+            else take targetLength s
+          in
+          let increment = newOutput - oldOutput in
+          let addition = makeSize (if input == "" then "#" else input) increment in
+          { values = [input + addition], diffs = [Just (VStringDiffs [StringUpdate oldOutput oldOutput increment])] }
+      }.apply x
     substring = substring
     slice = substring
     take = take
     left = take
     drop = drop
     dropLeft = drop
+    trim s =
+      Regex.replace "^\\s+" "" s |>
+      Regex.replace "\\s+$" ""
+    sprintf = sprintf
   }
 
 

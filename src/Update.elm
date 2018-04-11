@@ -512,7 +512,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                else
                  UpdateFails <| "freeze tried to be updated with a different value : " ++ valToString newVal ++ " from " ++ valToString oldVal
              _ ->
-               UpdateFails "Hit a freeze" --("You are trying to update " ++ unparse e ++ " (line " ++ toString e.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'")
+               UpdateFails <| "Hit a freeze" --: You are trying to update " ++ unparse e ++ " (line " ++ toString e.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'"
            --_ -> \continuation -> continuation()
          else \continuation -> continuation()
        in
@@ -1085,11 +1085,11 @@ getUpdateStackOp env e oldVal newVal diffs =
                              _ -> UpdateCriticalError <| "DictInsert requires the second argument to be a dictionary, got " ++ valToString dict
                      _ -> UpdateCriticalError <| "DictInsert requires tnree arguments, got " ++ toString (List.length vs)
                  ToStrExceptStr ->
-                   let default () =
+                   let default original =
                         case newVal.v_ of
                           VBase (VString s) ->
                             case Syntax.parser Syntax.Elm s of
-                              Err msg -> UpdateFails <| "Could not parse new output value '"++s++"' for ToStr expression " ++ ParserUtils.showError msg
+                              Err msg -> UpdateFails <| "Could not parse new output value '"++s++"' for ToStrExceptStr expression " ++ ParserUtils.showError msg ++ "\nOriginal value was " ++ valToString original
                               Ok parsed ->
                                 case doEval Syntax.Elm [] parsed of
                                   Err msg -> UpdateFails msg
@@ -1113,7 +1113,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                  updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
                              e -> UpdateCriticalError <| "[internal error] Wrong number of argument values in update ToStrExceptStr: " ++ toString e
                          _ -> -- Everything else is unparsed to a string, we just parse it.
-                           default ()
+                           default original
                      _ -> UpdateCriticalError <| "[internale error] Wrong number or arguments in updateToStrExceptStr: " ++ toString e
                  ToStr      ->
                    case newVal.v_ of
