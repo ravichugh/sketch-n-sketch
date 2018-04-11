@@ -5785,13 +5785,13 @@ welcome1 =
 
 tableOfStatesA =
  """states =
-  [ [\"Alabama\", \"AL?\", \"?\"]
-  , [\"Alaska\", \"AL?\", \"?\"]
-  , [\"Arizona\", \"AR?\", \"?\"]
-  , [\"Arkansas\", \"AR?\", \"?\"]
-  , [\"California\", \"CA\", \"?\"]
-  , [\"Colorado\", \"CO?\", \"?\"]
-  , [\"Connecticut\", \"CO?\", \"?\"] ]
+  [ [\"Alabama\", \"AL?\", \"\"]
+  , [\"Alaska\", \"AL?\", \"\"]
+  , [\"Arizona\", \"AR?\", \"\"]
+  , [\"Arkansas\", \"AR?\", \"\"]
+  , [\"California\", \"CA\", \"\"]
+  , [\"Colorado\", \"CO?\", \"\"]
+  , [\"Connecticut\", \"CO?\", \"\"] ]
 
 main =
   let headers = [\"State\", \"Capital\"] in
@@ -5840,13 +5840,14 @@ tableOfStatesC =
   , [\"Colorado\", \"CO\", \"Denver\"]
   , [\"Connecticut\", \"CT\", \"Hartford\"] ]
 
+TableWithButtons = TableWithButtons.new []
+
 main =
   let headers = [\"State\", \"Capital\"] in
-  let _Table = TableWithButtons.new [] in
   let rows =
-    _Table.mapData
+    TableWithButtons.mapData
       (\\[state, abbrev, cap] -> [state, cap + \", \" + abbrev])
-      (_Table.wrapData states)
+      (TableWithButtons.wrapData states)
   in
   let padding = [\"padding\", \"3px\"] in
   let headerRow =
@@ -5862,7 +5863,7 @@ main =
           (Html.td [padding, [\"background-color\", color]] [])
           row
       in
-      _Table.tr flag [] [] columns
+      TableWithButtons.tr flag [] [] columns
     in
     List.indexedMap drawRow rows
   in

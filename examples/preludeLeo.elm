@@ -1376,7 +1376,7 @@ TableWithButtons =
       ]
     in
     Html.tr styles
-      ([hasBeenClicked, """@dummyStrPrefix@flag"""] :: attrs)
+      ([hasBeenClicked, dummyStrPrefix + toString flag] :: attrs)
       (snoc button children)
   in
   { wrapData = wrapData
