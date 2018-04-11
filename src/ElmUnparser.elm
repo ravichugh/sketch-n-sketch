@@ -397,10 +397,6 @@ unparseOp op =
       "noWidgets"
     ToStrExceptStr ->
       "ToStrExceptStr"
-    RegexReplaceAllIn ->
-      "replaceAllIn"
-    RegexReplaceFirstIn ->
-      "replaceFirstIn"
     RegexExtractFirstIn ->
       "extractFirstIn"
 

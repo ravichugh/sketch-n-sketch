@@ -15,7 +15,12 @@ import Set exposing (Set)
 import UpdatedEnv exposing (UpdatedEnv, original)
 import Pos exposing (Pos)
 
+
 type alias UpdatedExp = { val: Exp, changes: Maybe EDiffs }
+type alias UpdatedExpTuple = { val: List Exp, changes: Maybe (TupleDiffs EDiffs) }
+
+type HandlePreviousResult = HandlePreviousResult String (UpdatedEnv -> UpdatedExp -> UpdateStack)
+type Fork = Fork String UpdateStack (LazyList HandlePreviousResult) (LazyList Fork)
 
 updatedExpToString: Exp -> UpdatedExp -> String
 updatedExpToString e ue =
@@ -24,13 +29,6 @@ updatedExpToString e ue =
 updatedExpToStringWithPositions: Exp -> UpdatedExp -> (String, List Exp)
 updatedExpToStringWithPositions e ue =
   ue.changes |> Maybe.map (UpdateUtils.eDiffsToStringPositions ElmSyntax "" (Pos 0 0, (0, 0)) e ue.val >> (\(msg, (_, l)) -> (msg, l))) |> Maybe.withDefault ("<no change>", [])
-
-
-
-type alias UpdatedExpTuple = { val: List Exp, changes: Maybe (TupleDiffs EDiffs) }
-
-type HandlePreviousResult = HandlePreviousResult String (UpdatedEnv -> UpdatedExp -> UpdateStack)
-type Fork = Fork String UpdateStack (LazyList HandlePreviousResult) (LazyList Fork)
 
 handleResultToString_: String -> HandlePreviousResult -> String
 handleResultToString_ indent handleResult = case handleResult of

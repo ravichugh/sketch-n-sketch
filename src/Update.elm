@@ -59,20 +59,21 @@ updateEnv env k newValue modif =
 
 -- Make sure that Env |- Exp evaluates to oldVal
 -- NextAction is a list of HandlePreviousREsult followed by a list of Fork in the same list.
-update : UpdateStack -> LazyList HandlePreviousResult -> LazyList Fork -> Results String (UpdatedEnv, UpdatedExp)
-update updateStack callbacks forks =
+update : LazyList HandlePreviousResult -> LazyList Fork -> UpdateStack -> Results String (UpdatedEnv, UpdatedExp)
+update callbacks forks updateStack =
   --let _ = Debug.log ("\nUpdateStack "++updateStackName_ "  " updateStack) () in
   --let _ = Debug.log ("NextToUpdate" ++ (String.join "" <| List.map (nextActionsToString_ "  ") <| Results.toList callbacks)) () in
   -- At the end of callbacks, there are all the forks that can be explored later.
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out diffs mb ->
-       {--
+       {--}
       let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
        --}
-      update (getUpdateStackOp env e oldVal out diffs) (LazyList.maybeCons mb callbacks) forks
+      getUpdateStackOp env e oldVal out diffs |>
+      update (LazyList.maybeCons mb callbacks) forks
 
     UpdateResultS fUpdatedEnv fOut mb -> -- Let's consume the stack !
-       {--
+       {--}
       let _ = Debug.log (String.concat [
         "update final result: ", unparse fOut.val,
         {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes,
@@ -86,19 +87,20 @@ update updateStack callbacks forks =
             LazyList.Cons (Fork msg newUpdateStack callbacks2 forks2) lazyForkTail ->
               okLazy (fUpdatedEnv, fOut) <| (\lft m nus cb2 fk2 -> \() ->
                 --let _ = Debug.log ("Exploring other updates: '" ++ m ++ "'") () in
-                updateRec nus cb2 (Lazy.force lft)) lazyForkTail msg newUpdateStack callbacks2 forks2
+                updateRec cb2 (Lazy.force lft) nus) lazyForkTail msg newUpdateStack callbacks2 forks2
         LazyList.Cons (HandlePreviousResult msg f) lazyTail ->
-          update (f fUpdatedEnv fOut) (Lazy.force lazyTail) forks
+          update (Lazy.force lazyTail) forks <| f fUpdatedEnv fOut
 
     UpdateResultAlternative msg updateStack maybeNext ->
       {--
       let _ = Debug.log (String.concat ["update result alternative ", msg, ": "]) () in
       --}
-      update updateStack callbacks <|
+      update callbacks (
         case Lazy.force maybeNext of
           Nothing -> forks
           Just alternativeUpdateStack ->
              LazyList.append (LazyList.fromList [Fork msg alternativeUpdateStack callbacks LazyList.Nil]) forks
+        ) updateStack
 
     UpdateFails msg -> -- Let's explore other solutions. If there are none, return this error.
       case forks of -- Let's consume the stack !
@@ -106,7 +108,7 @@ update updateStack callbacks forks =
           Errs msg
         LazyList.Cons (Fork msgFork newUpdateStack callbacks2 forks2) lazyTail ->
           --let _ = Debug.log ("Got a non-critical error (" ++ msg ++ ") but there are some forks available... testing the next one: " ++ msgFork) () in
-          update newUpdateStack callbacks2 <| LazyList.appendLazy forks2 lazyTail
+          update callbacks2 (LazyList.appendLazy forks2 lazyTail) newUpdateStack
 
     UpdateCriticalError msg -> -- Immediately stops without looking for new solutions
       Errs msg
@@ -861,13 +863,13 @@ getUpdateStackOp env e oldVal newVal diffs =
                          Err s       -> UpdateCriticalError s
                          Ok v2ls     ->
                            let v2s = List.map (\((v2, _), _) -> v2) v2ls in
-                           case updateDef v2s oldVal newVal of
+                           case updateDef v2s oldVal newVal diffs of
                              Errs msg -> UpdateCriticalError msg
+                             Oks LazyList.Nil -> UpdateFails <| "not solution for updating " ++ name
                              Oks ll ->
-                               let llWithDiffResult = ll |> LazyList.map (\outputs ->
-                                 let resMaybeDiffs = UpdateUtils.defaultTupleDiffs valToString defaultVDiffs v2s outputs  in
-                                 let resMaybeDiffsOffsetted = Results.map (Maybe.map (UpdateUtils.offset 1)) resMaybeDiffs in
-                                 (v1::outputs, resMaybeDiffsOffsetted)) in
+                               let llWithDiffResult = ll |> LazyList.map (\(outputs, diffs) ->
+                                 let resMaybeDiffsOffsetted = UpdateUtils.offset 1 diffs in
+                                 (v1::outputs, ok1 <| Just <| resMaybeDiffsOffsetted)) in
                                updateOpMultiple "vfun" env (e1::e2s) (\funAndNewE2s ->
                                      replaceE__ e <| EApp sp0 e1 (Utils.tail "vfun" funAndNewE2s) appType sp1
                                    ) (v1::v2s) llWithDiffResult
@@ -1130,48 +1132,6 @@ getUpdateStackOp env e oldVal newVal diffs =
                                          updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
                                  e -> UpdateCriticalError <| "[internal error] Wrong number of arguments in update: " ++ toString e
                      e -> UpdateCriticalError <| "Expected string, got " ++ valToString newVal
-                 RegexReplaceAllIn -> -- TODO: Move this in maybeUpdateMathOp
-                   case vs of
-                     [regexpV, replacementV, stringV] ->
-                       let eRec env exp = doEval Syntax.Elm env exp |> Result.map (\((v, _), _) -> v) in
-                       let uRec: Env -> Exp -> Val -> Val -> Results String (UpdatedEnv, UpdatedExp)
-                           uRec env exp oldval newval =
-                             (if diffs == VUnoptimizedDiffs then defaultVDiffsShallow else defaultVDiffs) oldval newval |> Results.andThen (\mbnewvaldiff ->
-                               case mbnewvaldiff of
-                                 Nothing -> ok1 (UpdatedEnv.original env, UpdatedExp exp Nothing)
-                                 Just newvalDiff -> update (updateContext "recursive update" env exp oldval newval newvalDiff) LazyList.Nil LazyList.Nil
-                             )
-                       in
-                       case UpdateRegex.updateRegexReplaceAllByIn
-                           env eRec uRec regexpV replacementV stringV oldVal newVal of
-                         Errs msg -> UpdateCriticalError msg
-                         Oks ll -> updateOpMultiple "replaceAllIn" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs
-                           (LazyList.map (\(a, b, c) ->
-                             let outputVs = [a, b, c] in
-                             (outputVs, UpdateUtils.defaultTupleDiffs valToString UpdateUtils.defaultVDiffs vs outputVs)
-                             ) ll)
-                     _ -> UpdateCriticalError "replaceAllIn requires regexp, replacement (fun or string) and the string"
-                 RegexReplaceFirstIn -> -- TODO: Move this in maybeUpdateMathOp
-                     case vs of
-                       [regexpV, replacementV, stringV] ->
-                         let eRec env exp = doEval Syntax.Elm env exp |> Result.map (\((v, _), _) -> v) in
-                         let uRec: Env -> Exp -> Val -> Val -> Results String (UpdatedEnv, UpdatedExp)
-                             uRec env exp oldval newval =
-                               (if diffs == VUnoptimizedDiffs then defaultVDiffsShallow else defaultVDiffs) oldval newval |> Results.andThen (\mbnewvaldiff ->
-                                  case mbnewvaldiff of
-                                    Nothing -> ok1 (UpdatedEnv.original env, UpdatedExp exp Nothing)
-                                    Just newvalDiff -> update (updateContext "recursive update" env exp oldval newval newvalDiff) LazyList.Nil LazyList.Nil
-                               )
-                         in
-                         case UpdateRegex.updateRegexReplaceFirstByIn
-                             env eRec uRec regexpV replacementV stringV oldVal newVal of
-                           Errs msg -> UpdateCriticalError msg
-                           Oks ll -> updateOpMultiple "replaceAllIn" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs
-                             (LazyList.map (\(a, b, c) ->
-                               let outputVs = [a, b, c] in
-                               (outputVs, UpdateUtils.defaultTupleDiffs valToString UpdateUtils.defaultVDiffs vs outputVs)
-                               ) ll)
-                       _ -> UpdateCriticalError "replaceAllIn requires regexp, replacement (fun or string) and the string"
                  RegexExtractFirstIn ->
                    case (vs, opArgs) of
                      ([regexpV, stringV], [regexpE, stringE]) ->
@@ -1290,10 +1250,10 @@ getUpdateStackOp env e oldVal newVal diffs =
        UpdateCriticalError <| "Non-supported update " ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
 
 -- Errors are converted to empty solutions because updateRec is called once a solution has been found already.
-updateRec: UpdateStack -> LazyList HandlePreviousResult -> LazyList Fork -> LazyList (UpdatedEnv, UpdatedExp)
-updateRec updateStack callbacks forks =
+updateRec: LazyList HandlePreviousResult -> LazyList Fork -> UpdateStack -> LazyList (UpdatedEnv, UpdatedExp)
+updateRec callbacks forks updateStack =
   --ImpureGoodies.logTimedRun "Update.updateRec" <| \_ ->
-  case update updateStack callbacks forks of
+  case update callbacks forks updateStack of
     Oks l -> l
     Errs msg -> LazyList.Nil
 
@@ -1321,34 +1281,6 @@ angleUpdate new old n =
      ok1 <| n + increment - 2*pi
    else
      ok1 <| n + increment + 2*pi
-
-affinityArray = Array.fromList <| [
-                 Array.fromList [19, 9, 6, 11, 14]
-               , Array.fromList [5, 0, 3, 12, 16]
-               , Array.fromList [1, 18, 24, 21, 22]
-               , Array.fromList [8, 2, 17, 7, 20]
-               , Array.fromList [15, 4, 23, 10, 13]]
-
-classOf c =
-  if Char.isDigit c then 0
-  else if c == '.' then 1
-  else if Char.isLower c || Char.isUpper c || c == '_' then 2
-  else if not (isSpace c) then 3
-  else 4
-
-affinityChar c1 c2 =
-  Array.get (classOf c1) affinityArray |> Maybe.andThen (\row ->
-    Array.get (classOf c2) row
-  ) |> Maybe.withDefault 0
-
--- The affinity between a string and an empty string should be the greatest
-affinity s1 s2 =
-   case String.uncons (String.slice (-1) (String.length s1) s1) of
-     Just (s1Last, _) ->
-       case String.uncons s2 of
-         Just (s2First, _) -> affinityChar s1Last s2First
-         Nothing -> 25
-     Nothing -> 25
 
 maybeUpdateMathOp : Op -> List Val -> Val -> Val -> VDiffs -> Results String (List Val, TupleDiffs VDiffs)
 maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =

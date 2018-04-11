@@ -1,6 +1,6 @@
 module UpdatedEnv exposing (UpdatedEnv, original, offset, merge, split, isUnmodified, show)
 import Lang exposing (..)
-import UpdateUtils exposing (EnvDiffs, VDiffs(VUnoptimizedDiffs))
+import UpdateUtils
 import Utils
 import LangUtils exposing (envToString, valEqual)
 import Set exposing (Set)

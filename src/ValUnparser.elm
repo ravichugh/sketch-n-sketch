@@ -87,8 +87,6 @@ strOp op = case op of
   DebugLog      -> "debug"
   NoWidgets     -> "noWidgets"
   ToStrExceptStr-> "ToStrExceptStr"
-  RegexReplaceAllIn -> "replaceAllIn"
-  RegexReplaceFirstIn -> "replaceFirstIn"
   RegexExtractFirstIn -> "extractFirstIn"
 
 strLoc : Loc -> String

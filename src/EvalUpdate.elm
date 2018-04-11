@@ -23,6 +23,7 @@ import Dict exposing (Dict)
 import ValUnparser exposing (strVal_, strOp, strLoc)
 import ParserUtils
 import ValBuilder as Vb
+import UpdateRegex
 
 builtinEnv =
   [ ("error", builtinVal "EvalUpdate.error" <| VFun "error" ["msg"] (\args ->
@@ -111,21 +112,17 @@ builtinEnv =
            let env = [("x", x), ("left", left), ("right", right)] in
            Eval.doEval Syntax.Elm env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) |> Result.map Tuple.first
         _ -> Err <| ">> expects 2 arguments, got " ++ toString (List.length args)
-      ) (Just (\args oldVal newVal -> case args of
+      ) (Just (\args oldVal newVal d -> case args of
       [left, right, x] ->
         let env = [("left", left), ("right", right), ("x", x)] in
-        UpdateUtils.defaultVDiffs oldVal newVal |> Results.andThen (\mbd ->
-          case mbd of
-            Nothing -> ok1 args
-            Just d ->
-              Update.update (updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) oldVal newVal d) LazyList.Nil LazyList.Nil |>
-                Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
-                Results.map (\(newEnv, _) ->
-                  case newEnv.val of
-                    [(_, newLeft), (_, newRight), (_, newX)] -> [newLeft, newRight, newX]
-                    _ -> Debug.crash "[internal error] >> Environment is empty !!!"
-                  )
-          )
+        Update.update LazyList.Nil LazyList.Nil (updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) oldVal newVal d) |>
+          Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
+          Results.map (\(newEnv, _) ->
+            case newEnv.val of
+              [(_, newLeft), (_, newRight), (_, newX)] ->
+                ([newLeft, newRight, newX], newEnv.changes)
+              _ -> Debug.crash "[internal error] >> Environment is empty !!!"
+            )
       _ -> Errs <| ">> expects 3 arguments, got " ++ toString (List.length args)
     )))
   , ("<<", builtinVal "EvalUpdate.<<" <| VFun "<<" ["left", "right", "x"] (\args ->
@@ -134,20 +131,16 @@ builtinEnv =
          let env = [("x", x), ("left", left), ("right", right)] in
          Eval.doEval Syntax.Elm env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) |> Result.map Tuple.first
       _ -> Err <| ">> expects 2 arguments, got " ++ toString (List.length args)
-    ) (Just (\args oldVal newVal -> case args of
+    ) (Just (\args oldVal newVal d -> case args of
     [left, right, x] ->
       let env = [("left", left), ("right", right), ("x", x)] in
-      UpdateUtils.defaultVDiffs oldVal newVal |> Results.andThen (\mbd ->
-        case mbd of
-          Nothing -> ok1 args
-          Just d ->
-            Update.update (updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) oldVal newVal d) LazyList.Nil LazyList.Nil |>
-              Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
-              Results.map (\(newEnv, _) ->
-                case newEnv.val of
-                  [(_, newLeft), (_, newRight), (_, newX)] -> [newLeft, newRight, newX]
-                  _ -> Debug.crash "[internal error] << Environment is empty !!!"
-                ))
+      Update.update LazyList.Nil LazyList.Nil (updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) oldVal newVal d) |>
+        Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
+        Results.map (\(newEnv, _) ->
+          case newEnv.val of
+            [(_, newLeft), (_, newRight), (_, newX)] -> ([newLeft, newRight, newX], newEnv.changes)
+            _ -> Debug.crash "[internal error] << Environment is empty !!!"
+          )
     _ -> Errs <| "<< expects 3 arguments, got " ++ toString (List.length args)
   )))
   , ("evaluate", builtinVal "EvalUpdate.evaluate" <| VFun "evaluate" ["program"] (\args ->
@@ -162,35 +155,35 @@ builtinEnv =
             |> Result.map Tuple.first
           _ -> Err <| "evaluate expects one string, got " ++ LangUtils.valToString  program
         _ -> Err <| "evaluate expects 1 arguments, got " ++ (toString <| List.length args)
-    ) (Just <| \args oldVal newVal ->
+    ) <| Just <| \args oldVal newVal d ->
       case args of
         [oldProgram] ->
           case oldProgram.v_ of
             VBase (VString s) ->
-              let res: Results String (List Val)
+              let res: Results String (List Val, TupleDiffs VDiffs)
                   res=
                    Syntax.parser Syntax.Elm s
                 |> Result.mapError (ParserUtils.showError)
                 |> Results.fromResult
                 |> Results.andThen (\prog ->
                     -- update = UpdateStack -> LazyList NextAction -> Results (UpdatedEnv, UpdatedExp)
-                    UpdateUtils.defaultVDiffs oldVal newVal
-                    |> Results.andThen (\mbDiff ->
-                      case mbDiff of
-                        Nothing -> ok1 [oldProgram]
-                        Just d -> -- Hack to avoid mutual recursion.
-                             Update.update (UpdateStack.updateContext "Eval.update" builtinEnv prog oldVal newVal d) LazyList.Nil LazyList.Nil
-                          |> Results.map Tuple.second
-                          |> Results.map .val
-                          |> Results.map (Syntax.unparser Syntax.Elm)
-                          |> Results.map (\x -> [replaceV_ oldProgram <| VBase <| VString x])
-                    )
-                )
+                      Update.update LazyList.Nil LazyList.Nil (UpdateStack.updateContext "Eval.update" builtinEnv prog oldVal newVal d)
+                   |> Results.map Tuple.second
+                   |> Results.map .val
+                   |> Results.map (Syntax.unparser Syntax.Elm)
+                   |> Results.andThen (\x ->
+                     let newProgram = replaceV_ oldProgram <| VBase <| VString x in
+                     UpdateUtils.defaultVDiffs oldProgram newProgram |> Results.map (\mbd -> case mbd of
+                       Nothing -> ([oldProgram], [])
+                       Just d ->
+                        ([newProgram], [(0, d)])
+                     )
+                   ))
               in
               res
             _ -> Errs <| "evaluate expects one string, got " ++ LangUtils.valToString oldProgram
         _ -> Errs <| "evaluate expects 1 arguments, got " ++ (toString <| List.length args)
-    ))
+    )
   , ("__updateApp__", builtinVal "EvalUpdate.updateApp" <|
   VFun "__updateApp__" ["{fun,input[,oldOutput],output[,outputDiff]}"] (\args ->
     case args of
@@ -235,7 +228,7 @@ builtinEnv =
                         in
                         Ok (resultingValue, [])
                       Ok (Just newOutDiffs) ->
-                        let basicResult = case update (updateContext "__updateApp__" xyEnv xyExp oldOut newVal newOutDiffs) LazyList.Nil LazyList.Nil of
+                        let basicResult = case update LazyList.Nil LazyList.Nil (updateContext "__updateApp__" xyEnv xyExp oldOut newVal newOutDiffs) of
                           Errs msg -> Vb.record Vb.string vb (Dict.fromList [("error", msg)])
                           Oks ll ->
                              let l = LazyList.toList ll in
@@ -300,6 +293,12 @@ builtinEnv =
                , [])
         _ -> Err <|  "__diff__ performs the diff on 2 values, but got " ++ toString (List.length args)
     ) Nothing)
+  , ("replaceAllIn", UpdateRegex.replaceAllByIn
+       (\env e -> Eval.doEval Syntax.Elm env e |> Result.map Tuple.first)
+       (\updateStack -> Update.update LazyList.Nil LazyList.Nil updateStack))
+  , ("replaceFirstIn", UpdateRegex.replaceFirstByIn
+       (\env e -> Eval.doEval Syntax.Elm env e |> Result.map Tuple.first)
+       (\updateStack -> Update.update LazyList.Nil LazyList.Nil updateStack))
   ]
 
 preludeEnvRes = Result.map Tuple.second <| (eval Syntax.Little builtinEnv [] Parser.prelude)
@@ -327,7 +326,7 @@ doUpdate oldExp oldVal newValResult =
         Oks ll ->
            ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
             Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
-             update (updateContext "initial update" preludeEnv oldExp oldVal out diffs) LazyList.Nil LazyList.Nil)
+             update LazyList.Nil LazyList.Nil (updateContext "initial update" preludeEnv oldExp oldVal out diffs))
            )
 
 -- Deprecated

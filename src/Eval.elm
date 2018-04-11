@@ -19,7 +19,7 @@ import LangUtils exposing (..)
 import HTMLValParser
 
 import ImpureGoodies
-import UpdateRegex exposing (evalRegexReplaceAllByIn, evalRegexReplaceFirstByIn, evalRegexExtractFirstIn)
+import UpdateRegex exposing (evalRegexExtractFirstIn)
 import UpdateStack
 import UpdateUtils
 import Results exposing (Results(..), ok1)
@@ -571,24 +571,6 @@ evalOp syntax env e bt opWithInfo es =
             [val] -> case val.v_ of
               VBase (VString v) as r -> r |> addProvenanceOk
               v -> VBase (VString (valToString val)) |> addProvenanceOk
-            _     -> error ()
-          RegexReplaceAllIn -> case vs of
-            [regexp, replacement, string] ->
-              (evalRegexReplaceAllByIn
-                env
-                (\newEnv newExp -> eval_ syntax newEnv bt newExp |> Result.map Tuple.first)
-                regexp
-                replacement
-                string)
-            _     -> error ()
-          RegexReplaceFirstIn -> case vs of
-            [regexp, replacement, string] ->
-              (evalRegexReplaceFirstByIn
-                env
-                (\newEnv newExp -> eval_ syntax newEnv bt newExp |> Result.map Tuple.first)
-                regexp
-                replacement
-                string)
             _     -> error ()
           RegexExtractFirstIn -> case vs of
             [regexp, string] ->

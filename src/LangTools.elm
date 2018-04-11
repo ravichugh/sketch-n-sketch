@@ -2093,8 +2093,6 @@ numericLetBoundIdentifiers program =
           DictRemove -> False
           DictInsert -> False
           ToStrExceptStr -> List.any recurse operands
-          RegexReplaceAllIn  -> False
-          RegexReplaceFirstIn -> False
           RegexExtractFirstIn -> False
 
       EList _ _ _ _ _               -> False

@@ -152,10 +152,18 @@ LensLess =
           {values = ll} -> {values = ll |> map1 callback }
           { error = msg} -> results
       in
+      let andElse otherResults results =
+        case (results, otherResults) of
+          ({values = ll}, {values=otherLl}) -> { values = ll ++ otherLl }
+          ({error = msg}, {error=msg2}) -> { error = msg + "\n" + msg2 }
+          ({error = msg}, _) -> { error = msg }
+          (_, {error=msg2}) -> { error = msg2 }
+      in
       {
         keepOks = keepOks
         projOks = projOks
         andThen = andThen
+        andElse = andElse
         map = resultMap
       }
   }
@@ -1079,6 +1087,21 @@ String =
       (head::tail) -> aux (acc + head + freeze delimiter) tail
     in aux "" list
   in
+  let substring start end x =
+    case Regex.extract ("^[\\s\\S]{0," + toString start + "}([\\s\\S]{0," + toString (end - start) + "})") x of
+      Just [substr] -> substr
+      Nothing -> error <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
+  in
+  let take length x =
+      case Regex.extract ("^([\\s\\S]{0," + toString length + "})") x of
+        Just [substr] -> substr
+        Nothing -> error <| "bad arguments to String.take " + toString length + " " + toString x
+  in
+  let drop length x =
+    case Regex.extract ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
+            Just [substr] -> substr
+            Nothing -> error <| "bad arguments to String.drop " + toString length + " " + toString x
+  in
   { toInt x =
       { apply x = freeze <| strToInt x
       , unapply output = Just (toString output)
@@ -1093,19 +1116,12 @@ String =
           else {values = [Regex.split delimiter output]}
       }.apply x
     length x = len (explode x)
-    substring start end x =
-      case Regex.extract ("^[\\s\\S]{0," + toString start + "}([\\s\\S]{0," + toString (end - start) + "})") x of
-        Just [substr] -> substr
-        Nothing -> error <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
-    take length x =
-      case Regex.extract ("^([\\s\\S]{0," + toString length + "})") x of
-        Just [substr] -> substr
-        Nothing -> error <| "bad arguments to String.take " + toString length + " " + toString x
-    drop length x =
-      case Regex.extract ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
-        Just [substr] -> substr
-        Nothing -> error <| "bad arguments to String.drop " + toString length + " " + toString x
-
+    substring = substring
+    slice = substring
+    take = take
+    left = take
+    drop = drop
+    dropLeft = drop
   }
 
 

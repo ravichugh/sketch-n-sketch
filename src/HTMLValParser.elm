@@ -22,14 +22,19 @@ htmlValParser = builtinVal "(Native)HTMLValParser.htmlValParser" <| VFun "parseH
           Ok nodes -> Ok (Vb.list htmlNodeToVal (Vb.fromVal v) nodes, [])
       _ -> Err <| "parseHTML expects a string, got " ++ valToString v
     _ -> Err ("parseHTML expects exactly one argument, got " ++ toString (List.length args))
-  ) (Just (\oldArgs oldOut newOut -> -- Update means just parsing the old
+  ) <| Just <| \oldArgs oldOut newOut vdiffs -> -- Update means just parsing the old
     --let _ = Debug.log (valToString newOut) "<-- newOut in htmlValParser" in
-     newOut
-     |> Vu.list valToHtmlNode
-     |> Result.map unparseHtmlNodes
-     |> Result.map (\s -> [replaceV_ newOut <| VBase (VString s)])
+     let newOutHtml = newOut |> Vu.list valToHtmlNode in
+     let oldOutHtml = oldOut |> Vu.list valToHtmlNode in
+     Result.map2 (unparseHtmlNodesDiffs <| Just vdiffs) oldOutHtml newOutHtml
+     |> Result.andThen identity
+     |> Result.map (\(s, sdiffs) ->
+       let finalSDiffs = case sdiffs of
+         [] -> []
+         _ -> [(0, VStringDiffs sdiffs)]
+       in
+       ([replaceV_ newOut <| VBase (VString s)], finalSDiffs))
      |> Results.fromResult
-  ))
 
 htmlNodeToVal: Vb.Vb -> HTMLNode -> Val
 htmlNodeToVal vb n = case n of

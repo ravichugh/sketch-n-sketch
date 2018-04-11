@@ -17,6 +17,10 @@ import ValUnbuilder as Vu
 import UpdateUnoptimized
 import ElmUnparser
 import ImpureGoodies
+import Array
+import Char
+import String
+import LangParserUtils exposing (isSpace)
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -531,32 +535,6 @@ recursiveMerge merge original modifications =
 
 recursiveMergeVal: Val -> List (Val, VDiffs) -> (Val, Maybe VDiffs)
 recursiveMergeVal = recursiveMerge mergeVal
-
-type alias TupleDiffs a = List (Int, a)
-type alias ListDiffs a = List (Int, ListElemDiff a)
-
-type ListElemDiff a = ListElemUpdate a | ListElemInsert Int | ListElemDelete Int
-
-type VDictElemDiff = VDictElemDelete | VDictElemInsert | VDictElemUpdate VDiffs
-
-type StringDiffs = StringUpdate {-original start: -}Int {-original end: -}Int {- chars replacing -}Int
-
-type alias EnvDiffs = TupleDiffs VDiffs
--- The environment of a closure if it was modified, the modifications of an environment else.
-type VDiffs = VClosureDiffs EnvDiffs (Maybe EDiffs)
-            | VListDiffs (ListDiffs VDiffs)
-            | VStringDiffs (List StringDiffs)
-            | VDictDiffs (Dict (String, String) VDictElemDiff)
-            | VRecordDiffs (Dict String VDiffs)
-            | VConstDiffs
-            | VUnoptimizedDiffs -- For benchmarking against no diff
-
-type EDiffs = EConstDiffs EWhitespaceDiffs
-            | EListDiffs (ListDiffs EDiffs)
-            | EStringDiffs (List StringDiffs)
-            | EChildDiffs (TupleDiffs EDiffs) -- Also for records
-
-type EWhitespaceDiffs = EOnlyWhitespaceDiffs | EAnyDiffs
 
 -- type PDiffs = PChanged -- TODO: More diffs for patterns there?
 
@@ -1118,6 +1096,10 @@ offsetStr n diffs = {-Debug.log ("computing offset of " ++ toString n ++ " on " 
   List.map (\sd -> case sd of
     StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
 
+offsetConcStr: Int -> List (Int, Int, String) -> List (Int, Int, String)
+offsetConcStr n diffs =
+  List.map (\(start, end, str) -> (start + n, end + n, str)) diffs
+
 -- When f x y k z w was changed to (f x y k) z w (realElementNumber = 3 here), how to recover initial differences
 flattenFirstEChildDiffs: Int -> EDiffs -> EDiffs
 flattenFirstEChildDiffs realElementNumber ediffs =
@@ -1126,10 +1108,72 @@ flattenFirstEChildDiffs realElementNumber ediffs =
     EChildDiffs diffs -> EChildDiffs (offset realElementNumber diffs)
     _ -> ediffs
 
+strDiffToConcreteDiff: String -> List StringDiffs -> List (Int, Int, String)
+strDiffToConcreteDiff newString d =
+  let aux offset d revAcc = case d of
+    [] -> List.reverse revAcc
+    StringUpdate start end replaced :: tail ->
+       (start, end, String.slice (start + offset) (start + replaced + offset) newString)::revAcc |>
+       aux (end - start + replaced) tail
+  in aux 0 d []
+
+
+pruneConcreteDiffs: List (Int, Int, String) -> List (Int, Int, String)
+pruneConcreteDiffs l =
+  let aux: List (Int, Int, String) -> List (Int, Int, String)
+      aux l = case l of
+    ((s1, e1, ss1) as head)::(((s2, e2, ss2)::tail2) as tail1) ->
+       if e1 == s2 then
+         aux ((s1, e2, ss1 ++ ss2)::tail2)
+       else if e1 < s2 then
+         (s1, e1, ss1) :: aux tail1
+       else aux (head::tail2)
+    _ -> l
+  in aux (List.sortBy (\(a, b, c) -> a) l)
+
+applyConcreteDiffs: String ->  List (Int, Int, String)  -> (String, List StringDiffs)
+applyConcreteDiffs string diffs =
+  let aux l (string, diffs) = case l of
+    [] -> (string, diffs)
+    (s, e, ss)::tail ->
+       (String.left s string ++ ss ++ String.dropLeft e string, StringUpdate s e (String.length ss)::diffs) |>
+       aux tail
+  in aux (List.reverse diffs) (string, [])
+
+
 -- Wraps a change to a change in the outer expression at the given index
 wrap: Int -> Maybe EDiffs -> Maybe EDiffs
 wrap i mbd =
   mbd |> Maybe.map (\d -> EChildDiffs [(i, d)])
+
+replace: Int -> a -> TupleDiffs a -> TupleDiffs a
+replace n a td = case td of
+  [] -> td
+  ((i, k) as head)::t ->
+    if i == n then (i, a)::t
+    else if i > n then (n, a)::td
+    else head :: replace n a t
+
+diffsAt: Int -> TupleDiffs a -> Maybe a
+diffsAt n td = case td of
+  [] -> Nothing
+  (i, a)::t ->
+    if i == n then Just a
+    else if i > n then Nothing
+    else diffsAt n t
+
+dropDiffs: Int -> TupleDiffs a -> TupleDiffs a
+dropDiffs n td = case td of
+  [] -> []
+  (i, a)::t ->
+    if i < n then dropDiffs n t
+    else offset (0 - n) td
+
+toTupleDiffs: ListDiffs a -> Maybe (TupleDiffs a)
+toTupleDiffs l = case l of
+  [] -> Just []
+  (i, ListElemUpdate d)::tail -> toTupleDiffs tail |> Maybe.map (\td -> (i, d)::td)
+  _ -> Nothing
 
 -- Returns true if the index i was modified
 eDiffModifiedIndex: Int -> EDiffs -> Bool
@@ -1379,9 +1423,9 @@ autoMergeTuple: (o -> a -> a -> a) -> List o -> List a -> List a -> List a
 autoMergeTuple submerger original modified1 modified2 =
   List.map3 submerger original modified1 modified2
 
-mergeTuple: (a -> a -> VDiffs -> a -> VDiffs -> (a, VDiffs)) -> List a -> List a -> TupleDiffs VDiffs -> List a -> TupleDiffs VDiffs -> (List a, TupleDiffs VDiffs)
+mergeTuple: (a -> a -> vDiffs -> a -> vDiffs -> (a, vDiffs)) -> List a -> List a -> TupleDiffs vDiffs -> List a -> TupleDiffs vDiffs -> (List a, TupleDiffs vDiffs)
 mergeTuple submerger =
-  let aux: Int -> List a -> List (Int,  VDiffs) -> List a -> List a -> TupleDiffs VDiffs -> List a -> TupleDiffs VDiffs -> (List a, TupleDiffs VDiffs)
+  let aux: Int -> List a -> List (Int,  vDiffs) -> List a -> List a -> TupleDiffs vDiffs -> List a -> TupleDiffs vDiffs -> (List a, TupleDiffs vDiffs)
       aux  i      accTuple    accDiffs             origTuple newTup2   modifs2              newTup3   modifs3 =
        case (origTuple, modifs2, newTup2, modifs3, newTup3) of
          ([], [], [], [], []) -> (List.reverse accTuple, List.reverse accDiffs)
@@ -1468,8 +1512,10 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
     (_, _, VUnoptimizedDiffs, _, VUnoptimizedDiffs) ->
       (UpdateUnoptimized.mergeVal original modified1 modified2, VUnoptimizedDiffs)
     (VBase (VString originalString), VBase (VString modified1String), VConstDiffs, VBase (VString modified2String), VConstDiffs) ->
-      (replaceV_ original <| VBase (VString <| mergeString originalString modified1String modified2String), VConstDiffs)
-
+      (replaceV_ original <| VBase (VString <| mergeStringHeuristic originalString modified1String modified2String), VConstDiffs)
+    (VBase (VString originalString), VBase (VString modified1String), VStringDiffs diffs1, VBase (VString modified2String), VStringDiffs diffs2) ->
+      let (newString, newDiffs) = mergeString originalString modified1String diffs1 modified2String diffs2 in
+       (replaceV_ original <| VBase <| VString <| newString, VStringDiffs newDiffs)
     (VList originalElems, VList modified1Elems, VListDiffs l1, VList modified2Elems, VListDiffs l2) ->
       let (newList, newDiffs) = mergeList mergeVal originalElems modified1Elems l1 modified2Elems l2 in
       --let _ = Debug.log ("mergeList " ++ "[" ++ (List.map valToString originalElems |> String.join ",") ++ "]" ++ " " ++
@@ -1515,8 +1561,8 @@ patsEqual pats1 pats2 pats3 = List.all identity <| List.map3 (\p0 p1 p2 -> patEq
 mergeWS: WS -> WS -> WS -> WS -- No advanced strategy. No synthesis pushes concurrent changes in whitespace, unless we allow editing of vclosures in the output
 mergeWS o e1 e2 = if o.val == e1.val then e2 else e1
 
-mergeString: String -> String -> String -> String
-mergeString o s1 s2 =
+mergeStringHeuristic: String -> String -> String -> String
+mergeStringHeuristic o s1 s2 =
   let original = Regex.split Regex.All splitRegex o in
   let modified1 = Regex.split Regex.All splitRegex s1 in
   let modified2 = Regex.split Regex.All splitRegex s2 in
@@ -1651,15 +1697,15 @@ mergeExp o e1 e2 =
         EComment sp1 s1 e1,
         EComment sp2 s2 e2) ->
          EComment (mergeWS sp0 sp1 sp2)
-           (mergeString s0 s1 s2)
+           (mergeStringHeuristic s0 s1 s2)
            (mergeExp e0 e1 e2)
        (EOption sp0 kStr0 spi0 wStr0 exp0,
         EOption sp1 kStr1 spi1 wStr1 exp1,
         EOption sp2 kStr2 spi2 wStr2 exp2) ->
          EOption (mergeWS sp0 sp1 sp2)
-                 (mergeInfo mergeString kStr0 kStr1 kStr2)
+                 (mergeInfo mergeStringHeuristic kStr0 kStr1 kStr2)
                  (mergeWS spi0 spi1 spi2)
-                 (mergeInfo mergeString wStr0 wStr1 wStr2)
+                 (mergeInfo mergeStringHeuristic wStr0 wStr1 wStr2)
                  (mergeExp exp0 exp1 exp2)
        (ETyp sp0 pat0 t0 e0 esp0,
         ETyp sp1 pat1 t1 e1 esp1,
@@ -1790,6 +1836,47 @@ maybeReverseInsert elements revAcc =
       case head of
         Nothing -> maybeReverseInsert tail revAcc
         Just h -> maybeReverseInsert tail (h::revAcc)
+
+type StringMerge  = DoLeft Int Int Int (List StringDiffs)
+                  | DoRight Int Int Int (List StringDiffs)
+                  | DoMerge Int Int Int (List StringDiffs) Int Int Int (List StringDiffs)
+
+mergeString: String -> String -> List StringDiffs -> String -> List StringDiffs -> (String, List StringDiffs)
+mergeString original modified1 diffs1 modified2 diffs2 =
+  let aux: Int -> Int -> Int -> List StringDiffs -> List StringDiffs -> (String, List StringDiffs) -> (String, List StringDiffs)
+      aux originalOffset modified1Offset modified2Offset diffs1 diffs2 (str, revAccDiffs) =
+       case (diffs1, diffs2) of
+    ([], []) -> (str, List.reverse revAccDiffs)
+    _ -> let mergeWay = case (diffs1, diffs2) of
+            ([], []) -> Debug.crash "impossible"
+            ([], StringUpdate start end replaced :: tail) -> DoRight start end replaced tail
+            (StringUpdate start end replaced :: tail, []) -> DoLeft start end replaced tail
+            (StringUpdate start1 end1 replaced1 :: tail1, StringUpdate start2 end2 replaced2 :: tail2) ->
+              if end1 <= start2 then DoLeft start1 end1 replaced1 tail1
+              else if end2 <= start1 then DoRight start2 end2 replaced2 tail2
+              else DoMerge start1 end1 replaced1 tail1 start2 end2 replaced2 tail2
+         in
+         case mergeWay of
+           DoLeft start1 end1 replaced1 tail1 ->
+             let insertedString = String.slice (start1 + modified1Offset) (start1 + modified1Offset + replaced1) modified1 in
+             let offsetIncrease1 = replaced1 - (end1 - start1) in
+             (String.left (start1 + originalOffset) str ++ insertedString ++ String.dropLeft (end1 + originalOffset) str,
+              StringUpdate start1 end1 replaced1 :: revAccDiffs) |>
+             aux (originalOffset + offsetIncrease1) (modified1Offset + offsetIncrease1) modified2Offset tail1 diffs2
+           DoRight start2 end2 replaced2 tail2 ->
+             let insertedString = String.slice (start2 + modified2Offset) (start2 + modified2Offset + replaced2) modified2 in
+             let offsetIncrease2 = replaced2 - (end2 - start2) in
+             (String.left (start2 + originalOffset) str ++ insertedString ++ String.dropLeft (end2 + originalOffset) str,
+              StringUpdate start2 end2 replaced2 :: revAccDiffs) |>
+             aux (originalOffset + offsetIncrease2) modified1Offset (modified2Offset + offsetIncrease2) diffs1 tail2
+           DoMerge start1 end1 replaced1 tail1 start2 end2 replaced2 tail2 ->
+             -- Here the second takes predecence.
+             -- start2 start1 end2 end1  or start2 start1 end1 end2
+             -- start1 start2 end1 end2  or start1 start2 end2 end1
+             let offsetIncrease1 = replaced1 - (end1 - start1) in
+             (str, revAccDiffs) |>
+             aux originalOffset  (modified1Offset + offsetIncrease1) modified2Offset tail1 diffs2
+  in aux 0 0 0 diffs1 diffs2 ("", [])
 
 -- Guarantees that
 -- * If updated lists have equal size, elements will be merged aligned.
@@ -1949,3 +2036,31 @@ mergeRecord submerger originalDict modified1Dict modifs1 modified2Dict modifs2 =
        modifs1
        modifs2
        (originalDict, Dict.empty)
+
+affinityArray = Array.fromList <| [
+                 Array.fromList [19, 9, 6, 11, 14]
+               , Array.fromList [5, 0, 3, 12, 16]
+               , Array.fromList [1, 18, 24, 21, 22]
+               , Array.fromList [8, 2, 17, 7, 20]
+               , Array.fromList [15, 4, 23, 10, 13]]
+
+classOf c =
+  if Char.isDigit c then 0
+  else if c == '.' then 1
+  else if Char.isLower c || Char.isUpper c || c == '_' then 2
+  else if not (isSpace c) then 3
+  else 4
+
+affinityChar c1 c2 =
+  Array.get (classOf c1) affinityArray |> Maybe.andThen (\row ->
+    Array.get (classOf c2) row
+  ) |> Maybe.withDefault 0
+
+-- The affinity between a string and an empty string should be the greatest
+affinity s1 s2 =
+   case String.uncons (String.slice (-1) (String.length s1) s1) of
+     Just (s1Last, _) ->
+       case String.uncons s2 of
+         Just (s2First, _) -> affinityChar s1Last s2First
+         Nothing -> 25
+     Nothing -> 25

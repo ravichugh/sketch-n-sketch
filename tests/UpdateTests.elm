@@ -120,7 +120,8 @@ updateAssert_ env exp origOut newOut expectedEnv expectedExpStr state =
     Oks (LazyList.Cons Nothing _) -> fail state <| log state <| "There was no diff between the previous output and the new output"
     Oks ll->
       let _ = ImpureGoodies.log <| "Diffs observed: " ++ toString (LazyList.toList ll) in
-      case Oks (LazyList.filterMap identity ll) |> Results.andThen (\diffs -> update (updateContext "initial" env exp origOut newOut diffs) LazyList.Nil LazyList.Nil) of
+      case Oks (LazyList.filterMap identity ll) |> Results.andThen (\diffs ->
+        update LazyList.Nil LazyList.Nil (updateContext "initial" env exp origOut newOut diffs)) of
         Results.Oks (LazyList.Cons (envX, expX) lazyTail as ll) ->
           let _ = LazyList.toList ll in
           --let _ = ImpureGoodies.log <| toString expX.changes in

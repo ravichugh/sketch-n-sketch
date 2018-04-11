@@ -1,10 +1,6 @@
 module UpdateRegex exposing (
-    evalRegexReplaceAllByIn
-  , updateRegexReplaceAllByIn
-
-  , evalRegexReplaceFirstByIn
-  , updateRegexReplaceFirstByIn
-
+    replaceFirstByIn
+  , replaceAllByIn
   , evalRegexExtractFirstIn
   , updateRegexExtractFirstIn
 
@@ -31,34 +27,231 @@ import ValBuilder as Vb
 import ValUnbuilder as Vu
 --import LangTools exposing (valToString)
 
-removeSlashDollar s = replace All (regex "\\\\\\$") (\_ -> "\\$") s
-addSlashDollar s = replace All (regex "\\$") (\_ -> "\\\\\\$") s
+join: Val
+join = let
+    substring = String.slice
+    take = String.left
+    drop = String.dropLeft
+    length = String.length
+    preferStringInsertionToLeft_ s1 inserted s2 = affinity s1 inserted > affinity inserted s2
+  in
+  builtinVal "UpdateRegex.join" <| VFun "__joinEmpty__" ["list"] (\args ->
+    case args of
+      [list] -> case list.v_ of
+        VList exps ->
+          let strExps = exps |> List.map (\v -> case v.v_ of
+            VBase (VString s) -> Ok s
+            _ -> Err <| "join expects a list of strings, got " ++ valToString v) |> Utils.projOk
+          in
+          flip Result.map strExps <| \strList ->
+            (replaceV_ list <| VBase (VString (String.join "" strList)), [])
+        _ -> Err <| "join Expectes a list of strings, got " ++ valToString list
+      _ -> Err <| "join expects two arguments, got " ++ toString (List.length args)
+  ) <| Just (\args oldVal newVal diffs ->
+    case args of
+      [list] -> case (list.v_, oldVal.v_, newVal.v_, diffs) of
+        (VList exps, VBase (VString oldOutput), VBase (VString newOutput), VStringDiffs l) ->
+           let strExps = exps |> List.map (\v -> case v.v_ of
+             VBase (VString s) -> Ok s
+             _ -> Err <| "join expects a list of strings, got " ++ valToString v) |>
+               Utils.projOk in
+           strExps |> Results.fromResult |> Results.andThen (\input ->
+             let lastIndex = List.length input - 1 in
+             -- startHead is the real ending position in the oldOutput of the last element considered, hence the start position of the head of input.
+             -- Since the first element might be modified recursively, the length of head might be affected, but the end position should still be the original one.
+             -- Hence we need to offset startHead + length head by deltaLengthHeadInput to compute endHead.
+             let gather:Int ->     List String -> Int ->  Int ->    Int ->               Int ->       List StringDiffs -> Results String (List String, ListDiffs VDiffs)
+                 gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput diffs =
+               --let _ = Debug.log ("""gather@(":") @lastIndexDeleted @input @indexInput @startHead @deltaLengthHeadInput @offsetOutput @diffs""") [] in
+               --Debug.log ("""gather@(":") @lastIndexDeleted @input @indexInput @startHead @deltaLengthHeadInput @offsetOutput @diffs""") <|
+               case diffs of
+               [] -> ok1 (input, [])
+               ((StringUpdate start end replaced) :: diffTail) ->
+                  case input of
+                   [] -> -- We do not allow insertion of new content here
+                     let inserted = substring (start + offsetOutput) (end + offsetOutput + replaced) newOutput in
+                     ok1 ([inserted], [(indexInput, ListElemInsert 1)])
+                   (head::tail) ->
+                     let endHead = startHead + length head - deltaLengthHeadInput in
+                     --We assume that start >= startHead (invariant)
+                     if start < endHead && end > endHead then
+                       let firstReplaced =
+                         gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput ((StringUpdate start endHead 0)::(StringUpdate endHead end replaced)::diffTail)
+                       in
+                       if replaced == 0 then firstReplaced else firstReplaced |> Results.andElse (
+                         gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput ((StringUpdate start endHead replaced)::(StringUpdate endHead end 0)::diffTail)
+                       )
+                     else
+                       -- Now either start >= endHead || end <= endHead
+                       -- Here we postpone the diff to afterwards if not the end and the diff happens strictly after
+                     if (start > endHead || start == endHead && end > start) && indexInput /= lastIndex then
+                       gather lastIndexDeleted tail (indexInput + 1) endHead 0 offsetOutput diffs |> Results.andThen (\(tail, diffTail) ->
+                         ok1 (head::tail, diffTail)
+                       )
+                     else
+                       -- Now: (start >= endHead || end <= endHead) && start <= endHead && (start < endHead || (end == start && indexInput == lastIndex))
+                     if start == endHead && end == start then
+                       -- Now: end == endHead && start == endHead && indexInput != lastIndex
+                       let inserted = substring (start + offsetOutput) (end + offsetOutput + replaced) newOutput in
+                       let sa = substring 0 start oldOutput in
+                       let sb = drop end oldOutput in
+                       let newHead = head ++ inserted in
+                       let newOffsetOutput = offsetOutput + end - start + replaced in
+                       let result1 = gather -1 tail (indexInput + 1) endHead 0 offsetOutput diffs |>
+                         Results.andThen (\(newTail, newDiffTail) ->
+                         ok1 (head::newTail, newDiffTail)
+                       ) in
+                       let result2 = gather -1 tail (indexInput + 1) endHead 0 newOffsetOutput diffTail |>
+                         Results.andThen (\(newTail, newDiffTail) ->
+                         ok1 (newHead :: newTail, (indexInput, ListElemUpdate (VStringDiffs [StringUpdate (start - startHead) (end - startHead) replaced])) :: newDiffTail)
+                       ) in
+                       if preferStringInsertionToLeft_ sa inserted sb
+                       then result1 |> Results.andElse result2
+                       else result2 |> Results.andElse result1
+                     else
+                       let offsetChange = end - start + replaced in
+                       let newOffsetOutput = offsetOutput + offsetChange in
+                       if start == startHead && end == endHead && replaced == 0 then
+                       -- If the entire string was deleted, one option is to delete the element alltogether. We display only this option if chars from the left and from the right were deleted as well.
+                       let resultsWithDelete = gather end tail (indexInput + 1) endHead 0 newOffsetOutput diffTail |> Results.andThen (\(newTail, newDiffTail) ->
+                         ok1 (newTail, (indexInput, ListElemDelete 1)::newDiffTail)
+                         )
+                       in
+                       let deleteAnyway = lastIndexDeleted == start && (case diffTail of
+                         ((StringUpdate start2 end2 0) :: _) -> start2 == endHead && end2 > start2
+                         _ -> indexInput == lastIndex )
+                       in
+                       let resultsWithEmptyString = gather end tail (indexInput + 1) endHead 0 newOffsetOutput diffTail |> Results.andThen (\(newTail, newDiffTail) ->
+                         ok1 ("" :: newTail, (indexInput, ListElemUpdate (VStringDiffs [StringUpdate 0 (endHead - startHead) 0]))::newDiffTail)
+                       )
+                       in
+                       if deleteAnyway then
+                         resultsWithDelete
+                       else
+                         resultsWithDelete |> Results.andElse resultsWithEmptyString
+                     else -- start
+                       let inserted = substring (start + offsetOutput) (start + offsetOutput + replaced) newOutput in
+                       let newHead = substring 0 (start - startHead - deltaLengthHeadInput) head ++
+                         inserted ++ drop (end - startHead - deltaLengthHeadInput) head in
+                       let newDeltaLengthHeadInput = deltaLengthHeadInput - offsetChange in
+                       let thisDiff = StringUpdate (start - startHead) (end - startHead) replaced in
+                       gather (if replaced == 0 then end else -1) (newHead::tail) indexInput startHead newDeltaLengthHeadInput newOffsetOutput diffTail |> Results.andThen (\(newList, newDiffTail) ->
+                         let finalDiffs =
+                           case newDiffTail of
+                             ((i, ListElemUpdate (VStringDiffs l))::tail) ->
+                               if i == indexInput then
+                                 (i, ListElemUpdate (VStringDiffs (thisDiff::l)))::tail
+                               else
+                                  (indexInput, ListElemUpdate (VStringDiffs [thisDiff]))::newDiffTail
+                             _ -> (indexInput, ListElemUpdate (VStringDiffs [thisDiff]))::newDiffTail
+                         in
+                         ok1 (newList, finalDiffs)
+                       )
+             in
+             gather -1 input 0 0 0 0 l |> Results.map (\(value, strdiffs) ->
+               (value |> List.map (replaceV_ oldVal << VBase << VString)
+               , if strdiffs == [] then [] else [(0, VListDiffs strdiffs)])
+             )
+           )
+        _ -> Errs <| "join expects a list of strings, got " ++ valToString list
+      _ -> Errs <| "join expects two arguments, got " ++ toString (List.length args)
+  )
 
-lambdaBodyToString:Exp -> String
-lambdaBodyToString e =
-  case e.val.e__ of
-    EFun _ _ body _ -> lambdaBodyToString body
-    EApp space1 _ [_, pos] _ _ -> lambdaBodyToString pos
-    EConst _ groupIndex _ _  -> "$" ++ toString groupIndex
-    EOp space0 _ {-ToStrExceptStr-} [a] _-> lambdaBodyToString a
-    EOp space1 _ {-Plus -} [a, b] space2 -> lambdaBodyToString a ++ lambdaBodyToString b
-    EParens _ e _ _ -> lambdaBodyToString e
-    ESelect _ e _ _ _ -> lambdaBodyToString e
-    EBase _ (EString _ s) -> addSlashDollar s
-    _ -> Debug.crash "[internal error] I should not have encountered a different case for UpdateRegex.lambdaBodyToString"
 
-lambdaToString: Val -> String
-lambdaToString v =
-  case v.v_ of
-    VClosure Nothing [_] lambdaBody env ->
-      lambdaBodyToString lambdaBody
-    _ -> Debug.crash "Trying to call lambdaToString with something else than a closure"
+nth = builtinVal "UpdateRegex.nth" <| VFun "nth" ["list" ,"n"] (\args ->
+    case args of
+      [list, nv] -> case (list.v_, nv.v_) of
+        (VList exps, VConst _ (n, _))->
+          Utils.nth exps (floor n) |> Result.map (\v -> (v, []))
+        _ -> Err <| "nth Expected a list and an integer, got " ++ valToString list ++ " " ++ valToString nv
+      _ -> Err <| "nth expects two arguments, got " ++ toString (List.length args)
+  ) <| Just <| \args oldVal newVal diffs ->
+    case args of
+      [list, nv] -> case (list.v_, nv.v_) of
+        (VList exps, VConst _ (n, _)) ->
+          let nInt: Int
+              nInt = floor n
+          in
+          ok1 ([replaceV_ list <| VList <| List.take nInt exps ++ [newVal] ++ List.drop (nInt + 1) exps],
+              [(0, VListDiffs [(nInt, ListElemUpdate diffs)])])
+        _ -> Errs <| "nth Expected a list and an integer, got " ++ valToString list ++ " " ++ valToString nv
+      _ -> Errs <| "nth expects two arguments, got " ++ toString (List.length args)
 
-stringToLambda: Env -> Val -> String -> Val
-stringToLambda env vs s =
-  let l = find All (regex "(\\\\\\$|\\$(\\d))") s |> List.map (\m -> (m, m.index, String.length m.match + m.index)) in
+replaceDollarOrSlash= builtinVal "replaceDollarOrSlash" <| VFun "replaceDollarOrSlash" ["m"] (\margs ->
+  case margs of
+    [m] -> case m.v_ of
+      VRecord dm ->
+        case Dict.get "match" dm |> Maybe.andThen vStrUnapply of
+          Just "\\$" -> Ok (replaceV_ m <| VBase <| VString "$", [])
+          _ -> Ok (replaceV_ m <| VBase <| VString "\\", [])
+      _ -> Err <| "replaceDollarOrSlash expected a record, got " ++ valToString m
+    _ -> Err <| "replaceDollarOrSlash expected 1 argument, got " ++ toString (List.length margs)
+  ) <| Just <| \margs oldval newval diffs ->
+  case margs of
+    [m] -> case (m.v_, oldval.v_, newval.v_, diffs) of
+      (VRecord dm, VBase (VString oldStr), VBase (VString newStr), VStringDiffs ldiffs) -> -- Because the output only had one char, there are only three differences possibles
+        if ldiffs == [] then ok1 (margs, [])
+        else
+        let aux: Int -> Int -> List StringDiffs -> (String, List StringDiffs) -> (String, List StringDiffs)
+            aux offset lastEnd ldiffs (strAcc, revAcc) = case ldiffs of
+          [] -> (strAcc ++ String.dropLeft lastEnd oldStr, List.reverse revAcc)
+          StringUpdate a b r :: tail ->
+             let stringReplaced = String.slice (a + offset) (a + r + offset) newStr in
+             let stringReplacedEscaped = escapeSlashDollar stringReplaced in
+             let newR = String.length stringReplacedEscaped in
+             (strAcc ++ String.slice lastEnd a oldStr ++ stringReplacedEscaped, StringUpdate (if a == 0 then 0 else 2) (if b == 0 then 0 else 2) newR :: revAcc) |>
+             aux (offset + b - a + r) b tail
+        in
+        let (newStr, newStrDiffs) = aux 0 0 ldiffs ("", []) in
+        let newRecord = replaceV_ m <| VRecord (Dict.insert "match" (replaceV_ oldval <| VBase <| VString newStr) dm) in
+        let newRecordDiff = VRecordDiffs <| Dict.fromList [("match", VStringDiffs newStrDiffs)] in
+        ok1 ([newRecord], [(0, newRecordDiff)])
+      _ -> Errs <| "replaceDollarOrSlash update expected a record, a string and a stringdiffs, got " ++ valToString m ++ " " ++ valToString newval ++ " " ++ toString diffs
+    _ -> Errs <| "replaceDollarOrSlash expected 1 argument, got " ++ toString (List.length margs)
+
+unescapeSlashDollar: (Env -> Exp -> Result String (Val, Widgets)) ->
+                     (UpdateStack -> Results String (UpdatedEnv, UpdatedExp)) -> Val
+unescapeSlashDollar eval update =
+  let localEnv args = [("replace", replaceAllByIn eval update), ("replacement", replaceDollarOrSlash)] ++ List.map (\arg -> ("string", arg)) args in
+  let localExp = (eApp (eVar "replace") [eStr "\\\\\\$|\\\\\\\\", eVar "replacement", eVar "string"]) in
+  builtinVal "UpdateRegex.unescapeSlashDollar" <| VFun "unescapeSlashDollar" ["s"] (\args ->
+    eval (localEnv args) localExp
+  ) <| Just <| \args oldVal newVal diffs ->
+    update (updateContext "unescapeSlashDollar" (localEnv args) localExp oldVal newVal diffs) |> Results.andThen (\(newEnv, newExp) ->
+      case newEnv.val of
+        _::_::(_, newArg)::_ ->
+          case newEnv.changes of
+            (2, argChanges)::_ ->
+                 ok1 ([newArg], [(0, argChanges)])
+            _ -> ok1 ([newArg], [])
+        l -> Errs <| "The environment should have contained at least 3 variables, got " ++ toString (List.length newEnv.val)
+    )
+
+escapeSlashDollar s = Regex.replace Regex.All (Regex.regex "\\$") (\_ -> "\\\\\\$") s
+
+lambdaToString: List Int -> Val -> VDiffs -> Results String (List (Int, Int, String))
+lambdaToString oldConcatenationStarts valAfter vdiffs =
+  case (valAfter.v_, vdiffs)  of
+    (VClosure Nothing [_] lambdaBody2 env2, VClosureDiffs _ Nothing) ->
+      ok1 []
+    (VClosure Nothing [_] lambdaBody2 env2, VClosureDiffs _ mbediffs) ->
+      flip Results.andThen (unconcat lambdaBody2 mbediffs |> Results.fromResult) <| \(newConcatenation, listElemDiffs) ->
+        let recoverSubExpressionStringDiffs e = ok1 [] in
+        let recoverSubStringsDiffs e = case eAppUnapply1 e of
+          Just (_, eStr) -> eStrUnapply e |> Maybe.map strDiffToConcreteDiff
+          Nothing -> Nothing
+        in
+        recoverStringDiffs recoverSubExpressionStringDiffs recoverSubStringsDiffs oldConcatenationStarts newConcatenation listElemDiffs
+    _ -> Debug.crash "Trying to call lambdaToString with something else than a closure or closurediffs"
+
+-- nth should be a reversible function of the type 'List a -> Int -> a'  and raises an error else.
+stringToLambda: (Env -> Exp -> Result String (Val, Widgets)) ->
+                (UpdateStack -> Results String (UpdatedEnv, UpdatedExp)) -> Val -> Val -> Val -> String -> (Val, List Int)
+stringToLambda eval update nth join vs s =
+  let l = find All (regex "(\\\\\\$|\\\\\\\\|\\$(\\d))") s |> List.map (\m -> (m, m.index, String.length m.match + m.index)) in
   let (finalLastStart, lWithPrevStart) = List.foldl (\(mat, start, end) (lastEnd, acc) -> (end, acc ++ [(mat, lastEnd, start, end)])) (0, []) l in
-  let m = EVar space0 "m" in
+  let oldConcatenationStarts = (0 :: (lWithPrevStart |> List.concatMap (\(_, _, start, end) -> [start, end]))) ++ [String.length s] in
+  let m = eVar "m" in
   let tmp = List.concatMap (\(mat, lastEnd, start, end) ->
        let groupIndexMaybe = case mat.submatches of
          [_, Nothing] -> Nothing
@@ -69,24 +262,16 @@ stringToLambda env vs s =
          _ -> ImpureGoodies.throw <| EvaluationError <| mat.match ++ " is not a valid group match"
        in
        case groupIndexMaybe of
-         Nothing -> [] --It was just a regular escaped dollar
+         Nothing -> [] --It was just a regular escaped dollar, or an escaped backslash
          Just groupIndex ->
-           let res = [ withDummyExpInfo <| EBase space1 (EString "\"" (removeSlashDollar (String.slice lastEnd start s))),
-                       withDummyExpInfo <|
-                          EApp space1 (withDummyExpInfo <| EVar space1 "nth") [
-                           withDummyExpInfo <| ESelect space1 (withDummyExpInfo m) space0 space0 "group",
-                            withDummyExpInfo <| EConst space1 (toFloat groupIndex) dummyLoc noWidgetDecl] SpaceApp space0
-                        ] in
-           res
+           [ eApp (eVar "escapeDollars") [eStr <| String.slice lastEnd start s],
+             eApp (eVar "nth") [eSelect m "group", eConstDummyLoc <| toFloat groupIndex]
+           ]
        ) lWithPrevStart
   in
-  let lambdaBody = List.foldr (\a b ->
-       case a.val.e__ of
-         EBase _ (EString _ _) -> eOp Plus [a, b]
-         _ -> eOp Plus [eOp ToStrExceptStr [a], b]
-       ) (withDummyExpInfo <| EBase space1 (EString "\"" <| removeSlashDollar(String.dropLeft finalLastStart s))) tmp
-  in
-  replaceV_ vs <| VClosure Nothing [pVar "m"] lambdaBody env
+  let lambdaBody = concat "join" (tmp ++ [eApp (eVar "unescapeSlashDollar") [eStr <| String.dropLeft finalLastStart s]]) in
+  (replaceV_ vs <| VClosure Nothing [pVar "m"] lambdaBody [
+    ("nth", nth), ("join", join), ("unescapeSlashDollar", unescapeSlashDollar eval update)], oldConcatenationStarts)
 
 type EvaluationError = EvaluationError String
 
@@ -155,61 +340,95 @@ valToMatch v continuation =
     try (Vu.list Vu.int vstart) <| \start ->
     continuation (RegexMatch match submatches groups start index number)
 
--- Reverse operation of matchToVal
-recoverMatchedString : RegexMatch -> Val -> Results String String {- The matched string -}
-recoverMatchedString  oldRegexMatch newV =
-  valToMatch newV <| \newRegexMatch ->
-    let oldMatch      = oldRegexMatch.match
-        oldIndex      = oldRegexMatch.index
-        oldNumber     = oldRegexMatch.number
-        oldSubmatches = oldRegexMatch.submatches
-        oldGroups     = oldRegexMatch.group
-        oldStarts     = oldRegexMatch.start in
-    let newMatch      = newRegexMatch.match
-        newIndex      = newRegexMatch.index
-        newNumber     = newRegexMatch.number
-        newSubmatches = newRegexMatch.submatches
-        newGroups     = newRegexMatch.group
-        newStarts     = newRegexMatch.start in
-      -- Now we need to look for the updated match.
-    if newMatch /= oldMatch then
-      ok1 newMatch
-    else if newIndex /= oldIndex then
-      Errs "Cannot update the index of a matched regular expression, only the string itself !"
-    else if newNumber /= oldNumber then
-      Errs "Cannot update the index of a matched regular expression, only the string itself !"
-    else if List.length newSubmatches /= List.length oldSubmatches then
-      Errs "Cannot change the length of the submatches, only the strings"
-    else if oldStarts /= newStarts then
-      Errs "Cannot change the start positions of the subgroup, only the strings"
-    else if List.length newGroups /= List.length oldGroups then
-      Errs "Cannot change the length of the group list, only the strings"
-    else -- Maybe a subgroup has been changed ?
-      let defaultStringDiff o s = ok1 (if o == s then Nothing else Just VConstDiffs) in
-      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups newGroups |> Results.andThen (\mb1 ->
-      UpdateUtils.defaultTupleDiffs identity defaultStringDiff oldGroups (newMatch::newSubmatches) |> Results.andThen (\mb2 ->
-
-      let allsubgroups = case (mb1, mb2) of
-        (_, Nothing) -> newGroups
-        (Nothing, _) -> newMatch::newSubmatches
-        (Just m1, Just m2) ->
-           Tuple.first <| UpdateUtils.mergeTuple (\o s1 m1 s2 m2 -> (UpdateUtils.mergeString o s1 s2, m1)) oldGroups newGroups m1 (newMatch::newSubmatches) m2
-      in
-      --let _ = Debug.log "allsbugroups" allsubgroups in
-      let startMatch = case oldStarts of
-        head::tail -> head
-        _ -> 0
-      in
-      -- We recover all changes and push only the biggest ones if there are conflicts.
-      List.map3 (\mo so m2 ->
-       if mo == m2 then ok1 Nothing
-       else ok1 <| Just (so - startMatch, so - startMatch + String.length mo, m2)
-      ) oldGroups oldStarts allsubgroups
-      |> Results.projOk |> Results.map (\transformations ->
-        let finalMatch = List.filterMap identity transformations |> mergeTransformations oldMatch in
-        finalMatch
-      )
-      ))
+-- Reverse operation of matchToVal. Computes a list of transformations
+recoverMatchedStringDiffs : RegexMatch -> Val -> (Maybe VDiffs) -> Results String (List (Int, Int, String)) {- The matched string -}
+recoverMatchedStringDiffs  oldRegexMatch newV mbdiffs =
+   let oldMatch      = oldRegexMatch.match in
+   case mbdiffs of
+      Nothing -> ok1 []
+      Just vd ->
+   case vd of
+       VRecordDiffs d ->
+         valToMatch newV <| \newRegexMatch ->
+           let newMatch      = newRegexMatch.match
+               newSubmatches = newRegexMatch.submatches
+               newGroups     = newRegexMatch.group in
+        case Dict.get "match" d of
+          Just (VStringDiffs matchDiff) -> ok1 (strDiffToConcreteDiff newMatch matchDiff)
+          Just ds -> Errs <| "Expected a VStringDiffs for match, got " ++ toString ds
+          Nothing ->
+            case Dict.get "index" d of
+              Just _ -> Errs "Cannot update the .index of of a regex match, only the string itself !"
+              Nothing ->
+                case Dict.get "number" d of
+                  Just _ -> Errs "Cannot update the .number of of a regex match, only the string itself !"
+                  Nothing ->
+                    case Dict.get "start" d of
+                      Just _ -> Errs "Cannot update the group .start of a regex match, only the string itself !"
+                      Nothing ->
+                        let makeTupleStringDiffs a =
+                          (case a of
+                             VListDiffs l -> Just l
+                             _ -> Nothing
+                          ) |>
+                          Maybe.andThen toTupleDiffs |>
+                          Result.fromMaybe "No insertion/deletion allowed in the .submatches of a regex match" |>
+                          Result.andThen (\tuplediffs ->
+                             List.map (\d -> case d of
+                              (i, VStringDiffs l) -> Ok (i, l)
+                              _ -> Err <| "Expected vStringDiffs, got " ++ toString d
+                             ) tuplediffs |> Utils.projOk
+                          ) |>
+                          Results.fromResult  in
+                        let finalGroupAndDiffs =
+                             let submatchesTupleDiffs = case Dict.get "submatches" d of
+                               Nothing -> Nothing
+                               Just submatchesDiff ->
+                                  makeTupleStringDiffs submatchesDiff |>
+                                  Results.map (\gTupleDiff -> (newMatch::newRegexMatch.submatches, offset 1 gTupleDiff)) |>
+                                  Just
+                             in
+                             let groupTupleDiffs = case Dict.get "group" d of
+                               Nothing -> Nothing
+                               Just groupDiff ->
+                                  makeTupleStringDiffs groupDiff |>
+                                  Results.map (\gTupleDiff -> (newRegexMatch.group, gTupleDiff)) |>
+                                  Just
+                             in
+                             --let oldGroups = oldRegexMatch.group |> List.map (replaceV_ newV << VBase << VString) in
+                             case (submatchesTupleDiffs, groupTupleDiffs) of
+                               (Nothing, Nothing) -> ok1 (oldRegexMatch.group, [])
+                               (Just x, Nothing) -> x
+                               (Nothing, Just x) -> x
+                               (Just x, Just y)  ->
+                                  Results.map2 (\(newGroups1, newGroupDiffs1) (newGroups2, newGroupDiffs2) ->
+                                      mergeTuple mergeString oldRegexMatch.group newGroups1 newGroupDiffs1 newGroups2 newGroupDiffs2
+                                 ) x y
+                        in
+                        flip Results.andThen finalGroupAndDiffs <| \(finalGroups, finalGroupsTupleDiffs) ->
+                          let diffByGroupIndex =  Dict.fromList finalGroupsTupleDiffs in
+                          let startMatch = case oldRegexMatch.start of
+                            head::tail -> head
+                            _ -> 0
+                          in
+                          List.map2 (\(group, i) start ->
+                            case Dict.get i diffByGroupIndex of
+                              Nothing ->
+                                Ok []
+                              Just manydiffs ->
+                                let aux offset diffs revAcc=
+                                  case diffs of
+                                     [] -> List.reverse revAcc
+                                     StringUpdate start end replaced :: diffsTail->
+                                       (start + startMatch, end + startMatch, String.slice (start + offset) (start + replaced + offset) group)::revAcc |>
+                                       aux (end - start + replaced) diffsTail
+                                in
+                                Ok <| aux 0 manydiffs []
+                            ) (Utils.zipWithIndex finalGroups) oldRegexMatch.start |>
+                          Utils.projOk |> Result.map (\listlist ->
+                            List.concatMap identity listlist
+                          ) |> Results.fromResult
+       _ -> Errs <| "Expected VRecordDiffs, got " ++ toString vd
 
 mergeTransformations: String -> List (Int, Int, String) -> String
 mergeTransformations originalString replacements =
@@ -223,14 +442,32 @@ mergeTransformations originalString replacements =
          aux maxReplacementIndex string remainingTransformations
   in aux (String.length originalString) originalString (List.sortBy (\(a, b, c) -> 0- a) replacements)
 
-evalRegexReplaceAllByIn = evalRegexReplaceByIn Regex.All
-evalRegexReplaceFirstByIn = evalRegexReplaceByIn <| Regex.AtMost 1
 
-evalRegexReplaceByIn: Regex.HowMany -> Env -> (Env -> Exp -> Result String Val)-> Val -> Val -> Val -> Result String Val
-evalRegexReplaceByIn  howmany env eval regexpV replacementV stringV =
+replaceAllByIn eval update = replaceByIn Regex.All "replaceAllByIn" eval update
+replaceFirstByIn eval update = replaceByIn (Regex.AtMost 1) "replaceFirstByIn" eval update
+
+replaceByIn: Regex.HowMany {- -> Val-} -> String ->
+    (Env -> Exp -> Result String (Val, Widgets)) ->
+    (UpdateStack -> Results String (UpdatedEnv, UpdatedExp)) -> Val
+replaceByIn howmany {-stringjoin-} name evaluate update = builtinVal "UpdateRegex.replaceByIn" <| VFun name ["regex", "replacement", "string"] (
+    \args ->
+      case args of
+        [regexpV, replacementV, stringV] ->
+          evalRegexReplaceByIn howmany evaluate regexpV replacementV stringV
+        _ -> Err <| "regex replacement expects three arguments, got " ++ toString (List.length args)
+  ) (Just (\args oldVal newVal diffs ->
+      case args of
+        [regexpV, replacementV, stringV] ->
+          updateRegexReplaceByIn howmany evaluate update regexpV replacementV stringV oldVal newVal diffs
+        _ -> Errs <| "regex replacement expects three arguments, got " ++ toString (List.length args)
+  ))
+
+evalRegexReplaceByIn: Regex.HowMany -> (Env -> Exp -> Result String (Val, Widgets))-> Val -> Val -> Val -> Result String (Val, Widgets)
+evalRegexReplaceByIn  howmany eval regexpV replacementV stringV =
    case (regexpV.v_, replacementV.v_, stringV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string)) ->
-        evalRegexReplaceByIn howmany env eval regexpV (stringToLambda env replacementV replacement) stringV
+        let (lambdaReplacement, _) = stringToLambda eval dummyUpdate nth join replacementV replacement
+        in evalRegexReplaceByIn howmany eval regexpV lambdaReplacement stringV
        -- Conver the string to a lambda with string concatenation
      (VBase (VString regexp), VClosure _ _ _ _, VBase (VString string)) ->
         ImpureGoodies.tryCatch "EvaluationError" (\() ->
@@ -244,46 +481,74 @@ evalRegexReplaceByIn  howmany env eval regexpV replacementV stringV =
                --let _ = Debug.log ("The replacement body is" ++ Syntax.unparser Syntax.Elm localExp) () in
                case eval localEnv localExp of
                  Err msg -> ImpureGoodies.throw (EvaluationError msg)
-                 Ok v ->
+                 Ok (v, _) ->
                     case v.v_ of
                       VBase (VString s) -> s
                       _ -> ImpureGoodies.throw (EvaluationError "[internal error] The function ToStrExceptStr returned something else than a string")
                ) string
           in
-          Ok (replaceV_ replacementV <| VBase (VString newString))
+          Ok (replaceV_ replacementV <| VBase (VString newString), [])
         ) (\(EvaluationError msg) -> Err msg)
      _ -> Err <| "replaceAllIn expects a regex (String), a replacement (string/lambda), and the text. Got instead  " ++ valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
            -- Commented out because dependency cycle
            -- "Got " ++  valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
 
-concat: List Exp -> Exp
-concat l = case l of
-  [head] -> head
-  head::tail -> eOp Plus [head, concat tail]
-  _ -> Debug.crash "Trying to call concat with an empty list"
+concat: String -> List Exp -> Exp
+concat joinName l =
+  eApp (eVar joinName) [eList l Nothing]
 
-unconcat: Exp -> List Exp
-unconcat e = case e.val.e__ of
-  EOp _ p [head, tail] _ -> case p.val of
-    Plus -> unconcat head ++ unconcat tail
-    _ -> [e]
-  _ -> [e]
-
-updateRegexReplaceAllByIn  = updateRegexReplaceByIn Regex.All
-updateRegexReplaceFirstByIn = updateRegexReplaceByIn (Regex.AtMost 1)
+-- Use only within UpdateRegex. Supposes that it was a join [....]
+unconcat: Exp -> Maybe EDiffs -> Result String (List Exp, ListDiffs EDiffs)
+unconcat e mbdiffs = case eAppUnapply1 e of
+  Nothing -> Err <| "[internal error] Not a join [], instead " ++ Syntax.unparser Syntax.Elm e
+  Just (_, l) -> case eListUnapply l of
+    Nothing -> Err <| "[internal error] Not a join [], instead " ++ Syntax.unparser Syntax.Elm e
+    Just ls -> case mbdiffs of
+      Just (EChildDiffs [(1, EListDiffs ld)]) -> Ok (ls, ld)
+      Nothing -> Ok (ls, [])
+      _ -> Err <| "[Internal error] not a Nothing or Just EChildDiffs [(1, EListDiffs l)], instead " ++ toString mbdiffs
+{-
+case UpdateRegex.updateRegexReplaceAllByIn
+                           env eRec update regexpV replacementV stringV oldVal newVal diffs of
+                         Errs msg -> UpdateCriticalError msg
+                         Oks ll -> updateOpMultiple "replaceAllIn" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) vs
+                           (LazyList.map (\(a, b, c) ->
+                             let outputVs = [a, b, c] in
+                             (outputVs, UpdateUtils.defaultTupleDiffs valToString UpdateUtils.defaultVDiffs vs outputVs)
+                             ) ll)
+-}
+dummyUpdate: UpdateStack -> Results String (UpdatedEnv, UpdatedExp)
+dummyUpdate updateStack = Errs "[internal error] Should not call dummyUpdate"
 
 -- We need the environment just to make use of the function "nth" for lists, so we don't need to return it !!
-updateRegexReplaceByIn: Regex.HowMany -> Env -> (Env -> Exp -> Result String Val)-> (Env -> Exp -> Val -> Val -> Results String (UpdatedEnv, UpdatedExp)) -> Val -> Val -> Val -> Val -> Val -> Results String (Val, Val, Val)
-updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV stringV oldOutV outV =
-   case (regexpV.v_, replacementV.v_, stringV.v_, outV.v_) of
+updateRegexReplaceByIn: Regex.HowMany ->
+   (Env -> Exp -> Result String (Val, Widgets)) ->
+   (UpdateStack -> Results String (UpdatedEnv, UpdatedExp)) ->
+   Val -> Val -> Val ->   Val -> Val -> VDiffs -> Results String (List Val, TupleDiffs VDiffs)
+updateRegexReplaceByIn howmany eval update regexpV replacementV stringV oldOutV newOutV diffs =
+   case (regexpV.v_, replacementV.v_, stringV.v_, newOutV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string), _) ->
         -- let _ = Debug.log "regex1" () in
-        updateRegexReplaceByIn howmany env eval updateRoutine regexpV (stringToLambda env replacementV replacement) stringV oldOutV outV
-        |> Results.map (\(newRegexpV, newReplacementV, newStringV) ->
-          (newRegexpV, replaceV_ replacementV <| VBase <| VString <| lambdaToString <| newReplacementV, newStringV)
+        let (lambdaReplacementV, oldConcatenationStarts) = stringToLambda eval update nth join replacementV replacement in
+        updateRegexReplaceByIn howmany eval update regexpV lambdaReplacementV stringV oldOutV newOutV diffs |> Results.andThen (
+          \(newArgs, newDiffs) ->
+            case newArgs of
+              [newRegexpV, newLambdaReplacementV, newStringV] ->
+                let replacementDiffs = case UpdateUtils.diffsAt 1 newDiffs of
+                  Nothing -> ok1 (replacementV, newDiffs)
+                  Just vdiff ->
+                     flip Results.andThen (lambdaToString oldConcatenationStarts newLambdaReplacementV vdiff) <| \newReplacementConcreteDiffs ->
+                     let (newReplacementStr, newReplacementDiffs) =
+                       applyConcreteDiffs replacement (pruneConcreteDiffs newReplacementConcreteDiffs) in
+                     ok1 (replaceV_ replacementV <| VBase <| VString newReplacementStr
+                         ,newDiffs |> UpdateUtils.replace 1 (VStringDiffs newReplacementDiffs))
+                in
+                flip Results.map replacementDiffs <| \(newReplacementV, newArgDiffs) ->
+                ([newRegexpV, newReplacementV, newStringV], newArgDiffs)
+              _ -> Errs <| "Expected 3 arguments, got " ++ toString (List.length newArgs)
         )
        -- Conver the string to a lambda with string concatenation
-     (VBase (VString regexp), VClosure _ _ _ _ , VBase (VString string), VBase (VString out)) ->
+     (VBase (VString regexp), _ {- closure or VFun, whatever -}, VBase (VString string), VBase (VString out)) ->
        -- If possible, we are going to parse the result to recover each changed
        -- replaceAllIn (A|B) (case of "A" -> "a"; "B" -> "b") "A,B"  gives "a,b". What if it is now replaced by x,y ? Can we change "a" and "b" in the lambda?
        -- Now yes because we can merge all results.
@@ -296,48 +561,132 @@ updateRegexReplaceByIn howmany env eval updateRoutine regexpV replacementV strin
        let lastString = String.dropLeft lastEnd string in -- Of size >= 2
        let replacementName = "user_callback" in
        -- let _ = Debug.log "regex3" () in
-       case evalRegexReplaceAllByIn env eval regexpV replacementV stringV of
+       case evalRegexReplaceByIn Regex.All eval regexpV replacementV stringV of
          Err msg -> Errs msg
-         Ok olvVal ->
+         Ok (oldVal, _) ->
             let argName i = "match" ++ toString i in
-            let expressionReplacement = concat <| (
-              List.concatMap identity <|
-                 List.map2 (\(m, i) s ->
-                   [eStr s, matchApp replacementName (argName i)]) (Utils.zipWithIndex matches) initStrings) ++ [eStr lastString] in
+            let concatenation = (List.concatMap identity <|
+                         List.map2 (\(m, i) s ->
+                             [eStr s, matchApp replacementName (argName i)]) (Utils.zipWithIndex matches) initStrings) ++ [eStr lastString] in
+            let oldConcatenationStarts =
+              (0:: List.concatMap (\{index, match} -> [index, index + String.length match]) matches) ++ [String.length string]
+            in
+            let expressionReplacement = concat "join" concatenation in
             -- let _ = Debug.log "regex4" () in
             let argumentsMatches = Utils.zipWithIndex matches |> List.map (\(m, i) -> (argName i, gsmMatchToRegexMatch m)) in
             let argumentsEnv = argumentsMatches |> List.map (\(name, m) -> (name, matchToVal m)) in
+            let argNameToIndex = argumentsMatches |> List.indexedMap (\i (name, _) -> (name, i)) |> Dict.fromList in
             let argumentsMatchesDict = Dict.fromList argumentsMatches in
-            let envWithReplacement= (replacementName, replacementV)::argumentsEnv in
-            updateRoutine envWithReplacement expressionReplacement olvVal outV
-            |> Results.andThen (\(newEnvWithReplacement, newUpdatedExp) ->
+            let envWithReplacement= ("join", join)::(replacementName, replacementV)::argumentsEnv in
+            update (updateContext "regex replace" envWithReplacement expressionReplacement oldVal newOutV diffs) |> Results.andThen (
+               \(newEnvWithReplacement, newUpdatedExp) ->
               case newEnvWithReplacement.val of
-                (_, newReplacementV)::newArguments ->
+                _::(_, newReplacementV)::newArguments ->
+                  let newRemplacementVChanges = case newEnvWithReplacement.changes of
+                    (0, c) :: tail -> [(1, c)]
+                    _ -> []
+                  in
+                  let argChangeByIndex = UpdateUtils.dropDiffs 2 newEnvWithReplacement.changes |> Dict.fromList in
+                  let getArgChange: String -> Maybe VDiffs
+                      getArgChange name =
+                    Dict.get name argNameToIndex |> Maybe.andThen (flip Dict.get argChangeByIndex)
+                  in
+                  -- TODO: When unconaatenating, compute the newStringVChanges
                   -- let _ = Debug.log "regex6" () in
-                  let stringsAndLambdas = unconcat newUpdatedExp.val in
+                  flip Results.andThen (Results.fromResult <| unconcat newUpdatedExp.val newUpdatedExp.changes) <| \(newConcatenation, listElemDiffs) ->
                   let newArgumentsDicts = Dict.fromList newArguments in
+                  let recoverSubExpressionStringDiffs e = case appMatchArg e of
+                     Err s -> Errs s
+                     Ok argname -> case Dict.get argname argumentsMatchesDict of
+                       Nothing -> Errs <| "Could not find " ++ argname ++ " in " ++ toString argumentsMatchesDict
+                       Just oldMatch -> case Dict.get argname newArgumentsDicts of
+                         Nothing -> Errs <| "Could not find " ++ argname ++ " in new environment"
+                         Just newVal ->
+                           recoverMatchedStringDiffs oldMatch newVal (getArgChange argname)
+                  in
+                  let recoverSubStringsDiffs e= eStrUnapply e |> Maybe.map strDiffToConcreteDiff in
                   -- let _ = Debug.log "regex7" () in
-                  stringsAndLambdas |> List.map (\e ->
-                    case eStrUnapply e of
-                      Just s -> ok1 s
-                      Nothing -> case appMatchArg e of
-                        Err s -> Errs s
-                        Ok argname -> case Dict.get argname argumentsMatchesDict of
-                          Nothing -> Errs <| "Could not find " ++ argname ++ " in " ++ toString argumentsMatchesDict
-                          Just oldMatch -> case Dict.get argname newArgumentsDicts of
-                            Just newVal -> recoverMatchedString oldMatch newVal
-                            Nothing -> Errs <| "Could not find " ++ argname ++ " in new environment"
-                    )
-                  |> Results.projOk
-                  |> Results.andThen (\newStrings ->
-                      let newString = String.join "" newStrings in
-                      ok1 (regexpV, newReplacementV, Vb.string (Vb.fromVal stringV) newString)
+                  recoverStringDiffs recoverSubExpressionStringDiffs recoverSubStringsDiffs
+                    oldConcatenationStarts newConcatenation listElemDiffs
+                  |> Results.andThen (\newStringDiffs ->
+                      let (newString, finalStringDiffs) = applyConcreteDiffs string (pruneConcreteDiffs newStringDiffs) in
+                      let newStringVChanges = case finalStringDiffs of
+                        [] -> []
+                        l -> [(2, VStringDiffs l)]
+                      in
+                      let newChanges = newRemplacementVChanges ++ newStringVChanges in
+                      ok1 ([regexpV, newReplacementV, Vb.string (Vb.fromVal stringV) newString], newChanges)
                     )
                 _ -> Debug.crash "A variable disappeared from the environment"
-             )
+              )
      _ -> Errs <| "replaceAllIn expects a regex (String), a replacement (string/lambda), and the text. Got instead  " ++ valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
            -- Commented out because dependency cycle
            -- "Got " ++  valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
+
+-- Given a list of interleaved expresssions, typically applications of lambdas to variables, and constant strings,
+-- this function computes the resulting concrete string diff.
+recoverStringDiffs: (Exp -> Results String (List (Int, Int, String))) ->
+                    (Exp -> Maybe (List StringDiffs -> List (Int, Int, String))) ->
+                       List Int ->            List Exp ->      ListDiffs EDiffs -> Results String (List (Int, Int, String))
+recoverStringDiffs  recoverSubExpressionStringDiffs
+                    recoverSubStringsDiffs
+                       oldConcatenationStarts newConcatenation diffs =
+  let aux: Int -> List Int ->            List Exp ->      ListDiffs EDiffs -> Results String (List (Int, Int, String)) -> Results String (List (Int, Int, String))
+      aux  i      oldConcatenationStarts newConcatenation diffs                accRes =
+    let currentDiff = case diffs of
+       [] -> Nothing
+       (j, d) :: tail -> if j > i then Nothing else Just (d, tail)
+    in
+    case currentDiff of
+       Nothing ->
+        case (oldConcatenationStarts, newConcatenation) of
+          ([], _) -> Errs "[Internal error] oldConcatenationStarts should never be empty"
+          ([last], []) -> accRes
+          (remaining::_, []) -> accRes |> Results.map (\acc -> (remaining, Utils.last "UpdateRegex.recoverStringDiffs" oldConcatenationStarts - remaining, "") :: acc)
+          (startOld::tlOld, hdNew::tlNew) ->
+           let newRes = case recoverSubStringsDiffs hdNew of
+             Just _ -> accRes -- We now the string did not change, as there was no diff
+             Nothing -> 
+                recoverSubExpressionStringDiffs hdNew |>
+                Results.map2 (\l1 l2 -> l1 ++ l2) accRes
+           in
+           aux (i + 1) tlOld tlNew diffs newRes
+       Just (thediff, diffTail) -> -- It has to be a string which changed.
+         case thediff of
+            ListElemInsert count ->
+              let (inserted, remainingNewConcatenation) = Utils.split count newConcatenation in
+              let insertedStr = inserted |> List.map (eStrUnapply >> Result.fromMaybe "insertion of something else than strings in regex joins not supported") |>
+                Utils.projOk |> Result.map (String.join "")
+              in
+              case (oldConcatenationStarts, insertedStr) of
+                (_, Err msg) -> Errs msg
+                ([], _) -> Errs "[Internal error] oldConcatenationStarts should never be empty"
+                (startOld::tlOld, Ok insertedS) ->
+                  Results.map (\acc -> (startOld, startOld, insertedS)::acc) accRes |>
+                  aux i (List.drop count oldConcatenationStarts) remainingNewConcatenation diffTail
+            ListElemDelete count ->
+              let (deleted, remainingOldConcatenationStarts) = Utils.split count oldConcatenationStarts in
+              case (oldConcatenationStarts, remainingOldConcatenationStarts) of
+                (_, [])  -> Errs "[Internal error] remainingOldConcatenationStarts should never be empty"
+                ([], _)  -> Errs "[Internal error] oldConcatenationStarts should never be empty"
+                (startOld::_, endOld::_) ->
+                  Results.map (\acc -> (startOld, endOld, "")::acc) accRes |>
+                  aux (i + count) remainingOldConcatenationStarts newConcatenation diffTail
+            ListElemUpdate d ->
+              case d of
+                EStringDiffs l ->
+                  case (oldConcatenationStarts, newConcatenation) of
+                    ([], _) -> Errs "[Internal error] oldConcatenationStarts should never be empty"
+                    (_, []) -> Errs "[Internal error] newConcatenation was empty"
+                    (startOld::tlOld, updatedElem::tlNew) ->
+                       case recoverSubStringsDiffs updatedElem of
+                         Nothing ->  Errs <| "[Internal error] Cannot update something else than a string in regex join, got " ++ Syntax.unparser Syntax.Elm updatedElem
+                         Just stringDiffsToConcreteDiffs ->
+                           let concreteDiffs = stringDiffsToConcreteDiffs l in
+                           Results.map (\acc -> acc ++ (concreteDiffs  |> offsetConcStr startOld)) accRes |>
+                           aux (i + 1) tlOld tlNew diffTail
+                _ -> Errs <| "Expected EStringDiffs, got " ++ toString d
+  in aux 0 oldConcatenationStarts newConcatenation diffs (ok1 [])
 
 --updateRegexReplaceFirstIn
 

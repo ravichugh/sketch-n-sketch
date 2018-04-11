@@ -155,8 +155,6 @@ type Op_
   | DictRemove
   -- trinary ops
   | DictInsert
-  | RegexReplaceAllIn
-  | RegexReplaceFirstIn
   | RegexExtractFirstIn
 
 
@@ -326,7 +324,7 @@ type Val_
   | VFun String -- Name
          (List String) -- Name of arguments
          (List Val -> Result String (Val, Widgets)) -- Evaluation rule
-         (Maybe (List Val -> Val -> Val -> Results String (List Val))) -- Maybe Update rule
+         (Maybe (List Val -> Val -> Val -> VDiffs -> Results String (List Val, TupleDiffs VDiffs))) -- Maybe Update rule
 
 type alias VDict_ = Dict (String, String) Val -- First key string is unparsed key, the second type is the value. See Eval.valToDictKey
 
@@ -1830,12 +1828,13 @@ eStr0  = withDummyExpInfo << EBase space0 << EString "\"" -- defaultQuoteChar
 eTrue  = eBool True
 eFalse = eBool False
 eNull  = withDummyExpInfo <| EBase space1 <| ENull
+eIf c t e   = withDummyExpInfo <| EIf space0 c space1 t space1 e space0
 
 eApp e es      = withDummyExpInfo <| EApp space1 e es SpaceApp space0
 eCall fName es = eApp (eVar0 fName) es
 eFun ps e      = withDummyExpInfo <| EFun space1 ps e space0
 eRecord kvs    = withDummyExpInfo <| ERecord space1 Nothing (List.map (\(k, v) -> (space0, space1, k, space1, v)) kvs) space1
-
+eSelect e name = withDummyExpInfo  <| ESelect space0 e space0 space0 name
 
 desugarEApp e es = case es of
   []      -> Debug.crash "desugarEApp"
@@ -1956,6 +1955,14 @@ eOpUnapply1 expectedOp e = case e.val.e__ of
 
 eAppUnapply1 e = case e.val.e__ of
   EApp _ e1 [e2] _ _ -> Just (e1, e2)
+  _ -> Nothing
+
+eAppUnapply e = case e.val.e__ of
+  EApp _ e1 es _ _ -> Just (e1, es)
+  _ -> Nothing
+
+vStrUnapply v = case v.v_ of
+  VBase (VString s) -> Just s
   _ -> Nothing
 
 -- note: dummy ids...
@@ -3462,3 +3469,32 @@ getTopLevelOptions e =
     EComment _ _ eRest ->
       getTopLevelOptions eRest
     _ -> []
+
+-- Diffs
+
+type alias TupleDiffs a = List (Int, a)
+type alias ListDiffs a = List (Int, ListElemDiff a)
+
+type ListElemDiff a = ListElemUpdate a | ListElemInsert Int | ListElemDelete Int
+
+type VDictElemDiff = VDictElemDelete | VDictElemInsert | VDictElemUpdate VDiffs
+
+type StringDiffs = StringUpdate {-original start: -}Int {-original end: -}Int {- chars replacing -}Int
+
+type alias EnvDiffs = TupleDiffs VDiffs
+-- The environment of a closure if it was modified, the modifications of an environment else.
+type VDiffs = VClosureDiffs EnvDiffs (Maybe EDiffs)
+            | VListDiffs (ListDiffs VDiffs)
+            | VStringDiffs (List StringDiffs)
+            | VDictDiffs (Dict (String, String) VDictElemDiff)
+            | VRecordDiffs (Dict String VDiffs)
+            | VConstDiffs
+            | VUnoptimizedDiffs -- For benchmarking against no diff
+
+type EDiffs = EConstDiffs EWhitespaceDiffs
+            | EListDiffs (ListDiffs EDiffs)
+            | EStringDiffs (List StringDiffs)
+            | EChildDiffs (TupleDiffs EDiffs) -- Also for records
+
+type EWhitespaceDiffs = EOnlyWhitespaceDiffs | EAnyDiffs
+

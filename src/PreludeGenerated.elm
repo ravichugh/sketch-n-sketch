@@ -2038,10 +2038,18 @@ LensLess =
           {values = ll} -> {values = ll |> map1 callback }
           { error = msg} -> results
       in
+      let andElse otherResults =
+        case (results, otherResults) of
+          ({values = ll}, {values=otherLl}) -> { values = ll ++ otherLl }
+          ({error = msg}, {error=msg2}) -> { error = msg + \"\\n\" + msg2 }
+          ({error = msg}, _) -> { error = msg }
+          (_, {error=msg2}) -> { error = msg2 }
+      in
       {
         keepOks = keepOks
         projOks = projOks
         andThen = andThen
+        andElse = andElse
         map = resultMap
       }
   }

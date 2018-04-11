@@ -95,9 +95,5 @@ isInfixOperator op =
       False
     ToStrExceptStr ->
       False
-    RegexReplaceAllIn ->
-      False
-    RegexReplaceFirstIn ->
-      False
     RegexExtractFirstIn ->
       False

@@ -931,6 +931,11 @@ tail_ = fromJust_ "Utils.tail_" << List.tail
 last_ = last "Utils.last_"
 init_ = init "Utils.init_"
 
+nth: List a -> Int -> Result String a
+nth list n = case list of
+  [] -> Err <| "Cannot find " ++ toString n ++ "-th element of a empty list"
+  head::tail -> if n == 0 then Ok head else nth tail (n-1)
+
 uncons xs = case xs of
   x::xs -> (x, xs)
   []    -> Debug.crash "uncons"

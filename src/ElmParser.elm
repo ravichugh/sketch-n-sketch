@@ -1414,10 +1414,6 @@ opFromIdentifier identifier =
       Just DebugLog
     "noWidgets" ->
       Just NoWidgets
-    "replaceAllIn" ->
-      Just RegexReplaceAllIn
-    "replaceFirstIn" ->
-      Just RegexReplaceFirstIn
     "extractFirstIn" ->
       Just RegexExtractFirstIn
     _ ->

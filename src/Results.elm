@@ -7,6 +7,7 @@ module Results exposing
   , fold, toList
   , firstResult
   , force
+  , andElse
   )
 
 import Lazy
@@ -114,12 +115,11 @@ map func ra =
       Errs e -> Errs e
 
 -- Performs the operation on every pair (a, b). Lists all values of b for every value of a
-map2 : ((a, b) -> value) -> Results x a -> Results x b -> Results x value
+map2 : (a -> b -> value) -> Results x a -> Results x b -> Results x value
 map2 func ra rb =
-    case (ra,rb) of
-      (Oks a, Oks b) -> Oks (LazyList.map func (cartesianProduct a b))
-      (Errs x, _) -> Errs x
-      (_, Errs x) -> Errs x
+   ra |> andThen (\a ->
+     rb |> map (func a)
+   )
 
 map2withError : ((x, x) -> x) -> ((a, b) -> value) -> Results x a -> Results x b -> Results x value
 map2withError errorFunc func ra rb =
@@ -253,3 +253,10 @@ force: Results e a -> Results e a
 force r = case r of
   Errs msg -> Errs msg
   Oks ll -> Oks (LazyList.fromList (LazyList.toList ll))
+
+andElse: Results e a -> Results e a -> Results e a
+andElse other current =
+  case (other, current) of
+    (Errs msg, _) -> Errs msg
+    (_, Errs msg) -> Errs msg
+    (Oks l1, Oks l2) -> Oks (LazyList.append l1 l2)
