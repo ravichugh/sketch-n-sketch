@@ -697,9 +697,9 @@ stringDiffsToString  indent    original  modified  diffs =
     [] -> String.join ", " (List.reverse acc)
     StringUpdate start end replacement :: tail ->
        let accInc = if start == end then -- Pure insertion
-            "\n" ++ indent ++ "Inserted: '" ++ String.slice (start + offset) (start + offset + replacement) modified ++ "'"
+            "\n" ++ indent ++ "Inserted: '" ++ String.slice (start + offset) (start + offset + replacement) modified ++ "'" ++ " at pos " ++ toString start
          else if replacement == 0 then -- Pure deletion
-            "\n" ++ indent ++ "Removed: '" ++ String.slice start end original ++ "'"
+            "\n" ++ indent ++ "Removed: '" ++ String.slice start end original ++ "'" ++ " at pos " ++ toString start
          else -- Replacement
             "\n" ++ indent ++ "Replaced '" ++ String.slice start end original ++ "' by '"++ String.slice (start + offset) (start + offset + replacement) modified ++"'"
        in
@@ -953,7 +953,7 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
   -- If one-line string, characters \n \t \r and \\ count for double.
   let aux: LastEdit -> Pos -> Int -> Int -> List StringDiffs -> (List String, List Exp) -> (String, ((LastEdit, Pos), List Exp))
       aux lastEdit lastPos lastEnd offset diffs (revAcc, revAccExp) = case diffs of
-    [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), {-Debug.log "final expressions" <| -}List.reverse revAccExp))
+    [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), List.reverse revAccExp))
     StringUpdate start end replacement :: tail ->
        -- We merge changes if the length of the "same" string is less than the length of the previous change or the next change.
        -- Was useful when the diff was not colored.
@@ -1092,7 +1092,8 @@ offset: Int -> List (Int, a) -> List (Int, a)
 offset n diffs = List.map (\(i, e) -> (i + n, e)) diffs
 
 offsetStr: Int -> List StringDiffs -> List StringDiffs
-offsetStr n diffs = {-Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <| -}
+offsetStr n diffs =
+  --Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <|
   List.map (\sd -> case sd of
     StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
 
@@ -1452,11 +1453,11 @@ mergeEnv: Env -> Env -> EnvDiffs -> Env -> EnvDiffs -> (Env, EnvDiffs)
 mergeEnv originalEnv_ newEnv2_ modifs2_ newEnv3_ modifs3_ =
   let aux: Int -> Env -> List (Int,  VDiffs) -> Env ->     Env ->  List (Int,  VDiffs) -> Env ->  List (Int,  VDiffs) -> (Env, EnvDiffs)
       aux  i      accEnv accDiffs              originalEnv newEnv2 modifs2                newEnv3 modifs3=
-    {-let _ = Debug.log ("aux " ++ toString i ++ "\n" ++
-                                      (List.take 5 originalEnv |> List.map Tuple.first |> String.join ",") ++ "...\n" ++
-                                      (List.take 5 newEnv2 |> List.map Tuple.first |> String.join ",") ++ "...\n" ++
-                                      (List.take 5 newEnv3 |> List.map Tuple.first |> String.join ",") ++ "...\n" ++ "\nModifications:\n" ++
-                                      toString modifs2 ++ "\n" ++ toString modifs3) () in-}
+    --let _ = Debug.log ("aux " ++ toString i ++ "\n" ++
+    --                                  (List.take 5 originalEnv |> List.map Tuple.first |> String.join ",") ++ "...\n" ++
+    --                                  (List.take 5 newEnv2 |> List.map Tuple.first |> String.join ",") ++ "...\n" ++
+    --                                  (List.take 5 newEnv3 |> List.map Tuple.first |> String.join ",") ++ "...\n" ++ "\nModifications:\n" ++
+    --                                  toString modifs2 ++ "\n" ++ toString modifs3) () in-}
     case (originalEnv, newEnv2, modifs2, newEnv3, modifs3) of
        ([], [], [], [], []) -> (List.reverse accEnv, List.reverse accDiffs)
        (_, _, [], _, _) ->     (List.reverse accEnv ++ newEnv3, List.reverse accDiffs ++ modifs3)

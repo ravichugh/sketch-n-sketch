@@ -305,77 +305,80 @@ type alias Unparser = Int -> Maybe VDiffs -> Result String (String, Int, List St
 type HTMLUnparserDiff = UnparseArgument Unparser |
                         UnparseSymbol String
 
-contructorVDiffs: VDiffs -> Maybe (TupleDiffs VDiffs)
-contructorVDiffs vdiffs = case vdiffs of
+contructorVDiffs: VDiffs -> Result String (TupleDiffs VDiffs)
+contructorVDiffs vdiffs =
+  --Debug.log ("constructorVDiffs " ++ toString vdiffs ++ " = ") <|
+  case vdiffs of
   VRecordDiffs d ->
     case Dict.get Lang.ctorArgs d of
-      Nothing -> Just []
+      Nothing ->
+        Err <| Lang.ctorArgs ++ " not found in " ++ toString d
       Just (VRecordDiffs dArgs) ->
-        List.range 1 (Dict.size dArgs) |> List.filterMap (\i ->
-          Dict.get (argName i) dArgs |> Maybe.map (\d -> (i, d))
-        ) |> Just
-      _ -> Nothing
-  _ -> Nothing
+        Dict.toList dArgs |> List.map (\(argKey, argValue) ->
+          nameToArg argKey |> Result.map (\i -> (i - 1, argValue))
+        ) |> Utils.projOk
+      _ -> Err <| "Expected a datatype constructor vdiffs (nested VRecordDiffs), got " ++ toString vdiffs
+  _ -> Err <| "Expected a datatype constructor vdiffs (nested VRecordDiffs), got " ++ toString vdiffs
 
-unparseConstructor: Int -> TupleDiffs VDiffs -> List HTMLUnparserDiff -> Result String (String, Int, List StringDiffs)
-unparseConstructor offset tDiffs unparsers =
-  let aux i offset tDiffs unparsers =
+unparseConstructor: String -> Int -> TupleDiffs VDiffs -> List HTMLUnparserDiff -> Result String (String, Int, List StringDiffs)
+unparseConstructor tagName    offset tDiffs unparsers =
+  --let _ = Debug.log ("unparseConstructor " ++ tagName ++ " " ++ toString offset ++ " " ++ toString tDiffs ++ " " ++ toString unparsers) () in
+  let aux: Int -> TupleDiffs VDiffs -> List HTMLUnparserDiff -> (String, Int, List StringDiffs) -> Result String (String, Int, List StringDiffs)
+      aux i tDiffs unparsers (strAcc, offset, listDiffs) =
+    --let _ = Debug.log ("unparseConstructor.aux " ++ toString i ++ " " ++ toString tDiffs ++ " " ++ toString unparsers ++ " " ++ toString (strAcc, offset, listDiffs)) () in
     case tDiffs of
        [] ->
          case unparsers of
-           [] -> Ok ("", offset, [])
-           UnparseSymbol s :: tail -> aux i (offset + String.length s) tDiffs tail |> Result.map (\(str, offset, diffs) ->
-             (s ++ str, offset, diffs))
-           UnparseArgument unparser::tail -> unparser offset Nothing |> Result.andThen (\(s, newOffset, l) ->
-             aux (i + 1) newOffset [] tail |> Result.map (\(sTail, finalOffset, lTail) ->
-               (s ++ sTail, finalOffset, l ++ lTail)
-             )
-             )
+           [] -> Ok (strAcc, offset, listDiffs)
+           UnparseSymbol s :: tail ->
+             (strAcc ++ s, offset + String.length s, listDiffs) |>
+             aux i tDiffs tail
+           UnparseArgument unparser::tail ->
+             case unparser offset Nothing of
+               Err msg -> Err msg
+               Ok (strArg, newOffset, diffsArgs) ->
+                  (strAcc ++ strArg, newOffset, listDiffs ++ diffsArgs) |>
+                  aux (i + 1) [] tail
        (j, subd)::diffTail ->
          case unparsers of
            [] -> Err <| "Unexpected end in unparseConstructor " ++ toString offset ++ toString tDiffs
-           UnparseSymbol s :: tail -> aux i (offset + String.length s) tDiffs tail |> Result.map (\(str, offset, diffs) ->
-              (s ++ str, offset, diffs))
+           UnparseSymbol s :: tail ->
+              (strAcc ++ s, offset + String.length s, listDiffs) |>
+              aux i tDiffs tail
            UnparseArgument unparser::tail ->
-             if j > i then
-                 unparser offset Nothing |> Result.andThen (\(s, newOffset, l) ->
-                   aux (i + 1) newOffset tDiffs tail |> Result.map (\(sTail, finalOffset, lTail) ->
-                     (s ++ sTail, finalOffset, l ++ lTail)
-                   )
-                   )
-             else if j == i then
-               unparser offset (Just subd) |> Result.andThen (\(s, newOffset, l) ->
-                   aux (i + 1) newOffset diffTail tail |> Result.map (\(sTail, finalOffset, lTail) ->
-                     (s ++ sTail, finalOffset, l ++ lTail)
-                   )
-                   )
+             if j >= i then
+               case unparser offset <| if j == i then Just subd else Nothing of
+                 Err msg -> Err msg
+                 Ok (strArg, newOffset, diffsArgs) ->
+                   (strAcc ++ strArg, newOffset, listDiffs ++ diffsArgs) |>
+                   aux (i + 1) (if j == i then diffTail else tDiffs) tail
              else Err <| "[internal error] HTMLParser j is < than i, we are missing something "
-  in aux 1 offset tDiffs unparsers
+  in aux 0 tDiffs unparsers ("", offset, [])
 
 unparseList: (a -> a -> Unparser) -> (a -> String) -> List a -> List a -> Unparser
 unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
+  --let _ = Debug.log ("unparseList " ++ toString mbdiffs) () in
+  -- Things that did not change
   let default (strAcc, offset, listDiffs) list1 list2 =
-    List.foldl (\(a1, a2) unparserRes ->
-       case unparserRes of
-         Err msg -> Err msg
-         Ok (strAcc, offset, strDiffs) ->
-           subUnparserDiff a1 a2 offset Nothing |> Result.map (
-             \(newStr, newOffset, newDiffs) -> (strAcc ++ newStr, newOffset, strDiffs ++ newDiffs))
-       ) (Ok (strAcc, offset, listDiffs)) (Utils.zip list1 list2)
+    List.foldl (\(a1, a2) (str, offset, strDiffs) ->
+       let str = defaultUnparser a2 in
+       (strAcc ++ str, offset + String.length str, strDiffs)
+       ) (strAcc, offset, listDiffs) (Utils.zip list1 list2)
   in
   case mbdiffs of
-    Nothing -> default ("", offset, []) list1 list2
+    Nothing -> Ok <| default ("", offset, []) list1 list2
     Just (VListDiffs ds) ->
-      let aux i ds remaining1 remaining2 (strAcc, offset, listDiffs)= case ds of
-        [] -> default (strAcc, offset, listDiffs) remaining1 remaining2
+      let aux i ds remaining1 remaining2 (strAcc, offset, listDiffs)=
+        --let _ = Debug.log ("unparseList.aux " ++toString i++ " " ++ toString ds ++ " "  ++ " " ++ toString (strAcc, offset, listDiffs)) () in
+        case ds of
+        [] -> Ok <| default (strAcc, offset, listDiffs) remaining1 remaining2
         (j, listElem)::dsTail ->
           if i < j then
             let count = j - i in
             let (r1c, r1t) = Utils.split count remaining1 in
             let (r2c, r2t) = Utils.split count remaining2 in
-            case default (strAcc, offset, listDiffs) r1c r2c of
-              Err msg -> Err msg
-              Ok x -> aux j ds r1t r2t x
+            default (strAcc, offset, listDiffs) r1c r2c |>
+            aux j ds r1t r2t
           else if i > j then Err "Unexpected mismatch in HTMLParser.unparseList"
           else --if i == j then
             case listElem of
@@ -391,8 +394,10 @@ unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
                 aux (i + count) dsTail remaining12 remaining2 (strAcc, offset + lengthOldStr, listDiffs ++ [StringUpdate offset (offset + lengthOldStr) 0])
 
               ListElemUpdate vd ->
+                --let _ = Debug.log ("unparseList.ListElemUpdate " ++ toString vd) () in
                 case (remaining1, remaining2) of
                   (a1::a1tail, a2::a2tail) ->
+                    --let _ = Debug.log ("unparseList.subUnparserDiff ") (a1, a2, offset, (Just vd)) in
                     case subUnparserDiff a1 a2 offset (Just vd) of
                       Err msg -> Err msg
                       Ok (newStr, newOffset, newDiffs)  -> aux (i + 1) dsTail a1tail a2tail (strAcc ++ newStr, newOffset, listDiffs ++ newDiffs)
@@ -402,6 +407,7 @@ unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
 
 unparseStr: String -> String -> Unparser
 unparseStr  oldStr newStr offset diffs =
+  --let _ = Debug.log ("unparseStr " ++ toString oldStr ++ " " ++ toString newStr ++ " " ++ toString offset) in
   case diffs of
     Nothing -> Ok (newStr, offset + String.length oldStr, [])
     Just (VStringDiffs l) -> Ok (newStr, offset + String.length oldStr, UpdateUtils.offsetStr offset l)
@@ -452,15 +458,16 @@ unparseAttrValueDiff oldAttrVal newAttrVal offset mbd =
       Ok (str, offset + String.length str, [])
     Just d ->
       case (oldAttrVal, newAttrVal, contructorVDiffs d) of
-        (HTMLAttributeUnquoted ws1 ws2 content,  HTMLAttributeUnquoted ws12 ws22 content2, Just ds) ->
-          unparseConstructor offset ds [
+        (_, _, Err msg) -> Err msg
+        (HTMLAttributeUnquoted ws1 ws2 content,  HTMLAttributeUnquoted ws12 ws22 content2, Ok ds) ->
+          unparseConstructor "HTMLAttributeUnquoted" offset ds [
             UnparseArgument <| unparseStr ws1.val ws12.val,
             UnparseSymbol "=",
             UnparseArgument <| unparseStr ws2.val ws22.val,
             UnparseArgument <| unparseStr content content2
           ]
-        (HTMLAttributeString ws1 ws2 delimiter content, HTMLAttributeString ws12 ws22 delimiter2 content2, Just ds) ->
-          unparseConstructor offset ds [
+        (HTMLAttributeString ws1 ws2 delimiter content, HTMLAttributeString ws12 ws22 delimiter2 content2, Ok ds) ->
+          unparseConstructor "HTMLAttributeString" offset ds [
             UnparseArgument <| unparseStr ws1.val ws12.val,
             UnparseSymbol "=",
             UnparseArgument <| unparseStr ws2.val ws22.val,
@@ -468,7 +475,7 @@ unparseAttrValueDiff oldAttrVal newAttrVal offset mbd =
             UnparseArgument <| unparseStrContent delimiter content content2,
             UnparseSymbol delimiter
           ]
-        (HTMLAttributeNoValue, HTMLAttributeNoValue, Just ds) ->
+        (HTMLAttributeNoValue, HTMLAttributeNoValue, Ok ds) ->
           Ok ("", offset, [])
         (a, b, _) ->
           let oldStr = unparseAttrValue a in
@@ -483,16 +490,13 @@ unparseAttrDiffs oldAttr newAttr offset mbd =
       Ok (str, offset + String.length str, [])
     Just d ->
       case (newAttr, oldAttr, contructorVDiffs d) of
-      (HTMLAttribute ws0 name value, HTMLAttribute ws02 name2 value2, Just ds) ->
-         unparseConstructor offset ds [
+      (_, _, Err msg) -> Err msg
+      (HTMLAttribute ws0 name value, HTMLAttribute ws02 name2 value2, Ok ds) ->
+         unparseConstructor "HTMLAttribute" offset ds [
            UnparseArgument <| unparseStr ws0.val ws02.val,
            UnparseArgument <| unparseStr name name2,
            UnparseArgument <| unparseAttrValueDiff value value2
          ]
-      _ ->
-         let oldStr = unparseAttr oldAttr in
-         let newStr = unparseAttr newAttr in
-         Ok (newStr, offset + String.length oldStr, [StringUpdate offset (offset + String.length oldStr) (String.length newStr)])
 
 unparseCommentStyleDiffs: HTMLCommentStyle -> HTMLCommentStyle -> Unparser
 unparseCommentStyleDiffs oldStyle newStyle offset mbvdiffs =
@@ -507,35 +511,36 @@ unparseCommentStyleDiffs oldStyle newStyle offset mbvdiffs =
           Ok (comment2, offset + String.length comment1, [StringUpdate offset (offset + String.length comment1) (String.length comment2)])
         in
         case (oldStyle, newStyle, contructorVDiffs vdiffs) of
-          (Less_Greater oldContent, Less_Greater newContent, Just ds) ->
+          (_, _, Err msg) -> Err msg
+          (Less_Greater oldContent, Less_Greater newContent, Ok ds) ->
             if String.startsWith "?" newContent && not (String.contains ">" newContent)
             then
-              unparseConstructor offset ds [
+              unparseConstructor "Less_Greater" offset ds [
                 UnparseSymbol "<",
                 UnparseArgument <| unparseStr oldContent newContent,
                 UnparseSymbol ">"
               ]
             else default ()
-          (LessSlash_Greater oldContent, LessSlash_Greater newContent, Just ds) ->
+          (LessSlash_Greater oldContent, LessSlash_Greater newContent, Ok ds) ->
             if String.startsWith " " newContent &&  not (String.contains ">" newContent)
             then
-              unparseConstructor offset ds [
+              unparseConstructor "LessSlash_Greater" offset ds [
                 UnparseSymbol "</",
                 UnparseArgument <| unparseStr oldContent newContent,
                 UnparseSymbol ">"
               ]
             else default ()
-          (LessBang_Greater oldContent, LessBang_Greater newContent, Just ds) ->
+          (LessBang_Greater oldContent, LessBang_Greater newContent, Ok ds) ->
             if String.startsWith "--" newContent && not (String.contains "-->" newContent)
-            then unparseConstructor offset ds [
+            then unparseConstructor "LessBang_Greater" offset ds [
                 UnparseSymbol "<!",
                 UnparseArgument <| unparseStr oldContent newContent,
                 UnparseSymbol ">"
               ]
             else default ()
-          (LessBangDashDash_DashDashGreater oldContent,LessBangDashDash_DashDashGreater newContent, Just ds)  ->
+          (LessBangDashDash_DashDashGreater oldContent,LessBangDashDash_DashDashGreater newContent, Ok ds)  ->
             if not (String.contains "-->" newContent)
-            then unparseConstructor offset ds [
+            then unparseConstructor "LessBangDashDash_DashDashGreater" offset ds [
                 UnparseSymbol "<!--",
                 UnparseArgument <| unparseStr oldContent newContent,
                 UnparseSymbol ">"
@@ -545,20 +550,21 @@ unparseCommentStyleDiffs oldStyle newStyle offset mbvdiffs =
 
 unparseNodeDiffs: HTMLNode -> HTMLNode -> Unparser
 unparseNodeDiffs oldNode newNode offset mbvdiffs =
-  --Debug.log ("unparseNodeDiffs " ++ toString oldNode ++ " " ++ toString newNode ++ " " ++ toString offset ++ " " ++ toString mbvdiffs) <|
+  --let _ = Debug.log ("unparseNodeDiffs " ++ toString oldNode ++ " " ++ toString newNode ++ " " ++ toString offset ++ " " ++ toString mbvdiffs) () in
   case mbvdiffs of
     Nothing ->
       let nodeStr = unparseNode newNode in
       Ok (nodeStr, offset + String.length nodeStr, [])
     Just vdiffs ->
       case (oldNode, newNode, contructorVDiffs vdiffs) of
-      (HTMLInner s1, HTMLInner s2, Just ds) ->
-        unparseConstructor offset ds [
+      (_, _, Err msg) -> Err msg
+      (HTMLInner s1, HTMLInner s2, Ok ds) ->
+        unparseConstructor "HTMLInner" offset ds [
            UnparseArgument <| unparseStr s1 s2
           ]
 
-      (HTMLElement tagName attrs ws1 endOp children closing, HTMLElement tagName2 attrs2 ws12 endOp2 children2 closing2, Just ds) ->
-        unparseConstructor offset ds [
+      (HTMLElement tagName attrs ws1 endOp children closing, HTMLElement tagName2 attrs2 ws12 endOp2 children2 closing2, Ok ds) ->
+        unparseConstructor "HTMLElement" offset ds [
           UnparseSymbol "<",
           UnparseArgument <| unparseStr tagName tagName2,
           UnparseArgument <| unparseList unparseAttrDiffs unparseAttr attrs attrs2,
@@ -581,8 +587,8 @@ unparseNodeDiffs oldNode newNode offset mbvdiffs =
               Maybe.withDefault [] in
             Ok (closingFinal2, offset + String.length closingFinal1, diff)
         ]
-      (HTMLComment style1, HTMLComment style2, Just ds) ->
-        unparseConstructor offset ds [
+      (HTMLComment style1, HTMLComment style2, Ok ds) ->
+        unparseConstructor "HTMLComment" offset ds [
           UnparseArgument <| unparseCommentStyleDiffs style1 style2
         ]
       _ ->

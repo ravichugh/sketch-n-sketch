@@ -12,6 +12,7 @@ import Info exposing (..)
 import Pos exposing (..)
 import Utils
 import Results exposing (Results)
+import String
 
 --------------------------------------------------------------------------------
 -- Whitespace
@@ -107,6 +108,11 @@ ctorVal tagger ctorKind name =
 
 argName: Int -> String
 argName index = "_" ++ toString index
+
+nameToArg: String -> Result String Int
+nameToArg s = case String.uncons s of
+  Just ('_', number) -> String.toInt number
+  _ -> Err <| "This cannot be an argument's name for data constructors and tuples: '" ++ s ++ "'. It should be _[number]."
 
 numericalEntry : Int -> (WS, t) -> (WS, WS, Ident, WS, t)
 numericalEntry index (wsBeforeComma, binding) =

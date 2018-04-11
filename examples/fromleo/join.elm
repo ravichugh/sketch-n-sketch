@@ -68,17 +68,22 @@ joinEmpty list =
                   let sb = drop end oldOutput in
                   let newHead = head + inserted in
                   let newOffsetOutput = offsetOutput + replaced - (end - start) in
-                  let result1 = gather -1 tail (indexInput + 1) endHead 0 offsetOutput diffs |>
-                    Results.andThen (\(newTail, newDiffTail) ->
-                    ok1 (head::newTail, newDiffTail)
-                  ) in
-                  let result2 = gather -1 tail (indexInput + 1) endHead 0 newOffsetOutput diffTail |>
+                  let appendNow = gather -1 tail (indexInput + 1) endHead 0 newOffsetOutput diffTail |>
                     Results.andThen (\(newTail, newDiffTail) ->
                     ok1 (newHead :: newTail, (indexInput, ListElemUpdate (VStringDiffs [StringUpdate (start - startHead) (end - startHead) replaced])) :: newDiffTail)
-                  ) in
+                    )
+                  in
+                  if indexInput == lastIndex then
+                    appendNow
+                  else
+                   let appendLater = gather -1 tail (indexInput + 1) endHead 0 offsetOutput diffs |>
+                        Results.andThen (\(newTail, newDiffTail) ->
+                        ok1 (head::newTail, newDiffTail)
+                      )
+                   in
                   if preferStringInsertionToLeft_ sa inserted sb
-                  then result1 |> Results.andElse result2
-                  else result2 |> Results.andElse result1
+                  then appendNow |> Results.andElse appendLater
+                  else appendLater |> Results.andElse appendNow
                 else 
                   let offsetChange = replaced - (end - start) in
                   let newOffsetOutput = offsetOutput + offsetChange in

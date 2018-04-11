@@ -65,8 +65,8 @@ join = let
              -- Hence we need to offset startHead + length head by deltaLengthHeadInput to compute endHead.
              let gather:Int ->     List String -> Int ->  Int ->    Int ->               Int ->       List StringDiffs -> Results String (List String, ListDiffs VDiffs)
                  gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput diffs =
-               --let _ = Debug.log ("""gather@(":") @lastIndexDeleted @input @indexInput @startHead @deltaLengthHeadInput @offsetOutput @diffs""") [] in
-               --Debug.log ("""gather@(":") @lastIndexDeleted @input @indexInput @startHead @deltaLengthHeadInput @offsetOutput @diffs""") <|
+^               --let _ = Debug.log ("gather@" ++ ":"  ++ toString lastIndexDeleted ++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) [] in
+^               --Debug.log ("gather" ++ ":" ++ " " ++ toString lastIndexDeleted++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) <|
                case diffs of
                [] -> ok1 (input, [])
                ((StringUpdate start end replaced) :: diffTail) ->
@@ -94,23 +94,31 @@ join = let
                      else
                        -- Now: (start >= endHead || end <= endHead) && start <= endHead && (start < endHead || (end == start && indexInput == lastIndex))
                      if start == endHead && end == start then
+^                       --let _ = Debug.log "Insertion at the end of the current input" () in
                        -- Now: end == endHead && start == endHead && indexInput != lastIndex
                        let inserted = substring (start + offsetOutput) (end + offsetOutput + replaced) newOutput in
                        let sa = substring 0 start oldOutput in
                        let sb = drop end oldOutput in
                        let newHead = head ++ inserted in
                        let newOffsetOutput = offsetOutput + replaced - (end - start) in
-                       let result1 = gather -1 tail (indexInput + 1) endHead 0 offsetOutput diffs |>
-                         Results.andThen (\(newTail, newDiffTail) ->
-                         ok1 (head::newTail, newDiffTail)
-                       ) in
-                       let result2 = gather -1 tail (indexInput + 1) endHead 0 newOffsetOutput diffTail |>
+
+                       let appendNow = gather -1 tail (indexInput + 1) endHead 0 newOffsetOutput diffTail |>
                          Results.andThen (\(newTail, newDiffTail) ->
                          ok1 (newHead :: newTail, (indexInput, ListElemUpdate (VStringDiffs [StringUpdate (start - startHead) (end - startHead) replaced])) :: newDiffTail)
-                       ) in
+                         )
+                       in
+^                       --let _ = Debug.log "indexInput == lastIndex" (indexInput == lastIndex) in
+                       if indexInput == lastIndex then
+                         appendNow
+                       else
+                        let appendLater = gather -1 tail (indexInput + 1) endHead 0 offsetOutput diffs |>
+                             Results.andThen (\(newTail, newDiffTail) ->
+                             ok1 (head::newTail, newDiffTail)
+                           )
+                        in
                        if preferStringInsertionToLeft_ sa inserted sb
-                       then result1 |> Results.andElse result2
-                       else result2 |> Results.andElse result1
+                       then appendNow |> Results.andElse appendLater
+                       else appendLater |> Results.andElse appendNow
                      else
                        let offsetChange = replaced - (end - start) in
                        let newOffsetOutput = offsetOutput + offsetChange in
@@ -414,11 +422,8 @@ recoverMatchedStringDiffs  oldRegexMatch newV mbdiffs =
                         in
                         flip Results.andThen finalGroupAndDiffs <| \(finalGroups, finalGroupsTupleDiffs) ->
                           let diffByGroupIndex =  Dict.fromList finalGroupsTupleDiffs in
-                          let startMatch = case oldRegexMatch.start of
-                            head::tail -> head
-                            _ -> 0
-                          in
-                          List.map2 (\(group, i) start ->
+                          --let _ = Debug.log "oldRegexMatch: " (oldRegexMatch) in
+                          List.map2 (\(group, i) groupSTart ->
                             case Dict.get i diffByGroupIndex of
                               Nothing ->
                                 Ok []
@@ -427,7 +432,7 @@ recoverMatchedStringDiffs  oldRegexMatch newV mbdiffs =
                                   case diffs of
                                      [] -> List.reverse revAcc
                                      StringUpdate start end replaced :: diffsTail->
-                                       (start + startMatch, end + startMatch, String.slice (start + offset) (start + replaced + offset) group)::revAcc |>
+                                       (groupSTart + start, groupSTart + end, String.slice (start + offset) (start + replaced + offset) group)::revAcc |>
                                        aux (offset + replaced - (end - start)) diffsTail
                                 in
                                 Ok <| aux 0 manydiffs []
@@ -587,7 +592,7 @@ updateRegexReplaceByIn howmany eval update regexpV replacementV stringV oldOutV 
             let envWithReplacement= (replacementName, replacementV)::("join", join)::argumentsEnv in
             update (updateContext "regex replace" envWithReplacement expressionReplacement oldVal newOutV diffs) |> Results.andThen (
                \(newEnvWithReplacement, newUpdatedExp) ->
-                 let _ = Debug.log "newEnvWithReplacement.changes " newEnvWithReplacement.changes in
+^                 --let _ = Debug.log "newEnvWithReplacement.changes " newEnvWithReplacement.changes in
               case newEnvWithReplacement.val of
                 (_, newReplacementV)::_::newArguments ->
                   let newRemplacementVChanges = case newEnvWithReplacement.changes of
@@ -632,7 +637,7 @@ updateRegexReplaceByIn howmany eval update regexpV replacementV stringV oldOutV 
                         l -> [(2, VStringDiffs l)]
                       in
                       let newChanges = newRemplacementVChanges ++ newStringVChanges in
-                      ok1 ([regexpV, newReplacementV, Vb.string (Vb.fromVal stringV) newString], Debug.log "newChanges" newChanges)
+                      ok1 ([regexpV, newReplacementV, Vb.string (Vb.fromVal stringV) newString], newChanges)
                     )
                 _ -> Debug.crash "A variable disappeared from the environment"
               )
@@ -649,9 +654,9 @@ recoverStringDiffs  recoverSubExpressionStringDiffs
                     recoverSubStringsDiffs
                        oldConcatenationStarts newConcatenation diffs =
   let aux: Int -> List Int ->            List Exp ->      ListDiffs EDiffs -> Results String (List (Int, Int, String)) -> Results String (List (Int, Int, String))
-      aux  i      oldConcatenationStarts newConcatenation diffs                accRes =
-    let _ = Debug.log ("recoverStringDiffs.aux " ++ toString i ++ " " ++ toString oldConcatenationStarts ++ " " ++
-      (newConcatenation |> List.map (Syntax.unparser Syntax.Elm) |> String.join "") ++ " " ++ toString diffs ++ " " ++ toString accRes) () in
+      aux  i      oldConcatenationStarts newConcatenation diffs               accRes =
+^    --let _ = Debug.log ("recoverStringDiffs.aux " ++ toString i ++ " " ++ toString oldConcatenationStarts ++ " " ++
+     -- (newConcatenation |> List.map (Syntax.unparser Syntax.Elm) |> String.join "") ++ " " ++ toString diffs ++ " " ++ toString accRes) () in
     let currentDiff = case diffs of
        [] -> Nothing
        (j, d) :: tail -> if j > i then Nothing else Just (d, tail)
