@@ -324,7 +324,8 @@ unparseConstructor offset tDiffs unparsers =
        [] ->
          case unparsers of
            [] -> Ok ("", offset, [])
-           UnparseSymbol s :: tail -> aux i (offset + String.length s) tDiffs tail
+           UnparseSymbol s :: tail -> aux i (offset + String.length s) tDiffs tail |> Result.map (\(str, offset, diffs) ->
+             (s ++ str, offset, diffs))
            UnparseArgument unparser::tail -> unparser offset Nothing |> Result.andThen (\(s, newOffset, l) ->
              aux (i + 1) newOffset [] tail |> Result.map (\(sTail, finalOffset, lTail) ->
                (s ++ sTail, finalOffset, l ++ lTail)
@@ -333,7 +334,8 @@ unparseConstructor offset tDiffs unparsers =
        (j, subd)::diffTail ->
          case unparsers of
            [] -> Err <| "Unexpected end in unparseConstructor " ++ toString offset ++ toString tDiffs
-           UnparseSymbol s :: tail -> aux i (offset + String.length s) tDiffs tail
+           UnparseSymbol s :: tail -> aux i (offset + String.length s) tDiffs tail |> Result.map (\(str, offset, diffs) ->
+              (s ++ str, offset, diffs))
            UnparseArgument unparser::tail ->
              if j > i then
                  unparser offset Nothing |> Result.andThen (\(s, newOffset, l) ->
