@@ -507,37 +507,37 @@ unparseCommentStyleDiffs oldStyle newStyle offset mbvdiffs =
           Ok (comment2, offset + String.length comment1, [StringUpdate offset (offset + String.length comment1) (String.length comment2)])
         in
         case (oldStyle, newStyle, contructorVDiffs vdiffs) of
-          (Less_Greater content, Less_Greater content2, Just ds) ->
-            if String.startsWith "?" content && not (String.contains ">" content)
+          (Less_Greater oldContent, Less_Greater newContent, Just ds) ->
+            if String.startsWith "?" newContent && not (String.contains ">" newContent)
             then
               unparseConstructor offset ds [
                 UnparseSymbol "<",
-                UnparseArgument <| unparseStr content content2,
+                UnparseArgument <| unparseStr oldContent newContent,
                 UnparseSymbol ">"
               ]
             else default ()
-          (LessSlash_Greater content, LessSlash_Greater content2, Just ds) ->
-            if String.startsWith " " content &&  not (String.contains ">" content)
+          (LessSlash_Greater oldContent, LessSlash_Greater newContent, Just ds) ->
+            if String.startsWith " " newContent &&  not (String.contains ">" newContent)
             then
               unparseConstructor offset ds [
                 UnparseSymbol "</",
-                UnparseArgument <| unparseStr content content2,
+                UnparseArgument <| unparseStr oldContent newContent,
                 UnparseSymbol ">"
               ]
             else default ()
-          (LessBang_Greater content, LessBang_Greater content2, Just ds) ->
-            if String.startsWith "--" content && not (String.contains "-->" content)
+          (LessBang_Greater oldContent, LessBang_Greater newContent, Just ds) ->
+            if String.startsWith "--" newContent && not (String.contains "-->" newContent)
             then unparseConstructor offset ds [
                 UnparseSymbol "<!",
-                UnparseArgument <| unparseStr content content2,
+                UnparseArgument <| unparseStr oldContent newContent,
                 UnparseSymbol ">"
               ]
             else default ()
-          (LessBangDashDash_DashDashGreater content,LessBangDashDash_DashDashGreater content2, Just ds)  ->
-            if not (String.contains "-->" content)
+          (LessBangDashDash_DashDashGreater oldContent,LessBangDashDash_DashDashGreater newContent, Just ds)  ->
+            if not (String.contains "-->" newContent)
             then unparseConstructor offset ds [
                 UnparseSymbol "<!--",
-                UnparseArgument <| unparseStr content content2,
+                UnparseArgument <| unparseStr oldContent newContent,
                 UnparseSymbol ">"
               ]
             else default ()
