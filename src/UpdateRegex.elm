@@ -65,8 +65,8 @@ join = let
              -- Hence we need to offset startHead + length head by deltaLengthHeadInput to compute endHead.
              let gather:Int ->     List String -> Int ->  Int ->    Int ->               Int ->       List StringDiffs -> Results String (List String, ListDiffs VDiffs)
                  gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput diffs =
-^               --let _ = Debug.log ("gather@" ++ ":"  ++ toString lastIndexDeleted ++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) [] in
-^               --Debug.log ("gather" ++ ":" ++ " " ++ toString lastIndexDeleted++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) <|
+                --let _ = Debug.log ("gather@" ++ ":"  ++ toString lastIndexDeleted ++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) [] in
+                --Debug.log ("gather" ++ ":" ++ " " ++ toString lastIndexDeleted++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) <|
                case diffs of
                [] -> ok1 (input, [])
                ((StringUpdate start end replaced) :: diffTail) ->
@@ -94,7 +94,7 @@ join = let
                      else
                        -- Now: (start >= endHead || end <= endHead) && start <= endHead && (start < endHead || (end == start && indexInput == lastIndex))
                      if start == endHead && end == start then
-^                       --let _ = Debug.log "Insertion at the end of the current input" () in
+                       --let _ = Debug.log "Insertion at the end of the current input" () in
                        -- Now: end == endHead && start == endHead && indexInput != lastIndex
                        let inserted = substring (start + offsetOutput) (end + offsetOutput + replaced) newOutput in
                        let sa = substring 0 start oldOutput in
@@ -107,7 +107,7 @@ join = let
                          ok1 (newHead :: newTail, (indexInput, ListElemUpdate (VStringDiffs [StringUpdate (start - startHead) (end - startHead) replaced])) :: newDiffTail)
                          )
                        in
-^                       --let _ = Debug.log "indexInput == lastIndex" (indexInput == lastIndex) in
+                       --let _ = Debug.log "indexInput == lastIndex" (indexInput == lastIndex) in
                        if indexInput == lastIndex then
                          appendNow
                        else
@@ -592,7 +592,7 @@ updateRegexReplaceByIn howmany eval update regexpV replacementV stringV oldOutV 
             let envWithReplacement= (replacementName, replacementV)::("join", join)::argumentsEnv in
             update (updateContext "regex replace" envWithReplacement expressionReplacement oldVal newOutV diffs) |> Results.andThen (
                \(newEnvWithReplacement, newUpdatedExp) ->
-^                 --let _ = Debug.log "newEnvWithReplacement.changes " newEnvWithReplacement.changes in
+                 --let _ = Debug.log "newEnvWithReplacement.changes " newEnvWithReplacement.changes in
               case newEnvWithReplacement.val of
                 (_, newReplacementV)::_::newArguments ->
                   let newRemplacementVChanges = case newEnvWithReplacement.changes of
@@ -655,7 +655,7 @@ recoverStringDiffs  recoverSubExpressionStringDiffs
                        oldConcatenationStarts newConcatenation diffs =
   let aux: Int -> List Int ->            List Exp ->      ListDiffs EDiffs -> Results String (List (Int, Int, String)) -> Results String (List (Int, Int, String))
       aux  i      oldConcatenationStarts newConcatenation diffs               accRes =
-^    --let _ = Debug.log ("recoverStringDiffs.aux " ++ toString i ++ " " ++ toString oldConcatenationStarts ++ " " ++
+    --let _ = Debug.log ("recoverStringDiffs.aux " ++ toString i ++ " " ++ toString oldConcatenationStarts ++ " " ++
      -- (newConcatenation |> List.map (Syntax.unparser Syntax.Elm) |> String.join "") ++ " " ++ toString diffs ++ " " ++ toString accRes) () in
     let currentDiff = case diffs of
        [] -> Nothing
