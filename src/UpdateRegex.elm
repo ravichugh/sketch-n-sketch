@@ -96,7 +96,7 @@ join = let
                        let sa = substring 0 start oldOutput in
                        let sb = drop end oldOutput in
                        let newHead = head ++ inserted in
-                       let newOffsetOutput = offsetOutput + end - start + replaced in
+                       let newOffsetOutput = offsetOutput + replaced - (end - start) in
                        let result1 = gather -1 tail (indexInput + 1) endHead 0 offsetOutput diffs |>
                          Results.andThen (\(newTail, newDiffTail) ->
                          ok1 (head::newTail, newDiffTail)
@@ -109,7 +109,7 @@ join = let
                        then result1 |> Results.andElse result2
                        else result2 |> Results.andElse result1
                      else
-                       let offsetChange = end - start + replaced in
+                       let offsetChange = replaced - (end - start) in
                        let newOffsetOutput = offsetOutput + offsetChange in
                        if start == startHead && end == endHead && replaced == 0 then
                        -- If the entire string was deleted, one option is to delete the element alltogether. We display only this option if chars from the left and from the right were deleted as well.
@@ -425,7 +425,7 @@ recoverMatchedStringDiffs  oldRegexMatch newV mbdiffs =
                                      [] -> List.reverse revAcc
                                      StringUpdate start end replaced :: diffsTail->
                                        (start + startMatch, end + startMatch, String.slice (start + offset) (start + replaced + offset) group)::revAcc |>
-                                       aux (end - start + replaced) diffsTail
+                                       aux (offset + replaced - (end - start)) diffsTail
                                 in
                                 Ok <| aux 0 manydiffs []
                             ) (Utils.zipWithIndex finalGroups) oldRegexMatch.start |>
