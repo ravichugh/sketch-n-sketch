@@ -527,7 +527,6 @@ all_tests = init_state
       \match -> String.concat <| List.map (\subm -> toString subm.start ++ Maybe.withDefault "null" subm.match) match.submatches
       ) "aabcdacdd")
         "a2bc2bc6cd-1null"
-    |> onlyAfter
   |> test "replaceAllIn"
     |> evalElmAssert2 builtinEnv "replaceAllIn \"l\" \"L\" \"Hello world\"" "\"HeLLo worLd\""
     |> evalElmAssert2 builtinEnv "replaceAllIn \"a(b|c)\" \"o$1\" \"This is acknowledgeable\"" "\"This is ocknowledgeoble\""
@@ -550,8 +549,6 @@ all_tests = init_state
                                    "replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" \"#[Markdoooown](https://fr.wikipedia.org/wiki/Markdown)\""
     |> updateElmAssert2 builtinEnv "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"5\" else \"7\") \"x,y\"" "\"6,8\""
                                    "replaceAllIn \"x|y\" (\\{match} -> if match == \"x\" then \"6\" else \"8\") \"x,y\""
-    |> onlyLast
-    |> onlyBefore
   --|> test "Record construction, extraction and pattern "
   --  |>
   |> test "Partial application"

@@ -545,7 +545,7 @@ unparseCommentStyleDiffs oldStyle newStyle offset mbvdiffs =
 
 unparseNodeDiffs: HTMLNode -> HTMLNode -> Unparser
 unparseNodeDiffs oldNode newNode offset mbvdiffs =
-  Debug.log ("unparseNodeDiffs " ++ toString oldNode ++ " " ++ toString newNode ++ " " ++ toString offset ++ " " ++ toString mbvdiffs) <|
+  --Debug.log ("unparseNodeDiffs " ++ toString oldNode ++ " " ++ toString newNode ++ " " ++ toString offset ++ " " ++ toString mbvdiffs) <|
   case mbvdiffs of
     Nothing ->
       let nodeStr = unparseNode newNode in
