@@ -644,6 +644,7 @@ all_tests = init_state
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demo\""
                        "[HTMLElement \"a\" [HTMLAttribute \" \" \"href\" (HTMLAttributeString \"\" \"\" \"'\" \"https://fr.wikipedia.org/wiki/Markdown\")] \"\" RegularEndOpening [HTMLInner \"Markdown\"] (RegularClosing \"\"), HTMLInner \" demonstration\"]"
                "parseHTML \"<a href='https://fr.wikipedia.org/wiki/Markdown'>Markdown</a> demonstration\""
+  |> onlyLast
   |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)] "parseHTML \"Hello world\""  "[HTMLInner \"Hello world\"]"
   |> evalElmAssert2 [("parseHTML", HTMLValParser.htmlValParser)] "parseHTML \"<i><b>Hello</i></b>World\""  "[ HTMLElement \"i\" [] \"\" RegularEndOpening [ HTMLElement \"b\" [] \"\" RegularEndOpening [ HTMLInner \"Hello\"] ForgotClosing] (RegularClosing \"\"), HTMLInner \"</b>World\"]"
   |> updateElmAssert [("color", "\"white\""), ("padding", "[\"padding\", \"3px\"]")] "[padding, [\"background-color\", color]]"

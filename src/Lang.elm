@@ -105,13 +105,16 @@ ctorVal : (String -> t) -> CtorKind -> String -> (Ident, t)
 ctorVal tagger ctorKind name =
   ( stringifyCtorKind ctorKind, tagger name)
 
+argName: Int -> String
+argName index = "_" ++ toString index
+
 numericalEntry : Int -> (WS, t) -> (WS, WS, Ident, WS, t)
 numericalEntry index (wsBeforeComma, binding) =
-  (wsBeforeComma, space0, "_" ++ toString index, space0, binding)
+  (wsBeforeComma, space0, argName index, space0, binding)
 
 numericalValEntry : Int -> t -> (Ident, t)
 numericalValEntry index binding =
-  ("_" ++ toString index, binding)
+  (argName index, binding)
 
 vTuple: List Val -> Val_
 vTuple vals =

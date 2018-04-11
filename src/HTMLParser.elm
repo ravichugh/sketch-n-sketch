@@ -307,7 +307,14 @@ type HTMLUnparserDiff = UnparseArgument Unparser |
 
 contructorVDiffs: VDiffs -> Maybe (TupleDiffs VDiffs)
 contructorVDiffs vdiffs = case vdiffs of
-  VListDiffs ldiffs -> UpdateUtils.toTupleDiffs ldiffs
+  VRecordDiffs d ->
+    case Dict.get Lang.ctorArgs d of
+      Nothing -> Just []
+      Just (VRecordDiffs dArgs) ->
+        List.range 1 (Dict.size dArgs) |> List.filterMap (\i ->
+          Dict.get (argName i) dArgs |> Maybe.map (\d -> (i, d))
+        ) |> Just
+      _ -> Nothing
   _ -> Nothing
 
 unparseConstructor: Int -> TupleDiffs VDiffs -> List HTMLUnparserDiff -> Result String (String, Int, List StringDiffs)
@@ -352,7 +359,7 @@ unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
          Ok (strAcc, offset, strDiffs) ->
            subUnparserDiff a1 a2 offset Nothing |> Result.map (
              \(newStr, newOffset, newDiffs) -> (strAcc ++ newStr, newOffset, strDiffs ++ newDiffs))
-       ) (Ok ("", offset, [])) (Utils.zip list1 list2)
+       ) (Ok (strAcc, offset, listDiffs)) (Utils.zip list1 list2)
   in
   case mbdiffs of
     Nothing -> default ("", offset, []) list1 list2
@@ -386,7 +393,7 @@ unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
                   (a1::a1tail, a2::a2tail) ->
                     case subUnparserDiff a1 a2 offset (Just vd) of
                       Err msg -> Err msg
-                      Ok x -> aux (i + 1) dsTail a1tail a2tail x
+                      Ok (newStr, newOffset, newDiffs)  -> aux (i + 1) dsTail a1tail a2tail (strAcc ++ newStr, newOffset, listDiffs ++ newDiffs)
                   _ -> Err <| "Expected non-empty lists, got " ++ toString (remaining1, remaining2)
       in aux 0 ds list1 list2 ("", offset, [])
     Just ds -> Err <| "Expected VListDiffs, got " ++ toString ds
@@ -536,6 +543,7 @@ unparseCommentStyleDiffs oldStyle newStyle offset mbvdiffs =
 
 unparseNodeDiffs: HTMLNode -> HTMLNode -> Unparser
 unparseNodeDiffs oldNode newNode offset mbvdiffs =
+  Debug.log ("unparseNodeDiffs " ++ toString oldNode ++ " " ++ toString newNode ++ " " ++ toString offset ++ " " ++ toString mbvdiffs) <|
   case mbvdiffs of
     Nothing ->
       let nodeStr = unparseNode newNode in
