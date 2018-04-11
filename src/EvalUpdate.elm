@@ -299,6 +299,7 @@ builtinEnv =
   , ("replaceFirstIn", UpdateRegex.replaceFirstByIn
        (\env e -> Eval.doEval Syntax.Elm env e |> Result.map Tuple.first)
        (\updateStack -> Update.update LazyList.Nil LazyList.Nil updateStack))
+  , ("join__", UpdateRegex.join)
   ]
 
 preludeEnvRes = Result.map Tuple.second <| (eval Syntax.Little builtinEnv [] Parser.prelude)

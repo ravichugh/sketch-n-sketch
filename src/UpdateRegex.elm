@@ -3,7 +3,10 @@ module UpdateRegex exposing (
   , replaceAllByIn
   , evalRegexExtractFirstIn
   , updateRegexExtractFirstIn
-
+  , join
+  , escapeSlashDollar
+  , unescapeSlashDollar
+  , nth
   , allInterleavingsIn)
 
 import UpdateStack exposing (UpdateStack(..), Output)

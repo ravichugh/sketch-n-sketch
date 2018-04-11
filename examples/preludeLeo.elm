@@ -1106,14 +1106,10 @@ String =
       { apply x = freeze <| strToInt x
       , unapply output = Just (toString output)
       }.apply x
-    join delimiter x = {
+    join delimiter x = if delimiter == "" then join__ x else {
         apply x = join delimiter x
         update {output, oldOutput, diffs} =
-          if delimiter == "" then
-            -- Regular update, cannot add elements
-            -- TODO: We should be able to delete elements if they completely disappear !
-            Update.updateApp {fun = join delimiter, oldOutput = oldOutput, output = output, diffs = diffs}
-          else {values = [Regex.split delimiter output]}
+          {values = [Regex.split delimiter output]}
       }.apply x
     length x = len (explode x)
     substring = substring

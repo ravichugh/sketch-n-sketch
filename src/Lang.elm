@@ -1435,36 +1435,55 @@ parentByEId program targetEId =
 
 -- Children left-to-right.
 childExps : Exp -> List Exp
-childExps e =
+childExps e = childExpsExtractors e |> Tuple.first
+
+singleArgExtractor: String -> (Exp -> Exp__) -> (List Exp -> Exp)
+singleArgExtractor msg f l = case l of
+  head::_ -> replaceE__ head <| f head
+  _ -> Debug.crash <| "[internal error] Unespected empty list for " ++ msg
+
+multiArgExtractor: String -> (List Exp -> Exp__) -> (List Exp -> Exp)
+multiArgExtractor msg f l = case l of
+  head::_ -> replaceE__ head <| f l
+  _ -> Debug.crash <| "[internal error] Unespected empty list for " ++ msg
+
+-- Children left-to-right, with a way to rebuild the expression if given the same exps)
+childExpsExtractors : Exp -> (List Exp, List Exp -> Exp)
+childExpsExtractors e =
   case e.val.e__ of
-    EConst _ _ _ _          -> []
-    EBase _ _               -> []
-    EVar _ _                -> []
-    EFun ws1 ps e_ ws2      -> [e_]
-    EOp ws1 op es ws2       -> es
+    EConst _ _ _ _          -> ([], \_ -> e)
+    EBase _ _               -> ([], \_ -> e)
+    EVar _ _                -> ([], \_ -> e)
+    EFun ws1 ps e_ ws2      -> ([e_], singleArgExtractor "EFun-unexp" <| \newE -> EFun ws1 ps newE ws2)
+    EOp ws1 op es ws2       -> (es, multiArgExtractor "EOp-unexp" <| \newEs -> EOp ws1 op newEs ws2)
     EList ws1 es ws2 m ws3  ->
       case m of
-        Just e  -> Utils.listValues es ++ [e]
-        Nothing -> Utils.listValues es
+        Just e  -> (Utils.listValues es ++ [e], multiArgExtractor "EList-unexp" <| \newEs ->  EList ws1 (Utils.listValuesMake es <| Utils.dropLast 1 newEs) ws2 (Just (Utils.last "childExps-EList" newEs)) ws3)
+        Nothing ->( Utils.listValues es, multiArgExtractor "EList-unexp" <| \newEs ->  EList ws1 (Utils.listValuesMake es <| newEs) ws2 Nothing ws3)
     ERecord ws1 mw es ws2 ->
       case mw of
-        Just (e, w) -> [e] ++ Utils.recordValues es
-        Nothing -> Utils.recordValues es
-    ESelect _ e _ _ _                -> [e]
-    EApp ws1 f es apptype ws2        -> f :: es
-    ELet ws1 k b p ws2 e1 ws3 e2 ws4 -> [e1, e2]
-    EIf ws1 e1 ws2 e2 ws3 e3 ws4     -> [e1, e2, e3]
-    ECase ws1 e branches ws2         -> e :: branchExps branches
-    ETypeCase ws1 e tbranches ws2    -> e :: tbranchExps tbranches
-    EComment ws s e1                 -> [e1]
-    EOption ws1 s1 ws2 s2 e1         -> [e1]
-    ETyp ws1 pat tipe e ws2          -> [e]
-    EColonType ws1 e ws2 tipe ws3    -> [e]
-    ETypeAlias ws1 pat tipe e ws2    -> [e]
-    ETypeDef _ _ _ _ _ e _           -> [e]
-    EParens _ e _ _                  -> [e]
-    EHole _ _                        -> []
-
+         Just (e, w) -> ([e] ++ Utils.recordValues es, multiArgExtractor "ERecord-unexp" <| \newEs -> ERecord ws1 (Just (Utils.head "childExps-ERecord" newEs, w)) (Utils.recordValuesMake es (Utils.tail  "childExps-ERecord" newEs)) ws2)
+         Nothing -> (Utils.recordValues es, multiArgExtractor "ERecord-unexp" <|  \newEs -> ERecord ws1 Nothing (Utils.recordValuesMake es newEs) ws2)
+    ESelect sp0 e sp1 sp2 name       -> ([e], multiArgExtractor "ESelect-unexp" <| \newEs -> ESelect sp0 (Utils.head "childExps-ESelect" newEs) sp1 sp2 name)
+    EApp ws1 f es apptype ws2        -> (f :: es, multiArgExtractor "EApp-unexp" <| \newEs -> EApp ws1 (Utils.head "childExps-EApp" newEs) (Utils.tail "childExps-Eapp" newEs) apptype ws2)
+    ELet ws1 k b p ws2 e1 ws3 e2 ws4 -> ([e1, e2], multiArgExtractor "ELet-unexp" <| \newEs -> case newEs of
+      [newE1, newE2] -> ELet ws1 k b p ws2 newE1 ws3 newE2 ws4
+      _ -> Debug.crash "childExps-ELet")
+    EIf ws1 e1 ws2 e2 ws3 e3 ws4     -> ([e1, e2, e3], multiArgExtractor "EIf-unexp" <| \newEs -> case newEs of
+        [newE1, newE2, newE3] -> EIf ws1 newE1 ws2 newE2 ws3 newE3 ws4
+        _ -> Debug.crash "childExps-EIf")
+    ECase ws1 e branches ws2         -> let (es, esExtractor) = branchExpsExtractor branches in
+      (e :: es, multiArgExtractor "ECase-unexp" <| \newEs ->  ECase ws1 (Utils.head "childExps-ECase" newEs) (Utils.tail "childExps-ECAse" newEs |> esExtractor) ws2)
+    ETypeCase ws1 e tbranches ws2    -> let (es, esExtractor) = tbranchExpsExtractor tbranches in
+      (e :: es, multiArgExtractor "ETypeCase-unexp" <| \newEs ->  ETypeCase ws1 (Utils.head "childExps-ECase" newEs) (Utils.tail "childExps-ECAse" newEs |> esExtractor) ws2)
+    EComment ws s e1                 -> ([e1], singleArgExtractor "EComment-unexp" <| \newE ->EComment ws s newE              )
+    EOption ws1 s1 ws2 s2 e1         -> ([e1], singleArgExtractor "EOption-unexp" <| \newE ->EOption ws1 s1 ws2 s2 newE      )
+    ETyp ws1 pat tipe e ws2          -> ([e], singleArgExtractor  "ETyp-unexp" <| \newE -> ETyp ws1 pat tipe newE ws2      )
+    EColonType ws1 e ws2 tipe ws3    -> ([e], singleArgExtractor  "EColonType-unexp" <| \newE -> EColonType ws1 newE ws2 tipe ws3)
+    ETypeAlias ws1 pat tipe e ws2    -> ([e], singleArgExtractor  "ETypeAlias-unexp" <| \newE -> ETypeAlias ws1 pat tipe newE ws2)
+    ETypeDef a1 a2 a3 a4 a5 e a6     -> ([e], singleArgExtractor  "ETypeDef-unexp" <| \newE -> ETypeDef a1 a2 a3 a4 a5 newE a6 )
+    EParens a1 e a2 a3               -> ([e], singleArgExtractor  "EParens-unexp" <| \newE -> EParens a1 newE a2 a3)
+    EHole _ _                        -> ([], \_ -> e)
 
 allEIds : Exp -> List EId
 allEIds exp =
@@ -1592,18 +1611,40 @@ branchExp branch =
   let (Branch_ _ _ exp _) = branch.val in
   exp
 
+branchExpExtractor : Branch -> (Exp, Exp -> Branch)
+branchExpExtractor branch =
+  case branch.val of
+   Branch_ a b exp c -> (exp, \newExp -> replaceB__ branch <| Branch_ a b newExp c)
+
 branchExps : List Branch -> List Exp
 branchExps branches =
   List.map branchExp branches
+
+branchExpsExtractor : List Branch -> (List Exp, List Exp -> List Branch)
+branchExpsExtractor branches =
+  List.map branchExpExtractor branches |> List.unzip |> Tuple.mapSecond (\expsToBranch ->
+    \newExps -> List.map2 (\toBranch newExp -> toBranch newExp) expsToBranch newExps
+  )
+
 
 tbranchExp : TBranch -> Exp
 tbranchExp tbranch =
   let (TBranch_ _ _ exp _) = tbranch.val in
   exp
 
+tbranchExpExtractor : TBranch -> (Exp, Exp -> TBranch)
+tbranchExpExtractor tbranch =
+  case tbranch.val of
+    TBranch_ a b exp c  -> (exp, \newExp -> replaceTB__ tbranch <| TBranch_ a b newExp c)
+
 tbranchExps : List TBranch -> List Exp
 tbranchExps tbranches =
   List.map tbranchExp tbranches
+
+tbranchExpsExtractor : List TBranch -> (List Exp, List Exp -> List TBranch)
+tbranchExpsExtractor tbranches =
+  List.map tbranchExpExtractor tbranches |> List.unzip |> Tuple.mapSecond (\expsToBranch ->
+      \newExps -> List.map2 (\toBranch newExp -> toBranch newExp) expsToBranch newExps)
 
 branchPat : Branch -> Pat
 branchPat branch =
@@ -1767,6 +1808,9 @@ mapNodeP__ f p = replaceP__ p (f p.val.p__)
 
 replaceB__ : Branch -> Branch_ -> Branch
 replaceB__ b b_ = { b | val = b_ }
+
+replaceTB__ : TBranch -> TBranch_ -> TBranch
+replaceTB__ b b_ = { b | val = b_ }
 
 replaceP__PreservingPrecedingWhitespace  : Pat -> Pat__ -> Pat
 replaceP__PreservingPrecedingWhitespace  p p__ =
@@ -1950,6 +1994,10 @@ eConstUnapply e = case e.val.e__ of
 
 eListUnapply e = case e.val.e__ of
   EList _ elems _ Nothing  _-> Just <| List.map Tuple.second elems
+  _ -> Nothing
+
+eListUnapplyWS e = case e.val.e__ of
+  EList _ elems _ Nothing  _-> Just <| elems
   _ -> Nothing
 
 eOpUnapply1 expectedOp e = case e.val.e__ of

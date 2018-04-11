@@ -1442,7 +1442,8 @@ mergeTuple submerger =
            else
              let countToIgnore = min (m3 - i) (m2 - i) in
              let (toInsert, toRemain) = Utils.split countToIgnore origTuple in
-             aux (i + countToIgnore) (reverseInsert toInsert accTuple) accDiffs oe (List.drop countToIgnore ne2) modifs2 (List.drop countToIgnore ne3) modifs3
+             aux (i + countToIgnore) (reverseInsert toInsert accTuple) accDiffs (List.drop countToIgnore origTuple)
+                 (List.drop countToIgnore newTup2) modifs2 (List.drop countToIgnore newTup3) modifs3
          _ -> Debug.crash <| "Expected tuples to have the same size, got\n" ++
                        toString origTuple ++ ", " ++ toString newTup2 ++ ", " ++ toString newTup3
     in aux 0 [] []
@@ -1524,7 +1525,7 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
       --     ) ()
       --in
       --let _ = Debug.log ("=" ++ "[" ++ (List.map valToString newList |> String.join ",") ++ "], " ++ toString newDiffs) () in
-      (replaceV_ original <| VList <| newList, newDiffs)
+      (replaceV_ original <| VList <| newList, VListDiffs newDiffs)
 
     (VRecord originalDict, VRecord modified1Dict, VRecordDiffs d1, VRecord modified2Dict, VRecordDiffs d2) ->
       let (newDict, newDiffs) = mergeRecord mergeVal originalDict modified1Dict d1 modified2Dict d2 in
@@ -1541,7 +1542,7 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
           let (newBody, newBodyModifs) = case (bodymodifs1, bodymodifs2) of
             (Just emodif1, Just emodif2) ->
                --let _ = Debug.log "Merging two VClosures' bodies, it's unusual enough to be noticed" () in
-               (mergeExp body0 body1 body2, Just <| mergeEDiffs emodif1 emodif2)
+               (mergeExp body0 body1 emodif1 body2 emodif2) |> Tuple.mapSecond Just
             (Nothing, _) -> (body2, bodymodifs2)
             (_, Nothing) -> (body1, bodymodifs1)
           in
@@ -1571,15 +1572,6 @@ mergeStringHeuristic o s1 s2 =
 
 mergeInfo: (a -> a -> a -> a) -> WithInfo a ->WithInfo a -> WithInfo a -> WithInfo a
 mergeInfo merger w1 w2 w3 = Info.replaceInfo w1 (merger w1.val w2.val w3.val)
-
-mergeEDiffs: EDiffs -> EDiffs -> EDiffs
-mergeEDiffs modif1 modif2 =
-  case (modif1, modif2) of
-    (EConstDiffs w, _) -> EConstDiffs w
-    (_, EConstDiffs w) -> EConstDiffs w
-    (EChildDiffs l1, EChildDiffs l2) -> EChildDiffs <| mergeTupleDiffs mergeEDiffs l1 l2
-    (EListDiffs l1, EListDiffs l2) -> EListDiffs <| mergeListDiffs mergeEDiffs l1 l2
-    _ -> Debug.crash <| "[Internal error] Don't know how to merge " ++ toString modif1 ++ " and " ++ toString modif2
 
 mergeTupleDiffs: (a -> a -> a) -> TupleDiffs a -> TupleDiffs a -> TupleDiffs a
 mergeTupleDiffs submerger l1_ l2_ =
@@ -1629,168 +1621,39 @@ mergeListDiffs submerger l1_ l2_ =
             Debug.crash <| "Malformed list diffs:" ++ toString l1_ ++ ", " ++ toString l2_
   in aux 0 [] l1_ l2_
 
-mergeExp: Exp -> Exp -> Exp -> Exp
-mergeExp o e1 e2 =
-  let default () = (if expEqual o e1 then e2 else e1).val.e__ in
-  let mergexExpList = mergeListWithDiffs (Syntax.unparser Syntax.Elm) mergeExp in
-  let result = case (o.val.e__, e1.val.e__, e2.val.e__) of
-       (EFun sp0 pats0 body0 esp0,
-        EFun sp1 pats1 body1 esp1,
-        EFun sp2 pats2 body2 esp2) ->
-          if patsEqual pats0 pats1 pats2 then
-            EFun (mergeWS sp0 sp1 sp2) pats0 (mergeExp body0 body1 body2) (mergeWS esp0 esp1 esp2)
-          else default ()
-       (EApp sp0 fun0 args0 appStyle1 esp0,
-        EApp sp1 fun1 args1 appStyle2 esp1,
-        EApp sp2 fun2 args2 appStyle3 esp2) ->
-         EApp (mergeWS sp0 sp1 sp2) (mergeExp fun0 fun1 fun2) (mergexExpList args0 args1 args2) appStyle1 (mergeWS esp0 esp1 esp2)
-
-       (EOp sp0 op0 args0 esp0,
-        EOp sp1 op1 args1 esp1,
-        EOp sp2 op2 args2 esp2) ->
-         if op0.val == op1.val && op1.val == op2.val then
-           EOp (mergeWS sp0 sp1 sp2) op0 (mergexExpList args0 args1 args2) (mergeWS esp0 esp1 esp2)
-         else default ()
-
-       (EList sp0 args0 isp0 mTail0 esp0,
-        EList sp1 args1 isp1 mTail1 esp1,
-        EList sp2 args2 isp2 mTail2 esp2) ->
-         EList (mergeWS sp0 sp1 sp2) (mergeListWithDiffs (\(ws, e) -> ws.val ++ Syntax.unparser Syntax.Elm e)
-            (\(s0, v0) (s1, v1) (s2, v2) -> (mergeWS s0 s1 s2, mergeExp v0 v1 v2)) args0 args1 args2) (mergeWS isp0 isp1 isp2)
-             (mergeMaybe mergeExp mTail0 mTail1 mTail2) (mergeWS esp0 esp1 esp2)
-       (EIf spc0 cond0 spt0 then0 spe0 else0 esp0,
-        EIf spc1 cond1 spt1 then1 spe1 else1 esp1,
-        EIf spc2 cond2 spt2 then2 spe2 else2 esp2) ->
-         EIf (mergeWS spc0 spc1 spc2)  (mergeExp cond0 cond1 cond2)
-             (mergeWS spt0 spt1 spt2)  (mergeExp then0 then1 then2)
-             (mergeWS spe0 spe1 spe2)  (mergeExp else0 else1 else2)
-             (mergeWS esp0 esp1 esp2)
-       (ECase sp0 input0 branches0 esp0,
-        ECase sp1 input1 branches1 esp1,
-        ECase sp2 input2 branches2 esp2) ->
-         ECase (mergeWS sp0 sp1 sp2) (mergeExp input0 input1 input2)
-               (autoMergeTuple mergeBranch branches0 branches1 branches2)
-              (mergeWS esp0 esp1 esp2)
-       (ETypeCase sp0 input0 tbranches0 esp0,
-        ETypeCase sp1 input1 tbranches1 esp1,
-        ETypeCase sp2 input2 tbranches2 esp2) ->
-         ETypeCase (mergeWS sp0 sp1 sp2) (mergeExp input0 input1 input2)
-           (autoMergeTuple mergeTBranch tbranches0 tbranches1 tbranches2)
-           (mergeWS esp0 esp1 esp2)
-       (ELet sp0 lk0 rec0 pat0 spi0 exp0 spj0 body0 esp0,
-        ELet sp1 lk1 rec1 pat1 spi1 exp1 spj1 body1 esp1,
-        ELet sp2 lk2 rec2 pat2 spi2 exp2 spj2 body2 esp2) ->
-         if lk0 == lk1 && lk1 == lk2 then
-           if rec0 == rec1 && rec1 == rec2 then
-             if patEqual pat0 pat1 && patEqual pat1 pat2 then
-               ELet (mergeWS sp0 sp1 sp2)
-                    lk0 rec0 pat0
-                    (mergeWS spi0 spi1 spi2)
-                    (mergeExp exp0 exp1 exp2)
-                    (mergeWS spj0 spj1 spj2)
-                    (mergeExp body0 body1 body2)
-                    (mergeWS esp0 esp1 esp2)
-             else default ()
-           else default ()
-         else default ()
-       (EComment sp0 s0 e0,
-        EComment sp1 s1 e1,
-        EComment sp2 s2 e2) ->
-         EComment (mergeWS sp0 sp1 sp2)
-           (mergeStringHeuristic s0 s1 s2)
-           (mergeExp e0 e1 e2)
-       (EOption sp0 kStr0 spi0 wStr0 exp0,
-        EOption sp1 kStr1 spi1 wStr1 exp1,
-        EOption sp2 kStr2 spi2 wStr2 exp2) ->
-         EOption (mergeWS sp0 sp1 sp2)
-                 (mergeInfo mergeStringHeuristic kStr0 kStr1 kStr2)
-                 (mergeWS spi0 spi1 spi2)
-                 (mergeInfo mergeStringHeuristic wStr0 wStr1 wStr2)
-                 (mergeExp exp0 exp1 exp2)
-       (ETyp sp0 pat0 t0 e0 esp0,
-        ETyp sp1 pat1 t1 e1 esp1,
-        ETyp sp2 pat2 t2 e2 esp2) ->
-          if (patEqual pat0 pat1 && patEqual pat1 pat2) then
-            if typeEqual t0 t1 && typeEqual t1 t2 then
-             ETyp (mergeWS sp0 sp1 sp2)
-                  pat0
-                  t0
-                  (mergeExp e0 e1 e2)
-                  (mergeWS esp0 esp1 esp2)
-            else default()
-          else default ()
-       (EColonType sp0 e0 spi0 t0 esp0,
-        EColonType sp1 e1 spi1 t1 esp1,
-        EColonType sp2 e2 spi2 t2 esp2) ->
-          if typeEqual t0 t1 && typeEqual t1 t2 then
-            EColonType (mergeWS sp0 sp1 sp2) (mergeExp e0 e1 e2) (mergeWS spi0 spi1 spi2) t0 (mergeWS esp0 esp1 esp2)
-          else default ()
-       (ETypeAlias sp0 pat0 t0 e0 esp0,
-        ETypeAlias sp1 pat1 t1 e1 esp1,
-        ETypeAlias sp2 pat2 t2 e2 esp2) ->
-          if (patEqual pat0 pat1 && patEqual pat1 pat2) then
-            if typeEqual t0 t1 && typeEqual t1 t2 then
-             ETypeAlias (mergeWS sp0 sp1 sp2)
-                  pat0
-                  t0
-                  (mergeExp e0 e1 e2)
-                  (mergeWS esp0 esp1 esp2)
-            else default()
-          else default ()
-       (EParens sp0 e0 pStyle0 esp0,
-        EParens sp1 e1 pStyle1 esp1,
-        EParens sp2 e2 pStyle2 esp2) ->
-         if pStyle0 == pStyle1 && pStyle1 == pStyle2 then
-             EParens (mergeWS sp0 sp1 sp2) (mergeExp e0 e1 e2) pStyle0 (mergeWS esp0 esp1 esp2)
-         else default ()
-       (EHole sp0 (Just v0),
-        EHole sp1 (Just v1),
-        EHole sp2 (Just v2)) ->
-         defaultVDiffs v0 v1 |> Results.andThen (\m1 ->
-           defaultVDiffs v0 v2 |> Results.map (\m2 ->
-              EHole (mergeWS sp0 sp1 sp2) (Just v0)
-           )
-         ) |> Results.withDefault1 (EHole sp0 (Just v0))
-
-       _ -> default ()
-  in
-  replaceE__ o result
-
-mergeBranch: Branch -> Branch -> Branch -> Branch
-mergeBranch o e1 e2 =
-  case (o.val, e1.val, e2.val) of
-    (Branch_ sp0 pat0 exp0 spe0,
-     Branch_ sp1 pat1 exp1 spe1,
-     Branch_ sp2 pat2 exp2 spe2) ->
-       -- Check that the patterns are the same. If not takes the first pattern change.
-       if patEqual pat0 pat1 && patEqual pat1 pat2 then
-         {o | val = Branch_ (mergeWS sp0 sp1 sp2) pat0 (mergeExp exp0 exp1 exp2) (mergeWS spe0 spe1 spe2) }
-       else if Syntax.patternUnparser Syntax.Elm pat0 == Syntax.patternUnparser Syntax.Elm pat1 then e2 else e1
-
-mergeTBranch: TBranch -> TBranch -> TBranch -> TBranch
-mergeTBranch o e1 e2 =
-  case (o.val, e1.val, e2.val) of
-    (TBranch_ sp0 typ0 exp0 spe0,
-     TBranch_ sp1 typ1 exp1 spe1,
-     TBranch_ sp2 typ2 exp2 spe2) ->
-       -- Check that the patterns are the same. If not takes the first pattern change.
-       if typeEqual typ0 typ1 && typeEqual typ1 typ2 then
-         {o | val = TBranch_ (mergeWS sp0 sp1 sp2) typ0 (mergeExp exp0 exp1 exp2) (mergeWS sp0 sp1 sp2) }
-       else if Syntax.typeUnparser Syntax.Elm typ0 == Syntax.typeUnparser Syntax.Elm typ1 then e2 else e1
-
-mergeMaybe: (a -> a -> a -> a) -> Maybe a -> Maybe a -> Maybe a -> Maybe a
-mergeMaybe submerger o e1 e2 =
-  case (o, e1, e2) of
-    (Nothing, Nothing, _) -> e2
-    (Nothing, _, Nothing) -> e1
-    (Nothing, Just m1, Just m2) -> Just (submerger m2 m1 m2)
-    (Just o1, _, Nothing) -> Nothing
-    (Just o1, Nothing, _) -> Nothing
-    (Just o1, Just m1, Just m2) ->  Just (submerger o1 m1 m2)
-
-mergeTuple2: (a -> a -> a -> a) ->  (b -> b -> b -> b) -> (a, b) -> (a, b) -> (a, b) -> (a, b)
-mergeTuple2 merge1 merge2 (oa, ob) (ma1, mb1) (ma2, mb2) =
-  (merge1 oa ma1 ma2, merge2 ob mb1 mb2)
+mergeExp: Exp -> Exp -> EDiffs -> Exp -> EDiffs -> (Exp, EDiffs)
+mergeExp o e1 ediff1 e2 ediff2 =
+  --let _ = Debug.log ("mergeExp "  ++ Syntax.unparser Syntax.Elm o ++ " " ++ Syntax.unparser Syntax.Elm e1 ++ " " ++ toString ediff1 ++
+  --   " " ++ Syntax.unparser Syntax.Elm e2 ++ " " ++ toString ediff2) () in
+  case (ediff1, ediff2) of
+    (EConstDiffs EAnyDiffs, EConstDiffs EOnlyWhitespaceDiffs) ->
+      (e1, ediff1)
+    (_, EConstDiffs _) ->
+      (e2, ediff2)
+    (EConstDiffs _, _) ->
+       (e2, ediff2)
+    (EStringDiffs ss1, EStringDiffs ss2) ->
+      case (o.val.e__, eStrUnapply e1, eStrUnapply e2) of
+        (EBase sp0 (EString quote x), Just s1, Just s2) ->
+          let (finalStr, finalDiffs) = mergeString x s1 ss1 s2 ss2 in
+          (replaceE__ o <| EBase sp0 <| EString quote finalStr, EStringDiffs finalDiffs)
+        _ -> (e2, ediff2)
+    (EListDiffs ld1, EListDiffs ld2) ->
+      case (o.val.e__, eListUnapplyWS e1, eListUnapplyWS e2) of
+        (EList sp0 x sp1 Nothing sp2, Just l1, Just l2) ->
+           let (finalelems, finaldiff) = mergeList (\(wso, eo) (ws1, e1) d1 (ws2, e2) d2 ->
+             let (finale, finald) = mergeExp eo e1 d1 e2 d2 in
+             ((wso, finale), finald)) x l1 ld1 l2 ld2
+           in
+           (replaceE__ o <| EList sp0 finalelems sp1 Nothing sp2, EListDiffs finaldiff)
+        _ -> Debug.crash <| "unexpected EListDiffs without lists: " ++ Syntax.unparser Syntax.Elm o ++ ", " ++
+             Syntax.unparser Syntax.Elm e1 ++ ", " ++ Syntax.unparser Syntax.Elm e2
+    (EChildDiffs cd1, EChildDiffs cd2) ->
+      case (childExpsExtractors o, childExpsExtractors e1, childExpsExtractors e2) of
+        ((os, oBuild), (e1s, e1sBuild), (e2s, e2sBuild)) ->
+          let (finalelems, finalDiffs) = mergeTuple mergeExp os e1s cd1 e2s cd2 in
+          (oBuild finalelems, EChildDiffs finalDiffs)
+    _ -> (e2, ediff2)
 
 -- This merger ensures that local delete/addition are merged properly.
 mergeListWithDiffs: (a -> String) -> (a -> a -> a -> a) -> List a -> List a -> List a -> List a
@@ -1882,21 +1745,21 @@ mergeString original modified1 diffs1 modified2 diffs2 =
 -- * If updated lists have equal size, elements will be merged aligned.
 -- * A list which was not modified makes that the other lists replaces the original list.
 -- Would be better to have a real diffing algorithm.
-mergeList: (a -> a -> VDiffs -> a -> VDiffs -> (a, VDiffs)) -> List a -> List a -> List (Int, ListElemDiff VDiffs) -> List a -> List (Int, ListElemDiff VDiffs) -> (List a, VDiffs)
+mergeList: (a -> a -> vDiffs -> a -> vDiffs -> (a, vDiffs)) -> List a -> List a -> ListDiffs  vDiffs-> List a -> ListDiffs vDiffs -> (List a, ListDiffs vDiffs)
 mergeList submerger =
-  let aux: Int -> (List a,    List (Int, ListElemDiff VDiffs)) -> List a -> List a -> List (Int, ListElemDiff VDiffs) -> List a -> List (Int, ListElemDiff VDiffs) -> (List a, VDiffs)
+  let aux: Int -> (List a,    ListDiffs vDiffs) -> List a -> List a -> ListDiffs vDiffs -> List a -> ListDiffs vDiffs -> (List a, ListDiffs vDiffs)
       aux  i      (accMerged, accDiffs)                    originals modified1 modifs1                      modified2 modifs2 =
        case (originals, modifs1, modifs2) of
-         (_, [], []) -> (List.reverse accMerged, VListDiffs (List.reverse accDiffs))
-         (_, [], _) -> (List.reverse accMerged ++ modified2, VListDiffs (List.reverse accDiffs ++ modifs2))
-         (_, _,  []) -> (List.reverse accMerged ++ modified1, VListDiffs (List.reverse accDiffs ++ modifs1))
+         (_, [], []) -> (List.reverse accMerged, (List.reverse accDiffs))
+         (_, [], _) -> (List.reverse accMerged ++ modified2, (List.reverse accDiffs ++ modifs2))
+         (_, _,  []) -> (List.reverse accMerged ++ modified1, (List.reverse accDiffs ++ modifs1))
          ([], (i1, m1)::t1, (i2, m2)::t2) ->
            if i1 /= i || i2 /= i || not (List.isEmpty t1) || not (List.isEmpty t2) then
              Debug.crash <| "Expected only at most one modification at the end of a list, got " ++ toString (i, i1, i2, t1, t2)
            else
              case (m1, m2) of
                (ListElemInsert a, ListElemInsert b) ->
-                 (List.reverse accMerged ++ modified1 ++ modified2, VListDiffs (List.reverse accDiffs ++ modifs1 ++ modifs2))
+                 (List.reverse accMerged ++ modified1 ++ modified2, (List.reverse accDiffs ++ modifs1 ++ modifs2))
                _ -> Debug.crash <| "Expected two insertions, got " ++ toString (m1, m2)
          (oh::ot, (i1, m1)::t1, (i2, m2)::t2) ->
            if i1 == i && i2 == i then -- Edition conflict

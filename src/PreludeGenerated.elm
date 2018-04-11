@@ -2038,7 +2038,7 @@ LensLess =
           {values = ll} -> {values = ll |> map1 callback }
           { error = msg} -> results
       in
-      let andElse otherResults =
+      let andElse otherResults results =
         case (results, otherResults) of
           ({values = ll}, {values=otherLl}) -> { values = ll ++ otherLl }
           ({error = msg}, {error=msg2}) -> { error = msg + \"\\n\" + msg2 }
@@ -2973,33 +2973,37 @@ String =
       (head::tail) -> aux (acc + head + freeze delimiter) tail
     in aux \"\" list
   in
+  let substring start end x =
+    case Regex.extract (\"^[\\\\s\\\\S]{0,\" + toString start + \"}([\\\\s\\\\S]{0,\" + toString (end - start) + \"})\") x of
+      Just [substr] -> substr
+      Nothing -> error <| \"bad arguments to String.substring \" + toString start + \" \" + toString end + \" \" + toString x
+  in
+  let take length x =
+      case Regex.extract (\"^([\\\\s\\\\S]{0,\" + toString length + \"})\") x of
+        Just [substr] -> substr
+        Nothing -> error <| \"bad arguments to String.take \" + toString length + \" \" + toString x
+  in
+  let drop length x =
+    case Regex.extract (\"^[\\\\s\\\\S]{0,\" + toString length + \"}([\\\\s\\\\S]*)\") x of
+            Just [substr] -> substr
+            Nothing -> error <| \"bad arguments to String.drop \" + toString length + \" \" + toString x
+  in
   { toInt x =
       { apply x = freeze <| strToInt x
       , unapply output = Just (toString output)
       }.apply x
-    join delimiter x = {
+    join delimiter x = if delimiter == \"\" then join__ x else {
         apply x = join delimiter x
         update {output, oldOutput, diffs} =
-          if delimiter == \"\" then
-            -- Regular update, cannot add elements
-            -- TODO: We should be able to delete elements if they completely disappear !
-            Update.updateApp {fun = join delimiter, oldOutput = oldOutput, output = output, diffs = diffs}
-          else {values = [Regex.split delimiter output]}
+          {values = [Regex.split delimiter output]}
       }.apply x
     length x = len (explode x)
-    substring start end x =
-      case Regex.extract (\"^[\\\\s\\\\S]{0,\" + toString start + \"}([\\\\s\\\\S]{0,\" + toString (end - start) + \"})\") x of
-        Just [substr] -> substr
-        Nothing -> error <| \"bad arguments to String.substring \" + toString start + \" \" + toString end + \" \" + toString x
-    take length x =
-      case Regex.extract (\"^([\\\\s\\\\S]{0,\" + toString length + \"})\") x of
-        Just [substr] -> substr
-        Nothing -> error <| \"bad arguments to String.take \" + toString length + \" \" + toString x
-    drop length x =
-      case Regex.extract (\"^[\\\\s\\\\S]{0,\" + toString length + \"}([\\\\s\\\\S]*)\") x of
-        Just [substr] -> substr
-        Nothing -> error <| \"bad arguments to String.drop \" + toString length + \" \" + toString x
-
+    substring = substring
+    slice = substring
+    take = take
+    left = take
+    drop = drop
+    dropLeft = drop
   }
 
 
