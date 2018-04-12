@@ -416,6 +416,7 @@ unparseStr  oldStr newStr offset diffs =
 -- Here the diffs are on the string content, but we want them on the string as displayed in the editor.
 unparseStrContent: String -> String -> String -> Unparser
 unparseStrContent quoteChar  content1  content2  offset mbvdiffs =
+  --Debug.log ("unparseStrContent " ++ toString quoteChar ++ " " ++ toString content1 ++ " " ++ toString content2 ++ " " ++ toString offset ++ " " ++ toString mbvdiffs) <|
   let unparsedContent1 = ElmUnparser.unparseStringContent quoteChar content1 in
   let unparsedContent2 = ElmUnparser.unparseStringContent quoteChar content2 in
   case mbvdiffs of
@@ -471,9 +472,9 @@ unparseAttrValueDiff oldAttrVal newAttrVal offset mbd =
             UnparseArgument <| unparseStr ws1.val ws12.val,
             UnparseSymbol "=",
             UnparseArgument <| unparseStr ws2.val ws22.val,
-            UnparseSymbol delimiter,
+            UnparseArgument <| unparseStr delimiter delimiter2,
             UnparseArgument <| unparseStrContent delimiter content content2,
-            UnparseSymbol delimiter
+            UnparseSymbol delimiter2
           ]
         (HTMLAttributeNoValue, HTMLAttributeNoValue, Ok ds) ->
           Ok ("", offset, [])
@@ -489,7 +490,7 @@ unparseAttrDiffs oldAttr newAttr offset mbd =
       let str = unparseAttr newAttr in
       Ok (str, offset + String.length str, [])
     Just d ->
-      case (newAttr, oldAttr, contructorVDiffs d) of
+      case (oldAttr, newAttr, contructorVDiffs d) of
       (_, _, Err msg) -> Err msg
       (HTMLAttribute ws0 name value, HTMLAttribute ws02 name2 value2, Ok ds) ->
          unparseConstructor "HTMLAttribute" offset ds [
@@ -601,3 +602,4 @@ unparseNodeDiffs oldNode newNode offset mbvdiffs =
 unparseHtmlNodesDiffs: Maybe VDiffs-> List HTMLNode -> List HTMLNode -> Result String (String, List StringDiffs)
 unparseHtmlNodesDiffs diffs oldNodes newNodes =
   unparseList unparseNodeDiffs unparseNode oldNodes newNodes 0 diffs |> Result.map (\(s, _, l) -> (s, l))
+  --|>  Debug.log ("unparseHtmlNodesDiffs " ++toString diffs ++ " " ++ toString oldNodes ++ " " ++ toString newNodes)
