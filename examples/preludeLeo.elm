@@ -984,7 +984,7 @@ html string = {
     let toHTMLAttribute [name, mbStyleValue] =
       let value =
         if name == "style" then
-          String.join "; " (List.map (\[styleName, styleValue] ->
+          LensLess.String.join "; " (List.map (\[styleName, styleValue] ->
             styleName + ": " + styleValue
           ) mbStyleValue)
         else mbStyleValue

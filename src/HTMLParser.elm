@@ -424,8 +424,10 @@ unparseStrContent quoteChar  content1  content2  offset mbvdiffs =
     Just (VStringDiffs stringDiffs) ->
       let find = Regex.find Regex.All (Regex.regex <| "\\\\|" ++ quoteChar ++ "|\r|\n|\t") in
       let content1splitted = find content1 in
-      let aux:Int ->       Int ->             List StringDiffs -> List Regex.Match -> List StringDiffs -> Result String (String, Int, List StringDiffs)
-          aux updateOffset currentStringDiffOffset stringDiffs matches2 revAcc = case stringDiffs of
+      let aux:Int ->       List StringDiffs -> List Regex.Match -> List StringDiffs -> Result String (String, Int, List StringDiffs)
+          aux updateOffset stringDiffs matches2 revAcc =
+           --Debug.log ("unparseStrContent.aux " ++ toString updateOffset ++ " " ++ toString stringDiffs ++ " " ++ toString matches2 ++ " " ++ toString revAcc) <|
+           case stringDiffs of
         [] -> Ok (unparsedContent2, offset + String.length unparsedContent1, List.reverse revAcc)
         StringUpdate start end replaced :: tail ->
           let newReplaced =
@@ -433,21 +435,23 @@ unparseStrContent quoteChar  content1  content2  offset mbvdiffs =
             let newSubstrUnparsed = ElmUnparser.unparseStringContent quoteChar newSubtr in
             String.length newSubstrUnparsed
           in
+          let newUpdateOffset = updateOffset + replaced - (end - start) in
           case matches2 of
-            [] -> StringUpdate (offset + start + updateOffset) (offset + end + updateOffset) newReplaced :: revAcc |>
-              aux updateOffset 0 tail []
+            [] ->
+              StringUpdate (offset + start + updateOffset) (offset + end + updateOffset) newReplaced :: revAcc |>
+              aux newUpdateOffset 0 tail []
             m :: mtail ->
               if m.index >= end then
                 StringUpdate (offset + start + updateOffset) (offset + end + updateOffset) newReplaced :: revAcc |>
-                aux updateOffset 0 tail matches2
+                aux newUpdateOffset 0 tail matches2
               else if m.index < start then -- The match is already before, it only increments the updateOffset by 1 because of the escaping.
-                aux (updateOffset + 1) currentStringDiffOffset stringDiffs mtail revAcc
+                aux (newUpdateOffset + 1) stringDiffs mtail revAcc
               else
                 --if m.index >= start && m.index < end then -- The replaced char is in the middle
                 --nd is 1 char longer in the original string, so actually we are more replacing than expected.
                 --However, we are adding updateOffset after all, so, in order that the start does not change,
                 --we offset it here.
-                aux (updateOffset + 1) (currentStringDiffOffset - 1) (StringUpdate start (end + 1) replaced :: tail) mtail revAcc
+                aux (updateOffset + 1) (StringUpdate start (end + 1) replaced :: tail) mtail revAcc
       in aux 0 0 stringDiffs content1splitted []
     Just d -> Err <| "Expected VStringDiffs for a string, got " ++ toString d
 

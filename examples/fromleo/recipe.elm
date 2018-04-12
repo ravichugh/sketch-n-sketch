@@ -1,4 +1,4 @@
-# updatedelay: 0
+# updatedelay: 1000
 
 base = 1000
 temperature = 180
