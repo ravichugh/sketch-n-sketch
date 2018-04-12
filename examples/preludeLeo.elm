@@ -144,6 +144,7 @@ LensLess =
       reverse = reverse
       reverse_move = reverse_move
       filterMap = filterMap
+      map = map1
     },
     Results =
       letrec keepOks l =
@@ -996,7 +997,7 @@ html string = {
     let toHTMLAttribute [name, mbStyleValue] =
       let value =
         if name == "style" then
-          LensLess.String.join "; " (List.map (\[styleName, styleValue] ->
+          LensLess.String.join "; " (LensLess.List.map (\[styleName, styleValue] ->
             styleName + ": " + styleValue
           ) mbStyleValue)
         else mbStyleValue
@@ -1380,6 +1381,8 @@ Maybe =
 Tuple =
   { mapFirst f (x, y) = (f x, y)
     mapSecond f (x, y) = (x, f y)
+    first (x, y) = x
+    second (x, y) = y
   }
 
 --------------------------------------------------------------------------------

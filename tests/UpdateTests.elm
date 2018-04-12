@@ -712,5 +712,8 @@ all_tests = init_state
   |> evalElmAssert2 [("updateReplace", UpdateRegex.updateReplace EvalUpdate.eval EvalUpdate.update)]
         "updateReplace \"ab\" \"abc\" \"12ab567ab90\" (VStringDiffs [StringUpdate 3 7 2])"
         "(\"12abc567abc90\", VStringDiffs [StringUpdate 2 7 4, StringUpdate 9 11 3])"
+  |>  evalElmAssert2 [("updateReplace", UpdateRegex.updateReplace EvalUpdate.eval EvalUpdate.update)]
+        "updateReplace \"\"\"(<(ul|ol)>(?:(?!</\\2>)[\\s\\S])*)</li>\\s*<li>\"\"\" \"$1</li>\\n</$2>\\n<$2>\\n\\t<li>\" \"<ul><li>a</li><li>b</li></ul>\" (VStringDiffs [StringUpdate 14 14 10])"
+        "(\"<ul><li>a</li>\\n</ul>\\n<ul>\\n\\t<li>b</li></ul>\", VStringDiffs [StringUpdate 0 14 37])"
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
   |> summary

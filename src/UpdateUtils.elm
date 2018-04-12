@@ -1156,7 +1156,9 @@ composeStringDiffs oldStringDiffs newStringDiffs =
          makeOldReplacement newStrDiff :: revStrDiffs |>
           -- This is not a copy-paste typo: We consumed the offsetStart, now everything else is on the offsetEnd
          aux offsetEnd offsetEnd 0 [] newTail
-       (_, []) -> List.reverse (reverseInsert oldStringDiffs revStrDiffs)
+       (((StringUpdate start end replaced) as oldStrDiff) :: oldTail, []) ->
+         StringUpdate start end (replaced + offsetReplaced) ::  revStrDiffs |>
+         aux offsetEnd offsetEnd 0 oldTail []
        (((StringUpdate start end replaced) as oldStrDiff) :: oldTail, ((StringUpdate repStart repEnd repCount) as newStrDiff)  :: newTail)  ->
          let newStart = offsetEnd + start
              newEnd = offsetEnd + start + replaced
