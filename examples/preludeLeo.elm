@@ -116,6 +116,12 @@ LensLess =
     [] -> (stack, from)
     head::tail -> reverse_move (n - 1) (head::stack) tail
   in
+  letrec filterMap f l = case l of
+    [] -> []
+    (head :: tail) -> case f head of
+      Nothing -> filterMap f tail
+      Just newHead -> newHead :: filterMap f tail
+  in
   { List = {
       append = append
       split = split
@@ -123,6 +129,7 @@ LensLess =
       drop = drop
       reverse = reverse
       reverse_move = reverse_move
+      filterMap = filterMap
     },
     Results =
       letrec keepOks l =
@@ -955,16 +962,34 @@ html string = {
       HTMLElement tagName attrs ws1 endOp children closing ->
         [ tagName
         , map (case of
-          HTMLAttribute ws0 name value -> case value of
-            HTMLAttributeUnquoted _ _ content -> [name, content]
-            HTMLAttributeString _ _ _ content -> [name, content]
-            HTMLAttributeNoValue -> [name, ""]) attrs
+          HTMLAttribute ws0 name value ->
+            let (name, content) = case value of
+              HTMLAttributeUnquoted _ _ content -> (name, content)
+              HTMLAttributeString _ _ _ content -> (name, content)
+              HTMLAttributeNoValue -> (name, "")
+            in
+            if name == "style" then
+              let styleContent = Regex.split "; *" content |> LensLess.List.filterMap (
+                  Regex.extract "^([\\s\\S]*):\\s*([\\s\\S]*)$"
+                )
+              in
+              [name, styleContent]
+            else [name, content]
+            ) attrs
         , map domap children]
       HTMLComment {args = [content]} -> ["comment", [["display", "none"]], [["TEXT", content]]]
     in map domap trees)
 
   update {input, oldOutput, newOutput, diffs} =
-    let toHTMLAttribute [name, value] = HTMLAttribute " " name (HTMLAttributeString "" "" "\"" value) in
+    let toHTMLAttribute [name, mbStyleValue] =
+      let value =
+        if name == "style" then
+          String.join "; " (List.map (\[styleName, styleValue] ->
+            styleName + ": " + styleValue
+          ) mbStyleValue)
+        else mbStyleValue
+      in
+      HTMLAttribute " " name (HTMLAttributeString "" "" "\"" value) in
     let toHTMLInner text = HTMLInner (replaceAllIn "<|>|&" (\{match} -> case match of "&" -> "&amp;"; "<" -> "&lt;"; ">" -> "&gt;"; _ -> "") text) in
     letrec toHTMLNode e = case e of
       ["TEXT",v2] -> toHTMLInner v2
@@ -973,27 +998,34 @@ html string = {
     in
     let mergeAttrs input oldOutput newOutput diffs =
       foldDiff {
-        start = 
+        start =
           -- Accumulator of HTMLAttributes, accumulator of differences, original list of HTMLAttributes
           ([], [], input)
         onSkip (revAcc, revDiffs, input) {count} =
           --'outs' was the same in oldOutput and outputNew
           let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
           {values = [(newRevAcc, revDiffs, remainingInput)]}
-        
+
         onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
           let inputElem::inputRemaining = input in
           let newInputElem = case (inputElem, newOutput) of
             (HTMLAttribute sp0 name value, [name2, value2 ]) ->
+             let realValue2 =
+               if name == "style" then -- value2
+                 String.join "; " (List.map (\[styleName, styleValue] ->
+                   styleName + ": " + styleValue
+                 ) values2)
+               else value2
+             in
              case value of
                HTMLAttributeUnquoted sp1 sp2 v ->
-                 case extractFirstIn "\\s" v of
+                 case extractFirstIn "\\s" realValue2 of
                    Nothing ->
-                     HTMLAttribute sp0 name2 (HTMLAttributeUnquoted sp1 sp2 value2)
+                     HTMLAttribute sp0 name2 (HTMLAttributeUnquoted sp1 sp2 realValue2)
                    _ ->
-                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 "\"" value2)
+                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 "\"" realValue2)
                HTMLAttributeString sp1 sp2 delim v ->
-                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 delim value2)
+                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 delim realValue2)
                HTMLAttributeNoValue ->
                   if value2 == "" then HTMLAttribute sp0 name2 (HTMLAttributeNoValue)
                   else toHTMLAttribute [name2, value2]
@@ -1010,10 +1042,10 @@ html string = {
         onRemove (revAcc, revDiffs, input) {oldOutput, index} =
           let _::remainingInput = input in
           { values = [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)] }
-        
+
         onInsert (revAcc, revDiffs, input) {newOutput, index} =
-          { values = [(toHTMLNode newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]}
-          
+          { values = [(toHTMLAttribute newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]}
+
         onFinish (revAcc, revDiffs, _) =
          {values = [(reverse revAcc, reverse revDiffs)] }
 
@@ -1229,6 +1261,12 @@ List =
   let map =
     simpleMap
   in
+  letrec filterMap f l = case l of
+    [] -> []
+    (head :: tail) -> case f head of
+      Nothing -> filterMap f tail
+      Just newHead -> newHead :: filterMap f tail
+  in
   -- TODO move all definitions here
   let length =
     len
@@ -1282,6 +1320,7 @@ List =
     take = LensLess.List.take
     drop = LensLess.List.drop
     foldl = foldl
+    filterMap = filterMap
   }
 
 --------------------------------------------------------------------------------

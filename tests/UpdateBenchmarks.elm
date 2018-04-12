@@ -69,9 +69,10 @@ benchmarks = [
   BUpdate "Recipe" [ NoTransform
                    --, replaceHtmlBy "Soft chocolate" "Delicious soft chocolate" --Text transformation
                    , replaceHtmlBy "20 small cakes" "80 small cakes" --Number lens
-                   , replaceHtmlBy "small cakes"    "small cake_80s_" --Plural lens
                    , replaceHtmlBy "cup of "        "cup_2s_ of " --Plural lens
                    , replaceHtmlBy "cups of "       "cup of "  -- Second lens
+                   , replaceHtmlBy "small cakes"    "small cakes for _12_ persons_12s_" --Plural lens
+                   , replaceHtmlBy "12 persons"    "18 persons" --Plural lens
                    , replaceHtmlBy "'2000'"       "'1000'" -- Simulate press on button
                    , replaceStringBy "\"A pinch of salt\"" "\"A pinch of salt\"]]],[ \"li\", [], [ [ \"TEXT\", \"Optional chocolate chips\""
                    ],
