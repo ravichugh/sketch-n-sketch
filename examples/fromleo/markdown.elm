@@ -114,4 +114,5 @@ newlines_lens x = {
     in { values = [aux 0 (strDiffToConcreteDiff outputNew diffs) outputNew] }
   }.apply x
 
+Html.forceRefresh <|
 Html.span [] [] <| html ((freeze markdown) (newlines_lens original))

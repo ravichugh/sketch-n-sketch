@@ -14,6 +14,46 @@ function getOutputCanvasState() {
 
 
 //////////////////////////////////////////////////////////////////////
+// Caret State
+function getCaretPositionIn(m) {
+  var sel = window.getSelection()
+  if(sel.rangeCount == 0) return -1
+  var range = sel.getRangeAt(0);
+  var start = range.startOffset;
+  var tmp = range.startContainer;
+  while(tmp != m && tmp != null) {
+    while (tmp.previousSibling != null) {
+      tmp = tmp.previousSibling
+      start = start + (tmp.textContent != null ? tmp.textContent.length : 0);
+    }
+    tmp = tmp.parentNode;
+  }
+  return start
+}
+
+function setCaretPositionIn(m, a) {
+  if(a == -1) return;
+  if (a <= m.textContent.length) {
+    if (m.nodeType == 3) { // Text nodes
+      var sel  = window.getSelection()
+      return sel.collapse(m, a)
+    } else {
+      m = m.firstChild;
+      while(m != null && a > m.textContent.length) {
+        a = a - m.textContent.length
+        m = m.nextSibling
+      }
+      if(m != null) {
+        setCaretPositionIn(m, a)
+      } else {
+        console.log("Could not find position. Reach node " + n + " and position " + p)
+      }
+    }
+  }
+}
+
+
+//////////////////////////////////////////////////////////////////////
 // Mutation Observers
 
 // https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
@@ -76,13 +116,17 @@ var enableAutoUpdate = false;
 
 var previewMode = false;
 
+var lastCaretPosition = -1;
+
 function triggerAutoUpdate() {
   if(!enableAutoUpdate || previewMode) return;
   if(typeof timerAutoSync !== "undefined") clearTimeout(timerAutoSync);
   timerAutoSync = setTimeout(function() {
     timerAutoSync = undefined;
     if(!enableAutoUpdate || previewMode) return;
-    app.ports.maybeAutoSync.send(msBeforeAutoSync);
+    lastCaretPosition = getCaretPositionIn(document.getElementById("outputCanvas"));
+    console.log("Sending caret position: " + lastCaretPosition);
+    app.ports.maybeAutoSync.send(lastCaretPosition);
   }, msBeforeAutoSync)
 }
 
@@ -139,8 +183,55 @@ function listenForUpdatesToOutputValues() {
   }
 
   function handleMutations(mutations) {
-    if(previewMode) return;
+    if(previewMode) {
+      console.log("Handling mutations in preview mode ")
+      // Only remove nodes which have been inserted manually
+      mutations.forEach(function(mutation) {
+        console.log("Checking if a mutation added nodes ", mutation.addedNodes)
+        for (var i = 0; i < mutation.addedNodes.length; i++) {
+          var domNode = mutation.addedNodes[i];
+          while(domNode.previousSibling != null) {
+            console.log("During preview, rewiinding ", domNode)
+            domNode = domNode.previousSibling;
+          }
+          while(domNode != null) {
+            console.log("During preview, we remove inserted node. Checking ", domNode)
+            if(domNode.manuallyInsertedNode) {
+              console.log("Manually inserted, we remove it.")
+              var next = domNode.nextSibling;
+              domNode.remove();
+              domNode = next;
+            } else {
+              console.log("Not manually inserted")
+              domNode = domNode.nextSibling
+            }
+          }
+        }
+      });
+    }
     mutations.forEach(function(mutation) {
+      for (var i = 0; i < mutation.addedNodes.length; i++) {
+        var domNode = mutation.addedNodes[i];
+        console.log("A node was added, maybe change setData on it?", domNode);
+        domNode.manuallyInsertedNode = true;
+        if(domNode.nodeType != 3) { // In case it thinks that the node was a text node.
+          console.log("Just in case this is a text node, we add the method replaceData to it.", domNode);
+          domNode.replaceData = (function(self) { // Hides this node for now, 
+             return function(start, end, data) {
+               // Here self is totally detached from any parents. So the only thing we can do is to hid it.
+               self.style.display = "none";
+               /*if(self.previousSibling && self.previousSibling.manuallyInsertedNode) {
+                 self.previousSibling.remove();
+               }
+               self.remove();// We hid it from the diff and apply the change to the next sibling.
+               self.nextSibling.replaceData(0, nextSibling.length, data);*/
+             }
+          })(domNode);
+        } else {
+          console.log("It's a simple text node");
+        }
+      }
+			
       if (mutation.type == "attributes") {
         var path = getPathUntilOutput(mutation.target)
         if(path != null) {
@@ -306,4 +397,11 @@ app.ports.setDiffTimer.subscribe(function(b) {
       app.ports.clearPreviewDiff.send(1)
     }, b.delay);
   }
+})
+
+app.ports.setCaretPosition.subscribe(function(position) {
+  setTimeout(function() {
+    console.log("Setting caret position: " + position);
+    setCaretPositionIn(document.getElementById("outputCanvas"), position)
+  }, 0);
 })

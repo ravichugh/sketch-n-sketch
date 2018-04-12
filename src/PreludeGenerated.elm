@@ -3130,6 +3130,7 @@ String =
       Regex.replace \"^\\\\s+\" \"\" s |>
       Regex.replace \"\\\\s+$\" \"\"
     sprintf = sprintf
+    uncons s = extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" s
   }
 
 
@@ -3296,6 +3297,21 @@ Html =
   let elementHelper tag styles attrs children =
     [ tag,  [\"style\", styles] :: attrs , children ]
   in
+  let forceRefresh =
+    Update.applyLens
+      { apply node =
+         if toggleGlobalBool []
+            then [\"div\", [[\"id\", \"wrapper\"]], [node]]
+            else node
+
+        update {input=node, outputNew} =
+          case outputNew of
+            [\"div\", [[\"id\", \"wrapper\"]], [newNode]] ->
+              {values = [newNode]}
+            _ ->
+              {values = [outputNew]}
+      }
+  in
   { textNode = textNode
     p = textElementHelper \"p\"
     th = textElementHelper \"th\"
@@ -3316,6 +3332,7 @@ Html =
     text = textInner
     br = [\"br\", [], []]
     parse = html
+    forceRefresh = forceRefresh
   }
 
 -- TODO remove this; add as imports as needed in examples

@@ -439,11 +439,11 @@ unparseStrContent quoteChar  content1  content2  offset mbvdiffs =
           case matches2 of
             [] ->
               StringUpdate (offset + start + updateOffset) (offset + end + updateOffset) newReplaced :: revAcc |>
-              aux newUpdateOffset 0 tail []
+              aux newUpdateOffset tail []
             m :: mtail ->
               if m.index >= end then
                 StringUpdate (offset + start + updateOffset) (offset + end + updateOffset) newReplaced :: revAcc |>
-                aux newUpdateOffset 0 tail matches2
+                aux newUpdateOffset tail matches2
               else if m.index < start then -- The match is already before, it only increments the updateOffset by 1 because of the escaping.
                 aux (newUpdateOffset + 1) stringDiffs mtail revAcc
               else
@@ -452,7 +452,7 @@ unparseStrContent quoteChar  content1  content2  offset mbvdiffs =
                 --However, we are adding updateOffset after all, so, in order that the start does not change,
                 --we offset it here.
                 aux (updateOffset + 1) (StringUpdate start (end + 1) replaced :: tail) mtail revAcc
-      in aux 0 0 stringDiffs content1splitted []
+      in aux 0 stringDiffs content1splitted []
     Just d -> Err <| "Expected VStringDiffs for a string, got " ++ toString d
 
 unparseAttrValueDiff: HTMLAttributeValue -> HTMLAttributeValue -> Unparser

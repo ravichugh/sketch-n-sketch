@@ -8,8 +8,7 @@ ui model =
         , update {input, outputNew} =
             if outputNew == trigger
               then {values = [f input]}
-              else -- TODO "value". this case never used?
-                   {value = [input]}
+              else {values = [input]}
         } x
   in
   { button name controller =

@@ -124,6 +124,7 @@ type alias Model =
   , liveSyncInfo : Sync.LiveInfo
       -- info for when syncMode == TracesAndTriggers _
   , autoSyncDelay: Int
+  , caretPosition: Maybe Int
       -- delay (in milliseconds) for when syncMode == ValueBackprop True
   , mouseMode : MouseMode
   , dimensions : Window.Size
@@ -1210,6 +1211,7 @@ initModel =
                         -- Native/outputCanvas.js: set enableAutoUpdate = true/false to match
     , liveSyncInfo  = liveSyncInfo
     , autoSyncDelay = 1000
+    , caretPosition = Nothing -- Caret position in the outputCanvas
     , mouseMode     = MouseNothing
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
     , mouseState    = (Nothing, {x = 0, y = 0}, Nothing)

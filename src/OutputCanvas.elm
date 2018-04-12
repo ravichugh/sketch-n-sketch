@@ -11,6 +11,7 @@ port module OutputCanvas exposing
   , setDiffTimer
   , DiffTimer
   , clearPreviewDiff
+  , setCaretPosition
   )
 
 import InterfaceModel as Model exposing (Model, OutputCanvasInfo)
@@ -46,6 +47,8 @@ port setPreviewMode: Bool -> Cmd msg
 port setDomNumAttribute : {nodeId:Int, attrName:String, attrValue:Float} -> Cmd msg
 
 port setDiffTimer: DiffTimer-> Cmd msg
+
+port setCaretPosition: Int -> Cmd msg
 
 -- Incoming
 

@@ -1144,6 +1144,7 @@ issueCommandBasedOnCaption kind oldModel newModel =
             , dispatchIfChanged getAutoSyncDelay OutputCanvas.setAutoSyncDelay
             , dispatchIfChanged (\m -> m.preview |> Utils.maybeIsEmpty |> not) OutputCanvas.setPreviewMode
             , dispatchIfChanged (\m -> m.previewdiffs |> Utils.maybeIsEmpty |> not) (OutputCanvas.setDiffTimer << DiffTimer newModel.previewdiffsDelay)
+            , dispatchIfNonemptyChanged (\m -> m.caretPosition) OutputCanvas.setCaretPosition
             --, dispatchIfNonemptyChanged (\m ->
             --   m.previewdiffs |> Utils.maybeOrElse (Maybe.map (\(_, exps, _) -> exps) m.preview) |>
             --     Maybe.andThen List.head |> Maybe.map (\expHead -> expHead.start)) AceCodeBox.aceCodeBoxScroll
@@ -2334,22 +2335,24 @@ msgValuePathUpdate (path, newEncodedValue) =
 
 -- Computes the diff, and if it is not ambiguous, propagates the diff from the output.
 msgAutoSync: Int -> Msg
-msgAutoSync n =
-  Msg "autoSync" doAutoSync
+msgAutoSync caretPosition =
+  Msg "autoSync" (doAutoSync caretPosition)
 
-doAutoSync: Model -> Model
-doAutoSync m =
+doAutoSync: Int -> Model -> Model
+doAutoSync caretPosition m =
     let newModel = doCallUpdate m in
     case Dict.get valueBackpropToolName newModel.synthesisResultsDict of
       Nothing -> newModel
       Just results -> -- If there are only two options (second is always revert to original program), and the first one is not a Hack, then we can apply it !
         case results of
           [SynthesisResult {description, exp, diffs, isSafe} , revert] ->
+              -- TODO: Once we have the diffs in the output, move the caretPosition
             --if String.startsWith "HACK: " description then newModel else
               let newerModel = doSelectSynthesisResult exp newModel in
               { newerModel
                   | addDummyDivAroundCanvas = Just True
                   , previewdiffs = Just diffs
+                  , caretPosition = Just caretPosition
                   }
           _ -> newModel
 

@@ -1,8 +1,19 @@
-String = { String |
-  uncons s = extractFirstIn "^([\\s\\S])([\\s\\S]*)$" s
-  length s = len (explode s)
-  }
+latex = """\newcommand{\small}{mini}
 
+\section{\LaTeX{} editing in \textsc{Html}\label{sec:introduction}}
+This \small{} \LaTeX{} editor is \textit{bidirectional} and supports \small{} \textbf{textual} changes. Rename '\small{}' to 'lightweight' to see\ldots
+
+\section{It supports reference update\label{sec:commands}}
+This editor features a subset of \LaTeX{} commands, for example references.
+Section \ref{sec:introduction}.
+Change the previous number to 2"""
+
+latexttoolong = """ or 2.1. See how it updates the source code.
+\subsection{Others\label{others}}
+Only frac, exponent and indices in math mode: $\frac{b^2-4ac}{2}$.
+%TODO support more commands."""
+
+-- The LaTeX tokenizer, parsers, interpreter, and linker.  
 tokenize txt pos = 
   case String.uncons txt of
   Nothing -> [{tag="EOF", pos = pos, origText = txt}]
@@ -396,21 +407,6 @@ toHtml x =
   in
   replaceMap replaceReferences raw
 
-latex = """\newcommand{\small}{mini}
-
-\section{\LaTeX{} editing in \textsc{Html}\label{sec:introduction}}
-This \small{} \LaTeX{} editor is \textit{bidirectional} and supports \small{} \textbf{textual} changes. Rename '\small{}' to 'lightweight' to see\ldots
-
-\section{It supports reference update\label{sec:commands}}
-This editor features a subset of \LaTeX{} commands, for example references.
-Section \ref{sec:introduction}.
-Change the previous number to 2"""
-
-latexttoolong = """ or 2.1. See how it updates the source code.
-\subsection{Others\label{others}}
-Only frac, exponent and indices in math mode: $\frac{b^2-4ac}{2}$.
-%TODO support more commands."""
-
 latex2html latex = 
   { apply (f, latex) = freeze <| f latex,
     update {input = (f, latex), outputOld, outputNew, diffs = VListDiffs diffs} = 
@@ -456,7 +452,7 @@ latex2html latex =
           }
   }.apply (\x -> toHtml <| parse <| tokens x, latex)
 
-
+Html.forceRefresh <|
 ["span", [["style", [["margin","10px"]]]], [
 ["style", [["type", "text/css"]], [["TEXT", """
 #content {
