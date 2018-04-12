@@ -6931,7 +6931,7 @@ latex2html latex =
         ([\"span\", [[\"start\", p]], [[\"TEXT\", vOld]]], 
          [\"span\", [[\"start\", p]], [[\"TEXT\", vNew]]], VListDiffs [(2, _)]) -> 
            { values = [[(vNew, String.toInt p, String.toInt p + String.length vOld)]] }
-        ([_, _, cOld], [_, _, cNew], VListDiffs [(2, VListElemUpdate childDiffs)]) ->
+        ([_, _, cOld], [_, _, cNew], VListDiffs [(2, ListElemUpdate (VListDiffs childDiffs))]) ->
            gatherDiffsChild gatherDiffs 0 cOld cNew childDiffs
         _ -> {error = \"Could not find text differences \" + toString (outputOld, outputNew, diffs)}
       in
@@ -6948,7 +6948,7 @@ latex2html latex =
           { values = [(f, newLatex)], diffs = newDiffs}
         { error = msg } ->
           Update.updateApp {
-            fun (f, x) = f x, input = (f, x), outputOld = outputOld, output = outputNew, diffs = diffs
+            fun (f, x) = f x, input = (f, latex), outputOld = outputOld, output = outputNew, diffs = diffs
           }
   }.apply (\\x -> toHtml <| parse <| tokens x, latex)
 
