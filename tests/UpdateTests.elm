@@ -686,5 +686,31 @@ all_tests = init_state
   |> assertEqual (alldiffs identity ["a", "a", "3", "a", "a"] ["a", "a"] |> Results.toList)
                     [[DiffEqual ["a", "a"], DiffRemoved ["3", "a", "a"]],
                      [DiffRemoved ["a", "a", "3"], DiffEqual ["a", "a"]]]
+  |> skipBefore
+  |> test "updateReplace"
+  -- newStart newEnd ... repStart repEnd
+  |> evalElmAssert2 [("updateReplace", UpdateRegex.updateReplace EvalUpdate.eval EvalUpdate.update)]
+        "updateReplace \"ab\" \"abc\" \"12ab567ab90\" (VStringDiffs [StringUpdate 0 1 2])"
+        "(\"12abc567abc90\", VStringDiffs [StringUpdate 0 1 2, StringUpdate 1 3 3, StringUpdate 6 8 3])"
+  -- repStart repEnd ... newStart newEnd
+  |> evalElmAssert2 [("updateReplace", UpdateRegex.updateReplace EvalUpdate.eval EvalUpdate.update)]
+        "updateReplace \"ab\" \"abc\" \"12ab567ab90\" (VStringDiffs [StringUpdate 5 5 1])"
+        "(\"12abc567abc90\", VStringDiffs [StringUpdate 2 4 3, StringUpdate 5 5 1, StringUpdate 6 8 3])"
+  -- newStart repStart repEnd ...  newEnd
+  |> evalElmAssert2 [("updateReplace", UpdateRegex.updateReplace EvalUpdate.eval EvalUpdate.update)]
+        "updateReplace \"ab\" \"abc\" \"12ab567ab90\" (VStringDiffs [StringUpdate 1 2 4])"
+        "(\"12abc567abc90\", VStringDiffs [StringUpdate 1 2 5, StringUpdate 4 6 3])"
+  -- newStart repStart newEnd ... repEnd
+  |> evalElmAssert2 [("updateReplace", UpdateRegex.updateReplace EvalUpdate.eval EvalUpdate.update)]
+        "updateReplace \"ab\" \"abc\" \"12ab567ab90\" (VStringDiffs [StringUpdate 1 7 2])"
+        "(\"12abc567abc90\", VStringDiffs [StringUpdate 1 8 4, StringUpdate 11 13 3])"
+  -- repStart newStart newEnd ... repEnd
+  |> evalElmAssert2 [("updateReplace", UpdateRegex.updateReplace EvalUpdate.eval EvalUpdate.update)]
+        "updateReplace \"abc\" \"abcd\" \"12abc567abc90\" (VStringDiffs [StringUpdate 3 9 1])"
+        "(\"12abcd567abcd90\", VStringDiffs [StringUpdate 2 10 4, StringUpdate 13 16 4])"
+  -- repStart newStart repEnd ... newEnd
+  |> evalElmAssert2 [("updateReplace", UpdateRegex.updateReplace EvalUpdate.eval EvalUpdate.update)]
+        "updateReplace \"ab\" \"abc\" \"12ab567ab90\" (VStringDiffs [StringUpdate 3 7 2])"
+        "(\"12abc567abc90\", VStringDiffs [StringUpdate 2 7 4, StringUpdate 9 11 3])"
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
   |> summary

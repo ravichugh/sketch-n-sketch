@@ -6194,19 +6194,19 @@ markdown text =
     [\"\\\\:\\\"(.*?)\\\"\\\\:\", \"<q>$1</q>\"],                             -- quote
     [\"`\\\\b(.*?)\\\\b`\", \"<code>$1</code>\"],                         -- inline code
     [\"\\r?\\n\\\\*(.*)\", self.ul_list, {
-      postReverse out = 
-        Regex.replace \"\"\"\\r?\\n<ul>\\r?\\n\\t<li>((?:(?!</li>)[\\s\\S])*)</li>\\r?\\n</ul>\"\"\" \"\\n* $1\" out
+      postReverse = 
+        updateReplace \"\"\"\\r?\\n<ul>\\r?\\n\\t<li>((?:(?!</li>)[\\s\\S])*)</li>\\r?\\n</ul>\"\"\" \"\\n* $1\"
     }],                                  -- ul lists
     [\"\\r?\\n[0-9]+\\\\.(.*)\", self.ol_list, {
-      postReverse out = 
-        Regex.replace \"\"\"\\r?\\n<ol>\\r?\\n\\t<li>((?:(?!</li>)[\\s\\S])*)</li>\\r?\\n</ol>\"\"\" \"\\n1. $1\" out
+      postReverse  = 
+        updateReplace \"\"\"\\r?\\n<ol>\\r?\\n\\t<li>((?:(?!</li>)[\\s\\S])*)</li>\\r?\\n</ol>\"\"\" \"\\n1. $1\"
     }],                            -- ol lists
     [\"\\r?\\n(&gt;|\\\\>)(.*)\", self.blockquote],                        -- blockquotes
     [\"\\r?\\n-{5,}\", \"\\n<hr>\"],                                        -- horizontal rule
     [\"\\r?\\n\\r?\\n(?!<ul>|<ol>|<p>|<blockquote>)\",\"<br>\"],                -- add newlines
     [\"\\r?\\n</ul>\\\\s?<ul>\", \"\", {
-      postReverse out = 
-        Regex.replace \"\"\"(<(ul|ol)>(?:(?!</\\2>)[\\s\\S])*)</li>\\s*<li>\"\"\" \"$1</li>\\n</$2>\\n<$2>\\n\\t<li>\" out
+      postReverse = 
+        updateReplace \"\"\"(<(ul|ol)>(?:(?!</\\2>)[\\s\\S])*)</li>\\s*<li>\"\"\" \"$1</li>\\n</$2>\\n<$2>\\n\\t<li>\"
     }],                                     -- fix extra ul
     [\"\\r?\\n</ol>\\\\s?<ol>\", \"\"],                                      -- fix extra ol, and extract blockquote
     [\"</blockquote>\\\\s?<blockquote>\", \"\\n\"]
@@ -6215,7 +6215,11 @@ markdown text =
   foldLeft (\\elem acc -> case elem of
       [regex, replacement] -> Regex.replace regex replacement acc
       [regex, replacement, {postReverse = fun}] ->
-        let newAcc = { apply acc = freeze acc, unapply out = Just (fun out)}.apply acc in
+        let newAcc = { apply acc = freeze acc,
+          update {newOutput=out,diffs} =
+            case fun out diffs of
+              (value, diff) -> { values = [value], diffs = [Just diff] }
+          }.apply acc in
         Regex.replace regex replacement newAcc 
   ) finaltext rules 
 
@@ -6232,9 +6236,9 @@ newlines_lens x = {
           case Regex.extract \"\"\"^<div>([\\s\\S]*)</div>\"\"\" inserted of
             Just [content] ->
               if Regex.matchIn \"(?:^|\\n)#(.*)$\" left then -- Title, we jump only one line
-                \"\\n\" + content
+                \"\\n\" + content + \"\\n\"
               else -- we jump TWO lines
-                \"\\n\\n\" + content
+                \"\\n\\n\" + content + \"\\n\"
             Nothing ->    
               if Regex.matchIn \"\"\"(?:^|\\n)(#|\\*|\\d\\.)(.*)$\"\"\" left then
                 inserted
@@ -6246,6 +6250,7 @@ newlines_lens x = {
     in { values = [aux 0 (strDiffToConcreteDiff outputNew diffs) outputNew] }
   }.apply x
 
+Html.forceRefresh <|
 Html.span [] [] <| html ((freeze markdown) (newlines_lens original))
 """
 
@@ -6406,8 +6411,7 @@ ui model =
         , update {input, outputNew} =
             if outputNew == trigger
               then {values = [f input]}
-              else -- TODO \"value\". this case never used?
-                   {value = [input]}
+              else {values = [input]}
         } x
   in
   { button name controller =
@@ -6504,6 +6508,7 @@ Additionally, to write $_x literally, just write $__x. You can also define short
     }.apply (x, variables)
   )
 
+Html.forceRefresh <|
 Html.div [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] [] [
   Html.span [] [] <|
   html content
@@ -6512,11 +6517,22 @@ Html.div [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] [] [
 """
 
 fromleo_latexeditor =
- """String = { String |
-  uncons s = extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" s
-  length s = len (explode s)
-  }
+ """latex = \"\"\"\\newcommand{\\small}{mini}
 
+\\section{\\LaTeX{} editing in \\textsc{Html}\\label{sec:introduction}}
+This \\small{} \\LaTeX{} editor is \\textit{bidirectional} and supports \\small{} \\textbf{textual} changes. Rename '\\small{}' to 'lightweight' to see\\ldots
+
+\\section{It supports reference update\\label{sec:commands}}
+This editor features a subset of \\LaTeX{} commands, for example references.
+Section \\ref{sec:introduction}.
+Change the previous number to 2\"\"\"
+
+latexttoolong = \"\"\" or 2.1. See how it updates the source code.
+\\subsection{Others\\label{others}}
+Only frac, exponent and indices in math mode: $\\frac{b^2-4ac}{2}$.
+%TODO support more commands.\"\"\"
+
+-- The LaTeX tokenizer, parsers, interpreter, and linker.  
 tokenize txt pos = 
   case String.uncons txt of
   Nothing -> [{tag=\"EOF\", pos = pos, origText = txt}]
@@ -6910,21 +6926,6 @@ toHtml x =
   in
   replaceMap replaceReferences raw
 
-latex = \"\"\"\\newcommand{\\small}{mini}
-
-\\section{\\LaTeX{} editing in \\textsc{Html}\\label{sec:introduction}}
-This \\small{} \\LaTeX{} editor is \\textit{bidirectional} and supports \\small{} \\textbf{textual} changes. Rename '\\small{}' to 'lightweight' to see\\ldots
-
-\\section{It supports reference update\\label{sec:commands}}
-This editor features a subset of \\LaTeX{} commands, for example references.
-Section \\ref{sec:introduction}.
-Change the previous number to 2\"\"\"
-
-latexttoolong = \"\"\" or 2.1. See how it updates the source code.
-\\subsection{Others\\label{others}}
-Only frac, exponent and indices in math mode: $\\frac{b^2-4ac}{2}$.
-%TODO support more commands.\"\"\"
-
 latex2html latex = 
   { apply (f, latex) = freeze <| f latex,
     update {input = (f, latex), outputOld, outputNew, diffs = VListDiffs diffs} = 
@@ -6970,7 +6971,7 @@ latex2html latex =
           }
   }.apply (\\x -> toHtml <| parse <| tokens x, latex)
 
-
+Html.forceRefresh <|
 [\"span\", [[\"style\", [[\"margin\",\"10px\"]]]], [
 [\"style\", [[\"type\", \"text/css\"]], [[\"TEXT\", \"\"\"
 #content {

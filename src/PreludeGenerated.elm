@@ -1886,6 +1886,20 @@ prelude =
 preludeLeo =
  """
 -- This standard prelude library is accessible by every program.
+--------------------------------------------------------------------------------
+-- Debug --
+
+Debug = {
+  log msg value =
+    -- Call Debug.log \"msg\" value
+    let _ = debug (msg + \": \" + toString value) in
+    value
+  start msg value =
+    -- Call Debug.start \"msg\" <| \\_ -> (remaining)
+    let _ = debug msg in
+    value []
+}
+
 
 --------------------------------------------------------------------------------
 -- TODO (re-)organize this section into modules
@@ -2216,6 +2230,9 @@ Update =
     merge = __merge__
     listDiff = listDiffOp __diff__
     strDiffToConcreteDiff = strDiffToConcreteDiff
+    Regex = {
+        replace regex replacement string diffs = updateReplace
+      }
     mapInserted f originalStr modifiedStr =
       -- TODO: really map the insertions in the modified string by f: String -> String
       modifiedStr
@@ -2223,10 +2240,20 @@ Update =
          { apply x = freeze x, update { input, newOutput, oldOutput, diffs} =
            let _ = Debug.log (\"\"\"@msg:
 oldOutput:@oldOutput
-newOutput:@newOutput\"\"\") \"end\" in
+newOutput:@newOutput
+diffs:@diffs\"\"\") \"end\" in
            { values = [newOutput],
              diffs = [Just diffs]}
          }.apply x
+    debugstr msg x =
+             { apply x = freeze x, update { input, newOutput, oldOutput, diffs} =
+               let _ = Debug.log (\"\"\"@msg:
+oldOutput:@oldOutput
+newOutput:@newOutput
+diffs:@(strDiffToConcreteDiff newOutput diffs)\"\"\") \"end\" in
+               { values = [newOutput],
+                 diffs = [Just diffs]}
+             }.apply x
   }
 
 --------------------------------------------------------------------------------
@@ -2720,21 +2747,6 @@ delimit a b s = concatStrings [a, s, b]
 --; delimit a string with parentheses
 --parens: (-> String String)
 parens = delimit \"(\" \")\"
-
---------------------------------------------------------------------------------
--- Debug --
-
-Debug = {
-  log msg value =
-    -- Call Debug.log \"msg\" value
-    let _ = debug (msg + \": \" + toString value) in
-    value
-  start msg value =
-    -- Call Debug.start \"msg\" <| \\_ -> (remaining)
-    let _ = debug msg in
-    value []
-}
-
 
 --;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

@@ -1141,6 +1141,52 @@ applyConcreteDiffs string diffs =
        aux tail
   in aux (List.reverse diffs) (string, [])
 
+composeStringDiffs: List StringDiffs -> List StringDiffs -> List StringDiffs
+composeStringDiffs oldStringDiffs newStringDiffs =
+  let aux: Int ->     Int ->    Int ->         List StringDiffs -> List StringDiffs -> List StringDiffs -> List StringDiffs
+      aux offsetStart offsetEnd offsetReplaced oldStringDiffs newStringDiffs revStrDiffs =
+    --let _ = Debug.log "composeStringDiffs.aux" (offsetStart, offsetEnd, offsetReplaced, oldStringDiffs, newStringDiffs, revStrDiffs) in
+    let makeOldReplacement newStrDiff = case newStrDiff of
+         StringUpdate newStart newEnd newReplaced ->
+          StringUpdate (newStart - offsetStart) (newEnd - offsetEnd) newReplaced
+    in
+    case (oldStringDiffs, newStringDiffs) of
+       ([], []) -> List.reverse revStrDiffs
+       ([], newStrDiff  :: newTail) ->
+         makeOldReplacement newStrDiff :: revStrDiffs |>
+          -- This is not a copy-paste typo: We consumed the offsetStart, now everything else is on the offsetEnd
+         aux offsetEnd offsetEnd 0 [] newTail
+       (_, []) -> List.reverse (reverseInsert oldStringDiffs revStrDiffs)
+       (((StringUpdate start end replaced) as oldStrDiff) :: oldTail, ((StringUpdate repStart repEnd repCount) as newStrDiff)  :: newTail)  ->
+         let newStart = offsetEnd + start
+             newEnd = offsetEnd + start + replaced
+         in
+         if newStart >= repEnd then -- repStart repEnd ... newStart newEnd
+           makeOldReplacement newStrDiff :: revStrDiffs |>
+           -- This is not a copy-paste typo: We consumed the offsetStart, now everything else is on the offsetEnd
+           aux offsetEnd offsetEnd 0 oldStringDiffs newTail
+         else if newEnd <= repStart then -- newStart newEnd ... repStart repEnd
+           let newOffsetEnd = offsetEnd + replaced - (end - start) in
+           (StringUpdate start end (replaced + offsetReplaced)) :: revStrDiffs |>
+           -- This is not a copy-paste typo: Everything else runs on the newOffset
+           aux newOffsetEnd newOffsetEnd 0 oldTail newStringDiffs
+         else if newStart <= repStart && repEnd <= newEnd then  -- newStart repStart repEnd ...  newEnd .
+           aux offsetStart offsetEnd (offsetReplaced + repCount - (repEnd - repStart)) (StringUpdate start end replaced :: oldTail)  newTail revStrDiffs
+         else -- repStart < newEnd  && newStart < repEnd && (newStart > repStart || newEnd < replacmentEnd)
+           if newStart > repStart then
+             if newEnd < repEnd then  -- repStart newStart newEnd ... repEnd
+               let offsetIncrease = replaced - (end - start) in
+               let newOffsetEnd = offsetEnd + offsetIncrease in
+               aux offsetStart newOffsetEnd 0 oldTail newStringDiffs revStrDiffs
+             else  -- repStart newStart repEnd ... newEnd
+               let deltaReplaced = repCount - (repEnd - repStart) in
+               aux offsetStart offsetEnd deltaReplaced (StringUpdate (repStart - offsetStart) end (replaced + newStart - repStart) :: oldTail) newTail revStrDiffs
+           else -- newStart repStart newEnd ... repEnd
+           let offsetIncrease = replaced - (end - start) in
+           let newOffsetEnd = offsetEnd + offsetIncrease in
+           aux offsetStart newOffsetEnd 0 oldTail (StringUpdate newStart repEnd (repCount + repStart - newStart) :: newTail) revStrDiffs
+  in aux 0 0 0 oldStringDiffs newStringDiffs []
+
 
 -- Wraps a change to a change in the outer expression at the given index
 wrap: Int -> Maybe EDiffs -> Maybe EDiffs

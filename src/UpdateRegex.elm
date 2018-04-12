@@ -7,6 +7,7 @@ module UpdateRegex exposing (
   , escapeSlashDollar
   , unescapeSlashDollar
   , nth
+  , updateReplace
   , allInterleavingsIn)
 
 import UpdateStack exposing (UpdateStack(..), Output)
@@ -188,7 +189,7 @@ nth = builtinVal "UpdateRegex.nth" <| VFun "nth" ["list" ,"n"] (\args ->
         _ -> Errs <| "nth Expected a list and an integer, got " ++ valToString list ++ " " ++ valToString nv
       _ -> Errs <| "nth expects two arguments, got " ++ toString (List.length args)
 
-replaceDollarOrSlash= builtinVal "replaceDollarOrSlash" <| VFun "replaceDollarOrSlash" ["m"] (\margs ->
+replaceDollarOrSlash= builtinVal "UpdateRegex.replaceDollarOrSlash" <| VFun "replaceDollarOrSlash" ["m"] (\margs ->
   case margs of
     [m] -> case m.v_ of
       VRecord dm ->
@@ -238,6 +239,40 @@ unescapeSlashDollar eval update =
         l -> Errs <| "The environment should have contained at least 3 variables, got " ++ toString (List.length newEnv.val)
     )
 
+-- Performs replacements on a string with differences but also return those differences along with the old ones.
+updateReplace eval update =  builtinVal "UpdateRegex.updateReplace" <| VFun "updateReplace" ["regex", "replacement", "string", "diffs"] (\margs ->
+    case margs of
+      [regexV, replacementV, stringV, stringDiffsV] ->
+        case (regexV.v_, stringV.v_, valToVDiffs stringDiffsV) of
+          (VBase (VString regex), VBase (VString string), Ok (VStringDiffs vdiffs)) ->
+            let closure = case replacementV.v_ of
+              VBase (VString replacement) -> stringToLambda eval update nth join (replaceV_ replacementV) replacement |> Tuple.first
+              _ -> replacementV
+            in
+            let matches = GroupStartMap.find Regex.All regex string in
+            let replacements = List.map (evalReplacement eval closure) matches in
+            let (initStrings, lastString) = interleavingStrings string matches in
+            List.map2 (\m evalResult ->
+              case evalResult of
+                Err msg -> Err msg
+                Ok v -> case v.v_ of
+                  VBase (VString mReplacement) ->
+                    Ok (StringUpdate m.index (m.index + String.length m.match) (String.length mReplacement), mReplacement)
+                  _ -> Err <| "the regex callback did not return a string, got " ++ valToString v
+            ) matches replacements |> Utils.projOk |> (\x -> case Result.map List.unzip x of
+              Err msg -> Err msg
+              Ok (newStringDiffs, replacements) ->
+                let finalStr = (List.map2 (\s t -> s ++ t) initStrings replacements |> String.join "") ++ lastString in
+                -- offsetStart is the offset for the start of the first element of newStringDiffs
+                -- offsetEnd is the offset for the end of the first element of newStringDiffs
+                -- offsetEnd is the one that is usueally called "offset" and contains all the offsets before oldStringDiffs
+                let finalStrDiffs =  composeStringDiffs vdiffs newStringDiffs in
+                Ok ((Vb.tuple2 Vb.string vDiffsToVal (Vb.fromVal stringV) (finalStr, VStringDiffs <| finalStrDiffs)), [])
+            )
+          _ -> Err <| "updateReplace expected a regex, a replacement string/closure, a string, original diffs made to the string, got " ++ valToString regexV ++ " " ++ valToString replacementV ++ " " ++ valToString stringV ++ " " ++ valToString stringDiffsV
+      _ -> Err <| "updateReplace expected 4 arguments, got " ++ toString (List.length margs)
+  ) Nothing
+
 escapeSlashDollar s = Regex.replace Regex.All (Regex.regex "\\$") (\_ -> "\\\\\\$") s
 
 lambdaToString: List Int -> Val -> VDiffs -> Results String (List (Int, Int, String))
@@ -261,8 +296,8 @@ lambdaToString oldConcatenationStarts valAfter vdiffs =
 
 -- nth should be a reversible function of the type 'List a -> Int -> a'  and raises an error else.
 stringToLambda: (Env -> Exp -> Result String (Val, Widgets)) ->
-                (UpdateStack -> Results String (UpdatedEnv, UpdatedExp)) -> Val -> Val -> Val -> String -> (Val, List Int)
-stringToLambda eval update nth join vs s =
+                (UpdateStack -> Results String (UpdatedEnv, UpdatedExp)) -> Val -> Val -> (Val_ -> Val) -> String -> (Val, List Int)
+stringToLambda eval update nth join toVal s =
   let l = find All (regex "(\\\\\\$|\\\\\\\\|\\$(\\d))") s |> List.map (\m -> (m, m.index, String.length m.match + m.index)) in
   let (finalLastStart, lWithPrevStart) = List.foldl (\(mat, start, end) (lastEnd, acc) -> (end, acc ++ [(mat, lastEnd, start, end)])) (0, []) l in
   let oldConcatenationStarts = (0 :: (lWithPrevStart |> List.concatMap (\(_, _, start, end) -> [start, end]))) ++ [String.length s] in
@@ -285,7 +320,7 @@ stringToLambda eval update nth join vs s =
        ) lWithPrevStart
   in
   let lambdaBody = concat "join" (tmp ++ [eApp (eVar "unescapeSlashDollar") [eStr <| String.dropLeft finalLastStart s]]) in
-  (replaceV_ vs <| VClosure Nothing [pVar "m"] lambdaBody [
+  (toVal<| VClosure Nothing [pVar "m"] lambdaBody [
     ("nth", nth), ("join", join), ("unescapeSlashDollar", unescapeSlashDollar eval update)], oldConcatenationStarts)
 
 type EvaluationError = EvaluationError String
@@ -474,26 +509,29 @@ replaceByIn howmany {-stringjoin-} name evaluate update = builtinVal "UpdateRege
         _ -> Errs <| "regex replacement expects three arguments, got " ++ toString (List.length args)
   ))
 
+evalReplacement eval closureReplacementV gsmMatch =
+  let replacementName = "user_callback" in
+  let argumentName = "x" in
+  let matchVal = matchToVal (gsmMatchToRegexMatch gsmMatch) in
+  let localEnv = [(replacementName, closureReplacementV), (argumentName, matchVal)] in
+  let localExp = matchApp replacementName argumentName in
+  --let _ = Debug.log ("The new env is" ++ LangUtils.envToString localEnv) () in
+  --let _ = Debug.log ("The replacement body is" ++ Syntax.unparser Syntax.Elm localExp) () in
+  eval localEnv localExp |> Result.map Tuple.first
+
 evalRegexReplaceByIn: Regex.HowMany -> (Env -> Exp -> Result String (Val, Widgets))-> Val -> Val -> Val -> Result String (Val, Widgets)
 evalRegexReplaceByIn  howmany eval regexpV replacementV stringV =
    case (regexpV.v_, replacementV.v_, stringV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string)) ->
-        let (lambdaReplacement, _) = stringToLambda eval dummyUpdate nth join replacementV replacement
+        let (lambdaReplacement, _) = stringToLambda eval dummyUpdate nth join (replaceV_ replacementV) replacement
         in evalRegexReplaceByIn howmany eval regexpV lambdaReplacement stringV
        -- Conver the string to a lambda with string concatenation
      (VBase (VString regexp), _, VBase (VString string)) ->
         ImpureGoodies.tryCatch "EvaluationError" (\() ->
           let newString = GroupStartMap.replace howmany regexp (\m ->
-               let replacementName = "user_callback" in
-               let argumentName = "x" in
-               let matchVal = matchToVal (gsmMatchToRegexMatch m) in
-               let localEnv = [(replacementName, replacementV), (argumentName, matchVal)] in
-               let localExp = matchApp replacementName argumentName in
-               --let _ = Debug.log ("The new env is" ++ LangUtils.envToString localEnv) () in
-               --let _ = Debug.log ("The replacement body is" ++ Syntax.unparser Syntax.Elm localExp) () in
-               case eval localEnv localExp of
+               case evalReplacement eval replacementV m of
                  Err msg -> ImpureGoodies.throw (EvaluationError msg)
-                 Ok (v, _) ->
+                 Ok v ->
                     case v.v_ of
                       VBase (VString s) -> s
                       _ -> ImpureGoodies.throw (EvaluationError "[internal error] The function ToStrExceptStr returned something else than a string")
@@ -532,6 +570,15 @@ case UpdateRegex.updateRegexReplaceAllByIn
 dummyUpdate: UpdateStack -> Results String (UpdatedEnv, UpdatedExp)
 dummyUpdate updateStack = Errs "[internal error] Should not call dummyUpdate"
 
+-- Recover all unchanged substrings from a string and a list of matches. Returns all but the last as a separate tuple element
+interleavingStrings string matchList =
+  let (lastEnd, initStrings) = List.foldl (\m (lastEnd, strings) ->
+       (m.index + String.length m.match, strings ++ [String.slice lastEnd m.index string])
+       ) (0, []) matchList
+  in
+  let lastString = String.dropLeft lastEnd string in
+  (initStrings, lastString)
+
 -- We need the environment just to make use of the function "nth" for lists, so we don't need to return it !!
 updateRegexReplaceByIn: Regex.HowMany ->
    (Env -> Exp -> Result String (Val, Widgets)) ->
@@ -541,7 +588,7 @@ updateRegexReplaceByIn howmany eval update regexpV replacementV stringV oldOutV 
    case (regexpV.v_, replacementV.v_, stringV.v_, newOutV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string), _) ->
         -- let _ = Debug.log "regex1" () in
-        let (lambdaReplacementV, oldConcatenationStarts) = stringToLambda eval update nth join replacementV replacement in
+        let (lambdaReplacementV, oldConcatenationStarts) = stringToLambda eval update nth join (replaceV_ replacementV) replacement in
         updateRegexReplaceByIn howmany eval update regexpV lambdaReplacementV stringV oldOutV newOutV diffs |> Results.andThen (
           \(newArgs, newDiffs) ->
             case newArgs of
@@ -566,11 +613,7 @@ updateRegexReplaceByIn howmany eval update regexpV replacementV stringV oldOutV 
        -- Now yes because we can merge all results.
        -- let _ = Debug.log "regex2" () in
        let matches = GroupStartMap.find howmany regexp string in
-       let (lastEnd, initStrings) = List.foldl (\m (lastEnd, strings) ->
-            (m.index + String.length m.match, strings ++ [String.slice lastEnd m.index string])
-            ) (0, []) matches
-       in
-       let lastString = String.dropLeft lastEnd string in -- Of size >= 2
+       let (initStrings, lastString) = interleavingStrings string matches in
        let replacementName = "user_callback" in
        -- let _ = Debug.log "regex3" () in
        case evalRegexReplaceByIn Regex.All eval regexpV replacementV stringV of

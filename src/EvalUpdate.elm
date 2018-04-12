@@ -3,11 +3,11 @@ module EvalUpdate exposing (..)
 Everything from LangTools that depended on the prelude is in this file now.
 Eval.run has become EvalUpdate.run, because it depends on the prelude and on the Update module.
 -}
-import Update exposing (update)
+import Update
 import UpdateStack exposing (UpdateStack, updateContext, UpdatedExp)
 import UpdatedEnv exposing (UpdatedEnv)
 import UpdateUtils exposing (defaultVDiffs, vDiffsToVal, valToVDiffs, recursiveMergeVal)
-import Eval exposing (eval)
+import Eval
 import Lang exposing (..)
 import HTMLValParser
 import LangUtils exposing (..)
@@ -115,7 +115,8 @@ builtinEnv =
       ) (Just (\args oldVal newVal d -> case args of
       [left, right, x] ->
         let env = [("left", left), ("right", right), ("x", x)] in
-        Update.update LazyList.Nil LazyList.Nil (updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) oldVal newVal d) |>
+        updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) oldVal newVal d |>
+        update |>
           Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
           Results.map (\(newEnv, _) ->
             case newEnv.val of
@@ -134,7 +135,8 @@ builtinEnv =
     ) (Just (\args oldVal newVal d -> case args of
     [left, right, x] ->
       let env = [("left", left), ("right", right), ("x", x)] in
-      Update.update LazyList.Nil LazyList.Nil (updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) oldVal newVal d) |>
+      updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) oldVal newVal d |>
+      update |>
         Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
         Results.map (\(newEnv, _) ->
           case newEnv.val of
@@ -167,7 +169,8 @@ builtinEnv =
                 |> Results.fromResult
                 |> Results.andThen (\prog ->
                     -- update = UpdateStack -> LazyList NextAction -> Results (UpdatedEnv, UpdatedExp)
-                      Update.update LazyList.Nil LazyList.Nil (UpdateStack.updateContext "Eval.update" builtinEnv prog oldVal newVal d)
+                    UpdateStack.updateContext "Eval.update" builtinEnv prog oldVal newVal d
+                   |> update
                    |> Results.map Tuple.second
                    |> Results.map .val
                    |> Results.map (Syntax.unparser Syntax.Elm)
@@ -228,7 +231,7 @@ builtinEnv =
                         in
                         Ok (resultingValue, [])
                       Ok (Just newOutDiffs) ->
-                        let basicResult = case update LazyList.Nil LazyList.Nil (updateContext "__updateApp__" xyEnv xyExp oldOut newVal newOutDiffs) of
+                        let basicResult = case update <| updateContext "__updateApp__" xyEnv xyExp oldOut newVal newOutDiffs of
                           Errs msg -> Vb.record Vb.string vb (Dict.fromList [("error", msg)])
                           Oks ll ->
                              let l = LazyList.toList ll in
@@ -293,16 +296,16 @@ builtinEnv =
                , [])
         _ -> Err <|  "__diff__ performs the diff on 2 values, but got " ++ toString (List.length args)
     ) Nothing)
-  , ("replaceAllIn", UpdateRegex.replaceAllByIn
-       (\env e -> Eval.doEval Syntax.Elm env e |> Result.map Tuple.first)
-       (\updateStack -> Update.update LazyList.Nil LazyList.Nil updateStack))
-  , ("replaceFirstIn", UpdateRegex.replaceFirstByIn
-       (\env e -> Eval.doEval Syntax.Elm env e |> Result.map Tuple.first)
-       (\updateStack -> Update.update LazyList.Nil LazyList.Nil updateStack))
+  , ("replaceAllIn", UpdateRegex.replaceAllByIn eval update)
+  , ("replaceFirstIn", UpdateRegex.replaceFirstByIn eval update)
+  , ("updateReplace", UpdateRegex.updateReplace eval update)
   , ("join__", UpdateRegex.join)
   ]
 
-preludeEnvRes = Result.map Tuple.second <| (eval Syntax.Little builtinEnv [] Parser.prelude)
+eval env e = Eval.doEval Syntax.Elm env e |> Result.map Tuple.first
+update updateStack = Update.update LazyList.Nil LazyList.Nil updateStack
+
+preludeEnvRes = Result.map Tuple.second <| (Eval.eval Syntax.Little builtinEnv [] Parser.prelude)
 preludeEnv = Utils.fromOk "Eval.preludeEnv" <| preludeEnvRes
 
 run : Syntax -> Exp -> Result String (Val, Widgets)
@@ -327,7 +330,7 @@ doUpdate oldExp oldVal newValResult =
         Oks ll ->
            ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
             Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
-             update LazyList.Nil LazyList.Nil (updateContext "initial update" preludeEnv oldExp oldVal out diffs))
+             update <| updateContext "initial update" preludeEnv oldExp oldVal out diffs)
            )
 
 -- Deprecated

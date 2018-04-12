@@ -62,19 +62,19 @@ markdown text =
     ["\\:\"(.*?)\"\\:", "<q>$1</q>"],                             -- quote
     ["`\\b(.*?)\\b`", "<code>$1</code>"],                         -- inline code
     ["\r?\n\\*(.*)", self.ul_list, {
-      postReverse out = 
-        Regex.replace """\r?\n<ul>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ul>""" "\n* $1" out
+      postReverse = 
+        updateReplace """\r?\n<ul>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ul>""" "\n* $1"
     }],                                  -- ul lists
     ["\r?\n[0-9]+\\.(.*)", self.ol_list, {
-      postReverse out = 
-        Regex.replace """\r?\n<ol>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ol>""" "\n1. $1" out
+      postReverse  = 
+        updateReplace """\r?\n<ol>\r?\n\t<li>((?:(?!</li>)[\s\S])*)</li>\r?\n</ol>""" "\n1. $1"
     }],                            -- ol lists
     ["\r?\n(&gt;|\\>)(.*)", self.blockquote],                        -- blockquotes
     ["\r?\n-{5,}", "\n<hr>"],                                        -- horizontal rule
     ["\r?\n\r?\n(?!<ul>|<ol>|<p>|<blockquote>)","<br>"],                -- add newlines
     ["\r?\n</ul>\\s?<ul>", "", {
-      postReverse out = 
-        Regex.replace """(<(ul|ol)>(?:(?!</\2>)[\s\S])*)</li>\s*<li>""" "$1</li>\n</$2>\n<$2>\n\t<li>" out
+      postReverse = 
+        updateReplace """(<(ul|ol)>(?:(?!</\2>)[\s\S])*)</li>\s*<li>""" "$1</li>\n</$2>\n<$2>\n\t<li>"
     }],                                     -- fix extra ul
     ["\r?\n</ol>\\s?<ol>", ""],                                      -- fix extra ol, and extract blockquote
     ["</blockquote>\\s?<blockquote>", "\n"]
@@ -83,7 +83,11 @@ markdown text =
   foldLeft (\elem acc -> case elem of
       [regex, replacement] -> Regex.replace regex replacement acc
       [regex, replacement, {postReverse = fun}] ->
-        let newAcc = { apply acc = freeze acc, unapply out = Just (fun out)}.apply acc in
+        let newAcc = { apply acc = freeze acc,
+          update {newOutput=out,diffs} =
+            case fun out diffs of
+              (value, diff) -> { values = [value], diffs = [Just diff] }
+          }.apply acc in
         Regex.replace regex replacement newAcc 
   ) finaltext rules 
 
@@ -100,9 +104,9 @@ newlines_lens x = {
           case Regex.extract """^<div>([\s\S]*)</div>""" inserted of
             Just [content] ->
               if Regex.matchIn "(?:^|\n)#(.*)$" left then -- Title, we jump only one line
-                "\n" + content
+                "\n" + content + "\n"
               else -- we jump TWO lines
-                "\n\n" + content
+                "\n\n" + content + "\n"
             Nothing ->    
               if Regex.matchIn """(?:^|\n)(#|\*|\d\.)(.*)$""" left then
                 inserted
