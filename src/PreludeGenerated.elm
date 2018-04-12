@@ -3315,6 +3315,7 @@ Html =
     element = elementHelper
     text = textInner
     br = [\"br\", [], []]
+    parse = html
   }
 
 -- TODO remove this; add as imports as needed in examples
