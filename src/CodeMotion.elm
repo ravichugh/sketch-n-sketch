@@ -2798,46 +2798,50 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
   in
   let maxId = Parser.maxId originalProgramUniqueNames in
   let (insertedVarEId, newBindingPId) = (maxId + 1, maxId + 2) in
-  let newProgramUniqueNames =
-    let extractedExp = justFindExpByEId originalProgramUniqueNames mobileEId in
-    originalProgramUniqueNames
-    |> replaceExpNodePreservingPrecedingWhitespace mobileEId
-        (eVar "*EXTRACTED EXPRESSION*" |> setEId insertedVarEId)
-    |> mapExpNode expToWrap.val.eid
-        (\e -> newLetFancyWhitespace -1 False (pVar "*EXTRACTED EXPRESSION*" |> setPId newBindingPId) extractedExp e originalProgramUniqueNames )
-  in
-  let maybeNewProgramWithLiftedDependenciesOldNames =
-    -- We're using tryResolvingProblemsAfterTransformNoTwiddling here to lift any needed dependencies and handle any shadowing that introduces.
-    tryResolvingProblemsAfterTransformNoTwiddling
-        ""        -- baseDescription
-        (Dict.insert "*EXTRACTED EXPRESSION*" "*EXTRACTED EXPRESSION*" uniqueNameToOldName) -- uniqueNameToOldName
-        Nothing   -- maybeNewScopeEId
-        ("", "")  -- (touchedAdjective, untouchedAdjective)
-        Set.empty -- namesUniqueTouched
-        []        -- varEIdsPreviouslyDeliberatelyRemoved
-        (Dict.singleton insertedVarEId (Just newBindingPId)) -- insertedVarEIdToBindingPId
+  case findExpByEId originalProgramUniqueNames mobileEId of
+    Just extractedExp ->
+      let newProgramUniqueNames =
         originalProgramUniqueNames
-        newProgramUniqueNames
-    |> Utils.findFirst isResultSafe
-    |> Maybe.map (\(SynthesisResult {exp}) -> Parser.freshen exp)
-  in
-  let visibleNameSuggestion = expNameForEId originalProgram mobileEId in
-  case maybeNewProgramWithLiftedDependenciesOldNames of
-    Nothing -> Nothing
-    Just newProgramWithLiftedDependenciesOldNames ->
-      let namesToAvoid =
-        let finalViewerEIds =
-          newProgramWithLiftedDependenciesOldNames
-          |> flattenExpTree
-          |> List.filter (expToMaybeIdent >> (==) (Just "*EXTRACTED EXPRESSION*"))
-          |> List.map (.val >> .eid)
-          |> Set.fromList
-          |> Set.union viewerEIds
-        in
-        visibleIdentifiersAtEIds newProgramWithLiftedDependenciesOldNames finalViewerEIds
+        |> replaceExpNodePreservingPrecedingWhitespace mobileEId
+            (eVar "*EXTRACTED EXPRESSION*" |> setEId insertedVarEId)
+        |> mapExpNode expToWrap.val.eid
+            (\e -> newLetFancyWhitespace -1 False (pVar "*EXTRACTED EXPRESSION*" |> setPId newBindingPId) extractedExp e originalProgramUniqueNames )
       in
-      let visibleName = nonCollidingName visibleNameSuggestion 2 namesToAvoid in
-      Just (visibleName, insertedVarEId, renameIdentifier "*EXTRACTED EXPRESSION*" visibleName newProgramWithLiftedDependenciesOldNames)
+      let maybeNewProgramWithLiftedDependenciesOldNames =
+        -- We're using tryResolvingProblemsAfterTransformNoTwiddling here to lift any needed dependencies and handle any shadowing that introduces.
+        tryResolvingProblemsAfterTransformNoTwiddling
+            ""        -- baseDescription
+            (Dict.insert "*EXTRACTED EXPRESSION*" "*EXTRACTED EXPRESSION*" uniqueNameToOldName) -- uniqueNameToOldName
+            Nothing   -- maybeNewScopeEId
+            ("", "")  -- (touchedAdjective, untouchedAdjective)
+            Set.empty -- namesUniqueTouched
+            []        -- varEIdsPreviouslyDeliberatelyRemoved
+            (Dict.singleton insertedVarEId (Just newBindingPId)) -- insertedVarEIdToBindingPId
+            originalProgramUniqueNames
+            newProgramUniqueNames
+        |> Utils.findFirst isResultSafe
+        |> Maybe.map (\(SynthesisResult {exp}) -> Parser.freshen exp)
+      in
+      let visibleNameSuggestion = expNameForEId originalProgram mobileEId in
+      case maybeNewProgramWithLiftedDependenciesOldNames of
+        Nothing -> Nothing
+        Just newProgramWithLiftedDependenciesOldNames ->
+          let namesToAvoid =
+            let finalViewerEIds =
+              newProgramWithLiftedDependenciesOldNames
+              |> flattenExpTree
+              |> List.filter (expToMaybeIdent >> (==) (Just "*EXTRACTED EXPRESSION*"))
+              |> List.map (.val >> .eid)
+              |> Set.fromList
+              |> Set.union viewerEIds
+            in
+            visibleIdentifiersAtEIds newProgramWithLiftedDependenciesOldNames finalViewerEIds
+          in
+          let visibleName = nonCollidingName visibleNameSuggestion 2 namesToAvoid in
+          Just (visibleName, insertedVarEId, renameIdentifier "*EXTRACTED EXPRESSION*" visibleName newProgramWithLiftedDependenciesOldNames)
+
+    Nothing ->
+      Nothing
 
 
 -- Returns (newProgram, locIdToNewName, locIdToVarEId)
@@ -2971,8 +2975,8 @@ resolveValueHolesByLocLifting : Sync.Options -> Exp -> List Exp
 resolveValueHolesByLocLifting syncOptions programWithHolesUnfresh =
   let
     programWithHoles = Parser.freshen programWithHolesUnfresh -- Need EIds on all inserted expressions.
-    valHoles = programWithHoles |> flattenExpTree |> List.filter isValHole
-    holeVals = programWithHoles |> flattenExpTree |> List.filterMap expToMaybeHoleVal
+    valHoles = programWithHoles |> flattenExpTree |> List.filter (expToMaybeHoleVal >> Maybe.map valIsNum >> (==) (Just True))
+    holeVals = programWithHoles |> flattenExpTree |> List.filterMap (expToMaybeHoleVal >> Utils.filterMaybe valIsNum)
     holeEIds = valHoles |> List.map (.val >> .eid)
     holeTraces = holeVals |> List.map valToTrace
     locIdsNeeded = holeTraces |> List.map (Sync.locsOfTrace syncOptions >> Set.map locToLocId) |> Utils.unionAll
@@ -2982,8 +2986,9 @@ resolveValueHolesByLocLifting syncOptions programWithHolesUnfresh =
   Utils.zip3 holeEIds holeVals holeTraces
   |> List.foldl
       (\(holeEId, holeVal, holeTrace) programSoFar ->
-        let filledHole = traceToExp locIdToExp holeTrace in
-        programSoFar |> replaceExpNodePreservingPrecedingWhitespace holeEId filledHole
+        case traceToExp locIdToExp holeTrace of
+          Just filledHole -> programSoFar |> replaceExpNodePreservingPrecedingWhitespace holeEId filledHole
+          Nothing         -> programSoFar
       )
       programWithLocsLifted
   |> List.singleton
