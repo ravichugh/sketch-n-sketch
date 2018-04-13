@@ -134,7 +134,7 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
           (featureName, eqn)
         )
   in
-  let featureNamesWithExpressionExps =
+  let featureNamesWithMaybeExpressionExps =
     let locIdToOrigName =
       Dict.fromList
         <| List.map (\(locId, nameOrig, namePrime) -> (locId, nameOrig))
@@ -145,9 +145,13 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
   in
   -- Remove expressions of only one term
   let significantFeatureNamesWithExpressionExps =
-    List.filter
-        (\(name, exp) -> nodeCount exp > 1)
-        featureNamesWithExpressionExps
+    featureNamesWithMaybeExpressionExps
+    |> List.filterMap
+        (\(name, maybeExp) ->
+          case maybeExp of
+            Just exp -> if nodeCount exp > 1 then Just (name, exp) else Nothing
+            Nothing  -> Nothing
+        )
   in
   let featureNames          = List.map Tuple.first significantFeatureNamesWithExpressionExps in
   let featureExpressionExps = List.map Tuple.second significantFeatureNamesWithExpressionExps in
@@ -1234,7 +1238,7 @@ equationToLittle substStr eqn =
       "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
 
 
-equationToExp : Dict.Dict LocId Num -> Dict.Dict LocId Ident -> FeatureEquation -> Exp
+equationToExp : Dict.Dict LocId Num -> Dict.Dict LocId Ident -> FeatureEquation -> Maybe Exp
 equationToExp locIdToFrozenNum locIdToIdent eqn =
   let locIdToExp = locIdToExpFromFrozenSubstAndNewNames locIdToFrozenNum locIdToIdent in
   case eqn of
@@ -1242,5 +1246,8 @@ equationToExp locIdToFrozenNum locIdToIdent eqn =
       traceToExp locIdToExp trace
 
     ShapeWidgets.EqnOp op childEqns ->
-      let childExps = List.map (equationToExp locIdToFrozenNum locIdToIdent) childEqns in
-      eOp op childExps
+      childEqns
+      |> List.map (equationToExp locIdToFrozenNum locIdToIdent)
+      |> Utils.projJusts
+      |> Maybe.map (\childExps -> eOp op childExps)
+

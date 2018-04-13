@@ -1459,17 +1459,16 @@ locIdToExpFromFrozenSubstAndNewNames locIdToFrozenNum locIdToIdent =
       locIdToIdent
       Dict.empty
 
-traceToExp : Dict LocId Exp -> Trace -> Exp
+traceToExp : Dict LocId Exp -> Trace -> Maybe Exp
 traceToExp locIdToExp trace =
   case trace of
-    TrLoc (locId, _, _) ->
-      case Dict.get locId locIdToExp of
-        Just exp -> exp
-        Nothing  -> eVar ("couldNotFindLocId" ++ toString locId ++ "InLocIdToExpDict")
+    TrLoc (locId, _, _) -> Dict.get locId locIdToExp
 
     TrOp op childTraces ->
-      let childExps = List.map (traceToExp locIdToExp) childTraces in
-      eOp op childExps
+      childTraces
+      |> List.map (traceToExp locIdToExp)
+      |> Utils.projJusts
+      |> Maybe.map (\childExps -> eOp op childExps)
 
 -----------------------------------------------------------------------------
 -- Utility
