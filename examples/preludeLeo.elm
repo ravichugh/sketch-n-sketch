@@ -262,6 +262,7 @@ LensLess =
 --
 
 Update =
+  let {String, List} = LensLess in
   let freeze x =
     x
   in
@@ -281,7 +282,7 @@ Update =
    -- listDiffOp : DiffOp -> List Value -> List Value -> List SimpleListDiffOp
 
     -- let {Keep, Delete, Insert, Update} = SimpleListDiffOp in
-     let {append} = LensLess.List in
+     let {append} = List in
      case diffOp oldValues newValues of
         Ok (Just (VListDiffs listDiffs)) ->
           letrec aux i revAcc oldValues newValues listDiffs =
@@ -323,9 +324,9 @@ Update =
     case diffs of
       VStringDiffs d ->
         letrec aux offset d revAcc = case d of
-          [] -> LensLess.List.reverse revAcc
+          [] -> List.reverse revAcc
           ((StringUpdate start end replaced) :: tail) ->
-             ConcStringUpdate start end (LensLess.String.slice (start + offset) (start + replaced + offset) newString) :: revAcc |>
+             ConcStringUpdate start end (String.slice (start + offset) (start + replaced + offset) newString) :: revAcc |>
              aux (replaced - (end - start)) tail
         in aux 0 d []
   in
@@ -348,9 +349,17 @@ Update =
     Regex = {
         replace regex replacement string diffs = updateReplace
       }
-    mapInserted f originalStr modifiedStr =
-      -- TODO: really map the insertions in the modified string by f: String -> String
-      modifiedStr
+    mapInserted fun modifiedStr diffs =
+       letrec aux offset d strAcc = case d of
+       [] -> strAcc
+       ((ConcStringUpdate start end inserted) :: dtail) ->
+         let left = String.take (start + offset) strAcc in
+         let right =  String.dropLeft (start + offset + String.length inserted) strAcc in
+         let newInserted = fun inserted in
+         left + newInserted + right |>
+         aux (offset + String.length newInserted - (end - start)) dtail
+       in
+       aux 0 (strDiffToConcreteDiff modifiedStr diffs) modifiedStr
     debug msg x =
          { apply x = freeze x, update { input, newOutput, oldOutput, diffs} =
            let _ = Debug.log ("""@msg:
@@ -1071,9 +1080,9 @@ String =
     left = take
     drop = drop
     dropLeft = drop
-    trim s =
-      Regex.replace "^\\s+" "" s |>
-      Regex.replace "\\s+$" ""
+    trim s = case extractFirstIn "^\\s*([\\s\\S]*?)\\s*$" s of
+      Just [trimmed] -> trimmed
+      Nothing -> s
     sprintf = sprintf
     uncons s = extractFirstIn "^([\\s\\S])([\\s\\S]*)$" s
   }
@@ -1441,10 +1450,13 @@ Html =
             then ["div", [["id", "wrapper"]], [node]]
             else node
 
-        update {input=node, outputNew} =
+        update {input=node, outputNew, diffs} =
           case outputNew of
             ["div", [["id", "wrapper"]], [newNode]] ->
-              {values = [newNode]}
+              case diffs of
+                VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate newNodeDiffs)]))] ->
+                  {values = [newNode], diffs = [Just newNodeDiffs]}
+                _ -> {values = [outputNew]}
             _ ->
               {values = [outputNew]}
       }

@@ -3,8 +3,13 @@ module ExamplesGenerated exposing
   , blankSvgTemplate, blankHtmlTemplate, initTemplate
   , badPreludeTemplate
   , fromleo_markdown
+  , fromleo_markdown_optimized
   , fromleo_recipe
   , fromleo_conference_budgetting
+  , fromleo_modelviewcontroller
+  , fromleo_latexeditor
+  , tableOfStatesA
+  , tableOfStatesB
   )
 
 import Lang
@@ -245,6 +250,7 @@ LEO_TO_ELM mapListLens_1
 LEO_TO_ELM mapListLens_2
 LEO_TO_ELM listAppendLens
 LEO_TO_ELM fromleo/markdown
+LEO_TO_ELM fromleo/markdown_optimized
 LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
 LEO_TO_ELM fromleo/modelviewcontroller

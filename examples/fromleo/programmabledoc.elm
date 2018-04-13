@@ -1,4 +1,6 @@
-variables = [("document", "web $page"),("page", "page")]
+variables = 
+  [("document", "web $page")
+  ,("page", "page")]
 
 variablesDict = Dict.fromList variables
 
@@ -22,10 +24,12 @@ Additionally, to write $_x literally, just write $__x. You can also define short
     { apply (x, variables) = freeze x
       update {input = (x, variables), output} =
         Regex.find "\\$(?!_)(\\w+)(?:=(\\w+))?" output |>
-        List.foldl (\(_::name::definition::_) variables ->
-          if Dict.member name variablesDict  then variables
-          else variables ++ [(name, if definition == "" then name else definition)]
-        ) variables |> \newVariables ->
+        List.foldl (\(_::name::definition::_) (variables, variablesDict) ->
+          if Dict.member name variablesDict  then (variables, variablesDict)
+          else 
+            let vardef = if definition == "" then name else definition
+            in (variables ++ [(name, vardef)], Dict.insert name vardef variablesDict)
+        ) (variables, variablesDict) |> \(newVariables, _) ->
           let newOutput = Regex.replace "\\$(?!_)(\\w+)(?:=(\\w+))?" (\m -> 
             let [_, name, _] = m.group in
              if Dict.member name variablesDict then m.match else "$" + name

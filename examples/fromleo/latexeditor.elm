@@ -3,10 +3,10 @@ latex = """\newcommand{\small}{mini}
 \section{\LaTeX{} editing in \textsc{Html}\label{sec:introduction}}
 This \small{} \LaTeX{} editor is \textit{bidirectional} and supports \small{} \textbf{textual} changes. Rename '\small{}' to 'lightweight' to see\ldots
 
-\section{It supports reference update\label{sec:commands}}
-This editor features a subset of \LaTeX{} commands, for example references.
+\section{Reference update\label{sec:commands}}
+References are supported:
 Section \ref{sec:introduction}.
-Change the previous number to 2"""
+Change the previous number to 2. $\frac{b^2-4ac}{2}$"""
 
 latexttoolong = """ or 2.1. See how it updates the source code.
 \subsection{Others\label{others}}
@@ -297,8 +297,9 @@ splitargs n array =
 
 escape txt = txt |>
   replaceAllIn "\\\\" "\\textbackslash{}" |>
-  replaceAllIn "<B>(.*)</B>" "\\textbf{$1}" |>
-  replaceAllIn "<I>(.*)</I>" "\\textit{$1}"
+  replaceAllIn "%(\\w+) (\\w+)" (\{group=[_, a, b]} -> "\\" + a + "{" + b  + "}") |>
+  replaceAllIn "<B>(.*)</B>" (\{group=[_, a]} -> "\\textbf{" + a  + "}") |>
+  replaceAllIn "<I>(.*)</I>" (\{group=[_, a]} -> "\\textbf{" + a  + "}")
 
 toHtmlWithoutRefs opts tree =
   letrec aux opts revAcc tree = case tree of
@@ -310,8 +311,8 @@ toHtmlWithoutRefs opts tree =
       {tag="rawtext", value=text, pos = pos} ->
         let finalText = {
            apply x = x,
-           update {input, oldOutput, newOutput} = 
-             {values = [Update.mapInserted escape oldOutput newOutput] }
+           update {input, oldOutput, newOutput, diffs} = 
+             {values = [Update.mapInserted escape newOutput diffs] }
           }.apply text in
         if opts.indent && Regex.matchIn """^[\s]*\S""" text then
           let newOpts = { opts | indent = False,  newline = False } in
@@ -429,8 +430,9 @@ latex2html latex =
       in
       letrec gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
         (["span", [["start", p]], [["TEXT", vOld]]], 
-         ["span", [["start", p]], [["TEXT", vNew]]], VListDiffs [(2, _)]) -> 
-           { values = [[(vNew, String.toInt p, String.toInt p + String.length vOld)]] }
+         ["span", [["start", p]], [["TEXT", vNew]]],
+          VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate (VListDiffs [(1, ListElemUpdate sd)]))]))]) -> 
+           { values = [[(Debug.log ("escaped string '" + vNew + "' with diffs " + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]] }
         ([_, _, cOld], [_, _, cNew], VListDiffs [(2, ListElemUpdate (VListDiffs childDiffs))]) ->
            gatherDiffsChild gatherDiffs 0 cOld cNew childDiffs
         _ -> {error = "Could not find text differences " + toString (outputOld, outputNew, diffs)}

@@ -3,8 +3,13 @@ module ExamplesGenerated exposing
   , blankSvgTemplate, blankHtmlTemplate, initTemplate
   , badPreludeTemplate
   , fromleo_markdown
+  , fromleo_markdown_optimized
   , fromleo_recipe
   , fromleo_conference_budgetting
+  , fromleo_modelviewcontroller
+  , fromleo_latexeditor
+  , tableOfStatesA
+  , tableOfStatesB
   )
 
 import Lang
@@ -6373,6 +6378,136 @@ Html.forceRefresh <|
 Html.span [] [] <| html ((freeze markdown) (newlines_lens original))
 """
 
+fromleo_markdown_optimized =
+ """original =
+  \"\"\"#[Markdown](https://fr.wikipedia.org/wiki/Markdown) demo
+This is *an **almost :\"bidirectional\":*** markdown
+editor. You can **fully** edit the value of the variable `original` on the right,
+and _partially_ edit the html on the right.
+
+*Limitation*: Since this is a regex-based transformation, it cannot correctly nest italics into bold (unless you use underscores instead of stars)
+#### Markdown source
+* Headers of level n are prefixed with n #
+* Use * or 1. to introduce lists
+
+#### Html rendering
+1. You can insert elements in lists.
+2. Use SHIFT+ENTER for new lines.
+3. Do not use CTRL+V
+
+#### Anywhere
+2. Add bold by wrapping with two stars.
+3. Add emphasis by wrapping with underscorses.
+1. Use backtick to insert `code`
+
+>Markdown is a lightweight markup
+>language with plain text formatting syntax
+
+\"\"\"
+
+{trim, sprintf, length} = String
+{foldl = foldLeft} = List
+{freeze, strDiffToConcreteDiff} = Update
+
+trim s = case extractFirstIn \"^\\\\s*([\\\\s\\\\S]*?)\\\\s*$\" s of
+      Just [trimmed] -> trimmed
+      Nothing -> s
+
+-- Thanks to https://gist.github.com/jbroadway/2836900
+markdown text =
+  let para regs =
+      let line = nth regs.group 2 in
+      let trimmed = trim line in
+      if (matchIn \"^</?(ul|ol|li|h|p|bl)\" trimmed) then
+        (nth regs.group 1) + line
+      else
+        nth regs.group 1 + \"<p>\" + line + \"</p>\\n\"
+  in
+  let ul_list regs = 
+      let item = nth regs.group 1 in
+      \"\\n<ul>\\n\\t<li >\" + trim item + \"</li>\\n</ul>\"
+  in
+  let ol_list regs =
+      let item = nth regs.group 1 in
+      \"\\n<ol>\\n\\t<li >\" + trim item + \"</li>\\n</ol>\"
+  in
+  let blockquote regs =
+      let item = nth regs.group 2 in
+      \"\\n<blockquote>\" + trim item + \"</blockquote>\"
+  in
+  let header {group= [tmp, nl, chars, header]} =
+      let level = toString (length chars) in
+      \"<h\" + level + \">\" + trim header + \"</h\" + level + \">\"
+  in
+  let onUpdate fun acc = {
+    apply acc = freeze acc
+    update {input,newOutput=out,diffs} =
+      case fun out diffs of
+        (value, diff) -> { values = [value], diffs = [Just diff] }
+        value  -> case Update.diff input value of
+          Ok n -> { values = [value], diffs = [n] }
+          Err x -> { error = x}
+    }.apply acc
+  in
+  \"\\n\" + text + \"\\n\" |>
+  replaceAllIn \"(\\n|^)(#+)(.*)\" header |>
+  replaceAllIn \"\\\\[([^\\\\[]+)\\\\]\\\\(([^\\\\)]+)\\\\)\" \"<a href='$2'>$1</a>\" |>
+  replaceAllIn \"(\\\\*\\\\*|__)(?=[^\\\\s\\\\*_])(.*?)\\\\1\" \"<strong>$2</strong>\" |>
+  replaceAllIn \"(\\\\*|_)(?=[^\\\\s\\\\*_])(.*?)\\\\1\" \"<em>$2</em>\" |>
+  replaceAllIn \"\\\\~\\\\~(.*?)\\\\~\\\\~\" \"<del>$1</del>\" |>
+  replaceAllIn \"\\\\:\\\"(.*?)\\\"\\\\:\" \"<q>$1</q>\" |>
+  replaceAllIn \"`\\\\b(.*?)\\\\b`\" \"<code>$1</code>\" |>
+  replaceAllIn \"\\r?\\n\\\\*(.*)\" ul_list |>
+  onUpdate (updateReplace \"\"\"\\r?\\n<ul>\\r?\\n\\t<li>((?:(?!</li>)[\\s\\S])*)</li>\\r?\\n</ul>\"\"\" \"\\n* $1\") |>
+  replaceAllIn \"\\r?\\n[0-9]+\\\\.(.*)\" ol_list |>
+  onUpdate (updateReplace \"\"\"\\r?\\n<ol>\\r?\\n\\t<li>((?:(?!</li>)[\\s\\S])*)</li>\\r?\\n</ol>\"\"\" \"\\n1. $1\") |>
+  replaceAllIn \"\\r?\\n(&gt;|\\\\>)(.*)\" blockquote |>
+  replaceAllIn \"\\r?\\n-{5,}\" \"\\n<hr>\" |>
+  replaceAllIn \"\\r?\\n\\r?\\n(?!<ul>|<ol>|<p>|<blockquote>)\" \"<br>\" |>
+  replaceAllIn \"\\r?\\n</ul>\\\\s?<ul>\" \"\" |>
+  onUpdate (\\out diffs -> 
+        updateReplace \"\"\"(<li>(?:(?!</li>)[\\s\\S])*</li>)(?=[\\s\\S]*?</(ul|ol)>)\"\"\" \"\\n</$2>\\n<$2>\\n\\t$1\" out diffs |>
+        case of
+          (v, VStringDiffs l) ->
+            if not (v == out) then
+              (v, VStringDiffs (List.map (
+                \\StringUpdate a b r -> StringUpdate (a + 6) (b + 6) r) l))
+            else (out, diffs)
+  ) |>
+  replaceAllIn \"\\r?\\n</ol>\\\\s?<ol>\" \"\" |>
+  replaceAllIn \"</blockquote>\\\\s?<blockquote>\" \"\\n\"
+
+-- Takes care of newlines inserted in the document.
+newlines_lens x = {
+  apply x = freeze x,
+  update {outputNew,diffs} =
+    letrec aux offset d strAcc = case d of
+      [] -> strAcc
+      ((ConcStringUpdate start end inserted) :: dtail) ->
+        let left = String.take (start + offset) strAcc in
+        let right =  String.dropLeft (start + offset + String.length inserted) strAcc in
+        let newInserted =
+          case Regex.extract \"\"\"^<div>([\\s\\S]*)</div>\"\"\" inserted of
+            Just [content] ->
+              if Regex.matchIn \"(?:^|\\n)#(.*)$\" left then -- Title, we jump only one line
+                \"\\n\" + content + \"\\n\"
+              else -- we jump TWO lines
+                \"\\n\\n\" + content + \"\\n\"
+            Nothing ->    
+              if Regex.matchIn \"\"\"(?:^|\\n)(#|\\*|\\d\\.)(.*)$\"\"\" left then
+                inserted
+              else
+                Regex.replace \"\"\"<br>\"\"\"  \"\\n\\n\" inserted
+        in
+        left + newInserted + right |>
+        aux (offset + String.length inserted - (end - start)) dtail
+    in { values = [aux 0 (strDiffToConcreteDiff outputNew diffs) outputNew] }
+  }.apply x
+
+Html.forceRefresh <|
+Html.span [] [] <| html ((freeze markdown) (newlines_lens original))
+"""
+
 fromleo_conference_budgetting =
  """notBelow bound x = {
   apply x = freeze x
@@ -6593,7 +6728,9 @@ main = view
 """
 
 fromleo_programmabledoc =
- """variables = [(\"document\", \"web $page\"),(\"page\", \"page\")]
+ """variables = 
+  [(\"document\", \"web $page\")
+  ,(\"page\", \"page\")]
 
 variablesDict = Dict.fromList variables
 
@@ -6617,10 +6754,12 @@ Additionally, to write $_x literally, just write $__x. You can also define short
     { apply (x, variables) = freeze x
       update {input = (x, variables), output} =
         Regex.find \"\\\\$(?!_)(\\\\w+)(?:=(\\\\w+))?\" output |>
-        List.foldl (\\(_::name::definition::_) variables ->
-          if Dict.member name variablesDict  then variables
-          else variables ++ [(name, if definition == \"\" then name else definition)]
-        ) variables |> \\newVariables ->
+        List.foldl (\\(_::name::definition::_) (variables, variablesDict) ->
+          if Dict.member name variablesDict  then (variables, variablesDict)
+          else 
+            let vardef = if definition == \"\" then name else definition
+            in (variables ++ [(name, vardef)], Dict.insert name vardef variablesDict)
+        ) (variables, variablesDict) |> \\(newVariables, _) ->
           let newOutput = Regex.replace \"\\\\$(?!_)(\\\\w+)(?:=(\\\\w+))?\" (\\m -> 
             let [_, name, _] = m.group in
              if Dict.member name variablesDict then m.match else \"$\" + name
@@ -6634,7 +6773,6 @@ Html.div [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] [] [
   Html.span [] [] <|
   html content
 ]
-
 """
 
 fromleo_latexeditor =
@@ -6643,10 +6781,10 @@ fromleo_latexeditor =
 \\section{\\LaTeX{} editing in \\textsc{Html}\\label{sec:introduction}}
 This \\small{} \\LaTeX{} editor is \\textit{bidirectional} and supports \\small{} \\textbf{textual} changes. Rename '\\small{}' to 'lightweight' to see\\ldots
 
-\\section{It supports reference update\\label{sec:commands}}
-This editor features a subset of \\LaTeX{} commands, for example references.
+\\section{Reference update\\label{sec:commands}}
+References are supported:
 Section \\ref{sec:introduction}.
-Change the previous number to 2\"\"\"
+Change the previous number to 2. $\\frac{b^2-4ac}{2}$\"\"\"
 
 latexttoolong = \"\"\" or 2.1. See how it updates the source code.
 \\subsection{Others\\label{others}}
@@ -6937,8 +7075,9 @@ splitargs n array =
 
 escape txt = txt |>
   replaceAllIn \"\\\\\\\\\" \"\\\\textbackslash{}\" |>
-  replaceAllIn \"<B>(.*)</B>\" \"\\\\textbf{$1}\" |>
-  replaceAllIn \"<I>(.*)</I>\" \"\\\\textit{$1}\"
+  replaceAllIn \"%(\\\\w+) (\\\\w+)\" (\\{group=[_, a, b]} -> \"\\\\\" + a + \"{\" + b  + \"}\") |>
+  replaceAllIn \"<B>(.*)</B>\" (\\{group=[_, a]} -> \"\\\\textbf{\" + a  + \"}\") |>
+  replaceAllIn \"<I>(.*)</I>\" (\\{group=[_, a]} -> \"\\\\textbf{\" + a  + \"}\")
 
 toHtmlWithoutRefs opts tree =
   letrec aux opts revAcc tree = case tree of
@@ -6950,8 +7089,8 @@ toHtmlWithoutRefs opts tree =
       {tag=\"rawtext\", value=text, pos = pos} ->
         let finalText = {
            apply x = x,
-           update {input, oldOutput, newOutput} = 
-             {values = [Update.mapInserted escape oldOutput newOutput] }
+           update {input, oldOutput, newOutput, diffs} = 
+             {values = [Update.mapInserted escape newOutput diffs] }
           }.apply text in
         if opts.indent && Regex.matchIn \"\"\"^[\\s]*\\S\"\"\" text then
           let newOpts = { opts | indent = False,  newline = False } in
@@ -7069,8 +7208,9 @@ latex2html latex =
       in
       letrec gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
         ([\"span\", [[\"start\", p]], [[\"TEXT\", vOld]]], 
-         [\"span\", [[\"start\", p]], [[\"TEXT\", vNew]]], VListDiffs [(2, _)]) -> 
-           { values = [[(vNew, String.toInt p, String.toInt p + String.length vOld)]] }
+         [\"span\", [[\"start\", p]], [[\"TEXT\", vNew]]],
+          VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate (VListDiffs [(1, ListElemUpdate sd)]))]))]) -> 
+           { values = [[(Debug.log (\"escaped string '\" + vNew + \"' with diffs \" + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]] }
         ([_, _, cOld], [_, _, cNew], VListDiffs [(2, ListElemUpdate (VListDiffs childDiffs))]) ->
            gatherDiffsChild gatherDiffs 0 cOld cNew childDiffs
         _ -> {error = \"Could not find text differences \" + toString (outputOld, outputNew, diffs)}
