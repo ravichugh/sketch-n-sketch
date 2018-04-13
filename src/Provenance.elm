@@ -5,6 +5,7 @@ import Lang exposing (..)
 import LangTools
 import LangUnparser
 import Utils
+import ValUnparser
 
 import Set exposing (Set)
 
@@ -44,7 +45,7 @@ valToMaybePreviousSameVal val =
   let success () =
     case valBasedOn val of
       [basedOnVal] -> Just basedOnVal -- Should be correct even though not on expValueExp (all expValueExp will have only one basedOn)
-      _            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: unexpected extra basedOnVals" in Nothing
+      _            -> let _ = Utils.log <| "valToMaybePreviousSameVal shouldn't happen: unexpected extra basedOnVals " ++ ValUnparser.strVal val in Nothing
   in
   -- Try to roll back to an equivalent value in the program
   -- Not quite unevaluation (Perera et al.) because can only do obvious reversals; notably can't reverse applications.
@@ -60,9 +61,9 @@ valToMaybePreviousSameVal val =
       then success ()
       else Nothing
     ELet _ _ _ _ _ _ _ _ _                     -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ELet shouldn't appear in provenance" in Nothing
-    EIf _ _ _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EIf shouldn't appear in provenance" in Nothing
-    ECase _ _ _ _                              -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ECase shouldn't appear in provenance" in Nothing
-    ETypeCase _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeCase shouldn't appear in provenance" in Nothing
+    EIf _ _ _ _ _ _ _                          -> success ()
+    ECase _ _ _ _                              -> success ()
+    ETypeCase _ _ _ _                          -> success ()
     EComment _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EComment shouldn't appear in provenance" in Nothing
     EOption _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EOption shouldn't appear in provenance" in Nothing
     ETyp _ _ _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETyp shouldn't appear in provenance" in Nothing

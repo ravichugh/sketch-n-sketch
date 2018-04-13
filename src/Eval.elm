@@ -415,7 +415,7 @@ eval maybeRetEnvEId abortPred syntax env bt e =
     then Ok <| ret [] <| VBase (VBool True)
     else Ok <| ret [] <| VBase (VBool False)
 
-  EHole _ (HoleVal val)     -> Ok <| ret [] val.v_ -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape. UPDATE: the infinite loop problem should be fixed, should be okay to use `retV [val] val`, changed when needed.
+  EHole _ (HoleVal val)     -> Ok <| retV [val] val -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape. UPDATE: the infinite loop problem should be fixed, should be okay to use `retV [val] val`, changed when needed.
   EHole _ HoleEmpty         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
   EHole _ (HolePredicate _) -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"
   EHole _ (HoleNamed name)  -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole " ++ name ++ "!"
@@ -609,11 +609,22 @@ evalDelta syntax bt op is =
     Nothing     -> crashWithBacktrace syntax bt <| "Little evaluator bug: Eval.evalDelta " ++ strOp op
 
 
+recursionLimit : Int
+recursionLimit = 100
+
+
 -- Using this recursive function rather than desugaring to single
 -- applications: cleaner provenance (one record for entire app).
 --
 -- Returns: Result String (argVals, (functionResult, widgets))
 apply maybeRetEnvEId abortPred syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
+  if Utils.count (.val >> .eid >> (==) e.val.eid) bt > recursionLimit then
+    -- Testing for too much recursion here instead of in eval for two reasons:
+    -- (1) Naive backtrace length is not linear with amount of memory needed: valToSameVals crashes somewhere, probably because deeply recursive functions that return the same value as a pass-through value cause the widget subsumer to follow the provenance back up the return stack
+    -- (2) More efficient to test here than in eval
+    errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " Too much recursion!!" -- Better than crashing the browser.
+  else
+
   let recurse = apply maybeRetEnvEId abortPred syntax env bt bt_ e in
   case (psLeft, esLeft) of
     ([], []) ->
@@ -729,7 +740,7 @@ valToMaybePreviousSameVal val =
   let success () =
     case valBasedOn val of
       [basedOnVal] -> Just basedOnVal -- Should be correct even though not on expValueExp (all expValueExp will have only one basedOn)
-      _            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: unexpected extra basedOnVals" in Nothing
+      _            -> let _ = Utils.log <| "valToMaybePreviousSameVal shouldn't happen: unexpected extra basedOnVals " ++ ValUnparser.strVal val ++ " " ++ Syntax.unparser Syntax.Elm (valExp val) in Nothing
   in
   -- Try to roll back to an equivalent value in the program
   -- Not quite unevaluation (Perera et al.) because can only do obvious reversals; notably can't reverse applications.
@@ -745,9 +756,9 @@ valToMaybePreviousSameVal val =
       then success ()
       else Nothing
     ELet _ _ _ _ _ _ _ _ _                     -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ELet shouldn't appear in provenance" in Nothing
-    EIf _ _ _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EIf shouldn't appear in provenance" in Nothing
-    ECase _ _ _ _                              -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ECase shouldn't appear in provenance" in Nothing
-    ETypeCase _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeCase shouldn't appear in provenance" in Nothing
+    EIf _ _ _ _ _ _ _                          -> success ()
+    ECase _ _ _ _                              -> success ()
+    ETypeCase _ _ _ _                          -> success ()
     EComment _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EComment shouldn't appear in provenance" in Nothing
     EOption _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EOption shouldn't appear in provenance" in Nothing
     ETyp _ _ _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETyp shouldn't appear in provenance" in Nothing
