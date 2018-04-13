@@ -66,8 +66,8 @@ join = let
              -- Hence we need to offset startHead + length head by deltaLengthHeadInput to compute endHead.
              let gather:Int ->     List String -> Int ->  Int ->    Int ->               Int ->       List StringDiffs -> Results String (List String, ListDiffs VDiffs)
                  gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput diffs =
-               let _ = Debug.log ("gather@" ++ ":"  ++ toString lastIndexDeleted ++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) [] in
-               (\x -> let _ = Debug.log ("gather" ++ ":" ++ " " ++ toString lastIndexDeleted++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) (Results.toList x) in x) <|
+               --let _ = Debug.log ("gather@" ++ ":"  ++ toString lastIndexDeleted ++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) [] in
+               --(\x -> let _ = Debug.log ("gather" ++ ":" ++ " " ++ toString lastIndexDeleted++ " " ++ toString input++ " " ++ toString indexInput++ " " ++ toString startHead++ " " ++ toString deltaLengthHeadInput++ " " ++ toString offsetOutput++ " " ++ toString diffs) (Results.toList x) in x) <|
                case diffs of
                [] -> ok1 (input, [])
                ((StringUpdate start end replaced) :: diffTail) ->

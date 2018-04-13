@@ -6173,10 +6173,10 @@ markdown text =
       )
     ul_list regs = 
       let item = nth regs.group 1 in
-      sprintf \"\\n<ul>\\n\\t<li>%s</li>\\n</ul>\" (trim item)
+      sprintf \"\\n<ul>\\n\\t<li >%s</li>\\n</ul>\" (trim item)
     ol_list regs =
       let item = nth regs.group 1 in
-      sprintf \"\\n<ol>\\n\\t<li>%s</li>\\n</ol>\" (trim item)
+      sprintf \"\\n<ol>\\n\\t<li >%s</li>\\n</ol>\" (trim item)
     blockquote regs =
       let item = nth regs.group 2 in
       sprintf \"\\n<blockquote>%s</blockquote>\" (trim item)
@@ -6205,8 +6205,14 @@ markdown text =
     [\"\\r?\\n-{5,}\", \"\\n<hr>\"],                                        -- horizontal rule
     [\"\\r?\\n\\r?\\n(?!<ul>|<ol>|<p>|<blockquote>)\",\"<br>\"],                -- add newlines
     [\"\\r?\\n</ul>\\\\s?<ul>\", \"\", {
-      postReverse out diffs = 
-        updateReplace \"\"\"(<(ul|ol)>(?:(?!</\\2>)[\\s\\S])*)</li>\\s*<li>\"\"\" \"$1</li>\\n</$2>\\n<$2>\\n\\t<li>\" out diffs |> Tuple.first
+      postReverse out diffs =
+        updateReplace \"\"\"(<li>(?:(?!</li>)[\\s\\S])*</li>)(?=[\\s\\S]*?</(ul|ol)>)\"\"\" \"\\n</$2>\\n<$2>\\n\\t$1\" out diffs |>
+        case of
+          (v, VStringDiffs l) ->
+            if not (v == out) then
+              (v, VStringDiffs (List.map (
+                \\StringUpdate a b r -> StringUpdate (a + 6) (b + 6) r) l))
+            else (out, diffs)
     }],                                     -- fix extra ul
     [\"\\r?\\n</ol>\\\\s?<ol>\", \"\"],                                      -- fix extra ol, and extract blockquote
     [\"</blockquote>\\\\s?<blockquote>\", \"\\n\"]
