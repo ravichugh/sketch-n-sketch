@@ -2831,203 +2831,21 @@ parens = delimit \"(\" \")\"
 --   , [\"top\", toString y + \"px\"]
 --   ]
 
-
---------------------------------------------------------------------------------
--- Html.html
-
---type HTMLAttributeValue = HTMLAttributeUnquoted WS WS String | HTMLAttributeString WS WS String {-Delimiter char-}  String | HTMLAttributeNoValue
---type HTMLAttribute = HTMLAttribute WS String HTMLAttributeValue
---type HTMLCommentStyle = Less_Greater String {- The string should start with a ? -}
---                      | LessSlash_Greater {- The string should start with a space -} String
---                      | LessBang_Greater String
---                      | LessBangDashDash_DashDashGreater String
-
---type HTMLClosingStyle = RegularClosing WS | VoidClosing | AutoClosing | ForgotClosing
---type HTMLEndOpeningStyle = RegularEndOpening {- usually > -} | SlashEndOpening {- add a slash before the '>' of the opening, does not mark the element as ended in non-void HTML elements -}
--- HTMLInner may have unmatched closing tags inside it. You have to remove them to create a real innerHTML
--- HTMLInner may have unescaped chars (e.g. <, >, & etc.)
---type HTMLNode = HTMLInner String
---              | HTMLElement String (List HTMLAttribute) WS HTMLEndOpeningStyle (List HTMLNode) HTMLClosingStyle
---              | HTMLComment HTMLCommentStyle
-
--- Returns a list of HTML nodes parsed from a string. It uses the API for loosely parsing HTML
--- Example: html \"Hello<b>world</b>\" returns [[\"TEXT\",\"Hello\"],[\"b\",[], [[\"TEXT\", \"world\"]]]]
-html string = {
-  apply trees =
-    freeze (letrec domap tree = case tree of
-      HTMLInner v -> [\"TEXT\",
-        replaceAllIn \"&nbsp;|&amp;|&lt;|&gt;|</[^>]*>\" (\\{match} ->
-          case match of \"&nbsp;\" -> \" \"; \"&amp;\" -> \"&\"; \"&lt;\" -> \"<\"; \"&gt;\" -> \">\"; _ -> \"\") v]
-      HTMLElement tagName attrs ws1 endOp children closing ->
-        [ tagName
-        , map (case of
-          HTMLAttribute ws0 name value ->
-            let (name, content) = case value of
-              HTMLAttributeUnquoted _ _ content -> (name, content)
-              HTMLAttributeString _ _ _ content -> (name, content)
-              HTMLAttributeNoValue -> (name, \"\")
-            in
-            if name == \"style\" then
-              let styleContent = Regex.split \"; *\" content |> LensLess.List.filterMap (
-                  Regex.extract \"^([\\\\s\\\\S]*):\\\\s*([\\\\s\\\\S]*)$\"
-                )
-              in
-              [name, styleContent]
-            else [name, content]
-            ) attrs
-        , map domap children]
-      HTMLComment {args = [content]} -> [\"comment\", [[\"display\", \"none\"]], [[\"TEXT\", content]]]
-    in map domap trees)
-
-  update {input, oldOutput, newOutput, diffs} =
-    let toHTMLAttribute [name, mbStyleValue] =
-      let value =
-        if name == \"style\" then
-          LensLess.String.join \"; \" (LensLess.List.map (\\[styleName, styleValue] ->
-            styleName + \": \" + styleValue
-          ) mbStyleValue)
-        else mbStyleValue
-      in
-      HTMLAttribute \" \" name (HTMLAttributeString \"\" \"\" \"\\\"\" value) in
-    let toHTMLInner text = HTMLInner (replaceAllIn \"<|>|&\" (\\{match} -> case match of \"&\" -> \"&amp;\"; \"<\" -> \"&lt;\"; \">\" -> \"&gt;\"; _ -> \"\") text) in
-    letrec toHTMLNode e = case e of
-      [\"TEXT\",v2] -> toHTMLInner v2
-      [tag, attrs, children] -> HTMLElement tag (map toHTMLAttribute attrs) \"\"
-           RegularEndOpening (map toHTMLNode children) (RegularClosing \"\")
-    in
-    let mergeAttrs input oldOutput newOutput diffs =
-      foldDiff {
-        start =
-          -- Accumulator of HTMLAttributes, accumulator of differences, original list of HTMLAttributes
-          ([], [], input)
-        onSkip (revAcc, revDiffs, input) {count} =
-          --'outs' was the same in oldOutput and outputNew
-          let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
-          {values = [(newRevAcc, revDiffs, remainingInput)]}
-
-        onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
-          let inputElem::inputRemaining = input in
-          let newInputElem = case (inputElem, newOutput) of
-            (HTMLAttribute sp0 name value, [name2, value2 ]) ->
-             let realValue2 =
-               if name == \"style\" then -- value2
-                 String.join \"; \" (List.map (\\[styleName, styleValue] ->
-                   styleName + \": \" + styleValue
-                 ) values2)
-               else value2
-             in
-             case value of
-               HTMLAttributeUnquoted sp1 sp2 v ->
-                 case extractFirstIn \"\\\\s\" realValue2 of
-                   Nothing ->
-                     HTMLAttribute sp0 name2 (HTMLAttributeUnquoted sp1 sp2 realValue2)
-                   _ ->
-                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 \"\\\"\" realValue2)
-               HTMLAttributeString sp1 sp2 delim v ->
-                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 delim realValue2)
-               HTMLAttributeNoValue ->
-                  if value2 == \"\" then HTMLAttribute sp0 name2 (HTMLAttributeNoValue)
-                  else toHTMLAttribute [name2, value2]
-               _ -> error <| \"expected HTMLAttributeUnquoted, HTMLAttributeString, HTMLAttributeNoValue, got \" ++ toString (inputElem, newOutput)
-            _ -> error \"Expected HTMLAttribute, got \" ++ toString (inputElem, newOutput)
-          in
-          let newRevDiffs = case Update.diff inputElem newInputElem of
-            Ok (Just d) -> (index, ListElemUpdate d)::revDiffs
-            Ok (Nothing) ->  revDiffs
-            Err msg -> error msg
-          in
-          {values = [(newInputElem::revAcc, newRevDiffs, inputRemaining)]}
-
-        onRemove (revAcc, revDiffs, input) {oldOutput, index} =
-          let _::remainingInput = input in
-          { values = [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)] }
-
-        onInsert (revAcc, revDiffs, input) {newOutput, index} =
-          { values = [(toHTMLAttribute newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]}
-
-        onFinish (revAcc, revDiffs, _) =
-         {values = [(reverse revAcc, reverse revDiffs)] }
-
-        onGather (acc, diffs) =
-          { value = acc,
-             diff = if len diffs == 0 then Nothing else Just (VListDiffs diffs) }
-      } oldOutput newOutput diffs
-    in
-    -- Returns {values = List (List HTMLNode)., diffs = List (Maybe ListDiff)} or { error = ... }
-    letrec mergeNodes input oldOutput newOutput diffs =
-      foldDiff {
-        start =
-          -- Accumulator of values, accumulator of differences, original input
-          ([], [], input)
-
-        onSkip (revAcc, revDiffs, input) {count} =
-          --'outs' was the same in oldOutput and outputNew
-          let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
-          {values = [(newRevAcc, revDiffs, remainingInput)]}
-
-        onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
-          let inputElem::inputRemaining = input in
-          --Debug.start (\"onUpdate\" + toString (oldOutput, newOutput, diffs, index)) <| \\_ ->
-          let newInputElems = case (inputElem, oldOutput, newOutput) of
-            ( HTMLInner v, _, [\"TEXT\",v2]) -> { values = [toHTMLInner v2] }
-            ( HTMLElement tagName attrs ws1 endOp children closing,
-              [tag1, attrs1, children1], [tag2, attrs2, children2] ) ->
-               if tag2 == tagName || attrs1 == attrs2 || children2 == children1  then
-                 case diffs of
-                   VListDiffs listDiffs ->
-                     let (newAttrsMerged, otherDiffs) = case listDiffs of
-                       (1, ListElemUpdate diffAttrs)::tailDiff ->
-                         (mergeAttrs attrs attrs1 attrs2 diffAttrs, tailDiff)
-                       _ -> ({values = [attrs]}, listDiffs)
-                     in
-                     let newChildrenMerged = case otherDiffs of
-                       (2, ListElemUpdate diffNodes)::_ ->
-                         mergeNodes children children1 children2 diffNodes
-                       _ -> {values = [children]}
-                     in
-                     newAttrsMerged |>LensLess.Results.andThen (\\newAttrs ->
-                       newChildrenMerged |>LensLess.Results.andThen (\\newChildren ->
-                         {values = [HTMLElement tag2 newAttrs ws1 endOp newChildren closing]}
-                       )
-                     )
-               else {values = [toHTMLNode newOutput]}
-            _ -> {values = [toHTMLNode newOutput]}
-          in
-          newInputElems |>LensLess.Results.andThen (\\newInputElem ->
-            --Debug.start (\"newInputElem:\" + toString newInputElem) <| \\_ ->
-            case Update.diff inputElem newInputElem of
-              Err msg -> {error = msg}
-              Ok maybeDiff ->
-                let newRevDiffs = case maybeDiff of
-                  Nothing -> revDiffs
-                  Just v -> (index, ListElemUpdate v)::revDiffs in
-                {values = [ (newInputElem::revAcc, newRevDiffs, inputRemaining) ]}
-          )
-
-        onRemove (revAcc, revDiffs, input) {oldOutput, index} =
-          let _::remainingInput = input in
-          { values = [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)] }
-
-        onInsert (revAcc, revDiffs, input) {newOutput, index} =
-          { values = [(toHTMLNode newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]}
-
-        onFinish (revAcc, revDiffs, _) =
-         {values = [(reverse revAcc, reverse revDiffs)] }
-
-        onGather (acc, diffs) =
-          { value = acc,
-             diff = if len diffs == 0 then Nothing else Just (VListDiffs diffs)}
-      } oldOutput newOutput diffs
-    in mergeNodes input oldOutput newOutput diffs
-}.apply (parseHTML string)
-
 --------------------------------------------------------------------------------
 -- Regex --
 
 Regex =
   letrec split regex s =
     case extractFirstIn (\"^([\\\\s\\\\S]*)(\" + regex + \")([\\\\s\\\\S]*)$\") s of
-      Just [before, _, after] -> before :: split regex after
+      Just [before, removed, after] ->
+        if before == \"\" && removed == \"\" then
+          case extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" after of
+            Nothing -> [after]
+            Just [x, remaining] ->
+              let head::tail = split regex remaining in
+              (x + head) :: tail
+
+        else before :: split regex after
       _ -> [s]
   in
   letrec find regex s =
@@ -3298,6 +3116,196 @@ textInner s = {
     in
     {values = [textOf output]}
 }.apply s
+
+--------------------------------------------------------------------------------
+-- Html.html
+
+--type HTMLAttributeValue = HTMLAttributeUnquoted WS WS String | HTMLAttributeString WS WS String {-Delimiter char-}  String | HTMLAttributeNoValue
+--type HTMLAttribute = HTMLAttribute WS String HTMLAttributeValue
+--type HTMLCommentStyle = Less_Greater String {- The string should start with a ? -}
+--                      | LessSlash_Greater {- The string should start with a space -} String
+--                      | LessBang_Greater String
+--                      | LessBangDashDash_DashDashGreater String
+
+--type HTMLClosingStyle = RegularClosing WS | VoidClosing | AutoClosing | ForgotClosing
+--type HTMLEndOpeningStyle = RegularEndOpening {- usually > -} | SlashEndOpening {- add a slash before the '>' of the opening, does not mark the element as ended in non-void HTML elements -}
+-- HTMLInner may have unmatched closing tags inside it. You have to remove them to create a real innerHTML
+-- HTMLInner may have unescaped chars (e.g. <, >, & etc.)
+--type HTMLNode = HTMLInner String
+--              | HTMLElement String (List HTMLAttribute) WS HTMLEndOpeningStyle (List HTMLNode) HTMLClosingStyle
+--              | HTMLComment HTMLCommentStyle
+
+-- Returns a list of HTML nodes parsed from a string. It uses the API for loosely parsing HTML
+-- Example: html \"Hello<b>world</b>\" returns [[\"TEXT\",\"Hello\"],[\"b\",[], [[\"TEXT\", \"world\"]]]]
+html string = {
+  apply trees =
+    freeze (letrec domap tree = case tree of
+      HTMLInner v -> [\"TEXT\",
+        replaceAllIn \"&nbsp;|&amp;|&lt;|&gt;|</[^>]*>\" (\\{match} ->
+          case match of \"&nbsp;\" -> \" \"; \"&amp;\" -> \"&\"; \"&lt;\" -> \"<\"; \"&gt;\" -> \">\"; _ -> \"\") v]
+      HTMLElement tagName attrs ws1 endOp children closing ->
+        [ tagName
+        , map (case of
+          HTMLAttribute ws0 name value ->
+            let (name, content) = case value of
+              HTMLAttributeUnquoted _ _ content -> (name, content)
+              HTMLAttributeString _ _ _ content -> (name, content)
+              HTMLAttributeNoValue -> (name, \"\")
+            in
+            if name == \"style\" then
+              let styleContent = Regex.split \"(?=;\\\\s*\\\\S)\" content |> LensLess.List.filterMap (
+                  Regex.extract \"^;?([\\\\s\\\\S]*):([\\\\s\\\\S]*);?\\\\s*$\"
+                )
+              in
+              [name, styleContent]
+            else [name, content]
+            ) attrs
+        , map domap children]
+      HTMLComment {args = [content]} -> [\"comment\", [[\"display\", \"none\"]], [[\"TEXT\", content]]]
+    in map domap trees)
+
+  update {input, oldOutput, newOutput, diffs} =
+    let toHTMLAttribute [name, mbStyleValue] =
+      let value =
+        if name == \"style\" then
+          LensLess.String.join \"; \" (LensLess.List.map (\\[styleName, styleValue] ->
+            styleName + \": \" + styleValue
+          ) mbStyleValue)
+        else mbStyleValue
+      in
+      HTMLAttribute \" \" name (HTMLAttributeString \"\" \"\" \"\\\"\" value) in
+    let toHTMLInner text = HTMLInner (replaceAllIn \"<|>|&\" (\\{match} -> case match of \"&\" -> \"&amp;\"; \"<\" -> \"&lt;\"; \">\" -> \"&gt;\"; _ -> \"\") text) in
+    letrec toHTMLNode e = case e of
+      [\"TEXT\",v2] -> toHTMLInner v2
+      [tag, attrs, children] -> HTMLElement tag (map toHTMLAttribute attrs) \"\"
+           RegularEndOpening (map toHTMLNode children) (RegularClosing \"\")
+    in
+    let mergeAttrs input oldOutput newOutput diffs =
+      foldDiff {
+        start =
+          -- Accumulator of HTMLAttributes, accumulator of differences, original list of HTMLAttributes
+          ([], [], input)
+        onSkip (revAcc, revDiffs, input) {count} =
+          --'outs' was the same in oldOutput and outputNew
+          let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
+          {values = [(newRevAcc, revDiffs, remainingInput)]}
+
+        onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
+          let inputElem::inputRemaining = input in
+          let newInputElem = case (inputElem, newOutput) of
+            (HTMLAttribute sp0 name value, [name2, value2 ]) ->
+             let realValue2 =
+               if name == \"style\" then -- value2
+                 String.join \"\" (List.map (\\[styleName, styleValue] ->
+                   styleName + \":\" + styleValue + \";\"
+                 ) values2)
+               else value2
+             in
+             case value of
+               HTMLAttributeUnquoted sp1 sp2 v ->
+                 case extractFirstIn \"\\\\s\" realValue2 of
+                   Nothing ->
+                     HTMLAttribute sp0 name2 (HTMLAttributeUnquoted sp1 sp2 realValue2)
+                   _ ->
+                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 \"\\\"\" realValue2)
+               HTMLAttributeString sp1 sp2 delim v ->
+                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 delim realValue2)
+               HTMLAttributeNoValue ->
+                  if value2 == \"\" then HTMLAttribute sp0 name2 (HTMLAttributeNoValue)
+                  else toHTMLAttribute [name2, value2]
+               _ -> error <| \"expected HTMLAttributeUnquoted, HTMLAttributeString, HTMLAttributeNoValue, got \" ++ toString (inputElem, newOutput)
+            _ -> error \"Expected HTMLAttribute, got \" ++ toString (inputElem, newOutput)
+          in
+          let newRevDiffs = case Update.diff inputElem newInputElem of
+            Ok (Just d) -> (index, ListElemUpdate d)::revDiffs
+            Ok (Nothing) ->  revDiffs
+            Err msg -> error msg
+          in
+          {values = [(newInputElem::revAcc, newRevDiffs, inputRemaining)]}
+
+        onRemove (revAcc, revDiffs, input) {oldOutput, index} =
+          let _::remainingInput = input in
+          { values = [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)] }
+
+        onInsert (revAcc, revDiffs, input) {newOutput, index} =
+          { values = [(toHTMLAttribute newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]}
+
+        onFinish (revAcc, revDiffs, _) =
+         {values = [(reverse revAcc, reverse revDiffs)] }
+
+        onGather (acc, diffs) =
+          { value = acc,
+             diff = if len diffs == 0 then Nothing else Just (VListDiffs diffs) }
+      } oldOutput newOutput diffs
+    in
+    -- Returns {values = List (List HTMLNode)., diffs = List (Maybe ListDiff)} or { error = ... }
+    letrec mergeNodes input oldOutput newOutput diffs =
+      foldDiff {
+        start =
+          -- Accumulator of values, accumulator of differences, original input
+          ([], [], input)
+
+        onSkip (revAcc, revDiffs, input) {count} =
+          --'outs' was the same in oldOutput and outputNew
+          let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
+          {values = [(newRevAcc, revDiffs, remainingInput)]}
+
+        onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
+          let inputElem::inputRemaining = input in
+          --Debug.start (\"onUpdate\" + toString (oldOutput, newOutput, diffs, index)) <| \\_ ->
+          let newInputElems = case (inputElem, oldOutput, newOutput) of
+            ( HTMLInner v, _, [\"TEXT\",v2]) -> { values = [toHTMLInner v2] }
+            ( HTMLElement tagName attrs ws1 endOp children closing,
+              [tag1, attrs1, children1], [tag2, attrs2, children2] ) ->
+               if tag2 == tagName || attrs1 == attrs2 || children2 == children1  then
+                 case diffs of
+                   VListDiffs listDiffs ->
+                     let (newAttrsMerged, otherDiffs) = case listDiffs of
+                       (1, ListElemUpdate diffAttrs)::tailDiff ->
+                         (mergeAttrs attrs attrs1 attrs2 diffAttrs, tailDiff)
+                       _ -> ({values = [attrs]}, listDiffs)
+                     in
+                     let newChildrenMerged = case otherDiffs of
+                       (2, ListElemUpdate diffNodes)::_ ->
+                         mergeNodes children children1 children2 diffNodes
+                       _ -> {values = [children]}
+                     in
+                     newAttrsMerged |>LensLess.Results.andThen (\\newAttrs ->
+                       newChildrenMerged |>LensLess.Results.andThen (\\newChildren ->
+                         {values = [HTMLElement tag2 newAttrs ws1 endOp newChildren closing]}
+                       )
+                     )
+               else {values = [toHTMLNode newOutput]}
+            _ -> {values = [toHTMLNode newOutput]}
+          in
+          newInputElems |>LensLess.Results.andThen (\\newInputElem ->
+            --Debug.start (\"newInputElem:\" + toString newInputElem) <| \\_ ->
+            case Update.diff inputElem newInputElem of
+              Err msg -> {error = msg}
+              Ok maybeDiff ->
+                let newRevDiffs = case maybeDiff of
+                  Nothing -> revDiffs
+                  Just v -> (index, ListElemUpdate v)::revDiffs in
+                {values = [ (newInputElem::revAcc, newRevDiffs, inputRemaining) ]}
+          )
+
+        onRemove (revAcc, revDiffs, input) {oldOutput, index} =
+          let _::remainingInput = input in
+          { values = [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)] }
+
+        onInsert (revAcc, revDiffs, input) {newOutput, index} =
+          { values = [(toHTMLNode newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]}
+
+        onFinish (revAcc, revDiffs, _) =
+         {values = [(reverse revAcc, reverse revDiffs)] }
+
+        onGather (acc, diffs) =
+          { value = acc,
+             diff = if len diffs == 0 then Nothing else Just (VListDiffs diffs)}
+      } oldOutput newOutput diffs
+    in mergeNodes input oldOutput newOutput diffs
+}.apply (parseHTML string)
+
 
 --------------------------------------------------------------------------------
 -- Html
