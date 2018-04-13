@@ -6409,18 +6409,20 @@ fromleo_modelviewcontroller =
 
 ui model =
   let
-    modify defaultContent trigger f x =
+    stringFlagForUpdate state1 state2 f model =
       Update.applyLens
-        { apply i = Update.freeze defaultContent
-        , update {input, outputNew} =
-            if outputNew == trigger
-              then {values = [f input]}
-              else {values = [input]}
-        } x
+        { apply _ = Update.freeze state1
+        , update {input = model, outputNew} =
+            if outputNew == state2
+              then {values = [f model]}
+              else {values = [model]}
+        } model
   in
   { button name controller =
       [ \"button\"
-      , [[\"trigger\", modify \"\" \"#\" controller model], [\"onclick\", \"this.setAttribute('trigger', '#')\"]]
+      , [ [\"trigger\", stringFlagForUpdate \"\" \"#\" controller model]
+        , [\"onclick\", \"this.setAttribute('trigger', '#')\"]
+        ]
       , [Html.textNode name]
       ]
   }
