@@ -1426,6 +1426,13 @@ expToMaybeFuncBody exp =
     _                   -> Nothing
 
 
+expToMaybeFuncPatsAndBody : Exp -> Maybe (List Pat, Exp)
+expToMaybeFuncPatsAndBody exp =
+  case exp.val.e__ of
+    EFun _ pats body _ -> Just (pats, body)
+    _                  -> Nothing
+
+
 expToCaseScrutinee : Exp -> Exp
 expToCaseScrutinee exp =
   case exp.val.e__ of
@@ -1438,6 +1445,13 @@ expToAppArgs exp =
   case exp.val.e__ of
     EApp _ _ args _ _ -> args
     _                 -> Debug.crash <| "LangTools.expToAppArgs exp is not an EApp: " ++ unparseWithIds exp
+
+
+expToAppFuncAndArgs : Exp -> (Exp, List Exp)
+expToAppFuncAndArgs exp =
+  case exp.val.e__ of
+    EApp _ fExp args _ _ -> (fExp, args)
+    _                    -> Debug.crash <| "LangTools.expToAppFuncAndArgs exp is not an EApp: " ++ unparseWithIds exp
 
 
 expToMaybeAppFunc : Exp -> Maybe Exp

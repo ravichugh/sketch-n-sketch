@@ -86,6 +86,50 @@ valToSameVals val =
     Nothing         -> [val]
 
 
+isSameOrDistalSameVal : Val -> Val -> Bool
+isSameOrDistalSameVal sameOrDistal reference =
+  valToSameVals reference
+  |> List.any (valEqFast sameOrDistal)
+
+
+-- Where duplicated, first leave most proxmial val, then leave closest to front of list.
+dedupSameVals : List Val -> List Val
+dedupSameVals vals =
+  vals
+  |> Utils.foldr
+      []
+      (\val deduped ->
+        let newDeduped = List.filter (\dedupedVal -> not <| isSameOrDistalSameVal dedupedVal val) deduped in
+        if List.any (\dedupedVal -> isSameOrDistalSameVal val dedupedVal) newDeduped then
+          newDeduped
+        else
+          val::newDeduped
+      )
+
+
+-- Given a list of vals, some of which may be x coordinates and y coordinates,
+-- consolidate any X/Y pairs that came from the same pair.
+consolidatePointPartsIntoPoints : List Val -> List Val
+consolidatePointPartsIntoPoints vals =
+  let
+    makePoint val1 val2 =
+      let (val1Sames, val2Sames) = (valToSameVals val1, valToSameVals val2)in
+      case coordinateIntermediatesToSharedPointParents val1Sames val2Sames |> dedupSameVals of
+        point::_ -> Just point
+        _        ->
+          -- Reverse x and y.
+          case coordinateIntermediatesToSharedPointParents val2Sames val1Sames |> dedupSameVals of
+            point::_ -> Just point
+            _        -> Nothing
+  in
+  case vals of
+    []             -> []
+    val1::restVals ->
+      case Utils.mapAndRemoveFirstSuccess (makePoint val1) restVals of
+        Just (point, newRestVals) -> point :: consolidatePointPartsIntoPoints newRestVals
+        Nothing                   -> val1  :: consolidatePointPartsIntoPoints restVals
+
+
 pointPartsToPointValsStrict : Val -> Val -> List Val
 pointPartsToPointValsStrict xValTree yValTree =
   let parentPoints = coordinateIntermediatesToSharedPointParents (valToSameVals xValTree) (valToSameVals yValTree) in

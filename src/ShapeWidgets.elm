@@ -1272,6 +1272,11 @@ selectedFeaturesValTrees ((rootI, shapeTree) as slate) widgets selectedFeatures 
       )
 
 
+selectedFeaturesValTreesWithPoints : RootedIndexedTree -> Widgets -> List SelectableFeature -> List Val
+selectedFeaturesValTreesWithPoints slate widgets selectedFeatures =
+  selectedFeaturesValTrees slate widgets selectedFeatures
+  |> Provenance.consolidatePointPartsIntoPoints
+
 
 -- Combinatorical explosion of interpretations.
 selectedFeaturesToEIdInterpretationLists : Exp -> RootedIndexedTree -> Widgets -> List SelectableFeature -> (Exp -> Bool) -> List (List (Set EId))

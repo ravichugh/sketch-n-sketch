@@ -58,6 +58,36 @@ contextInputVals editingContext maybeEnv program =
       []
 
 
+maybeSynthesisContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Maybe (Env, Maybe Ident, Exp, List Val)
+maybeSynthesisContext syntax editingContext program =
+  case editingContext of
+    Just (focusedEId, Just callEId) ->
+      let
+        contextExp         = LangTools.justFindExpByEId program focusedEId
+        callExp            = LangTools.justFindExpByEId program callEId
+        (funcExp, argExps) = LangTools.expToAppFuncAndArgs callExp
+        psuedoProgram      = program |> replaceExpNodeE__ByEId callEId (eTuple (funcExp::argExps)).val.e__
+      in
+      if isFunc contextExp then
+        Eval.doEvalEarlyAbort Nothing (.val >> .eid >> (==) callEId) syntax Eval.initEnv psuedoProgram
+        |> Result.toMaybe
+        |> Maybe.andThen
+            (\((val, widgets), maybeContextEnv) ->
+              case val.v_ of
+                VList (funcVal::argVals) ->
+                  case funcVal.v_ of
+                    VClosure maybeRecName funcPats funcBody closureEnv -> Just (closureEnv, maybeRecName, contextExp, argVals)
+                    _                                                  -> Nothing
+                _ ->
+                  Nothing
+            )
+      else
+        Nothing
+
+    _ ->
+      Nothing
+
+
 
 evalAtContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Result String ((Val, Widgets), Maybe Env)
 evalAtContext syntax editingContext program =

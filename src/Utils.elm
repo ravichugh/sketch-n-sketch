@@ -473,6 +473,16 @@ maybeFindAndRemoveFirst p xs =
         maybeFindAndRemoveFirst p xs_
         |> Maybe.map (\(removed, others) -> (removed, x::others))
 
+mapAndRemoveFirstSuccess : (a -> Maybe b) -> List a -> Maybe (b, List a)
+mapAndRemoveFirstSuccess f list =
+  case list of
+    []   -> Nothing
+    x::xs ->
+      case f x of
+        Just result -> Just (result, xs)
+        Nothing     ->
+          mapAndRemoveFirstSuccess f xs
+          |> Maybe.map (\(mapped, others) -> (mapped, x::others))
 
 removeFirst : a -> List a -> List a
 removeFirst x ys = case ys of
