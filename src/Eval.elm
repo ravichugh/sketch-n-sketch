@@ -1,4 +1,4 @@
-module Eval exposing (run, doEval, doEvalEarlyAbort, runUntilTheEnd, parseAndRun, parseAndRun_, evalDelta, initEnv, addSubsumingPriorWidgets, cons, eval_)
+module Eval exposing (run, doEval, doEvalEarlyAbort, runUntilTheEnd, parseAndRun, parseAndRun_, evalDelta, initEnv, addSubsumingPriorWidgets)
 
 import Debug
 import Dict
