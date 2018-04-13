@@ -3207,7 +3207,7 @@ html string = {
                if name == \"style\" then -- value2
                  String.join \"\" (List.map (\\[styleName, styleValue] ->
                    styleName + \":\" + styleValue + \";\"
-                 ) values2)
+                 ) value2)
                else value2
              in
              case value of
