@@ -12,7 +12,7 @@ port module InterfaceController exposing
   , msgUserHasTyped
   , msgOutputCanvasUpdate
   , msgUndo, msgRedo, msgCleanCode
-  , msgHideWidgets
+  , msgHideWidgets, msgAddToOutput
   , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
@@ -125,6 +125,7 @@ import ElmParser
 import LangUnparser -- for comparing expressions for equivalence
 import History exposing (History)
 import SlowTypeInference
+import TransformativeSynth
 
 import ImpureGoodies
 
@@ -1627,6 +1628,47 @@ hideWidgets old =
     upstateRun <| clearSelections { old | code = Syntax.unparser old.syntax newProgram }
   else
     old
+
+
+msgAddToOutput = Msg "Add to Output" addToOutput
+
+addToOutput : Model -> Model
+addToOutput old =
+  let
+    -- Gather values to add to output
+    valsToAdd = ShapeWidgets.selectedFeaturesValTreesWithPoints old.slate old.widgets (Set.toList old.selectedFeatures)
+
+    maybeSynthesisContext = FocusedEditingContext.maybeSynthesisContext old.syntax old.editingContext old.inputExp
+
+    -- Set up synthesis problem
+    -- env, let f = (\x y -> e) in f arg1 arg2 ==> let f = (\x y -> e') in f arg1' arg2' s.t. valsToAdd ⊆ output
+    -- START HERE see if this actually works (it compiles!!)
+    synthesisResults =
+      maybeSynthesisContext
+      |> Maybe.map
+          (\(env, maybeRecursiveName, funcExp, initArgVals) ->
+            let
+              newFuncExps =
+                TransformativeSynth.search
+                  env
+                  maybeRecursiveName
+                  funcExp
+                  initArgVals
+                  [TransformativeSynth.makeValueSetConstraint old.syncOptions valsToAdd]
+
+              synthesisResults =
+                newFuncExps
+                |> Utils.mapi1
+                    (\(i, newFuncExp) ->
+                      let newProgram = old.inputExp |> replaceExpNode funcExp.val.eid newFuncExp in
+                      synthesisResult ("Option " ++ toString i) newProgram
+                    )
+            in
+            synthesisResults
+          )
+      |> Maybe.withDefault []
+  in
+  { old | synthesisResultsDict = Dict.insert "Add to Output" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
 
 msgDigHole = Msg "Dig Hole" <| \old ->
