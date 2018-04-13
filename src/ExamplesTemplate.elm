@@ -255,6 +255,7 @@ LEO_TO_ELM fromleo/markdown_optimized
 LEO_TO_ELM fromleo/markdown_optimized_lensless
 LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
+LEO_TO_ELM fromleo/recipe2
 LEO_TO_ELM fromleo/modelviewcontroller
 LEO_TO_ELM fromleo/programmabledoc
 LEO_TO_ELM fromleo/latexeditor
@@ -281,18 +282,17 @@ docsCategory =
       (\i (caption, program) ->
         makeLeoExample (toString (2+i) ++ ": " ++ caption) program
       )
-      [ ("Lens: Maybe Map", mapMaybeLens)
+      [ ("Model View Controller", fromleo_modelviewcontroller)
+      , ("Scalable Recipe Editor", fromleo_recipe2)
+      , ("Programmable Text Editor", fromleo_programmabledoc)
+      , ("Markdown Editor", fromleo_markdown)
+      , ("LaTeX Editor", fromleo_latexeditor)
+      -- TODO maybe Conference?
+      , ("Conference Budget", fromleo_conference_budgetting)
+      , ("Lens: Maybe Map", mapMaybeLens)
       , ("Lens: List Map 1", mapListLens_1)
       , ("Lens: List Map 2", mapListLens_2)
       , ("Lens: List Append", listAppendLens)
-      , ("Markdown", fromleo_markdown)
-      , ("Conference Budget", fromleo_conference_budgetting)
-      , ("Proportional Recipe editor", fromleo_recipe)
-      , ("Programmable document", fromleo_programmabledoc)
-      , ("Model View Controller", fromleo_modelviewcontroller)
-      , ("LaTeX editor", fromleo_latexeditor)
---      , ("TODO", blankDoc)
---      , ("Simple Budget", simpleBudget)
       ]
     )
   )
