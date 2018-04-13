@@ -6205,8 +6205,8 @@ markdown text =
     [\"\\r?\\n-{5,}\", \"\\n<hr>\"],                                        -- horizontal rule
     [\"\\r?\\n\\r?\\n(?!<ul>|<ol>|<p>|<blockquote>)\",\"<br>\"],                -- add newlines
     [\"\\r?\\n</ul>\\\\s?<ul>\", \"\", {
-      postReverse = 
-        updateReplace \"\"\"(<(ul|ol)>(?:(?!</\\2>)[\\s\\S])*)</li>\\s*<li>\"\"\" \"$1</li>\\n</$2>\\n<$2>\\n\\t<li>\"
+      postReverse out diffs = 
+        updateReplace \"\"\"(<(ul|ol)>(?:(?!</\\2>)[\\s\\S])*)</li>\\s*<li>\"\"\" \"$1</li>\\n</$2>\\n<$2>\\n\\t<li>\" out diffs |> Tuple.first
     }],                                     -- fix extra ul
     [\"\\r?\\n</ol>\\\\s?<ol>\", \"\"],                                      -- fix extra ol, and extract blockquote
     [\"</blockquote>\\\\s?<blockquote>\", \"\\n\"]
@@ -6215,10 +6215,14 @@ markdown text =
   foldLeft (\\elem acc -> case elem of
       [regex, replacement] -> Regex.replace regex replacement acc
       [regex, replacement, {postReverse = fun}] ->
-        let newAcc = { apply acc = freeze acc,
-          update {newOutput=out,diffs} =
+        let newAcc = {
+          apply acc = freeze acc
+          update {input,newOutput=out,diffs} =
             case fun out diffs of
               (value, diff) -> { values = [value], diffs = [Just diff] }
+              value  -> case Update.diff input value of
+                Ok n -> { values = [value], diffs = [n] }
+                Err x -> { error = x}
           }.apply acc in
         Regex.replace regex replacement newAcc 
   ) finaltext rules 

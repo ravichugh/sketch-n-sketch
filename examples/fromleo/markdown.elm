@@ -74,7 +74,7 @@ markdown text =
     ["\r?\n\r?\n(?!<ul>|<ol>|<p>|<blockquote>)","<br>"],                -- add newlines
     ["\r?\n</ul>\\s?<ul>", "", {
       postReverse out diffs = 
-        updateReplace """(<(ul|ol)>(?:(?!</\2>)[\s\S])*)</li>\s*<li>""" "$1</li>\n</$2>\n<$2>\n\t<li>" out diffs |> (\(v, _) -> v)
+        updateReplace """(<(ul|ol)>(?:(?!</\2>)[\s\S])*)</li>\s*<li>""" "$1</li>\n</$2>\n<$2>\n\t<li>" out diffs |> Tuple.first
     }],                                     -- fix extra ul
     ["\r?\n</ol>\\s?<ol>", ""],                                      -- fix extra ol, and extract blockquote
     ["</blockquote>\\s?<blockquote>", "\n"]

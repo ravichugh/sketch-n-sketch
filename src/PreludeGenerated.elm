@@ -3267,6 +3267,8 @@ Maybe =
 Tuple =
   { mapFirst f (x, y) = (f x, y)
     mapSecond f (x, y) = (x, f y)
+    first (x, y) = x
+    second (x, y) = y
   }
 
 --------------------------------------------------------------------------------
