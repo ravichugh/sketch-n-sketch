@@ -239,7 +239,6 @@ LEO_TO_ELM welcome1
 LEO_TO_ELM tableOfStatesA
 LEO_TO_ELM tableOfStatesB
 LEO_TO_ELM tableOfStatesC
-LEO_TO_ELM tableOfStatesD
 LEO_TO_ELM simpleBudget
 LEO_TO_ELM mapMaybeLens
 LEO_TO_ELM mapListLens_1
@@ -267,6 +266,7 @@ docsCategory =
   ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
     , makeLeoExample "1b: Table of States" tableOfStatesC
+    , makeLeoExample "1c: Table of States" tableOfStatesB
     ] ++
     (
     List.indexedMap
@@ -284,7 +284,7 @@ docsCategory =
       , ("Model View Controller", fromleo_modelviewcontroller)
       , ("LaTeX editor", fromleo_latexeditor)
 --      , ("TODO", blankDoc)
-      , ("Simple Budget", simpleBudget)
+--      , ("Simple Budget", simpleBudget)
       ]
     )
   )
