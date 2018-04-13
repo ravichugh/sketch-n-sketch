@@ -28,10 +28,13 @@ import HTMLValParser
 
 finalMode = False
 
-nToAverageOn = if finalMode then 10 else 10
+nToAverageOn = if finalMode then 10 else 1
 
 programs = Dict.fromList [
-  ("Markdown", ExamplesGenerated.fromleo_markdown),
+  ("Markdown Recursive", ExamplesGenerated.fromleo_markdown),
+  ("Markdown Linear",    ExamplesGenerated.fromleo_markdown_optimized),
+  ("Markdown with lens", ExamplesGenerated.fromleo_markdown_optimized),
+  ("Markdown w/o lens", ExamplesGenerated.fromleo_markdown_optimized_lensless),
   ("Recipe", ExamplesGenerated.fromleo_recipe),
   ("Budgetting", ExamplesGenerated.fromleo_conference_budgetting)
   ]
@@ -40,32 +43,56 @@ type OutTransform = NoTransform | StringTransform (String -> String) | ValTransf
 
 type Benchmark = BUpdate String (List OutTransform)
 
-replaceBy: ((String -> String) -> a) -> String -> String -> a
-replaceBy final r result =
-  final <| replace (AtMost 1) (regex r) (\_ -> result)
-
+replaceBy: HowMany -> ((String -> String) -> a) -> String -> String -> a
+replaceBy howmany final r result =
+  final <| Regex.replace howmany (regex r) (\_ -> result)
 
 replaceStringBy: String -> String -> OutTransform
-replaceStringBy = replaceBy StringTransform
+replaceStringBy = replaceBy (AtMost 1) StringTransform
 
 replaceHtmlBy: String -> String -> OutTransform
-replaceHtmlBy = replaceBy HTMLTransform
+replaceHtmlBy = replaceBy (AtMost 1) HTMLTransform
+
+replaceStringAllBy = replaceBy All StringTransform
+replaceHtmlAllBy = replaceBy All HTMLTransform
+
+transform_markdown_ab_linear = [ NoTransform
+   , replaceHtmlBy "demo" "showcase"
+   , replaceHtmlBy "fr\\." "en."
+   , replaceHtmlBy "bidirectional" "two-directional"
+   , replaceHtmlBy "regex" "_regex_"
+   , replaceStringBy "\\[\\s*\"TEXT\",\\s*\" showcase\"\\s*\\]\\s*\\]\\s*\\],"
+                     "  [    \"TEXT\",    \" showcase\"      ]      ]      ],[\"div\", [], [[\"TEXT\", \"Hello\"]]],"
+   , replaceHtmlBy "Do not use CTRL\\+V" "Do not use CTRL+V</li><li>But use everything else"
+   , replaceHtmlBy " to introduce" " <br>to introduce"
+   , replaceHtmlBy "</code>" "</code></li><li>Add a numbered point"
+   , replaceHtmlBy "h4" "h2"
+   ]
+
+transform_markdown_ab_lens = [ NoTransform
+  , replaceHtmlBy "demo" "showcase"
+  , replaceHtmlBy "fr\\." "en."
+  , replaceHtmlBy "bidirectional" "two-directional"
+  , replaceHtmlBy "regex" "_regex_"
+  , replaceHtmlAllBy "list" "lists"
+  , replaceHtmlBy " to introduce" " <br>to introduce"
+  , replaceHtmlBy "h4" "h2"
+  ]
 
 benchmarks: List Benchmark
 benchmarks = [
-  {--}
+  {--
   BUpdate "Budgetting" [ NoTransform
                        , replaceHtmlBy "-18000" "0"
                        ],
   --}
   {--}
-  BUpdate "Markdown" [ NoTransform
-                     , replaceHtmlBy "demo" "demonstration"
-                     , replaceHtmlBy "bidirectional" "two-directional"
-                     , replaceHtmlBy "Do not use CTRL\\+V" "Do not use CTRL+V</li><li>But use everything else"
-                     ],
+  BUpdate "Markdown Recursive" transform_markdown_ab_linear,
+  BUpdate "Markdown Linear" transform_markdown_ab_linear,
+  BUpdate "Markdown with lens" transform_markdown_ab_lens,
+  BUpdate "Markdown w/o lens" transform_markdown_ab_lens,
   --}
-  {--}
+  {--
   BUpdate "Recipe" [ NoTransform
                    --, replaceHtmlBy "Soft chocolate" "Delicious soft chocolate" --Text transformation
                    , replaceHtmlBy "20 small cakes" "80 small cakes" --Number lens
@@ -147,11 +174,10 @@ runBenchmark b = case b of
            --let _ = ImpureGoodies.log (valToHtml newOut) in
            let (newProgExp, updateTime) = (if unopt then
                 ImpureGoodies.timedRun <| \_ ->
-                update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut VUnoptimizedDiffs) LazyList.Nil LazyList.Nil
+                EvalUpdate.update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut VUnoptimizedDiffs)
               else
                 ImpureGoodies.timedRun <| \_ ->
-                let diffs = UpdateUtils.defaultVDiffs oldOut newOut |> Utils.fromOk (benchmarkname ++ "-defaultVDiffs") |> Utils.fromJust_ (benchmarkname ++ ":defaultVDiffs") in
-                update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut diffs) LazyList.Nil LazyList.Nil) |> \(x, t) -> case x of
+                EvalUpdate.doUpdate progExp oldOut (Ok newOut)) |> \(x, t) -> case x of
                    Results.Oks (LazyList.Cons (headEnv, headExp) lazyTail as ll) -> (headExp.val, t)
                    Results.Errs msg -> Debug.crash msg
                    _ -> Debug.crash <| "No solution for " ++ benchmarkname
@@ -168,13 +194,13 @@ runBenchmark b = case b of
       in
       (List.sum updateTimes + List.sum evalTimes + List.sum modifTimes, List.reverse updateTimes)
     in
-    let unoptResults: List (Float, List Float)
-        unoptResults = tryMany nToAverageOn <| \i ->
-         session i True
-    in
     let optResults: List (Float, List Float)
         optResults = tryMany nToAverageOn <| \i ->
          session i False
+    in
+    let unoptResults: List (Float, List Float)
+        unoptResults = optResults {--tryMany nToAverageOn <| \i ->
+             session i True--}
     in
     let allUpdateTimes = List.concatMap Tuple.second in
     let allUnoptTimes = allUpdateTimes unoptResults in

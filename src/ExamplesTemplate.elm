@@ -4,6 +4,7 @@ module ExamplesGenerated exposing
   , badPreludeTemplate
   , fromleo_markdown
   , fromleo_markdown_optimized
+  , fromleo_markdown_optimized_lensless
   , fromleo_recipe
   , fromleo_conference_budgetting
   , fromleo_modelviewcontroller
@@ -251,6 +252,7 @@ LEO_TO_ELM mapListLens_2
 LEO_TO_ELM listAppendLens
 LEO_TO_ELM fromleo/markdown
 LEO_TO_ELM fromleo/markdown_optimized
+LEO_TO_ELM fromleo/markdown_optimized_lensless
 LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
 LEO_TO_ELM fromleo/modelviewcontroller
