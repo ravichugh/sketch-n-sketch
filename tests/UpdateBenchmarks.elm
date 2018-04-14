@@ -26,7 +26,7 @@ import LangSvg
 import HTMLParser
 import HTMLValParser
 
-finalMode = False
+finalMode = True
 
 nToAverageOn = if finalMode then 1 else 1
 
@@ -111,9 +111,11 @@ transform_markdown_ab_lens = [ NoTransform
 
 benchmarks: List Benchmark
 benchmarks = [
-  {--
-  BUpdate "Budgetting" [ NoTransform
+  {--}
+  BUpdate 0 "Budgetting" [ NoTransform
+                       , SetNextChoice 3
                        , replaceHtmlBy "-18000" "0"
+                       , replaceHtmlBy "-12000" "0"
                        ],
   --}
   {--}
@@ -215,7 +217,7 @@ msToMinutsSeconds: Float -> String
 msToMinutsSeconds ms =
   let s = ceiling (ms / 1000) in
   if s < 60 then "0:" ++ String.padLeft 2 '0' (toString s)
-  else toString (toFloat s / 60) ++ ":" ++ String.padLeft 2 '0' (toString (s % 60))
+  else toString (floor (toFloat s / 60) )++ ":" ++ String.padLeft 2 '0' (toString (s % 60))
 
 speedup unopt opt = " (" ++ toString (toFloat (floor (10 * unopt / opt)) / 10) ++ "x)"
 
