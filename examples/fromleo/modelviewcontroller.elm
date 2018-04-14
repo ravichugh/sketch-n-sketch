@@ -36,7 +36,7 @@ controllers = {
 view =
   let {button} = ui model in
   let {addOne, changeN, customEval, changeMultiplier} = controllers in
-  Html.div [["margin","20px"]] [] (
+  Html.div [["margin","20px"]] [["contenteditable",""]] (
     [ Html.h1 [] [] "Model-View-Controller"]
     ++
     Html.parse

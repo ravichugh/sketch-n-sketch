@@ -284,13 +284,13 @@ docsCategory =
       (\i (caption, program) ->
         makeLeoExample (toString (2+i) ++ ": " ++ caption) program
       )
-      [ ("Model View Controller", fromleo_modelviewcontroller)
+      [ ("Conference Budget", fromleo_conference_budgetting)
+      , ("Model View Controller", fromleo_modelviewcontroller)
       , ("Scalable Recipe Editor", fromleo_recipe2)
-      , ("Programmable Text Editor", fromleo_programmabledoc)
+      , ("Cloning Editor", fromleo_programmabledoc)
       , ("Markdown Editor", fromleo_markdown)
       , ("LaTeX Editor", fromleo_latexeditor)
       -- TODO maybe Conference?
-      , ("Conference Budget", fromleo_conference_budgetting)
       , ("Lens: Maybe Map", mapMaybeLens)
       , ("Lens: List Map 1", mapListLens_1)
       , ("Lens: List Map 2", mapListLens_2)

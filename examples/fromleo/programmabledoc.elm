@@ -1,6 +1,39 @@
+editorInfo = """
+<h1>Cloning Editor</h1>
+<p>
+  This text editor is set up to allow <em>cloning</em>
+  ot text elements. Two portions of text can be linked
+  together by defining a variable, from the output interface.
+</p>
+<p>
+  <b>Defining a cloneable word:</b>
+  Prefix a word with $ (for example, "$prove") to create
+  a variable named "prove". Its content is originally
+  its name, so the dollar is removed.
+</p>
+<p>
+  <b>Inserting clones:</b>
+  To insert a clone of the content of a variable named "prove", 
+  type somewhere else "$prove" or add a dollar to an existing "prove".
+</p>
+<p>
+  <b>Modifying clones:</b>
+  If you change one of the linked occurrences of "prove" to "show",
+  you will notice that all of them are linked. If you add a new
+  "$prove", it will also be replaced by "prove".
+  Replacements can be nested, but it does not replace variables in cycles, so you're safe
+</p>
+<p>
+  In the example below, the notations are clones. If you change a P to H, all of them will be updated.
+</p>
+"""
+
 variables = 
-  [("document", "web $page")
-  ,("page", "page")]
+  [("proofbyinduction", "proof by induction")
+  ,("inductionaxiom", "induction axiom")
+  ,("P", "P")
+  ,("n", "n")
+  ,("k","k")]
 
 variablesDict = Dict.fromList variables
 
@@ -12,10 +45,18 @@ replaceVariables variablesDict string =
       Just definition -> replaceVariables (remove key variablesDict) definition
   ) string
 
-content = """<h1>Programmable $document</h1>
-This $document is special. If you prepend a word A with $, the $ disappears. Now, everywhere you write $_A, it clones the word A.
-This means that edits to A will be propagated to every other occurrences. '$document' was obtained from such a word, you can change it.<br><br>
-Additionally, to write $_x literally, just write $__x. You can also define shorter names by writing $_x=[longword] instead of $[longword].
+content = """<h1>Induction Hypothesis</h1>
+<pre style="font-family:cambria;white-space:pre-line;">
+A $proofbyinduction makes use of the $inductionaxiom.
+The $inductionaxiom states that, for a proposition $P depending on an integer $n, if the following precondition is satisfied:
+
+    $P(1)   ∧   ∀$n⩾1. $P($n) ⇒ $P($n+1)
+
+then the following result holds:
+
+    ∀$n⩾1. $P($n)
+
+In other words, if we want to prove a proposition $P($n) for any integer $n, we first need to prove that $P(1) holds. Then, we need to prove that if we know $P($k) for any given integer $k, we can prove $P($k + 1).
 """ |>
   replaceVariables variablesDict |>
   Regex.replace "(\\$)_(\\w+)" (\m ->
@@ -38,8 +79,12 @@ Additionally, to write $_x literally, just write $__x. You can also define short
     }.apply (x, variables)
   )
 
-Html.forceRefresh <|
-Html.div [["margin", "20px"], ["cursor", "text"]] [] [
-  Html.span [] [] <|
-  html content
-]
+  
+main = 
+  Html.forceRefresh <|
+  Html.div [["margin", "20px"], ["cursor", "text"]] []
+    [ Html.div [] [] <|
+        Html.parse editorInfo
+    , Html.div [["border", "4px solid black"], ["padding", "20px"]] [] <|
+        Html.parse content
+    ]
