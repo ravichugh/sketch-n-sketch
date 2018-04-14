@@ -409,8 +409,11 @@ allStringDiffs before after =
         ok1 <| (if String.isEmpty before then [] else [DiffRemoved before]) ++
                (if String.isEmpty after  then [] else [DiffAdded after])
     else
+      let startOldNewPruned =
+          --Debug.log ("before overlapping removal\n" ++ toString (List.reverse  startOldNew) ++ "\nAfter:") <|
+          onlyOverlappingStartOldNew subLength (List.reverse  startOldNew) in
       takeShortest <|
-      flip Results.andThen (oks (List.reverse startOldNew)) <| \(startOld, startNew) ->
+      flip Results.andThen (oks startOldNewPruned) <| \(startOld, startNew) ->
         -- otherwise, the common substring is unchanged and we recursively
         -- diff the text before and after that substring
         let left = allStringDiffs (String.left startOld before) (String.left startNew after) in
@@ -419,6 +422,25 @@ allStringDiffs before after =
           flip Results.map right <| \rightDiffs ->
             leftDiffs ++ (DiffEqual (String.slice startNew (startNew + subLength) after) :: rightDiffs)
 
+-- Remove differences that, if taken recursively, will produce the same diffs
+onlyOverlappingStartOldNew: Int -> List (Int, Int) -> List (Int, Int)
+onlyOverlappingStartOldNew  subLength startOldNew =
+  case startOldNew of
+    [] -> []
+    [head] -> [head]
+    (oldStart, newStart)::tail ->
+  -- Easy: We remove non-overlapping sequences.
+      let aux: List (Int, Int) -> List (Int, Int) -> List (Int, Int)
+          aux startOldNewTail revAcc  = case startOldNewTail of
+        [] -> (oldStart, newStart) :: List.reverse revAcc
+        (oldStart2, newStart2)::tail ->
+           if oldStart + subLength <= oldStart2 then (oldStart, newStart) :: List.reverse revAcc
+           else
+             (oldStart2, newStart2)::revAcc |>
+             aux tail
+      in aux tail []
+
+takeShortest: Results String (List a) -> Results String (List a)
 takeShortest x =
   case x of
     Errs msg -> Debug.crash "A diff cannot return Err but it did so"
@@ -427,6 +449,8 @@ takeShortest x =
       let sizes = List.map List.length l in
       let minsize = List.minimum sizes |> Maybe.withDefault 0 in
       let finallist = List.filterMap (\l -> if List.length l <= minsize then Just l else Nothing) l in
+      --let _ = Debug.log "Ambiguities before pruning" (toString l) in
+      --let _ = Debug.log "Ambiguities after pruning" (toString finallist) in
       Oks (LazyList.fromList finallist)
 
 

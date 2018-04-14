@@ -11,6 +11,7 @@ module ExamplesGenerated exposing
   , fromleo_latexeditor
   , tableOfStatesA
   , tableOfStatesB
+  , tableOfStatesC
   , fromleo_programmabledoc
   )
 

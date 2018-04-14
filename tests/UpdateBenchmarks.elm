@@ -26,25 +26,30 @@ import LangSvg
 import HTMLParser
 import HTMLValParser
 
-exportMode = True
+exportMode = True {-- -- Add a } to make the benchmark run for all
+                    && False --}
 fastButWrong = True {-- -- Add a } to make the benchmark run for all
-  && False
---}
+  && False --}
+bypassUnopt = True{-- -- Add a } to make the benchmark run for all
+  && False --}
+
+
 
 nToAverageOn = if fastButWrong then 1 else 10
 
 programs = Dict.fromList [
   ("Table of States A", ExamplesGenerated.tableOfStatesA),
   ("Table of States B", ExamplesGenerated.tableOfStatesB),
+  ("Table of States C", ExamplesGenerated.tableOfStatesC),
   --("Markdown Recursive", ExamplesGenerated.fromleo_markdown),
   --("Markdown Linear",    ExamplesGenerated.fromleo_markdown_optimized),
   ("Markdown",    ExamplesGenerated.fromleo_markdown_optimized),
   --("Markdown with lens", ExamplesGenerated.fromleo_markdown_optimized),
   --("Markdown w/o lens", ExamplesGenerated.fromleo_markdown_optimized_lensless),
-  ("Recipe", ExamplesGenerated.fromleo_recipe2),
+  ("Scalable Recipe", ExamplesGenerated.fromleo_recipe2),
   ("Budgetting", ExamplesGenerated.fromleo_conference_budgetting),
   ("Programmable doc", ExamplesGenerated.fromleo_programmabledoc),
-  ("Model view Controller", ExamplesGenerated.fromleo_modelviewcontroller)
+  ("MVC", ExamplesGenerated.fromleo_modelviewcontroller)
   ]
 
 type OutTransform =
@@ -117,12 +122,27 @@ transform_markdown_ab_lens = [ NoTransform
   , replaceHtmlBy "h4" "h2"
   ]
 
+click_on_plus capital state =  [NoTransform
+  , replaceHtmlByReg ("("++capital++".*(\r?\n).*(\r?\n).*)style='color:gray'") (\m -> at m.submatches 0 ++ "style='color:coral'")
+  , replaceHtmlByReg ("has-been-clicked='( ?)False'(.*(\r?\n).*(\r?\n).*"++state++")") (\m -> "has-been-clicked='"++at m.submatches 0 ++ "True'" ++ at m.submatches 1)
+  ]
+
+transform_table_of_states_b = [NoTransform
+  , replaceMultiple "Click on the last + button" <| click_on_plus "Hartford" "Connecticut"
+  , replaceMultiple "Click on the last generated + button" <| click_on_plus "\\?, \\?" "\\?"
+  , replaceHtmlBy "\\?" "Delaware"
+  , replaceHtmlBy "\\?" "Dover"
+  , replaceHtmlBy "\\?" "DE"
+  , replaceHtmlBy "\\?" "Florida"
+  , replaceHtmlBy "\\?, \\?" "Tallahassee, FL"
+  ]
+
 at l n = Utils.nth l n |> Utils.fromOk "at" |> Maybe.withDefault ""
 
 benchmarks_: List Benchmark
 benchmarks_ = [
-  {--}
-  BUpdate 0 "Model view Controller" [NoTransform
+  {--
+  BUpdate 0 "MVC" [NoTransform
     , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increment)" "trigger='#'"
     , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increase multiplier to 3)" "trigger='#'"
     , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Multiply by 3)" "trigger='#'"
@@ -138,7 +158,7 @@ benchmarks_ = [
     , replaceHtmlBy "Decrease multiplier to" "Decrease to"
   ],
   --}
-  {--}
+  {--
   BUpdate 0 "Budgetting" [ NoTransform
                        , SetNextChoice 3
                        , replaceHtmlBy "-18000" "0"
@@ -151,7 +171,7 @@ benchmarks_ = [
                        , replaceHtmlBy "-3000" "0"
                        ],
   --}
-  {--}
+  {--
   BUpdate (2*60+36) "Table of States A" [ NoTransform
     , replaceProgBy "\"Alabama\", \"AL?\", \"\"" "\"Alabama\", \"AL?\", \"Montgomery\""
     , replaceProgBy "\"Alaska\", \"AL?\", \"\"" "\"Alaska\", \"AL?\", \"Juneau\""
@@ -174,30 +194,18 @@ benchmarks_ = [
     , replaceHtmlBy "background-color:orangered" "background-color:orange"
   ],
   --}
-  BUpdate (0*60+43) "Table of States B" [NoTransform
-    , replaceMultiple "Click on the last + button" [NoTransform
-        , replaceHtmlByReg "(Hartford.*(\r?\n).*(\r?\n).*)style='color:gray'" (\m -> at m.submatches 0 ++ "style='color:coral'")
-        , replaceHtmlByReg "has-been-clicked='False'(.*(\r?\n).*(\r?\n).*Connecticut)" (\m -> "has-been-clicked='True'" ++ at m.submatches 0)
-        ]
-    , replaceMultiple "Click on the last + button" [NoTransform
-        , replaceHtmlByReg "(\\?, \\?.*(\r?\n).*(\r?\n).*)style='color:gray'" (\m -> at m.submatches 0 ++ "style='color:coral'")
-        , replaceHtmlByReg "has-been-clicked='False'(.*(\r?\n).*(\r?\n).*\\?)" (\m -> "has-been-clicked='True'" ++ at m.submatches 0)
-             ]
-    , replaceHtmlBy "\\?" "Delaware"
-    , replaceHtmlBy "\\?" "Dover"
-    , replaceHtmlBy "\\?" "DE"
-    , replaceHtmlBy "\\?" "Florida"
-    , replaceHtmlBy "\\?, \\?" "Tallahassee, FL"
-    ],
-  --}
   {--}
+  BUpdate (0*60+43) "Table of States B" transform_table_of_states_b,
+  BUpdate (0*60+43) "Table of States C" transform_table_of_states_b,
+  --}
+  {--
   --BUpdate "Markdown Recursive" transform_markdown_ab_linear,
   BUpdate 0 "Markdown" transform_markdown_ab_linear,
   --BUpdate "Markdown with lens" transform_markdown_ab_lens,
   --BUpdate "Markdown w/o lens" transform_markdown_ab_lens,
   --}
-  {--}
-  BUpdate (3*60+51) "Recipe" [ NoTransform
+  {--
+  BUpdate (3*60+51) "Scalable Recipe" [ NoTransform
                    , replaceHtmlBy " alt='cupcakes'" " alt='cupcakes' style='\\n  float:  right;  \\n:  '"
                    --, TestOutputContains "float:  right" valToHtml
                    , replaceHtmlBy "Chocolate almond cakes"        "Chocolate Almond Cupcakes"
@@ -347,7 +355,7 @@ runBenchmark b = case b of
                        Results.Oks ll -> let (newEnv, newExp) = LazyList.elemAt (choice - 1) (LazyList.filter (\(env, e) -> env.changes == []) ll) |> Utils.fromJust_ "LazyList"
                          in
                          if newExp.changes == Nothing then
-                           Debug.crash <| "Expected a change to the expression, got Nothing.\nTransform =  " ++ transformName replacement ++ "\n" ++ (transformValToString replacement newOut)
+                           Debug.crash <| "In" ++ benchmarkname++ ", expected a change to the expression, got Nothing.\nTransform =  " ++ transformName replacement ++ "\n" ++ (transformValToString replacement newOut)
                          else
                           (newExp.val, newExp.changes |> Utils.fromJust,  t)
                        Results.Errs msg -> Debug.crash <| msg ++ "Transform =  " ++ transformName replacement ++ "\n" ++ (transformValToString replacement newOut)  ++ "\n" ++ unparse progExp
@@ -371,7 +379,8 @@ runBenchmark b = case b of
          session i False
     in
     let unoptResults: List (Float, List Float)
-        unoptResults = optResults {--tryMany nToAverageOn <| \i ->
+        unoptResults = if bypassUnopt then optResults else
+          tryMany nToAverageOn <| \i ->
              session i True--}
     in
     let allUpdateTimes = List.concatMap Tuple.second in
@@ -393,7 +402,7 @@ runBenchmark b = case b of
     let locprog = loc prog in
     let finalEvalTime = ceiling evalTime in
     let latexRow = "\\tableRow   {" ++
-    String.padLeft 20 ' ' benchmarkname ++ "} {" ++
+    String.padRight 20 ' ' benchmarkname ++ "} {" ++
     String.pad 3 ' ' (toString <| locprog) ++ "} {" ++
     String.pad 4 ' ' (toString <| finalEvalTime) ++ "} { "++
     String.pad 6 ' ' (sToMinutsSeconds (toFloat sessionTime)) ++"  } { "++
