@@ -333,6 +333,19 @@ doUpdate oldExp oldVal newValResult =
              update <| updateContext "initial update" preludeEnv oldExp oldVal out diffs)
            )
 
+
+doUpdateWithoutLog : Exp -> Val -> Val -> Results String (UpdatedEnv, UpdatedExp)
+doUpdateWithoutLog oldExp oldVal out =
+  let thediffs = UpdateUtils.defaultVDiffs oldVal out
+  in
+  case thediffs of
+    Errs msg -> Errs msg
+    Oks (LazyList.Nil ) -> Errs "[Internal error] expected a diff or an error, got Nil"
+    Oks (LazyList.Cons Nothing _ ) -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
+    Oks ll ->
+        Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
+         update <| updateContext "initial update" preludeEnv oldExp oldVal out diffs)
+
 -- Deprecated
 parseAndRun : String -> String
 parseAndRun = valToString << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun" << Parser.parse

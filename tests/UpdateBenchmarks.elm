@@ -35,6 +35,7 @@ programs = Dict.fromList [
   ("Table of States B", ExamplesGenerated.tableOfStatesB),
   ("Markdown Recursive", ExamplesGenerated.fromleo_markdown),
   ("Markdown Linear",    ExamplesGenerated.fromleo_markdown_optimized),
+  ("Markdown",    ExamplesGenerated.fromleo_markdown_optimized),
   ("Markdown with lens", ExamplesGenerated.fromleo_markdown_optimized),
   ("Markdown w/o lens", ExamplesGenerated.fromleo_markdown_optimized_lensless),
   ("Recipe", ExamplesGenerated.fromleo_recipe),
@@ -90,8 +91,8 @@ transform_markdown_ab_linear = [ NoTransform
                      "  [    \"TEXT\",    \" showcase\"      ]      ]      ],[\"div\", [], [[\"TEXT\", \"Hello\"]]],"
    , replaceHtmlBy "Do not use CTRL\\+V" "Do not use CTRL+V</li><li>But use everything else"
    , replaceHtmlBy " to introduce" " <br>to introduce"
-   , replaceHtmlBy "</code>" "</code></li><li>Add a numbered point"
-   , replaceHtmlBy "h4" "h2"
+   --, replaceHtmlBy "</code>" "</code></li><li>Add a numbered point"
+   --, replaceHtmlBy "h4" "h2"
    ]
 
 transform_markdown_ab_lens = [ NoTransform
@@ -118,7 +119,7 @@ benchmarks = [
     , replaceHtmlBy "AL?" "AL"
     , replaceHtmlBy "AL?" "AK"
     , replaceHtmlBy ", AR" "Phoenix, AZ"
-    , replaceProgBy "\", \"" "\"Update.freeze \", \""
+    , replaceProgBy "\\+ *\", \"" "+ Update.freeze \", \""
     , replaceMultiple [NoTransform
         , replaceHtmlBy ", AR?" "Little Rock, AR"
         , replaceHtmlBy ", CA?" "Sacramento, CA"
@@ -142,7 +143,7 @@ benchmarks = [
   --}
   {--}
   --BUpdate "Markdown Recursive" transform_markdown_ab_linear,
-  BUpdate 0 "Markdown Linear" transform_markdown_ab_linear,
+  BUpdate 0 "Markdown" transform_markdown_ab_linear,
   --BUpdate "Markdown with lens" transform_markdown_ab_lens,
   --BUpdate "Markdown w/o lens" transform_markdown_ab_lens,
   --}
@@ -245,7 +246,7 @@ runBenchmark b = case b of
                     EvalUpdate.update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut VUnoptimizedDiffs)
                   else
                     ImpureGoodies.timedRun <| \_ ->
-                    EvalUpdate.doUpdate progExp oldOut (Ok newOut)) |> \(x, t) -> case x of
+                    EvalUpdate.doUpdateWithoutLog progExp oldOut newOut) |> \(x, t) -> case x of
                        Results.Oks (LazyList.Cons (headEnv, headExp) lazyTail as ll) -> (headExp.val, t)
                        Results.Errs msg -> Debug.crash msg
                        _ -> Debug.crash <| "No solution for " ++ benchmarkname
@@ -323,7 +324,7 @@ compute = List.foldl (\b (acc, loc, eval, time, upd, updUnopt, updOpt) ->
                          let _ = ImpureGoodies.log acc in
                          let unoptaverage = average updUnopt in
                          let optaverage = average updOpt in
-                         ImpureGoodies.log """
+                         ImpureGoodies.log <| """
 }
 \\newcommand{\\benchmarksloc}{""" ++ toString loc ++ """}
 \\newcommand{\\benchmarksnum}{""" ++ toString (List.length benchmarks) ++ """}
