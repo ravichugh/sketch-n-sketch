@@ -684,7 +684,7 @@ updateRegexReplaceByIn howmany eval update regexpV replacementV stringV oldOutV 
                     )
                 _ -> Debug.crash "A variable disappeared from the environment"
               )
-     _ -> Errs <| "replaceAllIn expects a regex (String), a replacement (string/lambda), and the text. Got instead  " ++ valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
+     _ -> Errs <| "replaceAllIn expects a regex (String), a replacement (string/lambda), and the text. Got instead  " ++ valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV ++ " updated by " ++ valToString newOutV
            -- Commented out because dependency cycle
            -- "Got " ++  valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
 

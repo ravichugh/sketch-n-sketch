@@ -1004,6 +1004,9 @@ Dict = {
   member x d = case get x d of
     Just _ -> True
     _ -> False
+  contains x d = case get x d of
+    Just _ -> True
+    _ -> False
 }
 
 --------------------------------------------------------------------------------
@@ -1461,6 +1464,44 @@ Html =
               {values = [outputNew]}
       }
   in
+  let option value selected content =
+    { apply (value,selected,content) =
+        Update.freeze ["option", [["v",value]] ++ (if selected then [["selected","selected"]] else []), content]
+      update {outputNew} = case outputNew of
+        [_, ["v", value] :: ["selected", _] :: _, content] ->
+          {values = [(value, True, content)] }
+        [_, ["v", value] :: _, content] ->
+          {values = [value, False, content] }
+        _ -> {error = "Expected an option (selected or not), got " ++ toString outputNew }
+    }.apply (value, selected, content)
+  in
+  let select strArray index =
+    letrec aux acc i options = case options of
+       [] -> acc
+       (opt :: tail) ->
+         let newAcc = acc ++ [option (toString i) (i == index) [["TEXT", opt]]] in
+         let newI = i + 1 in
+         aux newAcc newI tail
+    in
+    ["select", [["selected-index", toString index], ["onchange", "this.setAttribute('selected-index', this.selectedIndex)"]], aux [] 0 strArray]
+  in
+  let checkbox text title isChecked =
+      let id = "checkbox-"+Regex.replace "[^\\w]" "" text in
+      ["span", [], [
+        ["label", [["class","switch"],["title", title]], [
+          ["input", ["type","checkbox"] :: ["id", id] :: ["onclick","if(this.checked) { this.setAttribute('checked', ''); } else { this.removeAttribute('checked') }"]::
+            { apply checked =
+                freeze (if checked then [["checked", ""]] else [])
+              update {newOutput} = case newOutput of
+                [] -> {values = [ False ]}
+                _ -> {values = [ True ]}
+            }.apply isChecked,
+            [["span", [["class", "slider round"]], []]]
+          ]
+        ]],
+        ["label", [["for",id], ["title", title]], [["TEXT", text]]]
+      ]]
+  in
   { textNode = textNode
     p = textElementHelper "p"
     th = textElementHelper "th"
@@ -1482,6 +1523,8 @@ Html =
     br = ["br", [], []]
     parse = html
     forceRefresh = forceRefresh
+    select = select
+    checkbox = checkbox
   }
 
 -- TODO remove this; add as imports as needed in examples

@@ -48,7 +48,7 @@ programs = Dict.fromList [
   --("Markdown w/o lens", ExamplesGenerated.fromleo_markdown_optimized_lensless),
   ("Scalable Recipe", ExamplesGenerated.fromleo_recipe2),
   ("Budgetting", ExamplesGenerated.fromleo_conference_budgetting),
-  ("Programmable doc", ExamplesGenerated.fromleo_programmabledoc),
+  ("Cloning Editor", ExamplesGenerated.fromleo_programmabledoc),
   ("MVC", ExamplesGenerated.fromleo_modelviewcontroller)
   ]
 
@@ -141,8 +141,21 @@ at l n = Utils.nth l n |> Utils.fromOk "at" |> Maybe.withDefault ""
 
 benchmarks_: List Benchmark
 benchmarks_ = [
+  BUpdate 0 "Cloning Editor" [NoTransform
+    , replaceHtmlBy "P(1)" "H(1)"
+    , replaceHtmlBy "H(n)" "G(m)"
+    , replaceMultiple "prove" [NoTransform
+       , replaceHtmlBy "we want to prove" "we want to $prove"
+       , replaceHtmlBy "need to prove" "need to $prove"
+       , replaceHtmlBy "need to prove" "need to $prove"
+       , replaceHtmlBy "we can prove" "we can $prove"
+    ]
+    , replaceHtmlBy "we want to prove" "we want to show"
+    , replaceHtmlBy "we want to show" "we want to really show"
+  ],
+  {--{--{--{--{--{--
   {--}
-  BUpdate 0 "MVC" [NoTransform
+  BUpdate (1*60+11) "MVC" [NoTransform
     , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increment)" "trigger='#'"
     , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increase multiplier to 3)" "trigger='#'"
     , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Multiply by 3)" "trigger='#'"
@@ -159,7 +172,7 @@ benchmarks_ = [
   ],
   --}
   {--}
-  BUpdate 0 "Budgetting" [ NoTransform
+  BUpdate (0*60+45) "Budgetting" [ NoTransform
                        , SetNextChoice 3
                        , replaceHtmlBy "-18000" "0"
                        , replaceProgBy "sponsors *= *20000" "sponsors = Update.freeze 35000"
@@ -202,7 +215,7 @@ benchmarks_ = [
   --}
   {--}
   --BUpdate "Markdown Recursive" transform_markdown_ab_linear,
-  BUpdate 0 "Markdown" transform_markdown_ab_linear,
+  BUpdate (2*60+8) "Markdown" transform_markdown_ab_linear,
   --BUpdate "Markdown with lens" transform_markdown_ab_lens,
   --BUpdate "Markdown w/o lens" transform_markdown_ab_lens,
   --}
@@ -446,9 +459,11 @@ runBenchmark b = case b of
     String.pad 15 ' ' (s fastestUnopt ++ "/" ++ s fastestOpt ++ speedup fastestUnopt fastestOpt) ++ " & " ++
     String.pad 15 ' ' (s slowestUnopt ++ "/" ++ s slowestOpt ++ speedup slowestUnopt slowestOpt) ++ " & " ++
     String.pad 15 ' ' (s averageUnopt ++ "/" ++ s averageOpt ++ speedup averageUnopt averageOpt) ++ "} " ++
-    "{  " ++ (if (minAmbiguity == maxAmbiguity) then "    \\always{} " ++ toString minAmbiguity else toString minAmbiguity ++ " to " ++ toString maxAmbiguity ++ String.pad 9 ' ' ("(" ++ (String.left 4 (toString averageAmbiguity)) ++ ")")) ++ "} " ++
+    "{  " ++ (if (minAmbiguity == maxAmbiguity)
+         then "\\always{} " ++ toString minAmbiguity ++ " & " ++ toString minAmbiguity  ++ "        "
+         else " " ++ toString minAmbiguity ++ " to " ++ toString maxAmbiguity ++ "      & " ++ String.pad 9 ' ' ((String.left 4 (toString averageAmbiguity)))) ++ "} " ++
     "{" ++ (if(minAmbiguity == maxAmbiguity) then
-        String.pad 15 ' ' "\\noambiguity" ++ " & " ++ String.pad 15 ' ' "\\noambiguity" ++ " & " ++String.pad 15 ' ' "\\noambiguity"
+         String.pad 15 ' ' "\\noambiguity" ++ " & " ++ String.pad 15 ' ' "\\noambiguity" ++ " & " ++String.pad 15 ' ' "\\noambiguity"
       else
       String.pad 15 ' ' (s fastestAmbiguityUnopt ++ "/" ++ s fastestAmbiguityOpt ++ speedup fastestAmbiguityUnopt fastestAmbiguityOpt) ++ " & " ++
       String.pad 15 ' ' (s slowestAmbiguityUnopt ++ "/" ++ s slowestAmbiguityOpt ++ speedup slowestAmbiguityUnopt slowestAmbiguityOpt) ++ " & " ++
@@ -464,7 +479,8 @@ runBenchmark b = case b of
          ) results |> String.join "" in
     let rawdata = "\n% " ++ benchmarkname ++ " - Unopt" ++ rendersession unoptResults ++
       "\n% " ++ benchmarkname ++ " - Opt" ++ rendersession optResults in
-    (rawdata, locprog, finalEvalTime, sessionTime, numberOfUpdates, allUnoptTimes, allOptTimes, (ambiguitiesOpt, timeAmbiguitiesUnopt, timeAmbiguitiesOpt))
+    (rawdata, locprog, finalEvalTime, sessionTime, numberOfUpdates, allUnoptTimes, allOptTimes,
+      (ambiguitiesOpt, timeAmbiguitiesUnoptPruned, timeAmbiguitiesOptPruned))
 
 header =
   ImpureGoodies.log """
@@ -497,7 +513,7 @@ compute = (Utils.foldLeft
 \\newcommand{\\benchmarksaverageunoptupd}{""" ++ s unoptaverage ++ """}
 \\newcommand{\\benchmarksaverageoptupd}{""" ++ s optaverage ++ """}
 \\newcommand{\\benchmarksaveragespeedup}{""" ++ speedup unoptaverage optaverage ++ """}
-\\newcommand{\\benchmarksamb}{"""++ toString (minimum ambiguities) ++ " to " ++ toString (maximum ambiguities) ++ " ("++(String.left 4 (toString <| average (List.map toFloat ambiguities)))++")"++"""}
+\\newcommand{\\benchmarksamb}{\\total{"""++ toString (minimum ambiguities) ++ " to " ++ toString (maximum ambiguities) ++ "} & \total{"++(String.left 4 (toString <| average (List.map toFloat ambiguities)))++"""} }
 \\newcommand{\\benchmarksaverageunoptupdamb}{"""++s unoptaverageamb ++"""}
 \\newcommand{\\benchmarksaverageoptupdamb}{"""++s optaverageamb ++"""}
 \\newcommand{\\benchmarksaveragespeedupamb}{"""++speedup unoptaverageamb optaverageamb++"""}
