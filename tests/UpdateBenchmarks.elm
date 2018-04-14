@@ -26,28 +26,35 @@ import LangSvg
 import HTMLParser
 import HTMLValParser
 
-finalMode = True
+exportMode = True
+fastButWrong = True {-- -- Add a } to make the benchmark run for all
+  && False
+--}
 
-nToAverageOn = if finalMode then 1 else 1
+nToAverageOn = if fastButWrong then 1 else 10
 
 programs = Dict.fromList [
   ("Table of States A", ExamplesGenerated.tableOfStatesA),
   ("Table of States B", ExamplesGenerated.tableOfStatesB),
-  ("Markdown Recursive", ExamplesGenerated.fromleo_markdown),
-  ("Markdown Linear",    ExamplesGenerated.fromleo_markdown_optimized),
+  --("Markdown Recursive", ExamplesGenerated.fromleo_markdown),
+  --("Markdown Linear",    ExamplesGenerated.fromleo_markdown_optimized),
   ("Markdown",    ExamplesGenerated.fromleo_markdown_optimized),
-  ("Markdown with lens", ExamplesGenerated.fromleo_markdown_optimized),
-  ("Markdown w/o lens", ExamplesGenerated.fromleo_markdown_optimized_lensless),
-  ("Recipe", ExamplesGenerated.fromleo_recipe),
-  ("Budgetting", ExamplesGenerated.fromleo_conference_budgetting)
+  --("Markdown with lens", ExamplesGenerated.fromleo_markdown_optimized),
+  --("Markdown w/o lens", ExamplesGenerated.fromleo_markdown_optimized_lensless),
+  ("Recipe", ExamplesGenerated.fromleo_recipe2),
+  ("Budgetting", ExamplesGenerated.fromleo_conference_budgetting),
+  ("Programmable doc", ExamplesGenerated.fromleo_programmabledoc),
+  ("Model view Controller", ExamplesGenerated.fromleo_modelviewcontroller)
   ]
 
-type OutTransform = StringTransform (String -> String) | ValTransform (Val -> Val) | HTMLTransform (String -> String)
+type OutTransform =
+  StringTransform String (String -> String) | ValTransform String (Val -> Val) | HTMLTransform String (String -> String)
 
 type Transform = NoTransform
   | OutputTransform OutTransform
   | ProgTransform (String -> String)
   | SetNextChoice Int
+  | TestOutputContains String (Val -> String)
 
 type Benchmark = BUpdate Int String (List Transform)
 
@@ -60,19 +67,20 @@ replaceBy howmany final r result =
   replaceByMatch howmany final r (\_ -> result)
 
 replaceStringBy: String -> String -> Transform
-replaceStringBy = replaceBy (AtMost 1) (StringTransform >> OutputTransform)
+replaceStringBy r replacement = replaceBy (AtMost 1) (StringTransform (r ++ "->" ++ replacement) >> OutputTransform) r replacement
 
 replaceHtmlBy: String -> String -> Transform
-replaceHtmlBy = replaceBy (AtMost 1) (HTMLTransform >> OutputTransform)
+replaceHtmlBy r replacement = replaceBy (AtMost 1) (HTMLTransform (r ++ "->" ++ replacement)>> OutputTransform) r replacement
 
-replaceHtmlByReg = replaceByMatch (AtMost 1) (HTMLTransform >> OutputTransform)
+replaceHtmlByReg r replacement = replaceByMatch (AtMost 1) (HTMLTransform (r ++ "->") >> OutputTransform) r replacement
 
-replaceMultiple: List Transform -> Transform
-replaceMultiple transforms =
-  OutputTransform <| ValTransform (\input ->
+replaceMultiple: String -> List Transform -> Transform
+replaceMultiple msg transforms =
+  OutputTransform <| ValTransform msg (\input ->
     List.foldl (\t v ->
       case t of
         SetNextChoice _ -> Debug.crash "Cannot invoke SeteNextChoice in a replaceMultiple"
+        TestOutputContains _ _ -> Debug.crash "Cannot invok TestOutputContains in a replaceMupliple"
         NoTransform -> v
         OutputTransform to ->
           applyTransform to v
@@ -81,8 +89,8 @@ replaceMultiple transforms =
     ) input transforms
   )
 
-replaceStringAllBy = replaceBy All (StringTransform >> OutputTransform)
-replaceHtmlAllBy = replaceBy All (HTMLTransform >> OutputTransform)
+replaceStringAllBy r replacement = replaceBy All (StringTransform (r ++ "->" ++ replacement)>> OutputTransform) r replacement
+replaceHtmlAllBy r replacement = replaceBy All (HTMLTransform (r ++ "->" ++ replacement) >> OutputTransform) r replacement
 
 replaceProgBy = replaceBy Regex.All ProgTransform
 
@@ -109,42 +117,77 @@ transform_markdown_ab_lens = [ NoTransform
   , replaceHtmlBy "h4" "h2"
   ]
 
-benchmarks: List Benchmark
-benchmarks = [
+at l n = Utils.nth l n |> Utils.fromOk "at" |> Maybe.withDefault ""
+
+benchmarks_: List Benchmark
+benchmarks_ = [
+  {--}
+  BUpdate 0 "Model view Controller" [NoTransform
+    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increment)" "trigger='#'"
+    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increase multiplier to 3)" "trigger='#'"
+    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Multiply by 3)" "trigger='#'"
+    , replaceHtmlBy "51" "27"
+    , replaceHtmlBy "1\\+n\\*3" "(1+n)*2"
+    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Custom Code)" "trigger='#'"
+    , replaceHtmlBy "architect" "design"
+    , replaceMultiple "dashes in title" [NoTransform
+        , replaceHtmlBy "Model-View-Controller" "Model View Controller"
+        , replaceHtmlBy "model-view-controller" "model view controller"
+       ]
+    , replaceHtmlBy "Increment" "+1"
+    , replaceHtmlBy "Decrease multiplier to" "Decrease to"
+  ],
+  --}
   {--}
   BUpdate 0 "Budgetting" [ NoTransform
                        , SetNextChoice 3
                        , replaceHtmlBy "-18000" "0"
-                       , replaceHtmlBy "-12000" "0"
+                       , replaceProgBy "sponsors *= *20000" "sponsors = Update.freeze 35000"
+                       , SetNextChoice 2
+                       , replaceHtmlBy "3000" "0"
+                       , replaceProgBy "sponsors = Update.freeze 35000" "sponsors = Update.freeze 29000"
+                       , SetNextChoice 2
+                       , replaceHtmlBy "-6000" "0"
+                       , replaceHtmlBy "-3000" "0"
                        ],
   --}
   {--}
   BUpdate (2*60+36) "Table of States A" [ NoTransform
     , replaceProgBy "\"Alabama\", \"AL?\", \"\"" "\"Alabama\", \"AL?\", \"Montgomery\""
     , replaceProgBy "\"Alaska\", \"AL?\", \"\"" "\"Alaska\", \"AL?\", \"Juneau\""
-    , replaceHtmlBy "AL?" "AL"
-    , replaceHtmlBy "AL?" "AK"
+    , replaceHtmlBy "AL\\?" "AL"
+    , replaceHtmlBy "AL\\?" "AK"
     , replaceHtmlBy ", AR" "Phoenix, AZ"
     , replaceProgBy "\\+ *\", \"" "+ Update.freeze \", \""
-    , replaceMultiple [NoTransform
-        , replaceHtmlBy ", AR?" "Little Rock, AR"
-        , replaceHtmlBy ", CA?" "Sacramento, CA"
-        , replaceHtmlBy ", CO?" "Denver, CO"
-        , replaceHtmlBy ", CO?" "Hartford, CT"
+    , replaceMultiple "The last four states" [NoTransform
+        , replaceHtmlBy ", AR\\?" "Little Rock, AR"
+        , replaceHtmlBy ", CA\\?" "Sacramento, CA"
+        , replaceHtmlBy ", CO\\?" "Denver, CO"
+        , replaceHtmlBy ", CO\\?" "Hartford, CT"
         ]
     , replaceHtmlBy "lightgray" "yellow"
     , replaceHtmlBy "yellow" "lightblue"
     , replaceHtmlBy "lightblue" "lightcoral"
     , replaceHtmlBy "lightcoral" "lightgoldenrodyellow"
-    , replaceHtmlBy "padding: 3px" "padding: 3px; background-color: orange"
-    , replaceHtmlBy "background-color: orange" "background-color: orangered"
-    , replaceHtmlBy "background-color: orangered" "background-color: orange"
+    , replaceHtmlBy "padding:3px" "padding:3px; background-color:orange"
+    , replaceHtmlBy "background-color:orange" "background-color:orangered"
+    , replaceHtmlBy "background-color:orangered" "background-color:orange"
   ],
+  --}
   BUpdate (0*60+43) "Table of States B" [NoTransform
-    , replaceMultiple [NoTransform
-        , replaceHtmlBy "color: \"gray\"" "color: \"coral\""
-        , replaceHtmlByReg "has-been-clicked=( ?)\"True\"" (\m -> "has-been-clicked=" ++ (m.submatches |> List.head |> Utils.fromJust_ "BUpdate" |> Maybe.withDefault "") ++ "\"False\"")
+    , replaceMultiple "Click on the last + button" [NoTransform
+        , replaceHtmlByReg "(Hartford.*(\r?\n).*(\r?\n).*)style='color:gray'" (\m -> at m.submatches 0 ++ "style='color:coral'")
+        , replaceHtmlByReg "has-been-clicked='False'(.*(\r?\n).*(\r?\n).*Connecticut)" (\m -> "has-been-clicked='True'" ++ at m.submatches 0)
         ]
+    , replaceMultiple "Click on the last + button" [NoTransform
+        , replaceHtmlByReg "(\\?, \\?.*(\r?\n).*(\r?\n).*)style='color:gray'" (\m -> at m.submatches 0 ++ "style='color:coral'")
+        , replaceHtmlByReg "has-been-clicked='False'(.*(\r?\n).*(\r?\n).*\\?)" (\m -> "has-been-clicked='True'" ++ at m.submatches 0)
+             ]
+    , replaceHtmlBy "\\?" "Delaware"
+    , replaceHtmlBy "\\?" "Dover"
+    , replaceHtmlBy "\\?" "DE"
+    , replaceHtmlBy "\\?" "Florida"
+    , replaceHtmlBy "\\?, \\?" "Tallahassee, FL"
     ],
   --}
   {--}
@@ -155,14 +198,16 @@ benchmarks = [
   --}
   {--}
   BUpdate (3*60+51) "Recipe" [ NoTransform
-                   --, replaceHtmlBy "Soft chocolate" "Delicious soft chocolate" --Text transformation
                    , replaceHtmlBy " alt='cupcakes'" " alt='cupcakes' style='\\n  float:  right;  \\n:  '"
+                   --, TestOutputContains "float:  right" valToHtml
                    , replaceHtmlBy "Chocolate almond cakes"        "Chocolate Almond Cupcakes"
+                   --, TestOutputContains "Chocolate Almond Cupcakes" valToHtml
                    , replaceStringBy "\\[\\s*\"h1\",\\s*\\[\\],\\s*\\[\\s*\\[\\s*\"TEXT\",\\s*\"Chocolate Almond Cupcakes\""
                                       "[ \"h1\", [ [ \"style\", [ [ \"\\n  font-family\", \" cursive\" ], [ \" \\n\",\" \"]]] ], [ [ \"TEXT\", \"Chocolate Almond Cupcakes\""
-                   , replaceHtmlBy "border: 4px solid black; padding: 20px" "border: 4px solid black; padding: 20px; background-color: chocolate"
-                   , replaceHtmlBy "x='1000'(?=.*\\r?\\n.*Halve)" "x='500'"
-                   , replaceHtmlBy "melted chocolate</li>" "melted chocolate</li><li>_10_g of chocolate chip_10s_</li>"
+                   , replaceHtmlBy "border:4px solid black;padding:20px" "border:4px solid black;padding:20px;background-color:chocolate"
+                   , replaceHtmlBy "x='1000'(?=.*\\r?\\n.*\\r?\\n.*Halve)" "x='500'"
+                   --, TestOutputContains "10 small" valToHtml
+                   , replaceHtmlBy "melted chocolate\\s*</li>" "melted chocolate</li><li>_10_g of chocolate chip_10s_</li>"
                    , replaceHtmlBy "10 small" "80 small"
                    , replaceHtmlBy "2 cup of" "2 cup_2s_ of"
                    , replaceHtmlBy "2 cups of" "2 cup of"
@@ -180,19 +225,35 @@ benchmarks = [
   BUpdate 0 "" []
   ]
 
+benchmarks = List.filterMap (\c -> case c of
+  BUpdate _ "" _ -> Nothing
+  _ -> Just c ) benchmarks_
+
 valToHtml: Val -> String
 valToHtml oldOut =
   let slate = LangSvg.resolveToRootedIndexedTree Syntax.Elm 1 1 0 oldOut |> Utils.fromOk "html newOut" in
   let html = LangSvg.printHTML False slate in
   html
 
+transformName: OutTransform -> String
+transformName x = case x of
+  StringTransform name _ -> name
+  HTMLTransform name _ -> name
+  ValTransform name _ -> name
+
+transformValToString: OutTransform -> Val -> String
+transformValToString x = case x of
+  StringTransform _ _ -> valToString
+  HTMLTransform _ _ -> valToHtml
+  ValTransform _ _ -> valToHtml
+
 applyTransform: OutTransform -> Val -> Val
 applyTransform replacement oldOut =
   case replacement of
-    StringTransform replacement ->
+    StringTransform _ replacement ->
       valToString oldOut |> replacement |>parse |> Utils.fromOk "parse newout" |> eval |> Utils.fromOk "eval newout"
-    ValTransform replacement -> replacement oldOut
-    HTMLTransform replacement ->
+    ValTransform _ replacement -> replacement oldOut
+    HTMLTransform _ replacement ->
       --let _ = ImpureGoodies.log html in
       let newHTML = replacement (valToHtml oldOut) in
       case HTMLParser.parseHTMLString newHTML of
@@ -240,11 +301,14 @@ runBenchmark b = case b of
     -- Returns (List of the total time of the session, and as many update times as there are replacements)
     let session: Int -> Bool -> (Float, List Float)
         session i unopt =
-      let _ = if not finalMode then ImpureGoodies.log <| "Session #" ++ toString i ++ " " ++
+      let _ = if not exportMode then ImpureGoodies.log <| "Session #" ++ toString i ++ " " ++
             (if unopt then "unoptimized" else "optimized") ++" for " ++ benchmarkname  else "" in
       let (_, _, updateTimes, evalTimes, modifTimes, _) =
            List.foldl (\step (progExp, oldOut, updateTimes, evalTimes, modifTimes, choice) ->
-           let _ = if not finalMode then ImpureGoodies.log <| "Apply transformation..."  else ""in
+           {-if (evalEnv EvalUpdate.preludeEnv progExp |> Utils.fromOk "eval prog" |> valToString) /= (valToString oldOut) then
+             Debug.crash "invariant failed: the oldOut is not generated by the newOut"
+           else-}
+           let _ = if not exportMode then ImpureGoodies.log <| "Apply transformation..."  else ""in
            --let _ = ImpureGoodies.log (toString unopt) in
            --let _ = ImpureGoodies.log "Current program:" in
            --let _ = ImpureGoodies.log (unparse progExp) in
@@ -254,6 +318,11 @@ runBenchmark b = case b of
            case step of
              NoTransform -> Debug.crash "NoTransform should have been removed"
              SetNextChoice n -> (progExp, oldOut, updateTimes, evalTimes, modifTimes, n)
+             TestOutputContains re vToString ->
+               if Regex.contains (Regex.regex re) (vToString oldOut) then
+                 (progExp, oldOut, updateTimes, evalTimes, modifTimes, choice)
+               else
+                 Debug.crash <| "The output did not contain '" ++ re ++ "' : " ++ vToString oldOut ++ ", program having generated it:\n " ++ unparse progExp
              ProgTransform p ->
                case parse (p (unparse progExp)) of
                  Err msg -> Debug.crash msg
@@ -261,24 +330,35 @@ runBenchmark b = case b of
                    let (realNewOut, realNewOutTime) = ImpureGoodies.timedRun <| \_ -> evalEnv EvalUpdate.preludeEnv newProgExp |> Utils.fromOk "eval changed prog" in
                    (newProgExp, realNewOut, updateTimes, realNewOutTime::evalTimes, modifTimes, 1)
              OutputTransform replacement ->
+               --let _ = Debug.log ("oldOut\n" ++ valToString oldOut) () in
+               --let _ = Debug.log ("oldOut\n" ++ valToHtml oldOut) () in
                let (newOut, newOutTime) = ImpureGoodies.timedRun <| \_ -> applyTransform replacement oldOut in
-               let _ = if not finalMode then ImpureGoodies.log <| "It took " ++ toString newOutTime ++ "ms. Update with newOut..."  else "" in
+               --let _ = Debug.log ("newOut\n" ++ valToString newOut) () in
+               --let _ = Debug.log ("newOut\n" ++ valToHtml newOut) () in
+               let _ = if not exportMode then ImpureGoodies.log <| "It took " ++ toString newOutTime ++ "ms. Update with newOut..."  else "" in
                --let _ = ImpureGoodies.log (valToHtml newOut) in
-               let (newProgExp, updateTime) = (if unopt then
+               let (newProgExp_, newProgExpDiffs, updateTime) = (if unopt then
                     ImpureGoodies.timedRun <| \_ ->
                     EvalUpdate.update (updateContext "initial" EvalUpdate.preludeEnv progExp oldOut newOut VUnoptimizedDiffs)
                   else
                     ImpureGoodies.timedRun <| \_ ->
                     EvalUpdate.doUpdateWithoutLog progExp oldOut newOut) |> \(x, t) -> case x of
                        Results.Oks (LazyList.Nil) -> Debug.crash <| "No solution for " ++ benchmarkname
-                       Results.Oks ll -> (LazyList.elemAt (choice - 1) ll |> Utils.fromJust_ "LazyList" |> Tuple.second |> .val, t)
-                       Results.Errs msg -> Debug.crash msg
+                       Results.Oks ll -> let (newEnv, newExp) = LazyList.elemAt (choice - 1) (LazyList.filter (\(env, e) -> env.changes == []) ll) |> Utils.fromJust_ "LazyList"
+                         in
+                         if newExp.changes == Nothing then
+                           Debug.crash <| "Expected a change to the expression, got Nothing.\nTransform =  " ++ transformName replacement ++ "\n" ++ (transformValToString replacement newOut)
+                         else
+                          (newExp.val, newExp.changes |> Utils.fromJust,  t)
+                       Results.Errs msg -> Debug.crash <| msg ++ "Transform =  " ++ transformName replacement ++ "\n" ++ (transformValToString replacement newOut)  ++ "\n" ++ unparse progExp
                in
-               let _ = if not finalMode then ImpureGoodies.log <| "It took " ++ toString updateTime ++ "ms. Recomputing realOut..."  else "" in
+               let newProgExp = parse (unparse newProgExp_) |> Utils.fromOk_ in
+               --let _ = ImpureGoodies.log (eDiffsToString "" progExp newProgExp newProgExpDiffs) in
+               let _ = if not exportMode then ImpureGoodies.log <| "It took " ++ toString updateTime ++ "ms. Recomputing realOut..."  else "" in
                --let _ = ImpureGoodies.log "new program:" in
                --let _ = ImpureGoodies.log (unparse newProgExp) in
                let (realNewOut, realNewOutTime) = ImpureGoodies.timedRun <| \_ -> evalEnv EvalUpdate.preludeEnv newProgExp |> Utils.fromOk "eval prog" in
-               let _ = if not finalMode then ImpureGoodies.log <| "It took " ++ toString realNewOutTime ++ "ms."  else "" in
+               let _ = if not exportMode then ImpureGoodies.log <| "It took " ++ toString realNewOutTime ++ "ms."  else "" in
                --let _ = ImpureGoodies.log "Real out:" in
                --let _ = ImpureGoodies.log (valToHtml realNewOut) in
                (newProgExp, realNewOut, updateTime::updateTimes, realNewOutTime::evalTimes, newOutTime::modifTimes, 1)

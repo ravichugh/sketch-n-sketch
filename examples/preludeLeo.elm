@@ -1292,7 +1292,7 @@ html string = {
       let value =
         if name == "style" then
           LensLess.String.join "; " (LensLess.List.map (\[styleName, styleValue] ->
-            styleName + ": " + styleValue
+            styleName + ":" + styleValue
           ) mbStyleValue)
         else mbStyleValue
       in

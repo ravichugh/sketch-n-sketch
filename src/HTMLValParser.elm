@@ -132,18 +132,21 @@ valToHtmlNode v =
 
 -- Conversion between HTML nodes and true leo values
 
-styleATtrToElmViewInLeo: Vb.Vb -> (String, String) -> Val
-styleATtrToElmViewInLeo vb (name, content) =
+styleAttrToElmViewInLeo: Vb.Vb -> (String, String) -> Val
+styleAttrToElmViewInLeo vb (name, content) =
   if name /= "style" then
     Vb.viewtuple2 Vb.string Vb.string vb (name, content)
   else
     Vb.viewtuple2 Vb.string (Vb.list (Vb.viewtuple2 Vb.string Vb.string)) vb (name,
-          Regex.split Regex.All (Regex.regex "; *") content
-       |> List.map (Regex.split Regex.All (Regex.regex ": *"))
-       |> List.filterMap (\s -> case s of
-           [n, c] -> Just <| (n, c)
-           _ -> Nothing
-       ))
+          Regex.split Regex.All (Regex.regex "(?=;\\s*\\S)") content
+       |> List.filterMap (\s ->
+            case Regex.find (Regex.AtMost 1) (Regex.regex "^;?([\\s\\S]*):([\\s\\S]*);?\\s*$") s of
+              [m] -> case m.submatches of
+                [Just name, Just value] -> Just (name, value)
+                _ ->Nothing
+              _ ->Nothing
+          )
+       )
 
 filterHTMLInnerWhitespace: List HTMLNode -> List HTMLNode
 filterHTMLInnerWhitespace nodes =
@@ -163,14 +166,15 @@ htmlNodeToElmViewInLeo: Vb.Vb -> HTMLNode -> Val
 htmlNodeToElmViewInLeo vb tree =
   case tree of
     HTMLInner inner -> Vb.viewtuple2 Vb.string  Vb.string vb ("TEXT", Regex.replace Regex.All
-       (Regex.regex "&amp;|&lt;|&gt;|</[^>]*>")
+       (Regex.regex "&nbsp;|&amp;|&lt;|&gt;|</[^>]*>")
        (\{match} -> case match of
+         "&nbsp;" -> " "
          "&amp;" -> "&"
          "&lt;" -> "<"
          "&gt;" -> ">"
          _ -> "") inner)
     HTMLElement tagName attrs ws1 endOp children closing ->
-        Vb.viewtuple3 Vb.string (Vb.list styleATtrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
+        Vb.viewtuple3 Vb.string (Vb.list styleAttrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
           tagName
         , List.map (\attr -> case attr of
           HTMLAttribute ws0 name value -> case value of
@@ -180,7 +184,7 @@ htmlNodeToElmViewInLeo vb tree =
         , filterHTMLInnerWhitespace children)
     HTMLComment commentStyle ->
        let contentToVal content =
-         Vb.viewtuple3 Vb.string (Vb.list styleATtrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
+         Vb.viewtuple3 Vb.string (Vb.list styleAttrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
             "comment",
             [("display", "none")],
             [HTMLInner content])

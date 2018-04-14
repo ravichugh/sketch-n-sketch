@@ -5,12 +5,13 @@ module ExamplesGenerated exposing
   , fromleo_markdown
   , fromleo_markdown_optimized
   , fromleo_markdown_optimized_lensless
-  , fromleo_recipe
+  , fromleo_recipe2
   , fromleo_conference_budgetting
   , fromleo_modelviewcontroller
   , fromleo_latexeditor
   , tableOfStatesA
   , tableOfStatesB
+  , fromleo_programmabledoc
   )
 
 import Lang
@@ -6376,9 +6377,7 @@ newlines_lens x = {
   }.apply x
 
 Html.forceRefresh <|
-Html.div [[\"margin\",\"10px\"]] [] <|
-[Html.span [] [] <| html ((freeze markdown) (newlines_lens original))]
-
+Html.span [] [] <| html ((freeze markdown) (newlines_lens original))
 """
 
 fromleo_markdown_optimized =
@@ -6972,7 +6971,7 @@ controllers = {
 view =
   let {button} = ui model in
   let {addOne, changeN, customEval, changeMultiplier} = controllers in
-  Html.div [[\"margin\",\"20px\"]] [[\"contenteditable\",\"\"]] (
+  Html.div [[\"margin\",\"20px\"]] [] (
     [ Html.h1 [] [] \"Model-View-Controller\"]
     ++
     Html.parse

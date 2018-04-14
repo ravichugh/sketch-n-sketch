@@ -5,12 +5,13 @@ module ExamplesGenerated exposing
   , fromleo_markdown
   , fromleo_markdown_optimized
   , fromleo_markdown_optimized_lensless
-  , fromleo_recipe
+  , fromleo_recipe2
   , fromleo_conference_budgetting
   , fromleo_modelviewcontroller
   , fromleo_latexeditor
   , tableOfStatesA
   , tableOfStatesB
+  , fromleo_programmabledoc
   )
 
 import Lang

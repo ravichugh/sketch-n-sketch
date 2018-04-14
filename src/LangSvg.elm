@@ -489,8 +489,8 @@ valToStyle vs =
 
 strStyle styles =
   styles
-    |> List.map (\(k,v) -> k ++ ": " ++ strAVal v)
-    |> String.join "; "
+    |> List.map (\(k,v) -> k ++ ":" ++ strAVal v)
+    |> String.join ";"
 
 
 ------------------------------------------------------------------------------
