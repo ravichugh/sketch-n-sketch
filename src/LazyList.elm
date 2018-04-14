@@ -109,3 +109,9 @@ zip la lb = case (la, lb) of
   (Nil, _) -> Nil
   (_, Nil) -> Nil
   (Cons h1 t1, Cons h2 t2) -> Cons (h1, h2) (Lazy.map2 zip t1 t2)
+
+elemAt: Int -> LazyList a -> Maybe a
+elemAt n ll =
+  case ll of
+    Nil -> Nothing
+    Cons h1 t1 -> if n == 0 then Just h1 else elemAt (n - 1) (Lazy.force t1)

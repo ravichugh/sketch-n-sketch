@@ -28,7 +28,7 @@ import HTMLValParser
 
 finalMode = False
 
-nToAverageOn = if finalMode then 10 else 1
+nToAverageOn = if finalMode then 1 else 1
 
 programs = Dict.fromList [
   ("Table of States A", ExamplesGenerated.tableOfStatesA),
@@ -44,7 +44,10 @@ programs = Dict.fromList [
 
 type OutTransform = StringTransform (String -> String) | ValTransform (Val -> Val) | HTMLTransform (String -> String)
 
-type Transform = NoTransform | OutputTransform OutTransform | ProgTransform (String -> String)
+type Transform = NoTransform
+  | OutputTransform OutTransform
+  | ProgTransform (String -> String)
+  | SetNextChoice Int
 
 type Benchmark = BUpdate Int String (List Transform)
 
@@ -69,6 +72,7 @@ replaceMultiple transforms =
   OutputTransform <| ValTransform (\input ->
     List.foldl (\t v ->
       case t of
+        SetNextChoice _ -> Debug.crash "Cannot invoke SeteNextChoice in a replaceMultiple"
         NoTransform -> v
         OutputTransform to ->
           applyTransform to v
@@ -147,16 +151,28 @@ benchmarks = [
   --BUpdate "Markdown with lens" transform_markdown_ab_lens,
   --BUpdate "Markdown w/o lens" transform_markdown_ab_lens,
   --}
-  {--
-  BUpdate "Recipe" [ NoTransform
+  {--}
+  BUpdate (3*60+51) "Recipe" [ NoTransform
                    --, replaceHtmlBy "Soft chocolate" "Delicious soft chocolate" --Text transformation
-                   , replaceHtmlBy "20 small cakes" "80 small cakes" --Number lens
-                   , replaceHtmlBy "cup of "        "cup_2s_ of " --Plural lens
-                   , replaceHtmlBy "cups of "       "cup of "  -- Second lens
-                   , replaceHtmlBy "small cakes"    "small cakes for _12_ persons_12s_" --Plural lens
-                   , replaceHtmlBy "12 persons"    "18 persons" --Plural lens
-                   , replaceHtmlBy "'2000'"       "'1000'" -- Simulate press on button
-                   , replaceStringBy "\"A pinch of salt\"" "\"A pinch of salt\"]]],[ \"li\", [], [ [ \"TEXT\", \"Optional chocolate chips\""
+                   , replaceHtmlBy " alt='cupcakes'" " alt='cupcakes' style='\\n  float:  right;  \\n:  '"
+                   , replaceHtmlBy "Chocolate almond cakes"        "Chocolate Almond Cupcakes"
+                   , replaceStringBy "\\[\\s*\"h1\",\\s*\\[\\],\\s*\\[\\s*\\[\\s*\"TEXT\",\\s*\"Chocolate Almond Cupcakes\""
+                                      "[ \"h1\", [ [ \"style\", [ [ \"\\n  font-family\", \" cursive\" ], [ \" \\n\",\" \"]]] ], [ [ \"TEXT\", \"Chocolate Almond Cupcakes\""
+                   , replaceHtmlBy "border: 4px solid black; padding: 20px" "border: 4px solid black; padding: 20px; background-color: chocolate"
+                   , replaceHtmlBy "x='1000'(?=.*\\r?\\n.*Halve)" "x='500'"
+                   , replaceHtmlBy "melted chocolate</li>" "melted chocolate</li><li>_10_g of chocolate chip_10s_</li>"
+                   , replaceHtmlBy "10 small" "80 small"
+                   , replaceHtmlBy "2 cup of" "2 cup_2s_ of"
+                   , replaceHtmlBy "2 cups of" "2 cup of"
+                   , replaceHtmlBy "40 small" "30 small"
+                   , replaceHtmlBy "30g of chocolate" "1g of chocolate"
+                   , replaceHtmlBy "small cakes" "small cake_1s_"
+                   --, SetNextChoice 2
+                   , replaceHtmlBy "x='50'" "x='100'"
+                   , replaceHtmlBy "x='100'" "x='200'"
+                   , replaceHtmlBy "x='200'" "x='400'"
+                   , replaceHtmlBy "x='400'" "x='800'"
+                   , replaceHtmlBy "x='800'" "x='1600'"
                    ],
   --}
   BUpdate 0 "" []
@@ -192,8 +208,11 @@ mbmin = mbcmp min
 mbmax = mbcmp max
 mbacc = mbcmp (+)
 
-toMinuteSeconds: Float -> String
-toMinuteSeconds ms =
+sToMinutsSeconds: Float -> String
+sToMinutsSeconds s = msToMinutsSeconds (s * 1000)
+
+msToMinutsSeconds: Float -> String
+msToMinutsSeconds ms =
   let s = ceiling (ms / 1000) in
   if s < 60 then "0:" ++ String.padLeft 2 '0' (toString s)
   else toString (toFloat s / 60) ++ ":" ++ String.padLeft 2 '0' (toString (s % 60))
@@ -221,7 +240,8 @@ runBenchmark b = case b of
         session i unopt =
       let _ = if not finalMode then ImpureGoodies.log <| "Session #" ++ toString i ++ " " ++
             (if unopt then "unoptimized" else "optimized") ++" for " ++ benchmarkname  else "" in
-      let (_, _, updateTimes, evalTimes, modifTimes) = List.foldl (\step (progExp, oldOut, updateTimes, evalTimes, modifTimes) ->
+      let (_, _, updateTimes, evalTimes, modifTimes, _) =
+           List.foldl (\step (progExp, oldOut, updateTimes, evalTimes, modifTimes, choice) ->
            let _ = if not finalMode then ImpureGoodies.log <| "Apply transformation..."  else ""in
            --let _ = ImpureGoodies.log (toString unopt) in
            --let _ = ImpureGoodies.log "Current program:" in
@@ -231,12 +251,13 @@ runBenchmark b = case b of
            --let _ = ImpureGoodies.log ("New modifications: " ++ toString replacement)  in
            case step of
              NoTransform -> Debug.crash "NoTransform should have been removed"
+             SetNextChoice n -> (progExp, oldOut, updateTimes, evalTimes, modifTimes, n)
              ProgTransform p ->
                case parse (p (unparse progExp)) of
                  Err msg -> Debug.crash msg
                  Ok newProgExp ->
                    let (realNewOut, realNewOutTime) = ImpureGoodies.timedRun <| \_ -> evalEnv EvalUpdate.preludeEnv newProgExp |> Utils.fromOk "eval changed prog" in
-                   (newProgExp, realNewOut, updateTimes, realNewOutTime::evalTimes, modifTimes)
+                   (newProgExp, realNewOut, updateTimes, realNewOutTime::evalTimes, modifTimes, 1)
              OutputTransform replacement ->
                let (newOut, newOutTime) = ImpureGoodies.timedRun <| \_ -> applyTransform replacement oldOut in
                let _ = if not finalMode then ImpureGoodies.log <| "It took " ++ toString newOutTime ++ "ms. Update with newOut..."  else "" in
@@ -247,9 +268,9 @@ runBenchmark b = case b of
                   else
                     ImpureGoodies.timedRun <| \_ ->
                     EvalUpdate.doUpdateWithoutLog progExp oldOut newOut) |> \(x, t) -> case x of
-                       Results.Oks (LazyList.Cons (headEnv, headExp) lazyTail as ll) -> (headExp.val, t)
+                       Results.Oks (LazyList.Nil) -> Debug.crash <| "No solution for " ++ benchmarkname
+                       Results.Oks ll -> (LazyList.elemAt (choice - 1) ll |> Utils.fromJust_ "LazyList" |> Tuple.second |> .val, t)
                        Results.Errs msg -> Debug.crash msg
-                       _ -> Debug.crash <| "No solution for " ++ benchmarkname
                in
                let _ = if not finalMode then ImpureGoodies.log <| "It took " ++ toString updateTime ++ "ms. Recomputing realOut..."  else "" in
                --let _ = ImpureGoodies.log "new program:" in
@@ -258,8 +279,8 @@ runBenchmark b = case b of
                let _ = if not finalMode then ImpureGoodies.log <| "It took " ++ toString realNewOutTime ++ "ms."  else "" in
                --let _ = ImpureGoodies.log "Real out:" in
                --let _ = ImpureGoodies.log (valToHtml realNewOut) in
-               (newProgExp, realNewOut, updateTime::updateTimes, realNewOutTime::evalTimes, newOutTime::modifTimes)
-               ) (progExp, oldOut, [], [], []) finalReplacements
+               (newProgExp, realNewOut, updateTime::updateTimes, realNewOutTime::evalTimes, newOutTime::modifTimes, 1)
+               ) (progExp, oldOut, [], [], [], 1) finalReplacements
       in
       (List.sum updateTimes + List.sum evalTimes + List.sum modifTimes, List.reverse updateTimes)
     in
@@ -281,8 +302,8 @@ runBenchmark b = case b of
     let averageUnopt = average allUnoptTimes in
     let averageOpt   = average allOptTimes in
 
-    let averageUnoptSessionTime = toMinuteSeconds <| average <| List.map Tuple.first unoptResults in
-    let averageOptSessionTime   = toMinuteSeconds <| average <| List.map Tuple.first optResults in
+    let averageUnoptSessionTime = msToMinutsSeconds <| average <| List.map Tuple.first unoptResults in
+    let averageOptSessionTime   = msToMinutsSeconds <| average <| List.map Tuple.first optResults in
 
     let speedupfastest = speedup fastestUnopt fastestOpt in
     let speedupslowest = speedup slowestUnopt slowestOpt in
@@ -293,7 +314,7 @@ runBenchmark b = case b of
     String.padLeft 20 ' ' benchmarkname ++ "} {" ++
     String.pad 3 ' ' (toString <| locprog) ++ "} {" ++
     String.pad 4 ' ' (toString <| finalEvalTime) ++ "} { "++
-    String.pad 6 ' ' (toMinuteSeconds (toFloat sessionTime)) ++"  } { "++
+    String.pad 6 ' ' (sToMinutsSeconds (toFloat sessionTime)) ++"  } { "++
     String.pad 3 ' ' (toString numberOfUpdates) ++" } {" ++
     String.pad 15 ' ' (toString fastestUnopt ++ "/" ++ toString fastestOpt ++ speedupfastest) ++ "} {" ++
     String.pad 15 ' ' (toString slowestUnopt ++ "/" ++ toString slowestOpt ++ speedupslowest) ++ "} {" ++
@@ -329,7 +350,7 @@ compute = List.foldl (\b (acc, loc, eval, time, upd, updUnopt, updOpt) ->
 \\newcommand{\\benchmarksloc}{""" ++ toString loc ++ """}
 \\newcommand{\\benchmarksnum}{""" ++ toString (List.length benchmarks) ++ """}
 \\newcommand{\\benchmarkseval}{""" ++ toString eval ++ """}
-\\newcommand{\\benchmarkssessiontime}{""" ++ toMinuteSeconds (toFloat time) ++ """}
+\\newcommand{\\benchmarkssessiontime}{""" ++ sToMinutsSeconds (toFloat time) ++ """}
 \\newcommand{\\benchmarksnumupd}{""" ++ toString upd ++ """}
 \\newcommand{\\benchmarksaverageunoptupd}{""" ++ toString (floor unoptaverage) ++ """}
 \\newcommand{\\benchmarksaverageoptupd}{""" ++ toString (floor optaverage) ++ """}

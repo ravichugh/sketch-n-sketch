@@ -399,7 +399,7 @@ allStringDiffs before after =
               let newOverlap_ = Dict.insert oldIdxAfterChar (newSubLength, newWeight) overlap_ in
               if combineLengthWeight newSubLength newWeight > combineLengthWeight subLength_ weight_ then
                    (newOverlap_, [(oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)] , newSubLength, newWeight)
-              else if combineLengthWeight newSubLength newWeight == combineLengthWeight subLength_ weight_ && combineLengthWeight subLength_ weight_ > combineLengthWeight subLength weight then -- Ambiguity
+              else if combineLengthWeight newSubLength newWeight == combineLengthWeight subLength_ weight_ {-&& combineLengthWeight subLength_ weight_ > combineLengthWeight subLength weight-} then -- Ambiguity
                    (newOverlap_, (oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)::startOldNew , newSubLength, newWeight)
               else (newOverlap_, startOldNew,                         subLength_, weight_)
     in
@@ -409,6 +409,7 @@ allStringDiffs before after =
         ok1 <| (if String.isEmpty before then [] else [DiffRemoved before]) ++
                (if String.isEmpty after  then [] else [DiffAdded after])
     else
+      takeShortest <|
       flip Results.andThen (oks (List.reverse startOldNew)) <| \(startOld, startNew) ->
         -- otherwise, the common substring is unchanged and we recursively
         -- diff the text before and after that substring
@@ -417,6 +418,16 @@ allStringDiffs before after =
         flip Results.andThen left <| \leftDiffs ->
           flip Results.map right <| \rightDiffs ->
             leftDiffs ++ (DiffEqual (String.slice startNew (startNew + subLength) after) :: rightDiffs)
+
+takeShortest x =
+  case x of
+    Errs msg -> Debug.crash "A diff cannot return Err but it did so"
+    Oks ll ->
+      let l = LazyList.toList ll in
+      let sizes = List.map List.length l in
+      let minsize = List.minimum sizes |> Maybe.withDefault 0 in
+      let finallist = List.filterMap (\l -> if List.length l <= minsize then Just l else Nothing) l in
+      Oks (LazyList.fromList finallist)
 
 
 type Diff3Chunk a = Diff3Merged (DiffChunk a) | Diff3Conflict (List (DiffChunk a)) (List (DiffChunk a))
