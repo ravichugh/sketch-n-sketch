@@ -2577,9 +2577,10 @@ view model =
       ( [ onbeforeunloadDataElement model
         , menuBar model
         , workArea model
-        , deuceOverlay model
+        -- TODO turning off deuceOverlay/RightClickMenu. for SnsDocs. debug why it's so slow...
+        -- , deuceOverlay model
         , diffOverlay model
-        , deuceRightClickMenu model
+        -- , deuceRightClickMenu model
         ]
         ++ (popupPanels model)
         ++ [subtleBackground]
