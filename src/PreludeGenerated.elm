@@ -2937,16 +2937,16 @@ String =
     a -> replaceFirstIn \"%s\" a str
   in
   { toInt x =
-      { apply x = freeze <| strToInt x
+      { apply x = freeze (strToInt x)
       , unapply output = Just (toString output)
       }.apply x
     join delimiter x = if delimiter == \"\" then join__ x else {
-        apply x = join delimiter x
+        apply x = freeze (join delimiter x)
         update {output, oldOutput, diffs} =
           {values = [Regex.split delimiter output]}
       }.apply x
     length x = {
-      apply x = length x
+      apply x = freeze (length x)
       update {input, oldOutput, newOutput} =
         if newOutput < oldOutput then
           { values = [take newOutput input], diffs = [Just (VStringDiffs [StringUpdate newOutput oldOutput 0])] }
@@ -3335,9 +3335,9 @@ Html =
   let forceRefresh =
     Update.applyLens
       { apply node =
-         if toggleGlobalBool []
+         freeze (if toggleGlobalBool []
             then [\"div\", [[\"id\", \"wrapper\"]], [node]]
-            else node
+            else node)
 
         update {input=node, outputNew, diffs} =
           case outputNew of

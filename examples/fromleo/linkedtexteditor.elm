@@ -1,30 +1,30 @@
 editorInfo = """
-<h1>Cloning Editor</h1>
+<h1>Linked-Text Editor</h1>
 <p>
-  This text editor is set up to allow <em>cloning</em>
+  This text editor is set up to allow <em>linking</em>
   ot text elements. Two portions of text can be linked
   together by defining a variable, from the output interface.
 </p>
 <p>
-  <b>Defining a cloneable word:</b>
+  <b>Defining a link-able word:</b>
   Prefix a word with $ (for example, "$prove") to create
   a variable named "prove". Its content is originally
   its name, so the dollar is removed.
 </p>
 <p>
-  <b>Inserting clones:</b>
-  To insert a clone of the content of a variable named "prove", 
+  <b>Inserting linked words:</b>
+  To insert a link of the content of a variable named "prove", 
   type somewhere else "$prove" or add a dollar to an existing "prove".
 </p>
 <p>
-  <b>Modifying clones:</b>
+  <b>Modifying linked words:</b>
   If you change one of the linked occurrences of "prove" to "show",
-  you will notice that all of them are linked. If you add a new
+  you will notice that all linked occurrences change. If you add a new
   "$prove", it will also be replaced by "prove".
   Replacements can be nested, but it does not replace variables in cycles, so you're safe
 </p>
 <p>
-  In the example below, the notations are clones. If you change a P to H, all of them will be updated.
+  In the example below, the notations are linked. If you change a P to H, all of them will be updated.
 </p>
 """
 

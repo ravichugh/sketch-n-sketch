@@ -12,7 +12,8 @@ module ExamplesGenerated exposing
   , tableOfStatesA
   , tableOfStatesB
   , tableOfStatesC
-  , fromleo_programmabledoc
+  , fromleo_linkedtexteditor
+  , fromleo_translatabledoc
   )
 
 import Lang
@@ -259,7 +260,8 @@ LEO_TO_ELM fromleo/conference_budgetting
 LEO_TO_ELM fromleo/recipe
 LEO_TO_ELM fromleo/recipe2
 LEO_TO_ELM fromleo/modelviewcontroller
-LEO_TO_ELM fromleo/programmabledoc
+LEO_TO_ELM fromleo/linkedtexteditor
+LEO_TO_ELM fromleo/translatabledoc
 LEO_TO_ELM fromleo/latexeditor
 
 --------------------------------------------------------------------------------
@@ -287,7 +289,7 @@ docsCategory =
       [ ("Conference Budget", fromleo_conference_budgetting)
       , ("Model View Controller", fromleo_modelviewcontroller)
       , ("Scalable Recipe Editor", fromleo_recipe2)
-      , ("Cloning Editor", fromleo_programmabledoc)
+      , ("Cloning Editor", fromleo_linkedtexteditor)
       , ("Markdown Editor", fromleo_markdown)
       , ("LaTeX Editor", fromleo_latexeditor)
       -- TODO maybe Conference?

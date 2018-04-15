@@ -412,6 +412,7 @@ allStringDiffs before after =
       let startOldNewPruned =
           --Debug.log ("before overlapping removal\n" ++ toString (List.reverse  startOldNew) ++ "\nAfter:") <|
           onlyOverlappingStartOldNew subLength (List.reverse  startOldNew) in
+      --(\x -> let _ = Debug.log ("Computed diffs:" ++ toString (Results.toList x)) () in x) <|
       takeShortest <|
       flip Results.andThen (oks startOldNewPruned) <| \(startOld, startNew) ->
         -- otherwise, the common substring is unchanged and we recursively
@@ -1309,7 +1310,19 @@ defaultVDiffsShallow original modified = ok1 (Just VUnoptimizedDiffs)
 
 -- Invoke this only if strictly necessary.
 defaultVDiffs: Val -> Val -> Results String (Maybe VDiffs)
-defaultVDiffs original modified = defaultVDiffsRec True defaultVDiffs original modified
+defaultVDiffs original modified =
+  {--}
+   (\x ->
+    let diffs=  Results.toList x in
+    let _ = if List.length diffs > 1 then
+       Debug.log ("There was a diff ambiguity here : " ++ toString diffs ++ "\n" ++ valToString original ++ "\n" ++ valToString modified) ()
+       else
+          Debug.log ("A diff was recomputed here : " ++ toString diffs ++ "\n" ++ valToString original ++ "\n" ++ valToString modified) <|
+          ()
+    in
+    x) <|
+  --}
+  defaultVDiffsRec True defaultVDiffs original modified
 
 defaultVDiffsRec: Bool -> (Val -> Val -> Results String (Maybe VDiffs)) -> Val -> Val -> Results String (Maybe VDiffs)
 defaultVDiffsRec testEquality recurse original modified =

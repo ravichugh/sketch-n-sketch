@@ -30,8 +30,8 @@ exportMode = True {-- -- Add a } to make the benchmark run for all
                     && False --}
 fastButWrong = True {-- -- Add a } to make the benchmark run for all
   && False --}
-bypassUnopt = True{-- -- Add a } to make the benchmark run for all
-  && False --}
+bypassUnopt = False{-- -- Add a } to make the benchmark bypass the unopt
+  || True --}
 
 
 
@@ -48,8 +48,9 @@ programs = Dict.fromList [
   --("Markdown w/o lens", ExamplesGenerated.fromleo_markdown_optimized_lensless),
   ("Scalable Recipe", ExamplesGenerated.fromleo_recipe2),
   ("Budgetting", ExamplesGenerated.fromleo_conference_budgetting),
-  ("Cloning Editor", ExamplesGenerated.fromleo_programmabledoc),
-  ("MVC", ExamplesGenerated.fromleo_modelviewcontroller)
+  ("Linked-Text Editor", ExamplesGenerated.fromleo_linkedtexteditor),
+  ("MVC", ExamplesGenerated.fromleo_modelviewcontroller),
+  ("Translation Editor", ExamplesGenerated.fromleo_translatabledoc)
   ]
 
 type OutTransform =
@@ -141,9 +142,17 @@ at l n = Utils.nth l n |> Utils.fromOk "at" |> Maybe.withDefault ""
 
 benchmarks_: List Benchmark
 benchmarks_ = [
-  BUpdate 0 "Cloning Editor" [NoTransform
-    , replaceHtmlBy "P(1)" "H(1)"
-    , replaceHtmlBy "H(n)" "G(m)"
+  {--
+  BUpdate 0 "Translation Editor" [NoTransform
+      , replaceHtmlBy "printer" "{printer}"
+    ],
+  --}
+  --{--{--{--{--{--{--{--
+  {--}
+  BUpdate (0*60+53) "Cloning Editor" [NoTransform
+    , replaceHtmlBy "P\\(1\\)" "H(1)"
+    {--}
+    , replaceHtmlBy "H\\(n\\)" "G(m)"
     , replaceMultiple "prove" [NoTransform
        , replaceHtmlBy "we want to prove" "we want to $prove"
        , replaceHtmlBy "need to prove" "need to $prove"
@@ -152,6 +161,7 @@ benchmarks_ = [
     ]
     , replaceHtmlBy "we want to prove" "we want to show"
     , replaceHtmlBy "we want to show" "we want to really show"
+    --}
   ],
   {--{--{--{--{--{--
   {--}
@@ -377,7 +387,7 @@ runBenchmark b = case b of
                          let (allSolutions, timeAllOtherSolutions) = ImpureGoodies.timedRun <| \_ -> LazyList.toList ll in
                          let numAmbiguities = List.length allSolutions in
                          let nonChangingEnv = LazyList.filter (\(env, e) -> env.changes == []) (LazyList.fromList allSolutions) in
-                         let (newEnv, newExp) = LazyList.elemAt (nextChoice - 1) nonChangingEnv |> Utils.fromJust_ "LazyList"
+                         let (newEnv, newExp) = LazyList.elemAt (nextChoice - 1) nonChangingEnv |> Utils.fromJust_ "LazyList head"
                          in
                          if newExp.changes == Nothing then
                            Debug.crash <| "In" ++ benchmarkname++ ", expected a change to the expression, got Nothing.\nTransform =  " ++ transformName replacement ++ "\n" ++ (transformValToString replacement newOut)
