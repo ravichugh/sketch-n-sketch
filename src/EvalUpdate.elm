@@ -344,6 +344,7 @@ doUpdateWithoutLog oldExp oldVal out =
     Oks (LazyList.Cons Nothing _ ) -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
     Oks ll ->
         Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
+         --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
          update <| updateContext "initial update" preludeEnv oldExp oldVal out diffs)
 
 -- Deprecated

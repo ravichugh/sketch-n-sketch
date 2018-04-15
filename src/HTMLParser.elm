@@ -309,6 +309,8 @@ contructorVDiffs: VDiffs -> Result String (TupleDiffs VDiffs)
 contructorVDiffs vdiffs =
   --Debug.log ("constructorVDiffs " ++ toString vdiffs ++ " = ") <|
   case vdiffs of
+  VConstDiffs ->
+    Ok []
   VRecordDiffs d ->
     case Dict.get Lang.ctorArgs d of
       Nothing ->

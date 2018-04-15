@@ -165,7 +165,7 @@ join = let
                , if strdiffs == [] then [] else [(0, VListDiffs strdiffs)])
              )
            )
-        _ -> Errs <| "join expects a list of strings, got " ++ valToString list
+        _ -> Errs <| "join expects a list of strings, got " ++ valToString list ++ " updated with " ++ valToString newVal ++ " and " ++ toString diffs
       _ -> Errs <| "join expects two arguments, got " ++ toString (List.length args)
   )
 

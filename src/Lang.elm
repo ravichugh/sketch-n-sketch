@@ -75,13 +75,14 @@ type CtorKind
   = TupleCtor
   | DataTypeCtor
 
+ctorTuple = "$t_ctor"
+ctorDataType = "$d_ctor"
+
 stringifyCtorKind : CtorKind -> String
 stringifyCtorKind ctorKind =
   case ctorKind of
-    TupleCtor ->
-      "$t_ctor"
-    DataTypeCtor ->
-      "$d_ctor"
+    TupleCtor -> ctorTuple
+    DataTypeCtor -> ctorDataType
 
 ctorKind : String -> Maybe CtorKind
 ctorKind s =

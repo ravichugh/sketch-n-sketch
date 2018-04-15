@@ -77,7 +77,7 @@ update callbacks forks updateStack =
       let _ = Debug.log (String.concat [
         "update final result: ", unparse fOut.val,
         {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes,
-        ",\nExpModifs=" ++ stringDiffsToString fOut.changes]) () in
+        ",\nExpModifs=" ++ toString fOut.changes]) () in
        --}
       case (LazyList.maybeCons mb callbacks) of -- Let's consume the stack !
         LazyList.Nil ->
@@ -132,7 +132,14 @@ getUpdateStackOp env e oldVal newVal diffs =
                 case diffs of
                   VStringDiffs l ->
                     updateResultSameEnvDiffs env  (replaceE__ e <| EBase ws (EString quoteChar newChars)) (EStringDiffs l)
-                  _ -> UpdateCriticalError <| "Exepcted VStringDiffs, got " ++ toString diffs
+                  VUnoptimizedDiffs ->
+                    updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+                       (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
+                          case vdiffs of
+                            VStringDiffs l ->
+                               updateResultSameEnvDiffs env  (replaceE__ e <| EBase ws (EString quoteChar newChars)) (EStringDiffs l)
+                            _ -> UpdateCriticalError <| "Expected VStringDiffs 1, got " ++ toString vdiffs
+                  _ -> UpdateCriticalError <| "Expected VStringDiffs 2, got " ++ toString diffs
               _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
           _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
 
@@ -544,7 +551,6 @@ getUpdateStackOp env e oldVal newVal diffs =
                                   Ok ((vArg, _), _) ->
                                     let x = eVar "x" in
                                     let y = eVar "y" in
-
                                     updateMany (ifUnoptimizedDeepDiff oldVal newVal diffs)
                                       (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
                                     let diffsVal =
@@ -863,7 +869,9 @@ getUpdateStackOp env e oldVal newVal diffs =
                          Err s       -> UpdateCriticalError s
                          Ok v2ls     ->
                            let v2s = List.map (\((v2, _), _) -> v2) v2ls in
-                           case updateDef v2s oldVal newVal diffs of
+                           updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+                              (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
+                           case updateDef v2s oldVal newVal vdiffs of
                              Errs msg -> UpdateCriticalError msg
                              Oks LazyList.Nil -> UpdateFails <| "not solution for updating " ++ name
                              Oks ll ->
@@ -929,18 +937,18 @@ getUpdateStackOp env e oldVal newVal diffs =
                                       (d, v) -> Debug.crash <| "Unexpected diff: " ++ toString d ++ " on val " ++ (Maybe.map valToString v |> Maybe.withDefault "Nothing") ++ " when updating DictFromList -- if it was a VDictElemInsert, the key already existed"
                                     ) ([], []) <| Utils.zipWithIndex listKeyDictKeyValues
                                 in
-                                let finalListRev = Dict.foldl (\k v newListRev ->
+                                let (finalListRev, finalDiffsRev) = Dict.foldl (\k v (newListRev, newDiffsRev) ->
                                       case v of
                                         VDictElemInsert -> case Dict.get k newDict of
                                           Just newV -> case dictKeyToVal Syntax.Elm k of
-                                            Ok thekey ->  (thekey, newV)::newListRev
+                                            Ok thekey ->  ((thekey, newV)::newListRev, (List.length listKeyDictKeyValues, ListElemInsert 1)::newDiffsRev)
                                             Err msg -> Debug.crash <| "Could not get a key out of " ++ toString k ++ " because " ++ msg
                                           _ -> Debug.crash <| "Unexpected VictElemInsert of " ++ toString k ++ " but this key was not found in the updating dictionary " ++ valToString newVal
-                                        _ -> newListRev
-                                      ) newListRev dictDiffs
+                                        _ -> (newListRev, newDiffsRev)
+                                      ) (newListRev, newDiffsRev) dictDiffs
                                 in
                                 let finalValuesList = Vb.list (Vb.tuple2 Vb.identity Vb.identity) (Vb.fromVal keyValuesList) (List.reverse finalListRev) in
-                                let finalDiffsList = VListDiffs <| List.reverse newDiffsRev in
+                                let finalDiffsList = VListDiffs <| List.reverse finalDiffsRev in
                                 updateContinue "DictFromList" env keyValuesListE keyValuesList finalValuesList finalDiffsList <| \newEnv newKeyValuesListE ->
                                   let finalExp = replaceE__ e <| EOp sp1 op [newKeyValuesListE.val] sp2 in
                                   updateResult newEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newKeyValuesListE.changes)
@@ -1353,9 +1361,9 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                 case mbvdiff of
                   Just (VStringDiffs d) -> aux 0 [] d
                   Just dd ->
-                    Errs <| "Expected VStringDiffs, got " ++ toString dd
+                    Errs <| "Expected VStringDiffs 3, got " ++ toString dd
                   Nothing ->
-                    Errs <| "Expected VStringDiffs, got Nothing"
+                    ok1 ([oldOutVal, newOutVal], [])
               )
             o -> Errs <| "This operation is not supported for strings : " ++ toString o
         o -> Errs <| "Expected two strings, got " ++ toString o ++ " -- actually (to update the operation " ++ (operandVals |> List.map valToString |> String.join " + ") ++ valToString oldOutVal ++ " <- " ++ valToString newOutVal ++ ")"
@@ -1582,10 +1590,11 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
     let (n,m) = (List.length ps, List.length vs) in
     if n > m then Nothing
     else
-      let (vs1,vs2) = Utils.split n vs in
+      let (vs1,oldTailVals) = Utils.split n vs in
+      let oldTailVal = replaceV_ v <| VList oldTailVals in
       (ps, vs1)
       |> matchListWithInversion
-      |> consWithInversion (rest, replaceV_ v <| VList vs2) -- Maybe (Env, UpdatedEnv -> ((Val, Maybe VDiffs), a))
+      |> consWithInversion (rest, oldTailVal) -- Maybe (Env, UpdatedEnv -> ((Val, Maybe VDiffs), a))
       |> Maybe.map (\(env, envRenewer) ->
         (env, (\newUpdatedEnv ->
           if UpdatedEnv.isUnmodified newUpdatedEnv then (v, Nothing) else
@@ -1595,7 +1604,7 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
             ([], _, Nothing) -> (v, Nothing)
             (_, VList tailVals, _) -> (replaceV_ v <| (VList <| newVals ++ tailVals),
                                       Just <| VListDiffs <|
-                                       (List.map (\(i, d) -> (i, ListElemUpdate d)) mbValsDiffs) ++ (case mbTailValDiffs of
+                                       (List.map (\(i, d) -> (i, ListElemUpdate d)) mbValsDiffs) ++ (case ifUnoptimizedShallowDiffMb oldTailVal newTailVal mbTailValDiffs of
                                          Nothing -> []
                                          Just (VListDiffs diffs) ->
                                            UpdateUtils.offset (List.length ps) diffs

@@ -344,6 +344,13 @@ alldiffs keyOf before after =
 -- Faster implementation of allDiffs for tow strings
 allStringDiffs: String -> String -> Results String (List (DiffChunk String))
 allStringDiffs before after =
+    -- If at least one half of the string before/after was the same, no need to look for the longest equal sequence.
+    --let middlePointLeft = max ((String.length before + 2) / 2) ((String.length after + 2) / 2) in
+    --if String.slice 0 middlePointLeft before
+    --   == String.slice 0 middlePointLeft after then
+   --    let remainingBefore = String.dropLeft middlePointLeft before in
+   --    let remainingAfter = String.dropLeft middlePointLeft before in
+   --    allStringDiffs remainingBefore remainingAfter
     --let _ = ImpureGoodies.log <| "allStringDiffs '" ++ before ++ "' '" ++ after ++ "'" in
     -- Create a Dict from before values to the list of every index at which they appears
     -- In this variables, the biggest indices appear first
@@ -1151,7 +1158,7 @@ strDiffToConcreteDiff newString d =
     [] -> List.reverse revAcc
     StringUpdate start end replaced :: tail ->
        (start, end, String.slice (start + offset) (start + replaced + offset) newString)::revAcc |>
-       aux (replaced - (end - start)) tail
+       aux (offset + replaced - (end - start)) tail
   in aux 0 d []
 
 
@@ -1290,8 +1297,16 @@ ifUnoptimizedShallowDiff: Val -> Val -> VDiffs -> Results String (Maybe VDiffs)
 ifUnoptimizedShallowDiff original modified vdiffs =
   case vdiffs of
     VUnoptimizedDiffs ->
+--      (\x -> --let _ = List.map (\y -> Debug.log ("unrolling an unoptmized diffs: " ++
+--          (Maybe.map (vDiffsToString original modified) y |> Maybe.withDefault "Nothing")) ()) (Results.toList x) in x) <|
       defaultVDiffsRec False (\_ _ -> ok1 <| Just VUnoptimizedDiffs) original modified
     _ -> ok1 (Just vdiffs)
+
+ifUnoptimizedShallowDiffMb: Val -> Val -> Maybe VDiffs -> Maybe VDiffs
+ifUnoptimizedShallowDiffMb original modified vdiffs =
+  case vdiffs of
+    Nothing -> Nothing
+    Just x -> ifUnoptimizedShallowDiff original modified VUnoptimizedDiffs |> Results.toList |> List.head |> Maybe.andThen identity
 
 ifUnoptimizedDeepDiff: Val -> Val -> VDiffs -> Results String (Maybe VDiffs)
 ifUnoptimizedDeepDiff original modified vdiffs =
@@ -1311,13 +1326,14 @@ defaultVDiffsShallow original modified = ok1 (Just VUnoptimizedDiffs)
 -- Invoke this only if strictly necessary.
 defaultVDiffs: Val -> Val -> Results String (Maybe VDiffs)
 defaultVDiffs original modified =
-  {--}
+  --let _ = Debug.log ("defaultVDiffs " ++ valToString original ++ "\n" ++ valToString modified) () in
+  {--
    (\x ->
     let diffs=  Results.toList x in
     let _ = if List.length diffs > 1 then
        Debug.log ("There was a diff ambiguity here : " ++ toString diffs ++ "\n" ++ valToString original ++ "\n" ++ valToString modified) ()
        else
-          Debug.log ("A diff was recomputed here : " ++ toString diffs ++ "\n" ++ valToString original ++ "\n" ++ valToString modified) <|
+          Debug.log ("A diff was recomputed here : " ++ (diffs |> List.filterMap identity |> List.map (vDiffsToString original modified) |> String.join "\n") ++ "\n" ++ valToString original ++ "\n" ++ valToString modified) <|
           ()
     in
     x) <|
@@ -1347,11 +1363,20 @@ defaultVDiffsRec testEquality recurse original modified =
     (VDict original, VDict modified) ->
       defaultDictDiffs valToString recurse original modified
     (VRecord original, VRecord modified) ->
-      defaultRecordDiffs valToString recurse original modified
+      case (Dict.get Lang.ctorDataType original, Dict.get ctorDataType modified) of
+        (Just x, Just  y) -> case (x.v_, y.v_) of
+           (VBase (VString sx), VBase (VString sy)) -> if sx == sy
+             then defaultRecordDiffs valToString recurse original modified
+             else ok1 (Just VConstDiffs)
+           _ -> defaultRecordDiffs valToString recurse original modified
+        (Just x, Nothing) -> ok1 (Just VConstDiffs)
+        (Nothing, Just x) -> ok1 (Just VConstDiffs)
+        (Nothing, Nothing) -> defaultRecordDiffs valToString recurse original modified
     (v1, v2) -> if valEqual original modified then ok1 Nothing else ok1 (Just VConstDiffs)
 
 defaultStringDiffs: String -> String -> Results String (Maybe (List StringDiffs))
 defaultStringDiffs before after =
+  if before == after then ok1 Nothing else
   allStringDiffs before after |> Results.andThen (\difference ->
     let aux: Int -> List (DiffChunk String) -> List StringDiffs -> Results String (Maybe (List StringDiffs))
         aux  i      diffs                      revAccDiffs = case diffs of
