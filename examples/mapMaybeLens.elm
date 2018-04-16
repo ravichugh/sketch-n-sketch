@@ -1,9 +1,9 @@
 maybeMapSimple f mx =
-  Update.freeze (case mx of [] -> []; [x] -> [f x])
+  case mx of [] -> []; [x] -> [f x]
 
 maybeMapLens default =
   { apply (f, mx) =
-      maybeMapSimple f mx
+      Update.freeze (maybeMapSimple f mx)
 
   , update {input = (f, mx), outputNew = my} =
       case my of

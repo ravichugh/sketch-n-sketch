@@ -14,6 +14,8 @@ module ExamplesGenerated exposing
   , tableOfStatesC
   , fromleo_linkedtexteditor
   , fromleo_translatabledoc
+  , mapMaybeLens
+  , listAppendLens
   )
 
 import Lang

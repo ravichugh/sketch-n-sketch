@@ -1306,7 +1306,7 @@ ifUnoptimizedShallowDiffMb: Val -> Val -> Maybe VDiffs -> Maybe VDiffs
 ifUnoptimizedShallowDiffMb original modified vdiffs =
   case vdiffs of
     Nothing -> Nothing
-    Just x -> ifUnoptimizedShallowDiff original modified VUnoptimizedDiffs |> Results.toList |> List.head |> Maybe.andThen identity
+    Just x -> ifUnoptimizedShallowDiff original modified x |> Results.toList |> List.head |> Maybe.andThen identity
 
 ifUnoptimizedDeepDiff: Val -> Val -> VDiffs -> Results String (Maybe VDiffs)
 ifUnoptimizedDeepDiff original modified vdiffs =

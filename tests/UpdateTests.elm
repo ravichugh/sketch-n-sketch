@@ -21,6 +21,7 @@ import HTMLValParser
 import Set
 import ImpureGoodies
 import EvalUpdate exposing (builtinEnv)
+import ExamplesGenerated
 
 type StateChanger = StateChanger (State -> State)
 
@@ -114,12 +115,12 @@ assertEqualVal_: Val -> Val -> State  -> State
 assertEqualVal_ = genericAssertEqual valToString (\x y -> valToString x == valToString y)
 assertEqualVal  v1 v2 = gather <| assertEqualVal_ v1 v2
 
-updateAssert_: Env -> Exp -> Val -> Val -> Env -> String  -> State  -> State
-updateAssert_ env exp origOut newOut expectedEnv expectedExpStr state =
+updateAssert_: Bool -> Env -> Exp -> Val -> Val -> Env -> String  -> State  -> State
+updateAssert_ checkEnv env exp origOut newOut expectedEnv expectedExpStr state =
   if state.ignore then state else
-  let expected = envToString expectedEnv ++ " |- " ++ expectedExpStr in
+  let expected = (if checkEnv then envToString expectedEnv else "") ++ " |- " ++ expectedExpStr in
   let problemdesc = ("\nFor problem:" ++
-    envToString env ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
+    (if checkEnv then envToString env else "") ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
     " (was " ++ valToString origOut ++ ")") in
   case UpdateUtils.defaultVDiffs origOut newOut of
     Errs msg -> fail state <| log state <| "This diff is not allowed:" ++ msg
@@ -133,23 +134,23 @@ updateAssert_ env exp origOut newOut expectedEnv expectedExpStr state =
           let _ = LazyList.toList ll in
           --let _ = ImpureGoodies.log <| toString expX.changes in
           --let _ = ImpureGoodies.log <| eDiffsToString "" exp expX.val (expX.changes |> Maybe.withDefault (EConstDiffs EAnyDiffs)) in
-          let obtained = envToString envX.val ++ " |- " ++ unparse expX.val in
+          let obtained = (if checkEnv then envToString envX.val else if envX.changes == [] then "" else toString envX.changes) ++ " |- " ++ unparse expX.val in
           if obtained == expected then success state else
             case Lazy.force lazyTail of
               LazyList.Cons (envX2, expX2) lazyTail2 ->
-                let obtained2 = envToString envX2.val ++ " |- " ++ unparse expX2.val in
+                let obtained2 = (if checkEnv then envToString envX.val else if envX.changes == [] then "" else toString envX.changes) ++ " |- " ++ unparse expX2.val in
                 if obtained2 == expected then success state else
                 fail state <|
-                  log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ " and " ++ obtained2 ++ problemdesc
+                  log state <| "Expected \n'" ++ expected ++  "'\n, got\n'" ++ obtained ++ "'\n and \n'" ++ obtained2 ++ problemdesc
               LazyList.Nil ->
                 fail state <|
-                  log state <| "Expected \n" ++ expected ++  ", got\n" ++ obtained ++ problemdesc
+                  log state <| "Expected \n'" ++ expected ++  "'\n, got\n'" ++ obtained ++ "'\n" ++ problemdesc
         Results.Oks LazyList.Nil ->
-           fail state <| log state <| "Expected \n" ++ expected ++  ", got no solutions without error" ++ problemdesc
+           fail state <| log state <| "Expected \n'" ++ expected ++  "', got no solutions without error" ++ problemdesc
         Results.Errs msg ->
-           fail state <| log state <| "Expected \n" ++ expected ++  ", got\n" ++ msg ++ problemdesc
+           fail state <| log state <| "Expected \n'" ++ expected ++  "', got '" ++ msg ++ problemdesc
 updateAssert env exp origOut newOut expectedEnv expectedExpStr =
-  gather <| updateAssert_ env exp origOut newOut expectedEnv expectedExpStr
+  gather <| updateAssert_ True env exp origOut newOut expectedEnv expectedExpStr
 
 evalElmAssert_: List (String, String) -> String -> String -> State -> State
 evalElmAssert_ envStr expStr expectedResStr state =
@@ -196,7 +197,7 @@ updateElmAssert_ envStr expStr newOutStr expectedEnvStr expectedExpStr state =
              --let _ = Debug.log (log state <| toString exp) () in
              case Utils.projOk [evalEnv env exp, eval newOut] of
              Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ Syntax.unparser Syntax.Elm exp ++ "," ++ Syntax.unparser Syntax.Elm newOut ++ ": " ++ error
-             Ok [out, newOut] -> updateAssert_ env exp out newOut expectedEnv expectedExpStr state
+             Ok [out, newOut] -> updateAssert_ True env exp out newOut expectedEnv expectedExpStr state
              Ok _ -> fail state "???"
            Ok _ -> fail state "???"
     Ok _ -> fail state "???"
@@ -211,11 +212,28 @@ updateElmAssert2_ env expStr newOutStr expectedExpStr state =
         --let _ = Debug.log (log state <| toString exp) () in
         case Utils.projOk [evalEnv env exp, eval newOut] of
         Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ Syntax.unparser Syntax.Elm exp ++ "," ++ Syntax.unparser Syntax.Elm newOut ++ ": " ++ error
-        Ok [out, newOut] -> updateAssert_ env exp out newOut env expectedExpStr state
+        Ok [out, newOut] -> updateAssert_ True env exp out newOut env expectedExpStr state
         Ok _ -> fail state "???"
       Ok _ -> fail state "???"
 updateElmAssert2 env expStr newOutStr expectedExpStr = gather <| updateElmAssert2_ env expStr newOutStr expectedExpStr
 
+updateElmPrelude_: String -> (String -> String) -> (String -> String) -> State -> State
+updateElmPrelude_ expStr outReplacer expectedExpReplacer state =
+  if state.ignore then state else
+  case parse expStr of
+    Err error -> fail state <| log state <| "Error while parsing expressions or outputs: " ++ error
+    Ok exp ->
+      case evalEnv EvalUpdate.preludeEnv exp of
+         Err error -> fail state <| log state <| "Error while evaluating the expression: " ++ Syntax.unparser Syntax.Elm exp ++ ": " ++ error
+         Ok oldOut ->
+           case oldOut |> valToString |> outReplacer |> parse |> Result.andThen eval of
+             Err error ->  fail state <| log state <| "Error while parsing expressions or outputs: " ++ error
+             Ok newOut ->
+               let expectedExpStr = expectedExpReplacer expStr in
+               updateAssert_ False EvalUpdate.preludeEnv exp oldOut newOut EvalUpdate.preludeEnv expectedExpStr state
+updateElmPrelude expStr outReplacer expectedExpReplacer = gather <| updateElmPrelude_ expStr outReplacer expectedExpReplacer
+
+replaceStr before after = Regex.replace Regex.All (Regex.regex before) (\_ -> after)
 parse = Syntax.parser Syntax.Elm >> Result.mapError (\p -> ParserUtils.showError p)
 unparse = Syntax.unparser Syntax.Elm
 evalEnv env exp = Eval.doEval Syntax.Elm env exp |> Result.map (Tuple.first >> Tuple.first)
@@ -716,7 +734,15 @@ all_tests = init_state
         "updateReplace \"\"\"(<(ul|ol)>(?:(?!</\\2>)[\\s\\S])*)</li>\\s*<li>\"\"\" \"$1</li>\\n</$2>\\n<$2>\\n\\t<li>\" \"<ul><li>a</li><li>b</li></ul>\" (VStringDiffs [StringUpdate 14 14 10])"
         "(\"<ul><li>a</li>\\n</ul>\\n<ul>\\n\\t<li>b</li></ul>\", VStringDiffs [StringUpdate 0 14 37])"
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
-  |> skipBefore
   |> updateElmAssert2 builtinEnv "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"printer\"" "\"$translation1\""
                                  "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"$translation1\""
+
+  |> skipBefore
+  |> updateElmPrelude (
+      ExamplesGenerated.mapMaybeLens
+        |> replaceStr "\n$" "" -- Remove newlines
+        |> replaceStr "showValues \\[maybeState1, maybeState2, maybeState3, maybeState4\\]" "showValues [maybeState3, maybeState4]"
+        |> replaceStr "\r?\nmaybeState(1|2).*" ""
+      ) (replaceStr "New Jersey" "New Jersay")
+      (replaceStr "New Jersey" "New Jersay")
   |> summary

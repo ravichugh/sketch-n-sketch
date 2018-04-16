@@ -14,6 +14,8 @@ module ExamplesGenerated exposing
   , tableOfStatesC
   , fromleo_linkedtexteditor
   , fromleo_translatabledoc
+  , mapMaybeLens
+  , listAppendLens
   )
 
 import Lang
@@ -6008,11 +6010,11 @@ simpleBudget =
 
 mapMaybeLens =
  """maybeMapSimple f mx =
-  Update.freeze (case mx of [] -> []; [x] -> [f x])
+  case mx of [] -> []; [x] -> [f x]
 
 maybeMapLens default =
   { apply (f, mx) =
-      maybeMapSimple f mx
+      Update.freeze (maybeMapSimple f mx)
 
   , update {input = (f, mx), outputNew = my} =
       case my of
@@ -6045,7 +6047,6 @@ showValues values =
 
 main =
   showValues [maybeState1, maybeState2, maybeState3, maybeState4]
-
 """
 
 mapListLens_1 =

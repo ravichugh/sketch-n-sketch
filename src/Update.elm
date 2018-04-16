@@ -76,7 +76,7 @@ update callbacks forks updateStack =
        {--
       let _ = Debug.log (String.concat [
         "update final result: ", unparse fOut.val,
-        {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes,
+        {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", if fUpdatedEnv.changes == [] then "\nenvironment unchanged" else envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes,
         ",\nExpModifs=" ++ toString fOut.changes]) () in
        --}
       case (LazyList.maybeCons mb callbacks) of -- Let's consume the stack !

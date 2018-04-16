@@ -388,10 +388,7 @@ runBenchmark b = case b of
                        Results.Oks (LazyList.Cons (headUEnv, headUExp) _ as ll) ->
                          let (allSolutions, timeAllOtherSolutions) = ImpureGoodies.timedRun <| \_ -> LazyList.toList ll in
                          let numAmbiguities = List.length allSolutions in
-                         let nonChangingEnv = LazyList.filter (\(env, e) -> case env.changes of
-                           [] -> e.changes /= Nothing
-                           [(0, VUnoptimizedDiffs)] -> e.changes /= Nothing
-                           _ -> False) (LazyList.fromList allSolutions) in
+                         let nonChangingEnv = LazyList.filter (\(env, e) -> List.all (\(i, x) -> x == VUnoptimizedDiffs) env.changes && e.changes /= Nothing) <| LazyList.fromList allSolutions in
                          case nonChangingEnv of
                               LazyList.Nil -> Debug.crash <| unparse headUExp.val ++ "All solutions of " ++ replacementName ++ " modify the environment or do not modify the expression: " ++ envDiffsToString EvalUpdate.preludeEnv headUEnv.val headUEnv.changes
                               _ ->
@@ -524,6 +521,7 @@ compute = (Utils.foldLeft
          let optaverageamb = average optAmb in
          ImpureGoodies.log <| """}
 \\newcommand{\\benchmarksloc}{""" ++ toString loc ++ """}
+\\newcommand{\\benchmarkslocfloored}{""" ++ toString (floor (toFloat loc / toFloat 100) * 100) ++ """}
 \\newcommand{\\benchmarksnum}{""" ++ toString (List.length benchmarks) ++ """}
 \\newcommand{\\benchmarkseval}{""" ++ toString eval ++ """}
 \\newcommand{\\benchmarkssessiontime}{""" ++ sToMinutsSeconds (toFloat time) ++ """}
