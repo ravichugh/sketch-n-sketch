@@ -364,6 +364,15 @@ patsInOutput modelRenamingInOutput showRemover pats left top =
     , attr "y" (toString (top - 10 - 17))
     ]
 
+expInOutput : Exp -> Float -> Float -> Svg Msg
+expInOutput exp left top =
+  flip Svg.text_ [VirtualDom.text (Syntax.unparser Syntax.Elm exp |> Utils.squish)] <|
+    [ attr "fill" "black"
+    , attr "font-family" params.mainSection.uiWidgets.font
+    , attr "font-size" params.mainSection.uiWidgets.fontSize
+    , attr "x" (toString left)
+    , attr "y" (toString top)
+    ]
 
 buildSvgWidgets : Int -> Int -> Widgets -> Model -> List (Svg Msg)
 buildSvgWidgets wCanvas hCanvas widgets model =
@@ -506,7 +515,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         Just (_, Just eid) -> eid == callEId
         _                  -> False
     in
-    if not <| isCurrentContext || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredCallWidgets then
+    if not <| isCurrentContext || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
       []
     else
       let maybeBounds =
@@ -570,6 +579,46 @@ buildSvgWidgets wCanvas hCanvas widgets model =
           , maybeAddArg
           ] |> Utils.filterJusts
   in
+  let drawListWidget i_ listVal model =
+    let program = model.inputExp in
+    let idAsShape = -2 - i_ in
+    let isSelected = Set.member idAsShape model.selectedShapes in
+    if not <| List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
+      []
+    else
+      let maybeBounds =
+        ShapeWidgets.maybeWidgetBounds (WList listVal)
+      in
+      case maybeBounds of
+        Nothing -> []
+        Just (left, top, right, bot) ->
+          let titleAttribute =
+            if isSelected then
+              Svg.title [] [Svg.text "Click to deselect this list."]
+            else
+              Svg.title [] [Svg.text "Click to select this list."]
+          in
+          let box =
+            flip Svg.rect [titleAttribute] <|
+              [ attr "fill" "none"
+              , attr "cursor" "pointer"
+              , attr "stroke" (if isSelected then colorPointSelected else "black")
+              , attr "stroke-width" "7px"
+              , attr "stroke-dasharray" "5,1"
+              , attr "opacity" (if isSelected then "1.0" else "0.15")
+              , attr "rx" "25"
+              , attr "ry" "25"
+              , attr "x" (toString left)
+              , attr "y" (toString top)
+              , attr "width" (toString (right - left))
+              , attr "height" (toString (bot - top))
+              , onMouseDownAndStop (if isSelected then Controller.msgDeselectList idAsShape else Controller.msgSelectList idAsShape)
+              ]
+          in
+          [ box
+          , expInOutput (valExp listVal) left (top - 5)
+          ]
+  in
 
   let draw (i_, widget) =
     case widget of
@@ -592,6 +641,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
 
       WCall callEId funcVal argVals retVal retWs ->
         drawCallWidget i_ callEId funcVal argVals retVal retWs model
+
+      WList listVal ->
+        drawListWidget i_ listVal model
   in
 
   List.concat <| Utils.mapi1 draw widgets
@@ -697,6 +749,7 @@ shapeIdToMaybeVal id m =
       Just (WPoint _ _ _ _ pairVal)            -> Just pairVal
       Just (WOffset1D _ _ _ _ _ amountVal _ _) -> Just amountVal
       Just (WCall _ _ _ retVal _)              -> Just retVal
+      Just (WList val)                         -> Just val
       Nothing                                  -> Nothing
   else
     Dict.get id shapeTree
@@ -722,7 +775,11 @@ addHoveredShape id =
                 (\(i, widget) ->
                   case (widget, ShapeWidgets.maybeWidgetBounds widget) of
                     (WCall callEId funcVal argVals retVal retWs, Just (left, top, right, bot)) ->
-                      if [] /= (Utils.intersectAsSet (Provenance.valToSameVals retVal |> List.concatMap flattenValTree) (Provenance.valToSameVals hoveredVal |> List.concatMap flattenValTree))
+                      if flattenValTree retVal |> List.any (Provenance.valsSame hoveredVal) -- [] /= (Utils.intersectAsSet (Provenance.valToSameVals retVal |> List.concatMap flattenValTree) (Provenance.valToSameVals hoveredVal |> List.concatMap flattenValTree))
+                      then Just ((left, top, right, bot), i)
+                      else Nothing
+                    (WList listVal, Just (left, top, right, bot)) ->
+                      if flattenValTree listVal |> List.any (Provenance.valsSame hoveredVal)
                       then Just ((left, top, right, bot), i)
                       else Nothing
                     _ ->
@@ -733,7 +790,7 @@ addHoveredShape id =
           case ShapeWidgets.maybeEnclosureOfAllBounds bounds of
             Just bounds ->
               { m | hoveredShapes      = Set.singleton id
-                  , hoveredCallWidgets = Utils.addAsSet (bounds, Set.fromList newHoveredCallWidgetIs) m.hoveredCallWidgets
+                  , hoveredBoundsWidgets = Utils.addAsSet (bounds, Set.fromList newHoveredCallWidgetIs) m.hoveredBoundsWidgets
               }
             Nothing ->
               { m | hoveredShapes      = Set.singleton id }

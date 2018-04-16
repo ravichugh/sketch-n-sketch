@@ -7,6 +7,7 @@ import LangSvg exposing (RootedIndexedTree, IndexedTree, NodeId, ShapeKind, Attr
 import Provenance
 import Utils
 import ValUnparser exposing (strVal)
+import ValWidgets
 
 import Dict
 import Regex
@@ -126,6 +127,7 @@ pointFeaturesOfWidget widget =
     WPoint _ _ _ _ _          -> [LonePoint]
     WOffset1D _ _ _ _ _ _ _ _ -> [EndPoint]
     WCall _ _ _ _ _           -> []
+    WList _                   -> []
 
 
 ------------------------------------------------------------------------------
@@ -256,6 +258,7 @@ maybeEvaluateWidgetPointFeature widget pointFeature =
       in
       Just (endX, endY)
     (WCall _ _ _ _ _, _) -> Nothing
+    (WList _, _)         -> Nothing
     _                    -> Debug.crash <| "bad feature for widget: " ++ toString pointFeature
 
 
@@ -507,6 +510,8 @@ widgetFeatureEquation shapeFeature widget locIdToNumberAndLoc =
         _                   -> Debug.crash <| "WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
     WCall callEId funcVal argVals retVal retWs ->
       Debug.crash <| "WCall does not have any feature equations, but asked for " ++ toString shapeFeature
+    WList val ->
+      Debug.crash <| "WList does not have any feature equations, but asked for " ++ toString shapeFeature
 
 
 widgetFeatureValEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureValEquation
@@ -527,6 +532,8 @@ widgetFeatureValEquation shapeFeature widget _{- locIdToNumberAndLoc -} =
         _              -> Debug.crash <| "widgetFeatureValEquation WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
     WCall callEId funcVal argVals retVal retWs ->
       Debug.crash <| "WCall does not have any feature val equations, but asked for " ++ toString shapeFeature
+    WList val ->
+      Debug.crash <| "WList does not have any feature val equations, but asked for " ++ toString shapeFeature
 
 
 shapeFeatureEquationOf
@@ -885,9 +892,9 @@ heightForWCallPats = 50
 -- Returns Maybe (left, top, right, bot)
 maybeWidgetBounds : Widget -> Maybe (Num, Num, Num, Num)
 maybeWidgetBounds widget =
+  let padding = 25 in
   case widget of
     WCall callEId funcVal argVals retVal retWs ->
-      let padding = 25 in
       retVal::argVals
       |> List.map valToMaybeBounds
       |> (++) (retWs |> List.map maybeWidgetBounds)
@@ -897,6 +904,17 @@ maybeWidgetBounds widget =
           (\(left, top, right, bot) ->
             ( left  - padding
             , top   - padding - heightForWCallPats
+            , right + padding
+            , bot   + padding
+            )
+          )
+
+    WList val ->
+      valToMaybeBounds val
+      |> Maybe.map
+          (\(left, top, right, bot) ->
+            ( left  - padding
+            , top   - padding
             , right + padding
             , bot   + padding
             )
@@ -1267,7 +1285,7 @@ selectedFeaturesValTrees ((rootI, shapeTree) as slate) widgets selectedFeatures 
   |> List.map
       (\feature ->
         featureToValEquation feature shapeTree widgets Dict.empty
-        |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
+        |> Utils.fromJust_ "selectedFeaturesValTrees: can't make shape into val equation"
         |> featureValEquationToValTree
       )
 

@@ -140,17 +140,17 @@ eval_ syntax env bt e = Result.map Tuple.first <| eval Nothing runUntilTheEnd sy
 -- removing prior identical widgets produced by previous expressions.
 addSubsumingPriorWidgets : Widget -> List Widget -> List Widget
 addSubsumingPriorWidgets widget widgets =
-  case widget of
-    WPoint nt1 v1 nt2 v2 v ->
+  case ValWidgets.widgetToMaybeVal widget of
+    Just v ->
       let
-        priorPointValsToRemove = valToSameVals v
+        priorValsToRemove = valToSameVals v
         wsSamePointSubsumed =
           widgets
           |> List.filter
               (\priorWidget ->
-                case priorWidget of
-                  WPoint _ _ _ _ widgetVal -> not <| List.member widgetVal priorPointValsToRemove
-                  _                        -> True
+                case ValWidgets.widgetToMaybeVal priorWidget of
+                  Just widgetVal -> not <| ValWidgets.isSameWidgetType widget priorWidget && List.member widgetVal priorValsToRemove
+                  _              -> True
               )
       in
       wsSamePointSubsumed ++ [widget]
@@ -699,6 +699,7 @@ postProcessWidgets widgets =
           WPoint _ _ _ _ _             -> False
           WOffset1D _ _ _ _ _ _ _ _    -> False
           WCall _ _ _ _ _              -> False
+          WList _                      -> False
       )
   in
   rangeWidgets ++ pointWidgets

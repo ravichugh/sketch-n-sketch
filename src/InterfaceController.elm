@@ -18,6 +18,7 @@ port module InterfaceController exposing
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
   , msgSetEditingContext, msgClearEditingContext
+  , msgSelectList, msgDeselectList
   , msgActivateRenameInOutput, msgUpdateRenameInOutputTextBox, msgDoRename
   , msgAddArg, msgRemoveArg
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
@@ -1401,10 +1402,10 @@ msgMousePosition pos_ =
       if isMouseDown old || old.renamingInOutput /= Nothing then
         old
       else
-        let hoveredCallWidgets =
+        let hoveredBoundsWidgets =
           let {x, y} = canvasPosition old (mousePosition old) in
           let extraMargin = 15 in
-          old.hoveredCallWidgets
+          old.hoveredBoundsWidgets
           |> List.filter
               (\((left, top, right, bot), _) ->
                 round left  - extraMargin <= x &&
@@ -1413,7 +1414,7 @@ msgMousePosition pos_ =
                 round bot   + extraMargin >= y
               )
         in
-        { old | hoveredCallWidgets = hoveredCallWidgets }
+        { old | hoveredBoundsWidgets = hoveredBoundsWidgets }
   in
     Msg ("MousePosition " ++ toString pos_) <|
       mouseStateUpdater >> deucePopupPanelPositionUpdater >> deHoverCallWidgets
@@ -2190,7 +2191,6 @@ msgClearPreview = Msg "Clear Preview" <| \old ->
 
 
 msgSetEditingContext focusedEId maybeExampleCallEId = Msg "Set Editing Context" <| \old ->
-  let deuceState = old.deuceState in
   let newProgram =
     old.inputExp
     |> FocusedEditingContext.clearEditingContextMarkers
@@ -2206,6 +2206,12 @@ doClearEditingContext old =
   { old | code = Syntax.unparser old.syntax (FocusedEditingContext.clearEditingContextMarkers old.inputExp) }
   |> clearSelections
   |> upstateRun
+
+msgSelectList idAsShape = Msg "Select List" <| \old ->
+  { old | selectedShapes = Set.insert idAsShape old.selectedShapes }
+
+msgDeselectList idAsShape = Msg "Deselect List" <| \old ->
+  { old | selectedShapes = Set.remove idAsShape old.selectedShapes }
 
 msgActivateRenameInOutput pid = Msg ("Active Rename Box for PId " ++ toString pid) <| \old ->
   let oldPatStr =

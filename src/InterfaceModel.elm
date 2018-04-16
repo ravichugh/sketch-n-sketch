@@ -134,7 +134,7 @@ type alias Model =
   , tool : Tool
   , hoveredShapes : Set.Set NodeId
   , hoveredCrosshairs : Set.Set SelectablePoint
-  , hoveredCallWidgets : List ((Num, Num, Num, Num), Set.Set NodeId) -- Bounds beyond which un-hovering should occur, and widgets associated with those bounds.
+  , hoveredBoundsWidgets : List ((Num, Num, Num, Num), Set.Set NodeId) -- Bounds beyond which un-hovering should occur, and widgets associated with those bounds.
   , selectedShapes : Set.Set NodeId
   , selectedFeatures : Set.Set SelectableFeature
   -- line/g ids assigned by blobs function
@@ -1173,7 +1173,7 @@ initModel =
     , tool          = Cursor
     , hoveredShapes = Set.empty
     , hoveredCrosshairs = Set.empty
-    , hoveredCallWidgets = []
+    , hoveredBoundsWidgets = []
     , selectedShapes = Set.empty
     , selectedFeatures = Set.empty
     , selectedBlobs = Dict.empty
