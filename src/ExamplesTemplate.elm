@@ -290,6 +290,7 @@ docsCategory =
       , ("Model View Controller", fromleo_modelviewcontroller)
       , ("Scalable Recipe Editor", fromleo_recipe2)
       , ("Cloning Editor", fromleo_linkedtexteditor)
+      , ("Translation Editor", fromleo_translatabledoc)
       , ("Markdown Editor", fromleo_markdown)
       , ("LaTeX Editor", fromleo_latexeditor)
       -- TODO maybe Conference?

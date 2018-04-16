@@ -327,7 +327,7 @@ Update =
           [] -> List.reverse revAcc
           ((StringUpdate start end replaced) :: tail) ->
              ConcStringUpdate start end (String.slice (start + offset) (start + replaced + offset) newString) :: revAcc |>
-             aux (replaced - (end - start)) tail
+             aux (offset + replaced - (end - start)) tail
         in aux 0 d []
   in
   -- exports from Update module
@@ -1459,7 +1459,7 @@ Html =
               case diffs of
                 VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate newNodeDiffs)]))] ->
                   {values = [newNode], diffs = [Just newNodeDiffs]}
-                _ -> {values = [outputNew]}
+                _ -> {values = [newNode]}
             _ ->
               {values = [outputNew]}
       }

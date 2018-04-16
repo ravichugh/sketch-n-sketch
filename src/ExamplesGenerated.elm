@@ -7194,15 +7194,17 @@ In case your printer RGB4500 is stuck, please follow these steps:
     }.apply (x, allTranslationDicts)
   )
 
-setLang translationsLangDict = {
-  apply translationsLangDict = freeze \"\"
+alltranslationsLangDict = Dict.fromList translations
+addLang alltranslationsLangDict = {
+  apply alltranslationsLangDict = freeze \"\"
   update {input, outputNew} =
-    if not (outputNew == \"\") && not (Dict.member outputNew translationsLangDict) then 
-      let toCopy = Dict.apply translationsLangDict currentLanguage in
-      {values = [Dict.insert outputNew translationsLangDict]}
+    if not (outputNew == \"\") && not (Dict.member outputNew alltranslationsLangDict) then 
+      let toCopy = Dict.apply alltranslationsLangDict language in
+      {values = [Dict.insert outputNew toCopy alltranslationsLangDict],
+       diffs=[Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)]))]}
     else
-      { values = [input]}
-  }.apply translationsLangDict
+      { values = [input], diffs = [Nothing]}
+  }.apply alltranslationsLangDict
 
 main = 
   Html.forceRefresh <|
@@ -7212,7 +7214,7 @@ main =
     , Html.div [[\"border\", \"4px solid black\"], [\"padding\", \"20px\"]] [] <|
         [Html.span [] [] <|
           Html.select languages languageIndex ::
-          [\"input\", [[\"style\", [[\"margin-left\", \"10px\"]]], [\"type\",\"text\"], [\"v\", setLang translationsLangDict],
+          [\"input\", [[\"style\", [[\"margin-left\", \"10px\"]]], [\"type\",\"text\"], [\"v\", addLang alltranslationsLangDict],
             [\"placeholder\", \"New Language (e.g. German)\"], [\"title\", \"Enter the name of a language here and press ENTER\"],
             [\"onchange\",\"this.setAttribute('v',this.value)\"]], []] ::
           Html.checkbox \"Highlights\" \"Highlight translatable text\" highlighttranslations ::
@@ -7784,6 +7786,7 @@ docsCategory =
       , ("Model View Controller", fromleo_modelviewcontroller)
       , ("Scalable Recipe Editor", fromleo_recipe2)
       , ("Cloning Editor", fromleo_linkedtexteditor)
+      , ("Translation Editor", fromleo_translatabledoc)
       , ("Markdown Editor", fromleo_markdown)
       , ("LaTeX Editor", fromleo_latexeditor)
       -- TODO maybe Conference?

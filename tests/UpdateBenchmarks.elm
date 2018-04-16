@@ -149,7 +149,7 @@ benchmarks_ = [
   --}
   --{--{--{--{--{--{--{--
   {--}
-  BUpdate (0*60+53) "Cloning Editor" [NoTransform
+  BUpdate (0*60+53) "Linked-Text Editor" [NoTransform
     , replaceHtmlBy "P\\(1\\)" "H(1)"
     {--}
     , replaceHtmlBy "H\\(n\\)" "G(m)"
@@ -163,7 +163,7 @@ benchmarks_ = [
     , replaceHtmlBy "we want to show" "we want to really show"
     --}
   ],
-  {--{--{--{--{--{--
+  --{--{--{--{--{--{--
   {--}
   BUpdate (1*60+11) "MVC" [NoTransform
     , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increment)" "trigger='#'"
@@ -338,8 +338,9 @@ runBenchmark b = case b of
     -- Returns the number of ambiguities encountered, and a list of all the times taken to compute all remaining solutions
     let session: Int -> Bool -> ((Float, List Float), (List Int, List Float))
         session i unopt =
-      let _ = if not exportMode then ImpureGoodies.log <| "Session #" ++ toString i ++ " " ++
-            (if unopt then "unoptimized" else "optimized") ++" for " ++ benchmarkname  else "" in
+      let sessionName = "Session #" ++ toString i ++ " " ++
+         (if unopt then "unoptimized" else "optimized") ++" for " ++ benchmarkname in
+      let _ = if not exportMode then ImpureGoodies.log <| sessionName  else "" in
       let (_, _, updateTimes, evalTimes, modifTimes, ambiguities, timeAmbiguities, _) =
            Utils.foldLeft
                 (progExp, oldOut, [],          [],        [],         [],          [],              1) finalReplacements <|
@@ -369,6 +370,7 @@ runBenchmark b = case b of
                    let (realNewOut, realNewOutTime) = ImpureGoodies.timedRun <| \_ -> evalEnv EvalUpdate.preludeEnv newProgExp |> Utils.fromOk "eval changed prog" in
                    (newProgExp, realNewOut, updateTimes, realNewOutTime::evalTimes, modifTimes, ambiguities, timeAmbiguities, 1)
              OutputTransform replacement ->
+               let replacementName = sessionName ++ transformName replacement in
                --let _ = Debug.log ("oldOut\n" ++ valToString oldOut) () in
                --let _ = Debug.log ("oldOut\n" ++ valToHtml oldOut) () in
                let (newOut, newOutTime) = ImpureGoodies.timedRun <| \_ -> applyTransform replacement oldOut in
@@ -382,18 +384,24 @@ runBenchmark b = case b of
                   else
                     ImpureGoodies.timedRun <| \_ ->
                     EvalUpdate.doUpdateWithoutLog progExp oldOut newOut) |> \(x, t) -> case x of
-                       Results.Oks (LazyList.Nil) -> Debug.crash <| "No solution for " ++ benchmarkname
-                       Results.Oks ll ->
+                       Results.Oks (LazyList.Nil) -> Debug.crash <| "No solution for " ++ replacementName
+                       Results.Oks (LazyList.Cons (headUEnv, headUExp) _ as ll) ->
                          let (allSolutions, timeAllOtherSolutions) = ImpureGoodies.timedRun <| \_ -> LazyList.toList ll in
                          let numAmbiguities = List.length allSolutions in
-                         let nonChangingEnv = LazyList.filter (\(env, e) -> env.changes == []) (LazyList.fromList allSolutions) in
+                         let nonChangingEnv = LazyList.filter (\(env, e) -> case env.changes of
+                           [] -> e.changes /= Nothing
+                           [(0, VUnoptimizedDiffs)] -> e.changes /= Nothing
+                           _ -> False) (LazyList.fromList allSolutions) in
+                         case nonChangingEnv of
+                              LazyList.Nil -> Debug.crash <| unparse headUExp.val ++ "All solutions of " ++ replacementName ++ " modify the environment or do not modify the expression: " ++ envDiffsToString EvalUpdate.preludeEnv headUEnv.val headUEnv.changes
+                              _ ->
                          let (newEnv, newExp) = LazyList.elemAt (nextChoice - 1) nonChangingEnv |> Utils.fromJust_ "LazyList head"
                          in
                          if newExp.changes == Nothing then
-                           Debug.crash <| "In" ++ benchmarkname++ ", expected a change to the expression, got Nothing.\nTransform =  " ++ transformName replacement ++ "\n" ++ (transformValToString replacement newOut)
+                           Debug.crash <| "In " ++ replacementName++ ", expected a change to the expression, got Nothing\n" ++ (transformValToString replacement newOut)
                          else
                           (newExp.val, newExp.changes |> Utils.fromJust,  t, numAmbiguities, timeAllOtherSolutions)
-                       Results.Errs msg -> Debug.crash <| msg ++ "Transform =  " ++ transformName replacement ++ "\n" ++ (transformValToString replacement newOut)  ++ "\n" ++ unparse progExp
+                       Results.Errs msg -> Debug.crash <| msg ++ "Transform =  " ++ replacementName ++ "\n" ++ (transformValToString replacement newOut)  ++ "\n" ++ unparse progExp
                in
                let newProgExp = parse (unparse newProgExp_) |> Utils.fromOk_ in
                --let _ = ImpureGoodies.log (eDiffsToString "" progExp newProgExp newProgExpDiffs) in
@@ -414,7 +422,7 @@ runBenchmark b = case b of
          session i False
     in
     let unoptResults: List ((Float, List Float), (List Int, List Float))
-        unoptResults = if bypassUnopt then optResults else
+        unoptResults = --if bypassUnopt then optResults else
           tryMany nToAverageOn <| \i ->
              session i True--}
     in

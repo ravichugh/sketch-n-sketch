@@ -716,4 +716,7 @@ all_tests = init_state
         "updateReplace \"\"\"(<(ul|ol)>(?:(?!</\\2>)[\\s\\S])*)</li>\\s*<li>\"\"\" \"$1</li>\\n</$2>\\n<$2>\\n\\t<li>\" \"<ul><li>a</li><li>b</li></ul>\" (VStringDiffs [StringUpdate 14 14 10])"
         "(\"<ul><li>a</li>\\n</ul>\\n<ul>\\n\\t<li>b</li></ul>\", VStringDiffs [StringUpdate 0 14 37])"
     -- Add the test <i>Hello <b>world</span></i> --> <i>Hello <b>world</b></i>  (make sure to capture all closing tags)
+  |> skipBefore
+  |> updateElmAssert2 builtinEnv "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"printer\"" "\"$translation1\""
+                                 "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"$translation1\""
   |> summary
