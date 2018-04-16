@@ -1358,9 +1358,10 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
   in
   let xyDot =
     let isContextOutputPoint model xVal yVal =
-      case valToMaybeXYVals model.inputVal of
-        Just (outputValX, outputValY) -> Provenance.valsSame xVal outputValX && Provenance.valsSame yVal outputValY
-        _                             -> False
+      model.inputVal
+      |> flattenValTree
+      |> List.filterMap valToMaybeXYVals
+      |> List.any (\(outputValX, outputValY) -> Provenance.valsSame xVal outputValX && Provenance.valsSame yVal outputValY)
     in
     let isContextInputPoint model xVal yVal =
       (List.any (Provenance.valsSame xVal) model.contextInputVals && List.any (Provenance.valsSame yVal) model.contextInputVals) ||

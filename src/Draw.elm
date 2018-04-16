@@ -88,7 +88,7 @@ colorLineSelected       = "#B4FADB" -- "blue"
 colorLineNotSelected    = "#FAB4D3" -- "red"
 
 colorInput              = "#FFA340"
-colorOutput             = "#7ABAFF"
+colorOutput             = "#91C5FF"
 
 --------------------------------------------------------------------------------
 -- Bounding Boxes
