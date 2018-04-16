@@ -25,17 +25,24 @@ import ImpureGoodies
 import LangSvg
 import HTMLParser
 import HTMLValParser
+import Dict exposing (Dict)
+
 
 exportMode = True {-- -- Add a } to make the benchmark run for all
                     && False --}
-fastButWrong = True {-- -- Add a } to make the benchmark run for all
+fastButWrong = False {-- -- Add a } to make the benchmark run for all
   && False --}
 bypassUnopt = False{-- -- Add a } to make the benchmark bypass the unopt
   || True --}
-
-
+--displayCache = True
 
 nToAverageOn = if fastButWrong then 1 else 10
+
+benchmarkCache: Dict String (List ((Float, List Float), (List Int, List Float)), List ((Float, List Float), (List Int, List Float)))
+benchmarkCache = Dict.fromList [ ("", ([], []))
+ %%% next , ("Linked-Text Editor",([((11364,[2110,1937,2189,2348,2182]),([1,1,1,1,2],[0,0,0,0,1])),((11033,[2217,2153,1949,2135,1992]),([1,1,1,1,2],[1,0,0,0,2])),((9321,[1870,1812,1703,1802,1710]),([1,1,1,1,2],[0,0,0,0,1])),((9655,[1772,1888,1809,1787,1955]),([1,1,1,1,2],[0,0,0,0,2])),((10301,[1978,1901,1969,1990,1994]),([1,1,1,1,2],[0,0,0,0,1])),((11046,[1903,2141,1934,1940,2464]),([1,1,1,1,2],[0,0,0,0,2])),((11906,[2901,2164,2162,2057,1980]),([1,1,1,1,2],[0,0,0,0,1])),((11538,[2257,2359,2173,2130,2101]),([1,1,1,1,2],[0,0,0,0,2])),((11222,[2124,2455,2064,2039,2009]),([1,1,1,1,2],[0,0,0,0,1])),((9233,[1950,1895,1596,1618,1629]),([1,1,1,1,2],[0,0,0,0,1]))],[((51781,[11886,12366,12191,7508,7352]),([1,1,1,1,1],[0,0,0,0,0])),((51154,[11938,12097,11737,6658,8249]),([1,1,1,1,1],[0,0,0,0,0])),((55379,[13175,12868,13305,8098,7438]),([1,1,1,1,1],[0,0,0,0,0])),((58094,[12846,14204,14536,8619,7307]),([1,1,1,1,1],[0,0,0,0,0])),((58495,[13245,13793,13536,8459,8887]),([1,1,1,1,1],[0,0,0,0,0])),((56469,[14108,13544,13365,7141,7804]),([1,1,1,1,1],[0,0,0,0,0])),((54262,[12596,13497,13084,7210,7426]),([1,1,1,1,1],[0,0,0,0,0])),((55861,[13339,13077,13350,7900,7682]),([1,1,1,1,1],[0,0,0,0,0])),((53034,[12810,12918,12196,6991,7630]),([1,1,1,1,1],[0,0,0,0,0])),((53242,[12342,12620,12605,7994,7195]),([1,1,1,1,1],[0,0,0,0,0]))]))
+ ]
+
 
 programs = Dict.fromList [
   ("Table of States A", ExamplesGenerated.tableOfStatesA),
@@ -140,8 +147,8 @@ transform_table_of_states_b = [NoTransform
 
 at l n = Utils.nth l n |> Utils.fromOk "at" |> Maybe.withDefault ""
 
-benchmarks_: List Benchmark
-benchmarks_ = [
+benchmarks: List Benchmark
+benchmarks = [
   {--
   BUpdate 0 "Translation Editor" [NoTransform
       , replaceHtmlBy "printer" "{printer}"
@@ -256,11 +263,15 @@ benchmarks_ = [
                    ],
   --}
   BUpdate 0 "" []
-  ]
-
-benchmarks = List.filterMap (\c -> case c of
+  ] |>
+  List.filterMap (\c -> case c of
   BUpdate _ "" _ -> Nothing
-  _ -> Just c ) benchmarks_
+  _ -> Just c )
+
+next = "next"
+
+(%%%) : a -> b -> a
+(%%%) a b = a
 
 valToHtml: Val -> String
 valToHtml oldOut =
@@ -320,7 +331,8 @@ speedup unopt opt =
 runBenchmark: Benchmark -> (String, Int, Int, Int, Int, List Float, List Float, (List Int, List Float, List Float))
 runBenchmark b = case b of
   BUpdate sessionTime benchmarkname replacements ->
-    if benchmarkname == "" then ("", 0, 0, 0, 0, [], [], ([], [], [])) else
+    if benchmarkname == "" then ("", 0, 0, 0, 0, [], [], ([], [], []))
+    else
     let finalReplacements = List.filter (\x -> x/= NoTransform) replacements in
     let numberOfUpdates = List.length (List.filter (\x ->
       case x of
@@ -414,14 +426,13 @@ runBenchmark b = case b of
       in
       ((List.sum updateTimes + List.sum evalTimes + List.sum modifTimes, List.reverse updateTimes), (List.reverse ambiguities, List.reverse timeAmbiguities))
     in
-    let optResults: List ((Float, List Float), (List Int, List Float))
-        optResults = tryMany nToAverageOn <| \i ->
-         session i False
-    in
-    let unoptResults: List ((Float, List Float), (List Int, List Float))
-        unoptResults = --if bypassUnopt then optResults else
-          tryMany nToAverageOn <| \i ->
-             session i True--}
+    let (optResults, unoptResults) =
+         case Dict.get benchmarkname benchmarkCache of
+          Nothing -> (tryMany nToAverageOn <| \i ->
+                        session i False,
+                      tryMany nToAverageOn <| \i ->
+                        session i True)
+          Just x -> x
     in
     let allUpdateTimes = List.concatMap (Tuple.second << Tuple.first) in
     let allUnoptTimes = allUpdateTimes unoptResults in
@@ -465,24 +476,30 @@ runBenchmark b = case b of
 
     let locprog = loc prog in
     let finalEvalTime = ceiling evalTime in
+    let displazyunoptoptspeedup timeUnopt timeOpt =
+      if timeUnopt < 5 && timeOpt < 5 then
+         String.pad 15 ' ' ("\\lessthanms{5}")
+      else
+         String.pad 15 ' ' (s timeUnopt ++ "/" ++ s timeOpt ++ speedup timeUnopt timeOpt)
+    in
     let latexRow = "\\tableRow   {" ++
     String.padRight 20 ' ' benchmarkname ++ "} {" ++
     String.pad 3 ' ' (toString <| locprog) ++ "} {" ++
     String.pad 4 ' ' (toString <| finalEvalTime) ++ "} { "++
     String.pad 6 ' ' (sToMinutsSeconds (toFloat sessionTime)) ++"  } { "++
     String.pad 3 ' ' (toString numberOfUpdates) ++" } {" ++
-    String.pad 15 ' ' (s fastestUnopt ++ "/" ++ s fastestOpt ++ speedup fastestUnopt fastestOpt) ++ " & " ++
-    String.pad 15 ' ' (s slowestUnopt ++ "/" ++ s slowestOpt ++ speedup slowestUnopt slowestOpt) ++ " & " ++
-    String.pad 15 ' ' (s averageUnopt ++ "/" ++ s averageOpt ++ speedup averageUnopt averageOpt) ++ "} " ++
+    displazyunoptoptspeedup fastestUnopt fastestOpt ++ " & " ++
+    displazyunoptoptspeedup slowestUnopt slowestOpt ++ " & " ++
+    displazyunoptoptspeedup averageUnopt averageOpt ++ "} " ++
     "{  " ++ (if (minAmbiguity == maxAmbiguity)
          then "\\always{} " ++ toString minAmbiguity ++ " & " ++ toString minAmbiguity  ++ "        "
          else " " ++ toString minAmbiguity ++ " to " ++ toString maxAmbiguity ++ "      & " ++ String.pad 9 ' ' ((String.left 4 (toString averageAmbiguity)))) ++ "} " ++
     "{" ++ (if(minAmbiguity == maxAmbiguity) then
          String.pad 15 ' ' "\\noambiguity" ++ " & " ++ String.pad 15 ' ' "\\noambiguity" ++ " & " ++String.pad 15 ' ' "\\noambiguity"
       else
-      String.pad 15 ' ' (s fastestAmbiguityUnopt ++ "/" ++ s fastestAmbiguityOpt ++ speedup fastestAmbiguityUnopt fastestAmbiguityOpt) ++ " & " ++
-      String.pad 15 ' ' (s slowestAmbiguityUnopt ++ "/" ++ s slowestAmbiguityOpt ++ speedup slowestAmbiguityUnopt slowestAmbiguityOpt) ++ " & " ++
-      String.pad 15 ' ' (s averageAmbiguityUnopt ++ "/" ++ s averageAmbiguityOpt ++ speedup averageAmbiguityUnopt averageAmbiguityOpt)
+      displazyunoptoptspeedup fastestAmbiguityUnopt fastestAmbiguityOpt ++ " & " ++
+      displazyunoptoptspeedup slowestAmbiguityUnopt slowestAmbiguityOpt ++ " & " ++
+      displazyunoptoptspeedup averageAmbiguityUnopt averageAmbiguityOpt
      )++ "} "
     in
     let _ = ImpureGoodies.log latexRow in
@@ -494,8 +511,10 @@ runBenchmark b = case b of
          ) results |> String.join "" in
     let rawdata = "\n% " ++ benchmarkname ++ " - Unopt" ++ rendersession unoptResults ++
       "\n% " ++ benchmarkname ++ " - Opt" ++ rendersession optResults in
-    (rawdata, locprog, finalEvalTime, sessionTime, numberOfUpdates, allUnoptTimes, allOptTimes,
-      (ambiguitiesOpt, timeAmbiguitiesUnoptPruned, timeAmbiguitiesOptPruned))
+    let result = (rawdata, locprog, finalEvalTime, sessionTime, numberOfUpdates, allUnoptTimes, allOptTimes,
+      (ambiguitiesOpt, timeAmbiguitiesUnoptPruned, timeAmbiguitiesOptPruned)) in
+    let _ = if fastButWrong then "" else ImpureGoodies.log (" %%% next , " ++ toString (benchmarkname, (optResults, unoptResults))) in
+    result
 
 header =
   ImpureGoodies.log """

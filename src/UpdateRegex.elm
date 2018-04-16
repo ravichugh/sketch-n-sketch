@@ -416,7 +416,7 @@ recoverMatchedStringDiffs  oldRegexMatch newV mbdiffs =
                     case Dict.get "start" d of
                       Just _ -> Errs "Cannot update the group .start of a regex match, only the string itself !"
                       Nothing ->
-                        let makeTupleStringDiffs a =
+                        let makeTupleStringDiffs oldStringList newStringList a =
                           (case a of
                              VListDiffs l -> Just l
                              _ -> Nothing
@@ -426,6 +426,12 @@ recoverMatchedStringDiffs  oldRegexMatch newV mbdiffs =
                           Result.andThen (\tuplediffs ->
                              List.map (\d -> case d of
                               (i, VStringDiffs l) -> Ok (i, l)
+                              (i, VUnoptimizedDiffs) ->
+                                case defaultStringDiffs (Utils.nth oldStringList i |> Utils.fromOk "UpdateRegex.nth1") (Utils.nth newStringList i |> Utils.fromOk "UpdateRegex.nth2") of
+                                  Oks (LazyList.Cons (Just l) _) -> Ok (i, l)
+                                  Oks (LazyList.Cons Nothing _) -> Ok (i, [])
+                                  Errs msg -> Err msg
+                                  d -> Err <| "Expected vStringDiffs, got " ++ toString d
                               _ -> Err <| "Expected vStringDiffs, got " ++ toString d
                              ) tuplediffs |> Utils.projOk
                           ) |>
@@ -434,14 +440,14 @@ recoverMatchedStringDiffs  oldRegexMatch newV mbdiffs =
                              let submatchesTupleDiffs = case Dict.get "submatches" d of
                                Nothing -> Nothing
                                Just submatchesDiff ->
-                                  makeTupleStringDiffs submatchesDiff |>
+                                  makeTupleStringDiffs oldRegexMatch.submatches oldRegexMatch.submatches submatchesDiff |>
                                   Results.map (\gTupleDiff -> (newMatch::newRegexMatch.submatches, offset 1 gTupleDiff)) |>
                                   Just
                              in
                              let groupTupleDiffs = case Dict.get "group" d of
                                Nothing -> Nothing
                                Just groupDiff ->
-                                  makeTupleStringDiffs groupDiff |>
+                                  makeTupleStringDiffs oldRegexMatch.group oldRegexMatch.group groupDiff |>
                                   Results.map (\gTupleDiff -> (newRegexMatch.group, gTupleDiff)) |>
                                   Just
                              in
