@@ -20,19 +20,19 @@ maybeMap default f mx =
   Update.applyLens (maybeMapLens default) (f, mx)
 
 maybeMapState =
-  maybeMap ("Alabama", "AL", "Montgomery")
+  maybeMap ("?", "?", "?")
 
 displayState =
   (\(a,b,c) -> (a, c + ", " + b))
 
-maybeState1 = maybeMapSimple displayState []
-maybeState2 = maybeMapSimple displayState [("New Jersey", "NJ", "Edison")]
+maybeRowA = maybeMapSimple displayState [("New Jersey", "NJ", "Edison")]
+maybeRowB = maybeMapSimple displayState []
 
-maybeState3 = maybeMapState displayState []
-maybeState4 = maybeMapState displayState [("New Jersey", "NJ", "Edison")]
+maybeRow1 = maybeMapState displayState [("New Jersey", "NJ", "Edison")]
+maybeRow2 = maybeMapState displayState []
 
 showValues values =
   Html.div [] [] (List.map (\x -> ["h3", [], Html.text <| toString x]) values)
 
 main =
-  showValues [maybeState1, maybeState2, maybeState3, maybeState4]
+  showValues [maybeRowA, maybeRowB, maybeRow1, maybeRow2]

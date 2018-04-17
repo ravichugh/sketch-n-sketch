@@ -2462,10 +2462,10 @@ map f l =
 
 zipWithIndex xs =
   { apply x = freeze <| zip (range 0 (len xs - 1)) xs
-    update {output} = {values = [map (\\[i, x] -> x) output]}  }.apply xs
+    update {output} = {values = [map (\\(i, x) -> x) output]}  }.apply xs
 
 indexedMap f l =
-  map (\\[i, x] -> f i x) (zipWithIndex l)
+  map (\\(i, x) -> f i x) (zipWithIndex l)
 -- TODO re-organize the scattered list definitions into
 -- LensLess.List, ListLenses, and List = LensLess.List
 
@@ -3021,7 +3021,7 @@ List =
   in
   let mapi f xs = map f (zipWithIndex xs) in
   let indexedMap f xs =
-    mapi (\\[i,x] -> f i x) xs
+    mapi (\\(i,x) -> f i x) xs
   in
   let concatMap =
     concatMap
