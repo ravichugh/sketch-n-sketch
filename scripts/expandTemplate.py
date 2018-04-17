@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import sys
+import io
 from littleReader import *
 from leoReader import *
 
@@ -17,8 +18,8 @@ try:
 except IndexError:
   sourceFolder = "../examples/"
 
-inn = open(baseTemplate)
-out = open(baseGenerated, "w+")
+inn = io.open(baseTemplate,encoding="utf8")
+out = io.open(baseGenerated,"w+",encoding="utf8")
 
 for s in inn:
   s = trimNewline(s)

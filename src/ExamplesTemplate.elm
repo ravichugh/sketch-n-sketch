@@ -15,6 +15,7 @@ module ExamplesGenerated exposing
   , fromleo_linkedtexteditor
   , fromleo_translatabledoc
   , fromleo_dixit
+  , christmas_song_3_after_translation
   , mapMaybeLens
   , listAppendLens
   )
@@ -267,6 +268,7 @@ LEO_TO_ELM fromleo/linkedtexteditor
 LEO_TO_ELM fromleo/translatabledoc
 LEO_TO_ELM fromleo/latexeditor
 LEO_TO_ELM fromleo/dixit
+LEO_TO_ELM christmas_song_3_after_translation
 
 --------------------------------------------------------------------------------
 

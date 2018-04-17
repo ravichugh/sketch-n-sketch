@@ -1,38 +1,7 @@
 # updatedelay: 0
 
-{length} = List
-{textNode, br, select, checkbox, h1, div, element} = Html
-
-li = element "li"
-ul = element "ul"
-
-button =
-   let
-    stringFlagForUpdate state1 state2 f model =
-      Update.applyLens
-        { apply _ = Update.freeze state1
-        , update {input = model, outputNew} =
-            if outputNew == state2
-              then {values = [f model]}
-              else {values = [model]}
-        } model
-  in
-  \name title model controller ->
-    Html.forceRefresh <| [ "button"
-      , [ ["trigger", stringFlagForUpdate "" "#" controller model]
-        , ["onclick", "this.setAttribute('trigger', '#')"]
-        ]
-      , [Html.textNode name]
-    ]
-
-sum l = List.foldl (\x y -> x + y) 0 l
-
-range min max = if min > max then [] else min :: range (min + 1) max
-
-filter f l = List.filterMap (\x -> if f x then Just x else Nothing) l
-
-zipWithIndex l =
-  letrec aux i l = case l of [] -> []; head::tail -> (head, i)::aux (i+1) tail in aux 0 l
+{length, sum, range, filter, zipWithIndex} = List
+{textNode, button, br, select, checkbox, h1, div, element, li, ul} = Html
 
 -- Each element of betselfs is a 2-element array containing the best and the own card number
 players = [
@@ -96,7 +65,7 @@ div [["margin", "20px"]] [] <| [Html.span [] []
    h1 [] [] "Dixit scoresheet",
    textNode """To play to Dixit, please enter below the name of the @(length players) players. You can add or remove players.""",
    ul [] [] <| map nomDe players,
-  textNode """It's turne number @(currentRound+1).""", br,
+  textNode """It's turn number @(currentRound+1).""", br,
   textNode "Current scores:", br,
   Html.table [] [] <| List.map (\j -> 
     Html.tr [] [] [Html.td [] [] j.name, Html.td [] [] (toString (Update.freeze (sum (j.scores))))]) players,

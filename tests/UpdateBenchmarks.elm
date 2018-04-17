@@ -28,7 +28,7 @@ import HTMLValParser
 import Dict exposing (Dict)
 
 
-exportMode = True {-- -- Add a } to make the benchmark run for all
+exportMode = False {-- -- Add a } to make the benchmark run for all
                     && False --}
 only1 = False {-- -- Add a } to make the benchmark run for all
   && False --}
@@ -111,7 +111,10 @@ programs = Dict.fromList [
   ("Budgetting", ExamplesGenerated.fromleo_conference_budgetting),
   ("Linked-Text", ExamplesGenerated.fromleo_linkedtexteditor),
   ("MVC", ExamplesGenerated.fromleo_modelviewcontroller),
-  ("Translation", ExamplesGenerated.fromleo_translatabledoc)
+  ("Dixit", ExamplesGenerated.fromleo_dixit),
+  ("Translation Doc", ExamplesGenerated.fromleo_translatabledoc),
+  ("Song Lyrics", ExamplesGenerated.christmas_song_3_after_translation),
+  ("latexeditor", ExamplesGenerated.fromleo_latexeditor)
   ]
 
 type OutTransform =
@@ -135,6 +138,10 @@ replaceBy howmany final r result =
 
 replaceStringBy: String -> String -> Transform
 replaceStringBy r replacement = replaceBy (AtMost 1) (StringTransform (r ++ "->" ++ replacement) >> OutputTransform) r replacement
+
+replaceStringByReg: HowMany -> String -> (Regex.Match -> String) -> Transform
+replaceStringByReg howmany r replacement = replaceByMatch howmany (StringTransform (r ++ "->") >> OutputTransform) r replacement
+
 
 replaceHtmlBy: String -> String -> Transform
 replaceHtmlBy r replacement = replaceBy (AtMost 1) (HTMLTransform (r ++ "->" ++ replacement)>> OutputTransform) r replacement
@@ -317,6 +324,49 @@ benchmarks = [
   --BUpdate "Markdown with lens" transform_markdown_ab_lens,
   --BUpdate "Markdown w/o lens" transform_markdown_ab_lens,
   --}
+  {--}
+  let select occurrence n =
+    replaceStringByReg All "(select.*\r?\n.*selected-index\",\\s*)\"\\d\"" (\m -> if m.number == occurrence then at m.submatches 0 ++ "\""++ toString n ++ "\"" else m.match)
+  in
+  let my_card_is n = select 2 n in
+  let i_bet_on n =select 3 n in
+  let my_card_is_last n = select 1 n in
+  let i_bet_on_last n =select 2 n in
+  let confirm = replaceStringBy "\"trigger\",\\s*\"\"" "\"trigger\", \"#\"" in
+  BUpdate (0) "Dixit" [NoTransform
+      , replaceStringBy "John" "Mary"
+      , replaceStringBy "\\[\\s*\"TEXT\",\\s*\"Nick\"\\s*]\\s*\\]" "[\"TEXT\", \"Nick\"] ] ], [ \"li\",[ [ \"style\", [] ] ], [ [ \"TEXT\", \"Mac\"]]"
+      , replaceStringByReg (AtMost 1) "(select.*\r?\n.*selected-index\",\\s*)\"0\"" (\m -> at m.submatches 0 ++ "\"1\"")
+      , my_card_is 1
+      , i_bet_on 2
+      , confirm
+      , my_card_is 3
+      , i_bet_on 2
+      , confirm
+      , my_card_is_last 4
+      , i_bet_on_last 3
+      , confirm
+      , confirm
+      ],
+  --}
+  {--}
+  let changeLanguageIndex n =
+     replaceStringByReg (AtMost 1) "(select.*\r?\n.*selected-index\",\\s*)\"0\"" (\m -> at m.submatches 0 ++ "\""++ toString n ++ "\"")
+  in
+  let uncheck  =
+     replaceStringBy ",\\s*\\[\\s*\"checked\",\\s*\"\"\\s*\\]" ""
+  in
+  BUpdate (0) "Translation Doc" [NoTransform
+     ,changeLanguageIndex 1
+     ,replaceStringBy "please follow these steps" "{please follow these steps}"
+     ,uncheck
+     ,replaceStringBy "please follow" "merci de suivre"
+     ,replaceStringBy " these steps" " ces étapes"
+     ,replaceStringByReg (AtMost 1) "papier" (\_ -> "{papier}")
+     ,replaceStringByReg (All) "papier" (\m -> if m.number == 2 then "$translation5" else m.match)
+     ,replaceStringBy "\"v\",\\s*\"\"" "\"v\", \"German\""
+   ],
+  --}
   BUpdate 0 "" []
   ] |>
   List.filterMap (\c -> case c of
@@ -345,8 +395,11 @@ transformValToString x = case x of
 applyTransform: OutTransform -> Val -> Val
 applyTransform replacement oldOut =
   case replacement of
-    StringTransform _ replacement ->
-      valToString oldOut |> replacement |>parse |> Utils.fromOk "parse newout" |> eval |> Utils.fromOk "eval newout"
+    StringTransform name replacement ->
+      let oldString = valToString oldOut in
+      let newString = oldString |> replacement in
+      if newString == oldString then Debug.crash <| "Expected a new string, got the same (for " ++ name ++ ")" else
+      newString |>parse |> Utils.fromOk "parse newout" |> eval |> Utils.fromOk "eval newout"
     ValTransform _ replacement -> replacement oldOut
     HTMLTransform _ replacement ->
       --let _ = ImpureGoodies.log html in
@@ -462,7 +515,11 @@ runBenchmark b = case b of
                let _ = if not exportMode then ImpureGoodies.log <| "It took " ++ toString updateTime ++ "ms. Recomputing realOut..."  else "" in
                --let _ = ImpureGoodies.log "new program:" in
                --let _ = ImpureGoodies.log (unparse newProgExp) in
-               let (realNewOut, realNewOutTime) = ImpureGoodies.timedRun <| \_ -> evalEnv EvalUpdate.preludeEnv newProgExp |> Utils.fromOk "eval prog" in
+               let (realNewOut, realNewOutTime) = ImpureGoodies.timedRun <| \_ ->
+                 case evalEnv EvalUpdate.preludeEnv newProgExp of
+                    Ok ok -> ok
+                    Err msg -> Debug.crash <| "Unexpected impossibility to evaluate the obtained program: " ++ Syntax.unparser Syntax.Elm newProgExp ++ "because of " ++ msg
+               in
                let _ = if not exportMode then ImpureGoodies.log <| "It took " ++ toString realNewOutTime ++ "ms."  else "" in
                --let _ = ImpureGoodies.log "Real out:" in
                --let _ = ImpureGoodies.log (valToHtml realNewOut) in
