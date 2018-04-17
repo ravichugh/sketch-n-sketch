@@ -1131,15 +1131,6 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
         let newLastPos = offsetPosition newLastEdit origExp.end in
         (msg, ((newLastEdit, newLastPos), newExps))
 
-offset: Int -> List (Int, a) -> List (Int, a)
-offset n diffs = List.map (\(i, e) -> (i + n, e)) diffs
-
-offsetStr: Int -> List StringDiffs -> List StringDiffs
-offsetStr n diffs =
-  --Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <|
-  List.map (\sd -> case sd of
-    StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
-
 offsetConcStr: Int -> List (Int, Int, String) -> List (Int, Int, String)
 offsetConcStr n diffs =
   List.map (\(start, end, str) -> (start + n, end + n, str)) diffs
@@ -1232,8 +1223,16 @@ composeStringDiffs oldStringDiffs newStringDiffs =
            aux offsetStart newOffsetEnd 0 oldTail (StringUpdate newStart repEnd (repCount + repStart - newStart) :: newTail) revStrDiffs
   in aux 0 0 0 oldStringDiffs newStringDiffs []
 
-
 -- Wraps a change to a change in the outer expression at the given index
+offset: Int -> List (Int, a) -> List (Int, a)
+offset n diffs = List.map (\(i, e) -> (i + n, e)) diffs
+
+offsetStr: Int -> List StringDiffs -> List StringDiffs
+offsetStr n diffs =
+  --Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <|
+  List.map (\sd -> case sd of
+    StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
+
 wrap: Int -> Maybe EDiffs -> Maybe EDiffs
 wrap i mbd =
   mbd |> Maybe.map (\d -> EChildDiffs [(i, d)])
@@ -1253,6 +1252,15 @@ diffsAt n td = case td of
     if i == n then Just a
     else if i > n then Nothing
     else diffsAt n t
+
+changeAt: List Int -> Maybe EDiffs -> Maybe EDiffs
+changeAt path mbd = case path of
+  [] -> mbd
+  head::tail ->
+    case mbd of
+      Nothing -> Nothing
+      Just (EChildDiffs d) -> changeAt tail (diffsAt head d)
+      _ -> Nothing
 
 dropDiffs: Int -> TupleDiffs a -> TupleDiffs a
 dropDiffs n td = case td of

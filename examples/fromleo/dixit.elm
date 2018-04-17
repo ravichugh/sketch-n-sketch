@@ -36,7 +36,7 @@ zipWithIndex l =
 
 -- Each element of betselfs is a 2-element array containing the best and the own card number
 players = [
-  {name="John,", betselfs=[], scores=[],  card=0, bet=0}, 
+  {name="John", betselfs=[], scores=[],  card=0, bet=0}, 
   {name="Nick", betselfs=[], scores=[],   card=0, bet=0},
   {name="Pete", betselfs=[], scores=[], card=0, bet=0}
 ]
@@ -50,7 +50,8 @@ cartesDisponibles = range 1 (length players)
 
 currentRound = length (nth players 0).scores
 
-allbetsdone = sum (map (\j ->  if (length j.betselfs) == currentRound then 0 else 1) players) == (length players - 1)
+remainingbets = (length players - 1) - sum (map (\j ->  if (length j.betselfs) == currentRound then 0 else 1) players)
+allbetsdone = remainingbets == 0
 
 playerEnCoursIndex = 0
 
@@ -89,22 +90,26 @@ playerIndexFromName name =
     if i >= length players then -1 else
     aux (i + 1) in aux 0
 
-div [["margin", "10px"]] [] <| [Html.span [] [] 
-  [h1 [] [] "Dixit scoresheet",
-   textNode """To play to Dixit, please enter below the name of the @(length players) players:""",
+div [["margin", "20px"]] [] <| [Html.span [] [] 
+  [["img", [["width", "100%"], ["src", "https://images-cdn.asmodee.us/filer_public/9e/7e/9e7ea2a6-d531-4f3a-b984-4119925d4c9f/dix01_feature_c85e1c.png"]], []],
+   ["img", [["style", [["float","right"]]], ["width", "50%"], ["src", "https://cf.geekdo-images.com/large/img/QFUbpIeEFamJbgJ_Bs5ejDtF8UA=/fit-in/1024x1024/filters:no_upscale()/pic1003159.jpg"]], []],
+   h1 [] [] "Dixit scoresheet",
+   textNode """To play to Dixit, please enter below the name of the @(length players) players. You can add or remove players.""",
    ul [] [] <| map nomDe players,
   textNode """It's turne number @(currentRound+1).""", br,
   textNode "Current scores:", br,
-  div [] [] <| List.concatMap (\j -> 
-    let frozenScore ="""@(j.name): @(Update.freeze (sum (j.scores)))""" in
-    [textNode frozenScore, br]) players,
-  if not allbetsdone then
+  Html.table [] [] <| List.map (\j -> 
+    Html.tr [] [] [Html.td [] [] j.name, Html.td [] [] (toString (Update.freeze (sum (j.scores))))]) players,
+  if remainingbets > 1 then
     div [] [] [
     Html.textNode "Who is currently placing a bet? ",
     select (map (\j ->  j.name) playersEnCours) playerEnCoursIndex, br,
     div [] [] <|
       betself (playerIndexFromName (nth playersEnCours playerEnCoursIndex).name)
     ]
+  else if remainingbets == 1 then
+    div [] [] <|
+      betself (playerIndexFromName (nth playersEnCours playerEnCoursIndex).name)
   else
   let playersWithIndex = zipWithIndex players in
   let dealerIndex = filter (\(j, index) -> length j.betselfs == currentRound) playersWithIndex |> flip nth 0 |> Tuple.second in

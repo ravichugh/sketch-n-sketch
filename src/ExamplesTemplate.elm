@@ -14,6 +14,7 @@ module ExamplesGenerated exposing
   , tableOfStatesC
   , fromleo_linkedtexteditor
   , fromleo_translatabledoc
+  , fromleo_dixit
   , mapMaybeLens
   , listAppendLens
   )
@@ -265,6 +266,7 @@ LEO_TO_ELM fromleo/modelviewcontroller
 LEO_TO_ELM fromleo/linkedtexteditor
 LEO_TO_ELM fromleo/translatabledoc
 LEO_TO_ELM fromleo/latexeditor
+LEO_TO_ELM fromleo/dixit
 
 --------------------------------------------------------------------------------
 
@@ -294,6 +296,7 @@ docsCategory =
       , ("Cloning Editor", fromleo_linkedtexteditor)
       , ("Translation Editor", fromleo_translatabledoc)
       , ("Markdown Editor", fromleo_markdown)
+      , ("Dixit Scoresheet", fromleo_dixit)
       , ("LaTeX Editor", fromleo_latexeditor)
       -- TODO maybe Conference?
       , ("Lens: Maybe Map", mapMaybeLens)

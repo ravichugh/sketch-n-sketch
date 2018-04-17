@@ -2011,6 +2011,11 @@ eOpUnapply1 expectedOp e = case e.val.e__ of
   EOp _ op [arg] _ -> if op.val == expectedOp then Just arg else Nothing
   _ -> Nothing
 
+eOpUnapply2 expectedOp e = case e.val.e__ of
+  EOp _ op [e1, e2] _ -> if op.val == expectedOp then Just (e1, e2) else Nothing
+  _ -> Nothing
+
+
 eAppUnapply1 e = case e.val.e__ of
   EApp _ e1 [e2] _ _ -> Just (e1, e2)
   _ -> Nothing

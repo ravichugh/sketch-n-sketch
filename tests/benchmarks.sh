@@ -8,7 +8,7 @@ cd $FILE_DIR
 if [ $# -eq 0 ]
   then
   if [ ! -f pathtobenchmark.txt ]; then
-    echo "tests/pathtobenchmark.txt not found. Create it and put inside the relative or absolute path to the TeX file where the benchmarks will be written to. This file is ignored by git."
+    echo "tests/pathtobenchmark.txt not found. Create it and put inside the relative or absolute path to the TeX file where the benchmarks will be written to. This file is ignored by git. Alternatively, run ./benchmarks.sh --tests to only display the result"
   else
     elm-make UpdateBenchmarks.elm --output build/benchmarks.js && (node --stack_size=4096 support/runnerBenchmark.js | tee "$(< pathtobenchmark.txt)")
     echo "Content written to $(< pathtobenchmark.txt)"

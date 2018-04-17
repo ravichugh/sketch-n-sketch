@@ -300,9 +300,17 @@ eval syntax env bt e =
   EApp sp0 e1 es appStyle sp1 ->
     case eval_ syntax env bt_ e1 of
       Err s       ->
-        case e1.val.e__ of
-          EVar spp "++" -> -- We rewrite ++ to a call to "append"
-            eval syntax env bt_ (replaceE__ e <| EApp sp0 (replaceE__ e1 <| EVar spp "append") es SpaceApp sp1)
+        case (e1.val.e__, es) of
+          (EVar spp "++", [eLeft, eRight]) -> -- We rewrite ++ to a call to "append" or "plus" depending on the arguments
+            case (eval_ syntax env bt_ eLeft, eval_ syntax env bt_ eRight) of
+              (Ok (v1, ws1), Ok (v2, ws2)) ->
+                 case (v1.v_, v2.v_) of
+                   (VBase (VString x), VBase (VString y)) ->
+                     eval syntax (("x", v1)::("y", v2)::env) bt_ (replaceE__ e <| EOp space1 (withDummyRange Plus) [replaceE__ eLeft <| EVar space0 "x", replaceE__ eRight <| EVar space0 "y"] space0)
+                   _ ->
+                     eval syntax (("x", v1)::("y", v2)::env) bt_ (replaceE__ e <| EApp sp0 (replaceE__ e1 <| EVar spp "append") [replaceE__ eLeft <| EVar space0 "x", replaceE__ eRight <| EVar space0 "y"] SpaceApp sp1)
+              (Err s, _) -> Err s
+              (_, Err s) -> Err s
           _ -> Err s
       Ok (v1,ws1) ->
         let evalVApp: Val -> List Exp -> Result String ((Val, Widgets), Env)

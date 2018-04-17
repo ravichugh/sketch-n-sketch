@@ -658,15 +658,47 @@ getUpdateStackOp env e oldVal newVal diffs =
          case doEval Syntax.Elm env e1 of
            Err s       ->
              if appType /= InfixApp then UpdateCriticalError s else
-             case e1.val.e__ of
-               EVar spp "++" -> -- We rewrite ++ to a call to "append"
-                 updateContinue "Rewriting ++ to append" env (replaceE__ e <| EApp sp0 (replaceE__ e1 <| EVar spp "append") e2s SpaceApp sp1) oldVal newVal diffs <|
-                   \newEnv newUpdatedE1 ->
-                   case newUpdatedE1.val.val.e__ of
-                     EApp sp0p newE1 newE2s _ sp1p ->
-                       let newExp = replaceE__ e <|EApp sp0p e1 newE2s appType sp1p in
-                       updateResult newEnv <| UpdatedExp newExp newUpdatedE1.changes
-                     _ -> UpdateCriticalError <| "Expected EApp, got " ++ Syntax.unparser Syntax.Elm newUpdatedE1.val
+             case (e1.val.e__, e2s) of
+               (EVar spp "++", [eLeft, eRight]) -> -- We rewrite ++ to a call to "append" or "plus" depending on the arguments
+                 case (doEval Syntax.Elm env eLeft, doEval Syntax.Elm env eRight) of
+                   (Err s, _) -> UpdateCriticalError s
+                   (_, Err s) -> UpdateCriticalError s
+                   (Ok ((v1, _), _), Ok ((v2, _), ws2)) ->
+                      let rewrite2 exp2Builder =
+                            updateContinue "Rewriting ++ to +" (("x", v1)::("y", v2)::env)
+                              (exp2Builder (replaceE__ eLeft <| EVar space0 "x") (replaceE__ eRight <| EVar space0 "y")) oldVal newVal diffs <|
+                            \newAugEnv newUpdatedE1 -> -- we discard changes to E1
+                              case newAugEnv.val of
+                                ("x", newV1)::("y", newV2)::newEnv ->
+                                  let eLeft_continue =
+                                    case diffsAt 0 newAugEnv.changes of
+                                      Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp eLeft Nothing)
+                                      Just d -> updateContinue "left of ++" env eLeft v1 newV1 d
+                                  in
+                                  let eRight_continue =
+                                    case diffsAt 1 newAugEnv.changes of
+                                      Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp eRight Nothing)
+                                      Just d -> updateContinue "right of ++" env eRight v2 newV2 d
+                                  in
+                                  let finalEnv = dropDiffs 2 newAugEnv.changes in
+                                  eLeft_continue <| \newELeftEnv newELeft ->
+                                    eRight_continue <| \newERightEnv newERight ->
+                                      let (newE, newEChanges) = case (newELeft.changes, newERight.changes) of
+                                        (Nothing, Nothing) -> (e, Nothing)
+                                        (e1Change, e2Change) ->
+                                           (replaceE__ e <| EApp sp0 e1 [newELeft.val, newERight.val] appType sp1,
+                                            combineEChildDiffs [(1, e1Change), (2, e2Change)])
+                                      in
+                                      let finalEnv = UpdatedEnv.merge e diffs env newELeftEnv newERightEnv in
+                                      updateResult finalEnv <| UpdatedExp newE newEChanges
+                                _ -> UpdateCriticalError <| "[Internal error] Expected at least 2 values in the environment, got " ++ envToString newAugEnv.val
+                      in
+                      case (v1.v_, v2.v_) of
+                        (VBase (VString _), VBase (VString _)) ->
+                          let _ = Debug.log <| "It's a string update !" ++ valToString v1 ++ " , " ++ valToString v2 ++ " <-- " ++ valToString newVal in
+                          rewrite2 (\ex ey -> replaceE__ e <| EOp space1 (withDummyRange Plus) [ex, ey] space0)
+                        _ ->
+                          rewrite2  (\ex ey -> replaceE__ e <| EApp space1 (replaceE__ e1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
                _ -> UpdateCriticalError s
            Ok ((v1, _),_) ->
              case v1.v_ of
