@@ -497,11 +497,11 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     else
       []
   in
-  let drawCallWidget i_ callEId funcVal argVals retVal retWs model =
+  let drawCallWidget i_ callEId funcVal argVals retVal retWs isSupplementaryBaseCase verticalOffset model =
     let program = model.inputExp in
     let (maybeFuncBody, maybeFuncPat, maybeArgPats, maybeFuncExp) =
-      case funcVal.v_ of
-        VClosure maybeRecName argPats funcBody env ->
+      case (funcVal.v_, isSupplementaryBaseCase) of
+        (VClosure maybeRecName argPats funcBody env, False) ->
           case parentByEId program funcBody.val.eid of
             Just (Just funcExp) ->
               case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
@@ -568,15 +568,38 @@ buildSvgWidgets wCanvas hCanvas widgets model =
               , attr "rx" "25"
               , attr "ry" "25"
               , attr "x" (toString left)
-              , attr "y" (toString boxTop)
+              , attr "y" (toString (boxTop + verticalOffset))
               , attr "width" (toString (right - left))
               , attr "height" (toString (bot - boxTop))
               ] ++ perhapsSetContextEvent
+          in
+          let maybeBaseCase =
+            if isCurrentContext then
+              let maybeBaseCaseCallWidgetParts widget =
+                let isBaseCaseCallWidget = maybeBaseCaseCallWidgetParts >> Utils.maybeToBool in
+                case widget of
+                  WCall callEId funcVal argVals retVal retWs ->
+                    if Maybe.map (.val >> .eid) (valToMaybeFuncBodyExp funcVal) == Maybe.map (.val >> .eid) maybeFuncBody && (not <| List.any isBaseCaseCallWidget retWs) then
+                      Just (callEId, funcVal, argVals, retVal, retWs)
+                    else
+                      Nothing
+                  _ ->
+                    Nothing
+              in
+              Utils.mapFirstSuccess maybeBaseCaseCallWidgetParts retWs
+              |> Debug.log "Utils.mapFirstSuccess maybeBaseCaseCallWidgetParts retWs"
+              |> Maybe.map
+                  (\(_, funcVal, argVals, retVal, retWs) ->
+                    Svg.g [] <| drawCallWidget i_ callEId funcVal argVals retVal retWs True (bot - boxTop) model
+                  )
+            else
+              Nothing
           in
           [ Just box
           , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat left (boxTop - 20))
           , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop)
           , maybeAddArg
+          , maybeBaseCase
           ] |> Utils.filterJusts
   in
   let drawListWidget i_ listVal model =
@@ -640,7 +663,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal
 
       WCall callEId funcVal argVals retVal retWs ->
-        drawCallWidget i_ callEId funcVal argVals retVal retWs model
+        drawCallWidget i_ callEId funcVal argVals retVal retWs False 0 model
 
       WList listVal ->
         drawListWidget i_ listVal model
