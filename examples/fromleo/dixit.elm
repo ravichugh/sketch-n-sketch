@@ -7,6 +7,7 @@
 players = [
   {name="John", betselfs=[], scores=[],  card=0, bet=0}, 
   {name="Nick", betselfs=[], scores=[],   card=0, bet=0},
+                                                      
   {name="Pete", betselfs=[], scores=[], card=0, bet=0}
 ]
 
@@ -81,7 +82,7 @@ div [["margin", "20px"]] [] <| [Html.span [] []
       betself (playerIndexFromName (nth playersEnCours playerEnCoursIndex).name)
   else
   let playersWithIndex = zipWithIndex players in
-  let dealerIndex = filter (\(j, index) -> length j.betselfs == currentRound) playersWithIndex |> flip nth 0 |> Tuple.second in
+  let dealerIndex = filter (\(index, j) -> length j.betselfs == currentRound) playersWithIndex |> flip nth 0 |> Tuple.first in
   let totalNumCards = sum cartesDisponibles in
   let totalInCards = sum (map (\j ->  if length j.betselfs == currentRound + 1 then nth (nth j.betselfs currentRound) 1 else 0) players) in
   let correctCard = totalNumCards - totalInCards in
@@ -89,18 +90,18 @@ div [["margin", "20px"]] [] <| [Html.span [] []
     (\j ->  if length j.betselfs == currentRound + 1 then if (j.betselfs |> flip nth currentRound |> flip nth 0) == correctCard then Just j.name else Nothing else Nothing) in
   let nGuessedOk = List.length guessedOk in
   let manyguessed = if nGuessedOk > 1 then "" else if nGuessedOk == 1 then " is the only one to have" else "Nobody" in
-  let playersAyantVotePour nCarte = sum (map (\(j, i) ->  if i == dealerIndex then 0 else if nth (nth j.betselfs currentRound) 0 == nCarte then 1 else 0) playersWithIndex) in
+  let playersAyantVotePour nCarte = sum (map (\(i, j) ->  if i == dealerIndex then 0 else if nth (nth j.betselfs currentRound) 0 == nCarte then 1 else 0) playersWithIndex) in
   let playersAyantVotePourEux = flip List.concatMap playersWithIndex <|
-    \(j, i) -> 
+    \(i, j) -> 
       if i == dealerIndex then [] else
       let ayantparie = playersWithIndex |>
-        List.filterMap (\(j2, i2) -> if i2 == dealerIndex then Nothing else if nth (nth j.betselfs currentRound) 1 == nth (nth j2.betselfs currentRound) 0 then Just j2.name else Nothing) |>
+        List.filterMap (\(i2, j2) -> if i2 == dealerIndex then Nothing else if nth (nth j.betselfs currentRound) 1 == nth (nth j2.betselfs currentRound) 0 then Just j2.name else Nothing) |>
         String.join ", " in
       if ayantparie == "" then [] else
       [br, textNode <| j.name + " made " + ayantparie + " to believe it was " + j.name + "'s card"]
   in
   let playersWithNewScores =  playersWithIndex |>
-    map (\j ->   let (player, index) = j in
+    map (\(index, player) ->
     (player,
        if index == dealerIndex then
          if nGuessedOk == 0 || nGuessedOk == length players - 1 then 0 else 3
