@@ -209,51 +209,7 @@ benchmarks = [
     ],
   --}
   --{--{--{--{--
-  {--}
-  BUpdate (0*60+53) "Linked-Text" [NoTransform
-    , replaceHtmlBy "P\\(1\\)" "H(1)"
-    {--}
-    , replaceHtmlBy "H\\(n\\)" "G(m)"
-    , replaceMultiple "prove" [NoTransform
-       , replaceHtmlBy "we want to prove" "we want to $prove"
-       , replaceHtmlBy "need to prove" "need to $prove"
-       , replaceHtmlBy "need to prove" "need to $prove"
-       , replaceHtmlBy "we can prove" "we can $prove"
-    ]
-    , replaceHtmlBy "we want to prove" "we want to show"
-    , replaceHtmlBy "we want to show" "we want to really show"
-    --}
-  ],
-  {--}
-  BUpdate (1*60+11) "MVC" [NoTransform
-    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increment)" "trigger='#'"
-    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increase multiplier to 3)" "trigger='#'"
-    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Multiply by 3)" "trigger='#'"
-    , replaceHtmlBy "51" "27"
-    , replaceHtmlBy "1\\+n\\*3" "(1+n)*2"
-    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Custom Code)" "trigger='#'"
-    , replaceHtmlBy "architect" "design"
-    , replaceMultiple "dashes in title" [NoTransform
-        , replaceHtmlBy "Model-View-Controller" "Model View Controller"
-        , replaceHtmlBy "model-view-controller" "model view controller"
-       ]
-    , replaceHtmlBy "Increment" "+1"
-    , replaceHtmlBy "Decrease multiplier to" "Decrease to"
-  ],
-  --}
-  {--}
-  BUpdate (0*60+45) "Budgetting" [ NoTransform
-                       , SetNextChoice 3
-                       , replaceHtmlBy "-18000" "0"
-                       , replaceProgBy "sponsors *= *20000" "sponsors = Update.freeze 35000"
-                       , SetNextChoice 2
-                       , replaceHtmlBy "3000" "0"
-                       , replaceProgBy "sponsors = Update.freeze 35000" "sponsors = Update.freeze 29000"
-                       , SetNextChoice 2
-                       , replaceHtmlBy "-6000" "0"
-                       , replaceHtmlBy "-3000" "0"
-                       ],
-  --}
+
   {--}
   BUpdate (2*60+36) "States Table A\\hasvideo{}" [ NoTransform
     , replaceProgBy "\"Alabama\", \"AL?\", \"\"" "\"Alabama\", \"AL?\", \"Montgomery\""
@@ -280,6 +236,77 @@ benchmarks = [
   {--}
   BUpdate (0*60+43) "States Table B\\hasvideo{}" transform_table_of_states_b,
   --}
+  {--}
+  BUpdate (3*60+51) "Recipe\\hasvideo{}" [ NoTransform
+    , replaceHtmlBy " alt='cupcakes'" " alt='cupcakes' style='\\n  float:  right;  \\n:  '"
+    --, TestOutputContains "float:  right" valToHtml
+    , replaceHtmlBy "Chocolate almond cakes"        "Chocolate Almond Cupcakes"
+    --, TestOutputContains "Chocolate Almond Cupcakes" valToHtml
+    , replaceStringBy "\\[\\s*\"h1\",\\s*\\[\\],\\s*\\[\\s*\\[\\s*\"TEXT\",\\s*\"Chocolate Almond Cupcakes\""
+                       "[ \"h1\", [ [ \"style\", [ [ \"\\n  font-family\", \" cursive\" ], [ \" \\n\",\" \"]]] ], [ [ \"TEXT\", \"Chocolate Almond Cupcakes\""
+    , replaceHtmlBy "border:4px solid black;padding:20px" "border:4px solid black;padding:20px;background-color:chocolate"
+    , replaceHtmlBy "x='1000'(?=.*\\r?\\n.*\\r?\\n.*Halve)" "x='500'"
+    --, TestOutputContains "10 small" valToHtml
+    , replaceHtmlBy "melted chocolate\\s*</li>" "melted chocolate</li><li>_10_g of chocolate chip_10s_</li>"
+    , replaceHtmlBy "10 small" "80 small"
+    , replaceHtmlBy "2 cup of" "2 cup_2s_ of"
+    , replaceHtmlBy "2 cups of" "2 cup of"
+    , replaceHtmlBy "40 small" "30 small"
+    , replaceHtmlBy "30g of chocolate" "1g of chocolate"
+    , replaceHtmlBy "small cakes" "small cake_1s_"
+    --, SetNextChoice 2
+    , replaceHtmlBy "x='50'" "x='100'"
+    , replaceHtmlBy "x='100'" "x='200'"
+    , replaceHtmlBy "x='200'" "x='400'"
+    , replaceHtmlBy "x='400'" "x='800'"
+    , replaceHtmlBy "x='800'" "x='1600'"
+    ],
+  --}
+  {--}
+  BUpdate (0*60+45) "Budgetting" [ NoTransform
+    , SetNextChoice 3
+    , replaceHtmlBy "-18000" "0"
+    , replaceProgBy "sponsors *= *20000" "sponsors = Update.freeze 35000"
+    , SetNextChoice 2
+    , replaceHtmlBy "3000" "0"
+    , replaceProgBy "sponsors = Update.freeze 35000" "sponsors = Update.freeze 29000"
+    , SetNextChoice 2
+    , replaceHtmlBy "-6000" "0"
+    , replaceHtmlBy "-3000" "0"
+    ],
+  --}
+  {--}
+  BUpdate (1*60+11) "MVC" [NoTransform
+    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increment)" "trigger='#'"
+    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increase multiplier to 3)" "trigger='#'"
+    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Multiply by 3)" "trigger='#'"
+    , replaceHtmlBy "51" "27"
+    , replaceHtmlBy "1\\+n\\*3" "(1+n)*2"
+    , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Custom Code)" "trigger='#'"
+    , replaceHtmlBy "architect" "design"
+    , replaceMultiple "dashes in title" [NoTransform
+        , replaceHtmlBy "Model-View-Controller" "Model View Controller"
+        , replaceHtmlBy "model-view-controller" "model view controller"
+       ]
+    , replaceHtmlBy "Increment" "+1"
+    , replaceHtmlBy "Decrease multiplier to" "Decrease to"
+  ],
+  --}
+  {--}
+  BUpdate (0*60+53) "Linked-Text" [NoTransform
+    , replaceHtmlBy "P\\(1\\)" "H(1)"
+    {--}
+    , replaceHtmlBy "H\\(n\\)" "G(m)"
+    , replaceMultiple "prove" [NoTransform
+       , replaceHtmlBy "we want to prove" "we want to $prove"
+       , replaceHtmlBy "need to prove" "need to $prove"
+       , replaceHtmlBy "need to prove" "need to $prove"
+       , replaceHtmlBy "we can prove" "we can $prove"
+    ]
+    , replaceHtmlBy "we want to prove" "we want to show"
+    , replaceHtmlBy "we want to show" "we want to really show"
+    --}
+  ],
   {--
   BUpdate (0*60+43) "States Table C" transform_table_of_states_b,
   --}
@@ -289,32 +316,6 @@ benchmarks = [
   BUpdate (2*60+8) "Markdown" transform_markdown_ab_linear,
   --BUpdate "Markdown with lens" transform_markdown_ab_lens,
   --BUpdate "Markdown w/o lens" transform_markdown_ab_lens,
-  --}
-  {--}
-  BUpdate (3*60+51) "Recipe\\hasvideo{}" [ NoTransform
-                   , replaceHtmlBy " alt='cupcakes'" " alt='cupcakes' style='\\n  float:  right;  \\n:  '"
-                   --, TestOutputContains "float:  right" valToHtml
-                   , replaceHtmlBy "Chocolate almond cakes"        "Chocolate Almond Cupcakes"
-                   --, TestOutputContains "Chocolate Almond Cupcakes" valToHtml
-                   , replaceStringBy "\\[\\s*\"h1\",\\s*\\[\\],\\s*\\[\\s*\\[\\s*\"TEXT\",\\s*\"Chocolate Almond Cupcakes\""
-                                      "[ \"h1\", [ [ \"style\", [ [ \"\\n  font-family\", \" cursive\" ], [ \" \\n\",\" \"]]] ], [ [ \"TEXT\", \"Chocolate Almond Cupcakes\""
-                   , replaceHtmlBy "border:4px solid black;padding:20px" "border:4px solid black;padding:20px;background-color:chocolate"
-                   , replaceHtmlBy "x='1000'(?=.*\\r?\\n.*\\r?\\n.*Halve)" "x='500'"
-                   --, TestOutputContains "10 small" valToHtml
-                   , replaceHtmlBy "melted chocolate\\s*</li>" "melted chocolate</li><li>_10_g of chocolate chip_10s_</li>"
-                   , replaceHtmlBy "10 small" "80 small"
-                   , replaceHtmlBy "2 cup of" "2 cup_2s_ of"
-                   , replaceHtmlBy "2 cups of" "2 cup of"
-                   , replaceHtmlBy "40 small" "30 small"
-                   , replaceHtmlBy "30g of chocolate" "1g of chocolate"
-                   , replaceHtmlBy "small cakes" "small cake_1s_"
-                   --, SetNextChoice 2
-                   , replaceHtmlBy "x='50'" "x='100'"
-                   , replaceHtmlBy "x='100'" "x='200'"
-                   , replaceHtmlBy "x='200'" "x='400'"
-                   , replaceHtmlBy "x='400'" "x='800'"
-                   , replaceHtmlBy "x='800'" "x='1600'"
-                   ],
   --}
   BUpdate 0 "" []
   ] |>
@@ -378,10 +379,10 @@ speedup unopt opt =
   let inside = stdDevSignificantDigits (toString (toFloat unopt / toFloat opt)) in
   if inside == "NaNx" then "\\nospeedup" else "\\speedup{" ++ inside ++ "}"
 
-runBenchmark: Benchmark -> (String, Int, Float, Int, Int, List Float, List Float, List Int)
+runBenchmark: Benchmark -> (String, Int, List Float, Int, Int, List Float, List Float, List Int)
 runBenchmark b = case b of
   BUpdate sessionTime benchmarkname replacements ->
-    if benchmarkname == "" then ("", 0, 0, 0, 0, [], [], [])
+    if benchmarkname == "" then ("", 0, [], 0, 0, [], [], [])
     else
     let finalReplacements = List.filter (\x -> x/= NoTransform) replacements in
     let numberOfUpdates = List.length (List.filter (\x ->
@@ -584,7 +585,7 @@ runBenchmark b = case b of
          ) results |> String.join "" in
     let rawdata = "\n% " ++ benchmarkname ++ " - Unopt" ++ rendersession unoptResults ++
       "\n% " ++ benchmarkname ++ " - Opt" ++ rendersession optResults in
-    let result = (rawdata, locprog, toFloat finalEvalTime, sessionTime, numberOfUpdates, allUnoptTimes, allOptTimes,
+    let result = (rawdata, locprog, evalTimes, sessionTime, numberOfUpdates, allUnoptTimes, allOptTimes,
       ambiguitiesOpt) in
     let _ = ImpureGoodies.log (" %%% -} next, " ++ toString (benchmarkname, (evalTimes, optResults, unoptResults)) ++ " %%% {-") in
     result
@@ -600,10 +601,10 @@ header =
 % \\tableRow {     Example        } {LOC} {Eval} {  Time  } {\\#Upd } {  Unopt / Opt  } {  Unopt / Opt  } {  Unopt / Opt  } { Min/Max}{Average }"""
 
 compute = (Utils.foldLeft
-    ("",  0,   0,    0,    0,   [],       [],     [])     benchmarks <|
+    ("",  0,   [],    0,    0,   [],       [],     [])     benchmarks <|
   (\(acc, loc, eval, time, upd, updUnopt, updOpt, ambiguities) b ->
      let (acc2, loc2, eval2, time2, upd2, updUnopt2, updOpt2, ambiguities2) = runBenchmark b in
-     (acc ++ acc2, loc + loc2, eval + eval2, time + time2, upd + upd2,
+     (acc ++ acc2, loc + loc2, eval ++ eval2, time + time2, upd + upd2,
       updUnopt ++ updUnopt2, updOpt ++ updOpt2, (ambiguities ++ ambiguities2) ))
   ) |>
        (\(acc, loc, eval, time, upd, updUnopt, updOpt,ambiguities) ->
@@ -615,7 +616,8 @@ compute = (Utils.foldLeft
 \\newcommand{\\benchmarksloc}{""" ++ toString loc ++ """}
 \\newcommand{\\benchmarkslocfloored}{""" ++ toString (floor (toFloat loc / toFloat 100) * 100) ++ """}
 \\newcommand{\\benchmarksnum}{""" ++ toString (List.length benchmarks) ++ """}
-\\newcommand{\\benchmarkseval}{""" ++ toString eval ++ """}
+\\newcommand{\\benchmarksevalaverage}{""" ++ toString (ceiling <| average eval) ++ """}
+\\newcommand{\\benchmarksevalstddev}{\\plusminus{""" ++ stddev eval ++ """}}
 \\newcommand{\\benchmarkssessiontime}{""" ++ sToMinutsSeconds (toFloat time) ++ """}
 \\newcommand{\\benchmarksnumupd}{""" ++ toString upd ++ """}
 \\newcommand{\\benchmarksaverageoptupd}{""" ++ s optaverage ++ """}

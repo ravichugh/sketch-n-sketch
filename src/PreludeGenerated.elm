@@ -1965,9 +1965,15 @@ nil = []
 cons x xs = x :: xs
 
 zip xs ys =
-  case [xs, ys] of
-    [x::xsRest, y::ysRest] -> [x,y] :: zip xsRest ysRest
+  case (xs, ys) of
+    (x::xsRest, y::ysRest) -> (x, y) :: zip xsRest ysRest
     _                      -> []
+
+zipOld xs ys =
+  case (xs, ys) of
+    (x::xsRest, y::ysRest) -> [x, y] :: zipOld xsRest ysRest
+    _                      -> []
+
 
 range i j =
   if i < j + 1
@@ -2563,7 +2569,7 @@ reverse xs = foldl cons nil xs
 -- TODO eta-reduced version:
 -- (def reverse (foldl cons nil))
 
-adjacentPairs xs = zip xs (tl xs)
+adjacentPairs xs = zipOld xs (tl xs)
 
 --; Given two numbers, creates the list between them (inclusive)
 --range: (-> Num Num (List Num))
@@ -2769,7 +2775,7 @@ parens = delimit \"(\" \")\"
 --       (let paddedCol (append col (repeat (- numRows (len col)) \".\"))
 --       (map
 --         (\\[datum row] [ datum | row ])
---         (zip paddedCol rows))))
+--         (zipOld paddedCol rows))))
 --     (repeat numRows [])
 --     columns)
 -- ))))
@@ -2997,7 +3003,13 @@ List =
       Nothing -> filterMap f tail
       Just newHead -> newHead :: filterMap f tail
   in
-  -- TODO move all definitions here
+  letrec filter f l = case l of
+    [] -> []
+    (head::tail) ->
+       if f head then
+         head :: filter f tail
+       else filter f tail
+  in
   let length =
     len
   in
@@ -3033,6 +3045,8 @@ List =
       [] -> revAcc
       head::tail -> reverseInsert tail (head::revAcc)
   in
+  let sum l = foldl (\\x y -> x + y) 0 l in
+  letrec range min max = if min > max then [] else min :: range (min + 1) max in
   { simpleMap = simpleMap
     map = map
     nil = nil
@@ -3051,6 +3065,9 @@ List =
     drop = LensLess.List.drop
     foldl = foldl
     filterMap = filterMap
+    sum = sum
+    range = range
+    zipWithIndex = zipWithIndex
   }
 
 --------------------------------------------------------------------------------
@@ -3388,6 +3405,25 @@ Html =
         [\"label\", [[\"for\",id], [\"title\", title]], [[\"TEXT\", text]]]
       ]]
   in
+  let button =
+    let
+    stringFlagForUpdate state1 state2 f model =
+        { apply _ = Update.freeze state1
+        , update {input = model, outputNew} =
+            if outputNew == state2
+              then {values = [f model]}
+              else {values = [model]}
+        }.apply model
+    in
+    \\name title model controller ->
+      forceRefresh <| [ \"button\"
+        , [ [\"trigger\", stringFlagForUpdate \"\" \"#\" controller model]
+          , [\"title\", title]
+          , [\"onclick\", \"this.setAttribute('trigger', '#')\"]
+          ]
+        , [Html.textNode name]
+      ]
+  in
   { textNode = textNode
     p = textElementHelper \"p\"
     th = textElementHelper \"th\"
@@ -3404,6 +3440,8 @@ Html =
     span = elementHelper \"span\"
     b= elementHelper \"b\"
     i= elementHelper \"i\"
+    li = elementHelper \"li\"
+    ul = elementHelper \"ul\"
     element = elementHelper
     text = textInner
     br = [\"br\", [], []]
@@ -3411,6 +3449,7 @@ Html =
     forceRefresh = forceRefresh
     select = select
     checkbox = checkbox
+    button = button
   }
 
 -- TODO remove this; add as imports as needed in examples
@@ -4028,7 +4067,7 @@ path_ =      path 'transparent' 'goldenrod' 5
 --; (so can't just use foldr instead of reverse . foldl)
 -- updateCanvas: (-> SVG SVG SVG)
 updateCanvas [_, svgAttrs, oldShapes] diff =
-  let oldShapesI = zip (list1N (len oldShapes)) oldShapes in
+  let oldShapesI = zipOld (list1N (len oldShapes)) oldShapes in
   let initAcc = [[], diff] in
   let f [i, oldShape] [accShapes, accDiff] =
     case accDiff of
@@ -4094,7 +4133,7 @@ nStar fill stroke w n len1 len2 rot cx cy =
     map (\\b -> if b then len1 else len2)
         (concat (repeat n [True, False])) in
   let indices = list0N (2! * n - 1!) in
-    polygon fill stroke w (map pti (zip indices lengths))
+    polygon fill stroke w (map pti (zipOld indices lengths))
 
 -- setZones: (-> String SVG SVG)
 setZones s shape = addAttr shape ['ZONES', s]
@@ -4241,7 +4280,7 @@ enumSlider x0 x1 ya::_as enum caption srcVal =
   [item, ghosts shapes] 
 
 addSelectionSliders y0 seeds shapesCaps =
-  let shapesCapsSeeds = zip shapesCaps (take seeds (len shapesCaps)) in
+  let shapesCapsSeeds = zipOld shapesCaps (take seeds (len shapesCaps)) in
   let foo [i, [[shape, cap], seed]] =
     let [k, _, _] = shape in
     let enum =

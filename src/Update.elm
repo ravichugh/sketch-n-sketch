@@ -476,7 +476,9 @@ getUpdateStackOp env e oldVal newVal diffs =
                              updateDiff (i + 1) finalEnv ((sp3, sp4, k, sp5, newUpdatedEi.val)::revCollectedEs) finalRevEDiffs esToCollectTail newDiffs
                            ) env collectedEnv sp3 sp4 k sp5 newDiffs
                     in updateDiff 0 (UpdatedEnv.original env) [] [] es dModifs
-                   m-> UpdateCriticalError ("Expected  a Record diff, got " ++ toString m)
+                   VConstDiffs ->
+                     updateResultSameEnv env <| valToExpFull (Just e) sp1 InlineSpace newVal
+                   m-> UpdateCriticalError ("Expected a Record diff, got " ++ toString m)
              _ -> UpdateCriticalError ("Expected Record as original value, got " ++ valToString oldVal)
          _ -> UpdateCriticalError ("Expected Record as value to update from, got " ++ valToString newVal)
 

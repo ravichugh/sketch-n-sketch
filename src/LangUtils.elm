@@ -253,10 +253,12 @@ valToExpFull copyFrom sp_ indent v =
       let defaultspkTl = ws (foldIndent " " <| increaseIndent indent) in
       let defaultspeTl = ws " " in
       let (precedingWS, keys, ((spaceComma, spaceKey, spaceEqual, v2expHead),
-                               (spaceCommaTail, spaceKeyTail, spaceEqualTail, v2expTail)), spBeforeEnd) = copyFrom |> Maybe.andThen (\e -> case e.val.e__ of
+                               (spaceCommaTail, spaceKeyTail, spaceEqualTail, v2expTail)), spBeforeEnd) =
+           copyFrom |> Maybe.andThen (\e -> case e.val.e__ of
            ERecord csp0 _ celems cspend ->
              let existingkeys =  Utils.recordKeys celems in
-             let finalKeys = existingkeys ++ (Dict.keys values |> List.filter (\k -> not (List.any (\e -> e == k) existingkeys))) in
+             let finalKeys = existingkeys ++ (Dict.keys values |> List.filter (\k -> not (List.any (\e -> e == k) existingkeys))) |>
+                List.filterMap (\x -> if Dict.member x values then Just x else Nothing) in
              let valToExps = case celems of
                     (spc1, spk1, _, spe1, hd1)::(spc2, spk2, _, spe2, hd2)::tail ->
                       ((spc1, spk1, spe1, valToExpFull <| Just hd1), (spc2, spk2, spe2, valToExpFull <| Just hd2))
