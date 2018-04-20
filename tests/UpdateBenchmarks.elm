@@ -30,7 +30,7 @@ import Dict exposing (Dict)
 
 exportMode = False {-- -- Add a } to make the benchmark run for all
                     && False --}
-only1 = False {-- -- Add a } to make the benchmark run for all
+only1 = True {-- -- Add a } to make the benchmark run for all
   && False --}
 bypassUnopt = False{-- -- Add a } to make the benchmark bypass the unopt
   || True --}
@@ -42,7 +42,7 @@ type alias CachedBenchmark = (List Float, List ((Float, List Float), (List Int, 
 
 fromSuccessiveRuns: List CachedBenchmark -> CachedBenchmark
 fromSuccessiveRuns l = let (l1, l2, l3) = Utils.unzip3 l in
-  let ll1 = List.concatMap identity l1 in
+  let ll1 = Utils.head "fromSuccessiveRuns" l1 in
   let ll2 = List.concatMap identity l2 in
   let ll3 = List.concatMap identity l3 in
   (ll1, ll2, ll3)
@@ -210,12 +210,7 @@ at l n = Utils.nth l n |> Utils.fromOk "at" |> Maybe.withDefault ""
 
 benchmarks: List Benchmark
 benchmarks = [
-  {--
-  BUpdate 0 "Translation" [NoTransform
-      , replaceHtmlBy "printer" "{printer}"
-    ],
-  --}
-  --{--{--{--{--
+  {--{--{--{--{--{--{--
 
   {--}
   BUpdate (2*60+36) "States Table A\\hasvideo{}" [ NoTransform
@@ -312,19 +307,14 @@ benchmarks = [
     ]
     , replaceHtmlBy "we want to prove" "we want to show"
     , replaceHtmlBy "we want to show" "we want to really show"
-    --}
   ],
+    --}
   {--
   BUpdate (0*60+43) "States Table C" transform_table_of_states_b,
   --}
-  --{--{--
   {--}
-  --BUpdate "Markdown Recursive" transform_markdown_ab_linear,
   BUpdate (2*60+8) "Markdown" transform_markdown_ab_linear,
-  --BUpdate "Markdown with lens" transform_markdown_ab_lens,
-  --BUpdate "Markdown w/o lens" transform_markdown_ab_lens,
   --}
-  {--}
   let select occurrence n =
     replaceStringByReg All "(select.*\r?\n.*selected-index\",\\s*)\"\\d\"" (\m -> if m.number == occurrence then at m.submatches 0 ++ "\""++ toString n ++ "\"" else m.match)
   in
@@ -340,16 +330,16 @@ benchmarks = [
       , my_card_is 1
       , i_bet_on 2
       , confirm
-      , my_card_is 3
-      , i_bet_on 2
-      , confirm
-      , my_card_is_last 4
-      , i_bet_on_last 3
-      , confirm
-      , confirm
+      --, my_card_is 3
+      --, i_bet_on 2
+      --, confirm
+      --, my_card_is_last 4
+      --, i_bet_on_last 3
+      --, confirm
+      --, confirm
       ],
   --}
-  {--}
+  {--
   let changeLanguageIndex n =
      replaceStringByReg (AtMost 1) "(select.*\r?\n.*selected-index\",\\s*)\"0\"" (\m -> at m.submatches 0 ++ "\""++ toString n ++ "\"")
   in
@@ -398,7 +388,7 @@ applyTransform replacement oldOut =
     StringTransform name replacement ->
       let oldString = valToString oldOut in
       let newString = oldString |> replacement in
-      if newString == oldString then Debug.crash <| "Expected a new string, got the same (for " ++ name ++ ")" else
+      if newString == oldString then Debug.crash <| "Expected a new string, got the same (for " ++ name ++ ")\n" ++ oldString ++ "\n###################\n" ++ newString else
       newString |>parse |> Utils.fromOk "parse newout" |> eval |> Utils.fromOk "eval newout"
     ValTransform _ replacement -> replacement oldOut
     HTMLTransform _ replacement ->
@@ -460,11 +450,10 @@ runBenchmark b = case b of
            else-}
            let _ = if not exportMode then ImpureGoodies.log <| "Apply transformation..."  else ""in
            --let _ = ImpureGoodies.log (toString unopt) in
-           --let _ = ImpureGoodies.log "Current program:" in
-           --let _ = ImpureGoodies.log (unparse progExp) in
+           let _ = ImpureGoodies.log "Current program:" in
+           let _ = ImpureGoodies.log (unparse progExp) in
            --let _ = ImpureGoodies.log "Current out:" in
            --let _ = ImpureGoodies.log (valToHtml oldOut) in
-           --let _ = ImpureGoodies.log ("New modifications: " ++ toString replacement)  in
            case step of
              NoTransform -> Debug.crash "NoTransform should have been removed"
              SetNextChoice n -> (progExp, oldOut, updateTimes, evalTimes, modifTimes, ambiguities, timeAmbiguities, n)
@@ -481,10 +470,11 @@ runBenchmark b = case b of
                    (newProgExp, realNewOut, updateTimes, realNewOutTime::evalTimes, modifTimes, ambiguities, timeAmbiguities, 1)
              OutputTransform replacement ->
                let replacementName = sessionName ++ transformName replacement in
-               --let _ = Debug.log ("oldOut\n" ++ valToString oldOut) () in
+               let _ = ImpureGoodies.log ("New modifications: " ++ replacementName)  in
+               let _ = Debug.log ("oldOut\n" ++ valToString oldOut) () in
                --let _ = Debug.log ("oldOut\n" ++ valToHtml oldOut) () in
                let (newOut, newOutTime) = ImpureGoodies.timedRun <| \_ -> applyTransform replacement oldOut in
-               --let _ = Debug.log ("newOut\n" ++ valToString newOut) () in
+               let _ = Debug.log ("newOut\n" ++ valToString newOut) () in
                --let _ = Debug.log ("newOut\n" ++ valToHtml newOut) () in
                let _ = if not exportMode then ImpureGoodies.log <| "It took " ++ toString newOutTime ++ "ms. Update with newOut..."  else "" in
                --let _ = ImpureGoodies.log (valToHtml newOut) in
@@ -534,11 +524,9 @@ runBenchmark b = case b of
           Nothing ->
             let (progExp, parseProgTimes) = averageTimedRun nToAverageOn (\_ -> parse prog |> Utils.fromOk "parse prog") in
             let (oldOut, evalProgTimes) = averageTimedRun nToAverageOn (\_ -> evalEnv EvalUpdate.preludeEnv progExp |> Utils.fromOk "eval prog") in
-
-            (List.map2 (\x y -> x + y) parseProgTimes evalProgTimes,
-             tryMany nToAverageOn <| \i -> session progExp oldOut i False,
-             tryMany nToAverageOn <| \i -> session progExp oldOut i True
-             )
+            let unopt = tryMany nToAverageOn <| \i -> session progExp oldOut i True in
+            let opt = tryMany nToAverageOn <| \i -> session progExp oldOut i False in
+            (List.map2 (\x y -> x + y) parseProgTimes evalProgTimes, opt, unopt)
           Just x -> x
  --           let (progExp, parseProgTimes) = averageTimedRun nToAverageOn (\_ -> parse prog |> Utils.fromOk "parse prog") in
    --         let (oldOut, evalProgTimes) = averageTimedRun nToAverageOn (\_ -> evalEnv EvalUpdate.preludeEnv progExp |> Utils.fromOk "eval prog") in
