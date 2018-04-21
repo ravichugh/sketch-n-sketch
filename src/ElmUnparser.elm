@@ -13,6 +13,7 @@ import Utils
 import Regex
 import ParserUtils exposing (unparseStringContent)
 import ImpureGoodies
+import HTMLParser
 
 --------------------------------------------------------------------------------
 -- Simple Values
@@ -838,11 +839,19 @@ unparseHtmlAttributes attrExp =
       attrs |> List.map (\attr -> case attr.val.e__ of
         EList attrNameSpace [(_, attrName), (attrEqSpace, attrValue)] _ Nothing _ ->
           case attrName.val.e__ of
-            EBase spIfNoValue (EString _ attrNameStr) ->
-              if attrNameStr == "" && spIfNoValue.val == " " then
-                attrNameSpace.val ++ attrNameStr
-              else
-                attrNameSpace.val ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValue
+            EBase _ (EString _ attrNameStr) ->
+              let attrValueToConsider = case attrNameStr of
+                "style" -> eAppUnapply1 attrValue |> Maybe.map Tuple.second |> Maybe.withDefault attrValue
+                _ -> attrValue
+              in
+              case attrValueToConsider.val.e__ of
+                EBase spIfNoValue (EString _ attrValueStr) ->
+                  if attrValueStr == "" && spIfNoValue.val == " " then
+                    attrNameSpace.val ++ attrNameStr
+                  else
+                    attrNameSpace.val ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValueToConsider
+                _ ->
+                  attrNameSpace.val ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValueToConsider
             _ -> " @[" ++ unparse attr ++"]"
         _ -> " @[" ++ unparse attr ++"]"
       ) |> String.join ""
@@ -883,8 +892,11 @@ unparseHtmlNode e = case e.val.e__ of
         "/>"
       "  " ->  -- void closing
         ">"
-      _ -> -- Normal closing
-        ">" ++ unparseHtmlChildList childExp ++ "</" ++ tagEnd ++ ">"
+      _ -> -- Normal closing if the tag is ok
+        if HTMLParser.isVoidElement tagStart then
+          ">"
+        else
+          ">" ++ unparseHtmlChildList childExp ++ "</" ++ tagEnd ++ ">"
     )
   _ -> "@[" ++ unparse e ++ "]"
 

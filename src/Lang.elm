@@ -3565,6 +3565,11 @@ type EDiffs = EConstDiffs EWhitespaceDiffs
 
 type EWhitespaceDiffs = EOnlyWhitespaceDiffs | EAnyDiffs
 
+vListDiffsUnapply: VDiffs -> Maybe (ListDiffs VDiffs)
+vListDiffsUnapply vdiffs = case vdiffs of
+  VListDiffs d -> Just d
+  _ -> Nothing
+
 offsetStr: Int -> List StringDiffs -> List StringDiffs
 offsetStr n diffs =
   --Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <|

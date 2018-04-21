@@ -1,5 +1,5 @@
 main =
-  <div @[["style", [["padding", "20px"]]]]>
+  <div style="padding:20px">
     <h2>Welcome to Sketch-n-Sketch Docs!</h2>
       <br>
       <p>Type something here...</p>

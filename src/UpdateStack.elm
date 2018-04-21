@@ -155,12 +155,12 @@ updateContinueMultiple  msg       env    totalExpValOut                    diffs
              [] -> Nothing
              l -> Just l
            in
-           continuation updatedEnvAcc (UpdatedExpTuple (List.reverse (UpdateUtils.reverseInsert (List.map (\(e, _, _) -> e) expValOut) revAccExps)) finalExpTupleDiffs)
+           continuation updatedEnvAcc (UpdatedExpTuple (List.reverse (Utils.reverseInsert (List.map (\(e, _, _) -> e) expValOut) revAccExps)) finalExpTupleDiffs)
          (j, m) :: td ->
             if j > i then
               let (unchanged, remaining) = Utils.split (j - i) expValOut in
               let unchangedExps = unchanged |> List.map (\(e, _, _) -> e) in
-               aux j (UpdateUtils.reverseInsert unchangedExps revAccExps) revAccEDiffs updatedEnvAcc remaining diffs
+               aux j (Utils.reverseInsert unchangedExps revAccExps) revAccEDiffs updatedEnvAcc remaining diffs
             else if j < i then Debug.crash <| "Unexpected modification index : " ++ toString j ++ ", expected " ++ toString i ++ " or above."
             else
               case expValOut of

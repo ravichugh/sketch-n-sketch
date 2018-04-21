@@ -9,7 +9,7 @@ import Dict exposing (Dict)
 import Info exposing (WithInfo)
 import LangUtils exposing (valToExp, valToExpFull, IndentStyle(..), pruneEnv, pruneEnvPattern, valToString)
 import Regex
-import Utils exposing (foldLeft, strFoldLeft, foldLeftWithIndex, strFoldLeftWithIndex)
+import Utils exposing (foldLeft, strFoldLeft, foldLeftWithIndex, strFoldLeftWithIndex, reverseInsert, maybeReverseInsert)
 import Set exposing (Set)
 import Pos exposing (Pos)
 import ValBuilder as Vb
@@ -1281,13 +1281,18 @@ eDiffModifiedIndex i ediffs =
 
 combineEChildDiffs: List (Int, Maybe EDiffs) -> Maybe EDiffs
 combineEChildDiffs l =
+  combineTupleDiffs l |> Maybe.map EChildDiffs
+
+combineTupleDiffs: List (Int, Maybe a) -> Maybe (TupleDiffs a)
+combineTupleDiffs l =
   let aux revAcc l = case l of
     [] -> case List.reverse revAcc of
        [] -> Nothing
-       acc -> Just <| EChildDiffs acc
+       acc -> Just <| acc
     (i, Nothing)::tail -> aux revAcc tail
     (i, Just e)::tail -> aux ((i, e)::revAcc) tail
   in aux [] l
+
 
 -- Combines function and argument changes into one single change
 combineAppChanges: Maybe EDiffs -> Maybe (TupleDiffs EDiffs) -> Maybe EDiffs
@@ -1811,21 +1816,6 @@ mergeListWithDiffs keyOf submerger original modified1 modified2 =
      DiffRemoved removed::diffTail -> aux acc diffTail
      DiffAdded added::diffTail -> aux (acc ++ added) diffTail
   in aux [] thediff
-
-reverseInsert: List a -> List a -> List a
-reverseInsert elements revAcc =
-  case elements of
-    [] -> revAcc
-    head::tail -> reverseInsert tail (head::revAcc)
-
-maybeReverseInsert: List (Maybe a) -> List a -> List a
-maybeReverseInsert elements revAcc =
-  case elements of
-    [] -> revAcc
-    head::tail ->
-      case head of
-        Nothing -> maybeReverseInsert tail revAcc
-        Just h -> maybeReverseInsert tail (h::revAcc)
 
 type StringMerge  = DoLeft Int Int Int (List StringDiffs)
                   | DoRight Int Int Int (List StringDiffs)

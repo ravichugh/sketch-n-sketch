@@ -794,7 +794,8 @@ attrsToExp lastPos attrs =
     head::tail ->
       let origin = replaceInfo head << exp_ in
       case head.val of
-        HTMLParser.HTMLAttribute sp strInfo value ->
+        HTMLParser.HTMLAttribute sp nameInfo value ->
+          let nameExp = replaceInfo nameInfo <| exp_ <| EBase space0 (EString "\"" nameInfo.val) in
           let attrValueSpace =
             case value.val of
                HTMLParser.HTMLAttributeNoValue ->
@@ -802,14 +803,18 @@ attrsToExp lastPos attrs =
                  Ok (space0, withDummyExpInfo <| EBase space1 <| EString "\"" "")
                HTMLParser.HTMLAttributeExp s e ->
                  -- Normally, all the space is inside s
-                 Ok (s, e)
+                 let final_e = case nameInfo.val of
+                      "style" -> replaceInfo e <| exp_ <| EApp space0 (withInfo (exp_ <| EVar space1 "__mbstylesplit__") e.start e.start) [e] SpaceApp space0
+                      _ -> e
+                 in
+                 Ok (s, final_e)
                _ -> Err <| "[Internal error] Tried to convert " ++ toString head ++ " to an Exp"
           in
           case attrValueSpace of
             Err msg -> fail msg
             Ok (attrSpace, attrValue) ->
               let thisAttribute = replaceInfo head <| exp_ <| EList sp [
-                 (space0, replaceInfo strInfo <| exp_ <| EBase space0 (EString "\"" strInfo.val)),
+                 (space0, nameExp),
                  (attrSpace, attrValue)
                  ] space0 Nothing space0
               in

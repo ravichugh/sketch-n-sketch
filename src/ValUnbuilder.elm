@@ -10,6 +10,12 @@ list sub v = case v.v_ of
   VList vs -> List.map sub vs |> Utils.projOk
   _ -> Err <| "Expected a list, got " ++ valToString v
 
+viewtuple2:  (Val -> Result String a) -> (Val -> Result String b) -> Val -> Result String (a, b)
+viewtuple2 sub1 sub2 v = case v.v_ of
+  VList [v1, v2] ->
+    Result.map2 (\a b -> (a, b)) (sub1 v1) (sub2 v2)
+  _ -> Err <| "Expected a 2-element list, got " ++ valToString v
+
 tuple2: (Val -> Result String a) -> (Val -> Result String b)-> Val -> Result String (a, b)
 tuple2 sub1 sub2 v = record Ok v |> Result.andThen (\d ->
     Dict.get "_1" d |> Result.fromMaybe ("Expected tuple, got " ++ valToString v) |> Result.andThen (\t1 ->

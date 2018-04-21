@@ -4,6 +4,7 @@ import HTMLParser exposing (..)
 import Lang exposing (..)
 import ParserUtils exposing (..)
 import LangUtils exposing (valToString)
+import LangParserUtils exposing (explodeStyleValue)
 import UpdateUtils
 import Utils
 import Results exposing (Results(..))
@@ -143,15 +144,7 @@ styleAttrToElmViewInLeo vb (name, content) =
     Vb.viewtuple2 Vb.string Vb.string vb (name, content)
   else
     Vb.viewtuple2 Vb.string (Vb.list (Vb.viewtuple2 Vb.string Vb.string)) vb (name,
-          Regex.split Regex.All (Regex.regex "(?=;\\s*\\S)") content
-       |> List.filterMap (\s ->
-            case Regex.find (Regex.AtMost 1) (Regex.regex "^;?([\\s\\S]*):([\\s\\S]*);?\\s*$") s of
-              [m] -> case m.submatches of
-                [Just name, Just value] -> Just (name, value)
-                _ ->Nothing
-              _ ->Nothing
-          )
-       )
+      explodeStyleValue content |> List.map (\(_, name, _, value, _) -> (name, value)))
 
 filterHTMLInnerWhitespace: List HTMLNode -> List HTMLNode
 filterHTMLInnerWhitespace nodes =

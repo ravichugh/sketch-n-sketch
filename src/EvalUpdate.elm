@@ -6,12 +6,13 @@ Eval.run has become EvalUpdate.run, because it depends on the prelude and on the
 import Update
 import UpdateStack exposing (UpdateStack, updateContext, UpdatedExp)
 import UpdatedEnv exposing (UpdatedEnv)
-import UpdateUtils exposing (defaultVDiffs, vDiffsToVal, valToVDiffs, recursiveMergeVal)
+import UpdateUtils exposing (defaultVDiffs, vDiffsToVal, valToVDiffs, recursiveMergeVal, diffsAt, toTupleDiffs)
 import Eval
 import Lang exposing (..)
 import HTMLValParser
+import LangParserUtils
 import LangUtils exposing (..)
-import Utils
+import Utils exposing (reverseInsert)
 import Syntax exposing (Syntax)
 import ElmParser as Parser
 import Results exposing (Results(..), ok1)
@@ -23,6 +24,7 @@ import Dict exposing (Dict)
 import ValUnparser exposing (strVal_, strOp, strLoc)
 import ParserUtils
 import ValBuilder as Vb
+import ValUnbuilder as Vu
 import UpdateRegex
 
 builtinEnv =
@@ -82,7 +84,7 @@ builtinEnv =
        [left, right] ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 /= n2)), [])
-           _ -> Err <| "/= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
+           (_, _) -> Ok (replaceV_ left <| VBase <| VBool <| valToString left /= valToString right, [])
        _ -> Err <| "/= expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
   , ("getCurrentTime", builtinVal "EvalUpdate.getCurrentTime" (VFun "getCurrentTime" ["unit"] (\_ ->
@@ -300,6 +302,105 @@ builtinEnv =
   , ("replaceFirstIn", UpdateRegex.replaceFirstByIn eval update)
   , ("updateReplace", UpdateRegex.updateReplace eval update)
   , ("join__", UpdateRegex.join)
+  , ("__mbstylesplit__", builtinVal "EvalUpdate.__mbstylesplit__" <|
+     VFun "__mbstylesplit__" ["style_str"] (\args ->
+       case args of
+         [original] ->
+           case original.v_ of
+             VList _ -> Ok (original, [])
+             VBase (VString content) ->
+               let vb = Vb.fromVal original in
+               let finalVal =
+                 LangParserUtils.explodeStyleValue content |> List.map (\(_, name, _, value, _) ->
+                  (name, value)
+                 ) |>
+                 Vb.list (Vb.viewtuple2 Vb.string Vb.string) vb
+               in
+               Ok (finalVal, [])
+             _ -> Err <| "__mbstylesplit__ takes a string or a list, got " ++ valToString original
+         _ -> Err <| "__mbstylesplit__ takes 1 argument, got " ++ toString (List.length args)
+     ) <| Just <| \args oldVal newVal diffs ->
+       case args of
+        [original] ->
+          case original.v_ of
+            VList _ -> ok1 ([newVal], UpdateUtils.combineTupleDiffs [(0, Just diffs)] |> Maybe.withDefault [])
+            VBase (VString content) -> -- Need to transform the List diffs into string diffs
+              let originalStyles = LangParserUtils.explodeStyleValue content in
+              case (diffs, Vu.list (Vu.viewtuple2 Vu.string Vu.string) newVal) of
+                (VListDiffs diffElems, Ok updatedStyles) ->
+                  let combineOldString (s1, s2, s3, s4, s5) = s1 ++ s2 ++ s3 ++ s4 ++ s5 in
+                  let aux:Int ->
+                            List (String, String, String, String, String) ->
+                                           List (String, String) ->
+                                                         ListDiffs VDiffs ->
+                                                                   (String,    Int,    List StringDiffs) -> Results String (List Val, TupleDiffs VDiffs)
+                      aux i originalStyles updatedStyles diffElems (accString, originalOffset, revAccDiffs) = case diffElems of
+                    [] ->
+                       let finalDiffs = Debug.log "finalDiffs" <| (UpdateUtils.combineTupleDiffs [(0, Just <| VStringDiffs (List.reverse revAccDiffs))] |> Maybe.withDefault []) in
+                       let remainingAcc = List.map combineOldString originalStyles |> String.join ";" in
+                       let finalString = replaceV_ original <| VBase <| VString (Debug.log "final string:"  (accString ++ remainingAcc)) in
+                       ok1 ([finalString], finalDiffs)
+                    (j, d)::tailDiffElems ->
+                       if j > i then
+                        let (originalStylesKept, originalStylesTail) = Utils.split (j - i) originalStyles in
+                        let newUpdatedStyles = List.drop (j - i) updatedStyles in
+                        let newString = originalStylesKept |> List.map combineOldString |> String.join "" in
+                        let newFinalString = accString ++ newString in
+                        aux j originalStylesTail newUpdatedStyles diffElems (newFinalString, originalOffset, revAccDiffs)
+                       else -- j == i
+                        case d of
+                          ListElemDelete count ->
+                            let (originalStylesRemoved, originalStylesTail) = Utils.split count originalStyles in
+                            let oldString = originalStylesRemoved |> List.map (\(s1, s2, s3, s4, s5) -> s1 ++ s2 ++ s3 ++ s4 ++ s5) |> String.join "" in
+                            let newOriginalOffset = originalOffset + String.length (List.map combineOldString originalStylesRemoved |> String.join "") in
+                            let deletionPoint = originalOffset in
+                            (accString, newOriginalOffset, [StringUpdate deletionPoint  (deletionPoint + String.length oldString) 0]) |>
+                            aux (j + 1) originalStylesTail updatedStyles tailDiffElems
+                          ListElemInsert count ->
+                            let (insertedStyles, tailUpdatedStyles) = Utils.split count updatedStyles in
+                            let insertedString = (if String.endsWith ";" accString || accString == "" then "" else ";") ++
+                              (List.map (\(name, value) -> name ++ ":" ++ value ++ ";") insertedStyles |> String.join "")
+                            in
+                            let insertionPoint = originalOffset + String.length accString in
+                            let _ = Debug.log "inserted" (count, originalOffset, insertionPoint, insertedString) in
+                            (accString ++ insertedString, originalOffset, [StringUpdate insertionPoint insertionPoint (String.length insertedString)]) |>
+                            aux j originalStyles tailUpdatedStyles tailDiffElems
+                          ListElemUpdate d ->
+                            case (originalStyles, updatedStyles) of
+                              ((oldPreName, oldName, oldColon, oldValue, oldPostValue) :: originalStylesTail,
+                               (newName, newValue)::updatedStylesTail) ->
+                                 case vListDiffsUnapply d |> Maybe.andThen toTupleDiffs of
+                                   Nothing -> Errs "[Cannot add an elemnt inside a style attribute definition]"
+                                   Just tupleDiffs ->
+                                      let nameDiffs = case diffsAt 0 tupleDiffs of
+                                        Nothing -> []
+                                        Just (VStringDiffs strDiffs) -> offsetStr (
+                                           originalOffset + String.length oldPreName) strDiffs
+                                        Just _ ->
+                                            let basepoint = originalOffset + String.length oldPreName in
+                                            [StringUpdate basepoint (basepoint  + String.length oldName) (String.length newName) ]
+                                      in
+                                      let valueDiffs = case diffsAt 1 tupleDiffs of
+                                        Nothing -> []
+                                        Just (VStringDiffs strDiffs) -> offsetStr (
+                                           originalOffset + String.length oldPreName + String.length oldName + String.length oldColon) strDiffs
+                                        Just _ ->
+                                            let basepoint = originalOffset + String.length oldPreName + String.length oldName + String.length oldColon in
+                                            [StringUpdate basepoint (basepoint  + String.length oldValue) (String.length newValue) ]
+                                      in
+                                      let newString = oldPreName ++ newName ++ oldColon ++ newValue ++ oldPostValue in
+                                      let newOriginalOffset = originalOffset + String.length oldPreName + String.length oldName + String.length oldColon + String.length oldValue + String.length oldPostValue in
+                                      (accString ++ newString, newOriginalOffset, revAccDiffs |> reverseInsert nameDiffs |> reverseInsert valueDiffs) |>
+                                      aux (i + 1) originalStylesTail updatedStylesTail tailDiffElems
+                              _ -> Errs <| "[Internal error]: the diff is not consistent " ++ valToString oldVal ++ " " ++ valToString newVal ++ " " ++ toString diffs
+                  in
+                  aux 0 originalStyles updatedStyles diffElems ("", 0, [])
+                (_, Err msg) -> Errs <| "Expected VListDiffs got an error: " ++ msg
+                _ -> Errs <| "Expected VListDiffs and a List, got " ++ toString diffs ++ " and " ++ valToString newVal
+            _ -> Errs <| "__mbstylesplit__ takes a string or a List, got " ++ valToString newVal
+        _ -> Errs <| "__mbstylesplit__ takes 1 argument, got " ++ toString (List.length args)
+
+    )
   ]
 
 eval env e = Eval.doEval Syntax.Elm env e |> Result.map Tuple.first

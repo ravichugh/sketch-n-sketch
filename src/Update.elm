@@ -66,14 +66,14 @@ update callbacks forks updateStack =
   -- At the end of callbacks, there are all the forks that can be explored later.
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out diffs mb ->
-       {--}
+       {--
       let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
        --}
       getUpdateStackOp env e oldVal out diffs |>
       update (LazyList.maybeCons mb callbacks) forks
 
     UpdateResultS fUpdatedEnv fOut mb -> -- Let's consume the stack !
-       {--}
+       {--
       let _ = Debug.log (String.concat [
         "update final result: ", unparse fOut.val,
         {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", if fUpdatedEnv.changes == [] then "\nenvironment unchanged" else envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes,
@@ -181,7 +181,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                             (ws1, e1)::t -> f ws1 e1 :: t
                             [] -> []
                        in
-                       let finalElems = List.reverse <| reverseInsert finalElemsToCollect revElems in
+                       let finalElems = List.reverse <| Utils.reverseInsert finalElemsToCollect revElems in
                        let updatedE= case List.reverse revEDiffs of
                          [] -> UpdatedExp e Nothing
                          l -> UpdatedExp (replaceE__ e <| EList sp1 finalElems sp2 Nothing sp3) (Just <| EListDiffs l)
@@ -294,13 +294,13 @@ getUpdateStackOp env e oldVal newVal diffs =
                                   , (if index + insertionIndex == 0 then valToWSExpHead    else valToWSExpTail) inserted) ) inserted
                              in
                              let elemsToAdd = insertedExp in
-                             updateDiffs i collectedUpdatedEnv (UpdateUtils.reverseInsert elemsToAdd revElems) ((i, ListElemInsert count)::revEDiffs) elemsToCollect changeElementAfterInsert originalValues remainingNewVals modiftail
+                             updateDiffs i collectedUpdatedEnv (Utils.reverseInsert elemsToAdd revElems) ((i, ListElemInsert count)::revEDiffs) elemsToCollect changeElementAfterInsert originalValues remainingNewVals modiftail
                        else --((i, ListElemDelete count)::revEDiffs)
                          case changeWhitespaceNext of
                            Nothing ->
                              let count = i1 - i in
                              let (skipped, remaining) = Utils.split count elemsToCollect in
-                             updateDiffs i1 collectedUpdatedEnv (UpdateUtils.reverseInsert skipped revElems) revEDiffs remaining Nothing (List.drop count originalValues) (List.drop count newValues) ldiffs
+                             updateDiffs i1 collectedUpdatedEnv (Utils.reverseInsert skipped revElems) revEDiffs remaining Nothing (List.drop count originalValues) (List.drop count newValues) ldiffs
                            Just f ->
                              case (elemsToCollect, originalValues, newValues) of
                                ((sp, hdElem)::tlToCollect, origValue::origTail, newValue::newValuesTail) ->
@@ -334,7 +334,7 @@ getUpdateStackOp env e oldVal newVal diffs =
 
                        let updatedList = case List.reverse revEDiffs of
                          [] -> UpdatedExp e Nothing
-                         l -> let finalElems = List.reverse <| UpdateUtils.reverseInsert elemsToCollect revElems in
+                         l -> let finalElems = List.reverse <| Utils.reverseInsert elemsToCollect revElems in
                               UpdatedExp (replaceE__ e <| EList sp1 finalElems sp2 (Just tail) sp3) (Just <| EChildDiffs l)
                        in
                        updateResult collectedEnv updatedList
@@ -342,7 +342,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                        if i >= elemSize then
                          let (finalElems, changesInOrder) =  case List.reverse revEDiffs of
                            [] -> (elems, [])
-                           l -> (List.reverse <| UpdateUtils.reverseInsert elemsToCollect revElems, l)
+                           l -> (List.reverse <| Utils.reverseInsert elemsToCollect revElems, l)
                          in
                          let valsToRemove = List.length elemsToCollect in
                          let tailOldVal = List.drop valsToRemove origVals in

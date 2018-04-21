@@ -168,6 +168,21 @@ foldli_ : Int -> ((Int, a) -> b -> b) -> b -> List a -> b
 foldli_ initI f init xs =
   List.foldl f init (zipi_ initI xs)
 
+reverseInsert: List a -> List a -> List a
+reverseInsert elements revAcc =
+  case elements of
+    [] -> revAcc
+    head::tail -> reverseInsert tail (head::revAcc)
+
+maybeReverseInsert: List (Maybe a) -> List a -> List a
+maybeReverseInsert elements revAcc =
+  case elements of
+    [] -> revAcc
+    head::tail ->
+      case head of
+        Nothing -> maybeReverseInsert tail revAcc
+        Just h -> maybeReverseInsert tail (h::revAcc)
+
 -- three passes, oh well
 filteri1 : ((Int, a) -> Bool) -> List a -> List a
 filteri1 f xs =

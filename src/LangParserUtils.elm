@@ -15,6 +15,7 @@ module LangParserUtils exposing
   , spacesWithoutIndentation
   , spacesNotBetweenDefs
   , spacesWithoutNewline
+  , explodeStyleValue
   )
 
 import Parser exposing (..)
@@ -213,3 +214,17 @@ mapExp_ = (map << mapInfo) exp_
 -- any   how any other top-level space is parsed (e.g.
 type alias SpacePolicy = { first: Parser WS, apparg: Parser WS }
 -- Expressions at top-level cannot consume a newline that is followed by an identifier, or two newlines except if they are parsed inside parentheses.
+
+styleSplitRegex = Regex.regex "(?=;\\s*\\S)"
+
+-- Returns a complete split of the style (pre-name, name, colon, value, post-name)
+explodeStyleValue: String -> List (String, String, String, String, String)
+explodeStyleValue content =
+  Regex.split Regex.All styleSplitRegex content
+    |> List.filterMap (\s ->
+         case Regex.find (Regex.AtMost 1) (Regex.regex "^(;?)([\\s\\S]*)(:)([\\s\\S]*)(;?\\s*)$") s of
+           [m] -> case m.submatches of
+             [Just prename, Just name, Just colon, Just value, Just postvalue] -> Just (prename, name, colon, value, postvalue)
+             _ ->Nothing
+           _ ->Nothing
+       )
