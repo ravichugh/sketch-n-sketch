@@ -701,7 +701,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                           rewrite2 (\ex ey -> replaceE__ e <| EOp space1 (withDummyRange Plus) [ex, ey] space0)
                         _ ->
                           rewrite2  (\ex ey -> replaceE__ e <| EApp space1 (replaceE__ e1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
-               _ -> UpdateCriticalError s
+               _ -> UpdateCriticalError ("++ should be called with two arguments, was called on "++toString (List.length e2s)++". " ++ s)
            Ok ((v1, _),_) ->
              case v1.v_ of
                VClosure recName e1ps eBody env_ as vClosure ->

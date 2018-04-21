@@ -18,6 +18,7 @@ module ParserUtils exposing
   , ignoreRegex
   , keepRegex
   , singleLineString
+  , unparseStringContent
   )
 
 import Pos exposing (..)
@@ -381,3 +382,8 @@ singleLineString =
           |. symbol quoteString
   in
     oneOf <| List.map stringHelper ['\'', '"']
+
+unparseStringContent quoteChar text =
+  Regex.replace Regex.All (Regex.regex <| "\\\\|" ++ quoteChar ++ "|\r|\n|\t") ( -- EStrings are not multiline.
+    \{match} -> if match == "\\" then "\\\\" else if match == "\n" then "\\n" else if match == "\r" then "\\r" else if match == "\t" then "\\t" else "\\" ++ quoteChar)
+    text

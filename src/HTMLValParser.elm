@@ -10,6 +10,7 @@ import Results exposing (Results(..))
 import ValUnbuilder as Vu
 import ValBuilder as Vb
 import Regex
+import Info exposing (..)
 
 htmlValParser: Val
 htmlValParser = builtinVal "(Native)HTMLValParser.htmlValParser" <| VFun "parseHTML" ["html"] (\args ->
@@ -37,16 +38,18 @@ htmlValParser = builtinVal "(Native)HTMLValParser.htmlValParser" <| VFun "parseH
      |> Results.fromResult
 
 htmlNodeToVal: Vb.Vb -> HTMLNode -> Val
-htmlNodeToVal vb n = case n of
+htmlNodeToVal vb n = case n.val of
   HTMLInner s -> Vb.constructor vb "HTMLInner" [Vb.string vb s]
   HTMLElement tagName attrs ws1 endOp children closing ->
     Vb.constructor vb "HTMLElement" [
-      Vb.string vb tagName,
-      Vb.list (\vb a -> case a of
-        HTMLAttribute ws0 name value -> Vb.constructor vb "HTMLAttribute" [Vb.string vb ws0.val, Vb.string vb name, case value of
+      Vb.string vb (unparseTagName tagName),
+      Vb.list (\vb a -> case a.val of
+        HTMLAttributeListExp _ _ -> Vb.constructor vb "HTMLAttributeListExpNotSupportedHere" []
+        HTMLAttribute ws0 name value -> Vb.constructor vb "HTMLAttribute" [Vb.string vb ws0.val, Vb.string vb name.val, case value.val of
           HTMLAttributeUnquoted ws1 ws2 content -> Vb.constructor vb "HTMLAttributeUnquoted" [Vb.string vb ws1.val, Vb.string vb ws2.val, Vb.string vb content]
           HTMLAttributeString ws1 ws2 delimiter content -> Vb.constructor vb "HTMLAttributeString" [Vb.string vb ws1.val, Vb.string vb ws2.val, Vb.string vb delimiter, Vb.string vb content]
           HTMLAttributeNoValue -> Vb.constructor vb "HTMLAttributeNoValue" []
+          HTMLAttributeExp _  _ -> Vb.constructor vb "HTMLAttributeExpNotSupportedHere" []
       ]) vb attrs,
       Vb.string vb ws1.val,
       case endOp of
@@ -67,9 +70,11 @@ htmlNodeToVal vb n = case n of
       LessBang_Greater content -> Vb.constructor vb "LessBang_Greater" [Vb.string vb content]
       LessBangDashDash_DashDashGreater content -> Vb.constructor vb "LessBangDashDash_DashDashGreater" [Vb.string vb content]
     ]
+  HTMLListNodeExp _ -> Vb.constructor vb "HTMLListNodeExpNotSupportedHere" []
 
 valToHtmlNode: Val -> Result String HTMLNode
 valToHtmlNode v =
+  Result.map (withDummyInfo) <|
   case Vu.constructor Ok v of
   Ok ("HTMLInner", [i]) -> Vu.string i |> Result.map HTMLInner
   Ok ("HTMLElement", [tagNameV, attrsV, ws1V, endOpV, childrenV, closingV]) ->
@@ -80,22 +85,22 @@ valToHtmlNode v =
     (Vu.string tagNameV)
     (Vu.list (\attrV -> case Vu.constructor Ok attrV of
        Ok ("HTMLAttribute", [sp0v, namev, valuev]) ->
-         Result.map3 (\sp0 name value -> HTMLAttribute (ws sp0) name value)
+         Result.map3 (\sp0 name value -> withDummyInfo <| HTMLAttribute (ws sp0) (withDummyInfo name) value)
          (Vu.string sp0v)
          (Vu.string namev)
          (case Vu.constructor Ok valuev of
            Ok ("HTMLAttributeUnquoted", [ws1v, ws2v, contentv]) ->
-             Result.map3 (\ws1 ws2 content -> HTMLAttributeUnquoted (ws ws1) (ws ws2) content)
+             Result.map3 (\ws1 ws2 content -> withDummyInfo <| HTMLAttributeUnquoted (ws ws1) (ws ws2) content)
              (Vu.string ws1v)
              (Vu.string ws2v)
              (Vu.string contentv)
            Ok ("HTMLAttributeString", [ws1v, ws2v, delimiterv, contentv]) ->
-             Result.map4 (\ws1 ws2 delimiter content -> HTMLAttributeString (ws ws1) (ws ws2) delimiter content)
+             Result.map4 (\ws1 ws2 delimiter content -> withDummyInfo <| HTMLAttributeString (ws ws1) (ws ws2) delimiter content)
              (Vu.string ws1v)
              (Vu.string ws2v)
              (Vu.string delimiterv)
              (Vu.string contentv)
-           Ok ("HTMLAttributeNoValue", []) -> Ok HTMLAttributeNoValue
+           Ok ("HTMLAttributeNoValue", []) -> Ok (withDummyInfo <| HTMLAttributeNoValue)
            _ -> Err <| "Expected HTMLAttributeUnquoted(3), HTMLAttributeString(4), HTMLAttributeNoValue(0), got " ++ valToString valuev
          )
        _ -> Err <| "Expected HTMLAttribute, got " ++ valToString attrV
@@ -103,7 +108,7 @@ valToHtmlNode v =
      (Vu.string ws1V)
      |> Result.andThen (\(tagName, attrs, ws1) ->
        Result.map3
-         (\endOp children closing -> HTMLElement tagName attrs (ws ws1) endOp children closing)
+         (\endOp children closing -> HTMLElement (HTMLTagString <| withDummyInfo <| tagName) attrs (ws ws1) endOp children closing)
          (case Vu.constructor Ok endOpV of
             Ok ("RegularEndOpening", []) -> Ok RegularEndOpening
             Ok ("SlashEndOpening", []) -> Ok SlashEndOpening
@@ -153,18 +158,20 @@ filterHTMLInnerWhitespace nodes =
   let aux revAcc nodes =
     case nodes of
        [] -> List.reverse revAcc
-       HTMLInner txt :: tail -> -- CAREFUL: These are non-breaking spaces, used for indentation only (see Lang.tab and LangSVG.printHTML)
-         let newTxt = Regex.replace Regex.All (Regex.regex "(^\r?\n +|\r?\n *$|\r?\n? +$)") (\_ -> "") txt in
-         if newTxt /= txt && newTxt == "" then -- We remove this node alltogether
-             aux revAcc tail
-         else
-             aux (HTMLInner newTxt :: revAcc) tail
-       node :: tail -> aux (node :: revAcc) tail
+       head :: tail ->
+         case head.val of
+           HTMLInner txt -> -- CAREFUL: These are non-breaking spaces, used for indentation only (see Lang.tab and LangSVG.printHTML)
+             let newTxt = Regex.replace Regex.All (Regex.regex "(^\r?\n +|\r?\n *$|\r?\n? +$)") (\_ -> "") txt in
+             if newTxt /= txt && newTxt == "" then -- We remove this node alltogether
+                aux revAcc tail
+             else
+               aux (replaceInfo head (HTMLInner newTxt) :: revAcc) tail
+           _ -> aux (head:: revAcc) tail
   in aux [] nodes
 
 htmlNodeToElmViewInLeo: Vb.Vb -> HTMLNode -> Val
 htmlNodeToElmViewInLeo vb tree =
-  case tree of
+  case tree.val of
     HTMLInner inner -> Vb.viewtuple2 Vb.string  Vb.string vb ("TEXT", Regex.replace Regex.All
        (Regex.regex "&nbsp;|&amp;|&lt;|&gt;|</[^>]*>")
        (\{match} -> case match of
@@ -175,22 +182,27 @@ htmlNodeToElmViewInLeo vb tree =
          _ -> "") inner)
     HTMLElement tagName attrs ws1 endOp children closing ->
         Vb.viewtuple3 Vb.string (Vb.list styleAttrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
-          tagName
-        , List.map (\attr -> case attr of
-          HTMLAttribute ws0 name value -> case value of
-            HTMLAttributeUnquoted _ _ content -> (name, content)
-            HTMLAttributeString _ _ _ content -> (name, content)
-            HTMLAttributeNoValue -> (name, "")) attrs
+          unparseTagName tagName
+        , List.map (\attr -> case attr.val of
+          HTMLAttributeListExp _ _ -> ("internal-error", "unable-to-render-HTMLAttributeListExp")
+          HTMLAttribute ws0 name value -> case value.val of
+            HTMLAttributeUnquoted _ _ content -> (name.val, content)
+            HTMLAttributeString _ _ _ content -> (name.val, content)
+            HTMLAttributeNoValue -> (name.val, "")
+            HTMLAttributeExp _ _ -> ("internal-error", "unable-to-render-HTMLAttributeExp")
+              ) attrs
         , filterHTMLInnerWhitespace children)
     HTMLComment commentStyle ->
        let contentToVal content =
          Vb.viewtuple3 Vb.string (Vb.list styleAttrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
             "comment",
             [("display", "none")],
-            [HTMLInner content])
+            [replaceInfo tree (HTMLInner content)])
        in
        case commentStyle of
          Less_Greater content -> contentToVal content
          LessSlash_Greater content -> contentToVal content
          LessBang_Greater content -> contentToVal content
          LessBangDashDash_DashDashGreater content -> contentToVal content
+    HTMLListNodeExp _ ->
+      Vb.viewtuple2 Vb.string Vb.string vb ("TEXT", "[internal error, cannot render HTMLListNodeExp]")

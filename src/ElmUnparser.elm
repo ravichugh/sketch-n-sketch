@@ -2,7 +2,6 @@ module ElmUnparser exposing
   ( unparse
   , unparsePattern
   , unparseType -- Experimental
-  , unparseStringContent
   , unparseLongStringContent
   )
 
@@ -12,6 +11,8 @@ import ElmParser
 import BinaryOperatorParser
 import Utils
 import Regex
+import ParserUtils exposing (unparseStringContent)
+import ImpureGoodies
 
 --------------------------------------------------------------------------------
 -- Simple Values
@@ -26,11 +27,6 @@ unparseWD wd =
       "{" ++ toString a.val ++ tok.val ++ toString b.val ++ strHidden hidden ++ "}"
     NumSlider a tok b _ hidden ->
       "{" ++ toString a.val ++ tok.val ++ toString b.val ++ strHidden hidden ++ "}"
-
-unparseStringContent quoteChar text =
-  Regex.replace Regex.All (Regex.regex <| "\\\\|" ++ quoteChar ++ "|\r|\n|\t") ( -- EStrings are not multiline.
-    \{match} -> if match == "\\" then "\\\\" else if match == "\n" then "\\n" else if match == "\r" then "\\r" else if match == "\t" then "\\t" else "\\" ++ quoteChar)
-    text
 
 unparseBaseValue : EBaseVal -> String
 unparseBaseValue ebv =
@@ -672,6 +668,9 @@ unparse e =
             ++ "\"\"\""
             ++ multilineContentUnparse innerExpression
             ++ "\"\"\""
+        HtmlSyntax ->
+          wsBefore.val
+            ++ unparseHtmlNode innerExpression
         ElmSyntax -> -- We just unparse the inner expression as regular parentheses
           unparse <| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
 
@@ -827,6 +826,67 @@ multilineContentUnparse e = case e.val.e__ of
       Def -> "def"
     ) ++ (if rec then "rec" else "") ++ ws1.val ++ unparsePattern p ++ ws2.val ++ "=" ++ finalDefinition ++ remaining
   anyExp -> "@(" ++ unparse e ++ ")"
+
+------------------------
+-- HTML Unparsing
+------------------------
+
+unparseHtmlAttributes: Exp -> String
+unparseHtmlAttributes attrExp =
+  case eListUnapply attrExp of
+    Just attrs ->
+      attrs |> List.map (\attr -> case attr.val.e__ of
+        EList attrNameSpace [(_, attrName), (attrEqSpace, attrValue)] _ Nothing _ ->
+          case attrName.val.e__ of
+            EBase spIfNoValue (EString _ attrNameStr) ->
+              if attrNameStr == "" && spIfNoValue.val == " " then
+                attrNameSpace.val ++ attrNameStr
+              else
+                attrNameSpace.val ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValue
+            _ -> " @[" ++ unparse attr ++"]"
+        _ -> " @[" ++ unparse attr ++"]"
+      ) |> String.join ""
+    Nothing -> case attrExp.val.e__ of
+      EApp sp _ [e1, e2] _ _ -> case eAppUnapply2 e1 of
+        Just (_, eleft, e) ->
+          unparseHtmlAttributes eleft ++ sp.val ++ "@" ++ unparse e ++ unparseHtmlAttributes e2
+        Nothing -> " @("++unparse attrExp++")"
+      _ -> " @("++unparse attrExp++")"
+
+unparseHtmlChildList: Exp -> String
+unparseHtmlChildList childExp =
+  case eListUnapply childExp of
+    Just children ->
+      children |> List.map unparseHtmlNode |> String.join ""
+    Nothing ->
+      case childExp.val.e__ of
+        EApp _ _ [e1, eRight] _ _ ->
+          case e1.val.e__ of
+            EApp _ _ [eLeft, eToRender] _ _ ->
+              unparseHtmlChildList eLeft ++ "@" ++ unparse eToRender ++ unparseHtmlChildList eRight
+            _  -> "@(" ++ unparse childExp ++ ")"
+        _  -> "@(" ++ unparse childExp ++ ")"
+
+unparseHtmlNode: Exp -> String
+unparseHtmlNode e = case e.val.e__ of
+  EList _ [text, (_, content)] _ Nothing _ ->
+    case content.val.e__ of
+      EBase _ (EString _ content) -> ImpureGoodies.htmlescape content
+      _ -> "[Internal error]: Don't know how to unparse " ++ unparse e ++ " as an HTML text node"
+  EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] spaceBeforeTail Nothing spaceAfterTagClosing ->
+    let (tagStart, tagEnd) = case tagExp.val.e__ of
+          EBase _ (EString _ content) -> (content, content)
+          _ -> ("@" ++ unparse tagExp, "@")
+    in
+    "<" ++ tagStart ++ unparseHtmlAttributes attrExp ++spaceBeforeEndOpeningTag.val ++ (case spaceBeforeTail.val of
+      " " -> -- Auto-closing
+        "/>"
+      "  " ->  -- void closing
+        ">"
+      _ -> -- Normal closing
+        ">" ++ unparseHtmlChildList childExp ++ "</" ++ tagEnd ++ ">"
+    )
+  _ -> "@[" ++ unparse e ++ "]"
 
 -- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-conatined
 getExpPrecedence: Exp -> Maybe Int

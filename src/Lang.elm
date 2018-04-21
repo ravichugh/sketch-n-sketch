@@ -251,7 +251,7 @@ type Exp__
     -- EApp f [x]    (f x)
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
 
-type ParensStyle = Parens | LongStringSyntax | ElmSyntax
+type ParensStyle = Parens | LongStringSyntax | ElmSyntax | HtmlSyntax
 
 type Type_
   = TNum WS
@@ -2020,6 +2020,10 @@ eAppUnapply1 e = case e.val.e__ of
   EApp _ e1 [e2] _ _ -> Just (e1, e2)
   _ -> Nothing
 
+eAppUnapply2 e = case e.val.e__ of
+  EApp _ e1 [e2, e3] _ _ -> Just (e1, e2, e3)
+  _ -> Nothing
+
 eAppUnapply e = case e.val.e__ of
   EApp _ e1 es _ _ -> Just (e1, es)
   _ -> Nothing
@@ -3561,3 +3565,8 @@ type EDiffs = EConstDiffs EWhitespaceDiffs
 
 type EWhitespaceDiffs = EOnlyWhitespaceDiffs | EAnyDiffs
 
+offsetStr: Int -> List StringDiffs -> List StringDiffs
+offsetStr n diffs =
+  --Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <|
+  List.map (\sd -> case sd of
+    StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs

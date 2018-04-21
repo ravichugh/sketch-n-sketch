@@ -21,6 +21,7 @@ import Array
 import Char
 import String
 import LangParserUtils exposing (isSpace)
+import ParserUtils
 
 bvToString: EBaseVal -> String
 bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
@@ -989,9 +990,11 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
 
 stringDiffsToString2: ParensStyle -> String -> LastEdit -> Pos   -> String -> String -> String -> List StringDiffs -> (String, ((LastEdit, Pos), List Exp))
 stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar original  modified  diffs =
-  let renderChars = if renderingStyle == LongStringSyntax
-     then ElmUnparser.unparseLongStringContent
-     else ElmUnparser.unparseStringContent quoteChar in
+  let renderChars = case renderingStyle of
+     LongStringSyntax -> ElmUnparser.unparseLongStringContent
+     HtmlSyntax -> ElmUnparser.unparseLongStringContent
+     _ -> ParserUtils.unparseStringContent quoteChar
+  in
   let initialLine = lastPos.line in
   -- If one-line string, characters \n \t \r and \\ count for double.
   let aux: LastEdit -> Pos -> Int -> Int -> List StringDiffs -> (List String, List Exp) -> (String, ((LastEdit, Pos), List Exp))
@@ -1226,12 +1229,6 @@ composeStringDiffs oldStringDiffs newStringDiffs =
 -- Wraps a change to a change in the outer expression at the given index
 offset: Int -> List (Int, a) -> List (Int, a)
 offset n diffs = List.map (\(i, e) -> (i + n, e)) diffs
-
-offsetStr: Int -> List StringDiffs -> List StringDiffs
-offsetStr n diffs =
-  --Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <|
-  List.map (\sd -> case sd of
-    StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
 
 wrap: Int -> Maybe EDiffs -> Maybe EDiffs
 wrap i mbd =

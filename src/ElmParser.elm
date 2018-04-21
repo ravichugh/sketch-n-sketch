@@ -38,6 +38,8 @@ import TopLevelExp exposing (TopLevelExp, fuseTopLevelExps)
 -- import FastParser
 import PreludeGenerated as Prelude
 import Regex
+import HTMLParser
+import ImpureGoodies
 
 --==============================================================================
 --= Helpers
@@ -745,6 +747,158 @@ multilineGenericLetBinding =
       |= expression spacesWithoutNewline
       |. ignore zeroOrMore (\c -> c == ' ' || c == '\t')-- This will remove trailing whitespace.
       |. symbol "\n"
+
+
+--------------------------------------------------------------------------------
+-- HTML Literals
+--------------------------------------------------------------------------------
+htmlEscape = ImpureGoodies.htmlescape
+
+forbiddenTagsInHtmlInner = Regex.regex "</[^>\n]*>"
+
+htmlText: WithInfo a -> String -> Exp
+htmlText  source        htmltext =
+  let origin = replaceInfo source << exp_ in
+  origin <| EList space0 [
+    (space0, withInfo (exp_ <| EBase space0 (EString "\"" "TEXT")) source.start source.start),
+    (space0, origin  <| EBase space0 (EString "\"" (ImpureGoodies.htmlunescape htmltext)))] space0 Nothing space0
+
+htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->  Bool ->     Bool ->     WS ->                  Exp
+htmlnode source         tagName               attributes spaceBeforeEndOpeningTag children autoclosing voidClosing spaceAfterTagClosing =
+  let origin = replaceInfo source << exp_ in
+  let spaceBeforeTail = withDummyInfo <| if autoclosing then " " else if voidClosing then "  " else"" in -- Hack: If there is a space and no children, mark the div autoclose.
+  let tag = case tagName of
+    HTMLParser.HTMLTagString s -> withInfo (exp_ <| EBase space0 <| EString "\"" s.val) s.start s.end
+    HTMLParser.HTMLTagExp e -> e
+  in
+  origin <| EList space0 [
+    (space0, tag),
+    (space0, attributes),
+    (spaceBeforeEndOpeningTag, children)] spaceBeforeTail Nothing spaceAfterTagClosing
+
+appendToLeft: (WS, Exp) -> Exp -> Result String Exp
+appendToLeft thisAttribute x = case x.val.e__ of
+  EList sp0 attrs sp1 t sp2 ->
+    let newList = withInfo (exp_ <| EList sp0 (thisAttribute::attrs) sp1 t sp2) (Tuple.first thisAttribute |> .start) x.end in
+    Ok {  newList | start = x.start }
+  EApp sp1 fun [left, right] appType sp2 ->
+    appendToLeft thisAttribute left |> Result.map (\newLeft ->
+      withInfo (exp_ <| EApp sp1 fun [newLeft, right] appType sp2) (Tuple.first thisAttribute |> .start) x.end
+    )
+  _ -> Err <| "Expected EList, EApp, but got something else for attributes (line " ++ toString x.start.line ++ ")"
+
+attrsToExp: Pos.Pos -> List HTMLParser.HTMLAttribute -> Parser Exp
+attrsToExp lastPos attrs =
+  case attrs of
+    [] -> succeed <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
+    head::tail ->
+      let origin = replaceInfo head << exp_ in
+      case head.val of
+        HTMLParser.HTMLAttribute sp strInfo value ->
+          let attrValueSpace =
+            case value.val of
+               HTMLParser.HTMLAttributeNoValue ->
+                 -- Hack: space1 is here to tell that it's a NoValue.
+                 Ok (space0, withDummyExpInfo <| EBase space1 <| EString "\"" "")
+               HTMLParser.HTMLAttributeExp s e ->
+                 -- Normally, all the space is inside s
+                 Ok (s, e)
+               _ -> Err <| "[Internal error] Tried to convert " ++ toString head ++ " to an Exp"
+          in
+          case attrValueSpace of
+            Err msg -> fail msg
+            Ok (attrSpace, attrValue) ->
+              let thisAttribute = replaceInfo head <| exp_ <| EList sp [
+                 (space0, replaceInfo strInfo <| exp_ <| EBase space0 (EString "\"" strInfo.val)),
+                 (attrSpace, attrValue)
+                 ] space0 Nothing space0
+              in
+              attrsToExp head.end tail |> andThen (\tailAttrExp ->
+                case appendToLeft (space0, thisAttribute) tailAttrExp of
+                  Err msg -> fail msg
+                  Ok newExp -> succeed newExp
+              )
+        HTMLParser.HTMLAttributeListExp sp e ->
+           attrsToExp head.end tail |> map (\tailAttrExp ->
+             let appendFun = replaceInfo head <| exp_ <| EVar space0 "++" in
+             withInfo (exp_ <| EApp sp appendFun [
+               withInfo (exp_ <| EApp space0 appendFun [
+                 withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos,
+                 e] InfixApp space0 ) head.start e.end,
+               tailAttrExp] InfixApp space0) head.start tailAttrExp.end
+           )
+
+childrenToExp: Pos.Pos -> List HTMLParser.HTMLNode -> Parser Exp
+childrenToExp lastPos children =
+  case children of
+    [] -> succeed <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
+    head::tail ->
+      htmlToExp head |> andThen (\headExp ->
+        childrenToExp head.end tail |> andThen (\tailExp ->
+          case headExp.val.e__ of
+            EApp _ _ _ _ _ -> -- It was a HTMLListNodeExp
+               let appendFun = replaceInfo head <| exp_ <| EVar space0 "++" in
+               succeed <| withInfo (exp_ <| EApp space0 appendFun [
+                 headExp, tailExp] InfixApp space0) headExp.start tailExp.end
+            _ ->
+              case appendToLeft (space0, headExp) tailExp of
+                Err msg -> fail msg
+                Ok newExp -> succeed newExp
+        )
+      )
+
+htmlToExp: HTMLParser.HTMLNode -> Parser Exp
+htmlToExp node =
+  case node.val of
+    HTMLParser.HTMLInner content ->
+      case Regex.find (Regex.All) forbiddenTagsInHtmlInner content of
+        [] -> succeed <| htmlText node content
+        l -> fail <| "Line " ++ toString node.start.line ++ ", an inner html should not contain closing tags : " ++ (l |> List.map (\m -> m.match) |> String.join ",")
+    HTMLParser.HTMLElement tagName attrs sp0 endOpeningStyle children closingStyle ->
+      case (closingStyle, endOpeningStyle) of
+        (HTMLParser.ForgotClosing, _)   -> fail <| "Line " ++ toString node.start.line ++ " there is a missing closing tag </" ++ HTMLParser.unparseTagName tagName ++ ">"
+        (_, HTMLParser.SlashEndOpening) -> fail <| "Line " ++ toString node.start.line ++ " don't use / because <" ++ HTMLParser.unparseTagName tagName ++ "> is not an auto-closing tag and requires in any case a </" ++ HTMLParser.unparseTagName tagName ++ ">"
+        _ ->
+          let endPos = case tagName of
+            HTMLParser.HTMLTagString v -> v.end
+            HTMLParser.HTMLTagExp e -> e.end
+          in
+          attrsToExp endPos attrs |>
+          andThen (\finalattrs ->
+            childrenToExp { line = sp0.end.line, col = sp0.end.col + (if endOpeningStyle == HTMLParser.RegularEndOpening then 1 else 2) } children |>
+              andThen (\finalchildren ->
+                 succeed <| htmlnode node tagName finalattrs sp0 finalchildren
+                   (closingStyle == HTMLParser.AutoClosing)
+                   (closingStyle == HTMLParser.VoidClosing) <|
+                   case closingStyle of
+                     HTMLParser.RegularClosing sp -> sp
+                     _ -> space0
+              )
+            )
+    HTMLParser.HTMLComment commentStyle ->
+      fail <| "Line " ++ toString node.start.line ++ ": comments are not supported by Elm at this moment. Got " ++ HTMLParser.unparseNode node
+    HTMLParser.HTMLListNodeExp e ->
+      let appendFun = withInfo (exp_ <| EVar space0 "++") node.start node.start in
+      succeed <| withInfo (exp_ <| EApp space0 appendFun [
+        withInfo (exp_ <| EList space0 [] space0 Nothing space0) node.start node.start,
+        e] InfixApp space0 ) node.start e.end
+
+
+htmlliteral: SpacePolicy -> Parser Exp
+htmlliteral sp =
+  delayedCommitMap (\space newExp ->
+          withInfo (exp_ <| EParens space newExp HtmlSyntax space0) newExp.start newExp.end)
+     sp.first
+    ((succeed identity
+    |. (lookAhead <| (delayedCommit
+         (symbol "<")
+         (oneOf [identifier, source <| symbol "@"])))
+    |= HTMLParser.parseOneNode (HTMLParser.Interpolation
+      { attributevalue = simpleExpression
+      , attributelist = simpleExpression
+      , childlist = simpleExpression
+      , tagName = simpleExpression
+      })) |> andThen htmlToExp)
 
 --------------------------------------------------------------------------------
 -- General Base Values
@@ -1951,6 +2105,7 @@ simpleExpression sp =
   oneOf
     [ constantExpression sp
     , lazy <| \_ -> multiLineInterpolatedString sp
+    , lazy <| \_ -> htmlliteral sp
     , baseValueExpression sp
     , lazy <| \_ -> function sp
     , lazy <| \_ -> (addSelections sp <| list sp)
