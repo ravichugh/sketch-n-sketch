@@ -2,7 +2,7 @@ appenddef = """letrec append a b = case a of [] -> b; (h::t) -> h :: append t b 
 let text x = [["TEXT", x]] in """
 
 evalupdate code isText =
-  <div class="code" style="""background:@(if isText then "aliceblue" else "white");border:2px solid black;margin-bottom:2px;""">
+  <div class="code" style="""background:@(if isText then "aliceblue" else "white");border:2px solid black;margin-bottom:2px;border-radius:8px;""">
     <textarea onkeyup="if(this.getAttribute('v')!=this.value) this.setAttribute('v', this.value)" v=(code) style="margin:0px;width:296px;height:52px;margin:5px;">@(Html.text code)</textarea>
     <pre style="vertical-align:top;margin-top:0px;">@(
       (if isText then (\x -> Html.text <| toString x) else (\x -> [x])) <| evaluate <| Debug.log "finalcode" (appenddef + code)
