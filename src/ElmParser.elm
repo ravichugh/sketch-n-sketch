@@ -899,10 +899,10 @@ htmlliteral sp =
          (symbol "<")
          (oneOf [identifier, source <| symbol "@"])))
     |= HTMLParser.parseOneNode (HTMLParser.Interpolation
-      { attributevalue = simpleExpression
-      , attributelist = simpleExpression
-      , childlist = simpleExpression
-      , tagName = simpleExpression
+      { attributevalue = inContext "HTML attribute value" << simpleExpression
+      , attributelist = inContext "HTML special attribute list" << simpleExpression
+      , childlist = inContext "HTML special child list" << simpleExpression
+      , tagName = inContext "HTML special tag name" << simpleExpression
       })) |> andThen htmlToExp)
 
 --------------------------------------------------------------------------------

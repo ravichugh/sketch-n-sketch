@@ -37,6 +37,7 @@ import UpdateRegex exposing (..)
 import UpdatedEnv exposing (UpdatedEnv)
 import ValBuilder as Vb
 import ValUnbuilder as Vu
+import ExpUnbuilder as Eu
 import ImpureGoodies
 import HTMLValParser
 import HTMLParser
@@ -1281,7 +1282,23 @@ getUpdateStackOp env e oldVal newVal diffs =
      ETypeAlias a b c exp d ->
        updateContinue "ETypeAlias" env exp oldVal newVal diffs <| \nv ne -> updateResult nv <| UpdatedExp (replaceE__ e <| ETypeAlias a b c ne.val d) (UpdateUtils.wrap 0 ne.changes)
      EParens sp1 exp pStyle sp2->
-       updateContinue "EParens" env exp oldVal newVal diffs <| \nv ne -> updateResult nv <| UpdatedExp (replaceE__ e <| EParens sp1 ne.val pStyle sp2) (UpdateUtils.wrap 0 ne.changes)
+       updateContinue "EParens" env exp oldVal newVal diffs <| \nv ne ->
+         let continue ne =
+           updateResult nv <| UpdatedExp (replaceE__ e <| EParens sp1 ne.val pStyle sp2) (UpdateUtils.wrap 0 ne.changes)
+         in
+         case pStyle of
+           HtmlSyntax -> -- Here we convert all newly inserted elements that are style to a string instead of a list of lists.
+             continue <| replaceInsertions ne <| \inserted ->
+               case inserted.val.e__ of
+                 EList sp0 [(spe1, e1), (spe2, e2)] sp1 Nothing sp2 ->
+                   case (eStrUnapply e1, Eu.list (Eu.viewtuple2 Eu.string Eu.string) e2) of
+                     (Just "style", Ok styles) ->
+                       Just <| replaceE__ inserted <| EList sp0 [(spe1, e1), (space0,
+                         replaceE__ e2 <| EApp space0 (eVar "__mbstylesplit__") [
+                           replaceE__ e2 <| EBase space0 <| EString "\"" <| LangParserUtils.implodeStyleValue styles] SpaceApp space0)] sp1 Nothing sp2
+                     _ -> Nothing
+                 _ -> Nothing
+           _ -> continue ne
      {--ETypeCase sp1 e1 tbranches sp2 ->
        case eval_ syntax env (e::bt) e1 of
          Err s -> UpdateCriticalError s

@@ -470,5 +470,3 @@ expEqual e1_ e2_ =
   _ -> False
 --}
 
-
-

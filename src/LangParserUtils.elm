@@ -16,6 +16,7 @@ module LangParserUtils exposing
   , spacesNotBetweenDefs
   , spacesWithoutNewline
   , explodeStyleValue
+  , implodeStyleValue
   )
 
 import Parser exposing (..)
@@ -228,3 +229,8 @@ explodeStyleValue content =
              _ ->Nothing
            _ ->Nothing
        )
+
+implodeStyleValue: List (String, String) -> String
+implodeStyleValue content =
+  content |> List.map (\(name, value) -> name ++ ":" ++ value) |> String.join ";"
+

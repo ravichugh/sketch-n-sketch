@@ -9,7 +9,7 @@ import Lazy
 import Syntax
 import ValUnparser exposing (strVal)
 import UpdateUtils exposing (..)
-import Utils
+import Utils exposing (reverseInsert)
 import LangUtils exposing (envToString, valToString)
 import Set exposing (Set)
 import UpdatedEnv exposing (UpdatedEnv, original)
@@ -29,6 +29,62 @@ updatedExpToString e ue =
 updatedExpToStringWithPositions: Exp -> UpdatedExp -> (String, List Exp)
 updatedExpToStringWithPositions e ue =
   ue.changes |> Maybe.map (UpdateUtils.eDiffsToStringPositions ElmSyntax "" (Pos 0 0, (0, 0)) e ue.val >> (\(msg, (_, l)) -> (msg, l))) |> Maybe.withDefault ("<no change>", [])
+
+-- Given an updated exp, allows to replace some inserted expressions (could be used for alignments)
+replaceInsertions: UpdatedExp -> (Exp -> Maybe Exp) -> UpdatedExp
+replaceInsertions e f =
+  case e.changes of
+    Nothing -> e
+    Just d -> case d of
+      EChildDiffs cd ->
+        let (children, rebuilder) = childExpsExtractors e.val in
+        let aux: Int -> List Exp -> TupleDiffs EDiffs -> List Exp -> UpdatedExp
+            aux i children diffs revAccChildren = case diffs of
+          [] -> UpdatedExp (rebuilder <| List.reverse <| reverseInsert children revAccChildren) e.changes
+          (j, subd)::tail ->
+             if j > i then
+              let (childrenOk, childrenTail) = Utils.split (j - i) children in
+              aux j childrenTail diffs (reverseInsert childrenOk revAccChildren)
+             else -- j == i
+              case children of
+                hdchild :: tlchild ->
+                  (replaceInsertions (UpdatedExp hdchild (Just subd)) f).val :: revAccChildren |>
+                  aux (i + 1) tlchild tail
+                _ ->
+                  aux i children tail revAccChildren
+        in aux 0 children cd []
+      EListDiffs ld ->
+        case e.val.val.e__ of
+          EList sp0 children sp1 Nothing sp2 ->
+            let aux: Int -> List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> UpdatedExp
+                aux i children diffs revAccChildren = case diffs of
+              [] -> UpdatedExp (replaceE__ e.val <| EList sp0 (List.reverse <| reverseInsert children revAccChildren) sp1 Nothing sp2) e.changes
+              (j, subd)::tail ->
+                 if j > i then
+                   let count = j - i in
+                   let (childrenOk, childrenTail) = Utils.split count children in
+                   aux j childrenTail diffs (reverseInsert childrenOk revAccChildren)
+                 else -- j == i
+                   case subd of
+                     ListElemUpdate d ->
+                       case children of
+                         (sp, hdchild) :: tlchild ->
+                           (sp, (replaceInsertions (UpdatedExp hdchild (Just d)) f).val) :: revAccChildren |>
+                           aux (i + 1) tlchild tail
+                         _ ->
+                           aux i children tail revAccChildren
+                     ListElemDelete count -> -- They were deleted and hence they are no more.
+                       aux (i + count) children tail revAccChildren
+                     ListElemInsert count ->
+                       let (inserted, rem) = Utils.split count children in
+                       let insertedMapped = inserted |> List.map (\(sp, e) -> (sp, f e |> Maybe.withDefault e)) in
+                       reverseInsert insertedMapped revAccChildren |>
+                       aux i rem tail
+            in aux 0 children ld []
+          _ -> e
+      EConstDiffs _ -> e
+      EStringDiffs _ -> e
+
 
 handleResultToString_: String -> HandlePreviousResult -> String
 handleResultToString_ indent handleResult = case handleResult of

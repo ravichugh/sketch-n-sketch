@@ -177,6 +177,7 @@ parseHtmlAttributeValue parsingMode =
         spaces
         (succeed (flip HTMLAttributeExp)
           |. symbol "="
+          |. optional (symbol "@")
           |= attributevalue (SpacePolicy spaces nospace)
          )
         , succeed identity

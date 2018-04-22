@@ -838,6 +838,7 @@ unparseHtmlAttributes attrExp =
     Just attrs ->
       attrs |> List.map (\attr -> case attr.val.e__ of
         EList attrNameSpace [(_, attrName), (attrEqSpace, attrValue)] _ Nothing _ ->
+          let beforeSpace = if attrNameSpace.val == "" then " " else attrNameSpace.val in
           case attrName.val.e__ of
             EBase _ (EString _ attrNameStr) ->
               let attrValueToConsider = case attrNameStr of
@@ -847,11 +848,11 @@ unparseHtmlAttributes attrExp =
               case attrValueToConsider.val.e__ of
                 EBase spIfNoValue (EString _ attrValueStr) ->
                   if attrValueStr == "" && spIfNoValue.val == " " then
-                    attrNameSpace.val ++ attrNameStr
+                    beforeSpace ++ attrNameStr
                   else
-                    attrNameSpace.val ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValueToConsider
+                    beforeSpace ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValueToConsider
                 _ ->
-                  attrNameSpace.val ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValueToConsider
+                  beforeSpace ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValueToConsider
             _ -> " @[" ++ unparse attr ++"]"
         _ -> " @[" ++ unparse attr ++"]"
       ) |> String.join ""
@@ -896,7 +897,7 @@ unparseHtmlNode e = case e.val.e__ of
         if HTMLParser.isVoidElement tagStart then
           ">"
         else
-          ">" ++ unparseHtmlChildList childExp ++ "</" ++ tagEnd ++ ">"
+          ">" ++ unparseHtmlChildList childExp ++ "</" ++ tagEnd ++ spaceAfterTagClosing.val ++ ">"
     )
   _ -> "@[" ++ unparse e ++ "]"
 
