@@ -139,7 +139,7 @@ function listenForUpdatesToOutputValues() {
   
   function getPathUntilOutput(htmlElem) {
     if(htmlElem == null) return null;
-    if(htmlElem.parentNode && htmlElem.parentNode.getAttribute && htmlElem.parentNode.getAttribute("id") == "outputCanvas") // Single child !
+    if(htmlElem.parentNode && htmlElem.parentNode.getAttribute && (htmlElem.parentNode.getAttribute("id") == "outputCanvas" || htmlElem.parentNode.getAttribute("id") == "svgOutputCanvas")) // Single child !
       return []
     else
       //2 is for the children of a node (encoded [tag, attributes, children])

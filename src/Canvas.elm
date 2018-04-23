@@ -121,7 +121,8 @@ build dim model =
   let selectBox = drawSelectBox model in
   if LangSvg.isSvg model.inputVal then
     [ Svg.svg
-        [ onMouseDown msgMouseClickCanvas
+        [ Attr.id "svgOutputCanvas"
+        , onMouseDown msgMouseClickCanvas
         , Attr.style
             [ ("width", pixels dim.width)
             , ("height", pixels dim.height)
