@@ -351,7 +351,8 @@ builtinEnv =
                         let newUpdatedStyles = List.drop (j - i) updatedStyles in
                         let newString = originalStylesKept |> List.map combineOldString |> String.join "" in
                         let newFinalString = accString ++ newString in
-                        aux j originalStylesTail newUpdatedStyles diffElems (newFinalString, originalOffset, revAccDiffs)
+                        let newOffset = originalOffset + String.length newString in
+                        aux j originalStylesTail newUpdatedStyles diffElems (newFinalString, newOffset, revAccDiffs)
                        else -- j == i
                         case d of
                           ListElemDelete count ->
