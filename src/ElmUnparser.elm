@@ -886,7 +886,8 @@ unparseHtmlNode e = case e.val.e__ of
   EList _ [text, (_, content)] _ Nothing _ ->
     case content.val.e__ of
       EBase _ (EString _ content) -> ImpureGoodies.htmlescape content
-      _ -> "[Internal error]: Don't know how to unparse " ++ unparse e ++ " as an HTML text node"
+      EVar _ varname -> "@" ++ varname
+      x -> "@[" ++ unparse e ++ "]"
   EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] spaceBeforeTail Nothing spaceAfterTagClosing ->
     let (tagStart, tagEnd) = case tagExp.val.e__ of
           EBase _ (EString _ content) -> (content, content)
