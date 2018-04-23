@@ -980,8 +980,9 @@ zoneRotate_ model id shape cx cy r cmds =
 
 -- TODO redo callsite
 zoneRotatePolyOrPath model id kind pts nodeAttrs =
-  let (xMin, xMax, yMin, yMax) =
-    Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
+  case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
+    Nothing -> []
+    Just (xMin, xMax, yMin, yMax) ->
   let (w, h) = (xMax - xMin, yMax - yMin) in
   let (xMiddle, yMiddle) = (xMin + 0.5 * w, yMin + 0.5 * h) in
   let r = ((max w h) / 2) + rotZoneDelta in
@@ -1659,12 +1660,15 @@ makeZonesPoly model shape id l =
     let crossDots = List.concat <| Utils.mapi1 ptCrossDot pts in
     midptCrossDots ++ crossDots
   in
+  let secondaryWidgets = zRot ++ zFillAndStroke in
+  case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
+    Nothing -> secondaryWidgets
+    Just (x1,x2,y1,y2) -> 
   let primaryWidgets =
-    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++ zLines ++ zSelect ++ zPts
   in
-  primaryWidgets :: zRot ++ zFillAndStroke
+  primaryWidgets :: secondaryWidgets
 
 firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs)
 
@@ -1672,7 +1676,7 @@ makeZonesPath : Model -> String -> Int -> List LangSvg.Attr -> List (Svg Msg)
 makeZonesPath model shape id nodeAttrs =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
   let transform = maybeTransformAttr nodeAttrs in
-  let cmds = Tuple.first <| LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
+  let cmds = Maybe.withDefault [] <| Maybe.map Tuple.first <| LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
   let add (mi,pt) acc = case mi of Nothing -> acc
                                    _       -> (mi,pt) :: acc in
   let listOfMaybeIndexWithPt =
@@ -1687,16 +1691,13 @@ makeZonesPath model shape id nodeAttrs =
   let pts = List.map Tuple.second listOfMaybeIndexWithPt in
   let dots = zonePoints model id shape transform pts in
   let zRot = zoneRotatePolyOrPath model id "path" pts nodeAttrs in
-  let zFillAndStroke =
-    case pts of
-      (((x0,_),(y0,_))::_) ->
-        zonesFillAndStroke model id shape x0 y0 nodeAttrs
-      _ ->
-        Debug.crash "makeZonesPath"
-  in
+  case pts of
+    [] -> []
+    ((x0,_),(y0,_))::_ ->
+  let zFillAndStroke = zonesFillAndStroke model id shape x0 y0 nodeAttrs in
   let zSelect =
     let ptCrossDot (maybeIndex, (xNumTr, yNumTr)) =
-      let i = Utils.fromJust maybeIndex in
+      let i = Utils.fromJust_ "makeZonesPath" maybeIndex in
       zoneSelectCrossDot model False (id, shape, Point i) xNumTr dummyVal yNumTr dummyVal
     in
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
@@ -1709,14 +1710,17 @@ makeZonesPath model shape id nodeAttrs =
       ] ++ transform
   in
   -- TODO add "Edge" zones
+  let secondaryWidgets = zRot ++ zFillAndStroke in
+  case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
+    Nothing -> secondaryWidgets
+    Just (x1,x2,y1,y2) -> 
   let primaryWidgets =
-    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++
       zSelect ++
       dots
   in
-  primaryWidgets :: zRot ++ zFillAndStroke
+  primaryWidgets :: secondaryWidgets
 
 
 --------------------------------------------------------------------------------

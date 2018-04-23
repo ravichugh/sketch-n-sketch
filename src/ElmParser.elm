@@ -2819,7 +2819,7 @@ freshen e =
   -- let _ = Debug.log "All Ids" allIds in
   let idsToPreserve = Set.diff allIds duplicateIds in
   -- let _ = Debug.log "Ids to preserve" idsToPreserve in
-  let startK      = (List.maximum (initK :: Set.toList allIds) |> Utils.fromJust) + 1 in
+  let startK      = (List.maximum (initK :: Set.toList allIds) |> Utils.fromJust_ "freshen") + 1 in
   let (result, _) = freshenPreserving idsToPreserve startK e in
   -- let _ = Debug.log ("Freshened result:\n" ++ LangUnparser.unparseWithIds result) () in
   result
@@ -2921,7 +2921,7 @@ freshenPatPreserving idsToPreserve initK p =
 maxId : Exp -> Int
 maxId exp =
   let ids = allIds exp in
-  List.maximum (initK :: Set.toList ids) |> Utils.fromJust
+  List.maximum (initK :: Set.toList ids) |> Utils.fromJust_ "maxId"
 
 -- Excludes EIds, PIds, and locIds less than initK (i.e. no prelude locs or dummy EIds)
 allIds : Exp -> Set.Set Int

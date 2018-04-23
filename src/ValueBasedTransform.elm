@@ -373,7 +373,7 @@ rankComparedTo originalExp synthesisResults =
           if List.length locLineNums <= 1 || List.any isInfinite locLineNums then
             Utils.infinity
           else
-            (List.maximum locLineNums |> Utils.fromJust) - (List.minimum locLineNums |> Utils.fromJust)
+            (List.maximum locLineNums |> Utils.fromJust_ "rankComparedTo1") - (List.minimum locLineNums |> Utils.fromJust_ "rankComparedTo2")
         in
         InterfaceModel.SynthesisResult <|
           { description = description
@@ -522,7 +522,7 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresA
 --   if List.all ((/=) Nothing) evaluatedFeatures then
 --     let sortedFeatures =
 --       features
---       |> List.sortBy (\feature -> Utils.fromJust <| evaluateFeature feature slate locIdToNumberAndLoc)
+--       |> List.sortBy (\feature -> Utils.fromJust_ "makeEquidistant" <| evaluateFeature feature slate locIdToNumberAndLoc)
 --     in
 --     makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions locIdToNumberAndLoc
 --   else

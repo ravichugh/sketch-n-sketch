@@ -65,20 +65,28 @@ svgPath      = flip Svg.path []
 -- Bounding Boxes
 
 -- TODO change order of return values
-boundingBoxOfPoints_ : List (Float, Float) -> (Float, Float, Float, Float)
+boundingBoxOfPoints_ : List (Float, Float) -> Maybe (Float, Float, Float, Float)
 boundingBoxOfPoints_ pts =
   let (xs, ys) = List.unzip pts in
-  let xMax = Utils.fromJust <| List.maximum xs in
-  let xMin = Utils.fromJust <| List.minimum xs in
-  let yMax = Utils.fromJust <| List.maximum ys in
-  let yMin = Utils.fromJust <| List.minimum ys in
-  (xMin, xMax, yMin, yMax)
+  case List.maximum xs of
+    Nothing -> Nothing
+    Just xMax ->
+  case List.minimum xs of
+    Nothing -> Nothing
+    Just xMin ->
+  case List.maximum ys of
+    Nothing -> Nothing
+    Just yMax ->
+  case List.minimum ys of
+    Nothing -> Nothing
+    Just yMin ->
+  Just (xMin, xMax, yMin, yMax)
 
-boundingBoxOfPoints : List (Int, Int) -> (Int, Int, Int, Int)
+boundingBoxOfPoints : List (Int, Int) -> Maybe (Int, Int, Int, Int)
 boundingBoxOfPoints pts =
   let pts_ = List.map (\(x,y) -> (toFloat x, toFloat y)) pts in
-  let (a,b,c,d) = boundingBoxOfPoints_ pts_ in
-  (round a, round b, round c, round d)
+  boundingBoxOfPoints_ pts_ |> Maybe.map (\(a,b,c,d) ->
+  (round a, round b, round c, round d))
 
 
 --------------------------------------------------------------------------------
@@ -615,7 +623,9 @@ addRawPolygon old pointsWithSnap =
   addShapeToModel old "polygon" polygonExp
 
 addStretchablePolygon old points =
-  let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
+  case boundingBoxOfPoints points of
+    Nothing -> old
+    Just (xMin, xMax, yMin, yMax) ->
   let (width, height) = (xMax - xMin, yMax - yMin) in
   let sPcts =
     Utils.bracks <| Utils.spaces <|
@@ -638,7 +648,9 @@ addStretchablePolygon old points =
   addShapeToModel old "polygon" polygonExp
 
 addStickyPolygon old points =
-  let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
+  case boundingBoxOfPoints points of
+    Nothing -> old
+    Just (xMin, xMax, yMin, yMax) ->
   let (width, height) = (xMax - xMin, yMax - yMin) in
   let sOffsets =
     Utils.bracks <| Utils.spaces <|
@@ -742,7 +754,9 @@ addAbsolutePath old keysAndPoints =
 
 addStretchyPath old keysAndPoints =
   let points = List.map Tuple.second keysAndPoints in
-  let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
+  case boundingBoxOfPoints points of
+    Nothing -> old
+    Just (xMin, xMax, yMin, yMax) ->
   let (width, height) = (toFloat (xMax - xMin), toFloat (yMax - yMin)) in
   let strX x = maybeThaw (toFloat (x - xMin) / width) in
   let strY y = maybeThaw (toFloat (y - yMin) / height) in

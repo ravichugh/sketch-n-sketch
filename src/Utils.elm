@@ -835,9 +835,9 @@ resultToBool r = case r of
   Ok _  -> True
   Err _ -> False
 
-fromJust m = case m of
-  Just x -> x
-  Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
+--fromJust m = case m of
+--  Just x -> x
+--  Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
 
 fromJust_ s mx = case mx of
   Just x  -> x

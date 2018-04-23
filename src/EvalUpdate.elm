@@ -300,6 +300,18 @@ builtinEnv =
             _ -> ok1 ([newVal], [(0, diffs)])
         _ -> ok1 ([newVal], [(0, diffs)])
     )
+  {-, ("toPathData", builtinVal "EvalUpdate.toPathData" <|
+    VFun "toPathData" ["d_str"] (oneArg "toPathData" <| \original ->
+      case original.v_ of
+        VList _ -> Ok (original, [])
+        VBase (VString content) ->
+          Regex.split (Regex.regex "")
+
+    ) <| Just <| oneArgUpdate "__mbpathdsplit__" <| \original oldVal newVal diffs ->
+      case original.v_ of
+        VList _ -> Ok (original, [])
+        VBase (VString content) ->
+  )-}
   , ("__mbstylesplit__", builtinVal "EvalUpdate.__mbstylesplit__" <|
      VFun "__mbstylesplit__" ["style_str"] (oneArg "__mbstylesplit__" <| \original ->
        case original.v_ of

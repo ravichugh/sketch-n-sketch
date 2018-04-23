@@ -284,8 +284,8 @@ pluck__ p e1 path =
             )
       else if List.length ps == List.length es && i == 1 + List.length ps && Utils.maybeToBool maybePTail && Utils.maybeToBool maybeETail then
         -- Recursing into the tail binding
-        let pi = Utils.fromJust maybePTail in
-        let ei = Utils.fromJust maybeETail in
+        let pi = Utils.fromJust_ "CodeMotion1" maybePTail in
+        let ei = Utils.fromJust_ "CodeMotion2" maybeETail in
         pluck__ pi ei is
         |> Maybe.map
             (\(plucked, newTailPat, newTailBoundExp) ->
@@ -1394,8 +1394,8 @@ insertPat__ (patToInsert, boundExp) p e1 path =
               )
         else if List.length ps == List.length es && i == 1 + List.length ps && Utils.maybeToBool maybePTail && Utils.maybeToBool maybeETail then
           -- Recursing into the tail binding
-          let pi = Utils.fromJust maybePTail in
-          let ei = Utils.fromJust maybeETail in
+          let pi = Utils.fromJust_ "CodeMotion3" maybePTail in
+          let ei = Utils.fromJust_ "CodeMotion4" maybeETail in
           insertPat__ (patToInsert, boundExp) pi ei is
           |> Maybe.map
               (\(newPat, newBoundExp) ->

@@ -497,7 +497,7 @@ runBenchmark b = case b of
                          if newExp.changes == Nothing then
                            Debug.crash <| "In " ++ replacementName++ ", expected a change to the expression, got Nothing\n" ++ (transformValToString replacement newOut)
                          else
-                          (newExp.val, newExp.changes |> Utils.fromJust,  t, numAmbiguities, timeAllOtherSolutions)
+                          (newExp.val, newExp.changes |> Utils.fromJust_ "changes",  t, numAmbiguities, timeAllOtherSolutions)
                        Results.Errs msg -> Debug.crash <| msg ++ "Transform =  " ++ replacementName ++ "\n" ++ (transformValToString replacement newOut)  ++ "\n" ++ unparse progExp
                in
                let newProgExp = parse (unparse newProgExp_) |> Utils.fromOk_ in
@@ -722,12 +722,12 @@ stddev l =
   stdDevSignificantDigits sss
 
 minimum: List comparable -> comparable
-minimum l = List.minimum l |> Utils.fromJust
+minimum l = List.minimum l |> Utils.fromJust_ "minimum"
 
 fastest = minimum
 
 maximum: List comparable -> comparable
-maximum l = List.maximum l |> Utils.fromJust
+maximum l = List.maximum l |> Utils.fromJust_ "maximum"
 
 slowest = maximum
 
@@ -744,6 +744,6 @@ averageTimedRun n callback =
   List.foldl (\_ (oldResult, oldAcc) ->
     let (newResult, newTime) = ImpureGoodies.timedRun callback in
     (Just newResult, newTime::oldAcc)) (Nothing, []) |>
-  \(newResult, times) -> (newResult |> Utils.fromJust, times)
+  \(newResult, times) -> (newResult |> Utils.fromJust_ "averageTimedRun", times)
 
 loc s = String.lines s |> List.length
