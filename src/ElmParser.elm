@@ -886,7 +886,8 @@ htmlToExp node =
       let appendFun = withInfo (exp_ <| EVar space0 "++") node.start node.start in
       succeed <| withInfo (exp_ <| EApp space0 appendFun [
         withInfo (exp_ <| EList space0 [] space0 Nothing space0) node.start node.start,
-        e] InfixApp space0 ) node.start e.end
+        withInfo (exp_ <| EApp space1 (withInfo (exp_ <| EVar space1  "__mbwraphtmlnode__") e.start e.start) [e] SpaceApp space0) e.start e.end
+        ] InfixApp space0 ) node.start e.end
 
 
 htmlliteral: SpacePolicy -> Parser Exp

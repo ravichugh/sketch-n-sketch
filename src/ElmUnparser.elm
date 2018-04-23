@@ -872,8 +872,12 @@ unparseHtmlChildList childExp =
       case childExp.val.e__ of
         EApp _ _ [e1, eRight] _ _ ->
           case e1.val.e__ of
-            EApp _ _ [eLeft, eToRender] _ _ ->
-              unparseHtmlChildList eLeft ++ "@" ++ unparse eToRender ++ unparseHtmlChildList eRight
+            EApp _ _ [eLeft, eToRenderwrapped] _ _ ->
+              case eToRenderwrapped.val.e__ of
+                EApp  _ _ [eToRender] _ _ ->
+                  unparseHtmlChildList eLeft ++ "@" ++ unparse eToRender ++ unparseHtmlChildList eRight
+                _ ->
+                  unparseHtmlChildList eLeft ++ "@" ++ unparse eToRenderwrapped ++ unparseHtmlChildList eRight
             _  -> "@(" ++ unparse childExp ++ ")"
         _  -> "@(" ++ unparse childExp ++ ")"
 

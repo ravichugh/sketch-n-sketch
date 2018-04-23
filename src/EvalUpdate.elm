@@ -28,64 +28,44 @@ import ValUnbuilder as Vu
 import UpdateRegex
 
 builtinEnv =
-  [ ("error", builtinVal "EvalUpdate.error" <| VFun "error" ["msg"] (\args ->
-    case args of
-      [arg] -> case arg.v_ of
+  [ ("error", builtinVal "EvalUpdate.error" <| VFun "error" ["msg"] (oneArg "error" <| \arg ->
+      case arg.v_ of
         VBase (VString s) -> Err s
         _ -> Err <| valToString arg
-      _ -> Err <| "error requires 1 argument, was given " ++ toString (List.length args)
     ) Nothing)
   , ("parseHTML", HTMLValParser.htmlValParser)
    -- TODO: This && evaluates both sides, can we have something that does less?
-  , ("&&", builtinVal "EvalUpdate.&&" <| VFun "&&" ["left", "right"] (\args ->
-     case args of
-       [left, right] ->
+  , ("&&", builtinVal "EvalUpdate.&&" <| VFun "&&" ["left", "right"] (twoArgs "&&" <| \left right ->
          case left.v_ of
            VBase (VBool True) -> Ok (right, [])
            VBase (VBool False) -> Ok (left, [])
            _ -> Err <| "&& expects two booleans, got " ++ valToString left
-       _ -> Err <| "&& expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , ("||", builtinVal "EvalUpdate.||" <| VFun "||" ["left", "right"] (\args ->
-     case args of
-       [left, right] ->
+  , ("||", builtinVal "EvalUpdate.||" <| VFun "||" ["left", "right"] (twoArgs "||" <| \left right ->
          case left.v_ of
            VBase (VBool True) -> Ok (left, [])
            VBase (VBool False) -> Ok (right, [])
            _ -> Err <| "|| expects two booleans, got " ++ valToString left
-       _ -> Err <| "|| expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , ("<=", builtinVal "EvalUpdate.<=" <| VFun "<=" ["left", "right"] (\args ->
-     case args of
-       [left, right] ->
+  , ("<=", builtinVal "EvalUpdate.<=" <| VFun "<=" ["left", "right"] (twoArgs "<=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 <= n2)), [])
            _ -> Err <| "<= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
-       _ -> Err <| "<= expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , (">=", builtinVal "EvalUpdate.>=" <| VFun ">=" ["left", "right"] (\args ->
-     case args of
-       [left, right] ->
+  , (">=", builtinVal "EvalUpdate.>=" <| VFun ">=" ["left", "right"] (twoArgs ">=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 >= n2)), [])
            _ -> Err <| ">= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
-       _ -> Err <| ">= expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , (">", builtinVal "EvalUpdate.>" <| VFun ">" ["left", "right"] (\args ->
-     case args of
-       [left, right] ->
+  , (">", builtinVal "EvalUpdate.>" <| VFun ">" ["left", "right"] (twoArgs ">" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 > n2)), [])
            _ -> Err <| "> expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
-       _ -> Err <| "> expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
-  , ("/=", builtinVal "EvalUpdate./=" <| VFun "/=" ["left", "right"] (\args ->
-     case args of
-       [left, right] ->
+  , ("/=", builtinVal "EvalUpdate./=" <| VFun "/=" ["left", "right"] (twoArgs "/=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 /= n2)), [])
            (_, _) -> Ok (replaceV_ left <| VBase <| VBool <| valToString left /= valToString right, [])
-       _ -> Err <| "/= expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
   , ("getCurrentTime", builtinVal "EvalUpdate.getCurrentTime" (VFun "getCurrentTime" ["unit"] (\_ ->
       let n = ImpureGoodies.getCurrentTime () in
@@ -96,9 +76,7 @@ builtinEnv =
       let v = VBase (VBool (ImpureGoodies.toggleGlobalBool ())) in
       Ok (builtinVal "EvalUpdate.toggleGlobalBool.RESULT" v, [])
     ) Nothing))
-  , ("%", builtinVal "EvalUpdate.%" <| VFun "%" ["left", "right"] (\args ->
-     case args of
-       [left, right] ->
+  , ("%", builtinVal "EvalUpdate.%" <| VFun "%" ["left", "right"] (twoArgs "%" <| \left right ->
          case (left.v_, right.v_) of
            (VConst x (n1, y), VConst _ (n2, _))  ->
              if n2 == 0 then
@@ -106,14 +84,13 @@ builtinEnv =
              else
                Ok (replaceV_ left <| VConst x (toFloat (truncate n1 % truncate n2), y), [])
            _ -> Err <| "% expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
-       _ -> Err <| "% expects 2 arguments, got " ++ (toString <| List.length args)
      ) Nothing)
   , (">>", builtinVal "EvalUpdate.>>" <| VFun ">>" ["left", "right", "x"] (\args ->
       case args of
         [left, right, x] ->
            let env = [("x", x), ("left", left), ("right", right)] in
            Eval.doEval Syntax.Elm env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) |> Result.map Tuple.first
-        _ -> Err <| ">> expects 2 arguments, got " ++ toString (List.length args)
+        _ -> Err <| ">> expects 3 arguments, got " ++ toString (List.length args)
       ) (Just (\args oldVal newVal d -> case args of
       [left, right, x] ->
         let env = [("left", left), ("right", right), ("x", x)] in
@@ -147,9 +124,8 @@ builtinEnv =
           )
     _ -> Errs <| "<< expects 3 arguments, got " ++ toString (List.length args)
   )))
-  , ("evaluate", builtinVal "EvalUpdate.evaluate" <| VFun "evaluate" ["program"] (\args ->
-      case args of
-        [program] -> case program.v_ of
+  , ("evaluate", builtinVal "EvalUpdate.evaluate" <| VFun "evaluate" ["program"] (oneArg "evaluate" <| \program ->
+      case program.v_ of
           VBase (VString s) ->
             Syntax.parser Syntax.Elm s
             |> Result.mapError (ParserUtils.showError)
@@ -158,10 +134,7 @@ builtinEnv =
               )
             |> Result.map Tuple.first
           _ -> Err <| "evaluate expects one string, got " ++ LangUtils.valToString  program
-        _ -> Err <| "evaluate expects 1 arguments, got " ++ (toString <| List.length args)
-    ) <| Just <| \args oldVal newVal d ->
-      case args of
-        [oldProgram] ->
+    ) <| Just <| oneArgUpdate "evaluate" <| \oldProgram oldVal newVal d ->
           case oldProgram.v_ of
             VBase (VString s) ->
               let res: Results String (List Val, TupleDiffs VDiffs)
@@ -187,12 +160,9 @@ builtinEnv =
               in
               res
             _ -> Errs <| "evaluate expects one string, got " ++ LangUtils.valToString oldProgram
-        _ -> Errs <| "evaluate expects 1 arguments, got " ++ (toString <| List.length args)
     )
   , ("__updateApp__", builtinVal "EvalUpdate.updateApp" <|
-  VFun "__updateApp__" ["{fun,input[,oldOutput],output[,outputDiff]}"] (\args ->
-    case args of
-      [arg] ->
+  VFun "__updateApp__" ["{fun,input[,oldOutput],output[,outputDiff]}"] (oneArg "__updateApp__" <| \arg ->
         let vb = Vb.fromVal arg in
         case arg.v_ of
           VRecord d ->
@@ -271,57 +241,80 @@ builtinEnv =
                  (Maybe.map (\_ -> "") mbInput |> Maybe.withDefault " input") ++
                  (Maybe.map (\_ -> "") mbOutput |> Maybe.withDefault " output")
           _ -> Err <| "__updateApp__ argument should be a record {fun,input[,oldOutput],output[,outputDiff]}, but got " ++ valToString arg
-      _ -> Err <| "__updateApp__ expects 1 arguments ({fun,input[,oldOutput],output[,outputDiff]}), but got " ++ toString (List.length args)
   ) Nothing)
   , ("__merge__",  builtinVal "EvalUpdate.merge" <|
-     VFun "__merge__" ["original", "list_of_modified"] (\args ->
-       case args of
-         [original, modifications] ->
-           case modifications.v_ of
-             VList modifications ->
-               let modificationsWithDiffs =
-                 List.map (\m -> UpdateUtils.defaultVDiffs original m |> Results.firstResult |> Result.map (\mbmodifs -> mbmodifs |> Maybe.map (\modifs -> (m, modifs)))) modifications in
-               case modificationsWithDiffs |> Utils.projOk of
-                  Err msg -> Err msg
-                  Ok withModifs ->
-                    let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
-                    Ok (newVal, [])
-             _ -> Err  <| "__merge__ takes 2 lists, but got " ++ toString (List.length args)
-         _ -> Err  <| "__merge__ takes 2 lists, but got " ++ toString (List.length args)
+     VFun "__merge__" ["original", "list_of_modified"] (twoArgs "__merge__" <| \original modifications ->
+       case modifications.v_ of
+         VList modifications ->
+           let modificationsWithDiffs =
+             List.map (\m -> UpdateUtils.defaultVDiffs original m |> Results.firstResult |> Result.map (\mbmodifs -> mbmodifs |> Maybe.map (\modifs -> (m, modifs)))) modifications in
+           case modificationsWithDiffs |> Utils.projOk of
+              Err msg -> Err msg
+              Ok withModifs ->
+                let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
+                Ok (newVal, [])
+         _ -> Err  <| "__merge__ 's second argument should be a list , but got " ++ valToString modifications
      ) Nothing)
   , ("__diff__", builtinVal "EvalUpdate.diff" <|
-    VFun "__diff__" ["value_before", "value_after"] (\args ->
-      case args of
-        [before, after] ->
+    VFun "__diff__" ["value_before", "value_after"] (twoArgs "__diff__" <| \before after ->
           Ok ( defaultVDiffs before after |> Results.firstResult
                  |> Vb.result (Vb.maybe vDiffsToVal) (Vb.fromVal before)
                , [])
-        _ -> Err <|  "__diff__ performs the diff on 2 values, but got " ++ toString (List.length args)
     ) Nothing)
   , ("replaceAllIn", UpdateRegex.replaceAllByIn eval update)
   , ("replaceFirstIn", UpdateRegex.replaceFirstByIn eval update)
   , ("updateReplace", UpdateRegex.updateReplace eval update)
   , ("join__", UpdateRegex.join)
+
+  , ("__mbwraphtmlnode__", builtinVal "EvalUpdate.__mbwraphtmlnode__" <|
+     VFun "__mbwraphtmlnode__" ["string_node_listnode"] (oneArg "string_node_listnode" <| \original ->
+       case original.v_ of
+         VBase (VString content) ->
+           Ok (Vb.list (Vb.viewtuple2 Vb.string Vb.string) (Vb.fromVal original) [("TEXT", content)], [])
+         VList (head::tail) ->
+           case head.v_ of
+             VBase (VString tagName) ->
+               Ok (Vb.list Vb.identity (Vb.fromVal original) [original], [])
+             _ -> Ok (original, [])
+         _ -> Ok (original, [])
+     ) <| Just <| oneArgUpdate "string_node_listnode" <| \original oldVal newVal diffs ->
+       let _ = Debug.log ("stirng_node_listnode: " ++ valToString original) () in
+      case original.v_ of
+        VBase (VString content) -> -- We make sure no element was inserted and we unwrap the value and the diffs
+          let _ = Debug.log ("newVal, diffs: " ++ valToString newVal ++ ", " ++ toString diffs) () in
+          case (newVal.v_, diffs) of
+            (VList [elem], VListDiffs [(0, ListElemUpdate d)]) ->
+              let _ = Debug.log ("elem, d: " ++ valToString elem ++ ", " ++ toString d) () in
+              case (Vu.viewtuple2 Vu.string Vu.string elem, d) of
+                (Ok ("TEXT", newContent), VListDiffs [(1, ListElemUpdate (ds))]) ->
+                  let _ = Debug.log ("Returning only the stringdiff d normally") () in
+                  ok1 ([Vb.string (Vb.fromVal original) newContent], [(0, ds)])
+                (_, VListDiffs []) -> ok1 ([original], [])
+                _ -> Oks LazyList.Nil
+            (_, VListDiffs []) -> ok1 ([original], [])
+            _ -> Oks LazyList.Nil
+        VList (head::tail) ->
+          case (head.v_, newVal.v_, diffs) of
+            (VBase (VString tagName), VList [newElem], VListDiffs [(0, ListElemUpdate d)]) ->
+              ok1 ([newElem], [(0, d)])
+            _ -> ok1 ([newVal], [(0, diffs)])
+        _ -> ok1 ([newVal], [(0, diffs)])
+    )
   , ("__mbstylesplit__", builtinVal "EvalUpdate.__mbstylesplit__" <|
-     VFun "__mbstylesplit__" ["style_str"] (\args ->
-       case args of
-         [original] ->
-           case original.v_ of
-             VList _ -> Ok (original, [])
-             VBase (VString content) ->
-               let vb = Vb.fromVal original in
-               let finalVal =
-                 LangParserUtils.explodeStyleValue content |> List.map (\(_, name, _, value, _) ->
-                  (name, value)
-                 ) |>
-                 Vb.list (Vb.viewtuple2 Vb.string Vb.string) vb
-               in
-               Ok (finalVal, [])
-             _ -> Err <| "__mbstylesplit__ takes a string or a list, got " ++ valToString original
-         _ -> Err <| "__mbstylesplit__ takes 1 argument, got " ++ toString (List.length args)
-     ) <| Just <| \args oldVal newVal diffs ->
-       case args of
-        [original] ->
+     VFun "__mbstylesplit__" ["style_str"] (oneArg "__mbstylesplit__" <| \original ->
+       case original.v_ of
+         VList _ -> Ok (original, [])
+         VBase (VString content) ->
+           let vb = Vb.fromVal original in
+           let finalVal =
+             LangParserUtils.explodeStyleValue content |> List.map (\(_, name, _, value, _) ->
+              (name, value)
+             ) |>
+             Vb.list (Vb.viewtuple2 Vb.string Vb.string) vb
+           in
+           Ok (finalVal, [])
+         _ -> Err <| "__mbstylesplit__ takes a string or a list, got " ++ valToString original
+     ) <| Just <| oneArgUpdate "__mbstylesplit__" <| \original oldVal newVal diffs ->
           case original.v_ of
             VList _ -> ok1 ([newVal], UpdateUtils.combineTupleDiffs [(0, Just diffs)] |> Maybe.withDefault [])
             VBase (VString content) -> -- Need to transform the List diffs into string diffs
@@ -398,10 +391,28 @@ builtinEnv =
                 (_, Err msg) -> Errs <| "Expected VListDiffs got an error: " ++ msg
                 _ -> Errs <| "Expected VListDiffs and a List, got " ++ toString diffs ++ " and " ++ valToString newVal
             _ -> Errs <| "__mbstylesplit__ takes a string or a List, got " ++ valToString newVal
-        _ -> Errs <| "__mbstylesplit__ takes 1 argument, got " ++ toString (List.length args)
-
     )
   ]
+
+oneArg: String -> (Val -> Result String a) -> (List Val -> Result String a)
+oneArg msg fun args = case args of
+    [arg] -> fun arg
+    _ -> Err <| msg ++ " takes 1 argument, got " ++ toString (List.length args)
+
+twoArgs: String -> (Val -> Val -> Result String a) -> (List Val -> Result String a)
+twoArgs msg fun args = case args of
+    [left, right] -> fun left right
+    _ -> Err <| msg ++ " takes 2 arguments, got " ++ toString (List.length args)
+
+oneArgUpdate: String -> (Val -> a -> b -> c -> Results String d) -> (List Val -> a -> b -> c -> Results String d)
+oneArgUpdate msg fun args a b c = case args of
+    [arg] -> fun arg a b c
+    _ -> Errs <| msg ++ " takes 1 argument, got " ++ toString (List.length args)
+
+twoArgsUpdate: String -> (Val -> Val -> a -> b -> c -> Results String d) -> (List Val -> a -> b -> c -> Results String d)
+twoArgsUpdate msg fun args a b c = case args of
+    [left, right] -> fun left right a b c
+    _ -> Errs <| msg ++ " takes 2 arguments, got " ++ toString (List.length args)
 
 eval env e = Eval.doEval Syntax.Elm env e |> Result.map Tuple.first
 update updateStack = Update.update LazyList.Nil LazyList.Nil updateStack
