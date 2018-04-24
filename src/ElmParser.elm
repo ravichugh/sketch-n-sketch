@@ -766,7 +766,7 @@ htmlText  source        htmltext =
 htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->  Bool ->     Bool ->     WS ->                  Exp
 htmlnode source         tagName               attributes spaceBeforeEndOpeningTag children autoclosing voidClosing spaceAfterTagClosing =
   let origin = replaceInfo source << exp_ in
-  let spaceBeforeTail = withDummyInfo <| if autoclosing then " " else if voidClosing then "  " else"" in -- Hack: If there is a space and no children, mark the div autoclose.
+  let spaceBeforeTail = withDummyInfo <| if autoclosing then " " else if voidClosing then "  " else"" in -- Hack: If there is a space and no children, mark the element autoclose.
   let tag = case tagName of
     HTMLParser.HTMLTagString s -> withInfo (exp_ <| EBase space0 <| EString "\"" s.val) s.start s.end
     HTMLParser.HTMLTagExp e -> e
@@ -779,11 +779,10 @@ htmlnode source         tagName               attributes spaceBeforeEndOpeningTa
 appendToLeft: (WS, Exp) -> Exp -> Result String Exp
 appendToLeft thisAttribute x = case x.val.e__ of
   EList sp0 attrs sp1 t sp2 ->
-    let newList = withInfo (exp_ <| EList sp0 (thisAttribute::attrs) sp1 t sp2) (Tuple.first thisAttribute |> .start) x.end in
-    Ok {  newList | start = x.start }
+    Ok <| withInfo (exp_ <| EList sp0 (thisAttribute::attrs) sp1 t sp2) (Tuple.second thisAttribute |> .start) x.end
   EApp sp1 fun [left, right] appType sp2 ->
     appendToLeft thisAttribute left |> Result.map (\newLeft ->
-      withInfo (exp_ <| EApp sp1 fun [newLeft, right] appType sp2) (Tuple.first thisAttribute |> .start) x.end
+      withInfo (exp_ <| EApp sp1 fun [newLeft, right] appType sp2) (newLeft.start) x.end
     )
   _ -> Err <| "Expected EList, EApp, but got something else for attributes (line " ++ toString x.start.line ++ ")"
 
@@ -842,7 +841,7 @@ childrenToExp lastPos children =
         childrenToExp head.end tail |> andThen (\tailExp ->
           case headExp.val.e__ of
             EApp _ _ _ _ _ -> -- It was a HTMLListNodeExp
-               let appendFun = replaceInfo head <| exp_ <| EVar space0 "++" in
+               let appendFun = withInfo (exp_ <| EVar space0 "++") headExp.end tailExp.start in
                succeed <| withInfo (exp_ <| EApp space0 appendFun [
                  headExp, tailExp] InfixApp space0) headExp.start tailExp.end
             _ ->
@@ -858,11 +857,13 @@ htmlToExp node =
     HTMLParser.HTMLInner content ->
       case Regex.find (Regex.All) forbiddenTagsInHtmlInner content of
         [] -> succeed <| htmlText node content
-        l -> fail <| "Line " ++ toString node.start.line ++ ", an inner html should not contain closing tags : " ++ (l |> List.map (\m -> m.match) |> String.join ",")
+        l ->
+          succeed <| htmlText node <| Regex.replace (Regex.All) forbiddenTagsInHtmlInner (\_ -> "") content
+          --fail <| "Line " ++ toString node.start.line ++ ", an inner html should not contain closing tags : " ++ (l |> List.map (\m -> m.match) |> String.join ",")
     HTMLParser.HTMLElement tagName attrs sp0 endOpeningStyle children closingStyle ->
       case (closingStyle, endOpeningStyle) of
-        (HTMLParser.ForgotClosing, _)   -> fail <| "Line " ++ toString node.start.line ++ " there is a missing closing tag </" ++ HTMLParser.unparseTagName tagName ++ ">"
-        (_, HTMLParser.SlashEndOpening) -> fail <| "Line " ++ toString node.start.line ++ " don't use / because <" ++ HTMLParser.unparseTagName tagName ++ "> is not an auto-closing tag and requires in any case a </" ++ HTMLParser.unparseTagName tagName ++ ">"
+        --(HTMLParser.ForgotClosing, _)   -> fail <| "Line " ++ toString node.start.line ++ " there is a missing closing tag </" ++ HTMLParser.unparseTagName tagName ++ ">"
+        --(_, HTMLParser.SlashEndOpening) -> fail <| "Line " ++ toString node.start.line ++ " don't use / because <" ++ HTMLParser.unparseTagName tagName ++ "> is not an auto-closing tag and requires in any case a </" ++ HTMLParser.unparseTagName tagName ++ ">"
         _ ->
           let endPos = case tagName of
             HTMLParser.HTMLTagString v -> v.end
@@ -888,7 +889,6 @@ htmlToExp node =
         withInfo (exp_ <| EList space0 [] space0 Nothing space0) node.start node.start,
         withInfo (exp_ <| EApp space1 (withInfo (exp_ <| EVar space1  "__mbwraphtmlnode__") e.start e.start) [e] SpaceApp space0) e.start e.end
         ] InfixApp space0 ) node.start e.end
-
 
 htmlliteral: SpacePolicy -> Parser Exp
 htmlliteral sp =
