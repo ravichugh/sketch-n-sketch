@@ -1,10 +1,17 @@
 module HTMLParser exposing (parseHTMLString,
-  HTMLNode(..), HTMLEndOpeningStyle(..), HTMLClosingStyle(..), HTMLCommentStyle(..), HTMLAttribute(..), HTMLAttributeValue(..),
+  HTMLNode, HTMLEndOpeningStyle(..), HTMLClosingStyle(..), HTMLCommentStyle(..), HTMLAttribute, HTMLAttributeValue,
+  HTMLNode_(..),
+  HTMLAttribute_(..),
+  HTMLAttributeValue_(..),
+  HTMLTag(..),
+  ParsingMode(..),
   isVoidElement, isForeignElement,
   NameSpace(..),
   unparseHtmlNodes,
+  unparseTagName,
   unparseNode,
-  unparseHtmlNodesDiffs)
+  unparseHtmlNodesDiffs,
+  parseOneNode)
 
 import Char
 import Set exposing (Set)
@@ -15,7 +22,6 @@ import Parser.LanguageKit as LK
 import Lang exposing (..)
 import Info exposing (..)
 import ElmLang
-import Syntax
 
 import ParserUtils exposing (..)
 import LangParserUtils exposing (..)
@@ -24,13 +30,21 @@ import Utils
 import Regex
 import Parser
 import Parser.LanguageKit as LanguageKit
-import ElmUnparser
-import UpdateUtils
+import Info exposing (WithInfo)
 
 type NameSpace  = HTML | Foreign
 
-type HTMLAttributeValue = HTMLAttributeUnquoted WS WS String | HTMLAttributeString WS WS String {-Delimiter char-}  String | HTMLAttributeNoValue
-type HTMLAttribute = HTMLAttribute WS String HTMLAttributeValue
+type alias HTMLAttributeValue = WithInfo HTMLAttributeValue_
+type HTMLAttributeValue_ =
+    HTMLAttributeUnquoted WS WS String
+  | HTMLAttributeString WS WS String {-Delimiter char-}  String
+  | HTMLAttributeNoValue
+  | HTMLAttributeExp WS Exp
+
+type alias HTMLAttribute = WithInfo HTMLAttribute_
+type HTMLAttribute_ =
+    HTMLAttribute WS (WithInfo String) HTMLAttributeValue
+  | HTMLAttributeListExp WS Exp
 type HTMLCommentStyle = Less_Greater String {- The string should start with a ? -}
                       | LessSlash_Greater {- The string should start with a space -} String
                       | LessBang_Greater String
@@ -40,9 +54,21 @@ type HTMLClosingStyle = RegularClosing WS | VoidClosing | AutoClosing | ForgotCl
 type HTMLEndOpeningStyle = RegularEndOpening {- usually > -} | SlashEndOpening {- add a slash before the '>' of the opening, does not mark the element as ended in non-void HTML elements -}
 -- HTMLInner may have unmatched closing tags inside it. You have to remove them to create a real innerHTML
 -- HTMLInner may have unescaped chars (e.g. <, >, & etc.)
-type HTMLNode = HTMLInner String
-              | HTMLElement String (List HTMLAttribute) WS HTMLEndOpeningStyle (List HTMLNode) HTMLClosingStyle
-              | HTMLComment HTMLCommentStyle
+
+type alias HTMLNode = WithInfo HTMLNode_
+type HTMLNode_ = HTMLInner String
+               | HTMLElement HTMLTag (List HTMLAttribute) WS HTMLEndOpeningStyle (List HTMLNode) HTMLClosingStyle
+               | HTMLComment HTMLCommentStyle
+               | HTMLListNodeExp Exp
+
+type HTMLTag = HTMLTagString (WithInfo String) | HTMLTagExp Exp
+
+type ParsingMode = Raw |
+  Interpolation {
+    tagName: SpacePolicy -> Parser Exp,
+    attributevalue: SpacePolicy -> Parser Exp,
+    attributelist: SpacePolicy -> Parser Exp,
+    childlist: SpacePolicy -> Parser Exp}
 
 voidElements: Set String
 voidElements =
@@ -75,6 +101,8 @@ parsed("</ Hello >") == "<!-- Hello -->"
 --}
 parseHTMLComment: Parser HTMLNode
 parseHTMLComment =
+  inContext "Parsing HTML comment" <|
+  trackInfo <|
   delayedCommitMap (\_ -> HTMLComment)
     (symbol "<")
     (oneOf
@@ -115,26 +143,48 @@ attributeSpaces =
      )
 
 -- parse("<i ====>Hello</i>") == "<i =="==">Hell</i>" (= is a valid start for an attribute name.
-parseHtmlAttributeName: Parser String
-parseHtmlAttributeName =
+parseHtmlAttributeName: ParserI String
+parseHtmlAttributeName = inContext "HTML attribute name" <| trackInfo <|
   LanguageKit.variable (\c -> c /= '>' && c /= '/' && not (isSpace c)) (\c -> c /= '>' && c /= '/' && c /= '=' && not (isSpace c)) (Set.fromList [])
 
 -- parse("<div> i<j =b / =hello=abc /a/ div / /> d") == "<div> i<j =b="" =hello="abc" a="" div=""> d</j></div>"
-parseHtmlAttributeValue: Parser HTMLAttributeValue
-parseHtmlAttributeValue =
-  oneOf [
-    delayedCommitMap (\sp1 (sp2, builder) -> builder sp1 sp2)
-      spaces
-      (  succeed (\sp2 builder -> (sp2, builder))
-         |. (symbol "=")
-         |= spaces
-         |= oneOf [
-           singleLineString |> map (\(quoteChar, content) sp1 sp2 -> HTMLAttributeString sp1 sp2 quoteChar content),
-           ignore oneOrMore (\c -> not (isSpace c) && c /= '>') |> source |> map (\content sp1 sp2 -> HTMLAttributeUnquoted sp1 sp2 content)
-         ]
-      ),
-    succeed HTMLAttributeNoValue
-  ]
+parseHtmlAttributeValue: ParsingMode -> Parser HTMLAttributeValue
+parseHtmlAttributeValue parsingMode =
+  case parsingMode of
+    Raw ->
+      oneOf [
+        delayedCommitMap (\sp1 (sp2, builder) -> builder sp1 sp2)
+          spaces
+          (  succeed (\sp2 builder -> (sp2, builder))
+             |. (symbol "=")
+             |= spaces
+             |= oneOf [
+               (trackInfo <| singleLineString) |> map (\strInfo sp1 sp2 ->
+                 let {val} = strInfo in
+                 let (quoteChar, content) = val in
+                   replaceInfo strInfo <| HTMLAttributeString sp1 sp2 quoteChar content),
+               ignore oneOrMore (\c -> not (isSpace c) && c /= '>') |> source |> trackInfo |>
+               map (\contentInfo sp1 sp2 ->
+                 let {val} = contentInfo in
+                 replaceInfo contentInfo <| HTMLAttributeUnquoted sp1 sp2 val)
+             ]
+          ),
+        trackInfo <| succeed HTMLAttributeNoValue
+      ]
+    Interpolation {attributevalue} ->
+      trackInfo <| oneOf [
+        delayedCommitMap (\s b -> b s)
+        spaces
+        (succeed (flip HTMLAttributeExp)
+          |. symbol "="
+          |. optional (symbol "@")
+          |= attributevalue (SpacePolicy spaces nospace)
+         )
+        , succeed identity
+          |. oneOf [lookAhead (symbol " "), lookAhead (symbol ">"), lookAhead (symbol "/")]
+          |= succeed HTMLAttributeNoValue
+      ]
+
 
 letterRegex = Regex.regex "^[a-zA-Z]$"
 
@@ -145,13 +195,27 @@ isLetter c = Regex.contains letterRegex (String.fromChar c)
 -- parse(""<br/> d") == "<br> d"
 -- parse(""<img/> d") == "<img> d"
 
-nodeElementStart: Parser String
-nodeElementStart =
+nodeElementStart: ParsingMode -> Parser (HTMLTag, String)
+nodeElementStart parsingMode =
+  let defaultParser =
+    succeed (\x -> (HTMLTagString x, x.val))
+    |= (trackInfo <|
+       (succeed (\a b -> a ++ b)
+       |= keep (Exactly 1) isLetter)
+       |= keep zeroOrMore (\c -> not (isSpace c) && c /= '/' && c /= '>')
+       )
+  in
   delayedCommit
-    (symbol "<")
-    (succeed (\a b -> a ++ b)
-     |= keep (Exactly 1) isLetter)
-     |= keep zeroOrMore (\c -> not (isSpace c) && c /= '/' && c /= '>')
+    (symbol "<") <|
+    case parsingMode of
+      Raw -> defaultParser
+      Interpolation {tagName} ->
+        oneOf [
+          defaultParser,
+          succeed (\s x -> (HTMLTagExp x, "@"))
+          |= symbol "@"
+          |= tagName (SpacePolicy nospace nospace)
+        ]
 
 nodeStart: Parser String
 nodeStart =
@@ -165,10 +229,16 @@ parsed("<j>a</b></j>b") == "<j>a</j>b"
 --}
 -- Always succeed if not empty
 -- parse the content until a node starts (either a comment, a node start element, or the end tag of this node)
-parseHTMLInner: List String -> Parser HTMLNode
-parseHTMLInner untilEndTagNames =
-  let regexToParseUntil = Regex.regex <| "<[a-zA-Z]|<\\?|<!|</ |$" ++
+parseHTMLInner: ParsingMode -> List String -> Parser HTMLNode
+parseHTMLInner parsingMode untilEndTagNames =
+  let maybeBreakOnAt = case parsingMode of
+    Raw -> ""
+    _ -> "|@"
+  in
+  let regexToParseUntil = Regex.regex <| "<[a-zA-Z]|<\\?|<!|</ |$" ++ maybeBreakOnAt ++
     (untilEndTagNames |> List.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> String.join "") in
+  inContext "Inner HTML" <|
+  trackInfo <|
   oneOf [
     try <| (keepUntilRegex regexToParseUntil |> andThen (\s ->
       if s == "" then fail "[internal failure]"
@@ -177,24 +247,43 @@ parseHTMLInner untilEndTagNames =
     , fail "No innerHTML starting here, there is probably a node or the end of the string"
   ]
 
-parseHTMLAttribute: Parser HTMLAttribute
-parseHTMLAttribute =
-  delayedCommitMap (\sp (name, st) -> HTMLAttribute sp name st)
-    attributeSpaces
-    ( succeed (\name st -> (name, st))
-      |= parseHtmlAttributeName
-      |= parseHtmlAttributeValue)
+parseHTMLAttribute: ParsingMode -> Parser HTMLAttribute
+parseHTMLAttribute parsingMode =
+  trackInfo <|
+  delayedCommitMap (\sp attrBuilder -> attrBuilder sp)
+    attributeSpaces <|
+      let defaultAttributeParser =
+         ( succeed (\name st -> \sp -> HTMLAttribute sp name st)
+           |= parseHtmlAttributeName
+           |= parseHtmlAttributeValue parsingMode)
+      in
+      case parsingMode of
+        Raw -> defaultAttributeParser
+        Interpolation {attributelist} ->
+          oneOf [
+            (succeed (flip HTMLAttributeListExp)
+            |. symbol "@"
+            |= attributelist (SpacePolicy nospace nospace)),
+          defaultAttributeParser]
 
+mergeInners: List HTMLNode -> List HTMLNode
+mergeInners children = case children of
+  h1 :: h2 :: tail ->
+    case (h1.val, h2.val) of
+      (HTMLInner s1, HTMLInner s2) -> mergeInners (withInfo (HTMLInner (s1++s2)) h1.start h2.end :: tail)
+      (_, HTMLInner s2) -> h1 :: mergeInners (h2 :: tail)
+      _ -> h1 :: h2 :: mergeInners tail
+  _ -> children
 
 -- Always succeed if the string starts with <(letter)
-parseHTMLElement: List String -> NameSpace -> Parser HTMLNode
-parseHTMLElement surroundingTagNames namespace =
-  inContext "HTML Element" <| (
-    nodeElementStart
-    |> andThen (\tagName ->
+parseHTMLElement: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
+parseHTMLElement parsingMode surroundingTagNames namespace =
+  inContext "HTML Element" <| trackInfo <| (
+    nodeElementStart parsingMode
+    |> andThen (\(tagNode, tagName) ->
        succeed (\attrs sp1 (endOpeningStyle, children, closingStyle)  ->
-             HTMLElement tagName attrs sp1 endOpeningStyle children closingStyle)
-       |= repeat zeroOrMore parseHTMLAttribute
+             HTMLElement tagNode attrs sp1 endOpeningStyle (mergeInners children) closingStyle)
+       |= repeat zeroOrMore (parseHTMLAttribute parsingMode)
        |= attributeSpaces
        |= oneOf ((
             if namespace == HTML && isVoidElement tagName then
@@ -214,7 +303,7 @@ parseHTMLElement surroundingTagNames namespace =
               )
             |= optional (symbol "/")
             |. symbol ">"
-            |= repeat zeroOrMore (parseNode (tagName::surroundingTagNames) (if isForeignElement tagName then Foreign else namespace))
+            |= repeat zeroOrMore (parseNode parsingMode (tagName::surroundingTagNames) (if isForeignElement tagName then Foreign else namespace))
             |= optional (try <|
                  succeed (\sp -> RegularClosing sp)
                  |. symbol "</"
@@ -227,34 +316,51 @@ parseHTMLElement surroundingTagNames namespace =
     )
 
 
-parseNode: List String -> NameSpace -> Parser HTMLNode
-parseNode surroundingTagNames namespace =
-  inContext "HTML Node" <|
-    oneOf [
-      parseHTMLElement surroundingTagNames namespace,
+parseNode: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
+parseNode parsingMode surroundingTagNames namespace =
+  oneOf <|
+    let defaultParsers = [
+      parseHTMLElement parsingMode surroundingTagNames namespace,
       parseHTMLComment,
-      parseHTMLInner surroundingTagNames
-    ]
+      parseHTMLInner parsingMode surroundingTagNames
+    ] in
+    case parsingMode of
+      Raw -> defaultParsers
+      Interpolation {childlist} ->
+        (trackInfo <| oneOf [
+          succeed (\_ -> HTMLInner "@")
+          |= symbol "@@"
+        , succeed HTMLListNodeExp
+        |. symbol "@"
+        |= childlist (SpacePolicy nospace nospace)])::defaultParsers
 
-parseTopLevelNode : Parser (List HTMLNode)
-parseTopLevelNode =
-  repeat zeroOrMore (parseNode [] HTML)
+
+
+parseOneNode: ParsingMode -> Parser HTMLNode
+parseOneNode parsingMode = parseNode parsingMode [] HTML
+
+parseTopLevelNodez : Parser (List HTMLNode)
+parseTopLevelNodez =
+  repeat zeroOrMore (parseOneNode Raw)
 
 parseHTMLString: String -> Result Parser.Error (List HTMLNode)
 parseHTMLString s =
-  run parseTopLevelNode s
+  run parseTopLevelNodez s
+
+
 
 unparseAttrValue: HTMLAttributeValue -> String
 unparseAttrValue value =
-  case value of
+  case value.val of
     HTMLAttributeUnquoted ws1 ws2 content -> ws1.val ++ "=" ++ ws2.val ++ content
-    HTMLAttributeString ws1 ws2 delimiter content -> ws1.val ++ "=" ++ ws2.val ++ Syntax.unparser Syntax.Elm (withDummyExpInfo <| EBase space0 <| EString delimiter content)
+    HTMLAttributeString ws1 ws2 delimiter content -> ws1.val ++ "=" ++ ws2.val ++ ParserUtils.unparseStringContent delimiter content
     HTMLAttributeNoValue -> ""
-
+    HTMLAttributeExp _ _ -> "[Internal error] Don't know how to unparse an HTMLAttributeExp here"
 
 unparseAttr: HTMLAttribute -> String
-unparseAttr a = case a of
-  HTMLAttribute ws0 name value -> ws0.val ++ name ++ unparseAttrValue value
+unparseAttr a = case a.val of
+  HTMLAttribute ws0 name value -> ws0.val ++ name.val ++ unparseAttrValue value
+  HTMLAttributeListExp _ _ -> "[Internal error] Don't know how to unparse an HTMLAttributeListExp here"
 
 unparseEndOp: HTMLEndOpeningStyle -> HTMLClosingStyle -> String
 unparseEndOp endOp closing = case endOp of
@@ -263,12 +369,16 @@ unparseEndOp endOp closing = case endOp of
     _ -> ""
   SlashEndOpening -> "/"
 
-unparseClosing: String -> HTMLClosingStyle -> String
-unparseClosing tagName closing = case closing of
-  RegularClosing sp -> if isVoidElement tagName then "" else "</" ++ tagName ++ sp.val ++ ">"
-  VoidClosing -> ""
-  AutoClosing -> ""
-  ForgotClosing -> ""
+unparseClosing: HTMLTag -> HTMLClosingStyle -> String
+unparseClosing htmlTag closing =
+  case htmlTag of
+    HTMLTagString tagName ->
+      case closing of
+        RegularClosing sp -> if isVoidElement tagName.val then "" else "</" ++ tagName.val ++ sp.val ++ ">"
+        VoidClosing -> ""
+        AutoClosing -> ""
+        ForgotClosing -> ""
+    _ -> "Don't know how to unparse tag " ++ toString htmlTag
 
 unparseCommentStyle: HTMLCommentStyle -> String
 unparseCommentStyle style = case style of
@@ -288,17 +398,31 @@ unparseCommentStyle style = case style of
      then "<!--" ++ content ++ "-->"
      else "<!--" ++ Regex.replace (Regex.All) (Regex.regex "-->") (\_ -> "~~>") content ++ "-->"
 
+unparseTagName: HTMLTag -> String
+unparseTagName tagName =
+  case tagName of
+    HTMLTagString s -> s.val
+    _ -> "[internal error] Don't know how to unparse " ++ toString tagName ++ " as a tagname"
+
 unparseNode: HTMLNode -> String
-unparseNode node = case node of
+unparseNode node = case node.val of
   HTMLInner s -> s
   HTMLElement tagName attrs ws1 endOp children closing ->
-    "<" ++ tagName ++ String.join "" (List.map unparseAttr attrs) ++ ws1.val ++ (unparseEndOp endOp closing) ++ ">" ++
+    let tagNameStr = unparseTagName tagName in
+    "<" ++ tagNameStr  ++ String.join "" (List.map unparseAttr attrs) ++ ws1.val ++ (unparseEndOp endOp closing) ++ ">" ++
       String.join "" (List.map unparseNode children) ++ unparseClosing tagName closing
   HTMLComment style -> unparseCommentStyle style
+  HTMLListNodeExp _ -> "[Internal error] Don't know how to unparse an HTMLListNodeExp here"
 
 unparseHtmlNodes: List HTMLNode -> String
 unparseHtmlNodes nodes =
   List.map unparseNode nodes |> String.join ""
+
+
+{-
+  Methods to unparse an HTML node to a string by propagating back strings diffs.
+-}
+
 
 type alias Unparser = Int -> Maybe VDiffs -> Result String (String, Int, List StringDiffs)
 
@@ -321,6 +445,7 @@ contructorVDiffs vdiffs =
         ) |> Utils.projOk
       _ -> Err <| "Expected a datatype constructor vdiffs (nested VRecordDiffs), got " ++ toString vdiffs
   _ -> Err <| "Expected a datatype constructor vdiffs (nested VRecordDiffs), got " ++ toString vdiffs
+
 
 unparseConstructor: String -> Int -> TupleDiffs VDiffs -> List HTMLUnparserDiff -> Result String (String, Int, List StringDiffs)
 unparseConstructor tagName    offset tDiffs unparsers =
@@ -412,15 +537,21 @@ unparseStr  oldStr newStr offset diffs =
   --let _ = Debug.log ("unparseStr " ++ toString oldStr ++ " " ++ toString newStr ++ " " ++ toString offset) in
   case diffs of
     Nothing -> Ok (newStr, offset + String.length oldStr, [])
-    Just (VStringDiffs l) -> Ok (newStr, offset + String.length oldStr, UpdateUtils.offsetStr offset l)
+    Just (VStringDiffs l) -> Ok (newStr, offset + String.length oldStr, offsetStr offset l)
     Just d -> Err <| "Expected VStringDiffs for a string, got " ++ toString d
+
+unparseTagNameDiff: HTMLTag -> HTMLTag -> Unparser
+unparseTagNameDiff oldTag newTag offset diffs =
+  case (oldTag, newTag) of
+    (HTMLTagString oldStr, HTMLTagString newStr) -> unparseStr oldStr.val newStr.val offset diffs
+    _ -> Err <| "Don't know how to unparse " ++ toString newTag ++ " from " ++ toString oldTag
 
 -- Here the diffs are on the string content, but we want them on the string as displayed in the editor.
 unparseStrContent: String -> String -> String -> Unparser
 unparseStrContent quoteChar  content1  content2  offset mbvdiffs =
   --Debug.log ("unparseStrContent " ++ toString quoteChar ++ " " ++ toString content1 ++ " " ++ toString content2 ++ " " ++ toString offset ++ " " ++ toString mbvdiffs) <|
-  let unparsedContent1 = ElmUnparser.unparseStringContent quoteChar content1 in
-  let unparsedContent2 = ElmUnparser.unparseStringContent quoteChar content2 in
+  let unparsedContent1 = ParserUtils.unparseStringContent quoteChar content1 in
+  let unparsedContent2 = ParserUtils.unparseStringContent quoteChar content2 in
   case mbvdiffs of
     Nothing -> Ok (unparsedContent2, offset + String.length unparsedContent1, [])
     Just (VStringDiffs stringDiffs) ->
@@ -434,7 +565,7 @@ unparseStrContent quoteChar  content1  content2  offset mbvdiffs =
         StringUpdate start end replaced :: tail ->
           let newReplaced =
             let newSubtr = String.slice (start + updateOffset) (start + replaced + updateOffset) content2 in
-            let newSubstrUnparsed = ElmUnparser.unparseStringContent quoteChar newSubtr in
+            let newSubstrUnparsed = ParserUtils.unparseStringContent quoteChar newSubtr in
             String.length newSubstrUnparsed
           in
           let newUpdateOffset = updateOffset + replaced - (end - start) in
@@ -464,7 +595,7 @@ unparseAttrValueDiff oldAttrVal newAttrVal offset mbd =
       let str = unparseAttrValue newAttrVal in
       Ok (str, offset + String.length str, [])
     Just d ->
-      case (oldAttrVal, newAttrVal, contructorVDiffs d) of
+      case (oldAttrVal.val, newAttrVal.val, contructorVDiffs d) of
         (_, _, Err msg) -> Err msg
         (HTMLAttributeUnquoted ws1 ws2 content,  HTMLAttributeUnquoted ws12 ws22 content2, Ok ds) ->
           unparseConstructor "HTMLAttributeUnquoted" offset ds [
@@ -484,9 +615,9 @@ unparseAttrValueDiff oldAttrVal newAttrVal offset mbd =
           ]
         (HTMLAttributeNoValue, HTMLAttributeNoValue, Ok ds) ->
           Ok ("", offset, [])
-        (a, b, _) ->
-          let oldStr = unparseAttrValue a in
-          let newStr = unparseAttrValue b in
+        _ ->
+          let oldStr = unparseAttrValue oldAttrVal in
+          let newStr = unparseAttrValue newAttrVal in
           Ok (newStr, offset + String.length oldStr, [StringUpdate offset (offset + String.length oldStr) (String.length newStr)])
 
 unparseAttrDiffs: HTMLAttribute -> HTMLAttribute -> Unparser
@@ -496,14 +627,15 @@ unparseAttrDiffs oldAttr newAttr offset mbd =
       let str = unparseAttr newAttr in
       Ok (str, offset + String.length str, [])
     Just d ->
-      case (oldAttr, newAttr, contructorVDiffs d) of
+      case (oldAttr.val, newAttr.val, contructorVDiffs d) of
       (_, _, Err msg) -> Err msg
       (HTMLAttribute ws0 name value, HTMLAttribute ws02 name2 value2, Ok ds) ->
          unparseConstructor "HTMLAttribute" offset ds [
            UnparseArgument <| unparseStr ws0.val ws02.val,
-           UnparseArgument <| unparseStr name name2,
+           UnparseArgument <| unparseStr name.val name2.val,
            UnparseArgument <| unparseAttrValueDiff value value2
          ]
+      (_, _, _) -> Err <| "[internal error] Don't know how to unparseAttrDiffs " ++ toString oldAttr.val ++ " " ++ toString newAttr.val
 
 unparseCommentStyleDiffs: HTMLCommentStyle -> HTMLCommentStyle -> Unparser
 unparseCommentStyleDiffs oldStyle newStyle offset mbvdiffs =
@@ -563,7 +695,7 @@ unparseNodeDiffs oldNode newNode offset mbvdiffs =
       let nodeStr = unparseNode newNode in
       Ok (nodeStr, offset + String.length nodeStr, [])
     Just vdiffs ->
-      case (oldNode, newNode, contructorVDiffs vdiffs) of
+      case (oldNode.val, newNode.val, contructorVDiffs vdiffs) of
       (_, _, Err msg) -> Err msg
       (HTMLInner s1, HTMLInner s2, Ok ds) ->
         unparseConstructor "HTMLInner" offset ds [
@@ -573,7 +705,7 @@ unparseNodeDiffs oldNode newNode offset mbvdiffs =
       (HTMLElement tagName attrs ws1 endOp children closing, HTMLElement tagName2 attrs2 ws12 endOp2 children2 closing2, Ok ds) ->
         unparseConstructor "HTMLElement" offset ds [
           UnparseSymbol "<",
-          UnparseArgument <| unparseStr tagName tagName2,
+          UnparseArgument <| unparseTagNameDiff tagName tagName2,
           UnparseArgument <| unparseList unparseAttrDiffs unparseAttr attrs attrs2,
           UnparseArgument <| unparseStr ws1.val ws12.val,
           UnparseArgument <| \offset mbdiffs ->

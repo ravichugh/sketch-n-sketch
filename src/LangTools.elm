@@ -1457,7 +1457,7 @@ setPatName : PathedPatternId -> Ident -> Exp -> Exp
 setPatName ((scopeEId, branchI), path) newName exp =
   let maybeScopeExp = findExpByEId exp scopeEId in
   let maybeNewScopeExp =
-    let makeNewScope e__ = replaceE__ (Utils.fromJust maybeScopeExp) e__ in
+    let makeNewScope e__ = replaceE__ (Utils.fromJust_ "setPatName" maybeScopeExp) e__ in
     case (Maybe.map (.val >> .e__) maybeScopeExp, path) of
       (Just (ELet ws1 letKind isRec pat ws2 boundExp ws3 body ws4), _)->
         let newPat = setPatNameInPat path newName pat in
@@ -1689,7 +1689,7 @@ findScopeExpAndPatByPathedPatternId ((scopeEId, branchI), path) exp =
         Nothing
   in
   maybePat
-  |> Maybe.map (\pat -> (Utils.fromJust maybeScopeExp, pat))
+  |> Maybe.map (\pat -> (Utils.fromJust_ "findScopeExpAndPatByPathedPatternId" maybeScopeExp, pat))
 
 
 findPatByPathedPatternId : PathedPatternId -> Exp -> Maybe Pat

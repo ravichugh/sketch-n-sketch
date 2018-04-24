@@ -2643,9 +2643,14 @@ iconify syntax env code =
     exp =
       Utils.fromOkay "Error parsing icon"
         <| Syntax.parser syntax code
-    ((val, _), _) =
-      Utils.fromOkay "Error evaluating icon"
-        <| Eval.doEval syntax env exp
+  in
+  let valRes =
+    Result.map (Tuple.first << Tuple.first) <| Eval.doEval syntax env exp
+  in
+  case valRes of
+    Err msg -> Debug.log msg (Svg.svg [] [])
+    Ok val ->
+  let
     slate =
       Utils.fromOkay "Error resolving index tree of icon"
         <| LangSvg.resolveToRootedIndexedTree syntax 1 1 0 val

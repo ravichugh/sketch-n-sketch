@@ -38,6 +38,8 @@ import TopLevelExp exposing (TopLevelExp, fuseTopLevelExps)
 -- import FastParser
 import PreludeGenerated as Prelude
 import Regex
+import HTMLParser
+import ImpureGoodies
 
 --==============================================================================
 --= Helpers
@@ -660,7 +662,7 @@ multilineContentParserHelp prevExps =
         |. lookAhead (symbol "\"\"\"")
         |= getPos
       )
-    , (succeed (\x y -> (x, y))
+    , (succeed (\potentialExp strAfterExp -> (potentialExp, strAfterExp))
       |= (inContext "multi-line string @expression" <| oneOf [  --Or this is an @ followed by an @ resutling in a single @ char,
              mapExp_ <| trackInfo <|
                map (\_ -> EBase space0 (EString "\"" "@")) <| symbol "@@",
@@ -679,7 +681,7 @@ multilineContentParserHelp prevExps =
               (EBase sp0 (EString qc prevChars), EBase sp1 (EString eqc expChars), EBase sp2 (EString sqc stringChars)) ->
                 multilineContentParserHelp <| (withInfo (
                   exp_ <| EBase sp0 <| EString qc (prevChars ++ expChars ++ stringChars))
-                  lastPrev.start stringExp.end) :: prevExps
+                  lastPrev.start stringExp.end) :: lastTail
               _ ->
                 multilineContentParserHelp (stringExp :: potentialExp:: prevExps)
           [] -> Debug.crash "Internal error: There should be always at least one expression in a longstring literal."
@@ -692,7 +694,8 @@ multilineEscapedElmExpression =
   oneOf [
     try <| trackInfo <|
       succeed (\v -> exp_ <| EOp space0 (withInfo ToStrExceptStr v.start v.start) [v] space0)
-      |= (addSelections noSpacePolicy <| variableExpression spacesWithoutNewline),
+      |= (variableExpression noSpacePolicy |> addSelections noSpacePolicy),
+      --|= (addSelections noSpacePolicy <| variableExpression spacesWithoutNewline),
     try <| lazy <| \_ -> multilineGenericLetBinding,
     lazy <| \_ ->
       ( mapExp_ <| trackInfo <|
@@ -745,6 +748,169 @@ multilineGenericLetBinding =
       |= expression spacesWithoutNewline
       |. ignore zeroOrMore (\c -> c == ' ' || c == '\t')-- This will remove trailing whitespace.
       |. symbol "\n"
+
+
+--------------------------------------------------------------------------------
+-- HTML Literals
+--------------------------------------------------------------------------------
+htmlEscape = ImpureGoodies.htmlescape
+
+forbiddenTagsInHtmlInner = Regex.regex "</[^>\n]*>"
+
+htmlText: WithInfo a -> String -> Exp
+htmlText  source        htmltext =
+  let origin = replaceInfo source << exp_ in
+  origin <| EList space0 [
+    (space0, withInfo (exp_ <| EBase space0 (EString "\"" "TEXT")) source.start source.start),
+    (space0, origin  <| EBase space0 (EString "\"" (ImpureGoodies.htmlunescape htmltext)))] space0 Nothing space0
+
+htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->  Bool ->     Bool ->     WS ->                  Exp
+htmlnode source         tagName               attributes spaceBeforeEndOpeningTag children autoclosing voidClosing spaceAfterTagClosing =
+  let origin = replaceInfo source << exp_ in
+  let spaceBeforeTail = withDummyInfo <| if autoclosing then " " else if voidClosing then "  " else"" in -- Hack: If there is a space and no children, mark the element autoclose.
+  let tag = case tagName of
+    HTMLParser.HTMLTagString s -> withInfo (exp_ <| EBase space0 <| EString "\"" s.val) s.start s.end
+    HTMLParser.HTMLTagExp e -> e
+  in
+  origin <| EList space0 [
+    (space0, tag),
+    (space0, attributes),
+    (spaceBeforeEndOpeningTag, children)] spaceBeforeTail Nothing spaceAfterTagClosing
+
+appendToLeft: (WS, Exp) -> Exp -> Result String Exp
+appendToLeft thisAttribute x = case x.val.e__ of
+  EList sp0 attrs sp1 t sp2 ->
+    Ok <| withInfo (exp_ <| EList sp0 (thisAttribute::attrs) sp1 t sp2) (Tuple.second thisAttribute |> .start) x.end
+  EApp sp1 fun [left, right] appType sp2 ->
+    appendToLeft thisAttribute left |> Result.map (\newLeft ->
+      withInfo (exp_ <| EApp sp1 fun [newLeft, right] appType sp2) (newLeft.start) x.end
+    )
+  _ -> Err <| "Expected EList, EApp, but got something else for attributes (line " ++ toString x.start.line ++ ")"
+
+attrsToExp: Pos.Pos -> List HTMLParser.HTMLAttribute -> Parser Exp
+attrsToExp lastPos attrs =
+  case attrs of
+    [] -> succeed <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
+    head::tail ->
+      let origin = replaceInfo head << exp_ in
+      case head.val of
+        HTMLParser.HTMLAttribute sp nameInfo value ->
+          let nameExp = replaceInfo nameInfo <| exp_ <| EBase space0 (EString "\"" nameInfo.val) in
+          let attrValueSpace =
+            case value.val of
+               HTMLParser.HTMLAttributeNoValue ->
+                 -- Hack: space1 is here to tell that it's a NoValue.
+                 Ok (space0, withDummyExpInfo <| EBase space1 <| EString "\"" "")
+               HTMLParser.HTMLAttributeExp s e ->
+                 -- Normally, all the space is inside s
+                 let final_e = case nameInfo.val of
+                      "style" -> replaceInfo e <| exp_ <| EApp space0 (withInfo (exp_ <| EVar space1 "__mbstylesplit__") e.start e.start) [e] SpaceApp space0
+                      _ -> e
+                 in
+                 Ok (s, final_e)
+               _ -> Err <| "[Internal error] Tried to convert " ++ toString head ++ " to an Exp"
+          in
+          case attrValueSpace of
+            Err msg -> fail msg
+            Ok (attrSpace, attrValue) ->
+              let thisAttribute = replaceInfo head <| exp_ <| EList sp [
+                 (space0, nameExp),
+                 (attrSpace, attrValue)
+                 ] space0 Nothing space0
+              in
+              attrsToExp head.end tail |> andThen (\tailAttrExp ->
+                case appendToLeft (space0, thisAttribute) tailAttrExp of
+                  Err msg -> fail msg
+                  Ok newExp -> succeed newExp
+              )
+        HTMLParser.HTMLAttributeListExp sp e ->
+           attrsToExp head.end tail |> map (\tailAttrExp ->
+             let appendFun = replaceInfo head <| exp_ <| EVar space0 "++" in
+             withInfo (exp_ <| EApp sp appendFun [
+               withInfo (exp_ <| EApp space0 appendFun [
+                 withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos,
+                 e] InfixApp space0 ) head.start e.end,
+               tailAttrExp] InfixApp space0) head.start tailAttrExp.end
+           )
+
+childrenToExp: Pos.Pos -> List HTMLParser.HTMLNode -> Parser Exp
+childrenToExp lastPos children =
+  case children of
+    [] -> succeed <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
+    head::tail ->
+      htmlToExp head |> andThen (\headExp ->
+        childrenToExp head.end tail |> andThen (\tailExp ->
+          case headExp.val.e__ of
+            EApp _ _ _ _ _ -> -- It was a HTMLListNodeExp
+               let appendFun = withInfo (exp_ <| EVar space0 "++") headExp.end tailExp.start in
+               succeed <| withInfo (exp_ <| EApp space0 appendFun [
+                 headExp, tailExp] InfixApp space0) headExp.start tailExp.end
+            _ ->
+              case appendToLeft (space0, headExp) tailExp of
+                Err msg -> fail msg
+                Ok newExp -> succeed newExp
+        )
+      )
+
+htmlToExp: HTMLParser.HTMLNode -> Parser Exp
+htmlToExp node =
+  case node.val of
+    HTMLParser.HTMLInner content ->
+      case Regex.find (Regex.All) forbiddenTagsInHtmlInner content of
+        [] -> succeed <| htmlText node content
+        l ->
+          succeed <| htmlText node <| Regex.replace (Regex.All) forbiddenTagsInHtmlInner (\_ -> "") content
+          --fail <| "Line " ++ toString node.start.line ++ ", an inner html should not contain closing tags : " ++ (l |> List.map (\m -> m.match) |> String.join ",")
+    HTMLParser.HTMLElement tagName attrs sp0 endOpeningStyle children closingStyle ->
+      case (closingStyle, endOpeningStyle) of
+        --(HTMLParser.ForgotClosing, _)   -> fail <| "Line " ++ toString node.start.line ++ " there is a missing closing tag </" ++ HTMLParser.unparseTagName tagName ++ ">"
+        --(_, HTMLParser.SlashEndOpening) -> fail <| "Line " ++ toString node.start.line ++ " don't use / because <" ++ HTMLParser.unparseTagName tagName ++ "> is not an auto-closing tag and requires in any case a </" ++ HTMLParser.unparseTagName tagName ++ ">"
+        _ ->
+          let endPos = case tagName of
+            HTMLParser.HTMLTagString v -> v.end
+            HTMLParser.HTMLTagExp e -> e.end
+          in
+          attrsToExp endPos attrs |>
+          andThen (\finalattrs ->
+            childrenToExp { line = sp0.end.line, col = sp0.end.col + (if endOpeningStyle == HTMLParser.RegularEndOpening then 1 else 2) } children |>
+              andThen (\finalchildren ->
+                 succeed <| htmlnode node tagName finalattrs sp0 finalchildren
+                   (closingStyle == HTMLParser.AutoClosing)
+                   (closingStyle == HTMLParser.VoidClosing) <|
+                   case closingStyle of
+                     HTMLParser.RegularClosing sp -> sp
+                     _ -> space0
+              )
+            )
+    HTMLParser.HTMLComment commentStyle ->
+      fail <| "Line " ++ toString node.start.line ++ ": comments are not supported by Elm at this moment. Got " ++ HTMLParser.unparseNode node
+    HTMLParser.HTMLListNodeExp e ->
+      let appendFun = withInfo (exp_ <| EVar space0 "++") node.start node.start in
+      succeed <| withInfo (exp_ <| EApp space0 appendFun [
+        withInfo (exp_ <| EList space0 [] space0 Nothing space0) node.start node.start,
+        withInfo (exp_ <| EApp space1 (withInfo (exp_ <| EVar space1  "__mbwraphtmlnode__") e.start e.start) [e] SpaceApp space0) e.start e.end
+        ] InfixApp space0 ) node.start e.end
+
+wrapWithSyntax: ParensStyle -> Parser Exp -> Parser Exp
+wrapWithSyntax parensStyle parser =
+  succeed (\e -> withInfo (exp_ <| EParens space0 e parensStyle space0) e.start e.end)
+  |= parser
+
+htmlliteral: SpacePolicy -> Parser Exp
+htmlliteral sp =
+  delayedCommitMap (\space newExp ->
+          withInfo (exp_ <| EParens space newExp HtmlSyntax space0) newExp.start newExp.end)
+     sp.first
+    ((succeed identity
+    |. (lookAhead <| (delayedCommit
+         (symbol "<")
+         (oneOf [identifier, source <| symbol "@"])))
+    |= HTMLParser.parseOneNode (HTMLParser.Interpolation
+      { attributevalue = inContext "HTML attribute value" << wrapWithSyntax ElmSyntax << simpleExpression
+      , attributelist = inContext "HTML special attribute list" << wrapWithSyntax ElmSyntax << simpleExpression
+      , childlist = inContext "HTML special child list" << wrapWithSyntax ElmSyntax << simpleExpression
+      , tagName = inContext "HTML special tag name" << wrapWithSyntax ElmSyntax << simpleExpression
+      })) |> andThen htmlToExp)
 
 --------------------------------------------------------------------------------
 -- General Base Values
@@ -1951,6 +2117,7 @@ simpleExpression sp =
   oneOf
     [ constantExpression sp
     , lazy <| \_ -> multiLineInterpolatedString sp
+    , lazy <| \_ -> htmlliteral sp
     , baseValueExpression sp
     , lazy <| \_ -> function sp
     , lazy <| \_ -> (addSelections sp <| list sp)
@@ -2658,7 +2825,7 @@ freshen e =
   -- let _ = Debug.log "All Ids" allIds in
   let idsToPreserve = Set.diff allIds duplicateIds in
   -- let _ = Debug.log "Ids to preserve" idsToPreserve in
-  let startK      = (List.maximum (initK :: Set.toList allIds) |> Utils.fromJust) + 1 in
+  let startK      = (List.maximum (initK :: Set.toList allIds) |> Utils.fromJust_ "freshen") + 1 in
   let (result, _) = freshenPreserving idsToPreserve startK e in
   -- let _ = Debug.log ("Freshened result:\n" ++ LangUnparser.unparseWithIds result) () in
   result
@@ -2760,7 +2927,7 @@ freshenPatPreserving idsToPreserve initK p =
 maxId : Exp -> Int
 maxId exp =
   let ids = allIds exp in
-  List.maximum (initK :: Set.toList ids) |> Utils.fromJust
+  List.maximum (initK :: Set.toList ids) |> Utils.fromJust_ "maxId"
 
 -- Excludes EIds, PIds, and locIds less than initK (i.e. no prelude locs or dummy EIds)
 allIds : Exp -> Set.Set Int

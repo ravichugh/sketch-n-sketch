@@ -91,3 +91,9 @@ evaluate s = Native.ImpureGoodies.evaluate s
 
 log: String -> String
 log s = Native.ImpureGoodies.log s
+
+htmlunescape: String -> String
+htmlunescape s = Native.ImpureGoodies.htmlunescape s
+
+htmlescape: String -> String
+htmlescape s = Native.ImpureGoodies.htmlescape s

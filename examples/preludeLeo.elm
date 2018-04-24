@@ -142,7 +142,8 @@ LensLess =
       Nothing -> filterMap f tail
       Just newHead -> newHead :: filterMap f tail
   in
-  { List = {
+  { appendStrDef = """letrec append a b = case a of [] -> b; (h::t) -> h :: append t b in """
+    List = {
       append = append
       split = split
       take = take
@@ -1539,6 +1540,18 @@ Html =
         , [textNode name]
       ]
   in
+  let observeCopyValueToAttribute query attribute =
+    <script>
+      function handleMutation(mutations) {
+        mutations.forEach(function(mutation) {
+          mutation.target.value = mutation.target.getAttribute("@attribute");
+        }) }
+      var textAreasObserver = new MutationObserver(handleMutation);
+      var textAreas = document.querySelectorAll(@query);
+      for (i = 0; i &lt; textAreas.length; i++)
+        textAreasObserver.observe(textAreas[i], {attributes: true});
+    </script>
+  in
   { textNode = textNode
     p = textElementHelper "p"
     th = textElementHelper "th"
@@ -1565,6 +1578,7 @@ Html =
     select = select
     checkbox = checkbox
     button = button
+    observeCopyValueToAttribute = observeCopyValueToAttribute
   }
 
 -- TODO remove this; add as imports as needed in examples

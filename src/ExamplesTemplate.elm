@@ -200,6 +200,7 @@ LITTLE_TO_ELM target_deuce
 LITTLE_TO_ELM battery_deuce
 LITTLE_TO_ELM coffee_deuce
 LITTLE_TO_ELM mondrian_arch_deuce
+LEO_TO_ELM cat
 
 --------------------------------------------------------------------------------
 -- Deuce User Study Files
@@ -448,6 +449,7 @@ otherCategory =
     , makeExample "Balance Scale" balanceScale
     , makeExample "Pencil Tip" pencilTip
     , makeExample "Calendar Icon" calendarIcon
+    , makeLeoExample "SVG Cat" cat
     ]
   )
 

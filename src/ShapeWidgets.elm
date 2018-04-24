@@ -90,17 +90,19 @@ polyKindGenericFeatures kind attrs =
           (\i -> [PointFeature (Point i), PointFeature (Midpoint i)])
           (List.range 1 (List.length pts))
       _ ->
-        err "polyKindGenericFeatures: points not found"
+        err "points not found"
   else if kind == "path" then
     case (Utils.find cap attrs "d").interpreted of
       LangSvg.APath2 (_, pathCounts) ->
         List.concatMap
           (\i -> [PointFeature (Point i)])
           (List.range 1 (pathCounts.numPoints))
+      LangSvg.AString content ->
+        []
       _ ->
-        err "polyKindGenericFeatures: d not found"
+        err "d not a string or a path"
   else
-    err <| "polyKindGenericFeatures: " ++ kind
+    err <| "" ++ kind
 
 genericFeaturesOfShape : ShapeKind -> List Attr -> List GenericFeature
 genericFeaturesOfShape kind attrs =

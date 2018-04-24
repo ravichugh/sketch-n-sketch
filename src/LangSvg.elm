@@ -698,6 +698,9 @@ buildSvgSimple_ tree i  =
 
 toNum a = case a.interpreted of
   ANum nt -> nt
+  AString st -> case String.toFloat st of
+    Ok nt -> (nt, dummyTrace)
+    Err msg -> expectedButGotCrash ("a number (got parse error " ++ msg ++ ")") (strAVal a)
   _       -> expectedButGotCrash "a number" (strAVal a)
 
 toColorNum a = case a.interpreted of
@@ -706,6 +709,9 @@ toColorNum a = case a.interpreted of
 
 toNumIsh a = case a.interpreted of
   ANum nt           -> nt
+  AString st -> case String.toFloat st of
+    Ok nt -> (nt, dummyTrace)
+    Err msg -> expectedButGotCrash ("a number (got parse error " ++ msg ++ ")") (strAVal a)
   AColorNum (nt, _) -> nt
   _       -> expectedButGotCrash "a number or color number" (strAVal a)
 
@@ -713,15 +719,15 @@ toPoints a = case a.interpreted of
   APoints pts -> pts
   _           -> expectedButGotCrash "a list of points" (strAVal a)
 
-toPath : AVal -> (List PathCmd, PathCounts)
+toPath : AVal -> Maybe (List PathCmd, PathCounts)
 toPath a = case a.interpreted of
-  APath2 p -> p
+  APath2 p -> Just p
+  AString c -> Nothing
   _        -> expectedButGotCrash "path commands" (strAVal a)
 
 toTransformRot a = case a.interpreted of
   ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
   _                         -> expectedButGotCrash "a rotation transform" (strAVal a)
-
 
 -- Avoid using these going foward: no way to determine provenance.
 aVal av_      = { interpreted = av_, val = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] } }
@@ -769,7 +775,8 @@ pathIndexPoints nodeAttrs =
   let cmds =
     Utils.find ("pathPoints nodeAttrs looking for \"d\" in " ++ (toString nodeAttrs)) nodeAttrs "d"
     |> toPath
-    |> Tuple.first
+    |> Maybe.map Tuple.first
+    |> Maybe.withDefault []
   in
   let pts =
     cmds

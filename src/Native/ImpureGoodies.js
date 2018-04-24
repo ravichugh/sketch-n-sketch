@@ -116,5 +116,41 @@ var _user$project$Native_ImpureGoodies = {
     log : function(string) {
       console.log(string);
       return string;
-    }
+    },
+
+    htmlescape: (function() {
+      var tagsToReplace = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;'
+      };
+
+      function replaceTag(tag) {
+        return tagsToReplace[tag] || tag;
+      }
+      function safe_tags_replace(str) {
+        return str.replace(/[&<>]/g, replaceTag);
+      }
+      return function(string) {
+        return safe_tags_replace(string);
+      }
+    })(),
+
+    htmlunescape: (function() {
+      var tagsToReplace = {
+        '&amp;': '&',
+         '&lt;': '<',
+        '&gt;': '>'
+      };
+
+      function replaceTag(tag) {
+        return tagsToReplace[tag] || tag;
+      }
+      function safe_tags_replace(str) {
+        return str.replace(/&(amp|lt|gt);/g, replaceTag);
+      }
+      return function(string) {
+        return safe_tags_replace(string);
+      }
+    })()
 };

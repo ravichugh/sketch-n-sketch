@@ -37,6 +37,7 @@ import UpdateRegex exposing (..)
 import UpdatedEnv exposing (UpdatedEnv)
 import ValBuilder as Vb
 import ValUnbuilder as Vu
+import ExpUnbuilder as Eu
 import ImpureGoodies
 import HTMLValParser
 import HTMLParser
@@ -66,14 +67,14 @@ update callbacks forks updateStack =
   -- At the end of callbacks, there are all the forks that can be explored later.
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e oldVal out diffs mb ->
-       {--}
+       {--
       let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
        --}
       getUpdateStackOp env e oldVal out diffs |>
       update (LazyList.maybeCons mb callbacks) forks
 
     UpdateResultS fUpdatedEnv fOut mb -> -- Let's consume the stack !
-       {--}
+       {--
       let _ = Debug.log (String.concat [
         "update final result: ", unparse fOut.val,
         {-" -- env = " , UpdatedEnv.show fUpdatedEnv-} ", modifs=", if fUpdatedEnv.changes == [] then "\nenvironment unchanged" else envDiffsToString fUpdatedEnv.val fUpdatedEnv.val fUpdatedEnv.changes,
@@ -181,7 +182,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                             (ws1, e1)::t -> f ws1 e1 :: t
                             [] -> []
                        in
-                       let finalElems = List.reverse <| reverseInsert finalElemsToCollect revElems in
+                       let finalElems = List.reverse <| Utils.reverseInsert finalElemsToCollect revElems in
                        let updatedE= case List.reverse revEDiffs of
                          [] -> UpdatedExp e Nothing
                          l -> UpdatedExp (replaceE__ e <| EList sp1 finalElems sp2 Nothing sp3) (Just <| EListDiffs l)
@@ -294,13 +295,13 @@ getUpdateStackOp env e oldVal newVal diffs =
                                   , (if index + insertionIndex == 0 then valToWSExpHead    else valToWSExpTail) inserted) ) inserted
                              in
                              let elemsToAdd = insertedExp in
-                             updateDiffs i collectedUpdatedEnv (UpdateUtils.reverseInsert elemsToAdd revElems) ((i, ListElemInsert count)::revEDiffs) elemsToCollect changeElementAfterInsert originalValues remainingNewVals modiftail
+                             updateDiffs i collectedUpdatedEnv (Utils.reverseInsert elemsToAdd revElems) ((i, ListElemInsert count)::revEDiffs) elemsToCollect changeElementAfterInsert originalValues remainingNewVals modiftail
                        else --((i, ListElemDelete count)::revEDiffs)
                          case changeWhitespaceNext of
                            Nothing ->
                              let count = i1 - i in
                              let (skipped, remaining) = Utils.split count elemsToCollect in
-                             updateDiffs i1 collectedUpdatedEnv (UpdateUtils.reverseInsert skipped revElems) revEDiffs remaining Nothing (List.drop count originalValues) (List.drop count newValues) ldiffs
+                             updateDiffs i1 collectedUpdatedEnv (Utils.reverseInsert skipped revElems) revEDiffs remaining Nothing (List.drop count originalValues) (List.drop count newValues) ldiffs
                            Just f ->
                              case (elemsToCollect, originalValues, newValues) of
                                ((sp, hdElem)::tlToCollect, origValue::origTail, newValue::newValuesTail) ->
@@ -334,7 +335,7 @@ getUpdateStackOp env e oldVal newVal diffs =
 
                        let updatedList = case List.reverse revEDiffs of
                          [] -> UpdatedExp e Nothing
-                         l -> let finalElems = List.reverse <| UpdateUtils.reverseInsert elemsToCollect revElems in
+                         l -> let finalElems = List.reverse <| Utils.reverseInsert elemsToCollect revElems in
                               UpdatedExp (replaceE__ e <| EList sp1 finalElems sp2 (Just tail) sp3) (Just <| EChildDiffs l)
                        in
                        updateResult collectedEnv updatedList
@@ -342,7 +343,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                        if i >= elemSize then
                          let (finalElems, changesInOrder) =  case List.reverse revEDiffs of
                            [] -> (elems, [])
-                           l -> (List.reverse <| UpdateUtils.reverseInsert elemsToCollect revElems, l)
+                           l -> (List.reverse <| Utils.reverseInsert elemsToCollect revElems, l)
                          in
                          let valsToRemove = List.length elemsToCollect in
                          let tailOldVal = List.drop valsToRemove origVals in
@@ -701,7 +702,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                           rewrite2 (\ex ey -> replaceE__ e <| EOp space1 (withDummyRange Plus) [ex, ey] space0)
                         _ ->
                           rewrite2  (\ex ey -> replaceE__ e <| EApp space1 (replaceE__ e1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
-               _ -> UpdateCriticalError s
+               _ -> UpdateCriticalError ("++ should be called with two arguments, was called on "++toString (List.length e2s)++". " ++ s)
            Ok ((v1, _),_) ->
              case v1.v_ of
                VClosure recName e1ps eBody env_ as vClosure ->
@@ -1281,7 +1282,26 @@ getUpdateStackOp env e oldVal newVal diffs =
      ETypeAlias a b c exp d ->
        updateContinue "ETypeAlias" env exp oldVal newVal diffs <| \nv ne -> updateResult nv <| UpdatedExp (replaceE__ e <| ETypeAlias a b c ne.val d) (UpdateUtils.wrap 0 ne.changes)
      EParens sp1 exp pStyle sp2->
-       updateContinue "EParens" env exp oldVal newVal diffs <| \nv ne -> updateResult nv <| UpdatedExp (replaceE__ e <| EParens sp1 ne.val pStyle sp2) (UpdateUtils.wrap 0 ne.changes)
+       updateContinue "EParens" env exp oldVal newVal diffs <| \nv ne ->
+         let continue ne =
+           updateResult nv <| UpdatedExp (replaceE__ e <| EParens sp1 ne.val pStyle sp2) (UpdateUtils.wrap 0 ne.changes)
+         in
+         case pStyle of
+           HtmlSyntax -> -- Here we convert all newly inserted elements that are style to a string instead of a list of lists.
+             continue <| replaceInsertions ne <| \inserted ->
+               case inserted.val.e__ of
+                 EList sp0 [(spe1, e1), (spe2, e2)] sp1 Nothing sp2 ->
+                   case (eStrUnapply e1, Eu.list (Eu.viewtuple2 Eu.string Eu.string) e2) of
+                     (Just "style", Ok styles) ->
+                       Just <| replaceE__ inserted <| EList sp0 [(spe1, e1), (space0,
+                         replaceE__ e2 <| EApp space0 (eVar "__mbstylesplit__") [
+                           replaceE__ e2 <| EBase space0 <| EString "\"" <| LangParserUtils.implodeStyleValue <|
+                             List.filterMap (\(name, value) ->
+                               let trimmedName = String.trim name in
+                               if trimmedName /= "" then Just (trimmedName, String.trim value) else Nothing) <| styles] SpaceApp space0)] sp1 Nothing sp2
+                     _ -> Nothing
+                 _ -> Nothing
+           _ -> continue ne
      {--ETypeCase sp1 e1 tbranches sp2 ->
        case eval_ syntax env (e::bt) e1 of
          Err s -> UpdateCriticalError s
