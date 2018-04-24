@@ -924,8 +924,8 @@ offsetFromStrings lm startOldReferential s1 s2 =
 --  let (lineDelta, colDelta) = offsetFromStrings sBefore sAfter in
 --  (end, (lineoffset + lineDelta, if lineDelta >= 0 then colDelta else coloffset + colDelta))
 
-listDiffsToString2: String->  (Exp -> String) -> String -> LastEdit -> Pos   -> List (WS, Exp) -> List (WS, Exp) -> ListDiffs EDiffs -> (String, ((LastEdit, Pos), List Exp))
-listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  originals         modifieds         diffs =
+listDiffsToString2: ParensStyle-> String->   (Exp -> String) -> String -> LastEdit -> Pos   -> List (WS, Exp) -> List (WS, Exp) -> ListDiffs EDiffs -> (String, ((LastEdit, Pos), List Exp))
+listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEdit    lastPos  originals         modifieds         diffs =
   if List.isEmpty diffs then ("[Internal error]: Empty " ++ structName ++ " diff]", ((lastEdit, lastPos), [])) else
   let aux: Int -> LastEdit -> Pos ->  List (WS, Exp) -> List (WS, Exp) -> ListDiffs EDiffs -> (String, List Exp) -> (String, ((LastEdit, Pos), List Exp))
       aux  i      lastEdit    lastPos original          modifieds         diffs               (accStr, accList) =
@@ -977,7 +977,7 @@ listDiffsToString2 structName elementDisplay     indent    lastEdit    lastPos  
                         let newElemEnd = offsetPosition newLastEdit ho.end in
                         ("", ((newLastEdit, ho.end), []))
                        _ ->
-                        eDiffsToStringPositions ElmSyntax indent lastEdit ho hm diff
+                        eDiffsToStringPositions renderingStyle indent lastEdit ho hm diff
                   in
                   (accStr ++ incAcc, newHighlights++accList)  |>
                   aux (i + 1) newLastEdit lastPos2 to tm diffsTail
@@ -992,7 +992,7 @@ stringDiffsToString2: ParensStyle -> String -> LastEdit -> Pos   -> String -> St
 stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar original  modified  diffs =
   let renderChars = case renderingStyle of
      LongStringSyntax -> ElmUnparser.unparseLongStringContent
-     HtmlSyntax -> ElmUnparser.unparseLongStringContent
+     HtmlSyntax -> ElmUnparser.unparseHtmlTextContent
      _ -> ParserUtils.unparseStringContent quoteChar
   in
   let initialLine = lastPos.line in
@@ -1001,6 +1001,8 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
       aux lastEdit lastPos lastEnd offset diffs (revAcc, revAccExp) = case diffs of
     [] -> (String.join ", " (List.reverse revAcc), ((lastEdit, lastPos), List.reverse revAccExp))
     StringUpdate start end replacement :: tail ->
+       --let _ = Debug.log ("string diffs on display") (diffs) in
+       --let _ = Debug.log ("rendering style") (renderingStyle) in
        -- We merge changes if the length of the "same" string is less than the length of the previous change or the next change.
        -- Was useful when the diff was not colored.
        --let mbMergeDiffs = case tail of
@@ -1099,7 +1101,7 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
           (EList _ originals _ _ _, EList _ modified _ _ _) ->
             --"\n" ++ indent ++ "Line " ++ toString origExp.start.line ++ " col " ++ toString origExp.start.col ++ " Change in a list:" ++
             let lastPos = Pos origExp.start.line (origExp.start.col + 1) in
-            listDiffsToString2 "list" (Syntax.unparser Syntax.Elm) indent lastEdit lastPos originals modified diffs
+            listDiffsToString2 renderingStyle "list" (Syntax.unparser Syntax.Elm) indent lastEdit lastPos originals modified diffs
           _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects lists here, got " ++ Syntax.unparser Syntax.Elm origExp ++ ", " ++ Syntax.unparser Syntax.Elm modifExp,
             ((lastEdit, offsetPosition lastEdit origExp.end), []))
       EStringDiffs diffs ->
@@ -1131,6 +1133,7 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
           EParens _ _ r _ -> r
           _ -> renderingStyle
         in
+        --let _ = Debug.log ("current renderingStyle:" ++ toString renderingStyle ++ ", new renderingStyle : " ++ toString newRenderingStyle ++ ", currentExpression:" ++ toString origExp) () in
         let (msg, (newLastEdit, newExps)) = tupleDiffsToString2 newRenderingStyle mbExpName childIndent lastEdit (childExps origExp) (childExps modifExp) diffs in
         let newLastPos = offsetPosition newLastEdit origExp.end in
         (msg, ((newLastEdit, newLastPos), newExps))

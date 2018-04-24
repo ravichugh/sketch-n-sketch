@@ -3,6 +3,7 @@ module ElmUnparser exposing
   , unparsePattern
   , unparseType -- Experimental
   , unparseLongStringContent
+  , unparseHtmlTextContent
   )
 
 import Lang exposing (..)
@@ -883,11 +884,15 @@ unparseHtmlChildList childExp =
             _  -> "@(" ++ unparse childExp ++ ")"
         _  -> "@(" ++ unparse childExp ++ ")"
 
+htmlContentRegexEscape = Regex.regex <| "@"
+unparseHtmlTextContent content =
+  ImpureGoodies.htmlescape <| Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@") <| content
+
 unparseHtmlNode: Exp -> String
 unparseHtmlNode e = case e.val.e__ of
   EList _ [text, (_, content)] _ Nothing _ ->
     case content.val.e__ of
-      EBase _ (EString _ content) -> ImpureGoodies.htmlescape content
+      EBase _ (EString _ content) -> unparseHtmlTextContent content
       EVar _ varname -> "@" ++ varname
       x -> "@[" ++ unparse e ++ "]"
   EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] spaceBeforeTail Nothing spaceAfterTagClosing ->

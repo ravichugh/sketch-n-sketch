@@ -266,7 +266,14 @@ parseHTMLAttribute parsingMode =
             |= attributelist (SpacePolicy nospace nospace)),
           defaultAttributeParser]
 
-
+mergeInners: List HTMLNode -> List HTMLNode
+mergeInners children = case children of
+  h1 :: h2 :: tail ->
+    case (h1.val, h2.val) of
+      (HTMLInner s1, HTMLInner s2) -> mergeInners (withInfo (HTMLInner (s1++s2)) h1.start h2.end :: tail)
+      (_, HTMLInner s2) -> h1 :: mergeInners (h2 :: tail)
+      _ -> h1 :: h2 :: mergeInners tail
+  _ -> children
 
 -- Always succeed if the string starts with <(letter)
 parseHTMLElement: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
@@ -275,7 +282,7 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
     nodeElementStart parsingMode
     |> andThen (\(tagNode, tagName) ->
        succeed (\attrs sp1 (endOpeningStyle, children, closingStyle)  ->
-             HTMLElement tagNode attrs sp1 endOpeningStyle children closingStyle)
+             HTMLElement tagNode attrs sp1 endOpeningStyle (mergeInners children) closingStyle)
        |= repeat zeroOrMore (parseHTMLAttribute parsingMode)
        |= attributeSpaces
        |= oneOf ((
@@ -320,9 +327,12 @@ parseNode parsingMode surroundingTagNames namespace =
     case parsingMode of
       Raw -> defaultParsers
       Interpolation {childlist} ->
-        (trackInfo <| (succeed HTMLListNodeExp
+        (trackInfo <| oneOf [
+          succeed (\_ -> HTMLInner "@")
+          |= symbol "@@"
+        , succeed HTMLListNodeExp
         |. symbol "@"
-        |= childlist (SpacePolicy nospace nospace)))::defaultParsers
+        |= childlist (SpacePolicy nospace nospace)])::defaultParsers
 
 
 
