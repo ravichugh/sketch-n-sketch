@@ -672,7 +672,9 @@ unparse e =
         HtmlSyntax ->
           wsBefore.val
             ++ unparseHtmlNode innerExpression
-        ElmSyntax -> -- We just unparse the inner expression as regular parentheses
+        ElmSyntax ->
+           -- We just unparse the inner expression as regular parentheses
+           -- This is normally never called from here.
           unparse <| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
 
     EHole wsBefore val ->

@@ -1295,7 +1295,10 @@ getUpdateStackOp env e oldVal newVal diffs =
                      (Just "style", Ok styles) ->
                        Just <| replaceE__ inserted <| EList sp0 [(spe1, e1), (space0,
                          replaceE__ e2 <| EApp space0 (eVar "__mbstylesplit__") [
-                           replaceE__ e2 <| EBase space0 <| EString "\"" <| LangParserUtils.implodeStyleValue styles] SpaceApp space0)] sp1 Nothing sp2
+                           replaceE__ e2 <| EBase space0 <| EString "\"" <| LangParserUtils.implodeStyleValue <|
+                             List.filterMap (\(name, value) ->
+                               let trimmedName = String.trim name in
+                               if trimmedName /= "" then Just (trimmedName, String.trim value) else Nothing) <| styles] SpaceApp space0)] sp1 Nothing sp2
                      _ -> Nothing
                  _ -> Nothing
            _ -> continue ne
