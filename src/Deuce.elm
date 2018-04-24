@@ -2,7 +2,7 @@
 -- This modules provides the Deuce overlay for the View.
 --------------------------------------------------------------------------------
 
-module Deuce exposing (overlay)
+module Deuce exposing (overlay, diffOverlay)
 
 import List
 import String
@@ -444,6 +444,20 @@ polygonOpacity : ColorScheme -> Float
 polygonOpacity colorScheme =
   0.2
 
+diffColor : ColorScheme -> String -> Color
+diffColor colorScheme tag =
+  case colorScheme of
+    Light ->
+      case tag of
+        "+" -> { r = 0, g = 255, b = 0}
+        "-" -> { r = 255, g = 0, b = 0}
+        _ ->   { r = 255, g = 165, b = 0}
+    Dark ->
+      case tag of
+        "+" -> { r = 0, g = 200, b = 0}
+        "-" -> { r = 200, g = 0, b = 0}
+        _ ->   { r = 200, g = 200, b = 100}
+
 objectColor : ColorScheme -> Color
 objectColor colorScheme =
   case colorScheme of
@@ -703,6 +717,24 @@ codeObjectPolygon codeInfo codeObject color =
             ]
         ]
 
+
+diffpolygon: CodeInfo -> Exp -> Svg Msg
+diffpolygon codeInfo exp =
+  let color = diffColor codeInfo.displayInfo.colorScheme <| Maybe.withDefault "+" <| Lang.eStrUnapply exp in
+  let thehull = hullPoints <| hull codeInfo True False exp.start.col exp.start.line exp.end.col exp.end.line in
+    Svg.polygon
+        [ SAttr.points thehull
+        , SAttr.strokeWidth <|
+            strokeWidth codeInfo.displayInfo.colorScheme
+        , SAttr.stroke <|
+            rgbaString color 1
+        , SAttr.fill <|
+            rgbaString
+              color
+              (polygonOpacity codeInfo.displayInfo.colorScheme)
+        ]
+        []
+
 expPolygon
   : CodeInfo -> Exp -> List (Svg Msg)
 expPolygon codeInfo e =
@@ -762,6 +794,10 @@ patTargetPolygon codeInfo ba ws e pt =
       whitespaceColor codeInfo.displayInfo.colorScheme
   in
     codeObjectPolygon codeInfo codeObject color
+
+diffpolygons: CodeInfo -> List Exp -> List (Svg Msg)
+diffpolygons codeInfo exps =
+  List.map (diffpolygon codeInfo) exps
 
 polygons : CodeInfo -> Exp -> List (Svg Msg)
 polygons codeInfo ast =
@@ -834,3 +870,39 @@ overlay model =
       ]
       ( polygons codeInfo ast
       )
+
+diffOverlay : Model -> List Exp -> Svg Msg
+diffOverlay model exps =
+  let
+    displayInfo =
+      { lineHeight =
+          model.codeBoxInfo.lineHeight
+      , characterWidth =
+          model.codeBoxInfo.characterWidth
+      , colorScheme =
+          model.colorScheme
+      }
+    (untrimmedLineHulls, trimmedLineHulls, maxLineLength) =
+      lineHullsFromCode displayInfo model.code
+    codeInfo =
+      { displayInfo =
+          displayInfo
+      , untrimmedLineHulls =
+          untrimmedLineHulls
+      , trimmedLineHulls =
+          trimmedLineHulls
+      , deuceState =
+          model.deuceState
+      , patMap =
+          Dict.empty
+      , maxLineLength =
+          maxLineLength
+      }
+    leftShift =
+      model.codeBoxInfo.contentLeft + SleekLayout.deuceOverlayBleed
+  in
+    Svg.g
+      [ SAttr.transform <|
+          "translate(" ++ toString leftShift ++ ", 0)"
+      ]
+      ( diffpolygons codeInfo exps)

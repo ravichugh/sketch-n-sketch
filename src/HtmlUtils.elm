@@ -22,10 +22,14 @@ onClickWithoutPropagation handler =
 
 onRightClick : msg -> Html.Attribute msg
 onRightClick handler =
+  onRightClickPreventDefault True handler
+
+onRightClickPreventDefault : Bool -> msg -> Html.Attribute msg
+onRightClickPreventDefault preventDefault handler =
   E.onWithOptions
     "contextmenu"
     { stopPropagation = True
-    , preventDefault = True
+    , preventDefault = preventDefault
     }
     (Json.Decode.succeed handler)
 

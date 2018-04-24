@@ -51,6 +51,10 @@ update msg model =
       ImpureGoodies.tryCatch "NeedSolution"
         (\()                            -> Controller.update msg model)
         (\(Solver.NeedSolution problem) -> SolverServer.askForSolution problem msg model)
+    NewModelAndCmd _ _ ->
+      ImpureGoodies.tryCatch "NeedSolution"
+        (\()                            -> Controller.update msg model)
+        (\(Solver.NeedSolution problem) -> SolverServer.askForSolution problem msg model)
 
 initCmd : Cmd Msg
 initCmd =
@@ -84,6 +88,9 @@ subscriptions model =
     , AceCodeBox.receiveEditorState Controller.msgAceUpdate
     , AceCodeBox.userHasTyped (always Controller.msgUserHasTyped)
     , OutputCanvas.receiveOutputCanvasState Controller.msgOutputCanvasUpdate
+    , OutputCanvas.receiveValueUpdate Controller.msgValuePathUpdate
+    , OutputCanvas.maybeAutoSync Controller.msgAutoSync
+    , OutputCanvas.clearPreviewDiff Controller.msgClearPreviewDiff
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.receiveMessage
         Controller.fileMessageHandler

@@ -1,6 +1,6 @@
 module Provenance exposing (..)
 
-import FastParser
+import ElmParser as Parser
 import Lang exposing (..)
 import LangTools
 import LangUnparser
@@ -40,6 +40,8 @@ expNonControlFlowChildren exp =
     EFun _ _ _ _                                 -> [] -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
     EOp _ _ _ _                                  -> childExps exp
     EList _ _ _ _ _                              -> childExps exp
+    ERecord _ _ _ _                              -> childExps exp
+    ESelect _ _ _ _ _                            -> childExps exp
     EApp _ func es _ _                           -> es -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
     ELet _ _ _ _ _ boundExp _ body _             -> [body] -- lets are actually pass-through and won't appear the val provenance tree; not sure it matters what we return here
     EIf _ predicate _ trueBranch _ falseBranch _ -> [trueBranch, falseBranch]
@@ -50,6 +52,7 @@ expNonControlFlowChildren exp =
     ETyp _ _ _ _ _                               -> childExps exp
     EColonType _ _ _ _ _                         -> childExps exp
     ETypeAlias _ _ _ _ _                         -> childExps exp
+    ETypeDef _ _ _ _ _ _ _                       -> childExps exp
     EParens _ _ _ _                              -> childExps exp
     EHole _ _                                    -> []
 
@@ -216,7 +219,7 @@ valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter val
 valTreeToAllProgramEIdInterpretations_ : Bool -> (Exp -> Bool) -> Val -> List (Set EId)
 valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  let perhapsThisExp = if FastParser.isProgramEId exp.val.eid && expFilter exp then [Set.singleton exp.val.eid] else [] in
+  let perhapsThisExp = if Parser.isProgramEId exp.val.eid && expFilter exp then [Set.singleton exp.val.eid] else [] in
   basedOnVals
   |> List.map (valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter)
   |> (if ignoreUninterpretedSubtress then List.filter (not << List.isEmpty) else identity)
@@ -327,7 +330,7 @@ isRelevantParentPoint expFilter pointVals parent =
   let (Provenance _ parentExp _) = parent.provenance in
   -- Former condition should always be true; Eval won't add parent unless it's in the program.
   -- Leave it here though: eventually we will narrow contexts further.
-  FastParser.isProgramEId parentExp.val.eid && List.member parent pointVals && expFilter parentExp
+  Parser.isProgramEId parentExp.val.eid && List.member parent pointVals && expFilter parentExp
 
 
 -- Provide a list of vals known to be points.
@@ -352,7 +355,7 @@ valTreeToMostProximalProgramPointEIdInterpretation expFilter pointVals val =
       if List.any ((/=) []) pointValsUsed then
         -- Child interpretations contain a point, use as given.
         (Utils.unionAll childrenInterpretations, Utils.unionAllAsSet pointValsUsed)
-      else if FastParser.isProgramEId exp.val.eid && expFilter exp then
+      else if Parser.isProgramEId exp.val.eid && expFilter exp then
         -- No point intepretation yet, most proximal intepretation we can give is ourself.
         (Set.singleton exp.val.eid, [])
       else
@@ -387,7 +390,7 @@ valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals val =
         -- No point intepretation yet.
         if childrenInterpretations |> List.any (not << Set.isEmpty) then
           (Utils.unionAll childrenInterpretations, [])
-        else if FastParser.isProgramEId exp.val.eid && expFilter exp then
+        else if Parser.isProgramEId exp.val.eid && expFilter exp then
           (Set.singleton exp.val.eid, [])
         else
           (Set.empty, [])
@@ -397,7 +400,7 @@ valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals val =
 valTreeToMostProximalProgramEIdInterpretation : (Exp -> Bool) -> Val -> Set EId
 valTreeToMostProximalProgramEIdInterpretation expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  if FastParser.isProgramEId exp.val.eid && expFilter exp then
+  if Parser.isProgramEId exp.val.eid && expFilter exp then
     Set.singleton exp.val.eid
   else
     basedOnVals
@@ -419,7 +422,7 @@ valTreeToMostDistalProgramEIdInterpretation expFilter val =
   --   Utils.unionAll childrenInterpretations
   if childrenInterpretations |> List.any (not << Set.isEmpty) then
     Utils.unionAll childrenInterpretations
-  else if FastParser.isProgramEId exp.val.eid && expFilter exp then
+  else if Parser.isProgramEId exp.val.eid && expFilter exp then
     Set.singleton exp.val.eid
   else
     Set.empty
@@ -439,7 +442,7 @@ valTreeToSingleEIdInterpretations program expFilter val =
 valTreeToSingleEIdInterpretationsSlow : Exp -> (Exp -> Bool) -> Val -> List EId
 valTreeToSingleEIdInterpretationsSlow program expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  let perhapsThisExp = if FastParser.isProgramEId exp.val.eid && expFilter exp then [exp.val.eid] else [] in
+  let perhapsThisExp = if Parser.isProgramEId exp.val.eid && expFilter exp then [exp.val.eid] else [] in
   basedOnVals
   |> List.map (valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter)
   |> List.filter (not << List.isEmpty)
@@ -467,13 +470,13 @@ valTreeToSingleEIdInterpretationsSlow program expFilter val =
 interpretationIsNonEmpty : Val -> Bool
 interpretationIsNonEmpty val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  FastParser.isProgramEId exp.val.eid || List.any interpretationIsNonEmpty basedOnVals
+  Parser.isProgramEId exp.val.eid || List.any interpretationIsNonEmpty basedOnVals
 
 
 isPossibleSingleEIdInterpretation : EId -> Val -> Bool
 isPossibleSingleEIdInterpretation eid val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  (exp.val.eid == eid && FastParser.isProgramEId exp.val.eid)
+  (exp.val.eid == eid && Parser.isProgramEId exp.val.eid)
   || let relevantChildren = List.filter interpretationIsNonEmpty basedOnVals in
   case relevantChildren of
     [] -> False

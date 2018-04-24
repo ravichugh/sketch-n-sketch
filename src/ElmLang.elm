@@ -17,7 +17,7 @@ symbols =
     , '/'
     , '*'
     , '='
-    , '.'
+    --, '.' Disallowed to be able to assign records to operator symbols.
     , '<'
     , '>'
     -- Disallow ':' (reserved for colon types)
@@ -42,6 +42,8 @@ isInfixOperator op =
     Pi ->
       False
     DictEmpty ->
+      False
+    DictFromList ->
       False
     Cos ->
       False
@@ -91,5 +93,7 @@ isInfixOperator op =
       False
     NoWidgets ->
       False
-    OptNumToString ->
+    ToStrExceptStr ->
+      False
+    RegexExtractFirstIn ->
       False

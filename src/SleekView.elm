@@ -38,6 +38,7 @@ import Draw
 import LangTools
 import Sync
 import Lang exposing (Exp)
+import LangSvg
 import Syntax
 import File
 import Eval
@@ -324,12 +325,16 @@ hoverMenu title dropdownContent =
     False
     dropdownContent
 
+-- Configuration flag to indicate whether Code and Output Tools
+--   have been run and cached.
+indicateWhetherToolIsCached = False
+
 synthesisHoverMenu : Model -> String -> String -> Msg -> Bool -> Html Msg
 synthesisHoverMenu model resultsKey title onMouseEnter disabled =
   let cached = Dict.member resultsKey model.synthesisResultsDict in
   generalHoverMenu
-    ( if cached -- if desired, can indicate whether this tool has been run and cached
-        then title -- ++ " ✓"
+    ( if cached && indicateWhetherToolIsCached
+        then title ++ " ✓"
         else title
     )
     ( if cached
@@ -400,9 +405,8 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
         italicizeQuotes "'" result.description
       else
         [ Html.text <|
-            -- if desired, can indicate whether this tool has been run and cached
-            if alreadyRun
-              then result.description -- ++ " ✓"
+            if alreadyRun && indicateWhetherToolIsCached
+              then result.description ++ " ✓"
               else result.description
         ]
   in
@@ -633,8 +637,10 @@ menuBar model =
 
     fileMenu =
       menu "File"
-        [ [ simpleTextButton "New" <|
-              Controller.msgAskNew Model.blankTemplate model.needsSave
+        [ [ simpleTextButton "New SVG" <|
+              Controller.msgAskNew Examples.blankSvgTemplate model.needsSave
+          , simpleTextButton "New HTML" <|
+              Controller.msgAskNew Examples.blankHtmlTemplate model.needsSave
           , simpleTextButton "New From Template..." <|
               Controller.msgOpenDialogBox New
           , simpleTextButton "Save As..." <|
@@ -649,14 +655,14 @@ menuBar model =
           ]
         , [ simpleTextButton "Export Code"
               Controller.msgExportCode
-          , simpleTextButton "Export SVG"
+          , simpleTextButton "Export HTML"
               Controller.msgExportSvg
           ]
         , [ simpleTextButton "Import Code..." <|
               Controller.msgOpenDialogBox ImportCode
           , disableableTextButton
               True
-              "Import SVG"
+              "Import HTML"
               Controller.msgNoop
           ]
         ]
@@ -755,7 +761,22 @@ menuBar model =
 
     viewMenu =
       menu "View" <|
-        [ [ disableableTextButton True "Main Layer" Controller.msgNoop
+        [ [ hoverMenu "Output Type"
+              [ simpleTextRadioButton
+                  (model.outputMode == Graphics)
+                  "Graphics"
+                  Controller.msgSetOutputGraphics
+              , simpleTextRadioButton
+                  (isHtmlText model.outputMode)
+                  "HTML (Text)"
+                  Controller.msgSetOutputHtmlText
+              , simpleTextRadioButton
+                  (model.outputMode == ValueText)
+                  "Value (Text)"
+                  Controller.msgSetOutputValueText
+              ]
+          ]
+        , [ disableableTextButton True "Main Layer" Controller.msgNoop
           , disableableTextButton True "Widget Layer" Controller.msgNoop
           , hoverMenu "Ghost Layer" <|
               booleanOption
@@ -903,7 +924,7 @@ menuBar model =
                 "False"
                 Controller.msgSetEnableDeuceTextSelection
           ]
-        , [ hoverMenu "Code Tools Menu Mode"
+        , [ hoverMenu "Code Tools Menu"
               [ simpleTextRadioButton
                   ( case model.codeToolsMenuMode of
                       CTAll ->
@@ -931,6 +952,14 @@ menuBar model =
                   )
                   "Disabled"
                   (Controller.msgSetCodeToolsMenuMode CTDisabled)
+              ]
+          , let toggle =
+              Msg "Toggle Output Tools Menu Mode" <| \m ->
+                { m | outputToolsMenuMode = not m.outputToolsMenuMode }
+            in
+            hoverMenu "Output Tools Menu"
+              [ simpleTextRadioButton model.outputToolsMenuMode "Enabled" toggle
+              , simpleTextRadioButton (not model.outputToolsMenuMode) "Disabled" toggle
               ]
           ]
         , [ hoverMenu "Text Selection Mode"
@@ -1003,15 +1032,27 @@ menuBar model =
                   "Off"
                   Controller.msgStopAutoSynthesisAndClear
               ]
-          , hoverMenu "Output Synchronization"
+          , let msgSetSyncMode mode =
+              Msg "Set Sync Mode" <| \m ->
+                { m | syncMode = mode }
+            in
+            hoverMenu "Output Synchronization"
               [ simpleTextRadioButton
-                  (model.liveSyncDelay == False)
-                  "Live"
-                  (Controller.msgSetLiveSyncDelay False)
+                  (model.syncMode == ValueBackprop True)
+                  "Auto (Value Backpropagation)"
+                  (msgSetSyncMode (ValueBackprop True))
               , simpleTextRadioButton
-                  (model.liveSyncDelay == True)
-                  "Delayed"
-                  (Controller.msgSetLiveSyncDelay True)
+                  (model.syncMode == ValueBackprop False)
+                  "Manual (Value Backpropagation)"
+                  (msgSetSyncMode (ValueBackprop False))
+              , simpleTextRadioButton
+                  (model.syncMode == TracesAndTriggers True)
+                  "Live (Traces / Triggers)"
+                  (msgSetSyncMode (TracesAndTriggers True))
+              , simpleTextRadioButton
+                  (model.syncMode == TracesAndTriggers False)
+                  "Delayed (Traces / Triggers)"
+                  (msgSetSyncMode (TracesAndTriggers False))
               ]
           , hoverMenu "Live Update Heuristics"
               [ simpleTextRadioButton
@@ -1034,6 +1075,7 @@ menuBar model =
                   Controller.msgSetHeuristicsFair
               ]
           ]
+          {-
           , [ hoverMenu "Syntax"
                 [ simpleTextRadioButton
                     ( case model.syntax of
@@ -1055,36 +1097,32 @@ menuBar model =
                     (Controller.msgSetSyntax Syntax.Little)
                 ]
             ]
-        , [ hoverMenu "Output Type"
-              [ simpleTextRadioButton
-                  ( case model.outputMode of
-                      Live ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Graphics"
-                  Controller.msgSetOutputLive
-              , simpleTextRadioButton
-                  ( case model.outputMode of
-                      Print _ ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Text"
-                  Controller.msgSetOutputPrint
-              , simpleTextRadioButton
-                  ( case model.outputMode of
-                      ShowValue ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Value Editor"
-                  Controller.msgSetOutputShowValue
-              ]
-          ]
+        -}
+        ]
+
+    templateNavigation =
+      Html.div
+        [ Attr.class "user-study-info"
+        ]
+        [ textButton
+            { defaultTb
+                | content =
+                    [ Html.span
+                        [ Attr.class "flip"
+                        ]
+                        [ Html.text "▸"
+                        ]
+                    , Html.text " Previous Example"
+                    ]
+                , onClick =
+                    Controller.msgAskPreviousTemplate (reallyNeedsSave model)
+                , disabled =
+                    False
+            }
+        , disableableTextButton
+            False
+            "Next Example ▸"
+            (Controller.msgAskNextTemplate (reallyNeedsSave model))
         ]
 
   in
@@ -1103,12 +1141,10 @@ menuBar model =
             , [snsMenu]
             , [fileMenu]
             , maybeCodeToolsMenu
-            -- , [outputToolsMenu]
+            , if model.outputToolsMenuMode then [outputToolsMenu] else []
             , [viewMenu]
             , [optionsMenu]
-            -- temporary hack: just moving Output Tools menu farther to the right
-            , [Html.span [ Attr.style [ ("width", "200px") ] ] [ ]]
-            , [outputToolsMenu]
+            , [templateNavigation]
             ]
           )
 
@@ -1131,8 +1167,8 @@ menuBar model =
 synthesisResultHoverMenu
   : String -> String -> (List Int) -> Exp -> (List (Html Msg)) -> Html Msg
 synthesisResultHoverMenu resultsKey description elementPath exp nextMenu =
-  generalHoverMenu
-    description
+  generalHtmlHoverMenu
+    "synthesisResult" [ Html.text description ]
     (Controller.msgHoverSynthesisResult resultsKey elementPath)
     (Controller.msgHoverSynthesisResult resultsKey <| allButLast elementPath)
     (Controller.msgSelectSynthesisResult exp)
@@ -1208,7 +1244,7 @@ fileIndicator model =
     filenameHtml =
       Html.text <| Model.prettyFilename WithExtension model
     wrapper =
-      if model.needsSave then
+      if reallyNeedsSave model then
         Html.i
           []
           [ filenameHtml
@@ -1271,8 +1307,8 @@ codePanel model =
       let
         disabled =
           case model.outputMode of
-            Live -> False
-            _    -> True
+            Graphics -> False
+            _        -> True
       in
         disableableTextButton disabled "Clean Up" Controller.msgCleanCode
     emoji =
@@ -1301,7 +1337,7 @@ codePanel model =
       Html.div
         [ Attr.class "emoji"
         ]
-        [ Html.text emoji
+        [ -- Html.text emoji
         ]
     runButton =
       Html.div
@@ -1316,7 +1352,8 @@ codePanel model =
         ] <|
         [ undoButton
         , redoButton
-        , cleanButton
+        -- Suppress for Leo/Docs
+        -- , cleanButton
         ] ++
         if Updatable.extract model.enableTextEdits then
           [ runButton
@@ -1348,6 +1385,11 @@ codePanel model =
             ]
             []
         ]
+    codePanelWarning =
+      Html.div
+        [ Attr.class "code-panel-warning"
+        ]
+        []
   in
     Html.div
       [ Attr.class "panel code-panel"
@@ -1361,6 +1403,7 @@ codePanel model =
       [ statusBar
       , actionBar
       , editor
+      , codePanelWarning
       ]
 
 --------------------------------------------------------------------------------
@@ -1408,33 +1451,36 @@ outputPanel model =
       SleekLayout.outputCanvas model
     output =
       case (model.errorBox, model.outputMode, model.preview) of
-        (_, _, Just (_, Err errorMsg)) ->
+        (_, _, Just (_, _, Err errorMsg)) ->
           [textOutput errorMsg]
-        (_, _, Just (_, Ok _)) ->
+        (_, _, Just (_, _, Ok _)) ->
           Canvas.build canvasDim model
         (Just errorMsg, _, Nothing) ->
           [textOutput errorMsg]
-        (Nothing, Print svgCode, Nothing) ->
-          [textOutput svgCode]
-        (Nothing, ShowValue, _) ->
+        (Nothing, HtmlText rawHtml, Nothing) ->
           [ Html.textarea
-              [ E.onInput (\s -> Msg "Update Value Editor" (\m -> { m | valueEditorString = s } ))
-              , Attr.style -- TODO
-                  [ ("font-size", "24px")
-                  , ("width", "100%")
-                  , ("height", "80%")
-                  ]
+              [ E.onInput Controller.msgUpdateHTMLEditor
+              , Attr.class "text-output"
               ]
-              -- [ Html.text (Lang.strVal model.inputVal) ]
-              [ -- let _ = Debug.log "valueEditorString" model.valueEditorString in
-                Html.text model.valueEditorString
+              [ Html.text (Maybe.withDefault rawHtml model.htmlEditorString) ]
+          ]
+        (Nothing, ValueText, _) ->
+{-
+          [ Html.div
+              []
+              [ Html.text <|
+                  "Make some edits."
+                    ++ if valueEditorNeedsCallUpdate model
+                         then " Now pick a new program from the pop-up menu."
+                         else ""
               ]
-          , Html.button
-              [ E.onClick Controller.msgCallUpdate
-              , Attr.style -- TODO
-                  [ ("font-size", "16px") ]
+          , Html.textarea
+-}
+          [ Html.textarea
+              [ E.onInput Controller.msgUpdateValueEditor
+              , Attr.class "text-output"
               ]
-              [ Html.text "Update (⌘Enter)" ]
+              [ Html.text model.valueEditorString ]
           ]
         (Nothing, _, _) ->
           Canvas.build canvasDim model
@@ -1472,6 +1518,12 @@ outputPanel model =
               [ ("width", px canvasDim.width)
               , ("height", px canvasDim.height)
               ]
+
+          -- https://www.w3schools.com/tags/att_global_data.asp
+          , Attr.attribute "data-canvas-count" (toString model.slateCount)
+
+          -- allow right-clicks on canvas (e.g. to access Inspect Element)
+          , onRightClickPreventDefault False Controller.msgNoop
           ]
           output
       , outputPanelWarning
@@ -1559,6 +1611,17 @@ toolButton model tool =
           model cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
       ]
 
+
+customButton model name btnKind disabled onClickHandler =
+  let cap = name
+  in
+    Html.div
+      [ Attr.class "tool"
+      ]
+      [ iconButton
+          model name (Msg cap onClickHandler) btnKind disabled
+      ]
+
 lambdaTools : Model -> List (Html Msg)
 lambdaTools model =
   let buttons =
@@ -1619,6 +1682,74 @@ toolModeIndicator model =
       , toolModeDisplay Sticky "Sticky"
       ]
 
+-- slight variation on toolModeDisplay above
+modeDisplay modeText textStyles modePredicate updateModel =
+  let
+    flag =
+      if modePredicate then
+         " active"
+      else
+        ""
+  in
+    Html.div
+      [ Attr.class <| "tool-mode larger-text" ++ flag
+      , Attr.style textStyles
+      , E.onClick (Msg modeText updateModel)
+      ]
+      [ Html.text modeText
+      ]
+
+outputModeIndicator : Model -> Html Msg
+outputModeIndicator model =
+  Html.div
+    [ Attr.class "tool-mode-indicator"
+    ]
+    [ modeDisplay "GUI" []
+        (model.outputMode == Graphics)
+        (\m -> { m | outputMode = Graphics, slateCount = m.slateCount + 1 })
+    , modeDisplay "HTML" []
+        (isHtmlText model.outputMode)
+        Controller.doSetOutputHtmlText
+    , modeDisplay "Value" []
+        (model.outputMode == ValueText)
+        (\m -> { m | outputMode = ValueText, slateCount = m.slateCount + 1 })
+    ]
+
+syncModeIndicator model =
+  -- not showing TracesAndTriggers modes, only ValueBackprop
+  Html.div
+    [ Attr.class "tool-mode-indicator"
+    ]
+    [ modeDisplay "Auto Sync"
+        ( if model.outputMode == Graphics
+            then []
+            else [("text-decoration", "line-through")]
+        )
+        (model.syncMode == ValueBackprop True)
+        (\m ->
+          if m.outputMode == Graphics then
+            { m | syncMode = case m.syncMode of
+                    ValueBackprop True -> ValueBackprop False
+                    _                  -> ValueBackprop True
+            }
+          else
+           m
+        )
+    ]
+{-
+    [ modeDisplay "Auto Sync"
+        ( if model.outputMode == Graphics
+            then []
+            else [("text-decoration", "line-through")]
+        )
+        (model.outputMode == Graphics && model.syncMode == ValueBackprop True)
+        (\m -> { m | syncMode = ValueBackprop True})
+    , modeDisplay "Manual" []
+        (model.outputMode /= Graphics || model.syncMode == ValueBackprop False)
+        (\m -> { m | syncMode = ValueBackprop False })
+    ]
+-}
+
 toolPanel : Model -> Html Msg
 toolPanel model =
   let
@@ -1626,16 +1757,12 @@ toolPanel model =
       Html.div
         [ Attr.class "tool-separator" ]
         []
-  in
-    Html.div
-      [ Attr.class "panel tool-panel"
-      , Attr.style
-          [ ("width", (px << .width) SleekLayout.toolPanel)
-          , ("right", (px << .right) SleekLayout.toolPanel)
-          , ("marginLeft", (px << .marginLeft) SleekLayout.toolPanel)
-          ]
-      ]
-      ( [ toolButton model Cursor
+
+    toolButtons =
+      if LangSvg.isSvg model.inputVal then
+        [ outputModeIndicator model
+        , syncModeIndicator model
+        , toolButton model Cursor
         , toolButton model PointOrOffset
         , toolButton model Text
         , toolButton model (Line model.toolMode)
@@ -1648,7 +1775,21 @@ toolPanel model =
         functionTools model ++
         [ toolModeIndicator model
         ]
-      )
+
+      else
+        [ outputModeIndicator model
+        , syncModeIndicator model
+        ]
+  in
+    Html.div
+      [ Attr.class "panel tool-panel"
+      , Attr.style
+          [ ("width", (px << .width) SleekLayout.toolPanel)
+          , ("right", (px << .right) SleekLayout.toolPanel)
+          , ("marginLeft", (px << .marginLeft) SleekLayout.toolPanel)
+          ]
+      ]
+      toolButtons
 
 --------------------------------------------------------------------------------
 -- Synthesis Panel
@@ -2038,6 +2179,62 @@ deuceOverlay model =
           ]
       ]
 
+
+diffOverlay : Model -> Html Msg
+diffOverlay model =
+  let
+    pointerEvents =
+      if Model.deuceActive model then
+        "auto"
+      else
+        "none"
+    (disabledFlag, exps) =
+      case model.preview of
+        Just (_, exps, _) ->
+          ("", exps)
+        Nothing ->
+          case model.previewdiffs of
+            Just exps ->
+              ("", exps)
+            Nothing ->
+              (" disabled", [])
+  in
+    Html.div
+      [ Attr.class <| "deuce-overlay-container" ++ disabledFlag
+      , Attr.style
+          [ ( "pointer-events"
+            , pointerEvents
+            )
+          , ( "top"
+            , px model.codeBoxInfo.scrollerTop
+            )
+          , ( "left"
+            , px <|
+                model.codeBoxInfo.scrollerLeft - SleekLayout.deuceOverlayBleed
+            )
+          , ( "width"
+            , px <|
+                model.codeBoxInfo.scrollerWidth + SleekLayout.deuceOverlayBleed
+            )
+          , ( "height"
+            , px model.codeBoxInfo.scrollerHeight
+            )
+          ]
+      ]
+      [ Svg.svg
+          [ SAttr.class "deuce-overlay"
+          , SAttr.width "10000000"
+          , SAttr.height "10000000"
+          , SAttr.style << styleListToString <|
+              [ ("top", px -model.codeBoxInfo.scrollTop)
+              , ("left", px -model.codeBoxInfo.scrollLeft)
+              ]
+          ]
+          [ Deuce.diffOverlay model exps
+          ]
+      ]
+
+
 --------------------------------------------------------------------------------
 -- Deuce Right Click Menu
 --------------------------------------------------------------------------------
@@ -2311,7 +2508,11 @@ autoOutputToolsPopupPanel model =
     , class =
         "auto-output-tools"
     , title =
-        [ Html.text "Output Tools"
+        -- [ Html.text "Output Tools"
+        [ Html.text <|
+            case model.syncMode of
+              ValueBackprop _ -> valueBackpropPopupMenuTitle
+              _               -> "Output Tools"
         ]
     , content =
         [ let
@@ -2358,20 +2559,27 @@ view model =
          " has-dialogs"
       else
         ""
+    needsValueBackpropFlag =
+      if Model.needsValueBackprop model then
+        " needs-value-backprop"
+      else
+        ""
   in
     Html.div
       [ Attr.class <|
           "main"
             ++ needsRunFlag
             ++ hasDialogFlag
+            ++ needsValueBackpropFlag
       , E.onClick Controller.msgHideMenu
       , onRightClick Controller.msgNoop
       ]
       ( [ onbeforeunloadDataElement model
         , menuBar model
         , workArea model
-        , deuceOverlay model
-        , deuceRightClickMenu model
+        ] ++ (if model.enableDeuceBoxSelection then [deuceOverlay model] else []) ++ [
+          diffOverlay model
+        -- , deuceRightClickMenu model
         ]
         ++ (popupPanels model)
         ++ [subtleBackground]

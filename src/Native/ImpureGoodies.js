@@ -1,3 +1,4 @@
+var __globalBoolState__ = false;
 var _user$project$Native_ImpureGoodies = {
 
     randomFloat : function(_) {
@@ -16,6 +17,16 @@ var _user$project$Native_ImpureGoodies = {
           return _elm_lang$core$Maybe$Nothing;
         } else {
           throw err;
+        }
+      }
+    },
+
+    stringCharAt : function(index) {
+      return function(string) {
+        if(index >= string.length || index < 0) {
+          return _elm_lang$core$Maybe$Nothing;
+        } else {
+          return _elm_lang$core$Maybe$Just(string[index]);
         }
       }
     },
@@ -61,12 +72,85 @@ var _user$project$Native_ImpureGoodies = {
       }
     }}},
 
+    putCache: function(record) { return function(cacheName) { return function(newValue) {
+      if(typeof record == "object") {
+        //record[" cache_" + cacheName] = newValue;
+        console.log("stored cache " + cacheName, record)
+      } else
+        throw "ImpureGoodies.putCache: this is not an object";
+      return newValue;
+    }}},
+
+    getCache: function(record) { return function(cacheName) {
+      if(typeof record != "object")
+        throw "ImpureGoodies.putCache: this is not an object";
+      console.log("getting cache " + cacheName, record)
+      var res = record[" cache_" + cacheName];
+      if (typeof res == "undefined")
+        return _elm_lang$core$Maybe$Nothing;
+      else
+        return _elm_lang$core$Maybe$Just(res);
+    }},
+
+    toggleGlobalBool : function(_) {
+      __globalBoolState__ = !__globalBoolState__;
+      return __globalBoolState__;
+    },
+
+    getCurrentTime : function() {
+      return (new Date()).getTime();
+    },
+
     timedRun : function(thunk) {
       var start = (new Date()).getTime();
       var result = thunk(_elm_lang$core$Native_Utils.Tuple0);
       var end = (new Date()).getTime();
 
       return _elm_lang$core$Native_Utils.Tuple2(result, end-start);
-    }
+    },
 
+    evaluate : function(string) {
+      return eval(string);
+    },
+
+    log : function(string) {
+      console.log(string);
+      return string;
+    },
+
+    htmlescape: (function() {
+      var tagsToReplace = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;'
+      };
+
+      function replaceTag(tag) {
+        return tagsToReplace[tag] || tag;
+      }
+      function safe_tags_replace(str) {
+        return str.replace(/[&<>]/g, replaceTag);
+      }
+      return function(string) {
+        return safe_tags_replace(string);
+      }
+    })(),
+
+    htmlunescape: (function() {
+      var tagsToReplace = {
+        '&amp;': '&',
+         '&lt;': '<',
+        '&gt;': '>'
+      };
+
+      function replaceTag(tag) {
+        return tagsToReplace[tag] || tag;
+      }
+      function safe_tags_replace(str) {
+        return str.replace(/&(amp|lt|gt);/g, replaceTag);
+      }
+      return function(string) {
+        return safe_tags_replace(string);
+      }
+    })()
 };

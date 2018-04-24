@@ -19,7 +19,7 @@ import ShapeWidgets exposing
   ( RealZone, RealZone(..), PointFeature(..), OtherFeature(..)
   )
 import Solver
-import FastParser exposing (isPreludeLoc, substPlusOf)
+import ElmParser as Parser
 import Ace
 import Config exposing (params)
 import Utils
@@ -94,7 +94,7 @@ locsOfTrace opts =
   let foo t = case t of
     TrLoc l ->
       let (_,b,_) = l in
-      if      isPreludeLoc l         then Set.empty
+      if      Parser.isPreludeLoc l         then Set.empty
       -- else if b == frozen                   then Set.empty
       else if b == frozen && notUnfreezeAll then Set.empty
       else if b == unann && frozenByDefault then Set.empty
@@ -318,7 +318,7 @@ prepareLiveUpdates options e (slate, widgets) =
 prepareLiveUpdates_ : Options -> Exp -> Canvas -> Result String LiveInfo
 prepareLiveUpdates_ options e (slate, widgets) =
 
-  let initSubstPlus = substPlusOf e in
+  let initSubstPlus = Parser.substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
   let maybeCounts =
     if options.feelingLucky == heuristicsFair then

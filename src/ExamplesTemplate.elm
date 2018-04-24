@@ -1,18 +1,67 @@
-module ExamplesGenerated exposing (list, templateCategories)
+module ExamplesGenerated exposing
+  ( list, templateCategories
+  , blankSvgTemplate, blankHtmlTemplate, initTemplate
+  , badPreludeTemplate
+  , fromleo_markdown
+  , fromleo_markdown_optimized
+  , fromleo_markdown_optimized_lensless
+  , fromleo_recipe2
+  , fromleo_conference_budgetting
+  , fromleo_modelviewcontroller
+  , fromleo_latexeditor
+  , tableOfStatesA
+  , tableOfStatesB
+  , tableOfStatesC
+  , fromleo_linkedtexteditor
+  , fromleo_translatabledoc
+  , fromleo_dixit
+  , christmas_song_3_after_translation
+  , mapMaybeLens
+  , listAppendLens
+  )
 
 import Lang
-import FastParser exposing (parseE)
+import FastParser
+import ElmParser
 import Types
 import Eval
 import Utils
 import PreludeGenerated as Prelude
 import DefaultIconTheme
 import Syntax
+import EvalUpdate
 
-makeExample name s =
+--------------------------------------------------------------------------------
+
+initTemplate = "Get Started"
+blankSvgTemplate = "Blank Svg Document"
+blankHtmlTemplate = "Blank Html Document"
+badPreludeTemplate = "Bad Prelude"
+
+--------------------------------------------------------------------------------
+
+makeExample = makeExample_ FastParser.parseE Syntax.Little
+
+makeLeoExample = makeExample_ ElmParser.parse Syntax.Elm
+
+makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
-    let e = Utils.fromOkay ("Error parsing example " ++ name) (parseE s) in
+    let e = Utils.fromOkay ("Error parsing example " ++ name) (parser s) in
+{-
+    -- TODO why isn't this working?
+    let e =
+      case parser s of
+        Ok exp -> exp
+        Err msg ->
+          -- TODO show msg in program
+          let s = "Error parsing example " ++ name in
+          -- case parser """main = [\"p\", [], [[\"TEXT\", \"blah\"]]]""" of
+          case ElmParser.parseNoFreshen """main = [\"p\", [], [[\"TEXT\", \"blah\"]]]""" of
+            Ok exp -> exp
+            Err _ -> Debug.crash "ExamplesTemplate: shouldn't happen!"
+    in
+-}
     -- let ati = Types.typecheck e in
     let ati = Types.dummyAceTypeInfo in
     -----------------------------------------------------
@@ -20,7 +69,7 @@ makeExample name s =
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
     -- else
     -----------------------------------------------------
-    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run Syntax.Little e in
+    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| EvalUpdate.run syntax e in
     {e=e, v=v, ws=ws, ati=ati}
   in
   (name, (s, thunk))
@@ -151,6 +200,7 @@ LITTLE_TO_ELM target_deuce
 LITTLE_TO_ELM battery_deuce
 LITTLE_TO_ELM coffee_deuce
 LITTLE_TO_ELM mondrian_arch_deuce
+LEO_TO_ELM cat
 
 --------------------------------------------------------------------------------
 -- Deuce User Study Files
@@ -196,11 +246,68 @@ LITTLE_TO_ELM task_lambda
 
 --------------------------------------------------------------------------------
 
-generalCategory =
-  ( "General"
-  , [ makeExample "BLANK" blank
-    , makeExample "*Prelude*" Prelude.src
+LEO_TO_ELM badPrelude
+LEO_TO_ELM blankSvg
+LEO_TO_ELM blankDoc
+LEO_TO_ELM welcome1
+LEO_TO_ELM tableOfStatesA
+LEO_TO_ELM tableOfStatesB
+LEO_TO_ELM tableOfStatesC
+LEO_TO_ELM simpleBudget
+LEO_TO_ELM mapMaybeLens
+LEO_TO_ELM mapListLens_1
+LEO_TO_ELM mapListLens_2
+LEO_TO_ELM listAppendLens
+LEO_TO_ELM fromleo/markdown
+LEO_TO_ELM fromleo/markdown_optimized
+LEO_TO_ELM fromleo/markdown_optimized_lensless
+LEO_TO_ELM fromleo/conference_budgetting
+LEO_TO_ELM fromleo/recipe
+LEO_TO_ELM fromleo/recipe2
+LEO_TO_ELM fromleo/modelviewcontroller
+LEO_TO_ELM fromleo/linkedtexteditor
+LEO_TO_ELM fromleo/translatabledoc
+LEO_TO_ELM fromleo/latexeditor
+LEO_TO_ELM fromleo/dixit
+LEO_TO_ELM christmas_song_3_after_translation
+
+--------------------------------------------------------------------------------
+
+welcomeCategory =
+  ( "Welcome"
+  , [ makeLeoExample blankSvgTemplate blankSvg
+    , makeLeoExample blankHtmlTemplate blankDoc
+    , makeLeoExample initTemplate welcome1
+--    , makeLeoExample "Tutorial" blankDoc
     ]
+  )
+
+docsCategory =
+  ( "Examples (OOPSLA 2018 Submission)"
+  , [ makeLeoExample "1a: Table of States" tableOfStatesA
+    , makeLeoExample "1b: Table of States" tableOfStatesC
+    , makeLeoExample "1c: Table of States" tableOfStatesB
+    ] ++
+    (
+    List.indexedMap
+      (\i (caption, program) ->
+        makeLeoExample (toString (2+i) ++ ": " ++ caption) program
+      )
+      [ ("Conference Budget", fromleo_conference_budgetting)
+      , ("Model View Controller", fromleo_modelviewcontroller)
+      , ("Scalable Recipe Editor", fromleo_recipe2)
+      , ("Cloning Editor", fromleo_linkedtexteditor)
+      , ("Translation Editor", fromleo_translatabledoc)
+      , ("Markdown Editor", fromleo_markdown)
+      , ("Dixit Scoresheet", fromleo_dixit)
+      , ("LaTeX Editor", fromleo_latexeditor)
+      -- TODO maybe Conference?
+      , ("Lens: Maybe Map", mapMaybeLens)
+      , ("Lens: List Map 1", mapListLens_1)
+      , ("Lens: List Map 2", mapListLens_2)
+      , ("Lens: List Append", listAppendLens)
+      ]
+    )
   )
 
 defaultIconCategory =
@@ -342,6 +449,7 @@ otherCategory =
     , makeExample "Balance Scale" balanceScale
     , makeExample "Pencil Tip" pencilTip
     , makeExample "Calendar Icon" calendarIcon
+    , makeLeoExample "SVG Cat" cat
     ]
   )
 
@@ -383,14 +491,23 @@ deuceUserStudyCategory =
     ]
   )
 
+internalCategory =
+ ( "(Internal Things...)"
+ , [ makeLeoExample "Standard Prelude" Prelude.preludeLeo
+   , makeLeoExample badPreludeTemplate badPrelude
+   ]
+ )
+
 templateCategories =
-  [ generalCategory
+  [ welcomeCategory
+  , docsCategory
   , deuceCategory
   , defaultIconCategory
   , logoCategory
   , flagCategory
   , otherCategory
   , deuceUserStudyCategory
+  , internalCategory
   ]
 
 list =

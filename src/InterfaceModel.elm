@@ -2,9 +2,11 @@ module InterfaceModel exposing (..)
 
 import Updatable exposing (Updatable)
 import Lang exposing (..)
+import ElmParser
 import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
+import EvalUpdate
 import Sync exposing (ZoneKey)
 import Utils
 import LangSvg exposing (RootedIndexedTree, NodeId, ShapeKind)
@@ -22,7 +24,8 @@ import Syntax exposing (Syntax)
 import LangUnparser
 import File exposing (Filename, File, FileIndex)
 import Solver
-import ValUnparser
+-- import Update -- move valToString to ValUnparser
+-- import ValUnparser
 import History exposing (History)
 
 import Dict exposing (Dict)
@@ -34,6 +37,9 @@ import Mouse
 import Html exposing (Html)
 import Html.Attributes as Attr
 import VirtualDom
+import LangTools
+import LangUtils
+import Pos exposing (Pos)
 
 import ImpureGoodies
 
@@ -50,8 +56,10 @@ type alias ViewState =
   { menuActive : Bool
   }
 
+type alias DiffPreview = List Exp
+
 type alias Preview =
-  Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
+  Maybe (Code, DiffPreview, Result String (Val, Widgets, RootedIndexedTree))
 
 type TextSelectMode
     -- Only match the exact range
@@ -91,6 +99,8 @@ type alias Model =
   , runFailuresInARowCount : Int
   , codeClean : Bool
   , preview : Preview
+  , previewdiffs : Maybe DiffPreview
+  , previewdiffsDelay: Int
   , history : History TrackedValues
   , inputExp : Exp
   , inputVal : Val
@@ -102,11 +112,20 @@ type alias Model =
   , movieDuration : Float
   , movieContinue : Bool
   , runAnimation : Bool
+  -- TODO rename slate/slateCount
   , slate : RootedIndexedTree
+  , slateCount : Int -- trying to count number of times translated to DOM
+  , addDummyDivAroundCanvas : Maybe Bool
+      -- Just False and Just True force previous VirtualDom to be
+      -- invalidated by adding a dummy div around canvas
   , widgets : Widgets
-  , liveSyncInfo : Sync.LiveInfo
-  , liveSyncDelay : Bool
   , outputMode : OutputMode
+  , syncMode : SyncMode
+  , liveSyncInfo : Sync.LiveInfo
+      -- info for when syncMode == TracesAndTriggers _
+  , autoSyncDelay: Int
+  , caretPosition: Maybe Int
+      -- delay (in milliseconds) for when syncMode == ValueBackprop True
   , mouseMode : MouseMode
   , dimensions : Window.Size
 
@@ -169,6 +188,7 @@ type alias Model =
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
   , codeToolsMenuMode : CodeToolsMenuMode
+  , outputToolsMenuMode : Bool
   , textSelectMode : TextSelectMode
   , enableTextEdits : Updatable Bool
   , allowMultipleTargetPositions : Bool
@@ -178,20 +198,44 @@ type alias Model =
   , colorScheme : ColorScheme
   , pendingGiveUpMsg : Maybe Msg
   , giveUpConfirmed : Bool
-  , lastSelectedTemplate : Maybe String
+  -- would be nice if lastSelectedTemplate = Nothing meant that
+  -- this file did not start from a template (it started with a file
+  -- from local storage)
+  , lastSelectedTemplate : Maybe (String, Code)
   , valueEditorString : String
+  , htmlEditorString: Maybe String
+  , updatedValue: Maybe (Result String Val)
   , syntax : Syntax
   }
 
 type OutputMode
-  = Live
-  | Print RawSvg
-      -- TODO put rawSvg in Model
+  = Graphics
+  | HtmlText RawHtml
       -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
-  | ShowValue
+  | ValueText
   | PrintScopeGraph (Maybe String)
                       -- Nothing        after sending renderDotGraph request
                       -- Just dataURI   after receiving the encoded image
+
+isHtmlText outputMode =
+  case outputMode of
+    HtmlText _ -> True
+    _          -> False
+
+type SyncMode
+  = TracesAndTriggers Bool
+      -- True for live sync
+      -- False for delayed live sync
+  | ValueBackprop Bool
+      -- True for auto-sync with delay of model.autoSyncDelay
+      -- False for manual sync
+
+valueBackpropPopupMenuTitle =
+  "Output Editor"
+
+valueBackpropToolName =
+  -- "Update for New Output"
+  "Update Program"
 
 type alias CodeBoxInfo =
   { cursorPos : Ace.Pos
@@ -223,7 +267,7 @@ type alias OutputCanvasInfo =
   , scrollLeft : Float
   }
 
-type alias RawSvg = String
+type alias RawHtml = String
 
 type Clickable
   = PointWithProvenance Val Val
@@ -351,6 +395,7 @@ type ReplicateKind
 type SynthesisResult =
   SynthesisResult { description : String
                   , exp         : Exp
+                  , diffs       : List Exp -- These exps can be virtual, only the start and end position matter
                   , isSafe      : Bool -- Is this transformation considered "safe"?
                   , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
                   , children    : Maybe (List SynthesisResult) -- Nothing means not calculated yet.
@@ -360,10 +405,21 @@ synthesisResult description exp =
   SynthesisResult <|
     { description = description
     , exp         = exp
+    , diffs       = []
     , isSafe      = True
     , sortKey     = []
     , children    = Nothing
     }
+
+synthesisResultDiffs description exp diffs =
+  SynthesisResult <|
+      { description = description
+      , exp         = exp
+      , diffs       = diffs
+      , isSafe      = True
+      , sortKey     = []
+      , children    = Nothing
+      }
 
 synthesisResultsNotEmpty : Model -> String -> Bool
 synthesisResultsNotEmpty model resultsKey =
@@ -395,6 +451,8 @@ setResultSortKey sortKey (SynthesisResult result) =
 type Msg
   = ResponseFromSolver String
   | Msg String (Model -> Model)
+  -- would be nice to deprecate Msg in favor of just NewModelAndCmd...
+  | NewModelAndCmd String (Model -> (Model, Cmd Msg))
 
 
 type alias AceCodeBoxInfo = -- subset of Model
@@ -670,7 +728,7 @@ runAndResolve model exp =
 runAndResolve_ : { slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolve_ model exp =
   let thunk () =
-    Eval.run model.syntax exp
+    EvalUpdate.run model.syntax exp
     |> Result.andThen (\(val, widgets) -> slateAndCode model (exp, val)
     |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
   in
@@ -696,14 +754,14 @@ mkLive syntax opts slideNumber movieNumber movieTime e (val, widgets) =
 
 liveInfoToHighlights zoneKey model =
   case model.outputMode of
-    Live -> Sync.yellowAndGrayHighlights zoneKey model.liveSyncInfo
-    _    -> []
+    Graphics -> Sync.yellowAndGrayHighlights zoneKey model.liveSyncInfo
+    _        -> []
 
 --------------------------------------------------------------------------------
 
 codeToShow model =
   case model.preview of
-     Just (string, _) -> string
+     Just (string, _, _) -> string
      Nothing          -> model.code
 
 --------------------------------------------------------------------------------
@@ -731,8 +789,6 @@ bufferFilename model =
       Syntax.sourceExtension model.syntax
   }
 
-blankTemplate = "BLANK"
-
 type PrettyFileNameOption
   = WithExtension
   | WithoutExtension
@@ -742,11 +798,12 @@ prettyFilename includeExtension model =
     let
       prettyTemplate =
         case model.lastSelectedTemplate of
-          Just template ->
-            if template /= blankTemplate then
-              " (" ++ template ++ ")"
-            else
-              ""
+          Just (template, _) ->
+            " (" ++ template ++ ")"
+            -- if template /= Examples.initTemplate then
+            --   " (" ++ template ++ ")"
+            -- else
+            --   ""
           Nothing ->
             ""
     in
@@ -761,6 +818,18 @@ prettyFilename includeExtension model =
             ""
     in
       model.filename.name ++ suffix
+
+--------------------------------------------------------------------------------
+
+-- if this looks okay, use it in more places in SleekView in place of model.needsSave
+reallyNeedsSave : Model -> Bool
+reallyNeedsSave model =
+  -- use of bufferName, following prettyFilename...
+  case (model.filename.name == bufferName, model.lastSelectedTemplate) of
+    (True, Just (templateName, templateCode)) ->
+      String.trimRight model.code /= String.trimRight templateCode
+    _ ->
+      model.needsSave
 
 --------------------------------------------------------------------------------
 
@@ -806,6 +875,19 @@ lambdaToolIcon tool =
 
 needsRun m =
   m.code /= m.lastRunCode
+
+valueEditorNeedsCallUpdate model =
+  LangUtils.valToString model.inputVal /= model.valueEditorString
+
+htmlEditorNeedsCallUpdate model =
+  case model.outputMode of
+    HtmlText htmlCode -> case model.htmlEditorString of
+      Nothing -> False
+      Just h -> htmlCode /= h
+    _ -> False
+  
+domEditorNeedsCallUpdate model =
+  not <| Utils.maybeIsEmpty model.updatedValue
 
 --------------------------------------------------------------------------------
 
@@ -1028,11 +1110,29 @@ deucePopupPanelShown model =
 
 autoOutputToolsPopupPanelShown : Model -> Bool
 autoOutputToolsPopupPanelShown model =
-  Utils.or
-    [ not <| Set.isEmpty model.selectedFeatures
-    , not <| Set.isEmpty model.selectedShapes
-    , not <| Dict.isEmpty model.selectedBlobs
-    ]
+  case model.syncMode of
+    TracesAndTriggers _ ->
+      -- for now, predicating the Output Tools menu on live sync mode
+      Utils.or
+        [ not <| Set.isEmpty model.selectedFeatures
+        , not <| Set.isEmpty model.selectedShapes
+        , not <| Dict.isEmpty model.selectedBlobs
+        ]
+
+    ValueBackprop _ ->
+      needsValueBackprop model
+
+needsValueBackprop model =
+  case model.syncMode of
+    TracesAndTriggers _ ->
+      False
+
+    ValueBackprop _ ->
+      Utils.or
+        [ model.outputMode == ValueText && valueEditorNeedsCallUpdate model
+        , isHtmlText model.outputMode && htmlEditorNeedsCallUpdate model
+        , domEditorNeedsCallUpdate model
+        ]
 
 --------------------------------------------------------------------------------
 
@@ -1064,16 +1164,17 @@ modelModify code dws =
 
 --------------------------------------------------------------------------------
 
-initTemplate : String
-initTemplate = "BLANK"
-
 initColorScheme : ColorScheme
 initColorScheme = Light
+
+initTemplate =
+  if ElmParser.preludeParsed
+    then Examples.initTemplate
+    else Examples.badPreludeTemplate
 
 initModel : Model
 initModel =
   let
-    -- TODO unnecessary process to initTemplate, because of initCmd
     (_,f)    = Utils.find_ Examples.list initTemplate
     {e,v,ws} = f ()
   in
@@ -1088,6 +1189,8 @@ initModel =
     , runFailuresInARowCount = 0
     , codeClean     = True
     , preview       = Nothing
+    , previewdiffs  = Nothing
+    , previewdiffsDelay = 1000 --ms
     , history       = History.begin { code = code, selectedDeuceWidgets = [] }
     , inputExp      = e
     , inputVal      = v
@@ -1100,10 +1203,15 @@ initModel =
     , movieContinue = movieContinue
     , runAnimation  = True
     , slate         = slate
+    , slateCount    = 1
+    , addDummyDivAroundCanvas = Nothing
     , widgets       = ws
+    , outputMode    = Graphics
+    , syncMode      = ValueBackprop False
+                        -- Native/outputCanvas.js: set enableAutoUpdate = true/false to match
     , liveSyncInfo  = liveSyncInfo
-    , liveSyncDelay = False
-    , outputMode    = Live
+    , autoSyncDelay = 1000
+    , caretPosition = Nothing -- Caret position in the outputCanvas
     , mouseMode     = MouseNothing
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
     , mouseState    = (Nothing, {x = 0, y = 0}, Nothing)
@@ -1190,7 +1298,8 @@ initModel =
     , deuceRightClickMenuMode = Nothing
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
-    , codeToolsMenuMode = CTAll
+    , codeToolsMenuMode = CTDisabled -- default for Sketch-n-Sketch Docs
+    , outputToolsMenuMode = False -- default for Sketch-n-Sketch Docs
     , textSelectMode = SubsetExtra
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True
@@ -1202,7 +1311,9 @@ initModel =
     , colorScheme = initColorScheme
     , pendingGiveUpMsg = Nothing
     , giveUpConfirmed = False
-    , lastSelectedTemplate = Nothing
-    , valueEditorString = ValUnparser.strVal v
+    , lastSelectedTemplate = Just (Examples.initTemplate, code)
+    , valueEditorString = LangUtils.valToString v
+    , htmlEditorString = Nothing
+    , updatedValue = Nothing
     , syntax = Syntax.Elm
     }

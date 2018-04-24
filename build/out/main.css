@@ -2,7 +2,7 @@
  * General                                                                    *
  ******************************************************************************/
 
-* {
+ *:not(.outputCanvas *) {
   margin: 0;
   padding: 0;
   -webkit-box-sizing: border-box;
@@ -10,6 +10,7 @@
   -ms-box-sizing: border-box;
   -o-box-sizing: border-box;
   box-sizing: border-box;
+  caret-color: lightblue; /* for contenteditable nodes */
 }
 
 body {
@@ -25,7 +26,7 @@ body {
   user-select: none;
 }
 
-a {
+a:not(.outputCanvas a) {
   color: inherit;
   text-decoration: none;
 }
@@ -67,7 +68,7 @@ code {
 .ui-button {
   color: var(--text-color);
   background-color: rgba(0, 0, 0, 0.1);
-  padding: 10px;
+  padding: 4px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.3);
   border-radius: 3px;
   cursor: pointer;
@@ -317,6 +318,7 @@ code {
 }
 
 /* TODO User Study Info (temporary) */
+/* re-using this now for Previous/Next Example buttons */
 
 .user-study-info {
   position: absolute;
@@ -605,6 +607,7 @@ code {
   cursor: default;
   overflow: auto;
   position: relative;
+  font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
 }
 
 #svgWidgetsLayer {
@@ -633,6 +636,23 @@ code {
 }
 
 .needs-run .output-panel-warning {
+  border-width: 5px;
+}
+
+.code-panel-warning {
+  pointer-events: none; /* pass mouse events through to code panel */
+  position: absolute;
+  top: 0px;
+  right: 0px;
+  bottom: 0px;
+  left: 0px;
+
+  border: 0px solid rgba(136, 0, 0, 0.7);
+  transition: border-width 0.5s;
+  z-index: 6;
+}
+
+.needs-value-backprop .code-panel-warning {
   border-width: 5px;
 }
 
@@ -667,6 +687,13 @@ code {
 
 .tool-mode-indicator .tool-mode.active {
   color: var(--active-text-color);
+}
+
+.tool-mode-indicator .larger-text {
+  font-size: 2.0em;
+  line-height: normal;
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 /******************************************************************************
@@ -1132,4 +1159,12 @@ code {
 
 .auto-output-tools .text-button {
   display: flex;
+}
+
+[contenteditable]:focus {
+  outline: 0px solid transparent;
+}
+
+.synthesisResult .hover-menu-content{
+  /*white-space: pre;*/
 }

@@ -54,6 +54,36 @@ zipWith f xs ys = case (xs, ys) of
   (x::xs_, y::ys_) -> f x y :: zipWith f xs_ ys_
   _                -> []
 
+
+zipWithIndex: List a -> List (a, Int)
+zipWithIndex =
+  let aux: Int -> List a -> List (a, Int)
+      aux i l =
+    case l of
+       [] -> []
+       (head::tail) -> ((head, i)::aux (i+1) tail)
+  in aux 0
+
+updated: List a -> Int -> a -> List a
+updated l index elem =
+  if index == 0 then
+    case l of
+      head::tail -> elem::tail
+      [] -> [elem]
+  else
+    case l of
+      [] -> [elem]
+      head::tail -> head  ::  updated tail (index - 1) elem
+
+inserted: List a -> Int -> a -> List a
+inserted l index elem =
+  if index == 0 then
+    elem :: l
+  else
+    case l of
+      [] -> [elem]
+      head::tail -> head  ::  inserted tail (index - 1) elem
+
 maybeZip : List a -> List b -> Maybe (List (a,b))
 maybeZip xs ys = case (xs, ys) of
   (x::xs_, y::ys_) -> case maybeZip xs_ ys_ of
@@ -98,6 +128,13 @@ maybeZipN lists =
       (Just heads, Just tails) -> Maybe.map ((::) heads) (maybeZipN tails)
       _                        -> Nothing
 
+maybeIsEmpty: Maybe a -> Bool
+maybeIsEmpty mb = Maybe.map (\_ -> False) mb |> Maybe.withDefault True
+
+maybeOrElse: Maybe a -> Maybe a -> Maybe a
+maybeOrElse mb ma = case ma of
+  Just _ -> ma
+  Nothing -> mb
 
 zipi0 : List a -> List (Int, a)
 zipi0 = zipi_ 0
@@ -131,6 +168,21 @@ foldli_ : Int -> ((Int, a) -> b -> b) -> b -> List a -> b
 foldli_ initI f init xs =
   List.foldl f init (zipi_ initI xs)
 
+reverseInsert: List a -> List a -> List a
+reverseInsert elements revAcc =
+  case elements of
+    [] -> revAcc
+    head::tail -> reverseInsert tail (head::revAcc)
+
+maybeReverseInsert: List (Maybe a) -> List a -> List a
+maybeReverseInsert elements revAcc =
+  case elements of
+    [] -> revAcc
+    head::tail ->
+      case head of
+        Nothing -> maybeReverseInsert tail revAcc
+        Just h -> maybeReverseInsert tail (h::revAcc)
+
 -- three passes, oh well
 filteri1 : ((Int, a) -> Bool) -> List a -> List a
 filteri1 f xs =
@@ -140,6 +192,11 @@ concatMapi1 f xs =
   List.concatMap f (zipi1 xs)
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
+
+maybeCons: Maybe a -> List a -> List a
+maybeCons x l = case x of
+  Nothing -> l
+  Just v -> v::l
 
 -- If lists are different lengths, extra elements preserved changed.
 filterMapTogetherPreservingLeftovers : (a -> b -> Maybe (a, b)) -> List a -> List b -> (List a, List b)
@@ -310,11 +367,23 @@ maybeUnpackSingleton xs = case xs of
 snoc : List a -> a -> List a
 snoc xs x = xs ++ [x]
 
+snocUnapply : List a -> Maybe (List a, a)
+snocUnapply l = case l of
+  [] -> Nothing
+  [head]-> Just ([], head)
+  head::tail -> snocUnapply tail
+   |> Maybe.map (Tuple.mapFirst (\init -> head::init))
+
 snocMaybe : List a -> Maybe a -> List a
 snocMaybe xs mx = Maybe.withDefault xs (mapMaybe (snoc xs) mx)
 
 split : Int -> List a -> (List a, List a)
-split n xs = (List.take n xs, List.drop n xs)
+split n xs =
+  let aux prev n l = if n == 0 then (List.reverse prev, l) else
+    case l of
+    [] -> (List.reverse prev, [])
+    head::tail -> aux (head::prev) (n - 1) tail
+  in aux [] n xs
 
 -- Like String.split, but for lists.
 --
@@ -406,7 +475,7 @@ anyOverlap : List (Set a) -> Bool
 anyOverlap sets =
   Set.size (unionAll sets) < List.sum (List.map Set.size sets)
 
--- More performant version, if you have a list and a set (fixes a major performance bug in assignUniqueNames)
+-- More performant version, if you have a list and a set (fixes a major performance bug in EvalUpdate.assignUniqueNames)
 anyOverlapListSet : List a -> Set a -> Bool
 anyOverlapListSet items set =
   case items of
@@ -592,6 +661,52 @@ count : (a -> Bool) -> List a -> Int
 count pred list =
   List.filter pred list |> List.length
 
+listValue: (ws, value) -> value
+listValue = Tuple.second
+
+listValueMake: (ws, value) -> value -> (ws, value)
+listValueMake (a, b) c = (a, c)
+
+listValues: List (ws, value) -> List value
+listValues = List.map listValue
+
+listValuesMake: List (ws, value) -> List a -> List (ws, a)
+listValuesMake = List.map2 (\(sp0, _) value -> (sp0, value))
+
+listValuesMap: (value -> a) -> List (ws, value) -> List (ws, a)
+listValuesMap f ts = listValuesMake ts (List.map f (listValues ts))
+
+recordKey: (sp0, sp1, name, sp2, value) -> name
+recordKey (_, _, k, _, _) = k
+
+recordValue: (sp0, sp1, name, sp2, value) -> value
+recordValue (_, _, _, _, v) = v
+
+recordValueMap: (sp0, sp1, name, sp2, value) -> a -> (sp0, sp1, name, sp2, a)
+recordValueMap (sp0, sp1, name, sp3, value) a = (sp0, sp1, name, sp3, a)
+
+recordKeys: List (sp0, sp1, name, sp2, value) -> List name
+recordKeys = List.map recordKey
+
+recordValues: List (sp0, sp1, name, sp2, value) -> List value
+recordValues = List.map recordValue
+
+recordValuesMake: List (sp0, sp1, name, sp2, value) -> List a -> List (sp0, sp1, name, sp2, a)
+recordValuesMake = List.map2 (\(sp0, sp1, name, sp2, _) value -> (sp0, sp1, name, sp2, value))
+
+recordValuesMap: (value -> a) -> List (sp0, sp1, name, sp2, value) -> List (sp0, sp1, name, sp2, a)
+recordValuesMap f ts = recordValuesMake ts (List.map f (recordValues ts))
+
+recordInitValue: Maybe (a, ws) -> Maybe a
+recordInitValue = Maybe.map Tuple.first
+
+recordInitMake: Maybe (a, ws) -> Maybe b -> Maybe (b, ws)
+recordInitMake m b =
+  m
+  |> Maybe.andThen (\(a, ws) ->
+     Maybe.map (\bv -> (bv, ws)) b
+  )
+
 delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"
@@ -720,9 +835,9 @@ resultToBool r = case r of
   Ok _  -> True
   Err _ -> False
 
-fromJust m = case m of
-  Just x -> x
-  Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
+--fromJust m = case m of
+--  Just x -> x
+--  Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
 
 fromJust_ s mx = case mx of
   Just x  -> x
@@ -816,12 +931,25 @@ maybeLast list =
     [x]   -> Just x
     _::xs -> maybeLast xs
 
+maybeInit list =
+  case list of
+    [] -> Nothing
+    [x] -> Just []
+    head::xs -> Maybe.map (\x -> head::x) <| maybeInit xs
+
 head msg = fromJust_ msg << List.head
 tail msg = fromJust_ msg << List.tail
 last msg = fromJust_ msg << maybeLast
+init msg = fromJust_ msg << maybeInit
 head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail
 last_ = last "Utils.last_"
+init_ = init "Utils.init_"
+
+nth: List a -> Int -> Result String a
+nth list n = case list of
+  [] -> Err <| "Cannot find " ++ toString n ++ "-th element of a empty list"
+  head::tail -> if n == 0 then Ok head else nth tail (n-1)
 
 uncons xs = case xs of
   x::xs -> (x, xs)
@@ -850,6 +978,30 @@ dropWhile pred list =
     x::xs -> if pred x
              then dropWhile pred xs
              else list
+
+spanWhile pred list =
+  let aux acc list =
+    case list of
+       [] -> (List.reverse acc, [])
+       head::tail -> if pred head then aux (head::acc) tail else (List.reverse acc, list)
+  in aux [] list
+
+foldLeft: b -> List a -> (b -> a -> b) -> b
+foldLeft acc list fold =
+  List.foldl (Basics.flip fold) acc list
+
+foldLeftWithIndex: b -> List a -> (b -> Int -> a -> b) -> b
+foldLeftWithIndex acc list fold =
+  List.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
+
+
+strFoldLeft: b -> String -> (b -> Char -> b) -> b
+strFoldLeft acc list fold =
+  String.foldl (Basics.flip fold) acc list
+
+strFoldLeftWithIndex: b -> String -> (b -> Int -> Char -> b) -> b
+strFoldLeftWithIndex acc list fold =
+  String.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
 
 -- Use Maybe.map
 mapMaybe = Maybe.map
@@ -952,6 +1104,9 @@ foldlResult f resultAcc list =
     (Ok acc, x::xs) -> foldlResult f (f x acc) xs
     (_, [])         -> resultAcc
 
+
+mapFirstSecond : (a -> c) -> (b -> d) -> (a, b) -> (c, d)
+mapFirstSecond f g (a, b) = (f a, g b)
 
 -- Use Tuple.mapFirst
 -- mapFst : (a -> a_) -> (a, b) -> (a_, b)
@@ -1189,3 +1344,38 @@ fromResult result =
 
     Err x ->
       x
+
+-- Returns the strings from the first elements which are likely to be corrections of the string given in second.
+stringSuggestions : List String -> String -> List String
+stringSuggestions trueStrings wrongString =
+  let wrongStringCanonical = String.toLower <| String.trim <| wrongString in
+  let trueStringsCanonical = List.map (String.toLower << String.trim) trueStrings in
+  let trueMapping = zip trueStringsCanonical trueStrings in
+  let guess1 = trueMapping
+    |> List.filter (\(x, _) -> x == wrongStringCanonical)
+    |> List.map Tuple.second
+  in case guess1 of
+    head::tail -> guess1
+    [] -> -- Ok the error might come from somewhere else. We look for keys starting the same.
+      let firstChar = String.slice 0 1 wrongStringCanonical in
+      let guess2 = trueMapping
+          |> List.filter (\(x, _) -> String.slice 0 1 x == firstChar)
+          |> List.map Tuple.second
+      in case guess2 of
+        head::tail -> List.take 5 guess2
+        [] -> let lastChar = String.slice -1 (String.length wrongStringCanonical) wrongStringCanonical in
+          let guess3 = trueMapping
+              |> List.filter (\(x, _) -> String.slice -1 (String.length x) x == firstChar)
+              |> List.map Tuple.second
+          in case guess3 of
+            head::tail -> List.take 5 guess2
+            [] -> -- We are a bit puzzled here. No strings with the same start or same end. Just return the first 5 keys.
+              List.take 5 trueStrings
+
+lastLine: String -> String
+lastLine s = snocUnapply (String.lines s) |> Maybe.map Tuple.second |> Maybe.withDefault ""
+
+--------------------------------------------------------------------------------
+
+indexedMapFrom : Int -> (Int -> a -> b) -> List a -> List b
+indexedMapFrom n f = List.indexedMap (\i -> f (i + n))

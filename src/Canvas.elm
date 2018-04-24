@@ -21,7 +21,6 @@ import Sync
 import Draw
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
-import FastParser exposing (parseE)
 
 import LangUnparser
 import Eval
@@ -69,7 +68,7 @@ svgPath      = flip Svg.path []
 
 msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.outputMode of
-    Live ->
+    Graphics ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
       let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (mousePosition old) in
       let trigger = Sync.prepareLiveTrigger old.liveSyncInfo old.inputExp zoneKey in
@@ -104,25 +103,26 @@ startDrawing old =
 build : SleekLayout.BoundingBox -> Model -> List (Html Msg)
 build dim model =
   let addZones = case (model.outputMode, model.preview) of
-    (Live, Nothing) -> model.tool == Cursor
-    _               -> False
+    (Graphics, Nothing) -> model.tool == Cursor
+    _                   -> False
   in
   let (widgets, slate) =
     case model.preview of
-      Just (_, Ok (val, widgets, slate)) -> (widgets, slate)
-      _                                  -> (model.widgets, model.slate)
+      Just (_, _, Ok (val, widgets, slate)) -> (widgets, slate)
+      _                                     -> (model.widgets, model.slate)
   in
   let outputElement = buildHtml (model, addZones) slate in
   let newShape = drawNewShape model in
   let widgetsAndDistances =
     case (model.outputMode, model.showGhosts, model.preview) of
-      (Live, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets model -- Draw distances below other widgets
-      _                     -> []
+      (Graphics, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets model -- Draw distances below other widgets
+      _                         -> []
   in
   let selectBox = drawSelectBox model in
   if LangSvg.isSvg model.inputVal then
     [ Svg.svg
-        [ onMouseDown msgMouseClickCanvas
+        [ Attr.id "svgOutputCanvas"
+        , onMouseDown msgMouseClickCanvas
         , Attr.style
             [ ("width", pixels dim.width)
             , ("height", pixels dim.height)
@@ -131,7 +131,19 @@ build dim model =
         ([outputElement] ++ newShape ++ widgetsAndDistances ++ selectBox)
     ]
   else
-    [ outputElement
+    let maybeWrappedCanvas =
+      case (model.preview, model.addDummyDivAroundCanvas) of
+
+        -- not inserting dummy div. instead, libraries can use state of
+        -- toggleGlobalBool () to play tricks to work around Elm re-render issue.
+        --
+        -- (Just _,  _)       -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        -- (Nothing, Just _)  -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        -- (Nothing, Nothing) -> outputElement
+
+        _ -> outputElement
+    in
+    [ maybeWrappedCanvas
     , Svg.svg
         [ Attr.id "svgWidgetsLayer"
         , Attr.style
@@ -199,8 +211,21 @@ buildHtml_ (model, addZones) insideSvgNode d i =
         else if insideSvgNode then (Svg.node, True)
         else (Html.node, False)
       in
+      let
+        -- https://softwareengineering.stackexchange.com/questions/199166/why-does-a-contenteditable-div-not-behave-like-an-input-element
+        maybeContentEditableAttr =
+          if List.member shape ["th", "td", "p", "span", "pre", "li", "h1", "h2", "h3", "h4", "h5", "h6"]
+            then [Attr.contenteditable True]
+            else []
+      in
+      let valueIdAttrs =
+        [ Attr.attribute "data-value-id" (toString i)]
+      in
+      let allAttrs =
+         maybeContentEditableAttr ++ valueIdAttrs ++ compiledAttrs
+      in
       let children = List.map (buildHtml_ (model, addZones) isSvgNode d) childIndices in
-      let mainshape = (node rawKind) compiledAttrs children in
+      let mainshape = (node rawKind) allAttrs children in
       if zones == []
         then mainshape
         else Svg.svg [] (mainshape :: zones)
@@ -564,7 +589,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal
 
       WCall funcVal argVals retVal retWs ->
-        drawCallWidget funcVal argVals retVal retWs model
+        -- Suppress for Leo/Docs
+        -- drawCallWidget funcVal argVals retVal retWs model
+        []
   in
 
   List.concat <| Utils.mapi1 draw widgets
@@ -954,8 +981,9 @@ zoneRotate_ model id shape cx cy r cmds =
 
 -- TODO redo callsite
 zoneRotatePolyOrPath model id kind pts nodeAttrs =
-  let (xMin, xMax, yMin, yMax) =
-    Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
+  case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
+    Nothing -> []
+    Just (xMin, xMax, yMin, yMax) ->
   let (w, h) = (xMax - xMin, yMax - yMin) in
   let (xMiddle, yMiddle) = (xMin + 0.5 * w, yMin + 0.5 * h) in
   let r = ((max w h) / 2) + rotZoneDelta in
@@ -1633,12 +1661,15 @@ makeZonesPoly model shape id l =
     let crossDots = List.concat <| Utils.mapi1 ptCrossDot pts in
     midptCrossDots ++ crossDots
   in
+  let secondaryWidgets = zRot ++ zFillAndStroke in
+  case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
+    Nothing -> secondaryWidgets
+    Just (x1,x2,y1,y2) -> 
   let primaryWidgets =
-    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++ zLines ++ zSelect ++ zPts
   in
-  primaryWidgets :: zRot ++ zFillAndStroke
+  primaryWidgets :: secondaryWidgets
 
 firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs)
 
@@ -1646,7 +1677,7 @@ makeZonesPath : Model -> String -> Int -> List LangSvg.Attr -> List (Svg Msg)
 makeZonesPath model shape id nodeAttrs =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
   let transform = maybeTransformAttr nodeAttrs in
-  let cmds = Tuple.first <| LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
+  let cmds = Maybe.withDefault [] <| Maybe.map Tuple.first <| LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
   let add (mi,pt) acc = case mi of Nothing -> acc
                                    _       -> (mi,pt) :: acc in
   let listOfMaybeIndexWithPt =
@@ -1661,16 +1692,13 @@ makeZonesPath model shape id nodeAttrs =
   let pts = List.map Tuple.second listOfMaybeIndexWithPt in
   let dots = zonePoints model id shape transform pts in
   let zRot = zoneRotatePolyOrPath model id "path" pts nodeAttrs in
-  let zFillAndStroke =
-    case pts of
-      (((x0,_),(y0,_))::_) ->
-        zonesFillAndStroke model id shape x0 y0 nodeAttrs
-      _ ->
-        Debug.crash "makeZonesPath"
-  in
+  case pts of
+    [] -> []
+    ((x0,_),(y0,_))::_ ->
+  let zFillAndStroke = zonesFillAndStroke model id shape x0 y0 nodeAttrs in
   let zSelect =
     let ptCrossDot (maybeIndex, (xNumTr, yNumTr)) =
-      let i = Utils.fromJust maybeIndex in
+      let i = Utils.fromJust_ "makeZonesPath" maybeIndex in
       zoneSelectCrossDot model False (id, shape, Point i) xNumTr dummyVal yNumTr dummyVal
     in
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
@@ -1683,14 +1711,17 @@ makeZonesPath model shape id nodeAttrs =
       ] ++ transform
   in
   -- TODO add "Edge" zones
+  let secondaryWidgets = zRot ++ zFillAndStroke in
+  case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
+    Nothing -> secondaryWidgets
+    Just (x1,x2,y1,y2) -> 
   let primaryWidgets =
-    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++
       zSelect ++
       dots
   in
-  primaryWidgets :: zRot ++ zFillAndStroke
+  primaryWidgets :: secondaryWidgets
 
 
 --------------------------------------------------------------------------------

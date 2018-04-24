@@ -21,7 +21,8 @@ import String
 import Lang exposing (..)
 import LangTools exposing (..)
 import LangUnparser exposing (..)
-import FastParser exposing (freshen)
+import LangUtils exposing (..)
+import ElmParser as Parser
 import Utils
 
 
@@ -31,7 +32,7 @@ cleanCode program =
   |> simplify
   |> removeExtraPostfixes ["_orig", "'"]
   |> mapExpTopDown (\e -> if isLet e then reflowLetWhitespace program e else e)
-  |> freshen
+  |> Parser.freshen
 
 
 -- Rename e.g. `x_orig_orig_orig` to `x_orig` (presuming there
@@ -178,7 +179,7 @@ removeUnusedLetPatsMatching predicate exp =
             if List.length pats /= List.length assigns then
               e__
             else
-              let patsAssigns = Utils.zip pats (List.map Tuple.second assigns) in
+              let patsAssigns = Utils.zip pats (Utils.listValues assigns) in
               let usedPatsAssigns =
                 List.filter
                     (\(pat, assign) ->
@@ -204,7 +205,7 @@ removeUnusedLetPatsMatching predicate exp =
                   else
                     let (usedPats, usedAssigns) = List.unzip usedPatsAssigns in
                     let newPat    = replaceP__ pat    <| PList pws1 (usedPats    |> imitatePatListWhitespace pats)    pws2 Nothing pws3 in
-                    let newAssign = replaceE__ assign <| EList aws1 (Utils.zip (List.map Tuple.first assigns) (usedAssigns |> imitateExpListWhitespace (List.map Tuple.second assigns))) aws2 Nothing aws3 in
+                    let newAssign = replaceE__ assign <| EList aws1 (Utils.listValuesMake assigns (usedAssigns |> imitateExpListWhitespace (Utils.listValues assigns))) aws2 Nothing aws3 in
                     ELet ws1 letKind False newPat ws2 newAssign ws3 body ws4
 
           _ ->
@@ -233,7 +234,7 @@ simplifyPatBoundExp pat boundExp =
     , EList ews1 es ews2 maybeETail ews3
     ) ->
       let (newPs, newEs) =
-        Utils.filterMapTogetherPreservingLeftovers simplifyPatBoundExp ps (List.map Tuple.second es)
+        Utils.filterMapTogetherPreservingLeftovers simplifyPatBoundExp ps (Utils.listValues es)
       in
       let (newMaybePTail, newMaybeETail) =
         case (maybePTail, maybeETail) of
@@ -255,7 +256,7 @@ simplifyPatBoundExp pat boundExp =
         _ ->
           Just <|
               ( replaceP__ pat       <| PList pws1 (newPs |> imitatePatListWhitespace ps) pws2 newMaybePTail pws3
-              , replaceE__ boundExp <| EList ews1 (Utils.zip (List.map Tuple.first es) (newEs |> imitateExpListWhitespace (List.map Tuple.second es))) ews2 newMaybeETail ews3
+              , replaceE__ boundExp <| EList ews1 (Utils.listValuesMake es (newEs |> imitateExpListWhitespace (Utils.listValues es))) ews2 newMaybeETail ews3
               )
 
     _ ->
@@ -270,10 +271,10 @@ simplifyAssignments program =
   |> mapExp
       (\exp ->
         case exp.val.e__ of
-          ELet ws1 letKind rec pat ws2 boundExp ws3 body ws4 ->
+          ELet ws1 letKind False pat ws2 boundExp ws3 body ws4 ->
             case simplifyPatBoundExp pat boundExp of
               Just (newPat, newBoundExp) ->
-                replaceE__ exp (ELet ws1 letKind rec (ensureWhitespacePat newPat) ws2 (ensureWhitespaceExp newBoundExp) ws3 body ws4)
+                replaceE__ exp (ELet ws1 letKind False (ensureWhitespacePat newPat) ws2 (ensureWhitespaceExp newBoundExp) ws3 body ws4)
 
               Nothing ->
                 body
@@ -295,7 +296,7 @@ simpleIdentsAndAssigns letPat letAssign =
 
     -- List assignment, no tail.
     (PList pws1 pats pws2 Nothing pws3, EList aws1 assigns aws2 Nothing aws3) ->
-      let patsAssigns = Utils.zip pats (List.map Tuple.second assigns) in
+      let patsAssigns = Utils.zip pats (Utils.listValues assigns) in
       let simplePatsAssigns =
         List.filterMap
             (\(pat, assign) ->
@@ -342,10 +343,10 @@ inlineTrivialRenamings exp =
                       _ ->
                         assignExp
                   )
-                  (List.map Tuple.second assigns)
+                  (Utils.listValues assigns)
             in
             let newAssignsListExp =
-              withDummyExpInfo <| EList aws1 (Utils.zip (List.map Tuple.first assigns) newAssigns) aws2 Nothing aws3
+              withDummyExpInfo <| EList aws1 (Utils.listValuesMake assigns newAssigns) aws2 Nothing aws3
             in
             ELet ws1 letKind False pat ws2 newAssignsListExp ws3 body ws4
 
@@ -466,7 +467,9 @@ changeRenamedVarsToOuter_ renamings exp =
 
       EApp ws1 e1 es appType ws2 -> EApp ws1 (recurse e1) (List.map recurse es) appType ws2
       EOp ws1 op es ws2          -> EOp ws1 op (List.map recurse es) ws2
-      EList ws1 es ws2 m ws3     -> EList ws1 (Utils.zip (List.map Tuple.first es) (List.map recurse (List.map Tuple.second es))) ws2 (Utils.mapMaybe recurse m) ws3
+      EList ws1 es ws2 m ws3     -> EList ws1 (Utils.listValuesMap recurse es) ws2 (Utils.mapMaybe recurse m) ws3
+      ERecord ws1 m es ws2       -> ERecord ws1 (Maybe.map (Tuple.mapFirst recurse) m) (Utils.recordValuesMap recurse es) ws2
+      ESelect ws0 e ws1 ws2 i    -> ESelect ws0 (recurse e) ws1 ws2 i
       EIf ws1 e1 ws2 e2 ws3 e3 ws4 -> EIf ws1 (recurse e1) ws2 (recurse e2) ws3 (recurse e3) ws4
       ECase ws1 e1 branches ws2  ->
         -- TODO remove branch pat vars from renamings here (shadow
@@ -494,13 +497,14 @@ changeRenamedVarsToOuter_ renamings exp =
               tbranches
         in
         ETypeCase ws1 exp newBranches ws2
-      EComment ws s e1              -> EComment ws s (recurse e1)
-      EOption ws1 s1 ws2 s2 e1      -> EOption ws1 s1 ws2 s2 (recurse e1)
-      ETyp ws1 pat tipe e ws2       -> ETyp ws1 pat tipe (recurse e) ws2
-      EColonType ws1 e ws2 tipe ws3 -> EColonType ws1 (recurse e) ws2 tipe ws3
-      ETypeAlias ws1 pat tipe e ws2 -> ETypeAlias ws1 pat tipe (recurse e) ws2
-      EParens ws1 e pStyle ws2      -> EParens ws1 (recurse e) pStyle ws2
-      EHole ws mv                   -> e__
+      EComment ws s e1                      -> EComment ws s (recurse e1)
+      EOption ws1 s1 ws2 s2 e1              -> EOption ws1 s1 ws2 s2 (recurse e1)
+      ETyp ws1 pat tipe e ws2               -> ETyp ws1 pat tipe (recurse e) ws2
+      EColonType ws1 e ws2 tipe ws3         -> EColonType ws1 (recurse e) ws2 tipe ws3
+      ETypeAlias ws1 pat tipe e ws2         -> ETypeAlias ws1 pat tipe (recurse e) ws2
+      ETypeDef ws1 ident vars ws2 dcs e ws3 -> ETypeDef ws1 ident vars ws2 dcs (recurse e) ws3
+      EParens ws1 e pStyle ws2              -> EParens ws1 (recurse e) pStyle ws2
+      EHole ws mv                           -> e__
   in
   replaceE__ exp e__New
 

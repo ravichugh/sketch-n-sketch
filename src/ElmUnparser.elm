@@ -1,6 +1,9 @@
 module ElmUnparser exposing
   ( unparse
   , unparsePattern
+  , unparseType -- Experimental
+  , unparseLongStringContent
+  , unparseHtmlTextContent
   )
 
 import Lang exposing (..)
@@ -9,6 +12,13 @@ import ElmParser
 import BinaryOperatorParser
 import Utils
 import Regex
+import ParserUtils exposing (unparseStringContent)
+import ImpureGoodies
+import HTMLParser
+
+--------------------------------------------------------------------------------
+-- Simple Values
+--------------------------------------------------------------------------------
 
 unparseWD : WidgetDecl -> String
 unparseWD wd =
@@ -27,13 +37,169 @@ unparseBaseValue ebv =
       if b then "True" else "False"
 
     EString quoteChar text ->
-      quoteChar ++ Regex.replace Regex.All (Regex.regex <| "\\\\|" ++ quoteChar) (
-        \{match} -> if match == "\\" then "\\\\" else "\\" ++ quoteChar)
-        text ++
-      quoteChar
+      quoteChar ++ unparseStringContent quoteChar text ++ quoteChar
 
     ENull ->
       "null"
+
+--------------------------------------------------------------------------------
+-- Records as sugar for other types with `Lang.recordConstructorName`
+--------------------------------------------------------------------------------
+
+expName : Exp -> Maybe String
+expName e =
+  case e.val.e__ of
+    EBase _ baseVal ->
+      case baseVal of
+        EString _ name ->
+          Just name
+        _ ->
+          Nothing
+    _ ->
+      Nothing
+
+patName : Pat -> Maybe String
+patName p =
+  case p.val.p__ of
+    PBase _ baseVal ->
+      case baseVal of
+        EString _ name ->
+          Just name
+        _ ->
+          Nothing
+    _ ->
+      Nothing
+
+expArgs : Exp -> Maybe (List (WS, WS, Ident, WS, Exp))
+expArgs e =
+  case e.val.e__ of
+    ERecord _ _ entries _ ->
+      Just entries
+    _ ->
+      Nothing
+
+patArgs : Pat -> Maybe (List (WS, WS, Ident, WS, Pat))
+patArgs p =
+  case p.val.p__ of
+    PRecord _ entries _ ->
+      Just entries
+    _ ->
+      Nothing
+
+-- Tries to unparse a record as a tuple
+tryUnparseTuple
+  :  (t -> String)
+  -> WS -> List (WS, WS, Ident, WS, t) -> WS
+  -> Maybe String
+tryUnparseTuple unparseTerm wsBefore elems wsBeforeEnd =
+  let
+    ctorString =
+      stringifyCtorKind Lang.TupleCtor
+  in
+    if
+      elems
+        |> List.map (\(_, _, key, _, _) -> key)
+        |> List.member ctorString
+    then
+      let
+        inside =
+          elems
+            |> List.filter
+                 ( \(_, _, elName, _, _) ->
+                     String.startsWith "_" elName
+                 )
+            |> List.sortBy
+                 ( \(_, _, elName, _, _) ->
+                     elName
+                       |> String.dropLeft 1
+                       |> String.toInt
+                       |> Result.withDefault -1
+                 )
+            |> List.map
+                 ( \(wsBeforeComma, _, _, _, elBinding) ->
+                     wsBeforeComma.val ++ "," ++ unparseTerm elBinding
+                 )
+            |> String.concat
+      in
+        Just <|
+          wsBefore.val
+            ++ "("
+            ++ String.dropLeft 1 inside -- removes first comma
+            ++ wsBeforeEnd.val
+            ++ ")"
+    else
+      Nothing
+
+-- Tries to unparse a record as a data constructor
+tryUnparseDataConstructor
+  :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (WS, WS, Ident, WS, t)))
+  -> WS -> List (WS, WS, Ident, WS, t) -> WS
+  -> Maybe String
+tryUnparseDataConstructor unparseTerm name args wsBefore elems wsBeforeEnd =
+  let
+    ctorString =
+      stringifyCtorKind Lang.DataTypeCtor
+
+    maybeNameString =
+      elems
+        |> List.map (\(_, _, key, _, val) -> (key, val))
+        |> Utils.maybeFind ctorString
+        |> Maybe.andThen name
+
+    maybeArgs =
+      elems
+        |> List.map (\(_, _, key, _, val) -> (key, val))
+        |> Utils.maybeFind Lang.ctorArgs
+        |> Maybe.andThen args
+  in
+    case (maybeNameString, maybeArgs) of
+      (Just nameString, Just args) ->
+        let
+          argsString =
+            args
+              |> List.filter
+                   ( \(_, _, elName, _, _) ->
+                       String.startsWith "_" elName
+                   )
+              |> List.sortBy
+                   ( \(_, _, elName, _, _) ->
+                       elName
+                         |> String.dropLeft 1
+                         |> String.toInt
+                         |> Result.withDefault -1
+                   )
+              |> List.map
+                   ( \(_, _, _, _, elBinding) ->
+                       unparseTerm elBinding
+                   )
+              |> String.concat
+        in
+          Just <|
+            wsBefore.val
+              ++ nameString
+              ++ argsString
+
+      _ ->
+        Nothing
+
+tryUnparseRecordSugars
+  :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (WS, WS, Ident, WS, t)))
+  -> WS -> List (WS, WS, Ident, WS, t) -> WS
+  -> (() -> String) -> String
+tryUnparseRecordSugars unparseTerm name args wsBefore elems wsBeforeEnd default =
+  case tryUnparseTuple unparseTerm wsBefore elems wsBeforeEnd of
+    Just s ->
+      s
+    Nothing ->
+      case tryUnparseDataConstructor unparseTerm name args wsBefore elems wsBeforeEnd of
+        Just s ->
+          s
+        Nothing ->
+          default ()
+
+--------------------------------------------------------------------------------
+-- Patterns
+--------------------------------------------------------------------------------
 
 unparsePattern : Pat -> String
 unparsePattern p =
@@ -70,10 +236,10 @@ unparsePattern p =
 
     PList wsBefore [head] wsMiddle (Just tail) wsBeforeEnd ->
       wsBefore.val -- Should be empty
-        ++ wrapPatternWithParensIfLessPrecedence p head (unparsePattern head)
+        ++ wrapPatternWithParensIfLessPrecedence OpLeft p head (unparsePattern head)
         ++ wsMiddle.val
         ++ "::"
-        ++ wrapPatternWithParensIfLessPrecedence p tail (unparsePattern tail)
+        ++ wrapPatternWithParensIfLessPrecedence OpRight p tail (unparsePattern tail)
         ++ wsBeforeEnd.val -- Should be empty
 
     PList wsBefore (head::headTail) wsMiddle (Just tail) wsBeforeEnd ->
@@ -82,14 +248,42 @@ unparsePattern p =
     PList _ [] wsMiddle (Just tail) _ ->
       unparsePattern tail
 
+    PRecord wsBefore elems wsAfter ->
+      tryUnparseRecordSugars unparsePattern patName patArgs wsBefore elems wsAfter <| \_ ->
+        let maybeJustKey eqSpace key value =
+          let default = eqSpace ++ "=" ++ unparsePattern value in
+          if eqSpace == "" then
+            case value.val.p__ of
+              PVar _ name _ -> if name == key then "" else default
+              _ -> default
+          else default
+        in
+        wsBefore.val
+          ++ "{"
+          ++ (case elems of
+                [] -> ""
+                (wsComma, wsKey, key, wsEq, value)::tail ->
+                  wsKey.val ++ key ++ maybeJustKey wsEq.val key value ++
+                  String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
+                     (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
+                     wsKey.val ++ key ++ maybeJustKey wsEq.val key value
+                  ) tail)
+          )
+          ++ wsAfter.val
+          ++ "}"
+
     PAs wsName name wsBeforeAs pat ->
-      wrapPatternWithParensIfLessPrecedence p pat (unparsePattern pat)
+      wrapPatternWithParensIfLessPrecedence OpLeft p pat (unparsePattern pat)
         ++ wsBeforeAs.val
         ++ "as"
         ++ wsName.val
         ++ name
 
+--------------------------------------------------------------------------------
+-- Types
+--------------------------------------------------------------------------------
 -- TODO
+
 unparseType : Type -> String
 unparseType tipe =
   case tipe.val of
@@ -103,13 +297,30 @@ unparseType tipe =
       case maybeRestType of
         Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"
         Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3.val ++ "]"
+    TRecord wsBefore mb elems wsAfter ->
+      wsBefore.val
+        ++ "{"
+        ++ (case mb of
+          Just (ident, wsIdent) -> ident ++ wsIdent.val
+          Nothing -> ""
+        ) ++ (case elems of
+              [] -> ""
+              (wsComma, wsKey, key, wsEq, value)::tail ->
+                wsKey.val ++ key ++ wsEq.val ++ ":" ++ unparseType value ++
+                String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
+                   (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
+                   wsKey.val ++ key ++ wsEq.val ++ ":" ++ unparseType value
+                ) tail)
+        )
+        ++ wsAfter.val
+        ++ "}"
     TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
-    TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
-    TNamed ws1 "Bool"       -> ws1.val ++ "Bad_BOOL"
-    TNamed ws1 "String"     -> ws1.val ++ "Bad_STRING"
-    TNamed ws1 "Null"       -> ws1.val ++ "Bad_NULL"
-    TNamed ws1 ident        -> ws1.val ++ ident
+    TApp ws1 "Num" _        -> ws1.val ++ "Bad_NUM"
+    TApp ws1 "Bool" _       -> ws1.val ++ "Bad_BOOL"
+    TApp ws1 "String" _     -> ws1.val ++ "Bad_STRING"
+    TApp ws1 "Null" _       -> ws1.val ++ "Bad_NULL"
+    TApp ws1 ident ts       -> ws1.val ++ ident ++ String.concat (List.map unparseType ts)
     TVar ws1 ident          -> ws1.val ++ ident
     TWildcard ws            -> ws.val ++ "_"
     TForall ws1 typeVars tipe1 ws2 ->
@@ -121,6 +332,10 @@ unparseType tipe =
       in
       ws1.val ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2.val)
 
+--------------------------------------------------------------------------------
+-- Operators
+--------------------------------------------------------------------------------
+
 unparseOp : Op -> String
 unparseOp op =
   case op.val of
@@ -128,6 +343,8 @@ unparseOp op =
       "pi"
     DictEmpty ->
       "empty"
+    DictFromList ->
+      "dict"
     Cos ->
       "cos"
     Sin ->
@@ -176,19 +393,35 @@ unparseOp op =
       "debug"
     NoWidgets ->
       "noWidgets"
-    OptNumToString ->
-      "optNumToString"
+    ToStrExceptStr ->
+      "ToStrExceptStr"
+    RegexExtractFirstIn ->
+      "extractFirstIn"
 
-unparseBranch : Branch -> String
-unparseBranch branch =
+--------------------------------------------------------------------------------
+-- Expressions
+--------------------------------------------------------------------------------
+
+unparseBranch : Bool -> Branch -> String
+unparseBranch   isNotFirst branch =
   case branch.val of
     Branch_ wsBefore p e wsBeforeArrow ->
-      wsBefore.val
+      (if isNotFirst && not (String.contains "\n" wsBefore.val)
+       then ";" ++ wsBefore.val
+       else wsBefore.val)
         ++ unparsePattern p
         ++ wsBeforeArrow.val
         ++ "->"
         ++ unparse e
-        ++ ";"
+
+unparseBranches : List Branch -> String
+unparseBranches =
+  let aux isNotFirst branches =
+      case branches of
+        [] -> ""
+        head::tail -> unparseBranch isNotFirst head ++ aux True tail
+  in aux False
+
 
 wrapWithTightParens : String -> String
 wrapWithTightParens unparsed =
@@ -216,21 +449,33 @@ unparse e =
       wsBefore.val
         ++ identifier
 
-    EFun wsBefore parameters body _ ->
-      wsBefore.val
+    EFun wsBefore parameters functionBinding _ ->
+      let default =
+        wsBefore.val
         ++ "\\"
         ++ String.concat (List.map unparsePattern parameters)
         ++ " ->"
-        ++ unparse body
+        ++ unparse functionBinding
+      in
+      case parameters of
+        [p] -> case p.val.p__ of
+          PVar _ " $implicitcase" _ -> case functionBinding.val.e__ of
+            ECase wsBefore examinedExpression branches wsBeforeOf -> case examinedExpression.val.e__ of
+              EVar _ " $implicitcase" ->
+                unparse (replaceE__ functionBinding <| ECase wsBefore (replaceE__ examinedExpression <| EVar space0 "") branches wsBeforeOf)
+              _ -> default
+            _ -> default
+          _ -> default
+        _ -> default
 
     EApp wsBefore function arguments appType _ ->
       -- Not just for help converting Little to Elm. Allows synthesis ot not have to worry about so many cases.
       let unparseArg e =
         case e.val.e__ of
-          EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
-          EOp _ _ _ _          -> wrapWithTightParens (unparse e)
-          EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
-          _                    -> unparse e
+           EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
+           EOp _ _ _ _          -> wrapWithTightParens (unparse e)
+           EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
+           _                    -> unparse e
       in
       case appType of
         SpaceApp ->
@@ -243,35 +488,43 @@ unparse e =
           case arguments of
             [arg] ->
               wsBefore.val
-                ++ wrapWithParensIfLessEqPrecedence e function (unparse function)
+                ++ wrapWithParensIfLessPrecedence OpLeft e function (unparse function)
                 ++ lws.val
                 ++ "<|"
-                ++ unparse arg
+                ++ wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)
             _ -> "?[internal error EApp LeftApp wrong number of arguments]?"
         RightApp rws ->
           case arguments of
             [arg] ->
               wsBefore.val
-                ++ unparse arg
+                ++ wrapWithParensIfLessPrecedence OpLeft e arg (unparse arg)
                 ++ rws.val
                 ++ "|>"
-                ++ wrapWithParensIfLessEqPrecedence e function (unparse function)
-            _ -> "?[internal error EApp RightApp wrong number of arguments]?"
+                ++ wrapWithParensIfLessPrecedence OpRight e function (unparse function)
+            _ -> "?[internal error EApp RightApp did not have exactly 1 argument]?"
+        InfixApp ->
+          case arguments of
+            [arg1, arg2] ->
+              wsBefore.val
+                ++ wrapWithParensIfLessPrecedence OpLeft e arg1 (unparse arg1)
+                ++ unparse function
+                ++ wrapWithParensIfLessPrecedence OpRight e arg2 (unparse arg2)
+            _ -> "?[internal error EApp InfixApp did not have exactly 2 arguments]?"
 
     EOp wsBefore op arguments _ ->
       let
         default =
           wsBefore.val
             ++ unparseOp op
-            ++ String.concat (List.map (\x -> wrapWithParensIfLessPrecedence e x (unparse x)) arguments)
+            ++ String.concat (List.map (\x -> wrapWithParensIfLessPrecedence OpRight e x (unparse x)) arguments)
       in
         if ElmLang.isInfixOperator op then
           case arguments of
             [ left, right ] ->
-              wrapWithParensIfLessPrecedence e left (unparse left)
+              wrapWithParensIfLessPrecedence OpLeft e left (unparse left)
                 ++ wsBefore.val
                 ++ unparseOp op
-                ++ wrapWithParensIfLessPrecedence e right (unparse right)
+                ++ wrapWithParensIfLessPrecedence OpRight e right (unparse right)
             _ ->
               default
         else
@@ -283,8 +536,6 @@ unparse e =
         ++ ( case members of
                [] ->
                  ""
-               [(_,e1)] ->
-                 unparse e1
                (_,e1) :: eRest ->
                  unparse e1
                    ++ String.concat (List.map (\(wsI,eI) -> wsI.val ++ "," ++ unparse eI) eRest)
@@ -294,10 +545,10 @@ unparse e =
 
     EList wsBefore [(_,head)] wsmiddle (Just tail) wsBeforeEnd ->
       wsBefore.val -- Should be empty
-        ++ wrapWithParensIfLessPrecedence e head (unparse head)
+        ++ wrapWithParensIfLessPrecedence OpLeft e head (unparse head)
         ++ wsmiddle.val
         ++ "::"
-        ++ wrapWithParensIfLessPrecedence e tail (unparse tail)
+        ++ wrapWithParensIfLessPrecedence OpRight e tail (unparse tail)
         ++ wsBeforeEnd.val -- Should be empty
 
     -- Obsolete, remove whenever we are sure that there are no mutliple cons anymore.
@@ -306,6 +557,31 @@ unparse e =
 
     EList wsBefore [] wsMiddle (Just tail) wsBeforeEnd ->
       unparse tail
+
+    ERecord wsBefore mi elems wsAfter ->
+      tryUnparseRecordSugars unparse expName expArgs wsBefore elems wsAfter <| \_ ->
+        wsBefore.val
+          ++ "{"
+          ++ (case mi of
+                Just (m, ws) -> unparse m ++ ws.val ++ "|"
+                Nothing -> ""
+          )
+          ++ (case elems of
+                [] -> ""
+                (wsComma, wsKey, key, wsEq, value)::tail ->
+                  let (strParameters, binding) = getParametersBinding value in
+                  wsComma.val ++ wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding ++
+                  String.concat (List.map (\(wsComma, wsKey, key, wsEq, value) ->
+                    let (strParameters, binding) = getParametersBinding value in
+                    (if String.contains "\n" wsComma.val && wsKey.val == "" then wsComma.val else wsComma.val ++ ",") ++
+                    wsKey.val ++ key ++ strParameters ++ wsEq.val ++ "=" ++ unparse binding
+                  ) tail)
+          )
+          ++ wsAfter.val
+          ++ "}"
+
+    ESelect ws0 exp wsBeforeDot wsAfterDot id ->
+      ws0.val ++ unparse exp ++ wsBeforeDot.val ++ "." ++ wsAfterDot.val ++ id
 
     EIf wsBefore condition wsBeforeTrue trueBranch wsBeforeElse falseBranch _ ->
       wsBefore.val
@@ -322,27 +598,10 @@ unparse e =
         ++ unparse examinedExpression
         ++ wsBeforeOf.val
         ++ "of"
-        ++ String.concat (List.map unparseBranch branches)
+        ++ unparseBranches branches
 
     ELet wsBefore letKind isRec name wsBeforeEq binding_ wsBeforeInOrSemi body _ ->
-      let
-        (parameters, binding) =
-          case binding_.val.e__ of
-            EFun _ parameters functionBinding _ ->
-              (parameters, functionBinding)
-
-            _ ->
-              ([], binding_)
-
-        strParametersDefault =
-          String.concat (List.map unparsePattern parameters)
-
-        -- NOTE: to help with converting Little to Elm
-        strParameters =
-          case (parameters, String.startsWith " " strParametersDefault) of
-            (_::_, False) -> " " ++ strParametersDefault
-            _             -> strParametersDefault
-      in
+        let (strParameters, binding) = getParametersBinding binding_ in
         case letKind of
           Let ->
             case name.val.p__ of
@@ -411,14 +670,19 @@ unparse e =
             ++ "\"\"\""
             ++ multilineContentUnparse innerExpression
             ++ "\"\"\""
-        ElmSyntax -> -- We just unparse the inner expression as regular parentheses
-          unparse <| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
+        HtmlSyntax ->
+          wsBefore.val
+            ++ unparseHtmlNode innerExpression
+        ElmSyntax ->
+           -- We just unparse the inner expression as regular parentheses
+           -- This is normally never called from here.
+          unparse innerExpression  --<| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
 
     EHole wsBefore val ->
       wsBefore.val
         ++ "??"
 
-    Lang.EColonType wsBefore term wsBeforeColon typ wsAfter ->
+    EColonType wsBefore term wsBeforeColon typ wsAfter ->
       wsBefore.val
         ++ unparse term
         ++ wsBeforeColon.val
@@ -426,14 +690,14 @@ unparse e =
         ++ unparseType typ
         ++ wsAfter.val
 
-    Lang.ETyp _ name typ rest wsBeforeColon ->
+    ETyp _ name typ rest wsBeforeColon ->
       unparsePattern name
         ++ wsBeforeColon.val
         ++ ":"
         ++ unparseType typ
         ++ unparse rest
 
-    Lang.ETypeAlias wsBefore pat typ rest _ ->
+    ETypeAlias wsBefore pat typ rest _ ->
       wsBefore.val
         ++ "type alias"
         ++ unparsePattern pat
@@ -441,28 +705,91 @@ unparse e =
         ++ unparseType typ
         ++ unparse rest
 
-    Lang.ETypeCase _ _ _ _ ->
+    ETypeDef wsBefore (wsBeforeIdent, ident) vars wsBeforeEqual dcs rest _ ->
+      let
+        unparsedVars =
+          String.concat <|
+            List.map
+              ( \(ws, name) ->
+                  ws.val ++ name
+              )
+              vars
+        unparsedDcs =
+          String.concat <|
+            List.intersperse "|" <|
+              List.map
+                ( \(ws1, name, ts, ws2) ->
+                    ws1.val
+                      ++ name
+                      ++ String.concat (List.map unparseType ts)
+                      ++ ws2.val
+                )
+                dcs
+      in
+        wsBefore.val
+          ++ "type"
+          ++ wsBeforeIdent.val
+          ++ ident
+          ++ unparsedVars
+          ++ wsBeforeEqual.val
+          ++ "="
+          ++ unparsedDcs
+          ++ unparse rest
+
+    ETypeCase _ _ _ _ ->
       "{Error: typecase not yet implemented for Elm syntax}" -- TODO
 
+-- If the expression is a EFun, prints the lists of parameters and returns its body.
+getParametersBinding: Exp -> (String, Exp)
+getParametersBinding binding_  =
+  let (parameters, binding) =
+    case binding_.val.e__ of
+       EFun _ parameters functionBinding _ ->
+         let default = (parameters, functionBinding) in
+         case parameters of
+            [p] -> case p.val.p__ of
+              PVar _ " $implicitcase" _ -> case functionBinding.val.e__ of
+                ECase wsBefore examinedExpression branches wsBeforeOf -> case examinedExpression.val.e__ of
+                  EVar _ " $implicitcase" ->
+                    ([], binding_)
+                  _ -> default
+                _ -> default
+              _ -> default
+            _ -> default
+       _ ->
+        ([], binding_)
+  in
+  let strParametersDefault =
+        String.concat (List.map unparsePattern parameters)
+  in
+  let strParameters = --To help to convert from little to Elm
+     case (parameters, String.startsWith " " strParametersDefault) of
+       (_::_, False) -> " " ++ strParametersDefault
+       _             -> strParametersDefault
+  in
+  (strParameters, binding)
 
 multilineRegexEscape = Regex.regex <| "@"
+
+unparseLongStringContent s =
+  Regex.replace  Regex.All multilineRegexEscape (\m -> "@@") s
 
 --Parses and unparses long interpolated strings.
 multilineContentUnparse : Exp -> String
 multilineContentUnparse e = case e.val.e__ of
   EBase sp0 (EString _ s) ->
-    Regex.replace  Regex.All multilineRegexEscape (\m -> "@@") s
+    unparseLongStringContent s
   EOp sp1 op [left, right] sp2 ->
     case op.val of
       Plus ->
-        let unwrapOptNumToString x =
+        let unwrapToStrExceptStr x =
           case x of
             EOp spm1 op [arg] spm2 -> case op.val of
-              OptNumToString -> arg.val.e__
+              ToStrExceptStr -> arg.val.e__
               _ -> x
             _ -> x
         in
-        case unwrapOptNumToString left.val.e__ of
+        case unwrapToStrExceptStr left.val.e__ of
           EBase sp0 (EString _ s) ->
             multilineContentUnparse left ++ multilineContentUnparse right
           EVar sp0 ident as left ->
@@ -504,45 +831,183 @@ multilineContentUnparse e = case e.val.e__ of
     ) ++ (if rec then "rec" else "") ++ ws1.val ++ unparsePattern p ++ ws2.val ++ "=" ++ finalDefinition ++ remaining
   anyExp -> "@(" ++ unparse e ++ ")"
 
+------------------------
+-- HTML Unparsing
+------------------------
 
-getExpPrecedence: Exp -> Int
+unparseHtmlAttributes: Exp -> String
+unparseHtmlAttributes attrExp =
+  case eListUnapply attrExp of
+    Just attrs ->
+      attrs |> List.map (\attr -> case attr.val.e__ of
+        EList attrNameSpace [(_, attrName), (attrEqSpace, attrValue)] _ Nothing _ ->
+          let beforeSpace = if attrNameSpace.val == "" then " " else attrNameSpace.val in
+          case attrName.val.e__ of
+            EBase _ (EString _ attrNameStr) ->
+              let attrValueToConsider = case attrNameStr of
+                "style" -> eAppUnapply1 attrValue |> Maybe.map Tuple.second |> Maybe.withDefault attrValue
+                _ -> attrValue
+              in
+              case attrValueToConsider.val.e__ of
+                EBase spIfNoValue (EString _ attrValueStr) ->
+                  if attrValueStr == "" && spIfNoValue.val == " " then
+                    beforeSpace ++ attrNameStr
+                  else
+                    beforeSpace ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValueToConsider
+                _ ->
+                  beforeSpace ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValueToConsider
+            _ -> " @[" ++ unparse attr ++"]"
+        _ -> " @[" ++ unparse attr ++"]"
+      ) |> String.join ""
+    Nothing -> case attrExp.val.e__ of
+      EApp sp _ [e1, e2] _ _ -> case eAppUnapply2 e1 of
+        Just (_, eleft, e) ->
+          unparseHtmlAttributes eleft ++ sp.val ++ "@" ++ unparse e ++ unparseHtmlAttributes e2
+        Nothing -> " @("++unparse attrExp++")"
+      _ -> " @("++unparse attrExp++")"
+
+unparseHtmlChildList: Exp -> String
+unparseHtmlChildList childExp =
+  case eListUnapply childExp of
+    Just children ->
+      children |> List.map unparseHtmlNode |> String.join ""
+    Nothing ->
+      case childExp.val.e__ of
+        EApp _ _ [e1, eRight] _ _ ->
+          case e1.val.e__ of
+            EApp _ _ [eLeft, eToRenderwrapped] _ _ ->
+              case eToRenderwrapped.val.e__ of
+                EApp  _ _ [eToRender] _ _ ->
+                  unparseHtmlChildList eLeft ++ "@" ++ unparse eToRender ++ unparseHtmlChildList eRight
+                _ ->
+                  unparseHtmlChildList eLeft ++ "@" ++ unparse eToRenderwrapped ++ unparseHtmlChildList eRight
+            _  -> "@(" ++ unparse childExp ++ ")"
+        _  -> "@(" ++ unparse childExp ++ ")"
+
+htmlContentRegexEscape = Regex.regex <| "@"
+unparseHtmlTextContent content =
+  ImpureGoodies.htmlescape <| Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@") <| content
+
+unparseHtmlNode: Exp -> String
+unparseHtmlNode e = case e.val.e__ of
+  EList _ [text, (_, content)] _ Nothing _ ->
+    case content.val.e__ of
+      EBase _ (EString _ content) -> unparseHtmlTextContent content
+      EVar _ varname -> "@" ++ varname
+      x -> "@[" ++ unparse e ++ "]"
+  EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] spaceBeforeTail Nothing spaceAfterTagClosing ->
+    let (tagStart, tagEnd) = case tagExp.val.e__ of
+          EBase _ (EString _ content) -> (content, content)
+          _ -> ("@" ++ unparse tagExp, "@")
+    in
+    "<" ++ tagStart ++ unparseHtmlAttributes attrExp ++spaceBeforeEndOpeningTag.val ++ (case spaceBeforeTail.val of
+      " " -> -- Auto-closing
+        "/>"
+      "  " ->  -- void closing
+        ">"
+      _ -> -- Normal closing if the tag is ok
+        if HTMLParser.isVoidElement tagStart then
+          ">"
+        else
+          ">" ++ unparseHtmlChildList childExp ++ "</" ++ tagEnd ++ spaceAfterTagClosing.val ++ ">"
+    )
+  _ -> "@[" ++ unparse e ++ "]"
+
+-- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-conatined
+getExpPrecedence: Exp -> Maybe Int
 getExpPrecedence exp =
   case exp.val.e__ of
-    EList _ [head] _ (Just tail) _ -> 5
-    EApp _ _ _ (LeftApp _) _       -> 0
-    EApp _ _ _ (RightApp _) _      -> 0
-    EColonType _ _ _ _ _           -> -1
+    EList _ [head] _ (Just tail) _ -> Just 5
+    EApp _ _ _ (LeftApp _) _       -> Just 0
+    EApp _ _ _ (RightApp _) _      -> Just 0
+    EApp _ f _ (InfixApp) _        ->
+      case f.val.e__ of
+        EVar _ name ->
+          case BinaryOperatorParser.getOperatorInfo name ElmParser.builtInPrecedenceTable of
+            Nothing -> Nothing
+            Just (associativity, precedence) -> Just precedence
+        _ -> Nothing
+    EColonType _ _ _ _ _           -> Just -1
     EOp _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
-        Nothing -> 10
-        Just (associativity, precedence) -> precedence
-    _ -> 10
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just precedence
+    _ -> Nothing
 
-wrapWithParensIfLessPrecedence: Exp -> Exp -> String -> String
-wrapWithParensIfLessPrecedence outsideExp insideExp unparsedInsideExpr =
-  if getExpPrecedence insideExp < getExpPrecedence outsideExp then wrapWithTightParens unparsedInsideExpr else unparsedInsideExpr
+getExpAssociativity: Exp -> Maybe BinaryOperatorParser.Associativity
+getExpAssociativity exp =
+  case exp.val.e__ of
+    EList _ [head] _ (Just tail) _ -> Just BinaryOperatorParser.Right
+    EApp _ _ _ (LeftApp _) _       -> Just BinaryOperatorParser.Right
+    EApp _ _ _ (RightApp _) _      -> Just BinaryOperatorParser.Left
+    EApp _ f _ (InfixApp) _        ->
+      case f.val.e__ of
+        EVar _ name ->
+          case BinaryOperatorParser.getOperatorInfo name ElmParser.builtInPrecedenceTable of
+            Nothing -> Nothing
+            Just (associativity, precedence) -> Just associativity
+        _ -> Nothing
+    EColonType _ _ _ _ _           -> Just BinaryOperatorParser.Left
+    EOp _ operator _ _ ->
+      case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just associativity
+    _ -> Nothing
 
-wrapWithParensIfLessEqPrecedence: Exp -> Exp -> String -> String
-wrapWithParensIfLessEqPrecedence outsideExp insideExp unparsedInsideExpr =
-  if getExpPrecedence insideExp <= getExpPrecedence outsideExp then wrapWithTightParens unparsedInsideExpr else unparsedInsideExpr
+type OpDir = OpLeft | OpRight
 
-getPatPrecedence: Pat -> Int
+wrapWithParensIfLessPrecedence_: (a -> Maybe Int) -> (a -> Maybe BinaryOperatorParser.Associativity) -> OpDir -> a -> a -> String -> String
+wrapWithParensIfLessPrecedence_ getPrecedence getAssociativity opDir outsideExp insideExp unparsedInsideExpr =
+  let inPrecedenceMb  = getPrecedence insideExp in
+  case inPrecedenceMb of
+    Nothing -> unparsedInsideExpr
+    Just inPrecedence ->
+  let precedenceMb    = getPrecedence outsideExp in
+  case precedenceMb of
+      Nothing -> unparsedInsideExpr
+      Just precedence ->
+  let inAssociativity = getAssociativity insideExp in
+  let associativity = getAssociativity outsideExp in
+  if inPrecedence < precedence
+  then wrapWithTightParens unparsedInsideExpr
+  else if inPrecedence == precedence then
+    if associativity == inAssociativity && (
+            associativity == Just BinaryOperatorParser.Left && opDir == OpLeft
+         || associativity == Just BinaryOperatorParser.Right && opDir == OpRight) then
+         unparsedInsideExpr
+    else wrapWithTightParens unparsedInsideExpr -- Same associativity with conflicts, we put parentheses.
+  else unparsedInsideExpr
+
+wrapWithParensIfLessPrecedence: OpDir -> Exp -> Exp -> String -> String
+wrapWithParensIfLessPrecedence  =
+  wrapWithParensIfLessPrecedence_ getExpPrecedence getExpAssociativity
+
+getPatPrecedence: Pat -> Maybe Int
 getPatPrecedence pat =
   case pat.val.p__ of
     PList _ _ _ (Just tail) _ ->
       case BinaryOperatorParser.getOperatorInfo "::" ElmParser.builtInPatternPrecedenceTable of
-        Nothing -> 10
-        Just (associativity, precedence) -> precedence
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just precedence
     PAs _ _ _ _ ->
       case BinaryOperatorParser.getOperatorInfo "as" ElmParser.builtInPatternPrecedenceTable of
-        Nothing -> 10
-        Just (associativity, precedence) -> precedence
-    _ -> 10
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just precedence
+    _ -> Nothing
 
-wrapPatternWithParensIfLessPrecedence: Pat -> Pat -> String -> String
-wrapPatternWithParensIfLessPrecedence outsidePat insidePat unparsedInsidePat =
-  if getPatPrecedence insidePat < getPatPrecedence outsidePat then wrapWithTightParens unparsedInsidePat else unparsedInsidePat
+getPatAssociativity: Pat -> Maybe BinaryOperatorParser.Associativity
+getPatAssociativity pat =
+  case pat.val.p__ of
+    PList _ _ _ (Just tail) _ ->
+      case BinaryOperatorParser.getOperatorInfo "::" ElmParser.builtInPatternPrecedenceTable of
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just associativity
+    PAs _ _ _ _ ->
+      case BinaryOperatorParser.getOperatorInfo "as" ElmParser.builtInPatternPrecedenceTable of
+        Nothing -> Nothing
+        Just (associativity, precedence) -> Just associativity
+    _ -> Nothing
 
-wrapPatternWithParensIfLessEqPrecedence: Pat -> Pat -> String -> String
-wrapPatternWithParensIfLessEqPrecedence outsidePat insidePat unparsedInsidePat =
-  if getPatPrecedence insidePat <= getPatPrecedence outsidePat then wrapWithTightParens unparsedInsidePat else unparsedInsidePat
+wrapPatternWithParensIfLessPrecedence: OpDir -> Pat -> Pat -> String -> String
+wrapPatternWithParensIfLessPrecedence =
+  wrapWithParensIfLessPrecedence_ getPatPrecedence getPatAssociativity

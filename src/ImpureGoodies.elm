@@ -46,6 +46,16 @@ mutateRecordField record fieldName newValue =
   Native.ImpureGoodies.mutateRecordField record fieldName newValue
 
 
+toggleGlobalBool : () -> Bool
+toggleGlobalBool () =
+  Native.ImpureGoodies.toggleGlobalBool ()
+
+
+getCurrentTime : () -> Float
+getCurrentTime () =
+  Native.ImpureGoodies.getCurrentTime ()
+
+
 timedRun : (() -> a) -> (a, Float)
 timedRun thunk =
   Native.ImpureGoodies.timedRun thunk
@@ -56,3 +66,34 @@ logTimedRun caption thunk =
   let (result, time) = timedRun thunk in
   let _ = Debug.log (caption ++ " milliseconds") time in
   result
+
+stringCharAt: Int -> String -> Maybe Char
+stringCharAt index string =
+  Native.ImpureGoodies.stringCharAt index string
+
+-- Used to cache a value inside an expression. Careful: the field name must be available and not overriding
+putCache: record -> String -> value -> value
+putCache record cacheName newValue =
+  Native.ImpureGoodies.putCache record cacheName newValue
+
+getCache: record -> String -> Maybe b
+getCache record cacheName =
+  Native.ImpureGoodies.getCache record cacheName
+
+getOrUpdateCache: record -> String -> (() -> value) -> value
+getOrUpdateCache record cacheName default =
+  case getCache record cacheName of
+    Just v -> v
+    Nothing -> putCache record cacheName (default ())
+
+evaluate: String -> a
+evaluate s = Native.ImpureGoodies.evaluate s
+
+log: String -> String
+log s = Native.ImpureGoodies.log s
+
+htmlunescape: String -> String
+htmlunescape s = Native.ImpureGoodies.htmlunescape s
+
+htmlescape: String -> String
+htmlescape s = Native.ImpureGoodies.htmlescape s

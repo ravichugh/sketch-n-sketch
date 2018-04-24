@@ -7,7 +7,7 @@ import Utils
 
 import Dict exposing (Dict)
 import Set exposing (Set)
-
+import LangUtils exposing (..)
 
 type alias DependencyEnv = List (Ident, EId)
 
@@ -98,6 +98,8 @@ grossDependencies_ identToDepEId program =
         EFun _ pats body _                      -> [(expEffectiveExp body).val.eid] -- The value of a function is how it transforms inputs into outputs, as determined by its body expression.
         EOp _ op argExps _                      -> childrenValueExpEIds exp
         EList _ heads _ maybeRest _             -> childrenValueExpEIds exp
+        ERecord _ mb es _                       -> childrenValueExpEIds exp
+        ESelect _ _ _ _ _                       -> childrenValueExpEIds exp
         EIf _ pred _ trueBranch _ falseBranch _ -> childrenValueExpEIds exp
         ECase _ scrutinee branches _            -> childrenValueExpEIds exp
         ETypeCase _ scrutinee tbranches _       -> childrenValueExpEIds exp
@@ -108,6 +110,7 @@ grossDependencies_ identToDepEId program =
         ETyp _ _ _ body _                       -> [(expEffectiveExp body).val.eid]
         EColonType _ body _ _ _                 -> [(expEffectiveExp body).val.eid]
         ETypeAlias _ _ _ body _                 -> [(expEffectiveExp body).val.eid]
+        ETypeDef _ _ _ _ _ body _               -> [(expEffectiveExp body).val.eid]
         EParens _ body _ _                      -> [(expEffectiveExp body).val.eid]
         EHole _ _                               -> []
     in

@@ -1,71 +1,19 @@
 module Results exposing
   ( Results(Oks, Errs)
-  , withDefault
+  , withDefault, withDefault1
   , ok1, oks, okLazy, errs
-  , map, map2, map2withError, andThen, flatten
-  , toMaybe, fromMaybe, fromResult, mapErrors
-  , LazyList(LazyNil, LazyCons), mapLazy, andThenLazy, isLazyNil
-  , lazyCons2, findFirst
-  , appendLazy, appendLazyLazy, lazyFromList
+  , map, map2, map2withError, andThen, flatten, filter
+  , toMaybe, fromMaybe, fromResult, mapErrors, projOk
+  , fold, toList
+  , firstResult
+  , force
+  , andElse
   )
 
 import Lazy
 
 import Maybe exposing ( Maybe(Just, Nothing) )
-
-type LazyList v = LazyNil | LazyCons v (Lazy.Lazy (LazyList v))
-
-isLazyNil: LazyList a -> Bool
-isLazyNil l = case l of
-  LazyNil -> True
-  _ -> False
-
--- Useful if the tail is already computed.
-lazyCons2: v -> LazyList v -> LazyList v
-lazyCons2 head tail = LazyCons head <| Lazy.lazy <| \() -> tail
-
-mapLazy: (v -> w) -> LazyList v -> LazyList w
-mapLazy f l =
-  case l of
-    LazyNil -> LazyNil
-    LazyCons head tail -> LazyCons (f head) <| Lazy.map (mapLazy f) tail
-
-appendLazy: LazyList a -> LazyList a -> LazyList a
-appendLazy l1 l2 =
-  case l1 of
-    LazyNil -> l2
-    LazyCons head tail -> LazyCons head (Lazy.map (\v -> appendLazy v l2) tail)
-
-appendLazyLazy: LazyList a -> Lazy.Lazy (LazyList a) -> LazyList a
-appendLazyLazy l1 l2 =
-  case l1 of
-    LazyNil -> Lazy.force l2
-    LazyCons head tail -> LazyCons head (Lazy.map (\v -> appendLazyLazy v l2) tail)
-
-andThenLazy: (v -> LazyList w) -> LazyList v -> LazyList w
-andThenLazy f l =
-  case l of
-    LazyNil -> LazyNil
-    LazyCons head tail -> appendLazyLazy (f head) (Lazy.map (\v -> andThenLazy f v) tail)
-
-flattenLazy: LazyList (LazyList a) -> LazyList a
-flattenLazy l =
-  case l of
-    LazyNil -> LazyNil
-    LazyCons head tail ->
-      appendLazyLazy head (Lazy.map flattenLazy tail)
-
-lazyFromList: List a -> LazyList a
-lazyFromList l =
-  case l of
-    [] -> LazyNil
-    head::tail -> LazyCons head (Lazy.lazy (\() -> lazyFromList tail))
-
-findFirst: (a -> Bool) -> LazyList a -> Maybe a
-findFirst pred l =
-  case l of
-    LazyNil -> Nothing
-    LazyCons head tail -> if pred head then Just head else findFirst pred (Lazy.force tail)
+import LazyList exposing (..)
 
 {-| `Results` is either `Oks` meaning the computation succeeded, or it is an
 `Errs` meaning that there was some failure.
@@ -75,38 +23,58 @@ type Results error values
     | Errs error
 
 ok1: a -> Results e a
-ok1 a = Oks (lazyCons2 a LazyNil)
+ok1 a = Oks (cons a Nil)
 
 oks: (List a) -> Results e a
-oks a = Oks (lazyFromList a)
+oks a = Oks (fromList a)
 
 okLazy: a -> (() -> LazyList a) -> Results e a
 okLazy head tailLazy =
-  Oks (LazyCons head (Lazy.lazy tailLazy))
+  Oks <| Cons head <| Lazy.lazy tailLazy
 
 errs msg = Errs msg
+
+filter: (a -> Bool) -> Results e a -> Results e a
+filter pred r = case r of
+  Errs msg -> Errs msg
+  Oks l -> Oks (LazyList.filter pred l)
 
 keepOks: LazyList (Results e a) -> LazyList a
 keepOks l =
   case l of
-    LazyNil -> LazyNil
-    LazyCons (Errs _) tailLazy -> keepOks (Lazy.force tailLazy)
-    LazyCons (Oks ll) tailLazy -> appendLazyLazy ll (Lazy.map keepOks tailLazy)
+    Nil -> Nil
+    Cons (Errs _) tailLazy -> keepOks (Lazy.force tailLazy)
+    Cons (Oks ll) tailLazy -> appendLazy ll (Lazy.map keepOks tailLazy)
 
 projOks: LazyList (Results e a) -> Results e a
 projOks l =
   case l of
-    LazyNil ->
-      Oks LazyNil
-    LazyCons (Oks (LazyNil)) tail ->
+    Nil ->
+      Oks Nil
+    Cons (Oks (Nil)) tail ->
       projOks (Lazy.force tail)
-    LazyCons (Oks (LazyCons vhead vtail)) tail -> -- At this point, we discard future errors since at least 1 worked.
-      Oks (LazyCons vhead (Lazy.map keepOks tail))
-    LazyCons (Errs msg) tail ->
+    Cons (Oks (Cons vhead vtail)) tail -> -- At this point, we discard future errors since at least 1 worked.
+      Oks <| Cons vhead
+        <| Lazy.lazy (\_ -> appendLazy (Lazy.force vtail) <| Lazy.map keepOks tail)
+    Cons (Errs msg) tail ->
       case projOks <| Lazy.force tail of
         Errs msgTail -> Errs msg
-        Oks LazyNil -> Errs msg
+        Oks Nil -> Errs msg
         result -> result
+
+projOk: List (Results e a) -> Results e (List a)
+projOk l = case l of
+  [] -> ok1 []
+  head::tail -> head |> andThen (\a ->
+    projOk tail |> map (\atail ->
+      a::atail
+    )
+  )
+
+fold: (e -> x) -> (LazyList a -> x) -> Results e a -> x
+fold errsMap oksMap res = case res of
+  Errs e -> errsMap e
+  Oks l -> oksMap l
 
 {-| If the results is `Oks` return the value, but if the results is an `Errs` then
 return a given default value.
@@ -120,6 +88,19 @@ withDefault def results =
     Errs _ ->
         def
 
+withDefault1 : a -> Results x a -> a
+withDefault1 def results =
+  case results of
+    Oks (LazyList.Cons value _) ->
+      value
+    _ ->
+      def
+
+firstResult: Results String a -> Result String a
+firstResult r = case r of
+  Errs msg -> Err msg
+  Oks LazyList.Nil -> Err "No result"
+  Oks (LazyList.Cons head _) -> Ok head
 
 {-| Apply a function to a results. If the results is `Oks`, it will be converted.
 If the results is an `Errs`, the same error value will propagate through.
@@ -130,16 +111,15 @@ If the results is an `Errs`, the same error value will propagate through.
 map : (a -> b) -> Results x a -> Results x b
 map func ra =
     case ra of
-      Oks a -> Oks (mapLazy func a)
+      Oks a -> Oks (LazyList.map func a)
       Errs e -> Errs e
 
 -- Performs the operation on every pair (a, b). Lists all values of b for every value of a
-map2 : ((a, b) -> value) -> Results x a -> Results x b -> Results x value
+map2 : (a -> b -> value) -> Results x a -> Results x b -> Results x value
 map2 func ra rb =
-    case (ra,rb) of
-      (Oks a, Oks b) -> Oks (mapLazy func (lazyCartProd a b))
-      (Errs x, _) -> Errs x
-      (_, Errs x) -> Errs x
+   ra |> andThen (\a ->
+     rb |> map (func a)
+   )
 
 map2withError : ((x, x) -> x) -> ((a, b) -> value) -> Results x a -> Results x b -> Results x value
 map2withError errorFunc func ra rb =
@@ -147,7 +127,7 @@ map2withError errorFunc func ra rb =
       (Errs x, Errs y) -> Errs (errorFunc (x, y))
       (Errs x, _) -> Errs x
       (_, Errs x) -> Errs x
-      (Oks a, Oks b) -> Oks (mapLazy func (lazyCartProd a b))
+      (Oks a, Oks b) -> Oks (LazyList.map func (cartesianProduct a b))
 
 
 
@@ -156,10 +136,6 @@ flatten r =
   case r of
     Errs msg -> Errs msg
     Oks ll -> projOks ll
-
-lazyCartProd : LazyList a -> LazyList b -> LazyList (a, b)
-lazyCartProd xs ys =
-   flattenLazy (mapLazy (\x -> mapLazy ((,) x) ys) xs)
 
 {-| Chain together a sequence of computations that may fail. It is helpful
 to see its definition:
@@ -200,7 +176,7 @@ andThen callback results =
     case results of
       Oks ll ->
         ll
-        |> mapLazy callback
+        |> LazyList.map callback
         |> projOks
 
       Errs msg ->
@@ -267,3 +243,20 @@ fromResult res =
   case res of
     Err msg -> Errs msg
     Ok a -> ok1 a
+
+toList: Results e a -> List a
+toList r = case r of
+  Errs msg -> []
+  Oks ll -> LazyList.toList ll
+
+force: Results e a -> Results e a
+force r = case r of
+  Errs msg -> Errs msg
+  Oks ll -> Oks (LazyList.fromList (LazyList.toList ll))
+
+andElse: Results e a -> Results e a -> Results e a
+andElse other current =
+  case (other, current) of
+    (Errs msg, _) -> Errs msg
+    (_, Errs msg) -> Errs msg
+    (Oks l1, Oks l2) -> Oks (LazyList.append l1 l2)

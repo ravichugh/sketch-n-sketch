@@ -16,7 +16,7 @@ import Set exposing (Set)
 import Dict exposing (Dict)
 import Regex exposing (regex, HowMany(..))
 import Html exposing (Html)
-
+import Record
 
 ------------------------------------------------------------------------------
 
@@ -90,6 +90,7 @@ foldPatternsWithIds f (scopeId, path) pats init =
         PList _ ps _ Nothing _  -> doMany f pathedPatId ps acc
         PList _ ps _ (Just p) _ -> doMany f pathedPatId (ps ++ [p]) acc
         PParens _ p _ -> doOne f pathedPatId p acc
+        PRecord _ p _ -> doMany f pathedPatId (Utils.recordValues p) acc
 
     doMany f (scopeId, path) pats acc =
       Utils.foldli1 (\(i, pi) -> doOne f (scopeId, path ++ [i]) pi) acc pats
@@ -296,8 +297,13 @@ traverse env exp acc =
     EOp _ _ es _      -> recurse es
     EIf _ e1 _ e2 _ e3 _  -> recurse [e1, e2, e3]
 
-    EList _ es _ (Just eRest) _  -> recurse (List.map Tuple.second es ++ [eRest])
-    EList _ es _ Nothing _       -> recurse (List.map Tuple.second es)
+    EList _ es _ (Just eRest) _  -> recurse (Utils.listValues es ++ [eRest])
+    EList _ es _ Nothing _       -> recurse (Utils.listValues es)
+
+    ERecord _ (Just (init, _)) es _ -> recurse ([init] ++ Utils.recordValues es)
+    ERecord _ Nothing es _ -> recurse (Utils.recordValues es)
+
+    ESelect _ e _ _ s -> recurse [e]
 
     ECase _ e branches _ ->
       let _ = Debug.log "TODO: scope tree ECase" () in acc
@@ -305,15 +311,16 @@ traverse env exp acc =
     ETypeCase _ _ tbranches _ ->
       let _ = Debug.log "TODO: scope tree ETypeCase" () in acc
 
-    EComment _ _ e        -> recurse [e]
-    EOption _ _ _ _ e     -> recurse [e]
-    ETyp _ _ _ e _        -> recurse [e]
-    EColonType _ e _ _ _  -> recurse [e]
-    ETypeAlias _ _ _ e _  -> recurse [e]
-    EParens _ e _ _       -> recurse [e]
-    EHole _ _             -> let _ = Utils.log "DependenceGraph.traverse: EHole in exp!!" in acc
+    EComment _ _ e         -> recurse [e]
+    EOption _ _ _ _ e      -> recurse [e]
+    ETyp _ _ _ e _         -> recurse [e]
+    EColonType _ e _ _ _   -> recurse [e]
+    ETypeAlias _ _ _ e _   -> recurse [e]
+    ETypeDef _ _ _ _ _ e _ -> recurse [e]
+    EParens _ e _ _        -> recurse [e]
+    EHole _ _              -> let _ = Utils.log "DependenceGraph.traverse: EHole in exp!!" in acc
 
-
+-- In a let [pattern] = [definition], map each subpattern to its corresponding definition
 traverseAndAddDependencies newScopeId =
   traverseAndAddDependencies_ (newScopeId, [])
 
@@ -379,7 +386,7 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
     (PList _ ps_ _ pMaybe _, EList _ es_ _ eMaybe _) ->
 
       let ps = Utils.snocMaybe ps_ pMaybe in
-      let es = Utils.snocMaybe (List.map Tuple.second es_) eMaybe in
+      let es = Utils.snocMaybe (Utils.listValues es_) eMaybe in
 
       if List.length ps == List.length es then
         let (scopeId, basePath) = pathedPatId in
@@ -400,6 +407,23 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
           |> traverse env exp
           |> addConservativeDependencies
 
+    (PRecord _ ps _, ERecord _ Nothing es _) ->
+      let mergeOperations = Record.getPatternMatch Utils.recordKey Utils.recordKey ps es in
+
+      case mergeOperations of
+        Nothing -> acc |> clearUsed
+                       |> traverse env exp
+                       |> addConservativeDependencies
+        Just replacements ->
+            let (scopeId, basePath) = pathedPatId in
+            Utils.foldli1 (\(i,(pi, ei)) acc ->
+                let pathedPatId2 = (scopeId, basePath ++ [i]) in
+                traverseAndAddDependencies_ pathedPatId2 env pi ei acc
+              ) acc (List.map (Utils.mapFirstSecond Utils.recordValue Utils.recordValue) replacements)
+    (PRecord _ _ _, _) ->
+          acc |> clearUsed
+              |> traverse env exp
+              |> addConservativeDependencies
 
 ------------------------------------------------------------------------------
 -- Scope Dependencies

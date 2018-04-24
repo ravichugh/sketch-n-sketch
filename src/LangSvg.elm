@@ -1,3 +1,4 @@
+-- TODO rename to LangHtml
 module LangSvg exposing
   ( attr
   , NodeId, ShapeKind
@@ -8,7 +9,7 @@ module LangSvg exposing
   , dummySvgNode
   , isSvg
   , valToIndexedTree
-  , printSvg
+  , printHTML
   , compileAttr, compileAttrs
   , desugarShapeAttrs
   , buildSvgSimple
@@ -26,9 +27,9 @@ module LangSvg exposing
   )
 
 import Html
-import Html.Attributes as HA
+import Html.Attributes
 import Svg
-import Svg.Attributes as A
+import Svg.Attributes
 import VirtualDom
 
 -- in Svg.elm:
@@ -54,6 +55,7 @@ import Utils
 import Either exposing (Either(..))
 import ImpureGoodies
 import Syntax exposing (Syntax)
+import HTMLParser
 
 ------------------------------------------------------------------------------
 
@@ -116,6 +118,44 @@ replaceAv_ av av_ = { interpreted = av_, val = av.val }
 maxColorNum = 500
 maxStrokeWidthNum = 20
 
+
+{- TODO rename to either
+
+Option 1:
+
+------------------------------------------------------------------------------
+-- IndexedValue: Indexed Representation of HTML Value
+
+type alias Tag = String
+type alias ValueId = Int
+type alias ElementAttr = (String, AVal)
+
+type alias IndexedValue = (ValueId, Dict ValueId IndexedSubValue)
+
+type alias IndexedSubValue = WithVal IndexedSubValue_
+
+type IndexedSubValue_
+  = Text String
+  | Element Tag (List ElementAttr) (List ValueId)
+
+or Option 2:
+
+------------------------------------------------------------------------------
+-- IndexedHtmlValue
+
+type alias Tag = String
+type alias NodeId = Int
+type alias ElementAttr = (String, AVal)
+
+type alias IndexedHtmlValue = (NodeId, Dict NodeId Node)
+
+type alias Node = WithVal Node_
+
+type Node_
+  = Text String
+  | Element Tag (List ElementAttr) (List NodeId)
+
+-}
 
 ------------------------------------------------------------------------------
 -- RootedIndexedTree (a.k.a. "Slate"): tree representation of SVG Canvas Value
@@ -214,10 +254,12 @@ valToAttr v = case v.v_ of
 
           ("fill"  , VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
           ("stroke", VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
+          ("color", VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
           ("background-color", VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
 
           ("fill",   VConst _ it) -> Ok <| AColorNum (it, Nothing)
           ("stroke", VConst _ it) -> Ok <| AColorNum (it, Nothing)
+          ("color", VConst _ it) -> Ok <| AColorNum (it, Nothing)
           ("background-color", VConst _ it) -> Ok <| AColorNum (it, Nothing)
 
           ("fill",   VList [v1,v2]) ->
@@ -228,6 +270,11 @@ valToAttr v = case v.v_ of
             case (v1.v_, v2.v_) of
               (VConst _ it1, VConst _ it2) -> Ok  <| AColorNum (it1, Just it2)
               _                            -> Err <| "bad stroke: " ++ strVal v2
+
+          ("color", VList [v1,v2]) ->
+            case (v1.v_, v2.v_) of
+              (VConst _ it1, VConst _ it2) -> Ok  <| AColorNum (it1, Just it2)
+              _                            -> Err <| "bad color: " ++ strVal v2
 
           ("background-color", VList [v1,v2]) ->
             case (v1.v_, v2.v_) of
@@ -442,45 +489,61 @@ valToStyle vs =
 
 strStyle styles =
   styles
-    |> List.map (\(k,v) -> k ++ ": " ++ strAVal v)
-    |> String.join "; "
+    |> List.map (\(k,v) -> k ++ ":" ++ strAVal v)
+    |> String.join ";"
 
 
 ------------------------------------------------------------------------------
 -- Compiling to SVG (Text Format)
 
-printSvg : Bool -> RootedIndexedTree -> String
-printSvg showGhosts (rootId, tree) =
-  let s = printNode showGhosts 0 tree rootId in
-  Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
+printHTML : Bool -> RootedIndexedTree -> String
+printHTML showGhosts (rootId, tree) =
+  let s = printNode HTMLParser.HTML showGhosts 0 tree rootId in
+  --Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
+  s
 
-printNode showGhosts k slate i =
+printNode: HTMLParser.NameSpace -> Bool -> Int ->  IndexedTree -> NodeId -> String
+printNode namespace showGhosts indent slate i =
   case Utils.justGet i slate |> .interpreted of
+    -- TODO escape strings in TextNode and TextListNode
     TextNode s -> s
     SvgNode kind_ l1_ l2 ->
       let (kind,l1) = desugarShapeAttrs 0 0 kind_ l1_ in
       case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
         (False, Just _) -> ""
         _ ->
+          let ending = (case namespace of
+             HTMLParser.HTML -> if HTMLParser.isVoidElement kind then "" else
+               Utils.delimit "</" ">" kind
+             _ -> Utils.delimit "</" ">" kind)
+          in
+          let newKind = if HTMLParser.isForeignElement kind then HTMLParser.Foreign else namespace in
           if l2 == [] then
             let l1_ = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++
-            Utils.delimit "</" ">" kind
+            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ ending
           else
             let l1_ = addAttrs kind (removeSpecialAttrs l1) in
             Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ "\n" ++
-            printNodes showGhosts (k+1) slate l2 ++ "\n" ++
-            tab k ++ Utils.delimit "</" ">" kind
+            printNodes newKind showGhosts (indent+1) slate l2 ++ "\n" ++
+            tab indent ++ ending
 
-printNodes showGhosts k slate =
-  Utils.lines << List.map ((++) (tab k) << printNode showGhosts k slate)
+printNodes namespace showGhosts indent slate =
+  Utils.lines << List.map ((++) (tab indent) << printNode namespace showGhosts indent slate)
 
 printAttrs l = case l of
   [] -> ""
   _  -> " " ++ Utils.spaces (List.map printAttr l)
 
 printAttr (k,v) =
-  k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
+  k ++ "=" ++ Utils.delimit "'" "'" (Regex.replace Regex.All (Regex.regex "\\\\|'|\n|\r|\t") (\m ->
+    case m.match of
+      "\\" -> "\\\\"
+      "'" -> "\\'"
+      "\n" -> "\\n"
+      "\r" -> "\\r"
+      "\t" -> "\\t"
+      e -> e
+  ) (strAVal v))
 
 addAttrs kind attrs =
   if kind == "svg"
@@ -598,7 +661,14 @@ compileAttrs : List Attr -> List (Svg.Attribute a)
 compileAttrs = List.map (uncurry compileAttr)
 
 compileAttr : String -> AVal -> Svg.Attribute a
-compileAttr k v = (attr k) (strAVal v)
+compileAttr k v =
+  let _ =
+    if List.any Char.isUpper (String.toList k) then
+      Debug.log "WARN: uppercase letter in attribute name may not be handled correctly by DOM listener" k
+    else
+      k
+  in
+  (attr k) (strAVal v)
 
 
 buildSvgSimple : RootedIndexedTree -> Svg.Svg a
@@ -628,6 +698,9 @@ buildSvgSimple_ tree i  =
 
 toNum a = case a.interpreted of
   ANum nt -> nt
+  AString st -> case String.toFloat st of
+    Ok nt -> (nt, dummyTrace)
+    Err msg -> expectedButGotCrash ("a number (got parse error " ++ msg ++ ")") (strAVal a)
   _       -> expectedButGotCrash "a number" (strAVal a)
 
 toColorNum a = case a.interpreted of
@@ -636,6 +709,9 @@ toColorNum a = case a.interpreted of
 
 toNumIsh a = case a.interpreted of
   ANum nt           -> nt
+  AString st -> case String.toFloat st of
+    Ok nt -> (nt, dummyTrace)
+    Err msg -> expectedButGotCrash ("a number (got parse error " ++ msg ++ ")") (strAVal a)
   AColorNum (nt, _) -> nt
   _       -> expectedButGotCrash "a number or color number" (strAVal a)
 
@@ -643,15 +719,15 @@ toPoints a = case a.interpreted of
   APoints pts -> pts
   _           -> expectedButGotCrash "a list of points" (strAVal a)
 
-toPath : AVal -> (List PathCmd, PathCounts)
+toPath : AVal -> Maybe (List PathCmd, PathCounts)
 toPath a = case a.interpreted of
-  APath2 p -> p
+  APath2 p -> Just p
+  AString c -> Nothing
   _        -> expectedButGotCrash "path commands" (strAVal a)
 
 toTransformRot a = case a.interpreted of
   ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
   _                         -> expectedButGotCrash "a rotation transform" (strAVal a)
-
 
 -- Avoid using these going foward: no way to determine provenance.
 aVal av_      = { interpreted = av_, val = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] } }
@@ -699,7 +775,8 @@ pathIndexPoints nodeAttrs =
   let cmds =
     Utils.find ("pathPoints nodeAttrs looking for \"d\" in " ++ (toString nodeAttrs)) nodeAttrs "d"
     |> toPath
-    |> Tuple.first
+    |> Maybe.map Tuple.first
+    |> Maybe.withDefault []
   in
   let pts =
     cmds

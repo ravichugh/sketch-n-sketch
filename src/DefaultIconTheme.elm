@@ -15,6 +15,9 @@ icons =
     , ("lambda", lambda)
     ]
 
+-- TODO switch these to Elm syntax
+-- TODO maybe build them into ExamplesTemplate from standalone examples/ files
+
 cursor = """
 ; To customize, Save As: __ui__cursor.little
 

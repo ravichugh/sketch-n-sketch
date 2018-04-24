@@ -1,4 +1,4 @@
-module Eval exposing (run, doEval, parseAndRun, parseAndRun_, evalDelta, initEnv)
+module Eval exposing (doEval, eval, evalDelta)
 
 import Debug
 import Dict
@@ -6,13 +6,32 @@ import String
 
 import ImpureGoodies
 import Lang exposing (..)
-import ValUnparser exposing (..)
-import FastParser exposing (parseE, prelude)
+import ValUnparser exposing (strVal_, strOp, strLoc)
+import ElmUnparser
+import ElmParser as Parser
 import Syntax exposing (Syntax)
 import Types
 import Utils
+import Record
+import Info
+import ParserUtils
+import LangUtils exposing (..)
+import HTMLValParser
 
 import ImpureGoodies
+import UpdateRegex exposing (evalRegexExtractFirstIn)
+import UpdateStack
+import UpdateUtils
+import Results exposing (Results(..), ok1)
+import LazyList
+import ValBuilder as Vb
+import ValUnbuilder as Vu
+
+valToDictKey : Syntax -> Backtrace -> Val -> Result String (String, String)
+valToDictKey syntax bt v =
+  case LangUtils.valToDictKey syntax v of
+    Err msg -> errorWithBacktrace syntax bt msg
+    Ok i -> Ok i
 
 ------------------------------------------------------------------------------
 -- Big-Step Operational Semantics
@@ -42,9 +61,22 @@ match (p,v) = case (p.val.p__, v.v_) of
         -- dummy Provenance, since VList itself doesn't matter
   (PList _ _ _ _ _, _) -> Nothing
   (PConst _ n, VConst _ (n_,_)) -> if n == n_ then Just [] else Nothing
+  (PConst _ n, _) -> Nothing
   (PBase _ bv, VBase bv_) -> if (eBaseToVBase bv) == bv_ then Just [] else Nothing
+  (PBase _ _, _) -> Nothing
   (PParens _ innerPat _, _) -> match (innerPat, v)
-  _ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
+  (PRecord _ ps _, VRecord values) ->
+    let vkeys = Dict.keys values in
+    case Record.getPatternMatch Utils.recordKey identity ps vkeys of
+      Nothing -> Nothing
+      Just patsValues ->
+        matchList (List.map (\(p, vkey) -> (Utils.recordValue p, case Dict.get vkey values of
+          Just v -> v
+          Nothing -> Debug.crash <| "Internal error: key " ++ toString vkey ++ " not found in record value."
+        )) patsValues)
+  (PRecord _ _ _ , _) -> Nothing
+
+  --_ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
 
 
 matchList : List (Pat, Val) -> Maybe Env
@@ -78,21 +110,9 @@ mkCap mcap l =
   in
   s ++ ": "
 
-
-
-initEnvRes = Result.map Tuple.second <| (eval Syntax.Little [] [] prelude)
-initEnv = Utils.fromOk "Eval.initEnv" <| initEnvRes
-
-run : Syntax -> Exp -> Result String (Val, Widgets)
-run syntax e =
-  -- doEval syntax initEnv e |> Result.map Tuple.first
-  ImpureGoodies.logTimedRun "Eval.run" (\() ->
-    doEval syntax initEnv e |> Result.map Tuple.first
-  )
-
 doEval : Syntax -> Env -> Exp -> Result String ((Val, Widgets), Env)
-doEval syntax initEnv e =
-  eval syntax initEnv [] e
+doEval syntax env e =
+  eval syntax env [] e
   |> Result.map (\((val, widgets), env) -> ((val, postProcessWidgets widgets), env))
 
 
@@ -116,8 +136,9 @@ eval_ syntax env bt e = Result.map Tuple.first <| eval syntax env bt e
 
 eval : Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Env)
 eval syntax env bt e =
-
   let makeProvenance basedOn = Provenance env e basedOn in
+
+  --let _ = Debug.log ("Evaluating " ++ (Syntax.unparser Syntax.Elm e)) () in
 
   -- Deeply tag value's children to say the child flowed through here.
   --
@@ -130,19 +151,23 @@ eval syntax env bt e =
         VClosure _ _ _ _ -> ()
         VList vals       -> let _ = List.map (addParent_ vParent) vals                 in ()
         VDict dict       -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) dict in ()
+        VRecord recs     -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) recs in ()
+        VFun _ _ _ _     -> ()
     in
     let priorParents = valParents v in
     let _ = ImpureGoodies.mutateRecordField v.parents "_0" (vParent::priorParents) in
     ()
   in
   let addParent v =
-    if FastParser.isProgramEId e.val.eid then
+    if Parser.isProgramEId e.val.eid then
       case v.v_ of
         VConst _ _       -> v
         VBase _          -> v
         VClosure _ _ _ _ -> v
         VList vals       -> let _ = List.map (addParent_ v) vals               in v -- non-mutating: { v | v_ = VList (List.map (addParent_ v) vals) }
         VDict dict       -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v -- non-mutating: { v | v_ = VDict (Dict.map (\_ val -> addParent_ v val) dict) }
+        VRecord dict     -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v
+        VFun _ _ _ _     -> v
     else
       v
   in
@@ -156,7 +181,8 @@ eval syntax env bt e =
   let retVBoth basedOn (v, ws)                   = ((addParent { v | provenance = makeProvenance basedOn}, ws), env) in
   let retAddWs ws1 (v1, ws2)                     = (v1, ws1 ++ ws2) in
   let addParentToRet ((v,ws),envOut)             = ((addParent v, ws), envOut) in
-  let addProvenanceToRet basedOn ((v,ws),envOut) = ((addParent { v | provenance = makeProvenance basedOn}, ws), envOut) in
+  let addProvenanceToValWidgets basedOn (v,ws)   = (addParent { v | provenance = makeProvenance basedOn}, ws) in
+  let addProvenanceToRet basedOn ((vws), envOut) = (addProvenanceToValWidgets basedOn vws, envOut) in
   let addWidgets ws1 ((v1,ws2),env1)             = ((v1, ws1 ++ ws2), env1) in
 
 
@@ -186,7 +212,7 @@ eval syntax env bt e =
   EOp _ op es _ -> Result.map (\res -> addParentToRet (res, env)) <| evalOp syntax env e (e::bt) op es
 
   EList _ es _ m _ ->
-    case Utils.projOk <| List.map (eval_ syntax env bt_) (List.map Tuple.second es) of
+    case Utils.projOk <| List.map (eval_ syntax env bt_) (Utils.listValues es) of
       Err s -> Err s
       Ok results ->
         let (vs,wss) = List.unzip results in
@@ -199,7 +225,43 @@ eval syntax env bt e =
               Ok (vRest, ws_) ->
                 case vRest.v_ of
                   VList vs_ -> Ok <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_)
-                  _         -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list."
+                  _         -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list, but " ++ valToString vRest
+
+  ERecord _ mi es _ ->
+    case Utils.projOk <| List.map (eval_ syntax env bt_) (Utils.recordValues es) of
+      Err s -> Err s
+      Ok results ->
+       let (vs,wss) = List.unzip results in
+       let ws = List.concat wss in
+       let keys = Utils.recordKeys es in
+       let dict = Dict.fromList <| Utils.zip keys vs in
+       case mi of
+         Nothing -> Ok <| retBoth vs (VRecord dict, ws)
+         Just (e, init) ->
+           case eval_ syntax env bt_ e of
+             Err s -> Err s
+             Ok (vInit, ws_) ->
+               case vInit.v_ of
+                 VRecord dInit -> -- Completely wrong !
+                   let newDict = Dict.union dict dInit in --The first overrides the second.
+                   Ok <| retBoth vs (VRecord newDict, ws)
+                 _ -> errorWithBacktrace syntax (e::bt) <| strPos init.start ++ " init expression not a dict."
+
+  ESelect ws0 e _ wsId id ->
+    case eval_ syntax env bt_ e of
+      Err s -> Err s
+      Ok (d, ws) ->
+        case d.v_ of
+          VRecord dict ->
+            case Dict.get id dict of
+              Just v -> Ok <| retBoth [d] (v.v_, ws)
+              _ ->
+                  let suggestions = Utils.stringSuggestions (Dict.keys dict) id in
+                  errorWithBacktrace syntax (e::bt) <| strPos wsId.end ++ " Key " ++ id ++ " not found." ++ (case suggestions of
+                    [] -> ""
+                    l -> " Did you mean '" ++ String.join "', or '" l ++ "'?"
+                  )
+          _ -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " select expression applied to non-dict "
 
   -- Alternatively, could choose not to add a basedOn record for if/case/typecase (simply pass value through, maybe add parent)
   -- But that would suggest that we *might* avoid doing so for EApp as well, which is more dubious. We'll see.
@@ -220,7 +282,7 @@ eval syntax env bt e =
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
           Ok (Just (v2,ws2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s              -> Err s
-          _                  -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
+          _                  -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement, cannot match " ++ valToString v1
 
   ETypeCase _ e1 tbranches _ ->
     case eval_ syntax env (e::bt) e1 of
@@ -235,33 +297,72 @@ eval syntax env bt e =
   EApp _ e1 [] _ _ ->
     errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " application with no arguments"
 
-  EApp _ e1 es _ _ ->
+  EApp sp0 e1 es appStyle sp1 ->
     case eval_ syntax env bt_ e1 of
-      Err s       -> Err s
+      Err s       ->
+        if appStyle /= InfixApp then Err s else
+        case (e1.val.e__, es) of
+          (EVar spp "++", [eLeft, eRight]) -> -- We rewrite ++ to a call to "append" or "plus" depending on the arguments
+            case (eval_ syntax env bt_ eLeft, eval_ syntax env bt_ eRight) of
+              (Ok (v1, ws1), Ok (v2, ws2)) ->
+                 case (v1.v_, v2.v_) of
+                   (VBase (VString x), VBase (VString y)) ->
+                     eval syntax (("x", v1)::("y", v2)::env) bt_ (replaceE__ e <| EOp space1 (withDummyRange Plus) [replaceE__ eLeft <| EVar space0 "x", replaceE__ eRight <| EVar space0 "y"] space0)
+                   _ ->
+                     eval syntax (("x", v1)::("y", v2)::env) bt_ (replaceE__ e <| EApp sp0 (replaceE__ e1 <| EVar spp "append") [replaceE__ eLeft <| EVar space0 "x", replaceE__ eRight <| EVar space0 "y"] SpaceApp sp1)
+              (Err s, _) -> Err s
+              (_, Err s) -> Err s
+          _ -> Err ("++ should be called with two arguments, was called on "++toString (List.length es)++". " ++ s)
       Ok (v1,ws1) ->
-        case v1.v_ of
-          VClosure maybeRecName ps funcBody closureEnv ->
-            let argValsAndFuncRes =
-              case maybeRecName of
-                Nothing    -> apply syntax env bt bt_ e ps es funcBody closureEnv
-                Just fName -> apply syntax env bt bt_ e ps es funcBody ((fName, v1)::closureEnv)
-            in
-            -- Do not record dependence on closure (which function to execute is essentially control flow).
-            -- Dependence on function is implicit by being dependent on some value computed by an expression in the function.
-            -- Instead, point to return value (and, hence, the final expression of) the function. This will also
-            -- transitively point to any arguments used.
-            argValsAndFuncRes
-            |> Result.map (\(argVals, (fRetVal, fRetWs)) ->
-              let perhapsCallWidget =
-                if FastParser.isProgramEId e.val.eid && FastParser.isProgramEId funcBody.val.eid
-                then [WCall v1 argVals fRetVal fRetWs]
-                else []
+        let evalVApp: Val -> List Exp -> Result String ((Val, Widgets), Env)
+            evalVApp v1 es =
+          case v1.v_ of
+            VClosure maybeRecName ps funcBody closureEnv ->
+              let argValsAndFuncRes =
+                case maybeRecName of
+                  Nothing    -> apply syntax env bt bt_ e ps es funcBody closureEnv
+                  Just fName -> apply syntax env bt bt_ e ps es funcBody ((fName, v1)::closureEnv)
               in
-              retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget)
-            )
-
-          _ ->
-            errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
+              -- Do not record dependence on closure (which function to execute is essentially control flow).
+              -- Dependence on function is implicit by being dependent on some value computed by an expression in the function.
+              -- Instead, point to return value (and, hence, the final expression of) the function. This will also
+              -- transitively point to any arguments used.
+              argValsAndFuncRes
+              |> Result.map (\(argVals, (fRetVal, fRetWs)) ->
+                let perhapsCallWidget =
+                  if Parser.isProgramEId e.val.eid && Parser.isProgramEId funcBody.val.eid
+                  then [WCall v1 argVals fRetVal fRetWs]
+                  else []
+                in
+                retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget)
+              )
+            VFun name argList evalDef _ ->
+              let arity = List.length argList in
+              let availableArgs = List.length es in
+              if availableArgs < arity then -- Partial application, hence eta expansion
+                let funconverted = replaceV_ v1 <| VClosure
+                     Nothing
+                     (List.map (\a -> withDummyPatInfo <| PVar space1 a noWidgetDecl) <| argList)
+                     (replaceE__ e <| EApp sp0 (replaceE__ e <| EVar space1 name)
+                       (List.map (withDummyExpInfo << EVar space1) <| argList) SpaceApp sp0) ((name, v1)::env) in
+                evalVApp funconverted es
+              else
+                let (arguments, remaining) = Utils.split arity es in
+                case Utils.projOk <| List.map (eval_ syntax env bt_) arguments of
+                  Err s -> Err s
+                  Ok argumentsVal ->
+                    let basicResult = evalDef (List.map Tuple.first argumentsVal) |> Result.map (\((v,_) as result) -> addProvenanceToValWidgets [v] result) in
+                    if List.length remaining > 0 then
+                      case basicResult of
+                        Err s -> errorWithBacktrace syntax bt_ s
+                        Ok (v, _) -> evalVApp v remaining
+                    else
+                      case basicResult of
+                        Err s -> errorWithBacktrace syntax bt_ s
+                        Ok vw -> Ok (vw, env)
+            _ ->
+              errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
+        in evalVApp v1 es
 
   ELet _ _ False p _ e1 _ e2 _ ->
     case eval_ syntax env bt_ e1 of
@@ -274,7 +375,7 @@ eval syntax env bt e =
             Result.map (addWidgets ws1) <| eval syntax env_ bt_ e2
 
           Nothing   ->
-            errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser syntax >> Utils.squish) p ++ " with " ++ strVal v1
+            errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser syntax >> Utils.squish) p ++ " with " ++ valToString v1
 
 
   ELet _ _ True p _ e1 _ e2 _ ->
@@ -283,8 +384,7 @@ eval syntax env bt e =
       Ok (v1,ws1) ->
         case ((patEffectivePat p).val.p__, v1.v_) of
           (PVar _ fname _, VClosure Nothing x body env_) ->
-            let _   = Utils.assert "eval letrec" (env == env_) in
-            let v1Named = { v1 | v_ = VClosure (Just fname) x body env } in
+            let v1Named = { v1 | v_ = VClosure (Just fname) x body env_ } in
             case cons (pVar fname, v1Named) (Just env) of
               -- Don't add provenance: fine to say value is just from the let body.
               -- (We consider equations to be mobile).
@@ -304,7 +404,7 @@ eval syntax env bt e =
     -- Pass-through, so don't add provenance.
     case t1.val of
       -- using (e : Point) as a "point widget annotation"
-      TNamed _ a ->
+      TApp _ a _ ->
         if String.trim a /= "Point" then eval syntax env bt e1
         else
           eval syntax env bt e1 |> Result.map (\(((v,ws),env_) as result) ->
@@ -327,6 +427,7 @@ eval syntax env bt e =
   ETyp _ _ _ e1 _       -> eval syntax env bt e1
   -- EColonType _ e1 _ _ _ -> eval syntax env bt e1
   ETypeAlias _ _ _ e1 _ -> eval syntax env bt e1
+  ETypeDef _ _ _ _ _ e1 _ -> eval syntax env bt e1
   EParens _ e1 _ _      -> eval syntax env bt e1
   EHole _ (Just val)    -> Ok <| retV [val] val
   EHole _ Nothing       -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
@@ -343,7 +444,7 @@ evalOp syntax env e bt opWithInfo es =
       let error () =
         errorWithBacktrace syntax bt
           <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
-          ++ ":\n" ++ Utils.lines (Utils.zip vs es |> List.map (\(v,e) -> (strVal v) ++ " from " ++ (Syntax.unparser syntax e)))
+          ++ ":\n" ++ Utils.lines (Utils.zip vs es |> List.map (\(v,e) -> (valToString v) ++ " from " ++ (Syntax.unparser syntax e)))
       in
       let addProvenance val_   = Val val_ (Provenance env e vs) (Parents []) in
       let addProvenanceOk val_ = Ok (addProvenance val_) in
@@ -386,24 +487,62 @@ evalOp syntax env e bt opWithInfo es =
           Lt        -> case args of
             [VConst _ (i,it), VConst _ (j,jt)] -> VBase (VBool (i < j)) |> addProvenanceOk
             _                                  -> error ()
-          Eq        -> case args of
-            [VConst _ (i,it), VConst _ (j,jt)]       -> VBase (VBool (i == j)) |> addProvenanceOk
-            [VBase (VString s1), VBase (VString s2)] -> VBase (VBool (s1 == s2)) |> addProvenanceOk
-            [_, _]                                   -> VBase (VBool False) |> addProvenanceOk -- polymorphic inequality, added for Prelude.addExtras
-            _                                        -> error ()
+          Eq        ->
+            let valEquals: List Val_ -> Result String Bool
+                valEquals args =
+                 case args of
+                   [VConst _ (i,it), VConst _ (j,jt)]       -> Ok <| i == j
+                   [VBase baseVal1, VBase baseVal2]         -> Ok <| baseVal1 == baseVal2
+                   [VDict d1, VDict d2]                     ->
+                     Dict.merge
+                       (\k1 v1 b -> Ok False)
+                       (\k v1 v2 b -> b |> Result.andThen (\bo -> if bo then valEquals [v1.v_, v2.v_] else Ok bo))
+                       (\k2 v2 b -> Ok False)
+                       d1 d2  (Ok True)
+                   [VRecord d1, VRecord d2]                 ->
+                     Dict.merge
+                       (\k1 v1 b -> Ok False)
+                       (\k v1 v2 b -> b |> Result.andThen (\bo -> if bo then valEquals [v1.v_, v2.v_] else Ok bo))
+                       (\k2 v2 b -> Ok False)
+                       d1 d2  (Ok True)
+                   [VList l1, VList l2]                     ->
+                     if List.length l1 /= List.length l2 then Ok False
+                     else List.foldl (\(v1, v2) b -> b |> Result.andThen(\bo -> if bo then valEquals [v1.v_, v2.v_] else Ok bo)) (Ok True) (Utils.zip l1 l2)
+                   [_, _]                                   -> Err <| "Values not comparable:" ++ String.join "==" (List.map valToString vs) ++ "Values should have the same types and not be closures"-- polymorphic inequality, added for Prelude.addExtras
+                   _                                        -> Err "Equality has exactly two arguments"
+            in valEquals args |> Result.map (\x -> VBase (VBool x) |> addProvenance)
           Pi         -> nullaryOp args (VConst Nothing (pi, TrOp op []))
           DictEmpty  -> nullaryOp args (VDict Dict.empty)
+          DictFromList -> case vs of
+            [list] -> case Vu.list (Vu.tuple2 Ok Ok) list of
+              Ok listPairs ->
+                List.map (\(vkey, vval) ->
+                  valToDictKey syntax bt vkey |> Result.map (\dkey -> (dkey, vval))
+                ) listPairs
+                |> Utils.projOk
+                |> Result.map (Dict.fromList >> VDict >> addProvenance)
+              _                 -> error ()
+            _                 -> error ()
           DictInsert -> case vs of
             [vkey, val, {v_}] -> case v_ of
-              VDict d -> valToDictKey syntax bt vkey.v_ |> Result.map (\dkey -> VDict (Dict.insert dkey val d) |> addProvenance)
+              VDict d -> valToDictKey syntax bt vkey |> Result.map (\dkey -> VDict (Dict.insert dkey val d) |> addProvenance)
               _       -> error()
             _                 -> error ()
-          DictGet    -> case args of
-            [key, VDict d] -> valToDictKey syntax bt key |> Result.map (\dkey -> Utils.getWithDefault dkey (VBase VNull |> addProvenance) d)
-            _              -> error ()
-          DictRemove -> case args of
-            [key, VDict d] -> valToDictKey syntax bt key |> Result.map (\dkey -> VDict (Dict.remove dkey d) |> addProvenance)
-            _              -> error ()
+          DictGet    -> case vs of
+            [key, {v_}] -> case v_ of
+              VDict d     ->
+                valToDictKey syntax bt key |> Result.map (\dkey ->
+                  case Dict.get dkey d of
+                    Nothing -> Vb.constructor addProvenance "Nothing" []
+                    Just x -> Vb.constructor addProvenance "Just" [x]
+                  )
+              _           -> error()
+            _           -> error ()
+          DictRemove -> case vs of
+            [key, {v_}] -> case v_ of
+              VDict d      -> valToDictKey syntax bt key |> Result.map (\dkey -> VDict (Dict.remove dkey d) |> addProvenance)
+              _            -> error ()
+            _           -> error ()
           Cos        -> unaryMathOp op args
           Sin        -> unaryMathOp op args
           ArcCos     -> unaryMathOp op args
@@ -427,19 +566,24 @@ evalOp syntax env e bt opWithInfo es =
               |> addProvenanceOk
             _                   -> error ()
           DebugLog   -> case vs of
-            [v] -> let _ = Debug.log (strVal v) "" in Ok v
+            [val] -> case val.v_ of
+               VBase (VString v) as r -> let _ = ImpureGoodies.log v in Ok val
+               _  -> let _ = ImpureGoodies.log (valToString val) in Ok val
             _   -> error ()
           NoWidgets  -> case vs of
             [v] -> Ok v -- Widgets removed  below.
             _   -> error ()
           ToStr      -> case vs of
-            [val] -> VBase (VString (strVal val)) |> addProvenanceOk
+            [val] -> VBase (VString (valToString val)) |> addProvenanceOk
             _     -> error ()
-          OptNumToString -> case vs of
+          ToStrExceptStr -> case vs of
             [val] -> case val.v_ of
-              VConst _ (num, _) -> (VBase <| VString <| toString num) |> addProvenanceOk
               VBase (VString v) as r -> r |> addProvenanceOk
-              _     -> error ()
+              v -> VBase (VString (valToString val)) |> addProvenanceOk
+            _     -> error ()
+          RegexExtractFirstIn -> case vs of
+            [regexp, string] ->
+              evalRegexExtractFirstIn regexp string
             _     -> error ()
       in
       case newValRes of
@@ -556,7 +700,7 @@ apply syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
         Ok (argVal, argWs) ->
           case cons (p, argVal) (Just closureEnv) of
             Just closureEnv -> recurse psLeft esLeft funcBody closureEnv |> Result.map (\(laterArgs, (v2, ws2)) -> (argVal::laterArgs, (v2, argWs ++ ws2)))
-            Nothing         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " bad arguments to function"
+            Nothing         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " bad arguments to function, cannot match " ++ Syntax.patternUnparser Syntax.Elm p ++ " with " ++ Syntax.unparser Syntax.Elm e ++ "(evaluates to " ++ valToString argVal ++ ")"
 
 
 eBaseToVBase eBaseVal =
@@ -565,24 +709,8 @@ eBaseToVBase eBaseVal =
     EString _ b -> VString b
     ENull       -> VNull
 
-
-valToDictKey : Syntax -> Backtrace -> Val_ -> Result String (String, String)
-valToDictKey syntax bt val_ =
-  case val_ of
-    VConst _ (n, tr)  -> Ok <| (toString n, "num")
-    VBase (VBool b)   -> Ok <| (toString b, "bool")
-    VBase (VString s) -> Ok <| (toString s, "string")
-    VBase VNull       -> Ok <| ("", "null")
-    VList vals        ->
-      vals
-      |> List.map ((valToDictKey syntax bt) << .v_)
-      |> Utils.projOk
-      |> Result.map (\keyStrings -> (toString keyStrings, "list"))
-    _                 -> errorWithBacktrace syntax bt <| "Cannot use " ++ (strVal { v_ = val_, provenance = dummyProvenance, parents = Parents [] }) ++ " in a key to a dictionary."
-
-
 postProcessWidgets widgets =
-  let dedupedWidgets = Utils.dedup widgets in
+  let dedupedWidgets = {-Utils.dedup-} widgets in
   -- partition so that hidden and point sliders don't affect indexing
   -- (and, thus, positioning) of range sliders
   --
@@ -600,11 +728,6 @@ postProcessWidgets widgets =
       )
   in
   rangeWidgets ++ pointWidgets
-
-parseAndRun : String -> String
-parseAndRun = strVal << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun" << parseE
-
-parseAndRun_ = strVal_ True << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun_" << parseE
 
 btString : Syntax -> Backtrace -> String
 btString syntax bt =

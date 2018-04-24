@@ -4,7 +4,7 @@ import Lang exposing (..)
 import ValUnparser exposing (..)
 import Pos exposing (..)
 import Info exposing (..)
-import FastParser as Parser
+import ElmParser as Parser
 import LangUnparser exposing (unparse, unparsePat, unparseType)
 import Utils
 import Ace
@@ -13,11 +13,12 @@ import Config
 import Dict
 import Set
 import String
+import Record
 
 typeToMaybeAliasIdent : Type -> Maybe Ident
 typeToMaybeAliasIdent tipe =
   case tipe.val of
-    TNamed _ aliasName -> Just aliasName
+    TApp _ aliasName _ -> Just aliasName
     _                  -> Nothing
 
 
@@ -59,8 +60,8 @@ astsMatch t1 t2 =
      TArrow _ typeList2 _) -> Utils.listsEqualBy astsMatch typeList1 typeList2
     (TUnion _ typeList1 _,
      TUnion _ typeList2 _) -> Utils.listsEqualBy astsMatch typeList1 typeList2
-    (TNamed _ ident1,
-     TNamed _ ident2)      -> ident1 == ident2
+    (TApp _ ident1 typeList1, TApp _ ident2 typeList2) ->
+       ident1 == ident2 && Utils.listsEqualBy astsMatch typeList1 typeList2
     (TVar _ _, TVar _ _)   -> True
     (TWildcard _,
      TWildcard _)          -> True
@@ -93,10 +94,13 @@ identifiersEquivalent t1 t2 =
             Nothing       -> []
         in
         (List.concatMap flatIdents typeList) ++ restTypeIdents
-
+      TRecord _ mb typeList _ ->
+        (case mb of
+          Just (ident, _) -> [ident]
+          Nothing -> []) ++ List.concatMap flatIdents (Utils.recordValues typeList)
       TArrow _ typeList _ -> List.concatMap flatIdents typeList
       TUnion _ typeList _ -> List.concatMap flatIdents typeList
-      TNamed _ _          -> []
+      TApp _ _ typeList   -> List.concatMap flatIdents typeList
       TVar _ ident        -> [ident]
       TWildcard _         -> []
       TForall _ _ _ _     -> Debug.crash "identifiersEquiv TForall TODO"
@@ -133,7 +137,7 @@ valIsType val tipe =
               (List.drop (List.length typeList) vlist)
     (_, TArrow _ _ _)        -> unsupported "arrow types"
     (_, TUnion _ typeList _) -> List.any (valIsType val) typeList
-    (_, TNamed _ _)          -> unsupported "type aliases"
+    (_, TApp _ _ _)          -> unsupported "app types"
     (_, TVar _ _)            -> unsupported "type variables"
     (_, TWildcard _)         -> True
     _                        -> False
@@ -197,6 +201,8 @@ tVar x  = withDummyRange (TVar space1 x)
 tTupleRest ts tRest = withDummyRange (TTuple space1 ts space0 tRest space0)
 tTuple ts = tTupleRest ts Nothing
 
+tRecord ts = withDummyRange (TRecord space1 Nothing ts space0)
+
 tList t = withDummyRange (TList space1 t space0)
 
 tUnion ts = withDummyRange (TUnion space1 ts space0)
@@ -258,6 +264,7 @@ opTypeTable =
     , (Pow        , " (-> Num Num Num)")
 
     , (DictEmpty  , " TODO") -- " (forall (k v) (Dict k v))")
+    , (DictFromList, " TODO") -- " (forall (k v) (-> List [k, v] -> Dict k v))
     , (DictGet    , " TODO") -- " (forall (k v) (-> k (Dict k v) (union v Null)))"
     , (DictRemove , " TODO") -- " (forall (k v) (-> k (Dict k v) (Dict k v)))"
     , (DictInsert , " TODO") -- " (forall (k v) (-> k v (Dict k v) (Dict k v)))"
@@ -307,9 +314,9 @@ addBindingsOne (p, t) acc =
 
   case (p.val.p__, t.val) of
 
-    (PList _ _ _ _ _, TNamed _ a) ->
+    (PList _ _ _ _ _, TApp _ a _) ->
       case expandTypeAlias acc a of
-        Nothing -> fail "Type alias not defined"
+        Nothing -> fail "App type not defined"
         Just ta -> addBindingsOne (p, ta) acc
 
     (PConst _ _, _)     -> Ok acc
@@ -406,6 +413,9 @@ lookupPat typeEnv p =
               Just (tTupleRest ts (Just tRest))
             )
       )
+
+    PRecord _ ps _ ->
+      Utils.projJusts (List.map (lookupPat typeEnv) (Utils.recordValues ps)) |> Utils.bindMaybe (Utils.recordValuesMake ps >> tRecord >> Just)
 
 lookupTypAnnotation : TypeEnv -> Pat -> Maybe Type
 lookupTypAnnotation typeEnv p =
@@ -524,7 +534,7 @@ stripPolymorphicArrow t =
     TForall _ (One typeVar) t0 _ ->
       stripArrow t0 |> Utils.bindMaybe (\arrow -> Just ([Tuple.second typeVar], arrow))
     TForall _ (Many _ typeVars _) t0 _ ->
-      stripArrow t0 |> Utils.bindMaybe (\arrow -> Just (List.map Tuple.second typeVars, arrow))
+      stripArrow t0 |> Utils.bindMaybe (\arrow -> Just (Utils.listValues typeVars, arrow))
     _ ->
       stripArrow t |> Utils.bindMaybe (\arrow -> Just ([], arrow))
 
@@ -574,7 +584,7 @@ isWellFormed : TypeEnv -> Type -> Bool
 isWellFormed typeEnv tipe =
   let (prenexVars, tipe_) =
     case tipe.val of
-      TForall _ (Many _ vars _) t _ -> (List.map Tuple.second vars, t)
+      TForall _ (Many _ vars _) t _ -> (Utils.listValues vars, t)
       TForall _ (One var) t _       -> ([Tuple.second var], t)
       _                             -> ([], tipe)
   in
@@ -589,7 +599,7 @@ isWellFormed typeEnv tipe =
   let allVarsBound =
     foldType (\t acc ->
        case t.val of
-         TNamed _ x -> acc && lookupTypeAlias typeEnv_ x
+         TApp _ x _ -> acc && lookupTypeAlias typeEnv_ x
          TVar _ x   -> if isConstraintVar x
                          then False
                          else acc && List.member (TypeVar x) typeEnv_
@@ -833,7 +843,7 @@ synthesizeType typeInfo typeEnv e =
              let result = synthesizeType accTypeInfo typeEnv ei in
              (result.result :: accMaybeTypes, result.typeInfo))
            ([], typeInfo)
-           (List.reverse (List.map Tuple.second es))
+           (List.reverse (Utils.listValues es))
       in
       case Utils.projJusts maybeTypes of
         Nothing -> finish.withError "synthesizeType: EList 1 ..." typeInfo_
@@ -845,6 +855,44 @@ synthesizeType typeInfo typeEnv e =
               case result.result of
                 Nothing -> finish.withError "synthesizeType: EList 2 ..." result.typeInfo
                 Just tRest -> finish.withType (tTupleRest ts (Just tRest)) result.typeInfo
+
+    ERecord _ mi es _ ->
+      let (maybeTypes, typeInfo_) =
+              List.foldl
+                 (\ei (accMaybeTypes, accTypeInfo) ->
+                   let result = synthesizeType accTypeInfo typeEnv ei in
+                   (result.result :: accMaybeTypes, result.typeInfo))
+                 ([], typeInfo)
+                 (List.reverse (Utils.recordValues es))
+      in
+      case Utils.projJusts maybeTypes of
+        Nothing -> finish.withError "synthesizeType: ERecord 1 ..." typeInfo_
+        Just ts ->
+          let trecord = withDummyInfo <| TRecord space1 (Just ("a", space1)) (List.map2 (\(_, _, k, _, _) t -> (space0, space1, k, space1, t)) es ts) space0 in
+          case mi of
+            Nothing -> finish.withType trecord typeInfo_
+            Just (eRest, _) ->
+              let result = synthesizeType typeInfo_ typeEnv eRest in
+              case result.result of
+                Nothing -> finish.withError "synthesizeType: ERecord 2 ..." result.typeInfo
+                Just tRest ->
+                  case intersect tRest trecord of
+                    Err msg -> finish.withError msg typeInfo_
+                    Ok t ->    finish.withType t result.typeInfo
+
+    ESelect _ c _ _ s ->
+      let resultn = synthesizeType typeInfo typeEnv c in
+      case resultn.result of
+        Nothing -> finish.withError "synthesizeType: ESelect 1 ... " resultn.typeInfo
+        Just ts ->
+          case ts.val of
+            TRecord _ mb ts _ ->
+              case Utils.findLast (\(_, _, k, _, t) -> k == s) ts of
+                Just (_, _, _, _, t) -> finish.withType t resultn.typeInfo
+                Nothing ->
+                  finish.withError ("No field " ++ s ++ " in definition ") resultn.typeInfo
+
+            _ -> finish.withError "This does not evaluate to a dict" resultn.typeInfo
 
     EIf _ e1 _ e2 _ e3 _ -> -- [TS-If]
       let result1 = checkType typeInfo typeEnv e1 tBool in
@@ -1006,11 +1054,24 @@ synthesizeType typeInfo typeEnv e =
       let typeEnv_ = TypeAlias p t :: typeEnv in
       propagateResult <| synthesizeType typeInfo typeEnv_ e1
 
+    ETypeDef _ ident vars _ dcs e1 _ ->
+      -- TODO-TD add TypeDef type checking
+      propagateResult <| synthesizeType typeInfo typeEnv e1
+
     EParens _ e1 _ _ ->
       propagateResult <| synthesizeType typeInfo typeEnv e1
 
     EHole _ v ->
       { result = Nothing, typeInfo = typeInfo }
+
+-- Computes the intersection of types
+intersect: Type -> Type -> Result String Type
+intersect type1 type2 =
+  case (type1.val, type2.val) of
+    (TRecord _ m ts1 _, TRecord _ m2 ts2 _) ->
+       Ok <| withDummyRange <| TRecord space1 m (Record.mergeLabelValues (\(_, _, k1, _, _) (_, _, k2, _, _) -> k1 == k2)  ts1 ts2) space0
+      -- Populate the arguments in the order given.
+    (_, _) -> Err "Cannnot interect record types with anything else than records."
 
 -- TODO need to instantiateTypes of arguments, as in tsAppPoly
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
@@ -1240,26 +1301,40 @@ checkSubtype typeInfo typeEnv tipe1 tipe2 =
 
     -- take care to control unrolling of aliases...
 
-    (TNamed _ a, TNamed _ b) ->
-      if a == b then ok
-      else
-        let maybeNewGoal =
-          case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
-            (Just tipe1_, Just tipe2_) -> Just (tipe1_, tipe2_)
-            (Just tipe1_, Nothing)     -> Just (tipe1_, tipe2 )
-            (Nothing, Just tipe2_)     -> Just (tipe1 , tipe2_)
-            (Nothing, Nothing)         -> Nothing
-        in
-        case maybeNewGoal of
-          Just (tipe1_,tipe2_) -> checkSubtype typeInfo typeEnv tipe1_ tipe2_
-          Nothing              -> err
+    (TApp _ a tsa, TApp _ b tsb) ->
+      case Utils.maybeZip tsa tsb of
+        Nothing ->
+          errAdd "lengths of app types are not equal"
+        Just list ->
+          let
+            argsSame =
+              checkSubtypeList typeInfo typeEnv list
+          in
+            case argsSame.result of
+              Err _ -> err
+              Ok () ->
+                if a == b then
+                  ok
+                else
+                  let maybeNewGoal =
+                    case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
+                      (Just tipe1_, Just tipe2_) -> Just (tipe1_, tipe2_)
+                      (Just tipe1_, Nothing)     -> Just (tipe1_, tipe2 )
+                      (Nothing, Just tipe2_)     -> Just (tipe1 , tipe2_)
+                      (Nothing, Nothing)         -> Nothing
+                  in
+                    case maybeNewGoal of
+                      Just (tipe1_,tipe2_) -> checkSubtype typeInfo typeEnv tipe1_ tipe2_
+                      Nothing              -> err
 
-    (TNamed _ a, _) ->
+    -- TODO Ensure this works for `TApp`s with nonempty argument lists
+
+    (TApp _ a _, _) ->
       case expandTypeAlias typeEnv a of
         Just tipe1_ -> checkSubtype typeInfo typeEnv tipe1_ tipe2
         Nothing     -> err
 
-    (_, TNamed _ b) ->
+    (_, TApp _ b _) ->
       case expandTypeAlias typeEnv b of
         Just tipe2_ -> checkSubtype typeInfo typeEnv tipe1 tipe2_
         Nothing     -> err
@@ -1667,26 +1742,32 @@ unify typeEnv vars accActive accUnifier cs = case cs of
 
       -- the setup of the TNamed cases is very similar to checkSubtype...
 
-      (TNamed _ a, TNamed _ b) ->
-        let maybeNewGoal =
-          case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
-            (Just t1_, Just t2_) -> Just (t1_, t2_)
-            (Just t1_, Nothing)  -> Just (t1_, t2 )
-            (Nothing, Just t2_)  -> Just (t1 , t2_)
-            (Nothing, Nothing)   -> Nothing
-        in
-        case maybeNewGoal of
-          Just (t1_,t2_) -> let induced = [(-1, (t1_, t2_))] in
-                            recurse accActive accUnifier (induced ++ rest)
-          Nothing        -> Err err
+      (TApp _ a tsa, TApp _ b tsb) ->
+        case Utils.maybeZip tsa tsb of
+          Nothing ->
+            Err "unify TApp: different arity"
+          Just list ->
+            let maybeNewGoal =
+              case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
+                (Just t1_, Just t2_) -> Just (t1_, t2_)
+                (Just t1_, Nothing)  -> Just (t1_, t2 )
+                (Nothing, Just t2_)  -> Just (t1 , t2_)
+                (Nothing, Nothing)   -> Nothing
+            in
+            case maybeNewGoal of
+              Just (t1_,t2_) -> let induced = [(-1, (t1_, t2_))] ++ List.map (\raw -> (-1, raw)) list in
+                                recurse accActive accUnifier (induced ++ rest)
+              Nothing        -> Err err
 
-      (TNamed _ a, _) ->
+      -- TODO Ensure this works for `TApp`s with nonempty argument lists
+
+      (TApp _ a _, _) ->
         case expandTypeAlias typeEnv a of
           Just t1_ -> let induced = [(-1, (t1_, t2))] in
                       recurse accActive accUnifier (induced ++ rest)
           Nothing  -> Err err
 
-      (_, TNamed _ b) ->
+      (_, TApp _ b _) ->
         case expandTypeAlias typeEnv b of
           Just t2_ -> let induced = [(-1, (t1, t2_))] in
                       recurse accActive accUnifier (induced ++ rest)

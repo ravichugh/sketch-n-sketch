@@ -1,5 +1,7 @@
 module ParserUtils exposing
-  ( lookAhead
+  ( negativeLookAhead
+  , lookAhead
+  , separateBy
   , try
   , optional
   , guard
@@ -13,7 +15,10 @@ module ParserUtils exposing
   , untrackInfo
   , showError
   , keepUntilRegex
+  , ignoreRegex
   , keepRegex
+  , singleLineString
+  , unparseStringContent
   )
 
 import Pos exposing (..)
@@ -55,6 +60,65 @@ lookAhead parser =
                    -- Consume input and fail (we know it will fail)
                    parser
            )
+
+
+negativeLookAhead : Parser a -> Parser ()
+negativeLookAhead parser =
+  let
+    getResult =
+      succeed
+        ( \offset source ->
+            let
+              remainingCode =
+                String.dropLeft offset source
+            in
+              run parser remainingCode
+        )
+        |= LL.getOffset
+        |= LL.getSource
+  in
+    getResult
+      |> andThen
+           ( \result ->
+               case result of
+                 Ok _ ->
+                   fail "Don't want to parse this."
+                   -- Return the result without consuming input
+
+                 Err _ ->
+                   -- Consume input and fail (we know it will fail)
+                   succeed ()
+           )
+
+-- Parses (at least / at most) n occurrences of p separated by sep
+separateBy : Count -> Parser sep -> Parser a -> Parser (List a)
+separateBy count sep p =
+  let
+    sepThenP =
+      succeed identity
+        |. sep
+        |= p
+  in
+    case count of
+      AtLeast n ->
+        if n <= 0 then
+          oneOf
+            [ separateBy (AtLeast 1) sep p -- parse one or more
+            , succeed [] -- or just parse zero
+            ]
+        else
+          succeed (\x xs1 xs2 -> x :: xs1 ++ xs2)
+            |= p -- parse exactly one
+            |= repeat (Exactly (n - 1)) sepThenP -- then parse exactly (n - 1)
+            |= repeat zeroOrMore sepThenP -- then parse as many as possible
+
+      Exactly n ->
+        if n <= 0 then
+          succeed [] -- parse exactly zero
+        else
+          succeed (::)
+            |= p -- parse exactly one
+            |= repeat (Exactly (n - 1)) sepThenP -- then parse exactly (n - 1)
 
 try : Parser a -> Parser a
 try parser =
@@ -131,18 +195,23 @@ keepRegex reg =
 ignoreRegex : Regex -> Parser ()
 ignoreRegex reg =
    (succeed (,)
-   |= LL.getOffset
+   |= LL.getOffset -- Because it is not delayed commit, this cannot fail
    |= LL.getSource)
    |> andThen (\(offset,source) ->
         let sourceFromOffset = String.slice offset (String.length source) source in
         let finding = find (AtMost 1) reg sourceFromOffset in
+        -- let _ = Debug.log ("Trying to ignore regex" ++ toString reg ++ " at pos " ++ toString (offset, source)) () in
         case finding of
           {index, match}::_ ->
             if index == 0 then
+              -- let _ = Debug.log ("Found at index 0, length:") (String.length match) in
               ignore (Exactly <| String.length match) (\_ -> True)
             else
+               -- let _ = Debug.log ("Found after index 0") () in
                fail ("expecting regex '" ++ toString reg ++ "' immediately but appeared only after " ++ toString index ++ " characters")
-          _ -> fail ("expecting regex '" ++ toString reg ++ "'")
+          _ ->
+            -- let _ = Debug.log ("Not found") () in
+            fail ("expecting regex '" ++ toString reg ++ "'")
    )
 
 inside : String -> Parser String
@@ -284,3 +353,37 @@ showError err =
     "Context Stack\n" ++
     "=============\n" ++
       (String.concat <| List.map showContext err.context) ++ "\n\n"
+
+-- returns the quote string and the string content itself.
+singleLineString : Parser (String, String)
+singleLineString =
+  let
+    stringHelper quoteChar =
+      let
+        quoteString = String.fromChar quoteChar
+      in
+      let
+        quoteEscapeRegex = Regex.regex <| "\n|\r|\t|\\\\|\\" ++ quoteString ++ "|" ++ quoteString
+      in
+        succeed (\x -> (quoteString, x))
+          |. symbol quoteString
+          |= map String.concat (
+              repeat zeroOrMore <|
+                oneOf [
+                  map (\_ -> quoteString) <| symbol <| "\\" ++ quoteString,
+                  map (\_ -> "\n") <| symbol <| "\\n",
+                  map (\_ -> "\r") <| symbol <| "\\r",
+                  map (\_ -> "\t") <| symbol <| "\\t",
+                  map (\_ -> "\\") <| symbol <| "\\\\",
+                  succeed (\a b -> a ++ b)
+                  |= keep (Exactly 1) (\c -> c /= quoteChar && c /= '\\' && c /= '\n')
+                  |= keepUntilRegex quoteEscapeRegex
+                ])
+          |. symbol quoteString
+  in
+    oneOf <| List.map stringHelper ['\'', '"']
+
+unparseStringContent quoteChar text =
+  Regex.replace Regex.All (Regex.regex <| "\\\\|" ++ quoteChar ++ "|\r|\n|\t") ( -- EStrings are not multiline.
+    \{match} -> if match == "\\" then "\\\\" else if match == "\n" then "\\n" else if match == "\r" then "\\r" else if match == "\t" then "\\t" else "\\" ++ quoteChar)
+    text

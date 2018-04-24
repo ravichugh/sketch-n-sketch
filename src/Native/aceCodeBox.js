@@ -264,7 +264,11 @@ app.ports.aceCodeBoxCmd.subscribe(function(aceCmd) {
   } else {
     console.log("[aceCodeBox.js] unexpected message: " + message);
   }
+});
 
+app.ports.aceCodeBoxScroll.subscribe(function(pos) {
+  editor.scrollToLine(pos.line + 1, true, true, function () {});
+  editor.gotoLine(pos.line + 1, pos.col + 1, true);
 });
 
 app.ports.setReadOnly.subscribe(function(flag) {

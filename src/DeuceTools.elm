@@ -1782,6 +1782,11 @@ makeSingleLineTool model selections =
                               (deLine ws2)
                               rest
                               space0
+                          PRecord ws1 ps ws2 ->
+                            PRecord
+                              (deLine ws1)
+                              (Utils.recordValuesMake ps (setPatListWhitespace "" " " (Utils.recordValues ps)))
+                              (deLine ws2)
                           PAs ws1 ident ws2 p ->
                             PAs
                               (deLine ws1)
@@ -1822,12 +1827,18 @@ makeSingleLineTool model selections =
                           EList ws1 es ws2 rest ws3 ->
                             EList
                               (deLine ws1)
-                              (Utils.zip
-                                (List.map Tuple.first es)
-                                (setExpListWhitespace "" " " (List.map Tuple.second es)))
+                              (Utils.listValuesMake es (setExpListWhitespace "" " " (Utils.listValues es)))
                               (deLine ws2)
                               rest
                               space0
+                          ERecord ws1 mb es ws2 ->
+                            ERecord
+                              (deLine ws1)
+                              mb
+                              (Utils.recordValuesMake es (setExpListWhitespace "" " " (Utils.recordValues es)))
+                              (deLine ws2)
+                          ESelect ws0 e1 ws1 ws2 n ->
+                            ESelect ws0 e1 (deLine ws1) (deLine ws2) n
                           EOp ws1 op es ws2 ->
                             EOp (deLine ws1) op es space0
                           EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
@@ -1848,6 +1859,25 @@ makeSingleLineTool model selections =
                             EColonType (deLine ws1) e (deLine ws2) tipe space0
                           ETypeAlias ws1 pat tipe e ws2 ->
                             ETypeAlias (deLine ws1) pat tipe e space0
+                          ETypeDef ws1 (wsIdent, ident) vars ws2 dcs e ws3 ->
+                            ETypeDef
+                              (deLine ws1)
+                              (deLine wsIdent, ident)
+                              ( List.map
+                                  ( \(ws, name) ->
+                                      (deLine ws, name)
+                                  )
+                                  vars
+                              )
+                              (deLine ws2)
+                              ( List.map
+                                  ( \(wsa, name, ts, wsb) ->
+                                      (deLine wsa, name, ts, deLine wsb)
+                                  )
+                                  dcs
+                              )
+                              e
+                              space0
                           EParens ws1 e pStyle ws2 ->
                             EParens (deLine ws1) e pStyle (deLine ws2)
                           EHole ws mv ->
@@ -1911,7 +1941,7 @@ makeMultiLineTool model selections =
             case exp.val.e__ of
               EList ws1 es ws2 Nothing ws3 ->
                 if
-                  List.map Tuple.second es |>
+                  Utils.listValues es |>
                     List.all (precedingWhitespace >> String.contains "\n")
                 then
                   Nothing
@@ -1932,7 +1962,7 @@ makeMultiLineTool model selections =
                                       ( setExpListWhitespace
                                           ("\n" ++ indentation ++ "  ")
                                           ("\n" ++ indentation ++ "  ")
-                                          (List.map Tuple.second es)
+                                          (Utils.listValues es)
                                       )
                                    )
                                    ws2

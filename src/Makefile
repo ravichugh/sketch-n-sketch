@@ -4,6 +4,7 @@ ELMMAKE=elm-make
 
 all: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
+	sed -i 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].evaluate = _user$$project$$EvalUpdate$$evaluate;\nElm["EvalUpdate"].valToString = _user$$project$$EvalUpdate$$valToString;/g' ../build/out/sns.js
 
 html: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
@@ -28,6 +29,7 @@ html: elm-stuff/packages
 	cp ../img/sketch-n-sketch-logo.png ../build/out/img/
 	cp ../img/light_logo.svg ../build/out/img/
 	cp ../img/*.png ../build/out/img/
+	sed -i 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].evaluate = _user$$project$$EvalUpdate$$evaluate;\nElm["EvalUpdate"].valToString = _user$$project$$EvalUpdate$$valToString;/g' ../build/out/sns.js
 
 elm-stuff/packages:
 	# Use our custom version of core that allows anything in sets.
@@ -38,6 +40,7 @@ elm-stuff/packages:
 	elm-package install
 	rm -rf elm-stuff/packages/elm-lang/core/5.1.1
 	cd elm-stuff/packages/elm-lang/core && git clone --branch flexible_sets https://github.com/brianhempel/core.git && mv core 5.1.1
+	cd ../../../..
 
 remove_build_artifacts:
 	rm -r elm-stuff/build-artifacts/0.*/user; rm -r ../tests/elm-stuff/build-artifacts/0.*/user; true
@@ -68,6 +71,7 @@ loc:
 		ValUnparser.elm \
     Types.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
+    UpdateStack.elm UpdateRegex.elm Update.elm \
     InterfaceModel.elm \
     Canvas.elm \
     SleekView.elm SleekLayout.elm \
@@ -86,7 +90,7 @@ loc:
     ColorScheme.elm Native/colorScheme.js \
     SyntaxHighlight.elm Native/syntaxHighlight.js \
     Main.elm Config.elm \
-    Utils.elm Either.elm Updatable.elm \
+    Utils.elm Either.elm Results.elm Updatable.elm \
     HtmlUtils.elm \
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm \
@@ -98,3 +102,12 @@ littleloc:
 	../scripts/exampleStats.sh
 	../scripts/exampleStats.sh | wc -l
 	../scripts/exampleStats.sh | awk '{ sum += $$1 } END { print sum }'
+
+tests:
+	cd ../tests && ./test.sh && cd ../src
+
+benchmarks:
+	cd ../tests && ./benchmarks.sh && cd ../src
+
+testbenchmarks:
+	cd ../tests && ./benchmarks.sh --test && cd ../src

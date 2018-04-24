@@ -24,16 +24,18 @@ import LangSvg
 import Types
 import Blobs exposing (..)
 import InterfaceModel exposing (..)
-import FastParser
+import ElmParser as Parser
 import LangTools
 import LangUnparser
 import StaticAnalysis
+import ColorNum
 import Provenance
 import Utils
 import Either exposing (..)
 import Keys
 import Eval -- used to determine bounding box of LambdaAnchor tools
             -- for the purposes of rendering icons in drawing toolbox
+import EvalUpdate
 import Config
 import Syntax exposing (Syntax)
 
@@ -63,20 +65,28 @@ svgPath      = flip Svg.path []
 -- Bounding Boxes
 
 -- TODO change order of return values
-boundingBoxOfPoints_ : List (Float, Float) -> (Float, Float, Float, Float)
+boundingBoxOfPoints_ : List (Float, Float) -> Maybe (Float, Float, Float, Float)
 boundingBoxOfPoints_ pts =
   let (xs, ys) = List.unzip pts in
-  let xMax = Utils.fromJust <| List.maximum xs in
-  let xMin = Utils.fromJust <| List.minimum xs in
-  let yMax = Utils.fromJust <| List.maximum ys in
-  let yMin = Utils.fromJust <| List.minimum ys in
-  (xMin, xMax, yMin, yMax)
+  case List.maximum xs of
+    Nothing -> Nothing
+    Just xMax ->
+  case List.minimum xs of
+    Nothing -> Nothing
+    Just xMin ->
+  case List.maximum ys of
+    Nothing -> Nothing
+    Just yMax ->
+  case List.minimum ys of
+    Nothing -> Nothing
+    Just yMin ->
+  Just (xMin, xMax, yMin, yMax)
 
-boundingBoxOfPoints : List (Int, Int) -> (Int, Int, Int, Int)
+boundingBoxOfPoints : List (Int, Int) -> Maybe (Int, Int, Int, Int)
 boundingBoxOfPoints pts =
   let pts_ = List.map (\(x,y) -> (toFloat x, toFloat y)) pts in
-  let (a,b,c,d) = boundingBoxOfPoints_ pts_ in
-  (round a, round b, round c, round d)
+  boundingBoxOfPoints_ pts_ |> Maybe.map (\(a,b,c,d) ->
+  (round a, round b, round c, round d))
 
 
 --------------------------------------------------------------------------------
@@ -259,9 +269,28 @@ drawNewPath (keysLast,ptLast) keysAndPoints =
 --------------------------------------------------------------------------------
 -- New Shapes (previously in Controller)
 
-randomColor model = eConst0 (toFloat model.randomColor) dummyLoc
+useColorNums = False
 
-randomColor1 model = eConst (toFloat model.randomColor) dummyLoc
+-- Uses of the following functions are a bit messier now because they
+-- return different types of Little expressions.
+
+randomColor model =
+  if useColorNums then
+    eConst0 (toFloat model.randomColor) dummyLoc
+  else
+    eStr0 (ColorNum.randomHtmlColorName model.randomColor)
+
+randomColor1 model =
+  if useColorNums then
+    eConst (toFloat model.randomColor) dummyLoc
+  else
+    eStr (ColorNum.randomHtmlColorName model.randomColor)
+
+eDefaultStroke =
+  if useColorNums then
+    eConst 360 dummyLoc
+  else
+    eStr "black"
 
 {-
 randomColorWithSlider model =
@@ -317,7 +346,7 @@ addLine old click2 click1 =
 addRawRect old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
   let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
-  let (fill, stroke, strokeWidth) = (old.randomColor, old.randomColor, 0) in
+  let (fill, stroke, strokeWidth) = (randomColor old, eDefaultStroke, 0) in
   let (rot) = 0 in
   addShapeToModel old "rect"
     (stencilRawRect x y w h fill stroke strokeWidth rot)
@@ -325,7 +354,7 @@ addRawRect old (_,pt2) (_,pt1) =
 stencilRawRect x y w h fill stroke strokeWidth rot =
   makeCallWithLocals
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
-    , makeLet ["fill", "stroke","strokeWidth"] (makeInts [fill, stroke, strokeWidth])
+    , makeLet ["fill", "stroke","strokeWidth"] [fill, stroke, eConstDummyLoc strokeWidth]
     , makeLet ["rot"] [eConst (toFloat rot) dummyLoc] ]
     (eVar0 "rawRect")
     [ eVar "fill", eVar "stroke", eVar "strokeWidth"
@@ -341,7 +370,7 @@ addRawSquare old (_,pt2) (_,pt1) =
         [ makeLet ["x","y","side"] (makeInts [x,y,side])
         , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
         (eVar0 "rawRect")
-        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+        [ eVar "color", eDefaultStroke, eConst 0 dummyLoc
         , eVar "x", eVar "y", eVar "side", eVar "side", eVar "rot" ]
   in
   addShapeToModel old "square" squareExp
@@ -350,17 +379,17 @@ addRawSquare old (_,pt2) (_,pt1) =
 
 addStretchyRect old (_,pt2) (_,pt1) =
   let (xMin, xMax, yMin, yMax) = boundingBox pt2 pt1 in
-  let (fill) = (old.randomColor) in
-  let (stroke, strokeWidth, rot) = (360, 0, 0) in
+  let (fill) = (randomColor old) in
+  let (stroke, strokeWidth, rot) = (eDefaultStroke, 0, 0) in
   addShapeToModel old "rect"
     (stencilStretchyRect xMin yMin xMax yMax fill stroke strokeWidth rot)
 
 stencilStretchyRect left top right bot fill stroke strokeWidth rot =
   makeCallWithLocals
     [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [left,top,right,bot])
-    , makeLet ["color"] [eConst (toFloat fill) dummyLoc] ]
+    , makeLet ["color"] [fill] ]
     (eVar0 "rectangle")
-    [eVar "color", eConst (toFloat stroke) dummyLoc, eConst (toFloat strokeWidth) dummyLoc
+    [eVar "color", stroke, eConst (toFloat strokeWidth) dummyLoc
     , eConst (toFloat rot) dummyLoc, eVar "bounds"]
 
 --------------------------------------------------------------------------------
@@ -374,7 +403,7 @@ addStretchySquare old (_,pt2) (_,pt1) =
         , makeLet ["bounds"] [eList (listOfRaw ["left","top","(+ left side)","(+ top side)"]) Nothing]
         , makeLet ["rot"] [eConst 0 dummyLoc]
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+                  [randomColor old, eDefaultStroke, eConst 0 dummyLoc] ]
         (eVar0 "rectangle")
         (List.map eVar ["color","strokeColor","strokeWidth","rot","bounds"])
   in
@@ -391,7 +420,7 @@ addRawOval old (_,pt2) (_,pt1) =
         [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
         , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
         (eVar0 "rawEllipse")
-        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+        [ eVar "color", eDefaultStroke, eConst 0 dummyLoc
         , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
   in
   addShapeToModel old "ellipse" ellipseExp
@@ -407,7 +436,7 @@ addRawCircle old (_,pt2) (_,pt1) =
         [ makeLet ["cx","cy","r"] (makeInts [cx,cy,r])
         , makeLet ["color"] [randomColor1 old] ]
         (eVar0 "rawCircle")
-        [ eVar "color", eConst 360 dummyLoc, eConst 0 dummyLoc
+        [ eVar "color", eDefaultStroke, eConst 0 dummyLoc
         , eVar "cx", eVar "cy", eVar "r" ]
   in
   addShapeToModel old "circle" circleExp
@@ -420,7 +449,7 @@ addStretchyOval old (_,pt2) (_,pt1) =
     makeCallWithLocals
         [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xa,ya,xb,yb])
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+                  [randomColor old, eDefaultStroke, eConst 0 dummyLoc] ]
         (eVar0 "oval")
         (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
   in
@@ -436,7 +465,7 @@ addStretchyCircle old (_,pt2) (_,pt1) =
         , makeLet ["bounds"]
             [eList [eVar0 "left", eVar "top", eRaw "(+ left (* 2! r))", eRaw "(+ top (* 2! r))"] Nothing]
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 0 dummyLoc] ]
+                  [randomColor old, eDefaultStroke, eConst 0 dummyLoc] ]
         (eVar0 "oval")
         (List.map eVar ["color","strokeColor","strokeWidth","bounds"])
   in
@@ -448,11 +477,11 @@ addPoint : Model -> (Int, Int) -> Model
 addPoint old (x, y) =
   -- style matches center of attr crosshairs (View.zoneSelectPoint_)
   let originalProgram = old.inputExp in
-  case LangTools.nonCollidingNames ["point", "x", "y"] 2 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
+  case LangTools.nonCollidingNames ["point", "x", "y"] 2 <| EvalUpdate.identifiersVisibleAtProgramEnd originalProgram of
     [pointName, xName, yName] ->
       let
         programWithPoint =
-          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (TNamed space1 "Point"))
+          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (TApp space1 "Point" []))
       in
       { old | code = Syntax.unparser old.syntax programWithPoint }
 
@@ -485,7 +514,7 @@ addToEndOfProgram : Model -> Ident -> Exp -> Model
 addToEndOfProgram old varSuggestedName exp =
   let originalProgram = old.inputExp in
   let insertBeforeEId = (LangTools.lastTopLevelExp originalProgram).val.eid in
-  let varName = LangTools.nonCollidingName varSuggestedName 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
+  let varName = LangTools.nonCollidingName varSuggestedName 2 <| EvalUpdate.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
   let newProgram =
     originalProgram
     |> mapExpNode insertBeforeEId (\lastTopLevelExp -> LangTools.newLetFancyWhitespace -1 False (pVar varName) exp lastTopLevelExp originalProgram)
@@ -518,14 +547,14 @@ addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
     (X, Just (x1Val, _)) -> offsetFromExisting x1Val
     (Y, Just (_, y1Val)) -> offsetFromExisting y1Val
     _                    ->
-      case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.identifiersVisibleAtProgramEnd originalProgram of
+      case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| EvalUpdate.identifiersVisibleAtProgramEnd originalProgram of
         [pointName, xName, yName, offsetXName, offsetYName] ->
           let
             (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
             programWithOffset =
-              LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> FastParser.freshen
+              LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> Parser.freshen
             programWithOffsetAndPoint =
-              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TNamed space1 "Point"))
+              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (TApp space1 "Point" []))
           in
           { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 
@@ -585,7 +614,7 @@ addRawPolygon old pointsWithSnap =
     makeCallWithLocals
         [ makeLet ["pts"] [eTuple ePts]
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
+                  [randomColor old, eDefaultStroke, eConst 2 dummyLoc]
         ]
         (eVar0 "rawPolygon")
         [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
@@ -594,7 +623,9 @@ addRawPolygon old pointsWithSnap =
   addShapeToModel old "polygon" polygonExp
 
 addStretchablePolygon old points =
-  let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
+  case boundingBoxOfPoints points of
+    Nothing -> old
+    Just (xMin, xMax, yMin, yMax) ->
   let (width, height) = (xMax - xMin, yMax - yMin) in
   let sPcts =
     Utils.bracks <| Utils.spaces <|
@@ -609,7 +640,7 @@ addStretchablePolygon old points =
     makeCallWithLocals
         [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
+                  [randomColor old, eDefaultStroke, eConst 2 dummyLoc]
         , makeLet ["pcts"] [eRaw sPcts] ]
         (eVar0 "stretchyPolygon")
         (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
@@ -617,7 +648,9 @@ addStretchablePolygon old points =
   addShapeToModel old "polygon" polygonExp
 
 addStickyPolygon old points =
-  let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
+  case boundingBoxOfPoints points of
+    Nothing -> old
+    Just (xMin, xMax, yMin, yMax) ->
   let (width, height) = (xMax - xMin, yMax - yMin) in
   let sOffsets =
     Utils.bracks <| Utils.spaces <|
@@ -638,7 +671,7 @@ addStickyPolygon old points =
     makeCallWithLocals
         [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
         , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
+                  [randomColor old, eDefaultStroke, eConst 2 dummyLoc]
         , makeLet ["offsets"] [eRaw sOffsets] ]
         (eVar0 "stickyPolygon")
         (List.map eVar ["bounds","color","strokeColor","strokeWidth","offsets"])
@@ -721,7 +754,9 @@ addAbsolutePath old keysAndPoints =
 
 addStretchyPath old keysAndPoints =
   let points = List.map Tuple.second keysAndPoints in
-  let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
+  case boundingBoxOfPoints points of
+    Nothing -> old
+    Just (xMin, xMax, yMin, yMax) ->
   let (width, height) = (toFloat (xMax - xMin), toFloat (yMax - yMin)) in
   let strX x = maybeThaw (toFloat (x - xMin) / width) in
   let strY y = maybeThaw (toFloat (y - yMin) / height) in
@@ -745,7 +780,7 @@ addStickyPath old keysAndPoints =
 eAsPoint e =
   let e_ = replacePrecedingWhitespace "" e in
   withDummyExpInfo <|
-    EColonType space1 e_ space1 (withDummyRange <| TNamed space1 "Point") space1
+    EColonType space1 e_ space1 (withDummyRange <| TApp space1 "Point" []) space1
 
 {-
 addLambda old (_,pt2) (_,pt1) =
@@ -822,8 +857,8 @@ addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
       TUnion _ (firstType::_) _      -> fillInArgPrimitive firstType
       TVar _ _                       -> Just <| eTuple []
       TWildcard _                    -> Just <| eTuple []
-      TNamed _ "Color"               -> Just <| eConstDummyLoc 0
-      TNamed _ "Point"               -> Just <| eTuple (makeInts [0,0])
+      TApp _ "Color" _               -> Just <| eConstDummyLoc 0
+      TApp _ "Point" _               -> Just <| eTuple (makeInts [0,0])
       _                              -> Nothing
   in
   case getDrawableFunctions old |> Utils.maybeFind fName |> Maybe.andThen Types.typeToMaybeArgTypesAndReturnType of
@@ -833,14 +868,14 @@ addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
         |> List.foldl
             (\argType (ptsRemaining, argMaybeExps) ->
               case (ptsRemaining, argType.val) of
-                ((x,y)::otherPts, TNamed _ "Point") -> (otherPts,     argMaybeExps ++ [Just (eTuple (makeInts [x,y]))])
+                ((x,y)::otherPts, TApp _ "Point" _) -> (otherPts,     argMaybeExps ++ [Just (eTuple (makeInts [x,y]))])
                 _                                   -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
             )
             ([(x1, y1), (x2, y2)], [])
       in
       case (Utils.projJusts argMaybeExps, returnType.val) of
-        (Just argExps, TNamed _ "Point") -> addToEndOfProgram old fName (eCall fName argExps)
-        (Just argExps, TNamed _ "Shape") -> addShapeToModel   old fName (eCall fName argExps)
+        (Just argExps, TApp _ "Point" _) -> addToEndOfProgram old fName (eCall fName argExps)
+        (Just argExps, TApp _ "Shape" _) -> addShapeToModel   old fName (eCall fName argExps)
         _                                -> let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
 
     Nothing -> let _ = Utils.log <| "Could not find function " ++ fName ++ " to draw!" in old
@@ -896,7 +931,7 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
     lists
     |> List.concatMap
         (\listExp ->
-          let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] program in
+          let (varName, programWithNewDef) = EvalUpdate.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] program in
           let (ws1, heads, ws2, maybeTail, ws3) = LangTools.expToListParts listExp in
           let newListFlat      = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eVar varName])))           ws2 maybeTail ws3 in
           let newListSingleton = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [eVar0 varName]]))) ws2 maybeTail ws3 in
@@ -1098,7 +1133,7 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
 
 preludeDrawableFunctions : List (Ident, Type)
 preludeDrawableFunctions =
-  getDrawableFunctions_ FastParser.prelude (LangTools.lastTopLevelExp FastParser.prelude).val.eid
+  getDrawableFunctions_ Parser.prelude (LangTools.lastTopLevelExp Parser.prelude).val.eid
 
 
 getDrawableFunctions : Model -> List (Ident, Type)
@@ -1121,7 +1156,7 @@ isDrawableType tipe =
   case tipe.val of
     TArrow _ argTypes _ ->
       case (Utils.maybeLast argTypes |> Maybe.map .val, Utils.dropLast 1 argTypes) of
-        (Just (TNamed _ retAliasName), otherArgs) ->
+        (Just (TApp _ retAliasName _), otherArgs) ->
           if retAliasName == "Shape" || retAliasName == "Point" then
             let aliasArgIdents = List.filterMap Types.typeToMaybeAliasIdent otherArgs in
             Utils.count ((==) "Point") aliasArgIdents == 2
