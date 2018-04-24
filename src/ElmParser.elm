@@ -662,7 +662,7 @@ multilineContentParserHelp prevExps =
         |. lookAhead (symbol "\"\"\"")
         |= getPos
       )
-    , (succeed (\x y -> (x, y))
+    , (succeed (\potentialExp strAfterExp -> (potentialExp, strAfterExp))
       |= (inContext "multi-line string @expression" <| oneOf [  --Or this is an @ followed by an @ resutling in a single @ char,
              mapExp_ <| trackInfo <|
                map (\_ -> EBase space0 (EString "\"" "@")) <| symbol "@@",
@@ -681,7 +681,7 @@ multilineContentParserHelp prevExps =
               (EBase sp0 (EString qc prevChars), EBase sp1 (EString eqc expChars), EBase sp2 (EString sqc stringChars)) ->
                 multilineContentParserHelp <| (withInfo (
                   exp_ <| EBase sp0 <| EString qc (prevChars ++ expChars ++ stringChars))
-                  lastPrev.start stringExp.end) :: prevExps
+                  lastPrev.start stringExp.end) :: lastTail
               _ ->
                 multilineContentParserHelp (stringExp :: potentialExp:: prevExps)
           [] -> Debug.crash "Internal error: There should be always at least one expression in a longstring literal."
@@ -694,7 +694,8 @@ multilineEscapedElmExpression =
   oneOf [
     try <| trackInfo <|
       succeed (\v -> exp_ <| EOp space0 (withInfo ToStrExceptStr v.start v.start) [v] space0)
-      |= (addSelections noSpacePolicy <| variableExpression spacesWithoutNewline),
+      |= (variableExpression noSpacePolicy |> addSelections noSpacePolicy),
+      --|= (addSelections noSpacePolicy <| variableExpression spacesWithoutNewline),
     try <| lazy <| \_ -> multilineGenericLetBinding,
     lazy <| \_ ->
       ( mapExp_ <| trackInfo <|
@@ -890,6 +891,11 @@ htmlToExp node =
         withInfo (exp_ <| EApp space1 (withInfo (exp_ <| EVar space1  "__mbwraphtmlnode__") e.start e.start) [e] SpaceApp space0) e.start e.end
         ] InfixApp space0 ) node.start e.end
 
+wrapWithSyntax: ParensStyle -> Parser Exp -> Parser Exp
+wrapWithSyntax parensStyle parser =
+  succeed (\e -> withInfo (exp_ <| EParens space0 e parensStyle space0) e.start e.end)
+  |= parser
+
 htmlliteral: SpacePolicy -> Parser Exp
 htmlliteral sp =
   delayedCommitMap (\space newExp ->
@@ -900,10 +906,10 @@ htmlliteral sp =
          (symbol "<")
          (oneOf [identifier, source <| symbol "@"])))
     |= HTMLParser.parseOneNode (HTMLParser.Interpolation
-      { attributevalue = inContext "HTML attribute value" << simpleExpression
-      , attributelist = inContext "HTML special attribute list" << simpleExpression
-      , childlist = inContext "HTML special child list" << simpleExpression
-      , tagName = inContext "HTML special tag name" << simpleExpression
+      { attributevalue = inContext "HTML attribute value" << wrapWithSyntax ElmSyntax << simpleExpression
+      , attributelist = inContext "HTML special attribute list" << wrapWithSyntax ElmSyntax << simpleExpression
+      , childlist = inContext "HTML special child list" << wrapWithSyntax ElmSyntax << simpleExpression
+      , tagName = inContext "HTML special tag name" << wrapWithSyntax ElmSyntax << simpleExpression
       })) |> andThen htmlToExp)
 
 --------------------------------------------------------------------------------

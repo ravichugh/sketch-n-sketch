@@ -1108,6 +1108,7 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
              let theStart =  origExp.start in
              let lastPos = case renderingStyle of
                LongStringSyntax -> theStart
+               HtmlSyntax -> theStart
                _ -> { theStart | col = origExp.start.col + 1}
              in
              stringDiffsToString2 renderingStyle indent lastEdit lastPos quoteChar original modified diffs

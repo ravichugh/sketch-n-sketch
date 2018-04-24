@@ -675,7 +675,7 @@ unparse e =
         ElmSyntax ->
            -- We just unparse the inner expression as regular parentheses
            -- This is normally never called from here.
-          unparse <| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
+          unparse innerExpression  --<| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
 
     EHole wsBefore val ->
       wsBefore.val
