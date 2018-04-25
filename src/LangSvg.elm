@@ -49,6 +49,7 @@ import Regex
 import ColorNum
 
 import Lang exposing (..)
+import LangUtils exposing (valToString)
 import ValUnparser exposing (..)
 import Eval
 import Utils
@@ -224,9 +225,9 @@ valToIndexedTree_ v (nextId, d) =
               )
             )
 
-        _ -> expectedButGot "an SVG node" (strVal v)
+        _ -> expectedButGot "an SVG node" (valToString v)
 
-      _ -> expectedButGot "an SVG node" (strVal v)
+      _ -> expectedButGot "an SVG node" (valToString v)
   in
   ImpureGoodies.crashToError thunk
   |> Utils.unwrapNestedResult

@@ -29,6 +29,14 @@ maybeFind k l = case l of
                      then Just v0
                      else maybeFind k l_
 
+maybeFindTail : a -> List (a,b) -> Maybe (b, List (a, b))
+maybeFindTail k l = case l of
+  []            -> Nothing
+  (k0,v0) :: l_ -> if k == k0
+                     then Just (v0, l_)
+                     else maybeFindTail k l_
+
+
 find err d k =
   case maybeFind k d of
     Just f  -> f
@@ -135,6 +143,11 @@ maybeOrElse: Maybe a -> Maybe a -> Maybe a
 maybeOrElse mb ma = case ma of
   Just _ -> ma
   Nothing -> mb
+
+maybeWithLazyDefault: Maybe a -> (() -> a) -> a
+maybeWithLazyDefault mba callback = case mba of
+  Just a -> a
+  Nothing -> callback ()
 
 zipi0 : List a -> List (Int, a)
 zipi0 = zipi_ 0

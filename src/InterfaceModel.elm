@@ -104,6 +104,7 @@ type alias Model =
   , history : History TrackedValues
   , inputExp : Exp
   , inputVal : Val
+  , inputEnv : Env
   , slideNumber : Int
   , slideCount : Int
   , movieNumber : Int
@@ -1176,7 +1177,7 @@ initModel : Model
 initModel =
   let
     (_,f)    = Utils.find_ Examples.list initTemplate
-    {e,v,ws} = f ()
+    {e,v,ws,env} = f ()
   in
   let unwrap = Utils.fromOk "generating initModel" in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
@@ -1194,6 +1195,7 @@ initModel =
     , history       = History.begin { code = code, selectedDeuceWidgets = [] }
     , inputExp      = e
     , inputVal      = v
+    , inputEnv      = env
     , slideNumber   = 1
     , slideCount    = slideCount
     , movieNumber   = 1

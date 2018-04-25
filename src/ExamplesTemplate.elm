@@ -69,8 +69,8 @@ makeExample_ parser syntax name s =
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
     -- else
     -----------------------------------------------------
-    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| EvalUpdate.run syntax e in
-    {e=e, v=v, ws=ws, ati=ati}
+    let ((v,ws), env) = Utils.fromOk ("Error executing example " ++ name) <| EvalUpdate.runWithEnv syntax e in
+    {e=e, v=v, ws=ws, ati=ati,env=env}
   in
   (name, (s, thunk))
 

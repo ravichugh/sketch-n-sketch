@@ -229,7 +229,8 @@ unescapeSlashDollar eval update =
   builtinVal "UpdateRegex.unescapeSlashDollar" <| VFun "unescapeSlashDollar" ["s"] (\args ->
     eval (localEnv args) localExp
   ) <| Just <| \args oldVal newVal diffs ->
-    update (updateContext "unescapeSlashDollar" (localEnv args) localExp oldVal newVal diffs) |> Results.andThen (\(newEnv, newExp) ->
+    let prevEnv = localEnv args in
+    update (updateContext "unescapeSlashDollar" prevEnv localExp [] oldVal newVal diffs) |> Results.andThen (\(newEnv, newExp) ->
       case newEnv.val of
         _::_::(_, newArg)::_ ->
           case newEnv.changes of
@@ -589,7 +590,7 @@ interleavingStrings string matchList =
 updateRegexReplaceByIn: Regex.HowMany ->
    (Env -> Exp -> Result String (Val, Widgets)) ->
    (UpdateStack -> Results String (UpdatedEnv, UpdatedExp)) ->
-   Val -> Val -> Val ->   Val -> Val -> VDiffs -> Results String (List Val, TupleDiffs VDiffs)
+   Val -> Val -> Val ->   PrevOutput -> Output -> VDiffs -> Results String (List Val, TupleDiffs VDiffs)
 updateRegexReplaceByIn howmany eval update regexpV replacementV stringV oldOutV newOutV diffs =
    case (regexpV.v_, replacementV.v_, stringV.v_, newOutV.v_) of
      (VBase (VString regexp), VBase (VString replacement), VBase (VString string), _) ->
@@ -639,7 +640,7 @@ updateRegexReplaceByIn howmany eval update regexpV replacementV stringV oldOutV 
             let argNameToIndex = argumentsMatches |> List.indexedMap (\i (name, _) -> (name, i)) |> Dict.fromList in
             let argumentsMatchesDict = Dict.fromList argumentsMatches in
             let envWithReplacement= (replacementName, replacementV)::("join", join)::argumentsEnv in
-            update (updateContext "regex replace" envWithReplacement expressionReplacement oldVal newOutV diffs) |> Results.andThen (
+            update (updateContext "regex replace" envWithReplacement expressionReplacement [] oldVal newOutV diffs) |> Results.andThen (
                \(newEnvWithReplacement, newUpdatedExp) ->
                  --let _ = Debug.log "newEnvWithReplacement.changes " newEnvWithReplacement.changes in
               case newEnvWithReplacement.val of

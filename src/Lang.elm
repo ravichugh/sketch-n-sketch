@@ -2032,6 +2032,11 @@ vStrUnapply v = case v.v_ of
   VBase (VString s) -> Just s
   _ -> Nothing
 
+vListUnapply v = case v.v_ of
+  VList elems -> Just elems
+  _ -> Nothing
+
+
 -- note: dummy ids...
 -- vTrue    = vBool True
 -- vFalse   = vBool False

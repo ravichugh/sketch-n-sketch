@@ -232,6 +232,7 @@ LensLess =
       in
       let length x = len (explode x) in
       { strToInt = strToInt
+        toInt = strToInt
         join = join
         substring = substring
         slice = substring
@@ -1057,6 +1058,24 @@ String =
     [] -> str
     a -> replaceFirstIn "%s" a str
   in
+  let freezeRight x = {
+      apply x = freeze x
+      update {input, outputNew} =
+        if String.take String.length input outputNew == input then
+          { values = [] }
+        else
+          { values = [outputNew] }
+    }.apply x
+  in
+  let freezeLeft x = {
+      apply x = freeze x
+      update {input, outputNew} =
+        if String.drop (String.length outputNew - String.length input) outputNew == input then
+          { values = [] }
+        else
+          { values = [outputNew] }
+    }.apply x
+  in
   { toInt x =
       { apply x = freeze (strToInt x)
       , unapply output = Just (toString output)
@@ -1095,6 +1114,10 @@ String =
       Nothing -> s
     sprintf = sprintf
     uncons s = extractFirstIn "^([\\s\\S])([\\s\\S]*)$" s
+    update = {
+      freezeLeft = freezeLeft
+      freezeRight = freezeRight
+    }
   }
 
 
@@ -1494,7 +1517,7 @@ Html =
         _ -> {error = "Expected an option (selected or not), got " ++ toString outputNew }
     }.apply (value, selected, content)
   in
-  let select strArray index =
+  let select attributes strArray index =
     letrec aux acc i options = case options of
        [] -> acc
        (opt :: tail) ->
@@ -1502,7 +1525,7 @@ Html =
          let newI = i + 1 in
          aux newAcc newI tail
     in
-    ["select", [["selected-index", toString index], ["onchange", "this.setAttribute('selected-index', this.selectedIndex)"]], aux [] 0 strArray]
+    ["select", [["selected-index", toString index], ["onchange", "this.setAttribute('selected-index', this.selectedIndex)"]] ++ attributes, aux [] 0 strArray]
   in
   let checkbox text title isChecked =
       let id = "checkbox-"+Regex.replace "[^\\w]" "" text in

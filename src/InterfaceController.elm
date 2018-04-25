@@ -629,13 +629,14 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   in
   let dragInfo_ = (trigger, (mx0, my0), True) in
 
-  EvalUpdate.run old.syntax newExp |> Result.andThen (\(newVal, newWidgets) ->
+  EvalUpdate.runWithEnv old.syntax newExp |> Result.andThen (\((newVal, newWidgets), newEnv) ->
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
           , lastRunCode = newCode
           , inputExp = newExp
           , inputVal = newVal
+          , inputEnv = newEnv
           , valueEditorString = LangUtils.valToString newVal
           , outputMode        = maybeUpdateOutputMode old newSlate
           , htmlEditorString = Nothing
@@ -746,6 +747,7 @@ tryRun old =
               let new_ =
                 { new | inputExp      = e
                       , inputVal      = newVal
+                      , inputEnv      = finalEnv
                       , valueEditorString = LangUtils.valToString newVal
                       , outputMode    = maybeUpdateOutputMode old newSlate
                       , htmlEditorString = Nothing
@@ -2164,7 +2166,7 @@ doCallUpdate m =
   in
   --let _ = Debug.log "Let's do update" () in
   let updatedExpResults =
-    EvalUpdate.doUpdate m.inputExp m.inputVal updatedValResult
+    EvalUpdate.doUpdate m.inputExp m.inputEnv m.inputVal updatedValResult
   in
   --let _ = Debug.log "I'm here" () in
   let revertChanges caption =
@@ -2728,7 +2730,7 @@ handleNew template = (\old ->
   case Utils.maybeFind template Examples.list of
     Nothing -> let _ = Debug.log "WARN: not found:" template in old
     Just (_, thunk) ->
-      let {e,v,ws,ati} = thunk () in
+      let {e,v,ws,ati,env} = thunk () in
       let so = Sync.syncOptionsOf old.syncOptions e in
       let outputMode =
         Utils.fromOk "SelectExample mkLive" <|
@@ -2739,6 +2741,7 @@ handleNew template = (\old ->
         let code = Syntax.unparser old.syntax e in
         { initModel | inputExp      = e
                     , inputVal      = v
+                    , inputEnv      = env
                     , valueEditorString = LangUtils.valToString v
                     , outputMode    = maybeUpdateOutputMode old slate
                     , htmlEditorString = Nothing

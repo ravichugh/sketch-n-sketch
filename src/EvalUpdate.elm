@@ -94,7 +94,7 @@ builtinEnv =
       ) (Just (\args oldVal newVal d -> case args of
       [left, right, x] ->
         let env = [("left", left), ("right", right), ("x", x)] in
-        updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) oldVal newVal d |>
+        updateContext ">>" env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) [] oldVal newVal d |>
         update |>
           Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
           Results.map (\(newEnv, _) ->
@@ -114,7 +114,7 @@ builtinEnv =
     ) (Just (\args oldVal newVal d -> case args of
     [left, right, x] ->
       let env = [("left", left), ("right", right), ("x", x)] in
-      updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) oldVal newVal d |>
+      updateContext ">>" env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) [] oldVal newVal d |>
       update |>
         Results.filter (\(newEnv, newExp) -> newExp.changes == Nothing) |>
         Results.map (\(newEnv, _) ->
@@ -144,7 +144,7 @@ builtinEnv =
                 |> Results.fromResult
                 |> Results.andThen (\prog ->
                     -- update = UpdateStack -> LazyList NextAction -> Results (UpdatedEnv, UpdatedExp)
-                    UpdateStack.updateContext "Eval.update" builtinEnv prog oldVal newVal d
+                    UpdateStack.updateContext "Eval.update" builtinEnv prog [] oldVal newVal d
                    |> update
                    |> Results.map Tuple.second
                    |> Results.map .val
@@ -203,7 +203,7 @@ builtinEnv =
                         in
                         Ok (resultingValue, [])
                       Ok (Just newOutDiffs) ->
-                        let basicResult = case update <| updateContext "__updateApp__" xyEnv xyExp oldOut newVal newOutDiffs of
+                        let basicResult = case update <| updateContext "__updateApp__" xyEnv xyExp [] oldOut newVal newOutDiffs of
                           Errs msg -> Vb.record Vb.string vb (Dict.fromList [("error", msg)])
                           Oks ll ->
                              let l = LazyList.toList ll in
@@ -278,7 +278,6 @@ builtinEnv =
              _ -> Ok (original, [])
          _ -> Ok (original, [])
      ) <| Just <| oneArgUpdate "string_node_listnode" <| \original oldVal newVal diffs ->
-       let _ = Debug.log ("stirng_node_listnode: " ++ valToString original) () in
       case original.v_ of
         VBase (VString content) -> -- We make sure no element was inserted and we unwrap the value and the diffs
           let _ = Debug.log ("newVal, diffs: " ++ valToString newVal ++ ", " ++ toString diffs) () in
@@ -417,12 +416,12 @@ twoArgs msg fun args = case args of
     [left, right] -> fun left right
     _ -> Err <| msg ++ " takes 2 arguments, got " ++ toString (List.length args)
 
-oneArgUpdate: String -> (Val -> a -> b -> c -> Results String d) -> (List Val -> a -> b -> c -> Results String d)
+oneArgUpdate: String -> (Val -> a -> b -> c -> Results String e) -> (List Val -> a -> b -> c -> Results String e)
 oneArgUpdate msg fun args a b c = case args of
     [arg] -> fun arg a b c
     _ -> Errs <| msg ++ " takes 1 argument, got " ++ toString (List.length args)
 
-twoArgsUpdate: String -> (Val -> Val -> a -> b -> c -> Results String d) -> (List Val -> a -> b -> c -> Results String d)
+twoArgsUpdate: String -> (Val -> Val -> a -> b -> c -> Results String e) -> (List Val -> a -> b -> c -> Results String e)
 twoArgsUpdate msg fun args a b c = case args of
     [left, right] -> fun left right a b c
     _ -> Errs <| msg ++ " takes 2 arguments, got " ++ toString (List.length args)
@@ -440,8 +439,15 @@ run syntax e =
     Eval.doEval syntax preludeEnv e |> Result.map Tuple.first
   )
 
-doUpdate : Exp -> Val -> Result String Val -> Results String (UpdatedEnv, UpdatedExp)
-doUpdate oldExp oldVal newValResult =
+runWithEnv : Syntax -> Exp -> Result String ((Val, Widgets), Env)
+runWithEnv syntax e =
+-- doEval syntax initEnv e |> Result.map Tuple.first
+  ImpureGoodies.logTimedRun "Eval.run" (\() ->
+    Eval.doEval syntax preludeEnv e
+  )
+
+doUpdate : Exp -> Env -> Val -> Result String Val -> Results String (UpdatedEnv, UpdatedExp)
+doUpdate oldExp oldEnv oldVal newValResult =
   newValResult
     --|> Result.map (\x -> let _ = Debug.log "#1" () in x)
     |> Results.fromResult
@@ -455,12 +461,13 @@ doUpdate oldExp oldVal newValResult =
         Oks ll ->
            ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
             Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
-             update <| updateContext "initial update" preludeEnv oldExp oldVal out diffs)
+              let previousLets = UpdateStack.keepLets preludeEnv oldEnv in
+              update <| updateContext "initial update" preludeEnv oldExp previousLets oldVal out diffs)
            )
 
 
-doUpdateWithoutLog : Exp -> Val -> Val -> Results String (UpdatedEnv, UpdatedExp)
-doUpdateWithoutLog oldExp oldVal out =
+doUpdateWithoutLog : Exp -> Env -> Val -> Val -> Results String (UpdatedEnv, UpdatedExp)
+doUpdateWithoutLog oldExp oldEnv oldVal out =
   let thediffs = UpdateUtils.defaultVDiffs oldVal out
   in
   case thediffs of
@@ -470,7 +477,8 @@ doUpdateWithoutLog oldExp oldVal out =
     Oks ll ->
         Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
          --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
-         update <| updateContext "initial update" preludeEnv oldExp oldVal out diffs)
+         let previousLets = UpdateStack.keepLets preludeEnv oldEnv in
+         update <| updateContext "initial update" preludeEnv oldExp previousLets oldVal out diffs)
 
 -- Deprecated
 parseAndRun : String -> String

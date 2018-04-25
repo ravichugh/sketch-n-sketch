@@ -150,7 +150,7 @@ main =
   Html.div [["cursor", "text"]] []
     [ Html.div [["border", "4px solid black"], ["padding", "20px"]] [] <|
         [Html.span [] [] <|
-          Html.select languages languageIndex ::
+          Html.select [] languages languageIndex ::
           ["input", [["style", [["margin-left", "10px"]]], ["type","text"], ["v", addLang alltranslationsLangDict],
             ["placeholder", "New Language (e.g. German)"], ["title", "Enter the name of a language here and press ENTER"],
             ["onchange","this.setAttribute('v',this.value)"]], []] ::

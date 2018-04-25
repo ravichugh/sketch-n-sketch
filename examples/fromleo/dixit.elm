@@ -31,9 +31,9 @@ scoreIfNobodyFound = 3
 betself i =
   let player = nth players i in
   [ textNode """@(player.name) it's your turn to bet!""", br,
-    textNode "Your card:  ", select ("Choose your card number..." :: map (\x -> toString x) cartesDisponibles) player.card, 
+    textNode "Your card:  ", select [] ("Choose your card number..." :: map (\x -> toString x) cartesDisponibles) player.card, 
     mkError (if player.card == 0 then " Indicate what is your card. This is confidential." else ""), br,
-    textNode "Your bet: ", select ("You bet that the correct card is..." :: map (\x -> toString x) cartesDisponibles) player.bet, 
+    textNode "Your bet: ", select [] ("You bet that the correct card is..." :: map (\x -> toString x) cartesDisponibles) player.bet, 
     mkError (if player.bet == 0 then " What card do you think is the dealer's one." else if player.bet == player.card then
       " You cannot bet on your own card." else ""),  br,
     if player.bet == 0 || player.card == 0 || player.bet == player.card then
@@ -73,7 +73,7 @@ div [["margin", "20px"]] [] <| [Html.span [] []
   if remainingbets > 1 then
     div [] [] [
     Html.textNode "Who is currently placing a bet? ",
-    select (map (\j ->  j.name) playersEnCours) playerEnCoursIndex, br,
+    select [] (map (\j ->  j.name) playersEnCours) playerEnCoursIndex, br,
     div [] [] <|
       betself (playerIndexFromName (nth playersEnCours playerEnCoursIndex).name)
     ]

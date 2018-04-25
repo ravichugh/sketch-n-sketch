@@ -69,8 +69,8 @@ makeExample_ parser syntax name s =
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
     -- else
     -----------------------------------------------------
-    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| EvalUpdate.run syntax e in
-    {e=e, v=v, ws=ws, ati=ati}
+    let ((v,ws), env) = Utils.fromOk ("Error executing example " ++ name) <| EvalUpdate.runWithEnv syntax e in
+    {e=e, v=v, ws=ws, ati=ati,env=env}
   in
   (name, (s, thunk))
 
@@ -5204,7 +5204,7 @@ mondrian_arch_deuce =
 
 cat =
  """cat catcolor x y =
-  <svg x=\"\"\"@x\"\"\" y=\"\"\"@y\"\"\" height=\"410.013\" id=\"Layer_1\" inkscape:version=\"0.42\" sodipodi:docname=\"Cat03.svg\" sodipodi:version=\"0.32\" space=\"preserve\" style=\"overflow:visible;enable-background:new 0 0 411.244 410.013;\" version=\"1.1\" viewBox=\"0 0 411.244 410.013\" width=\"411.244\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:cc=\"http://web.resource.org/cc/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:sodipodi=\"http://inkscape.sourceforge.net/DTD/sodipodi-0.dtd\" xmlns:svg=\"http://www.w3.org/2000/svg\">
+  <svg x=\"\"\"@x\"\"\" y=\"\"\"@y\"\"\" height=\"410.013\" id=\"Layer_1\" inkscape:version=\"0.42\" sodipodi:docname=\"Cat03.svg\" sodipodi:version=\"0.32\" space=\"preserve\" style=\"overflow:visible;enable-background:new 0 0 411.244 410.013\" version=\"1.1\" viewBox=\"0 0 411.244 410.013\" width=\"411.244\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:cc=\"http://web.resource.org/cc/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:sodipodi=\"http://inkscape.sourceforge.net/DTD/sodipodi-0.dtd\" xmlns:svg=\"http://www.w3.org/2000/svg\">
   <metadata>
     <rdf:RDF xmlns:cc=\"http://web.resource.org/cc/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">
       <cc:Work rdf:about=\"\">
@@ -5493,7 +5493,7 @@ cat =
 
 <svg>
 <g>@[cat \"blue\" 0 0,
-     cat \"red\" 100 200]</g></svg>
+     cat \"red\" 100 300]</g></svg>
 """
 
 
@@ -7525,7 +7525,7 @@ main =
         Html.parse editorInfo
     , Html.div [[\"border\", \"4px solid black\"], [\"padding\", \"20px\"]] [] <|
         [Html.span [] [] <|
-          Html.select languages languageIndex ::
+          Html.select [] languages languageIndex ::
           [\"input\", [[\"style\", [[\"margin-left\", \"10px\"]]], [\"type\",\"text\"], [\"v\", addLang alltranslationsLangDict],
             [\"placeholder\", \"New Language (e.g. German)\"], [\"title\", \"Enter the name of a language here and press ENTER\"],
             [\"onchange\",\"this.setAttribute('v',this.value)\"]], []] ::
@@ -8105,9 +8105,9 @@ scoreIfNobodyFound = 3
 betself i =
   let player = nth players i in
   [ textNode \"\"\"@(player.name) it's your turn to bet!\"\"\", br,
-    textNode \"Your card:  \", select (\"Choose your card number...\" :: map (\\x -> toString x) cartesDisponibles) player.card, 
+    textNode \"Your card:  \", select [] (\"Choose your card number...\" :: map (\\x -> toString x) cartesDisponibles) player.card, 
     mkError (if player.card == 0 then \" Indicate what is your card. This is confidential.\" else \"\"), br,
-    textNode \"Your bet: \", select (\"You bet that the correct card is...\" :: map (\\x -> toString x) cartesDisponibles) player.bet, 
+    textNode \"Your bet: \", select [] (\"You bet that the correct card is...\" :: map (\\x -> toString x) cartesDisponibles) player.bet, 
     mkError (if player.bet == 0 then \" What card do you think is the dealer's one.\" else if player.bet == player.card then
       \" You cannot bet on your own card.\" else \"\"),  br,
     if player.bet == 0 || player.card == 0 || player.bet == player.card then
@@ -8147,7 +8147,7 @@ div [[\"margin\", \"20px\"]] [] <| [Html.span [] []
   if remainingbets > 1 then
     div [] [] [
     Html.textNode \"Who is currently placing a bet? \",
-    select (map (\\j ->  j.name) playersEnCours) playerEnCoursIndex, br,
+    select [] (map (\\j ->  j.name) playersEnCours) playerEnCoursIndex, br,
     div [] [] <|
       betself (playerIndexFromName (nth playersEnCours playerEnCoursIndex).name)
     ]
@@ -8356,7 +8356,7 @@ main =
   Html.div [[\"cursor\", \"text\"]] []
     [ Html.div [[\"border\", \"4px solid black\"], [\"padding\", \"20px\"]] [] <|
         [Html.span [] [] <|
-          Html.select languages languageIndex ::
+          Html.select [] languages languageIndex ::
           [\"input\", [[\"style\", [[\"margin-left\", \"10px\"]]], [\"type\",\"text\"], [\"v\", addLang alltranslationsLangDict],
             [\"placeholder\", \"New Language (e.g. German)\"], [\"title\", \"Enter the name of a language here and press ENTER\"],
             [\"onchange\",\"this.setAttribute('v',this.value)\"]], []] ::
