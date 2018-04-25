@@ -296,13 +296,21 @@ replaceInsertions e f =
                        aux (i + count) children tail revAccChildren
                      ListElemInsert count ->
                        let (inserted, rem) = Utils.split count children in
-                       let insertedMapped = inserted |> List.map (\(sp, e) -> (sp, f e |> Maybe.withDefault e)) in
+                       let insertedMapped = inserted |> List.map (\(sp, e) -> (sp, postMapExp f e)) in
                        reverseInsert insertedMapped revAccChildren |>
                        aux i rem tail
             in aux 0 children ld []
           _ -> e
       EConstDiffs _ -> e
       EStringDiffs _ -> e
+
+postMapExp: (Exp -> Maybe Exp) -> Exp -> Exp
+postMapExp f e =
+  let (children, rebuilder) = childExpsExtractors e in
+  let newChildren = List.map (postMapExp f) children in
+  let newElem = rebuilder newChildren in
+  (f newElem) |> Maybe.withDefault newElem
+
 
 keepLets origEnv newEnv = List.reverse <| List.take (List.length newEnv - List.length origEnv) newEnv
 

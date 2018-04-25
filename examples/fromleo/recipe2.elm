@@ -1,7 +1,7 @@
 ----------------------------------------------------------------------
 -- Description of Scalable Recipe Editor
 
-editorInfo = """
+editorInfo = <span>
 <h1>Scalable Recipe Editor</h1>
 <p>
   This text editor is set up to allow <em>proportional quantities</em>
@@ -25,7 +25,7 @@ editorInfo = """
   Hit enter after the melted chocolate ingredient.
   Then type "_20_g of chocolate chip_20s_".
 </p>
-"""
+</span>
 
 ----------------------------------------------------------------------
 -- Scalable Recipe Editor "Library"
@@ -184,8 +184,7 @@ htmlCupcakeRecipe =
 
 main = 
   Html.div [["margin", "20px"], ["cursor", "text"]] []
-    [ Html.div [] [] <|
-        Html.parse editorInfo
+    [ Html.div [] [] [editorInfo]
     , Html.div [["border", "4px solid black"], ["padding", "20px"]] []
         [htmlCupcakeRecipe]
     ]
