@@ -353,7 +353,7 @@ unparseAttrValue: HTMLAttributeValue -> String
 unparseAttrValue value =
   case value.val of
     HTMLAttributeUnquoted ws1 ws2 content -> ws1.val ++ "=" ++ ws2.val ++ content
-    HTMLAttributeString ws1 ws2 delimiter content -> ws1.val ++ "=" ++ ws2.val ++ ParserUtils.unparseStringContent delimiter content
+    HTMLAttributeString ws1 ws2 delimiter content -> ws1.val ++ "=" ++ ws2.val ++ delimiter ++ ParserUtils.unparseStringContent delimiter content ++ delimiter
     HTMLAttributeNoValue -> ""
     HTMLAttributeExp _ _ -> "[Internal error] Don't know how to unparse an HTMLAttributeExp here"
 
