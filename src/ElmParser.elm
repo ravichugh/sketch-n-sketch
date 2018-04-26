@@ -2119,6 +2119,15 @@ addSelections tolerateSpaces sp parser =
     |= parser
     |= repeat zeroOrMore (selection tolerateSpaces sp)
 
+implicitSelectionFun: SpacePolicy -> Parser Exp
+implicitSelectionFun sp =
+  delayedCommitMap (\initSpace {val,start,end} ->
+    withInfo (exp_ <| EFun initSpace [withInfo (pat_ <| PVar space0 " $implicitcase" noWidgetDecl) start start]
+    (List.foldl (\sel updatedExp -> sel updatedExp) (withInfo (exp_ <| EVar space0 " $implicitcase") start start) val) space0) start end
+  )
+  (sp.first)
+  (trackInfo <| repeat oneOrMore (selection False sp))
+
 -- Not a function application nor a binary operator
 simpleExpression : SpacePolicy -> Parser Exp
 simpleExpression sp =
@@ -2128,6 +2137,7 @@ simpleExpression sp =
     , lazy <| \_ -> htmlliteral sp
     , baseValueExpression sp
     , lazy <| \_ -> function sp
+    , lazy <| \_ -> implicitSelectionFun sp
     , lazy <| \_ -> (addSelections True sp <| list sp)
     , lazy <| \_ -> (addSelections True sp <| record sp)
     , lazy <| \_ -> conditional sp

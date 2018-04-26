@@ -450,9 +450,9 @@ unparse e =
       wsBefore.val
         ++ identifier
 
-    EFun wsBefore parameters functionBinding _ ->
+    EFun wsBeforeFun parameters functionBinding _ ->
       let default =
-        wsBefore.val
+        wsBeforeFun.val
         ++ "\\"
         ++ String.concat (List.map unparsePattern parameters)
         ++ " ->"
@@ -465,6 +465,11 @@ unparse e =
               EVar _ " $implicitcase" ->
                 unparse (replaceE__ functionBinding <| ECase wsBefore (replaceE__ examinedExpression <| EVar space0 "") branches wsBeforeOf)
               _ -> default
+            ESelect _ selected wsBeforeDot wsAfterDot name ->
+              let res = unparse  functionBinding in
+              if String.startsWith " $implicitcase" res then
+                wsBeforeFun.val ++ String.dropLeft 14 res
+              else default
             _ -> default
           _ -> default
         _ -> default
