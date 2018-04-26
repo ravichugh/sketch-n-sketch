@@ -1172,7 +1172,7 @@ pattern sp =
         , expression =
             simplePattern
         , operator =
-            patternOperator sp
+            patternOperator {sp | first = sp.apparg }
         , representation =
             .val >> Tuple.second
         , combine =
