@@ -270,6 +270,7 @@ LEO_TO_ELM fromleo/translatabledoc
 LEO_TO_ELM fromleo/latexeditor
 LEO_TO_ELM fromleo/dixit
 LEO_TO_ELM christmas_song_3_after_translation
+LEO_TO_ELM fromleo/pizzas_doodle
 
 --------------------------------------------------------------------------------
 
@@ -300,6 +301,7 @@ docsCategory =
       , ("Translation Editor", fromleo_translatabledoc)
       , ("Markdown Editor", fromleo_markdown)
       , ("Dixit Scoresheet", fromleo_dixit)
+      , ("Doodle", fromleo_pizzas_doodle)
       , ("LaTeX Editor", fromleo_latexeditor)
       -- TODO maybe Conference?
       , ("Lens: Maybe Map", mapMaybeLens)

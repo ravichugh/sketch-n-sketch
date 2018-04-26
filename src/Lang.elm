@@ -1890,11 +1890,13 @@ eFalse = eBool False
 eNull  = withDummyExpInfo <| EBase space1 <| ENull
 eIf c t e   = withDummyExpInfo <| EIf space0 c space1 t space1 e space0
 
-eApp e es      = withDummyExpInfo <| EApp space1 e es SpaceApp space0
+eApp e es      = withInfo (exp_ <| EApp space1 e es SpaceApp space0) e.start (Utils.maybeLast es |> Maybe.map .end |> Maybe.withDefault e.end)
 eCall fName es = eApp (eVar0 fName) es
 eFun ps e      = withDummyExpInfo <| EFun space1 ps e space0
 eRecord kvs    = withDummyExpInfo <| ERecord space1 Nothing (List.map (\(k, v) -> (space0, space1, k, space1, v)) kvs) space1
 eSelect e name = withDummyExpInfo  <| ESelect space0 e space0 space0 name
+
+tApp a b c = withDummyRange <| TApp a b c
 
 desugarEApp e es = case es of
   []      -> Debug.crash "desugarEApp"
@@ -1951,6 +1953,7 @@ eDef = eLetOrDef Def
 
 eVar0 a           = withDummyExpInfo <| EVar space0 a
 eVar a            = withDummyExpInfo <| EVar space1 a
+eVarAt pos a      = withInfo (exp_ <| EVar space1 a) pos { pos | col = pos.col + String.length a}
 eConst0 a b       = withDummyExpInfo <| EConst space0 a b noWidgetDecl
 eConst a b        = withDummyExpInfo <| EConst space1 a b noWidgetDecl
 eConstDummyLoc0 a = withDummyExpInfo <| EConst space0 a dummyLoc noWidgetDecl
@@ -1963,7 +1966,7 @@ eTuple a          = eList a Nothing
 eHoleVal0 v       = withDummyExpInfo <| EHole space0 (Just v)
 eHoleVal v        = withDummyExpInfo <| EHole space1 (Just v)
 
-eColonType e t    = withDummyExpInfo <| EColonType space1 e space1 (withDummyRange t) space0
+eColonType e t    = withInfo (exp_ <| EColonType space1 e space1 t space0) e.start t.end
 
 eComment a b   = withDummyExpInfo <| EComment space1 a b
 

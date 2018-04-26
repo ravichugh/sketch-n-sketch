@@ -694,8 +694,7 @@ multilineEscapedElmExpression =
   oneOf [
     try <| trackInfo <|
       succeed (\v -> exp_ <| EOp space0 (withInfo ToStrExceptStr v.start v.start) [v] space0)
-      |= (variableExpression noSpacePolicy |> addSelections noSpacePolicy),
-      --|= (addSelections noSpacePolicy <| variableExpression spacesWithoutNewline),
+      |= (variableExpression noSpacePolicy |> addSelections False noSpacePolicy),
     try <| lazy <| \_ -> multilineGenericLetBinding,
     lazy <| \_ ->
       ( mapExp_ <| trackInfo <|
@@ -2087,29 +2086,38 @@ typeDefinition sp =
 -- General Expressions
 --------------------------------------------------------------------------------
 
-selection : SpacePolicy -> Parser (Exp -> Exp)
-selection sp =
+selection : Bool -> SpacePolicy -> Parser (Exp -> Exp)
+selection tolerateSpaces sp =
   delayedCommitMap (\wsBeforeDot (wsAfterDot,idWithInfo) exp ->
       let wsBefore = precedingWhitespaceWithInfoExp exp in
       let expWithoutWhitespace = mapPrecedingWhitespace (\_ -> "") exp in
       withInfo (exp_ <| ESelect wsBefore expWithoutWhitespace wsBeforeDot wsAfterDot idWithInfo.val)
          exp.start idWithInfo.end
     )
-    sp.first
-    (succeed (,)
-     |. symbol "."
-     |= sp.apparg
+    (if tolerateSpaces then
+      sp.first
+    else
+      succeed (\x -> x)
+      |= (trackInfo <| source <| symbol "")
+      |. symbol "."
+    )
+    ((if tolerateSpaces then
+       succeed (,)
+       |. symbol "."
+       |= sp.apparg
+        else
+       succeed (\x -> (ws "", x)))
      |= (trackInfo <| identifier)
     )
 
 -- Add all following .identifier1.identifiers2 as wrappers to the original expression
-addSelections : SpacePolicy -> Parser Exp -> Parser Exp
-addSelections sp parser =
+addSelections : Bool -> SpacePolicy -> Parser Exp -> Parser Exp
+addSelections tolerateSpaces sp parser =
   succeed (\simpExp selections ->
       List.foldl (\sel updatedExp -> sel updatedExp) simpExp selections
       )
     |= parser
-    |= repeat zeroOrMore (selection sp)
+    |= repeat zeroOrMore (selection tolerateSpaces sp)
 
 -- Not a function application nor a binary operator
 simpleExpression : SpacePolicy -> Parser Exp
@@ -2120,22 +2128,22 @@ simpleExpression sp =
     , lazy <| \_ -> htmlliteral sp
     , baseValueExpression sp
     , lazy <| \_ -> function sp
-    , lazy <| \_ -> (addSelections sp <| list sp)
-    , lazy <| \_ -> (addSelections sp <| record sp)
+    , lazy <| \_ -> (addSelections True sp <| list sp)
+    , lazy <| \_ -> (addSelections True sp <| record sp)
     , lazy <| \_ -> conditional sp
     , lazy <| \_ -> caseExpression sp
     , lazy <| \_ -> letrecBinding sp
     , lazy <| \_ -> letBinding sp
     , lazy <| \_ -> lineComment sp
     , lazy <| \_ -> option sp
-    , lazy <| \_ -> (addSelections sp <| try <| tuple sp)
-    , lazy <| \_ -> (addSelections sp <| parens sp)
-    , lazy <| \_ -> (addSelections sp <| hole sp)
+    , lazy <| \_ -> (addSelections True sp <| try <| tuple sp)
+    , lazy <| \_ -> (addSelections True sp <| parens sp)
+    , lazy <| \_ -> (addSelections True sp <| hole sp)
     , lazy <| \_ -> typeAlias sp
     , lazy <| \_ -> typeDefinition sp
     -- , lazy <| \_ -> typeCaseExpression sp
     -- , lazy <| \_ -> typeDeclaration sp
-    , (addSelections sp <| variableExpression sp)
+    , (addSelections True sp <| variableExpression sp)
   ]
 
 spaceColonType: SpacePolicy -> Parser (WS, Type)

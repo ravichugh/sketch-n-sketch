@@ -269,6 +269,8 @@ builtinEnv =
   , ("__mbwraphtmlnode__", builtinVal "EvalUpdate.__mbwraphtmlnode__" <|
      VFun "__mbwraphtmlnode__" ["string_node_listnode"] (oneArg "string_node_listnode" <| \original ->
        case original.v_ of
+         VConst _ (content, _) ->
+           Ok (Vb.list (Vb.viewtuple2 Vb.string Vb.string) (Vb.fromVal original) [("TEXT", toString content)], [])
          VBase (VString content) ->
            Ok (Vb.list (Vb.viewtuple2 Vb.string Vb.string) (Vb.fromVal original) [("TEXT", content)], [])
          VList (head::tail) ->
@@ -278,20 +280,36 @@ builtinEnv =
              _ -> Ok (original, [])
          _ -> Ok (original, [])
      ) <| Just <| oneArgUpdate "string_node_listnode" <| \original oldVal newVal diffs ->
+      let unwrapExpDiffs newVal diffs=
+         case (newVal.v_, diffs) of
+           (VList [elem], VListDiffs [(0, ListElemUpdate d)]) ->
+             --let _ = Debug.log ("elem, d: " ++ valToString elem ++ ", " ++ toString d) () in
+             case (Vu.viewtuple2 Vu.string Vu.string elem, d) of
+               (Ok ("TEXT", newContent), VListDiffs [(1, ListElemUpdate (ds))]) ->
+                 Ok (Just (Just (newContent, ds)))
+               (_, VListDiffs []) -> Ok (Just Nothing)
+               (Err msg, _) -> Err msg
+               (_, _) -> Ok Nothing
+           (_, VListDiffs []) -> Ok (Just Nothing)
+           _ -> Ok Nothing
+      in
       case original.v_ of
+        VConst _ (content, _) -> -- We make sure no element was inserted and we unwrap the value and the diffs
+          case unwrapExpDiffs newVal diffs of
+            Err msg -> Errs msg
+            Ok Nothing -> Oks LazyList.Nil
+            Ok (Just Nothing) -> ok1 ([original], [])
+            Ok (Just (Just (newContent, ds))) ->
+              case String.toFloat newContent of
+                Err msg -> Oks LazyList.Nil
+                Ok newFloat -> ok1 ([Vb.const (Vb.fromVal original) newFloat], [(0, VConstDiffs)])
         VBase (VString content) -> -- We make sure no element was inserted and we unwrap the value and the diffs
-          let _ = Debug.log ("newVal, diffs: " ++ valToString newVal ++ ", " ++ toString diffs) () in
-          case (newVal.v_, diffs) of
-            (VList [elem], VListDiffs [(0, ListElemUpdate d)]) ->
-              let _ = Debug.log ("elem, d: " ++ valToString elem ++ ", " ++ toString d) () in
-              case (Vu.viewtuple2 Vu.string Vu.string elem, d) of
-                (Ok ("TEXT", newContent), VListDiffs [(1, ListElemUpdate (ds))]) ->
-                  let _ = Debug.log ("Returning only the stringdiff d normally") () in
-                  ok1 ([Vb.string (Vb.fromVal original) newContent], [(0, ds)])
-                (_, VListDiffs []) -> ok1 ([original], [])
-                _ -> Oks LazyList.Nil
-            (_, VListDiffs []) -> ok1 ([original], [])
-            _ -> Oks LazyList.Nil
+          case unwrapExpDiffs newVal diffs of
+            Err msg -> Errs msg
+            Ok Nothing -> Oks LazyList.Nil
+            Ok (Just Nothing) -> ok1 ([original], [])
+            Ok (Just (Just (newContent, ds))) ->
+              ok1 ([Vb.string (Vb.fromVal original) newContent], [(0, ds)])
         VList (head::tail) ->
           case (head.v_, newVal.v_, diffs) of
             (VBase (VString tagName), VList [newElem], VListDiffs [(0, ListElemUpdate d)]) ->

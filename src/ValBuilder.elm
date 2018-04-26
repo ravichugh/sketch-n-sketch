@@ -39,6 +39,9 @@ string vb= vb << VBase << VString
 int: Vb -> Int -> Val
 int vb= vb << VConst Nothing << (\i -> (toFloat i, dummyTrace))
 
+const: Vb -> Float -> Val
+const vb = vb << VConst Nothing << (\i -> (i, dummyTrace))
+
 dict: (Vb -> a -> Val) -> Vb -> Dict (String, String) a -> Val
 dict sub vb = vb << VDict << Dict.map (\k a -> sub vb a)
 

@@ -2853,7 +2853,7 @@ parens = delimit \"(\" \")\"
 
 Regex =
   letrec split regex s =
-    case extractFirstIn (\"^([\\\\s\\\\S]*)(\" + regex + \")([\\\\s\\\\S]*)$\") s of
+    case extractFirstIn (\"^([\\\\s\\\\S]*?)(\" + regex + \")([\\\\s\\\\S]*)$\") s of
       Just [before, removed, after] ->
         if before == \"\" && removed == \"\" then
           case extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" after of
@@ -3034,8 +3034,7 @@ List =
          head :: filter f tail
        else filter f tail
   in
-  let length =
-    len
+  let length x = len x
   in
   let nth =
     nth
@@ -3071,6 +3070,8 @@ List =
   in
   let sum l = foldl (\\x y -> x + y) 0 l in
   letrec range min max = if min > max then [] else min :: range (min + 1) max in
+  letrec find f l = case l of [] -> Nothing; head :: tail -> if f head then Just head else find f tail in
+  let indices l = range 0 (length l - 1) in
   { simpleMap = simpleMap
     map = map
     nil = nil
@@ -3093,6 +3094,8 @@ List =
     sum = sum
     range = range
     zipWithIndex = zipWithIndex
+    indices = indices
+    find = find
   }
 
 --------------------------------------------------------------------------------
@@ -3461,6 +3464,11 @@ Html =
         textAreasObserver.observe(textAreas[i], {attributes: true});
     </script>
   in
+  let onChangeAttribute model controller =
+    { apply model = freeze \"\"
+      update {input, outputNew} = { values = [controller input outputNew] }
+    }.apply model
+  in
   { textNode = textNode
     p = textElementHelper \"p\"
     th = textElementHelper \"th\"
@@ -3488,6 +3496,7 @@ Html =
     checkbox = checkbox
     button = button
     observeCopyValueToAttribute = observeCopyValueToAttribute
+    onChangeAttribute = onChangeAttribute
   }
 
 -- TODO remove this; add as imports as needed in examples

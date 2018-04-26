@@ -785,15 +785,15 @@ multilineContentUnparse e = case e.val.e__ of
       Plus ->
         let unwrapToStrExceptStr x =
           case x of
-            EOp spm1 op [arg] spm2 -> case op.val of
-              ToStrExceptStr -> arg.val.e__
-              _ -> x
-            _ -> x
+             EOp spm1 op [arg] spm2 -> case op.val of
+               ToStrExceptStr -> (arg, arg.val.e__)
+               _ -> (left, x)
+             _ -> (left, x)
         in
         case unwrapToStrExceptStr left.val.e__ of
-          EBase sp0 (EString _ s) ->
+          (_, EBase sp0 (EString _ s)) ->
             multilineContentUnparse left ++ multilineContentUnparse right
-          EVar sp0 ident as left ->
+          (_, EVar sp0 ident as left) ->
             case right.val.e__ of
               EOp sp2 op2 [left2, _] sp4->
                 case op2.val of
@@ -814,9 +814,17 @@ multilineContentUnparse e = case e.val.e__ of
                 in
                 varRep ++ multilineContentUnparse right
               _ -> "@" ++ ident ++ multilineContentUnparse right
-          EParens sp0 innerElmExp ElmSyntax sp4 ->
-            "@" ++ unparse innerElmExp ++ multilineContentUnparse right
-          _ -> "@(" ++ unparse left ++ ")" ++ multilineContentUnparse right
+          (x, _) -> -- There should be parentheses
+            let sx = unparse x in
+            let sy = multilineContentUnparse right in
+            if String.endsWith sx ")" then
+              Debug.log "It ends with a )" <|
+              "@" ++ sx ++ sy
+            else if Regex.contains (Regex.regex "[\\w_\\$]$") sx && Regex.contains (Regex.regex "^[^\\w_\\$\\.]|^$") sy then
+              Debug.log ("Left finishes by a char and right does not start with one : '" ++ sx ++"' '" ++ sy ++ "'")  <|
+              "@" ++ sx ++ sy
+            else
+              "@(" ++ sx ++ ")" ++ sy
       _ -> "@(" ++ unparse e ++ ")"
   ELet ws1 kind rec p ws2 e1 ws3 e2 ws4 ->
     let remaining = multilineContentUnparse e2 in
