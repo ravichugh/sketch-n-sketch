@@ -144,6 +144,11 @@ maybeOrElse mb ma = case ma of
   Just _ -> ma
   Nothing -> mb
 
+maybeOrElseLazy: (() -> Maybe a) -> Maybe a -> Maybe a
+maybeOrElseLazy mb ma = case ma of
+  Just _ -> ma
+  Nothing -> mb ()
+
 maybeWithLazyDefault: Maybe a -> (() -> a) -> a
 maybeWithLazyDefault mba callback = case mba of
   Just a -> a

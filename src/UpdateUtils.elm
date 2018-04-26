@@ -927,6 +927,10 @@ offsetFromStrings lm startOldReferential s1 s2 =
 listDiffsToString2: ParensStyle-> String->   (Exp -> String) -> String -> LastEdit -> Pos   -> List (WS, Exp) -> List (WS, Exp) -> ListDiffs EDiffs -> (String, ((LastEdit, Pos), List Exp))
 listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEdit    lastPos  originals         modifieds         diffs =
   if List.isEmpty diffs then ("[Internal error]: Empty " ++ structName ++ " diff]", ((lastEdit, lastPos), [])) else
+  let displaySpaceComma = case renderingStyle of
+    HtmlSyntax -> False
+    _ -> True
+  in
   let aux: Int -> LastEdit -> Pos ->  List (WS, Exp) -> List (WS, Exp) -> ListDiffs EDiffs -> (String, List Exp) -> (String, ((LastEdit, Pos), List Exp))
       aux  i      lastEdit    lastPos original          modifieds         diffs               (accStr, accList) =
     --let _ = Debug.log ("listDiffsToString.aux: i=" ++ toString i ++ ", lastEdit = " ++ toString lastEdit ++ ", lastPos = " ++ toString lastPos ++
@@ -945,7 +949,14 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
           case change of
             ListElemDelete count ->
               let (originalRemoved, originalKept) = Utils.split count original in
-              let beforeS = originalRemoved |> List.indexedMap (\k (sp, e) -> (if i + k > 0 then sp.val ++ "," else "") ++ elementDisplay e) |> String.join "" in
+              let secondCommaSpace = List.tail originalKept |> Maybe.andThen List.head
+                |> Maybe.map (Tuple.first >> .val)
+                |> Maybe.map (\x -> x ++  ",")
+                |> Maybe.withDefault "" in
+              let beforeS = originalRemoved |> List.indexedMap (\k (sp, e) ->
+                (if i + k > 0 && displaySpaceComma then sp.val ++ "," else "") ++ elementDisplay e ++
+                (if i + k == 0 && displaySpaceComma then secondCommaSpace else "")
+                ) |> String.join "" in
               let afterS = "" in
               let (newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
               let newStartPos = offsetPosition lastEdit lastPos in
@@ -955,11 +966,14 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
               aux (i + 1) newLastEdit newEnd originalKept modifieds diffsTail
             ListElemInsert count ->
               let (modifiedInserted, modifiedTail) = Utils.split count modifieds in
+              let secondCommaSpace = List.tail modifiedInserted |> Maybe.andThen List.head
+                |> Maybe.map (Tuple.first >> .val)
+                |> Maybe.map (\x -> x ++  ",")
+                |> Maybe.withDefault "" in
               let beforeS = "" in
-              let secondCommaSpace = List.tail modifiedInserted |> Maybe.andThen List.head |> Maybe.map (Tuple.first >> .val) |> Maybe.withDefault "" in
               let afterS = modifiedInserted |> List.indexedMap (\k (sp, e) ->
-                (if i + k > 0 then sp.val ++ "," else "") ++ elementDisplay e ++
-                (if i + k == 0 then secondCommaSpace ++ "," else "")) |> String.join "" in
+                (if i + k > 0 && displaySpaceComma then sp.val ++ "," else "") ++ elementDisplay e ++
+                (if i + k == 0 && displaySpaceComma then secondCommaSpace else "")) |> String.join "" in
               let (newLastEdit, newEnd) = offsetFromStrings lastEdit lastPos beforeS afterS in
               let newStartPos = offsetPosition lastEdit lastPos in
               let insertedExp = dummyExp1 "+" newStartPos.line newStartPos.col newEnd.line newEnd.col in
@@ -1079,17 +1093,22 @@ tupleDiffsToString2  renderingStyle mbStructName    indent    lastEdit    origin
 -- and a list of expressions to highlight in the code
 eDiffsToStringPositions: ParensStyle -> String ->  LastEdit -> Exp ->  Exp ->   EDiffs -> (String, ((LastEdit, Pos), List Exp))
 eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp ediff =
+  let renderExp = case renderingStyle of
+     --LongStringSyntax -> ElmUnparser.unparseAnyLongString
+     HtmlSyntax -> ElmUnparser.unparseAnyHtml
+     _ -> Syntax.unparser Syntax.Elm
+  in
   --let _ = Debug.log ("eDiffsToStringPositions: lastEdit = " ++ toString lastEdit) () in
   --let _ = Debug.log ("eDiffsToStringPositions: origExp.start = " ++ toString origExp.start) () in
   case ediff of
       EConstDiffs ws ->
         if ws == EOnlyWhitespaceDiffs then
-          let newLastEdit_newEnd = offsetFromStrings lastEdit origExp.start (Syntax.unparser Syntax.Elm origExp) (Syntax.unparser Syntax.Elm modifExp) in
+          let newLastEdit_newEnd = offsetFromStrings lastEdit origExp.start (renderExp origExp) (renderExp modifExp) in
           ("", (newLastEdit_newEnd, []))
         else (
           let prefix = "\n" ++ indent ++ displayPos origExp.start {-++ "C" ++ toString origExp.start.col-} ++ ": " in
-          let beforeS = Syntax.unparser Syntax.Elm origExp in
-          let afterS = Syntax.unparser Syntax.Elm modifExp in
+          let beforeS = renderExp origExp in
+          let afterS = renderExp modifExp in
           let msg = "Was " ++ beforeS ++ ", now " ++ afterS in
           let newStart = offsetPosition lastEdit origExp.start  in
           let (newLastEdit, newEnd) = offsetFromStrings lastEdit origExp.start beforeS afterS in
@@ -1100,9 +1119,12 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
         case (origExp.val.e__, modifExp.val.e__) of
           (EList _ originals _ _ _, EList _ modified _ _ _) ->
             --"\n" ++ indent ++ "Line " ++ toString origExp.start.line ++ " col " ++ toString origExp.start.col ++ " Change in a list:" ++
-            let lastPos = Pos origExp.start.line (origExp.start.col + 1) in
-            listDiffsToString2 renderingStyle "list" (Syntax.unparser Syntax.Elm) indent lastEdit lastPos originals modified diffs
-          _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects lists here, got " ++ Syntax.unparser Syntax.Elm origExp ++ ", " ++ Syntax.unparser Syntax.Elm modifExp,
+            let theStart =  origExp.start in
+            let lastPos = case renderingStyle of
+              HtmlSyntax -> theStart
+              _ -> { theStart | col = theStart.col + 1 } in
+            listDiffsToString2 renderingStyle "list" renderExp indent lastEdit lastPos originals modified diffs
+          _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects lists here, got " ++ renderExp origExp ++ ", " ++ renderExp modifExp,
             ((lastEdit, offsetPosition lastEdit origExp.end), []))
       EStringDiffs diffs ->
         case (origExp.val.e__, modifExp.val.e__) of
@@ -1111,10 +1133,10 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
              let lastPos = case renderingStyle of
                LongStringSyntax -> theStart
                HtmlSyntax -> theStart
-               _ -> { theStart | col = origExp.start.col + 1}
+               _ -> { theStart | col = theStart.col + 1 }
              in
              stringDiffsToString2 renderingStyle indent lastEdit lastPos quoteChar original modified diffs
-          _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects strings here, got " ++ Syntax.unparser Syntax.Elm origExp ++ ", " ++ Syntax.unparser Syntax.Elm modifExp,
+          _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects strings here, got " ++ renderExp origExp ++ ", " ++ renderExp modifExp,
             ((lastEdit, offsetPosition lastEdit origExp.end), []))
       EChildDiffs diffs ->
         -- If you want the trace of what was modified, just input here something
@@ -1358,7 +1380,8 @@ defaultVDiffsRec: Bool -> (Val -> Val -> Results String (Maybe VDiffs)) -> Val -
 defaultVDiffsRec testEquality recurse original modified =
   case (original.v_, modified.v_) of
     (VList originals, VList modified) ->
-      defaultListDiffs valToString recurse originals modified |> Results.map (Maybe.map VListDiffs)
+      defaultListDiffs valToString (\v -> getDatatypeName v |> Utils.maybeOrElseLazy (\() -> getViewDatatypeName v))
+        recurse originals modified |> Results.map (Maybe.map VListDiffs)
     (VBase (VString original), VBase (VString modified)) ->
       defaultStringDiffs original modified |> Results.map (Maybe.map VStringDiffs)
     (VClosure isRec1 pats1 body1 env1, VClosure isRec2 pats2 body2 env2) ->
@@ -1415,8 +1438,39 @@ defaultStringDiffs before after =
     in aux 0 difference []
   )
 
-defaultListDiffs: (a -> String) -> (a -> a -> Results String (Maybe b)) -> List a -> List a -> Results String (Maybe (ListDiffs b))
-defaultListDiffs keyOf defaultElemModif elems1 elems2 =
+alignRecordDatatypes: (a -> Maybe String) -> List a -> List a -> List (DiffChunk (List a)) -> Maybe (List (DiffChunk (List a)))
+alignRecordDatatypes datatypeNameOf removed added difftail =
+  let withDatatypes l = List.map (\elem -> (elem, datatypeNameOf elem)) l in
+  let datatypedifferences = diff (\(_, datatypename) -> Maybe.withDefault "" datatypename) (withDatatypes removed) (withDatatypes added) in
+  case datatypedifferences of
+    [DiffEqual _] -> Nothing
+    _ ->
+  let aux: List (DiffChunk (List (a, Maybe String))) -> List a -> List a -> (Bool, List (DiffChunk (List a))) -> Maybe (List (DiffChunk (List a)))
+      aux diffs removed added (changedStructure, revAccDiffs) = case diffs of
+     [] -> if changedStructure then Just <| List.reverse revAccDiffs else Nothing
+     DiffEqual elems::difftail -> -- Same datatypes here, so the alignment is good.
+       let count = List.length elems in
+       let (removedTaken, removedRemaining) = Utils.split count removed in
+       let (addedTaken, addedRemaining) = Utils.split count added in
+       (changedStructure, DiffEqual [] :: DiffAdded addedTaken :: DiffRemoved removedTaken :: revAccDiffs) |>
+       aux difftail removedRemaining addedRemaining
+     DiffRemoved elems::difftail -> -- tags were deleted
+       let count = List.length elems in
+       let (removedTaken, removedRemaining) = Utils.split count removed in
+       (True, DiffEqual [] :: DiffRemoved removedTaken :: revAccDiffs) |>
+       aux difftail removedRemaining added
+     DiffAdded elems :: difftail -> -- tags were inserted
+       let count = List.length elems in
+       let (addedTaken, addedRemaining) = Utils.split count added in
+       -- Prevent these insertions to be part of a replacement
+       (True, DiffEqual [] :: DiffAdded addedTaken :: revAccDiffs) |>
+       aux difftail removed addedRemaining
+  in
+  aux datatypedifferences removed added (False, [])
+
+
+defaultListDiffs: (a -> String) -> (a -> Maybe String) -> (a -> a -> Results String (Maybe b)) -> List a -> List a -> Results String (Maybe (ListDiffs b))
+defaultListDiffs keyOf datatypeNameOf defaultElemModif elems1 elems2 =
   alldiffs keyOf elems1 elems2 |> Results.andThen (\difference ->
   let aux: Int -> List (Int, ListElemDiff b) -> List (DiffChunk (List a)) -> Results String (Maybe (ListDiffs b))
       aux i accDiffs diffs = case diffs of
@@ -1426,22 +1480,26 @@ defaultListDiffs keyOf defaultElemModif elems1 elems2 =
         DiffEqual elems::difftail ->
           aux (i + List.length elems) accDiffs difftail
         DiffRemoved removed::DiffAdded added::difftail ->
+          case alignRecordDatatypes datatypeNameOf removed added difftail of
+            Just newDiffs -> aux i accDiffs newDiffs
+            Nothing ->
+          -- Better align elements based on datatype.
           let lengthRemoved = List.length removed in
           let lengthAdded = List.length added in
           let toInsertRes = List.map3 (\i r a -> defaultElemModif r a |>
-            Results.map (Maybe.map (\v -> (i, ListElemUpdate v)))) (List.range i (i + lengthAdded - 1)) removed added in
+             Results.map (Maybe.map (\v -> (i, ListElemUpdate v)))) (List.range i (i + lengthAdded - 1)) removed added in
           Results.projOk toInsertRes |> Results.andThen ((\i lengthRemoved difftail toInsert ->
-            let accDiffs1 = maybeReverseInsert toInsert accDiffs in
-            let accDiffs2 = if lengthRemoved > lengthAdded then
+             let accDiffs1 = maybeReverseInsert toInsert accDiffs in
+             let accDiffs2 = if lengthRemoved > lengthAdded then
                   (i + lengthAdded, ListElemDelete (lengthRemoved - lengthAdded))::accDiffs1
-                 else accDiffs1
-            in
-            let accDiffs3 = if lengthAdded > lengthRemoved then
-                    (i + lengthRemoved, ListElemInsert (lengthAdded - lengthRemoved))::accDiffs2
+                  else accDiffs1
+             in
+             let accDiffs3 = if lengthAdded > lengthRemoved then
+                  (i + lengthRemoved, ListElemInsert (lengthAdded - lengthRemoved))::accDiffs2
                   else accDiffs2
-            in
-            aux (i + lengthRemoved) accDiffs3 difftail
-          ) i lengthRemoved difftail)
+             in
+             aux (i + lengthRemoved) accDiffs3 difftail
+            ) i lengthRemoved difftail)
         DiffRemoved elems::difftail ->
           let removedLength = List.length elems in
           aux (i + removedLength) ((i, ListElemDelete removedLength)::accDiffs) difftail
@@ -1550,7 +1608,7 @@ defaultEDiffs e1 e2 =
        defaultStringDiffs s1 s2 |> Results.map (Maybe.map EStringDiffs)
     (EBase _ x, EBase _ y) -> if x == y then ok1 <| Just <| EConstDiffs EAnyDiffs else ok1 <| Nothing
     (EList _ e1s _ Nothing _, EList _ e2s _ Nothing _) ->
-      defaultListDiffs (Syntax.unparser Syntax.Elm) defaultEDiffs (Utils.listValues e1s) (Utils.listValues e2s) |> Results.map (Maybe.map EListDiffs)
+      defaultListDiffs (Syntax.unparser Syntax.Elm) (\_ -> Nothing) defaultEDiffs (Utils.listValues e1s) (Utils.listValues e2s) |> Results.map (Maybe.map EListDiffs)
     (_, _) ->
       defaultTupleDiffs (Syntax.unparser Syntax.Elm) defaultEDiffs (childExps e1) (childExps e2) |> Results.map (Maybe.map EChildDiffs)
 

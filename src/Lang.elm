@@ -127,6 +127,14 @@ vTuple: List Val -> Val_
 vTuple vals =
   VRecord <| Dict.fromList <| (ctorVal (builtinVal "Lang.vTuple" << VBase << VString) TupleCtor (ctorTupleName (List.length vals)))::Utils.indexedMapFrom 1 numericalValEntry vals
 
+getDatatypeName: Val -> Maybe String
+getDatatypeName v = vRecordUnapplyField ctorDataType v |> Maybe.andThen vStringUnapply
+
+getViewDatatypeName: Val -> Maybe String
+getViewDatatypeName v = case vListUnapply v of
+  Just (head::t) -> vStringUnapply head
+  _ -> Nothing
+
 --------------------------------------------------------------------------------
 
 
@@ -1444,15 +1452,13 @@ parentByEId program targetEId =
 childExps : Exp -> List Exp
 childExps e = childExpsExtractors e |> Tuple.first
 
-singleArgExtractor: String -> (Exp -> Exp__) -> (List Exp -> Exp)
-singleArgExtractor msg f l = case l of
-  head::_ -> replaceE__ head <| f head
+singleArgExtractor: String -> Exp -> (Exp -> Exp__) -> (List Exp -> Exp)
+singleArgExtractor msg exp f l = case l of
+  head::_ -> replaceE__ exp  <| f head
   _ -> Debug.crash <| "[internal error] Unespected empty list for " ++ msg
 
-multiArgExtractor: String -> (List Exp -> Exp__) -> (List Exp -> Exp)
-multiArgExtractor msg f l = case l of
-  head::_ -> replaceE__ head <| f l
-  _ -> Debug.crash <| "[internal error] Unespected empty list for " ++ msg
+multiArgExtractor: String -> Exp -> (List Exp -> Exp__) -> (List Exp -> Exp)
+multiArgExtractor msg exp f l = replaceE__ exp <| f l
 
 -- Children left-to-right, with a way to rebuild the expression if given the same exps)
 childExpsExtractors : Exp -> (List Exp, List Exp -> Exp)
@@ -1461,35 +1467,35 @@ childExpsExtractors e =
     EConst _ _ _ _          -> ([], \_ -> e)
     EBase _ _               -> ([], \_ -> e)
     EVar _ _                -> ([], \_ -> e)
-    EFun ws1 ps e_ ws2      -> ([e_], singleArgExtractor "EFun-unexp" <| \newE -> EFun ws1 ps newE ws2)
-    EOp ws1 op es ws2       -> (es, multiArgExtractor "EOp-unexp" <| \newEs -> EOp ws1 op newEs ws2)
+    EFun ws1 ps e_ ws2      -> ([e_], singleArgExtractor "EFun-unexp" e <| \newE -> EFun ws1 ps newE ws2)
+    EOp ws1 op es ws2       -> (es, multiArgExtractor "EOp-unexp" e <| \newEs -> EOp ws1 op newEs ws2)
     EList ws1 es ws2 m ws3  ->
       case m of
-        Just e  -> (Utils.listValues es ++ [e], multiArgExtractor "EList-unexp" <| \newEs ->  EList ws1 (Utils.listValuesMake es <| Utils.dropLast 1 newEs) ws2 (Just (Utils.last "childExps-EList" newEs)) ws3)
-        Nothing ->( Utils.listValues es, multiArgExtractor "EList-unexp" <| \newEs ->  EList ws1 (Utils.listValuesMake es <| newEs) ws2 Nothing ws3)
+        Just e  -> (Utils.listValues es ++ [e], multiArgExtractor "EList-unexp" e  <| \newEs ->  EList ws1 (Utils.listValuesMake es <| Utils.dropLast 1 newEs) ws2 (Just (Utils.last "childExps-EList" newEs)) ws3)
+        Nothing ->( Utils.listValues es, multiArgExtractor "EList-unexp" e  <| \newEs ->  EList ws1 (Utils.listValuesMake es <| newEs) ws2 Nothing ws3)
     ERecord ws1 mw es ws2 ->
       case mw of
-         Just (e, w) -> ([e] ++ Utils.recordValues es, multiArgExtractor "ERecord-unexp" <| \newEs -> ERecord ws1 (Just (Utils.head "childExps-ERecord" newEs, w)) (Utils.recordValuesMake es (Utils.tail  "childExps-ERecord" newEs)) ws2)
-         Nothing -> (Utils.recordValues es, multiArgExtractor "ERecord-unexp" <|  \newEs -> ERecord ws1 Nothing (Utils.recordValuesMake es newEs) ws2)
-    ESelect sp0 e sp1 sp2 name       -> ([e], multiArgExtractor "ESelect-unexp" <| \newEs -> ESelect sp0 (Utils.head "childExps-ESelect" newEs) sp1 sp2 name)
-    EApp ws1 f es apptype ws2        -> (f :: es, multiArgExtractor "EApp-unexp" <| \newEs -> EApp ws1 (Utils.head "childExps-EApp" newEs) (Utils.tail "childExps-Eapp" newEs) apptype ws2)
-    ELet ws1 k b p ws2 e1 ws3 e2 ws4 -> ([e1, e2], multiArgExtractor "ELet-unexp" <| \newEs -> case newEs of
+         Just (e, w) -> ([e] ++ Utils.recordValues es, multiArgExtractor "ERecord-unexp" e  <| \newEs -> ERecord ws1 (Just (Utils.head "childExps-ERecord" newEs, w)) (Utils.recordValuesMake es (Utils.tail  "childExps-ERecord" newEs)) ws2)
+         Nothing -> (Utils.recordValues es, multiArgExtractor "ERecord-unexp" e  <|  \newEs -> ERecord ws1 Nothing (Utils.recordValuesMake es newEs) ws2)
+    ESelect sp0 e sp1 sp2 name       -> ([e], multiArgExtractor "ESelect-unexp" e <| \newEs -> ESelect sp0 (Utils.head "childExps-ESelect" newEs) sp1 sp2 name)
+    EApp ws1 f es apptype ws2        -> (f :: es, multiArgExtractor "EApp-unexp" e <| \newEs -> EApp ws1 (Utils.head "childExps-EApp" newEs) (Utils.tail "childExps-Eapp" newEs) apptype ws2)
+    ELet ws1 k b p ws2 e1 ws3 e2 ws4 -> ([e1, e2], multiArgExtractor "ELet-unexp" e <| \newEs -> case newEs of
       [newE1, newE2] -> ELet ws1 k b p ws2 newE1 ws3 newE2 ws4
       _ -> Debug.crash "childExps-ELet")
-    EIf ws1 e1 ws2 e2 ws3 e3 ws4     -> ([e1, e2, e3], multiArgExtractor "EIf-unexp" <| \newEs -> case newEs of
+    EIf ws1 e1 ws2 e2 ws3 e3 ws4     -> ([e1, e2, e3], multiArgExtractor "EIf-unexp" e <| \newEs -> case newEs of
         [newE1, newE2, newE3] -> EIf ws1 newE1 ws2 newE2 ws3 newE3 ws4
         _ -> Debug.crash "childExps-EIf")
     ECase ws1 e branches ws2         -> let (es, esExtractor) = branchExpsExtractor branches in
-      (e :: es, multiArgExtractor "ECase-unexp" <| \newEs ->  ECase ws1 (Utils.head "childExps-ECase" newEs) (Utils.tail "childExps-ECAse" newEs |> esExtractor) ws2)
+      (e :: es, multiArgExtractor "ECase-unexp" e <| \newEs ->  ECase ws1 (Utils.head "childExps-ECase" newEs) (Utils.tail "childExps-ECAse" newEs |> esExtractor) ws2)
     ETypeCase ws1 e tbranches ws2    -> let (es, esExtractor) = tbranchExpsExtractor tbranches in
-      (e :: es, multiArgExtractor "ETypeCase-unexp" <| \newEs ->  ETypeCase ws1 (Utils.head "childExps-ECase" newEs) (Utils.tail "childExps-ECAse" newEs |> esExtractor) ws2)
-    EComment ws s e1                 -> ([e1], singleArgExtractor "EComment-unexp" <| \newE ->EComment ws s newE              )
-    EOption ws1 s1 ws2 s2 e1         -> ([e1], singleArgExtractor "EOption-unexp" <| \newE ->EOption ws1 s1 ws2 s2 newE      )
-    ETyp ws1 pat tipe e ws2          -> ([e], singleArgExtractor  "ETyp-unexp" <| \newE -> ETyp ws1 pat tipe newE ws2      )
-    EColonType ws1 e ws2 tipe ws3    -> ([e], singleArgExtractor  "EColonType-unexp" <| \newE -> EColonType ws1 newE ws2 tipe ws3)
-    ETypeAlias ws1 pat tipe e ws2    -> ([e], singleArgExtractor  "ETypeAlias-unexp" <| \newE -> ETypeAlias ws1 pat tipe newE ws2)
-    ETypeDef a1 a2 a3 a4 a5 e a6     -> ([e], singleArgExtractor  "ETypeDef-unexp" <| \newE -> ETypeDef a1 a2 a3 a4 a5 newE a6 )
-    EParens a1 e a2 a3               -> ([e], singleArgExtractor  "EParens-unexp" <| \newE -> EParens a1 newE a2 a3)
+      (e :: es, multiArgExtractor "ETypeCase-unexp" e <| \newEs ->  ETypeCase ws1 (Utils.head "childExps-ECase" newEs) (Utils.tail "childExps-ECAse" newEs |> esExtractor) ws2)
+    EComment ws s e1                 -> ([e1], singleArgExtractor "EComment-unexp" e <| \newE ->EComment ws s newE              )
+    EOption ws1 s1 ws2 s2 e1         -> ([e1], singleArgExtractor "EOption-unexp" e <| \newE ->EOption ws1 s1 ws2 s2 newE      )
+    ETyp ws1 pat tipe e ws2          -> ([e], singleArgExtractor  "ETyp-unexp" e <| \newE -> ETyp ws1 pat tipe newE ws2      )
+    EColonType ws1 e ws2 tipe ws3    -> ([e], singleArgExtractor  "EColonType-unexp" e <| \newE -> EColonType ws1 newE ws2 tipe ws3)
+    ETypeAlias ws1 pat tipe e ws2    -> ([e], singleArgExtractor  "ETypeAlias-unexp" e <| \newE -> ETypeAlias ws1 pat tipe newE ws2)
+    ETypeDef a1 a2 a3 a4 a5 e a6     -> ([e], singleArgExtractor  "ETypeDef-unexp" e <| \newE -> ETypeDef a1 a2 a3 a4 a5 newE a6 )
+    EParens a1 e a2 a3               -> ([e], singleArgExtractor  "EParens-unexp" e <| \newE -> EParens a1 newE a2 a3)
     EHole _ _                        -> ([], \_ -> e)
 
 allEIds : Exp -> List EId
@@ -2036,6 +2042,13 @@ vListUnapply v = case v.v_ of
   VList elems -> Just elems
   _ -> Nothing
 
+vStringUnapply v = case v.v_ of
+  VBase (VString s) -> Just s
+  _ -> Nothing
+
+vRecordUnapplyField field v = case v.v_ of
+  VRecord d -> Dict.get field d
+  _ -> Nothing
 
 -- note: dummy ids...
 -- vTrue    = vBool True

@@ -4,6 +4,7 @@ module ElmUnparser exposing
   , unparseType -- Experimental
   , unparseLongStringContent
   , unparseHtmlTextContent
+  , unparseAnyHtml
   )
 
 import Lang exposing (..)
@@ -912,6 +913,31 @@ unparseHtmlNode e = case e.val.e__ of
           ">" ++ unparseHtmlChildList childExp ++ "</" ++ tagEnd ++ spaceAfterTagClosing.val ++ ">"
     )
   _ -> "@[" ++ unparse e ++ "]"
+
+-- Detects if there are nodes, text, attributes and call the correct unparser. Use it for displaying local difference only.
+unparseAnyHtml: Exp -> String
+unparseAnyHtml e =
+  case e.val.e__ of
+    EList _ [(_, text), (_, content)] _ Nothing _ ->
+      case eStrUnapply text of
+        Just "TEXT" -> unparseHtmlNode e
+        Just _ -> -- It's an attribute
+          unparseHtmlAttributes (eList [e] Nothing)
+        Nothing -> unparse e
+    EList _ [(_, tag), (_, attr), (_, children)] _ Nothing _ ->
+      case eStrUnapply tag of
+        Just _ -> -- Just to make sure the second is a list
+          case eListUnapply attr of
+            Just _ ->  unparseHtmlNode e
+            Nothing -> case eAppUnapply2 attr of
+              Just  (fun, left, right) -> case eVarUnapply fun of
+                Just "++" ->  unparseHtmlNode e
+                _ -> unparse e
+              _ -> unparse e
+        Nothing -> case tag.val.e__ of
+          EParens _ inner ElmSyntax _-> unparseHtmlNode e
+          _ -> unparse e
+    _ -> unparseHtmlChildList e
 
 -- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-conatined
 getExpPrecedence: Exp -> Maybe Int
