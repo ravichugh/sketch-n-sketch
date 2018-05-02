@@ -2037,6 +2037,10 @@ eAppUnapply e = case e.val.e__ of
   EApp _ e1 es _ _ -> Just (e1, es)
   _ -> Nothing
 
+eParensUnapplyIf syntax e = case e.val.e__ of
+  EParens _ inner s _ -> if s == syntax then Just inner else Nothing
+  _ -> Nothing
+
 vStrUnapply v = case v.v_ of
   VBase (VString s) -> Just s
   _ -> Nothing

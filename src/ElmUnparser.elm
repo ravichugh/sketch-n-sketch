@@ -789,13 +789,15 @@ multilineContentUnparse e = case e.val.e__ of
     case op.val of
       Plus ->
         let unwrapToStrExceptStr x =
-          case x of
-             EOp spm1 op [arg] spm2 -> case op.val of
-               ToStrExceptStr -> (arg, arg.val.e__)
-               _ -> (left, x)
-             _ -> (left, x)
+          case eOpUnapply1 ToStrExceptStr x of
+             Just arg ->
+               case eParensUnapplyIf ElmSyntax arg of
+               Just arg ->
+                 (arg, arg.val.e__)
+               Nothing ->  (arg, arg.val.e__)
+             _ -> (left, x.val.e__)
         in
-        case unwrapToStrExceptStr left.val.e__ of
+        case unwrapToStrExceptStr left of
           (_, EBase sp0 (EString _ s)) ->
             multilineContentUnparse left ++ multilineContentUnparse right
           (_, EVar sp0 ident as left) ->
@@ -822,11 +824,9 @@ multilineContentUnparse e = case e.val.e__ of
           (x, _) -> -- There should be parentheses
             let sx = unparse x in
             let sy = multilineContentUnparse right in
-            if String.endsWith sx ")" then
-              Debug.log "It ends with a )" <|
+            if String.endsWith ")" sx then
               "@" ++ sx ++ sy
             else if Regex.contains (Regex.regex "[\\w_\\$]$") sx && Regex.contains (Regex.regex "^[^\\w_\\$\\.]|^$") sy then
-              Debug.log ("Left finishes by a char and right does not start with one : '" ++ sx ++"' '" ++ sy ++ "'")  <|
               "@" ++ sx ++ sy
             else
               "@(" ++ sx ++ ")" ++ sy
@@ -836,8 +836,8 @@ multilineContentUnparse e = case e.val.e__ of
     let definition = unparse e1 in
     let finalDefinition = if String.contains "\n" definition then
       case String.uncons (String.trim definition) of
-        Just ('(', _) -> definition ++ "\n"
-        _ -> "(" ++ definition ++ ")\n"
+         Just ('(', _) -> definition ++ "\n"
+         _ -> "(" ++ definition ++ ")\n"
       else definition ++ "\n" in
     "@" ++ (case kind of
       Let -> "let"

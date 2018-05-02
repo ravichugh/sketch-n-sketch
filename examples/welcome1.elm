@@ -20,7 +20,7 @@ main =
          (on the right/bottom). For example:</p>
       @(evalupdate "let x = \"Hello \" in\nx + \"\"\"and @(x)world\"\"\"" True)
       @(evalupdate """let x = "blue" in
-<h3 style=("color:"+x)>This is @("@")x, change me!</h3>""" False)
+<h3 style=("color:"+x)>This is @@x, change me!</h3>""" False)
       <p>Turn auto-sync on (on the right) to see the changes be applied
       immediately if they are not ambiguous !</p>
       <p>See some more examples from File -&gt; New From Template in
