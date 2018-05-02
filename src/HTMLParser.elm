@@ -82,6 +82,19 @@ isVoidElement s =
 isForeignElement: String -> Bool
 isForeignElement s = let s2 = String.toLower s in s == "math" || s == "svg"
 
+svgTagNames = Set.fromList ["a","altGlyph","altGlyphDef","altGlyphItem","animate","animateColor","animateMotion",
+  "animateTransform","circle","clipPath","color-profile","cursor","defs","desc","discard","ellipse","feBlend",
+  "feColorMatrix","feComponentTransfer","feComposite","feConvolveMatrix","feDiffuseLighting","feDisplacementMap",
+  "feDistantLight","feDropShadow","feFlood","feFuncA","feFuncB","feFuncG","feFuncR","feGaussianBlur","feImage",
+  "feMerge","feMergeNode","feMorphology","feOffset","fePointLight","feSpecularLighting","feSpotLight","feTile",
+  "feTurbulence","filter","font","font-face","font-face-format","font-face-name","font-face-src","font-face-uri",
+  "foreignObject","g","glyph","glyphRef","hatch","hatchpath","hkern","image","line","linearGradient","marker","mask",
+  "mesh","meshgradient","meshpatch","meshrow","metadata","missing-glyph","mpath","path","pattern","polygon","polyline",
+  "radialGradient","rect","script","set","solidcolor","stop","style","svg","switch","symbol","text","textPath","title",
+  "tref","tspan","unknown","use","view","vkern"]
+
+possiblyAutoClosingElements = svgTagNames
+
 {-- HTML reference parsing: https://www.w3.org/TR/html5/syntax.html --}
 
 {-- To see how HTML is parsed, we had a look at the method .innerHTML
@@ -292,7 +305,11 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
                 symbol ">" |> map (\_ -> (RegularEndOpening, [], VoidClosing))
               ]
             else []) ++
-            ( if namespace /= HTML then -- Foreign elements can have autoclose tags.
+            ( if namespace /= HTML || Set.member tagName possiblyAutoClosingElements then
+              -- Foreign elements can have autoclose tags.
+              -- Limitation: if we parse '<a/>Hello', because 'a' can be autoclosing in SVG but not HTML,
+              -- it would result in two different parse trees. For HTML, it will give <a>Hello</a>. For SVG it will return the same.
+              -- Since HTML literals do not have context, if it is possible we allow auto-closing. This is ergonomics.
               [symbol "/>" |> map (\_  -> (RegularEndOpening, [], AutoClosing))]
               else []
             ) ++
