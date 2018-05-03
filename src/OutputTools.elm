@@ -153,6 +153,27 @@ hideWidgetTool { selectedFeatures, selectedShapes, selectedBlobs } =
   }
 
 --------------------------------------------------------------------------------
+-- Add to Output
+--------------------------------------------------------------------------------
+
+addToOutputTool : Selections a -> OutputTool
+addToOutputTool selections =
+  { name =
+      "Add to Output"
+  , shortcut =
+      Nothing
+  , kind =
+      Single
+  , func =
+      Just Controller.msgAddToOutput
+  , reqs =
+      [ atLeastOneSelection selections
+      ]
+  , id =
+      "addToOutput"
+  }
+
+--------------------------------------------------------------------------------
 -- Dig Hole
 --------------------------------------------------------------------------------
 
@@ -412,6 +433,7 @@ tools : Selections a -> List (List OutputTool)
 tools selections =
   List.map (List.map <| \tool -> tool selections) <|
     [ [ hideWidgetTool
+      , addToOutputTool
       ]
     , [ digHoleTool
       , makeEqualTool

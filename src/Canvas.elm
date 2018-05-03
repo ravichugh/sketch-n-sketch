@@ -19,7 +19,7 @@ import ShapeWidgets exposing
   )
 import SleekLayout exposing (canvasPosition)
 import Sync
-import Draw exposing (pointZoneStyles, colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected, colorInput, colorOutput)
+import Draw exposing (pointZoneStyles, colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected, colorInput, colorOutput, colorInputAndOutput)
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
 
@@ -785,22 +785,6 @@ onMouseDownAndStop = handleEventAndStop "mousedown"
 
 -- TODO use RealZones rather than Zones more
 
-shapeIdToMaybeVal id m =
-  let (_, shapeTree) = m.slate in
-  if -2 - id > 0 then
-    let widgetId = -2 - id in
-    case Utils.maybeGeti1 widgetId m.widgets of
-      Just (WNumSlider _ _ _ _ val _ _)        -> Just val
-      Just (WIntSlider _ _ _ _ val _ _)        -> Just val
-      Just (WPoint _ _ _ _ pairVal)            -> Just pairVal
-      Just (WOffset1D _ _ _ _ _ amountVal _ _) -> Just amountVal
-      Just (WCall _ _ _ retVal _)              -> Just retVal
-      Just (WList val)                         -> Just val
-      Nothing                                  -> Nothing
-  else
-    Dict.get id shapeTree
-    |> Maybe.map .val
-
 
 removeHoveredShape id =
   Msg ("Remove Hovered Shape " ++ toString id) <| \m ->
@@ -812,7 +796,8 @@ addHoveredShape id =
     if isMouseDown m then
       m
     else
-      case shapeIdToMaybeVal id m of
+      let (_, shapeTree) = m.slate in
+      case ShapeWidgets.shapeIdToMaybeVal id shapeTree m.widgets of
         Just hoveredVal ->
           let (bounds, newHoveredCallWidgetIs) =
             m.widgets
@@ -1472,11 +1457,12 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
     in
     let dotFill =
       case (isShapeBeingDrawnSnappingToPoint model xVal yVal, Set.member id model.selectedShapes, isContextInputPoint model xVal yVal, isContextOutputPoint model xVal yVal) of
-        (True, _, _, _) -> colorPointSelected
-        (_, True, _, _) -> pointZoneStylesFillSelected model id
-        (_, _, True, _) -> colorInput
-        (_, _, _, True) -> colorOutput
-        _               -> pointZoneStyles.fill.shown
+        (True, _, _, _)    -> colorPointSelected
+        (_, True, _, _)    -> pointZoneStylesFillSelected model id
+        (_, _, True, True) -> colorInputAndOutput
+        (_, _, True, _)    -> colorInput
+        (_, _, _, True)    -> colorOutput
+        _                  -> pointZoneStyles.fill.shown
     in
     let isVisible =
       not (objectIsCurrentlyBeingManipulated model id)

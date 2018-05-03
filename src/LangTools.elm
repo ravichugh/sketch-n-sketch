@@ -445,6 +445,17 @@ lastExp exp =
     lastChild::_ -> lastExp lastChild
 
 
+-- What branches could determine the value of this expression (usually a function body)?
+-- Returns the whole branch, not just its last exp.
+terminalExpLevels : Exp -> List Exp
+terminalExpLevels exp =
+  case (expEffectiveExp exp).val.e__ of
+    EIf _ _ _ trueBranch _ falseBranch _ -> terminalExpLevels trueBranch ++ terminalExpLevels falseBranch
+    ECase _ _ branches _                 -> branchExps branches |> List.concatMap terminalExpLevels
+    ETypeCase _ _ tBranches _            -> tbranchExps tBranches |> List.concatMap terminalExpLevels
+    _                                    -> [exp]
+
+
 -- Find outermost expression that resolves to the same value.
 outerSameValueExp : Exp -> Exp -> Exp
 outerSameValueExp program targetExp =

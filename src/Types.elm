@@ -10,9 +10,27 @@ import Utils
 import Ace
 import Config
 
-import Dict
+import Dict exposing (Dict)
 import Set
 import String
+
+
+isListNotTuple : Type -> Bool
+isListNotTuple tipe =
+  case tipe.val of
+    TList _ _ _     -> True
+    TForall _ _ t _ -> isListNotTuple t
+    _               -> False
+
+
+isListOrTuple : Type -> Bool
+isListOrTuple tipe =
+  case tipe.val of
+    TList _ _ _      -> True
+    TTuple _ _ _ _ _ -> True
+    TForall _ _ t _  -> isListOrTuple t
+    _                -> False
+
 
 typeToMaybeAliasIdent : Type -> Maybe Ident
 typeToMaybeAliasIdent tipe =
@@ -45,78 +63,144 @@ inlineArrow tipe =
     _ -> tipe
 
 
+-- Do the types match, modulo type variable renaming?
+-- Requires ASTs to be ordered the same (e.g. Union [Num, String] is not equal to Union [String, Num])
 equal : Type -> Type -> Bool
 equal t1 t2 =
-  (astsMatch t1 t2) && (identifiersEquivalent t1 t2)
+  let
+    t1FreeIdents     = freeIdentifiersList t1 |> Utils.dedup
+    t2FreeIdents     = freeIdentifiersList t2 |> Utils.dedup
+    t2IdentToT1Ident = Utils.zip t2FreeIdents t1FreeIdents |> Dict.fromList
+  in
+  equal_ t1 t2 t2IdentToT1Ident
 
 
--- Do the types match, ignoring type variable names?
-astsMatch : Type -> Type -> Bool
-astsMatch t1 t2 =
+equal_ : Type -> Type -> Dict Ident Ident -> Bool
+equal_ t1 t2 t2IdentToT1Ident =
   case (t1.val, t2.val) of
     (TNum _, TNum _)       -> True
     (TBool _, TBool _)     -> True
     (TString _, TString _) -> True
     (TNull _, TNull _)     -> True
-    (TList _ listType1 _, TList _ listType2 _) -> astsMatch listType1 listType2
+    (TList _ listType1 _, TList _ listType2 _) -> equal_ listType1 listType2 t2IdentToT1Ident
     (TDict _ keyType1 valueType1 _,
-     TDict _ keyType2 valueType2 _) -> (astsMatch keyType1 keyType2) && (astsMatch valueType1 valueType2)
+     TDict _ keyType2 valueType2 _) -> equal_ keyType1 keyType2 t2IdentToT1Ident && equal_ valueType1 valueType2 t2IdentToT1Ident
     (TTuple _ typeList1 _ maybeRestType1 _,
      TTuple _ typeList2 _ maybeRestType2 _) ->
       let maybeRestTypesMatch =
         case (maybeRestType1, maybeRestType2) of
           (Nothing, Nothing)               -> True
-          (Just restType1, Just restType2) -> astsMatch restType1 restType2
+          (Just restType1, Just restType2) -> equal_ restType1 restType2 t2IdentToT1Ident
           _                                -> False
       in
-      maybeRestTypesMatch && (Utils.listsEqualBy astsMatch typeList1 typeList2)
+      maybeRestTypesMatch && Utils.listsEqualBy (\t1 t2 -> equal_ t1 t2 t2IdentToT1Ident) typeList1 typeList2
     (TArrow _ typeList1 _,
-     TArrow _ typeList2 _) -> Utils.listsEqualBy astsMatch typeList1 typeList2
+     TArrow _ typeList2 _) -> Utils.listsEqualBy (\t1 t2 -> equal_ t1 t2 t2IdentToT1Ident) typeList1 typeList2
     (TUnion _ typeList1 _,
-     TUnion _ typeList2 _) -> Utils.listsEqualBy astsMatch typeList1 typeList2
+     TUnion _ typeList2 _) -> Utils.listsEqualBy (\t1 t2 -> equal_ t1 t2 t2IdentToT1Ident) typeList1 typeList2
     (TNamed _ ident1,
      TNamed _ ident2)      -> ident1 == ident2
-    (TVar _ _, TVar _ _)   -> True
+    (TVar _ ident1,
+     TVar _ ident2)        -> Dict.get ident2 t2IdentToT1Ident |> Maybe.map ((==) ident1) |> Maybe.withDefault False
     (TWildcard _,
      TWildcard _)          -> True
-    (TForall _ (One _) t1 _, TForall _ (One _) t2 _) -> astsMatch t1 t2
-    (TForall _ (Many _ typeVars1 _) t1 _, TForall _ (Many _ typeVars2 _) t2 _) ->
-      List.length typeVars1 == List.length typeVars2 && astsMatch t1 t2
-    _                      -> False
+    (TForall _ (One (_, ident1)) body1 _,
+     TForall _ (One (_, ident2)) body2 _) -> equal_ body1 body2 (Dict.insert ident2 ident1 t2IdentToT1Ident)
+    (TForall _ (Many _ typeVars1 _) body1 _,
+     TForall _ (Many _ typeVars2 _) body2 _) ->
+      case Utils.maybeZip (List.map Tuple.second typeVars2) (List.map Tuple.second typeVars1) of -- Ignore preceding whitespace
+        Just ident2ident1Pairs -> equal_ body1 body2 (Utils.insertAll ident2ident1Pairs t2IdentToT1Ident)
+        _                      -> False
 
--- Presuming the types have the same AST structure, do the identifiers used
--- produce the same semantic meaning?
---
--- TODO depending on use, need to take scope into account...
---
--- e.g. (-> (List a) (List b)) is equivalent to (-> (List b) (List c))
---      but not to (-> (List y) (List y))
---
-identifiersEquivalent t1 t2 =
-  let flatIdents t =
-    case t.val of
-      TNum _    -> []
-      TBool _   -> []
-      TString _ -> []
-      TNull _   -> []
-      TList _ listType _          -> flatIdents listType
-      TDict _ keyType valueType _ -> (flatIdents keyType) ++ (flatIdents valueType)
-      TTuple _ typeList _ maybeRestType _ ->
-        let restTypeIdents =
-          case maybeRestType of
-            Just restType -> flatIdents restType
-            Nothing       -> []
-        in
-        (List.concatMap flatIdents typeList) ++ restTypeIdents
+    _ -> False
 
-      TArrow _ typeList _ -> List.concatMap flatIdents typeList
-      TUnion _ typeList _ -> List.concatMap flatIdents typeList
-      TNamed _ _          -> []
-      TVar _ ident        -> [ident]
-      TWildcard _         -> []
-      TForall _ _ _ _     -> Debug.crash "identifiersEquiv TForall TODO"
+
+-- Is t1 a subtype (superset) of t2?
+--
+-- Not yet smart enough to concretize type variables.
+--
+-- Requires ASTs to be ordered the same (e.g. Union [Num, String] is not equal to Union [String, Num])
+isSubtype : Type -> Type -> Bool
+isSubtype t1 t2 =
+  let
+    t1FreeIdents     = freeIdentifiersList t1 |> Utils.dedup
+    t2FreeIdents     = freeIdentifiersList t2 |> Utils.dedup
+    t2IdentToT1Ident = Utils.zip t2FreeIdents t1FreeIdents |> Dict.fromList
   in
-  Utils.oneToOneMappingExists (flatIdents t1) (flatIdents t2)
+  isSubtype_ t1 t2 t2IdentToT1Ident
+
+
+-- Is t1 a subtype (superset) of t2?
+--
+-- Not yet smart enough to concretize type variables.
+--
+-- Requires ASTs to be ordered the same (e.g. Union [Num, String] is not equal to Union [String, Num])
+isSubtype_ : Type -> Type -> Dict Ident Ident -> Bool
+isSubtype_ t1 t2 t2IdentToT1Ident =
+  case (t1.val, t2.val) of
+    (TList _ listType1 _, _) -> isSubtype_ { t1 | val = TTuple space1 [] space1 (Just listType1) space1} t2 t2IdentToT1Ident
+    (_, TList _ listType2 _) -> isSubtype_ t1 { t2 | val = TTuple space1 [] space1 (Just listType2) space1} t2IdentToT1Ident
+    (TNum _, TNum _)       -> True
+    (TBool _, TBool _)     -> True
+    (TString _, TString _) -> True
+    (TNull _, TNull _)     -> True
+    (TDict _ keyType1 valueType1 _,
+     TDict _ keyType2 valueType2 _) -> isSubtype_ keyType1 keyType2 t2IdentToT1Ident && isSubtype_ valueType1 valueType2 t2IdentToT1Ident
+    (TTuple _ typeList1 _ maybeRestType1 _,
+     TTuple _ typeList2 _ maybeRestType2 _) ->
+      let
+        (heads, t1LeftoverHeads, t2LeftoverHeads) = Utils.zipAndLeftovers typeList1 typeList2
+      in
+      List.all (\(t1, t2) -> isSubtype_ t1 t2 t2IdentToT1Ident) heads &&
+      case (t1LeftoverHeads, t2LeftoverHeads, maybeRestType1, maybeRestType2) of
+        ([],  [], _, Nothing)   -> True
+        (_::_, _, _, Nothing)   -> False
+        (_, _::_, Nothing, _)   -> False
+        (_, _, Nothing, Just _) -> False
+        ([], _::_, Just restType1, Nothing) ->
+          List.all (\t2Head -> isSubtype_ restType1 t2Head t2IdentToT1Ident) t2LeftoverHeads
+        (_, _, Just restType1, Just restType2) ->
+          isSubtype_ restType1 restType2 t2IdentToT1Ident &&
+          List.all (\t1Head -> isSubtype_ t1Head restType2 t2IdentToT1Ident) t1LeftoverHeads &&
+          List.all (\t2Head -> isSubtype_ restType1 t2Head t2IdentToT1Ident) t2LeftoverHeads
+    (TArrow _ typeList1 _,
+     TArrow _ typeList2 _) -> Utils.listsEqualBy (\t1 t2 -> isSubtype_ t1 t2 t2IdentToT1Ident) typeList1 typeList2
+    (TUnion _ typeList1 _,
+     TUnion _ typeList2 _) -> Utils.listsEqualBy (\t1 t2 -> isSubtype_ t1 t2 t2IdentToT1Ident) typeList1 typeList2
+    (TNamed _ ident1,
+     TNamed _ ident2)      -> ident1 == ident2
+    (TVar _ ident1,
+     TVar _ ident2)        -> Dict.get ident2 t2IdentToT1Ident |> Maybe.map ((==) ident1) |> Maybe.withDefault False
+    (TWildcard _, _)       -> True
+    (TForall _ (One (_, ident1)) body1 _,
+     TForall _ (One (_, ident2)) body2 _) -> isSubtype_ body1 body2 (Dict.insert ident2 ident1 t2IdentToT1Ident)
+    (TForall _ (Many _ typeVars1 _) body1 _,
+     TForall _ (Many _ typeVars2 _) body2 _) ->
+      case Utils.maybeZip (List.map Tuple.second typeVars2) (List.map Tuple.second typeVars1) of -- Ignore preceding whitespace
+        Just ident2ident1Pairs -> isSubtype_ body1 body2 (Utils.insertAll ident2ident1Pairs t2IdentToT1Ident)
+        _                      -> False
+
+    _ -> False
+
+
+-- Lists free type variable identifiers in order, no deduplication.
+freeIdentifiersList : Type -> List Ident
+freeIdentifiersList tipe =
+  case tipe.val of
+    TNum _                                     -> []
+    TBool _                                    -> []
+    TString _                                  -> []
+    TNull _                                    -> []
+    TList _ listType _                         -> freeIdentifiersList listType
+    TDict _ keyType valueType _                -> freeIdentifiersList keyType ++ freeIdentifiersList valueType
+    TTuple _ typeList _ maybeRestType _        -> List.concatMap freeIdentifiersList (typeList ++ Maybe.withDefault [] (Maybe.map List.singleton maybeRestType))
+    TArrow _ typeList _                        -> List.concatMap freeIdentifiersList typeList
+    TUnion _ typeList _                        -> List.concatMap freeIdentifiersList typeList
+    TNamed _ _                                 -> []
+    TVar _ ident                               -> [ident]
+    TWildcard _                                -> []
+    TForall _ (One (_, ident)) body _          -> freeIdentifiersList body |> List.filter ((/=) ident)
+    TForall _ (Many _ spaceAndIdents _) body _ -> let (_, idents) = List.unzip spaceAndIdents in freeIdentifiersList body |> List.filter (not << flip List.member idents)
 
 
 valIsType val tipe =
@@ -152,6 +236,29 @@ valIsType val tipe =
     (_, TVar _ _)            -> unsupported "type variables"
     (_, TWildcard _)         -> True
     _                        -> False
+
+
+valToMaybeType : Val -> Maybe Type
+valToMaybeType val =
+  case val.v_ of
+    VConst _ _        -> Just tNum
+    VBase (VBool _)   -> Just tBool
+    VBase (VString _) -> Just tString
+    VBase VNull       -> Just tNull
+    VList vs          ->
+      case vs |> List.map valToMaybeType |> Utils.projJusts of
+        Just []    -> Just (tForall ["a"] (tList (tVar "a")))
+        Just types ->
+          case Utils.dedup types of
+            [t] ->
+              -- Special case for points, always!
+              if List.length types == 2 && equal tNum t
+              then Just (tTuple [tNum, tNum])
+              else Just (tList t)
+            _ -> Just (tTuple types)
+        _ -> Nothing
+
+    _ -> Nothing
 
 
 matchTypeAlias : Pat -> Type -> Maybe (List (Ident, Type))

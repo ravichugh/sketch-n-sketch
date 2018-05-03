@@ -1,6 +1,6 @@
 module Draw exposing
   ( pointZoneStyles
-  , colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected, colorInput, colorOutput
+  , colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected, colorInput, colorOutput, colorInputAndOutput
   , drawDotSize
   -- , drawNewLine
   -- , drawNewRect
@@ -89,6 +89,7 @@ colorLineNotSelected    = "#FAB4D3" -- "red"
 
 colorInput              = "#FFA340"
 colorOutput             = "#91C5FF"
+colorInputAndOutput     = "#C8B4A0" -- https://meyerweb.com/eric/tools/color-blend/#FFA340:91C5FF:1:hex
 
 --------------------------------------------------------------------------------
 -- Bounding Boxes
@@ -1116,7 +1117,7 @@ newFunctionCallExp fName model pt1 pt2 =
 
 addShapeToModel : Model -> String -> Exp -> Model
 addShapeToModel model newShapeName newShapeExp =
-  let newProgram = addShape model newShapeName newShapeExp 1 in
+  let newProgram = addShape model (Just newShapeName) newShapeExp (Just 1) Nothing Nothing Nothing model.inputExp in
   { model | code = Syntax.unparser model.syntax newProgram }
 
 
@@ -1126,52 +1127,172 @@ addShapeToModel model newShapeName newShapeExp =
 -- 4. Keep those programs that do not crash.
 -- 5. Keep those programs that result in one more shape in the output.
 -- 6. Finally, use list the others do not depend on.
-addShape : Model -> String -> Exp -> Int -> Exp
-addShape model newShapeName newShapeExp numberOfNewShapesExpected =
-  let originalProgram = model.inputExp in
-  let contextExp = FocusedEditingContext.drawingContextExp model.editingContext originalProgram in
-  let oldShapeTree =
-    case runAndResolveAtContext model originalProgram of
-      Ok (_, _, (root, shapeTree), _) -> shapeTree
-      _                               -> Dict.empty
-  in
-  -- 1. Find all list literals.
-  let lists = flattenExpTree contextExp |> List.filter isList in -- Possible optimization: exclude lists with numeric element
-  -- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
-  let listEIdWithPossiblePrograms =
-    lists
-    |> List.concatMap
-        (\listExp ->
-          let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] originalProgram in
-          let (ws1, heads, ws2, maybeTail, ws3) = LangTools.expToListParts listExp in
-          let newListFlat      = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eVar varName])))           ws2 maybeTail ws3 in
-          let newListSingleton = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [eVar0 varName]]))) ws2 maybeTail ws3 in
-          let newProgramFlat      = programWithNewDef |> replaceExpNode listExp.val.eid newListFlat in
-          let newProgramSingleton = programWithNewDef |> replaceExpNode listExp.val.eid newListSingleton in
-          [ (listExp.val.eid, newProgramFlat)
-          , (listExp.val.eid, newProgramSingleton)
-          ]
-        )
-    -- 3. Resolve value holes.
-    |> List.concatMap
-        (\(listEId, newProgramWithHoles) -> CodeMotion.resolveValueHoles model.syncOptions model.maybeEnv newProgramWithHoles |> List.map ((,) listEId))
-    -- 4. Keep those programs that do not crash.
-    -- 5. Keep those programs that result in one more shape in the output.
-    |> List.filter
-        (\(listEId, newProgram) ->
-          case runAndResolveAtContext model newProgram of
-            Ok (_, _, (root, shapeTree), _) -> Dict.size oldShapeTree + numberOfNewShapesExpected == Dict.size shapeTree
-            _                               -> False
-        )
-  in
-  -- 6. Finally, use list the others do not depend on.
-  let (listEIds, _) = List.unzip listEIdWithPossiblePrograms in
-  let grossDependencies = StaticAnalysis.grossDependencies originalProgram in
-  let (_, bestProgram) =
-    listEIdWithPossiblePrograms
-    |> Utils.findFirst
-        (\(listEId, _) -> listEIds |> List.all (\otherListEId -> not <| StaticAnalysis.isDependentOn grossDependencies otherListEId listEId))
-    |> Maybe.withDefault (-1, originalProgram)
+addShape : Model -> Maybe String -> Exp -> Maybe Int -> Maybe Int -> Maybe Int -> Maybe Int -> Exp -> Exp
+addShape
+  model
+  maybeNewShapeName
+  newShapeExp
+  maybeNumberOfNewShapesExpected
+  maybeNumberOfNewShapesExpectedIfListInlined -- If provided, may attempt to inline newShapeExp if it is a list
+  maybeNumberOfNewListItemsExpected
+  maybeNumberOfNewListItemsExpectedIfListInlined -- If provided, may attempt to inline newShapeExp if it is a list
+  originalProgram =
+
+  let
+    contextExp         = FocusedEditingContext.drawingContextExp model.editingContext originalProgram
+    typeGraph          = SlowTypeInference.typecheck originalProgram
+    inferredReturnType = SlowTypeInference.maybeTypes contextExp.val.eid typeGraph
+    -- _ = inferredReturnType |> List.map (Syntax.typeUnparser Syntax.Elm) |> Debug.log "inferredReturnType"
+
+    -- 1. Find all list literals.
+    lists = flattenExpTree contextExp |> List.filter isList -- Possible optimization: exclude lists with numeric element
+
+    -- 1.5 If the return value isn't a list, make some candidates where the return value is a wrapped in a singleton.
+    maybeProgramWithListifiedReturnExpAndLists =
+      let tryToListifyReturnValue =
+        case inferredReturnType of
+          [t] -> not (Types.isListNotTuple t)  -- Ahh, this may always evaluate to True in our context...SlowTypeInference has a habit of spitting out Tuples with tails
+          _   -> False
+      in
+      if tryToListifyReturnValue then
+        let
+          terminalExpLevels = LangTools.terminalExpLevels contextExp
+          programWithListifiedReturnExp =
+            terminalExpLevels
+            |> Utils.foldr
+                originalProgram
+                (\terminalExp program ->
+                  let eidToWrap = (LangTools.lastSameLevelExp terminalExp).val.eid in
+                  program
+                  |> mapExpNode eidToWrap (\expToWrap -> eTuple [removePrecedingWhitespace expToWrap] |> copyPrecedingWhitespace expToWrap)
+                )
+            |> FastParser.freshen
+
+          lists = LangTools.justFindExpByEId programWithListifiedReturnExp contextExp.val.eid |> flattenExpTree |> List.filter isList
+        in
+        Just (programWithListifiedReturnExp, lists)
+      else
+        Nothing
+
+    -- Should we try to inline the item to add?
+    (maybeReallyNumberOfNewShapesExpected, maybeReallyNumberOfNewListItemsExpected, incomingExpShouldBeInlined) =
+      if maybeNumberOfNewShapesExpectedIfListInlined /= Nothing || maybeNumberOfNewListItemsExpectedIfListInlined /= Nothing then
+        let incomingExpFreshened = FastParser.freshen newShapeExp in
+        case (inferredReturnType, SlowTypeInference.typecheck incomingExpFreshened |> SlowTypeInference.maybeTypes incomingExpFreshened.val.eid) of
+          ([retType], [incomingType]) ->
+            -- let _ = Utils.log (Syntax.typeUnparser Syntax.Elm retType) in
+            -- let _ = Utils.log (Syntax.typeUnparser Syntax.Elm incomingType) in
+            if Types.isListOrTuple retType && Types.isListOrTuple incomingType && Types.isSubtype retType incomingType then
+              ( maybeNumberOfNewShapesExpectedIfListInlined
+              , maybeNumberOfNewListItemsExpectedIfListInlined
+              , True
+              )
+            else
+              (maybeNumberOfNewShapesExpected, maybeNumberOfNewListItemsExpected, False)
+
+          _ ->
+            (maybeNumberOfNewShapesExpected, maybeNumberOfNewListItemsExpected, False)
+      else
+        (maybeNumberOfNewShapesExpected, maybeNumberOfNewListItemsExpected, False)
+
+    (oldListItemsCount, oldShapeTree) =
+      case runAndResolveAtContext model originalProgram of
+        Ok (val, _, (root, shapeTree), _) -> (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1, shapeTree)
+        _                                 -> (0, Dict.empty)
+
+    -- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
+    --    If return val is not a list, make it a list.
+    candidatesForList originalProgram listExp =
+      let
+        (newListItemExp, programPerhapsWithNewDef) =
+          case maybeNewShapeName of
+            Just newShapeName ->
+              let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] originalProgram in
+              (eVar varName, programWithNewDef)
+            Nothing ->
+              (newShapeExp, originalProgram)
+
+        (ws1, heads, ws2, maybeTail, ws3) = LangTools.expToListParts listExp
+        newListFlat    = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [newListItemExp]))) ws2 maybeTail ws3
+        newProgramFlat = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newListFlat
+        newCandidates =
+          if incomingExpShouldBeInlined then
+            -- In case new item is actually a list of new items instead of a single, may need to change listExp to a concat.
+            let newConcat             = eCall "concat" [eTuple [removePrecedingWhitespace listExp, newListItemExp]] |> copyPrecedingWhitespace listExp in
+            let newProgramConcatAdded = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newConcat in
+            [newProgramFlat, newProgramConcatAdded]
+          else
+            let newListSingleton    = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [removePrecedingWhitespace newListItemExp]]))) ws2 maybeTail ws3 in
+            let newProgramSingleton = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newListSingleton in
+            [newProgramFlat, newProgramSingleton]
+      in
+      -- 3. Resolve value holes.
+      newCandidates
+      |> List.concatMap (CodeMotion.resolveValueHoles model.syncOptions model.maybeEnv)
+      |> List.map ((,) listExp.val.eid)
+
+    listEIdWithPossiblePrograms =
+      lists
+      |> List.concatMap (candidatesForList originalProgram)
+      |> (\candidates ->
+        case maybeProgramWithListifiedReturnExpAndLists of
+          Just (programWithListifiedReturnExp, lists) -> candidates ++ List.concatMap (candidatesForList programWithListifiedReturnExp) lists
+          Nothing                                     -> candidates
+      )
+      -- 4. Keep those programs that do not crash.
+      -- 5. Keep those programs that result in one more shape in the output.
+      |> List.filter
+          (\(listEId, newProgram) ->
+            case runAndResolveAtContext model newProgram of
+              Ok (val, _, (root, shapeTree), _) ->
+                let
+                  shapeCountOkay =
+                    case maybeReallyNumberOfNewShapesExpected of
+                      Just numberOfNewShapesExpected -> Dict.size oldShapeTree + numberOfNewShapesExpected == Dict.size shapeTree
+                      Nothing                        -> True
+
+                  listItemCountOkay =
+                    case maybeReallyNumberOfNewListItemsExpected of
+                      -- Just numberOfNewListItemsExpected -> Debug.log "expect count" (oldListItemsCount + numberOfNewListItemsExpected) == Debug.log "actual count " (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1)
+                      Just numberOfNewListItemsExpected -> oldListItemsCount + numberOfNewListItemsExpected == (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1)
+                      Nothing                           -> True
+
+                  -- _ = Utils.log (Syntax.unparser Syntax.Elm newProgram)
+                  -- _ = Debug.log "(shapeCountOkay, listItemCountOkay)" (shapeCountOkay, listItemCountOkay)
+                in
+                shapeCountOkay && listItemCountOkay
+              _ ->
+                False
+          )
+
+    -- _ = Debug.log "List.length listEIdWithPossiblePrograms" (List.length listEIdWithPossiblePrograms)
+
+    -- 6. Finally, choose best program.
+    --     1. Prefer modifying list the other lists did not depend on.
+    --     2. Prefer shorter programs.
+    (listEIds, _) = List.unzip listEIdWithPossiblePrograms
+    grossDependencies = StaticAnalysis.grossDependencies originalProgram
+    (_, bestProgram) =
+      listEIdWithPossiblePrograms
+      |> List.sortBy
+          (\(listEId, candidateProgram) ->
+            let
+              -- For Koch curve example, don't seem to need to prefer programs that don't produce a type error at the return location(s). So let's skip this check for simplicity and speed.
+              -- (Note if we did include this criteria, it's not accurate to say "we prefer programs that type check" because SlowTypeInference is too incomplete to e.g. resolve all type applications, so it would simply be preferring programs that don't produce a type error at the return site)
+              -- typeGraph = SlowTypeInference.typecheck candidateProgram
+              sortKey =
+                -- ( if SlowTypeInference.typeIsOkaySoFar contextExp.val.eid typeGraph then 0 else 1
+                ( if listEIds |> List.all (\otherListEId -> not <| StaticAnalysis.isDependentOn grossDependencies otherListEId listEId) then 0 else 1
+                , LangTools.nodeCount candidateProgram
+                )
+              -- _ = Utils.log (Syntax.unparser Syntax.Elm candidateProgram)
+              -- _ = Debug.log "sortKey" sortKey
+            in
+            sortKey
+          )
+      |> List.head
+      |> Maybe.withDefault (-1, originalProgram)
+
   in
   bestProgram
 

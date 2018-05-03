@@ -458,6 +458,10 @@ isApp e = case e.val.e__ of
   EApp _ _ _ _ _ -> True
   _              -> False
 
+isColonType e = case e.val.e__ of
+  EColonType _ _ _ _ _ -> True
+  _                    -> False
+
 isValHole e = case e.val.e__ of
   EHole _ (HoleVal _) -> True
   _                   -> False
@@ -1377,10 +1381,24 @@ valToMaybeFuncBodyExp v = case v.v_ of
   VClosure maybeRecName pats body env -> Just body
   _                                   -> Nothing
 
+vListToMaybeVals : Val -> Maybe (List Val)
+vListToMaybeVals v = case v.v_ of
+  VList vs -> Just vs
+  _        -> Nothing
+
+vListToMaybeValsExcludingPoint : Val -> Maybe (List Val)
+vListToMaybeValsExcludingPoint v =
+  if valIsPoint v
+  then Nothing
+  else vListToMaybeVals v
+
 valIsNum : Val -> Bool
 valIsNum v = case v.v_ of
   VConst _  _ -> True
   _           -> False
+
+valIsPoint : Val -> Bool
+valIsPoint = valToMaybePoint >> Utils.maybeToBool
 
 ------------------------------------------------------------------------------
 -- Location Substitutions

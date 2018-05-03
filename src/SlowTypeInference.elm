@@ -1117,7 +1117,6 @@ unifyConstraintsUntilFixpoint_ program maxIterations graph =
       |> buildConnectedComponents
       |> unifyImmediatesStep
       |> unifyAcrossNodesStep
-      -- |> unifyAppsStep
     in
     if graph == newGraph then
       graph
@@ -1136,10 +1135,10 @@ tc2ToType tc2 graph =
     TC2App idl idr (Just cached)         -> tc2ToType cached graph
     TC2App idl idr Nothing               -> Nothing
     TC2UnifyOne id ml cached             -> tc2ToType cached graph
-    TC2Num                               -> Just <| withDummyRange <| TNum space1
-    TC2Bool                              -> Just <| withDummyRange <| TBool space1
-    TC2String                            -> Just <| withDummyRange <| TString space1
-    TC2Null                              -> Just <| withDummyRange <| TNull space1
+    TC2Num                               -> Just <| Types.tNum
+    TC2Bool                              -> Just <| Types.tBool
+    TC2String                            -> Just <| Types.tString
+    TC2Null                              -> Just <| Types.tNull
     TC2Tuple n headIds mTailId           ->
       List.map recurse headIds
       |> Utils.projJusts
@@ -1148,9 +1147,15 @@ tc2ToType tc2 graph =
             case Maybe.map recurse mTailId of
               (Just Nothing) -> Nothing
               mmTailType     ->
-                case (heads, mmTailType |> Maybe.withDefault Nothing) of
-                  ([], Just tail) -> Just <| withDummyRange <| TList space1 tail space0
-                  (_,  maybeTail) -> Just <| withDummyRange <| TTuple space1 heads space1 maybeTail space0
+                let maybeTail    = mmTailType |> Maybe.withDefault Nothing in
+                let nonTailHeads = heads |> List.map Just |> List.filter ((/=) maybeTail) in
+                case (nonTailHeads, Utils.dedup heads, maybeTail) of
+                  ([], _, Just tail)   -> Just <| withDummyRange <| TList space1 tail space0
+                  (_, [head], Nothing) ->
+                    if List.length heads == 2 && head == Types.tNum
+                    then Just <| withDummyRange <| TTuple space1 heads space1 Nothing space0 -- Exception for points
+                    else Just <| withDummyRange <| TList space1 head space0
+                  (_, _, maybeTail)    -> Just <| withDummyRange <| TTuple space1 heads space1 maybeTail space0
           )
     TC2PatTuple headIds mTailId          ->
       List.map recurse headIds
@@ -1160,7 +1165,9 @@ tc2ToType tc2 graph =
             case Maybe.map recurse mTailId of
               (Just Nothing) -> Nothing
               mmTailType     ->
-                case (heads, mmTailType |> Maybe.withDefault Nothing) of
+                let maybeTail    = mmTailType |> Maybe.withDefault Nothing in
+                let nonTailHeads = heads |> List.map Just |> List.filter ((/=) maybeTail) in
+                case (nonTailHeads, maybeTail) of
                   ([], Just tail) -> Just <| withDummyRange <| TList space1 tail space0
                   (_,  maybeTail) -> Just <| withDummyRange <| TTuple space1 heads space1 maybeTail space0
           )
@@ -1195,6 +1202,17 @@ maybeTypes id graph =
 
 maybeType : TC2Id -> TC2Graph -> Maybe Type
 maybeType id graph = tc2IdToType id graph
+
+
+-- Optimistic even if typechecking didn't complete (e.g. not all type applications could be resolved).
+typeIsOkaySoFar : TC2Id -> TC2Graph -> Bool
+typeIsOkaySoFar id graph =
+  case constraintsOnSubgraph id graph of
+    []          -> True
+    constraints ->
+      not (List.any tc2IsEmpty constraints) &&
+      1 == List.length (List.filterMap (\tc2 -> tc2ToType tc2 graph) constraints)
+
 
 ---------------------------------------------------------------------------
 
@@ -1389,8 +1407,13 @@ maxIterations = 100
 typecheck : Exp -> TC2Graph
 typecheck program =
   let (programUniqueNames, _) = LangTools.assignUniqueNames program in
+  -- let _ = Utils.log <| Syntax.unparser Syntax.Elm programUniqueNames in
   programUniqueNames
   |> gatherConstraints
+  -- Can't typecheck prelude, but we at least want the type for concat.
+  -- Actually, the type inference is still too primitive to type the recursive kochCurve, but
+  -- having this eliminates one failure point if we ever tackle that.
+  |> (++) [EIdVar 1 "concat", EIdIsType 1 (TCForall ["a"] <| TCArrow [TCList (TCList (TCVar "a")), TCList (TCVar "a")])]
   |> expandTypeAliases
   |> constraintsToTypeConstraints2 program
   |> unifyConstraintsUntilFixpoint program maxIterations
@@ -1411,7 +1434,7 @@ graphVizString program graph =
         TC2Bool                     -> "Bool"
         TC2String                   -> "String"
         TC2Null                     -> "Null"
-        TC2Tuple n heads maybeTail  -> "(\\<=" ++ toString n ++ ")[" ++ String.join "," (List.map (always "_") heads) ++ Maybe.withDefault "" (Maybe.map (always "\\|_") maybeTail) ++ "]"
+        TC2Tuple n heads maybeTail  -> "(\\largest seen: size " ++ toString n ++ ")[" ++ String.join "," (List.map (always "_") heads) ++ Maybe.withDefault "" (Maybe.map (always "\\|_") maybeTail) ++ "]"
         TC2PatTuple heads maybeTail -> "Pat[" ++ String.join "," (List.map (always "_") heads) ++ Maybe.withDefault "" (Maybe.map (always "\\|_") maybeTail) ++ "]"
         TC2Arrow _ _                -> "Arrow"
         TC2Union _                  -> "Union"
@@ -1619,8 +1642,9 @@ gatherConstraints exp =
       in
       aliasConstraints ++
       eidIs (expToTC e)
-    EParens _ e _ _ -> eidIs (expToTC e)
-    EHole _ _       -> []
+    EParens _ e _ _       -> eidIs (expToTC e)
+    EHole _ (HoleVal val) -> val |> Types.valToMaybeType |> Maybe.map (typeToTC >> eidIs) |> Maybe.withDefault []
+    EHole _ _             -> []
 
 
 gatherPatsConstraints : Bool -> List Pat -> List Constraint

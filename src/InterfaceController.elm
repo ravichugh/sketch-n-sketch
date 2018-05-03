@@ -21,6 +21,7 @@ port module InterfaceController exposing
   , msgSelectList, msgDeselectList
   , msgActivateRenameInOutput, msgUpdateRenameInOutputTextBox, msgDoRename
   , msgAddArg, msgRemoveArg
+  , msgAddToOutput
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
@@ -1742,6 +1743,39 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
   in
   { old | synthesisResultsDict = Dict.insert "Build Abstraction" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
+
+msgAddToOutput = Msg "Add to Output" addToOutput
+
+
+addToOutput : Model -> Model
+addToOutput old =
+  let
+    valsToAdd =
+      ShapeWidgets.selectedFeaturesValTreesWithPoints old.slate old.widgets (Set.toList old.selectedFeatures) ++
+      ShapeWidgets.selectedShapesValTrees old.slate old.widgets (Set.toList old.selectedShapes)
+
+    newCode =
+      valsToAdd
+      |> Utils.foldl
+          old.inputExp
+          (\val program ->
+            let maybeNumberOfNewListItemsExpectedIfListInlined =
+              vListToMaybeValsExcludingPoint val
+              |> Maybe.map List.length
+              -- |> Debug.log "maybeNumberOfNewListItemsExpectedIfListInlined"
+            in
+            Draw.addShape old Nothing (eHoleVal val) Nothing Nothing (Just 1) maybeNumberOfNewListItemsExpectedIfListInlined program |> freshen
+          )
+      |> Syntax.unparser old.syntax
+  in
+  if old.code /= newCode then
+    { old | code = newCode }
+    |> clearSelections
+    |> upstateRun
+  else
+    old
+
+
 deleteInOutput old =
   let
     proximalInterpretations =
@@ -1939,7 +1973,7 @@ doDuplicate old =
           (\expToDuplicate ->
             let name = LangTools.expNameForExp old.inputExp expToDuplicate |> LangTools.removeTrailingDigits in
             -- Attempt 1: Try to add to output as a shape.
-            let newProgram = Draw.addShape old name expToDuplicate (Set.size old.selectedShapes + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) in
+            let newProgram = Draw.addShape old (Just name) expToDuplicate (Just <| Set.size old.selectedShapes + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) Nothing Nothing Nothing old.inputExp in
             if not <| LangUnparser.expsEquivalent newProgram old.inputExp then
               newProgram
             else

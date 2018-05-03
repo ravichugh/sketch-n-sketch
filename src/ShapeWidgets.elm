@@ -296,15 +296,35 @@ featureToEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict.Dict Loc
 featureToEquation selectableFeature tree widgets locIdToNumberAndLoc =
   featureToEquation_ shapeFeatureEquation widgetFeatureEquation (\n -> (n, dummyTrace)) selectableFeature tree widgets locIdToNumberAndLoc
 
+
 featureToValEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureValEquation
 featureToValEquation selectableFeature tree widgets locIdToNumberAndLoc =
   let vConst n = { v_ = VConst Nothing (n, dummyTrace), provenance = dummyProvenance, parents = Parents [] } in
   featureToEquation_ shapeFeatureValEquation widgetFeatureValEquation vConst selectableFeature tree widgets locIdToNumberAndLoc
 
-selectedShapeToValEquation : NodeId -> IndexedTree -> Maybe FeatureValEquation
-selectedShapeToValEquation nodeId shapeTree =
-  Dict.get nodeId shapeTree
-  |> Maybe.map (\shape -> EqnNum shape.val)
+
+shapeIdToMaybeVal : NodeId -> IndexedTree -> Widgets -> Maybe Val
+shapeIdToMaybeVal nodeId shapeTree widgets =
+  if -2 - nodeId > 0 then
+    let widgetId = -2 - nodeId in
+    case Utils.maybeGeti1 widgetId widgets of
+      Just (WNumSlider _ _ _ _ val _ _)        -> Just val
+      Just (WIntSlider _ _ _ _ val _ _)        -> Just val
+      Just (WPoint _ _ _ _ pairVal)            -> Just pairVal
+      Just (WOffset1D _ _ _ _ _ amountVal _ _) -> Just amountVal
+      Just (WCall _ _ _ retVal _)              -> Just retVal
+      Just (WList val)                         -> Just val
+      Nothing                                  -> Nothing
+  else
+    Dict.get nodeId shapeTree
+    |> Maybe.map .val
+
+
+selectedShapeToValEquation : NodeId -> IndexedTree -> Widgets -> Maybe FeatureValEquation
+selectedShapeToValEquation nodeId shapeTree widgets =
+  shapeIdToMaybeVal nodeId shapeTree widgets
+  |> Maybe.map EqnNum
+
 
 -- The first three args are sort of a type class...but only used here so no need to pull it out into a record.
 featureToEquation_
@@ -1093,8 +1113,8 @@ selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatur
     selectedFeaturesToProximalDistalEIdInterpretations program slate widgets (Set.toList selectedFeatures) expFilter
   in
   let (otherProximalEIds, otherDistalEIds) =
-    [ selectedShapesToProximalDistalEIdInterpretations program slate (Set.toList selectedShapes) expFilter
-    , selectedBlobsToProximalDistalEIdInterpretations  program slate (Dict.toList selectedBlobs) expFilter
+    [ selectedShapesToProximalDistalEIdInterpretations program slate widgets (Set.toList selectedShapes) expFilter
+    , selectedBlobsToProximalDistalEIdInterpretations  program slate         (Dict.toList selectedBlobs) expFilter
     ]
     |> List.unzip
     |> Utils.mapBoth Utils.unionAll
@@ -1123,7 +1143,7 @@ selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatur
 selectionsEIdsTouched : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List EId
 selectionsEIdsTouched program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
   [ selectedFeaturesValTrees slate widgets (Set.toList selectedFeatures)
-  , selectedShapesValTrees   slate         (Set.toList selectedShapes)
+  , selectedShapesValTrees   slate widgets (Set.toList selectedShapes)
   , selectedBlobsValTrees    slate         (Dict.toList selectedBlobs)
   ]
   |> List.concat
@@ -1142,7 +1162,7 @@ selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets
 
     valTrees =
       [ selectedFeaturesValTrees slate widgets (Set.toList selectedFeatures)
-      , selectedShapesValTrees   slate         (Set.toList selectedShapes)
+      , selectedShapesValTrees   slate widgets (Set.toList selectedShapes)
       , selectedBlobsValTrees    slate         (Dict.toList selectedBlobs)
       ] |> List.concat
 
@@ -1334,13 +1354,13 @@ selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) w
           eidSets :: recurse rest
 
 
-selectedShapesToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> List NodeId -> (Exp -> Bool) -> (Set EId, Set EId)
-selectedShapesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) selectedShapes expFilter =
+selectedShapesToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List NodeId -> (Exp -> Bool) -> (Set EId, Set EId)
+selectedShapesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedShapes expFilter =
   let (proximalEIdSets, distalEIdSets) =
     selectedShapes
     |> List.map
         (\nodeId ->
-          selectedShapeToValEquation nodeId shapeTree
+          selectedShapeToValEquation nodeId shapeTree widgets
           |> Utils.fromJust_ "selectedShapesToProximalDistalEIdInterpretations: can't make shape into val equation"
           |> featureValEquationToProximalDistalEIdSets expFilter
         )
@@ -1351,14 +1371,13 @@ selectedShapesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as 
   )
 
 
-selectedShapesValTrees : RootedIndexedTree -> List NodeId -> List Val
-selectedShapesValTrees ((rootI, shapeTree) as slate) selectedShapes =
+selectedShapesValTrees : RootedIndexedTree -> Widgets -> List NodeId -> List Val
+selectedShapesValTrees ((rootI, shapeTree) as slate) widgets selectedShapes =
   selectedShapes
   |> List.map
       (\nodeId ->
-        selectedShapeToValEquation nodeId shapeTree
-        |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
-        |> featureValEquationToValTree
+        shapeIdToMaybeVal nodeId shapeTree widgets
+        |> Utils.fromJust_ "selectedShapesValTrees: can't make shape into val equation"
       )
 
 
