@@ -1372,6 +1372,11 @@ valToMaybeXYVals v = case v.v_ of
     _                        -> Nothing
   _  -> Nothing
 
+valToMaybeFuncBodyExp : Val -> Maybe Exp
+valToMaybeFuncBodyExp v = case v.v_ of
+  VClosure maybeRecName pats body env -> Just body
+  _                                   -> Nothing
+
 valIsNum : Val -> Bool
 valIsNum v = case v.v_ of
   VConst _  _ -> True

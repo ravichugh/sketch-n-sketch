@@ -499,16 +499,16 @@ buildSvgWidgets wCanvas hCanvas widgets model =
   in
   let drawCallWidget i_ callEId funcVal argVals retVal retWs model =
     let program = model.inputExp in
-    let (maybeFuncBody, maybeFuncPat, maybeArgPats, maybeFuncExp) =
+    let (maybeRecName, maybeFuncBody, maybeFuncPat, maybeArgPats, maybeFuncExp) =
       case funcVal.v_ of
         VClosure maybeRecName argPats funcBody env ->
           case parentByEId program funcBody.val.eid of
             Just (Just funcExp) ->
               case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
-                Just (_, funcPat) -> (Just funcBody, Just funcPat, Just argPats, Just funcExp)
-                _                 -> (Just funcBody, Nothing,      Just argPats, Just funcExp)
-            _ -> (Just funcBody, Nothing, Just argPats, Nothing)
-        _ -> (Nothing, Nothing, Nothing, Nothing)
+                Just (_, funcPat) -> (maybeRecName, Just funcBody, Just funcPat, Just argPats, Just funcExp)
+                _                 -> (maybeRecName, Just funcBody, Nothing,      Just argPats, Just funcExp)
+            _ -> (maybeRecName, Just funcBody, Nothing, Just argPats, Nothing)
+        _ -> (Nothing, Nothing, Nothing, Nothing, Nothing)
     in
     let isCurrentContext =
       case model.editingContext of
@@ -573,7 +573,53 @@ buildSvgWidgets wCanvas hCanvas widgets model =
               , attr "height" (toString (bot - boxTop))
               ] ++ perhapsSetContextEvent
           in
+          let maybeRecOrBaseCaseLabel =
+            let isRecursiveFunction =
+              Maybe.map2
+                  (\recName funcExp -> Set.member recName (LangTools.freeIdentifiers funcExp))
+                  maybeRecName
+                  maybeFuncExp
+              |> Maybe.withDefault False
+            in
+            let isRecursiveCallWidget widget =
+              maybeFuncBody /= Nothing &&
+              case widget of
+                WCall _ funcVal _ _ _ ->
+                  Maybe.map (.val >> .eid) (valToMaybeFuncBodyExp funcVal) == Maybe.map (.val >> .eid) maybeFuncBody
+
+                _ ->
+                  False
+            in
+            let isRecursiveCase =
+              isRecursiveFunction && isCurrentContext && List.any isRecursiveCallWidget retWs
+            in
+            let isBaseCase =
+              isRecursiveFunction && isCurrentContext && not (List.any isRecursiveCallWidget retWs)
+            in
+            let maybeLabel =
+              if isRecursiveCase then
+                Just "Recursive Case"
+              else if isBaseCase then
+                Just "Base Case"
+              else
+                Nothing
+            in
+            maybeLabel
+            |> Maybe.map
+                (\label ->
+                  flip Svg.text_ [VirtualDom.text label] <|
+                    [ attr "fill" "black"
+                    , attr "font-family" params.mainSection.uiWidgets.font
+                    , attr "font-size" params.mainSection.uiWidgets.fontSize
+                    , attr "x" (toString right)
+                    , attr "y" (toString (boxTop - 10))
+                    , attr "text-anchor" "end"
+                    , attr "opacity" "0.5"
+                    ]
+                )
+          in
           [ Just box
+          , maybeRecOrBaseCaseLabel
           , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat left (boxTop - 20))
           , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop)
           , maybeAddArg
@@ -583,7 +629,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     let program = model.inputExp in
     let idAsShape = -2 - i_ in
     let isSelected = Set.member idAsShape model.selectedShapes in
-    if not <| List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
+    if not <| isSelected || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
       []
     else
       let maybeBounds =
@@ -604,7 +650,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
               , attr "cursor" "pointer"
               , attr "stroke" (if isSelected then colorPointSelected else "black")
               , attr "stroke-width" "7px"
-              , attr "stroke-dasharray" "5,1"
+              , attr "stroke-dasharray" "10,1"
               , attr "opacity" (if isSelected then "1.0" else "0.15")
               , attr "rx" "25"
               , attr "ry" "25"
@@ -616,7 +662,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
               ]
           in
           [ box
-          , expInOutput (valExp listVal) left (top - 5)
+          , expInOutput (valExp listVal) left (top - 10)
           ]
   in
 
