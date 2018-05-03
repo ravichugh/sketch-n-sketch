@@ -627,7 +627,7 @@ multiLineInterpolatedString sp =
         |. symbol "\"\"\""
       )
 
-multilineParseUntilRegex = Regex.regex <| "@|\"\"\""
+multilineParseUntilRegex = Regex.regex <| "@|\"\"\"(?!\")"
 
 multilineContentParser : Parser Exp
 multilineContentParser =
