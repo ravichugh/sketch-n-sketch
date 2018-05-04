@@ -70,7 +70,7 @@ solveOne solutionsCache eqn targetVarId =
         case solution of
           []             -> Nothing
           [(mathExp, _)] -> Just mathExp
-          _              -> Debug.crash "Solver.solveOne why does a solution for one variable list multiple variables??" <| toString solution
+          _              -> Debug.crash <| "Solver.solveOne why does a solution for one variable list multiple variables?? " ++ toString solution
       )
 
 

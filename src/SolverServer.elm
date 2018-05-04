@@ -153,9 +153,9 @@ binaryOperatorList : List (String, Associativity, Precedence, Op_)
 binaryOperatorList =
   [ ("+",   Left,  2, Plus)
   , ("-",   Left,  2, Minus)
+  , ("**",  Left,  4, Pow) -- Left associative in REDUCE. Needs to appear before "*" in this list.
   , ("*",   Left,  3, Mult)
   , ("/",   Left,  3, Div)
-  , ("**",  Left,  4, Pow) -- Left associative in REDUCE.
   , ("mod", Left,  1, Mod)
   ]
 
@@ -172,13 +172,17 @@ precedenceTable =
 (.|) = delayedCommit
 
 
--- {{x1=123,x2=123},{x1=456,x2=456}} or {x1=123}
+-- {{x1=123,x2=123},{x1=456,x2=456}} or {x1=123} or {x1=123,x1=-123} (which really should be {{x1=123},{x1=-123}} but hey this is the 1960s)
 --
 -- REDUCE will sometimes send solutions we cannot deal with (imaginary numbers), so need to be
 -- able to skip those solutions without destroying the whole parse.
 parseReduceResponse : String -> List (Result Parser.Error Solution)
 parseReduceResponse responseStr  =
-  let solutionStrs = String.split "}," responseStr in
+  let solutionStrs =
+    if String.startsWith "{{" responseStr
+    then String.split "}," responseStr
+    else String.split "," responseStr
+  in
   solutionStrs
   |> List.map (Utils.stringReplace "{" "")
   |> List.map (Utils.stringReplace "}" "")
