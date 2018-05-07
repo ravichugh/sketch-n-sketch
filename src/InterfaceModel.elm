@@ -400,11 +400,18 @@ resultDescription (SynthesisResult {description}) =
 resultExp (SynthesisResult {exp}) =
   exp
 
-setResultDescription description (SynthesisResult result) =
-  SynthesisResult { result | description = description }
+mapResultDescription : (String -> String) -> SynthesisResult -> SynthesisResult
+mapResultDescription f (SynthesisResult result) =
+  SynthesisResult { result | description = f result.description }
+
+setResultDescription description synthesisResult =
+  mapResultDescription (always description) synthesisResult
 
 setResultSortKey sortKey (SynthesisResult result) =
   SynthesisResult { result | sortKey = sortKey }
+
+setResultExp exp (SynthesisResult result) =
+  SynthesisResult { result | exp = exp }
 
 
 type Msg
@@ -1056,6 +1063,7 @@ autoOutputToolsPopupPanelShown model =
     [ not <| Set.isEmpty model.selectedFeatures
     , not <| Set.isEmpty model.selectedShapes
     , not <| Dict.isEmpty model.selectedBlobs
+    , Dict.member "Termination Condition Options" model.synthesisResultsDict
     ]
 
 --------------------------------------------------------------------------------

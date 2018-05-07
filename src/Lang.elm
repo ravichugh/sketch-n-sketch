@@ -1757,6 +1757,8 @@ eTrue  = eBool True
 eFalse = eBool False
 eNull  = withDummyExpInfo <| EBase space1 <| ENull
 
+eParens e = withDummyExpInfo <| EParens space1 e Parens space0
+
 eApp e es      = withDummyExpInfo <| EApp space1 e es SpaceApp space0
 eCall fName es = eApp (eVar0 fName) es
 eFun ps e      = withDummyExpInfo <| EFun space1 ps e space0

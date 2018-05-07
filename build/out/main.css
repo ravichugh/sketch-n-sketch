@@ -632,6 +632,10 @@ code {
   position: relative;
 }
 
+.text-hover-highlight:hover {
+  fill: #38F552; /* Draw.colorPointSelected */
+}
+
 #svgWidgetsLayer {
   /* left : DYNAMIC */
   /* top : DYNAMIC */

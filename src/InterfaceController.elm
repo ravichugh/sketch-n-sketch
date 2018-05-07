@@ -21,6 +21,7 @@ port module InterfaceController exposing
   , msgSelectList, msgDeselectList
   , msgActivateRenameInOutput, msgUpdateRenameInOutputTextBox, msgDoRename
   , msgAddArg, msgRemoveArg
+  , msgShowTerminationConditionOptions
   , msgAddToOutput
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
@@ -1743,6 +1744,50 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
   in
   { old | synthesisResultsDict = Dict.insert "Build Abstraction" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
+
+msgShowTerminationConditionOptions funcEId scrutineeEId = Msg "Show Termination Condition Options" <| \old ->
+  let
+    resultsKey = "Termination Condition Options"
+    synthesisResults =
+      let
+        funcToIsSafePatToInsertArgValExpAndNewFuncBody func fBody =
+          Just <|
+            ( True
+            , pVar "* NEW ARG *"
+            , eHoleNamed "* NEW ARG *" -- Use hole instead of var to not confuse the safety check in addArg_
+            , fBody
+            )
+      in
+      CodeMotion.addArg_ old.syntax ((funcEId, 1), [1]) funcToIsSafePatToInsertArgValExpAndNewFuncBody old.inputExp
+      |> List.map
+          (\result ->
+            let
+              program    = resultExp result
+              funcExp    = LangTools.justFindExpByEId program funcEId
+              argName    = LangTools.nonCollidingName "depth" 1 (LangTools.identifiersSet funcExp)
+              newFuncExp =
+                funcExp
+                |> mapExp (\e -> if LangTools.expToMaybeHoleName e == Just "* NEW ARG *" then eParens (eOp Minus [eVar0 argName, eConstDummyLoc 1]) else e) -- * NEW ARG * -> (depth - 1)
+                |> LangTools.renameIdentifier "* NEW ARG *" argName -- Rename the arg in the pattern.
+                |> replaceExpNodePreservingPrecedingWhitespace scrutineeEId (eCall "le" [eVar argName, eConstDummyLoc 1])
+
+              newProgram =
+                program
+                |> replaceExpNode funcEId newFuncExp
+                |> mapExp
+                    (\exp ->
+                      if LangTools.expToMaybeHoleName exp == Just "* NEW ARG *"
+                      then replaceE__PreservingPrecedingWhitespace exp <| EConst space1 2 dummyLoc (rangeSlider IntSlider 1 5)
+                      else exp
+                    )
+            in
+            result
+            |> setResultExp newProgram
+            |> setResultDescription "Fixed depth"
+          )
+
+  in
+  { old | synthesisResultsDict = Dict.insert resultsKey (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
 msgAddToOutput = Msg "Add to Output" addToOutput
 

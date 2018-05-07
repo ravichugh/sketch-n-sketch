@@ -20,6 +20,7 @@ type alias Selections a =
   { a | selectedFeatures : Set SelectableFeature
       , selectedShapes : Set NodeId
       , selectedBlobs : Dict Int NodeId
+      , synthesisResultsDict : Dict String (List SynthesisResult)
   }
 
 type OutputToolKind
@@ -105,6 +106,17 @@ atLeastOneShapeNoFeatures { selectedFeatures, selectedShapes, selectedBlobs } =
           Possible
     }
 
+resultsCached : Selections a -> String -> Predicate
+resultsCached { synthesisResultsDict } resultsKey =
+  { description =
+      "You shouldn't see this description. (" ++ resultsKey ++ ")"
+  , value =
+      if Dict.member resultsKey synthesisResultsDict then
+        Satisfied
+      else
+        Impossible
+  }
+
 --==============================================================================
 --= Tools
 --==============================================================================
@@ -171,6 +183,28 @@ addToOutputTool selections =
       ]
   , id =
       "addToOutput"
+  }
+
+--------------------------------------------------------------------------------
+-- Choose Termination Condition
+--------------------------------------------------------------------------------
+
+chooseTerminationConditionTool : Selections a -> OutputTool
+chooseTerminationConditionTool selections =
+  let name = "Termination Condition Options" in
+  { name =
+      name
+  , shortcut =
+      Nothing
+  , kind =
+      Multi
+  , func =
+      Just Controller.msgNoop
+  , reqs =
+      [ resultsCached selections name
+      ]
+  , id =
+      "terminationConditionOptions"
   }
 
 --------------------------------------------------------------------------------
@@ -434,6 +468,7 @@ tools selections =
   List.map (List.map <| \tool -> tool selections) <|
     [ [ hideWidgetTool
       , addToOutputTool
+      , chooseTerminationConditionTool
       ]
     , [ digHoleTool
       , makeEqualTool

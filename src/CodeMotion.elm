@@ -7,7 +7,7 @@ module CodeMotion exposing
   , duplicateDefinitionsPat, duplicateDefinitionsBeforeEId
   , inlineDefinitions
   , abstractPVar, abstractExp, shouldBeParameterIsConstant, shouldBeParameterIsNamedUnfrozenConstant
-  , removeArg, removeArgs, addArg, addArgFromPat, addArgs, addArgsFromPats, reorderFunctionArgs
+  , removeArg, removeArgs, addArg, addArgFromPat, addArgs, addArgsFromPats, addArg_, reorderFunctionArgs
   , pluckByPId
   , reorderExpressionsTransformation
   , introduceVarTransformation
@@ -1875,7 +1875,7 @@ abstractExp syntax eidToAbstract originalProgram =
 
 ------------------------------------------------------------------------------
 
--- TODO: relax addArg/removeArg/reorderArgs to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
+-- Might want to relax addArg/removeArg/reorderArgs to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
 
 addArg_ : Syntax -> PathedPatternId -> (Exp -> Exp -> Maybe (Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
 addArg_ syntax pathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =

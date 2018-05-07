@@ -1479,6 +1479,13 @@ expToMaybeHoleVal exp =
     _                     -> Nothing
 
 
+expToMaybeHoleName : Exp -> Maybe Ident
+expToMaybeHoleName exp =
+  case exp.val.e__ of
+    EHole _ (HoleNamed name) -> Just name
+    _                        -> Nothing
+
+
 -- This is a rather generous definition of literal.
 isLiteral : Exp -> Bool
 isLiteral exp =

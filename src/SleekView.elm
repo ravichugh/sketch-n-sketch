@@ -342,14 +342,14 @@ synthesisHoverMenu model resultsKey title onMouseEnter disabled =
     disabled
     [ synthesisResultsSelect model resultsKey ]
 
-relateHoverMenu : Model -> String -> String -> Msg -> Html Msg
-relateHoverMenu model resultsKey title onMouseEnter =
-  synthesisHoverMenu
-    model
-    resultsKey
-    title
-    onMouseEnter
-    (relateDisabled model)
+-- relateHoverMenu : Model -> String -> String -> Msg -> Html Msg
+-- relateHoverMenu model resultsKey title onMouseEnter =
+--   synthesisHoverMenu
+--     model
+--     resultsKey
+--     title
+--     onMouseEnter
+--     (relateDisabled model)
 
 -- groupHoverMenu : Model -> String -> Msg -> Bool -> Html Msg
 -- groupHoverMenu model title onMouseEnter disallowSelectedFeatures =

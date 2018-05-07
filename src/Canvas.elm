@@ -366,13 +366,17 @@ patsInOutput modelRenamingInOutput showRemover pats left top =
 
 expInOutput : Exp -> Float -> Float -> Svg Msg
 expInOutput exp left top =
-  flip Svg.text_ [VirtualDom.text (Syntax.unparser Syntax.Elm exp |> Utils.squish)] <|
+  expInOutput_ "" exp left top []
+
+expInOutput_ : String -> Exp -> Float -> Float -> List (VirtualDom.Property Msg) -> Svg Msg
+expInOutput_ prefix exp xStr yStr extraAttrs =
+  flip Svg.text_ [VirtualDom.text <| prefix ++ (Syntax.unparser Syntax.Elm exp |> Utils.squish)] <|
     [ attr "fill" "black"
     , attr "font-family" params.mainSection.uiWidgets.font
     , attr "font-size" params.mainSection.uiWidgets.fontSize
-    , attr "x" (toString left)
-    , attr "y" (toString top)
-    ]
+    , attr "x" (toString xStr)
+    , attr "y" (toString yStr)
+    ] ++ extraAttrs
 
 buildSvgWidgets : Int -> Int -> Widgets -> Model -> List (Svg Msg)
 buildSvgWidgets wCanvas hCanvas widgets model =
@@ -573,29 +577,29 @@ buildSvgWidgets wCanvas hCanvas widgets model =
               , attr "height" (toString (bot - boxTop))
               ] ++ perhapsSetContextEvent
           in
-          let maybeRecOrBaseCaseLabel =
-            let isRecursiveFunction =
-              Maybe.map2
-                  (\recName funcExp -> Set.member recName (LangTools.freeIdentifiers funcExp))
-                  maybeRecName
-                  maybeFuncExp
-              |> Maybe.withDefault False
-            in
-            let isRecursiveCallWidget widget =
-              maybeFuncBody /= Nothing &&
-              case widget of
-                WCall _ funcVal _ _ _ ->
-                  Maybe.map (.val >> .eid) (valToMaybeFuncBodyExp funcVal) == Maybe.map (.val >> .eid) maybeFuncBody
+          let isRecursiveFunction =
+            Maybe.map2
+                (\recName funcExp -> Set.member recName (LangTools.freeIdentifiers funcExp))
+                maybeRecName
+                maybeFuncExp
+            |> Maybe.withDefault False
+          in
+          let isRecursiveCallWidget widget =
+            maybeFuncBody /= Nothing &&
+            case widget of
+              WCall _ funcVal _ _ _ ->
+                Maybe.map (.val >> .eid) (valToMaybeFuncBodyExp funcVal) == Maybe.map (.val >> .eid) maybeFuncBody
 
-                _ ->
-                  False
-            in
-            let isRecursiveCase =
-              isRecursiveFunction && isCurrentContext && List.any isRecursiveCallWidget retWs
-            in
-            let isBaseCase =
-              isRecursiveFunction && isCurrentContext && not (List.any isRecursiveCallWidget retWs)
-            in
+              _ ->
+                False
+          in
+          let isRecursiveCase =
+            isRecursiveFunction && isCurrentContext && List.any isRecursiveCallWidget retWs
+          in
+          let isBaseCase =
+            isRecursiveFunction && isCurrentContext && not (List.any isRecursiveCallWidget retWs)
+          in
+          let maybeRecOrBaseCaseLabel =
             let maybeLabel =
               if isRecursiveCase then
                 Just "Recursive Case"
@@ -612,14 +616,43 @@ buildSvgWidgets wCanvas hCanvas widgets model =
                     , attr "font-family" params.mainSection.uiWidgets.font
                     , attr "font-size" params.mainSection.uiWidgets.fontSize
                     , attr "x" (toString right)
-                    , attr "y" (toString (boxTop - 10))
+                    , attr "y" (toString (boxTop - 30))
                     , attr "text-anchor" "end"
                     , attr "opacity" "0.5"
                     ]
                 )
           in
+          let maybeTerminationCondition =
+            case (isRecursiveFunction, maybeRecName, maybeFuncBody |> Maybe.map (expEffectiveExp >> .val >> .e__)) of
+              (True, Just recName, Just (EIf _ scrutinee _ branch1 _ branch2 _)) ->
+                let
+                  branch1IsBaseCase = not <| Set.member recName (LangTools.freeIdentifiers branch1)
+                  branch2IsBaseCase = not <| Set.member recName (LangTools.freeIdentifiers branch2)
+                  prefix =
+                    case (isRecursiveCase, branch1IsBaseCase, branch2IsBaseCase) of
+                      (True,  True,  True)  -> "😕(True,  True,  True) " -- wat
+                      (True,  True,  False) -> "not <| "
+                      (True,  False, True)  -> ""
+                      (True,  False, False) -> ""
+                      (False, True,  True)  -> ""
+                      (False, True,  False) -> ""
+                      (False, False, True)  -> "not <| "
+                      (False, False, False) -> "😕(False, False, False) " -- wat
+                in
+                Just <|
+                  expInOutput_ prefix scrutinee right (boxTop - 10)
+                      [ attr "text-anchor" "end"
+                      , attr "cursor" "pointer"
+                      , attr "class" "text-hover-highlight" -- see master.css
+                      , onMouseDownAndStop (Controller.msgShowTerminationConditionOptions (maybeFuncExp |> Maybe.map (.val >> .eid) |> Maybe.withDefault -19283641) scrutinee.val.eid)
+                      ]
+
+              _ ->
+                Nothing
+          in
           [ Just box
           , maybeRecOrBaseCaseLabel
+          , maybeTerminationCondition
           , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat left (boxTop - 20))
           , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop)
           , maybeAddArg
