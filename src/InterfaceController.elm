@@ -740,6 +740,7 @@ tryRun old =
                       , runAnimation         = newMovieDuration > 0
                       , slate                = newSlate
                       , widgets              = ws
+                      , widgetBounds         = ShapeWidgets.computeAndRejiggerWidgetBounds ws
                       , typeGraph            = SlowTypeInference.typecheck e
                       , editingContext       = editingContext
                       , history              = modelCommit newCode [] old.history
@@ -2218,7 +2219,7 @@ showCodePreview old code =
 showExpPreview old exp =
   let code = Syntax.unparser old.syntax exp in
   case runAndResolve old exp of
-    Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, slate)) }
+    Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, ShapeWidgets.computeAndRejiggerWidgetBounds widgets, slate)) }
     Err s                       -> { old | preview = Just (code, Err s) }
 
 msgHoverSynthesisResult resultsKey pathByIndices = Msg "Hover SynthesisResult" <| \old ->
@@ -2972,12 +2973,12 @@ msgHoverDeuceResult isRenamer (SynthesisResult result) path =
             -- CSS classes from SleekView leak out here. Oh, well.
             case (result.isSafe, runAndResolve m result.exp) of
               (True, Ok (val, widgets, slate, code)) ->
-                (Just (code, Ok (val, widgets, slate)), "expected-safe")
+                (Just (code, Ok (val, widgets, ShapeWidgets.computeAndRejiggerWidgetBounds widgets, slate)), "expected-safe")
               (True, Err err) ->
                 let _ = Debug.log "not safe after all!" err in
                 (Just (Syntax.unparser m.syntax result.exp, Err err), "unexpected-unsafe")
               (False, Ok (val, widgets, slate, code)) ->
-                (Just (code, Ok (val, widgets, slate)), "unexpected-safe")
+                (Just (code, Ok (val, widgets, ShapeWidgets.computeAndRejiggerWidgetBounds widgets, slate)), "unexpected-safe")
               (False, Err err) ->
                 (Just (Syntax.unparser m.syntax result.exp, Err err), "expected-unsafe")
 

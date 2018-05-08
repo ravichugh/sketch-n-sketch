@@ -105,18 +105,18 @@ build dim model =
     (Live, Nothing) -> model.tool == Cursor
     _               -> False
   in
-  let (widgets, slate) =
+  let (widgets, widgetBounds, slate) =
     case model.preview of
-      Just (_, Ok (val, widgets, slate)) -> (widgets, slate)
-      _                                  -> (model.widgets, model.slate)
+      Just (_, Ok (val, widgets, widgetBounds, slate)) -> (widgets, widgetBounds, slate)
+      _                                                -> (model.widgets, model.widgetBounds, model.slate)
   in
   let outputIsSvg = LangSvg.rootIsShapeOrText slate in
   let outputElement = buildHtml (model, addZones) outputIsSvg slate in
   let newShape = drawNewShape model in
   let widgetsAndDistances =
     case (model.outputMode, model.showGhosts, model.preview) of
-      (Live, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets model -- Draw distances below other widgets
-      (Live, True, Just _)  -> buildSvgWidgets dim.width dim.height widgets model -- Don't show distances in preview
+      (Live, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets widgetBounds model -- Draw distances below other widgets
+      (Live, True, Just _)  -> buildSvgWidgets dim.width dim.height widgets widgetBounds model -- Don't show distances in preview
       _                     -> []
   in
   let selectBox = drawSelectBox model in
@@ -378,8 +378,8 @@ expInOutput_ prefix exp xStr yStr extraAttrs =
     , attr "y" (toString yStr)
     ] ++ extraAttrs
 
-buildSvgWidgets : Int -> Int -> Widgets -> Model -> List (Svg Msg)
-buildSvgWidgets wCanvas hCanvas widgets model =
+buildSvgWidgets : Int -> Int -> Widgets -> List (Maybe (Num, Num, Num, Num)) -> Model -> List (Svg Msg)
+buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
   let
     pad            = params.mainSection.uiWidgets.pad
     wSlider        = params.mainSection.uiWidgets.wSlider
@@ -501,7 +501,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     else
       []
   in
-  let drawCallWidget i_ callEId funcVal argVals retVal retWs model =
+  let drawCallWidget i_ maybeBounds callEId funcVal argVals retVal retWs model =
     let program = model.inputExp in
     let (maybeRecName, maybeFuncBody, maybeFuncPat, maybeArgPats, maybeFuncExp) =
       case funcVal.v_ of
@@ -522,17 +522,14 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     if not <| isCurrentContext || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
       []
     else
-      let maybeBounds =
-        ShapeWidgets.maybeWidgetBounds (WCall callEId funcVal argVals retVal retWs)
-      in
       case maybeBounds of
         Nothing -> []
         Just (left, top, right, bot) ->
-          let boxTop = top + ShapeWidgets.heightForWCallPats in
+          let boxTop = top + ShapeWidgets.heightForWCallFuncName in
           let maybeAddArg =
             -- TODO: ensure all selected items touch funcBody
-            case (maybeFuncBody, nothingSelectedInOutput model) of
-              (Just funcBody, False) ->
+            case (isCurrentContext, maybeFuncBody, nothingSelectedInOutput model) of
+              (True, Just funcBody, False) ->
                 Just <|
                   flip Svg.text_ [Svg.title [] [VirtualDom.text "Add argument"], VirtualDom.text "➕"] <| -- plus symbol (doesn't show up on black editor background)
                     [ attr "font-family" params.mainSection.uiWidgets.font
@@ -569,8 +566,8 @@ buildSvgWidgets wCanvas hCanvas widgets model =
               , attr "stroke-width" "7px"
               -- , attr "stroke-dasharray" "20,10"
               , attr "opacity" (if isCurrentContext then "1.0" else "0.15")
-              , attr "rx" "25"
-              , attr "ry" "25"
+              , attr "rx" (toString ShapeWidgets.widgetBoundsPadding)
+              , attr "ry" (toString ShapeWidgets.widgetBoundsPadding)
               , attr "x" (toString left)
               , attr "y" (toString boxTop)
               , attr "width" (toString (right - left))
@@ -601,9 +598,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
           in
           let maybeRecOrBaseCaseLabel =
             let maybeLabel =
-              if isRecursiveCase then
+              if isCurrentContext && isRecursiveCase then
                 Just "Recursive Case"
-              else if isBaseCase then
+              else if isCurrentContext && isBaseCase then
                 Just "Base Case"
               else
                 Nothing
@@ -616,15 +613,15 @@ buildSvgWidgets wCanvas hCanvas widgets model =
                     , attr "font-family" params.mainSection.uiWidgets.font
                     , attr "font-size" params.mainSection.uiWidgets.fontSize
                     , attr "x" (toString right)
-                    , attr "y" (toString (boxTop - 30))
+                    , attr "y" (toString (boxTop - 52))
                     , attr "text-anchor" "end"
                     , attr "opacity" "0.5"
                     ]
                 )
           in
           let maybeTerminationCondition =
-            case (isRecursiveFunction, maybeRecName, maybeFuncBody |> Maybe.map (expEffectiveExp >> .val >> .e__)) of
-              (True, Just recName, Just (EIf _ scrutinee _ branch1 _ branch2 _)) ->
+            case (isCurrentContext, isRecursiveFunction, maybeRecName, maybeFuncBody |> Maybe.map (expEffectiveExp >> .val >> .e__)) of
+              (True, True, Just recName, Just (EIf _ scrutinee _ branch1 _ branch2 _)) ->
                 let
                   branch1IsBaseCase = not <| Set.member recName (LangTools.freeIdentifiers branch1)
                   branch2IsBaseCase = not <| Set.member recName (LangTools.freeIdentifiers branch2)
@@ -640,7 +637,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
                       (False, False, False) -> "😕(False, False, False) " -- wat
                 in
                 Just <|
-                  expInOutput_ prefix scrutinee right (boxTop - 10)
+                  expInOutput_ prefix scrutinee right (boxTop - 32)
                       [ attr "text-anchor" "end"
                       , attr "cursor" "pointer"
                       , attr "class" "text-hover-highlight" -- see master.css
@@ -653,24 +650,22 @@ buildSvgWidgets wCanvas hCanvas widgets model =
           [ Just box
           , maybeRecOrBaseCaseLabel
           , maybeTerminationCondition
-          , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat left (boxTop - 20))
-          , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop)
+          , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat left (boxTop - if isCurrentContext then 20 else 0))
+          , maybeArgPats |> Utils.filterMaybe (always isCurrentContext) |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop)
           , maybeAddArg
           ] |> Utils.filterJusts
   in
-  let drawListWidget i_ listVal model =
+  let drawListWidget i_ maybeBounds listVal model =
     let program = model.inputExp in
     let idAsShape = -2 - i_ in
     let isSelected = Set.member idAsShape model.selectedShapes in
     if not <| isSelected || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
       []
     else
-      let maybeBounds =
-        ShapeWidgets.maybeWidgetBounds (WList listVal)
-      in
       case maybeBounds of
         Nothing -> []
         Just (left, top, right, bot) ->
+          let boxTop = top + ShapeWidgets.heightForWListExp in
           let titleAttribute =
             if isSelected then
               Svg.title [] [Svg.text "Click to deselect this list."]
@@ -682,24 +677,24 @@ buildSvgWidgets wCanvas hCanvas widgets model =
               [ attr "fill" "none"
               , attr "cursor" "pointer"
               , attr "stroke" (if isSelected then colorPointSelected else "black")
-              , attr "stroke-width" "7px"
+              , attr "stroke-width" "6px"
               , attr "stroke-dasharray" "10,1"
               , attr "opacity" (if isSelected then "1.0" else "0.15")
-              , attr "rx" "25"
-              , attr "ry" "25"
+              , attr "rx" (toString ShapeWidgets.widgetBoundsPadding)
+              , attr "ry" (toString ShapeWidgets.widgetBoundsPadding)
               , attr "x" (toString left)
-              , attr "y" (toString top)
+              , attr "y" (toString boxTop)
               , attr "width" (toString (right - left))
-              , attr "height" (toString (bot - top))
+              , attr "height" (toString (bot - boxTop))
               , onMouseDownAndStop (if isSelected then Controller.msgDeselectList idAsShape else Controller.msgSelectList idAsShape)
               ]
           in
           [ box
-          , expInOutput (valExp listVal) left (top - 10)
+          , expInOutput (valExp listVal) left (boxTop - 10)
           ]
   in
 
-  let draw (i_, widget) =
+  let draw (i_, (widget, maybeBounds)) =
     case widget of
 
       WNumSlider _ _ _ _ _ _ True -> []
@@ -719,13 +714,13 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal
 
       WCall callEId funcVal argVals retVal retWs ->
-        drawCallWidget i_ callEId funcVal argVals retVal retWs model
+        drawCallWidget i_ maybeBounds callEId funcVal argVals retVal retWs model
 
       WList listVal ->
-        drawListWidget i_ listVal model
+        drawListWidget i_ maybeBounds listVal model
   in
 
-  List.concat <| Utils.mapi1 draw widgets
+  List.concat <| Utils.mapi1 draw (Utils.zip widgets widgetBounds)
 
 
 buildDistances : Model -> LangSvg.RootedIndexedTree -> Widgets -> List (Svg Msg)
@@ -832,32 +827,36 @@ addHoveredShape id =
       let (_, shapeTree) = m.slate in
       case ShapeWidgets.shapeIdToMaybeVal id shapeTree m.widgets of
         Just hoveredVal ->
-          let (bounds, newHoveredCallWidgetIs) =
+          let moreHoveredBounds =
             m.widgets
             |> Utils.zipi1
             |> List.filterMap
                 (\(i, widget) ->
-                  case (widget, ShapeWidgets.maybeWidgetBounds widget) of
-                    (WCall callEId funcVal argVals retVal retWs, Just (left, top, right, bot)) ->
+                  case (widget, Utils.maybeGeti1 i m.widgetBounds) of
+                    (WCall callEId funcVal argVals retVal retWs, Just (Just (left, top, right, bot))) ->
                       if flattenValTree retVal |> List.any (Provenance.valsSame hoveredVal) -- [] /= (Utils.intersectAsSet (Provenance.valToSameVals retVal |> List.concatMap flattenValTree) (Provenance.valToSameVals hoveredVal |> List.concatMap flattenValTree))
-                      then Just ((left, top, right, bot), i)
+                      then Just ((left, top, right, bot), Set.singleton i)
                       else Nothing
-                    (WList listVal, Just (left, top, right, bot)) ->
+                    (WList listVal, Just (Just (left, top, right, bot))) ->
                       if flattenValTree listVal |> List.any (Provenance.valsSame hoveredVal)
-                      then Just ((left, top, right, bot), i)
+                      then Just ((left, top, right, bot), Set.singleton i)
                       else Nothing
                     _ ->
                       Nothing
                 )
-            |> List.unzip
+            -- |> List.unzip
           in
-          case ShapeWidgets.maybeEnclosureOfAllBounds bounds of
-            Just bounds ->
-              { m | hoveredShapes      = Set.singleton id
-                  , hoveredBoundsWidgets = Utils.addAsSet (bounds, Set.fromList newHoveredCallWidgetIs) m.hoveredBoundsWidgets
+          -- Can't remember why I had previously set this up so the widgets all disappeared when the largest is left
+          -- rather then individual as each is left. Perhaps something was sticking outside of a function and didn't
+          -- want the call widget to disappear. Leaving this old code around for a bit until the current version
+          -- seems right or wrong.
+          -- case ShapeWidgets.maybeEnclosureOfAllBounds bounds of
+          --   Just bounds ->
+              { m | hoveredShapes        = Set.singleton id
+                  , hoveredBoundsWidgets = Utils.addAllAsSet moreHoveredBounds m.hoveredBoundsWidgets
               }
-            Nothing ->
-              { m | hoveredShapes      = Set.singleton id }
+            -- Nothing ->
+            --   { m | hoveredShapes      = Set.singleton id }
 
         Nothing ->
           { m | hoveredShapes = Set.singleton id }

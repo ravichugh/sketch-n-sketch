@@ -52,7 +52,7 @@ type alias ViewState =
   }
 
 type alias Preview =
-  Maybe (Code, Result String (Val, Widgets, RootedIndexedTree))
+  Maybe (Code, Result String (Val, Widgets, List (Maybe (Num, Num, Num, Num)), RootedIndexedTree))
 
 type TextSelectMode
     -- Only match the exact range
@@ -105,8 +105,9 @@ type alias Model =
   , movieDuration : Float
   , movieContinue : Bool
   , runAnimation : Bool
-  , slate : RootedIndexedTree -- Context sensitive
-  , widgets : Widgets         -- Context sensitive
+  , slate : RootedIndexedTree                        -- Context sensitive
+  , widgets : Widgets                                -- Context sensitive
+  , widgetBounds : List (Maybe (Num, Num, Num, Num)) -- Context sensitive (same size as widgets list)
   , typeGraph : SlowTypeInference.TC2Graph
   , editingContext : Maybe (EId, Maybe EId) -- Context, example application if function
   , liveSyncInfo : Sync.LiveInfo
@@ -1135,6 +1136,7 @@ initModel =
     , runAnimation  = True
     , slate         = slate
     , widgets       = ws
+    , widgetBounds  = ws |> List.map ShapeWidgets.maybeWidgetInitialBounds
     , typeGraph     = Dict.empty
     , editingContext = Nothing
     , liveSyncInfo  = liveSyncInfo

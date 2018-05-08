@@ -131,34 +131,6 @@ eval_ : Syntax -> Env -> Backtrace -> Exp -> Result String (Val, Widgets)
 eval_ syntax env bt e = Result.map Tuple.first <| eval Nothing runUntilTheEnd syntax env bt e
 
 
--- Multiple expresssions in the program can produce essentially identical overlaping widgets, but each
--- referring to a different expression.
---
--- We only want to keep the last such widget produced.
---
--- This function will add the given widget to the end of this list,
--- removing prior identical widgets produced by previous expressions.
-addSubsumingPriorWidgets : Widget -> List Widget -> List Widget
-addSubsumingPriorWidgets widget widgets =
-  case ValWidgets.widgetToMaybeVal widget of
-    Just v ->
-      let
-        priorValsToRemove = valToSameVals v
-        wsSamePointSubsumed =
-          widgets
-          |> List.filter
-              (\priorWidget ->
-                case ValWidgets.widgetToMaybeVal priorWidget of
-                  Just widgetVal -> not <| ValWidgets.isSameWidgetType widget priorWidget && List.member widgetVal priorValsToRemove
-                  _              -> True
-              )
-      in
-      wsSamePointSubsumed ++ [widget]
-
-    _ ->
-      widgets ++ [widget]
-
-
 eval : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Maybe Env)
 eval maybeRetEnvEId abortPred syntax env bt e =
 
@@ -207,7 +179,7 @@ eval maybeRetEnvEId abortPred syntax env bt e =
 
   let retV basedOn v                             = ((addParent { v | provenance = makeProvenance basedOn}, []), retEnvHere) in
   let retVBoth basedOn (v, ws) deeperRetEnv      = ((addParent { v | provenance = makeProvenance basedOn}, ws), retEnv deeperRetEnv) in
-  let retAddWs ws1 (v1, ws2)                     = (v1, ws1 ++ ws2) in
+  -- let retAddWs ws1 (v1, ws2)                     = (v1, ws1 ++ ws2) in
   let addParentToRet ((v,ws),envOut)             = ((addParent v, ws), envOut) in
   let addProvenanceToRet basedOn ((v,ws),envOut) = ((addParent { v | provenance = makeProvenance basedOn}, ws), envOut) in
   let addWidgets ws1 ((v1,ws2),env1)             = ((v1, ws1 ++ ws2), env1) in
@@ -683,6 +655,36 @@ valToDictKey syntax bt val_ =
     _                 -> errorWithBacktrace syntax bt <| "Cannot use " ++ (strVal { v_ = val_, provenance = dummyProvenance, parents = Parents [] }) ++ " in a key to a dictionary."
 
 
+-- Multiple expresssions in the program can produce essentially identical overlaping widgets, but each
+-- referring to a different expression.
+--
+-- We only want to keep the last such widget produced.
+--
+-- This function will add the given widget to the end of this list,
+-- removing prior identical widgets produced by previous expressions.
+addSubsumingPriorWidgets : Widget -> List Widget -> List Widget
+addSubsumingPriorWidgets widget widgets =
+  case ValWidgets.widgetToMaybeVal widget of
+    Just v ->
+      let
+        priorValsToRemove = valToSameVals v
+        wsSamePointSubsumed =
+          widgets
+          |> List.filter
+              (\priorWidget ->
+                case ValWidgets.widgetToMaybeVal priorWidget of
+                  Just widgetVal -> not <| ValWidgets.isSameWidgetType widget priorWidget && List.member widgetVal priorValsToRemove
+                  _              -> True
+              )
+      in
+      wsSamePointSubsumed ++ [widget]
+
+    _ ->
+      widgets ++ [widget]
+
+
+-- Need to revisit this to do deeper dedup.
+postProcessWidgets : List Widget -> List Widget
 postProcessWidgets widgets =
   let dedupedWidgets = Utils.dedup widgets in
   -- partition so that hidden and point sliders don't affect indexing

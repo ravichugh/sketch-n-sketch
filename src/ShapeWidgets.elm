@@ -9,7 +9,7 @@ import Utils
 import ValUnparser exposing (strVal)
 import ValWidgets
 
-import Dict
+import Dict exposing (Dict)
 import Regex
 import Set exposing (Set)
 import String
@@ -292,12 +292,12 @@ type FeatureEquationOf a
   | EqnOp Op_ (List (FeatureEquationOf a))
 
 
-featureToEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureEquation
+featureToEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict LocId (Num, Loc) -> Maybe FeatureEquation
 featureToEquation selectableFeature tree widgets locIdToNumberAndLoc =
   featureToEquation_ shapeFeatureEquation widgetFeatureEquation (\n -> (n, dummyTrace)) selectableFeature tree widgets locIdToNumberAndLoc
 
 
-featureToValEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict.Dict LocId (Num, Loc) -> Maybe FeatureValEquation
+featureToValEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict LocId (Num, Loc) -> Maybe FeatureValEquation
 featureToValEquation selectableFeature tree widgets locIdToNumberAndLoc =
   let vConst n = { v_ = VConst Nothing (n, dummyTrace), provenance = dummyProvenance, parents = Parents [] } in
   featureToEquation_ shapeFeatureValEquation widgetFeatureValEquation vConst selectableFeature tree widgets locIdToNumberAndLoc
@@ -329,12 +329,12 @@ selectedShapeToValEquation nodeId shapeTree widgets =
 -- The first three args are sort of a type class...but only used here so no need to pull it out into a record.
 featureToEquation_
   :  (ShapeFeature -> ShapeKind -> List Attr -> FeatureEquationOf a)
-  -> (ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquationOf a)
+  -> (ShapeFeature -> Widget -> Dict LocId (Num, Loc) -> FeatureEquationOf a)
   -> (Num -> a)
   -> SelectableFeature
   -> IndexedTree
   -> Widgets
-  -> Dict.Dict LocId (Num, Loc)
+  -> Dict LocId (Num, Loc)
   -> Maybe (FeatureEquationOf a)
 featureToEquation_ getFeatureEquation getWidgetFeatureEquation makeConst feature tree widgets locIdToNumberAndLoc =
   case feature of
@@ -497,7 +497,7 @@ shapeFeatureValEquation shapeFeature kind nodeAttrs =
       shapeFeature
 
 
-widgetFeatureEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureEquation
+widgetFeatureEquation : ShapeFeature -> Widget -> Dict LocId (Num, Loc) -> FeatureEquation
 widgetFeatureEquation shapeFeature widget locIdToNumberAndLoc =
   case widget of
     WIntSlider low high caption curVal provenance (locId,_,_) _ ->
@@ -534,7 +534,7 @@ widgetFeatureEquation shapeFeature widget locIdToNumberAndLoc =
       Debug.crash <| "WList does not have any feature equations, but asked for " ++ toString shapeFeature
 
 
-widgetFeatureValEquation : ShapeFeature -> Widget -> Dict.Dict LocId (Num, Loc) -> FeatureValEquation
+widgetFeatureValEquation : ShapeFeature -> Widget -> Dict LocId (Num, Loc) -> FeatureValEquation
 widgetFeatureValEquation shapeFeature widget _{- locIdToNumberAndLoc -} =
   case widget of
     WIntSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
@@ -852,11 +852,52 @@ enclosureOfBoundsPair (left1, top1, right1, bot1) (left2, top2, right2, bot2) =
   , max   bot1   bot2
   )
 
+maybeBoundsIntersection : (Num, Num, Num, Num) -> (Num, Num, Num, Num) -> Maybe (Num, Num, Num, Num)
+maybeBoundsIntersection (left1, top1, right1, bot1) (left2, top2, right2, bot2) =
+  let (left, top, right, bot) =
+    ( max  left1  left2
+    , max   top1   top2
+    , min right1 right2
+    , min   bot1   bot2
+    )
+  in
+  if left > right || top > bot
+  then Nothing
+  else Just (left, top, right, bot)
+
+
 maybeEnclosureOfAllBounds : List (Num, Num, Num, Num) -> Maybe (Num, Num, Num, Num)
 maybeEnclosureOfAllBounds bounds =
   case bounds of
     []          -> Nothing
     first::rest -> Just (rest |> List.foldl enclosureOfBoundsPair first)
+
+
+boundsCenter : (Num, Num, Num, Num) -> (Num, Num)
+boundsCenter (left, top, right, bot) =
+  ( (left + right) / 2.0
+  , (top  + bot)   / 2.0
+  )
+
+
+boundsArea : (Num, Num, Num, Num) -> Num
+boundsArea (left, top, right, bot) =
+  (right - left) * (bot - top) |> abs
+
+
+boundsContains : (Num, Num, Num, Num) -> (Num, Num) -> Bool
+boundsContains (left, top, right, bot) (x, y) =
+  left <= x && x <= right &&
+  top  <= y && y <= bot
+
+
+expandBounds : (Num, Num, Num, Num) -> Num -> Num -> (Num, Num, Num, Num)
+expandBounds (left, top, right, bot) padding extraTopPadding =
+  ( left  - padding
+  , top   - padding - extraTopPadding
+  , right + padding
+  , bot   + padding
+  )
 
 
 valToMaybeBounds : Val -> Maybe (Num, Num, Num, Num)
@@ -907,38 +948,35 @@ maybeShapeBounds svgNode =
       |> pointsToMaybeBounds
 
 
-heightForWCallPats = 50
+heightForWCallPats     = 25
+heightForWCallFuncName = 25
+heightForWListExp      = 25
+widgetBoundsPadding    = 15
+
+
+widgetTopSpaceNeeded : Widget -> Num
+widgetTopSpaceNeeded widget =
+  case widget of
+    WCall _ _ _ _ _ -> heightForWCallFuncName
+    WList _         -> heightForWListExp
+    _               -> 0
+
 
 -- Returns Maybe (left, top, right, bot)
-maybeWidgetBounds : Widget -> Maybe (Num, Num, Num, Num)
-maybeWidgetBounds widget =
-  let padding = 25 in
+maybeWidgetInitialBounds : Widget -> Maybe (Num, Num, Num, Num)
+maybeWidgetInitialBounds widget =
   case widget of
     WCall callEId funcVal argVals retVal retWs ->
       retVal::argVals
       |> List.map valToMaybeBounds
-      |> (++) (retWs |> List.map maybeWidgetBounds)
+      |> (++) (retWs |> List.map maybeWidgetInitialBounds)
       |> Utils.filterJusts
       |> maybeEnclosureOfAllBounds
-      |> Maybe.map
-          (\(left, top, right, bot) ->
-            ( left  - padding
-            , top   - padding - heightForWCallPats
-            , right + padding
-            , bot   + padding
-            )
-          )
+      |> Maybe.map  (\bounds -> expandBounds bounds widgetBoundsPadding heightForWCallFuncName)
 
     WList val ->
       valToMaybeBounds val
-      |> Maybe.map
-          (\(left, top, right, bot) ->
-            ( left  - padding
-            , top   - padding
-            , right + padding
-            , bot   + padding
-            )
-          )
+      |> Maybe.map (\bounds -> expandBounds bounds widgetBoundsPadding heightForWListExp)
 
     _ ->
       pointFeaturesOfWidget widget
@@ -953,6 +991,115 @@ pointsToMaybeBounds points =
   case Utils.projJusts [ List.minimum xs, List.minimum ys, List.maximum xs, List.maximum ys ] of
     Just [ left, top, right, bot ] -> Just (left, top, right, bot)
     _                              -> Nothing
+
+
+computeAndRejiggerWidgetBounds : List Widget -> List (Maybe (Num, Num, Num, Num))
+computeAndRejiggerWidgetBounds widgets =
+  widgets
+  |> List.map maybeWidgetInitialBounds
+  |> rejiggerWidgetBounds widgets
+
+
+-- Try to decrease the number of overlapping widgets.
+--
+-- 1. Build DAG declaring "x contains y"
+--    "x contains y" here means x is larger in area than y and x covers at least 75% of y.
+--    In case of area ties, the higher indexed bounds contains the lower indexed bounds but not vice versa.
+-- 2. Grow widgets to enclose all the widgets they contain.
+rejiggerWidgetBounds : List Widget -> List (Maybe (Num, Num, Num, Num)) -> List (Maybe (Num, Num, Num, Num))
+rejiggerWidgetBounds widgets boundsMaybes =
+  let
+    boundsMaybesIndexed = Utils.zipi1 boundsMaybes -- |> Debug.log "boundsMaybesIndexed"
+
+    containsDAG : List (List Int)
+    containsDAG =
+      boundsMaybesIndexed
+      |> List.map
+          (\(i, maybeBounds) ->
+            case maybeBounds of
+              Just thisBounds ->
+                if boundsArea thisBounds == 0 then
+                  []
+                else
+                  boundsMaybesIndexed
+                  |> Utils.removei i
+                  |> List.filterMap
+                      (\(otherI, maybeOtherBounds) ->
+                        case maybeOtherBounds of
+                          Just otherBounds ->
+                            if boundsArea otherBounds > 0 then
+                              if boundsArea otherBounds == boundsArea thisBounds && (maybeBoundsIntersection thisBounds otherBounds |> Maybe.map boundsArea |> Maybe.withDefault 0) > 0.75 * boundsArea otherBounds then
+                                if i > otherI -- Avoid cycles.
+                                then Just otherI
+                                else Nothing
+                              else if boundsArea otherBounds <= boundsArea thisBounds && (maybeBoundsIntersection thisBounds otherBounds |> Maybe.map boundsArea |> Maybe.withDefault 0) > 0.75 * boundsArea otherBounds then
+                                Just otherI
+                              else
+                                Nothing
+                            else
+                              Nothing
+                          Nothing ->
+                            Nothing
+                      )
+
+              Nothing ->
+                []
+          )
+      -- |> Debug.log "containsDAG"
+
+    -- Compute bounds after all descendent bounds have been computed.
+    -- Iterate until fixpoint.
+    computeMoreBounds : Dict Int (Num, Num, Num, Num) -> Dict Int (Num, Num, Num, Num)
+    computeMoreBounds calculated =
+      -- let _ = Debug.log "calculated" calculated in
+      let newCalculated =
+        List.range 1 (List.length boundsMaybes)
+        |> Utils.foldl
+            calculated
+            (\i calculated ->
+              if Dict.member i calculated then
+                calculated
+              else
+                let
+                  descendentIs = Utils.geti i containsDAG
+                  maybeDescendentBounds =
+                    descendentIs
+                    |> List.map (flip Dict.get calculated)
+                    |> Utils.projJusts
+                    |> Maybe.map maybeEnclosureOfAllBounds
+                in
+                case (maybeDescendentBounds, Utils.geti i boundsMaybes) of
+                  (Just (Just boundsToEnclose), Just thisBounds) ->
+                    let
+                      thisWidget = Utils.geti i widgets
+                      newBounds =
+                        enclosureOfBoundsPair
+                            thisBounds
+                            (expandBounds boundsToEnclose widgetBoundsPadding (widgetTopSpaceNeeded thisWidget))
+                    in
+                    Dict.insert i newBounds calculated
+
+                  (Just Nothing, Just thisBounds) -> -- No descendents.
+                    Dict.insert i thisBounds calculated
+
+                  _ -> -- Descendents not calculated yet or widget does not have bounds.
+                    calculated
+
+            )
+      in
+      if newCalculated == calculated
+      then calculated
+      else computeMoreBounds newCalculated
+
+    indexToNewBounds = computeMoreBounds Dict.empty
+  in
+  boundsMaybes
+  |> Utils.mapi1
+      (\(i, maybeBounds) ->
+        Utils.plusMaybe
+            (Dict.get i indexToNewBounds)
+            maybeBounds
+      )
 
 
 ------------------------------------------------------------------------------
@@ -1035,28 +1182,28 @@ featureValEquationToProximalDistalEIdSets expFilter valEqn =
 --   |> Provenance.valTreeToSingleEIdInterpretations program expFilter
 
 -- Only two interpretations: most proximal for each feature, and most distal.
-selectionsProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
+selectionsProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
 selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =
   let (proximalInterps, distalInterps) =
     selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter
   in
   proximalInterps ++ distalInterps |> Utils.dedup
 
--- selectionsProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
+-- selectionsProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> List (List EId)
 -- selectionsProximalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs =
 --   let (proximalInterps, _{- proximalInterps -}) =
 --     selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs (always True)
 --   in
 --   proximalInterps
 
--- selectionsDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
+-- selectionsDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
 -- selectionsDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =
 --   let (_{- proximalInterps -}, distalInterps) =
 --     selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter
 --   in
 --   distalInterps
 
-selectionsUniqueProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> List (List EId)
+selectionsUniqueProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> List (List EId)
 selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs =
   let eidsToNotSelect =
     -- If any shapes selected, diff against all other shapes.
@@ -1107,7 +1254,7 @@ selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate)
   proximalInterps
 
 -- EIds in interp must satisfy the predicate.
-selectionsProximalDistalEIdInterpretations_ : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> (List (List EId), List (List EId))
+selectionsProximalDistalEIdInterpretations_ : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> (List (List EId), List (List EId))
 selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =
   let (featureProximalEIds, featureDistalEIds) =
     selectedFeaturesToProximalDistalEIdInterpretations program slate widgets (Set.toList selectedFeatures) expFilter
@@ -1129,7 +1276,7 @@ selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatur
 
 
 -- -- Combinatorical explosion of interpretations.
--- selectionsEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
+-- selectionsEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
 -- selectionsEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
 --   selectedFeaturesToEIdInterpretationLists program slate widgets (Set.toList selectedFeatures) expFilter ++
 --   selectedShapesToEIdInterpretationLists   program slate widgets (Set.toList selectedShapes)   expFilter ++
@@ -1140,7 +1287,7 @@ selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatur
 --   |> Utils.dedup
 
 
-selectionsEIdsTouched : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List EId
+selectionsEIdsTouched : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List EId
 selectionsEIdsTouched program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
   [ selectedFeaturesValTrees slate widgets (Set.toList selectedFeatures)
   , selectedShapesValTrees   slate widgets (Set.toList selectedShapes)
@@ -1155,7 +1302,7 @@ selectionsEIdsTouched program ((rootI, shapeTree) as slate) widgets selectedFeat
 
 
 -- Try to find single EIds in the program that explain everything selected.
-selectionsSingleEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict.Dict Int NodeId -> (Exp -> Bool) -> List EId
+selectionsSingleEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List EId
 selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
   let
     possibleExps = program |> flattenExpTree |> List.filter expFilter
