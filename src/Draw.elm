@@ -16,6 +16,7 @@ module Draw exposing
   -- , addRawSquare , addRawRect , addStretchySquare , addStretchyRect
   -- , addRawCircle , addRawOval , addStretchyCircle , addStretchyOval
   , addPath , addPolygon
+  , addRawPolygonList
   -- , addLambda
   , addFunction
   , addPoint , addOffsetAndMaybePoint , horizontalVerticalSnap
@@ -811,6 +812,19 @@ addRawPolygon old pointsWithSnap =
   let polygonExp =
     makeCallWithLocals
         [ makeLet ["pts"] [eTuple ePts]
+        , makeLet ["color","strokeColor","strokeWidth"]
+                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
+        ]
+        (eVar0 "rawPolygon")
+        [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
+        , eVar "pts", eConst 0 dummyLoc ]
+  in
+  addShapeToModel old "polygon" polygonExp
+
+addRawPolygonList old listExp =
+  let polygonExp =
+    makeCallWithLocals
+        [ makeLet ["pts"] [listExp]
         , makeLet ["color","strokeColor","strokeWidth"]
                   [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
         ]

@@ -288,6 +288,14 @@ maybeClickableToPointWithSnap (defaultX, defaultY) maybeClickable =
       ((defaultX, NoSnap), (defaultY, NoSnap))
 
 
+maybeDrawOnSelect selectedIdAsShape old =
+  case (old.tool, Set.size old.selectedFeatures, Set.size old.selectedShapes, Dict.size old.selectedBlobs, Utils.maybeGeti1 (-2 - selectedIdAsShape) old.widgets) of
+    (Poly Raw, 0, 0, 0, Just (WList listVal)) ->
+      Just <| upstateRun <| switchToCursorTool <| Draw.addRawPolygonList old (eHoleVal listVal)
+
+    _ ->
+      Nothing
+
 onMouseClick clickPos old maybeClickable =
   let (isOnCanvas, (canvasX, canvasY) as pointOnCanvas) = clickToCanvasPoint old clickPos in
   case (old.tool, old.mouseMode) of
@@ -2288,7 +2296,9 @@ doClearEditingContext old =
   |> upstateRun
 
 msgSelectList idAsShape = Msg "Select List" <| \old ->
-  { old | selectedShapes = Set.insert idAsShape old.selectedShapes }
+  case maybeDrawOnSelect idAsShape old of
+    Just new -> new
+    Nothing  -> { old | selectedShapes = Set.insert idAsShape old.selectedShapes }
 
 msgDeselectList idAsShape = Msg "Deselect List" <| \old ->
   { old | selectedShapes = Set.remove idAsShape old.selectedShapes }
