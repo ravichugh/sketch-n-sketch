@@ -45,6 +45,10 @@ replaceVariables variablesDict string =
       Just definition -> replaceVariables (remove key variablesDict) definition
   ) string
 
+minnum = 1
+maxnum = 4
+sequence = List.range minnum maxnum
+
 content = """<h1>Induction Hypothesis</h1>
 <pre style="font-family:cambria;white-space:pre-line;">
 A $proofbyinduction makes use of the $inductionaxiom.
@@ -57,6 +61,19 @@ then the following result holds:
     ∀$n⩾1. $P($n)
 
 In other words, if we want to prove a proposition $P($n) for any integer $n, we first need to prove that $P(1) holds. Then, we need to prove that if we know $P($k) for any given integer $k, we can prove $P($k + 1).
+
+Let us consider the sum of the numbers from @minnum to @maxnum: @(sequence |> map (\x -> toString x) |> String.join "+") = @(List.sum sequence). At the same time, if we multiply @maxnum by @maxnum + 1 (which is @(maxnum + 1)), and divide by 2, we get:@maxnum*(@maxnum+1)/2 = @maxnum*@(maxnum+1)/2 = @(maxnum*(maxnum+1))/2 = @(maxnum*(maxnum+1)/2) which is the same result. Hence we can conjecture that:
+
+$P($n) = "The sum of numbers 1+...+$n is $n*($n+1)/2"
+
+We prove it by using the $proofbyinduction principle.<ul
+><li>$P(1) is trivially true.</li
+><li>If $P($n) holds, then
+  1+...+ $n + ($n+1)
+= $n*($n+1)/2 + $n+1 (by invoking $P($n))
+= ($n+1)(($n+1)+1)/2 (by factoring)
+Therefore, $P($n+1) holds.</li></ul
+>By the $inductionaxiom, we conclude that $P($n) is true for all $n.
 """ |>
   replaceVariables variablesDict |>
   Regex.replace "(\\$)_(\\w+)" (\m ->
