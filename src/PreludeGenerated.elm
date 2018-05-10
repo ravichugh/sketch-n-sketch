@@ -2999,7 +2999,9 @@ String =
       Just [trimmed] -> trimmed
       Nothing -> s
     sprintf = sprintf
-    uncons s = extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" s
+    uncons s = case extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" s of
+      Just [x, y] -> Just (x, y)
+      Nothing -> Nothing
     update = {
       freezeLeft = freezeLeft
       freezeRight = freezeRight

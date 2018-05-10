@@ -271,6 +271,7 @@ LEO_TO_ELM fromleo/latexeditor
 LEO_TO_ELM fromleo/dixit
 LEO_TO_ELM christmas_song_3_after_translation
 LEO_TO_ELM fromleo/pizzas_doodle
+LEO_TO_ELM fromleo/universal_number
 
 --------------------------------------------------------------------------------
 
@@ -302,6 +303,7 @@ docsCategory =
       , ("Markdown Editor", fromleo_markdown)
       , ("Dixit Scoresheet", fromleo_dixit)
       , ("Doodle", fromleo_pizzas_doodle)
+      , ("Universal numbers", fromleo_universal_number)
       , ("LaTeX Editor", fromleo_latexeditor)
       -- TODO maybe Conference?
       , ("Lens: Maybe Map", mapMaybeLens)

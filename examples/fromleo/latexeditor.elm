@@ -17,10 +17,10 @@ Only frac, exponent and indices in math mode: $\frac{b^2-4ac}{2}$.
 tokenize txt pos = 
   case String.uncons txt of
   Nothing -> [{tag="EOF", pos = pos, origText = txt}]
-  Just [first, rem] ->
+  Just (first, rem) ->
     case first of
       "\\" -> case String.uncons rem of
-        Just ["\\", rem] ->
+        Just ("\\", rem) ->
           case extractFirstIn """(\\\\)([\s\S]*)""" txt of
             Just [bs, rem] ->
               [{tag="newline", pos=pos, origText = bs}, rem, pos + 2]
