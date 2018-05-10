@@ -1,6 +1,8 @@
 var __globalBoolState__ = false;
-var _user$project$Native_ImpureGoodies = {
 
+
+
+var _user$project$Native_ImpureGoodies = {
     randomFloat : function(_) {
       return Math.random();
     },
@@ -152,5 +154,72 @@ var _user$project$Native_ImpureGoodies = {
       return function(string) {
         return safe_tags_replace(string);
       }
-    })()
+    })(),
+
+    emptyNativeRecord: function(dummy) {
+      return {}
+    },
+
+    addPairToNativeRecord: function(key) {
+      return function(value) {
+        return function(record) {
+          record[key] = value
+          return record;
+        }
+      }
+    },
+
+    keyPairsOfNativeRecord: function(record) {
+      var recordKeys = Object.keys(record);
+      if(recordKeys.length == 0) return _elm_lang$core$Maybe$Nothing;
+      var acc = _elm_lang$core$Native_List.Nil;
+      for(var i = 0; i < recordKeys.length; i ++) {
+        var key = recordKeys[i];
+        var value = record[key];
+        acc = _elm_lang$core$Native_List.Cons(_elm_lang$core$Native_Utils.Tuple2(key, value), acc)
+      }
+      return acc;
+    },
+
+    toNativeArray: function(elmList) {
+      var acc = [];
+      while(elmList.ctor != "[]") {
+        acc.push(elmList._0);
+        elmList = elmList._1;
+      }
+      return acc;
+    },
+
+    fromNative: function(v) {
+      return function(stringCallback) {
+        return function(numCallback) {
+          return function(boolCallback) {
+            return function(listCallback) {
+              return function(listRecordCallback) {
+                if(typeof v == "string") return stringCallback(v);
+                if(typeof v == "number") return numCallback(v);
+                if(typeof v == "boolean") return boolCallback(v);
+                if(typeof v == "function") throw "Cannot convert a native function to a value";
+                if(typeof v == "object") {
+                  if(Array.isArray(v)) {
+                    var result = _elm_lang$core$Native_List.Nil;
+                    for(i = v.length - 1; i >= 0; i-- ) {
+                      result = _elm_lang$core$Native_List.Cons(v[i], result)
+                    }
+                    return listCallback(result)
+                  } else {
+                    return listRecordCallback(_user$project$Native_ImpureGoodies.keyPairsOfNativeRecord(v))
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    hideType: function(v) {
+      return v;
+    }
+
 };

@@ -97,3 +97,30 @@ htmlunescape s = Native.ImpureGoodies.htmlunescape s
 
 htmlescape: String -> String
 htmlescape s = Native.ImpureGoodies.htmlescape s
+
+emptyNativeRecord: () -> c
+emptyNativeRecord = Native.ImpureGoodies.emptyNativeRecord
+
+addPairToNativeRecord: (String, b) -> c -> c
+addPairToNativeRecord (s, b) c = Native.ImpureGoodies.addPairToNativeRecord s b c
+
+keyPairsToNativeRecord: List (String, b) -> c
+keyPairsToNativeRecord l = List.foldl addPairToNativeRecord (emptyNativeRecord ()) l
+
+keyPairsOfNativeRecord: c -> List (String, b)
+keyPairsOfNativeRecord = Native.ImpureGoodies.keyPairsOfNativeRecord
+
+fromNative: a ->
+  (String -> b) ->
+  (Float -> b) ->
+  (Bool -> b) ->
+  (List c -> b) ->
+  (List (String, c) -> b) -> b
+fromNative =
+  Native.ImpureGoodies.fromNative
+
+toNativeArray: List a -> c
+toNativeArray = Native.ImpureGoodies.toNativeArray
+
+hideType: a -> b
+hideType = Native.ImpureGoodies.hideType

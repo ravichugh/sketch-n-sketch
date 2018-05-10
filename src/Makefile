@@ -4,7 +4,7 @@ ELMMAKE=elm-make
 
 all: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
-	sed -i 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].evaluate = _user$$project$$EvalUpdate$$evaluate;\nElm["EvalUpdate"].valToString = _user$$project$$EvalUpdate$$valToString;/g' ../build/out/sns.js
+	sed -i 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].api = _user$$project$$EvalUpdate$$api;/g' ../build/out/sns.js
 
 html: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
@@ -29,7 +29,7 @@ html: elm-stuff/packages
 	cp ../img/sketch-n-sketch-logo.png ../build/out/img/
 	cp ../img/light_logo.svg ../build/out/img/
 	cp ../img/*.png ../build/out/img/
-	sed -i 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].evaluate = _user$$project$$EvalUpdate$$evaluate;\nElm["EvalUpdate"].valToString = _user$$project$$EvalUpdate$$valToString;/g' ../build/out/sns.js
+	sed -i 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].api = _user$$project$$EvalUpdate$$api;/g' ../build/out/sns.js
 
 elm-stuff/packages:
 	# Use our custom version of core that allows anything in sets.

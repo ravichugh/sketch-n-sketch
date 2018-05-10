@@ -39,6 +39,12 @@ string vb= vb << VBase << VString
 int: Vb -> Int -> Val
 int vb= vb << VConst Nothing << (\i -> (toFloat i, dummyTrace))
 
+num: Vb -> Num -> Val
+num vb= vb << VConst Nothing << (\i -> (i, dummyTrace))
+
+bool: Vb -> Bool -> Val
+bool vb = vb << VBase << VBool
+
 const: Vb -> Float -> Val
 const vb = vb << VConst Nothing << (\i -> (i, dummyTrace))
 

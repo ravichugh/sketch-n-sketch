@@ -45,6 +45,16 @@ int v = case v.v_ of
   VConst _ (n, _) -> Ok (floor n)
   _ -> Err <| "Expected a constant, got " ++ valToString v
 
+num: Val -> Result String Num
+num v = case v.v_ of
+  VConst _ (n, _) -> Ok n
+  _ -> Err <| "Expected a constant, got " ++ valToString v
+
+bool: Val -> Result String Bool
+bool v = case v.v_ of
+  VBase (VBool b) -> Ok b
+  _ -> Err <| "Expected a bool, got " ++ valToString v
+
 dict: (Val -> Result String b) -> Val -> Result String (Dict (String, String) b)
 dict sub v = case v.v_ of
   VDict d -> Dict.foldl (\k v acc -> Result.map2 (\acc v -> Dict.insert k v acc) acc (sub v)) (Ok Dict.empty) d

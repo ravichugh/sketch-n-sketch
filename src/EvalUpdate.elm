@@ -469,8 +469,8 @@ doUpdate oldExp oldEnv oldVal newValResult =
   newValResult
     --|> Result.map (\x -> let _ = Debug.log "#1" () in x)
     |> Results.fromResult
-    |> Results.andThen (\out ->
-      let thediffs = ImpureGoodies.logTimedRun "UpdateUtils.defaultVDiffs (doUpdate) " <| \_ -> UpdateUtils.defaultVDiffs oldVal out
+    |> Results.andThen (\newVal ->
+      let thediffs = ImpureGoodies.logTimedRun "UpdateUtils.defaultVDiffs (doUpdate) " <| \_ -> UpdateUtils.defaultVDiffs oldVal newVal
       in
       case thediffs of
         Errs msg -> Errs msg
@@ -480,13 +480,13 @@ doUpdate oldExp oldEnv oldVal newValResult =
            ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
             Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
               let previousLets = UpdateStack.keepLets preludeEnv oldEnv in
-              update <| updateContext "initial update" preludeEnv oldExp previousLets oldVal out diffs)
+              update <| updateContext "initial update" preludeEnv oldExp previousLets oldVal newVal diffs)
            )
 
 
 doUpdateWithoutLog : Exp -> Env -> Val -> Val -> Results String (UpdatedEnv, UpdatedExp)
-doUpdateWithoutLog oldExp oldEnv oldVal out =
-  let thediffs = UpdateUtils.defaultVDiffs oldVal out
+doUpdateWithoutLog oldExp oldEnv oldVal newVal =
+  let thediffs = UpdateUtils.defaultVDiffs oldVal newVal
   in
   case thediffs of
     Errs msg -> Errs msg
@@ -494,9 +494,9 @@ doUpdateWithoutLog oldExp oldEnv oldVal out =
     Oks (LazyList.Cons Nothing _ ) -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
     Oks ll ->
         Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
-         --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
+         --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal newVal diffs) () in
          let previousLets = UpdateStack.keepLets preludeEnv oldEnv in
-         update <| updateContext "initial update" preludeEnv oldExp previousLets oldVal out diffs)
+         update <| updateContext "initial update" preludeEnv oldExp previousLets oldVal newVal diffs)
 
 -- Deprecated
 parseAndRun : String -> String
@@ -794,6 +794,49 @@ parse s =
   Syntax.parser Syntax.Elm s
   |> Result.mapError ParserUtils.showError
 
+unparse: Exp -> String
+unparse e = Syntax.unparser Syntax.Elm e
+
+evalExp: Exp -> Result String Val
+evalExp exp = run Syntax.Elm exp |> Result.map Tuple.first
+
+updateExp: Exp -> Val -> Val -> Results String Exp
+updateExp oldExp oldVal newVal =
+  let thediffs = UpdateUtils.defaultVDiffs oldVal newVal
+  in
+  case thediffs of
+    Errs msg -> Errs msg
+    Oks (LazyList.Nil ) -> Errs "[Internal error] expected a diff or an error, got Nil"
+    Oks (LazyList.Cons Nothing _ ) -> ok1 oldExp
+    Oks ll ->
+        Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
+         --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
+         (update <| updateContext "initial update" preludeEnv oldExp [] oldVal newVal diffs)) |>
+         Results.map (\(newEnv, newExp) -> newExp.val)
+
+valToNative: Val -> Result String a
+valToNative v = case Vu.string v of
+  Ok x -> Ok <| ImpureGoodies.hideType x
+  Err msg -> case Vu.num v of
+    Ok i -> Ok <| ImpureGoodies.hideType i
+    Err msg -> case Vu.bool v of
+      Ok b -> Ok <| ImpureGoodies.hideType b
+      Err msg -> case Vu.list Vu.identity v of
+        Ok l -> List.map valToNative l |> Utils.projOk |> Result.map ImpureGoodies.toNativeArray
+        Err msg -> case Vu.record valToNative v of
+          Ok d -> Ok <| ImpureGoodies.keyPairsToNativeRecord <| Dict.toList d
+          Err msg -> Err <| "I only know how to convert vals to string, ints, booleans, list and records"
+
+
+nativeToVal: Vb.Vb -> a -> Val
+nativeToVal vb v =
+  ImpureGoodies.fromNative v
+    (\s -> Vb.string vb s)
+    (\n -> Vb.num vb n)
+    (\b -> Vb.bool vb b)
+    (\l -> Vb.list nativeToVal vb l)
+    (\r -> Vb.record nativeToVal vb (Dict.fromList r))
+
 evaluate: String -> Result String Val
 evaluate s =
   Syntax.parser Syntax.Elm s
@@ -806,7 +849,14 @@ valToString: Val -> String
 valToString v = LangUtils.valToString v
 
 api = {
-  toString = valToString,
   parse = parse,
-  compile = compile
+  evalExp = evalExp,
+  updateExp = updateExp,
+  unparse = unparse,
+  andThen = Result.andThen,
+  valToNative = valToNative,
+  nativeToVal = nativeToVal (builtinVal "EvalUpdate.nativeToVal"),
+
+  toString = valToString,
+  evaluate = evaluate
   }
