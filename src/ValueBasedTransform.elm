@@ -225,6 +225,9 @@ indexedRelateDistanceScore subst indexedLocIdsWithTarget mathExp =
 
 indexedRelate : Syntax -> Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
 indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
+  if True then
+    []
+  else
   case evalToSlateAndWidgetsResult originalExp slideNumber movieNumber movieTime of
     Err _    -> []
     Ok (slate, widgets) ->

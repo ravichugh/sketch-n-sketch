@@ -22,6 +22,7 @@ import Sync
 import Draw exposing (pointZoneStyles, colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected, colorInput, colorOutput, colorInputAndOutput)
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
+import DeuceWidgets
 
 import Syntax exposing (Syntax)
 
@@ -101,6 +102,9 @@ startDrawing old maybeClickable =
 
 build : SleekLayout.BoundingBox -> Model -> List (Html Msg)
 build dim model =
+  -- if model.editingContext /= Nothing then
+  --   []
+  -- else
   let addZones = case (model.outputMode, model.preview) of
     (Live, Nothing) -> model.tool == Cursor
     _               -> False
@@ -120,6 +124,7 @@ build dim model =
       _                     -> []
   in
   let selectBox = drawSelectBox model in
+  -- let _ = Debug.log "slate" slate in
   if outputIsSvg then
     [ Svg.svg
         [ onMouseDown msgMouseDownOnCanvas
@@ -398,7 +403,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
     yBL           = hCanvas - hWidget - pad
   in
 
-  let drawNumWidget i_ widget locId cap_ minVal maxVal curVal =
+  let drawNumWidget i_ widget locId cap_ minVal maxVal curVal val =
     let i = i_ - 1 in
     let idAsShape = -2 - i_ in
     let
@@ -465,9 +470,22 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
   let drawPointWidget i_ widget (cx, cxTr) xVal (cy, cyTr) yVal =
     let idAsShape = -2 - i_ in
     let extraAttrs = [ onMouseEnter (addHoveredShape idAsShape), onMouseLeave (removeHoveredShape idAsShape) ] in
+    let getShapeInterp () =
+      let
+        xSelectableFeature = ShapeFeature idAsShape (XFeat LonePoint)
+        ySelectableFeature = ShapeFeature idAsShape (YFeat LonePoint)
+      in
+      let (proximalInterps, _) =
+        ShapeWidgets.selectionsProximalDistalEIdInterpretations_ model.inputExp model.slate model.widgets ([xSelectableFeature, ySelectableFeature] |> Set.fromList) Set.empty Dict.empty (always True)
+      in
+      proximalInterps |> List.head |> Maybe.withDefault []
+    in
+    let emptyDeuceState = DeuceWidgets.emptyDeuceState in
     [ Svg.g
         [ onMouseEnter (addHoveredShape idAsShape)
         , onMouseLeave (removeHoveredShape idAsShape)
+        -- , onMouseEnter (Msg "Hover Point" (\old -> { old | deuceState = { emptyDeuceState | hoveredWidgets = getShapeInterp () |> List.map DeuceWidgets.DeuceExp} }))
+        -- , onMouseLeave (Msg "Hover Point" (\old -> { old | deuceState = emptyDeuceState }))
         ] <|
         zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xVal (cy, cyTr) yVal
         ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] (cx, cy)
@@ -560,6 +578,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
               _ -> ([], [])
           in
           let box =
+            let emptyDeuceState = DeuceWidgets.emptyDeuceState in
             flip Svg.rect perhapsTitleAttribute <|
               [ attr "fill" "none"
               , attr "stroke" (if isCurrentContext then colorPointSelected else "black")
@@ -572,6 +591,8 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
               , attr "y" (toString boxTop)
               , attr "width" (toString (right - left))
               , attr "height" (toString (bot - boxTop))
+              , onMouseEnter (Msg "Hover Call Widget" (\old -> { old | deuceState = { emptyDeuceState | hoveredWidgets = [DeuceWidgets.DeuceExp callEId] } }))
+              , onMouseLeave (Msg "Leave Call Widget" (\old -> { old | deuceState = emptyDeuceState }))
               ] ++ perhapsSetContextEvent
           in
           let isRecursiveFunction =
@@ -673,6 +694,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
               Svg.title [] [Svg.text "Click to select this list."]
           in
           let box =
+            let emptyDeuceState = DeuceWidgets.emptyDeuceState in
             flip Svg.rect [titleAttribute] <|
               [ attr "fill" "none"
               , attr "cursor" "pointer"
@@ -687,6 +709,8 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
               , attr "width" (toString (right - left))
               , attr "height" (toString (bot - boxTop))
               , onMouseDownAndStop (if isSelected then Controller.msgDeselectList idAsShape else Controller.msgSelectList idAsShape)
+              , onMouseEnter (Msg "Hover List Widget" (\old -> { old | deuceState = { emptyDeuceState | hoveredWidgets = [DeuceWidgets.DeuceExp (valExp listVal).val.eid] } }))
+              , onMouseLeave (Msg "Leave List Widget" (\old -> { old | deuceState = emptyDeuceState }))
               ]
           in
           [ box
@@ -701,11 +725,11 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
       WIntSlider _ _ _ _ _ _ True -> []
 
       WNumSlider minVal maxVal cap curVal val (k,_,_) False ->
-        drawNumWidget i_ widget k cap minVal maxVal curVal
+        drawNumWidget i_ widget k cap minVal maxVal curVal val
 
       WIntSlider a b cap c val (k,_,_) False ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
-        drawNumWidget i_ widget k cap minVal maxVal curVal
+        drawNumWidget i_ widget k cap minVal maxVal curVal val
 
       WPoint xNumTr xVal yNumTr yVal pairVal ->
         drawPointWidget i_ widget xNumTr xVal yNumTr yVal
