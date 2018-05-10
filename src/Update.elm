@@ -954,7 +954,63 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                let ((vs, wss), envs) = Tuple.mapFirst List.unzip <| List.unzip argsEvaled in
                let args = List.map .v_ vs in
                case op.val of
-                 Explode    -> UpdateCriticalError <| " Not implemented: update Explode "
+                 Explode    ->
+                   case (vs, opArgs) of
+                     ([v],[opArg]) ->
+                       case (Vu.list Vu.string oldVal, Vu.list Vu.string newVal, diffs) of
+                         (Ok oldStrings, Ok newStrings, VListDiffs d) ->
+                           let newResult = Vb.string (Vb.fromVal v) (String.join "" newStrings) in
+                           let resNewResultDiffs =
+                             let
+                               aux: ListDiffs VDiffs -> List String -> List String ->
+                                   (Int,           Int,             List StringDiffs) -> Result String VDiffs
+                               aux  d                   oldStrings     newStrings
+                                   (currentOffset, strLengthBefore, revAcc) = case d of
+                                 [] -> Ok <| VStringDiffs <| List.reverse revAcc
+                                 (i, localdiff)::taildiff ->
+                                   let notModified = i - currentOffset in
+                                   if notModified > 0 then
+                                     let (sameOld, remainingOld) = Utils.split notModified oldStrings in
+                                     let (_, remainingNew) = Utils.split notModified newStrings in
+                                     let sameStringLength = List.map String.length sameOld |> List.sum in
+                                     (i, strLengthBefore + sameStringLength, revAcc) |>
+                                     aux d remainingOld remainingNew
+                                   else case localdiff of
+                                     ListElemInsert count ->
+                                       let (inserted, remainingNew) = Utils.split count newStrings in
+                                       let insertedStringLength = List.map String.length inserted |> List.sum in
+                                       (i, strLengthBefore,
+                                        (StringUpdate strLengthBefore strLengthBefore insertedStringLength)::revAcc
+                                       ) |>
+                                       aux taildiff oldStrings remainingNew
+
+                                     ListElemDelete count ->
+                                       let (deleted, remainingOld) = Utils.split count oldStrings in
+                                       let deletedStringLength = List.map String.length deleted |> List.sum in
+                                       (i + count, strLengthBefore + deletedStringLength,
+                                         StringUpdate strLengthBefore (strLengthBefore + deletedStringLength) 0 :: revAcc) |>
+                                       aux taildiff remainingOld newStrings
+
+                                     ListElemUpdate dd -> case (oldStrings, newStrings, dd) of
+                                       (headOld::tailOld, _::tailNew, VStringDiffs l) ->
+                                         (i + 1, strLengthBefore + String.length headOld,
+                                         Utils.reverseInsert (offsetStr strLengthBefore l) revAcc) |>
+                                         aux taildiff tailOld tailNew
+                                       ([], _, _) -> Err <| "Diff and values are not coherent for explode: " ++ toString diffs ++ "\n" ++ valToString oldVal ++ "\n" ++ valToString newVal
+                                       (_, [], _) -> Err <| "Diff and values are not coherent for explode: " ++ toString diffs ++ "\n" ++ valToString oldVal ++ "\n" ++ valToString newVal
+                                       _ -> Err <| "expected a VStringDiffs in the diffs of explode's output's elements, got " ++ toString dd
+                             in aux d oldStrings newStrings (0, 0, [])
+                           in
+                           case resNewResultDiffs of
+                             Err msg -> UpdateCriticalError <| msg
+                             Ok newResultDiffs ->
+                               updateContinue "argument of explode" env opArg [] v newResult newResultDiffs <| \newUpdatedEnv newUpdatedOpArg ->
+                                 let finalExp = replaceE__ e <| EOp sp1 op [newUpdatedOpArg.val] sp2 in
+                                 updateResult newUpdatedEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newUpdatedOpArg.changes)
+                         (Err msg, _,_ ) -> UpdateCriticalError <| "Expected a list of string as previous output for explode, got " ++ msg ++ " for " ++ valToString oldVal
+                         (_, Err msg, _) -> UpdateCriticalError <| "Expected a list of string as new output for explode, got " ++ msg ++ " for " ++ valToString newVal
+                         (_, _, _) -> UpdateCriticalError <| "Expected a VListDiffs for explode, got " ++ toString diffs
+                     (_, _) -> UpdateCriticalError <| "Wrong number of arguments for explode, expected 1, got " ++ toString (List.length vs)
                  DictFromList ->
                    case (vs, opArgs) of
                      ([keyValuesList], [keyValuesListE]) ->
