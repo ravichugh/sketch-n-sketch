@@ -1,0 +1,24 @@
+#programdef {
+  display:table-cell;
+  white-space:pre;
+  border:2px solid blue;
+  background: white;
+  color: black;
+  padding: 10px;
+  font-family:monospace;
+}
+#programoutput {
+}
+#programerroroutput {
+  position: relative;
+  float: right;
+  z-index: 1000;
+  background: white;
+  color: red;
+  padding: 10px;
+}
+.error-hidden {
+  visibility: hidden;
+  opacity: 0;
+  transition: visibility 0s 1s, opacity 1s linear;
+}
