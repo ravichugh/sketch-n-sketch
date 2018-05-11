@@ -70,17 +70,14 @@ div [["margin", "20px"]] [] <| [Html.span [] []
   textNode "Current scores:", br,
   Html.table [] [] <| List.map (\j -> 
     Html.tr [] [] [Html.td [] [] j.name, Html.td [] [] (toString (Update.freeze (sum (j.scores))))]) players,
-  if remainingbets > 1 then
+  if remainingbets > 0 then
     div [] [] [
     Html.textNode "Who is currently placing a bet? ",
     select [] (map (\j ->  j.name) playersEnCours) playerEnCoursIndex, br,
     div [] [] <|
       betself (playerIndexFromName (nth playersEnCours playerEnCoursIndex).name)
     ]
-  else if remainingbets == 1 then
-    div [] [] <|
-      betself (playerIndexFromName (nth playersEnCours playerEnCoursIndex).name)
-  else
+  else 
   let playersWithIndex = zipWithIndex players in
   let dealerIndex = filter (\(index, j) -> length j.betselfs == currentRound) playersWithIndex |> flip nth 0 |> Tuple.first in
   let totalNumCards = sum cartesDisponibles in

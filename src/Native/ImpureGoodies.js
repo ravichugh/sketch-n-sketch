@@ -203,7 +203,7 @@ var _user$project$Native_ImpureGoodies = {
                 if(typeof v == "object") {
                   if(Array.isArray(v)) {
                     var result = _elm_lang$core$Native_List.Nil;
-                    for(i = v.length - 1; i >= 0; i-- ) {
+                    for(var i = v.length - 1; i >= 0; i-- ) {
                       result = _elm_lang$core$Native_List.Cons(v[i], result)
                     }
                     return listCallback(result)
