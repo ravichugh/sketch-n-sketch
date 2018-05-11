@@ -10,7 +10,9 @@ importLib("sns.js").then(() => {
   programview = require("#viewhandler").getProgramView();
   function handleMutationsToProgram() {
     viewhandler = require("#viewhandler");
-    viewhandler.render();
+    if(global_src != viewhandler.getProgramSource()) {
+      viewhandler.render();
+    }
   }
   function handleMutationsToOutput() {
     viewhandler = require("#viewhandler");

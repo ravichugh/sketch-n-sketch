@@ -107,23 +107,29 @@ function setProgramSource(newSource) {
   document.querySelector("#programdef").innerText = newSource;
 }
 
-function render() {
-  var progSource = getProgramSource();
+function render(potentialNewSource) {
+  var progSource = typeof potentialNewSource == "string" ? potentialNewSource : getProgramSource();
+  var justRefresh = progSource == global_src;
   var programview = getProgramView();
-  var resProgExp = api.parse(progSource);
+  var resProgExp = justRefresh ? { ctor: "Ok", _0: global_exp} : api.parse(progSource);
   if(resProgExp.ctor == "Ok") {
     var progExp = resProgExp._0;
-    var resEval = api.evalExp(progExp);
+    var resEval = justRefresh ? { ctor: "Ok", _0: global_val} : api.evalExp(progExp);
     if(resEval.ctor == "Ok") {
       var result = resEval._0;
-      var resNativeResult = api.valToNative(result);
+      var resNativeResult = justRefresh ? { ctor: "Ok", _0: global_native_val} : api.valToNative(result);
       if(resNativeResult.ctor == "Ok") {
         var nativeResult = resNativeResult._0;
         var node = nativeValueToDomNode(nativeResult);
         programview.innerHTML = "";
         programview.appendChild(node);
+        global_src = potentialNewSource;
         global_exp = progExp;
         global_val = result;
+        global_native_val = nativeResult;
+        if(typeof potentialNewSource == "string") {
+          setProgramSource(potentialNewSource);
+        }
         reportError("");
       }else {
         reportError("The result failed to convert to a native value: " + resNativeResult._0);
@@ -149,10 +155,11 @@ function unrender() {
     var firstProgram = programLists._0;
     var newProgramSource = api.unparse(firstProgram);
     if(getProgramSource() !== newProgramSource) {
-      setProgramSource(newProgramSource);
+      render(newProgramSource);
     }
   } else {
-    reportError("Not taking changes into account because got an error while updating: " + programs._0, 2000);
+    render();
+    reportError("Not taking changes into account because got an error while updating: " + programs._0, 5000);
   }
 }
 
