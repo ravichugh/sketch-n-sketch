@@ -131,15 +131,35 @@ function triggerAutoUpdate() {
 }
 
 function listenForUpdatesToOutputValues() {
+  function isTransientElement(elem) {
+    return elem.nodeType == 1 && elem.tagName == "transient";
+  }
+
   function whichChild(elem){
     var  i= 0;
-    while((elem=elem.previousSibling)!=null) ++i;
+    while((elem=elem.previousSibling)!=null) {
+      if(!(isTransientElement(elem))) ++i;
+    }
     return i;
+  }
+
+  function isContainer(htmlElem) {
+    return htmlElem.parentNode &&
+      htmlElem.parentNode.getAttribute &&
+      (htmlElem.parentNode.getAttribute("id") == "outputCanvas" ||
+        htmlElem.parentNode.getAttribute("id") == "svgOutputCanvas")
+  }
+
+  function hasTransientAncestor(htmlElem) {
+    if(htmlElem == null) return true;
+    if(isContainer(htmlElem)) return false;
+    if(isTransientElement(htmlElem)) return true;
+    return hasTransientAncestor(htmlElem.parentNode);
   }
   
   function getPathUntilOutput(htmlElem) {
     if(htmlElem == null) return null;
-    if(htmlElem.parentNode && htmlElem.parentNode.getAttribute && (htmlElem.parentNode.getAttribute("id") == "outputCanvas" || htmlElem.parentNode.getAttribute("id") == "svgOutputCanvas")) // Single child !
+    if(isContainer(htmlElem))
       return []
     else
       //2 is for the children of a node (encoded [tag, attributes, children])
@@ -148,6 +168,10 @@ function listenForUpdatesToOutputValues() {
       res.push(2)
       res.push(whichChild(htmlElem))
       return res;
+  }
+
+  function isAttributeTransient(name) {
+    return name.startsWith("transient-");
   }
   
   function encodeAttributes(attrs, node) {
@@ -167,7 +191,9 @@ function listenForUpdatesToOutputValues() {
            }
            value = styles;
         }
-        attributes.push([name, value]);
+        if(!isAttributeTransient(name)) {
+          attributes.push([name, value]);
+        }
       }
     }
     return attributes;
@@ -177,7 +203,8 @@ function listenForUpdatesToOutputValues() {
     if (node.nodeType == 3) return node.textContent
     var children = []
     for(var i = 0; i < node.childNodes.length; i++) {
-      children.push(encodeNode(node.childNodes[i]))
+      if(!(isTransientElement(node.childNodes[i])))
+        children.push(encodeNode(node.childNodes[i]))
     }
     return [node.tagName.toLowerCase(), encodeAttributes(node.attributes, node), children]
   }
@@ -212,10 +239,8 @@ function listenForUpdatesToOutputValues() {
     mutations.forEach(function(mutation) {
       for (var i = 0; i < mutation.addedNodes.length; i++) {
         var domNode = mutation.addedNodes[i];
-        console.log("A node was added, maybe change setData on it?", domNode);
         domNode.manuallyInsertedNode = true;
-        if(domNode.nodeType != 3) { // In case it thinks that the node was a text node.
-          console.log("Just in case this is a text node, we add the method replaceData to it.", domNode);
+        if(domNode.nodeType == 1) { // In case it thinks that the node was a text node.
           domNode.replaceData = (function(self) { // Hides this node for now, 
              return function(start, end, data) {
                // Here self is totally detached from any parents. So the only thing we can do is to hid it.
@@ -228,17 +253,18 @@ function listenForUpdatesToOutputValues() {
              }
           })(domNode);
         } else {
-          console.log("It's a simple text node");
         }
       }
 			
       if (mutation.type == "attributes") {
-        var path = getPathUntilOutput(mutation.target)
-        if(path != null) {
-          path.push(1) // 1 for the attributes. We can be more precise if we know there are no insertion.
-          var attrs = encodeAttributes(mutation.target.attributes, mutation.target)
-          app.ports.receiveValueUpdate.send([path, attrs])
-          triggerAutoUpdate()
+        if(!isAttributeTransient(mutation.attributeName)) {
+          var path = getPathUntilOutput(mutation.target)
+          if(path != null) {
+            path.push(1) // 1 for the attributes. We can be more precise if we know there are no insertion.
+            var attrs = encodeAttributes(mutation.target.attributes, mutation.target)
+            app.ports.receiveValueUpdate.send([path, attrs])
+            triggerAutoUpdate()
+          }
         }
       } else {
         for (var k = 0; k < mutation.addedNodes.length; k ++) { // We add the callback to each added node.
@@ -269,10 +295,12 @@ function listenForUpdatesToOutputValues() {
               }
             }
           }
-          walkAllChildren(mutation.addedNodes[k])
+          if(!hasTransientAncestor(mutation.addedNodes[k])) {
+            walkAllChildren(mutation.addedNodes[k])
+          }
         }
         var path = getPathUntilOutput(mutation.target) // We change the whole node.
-        if(path != null) {
+        if(path != null && !hasTransientAncestor(mutation.target)) {
           var encodedNode = encodeNode(mutation.target);
           //console.log("encoded node", encodedNode)
           app.ports.receiveValueUpdate.send([path, encodedNode])

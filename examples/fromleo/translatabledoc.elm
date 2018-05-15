@@ -1,4 +1,4 @@
-editorInfo = """
+editorInfo = <span>
 <h1>Translation Editor</h1>
 <p>
   This text editor is set up to allow you to <em>add translations for</em>
@@ -28,6 +28,14 @@ editorInfo = """
   In the example below, wrap the sentence "This sentence is true" with braces,
   update and afterwards translate it to the language of your choice.
 </p>
+</span>
+
+content = """<h1>$translation1</h1>
+In case your printer RGB4500 is stuck, please follow these steps:
+<ul>
+<li>$translation2</li>
+<li>$translation3</li>
+</ul>
 """
 
 translations =
@@ -37,46 +45,38 @@ translations =
     ,("translation3", "Remove the paper, close the lid")])
   ,("Français", 
     [("translation1", "Réparer un bourrage papier")
-    ,("translation2", "Ouvrir le couvercle vert en tirant la poignée rouge à l'arrière")
+    ,("translation2", "Ouvrir le couvercle vert en tirant la poignée rouge derrière")
     ,("translation3", "Enlever le papier bourré, fermer le couvercle")])
   ]
 
-allTranslationDicts = List.map (Tuple.mapSecond Dict.fromList) translations
-  
-translationsLangDict = Dict.fromList allTranslationDicts
-languages = List.map Tuple.first translations
+languages = ["English", "French"]
 languageIndex = 0
 language = nth languages languageIndex
-currentTranslation = Dict.apply translationsLangDict language
-
 highlighttranslations = True
 
-replaceVariables translationDict string =
-  Regex.replace "\\$(\\w+|\\$)" (\m -> 
-    if m.match == "$" then m.match else
-    let key = nth m.group 1 in
-    case Dict.get key translationDict of
-      Nothing -> m.match
-      Just definition -> 
-        let finaldefinition = 
-          if highlighttranslations then
-            """<span style='outline:lightgreen 2px solid;' title='@key'>@definition</span>"""
-          else definition
-       in
-       replaceVariables (remove key translationDict) finaldefinition
-  ) string
-
-freshVarName name i dictionary =
-  if Dict.member (name + toString i) (dictionary) then freshVarName name (i + 1) (dictionary) else name + toString i
-  
-content = """<h1>$translation1</h1>
-In case your printer RGB4500 is stuck, please follow these steps:
-<ul>
-<li>$translation2</li>
-<li>$translation3</li>
-</ul>
-""" |> replaceVariables currentTranslation |>
-  (\x ->
+translate options language translations content =
+  let allTranslationDicts = List.map (Tuple.mapSecond Dict.fromList) translations in
+  let translationsLangDict = Dict.fromList allTranslationDicts in
+  let currentTranslation = Dict.apply translationsLangDict language in
+  letrec replaceVariables translationDict string =
+    Regex.replace "\\$(\\w+|\\$)" (\m -> 
+      if m.match == "$" then m.match else
+      let key = nth m.group 1 in
+      case Dict.get key translationDict of
+        Nothing -> m.match
+        Just definition -> 
+          let finaldefinition = 
+            if case options of {highlighttranslations=x} -> x; _ -> False then
+              """<span style='outline:lightgreen 2px solid;' title='@key'>@definition</span>"""
+            else definition
+         in
+         replaceVariables (remove key translationDict) finaldefinition
+    ) string
+  in
+  letrec freshVarName name i dictionary =
+    if Dict.member (name + toString i) (dictionary) then freshVarName name (i + 1) (dictionary) else name + toString i
+  in
+  content |> replaceVariables currentTranslation |> \x ->
     { apply (x, _) = freeze x
       update {input = (x, allTranslationDicts), newOutput} =
         Regex.find "\\{([^\\}]*(?!\\})\\S[^\\}]*)\\}" newOutput |>
@@ -89,33 +89,40 @@ In case your printer RGB4500 is stuck, please follow these steps:
         ) (newOutput, currentTranslation, allTranslationDicts) |> \(newOutput, _, newTranslationsLangDict) ->
           { values = [(newOutput, newTranslationsLangDict)] }
     }.apply (x, allTranslationDicts)
-  )
 
-alltranslationsLangDict = Dict.fromList translations
-addLang alltranslationsLangDict = {
+addLang translations = {
   apply alltranslationsLangDict = freeze ""
   update {input, outputNew} =
     if not (outputNew == "") && not (Dict.member outputNew alltranslationsLangDict) then 
       let toCopy = Dict.apply alltranslationsLangDict language in
-      {values = [Dict.insert outputNew toCopy alltranslationsLangDict],
-       diffs=[Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)]))]}
+      { values = [Dict.insert outputNew toCopy alltranslationsLangDict]
+      , diffs=[Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)]))]}
     else
       { values = [input], diffs = [Nothing]}
-  }.apply alltranslationsLangDict
+  }.apply (Dict.fromList translations)
 
 main = 
   Html.forceRefresh <|
-  Html.div [["margin", "20px"], ["cursor", "text"]] []
-    [ Html.div [] [] <|
-        Html.parse editorInfo
-    , Html.div [["border", "4px solid black"], ["padding", "20px"]] [] <|
-        [Html.span [] [] <|
-          Html.select [] languages languageIndex ::
-          ["input", [["style", [["margin-left", "10px"]]], ["type","text"], ["v", addLang alltranslationsLangDict],
-            ["placeholder", "New Language (e.g. German)"], ["title", "Enter the name of a language here and press ENTER"],
-            ["onchange","this.setAttribute('v',this.value)"]], []] ::
-          Html.checkbox "Highlights" "Highlight translatable text" highlighttranslations ::
-          ["br", [], []] ::
-          Html.parse content
-        ]
-    ]
+  <div style="margin:20px;cursor:text">
+    @editorInfo
+    <div style="border:4px solid black;padding:20px">
+      <span>@(
+        Html.select [] languages languageIndex)
+        <input style="margin-left:10px" type="text" v=(addLang translations)
+           placeholder="New Language (e.g. German)" title="Enter the name of a new language here and press ENTER"
+           onchange="this.setAttribute('v',this.value)">@(
+        Html.checkbox "Highlights" "Highlight translatable text" highlighttranslations)<button
+          title="Make the selected text translatable"
+          onclick="""
+            var r = window.getSelection().getRangeAt(0);
+            var t = r.cloneContents().textContent;
+            r.deleteContents();
+            r.insertNode(document.createTextNode("{" + t + "}"))"""
+          contentEditable="false">Translatable</button>
+        <br>
+        @(content
+          |> translate {highlighttranslations = highlighttranslations} language translations
+          |> Html.parse)
+      </span>
+    </div>
+  </div>

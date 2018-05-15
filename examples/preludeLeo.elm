@@ -1493,23 +1493,12 @@ Html =
   let elementHelper tag styles attrs children =
     [ tag,  ["style", styles] :: attrs , children ]
   in
-  let forceRefresh =
-    Update.applyLens
-      { apply node =
-         freeze (if toggleGlobalBool []
-            then ["div", [["id", "wrapper"]], [node]]
-            else node)
-
-        update {input=node, outputNew, diffs} =
-          case outputNew of
-            ["div", [["id", "wrapper"]], [newNode]] ->
-              case diffs of
-                VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate newNodeDiffs)]))] ->
-                  {values = [newNode], diffs = [Just newNodeDiffs]}
-                _ -> {values = [newNode]}
-            _ ->
-              {values = [outputNew]}
-      }
+  let refresh x = {
+    apply x = "dummy" + (if x then toString (getCurrentTime x) else "")
+    update {input} = { value = [input], diffs = [Nothing] } }.apply x
+  in
+  let forceRefresh node =
+    [refresh True, [], [node]]
   in
   let option value selected content =
     { apply (value,selected,content) =
@@ -1607,6 +1596,7 @@ Html =
     text = textInner
     br = ["br", [], []]
     parse = html
+    refresh = refresh
     forceRefresh = forceRefresh
     select = select
     checkbox = checkbox
