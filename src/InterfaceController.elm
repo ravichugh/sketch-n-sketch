@@ -711,7 +711,7 @@ tryRun old =
       in
         { old | history = updatedHistory }
   in
-    case Syntax.parser old.syntax old.code of
+    case ImpureGoodies.logTimedRun "parsing time" <| \() -> Syntax.parser old.syntax old.code of
       Err err ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok e ->
@@ -729,7 +729,7 @@ tryRun old =
           --
           let rewrittenE = rewriteInnerMostExpToMain e in
 
-          Eval.doEval old.syntax EvalUpdate.preludeEnv rewrittenE |>
+          EvalUpdate.runWithEnv old.syntax rewrittenE |>
           Result.andThen (\((newVal,ws),finalEnv) ->
             LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
@@ -1494,7 +1494,7 @@ msgMousePosition pos_ =
 refreshInputExp : Model -> Model
 refreshInputExp old =
   let
-    parseResult =
+    parseResult = ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
       Syntax.parser old.syntax old.code
     (newInputExp, codeClean) =
       case parseResult of
@@ -2368,7 +2368,7 @@ doClearPreviewDiff m =
 --------------------------------------------------------------------------------
 
 showCodePreview old code =
-  case Syntax.parser old.syntax code of
+  case ImpureGoodies.logTimedRun "parsing time preview" <| \() -> Syntax.parser old.syntax code of
     Ok exp  -> showExpPreview old exp []
     Err err -> { old | preview = Just (code, [], Err (showError err)) }
 
