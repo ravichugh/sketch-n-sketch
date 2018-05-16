@@ -32,35 +32,29 @@
 <li>Work through a &quot;hello, world&quot; example, and</li>
 <li>Create your own simple designs.</li>
 </ul>
-<p>Let's get started. As you work through the tutorial, we recommend that you keep <a href="http://ravichugh.github.io/sketch-n-sketch/releases/v0.4.1/">Sketch-n-Sketch v0.4.1</a> open in a separate tab or window and try out all the sample interactions as you read. We'll sometimes drop in a &quot;<strong>Practice</strong>&quot; marker to provide a gentle reminder, and we'll use an &quot;<strong>Exercise</strong>&quot; marker when you really should stop, drop, and roll over to your Sketch-n-Sketch tab to try out something in-depth.</p>
+<p>Let's get started. As you work through the tutorial, we recommend that you keep <a href="http://ravichugh.github.io/sketch-n-sketch/releases/v0.6.1/">Sketch-n-Sketch v0.6.1</a> open in a separate tab or window and try out all the sample interactions as you read. We'll sometimes drop in a &quot;<strong>Practice</strong>&quot; marker to provide a gentle reminder, and we'll use an &quot;<strong>Exercise</strong>&quot; marker when you really should stop, drop, and roll over to your Sketch-n-Sketch tab to try out something in-depth.</p>
 <h3 id="warm-up">Warm-up</h3>
-<p>To preview the basics, let's jump right in and start playing around. The default example that is loaded, called *Scratch*, draws a single, maroon rectangle. Notice that there is some code on the left (the &quot;code pane&quot;) and an SVG canvas on the right (the &quot;canvas pane&quot;).</p>
-<p>First, try clicking and dragging the box around in the canvas pane, and notice how the program is updated to match your changes. Next, hit the Edit Code button, change the string <code>'maroon'</code> in the code pane to a different color, say <code>'lightblue'</code>, and then hit the Run Code button. Now the canvas is &quot;active&quot; again, so you can click and drag the box around once more.</p>
+<p>To preview the basics, let's jump right in. When you load the program, you start with a blank slate. Notice that there is some code on the left (the &quot;code pane&quot;) and an SVG canvas on the right (the &quot;canvas pane&quot;). There are also drawing tools in the top left corner.</p>
+<p>First, try drawing a square. Notice that the code for the square has been generated in the editor. Try moving around the square to see how the code continues to change. Try dragging the edges or the corners of the square to resize it. Try double-clicking the square to change it's colour. Now, intead of using the canvas pane to modify one of the features you just played around with, modify the code.</p>
 <p>From these very simple interactions, we see that there are two ways to modify a program in Sketch-n-Sketch: by directly manipulating the canvas, and by editing the source program in the code pane. In the rest of this article, we will describe the basics of how to use (a) the interface, (b) the programming language, and (c) the direct manipulation capabilities.</p>
 <h3 id="the-interface">The Interface</h3>
-<p>As you've noticed, Sketch-n-Sketch is a tool that runs completely in the web browser. We have tested the tool in Chrome and Firefox in several configurations, but we have less experience using it in IE and Edge. If you run into any issues, please let us know and try using a different browser in the meantime.</p>
+<p>As you've noticed, Sketch-n-Sketch is a tool that runs completely in the web browser. We have tested the tool in Chrome and Firefox in several configurations, but we have less experience using it in IE and Edge. If you run into any issues, <a href="https://github.com/ravichugh/sketch-n-sketch/issues">please let us know</a> and try using a different browser in the meantime.</p>
 <h4 id="overview-of-buttons-and-menus">Overview of Buttons and Menus</h4>
 <p>We will briefly describe all of the components of the user interface up front for reference, but don't worry too much about all of the details — you will get plenty of practice throughout the tutorial. For now, the most important thing to remember is what you already know: that a program can be modified either programmatically (in the code pane) or using direct manipulation (in the canvas pane). You may edit in only one of these two modes at a time. The canvas pane has a faint orange border when it is active and a faint gray border when it is inactive.</p>
+<!-- TODO make a better figure showing the differences -->
 <p><img align="right" width="450px" style="padding: 0 20px 0 20px;"
      src="__ROOT__/static/images/tutorial/01/sketch-n-sketch.png"/></p>
-<p>Between the code and canvas panes is a column of buttons, as well as a dropdown menu that is used to load different examples and working documents into your active editing environment. The Edit Code button turns into a Run Code button when pressed; this button is the passageway for switching between the two modes of interaction.</p>
-<p>The Save and Save As buttons work similarly to how they work in desktop applications, and allow you to save your work to be resumed during a different session. The Reload button reloads your active document to the last save that was made. The Undo and Redo buttons allow you to rewind your history of edits, including those changes made both via programmatic and direct manipulation. Finally, the [Zones] button allows you to switch between different direct manipulation modes (more on that shortly).</p>
+<p>Between the code and canvas panes is a column of buttons, as well as a dropdown menu that is used to load different examples and working documents into your active editing environment.</p>
+<p>The Save and Save As buttons work similarly to how they work in desktop applications, and allow you to save your work to be resumed during a different session. The Reload button reloads your active document to the last save that was made. The Undo and Redo buttons allow you to rewind your history of edits, including those changes made both via programmatic and direct manipulation.</p>
 <p>Below the canvas is an [Out] button that allows you to toggle between viewing the output of your program as a visual canvas (the default) or as a &quot;raw&quot; SVG definition. The latter allows you to copy-and-paste the raw SVG and export your design to, for example, a local <code>.svg</code> file on your machine or into a conventional SVG editor, such as <a href="http://svg-edit.googlecode.com/svn/branches/stable/editor/svg-editor.html"><code>svg-edit</code></a>.</p>
 <h4 id="saving-files-locally">Saving Files Locally</h4>
 <p>There are two kinds of examples listed in the dropdown menu: &quot;Built-In&quot; examples that are are provided with Sketch-n-Sketch, and &quot;Local Saves&quot; which are user-created files that persist across browser sessions. Sketch-n-Sketch does not currently provide support for working directly with the file system, so you will not be able to view your work outside of Sketch-n-Sketch. When you first launch Sketch-n-Sketch, there are no local saves to display in the dropdown menu. Once you create your own local saves, they will appear in a labeled section at the top of the dropdown list.</p>
 <p>Loading and saving examples should be pretty straightforward. The Save As button creates a copy of the current example, the Save button saves changes to the current (locally saved) example, and Reload discards any outstanding changes since the last saved version, without issuing a confirmation prompt. (<strong>Practice 1.1:</strong> Now is a good time to try creating your first local example.)</p>
+<!-- TODO they now have to click "new", also the order should be changed -->
 <p>To load a different example, simply click on the dropdown menu and select one. When doing this, any outstanding, unsaved changes to the current example are discarded (again, without warning in the current implementation). If you select a built-in example, the program will be displayed in the code pane and its output will be rendered to the canvas pane. If you select a local save, the program will be displayed but <em>not</em> its output. After all, you may have saved a document that was not complete and would not compile! So, just hit the Run Code button when you are ready.</p>
-<p>The last thing to know about the dropdown menu is that *Scratch* is a special built-in example. Unlike for other built-in examples, Sketch-n-Sketch <em>will</em> remember changes to it as you work, so you may switch away from it and then back and not worry about your work disappearing. These changes do not, however, persist across browser sessions. So, it really is just a temporary scratch space for toying around. Usually, you will want to work with locally saved files.</p>
 <p>Okay, there's one more thing... we promise this time! If you would like to delete all your locally saved examples, select *Clear Local Saves* from the bottom of the dropdown menu. Be careful, there's no prompt to let you change your mind, and when they're gone, they're gone for good!</p>
 <h4 id="customizing-the-ui">Customizing the UI</h4>
-<p>The interface also allows for a degree of customization. The interface can be toggled between a vertical and horizontal view by pressing the [Orientation] button.</p>
-<!--
-Similarly, the [Code Box] buttons toggles between a "fancy" code pane
-and a bare-bones version. In our current implementation, the fancy code editor
-can sometimes get into a funky state, especially when working with large
-programs. If you run into issues, try switching to the plain code editor.
--->
-<p>The relative sizes of the code and canvas panes can be changed by clicking and dragging the edges of the middle button section. Whenever you save, your interface layout is also saved for that document and is automatically set when you load that document. Go ahead and fiddle around with these options now.</p>
+<p>The interface also allows for a degree of customization by dragging around the menus and the red circles associated to the canvas and code editor. Go ahead and fiddle around with these options now.</p>
 <!--
 #### Keyboard Shortcuts
 
@@ -88,7 +82,7 @@ settings. If you want to use the keyboard shortcuts that come with the fancy cod
 editor, refer to [this page][aceshortcuts].
 -->
 <h3 id="programming-in-little">Programming in Little</h3>
-<p>Programs in Sketch-n-Sketch are written in an untyped, little, programming language we call Little. We have chosen to use a minimalist syntax in Little that should feel familiar to anyone who has used a lisp-like language. If not, don't worry! The syntax is very simple and will be introduced through a series of examples. If you would like to see a more complete, technical summary of Little, check out this <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md">syntax reference</a>.</p>
+<p>Programs in Sketch-n-Sketch are written in an untyped, little, programming language we call Little. We have chosen to use a minimalist syntax in Little that should feel familiar to anyone who has used a lisp-like language. If not, don't worry! The simple syntax will be introduced through a series of examples. If you would like to see a more complete, technical summary of Little, check out this <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md">syntax reference</a>.</p>
 <p>The general structure of most Little programs is the definition and calculation of everything you need for your graphic design, followed by a final &quot;main&quot; expression that puts together an entire <a href="https://en.wikipedia.org/wiki/Scalable_Vector_Graphics">SVG image</a>. The simplest such Little program is the following:</p>
 <pre><code>(svg [])</code></pre>
 <p>This program calls the <code>svg</code> function to draw a canvas with the given (empty) list of shapes. <strong>Practice 1.2:</strong> Go ahead and enter Edit Mode while on the *Scratch* example, delete the contents, and type in the code above. Then, run the code. Congratulations, you've just written your first Little program!</p>
@@ -194,16 +188,6 @@ editor, refer to [this page][aceshortcuts].
 <li>Change your program to display more than one row of shapes using any means you see fit.</li>
 <li>Change your placement function to take an x- and a y-position and use these to make a grid of shapes. Hint: The function can be mapped over a list of points, such as <code>[[100 100] [200 100] ... ]</code>. If you take this approach, then your mapping function should be defined with the form <code>(\[x y] ...)</code> — notice the square brackets instead of the parentheses we have seen before — which &quot;extracts&quot; the two values from each point in the list.</li>
 </ul>
-<!--
-### Survey
-
-Please take a moment to fill out our survey for this first lesson, thanks!
-
-<iframe
-   src="https://docs.google.com/forms/d/1PXnseEs1X_h38WGpCRSZUrDxheg5KnzXXiDncrOi0Ko/viewform?embedded=true"
-   width="750" height="1300" frameborder="0" marginheight="0" marginwidth="0">Loading...</iframe>
-<br>
--->
 <h3 id="next-up-step-2">Next Up: <a href="02.html">Step 2</a></h3>
 <!-- TODO change the version if necessary -->
 <div class="footnotes">
