@@ -65,10 +65,10 @@ type HTMLTag = HTMLTagString (WithInfo String) | HTMLTagExp Exp
 
 type ParsingMode = Raw |
   Interpolation {
-    tagName: SpacePolicy -> Parser Exp,
-    attributevalue: SpacePolicy -> Parser Exp,
-    attributelist: SpacePolicy -> Parser Exp,
-    childlist: SpacePolicy -> Parser Exp}
+    tagName: Parser WS -> Parser Exp,
+    attributevalue: Parser WS -> Parser Exp,
+    attributelist: Parser WS -> Parser Exp,
+    childlist: Parser WS -> Parser Exp}
 
 voidElements: Set String
 voidElements =
@@ -193,7 +193,7 @@ parseHtmlAttributeValue parsingMode =
         (succeed (flip HTMLAttributeExp)
           |. symbol "="
           |. optional (symbol "@")
-          |= attributevalue (SpacePolicy spaces nospace)
+          |= attributevalue nospace
          )
         , succeed identity
           |. oneOf [lookAhead (symbol " "), lookAhead (symbol ">"), lookAhead (symbol "/")]
@@ -229,7 +229,7 @@ nodeElementStart parsingMode =
           defaultParser,
           succeed (\s x -> (HTMLTagExp x, "@"))
           |= symbol "@"
-          |= tagName (SpacePolicy nospace nospace)
+          |= tagName nospace
         ]
 
 nodeStart: Parser String
@@ -282,8 +282,8 @@ parseHTMLAttribute parsingMode =
           oneOf [
             (succeed (flip HTMLAttributeListExp)
             |. symbol "@"
-            |= attributelist (SpacePolicy nospace nospace)),
-          defaultAttributeParser]
+            |= attributelist nospace),
+            defaultAttributeParser]
 
 mergeInners: List HTMLNode -> List HTMLNode
 mergeInners children = case children of
@@ -355,7 +355,7 @@ parseNode parsingMode surroundingTagNames namespace =
           |= symbol "@@"
         , succeed HTMLListNodeExp
         |. symbol "@"
-        |= childlist (SpacePolicy nospace nospace)])::defaultParsers
+        |= childlist nospace])::defaultParsers
 
 
 

@@ -346,12 +346,16 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, optiona
 genericTuple
   :  { term : SpacePolicy -> Parser t
      , tagger : String -> t
+     , one : WS -> t -> WS -> r
      , record : WS -> List (WS, WS, Ident, WS, t) -> WS -> r
      }
   -> ParserI (WS -> r)
-genericTuple { term, tagger, record } =
+genericTuple { term, tagger, one, record } =
   let
     combiner (fst, rest, wsBeforeEnd) wsBefore =
+      if List.isEmpty rest then
+        one wsBefore fst wsBeforeEnd
+      else
       let
         name =
           Lang.ctorTupleName (1 + List.length rest)
@@ -374,11 +378,12 @@ genericTuple { term, tagger, record } =
             succeed (,,)
               |. symbol "("
               |= term allSpacesPolicy
-              |= repeat oneOrMore
-                   ( try <| succeed (,)
-                       |= spaces
+              |= repeat zeroOrMore
+                   ( delayedCommitMap (\ws term -> (ws, term))
+                      spaces
+                      (succeed identity
                        |. symbol ","
-                       |= term allSpacesPolicy
+                       |= term allSpacesPolicy)
                    )
               |= spaces
               |. symbol ")"
@@ -433,7 +438,18 @@ keywords =
     , "then"
     , "else"
     , "type"
+    , "True"
+    , "False"
     ]
+
+
+
+isFirstChar : Char -> Bool
+isFirstChar char =
+  Char.isLower char ||
+  Char.isUpper char ||
+  char == '_' ||
+  char == '$'
 
 isRestChar : Char -> Bool
 isRestChar char =
@@ -446,7 +462,7 @@ isRestChar char =
 identifier : Parser Ident
 identifier =
   LK.variable
-    isRestChar
+    isFirstChar
     isRestChar
     keywords
 
@@ -660,7 +676,7 @@ multilineEscapedElmExpression =
   oneOf [
     try <| trackInfo <|
       succeed (\wsv -> let v = wsv space0 in exp_ <| EOp space0 space1 (withInfo ToStrExceptStr v.start v.start) [v] space0)
-      |= (variableExpression |> addSelections False noSpacePolicy),
+      |= (variableExpression |> addSelections False nospace),
     try <| multilineGenericLetBinding,
     mapExp_ <| trackInfo <|
         (succeed (\wsToExp -> let exp = wsToExp space0 in (EOp space0 space1 (withInfo ToStrExceptStr exp.start exp.start) [withInfo (exp_ <| EParens space0 exp ElmSyntax space0) exp.start exp.end] space0))
@@ -1010,6 +1026,7 @@ tuplePattern =
               pattern
           , tagger =
               withDummyPatInfo << PBase space0 << EString defaultQuoteChar
+          , one = \wsBefore innerPattern wsBeforeEnd -> PParens wsBefore innerPattern wsBeforeEnd
           , record =
               PRecord
           }
@@ -1131,7 +1148,7 @@ pattern sp =
             let finalPat = wsPat space0 in
             mapPrecedingWhitespacePatWS (\ws -> withInfo ws.val finalPat.start finalPat.start) finalPat
         , operator =
-            patternOperator {sp | first = sp.apparg }
+            patternOperator sp.apparg
         , representation =
             .val >> Tuple.second
         , combine =
@@ -1543,13 +1560,13 @@ opFromIdentifier identifier =
 -- Operator Parsing
 --------------------------------------------------------------------------------
 
-operator : SpacePolicy -> ParserI Operator
-operator sp =
-  paddedBefore (,) sp.first symbolIdentifier
+operator : Parser WS -> ParserI Operator
+operator appargSpace =
+  paddedBefore (,) appargSpace symbolIdentifier
 
-patternOperator : SpacePolicy -> ParserI Operator
-patternOperator sp =
-  paddedBefore (,) sp.first patternSymbolIdentifier
+patternOperator : Parser WS -> ParserI Operator
+patternOperator appargSpace =
+  paddedBefore (,) appargSpace patternSymbolIdentifier
 
 --==============================================================================
 -- Modules
@@ -1642,8 +1659,8 @@ variableExpression =
 -- Functions (lambdas)
 --------------------------------------------------------------------------------
 
-function : SpacePolicy -> Parser (WS -> Exp)
-function sp =
+function : Parser WS -> Parser (WS -> Exp)
+function appargSpace =
   inContext "function" <|
     lazy <| \_ ->
       mapWSExp_ <|
@@ -1656,7 +1673,7 @@ function sp =
                 |= repeat oneOrMore (pattern allSpacesPolicy)
                 |. spaces
                 |. symbol "->"
-                |= expression { sp | first = spaces }
+                |= expression { first = spaces, apparg = appargSpace }
           )
 
 --------------------------------------------------------------------------------
@@ -1718,8 +1735,8 @@ record  =
 -- Conditionals
 --------------------------------------------------------------------------------
 
-conditional : SpacePolicy -> Parser (WS -> Exp)
-conditional  sp =
+conditional : Parser WS -> Parser (WS -> Exp)
+conditional  appargSpace =
   inContext "conditional" <|
     lazy <| \_ ->
       mapWSExp_ <|
@@ -1736,7 +1753,7 @@ conditional  sp =
                   |= expression allSpacesPolicy
                   |= spaces
                   |. keywordWithSpace "else"
-                  |= expression { sp | first = spaces }
+                  |= expression { first = spaces, apparg = appargSpace }
           )
 
 --------------------------------------------------------------------------------
@@ -1810,16 +1827,16 @@ caseExpression =
 -- Let Bindings
 --------------------------------------------------------------------------------
 
-letBinding : SpacePolicy -> Parser (WS -> Exp)
-letBinding sp =     lazy <| \_ ->
-  genericLetBinding sp "let" False
+letBinding : Parser WS -> Parser (WS -> Exp)
+letBinding appargSpace =     lazy <| \_ ->
+  genericLetBinding appargSpace "let" False
 
-letrecBinding : SpacePolicy -> Parser (WS -> Exp)
-letrecBinding sp =      lazy <| \_ ->
-  genericLetBinding sp "letrec" True
+letrecBinding : Parser WS -> Parser (WS -> Exp)
+letrecBinding appargSpace =      lazy <| \_ ->
+  genericLetBinding appargSpace "letrec" True
 
-genericLetBinding : SpacePolicy -> String -> Bool -> Parser (WS -> Exp)
-genericLetBinding sp letkeyword isRec =
+genericLetBinding : Parser WS -> String -> Bool -> Parser (WS -> Exp)
+genericLetBinding appargSpace letkeyword isRec =
   inContext (letkeyword ++ " binding") <|
     lazy <| \_ ->
       mapWSExp_ <|
@@ -1847,15 +1864,15 @@ genericLetBinding sp letkeyword isRec =
                   |= expression allSpacesPolicy
                   |= spaces
                   |. keywordWithSpace "in"
-                  |= expression { sp | first = spaces }
+                  |= expression { first = spaces, apparg = appargSpace }
           )
 
 --------------------------------------------------------------------------------
 -- Comments
 --------------------------------------------------------------------------------
 
-lineComment : SpacePolicy -> Parser (WS -> Exp)
-lineComment sp =
+lineComment : Parser WS -> Parser (WS -> Exp)
+lineComment appargSpace =
   inContext "line comment" <|
     mapWSExp_ <|
       transferInfo
@@ -1867,15 +1884,15 @@ lineComment sp =
               |. symbol "--"
               |= keep zeroOrMore (\c -> c /= '\n')
               |. symbol "\n"
-              |= expression { sp | first = spaces }
+              |= expression { first = spaces, apparg = appargSpace }
         )
 
 --------------------------------------------------------------------------------
 -- Options
 --------------------------------------------------------------------------------
 
-option : SpacePolicy -> Parser (WS -> Exp)
-option sp =
+option : Parser WS -> Parser (WS -> Exp)
+option appargSpace =
   inContext "option" <|
     mapWSExp_ <|
       lazy <| \_ ->
@@ -1899,7 +1916,7 @@ option sp =
                  c /= '\n'
              )
         |. symbol "\n"
-        |= expression sp
+        |= expression { first = spaces, apparg = appargSpace }
 
 --------------------------------------------------------------------------------
 -- Parentheses
@@ -1939,6 +1956,8 @@ tuple =
           , record =
               \ws1 entries ws2 ->
                 ERecord ws1 Nothing entries ws2
+          , one =
+              \wsBefore innerExpression wsBeforeEnd -> EParens wsBefore innerExpression Parens wsBeforeEnd
           }
 
 --------------------------------------------------------------------------------
@@ -1955,8 +1974,8 @@ hole =
 -- Type Aliases
 --------------------------------------------------------------------------------
 
-typeAlias : SpacePolicy -> Parser (WS -> Exp)
-typeAlias sp =
+typeAlias : Parser WS -> Parser (WS -> Exp)
+typeAlias appargSpace =
   inContext "type alias" <|
     lazy <| \_ ->
       mapWSExp_ <|
@@ -1967,20 +1986,20 @@ typeAlias sp =
           ( trackInfo <|
               succeed (,,,)
                 |. keywordWithSpace "type alias"
-                |= sp.apparg
+                |= appargSpace
                 |= typePattern
                 |. spaces
                 |. symbol "="
-                |= typ sp
-                |= expression sp
+                |= typ { first = spaces, apparg = appargSpace }
+                |= expression { first = spaces, apparg = appargSpace }
           )
 
 --------------------------------------------------------------------------------
 -- Type Definitions
 --------------------------------------------------------------------------------
 
-typeDefinition : SpacePolicy -> Parser (WS -> Exp)
-typeDefinition sp =
+typeDefinition : Parser WS -> Parser (WS -> Exp)
+typeDefinition appargSpace =
   inContext "type definition" <|
     lazy <| \_ ->
       let
@@ -1996,7 +2015,7 @@ typeDefinition sp =
             spaces
             ( succeed (,,)
                 |= untrackInfo bigIdentifier
-                |= repeat zeroOrMore (typ {sp | first = sp.apparg})
+                |= repeat zeroOrMore (typ {first = appargSpace, apparg = appargSpace})
                 |= spaces
             )
       in
@@ -2014,15 +2033,15 @@ typeDefinition sp =
                   |= spaces
                   |. symbol "="
                   |= separateBy oneOrMore (symbol "|") dc
-                  |= expression sp
+                  |= expression { first = spaces, apparg = appargSpace }
             )
 
 --------------------------------------------------------------------------------
 -- General Expressions
 --------------------------------------------------------------------------------
 
-selection : Bool -> SpacePolicy -> Parser ((WS -> Exp) -> (WS -> Exp))
-selection tolerateSpaces sp =
+selection : Bool -> Parser WS -> Parser ((WS -> Exp) -> (WS -> Exp))
+selection tolerateSpaces appargSpace =
   delayedCommitMap (\wsBeforeDot (wsAfterDot,idWithInfo) ws2Exp ->
       \wsBefore ->
         let exp = ws2Exp space0 in
@@ -2030,7 +2049,7 @@ selection tolerateSpaces sp =
            exp.start idWithInfo.end
     )
     (if tolerateSpaces then
-      sp.first
+      appargSpace
     else
       succeed (\x -> x)
       |= (trackInfo <| source <| symbol "")
@@ -2039,20 +2058,20 @@ selection tolerateSpaces sp =
     ((if tolerateSpaces then
        succeed (,)
        |. symbol "."
-       |= sp.apparg
+       |= appargSpace
         else
        succeed (\x -> (ws "", x)))
      |= (trackInfo <| identifier)
     )
 
 -- Add all following .identifier1.identifiers2 as wrappers to the original expression
-addSelections : Bool -> SpacePolicy -> Parser (WS -> Exp) -> Parser (WS -> Exp)
-addSelections tolerateSpaces sp parser =
+addSelections : Bool -> Parser WS -> Parser (WS -> Exp) -> Parser (WS -> Exp)
+addSelections tolerateSpaces appargSpace parser =
   succeed (\simpExp selections ->
       List.foldl (\sel updatedExp -> sel updatedExp) simpExp selections
       )
     |= parser
-    |= repeat zeroOrMore (selection tolerateSpaces sp)
+    |= repeat zeroOrMore (selection tolerateSpaces appargSpace)
 
 implicitSelectionFun: Parser (WS -> Exp)
 implicitSelectionFun =
@@ -2060,43 +2079,40 @@ implicitSelectionFun =
     withInfo (exp_ <| EFun initSpace [withInfo (pat_ <| PVar space0 " $implicitcase" noWidgetDecl) start start]
     (List.foldl (\sel updatedExp -> sel updatedExp) (\wsBefore -> withInfo (exp_ <| EVar wsBefore " $implicitcase") start start) val space1) space0) start end
   )
-  |= (trackInfo <| repeat oneOrMore (selection False (SpacePolicy nospace nospace)))
+  |= (trackInfo <| repeat oneOrMore (selection False nospace))
 
 -- Not a function application nor a binary operator
-simpleExpression : SpacePolicy -> Parser (WS -> Exp)
-simpleExpression sp =
+simpleExpression : Parser WS -> Parser (WS -> Exp)
+simpleExpression appargSpace =
     oneOf
-      [ constantExpression
-      , lazy <| \_ -> multiLineInterpolatedString
+      [ addSelections True appargSpace <| variableExpression
+      , constantExpression
       , lazy <| \_ -> htmlliteral
+      , conditional appargSpace
+      , caseExpression
+      , letBinding appargSpace
+      , letrecBinding appargSpace
+      , typeAlias appargSpace
+      , typeDefinition appargSpace
+      , lazy <| \_ -> multiLineInterpolatedString
       , baseValueExpression
-      , lazy <| \_ -> function sp
+      , lazy <| \_ -> function appargSpace
       , lazy <| \_ -> implicitSelectionFun
       , lazy <| \_ -> list
-      , lazy <| \_ -> (addSelections True sp <| record)
-      , lazy <| \_ -> conditional sp
-      , lazy <| \_ -> caseExpression
-      , lazy <| \_ -> letrecBinding sp
-      , lazy <| \_ -> letBinding sp
-      , lazy <| \_ -> lineComment sp
-      , lazy <| \_ -> option sp
-      , lazy <| \_ -> (addSelections True sp <| try <| tuple)
-      , lazy <| \_ -> (addSelections True sp <| parens)
-      , lazy <| \_ -> (addSelections True sp <| hole)
-      , lazy <| \_ -> typeAlias sp
-      , lazy <| \_ -> typeDefinition sp
-      -- , lazy <| \_ -> typeCaseExpression sp
-      -- , lazy <| \_ -> typeDeclaration sp
-      , (addSelections True sp <| variableExpression)
+      , lazy <| \_ -> (addSelections True appargSpace <| record)
+      , lazy <| \_ -> lineComment appargSpace
+      , lazy <| \_ -> option appargSpace
+      , lazy <| \_ -> (addSelections True appargSpace <| tuple)
+      , lazy <| \_ -> (addSelections True appargSpace <| hole)
     ]
 
-spaceColonType: SpacePolicy -> Parser (WS, Type)
-spaceColonType sp =
+spaceColonType: Parser WS -> Parser (WS, Type)
+spaceColonType appargSpace =
   lazy <| \_ ->
      try ( succeed (,)
-          |= sp.first
+          |= appargSpace
           |. symbol ":"
-          |= typ sp
+          |= typ { first= spaces, apparg = appargSpace }
      )
 
 maybeConvertToOp0 : Exp -> Exp
@@ -2142,8 +2158,8 @@ maybeConvertToOpN first rest =
 
 
 -- Either a simple expression or a function application or a data constructor
-simpleUntypedExpressionWithPossibleArguments : SpacePolicy -> Parser (WS -> Exp)
-simpleUntypedExpressionWithPossibleArguments sp =
+simpleUntypedExpressionWithPossibleArguments : Parser WS -> Parser (WS -> Exp)
+simpleUntypedExpressionWithPossibleArguments appargSpace =
   let
     combine : (WS -> Exp) -> List Exp -> WS -> Exp
     combine wsToFirst rest wsBefore =
@@ -2259,13 +2275,13 @@ simpleUntypedExpressionWithPossibleArguments sp =
   in
     lazy <| \_ ->
       succeed combine
-        |= simpleExpression sp
+        |= simpleExpression appargSpace
         |= repeat zeroOrMore (delayedCommitMap (\ws wsExp -> wsExp ws)
-           sp.apparg
-           (simpleExpression {sp | first = sp.apparg}))
+           appargSpace
+           (simpleExpression appargSpace))
 
-simpleExpressionWithPossibleArguments : SpacePolicy -> Parser (WS -> Exp)
-simpleExpressionWithPossibleArguments sp =
+simpleExpressionWithPossibleArguments : Parser WS -> Parser (WS -> Exp)
+simpleExpressionWithPossibleArguments appargSpace =
   lazy <| \_ ->
     ( delayedCommitMap (\startPos (wS2untypedExp, mbType) ->
         case mbType of
@@ -2280,8 +2296,8 @@ simpleExpressionWithPossibleArguments sp =
       )
       getPos
       (succeed (,)
-      |= simpleUntypedExpressionWithPossibleArguments sp
-      |= ParserUtils.optional (spaceColonType { sp | first = sp.apparg }))
+      |= simpleUntypedExpressionWithPossibleArguments appargSpace
+      |= ParserUtils.optional (spaceColonType appargSpace))
     )
 
 -- No indentation for top-level expressions, at least one newline or the beginning of the string.
@@ -2334,12 +2350,12 @@ expression sp =
         , minimumPrecedence =
             0
         , expression =
-            simpleExpressionWithPossibleArguments { sp | first = nospace }
+            simpleExpressionWithPossibleArguments sp.apparg
         , withZeroSpace = \wsExp ->
             let finalExp = wsExp space0 in
             mapPrecedingWhitespaceWS (\ws -> withInfo ws.val finalExp.start finalExp.start) finalExp
         , operator =
-            operator {sp | first = sp.apparg}
+            operator sp.apparg
         , representation =
             .val >> Tuple.second
         , combine =
