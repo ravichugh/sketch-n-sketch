@@ -96,7 +96,7 @@ grossDependencies_ identToDepEId program =
             Nothing  -> []
 
         EFun _ pats body _                      -> [(expEffectiveExp body).val.eid] -- The value of a function is how it transforms inputs into outputs, as determined by its body expression.
-        EOp _ op argExps _                      -> childrenValueExpEIds exp
+        EOp _ _ op argExps _                    -> childrenValueExpEIds exp
         EList _ heads _ maybeRest _             -> childrenValueExpEIds exp
         ERecord _ mb es _                       -> childrenValueExpEIds exp
         ESelect _ _ _ _ _                       -> childrenValueExpEIds exp

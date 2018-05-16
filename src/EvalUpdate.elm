@@ -453,16 +453,14 @@ preludeEnv = Utils.fromOk "Eval.preludeEnv" <| preludeEnvRes
 run : Syntax -> Exp -> Result String (Val, Widgets)
 run syntax e =
 -- doEval syntax initEnv e |> Result.map Tuple.first
-  ImpureGoodies.logTimedRun "Eval.run" (\() ->
+  ImpureGoodies.logTimedRun "Eval.run" <| \() ->
     Eval.doEval syntax preludeEnv e |> Result.map Tuple.first
-  )
 
 runWithEnv : Syntax -> Exp -> Result String ((Val, Widgets), Env)
 runWithEnv syntax e =
 -- doEval syntax initEnv e |> Result.map Tuple.first
-  ImpureGoodies.logTimedRun "Eval.run" (\() ->
+  ImpureGoodies.logTimedRun "Eval.run" <| \() ->
     Eval.doEval syntax preludeEnv e
-  )
 
 doUpdate : Exp -> Env -> Val -> Result String Val -> Results String (UpdatedEnv, UpdatedExp)
 doUpdate oldExp oldEnv oldVal newValResult =
@@ -577,9 +575,9 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       , newNameToOldName_
       )
 
-    EOp ws1 op es ws2 ->
+    EOp ws1 wso op es ws2 ->
       let (newEs, usedNames_, newNameToOldName) = recurseExps es in
-      ( replaceE__ exp (EOp ws1 op newEs ws2)
+      ( replaceE__ exp (EOp ws1 wso op newEs ws2)
       , usedNames_
       , newNameToOldName
       )

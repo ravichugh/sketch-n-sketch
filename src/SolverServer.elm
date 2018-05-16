@@ -226,7 +226,7 @@ parseSolution =
 
 parseResultEqn : Parser (MathExp, Int)
 parseResultEqn =
-  succeed (\varId mathExp -> (mathExp, varId))
+  succeed (\varId mathExp -> (mathExp (), varId))
     |. skipSpaces
     |= parseVarToVarId
     |. wsSymbol "="
@@ -237,20 +237,20 @@ parseResultEqn =
 parseVarToVarId : Parser Int
 parseVarToVarId = inContext "parseVarToVarId" <| eatChar 'x' .| int
 
-parseMathExp : Parser MathExp
+parseMathExp : Parser (() -> MathExp)
 parseMathExp =
   lazy <| \_ ->
     inContext "parseMathExp" <|
       binaryOperator
-        { spacePolicy       = { first = skipSpaces, apparg = skipSpaces}
-        , greedySpaceParser = skipSpaces
+        { greedySpaceParser = skipSpaces
         , precedenceTable   = precedenceTable
         , minimumPrecedence = 1
-        , expression        = (\_ -> parseEqnAtom)
+        , expression        = Parser.map always parseEqnAtom
+        , withZeroSpace     = (\f -> f ())
         , operator          = parseBinaryOperatorStr
         , representation    = identity -- convert output of parseBinaryOperator to what's in the precedence table
         , combine           =
-            (\left opStr right ->
+            (\wsBefore left opStr right ->
               case binaryOperatorList |> Utils.findFirst (\(str, _, _, _) -> str == opStr) of
                 Just (_, _, _, op_) -> MathOp op_ [left, right]
                 Nothing             -> Debug.crash <| "REDUCE parsing: Should not happen: could not find binary op " ++ opStr
@@ -297,12 +297,12 @@ parseMathVar = parseVarToVarId |> Parser.map MathVar |> inContext "parseMathVar"
 
 
 parseEqnParens : Parser MathExp
-parseEqnParens = parseParens parseMathExp
+parseEqnParens = parseParens (Parser.map (\f -> f ()) parseMathExp)
 
 
 parseUnaryFunction : String -> Op_ -> Parser MathExp
 parseUnaryFunction funcName op_ =
-  succeed (\argTerm -> MathOp op_ [argTerm])
+  succeed (\argTerm -> MathOp op_ [argTerm ()])
     |. wsSymbol (funcName ++ "(")
     |= parseMathExp
     |. wsSymbol ")"
@@ -310,7 +310,7 @@ parseUnaryFunction funcName op_ =
 
 parseBinaryFunction : String -> Op_ -> Parser MathExp
 parseBinaryFunction funcName op_ =
-  succeed (\argTerm1 argTerm2 -> MathOp op_ [argTerm1, argTerm2])
+  succeed (\argTerm1 argTerm2 -> MathOp op_ [argTerm1 (), argTerm2 ()])
     |. wsSymbol (funcName ++ "(")
     |= parseMathExp
     |. wsSymbol ","

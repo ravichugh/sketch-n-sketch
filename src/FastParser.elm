@@ -431,7 +431,7 @@ asPattern =
       lazy <| \_ ->
         delayedCommitMap
           ( \(wsStart, name, wsAt) pat ->
-              WithInfo (PAs wsStart name.val wsAt pat) name.start pat.end
+              WithInfo (PAs wsStart space1 name.val wsAt pat) name.start pat.end
           )
           ( succeed (,,)
               |= spaces
@@ -784,7 +784,7 @@ operator =
         lazy <| \_ ->
           parenBlock
             ( \wsStart (opName, args) wsEnd ->
-                EOp wsStart opName args wsEnd
+                EOp wsStart space0 opName args wsEnd
             )
             ( succeed (,)
                 |= op
@@ -1646,7 +1646,7 @@ recordIdentifiers (p,e) =
                       _                  -> me in
                   ret <| EList ws1 (U.listValuesMake es es_) ws2 me_ ws3
 
-  (PAs _ _ _ p_, _) -> recordIdentifiers (p_,e)
+  (PAs _ _ _ _ p_, _) -> recordIdentifiers (p_,e)
 
   (_, EColonType ws1 e1 ws2 t ws3) ->
     ret <| EColonType ws1 (recordIdentifiers (p,e1)) ws2 t ws3

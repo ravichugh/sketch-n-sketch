@@ -18,9 +18,10 @@ module ExamplesGenerated exposing
   , christmas_song_3_after_translation
   , mapMaybeLens
   , listAppendLens
+  , Example
   )
 
-import Lang
+import Lang exposing (Exp, Val, Widget, Env)
 import FastParser
 import ElmParser
 import Types
@@ -30,6 +31,14 @@ import PreludeGenerated as Prelude
 import DefaultIconTheme
 import Syntax
 import EvalUpdate
+import Parser
+
+type alias Example = {
+   e: Exp,
+   v: Val,
+   ws: List Widget,
+   ati:  Types.AceTypeInfo,
+   env: Env}
 
 --------------------------------------------------------------------------------
 
@@ -44,6 +53,7 @@ makeExample = makeExample_ FastParser.parseE Syntax.Little
 
 makeLeoExample = makeExample_ ElmParser.parse Syntax.Elm
 
+makeExample_: (String -> Result Parser.Error Exp) -> Syntax.Syntax -> String -> String -> (String, (String, () -> Example))
 makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
@@ -6050,10 +6060,12 @@ badPrelude =
   But, you can still write programs without it. You can do it!
   If you want to see where parsing failed, go to
   File -> New From Template and select \"Standard Prelude\".
+  
+  ERROR_HERE
   \"\"\"
 
 main =
-  [\"p\", [], [[\"TEXT\", str]]]
+  [\"pre\", [], [[\"TEXT\", str]]]
 
 """
 
@@ -7429,7 +7441,7 @@ main =
 """
 
 fromleo_translatabledoc =
- """editorInfo = \"\"\"
+ """editorInfo = <span>
 <h1>Translation Editor</h1>
 <p>
   This text editor is set up to allow you to <em>add translations for</em>
@@ -7459,6 +7471,14 @@ fromleo_translatabledoc =
   In the example below, wrap the sentence \"This sentence is true\" with braces,
   update and afterwards translate it to the language of your choice.
 </p>
+</span>
+
+content = \"\"\"<h1>$translation1</h1>
+In case your printer RGB4500 is stuck, please follow these steps:
+<ul>
+<li>$translation2</li>
+<li>$translation3</li>
+</ul>
 \"\"\"
 
 translations =
@@ -7468,46 +7488,38 @@ translations =
     ,(\"translation3\", \"Remove the paper, close the lid\")])
   ,(\"Français\", 
     [(\"translation1\", \"Réparer un bourrage papier\")
-    ,(\"translation2\", \"Ouvrir le couvercle vert en tirant la poignée rouge à l'arrière\")
+    ,(\"translation2\", \"Ouvrir le couvercle vert en tirant la poignée rouge derrière\")
     ,(\"translation3\", \"Enlever le papier bourré, fermer le couvercle\")])
   ]
 
-allTranslationDicts = List.map (Tuple.mapSecond Dict.fromList) translations
-  
-translationsLangDict = Dict.fromList allTranslationDicts
-languages = List.map Tuple.first translations
+languages = [\"English\", \"French\"]
 languageIndex = 0
 language = nth languages languageIndex
-currentTranslation = Dict.apply translationsLangDict language
-
 highlighttranslations = True
 
-replaceVariables translationDict string =
-  Regex.replace \"\\\\$(\\\\w+|\\\\$)\" (\\m -> 
-    if m.match == \"$\" then m.match else
-    let key = nth m.group 1 in
-    case Dict.get key translationDict of
-      Nothing -> m.match
-      Just definition -> 
-        let finaldefinition = 
-          if highlighttranslations then
-            \"\"\"<span style='outline:lightgreen 2px solid;' title='@key'>@definition</span>\"\"\"
-          else definition
-       in
-       replaceVariables (remove key translationDict) finaldefinition
-  ) string
-
-freshVarName name i dictionary =
-  if Dict.member (name + toString i) (dictionary) then freshVarName name (i + 1) (dictionary) else name + toString i
-  
-content = \"\"\"<h1>$translation1</h1>
-In case your printer RGB4500 is stuck, please follow these steps:
-<ul>
-<li>$translation2</li>
-<li>$translation3</li>
-</ul>
-\"\"\" |> replaceVariables currentTranslation |>
-  (\\x ->
+translate options language translations content =
+  let allTranslationDicts = List.map (Tuple.mapSecond Dict.fromList) translations in
+  let translationsLangDict = Dict.fromList allTranslationDicts in
+  let currentTranslation = Dict.apply translationsLangDict language in
+  letrec replaceVariables translationDict string =
+    Regex.replace \"\\\\$(\\\\w+|\\\\$)\" (\\m -> 
+      if m.match == \"$\" then m.match else
+      let key = nth m.group 1 in
+      case Dict.get key translationDict of
+        Nothing -> m.match
+        Just definition -> 
+          let finaldefinition = 
+            if case options of {highlighttranslations=x} -> x; _ -> False then
+              \"\"\"<span style='outline:lightgreen 2px solid;' title='@key'>@definition</span>\"\"\"
+            else definition
+         in
+         replaceVariables (remove key translationDict) finaldefinition
+    ) string
+  in
+  letrec freshVarName name i dictionary =
+    if Dict.member (name + toString i) (dictionary) then freshVarName name (i + 1) (dictionary) else name + toString i
+  in
+  content |> replaceVariables currentTranslation |> \\x ->
     { apply (x, _) = freeze x
       update {input = (x, allTranslationDicts), newOutput} =
         Regex.find \"\\\\{([^\\\\}]*(?!\\\\})\\\\S[^\\\\}]*)\\\\}\" newOutput |>
@@ -7520,36 +7532,43 @@ In case your printer RGB4500 is stuck, please follow these steps:
         ) (newOutput, currentTranslation, allTranslationDicts) |> \\(newOutput, _, newTranslationsLangDict) ->
           { values = [(newOutput, newTranslationsLangDict)] }
     }.apply (x, allTranslationDicts)
-  )
 
-alltranslationsLangDict = Dict.fromList translations
-addLang alltranslationsLangDict = {
+addLang translations = {
   apply alltranslationsLangDict = freeze \"\"
   update {input, outputNew} =
     if not (outputNew == \"\") && not (Dict.member outputNew alltranslationsLangDict) then 
       let toCopy = Dict.apply alltranslationsLangDict language in
-      {values = [Dict.insert outputNew toCopy alltranslationsLangDict],
-       diffs=[Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)]))]}
+      { values = [Dict.insert outputNew toCopy alltranslationsLangDict]
+      , diffs=[Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)]))]}
     else
       { values = [input], diffs = [Nothing]}
-  }.apply alltranslationsLangDict
+  }.apply (Dict.fromList translations)
 
 main = 
   Html.forceRefresh <|
-  Html.div [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] []
-    [ Html.div [] [] <|
-        Html.parse editorInfo
-    , Html.div [[\"border\", \"4px solid black\"], [\"padding\", \"20px\"]] [] <|
-        [Html.span [] [] <|
-          Html.select [] languages languageIndex ::
-          [\"input\", [[\"style\", [[\"margin-left\", \"10px\"]]], [\"type\",\"text\"], [\"v\", addLang alltranslationsLangDict],
-            [\"placeholder\", \"New Language (e.g. German)\"], [\"title\", \"Enter the name of a language here and press ENTER\"],
-            [\"onchange\",\"this.setAttribute('v',this.value)\"]], []] ::
-          Html.checkbox \"Highlights\" \"Highlight translatable text\" highlighttranslations ::
-          [\"br\", [], []] ::
-          Html.parse content
-        ]
-    ]
+  <div style=\"margin:20px;cursor:text\">
+    @editorInfo
+    <div style=\"border:4px solid black;padding:20px\">
+      <span>@(
+        Html.select [] languages languageIndex)
+        <input style=\"margin-left:10px\" type=\"text\" v=(addLang translations)
+           placeholder=\"New Language (e.g. German)\" title=\"Enter the name of a new language here and press ENTER\"
+           onchange=\"this.setAttribute('v',this.value)\">@(
+        Html.checkbox \"Highlights\" \"Highlight translatable text\" highlighttranslations)<button
+          title=\"Make the selected text translatable\"
+          onclick=\"\"\"
+            var r = window.getSelection().getRangeAt(0);
+            var t = r.cloneContents().textContent;
+            r.deleteContents();
+            r.insertNode(document.createTextNode(\"{\" + t + \"}\"))\"\"\"
+          contentEditable=\"false\">Translatable</button>
+        <br>
+        @(content
+          |> translate {highlighttranslations = highlighttranslations} language translations
+          |> Html.parse)
+      </span>
+    </div>
+  </div>
 """
 
 fromleo_latexeditor =
@@ -8091,21 +8110,26 @@ fromleo_dixit =
  """# updatedelay: 0
 
 {length, sum, range, filter, zipWithIndex} = List
-{textNode, button, br, select, checkbox, h1, div, element, li, ul} = Html
+{textNode, button, br, checkbox, h1, div, element, li, ul} = Html
+
+{select} = {
+  select attributes strArray defaultSelected =
+    <select @attributes>@(List.indexedMap (\\i s ->
+      <option @(if i == defaultSelected then [[\"selected\", \"selected\"]] else [])>@s</option>
+      )  strArray)
+    </select>
+}
 
 -- Each element of betselfs is a 2-element array containing the best and the own card number
 players = [
-  {name=\"John\", betselfs=[], scores=[], card=0, bet=0}, 
-  {name=\"Nick\", betselfs=[], scores=[], card=0, bet=0},
-  {name=\"Pete\", betselfs=[], scores=[], card=0, bet=0}
+  {name=\"John\", betselfs=[], scores=[]}, 
+  {name=\"Nick\", betselfs=[], scores=[]},
+  {name=\"Pete\", betselfs=[], scores=[]}
 ]
 
 displayreset = False
 removeScores players =
-  List.map (\\p -> {p | betselfs=[], scores=[], card=0, bet=0}) players
-
-cardError = False
-betError = 0
+  List.map (\\p -> {p | betselfs=[], scores=[]}) players
 
 mkError txt = Html.span [[\"color\", \"lightgray\"]] [] (Html.text txt)
 
@@ -8116,31 +8140,137 @@ currentRound = length (nth players 0).scores
 remainingbets = (length players - 1) - sum (map (\\j ->  if (length j.betselfs) == currentRound then 0 else 1) players)
 allbetsdone = remainingbets == 0
 
-playerEnCoursIndex = 0
-
 scoreIfEverybodyFound = 2
 scoreIfNobodyFound = 3
 
-betself i =
-  let player = nth players i in
-  <span>@(player.name) it's your turn to bet!<br>
-  Your card:  @(select [] (\"Choose your card number...\" :: map (\\x -> toString x) cartesDisponibles) player.card)
-  @(mkError (if player.card == 0 then \" Indicate what is your card. This is confidential.\" else \"\"))<br>
-  Your bet: @(select [] (\"You bet that the correct card is...\" :: map (\\x -> toString x) cartesDisponibles) player.bet)
-  @(mkError (if player.bet == 0 then \" What card do you think is the dealer's one.\" else if player.bet == player.card then
-      \" You cannot bet on your own card.\" else \"\"))<br>
-  @(if player.bet == 0 || player.card == 0 || player.bet == player.card then
-      <span></span>
-    else
-    button \"I confirm my bet\" \"By clicking this button, you confirm you know the rules of the game\"
-       (player,                          cardError, betError, playerEnCoursIndex) <|
-      \\({betselfs, card, bet} as player, cardError, betError, playerEnCoursIndex) ->
-         if card > 0 && bet > 0 && card /= bet then
-           ({ player | betselfs = betselfs ++ [[bet, card]], card = 0, bet = 0}, False, 0, 0)
-         else
-           (player, card == 0,
-              if bet == 0 then 1 else if bet == card then 2 else 0, playerEnCoursIndex)
-  )</span>
+currentPlayerId = \"currentplayer\"
+tellPlayerId = \"tellplayers\"
+cardNumberId = \"cardnumberselect\"
+chooseCallback = \"chooseCard\"
+chooseCardErrorId = \"chooseCardError\"
+betNumberId = \"betnumber\"
+betNumberChooseId = \"betnumberchoose\"
+betNumberNotSameId = \"betnumbersame\"
+chooseBetCallback = \"selectBet\"
+buttonConfirmId = \"confirmButton\"
+displayConfirmButtonCallback = \"confirmButtonCallback\"
+clickbuttoncallback = \"clickConfirmButtonCallback\"
+commitresultId = \"resultsender\"
+foranotherplayerId = \"foranotherplayer\"
+forcurrentplayerId = \"forcurrentplayer\"
+addAnotherPlayerBet = \"addAnotherPlayerBet\"
+
+commitPlayer players outputNew =
+  case evaluate outputNew of
+    (playerNum, card, bet) ->
+      (List.take playerNum players) ++ (case List.drop playerNum players of
+        player::otherPlayers ->
+          {player | betselfs = player.betselfs ++ [[bet, card]]}::otherPlayers
+        [] -> []
+      )
+    _ -> players
+
+betself =
+  <span id=\"betself\"
+><@(Html.refresh True)><script>
+function setTransientVisibility(element, condition) {
+  element.setAttribute(\"transient-visible\", condition ? \"true\" : \"false\");
+}
+function fromId(id) {
+  return document.querySelector(\"#\" + id);
+}
+function @chooseCallback() {
+  var player = fromId(\"@currentPlayerId\");
+  var tellplayers = fromId(\"@tellPlayerId\");
+  if(player !== null && tellplayers !== null) {
+    for(var i = 0; i < tellplayers.children.length; i++) {
+      setTransientVisibility(tellplayers.children[i], player.selectedIndex == i);
+    }
+  }
+  var card   = fromId(\"@cardNumberId\");
+  var bet    = fromId(\"@betNumberId\");
+  var card_hint = fromId(\"@chooseCardErrorId\");
+  var bet_hint  = fromId(\"@betNumberChooseId\");
+  var bet_error = fromId(\"@betNumberNotSameId\");
+  var button    = fromId(\"@buttonConfirmId\");
+  if(player !== null && card !== null && bet !== null && card_hint !== null && bet_hint !== null && bet_error !== null && button !== null) {
+    setTransientVisibility(card_hint, card.selectedIndex == 0);
+    setTransientVisibility(bet_hint, bet.selectedIndex == 0);
+    setTransientVisibility(bet_error, bet.selectedIndex == card.selectedIndex && bet.selectedIndex > 0);
+    setTransientVisibility(button, card.selectedIndex > 0 && bet.selectedIndex > 0 && bet.selectedIndex !== card.selectedIndex);
+  }
+}
+function @clickbuttoncallback() {
+  // Commits the bets for the given player.
+  var card = fromId(\"@cardNumberId\");
+  var bet = fromId(\"@betNumberId\");
+  var player = fromId(\"@currentPlayerId\");
+  var c = fromId(\"@commitresultId\");
+  c.setAttribute(\"v\", \"(\" + player.selectedIndex + \",\" + card.selectedIndex + \",\" + bet.selectedIndex + \")\");
+  var d = fromId(\"@forcurrentplayerId\");
+  var e = fromId(\"@foranotherplayerId\");
+  setTransientVisibility(d, false);
+  setTransientVisibility(e, true);
+}
+
+function @addAnotherPlayerBet() {
+  var d = fromId(\"@forcurrentplayerId\");
+  var e = fromId(\"@foranotherplayerId\");
+  setTransientVisibility(d, true);
+  setTransientVisibility(e, false);
+  var card = fromId(\"@cardNumberId\");
+  var bet = fromId(\"@betNumberId\");
+  var player = fromId(\"@currentPlayerId\");
+  if(card !== null) card.selectedIndex = 0;
+  if(bet !== null) bet.selectedIndex = 0;
+  if(player !== null) player.selectedIndex = (player.selectedIndex + 1) % player.children.length;
+  @chooseCallback();
+}
+</script></@
+><style>
+  .normallyNotVisible {
+    display: none;
+  }
+  .normallyNotVisible[transient-visible=\"true\"] {
+    display: inline-block;
+  }
+  .normallyVisible[transient-visible=\"false\"] {
+    display: none;
+  }
+  </style
+  ><span id=foranotherplayerId class=\"normallyNotVisible\">
+    <button onclick=\"\"\"@addAnotherPlayerBet()\"\"\" title=\"Let another player place a bet on this screen\">Place another bet</button>
+  </span
+  ><span id=forcurrentplayerId class=\"normallyVisible\">Who is currently placing a bet? 
+  @(select [[\"id\", currentPlayerId], [\"onchange\", \"\"\"@chooseCallback()\"\"\"]] (map (\\j ->  j.name) players) 0)
+  <br>
+  <span id=tellPlayerId>@(List.map (\\p -> <span class=\"normallyNotVisible\">@p.name it's your turn to bet!</span>) players)</span>
+<br>Your card:
+  @(select [[\"id\", cardNumberId], [\"onchange\", \"\"\"@chooseCallback()\"\"\"]] 
+      (\"Choose your card number...\" :: map (\\x -> toString x) cartesDisponibles) 0)
+  <span class=\"normallyNotVisible\" id=chooseCardErrorId> Indicate what is your card. This is confidential.</span>
+<br>Your bet:
+  @(select [[\"id\", betNumberId], [\"onchange\", \"\"\"@chooseCallback()\"\"\"]] 
+      (\"You bet that the correct card is...\" :: map (\\x -> toString x) cartesDisponibles) 0)
+  <span class=\"normallyNotVisible\" id=betNumberChooseId>What card do you think is the dealer's one.</span>
+  <span class=\"normallyNotVisible\" id=betNumberNotSameId>You cannot bet on your own card.</span>
+<br>
+  <button
+    class=\"normallyNotVisible\"
+    id=buttonConfirmId
+    title=\"By clicking this button, I confirm I know the rules of the game\"
+    onclick=\"\"\"@clickbuttoncallback()\"\"\"
+  >I confirm by bet</button>
+   <span
+    id=commitresultId
+    class=\"normallyNotVisible\"
+    v=(Html.onChangeAttribute players commitPlayer)>
+    </span>
+    <script>
+      @chooseCallback();
+    </script>
+  </span>
+</span>
 
 nomDe j = li [] [] [textNode j.name]
 playersnoms = map nomDe players
@@ -8169,18 +8299,12 @@ playerIndexFromName name =
   <tr><th>Name</th><th>Score</th>@(if currentRound >= 2 then <th style=\"font-weight:normal\"><i>by round</i>:</th> else [])@(List.map (\\i -> <th>#@i</th>) (List.range 1 (if currentRound >= 2 then currentRound else 0)))</tr>
   @(List.map (\\j -> 
     <tr>
-      <td>@(j.name)</td>
+      <td style=\"\"\"color:@(if len j.betselfs > currentRound then \"green\" else \"black\")\"\"\">@(j.name)</td>
       <td style=\"text-align:center\">@(toString (Update.freeze (sum (j.scores))))</td>
       @(if currentRound < 2 then [] else [<td></td>] ++
       List.map (\\i -> <td>@(Update.freeze i)</td>) j.scores)
       </tr>) players)</table>
-  @(if remainingbets > 0 then
-    <div>Who is currently placing a bet? 
-    @(select [] (map (\\j ->  j.name) playersEnCours) playerEnCoursIndex)
-    <br>
-      @(betself (playerIndexFromName (nth playersEnCours playerEnCoursIndex).name))
-    </div>
-  else 
+  @(if remainingbets > 0 then betself else 
   let playersWithIndex = zipWithIndex players in
   let dealerIndex = filter (\\(index, j) -> length j.betselfs == currentRound) playersWithIndex |> flip nth 0 |> Tuple.first in
   let totalNumCards = sum cartesDisponibles in
@@ -8217,7 +8341,7 @@ playerIndexFromName name =
      @(String.join \",\" guessedOk)@manyguessed guessed it!
      <div>@(playersAyantVotePourEux)</div><br>
      <div>@(List.concatMap (\\(j, score) -> 
-       [<span>@(j.name): @score</span>, <br>]) playersWithNewScores)</div>
+       [<span>@(j.name): +@score</span>, <br>]) playersWithNewScores)</div>
      @(button \"Next turn\" \"Passer au tour suivant\" players <| \\oldplayers ->
           map (\\j -> 
                 let ({betselfs=b, scores=s} as player, increment) = j in

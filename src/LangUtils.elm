@@ -22,7 +22,7 @@ identifiersListInPat pat =
     PVar _ ident _              -> [ident]
     PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
     PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
-    PAs _ ident _ pat           -> ident::(identifiersListInPat pat)
+    PAs _ _ ident _ pat           -> ident::(identifiersListInPat pat)
     _                           -> []
 
 
@@ -163,7 +163,7 @@ simpleExpToVal syntax e =
         |> Utils.projOk |> Result.map (VList >> valFromExpVal_ e)
     ERecord _ Nothing elems _ -> elems |> List.map (\(_, _, k, _, v) -> simpleExpToVal syntax v |> Result.map (\v -> (k, v)))
         |> Utils.projOk |> Result.map (Dict.fromList >> VRecord >> valFromExpVal_ e)
-    EOp _ op [arg] _ ->
+    EOp _ _ op [arg] _ ->
       case op.val of
         DictFromList ->
           simpleExpToVal syntax arg
@@ -277,7 +277,7 @@ valToExpFull copyFrom sp_ indent v =
             else (spaceCommaTail, spaceKeyTail, key, spaceEqualTail, v2expTail (ws " ") (increaseIndent <| increaseIndent indent) v)
         ) keys) spBeforeEnd
     VDict vs ->
-      EOp sp (Info.withDummyInfo DictFromList) [withDummyExpInfo <|
+      EOp sp space0 (Info.withDummyInfo DictFromList) [withDummyExpInfo <|
         EList space1 (
           Dict.toList vs |> List.indexedMap (\i (key, value) ->
             let spaceComma = if i == 0 then ws "" else ws <| foldIndent "" indent in

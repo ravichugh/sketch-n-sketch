@@ -145,7 +145,7 @@ type Pat__
   | PBase WS EBaseVal
   | PWildcard WS
   | PList WS (List Pat) WS (Maybe Pat) WS -- TODO store WS before commas, like EList
-  | PAs WS Ident WS Pat
+  | PAs WS WS Ident WS Pat
   | PParens WS Pat WS
   | PRecord WS {- { -}  (List (WS {- , -}, WS, Ident, WS{-=-}, Pat)) WS{- } -}
 
@@ -235,7 +235,7 @@ type Exp__
   -- TODO remember paren whitespace for multiple pats, like TForall
   -- | EFun WS (OneOrMany Pat) Exp WS
   | EApp WS Exp (List Exp) ApplicationType WS
-  | EOp WS Op (List Exp) WS
+  | EOp WS WS Op (List Exp) WS
   | EList WS (List (WS{-,-}, Exp)) WS (Maybe Exp) WS -- the first WS{-,-} is a dummy
   | EIf WS Exp WS{-then-} Exp WS{-else-} Exp WS{-REMOVE-}
   | ECase WS Exp (List Branch) WS
@@ -563,7 +563,7 @@ expEffectiveExps exp =
     EParens _ e _ _           -> exp :: expEffectiveExps e
     EComment _ _ e            -> exp :: expEffectiveExps e
     EOption _ _ _ _ e         -> exp :: expEffectiveExps e
-    EOp _ {val} [operand] _   -> if val == DebugLog || val == NoWidgets then exp :: expEffectiveExps operand else [exp]
+    EOp _ _ {val} [operand] _   -> if val == DebugLog || val == NoWidgets then exp :: expEffectiveExps operand else [exp]
     _                         -> [exp]
 
 -- Skip through PParens
@@ -621,9 +621,9 @@ mapFoldExp f initAcc e =
       let (newE1, newAcc2) = recurse newAcc e1 in
       wrapAndMap (EApp ws1 newE1 newEs apptype ws2) newAcc2
 
-    EOp ws1 op es ws2 ->
+    EOp ws1 wso op es ws2 ->
       let (newEs, newAcc) = recurseAll initAcc es in
-      wrapAndMap (EOp ws1 op newEs ws2) newAcc
+      wrapAndMap (EOp ws1 wso op newEs ws2) newAcc
 
     EList ws1 es ws2 Nothing ws3 ->
       let (newEs, newAcc) = recurseAll initAcc (Utils.listValues es) in
@@ -753,9 +753,9 @@ mapFoldPat f initAcc p =
       let (newPs, newAcc) = recurseAll initAcc (Utils.recordValues ps) in
       wrapAndMap (PRecord ws1 (Utils.recordValuesMake ps newPs) ws2) newAcc
 
-    PAs ws1 ident ws2 pChild ->
+    PAs ws1 wsi ident ws2 pChild ->
       let (newPChild, newAcc) = recurse initAcc pChild in
-      wrapAndMap (PAs ws1 ident ws2 newPChild) newAcc
+      wrapAndMap (PAs ws1 wsi ident ws2 newPChild) newAcc
 
     PParens ws1 pChild ws2 ->
       let (newPChild, newAcc) = recurse initAcc pChild in
@@ -794,9 +794,9 @@ mapFoldExpTopDown f initAcc e =
       let (newEs, newAcc3) = recurseAll newAcc2 es in
       ret (EApp ws1 newE1 newEs appType ws2) newAcc3
 
-    EOp ws1 op es ws2 ->
+    EOp ws1 wso op es ws2 ->
       let (newEs, newAcc2) = recurseAll newAcc es in
-      ret (EOp ws1 op newEs ws2) newAcc2
+      ret (EOp ws1 wso op newEs ws2) newAcc2
 
     EList ws1 es ws2 Nothing ws3 ->
       let (newEs, newAcc2) = recurseAll newAcc (Utils.listValues es) in
@@ -928,9 +928,9 @@ mapFoldPatTopDown f initAcc p =
       let (newPsvalues, newAcc2)    = recurseAll newAcc (Utils.recordValues ps) in
       ret (PRecord ws1 (Utils.recordValuesMake ps newPsvalues) ws2) newAcc2
 
-    PAs ws1 ident ws2 pChild ->
+    PAs ws1 wsi ident ws2 pChild ->
       let (newPChild, newAcc2) = recurse newAcc pChild in
-      ret (PAs ws1 ident ws2 newPChild) newAcc2
+      ret (PAs ws1 wsi ident ws2 newPChild) newAcc2
 
     PParens ws1 pChild ws2 ->
       let (newPChild, newAcc2) = recurse newAcc pChild in
@@ -979,9 +979,9 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
       let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 initScopeTempAcc es in
       ret (EApp ws1 newE1 newEs apptype ws2) newGlobalAcc3
 
-    EOp ws1 op es ws2 ->
+    EOp ws1 wso op es ws2 ->
       let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc es in
-      ret (EOp ws1 op newEs ws2) newGlobalAcc2
+      ret (EOp ws1 wso op newEs ws2) newGlobalAcc2
 
     EList ws1 es ws2 Nothing ws3 ->
       let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc (Utils.listValues es) in
@@ -1468,7 +1468,7 @@ childExpsExtractors e =
     EBase _ _               -> ([], \_ -> e)
     EVar _ _                -> ([], \_ -> e)
     EFun ws1 ps e_ ws2      -> ([e_], singleArgExtractor "EFun-unexp" e <| \newE -> EFun ws1 ps newE ws2)
-    EOp ws1 op es ws2       -> (es, multiArgExtractor "EOp-unexp" e <| \newEs -> EOp ws1 op newEs ws2)
+    EOp ws1 wso op es ws2       -> (es, multiArgExtractor "EOp-unexp" e <| \newEs -> EOp ws1 wso op newEs ws2)
     EList ws1 es ws2 m ws3  ->
       case m of
         Just e  -> (Utils.listValues es ++ [e], multiArgExtractor "EList-unexp" e  <| \newEs ->  EList ws1 (Utils.listValuesMake es <| Utils.dropLast 1 newEs) ws2 (Just (Utils.last "childExps-EList" newEs)) ws3)
@@ -1737,7 +1737,7 @@ varsOfPat pat =
     PList _ ps _ Nothing _  -> List.concatMap varsOfPat ps
     PList _ ps _ (Just p) _ -> List.concatMap varsOfPat (p::ps)
     PRecord _ ps _          -> List.concatMap varsOfPat <| Utils.recordValues ps
-    PAs _ x _ p             -> x::(varsOfPat p)
+    PAs _ _ x _ p             -> x::(varsOfPat p)
     PParens _ p _           -> varsOfPat p
 
 
@@ -1757,7 +1757,7 @@ childPats pat =
     PList _ ps _ Nothing _  -> ps
     PRecord _ ps _          -> Utils.recordValues ps
     PList _ ps _ (Just p) _ -> ps ++ [p]
-    PAs _ _ _ p             -> [p]
+    PAs _ _ _ _ p             -> [p]
     PParens _ p _           -> [p]
 
 -----------------------------------------------------------------------------
@@ -1877,7 +1877,7 @@ dummyProvenance = Provenance [] (eTuple0 []) []
 dummyLocWithDebugInfo : Frozen -> Num -> Loc
 dummyLocWithDebugInfo b n = (0, b, "")
 
-eOp op_ es = withDummyExpInfo <| EOp space1 (withDummyRange op_) es space0
+eOp op_ es = withDummyExpInfo <| EOp space1 space1 (withDummyRange op_) es space0
 
 ePlus e1 e2 = eOp Plus [e1, e2]
 eMinus e1 e2 = eOp Minus [e1, e2]
@@ -1974,7 +1974,7 @@ pVar0 a        = withDummyPatInfo <| PVar space0 a noWidgetDecl
 pVar a         = withDummyPatInfo <| PVar space1 a noWidgetDecl
 pList0 ps      = withDummyPatInfo <| PList space0 ps space0 Nothing space0
 pList ps       = withDummyPatInfo <| PList space1 ps space0 Nothing space0
-pAs x p        = withDummyPatInfo <| PAs space1 x space1 p
+pAs x p        = withDummyPatInfo <| PAs space0 space1 x space1 p
 
 pListOfPVars names = pList (listOfPVars names)
 
@@ -2017,11 +2017,11 @@ eListUnapplyWS e = case e.val.e__ of
   _ -> Nothing
 
 eOpUnapply1 expectedOp e = case e.val.e__ of
-  EOp _ op [arg] _ -> if op.val == expectedOp then Just arg else Nothing
+  EOp _ _ op [arg] _ -> if op.val == expectedOp then Just arg else Nothing
   _ -> Nothing
 
 eOpUnapply2 expectedOp e = case e.val.e__ of
-  EOp _ op [e1, e2] _ -> if op.val == expectedOp then Just (e1, e2) else Nothing
+  EOp _ _ op [e1, e2] _ -> if op.val == expectedOp then Just (e1, e2) else Nothing
   _ -> Nothing
 
 
@@ -2176,18 +2176,20 @@ indentationAt eid program =
     Nothing ->
       ""
 
-
 precedingWhitespacePat : Pat -> String
 precedingWhitespacePat pat =
-  .val <|
+  precedingWhitespaceWithInfoPat pat |> .val
+
+precedingWhitespaceWithInfoPat : Pat -> WS
+precedingWhitespaceWithInfoPat pat =
     case pat.val.p__ of
       PVar   ws ident wd         -> ws
       PConst ws n                -> ws
       PBase  ws v                -> ws
       PWildcard ws               -> ws
       PList  ws1 ps ws2 rest ws3 -> ws1
-      PRecord ws1 es ws2      -> ws1
-      PAs    ws1 ident ws2 p     -> ws1
+      PRecord ws1 es ws2         -> ws1
+      PAs    ws1 wsi ident ws2 p -> ws1
       PParens ws1 p ws2          -> ws1
 
 precedingWhitespaceWithInfoExp : Exp -> WS
@@ -2210,7 +2212,7 @@ precedingWhitespaceWithInfoExp__ e__ =
     EList      ws1 es ws2 rest ws3              -> ws1
     ERecord    ws1 mi es ws2                    -> ws1
     ESelect    ws1 e ws2 ws3 s                  -> ws1
-    EOp        ws1 op es ws2                    -> ws1
+    EOp        ws1 wso op es ws2                -> ws1
     EIf        ws1 e1 ws2 e2 ws3 e3 ws4         -> ws1
     ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ws1
     ECase      ws1 e1 bs ws2                    -> ws1
@@ -2258,7 +2260,7 @@ allWhitespaces_ exp =
                                                  ++ List.concatMap (\(wsc, wsk, _, wse, v) -> [wsc, wsk, wse] ++ allWhitespaces_ v) es
                                                  ++ [ws2]
     ESelect    ws0 e ws1 ws2 s              -> allWhitespaces_ e ++ [ws1, ws2]
-    EOp        ws1 op es ws2                -> [ws1] ++ List.concatMap allWhitespaces_ es ++ [ws2]
+    EOp        ws1 wso op es ws2            -> [ws1] ++ [wso] ++ List.concatMap allWhitespaces_ es ++ [ws2]
     EIf        ws1 e1 ws2 e2 ws3 e3 ws4     -> [ws1] ++ allWhitespaces_ e1
                                                  ++ [ws2] ++ allWhitespaces_ e2
                                                  ++ [ws3] ++ allWhitespaces_ e3
@@ -2308,7 +2310,7 @@ allWhitespacesPat_ pat =
     PWildcard ws               -> [ws]
     PList  ws1 ps ws2 rest ws3 -> [ws1] ++ List.concatMap allWhitespacesPat_ ps ++ [ws2] ++ (rest |> Maybe.map allWhitespacesPat_ |> Maybe.withDefault []) ++ [ws3]
     PRecord ws1 ps ws2         -> [ws1] ++ List.concatMap allWhitespacesPat_ (Utils.recordValues ps) ++ [ws2]
-    PAs    ws1 ident ws2 p     -> [ws1, ws2] ++ allWhitespacesPat_ p
+    PAs    ws1 wsi ident ws2 p -> [ws1, wsi, ws2] ++ allWhitespacesPat_ p
     PParens ws1 p ws2          -> [ws1, ws2] ++ allWhitespacesPat_ p
 
 allWhitespacesType_ : Type -> List WS
@@ -2361,13 +2363,15 @@ copyPrecedingWhitespacePat : Pat -> Pat -> Pat
 copyPrecedingWhitespacePat source target =
   replacePrecedingWhitespacePat (precedingWhitespacePat source) target
 
-
--- Does not recurse.
 mapPrecedingWhitespace : (String -> String) -> Exp -> Exp
 mapPrecedingWhitespace stringMap exp =
+  let mapWs s = ws (stringMap s.val) in
+  mapPrecedingWhitespaceWS mapWs exp
+
+-- Does not recurse.
+mapPrecedingWhitespaceWS : (WS -> WS) -> Exp -> Exp
+mapPrecedingWhitespaceWS mapWs exp =
   let
-    mapWs s =
-      ws (stringMap s.val)
     e__New =
       case exp.val.e__ of
         EBase      ws v                             -> EBase      (mapWs ws) v
@@ -2378,7 +2382,7 @@ mapPrecedingWhitespace stringMap exp =
         EList      ws1 es ws2 rest ws3              -> EList      (mapWs ws1) es ws2 rest ws3
         ERecord    ws1 mi es ws2                    -> ERecord    (mapWs ws1) mi es ws2
         ESelect    ws1 e ws2 ws3 s                  -> ESelect    (mapWs ws1) e ws2 ws3 s
-        EOp        ws1 op es ws2                    -> EOp        (mapWs ws1) op es ws2
+        EOp        ws1 wso op es ws2                -> EOp        (mapWs ws1) wso op es ws2
         EIf        ws1 e1 ws2 e2 ws3 e3 ws4         -> EIf        (mapWs ws1) e1 ws2 e2 ws3 e3 ws4
         ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ELet       (mapWs ws1) kind rec p ws2 e1 ws3 e2 ws4
         ECase      ws1 e1 bs ws2                    -> ECase      (mapWs ws1) e1 bs ws2
@@ -2397,9 +2401,12 @@ mapPrecedingWhitespace stringMap exp =
 
 mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
 mapPrecedingWhitespacePat stringMap pat =
+  let mapWs s = ws (stringMap s.val) in
+  mapPrecedingWhitespacePatWS mapWs pat
+
+mapPrecedingWhitespacePatWS : (WS -> WS) -> Pat -> Pat
+mapPrecedingWhitespacePatWS mapWs pat =
   let
-    mapWs s =
-      ws (stringMap s.val)
     p__ =
       case pat.val.p__ of
         PVar   ws ident wd         -> PVar   (mapWs ws) ident wd
@@ -2408,7 +2415,7 @@ mapPrecedingWhitespacePat stringMap pat =
         PWildcard ws               -> PWildcard (mapWs ws)
         PList  ws1 ps ws2 rest ws3 -> PList  (mapWs ws1) ps ws2 rest ws3
         PRecord ws1 ps ws2         -> PRecord (mapWs ws1) ps ws2
-        PAs    ws1 ident ws2 p     -> PAs    ws1 ident ws2 (mapPrecedingWhitespacePat stringMap p)
+        PAs    ws1 wsi ident ws2 p -> PAs    (mapWs ws1) wsi ident ws2 p
         PParens ws1 p ws2          -> PParens (mapWs ws1) p ws2
   in
     replaceP__ pat p__
@@ -2757,27 +2764,8 @@ isWord codeObject =
 wsBefore : CodeObject -> WS
 wsBefore codeObject =
   case codeObject of
-    E e ->
-      precedingWhitespaceWithInfoExp__ e.val.e__
-
-    P e p ->
-      case p.val.p__ of
-        PVar ws _ _ ->
-          ws
-        PConst ws _ ->
-          ws
-        PBase ws _ ->
-          ws
-        PWildcard ws ->
-          ws
-        PList ws _ _ _ _ ->
-          ws
-        PRecord ws _ _ ->
-          ws
-        PAs _ _ _ p ->
-          wsBefore <| P e p
-        PParens ws _ _ ->
-          ws
+    E e   -> precedingWhitespaceWithInfoExp e
+    P e p -> precedingWhitespaceWithInfoPat p
     T t ->
       case t.val of
         TNum ws ->
@@ -2831,75 +2819,14 @@ modifyWsBefore f codeObject =
         eVal =
           e.val
         newE__ =
-          case eVal.e__ of
-            EConst ws a b c ->
-              EConst (f ws) a b c
-            EBase ws a ->
-              EBase (f ws) a
-            EVar ws a ->
-              EVar (f ws) a
-            EFun ws a b c ->
-              EFun (f ws) a b c
-            EApp ws a b c d ->
-              EApp (f ws) a b c d
-            EOp ws a b c ->
-              EOp (f ws) a b c
-            EList ws a b c d ->
-              EList (f ws) a b c d
-            ERecord ws a b c ->
-              ERecord (f ws) a b c
-            ESelect ws a b c d ->
-              ESelect (f ws) a b c d
-            EIf ws a b c d e_ f_ ->
-              EIf (f ws) a b c d e_ f_
-            ECase ws a b c  ->
-              ECase (f ws) a b c
-            ETypeCase ws a b c ->
-              ETypeCase (f ws) a b c
-            ELet ws a b c d e_ f_ g h ->
-              ELet (f ws) a b c d e_ f_ g h
-            EComment ws a b ->
-              EComment (f ws) a b
-            EOption ws a b c d ->
-              EOption (f ws) a b c d
-            ETyp ws a b c d  ->
-              ETyp (f ws) a b c d
-            EColonType ws a b c d ->
-              EColonType (f ws) a b c d
-            ETypeAlias ws a b c d ->
-              ETypeAlias (f ws) a b c d
-            ETypeDef ws a b c d e_ f_ ->
-              ETypeDef (f ws) a b c d e_ f_
-            EParens ws a pStyle b ->
-              EParens (f ws) a pStyle b
-            EHole ws mv ->
-              EHole (f ws) mv
+          (mapPrecedingWhitespaceWS f e).val.e__
       in
         E { e | val = { eVal | e__ = newE__ } }
     P e p ->
       let
         pVal =
           p.val
-        newP__ =
-          case pVal.p__ of
-            PVar ws a b ->
-              PVar (f ws) a b
-            PConst ws a ->
-              PConst (f ws) a
-            PBase ws a ->
-              PBase (f ws) a
-            PWildcard ws ->
-              PWildcard (f ws)
-            PList ws a b c d ->
-              PList (f ws) a b c d
-            PRecord ws a b ->
-              PRecord (f ws) a b
-            PAs ws ident ws2 p2 ->
-              case modifyWsBefore f (P e p2) of
-                P e3 p3 -> PAs ws ident ws2 p3
-                _ -> Debug.crash "Internal error: modifyWsBefore cannot return something else than P if provided with P"
-            PParens ws p2 ws2 ->
-              PParens (f ws) p2 ws2
+        newP__ = (mapPrecedingWhitespacePatWS f p).val.p__
       in
         P e { p | val = { pVal | p__ = newP__ } }
     T t ->
@@ -3006,9 +2933,9 @@ childCodeObjects co =
                 Nothing ->
                   []
             )
-          EOp ws1 _ es ws2 ->
+          EOp ws1 wso _ es ws2 ->
             [ ET Before ws1 e
-            ] ++
+            , ET Before wso e] ++
             ( List.map E es
             ) ++
             ( case Utils.maybeLast es of
@@ -3282,8 +3209,9 @@ childCodeObjects co =
               ++
               ( List.map (PT After ws2 e) lastHead
               )
-          PAs ws1 _ _ p1 ->
+          PAs ws1 wsi _ _ p1 ->
             [ PT Before ws1 e p
+            , PT Before wsi e p
             , P e p1
             ]
           PParens ws1 p1 ws2 ->
@@ -3457,7 +3385,7 @@ tagSinglePat ppid pat =
           []
         PWildcard _ ->
           []
-        PAs _ _ _ p1 ->
+        PAs _ _ _ _ p1 ->
           -- TODO Unsure if this is the right ppid (it is the same as the
           --      parent).
           tagSinglePat ppid p1

@@ -18,9 +18,10 @@ module ExamplesGenerated exposing
   , christmas_song_3_after_translation
   , mapMaybeLens
   , listAppendLens
+  , Example
   )
 
-import Lang
+import Lang exposing (Exp, Val, Widget, Env)
 import FastParser
 import ElmParser
 import Types
@@ -30,6 +31,14 @@ import PreludeGenerated as Prelude
 import DefaultIconTheme
 import Syntax
 import EvalUpdate
+import Parser
+
+type alias Example = {
+   e: Exp,
+   v: Val,
+   ws: List Widget,
+   ati:  Types.AceTypeInfo,
+   env: Env}
 
 --------------------------------------------------------------------------------
 
@@ -44,6 +53,7 @@ makeExample = makeExample_ FastParser.parseE Syntax.Little
 
 makeLeoExample = makeExample_ ElmParser.parse Syntax.Elm
 
+makeExample_: (String -> Result Parser.Error Exp) -> Syntax.Syntax -> String -> String -> (String, (String, () -> Example))
 makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example

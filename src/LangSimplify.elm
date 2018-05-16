@@ -168,7 +168,7 @@ removeUnusedLetPatsMatching predicate exp =
               letRemoved
 
           -- Check if as-pattern is used
-          (PAs asWs ident _ innerPat, _) ->
+          (PAs asWs wsi ident _ innerPat, _) ->
             if Set.member ident usedNames || not (predicate pat) then
               e__
             else
@@ -225,9 +225,9 @@ simplifyPatBoundExp pat boundExp =
     (PVar ws1 "*RemoveMe*" wd, _) ->
       Nothing
 
-    (PAs ws1 ident ws2 childPat, _) ->
+    (PAs ws1 wsi ident ws2 childPat, _) ->
       case simplifyPatBoundExp childPat boundExp of
-        Just (newChildPat, newBoundExp) -> Just (replaceP__ pat (PAs ws1 ident ws2 newChildPat), newBoundExp)
+        Just (newChildPat, newBoundExp) -> Just (replaceP__ pat (PAs ws1 wsi ident ws2 newChildPat), newBoundExp)
         Nothing                         -> Nothing
 
     ( PList pws1 ps pws2 maybePTail pws3
@@ -466,7 +466,7 @@ changeRenamedVarsToOuter_ renamings exp =
         EFun ws1 pats (changeRenamedVarsToOuter_ renamingsShadowsRemoved body) ws2
 
       EApp ws1 e1 es appType ws2 -> EApp ws1 (recurse e1) (List.map recurse es) appType ws2
-      EOp ws1 op es ws2          -> EOp ws1 op (List.map recurse es) ws2
+      EOp ws1 wso op es ws2      -> EOp ws1 wso op (List.map recurse es) ws2
       EList ws1 es ws2 m ws3     -> EList ws1 (Utils.listValuesMap recurse es) ws2 (Utils.mapMaybe recurse m) ws3
       ERecord ws1 m es ws2       -> ERecord ws1 (Maybe.map (Tuple.mapFirst recurse) m) (Utils.recordValuesMap recurse es) ws2
       ESelect ws0 e ws1 ws2 i    -> ESelect ws0 (recurse e) ws1 ws2 i

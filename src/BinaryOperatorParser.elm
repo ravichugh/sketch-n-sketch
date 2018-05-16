@@ -77,31 +77,29 @@ getOperatorInfo op (PT table) =
 --------------------------------------------------------------------------------
 
 binaryOperator
-  :  { spacePolicy : {first: Parser spaceFirst, apparg: Parser spaceApparg}
-     , greedySpaceParser : Parser spaceFirst
+  :  { greedySpaceParser : Parser space
      , precedenceTable : PrecedenceTable
      , minimumPrecedence : Precedence
-     , expression : {first: Parser spaceFirst, apparg: Parser spaceApparg} -> Parser exp
+     , expression : Parser (space -> exp)
+     , withZeroSpace: (space -> exp) -> exp
      , operator : Parser op
      , representation : op -> String
-     , combine : exp -> op -> exp -> exp
+     , combine : space -> exp -> op -> exp -> exp
      }
-  -> Parser exp
+  -> Parser (space -> exp)
 binaryOperator args =
-  let
-    { spacePolicy
-    , greedySpaceParser
-    , precedenceTable
-    , minimumPrecedence
-    , expression
-    , operator
-    , representation
-    , combine
-    } =
-      args
-
-    loop resultExp =
-      flip andThen (lookAhead <| optional operator) <| \maybeOperator ->
+  let {
+       greedySpaceParser
+     , precedenceTable
+     , minimumPrecedence
+     , expression
+     , withZeroSpace
+     , operator
+     , representation
+     , combine
+     } = args
+      loop resultWSExp =
+       flip andThen (lookAhead <| optional operator) <| \maybeOperator ->
         case maybeOperator of
           Just op ->
             let
@@ -119,15 +117,16 @@ binaryOperator args =
 
                           Right ->
                             precedence
-
                       rightHandSide =
-                        binaryOperator
-                          { args | minimumPrecedence = nextMinimumPrecedence, spacePolicy = {first = greedySpaceParser, apparg = spacePolicy.apparg} }
+                        delayedCommitMap (\ws r -> r ws)
+                          greedySpaceParser
+                          (binaryOperator
+                            { args | minimumPrecedence = nextMinimumPrecedence })
 
                       continue rightExp =
                         let
-                          newResult =
-                            combine resultExp op rightExp
+                          newResult = \wsBeforeAll ->
+                            combine wsBeforeAll (withZeroSpace resultWSExp) op rightExp
                         in
                           loop newResult
                     in
@@ -138,7 +137,7 @@ binaryOperator args =
                   else
                     -- Note that the operator has not been consumed at this
                     -- point because of the lookAhead.
-                    succeed resultExp
+                    succeed resultWSExp
 
                 Nothing ->
                   fail <|
@@ -148,8 +147,7 @@ binaryOperator args =
                       ++ " precedence table"
 
           Nothing ->
-            succeed resultExp
+            succeed resultWSExp
 
   in
-    expression spacePolicy
-      |> andThen loop
+  expression |> andThen loop

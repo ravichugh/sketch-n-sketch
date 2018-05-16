@@ -6,10 +6,14 @@ module LangParserUtils exposing
   , symbolWithSpace
   , spaceSaverKeyword
   , paddedBefore
+  , transferInfo
+  , unwrapInfo
   , isSpace
   , isOnlySpaces
   , mapPat_
+  , mapWSPat_
   , mapExp_
+  , mapWSExp_
   , SpacePolicy
   , spacesDefault
   , spacesWithoutIndentation
@@ -196,6 +200,13 @@ paddedBefore combiner sp p =
     sp
     p
 
+transferInfo : (a -> b) -> ParserI a -> ParserI b
+transferInfo combiner p =
+  map ( \x -> withInfo (combiner x.val) x.start x.end) p
+
+unwrapInfo: ParserI (a -> b) -> Parser (a -> WithInfo b)
+unwrapInfo = map (\{val, start, end} -> \a -> withInfo (val a) start end)
+
 --------------------------------------------------------------------------------
 -- Patterns
 --------------------------------------------------------------------------------
@@ -203,12 +214,19 @@ paddedBefore combiner sp p =
 mapPat_ : ParserI Pat__ -> Parser Pat
 mapPat_ = (map << mapInfo) pat_
 
+mapWSPat_ : ParserI (WS -> Pat__) -> Parser (WS -> Pat)
+mapWSPat_ = (map << mapInfoWS) pat_
+
+
 --------------------------------------------------------------------------------
 -- Expressions
 --------------------------------------------------------------------------------
 
 mapExp_ : ParserI Exp__ -> Parser Exp
 mapExp_ = (map << mapInfo) exp_
+
+mapWSExp_ : ParserI (WS -> Exp__) -> Parser (WS -> Exp)
+mapWSExp_ = (map << mapInfoWS) exp_
 
 -- This is useful to get rid of semicolon or colons in the top-level language.
 -- app   how spaces before applications argument can be parsed (e.g. if they can go one line)

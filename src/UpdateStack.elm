@@ -335,7 +335,7 @@ prevLetsFind val_ env p =
       recurse env p =
     case p.val.p__ of
        PVar _ name _ -> deconstructEnv name env
-       PAs _ name _ inner -> deconstructEnv name env |> Maybe.andThen (\(v, env1) ->
+       PAs _ _ name _ inner -> deconstructEnv name env |> Maybe.andThen (\(v, env1) ->
            recurse env1 inner |> Maybe.map (\(_, newEnv) -> (v, newEnv))
          )
        PConst _ n -> Just <| (val_ <| VConst Nothing (n, dummyTrace), env)

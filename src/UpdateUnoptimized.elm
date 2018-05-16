@@ -138,11 +138,11 @@ mergeExp o e1 e2 =
         EApp sp2 fun2 args2 appStyle3 esp2) ->
          EApp (mergeWS sp0 sp1 sp2) (mergeExp fun0 fun1 fun2) (mergeList mergeExp args0 args1 args2) appStyle1 (mergeWS esp0 esp1 esp2)
 
-       (EOp sp0 op0 args0 esp0,
-        EOp sp1 op1 args1 esp1,
-        EOp sp2 op2 args2 esp2) ->
+       (EOp sp0 spo0 op0 args0 esp0,
+        EOp sp1 spo1 op1 args1 esp1,
+        EOp sp2 spo2 op2 args2 esp2) ->
          if op0.val == op1.val && op1.val == op2.val then
-           EOp (mergeWS sp0 sp1 sp2) op0 (mergeList mergeExp args0 args1 args2) (mergeWS esp0 esp1 esp2)
+           EOp (mergeWS sp0 sp1 sp2) (mergeWS spo0 spo1 spo2) op0 (mergeList mergeExp args0 args1 args2) (mergeWS esp0 esp1 esp2)
          else default ()
 
        (EList sp0 args0 isp0 mTail0 esp0,

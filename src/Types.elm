@@ -323,7 +323,7 @@ addBindingsOne (p, t) acc =
     (PBase _ _, _)      -> Ok acc
     (PWildcard _, _)    -> Ok acc
     (PVar _ x _, _)     -> Ok (HasType x t :: acc)
-    (PAs _ x _ xPat, _) -> addBindingsOne (xPat, t) (HasType x t :: acc)
+    (PAs _ _ x _ xPat, _) -> addBindingsOne (xPat, t) (HasType x t :: acc)
 
     (PList _ ps _ mpRest _, TTuple _ ts _ mtRest _) ->
       let maybeRestBinding =
@@ -396,7 +396,7 @@ lookupPat typeEnv p =
 
     PWildcard _  -> Nothing
     PVar _ x _  -> lookupVar typeEnv x
-    PAs _ x _ _ -> lookupVar typeEnv x
+    PAs _ _ x _ _ -> lookupVar typeEnv x
     PParens _ p _ -> lookupPat typeEnv p
 
     PConst _ _            -> Just tNum
@@ -801,10 +801,10 @@ synthesizeType typeInfo typeEnv e =
       let (arrow, typeInfo_) = newArrowTemplate typeInfo (List.length ps) in
       tsFun finish typeInfo_ typeEnv ps eBody arrow
 
-    EOp _ op [] _ -> -- [TS-Op]
+    EOp _ _ op [] _ -> -- [TS-Op]
       finish.withType (opType op) typeInfo
 
-    EOp _ op eArgs _ -> -- [TS-Op]
+    EOp _ _ op eArgs _ -> -- [TS-Op]
       case (op.val, stripPolymorphicArrow (opType op)) of
 
         (Plus, _) -> -- hard-coded intersection type

@@ -35,7 +35,7 @@ nodeCount exp =
     EBase _ _                -> 1
     EVar _ x                 -> 1
     EFun _ ps e _            -> 1 + patsNodeCount ps + nodeCount e
-    EOp _ op es _            -> 1 + expsNodeCount es
+    EOp _ _ op es _          -> 1 + expsNodeCount es
     EList _ es _ (Just e) _  -> 1 + expsNodeCount (Utils.listValues es) + nodeCount e
     EList _ es _ Nothing _   -> 1 + expsNodeCount (Utils.listValues es)
     ERecord _ (Just (init, _)) es _ -> 1 + expsNodeCount (Utils.recordValues es) + nodeCount init
@@ -92,7 +92,7 @@ subExpsOfSizeAtLeast_ min exp =
         EBase _ _                -> 1
         EVar _ x                 -> 1
         EFun _ ps e _            -> 1 + patsNodeCount ps
-        EOp _ op es _            -> 1
+        EOp _ _ op es _          -> 1
         EList _ es _ (Just e) _  -> 1
         EList _ es _ Nothing _   -> 1
         ERecord _ _ _ _          -> 1
@@ -180,7 +180,7 @@ patNodeCount pat =
     PList _ pats _ (Just pat) _ -> 1 + patsNodeCount pats + patNodeCount pat
     PList _ pats _ Nothing    _ -> 1 + patsNodeCount pats
     PRecord _ pats _            -> 1 + patsNodeCount (Utils.recordValues pats)
-    PAs _ _ _ pat               -> 1 + patNodeCount pat
+    PAs _ _ _ _ pat             -> 1 + patNodeCount pat
     PParens _ pat _             -> 1 + patNodeCount pat
 
 patsNodeCount : List Pat -> Int
@@ -234,7 +234,7 @@ patternsEqual patA patB =
     (PBase ws1A ebvA,                    PBase ws1B ebvB)                    -> eBaseValsEqual ebvA ebvB
     (PList ws1A psA ws2A Nothing ws3A,   PList ws1B psB ws2B Nothing ws3B)   -> patternListsEqual psA psB
     (PList ws1A psA ws2A (Just pA) ws3A, PList ws1B psB ws2B (Just pB) ws3B) -> patternListsEqual (pA::psA) (pB::psB)
-    (PAs ws1A identA ws2A pA,            PAs ws1B identB ws2B pB)            -> identA == identB && patternsEqual pA pB
+    (PAs ws1A wsiA identA ws2A pA,       PAs ws1B wsiB identB ws2B pB)       -> identA == identB && patternsEqual pA pB
     _                                                                        -> False
 
 
@@ -259,7 +259,7 @@ extraExpsDiff baseExp otherExp =
     (EBase ws1A ebvA,                      EBase ws1B ebvB)                              -> if eBaseValsEqual ebvA ebvB then [] else [otherExp]
     (EVar ws1A identA,                     EVar ws1B identB)                             -> if identA == identB then [] else [otherExp]
     (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                        -> if patternListsEqual psA psB then extraExpsDiff eA eB else [otherExp]
-    (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                        -> if opA.val == opB.val then childDiffs () else [otherExp]
+    (EOp ws1A wsi1 opA esA ws2A,           EOp ws1B wsiB opB esB ws2B)                   -> if opA.val == opB.val then childDiffs () else [otherExp]
     (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)             -> childDiffs ()
     (EList ws1A esA ws2A (Just eA) ws3A,   EList ws1B esB ws2B (Just eB) ws3B)           -> childDiffs ()
     (EApp ws1A fA esA appTypeA ws2A,       EApp ws1B fB esB appTypeB ws2B)               -> childDiffs ()
@@ -616,7 +616,7 @@ simpleExpNameWithDefault default exp =
     EApp _ funE _ _ _     -> expToMaybeIdent funE |> Maybe.withDefault default
     EList _ _ _ _ _       -> "list"
     ERecord _ _ _ _       -> "record"
-    EOp _ _ es _          -> List.map (simpleExpNameWithDefault default) es |> Utils.findFirst ((/=) default) |> Maybe.withDefault default
+    EOp _ _ _ es _          -> List.map (simpleExpNameWithDefault default) es |> Utils.findFirst ((/=) default) |> Maybe.withDefault default
     EBase _ ENull         -> "null"
     EBase _ (EString _ _) -> "string"
     EBase _ (EBool _)     -> "bool"
@@ -764,7 +764,7 @@ expDescriptionParts_ program exp targetEId =
               let scopeNames =
                 case pat.val.p__ of
                   PVar _ ident _  -> [ident]
-                  PAs _ ident _ _ -> [ident]
+                  PAs _ _ ident _ _ -> [ident]
                   _               ->
                     case identifiersListInPat pat of
                       []        -> []
@@ -848,7 +848,7 @@ scopeNamesLocLiftedThrough_ targetLocId scopeNames exp =
       let scopeNames_ =
         case pat.val.p__ of
           PVar _ ident _  -> scopeNames ++ [ident]
-          PAs _ ident _ _ -> scopeNames ++ [ident]
+          PAs _ _ ident _ _ -> scopeNames ++ [ident]
           _               -> scopeNames
       in
       -- Ident should only be added to assigns. Otherwise you get lots of junk
@@ -925,7 +925,7 @@ tryMatchExp pat exp =
       case pat.val.p__ of
         PWildcard _            -> Match []
         PVar _ ident _         -> Match [(ident, exp)]
-        PAs _ ident _ innerPat ->
+        PAs _ _ ident _ innerPat ->
           tryMatchExp innerPat exp
           |> matchMap (\env -> (ident, exp)::env)
 
@@ -1145,7 +1145,7 @@ patToMaybeIdent : Pat -> Maybe Ident
 patToMaybeIdent pat =
   case pat.val.p__ of
     PVar _ ident _  -> Just ident
-    PAs _ ident _ _ -> Just ident
+    PAs _ _ ident _ _ -> Just ident
     _               -> Nothing
 
 
@@ -1394,10 +1394,10 @@ renameIdentifiersInPat subst pat =
       PList ws1 pats ws2 (Just pRest) ws3 ->
         PList ws1 (recurseList pats) ws2 (Just (recurse pRest)) ws3
 
-      PAs ws1 ident ws2 innerPat ->
+      PAs ws1 wsi ident ws2 innerPat ->
         case Dict.get ident subst of
-          Just new -> PAs ws1 new ws2 (recurse innerPat)
-          Nothing  -> PAs ws1 ident ws2 (recurse innerPat)
+          Just new -> PAs ws1 wsi new ws2 (recurse innerPat)
+          Nothing  -> PAs ws1 wsi ident ws2 (recurse innerPat)
 
       _ ->
         pat.val.p__
@@ -1495,11 +1495,11 @@ setPatNameInPat path newName pat =
     (PVar ws ident wd, []) ->
       replaceP__ pat (PVar ws newName wd)
 
-    (PAs ws1 ident ws2 p, []) ->
-      replaceP__ pat (PAs ws1 newName ws2 p)
+    (PAs ws1 wsi ident ws2 p, []) ->
+      replaceP__ pat (PAs ws1 wsi newName ws2 p)
 
-    (PAs ws1 ident ws2 p, 1::is) ->
-      replaceP__ pat (PAs ws1 ident ws2 (setPatNameInPat is newName p))
+    (PAs ws1 wsi ident ws2 p, 1::is) ->
+      replaceP__ pat (PAs ws1 wsi ident ws2 (setPatNameInPat is newName p))
 
     (PList ws1 ps ws2 Nothing ws3, i::is) ->
       let newPs = Utils.getReplacei1 i (setPatNameInPat is newName) ps in
@@ -1524,7 +1524,7 @@ patToExp pat =
   withDummyExpInfo <|
   case pat.val.p__ of
     PVar ws1 ident _                  -> EVar ws1 ident
-    PAs ws1 ident _ _                 -> EVar ws1 ident
+    PAs ws1 wsi ident _ _             -> EVar ws1 ident
     PList ws1 heads ws2 maybeTail ws3 -> EList ws1 (List.map ((,) space0) (List.map patToExp heads)) ws2 (Maybe.map patToExp maybeTail) ws3
     PConst ws1 n                      -> EConst ws1 n dummyLoc noWidgetDecl
     PBase ws1 bv                      -> EBase ws1 bv
@@ -1704,7 +1704,7 @@ followPathInPat path pat =
     (_, []) ->
       Just pat
 
-    (PAs _ _ _ p, 1::is) ->
+    (PAs _ _ _ _ p, 1::is) ->
       followPathInPat is p
 
     (PList _ ps _ Nothing _, i::is) ->
@@ -1868,7 +1868,7 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
     PVar _ ident _ ->
       Just thisMatch
 
-    PAs _ ident _ innerPat ->
+    PAs _ _ ident _ innerPat ->
       recurse innerPat exp
       |> Maybe.map (postProcessDescendentsWithPath 1)
       |> addThisMatch
@@ -2063,7 +2063,7 @@ numericLetBoundIdentifiers program =
       EVar _ ident   -> Set.member ident numericIdents
       EFun _ _ _ _   -> False
       EApp _ _ _ _ _ -> False -- Not smart here.
-      EOp _ op operands _ ->
+      EOp _ _ op operands _ ->
         case op.val of
           Pi         -> True
           DictEmpty  -> False
@@ -2176,7 +2176,7 @@ transformVarsUntilBound subst exp =
         Nothing -> exp
 
     EFun ws1 ps e ws2           -> replaceE__ exp (EFun ws1 ps (recurseWithout (identifiersSetInPats ps) e) ws2)
-    EOp ws1 op es ws2           -> replaceE__ exp (EOp ws1 op (List.map recurse es) ws2)
+    EOp ws1 wsi op es ws2       -> replaceE__ exp (EOp ws1 wsi op (List.map recurse es) ws2)
     EList ws1 es ws2 m ws3      -> replaceE__ exp (EList ws1 (Utils.listValuesMap recurse es) ws2 (Maybe.map recurse m) ws3)
     ERecord ws1 mb es ws2       -> replaceE__ exp (ERecord ws1 (Maybe.map (\(t1, t2) -> (recurse t1, t2)) mb) (Utils.recordValuesMake es (List.map recurse (Utils.recordValues es))) ws2)
     ESelect ws0 e1 ws1 ws2 s    -> replaceE__ exp (ESelect ws0 (recurse e1) ws1 ws2 s)
@@ -2278,7 +2278,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     EBase _ _        -> ret Set.empty
     EVar _ ident     -> ret Set.empty -- Referencing a var doesn't count.
     EFun _ ps e _    -> ret <| recurseWithNewIdents ps e
-    EOp _ op es _    -> ret <| recurseAllChildren ()
+    EOp _ _ op es _  -> ret <| recurseAllChildren ()
     EList _ es _ m _ -> ret <| recurseAllChildren ()
     ERecord _ m es _ -> ret <| recurseAllChildren ()
     ESelect _ _ _ _ _ -> ret <| recurseAllChildren ()
@@ -2576,7 +2576,7 @@ expEnvAt_ exp targetEId =
       EBase _ _        -> Nothing
       EVar _ ident     -> Nothing
       EFun _ ps e _    -> recurse e |> Maybe.map (addShallowerIdentifiers (identifiersListInPats ps))
-      EOp _ op es _    -> recurseAllChildren ()
+      EOp _ _ op es _  -> recurseAllChildren ()
       EList _ es _ m _ -> recurseAllChildren ()
       ERecord _ _ _ _ -> recurseAllChildren ()
       ESelect _ _ _ _ _ -> recurseAllChildren ()

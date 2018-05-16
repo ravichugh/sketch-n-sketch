@@ -257,7 +257,7 @@ pluck__ p e1 path =
         , replaceE__ e1 <| EList (ws <| precedingWhitespace e1)   [] space0 Nothing space0
         )
 
-    (PAs _ _ _ childPat, _, i::is) ->
+    (PAs _ _ _ _ childPat, _, i::is) ->
       -- TODO: allow but mark unsafe if as-pattern is used
       let _ = Debug.log "can't pluck out of as-pattern yet (unsafe)" () in
       Nothing
@@ -330,7 +330,7 @@ deadPathsInPat pat =
       PConst _ _   -> Debug.log "why do you put constants in your function arguments?!" []
       PBase  _ _   -> Debug.log "why do you put base vals in your function arguments?!"[]
 
-      PAs _ _ _ _ ->
+      PAs _ _ _ _ _ ->
         -- plucking out of as-pattern is generally unsafe (not allowed yet)
         -- so we shouldn't be creating dead paths inside as-patterns
         []
@@ -385,15 +385,15 @@ pluckPat path pat =
     (_, []) ->
       Just (pat, Nothing)
 
-    (PAs ws1 ident ws2 p, 1::is) ->
+    (PAs ws1 wsi ident ws2 p, 1::is) ->
       let _ = Debug.log "plucking out of as-pattern is generally unsafe (not allowed yet)" () in
       Nothing
 
-    -- (PAs ws1 ident ws2 p, 1::is) ->
+    -- (PAs ws1 wsi ident ws2 p, 1::is) ->
     --   let result = pluckPat is p in
     --   case result of
     --     Just (pluckedPat, Just remainingPat) ->
-    --       Just (pluckedPat, Just <| replaceP__ pat (PAs ws1 ident ws2 remainingPat))
+    --       Just (pluckedPat, Just <| replaceP__ pat (PAs ws1 wsi ident ws2 remainingPat))
     --
     --     _ ->
     --       result
@@ -695,7 +695,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
     case exp.val.e__ of
       EConst _ n _ _      -> Just (MathNum n)
       EVar _ ident        -> Dict.get ident identToVarId |> Maybe.map MathVar
-      EOp _ op operands _ ->
+      EOp _ _ op operands _ ->
         case op.val of
           Plus  -> operands |> List.map expToMaybeMathExp |> Utils.projJusts |> Maybe.map (MathOp Plus)
           Minus -> operands |> List.map expToMaybeMathExp |> Utils.projJusts |> Maybe.map (MathOp Minus)
@@ -1352,11 +1352,11 @@ insertPat__ (patToInsert, boundExp) p e1 path =
         Just ( PList pws1                            (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") space0 Nothing space0
              , EList (ws <| precedingWhitespace e1)  (List.map ((,) space0) (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ")) space0 Nothing space0 )
 
-      (PAs pws1 _ _ _, _, [i]) ->
+      (PAs pws1 _ _ _ _, _, [i]) ->
         Just ( PList pws1                            (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") space0 Nothing space0
              , EList (ws <| precedingWhitespace e1)  (List.map ((,) space0) (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ")) space0 Nothing space0 )
 
-      (PAs pws1 _ _ _, _, i::is) ->
+      (PAs pws1 _ _ _ _, _, i::is) ->
         -- TODO: allow but mark unsafe if as-pattern is used
         let _ = Debug.log "can't insert into as-pattern yet (unsafe)" () in
         Nothing
@@ -1439,15 +1439,15 @@ addPatToPat patToInsert path pat =
     (_, []) ->
       Nothing
 
-    (PAs ws1 ident ws2 p, 1::is) ->
+    (PAs ws1 wsi ident ws2 p, 1::is) ->
       let _ = Debug.log "adding to as pattern not allowed yet because when adding argument, pattern path will not be the same as the path for adding arguments to call sites" () in
       Nothing
 
-    -- (PAs ws1 ident ws2 p, 1::is) ->
+    -- (PAs ws1 wsi ident ws2 p, 1::is) ->
     --   let result = pluckPat is p in
     --   case result of
     --     Just (pluckedPat, Just remainingPat) ->
-    --       Just (pluckedPat, Just <| replaceP__ pat (PAs ws1 ident ws2 remainingPat))
+    --       Just (pluckedPat, Just <| replaceP__ pat (PAs ws1 wsi ident ws2 remainingPat))
     --
     --     _ ->
     --       result
@@ -2443,7 +2443,7 @@ reorderExpressionsTransformation originalProgram selections =
           case sharedAncestor.val.e__ of
             EList ws1 listExps ws2 maybeTail ws3 -> reorder sharedAncestorEId (Utils.listValues listExps) (\newListExps -> EList ws1 (Utils.listValuesMake listExps newListExps) ws2 maybeTail ws3)
             EApp ws1 fExp argExps appType ws2    -> reorder sharedAncestorEId argExps  (\newArgExps  -> EApp ws1 fExp newArgExps appType ws2)
-            EOp ws1 op operands ws2              -> reorder sharedAncestorEId operands (\newOperands -> EOp ws1 op newOperands ws2)
+            EOp ws1 wso op operands ws2          -> reorder sharedAncestorEId operands (\newOperands -> EOp ws1 wso op newOperands ws2)
             _                                    -> Nothing
 
         _ ->

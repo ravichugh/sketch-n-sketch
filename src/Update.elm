@@ -699,7 +699,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                       case (v1.v_, v2.v_) of
                         (VBase (VString _), VBase (VString _)) ->
                           let _ = Debug.log <| "It's a string update !" ++ valToString v1 ++ " , " ++ valToString v2 ++ " <-- " ++ valToString newVal in
-                          rewrite2 (\ex ey -> replaceE__ e <| EOp space1 (withDummyRange Plus) [ex, ey] space0)
+                          rewrite2 (\ex ey -> replaceE__ e <| EOp space1 space1 (withDummyRange Plus) [ex, ey] space0)
                         _ ->
                           rewrite2  (\ex ey -> replaceE__ e <| EApp space1 (replaceE__ e1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
                _ -> UpdateCriticalError ("++ should be called with two arguments, was called on "++toString (List.length e2s)++". " ++ s)
@@ -937,15 +937,15 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
              _ -> UpdateCriticalError <| "Expected boolean condition, got " ++ valToString v
          Err s -> UpdateCriticalError s
 
-     EOp sp1 op opArgs sp2 ->
+     EOp sp1 spo op opArgs sp2 ->
        case (op.val, opArgs) of
          (NoWidgets, [arg]) -> -- We don't need to compute the argument's value since it's the same that we are propagating
            updateContinue  "NoWidgets" env arg [] oldVal newVal diffs <| \newUpdatedEnv newUpdatedArg ->
-             let finalExp = replaceE__ e <| EOp sp1 op [newUpdatedArg.val] sp2 in
+             let finalExp = replaceE__ e <| EOp sp1 spo op [newUpdatedArg.val] sp2 in
              updateResult newUpdatedEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newUpdatedArg.changes)
          (DebugLog, [arg]) ->
            updateContinue  "DebugLog" env arg [] oldVal newVal diffs <| \newUpdatedEnv newUpdatedArg ->
-             let finalExp = replaceE__ e <| EOp sp1 op [newUpdatedArg.val] sp2 in
+             let finalExp = replaceE__ e <| EOp sp1 spo op [newUpdatedArg.val] sp2 in
              updateResult newUpdatedEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newUpdatedArg.changes)
          _ -> -- Here we need to compute the argument's values.
            case Utils.projOk <| List.map (doEval Syntax.Elm env) opArgs of
@@ -1005,7 +1005,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                              Err msg -> UpdateCriticalError <| msg
                              Ok newResultDiffs ->
                                updateContinue "argument of explode" env opArg [] v newResult newResultDiffs <| \newUpdatedEnv newUpdatedOpArg ->
-                                 let finalExp = replaceE__ e <| EOp sp1 op [newUpdatedOpArg.val] sp2 in
+                                 let finalExp = replaceE__ e <| EOp sp1 spo op [newUpdatedOpArg.val] sp2 in
                                  updateResult newUpdatedEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newUpdatedOpArg.changes)
                          (Err msg, _,_ ) -> UpdateCriticalError <| "Expected a list of string as previous output for explode, got " ++ msg ++ " for " ++ valToString oldVal
                          (_, Err msg, _) -> UpdateCriticalError <| "Expected a list of string as new output for explode, got " ++ msg ++ " for " ++ valToString newVal
@@ -1042,7 +1042,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                 let finalValuesList = Vb.list (Vb.tuple2 Vb.identity Vb.identity) (Vb.fromVal keyValuesList) (List.reverse finalListRev) in
                                 let finalDiffsList = VListDiffs <| List.reverse finalDiffsRev in
                                 updateContinue "DictFromList" env keyValuesListE [] keyValuesList finalValuesList finalDiffsList <| \newEnv newKeyValuesListE ->
-                                  let finalExp = replaceE__ e <| EOp sp1 op [newKeyValuesListE.val] sp2 in
+                                  let finalExp = replaceE__ e <| EOp sp1 spo op [newKeyValuesListE.val] sp2 in
                                   updateResult newEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newKeyValuesListE.changes)
                               (_, d) -> UpdateCriticalError <| "Expected a VDictDiffs, got " ++ toString d
                      _ -> UpdateCriticalError <| " DictFromList expects one argument, got " ++ toString (List.length vs)
@@ -1058,7 +1058,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                  case opArgs of
                                    [keyE, dictE] ->
                                      updateContinue "DictGet" env dictE [] dict newDict newDiff <| \newEnv newDictE ->
-                                       updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
+                                       updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
                                    _ -> UpdateCriticalError <| "DictGet requires two arguments, got " ++ toString (List.length vs)
                                in
                                case Dict.get dictKey d of
@@ -1112,7 +1112,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                    case opArgs of
                                      [keyE, dictE] ->
                                         updateContinue "DictRemove" env dictE [] oldVal newVal diffs <| \newEnv newDictE ->
-                                          updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
+                                          updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
 
                                      _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
                                  Just oldValue -> -- There was a value. In case we try to insert this key again, we either fail the insertion or convert it to an update.
@@ -1135,7 +1135,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                                   VDict newValDict ->
                                                     let argNewvalDict = replaceV_ newVal <| VDict (Dict.insert dictKey oldValue newValDict) in
                                                     updateContinue "DictRemove" env dictE [] dict argNewvalDict diffs <| \newEnv newDictE ->
-                                                      updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
+                                                      updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
                                                   _ -> UpdateCriticalError <| "[internal error] DictRemove was updated with a non-dict: " ++ valToString newVal
                                              _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
                                      d -> UpdateFails <| "DictRemove: Expected VDictDiffs, got " ++ toString d
@@ -1178,7 +1178,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                          continuationInserted  <| \newEnv2 newInsertedE ->
                                            let finalEnv = UpdatedEnv.merge e diffs env newEnv newEnv2 in
                                            let finalChanges = UpdateUtils.combineEChildDiffs [(1, newInsertedE.changes), (2, newDictE.changes)] in
-                                           updateResult finalEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [keyE, newInsertedE.val, newDictE.val] sp2) finalChanges
+                                           updateResult finalEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [keyE, newInsertedE.val, newDictE.val] sp2) finalChanges
 
                                      e -> UpdateCriticalError <| "[Internal error] Expected a VDictDiffs, got " ++ toString e
                                  _ -> UpdateCriticalError <| "DictInsert cannot be updated with something other than a dict, got " ++ valToString newVal
@@ -1199,7 +1199,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                         updateMany ((if diffs == VUnoptimizedDiffs then defaultVDiffsShallow else defaultVDiffs) arg v)
                                           (\() -> updateResultSameEnvExp env e) <| \vDiff ->
                                           updateContinue "EOp ToStrExceptStr default" env opArg [] arg v vDiff <| \newUpdatedEnv newOpArg ->
-                                            updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
+                                            updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
                                       e -> UpdateCriticalError <| "[internal error] Wrong number of arguments in update ToStrExceptStr: " ++ toString e
                           e -> UpdateCriticalError <| "Expected string, got " ++ valToString newVal
                    in
@@ -1210,7 +1210,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                            case opArgs of
                              [opArg] ->
                                updateContinue "EOp ToStrExceptStr" env opArg [] original newVal diffs <| \newUpdatedEnv newOpArg ->
-                                 updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
+                                 updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
                              e -> UpdateCriticalError <| "[internal error] Wrong number of argument values in update ToStrExceptStr: " ++ toString e
                          _ -> -- Everything else is unparsed to a string, we just parse it.
                            default original
@@ -1229,7 +1229,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                    updateMany ((if diffs == VUnoptimizedDiffs then defaultVDiffsShallow else defaultVDiffs) arg v)
                                      (\() -> updateResultSameEnvExp env e) <| \vDiff ->
                                        updateContinue "EOp ToStr" env opArg [] arg v vDiff <| \newUpdatedEnv newOpArg ->
-                                         updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
+                                         updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
                                  e -> UpdateCriticalError <| "[internal error] Wrong number of arguments in update: " ++ toString e
                      e -> UpdateCriticalError <| "Expected string, got " ++ valToString newVal
                  Eq ->
@@ -1245,13 +1245,13 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                          Oks ll ->
                            let llWithDiffs = LazyList.map (\newStringV -> (newStringV, UpdateUtils.defaultVDiffs stringV newStringV)) ll in
                            updateAlternatives "extractFirstIn" env stringE [] stringV llWithDiffs <| \newUpdatedEnv newStringE ->
-                               updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [regexpE, newStringE.val] sp2) (UpdateUtils.wrap 1 newStringE.changes)
+                               updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [regexpE, newStringE.val] sp2) (UpdateUtils.wrap 1 newStringE.changes)
                      _ -> UpdateCriticalError "extractFirstIn requires regexp, replacement (fun or string) and the string"
                  _ ->
                    case maybeUpdateMathOp op vs oldVal newVal diffs of
                      Errs msg -> UpdateCriticalError msg
                      Oks ll ->
-                       updateOpMultiple "op" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 op newOpArgs sp2) [] vs (LazyList.map (Tuple.mapSecond tupleDiffsToDiffs) ll)
+                       updateOpMultiple "op" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 spo op newOpArgs sp2) [] vs (LazyList.map (Tuple.mapSecond tupleDiffsToDiffs) ll)
 
      ECase sp1 input branches sp2 ->
        case doEval Syntax.Elm env input of
@@ -1669,7 +1669,7 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
        (_, []) -> (v, Nothing)
        _ -> Debug.crash <| "Not the same shape before/after pattern update: " ++ envToString newUpdatedEnv.val ++ " should have length 1"
      )
-  (PAs sp0 x sp1 innerPat, _) ->
+  (PAs sp0 spi x sp1 innerPat, _) ->
     matchWithInversion (innerPat, v) |> Maybe.map
       (\(env, updatedEnvReverse) -> ((x,v)::env, \newUpdatedEnv ->
         if UpdatedEnv.isUnmodified newUpdatedEnv then (v, Nothing) else

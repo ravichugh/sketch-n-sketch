@@ -158,7 +158,9 @@ attributeSpaces =
 -- parse("<i ====>Hello</i>") == "<i =="==">Hell</i>" (= is a valid start for an attribute name.
 parseHtmlAttributeName: ParserI String
 parseHtmlAttributeName = inContext "HTML attribute name" <| trackInfo <|
-  LanguageKit.variable (\c -> c /= '>' && c /= '/' && not (isSpace c)) (\c -> c /= '>' && c /= '/' && c /= '=' && not (isSpace c)) (Set.fromList [])
+  LanguageKit.variable
+    (\c -> c /= '>' && c /= '<' && c /= ',' && c /= '/' && not (isSpace c))
+    (\c -> c /= '>' && c /= '<' && c /= ',' && c /= '/' && c /= '=' && not (isSpace c)) (Set.fromList [])
 
 -- parse("<div> i<j =b / =hello=abc /a/ div / /> d") == "<div> i<j =b="" =hello="abc" a="" div=""> d</j></div>"
 parseHtmlAttributeValue: ParsingMode -> Parser HTMLAttributeValue
@@ -248,7 +250,11 @@ parseHTMLInner parsingMode untilEndTagNames =
     Raw -> ""
     _ -> "|@"
   in
-  let regexToParseUntil = Regex.regex <| "<[a-zA-Z]|<\\?|<!|</ |$" ++ maybeBreakOnAt ++
+  let tagNameStarts = case parsingMode of
+    Raw -> "[a-zA-Z]"
+    _ -> "[a-zA-Z@]"
+  in
+  let regexToParseUntil = Regex.regex <| "<" ++ tagNameStarts++"|<\\?|<!|</ |$" ++ maybeBreakOnAt ++
     (untilEndTagNames |> List.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> String.join "") in
   inContext "Inner HTML" <|
   trackInfo <|

@@ -1,21 +1,26 @@
 # updatedelay: 0
 
 {length, sum, range, filter, zipWithIndex} = List
-{textNode, button, br, select, checkbox, h1, div, element, li, ul} = Html
+{textNode, button, br, checkbox, h1, div, element, li, ul} = Html
+
+{select} = {
+  select attributes strArray defaultSelected =
+    <select @attributes>@(List.indexedMap (\i s ->
+      <option @(if i == defaultSelected then [["selected", "selected"]] else [])>@s</option>
+      )  strArray)
+    </select>
+}
 
 -- Each element of betselfs is a 2-element array containing the best and the own card number
 players = [
-  {name="John", betselfs=[], scores=[], card=0, bet=0}, 
-  {name="Nick", betselfs=[], scores=[], card=0, bet=0},
-  {name="Pete", betselfs=[], scores=[], card=0, bet=0}
+  {name="John", betselfs=[], scores=[]}, 
+  {name="Nick", betselfs=[], scores=[]},
+  {name="Pete", betselfs=[], scores=[]}
 ]
 
 displayreset = False
 removeScores players =
-  List.map (\p -> {p | betselfs=[], scores=[], card=0, bet=0}) players
-
-cardError = False
-betError = 0
+  List.map (\p -> {p | betselfs=[], scores=[]}) players
 
 mkError txt = Html.span [["color", "lightgray"]] [] (Html.text txt)
 
@@ -26,31 +31,137 @@ currentRound = length (nth players 0).scores
 remainingbets = (length players - 1) - sum (map (\j ->  if (length j.betselfs) == currentRound then 0 else 1) players)
 allbetsdone = remainingbets == 0
 
-playerEnCoursIndex = 0
-
 scoreIfEverybodyFound = 2
 scoreIfNobodyFound = 3
 
-betself i =
-  let player = nth players i in
-  <span>@(player.name) it's your turn to bet!<br>
-  Your card:  @(select [] ("Choose your card number..." :: map (\x -> toString x) cartesDisponibles) player.card)
-  @(mkError (if player.card == 0 then " Indicate what is your card. This is confidential." else ""))<br>
-  Your bet: @(select [] ("You bet that the correct card is..." :: map (\x -> toString x) cartesDisponibles) player.bet)
-  @(mkError (if player.bet == 0 then " What card do you think is the dealer's one." else if player.bet == player.card then
-      " You cannot bet on your own card." else ""))<br>
-  @(if player.bet == 0 || player.card == 0 || player.bet == player.card then
-      <span></span>
-    else
-    button "I confirm my bet" "By clicking this button, you confirm you know the rules of the game"
-       (player,                          cardError, betError, playerEnCoursIndex) <|
-      \({betselfs, card, bet} as player, cardError, betError, playerEnCoursIndex) ->
-         if card > 0 && bet > 0 && card /= bet then
-           ({ player | betselfs = betselfs ++ [[bet, card]], card = 0, bet = 0}, False, 0, 0)
-         else
-           (player, card == 0,
-              if bet == 0 then 1 else if bet == card then 2 else 0, playerEnCoursIndex)
-  )</span>
+currentPlayerId = "currentplayer"
+tellPlayerId = "tellplayers"
+cardNumberId = "cardnumberselect"
+chooseCallback = "chooseCard"
+chooseCardErrorId = "chooseCardError"
+betNumberId = "betnumber"
+betNumberChooseId = "betnumberchoose"
+betNumberNotSameId = "betnumbersame"
+chooseBetCallback = "selectBet"
+buttonConfirmId = "confirmButton"
+displayConfirmButtonCallback = "confirmButtonCallback"
+clickbuttoncallback = "clickConfirmButtonCallback"
+commitresultId = "resultsender"
+foranotherplayerId = "foranotherplayer"
+forcurrentplayerId = "forcurrentplayer"
+addAnotherPlayerBet = "addAnotherPlayerBet"
+
+commitPlayer players outputNew =
+  case evaluate outputNew of
+    (playerNum, card, bet) ->
+      (List.take playerNum players) ++ (case List.drop playerNum players of
+        player::otherPlayers ->
+          {player | betselfs = player.betselfs ++ [[bet, card]]}::otherPlayers
+        [] -> []
+      )
+    _ -> players
+
+betself =
+  <span id="betself"
+><@(Html.refresh True)><script>
+function setTransientVisibility(element, condition) {
+  element.setAttribute("transient-visible", condition ? "true" : "false");
+}
+function fromId(id) {
+  return document.querySelector("#" + id);
+}
+function @chooseCallback() {
+  var player = fromId("@currentPlayerId");
+  var tellplayers = fromId("@tellPlayerId");
+  if(player !== null && tellplayers !== null) {
+    for(var i = 0; i < tellplayers.children.length; i++) {
+      setTransientVisibility(tellplayers.children[i], player.selectedIndex == i);
+    }
+  }
+  var card   = fromId("@cardNumberId");
+  var bet    = fromId("@betNumberId");
+  var card_hint = fromId("@chooseCardErrorId");
+  var bet_hint  = fromId("@betNumberChooseId");
+  var bet_error = fromId("@betNumberNotSameId");
+  var button    = fromId("@buttonConfirmId");
+  if(player !== null && card !== null && bet !== null && card_hint !== null && bet_hint !== null && bet_error !== null && button !== null) {
+    setTransientVisibility(card_hint, card.selectedIndex == 0);
+    setTransientVisibility(bet_hint, bet.selectedIndex == 0);
+    setTransientVisibility(bet_error, bet.selectedIndex == card.selectedIndex && bet.selectedIndex > 0);
+    setTransientVisibility(button, card.selectedIndex > 0 && bet.selectedIndex > 0 && bet.selectedIndex !== card.selectedIndex);
+  }
+}
+function @clickbuttoncallback() {
+  // Commits the bets for the given player.
+  var card = fromId("@cardNumberId");
+  var bet = fromId("@betNumberId");
+  var player = fromId("@currentPlayerId");
+  var c = fromId("@commitresultId");
+  c.setAttribute("v", "(" + player.selectedIndex + "," + card.selectedIndex + "," + bet.selectedIndex + ")");
+  var d = fromId("@forcurrentplayerId");
+  var e = fromId("@foranotherplayerId");
+  setTransientVisibility(d, false);
+  setTransientVisibility(e, true);
+}
+
+function @addAnotherPlayerBet() {
+  var d = fromId("@forcurrentplayerId");
+  var e = fromId("@foranotherplayerId");
+  setTransientVisibility(d, true);
+  setTransientVisibility(e, false);
+  var card = fromId("@cardNumberId");
+  var bet = fromId("@betNumberId");
+  var player = fromId("@currentPlayerId");
+  if(card !== null) card.selectedIndex = 0;
+  if(bet !== null) bet.selectedIndex = 0;
+  if(player !== null) player.selectedIndex = (player.selectedIndex + 1) % player.children.length;
+  @chooseCallback();
+}
+</script></@
+><style>
+  .normallyNotVisible {
+    display: none;
+  }
+  .normallyNotVisible[transient-visible="true"] {
+    display: inline-block;
+  }
+  .normallyVisible[transient-visible="false"] {
+    display: none;
+  }
+  </style
+  ><span id=foranotherplayerId class="normallyNotVisible">
+    <button onclick="""@addAnotherPlayerBet()""" title="Let another player place a bet on this screen">Place another bet</button>
+  </span
+  ><span id=forcurrentplayerId class="normallyVisible">Who is currently placing a bet? 
+  @(select [["id", currentPlayerId], ["onchange", """@chooseCallback()"""]] (map (\j ->  j.name) players) 0)
+  <br>
+  <span id=tellPlayerId>@(List.map (\p -> <span class="normallyNotVisible">@p.name it's your turn to bet!</span>) players)</span>
+<br>Your card:
+  @(select [["id", cardNumberId], ["onchange", """@chooseCallback()"""]] 
+      ("Choose your card number..." :: map (\x -> toString x) cartesDisponibles) 0)
+  <span class="normallyNotVisible" id=chooseCardErrorId> Indicate what is your card. This is confidential.</span>
+<br>Your bet:
+  @(select [["id", betNumberId], ["onchange", """@chooseCallback()"""]] 
+      ("You bet that the correct card is..." :: map (\x -> toString x) cartesDisponibles) 0)
+  <span class="normallyNotVisible" id=betNumberChooseId>What card do you think is the dealer's one.</span>
+  <span class="normallyNotVisible" id=betNumberNotSameId>You cannot bet on your own card.</span>
+<br>
+  <button
+    class="normallyNotVisible"
+    id=buttonConfirmId
+    title="By clicking this button, I confirm I know the rules of the game"
+    onclick="""@clickbuttoncallback()"""
+  >I confirm by bet</button>
+   <span
+    id=commitresultId
+    class="normallyNotVisible"
+    v=(Html.onChangeAttribute players commitPlayer)>
+    </span>
+    <script>
+      @chooseCallback();
+    </script>
+  </span>
+</span>
 
 nomDe j = li [] [] [textNode j.name]
 playersnoms = map nomDe players
@@ -79,18 +190,12 @@ playerIndexFromName name =
   <tr><th>Name</th><th>Score</th>@(if currentRound >= 2 then <th style="font-weight:normal"><i>by round</i>:</th> else [])@(List.map (\i -> <th>#@i</th>) (List.range 1 (if currentRound >= 2 then currentRound else 0)))</tr>
   @(List.map (\j -> 
     <tr>
-      <td>@(j.name)</td>
+      <td style="""color:@(if len j.betselfs > currentRound then "green" else "black")""">@(j.name)</td>
       <td style="text-align:center">@(toString (Update.freeze (sum (j.scores))))</td>
       @(if currentRound < 2 then [] else [<td></td>] ++
       List.map (\i -> <td>@(Update.freeze i)</td>) j.scores)
       </tr>) players)</table>
-  @(if remainingbets > 0 then
-    <div>Who is currently placing a bet? 
-    @(select [] (map (\j ->  j.name) playersEnCours) playerEnCoursIndex)
-    <br>
-      @(betself (playerIndexFromName (nth playersEnCours playerEnCoursIndex).name))
-    </div>
-  else 
+  @(if remainingbets > 0 then betself else 
   let playersWithIndex = zipWithIndex players in
   let dealerIndex = filter (\(index, j) -> length j.betselfs == currentRound) playersWithIndex |> flip nth 0 |> Tuple.first in
   let totalNumCards = sum cartesDisponibles in
@@ -127,7 +232,7 @@ playerIndexFromName name =
      @(String.join "," guessedOk)@manyguessed guessed it!
      <div>@(playersAyantVotePourEux)</div><br>
      <div>@(List.concatMap (\(j, score) -> 
-       [<span>@(j.name): @score</span>, <br>]) playersWithNewScores)</div>
+       [<span>@(j.name): +@score</span>, <br>]) playersWithNewScores)</div>
      @(button "Next turn" "Passer au tour suivant" players <| \oldplayers ->
           map (\j -> 
                 let ({betselfs=b, scores=s} as player, increment) = j in

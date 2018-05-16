@@ -86,7 +86,7 @@ foldPatternsWithIds f (scopeId, path) pats init =
         PBase _ _   -> acc
         PWildcard _ -> acc
         PVar _ x _  -> f pathedPatId x acc
-        PAs _ x _ p -> f pathedPatId x (doOne f pathedPatId p acc)
+        PAs _ _ x _ p -> f pathedPatId x (doOne f pathedPatId p acc)
         PList _ ps _ Nothing _  -> doMany f pathedPatId ps acc
         PList _ ps _ (Just p) _ -> doMany f pathedPatId (ps ++ [p]) acc
         PParens _ p _ -> doOne f pathedPatId p acc
@@ -294,7 +294,7 @@ traverse env exp acc =
     EBase _ _       -> acc
 
     EApp _ e es _ _     -> recurse (e::es)
-    EOp _ _ es _      -> recurse es
+    EOp _ _ _ es _      -> recurse es
     EIf _ e1 _ e2 _ e3 _  -> recurse [e1, e2, e3]
 
     EList _ es _ (Just eRest) _  -> recurse (Utils.listValues es ++ [eRest])
@@ -370,7 +370,7 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
           |> traverse env exp
           |> addDependencies pathedPatId
 
-    (PAs _ x _ p, _) ->
+    (PAs _ _ x _ p, _) ->
       acc |> clearUsed
           |> traverse env exp
           |> addDependencies pathedPatId

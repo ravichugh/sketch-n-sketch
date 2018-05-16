@@ -273,8 +273,9 @@ unparsePattern p =
           ++ wsAfter.val
           ++ "}"
 
-    PAs wsName name wsBeforeAs pat ->
-      wrapPatternWithParensIfLessPrecedence OpLeft p pat (unparsePattern pat)
+    PAs wsBefore wsName name wsBeforeAs pat ->
+      wsBefore.val
+        ++ wrapPatternWithParensIfLessPrecedence OpLeft p pat (unparsePattern pat)
         ++ wsBeforeAs.val
         ++ "as"
         ++ wsName.val
@@ -479,7 +480,7 @@ unparse e =
       let unparseArg e =
         case e.val.e__ of
            EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
-           EOp _ _ _ _          -> wrapWithTightParens (unparse e)
+           EOp _ _ _ _ _          -> wrapWithTightParens (unparse e)
            EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
            _                    -> unparse e
       in
@@ -517,18 +518,20 @@ unparse e =
                 ++ wrapWithParensIfLessPrecedence OpRight e arg2 (unparse arg2)
             _ -> "?[internal error EApp InfixApp did not have exactly 2 arguments]?"
 
-    EOp wsBefore op arguments _ ->
+    EOp wsBefore wsOp op arguments _ ->
       let
         default =
           wsBefore.val
+            ++ wsOp.val
             ++ unparseOp op
             ++ String.concat (List.map (\x -> wrapWithParensIfLessPrecedence OpRight e x (unparse x)) arguments)
       in
         if ElmLang.isInfixOperator op then
           case arguments of
             [ left, right ] ->
-              wrapWithParensIfLessPrecedence OpLeft e left (unparse left)
-                ++ wsBefore.val
+              wsBefore.val
+                ++ wrapWithParensIfLessPrecedence OpLeft e left (unparse left)
+                ++ wsOp.val
                 ++ unparseOp op
                 ++ wrapWithParensIfLessPrecedence OpRight e right (unparse right)
             _ ->
@@ -785,7 +788,7 @@ multilineContentUnparse : Exp -> String
 multilineContentUnparse e = case e.val.e__ of
   EBase sp0 (EString _ s) ->
     unparseLongStringContent s
-  EOp sp1 op [left, right] sp2 ->
+  EOp sp1 spOp op [left, right] sp2 ->
     case op.val of
       Plus ->
         let unwrapToStrExceptStr x =
@@ -802,7 +805,7 @@ multilineContentUnparse e = case e.val.e__ of
             multilineContentUnparse left ++ multilineContentUnparse right
           (_, EVar sp0 ident as left) ->
             case right.val.e__ of
-              EOp sp2 op2 [left2, _] sp4->
+              EOp sp2 spOp2 op2 [left2, _] sp4->
                 case op2.val of
                   Plus ->
                     case left2.val.e__ of
@@ -899,8 +902,17 @@ unparseHtmlChildList childExp =
         _  -> "@(" ++ unparse childExp ++ ")"
 
 htmlContentRegexEscape = Regex.regex <| "@"
+
+regexExcape = Regex.regex "&(?=\\w+)|<(?!\\s)|>(?!\\s)"
+
 unparseHtmlTextContent content =
-  ImpureGoodies.htmlescape <| Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@") <| content
+  Regex.replace Regex.All regexExcape (\m -> case m.match of
+    "&" -> "&amp;"
+    "<" -> "&lt;"
+    ">" -> "&gt;"
+    _ -> m.match
+  ) <|
+  Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@") <| content
 
 unparseHtmlNode: Exp -> String
 unparseHtmlNode e = case e.val.e__ of
@@ -967,7 +979,7 @@ getExpPrecedence exp =
             Just (associativity, precedence) -> Just precedence
         _ -> Nothing
     EColonType _ _ _ _ _           -> Just -1
-    EOp _ operator _ _ ->
+    EOp _ _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just precedence
@@ -987,7 +999,7 @@ getExpAssociativity exp =
             Just (associativity, precedence) -> Just associativity
         _ -> Nothing
     EColonType _ _ _ _ _           -> Just BinaryOperatorParser.Left
-    EOp _ operator _ _ ->
+    EOp _ _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just associativity
@@ -1028,7 +1040,7 @@ getPatPrecedence pat =
       case BinaryOperatorParser.getOperatorInfo "::" ElmParser.builtInPatternPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just precedence
-    PAs _ _ _ _ ->
+    PAs _ _ _ _ _ ->
       case BinaryOperatorParser.getOperatorInfo "as" ElmParser.builtInPatternPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just precedence
@@ -1041,7 +1053,7 @@ getPatAssociativity pat =
       case BinaryOperatorParser.getOperatorInfo "::" ElmParser.builtInPatternPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just associativity
-    PAs _ _ _ _ ->
+    PAs _ _ _ _ _ ->
       case BinaryOperatorParser.getOperatorInfo "as" ElmParser.builtInPatternPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just associativity

@@ -80,7 +80,7 @@ unparsePat pat = case pat.val.p__ of
   PRecord _ _ _ -> "internal error, cannot unparse pattern in LangUnparser"
   PConst ws n -> ws.val ++ strNum n
   PBase ws bv -> ws.val ++ unparseBaseVal bv
-  PAs ws1 ident ws2 p -> ws1.val ++ ident ++ ws2.val ++ "@" ++ (unparsePat p)
+  PAs ws1 wsi ident ws2 p -> ws1.val ++ wsi.val ++ ident ++ ws2.val ++ "@" ++ (unparsePat p)
   PParens ws1 p ws2 -> ws1.val ++ "(" ++ unparsePat p ++ ws2.val ++ ")"
 
 unparsePatWithIds : Pat -> String
@@ -99,7 +99,7 @@ unparsePatWithIds pat =
     -- PRecord _ _ _ -> Debug.crash "internal error, cannot unparse pattern with ids in LangUnparser"
     PRecord _ _ _ -> "internal error, cannot unparse pattern with ids in LangUnparser"
     PBase ws bv -> ws.val ++ unparseBaseVal bv ++ pidTag
-    PAs ws1 ident ws2 p -> ws1.val ++ ident ++ pidTag ++ ws2.val ++ "@" ++ (unparsePatWithIds p)
+    PAs ws1 wsi ident ws2 p -> ws1.val ++ wsi.val ++ ident ++ pidTag ++ ws2.val ++ "@" ++ (unparsePatWithIds p)
     PParens ws1 p ws2 -> ws1.val ++ "(" ++ pidTag ++ unparsePatWithIds p ++ ws2.val ++ ")"
 
 unparsePatWithUniformWhitespace includeWidgetDecls pat =
@@ -117,7 +117,7 @@ unparsePatWithUniformWhitespace includeWidgetDecls pat =
     PRecord _ _ _ -> "internal error, cannot unparse pattern in LangUnparser"
     PConst _ n -> " " ++ strNum n
     PBase _ bv -> " " ++ unparseBaseValWithUniformWhitespace bv
-    PAs _ ident _ p -> " " ++ ident ++ " " ++ "@" ++ recurse p
+    PAs _ _ ident _ p -> " " ++ ident ++ " " ++ "@" ++ recurse p
     PParens _ p _ -> " (" ++ recurse p ++ " )"
 
 unparseType : Type -> String
@@ -216,7 +216,7 @@ unparse_ e = case e.val.e__ of
   -- ESelect _ _ _ _ _ -> Debug.crash "internal error, cannot unparse recordselect in LangUnparser"
   ERecord _ _ _ _ -> "internal error, cannot unparse record in LangUnparser"
   ESelect _ _ _ _ _ -> "internal error, cannot unparse recordselect in LangUnparser"
-  EOp ws1 op es ws2 ->
+  EOp ws1 _ op es ws2 ->
     ws1.val ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
   EIf ws1 e1 _ e2 _ e3 ws2 ->
     ws1.val ++ "(if" ++ unparse_ e1 ++ unparse_ e2 ++ unparse_ e3 ++ ws2.val ++ ")"
@@ -287,7 +287,7 @@ unparseWithIds e =
     -- ESelect _ _ _ _ _ -> Debug.crash "internal error, cannot unparse select in LangUnparser"
     ERecord _ _ _ _ -> "internal error, cannot unparse record in LangUnparser"
     ESelect _ _ _ _ _ -> "internal error, cannot unparse select in LangUnparser"
-    EOp ws1 op es ws2 ->
+    EOp ws1 wso op es ws2 ->
       ws1.val ++ "(" ++ eidTag ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")"
     EIf ws1 e1 _ e2 _ e3 ws2 ->
       ws1.val ++ "(" ++ eidTag ++ "if" ++ unparseWithIds e1 ++ unparseWithIds e2 ++ unparseWithIds e3 ++ ws2.val ++ ")"
@@ -362,7 +362,7 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       "[Internal error] Cannot unparse records in FastParse"
     ESelect _ _ _ _ _ -> -- Don't need to reinvent the wheel.
       "[Internal error] Cannot unparse records in FastParse"
-    EOp _ op es _ ->
+    EOp _ _ op es _ ->
       " " ++ "(" ++ strOp op.val ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
     EIf _ e1 _ e2 _ e3 _ ->
       " " ++ "(if" ++ recurse e1 ++ recurse e2 ++ recurse e3 ++ " " ++ ")"

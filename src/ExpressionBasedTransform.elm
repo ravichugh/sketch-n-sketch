@@ -311,7 +311,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then expA else argVar
       (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then expA else argVar
       (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> if patternListsEqual psA psB then replaceE__ expA (EFun ws1A psA (merge eA eB) ws2A) else argVar
-      (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> if opA.val == opB.val then Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EOp ws1A opA newEs ws2A))) |> Maybe.withDefault argVar else argVar
+      (EOp ws1A wsoA opA esA ws2A,           EOp ws1B wsoB opB esB ws2B)           -> if opA.val == opB.val then Utils.maybeZip esA esB |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EOp ws1A wsoA opA newEs ws2A))) |> Maybe.withDefault argVar else argVar
       (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> Utils.maybeZip (Utils.listValues esA) (Utils.listValues esB)
                                                                                         |> Maybe.map (List.map (\(eA, eB) -> merge eA eB) >> (\newEs -> replaceE__ expA (EList ws1A (Utils.listValuesMake esA newEs) ws2A Nothing ws3A)))
                                                                                         |> Maybe.withDefault argVar
@@ -375,7 +375,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then retSame else retArgVar
       (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then retSame else retArgVar
       (EFun ws1A psA eA ws2A,                EFun ws1B psB eB ws2B)                -> generalizedMerge (patternListsEqual psA psB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedBody _ _ _ -> EFun ws1A psA mergedBody ws2A)
-      (EOp ws1A opA esA ws2A,                EOp ws1B opB esB ws2B)                -> generalizedMerge (opA.val == opB.val) Nothing Nothing Nothing (Just (esA, esB)) (\_ _ _ mergedEs -> EOp ws1A opA mergedEs ws2A)
+      (EOp ws1A wsoA opA esA ws2A,           EOp ws1B wsoB opB esB ws2B)           -> generalizedMerge (opA.val == opB.val) Nothing Nothing Nothing (Just (esA, esB)) (\_ _ _ mergedEs -> EOp ws1A wsoA opA mergedEs ws2A)
       (EList ws1A esA ws2A Nothing ws3A,     EList ws1B esB ws2B Nothing ws3B)     -> generalizedMerge True Nothing Nothing Nothing
                                                                                         (Just (Utils.listValues esA, Utils.listValues esB))
                                                                                         (\_ _ _ headMergers -> EList ws1A (Utils.listValuesMake esA headMergers) ws2A Nothing ws3A)
@@ -674,7 +674,7 @@ matchesAnySelectedVarBlob_ selectedNiceBlobs def =
   let (_,p,_,_) = def in
   case p.val.p__ of
     PVar _ y _  -> findBlobForIdent y
-    PAs _ y _ _ -> findBlobForIdent y
+    PAs _ _ y _ _ -> findBlobForIdent y
     _           -> Nothing
 
 matchesAnySelectedVarBlob selectedNiceBlobs def =
@@ -702,7 +702,7 @@ matchesAnySelectedCallBlob_ selectedNiceBlobs def =
   let (_,p,_,_) = def in
   case p.val.p__ of
     PVar _ y _  -> findBlobForIdent y
-    PAs _ y _ _ -> findBlobForIdent y
+    PAs _ _ y _ _ -> findBlobForIdent y
     _           -> Nothing
 
 matchesAnySelectedCallBlob selectedNiceBlobs def =
@@ -1107,7 +1107,7 @@ eAsPoint e =
 
 pAsTight x p =
   let p_ =  replacePrecedingWhitespacePat "" p in
-  withDummyPatInfo <| PAs space1 x space0 p_
+  withDummyPatInfo <| PAs space0 space1 x space0 p_
 
 
 --------------------------------------------------------------------------------
@@ -1730,16 +1730,16 @@ mergeExpressions eFirst eRest =
             return (ESelect ws0 eRec_ ws1 ws2 m) l1)
           (mergeExpressions eRec eRecList)
 
-    EOp ws1 op es ws2 ->
+    EOp ws1 wso op es ws2 ->
       let match eNext = case eNext.val.e__ of
-        EOp _ op_ es_ _ -> Just (op_, es_)
+        EOp _ _ op_ es_ _ -> Just (op_, es_)
         _               -> Nothing
       in
       matchAllAndBind match eRest <| \stuff ->
         let (opList, esList) = List.unzip stuff in
         if List.all ((==) op.val) (List.map .val opList) then
           Utils.bindMaybe
-            (\(es_,l) -> return (EOp ws1 op es_ ws2) l)
+            (\(es_,l) -> return (EOp ws1 wso op es_ ws2) l)
             (mergeExpressionLists (es::esList))
         else
           Nothing
@@ -1931,9 +1931,9 @@ mergePatterns pFirst pRest =
          let psList = stuff in
          mergePatternLists (Utils.recordValues ps::psList)
 
-    PAs _ x _ p ->
+    PAs _ _ x _ p ->
       let match pNext = case pNext.val.p__ of
-        PAs _ x_ _ p_ -> Just (x_, p_)
+        PAs _ _ x_ _ p_ -> Just (x_, p_)
         _             -> Nothing
       in
       matchAllAndBind match pRest <| \stuff ->

@@ -1787,9 +1787,10 @@ makeSingleLineTool model selections =
                               (deLine ws1)
                               (Utils.recordValuesMake ps (setPatListWhitespace "" " " (Utils.recordValues ps)))
                               (deLine ws2)
-                          PAs ws1 ident ws2 p ->
+                          PAs ws1 wsi ident ws2 p ->
                             PAs
                               (deLine ws1)
+                              wsi
                               ident
                               space1
                               p
@@ -1839,8 +1840,8 @@ makeSingleLineTool model selections =
                               (deLine ws2)
                           ESelect ws0 e1 ws1 ws2 n ->
                             ESelect ws0 e1 (deLine ws1) (deLine ws2) n
-                          EOp ws1 op es ws2 ->
-                            EOp (deLine ws1) op es space0
+                          EOp ws1 wso op es ws2 ->
+                            EOp (deLine ws1) wso op es space0
                           EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
                             EIf (deLine ws1) e1 ws2 e2 ws3 e3 space0
                           ELet ws1 kind rec p ws2 e1 ws3 e2 ws4 ->

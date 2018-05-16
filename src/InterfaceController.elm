@@ -2727,70 +2727,68 @@ fileMessageError err =
 msgNew template = Msg "New" (handleNew template)
 
 handleNew template = (\old ->
-  case Utils.maybeFind template Examples.list of
-    Nothing -> let _ = Debug.log "WARN: not found:" template in old
-    Just (_, thunk) ->
-      let {e,v,ws,ati,env} = thunk () in
-      let so = Sync.syncOptionsOf old.syncOptions e in
-      let outputMode =
-        Utils.fromOk "SelectExample mkLive" <|
-          mkLive old.syntax so old.slideNumber old.movieNumber old.movieTime e (v,ws)
-      in
-      LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber old.movieTime v
-      |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
-        let code = Syntax.unparser old.syntax e in
-        { initModel | inputExp      = e
-                    , inputVal      = v
-                    , inputEnv      = env
-                    , valueEditorString = LangUtils.valToString v
-                    , outputMode    = maybeUpdateOutputMode old slate
-                    , htmlEditorString = Nothing
-                    , code          = code
-                    , lastRunCode   = code
-                    , history       = History.begin { code = code, selectedDeuceWidgets = [] }
-                    , liveSyncInfo  = outputMode
-                    , syncOptions   = so
-                    , slideNumber   = 1
-                    , slideCount    = slideCount
-                    , movieCount    = movieCount
-                    , movieTime     = 0
-                    , movieDuration = movieDuration
-                    , movieContinue = movieContinue
-                    , runAnimation  = movieDuration > 0
-                    , slate         = slate
-                    , slateCount    = 1 + old.slateCount
-                    , widgets       = ws
-                    , codeBoxInfo   = updateCodeBoxInfo ati old
-                    , filename      = Model.bufferFilename old
-                    , syntax        = old.syntax
-                    , needsSave     = True
-                    , lastSaveState = Nothing
-                    , scopeGraph    = DependenceGraph.compute e
+  let thunk = loadTemplate template in
+  let {e,v,ws,ati,env} = thunk () in
+  let so = Sync.syncOptionsOf old.syncOptions e in
+  let outputMode =
+    Utils.fromOk "SelectExample mkLive" <|
+       mkLive old.syntax so old.slideNumber old.movieNumber old.movieTime e (v,ws)
+  in
+  LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber old.movieTime v
+  |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
+    let code = Syntax.unparser old.syntax e in
+    { initModel | inputExp      = e
+                , inputVal      = v
+                , inputEnv      = env
+                , valueEditorString = LangUtils.valToString v
+                , outputMode    = maybeUpdateOutputMode old slate
+                , htmlEditorString = Nothing
+                , code          = code
+                , lastRunCode   = code
+                , history       = History.begin { code = code, selectedDeuceWidgets = [] }
+                , liveSyncInfo  = outputMode
+                , syncOptions   = so
+                , slideNumber   = 1
+                , slideCount    = slideCount
+                , movieCount    = movieCount
+                , movieTime     = 0
+                , movieDuration = movieDuration
+                , movieContinue = movieContinue
+                , runAnimation  = movieDuration > 0
+                , slate         = slate
+                , slateCount    = 1 + old.slateCount
+                , widgets       = ws
+                , codeBoxInfo   = updateCodeBoxInfo ati old
+                , filename      = Model.bufferFilename old
+                , syntax        = old.syntax
+                , needsSave     = True
+                , lastSaveState = Nothing
+                , scopeGraph    = DependenceGraph.compute e
 
-                    , lastSelectedTemplate = Just (template, code)
+                , lastSelectedTemplate = Just (template, code)
 
-                    , dimensions    = old.dimensions
-                    , localSaves    = old.localSaves
-                    , basicCodeBox  = old.basicCodeBox
-                    , randomColor   = old.randomColor
-                    , layoutOffsets = old.layoutOffsets
-                    , fileIndex     = old.fileIndex
-                    , icons         = old.icons
+                , dimensions    = old.dimensions
+                , localSaves    = old.localSaves
+                , basicCodeBox  = old.basicCodeBox
+                , randomColor   = old.randomColor
+                , layoutOffsets = old.layoutOffsets
+                , fileIndex     = old.fileIndex
+                , icons         = old.icons
 
-                    , enableDeuceBoxSelection  = old.enableDeuceBoxSelection
-                    , enableDeuceTextSelection = old.enableDeuceTextSelection
-                    , codeToolsMenuMode        = old.codeToolsMenuMode
-                    , textSelectMode           = old.textSelectMode
-                    , enableTextEdits          = old.enableTextEdits
-                    , allowMultipleTargetPositions  = old.allowMultipleTargetPositions
-                    , mainResizerX             = old.mainResizerX
-                    , colorScheme              = old.colorScheme
+                , enableDeuceBoxSelection  = old.enableDeuceBoxSelection
+                , enableDeuceTextSelection = old.enableDeuceTextSelection
+                , codeToolsMenuMode        = old.codeToolsMenuMode
+                , textSelectMode           = old.textSelectMode
+                , enableTextEdits          = old.enableTextEdits
+                , allowMultipleTargetPositions  = old.allowMultipleTargetPositions
+                , mainResizerX             = old.mainResizerX
+                , colorScheme              = old.colorScheme
 
-                    , outputMode = Graphics
-                    , syncMode = old.syncMode
+                , outputMode = Graphics
+                , syncMode = old.syncMode
 
-                    } |> resetDeuceState
-      ) |> handleError old) >> closeDialogBox New
+                } |> resetDeuceState
+  ) |> handleError old) >> closeDialogBox New
 
 msgAskNew template = requireSaveAsker (msgNew template)
 

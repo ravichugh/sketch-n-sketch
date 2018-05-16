@@ -40,7 +40,7 @@ match : (Pat, Val) -> Maybe Env
 match (p,v) = case (p.val.p__, v.v_) of
   (PWildcard _, _) -> Just []
   (PVar _ x _, _) -> Just [(x,v)]
-  (PAs _ x _ innerPat, _) ->
+  (PAs _ _ x _ innerPat, _) ->
     case match (innerPat, v) of
       Just env -> Just ((x,v)::env)
       Nothing -> Nothing
@@ -209,7 +209,7 @@ eval syntax env bt e =
   EBase _ v     -> Ok <| ret [] <| VBase (eBaseToVBase v)
   EVar _ x      -> Result.map (\v -> retV [v] v) <| lookupVar syntax env (e::bt) x e.start
   EFun _ ps e _ -> Ok <| ret [] <| VClosure Nothing ps e env
-  EOp _ op es _ -> Result.map (\res -> addParentToRet (res, env)) <| evalOp syntax env e (e::bt) op es
+  EOp _ _ op es _ -> Result.map (\res -> addParentToRet (res, env)) <| evalOp syntax env e (e::bt) op es
 
   EList _ es _ m _ ->
     case Utils.projOk <| List.map (eval_ syntax env bt_) (Utils.listValues es) of
@@ -307,7 +307,7 @@ eval syntax env bt e =
               (Ok (v1, ws1), Ok (v2, ws2)) ->
                  case (v1.v_, v2.v_) of
                    (VBase (VString x), VBase (VString y)) ->
-                     eval syntax (("x", v1)::("y", v2)::env) bt_ (replaceE__ e <| EOp space1 (withDummyRange Plus) [replaceE__ eLeft <| EVar space0 "x", replaceE__ eRight <| EVar space0 "y"] space0)
+                     eval syntax (("x", v1)::("y", v2)::env) bt_ (replaceE__ e <| EOp space1 space1 (withDummyRange Plus) [replaceE__ eLeft <| EVar space0 "x", replaceE__ eRight <| EVar space0 "y"] space0)
                    _ ->
                      eval syntax (("x", v1)::("y", v2)::env) bt_ (replaceE__ e <| EApp sp0 (replaceE__ e1 <| EVar spp "append") [replaceE__ eLeft <| EVar space0 "x", replaceE__ eRight <| EVar space0 "y"] SpaceApp sp1)
               (Err s, _) -> Err s

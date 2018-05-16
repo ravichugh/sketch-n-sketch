@@ -4,7 +4,9 @@ str =
   But, you can still write programs without it. You can do it!
   If you want to see where parsing failed, go to
   File -> New From Template and select "Standard Prelude".
+  
+  ERROR_HERE
   """
 
 main =
-  ["p", [], [["TEXT", str]]]
+  ["pre", [], [["TEXT", str]]]

@@ -1169,14 +1169,41 @@ initColorScheme : ColorScheme
 initColorScheme = Light
 
 initTemplate =
-  if ElmParser.preludeParsed
-    then Examples.initTemplate
-    else Examples.badPreludeTemplate
+  case ElmParser.preludeNotParsed of
+    Nothing -> Examples.initTemplate
+    Just msg -> Examples.badPreludeTemplate
+
+loadTemplate name =
+  let theTemplate =  Utils.find_ Examples.list name |> Tuple.second in
+  if name /= Examples.badPreludeTemplate then
+    theTemplate
+  else
+    case ElmParser.preludeNotParsed of
+      Nothing -> theTemplate
+      Just msg ->
+        let _ = Debug.log "error in template" () in
+        \() ->
+          let t = theTemplate () in
+          case t.e.val.e__ of
+            ELet sp0 lk isRec p spe body spin after spEnd ->
+              case body.val.e__ of
+                EParens sp2 inner LongStringSyntax sp3 ->
+                  case inner.val.e__ of
+                    EBase sp4 (EString q content) ->
+                       { t | e = (\x -> let _ = Debug.log "final replacement:" (Syntax.unparser Syntax.Elm x) in x) <| replaceE__ t.e <|
+                       ELet sp0 lk isRec p spe (replaceE__ body <|
+                         EParens sp2 (
+                           replaceE__ inner <| EBase sp4 <| EString q <| (content |> String.split "ERROR_HERE" |> String.join (msg |> String.split "\"" |> String.join "\\\""))
+                         ) LongStringSyntax sp3) spin after spEnd
+                       }
+                    _ -> let _ = Debug.log "Not an EBase" inner.val.e__ in  t
+                _ ->  let _ = Debug.log "Not an EParens" body.val.e__ in t
+            _ ->  let _ = Debug.log "Not an ELet" t.e.val.e__ in t
 
 initModel : Model
 initModel =
   let
-    (_,f)    = Utils.find_ Examples.list initTemplate
+    f    = loadTemplate initTemplate
     {e,v,ws,env} = f ()
   in
   let unwrap = Utils.fromOk "generating initModel" in

@@ -38,7 +38,7 @@ expNonControlFlowChildren exp =
     EBase _ _                                    -> []
     EVar _ _                                     -> []
     EFun _ _ _ _                                 -> [] -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
-    EOp _ _ _ _                                  -> childExps exp
+    EOp _ _ _ _ _                                -> childExps exp
     EList _ _ _ _ _                              -> childExps exp
     ERecord _ _ _ _                              -> childExps exp
     ESelect _ _ _ _ _                            -> childExps exp
