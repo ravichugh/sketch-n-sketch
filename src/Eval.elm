@@ -422,7 +422,6 @@ eval syntax env bt e =
       _ ->
         eval syntax env bt e1
 
-  EComment _ _ e1       -> eval syntax env bt e1
   EOption _ _ _ _ e1    -> eval syntax env bt e1
   ETyp _ _ _ e1 _       -> eval syntax env bt e1
   -- EColonType _ e1 _ _ _ -> eval syntax env bt e1

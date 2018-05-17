@@ -245,8 +245,6 @@ unparse_ e = case e.val.e__ of
         <| List.map (.val) tbranches
     in
     ws1.val ++ "(typecase" ++ unparse_ e1 ++ tbranchesStr ++ ws2.val ++ ")"
-  EComment ws s e1 ->
-    ws.val ++ ";" ++ s ++ "\n" ++ unparse_ e1
   EOption ws1 s1 ws2 s2 e1 ->
     ws1.val ++ "# " ++ s1.val ++ ":" ++ ws2.val ++ s2.val ++ "\n" ++ unparse_ e1
   ETyp ws1 pat tipe e ws2 ->
@@ -312,8 +310,6 @@ unparseWithIds e =
           <| List.map (.val) tbranches
       in
       ws1.val ++ "(" ++ eidTag ++ "typecase" ++ unparseWithIds e1 ++ tbranchesStr ++ ws2.val ++ ")"
-    EComment ws s e1 ->
-      ws.val ++ ";" ++ eidTag ++ s ++ "\n" ++ unparseWithIds e1
     EOption ws1 s1 ws2 s2 e1 ->
       ws1.val ++ "#" ++ eidTag ++ " " ++ s1.val ++ ":" ++ ws2.val ++ s2.val ++ "\n" ++ unparseWithIds e1
     ETyp ws1 pat tipe e ws2 ->
@@ -387,8 +383,6 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
           <| List.map (.val) tbranches
       in
       " " ++ "(typecase" ++ recurse e1 ++ tbranchesStr ++ " " ++ ")"
-    EComment _ s e1 ->
-      " " ++ ";" ++ s ++ "\n" ++ recurse e1
     EOption _ s1 _ s2 e1 ->
       " " ++ "# " ++ s1.val ++ ":" ++ " " ++ s2.val ++ "\n" ++ recurse e1
     ETyp _ pat tipe e _ ->

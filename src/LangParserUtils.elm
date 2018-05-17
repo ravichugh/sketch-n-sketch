@@ -1,6 +1,7 @@
 module LangParserUtils exposing
   ( space
   , spaces
+  , oldSpaces
   , spacesCustom
   , nospace
   , keywordWithSpace
@@ -82,8 +83,18 @@ spacesCustom ({forwhat, withNewline, minIndentation, maxIndentation} as options)
   ) |>
   andThen identity
 
+spacesRaw: Parser ()
+spacesRaw =
+  ignore zeroOrMore isSpace |>
+    andThen (\_ ->
+      oneOf [
+        lineComment |> andThen (\_ -> spacesRaw),
+        nestableComment "{-" "-}" |> andThen (\_ -> spacesRaw),
+        succeed ()
+      ])
+
 spaces : Parser WS
-spaces = trackInfo <| keep zeroOrMore isSpace
+spaces = trackInfo <| source <| spacesRaw
 
 spacesWithoutIndentation: Parser WS
 spacesWithoutIndentation = spacesCustom {forwhat = "at this place", withNewline=True, minIndentation=Nothing, maxIndentation=Just 0}
@@ -94,12 +105,11 @@ spacesNotBetweenDefs =  spacesCustom {forwhat = "at this place", withNewline=Tru
 spacesWithoutNewline: Parser WS
 spacesWithoutNewline = spacesCustom {forwhat = "at this place", withNewline=False, minIndentation=Nothing, maxIndentation=Nothing}
 
-lineComment = source <|
-  delayedCommitMap (\a b -> ())
-    (ignore zeroOrMore isSpace)
-    (symbol "--"
-     |. ignore zeroOrMore (\c -> c /= '\n')
-     |. oneOf [ symbol "\n", end ])
+lineComment: Parser ()
+lineComment =
+  (symbol "--"
+   |. ignore zeroOrMore (\c -> c /= '\n')
+   |. oneOf [ symbol "\n", end ])
 
 nestableIgnore : Parser ignore -> Parser keep -> Parser keep
 nestableIgnore ignoreParser keepParser =
@@ -138,6 +148,25 @@ nestableCommentHelp isNotRelevant start end nestLevel =
         , nestableIgnore (Parser.ignore (Exactly 1) (\_ -> True)) <|
             nestableCommentHelp isNotRelevant start end nestLevel
         ]
+
+-- For compatibility with FastParser
+oldSpacesRaw: Parser ()
+oldSpacesRaw =
+  ignore zeroOrMore isSpace |>
+    andThen (\_ ->
+      oneOf [
+        oldLineComment |> andThen (\_ -> oldSpacesRaw),
+        succeed ()
+      ])
+
+oldSpaces : Parser WS
+oldSpaces = trackInfo <| source <| oldSpacesRaw
+oldLineComment: Parser ()
+oldLineComment =
+  (symbol ";"
+   |. ignore zeroOrMore (\c -> c /= '\n')
+   |. oneOf [ symbol "\n", end ])
+
 
 nospace : Parser WS
 nospace =

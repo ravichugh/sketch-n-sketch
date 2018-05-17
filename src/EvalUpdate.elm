@@ -693,13 +693,6 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       , newNameToOldName__
       )
 
-    EComment ws s e1 ->
-      let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
-      ( replaceE__ exp (EComment ws s newE1)
-      , usedNames_
-      , newNameToOldName
-      )
-
     EOption ws1 s1 ws2 s2 e1 ->
       let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
       ( replaceE__ exp (EOption ws1 s1 ws2 s2 newE1)

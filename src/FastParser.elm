@@ -33,6 +33,8 @@ import Info exposing (..)
 import ImpureGoodies
 import LangUnparser
 
+spaces = oldSpaces
+
 --==============================================================================
 --= PARSER WITH INFO
 --==============================================================================
@@ -1143,30 +1145,6 @@ typeAnnotation =
           )
 
 --------------------------------------------------------------------------------
--- Comments
---------------------------------------------------------------------------------
-
-comment : Parser Exp
-comment =
-  mapExp_ <|
-    inContext "comment" <|
-      lazy <| \_ ->
-        delayedCommitMap
-          ( \wsStart (semicolon, text, rest) ->
-              WithInfo
-                (EComment wsStart text.val rest)
-                semicolon.start
-                text.end
-          )
-          spaces
-          ( succeed (,,)
-              |= trackInfo (symbol ";")
-              |= trackInfo (keep zeroOrMore (\c -> c /= '\n'))
-              |. symbol "\n"
-              |= exp
-          )
-
---------------------------------------------------------------------------------
 -- General Expressions
 --------------------------------------------------------------------------------
 
@@ -1188,7 +1166,6 @@ exp =
         , lazy <| \_ -> function
         , lazy <| \_ -> functionApplication
         , lazy <| \_ -> operator
-        , lazy <| \_ -> comment
         , lazy <| \_ -> option
         , lazy <| \_ -> hole
         , variableExpression
@@ -1279,32 +1256,6 @@ topLevelTypeAlias =
       )
 
 --------------------------------------------------------------------------------
--- Top-Level Comments
---------------------------------------------------------------------------------
-
-topLevelComment : Parser TopLevelExp
-topLevelComment =
-  inContext "top-level comment" <|
-    delayedCommitMap
-      ( \wsStart (semicolon, text) ->
-          WithInfo
-            ( \rest ->
-                exp_ <| EComment wsStart text.val rest
-            )
-            semicolon.start
-            text.end
-      )
-      spaces
-      ( succeed (,)
-          |= trackInfo (symbol ";")
-          |= trackInfo (keep zeroOrMore (\c -> c /= '\n'))
-          |. oneOf
-               [ symbol "\n"
-               , end
-               ]
-      )
-
---------------------------------------------------------------------------------
 -- Top-Level Options
 --------------------------------------------------------------------------------
 
@@ -1345,7 +1296,6 @@ topLevelExp =
       [ topLevelTypeAlias
       , topLevelDef
       , topLevelTypeDeclaration
-      , topLevelComment
       , topLevelOption
       ]
 

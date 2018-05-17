@@ -311,7 +311,6 @@ traverse env exp acc =
     ETypeCase _ _ tbranches _ ->
       let _ = Debug.log "TODO: scope tree ETypeCase" () in acc
 
-    EComment _ _ e         -> recurse [e]
     EOption _ _ _ _ e      -> recurse [e]
     ETyp _ _ _ e _         -> recurse [e]
     EColonType _ e _ _ _   -> recurse [e]

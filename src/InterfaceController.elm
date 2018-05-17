@@ -267,7 +267,6 @@ switchToCursorTool old =
 --
 rewriteInnerMostExpToMain exp =
   case exp.val.e__ of
-    EComment _ _ e       -> rewriteInnerMostExpToMain e
     EOption _ _ _ _ e    -> rewriteInnerMostExpToMain e
     ETyp _ _ _ e _       -> rewriteInnerMostExpToMain e
     ETypeAlias _ _ _ e _ -> rewriteInnerMostExpToMain e

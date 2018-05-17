@@ -241,7 +241,6 @@ type Exp__
   | ECase WS Exp (List Branch) WS
   | ETypeCase WS Exp (List TBranch) WS
   | ELet WS LetKind Rec Pat WS{-=-} Exp WS{-in or ;-} Exp WS{-REMOVE-}
-  | EComment WS String Exp
   | EOption WS (WithInfo String) WS (WithInfo String) Exp
   | ETyp WS Pat Type Exp WS -- type declaration
   | EColonType WS Exp WS Type WS -- type annotation
@@ -561,7 +560,6 @@ expEffectiveExps exp =
     ETypeAlias _ _ _ body _   -> exp :: expEffectiveExps body
     ELet _ _ _ _ _ _ _ body _ -> exp :: expEffectiveExps body
     EParens _ e _ _           -> exp :: expEffectiveExps e
-    EComment _ _ e            -> exp :: expEffectiveExps e
     EOption _ _ _ _ e         -> exp :: expEffectiveExps e
     EOp _ _ {val} [operand] _   -> if val == DebugLog || val == NoWidgets then exp :: expEffectiveExps operand else [exp]
     _                         -> [exp]
@@ -679,10 +677,6 @@ mapFoldExp f initAcc e =
       in
       let (newE1, newAcc2) = recurse newAcc e1 in
       wrapAndMap (ETypeCase ws1 newE1 newBranches ws2) newAcc2
-
-    EComment ws s e1 ->
-      let (newE1, newAcc) = recurse initAcc e1 in
-      wrapAndMap (EComment ws s newE1) newAcc
 
     EOption ws1 s1 ws2 s2 e1 ->
       let (newE1, newAcc) = recurse initAcc e1 in
@@ -852,10 +846,6 @@ mapFoldExpTopDown f initAcc e =
             ([], newAcc2)
       in
       ret (ETypeCase ws1 newE1 newBranches ws2) newAcc3
-
-    EComment ws s e1 ->
-      let (newE1, newAcc2) = recurse newAcc e1 in
-      ret (EComment ws s newE1) newAcc2
 
     EOption ws1 s1 ws2 s2 e1 ->
       let (newE1, newAcc2) = recurse newAcc e1 in
@@ -1039,10 +1029,6 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
             ([], newGlobalAcc2)
       in
       ret (ETypeCase ws1 newE1 newBranches ws2) newGlobalAcc3
-
-    EComment ws s e1 ->
-      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
-      ret (EComment ws s newE1) newGlobalAcc2
 
     EOption ws1 s1 ws2 s2 e1 ->
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
@@ -1489,7 +1475,6 @@ childExpsExtractors e =
       (e :: es, multiArgExtractor "ECase-unexp" e <| \newEs ->  ECase ws1 (Utils.head "childExps-ECase" newEs) (Utils.tail "childExps-ECAse" newEs |> esExtractor) ws2)
     ETypeCase ws1 e tbranches ws2    -> let (es, esExtractor) = tbranchExpsExtractor tbranches in
       (e :: es, multiArgExtractor "ETypeCase-unexp" e <| \newEs ->  ETypeCase ws1 (Utils.head "childExps-ECase" newEs) (Utils.tail "childExps-ECAse" newEs |> esExtractor) ws2)
-    EComment ws s e1                 -> ([e1], singleArgExtractor "EComment-unexp" e <| \newE ->EComment ws s newE              )
     EOption ws1 s1 ws2 s2 e1         -> ([e1], singleArgExtractor "EOption-unexp" e <| \newE ->EOption ws1 s1 ws2 s2 newE      )
     ETyp ws1 pat tipe e ws2          -> ([e], singleArgExtractor  "ETyp-unexp" e <| \newE -> ETyp ws1 pat tipe newE ws2      )
     EColonType ws1 e ws2 tipe ws3    -> ([e], singleArgExtractor  "EColonType-unexp" e <| \newE -> EColonType ws1 newE ws2 tipe ws3)
@@ -1715,12 +1700,6 @@ isFrozenNumber exp =
     EConst _ _ (_, ann, _) _ -> ann == frozen
     _                        -> False
 
-isComment : Exp -> Bool
-isComment exp =
-  case exp.val.e__ of
-    EComment _ _ _ -> True
-    _              -> False
-
 isOption : Exp -> Bool
 isOption exp =
   case exp.val.e__ of
@@ -1768,7 +1747,6 @@ childPats pat =
 getOptions : Exp -> List (String, String)
 getOptions e = case e.val.e__ of
   EOption _ s1 _ s2 e1 -> (s1.val, s2.val) :: getOptions e1
-  EComment _ _ e1      -> getOptions e1
   _                    -> []
 
 
@@ -1967,8 +1945,6 @@ eHoleVal0 v       = withDummyExpInfo <| EHole space0 (Just v)
 eHoleVal v        = withDummyExpInfo <| EHole space1 (Just v)
 
 eColonType e t    = withInfo (exp_ <| EColonType space1 e space1 t space0) e.start t.end
-
-eComment a b   = withDummyExpInfo <| EComment space1 a b
 
 pVar0 a        = withDummyPatInfo <| PVar space0 a noWidgetDecl
 pVar a         = withDummyPatInfo <| PVar space1 a noWidgetDecl
@@ -2240,7 +2216,6 @@ precedingWhitespaceWithInfoExp__ e__ =
     ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ws1
     ECase      ws1 e1 bs ws2                    -> ws1
     ETypeCase  ws1 e1 bs ws2                    -> ws1
-    EComment   ws s e1                          -> ws
     EOption    ws1 s1 ws2 s2 e1                 -> ws1
     ETyp       ws1 pat tipe e ws2               -> ws1
     EColonType ws1 e ws2 tipe ws3               -> ws1
@@ -2297,7 +2272,6 @@ allWhitespaces_ exp =
                                                      ++ [ws4]
     ECase      ws1 e1 bs ws2                -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesBranch bs ++ [ws2]
     ETypeCase  ws1 e1 bs ws2                -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesTBranch bs ++ [ws2]
-    EComment   ws s e1                      -> [ws] ++ allWhitespaces_ e1
     EOption    ws1 s1 ws2 s2 e1             -> [ws1, ws2] ++ allWhitespaces_ e1
     ETyp       ws1 pat tipe e ws2           -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
     EColonType ws1 e ws2 tipe ws3           -> [ws1] ++ allWhitespaces_ e ++ [ws2] ++ allWhitespacesType_ tipe ++ [ws2]
@@ -2410,7 +2384,6 @@ mapPrecedingWhitespaceWS mapWs exp =
         ELet       ws1 kind rec p ws2 e1 ws3 e2 ws4 -> ELet       (mapWs ws1) kind rec p ws2 e1 ws3 e2 ws4
         ECase      ws1 e1 bs ws2                    -> ECase      (mapWs ws1) e1 bs ws2
         ETypeCase  ws1 e1 bs ws2                    -> ETypeCase  (mapWs ws1) e1 bs ws2
-        EComment   ws s e1                          -> EComment   (mapWs ws) s e1
         EOption    ws1 s1 ws2 s2 e1                 -> EOption    (mapWs ws1) s1 ws2 s2 e1
         ETyp       ws1 pat tipe e ws2               -> ETyp       (mapWs ws1) pat tipe e ws2
         EColonType ws1 e ws2 tipe ws3               -> EColonType (mapWs ws1) e ws2 tipe ws3
@@ -2742,8 +2715,6 @@ isSelectable codeObject =
   case codeObject of
     E e ->
       case e.val.e__ of
-        EComment _ _ _ ->
-          False
         EOption _ _ _ _ _ ->
           False
         _ ->
@@ -3141,10 +3112,6 @@ childCodeObjects co =
                     , E e2
                     ]
               )
-          EComment ws1 _ e1 ->
-            [ ET Before ws1 e
-            , E e1
-            ]
           EOption ws1 _ _ _ e1 ->
             [ ET Before ws1 e
             , E e1
@@ -3469,8 +3436,6 @@ firstNestedExp e =
   case e.val.e__ of
     ELet _ Def _ _ _ _ _ eRest _ ->
       firstNestedExp eRest
-    EComment _ _ eRest ->
-      firstNestedExp eRest
     EOption _ _ _ _ eRest ->
       firstNestedExp eRest
     ETyp _ _ _ eRest _ ->
@@ -3509,8 +3474,6 @@ getTopLevelOptions e =
   case e.val.e__ of
     EOption _ wkey _ wValue following ->
       (wkey.val, wValue.val)::getTopLevelOptions following
-    EComment _ _ eRest ->
-      getTopLevelOptions eRest
     _ -> []
 
 -- Diffs

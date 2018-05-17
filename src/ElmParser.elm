@@ -1888,26 +1888,6 @@ genericLetBinding appargSpace letkeyword isRec =
           )
 
 --------------------------------------------------------------------------------
--- Comments
---------------------------------------------------------------------------------
-
-lineComment : Parser WS -> Parser (WS -> Exp)
-lineComment appargSpace =
-  inContext "line comment" <|
-    mapWSExp_ <|
-      transferInfo
-        ( \(text, expAfter) wsBefore ->
-            EComment wsBefore text expAfter
-        )
-        ( trackInfo <|
-            succeed (,)
-              |. symbol "--"
-              |= keep zeroOrMore (\c -> c /= '\n')
-              |. symbol "\n"
-              |= expression { first = spaces, apparg = appargSpace }
-        )
-
---------------------------------------------------------------------------------
 -- Options
 --------------------------------------------------------------------------------
 
@@ -2099,7 +2079,6 @@ simpleExpression appargSpace =
       , lazy <| \_ -> implicitSelectionFun
       , lazy <| \_ -> list
       , lazy <| \_ -> (addSelections True appargSpace <| record)
-      , lazy <| \_ -> lineComment appargSpace
       , lazy <| \_ -> option appargSpace
       , lazy <| \_ -> (addSelections True appargSpace <| tuple)
       , lazy <| \_ -> (addSelections True appargSpace <| hole)
@@ -2595,33 +2574,6 @@ topLevelTypeDefinition =
           )
 
 --------------------------------------------------------------------------------
--- Top-Level Comments
---------------------------------------------------------------------------------
-
-topLevelComment : Parser TopLevelExp
-topLevelComment =
-  inContext "top-level comment" <|
-    delayedCommitMap
-      ( \wsBefore (dashes, text) ->
-          withInfo
-            ( \rest ->
-                exp_ <|
-                  EComment wsBefore text.val rest
-            )
-            dashes.start
-            text.end
-      )
-      spaces
-      ( succeed (,)
-          |= trackInfo (symbol "--")
-          |= trackInfo (keep zeroOrMore (\c -> c /= '\n'))
-          |. oneOf
-               [ symbol "\n"
-               , end
-               ]
-      )
-
---------------------------------------------------------------------------------
 -- Top-Level Options
 --------------------------------------------------------------------------------
 
@@ -2663,7 +2615,6 @@ topLevelExpression =
       , topLevelTypeAlias
       , topLevelTypeDefinition
       , topLevelTypeDeclaration
-      , topLevelComment
       , topLevelOption
       ]
 

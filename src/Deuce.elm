@@ -627,8 +627,7 @@ circleHandles codeInfo codeObject color opacity radius =
 
 -- This polygon should be used for code objects that should not be Deuce-
 -- selectable. The purpose of this polygon is to block selection of the parent
--- code object of the unwanted code object. For example, this is very useful
--- with EComments.
+-- code object of the unwanted code object.
 blockerPolygon : CodeInfo -> CodeObject -> List (Svg Msg)
 blockerPolygon codeInfo codeObject =
   let

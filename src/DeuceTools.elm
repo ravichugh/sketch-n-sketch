@@ -1850,8 +1850,6 @@ makeSingleLineTool model selections =
                             ECase (deLine ws1) e1 bs space0
                           ETypeCase ws1 e1 bs ws2 ->
                             ETypeCase (deLine ws1) e1 bs space0
-                          EComment ws s e1 ->
-                            EComment ws s e1
                           EOption ws1 s1 ws2 s2 e1 ->
                             EOption ws1 s1 space1 s2 e1
                           ETyp ws1 pat tipe e ws2 ->

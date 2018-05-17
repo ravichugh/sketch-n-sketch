@@ -446,8 +446,6 @@ expEqual e1_ e2_ =
     wsEqual sp14 sp24 &&
     lk1 == lk2 && rec1 == rec2 &&
     patEqual pat1 pat2 && expEqual body1 body2 && expEqual exp1 exp2
-  (EComment sp1 s1 e1, EComment sp2 s2 e2) ->
-    wsEqual sp1 sp2 && s1 == s2 && expEqual e1 e2
   (EOption sp1 wStr1 sp2 wStr2 exp1, EOption sp3 wStr3 sp4 wStr4 exp2) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
     wStr1.val == wStr3.val && wStr2.val == wStr4.val &&

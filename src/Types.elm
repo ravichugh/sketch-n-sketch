@@ -691,8 +691,6 @@ checkType typeInfo typeEnv e goalType =
 
     -- TODO [TC-Let]
 
-    EComment _ _ e1 -> checkType typeInfo typeEnv e1 goalType
-
     -- TODO push goal down other sequencing forms
 
     _ -> -- [TC-Sub]
@@ -746,7 +744,7 @@ propagateResult result =
   }
 -}
 
--- Nothing means type error or N/A (EComment, EOption, ETyp, etc.)
+-- Nothing means type error or N/A (EOption, ETyp, etc.)
 --
 synthesizeType : TypeInfo -> TypeEnv -> Exp -> AndTypeInfo (Maybe Type)
 synthesizeType typeInfo typeEnv e =
@@ -1036,9 +1034,6 @@ synthesizeType typeInfo typeEnv e =
 
     -- don't need Ace annotations for the remaining expression kinds,
     -- so not calling not calling addRawType (i.e. finish)
-
-    EComment _ _ e1 ->
-      propagateResult <| synthesizeType typeInfo typeEnv e1
 
     EOption _ _ _ _ e1 ->
       propagateResult <| synthesizeType typeInfo typeEnv e1

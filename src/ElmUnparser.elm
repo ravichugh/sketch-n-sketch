@@ -648,13 +648,6 @@ unparse e =
               ++ wsBeforeInOrSemi.val
               ++ unparse body
 
-    EComment wsBefore text expAfter ->
-      wsBefore.val
-        ++ "--"
-        ++ text
-        ++ "\n"
-        ++ unparse expAfter
-
     EOption wsBefore option wsMid value expAfter ->
       wsBefore.val
         ++ "# "

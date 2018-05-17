@@ -185,12 +185,6 @@ mergeExp o e1 e2 =
              else default ()
            else default ()
          else default ()
-       (EComment sp0 s0 e0,
-        EComment sp1 s1 e1,
-        EComment sp2 s2 e2) ->
-         EComment (mergeWS sp0 sp1 sp2)
-           (mergeString s0 s1 s2)
-           (mergeExp e0 e1 e2)
        (EOption sp0 kStr0 spi0 wStr0 exp0,
         EOption sp1 kStr1 spi1 wStr1 exp1,
         EOption sp2 kStr2 spi2 wStr2 exp2) ->

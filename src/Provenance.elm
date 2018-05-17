@@ -47,7 +47,6 @@ expNonControlFlowChildren exp =
     EIf _ predicate _ trueBranch _ falseBranch _ -> [trueBranch, falseBranch]
     ECase _ scrutinee branches _                 -> branchExps branches
     ETypeCase _ scrutinee tbranches _            -> tbranchExps tbranches
-    EComment _ _ _                               -> childExps exp
     EOption _ _ _ _ _                            -> childExps exp
     ETyp _ _ _ _ _                               -> childExps exp
     EColonType _ _ _ _ _                         -> childExps exp

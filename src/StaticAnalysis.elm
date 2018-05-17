@@ -105,7 +105,6 @@ grossDependencies_ identToDepEId program =
         ETypeCase _ scrutinee tbranches _       -> childrenValueExpEIds exp
         EApp _ funcExp argExps _ _              -> childrenValueExpEIds exp
         ELet _ _ isRec pat _ boundExp _ body _  -> [(expEffectiveExp body).val.eid]
-        EComment _ _ body                       -> [(expEffectiveExp body).val.eid]
         EOption _ _ _ _ body                    -> [(expEffectiveExp body).val.eid]
         ETyp _ _ _ body _                       -> [(expEffectiveExp body).val.eid]
         EColonType _ body _ _ _                 -> [(expEffectiveExp body).val.eid]
