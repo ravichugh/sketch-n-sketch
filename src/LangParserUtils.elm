@@ -1,6 +1,7 @@
 module LangParserUtils exposing
   ( space
   , spaces
+  , spacesCustom
   , nospace
   , keywordWithSpace
   , symbolWithSpace
@@ -15,7 +16,6 @@ module LangParserUtils exposing
   , mapExp_
   , mapWSExp_
   , SpacePolicy
-  , spacesDefault
   , spacesWithoutIndentation
   , spacesNotBetweenDefs
   , spacesWithoutNewline
@@ -51,58 +51,48 @@ space =
   trackInfo <|
     keep (Exactly 1) isSpace
 
-{-
-numTries = { value = 1 }
+type alias SpaceParserState = { forwhat: String, withNewline: Bool, minIndentation: Maybe Int, maxIndentation: Maybe Int  }
 
-failNthTime: Int -> String -> (() -> Parser a) -> Parser a
-failNthTime n msg p =
-  if numTries.value >= n then fail msg else (
-    let _ = ImpureGoodies.mutateRecordField numTries "value" (numTries.value + 1) in
-    p ()
-  )
--}
-
--- Failed attempt at adding line comments anywhere and multiline comments
-{-spacesDefaultHelper: String -> Parser String -> Parser String
-spacesDefaultHelper parsed whitespaceParser =
-  lazy <| \_ ->
-    oneOf [
-      whitespaceParser |> andThen (\result ->
-         if result == "" -- If there is no space, we still have to test for line commentts, or return the empty space.
-         then succeed parsed
-         else spacesDefaultHelper (parsed ++ result) whitespaceParser
-        )
-      {-, lineComment |> andThen (\result ->
-          let _ = Debug.log ("Before: '" ++ parsed ++ "', after: '" ++ result ++ "'") () in
-          spacesDefaultHelper (parsed ++ result) whitespaceParser)-}
-
-      {-, (source <| nestableComment "{-" "-}") |> andThen (\result ->
-         spacesDefaultHelper (parsed ++ result) whitespaceParser)-}
-      , succeed parsed
-    ]-}
-
-spacesDefault: Parser String -> Parser WS
-spacesDefault whitespaceParser = trackInfo <| whitespaceParser
-  --trackInfo <| spacesDefaultHelper "" whitespaceParser
-
+spacesCustom: SpaceParserState -> Parser WS
+spacesCustom ({forwhat, withNewline, minIndentation, maxIndentation} as options) =
+  spaces |>
+  map (\ws ->
+    let testMinIndentation continue =
+      case minIndentation of
+         Just x -> if ws.end.col - 1 < x then fail <| "I need an indentation of at least " ++ toString x ++ " spaces " ++ forwhat
+           else continue ()
+         Nothing -> continue ()
+    in
+    let testMaxIndentation continue =
+      case maxIndentation of
+         Just x -> if ws.end.col - 1 > x then fail <| "I need an indentation of at most " ++ toString x ++ " spaces " ++ forwhat
+           else continue ()
+         Nothing -> continue ()
+    in
+    let testNewline continue =
+      if withNewline then continue ()
+      else if ws.start.line < ws.end.line then -- There might be comments, but For now, we just ignore them.
+         fail <| "No newline allowed " ++ forwhat
+      else continue ()
+    in
+    testMinIndentation <| \() ->
+    testMaxIndentation <| \() ->
+    testNewline <| \() ->
+    succeed ws
+  ) |>
+  andThen identity
 
 spaces : Parser WS
-spaces = spacesDefault (keep zeroOrMore isSpace)
-
-regexSpaceWithoutIndentation = Regex.regex "^(?:\\s*\n)*|(?:\\s*\n)"
+spaces = trackInfo <| keep zeroOrMore isSpace
 
 spacesWithoutIndentation: Parser WS
-spacesWithoutIndentation = spacesDefault (ParserUtils.keepRegex regexSpaceWithoutIndentation)
-
-regexSpaceStoppingIfTwoLinesOrNoIndentation = Regex.regex "((?!\n\n|\n\\S)\\s)*"
+spacesWithoutIndentation = spacesCustom {forwhat = "at this place", withNewline=True, minIndentation=Nothing, maxIndentation=Just 0}
 
 spacesNotBetweenDefs: Parser WS
-spacesNotBetweenDefs = spacesDefault (ParserUtils.keepRegex regexSpaceStoppingIfTwoLinesOrNoIndentation)
-
-regexSpaceWithoutNewline = Regex.regex "((?!\n)\\s)*"
+spacesNotBetweenDefs =  spacesCustom {forwhat = "at this place", withNewline=True, minIndentation=Just 1, maxIndentation=Nothing}
 
 spacesWithoutNewline: Parser WS
-spacesWithoutNewline = spacesDefault (ParserUtils.keepRegex regexSpaceWithoutNewline)
+spacesWithoutNewline = spacesCustom {forwhat = "at this place", withNewline=False, minIndentation=Nothing, maxIndentation=Nothing}
 
 lineComment = source <|
   delayedCommitMap (\a b -> ())

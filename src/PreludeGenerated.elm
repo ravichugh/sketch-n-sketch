@@ -4292,7 +4292,7 @@ xySlider xStart xEnd yStart yEnd xMin xMax yMin yMax xCaption yCaption xCur yCur
     [ [ xVal, yVal ], ghosts shapes ]
     
 -- enumSlider: (forall a (-> Num Num Num [a|(List a)] String Num [a (List SVG)]))
-enumSlider x0 x1 ya::_as enum caption srcVal =
+enumSlider x0 x1 ((ya::_) as enum) caption srcVal =
   let n = len enum in
   let [minVal, maxVal] = [0!, n] in
   let preVal = clamp minVal maxVal srcVal in

@@ -1184,21 +1184,20 @@ loadTemplate name =
         let _ = Debug.log "error in template" () in
         \() ->
           let t = theTemplate () in
-          case t.e.val.e__ of
-            ELet sp0 lk isRec p spe body spin after spEnd ->
-              case body.val.e__ of
-                EParens sp2 inner LongStringSyntax sp3 ->
-                  case inner.val.e__ of
-                    EBase sp4 (EString q content) ->
-                       { t | e = (\x -> let _ = Debug.log "final replacement:" (Syntax.unparser Syntax.Elm x) in x) <| replaceE__ t.e <|
-                       ELet sp0 lk isRec p spe (replaceE__ body <|
-                         EParens sp2 (
-                           replaceE__ inner <| EBase sp4 <| EString q <| (content |> String.split "ERROR_HERE" |> String.join (msg |> String.split "\"" |> String.join "\\\""))
-                         ) LongStringSyntax sp3) spin after spEnd
-                       }
-                    _ -> let _ = Debug.log "Not an EBase" inner.val.e__ in  t
-                _ ->  let _ = Debug.log "Not an EParens" body.val.e__ in t
-            _ ->  let _ = Debug.log "Not an ELet" t.e.val.e__ in t
+          let e = t.e in
+          case childExpsExtractors e of -- e == ["pre" ...]
+            ([a, b, content1], rebuilder1) -> case childExpsExtractors content1 of --content1 == [...]
+              ([content2], rebuilder2) -> case childExpsExtractors content2 of --content2 == ["TEXT", """ ... """]
+                ([c, content3], rebuilder3) -> case childExpsExtractors content3 of  --content3 == """ ... """
+                  ([content4], rebuilder4) -> case content4.val.e__ of
+                     EBase sp4 (EString q content) ->
+                       let newContent4 = replaceE__ content4 <| EBase sp4 <| EString q <| (content |> String.split "ERROR_HERE" |> String.join (msg |> String.split "\"" |> String.join "\\\"")) in
+                       { t | e = rebuilder1 [a, b, rebuilder2 [rebuilder3 [c, rebuilder4 [newContent4]]]] }
+                     _ -> let _ = Debug.log "Not a string" content4.val.e__ in  t
+                  _ -> let _ = Debug.log "Not a \"\"\"...\"\"\"" content3.val.e__ in  t
+                _ -> let _ = Debug.log "Not a ['TEXT'...]" content2.val.e__ in  t
+              _ ->  let _ = Debug.log "Not an [...]" content1.val.e__ in t
+            _ ->  let _ = Debug.log "Not an ['pre'...]" e.val.e__ in t
 
 initModel : Model
 initModel =

@@ -294,8 +294,9 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, optiona
         |= oneOf [
             succeed (,)
             |= delayedCommitMap (\a b -> a) spaces equalSign
-            |= (let firstappargpolicy = sameLineOrIndentedByAtLeast (keyWithInfos.start.col - 1 {- The column index-} + 1 {- The indentation increment-}) in -- No newlines, or be at least indented after the keyword.
-              inContext "record value" <| value { firstappargpolicy | first = spaces }
+            |= (let firstappargpolicy =
+                  sameLineOrIndentedByAtLeast "for a value in this record" (keyWithInfos.start.col - 1 {- The column index-} + 1 {- The indentation increment-}) in -- No newlines, or be at least indented after the keyword.
+              inContext "record value" <| value { first = spaces, apparg = firstappargpolicy }
              )
           , case optNoEqualSign of
               Nothing -> fail "Expected ="
@@ -1795,12 +1796,12 @@ caseExpression =
                 succeed identity
                   |= (pattern { spacesWithoutNewline | first = nospace }
                      |> andThen (\p ->
-                        let minimumIndentation = sameLineOrIndentedByAtLeast ((p.start.col - 1) {- The column index-} + 1 {- The indentation increment-}) in
+                        let minimumIndentation = sameLineOrIndentedByAtLeast "for an expression after a branch" ((p.start.col - 1) {- The column index-} + 1 {- The indentation increment-}) in
                         succeed (\wsBeforeArrow e -> (p, wsBeforeArrow, e))
                         |= spaces
                         |. symbol "->"
-                        |= expression {first = spaces, apparg = minimumIndentation.apparg }
-                        |. optional (delayedCommit minimumIndentation.first (symbol ";"))
+                        |= expression {first = spaces, apparg = minimumIndentation }
+                        |. optional (delayedCommit minimumIndentation (symbol ";"))
                      ))
                   )
       in
@@ -1836,8 +1837,8 @@ caseExpression =
                         andThen (\b ->
                           case b.val of
                             Branch_ wsBefore p e wsBeforeArrow ->
-                              let branchIndentation = sameLineOrIndentedByExactly (p.start.col - 1 {- The column index-}) in
-                              branchHelper [b] (branch branchIndentation.first)
+                              let branchIndentation = sameLineOrIndentedByExactly "for a branch after the first one" (p.start.col - 1 {- The column index-}) in
+                              branchHelper [b] (branch branchIndentation)
                         )
                       )
             )
@@ -2299,8 +2300,8 @@ simpleExpressionWithPossibleArguments appargSpace =
     )
 
 -- No indentation for top-level expressions, at least one newline or the beginning of the string.
-topLevelBetweenDefSpacePolicty: SpacePolicy
-topLevelBetweenDefSpacePolicty =
+topLevelBetweenDefSpacePolicy: SpacePolicy
+topLevelBetweenDefSpacePolicy =
   { first = LangParserUtils.spacesWithoutIndentation,
     apparg = LangParserUtils.spacesWithoutIndentation
   }
@@ -2323,16 +2324,19 @@ noSpacePolicy =
   { first = succeed space0
   , apparg = succeed space0 }
 
-sameLineOrIndentedByAtLeast: Int -> SpacePolicy
-sameLineOrIndentedByAtLeast nSpaces =
-  let indentedParser = LangParserUtils.spacesDefault <| ParserUtils.keepRegex <| Regex.regex <| "( |\t)*((r?\n *)*(\r?\n" ++ String.repeat nSpaces " " ++ " *))?" in
-  SpacePolicy indentedParser indentedParser
+sameLineOrIndentedByAtLeast: String -> Int -> Parser WS
+sameLineOrIndentedByAtLeast msg nSpaces =
+  oneOf [
+    try <| LangParserUtils.spacesCustom {forwhat = msg, withNewline=False, minIndentation=Nothing, maxIndentation=Nothing},
+    LangParserUtils.spacesCustom {forwhat = msg, withNewline=True, minIndentation=Just nSpaces, maxIndentation=Nothing}
+  ]
 
-
-sameLineOrIndentedByExactly: Int -> SpacePolicy
-sameLineOrIndentedByExactly nSpaces =
-  let indentedParser = LangParserUtils.spacesDefault <| ParserUtils.keepRegex <|  Regex.regex <| "( |\t)*((\r?\n *)*(\r?\n" ++ String.repeat nSpaces " " ++ "))?" in
-  SpacePolicy indentedParser (sameLineOrIndentedByAtLeast nSpaces).apparg
+sameLineOrIndentedByExactly: String -> Int -> Parser WS
+sameLineOrIndentedByExactly msg nSpaces =
+  oneOf [
+    try <| LangParserUtils.spacesCustom {forwhat = msg, withNewline=False, minIndentation=Nothing, maxIndentation=Nothing},
+    LangParserUtils.spacesCustom {forwhat = msg, withNewline=True, minIndentation=Just nSpaces, maxIndentation=Just nSpaces}
+  ]
 
 
 expression : SpacePolicy -> Parser Exp
@@ -2467,8 +2471,8 @@ topLevelDef =
               binding.end
       )
       ( succeed (,,,)
-          |= topLevelBetweenDefSpacePolicty.first
-          |= pattern (topLevelInsideDefSpacePolicy)
+          |= topLevelBetweenDefSpacePolicy.first
+          |= pattern {topLevelInsideDefSpacePolicy | first = nospace }
           |= repeat zeroOrMore (pattern topLevelInsideDefSpacePolicy)
           |= topLevelInsideDefSpacePolicy.first
           |. symbol "="
@@ -2696,6 +2700,7 @@ implicitMain =
 
 mainExpression : Parser Exp
 mainExpression =
+  inContext "Main expression" <|
   oneOf
     [ expression allSpacesPolicy
     , implicitMain
