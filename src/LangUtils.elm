@@ -246,6 +246,10 @@ valToExpFull copyFrom sp_ indent v =
           in
           ELet sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 bigbody space0
     VRecord values ->
+      let (isTuple, keyValues) = case vRecordTupleUnapply v of
+        Just (kv, elements) -> (True, kv::elements)
+        Nothing -> (False, Dict.toList values)
+      in
       let defaultspcHd = space0 in
       let defaultspkHd =  ws " " in
       let defaultspeHd = ws " " in
@@ -269,13 +273,11 @@ valToExpFull copyFrom sp_ indent v =
              Just (csp0, finalKeys, valToExps, cspend)
            _ -> Nothing
          ) |> Maybe.withDefault (sp, Dict.keys values, ((defaultspcHd, defaultspkHd, defaultspeHd, valToExp), (defaultspcTl, defaultspkTl, defaultspeTl, valToExp)),
-           if Dict.isEmpty values then space1 else ws <| foldIndent "" indent) in
-      ERecord precedingWS Nothing (List.indexedMap (\i key ->
-        case Dict.get key values of
-          Nothing -> Debug.crash <| "Internal error: Could not retrieve key " ++ toString key
-          Just v -> if i == 0 then (spaceComma, spaceKey, key, spaceEqual, v2expHead (ws " ") (increaseIndent <| increaseIndent indent) v)
-            else (spaceCommaTail, spaceKeyTail, key, spaceEqualTail, v2expTail (ws " ") (increaseIndent <| increaseIndent indent) v)
-        ) keys) spBeforeEnd
+           if isTuple then ws "" else if Dict.isEmpty values then space1 else ws <| foldIndent "" indent) in
+      ERecord precedingWS Nothing (List.indexedMap (\i (key, v) ->
+          if i == 0 then (spaceComma, spaceKey, key, spaceEqual, v2expHead (if isTuple then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
+          else (spaceCommaTail, spaceKeyTail, key, spaceEqualTail, v2expTail (if isTuple && i <= 1 then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
+        ) keyValues) spBeforeEnd
     VDict vs ->
       EOp sp space0 (Info.withDummyInfo DictFromList) [withDummyExpInfo <|
         EList space1 (

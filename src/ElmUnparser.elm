@@ -94,8 +94,7 @@ tryUnparseTuple
   -> Maybe String
 tryUnparseTuple unparseTerm wsBefore elems wsBeforeEnd =
   let
-    ctorString =
-      stringifyCtorKind Lang.TupleCtor
+    ctorString = ctorTuple
   in
     if
       elems

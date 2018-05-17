@@ -13,6 +13,7 @@ module ParserUtils exposing
   , getPos
   , trackInfo
   , untrackInfo
+  , setStartInfo
   , showError
   , keepUntilRegex
   , ignoreRegex
@@ -279,6 +280,9 @@ trackInfo p =
 untrackInfo : ParserI a -> Parser a
 untrackInfo =
   map (.val)
+
+setStartInfo: ParserI a -> Parser (Pos -> WithInfo a)
+setStartInfo p = map (\{val,start,end} newStart -> {val=val, start=newStart, end=end}) p
 
 --------------------------------------------------------------------------------
 -- Error Handling

@@ -2057,6 +2057,29 @@ vRecordUnapplyField field v = case v.v_ of
   VRecord d -> Dict.get field d
   _ -> Nothing
 
+vRecordTupleUnapply: Val -> Maybe ((String, Val), List (String, Val))
+vRecordTupleUnapply v = case v.v_ of
+  VRecord d ->
+    let keyValues = Dict.toList d in
+    keyValues |> Utils.maybeFind ctorTuple |> (\x -> case x of
+      Nothing -> Nothing
+      Just v->
+        let orderedKeyValues = keyValues
+            |> List.filter
+                 ( \(key, value) ->
+                     String.startsWith "_" key
+                 )
+            |> List.sortBy
+                 ( \(key, value)  ->
+                     key
+                       |> String.dropLeft 1
+                       |> String.toInt
+                       |> Result.withDefault -1
+                 )
+        in Just ((ctorTuple, v), orderedKeyValues)
+    )
+  _ -> Nothing
+
 -- note: dummy ids...
 -- vTrue    = vBool True
 -- vFalse   = vBool False

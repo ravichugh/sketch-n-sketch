@@ -339,9 +339,6 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, optiona
 --------------------------------------------------------------------------------
 -- Tuples
 --------------------------------------------------------------------------------
--- If performance becomes an issue with the ambiguity between parentheses and
--- tuples, it may be necessary to combine them into a single combinator, but
--- for now we can just `try tuple` followed by `parens`.
 
 genericTuple
   :  { term : SpacePolicy -> Parser t
@@ -370,24 +367,43 @@ genericTuple { term, tagger, one, record } =
           Utils.indexedMapFrom 2 Lang.numericalEntry rest
       in
         record wsBefore (ctorEntry :: firstEntry :: restEntries) wsBeforeEnd
+
+    combinerZero wsBeforeEnd wsBefore =
+      let
+        name =
+          Lang.ctorTupleName 0
+        ctorEntry =
+          Lang.ctor tagger Lang.TupleCtor name
+      in
+      record wsBefore [ctorEntry] wsBeforeEnd
   in
     lazy <| \_ ->
-      transferInfo
-        combiner
-        ( trackInfo <|
-            succeed (,,)
-              |. symbol "("
-              |= term allSpacesPolicy
-              |= repeat zeroOrMore
-                   ( delayedCommitMap (\ws term -> (ws, term))
-                      spaces
-                      (succeed identity
-                       |. symbol ","
-                       |= term allSpacesPolicy)
-                   )
-              |= spaces
-              |. symbol ")"
-        )
+      delayedCommitMap (\pos posToParens -> posToParens pos)
+        getPos
+      (succeed identity
+      |. symbol "("
+      |= setStartInfo (oneOf [
+          transferInfo combiner
+            ( trackInfo <|
+                succeed (,,)
+
+                  |= term allSpacesPolicy
+                  |= repeat zeroOrMore
+                       ( delayedCommitMap (\ws term -> (ws, term))
+                          spaces
+                          (succeed identity
+                           |. symbol ","
+                           |= term allSpacesPolicy)
+                       )
+                  |= spaces
+                  |. symbol ")"
+            ),
+          transferInfo combinerZero
+          (trackInfo <| (
+            succeed identity
+            |= spaces
+            |. symbol ")"))
+        ]))
 
 --------------------------------------------------------------------------------
 -- Block Helper (for types) TODO
@@ -672,22 +688,26 @@ multilineContentParserHelp prevExps =
 
 multilineEscapedElmExpression: Parser Exp
 multilineEscapedElmExpression =
-  inContext "expression in multi-line string" <| lazy <| \_ ->
+  inContext "expression in multi-line string" <|
   oneOf [
-    try <| trackInfo <|
+    lazy <| \_ -> trackInfo <|
       succeed (\wsv -> let v = wsv space0 in exp_ <| EOp space0 space1 (withInfo ToStrExceptStr v.start v.start) [v] space0)
       |= (variableExpression |> addSelections False nospace),
-    try <| multilineGenericLetBinding,
-    mapExp_ <| trackInfo <|
-        (succeed (\wsToExp -> let exp = wsToExp space0 in (EOp space0 space1 (withInfo ToStrExceptStr exp.start exp.start) [withInfo (exp_ <| EParens space0 exp ElmSyntax space0) exp.start exp.end] space0))
-        |= parens)
+    lazy <| \_ -> multilineGenericLetBinding,
+    lazy <| \_ -> mapExp_ <| trackInfo <|
+        (succeed (\wsToExp ->
+          let exp = wsToExp space0 in
+          (EOp space0 space1 (withInfo ToStrExceptStr exp.start exp.start) [
+            withInfo (exp_ <| EParens space0 exp ElmSyntax space0) exp.start exp.end] space0))
+        |= tuple)
   ]
 
 multilineGenericLetBinding : Parser Exp
 multilineGenericLetBinding =
   inContext ("let binding within a long string") <|
     lazy <| \_ ->
-      succeed (\letdefWithInfo isRec pattern parameters wsBeforeEq binding_  ->
+      succeed (\letdefWithInfo pattern parameters wsBeforeEq binding_  ->
+         let isRec = letdefWithInfo.val == "letrec" in
          let
            binding =
              if List.isEmpty parameters then
@@ -704,10 +724,7 @@ multilineGenericLetBinding =
                    ELet
                      space0
                      Let
-                     (case isRec of
-                       Just _ -> True
-                       _ -> False
-                     )
+                     isRec
                      pattern
                      wsBeforeEq
                      binding
@@ -718,8 +735,7 @@ multilineGenericLetBinding =
              letdefWithInfo.start
              binding.end
        )
-      |= (trackInfo <| source <| keyword "let")
-      |= optional (keyword "rec")
+      |= (trackInfo <| source <| oneOf [keywordWithSpace "let", keywordWithSpace "letrec"])
       |= pattern spacesWithoutNewline
       |= repeat zeroOrMore (pattern spacesWithoutNewline)
       |= spacesWithoutNewline.first
@@ -1771,7 +1787,10 @@ caseExpression =
             (\wsBefore (p, wsBeforeArrow, e) ->
                 withInfo (Branch_ wsBefore p e wsBeforeArrow) p.start e.end
             )
-            ( inContext "Indentation for branch" <| branchsp) -- Tries to consume spaces and correct indentation.
+            ( inContext "Indentation for branch" <|
+              succeed identity
+              |= branchsp
+              |. lookAhead (ignore (Exactly 1) (\c -> not (isSpace c)))) -- Tries to consume spaces and correct indentation.
             ( inContext "Branch" <|
                 succeed identity
                   |= (pattern { spacesWithoutNewline | first = nospace }
@@ -1780,7 +1799,7 @@ caseExpression =
                         succeed (\wsBeforeArrow e -> (p, wsBeforeArrow, e))
                         |= spaces
                         |. symbol "->"
-                        |= expression minimumIndentation
+                        |= expression {first = spaces, apparg = minimumIndentation.apparg }
                         |. optional (delayedCommit minimumIndentation.first (symbol ";"))
                      ))
                   )
@@ -1919,28 +1938,7 @@ option appargSpace =
         |= expression { first = spaces, apparg = appargSpace }
 
 --------------------------------------------------------------------------------
--- Parentheses
---------------------------------------------------------------------------------
-
-parens : Parser (WS -> Exp)
-parens  =
-  inContext "parentheses" <|
-    mapWSExp_ <|
-      lazy <| \_ ->
-        transferInfo
-          ( \(innerExpression, wsBeforeEnd) wsBefore ->
-              EParens wsBefore innerExpression Parens wsBeforeEnd
-          )
-          ( trackInfo <|
-              succeed (,)
-                |. symbol "("
-                |= expression allSpacesPolicy
-                |= spaces
-                |. symbol ")"
-          )
-
---------------------------------------------------------------------------------
--- Tuples
+-- Tuples, Parentheses
 --------------------------------------------------------------------------------
 
 tuple : Parser (WS -> Exp)
