@@ -514,6 +514,17 @@ symbolIdentifier =
       , keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|'))
       ]
 
+symbolWithoutGreaterIdentifier : ParserI Ident
+symbolWithoutGreaterIdentifier =
+  trackInfo <|
+    oneOf
+      [ source (symbol "<|")
+      , source (symbol "::")
+      , source (symbol "||")
+      , keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|' || x == '>'))
+      ]
+
+
 patternSymbolIdentifier : ParserI Ident
 patternSymbolIdentifier =
   trackInfo <|
@@ -904,7 +915,7 @@ htmlliteral =
            (symbol "<")
            (oneOf [identifier, source <| symbol "@"])))
       |= HTMLParser.parseOneNode (HTMLParser.Interpolation
-        { attributevalue = inContext "HTML attribute value" << wrapWithSyntax ElmSyntax << simpleExpression
+        { attributevalue = inContext "HTML attribute value" << wrapWithSyntax ElmSyntax << (\apparg -> map always <| expressionWithoutGreater { first = nospace, apparg = apparg})
         , attributelist = inContext "HTML special attribute list" << wrapWithSyntax ElmSyntax << simpleExpression
         , childlist = inContext "HTML special child list" << wrapWithSyntax ElmSyntax << simpleExpression
         , tagName = inContext "HTML special tag name" << wrapWithSyntax ElmSyntax << simpleExpression
@@ -1580,6 +1591,10 @@ opFromIdentifier identifier =
 operator : Parser WS -> ParserI Operator
 operator appargSpace =
   paddedBefore (,) appargSpace symbolIdentifier
+
+operatorWIthoutGreaterSign : Parser WS -> ParserI Operator
+operatorWIthoutGreaterSign appargSpace =
+  paddedBefore (,) appargSpace symbolWithoutGreaterIdentifier
 
 patternOperator : Parser WS -> ParserI Operator
 patternOperator appargSpace =
@@ -2317,9 +2332,8 @@ sameLineOrIndentedByExactly msg nSpaces =
     LangParserUtils.spacesCustom {forwhat = msg, withNewline=True, minIndentation=Just nSpaces, maxIndentation=Just nSpaces}
   ]
 
-
-expression : SpacePolicy -> Parser Exp
-expression sp =
+expressionGeneral : Bool -> SpacePolicy -> Parser Exp
+expressionGeneral allowGreaterSign sp =
   inContext "expression" <|
     lazy <| \_ ->
       delayedCommitMap (\wsFront binaryExp -> binaryExp wsFront)
@@ -2336,7 +2350,7 @@ expression sp =
             let finalExp = wsExp space0 in
             mapPrecedingWhitespaceWS (\ws -> withInfo ws.val finalExp.start finalExp.start) finalExp
         , operator =
-            operator sp.apparg
+            if allowGreaterSign then operator sp.apparg else operatorWIthoutGreaterSign sp.apparg
         , representation =
             .val >> Tuple.second
         , combine =
@@ -2389,6 +2403,13 @@ expression sp =
                           left.start
                           right.end
         }
+
+expression : SpacePolicy -> Parser Exp
+expression sp = expressionGeneral True sp
+
+expressionWithoutGreater : SpacePolicy -> Parser Exp
+expressionWithoutGreater sp = expressionGeneral False sp
+
 
 --==============================================================================
 -- Top-Level Expressions

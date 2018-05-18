@@ -5,7 +5,6 @@ module LangParserUtils exposing
   , spacesCustom
   , nospace
   , keywordWithSpace
-  , symbolWithSpace
   , spaceSaverKeyword
   , paddedBefore
   , transferInfo
@@ -181,8 +180,8 @@ guardSpace =
       )
       |> andThen
       ( \(offset, source) ->
-          guard "expecting space" <|
-            isOnlySpaces <| String.slice offset (offset + 1) source
+           guard "expecting space or an opening parenthese" <|
+             (\x -> isOnlySpaces x || x == "(") <| String.slice offset (offset + 1) source
       )
     )
 
@@ -191,13 +190,6 @@ keywordWithSpace kword =
   trackInfo <|
     succeed ()
       |. keyword kword
-      |. guardSpace
-
-symbolWithSpace : String -> ParserI ()
-symbolWithSpace sym =
-  trackInfo <|
-    succeed ()
-      |. symbol sym
       |. guardSpace
 
 spaceSaverKeyword : Parser WS -> String -> (WS -> a) -> ParserI a

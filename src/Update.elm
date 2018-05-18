@@ -121,7 +121,8 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
 
      EConst ws num loc widget ->
        case getNum newVal of
-         Err msg -> UpdateCriticalError msg
+         Err msg ->
+           UpdateCriticalError msg
          Ok numv ->
           updateResultSameEnv env <| replaceE__ e <| EConst ws numv loc widget
 
@@ -1249,7 +1250,10 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                      _ -> UpdateCriticalError "extractFirstIn requires regexp, replacement (fun or string) and the string"
                  _ ->
                    case maybeUpdateMathOp op vs oldVal newVal diffs of
-                     Errs msg -> UpdateCriticalError msg
+                     Errs msg ->
+                       UpdateCriticalError msg
+                     Oks LazyList.Nil ->
+                       UpdateFails <| "No way to update computation" ++ Syntax.unparser Syntax.Elm e ++ " with " ++ valToString newVal ++ " (was" ++ valToString oldVal ++ ")"
                      Oks ll ->
                        updateOpMultiple "op" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 spo op newOpArgs sp2) [] vs (LazyList.map (Tuple.mapSecond tupleDiffsToDiffs) ll)
 
@@ -1583,6 +1587,11 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
             ) operandVals newOperands,
             newDiffs)
           ) result
+    (VConst c (oldOut, d), VBase (VString newOut), _) ->
+      case String.toFloat newOut of
+        Err msg -> Oks LazyList.Nil -- We don't know how to reverse it, but it's not a critical error.
+        Ok f ->
+          maybeUpdateMathOp op operandVals oldOutVal (replaceV_ oldOutVal <| VConst c (f, d)) VConstDiffs
     _ -> Errs <|
            "Do not know how to revert computation "
              ++ toString op ++ "("
@@ -1813,8 +1822,8 @@ getNum: Val -> Result String Num
 getNum v =
   case v.v_ of
     VConst _ (num, _) -> Ok num
+    VBase (VString s) -> String.toFloat s
     _ -> Err <| "Cannot replace a number with " ++ valToString v
-
 
 eBaseToVBase eBaseVal =
   case eBaseVal of
