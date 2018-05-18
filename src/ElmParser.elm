@@ -514,14 +514,14 @@ symbolIdentifier =
       , keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|'))
       ]
 
-symbolWithoutGreaterIdentifier : ParserI Ident
-symbolWithoutGreaterIdentifier =
+htmlAttributeSymbolIdentifier : ParserI Ident
+htmlAttributeSymbolIdentifier =
   trackInfo <|
     oneOf
       [ source (symbol "<|")
       , source (symbol "::")
       , source (symbol "||")
-      , keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|' || x == '>'))
+      , keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|' || x == '>' || x == '/'))
       ]
 
 
@@ -1592,9 +1592,9 @@ operator : Parser WS -> ParserI Operator
 operator appargSpace =
   paddedBefore (,) appargSpace symbolIdentifier
 
-operatorWIthoutGreaterSign : Parser WS -> ParserI Operator
-operatorWIthoutGreaterSign appargSpace =
-  paddedBefore (,) appargSpace symbolWithoutGreaterIdentifier
+htmlAttributeOperator : Parser WS -> ParserI Operator
+htmlAttributeOperator appargSpace =
+  paddedBefore (,) appargSpace htmlAttributeSymbolIdentifier
 
 patternOperator : Parser WS -> ParserI Operator
 patternOperator appargSpace =
@@ -2333,7 +2333,7 @@ sameLineOrIndentedByExactly msg nSpaces =
   ]
 
 expressionGeneral : Bool -> SpacePolicy -> Parser Exp
-expressionGeneral allowGreaterSign sp =
+expressionGeneral isHtmlAttribute sp =
   inContext "expression" <|
     lazy <| \_ ->
       delayedCommitMap (\wsFront binaryExp -> binaryExp wsFront)
@@ -2350,7 +2350,7 @@ expressionGeneral allowGreaterSign sp =
             let finalExp = wsExp space0 in
             mapPrecedingWhitespaceWS (\ws -> withInfo ws.val finalExp.start finalExp.start) finalExp
         , operator =
-            if allowGreaterSign then operator sp.apparg else operatorWIthoutGreaterSign sp.apparg
+            if isHtmlAttribute then htmlAttributeOperator sp.apparg else operator sp.apparg
         , representation =
             .val >> Tuple.second
         , combine =
@@ -2405,10 +2405,10 @@ expressionGeneral allowGreaterSign sp =
         }
 
 expression : SpacePolicy -> Parser Exp
-expression sp = expressionGeneral True sp
+expression sp = expressionGeneral False sp
 
 expressionWithoutGreater : SpacePolicy -> Parser Exp
-expressionWithoutGreater sp = expressionGeneral False sp
+expressionWithoutGreater sp = expressionGeneral True sp
 
 
 --==============================================================================
