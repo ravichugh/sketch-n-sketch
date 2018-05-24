@@ -162,7 +162,7 @@ function @id.addAnotherPlayerBet() {
   </span>
 </span>
 
-nomDe j = Html.li [] [] [Html.textNode j.name, ["br", [], []]]
+nomDe j = Html.li [] [] [Html.textNode j.name]
 playersnoms = List.map nomDe players
 playersEnCours = List.filter (\j ->  List.length j.betselfs == currentRound ) players
 playerFromName name =
@@ -178,7 +178,7 @@ playerIndexFromName name =
   <img style="width:50%" src="https://images-cdn.asmodee.us/filer_public/9e/7e/9e7ea2a6-d531-4f3a-b984-4119925d4c9f/dix01_feature_c85e1c.png">
   <img style="float:right;width:50%;" src="https://cf.geekdo-images.com/large/img/QFUbpIeEFamJbgJ_Bs5ejDtF8UA=/fit-in/1024x1024/filters:no_upscale()/pic1003159.jpg">
   <div style="float:right">@(Html.button "Reset" "Display the reset button" displayreset (\x -> if x then False else True))
-  @(if displayreset then button "Reset scores" "Click here to reset scores" (displayreset, players) (\(_, oldPlayers) -> (False, removeScores oldPlayers)) else <span></span>)
+  @(if displayreset then Html.button "Reset scores" "Click here to reset scores" (displayreset, players) (\(_, oldPlayers) -> (False, removeScores oldPlayers)) else <span></span>)
   </div>
   <h1>Dixit Score sheet</h1>,
   To play to Dixit, please enter below the name of the @(List.length players) players. You can add or remove players.
@@ -192,7 +192,7 @@ playerIndexFromName name =
       <td style="""color:@(if len j.betselfs > currentRound then "green" else "black")""">@(j.name)</td>
       <td style="text-align:center">@(toString (Update.freeze (List.sum (j.scores))))</td>
       @(if currentRound < 2 then [] else [<td></td>] ++
-      List.map (\i -> <td>@(Update.freeze i)</td>) j.scores)
+      List.map (\(i, [b,s]) -> <td>@(Update.freeze i)@(if b==0 then "*" else "")</td>) (zip j.scores j.betselfs))
       </tr>) players)</table>
   @(if remainingbets > 0 then betself else 
   let playersWithIndex = zipWithIndex players in
