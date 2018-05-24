@@ -223,14 +223,14 @@ pollInfo personId =
 numMenus = len menus
   
 page =
-  <table cellpadding="0" cellspacing = "0" class="poll textPoll " summary="LARA Thai">
+  <table cellpadding="0" cellspacing="0" class="poll textPoll " summary="LARA Thai">
     <tbody>
-      <tr class = "header date month">
-        <th class = "nonHeader partCount boldText">
+      <tr class="header date month">
+        <th class="nonHeader partCount boldText">
           <div>@(toString (len participants) + " participants")</div>
         </th>
         @(map (\menu -> <th>@menu</th>) menus)
-        <th class = "columnadder"><button onclick="""this.setAttribute('v@numMenus', 'T')""" @([["""v@numMenus""", onChangeAttribute menus (\oldMenus _ -> oldMenus++["""Meal#@numMenus"""])]])>+</button></th>
+        <th class="columnadder"><button onclick="""this.setAttribute('v@numMenus', 'T')""" @([["""v@numMenus""", onChangeAttribute menus (\oldMenus _ -> oldMenus++["""Meal#@numMenus"""])]])>+</button></th>
       </tr>
       <tr></tr>
       @(map pollInfo (indices participants))
@@ -238,7 +238,7 @@ page =
         <td class="pname">
           <label class="hiddenAcc" forid="pname" title="l10n_yourName"></label>
           <input class="form-control" id="pname" maxlength="64" name ="name" placeholder="Your name"
-             onkeypress = """if(event.keyCode == 13) this.setAttribute("v", this.value);"""
+             onkeypress="""if(event.keyCode == 13) this.setAttribute("v", this.value);"""
              type ="text" v=(addPerson participants choix)>
         </td>
         @(map total (indices menus) )

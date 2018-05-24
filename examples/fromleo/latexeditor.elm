@@ -305,7 +305,7 @@ toHtmlWithoutRefs opts tree =
   letrec aux opts revAcc tree = case tree of
     [] -> [List.reverse revAcc, opts]
     (head::rem) -> case head of
-      {tag="block", children=children} ->
+      {tag="block", children} ->
         let newTree = children ++ rem in
         aux opts revAcc newTree
       {tag="rawtext", value=text, pos = pos} ->
@@ -339,14 +339,14 @@ toHtmlWithoutRefs opts tree =
         let [args, remainder] = case cmddef of
           {arity=n} ->
             splitargs n rem
-          {inspect=inspect} ->
+          {inspect} ->
             inspect rem
         in
         let [toAdd, newOpts] = cmddef.toHtml toHtmlWithoutRefs tmpOpt args in
         let newrevAcc = toAdd::revAcc in
         aux newOpts newrevAcc remainder
       
-      {tag="linecomment", value=value} ->
+      {tag="linecomment", value} ->
         let newrevAcc = ["span", [["styles", [["background","#888"], ["color", "#FFF"]]]], [["TEXT", "(" + value + ")"]]]::revAcc in
         aux opts newrevAcc rem
   in 
@@ -455,8 +455,8 @@ latex2html latex =
   }.apply (\x -> toHtml <| parse <| tokens x, latex)
 
 Html.forceRefresh <|
-["span", [["style", [["margin","10px"]]]], [
-["style", [["type", "text/css"]], [["TEXT", """
+<span style="margin:10px">
+<style type="text/css">
 #content {
   font-family: 'Computer Modern Serif';
 }
@@ -515,17 +515,18 @@ latex-sc {
   color: blue;
   opacity: 1;
 }
-"""]]],
-["textarea", [
-   ["style", [["font-family", "monospace"], ["width", "100%"], ["min-height", "200px"]]],
-   ["onchange", "this.textContent = this.value"],
-   ["onkeyup", """if(typeof timer != "undefined") clearTimeout(timer); timer = setTimeout((function(self){ return function() { self.textContent = self.value; } })(this), 2000);"""]]
- , [["TEXT", latex]]],
-["span", [], html """<button type="button" class="btn btn-default btn-sm" onclick="document.execCommand( 'bold',false,null)" contenteditable="false">
-          <span class="glyphicon glyphicon-bold"></span> Bold
-   </button><button type="button" class="btn btn-default btn-sm" onclick="document.execCommand('italic',false,null);" contenteditable="false">
-     <span class="glyphicon glyphicon-italic"></span> Italic
-   </button>
-   """],["br", [], []],
-["div", [["style", [["display", "inline-block"]]], ["id", "content"]],
-latex2html latex]]]
+</style>
+<textarea
+   style="font-family:monospace;width:100%;min-height:200px"
+   onchange="this.textContent = this.value"
+   onkeyup="""if(typeof timer != "undefined") clearTimeout(timer); timer = setTimeout((function(self){ return function() { self.textContent = self.value; } })(this), 2000);"""
+>@latex</textarea>
+<span>
+  <button type="button" class="btn btn-default btn-sm" onclick="document.execCommand( 'bold',false,null)" contenteditable="false">
+    <span class="glyphicon glyphicon-bold"></span> Bold
+  </button><button type="button" class="btn btn-default btn-sm" onclick="document.execCommand('italic',false,null);" contenteditable="false">
+    <span class="glyphicon glyphicon-italic"></span> Italic
+  </button>
+  <br>
+  <div style="display:inline-block" id="content">
+  @(latex2html latex)</div></span></span>
