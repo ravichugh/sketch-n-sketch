@@ -8317,7 +8317,7 @@ playerIndexFromName name =
         List.filterMap (\\(i2, j2) -> if i2 == dealerIndex then Nothing else if nth (nth j.betselfs currentRound) 1 == nth (nth j2.betselfs currentRound) 0 then Just j2.name else Nothing) |>
         String.join \", \" in
       if ayantparie == \"\" then [] else
-      [br, textNode <| j.name + \" made \" + ayantparie + \" to believe it was the card of \" + j.name]
+      [<br>, textNode <| j.name + \" made \" + ayantparie + \" to believe it was the card of \" + j.name]
   in
   let playersWithNewScores = playersWithIndex |>
     List.map (\\(index, player) ->
