@@ -22,6 +22,9 @@ build/out/keyBlocker.js
 build/out/outputCanvas.js
 build/out/solverServer.js
 build/out/img/*
+out/
+build/idea/
+mill.bat
 *swp
 src/*swp
 src/*swo
