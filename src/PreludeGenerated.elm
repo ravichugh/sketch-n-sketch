@@ -2483,6 +2483,7 @@ ListLenses =
     append = append
     zipWithIndex = zipWithIndex
     indexedMap = indexedMap
+    reverse = reverse
   }
 
 --------------------------------------------------------------------------------
@@ -2911,6 +2912,18 @@ Dict = {
     _ -> False
 }
 
+
+Set = {
+  empty = __DictEmpty__
+  fromList l = __DictFromList__ (zip l l)
+  insert k d = __DictInsert__ k k d
+  remove x d = __Dict.remove__ x d
+  member x d = case __DictGet__ x d of
+      Just _ -> True
+      _ -> False
+}
+
+
 --------------------------------------------------------------------------------
 -- String --
 
@@ -3123,6 +3136,12 @@ Maybe =
   in
   { withDefault = withDefault
     withDefaultLazy = withDefaultLazy
+    map f a = case a of
+      Nothing -> Nothing
+      Just x -> Just (f x)
+    andThen f a = case a of
+      Nothing -> Nothing
+      Just x -> f x
   }
 
 -- if we decide to allow types to be defined within (and exported from) modules

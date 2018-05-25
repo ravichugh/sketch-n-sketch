@@ -2221,13 +2221,14 @@ doCallUpdate m =
               let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified.val) "expModified" in
               let _ = Debug.log (EvalUpdate.preludeEnv |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames original") in
               let _ = Debug.log (envModified.val |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames modified") in
-              let _ = Debug.log (UpdateUtils.envDiffsToString EvalUpdate.preludeEnv envModified.val envModified.changes) ("EnvModified") in
+              let envModif = UpdateUtils.envDiffsToString EvalUpdate.preludeEnv envModified.val envModified.changes in
+              let _ = Debug.log envModif ("EnvModified") in
               --let _ = Debug.log (UpdateUtils.diff (\(k, v) -> LangUtils.valToString v) (LangUtils.pruneEnv expModified envModified.val) (LangUtils.pruneEnv expModified EvalUpdate.preludeEnv)
               --     |> UpdateUtils.displayDiff (\(k, v) -> "\n" ++ k ++ " = " ++ LangUtils.valToString v )
               --     ) "envModified"
               --in
 
-              showSolutions [revertChanges "Only solutions modifying the library. Revert?"]
+              showSolutions [revertChanges <| "Only solutions modifying the library. Revert?\n\n"++envModif]
 
         LazyList.Cons _ _ ->
           let filteredResults =

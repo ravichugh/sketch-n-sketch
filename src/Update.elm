@@ -1057,16 +1057,17 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                       (d, v) -> Debug.crash <| "Unexpected diff: " ++ toString d ++ " on val " ++ (Maybe.map valToString v |> Maybe.withDefault "Nothing") ++ " when updating DictFromList -- if it was a VDictElemInsert, the key already existed"
                                     ) ([], []) <| Utils.zipWithIndex listKeyDictKeyValues
                                 in
-                                let (finalListRev, finalDiffsRev) = Dict.foldl (\k v (newListRev, newDiffsRev) ->
+                                let (finalListRev, numberAdded) = Dict.foldl (\k v (newListRev, numberAdded) ->
                                       case v of
                                         VDictElemInsert -> case Dict.get k newDict of
                                           Just newV -> case dictKeyToVal Syntax.Elm k of
-                                            Ok thekey ->  ((thekey, newV)::newListRev, (List.length listKeyDictKeyValues, ListElemInsert 1)::newDiffsRev)
+                                            Ok thekey ->  ((thekey, newV)::newListRev, numberAdded + 1)
                                             Err msg -> Debug.crash <| "Could not get a key out of " ++ toString k ++ " because " ++ msg
                                           _ -> Debug.crash <| "Unexpected VictElemInsert of " ++ toString k ++ " but this key was not found in the updating dictionary " ++ valToString newVal
-                                        _ -> (newListRev, newDiffsRev)
-                                      ) (newListRev, newDiffsRev) dictDiffs
+                                        _ -> (newListRev, numberAdded)
+                                      ) (newListRev, 0) dictDiffs
                                 in
+                                let finalDiffsRev = if numberAdded > 0 then (List.length listKeyDictKeyValues, ListElemInsert numberAdded)::newDiffsRev else newDiffsRev in
                                 let finalValuesList = Vb.list (Vb.tuple2 Vb.identity Vb.identity) (Vb.fromVal keyValuesList) (List.reverse finalListRev) in
                                 let finalDiffsList = VListDiffs <| List.reverse finalDiffsRev in
                                 updateContinue "DictFromList" env keyValuesListE [] keyValuesList finalValuesList finalDiffsList <| \newEnv newKeyValuesListE ->

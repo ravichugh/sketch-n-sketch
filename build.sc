@@ -14,6 +14,7 @@ object SNS extends Module {
   def sourceRoot   = T.sources { src }
   def nativeRoot   = T.sources { src / "Native" }
   def examplesRoot = T.sources { pwd / 'examples } //'
+  def examplesTemplate = T.sources { pwd / 'src / "ExamplesTemplates.elm" } //'
   def leoExamplesRoot = T.sources { pwd / 'examples / 'fromLeo } //'
   def preludeRoot = T.sources { pwd / 'examples / "preludeLeo.elm" } //'
   val outDir = pwd / "build" /"out"
@@ -24,6 +25,7 @@ object SNS extends Module {
   
   def examples = T{
     examplesRoot()
+    examplesTemplate()
     leoExamplesRoot()
     %%("python", pwd/'scripts/"expandTemplate.py", "Examples") //'
   }

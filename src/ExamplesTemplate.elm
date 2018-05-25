@@ -9,6 +9,7 @@ module ExamplesGenerated exposing
   , fromleo_conference_budgetting
   , fromleo_modelviewcontroller
   , fromleo_latexeditor
+  , repl
   , tableOfStatesA
   , tableOfStatesB
   , tableOfStatesC
@@ -282,6 +283,7 @@ LEO_TO_ELM fromleo/dixit
 LEO_TO_ELM christmas_song_3_after_translation
 LEO_TO_ELM fromleo/pizzas_doodle
 LEO_TO_ELM fromleo/universal_number
+LEO_TO_ELM repl
 
 --------------------------------------------------------------------------------
 
@@ -315,6 +317,7 @@ docsCategory =
       , ("Doodle", fromleo_pizzas_doodle)
       , ("Universal numbers", fromleo_universal_number)
       , ("LaTeX Editor", fromleo_latexeditor)
+      , ("REPL", repl)
       -- TODO maybe Conference?
       , ("Lens: Maybe Map", mapMaybeLens)
       , ("Lens: List Map 1", mapListLens_1)

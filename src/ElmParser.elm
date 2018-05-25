@@ -1646,6 +1646,7 @@ moduleNames =
     , "Dict"
     , "Debug"
     , "Maybe"
+    , "Set"
     -- built-in examples
     , "UI" -- MVC
     ]
