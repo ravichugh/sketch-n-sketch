@@ -484,8 +484,8 @@ runBenchmark b = case b of
                   else
                     ImpureGoodies.timedRun <| \_ ->
                     EvalUpdate.doUpdateWithoutLog progExp oldOut newOut) |> \(x, t) -> case x of
-                       Results.Oks (LazyList.Nil) -> Debug.crash <| "No solution for " ++ replacementName
-                       Results.Oks (LazyList.Cons (headUEnv, headUExp) _ as ll) ->
+                       Results.Ok (LazyList.Nil) -> Debug.crash <| "No solution for " ++ replacementName
+                       Results.Ok (LazyList.Cons (headUEnv, headUExp) _ as ll) ->
                          let (allSolutions, timeAllOtherSolutions) = ImpureGoodies.timedRun <| \_ -> LazyList.toList ll in
                          let numAmbiguities = List.length allSolutions in
                          let nonChangingEnv = LazyList.filter (\(env, e) -> List.all (\(i, x) -> x == VUnoptimizedDiffs) env.changes && e.changes /= Nothing) <| LazyList.fromList allSolutions in
@@ -498,7 +498,7 @@ runBenchmark b = case b of
                            Debug.crash <| "In " ++ replacementName++ ", expected a change to the expression, got Nothing\n" ++ (transformValToString replacement newOut)
                          else
                           (newExp.val, newExp.changes |> Utils.fromJust_ "changes",  t, numAmbiguities, timeAllOtherSolutions)
-                       Results.Errs msg -> Debug.crash <| msg ++ "Transform =  " ++ replacementName ++ "\n" ++ (transformValToString replacement newOut)  ++ "\n" ++ unparse progExp
+                       Results.Err msg -> Debug.crash <| msg ++ "Transform =  " ++ replacementName ++ "\n" ++ (transformValToString replacement newOut)  ++ "\n" ++ unparse progExp
                in
                let newProgExp = parse (unparse newProgExp_) |> Utils.fromOk_ in
                --let _ = ImpureGoodies.log (eDiffsToString "" progExp newProgExp newProgExpDiffs) in

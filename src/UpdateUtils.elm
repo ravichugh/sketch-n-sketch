@@ -3,7 +3,7 @@ module UpdateUtils exposing (..)
 import Lang exposing (..)
 import LangUtils exposing (..)
 import Syntax
-import Results exposing (Results(..), ok1, oks)
+import Results exposing (Results, ok1, oks)
 import LazyList exposing (LazyList(..))
 import Dict exposing (Dict)
 import Info exposing (WithInfo)
@@ -452,15 +452,15 @@ onlyOverlappingStartOldNew  subLength startOldNew =
 takeShortest: Results String (List a) -> Results String (List a)
 takeShortest x =
   case x of
-    Errs msg -> Debug.crash "A diff cannot return Err but it did so"
-    Oks ll ->
+    Err msg -> Debug.crash "A diff cannot return Err but it did so"
+    Ok ll ->
       let l = LazyList.toList ll in
       let sizes = List.map List.length l in
       let minsize = List.minimum sizes |> Maybe.withDefault 0 in
       let finallist = List.filterMap (\l -> if List.length l <= minsize then Just l else Nothing) l in
       --let _ = Debug.log "Ambiguities before pruning" (toString l) in
       --let _ = Debug.log "Ambiguities after pruning" (toString finallist) in
-      Oks (LazyList.fromList finallist)
+      Ok (LazyList.fromList finallist)
 
 
 type Diff3Chunk a = Diff3Merged (DiffChunk a) | Diff3Conflict (List (DiffChunk a)) (List (DiffChunk a))
@@ -554,18 +554,18 @@ combineResults ((envo, expo) as original) results =
   case results of
         [] -> ok1 original
         [head] -> head
-        Errs msg::tail ->
+        Err msg::tail ->
           case combineResults original tail of
-            Errs msg2 -> Errs <| msg ++ msg2
+            Err msg2 -> Err <| msg ++ msg2
             anything  -> anything
-        (Oks r1 as head)::Errs msg::tail ->
+        (Ok r1 as head)::Err msg::tail ->
           combineResults original (head::tail)
-        Oks LazyNil :: Oks r2 :: tail -> Oks LazyNil
-        Oks r1 :: Oks LazyNil :: tail -> Oks LazyNil
-        Oks (LazyCons (env1, exp1) lazyTail1):: Oks (LazyCons (env2, exp2) lazyTail2):: tail ->
+        Ok LazyNil :: Ok r2 :: tail -> Ok LazyNil
+        Ok r1 :: Ok LazyNil :: tail -> Ok LazyNil
+        Ok (LazyCons (env1, exp1) lazyTail1):: Ok (LazyCons (env2, exp2) lazyTail2):: tail ->
           let finalEnv = triCombine expo envo env1 env2 in
           let finalExp = mergeExp expo exp1 exp2 in
-          Oks (LazyCons (finalEnv, finalExp) (Lazy.lazy
+          Ok (LazyCons (finalEnv, finalExp) (Lazy.lazy
 -}
 -- Time to merge all possible results. May result in exponential blowup if each result is ambiguous.
 
@@ -1512,7 +1512,7 @@ defaultListDiffs keyOf datatypeNameOf defaultElemModif elems1 elems2 =
 valEqualDiff: Val -> Val -> Bool
 valEqualDiff original modified =
   case defaultVDiffs original modified of
-    Oks (LazyList.Cons Nothing tail) -> True
+    Ok (LazyList.Cons Nothing tail) -> True
     _ -> False
 
 
@@ -1534,7 +1534,7 @@ defaultEnvDiffsRec testEquality recurse identsToCompare elems1 elems2 =
               [] -> ok1 Nothing
               envDiffs -> ok1 <| Just envDiffs
           (((k1, v1) as ehd1)::etl1, ((k2, v2) as ehd2)::etl2) ->
-            if k1 /= k2 then Errs <| "trying to compute a diff on unaligned environments " ++ k1 ++ "," ++ k2 else
+            if k1 /= k2 then Err <| "trying to compute a diff on unaligned environments " ++ k1 ++ "," ++ k2 else
             if not (Set.member k1 identsToCompare) then
               aux (i + 1) identsToCompare revEnvDiffs etl1 etl2
             else if testEquality && valEqualDiff v1 v2 then
@@ -1547,7 +1547,7 @@ defaultEnvDiffsRec testEquality recurse identsToCompare elems1 elems2 =
                 in
                 aux (i + 1) (Set.remove k1 identsToCompare) newRevEnvDiffs etl1 etl2
               ) i k1 identsToCompare etl1 etl2 revEnvDiffs)
-          _ -> Errs <| "Environments do not have the same size: " ++ envToString envToCollect1 ++ ", " ++ envToString envToCollect2
+          _ -> Err <| "Environments do not have the same size: " ++ envToString envToCollect1 ++ ", " ++ envToString envToCollect2
   in aux 0 identsToCompare  [] elems1 elems2
 
 defaultTupleDiffs: (a -> String) -> (a -> a -> Results String (Maybe b)) -> List a -> List a -> Results String (Maybe (TupleDiffs b)) -- lowercase val so that it can be applied to something else?
@@ -1570,7 +1570,7 @@ defaultTupleDiffs keyOf defaultElemModif elems1 elems2 =
                    Just v -> (i, v)::revEnvDiffs
                  in
                  aux (i + 1) newRevEnvDiffs etl1 etl2) i etl1 etl2 revEnvDiffs)
-          _ -> Errs <| "Tuples do not have the same size: " ++ toString l1 ++ ", " ++ toString l2
+          _ -> Err <| "Tuples do not have the same size: " ++ toString l1 ++ ", " ++ toString l2
   in aux 0 [] elems1 elems2
 
 defaultDictDiffs: (Val -> String) -> (Val -> Val -> Results String (Maybe VDiffs)) -> Dict (String, String) Val -> Dict (String, String) Val -> Results String (Maybe VDiffs)
@@ -1590,12 +1590,12 @@ defaultDictDiffs keyOf defaultElemModif elems1 elems2 =
 defaultRecordDiffs: (Val -> String) -> (Val -> Val -> Results String (Maybe VDiffs)) -> Dict String Val -> Dict String Val -> Results String (Maybe VDiffs)
 defaultRecordDiffs keyOf defaultElemModif elems1 elems2 =
   Results.map (\d -> if Dict.isEmpty d then Nothing else Just <| VRecordDiffs d) <| Dict.merge
-    (\k1 v1 acc -> Errs <| "Not allowed to remove a key from record:" ++ k1)
+    (\k1 v1 acc -> Err <| "Not allowed to remove a key from record:" ++ k1)
     (\k v1 v2 acc -> if keyOf v1 == keyOf v2 then acc else acc |> Results.andThen (\acc ->
       defaultElemModif v1 v2 |> Results.map (\mbv ->
         mbv |> Maybe.map (\v ->
          Dict.insert k v acc) |> Maybe.withDefault acc)))
-    (\k2 v2 acc -> Errs <| "Not allowed to insert a key to record:" ++ k2 ++ " " ++ valToString v2)
+    (\k2 v2 acc -> Err <| "Not allowed to insert a key to record:" ++ k2 ++ " " ++ valToString v2)
     elems1
     elems2
     (ok1 Dict.empty)

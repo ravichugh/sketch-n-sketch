@@ -13,7 +13,7 @@ import Utils
 import Eval
 import Syntax
 import Lazy
-import Results exposing (Results(..))
+import Results exposing (Results)
 import LazyList
 import LangUtils exposing (..)
 import ParserUtils
@@ -123,14 +123,14 @@ updateAssert_ checkEnv env exp origOut newOut expectedEnv expectedExpStr state =
     (if checkEnv then envToString env else "") ++ " |- " ++ unparse exp ++ " <-- " ++ valToString newOut ++
     " (was " ++ valToString origOut ++ ")") in
   case UpdateUtils.defaultVDiffs origOut newOut of
-    Errs msg -> fail state <| log state <| "This diff is not allowed:" ++ msg
-    Oks (LazyList.Nil) -> fail state <| "Internal error: no diffs"
-    Oks (LazyList.Cons Nothing _) -> fail state <| log state <| "There was no diff between the previous output and the new output"
-    Oks ll->
+    Err msg -> fail state <| log state <| "This diff is not allowed:" ++ msg
+    Ok (LazyList.Nil) -> fail state <| "Internal error: no diffs"
+    Ok (LazyList.Cons Nothing _) -> fail state <| log state <| "There was no diff between the previous output and the new output"
+    Ok ll->
       let _ = ImpureGoodies.log <| "Diffs observed: " ++ toString (LazyList.toList ll) in
-      case Oks (LazyList.filterMap identity ll) |> Results.andThen (\diffs ->
+      case Ok (LazyList.filterMap identity ll) |> Results.andThen (\diffs ->
         update LazyList.Nil LazyList.Nil (updateContext "initial" env exp origOut newOut diffs)) of
-        Results.Oks (LazyList.Cons (envX, expX) lazyTail as ll) ->
+        Results.Ok (LazyList.Cons (envX, expX) lazyTail as ll) ->
           let _ = LazyList.toList ll in
           --let _ = ImpureGoodies.log <| toString expX.changes in
           --let _ = ImpureGoodies.log <| eDiffsToString "" exp expX.val (expX.changes |> Maybe.withDefault (EConstDiffs EAnyDiffs)) in
@@ -145,9 +145,9 @@ updateAssert_ checkEnv env exp origOut newOut expectedEnv expectedExpStr state =
               LazyList.Nil ->
                 fail state <|
                   log state <| "Expected \n'" ++ expected ++  "'\n, got\n'" ++ obtained ++ "'\n" ++ problemdesc
-        Results.Oks LazyList.Nil ->
+        Results.Ok LazyList.Nil ->
            fail state <| log state <| "Expected \n'" ++ expected ++  "', got no solutions without error" ++ problemdesc
-        Results.Errs msg ->
+        Results.Err msg ->
            fail state <| log state <| "Expected \n'" ++ expected ++  "', got '" ++ msg ++ problemdesc
 updateAssert env exp origOut newOut expectedEnv expectedExpStr =
   gather <| updateAssert_ True env exp origOut newOut expectedEnv expectedExpStr

@@ -1,7 +1,7 @@
 module UpdateStack exposing  (..)
 import Lang exposing (..)
 import Results exposing
-  ( Results(..)
+  ( Results
   , ok1, oks, okLazy
   )
 import LazyList exposing (..)
@@ -197,13 +197,13 @@ updateOpMultiple  hint     env    es          eBuilder             prevLets     
   let aux: Int -> List Output -> Results String (Maybe (TupleDiffs VDiffs))-> Lazy.Lazy (LazyList (List Output, Results String (Maybe (TupleDiffs VDiffs)))) -> UpdateStack
       aux  nth    outputsHead    diffResult                                   lazyTail =
     let continue = case diffResult of
-       Errs msg ->
+       Err msg ->
          \continuation -> UpdateCriticalError msg
-       Oks LazyList.Nil ->
+       Ok LazyList.Nil ->
          \continuation -> UpdateCriticalError "[internal error] Empty diffs in updateOpMultiple"
-       Oks (LazyList.Cons Nothing _) ->
+       Ok (LazyList.Cons Nothing _) ->
          \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple es Nothing)
-       Oks (LazyList.Cons (Just d) tail) ->
+       Ok (LazyList.Cons (Just d) tail) ->
          \continuation -> updateManyMbHeadTail d tail <| \diff ->
            updateContinueMultiple (hint ++ " #" ++ toString nth) env prevLets (Utils.zip3 es prevOutputs outputsHead) diff continuation
     in
@@ -226,8 +226,8 @@ updateOpMultiple  hint     env    es          eBuilder             prevLets     
 updateMany: Results String (Maybe vdiffs) -> (() -> UpdateStack) -> (vdiffs -> UpdateStack) -> UpdateStack
 updateMany diffResult onSame builder =
   case diffResult of
-    Errs msg -> UpdateCriticalError msg
-    Oks ll ->
+    Err msg -> UpdateCriticalError msg
+    Ok ll ->
       case ll of
         LazyList.Nil -> UpdateCriticalError "[internal error] Expected at least one diff, got nothing"
         LazyList.Cons Nothing _ -> onSame ()
@@ -241,8 +241,8 @@ updateManyHeadTail  firstdiff otherdiffs builder =
 updateManys: Results String (List (Maybe vdiffs)) -> (List (Maybe vdiffs) -> UpdateStack) -> UpdateStack
 updateManys diffResult builder =
   case diffResult of
-    Errs msg -> UpdateCriticalError msg
-    Oks ll ->
+    Err msg -> UpdateCriticalError msg
+    Ok ll ->
       case ll of
         LazyList.Nil -> UpdateCriticalError "[internal error] Expected at least one diff, got nothing"
         LazyList.Cons l tail ->

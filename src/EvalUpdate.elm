@@ -15,7 +15,7 @@ import LangUtils exposing (..)
 import Utils exposing (reverseInsert)
 import Syntax exposing (Syntax)
 import ElmParser as Parser
-import Results exposing (Results(..), ok1)
+import Results exposing (Results, ok1)
 import LazyList exposing (LazyList)
 import LangTools exposing (..)
 import ImpureGoodies
@@ -103,7 +103,7 @@ builtinEnv =
                 ([newLeft, newRight, newX], newEnv.changes)
               _ -> Debug.crash "[internal error] >> Environment is empty !!!"
             )
-      _ -> Errs <| ">> expects 3 arguments, got " ++ toString (List.length args)
+      _ -> Err <| ">> expects 3 arguments, got " ++ toString (List.length args)
     )))
   , ("<<", builtinVal "EvalUpdate.<<" <| VFun "<<" ["left", "right", "x"] (\args ->
     case args of
@@ -122,7 +122,7 @@ builtinEnv =
             [(_, newLeft), (_, newRight), (_, newX)] -> ([newLeft, newRight, newX], newEnv.changes)
             _ -> Debug.crash "[internal error] << Environment is empty !!!"
           )
-    _ -> Errs <| "<< expects 3 arguments, got " ++ toString (List.length args)
+    _ -> Err <| "<< expects 3 arguments, got " ++ toString (List.length args)
   )))
   , ("evaluate", builtinVal "EvalUpdate.evaluate" <| VFun "evaluate" ["program"] (oneArg "evaluate" <| \program ->
       case program.v_ of
@@ -159,7 +159,7 @@ builtinEnv =
                    ))
               in
               res
-            _ -> Errs <| "evaluate expects one string, got " ++ LangUtils.valToString oldProgram
+            _ -> Err <| "evaluate expects one string, got " ++ LangUtils.valToString oldProgram
     )
   , ("__updateApp__", builtinVal "EvalUpdate.updateApp" <|
   VFun "__updateApp__" ["{fun,input[,oldOutput],output[,outputDiff]}"] (oneArg "__updateApp__" <| \arg ->
@@ -204,8 +204,8 @@ builtinEnv =
                         Ok (resultingValue, [])
                       Ok (Just newOutDiffs) ->
                         let basicResult = case update <| updateContext "__updateApp__" xyEnv xyExp [] oldOut newVal newOutDiffs of
-                          Errs msg -> Vb.record Vb.string vb (Dict.fromList [("error", msg)])
-                          Oks ll ->
+                          Err msg -> Vb.record Vb.string vb (Dict.fromList [("error", msg)])
+                          Ok ll ->
                              let l = LazyList.toList ll in
                              let lFiltered = List.filter (\(newXYEnv, newExp) ->
                                case newXYEnv.changes of
@@ -296,17 +296,17 @@ builtinEnv =
       case original.v_ of
         VConst _ (content, _) -> -- We make sure no element was inserted and we unwrap the value and the diffs
           case unwrapExpDiffs newVal diffs of
-            Err msg -> Errs msg
-            Ok Nothing -> Oks LazyList.Nil
+            Err msg -> Err msg
+            Ok Nothing -> Ok LazyList.Nil
             Ok (Just Nothing) -> ok1 ([original], [])
             Ok (Just (Just (newContent, ds))) ->
               case String.toFloat newContent of
-                Err msg -> Oks LazyList.Nil
+                Err msg -> Ok LazyList.Nil
                 Ok newFloat -> ok1 ([Vb.const (Vb.fromVal original) newFloat], [(0, VConstDiffs)])
         VBase (VString content) -> -- We make sure no element was inserted and we unwrap the value and the diffs
           case unwrapExpDiffs newVal diffs of
-            Err msg -> Errs msg
-            Ok Nothing -> Oks LazyList.Nil
+            Err msg -> Err msg
+            Ok Nothing -> Ok LazyList.Nil
             Ok (Just Nothing) -> ok1 ([original], [])
             Ok (Just (Just (newContent, ds))) ->
               ok1 ([Vb.string (Vb.fromVal original) newContent], [(0, ds)])
@@ -393,7 +393,7 @@ builtinEnv =
                               ((oldPreName, oldName, oldColon, oldValue, oldPostValue) :: originalStylesTail,
                                (newName, newValue)::updatedStylesTail) ->
                                  case vListDiffsUnapply d |> Maybe.andThen toTupleDiffs of
-                                   Nothing -> Errs "[Cannot add an elemnt inside a style attribute definition]"
+                                   Nothing -> Err "[Cannot add an elemnt inside a style attribute definition]"
                                    Just tupleDiffs ->
                                       let nameDiffs = case diffsAt 0 tupleDiffs of
                                         Nothing -> []
@@ -415,12 +415,12 @@ builtinEnv =
                                       let newOriginalOffset = originalOffset + String.length oldPreName + String.length oldName + String.length oldColon + String.length oldValue + String.length oldPostValue in
                                       (accString ++ newString, newOriginalOffset, revAccDiffs |> reverseInsert nameDiffs |> reverseInsert valueDiffs) |>
                                       aux (i + 1) originalStylesTail updatedStylesTail tailDiffElems
-                              _ -> Errs <| "[Internal error]: the diff is not consistent " ++ valToString oldVal ++ " " ++ valToString newVal ++ " " ++ toString diffs
+                              _ -> Err <| "[Internal error]: the diff is not consistent " ++ valToString oldVal ++ " " ++ valToString newVal ++ " " ++ toString diffs
                   in
                   aux 0 originalStyles updatedStyles diffElems ("", 0, [])
-                (_, Err msg) -> Errs <| "Expected VListDiffs got an error: " ++ msg
-                _ -> Errs <| "Expected VListDiffs and a List, got " ++ toString diffs ++ " and " ++ valToString newVal
-            _ -> Errs <| "__mbstylesplit__ takes a string or a List, got " ++ valToString newVal
+                (_, Err msg) -> Err <| "Expected VListDiffs got an error: " ++ msg
+                _ -> Err <| "Expected VListDiffs and a List, got " ++ toString diffs ++ " and " ++ valToString newVal
+            _ -> Err <| "__mbstylesplit__ takes a string or a List, got " ++ valToString newVal
     )
   ]
 
@@ -437,12 +437,12 @@ twoArgs msg fun args = case args of
 oneArgUpdate: String -> (Val -> a -> b -> c -> Results String e) -> (List Val -> a -> b -> c -> Results String e)
 oneArgUpdate msg fun args a b c = case args of
     [arg] -> fun arg a b c
-    _ -> Errs <| msg ++ " takes 1 argument, got " ++ toString (List.length args)
+    _ -> Err <| msg ++ " takes 1 argument, got " ++ toString (List.length args)
 
 twoArgsUpdate: String -> (Val -> Val -> a -> b -> c -> Results String e) -> (List Val -> a -> b -> c -> Results String e)
 twoArgsUpdate msg fun args a b c = case args of
     [left, right] -> fun left right a b c
-    _ -> Errs <| msg ++ " takes 2 arguments, got " ++ toString (List.length args)
+    _ -> Err <| msg ++ " takes 2 arguments, got " ++ toString (List.length args)
 
 eval env e = Eval.doEval Syntax.Elm env e |> Result.map Tuple.first
 update updateStack = Update.update LazyList.Nil LazyList.Nil updateStack
@@ -471,12 +471,12 @@ doUpdate oldExp oldEnv oldVal newValResult =
       let thediffs = ImpureGoodies.logTimedRun "UpdateUtils.defaultVDiffs (doUpdate) " <| \_ -> UpdateUtils.defaultVDiffs oldVal newVal
       in
       case thediffs of
-        Errs msg -> Errs msg
-        Oks (LazyList.Nil ) -> Errs "[Internal error] expected a diff or an error, got Nil"
-        Oks (LazyList.Cons Nothing _ ) -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
-        Oks ll ->
+        Err msg -> Err msg
+        Ok (LazyList.Nil ) -> Err "[Internal error] expected a diff or an error, got Nil"
+        Ok (LazyList.Cons Nothing _ ) -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
+        Ok ll ->
            ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
-            Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
+            Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
               let previousLets = UpdateStack.keepLets preludeEnv oldEnv in
               update <| updateContext "initial update" preludeEnv oldExp previousLets oldVal newVal diffs)
            )
@@ -487,11 +487,11 @@ doUpdateWithoutLog oldExp oldEnv oldVal newVal =
   let thediffs = UpdateUtils.defaultVDiffs oldVal newVal
   in
   case thediffs of
-    Errs msg -> Errs msg
-    Oks (LazyList.Nil ) -> Errs "[Internal error] expected a diff or an error, got Nil"
-    Oks (LazyList.Cons Nothing _ ) -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
-    Oks ll ->
-        Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
+    Err msg -> Err msg
+    Ok (LazyList.Nil ) -> Err "[Internal error] expected a diff or an error, got Nil"
+    Ok (LazyList.Cons Nothing _ ) -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
+    Ok ll ->
+        Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
          --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal newVal diffs) () in
          let previousLets = UpdateStack.keepLets preludeEnv oldEnv in
          update <| updateContext "initial update" preludeEnv oldExp previousLets oldVal newVal diffs)
@@ -796,11 +796,11 @@ updateExp oldExp oldVal newVal =
   let thediffs = UpdateUtils.defaultVDiffs oldVal newVal
   in
   case thediffs of
-    Errs msg -> Errs msg
-    Oks (LazyList.Nil ) -> Errs "[Internal error] expected a diff or an error, got Nil"
-    Oks (LazyList.Cons Nothing _ ) -> ok1 oldExp
-    Oks ll ->
-        Oks (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
+    Err msg -> Err msg
+    Ok (LazyList.Nil ) -> Err "[Internal error] expected a diff or an error, got Nil"
+    Ok (LazyList.Cons Nothing _ ) -> ok1 oldExp
+    Ok ll ->
+        Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
          --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
          (update <| updateContext "initial update" preludeEnv oldExp [] oldVal newVal diffs)) |>
          Results.map (\(newEnv, newExp) -> newExp.val)

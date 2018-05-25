@@ -94,7 +94,7 @@ import Update exposing (vStr, vList)
 import UpdateUtils
 import UpdateStack
 import EvalUpdate
-import Results exposing (Results(..))
+import Results exposing (Results)
 import LazyList
 import Utils
 import Keys
@@ -2196,11 +2196,11 @@ doCallUpdate m =
         }
   in
   case updatedExpResults of
-    Errs msg ->
+    Err msg ->
       let _ = Debug.log msg () in
       showSolutions [revertChanges ("Error while updating: " ++ msg ++ ". Revert?")]
 
-    Oks solutions ->
+    Ok solutions ->
       let _ = Debug.log "Filtering solutions" () in
       let solutionsNotModifyingEnv =
          LazyList.filter

@@ -21,7 +21,7 @@ import HTMLValParser
 import UpdateRegex exposing (evalRegexExtractFirstIn)
 import UpdateStack
 import UpdateUtils
-import Results exposing (Results(..), ok1)
+import Results exposing (Results, ok1)
 import LazyList
 import ValBuilder as Vb
 import ValUnbuilder as Vu

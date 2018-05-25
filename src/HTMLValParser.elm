@@ -7,7 +7,7 @@ import LangUtils exposing (valToString)
 import LangParserUtils exposing (explodeStyleValue)
 import UpdateUtils
 import Utils
-import Results exposing (Results(..))
+import Results exposing (Results)
 import ValUnbuilder as Vu
 import ValBuilder as Vb
 import Regex

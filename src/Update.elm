@@ -15,7 +15,7 @@ import Syntax exposing (Syntax)
 import LazyList exposing (LazyList)
 import ParserUtils
 import Results exposing
-  ( Results(..)
+  ( Results
   , ok1, oks, okLazy
   )
 import MissingNumberMethods exposing (..)
@@ -106,13 +106,13 @@ update callbacks forks updateStack =
     UpdateFails msg -> -- Let's explore other solutions. If there are none, return this error.
       case forks of -- Let's consume the stack !
         LazyList.Nil ->
-          Errs msg
+          Err msg
         LazyList.Cons (Fork msgFork newUpdateStack callbacks2 forks2) lazyTail ->
           --let _ = Debug.log ("Got a non-critical error (" ++ msg ++ ") but there are some forks available... testing the next one: " ++ msgFork) () in
           update callbacks2 (LazyList.appendLazy forks2 lazyTail) newUpdateStack
 
     UpdateCriticalError msg -> -- Immediately stops without looking for new solutions
-      Errs msg
+      Err msg
 
 getUpdateStackOp : Env -> Exp -> PrevLets -> PrevOutput -> Output -> VDiffs -> UpdateStack
 getUpdateStackOp env e prevLets oldVal newVal diffs =
@@ -909,9 +909,9 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                            updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
                               (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
                            case updateDef v2s oldVal newVal vdiffs of
-                             Errs msg -> UpdateCriticalError msg
-                             Oks LazyList.Nil -> UpdateFails <| "not solution for updating " ++ name
-                             Oks ll ->
+                             Err msg -> UpdateCriticalError msg
+                             Ok LazyList.Nil -> UpdateFails <| "not solution for updating " ++ name
+                             Ok ll ->
                                let llWithDiffResult = ll |> LazyList.map (\(outputs, diffs) ->
                                  let resMaybeDiffsOffsetted = UpdateUtils.offset 1 diffs in
                                  (v1::outputs, ok1 <| Just <| resMaybeDiffsOffsetted)) in
@@ -1242,19 +1242,19 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                    case (vs, opArgs) of
                      ([regexpV, stringV], [regexpE, stringE]) ->
                        case UpdateRegex.updateRegexExtractFirstIn regexpV stringV oldVal newVal of
-                         Errs msg -> UpdateCriticalError msg
-                         Oks ll ->
+                         Err msg -> UpdateCriticalError msg
+                         Ok ll ->
                            let llWithDiffs = LazyList.map (\newStringV -> (newStringV, UpdateUtils.defaultVDiffs stringV newStringV)) ll in
                            updateAlternatives "extractFirstIn" env stringE [] stringV llWithDiffs <| \newUpdatedEnv newStringE ->
                                updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [regexpE, newStringE.val] sp2) (UpdateUtils.wrap 1 newStringE.changes)
                      _ -> UpdateCriticalError "extractFirstIn requires regexp, replacement (fun or string) and the string"
                  _ ->
                    case maybeUpdateMathOp op vs oldVal newVal diffs of
-                     Errs msg ->
+                     Err msg ->
                        UpdateCriticalError msg
-                     Oks LazyList.Nil ->
+                     Ok LazyList.Nil ->
                        UpdateFails <| "No way to update computation" ++ Syntax.unparser Syntax.Elm e ++ " with " ++ valToString newVal ++ " (was" ++ valToString oldVal ++ ")"
-                     Oks ll ->
+                     Ok ll ->
                        updateOpMultiple "op" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 spo op newOpArgs sp2) [] vs (LazyList.map (Tuple.mapSecond tupleDiffsToDiffs) ll)
 
      ECase sp1 input branches sp2 ->
@@ -1369,7 +1369,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
          Ok (v1,sp1) ->
            case evalTBranches syntax env (e::bt) v1 tbranches of
              -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
-             Ok (Just (v2,sp2)) -> UpdateCriticalError "Typecase not updatable at this point"--Oks <| retVBoth [v2] (v2, sp1 ++ sp2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+             Ok (Just (v2,sp2)) -> UpdateCriticalError "Typecase not updatable at this point"--Ok <| retVBoth [v2] (v2, sp1 ++ sp2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
              UpdateCriticalError s              -> UpdateCriticalError s
              _                  -> UpdateCriticalError "Typecase not updatable at this point" --errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive typecase statement"
      --}
@@ -1382,8 +1382,8 @@ updateRec: LazyList HandlePreviousResult -> LazyList Fork -> UpdateStack -> Lazy
 updateRec callbacks forks updateStack =
   --ImpureGoodies.logTimedRun "Update.updateRec" <| \_ ->
   case update callbacks forks updateStack of
-    Oks l -> l
-    Errs msg -> LazyList.Nil
+    Ok l -> l
+    Err msg -> LazyList.Nil
 
 interpreterListToList: String -> Val -> Result String (List Val)
 interpreterListToList msg v = case v.v_ of
@@ -1441,7 +1441,7 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                       if start < saLength && end > saLength then -- We need to split the diffs, it cannot encompass two positions
                         [aux offset revForSa (StringUpdate start saLength 0 ::StringUpdate saLength end replacement ::diffsTail),
                          aux offset revForSa (StringUpdate start saLength replacement ::StringUpdate saLength end 0 ::diffsTail)] |>
-                           Results.projOk |> Results.andThen (LazyList.fromList >> Oks)
+                           Results.projOk |> Results.andThen (LazyList.fromList >> Ok)
                       else if start > saLength || start == saLength && end > start then -- The diff happens to the right of saLength
                         let indexCutNew = saLength + offset in
                         let newSa = replaceV_ oldOutVal <| VBase <| VString <| String.left     indexCutNew newOut in
@@ -1481,12 +1481,12 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                 case mbvdiff of
                   Just (VStringDiffs d) -> aux 0 [] d
                   Just dd ->
-                    Errs <| "Expected VStringDiffs 3, got " ++ toString dd
+                    Err <| "Expected VStringDiffs 3, got " ++ toString dd
                   Nothing ->
                     ok1 ([oldOutVal, newOutVal], [])
               )
-            o -> Errs <| "This operation is not supported for strings : " ++ toString o
-        o -> Errs <| "Expected two strings, got " ++ toString o ++ " -- actually (to update the operation " ++ (operandVals |> List.map valToString |> String.join " + ") ++ valToString oldOutVal ++ " <- " ++ valToString newOutVal ++ ")"
+            o -> Err <| "This operation is not supported for strings : " ++ toString o
+        o -> Err <| "Expected two strings, got " ++ toString o ++ " -- actually (to update the operation " ++ (operandVals |> List.map valToString |> String.join " + ") ++ valToString oldOutVal ++ " <- " ++ valToString newOutVal ++ ")"
 
     (VConst _ (oldOut, _), VConst _ (newOut, _), _) ->
       if oldOut == newOut then ok1 (operandVals, []) else
@@ -1498,7 +1498,7 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
             )
         |> Utils.projJusts in
       case operands of
-        Nothing -> Errs <| "Operands do not form a list of numbers: " ++ toString operandVals
+        Nothing -> Err <| "Operands do not form a list of numbers: " ++ toString operandVals
         Just operands ->
           let autoDiff: Num -> Num -> Results String (Num, Num) -> Results String (List Num, TupleDiffs VDiffs)
               autoDiff l r res = res |> Results.map (\(newL, newR) ->
@@ -1536,14 +1536,14 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                                         else if newOut == -1 && l == -1 then
                                           if r > 0 then oks [(l, r - 1), (l, r + 1)]
                                           else ok1 (l, r + 1)
-                                        else  Errs "No way to invert l^r <-- out where l < 0, r is even, out < 0 and out /= -1"
+                                        else  Err "No way to invert l^r <-- out where l < 0, r is even, out < 0 and out /= -1"
                                       else -- r is odd, so we preserve the negative sign.
                                         if newOut >= 0 then ok1 (newOut ** (1/r), r) else ok1 (0 - ( 0 - newOut) ** (1/r), r)
                                     else if l >= 0 then
                                       if newOut > 0 then oks [(newOut ** (1 / r), r), (l, logBase l newOut)]
                                       else if floor (1 / r) == ceiling (1/r) && 1/r < 0 then ok1 (0 - (-newOut) ** (1 / r), r)
-                                      else Errs "No way to invert l^r <-- out where l >= 0, out < 0 and 1/r not an integer or not < 0"
-                                    else Errs "No way to invert l^r <-- out where l < 0 and r < 0 or r is not an integer"
+                                      else Err "No way to invert l^r <-- out where l >= 0, out < 0 and 1/r not an integer or not < 0"
+                                    else Err "No way to invert l^r <-- out where l < 0 and r < 0 or r is not an integer"
                 (Mod,     [l,r]) -> let newL = l + newOut - oldOut in
                                     ok1 ([newL, r], if newL /= l then [(0, VConstDiffs)] else [])
                 (ArcTan2, [l,r]) -> -- We keep the same radius but change the angle
@@ -1576,8 +1576,8 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                 (Ceil,    [n])   -> autoDiff1 n <| ok1 (n + newOut - oldOut)
                 (Round,   [n])   -> autoDiff1 n <| ok1 (n + newOut - oldOut)
                 (Sqrt,    [n])   -> autoDiff1 n <| ok1 (newOut * newOut)
-                (Pi,      [])    -> if newOut == pi then ok1 ([], []) else Errs <| "Pi's value is 3.14159... and cannot be changed"
-                _                -> Errs <| "Not the correct number of arguments for " ++ toString op ++ "(" ++ toString operandVals ++ ")"
+                (Pi,      [])    -> if newOut == pi then ok1 ([], []) else Err <| "Pi's value is 3.14159... and cannot be changed"
+                _                -> Err <| "Not the correct number of arguments for " ++ toString op ++ "(" ++ toString operandVals ++ ")"
           in
           Results.map (\(newOperands, newDiffs) ->
             (List.map2 (\original newNumber ->
@@ -1589,10 +1589,10 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
           ) result
     (VConst c (oldOut, d), VBase (VString newOut), _) ->
       case String.toFloat newOut of
-        Err msg -> Oks LazyList.Nil -- We don't know how to reverse it, but it's not a critical error.
+        Err msg -> Ok LazyList.Nil -- We don't know how to reverse it, but it's not a critical error.
         Ok f ->
           maybeUpdateMathOp op operandVals oldOutVal (replaceV_ oldOutVal <| VConst c (f, d)) VConstDiffs
-    _ -> Errs <|
+    _ -> Err <|
            "Do not know how to revert computation "
              ++ toString op ++ "("
              ++ String.join ", " (List.map valToString operandVals)
