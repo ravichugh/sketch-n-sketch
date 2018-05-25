@@ -2897,7 +2897,7 @@ Regex =
 
 Dict = {
   empty = __DictEmpty__
-  remove x d = __Dict.remove__ x d
+  remove x d = __DictRemove__ x d
   get x d = __DictGet__ x d
   apply d x = case __DictGet__ x d of
     Just x -> x
