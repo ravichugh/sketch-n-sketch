@@ -459,19 +459,20 @@ unparse e =
         ++ unparse functionBinding
       in
       case parameters of
-        [p] -> case p.val.p__ of
-          PVar _ " $implicitcase" _ -> case functionBinding.val.e__ of
-            ECase wsBefore examinedExpression branches wsBeforeOf -> case examinedExpression.val.e__ of
-              EVar _ " $implicitcase" ->
+        (p::_) -> if pVarUnapply p == Just ElmParser.implicitVarName then
+          case functionBinding.val.e__ of
+            ECase wsBefore examinedExpression branches wsBeforeOf -> if eVarUnapply examinedExpression == Just ElmParser.implicitVarName then
                 unparse (replaceE__ functionBinding <| ECase wsBefore (replaceE__ examinedExpression <| EVar space0 "") branches wsBeforeOf)
-              _ -> default
+              else default
             ESelect _ selected wsBeforeDot wsAfterDot name ->
               let res = unparse  functionBinding in
-              if String.startsWith " $implicitcase" res then
-                wsBeforeFun.val ++ String.dropLeft 14 res
+              if String.startsWith ElmParser.implicitVarName res then
+                wsBeforeFun.val ++ String.dropLeft (String.length ElmParser.implicitVarName) res
               else default
+            ERecord wsBefore Nothing elems wsBeforeEnd ->
+              wsBeforeFun.val ++ "(" ++ String.repeat (List.length elems - 2) "," ++ ")"
             _ -> default
-          _ -> default
+          else default
         _ -> default
 
     EApp wsBefore function arguments appType _ ->
@@ -748,14 +749,14 @@ getParametersBinding binding_  =
        EFun _ parameters functionBinding _ ->
          let default = (parameters, functionBinding) in
          case parameters of
-            [p] -> case p.val.p__ of
-              PVar _ " $implicitcase" _ -> case functionBinding.val.e__ of
-                ECase wsBefore examinedExpression branches wsBeforeOf -> case examinedExpression.val.e__ of
-                  EVar _ " $implicitcase" ->
+            [p] -> if pVarUnapply p == Just ElmParser.implicitVarName then
+                case functionBinding.val.e__ of
+                ECase wsBefore examinedExpression branches wsBeforeOf ->
+                  if eVarUnapply examinedExpression == Just ElmParser.implicitVarName then
                     ([], binding_)
-                  _ -> default
+                  else default
                 _ -> default
-              _ -> default
+              else default
             _ -> default
        _ ->
         ([], binding_)

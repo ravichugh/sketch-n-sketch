@@ -2056,6 +2056,10 @@ vRecordTupleUnapply v = case v.v_ of
     )
   _ -> Nothing
 
+pVarUnapply p = case p.val.p__ of
+  PVar _ s _ -> Just s
+  _ -> Nothing
+
 -- note: dummy ids...
 -- vTrue    = vBool True
 -- vFalse   = vBool False

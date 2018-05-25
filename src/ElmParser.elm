@@ -16,6 +16,7 @@ module ElmParser exposing
   , clearAllIds
   , freshen
   , maxId
+  , implicitVarName
   )
 
 import Char
@@ -44,6 +45,8 @@ import ImpureGoodies
 --==============================================================================
 --= Helpers
 --==============================================================================
+
+implicitVarName = " $implicitcase"
 
 --------------------------------------------------------------------------------
 -- Lists
@@ -346,10 +349,12 @@ genericTuple
      , tagger : String -> t
      , one : WS -> t -> WS -> r
      , record : WS -> List (WS, WS, Ident, WS, t) -> WS -> r
+     , implicitFun: Maybe (Ident -> (pvar, t), WS -> List pvar -> r -> r)
      }
   -> ParserI (WS -> r)
-genericTuple { term, tagger, one, record } =
+genericTuple { term, tagger, one, record, implicitFun } =
   let
+    combiner:(t, List (WS, t), WS)       -> WS -> r
     combiner (fst, rest, wsBeforeEnd) wsBefore =
       if List.isEmpty rest then
         one wsBefore fst wsBeforeEnd
@@ -369,6 +374,7 @@ genericTuple { term, tagger, one, record } =
       in
         record wsBefore (ctorEntry :: firstEntry :: restEntries) wsBeforeEnd
 
+    combinerZero: WS -> WS -> r
     combinerZero wsBeforeEnd wsBefore =
       let
         name =
@@ -377,14 +383,23 @@ genericTuple { term, tagger, one, record } =
           Lang.ctor tagger Lang.TupleCtor name
       in
       record wsBefore [ctorEntry] wsBeforeEnd
+
+    implicitTupling = flip Maybe.map implicitFun <| \(identToPvarVar, funBuilder) numberOfCommas wsBefore ->
+      let (firstPvar, firstVar) = identToPvarVar <| implicitVarName in
+      let (restPvar, restVar) = List.range 1 numberOfCommas |> List.map (\i ->
+           implicitVarName ++ toString i
+        ) |> List.map identToPvarVar |> List.unzip
+      in
+      funBuilder wsBefore (firstPvar::restPvar) (combiner (firstVar, (List.map ((,) space0) restVar), space0) space0)
+
   in
     lazy <| \_ ->
       delayedCommitMap (\pos posToParens -> posToParens pos)
         getPos
-      (succeed identity
-      |. symbol "("
-      |= setStartInfo (oneOf [
-          transferInfo combiner
+        (succeed identity
+      |. symbol "(" -- Here we loose the start information (and recover it using setStartInfo) but we gain in efficiency..
+      |= (oneOf <| [setStartInfo (oneOf [
+          transferInfo combiner -- One or more elements
             ( trackInfo <|
                 succeed (,,)
 
@@ -399,12 +414,17 @@ genericTuple { term, tagger, one, record } =
                   |= spaces
                   |. symbol ")"
             ),
-          transferInfo combinerZero
+          transferInfo combinerZero -- Unit ()
           (trackInfo <| (
             succeed identity
             |= spaces
             |. symbol ")"))
-        ]))
+        ])] ++ (case implicitTupling of
+          Nothing -> []
+          Just commasToImplicitFun ->
+            [setStartInfo (trackInfo <| map (String.length >> commasToImplicitFun)
+                 (keep oneOrMore (\c -> c == ',')
+              |. symbol ")"))])))
 
 --------------------------------------------------------------------------------
 -- Block Helper (for types) TODO
@@ -1057,6 +1077,7 @@ tuplePattern =
           , one = \wsBefore innerPattern wsBeforeEnd -> PParens wsBefore innerPattern wsBeforeEnd
           , record =
               PRecord
+          , implicitFun = Nothing
           }
 
 --------------------------------------------------------------------------------
@@ -1830,20 +1851,19 @@ caseExpression =
         mapWSExp_ <|
           transferInfo
             ( \(examinedExpression, wsBeforeOf, branches) wsBefore ->
-                case examinedExpression.val.e__ of
-                  EVar _ " $implicitcase" -> -- Needs to be wrapped in a lambda
-                    EFun space1 [withDummyPatInfo <| PVar space0 " $implicitcase" noWidgetDecl] (
+                if eVarUnapply examinedExpression == Just implicitVarName then
+                    EFun space1 [withDummyPatInfo <| PVar space0 implicitVarName noWidgetDecl] (
                       withInfo (exp_ <| ECase wsBefore examinedExpression branches wsBeforeOf)
                         wsBefore.start wsBeforeOf.end
                       ) space0
-                  _ -> ECase wsBefore examinedExpression branches wsBeforeOf
+                 else ECase wsBefore examinedExpression branches wsBeforeOf
             )
             ( trackInfo <|
                 delayedCommit (keywordWithSpace "case") <|
                   succeed (,,)
                     |= oneOf [
                          expression allSpacesPolicy,
-                         succeed (withDummyExpInfo <| EVar space1 " $implicitcase") -- Unparsable var
+                         succeed (withDummyExpInfo <| EVar space1 implicitVarName) -- Unparsable var
                        ]
                     |= spaces
                     |. keyword "of"
@@ -1952,6 +1972,8 @@ tuple =
                 ERecord ws1 Nothing entries ws2
           , one =
               \wsBefore innerExpression wsBeforeEnd -> EParens wsBefore innerExpression Parens wsBeforeEnd
+          , implicitFun =
+              Just (\ident -> (pVar ident, eVar ident), \wsBefore pvars body -> EFun wsBefore pvars (withDummyExpInfo body) space0)
           }
 
 --------------------------------------------------------------------------------
@@ -2070,8 +2092,8 @@ addSelections tolerateSpaces appargSpace parser =
 implicitSelectionFun: Parser (WS -> Exp)
 implicitSelectionFun =
   succeed (\{val,start,end} initSpace ->
-    withInfo (exp_ <| EFun initSpace [withInfo (pat_ <| PVar space0 " $implicitcase" noWidgetDecl) start start]
-    (List.foldl (\sel updatedExp -> sel updatedExp) (\wsBefore -> withInfo (exp_ <| EVar wsBefore " $implicitcase") start start) val space1) space0) start end
+    withInfo (exp_ <| EFun initSpace [withInfo (pat_ <| PVar space0 implicitVarName noWidgetDecl) start start]
+    (List.foldl (\sel updatedExp -> sel updatedExp) (\wsBefore -> withInfo (exp_ <| EVar wsBefore implicitVarName) start start) val space1) space0) start end
   )
   |= (trackInfo <| repeat oneOrMore (selection False nospace))
 
