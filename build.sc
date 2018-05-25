@@ -14,6 +14,8 @@ object SNS extends Module {
   def sourceRoot   = T.sources { src }
   def nativeRoot   = T.sources { src / "Native" }
   def examplesRoot = T.sources { pwd / 'examples } //'
+  def leoExamplesRoot = T.sources { pwd / 'examples / 'fromLeo } //'
+  def preludeRoot = T.sources { pwd / 'examples / "preludeLeo.elm" } //'
   val outDir = pwd / "build" /"out"
   val outSNS = outDir / "sns.js"
   
@@ -22,12 +24,19 @@ object SNS extends Module {
   
   def examples = T{
     examplesRoot()
+    leoExamplesRoot()
     %%("python", pwd/'scripts/"expandTemplate.py", "Examples") //'
+  }
+  
+  def prelude = T{
+    preludeRoot()
+    %%("python", pwd/'scripts/"expandTemplate.py", "Prelude") //'
   }
   
   def all = T{
     packages()
     examples()
+    prelude()
     sourceRoot()
     stderr(%%(ELM_MAKE,"Main.elm", "--output", outSNS)) match {
       case Left(msg) =>

@@ -2084,10 +2084,10 @@ LensLess =
       }
     String =
       let strToInt =
-        let d = dict [(\"0\", 0), (\"1\", 1), (\"2\", 2), (\"3\", 3), (\"4\", 4), (\"5\", 5), (\"6\", 6), (\"7\", 7), (\"8\", 8), (\"9\", 9)] in
+        let d = __DictFromList__ [(\"0\", 0), (\"1\", 1), (\"2\", 2), (\"3\", 3), (\"4\", 4), (\"5\", 5), (\"6\", 6), (\"7\", 7), (\"8\", 8), (\"9\", 9)] in
         letrec aux x =
           case extractFirstIn \"^([0-9]*)([0-9])$\" x of
-            Just [init, last] -> (aux init)*10 + case get d last of
+            Just [init, last] -> (aux init)*10 + case __DictGet__ d last of
               Just x -> x
               Nothing -> \"\"
             Nothing -> 0
@@ -2888,17 +2888,18 @@ Regex =
 -- Dict --
 
 Dict = {
-  remove x d = remove x d
-  get x d = get x d
-  apply d x = case get x d of
+  empty = __DictEmpty__
+  remove x d = __Dict.remove__ x d
+  get x d = __DictGet__ x d
+  apply d x = case __DictGet__ x d of
     Just x -> x
     _ -> error (\"Expected element \" + toString x + \" in dict, got nothing\")
-  insert k v d = insert k v d
-  fromList l = dict l
-  member x d = case get x d of
+  insert k v d = __DictInsert__ k v d
+  fromList l = __DictFromList__ l
+  member x d = case __DictGet__ x d of
     Just _ -> True
     _ -> False
-  contains x d = case get x d of
+  contains x d = case __DictGet__ x d of
     Just _ -> True
     _ -> False
 }

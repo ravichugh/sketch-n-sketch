@@ -308,10 +308,11 @@ keywords =
     , "def"
     , "defrec"
     , "typ"
-    , "empty"
-    , "insert"
-    , "get"
-    , "remove"
+    , "__DictEmpty__"
+    , "__DictInsert__"
+    , "__DictGet__"
+    , "__DictRemove__"
+    , "__DictFromList__"
     , "debug"
     , "noWidgets"
     ]
@@ -728,10 +729,10 @@ operator =
               succeed Pi
                 |. keyword "pi"
             , succeed DictEmpty
-                |. keyword "empty"
+                |. keyword "__DictEmpty__"
               -- Non-unary operators
             , succeed DictFromList
-                |. keyword "dict"
+                |. keyword "__DictFromList__"
             , succeed Cos
                 |. keywordWithSpace "cos"
             , succeed Sin
@@ -771,11 +772,11 @@ operator =
             , succeed ArcTan2
                 |. keywordWithSpace "arctan2"
             , succeed DictInsert
-                |. keywordWithSpace "insert"
+                |. keywordWithSpace "__DictInsert__"
             , succeed DictGet
-                |. keywordWithSpace "get"
+                |. keywordWithSpace "__DictGet__"
             , succeed DictRemove
-                |. keywordWithSpace "remove"
+                |. keywordWithSpace "__DictRemove__"
             , succeed DebugLog
                 |. keywordWithSpace "debug"
             , succeed NoWidgets

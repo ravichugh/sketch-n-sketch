@@ -7371,7 +7371,7 @@ replaceVariables variablesDict string =
     let key = nth m.group 1 in
     case Dict.get key variablesDict of
       Nothing -> m.match
-      Just definition -> replaceVariables (remove key variablesDict) definition
+      Just definition -> replaceVariables (Dict.remove key variablesDict) definition
   ) string
 
 minnum = 1
@@ -7509,7 +7509,7 @@ translate options language translations content =
               \"\"\"<span style='outline:lightgreen 2px solid;' title='@key'>@definition</span>\"\"\"
             else definition
          in
-         replaceVariables (remove key translationDict) finaldefinition
+         replaceVariables (Dict.remove key translationDict) finaldefinition
     ) string
   in
   letrec freshVarName name i dictionary =
@@ -8461,7 +8461,7 @@ replaceVariables translationDict string =
             \"\"\"<span style='outline:lightgreen 2px solid;' title='@key'>@definition</span>\"\"\"
           else definition
        in
-       replaceVariables (remove key translationDict) finaldefinition
+       replaceVariables (Dict.remove key translationDict) finaldefinition
   ) string
 
 freshVarName name i dictionary =

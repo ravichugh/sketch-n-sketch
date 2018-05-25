@@ -70,7 +70,7 @@ translate options language translations content =
               """<span style='outline:lightgreen 2px solid;' title='@key'>@definition</span>"""
             else definition
          in
-         replaceVariables (remove key translationDict) finaldefinition
+         replaceVariables (Dict.remove key translationDict) finaldefinition
     ) string
   in
   letrec freshVarName name i dictionary =

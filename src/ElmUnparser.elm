@@ -343,9 +343,9 @@ unparseOp op =
     Pi ->
       "pi"
     DictEmpty ->
-      "empty"
+      "__DictEmpty__"
     DictFromList ->
-      "dict"
+      "__DictFromList__"
     Cos ->
       "cos"
     Sin ->
@@ -385,11 +385,11 @@ unparseOp op =
     ArcTan2 ->
       "arctan2"
     DictInsert ->
-      "insert"
+      "__DictInsert__"
     DictGet ->
-      "get"
+      "__DictGet__"
     DictRemove ->
-      "remove"
+      "__DictRemove__"
     DebugLog ->
       "debug"
     NoWidgets ->

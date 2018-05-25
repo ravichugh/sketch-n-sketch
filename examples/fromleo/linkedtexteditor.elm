@@ -42,7 +42,7 @@ replaceVariables variablesDict string =
     let key = nth m.group 1 in
     case Dict.get key variablesDict of
       Nothing -> m.match
-      Just definition -> replaceVariables (remove key variablesDict) definition
+      Just definition -> replaceVariables (Dict.remove key variablesDict) definition
   ) string
 
 minnum = 1

@@ -1548,9 +1548,9 @@ opFromIdentifier identifier =
   case identifier of
     "pi" ->
       Just Pi
-    "empty" ->
+    "__DictEmpty__" ->
       Just DictEmpty
-    "dict" ->
+    "__DictFromList__" ->
       Just DictFromList
     "cos" ->
       Just Cos
@@ -1590,11 +1590,11 @@ opFromIdentifier identifier =
       Just Pow
     "arctan2" ->
       Just ArcTan2
-    "insert" ->
+    "__DictInsert__" ->
       Just DictInsert
-    "get" ->
+    "__DictGet__" ->
       Just DictGet
-    "remove" ->
+    "__DictRemove__" ->
       Just DictRemove
     "debug" ->
       Just DebugLog

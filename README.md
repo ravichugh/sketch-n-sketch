@@ -26,15 +26,15 @@ and to try out the latest release.
 
 ## Quick Syntax Reference
 
-TODO explain Elm-like syntax... Pick Little/Leo as a name..
+We support a (almost) superset of Elm Syntax.
 
 ```
   program  ::=  x1 = e1; ...; xn = en; e
             |   x1 = e1; ...; xn = en     -- where xi = main for some i
 
   e  ::=
-      |   n
-      |   s
+      |   constant
+      |   variable
       |   \p -> e
       |   \p1 ... pn -> e
       |   e1 e2
@@ -42,8 +42,8 @@ TODO explain Elm-like syntax... Pick Little/Leo as a name..
       |   e2 |> e1                  -- infix reverse application
       |   e1 e2 e3 ... en
       |   opn e1 ... en
-      |   L p = e1 in e2
-      |   L x p1 ... pn = e1 in e2
+      |   Let p = e1 in e2
+      |   Let x p1 ... pn = e1 in e2
       |   if e1 then e2 else e3
       |   case e of p1 -> e1; ...; pn -> en
       |   e1 :: e2
@@ -52,13 +52,21 @@ TODO explain Elm-like syntax... Pick Little/Leo as a name..
       |   (e1, ..., en)
       |   {f1 = e1; ...; fn = en}
       |   e.f
-      |   TODO regular expressions
-      |   TODO eval
-      |   -- single-line-comment; e
-      |   #option value e
+      |   #option:value
+          e
       |   (e)
+      |   ()
 
-  L  ::=  let | letrec
+  Let  ::=  let | letrec
+  
+  p  ::= constant
+       | variable
+       | p as variable
+       | [p1, ..., pn]
+       | (p1, ..., pn)
+       | p1 :: pn
+       | {f1 = p1, ... fn = pn}
+  opn ::= 
 ```
 
 <!-- no types for now... -->
@@ -108,7 +116,13 @@ By convention, the `main` definition is often the last top-level definition.
       |   """S"""             -- long-string literals
 ```
 
-TODO describe long-string literals S
+#### Long string literals with interpolation
+
+    """Here @y @x.hello @(let y = "2" in y)
+    This is on a second line"""
+
+is roughly equivalent to `"Here " + S y + " " + S x.hello + " " + S (let y = "2" in y) + "\nThis is on a second line"`
+where S converts its argument to a string if it is not.
 
 ### Primitive Operators
 
@@ -117,6 +131,7 @@ TODO describe long-string literals S
       |   op0
       |   op1 e1
       |   op2 e1 e2
+      |   e1 opi e2
 ```
 
 ```
@@ -126,15 +141,24 @@ TODO describe long-string literals S
         |   toString
         |   sqrt
         |   explode             : String -> List String
-        |   ...
-  op2  ::=  + | - | * | /
-        |   == | < | <= | ...
-        |   mod | pow
+
+  op2  ::=  mod | pow
         |   arctan2
         |   ...
+
+  opi  ::=  + | - | * | /
+        |   == | < | <= | > | >= | /=
+        |   && | `||` | `|>` | `<|` | << | >>
+        
+  e  ::= ...
+       | __DictEmpty__ e
+       | __DictFromList__ e
+       | __DictInsert__ eK eV eD
+       | __DictRemove__ eK eD
+       | __DictGet__ eK eD
 ```
 
-TODO empty dictionary and dictionary operators
+For your convenience, the prelude defines a `Dict` record exposing `empty`, `fromList`, `member`, `contains`, `remove`, `get`` and `apply`.
 
 ### Conditionals
 
@@ -154,13 +178,29 @@ TODO empty dictionary and dictionary operators
 
 ### Tuples
 
-TODO
+```
+ e  ::=   ...
+      |   ()
+      |   (e1, ... en)
+      |   (,...,)               -- desugars to \e1 ... en -> (e1,..., en)
+```
 
 ### Records
 
-TODO
 
-We sometimes say "module" to describe a records that begins with a capital
+```
+ e  ::=   ...
+      |   { f1 = e1, ...., fn = en}
+      |   e.f1
+      |   .f1.f2(...).fn              -- desugars to \x -> x.f1.f2(...).fn
+
+```
+
+Note that `f1 a b = e` in a key/value definition of a record is equivalent to `f1 = \a b -> e`.
+The comma is optional for defining a new key/value pair if
+1) there are two newlines before
+or 2) there is one newline before and the column of the key is at most the column of the key before it.
+We sometimes say "module" to describe a record that begins with a capital
 letter.
 
 ### Patterns
@@ -169,10 +209,10 @@ letter.
   p  ::=  x
       |   n | s | b
       |   p1 :: p2
+      |   p as x
       |   []
       |   [p1, ..., pn]
       |   (p1, ..., pn)
-      |   x@p
       |   {f1 = p1; ..., fn = pn}
       |   {f1, ..., fn}              -- desugars to {f1 = f1, ..., fn = fn}
 ```
@@ -184,6 +224,8 @@ letter.
       |   case e of p1 -> e1; ...; pn -> en
       |   case of p1 -> e1; ...; pn -> en     -- desugars to \x -> case x of p1 -> e1; ...; pn -> en
 ```
+
+The semicolon is optional for a branch if 1) there is a newline 2) the column of the start of this branch matches the column of the start of the first branch.
 
 ### Functions
 
@@ -214,34 +256,63 @@ letter.
 
 ### Comments and Options
 
+Comments are part of whitespace and can be one-line `-- Comment` or nested multi-line `{- This is {-a-} comment -}`.
+
 ```
-  e  ::=  ...
-      |   --single-line-comment; e
-      |   --# option: value; e
+  e  ::= # option: value; e
 ```
 
-Comments and options are terminated by newlines.
-All options should appear at the top of the program, before the first
-non-comment expression.
+Options are separated by expressions by a newline (the semicolon above is actually a newline).
 
-### Standard Prelude
+### Html literals with interpolation
+
+Most HTML and SVG is valid in our language, except for comments (Elm would not allow use to define them) and parameters without quotes (they are considered as variables).
+
+```
+  e ::= node
+  
+  node  ::= <ident attributes>children</ident>
+          | <ident>                              -- if the indent is a void element (br, img, ...)
+          | <ident attributes/>                  -- if the element is auto-closing (svg tags only)
+          | <@e attributes>children</@>
+  
+  attributes ::= ident1=e1 ... identn=en
+               | attributes @e attributes
+  
+  children ::= innerHTML text
+             | children @e children
+             | node
+```
+
+ Some samples of what kind of interpolation is possible:
+
+| Html syntax                         | Code equivalent |
+| ----------------------------------- | --------------- |
+| `<h1 id=x>Hello</h1>`               | `["h1", [["id", x]], [["TEXT", "Hello"]]]` |
+| `<h1 id=x @attrs>Hello @world</h1>` | `["h1", [["id", x]] ++ attrs, [["TEXT", "Hello "]] ++ world]`   |
+| `<@(t)>Hi</@>`                      | `[t, [], [["TEXT", "Hi"]]]`  |
+
+Note that style attributes support both syntax for their values (array of key/values arrays, and strings).
+In the innerHTML of a tag, you can interpolate string, integers, nodes and list of nodes (there is an automatic conversion).
+
+## Standard Prelude
 
 See [`preludeLeo.elm`][Prelude] for the standard library included by every program.
 
 ### SVG
 
-The result of a `little` program should be an "HTML node."
-Nodes are either text elements or SVG elements, represented as
+The result of a program should be an "HTML node."
+Nodes are either text elements, HTML nodes or SVG nodes, represented as
 
 ```
   h  ::=  ["TEXT", e]
-      |   [shapeKind, attrs, children]
+      |   [tagName, attrs, children]
 ```
 
 where
 
 ```
-  shapeKind  ::=  "svg" | "circle" | "rect" | "polygon" | "text" | ...
+  tagName  ::=  "div" | "span" | "script" .... | "svg" | "circle" | "rect" | "polygon" | "text" | ...
   attrs      ::=  [ ["attr1", e1], ..., ["attrn", e2] ]
   children   ::=  [ h1, ..., hn ]
 ```
@@ -320,9 +391,6 @@ that you are expecting `Maybe (Dict a ( b, c ))` but a value is `Maybe (Dict com
 If that is the case, look at the `makefile`, the last two commands of `elm-stuff/packages` may not
 have been executed properly. This can happen if another software tries to mix with packages installation,
 such as Dropbox.
-
-Welcome to the sketch-n-sketch wiki!
-
 
 ### Steps to recompile Elm in Windows
 
@@ -426,8 +494,8 @@ See [existing tests](https://github.com/ravichugh/sketch-n-sketch/tree/master/te
 
 If you add or remove a package from the project, the package list for the tests needs to be updated as well. Simply run `node tests/refresh_elm-packages.js` to copy over the main `elm-packages.json` into the tests directory.
 
-[Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/preludeLeo.elm
-[LangSvg]: https://github.com/ravichugh/sketch-n-sketch/blob/master/src/LangSvg.elm
+[Prelude]: https://github.com/ravichugh/sketch-n-sketch/blob/dev/examples/preludeLeo.elm
+[LangSvg]: https://github.com/ravichugh/sketch-n-sketch/blob/dev/src/LangSvg.elm
 [ProjectPage]: http://ravichugh.github.io/sketch-n-sketch
 [SvgPath]: https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths
 [SvgTransform]: https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
