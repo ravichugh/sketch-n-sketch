@@ -344,6 +344,8 @@ unparseOp op =
       "pi"
     DictEmpty ->
       "__DictEmpty__"
+    CurrentEnv ->
+      "__CurrentEnv__"
     DictFromList ->
       "__DictFromList__"
     Cos ->
@@ -468,7 +470,9 @@ unparse e =
               let res = unparse  functionBinding in
               if String.startsWith ElmParser.implicitVarName res then
                 wsBeforeFun.val ++ String.dropLeft (String.length ElmParser.implicitVarName) res
-              else default
+              else
+                let _ = Debug.log ("Could not find the implicit var name at the start of '" ++ res ++ "' reverting to default") () in
+                default
             ERecord wsBefore Nothing elems wsBeforeEnd ->
               wsBeforeFun.val ++ "(" ++ String.repeat (List.length elems - 2) "," ++ ")"
             _ -> default

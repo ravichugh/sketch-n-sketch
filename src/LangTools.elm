@@ -2053,6 +2053,7 @@ numericLetBoundIdentifiers program =
         case op.val of
           Pi         -> True
           DictEmpty  -> False
+          CurrentEnv -> False
           DictFromList -> False
           Cos        -> True
           Sin        -> True

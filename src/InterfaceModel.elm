@@ -715,7 +715,7 @@ type alias DeuceToolResultPreviews =
 
 -- Elm typechecker should properly subtype Model < { slideNumber : Int, movieNumber : Int, movieTime : Float }
 -- but for some reason it doesn't.
-runAndResolve : Model -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolve : Model -> Exp -> Result String (Val, Widgets, Env, RootedIndexedTree, Code)
 runAndResolve model exp =
   runAndResolve_
     { movieNumber = model.movieNumber
@@ -726,12 +726,12 @@ runAndResolve model exp =
     exp
 
 
-runAndResolve_ : { slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolve_ : { slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, Env, RootedIndexedTree, Code)
 runAndResolve_ model exp =
   let thunk () =
-    EvalUpdate.run model.syntax exp
-    |> Result.andThen (\(val, widgets) -> slateAndCode model (exp, val)
-    |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
+    EvalUpdate.runWithEnv model.syntax exp
+    |> Result.andThen (\((val, widgets), env) -> slateAndCode model (exp, val)
+    |> Result.map (\(slate, code) -> (val, widgets, env, slate, code)))
   in
   ImpureGoodies.crashToError thunk
   |> Utils.unwrapNestedResult

@@ -237,8 +237,8 @@ runWithErrorHandling model exp onOk =
     let reparsedResult = Syntax.unparser model.syntax exp |> Syntax.parser model.syntax |> (Result.mapError showError) in
     reparsedResult
     |> Result.andThen (\reparsed ->
-      runAndResolve model reparsed
-      |> Result.map (\(val, widgets, slate, code) -> onOk reparsed val widgets slate code)
+       runAndResolve model reparsed
+       |> Result.map (\(val, widgets, env, slate, code) -> onOk reparsed val env widgets slate code)
     )
   in
   handleError model result
@@ -1653,12 +1653,13 @@ msgDigHole = Msg "Dig Hole" <| \old ->
   let newExp =
     ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.widgets old.syncOptions
   in
-  runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
+  runWithErrorHandling old newExp (\reparsed newVal newEnv newWidgets newSlate newCode ->
     debugLog "new model" <|
     clearSelections <|
       { old | code             = newCode
             , inputExp         = reparsed
             , inputVal         = newVal
+            , inputEnv         = newEnv
             , history          = modelCommit newCode [] old.history
             , slate            = newSlate
             , slateCount       = 1 + old.slateCount
@@ -1732,6 +1733,7 @@ msgIndexedRelate = Msg "Indexed Relate" <| \old ->
 --       { old | code             = newCode
 --             , inputExp         = reparsed
 --             , inputVal         = newVal
+--             , inputEnv         = newEnv
 --             , history          = addToHistory old.code old.history
 --             , slate            = newSlate
 --             , widgets          = newWidgets
@@ -1859,11 +1861,12 @@ doSelectSynthesisResult newExp old =
           , history = modelCommit newCode [] old.history
           } |> clearSynthesisResults
   in
-  runWithErrorHandling new newExp (\reparsed newVal newWidgets newSlate newCode ->
+  runWithErrorHandling new newExp (\reparsed newVal newEnv newWidgets newSlate newCode ->
     -- debugLog "new model" <|
       let newer =
       { new | inputExp             = reparsed -- newExp
             , inputVal             = newVal
+            , inputEnv             = newEnv
             , valueEditorString    = LangUtils.valToString newVal
             , outputMode           = maybeUpdateOutputMode old newSlate
             , slate                = newSlate
@@ -2374,8 +2377,8 @@ showCodePreview old code =
 showExpPreview old exp diffs =
   let code = Syntax.unparser old.syntax exp in
   case runAndResolve old exp of
-    Ok (val, widgets, slate, _) -> { old | slateCount = old.slateCount + 1, preview = Just (code, diffs, Ok (val, widgets, slate)) }
-    Err s                       -> { old | slateCount = old.slateCount + 1, preview = Just (code, diffs, Err s) }
+    Ok (val, widgets, env, slate, _) -> { old | slateCount = old.slateCount + 1, preview = Just (code, diffs, Ok (val, widgets, slate)) }
+    Err s                            -> { old | slateCount = old.slateCount + 1, preview = Just (code, diffs, Err s) }
 
 {-
 msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
@@ -3075,12 +3078,12 @@ msgHoverDeuceResult isRenamer (SynthesisResult result) path =
           (preview, class) =
             -- CSS classes from SleekView leak out here. Oh, well.
             case (result.isSafe, runAndResolve m result.exp) of
-              (True, Ok (val, widgets, slate, code)) ->
+              (True, Ok (val, widgets, env, slate, code)) ->
                 (Just (code, [], Ok (val, widgets, slate)), "expected-safe")
               (True, Err err) ->
                 let _ = Debug.log "not safe after all!" err in
                 (Just (Syntax.unparser m.syntax result.exp, [], Err err), "unexpected-unsafe")
-              (False, Ok (val, widgets, slate, code)) ->
+              (False, Ok (val, widgets, env, slate, code)) ->
                 (Just (code, [], Ok (val, widgets, slate)), "unexpected-safe")
               (False, Err err) ->
                 (Just (Syntax.unparser m.syntax result.exp, [], Err err), "expected-unsafe")

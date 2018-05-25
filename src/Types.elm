@@ -262,7 +262,7 @@ opTypeTable =
     , (Lt         , " (-> Num Num Bool)")
     , (Mod        , " (-> Num Num Num)")
     , (Pow        , " (-> Num Num Num)")
-
+    , (CurrentEnv , " TODO")
     , (DictEmpty  , " TODO") -- " (forall (k v) (Dict k v))")
     , (DictFromList, " TODO") -- " (forall (k v) (-> List [k, v] -> Dict k v))
     , (DictGet    , " TODO") -- " (forall (k v) (-> k (Dict k v) (union v Null)))"

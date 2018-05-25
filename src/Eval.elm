@@ -514,6 +514,7 @@ evalOp syntax env e bt opWithInfo es =
             in valEquals args |> Result.map (\x -> VBase (VBool x) |> addProvenance)
           Pi         -> nullaryOp args (VConst Nothing (pi, TrOp op []))
           DictEmpty  -> nullaryOp args (VDict Dict.empty)
+          CurrentEnv -> nullaryOp args (Vb.list (Vb.tuple2 Vb.string Vb.identity) (builtinVal "env") env).v_
           DictFromList -> case vs of
             [list] -> case Vu.list (Vu.tuple2 Ok Ok) list of
               Ok listPairs ->

@@ -153,6 +153,7 @@ type Op_
   -- nullary ops
   = Pi
   | DictEmpty
+  | CurrentEnv
   -- unary ops
   | DictFromList
   | Cos | Sin | ArcCos | ArcSin

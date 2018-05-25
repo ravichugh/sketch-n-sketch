@@ -921,7 +921,7 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
   let program = model.inputExp in
   let oldShapeTree =
     case runAndResolve model program of
-      Ok (_, _, (root, shapeTree), _) -> shapeTree
+      Ok (_, _, _, (root, shapeTree), _) -> shapeTree
       _                               -> Dict.empty
   in
   -- 1. Find all list literals.
@@ -949,7 +949,7 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
     |> List.filter
         (\(listEId, newProgram) ->
           case runAndResolve model newProgram of
-            Ok (_, _, (root, shapeTree), _) -> Dict.size oldShapeTree + numberOfNewShapesExpected == Dict.size shapeTree
+            Ok (_, _, _, (root, shapeTree), _) -> Dict.size oldShapeTree + numberOfNewShapesExpected == Dict.size shapeTree
             _                               -> False
         )
   in

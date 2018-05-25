@@ -815,7 +815,7 @@ listDiffsToString structName subroutine displayElemModif elementDisplay indent o
                   let (incAcc, newIndent) = displayElemModif indent i |> Maybe.withDefault ("", indent) in
                   acc ++ incAcc ++ subroutine newIndent ho hm diff |>
                   aux (i + 1) to tm diffsTail
-                _ -> "[Internal error] For diff " ++ toString diff ++ ", expected non-empty lists, got " ++ (List.map elementDisplay originals |> String.join ",")  ++ "and" ++  (List.map elementDisplay modifieds |> String.join ",")
+                _ -> "[Internal error] For diff " ++ toString diffs ++ ", expected non-empty lists, got [" ++ (List.map elementDisplay originals |> String.join ",")  ++ "] and [" ++  (List.map elementDisplay modifieds |> String.join ",") ++ "]"
   in aux 0 originals modifieds diffs ""
 
 
@@ -996,9 +996,9 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
                   (accStr ++ incAcc, newHighlights++accList)  |>
                   aux (i + 1) newLastEdit lastPos2 to tm diffsTail
                 _ ->
-                  (accStr ++ "[Internal error] For diff " ++ toString diff ++ ", expected non-empty lists, got " ++
-                  (List.map elementDisplay (Utils.listValues originals) |> String.join ",")  ++ "and" ++
-                  (List.map elementDisplay (Utils.listValues modifieds) |> String.join ","), ((lastEdit, lastPos), accList))
+                  (accStr ++ "[Internal error]2 For diff " ++ toString diff ++ ", expected non-empty lists, got [" ++
+                  (List.map elementDisplay (Utils.listValues originals) |> String.join ",")  ++ "] and [" ++
+                  (List.map elementDisplay (Utils.listValues modifieds) |> String.join ",") ++ "]", ((lastEdit, lastPos), accList))
   in aux 0 lastEdit lastPos originals modifieds diffs ("", [])
 
 

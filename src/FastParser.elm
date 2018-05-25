@@ -730,6 +730,8 @@ operator =
                 |. keyword "pi"
             , succeed DictEmpty
                 |. keyword "__DictEmpty__"
+            , succeed CurrentEnv
+                |. keyword "__CurrentEnv__"
               -- Non-unary operators
             , succeed DictFromList
                 |. keyword "__DictFromList__"

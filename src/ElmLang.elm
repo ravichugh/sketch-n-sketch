@@ -43,6 +43,8 @@ isInfixOperator op =
       False
     DictEmpty ->
       False
+    CurrentEnv ->
+      False
     DictFromList ->
       False
     Cos ->

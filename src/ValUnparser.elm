@@ -88,6 +88,7 @@ strOp op = case op of
   NoWidgets     -> "noWidgets"
   ToStrExceptStr-> "ToStrExceptStr"
   RegexExtractFirstIn -> "extractFirstIn"
+  CurrentEnv    -> "__CurrentEnv__"
 
 strLoc : Loc -> String
 strLoc (k, b, mx) =

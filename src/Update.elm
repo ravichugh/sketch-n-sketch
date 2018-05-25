@@ -67,9 +67,13 @@ update callbacks forks updateStack =
   -- At the end of callbacks, there are all the forks that can be explored later.
   case updateStack of -- callbacks to (maybe) push to the stack.
     UpdateContextS env e prevLets oldVal newOut diffs mb ->
-       {--
-      let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal out diffs]) () in
-       --}
+      {--
+      let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal newOut diffs]) () in
+      --let _ = case oldVal.v_ of
+        VClosure _ _ _ _ -> ()
+        _ -> Debug.log (String.concat ["(old value)" , valToString oldVal, " <-- ", valToString newOut]) () in
+      --let _ = Debug.log ("Previous lets are " ++ envToString prevLets) () in
+      --}
       getUpdateStackOp env e prevLets oldVal newOut diffs |>
       update (LazyList.maybeCons mb callbacks) forks
 
@@ -172,7 +176,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
            updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
              (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
            case vdiffs of
-             VListDiffs ldiffs ->
+             VListDiffs vldiffs ->
                let updateDiffs: Int -> UpdatedEnv ->       List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> Maybe (WS -> Exp -> (WS, Exp)) ->  List Val ->    List Val -> (List (Int, ListElemDiff VDiffs)) -> UpdateStack
                    updateDiffs  i      collectedUpdatedEnv revElems          revEDiffs           elemsToCollect    changeWhitespaceNext               originalValues newValues   ldiffs =
                     case ldiffs of
@@ -211,10 +215,10 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                    updateDiffs (i + 1) finalEnv (newSpRawElem::revElems) newRevEDiffs tlToCollect Nothing origTail newValuesTail modiftail
                                   ) sp i revElems tlToCollect origTail newValuesTail
                                _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from:\n" ++
-                                 "diffs = " ++ toString ldiffs ++
-                                 "\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elemsToCollect |> String.join ",") ++
-                                 "\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
-                                 "\nnewValues = " ++  (List.map valToString newValues |> String.join ",")
+                                 "diffs = " ++ toString diffs ++
+                                 "\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elems |> String.join ",") ++
+                                 "\noriginalValues = " ++ (List.map valToString origVals |> String.join ",") ++
+                                 "\nnewValues = " ++  (List.map valToString newOutVals |> String.join ",")
 
                            ListElemInsert count ->
                              let (inserted, remainingNewVals) = Utils.split count newValues in
@@ -307,18 +311,18 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                              case (elemsToCollect, originalValues, newValues) of
                                ((sp, hdElem)::tlToCollect, origValue::origTail, newValue::newValuesTail) ->
                                  updateDiffs (i+1) collectedUpdatedEnv (f sp hdElem :: revElems) ((i, ListElemUpdate (EConstDiffs EOnlyWhitespaceDiffs))::revEDiffs) tlToCollect Nothing origTail newValuesTail ldiffs
-                               _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from:\n" ++
-                                                                  "ldiffs = " ++ toString ldiffs ++
-                                                                  "\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elemsToCollect |> String.join ",") ++
-                                                                  "\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
-                                                                  "\nnewValues = " ++  (List.map valToString newValues |> String.join ",")
+                               _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from (whitespace only):\n" ++
+                                                                  "ldiffs = " ++ toString vldiffs ++
+                                                                  "\nelems = [" ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elems |> String.join ",") ++
+                                                                  "]\noriginalValues = [" ++ (List.map valToString origVals |> String.join ",") ++
+                                                                  "]\nnewValues = [" ++  (List.map valToString newOutVals |> String.join ",") ++ "]"
                          {- _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to propagate ldiffs:\n" ++
                                    "ldiffs = " ++ toString ldiffs ++
                                    ",\ni=" ++ toString i ++
                                    ",\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elemsToCollect |> String.join ",") ++
                                    ",\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
                                    ",\nnewValues = " ++  (List.map valToString newValues |> String.join ",") -}
-               in updateDiffs 0 (UpdatedEnv.original env) [] [] elems Nothing origVals newOutVals ldiffs
+               in updateDiffs 0 (UpdatedEnv.original env) [] [] elems Nothing origVals newOutVals vldiffs
              _ -> UpdateCriticalError <| "Expected VListDiffs, got " ++ toString vdiffs
          _ -> UpdateCriticalError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
@@ -955,6 +959,29 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                let ((vs, wss), envs) = Tuple.mapFirst List.unzip <| List.unzip argsEvaled in
                let args = List.map .v_ vs in
                case op.val of
+                 CurrentEnv ->
+                   let resNewEnv = Vu.list (Vu.tuple2 Vu.string Vu.identity) newVal in
+                   let resNewEnvDiffs = (case diffs of
+                     VListDiffs listDiffs -> toTupleDiffs listDiffs
+                     _ -> Nothing) |>
+                     Result.fromMaybe "Insertions and deletions not authorized in environments" |>
+                     Result.andThen (List.map (\(i, d) ->
+                     case d of
+                       VRecordDiffs dict ->
+                         case (Dict.get Lang.ctorTuple dict, Dict.get "_1" dict, Dict.get "_2" dict) of
+                           (Just _, _, _) -> Err <| "Unexpected change to the tuple constructor's name"
+                           (_, Just _, _) -> Err <| "Cannot change the name of a variable"
+                           (_, _, Just d) -> Ok [(i, d)]
+                           _ -> Ok []
+                       _ ->
+                         Err <| "Expected VRecordDiffs, got " ++ toString d
+                   ) >> Utils.projOk) |> Result.map (List.concatMap identity)
+                   in
+                   case (resNewEnv, resNewEnvDiffs) of
+                     (Ok newEnv, Ok envDiffs) -> updateResult (UpdatedEnv newEnv envDiffs) (UpdatedExp e Nothing)
+                     (_, Err msg) -> UpdateFails msg
+                     (Err msg, _) -> UpdateCriticalError msg
+
                  Explode    ->
                    case (vs, opArgs) of
                      ([v],[opArg]) ->

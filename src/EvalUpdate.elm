@@ -124,42 +124,64 @@ builtinEnv =
           )
     _ -> Err <| "<< expects 3 arguments, got " ++ toString (List.length args)
   )))
-  , ("evaluate", builtinVal "EvalUpdate.evaluate" <| VFun "evaluate" ["program"] (oneArg "evaluate" <| \program ->
-      case program.v_ of
-          VBase (VString s) ->
-            Syntax.parser Syntax.Elm s
-            |> Result.mapError (ParserUtils.showError)
-            |> Result.andThen (\prog ->
-                Eval.doEval Syntax.Elm builtinEnv prog
-              )
-            |> Result.map Tuple.first
-          _ -> Err <| "evaluate expects one string, got " ++ LangUtils.valToString  program
-    ) <| Just <| oneArgUpdate "evaluate" <| \oldProgram oldVal newVal d ->
-          case oldProgram.v_ of
-            VBase (VString s) ->
+  , ("__evaluate__", builtinVal "EvalUpdate.__evaluate__" <| VFun "__evaluate__" ["environment", "program"] (twoArgs "__evaluate__" <| \penv program ->
+      case (Vu.list (Vu.tuple2 Vu.string Vu.identity) penv, program.v_) of
+          (Ok env, VBase (VString s)) ->
+              Syntax.parser Syntax.Elm s
+              |> Result.mapError (ParserUtils.showError)
+              |> Result.andThen (\prog ->
+                  Eval.doEval Syntax.Elm (env ++ builtinEnv) prog
+                )
+              |> Result.map (Tuple.first >> Tuple.first)
+              |> Vb.result Vb.identity (Vb.fromVal program)
+              |> (\x -> Ok (x, []))
+          _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString penv ++ " and " ++ LangUtils.valToString program
+    ) <| Just <| twoArgsUpdate "__evaluate__" <| \oldpEnv oldProgram oldValr newValr d ->
+          case (Vu.list (Vu.tuple2 Vu.string Vu.identity) oldpEnv, oldProgram.v_) of
+            (Ok env, VBase (VString s)) ->
               let res: Results String (List Val, TupleDiffs VDiffs)
                   res=
                    Syntax.parser Syntax.Elm s
                 |> Result.mapError (ParserUtils.showError)
                 |> Results.fromResult
                 |> Results.andThen (\prog ->
-                    -- update = UpdateStack -> LazyList NextAction -> Results (UpdatedEnv, UpdatedExp)
-                    UpdateStack.updateContext "Eval.update" builtinEnv prog [] oldVal newVal d
-                   |> update
-                   |> Results.map Tuple.second
-                   |> Results.map .val
-                   |> Results.map (Syntax.unparser Syntax.Elm)
-                   |> Results.andThen (\x ->
-                     let newProgram = replaceV_ oldProgram <| VBase <| VString x in
-                     UpdateUtils.defaultVDiffs oldProgram newProgram |> Results.map (\mbd -> case mbd of
-                       Nothing -> ([oldProgram], [])
-                       Just d ->
-                        ([newProgram], [(0, d)])
-                     )
-                   ))
+                    let vRecordDiffsUnapply x = case x of
+                      VRecordDiffs dict -> Just dict
+                      _ -> Nothing
+                    in
+                    let datatypeDiffsGet n d = d |> vRecordDiffsUnapply |> Maybe.andThen (Dict.get "args") |> Maybe.andThen vRecordDiffsUnapply |> Maybe.andThen (Dict.get n) in
+                    case (Vu.result Vu.identity oldValr, Vu.result Vu.identity newValr, datatypeDiffsGet "_1" d) of
+                      (Ok (Ok oldVal), Ok (Ok newVal), Just dd) ->
+                        -- update = UpdateStack -> LazyList NextAction -> Results (UpdatedEnv, UpdatedExp)
+                          UpdateStack.updateContext "Eval.__evaluate__" (env ++ builtinEnv) prog [] oldVal newVal dd
+                         |> update
+                         |> Results.filter (\(newEnv, newProg) ->
+                             let envLength = List.length env in
+                             newEnv.changes |> Utils.findFirst (\(i, _) -> i >= envLength) |> Utils.maybeIsEmpty
+                           )
+                         |> Results.andThen (\(newEnv, newProg) ->
+                           let _ = Debug.log "#1" () in
+                           let x = Syntax.unparser Syntax.Elm newProg.val in
+                           let newProgram = replaceV_ oldProgram <| VBase <| VString x in
+                           let newEnvValue = newEnv.val |> Vb.list (Vb.tuple2 Vb.string Vb.identity) (Vb.fromVal oldpEnv) in
+                           let newEnvDiffs = newEnv.changes
+                             |> List.map (\(i, d) -> (i, ListElemUpdate <| VRecordDiffs <| Dict.fromList  [("_2", d)]))
+                             |>(\d -> [(0,  VListDiffs d)]) in
+                           UpdateUtils.defaultVDiffs oldProgram newProgram |> Results.map (\mbd -> case mbd of
+                             Nothing -> ([newEnvValue, newProgram], newEnvDiffs )
+                             Just d -> ([newEnvValue, newProgram], newEnvDiffs ++ [(1, d)])
+                           )
+                         )
+                      (_, _, Nothing) -> Err <| "Expected VRecordDiffs with 1 element, got " ++ toString d
+                      (Err msg, _, _) -> Err msg
+                      (_, Err msg, _) -> Err msg
+                      (Ok (Err msg), Ok (Err msg2), _) -> if msg == msg2 then ok1 ([oldpEnv, oldProgram], []) else Err <| "Cannot change the error message of __evaluate__ to " ++ msg2
+                      (Ok (Err msg), Ok (Ok x), _) -> Err <| "Cannot change the outpur of __evaluate__ from error '"++msg++"' to " ++ valToString x ++ "'"
+                      (_, Ok (Err msg2), _) -> Err <| "Don't know how to update the result of a correct __evaluate__ by an error '" ++ msg2 ++ "'"
+                    )
               in
               res
-            _ -> Err <| "evaluate expects one string, got " ++ LangUtils.valToString oldProgram
+            _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString oldpEnv ++ " and " ++ LangUtils.valToString oldProgram
     )
   , ("__updateApp__", builtinVal "EvalUpdate.updateApp" <|
   VFun "__updateApp__" ["{fun,input[,oldOutput],output[,outputDiff]}"] (oneArg "__updateApp__" <| \arg ->

@@ -186,7 +186,7 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
 evalToSlateAndWidgetsResult : Exp -> Int -> Int -> Float -> Result String (LangSvg.RootedIndexedTree, Widgets)
 evalToSlateAndWidgetsResult exp slideNumber movieNumber movieTime =
   InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } exp -- Syntax is dummy, we throw away unparse code
-  |> Result.map (\(val, widgets, slate, code) -> (slate, widgets))
+  |> Result.map (\(val, widgets, _, slate, code) -> (slate, widgets))
 
 
 getIndexedLocIdsWithTarget originalExp locsToRevolutionize =
@@ -802,7 +802,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
   let unparse = Syntax.unparser syntax in
   case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we ignore unparsed code
     Err s -> []
-    Ok (_, widgets, slate, _) ->
+    Ok (_, widgets, _, slate, _) ->
       ShapeWidgets.selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs
       |> List.map (\interp -> let _ = Utils.log <| String.join " " <| List.map (justFindExpByEId program >> unparse) interp in interp)
       |> List.concatMap (\interpretation ->

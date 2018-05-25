@@ -316,17 +316,6 @@ keepLets origEnv newEnv = List.reverse <| List.take (List.length newEnv - List.l
 
 prevLetsFind: (Val_ -> Val) -> PrevLets -> Pat-> Maybe (Val, Env)
 prevLetsFind val_ env p =
-  let smallestEnv: Env -> Env -> Env
-      smallestEnv env1 env2 =
-        if List.length  env1 < List.length env2 then env1 else env2
-  in
-  let smallestEnvSuffix: List (Val, Env) -> (List Val, Env)
-      smallestEnvSuffix vs = case vs of
-        [] -> ([], env)
-        (headVal, headEnv)::tail ->
-          let (newTail, newTailEnv) = smallestEnvSuffix tail in
-          (headVal::newTail, smallestEnv headEnv newTailEnv)
-  in
   let deconstructEnv name env = case env of
     [] -> Nothing
     ((headname, headval)::tail) -> if headname == name then Just (headval, tail) else Nothing

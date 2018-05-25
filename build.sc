@@ -88,7 +88,9 @@ object SNS extends Module {
     """((\w+\.elm)\r?\n(?:(?!\w+\.elm\r?\n)[\s\S])*?\r?\n) ?(\d+)\|([^\r\n]*\r?\n)(?=(\s*\^)?)""".r.replaceAllIn(msg,
       { m =>
         val link = "at .("+m.group(2)+":" +m.group(3)+")"
-        m.group(1)+link+m.group(4)+(if(m.group(5) != null) " " * (link.length - m.group(3).length - 1) else "")})
+        val result = m.group(1)+link+m.group(4)+(if(m.group(5) != null) " " * (link.length - m.group(3).length - 1) else "")
+        "\\\\".r.replaceAllIn(result, (_ => "\\\\\\\\"))
+      })
   }
   @tailrec def fixpoint[A](f: A => A, max: Int = 100)(x: A): A = {
     var new_x = f(x)

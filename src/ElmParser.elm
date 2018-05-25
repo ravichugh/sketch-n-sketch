@@ -1550,6 +1550,8 @@ opFromIdentifier identifier =
       Just Pi
     "__DictEmpty__" ->
       Just DictEmpty
+    "__CurrentEnv__" ->
+      Just CurrentEnv
     "__DictFromList__" ->
       Just DictFromList
     "cos" ->
@@ -2093,7 +2095,7 @@ implicitSelectionFun: Parser (WS -> Exp)
 implicitSelectionFun =
   succeed (\{val,start,end} initSpace ->
     withInfo (exp_ <| EFun initSpace [withInfo (pat_ <| PVar space0 implicitVarName noWidgetDecl) start start]
-    (List.foldl (\sel updatedExp -> sel updatedExp) (\wsBefore -> withInfo (exp_ <| EVar wsBefore implicitVarName) start start) val space1) space0) start end
+    (List.foldl (\sel updatedExp -> sel updatedExp) (\wsBefore -> withInfo (exp_ <| EVar wsBefore implicitVarName) start start) val space0) space0) start end
   )
   |= (trackInfo <| repeat oneOrMore (selection False nospace))
 

@@ -12,8 +12,8 @@ Debug = {
     -- Call Debug.start "msg" <| \_ -> (remaining)
     let _ = debug msg in
     value []
+  crash msg = error msg
 }
-
 
 --------------------------------------------------------------------------------
 -- TODO (re-)organize this section into modules
@@ -218,17 +218,17 @@ LensLess =
       let substring start end x =
         case extractFirstIn ("^[\\s\\S]{0," + toString start + "}([\\s\\S]{0," + toString (end - start) + "})") x of
           Just [substr] -> substr
-          Nothing -> error <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
+          Nothing -> Debug.crash <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
       in
       let take length x =
           case extractFirstIn ("^([\\s\\S]{0," + toString length + "})") x of
             Just [substr] -> substr
-            Nothing -> error <| "bad arguments to String.take " + toString length + " " + toString x
+            Nothing -> Debug.crash <| "bad arguments to String.take " + toString length + " " + toString x
       in
       let drop length x =
         case extractFirstIn ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
                 Just [substr] -> substr
-                Nothing -> error <| "bad arguments to String.drop " + toString length + " " + toString x
+                Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
       in
       let length x = len (explode x) in
       { strToInt = strToInt
@@ -302,28 +302,28 @@ Update =
                   case [oldValues, newValues] of
                     [_::oldTail, _::newTail] ->
                       aux (i + 1) (KeepValue::revAcc) oldTail newTail listDiffs
-                    _ -> error <| "[Internal error] Expected two non-empty tails, got  " + toString [oldValues, newValues]
+                    _ -> Debug.crash <| "[Internal error] Expected two non-empty tails, got  " + toString [oldValues, newValues]
                 else if j == i then
                   case listDiff of
                     ListElemUpdate _ ->
                       case [oldValues, newValues] of
                         [oldHead::oldTail, newHead::newTail] ->
                           aux (i + 1) (UpdateValue newHead :: revAcc) oldTail newTail diffTail
-                        _ -> error <| "[Internal error] update but missing element"
+                        _ -> Debug.crash <| "[Internal error] update but missing element"
                     ListElemInsert count ->
                       case newValues of
                         newHead::newTail ->
                           aux i (InsertValue newHead::revAcc) oldValues newTail (if count == 1 then diffTail else (i, ListElemInsert (count - 1))::diffTail)
-                        _ -> error <| "[Internal error] insert but missing element"
+                        _ -> Debug.crash <| "[Internal error] insert but missing element"
                     ListElemDelete count ->
                       case oldValues of
                         oldHead::oldTail ->
                           aux (i + 1) (DeleteValue::revAcc) oldTail newValues (if count == 1 then diffTail else (i + 1, ListElemDelete (count - 1))::diffTail)
-                        _ -> error <| "[Internal error] insert but missing element"
-                else error <| "[Internal error] Differences not in order, got index " + toString j + " but already at index " + toString i
+                        _ -> Debug.crash <| "[Internal error] insert but missing element"
+                else Debug.crash <| "[Internal error] Differences not in order, got index " + toString j + " but already at index " + toString i
           in aux 0 [] oldValues newValues listDiffs
 
-        result -> error ("Expected Ok (Just (VListDiffs listDiffs)), got " + toString result)
+        result -> Debug.crash ("Expected Ok (Just (VListDiffs listDiffs)), got " + toString result)
   in
   type StringDiffs = StringUpdate Int Int Int
   type ConcStringDiffs = ConcStringUpdate Int Int String
@@ -388,6 +388,13 @@ diffs:@(strDiffToConcreteDiff newOutput diffs)""") "end" in
              }.apply x
   }
 
+
+evaluate program =
+  case __evaluate__ (Update.freeze []) program of
+    Ok x -> x
+    Err msg -> Debug.crash msg
+
+
 --------------------------------------------------------------------------------
 -- Update.foldDiff
 
@@ -411,7 +418,7 @@ foldDiff =
   \{start, onSkip, onUpdate, onRemove, onInsert, onFinish, onGather} oldOutput newOutput diffs ->
   let listDiffs = case diffs of
     VListDiffs l -> l
-    _ -> error <| "Expected VListDiffs, got " + toString diffs
+    _ -> Debug.crash <| "Expected VListDiffs, got " + toString diffs
   in
   -- Returns either {error} or {values=list of values}
   --     fold: Int -> List b -> List b -> List (Int, ListElemDiff) -> a -> Results String c
@@ -448,14 +455,14 @@ foldDiff =
               let current::remainingNew = newOutput in
               onInsert acc {newOutput = current, index = i}
               |> next i oldOutput remainingNew (if count == 1 then dtail else (i, ListElemInsert (count - 1))::dtail)
-            else error <| "insertion count should be >= 1, got " + toString count
+            else Debug.crash <| "insertion count should be >= 1, got " + toString count
           ListElemDelete count ->
             if count >= 1 then
               let dropped::remainingOld = oldOutput in
               onRemove acc {oldOutput =dropped, index = i} |>
               next (i + count) remainingOld newOutput (if count == 1 then dtail else (i + 1, ListElemDelete (count - 1))::dtail)
-            else error <| "deletion count should be >= 1, got " ++ toString count
-      _ -> error <| "Expected a list of diffs, got " + toString diffs
+            else Debug.crash <| "deletion count should be >= 1, got " ++ toString count
+      _ -> Debug.crash <| "Expected a list of diffs, got " + toString diffs
   in
   case fold 0 oldOutput newOutput listDiffs start of
     { error = msg } -> {error = msg}
@@ -557,7 +564,7 @@ map f l =
         { values = [[fs, insA, remaining]] }
 
       onInsert [fs, insA, insB] {newOutput} =
-        let input = case insB of h::_ -> h; _ -> case insA of h::_ -> h; _ -> error "Empty list for map, cannot insert" in
+        let input = case insB of h::_ -> h; _ -> case insA of h::_ -> h; _ -> Debug.crash "Empty list for map, cannot insert" in
         case Update.updateApp {fun [f,x] = f x, input = [f, input], output = newOutput} of
           { error = msg } -> {error = msg }
           { values = v} -> {values = v |>
@@ -1007,7 +1014,7 @@ Dict = {
   get x d = __DictGet__ x d
   apply d x = case __DictGet__ x d of
     Just x -> x
-    _ -> error ("Expected element " + toString x + " in dict, got nothing")
+    _ -> Debug.crash ("Expected element " + toString x + " in dict, got nothing")
   insert k v d = __DictInsert__ k v d
   fromList l = __DictFromList__ l
   member x d = case __DictGet__ x d of
@@ -1041,17 +1048,17 @@ String =
   let substring start end x =
     case Regex.extract ("^[\\s\\S]{0," + toString start + "}([\\s\\S]{0," + toString (end - start) + "})") x of
       Just [substr] -> substr
-      Nothing -> error <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
+      Nothing -> Debug.crash <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
   in
   let take length x =
       case Regex.extract ("^([\\s\\S]{0," + toString length + "})") x of
         Just [substr] -> substr
-        Nothing -> error <| "bad arguments to String.take " + toString length + " " + toString x
+        Nothing -> Debug.crash <| "bad arguments to String.take " + toString length + " " + toString x
   in
   let drop length x =
     case Regex.extract ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
             Just [substr] -> substr
-            Nothing -> error <| "bad arguments to String.drop " + toString length + " " + toString x
+            Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
   in
   let length x = len (explode x) in
   letrec sprintf str inline = case inline of
@@ -1387,13 +1394,13 @@ html string = {
                HTMLAttributeNoValue ->
                   if value2 == "" then HTMLAttribute sp0 name2 (HTMLAttributeNoValue)
                   else toHTMLAttribute [name2, value2]
-               _ -> error <| "expected HTMLAttributeUnquoted, HTMLAttributeString, HTMLAttributeNoValue, got " ++ toString (inputElem, newOutput)
-            _ -> error "Expected HTMLAttribute, got " ++ toString (inputElem, newOutput)
+               _ -> Debug.crash <| "expected HTMLAttributeUnquoted, HTMLAttributeString, HTMLAttributeNoValue, got " ++ toString (inputElem, newOutput)
+            _ -> Debug.crash "Expected HTMLAttribute, got " ++ toString (inputElem, newOutput)
           in
           let newRevDiffs = case Update.diff inputElem newInputElem of
             Ok (Just d) -> (index, ListElemUpdate d)::revDiffs
             Ok (Nothing) ->  revDiffs
-            Err msg -> error msg
+            Err msg -> Debug.crash msg
           in
           {values = [(newInputElem::revAcc, newRevDiffs, inputRemaining)]}
 
