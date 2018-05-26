@@ -124,6 +124,12 @@ builtinEnv =
           )
     _ -> Err <| "<< expects 3 arguments, got " ++ toString (List.length args)
   )))
+  , ("__jsEval__", builtinVal "EvalUpdate.__jsEval__" <| VFun "__jsEval__" ["jsprogram"] (oneArg "__jsEval__" <| \program ->
+     case Vu.string program of
+       Ok s ->
+         Ok (nativeToVal (Vb.fromVal program) <| ImpureGoodies.evaluate s, [])
+       Err s-> Err <| "__jsEval__ expects a javascript program as a string, got " ++ LangUtils.valToString program
+    ) Nothing)
   , ("__evaluate__", builtinVal "EvalUpdate.__evaluate__" <| VFun "__evaluate__" ["environment", "program"] (twoArgs "__evaluate__" <| \penv program ->
       case (Vu.list (Vu.tuple2 Vu.string Vu.identity) penv, program.v_) of
           (Ok env, VBase (VString s)) ->
