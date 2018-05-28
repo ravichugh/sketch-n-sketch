@@ -15,6 +15,7 @@ module ParserUtils exposing
   , untrackInfo
   , setStartInfo
   , showError
+  , showErrorReversible
   , keepUntilRegex
   , ignoreRegex
   , keepRegex
@@ -319,8 +320,13 @@ showIndentedProblem n prob =
 
 showError : Error -> String
 showError err =
+  showErrorReversible err |> Tuple.first
+
+-- Along the error string, if the user changes this string, it can return the repaired program.
+showErrorReversible : Error -> (String, String -> Maybe String)
+showErrorReversible err =
   let
-    prettyError =
+    (prettyError, putBackLine) =
       let
         sourceLines =
           String.lines err.source
@@ -331,9 +337,17 @@ showError err =
       in
         case problemLine of
           Just line ->
-            line ++ "\n" ++ arrow ++ "\n\n"
+            let right = "\n" ++ arrow ++ "\n\n" in
+            (line ++ right, \newPrettyError ->
+              if String.endsWith right newPrettyError then
+                let newLine = String.dropRight (String.length right) newPrettyError in
+                let newSourceLines = (List.take (err.row - 1) sourceLines) ++ [newLine] ++ List.drop (err.row) sourceLines in
+                Just <| String.join "\n" newSourceLines
+              else Nothing
+            )
           Nothing ->
-            ""
+            ("", \_ -> Nothing)
+
     showContext c =
       "  (row: " ++ (toString c.row) ++", col: " ++ (toString c.col)
       ++ ") Error while parsing '" ++ c.description ++ "'\n"
@@ -344,19 +358,30 @@ showError err =
         Nothing ->
           ""
   in
-    "[Parser Error]\n\n" ++
-      deepestContext ++ "\n" ++
-      prettyError ++
-    "Position\n" ++
-    "========\n" ++
-    "  Row: " ++ (toString err.row) ++ "\n" ++
-    "  Col: " ++ (toString err.col) ++ "\n\n" ++
-    "Problem\n" ++
-    "=======\n" ++
-      (showIndentedProblem 1 err.problem) ++ "\n" ++
-    "Context Stack\n" ++
-    "=============\n" ++
-      (String.concat <| List.map showContext err.context) ++ "\n\n"
+  let left = "[Parser Error]\n\n" ++
+       deepestContext ++ "\n"
+  in
+  let middle = prettyError in
+  let right = "Position\n" ++
+       "========\n" ++
+       "  Row: " ++ (toString err.row) ++ "\n" ++
+       "  Col: " ++ (toString err.col) ++ "\n\n" ++
+       "Problem\n" ++
+       "=======\n" ++
+         (showIndentedProblem 1 err.problem) ++ "\n" ++
+       "Context Stack\n" ++
+       "=============\n" ++
+         (String.concat <| List.map showContext err.context) ++ "\n\n"
+  in
+  (left ++ middle ++ right, \newError ->
+    if String.startsWith left newError then
+      let newError2 = String.dropLeft (String.length left) newError in
+      if String.endsWith right newError2 then
+        let correctedLine = String.dropRight (String.length right) newError2 in
+        putBackLine correctedLine
+      else Nothing
+    else Nothing
+  )
 
 -- returns the quote string and the string content itself.
 singleLineString : Parser (String, String)

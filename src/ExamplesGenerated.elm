@@ -8890,7 +8890,7 @@ commandPrefix = \"> \"
 svgTags = Set.fromList [\"rect\",\"line\"]
 
 displayEvaluationResult x = case x of
-  Err msg -> <span class=\"error\">@msg</span>
+  Err msg -> <span class=\"error\" style=\"white-space:pre\">@msg</span>
   Ok result -> 
     let displayHtml () = case result of
       [tag, _, _] ->
@@ -8954,7 +8954,9 @@ examples = [
 <li title=\"Input some characters and press ENTER on the last line\">Enter new commands</li>
 <li title=\"If you do this, the commands are re-executed\">Change the commands</li>
 <li title=\"The commands are updated and re-executed\">Change the results</li>
-<li title=\"Just click on the variable and rename it\">Change a variable's name.</li></ul><div>Please give it a try! You can also save the state of the REPL and reset it using the button below.</div><br>
+<li title=\"Just click on the variable and rename it\">Change a variable's name.</li>
+<li title=\"Simply edit the quoted part of the program in the output\">Fix a parsing error from the error message</li>
+</ul><div>Please give it a try! You can also save the state of the REPL and reset it using the button below.</div><br>
 <div class=\"terminal\">
 @content@commandPrefix<input type=\"text\" id=\"command\"
   v=(Html.onChangeAttribute commands addCommand) onchange=\"this.setAttribute('v', this.value); this.value=''\">

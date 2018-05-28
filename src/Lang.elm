@@ -132,7 +132,20 @@ getDatatypeName v = vRecordUnapplyField ctorDataType v |> Maybe.andThen vStringU
 
 getViewDatatypeName: Val -> Maybe String
 getViewDatatypeName v = case vListUnapply v of
-  Just (head::t) -> vStringUnapply head
+  Just [head,attrs,children] -> 
+    let isAttrCorrect = (case attrs.v_ of
+         VList _ -> True
+         _ -> False
+       )
+    in
+    let isChildrenCorrect = (case children.v_ of
+         VList _ -> True
+         _ -> False
+      )
+    in
+    if isAttrCorrect && isChildrenCorrect then
+      vStringUnapply head
+    else Nothing
   _ -> Nothing
 
 --------------------------------------------------------------------------------

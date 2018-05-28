@@ -145,12 +145,21 @@ builtinEnv =
     ) <| Just <| twoArgsUpdate "__evaluate__" <| \oldpEnv oldProgram oldValr newValr d ->
           case (Vu.list (Vu.tuple2 Vu.string Vu.identity) oldpEnv, oldProgram.v_) of
             (Ok env, VBase (VString s)) ->
-              let res: Results String (List Val, TupleDiffs VDiffs)
-                  res=
-                   Syntax.parser Syntax.Elm s
-                |> Result.mapError (ParserUtils.showError)
-                |> Results.fromResult
-                |> Results.andThen (\prog ->
+              let parsed = Syntax.parser Syntax.Elm s in
+              case parsed of
+                 Err err -> let (error, reverser) = ParserUtils.showErrorReversible err in
+                  case Vu.result Vu.identity newValr of
+                     Ok (Err msg2) ->
+                        case reverser msg2 of
+                           Just newProgram ->
+                             let newProgramV = Vb.string (Vb.fromVal oldProgram) newProgram in
+                             let newProgramDiffs = defaultVDiffs oldProgram newProgramV in
+                             flip  Results.map  newProgramDiffs <| \pd ->
+                               ([oldpEnv, newProgramV], Maybe.map (\d -> [(1, d)]) pd |> Maybe.withDefault [])
+                           Nothing -> Err <| "No way to change the outpur of __evaluate__ from error to " ++ msg2 ++ "'"
+                     Err msg -> Err msg
+                     Ok (Ok x) -> Err <| "Cannot change the outpur of __evaluate__ from error to " ++ valToString x ++ "'"
+                 Ok x -> ok1 x |> Results.andThen (\prog ->
                     let vRecordDiffsUnapply x = case x of
                       VRecordDiffs dict -> Just dict
                       _ -> Nothing
@@ -185,8 +194,6 @@ builtinEnv =
                       (Ok (Err msg), Ok (Ok x), _) -> Err <| "Cannot change the outpur of __evaluate__ from error '"++msg++"' to " ++ valToString x ++ "'"
                       (_, Ok (Err msg2), _) -> Err <| "Don't know how to update the result of a correct __evaluate__ by an error '" ++ msg2 ++ "'"
                     )
-              in
-              res
             _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString oldpEnv ++ " and " ++ LangUtils.valToString oldProgram
     )
   , ("__updateApp__", builtinVal "EvalUpdate.updateApp" <|
