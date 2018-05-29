@@ -3,6 +3,8 @@
 // Run:     ./mill -i -watch html
 import mill._, ammonite.ops._
 import scala.annotation.tailrec
+import java.util.Calendar
+import java.text.SimpleDateFormat
 
 val ELM_MAKE = "elm-make"
 
@@ -40,6 +42,7 @@ object SNS extends Module {
     examples()
     prelude()
     sourceRoot()
+    println("elm_make started" + new SimpleDateFormat("yyyyMMdd_HHmmss").format(Calendar.getInstance().getTime()));
     stderr(%%(ELM_MAKE,"Main.elm", "--output", outSNS)) match {
       case Left(msg) =>
         System.out.print("\033[H\033[2J") // Clears the console to display the error

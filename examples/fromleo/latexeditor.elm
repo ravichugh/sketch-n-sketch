@@ -310,7 +310,7 @@ toHtmlWithoutRefs opts tree =
         aux opts revAcc newTree
       {tag="rawtext", value=text, pos = pos} ->
         let finalText = {
-           apply x = x,
+           apply x = freeze x,
            update {input, oldOutput, newOutput, diffs} = 
              {values = [Update.mapInserted escape newOutput diffs] }
           }.apply text in
@@ -378,10 +378,10 @@ toHtml x =
   letrec replaceMap replaceReferences trees = case trees of
     [] -> []
     (head :: tail) -> {
-        apply x = x
-        update {input, outputNew, outputOriginal} =
+        apply x = freeze x
+        update {input, outputNew, outputOriginal, diffs} =
           if (len outputNew /= len outputOriginal && len outputOriginal == 1) then
-            {values = [[["TEXT", htmlOf [outputNew]]]]} else {values=[input]}
+            {values = [[["TEXT", htmlOf [outputNew]]]]} else {values=[outputNew], diffs=[Just diffs]}
       }.apply [replaceReferences head] ++ replaceMap replaceReferences tail
   in
   letrec replaceReferences tree = case tree of
@@ -389,11 +389,11 @@ toHtml x =
       Nothing -> htmlError ("Reference " + refname + " not found.") "???"
       Just txt ->
         let replaceKey refNameTxt = {
-           apply [refname,txt] = Debug.log """refname = @refname, txt= @txt""" txt,
-           update {input=[oldRefname, oldTxt], outputNew=newText} =  -- Lookup for the reference in the options.
+           apply (refname,txt) = freeze txt,
+           update {input=(oldRefname, oldTxt), outputNew=newText} =  -- Lookup for the reference in the options.
              case Dict.get newText opts.nameToLabel of
               Just newRefname ->
-                {values = [[newRefname, oldTxt]]}
+                {values = [(newRefname, oldTxt)]}
               _ -> -- No solution, cancel update.
                 {error="could not find reference" + toString newText}
           }.apply refNameTxt
@@ -402,14 +402,14 @@ toHtml x =
           ["class","reference"],
           ["onclick", "if(window.location.hash=='') window.location.hash = '" + refname + "';"],
           ["title", refname]
-          ], [["TEXT", replaceKey [refname, txt]]]]
+          ], [["TEXT", replaceKey (refname, txt)]]]
     [tag, attrs, c] -> [tag, attrs, replaceMap replaceReferences c]
     _ -> tree
   in
   replaceMap replaceReferences raw
 
 latex2html latex = 
-  { apply (f, latex) = freeze <| f latex,
+  { apply (f, latex) = freeze (f latex),
     update {input = (f, latex), outputOld, outputNew, diffs = VListDiffs diffs} = 
       letrec gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
         [] -> {values = [[]]}

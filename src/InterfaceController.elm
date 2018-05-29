@@ -2350,8 +2350,9 @@ doAutoSync caretPosition m =
       Nothing -> newModel
       Just results -> -- If there are only two options (second is always revert to original program), and the first one is not a Hack, then we can apply it !
         case results of
-          [SynthesisResult {description, exp, diffs, isSafe} , revert] ->
-              -- TODO: Once we have the diffs in the output, move the caretPosition
+          SynthesisResult {description, exp, diffs, isSafe}:: revert ->
+            if List.length revert <= 1 then
+            -- TODO: Once we have the diffs in the output, move the caretPosition
             --if String.startsWith "HACK: " description then newModel else
               let newerModel = doSelectSynthesisResult exp newModel in
               { newerModel
@@ -2359,6 +2360,7 @@ doAutoSync caretPosition m =
                   , previewdiffs = Just diffs
                   , caretPosition = Just caretPosition
                   }
+            else newModel
           _ -> newModel
 
 msgClearPreviewDiff: Int -> Msg
