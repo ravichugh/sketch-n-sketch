@@ -278,17 +278,12 @@ builtinEnv =
           _ -> Err <| "__updateApp__ argument should be a record {fun,input[,oldOutput],output[,outputDiff]}, but got " ++ valToString arg
   ) Nothing)
   , ("__merge__",  builtinVal "EvalUpdate.merge" <|
-     VFun "__merge__" ["original", "list_of_modified"] (twoArgs "__merge__" <| \original modifications ->
-       case modifications.v_ of
-         VList modifications ->
-           let modificationsWithDiffs =
-             List.map (\m -> UpdateUtils.defaultVDiffs original m |> Results.firstResult |> Result.map (\mbmodifs -> mbmodifs |> Maybe.map (\modifs -> (m, modifs)))) modifications in
-           case modificationsWithDiffs |> Utils.projOk of
-              Err msg -> Err msg
-              Ok withModifs ->
-                let (newVal, _) = recursiveMergeVal original (List.filterMap identity withModifs) in  -- TODO: To bad, we are forgetting about diffs !
-                Ok (newVal, [])
-         _ -> Err  <| "__merge__ 's second argument should be a list , but got " ++ valToString modifications
+     VFun "__merge__" ["original", "List (modified, Maybe diff)"] (twoArgs "__merge__" <| \original modifications ->
+       case Vu.list (Vu.tuple2 Vu.identity (Vu.maybe valToVDiffs)) modifications of
+         Ok withModifs ->
+           let (newVal, mbd) = recursiveMergeVal original withModifs in
+           Ok ((Vb.tuple2 Vb.identity (Vb.maybe vDiffsToVal)) (Vb.fromVal original) (newVal, mbd), [])
+         Err msg -> Err  <| "__merge__ 's second argument should be a list of (value, Maybe diff), but got " ++ valToString modifications ++ "\n" ++ msg
      ) Nothing)
   , ("__diff__", builtinVal "EvalUpdate.diff" <|
     VFun "__diff__" ["value_before", "value_after"] (twoArgs "__diff__" <| \before after ->

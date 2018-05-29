@@ -6439,7 +6439,6 @@ mapListLens_2 =
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
-
       letrec walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
@@ -6479,7 +6478,8 @@ mapListLens_2 =
       let newFuncAndInputLists =
         List.simpleMap (\\newList ->
           let (newFuncs, newInputList) = List.unzip newList in
-          let newFunc = Update.merge f newFuncs in
+          let (newFunc, _) = Update.merge f (
+            List.map (\\newF -> (newF, Update.diff f newF |> .args._1)) newFuncs) in
           (newFunc, newInputList)
         ) newLists
       in
@@ -6498,7 +6498,6 @@ transformedValues =
 
 main =
   Html.p [] [] (toString transformedValues)
-
 """
 
 listAppendLens =

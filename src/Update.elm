@@ -69,10 +69,10 @@ update callbacks forks updateStack =
     UpdateContextS env e prevLets oldVal newOut diffs mb ->
       {--
       let _ = Debug.log (String.concat ["update: " , unparse e, " <-- ", vDiffsToString oldVal newOut diffs]) () in
-      --let _ = case oldVal.v_ of
+      let _ = case oldVal.v_ of
         VClosure _ _ _ _ -> ()
         _ -> Debug.log (String.concat ["(old value)" , valToString oldVal, " <-- ", valToString newOut]) () in
-      --let _ = Debug.log ("Previous lets are " ++ envToString prevLets) () in
+      let _ = Debug.log ("Previous lets are " ++ envToString prevLets) () in
       --}
       getUpdateStackOp env e prevLets oldVal newOut diffs |>
       update (LazyList.maybeCons mb callbacks) forks
@@ -609,16 +609,14 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                                         let vArgStr = valToString vArg in
                                                         Results.projOk <|
                                                         List.map (\r ->
-                                                          if vArgStr == valToString r then
-                                                            ok1 Nothing
-                                                          else (if diffs == VUnoptimizedDiffs
-                                                                then defaultVDiffsShallow
-                                                                else defaultVDiffs) vArg r) <| valuesList
+                                                          (if diffs == VUnoptimizedDiffs
+                                                             then defaultVDiffsShallow
+                                                             else defaultVDiffs) vArg r) <| valuesList
                                                       Just resultDiffsV ->
-                                                        --ImpureGoodies.logTimedRun ".update recovering diffs" <| \_ ->
                                                         Vu.list (Vu.maybe valToVDiffs) resultDiffsV |>
-                                                          Result.mapError (\msg -> "Line " ++ toString e.start.line ++ ": the .diffs of the result of .update should be a list of (Maybe differences). " ++ msg ++ ", for " ++ valToString resultDiffsV) |>
-                                                          Results.fromResult
+                                                        Results.fromResult |>
+                                                        Result.mapError (\msg -> "Expected a list of (Maybe differences). " ++ msg ++ ", for " ++ valToString resultDiffsV) |>
+                                                        Result.mapError (\msg -> "Line " ++ toString e.start.line ++ " for the .diffs of the result of .update: " ++ msg)
                                                     in
                                                     updateManys diffsListRes <| \diffsList ->
                                                     let resultDiffs = LazyList.zip valuesListLazy (LazyList.fromList <| List.map ok1 diffsList) in

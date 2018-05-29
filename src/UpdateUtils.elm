@@ -577,8 +577,9 @@ recursiveMerge merge original modifications =
     (head1, head1Diff)::(head2, head2Diff)::tail ->
       recursiveMerge merge original (merge original head1 head1Diff head2 head2Diff:: tail)
 
-recursiveMergeVal: Val -> List (Val, VDiffs) -> (Val, Maybe VDiffs)
-recursiveMergeVal = recursiveMerge mergeVal
+recursiveMergeVal: Val -> List (Val, Maybe VDiffs) -> (Val, Maybe VDiffs)
+recursiveMergeVal original modifications = recursiveMerge mergeVal original (
+  List.filterMap (\(a, mbb) -> Maybe.map ((,) a) mbb) modifications)
 
 -- type PDiffs = PChanged -- TODO: More diffs for patterns there?
 

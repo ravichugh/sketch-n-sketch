@@ -13,6 +13,12 @@ Debug = {
     let _ = debug msg in
     value []
   crash msg = error msg
+  time msg callback =
+    let start = getCurrentTime () in
+    let res = callback () in
+    let end = getCurrentTime () in
+    let _ = debug (msg + " took " + toString (end - start) + "ms") in
+    res
 }
 
 --------------------------------------------------------------------------------
@@ -142,6 +148,16 @@ LensLess =
       Nothing -> filterMap f tail
       Just newHead -> newHead :: filterMap f tail
   in
+  letrec last l = case l of
+    [head] -> Just head
+    _ :: tail -> last tail
+    _ -> Nothing
+  in
+  letrec map2 f xs ys =
+    case [xs, ys] of
+      [x::xs1, y::ys1] -> f x y :: map2 f xs1 ys1
+      _                -> []
+  in
   { appendStrDef = """letrec append a b = case a of [] -> b; (h::t) -> h :: append t b in """
     List = {
       append = append
@@ -152,6 +168,8 @@ LensLess =
       reverse_move = reverse_move
       filterMap = filterMap
       map = map1
+      last = last
+      map2 = map2
     },
     Results =
       letrec keepOks l =
@@ -536,50 +554,78 @@ append aas bs = {
     }.apply [aas, bs]
 
 --; Maps a function, f, over a list of values and returns the resulting list
---map: (forall (a b) (-> (-> a b) (List a) (List b)))
-map f l =
-  {
+
+--; Maps a function, f, over a list of values and returns the resulting list
+--map a b: (a -> b) -> List a -> List b
+map f l = {
   apply [f, l] = freeze (map1 f l)
   update {input=[f, l], oldOutput, outputNew, diffs} =
     foldDiff {
       start =
-        --Start: the collected functions, the collected inputs, the inputs yet to process.
-        [[], [], l]
+        --Start: the collected functions and diffs,
+        -- the collected inputs,
+        -- The collected input diffs,
+        -- the inputs yet to process.
+        [[], [], [], l]
 
 
-      onSkip [fs, insA, insB] {count} =
+      onSkip [fs, insA, diffInsA, insB] {count} =
         --'outs' was the same in oldOutput and outputNew
         let [skipped, remaining] = LensLess.List.split count insB in
-        {values = [[fs, insA ++ skipped, remaining]]}
+        {values = [[fs, insA ++ skipped, diffInsA, remaining]]}
 
-      onUpdate [fs, insA, insB] {oldOutput, newOutput, diffs} =
+      onUpdate [fs, insA, diffInsA, insB] {oldOutput, newOutput, diffs, index} =
         let input::remaining = insB in
-        case Update.updateApp {fun [f,x] = f x, input = [f, input], output = newOutput, oldOutput = oldOutput, diffs = diffs} of
+        case Update.updateApp {fun (f,x) = f x, input = (f, input), output = newOutput, oldOutput = oldOutput, diffs = diffs} of
           { error = msg } -> {error = msg}
-          { values = v } -> {values = v |>
-              map1 (\[newF, newA] -> [newF :: fs, insA ++ [newA], remaining])}
+          { values = vs, diffs = ds} -> {values =
+              LensLess.List.map2 (\(newF, newA) d ->
+                let newFs = case d of
+                  Just (VRecordDiffs {_1 = d}) -> (newF, Just d)::fs
+                  _ -> fs
+                in
+                let newDiffsInsA = case d of
+                  Just (VRecordDiffs {_2 = d}) -> diffInsA ++ [(index, ListElemUpdate d)]
+                  _ -> diffInsA
+                in
+                [newFs, insA ++ [newA], newDiffsInsA, remaining]) vs ds}
 
-      onRemove [fs, insA, insB] {oldOutput} =
+      onRemove [fs, insA, diffInsA, insB] {oldOutput, index} =
         let _::remaining = insB in
-        { values = [[fs, insA, remaining]] }
+        { values = [[fs, insA, diffInsA ++ [(index, ListElemDelete 1)], remaining]] }
 
-      onInsert [fs, insA, insB] {newOutput} =
-        let input = case insB of h::_ -> h; _ -> case insA of h::_ -> h; _ -> Debug.crash "Empty list for map, cannot insert" in
-        case Update.updateApp {fun [f,x] = f x, input = [f, input], output = newOutput} of
+      onInsert [fs, insA, diffInsA, insB] {newOutput, index} =
+        let input =
+          case insB of h::_ -> h; _ ->
+          case LensLess.List.last insA of Just h -> h; Nothing -> Debug.crash "Empty list for map, cannot insert" in
+        case Update.updateApp {fun (f,x) = f x, input = (f, input), output = newOutput} of
           { error = msg } -> {error = msg }
-          { values = v} -> {values = v |>
+          { values = vs } -> {values =
               -- We disable the modification of f itself in the insertion (to prevent programmatic styling to change unexpectedly) newF::
-              map (\[newF, newA] -> [fs, insA++[newA], insB])}
+              map1 (\(newF, newA) ->
+                [fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]) vs
+          }
 
-      onFinish [newFs, newIns, _] =
+      onFinish [newFs, newIns, diffInsA, _] =
        --after we finish, we need to return the new function
        --as a merge of original functions with all other modifications
        -- and the collected new inputs
-       {values = [[Update.merge f newFs, newIns]] }
+       {values = [[Update.merge f newFs, newIns, diffInsA]] }
 
-      onGather result =
-        -- TODO: Later, include the , diff= here.
-        { value = result }
+      onGather [(newF, fdiff), newIns, diffInsA] =
+        let fdiffPart = case fdiff of
+          Nothing -> []
+          Just d -> [(0, ListElemUpdate d)]
+        in
+        let inPart = case diffInsA of
+          [] -> []
+          d -> [(1, ListElemUpdate (VListDiffs d))]
+        in
+        let finalDiff = case fdiffPart ++ inPart of
+          [] -> Nothing
+          d -> Just (VListDiffs d)
+        in
+        { value = [newF, newIns], diff = finalDiff}
     } oldOutput outputNew diffs
   }.apply [f, l]
 
