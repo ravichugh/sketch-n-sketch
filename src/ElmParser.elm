@@ -937,7 +937,12 @@ htmlliteral =
       |= HTMLParser.parseOneNode (HTMLParser.Interpolation
         { attributevalue = inContext "HTML attribute value" << wrapWithSyntax ElmSyntax << (\apparg -> map always <| expressionWithoutGreater { first = nospace, apparg = apparg})
         , attributelist = inContext "HTML special attribute list" << wrapWithSyntax ElmSyntax << simpleExpression
-        , childlist = inContext "HTML special child list" << wrapWithSyntax ElmSyntax << simpleExpression
+        , childlist = inContext "HTML special child list" << wrapWithSyntax ElmSyntax << (\spaceapparg ->
+              oneOf [
+                variableExpression |> addSelections False nospace,
+                tuple
+              ]
+            )
         , tagName = inContext "HTML special tag name" << wrapWithSyntax ElmSyntax << simpleExpression
         })) |> andThen htmlToExp)
 
@@ -1074,7 +1079,7 @@ tuplePattern =
               pattern
           , tagger =
               withDummyPatInfo << PBase space0 << EString defaultQuoteChar
-          , one = \wsBefore innerPattern wsBeforeEnd -> PParens wsBefore innerPattern wsBeforeEnd
+          , one = PParens
           , record =
               PRecord
           , implicitFun = Nothing
@@ -1166,8 +1171,7 @@ simplePattern =
     oneOf <| Debug.log "simplePattern=" <|
       [ lazy <| \_ -> listPattern
       , lazy <| \_ -> recordPattern
-      , lazy <| \_ -> try <| tuplePattern
-      , lazy <| \_ -> parensPattern
+      , lazy <| \_ -> tuplePattern
       , constantPattern
       , baseValuePattern
       , lazy <| \_ -> dataConstructorPattern
