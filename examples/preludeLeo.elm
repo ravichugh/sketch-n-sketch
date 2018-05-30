@@ -408,7 +408,7 @@ diffs:@(strDiffToConcreteDiff newOutput diffs)""") "end" in
 
 
 evaluate program =
-  case __evaluate__ (Update.freeze []) program of
+  case __evaluate__ [] program of
     Ok x -> x
     Err msg -> Debug.crash msg
 

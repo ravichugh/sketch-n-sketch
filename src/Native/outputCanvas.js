@@ -279,7 +279,7 @@ function listenForUpdatesToOutputValues() {
                 , subtree: false
                 }
               );
-            for (j = 0; j < currentNode.childNodes.length; j++) {
+            for (var j = 0; j < currentNode.childNodes.length; j++) {
               var child = currentNode.childNodes[j];
               if (child.nodeType == 3) {
                 outputValueObserver.observe
