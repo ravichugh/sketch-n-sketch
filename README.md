@@ -255,19 +255,90 @@ The semicolon is optional for a branch if 1) there is a newline 2) the column of
       |   L f p1 ... pn = e1 in e2   -- desugars to L f = \p1 ... pn -> e1 in e2
 ```
 
-### Lenses and Meta-Programming
-
+### Built-in functions
 ```
 __evaluate__ environment string
 ```
 Evaluates the program present in the string under the given environment, which is a list of (string, value)
+This function is reversible.
 
 ```
 { apply = f, update = g}.apply X
 ```
 On evaluation, it returns the result of computing `f x`.
-On evaluation update, given a new output value `v'`, it computes g { outputNew = v' } which should be either a
-{ values = [x1, x2...]} or {error = "error_message"}. If the former, propagates the new value `x1...` to the expression `X`.
+On evaluation update, given a new output value `v'`, it computes g { outputNew = v' } which should return either a
+`{ values = [x1, x2...]}`, `{ values = [x1, x2...], diffs = [Just diff1, Just diff2 ...]}`  or `{error = "error_message"}`. If the former, propagates the new value `x1` to the expression `X` with differences `diff1`, then on a second round the value `x2`  to the expression `X` with differences `diff2`.
+
+```
+__updateApp__ {fun=FUNCTION,input=ARGUMENT[,oldOutput=OLD OUTPUT],output=NEWOUTPUT[,outputDiff=OUTPUT DIFF]}
+```
+Takes a single record defining `fun` (a function), an `input` and an new `output`. For performance, we can also provide the old output `oldOutput` and the output difference `outputDiff`.
+This solves the evaluation problem `fun input <-- output`.
+Returns `{ values = [x1, x2...]}`, `{ values = [x1, x2...], diffs = [Just diff1, Just diff2 ...]}`  or `{error = "error_message"}` (same as lenses for chaining)
+The values `x1, x2, ...` are the possible new input. Solutions that modify `fun` are discarded.
+
+You can still update both function and argument by the following trick:
+`__updateApp__ {fun (f,a) = f a, input = (FUNCTION, ARGUMENT), output = NEWOUTPUT}`
+
+If necessary, `outputOld` and `oldOut` are all synonyms of `oldOutput`.
+`diffOutput`, `diffOut` and `outDiff` are all synonyms of `outputDiff`.
+
+```
+__merge__ original (listModifiedDiff)
+```
+It takes an original value (especially useful for functions and lists) and a list of (modified value, `Maybe Diff`) where each value is associated to a (possible) difference. To compute such differences, use `__diff__`.
+Returns the merge of all modifications. Does not prompt on ambiguity.
+
+```
+__diff__ original modified
+```
+Computes a `Result String (Maybe Diff)` (differences) of the differences between the original and the modified value.
+If you are sure there is no error, you can convert this result to a single `Maybe Diff` by using the function `.args._1`
+
+```
+join__ (list of strings)
+```
+Performs a reversible join between strings, deleting strings from the list if necessary.
+
+```
+__mbwraphtmlnode__
+```
+Wraps a String, an Int or an HTML Element into a list of HTML Elements.
+Idempotent on any other values.
+This function is internally used by the HTML interpolation for children. You should not need it.
+
+```
+__mbstylesplit__
+```
+Reversibly explodes a string representing a element's `style` into a list of key/values.
+Idempotent on any other values.
+This function is internally used by the attribute interpolation for children. You should not need it.
+
+```
+error string
+```
+As its name indicates, stops the execution by raising the given error as a string. Cannot be recovered. Used by Debug.crash
+
+```
+getCurrentTime ()
+```
+Return the current time in milliseconds.
+This function is not reversible.
+
+```
+toggleGlobalBool ()
+```
+Flips a global boolean and returns it.
+This function is not reversible.
+
+```
+__jsEval__ string
+```
+Evaluates arbitrary JavaScript using JavaScript's eval. Converts back the value to an interpretable value in our language, i.e. integers to integers, strings to strings, records to records, arrays to list.
+Can be useful to execute a program with user-defined values (e.g. `let username = __jsEval__ "document.getElementById('username')" in ...`).
+This function is not reversible.
+
+
 
 ### Comments and Options
 
