@@ -2,6 +2,7 @@ module ElmLang exposing
   ( symbols
   , isSymbol
   , isInfixOperator
+  , arity
   )
 
 import Set exposing (Set)
@@ -35,6 +36,70 @@ symbols =
 isSymbol : Char -> Bool
 isSymbol char =
   Set.member char symbols
+
+arity : Op -> Int
+arity op =
+  case op.val of
+    Pi ->
+      0
+    DictEmpty ->
+      0
+    CurrentEnv ->
+      0
+    DictFromList ->
+      1
+    Cos ->
+      1
+    Sin ->
+      1
+    ArcCos ->
+      1
+    ArcSin ->
+      1
+    Floor ->
+      1
+    Ceil ->
+      1
+    Round ->
+      1
+    ToStr ->
+      1
+    Sqrt ->
+      1
+    Explode ->
+      1
+    Plus ->
+      2
+    Minus ->
+      2
+    Mult ->
+      2
+    Div ->
+      2
+    Lt ->
+      2
+    Eq ->
+      2
+    Mod ->
+      2
+    Pow ->
+      2
+    ArcTan2 ->
+      2
+    DictInsert ->
+      3
+    DictGet ->
+      2
+    DictRemove ->
+      2
+    DebugLog ->
+      1
+    NoWidgets ->
+      1
+    ToStrExceptStr ->
+      1
+    RegexExtractFirstIn ->
+      2
 
 isInfixOperator : Op -> Bool
 isInfixOperator op =

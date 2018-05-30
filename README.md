@@ -132,6 +132,8 @@ where S converts its argument to a string if it is not.
       |   op1 e1
       |   op2 e1 e2
       |   e1 opi e2
+      |   (op)
+      |   (op,...,op)
 ```
 
 ```
@@ -144,7 +146,6 @@ where S converts its argument to a string if it is not.
 
   op2  ::=  mod | pow
         |   arctan2
-        |   ...
 
   opi  ::=  + | - | * | /
         |   == | < | <= | > | >= | /=
@@ -253,6 +254,20 @@ The semicolon is optional for a branch if 1) there is a newline 2) the column of
       |   L p = e1 in e2
       |   L f p1 ... pn = e1 in e2   -- desugars to L f = \p1 ... pn -> e1 in e2
 ```
+
+### Lenses and Meta-Programming
+
+```
+__evaluate__ environment string
+```
+Evaluates the program present in the string under the given environment, which is a list of (string, value)
+
+```
+{ apply = f, update = g}.apply X
+```
+On evaluation, it returns the result of computing `f x`.
+On evaluation update, given a new output value `v'`, it computes g { outputNew = v' } which should be either a
+{ values = [x1, x2...]} or {error = "error_message"}. If the former, propagates the new value `x1...` to the expression `X`.
 
 ### Comments and Options
 

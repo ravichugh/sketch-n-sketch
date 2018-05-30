@@ -453,7 +453,7 @@ unparse e =
         ++ identifier
 
     EFun wsBeforeFun parameters functionBinding _ ->
-      let default =
+      let default () =
         wsBeforeFun.val
         ++ "\\"
         ++ String.concat (List.map unparsePattern parameters)
@@ -465,26 +465,32 @@ unparse e =
           case functionBinding.val.e__ of
             ECase wsBefore examinedExpression branches wsBeforeOf -> if eVarUnapply examinedExpression == Just ElmParser.implicitVarName then
                 unparse (replaceE__ functionBinding <| ECase wsBefore (replaceE__ examinedExpression <| EVar space0 "") branches wsBeforeOf)
-              else default
+              else default ()
             ESelect _ selected wsBeforeDot wsAfterDot name ->
               let res = unparse  functionBinding in
               if String.startsWith ElmParser.implicitVarName res then
                 wsBeforeFun.val ++ String.dropLeft (String.length ElmParser.implicitVarName) res
               else
                 let _ = Debug.log ("Could not find the implicit var name at the start of '" ++ res ++ "' reverting to default") () in
-                default
+                default ()
             ERecord wsBefore Nothing elems wsBeforeEnd ->
               wsBeforeFun.val ++ "(" ++ String.repeat (List.length elems - 2) "," ++ ")"
-            _ -> default
-          else default
-        _ -> default
+            EOp wsBefore wsOp op args wsBeforeEnd ->
+              {-if ElmLang.arity op == List.length args then
+                wsBefore.val ++
+                unparseOp op
+              else-} -- Won't work correctly, e.G. (+) will be displayed as "+"
+              default ()
+            _ -> default ()
+          else default ()
+        _ -> default ()
 
     EApp wsBefore function arguments appType _ ->
       -- Not just for help converting Little to Elm. Allows synthesis ot not have to worry about so many cases.
       let unparseArg e =
         case e.val.e__ of
            EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
-           EOp _ _ _ _ _          -> wrapWithTightParens (unparse e)
+           EOp _ _ _ _ _        -> wrapWithTightParens (unparse e)
            EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
            _                    -> unparse e
       in

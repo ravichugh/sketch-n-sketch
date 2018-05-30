@@ -46,7 +46,7 @@ import ImpureGoodies
 --= Helpers
 --==============================================================================
 
-implicitVarName = " $implicitcase"
+implicitVarName = " i"
 
 --------------------------------------------------------------------------------
 -- Lists
@@ -384,7 +384,7 @@ genericTuple { term, tagger, one, record, implicitFun } =
       in
       record wsBefore [ctorEntry] wsBeforeEnd
 
-    implicitTupling = flip Maybe.map implicitFun <| \(identToPvarVar, funBuilder) numberOfCommas wsBefore ->
+    implicitTupling = flip Maybe.map implicitFun <| \(identToPvarVar, funBuilder) -> \numberOfCommas wsBefore ->
       let (firstPvar, firstVar) = identToPvarVar <| implicitVarName in
       let (restPvar, restVar) = List.range 1 numberOfCommas |> List.map (\i ->
            implicitVarName ++ toString i
@@ -424,7 +424,7 @@ genericTuple { term, tagger, one, record, implicitFun } =
           Just commasToImplicitFun ->
             [setStartInfo (trackInfo <| map (String.length >> commasToImplicitFun)
                  (keep oneOrMore (\c -> c == ',')
-              |. symbol ")"))])))
+                  |. symbol ")"))])))
 
 --------------------------------------------------------------------------------
 -- Block Helper (for types) TODO
@@ -1970,8 +1970,7 @@ tuple =
     lazy <| \_ ->
       mapWSExp_ <|
         genericTuple
-          { term =
-              expression
+          { term = expression
           , tagger =
               withDummyExpInfo << EBase space0 << EString defaultQuoteChar
           , record =
@@ -2103,6 +2102,16 @@ implicitSelectionFun =
     (List.foldl (\sel updatedExp -> sel updatedExp) (\wsBefore -> withInfo (exp_ <| EVar wsBefore implicitVarName) start start) val space0) space0) start end
   )
   |= (trackInfo <| repeat oneOrMore (selection False nospace))
+
+implicitOp: Parser (WS -> Exp)
+implicitOp =
+  lazy <| \_ ->
+  operator nospace |> andThen (\op ->
+    let (ws0, identifier) = op.val in
+    case opFromIdentifier identifier of
+      Just op_ -> succeed <| \wsBefore -> withInfo (exp_ <| EOp wsBefore space0 (withInfo op_ op.start op.end) [] space0) op.start op.end
+      Nothing -> fail <| "Operator " ++ identifier ++ " not recognized"
+  )
 
 -- Not a function application nor a binary operator
 simpleExpression : Parser WS -> Parser (WS -> Exp)
@@ -2297,7 +2306,7 @@ simpleUntypedExpressionWithPossibleArguments appargSpace =
   in
     lazy <| \_ ->
       succeed combine
-        |= simpleExpression appargSpace
+        |= oneOf [simpleExpression appargSpace, implicitOp]
         |= repeat zeroOrMore (delayedCommitMap (\ws wsExp -> wsExp ws)
            appargSpace
            (simpleExpression appargSpace))

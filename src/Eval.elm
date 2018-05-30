@@ -9,6 +9,7 @@ import Lang exposing (..)
 import ValUnparser exposing (strVal_, strOp, strLoc)
 import ElmUnparser
 import ElmParser as Parser
+import ElmLang
 import Syntax exposing (Syntax)
 import Types
 import Utils
@@ -449,6 +450,15 @@ evalOp syntax env e bt opWithInfo es =
       in
       let addProvenance val_   = Val val_ (Provenance env e vs) (Parents []) in
       let addProvenanceOk val_ = Ok (addProvenance val_) in
+      let mkClosureOrError () =
+        let vLength = List.length vs in
+        let nbArgs = ElmLang.arity opWithInfo in
+        if vLength > nbArgs then error() else
+        let vars = List.range 1 nbArgs |> List.map (\i -> Parser.implicitVarName ++ if (i == 1) then "" else toString i) in
+        let (varsComputed, varsRemaining) = Utils.split vLength vars in
+        VClosure Nothing (varsRemaining |> List.map pVar) (
+          eOp opWithInfo.val (List.map eVar vars)) (Utils.reverseInsert (List.map2 (,) varsComputed vs) env) |> addProvenanceOk
+      in
       let nullaryOp args retVal_ =
         case args of
           [] -> addProvenanceOk retVal_
@@ -457,7 +467,7 @@ evalOp syntax env e bt opWithInfo es =
       let unaryMathOp op args =
         case args of
           [VConst _ (n,t)] -> VConst Nothing (evalDelta syntax bt op [n], TrOp op [t]) |> addProvenanceOk
-          _                -> error ()
+          _ -> mkClosureOrError ()
       in
       let binMathOp op args =
         case args of
@@ -470,8 +480,7 @@ evalOp syntax env e bt opWithInfo es =
                 _                                      -> Nothing
             in
             VConst maybeAxisAndOtherDim (evalDelta syntax bt op [i,j], TrOp op [it,jt]) |> addProvenanceOk
-          _  ->
-            error ()
+          _ -> mkClosureOrError ()
       in
       let args = List.map .v_ vs in
       let newValRes =
@@ -487,8 +496,9 @@ evalOp syntax env e bt opWithInfo es =
           ArcTan2   -> binMathOp op args
           Lt        -> case args of
             [VConst _ (i,it), VConst _ (j,jt)] -> VBase (VBool (i < j)) |> addProvenanceOk
-            _                                  -> error ()
+            _ -> mkClosureOrError ()
           Eq        ->
+            if List.length vs < 2 then mkClosureOrError () else
             let valEquals: List Val_ -> Result String Bool
                 valEquals args =
                  case args of
@@ -524,12 +534,12 @@ evalOp syntax env e bt opWithInfo es =
                 |> Utils.projOk
                 |> Result.map (Dict.fromList >> VDict >> addProvenance)
               _                 -> error ()
-            _                 -> error ()
+            _ -> mkClosureOrError ()
           DictInsert -> case vs of
             [vkey, val, {v_}] -> case v_ of
               VDict d -> valToDictKey syntax bt vkey |> Result.map (\dkey -> VDict (Dict.insert dkey val d) |> addProvenance)
               _       -> error()
-            _                 -> error ()
+            _  -> mkClosureOrError ()
           DictGet    -> case vs of
             [key, {v_}] -> case v_ of
               VDict d     ->
@@ -539,12 +549,12 @@ evalOp syntax env e bt opWithInfo es =
                     Just x -> Vb.constructor addProvenance "Just" [x]
                   )
               _           -> error()
-            _           -> error ()
+            _           -> mkClosureOrError ()
           DictRemove -> case vs of
             [key, {v_}] -> case v_ of
               VDict d      -> valToDictKey syntax bt key |> Result.map (\dkey -> VDict (Dict.remove dkey d) |> addProvenance)
               _            -> error ()
-            _           -> error ()
+            _           -> mkClosureOrError ()
           Cos        -> unaryMathOp op args
           Sin        -> unaryMathOp op args
           ArcCos     -> unaryMathOp op args
@@ -566,27 +576,27 @@ evalOp syntax env e bt opWithInfo es =
                   )
               |> VList
               |> addProvenanceOk
-            _                   -> error ()
+            _                   -> mkClosureOrError ()
           DebugLog   -> case vs of
             [val] -> case val.v_ of
                VBase (VString v) as r -> let _ = ImpureGoodies.log v in Ok val
                _  -> let _ = ImpureGoodies.log (valToString val) in Ok val
-            _   -> error ()
+            _   -> mkClosureOrError ()
           NoWidgets  -> case vs of
             [v] -> Ok v -- Widgets removed  below.
-            _   -> error ()
+            _   -> mkClosureOrError ()
           ToStr      -> case vs of
             [val] -> VBase (VString (valToString val)) |> addProvenanceOk
-            _     -> error ()
+            _     -> mkClosureOrError ()
           ToStrExceptStr -> case vs of
             [val] -> case val.v_ of
               VBase (VString v) as r -> r |> addProvenanceOk
               v -> VBase (VString (valToString val)) |> addProvenanceOk
-            _     -> error ()
+            _     -> mkClosureOrError ()
           RegexExtractFirstIn -> case vs of
             [regexp, string] ->
               evalRegexExtractFirstIn regexp string
-            _     -> error ()
+            _     -> mkClosureOrError ()
       in
       case newValRes of
         Err s     -> Err s
