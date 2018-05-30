@@ -935,7 +935,7 @@ htmlliteral =
            (symbol "<")
            (oneOf [identifier, source <| symbol "@"])))
       |= HTMLParser.parseOneNode (HTMLParser.Interpolation
-        { attributevalue = inContext "HTML attribute value" << wrapWithSyntax ElmSyntax << (\apparg -> map always <| expressionWithoutGreater { first = nospace, apparg = apparg})
+        { attributevalue = inContext "HTML attribute value" << wrapWithSyntax ElmSyntax << (\apparg -> map always <| expressionWithoutGreater { first = spaces, apparg = apparg})
         , attributelist = inContext "HTML special attribute list" << wrapWithSyntax ElmSyntax << simpleExpression
         , childlist = inContext "HTML special child list" << wrapWithSyntax ElmSyntax << (\spaceapparg ->
               oneOf [

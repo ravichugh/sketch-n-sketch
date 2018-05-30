@@ -173,6 +173,10 @@ function listenForUpdatesToOutputValues() {
   function isAttributeTransient(name) {
     return name.startsWith("transient-");
   }
+
+  function isAttributeIgnored(name) {
+    return name.startsWith("ignore-");
+  }
   
   function encodeAttributes(attrs, node) {
     var attributes = [];
@@ -257,7 +261,7 @@ function listenForUpdatesToOutputValues() {
       }
 			
       if (mutation.type == "attributes") {
-        if(!isAttributeTransient(mutation.attributeName)) {
+        if(!isAttributeTransient(mutation.attributeName) && !isAttributeIgnored(mutation.attributeName)) {
           var path = getPathUntilOutput(mutation.target)
           if(path != null) {
             path.push(1) // 1 for the attributes. We can be more precise if we know there are no insertion.

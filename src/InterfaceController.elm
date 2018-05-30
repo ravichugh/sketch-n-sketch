@@ -2732,8 +2732,12 @@ fileMessageError err =
 msgNew template = Msg "New" (handleNew template)
 
 handleNew template = (\old ->
-  let thunk = loadTemplate template in
-  let {e,v,ws,ati,env} = thunk () in
+  let f = loadTemplate template () in
+  let
+    {e,v,ws,env,ati} = case f of
+         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[], ati=Types.AceTypeInfo [] [] []}
+         Ok ff -> ff
+  in
   let so = Sync.syncOptionsOf old.syncOptions e in
   let outputMode =
     Utils.fromOk "SelectExample mkLive" <|
@@ -2745,6 +2749,10 @@ handleNew template = (\old ->
     { initModel | inputExp      = e
                 , inputVal      = v
                 , inputEnv      = env
+                , caption       = (case f of
+                        Err msg -> Just (LangError msg)
+                        _ -> Nothing
+                      )
                 , valueEditorString = LangUtils.valToString v
                 , outputMode    = maybeUpdateOutputMode old slate
                 , htmlEditorString = Nothing

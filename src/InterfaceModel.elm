@@ -1184,6 +1184,7 @@ loadTemplate name =
         let _ = Debug.log "error in template" () in
         \() ->
           let t = theTemplate () in
+          flip Result.map t <| \t ->
           let e = t.e in
           case childExpsExtractors e of -- e == ["pre" ...]
             ([a, b, content1], rebuilder1) -> case childExpsExtractors content1 of --content1 == [...]
@@ -1201,9 +1202,11 @@ loadTemplate name =
 
 initModel : Model
 initModel =
+  let f    = loadTemplate initTemplate () in
   let
-    f    = loadTemplate initTemplate
-    {e,v,ws,env} = f ()
+    {e,v,ws,env} = case f of
+         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[], ati=Types.AceTypeInfo [] [] []}
+         Ok ff -> ff
   in
   let unwrap = Utils.fromOk "generating initModel" in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
@@ -1244,7 +1247,10 @@ initModel =
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
     , mouseState    = (Nothing, {x = 0, y = 0}, Nothing)
     , syncOptions   = Sync.defaultOptions
-    , caption       = Nothing
+    , caption       = (case f of
+        Err msg -> Just (LangError msg)
+        _ -> Nothing
+      )
     , showGhosts    = True
     , localSaves    = []
     , startup       = True

@@ -33,6 +33,7 @@ import DefaultIconTheme
 import Syntax
 import EvalUpdate
 import Parser
+import ParserUtils
 
 type alias Example = {
    e: Exp,
@@ -54,25 +55,11 @@ makeExample = makeExample_ FastParser.parseE Syntax.Little
 
 makeLeoExample = makeExample_ ElmParser.parse Syntax.Elm
 
-makeExample_: (String -> Result Parser.Error Exp) -> Syntax.Syntax -> String -> String -> (String, (String, () -> Example))
+makeExample_: (String -> Result Parser.Error Exp) -> Syntax.Syntax -> String -> String -> (String, (String, () -> Result String Example))
 makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
-    let e = Utils.fromOkay ("Error parsing example " ++ name) (parser s) in
-{-
-    -- TODO why isn't this working?
-    let e =
-      case parser s of
-        Ok exp -> exp
-        Err msg ->
-          -- TODO show msg in program
-          let s = "Error parsing example " ++ name in
-          -- case parser """main = [\"p\", [], [[\"TEXT\", \"blah\"]]]""" of
-          case ElmParser.parseNoFreshen """main = [\"p\", [], [[\"TEXT\", \"blah\"]]]""" of
-            Ok exp -> exp
-            Err _ -> Debug.crash "ExamplesTemplate: shouldn't happen!"
-    in
--}
+    parser s |> Result.mapError (\pmsg -> "Error parsing example " ++ name ++"\n" ++ ParserUtils.showError pmsg) |> Result.map (\e ->
     -- let ati = Types.typecheck e in
     let ati = Types.dummyAceTypeInfo in
     -----------------------------------------------------
@@ -82,6 +69,7 @@ makeExample_ parser syntax name s =
     -----------------------------------------------------
     let ((v,ws), env) = Utils.fromOk ("Error executing example " ++ name) <| EvalUpdate.runWithEnv syntax e in
     {e=e, v=v, ws=ws, ati=ati,env=env}
+    )
   in
   (name, (s, thunk))
 
