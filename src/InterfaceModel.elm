@@ -93,6 +93,13 @@ type CodeToolsMenuMode
   | CTActive
   | CTDisabled
 
+type CodeEditorMode
+  = CEText
+  | CEDeuceClick
+  | CEDeuceRect
+  | CEDeuceLasso
+  | CEDeuceLine
+
 type alias Model =
   { code : Code
   , lastRunCode : Code
@@ -207,6 +214,7 @@ type alias Model =
   , htmlEditorString: Maybe String
   , updatedValue: Maybe (Result String Val)
   , syntax : Syntax
+  , codeEditorMode : CodeEditorMode
   }
 
 type OutputMode
@@ -912,6 +920,7 @@ deuceActive model =
           , shiftDown
           ]
       , configurationPanelShown model
+      , model.codeEditorMode == CEDeuceClick
       ]
 
 --------------------------------------------------------------------------------
@@ -1344,4 +1353,5 @@ initModel =
     , htmlEditorString = Nothing
     , updatedValue = Nothing
     , syntax = Syntax.Elm
+    , codeEditorMode = CEText
     }

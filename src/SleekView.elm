@@ -1390,6 +1390,46 @@ codePanel model =
         [ Attr.class "code-panel-warning"
         ]
         []
+    modeIcon mode =
+      let
+        active =
+          mode ==
+            if Model.deuceActive model then
+              Model.CEDeuceClick
+            else
+              model.codeEditorMode
+      in
+        Html.div
+          [ Attr.classList
+              [ ("mode-icon-wrapper", True)
+              , ("active", active)
+              ]
+          ]
+          [ Html.div
+              [ Attr.class "mode-indicator" ]
+              []
+          , Html.div
+              [ Attr.class "mode-icon" ]
+              [ simpleTextButton (String.dropLeft 2 <| toString mode) <|
+                  Controller.msgSetCodeEditorMode mode
+              ]
+          ]
+    modeSeparator =
+      Html.div
+        [ Attr.class "mode-separator"
+        ]
+        []
+    modeBar =
+      Html.div
+        [ Attr.class "mode-bar"
+        ]
+        [ modeIcon Model.CEText
+        , modeSeparator
+        , modeIcon Model.CEDeuceClick
+        , modeIcon Model.CEDeuceRect
+        , modeIcon Model.CEDeuceLasso
+        , modeIcon Model.CEDeuceLine
+        ]
   in
     Html.div
       [ Attr.class "panel code-panel"
@@ -1403,6 +1443,7 @@ codePanel model =
       [ statusBar
       , actionBar
       , editor
+      , modeBar
       , codePanelWarning
       ]
 

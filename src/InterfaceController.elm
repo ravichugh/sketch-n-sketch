@@ -72,6 +72,7 @@ port module InterfaceController exposing
   , msgAskNextTemplate, msgAskPreviousTemplate
   , msgValuePathUpdate
   , msgAutoSync
+  , msgSetCodeEditorMode
   )
 
 import Updatable exposing (Updatable)
@@ -3462,3 +3463,12 @@ navigateTemplate offset m =
 
     Nothing ->
       m
+
+--------------------------------------------------------------------------------
+-- Code Editor Mode
+--------------------------------------------------------------------------------
+
+msgSetCodeEditorMode : CodeEditorMode -> Msg
+msgSetCodeEditorMode mode =
+  Msg "Set Code Editor Mode" <| \model ->
+    { model | codeEditorMode = mode }
