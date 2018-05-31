@@ -561,12 +561,14 @@ code {
   bottom: 0;
 }
 
+.mode-bar > * {
+  margin-left: 3px;
+}
+
 .mode-icon-wrapper {
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
-
-  margin: 0 2px;
 }
 
 .mode-indicator {

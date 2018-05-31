@@ -1429,6 +1429,7 @@ codePanel model =
         , modeIcon Model.CEDeuceRect
         , modeIcon Model.CEDeuceLasso
         , modeIcon Model.CEDeuceLine
+        , modeSeparator
         ]
   in
     Html.div
