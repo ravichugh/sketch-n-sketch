@@ -1956,53 +1956,58 @@ onbeforeunloadDataElement model =
 
 deuceOverlay : Model -> Html Msg
 deuceOverlay model =
-  let
-    pointerEvents =
-      if Model.deuceActive model then
-        "auto"
-      else
-        "none"
-    disabledFlag =
-      case model.preview of
-        Just _ ->
-          " disabled"
-        Nothing ->
-          ""
-  in
-    Html.div
-      [ Attr.class <| "deuce-overlay-container" ++ disabledFlag
-      , Attr.style
-          [ ( "pointer-events"
-            , pointerEvents
-            )
-          , ( "top"
-            , px model.codeBoxInfo.scrollerTop
-            )
-          , ( "left"
-            , px <|
-                model.codeBoxInfo.scrollerLeft - SleekLayout.deuceOverlayBleed
-            )
-          , ( "width"
-            , px <|
-                model.codeBoxInfo.scrollerWidth + SleekLayout.deuceOverlayBleed
-            )
-          , ( "height"
-            , px model.codeBoxInfo.scrollerHeight
-            )
-          ]
-      ]
-      [ Svg.svg
-          [ SAttr.class "deuce-overlay"
-          , SAttr.width "10000000"
-          , SAttr.height "10000000"
-          , SAttr.style << styleListToString <|
-              [ ("top", px -model.codeBoxInfo.scrollTop)
-              , ("left", px -model.codeBoxInfo.scrollLeft)
+  case model.deuceOverlayCache of
+    Nothing ->
+      Html.text ""
+
+    Just overlay ->
+      let
+        pointerEvents =
+          if Model.deuceActive model then
+            "auto"
+          else
+            "none"
+        disabledFlag =
+          case model.preview of
+            Just _ ->
+              " disabled"
+            Nothing ->
+              ""
+      in
+        Html.div
+          [ Attr.class <| "deuce-overlay-container" ++ disabledFlag
+          , Attr.style
+              [ ( "pointer-events"
+                , pointerEvents
+                )
+              , ( "top"
+                , px model.codeBoxInfo.scrollerTop
+                )
+              , ( "left"
+                , px <|
+                    model.codeBoxInfo.scrollerLeft - SleekLayout.deuceOverlayBleed
+                )
+              , ( "width"
+                , px <|
+                    model.codeBoxInfo.scrollerWidth + SleekLayout.deuceOverlayBleed
+                )
+              , ( "height"
+                , px model.codeBoxInfo.scrollerHeight
+                )
               ]
           ]
-          [ Deuce.overlay model
+          [ Svg.svg
+              [ SAttr.class "deuce-overlay"
+              , SAttr.width "10000000"
+              , SAttr.height "10000000"
+              , SAttr.style << styleListToString <|
+                  [ ("top", px -model.codeBoxInfo.scrollTop)
+                  , ("left", px -model.codeBoxInfo.scrollLeft)
+                  ]
+              ]
+              [ overlay
+              ]
           ]
-      ]
 
 --------------------------------------------------------------------------------
 -- Deuce Right Click Menu

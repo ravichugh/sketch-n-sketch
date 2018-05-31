@@ -185,6 +185,7 @@ type alias Model =
   , lastSelectedTemplate : Maybe String
   , valueEditorString : String
   , syntax : Syntax
+  , deuceOverlayCache : Maybe (Html Msg)
   }
 
 type OutputMode
@@ -1049,6 +1050,29 @@ modelModify code dws =
 
 --------------------------------------------------------------------------------
 
+type alias DeuceParams =
+  { code : String
+  , inputExp : Exp
+  , deuceState : DeuceWidgets.DeuceState
+  , colorScheme : ColorScheme
+  , lineHeight : Float
+  , characterWidth : Float
+  , contentLeft : Float
+  }
+
+toDeuceParams : Model -> DeuceParams
+toDeuceParams m =
+  { code = m.code
+  , inputExp = m.inputExp
+  , deuceState = m.deuceState
+  , colorScheme = m.colorScheme
+  , lineHeight = m.codeBoxInfo.lineHeight
+  , characterWidth = m.codeBoxInfo.characterWidth
+  , contentLeft = m.codeBoxInfo.contentLeft
+  }
+
+--------------------------------------------------------------------------------
+
 initTemplate : String
 initTemplate = "BLANK"
 
@@ -1195,4 +1219,5 @@ initModel =
     , lastSelectedTemplate = Nothing
     , valueEditorString = ValUnparser.strVal v
     , syntax = Syntax.Elm
+    , deuceOverlayCache = Nothing
     }

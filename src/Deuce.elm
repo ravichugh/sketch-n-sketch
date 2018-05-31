@@ -2,7 +2,7 @@
 -- This modules provides the Deuce overlay for the View.
 --------------------------------------------------------------------------------
 
-module Deuce exposing (overlay)
+module Deuce exposing (Messages, overlay)
 
 import List
 import String
@@ -19,12 +19,9 @@ import HtmlUtils exposing (styleListToString)
 
 import InterfaceModel as Model exposing
   ( Model
-  , Msg(..)
   , Code
   , ColorScheme(..)
   )
-
-import InterfaceController as Controller
 
 import Info exposing (WithInfo)
 
@@ -480,7 +477,7 @@ whitespaceColor colorScheme =
 --------------------------------------------------------------------------------
 
 circleHandles
-  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
+  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg msg
 circleHandles codeInfo codeObject color opacity radius =
   let
     radiusString =
@@ -615,7 +612,7 @@ circleHandles codeInfo codeObject color opacity radius =
 -- selectable. The purpose of this polygon is to block selection of the parent
 -- code object of the unwanted code object. For example, this is very useful
 -- with EComments.
-blockerPolygon : CodeInfo -> CodeObject -> List (Svg Msg)
+blockerPolygon : CodeInfo -> CodeObject -> List (Svg msg)
 blockerPolygon codeInfo codeObject =
   let
     color =
@@ -644,19 +641,19 @@ blockerPolygon codeInfo codeObject =
     ]
 
 codeObjectPolygon
-  : CodeInfo -> CodeObject -> Color -> List (Svg Msg)
-codeObjectPolygon codeInfo codeObject color =
+  : Messages msg -> CodeInfo -> CodeObject -> Color -> List (Svg msg)
+codeObjectPolygon msgs codeInfo codeObject color =
   case toDeuceWidget codeInfo.patMap codeObject of
     Nothing ->
       []
     Just deuceWidget ->
       let
         onMouseOver =
-          Controller.msgMouseEnterDeuceWidget deuceWidget
+          msgs.onMouseOver deuceWidget
         onMouseOut =
-          Controller.msgMouseLeaveDeuceWidget deuceWidget
+          msgs.onMouseOut deuceWidget
         onClick =
-          Controller.msgMouseClickDeuceWidget deuceWidget
+          msgs.onClick deuceWidget
         hovered =
           List.member deuceWidget codeInfo.deuceState.hoveredWidgets
         active =
@@ -704,8 +701,8 @@ codeObjectPolygon codeInfo codeObject color =
         ]
 
 expPolygon
-  : CodeInfo -> Exp -> List (Svg Msg)
-expPolygon codeInfo e =
+  : Messages msg -> CodeInfo -> Exp -> List (Svg msg)
+expPolygon msgs codeInfo e =
   let
     codeObject =
       E e
@@ -717,71 +714,71 @@ expPolygon codeInfo e =
       ELet _ Def _ _ _ _ _ _ _ ->
         []
       _ ->
-        codeObjectPolygon codeInfo codeObject color
+        codeObjectPolygon msgs codeInfo codeObject color
 
 patPolygon
-  : CodeInfo -> Exp -> Pat -> List (Svg Msg)
-patPolygon codeInfo e p =
+  : Messages msg -> CodeInfo -> Exp -> Pat -> List (Svg msg)
+patPolygon msgs codeInfo e p =
   let
     codeObject =
       P e p
     color =
       objectColor codeInfo.displayInfo.colorScheme
   in
-    codeObjectPolygon codeInfo codeObject color
+    codeObjectPolygon msgs codeInfo codeObject color
 
 letBindingEquationPolygon
-  : CodeInfo -> (WithInfo EId) -> List (Svg Msg)
-letBindingEquationPolygon codeInfo eid =
+  : Messages msg -> CodeInfo -> (WithInfo EId) -> List (Svg msg)
+letBindingEquationPolygon msgs codeInfo eid =
   let
     codeObject =
       LBE eid
     color =
       objectColor codeInfo.displayInfo.colorScheme
   in
-    codeObjectPolygon codeInfo codeObject color
+    codeObjectPolygon msgs codeInfo codeObject color
 
 expTargetPolygon
-  : CodeInfo -> BeforeAfter -> WS -> Exp -> List (Svg Msg)
-expTargetPolygon codeInfo ba ws et =
+  : Messages msg -> CodeInfo -> BeforeAfter -> WS -> Exp -> List (Svg msg)
+expTargetPolygon msgs codeInfo ba ws et =
   let
     codeObject =
       ET ba ws et
     color =
       whitespaceColor codeInfo.displayInfo.colorScheme
   in
-    codeObjectPolygon codeInfo codeObject color
+    codeObjectPolygon msgs codeInfo codeObject color
 
 patTargetPolygon
-  : CodeInfo -> BeforeAfter -> WS -> Exp -> Pat -> List (Svg Msg)
-patTargetPolygon codeInfo ba ws e pt =
+  : Messages msg -> CodeInfo -> BeforeAfter -> WS -> Exp -> Pat -> List (Svg msg)
+patTargetPolygon msgs codeInfo ba ws e pt =
   let
     codeObject =
       PT ba ws e pt
     color =
       whitespaceColor codeInfo.displayInfo.colorScheme
   in
-    codeObjectPolygon codeInfo codeObject color
+    codeObjectPolygon msgs codeInfo codeObject color
 
-polygons : CodeInfo -> Exp -> List (Svg Msg)
-polygons codeInfo ast =
+polygons : Messages msg -> CodeInfo -> Exp -> List (Svg msg)
+polygons msgs codeInfo ast =
   List.reverse <|
     foldCode
       ( \codeObject acc ->
           if isSelectable codeObject then
             case codeObject of
               E e ->
-                expPolygon codeInfo e ++ acc
+                expPolygon msgs codeInfo e ++ acc
               P e p ->
-                patPolygon codeInfo e p ++ acc
+                patPolygon msgs codeInfo e p ++ acc
               T t ->
                 acc
               LBE eid ->
-                letBindingEquationPolygon codeInfo eid ++ acc
+                letBindingEquationPolygon msgs codeInfo eid ++ acc
               ET ba ws et ->
-                expTargetPolygon codeInfo ba ws et ++ acc
+                expTargetPolygon msgs codeInfo ba ws et ++ acc
               PT ba ws e pt ->
-                patTargetPolygon codeInfo ba ws e pt ++ acc
+                patTargetPolygon msgs codeInfo ba ws e pt ++ acc
               TT _ _ _ ->
                 acc
           else
@@ -794,8 +791,14 @@ polygons codeInfo ast =
 --= EXPORTS
 --==============================================================================
 
-overlay : Model -> Svg Msg
-overlay model =
+type alias Messages msg =
+  { onMouseOver : DeuceWidget -> msg
+  , onMouseOut : DeuceWidget -> msg
+  , onClick : DeuceWidget -> msg
+  }
+
+overlay : Messages msg -> Model -> Svg msg
+overlay msgs model =
   let
     ast =
       model.inputExp
@@ -810,7 +813,7 @@ overlay model =
     (untrimmedLineHulls, trimmedLineHulls, maxLineLength) =
       lineHullsFromCode displayInfo model.code
     patMap =
-      computePatMap ast
+      Debug.log "DEUCE" computePatMap ast
     codeInfo =
       { displayInfo =
           displayInfo
@@ -832,5 +835,5 @@ overlay model =
       [ SAttr.transform <|
           "translate(" ++ toString leftShift ++ ", 0)"
       ]
-      ( polygons codeInfo ast
+      ( polygons msgs codeInfo ast
       )

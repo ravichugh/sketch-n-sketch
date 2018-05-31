@@ -125,6 +125,7 @@ import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import Types
+import Deuce
 import Syntax exposing (Syntax)
 import ElmParser
 import LangUnparser -- for comparing expressions for equivalence
@@ -904,6 +905,7 @@ hooks =
   [ handleSavedSelectionsHook
   , handleSyntaxHook
   , handleOutputSelectionChanges
+  , handleDeuceCache
   , focusJustShownRenameBox
   ]
 
@@ -965,6 +967,28 @@ handleOutputSelectionChanges oldModel newModel =
     in
     (finalModel, Cmd.none)
 -}
+
+deuceOverlayMsgs : Deuce.Messages Msg
+deuceOverlayMsgs =
+  { onMouseOver = msgMouseEnterDeuceWidget
+  , onMouseOut = msgMouseLeaveDeuceWidget
+  , onClick = msgMouseClickDeuceWidget
+  }
+
+handleDeuceCache : Model -> Model -> (Model, Cmd Msg)
+handleDeuceCache oldModel newModel =
+  if
+    newModel.deuceOverlayCache == Nothing
+      || Model.toDeuceParams oldModel /= Model.toDeuceParams newModel
+  then
+    ( { newModel
+          | deuceOverlayCache = Just <|
+              Deuce.overlay deuceOverlayMsgs newModel
+      }
+    , Cmd.none
+    )
+  else
+    (newModel, Cmd.none)
 
 port doFocusJustShownRenameBox : () -> Cmd msg
 
