@@ -61,8 +61,7 @@ commitPlayer players outputNew =
     _ -> players
 
 betself =
-  <span id="betself"
-><@(Html.refresh True)><script>
+  <span id="betself">@Html.forceRefresh<|<script>
 function setTransientVisibility(element, condition) {
   element.setAttribute("transient-visible", condition ? "true" : "false");
 }
@@ -116,8 +115,7 @@ function @id.addAnotherPlayerBet() {
   if(player !== null) player.selectedIndex = (player.selectedIndex + 1) % player.children.length;
   @id.chooseCallback();
 }
-</script></@
-><style>
+</script><style>
   .normallyNotVisible {
     display: none;
   }

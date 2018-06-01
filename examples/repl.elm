@@ -109,5 +109,5 @@ examples = [
   background: white;
 }
 </style>
-<@(Html.refresh True)><script>document.getElementById("command").focus();</script></@>
+@Html.forceRefresh<|<script>document.getElementById("command").focus();</script>
 </div>

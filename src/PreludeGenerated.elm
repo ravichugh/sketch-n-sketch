@@ -3452,12 +3452,12 @@ Html =
   let elementHelper tag styles attrs children =
     [ tag,  [\"style\", styles] :: attrs , children ]
   in
-  let refresh x = {
-    apply x = \"dummy\" + (if x then toString (getCurrentTime x) else \"\")
+  let freshTag x = {
+    apply x = \"dummy\" + toString (getCurrentTime x)
     update {input} = { value = [input], diffs = [Nothing] } }.apply x
   in
   let forceRefresh node =
-    [refresh True, [], [node]]
+    [freshTag True, [], [node]]
   in
   let option value selected content =
     { apply (value,selected,content) =
@@ -3555,7 +3555,7 @@ Html =
     text = textInner
     br = [\"br\", [], []]
     parse = html
-    refresh = refresh
+    freshTag = freshTag
     forceRefresh = forceRefresh
     select = select
     checkbox = checkbox

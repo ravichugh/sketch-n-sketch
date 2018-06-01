@@ -39,7 +39,7 @@ You can add rules such as "when n.x > 100 do x = 50", play, pause the execution,
 @(if isPlaying then
    <button onclick="pause()">||</button>
   else [
-   <@(Html.refresh True)>
+   <@(Html.freshTag ())>
    <button title="Back one tick" onclick="prev()">&lt;|</button
    ><button title="Run the simulation" onclick="play()">&gt;</button
    ></@>,
@@ -53,7 +53,7 @@ You can add rules such as "when n.x > 100 do x = 50", play, pause the execution,
 @(case resNext of
   Err msg -> <pre>@msg</pre>
   Ok next -> <span></span>)
-<@(Html.refresh True)><span id="p"
+@Html.forceRefresh<|><span id="p"
   nextstate=Html.onChangeAttribute(state)(\_ _ -> next)
   setpause=Html.onChangeAttribute(isPlaying)(\_ _ -> False)
   setplay=Html.onChangeAttribute(isPlaying)(\_ _ -> True)
@@ -80,6 +80,6 @@ function prev() {
   set("setprev",lastStates.pop());
   set("setrecord", "false");
 }
-</script></@>
+</script>
 <style>.script { font-family: monospace; }</style>
 </div>
