@@ -1167,3 +1167,17 @@ code {
 .auto-output-tools .text-button {
   display: flex;
 }
+
+/******************************************************************************
+ * Deuce SVG Styling                                                          *
+ ******************************************************************************/
+
+.code-object-polygon {
+  opacity: 0;
+}
+
+.code-object-polygon:hover,
+.code-object-polygon.selected {
+  opacity: 1;
+  cursor: pointer;
+}
