@@ -848,7 +848,7 @@ overlay msgs model =
     (untrimmedLineHulls, trimmedLineHulls, maxLineLength) =
       lineHullsFromCode displayInfo model.code
     patMap =
-      Debug.log "DEUCE" computePatMap ast
+      computePatMap ast
     codeInfo =
       { displayInfo =
           displayInfo
