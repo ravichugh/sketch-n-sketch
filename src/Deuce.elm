@@ -182,7 +182,7 @@ type alias CodeInfo =
   { displayInfo : DisplayInfo
   , untrimmedLineHulls : LineHulls
   , trimmedLineHulls : LineHulls
-  , deuceState : DeuceState
+  , selectedWidgets : List DeuceWidget
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
   }
@@ -667,34 +667,21 @@ codeObjectPolygon msgs codeInfo codeObject color =
           msgs.onMouseOut deuceWidget
         onClick =
           msgs.onClick deuceWidget
-        hovered =
-          List.member deuceWidget codeInfo.deuceState.hoveredWidgets
-        active =
-          List.member deuceWidget codeInfo.deuceState.selectedWidgets
-        baseAlpha =
-          if active && hovered then
-            1
-          else if active then
-            1 -- 0.75
-          else if hovered then
-            1 -- 0.5
+        selected =
+          List.member deuceWidget codeInfo.selectedWidgets
+        selectedClass =
+          if selected then
+            " selected"
           else
-            0
-        (cursorStyle) =
-          if hovered || active then
-            "pointer"
-          else
-            "default"
+            ""
+        class =
+          "code-object-polygon" ++ selectedClass
       in
         [ Svg.g
-            [ SAttr.style << styleListToString <|
-                [ ("cursor", cursorStyle)
-                ]
+            [ SAttr.class class
             , SE.onMouseOver onMouseOver
             , SE.onMouseOut onMouseOut
             , SE.onClick onClick
-            , SAttr.opacity <|
-                toString baseAlpha
             ]
             [ circleHandles codeInfo codeObject color 1 3
             , Svg.polygon
@@ -856,8 +843,8 @@ overlay msgs model =
           untrimmedLineHulls
       , trimmedLineHulls =
           trimmedLineHulls
-      , deuceState =
-          model.deuceState
+      , selectedWidgets =
+          model.deuceState.selectedWidgets
       , patMap =
           patMap
       , maxLineLength =
@@ -893,8 +880,8 @@ diffOverlay model exps =
           untrimmedLineHulls
       , trimmedLineHulls =
           trimmedLineHulls
-      , deuceState =
-          model.deuceState
+      , selectedWidgets =
+          model.deuceState.selectedWidgets
       , patMap =
           Dict.empty
       , maxLineLength =

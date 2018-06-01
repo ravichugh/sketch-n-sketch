@@ -1007,9 +1007,7 @@ deuceOverlayMsgs =
 
 handleDeuceCache : Model -> Model -> (Model, Cmd Msg)
 handleDeuceCache oldModel newModel =
-  if
-    newModel.deuceOverlayCache == Nothing
-      || Model.toDeuceParams oldModel /= Model.toDeuceParams newModel
+  if Model.deuceCacheNeedsUpdate oldModel newModel
   then
     ( { newModel
           | deuceOverlayCache = Just <|
