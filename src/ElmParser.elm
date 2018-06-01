@@ -974,6 +974,8 @@ htmlliteral =
         , childlist = inContext "HTML special child list" << wrapWithSyntax ElmSyntax << (\spaceapparg ->
               oneOf [
                 variableExpression |> addSelections False nospace |> addParenthesizedParameters |> addRightApplications,
+                letBinding nospace,
+                letrecBinding nospace,
                 tuple,
                 list
               ]

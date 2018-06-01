@@ -39,7 +39,7 @@ titleWrite = "Write programs"
     </ul>
   </slide>
   <slide ignore-position="future">
-    <h1>Update their outputs</h1>
+    <h1>Translate slides</h1><div>By applying a single function, you can start translating slides to different languages right away!</div>
   </slide>
 </div>
 <style>
@@ -99,16 +99,14 @@ if(container !== null) {
   container.addEventListener("keydown", keyDown, false);
 }
 </script>
-@(
-let center translateY = """{
+@let center translateY = """{
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) translateY(@translateY);
   width: 100%;
   text-align: center;
-}""" in
-<style>
+}""" in <style>
 .slides {
   display: block;
   width: 100%;
@@ -147,6 +145,6 @@ slide > h1, slide > h2 {
   margin-top: 0px;
 }
 .center1 @center("-1em")
-.center2 @center("1em")
-</style>)
+.center2 @center("0em")
+</style>
 </div>
