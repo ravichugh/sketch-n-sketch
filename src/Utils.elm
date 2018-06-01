@@ -955,6 +955,12 @@ maybeInit list =
     [x] -> Just []
     head::xs -> Maybe.map (\x -> head::x) <| maybeInit xs
 
+maybeInitLast list =
+  case list of
+    [] -> Nothing
+    [x] -> Just ([], x)
+    head::xs -> Maybe.map (\(init, last) -> (head::init, last)) <| maybeInitLast xs
+
 head msg = fromJust_ msg << List.head
 tail msg = fromJust_ msg << List.tail
 last msg = fromJust_ msg << maybeLast

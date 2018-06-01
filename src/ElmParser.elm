@@ -925,6 +925,40 @@ wrapWithSyntax parensStyle parser =
     withInfo (exp_ <| EParens space0 e parensStyle space0) e.start e.end)
   |= parser
 
+
+addParenthesizedParameters: Parser (WS -> Exp) -> Parser (WS -> Exp)
+addParenthesizedParameters parser =
+  succeed (\simpExp arguments wsBefore ->
+    if List.length arguments == 0 then simpExp wsBefore
+    else
+     let simpExpZeroSpace = simpExp space0 in
+     let argumentsZeroSpace = List.map (\arg -> arg space0) arguments in
+      withInfo (exp_ <| EApp wsBefore simpExpZeroSpace argumentsZeroSpace SpaceApp space0) simpExpZeroSpace.start (Utils.last "addParenthesizedParameters" argumentsZeroSpace |> .end)
+  )
+  |= parser
+  |= repeat zeroOrMore (oneOf [tuple, list, record])
+
+-- In html text inner, makes @toCss<|<scss>...</scss> possible (and avoids the closing parentheses yeah!
+-- Or also @bold<|"""Hello""" We only parse a simple expression after
+addRightApplications: Parser (WS -> Exp) -> Parser (WS -> Exp)
+addRightApplications parser =
+  succeed (\simpExp apps wsBefore ->
+     let finalExps: List Exp
+         finalExps = simpExp wsBefore :: apps in
+     case Utils.maybeInitLast finalExps of
+       Just (functions, argument) ->
+         List.foldr (\simpExp argExp ->
+           withInfo (exp_ <| EApp space0 simpExp [argExp] (LeftApp space0) space0) simpExp.start argExp.end
+         ) argument functions
+       _ -> Debug.crash "Finally, P = NP."
+    )
+  |= parser
+  |= repeat zeroOrMore (
+      succeed (\sp spToExp -> spToExp sp)
+      |. symbol "<|"
+      |= spaces
+      |= (simpleExpression nospace |> addParenthesizedParameters))
+
 htmlliteral: Parser (WS -> Exp)
 htmlliteral =
   inContext "html literal" <|
@@ -939,8 +973,9 @@ htmlliteral =
         , attributelist = inContext "HTML special attribute list" << wrapWithSyntax ElmSyntax << simpleExpression
         , childlist = inContext "HTML special child list" << wrapWithSyntax ElmSyntax << (\spaceapparg ->
               oneOf [
-                variableExpression |> addSelections False nospace,
-                tuple
+                variableExpression |> addSelections False nospace |> addParenthesizedParameters |> addRightApplications,
+                tuple,
+                list
               ]
             )
         , tagName = inContext "HTML special tag name" << wrapWithSyntax ElmSyntax << simpleExpression

@@ -366,8 +366,12 @@ Most HTML and SVG is valid in our language, except for comments (Elm would not a
                | attributes @e attributes
   
   children ::= innerHTML text
-             | children @e children
+             | children @i children
              | node
+  i ::= variable {.identifier}* { (e) | tuple | record | list}* [ '<|'   v | i ]
+          -- i is parsed without in-between spaces.
+     |  e                                          -- If you use top-level parentheses @(e), nothing will be parsed after ')'
+
 ```
 
  Some samples of what kind of interpolation is possible:
@@ -377,6 +381,8 @@ Most HTML and SVG is valid in our language, except for comments (Elm would not a
 | `<h1 id=x>Hello</h1>`               | `["h1", [["id", x]], [["TEXT", "Hello"]]]` |
 | `<h1 id=x @attrs>Hello @world</h1>` | `["h1", [["id", x]] ++ attrs, [["TEXT", "Hello "]] ++ world]`   |
 | `<@(t)>Hi</@>`                      | `[t, [], [["TEXT", "Hi"]]]`  |
+| `let b t x = <b title=t>@x</b> in <div>@b("h")<|<span></span></div>` | `let b x = ["b",[],[x]] in ["div", [], [b ("h") <| ["span", [], []]]]`  |
+
 
 Note that style attributes support both syntax for their values (array of key/values arrays, and strings).
 In the innerHTML of a tag, you can interpolate string, integers, nodes and list of nodes (there is an automatic conversion).

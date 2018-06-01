@@ -13,8 +13,8 @@ minievalx x =
     Err msg -> displayError msg
   )</span>
 
--- Modify me !
-titleWrite = "Write your programs"
+-- 
+titleWrite = "Write programs"
 
 <div>
 <div class="slides" id="slides">
@@ -26,16 +26,16 @@ titleWrite = "Write your programs"
     <h1>@titleWrite</h1>
     Use standard Elm
     <ul>
-      <li>@(minieval "let x = \"Hi \" in x + x + \"world\"")</li>
-      <li>@(minieval "map (\\x -> x + 1) [1, 2, 4]")</li>
+      <li>@(minieval "let x = \"Hello \" in x + x + \"world\"")</li>
+      <li>@(minieval "map (\\x -> x + 5) [1, 2, 4]")</li>
     </ul>
   </slide>
   <slide ignore-position="future">
     <h1>@titleWrite</h1>
     You can use HTML syntax!
     <ul>
-      <li>@(minievalx "let f x = <span title=\"I said \"+x>@x world</span> in f 'Hello'")</li>
-      <li>@(minievalx "map (\\x -> <i style=\"\"\"color:@x\"\"\"> @x bottle</i>) [\"red\", 'green', 'blue']")</li>
+      <li>@(minievalx "let f x = <span title=\"I said \"+x>@x world</span> in f 'Hi'")</li>
+      <li>@(minievalx "map (\\x -> <i style=\"\"\"color:@x\"\"\"> @x bottle</i>) [\"red\", 'yellow', 'blue']")</li>
     </ul>
   </slide>
   <slide ignore-position="future">
@@ -43,12 +43,18 @@ titleWrite = "Write your programs"
   </slide>
 </div>
 <script>
-if(typeof keyDown != "undefined") {
-  document.removeEventListener("keydown", keyDown, false);
+var container = document.querySelector("#slides");
+if(typeof keyDown != "undefined" && container !== null) {
+  container.removeEventListener("keydown", keyDown, false);
+}
+recenter = function() {
+  if(container != null) {
+    container.scrollLeft = 0;
+    container.scrollRight = 0;
+  }
 }
 
 keyDown = function (e) {
-  console.log("keydown ! ", e)
   var keyCode = e.keyCode;
   var current = document.querySelector("slide[ignore-position=current]");
   if(keyCode == 39 ) { // Right
@@ -60,6 +66,8 @@ keyDown = function (e) {
       next.setAttribute("ignore-position","current");
       current.setAttribute("ignore-position", "past");
     }
+    recenter();
+    //e.preventDefault();
     return false;
   } else if(keyCode == 37) { // Left
     var prev = current.previousElementSibling;
@@ -70,12 +78,15 @@ keyDown = function (e) {
       prev.setAttribute("ignore-position","current");
       current.setAttribute("ignore-position", "future");
     }
+    recenter();
+    //e.preventDefault();
     return false;
   }
   return true;
 }
-
-document.addEventListener("keydown", keyDown, false);
+if(container !== null) {
+  container.addEventListener("keydown", keyDown, false);
+}
 </script>
 <style>
 slide {
