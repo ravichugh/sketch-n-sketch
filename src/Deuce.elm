@@ -50,6 +50,8 @@ import DeuceWidgets exposing
   , toDeuceWidget
   )
 
+import MutableDeuceState
+
 import SleekLayout
 
 --==============================================================================
@@ -182,7 +184,7 @@ type alias CodeInfo =
   { displayInfo : DisplayInfo
   , untrimmedLineHulls : LineHulls
   , trimmedLineHulls : LineHulls
-  , deuceState : DeuceState
+  --, deuceState : DeuceState
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
   }
@@ -668,9 +670,11 @@ codeObjectPolygon msgs codeInfo codeObject color =
         onClick =
           msgs.onClick deuceWidget
         hovered =
-          List.member deuceWidget codeInfo.deuceState.hoveredWidgets
+          MutableDeuceState.isHovered deuceWidget
+          --List.member deuceWidget codeInfo.deuceState.hoveredWidgets
         active =
-          List.member deuceWidget codeInfo.deuceState.selectedWidgets
+          MutableDeuceState.isSelected deuceWidget
+          --List.member deuceWidget codeInfo.deuceState.selectedWidgets
         baseAlpha =
           if active && hovered then
             1
@@ -856,8 +860,8 @@ overlay msgs model =
           untrimmedLineHulls
       , trimmedLineHulls =
           trimmedLineHulls
-      , deuceState =
-          model.deuceState
+      --, deuceState =
+          -- model.deuceState
       , patMap =
           patMap
       , maxLineLength =
@@ -893,8 +897,8 @@ diffOverlay model exps =
           untrimmedLineHulls
       , trimmedLineHulls =
           trimmedLineHulls
-      , deuceState =
-          model.deuceState
+      -- , deuceState =
+        --  model.deuceState
       , patMap =
           Dict.empty
       , maxLineLength =

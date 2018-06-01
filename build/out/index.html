@@ -20,8 +20,14 @@
 
   <body style="margin: 0 0 0 0;">
     <script>
+      // Global state
+      var GLOBAL_hashesHovered = [];
+      var GLOBAL_hashesSelected = [];
+
+      // Elm
       var app = Elm.Main.fullscreen();
 
+      // Detect leave for save
       // https://developer.mozilla.org/en-US/docs/Web/API/WindowEventHandlers/onbeforeunload
       window.onbeforeunload = function(e) {
         var dataElement = document.getElementById("onbeforeunload-data");
@@ -44,6 +50,7 @@
     <script type="text/javascript" src="deucePopupPanelInfo.js"></script>
     <script type="text/javascript" src="dotGraph.js"></script>
     <script type="text/javascript" src="colorScheme.js"></script>
+    <script type="text/javascript" src="mutableDeuceStatePorts.js"></script>
     <script type="text/javascript" src="syntaxHighlight.js"></script>
     <script type="text/javascript" src="focus.js"></script>
     <script type="text/javascript" src="keyBlocker.js"></script>

@@ -126,6 +126,7 @@ import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
 import Deuce
+import MutableDeuceState
 import ColorNum
 import Syntax exposing (Syntax)
 import LangUnparser -- for comparing expressions for equivalence
@@ -936,6 +937,7 @@ hooks =
   , handleSyntaxHook
   , handleOutputSelectionChanges
   , handleDeuceCache
+  , handleMutableDeuceState
   , focusJustShownRenameBox
   ]
 
@@ -1007,10 +1009,7 @@ deuceOverlayMsgs =
 
 handleDeuceCache : Model -> Model -> (Model, Cmd Msg)
 handleDeuceCache oldModel newModel =
-  if
-    newModel.deuceOverlayCache == Nothing
-      || Model.toDeuceParams oldModel /= Model.toDeuceParams newModel
-  then
+  if Model.deuceCacheNeedsUpdate oldModel newModel then
     ( { newModel
           | deuceOverlayCache = Just <|
               Deuce.overlay deuceOverlayMsgs newModel
@@ -1019,6 +1018,32 @@ handleDeuceCache oldModel newModel =
     )
   else
     (newModel, Cmd.none)
+
+handleMutableDeuceState : Model -> Model -> (Model, Cmd Msg)
+handleMutableDeuceState oldModel newModel =
+  let
+    oldHovered =
+      oldModel.deuceState.hoveredWidgets
+    newHovered =
+      newModel.deuceState.hoveredWidgets
+    oldSelected =
+      oldModel.deuceState.selectedWidgets
+    newSelected =
+      newModel.deuceState.selectedWidgets
+
+    hoverCmd =
+      if newHovered /= oldHovered then
+        MutableDeuceState.setHovered newHovered
+      else
+        Cmd.none
+
+    selectedCmd =
+      if newSelected /= oldSelected then
+        MutableDeuceState.setSelected newSelected
+      else
+        Cmd.none
+  in
+    (newModel, Cmd.batch [hoverCmd, selectedCmd])
 
 port doFocusJustShownRenameBox : () -> Cmd msg
 

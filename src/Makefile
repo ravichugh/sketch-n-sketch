@@ -16,6 +16,7 @@ html: elm-stuff/packages
 	cp Native/deucePopupPanelInfo.js ../build/out/
 	cp Native/dotGraph.js ../build/out/
 	cp Native/colorScheme.js ../build/out/
+	cp Native/mutableDeuceStatePorts.js ../build/out/
 	cp Native/syntaxHighlight.js ../build/out/
 	cp Native/focus.js ../build/out/
 	cp Native/keyBlocker.js ../build/out/

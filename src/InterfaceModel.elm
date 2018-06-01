@@ -1175,26 +1175,32 @@ modelModify code dws =
 
 --------------------------------------------------------------------------------
 
-type alias DeuceParams =
+-- The values that should trigger a Deuce cache update
+type alias DeuceCacheTriggerValues =
   { code : String
   , inputExp : Exp
-  , deuceState : DeuceWidgets.DeuceState
+  --, deuceState : DeuceWidgets.DeuceState
   , colorScheme : ColorScheme
   , lineHeight : Float
   , characterWidth : Float
   , contentLeft : Float
   }
 
-toDeuceParams : Model -> DeuceParams
-toDeuceParams m =
+deuceCacheTriggerValues : Model -> DeuceCacheTriggerValues
+deuceCacheTriggerValues m =
   { code = m.code
   , inputExp = m.inputExp
-  , deuceState = m.deuceState
+  --, deuceState = m.deuceState
   , colorScheme = m.colorScheme
   , lineHeight = m.codeBoxInfo.lineHeight
   , characterWidth = m.codeBoxInfo.characterWidth
   , contentLeft = m.codeBoxInfo.contentLeft
   }
+
+deuceCacheNeedsUpdate : Model -> Model -> Bool
+deuceCacheNeedsUpdate oldModel newModel =
+  newModel.deuceOverlayCache == Nothing
+    || deuceCacheTriggerValues oldModel /= deuceCacheTriggerValues newModel
 
 --------------------------------------------------------------------------------
 
