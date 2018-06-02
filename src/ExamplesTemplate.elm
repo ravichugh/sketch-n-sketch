@@ -272,6 +272,8 @@ LEO_TO_ELM christmas_song_3_after_translation
 LEO_TO_ELM fromleo/pizzas_doodle
 LEO_TO_ELM fromleo/universal_number
 LEO_TO_ELM repl
+LEO_TO_ELM slides
+LEO_TO_ELM sync
 
 --------------------------------------------------------------------------------
 
@@ -305,7 +307,8 @@ docsCategory =
       , ("Doodle", fromleo_pizzas_doodle)
       , ("Universal numbers", fromleo_universal_number)
       , ("LaTeX Editor", fromleo_latexeditor)
-      , ("REPL", repl)
+      , ("REPL with SVG", repl)
+      , ("Slides", slides)
       -- TODO maybe Conference?
       , ("Lens: Maybe Map", mapMaybeLens)
       , ("Lens: List Map 1", mapListLens_1)

@@ -54,7 +54,7 @@ port setCaretPosition: Int -> Cmd msg
 
 port receiveOutputCanvasState : (OutputCanvasInfo -> msg) -> Sub msg
 
-port receiveValueUpdate : ((List Int, JSDecode.Value)-> msg) -> Sub msg
+port receiveValueUpdate : ((Int, List Int, JSDecode.Value)-> msg) -> Sub msg
 
 port maybeAutoSync : (Int -> msg) -> Sub msg
 

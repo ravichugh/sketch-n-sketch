@@ -3,9 +3,10 @@ delay = "0.5s"
 displayError msg = <span style="color:red;white-space:pre;">@msg</span>
 
 minieval x =
-  <span class="code">@x<br><b>⇨ </b>@(case __evaluate__ (__CurrentEnv__) x of
+  <span class="code">@x<div><b>⇨ </b
+      >@(case __evaluate__ (__CurrentEnv__) x of
     Ok x -> toString x 
-    Err msg -> displayError msg)</span>
+    Err msg -> displayError msg)</div></span>
 
 minievalx x =
   <span class="code">@x<br><b>⇨ </b>@(case __evaluate__ (__CurrentEnv__) x of
@@ -14,12 +15,13 @@ minievalx x =
   )</span>
 
 -- 
-titleWrite = "Write programs"
+titleWrite = "Write your program"
 
 <div>
 <div class="slides" id="slides" contenteditable="true">
   <slide ignore-position="current">
     <h1 class="center1">Sketch-n-Sketch 2.0</h1>
+    @Html.forceRefresh<|
     <h2 class="center2">Ravi Chugh and Mikaël Mayer</h2>
   </slide>
   <slide ignore-position="future">
@@ -32,10 +34,9 @@ titleWrite = "Write programs"
   </slide>
   <slide ignore-position="future">
     <h1>@titleWrite</h1>
-    You can use HTML syntax!
-    <ul>
-      <li>@(minievalx "let f x = <span title=\"I said \"+x>@x world</span> in f 'Hi'")</li>
-      <li>@(minievalx "map (\\x -> <i style=\"\"\"color:@x\"\"\"> @x bottle</i>) [\"red\", 'green', 'blue']")</li>
+    You can use HTML syntax, and it's <i>interpolated</i>.@Html.forceRefresh<|<ul>
+      <li>@(minievalx "let f x = <b title=\"I said \"+x>@x world</b> in f 'Hello'")</li>
+      <li>@(minievalx "let f n = n + \" team. \" in map (\\x -> <i style=\"\"\"color:@x\"\"\">@f(x)</i>) [\"red\", \"yellow\", 'blue']")</li>
     </ul>
   </slide>
   <slide ignore-position="future">
@@ -110,16 +111,16 @@ if(container !== null) {
 .slides {
   display: block;
   width: 100%;
-	padding-bottom: 56.25%; /* 16:9 */
-	position: relative;
-	overflow: hidden;
+  padding-bottom: 56.25%; /* 16:9 */
+  position: relative;
+  overflow: hidden;
 }
 slide {
-	position: absolute;
-	top: 0; bottom: 0; left: 0;
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
   width: 100%;
-	font-size: 24px;
-	padding: 20px;
+  font-size: 24px;
+  padding: 20px;
   box-sizing: border-box;
 }
 [ignore-position="current"] {
@@ -141,7 +142,7 @@ slide {
   top: 0; left: 0; right: 0; bottom: 0;
   z-index: 1000;
 }
-slide > h1, slide > h2 {
+slide h1, slide h2 {
   margin-top: 0px;
 }
 .center1 @center("-1em")

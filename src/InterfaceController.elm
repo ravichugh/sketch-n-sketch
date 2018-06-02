@@ -2275,14 +2275,20 @@ decodeAttributes =
                (JSDecode.index 1 decodeStyles))
            ))
 
+decodeChildList: JSDecode.Decoder Val
+decodeChildList =
+  JSDecode.lazy <| \_ ->
+  JSDecode.map vList
+  (JSDecode.list <| JSDecode.lazy <| \_ -> decodeElemChild)
+
 decodeElem: JSDecode.Decoder Val
 decodeElem =
   JSDecode.lazy <| \_ ->
   JSDecode.map3 (\tag attrs children ->
-     vList [vStr tag, attrs, vList children])
+     vList [vStr tag, attrs, children])
      (JSDecode.index 0 JSDecode.string)
      (JSDecode.index 1 decodeAttributes)
-     (JSDecode.index 2 <| JSDecode.list <| JSDecode.lazy <| \_ -> decodeElemChild)
+     (JSDecode.index 2 decodeChildList)
 
 decodeText: JSDecode.Decoder Val
 decodeText = JSDecode.lazy <| \_ ->
@@ -2294,14 +2300,6 @@ decodeElemChild =
       decodeElem,
       decodeText
     ]
-
-decodeNode : JSDecode.Decoder Val
-decodeNode = JSDecode.lazy <| \_ ->
-  JSDecode.oneOf [
-    -- Either an HTML element, and HTML text node, or a list of attributes
-    decodeAttributes,
-    decodeElemChild
-  ]
 
 integrateValue: List Int -> Val -> Val -> Result String Val
 integrateValue path oldValue subValue =
@@ -2318,8 +2316,8 @@ integrateValue path oldValue subValue =
           _ -> Err <| "Could not recover the change. The old value was " ++ LangUtils.valToString oldValue ++ " but we need to access index " ++ toString i
       _ -> Err <| "Expected to update a list, got " ++ LangUtils.valToString oldValue
 
-msgValuePathUpdate: (List Int, JSDecode.Value) -> Msg
-msgValuePathUpdate (path, newEncodedValue) =
+msgValuePathUpdate: (Int, List Int, JSDecode.Value) -> Msg
+msgValuePathUpdate (nodeAttrsOrChild, path, newEncodedValue) =
   Msg "Value update" <| \m ->
     case m.updatedValue of
       Just (Err msg) -> m
@@ -2328,10 +2326,16 @@ msgValuePathUpdate (path, newEncodedValue) =
           Just (Ok u) -> u
           _ -> m.inputVal
         in
+        let decoder = case nodeAttrsOrChild of
+          0 -> decodeElemChild
+          1 -> decodeAttributes
+          _ -> decodeChildList
+        in
         let newValueResult: Result String Val
             newValueResult =
-             JSDecode.decodeValue decodeNode newEncodedValue |> --Result.map (\x -> let _ = Debug.log ("Decoded Value: " ++ LangUtils.valToString x) () in x) |>
+             JSDecode.decodeValue decoder newEncodedValue |> --Result.map (\x -> let _ = Debug.log ("Decoded Value: " ++ LangUtils.valToString x) () in x) |>
                 Result.andThen (\newSubValue ->
+                  let _ = Debug.log (toString path ++ ":" ++ LangUtils.valToString newSubValue) () in
                  integrateValue path valueToUpdate newSubValue)
         in
         { m

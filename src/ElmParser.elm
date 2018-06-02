@@ -976,6 +976,8 @@ htmlliteral =
                 variableExpression |> addSelections False nospace |> addParenthesizedParameters |> addRightApplications,
                 letBinding nospace,
                 letrecBinding nospace,
+                lazy <| \_ -> multiLineInterpolatedString,
+                baseValueExpression,
                 tuple,
                 list
               ]

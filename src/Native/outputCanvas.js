@@ -266,11 +266,13 @@ function listenForUpdatesToOutputValues() {
           if(path != null) {
             path.push(1) // 1 for the attributes. We can be more precise if we know there are no insertion.
             var attrs = encodeAttributes(mutation.target.attributes, mutation.target)
-            app.ports.receiveValueUpdate.send([path, attrs])
+            var valueUpdateType = 1;
+            app.ports.receiveValueUpdate.send([valueUpdateType, path, attrs])
             triggerAutoUpdate()
           }
         }
       } else {
+        console.log("mutation type:", mutation.type);
         for (var k = 0; k < mutation.addedNodes.length; k ++) { // We add the callback to each added node.
           function walkAllChildren(currentNode) {
             outputValueObserver.observe
@@ -306,8 +308,15 @@ function listenForUpdatesToOutputValues() {
         var path = getPathUntilOutput(mutation.target) // We change the whole node.
         if(path != null && !hasTransientAncestor(mutation.target)) {
           var encodedNode = encodeNode(mutation.target);
-          //console.log("encoded node", encodedNode)
-          app.ports.receiveValueUpdate.send([path, encodedNode])
+          var valueUpdateType = 0;
+          if(mutation.type == "childList") {
+            encodedNode = encodedNode[2];
+            path.push(2);
+            valueUpdateType = 2;
+          }
+          console.log("path", path);
+          console.log("encoded node", encodedNode);
+          app.ports.receiveValueUpdate.send([valueUpdateType, path, encodedNode])
           triggerAutoUpdate()
         }
       // https://www.w3schools.com/jsref/prop_node_nodename.asp
