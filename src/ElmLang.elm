@@ -147,7 +147,7 @@ isInfixOperator op =
     Mod ->
       False
     Pow ->
-      False
+      True
     ArcTan2 ->
       False
     DictInsert ->

@@ -1633,6 +1633,8 @@ opFromIdentifier identifier =
       Just Mod
     "pow" ->
       Just Pow
+    "^" ->
+      Just Pow
     "arctan2" ->
       Just ArcTan2
     "__DictInsert__" ->
@@ -1670,11 +1672,14 @@ patternOperator appargSpace =
 -- Modules
 --==============================================================================
 
+-- TODO: Remove so that we can define new modules;
 moduleNames : Set String
 moduleNames =
   Set.fromList
     -- preludeLeo.elm
-    [ "List"
+    [ "Core"
+    , "Basics"
+    , "List"
     , "Tuple"
     , "Editor"
     , "Update"

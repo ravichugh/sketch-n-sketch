@@ -21,68 +21,50 @@ Debug = {
     res
 }
 
---------------------------------------------------------------------------------
--- TODO (re-)organize this section into modules
+-- building block for updating
+freeze x = x
+
+-----------------------------------------
+-- Building blocks functions
+
+-- The following functions should be removed if they are not used (they are redundant)
 
 --; The identity function - given a value, returns exactly that value
 -- id: (forall a (-> a a))
 id x = x
-
---; A function that always returns the same value a, regardless of b
--- always: (forall (a b) (-> a b a))
-always x _ = x
-
 --; Composes two functions together
 --compose: (forall (a b c) (-> (-> b c) (-> a b) (-> a c)))
 compose f g = \x -> f (g x)
-
---flip: (forall (a b c) (-> (-> a b c) (-> b a c)))
-flip f = \x y -> f y x
--- TODO other version:
--- (def flip (\(f x y) (f y x)))
-
 --fst: (forall (a b) (-> [a b] a))
 --snd: (forall (a b) (-> [a b] b))
-
 fst [a, _] = a
 snd [_, b] = b
-
---; Given a bool, returns the opposite boolean value
---not: (-> Bool Bool)
-not b = if b then False else True
-
---; Given two bools, returns a bool regarding if the first argument is true, then the second argument is as well
---implies: (-> Bool Bool Bool)
-implies p q = if p then q else True
-
 --or:  (-> Bool Bool Bool)
 --and: (-> Bool Bool Bool)
-
 or p q = if p then True else q
 and p q = if p then q else False
-
 --lt: (-> Num Num Bool)
 --eq: (-> Num Num Bool)
 --le: (-> Num Num Bool)
 --gt: (-> Num Num Bool)
 --ge: (-> Num Num Bool)
-
 lt x y = x < y
 eq x y = x == y
 le x y = or (lt x y) (eq x y)
-gt = flip lt
+gt x y = x > y
 ge x y = or (gt x y) (eq x y)
+nil = []
+cons x xs = x :: xs
+
+-- The following functions could be kept but could migrate (e.g. len to List.length)
+
+--; Given two bools, returns a bool regarding if the first argument is true, then the second argument is as well
+--implies: (-> Bool Bool Bool)
+implies p q = if p then q else True
 
 --; Returns the length of a given list
 --len: (forall a (-> (List a) Num))
 len xs = case xs of [] -> 0; (_ :: xs1) -> 1 + len xs1
-
--- TODO remove
-freeze x = x
-
-nil = []
-
-cons x xs = x :: xs
 
 zip xs ys =
   case (xs, ys) of
@@ -94,26 +76,159 @@ zipOld xs ys =
     (x::xsRest, y::ysRest) -> [x, y] :: zipOld xsRest ysRest
     _                      -> []
 
-
 range i j =
   if i < j + 1
     then cons i (range (i + 1) j)
     else nil
 
-reverse l =
-  letrec r acc l = case l of [] -> acc; head::tail -> r (head::acc) tail in
-  { apply = freeze <| r [], update {output}= {values = [r [] output]}}.apply l
+-----------------------------------------
+--Basics = {
+-- TODO: Once we have types, wrap these basics into a module.
 
-map1 f l =
-  case l of
-    []    -> []
-    x::xs -> f x :: map1 f xs
+--(==) is an Op
+--(/=) is in builtinEnv
+--(<) is an Op
+--(>) is in builtinEnv
+--(<=) is in builtinEnv
+--(>=) is in builtinEnv
+
+--max: (-> Num Num Num)
+max i j = if i >= j then i else j
+
+--min: (-> Num Num Num)
+min i j = if i < j then i else j
+
+--type Order = LT | EQ | GT
+
+compare a b = if a < b then LT else if a == b then EQ else GT
+
+--- Booleans
+
+--; Given a bool, returns the opposite boolean value
+--not: (-> Bool Bool)
+not b = if b then False else True
+
+--(&&) is built-in
+--(||) is built-in
+
+xor a b = if a then not b else b
+
+-- Mathematics
+
+-- (+) is an Op
+-- (-) is an Op
+-- (*) is an Op
+-- (/) is an Op
+-- (^) is an Op
+-- TODO: (//)
+-- TODO: rem
+
+negate x = 0 - x
+
+--; Absolute value
+--abs: (-> Num Num)
+abs x = if x < 0 then neg x else x
+
+-- sqrt is an Op
+
+--; Given an upper bound, lower bound, and a number, restricts that number between those bounds (inclusive)
+--; Ex. clamp 1 5 4 = 4
+--; Ex. clamp 1 5 6 = 5
+--clamp: (-> Num Num Num Num)
+clamp i j n = if n < i then i else if j < n then j else n
+
+-- TODO: logBase base num
+
+e = 2.718281828459045
+
+-- pi is an Op
+
+tau = 2 * pi
+
+-- cos is an op
+-- sin is an op
+
+tan x = cos x / sin x
+
+acos = arccos
+
+asin = arcsin
+
+-- TODO: atan
+
+atan2 = arctan2
+
+-- round is an op
+-- floor is an op
+-- ceiling is an op
+truncate x = if x > 0 then floor x else ceiling x
+
+toFloat x = x
+
+-- Convert radians to degrees
+-- radToDeg: (-> Num Num)
+radToDeg rad = rad / tau * 360!
+
+-- Convert degrees to radians
+-- degToRad: (-> Num Num)
+degToRad deg = deg / 360! * tau
+
+degrees = degToRad
+
+radians x = x
+
+turns x = x * tau
+
+-- Polar coordinates
+
+toPolar (x, y) = (sqrt (x * x + y * y), atan2 y x)
+fromPolar (r, t) = (r * cos t, r * sin t)
+
+-- Floating point check
+
+-- TODO: isNaN
+-- TODO: isInfinite
+
+-- Strings and lists
+
+-- toString is an op
+-- (++) is interpreted as append
+
+-- Higher-order helpers
+
+identity x = x
+  --; A function that always returns the same value a, regardless of b
+  -- always: (forall (a b) (-> a b a))
+always x _ = x
+
+-- <| is defined as a left application
+-- |> is defined as a right application
+-- (<<) is defined in builtinEnv
+-- (>>) is defined in builtinEnv
+
+--flip: (forall (a b c) (-> (-> a b c) (-> b a c)))
+flip f = \x y -> f y x
+
+curry f a b = f (a,b)
+uncurry f (a,b) = f a b
+
+-- type Never
+
+never x = Debug.crash "Never can never be called"
 
 --------------------------------------------------------------------------------
--- TODO re-organize the scattered list definitions into
--- LensLess.List --
+-- LensLess modules (List, Results, String) for definitions without lenses
 
 LensLess =
+  let reverse l =
+    letrec r acc l = case l of [] -> acc; head::tail -> r (head::acc) tail in
+    r [] l
+  in
+  letrec map f l =
+     case l of
+       []    -> []
+       x::xs -> f x :: map f xs
+  in
   letrec append xs ys =
      case xs of
        [] -> ys
@@ -121,9 +236,9 @@ LensLess =
   in
   let split n l =
     letrec aux acc n l =
-      if n == 0 then [reverse acc, l] else
+      if n == 0 then (reverse acc, l) else
       case l of
-        [] -> [reverse acc, l]
+        [] -> (reverse acc, l)
         head::tail -> aux (head::acc) (n - 1) tail
     in aux [] n l in
   let take =
@@ -167,7 +282,7 @@ LensLess =
       reverse = reverse
       reverse_move = reverse_move
       filterMap = filterMap
-      map = map1
+      map = map
       last = last
       map2 = map2
     },
@@ -176,7 +291,7 @@ LensLess =
         case l of
           [] -> []
           { error }::tail -> keepOks tail
-          { values =  ll }::tail -> ll ++ map1 keepOks tail
+          { values =  ll }::tail -> ll ++ map keepOks tail
       in
       letrec projOks l =
         case l of
@@ -192,12 +307,12 @@ LensLess =
       let andThen callback results =
         --andThen : (a -> Results x b) -> Results x a -> Results x b
         case results of
-          {values = ll} -> ll |> map1 callback |> projOks
+          {values = ll} -> ll |> map callback |> projOks
           {error = msg} -> results
       in
       let resultMap callback results =
         case results of
-          {values = ll} -> {values = ll |> map1 callback }
+          {values = ll} -> {values = ll |> map callback }
           { error = msg} -> results
       in
       let andElse otherResults results =
@@ -289,6 +404,7 @@ LensLess =
 
 Update =
   let {String, List} = LensLess in
+  let {reverse} = List in
   let freeze x =
     x
   in
@@ -356,11 +472,98 @@ Update =
              aux (offset + replaced - (end - start)) tail
         in aux 0 d []
   in
+  let --------------------------------------------------------------------------------
+      -- Update.foldDiff
+
+      -- type Results err ok = { values: List ok } | { error: err }
+
+      -- every onFunction should either return a {values = ...} or an {error =... }
+      -- start    : a
+      -- onUpdate : a -> {oldOutput: b, newOutput: b, index: Int, diffs: VDiffs} -> Results String a
+      -- onInsert : a -> {newOutput: b, index: Int, diffs: VDiffs}  -> Results String a
+      -- onRemove : a -> {oldOutput: b, index: Int, diffs! VDoffs}  -> Results String a
+      -- onSkip   : a -> {count: Int, index: Int, oldOutputs: List b, newOutputs: List b}  -> Results String a
+      -- onFinish : a -> Results String c
+      -- onGather : c -> ({value: d, diff: Maybe VDiffs } | { value: d })
+      -- oldOutput: List b
+      -- newOutput: List b
+      -- diffs    : ListDiffs
+      -- Returns  : {error: String} | {values: List d} | {values: List d, diffs: List (Maybe VDiffs)}
+      foldDiff =
+        let {List, Results} = LensLess in
+        let {append, split, reverse} = List in
+        \{start, onSkip, onUpdate, onRemove, onInsert, onFinish, onGather} oldOutput newOutput diffs ->
+        let listDiffs = case diffs of
+          VListDiffs l -> l
+          _ -> Debug.crash <| "Expected VListDiffs, got " + toString diffs
+        in
+        -- Returns either {error} or {values=list of values}
+        --     fold: Int -> List b -> List b -> List (Int, ListElemDiff) -> a -> Results String c
+        letrec fold  j      oldOutput  newOutput  listDiffs                    acc =
+            let next i      oldOutput_ newOutput_ d newAcc =
+              newAcc |> Results.andThen (\accCase ->
+                fold i oldOutput_ newOutput_ d accCase
+              )
+            in
+            case listDiffs of
+            [] ->
+              let count = len newOutput in
+              if count == 0 then
+                onFinish acc
+              else
+               onSkip acc {count = count, index = j, oldOutputs = oldOutput, newOutputs = newOutput}
+               |> next (j + count) [] [] listDiffs
+
+            (i, diff)::dtail  ->
+              if i > j then
+                let count = i - j in
+                let (previous, remainingOld) = split count oldOutput in
+                let (current,  remainingNew) = split count newOutput in
+                onSkip acc {count = count, index = j, oldOutputs = previous, newOutputs = current}
+                |> next i remainingOld remainingNew listDiffs
+              else case diff of
+                ListElemUpdate d->
+                  let previous::remainingOld = oldOutput in
+                  let current::remainingNew = newOutput in
+                  onUpdate acc {oldOutput = previous, index = i, output = current, newOutput = current, diffs = d}
+                  |> next (i + 1) remainingOld remainingNew dtail
+                ListElemInsert count ->
+                  if count >= 1 then
+                    let current::remainingNew = newOutput in
+                    onInsert acc {newOutput = current, index = i}
+                    |> next i oldOutput remainingNew (if count == 1 then dtail else (i, ListElemInsert (count - 1))::dtail)
+                  else Debug.crash <| "insertion count should be >= 1, got " + toString count
+                ListElemDelete count ->
+                  if count >= 1 then
+                    let dropped::remainingOld = oldOutput in
+                    onRemove acc {oldOutput =dropped, index = i} |>
+                    next (i + count) remainingOld newOutput (if count == 1 then dtail else (i + 1, ListElemDelete (count - 1))::dtail)
+                  else Debug.crash <| "deletion count should be >= 1, got " ++ toString count
+            _ -> Debug.crash <| "Expected a list of diffs, got " + toString diffs
+        in
+        case fold 0 oldOutput newOutput listDiffs start of
+          { error = msg } -> {error = msg}
+          { values = values } -> -- values might be a pair of value and diffs. We use onGather to do the split.
+            letrec aux revAccValues revAccDiffs values = case values of
+              [] -> case revAccDiffs of
+                Nothing -> {values = reverse revAccValues}
+                Just revDiffs -> {values = reverse revAccValues, diffs = reverse revDiffs}
+              head::tail -> case onGather head of
+                {value, diff} -> case revAccDiffs of
+                  Nothing -> if len revAccValues > 0 then { error = "Diffs not specified for all values, e.g." + toString value } else
+                    aux [value] (Just [diff]) tail
+                  Just revDiffs ->
+                    aux (value :: revAccValues) (Just (diff::revDiffs)) tail
+                {value} -> case revAccDiffs of
+                  Nothing -> aux (value :: revAccValues) revAccDiffs tail
+                  Just revDiffs -> { error = "Diffs not specified until " + toString value }
+            in aux [] Nothing values
+  in
   -- exports from Update module
   { freeze x =
       -- eta-expanded because "freeze x" is a syntactic form for U-Freeze
       freeze x
-
+    foldDiff = foldDiff
     applyLens lens x =
       -- "f.apply x" is a syntactic form for U-Lens, but eta-expanded anyway
       applyLens lens x
@@ -406,105 +609,19 @@ diffs:@(strDiffToConcreteDiff newOutput diffs)""") "end" in
              }.apply x
   }
 
-
 evaluate program =
   case __evaluate__ [] program of
     Ok x -> x
     Err msg -> Debug.crash msg
 
-
---------------------------------------------------------------------------------
--- Update.foldDiff
-
--- type Results err ok = { values: List ok } | { error: err }
-
--- every onFunction should either return a {values = ...} or an {error =... }
--- start    : a
--- onUpdate : a -> {oldOutput: b, newOutput: b, index: Int, diffs: VDiffs} -> Results String a
--- onInsert : a -> {newOutput: b, index: Int, diffs: VDiffs}  -> Results String a
--- onRemove : a -> {oldOutput: b, index: Int, diffs! VDoffs}  -> Results String a
--- onSkip   : a -> {count: Int, index: Int, oldOutputs: List b, newOutputs: List b}  -> Results String a
--- onFinish : a -> Results String c
--- onGather : c -> ({value: d, diff: Maybe VDiffs } | { value: d })
--- oldOutput: List b
--- newOutput: List b
--- diffs    : ListDiffs
--- Returns  : {error: String} | {values: List d} | {values: List d, diffs: List (Maybe VDiffs)}
-foldDiff =
-  let {List, Results} = LensLess in
-  let {append, split} = List in
-  \{start, onSkip, onUpdate, onRemove, onInsert, onFinish, onGather} oldOutput newOutput diffs ->
-  let listDiffs = case diffs of
-    VListDiffs l -> l
-    _ -> Debug.crash <| "Expected VListDiffs, got " + toString diffs
-  in
-  -- Returns either {error} or {values=list of values}
-  --     fold: Int -> List b -> List b -> List (Int, ListElemDiff) -> a -> Results String c
-  letrec fold  j      oldOutput  newOutput  listDiffs                    acc =
-      let next i      oldOutput_ newOutput_ d newAcc =
-        newAcc |> Results.andThen (\accCase ->
-          fold i oldOutput_ newOutput_ d accCase
-        )
-      in
-      case listDiffs of
-      [] ->
-        let count = len newOutput in
-        if count == 0 then
-          onFinish acc
-        else
-         onSkip acc {count = count, index = j, oldOutputs = oldOutput, newOutputs = newOutput}
-         |> next (j + count) [] [] listDiffs
-
-      (i, diff)::dtail  ->
-        if i > j then
-          let count = i - j in
-          let [previous, remainingOld] = split count oldOutput in
-          let [current,  remainingNew] = split count newOutput in
-          onSkip acc {count = count, index = j, oldOutputs = previous, newOutputs = current}
-          |> next i remainingOld remainingNew listDiffs
-        else case diff of
-          ListElemUpdate d->
-            let previous::remainingOld = oldOutput in
-            let current::remainingNew = newOutput in
-            onUpdate acc {oldOutput = previous, index = i, output = current, newOutput = current, diffs = d}
-            |> next (i + 1) remainingOld remainingNew dtail
-          ListElemInsert count ->
-            if count >= 1 then
-              let current::remainingNew = newOutput in
-              onInsert acc {newOutput = current, index = i}
-              |> next i oldOutput remainingNew (if count == 1 then dtail else (i, ListElemInsert (count - 1))::dtail)
-            else Debug.crash <| "insertion count should be >= 1, got " + toString count
-          ListElemDelete count ->
-            if count >= 1 then
-              let dropped::remainingOld = oldOutput in
-              onRemove acc {oldOutput =dropped, index = i} |>
-              next (i + count) remainingOld newOutput (if count == 1 then dtail else (i + 1, ListElemDelete (count - 1))::dtail)
-            else Debug.crash <| "deletion count should be >= 1, got " ++ toString count
-      _ -> Debug.crash <| "Expected a list of diffs, got " + toString diffs
-  in
-  case fold 0 oldOutput newOutput listDiffs start of
-    { error = msg } -> {error = msg}
-    { values = values } -> -- values might be a pair of value and diffs. We use onGather to do the split.
-      letrec aux revAccValues revAccDiffs values = case values of
-        [] -> case revAccDiffs of
-          Nothing -> {values = reverse revAccValues}
-          Just revDiffs -> {values = reverse revAccValues, diffs = reverse revDiffs}
-        head::tail -> case onGather head of
-          {value, diff} -> case revAccDiffs of
-            Nothing -> if len revAccValues > 0 then { error = "Diffs not specified for all values, e.g." + toString value } else
-              aux [value] (Just [diff]) tail
-            Just revDiffs ->
-              aux (value :: revAccValues) (Just (diff::revDiffs)) tail
-          {value} -> case revAccDiffs of
-            Nothing -> aux (value :: revAccValues) revAccDiffs tail
-            Just revDiffs -> { error = "Diffs not specified until " + toString value }
-      in aux [] Nothing values
-
 --------------------------------------------------------------------------------
 -- ListLenses --
 
-append aas bs = {
-    apply [aas, bs] = freeze <| LensLess.List.append aas bs
+-- append is defined here because it is used when we want x ++ y to be reversible.
+append =
+  let {append=ap,split} = LensLess.List in
+  \aas bs -> {
+    apply [aas, bs] = freeze <| ap aas bs
     update {input = [aas, bs], outputNew, outputOld, diffs} =
       let asLength = len aas in
       foldDiff {
@@ -513,7 +630,7 @@ append aas bs = {
           if n <= numA then
             {values = [[nas ++ outs, nbs, diffas, diffbs, numA - n, numB]]}
           else
-            let [forA, forB] = LensLess.List.split numA outs in
+            let (forA, forB) = split numA outs in
             {values = [[nas ++ forA, nbs ++ forB, diffas, diffbs, 0, numB - (n - numA)]]}
         onUpdate [nas, nbs, diffas, diffbs, numA, numB] {newOutput = out, diffs, index} =
           { values = [if numA >= 1
@@ -558,7 +675,7 @@ append aas bs = {
 --; Maps a function, f, over a list of values and returns the resulting list
 --map a b: (a -> b) -> List a -> List b
 map f l = {
-  apply [f, l] = freeze (map1 f l)
+  apply [f, l] = freeze (LensLess.List.map f l)
   update {input=[f, l], oldOutput, outputNew, diffs} =
     foldDiff {
       start =
@@ -571,7 +688,7 @@ map f l = {
 
       onSkip [fs, insA, diffInsA, insB] {count} =
         --'outs' was the same in oldOutput and outputNew
-        let [skipped, remaining] = LensLess.List.split count insB in
+        let (skipped, remaining) = LensLess.List.split count insB in
         {values = [[fs, insA ++ skipped, diffInsA, remaining]]}
 
       onUpdate [fs, insA, diffInsA, insB] {oldOutput, newOutput, diffs, index} =
@@ -602,7 +719,7 @@ map f l = {
           { error = msg } -> {error = msg }
           { values = vs } -> {values =
               -- We disable the modification of f itself in the insertion (to prevent programmatic styling to change unexpectedly) newF::
-              map1 (\(newF, newA) ->
+              LensLess.List.map (\(newF, newA) ->
                 [fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]) vs
           }
 
@@ -635,6 +752,7 @@ zipWithIndex xs =
 
 indexedMap f l =
   map (\(i, x) -> f i x) (zipWithIndex l)
+
 -- TODO re-organize the scattered list definitions into
 -- LensLess.List, ListLenses, and List = LensLess.List
 
@@ -643,7 +761,6 @@ ListLenses =
     append = append
     zipWithIndex = zipWithIndex
     indexedMap = indexedMap
-    reverse = reverse
   }
 
 --------------------------------------------------------------------------------
@@ -862,10 +979,6 @@ div m n =
 --neg: (-> Num Num)
 neg x = 0 - x
 
---; Absolute value
---abs: (-> Num Num)
-abs x = if x < 0 then neg x else x
-
 --; Sign function; -1, 0, or 1 based on sign of given number
 --sgn: (-> Num Num)
 sgn x = if 0 == x then 0 else x / abs x
@@ -882,23 +995,11 @@ all p xs =
     []     -> True
     x::xs1 -> and (p x) (all p xs1)
 
---; Given an upper bound, lower bound, and a number, restricts that number between those bounds (inclusive)
---; Ex. clamp 1 5 4 = 4
---; Ex. clamp 1 5 6 = 5
---clamp: (-> Num Num Num Num)
-clamp i j n = if n < i then i else if j < n then j else n
-
 --between: (-> Num Num Num Bool)
 between i j n = n == clamp i j n
 
 --plus: (-> Num Num Num)
 plus x y = x + y
-
---min: (-> Num Num Num)
-min i j = if lt i j then i else j
-
---max: (-> Num Num Num)
-max i j = if gt i j then i else j
 
 --minimum: (-> (List Num) Num)
 minimum (hd::tl) = foldl min hd tl
@@ -1038,7 +1139,7 @@ Regex =
       Nothing -> []
       Just matchremaining ->
         case LensLess.List.split (len matchremaining - 1) matchremaining of
-          [init, [last]] ->
+          (init, [last]) ->
             init::find regex last
   in
   {
@@ -1191,11 +1292,14 @@ String =
 
 
 --------------------------------------------------------------------------------
--- List --
--- TODO re-organize the scattered list definitions into
--- LensLess.List, ListLenses, and List = LensLess.List
+-- List (all operations should be lenses) --
 
 List =
+  let reverse =
+    let r = LensLess.List.reverse in
+    -- TODO: reverse the differences as well !
+    \l -> { apply l = freeze (r l), update {output}= {values = [r output]}}.apply l
+  in
   letrec simpleMap f l =
     case l of
       []    -> []
@@ -1242,9 +1346,9 @@ List =
                      (x::xs, y::ys)
   in
   let split n l = {
-      apply [n, l] = freeze (LensLess.List.split n l)
-      unapply [l1, l2] = Just [n, l1 ++ l2]
-    }.apply [n, l]
+      apply l = freeze (LensLess.List.split n l)
+      unapply (l1, l2) = Just (l1 ++ l2)
+    }.apply l
   in
   letrec reverseInsert elements revAcc =
     case elements of
@@ -2559,15 +2663,7 @@ rotate shape n1 n2 n3 =
 
 -- rotateAround: (-> Num Num Num SVG SVG)
 rotateAround rot x y shape =
-  addAttr shape ['transform', [['rotate', rot, x, y]]] 
-
--- Convert radians to degrees
--- radToDeg: (-> Num Num)
-radToDeg rad = rad / pi * 180! 
-
--- Convert degrees to radians
--- degToRad: (-> Num Num)
-degToRad deg = deg / 180! * pi 
+  addAttr shape ['transform', [['rotate', rot, x, y]]]
 
 -- Polygon and Path Helpers
 -- middleOfPoints: (-> (List Point) Point)

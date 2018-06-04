@@ -383,7 +383,7 @@ unparseOp op =
     Mod ->
       "mod"
     Pow ->
-      "pow"
+      "^"
     ArcTan2 ->
       "arctan2"
     DictInsert ->
