@@ -5,6 +5,7 @@ import Debug
 import Set exposing (Set)
 import Dict exposing (Dict)
 import Regex
+import Array
 
 infinity = 1/0
 
@@ -563,14 +564,14 @@ removeLastElement list =
 
 -- Equivalent to Maybe.oneOf (List.map f list)
 -- but maps the list lazily to return early
+-- Equivalent of collectFirst
 mapFirstSuccess : (a -> Maybe b) -> List a -> Maybe b
 mapFirstSuccess f list =
   case list of
     []   -> Nothing
-    x::xs ->
-      case f x of
-        Just result -> Just result
+    x::xs -> case f x of
         Nothing     -> mapFirstSuccess f xs
+        res -> res
 
 firstOrLazySecond : Maybe a -> (() -> Maybe a) -> Maybe a
 firstOrLazySecond maybe1 lazyMaybe2 =
@@ -1403,3 +1404,135 @@ lastLine s = snocUnapply (String.lines s) |> Maybe.map Tuple.second |> Maybe.wit
 
 indexedMapFrom : Int -> (Int -> a -> b) -> List a -> List b
 indexedMapFrom n f = List.indexedMap (\i -> f (i + n))
+
+--------------------------------------------------------------------------
+-- Given a print order and a list, outputs the list with the correct order
+reorder: List Int -> List a -> List a
+reorder order elements =
+  let elementArray = Array.fromList elements in
+  let aux order revAcc = case order of
+    [] -> List.reverse revAcc
+    (head::tailOrder) -> Array.get head elementArray |> Maybe.map (\x -> x :: revAcc) |> Maybe.withDefault revAcc |>
+       aux tailOrder
+  in
+  aux order []
+
+tarjan nodes edgesByNode =
+  let index = 0 in
+  let s = [] in
+  let vindex = Dict.empty in
+  let lowlink = Dict.empty in
+  let onstack = Dict.empty in
+  let components = [] in
+  let strongConnect v (index, vindex, lowlink, onstack, s, components) =
+    let nvindex = Dict.insert v index vindex in
+    let nlowlink = Dict.insert v index lowlink in
+    let nindex = index + 1 in
+    let ns = v :: s in
+    let nonstack = Dict.insert v True onstack in
+
+    let outEdges = Dict.get v edgesByNode |> Maybe.withDefault [] in
+    (foldLeft (nindex, nvindex, nlowlink, nonstack, ns, components) outEdges <|
+            \(index, vindex, lowlink, onstack, s, components) w ->
+       if Dict.get w vindex == Nothing then
+         strongConnect w (index, vindex, lowlink, onstack, s, components) |> (\(index, vindex, lowlink, onstack, s, components) ->
+         Dict.insert v (min (Dict.get v lowlink |> Maybe.withDefault 0) (Dict.get w lowlink |> Maybe.withDefault 0)) lowlink |> (\lowlink ->
+           (index, vindex, lowlink, onstack, s, components)
+         ))
+       else if Dict.get w onstack |> Maybe.withDefault False then
+         Dict.insert v (min (Dict.get v lowlink |> Maybe.withDefault 0) (Dict.get w vindex |> Maybe.withDefault 0)) lowlink |> (\lowlink ->
+           (index, vindex, lowlink, onstack, s, components)
+         )
+       else
+         (index, vindex, lowlink, onstack, s, components)
+    ) |> (\(index, vindex, lowlink, onstack, s, components) ->
+    if Dict.get v lowlink == Dict.get v vindex then
+       let aux (s, onstack) acc = case s of
+        [] -> Debug.crash "Tarjan empty should not happen"
+        w :: s2 ->
+          if w == v then
+            ((w::acc):: components, s, onstack)
+          else
+            (w::acc) |>
+            aux (s2, Dict.insert w False onstack)
+       in
+       aux (s, onstack) [] |> (\(component, s, onstack) ->
+        (index, vindex, lowlink, onstack, s, components)
+       )
+    else
+       (index, vindex, lowlink, onstack, s, components)
+    )
+  in
+  (foldLeft (index, vindex, lowlink, onstack, s, components) nodes <|
+          \(index, vindex, lowlink, onstack, s, components) v ->
+            if Dict.get v vindex == Nothing then
+              strongConnect v (index, vindex, lowlink, onstack, s, components)
+            else
+              (index, vindex, lowlink, onstack, s, components)
+  ) |> \(index, vindex, lowlink, onstack, s, components) ->
+    components
+
+
+-- Given a list declaring names and dependencies,
+-- reorders the list so that dependencies are satisfied. If it cannot, returns an error message explaining why.
+
+orderWithDependencies: List a -> (a -> (Set String, Set String)) -> (a -> String) -> Result String (List a)
+orderWithDependencies elements elemToNamesDependencies elemToNameDisplay =
+   let isDependencySatisfied: Set String -> Set String -> Bool
+       isDependencySatisfied deps previousNames = (Set.diff deps previousNames) |> Set.isEmpty
+
+       correctDependenciesWONotResolved: List a -> Set String -> List a -> (List a, List a)
+       correctDependenciesWONotResolved  input     previousNames notResolved =
+         case input of
+           [] -> ([], notResolved)
+           head :: tailInput ->
+             let (names, deps) = elemToNamesDependencies head in
+             if isDependencySatisfied deps previousNames then
+               let (nextCorrect, notCorrect) = correctDependencies tailInput (Set.union previousNames names) notResolved in
+               (head :: nextCorrect, notCorrect)
+             else
+               correctDependenciesWONotResolved tailInput previousNames (notResolved ++ [head])
+
+       correctDependencies: List a -> Set String -> List a -> (List a, List a)
+       correctDependencies input previousNames notResolved =
+         let (solvable, unsolvable) = notResolved |> List.partition (\a ->
+              let (names, deps) = elemToNamesDependencies a in
+              isDependencySatisfied deps previousNames
+           )
+         in
+         if List.isEmpty solvable then
+           correctDependenciesWONotResolved input previousNames notResolved
+         else
+           let solvableNames = solvable |> List.concatMap (elemToNamesDependencies >> Tuple.first >> Set.toList) |> Set.fromList in
+           let (nextCorrect, notCorrect) = correctDependencies input (Set.union previousNames solvableNames) unsolvable in
+           (solvable ++ nextCorrect, notCorrect)
+
+       smallestCycle: List a -> Maybe (List a)
+       smallestCycle notResolved =
+
+         let nodes: List a
+             nodes = notResolved in
+         -- For each name, it gives a list of possible nodes refering to this name.
+         let nodesByName: Dict String (List a)
+             nodesByName = notResolved |> List.concatMap (\x -> elemToNamesDependencies x |> Tuple.first |> Set.toList |> List.map (\name -> (name, x))) |>
+           groupBy (\(name, target) -> name) |> Dict.map (\k v -> List.map Tuple.second v) in
+         -- For each node, it gives a list of nodes it depends on.
+         let  edges: Dict a (List a)
+              edges= notResolved |> List.map (\x -> (x,
+           elemToNamesDependencies x |> Tuple.second |>  Set.toList |> List.filterMap (Basics.flip Dict.get nodesByName) |> List.concatMap identity)) |> Dict.fromList in
+         case tarjan nodes edges of
+           [] -> Nothing
+           head :: _ -> Just head
+
+   in
+   case correctDependencies elements Set.empty [] of
+     (result, []) -> Ok result
+     (result, notResolved) ->
+       case smallestCycle notResolved of
+         Nothing -> Ok (result ++ notResolved) -- Let's leave it to the type checker.
+         Just cycle ->
+           Err <| "Cycle in explicit dependencies not allowed:\n    ┌─────┐" ++ (cycle |>
+            List.map (\a ->
+              let nameDisplay = elemToNameDisplay a in
+              "\n    |    " ++ nameDisplay) |> String.join "\n    |     |"
+           ) ++ "\n    └─────┘\n\nHint: An explicit dependency happens when a variable is not bound by a lambda."

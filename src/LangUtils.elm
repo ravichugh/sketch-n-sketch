@@ -9,113 +9,6 @@ import Info
 import ParserUtils
 import ImpureGoodies
 
-branchPatExps : List Branch -> List (Pat, Exp)
-branchPatExps branches =
-  List.map
-    (.val >> \(Branch_ _ pat exp _) -> (pat, exp))
-    branches
-
-
-identifiersListInPat : Pat -> List Ident
-identifiersListInPat pat =
-  case pat.val.p__ of
-    PVar _ ident _              -> [ident]
-    PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
-    PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
-    PAs _ _ ident _ pat           -> ident::(identifiersListInPat pat)
-    _                           -> []
-
-
-identifiersListInPats : List Pat -> List Ident
-identifiersListInPats pats =
-  List.concatMap
-    identifiersListInPat
-    pats
-
-
--- All identifiers used or bound throughout the given exp
-identifiersList : Exp -> List Ident
-identifiersList exp =
-  let folder e__ acc =
-    case e__ of
-       EVar _ ident ->
-         ident::acc
-
-       EFun _ pats _ _ ->
-         (List.concatMap identifiersListInPat pats) ++ acc
-
-       ECase _ _ branches _ ->
-         let pats = branchPats branches in
-         (List.concatMap identifiersListInPat pats) ++ acc
-
-       ELet _ _ _ pat _ _ _ _ _ ->
-         (identifiersListInPat pat) ++ acc
-
-       _ ->
-         acc
-  in
-  foldExpViaE__
-    folder
-    []
-    exp
-
-
-
-identifiersSet : Exp -> Set.Set Ident
-identifiersSet exp =
-  identifiersList exp
-  |> Set.fromList
-
-
-identifiersSetInPat : Pat -> Set.Set Ident
-identifiersSetInPat pat =
-  identifiersListInPat pat
-  |> Set.fromList
-
-
-identifiersSetInPats : List Pat -> Set.Set Ident
-identifiersSetInPats pats =
-  List.map identifiersSetInPat pats
-  |> Utils.unionAll
-
-
-expToMaybeIdent : Exp -> Maybe Ident
-expToMaybeIdent exp =
-  case exp.val.e__ of
-    EVar _ ident -> Just ident
-    _            -> Nothing
-
-freeVars : Exp -> List Exp
-freeVars exp =
-  let removeIntroducedBy pats vars =
-    let introduced = identifiersListInPats pats in
-    vars |> List.filter (\var -> not <| List.member (Utils.fromJust_ "freeVars" <| expToMaybeIdent var) introduced)
-  in
-  case exp.val.e__ of
-    EVar _ x                           -> [exp]
-    EFun _ pats body _                 -> freeVars body |> removeIntroducedBy pats
-    ECase _ scrutinee branches _       ->
-      let freeInEachBranch =
-        branchPatExps branches
-        |> List.concatMap (\(bPat, bExp) -> freeVars bExp |> removeIntroducedBy [bPat])
-      in
-      freeVars scrutinee ++ freeInEachBranch
-    ELet _ _ False pat _ boundExp _ body _ -> freeVars boundExp ++ (freeVars body |> removeIntroducedBy [pat])
-    ELet _ _ True  pat _ boundExp _ body _ -> freeVars boundExp ++ freeVars body |> removeIntroducedBy [pat]
-    _                                  -> childExps exp |> List.concatMap freeVars
-
-
--- Which var idents in this exp refer to something outside this exp?
--- This is wrong for TypeCases; TypeCase scrutinee patterns not included. TypeCase scrutinee needs to turn into an expression (done on Brainstorm branch, I believe).
-freeIdentifiers : Exp -> Set.Set Ident
-freeIdentifiers exp =
-  --ImpureGoodies.getOrUpdateCache exp "freeIdentifiers" <| \() -> -- This is not working for now.
-  freeVars exp
-  |> List.map expToMaybeIdent
-  |> Utils.projJusts
-  |> Utils.fromJust_ "LangTools.freeIdentifiers"
-  |> Set.fromList
-
 -- Removes from the environment all variables that are already bound by a pattern
 pruneEnvPattern: List Pat -> Env -> Env
 pruneEnvPattern pats env =
@@ -126,6 +19,10 @@ pruneEnvPattern pats env =
         List.filter (\(x, _) -> not <| Set.member x varspattern) env
         |> pruneEnvPattern tail
 
+removeVarsInEnv: Set Ident -> Env -> Env
+removeVarsInEnv boundVars env =
+  List.filter (\(x, _) -> not (Set.member x boundVars)) env
+        
 pruneEnv: Exp -> Env -> Env
 pruneEnv exp env = -- Remove all the initial environment that is on the right.
   let freeVars = freeIdentifiers exp in
@@ -231,16 +128,18 @@ valToExpFull copyFrom sp_ indent v =
             let headExp = (spaceCommaHead, v2expHead (ws <| foldIndentStyle "" (\_ -> " ") indent) (increaseIndent indent) head) in
             let tailExps = List.map (\y -> (spaceCommaTail, v2expTail (ws <| foldIndent " " <| increaseIndent indent) (increaseIndent indent) y)) tail in
             EList precedingWS (headExp :: tailExps) space0 Nothing spBeforeEnd
-    VClosure mRec patterns body env ->
-      let prunedEnv = pruneEnvPattern patterns (pruneEnv body env) in
+    VClosure recNames patterns body env ->
+      let (recEnv, remEnv) = Utils.split (List.length recNames) env in
+      let prunedEnv = removeVarsInEnv (Set.fromList recEnv) <| pruneEnvPattern patterns <| pruneEnv body <| env in
       case prunedEnv of
         [] -> EFun sp patterns body space0
         (name, v)::tail ->
           let baseCase =  withDummyExpInfo <| EFun (ws <| foldIndent "" indent) patterns body space0 in
           let startCase =
-                case mRec of
-                  Nothing -> baseCase
-                  Just f -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| foldIndent " " indent) f) space0
+                case recNames of
+                  [] -> baseCase
+                  [f] -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| foldIndent " " indent) f) space0
+                  _ -> Debug.crash "cannot convert back a VCLosure with multiple defs to an ELet. Need syntax support for that."
           in
           let bigbody = List.foldl (\(n, v) body -> withDummyExpInfo <| ELet (ws <| foldIndent "" indent) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 body space0) startCase tail
           in

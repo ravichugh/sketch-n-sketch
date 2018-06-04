@@ -866,9 +866,6 @@ evaluate s =
     run Syntax.Elm exp
   ) |> Result.map Tuple.first
 
-valToString: Val -> String
-valToString v = LangUtils.valToString v
-
 api = {
   parse = parse,
   evalExp = evalExp,
@@ -878,6 +875,6 @@ api = {
   valToNative = valToNative,
   nativeToVal = nativeToVal (builtinVal "EvalUpdate.nativeToVal"),
 
-  toString = valToString,
+  valToString = LangUtils.valToString,
   evaluate = evaluate
   }

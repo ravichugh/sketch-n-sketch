@@ -1,4 +1,11 @@
-module Record exposing (select, mapWithNth, MergeOperation, getMergeOperations, getMergeMapping, mergeLabelValues, getPatternMatch)
+module Record exposing (
+  select,
+  mapWithNth,
+  MergeOperation,
+  getMergeOperations,
+  getMergeMapping,
+  mergeLabelValues,
+  getPatternMatch)
 
 import Lang exposing (..)
 import ImpureGoodies
@@ -24,12 +31,12 @@ nthIndexWhere: List a -> Int -> (a -> Bool) -> Maybe (a, Int)
 nthIndexWhere a nth f =
   let aux it index n =
     case it of
-      [] -> Nothing
-      head::tail ->
-        if f head then
-          if n + 1 == nth then Just (head, index)
-          else aux tail (index + 1) (n + 1)
-        else aux tail (index + 1) n
+       [] -> Nothing
+       head::tail ->
+         if f head then
+           if n + 1 == nth then Just (head, index)
+           else aux tail (index + 1) (n + 1)
+         else aux tail (index + 1) n
   in aux a 0 0
 
 nthlastIndexWhere: List a -> Int -> (a -> Bool) -> Maybe (a, Int)
@@ -136,6 +143,6 @@ mergeLabelValues keyA av bv =
           InsertAtPos -1 _ _ lv -> avNew ++ [lv]
           ReplaceAtPos toReplace _ (_, lv) -> Utils.updated avNew toReplace lv
           InsertAtPos toInsert _ _ lv -> Utils.inserted avNew toInsert lv
-      ) av mergingOperations
+       ) av mergingOperations
   in
   newRecord

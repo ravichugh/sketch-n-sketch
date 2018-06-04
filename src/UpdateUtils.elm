@@ -1385,7 +1385,7 @@ defaultVDiffsRec testEquality recurse original modified =
         recurse originals modified |> Results.map (Maybe.map VListDiffs)
     (VBase (VString original), VBase (VString modified)) ->
       defaultStringDiffs original modified |> Results.map (Maybe.map VStringDiffs)
-    (VClosure isRec1 pats1 body1 env1, VClosure isRec2 pats2 body2 env2) ->
+    (VClosure _ pats1 body1 env1, VClosure _ pats2 body2 env2) ->
       let ids = Set.union (Set.diff (LangUtils.identifiersSet body1) (LangUtils.identifiersSetInPats pats1))
                (Set.diff (LangUtils.identifiersSet body2) (LangUtils.identifiersSetInPats pats2))
       in
@@ -1730,8 +1730,8 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
       let (newDict, newDiffs) = mergeDict mergeVal originalDict modified1Dict d1 modified2Dict d2 in
       (replaceV_ original <| VDict <| newDict, VDictDiffs newDiffs)
 
-    (VClosure mbRec0 pats0 body0 env0, VClosure mbRec1 pats1 body1 env1, VClosureDiffs envmodifs1 bodymodifs1, VClosure mbRec2 pats2 body2 env2, VClosureDiffs envmodifs2 bodymodifs2) ->
-      if mbRec0 == mbRec1 && mbRec1 == mbRec2 then
+    (VClosure recNames0 pats0 body0 env0, VClosure recNames1 pats1 body1 env1, VClosureDiffs envmodifs1 bodymodifs1, VClosure recNames2 pats2 body2 env2, VClosureDiffs envmodifs2 bodymodifs2) ->
+      if recNames0 == recNames1 && recNames1 == recNames2 then
         if patsEqual pats0 pats1 pats2 then
           let (newEnv, newEnvDiffs) = mergeEnv env0 env1 envmodifs1 env2 envmodifs2 in
           let (newBody, newBodyModifs) = case (bodymodifs1, bodymodifs2) of
@@ -1741,7 +1741,7 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
             (Nothing, _) -> (body2, bodymodifs2)
             (_, Nothing) -> (body1, bodymodifs1)
           in
-          (replaceV_ original <| VClosure mbRec0 pats0 newBody newEnv, VClosureDiffs newEnvDiffs newBodyModifs)
+          (replaceV_ original <| VClosure recNames0 pats0 newBody newEnv, VClosureDiffs newEnvDiffs newBodyModifs)
         else defaultMerge original modified1 modifs1   modified2 modifs2
       --(VRecord originalElems, VRecord modified1Elems, VRecord modified2Elems)->
       --  Dict.keys originalElems

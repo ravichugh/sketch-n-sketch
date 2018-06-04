@@ -996,63 +996,6 @@ tryMatchExp pat exp =
         PParens _ innerPat _  ->
           tryMatchExp innerPat exp
 
--- Returns the common ancestor just inside the deepest common scope -- the expression you want to wrap with new defintions.
--- If the nearest common ancestor is itself a scope, returns that instead.
---
--- Used to use this, now prefering deepestCommonAncestorWithNewline. (July 2017)
---
--- Remove this if it turns out that deepestCommonAncestorWithNewline is indeed better.
-justInsideDeepestCommonScope : Exp -> (Exp -> Bool) -> Exp
-justInsideDeepestCommonScope exp pred =
-  let (maybeDeepestCommonScope, maybeAncestorJustInsideCommonScope) =
-    deepestCommonScopeAndJustInside_ exp pred
-  in
-  let candidates =
-    Utils.filterJusts [ Just exp, maybeDeepestCommonScope, maybeAncestorJustInsideCommonScope ]
-  in
-  Utils.last_ candidates
-
-deepestCommonScope : Exp -> (Exp -> Bool) -> Exp
-deepestCommonScope exp pred =
-  let (maybeDeepestCommonScope, _) =
-    deepestCommonScopeAndJustInside_ exp pred
-  in
-  let candidates =
-    Utils.filterJusts [ Just exp, maybeDeepestCommonScope ]
-  in
-  Utils.last_ candidates
-
--- A let exp is not a scope for its boundExp, so can't just look at ancestor lists.
-deepestCommonScopeAndJustInside_ : Exp -> (Exp -> Bool) -> (Maybe Exp, Maybe Exp)
-deepestCommonScopeAndJustInside_ program pred =
-  let allWithAncestorsScopesTagged =
-    findAllWithAncestorsScopesTagged pred program
-    |> List.map (Utils.dropLast 1)-- Never return an expression that the predicate matched: it will be moved/removed/replaced
-  in
-  let commonAncestorsScopesTagged = Utils.commonPrefix allWithAncestorsScopesTagged in
-  let commonAncestors             = Utils.commonPrefix (List.map (List.map Tuple.first) allWithAncestorsScopesTagged) in
-  let maybeDeepestCommonScope =
-    commonAncestorsScopesTagged
-    |> List.filter (\(_, isScope) -> isScope)
-    |> Utils.maybeLast
-    |> Maybe.map Tuple.first
-  in
-  -- A little wonkey to handle when a let's boundExp and body both match the predicate.
-  -- The let itself should not be the scope, but it may be the expression just inside.
-  let maybeAncestorJustInsideCommonScope =
-    case commonAncestorsScopesTagged |> List.reverse |> Utils.takeWhile (\(_, isScope) -> not isScope) |> Utils.maybeLast of
-      Nothing ->
-        -- Last commonality in commonAncestorsScopesTagged is a scope. (Or no commonalities.)
-        -- It is possible that there is one more common expression, but it is tagged differentialy as a scope or not.
-        commonAncestors
-        |> List.drop (List.length commonAncestorsScopesTagged)
-        |> List.head
-
-      Just (ancestorJustInsideCommonScope, _) ->
-        Just ancestorJustInsideCommonScope
-  in
-  (maybeDeepestCommonScope, maybeAncestorJustInsideCommonScope)
-
 deepestCommonAncestorWithNewline : Exp -> (Exp -> Bool) -> Exp
 deepestCommonAncestorWithNewline program pred =
   commonAncestors pred program

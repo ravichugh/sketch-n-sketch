@@ -321,7 +321,7 @@ stringToLambda eval update nth join toVal s =
        ) lWithPrevStart
   in
   let lambdaBody = concat "join" (tmp ++ [eApp (eVar "unescapeSlashDollar") [eStr <| String.dropLeft finalLastStart s]]) in
-  (toVal<| VClosure Nothing [pVar "m"] lambdaBody [
+  (toVal<| VClosure [] [pVar "m"] lambdaBody [
     ("nth", nth), ("join", join), ("unescapeSlashDollar", unescapeSlashDollar eval update)], oldConcatenationStarts)
 
 type EvaluationError = EvaluationError String

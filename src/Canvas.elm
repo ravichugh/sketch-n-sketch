@@ -521,7 +521,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         let padding = 25 in
         let (maybeFuncBody, maybeFuncPat, maybeArgPats) =
           case funcVal.v_ of
-            VClosure maybeRecName argPats funcBody env ->
+            VClosure _ argPats funcBody env ->
               case parentByEId program funcBody.val.eid of
                 Just (Just funcExp) ->
                   case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of

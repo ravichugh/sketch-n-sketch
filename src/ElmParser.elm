@@ -34,13 +34,13 @@ import Utils
 import Lang exposing (..)
 import Info exposing (..)
 import ElmLang
-import TopLevelExp exposing (TopLevelExp, fuseTopLevelExps)
 
 -- import FastParser
 import PreludeGenerated as Prelude
 import Regex
 import HTMLParser
 import ImpureGoodies
+import Array
 
 --==============================================================================
 --= Helpers
@@ -551,6 +551,17 @@ patternSymbolIdentifier =
     oneOf
       [ source (symbol "::")
       , source (keyword "as")
+      ]
+
+typeSymbolIdentifier: ParserI Ident
+typeSymbolIdentifier =
+  trackInfo <|
+    oneOf
+      [ source (symbol "&")
+      , source (symbol "|")
+      , source (symbol "->")
+      , source (symbol "<|")
+      , source (symbol "|>")
       ]
 
 --==============================================================================
@@ -1183,26 +1194,7 @@ dataConstructorPattern =
               |= getPos
           )
 
---------------------------------------------------------------------------------
--- As-Patterns (@-Patterns)
---------------------------------------------------------------------------------
 
-parensPattern : Parser (WS -> Pat)
-parensPattern =
-  inContext "parentheses" <|
-    mapWSPat_ <|
-      lazy <| \_ ->
-        transferInfo
-          ( \(innerPattern, wsBeforeEnd) wsBefore ->
-              PParens wsBefore innerPattern wsBeforeEnd
-          )
-          ( trackInfo <|
-              succeed (,)
-                |. symbol "("
-                |= pattern allSpacesPolicy
-                |= spaces
-                |. symbol ")"
-          )
 
 simplePattern : Parser (WS -> Pat)
 simplePattern =
@@ -1256,20 +1248,10 @@ pattern sp =
                         pat_ <| PList wsBeforeEverything [left] wsBefore (Just right) space0
                       ) left.start right.end
                   "as" ->
-                    case right.val.p__ of
-                      PVar wsName name _ ->
-                        withInfo
-                          (
-                            pat_ <| PAs wsBeforeEverything wsName name wsBefore left
-                          ) left.start right.end
-                      _ ->
-                        case left.val.p__ of
-                          PVar wsName name _ ->
-                            withInfo
-                              (
-                                pat_ <| PAs wsBeforeEverything wsName name wsBefore right
-                              ) left.start right.end
-                          _ -> Debug.crash "Parser does not support conjunction of patterns" -- TODO: Let PAs support arbitrary conjonction of patterns.
+                    withInfo
+                      (
+                        pat_ <| PAs wsBeforeEverything left wsBefore right
+                      ) left.start right.end
                   m -> Debug.crash <| "Internal error: Got pattern operator other than :: or as " ++ m
         }
 
@@ -1480,32 +1462,93 @@ wildcardType =
   inContext "wildcard type" <|
     succeed (\{val, start, end} wsBefore -> withInfo (TWildcard wsBefore) start end) |= trackInfo (keyword "_")
 
+parensType : SpacePolicy -> Parser Pat
+parensType = genericParens typ TParens
+
 --------------------------------------------------------------------------------
 -- General Types
 --------------------------------------------------------------------------------
 
-typ : SpacePolicy -> Parser Type
-typ sp =
+
+
+simpleType : SpacePolicy -> Parser Type
+simpleType sp =
   inContext "type" <|
     lazy <| \_ ->
       delayedCommitMap (\ws wsType -> wsType ws)
         sp.first
-        (oneOf
-          [ nullType
-          , numType
-          , boolType
-          , stringType
-          , wildcardType
-          , lazy <| \_ -> functionType
-          , lazy <| \_ -> listType
-          , lazy <| \_ -> dictType
-          , lazy <| \_ -> tupleType
-          , lazy <| \_ -> recordType
-          , lazy <| \_ -> forallType
-          , lazy <| \_ -> unionType
-          , lazy <| \_ -> appType
-          , variableType
-          ])
+      (oneOf
+        [ nullType
+        , variableType
+        , numType
+        , boolType
+        , stringType
+        , wildcardType
+        , parensType
+        , lazy <| \_ -> tupleType
+        , lazy <| \_ -> recordType
+        , lazy <| \_ -> forallType
+        ])
+
+simpleTypeWithPossibleArguments : SpacePolicy -> Parser Type
+simpleTypeWithPossibleArguments sp =
+  inContext "simple type with arguments" <|
+    trackInfo <|
+      delayedCommitAndThen (\spApp (first, args) ->
+        case first.val of
+          TVar _ "List" -> case args of
+            [arg] -> succeed <| TList spApp arg
+            _ -> fail "List takes exactly one type argument"
+          TVar _ "Dict" -> case args of
+            [tkey, tvalue] -> succeed <| TDict spApp tkey tvalue
+            _ -> fail "Dict takes exactly two type arguments"
+          _ -> succeed <| TApp spApp first args SpaceApp
+      )
+      sp.first
+      (succeed (\first args -> (first, args))
+       |= simpleType sp
+       |= repeat zeroOrMore (simpleType {sp | first = sp.apparg})
+      )
+
+typ: SpacePolicy -> Parser Type
+typ sp =
+  inContext "type" <|
+      lazy <| \_ ->
+        binaryOperator
+          { spacePolicy =
+              sp
+          , greedySpaceParser =
+              spaces
+          , precedenceTable =
+              builtInTypePrecedenceTable
+          , minimumPrecedence =
+              0
+          , expression =
+              simpleTypeWithPossibleArguments
+          , operator =
+              typeOperator {sp | first = sp.apparg}
+          , representation =
+              .val >> Tuple.second
+          , combine =
+              \left operator right ->
+                let
+                  (wsBefore, identifier) =
+                    operator.val
+                in
+                case identifier of
+                  "|" ->
+                    withInfo
+                      (TUnion wsBefore [left, right])
+                      left.start right.end
+                  "->" ->
+                    withInfo (TArrow wsBefore [left, right])
+                        left.start right.end
+                  "&" ->
+                    withInfo
+                      (TApp wsBefore (replaceInfo operator <| TVar space1 "&") [left, right] InfixApp)
+                        left.start right.end
+                  m -> Debug.crash <| "Internal error: Got pattern operator other than :: or as " ++ m
+          }
 
 --==============================================================================
 -- Operators
@@ -1572,6 +1615,26 @@ builtInPatternPrecedenceList =
    )
  ]
 
+builtInTypePrecedenceList: List (Int, List String, List String)
+builtInTypePrecedenceList =
+ [ ( 3
+   , []
+   , ["&"]
+   )
+ , ( 2
+   , []
+   , ["|"]
+   )
+ , ( 1
+   , ["->"]
+   , []
+   )
+ , ( 0
+   , ["|>"]
+   , ["<|"]
+   )
+ ]
+
 builtInPrecedenceTable : PrecedenceTable
 builtInPrecedenceTable =
   buildPrecedenceTable builtInPrecedenceList
@@ -1579,6 +1642,10 @@ builtInPrecedenceTable =
 builtInPatternPrecedenceTable : PrecedenceTable
 builtInPatternPrecedenceTable =
   buildPrecedenceTable builtInPatternPrecedenceList
+
+builtInTypePrecedenceTable: PrecedenceTable
+builtInTypePrecedenceTable =
+  buildPrecedenceTable builtInTypePrecedenceList
 
 builtInOperators : List Ident
 builtInOperators =
@@ -1667,6 +1734,10 @@ htmlAttributeOperator appargSpace =
 patternOperator : Parser WS -> ParserI Operator
 patternOperator appargSpace =
   paddedBefore (,) appargSpace patternSymbolIdentifier
+
+typeOperator: SpacePolicy -> ParserI Operator
+typeOperator sp =
+  paddedBefore (,) sp.first typeSymbolIdentifier
 
 --==============================================================================
 -- Modules
@@ -1933,44 +2004,110 @@ caseExpression =
 -- Let Bindings
 --------------------------------------------------------------------------------
 
-letBinding : Parser WS -> Parser (WS -> Exp)
-letBinding appargSpace =     lazy <| \_ ->
-  genericLetBinding appargSpace "let" False
+-- In let or def context
+letExp : SpacePolicy -> Parser LetExp
+letExp sp =
+  inContext "binding" <|
+     delayedCommitMap
+       ( \(wsBefore, mbTypeAnnotation) (name, parameters, wsBeforeEq, binding_) ->
+           let
+             (binding, funArgStyle) =
+               if List.isEmpty parameters then
+                 (binding_, FunArgsAfterEqual)
+               else
+                 (withInfo
+                   (exp_ <| EFun space0 parameters binding_ space0)
+                   binding_.start
+                   binding_.end
+                 ,FunArgAsPats)
+           in
+             LetExp wsBefore mbTypeAnnotation name funArgStyle wsBeforeEq binding
+       )
+       (succeed (,)
+        |= sp.first
+        |= optional (typeAnnotation { sp | first = nospace } ))
+       ( trackInfo <| (
+           succeed (,,,)
+           |= pattern { sp | first = sp.appArg }
+           |= repeat zeroOrMore (pattern { sp | first = sp.appArg })
+           |= spaces
+           |. symbol "="
+           |= expression { sp | first = spaces }
+       ))
 
-letrecBinding : Parser WS -> Parser (WS -> Exp)
-letrecBinding appargSpace =      lazy <| \_ ->
-  genericLetBinding appargSpace "letrec" True
+-- Given an expression, returns the set of variables needed to compute it immediately.
+-- compulsoryDependencies (\x -> y x) = {}, but (\z x -> z x) y = {y}
+-- In the first case, we can resolve y later (in the recursive environment, for example)
+-- In the second case, we need y immediately to compute the closure.
+-- We can detect bad recursions that way, which Elm cannot (see https://github.com/elm-lang/elm-compiler/issues/1580)
+compulsoryDependencies_: Exp -> List Ident
+compulsoryDependencies_ e = case e.val.e__ of
+  EFun _ _ _ _ -> []
+  EVar _ x -> [x]
+  _ -> childExps e |> List.concatMap compulsoryDependencies_
 
-genericLetBinding : Parser WS -> String -> Bool -> Parser (WS -> Exp)
-genericLetBinding appargSpace letkeyword isRec =
-  inContext (letkeyword ++ " binding") <|
+compulsoryDependencies: Exp -> Set Ident
+compulsoryDependencies = compulsoryDependencies_ >> Set.fromList
+
+compute_print_order: List Int -> List Int
+compute_print_order evaluationOrder =
+  (Utils.foldLeft (Array.initialize (List.length evaluationOrder) (\_ -> 0)) (Utils.zipWithIndex evaluationOrder) <|
+                \array (n, i) ->
+                  Array.set n i array
+  ) |> Array.toList
+
+reorderDefinitions: List LetExp -> Result String (List LetExp, List Int)
+reorderDefinitions letExps =
+  -- We put types at the top
+  -- We put expressions which are not EFuns at the top, keeping their order if it is possible
+  -- Lastly, we keep all remaining functions in their given order.
+  -- It does not matter since functions will be mutually recursive
+  let letExpsWithIndex = Utils.zipWithIndex letExpsWithIndex in
+  let (typesWithIndex, expDefsWithIndex) = List.partition (\(def, index) -> case def of
+    LetType _ _ _ _ _ -> True
+    LetTypeAlias _ _ _ _ _  -> True
+    LetExp _ _ _ _ _ _ _ -> False) letExpsWithIndex
+  in
+  let expDefsWithDependencies = List.filterMap (\(def, index) -> case def of
+    LetExp _ _ _ pats _ _ e  ->
+       Just ((def, index), (identifiersListInPat pats, compulsoryDependencies e))
+    _ -> Nothing)
+  in
+  let render (_, (patsNames, _)) = (Set.toList patsNames |> String.join ",") in
+  case Utils.orderWithDependencies expDefsWithDependencies Tuple.second render of
+    Err msg -> Err msg
+    Ok expsReordered ->
+      let finalExpsWithIndex = typesWithIndex ++ List.map Tuple.second expsReordered in
+      let (finalExps, evaluationOrder) = List.unzip finalExpsWithIndex in
+      let printOrder = compute_print_order evaluationOrder in
+      (finalExps, printOrder)
+
+genericLetBinding : Parser WS -> String -> Parser (WS -> Exp)
+genericLetBinding appargSpace letkeyword =
+  inContext ("let binding") <|
     lazy <| \_ ->
-      mapWSExp_ <|
-        transferInfo
-          ( \(name, parameters, wsBeforeEq, binding_, wsBeforeIn, body) wsBefore ->
-              let
-                binding =
-                  if List.isEmpty parameters then
-                    binding_
-                  else
-                    withInfo
-                      (exp_ <| EFun space0 parameters binding_ space0)
-                      binding_.start
-                      binding_.end
-              in
-                ELet wsBefore Let isRec name wsBeforeEq binding wsBeforeIn body space0
+      mapExp_ <|
+        delayedCommitMap
+          ( \wsBefore (definitions, wsBeforeIn, body) ->
+            let (definitionsOrdered, printOrder) = reorderDefinitions in
+            ELet wsBefore Let definitionsOrdered printOrder wsBeforeIn body
           )
+          (succeed (,)
+          |= sp.first)
           ( trackInfo <|
-              delayedCommit (keywordWithSpace letkeyword) <|
-                succeed (,,,,,)
-                  |= pattern allSpacesPolicy
-                  |= repeat zeroOrMore (pattern allSpacesPolicy)
-                  |= spaces
-                  |. symbol "="
-                  |= expression allSpacesPolicy
+            succeed identity
+              |. keyword "let"
+              |= (getPos |> andThen ( \{line, col} ->
+                succeed (,,)
+                  |= repeat oneOrMore (oneOf [
+                      typeDefOrAlias (SpacePolicy spaces (sameLineOrIndentedByAtLeast (col - 2))),
+                      letExp (SpacePolicy spaces (sameLineOrIndentedByAtLeast (col - 2)))
+                    ])
                   |= spaces
                   |. keywordWithSpace "in"
                   |= expression { first = spaces, apparg = appargSpace }
+                )
+             )
           )
 
 --------------------------------------------------------------------------------
@@ -2008,8 +2145,33 @@ option appargSpace =
 -- Tuples, Parentheses
 --------------------------------------------------------------------------------
 
-tuple : Parser (WS -> Exp)
-tuple =
+genericParens: (SpacePolicy -> Parser a) -> (WS -> a -> WS -> b) -> SpacePolicy -> Parser b
+genericParens inner builder sp =
+  inContext "parentheses" <|
+    mapExp_ <|
+      lazy <| \_ ->
+        paddedBefore
+          ( \wsBefore (innerExpression, wsBeforeEnd) ->
+              builder wsBefore innerExpression Parens wsBeforeEnd
+          )
+          sp.first
+          ( trackInfo <|
+              succeed (,)
+                |. symbol "("
+                |= inner allSpacesPolicy
+                |= spaces
+                |. symbol ")"
+          )
+
+parens : SpacePolicy -> Parser Exp
+parens = genericParens expression (\wsBefore innerExpression wsBeforeEnd -> EParens wsBefore innerExpression Parens wsBeforeEnd)
+
+--------------------------------------------------------------------------------
+-- Tuples
+--------------------------------------------------------------------------------
+
+tuple : SpacePolicy -> Parser Exp
+tuple sp =
   inContext "tuple" <|
     lazy <| \_ ->
       mapWSExp_ <|
@@ -2035,72 +2197,6 @@ hole =
   inContext "hole" <|
     mapWSExp_ <|
       transferInfo (flip EHole) (trackInfo <| token "??" Nothing)
-
---------------------------------------------------------------------------------
--- Type Aliases
---------------------------------------------------------------------------------
-
-typeAlias : Parser WS -> Parser (WS -> Exp)
-typeAlias appargSpace =
-  inContext "type alias" <|
-    lazy <| \_ ->
-      mapWSExp_ <|
-        transferInfo
-          ( \(ws, wsToPat, t, rest) wsBefore ->
-              ETypeAlias wsBefore (wsToPat ws) t rest space0
-          )
-          ( trackInfo <|
-              succeed (,,,)
-                |. keywordWithSpace "type alias"
-                |= appargSpace
-                |= typePattern
-                |. spaces
-                |. symbol "="
-                |= typ { first = spaces, apparg = appargSpace }
-                |= expression { first = spaces, apparg = appargSpace }
-          )
-
---------------------------------------------------------------------------------
--- Type Definitions
---------------------------------------------------------------------------------
-
-typeDefinition : Parser WS -> Parser (WS -> Exp)
-typeDefinition appargSpace =
-  inContext "type definition" <|
-    lazy <| \_ ->
-      let
-        var =
-          delayedCommitMap (,)
-            spaces
-            (untrackInfo littleIdentifier)
-        dc =
-          delayedCommitMap
-            ( \wsBefore (i, ts, wsAfter) ->
-                (wsBefore, i, ts, wsAfter)
-            )
-            spaces
-            ( succeed (,,)
-                |= untrackInfo bigIdentifier
-                |= repeat zeroOrMore (typ {first = appargSpace, apparg = appargSpace})
-                |= spaces
-            )
-      in
-        mapWSExp_ <|
-          transferInfo
-            ( \(wsBeforeIdent, ident, vars, wsBeforeEq, dcs, rest) wsBefore ->
-                ETypeDef wsBefore (wsBeforeIdent, ident) vars wsBeforeEq dcs rest space0
-            )
-            ( trackInfo <|
-                succeed (,,,,,)
-                  |. keywordWithSpace "type"
-                  |= spaces
-                  |= untrackInfo bigIdentifier
-                  |= repeat zeroOrMore var
-                  |= spaces
-                  |. symbol "="
-                  |= separateBy oneOrMore (symbol "|") dc
-                  |= expression { first = spaces, apparg = appargSpace }
-            )
 
 --------------------------------------------------------------------------------
 -- General Expressions
@@ -2168,8 +2264,6 @@ simpleExpression appargSpace =
       , caseExpression
       , letBinding appargSpace
       , letrecBinding appargSpace
-      , typeAlias appargSpace
-      , typeDefinition appargSpace
       , lazy <| \_ -> multiLineInterpolatedString
       , baseValueExpression
       , lazy <| \_ -> function appargSpace
@@ -2504,19 +2598,7 @@ optionalTopLevelSemicolon = optional (paddedBefore (\_ _ _ -> ()) spaces (trackI
 -- Top-Level Defs
 --------------------------------------------------------------------------------
 
-isTopLevelDefImplicitlyRec : Pat -> Exp -> Bool
-isTopLevelDefImplicitlyRec pat binding =
-  isPVar (patEffectivePat pat) && isFunc (expEffectiveExp binding)
-  -- Uncomment when mutually recursive functions implmented in eval
-  -- || case ((patEffectivePat pat).val.p__, (expEffectiveExp binding).val.e__) of
-  --       (PList _ pHeads _ Nothing _, EList _ eHeads _ Nothing _) ->
-  --         List.all (patEffectivePat >> isPVar) pHeads &&
-  --         List.all (expEffectiveExp >> isFunc) eHeads &&
-  --         List.length pHeads == List.length eHeads
-  --       _ ->
-  --         False
-
-topLevelDef : Parser TopLevelExp
+topLevelDef : Parser LetExp
 topLevelDef =
   inContext "top-level def binding" <|
     delayedCommitMap
@@ -2531,9 +2613,6 @@ topLevelDef =
                   (exp_ <| EFun space0 parameters binding_ space0)
                   binding_.start
                   binding_.end
-
-            isRec =
-              isTopLevelDefImplicitlyRec pat binding
           in
             withInfo
               ( \rest ->
@@ -2568,63 +2647,68 @@ topLevelDef =
 -- Top-Level Type Declarations
 --------------------------------------------------------------------------------
 
-topLevelTypeDeclaration : Parser TopLevelExp
-topLevelTypeDeclaration =
-  inContext "top-level type declaration" <|
-    lazy <| \_ ->
-      delayedCommitMap
-        ( \(name, wsBeforeColon) t ->
-            withInfo
-              ( \rest ->
-                  exp_ <|
-                    ETyp
-                      space0
-                      name
-                      t
-                      rest
-                      wsBeforeColon
-              )
-              name.start
-              t.end
-        )
-        ( succeed (,)
-            |= pattern topLevelInsideDefSpacePolicy
-            |= topLevelInsideDefSpacePolicy.first
-        )
-        ( succeed identity
-          |. symbol ":"
-          |= typ topLevelInsideDefSpacePolicy
-          |. optionalTopLevelSemicolon
-        )
-
---------------------------------------------------------------------------------
--- Top-Level Type Aliases
---------------------------------------------------------------------------------
-
-topLevelTypeAlias : Parser TopLevelExp
-topLevelTypeAlias =
-  inContext "top-level type alias" <|
+-- sp == topLevelInsideDefSpacePolicy
+typeAnnotation : SpacePolicy -> Parser TypeAnnotation
+typeAnnotation sp =
+  inContext "type annotation" <|
     delayedCommitMap
-      ( \wsBefore (startPos, ws, wsPat, t, endPos) ->
-          withInfo
-            ( \rest ->
-                exp_ <|
-                  ETypeAlias wsBefore (wsPat ws) t rest space0
-            )
-            startPos
-            endPos
+      ( \(name, wsBeforeColon) t ->
+        TypeAnnotation
+          name
+          wsBeforeColon
+          t
       )
-      spaces
-      ( succeed (,,,,)
-        |= getPos
-        |. keywordWithSpace "type alias"
-        |= topLevelInsideDefSpacePolicy.apparg
-        |= typePattern
-        |. topLevelInsideDefSpacePolicy.apparg
-        |. symbol "="
-        |= typ topLevelInsideDefSpacePolicy
+      ( succeed (,)
+          |= pattern { sp | first = nospace }
+          |= sp.apparg
+      )
+      ( succeed identity
+        |. symbol ":"
+        |= typ { sp | first = sp.apparg }
         |. optionalTopLevelSemicolon
-        |= getPos
+      )
+
+--------------------------------------------------------------------------------
+-- Type Aliases
+--------------------------------------------------------------------------------
+
+-- sp = topLevelInsideDefSpacePolicy usually
+typeDefOrAlias : SpacePolicy -> Parser LetExp
+typeDefOrAlias sp =
+  inContext "type or type alias" <|
+    delayedCommitMap
+      ( \(wsBeforeType) (spAfterType, mbAlias, name, parameters, spEq, binding_) ->
+         let
+           (binding, funArgStyle) =
+             if List.isEmpty parameters then
+               (binding_, FunArgsAfterEqual)
+             else
+               (withInfo
+                 (exp_ <| TForall space0 parameters binding_ space0)
+                 binding_.start
+                 binding_.end, FunArgAsPats)
+         in
+         case mbAlias of
+           Nothing ->
+             LetType wsBeforeType (replacePrecedingWhitespacePat spAfterType name) funArgStyle spEq binding
+           Just spaceAfterAlias ->
+             LetTypeAlias wsBeforeType spAfterType (replacePrecedingWhitespacePat spaceAfterAlias name) funArgStyle spEq binding
+      )
+      sp.first --|= getPos
+      ( succeed (,,,)
+        |. keyword "type"
+        |= spaces
+        |= optional (
+          succeed identity
+          |. keyword "alias"
+          |= spaces)
+        |= typePattern {sp | first = nospace }
+        |= repeat zeroOrMore (typePattern {sp | first = sp.apparg })
+        |= sp.apparg
+        |. symbol "="
+        |= typ {sp | first = spaces }
+        |. optionalTopLevelSemicolon
+        --|= getPos
       )
 
 --------------------------------------------------------------------------------
@@ -2715,9 +2799,9 @@ topLevelExpression =
   inContext "top-level expression" <|
     oneOf
       [ topLevelDef
-      , topLevelTypeAlias
+      , typeAlias
       , topLevelTypeDefinition
-      , topLevelTypeDeclaration
+      , typeAnnotation
       , topLevelOption
       ]
 
@@ -2882,59 +2966,65 @@ freshenPreserving idsToPreserve initK e =
   let assignIds exp k =
     let e__ = exp.val.e__ in
     let (newE__, newK) =
-      case e__ of
-        EConst ws n (locId, frozen, ident) wd ->
-          if Set.member locId idsToPreserve then
-            (e__, k)
-          else
-            let locId = getId k in
-            (EConst ws n (locId, frozen, ident) wd, locId + 1)
+       case e__ of
+         EConst ws n (locId, frozen, ident) wd ->
+           if Set.member locId idsToPreserve then
+             (e__, k)
+           else
+             let locId = getId k in
+             (EConst ws n (locId, frozen, ident) wd, locId + 1)
 
-        ELet ws1 kind b p ws2 e1 ws3 e2 ws4 ->
-          let (newP, newK) = freshenPatPreserving idsToPreserve k p in
-          let newE1 = recordIdentifiers (newP, e1) in
-          (ELet ws1 kind b newP ws2 newE1 ws3 e2 ws4, newK)
+         ELet ws1 kind letexps groupingInfo wsIn body ->
+           let (newRevLetExps, newK) = Utils.foldLeft
+               ([], k) letexps <|
+               \(revAcc, k) def -> case def of
+                 LetExp spl mbTyp sp0 p funPolicy spEq e1 ->
+                   let (newMbTyp, tmpK) = case mbType of
+                     Just (TypeAnnotation pat ws1 t) ->
+                       let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k)
+                       (Just (TypeAnnotation newPat ws1 t), newK)
+                     Nothing -> (Nothing, k)
+                   in
+                   let (newP, newK) = freshenPatPreserving idsToPreserve (p, tmpK) in
+                   let newE1 = recordIdentifiers (newP, e1) in
+                   (LetExp sp1 newMbTyp sp0 newP funPolicy spEq newE1 :: revAcc, newK)
+                 LetType spType mbSpAlias pat funPolicy spEq tp ->
+                   let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
+                   (LetType spType mbSpAlias newPat funPolicy spEq tp :: revAcc, newK)
+           in
+           (ELet ws1 kind (List.reverse newRevLetExps) groupingInfo wsIn body, newK)
 
-        EFun ws1 pats body ws2 ->
-          let (newPats, newK) = freshenPatsPreserving idsToPreserve k pats in
-          (EFun ws1 newPats body ws2, newK)
+         EFun ws1 pats body ws2 ->
+           let (newPats, newK) = freshenPatsPreserving idsToPreserve (pats, k) in
+           (EFun ws1 newPats body ws2, newK)
 
-        ECase ws1 scrutinee branches ws2 ->
-          let (newBranches, newK) =
-            branches
-            |> List.foldl
-                (\branch (newBranches, k) ->
-                  let (Branch_ bws1 pat ei bws2) = branch.val in
-                  let (newPi, newK) = freshenPatPreserving idsToPreserve k pat in
-                  (newBranches ++ [{ branch | val = Branch_ bws1 newPi ei bws2 }], newK)
-                )
-                ([], k)
-          in
-          (ECase ws1 scrutinee newBranches ws2, newK)
-
-        ETyp ws1 pat tipe e ws2 ->
-          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
-          (ETyp ws1 newPat tipe e ws2, newK)
-
-        ETypeAlias ws1 pat tipe e ws2 ->
-          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
-          (ETypeAlias ws1 newPat tipe e ws2, newK)
-
-        _ ->
-          (e__, k)
+         ECase ws1 scrutinee branches ws2 ->
+           let (newBranches, newK) =
+             branches
+             |> List.foldl
+                 (\branch (newBranches, k) ->
+                   let (Branch_ bws1 pat ei bws2) = branch.val in
+                   let (newPi, newK) = freshenPatPreserving idsToPreserve (pat, k) in
+                   (newBranches ++ [{ branch | val = Branch_ bws1 newPi ei bws2 }], newK)
+                 )
+                 ([], k)
+           in
+           (ECase ws1 scrutinee newBranches ws2, newK)
+         _ ->
+           (e__, k)
     in
     if Set.member exp.val.eid idsToPreserve then
-      (replaceE__ exp newE__, newK)
+       (replaceE__ exp newE__, newK)
     else
-      let eid = getId newK in
-      (WithInfo (Exp_ newE__ eid) exp.start exp.end, eid + 1)
+       let eid = getId newK in
+       (WithInfo (Exp_ newE__ eid) exp.start exp.end, eid + 1)
   in
   mapFoldExp assignIds initK e
 
 
 -- Reassign any id not in idsToPreserve
-freshenPatsPreserving : Set.Set Int -> Int -> List Pat -> (List Pat, Int)
-freshenPatsPreserving idsToPreserve initK pats =
+freshenPatsPreserving : Set.Set Int -> (List Pat, Int) -> (List Pat, Int)
+freshenPatsPreserving idsToPreserve (pats, initK) =
   pats
   |> List.foldl
       (\pat (finalPats, k) ->
@@ -2945,8 +3035,8 @@ freshenPatsPreserving idsToPreserve initK pats =
 
 
 -- Reassign any id not in idsToPreserve
-freshenPatPreserving : Set.Set Int -> Int -> Pat -> (Pat, Int)
-freshenPatPreserving idsToPreserve initK p =
+freshenPatPreserving : Set.Set Int -> (Pat, Int) -> (Pat, Int)
+freshenPatPreserving idsToPreserve (p, initK) =
   let getId k =
     if Set.member k idsToPreserve
     then getId (k+1)
@@ -2954,10 +3044,10 @@ freshenPatPreserving idsToPreserve initK p =
   in
   let assignIds pat k =
     if Set.member pat.val.pid idsToPreserve then
-      (pat, k)
+       (pat, k)
     else
-      let pid = getId k in
-      (setPId pid pat, pid + 1)
+       let pid = getId k in
+       (setPId pid pat, pid + 1)
   in
   mapFoldPatTopDown assignIds initK p
 
@@ -2983,11 +3073,13 @@ allIdsRaw exp =
         (\exp ->
           case exp.val.e__ of
             EConst ws n (locId, frozen, ident) wd -> [locId]
-            ELet ws1 kind b p _ e1 _ e2 ws2       -> pidsInPat p
+            ELet _ kind defs printOrder _ e2     ->
+              defs |> List.concatMap (\def -> case def of
+                LetExp _ _ _ p _ _ e1 -> pidsInPat p
+                _ -> []
+              )
             EFun ws1 pats body ws2                -> pidsInPats pats
             ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
-            ETyp ws1 pat tipe e ws2               -> pidsInPat pat
-            ETypeAlias ws1 pat tipe e ws2         -> pidsInPat pat
             _                                     -> []
         )
   in
@@ -3040,7 +3132,8 @@ recordIdentifiers (p,e) =
                       _                  -> me in
                   ret <| EList ws1 (Utils.listValuesMake es es_) ws2 me_ ws3
 
-  (PAs _ _ _ _ p_, _) -> recordIdentifiers (p_,e)
+  (PAs _ p1 _ p2, _) ->
+    recordIdentifiers (p1,e)
 
   (_, EColonType ws1 e1 ws2 t ws3) ->
     ret <| EColonType ws1 (recordIdentifiers (p,e1)) ws2 t ws3
