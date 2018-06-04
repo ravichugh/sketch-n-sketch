@@ -624,7 +624,7 @@ append =
     apply [aas, bs] = freeze <| ap aas bs
     update {input = [aas, bs], outputNew, outputOld, diffs} =
       let asLength = len aas in
-      foldDiff {
+      Update.foldDiff {
         start = [[], [], [], [], len aas, len bs]
         onSkip [nas, nbs, diffas, diffbs, numA, numB] {count = n, newOutputs = outs} =
           if n <= numA then
@@ -677,7 +677,7 @@ append =
 map f l = {
   apply [f, l] = freeze (LensLess.List.map f l)
   update {input=[f, l], oldOutput, outputNew, diffs} =
-    foldDiff {
+    Update.foldDiff {
       start =
         --Start: the collected functions and diffs,
         -- the collected inputs,
@@ -1535,7 +1535,7 @@ html string = {
            RegularEndOpening (map toHTMLNode children) (RegularClosing "")
     in
     let mergeAttrs input oldOutput newOutput diffs =
-      foldDiff {
+      Update.foldDiff {
         start =
           -- Accumulator of HTMLAttributes, accumulator of differences, original list of HTMLAttributes
           ([], [], input)
@@ -1594,7 +1594,7 @@ html string = {
     in
     -- Returns {values = List (List HTMLNode)., diffs = List (Maybe ListDiff)} or { error = ... }
     letrec mergeNodes input oldOutput newOutput diffs =
-      foldDiff {
+      Update.foldDiff {
         start =
           -- Accumulator of values, accumulator of differences, original input
           ([], [], input)
