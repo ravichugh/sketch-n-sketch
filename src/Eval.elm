@@ -1,4 +1,4 @@
-module Eval exposing (doEval, eval, evalDelta)
+module Eval exposing (doEval, eval, evalDelta, opClosure)
 
 import Debug
 import Dict
@@ -100,6 +100,16 @@ lookupVar syntax env bt x pos =
     Just v  -> Ok v
     Nothing -> errorWithBacktrace syntax bt <| strPos pos ++ " variable not found: " ++ x ++ "\nVariables in scope: " ++ (String.join " " <| List.map Tuple.first env)
 
+-- If an operator compares two closures, the result is a closure. Argument is the same for both sides (e.g. boolean)
+opClosure addEnv opBuilder args vs =
+  case (args, vs) of
+    ([VClosure r1 p1 b1 e1, VClosure r2 p2 b2 e2], [v1, v2]) ->
+      Just <| VClosure r1 [pVar "x"] (opBuilder [eApp (eVar "f") [eVar "x"], eApp (eVar "g") [eVar "x"]]) (addEnv ++ [("f", v1), ("g", v2)])
+    ([VClosure r1 p1 b1 e1, _], [v1, v2]) ->
+      Just <| VClosure r1 [pVar "x"] (opBuilder [eApp (eVar "f") [eVar "x"], eVar "g"]) (addEnv ++ [("f", v1), ("g", v2)])
+    ([_, VClosure r2 p2 b2 e2], [v1, v2]) ->
+      Just <| VClosure r2 [pVar "x"] (opBuilder [eVar "f", eApp (eVar "g") [eVar "x"]]) (addEnv ++ [("f", v1), ("g", v2)])
+    _ -> Nothing
 
 mkCap mcap l =
   let s =
@@ -480,7 +490,9 @@ evalOp syntax env e bt opWithInfo es =
                 _                                      -> Nothing
             in
             VConst maybeAxisAndOtherDim (evalDelta syntax bt op [i,j], TrOp op [it,jt]) |> addProvenanceOk
-          _ -> mkClosureOrError ()
+          _ -> case opClosure [] (eOp op) args vs of
+            Just v -> addProvenanceOk v
+            Nothing -> mkClosureOrError ()
       in
       let args = List.map .v_ vs in
       let newValRes =
@@ -496,9 +508,14 @@ evalOp syntax env e bt opWithInfo es =
           ArcTan2   -> binMathOp op args
           Lt        -> case args of
             [VConst _ (i,it), VConst _ (j,jt)] -> VBase (VBool (i < j)) |> addProvenanceOk
-            _ -> mkClosureOrError ()
+            _ -> case opClosure [] (eOp Lt) args vs of
+              Just v -> addProvenanceOk v
+              Nothing -> mkClosureOrError ()
           Eq        ->
             if List.length vs < 2 then mkClosureOrError () else
+            case opClosure [] (eOp Eq) args vs of
+              Just v -> addProvenanceOk v
+              Nothing ->
             let valEquals: List Val_ -> Result String Bool
                 valEquals args =
                  case args of

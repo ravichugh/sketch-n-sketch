@@ -39,33 +39,45 @@ builtinEnv =
          case left.v_ of
            VBase (VBool True) -> Ok (right, [])
            VBase (VBool False) -> Ok (left, [])
-           _ -> Err <| "&& expects two booleans, got " ++ valToString left
+           _ -> case Eval.opClosure builtinEnv (eApp (eVar "&&")) [left.v_, right.v_] [left, right] of
+             Just x -> Ok (replaceV_ left x, [])
+             Nothing -> Err <| "&& expects two booleans, got " ++ valToString left
      ) Nothing)
   , ("||", builtinVal "EvalUpdate.||" <| VFun "||" ["left", "right"] (twoArgs "||" <| \left right ->
          case left.v_ of
            VBase (VBool True) -> Ok (left, [])
            VBase (VBool False) -> Ok (right, [])
-           _ -> Err <| "|| expects two booleans, got " ++ valToString left
+           _ -> case Eval.opClosure builtinEnv (eApp (eVar "||")) [left.v_, right.v_] [left, right] of
+             Just x -> Ok (replaceV_ left x, [])
+             Nothing -> Err <| "|| expects two booleans, got " ++ valToString left
      ) Nothing)
   , ("<=", builtinVal "EvalUpdate.<=" <| VFun "<=" ["left", "right"] (twoArgs "<=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 <= n2)), [])
-           _ -> Err <| "<= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
+           _ -> case Eval.opClosure builtinEnv (eApp (eVar "<=")) [left.v_, right.v_] [left, right] of
+             Just x -> Ok (replaceV_ left x, [])
+             Nothing -> Err <| "<= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
      ) Nothing)
   , (">=", builtinVal "EvalUpdate.>=" <| VFun ">=" ["left", "right"] (twoArgs ">=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 >= n2)), [])
-           _ -> Err <| ">= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
+           _ -> case Eval.opClosure builtinEnv (eApp (eVar ">=")) [left.v_, right.v_] [left, right] of
+             Just x -> Ok (replaceV_ left x, [])
+             Nothing -> Err <| ">= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
      ) Nothing)
   , (">", builtinVal "EvalUpdate.>" <| VFun ">" ["left", "right"] (twoArgs ">" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 > n2)), [])
-           _ -> Err <| "> expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
+           _ -> case Eval.opClosure builtinEnv (eApp (eVar ">")) [left.v_, right.v_] [left, right] of
+            Just x -> Ok (replaceV_ left x, [])
+            Nothing -> Err <| "> expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
      ) Nothing)
   , ("/=", builtinVal "EvalUpdate./=" <| VFun "/=" ["left", "right"] (twoArgs "/=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 /= n2)), [])
-           (_, _) -> Ok (replaceV_ left <| VBase <| VBool <| valToString left /= valToString right, [])
+           (_, _) -> case Eval.opClosure builtinEnv (eApp (eVar "/=")) [left.v_, right.v_] [left, right] of
+             Just x -> Ok (replaceV_ left x, [])
+             Nothing -> Ok (replaceV_ left <| VBase <| VBool <| valToString left /= valToString right, [])
      ) Nothing)
   , ("getCurrentTime", builtinVal "EvalUpdate.getCurrentTime" (VFun "getCurrentTime" ["unit"] (\_ ->
       let n = ImpureGoodies.getCurrentTime () in
