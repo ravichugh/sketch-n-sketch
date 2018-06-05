@@ -2005,35 +2005,54 @@ caseExpression =
 --------------------------------------------------------------------------------
 
 -- In let or def context
-letExp : SpacePolicy -> Parser LetExp
-letExp sp =
-  inContext "binding" <|
-     delayedCommitMap
-       ( \(wsBefore, mbTypeAnnotation) (name, parameters, wsBeforeEq, binding_) ->
-           let
-             (binding, funArgStyle) =
+letExpOrAnnotation : Parser WS -> Parser (OptCommaSpace -> WS -> Declaration)
+letExpOrAnnotation appargSpace =
+  inContext "binding" <| andThen identity <|
+     succeed (\name parameters wsBeforeEq binding_ final optCommaSpace wsBefore ->
+         final optCommaSpace wsBefore name parameters wsBeforeEq binding_
+     )
+     |= pattern (SpacePolicy nospace spaces)
+     |= repeat zeroOrMore (pattern (SpacePolicy spaces spaces))
+     |= spaces
+     |= (oneOf [source <| symbol "=", source <| symbol ":"] |> andThen (\eqSymbol ->
+       if eqSymbol == "=" then
+         expression (SpacePolicy spaces appargSpace)
+         |> map (\binding_ ->
+           \optCommaSpace wsBeforePat pat parameters wsBeforeEq ->
+             let (binding, funArgStyle) =
                if List.isEmpty parameters then
-                 (binding_, FunArgsAfterEqual)
+                  (binding_, FunArgsAfterEqual)
                else
-                 (withInfo
-                   (exp_ <| EFun space0 parameters binding_ space0)
-                   binding_.start
-                   binding_.end
-                 ,FunArgAsPats)
-           in
-             LetExp wsBefore mbTypeAnnotation name funArgStyle wsBeforeEq binding
-       )
-       (succeed (,)
-        |= sp.first
-        |= optional (typeAnnotation { sp | first = nospace } ))
-       ( trackInfo <| (
-           succeed (,,,)
-           |= pattern { sp | first = sp.appArg }
-           |= repeat zeroOrMore (pattern { sp | first = sp.appArg })
-           |= spaces
-           |. symbol "="
-           |= expression { sp | first = spaces }
-       ))
+                  (withInfo
+                    (exp_ <| EFun space0 parameters binding_ space0)
+                    binding_.start
+                    binding_.end
+                  ,FunArgAsPats)
+             in
+           DeclExp <| LetExp optCommaSpace wsBeforePat pat funArgStyle wsBeforeEq binding
+         )
+       else
+         typ (SpacePolicy spaces appargSpace)
+         |> map (\binding_ ->
+           \optCommaSpace wsBeforePat pat parameters wsBeforeEq ->
+              let mbBindingsFunArgStyles =
+                if List.isEmpty parameters then
+                   Ok (binding_, FunArgsAfterEqual)
+                else
+                   case parameters |> List.map patToTPat |> Utils.projJust of
+                    Just tpats -> Ok (withInfo
+                       (exp_ <| TForall space0 tpats binding_ space0)
+                        binding_.start
+                        binding_.end
+                       ,FunArgAsPats)
+                    Nothing -> Err "Could not interpret this pattern as a type pattern"
+              in
+              case mbBindingsFunArgStyles of
+                Ok (binding, funArgStyle) ->
+                  succeed <| DeclAnnotation <| LetAnnotation optCommaSpace wsBeforePat pat funArgStyle wsBeforeEq t
+                Err msg -> fail msg
+         )
+     ))
 
 -- Given an expression, returns the set of variables needed to compute it immediately.
 -- compulsoryDependencies (\x -> y x) = {}, but (\z x -> z x) y = {y}
@@ -2086,28 +2105,29 @@ genericLetBinding : Parser WS -> String -> Parser (WS -> Exp)
 genericLetBinding appargSpace letkeyword =
   inContext ("let binding") <|
     lazy <| \_ ->
-      mapExp_ <|
-        delayedCommitMap
-          ( \wsBefore (definitions, wsBeforeIn, body) ->
-            let (definitionsOrdered, printOrder) = reorderDefinitions in
-            ELet wsBefore Let definitionsOrdered printOrder wsBeforeIn body
-          )
-          (succeed (,)
-          |= sp.first)
-          ( trackInfo <|
-            succeed identity
-              |. keyword "let"
-              |= (getPos |> andThen ( \{line, col} ->
-                succeed (,,)
-                  |= repeat oneOrMore (oneOf [
-                      typeDefOrAlias (SpacePolicy spaces (sameLineOrIndentedByAtLeast (col - 2))),
-                      letExp (SpacePolicy spaces (sameLineOrIndentedByAtLeast (col - 2)))
-                    ])
-                  |= spaces
-                  |. keywordWithSpace "in"
-                  |= expression { first = spaces, apparg = appargSpace }
+      mapWSExp_ <| (
+            delayedCommitMap (\startPos (definitions, wsBeforeIn, body) wsBefore ->
+              let (definitionsOrdered, printOrder) = reorderDefinitions in
+               withInfo (ELet wsBefore Let definitionsOrdered printOrder wsBeforeIn body)
+                 startPos
+
+            )
+            getPos
+            (succeed identity
+            |. keyword "let"
+            |= (getPos |> andThen ( \{col} ->
+              let appargPolicy = (SpacePolicy spaces (sameLineOrIndentedByAtLeast (col - 2))) in
+              succeed (,,)
+                |= repeat oneOrMore (oneOf [
+                    map DeclType (typeDefOrAlias appargPolicy),
+                    letExpOrAnnotation appargPolicy
+                  ])
+                |= spaces
+                |. keywordWithSpace "in"
+                |= expression { first = spaces, apparg = appargSpace }
                 )
-             )
+              )
+            )
           )
 
 --------------------------------------------------------------------------------
@@ -2648,12 +2668,12 @@ topLevelDef =
 --------------------------------------------------------------------------------
 
 -- sp == topLevelInsideDefSpacePolicy
-typeAnnotation : SpacePolicy -> Parser TypeAnnotation
+typeAnnotation : SpacePolicy -> Parser LetAnnotation
 typeAnnotation sp =
   inContext "type annotation" <|
     delayedCommitMap
       ( \(name, wsBeforeColon) t ->
-        TypeAnnotation
+        LetAnnotation
           name
           wsBeforeColon
           t

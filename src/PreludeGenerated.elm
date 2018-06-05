@@ -3245,6 +3245,10 @@ List =
   letrec range min max = if min > max then [] else min :: range (min + 1) max in
   letrec find f l = case l of [] -> Nothing; head :: tail -> if f head then Just head else find f tail in
   let indices l = range 0 (length l - 1) in
+  let insertAt index newElem elements =
+    let (before, after) = split index elements in
+    before ++ [newElem] ++ after
+  in
   { simpleMap = simpleMap
     map = map
     nil = nil
@@ -3601,24 +3605,17 @@ Html =
         [\"label\", [[\"for\",id], [\"title\", title]], [[\"TEXT\", text]]]
       ]]
   in
-  let button =
-    let
-    stringFlagForUpdate state1 state2 f model =
-        { apply _ = Update.freeze state1
-        , update {input = model, outputNew} =
-            if outputNew == state2
-              then {values = [f model]}
-              else {values = [model]}
-        }.apply model
-    in
-    \\name title model controller ->
-      forceRefresh <| [ \"button\"
-        , [ [\"trigger\", stringFlagForUpdate \"\" \"#\" controller model]
-          , [\"title\", title]
-          , [\"onclick\", \"this.setAttribute('trigger', '#')\"]
-          ]
-        , [textNode name]
-      ]
+  let onClickCallback model controller =  {
+    apply model = freeze \"\"\"/*@getCurrentTime*/this.setAttribute('onclick', \" \" + this.getAttribute('onclick'))\"\"\"
+    update {input, outputNew} =
+      if String.take 1 outputNew == \" \" then
+      { values = [controller model] }
+      else
+      { values = [input], diffs = [Nothing]}
+    }.apply model
+  in
+  let button name title model controller =
+    <button title=title onclick=(onClickCallback model controller)>@name</button>
   in
   let observeCopyValueToAttribute query attribute =
     <script>
@@ -3666,6 +3663,7 @@ Html =
     button = button
     observeCopyValueToAttribute = observeCopyValueToAttribute
     onChangeAttribute = onChangeAttribute
+    onClickCallback = onClickCallback
   }
 
 -- TODO remove this; add as imports as needed in examples
