@@ -90,8 +90,8 @@ Detailed budget can be found in <a class="sectionref" href="#budget">the budget 
   margin: auto;
   margin-top: 10px;
   top: 0px;
-  width: 7in;
-  height: 9.25in;
+  width: 8.5in;
+  height: 11in;
   box-sizing: border-box;
   box-shadow: 0px 0px 5px #aaa;
   background: white;
@@ -114,15 +114,46 @@ h2::before {
     counter-increment: h2-counter;
     content: counter(h2-counter) ". ";
 }
+@@media print {
+  body * {
+    visibility: hidden;
+  }
+  .code-panel {
+    display: none;
+  }
+  .page, .page * {
+    visibility: visible;
+  }
+  .page {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    box-shadow: none;
+  }
+  .pagecontent {
+    padding: 0;
+    font-size: 1.5em;
+  }
+  .output-panel {
+    left: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+  }
+}
 </style>
 <b>Sketch-n-Sketch docs</b>
 <a href="#" data-command='formatBlock:h1' title="First-level header">H1</a>
 <a href="#" data-command='formatBlock:h2' title="Second-level header">H2</a>
 <a href="#" data-command='undo' style="display:none">⟲ Undo</a>
 <a href="#" data-command='redo' style="display:none">⟳ Redo</a>
-<a href="#" data-command='createlink' title="Create a link">Link</a>
-<a href="#" data-command='justifyLeft' title="Align text to the left">Left justify</a>
-<a href="#" data-command='justifyCenter' title="Center text">Center</a>
+<a href="#" data-command='createlink' title="Create a link"><u style="color:blue">Link</u></a>
+<a href="#" data-command='justifyLeft' title="Align text to the left">
+<div style="font-size:0.05em;display:inline-block">=====<br>==<br>====</div></a>
+<a href="#" data-command='justifyCenter' title="Center text">
+<div style="font-size:0.05em;display:inline-block;text-align:center">=====<br>==<br>====</div></a>
 <a href="#" data-command='superscript' title="superscript">X<sup>b</sup></a>
 <a href="#" data-command='subscript' title="subscript">X<sub>b</sub></a>
 <a href="#" data-command='insertUnorderedList' title="bullet point list"><ul
@@ -131,6 +162,7 @@ h2::before {
 <a href="#" data-command='insertOrderedList' title="numbered list"><ol
   style="font-size:0.05em;display:inline-block"
   ><li>---</li><li>---</li><li>---</li></ol></a>
+<a href="#" data-command='print' title="Print the document -- look for @media print for configurable options">Print</a>
 </div>
 @Html.forceRefresh<|<div id="body">
 <div class="page">
