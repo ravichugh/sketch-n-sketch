@@ -273,6 +273,7 @@ LEO_TO_ELM fromleo/pizzas_doodle
 LEO_TO_ELM fromleo/universal_number
 LEO_TO_ELM repl
 LEO_TO_ELM slides
+LEO_TO_ELM docs
 LEO_TO_ELM sync
 
 --------------------------------------------------------------------------------
@@ -309,6 +310,7 @@ docsCategory =
       , ("LaTeX Editor", fromleo_latexeditor)
       , ("REPL with SVG", repl)
       , ("Slides", slides)
+      , ("Docs", docs)
       -- TODO maybe Conference?
       , ("Lens: Maybe Map", mapMaybeLens)
       , ("Lens: List Map 1", mapListLens_1)
