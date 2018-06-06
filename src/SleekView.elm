@@ -1390,6 +1390,55 @@ codePanel model =
         [ Attr.class "code-panel-warning"
         ]
         []
+    modeIcon mode =
+      let
+        active =
+          mode ==
+            if Model.deuceActive model then
+              Model.CEDeuceClick
+            else
+              model.codeEditorMode
+        caption =
+          case mode of
+            Model.CEText ->
+              "Text"
+            Model.CEDeuceClick ->
+              "Deuce"
+            _ ->
+              String.dropLeft 2 <| toString mode
+      in
+        Html.div
+          [ Attr.classList
+              [ ("mode-icon-wrapper", True)
+              , ("active", active)
+              ]
+          ]
+          [ Html.div
+              [ Attr.class "mode-indicator" ]
+              []
+          , Html.div
+              [ Attr.class "mode-icon" ]
+              [ simpleTextButton caption (Controller.msgSetCodeEditorMode mode)
+              ]
+          ]
+    modeSeparator =
+      Html.div
+        [ Attr.class "mode-separator"
+        ]
+        []
+    modeBar =
+      Html.div
+        [ Attr.class "mode-bar"
+        ]
+        [ modeIcon Model.CEText
+        , modeSeparator
+        , modeIcon Model.CEDeuceClick
+        -- TODO: implement lasso selections eventually
+        -- , modeIcon Model.CEDeuceRect
+        -- , modeIcon Model.CEDeuceLasso
+        -- , modeIcon Model.CEDeuceLine
+        , modeSeparator
+        ]
   in
     Html.div
       [ Attr.class "panel code-panel"
@@ -1403,6 +1452,7 @@ codePanel model =
       [ statusBar
       , actionBar
       , editor
+      , modeBar
       , codePanelWarning
       ]
 
@@ -2131,53 +2181,58 @@ onbeforeunloadDataElement model =
 
 deuceOverlay : Model -> Html Msg
 deuceOverlay model =
-  let
-    pointerEvents =
-      if Model.deuceActive model then
-        "auto"
-      else
-        "none"
-    disabledFlag =
-      case model.preview of
-        Just _ ->
-          " disabled"
-        Nothing ->
-          ""
-  in
-    Html.div
-      [ Attr.class <| "deuce-overlay-container" ++ disabledFlag
-      , Attr.style
-          [ ( "pointer-events"
-            , pointerEvents
-            )
-          , ( "top"
-            , px model.codeBoxInfo.scrollerTop
-            )
-          , ( "left"
-            , px <|
-                model.codeBoxInfo.scrollerLeft - SleekLayout.deuceOverlayBleed
-            )
-          , ( "width"
-            , px <|
-                model.codeBoxInfo.scrollerWidth + SleekLayout.deuceOverlayBleed
-            )
-          , ( "height"
-            , px model.codeBoxInfo.scrollerHeight
-            )
-          ]
-      ]
-      [ Svg.svg
-          [ SAttr.class "deuce-overlay"
-          , SAttr.width "10000000"
-          , SAttr.height "10000000"
-          , SAttr.style << styleListToString <|
-              [ ("top", px -model.codeBoxInfo.scrollTop)
-              , ("left", px -model.codeBoxInfo.scrollLeft)
+  case model.deuceOverlayCache of
+    Nothing ->
+      Html.text ""
+
+    Just overlay ->
+      let
+        pointerEvents =
+          if Model.deuceActive model then
+            "auto"
+          else
+            "none"
+        disabledFlag =
+          case model.preview of
+            Just _ ->
+              " disabled"
+            Nothing ->
+              ""
+      in
+        Html.div
+          [ Attr.class <| "deuce-overlay-container" ++ disabledFlag
+          , Attr.style
+              [ ( "pointer-events"
+                , pointerEvents
+                )
+              , ( "top"
+                , px model.codeBoxInfo.scrollerTop
+                )
+              , ( "left"
+                , px <|
+                    model.codeBoxInfo.scrollerLeft - SleekLayout.deuceOverlayBleed
+                )
+              , ( "width"
+                , px <|
+                    model.codeBoxInfo.scrollerWidth + SleekLayout.deuceOverlayBleed
+                )
+              , ( "height"
+                , px model.codeBoxInfo.scrollerHeight
+                )
               ]
           ]
-          [ Deuce.overlay model
+          [ Svg.svg
+              [ SAttr.class "deuce-overlay"
+              , SAttr.width "10000000"
+              , SAttr.height "10000000"
+              , SAttr.style << styleListToString <|
+                  [ ("top", px -model.codeBoxInfo.scrollTop)
+                  , ("left", px -model.codeBoxInfo.scrollLeft)
+                  ]
+              ]
+              [ overlay
+              ]
           ]
-      ]
 
 
 diffOverlay : Model -> Html Msg
