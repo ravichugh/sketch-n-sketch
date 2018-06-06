@@ -93,6 +93,13 @@ type CodeToolsMenuMode
   | CTActive
   | CTDisabled
 
+type CodeEditorMode
+  = CEText
+  | CEDeuceClick
+  | CEDeuceRect
+  | CEDeuceLasso
+  | CEDeuceLine
+
 type alias Model =
   { code : Code
   , lastRunCode : Code
@@ -207,6 +214,8 @@ type alias Model =
   , htmlEditorString: Maybe String
   , updatedValue: Maybe (Result String Val)
   , syntax : Syntax
+  , codeEditorMode : CodeEditorMode
+  , deuceOverlayCache : Maybe (Html Msg)
   }
 
 type OutputMode
@@ -912,6 +921,7 @@ deuceActive model =
           , shiftDown
           ]
       , configurationPanelShown model
+      , model.codeEditorMode == CEDeuceClick
       ]
 
 --------------------------------------------------------------------------------
@@ -1165,6 +1175,35 @@ modelModify code dws =
 
 --------------------------------------------------------------------------------
 
+-- The values that should trigger a Deuce cache update
+type alias DeuceCacheTriggerValues =
+  { code : String
+  , inputExp : Exp
+  , selectedWidgets : List DeuceWidgets.DeuceWidget
+  , colorScheme : ColorScheme
+  , lineHeight : Float
+  , characterWidth : Float
+  , contentLeft : Float
+  }
+
+deuceCacheTriggerValues : Model -> DeuceCacheTriggerValues
+deuceCacheTriggerValues m =
+  { code = m.code
+  , inputExp = m.inputExp
+  , selectedWidgets = m.deuceState.selectedWidgets
+  , colorScheme = m.colorScheme
+  , lineHeight = m.codeBoxInfo.lineHeight
+  , characterWidth = m.codeBoxInfo.characterWidth
+  , contentLeft = m.codeBoxInfo.contentLeft
+  }
+
+deuceCacheNeedsUpdate : Model -> Model -> Bool
+deuceCacheNeedsUpdate oldModel newModel =
+  newModel.deuceOverlayCache == Nothing
+    || deuceCacheTriggerValues oldModel /= deuceCacheTriggerValues newModel
+
+--------------------------------------------------------------------------------
+
 initColorScheme : ColorScheme
 initColorScheme = Light
 
@@ -1350,4 +1389,6 @@ initModel =
     , htmlEditorString = Nothing
     , updatedValue = Nothing
     , syntax = Syntax.Elm
+    , codeEditorMode = CEText
+    , deuceOverlayCache = Nothing
     }

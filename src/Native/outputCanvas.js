@@ -165,8 +165,12 @@ function listenForUpdatesToOutputValues() {
       //2 is for the children of a node (encoded [tag, attributes, children])
       var res = getPathUntilOutput(htmlElem.parentNode);
       if(res == null) return null;
-      res.push(2)
-      res.push(whichChild(htmlElem))
+      if(htmlElem.parentNode.getAttribute("ignore-except-first-child") == "true") {
+
+      } else {
+        res.push(2)
+        res.push(whichChild(htmlElem))
+      }
       return res;
   }
 

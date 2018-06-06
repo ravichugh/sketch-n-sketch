@@ -2177,7 +2177,7 @@ LensLess =
         case l of
           [] -> []
           { error }::tail -> keepOks tail
-          { values =  ll }::tail -> ll ++ map keepOks tail
+          { values =  ll }::tail -> ll ++ keepOks tail
       in
       letrec projOks l =
         case l of

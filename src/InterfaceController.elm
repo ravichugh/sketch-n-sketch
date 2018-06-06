@@ -72,6 +72,7 @@ port module InterfaceController exposing
   , msgAskNextTemplate, msgAskPreviousTemplate
   , msgValuePathUpdate
   , msgAutoSync
+  , msgSetCodeEditorMode
   )
 
 import Updatable exposing (Updatable)
@@ -124,6 +125,7 @@ import DependenceGraph exposing (lookupIdent)
 import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
+import Deuce
 import ColorNum
 import Syntax exposing (Syntax)
 import LangUnparser -- for comparing expressions for equivalence
@@ -932,6 +934,7 @@ hooks =
   [ handleSavedSelectionsHook
   , handleSyntaxHook
   , handleOutputSelectionChanges
+  , handleDeuceCache
   , focusJustShownRenameBox
   ]
 
@@ -993,6 +996,26 @@ handleOutputSelectionChanges oldModel newModel =
     in
     (finalModel, Cmd.none)
 -}
+
+deuceOverlayMsgs : Deuce.Messages Msg
+deuceOverlayMsgs =
+  { onMouseOver = msgMouseEnterDeuceWidget
+  , onMouseOut = msgMouseLeaveDeuceWidget
+  , onClick = msgMouseClickDeuceWidget
+  }
+
+handleDeuceCache : Model -> Model -> (Model, Cmd Msg)
+handleDeuceCache oldModel newModel =
+  if Model.deuceCacheNeedsUpdate oldModel newModel
+  then
+    ( { newModel
+          | deuceOverlayCache = Just <|
+              Deuce.overlay deuceOverlayMsgs newModel
+      }
+    , Cmd.none
+    )
+  else
+    (newModel, Cmd.none)
 
 port doFocusJustShownRenameBox : () -> Cmd msg
 
@@ -3473,3 +3496,12 @@ navigateTemplate offset m =
 
     Nothing ->
       m
+
+--------------------------------------------------------------------------------
+-- Code Editor Mode
+--------------------------------------------------------------------------------
+
+msgSetCodeEditorMode : CodeEditorMode -> Msg
+msgSetCodeEditorMode mode =
+  Msg "Set Code Editor Mode" <| \model ->
+    { model | codeEditorMode = mode }

@@ -15,10 +15,10 @@ object SNS extends Module {
   def elmStuffRoot = T.sources {  pwd / "elm-stuff" }
   def sourceRoot   = T.sources { src }
   def nativeRoot   = T.sources { src / "Native" }
-  def examplesRoot = T.sources { pwd / 'examples } //'
-  def examplesTemplate = T.input { (pwd / 'src / "ExamplesTemplates.elm").toNIO.toFile.lastModified() } //'
-  def leoExamplesRoot = T.sources { pwd / 'examples / 'fromLeo } //'
-  def preludeRoot = T.input { (pwd / 'examples / "preludeLeo.elm").toNIO.toFile.lastModified() } //'
+  def examplesRoot = T.sources { pwd / 'examples }
+  def examplesTemplate = T.input { (pwd / 'src / "ExamplesTemplate.elm").toNIO.toFile.lastModified() }
+  def leoExamplesRoot = T.sources { pwd / 'examples / 'fromLeo }
+  def preludeRoot = T.input { (pwd / 'examples / "preludeLeo.elm").toNIO.toFile.lastModified() }
   val outDir = pwd / "build" /"out"
   val outSNS = outDir / "sns.js"
   
