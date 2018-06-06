@@ -1398,6 +1398,14 @@ codePanel model =
               Model.CEDeuceClick
             else
               model.codeEditorMode
+        caption =
+          case mode of
+            Model.CEText ->
+              "Text"
+            Model.CEDeuceClick ->
+              "Deuce"
+            _ ->
+              String.dropLeft 2 <| toString mode
       in
         Html.div
           [ Attr.classList
@@ -1410,8 +1418,7 @@ codePanel model =
               []
           , Html.div
               [ Attr.class "mode-icon" ]
-              [ simpleTextButton (String.dropLeft 2 <| toString mode) <|
-                  Controller.msgSetCodeEditorMode mode
+              [ simpleTextButton caption (Controller.msgSetCodeEditorMode mode)
               ]
           ]
     modeSeparator =
@@ -1426,9 +1433,10 @@ codePanel model =
         [ modeIcon Model.CEText
         , modeSeparator
         , modeIcon Model.CEDeuceClick
-        , modeIcon Model.CEDeuceRect
-        , modeIcon Model.CEDeuceLasso
-        , modeIcon Model.CEDeuceLine
+        -- TODO: implement lasso selections eventually
+        -- , modeIcon Model.CEDeuceRect
+        -- , modeIcon Model.CEDeuceLasso
+        -- , modeIcon Model.CEDeuceLine
         , modeSeparator
         ]
   in
