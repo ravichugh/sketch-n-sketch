@@ -226,9 +226,10 @@ buildHtml_ (model, addZones) insideSvgNode d i =
       in
       let children = List.map (buildHtml_ (model, addZones) isSvgNode d) childIndices in
       let mainshape = (node rawKind) allAttrs children in
-      if zones == []
-        then mainshape
-        else Svg.svg [] (mainshape :: zones)
+      if zones == [] then
+        mainshape
+      else
+        Svg.svg [Attr.attribute "ignore-except-first-child" "true"] (mainshape :: zones)
 
 --------------------------------------------------------------------------------
 
