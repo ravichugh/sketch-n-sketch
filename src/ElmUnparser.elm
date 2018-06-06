@@ -981,10 +981,11 @@ getExpPrecedence exp =
             Nothing -> Nothing
             Just (associativity, precedence) -> Just precedence
         _ -> Nothing
+    EApp _ _ _ SpaceApp _ -> Just 10
     EColonType _ _ _ _ _           -> Just -1
     EOp _ _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
-        Nothing -> Nothing
+        Nothing -> Just 10
         Just (associativity, precedence) -> Just precedence
     _ -> Nothing
 
