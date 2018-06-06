@@ -338,14 +338,24 @@ Evaluates arbitrary JavaScript using JavaScript's eval. Converts back the value 
 Can be useful to execute a program with user-defined values (e.g. `let username = __jsEval__ "document.getElementById('username')" in ...`).
 This function is not reversible.
 
+### `transient` and `ignore` elements/attributes
 
+If an attribute's name starts with `transient`, the update algorithm will treat it like it does not even exists. Same for elements whose tagName is `transient`.
+If an attribute's name starts with `ignore`, the update algorithm will not propagate changes made to it.
+
+Therefore, the code should not produce `transient` elements or attributes, but they should be created either by third-party tools (e.g. toolbar) or scripts inside the generated document. `ignore` attributes not be created from scripts but be already defined in the code.
+
+If needed in the future, we could add other elements (e.g. `ignore`) or attributes decribing if the element or some attributes are transient or ignorable.
 
 ### Comments and Options
 
 Comments are part of whitespace and can be one-line `-- Comment` or nested multi-line `{- This is {-a-} comment -}`.
+Options are one-line comments immediately starting with "#", then a keyword, then a value.
 
 ```
-  e  ::= # option: value; e
+  e  ::=  ...
+      |   --single-line-comment; e
+      |   --# option: value; e
 ```
 
 Options are separated by expressions by a newline (the semicolon above is actually a newline).

@@ -14,7 +14,7 @@ type alias SimpleSplitProgram = (TopDefs, List BlobExp, List BlobExp -> Exp)
 -- TODO store Idents and "types" in TopDefs. also use for lambda tool.
 
 type alias TopDef  = (WS, Pat, Exp, WS)
-type alias TopDefs = List TopDef
+type alias TopDefs = (List TopDef, Maybe Declarations)
 
 type MainExp
   = SvgConcat (List Exp) (List Exp -> Exp)
@@ -47,21 +47,18 @@ maybeSimpleProgram e =
 splitExp : Exp -> SplitProgram
 splitExp e =
   case e.val.e__ of
-    ELet ws1 Def False p1 _ e1 _ e2 ws2 ->
-      let (defs, main) = splitExp e2 in
-      ((ws1,p1,e1,ws2)::defs, main)
+    ELet ws1 Def (Declarations printOrder _ _ (exps, go) as decls) ws main ->
+      ((List.map (\(LetExp _ ws1 p1 _ ws2 e1) -> (ws1, p1, e1, ws2)) exps, Just decls), toMainExp main)
     _ ->
-      ([], toMainExp e)
+      (([], Nothing), toMainExp e)
 
 fuseExp : SplitProgram -> Exp
-fuseExp (defs, mainExp) =
-  let recurse defs =
-    case defs of
-      [] -> fromMainExp mainExp
-      (ws1,p1,e1,ws2)::defs_ ->
-        withDummyExpInfo <| ELet ws1 Def False p1 space1 e1 space1 (recurse defs_) ws2
-  in
-  recurse defs
+fuseExp ((defs, mbDecls), mainExp) =
+  case mbDecls of
+    Nothing -> fromMainExp mainExp
+    Just (Declarations po tp ann (oldExps, goe)) ->
+      let newExps = List.map2 (\(newWs1, newP1, newE1, newS2) (LetExp sp1 ws1 p1 funStyle ws2 e1) ->  LetExp sp1 newWs1 newP1 funStyle newS2 newE1) defs oldExps in
+      withDummyExpInfo <| ELet space0 Def (Declarations po tp ann (newExps, goe)) space1 (fromMainExp mainExp)
 
 toMainExp : Exp -> MainExp
 toMainExp e =

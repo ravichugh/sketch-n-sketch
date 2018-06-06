@@ -3,6 +3,7 @@ module LangParserUtils exposing
   , spaces
   , oldSpaces
   , spacesCustom
+  , SpaceCheck
   , nospace
   , keywordWithSpace
   , spaceSaverKeyword
@@ -33,6 +34,7 @@ import Lang exposing (..)
 import Info exposing (..)
 import Regex
 import ImpureGoodies
+import Pos exposing (Pos)
 
 --------------------------------------------------------------------------------
 -- Whitespace
@@ -51,34 +53,32 @@ space =
   trackInfo <|
     keep (Exactly 1) isSpace
 
-type alias SpaceParserState = { forwhat: String, withNewline: Bool, minIndentation: Maybe Int, maxIndentation: Maybe Int  }
+--withNewline: Bool, minIndentation: Maybe Int, maxIndentation: Maybe Int, differentIndentation: Maybe Int
+type alias SpaceCheck = {spaceCheck: Pos -> Pos -> Bool, msgBuilder: () -> String}
 
-spacesCustom: SpaceParserState -> Parser WS
-spacesCustom ({forwhat, withNewline, minIndentation, maxIndentation} as options) =
-  spaces |>
-  map (\ws ->
-    let testMinIndentation continue =
-      case minIndentation of
-         Just x -> if ws.end.col - 1 < x then fail <| "I need an indentation of at least " ++ toString x ++ " spaces " ++ forwhat
-           else continue ()
-         Nothing -> continue ()
-    in
-    let testMaxIndentation continue =
-      case maxIndentation of
-         Just x -> if ws.end.col - 1 > x then fail <| "I need an indentation of at most " ++ toString x ++ " spaces " ++ forwhat
-           else continue ()
-         Nothing -> continue ()
-    in
-    let testNewline continue =
-      if withNewline then continue ()
-      else if ws.start.line < ws.end.line then -- There might be comments, but For now, we just ignore them.
-         fail <| "No newline allowed " ++ forwhat
-      else continue ()
-    in
-    testMinIndentation <| \() ->
-    testMaxIndentation <| \() ->
-    testNewline <| \() ->
-    succeed ws
+minIndentation: String -> Int -> SpaceCheck
+minIndentation forwhat i =
+  SpaceCheck (\start end -> end.col - 1 >= i) <| \() -> "I need an indentation of at least " ++ toString i ++ " spaces " ++ forwhat
+
+maxIndentation: String -> Int -> SpaceCheck
+maxIndentation forwhat i =
+  SpaceCheck (\start end -> end.col - 1 <= i) <| \() -> "I need an indentation of at most " ++ toString i ++ " spaces " ++ forwhat
+
+differentIndentation: String -> Int -> SpaceCheck
+differentIndentation forwhat i =
+  SpaceCheck (\start end -> end.col - 1 /= i) <| \() -> "I need an indentation of not " ++ toString i ++ " spaces " ++ forwhat
+
+withoutNewline: String -> SpaceCheck
+withoutNewline forwhat =
+  SpaceCheck (\start end -> start.line == end.line) <| \() -> "I need a space not containing a newline for " ++ forwhat
+
+spacesCustom: SpaceCheck -> Parser WS
+spacesCustom {spaceCheck, msgBuilder} =
+  spaces |> map (\ws ->
+    if spaceCheck ws.start ws.end then
+      succeed ws
+    else
+      fail <| msgBuilder ()
   ) |>
   andThen identity
 
@@ -96,13 +96,13 @@ spaces : Parser WS
 spaces = trackInfo <| source <| spacesRaw
 
 spacesWithoutIndentation: Parser WS
-spacesWithoutIndentation = spacesCustom {forwhat = "at this place", withNewline=True, minIndentation=Nothing, maxIndentation=Just 0}
+spacesWithoutIndentation = spacesCustom <| maxIndentation "at this place" 0
 
 spacesNotBetweenDefs: Parser WS
-spacesNotBetweenDefs =  spacesCustom {forwhat = "at this place", withNewline=True, minIndentation=Just 1, maxIndentation=Nothing}
+spacesNotBetweenDefs =  spacesCustom <| minIndentation "at this place" 1
 
 spacesWithoutNewline: Parser WS
-spacesWithoutNewline = spacesCustom {forwhat = "at this place", withNewline=False, minIndentation=Nothing, maxIndentation=Nothing}
+spacesWithoutNewline = spacesCustom <| withoutNewline "at this place"
 
 lineComment: Parser ()
 lineComment =

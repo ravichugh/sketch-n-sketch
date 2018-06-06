@@ -703,7 +703,6 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
           Div   -> operands |> List.map expToMaybeMathExp |> Utils.projJusts |> Maybe.map (MathOp Div)
           _     -> Nothing
 
-      EOption _ _ _ _ body      -> expToMaybeMathExp body
       ELet _ _ _ _ _ _ _ body _ -> expToMaybeMathExp body
       ETyp _ _ _ body _         -> expToMaybeMathExp body
       EColonType _ e _ _ _      -> expToMaybeMathExp e

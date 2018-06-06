@@ -1,5 +1,4 @@
 module Record exposing (
-  select,
   mapWithNth,
   MergeOperation,
   getMergeOperations,
@@ -10,15 +9,6 @@ module Record exposing (
 import Lang exposing (..)
 import ImpureGoodies
 import Utils
-
-select: Exp -> String -> Maybe Exp
-select r label =
-  case r.val.e__ of
-    ERecord _ Nothing es _ ->
-      case Utils.findLast (\(_, _, k, _, v) -> k == label) es of
-        Just (_, _, _, _, v) -> Just v
-        Nothing -> Nothing
-    _ -> Nothing
 
 mapWithNth: (a -> a -> Bool) -> List a -> List (a, Int)
 mapWithNth sameKeys labelValues  =

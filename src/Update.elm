@@ -1360,14 +1360,8 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                _ ->
                  UpdateCriticalError <| strPos e.start ++ " bad letrec trying to match " ++ Syntax.patternUnparser Syntax.Elm p ++ " with " ++ valToString oldE1Val
 
-     EOption a b c d exp ->
-       updateContinue "EOption" env exp prevLets oldVal newVal diffs <| \nv ne -> updateResult nv <| UpdatedExp (replaceE__ e <| EOption a b c d ne.val) (UpdateUtils.wrap 0 ne.changes)
-     ETyp a b c exp d    ->
-       updateContinue "ETyp" env exp prevLets oldVal newVal diffs <| \nv ne -> updateResult nv <| UpdatedExp (replaceE__ e <| ETyp a b c ne.val d) (UpdateUtils.wrap 0 ne.changes)
      EColonType a exp b c d ->
        updateContinue "EColonType" env exp prevLets oldVal newVal diffs <| \nv ne -> updateResult nv <| UpdatedExp (replaceE__ e <| EColonType a ne.val b c d) (UpdateUtils.wrap 0 ne.changes)
-     ETypeAlias a b c exp d ->
-       updateContinue "ETypeAlias" env exp prevLets oldVal newVal diffs <| \nv ne -> updateResult nv <| UpdatedExp (replaceE__ e <| ETypeAlias a b c ne.val d) (UpdateUtils.wrap 0 ne.changes)
      EParens sp1 exp pStyle sp2->
        updateContinue "EParens" env exp prevLets oldVal newVal diffs <| \nv ne ->
          let continue ne =

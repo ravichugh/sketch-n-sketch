@@ -744,7 +744,7 @@ propagateResult result =
   }
 -}
 
--- Nothing means type error or N/A (EOption, ETyp, etc.)
+-- Nothing means type error or N/A (ETyp, etc.)
 --
 synthesizeType : TypeInfo -> TypeEnv -> Exp -> AndTypeInfo (Maybe Type)
 synthesizeType typeInfo typeEnv e =
@@ -1034,9 +1034,6 @@ synthesizeType typeInfo typeEnv e =
 
     -- don't need Ace annotations for the remaining expression kinds,
     -- so not calling not calling addRawType (i.e. finish)
-
-    EOption _ _ _ _ e1 ->
-      propagateResult <| synthesizeType typeInfo typeEnv e1
 
     ETyp _ p t e1 _ ->
       -- TODO check well-formedness

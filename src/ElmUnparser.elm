@@ -659,16 +659,6 @@ unparse e =
               ++ wsBeforeInOrSemi.val
               ++ unparse body
 
-    EOption wsBefore option wsMid value expAfter ->
-      wsBefore.val
-        ++ "# "
-        ++ option.val
-        ++ ":"
-        ++ wsMid.val
-        ++ value.val
-        ++ "\n"
-        ++ unparse expAfter
-
     EParens wsBefore innerExpression pStyle wsAfter ->
       case pStyle of
         Parens ->

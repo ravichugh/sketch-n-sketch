@@ -80,7 +80,7 @@ unparsePat pat = case pat.val.p__ of
   PRecord _ _ _ -> "internal error, cannot unparse pattern in LangUnparser"
   PConst ws n -> ws.val ++ strNum n
   PBase ws bv -> ws.val ++ unparseBaseVal bv
-  PAs ws1 wsi ident ws2 p -> ws1.val ++ wsi.val ++ ident ++ ws2.val ++ "@" ++ (unparsePat p)
+  PAs ws1 p1 ws2 p2 -> ws1.val ++ (unparsePat p1) ++ ws2.val ++ "@" ++ (unparsePat p2)
   PParens ws1 p ws2 -> ws1.val ++ "(" ++ unparsePat p ++ ws2.val ++ ")"
 
 unparsePatWithIds : Pat -> String
@@ -99,7 +99,7 @@ unparsePatWithIds pat =
     -- PRecord _ _ _ -> Debug.crash "internal error, cannot unparse pattern with ids in LangUnparser"
     PRecord _ _ _ -> "internal error, cannot unparse pattern with ids in LangUnparser"
     PBase ws bv -> ws.val ++ unparseBaseVal bv ++ pidTag
-    PAs ws1 wsi ident ws2 p -> ws1.val ++ wsi.val ++ ident ++ pidTag ++ ws2.val ++ "@" ++ (unparsePatWithIds p)
+    PAs ws1 p1 ws2 p2 -> ws1.val ++ (unparsePatWithIds p1) ++ pidTag ++ ws2.val ++ "@" ++ (unparsePatWithIds p2)
     PParens ws1 p ws2 -> ws1.val ++ "(" ++ pidTag ++ unparsePatWithIds p ++ ws2.val ++ ")"
 
 unparsePatWithUniformWhitespace includeWidgetDecls pat =
@@ -117,7 +117,7 @@ unparsePatWithUniformWhitespace includeWidgetDecls pat =
     PRecord _ _ _ -> "internal error, cannot unparse pattern in LangUnparser"
     PConst _ n -> " " ++ strNum n
     PBase _ bv -> " " ++ unparseBaseValWithUniformWhitespace bv
-    PAs _ _ ident _ p -> " " ++ ident ++ " " ++ "@" ++ recurse p
+    PAs _ p1 _ p2 -> " " ++ recurse p1 ++ " " ++ "@" ++ recurse p2
     PParens _ p _ -> " (" ++ recurse p ++ " )"
 
 unparseType : Type -> String
@@ -137,19 +137,19 @@ unparseType tipe =
     TRecord _ _ _ _ -> "internal error: cannot unparse TRecord in LangUnparser"
     TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
-    TApp ws1 "Num" _        -> ws1.val ++ "Bad_NUM"
-    TApp ws1 "Bool" _       -> ws1.val ++ "Bad_BOOL"
-    TApp ws1 "String" _     -> ws1.val ++ "Bad_STRING"
-    TApp ws1 "Null" _       -> ws1.val ++ "Bad_NULL"
-    TApp ws1 ident ts       -> ws1.val ++ ident ++ String.concat (List.map unparseType ts)
+    TApp ws1 "Num" _ _        -> ws1.val ++ "Bad_NUM"
+    TApp ws1 "Bool" _ _       -> ws1.val ++ "Bad_BOOL"
+    TApp ws1 "String" _ _     -> ws1.val ++ "Bad_STRING"
+    TApp ws1 "Null" _ _       -> ws1.val ++ "Bad_NULL"
+    TApp ws1 ident _ ts       -> ws1.val ++ ident ++ String.concat (List.map unparseType ts)
     TVar ws1 ident          -> ws1.val ++ ident
     TWildcard ws            -> ws.val ++ "_"
     TForall ws1 typeVars tipe1 ws2 ->
       let strVar (ws,x) = ws.val ++ x in
       let sVars =
         case typeVars of
-          One var             -> strVar var
-          Many ws1_ vars ws2_ -> ws1_.val ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2_.val)
+           [var]             -> strVar var
+           vars -> ws1.val ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2.val)
       in
       ws1.val ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2.val)
 
@@ -171,19 +171,19 @@ unparseTypeWithUniformWhitespace tipe =
     TRecord _ _ _ _ ->  "[internal error] Cannot unparse record type in Langunparser"
     TArrow _ typeList _ -> " " ++ "(->" ++ (String.concat (List.map recurse typeList)) ++ " " ++ ")"
     TUnion _ typeList _ -> " " ++ "(union" ++ (String.concat (List.map recurse typeList)) ++ " " ++ ")"
-    TApp _ "Num" _      -> " " ++ "Bad_NUM"
-    TApp _ "Bool" _     -> " " ++ "Bad_BOOL"
-    TApp _ "String" _   -> " " ++ "Bad_STRING"
-    TApp _ "Null" _     -> " " ++ "Bad_NULL"
-    TApp _ ident ts     -> " " ++ ident ++ String.concat (List.map unparseTypeWithUniformWhitespace ts)
+    --TApp _ "Num" _ _      -> " " ++ "Bad_NUM"
+    --TApp _ "Bool" _ _     -> " " ++ "Bad_BOOL"
+    --TApp _ "String" _ _   -> " " ++ "Bad_STRING"
+    --TApp _ "Null" _ _     -> " " ++ "Bad_NULL"
+    TApp _ ident _ ts     -> " " ++ ident ++ String.concat (List.map unparseTypeWithUniformWhitespace ts)
     TVar _ ident        -> " " ++ ident
     TWildcard _          -> " " ++ "_"
     TForall _ typeVars tipe1 _ ->
       let strVar (ws,x) = " " ++ x in
       let sVars =
         case typeVars of
-          One var             -> strVar var
-          Many _ vars _ -> " " ++ Utils.parens (String.concat (List.map strVar vars) ++ " ")
+           [var]             -> strVar var
+           vars -> " " ++ Utils.parens (String.concat (List.map strVar vars) ++ " ")
       in
       " " ++ Utils.parens ("forall" ++ sVars ++ recurse tipe1 ++ " ")
 
@@ -193,6 +193,26 @@ unparse e =
   -- ImpureGoodies.logTimedRun "LangUnparser.unparse" (\() ->
   --   unparse_ e
   -- )
+
+
+unparseDecls withIds (Declarations _ types anns exps) =
+    let patu = if withIds then unparsePatWithIds else unparsePat in
+    let typu = if withIds then unparseType else unparseType in
+    let expu = if withIds then unparseWithIds else unparse_ in
+    (foldLeftGroup "" types <| (\acc group ->
+       acc ++ (group |> List.map (\(LetType _ wsBefore _ pat _ ws2 tipe) ->
+        wsBefore.val ++ "(def" ++ (patu pat) ++ (typu tipe) ++ ws2.val ++ ")"
+       ) |> String.join "")
+    )) ++
+    (Utils.foldLeft "" anns <| (\acc (LetAnnotation _ wsBefore pat _ ws2 tipe) ->
+       acc ++ wsBefore.val ++ "(typ" ++ (patu pat) ++ (typu tipe) ++ ws2.val ++ ")"
+    )) ++
+    (foldLeftGroup "" exps <| (\acc group ->
+       let tok = if isMutuallyRecursive group then "defrec" else "def" in -- TODO: This doesn't work for mutually recursive, only recursive.
+       acc ++ (group |> List.map (\(LetExp _ wsBefore pat _ ws2 e1) ->
+         wsBefore.val ++ "(" ++ tok ++ patu pat ++ expu e1 ++ ws2.val ++ ")"
+       ) |> String.join "")
+    ))
 
 unparse_ : Exp -> String
 unparse_ e = case e.val.e__ of
@@ -220,17 +240,20 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
   EIf ws1 e1 _ e2 _ e3 ws2 ->
     ws1.val ++ "(if" ++ unparse_ e1 ++ unparse_ e2 ++ unparse_ e3 ++ ws2.val ++ ")"
-  ELet ws1 Let b p _ e1 _ e2 ws2 ->
+  ELet ws1 Let (Declarations _ ([], []) [] ([LetExp _ wsBefore p _ wse1 e1], _)) ws2 e2 ->
     case p.val.p__ of
       PVar _ "_IMPLICIT_MAIN" _ ->
         ""
       _ ->
-        let tok = if b then "letrec" else "let" in
-        ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse_ e1 ++ unparse_ e2 ++ ws2.val ++ ")"
-  ELet ws1 Def b p _ e1 _ e2 ws2 ->
-    -- TODO don't used nested defs until this is re-worked
-    let tok = if b then "defrec" else "def" in
-    ws1.val ++ "(" ++ tok ++ unparsePat p ++ unparse_ e1 ++ ws2.val ++ ")" ++ unparse_ e2
+        let tok = case e1.val.e__ of
+          EFun _ _ _ _ -> "letrec"
+          _ -> "let"
+        in
+        ws1.val ++ "(" ++ tok ++ wsBefore.val ++ unparsePat p ++ unparse_ e1 ++ unparse_ e2 ++ ws2.val ++ ")"
+  ELet ws1 Let _ _ _ ->
+    "internal error, cannot unparse ELet/Let in LangUnparser if more than one exp declaration"
+  ELet ws1 Def decls ws2 e2 ->
+    unparseDecls False decls ++ unparse_ e2
   ECase ws1 e1 bs ws2 ->
     let branchesStr =
       String.concat
@@ -238,23 +261,8 @@ unparse_ e = case e.val.e__ of
         <| List.map (.val) bs
     in
     ws1.val ++ "(case" ++ unparse_ e1 ++ branchesStr ++ ws2.val ++ ")"
-  ETypeCase ws1 e1 tbranches ws2 ->
-    let tbranchesStr =
-      String.concat
-        <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparse_ exp ++ bws2.val ++ ")")
-        <| List.map (.val) tbranches
-    in
-    ws1.val ++ "(typecase" ++ unparse_ e1 ++ tbranchesStr ++ ws2.val ++ ")"
-  EOption ws1 s1 ws2 s2 e1 ->
-    ws1.val ++ "# " ++ s1.val ++ ":" ++ ws2.val ++ s2.val ++ "\n" ++ unparse_ e1
-  ETyp ws1 pat tipe e ws2 ->
-    ws1.val ++ "(typ" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
   EColonType ws1 e ws2 tipe ws3 ->
     ws1.val ++ "(" ++ (unparse_ e) ++ ws2.val ++ ":" ++ (unparseType tipe) ++ ws3.val ++ ")"
-  ETypeAlias ws1 pat tipe e ws2 ->
-    ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
-  ETypeDef _ _ _ _ _ _ _ ->
-    "{Error: typedef not implemented for Little syntax}"
   EParens ws1 e pStyle ws2 ->
     unparse_ e
   EHole ws v ->
@@ -289,13 +297,16 @@ unparseWithIds e =
       ws1.val ++ "(" ++ eidTag ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")"
     EIf ws1 e1 _ e2 _ e3 ws2 ->
       ws1.val ++ "(" ++ eidTag ++ "if" ++ unparseWithIds e1 ++ unparseWithIds e2 ++ unparseWithIds e3 ++ ws2.val ++ ")"
-    ELet ws1 Let b p _ e1 _ e2 ws2 ->
-      let tok = if b then "letrec" else "let" in
+    ELet ws1 Let (Declarations _ ([], []) [] ([LetExp _ wsBefore p _ wse1 e1], _)) ws2 e2 ->
+      let tok = case e1.val.e__ of
+        EFun _ _ _ _ -> "letrec"
+        _ -> "let"
+      in
       ws1.val ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ unparseWithIds e2 ++ ws2.val ++ ")"
-    ELet ws1 Def b p _ e1 _ e2 ws2 ->
-      -- TODO don't used nested defs until this is re-worked
-      let tok = if b then "defrec" else "def" in
-      ws1.val ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ ws2.val ++ ")" ++ unparseWithIds e2
+    ELet ws1 Let _ _ _ ->
+      eidTag ++ "internal error, cannot unparse ELet/Let in LangUnparser if more than one exp declaration"
+    ELet ws1 Def decls ws2 e2 ->
+      eidTag ++ unparseDecls True decls ++ unparseWithIds e2
     ECase ws1 e1 bs ws2 ->
       let branchesStr =
         String.concat
@@ -303,23 +314,8 @@ unparseWithIds e =
           <| List.map (.val) bs
       in
       ws1.val ++ "(" ++ eidTag ++ "case" ++ unparseWithIds e1 ++ branchesStr ++ ws2.val ++ ")"
-    ETypeCase ws1 e1 tbranches ws2 ->
-      let tbranchesStr =
-        String.concat
-          <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparseWithIds exp ++ bws2.val ++ ")")
-          <| List.map (.val) tbranches
-      in
-      ws1.val ++ "(" ++ eidTag ++ "typecase" ++ unparseWithIds e1 ++ tbranchesStr ++ ws2.val ++ ")"
-    EOption ws1 s1 ws2 s2 e1 ->
-      ws1.val ++ "#" ++ eidTag ++ " " ++ s1.val ++ ":" ++ ws2.val ++ s2.val ++ "\n" ++ unparseWithIds e1
-    ETyp ws1 pat tipe e ws2 ->
-      ws1.val ++ "(" ++ eidTag ++ "typ" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
     EColonType ws1 e ws2 tipe ws3 ->
       ws1.val ++ "(" ++ (unparseWithIds e) ++ ws2.val ++ ":" ++ eidTag ++ (unparseType tipe) ++ ws3.val ++ ")"
-    ETypeAlias ws1 pat tipe e ws2 ->
-      ws1.val ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
-    ETypeDef _ _ _ _ _ _ _ ->
-      "{Error: typedef not implemented for Little syntax}"
     EParens ws1 e pStyle ws2 ->
       ws1.val ++ "(" ++ eidTag ++ unparseWithIds e ++ ws2.val ++ ")"
     EHole ws v ->
@@ -333,6 +329,22 @@ unparseWithUniformWhitespace : Bool -> Bool -> Exp -> String
 unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
   let recurse e = unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations e in
   let recursePat e = unparsePatWithUniformWhitespace includeWidgetDecls e in
+  let recurseDecls (Declarations _ types anns exps) =
+    (foldLeftGroup "" types <| (\acc group ->
+       acc ++ (group |> List.map (\(LetType _ _ _ pat _ _ tipe) ->
+        " " ++ "(def" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")"
+       ) |> String.join "")
+    )) ++
+    (Utils.foldLeft "" anns <| (\acc (LetAnnotation _ _ pat _ _ tipe) ->
+       acc ++ " " ++ "(typ" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")"
+    )) ++
+    (foldLeftGroup "" exps <| (\acc group ->
+       let tok = if isMutuallyRecursive group then "defrec" else "def" in -- TODO: This doesn't work for mutually recursive, only recursive.
+       acc ++ (group |> List.map (\(LetExp _ _ pat _ _ e1) ->
+         " " ++ "(" ++ tok ++ recursePat pat ++ recurse e1 ++ " " ++ ")"
+       ) |> String.join "")
+    ))
+  in
   case exp.val.e__ of
     EBase _ v -> " " ++ unparseBaseValWithUniformWhitespace v
     EConst _ n l wd ->
@@ -362,13 +374,16 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       " " ++ "(" ++ strOp op.val ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
     EIf _ e1 _ e2 _ e3 _ ->
       " " ++ "(if" ++ recurse e1 ++ recurse e2 ++ recurse e3 ++ " " ++ ")"
-    ELet _ Let b p _ e1 _ e2 _ ->
-      let tok = if b then "letrec" else "let" in
+    ELet _ Let (Declarations _ ([], []) [] ([LetExp _ _ p _ _ e1], _)) _ e2 ->
+      let tok = case e1.val.e__ of
+        EFun _ _ _ _ -> "letrec"
+        _ -> "let"
+      in
       " " ++ "(" ++ tok ++ recursePat p ++ recurse e1 ++ recurse e2 ++ " " ++ ")"
-    ELet _ Def b p _ e1 _ e2 _ ->
-      -- TODO don't used nested defs until this is re-worked
-      let tok = if b then "defrec" else "def" in
-      " " ++ "(" ++ tok ++ recursePat p ++ recurse e1 ++ " " ++ ")" ++ recurse e2
+    ELet _ Let _ _ _ ->
+      "[Internal error] do not support more than 1 definition in ELet/Let in LangUnparser"
+    ELet _ Def decls _ e2 ->
+      recurseDecls decls ++ recurse e2
     ECase _ e1 bs _ ->
       let branchesStr =
         String.concat
@@ -376,23 +391,8 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
           <| List.map (.val) bs
       in
       " " ++ "(case" ++ recurse e1 ++ branchesStr ++ " " ++ ")"
-    ETypeCase _ e1 tbranches _ ->
-      let tbranchesStr =
-        String.concat
-          <| List.map (\(TBranch_ _ tipe exp _) -> " " ++ "(" ++ unparseTypeWithUniformWhitespace tipe ++ recurse exp ++ " " ++ ")")
-          <| List.map (.val) tbranches
-      in
-      " " ++ "(typecase" ++ recurse e1 ++ tbranchesStr ++ " " ++ ")"
-    EOption _ s1 _ s2 e1 ->
-      " " ++ "# " ++ s1.val ++ ":" ++ " " ++ s2.val ++ "\n" ++ recurse e1
-    ETyp _ pat tipe e _ ->
-      " " ++ "(typ" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")" ++ recurse e
     EColonType _ e _ tipe _ ->
       " " ++ "(" ++ (recurse e) ++ " " ++ ":" ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")"
-    ETypeAlias _ pat tipe e _ ->
-      " " ++ "(def" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")" ++ recurse e
-    ETypeDef _ _ _ _ _ _ _ ->
-      "{Error: typedef not implemented for Little syntax}"
     EParens _ e _ _ ->
       recurse e
     EHole _ _ ->

@@ -185,43 +185,11 @@ mergeExp o e1 e2 =
              else default ()
            else default ()
          else default ()
-       (EOption sp0 kStr0 spi0 wStr0 exp0,
-        EOption sp1 kStr1 spi1 wStr1 exp1,
-        EOption sp2 kStr2 spi2 wStr2 exp2) ->
-         EOption (mergeWS sp0 sp1 sp2)
-                 (mergeInfo mergeString kStr0 kStr1 kStr2)
-                 (mergeWS spi0 spi1 spi2)
-                 (mergeInfo mergeString wStr0 wStr1 wStr2)
-                 (mergeExp exp0 exp1 exp2)
-       (ETyp sp0 pat0 t0 e0 esp0,
-        ETyp sp1 pat1 t1 e1 esp1,
-        ETyp sp2 pat2 t2 e2 esp2) ->
-          if (patEqual pat0 pat1 && patEqual pat1 pat2) then
-            if typeEqual t0 t1 && typeEqual t1 t2 then
-             ETyp (mergeWS sp0 sp1 sp2)
-                  pat0
-                  t0
-                  (mergeExp e0 e1 e2)
-                  (mergeWS esp0 esp1 esp2)
-            else default()
-          else default ()
        (EColonType sp0 e0 spi0 t0 esp0,
         EColonType sp1 e1 spi1 t1 esp1,
         EColonType sp2 e2 spi2 t2 esp2) ->
           if typeEqual t0 t1 && typeEqual t1 t2 then
             EColonType (mergeWS sp0 sp1 sp2) (mergeExp e0 e1 e2) (mergeWS spi0 spi1 spi2) t0 (mergeWS esp0 esp1 esp2)
-          else default ()
-       (ETypeAlias sp0 pat0 t0 e0 esp0,
-        ETypeAlias sp1 pat1 t1 e1 esp1,
-        ETypeAlias sp2 pat2 t2 e2 esp2) ->
-          if (patEqual pat0 pat1 && patEqual pat1 pat2) then
-            if typeEqual t0 t1 && typeEqual t1 t2 then
-             ETypeAlias (mergeWS sp0 sp1 sp2)
-                  pat0
-                  t0
-                  (mergeExp e0 e1 e2)
-                  (mergeWS esp0 esp1 esp2)
-            else default()
           else default ()
        (EParens sp0 e0 pStyle0 esp0,
         EParens sp1 e1 pStyle1 esp1,

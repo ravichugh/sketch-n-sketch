@@ -723,13 +723,6 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
       , newNameToOldName__
       )
 
-    EOption ws1 s1 ws2 s2 e1 ->
-      let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
-      ( replaceE__ exp (EOption ws1 s1 ws2 s2 newE1)
-      , usedNames_
-      , newNameToOldName
-      )
-
     ETyp ws1 pat tipe e1 ws2 ->
       let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
       ( replaceE__ exp (ETyp ws1 pat tipe newE1 ws2)

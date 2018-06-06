@@ -41,7 +41,6 @@ import Lang exposing
   , CodeObject(..)
   , extractInfoFromCodeObject
   , isTarget
-  , isSelectable
   , foldCode
   , computePatMap
   , firstNestedExp
@@ -803,7 +802,7 @@ polygons codeInfo ast =
   List.reverse <|
     foldCode
       ( \codeObject acc ->
-          if isSelectable codeObject then
+          --if isSelectable codeObject then
             case codeObject of
               E e ->
                 expPolygon codeInfo e ++ acc
@@ -819,8 +818,8 @@ polygons codeInfo ast =
                 patTargetPolygon codeInfo ba ws e pt ++ acc
               TT _ _ _ ->
                 acc
-          else
-            blockerPolygon codeInfo codeObject ++ acc
+          --else
+          --  blockerPolygon codeInfo codeObject ++ acc
       )
       []
       (E ast)

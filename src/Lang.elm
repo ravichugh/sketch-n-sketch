@@ -277,7 +277,6 @@ type Exp__
   | EIf WS Exp WS{-then-} Exp WS{-else-} Exp WS{-REMOVE-}
   | ECase WS Exp (List Branch) WS
   | ELet WS LetKind Declarations WS{-in or ;-} Exp
-  | EOption WS (WithInfo String) WS (WithInfo String) Exp
   | EColonType WS Exp WS Type WS -- type annotation
   | EParens WS Exp ParensStyle WS
   | EHole WS (Maybe Val) -- Internal intermediate, should not appear in code. (Yet.)
@@ -612,7 +611,6 @@ expEffectiveExps exp =
     EColonType _ body _ _ _   -> exp :: expEffectiveExps body
     ELet _ _ _ _ body         -> exp :: expEffectiveExps body
     EParens _ e _ _           -> exp :: expEffectiveExps e
-    EOption _ _ _ _ e         -> exp :: expEffectiveExps e
     EOp _ _ {val} [operand] _ -> if val == DebugLog || val == NoWidgets then exp :: expEffectiveExps operand else [exp]
     _                         -> [exp]
 
@@ -725,10 +723,6 @@ mapFoldExp f initAcc e =
       in
       let (newE1, newAcc2) = recurse newAcc e1 in
       wrapAndMap (ECase ws1 newE1 newBranches ws2) newAcc2
-
-    EOption ws1 s1 ws2 s2 e1 ->
-      let (newE1, newAcc) = recurse initAcc e1 in
-      wrapAndMap (EOption ws1 s1 ws2 s2 newE1) newAcc
 
     ELet ws1 lettype decls spaceBeforeIn body ->
       let (newBody, newAcc) = recurse initAcc body in
@@ -945,10 +939,6 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
             ([], newGlobalAcc2)
       in
       ret (ECase ws1 newE1 newBranches ws2) newGlobalAcc3
-
-    EOption ws1 s1 ws2 s2 e1 ->
-      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
-      ret (EOption ws1 s1 ws2 s2 newE1) newGlobalAcc2
 
     ELet ws1 lettype decls spIn body ->
       let newScopeTempAcc = handleELet newE initScopeTempAcc in
@@ -1393,7 +1383,6 @@ childExpsExtractors e =
         _ -> Debug.crash "childExps-EIf")
     ECase ws1 e branches ws2         -> let (es, esExtractor) = branchExpsExtractor branches in
       (e :: es, multiArgExtractor "ECase-unexp" e <| \newEs ->  ECase ws1 (Utils.head "childExps-ECase" newEs) (Utils.tail "childExps-ECAse" newEs |> esExtractor) ws2)
-    EOption ws1 s1 ws2 s2 e1         -> ([e1], singleArgExtractor "EOption-unexp" e <| \newE ->EOption ws1 s1 ws2 s2 newE      )
     EColonType ws1 e ws2 tipe ws3    -> ([e], singleArgExtractor  "EColonType-unexp" e <| \newE -> EColonType ws1 newE ws2 tipe ws3)
     EParens a1 e a2 a3               -> ([e], singleArgExtractor  "EParens-unexp" e <| \newE -> EParens a1 newE a2 a3)
     EHole _ _                        -> ([], \_ -> e)
@@ -1615,12 +1604,6 @@ isFrozenNumber exp =
     EConst _ _ (_, ann, _) _ -> ann == frozen
     _                        -> False
 
-isOption : Exp -> Bool
-isOption exp =
-  case exp.val.e__ of
-    EOption _ _ _ _ _ -> True
-    _                 -> False
-
 varsOfPat : Pat -> List Ident
 varsOfPat pat =
   case pat.val.p__ of
@@ -1651,10 +1634,18 @@ childPats pat =
 
 -- all options should appear before the first non-comment expression
 
+optionRegex = Regex.regex "#\\s*(\\w+)\\s*:\\s*(\\w+)"
+
+getOptionsFromString: String -> List (String, String)
+getOptionsFromString whitespace =
+  Regex.find Regex.All optionRegex whitespace |> List.concatMap (\m ->
+    case m.submatches of
+      [Just key, Just value] -> [(key, value)]
+      _ -> []
+  )
+
 getOptions : Exp -> List (String, String)
-getOptions e = case e.val.e__ of
-  EOption _ s1 _ s2 e1 -> (s1.val, s2.val) :: getOptions e1
-  _                    -> []
+getOptions e = getOptionsFromString <| precedingWhitespace e
 
 
 ------------------------------------------------------------------------------
@@ -2077,7 +2068,6 @@ indentationOf : Exp -> String
 indentationOf exp =
   extractIndentation (precedingWhitespace exp)
 
-
 -- Given an EId in the program, what is the indentation on the line on which the expression starts?
 indentationAt : EId -> Exp -> String
 indentationAt eid program =
@@ -2096,6 +2086,12 @@ indentationAt eid program =
 
     Nothing ->
       ""
+
+precedingWhitespaceDeclarationWithInfo: Declaration -> WS
+precedingWhitespaceDeclarationWithInfo decl = case decl of
+  DeclExp (LetExp _ ws _ _ _ _) -> ws
+  DeclType (LetType _ ws _ _ _ _ _) -> ws
+  DeclAnnotation (LetAnnotation _ ws _ _ _ _) -> ws
 
 precedingWhitespacePat : Pat -> String
 precedingWhitespacePat pat = .val <| precedingWhitespaceWithInfoPat pat
@@ -2136,7 +2132,6 @@ precedingWhitespaceWithInfoExp__ e__ =
     EIf        ws1 e1 ws2 e2 ws3 e3 ws4         -> ws1
     ELet       ws1 kind decls ws body           -> ws1
     ECase      ws1 e1 bs ws2                    -> ws1
-    EOption    ws1 s1 ws2 s2 e1                 -> ws1
     EColonType ws1 e ws2 tipe ws3               -> ws1
     EParens    ws1 e pStyle ws2                 -> ws1
     EHole      ws mv                            -> ws
@@ -2216,7 +2211,6 @@ allWhitespaces_ exp =
                                                  ++ [ws4]
     ELet        ws1 kind decls ws2 body     -> [ws1] ++ allWhitespacesDecls decls ++ [ws2] ++ allWhitespaces_ body
     ECase      ws1 e1 bs ws2                -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesBranch bs ++ [ws2]
-    EOption    ws1 s1 ws2 s2 e1             -> [ws1, ws2] ++ allWhitespaces_ e1
     EColonType ws1 e ws2 tipe ws3           -> [ws1] ++ allWhitespaces_ e ++ [ws2] ++ allWhitespacesType_ tipe ++ [ws2]
     EParens    ws1 e pStyle ws2             -> [ws1] ++ allWhitespaces_ e ++ [ws2]
     EHole      ws mv                        -> [ws]
@@ -2312,7 +2306,6 @@ mapPrecedingWhitespaceWS mapWs exp =
         EIf        ws1 e1 ws2 e2 ws3 e3 ws4         -> EIf        (mapWs ws1) e1 ws2 e2 ws3 e3 ws4
         ELet       ws1 kind decls ws2 body          -> ELet       (mapWs ws1) kind decls ws2 body
         ECase      ws1 e1 bs ws2                    -> ECase      (mapWs ws1) e1 bs ws2
-        EOption    ws1 s1 ws2 s2 e1                 -> EOption    (mapWs ws1) s1 ws2 s2 e1
         EColonType ws1 e ws2 tipe ws3               -> EColonType (mapWs ws1) e ws2 tipe ws3
         EParens    ws e pStyle ws2                  -> EParens    (mapWs ws) e pStyle ws2
         EHole      ws mv                            -> EHole      (mapWs ws) mv
@@ -2616,7 +2609,7 @@ type CodeObject
   | P Exp Pat -- Pattern; knows own parent
   | T Type -- Type
   | LBE (WithInfo EId) BindingNumber -- Let binding equation
-  | LT BeforeAfter WS Exp BindingNumber -- LetExp Target
+  | LXT BeforeAfter WS Exp BindingNumber -- LetExp Target
   | ET BeforeAfter WS Exp -- Exp target
   | PT BeforeAfter WS Exp Pat -- Pat target (knows the parent of its target)
   | TT BeforeAfter WS Type -- Type target
@@ -2629,7 +2622,7 @@ extractInfoFromCodeObject codeObject =
     T t   -> replaceInfo t codeObject
     LBE eid bindingNumber ->
              replaceInfo eid codeObject
-    LT _ ws _ _ -> replaceInfo ws codeObject
+    LXT _ ws _ _ -> replaceInfo ws codeObject
     ET _ ws _   -> replaceInfo ws codeObject
     PT _ ws _ _ -> replaceInfo ws codeObject
     TT _ ws _   -> replaceInfo ws codeObject
@@ -2637,7 +2630,7 @@ extractInfoFromCodeObject codeObject =
 isTarget : CodeObject -> Bool
 isTarget codeObject =
   case codeObject of
-    LT _ _ _ _ ->
+    LXT _ _ _ _ ->
       True
     ET _ _ _ ->
       True
@@ -2648,22 +2641,9 @@ isTarget codeObject =
     _ ->
       False
 
-isSelectable : CodeObject -> Bool
-isSelectable codeObject =
-  case codeObject of
-    E e ->
-      case e.val.e__ of
-        EOption _ _ _ _ _ ->
-          False
-        _ ->
-          True
-    _ ->
-      True
-
 isTextSelectable : CodeObject -> Bool
 isTextSelectable codeObject =
-  (isSelectable codeObject) &&
-  (not <| isTarget codeObject)
+  not <| isTarget codeObject
 
 isWord : CodeObject -> Bool
 isWord codeObject =
@@ -2702,7 +2682,7 @@ wsBefore codeObject =
       precedingWhitespaceWithInfoType t
     LBE eid bindingNum ->
       withInfo "" eid.start eid.end
-    LT _ ws _ _ ->
+    LXT _ ws _ _ ->
       ws
     ET _ ws _ ->
       ws
@@ -2736,8 +2716,8 @@ modifyWsBefore f codeObject =
         T { t | val = newVal }
     LBE eid bindingNum ->
       LBE eid bindingNum
-    LT a ws b c ->
-      LT a (f ws) b c
+    LXT a ws b c ->
+      LXT a (f ws) b c
     ET a ws b ->
       ET a (f ws) b
     PT a ws b c ->
@@ -2758,7 +2738,7 @@ isHiddenCodeObject codeObject =
       isImplicitMain e
     ET _ _ e ->
       isImplicitMain e
-    LT _ _ e _ ->
+    LXT _ _ e _ ->
       isImplicitMain e
     _ ->
       False
@@ -2952,10 +2932,6 @@ childCodeObjects co =
                 Def ->
                   [ E e2 ]
             )
-          EOption ws1 _ _ _ e1 ->
-            [ ET Before ws1 e
-            , E e1
-            ]
           EColonType _ e1 _ t1 _ ->
             [E e1, T t1]
 
@@ -3132,7 +3108,7 @@ childCodeObjects co =
             [ TT Before ws1 t ] ++ [T t1] ++ [TT After ws2 t]
       LBE _ _ ->
         []
-      LT _ _ _ _->
+      LXT _ _ _ _->
         []
       ET _ _ _ ->
         []
@@ -3260,8 +3236,6 @@ firstNestedExp : Exp -> Exp
 firstNestedExp e =
   case e.val.e__ of
     ELet _ Def _ _ eRest ->
-      firstNestedExp eRest
-    EOption _ _ _ _ eRest ->
       firstNestedExp eRest
     _ ->
       e
@@ -3432,11 +3406,7 @@ freeIdentifiers exp =
   |> Set.fromList
 
 getTopLevelOptions: Exp -> List (String, String)
-getTopLevelOptions e =
-  case e.val.e__ of
-    EOption _ wkey _ wValue following ->
-      (wkey.val, wValue.val)::getTopLevelOptions following
-    _ -> []
+getTopLevelOptions e = getOptions e
 
 -- Diffs
 

@@ -345,10 +345,6 @@ expEqual e1_ e2_ =
     wsEqual sp14 sp24 &&
     lk1 == lk2 && rec1 == rec2 &&
     patEqual pat1 pat2 && expEqual body1 body2 && expEqual exp1 exp2
-  (EOption sp1 wStr1 sp2 wStr2 exp1, EOption sp3 wStr3 sp4 wStr4 exp2) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
-    wStr1.val == wStr3.val && wStr2.val == wStr4.val &&
-    expEqual exp1 exp2
   (ETyp sp1 pat1 t1 e1 sp2, ETyp sp3 pat2 t2 e2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
     patEqual pat1 pat2 &&

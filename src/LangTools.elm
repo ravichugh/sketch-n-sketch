@@ -47,7 +47,6 @@ nodeCount exp =
     ETypeCase _ e1 tbs _     -> 1 + (List.length tbs) + nodeCount e1 + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
     EApp _ e1 es _ _         -> 1 + nodeCount e1 + expsNodeCount es
     ELet _ _ _ p _ e1 _ e2 _ -> 1 + patNodeCount p + nodeCount e1 + nodeCount e2
-    EOption _ _ _ _ e1       -> 1 + nodeCount e1
     ETyp _ p t e1 _          -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
     EColonType _ e1 _ t _    -> 1 + typeNodeCount t + nodeCount e1
     ETypeAlias _ p t e1 _    -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
@@ -99,7 +98,6 @@ subExpsOfSizeAtLeast_ min exp =
         ETypeCase _ e1 tbs _     -> 1 + (List.length tbs) + typesNodeCount (tbranchTypes tbs)
         EApp _ e1 es _ _         -> 1
         ELet _ _ _ p _ e1 _ e2 _ -> 1 + patNodeCount p
-        EOption _ _ _ _ e1       -> 1
         ETyp _ p t e1 _          -> 1 + patNodeCount p + typeNodeCount t
         EColonType _ e1 _ t _    -> 1 + typeNodeCount t
         ETypeAlias _ p t e1 _    -> 1 + patNodeCount p + typeNodeCount t
@@ -158,7 +156,6 @@ subExpsOfSizeAtLeast_ min exp =
 --       -- ETypeCase _ e1 tbranches _  ->
 --       EApp _ e1 es _          -> 1 + expsNodeCountAtLeast_ (min - 1) (e1::es)
 --       ELet _ _ _ p e1 e2 _    -> if 4 >= min then 4 else let pCount = patNodeCount p in 1 + pCount + expsNodeCountAtLeast_ (min - 1 - pCount) [e1, e2]
---       EOption _ _ _ _ e1      -> 1 + nodeCountAtLeast_ (min - 1) e1
 --       ETyp _ p t e1 _         -> if 4 >= min then 4 else let ptCount = patNodeCount p + typeNodeCount t in 1 + ptCount + nodeCountAtLeast_ (min - 1 - ptCount) e1
 --       EColonType _ e1 _ t _   -> if 3 >= min then 3 else let tCount = typeNodeCount t in 1 + tCount + nodeCountAtLeast_ (min - 1 - tCount) e1
 --       ETypeAlias _ p t e1 _   -> if 4 >= min then 4 else let ptCount = patNodeCount p + typeNodeCount t in 1 + ptCount + nodeCountAtLeast_ (min - 1 - ptCount) e1
@@ -261,7 +258,6 @@ extraExpsDiff baseExp otherExp =
     (EIf ws1A e1A _ e2A _ e3A ws2A,        EIf ws1B e1B _ e2B _ e3B ws2B)                -> extraExpsDiff e1A e1B ++ extraExpsDiff e2A e2B ++ extraExpsDiff e3A e3B
     (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)                 -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA,  bB)  -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)  then  Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
     (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)            -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (childDiffs ()) else Nothing) |> Maybe.withDefault [otherExp]
-    (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)                -> [otherExp]
     (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)                 -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
     (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)           -> if Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
     (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)           -> if patternsEqual patA patB && Types.equal typeA typeB then extraExpsDiff eA eB else [otherExp]
@@ -372,7 +368,6 @@ maybeTopLevelChild exp =
     EColonType _ body _ _ _   -> Just body
     ETypeAlias _ _ _ body _   -> Just body
     ELet _ _ _ _ _ _ _ body _ -> Just body
-    EOption _ _ _ _ e         -> Just e
     _                         -> Nothing
 
 
@@ -2031,7 +2026,6 @@ numericLetBoundIdentifiers program =
       EIf _ _ _ thenExp _ elseExp _ -> recurse thenExp && recurse elseExp
       ECase _ _ branches _          -> List.all recurse (branchExps branches)
       ETypeCase _ _ tbranches _     -> List.all recurse (tbranchExps tbranches)
-      EOption _ _ _ _ body          -> recurse body
       ELet _ _ _ _ _  _ _ body _    -> recurse body
       ETyp _ _ _ body _             -> recurse body
       EColonType _ e _ _ _          -> recurse e
@@ -2139,7 +2133,6 @@ transformVarsUntilBound subst exp =
     ELet ws1 kind True p ws2 e1 ws3 e2 ws4 ->
       replaceE__ exp (ELet ws1 kind True p ws2 (recurseWithout (identifiersSetInPat p) e1) ws3 (recurseWithout (identifiersSetInPat p) e2) ws4)
 
-    EOption ws1 s1 ws2 s2 e1        -> replaceE__ exp (EOption ws1 s1 ws2 s2 (recurse e1))
     ETyp ws1 pat tipe e ws2         -> replaceE__ exp (ETyp ws1 pat tipe (recurse e) ws2)
     EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
     ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
@@ -2233,7 +2226,6 @@ visibleIdentifiersAtPredicate_ idents exp pred =
       let bodyResult   = recurseWithNewIdents [p] e2 in
       ret <| Set.union assignResult bodyResult
 
-    EOption _ s1 _ s2 e1      -> ret <| recurse e1
     ETyp _ pat tipe e _       -> ret <| recurse e
     EColonType _ e _ tipe _   -> ret <| recurse e
     ETypeAlias _ pat tipe e _ -> ret <| recurse e
@@ -2530,7 +2522,6 @@ expEnvAt_ exp targetEId =
             recurse e2 |> Maybe.map (addBindingsFrom p e1)
 
       ELet _ kind True p _ e1 _ e2 _ -> recurseAllChildren () |> Maybe.map (addBindingsFrom p e1)
-      EOption _ s1 _ s2 e1       -> recurse e1
       ETyp _ pat tipe e _        -> recurse e
       EColonType _ e _ tipe _    -> recurse e
       ETypeAlias _ pat tipe e _  -> recurse e

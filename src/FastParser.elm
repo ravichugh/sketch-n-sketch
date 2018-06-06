@@ -1023,40 +1023,6 @@ letBinding =
         ]
 
 --------------------------------------------------------------------------------
--- Options
---------------------------------------------------------------------------------
-
-option : Parser Exp
-option =
-  mapExp_ <|
-    inContext "option" <|
-      lazy <| \_ ->
-        delayedCommitMap
-          ( \wsStart (open, opt, wsMid, val, rest) ->
-              WithInfo
-                (EOption wsStart opt wsMid val rest)
-                open.start
-                val.end
-          )
-          ( spaces )
-          ( succeed (,,,,)
-              |= trackInfo (symbol "#")
-              |. spaces
-              |= trackInfo
-                   ( keep zeroOrMore <| \c ->
-                       c /= '\n' && c /= ' ' && c /= ':'
-                   )
-              |. symbol ":"
-              |= spaces
-              |= trackInfo
-                   ( keep zeroOrMore <| \c ->
-                       c /= '\n'
-                   )
-              |. symbol "\n"
-              |= exp
-          )
-
---------------------------------------------------------------------------------
 -- Holes
 --------------------------------------------------------------------------------
 
@@ -1259,36 +1225,6 @@ topLevelTypeAlias =
       )
 
 --------------------------------------------------------------------------------
--- Top-Level Options
---------------------------------------------------------------------------------
-
-topLevelOption : Parser TopLevelExp
-topLevelOption =
-  inContext "top-level option" <|
-    paddedBefore
-      ( \wsStart (opt, wsMid, val) ->
-          ( \rest ->
-              exp_ <| EOption wsStart opt wsMid val rest
-          )
-      )
-       spaces
-      ( trackInfo <| succeed (,,)
-          |. symbol "#"
-          |. spaces
-          |= trackInfo
-               ( keep zeroOrMore <| \c ->
-                   c /= '\n' && c /= ' ' && c /= ':'
-               )
-          |. symbol ":"
-          |= spaces
-          |= trackInfo
-               ( keep zeroOrMore <| \c ->
-                   c /= '\n'
-               )
-          |. symbol "\n"
-      )
-
---------------------------------------------------------------------------------
 -- General Top-Level Expressions
 --------------------------------------------------------------------------------
 
@@ -1299,7 +1235,6 @@ topLevelExp =
       [ topLevelTypeAlias
       , topLevelDef
       , topLevelTypeDeclaration
-      , topLevelOption
       ]
 
 allTopLevelExps : Parser (List TopLevelExp)

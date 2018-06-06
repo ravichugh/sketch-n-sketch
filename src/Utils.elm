@@ -1417,6 +1417,7 @@ reorder order elements =
   in
   aux order []
 
+tarjan: List a -> (Dict a (List a)) -> List (List a)
 tarjan nodes edgesByNode =
   let index = 0 in
   let s = [] in
@@ -1472,12 +1473,16 @@ tarjan nodes edgesByNode =
   ) |> \(index, vindex, lowlink, onstack, s, components) ->
     components
 
+orderWithDependencies: List a -> (a -> (Set String, Set String, Bool)) -> (a -> String) -> Result String (List (List a))
+orderWithDependencies elements elemToNamesDepsIsfun elemToNameDisplay =
+  let aux
 
 -- Given a list declaring names and dependencies,
 -- reorders the list so that dependencies are satisfied. If it cannot, returns an error message explaining why.
-
-orderWithDependencies: List a -> (a -> (Set String, Set String)) -> (a -> String) -> Result String (List a)
+orderWithDependencies: List a -> (a -> (Set String, Set String)) -> (a -> String) -> Result String (List (List a))
 orderWithDependencies elements elemToNamesDependencies elemToNameDisplay =
+  --let edgesNames = elements |> List.map (\a -> (a, elemToNamesDependencies a |> Tuple.first)) in
+  --let edgesByNode = elements |> List.map (\a ->
    let isDependencySatisfied: Set String -> Set String -> Bool
        isDependencySatisfied deps previousNames = (Set.diff deps previousNames) |> Set.isEmpty
 
@@ -1536,3 +1541,4 @@ orderWithDependencies elements elemToNamesDependencies elemToNameDisplay =
               let nameDisplay = elemToNameDisplay a in
               "\n    |    " ++ nameDisplay) |> String.join "\n    |     |"
            ) ++ "\n    └─────┘\n\nHint: An explicit dependency happens when a variable is not bound by a lambda."
+-}
