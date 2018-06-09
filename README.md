@@ -119,7 +119,8 @@ By convention, the `main` definition is often the last top-level definition.
 #### Long string literals with interpolation
 
     """Here @y @x.hello @(let y = "2" in y)
-    This is on a second line"""
+    @let t = "third" in
+    This is on a @t line"""
 
 is roughly equivalent to `"Here " + S y + " " + S x.hello + " " + S (let y = "2" in y) + "\nThis is on a second line"`
 where S converts its argument to a string if it is not.

@@ -32,6 +32,7 @@ import Info exposing (..)
 
 import ImpureGoodies
 import LangUnparser
+import Utils
 
 spaces = oldSpaces
 
@@ -434,7 +435,7 @@ asPattern =
       lazy <| \_ ->
         delayedCommitMap
           ( \(wsStart, name, wsAt) pat ->
-              WithInfo (PAs wsStart space1 name.val wsAt pat) name.start pat.end
+              WithInfo (PAs wsStart (withInfo (pat_ <| PVar space1 name.val noWidgetDecl) name.start name.end) wsAt pat) name.start pat.end
           )
           ( succeed (,,)
               |= spaces
@@ -579,28 +580,20 @@ tupleType =
 forallType : Parser Type
 forallType =
   let
-    wsIdentifierPair =
+    patVar =
       delayedCommitMap
         ( \ws name ->
-            (ws, name.val)
+            withInfo (TPatVar ws name.val) name.start name.end
         )
         spaces
         variableIdentifierString
-    quantifiers =
-      oneOf
-        [ inContext "forall type (one)" <|
-            map One wsIdentifierPair
-        , inContext "forall type (many) "<|
-            untrackInfo <|
-              parenBlock Many <|
-                repeat zeroOrMore wsIdentifierPair
-        ]
+    quantifiers = inContext "forall type (one)" <| repeat zeroOrMore patVar
   in
     inContext "forall type" <|
       lazy <| \_ ->
         parenBlock
-          ( \wsStart (qs, t) wsEnd ->
-              TForall wsStart qs t wsEnd
+          ( \wsBefore (qs, t) wsEnd ->
+              TForall wsBefore qs t wsEnd
           )
           ( succeed (,)
               |. keywordWithSpace "forall"
@@ -631,7 +624,7 @@ namedType =
   inContext "named type" <|
     paddedBefore
       ( \wsBefore ident ->
-          TApp wsBefore ident []
+          TVar wsBefore ident
       )
       spaces
       typeIdentifierString
@@ -902,7 +895,9 @@ typeCaseExpression =
     lazy <| \_ ->
       genericCase
         "type case expression" "typecase"
-        ETypeCase TBranch_ exp typ
+        ECase (\wsStart tp e wsEnd ->
+          Branch_ space1 (withDummyPatInfo <| PColonType space0 (withDummyPatInfo <| PWildcard space0) space1 tp) e space1
+        ) exp typ
 
 --------------------------------------------------------------------------------
 -- Functions
@@ -958,7 +953,7 @@ genericLetBinding context kword isRec =
     inContext context <|
       parenBlock
         ( \wsStart (name, binding, rest) wsEnd ->
-            ELet wsStart Let isRec name space1 binding space1 rest wsEnd
+            eLet__ wsStart Let isRec name space1 binding space1 rest wsEnd
         )
         ( succeed (,,)
             |. keywordWithSpace kword
@@ -974,7 +969,7 @@ genericDefBinding context kword isRec =
       delayedCommitMap
         ( \(wsStart, open) (name, binding, wsEnd, close, rest) ->
             WithInfo
-              (ELet wsStart Def isRec name space1 binding space1 rest wsEnd)
+              (eLet__ wsStart Def isRec name space1 binding space1 rest wsEnd)
               open.start
               close.end
         )
@@ -1043,7 +1038,7 @@ typeDeclaration =
       delayedCommitMap
         ( \(wsStart, open) (pat, t, wsEnd, close, rest) ->
             WithInfo
-              (ETyp wsStart pat t rest wsEnd)
+              (eTyp_ wsStart pat t rest wsEnd)
               open.start
               close.end
         )
@@ -1071,7 +1066,7 @@ typeAlias =
       delayedCommitMap
         ( \(wsStart, open, pat) (t, wsEnd, close, rest) ->
             WithInfo
-              (ETypeAlias wsStart pat t rest wsEnd)
+              (eTypeAlias__ wsStart pat t rest wsEnd)
               open.start
               close.end
         )
@@ -1135,7 +1130,6 @@ exp =
         , lazy <| \_ -> function
         , lazy <| \_ -> functionApplication
         , lazy <| \_ -> operator
-        , lazy <| \_ -> option
         , lazy <| \_ -> hole
         , variableExpression
         ]
@@ -1154,7 +1148,7 @@ genericTopLevelDef context kword isRec =
     parenBlock
       ( \wsStart (name, binding) wsEnd ->
           ( \rest ->
-              exp_ <| ELet wsStart Def isRec name space1 binding space1 rest wsEnd
+              exp_ <| eLet__ wsStart Def isRec name space1 binding space1 rest wsEnd
           )
       )
       ( succeed (,)
@@ -1189,7 +1183,7 @@ topLevelTypeDeclaration =
     parenBlock
       ( \wsStart (pat, t) wsEnd ->
           ( \rest ->
-              exp_ <| ETyp wsStart pat t rest wsEnd
+              exp_ <| eTyp_ wsStart pat t rest wsEnd
           )
       )
       ( succeed (,)
@@ -1208,7 +1202,7 @@ topLevelTypeAlias =
     delayedCommitMap
       ( \(wsStart, open, pat) (t, wsEnd, close) ->
           WithInfo
-            (\rest -> (exp_ <| ETypeAlias wsStart pat t rest wsEnd))
+            (\rest -> (exp_ <| eTypeAlias__ wsStart pat t rest wsEnd))
             open.start
             close.end
       )
@@ -1264,7 +1258,7 @@ implicitMain =
             EVar space1 "main"
       in
         withCorrectInfo << exp_ <|
-          ELet newline2 Let False name (ws "") binding (ws "") body space0
+          ELet newline2 Let (Declarations [0] ([], []) [] ([LetExp Nothing space1 name FunArgAsPats space1 binding], [0])) space1 body
   in
     succeed builder
       |= getPos
@@ -1384,10 +1378,24 @@ freshenPreserving idsToPreserve initK e =
             let locId = getId k in
             (EConst ws n (locId, frozen, ident) wd, locId + 1)
 
-        ELet ws1 kind b p ws2 e1 ws3 e2 ws4 ->
-          let (newP, newK) = freshenPatPreserving idsToPreserve k p in
-          let newE1 = recordIdentifiers (newP, e1) in
-          (ELet ws1 kind b newP ws2 newE1 ws3 e2 ws4, newK)
+        ELet ws1 kind (Declarations po (tpes, got) ann (exps, goe)) wsIn body ->
+          let (newRevTpes, newK) = Utils.foldLeft ([], k) tpes <|
+            \(revAcc, k) (LetType sp1 spType mbSpAlias pat funPolicy spEq tp) ->
+               let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
+               (LetType sp1 spType mbSpAlias newPat funPolicy spEq tp :: revAcc, newK)
+          in
+          let (newRevAnn, newK2) = Utils.foldLeft ([], newK) ann <|
+            \(revAcc, k) (LetAnnotation sp1 sp0 pat funPolicy spEq e1) ->
+               let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
+               (LetAnnotation sp1 sp0 newPat funPolicy spEq e1::revAcc, newK)
+          in
+          let (newRevExps, newK3) = Utils.foldLeft ([], newK2) exps <|
+            \(revAcc, k)  (LetExp sp1 sp0 p funPolicy spEq e1) ->
+                let (newP, newK) = freshenPatPreserving idsToPreserve (p, k) in
+                let newE1 = recordIdentifiers (newP, e1) in
+                (LetExp sp1 sp0 newP funPolicy spEq newE1 :: revAcc, newK)
+          in
+          (ELet ws1 kind (Declarations po (List.reverse newRevTpes, got) (List.reverse newRevAnn) (List.reverse newRevExps, goe)) wsIn body, newK3)
 
         EFun ws1 pats body ws2 ->
           let (newPats, newK) = freshenPatsPreserving idsToPreserve k pats in
@@ -1399,20 +1407,12 @@ freshenPreserving idsToPreserve initK e =
             |> List.foldl
                 (\branch (newBranches, k) ->
                   let (Branch_ bws1 pat ei bws2) = branch.val in
-                  let (newPi, newK) = freshenPatPreserving idsToPreserve k pat in
+                  let (newPi, newK) = freshenPatPreserving idsToPreserve (pat, k) in
                   (newBranches ++ [{ branch | val = Branch_ bws1 newPi ei bws2 }], newK)
                 )
                 ([], k)
           in
           (ECase ws1 scrutinee newBranches ws2, newK)
-
-        ETyp ws1 pat tipe e ws2 ->
-          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
-          (ETyp ws1 newPat tipe e ws2, newK)
-
-        ETypeAlias ws1 pat tipe e ws2 ->
-          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
-          (ETypeAlias ws1 newPat tipe e ws2, newK)
 
         _ ->
           (e__, k)
@@ -1432,15 +1432,15 @@ freshenPatsPreserving idsToPreserve initK pats =
   pats
   |> List.foldl
       (\pat (finalPats, k) ->
-        let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
+        let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
         (finalPats ++ [newPat], newK)
       )
       ([], initK)
 
 
 -- Reassign any id not in idsToPreserve
-freshenPatPreserving : Set.Set Int -> Int -> Pat -> (Pat, Int)
-freshenPatPreserving idsToPreserve initK p =
+freshenPatPreserving : Set.Set Int -> (Pat, Int) -> (Pat, Int)
+freshenPatPreserving idsToPreserve (p, initK) =
   let getId k =
     if Set.member k idsToPreserve
     then getId (k+1)
@@ -1469,6 +1469,11 @@ allIdsRaw : Exp -> List Int
 allIdsRaw exp =
   let pidsInPat pat   = flattenPatTree pat |> List.map (.val >> .pid) in
   let pidsInPats pats = pats |> List.concatMap pidsInPat in
+  let pidsInDecls (Declarations _ (types, _) anns (exps, _)) =
+    pidsInPats <| (types |> List.map (\(LetType _ _ _ p _ _ t) -> p)) ++
+    (anns  |> List.map (\(LetAnnotation _ _ p _ _ t) -> p)) ++
+    (exps  |> List.map (\(LetExp _ _ p _ _ t) -> p))
+  in
   let flattened = flattenExpTree exp in
   let eids = flattened |> List.map (.val >> .eid) in
   let otherIds =
@@ -1477,11 +1482,10 @@ allIdsRaw exp =
         (\exp ->
           case exp.val.e__ of
             EConst ws n (locId, frozen, ident) wd -> [locId]
-            ELet ws1 kind b p _ e1 _ e2 ws2       -> pidsInPat p
             EFun ws1 pats body ws2                -> pidsInPats pats
             ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
-            ETyp ws1 pat tipe e ws2               -> pidsInPat pat
-            ETypeAlias ws1 pat tipe e ws2         -> pidsInPat pat
+            ELet ws1 kind declarations ws2 body   -> pidsInDecls declarations
+            ERecord _ _ declarations _            -> pidsInDecls declarations
             _                                     -> []
         )
   in
@@ -1534,7 +1538,7 @@ recordIdentifiers (p,e) =
                       _                  -> me in
                   ret <| EList ws1 (U.listValuesMake es es_) ws2 me_ ws3
 
-  (PAs _ _ _ _ p_, _) -> recordIdentifiers (p_,e)
+  (PAs _ p1 _ p_, _) -> recordIdentifiers (p1, recordIdentifiers (p_,e))
 
   (_, EColonType ws1 e1 ws2 t ws3) ->
     ret <| EColonType ws1 (recordIdentifiers (p,e1)) ws2 t ws3

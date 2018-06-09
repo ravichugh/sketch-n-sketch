@@ -91,6 +91,7 @@ foldPatternsWithIds f (scopeId, path) pats init =
         PList _ ps _ (Just p) _ -> doMany f pathedPatId (ps ++ [p]) acc
         PParens _ p _ -> doOne f pathedPatId p acc
         PRecord _ p _ -> doMany f pathedPatId (Utils.recordValues p) acc
+        PColonType _ p _ _ -> doOne f pathedPatId p acc
 
     doMany f (scopeId, path) pats acc =
       Utils.foldli1 (\(i, pi) -> doOne f (scopeId, path ++ [i]) pi) acc pats
@@ -307,8 +308,7 @@ traverse env exp acc =
     EList _ es _ (Just eRest) _  -> recurse (Utils.listValues es ++ [eRest])
     EList _ es _ Nothing _       -> recurse (Utils.listValues es)
 
-    ERecord _ (Just (init, _)) es _ -> recurse (childExps e)
-    ERecord _ Nothing es _ -> recurse (Utils.recordValues es)
+    ERecord _ _ es _ -> recurse (childExps exp)
 
     ESelect _ e _ _ s -> recurse [e]
 
@@ -428,6 +428,10 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
                 traverseAndAddDependencies_ pathedPatId2 env pi ei acc
               ) acc (List.map (Utils.mapFirstSecond Utils.recordValue Tuple.second) replacements)
     (PRecord _ _ _, _) ->
+          acc |> clearUsed
+              |> traverse env exp
+              |> addConservativeDependencies
+    (PColonType _ _ _ _, _) ->
           acc |> clearUsed
               |> traverse env exp
               |> addConservativeDependencies

@@ -161,6 +161,7 @@ type Pat__
   | PAs WS Pat WS Pat
   | PParens WS Pat WS
   | PRecord WS {- { -}  (List (WS {- , -}, WS, Ident, WS{-=-}, Pat)) WS{- } -}
+  | PColonType WS Pat WS Type
 
 type Op_
   -- nullary ops
@@ -301,8 +302,8 @@ type Type_
   | TDict WS Type Type WS
   | TRecord WS (Maybe (Ident, WS {- | -})) (List (WS, {- , -} WS, Ident, WS{-:-}, Type)) {- }-} WS
   | TTuple WS (List Type) WS (Maybe Type) WS
-  | TArrow WS (List Type) WS
-  | TUnion WS (List Type) WS
+  | TArrow WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead.
+  | TUnion WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead
   | TApp WS Type (List Type) ApplicationType
   | TVar WS Ident
   | TForall WS (List TPat) Type WS
@@ -786,6 +787,9 @@ mapFoldPat f initAcc p =
       let (newPChild, newAcc) = recurse initAcc pChild in
       wrapAndMap (PParens ws1 newPChild ws2) newAcc
 
+    PColonType ws1 pChild ws2 tp ->
+      let (newPChild, newAcc) = recurse initAcc pChild in
+      wrapAndMap (PColonType ws1 newPChild ws2 tp) newAcc
 
 -- Nodes visited/replaced in top-down, left-to-right order.
 -- Careful, a poorly constructed mapping function can cause this to fail to terminate.
@@ -840,6 +844,11 @@ mapFoldPatTopDown f initAcc p =
     PParens ws1 pChild ws2 ->
       let (newPChild, newAcc2) = recurse newAcc pChild in
       ret (PParens ws1 newPChild ws2) newAcc2
+
+    PColonType ws1 pChild ws2 tp ->
+      let (newPChild, newAcc2) = recurse newAcc pChild in
+      ret (PColonType ws1 newPChild ws2 tp) newAcc2
+
 
 -- Nodes visited/replaced in top-down, left-to-right order.
 -- Includes user-defined scope information.
@@ -1625,6 +1634,7 @@ childPats pat =
     PWildcard _             -> []
     PList _ ps _ Nothing _  -> ps
     PRecord _ ps _          -> Utils.recordValues ps
+    PColonType _ p _ _      -> [p]
     PList _ ps _ (Just p) _ -> ps ++ [p]
     PAs _ p1 _ p2           -> [p1, p2]
     PParens _ p _           -> [p]
@@ -1842,6 +1852,25 @@ eLet = eLetOrDef Let
 eDef : List (Ident, Exp) -> Exp -> Exp
 eDef = eLetOrDef Def
 
+-- Previous definition
+eLet__ wsStart letOrDef isRec name spEq binding spIn rest wsEnd =
+  ELet wsStart letOrDef (Declarations [0] ([], []) [] ([LetExp Nothing space0 name FunArgAsPats spEq binding], [0])) spIn rest
+
+-- Previous definition
+eRecord__ wsBefore mbInit keyValues wsBeforeEnd =
+  let rangeValues = List.range 0 (List.length keyValues - 1) in
+  ERecord wsBefore mbInit (Declarations rangeValues ([], []) [] (
+    keyValues |> List.map (\(spComma, spKey,key,spEq,value) ->
+      LetExp (if spComma.val == "" then Nothing else (Just spComma))
+        spKey (pVar key) FunArgAsPats spEq value
+    )
+    , rangeValues |> List.map (always 1))) wsBeforeEnd
+
+eTypeAlias__ ws1 pat t rest wsEnd =
+    ELet newline1 Def (Declarations [0] ([LetType Nothing ws1 (Just space1) pat FunArgAsPats space1 t], [0]) [] ([], [])) space1 rest
+
+eTyp_ wsStart pat t rest wsEnd =
+    ELet newline1 Def (Declarations [0] ([], []) [LetAnnotation Nothing wsStart pat FunArgAsPats space1 t] ([], [])) space1 rest
 
 eVar0 a           = withDummyExpInfo <| EVar space0 a
 eVar a            = withDummyExpInfo <| EVar space1 a
@@ -2107,6 +2136,7 @@ precedingWhitespaceWithInfoPat pat =
     PRecord ws1 es ws2         -> ws1
     PAs    ws1 p1 ws2 p2       -> ws1
     PParens ws1 p ws2          -> ws1
+    PColonType ws1 _ _ _       -> ws1
 
 precedingWhitespaceWithInfoExp : Exp -> WS
 precedingWhitespaceWithInfoExp e =
@@ -2232,6 +2262,7 @@ allWhitespacesPat_ pat =
     PRecord ws1 ps ws2         -> [ws1] ++ List.concatMap allWhitespacesPat_ (Utils.recordValues ps) ++ [ws2]
     PAs    ws1 p1 ws2 p2       -> [ws1] ++ allWhitespacesPat_ p1 ++ [ws2] ++ allWhitespacesPat_ p2
     PParens ws1 p ws2          -> [ws1, ws2] ++ allWhitespacesPat_ p
+    PColonType ws1 p ws2 tp    -> [ws1, ws2] ++ allWhitespacesPat_ p ++ allWhitespacesType_ tp
 
 allWhitespacesType_ : Type -> List WS
 allWhitespacesType_ tipe =
@@ -2330,6 +2361,7 @@ mapPrecedingWhitespacePatWS mapWs pat =
         PRecord ws1 ps ws2         -> PRecord (mapWs ws1) ps ws2
         PAs    ws1 p1 ws2 p2       -> PAs    (mapWs ws1) p1 ws2 p2
         PParens ws1 p ws2          -> PParens (mapWs ws1) p ws2
+        PColonType ws1 p ws2 tp    -> PColonType (mapWs ws1) p ws2 tp
   in
     replaceP__ pat p__
 
@@ -3001,6 +3033,10 @@ childCodeObjects co =
             [ PT Before ws1 e p1
             , P e p1
             , PT After ws2 e p1 ]
+          PColonType ws1 p1 ws2 tp ->
+            [ PT Before ws1 e p1
+            , P e p1
+            , PT After ws2 e p1 ]
       T t ->
         case t.val of
           TNum ws1 ->
@@ -3184,6 +3220,8 @@ tagSinglePat ppid pat =
           tagSinglePat ppid p1
         PRecord ws1 listWsIdWsExpWs ws2 ->
           tagPatList ppid (Utils.recordValues listWsIdWsExpWs)
+        PColonType _ p1 _ tp ->
+          tagSinglePat ppid p1
 
 tagBranchList
   :  EId
@@ -3393,6 +3431,12 @@ foldRightGroup: WithGroupingInfo (List a) -> b -> (List a -> b -> b) -> b
 foldRightGroup (elems, groupingInfo) acc callback =
   foldLeftGroup acc (List.reverse elems, List.reverse groupingInfo) <|
     \acc group -> callback (List.reverse group) acc
+
+
+extractGroupInfo: (a -> b) -> List (List a) -> WithGroupingInfo (List b)
+extractGroupInfo f groups =
+  (List.concatMap identity groups |> List.map f,
+   List.map List.length groups)
 
 -- Which var idents in this exp refer to something outside this exp?
 -- This is wrong for TypeCases; TypeCase scrutinee patterns not included. TypeCase scrutinee needs to turn into an expression (done on Brainstorm branch, I believe).

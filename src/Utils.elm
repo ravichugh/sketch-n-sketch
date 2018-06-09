@@ -573,6 +573,14 @@ mapFirstSuccess f list =
         Nothing     -> mapFirstSuccess f xs
         res -> res
 
+removeFirstSuccess : (a -> Maybe b) -> List a -> Maybe (b, List a)
+removeFirstSuccess f list =
+  case list of
+    []   -> Nothing
+    x::xs -> case f x of
+        Nothing     -> removeFirstSuccess f xs |> Maybe.map (Tuple.mapSecond <| (::) x)
+        Just res -> Just (res, xs)
+
 firstOrLazySecond : Maybe a -> (() -> Maybe a) -> Maybe a
 firstOrLazySecond maybe1 lazyMaybe2 =
   case maybe1 of
@@ -1417,119 +1425,62 @@ reorder order elements =
   in
   aux order []
 
-tarjan: List a -> (Dict a (List a)) -> List (List a)
-tarjan nodes edgesByNode =
-  let index = 0 in
-  let s = [] in
-  let vindex = Dict.empty in
-  let lowlink = Dict.empty in
-  let onstack = Dict.empty in
-  let components = [] in
-  let strongConnect v (index, vindex, lowlink, onstack, s, components) =
-    let nvindex = Dict.insert v index vindex in
-    let nlowlink = Dict.insert v index lowlink in
-    let nindex = index + 1 in
-    let ns = v :: s in
-    let nonstack = Dict.insert v True onstack in
+type alias NamesDepsIsRec = (Set String, Set String, Bool)
 
-    let outEdges = Dict.get v edgesByNode |> Maybe.withDefault [] in
-    (foldLeft (nindex, nvindex, nlowlink, nonstack, ns, components) outEdges <|
-            \(index, vindex, lowlink, onstack, s, components) w ->
-       if Dict.get w vindex == Nothing then
-         strongConnect w (index, vindex, lowlink, onstack, s, components) |> (\(index, vindex, lowlink, onstack, s, components) ->
-         Dict.insert v (min (Dict.get v lowlink |> Maybe.withDefault 0) (Dict.get w lowlink |> Maybe.withDefault 0)) lowlink |> (\lowlink ->
-           (index, vindex, lowlink, onstack, s, components)
-         ))
-       else if Dict.get w onstack |> Maybe.withDefault False then
-         Dict.insert v (min (Dict.get v lowlink |> Maybe.withDefault 0) (Dict.get w vindex |> Maybe.withDefault 0)) lowlink |> (\lowlink ->
-           (index, vindex, lowlink, onstack, s, components)
-         )
-       else
-         (index, vindex, lowlink, onstack, s, components)
-    ) |> (\(index, vindex, lowlink, onstack, s, components) ->
-    if Dict.get v lowlink == Dict.get v vindex then
-       let aux (s, onstack) acc = case s of
-        [] -> Debug.crash "Tarjan empty should not happen"
-        w :: s2 ->
-          if w == v then
-            ((w::acc):: components, s, onstack)
-          else
-            (w::acc) |>
-            aux (s2, Dict.insert w False onstack)
+-- Orders a list of definition, grouping the potentially recursive definitions, keeping the order of definitions
+orderWithDependencies: List a -> (a -> NamesDepsIsRec) -> Result String (List (List a))
+orderWithDependencies elements elemToNamesDepsIsrec =
+  let elemsWithDefs = elements |> List.map (\a -> (a, elemToNamesDepsIsrec a)) in
+  let dependenciesToConsider = elemsWithDefs |> List.concatMap (\(_, (names, _, _)) -> Set.toList names) |> Set.fromList in
+  let aux:Bool ->     List (List a) -> Set String -> List (List a, NamesDepsIsRec) -> List (a, NamesDepsIsRec) -> Result String (List (List a))
+      aux testWaiting okGroups         definedNames  waitingDefs                      elemsWithDefs =
+       let finalDependencies (names, deps, isRec) =
+         Set.diff (Set.intersect dependenciesToConsider deps) <| if isRec then Set.union names definedNames else definedNames
        in
-       aux (s, onstack) [] |> (\(component, s, onstack) ->
-        (index, vindex, lowlink, onstack, s, components)
-       )
-    else
-       (index, vindex, lowlink, onstack, s, components)
-    )
-  in
-  (foldLeft (index, vindex, lowlink, onstack, s, components) nodes <|
-          \(index, vindex, lowlink, onstack, s, components) v ->
-            if Dict.get v vindex == Nothing then
-              strongConnect v (index, vindex, lowlink, onstack, s, components)
-            else
-              (index, vindex, lowlink, onstack, s, components)
-  ) |> \(index, vindex, lowlink, onstack, s, components) ->
-    components
+       let mbWaitingDefSatisfied = if not testWaiting then Nothing else
+        waitingDefs |> removeFirstSuccess (\(defs, (names, deps, isRec) as abst) ->
+            let theDependenciesAreSatisfied = finalDependencies abst |> Set.isEmpty in
+            if theDependenciesAreSatisfied then Just (defs, names)
+            else Nothing
+          )
+       in
+       -- first check to add any dependencies among waitingDefs.
+       case mbWaitingDefSatisfied of
+         Just ((defs, names), newWaitingDefs) -> aux True (defs::okGroups) (Set.union definedNames names) newWaitingDefs elemsWithDefs
+         Nothing ->
+       case elemsWithDefs of
+          [] -> if List.isEmpty waitingDefs then Ok <| List.reverse okGroups
+               else Err <| "I could not find a satisfying assignment for these mutually recursive definitions:\n" ++
+                 (waitingDefs |> List.map (\(_, (n, d, isRec) as abst) ->
+                   let reald = finalDependencies abst in
+                   (Set.toList n |> String.join ",") ++ " depend on " ++ (Set.toList reald |> String.join ",") ++
+                   (if isRec then " and recursively on each other" else "")
+                 ) |> String.join ",\n") ++ "\nWe don't support mutual recursion between lambdas and non-lambda (yet). Create a lambda, and then call it if you wish."
+          ((a, (names, deps, isRec) as abst) as headDef)::tailDefs ->
+            let theDependenciesAreSatisfied = finalDependencies abst |> Set.isEmpty in
+            if theDependenciesAreSatisfied then
+              aux True ([a]::okGroups) (Set.union definedNames names) waitingDefs tailDefs
+            else -- Add to the first group of rec if rec, and as a single element else.
+              let (newWaitingDefs, retestWaiting) = if isRec then
+                   let xau: Bool -> List (List a, NamesDepsIsRec) -> List (List a, NamesDepsIsRec) -> (List a, NamesDepsIsRec) -> (List (List a, NamesDepsIsRec), Bool)
+                       xau retestWaiting collectedWaitingGroups remainingWaitingGroups ((newDefs, (namesToIntegrate, depsToIntegrate, _) as abst1) as defToIntegrate) =
+                     case remainingWaitingGroups of
+                        [] -> (List.reverse (defToIntegrate::collectedWaitingGroups), retestWaiting)
+                        ((otherDefs, (otherNames, otherDeps, r) as abst2) as headGroup) :: tailGroup ->
+                          if r && (Set.intersect (finalDependencies abst2) namesToIntegrate |> Set.isEmpty |> not) &&
+                                  (Set.intersect (finalDependencies abst1) otherNames |> Set.isEmpty |> not) then
+                            let newDefToIntegrate = (otherDefs ++ newDefs, (Set.union otherNames namesToIntegrate, Set.union otherDeps depsToIntegrate, True)) in
+                            -- Mutual recursion found ! we merge the two.
+                            xau True [] (reverseInsert collectedWaitingGroups tailGroup) newDefToIntegrate
+                          else
+                            xau retestWaiting (headGroup::collectedWaitingGroups) tailGroup defToIntegrate
+                   in xau False [] waitingDefs ([a], abst)
+                 else (waitingDefs ++ [([a], abst)], False)
+              in
+              aux retestWaiting okGroups definedNames newWaitingDefs tailDefs
+  in aux False [] Set.empty [] elemsWithDefs
 
-orderWithDependencies: List a -> (a -> (Set String, Set String, Bool)) -> (a -> String) -> Result String (List (List a))
-orderWithDependencies elements elemToNamesDepsIsfun elemToNameDisplay =
-  let aux
-
--- Given a list declaring names and dependencies,
--- reorders the list so that dependencies are satisfied. If it cannot, returns an error message explaining why.
-orderWithDependencies: List a -> (a -> (Set String, Set String)) -> (a -> String) -> Result String (List (List a))
-orderWithDependencies elements elemToNamesDependencies elemToNameDisplay =
-  --let edgesNames = elements |> List.map (\a -> (a, elemToNamesDependencies a |> Tuple.first)) in
-  --let edgesByNode = elements |> List.map (\a ->
-   let isDependencySatisfied: Set String -> Set String -> Bool
-       isDependencySatisfied deps previousNames = (Set.diff deps previousNames) |> Set.isEmpty
-
-       correctDependenciesWONotResolved: List a -> Set String -> List a -> (List a, List a)
-       correctDependenciesWONotResolved  input     previousNames notResolved =
-         case input of
-           [] -> ([], notResolved)
-           head :: tailInput ->
-             let (names, deps) = elemToNamesDependencies head in
-             if isDependencySatisfied deps previousNames then
-               let (nextCorrect, notCorrect) = correctDependencies tailInput (Set.union previousNames names) notResolved in
-               (head :: nextCorrect, notCorrect)
-             else
-               correctDependenciesWONotResolved tailInput previousNames (notResolved ++ [head])
-
-       correctDependencies: List a -> Set String -> List a -> (List a, List a)
-       correctDependencies input previousNames notResolved =
-         let (solvable, unsolvable) = notResolved |> List.partition (\a ->
-              let (names, deps) = elemToNamesDependencies a in
-              isDependencySatisfied deps previousNames
-           )
-         in
-         if List.isEmpty solvable then
-           correctDependenciesWONotResolved input previousNames notResolved
-         else
-           let solvableNames = solvable |> List.concatMap (elemToNamesDependencies >> Tuple.first >> Set.toList) |> Set.fromList in
-           let (nextCorrect, notCorrect) = correctDependencies input (Set.union previousNames solvableNames) unsolvable in
-           (solvable ++ nextCorrect, notCorrect)
-
-       smallestCycle: List a -> Maybe (List a)
-       smallestCycle notResolved =
-
-         let nodes: List a
-             nodes = notResolved in
-         -- For each name, it gives a list of possible nodes refering to this name.
-         let nodesByName: Dict String (List a)
-             nodesByName = notResolved |> List.concatMap (\x -> elemToNamesDependencies x |> Tuple.first |> Set.toList |> List.map (\name -> (name, x))) |>
-           groupBy (\(name, target) -> name) |> Dict.map (\k v -> List.map Tuple.second v) in
-         -- For each node, it gives a list of nodes it depends on.
-         let  edges: Dict a (List a)
-              edges= notResolved |> List.map (\x -> (x,
-           elemToNamesDependencies x |> Tuple.second |>  Set.toList |> List.filterMap (Basics.flip Dict.get nodesByName) |> List.concatMap identity)) |> Dict.fromList in
-         case tarjan nodes edges of
-           [] -> Nothing
-           head :: _ -> Just head
-
-   in
+{- -- Nice way to present circular errors.
    case correctDependencies elements Set.empty [] of
      (result, []) -> Ok result
      (result, notResolved) ->

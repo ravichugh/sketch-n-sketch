@@ -838,7 +838,7 @@ multilineContentUnparse e = case e.val.e__ of
     "@" ++ (case kind of
       Let -> "let"
       Def -> "def"
-    ) ++ (if rec then "rec" else "") ++ ws1.val ++ unparsePattern p ++ ws2.val ++ "=" ++ finalDefinition ++ remaining
+    ) ++ (if rec then "rec" else "") ++ ws1.val ++ unparsePattern p ++ ws2.val ++ "=" ++ finalDefinition ++ "in\n" ++ remaining
   anyExp -> "@(" ++ unparse e ++ ")"
 
 ------------------------

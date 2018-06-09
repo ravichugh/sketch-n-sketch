@@ -82,6 +82,7 @@ unparsePat pat = case pat.val.p__ of
   PBase ws bv -> ws.val ++ unparseBaseVal bv
   PAs ws1 p1 ws2 p2 -> ws1.val ++ (unparsePat p1) ++ ws2.val ++ "@" ++ (unparsePat p2)
   PParens ws1 p ws2 -> ws1.val ++ "(" ++ unparsePat p ++ ws2.val ++ ")"
+  PColonType _ _ _ _ -> "internal error, cannot unparse pcolontype in LangUnparser"
 
 unparsePatWithIds : Pat -> String
 unparsePatWithIds pat =
@@ -101,6 +102,7 @@ unparsePatWithIds pat =
     PBase ws bv -> ws.val ++ unparseBaseVal bv ++ pidTag
     PAs ws1 p1 ws2 p2 -> ws1.val ++ (unparsePatWithIds p1) ++ pidTag ++ ws2.val ++ "@" ++ (unparsePatWithIds p2)
     PParens ws1 p ws2 -> ws1.val ++ "(" ++ pidTag ++ unparsePatWithIds p ++ ws2.val ++ ")"
+    PColonType _ _ _ _ -> "internal error, cannot unparse pcolontype in LangUnparser"
 
 unparsePatWithUniformWhitespace includeWidgetDecls pat =
   let recurse p = unparsePatWithUniformWhitespace includeWidgetDecls p in
@@ -119,6 +121,7 @@ unparsePatWithUniformWhitespace includeWidgetDecls pat =
     PBase _ bv -> " " ++ unparseBaseValWithUniformWhitespace bv
     PAs _ p1 _ p2 -> " " ++ recurse p1 ++ " " ++ "@" ++ recurse p2
     PParens _ p _ -> " (" ++ recurse p ++ " )"
+    PColonType _ _ _ _ -> "internal error, cannot unparse pcolontype in LangUnparser"
 
 unparseType : Type -> String
 unparseType tipe =
@@ -137,21 +140,22 @@ unparseType tipe =
     TRecord _ _ _ _ -> "internal error: cannot unparse TRecord in LangUnparser"
     TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
     TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
-    TApp ws1 "Num" _ _        -> ws1.val ++ "Bad_NUM"
+    {-TApp ws1 "Num" _ _        -> ws1.val ++ "Bad_NUM"
     TApp ws1 "Bool" _ _       -> ws1.val ++ "Bad_BOOL"
     TApp ws1 "String" _ _     -> ws1.val ++ "Bad_STRING"
-    TApp ws1 "Null" _ _       -> ws1.val ++ "Bad_NULL"
-    TApp ws1 ident _ ts       -> ws1.val ++ ident ++ String.concat (List.map unparseType ts)
+    TApp ws1 "Null" _ _       -> ws1.val ++ "Bad_NULL"-}
+    TApp ws1 ident ts _       -> ws1.val ++ unparseType ident ++ String.concat (List.map unparseType ts)
     TVar ws1 ident          -> ws1.val ++ ident
     TWildcard ws            -> ws.val ++ "_"
     TForall ws1 typeVars tipe1 ws2 ->
-      let strVar (ws,x) = ws.val ++ x in
       let sVars =
         case typeVars of
-           [var]             -> strVar var
-           vars -> ws1.val ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2.val)
+           [var]             -> unparseTPat var
+           vars -> ws1.val ++ Utils.parens (String.concat (List.map unparseTPat vars) ++ ws2.val)
       in
       ws1.val ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2.val)
+    TParens ws1 e ws2 ->
+      ws1.val ++ "(" ++ unparseType e ++ ws2.val ++ ")"
 
 unparseTypeWithUniformWhitespace : Type -> String
 unparseTypeWithUniformWhitespace tipe =
@@ -175,17 +179,22 @@ unparseTypeWithUniformWhitespace tipe =
     --TApp _ "Bool" _ _     -> " " ++ "Bad_BOOL"
     --TApp _ "String" _ _   -> " " ++ "Bad_STRING"
     --TApp _ "Null" _ _     -> " " ++ "Bad_NULL"
-    TApp _ ident _ ts     -> " " ++ ident ++ String.concat (List.map unparseTypeWithUniformWhitespace ts)
+    TApp _ t ts _     -> " " ++ unparseTypeWithUniformWhitespace t ++ String.concat (List.map unparseTypeWithUniformWhitespace ts)
     TVar _ ident        -> " " ++ ident
     TWildcard _          -> " " ++ "_"
     TForall _ typeVars tipe1 _ ->
-      let strVar (ws,x) = " " ++ x in
       let sVars =
         case typeVars of
-           [var]             -> strVar var
-           vars -> " " ++ Utils.parens (String.concat (List.map strVar vars) ++ " ")
+           [var]             -> unparseTPat var
+           vars -> " " ++ Utils.parens (String.concat (List.map unparseTPat vars) ++ " ")
       in
       " " ++ Utils.parens ("forall" ++ sVars ++ recurse tipe1 ++ " ")
+    TParens _ e _ ->
+      " (" ++ unparseTypeWithUniformWhitespace e ++ ")"
+
+unparseTPat: TPat -> String
+unparseTPat pat = case pat.val of
+  TPatVar ws ident -> ws.val ++ ident
 
 unparse : Exp -> String
 unparse e =

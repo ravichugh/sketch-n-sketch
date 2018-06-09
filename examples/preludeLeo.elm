@@ -2548,7 +2548,7 @@ button_ dropBall xStart y caption xCur =
       line 'black' wLine xStart y xEnd y,
       text (xEnd + 10) (y + 5) (caption + toString val) ] in
   let shapes2 =
-    [ if xBall_ == xBall then circle if val then 'darkgreen' else 'darkred' xBall y rBall else
+    [ if xBall_ == xBall then circle (if val then 'darkgreen' else 'darkred') xBall y rBall else
       if dropBall then         circle 'black' 0! 0! 0! else
                            circle 'red' xBall y rBall ] in
   let shapes = append (zones 'none' shapes1) (zones 'basic' shapes2) in

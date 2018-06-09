@@ -16,12 +16,15 @@ module LangParserUtils exposing
   , mapWSPat_
   , mapExp_
   , mapWSExp_
+  , mapWSInfo
   , SpacePolicy
   , spacesWithoutIndentation
   , spacesNotBetweenDefs
   , spacesWithoutNewline
   , explodeStyleValue
   , implodeStyleValue
+  , isFirstChar
+  , isRestChar
   )
 
 import Parser exposing (..)
@@ -35,6 +38,7 @@ import Info exposing (..)
 import Regex
 import ImpureGoodies
 import Pos exposing (Pos)
+import Char
 
 --------------------------------------------------------------------------------
 -- Whitespace
@@ -171,6 +175,21 @@ nospace : Parser WS
 nospace =
   trackInfo <| succeed ""
 
+isFirstChar : Char -> Bool
+isFirstChar char =
+  Char.isLower char ||
+  Char.isUpper char ||
+  char == '_' ||
+  char == '$'
+
+isRestChar : Char -> Bool
+isRestChar char =
+  Char.isLower char ||
+  Char.isUpper char ||
+  Char.isDigit char ||
+  char == '_' ||
+  char == '$'
+
 guardSpace : ParserI ()
 guardSpace =
   trackInfo
@@ -181,7 +200,7 @@ guardSpace =
       |> andThen
       ( \(offset, source) ->
            guard "expecting space or an opening parenthese" <|
-             (\x -> isOnlySpaces x || x == "(") <| String.slice offset (offset + 1) source
+             (String.all (not << isRestChar)) <| String.slice offset (offset + 1) source
       )
     )
 
@@ -238,6 +257,9 @@ mapExp_ = (map << mapInfo) exp_
 
 mapWSExp_ : ParserI (WS -> Exp__) -> Parser (WS -> Exp)
 mapWSExp_ = (map << mapInfoWS) exp_
+
+mapWSInfo : ParserI (WS -> a) -> Parser (WS -> (WithInfo a))
+mapWSInfo = (map << mapInfoWS) identity
 
 -- This is useful to get rid of semicolon or colons in the top-level language.
 -- app   how spaces before applications argument can be parsed (e.g. if they can go one line)
