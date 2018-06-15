@@ -14,7 +14,6 @@ import Set exposing (Set)
 import Pos exposing (Pos)
 import ValBuilder as Vb
 import ValUnbuilder as Vu
-import UpdateUnoptimized
 import ElmUnparser
 import ImpureGoodies
 import Array
@@ -663,7 +662,6 @@ vDiffsToVal vb vdiffs = case vdiffs of
   VConstDiffs         -> (Vb.constructor vb) "VConstDiffs"   []
   VDictDiffs d        -> (Vb.constructor vb) "VDictDiffs"    [Vb.dict vDictElemDiffToVal vb d]
   VRecordDiffs d      -> (Vb.constructor vb) "VRecordDiffs"  [Vb.record vDiffsToVal vb d]
-  VUnoptimizedDiffs   -> (Vb.constructor vb) "VUnoptimizedDiffs" []
 
 valToVDiffs: Val -> Result String VDiffs
 valToVDiffs v = case Vu.constructor Ok v of
@@ -673,7 +671,6 @@ valToVDiffs v = case Vu.constructor Ok v of
   Ok ("VConstDiffs"  , []) -> Ok VConstDiffs
   Ok ("VDictDiffs"   , [d]) -> Vu.dict valToVDictElemDiff d|> Result.map VDictDiffs
   Ok ("VRecordDiffs", [d]) -> Vu.record valToVDiffs d |> Result.map VRecordDiffs
-  Ok ("VUnoptimizedDiffs", []) -> Ok VUnoptimizedDiffs
   Ok (name, args) -> Err <| "Expected VClosureDiffs _ _, VListDiffs _, VStringDiffs, VConstDiffs, VDictDiffs _, VRecordDiffs _, got " ++
     valToString v ++ " (constructor = " ++ name ++ " with " ++ toString (List.length args) ++ "arguments)"
   Err msg -> Err msg
@@ -785,8 +782,6 @@ vDiffsToString_ indent vOriginal vModified vDiffs =
         _ -> "[Internal error] vDiffsToString_ " ++ toString vDiffs ++ " expects closures here, got " ++ valToString vOriginal ++ ", " ++ valToString vModified
     VConstDiffs ->
       "\n" ++ indent ++ "Was " ++ valToString vOriginal ++ ", now " ++ valToString vModified
-    VUnoptimizedDiffs ->
-      "\n" ++ indent ++ "Was " ++ valToString vOriginal ++ ", now (maybe not updated) " ++ valToString vModified
 
 vDiffsToString = vDiffsToString_  ""
 
@@ -1059,8 +1054,8 @@ stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar or
   aux lastEdit lastPos 0 0 diffs ([], [])
 
 
-tupleDiffsToString2: ParensStyle -> Maybe String -> String -> LastEdit -> List Exp ->      List Exp ->      TupleDiffs EDiffs -> (String, (LastEdit, List Exp))
-tupleDiffsToString2  renderingStyle mbStructName    indent    lastEdit    originalChildren modifiedChildren childDiffs =
+tupleDiffsToString2: ParensStyle -> String -> LastEdit -> List Exp ->      List Exp ->      TupleDiffs EDiffs -> (String, (LastEdit, List Exp))
+tupleDiffsToString2  renderingStyle indent    lastEdit    originalChildren modifiedChildren childDiffs =
   let aux: Int -> LastEdit -> List Exp -> List Exp -> TupleDiffs EDiffs -> (String, List Exp) -> (String, (LastEdit, List Exp))
       aux i lastEdit original modified diffs (accStr, accList) =
     --let _ = Debug.log ("aux " ++ toString i ++ " [" ++ (List.take 5 original |> List.map Tuple.first |> String.join ",") ++ "] [" ++
@@ -1077,16 +1072,14 @@ tupleDiffsToString2  renderingStyle mbStructName    indent    lastEdit    origin
               let (incAcc, ((newLastEdit, _), newExps)) = eDiffsToStringPositions renderingStyle indent lastEdit b1 b2 change in
               (accStr ++ incAcc,  accList ++ newExps) |>
                 aux (i + 1) newLastEdit tailOriginal tailModified diffsTail
-            _ -> ("[Internal error] Expcted non-empty " ++ (mbStructName |> Maybe.withDefault "structuro") ++
+            _ -> ("[Internal error] Expcted non-empty " ++ "expression" ++
                 ", diffs = " ++ toString childDiffs ++ ", original children = " ++ (List.map (Syntax.unparser Syntax.Elm) originalChildren |> String.join ",") ++
                 ", modified children: " ++ (List.map (Syntax.unparser Syntax.Elm) modifiedChildren |> String.join ""), (lastEdit, []))
         else
-          Debug.crash <| "Changes does not match the " ++ (mbStructName |> Maybe.withDefault "structuro")
+          Debug.crash <| "Changes does not match the expression"
   in
   let (msg, (newLastEdit, newExps)) =  aux  0 lastEdit originalChildren modifiedChildren childDiffs ("", []) in
-  ((Maybe.map (\structName ->
-      "\n" ++ indent ++ structName ++ " = ... ") mbStructName |> Maybe.withDefault "") ++ msg,
-      (newLastEdit, newExps))
+  (msg, (newLastEdit, newExps))
 
 -- Returns a summary of changes,
 -- which position was affected last
@@ -1142,22 +1135,12 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
       EChildDiffs diffs ->
         -- If you want the trace of what was modified, just input here something
         let childIndent = "" in
-        let mbExpName = -- Just <| LangTools.simpleExpName origExp
-          case origExp.val.e__ of
-             ELet _ k b p _ e1 _ e2 _ ->
-              if eDiffModifiedIndex 0 ediff then
-                --Just <| Syntax.patternUnparser Syntax.Elm p
-                Nothing
-              else
-                Nothing
-             _ -> Nothing
-        in
         let newRenderingStyle = case origExp.val.e__ of
           EParens _ _ r _ -> r
           _ -> renderingStyle
         in
         --let _ = Debug.log ("current renderingStyle:" ++ toString renderingStyle ++ ", new renderingStyle : " ++ toString newRenderingStyle ++ ", currentExpression:" ++ toString origExp) () in
-        let (msg, (newLastEdit, newExps)) = tupleDiffsToString2 newRenderingStyle mbExpName childIndent lastEdit (childExps origExp) (childExps modifExp) diffs in
+        let (msg, (newLastEdit, newExps)) = tupleDiffsToString2 newRenderingStyle childIndent lastEdit (childExps origExp) (childExps modifExp) diffs in
         let newLastPos = offsetPosition newLastEdit origExp.end in
         (msg, ((newLastEdit, newLastPos), newExps))
 
@@ -1306,6 +1289,10 @@ eDiffModifiedIndex i ediffs =
     EChildDiffs ((j, _)::tail) -> if j < i then  eDiffModifiedIndex i <| EChildDiffs tail else (i == j)
     _ -> False
 
+modifiedIndices: TupleDiffs a -> List Int
+modifiedIndices = List.map Tuple.first
+
+
 combineEChildDiffs: List (Int, Maybe EDiffs) -> Maybe EDiffs
 combineEChildDiffs l =
   combineTupleDiffs l |> Maybe.map EChildDiffs
@@ -1330,35 +1317,10 @@ combineAppChanges newE1Changes newE2Changes =
     [] -> Nothing
     eChanges -> Just <| EChildDiffs eChanges
 
-ifUnoptimizedShallowDiff: Val -> Val -> VDiffs -> Results String (Maybe VDiffs)
-ifUnoptimizedShallowDiff original modified vdiffs =
-  case vdiffs of
-    VUnoptimizedDiffs ->
---      (\x -> --let _ = List.map (\y -> Debug.log ("unrolling an unoptmized diffs: " ++
---          (Maybe.map (vDiffsToString original modified) y |> Maybe.withDefault "Nothing")) ()) (Results.toList x) in x) <|
-      defaultVDiffsRec False (\_ _ -> ok1 <| Just VUnoptimizedDiffs) original modified
-    _ -> ok1 (Just vdiffs)
-
-ifUnoptimizedShallowDiffMb: Val -> Val -> Maybe VDiffs -> Maybe VDiffs
-ifUnoptimizedShallowDiffMb original modified vdiffs =
-  case vdiffs of
-    Nothing -> Nothing
-    Just x -> ifUnoptimizedShallowDiff original modified x |> Results.toList |> List.head |> Maybe.andThen identity
-
-ifUnoptimizedDeepDiff: Val -> Val -> VDiffs -> Results String (Maybe VDiffs)
-ifUnoptimizedDeepDiff original modified vdiffs =
-  case vdiffs of
-    VUnoptimizedDiffs ->
-      defaultVDiffs original modified
-    _ -> ok1 (Just vdiffs)
-
 tupleDiffsToDiffs: TupleDiffs a -> Results String (Maybe (TupleDiffs a))
 tupleDiffsToDiffs t = case t of
   []-> ok1 Nothing
   l ->ok1 <| Just l
-
-defaultVDiffsShallow: Val -> Val -> Results String (Maybe VDiffs)
-defaultVDiffsShallow original modified = ok1 (Just VUnoptimizedDiffs)
 
 -- Invoke this only if strictly necessary.
 defaultVDiffs: Val -> Val -> Results String (Maybe VDiffs)
@@ -1386,8 +1348,8 @@ defaultVDiffsRec testEquality recurse original modified =
     (VBase (VString original), VBase (VString modified)) ->
       defaultStringDiffs original modified |> Results.map (Maybe.map VStringDiffs)
     (VClosure _ pats1 body1 env1, VClosure _ pats2 body2 env2) ->
-      let ids = Set.union (Set.diff (LangUtils.identifiersSet body1) (LangUtils.identifiersSetInPats pats1))
-               (Set.diff (LangUtils.identifiersSet body2) (LangUtils.identifiersSetInPats pats2))
+      let ids = Set.union (Set.diff (Lang.identifiersSet body1) (Lang.identifiersSetInPats pats1))
+               (Set.diff (Lang.identifiersSet body2) (Lang.identifiersSetInPats pats2))
       in
       defaultEnvDiffsRec testEquality recurse ids env1 env2 |> Results.andThen (\mbEnvDiff ->
          defaultEDiffs body1 body2 |> Results.map (\mbEDiff ->
@@ -1705,8 +1667,6 @@ mergeVal  original modified1 modifs1   modified2 modifs2 =
   --let _ = Debug.log (valToString original ++ "<-(\n" ++ valToString modified1 ++ "("++toString modifs1++")" ++ "\n,\n" ++ valToString modified2++ "("++toString modifs2++")" ++ ")") () in
   --(\x -> let _ = Debug.log (Tuple.first x |> valToString) () in x) <|
   case (original.v_, modified1.v_, modifs1, modified2.v_, modifs2) of    -- TODO: Find multiple elem insertions and deletions
-    (_, _, VUnoptimizedDiffs, _, VUnoptimizedDiffs) ->
-      (UpdateUnoptimized.mergeVal original modified1 modified2, VUnoptimizedDiffs)
     (VBase (VString originalString), VBase (VString modified1String), VConstDiffs, VBase (VString modified2String), VConstDiffs) ->
       (replaceV_ original <| VBase (VString <| mergeStringHeuristic originalString modified1String modified2String), VConstDiffs)
     (VBase (VString originalString), VBase (VString modified1String), VStringDiffs diffs1, VBase (VString modified2String), VStringDiffs diffs2) ->

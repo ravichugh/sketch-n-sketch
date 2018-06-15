@@ -1161,6 +1161,20 @@ simplePattern =
       , wildcardPattern
       ]
 
+simplePatternWithMaybeColonType: Parser (WS -> Pat)
+simplePatternWithMaybeColonType =
+  delayedCommitMap (\pos posToRes -> posToRes pos)
+  getPos
+  (
+  succeed (\wsToP mbT startPos wsBefore ->
+    case mbT of
+      Just (ws, typ) ->
+        withInfo (pat_ <| PColonType wsBefore (wsToP space0) ws typ) startPos typ.end
+      Nothing -> wsToP wsBefore
+  )
+  |= simplePattern
+  |= ParserUtils.optional (spaceColonType spaces))
+
 --------------------------------------------------------------------------------
 -- General Patterns
 --------------------------------------------------------------------------------
@@ -1178,7 +1192,7 @@ pattern sp =
         , minimumPrecedence =
             0
         , expression =
-            simplePattern
+            simplePatternWithMaybeColonType
         , withZeroSpace =  \wsPat ->
             let finalPat = wsPat space0 in
             mapPrecedingWhitespacePatWS (\ws -> withInfo ws.val finalPat.start finalPat.start) finalPat

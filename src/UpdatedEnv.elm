@@ -5,7 +5,6 @@ import Utils
 import LangUtils exposing (envToString, valEqual)
 import Set exposing (Set)
 import Dict exposing (Dict)
-import UpdateUnoptimized
 
 -- Useful to merge environments faster.
 -- Maybe will containn things like "insert a variable with these dependences"
@@ -19,14 +18,9 @@ original env = UpdatedEnv env []
 -- Merges two modified environments
 merge: Exp -> VDiffs -> Env -> UpdatedEnv -> UpdatedEnv -> UpdatedEnv
 merge e vdiffs env env1 env2 =
-  case vdiffs of
-    VUnoptimizedDiffs ->
-      let is = LangUtils.freeIdentifiers e in
-      { val = UpdateUnoptimized.mergeEnvGeneral e is env env1.val env2.val, changes = [(0, VUnoptimizedDiffs)] }
-    _ ->
-      if isUnmodified env1 then env2 else if isUnmodified env2 then env1 else
-      let (finalEnv, finalChanges) = UpdateUtils.mergeEnv env env1.val env1.changes env2.val env2.changes in
-      UpdatedEnv finalEnv finalChanges
+  if isUnmodified env1 then env2 else if isUnmodified env2 then env1 else
+  let (finalEnv, finalChanges) = UpdateUtils.mergeEnv env env1.val env1.changes env2.val env2.changes in
+  UpdatedEnv finalEnv finalChanges
 
 offset: Int -> EnvDiffs -> EnvDiffs
 offset = UpdateUtils.offset

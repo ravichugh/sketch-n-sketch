@@ -324,8 +324,9 @@ prevLetsFind val_ env p =
       recurse env p =
     case p.val.p__ of
        PVar _ name _ -> deconstructEnv name env
-       PAs _ _ name _ inner -> deconstructEnv name env |> Maybe.andThen (\(v, env1) ->
-           recurse env1 inner |> Maybe.map (\(_, newEnv) -> (v, newEnv))
+       PAs _ inner1 _ inner2 ->
+         recurse env inner1 |> Utils.maybeOrElseLazy (\() ->
+           recurse env inner2
          )
        PConst _ n -> Just <| (val_ <| VConst Nothing (n, dummyTrace), env)
        PBase _ (EBool b) -> Just <| (val_ <| VBase (VBool b), env)
@@ -333,6 +334,7 @@ prevLetsFind val_ env p =
        PBase _ _ -> Nothing
        PWildcard _ -> Nothing
        PParens _ innerP _ -> recurse env innerP
+       PColonType _ innerP _ _ -> recurse env innerP
        PList _  [] _ mbtail _ -> case mbtail of
          Nothing -> Just <| (val_ <| VList [], env)
          Just inner -> recurse env inner

@@ -1422,8 +1422,8 @@ setPatNameInPat path newName pat =
     (PAs ws1 wsi ident ws2 p, []) ->
       replaceP__ pat (PAs ws1 wsi newName ws2 p)
 
-    (PAs ws1 wsi ident ws2 p, 1::is) ->
-      replaceP__ pat (PAs ws1 wsi ident ws2 (setPatNameInPat is newName p))
+    (PAs ws1 p1 ws2 p2, 1::is) ->
+      replaceP__ pat (PAs ws1 (setPatNameInPat is newName p1) ws2 (setPatNameInPat is newName p2))
 
     (PList ws1 ps ws2 Nothing ws3, i::is) ->
       let newPs = Utils.getReplacei1 i (setPatNameInPat is newName) ps in
@@ -1448,14 +1448,15 @@ patToExp pat =
   withDummyExpInfo <|
   case pat.val.p__ of
     PVar ws1 ident _                  -> EVar ws1 ident
-    PAs ws1 wsi ident _ _             -> EVar ws1 ident
+    PAs ws1 p1 _ p2                   -> patToExp p2
     PList ws1 heads ws2 maybeTail ws3 -> EList ws1 (List.map ((,) space0) (List.map patToExp heads)) ws2 (Maybe.map patToExp maybeTail) ws3
     PConst ws1 n                      -> EConst ws1 n dummyLoc noWidgetDecl
     PBase ws1 bv                      -> EBase ws1 bv
     PParens ws1 p ws2                 -> (patToExp p).val.e__
     PWildcard ws1                     -> let _ = Debug.log "WARNING: patToExp: PWildcard" in
                                          EConst ws1 (-9999) dummyLoc noWidgetDecl
-    PRecord ws1 ps ws2                -> ERecord ws1 Nothing (Utils.recordValuesMap patToExp ps) ws2
+    PRecord ws1 ps ws2                -> let _ = Debug.log "WARNING: patToExp: PRecord" in
+                                         ERecord ws1 Nothing (Utils.recordValuesMap patToExp ps) ws2
 
 -- Return the first expression(s) that can see the bound variables.
 -- Returns [] if cannot find scope; letrec returns two expressions [boundExp, body]; others return singleton list.
@@ -1463,10 +1464,23 @@ findScopeAreas : ScopeId -> Exp -> List Exp
 findScopeAreas (scopeEId, branchI) exp  =
   let maybeScopeExp = findExpByEId exp scopeEId in
   case Maybe.map (.val >> .e__) maybeScopeExp of
-    Just (ELet _ _ isRec pat _ boundExp _ body _) ->
-      if isRec
-      then [boundExp, body]
-      else [body]
+    Just (ELet _ _ (Declarations _ _ _ exps) _ body) ->
+      let (res, found) = foldLeftGroup ([], 0, False) exps <|
+        \(acc, declsBefore, canSeeBoundVariables) group ->
+           let newDeclsBefore = declsBefore + List.length group in
+           if canSeeBoundVariables then
+             (acc ++ groupBoundExps group, newDeclsBefore, True)
+           else
+           let idents = groupIdentifiers group in
+           if declsBefore < branchI && branchI <= newDeclsBefore then
+             if isMutuallyRecursive group then
+               (acc ++ groupBoundExps group, newDeclsBefore, True)
+             else
+               (acc, newDeclsBefore, True)
+           else
+             (acc, newDeclsBefore, False)
+      in
+      res
 
     Just (EFun _ pats body _) ->
       [body]
@@ -1490,11 +1504,24 @@ findScopeAreasByIdent ident exp =
   |> List.concatMap
       (\e ->
         case e.val.e__ of
-          ELet _ _ _ pat _ _ _ _ _ ->
-            if List.member ident (identifiersListInPat pat) then
-              expToLetScopeAreas e
-            else
-              []
+          ELet _ _ (Declarations  _ _ _ ((letexps, go) as exps)) _ e2 ->
+            let (res, found) = foldLeftGroup ([], False) exps <|
+              \(acc, canSeeBoundVariables) group ->
+                 if canSeeBoundVariables then
+                   (acc ++ groupBoundExps group, True)
+                 else
+                 let idents = groupIdentifiers group in
+                 if List.member ident idents then
+                   if isMutuallyRecursive group then
+                     (acc ++ groupBoundExps group, True)
+                   else
+                     (acc, True)
+                 else
+                   (acc, False)
+            in
+            if found then
+              res ++ [e2]
+            else res
 
           EFun _ pats body _ ->
             if List.member ident (identifiersListInPats pats) then
@@ -1598,19 +1625,30 @@ findScopeExpAndPatByPathedPatternId ((scopeEId, branchI), path) exp =
   let maybeScopeExp = findExpByEId exp scopeEId in
   let maybePat =
     case (Maybe.map (.val >> .e__) maybeScopeExp, path) of
-      (Just (ELet _ _ _ pat _ _ _ _ _), _) ->
-        followPathInPat path pat
+       (Just (ELet _ _ decls _ _), i::is) ->
+          getDeclarations decls
+          |> Utils.zipWithIndex
+          |> Utils.mapFirstSuccess (\(def, index) ->
+            if index + 1 /= i then Nothing else
+            case def of
+              DeclAnnotation (LetAnnotation _ _ pat _ _ _) ->
+                Just <| followPathInPat is pat
+              DeclExp (LetExp _  _ pat _ _ _) ->
+                Just <| followPathInPat is pat
+              DeclType (LetType _ _ _ pat _ _ _) ->
+                Just <| followPathInPat is pat
+            )
 
-      (Just (EFun _ pats _ _), i::is) ->
+       (Just (EFun _ pats _ _), i::is) ->
         Utils.maybeGeti1 i pats
         |> Maybe.andThen (\pat -> followPathInPat is pat)
 
-      (Just (ECase _ _ branches _), _) ->
+       (Just (ECase _ _ branches _), _) ->
         Utils.maybeGeti1 branchI (branchPats branches)
         |> Maybe.andThen (\pat -> followPathInPat path pat)
 
-      _ ->
-        Nothing
+       _ ->
+         Nothing
   in
   maybePat
   |> Maybe.map (\pat -> (Utils.fromJust_ "findScopeExpAndPatByPathedPatternId" maybeScopeExp, pat))
@@ -1628,8 +1666,9 @@ followPathInPat path pat =
     (_, []) ->
       Just pat
 
-    (PAs _ _ _ _ p, 1::is) ->
-      followPathInPat is p
+    (PAs _ p1 _ p2, i::is) ->
+      Utils.maybeGeti1 i [p1, p2]
+      |> Maybe.andThen (\p -> followPathInPat is p)
 
     (PList _ ps _ Nothing _, i::is) ->
       Utils.maybeGeti1 i ps
@@ -1792,8 +1831,11 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
     PVar _ ident _ ->
       Just thisMatch
 
-    PAs _ _ ident _ innerPat ->
-      recurse innerPat exp
+    PAs _ innerPat1 _ innerPat2 ->
+      recurse innerPat1 exp
+      |> Maybe.andThen (\match ->
+        recurse innerPat2 exp |> Maybe.map ((++) match)
+      )
       |> Maybe.map (postProcessDescendentsWithPath 1)
       |> addThisMatch
 
@@ -1871,14 +1913,15 @@ findLetAndIdentBindingExp targetEId program =
   |> mapFirstSuccessNode
       (\exp ->
         case exp.val.e__ of
-          ELet _ _ _ pat _ boundExp _ _ _ ->
+          ELet _ _ (Declarations _ _ _ (letexps, _)) _ _ ->
+            letexps |> Utils.mapFirstSuccess (\(LetExp _ _ pat _ _ boundExp) ->
             tryMatchExpReturningList pat boundExp
             |> Utils.mapFirstSuccess
                 (\(ident, boundE) ->
                   if boundE.val.eid == targetEId
                   then Just (exp, ident)
                   else Nothing
-                )
+                ))
 
           _ ->
             Nothing
@@ -1928,9 +1971,11 @@ findLetAndPatMatchingExp_ targetEId program letAndPatBoundEFindMap =
   |> mapFirstSuccessNode
       (\exp ->
         case exp.val.e__ of
-          ELet _ _ _ pat _ boundExp _ _ _ ->
-            tryMatchExpPatToPats pat boundExp -- In pt@[x y], must be sure pt matches before [x y]
-            |> Utils.mapFirstSuccess (letAndPatBoundEFindMap exp)
+          ELet _ _ (Declarations _ _ _ (letexps, _)) _ _ ->
+            Utils.mapFirstSuccess (\(LetExp _ _ pat _ _ boundExp) ->
+              tryMatchExpPatToPats pat boundExp -- In pt@[x y], must be sure pt matches before [x y]
+              |> Utils.mapFirstSuccess (letAndPatBoundEFindMap exp)
+            ) letexps
           _ ->
             Nothing
       )
@@ -1948,30 +1993,26 @@ allVars root =
   flattenExpTree root
   |> List.filterMap expToMaybeVar
 
+allSimplyResolvableThings : (Pat -> Exp -> List a) -> Exp -> List a
+allSimplyResolvableThings tryThing program =
+  program
+  |> flattenExpTree
+  |> List.concatMap
+      (\exp ->
+        case exp.val.e__ of
+          ELet _ _ (Declarations _ _ _ (exps, _)) _ _ ->
+            List.concatMap (\(LetExp _ _ pat _ _ boundExp) -> tryThing pat boundExp) exps
+          _                               -> []
+      )
+
 -- Probably not useful unless program has been run through EvalUpdate.assignUniqueNames
 allSimplyResolvableLetBindings : Exp -> List (Ident, Exp)
-allSimplyResolvableLetBindings program =
-  program
-  |> flattenExpTree
-  |> List.concatMap
-      (\exp ->
-        case exp.val.e__ of
-          ELet _ _ _ pat _ boundExp _ _ _ -> tryMatchExpReturningList pat boundExp
-          _                               -> []
-      )
-
+allSimplyResolvableLetBindings =
+  allSimplyResolvableThings tryMatchExpReturningList
 
 allSimplyResolvableLetPatBindings : Exp -> List (Pat, Exp)
-allSimplyResolvableLetPatBindings program =
-  program
-  |> flattenExpTree
-  |> List.concatMap
-      (\exp ->
-        case exp.val.e__ of
-          ELet _ _ _ pat _ boundExp _ _ _ -> tryMatchExpPatToPats pat boundExp
-          _                               -> []
-      )
-
+allSimplyResolvableLetPatBindings =
+  allSimplyResolvableThings tryMatchExpPatToPats
 
 -- Precondition: program has been run through EvalUpdate.assignUniqueNames.
 --
@@ -2025,12 +2066,8 @@ numericLetBoundIdentifiers program =
       ESelect _ _ _ _ _             -> False
       EIf _ _ _ thenExp _ elseExp _ -> recurse thenExp && recurse elseExp
       ECase _ _ branches _          -> List.all recurse (branchExps branches)
-      ETypeCase _ _ tbranches _     -> List.all recurse (tbranchExps tbranches)
-      ELet _ _ _ _ _  _ _ body _    -> recurse body
-      ETyp _ _ _ body _             -> recurse body
+      ELet _ _ _ _ body             -> recurse body
       EColonType _ e _ _ _          -> recurse e
-      ETypeAlias _ _ _ body _       -> recurse body
-      ETypeDef _ _ _ _ _ body _     -> recurse body
       EParens _ e _ _               -> recurse e
       EHole _ Nothing               -> False
       EHole _ (Just val)            -> valIsNum val
@@ -2078,17 +2115,18 @@ renameVarsUntilBound renamings exp =
 transformVarsUntilBound : Dict Ident (Exp -> Exp) -> Exp -> Exp
 transformVarsUntilBound subst exp =
   let recurse e = transformVarsUntilBound subst e in
+  let removeIntroducedIdents introducedIdents subst =
+     List.foldl
+       Dict.remove
+       subst
+       introducedIdents
+  in
   let recurseWithout introducedIdents e =
-    let newSubst =
-      List.foldl
-          Dict.remove
-          subst
-          (Set.toList introducedIdents)
-    in
+    let newSubst = removeIntroducedIdents subst in
     if Dict.size newSubst == 0 then
-      e
+       e
     else
-      transformVarsUntilBound newSubst e
+       transformVarsUntilBound newSubst e
   in
   case exp.val.e__ of
     EConst _ _ _ _              -> exp
@@ -2115,28 +2153,22 @@ transformVarsUntilBound subst exp =
       in
       replaceE__ exp (ECase ws1 newScrutinee newBranches ws2)
 
-    ETypeCase ws1 scrutinee tbranches ws2 ->
-      let newScrutinee = recurse scrutinee in
-      let newTBranches =
-        tbranches
-        |> List.map
-            (mapValField (\(TBranch_ bws1 bType bExp bws2) ->
-              TBranch_ bws1 bType (recurse bExp) bws2
-            ))
-      in
-      replaceE__ exp (ETypeCase ws1 newScrutinee newTBranches ws2)
-
     EApp ws1 e1 es appType ws2      -> replaceE__ exp (EApp ws1 (recurse e1) (List.map recurse es) appType ws2)
-    ELet ws1 kind False p ws2 e1 ws3 e2 ws4 ->
-      replaceE__ exp (ELet ws1 kind False p ws2 (recurse e1) ws3 (recurseWithout (identifiersSetInPat p) e2) ws4)
+    ELet ws1 kind (Declarations po types anns ((exps, go) as grouppedExps)) wsIn e2 ->
+      let (revLetExps, newSubst) = foldLeftGroup ([], subst) grouppedExps <|
+        \(revAcc, subst) group ->
+           let idents = groupIdentifiers group in
+           let newSubst = removeIntroducedIdents idents removeIntroducedIdents in
+           let localSubst = if isMutuallyRecursive group then newSubst else subst in
+           ( Utils.foldLeft revAcc group <|
+               \revAcc (LetExp wsC wsB p fun wsE e) ->
+                  (LetExp wsC wsB p fun wsE (transformVarsUntilBound localSubst e) :: revAcc)
+           , newSubst)
+      in
+      let newLetExps = List.reverse revLetExps in
+      replaceE__ exp <| ELet ws1 kind (Declarations po types anns (newLetExps, go)) wsIn e2
 
-    ELet ws1 kind True p ws2 e1 ws3 e2 ws4 ->
-      replaceE__ exp (ELet ws1 kind True p ws2 (recurseWithout (identifiersSetInPat p) e1) ws3 (recurseWithout (identifiersSetInPat p) e2) ws4)
-
-    ETyp ws1 pat tipe e ws2         -> replaceE__ exp (ETyp ws1 pat tipe (recurse e) ws2)
     EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
-    ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
-    ETypeDef ws1 i vs ws2 dcs e ws3 -> replaceE__ exp (ETypeDef ws1 i vs ws2 dcs (recurse e) ws3)
     EParens ws1 e pStyle ws2        -> replaceE__ exp (EParens ws1 (recurse e) pStyle ws2)
     EHole _ _                       -> exp
 
@@ -2214,22 +2246,23 @@ visibleIdentifiersAtPredicate_ idents exp pred =
       in
       ret <| Utils.unionAll (scrutineeResult::branchResults)
 
-    ETypeCase _ scrutinee tbranches _ -> ret <| recurseAllChildren ()
     EApp _ e1 es _ _                  -> ret <| recurseAllChildren ()
-    ELet _ kind False p _ e1 _ e2 _       ->
-      let assignResult = recurse e1 in
-      let bodyResult   = recurseWithNewIdents [p] e2 in
-      ret <| Set.union assignResult bodyResult
+    ELet _ kind (Declarations _ _ _ grouppedExps) _ e2 ->
+      let (assignsResults, newIdents) = foldLeftGroup (Set.empty, idents) grouppedExps <|
+        \(visibleIdents, idents) group ->
+           let newIdents = List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) group in
+           let assignResult =
+             Utils.foldLeft Set.empty group <|
+              (\acc (LetExp _ _ _ _ _ e2) ->
+                 Set.union acc <|
+                   visibleIdentifiersAtPredicate_ (if isMutuallyRecursive group then Set.union idents newIdents else idents) e2 pred)
+           in
+           (Set.union visibleIdents assignResult, Set.union idents newIdents)
+      in
+      let bodyResult = visibleIdentifiersAtPredicate_ newIdents e2 pred in
+      ret <| Set.union assignsResults bodyResult
 
-    ELet _ kind True p _ e1 _ e2 _ ->
-      let assignResult = recurseWithNewIdents [p] e1 in
-      let bodyResult   = recurseWithNewIdents [p] e2 in
-      ret <| Set.union assignResult bodyResult
-
-    ETyp _ pat tipe e _       -> ret <| recurse e
     EColonType _ e _ tipe _   -> ret <| recurse e
-    ETypeAlias _ pat tipe e _ -> ret <| recurse e
-    ETypeDef _ _ _ _ _ e _    -> ret <| recurse e -- TODO-TD is this correct?
     EParens _ e _ _           -> ret <| recurse e
     EHole _ _                 -> ret Set.empty
 
@@ -2357,7 +2390,8 @@ allVarEIdsToBindingPatsBasedOnUniqueName program =
         (\exp ->
           case exp.val.e__ of
             EFun _ pats _ _          -> List.concatMap indentPatsInPat pats
-            ELet _ _ _ pat _ _ _ _ _ -> indentPatsInPat pat
+            ELet _ _ (Declarations _ _ _ (exps, _)) _ _ -> exps
+              |> List.concatMap (\(LetExp _ _ pat _ _ _) -> indentPatsInPat pat)
             ECase _ _ branches _     -> List.concatMap indentPatsInPat (branchPats branches)
             _                        -> []
         )
@@ -2398,15 +2432,27 @@ bindingPathedPatternIdFor_ currentBindingPathedPatternId targetName predicateMap
           in
           recurse newBindingPathedPatternId body
 
-        ELet _ _ isRecursive pat _ boundExp _ body _ ->
-          let newBindingPathedPatternId =
-            maybeNewBindingForRecursion pat 1 []
-            |> Maybe.withDefault currentBindingPathedPatternId
-          in
-          let pathedPatternIdForBoundExp = if isRecursive then newBindingPathedPatternId else currentBindingPathedPatternId in
-          Utils.firstOrLazySecond
-              (recurse pathedPatternIdForBoundExp boundExp)
-              (\() -> recurse newBindingPathedPatternId body)
+        ELet _ _ (Declarations _ _ _ grouppedExps) _ body ->
+          let aux currentBindingPathedPatternId newBindingPathedPatternId currentGroup groups = case groups of
+            [] :: (newHead::newTail) ->
+               let nextBindingPathedPatternId =
+                 Utils.foldLeft newBindingPathedPatternId newHead <|
+                 \currentBindingPathedPatternId (LetExp _ _ pat _ _ _) ->
+                    maybeNewBindingForRecursion pat 1 []
+                    |> Maybe.withDefault currentBindingPathedPatternId
+               in
+               aux newBindingPathedPatternId nextBindingPathedPatternId newHead (newHead::newTail)
+            ((LetExp _ _ pat _ _ boundExp)::groupTail) :: tail ->
+               let pathedPatternIdForBoundExp = if isMutuallyRecursive currentGroup then
+                  newBindingPathedPatternId else
+                  currentBindingPathedPatternId
+               in
+               Utils.firstOrLazySecond
+                 (recurse pathedPatternIdForBoundExp boundExp)
+                 (\() -> aux currentBindingPathedPatternId newBindingPathedPatternId currentGroup (groupTail::tail))
+            _ ->
+               recurse newBindingPathedPatternId body
+          in aux currentBindingPathedPatternId [] ([]::rebuildGroups grouppedExps)-- isRecursive pat _ boundExp _ body
 
         ECase _ _ branches _ ->
           branchPatExps branches
@@ -2511,21 +2557,22 @@ expEnvAt_ exp targetEId =
             |> Utils.mapFirstSuccess
                 (\(Branch_ _ bPat bExp _) -> recurse bExp |> Maybe.map (addBindingsFrom bPat bExp))
 
-      ETypeCase _ scrutinee tbranches _ -> recurseAllChildren ()
       EApp _ e1 es _ _                  -> recurseAllChildren ()
-      ELet _ kind False p _ e1 _ e2 _       ->
-        case recurse e1 of
-          Just bindings ->
-            Just bindings -- found targetEId in assigns
+      ELet _ kind (Declarations _ _ _ grouppedExps) _ e2       ->
+        let aux accAdder currentGroup expGroups = case expGroups of
+          [] -> recurse e2 |> Maybe.map accAdder
+          [] :: nextHead :: tail -> aux accAdder nextHead (nextHead::tail)
+          ([LetExp _ _ p _ _ e1] :: groupTail) :: tail ->
+             case recurse e1 of
+              Just bindings ->
+                Just <| (if isMutuallyRecursive currentGroup then
+                  Utils.foldLeft identity currentGroup <| \acc (LetExp _ _ p _ _ e1) ->
+                    acc >> addBindingsFrom p e1 else identity) bindings -- found targetEId in assigns
+              Nothing ->
+                aux (accAdder >> addBindingsFrom p e1) currentGroup (groupTail :: tail)
+        in aux identity [] ([]::(rebuildGroups grouppedExps))
 
-          Nothing ->
-            recurse e2 |> Maybe.map (addBindingsFrom p e1)
-
-      ELet _ kind True p _ e1 _ e2 _ -> recurseAllChildren () |> Maybe.map (addBindingsFrom p e1)
-      ETyp _ pat tipe e _        -> recurse e
       EColonType _ e _ tipe _    -> recurse e
-      ETypeAlias _ pat tipe e _  -> recurse e
-      ETypeDef _ _ _ _ _ e _     -> recurse e
       EParens _ e _ _            -> recurse e
       EHole _ _                  -> Nothing
 

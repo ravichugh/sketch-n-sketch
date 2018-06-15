@@ -4,7 +4,7 @@ import Syntax exposing (Syntax)
 import Lang exposing (..)
 import Utils
 import Dict
-import Set
+import Set exposing (Set)
 import Info
 import ParserUtils
 import ImpureGoodies
@@ -58,7 +58,7 @@ simpleExpToVal syntax e =
     EBase  _ ENull -> Ok <| valFromExpVal_ e <| VBase (VNull)
     EList _ elems _ Nothing _ -> Utils.listValues elems |> List.map (simpleExpToVal syntax)
         |> Utils.projOk |> Result.map (VList >> valFromExpVal_ e)
-    ERecord _ Nothing elems _ -> elems |> List.map (\(_, _, k, _, v) -> simpleExpToVal syntax v |> Result.map (\v -> (k, v)))
+    ERecord _ Nothing elems _ -> recordEntriesFromDeclarations elems |> List.map (\(_, _, k, _, v) -> simpleExpToVal syntax v |> Result.map (\v -> (k, v)))
         |> Utils.projOk |> Result.map (Dict.fromList >> VRecord >> valFromExpVal_ e)
     EOp _ _ op [arg] _ ->
       case op.val of
@@ -130,7 +130,7 @@ valToExpFull copyFrom sp_ indent v =
             EList precedingWS (headExp :: tailExps) space0 Nothing spBeforeEnd
     VClosure recNames patterns body env ->
       let (recEnv, remEnv) = Utils.split (List.length recNames) env in
-      let prunedEnv = removeVarsInEnv (Set.fromList recEnv) <| pruneEnvPattern patterns <| pruneEnv body <| env in
+      let prunedEnv = removeVarsInEnv (Set.fromList <| List.map Tuple.first recEnv) <| pruneEnvPattern patterns <| pruneEnv body <| env in
       case prunedEnv of
         [] -> EFun sp patterns body space0
         (name, v)::tail ->
@@ -138,12 +138,15 @@ valToExpFull copyFrom sp_ indent v =
           let startCase =
                 case recNames of
                   [] -> baseCase
-                  [f] -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| foldIndent " " indent) f) space0
+                  [f] -> withDummyExpInfo <|
+                    ELet sp Let (Declarations [0] ([], []) [] (
+                      [LetExp Nothing space1 (withDummyPatInfo <| PVar space0 f noWidgetDecl) FunArgAsPats space1 baseCase], [])) space1 (withDummyExpInfo <| EVar (ws <| foldIndent " " indent) f)
                   _ -> Debug.crash "cannot convert back a VCLosure with multiple defs to an ELet. Need syntax support for that."
           in
-          let bigbody = List.foldl (\(n, v) body -> withDummyExpInfo <| ELet (ws <| foldIndent "" indent) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 body space0) startCase tail
+          let bigbody = List.foldl (\(n, v) body ->
+            withDummyExpInfo <| eLet__ (ws <| foldIndent "" indent) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 body space0) startCase tail
           in
-          ELet sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 bigbody space0
+          eLet__ sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 bigbody space0
     VRecord values ->
       let (isTuple, keyValues) = case vRecordTupleUnapply v of
         Just (kv, elements) -> (True, kv::elements)
@@ -158,8 +161,9 @@ valToExpFull copyFrom sp_ indent v =
       let (precedingWS, keys, ((spaceComma, spaceKey, spaceEqual, v2expHead),
                                (spaceCommaTail, spaceKeyTail, spaceEqualTail, v2expTail)), spBeforeEnd) =
            copyFrom |> Maybe.andThen (\e -> case e.val.e__ of
-           ERecord csp0 _ celems cspend ->
-             let existingkeys =  Utils.recordKeys celems in
+           ERecord csp0 _ decls cspend ->
+             let celems = recordEntriesFromDeclarations  decls in
+             let existingkeys =  celems |> Utils.recordKeys in
              let finalKeys = existingkeys ++ (Dict.keys values |> List.filter (\k -> not (List.any (\e -> e == k) existingkeys))) |>
                 List.filterMap (\x -> if Dict.member x values then Just x else Nothing) in
              let valToExps = case celems of
@@ -173,7 +177,7 @@ valToExpFull copyFrom sp_ indent v =
            _ -> Nothing
          ) |> Maybe.withDefault (sp, Dict.keys values, ((defaultspcHd, defaultspkHd, defaultspeHd, valToExp), (defaultspcTl, defaultspkTl, defaultspeTl, valToExp)),
            if isTuple then ws "" else if Dict.isEmpty values then space1 else ws <| foldIndent "" indent) in
-      ERecord precedingWS Nothing (List.indexedMap (\i (key, v) ->
+      eRecord__ precedingWS Nothing (List.indexedMap (\i (key, v) ->
           if i == 0 then (spaceComma, spaceKey, key, spaceEqual, v2expHead (if isTuple then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
           else (spaceCommaTail, spaceKeyTail, key, spaceEqualTail, v2expTail (if isTuple && i <= 1 then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
         ) keyValues) spBeforeEnd
@@ -280,18 +284,14 @@ typeEqual ty1 ty2 = --let _ = Debug.log "typeEqual " (ty1, ty2) in
   (TUnion sp1 types1 sp2, TUnion sp3 types2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4  &&
           listForAll2 typeEqual types1 types2
-  (TApp sp1 ident1 types1, TApp sp2 ident2 types2) ->
-    wsEqual sp1 sp2 && ident1 == ident2 && listForAll2 typeEqual types1 types2
+  (TApp sp1 ident1 types1 _, TApp sp2 ident2 types2 _) ->
+    wsEqual sp1 sp2 && typeEqual ident1 ident2 && listForAll2 typeEqual types1 types2
   (TVar sp1 ident1, TVar sp2 ident2) ->
     wsEqual sp1 sp2 && ident1 == ident2
-  (TForall sp1 ts1 t1 sp2, TForall sp3 ts2 t2 sp4) ->
+  (TForall sp1 pats1 t1 sp2, TForall sp3 pats2 t2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
-    ( case (ts1, ts2) of
-        (One (sp1, a1), One (sp2, a2)) -> wsEqual sp1 sp2 && a1 == a2
-        (Many sp1 elems sp2, Many sp3 elems2 sp4) -> wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
-          listForAll2 (\(sp1, a1) (sp2, a2) -> wsEqual sp1 sp2 && a1 == a2) elems elems2
-        _ -> False
-    ) && typeEqual t1 t2
+    listForAll2 (\a1 a2 -> a1 == a2) pats1 pats2
+    && typeEqual t1 t2
   (TWildcard sp1, TWildcard sp2) -> wsEqual sp1 sp2
   _ -> False
 

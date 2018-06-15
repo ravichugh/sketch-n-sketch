@@ -145,11 +145,6 @@ maybeOrElse mb ma = case ma of
   Just _ -> ma
   Nothing -> mb
 
-maybeOrElseLazy: (() -> Maybe a) -> Maybe a -> Maybe a
-maybeOrElseLazy mb ma = case ma of
-  Just _ -> ma
-  Nothing -> mb ()
-
 maybeWithLazyDefault: Maybe a -> (() -> a) -> a
 maybeWithLazyDefault mba callback = case mba of
   Just a -> a
@@ -586,6 +581,9 @@ firstOrLazySecond maybe1 lazyMaybe2 =
   case maybe1 of
     Just x  -> maybe1
     Nothing -> lazyMaybe2 ()
+
+maybeOrElseLazy: (() -> Maybe a) -> Maybe a -> Maybe a
+maybeOrElseLazy = Basics.flip firstOrLazySecond
 
 -- In:  [1, 2, 3]
 -- Out: [(1,2), (2,3), (3,1)]

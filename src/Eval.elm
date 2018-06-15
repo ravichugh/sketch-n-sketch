@@ -26,6 +26,7 @@ import Results exposing (Results, ok1)
 import LazyList
 import ValBuilder as Vb
 import ValUnbuilder as Vu
+import Set
 
 valToDictKey : Syntax -> Backtrace -> Val -> Result String (String, String)
 valToDictKey syntax bt v =
@@ -40,9 +41,11 @@ match : (Pat, Val) -> Maybe Env
 match (p,v) = case (p.val.p__, v.v_) of
   (PWildcard _, _) -> Just []
   (PVar _ x _, _) -> Just [(x,v)]
-  (PAs _ _ x _ innerPat, _) ->
-    case match (innerPat, v) of
-      Just env -> Just ((x,v)::env)
+  (PAs _ innerPat1 _ innerPat2, _) ->
+    case match (innerPat1, v) of
+      Just env -> case match (innerPat2, v) of
+        Just env2 -> Just (env2 ++ env)
+        Nothing -> Nothing
       Nothing -> Nothing
   (PList _ ps _ Nothing _, VList vs) ->
     Utils.bindMaybe matchList (Utils.maybeZip ps vs)
@@ -75,7 +78,8 @@ match (p,v) = case (p.val.p__, v.v_) of
           Nothing -> Debug.crash <| "Internal error: key " ++ toString vkey ++ " not found in record value."
         )) patsValues)
   (PRecord _ _ _ , _) -> Nothing
-
+  (PColonType _ p _ tipe, _) ->
+     if Types.valIsType v tipe then match (p, v) else Nothing
   --_ -> Debug.crash <| "Little evaluator bug: Eval.match " ++ (toString p.val.p__) ++ " vs " ++ (toString v.v_)
 
 
@@ -184,12 +188,51 @@ eval syntax env bt e =
   let addProvenanceToValWidgets basedOn (v,ws)   = (addParent { v | provenance = makeProvenance basedOn}, ws) in
   let addProvenanceToRet basedOn ((vws), envOut) = (addProvenanceToValWidgets basedOn vws, envOut) in
   let addWidgets ws1 ((v1,ws2),env1)             = ((v1, ws1 ++ ws2), env1) in
-
-
   let bt_ =
     if e.start.line >= 1
     then e::bt
     else bt
+  in
+  let evalDeclarations (Declarations  _ _ _ (exps, groupOrders)) continuation =
+    let aux groupOrder exps widgets env = case groupOrder of
+      [] -> continuation env widgets
+      i :: groupTail ->
+        let (expHead, expTail) = Utils.split i exps in
+        let rec = isMutuallyRecursive expHead in
+        case expHead |> List.map (\(LetExp _ _ p _ _ e1) ->
+          eval_ syntax env bt_ e1 |> Result.map ((,) p)) |> Utils.projOk of
+          Err msg -> Err msg
+          Ok pValuesWidgets ->
+            let (names, valuesWidgets) = List.unzip pValuesWidgets in
+            let (values, widgetsList) = List.unzip valuesWidgets in
+            let newWidgets = List.concatMap identity widgetsList in
+            if rec then
+              let allNames = names |> List.map (\p -> case (patEffectivePat p).val.p__ of
+                PVar _ fname _ -> Ok fname
+                _ -> Err "Recursive function with non-variable pattern!") |> Utils.projOk
+              in
+              case allNames of
+                Err msg -> Err msg
+                Ok names ->
+                  let recEnv = List.map2 (,) names values in
+                  let newValues = values |> List.map2 (\name value ->
+                       case value.v_ of
+                         VClosure [] x body env_ -> Ok <| replaceV_ value <| VClosure names x body (recEnv ++ env)
+                         _ -> Err <| "Expected VClosures for recursivity, got " ++ valToString value
+                      ) names |> Utils.projOk
+                  in
+                  case newValues of
+                    Err msg -> Err msg
+                    Ok newVals ->
+                      let newEnv = List.map2 (,) names newVals ++ env in
+                      aux groupTail expTail (widgets ++ newWidgets) newEnv
+              else
+                case Utils.foldLeft (Just env) (Utils.zip names values) <|
+                                     \mbEnv (name, value) -> cons (name, value) mbEnv
+                of
+                 Just newEnv -> aux groupTail expTail (widgets ++ newWidgets) newEnv
+                 _         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ "match error in let"
+    in aux groupOrders exps [] env
   in
 
   case e.val.e__ of
@@ -227,25 +270,25 @@ eval syntax env bt e =
                   VList vs_ -> Ok <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_)
                   _         -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list, but " ++ valToString vRest
 
-  ERecord _ mi es _ ->
-    case Utils.projOk <| List.map (eval_ syntax env bt_) (Utils.recordValues es) of
-      Err s -> Err s
-      Ok results ->
-       let (vs,wss) = List.unzip results in
-       let ws = List.concat wss in
-       let keys = Utils.recordKeys es in
-       let dict = Dict.fromList <| Utils.zip keys vs in
-       case mi of
-         Nothing -> Ok <| retBoth vs (VRecord dict, ws)
-         Just (e, init) ->
-           case eval_ syntax env bt_ e of
-             Err s -> Err s
-             Ok (vInit, ws_) ->
-               case vInit.v_ of
-                 VRecord dInit -> -- Completely wrong !
-                   let newDict = Dict.union dict dInit in --The first overrides the second.
-                   Ok <| retBoth vs (VRecord newDict, ws)
-                 _ -> errorWithBacktrace syntax (e::bt) <| strPos init.start ++ " init expression not a dict."
+  ERecord _ mi (Declarations _ _ _ (letexps, _) as declarations) _ ->
+    let resInitDictWidgets  =case mi of
+      Nothing -> Ok <| (Nothing, Dict.empty, [])
+      Just (init, ws) -> case eval_ syntax env bt_ init of
+        Ok (v, ws) -> case v.v_ of
+          VRecord d -> Ok (Just v, d, ws)
+          _ -> errorWithBacktrace syntax (e::bt) <| strPos init.start ++ " init expression not a record, but " ++ valToString v
+        Err msg -> Err msg
+    in
+    case resInitDictWidgets of
+      Err msg -> Err msg
+      Ok (v, d, ws) ->
+        evalDeclarations declarations <| \newEnv widgets ->
+          -- Find the value of each newly added ident and adds it to records.
+          let ids = letexps |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
+          let kvs = VRecord (Dict.union (ids |> Set.fromList |> Set.map (
+            \i -> (i, lookupVar syntax newEnv (e::bt) i e.start |> Utils.fromOk "Record variable"))
+                |> Set.toList |> Dict.fromList) d) in
+          Ok <| retBoth (Maybe.withDefault [] <| Maybe.map (\x -> [x]) v) (kvs, ws)
 
   ESelect ws0 e _ wsId id ->
     case eval_ syntax env bt_ e of
@@ -284,16 +327,6 @@ eval syntax env bt e =
           Err s              -> Err s
           _                  -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement, cannot match " ++ valToString v1
 
-  ETypeCase _ e1 tbranches _ ->
-    case eval_ syntax env (e::bt) e1 of
-      Err s -> Err s
-      Ok (v1,ws1) ->
-        case evalTBranches syntax env (e::bt) v1 tbranches of
-          -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
-          Ok (Just (v2,ws2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
-          Err s              -> Err s
-          _                  -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive typecase statement"
-
   EApp _ e1 [] _ _ ->
     errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " application with no arguments"
 
@@ -323,7 +356,7 @@ eval syntax env bt e =
             VClosure recNames ps funcBody closureEnv ->
               let argValsAndFuncRes =
                 let newEnv = recNames |> List.map (\fName -> 
-                  (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust "Did not find recursive closure in its environment"))
+                  (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust_ "Did not find recursive closure in its environment"))
                 in
                 apply syntax env bt bt_ e ps es funcBody (newEnv ++ closureEnv)
               in
@@ -368,82 +401,14 @@ eval syntax env bt e =
               errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
         in evalVApp v1 es
 
-  ELet wsLet lk defs printOrder wsIn e2 ->
-    let evalrec: Env           -> Env -> List LetExp -> Result String Env
-        evalrec  envPlusRecEnv    recEnv defs = case defs of
-      [] -> Ok recEnv
-      def :: defTail -> case def of
-        LetExp _ _ p _ _ e2 ->
-          case eval_ syntax envPlusRecEnv bt_ e2 of
-            Err s -> Err s
-            Ok (v1, ws1) ->
-              case cons (p, v1) (Just []) of
-                Just recEnv_ ->
-                  evalrec (recEnv_ ++ envPlusRecEnv) (recEnv_ ++ recEnv) defTail
-                Nothing ->
-                  errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser syntax >> Utils.squish) p ++ " with " ++ valToString v1
-        LeTType _ _ _ _ _ _ -> evalRec env recEnv defTail
-    in
-    case evalrec env [] defs of
-      Err s -> Err s
-      Ok recEnv -> recEnv |> List.map (\(name, def) -> case def.v_ of
-        VClosure _ l  
-
-    eval(E |- let F in G) =
-      R = evalrec(E, [], F)
-      R’ = add to each closure in R (direct or recursively) 1) R itself, 2) the list of identifiers in R in the recursive names.
-      eval(E ++ R’, G)
-
-    evalrec(E, R, (x = F) :: G)
-      R’ = R ++ [(x, eval(E ++ R |- F))]
-      evalrec(E, R’, G)
-
-    evalrec(E, R, []) = R
-
-
-  ELet _ _ False p _ e1 _ e2 _ ->
-    case eval_ syntax env bt_ e1 of
-      Err s       -> Err s
-      Ok (v1,ws1) ->
-        case cons (p, v1) (Just (env) of
-          Just env_ ->
-            -- Don't add provenance: fine to say value is just from the let body.
-            -- (We consider equations to be mobile).
-            Result.map (addWidgets ws1) <| eval syntax env_ bt_ e2
-
-          Nothing   ->
-            errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser syntax >> Utils.squish) p ++ " with " ++ valToString v1
-
-
-  ELet _ _ True p _ e1 _ e2 _ ->
-    case eval_ syntax env bt_ e1 of
-      Err s       -> Err s
-      Ok (v1,ws1) ->
-        case ((patEffectivePat p).val.p__, v1.v_) of
-          (PVar _ fname _, VClosure [] x body env_) ->
-            let v1Named = { v1 | v_ = VClosure (Just fname) x body env_ } in
-            case cons (pVar fname, v1Named) (Just env) of
-              -- Don't add provenance: fine to say value is just from the let body.
-              -- (We consider equations to be mobile).
-              Just env_ -> Result.map (addWidgets ws1) <| eval syntax env_ bt_ e2
-              _         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ "bad ELet"
-          (PList _ _ _ _ _, _) ->
-            errorWithBacktrace syntax (e::bt) <|
-              strPos e1.start ++
-              """mutually recursive functions (i.e. letrec [...] [...] e) \
-                 not yet implemented""" --"
-               -- Implementation also requires modifications to LangSimplify.simply
-               -- so that clean up doesn't prune the funtions.
-          _ ->
-            errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " bad letrec"
+  ELet wsLet lk declarations _ e2 ->
+    evalDeclarations declarations (\env widgets -> Result.map (addWidgets widgets) <| eval syntax env bt_ e2)
 
   EColonType _ e1 _ t1 _ ->
     -- Pass-through, so don't add provenance.
     case t1.val of
       -- using (e : Point) as a "point widget annotation"
-      TApp _ a _ ->
-        if String.trim a /= "Point" then eval syntax env bt e1
-        else
+      TVar _ "Point" ->
           eval syntax env bt e1 |> Result.map (\(((v,ws),env_) as result) ->
             case v.v_ of
               VList [v1, v2] ->
@@ -459,10 +424,6 @@ eval syntax env bt e =
       _ ->
         eval syntax env bt e1
 
-  ETyp _ _ _ e1 _       -> eval syntax env bt e1
-  -- EColonType _ e1 _ _ _ -> eval syntax env bt e1
-  ETypeAlias _ _ _ e1 _ -> eval syntax env bt e1
-  ETypeDef _ _ _ _ _ e1 _ -> eval syntax env bt e1
   EParens _ e1 _ _      -> eval syntax env bt e1
   EHole _ (Just val)    -> Ok <| retV [val] val
   EHole _ Nothing       -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
@@ -489,7 +450,7 @@ evalOp syntax env e bt opWithInfo es =
         if vLength > nbArgs then error() else
         let vars = List.range 1 nbArgs |> List.map (\i -> Parser.implicitVarName ++ if (i == 1) then "" else toString i) in
         let (varsComputed, varsRemaining) = Utils.split vLength vars in
-        VClosure Nothing (varsRemaining |> List.map pVar) (
+        VClosure [] (varsRemaining |> List.map pVar) (
           eOp opWithInfo.val (List.map eVar vars)) (Utils.reverseInsert (List.map2 (,) varsComputed vs) env) |> addProvenanceOk
       in
       let nullaryOp args retVal_ =
@@ -724,7 +685,7 @@ apply syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
             case fRetVal1.v_ of
               VClosure recNames ps funcBody closureEnv ->
                 let newEnv = recNames |> List.map (\fName -> 
-                  (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust "Did not find recursive closure in its environment"))
+                  (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust_ "Did not find recursive closure in its environment"))
                 in
                 recurse ps esLeft funcBody (newEnv ++ closureEnv) |> Result.map (\(argVals, (v2, ws2)) -> (argVals, (v2, fRetWs1 ++ ws2)))
               _ ->

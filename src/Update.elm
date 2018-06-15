@@ -138,13 +138,6 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                 case diffs of
                   VStringDiffs l ->
                     updateResultSameEnvDiffs env  (replaceE__ e <| EBase ws (EString quoteChar newChars)) (EStringDiffs l)
-                  VUnoptimizedDiffs ->
-                    updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
-                       (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
-                          case vdiffs of
-                            VStringDiffs l ->
-                               updateResultSameEnvDiffs env  (replaceE__ e <| EBase ws (EString quoteChar newChars)) (EStringDiffs l)
-                            _ -> UpdateCriticalError <| "Expected VStringDiffs 1, got " ++ toString vdiffs
                   _ -> UpdateCriticalError <| "Expected VStringDiffs 2, got " ++ toString diffs
               _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
           _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
@@ -160,8 +153,6 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                  Just bodyModif -> UpdatedExp (replaceE__ e <| EFun sp0 newPs newE sp1) (UpdateUtils.wrap 0 mbBodyModif)
                in
                updateResult (UpdatedEnv newEnv envModifs) updatedE
-             VUnoptimizedDiffs ->
-               updateResult (UpdatedEnv newEnv [(0, VUnoptimizedDiffs)]) (UpdatedExp e (Just (EConstDiffs EAnyDiffs)))
              k -> UpdateCriticalError <| "[internal error] Unexpected modifications to a function: " ++ toString k
          _ -> UpdateCriticalError <| "[internal error] Trying to update a function with non-closure " ++ valToString newVal
 
@@ -173,7 +164,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
        case (oldVal.v_, newVal.v_) of
          (VList origVals, VList newOutVals) ->
 
-           updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+           updateMany diffs
              (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
            case vdiffs of
              VListDiffs vldiffs ->
@@ -329,7 +320,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
      EList sp1 elems sp2 (Just tail) sp3 ->
        case (oldVal.v_, newVal.v_) of
          (VList origVals, VList newOutVals) ->
-           updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+           updateMany diffs
              (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
            case vdiffs of
              VListDiffs ldiffs -> --We do not allow insertions or deletions of elemnts before the tail.
@@ -413,7 +404,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                if not <| List.isEmpty errors then
                  UpdateCriticalError <| String.join ", " errors ++ "is not allowed. Maybe you wanted to use dictionaries?"
                else
-                 updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+                 updateMany diffs
                    (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
                  case vdiffs of
                    VRecordDiffs dModifs ->
@@ -519,15 +510,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
              --if valEqual oldVal newVal then -- OK, that's the correct freeze semantics
              --  \continuation -> updateResultSameEnvExp env e
              --else
-         \continuation ->
-           case diffs of
-             VUnoptimizedDiffs -> -- Maybe it's the same value
-               if valEqual oldVal newVal then
-                 updateResultSameEnvExp env e
-               else
-                 UpdateFails <| "freeze tried to be updated with a different value : " ++ valToString newVal ++ " from " ++ valToString oldVal
-             _ ->
-               UpdateFails <| "Hit a freeze (line " ++ toString e.start.line ++ ")" --: You are trying to update " ++ unparse e ++ " (line " ++ toString e.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'"
+         \continuation -> UpdateFails <| "Hit a freeze (line " ++ toString e.start.line ++ ")" --: You are trying to update " ++ unparse e ++ " (line " ++ toString e.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'"
            --_ -> \continuation -> continuation()
          else \continuation -> continuation()
        in
@@ -559,7 +542,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                   Ok ((vArg, _), vArgEnv) ->
                                     let x = eVar "x" in
                                     let y = eVar "y" in
-                                    updateMany (ifUnoptimizedDeepDiff oldVal newVal diffs)
+                                    updateMany diffs
                                       (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
                                     let diffsVal =
                                       -- ImpureGoodies.logTimedRun ".update vDiffsToVal" <| \_ ->
@@ -609,9 +592,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                                         let vArgStr = valToString vArg in
                                                         Results.projOk <|
                                                         List.map (\r ->
-                                                          (if diffs == VUnoptimizedDiffs
-                                                             then defaultVDiffsShallow
-                                                             else defaultVDiffs) vArg r) <| valuesList
+                                                          defaultVDiffs vArg r) <| valuesList
                                                       Just resultDiffsV ->
                                                         Vu.list (Vu.maybe valToVDiffs) resultDiffsV |>
                                                         Results.fromResult |>
@@ -734,7 +715,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                      if ne1ps > ne2 then -- Less arguments than expected, hence partial application.
                        --let _ = Debug.log ("Less arguments than expected, instead of " ++ toString ne1ps ++ " got " ++ toString ne2) () in
                        let (e1psUsed, e1psNotUsed) = Utils.split ne2 e1ps in
-                       updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+                       updateMany diffs
                          (\() ->  updateResultSameEnvExp env e) <| \diffs ->
                        case (newVal.v_, diffs) of
                          (VClosure _ psOut outBody envOut_, VClosureDiffs modifEnv modifBody) ->
@@ -908,7 +889,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                          Err s       -> UpdateCriticalError s
                          Ok v2ls     ->
                            let v2s = List.map (\((v2, _), _) -> v2) v2ls in
-                           updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+                           updateMany diffs
                               (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
                            case updateDef v2s oldVal newVal vdiffs of
                              Err msg -> UpdateCriticalError msg
@@ -1043,7 +1024,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                        case Vu.list (Vu.tuple2 (Vu.dup Vu.identity (LangUtils.valToDictKey Syntax.Elm)) Vu.identity) keyValuesList of
                          Err msg -> UpdateCriticalError <| "Expected a list of key/values, got " ++ msg ++ " for " ++ valToString keyValuesList
                          Ok listKeyDictKeyValues ->
-                            updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+                            updateMany diffs
                               (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
                             case (newVal.v_, vdiffs) of
                               (VDict newDict, VDictDiffs dictDiffs) ->
@@ -1104,14 +1085,14 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                            let newDict = replaceV_ dict <| VDict <| Dict.remove dictKey d in
                                            continuation newDict newDiff
                                          Ok ("Just", [newKeyVal]) -> -- Updates
-                                           updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+                                           updateMany diffs
                                              (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
                                            case vdiffs of
                                              VRecordDiffs dDiffs ->
                                                case Dict.get Lang.ctorArgs dDiffs of
                                                  Nothing -> updateResultSameEnvExp env e
                                                  Just subdiff ->
-                                                   updateMany (ifUnoptimizedShallowDiff oldKeyVal newKeyVal subdiff)
+                                                   updateMany subdiff
                                                      (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
                                                    case vdiffs of
                                                      VRecordDiffs dDiffs2 ->
@@ -1144,7 +1125,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                      _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
                                  Just oldValue -> -- There was a value. In case we try to insert this key again, we either fail the insertion or convert it to an update.
                                    -- Currently, we fail
-                                   updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+                                   updateMany diffs
                                      (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
                                    case vdiffs of
                                      VDictDiffs dDiffs ->
@@ -1179,7 +1160,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                case newVal.v_ of
                                  VDict dNew ->
                                    let valWIthoutKey = replaceV_ newVal <| VDict <| Dict.remove dictKey dNew in
-                                   updateMany (ifUnoptimizedShallowDiff oldVal newVal diffs)
+                                   updateMany diffs
                                      (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
                                    case vdiffs of
                                      VDictDiffs dDiffs ->
@@ -1223,7 +1204,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                   Ok ((v, _), _) ->
                                     case (opArgs, vs) of
                                       ([opArg], [arg]) ->
-                                        updateMany ((if diffs == VUnoptimizedDiffs then defaultVDiffsShallow else defaultVDiffs) arg v)
+                                        updateMany (defaultVDiffs arg v)
                                           (\() -> updateResultSameEnvExp env e) <| \vDiff ->
                                           updateContinue "EOp ToStrExceptStr default" env opArg [] arg v vDiff <| \newUpdatedEnv newOpArg ->
                                             updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
@@ -1253,7 +1234,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                              Ok ((v, _), _) ->
                                case (opArgs, vs) of
                                  ([opArg], [arg]) ->
-                                   updateMany ((if diffs == VUnoptimizedDiffs then defaultVDiffsShallow else defaultVDiffs) arg v)
+                                   updateMany (defaultVDiffs arg v)
                                      (\() -> updateResultSameEnvExp env e) <| \vDiff ->
                                        updateContinue "EOp ToStr" env opArg [] arg v vDiff <| \newUpdatedEnv newOpArg ->
                                          updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
@@ -1497,7 +1478,7 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                        else -- end < saLength
                          aux (offset - (end - start) + replacement) (su::revForSa) diffsTail
               in
-              ifUnoptimizedShallowDiff oldOutVal newOutVal diffs |> Results.andThen (\mbvdiff ->
+              diffs |> Results.andThen (\mbvdiff ->
                 case mbvdiff of
                   Just (VStringDiffs d) -> aux 0 [] d
                   Just dd ->
@@ -1749,7 +1730,7 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
             ([], _, Nothing) -> (v, Nothing)
             (_, VList tailVals, _) -> (replaceV_ v <| (VList <| newVals ++ tailVals),
                                       Just <| VListDiffs <|
-                                       (List.map (\(i, d) -> (i, ListElemUpdate d)) mbValsDiffs) ++ (case ifUnoptimizedShallowDiffMb oldTailVal newTailVal mbTailValDiffs of
+                                       (List.map (\(i, d) -> (i, ListElemUpdate d)) mbValsDiffs) ++ (case mbTailValDiffs of
                                          Nothing -> []
                                          Just (VListDiffs diffs) ->
                                            UpdateUtils.offset (List.length ps) diffs

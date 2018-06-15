@@ -279,9 +279,9 @@ escapeSlashDollar s = Regex.replace Regex.All (Regex.regex "\\$") (\_ -> "\\\\\\
 lambdaToString: List Int -> Val -> VDiffs -> Results String (List (Int, Int, String))
 lambdaToString oldConcatenationStarts valAfter vdiffs =
   case (valAfter.v_, vdiffs)  of
-    (VClosure Nothing [_] lambdaBody2 env2, VClosureDiffs _ Nothing) ->
+    (VClosure [] [_] lambdaBody2 env2, VClosureDiffs _ Nothing) ->
       ok1 []
-    (VClosure Nothing [_] lambdaBody2 env2, VClosureDiffs _ mbediffs) ->
+    (VClosure [] [_] lambdaBody2 env2, VClosureDiffs _ mbediffs) ->
       flip Results.andThen (unconcat lambdaBody2 mbediffs |> Results.fromResult) <| \(newConcatenation, listElemDiffs) ->
         let recoverSubExpressionStringDiffs e = ok1 [] in
         let recoverSubStringsDiffs e = case eAppUnapply1 e of
@@ -427,12 +427,6 @@ recoverMatchedStringDiffs  oldRegexMatch newV mbdiffs =
                           Result.andThen (\tuplediffs ->
                              List.map (\d -> case d of
                               (i, VStringDiffs l) -> Ok (i, l)
-                              (i, VUnoptimizedDiffs) ->
-                                case defaultStringDiffs (Utils.nth oldStringList i |> Utils.fromOk "UpdateRegex.nth1") (Utils.nth newStringList i |> Utils.fromOk "UpdateRegex.nth2") of
-                                  Ok (LazyList.Cons (Just l) _) -> Ok (i, l)
-                                  Ok (LazyList.Cons Nothing _) -> Ok (i, [])
-                                  Err msg -> Err msg
-                                  d -> Err <| "Expected vStringDiffs, got " ++ toString d
                               _ -> Err <| "Expected vStringDiffs, got " ++ toString d
                              ) tuplediffs |> Utils.projOk
                           ) |>

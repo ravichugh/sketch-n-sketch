@@ -456,7 +456,9 @@ type alias Backtrace = List Exp
 -- might benefit from using PIds instead. However, PathedPatternIds are probably
 -- still a better fit in a few places (mentioned above).
 
-type alias ScopeId = (EId, Int) -- ELet/EFun/ECase. Int is the branch number for ECase (always 1 for others)
+-- ELet/EFun/ECase.
+-- Int is the branch number for ECase, the declaration number for ELet, 1 for EFun
+type alias ScopeId = (EId, Int)
 
 type alias PathedPatternId = (ScopeId, List Int)
 
@@ -1797,6 +1799,19 @@ eRecord kvs    = let range = List.range 0 (List.length kvs - 1) in
     (List.map (\(k, v) -> LetExp (Just space0) space1 (pVar k) FunArgAsPats space1 v) kvs, range |> List.map (always 1))) space1
 eSelect e name = withDummyExpInfo  <| ESelect space0 e space0 space0 name
 
+recordEntriesFromDeclarations: Declarations -> List (WS, WS, Ident, WS, Exp)
+recordEntriesFromDeclarations (Declarations _ (types, _) anns (exps, _)) =
+  exps |> List.concatMap (\(LetExp wsComma wsBefore p _ wsEq e) ->
+    case p.val.p__ of
+      PVar ws ident _ ->
+        let (oldWsComma, oldWsKey) = case wsComma of
+          Nothing -> (withDummyRange (wsBefore.val ++ ws.val), withDummyRange "")
+          Just wsc -> (wsc, withDummyRange (wsBefore.val ++ ws.val))
+       in
+        [(oldWsComma, oldWsKey, ident, wsEq, e)]
+      _ -> []
+  )
+
 tApp a b c d = withDummyRange <| TApp a b c d
 
 desugarEApp e es = case es of
@@ -1861,8 +1876,13 @@ eRecord__ wsBefore mbInit keyValues wsBeforeEnd =
   let rangeValues = List.range 0 (List.length keyValues - 1) in
   ERecord wsBefore mbInit (Declarations rangeValues ([], []) [] (
     keyValues |> List.map (\(spComma, spKey,key,spEq,value) ->
-      LetExp (if spComma.val == "" then Nothing else (Just spComma))
-        spKey (pVar key) FunArgAsPats spEq value
+      let (mbComma, spBefore) =
+        if String.contains "\n" spComma.val && spKey.val == "" then
+           (Nothing, withDummyRange (spComma.val ++ spKey.val))
+        else
+           (Just spComma, spKey)
+      in
+      LetExp mbComma spBefore (pVar key) FunArgAsPats spEq value
     )
     , rangeValues |> List.map (always 1))) wsBeforeEnd
 
@@ -1997,6 +2017,9 @@ vRecordTupleUnapply v = case v.v_ of
 pVarUnapply p = case p.val.p__ of
   PVar _ s _ -> Just s
   _ -> Nothing
+
+tpVarUnapply p = case p.val of
+  TPatVar _ s -> Just s
 
 -- note: dummy ids...
 -- vTrue    = vBool True
@@ -3245,14 +3268,14 @@ taggedExpPats exp =
     ECase _ _ branches _ ->
       tagBranchList exp.val.eid branches
     ELet _ _ defs _ _ ->
-      List.concatMap (\def -> case def of
+      List.concatMap (\(def, index) -> case def of
         DeclAnnotation (LetAnnotation _ _ p0 _ _ _) ->
-          tagSinglePat (rootPathedPatternId (exp.val.eid, 1)) p0
+          tagSinglePat (rootPathedPatternId (exp.val.eid, index + 1)) p0
         DeclExp (LetExp _  _ p0 _ _ _) ->
-          tagSinglePat (rootPathedPatternId (exp.val.eid, 1)) p0
+          tagSinglePat (rootPathedPatternId (exp.val.eid, index + 1)) p0
         DeclType (LetType _ _ _ p0 _ _ _) ->
-          tagSinglePat (rootPathedPatternId (exp.val.eid, 1)) p0
-      ) (getDeclarationsInOrder defs)
+          tagSinglePat (rootPathedPatternId (exp.val.eid, index + 1)) p0
+      ) (getDeclarations defs |> Utils.zipWithIndex)
     _ ->
       []
 
@@ -3408,12 +3431,22 @@ freeVars exp =
               (if isMutuallyRecursive expGroup then freeVarsBoundExpsFlat |> removeIntroducedBy pats else freeVarsBoundExpsFlat)
     _ -> childExps exp |> List.concatMap freeVars
 
+groupIdentifiers: List LetExp -> List Ident
+groupIdentifiers = List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p)
+
+groupBoundExps: List LetExp -> List Exp
+groupBoundExps = List.map (\(LetExp _ _ _ _ _ e) -> e)
+
 -- A group is mutually recursive iff it has at least 2 members or all expressions are syntactic lambdas.
 -- In practice, only the second condition is valid, but it happens that the first one implies the second.
 isMutuallyRecursive: List LetExp -> Bool
 isMutuallyRecursive group = List.length group >= 2 || (List.all (\(LetExp _ _ _ _ _ e) -> case e.val.e__ of
   EFun _ _ _ _ -> True
   _ -> False) group)
+
+rebuildGroups: WithGroupingInfo (List a) -> List (List a)
+rebuildGroups grouppedElems =
+  List.reverse <| foldLeftGroup [] grouppedElems <| (\b newGroup -> newGroup::b)
 
 foldLeftGroup: b -> WithGroupingInfo (List a) -> (b -> List a -> b) -> b
 foldLeftGroup acc (elems_, groupingInfo_) callback =
@@ -3471,7 +3504,6 @@ type VDiffs = VClosureDiffs EnvDiffs (Maybe EDiffs)
             | VDictDiffs (Dict (String, String) VDictElemDiff)
             | VRecordDiffs (Dict String VDiffs)
             | VConstDiffs
-            | VUnoptimizedDiffs -- For benchmarking against no diff
 
 type EDiffs = EConstDiffs EWhitespaceDiffs
             | EListDiffs (ListDiffs EDiffs)
