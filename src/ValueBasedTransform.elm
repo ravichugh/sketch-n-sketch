@@ -802,7 +802,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
 
 
 -- Returns synthesis results
--- Build an abstraction where one feature is returned as function of the other selected features.
+-- Build an abstraction where one feature is returned as function, perhaps of the other selected features.
 buildAbstraction : Syntax -> Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
 buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
   let unparse = Syntax.unparser syntax in

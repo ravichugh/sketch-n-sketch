@@ -2787,7 +2787,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
       makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds
 
 
--- If you need to force the binding to be copied. makeEIdVisibleToEIds calls this as a last resort.
+-- makeEIdVisibleToEIds calls this as a last resort.
 -- Returns Maybe (newName, insertedVarEId, program)
 makeEIdVisibleToEIdsByInsertingNewBinding : Exp -> EId -> Set EId -> Maybe (Ident, EId, Exp)
 makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
