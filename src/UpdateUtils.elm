@@ -1439,35 +1439,40 @@ defaultStringDiffs before after =
     in aux 0 difference []
   )
 
-alignRecordDatatypes: (a -> Maybe String) -> List a -> List a -> List (DiffChunk (List a)) -> Maybe (List (DiffChunk (List a)))
+
+-- Given a way to get the name of datatypes-encoded values, try to perform an alignment on the datatype names instead
+-- If all the datatypes returned are the same, return Nothing.
+alignRecordDatatypes: (a -> Maybe String) -> List a -> List a -> List (DiffChunk (List a)) -> Maybe (Results String (List (DiffChunk (List a))))
 alignRecordDatatypes datatypeNameOf removed added difftail =
   let withDatatypes l = List.map (\elem -> (elem, datatypeNameOf elem)) l in
-  let datatypedifferences = diff (\(_, datatypename) -> Maybe.withDefault "" datatypename) (withDatatypes removed) (withDatatypes added) in
-  case datatypedifferences of
-    [DiffEqual _] -> Nothing
+  let resDataTypeDifferences = alldiffs (\(_, datatypename) -> Maybe.withDefault "" datatypename) (withDatatypes removed) (withDatatypes added) in
+  case resDataTypeDifferences of
+    Ok (LazyList.Cons [DiffEqual _] _) -> Nothing
     _ ->
-  let aux: List (DiffChunk (List (a, Maybe String))) -> List a -> List a -> (Bool, List (DiffChunk (List a))) -> Maybe (List (DiffChunk (List a)))
-      aux diffs removed added (changedStructure, revAccDiffs) = case diffs of
-     [] -> if changedStructure then Just <| List.reverse revAccDiffs else Nothing
+      resDataTypeDifferences |> Results.map (\datatypedifferences ->
+  let aux: List (DiffChunk (List (a, Maybe String))) -> List a -> List a -> List (DiffChunk (List a)) -> List (DiffChunk (List a))
+      aux diffs removed added revAccDiffs = case diffs of
+     [] -> List.reverse revAccDiffs
      DiffEqual elems::difftail -> -- Same datatypes here, so the alignment is good.
        let count = List.length elems in
        let (removedTaken, removedRemaining) = Utils.split count removed in
        let (addedTaken, addedRemaining) = Utils.split count added in
-       (changedStructure, DiffEqual [] :: DiffAdded addedTaken :: DiffRemoved removedTaken :: revAccDiffs) |>
+       (DiffEqual [] :: DiffAdded addedTaken :: DiffRemoved removedTaken :: revAccDiffs) |>
        aux difftail removedRemaining addedRemaining
      DiffRemoved elems::difftail -> -- tags were deleted
        let count = List.length elems in
        let (removedTaken, removedRemaining) = Utils.split count removed in
-       (True, DiffEqual [] :: DiffRemoved removedTaken :: revAccDiffs) |>
+       (DiffEqual [] :: DiffRemoved removedTaken :: revAccDiffs) |>
        aux difftail removedRemaining added
      DiffAdded elems :: difftail -> -- tags were inserted
        let count = List.length elems in
        let (addedTaken, addedRemaining) = Utils.split count added in
        -- Prevent these insertions to be part of a replacement
-       (True, DiffEqual [] :: DiffAdded addedTaken :: revAccDiffs) |>
+       (DiffEqual [] :: DiffAdded addedTaken :: revAccDiffs) |>
        aux difftail removed addedRemaining
   in
-  aux datatypedifferences removed added (False, [])
+  aux datatypedifferences removed added []
+  ) |> Just
 
 
 defaultListDiffs: (a -> String) -> (a -> Maybe String) -> (a -> a -> Results String (Maybe b)) -> List a -> List a -> Results String (Maybe (ListDiffs b))
@@ -1481,10 +1486,11 @@ defaultListDiffs keyOf datatypeNameOf defaultElemModif elems1 elems2 =
         DiffEqual elems::difftail ->
           aux (i + List.length elems) accDiffs difftail
         DiffRemoved removed::DiffAdded added::difftail ->
-          case alignRecordDatatypes datatypeNameOf removed added difftail of
-            Just newDiffs -> aux i accDiffs newDiffs
-            Nothing ->
           -- Better align elements based on datatype.
+          case alignRecordDatatypes datatypeNameOf removed added difftail of
+            Just resNewDiffs -> resNewDiffs |> Results.andThen (aux i accDiffs)
+            Nothing ->
+          -- No alignment possible, hence we just diff all elements and then insert/delete the remaining elements.
           let lengthRemoved = List.length removed in
           let lengthAdded = List.length added in
           let toInsertRes = List.map3 (\i r a -> defaultElemModif r a |>
@@ -1500,7 +1506,7 @@ defaultListDiffs keyOf datatypeNameOf defaultElemModif elems1 elems2 =
                   else accDiffs2
              in
              aux (i + lengthRemoved) accDiffs3 difftail
-            ) i lengthRemoved difftail)
+             ) i lengthRemoved difftail)
         DiffRemoved elems::difftail ->
           let removedLength = List.length elems in
           aux (i + removedLength) ((i, ListElemDelete removedLength)::accDiffs) difftail
