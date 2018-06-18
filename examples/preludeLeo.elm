@@ -419,6 +419,30 @@ Update =
     in
     applyLens constantInputLens x
   in
+  -- TODO: Replace this by enabling the return of Result String (Values [values...] | ValuesDiffs [(values, diffs)])
+  letrec valuesWithDiffs valuesDiffs = case valuesDiffs of
+     [] -> { values = [], diffs = [] }
+     (v, d)::tail -> let {values, diffs} = valuesWithDiffs tail in
+       {values = v::values, diffs = d::diffs}
+  in
+  let addDiff f mbDiff (d, changed) =
+        case mbDiff of
+          Nothing -> (d, changed)
+          Just x -> (f d x, True)
+  in
+  let pairDiff2 mbDiff1 mbDiff2 =
+        ({}, False)
+        |> addDiff (\d x -> {d | _1 = x}) mbDiff1
+        |> addDiff (\d x -> {d | _2 = x}) mbDiff2
+        |> (\(d, changed) -> if changed then Just (VRecordDiffs d) else Nothing)
+  in
+  let pairDiff3 mbDiff1 mbDiff2 mbDiff3 =
+        ({}, False)
+        |> addDiff (\d x -> {d | _1 = x}) mbDiff1
+        |> addDiff (\d x -> {d | _2 = x}) mbDiff2
+        |> addDiff (\d x -> {d | _3 = x}) mbDiff3
+        |> (\(d, changed) -> if changed then Just (VRecordDiffs d) else Nothing)
+  in
   type SimpleListDiffOp = KeepValue | DeleteValue | InsertValue Value | UpdateValue Value
   let listDiffOp diffOp oldValues newValues =
    -- listDiffOp : DiffOp -> List Value -> List Value -> List SimpleListDiffOp
@@ -471,6 +495,57 @@ Update =
              ConcStringUpdate start end (String.slice (start + offset) (start + replaced + offset) newString) :: revAcc |>
              aux (offset + replaced - (end - start)) tail
         in aux 0 d []
+  in
+  let affinity a b = if a == "" || b == "" then 10 else
+     case extractFirstIn "\\d$" a of
+       Just _ -> case extractFirstIn "^\\d" b of
+         Just _ -> 8
+         _ -> 5
+       _ -> 5
+  in
+  let preferStringInsertionToLeft s1 inserted s2 = affinity s1 inserted > affinity inserted s2 in
+  letrec offsetStr n list = case list of
+      (StringUpdate start end replaced) :: tail -> StringUpdate (start + n) (end + n) replaced :: offsetStr n tail
+      [] -> []
+  in
+  let mbConsStringUpdate start end replaced tail =
+    if start == end && replaced == 0 then tail else (StringUpdate start end replaced) :: tail
+  in
+  letrec
+    -- Returns all the possible ways of splitting the string differences at a particular index,
+    -- at which the oldString used to be concatenated.
+    -- Returns the new strings for left and for right.
+    -- The old strings would simply be computed by (String.take n oldString) (String.drop n oldString)
+    splitStringDiffsAt n offset oldString newString stringDiffs = case stringDiffs of
+      [] -> [(String.take (n + offset) newString, [],
+             String.drop (n + offset) newString, [])]
+      ((StringUpdate start end replaced) as head) :: tail ->
+        Debug.log """splitStringDiffsAt @n @offset @oldString @newString @stringDiffs = """ <|
+        if end < n then
+          splitStringDiffsAt n (offset + replaced - (end - start)) oldString newString tail
+          |> List.map (\(left, leftDiffs, right, rightDiffs) -> (left, head::leftDiffs, right, rightDiffs))
+        else if n < start then
+          [(String.take (n + offset) newString, [],
+            String.drop (n + offset) newString, offsetStr (0 - n - offset) stringDiffs)]
+        else if replaced == 0 then
+          [(String.take (start + offset) newString, mbConsStringUpdate start n 0 [],
+            String.drop (start + offset) newString, offsetStr (0 - n) <| mbConsStringUpdate n end 0 tail)]
+        else
+          let insertionToLeft =
+           (String.take (start + offset + replaced) newString, mbConsStringUpdate start n replaced [],
+            String.drop (start + offset + replaced) newString, offsetStr (0 - n) <| mbConsStringUpdate n end 0 tail)
+          in
+          let insertionToRight =
+           (String.take (start + offset) newString, mbConsStringUpdate start n 0 [],
+             String.drop (start + offset) newString, offsetStr (0 - n) <| mbConsStringUpdate n end replaced tail)
+          in
+          if preferStringInsertionToLeft
+            (String.substring 0 start oldString)
+            (String.substring (start + offset)
+              (start + offset + replaced) newString)
+            (String.drop end oldString)
+          then [insertionToLeft, insertionToRight]
+          else [insertionToRight, insertionToLeft]
   in
   let --------------------------------------------------------------------------------
       -- Update.foldDiff
@@ -569,12 +644,16 @@ Update =
       applyLens lens x
 
     softFreeze = softFreeze
+    splitStringDiffsAt = splitStringDiffsAt
     listDiffOp = listDiffOp
     updateApp  = __updateApp__
     diff = __diff__
     merge = __merge__
     listDiff = listDiffOp __diff__
     strDiffToConcreteDiff = strDiffToConcreteDiff
+    valuesWithDiffs = valuesWithDiffs
+    pairDiff2 = pairDiff2
+    pairDiff3 = pairDiff3
     Regex = {
         replace regex replacement string diffs = updateReplace
       }
@@ -1347,7 +1426,15 @@ List =
   in
   let split n l = {
       apply l = freeze (LensLess.List.split n l)
-      unapply (l1, l2) = Just (l1 ++ l2)
+      update {output = (l1, l2), diffs} =
+        let finalDiffs = case diffs of
+          VRecordDiffs {_1 = VListDiffs l1, _2 = VListDiffs l2} ->
+            Just (VListDiffs (l1 ++ simpleMap (\(i, d) -> (i + n, d)) l2))
+          VRecordDiffs {_1 = VListDiffs l1} ->  Just (VListDiffs l1)
+          VRecordDiffs {_2 = VListDiffs l2} -> Just (VListDiffs (simpleMap (\(i, d) -> (i + n, d)) l2))
+          _ -> Nothing
+        in
+        {values = [l1 ++ l2], diffs = [finalDiffs]}
     }.apply l
   in
   letrec reverseInsert elements revAcc =
