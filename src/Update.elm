@@ -120,6 +120,7 @@ update callbacks forks updateStack =
 
 getUpdateStackOp : Env -> Exp -> PrevLets -> PrevOutput -> Output -> VDiffs -> UpdateStack
 getUpdateStackOp env e prevLets oldVal newVal diffs =
+   let ret = replaceE__ e in
    case e.val.e__ of
      EHole ws _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
 
@@ -128,7 +129,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
          Err msg ->
            UpdateCriticalError msg
          Ok numv ->
-          updateResultSameEnv env <| replaceE__ e <| EConst ws numv loc widget
+          updateResultSameEnv env <| ret <| EConst ws numv loc widget
 
      EBase ws m ->
        case m of
@@ -137,7 +138,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
               VBase (VString newChars) ->
                 case diffs of
                   VStringDiffs l ->
-                    updateResultSameEnvDiffs env  (replaceE__ e <| EBase ws (EString quoteChar newChars)) (EStringDiffs l)
+                    updateResultSameEnvDiffs env  (ret <| EBase ws (EString quoteChar newChars)) (EStringDiffs l)
                   _ -> UpdateCriticalError <| "Expected VStringDiffs 2, got " ++ toString diffs
               _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
           _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
@@ -150,7 +151,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                -- newPs == ps normally, there is no way we can change patterns.
                let updatedE = case mbBodyModif of
                  Nothing -> UpdatedExp e Nothing
-                 Just bodyModif -> UpdatedExp (replaceE__ e <| EFun sp0 newPs newE sp1) (UpdateUtils.wrap 0 mbBodyModif)
+                 Just bodyModif -> UpdatedExp (ret <| EFun sp0 newPs newE sp1) (UpdateUtils.wrap 0 mbBodyModif)
                in
                updateResult (UpdatedEnv newEnv envModifs) updatedE
              k -> UpdateCriticalError <| "[internal error] Unexpected modifications to a function: " ++ toString k
@@ -181,7 +182,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                        let finalElems = List.reverse <| Utils.reverseInsert finalElemsToCollect revElems in
                        let updatedE= case List.reverse revEDiffs of
                          [] -> UpdatedExp e Nothing
-                         l -> UpdatedExp (replaceE__ e <| EList sp1 finalElems sp2 Nothing sp3) (Just <| EListDiffs l)
+                         l -> UpdatedExp (ret <| EList sp1 finalElems sp2 Nothing sp3) (Just <| EListDiffs l)
                        in
                        updateResult collectedUpdatedEnv updatedE
                      (i1, modif)::modiftail ->
@@ -332,7 +333,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                        let updatedList = case List.reverse revEDiffs of
                          [] -> UpdatedExp e Nothing
                          l -> let finalElems = List.reverse <| Utils.reverseInsert elemsToCollect revElems in
-                              UpdatedExp (replaceE__ e <| EList sp1 finalElems sp2 (Just tail) sp3) (Just <| EChildDiffs l)
+                              UpdatedExp (ret <| EList sp1 finalElems sp2 (Just tail) sp3) (Just <| EChildDiffs l)
                        in
                        updateResult collectedEnv updatedList
                      (i, m)::tailmodif ->
@@ -353,7 +354,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                              Just tailDiff ->
                                 Just <| EChildDiffs (changesInOrder ++ [(List.length elems, tailDiff)])
                            in
-                           updateResult finalUpdatedEnv <| UpdatedExp (replaceE__ e <| EList sp1 finalElems sp2 (Just newUpdatedTailExp.val) sp3) finalChanges
+                           updateResult finalUpdatedEnv <| UpdatedExp (ret <| EList sp1 finalElems sp2 (Just newUpdatedTailExp.val) sp3) finalChanges
                        else -- i < elemSize then
                          case m of
                            ListElemDelete count -> -- Let's check if we can propagate this delete for the tail.
@@ -421,7 +422,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                            _ ->
                              let finalEs = revCollectedEs |> List.reverse in
                              let finalChange = Just <| EChildDiffs tailChanges in
-                             UpdatedExp (replaceE__ e <| ERecord sp1 mi finalEs sp2) finalChange
+                             UpdatedExp (ret <| ERecord sp1 mi finalEs sp2) finalChange
                          in
                          updateResult collectedEnv finalUpdatedE
                        else
@@ -451,7 +452,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                            l -> Just <| EChildDiffs l
                                          Just d -> Just <| EChildDiffs <| (0, d)::tailChanges
                                        in
-                                       let finalExp = replaceE__ e <| ERecord sp1 (Just (newInit.val, spm)) (List.reverse revCollectedEs) sp2 in
+                                       let finalExp = ret <| ERecord sp1 (Just (newInit.val, spm)) (List.reverse revCollectedEs) sp2 in
                                        updateResult finalEnv (UpdatedExp finalExp finalChanges)
                                        )  e env collectedEnv sp1 spm revCollectedEs sp2
                                    _ -> UpdateCriticalError <| "Expected a record, got " ++ valToString initv
@@ -489,7 +490,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                let propagatedDiff = VRecordDiffs (Dict.fromList [(ident, diffs)]) in
                updateContinue "ESelect" env e1 (keepLets env initVEnv) initv newE1Value propagatedDiff <|
                  \newE1UpdatedEnv newE1 ->
-                   let finalExp = replaceE__ e <| ESelect sp0 newE1.val sp1 sp2 ident in
+                   let finalExp = ret <| ESelect sp0 newE1.val sp1 sp2 ident in
                    let finalChanges = Maybe.map (\d -> EChildDiffs [(0, d)]) newE1.changes in
                    updateResult newE1UpdatedEnv <| UpdatedExp finalExp finalChanges
              _ -> UpdateCriticalError ("Expected Record, got " ++ valToString initv)
@@ -560,7 +561,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                            ("outDiff", diffsVal), -- Redundant
                                            ("diffOut", diffsVal) -- Redundant
                                          ] in
-                                    let xyApplication = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
+                                    let xyApplication = ret <| EApp space0 x [y] SpaceApp space0 in
                                     let xyEnv = [("x", fieldUpdateClosure), ("y", customArgument)] in
                                     case (
                                         --ImpureGoodies.logTimedRun (".update eval line " ++ toString e1.start.line) <| \_ ->
@@ -606,7 +607,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                                       LazyList.Cons (head, headDiff) lazyTail ->
                                                         updateContinueRepeat ".update" env argument [] vArg head headDiff lazyTail <|
                                                           \newUpdatedEnvArg newUpdatedArg ->
-                                                          let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
+                                                          let newExp = ret <| EApp sp0 (ret1 <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
                                                           let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
                                                           updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
                            in
@@ -619,7 +620,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                      let x = eVar "x" in
                                      let y = eVar "y" in
                                      let customArgument = newVal in
-                                     let customExpr = replaceE__ e <| EApp space0 x [y] SpaceApp space0 in
+                                     let customExpr = ret <| EApp space0 x [y] SpaceApp space0 in
                                      case doEval Syntax.Elm (("x", fieldUnapplyClosure)::("y", customArgument)::env) customExpr of
                                        Err s -> Just <| UpdateCriticalError <| "while evaluating the .unapply of a lens, " ++ s
                                        Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
@@ -631,7 +632,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                                updateMany (UpdateUtils.defaultVDiffs vArg newOut) (\() -> updateResultSameEnvExp env e) <| \newDiff ->
                                                updateContinue ".unapply" env argument (keepLets env vArgEnv) vArg newOut newDiff <|
                                                 \newUpdatedEnvArg newUpdatedArg ->
-                                                let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
+                                                let newExp = ret <| EApp sp0 (ret1 <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
                                                 let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
                                                 updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
                                Nothing -> Nothing
@@ -653,7 +654,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                    (Ok ((v1, _), _), Ok ((v2, _), ws2)) ->
                       let rewrite2 exp2Builder =
                             updateContinue "Rewriting ++ to +" (("x", v1)::("y", v2)::env)
-                              (exp2Builder (replaceE__ eLeft <| EVar space0 "x") (replaceE__ eRight <| EVar space0 "y")) [] oldVal newVal diffs <|
+                              (exp2Builder (retLeft <| EVar space0 "x") (retRight <| EVar space0 "y")) [] oldVal newVal diffs <|
                             \newAugEnv newUpdatedE1 -> -- we discard changes to E1
                               case newAugEnv.val of
                                 ("x", newV1)::("y", newV2)::newEnv ->
@@ -673,7 +674,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                       let (newE, newEChanges) = case (newELeft.changes, newERight.changes) of
                                         (Nothing, Nothing) -> (e, Nothing)
                                         (e1Change, e2Change) ->
-                                           (replaceE__ e <| EApp sp0 e1 [newELeft.val, newERight.val] appType sp1,
+                                           (ret <| EApp sp0 e1 [newELeft.val, newERight.val] appType sp1,
                                             combineEChildDiffs [(1, e1Change), (2, e2Change)])
                                       in
                                       let finalEnv = UpdatedEnv.merge e diffs env newELeftEnv newERightEnv in
@@ -683,9 +684,9 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                       case (v1.v_, v2.v_) of
                         (VBase (VString _), VBase (VString _)) ->
                           let _ = Debug.log <| "It's a string update !" ++ valToString v1 ++ " , " ++ valToString v2 ++ " <-- " ++ valToString newVal in
-                          rewrite2 (\ex ey -> replaceE__ e <| EOp space1 space1 (withDummyRange Plus) [ex, ey] space0)
+                          rewrite2 (\ex ey -> ret <| EOp space1 space1 (withDummyRange Plus) [ex, ey] space0)
                         _ ->
-                          rewrite2  (\ex ey -> replaceE__ e <| EApp space1 (replaceE__ e1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
+                          rewrite2  (\ex ey -> ret <| EApp space1 (ret1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
                _ -> UpdateCriticalError ("++ should be called with two arguments, was called on "++toString (List.length e2s)++". " ++ s)
            Ok ((v1, _),v1Env) ->
              case v1.v_ of
@@ -694,14 +695,14 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                  let (es2ToEval, es2ForLater) = Utils.split ne1ps e2s in
 
                  if List.length es2ForLater > 0 then -- Rewriting of the expression so that it is two separate applications
-                   let rewriting = replaceE__ e <| EApp sp0 (replaceE__ e <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1 in
+                   let rewriting = ret <| EApp sp0 (ret <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1 in
                    updateContinue "evaluating app with correct number of arguments" env rewriting [] oldVal newVal diffs <| (\newUpdatedEnv newRewriting ->
                      case newRewriting.val.val.e__ of
                        EApp _ innerApp newEsForLater _ _ ->
                          case innerApp.val.e__ of
                            EApp _ newE1 newEsToEval _ _ ->
                              let newChanges = newRewriting.changes |> Maybe.map (UpdateUtils.flattenFirstEChildDiffs ne1ps) in
-                             let newExp = replaceE__ e <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1 in
+                             let newExp = ret <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1 in
                              updateResult newUpdatedEnv <| UpdatedExp newExp newChanges
                            e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ toString e
                        e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ toString e
@@ -736,7 +737,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                              e1_updater  <| \newE1UpdatedEnv newUpdatedE1 ->
                                 e2s_updater <| \newE2sUpdatedEnv newUpdatedE2s ->
                                   let finalUpdatedEnv = UpdatedEnv.merge e diffs env newE1UpdatedEnv newE2sUpdatedEnv in
-                                  let finalExp = replaceE__ e <| EApp sp0 newUpdatedE1.val newUpdatedE2s.val appType sp1 in
+                                  let finalExp = ret <| EApp sp0 newUpdatedE1.val newUpdatedE2s.val appType sp1 in
                                   let finalChanges = UpdateUtils.combineAppChanges newUpdatedE1.changes newUpdatedE2s.changes in
                                   updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
                            in
@@ -804,7 +805,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                          e2s_updater <| \newE2UpdatedEnv newUpdatedE2s ->
                             let finalEnv = UpdatedEnv.merge e diffs env newE1UpdatedEnv newE2UpdatedEnv in
                             let finalChanges = UpdateUtils.combineAppChanges newUpdatedE1.changes newUpdatedE2s.changes in
-                            updateResult finalEnv <| UpdatedExp (replaceE__ e <| EApp sp0 newUpdatedE1.val newUpdatedE2s.val appType sp1) finalChanges
+                            updateResult finalEnv <| UpdatedExp (ret <| EApp sp0 newUpdatedE1.val newUpdatedE2s.val appType sp1) finalChanges
                      in
                      case recName of
                        Nothing ->
@@ -850,27 +851,27 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
 
                      if arity < nAvailableArgs then -- Rewriting of the expression so that it is two separate applications
                        let (es2ToEval, es2ForLater)  = Utils.split arity e2s in
-                       let rewriting = replaceE__ e <| EApp sp0 (replaceE__ e <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1 in
+                       let rewriting = ret <| EApp sp0 (ret <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1 in
                        updateContinue "EApp VFun" env rewriting [] oldVal newVal diffs <| (\newUpdatedEnv newRewriting ->
                          case newRewriting.val.val.e__ of
                            EApp _ innerApp newEsForLater _ _ ->
                              case innerApp.val.e__ of
                                EApp _ newE1 newEsToEval _ _ ->
                                  let finalChanges = newRewriting.changes |> Maybe.map (UpdateUtils.flattenFirstEChildDiffs arity) in
-                                 let finalExp = replaceE__ e <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1 in
+                                 let finalExp = ret <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1 in
                                  updateResult newUpdatedEnv <| UpdatedExp finalExp finalChanges
                                e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Elm innerApp
                            e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Elm newRewriting.val
                        )
                      else if arity > nAvailableArgs then  -- Rewrite using eta-expansion.
                        let convertedBody = replaceE__ e1 <|
-                         EApp sp0 (replaceE__ e <| EVar space1 name) (List.map (withDummyExpInfo << EVar space1) <| argList) SpaceApp sp0 in
+                         EApp sp0 (ret <| EVar space1 name) (List.map (withDummyExpInfo << EVar space1) <| argList) SpaceApp sp0 in
                        let funconverted = replaceE__ e1 <| EFun
                             space0
                             (List.map (\n -> withDummyPatInfo <| PVar space1 n noWidgetDecl) <| argList)
                             convertedBody space0 in
                        updateContinue "EApp VFun eta" env
-                         (replaceE__ e <| EApp space0 funconverted e2s SpaceApp space0)
+                         (ret <| EApp space0 funconverted e2s SpaceApp space0)
                          []
                          oldVal
                          newVal
@@ -879,7 +880,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                            case newUpdatedBody.val.val.e__ of
                              EApp _ funreconverted newEs _ _ ->
                                if expEqual funreconverted funconverted then
-                                 let finalExp = replaceE__ e <| EApp sp0 e1 newEs SpaceApp sp1 in
+                                 let finalExp = ret <| EApp sp0 e1 newEs SpaceApp sp1 in
                                  let finalChanges = newUpdatedBody.changes in
                                  updateResult newUpdatedEnv <| UpdatedExp finalExp finalChanges
                                else UpdateFails "Cannot modify the definition of a built-in function"
@@ -899,7 +900,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                  let resMaybeDiffsOffsetted = UpdateUtils.offset 1 diffs in
                                  (v1::outputs, ok1 <| Just <| resMaybeDiffsOffsetted)) in
                                updateOpMultiple "vfun" env (e1::e2s) (\funAndNewE2s ->
-                                     replaceE__ e <| EApp sp0 e1 (Utils.tail "vfun" funAndNewE2s) appType sp1
+                                     ret <| EApp sp0 e1 (Utils.tail "vfun" funAndNewE2s) appType sp1
                                    ) [] (v1::v2s) llWithDiffResult
 
                _ -> UpdateCriticalError <| strPos e1.start ++ " not a function"
@@ -910,12 +911,12 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
              VBase (VBool b) ->
                if b then
                  updateContinue "IfThen" env thn prevLets oldVal newVal diffs <| \newUpdatedEnv newUpdatedThn ->
-                   let finalExp = replaceE__ e <| EIf sp0 cond sp1 newUpdatedThn.val sp2 els sp3 in
+                   let finalExp = ret <| EIf sp0 cond sp1 newUpdatedThn.val sp2 els sp3 in
                    let finalChanges = UpdateUtils.wrap 1 newUpdatedThn.changes in
                    updateResult newUpdatedEnv <| UpdatedExp finalExp finalChanges
                else
                  updateContinue "IfElse" env els prevLets oldVal newVal diffs<| \newUpdatedEnv newUpdatedEls ->
-                   let finalExp = replaceE__ e <| EIf sp0 cond sp1 thn sp2 newUpdatedEls.val sp3 in
+                   let finalExp = ret <| EIf sp0 cond sp1 thn sp2 newUpdatedEls.val sp3 in
                    let finalChanges = UpdateUtils.wrap 2 newUpdatedEls.changes in
                    updateResult newUpdatedEnv <| UpdatedExp finalExp finalChanges
              _ -> UpdateCriticalError <| "Expected boolean condition, got " ++ valToString v
@@ -925,11 +926,11 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
        case (op.val, opArgs) of
          (NoWidgets, [arg]) -> -- We don't need to compute the argument's value since it's the same that we are propagating
            updateContinue  "NoWidgets" env arg [] oldVal newVal diffs <| \newUpdatedEnv newUpdatedArg ->
-             let finalExp = replaceE__ e <| EOp sp1 spo op [newUpdatedArg.val] sp2 in
+             let finalExp = ret <| EOp sp1 spo op [newUpdatedArg.val] sp2 in
              updateResult newUpdatedEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newUpdatedArg.changes)
          (DebugLog, [arg]) ->
            updateContinue  "DebugLog" env arg [] oldVal newVal diffs <| \newUpdatedEnv newUpdatedArg ->
-             let finalExp = replaceE__ e <| EOp sp1 spo op [newUpdatedArg.val] sp2 in
+             let finalExp = ret <| EOp sp1 spo op [newUpdatedArg.val] sp2 in
              updateResult newUpdatedEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newUpdatedArg.changes)
          _ -> -- Here we need to compute the argument's values.
            case Utils.projOk <| List.map (doEval Syntax.Elm env) opArgs of
@@ -1012,7 +1013,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                              Err msg -> UpdateCriticalError <| msg
                              Ok newResultDiffs ->
                                updateContinue "argument of explode" env opArg [] v newResult newResultDiffs <| \newUpdatedEnv newUpdatedOpArg ->
-                                 let finalExp = replaceE__ e <| EOp sp1 spo op [newUpdatedOpArg.val] sp2 in
+                                 let finalExp = ret <| EOp sp1 spo op [newUpdatedOpArg.val] sp2 in
                                  updateResult newUpdatedEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newUpdatedOpArg.changes)
                          (Err msg, _,_ ) -> UpdateCriticalError <| "Expected a list of string as previous output for explode, got " ++ msg ++ " for " ++ valToString oldVal
                          (_, Err msg, _) -> UpdateCriticalError <| "Expected a list of string as new output for explode, got " ++ msg ++ " for " ++ valToString newVal
@@ -1050,7 +1051,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                 let finalValuesList = Vb.list (Vb.tuple2 Vb.identity Vb.identity) (Vb.fromVal keyValuesList) (List.reverse finalListRev) in
                                 let finalDiffsList = VListDiffs <| List.reverse finalDiffsRev in
                                 updateContinue "DictFromList" env keyValuesListE [] keyValuesList finalValuesList finalDiffsList <| \newEnv newKeyValuesListE ->
-                                  let finalExp = replaceE__ e <| EOp sp1 spo op [newKeyValuesListE.val] sp2 in
+                                  let finalExp = ret <| EOp sp1 spo op [newKeyValuesListE.val] sp2 in
                                   updateResult newEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newKeyValuesListE.changes)
                               (_, d) -> UpdateCriticalError <| "Expected a VDictDiffs, got " ++ toString d
                      _ -> UpdateCriticalError <| " DictFromList expects one argument, got " ++ toString (List.length vs)
@@ -1066,7 +1067,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                  case opArgs of
                                    [keyE, dictE] ->
                                      updateContinue "DictGet" env dictE [] dict newDict newDiff <| \newEnv newDictE ->
-                                       updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
+                                       updateResult newEnv <| UpdatedExp (ret <| EOp sp1 spo op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
                                    _ -> UpdateCriticalError <| "DictGet requires two arguments, got " ++ toString (List.length vs)
                                in
                                case Dict.get dictKey d of
@@ -1120,7 +1121,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                    case opArgs of
                                      [keyE, dictE] ->
                                         updateContinue "DictRemove" env dictE [] oldVal newVal diffs <| \newEnv newDictE ->
-                                          updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
+                                          updateResult newEnv <| UpdatedExp (ret <| EOp sp1 spo op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
 
                                      _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
                                  Just oldValue -> -- There was a value. In case we try to insert this key again, we either fail the insertion or convert it to an update.
@@ -1143,7 +1144,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                                   VDict newValDict ->
                                                     let argNewvalDict = replaceV_ newVal <| VDict (Dict.insert dictKey oldValue newValDict) in
                                                     updateContinue "DictRemove" env dictE [] dict argNewvalDict diffs <| \newEnv newDictE ->
-                                                      updateResult newEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
+                                                      updateResult newEnv <| UpdatedExp (ret <| EOp sp1 spo op [keyE, newDictE.val] sp2) (UpdateUtils.wrap 1 newDictE.changes)
                                                   _ -> UpdateCriticalError <| "[internal error] DictRemove was updated with a non-dict: " ++ valToString newVal
                                              _ -> UpdateCriticalError <| "[internal error] DictRemove requires two arguments"
                                      d -> UpdateFails <| "DictRemove: Expected VDictDiffs, got " ++ toString d
@@ -1186,7 +1187,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                          continuationInserted  <| \newEnv2 newInsertedE ->
                                            let finalEnv = UpdatedEnv.merge e diffs env newEnv newEnv2 in
                                            let finalChanges = UpdateUtils.combineEChildDiffs [(1, newInsertedE.changes), (2, newDictE.changes)] in
-                                           updateResult finalEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [keyE, newInsertedE.val, newDictE.val] sp2) finalChanges
+                                           updateResult finalEnv <| UpdatedExp (ret <| EOp sp1 spo op [keyE, newInsertedE.val, newDictE.val] sp2) finalChanges
 
                                      e -> UpdateCriticalError <| "[Internal error] Expected a VDictDiffs, got " ++ toString e
                                  _ -> UpdateCriticalError <| "DictInsert cannot be updated with something other than a dict, got " ++ valToString newVal
@@ -1207,7 +1208,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                         updateMany (defaultVDiffs arg v)
                                           (\() -> updateResultSameEnvExp env e) <| \vDiff ->
                                           updateContinue "EOp ToStrExceptStr default" env opArg [] arg v vDiff <| \newUpdatedEnv newOpArg ->
-                                            updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
+                                            updateResult newUpdatedEnv <| UpdatedExp (ret <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
                                       e -> UpdateCriticalError <| "[internal error] Wrong number of arguments in update ToStrExceptStr: " ++ toString e
                           e -> UpdateCriticalError <| "Expected string, got " ++ valToString newVal
                    in
@@ -1218,7 +1219,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                            case opArgs of
                              [opArg] ->
                                updateContinue "EOp ToStrExceptStr" env opArg [] original newVal diffs <| \newUpdatedEnv newOpArg ->
-                                 updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
+                                 updateResult newUpdatedEnv <| UpdatedExp (ret <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
                              e -> UpdateCriticalError <| "[internal error] Wrong number of argument values in update ToStrExceptStr: " ++ toString e
                          _ -> -- Everything else is unparsed to a string, we just parse it.
                            default original
@@ -1237,7 +1238,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                    updateMany (defaultVDiffs arg v)
                                      (\() -> updateResultSameEnvExp env e) <| \vDiff ->
                                        updateContinue "EOp ToStr" env opArg [] arg v vDiff <| \newUpdatedEnv newOpArg ->
-                                         updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
+                                         updateResult newUpdatedEnv <| UpdatedExp (ret <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
                                  e -> UpdateCriticalError <| "[internal error] Wrong number of arguments in update: " ++ toString e
                      e -> UpdateCriticalError <| "Expected string, got " ++ valToString newVal
                  Eq ->
@@ -1253,7 +1254,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                          Ok ll ->
                            let llWithDiffs = LazyList.map (\newStringV -> (newStringV, UpdateUtils.defaultVDiffs stringV newStringV)) ll in
                            updateAlternatives "extractFirstIn" env stringE [] stringV llWithDiffs <| \newUpdatedEnv newStringE ->
-                               updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [regexpE, newStringE.val] sp2) (UpdateUtils.wrap 1 newStringE.changes)
+                               updateResult newUpdatedEnv <| UpdatedExp (ret <| EOp sp1 spo op [regexpE, newStringE.val] sp2) (UpdateUtils.wrap 1 newStringE.changes)
                      _ -> UpdateCriticalError "extractFirstIn requires regexp, replacement (fun or string) and the string"
                  _ ->
                    case maybeUpdateMathOp op vs oldVal newVal diffs of
@@ -1262,7 +1263,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                      Ok LazyList.Nil ->
                        UpdateFails <| "No way to update computation" ++ Syntax.unparser Syntax.Elm e ++ " with " ++ valToString newVal ++ " (was" ++ valToString oldVal ++ ")"
                      Ok ll ->
-                       updateOpMultiple "op" env opArgs (\newOpArgs -> replaceE__ e <| EOp sp1 spo op newOpArgs sp2) [] vs (LazyList.map (Tuple.mapSecond tupleDiffsToDiffs) ll)
+                       updateOpMultiple "op" env opArgs (\newOpArgs -> ret <| EOp sp1 spo op newOpArgs sp2) [] vs (LazyList.map (Tuple.mapSecond tupleDiffsToDiffs) ll)
 
      ECase sp1 input branches sp2 ->
        case doEval Syntax.Elm env input of
@@ -1279,7 +1280,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                  in
                  input_update <| \newInputUpdatedEnv newInputUpdatedExp ->
                    let finalUpdatedEnv = UpdatedEnv.merge e diffs env newBranchUpdatedEnv newInputUpdatedEnv in
-                   let finalExp = replaceE__ e <| ECase sp1 newInputUpdatedExp.val nBranches sp2 in
+                   let finalExp = ret <| ECase sp1 newInputUpdatedExp.val nBranches sp2 in
                    let finalChanges = UpdateUtils.combineEChildDiffs <| (0, newInputUpdatedExp.changes)::(UpdateUtils.offset 1 nBranchesDiffs) in
                    updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
      --  ETypeCase WS Exp (List TBranch) WS
@@ -1299,16 +1300,103 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                        in
                        e1_update <| \newUpdatedEnvFromE1 newUpdatedE1 ->
                          let finalUpdatedEnv = UpdatedEnv.merge e diffs env newUpdatedEnvFromBody newUpdatedEnvFromE1 in
-                         let finalExp = replaceE__ e <| ELet sp1 letKind False p sp2 newUpdatedE1.val sp3 newUpdatedBody.val sp4 in
+                         let finalExp = ret <| ELet sp1 letKind False p sp2 newUpdatedE1.val sp3 newUpdatedBody.val sp4 in
                          let finalChanges = UpdateUtils.combineEChildDiffs <| [(0, newUpdatedE1.changes), (1, newUpdatedBody.changes)] in
                          updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
                 Nothing ->
                   UpdateCriticalError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
-     ELet sp1 letKind True p sp2 e1 sp3 body sp4 ->
-         case Utils.maybeWithLazyDefault (prevLetsFind (Vb.fromVal oldVal) prevLets p |> Maybe.map Ok) <|
-             \() -> doEval Syntax.Elm env e1 |> Result.map (\((v, w), _) -> (v, [])) of
-           Err s       -> UpdateCriticalError s
-           Ok (oldE1Val,prevLetsWithoutE1) ->
+     ELet sp1 letKind ((Declarations po types anns exps) as decls) wsIn body ->
+       case unconsGroup exps of
+         Nothing ->
+           updateContinue "ELetrec"  env body prevLets oldVal newVal diffs <| \newUpdatedEnvBody newUpdatedBody ->
+             UpdatedExp (ret <| ELet sp1 letKind decls wsIn newUpdatedBody.val) (UpdateUtils.wrap 0 newUpdatedBody.changes)
+         Just (group, tailExps) ->
+           let aux revAcc prevLets g continuation = case g of
+             [] -> continuation prevLets <| List.reverse revAcc
+             (LetExp _ _ p _ _ e1 as letExp):: tailLetExps ->
+                case Utils.maybeWithLazyDefault (prevLetsFind (Vb.fromVal oldVal) prevLets p |> Maybe.map Ok) <|
+                                    \() -> doEval Syntax.Elm env e1 |> Result.map (\((v, w), _) -> (v, [])) of
+                Err msg -> Err msg
+                Ok (oldE1Val, prevLetsWithoutE1) ->
+                  aux (oldE1Val::revAcc) prevLetsWithoutE1 tailLetExps continuation
+           in
+           aux [] prevLets group <| \prevLetsWithoutE1s groupOldValues ->
+             if isMutuallyRecursive group then
+
+             else
+               let groupPatterns = List.map (\(LetExp _ _ p _ _ _) -> p) group in
+               case conssWithInversion (groupPatterns, groupOldValues) (Just (env, identity)) of
+                Just (envWithE1s, conssBuilder) ->
+                  let nextELet = case tailExps of
+                    ([], _) -> body --not necessary, but faster and better for debugging
+                    _ -> ret <| ELet sp1 letKind (Declarations [] ([], []) [] tailExps) wsIn body
+                  in
+                  updateContinue  "ELet"  envWithE1s nextELet prevLetsWithoutE1s oldVal newVal diffs <| \newUpdatedEnvBody newUpdatedBody ->
+                    let (newTailExps, newBody, newDiffs) = case tailExps of
+                      ([], _) -> (([], []), newUpdatedBody.val, UpdateUtils.wrap 0 newUpdatedBody.changes)
+                      (_ , _) -> case newUpdatedBody.val.val.e__ of
+                        ELet _ _ (Declarations _ _ _ (newTailExps, go)) _ newBody ->
+                          let newDiffs = case newUpdatedBody.changes of
+                            Nothing -> []
+                            Just (EChildDiffs s) -> s
+                          in
+                          (newTailExps, newBody, newdiffs)
+                    in
+                    let ((newGroupValues, newValDiffs), newInitialUpdatedEnv) = conssBuilder newUpdatedEnvBody in
+                    let finalTailDiffs = UpdateUtils.shift (List.length group) newDiffs in
+                    --UpdatedExp (ELet sp1 letKind (Declarations po types anns ) wsIn newUpdatedBody.val) (UpdateUtils.wrap 0 newUpdatedBody.changes)
+                    case conssBuilder newUpdatedEnvBody of
+                     ((newE1Vals, newE1ValsDiffs), newUpdatedEnvFromBody) ->
+                       let aux: Int -> List LetExp -> List Val -> List Val -> TupleDiffs VDiffs -> (UpdatedEnv, List LetExp, TupleDiffs EDiffs) -> UpdateStack
+                           aux index group oldE1Vals newE1Vals childDiffs (collectedEnv, collectedLetExps, collectedLetExpDiffs) = case childDiffs of
+                          [] ->
+                            let newLetExps = consGroup (List.reverse collectedLetExps) newTailExps in
+                            let finalExp = ret <| ELet sp1 letKind ((Declarations po types anns newLetExps) as decls) wsIn newBody in
+                            let finalChanges = EChildDiffs <| List.reverse collectedLetExpDiffs ++ finalTailDiffs in
+                            updateResult collectedEnv <| UpdatedExp finalExp finalChanges
+                          (j, m)::diffTail ->
+                             if index < j then
+                               let count = j - index in
+                               let (ignoredLetExps, remaining) = Utils.split count group in
+                               let (ignoredVals, remainingVals) = Utils.split count newE1Vals in
+                               let (ignoredOldVals, remainingOldVals) = Utils.split count oldE1Vals in
+                               (collectedEnv, Utils.reverseInsert ignoredLetExps collectedLetExps, collectedLetExpDiffs) |>
+                               aux j remaining remainingOldVals remainingVals childDiffs
+                             else if index == j then
+                               case (oldE1Vals, newE1Vals, group) of
+                                 (oldE1Val::otherOldVals, newE1Val::otherNewVals, (LetExp spc spb p fs wse e1)::groupTail) ->
+                                   updateContinue "ELet2" env e1 [] oldE1Val newE1Val m <| \newUpdatedEnv newUpdatedE1 ->
+                                     let finalEnv = UpdatedEnv.merge env collectedEnv newUpdatedEnv in
+                                     let finalLetExp = LetExp spc spb p fs wse newUpdatedE1.val :: collectedLetExps in
+                                     let finalCollectedLetExpDiffs = case newupdatedE1.changes of
+                                       Nothing -> collectedLetExpDiffs
+                                       Just m -> (j, m)::collectedLetExpDiffs
+                                     in
+                                     (finalEnv, finalLetExp, finalCollectedLetExpDiffs) |>
+                                     aux (index + 1) groupTail otherOldVals otherNewVals diffTail
+                             else UpdateCriticalError <| "Internal error: unexpected diff"
+                       in
+                       aux 0 group groupValues newGroupValues newValDiffs (newInitialUpdatedEnv, [], [])
+                       {-
+                       let e1_update = case newE1ValsDiffs of
+                         Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp e1 Nothing)
+                         Just m -> updateContinue "ELet2" env e1 [] oldE1Val newE1Val m
+                       in
+                       e1_update <| \newUpdatedEnvFromE1 newUpdatedE1 ->
+                         let finalUpdatedEnv = UpdatedEnv.merge e diffs env newUpdatedEnvFromBody newUpdatedEnvFromE1 in
+                         let finalExp = ret <| ELet sp1 letKind False p sp2 newUpdatedE1.val sp3 newUpdatedBody.val sp4 in
+                         let finalChanges = UpdateUtils.combineEChildDiffs <| [(0, newUpdatedE1.changes), (1, newUpdatedBody.changes)] in
+                         updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
+                       -}
+                Nothing ->
+                  UpdateCriticalError <| strPos e.start ++ " could not match pattern " ++
+                    (List.map (Syntax.patternUnparser Syntax.Elm >> Utils.squish) groupPatterns |> String.join ",") ++
+                    " with " ++ (List.map valToString groupValues |> String.join ",")
+
+
+
+
+               List.map2 (\(LetExp _ _ p _ _ _) v -> (p, v)) group groupOldValues
              case (p.val.p__, oldE1Val.v_) of
                (PVar _ fname _, VClosure isRec x closureBody env_) ->
                  let oldE1ValNamed = if Utils.maybeIsEmpty isRec then replaceV_ oldE1Val <| VClosure (Just fname) x closureBody env_ else oldE1Val in
@@ -1327,7 +1415,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                 updateContinue "ELetrec2" env e1 [] oldE1Val newE1Val m
                             in e1_update <| \newUpdatedEnvE1 newUpdatedE1 ->
                               let finalEnv = UpdatedEnv.merge e diffs env newEnv_ newUpdatedEnvE1 in
-                              let finalExp = replaceE__ e <| ELet sp1 letKind True p sp2 newUpdatedE1.val sp3 newUpdatedBody.val sp4 in
+                              let finalExp = ret <| ELet sp1 letKind True p sp2 newUpdatedE1.val sp3 newUpdatedBody.val sp4 in
                               let finalChanges = UpdateUtils.combineEChildDiffs <| [(0, newUpdatedE1.changes), (1, newUpdatedBody.changes)] in
                               updateResult finalEnv (UpdatedExp finalExp finalChanges)
                     Nothing ->
@@ -1342,11 +1430,11 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                  UpdateCriticalError <| strPos e.start ++ " bad letrec trying to match " ++ Syntax.patternUnparser Syntax.Elm p ++ " with " ++ valToString oldE1Val
 
      EColonType a exp b c d ->
-       updateContinue "EColonType" env exp prevLets oldVal newVal diffs <| \nv ne -> updateResult nv <| UpdatedExp (replaceE__ e <| EColonType a ne.val b c d) (UpdateUtils.wrap 0 ne.changes)
+       updateContinue "EColonType" env exp prevLets oldVal newVal diffs <| \nv ne -> updateResult nv <| UpdatedExp (ret <| EColonType a ne.val b c d) (UpdateUtils.wrap 0 ne.changes)
      EParens sp1 exp pStyle sp2->
        updateContinue "EParens" env exp prevLets oldVal newVal diffs <| \nv ne ->
          let continue ne =
-           updateResult nv <| UpdatedExp (replaceE__ e <| EParens sp1 ne.val pStyle sp2) (UpdateUtils.wrap 0 ne.changes)
+           updateResult nv <| UpdatedExp (ret <| EParens sp1 ne.val pStyle sp2) (UpdateUtils.wrap 0 ne.changes)
          in
          case pStyle of
            HtmlSyntax -> -- Here we convert all newly inserted elements that are style to a string instead of a list of lists.
@@ -1677,24 +1765,16 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
        (_, []) -> (v, Nothing)
        _ -> Debug.crash <| "Not the same shape before/after pattern update: " ++ envToString newUpdatedEnv.val ++ " should have length 1"
      )
-  (PAs sp0 spi x sp1 innerPat, _) ->
-    matchWithInversion (innerPat, v) |> Maybe.map
-      (\(env, updatedEnvReverse) -> ((x,v)::env, \newUpdatedEnv ->
+  (PAs sp0 pat1 sp1 pat2, _) ->
+    let pat2Size = identifiersListInPat pat2 |> List.length in
+    matchWithInversion (pat1, v)
+    |> consWithInversion (pat2, v)
+    |> Maybe.map
+      (\(env, updatedEnvReverse) -> (env, \newUpdatedEnv ->
         if UpdatedEnv.isUnmodified newUpdatedEnv then (v, Nothing) else
-        let (newUpdatedEnvX, newUpdatedEnvInner) = UpdatedEnv.split 1 newUpdatedEnv in
-        if UpdatedEnv.isUnmodified newUpdatedEnvX then -- Then the other environment was modified
-         updatedEnvReverse newUpdatedEnvInner
-        else -- newV is modified
-          case (newUpdatedEnvX.val, newUpdatedEnvX.changes) of
-          ([(_, newV)], [(0, mbModifVal)]) ->
-              if UpdatedEnv.isUnmodified newUpdatedEnvInner then
-                (newV, Just mbModifVal)
-              else
-                case updatedEnvReverse newUpdatedEnvInner of
-                  (newV2, mbModifVal2) ->
-                    let (newVal, newMbModifVal) = mergeValMaybe v newV (Just mbModifVal) newV2 mbModifVal2 in
-                    (newVal, newMbModifVal)
-          _ -> Debug.crash <| "Not the same shape before/after pattern update: " ++ envToString newUpdatedEnv.val ++ " should have length >= 1"
+        case updatedEnvReverse newUpdatedEnv of
+          ((v1, v1Diffs), (v2, v2Diffs)) ->
+             UpdateUtils.mergeValMaybe v v1 v1Diffs v2 v2Diffs
       ))
 
   (PList sp0 ps sp1 Nothing sp2, VList vs) ->

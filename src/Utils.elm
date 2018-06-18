@@ -1415,6 +1415,7 @@ indexedMapFrom n f = List.indexedMap (\i -> f (i + n))
 -- Given a print order and a list, outputs the list with the correct order
 reorder: List Int -> List a -> List a
 reorder order elements =
+  if List.isEmpty order then elements else
   let elementArray = Array.fromList elements in
   let aux order revAcc = case order of
     [] -> List.reverse revAcc

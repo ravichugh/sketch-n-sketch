@@ -560,8 +560,27 @@ getDeclarationsInOrderWithIndex (Declarations unparsingOrder _ _ _  as decls) =
   getDeclarations decls |> Utils.zipWithIndex |> Utils.reorder unparsingOrder
 
 getDeclarations: Declarations -> List Declaration
-getDeclarations (Declarations unparsingOrder (types, _) annotations (exps, _)) =
+getDeclarations (Declarations po (types, _) annotations (exps, _)) =
+  if List.isEmpty po then List.map DeclExp exps else
   List.map DeclType types ++ List.map DeclAnnotation annotations ++ List.map DeclExp exps
+
+getDeclarationsExtractors: Declarations -> (List Declaration, List Declaration -> Declarations)
+getDeclarationsExtractors (Declarations unparsingOrder (types, gt) annotations (exps, ge) as decls) =
+  (getDeclarations decls, \newDeclarations ->
+    let newTypes = List.filterMap (\def -> case def of
+      DeclType x -> Just x
+      _ -> Nothing) newDeclarations
+    in
+    let newAnnotations = List.filterMap (\def -> case def of
+          DeclAnnotation x -> Just x
+          _ -> Nothing) newDeclarations
+    in
+    let newExps = List.filterMap (\def -> case def of
+          DeclExp x -> Just x
+          _ -> Nothing) newDeclarations
+    in
+    Declarations unparsingOrder (newTypes, gt) newAnnotations (newExps, ge)
+  )
 
 -- CAREFUL: This is non-breaking space (used in LangSVG.printHTML and also removed from parsing in THMLValParser)
 tab k = String.repeat k "  "
@@ -3447,6 +3466,16 @@ isMutuallyRecursive group = List.length group >= 2 || (List.all (\(LetExp _ _ _ 
 rebuildGroups: WithGroupingInfo (List a) -> List (List a)
 rebuildGroups grouppedElems =
   List.reverse <| foldLeftGroup [] grouppedElems <| (\b newGroup -> newGroup::b)
+
+unconsGroup: WithGroupingInfo (List a) -> Maybe (List a, WithGroupingInfo (List a))
+unconsGroup (exps, go) = case go of
+  [] -> Nothing
+  n::tail ->
+    let (g, r) = Utils.split n exps in
+    Just (g, (r, tail))
+
+consGroup: List a -> WithGroupingInfo (List a) -> WithGroupingInfo (List a)
+consGroup group (exps, go) = (group::exp, List.length group :: go)
 
 foldLeftGroup: b -> WithGroupingInfo (List a) -> (b -> List a -> b) -> b
 foldLeftGroup acc (elems_, groupingInfo_) callback =

@@ -1244,6 +1244,13 @@ wrap: Int -> Maybe EDiffs -> Maybe EDiffs
 wrap i mbd =
   mbd |> Maybe.map (\d -> EChildDiffs [(i, d)])
 
+-- Add offset to ETupleDiffs, useful for rebuilding ELets
+shift: Int -> Maybe EDiffs -> Maybe EDiffs
+shift i mbd =
+  mbd |> Maybe.map (\d -> case d of
+    EChildDiffs ds -> EChildDiffs (offset i ds)
+    d -> d)
+
 replace: Int -> a -> TupleDiffs a -> TupleDiffs a
 replace n a td = case td of
   [] -> td

@@ -9167,7 +9167,7 @@ Detailed budget can be found in <a class=\"sectionref\" href=\"#budget\">the bud
 <h2 id=\"budget\">Detailed budget</h2>
   <table>
     <tr><th>Who</th>
-    @(years <| \\i -> <th>Year #@i</th>)<th>Total</th></tr>
+    @(years <| \\i -> <th>Year #@(freeze i + 0)</th>)<th>Total</th></tr>
     <tr><td>@nbgraduates graduates</td>
       @(years <| \\i -> <td>@format<|(nbgraduates * graduatesalary)$</td>)
       <td>@(years (always <| nbgraduates * graduatesalary) |> List.sum |> format)$</td></tr>
@@ -9198,7 +9198,7 @@ Detailed budget can be found in <a class=\"sectionref\" href=\"#budget\">the bud
 -- Very useful link: http://alistapart.com/article/boom
 -- https://code.tutsplus.com/tutorials/create-a-wysiwyg-editor-with-the-contenteditable-attribute--cms-25657
 <div id=\"app\">
-<div id=\"menu\">
+<div id=\"menu\" style=\"padding-left:10px\">
 @Html.forceRefresh<|<style>
 #menu > a {
   text-decoration: none;
@@ -9302,8 +9302,8 @@ h2::before {
 <a href=\"#\" data-command='insertOrderedList' title=\"numbered list\"><ol
   style=\"font-size:0.05em;display:inline-block\"
   ><li>---</li><li>---</li><li>---</li></ol></a>
-<a href=\"#\" data-command='print' title=\"Print the document -- look for @media print for configurable options\">Print</a>
-</div>
+<a href=\"#\" data-command='print' title=\"Print the document -- look for @media print for configurable options\">🖶
+</a></div>
 @Html.forceRefresh<|<div id=\"body\">
 <div class=\"page\">
 @pageContent

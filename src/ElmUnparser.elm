@@ -436,7 +436,8 @@ unparseBranch   isNotFirst branch =
 
 unparseBranches : List Branch -> String
 unparseBranches =
-  let aux isNotFirst branches =
+  let aux: Boolean -> List Branch -> String
+      aux isNotFirst branches =
       case branches of
         [] -> ""
         head::tail -> unparseBranch isNotFirst head ++ aux True tail

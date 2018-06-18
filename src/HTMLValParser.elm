@@ -148,7 +148,8 @@ styleAttrToElmViewInLeo vb (name, content) =
 
 filterHTMLInnerWhitespace: List HTMLNode -> List HTMLNode
 filterHTMLInnerWhitespace nodes =
-  let aux revAcc nodes =
+  let aux: List HTMLNode -> List HTMLNode
+      aux revAcc nodes =
     case nodes of
        [] -> List.reverse revAcc
        head :: tail ->

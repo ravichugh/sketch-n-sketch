@@ -194,7 +194,8 @@ eval syntax env bt e =
     else bt
   in
   let evalDeclarations (Declarations  _ _ _ (exps, groupOrders)) continuation =
-    let aux groupOrder exps widgets env = case groupOrder of
+    let aux: List Int -> List (List LetExp) -> List widget -> Env -> (Env -> List widget -> Result String a) -> Result String a
+        aux groupOrder exps widgets env = case groupOrder of
       [] -> continuation env widgets
       i :: groupTail ->
         let (expHead, expTail) = Utils.split i exps in
@@ -226,12 +227,12 @@ eval syntax env bt e =
                     Ok newVals ->
                       let newEnv = List.map2 (,) names newVals ++ env in
                       aux groupTail expTail (widgets ++ newWidgets) newEnv
-              else
-                case Utils.foldLeft (Just env) (Utils.zip names values) <|
-                                     \mbEnv (name, value) -> cons (name, value) mbEnv
-                of
-                 Just newEnv -> aux groupTail expTail (widgets ++ newWidgets) newEnv
-                 _         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ "match error in let"
+            else
+              case Utils.foldLeft (Just env) (Utils.zip names values) <|
+                                   \mbEnv (name, value) -> cons (name, value) mbEnv
+              of
+               Just newEnv -> aux groupTail expTail (widgets ++ newWidgets) newEnv
+               _         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ "match error in let"
     in aux groupOrders exps [] env
   in
 

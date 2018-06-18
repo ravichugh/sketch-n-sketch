@@ -518,7 +518,8 @@ unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
   case mbdiffs of
     Nothing -> Ok <| default ("", offset, []) list1 list2
     Just (VListDiffs ds) ->
-      let aux i ds remaining1 remaining2 (strAcc, offset, listDiffs)=
+      let aux: Int -> ListDiffs VDiffs -> List a -> List a -> (String, Int, ListDiffs VDiffs)
+          aux i ds remaining1 remaining2 (strAcc, offset, listDiffs) =
         --let _ = Debug.log ("unparseList.aux " ++toString i++ " " ++ toString ds ++ " " ++ toString remaining1 ++ " " ++ toString remaining2 ++ " "  ++ " " ++ toString (strAcc, offset, listDiffs)) () in
         case ds of
         [] -> Ok <| default (strAcc, offset, listDiffs) remaining1 remaining2

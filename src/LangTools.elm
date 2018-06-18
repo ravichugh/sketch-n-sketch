@@ -1377,17 +1377,28 @@ renameIdentifiers subst exp =
     exp
 
 
+
 setPatName : PathedPatternId -> Ident -> Exp -> Exp
 setPatName ((scopeEId, branchI), path) newName exp =
   let maybeScopeExp = findExpByEId exp scopeEId in
   let maybeNewScopeExp =
     let makeNewScope e__ = replaceE__ (Utils.fromJust_ "setPatName" maybeScopeExp) e__ in
     case (Maybe.map (.val >> .e__) maybeScopeExp, path) of
-      (Just (ELet ws1 letKind isRec pat ws2 boundExp ws3 body ws4), _)->
-        let newPat = setPatNameInPat path newName pat in
-        Just <| makeNewScope (ELet ws1 letKind isRec newPat ws2 boundExp ws3 body ws4)
+       (Just (ELet ws1 letKind decls ws3 body), i::is)->
+          let newDecls = decls |>
+            mapDeclarations (\index1 def ->
+               if index1 == i then
+                case def of
+                  DeclExp (LetExp wsc wsb pat fs wse boundExp) ->
+                    let newPat = setPatNameInPat is newName pat in
+                    DeclExp (LetExp wsc wsb newPat fs wse boundExp)
+                  _ -> def
+               else def
+            )
+          in
+          Just <| makeNewScope (ELet ws1 letKind newDecls ws3 body)
 
-      (Just (EFun ws1 pats body ws2), i::is) ->
+       (Just (EFun ws1 pats body ws2), i::is) ->
         Utils.maybeGeti1 i pats
         |> Maybe.map
             (\pat ->
@@ -1395,7 +1406,7 @@ setPatName ((scopeEId, branchI), path) newName exp =
               makeNewScope (EFun ws1 (Utils.replacei i newPat pats) body ws2)
             )
 
-      (Just (ECase ws1 scrutinee branches ws2), _) ->
+       (Just (ECase ws1 scrutinee branches ws2), _) ->
         Utils.maybeGeti1 branchI branches
         |> Maybe.map
             (\branch ->
@@ -1405,7 +1416,7 @@ setPatName ((scopeEId, branchI), path) newName exp =
               makeNewScope (ECase ws1 scrutinee (Utils.replacei branchI newBranch branches) ws2)
             )
 
-      _ ->
+       _ ->
         Nothing
   in
   case maybeNewScopeExp of
@@ -1419,11 +1430,11 @@ setPatNameInPat path newName pat =
     (PVar ws ident wd, []) ->
       replaceP__ pat (PVar ws newName wd)
 
-    (PAs ws1 wsi ident ws2 p, []) ->
-      replaceP__ pat (PAs ws1 wsi newName ws2 p)
-
     (PAs ws1 p1 ws2 p2, 1::is) ->
-      replaceP__ pat (PAs ws1 (setPatNameInPat is newName p1) ws2 (setPatNameInPat is newName p2))
+      replaceP__ pat (PAs ws1 (setPatNameInPat is newName p1) ws2 p1)
+
+    (PAs ws1 p1 ws2 p2, 2::is) ->
+      replaceP__ pat (PAs ws1 p1 ws2 (setPatNameInPat is newName p2))
 
     (PList ws1 ps ws2 Nothing ws3, i::is) ->
       let newPs = Utils.getReplacei1 i (setPatNameInPat is newName) ps in
@@ -1619,6 +1630,21 @@ findBoundExpByPathedPatternId ((scopeEId, _), targetPath) exp =
     Nothing ->
       Nothing
 
+findDeclaration: (Int -> Declaration -> Bool) -> Declarations -> Maybe Declaration
+findDeclaration callback decls =
+  getDeclarations decls
+  |> Utils.zipWithIndex
+  |> Utils.mapFirstSuccess (\(def, index) ->
+    if callback (index + 1) def then Just def else Nothing)
+
+nthDeclaration: Int -> Declarations -> Maybe Declaration
+nthDeclaration i decls =
+  findDeclaration (\index1 d -> index1 == i) decls
+
+mapDeclarations: (Int -> Declaration -> Declaration) -> Declarations -> Declarations
+mapDeclarations callback decls =
+  let (ds, dBuilder) = getDeclarationsExtractors decls in
+  ds |> List.indexedMap (\def index -> callback (index + 1) def) |> dBuilder
 
 findScopeExpAndPatByPathedPatternId : PathedPatternId -> Exp -> Maybe (Exp, Pat)
 findScopeExpAndPatByPathedPatternId ((scopeEId, branchI), path) exp =
@@ -1626,17 +1652,14 @@ findScopeExpAndPatByPathedPatternId ((scopeEId, branchI), path) exp =
   let maybePat =
     case (Maybe.map (.val >> .e__) maybeScopeExp, path) of
        (Just (ELet _ _ decls _ _), i::is) ->
-          getDeclarations decls
-          |> Utils.zipWithIndex
-          |> Utils.mapFirstSuccess (\(def, index) ->
-            if index + 1 /= i then Nothing else
+          nthDeclaration i decls |> Maybe.map (\def ->
             case def of
               DeclAnnotation (LetAnnotation _ _ pat _ _ _) ->
-                Just <| followPathInPat is pat
+                followPathInPat is pat
               DeclExp (LetExp _  _ pat _ _ _) ->
-                Just <| followPathInPat is pat
+                followPathInPat is pat
               DeclType (LetType _ _ _ pat _ _ _) ->
-                Just <| followPathInPat is pat
+                followPathInPat is pat
             )
 
        (Just (EFun _ pats _ _), i::is) ->
