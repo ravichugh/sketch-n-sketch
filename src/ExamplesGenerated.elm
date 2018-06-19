@@ -9387,11 +9387,15 @@ foldl f b l =
 -- Here no insertion of element is possible, but we can remove elements.
 -- We use a trick to propagate a value that is never computed, in order to know if, during update,
 -- the last string had its first char deleted
-join x = applyLens { apply x = freeze (Tuple.first x),
-  update {output, diffs} = {
-    values = [(output, True)],
-    diffs=[Just (VRecordDiffs { _1 = diffs, _2 = VConstDiffs})]
-  } } <| foldl (\\oldHeadList (oldAcc, dummyBool) -> 
+join x = case x of
+    [] -> {apply x = freeze \"\", update {outputNew} = {values=[[outputNew]]}}.apply x
+    _ ->
+  applyLens {
+    apply (x, y) = freeze x
+    update {output, diffs} = {
+      values = [(output, True)],
+      diffs=[Just (VRecordDiffs { _1 = diffs, _2 = VConstDiffs})]
+    } } <| foldl (\\oldHeadList (oldAcc, dummyBool) -> 
   { apply (oldAcc, [head], dummyBool) = freeze (oldAcc + head, dummyBool)
     update {input=(oldAcc, [head], _) as input,outputNew=(newAcc, prevDeletedOrLast),diffs=ds} =
       let handleDiffs = case ds of
@@ -9404,12 +9408,14 @@ join x = applyLens { apply x = freeze (Tuple.first x),
           letrec aux leftDiffs = case leftDiffs of
             [StringUpdate _ end 0] -> end == String.length oldAcc
             head::tail -> aux tail
-            _ -> False
+            _ -> leftValue == []
           in aux leftDiffs
         in
         let firstCharDeleted = case rightDiffs of (StringUpdate 0 i 0) :: tail -> i > 0; _ -> False in
-        let elemDeleted = rightValue == \"\" && (firstCharDeleted || lastCharLeftDeleted && prevDeletedOrLast) in
-        (if (lastCharLeftDeleted || prevDeletedOrLast) && elemDeleted then [] else
+        let surroundingElementsDeleted = lastCharLeftDeleted && prevDeletedOrLast in
+        let atLeastOneSurroundingElementDeleted = lastCharLeftDeleted || prevDeletedOrLast in
+        let elemDeleted = rightValue == \"\" && (firstCharDeleted || surroundingElementsDeleted) in
+        (if atLeastOneSurroundingElementDeleted && elemDeleted then [] else
           [((leftValue, [rightValue], firstCharDeleted),
             pairDiff3
               (if leftDiffs == [] then Nothing else Just (VStringDiffs leftDiffs))

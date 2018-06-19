@@ -201,30 +201,21 @@ builtinEnv =
         let vb = Vb.fromVal arg in
         case arg.v_ of
           VRecord d ->
-            case (Dict.get "fun" d, Dict.get "input" d, Dict.get "output" d) of
+            case (Utils.dictGetFirst ["fun", "function"] d,
+                  Utils.dictGetFirst ["input", "oldInput", "inputOld"] d,
+                  Utils.dictGetFirst ["output", "newOutput", "outputNew"] d) of
               (Just fun, Just input, Just newVal) ->
                 let xyEnv = [("x", fun),("y", input)] in
                 let xyExp = (withDummyExpInfo <| EApp space0 (eVar "x") [eVar "y"] SpaceApp space0) in
-                let oldOut = case Dict.get "oldOutput" d of
-                  Nothing -> case Dict.get "oldout" d of
-                     Nothing -> case Dict.get "outputOld" d of
-                       Nothing ->
-                         Eval.doEval Syntax.Elm xyEnv xyExp |> Result.map (\((v, _), _) -> v)
-                       Just v -> Ok v
-                     Just v -> Ok v
+                let oldOut = case Utils.dictGetFirst ["oldOutput", "oldOut", "outputOld"] d of
+                  Nothing -> Eval.doEval Syntax.Elm xyEnv xyExp |> Result.map (\((v, _), _) -> v)
                   Just v -> Ok v
                 in
                 case oldOut of
                   Err msg -> Err <| "while evaluating updateApp and trying to compute the old value, " ++ msg
                   Ok oldOut ->
-                    let outputDiff = case Dict.get "outputDiff" d of
-                      Nothing -> case Dict.get "diffOutput" d of
-                         Nothing -> case Dict.get "diffOut" d of
-                           Nothing -> case Dict.get "outDiff" d of
-                             Nothing -> UpdateUtils.defaultVDiffs oldOut newVal |> Results.firstResult
-                             Just v -> valToVDiffs v |> Result.map Just
-                           Just v -> valToVDiffs v |> Result.map Just
-                         Just v -> valToVDiffs v |> Result.map Just
+                    let outputDiff = case Utils.dictGetFirst ["outputDiff",  "diffOutput", "diffOut", "outDiff", "diffs"] d of
+                      Nothing -> UpdateUtils.defaultVDiffs oldOut newVal |> Results.firstResult
                       Just v -> valToVDiffs v |> Result.map Just
                     in
                     --let _ = Debug.log "calling back update" () in
@@ -233,7 +224,7 @@ builtinEnv =
                       Ok Nothing -> -- No need to call update
                         let resultingValue = Vb.record (Vb.list Vb.identity) vb (
                              Dict.fromList [("values", [input]),
-                                            ("diffs", [] )
+                                            ("diffs", [Vb.maybe vDiffsToVal vb Nothing] )
                              ])
                         in
                         Ok (resultingValue, [])

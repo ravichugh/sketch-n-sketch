@@ -425,6 +425,15 @@ Update =
      (v, d)::tail -> let {values, diffs} = valuesWithDiffs tail in
        {values = v::values, diffs = d::diffs}
   in
+  letrec resultValuesWithDiffs valuesDiffs = case valuesDiffs of
+     [] -> { values = [], diffs = [] }
+     (Ok (v, d))::tail -> case resultValuesWithDiffs tail of
+       {error} -> {values=v, diffs=d}
+       {values,diffs} -> {values = v::values, diffs = d::diffs}
+     (Err msg)::tail -> case resultValuesWithDiffs tail of
+       {error} -> {error=msg + "\n" + error}
+       {values,diffs} -> {values = values, diffs = diffs}
+  in
   let addDiff f mbDiff (d, changed) =
         case mbDiff of
           Nothing -> (d, changed)
@@ -441,6 +450,14 @@ Update =
         |> addDiff (\d x -> {d | _1 = x}) mbDiff1
         |> addDiff (\d x -> {d | _2 = x}) mbDiff2
         |> addDiff (\d x -> {d | _3 = x}) mbDiff3
+        |> (\(d, changed) -> if changed then Just (VRecordDiffs d) else Nothing)
+  in
+  let pairDiff4 mbDiff1 mbDiff2 mbDiff3 mbDiff4 =
+        ({}, False)
+        |> addDiff (\d x -> {d | _1 = x}) mbDiff1
+        |> addDiff (\d x -> {d | _2 = x}) mbDiff2
+        |> addDiff (\d x -> {d | _3 = x}) mbDiff3
+        |> addDiff (\d x -> {d | _4 = x}) mbDiff4
         |> (\(d, changed) -> if changed then Just (VRecordDiffs d) else Nothing)
   in
   type SimpleListDiffOp = KeepValue | DeleteValue | InsertValue Value | UpdateValue Value
@@ -520,7 +537,6 @@ Update =
       [] -> [(String.take (n + offset) newString, [],
              String.drop (n + offset) newString, [])]
       ((StringUpdate start end replaced) as head) :: tail ->
-        Debug.log """splitStringDiffsAt @n @offset @oldString @newString @stringDiffs = """ <|
         if end < n then
           splitStringDiffsAt n (offset + replaced - (end - start)) oldString newString tail
           |> List.map (\(left, leftDiffs, right, rightDiffs) -> (left, head::leftDiffs, right, rightDiffs))
@@ -546,6 +562,50 @@ Update =
             (String.drop end oldString)
           then [insertionToLeft, insertionToRight]
           else [insertionToRight, insertionToLeft]
+  in
+  letrec
+    offsetList n list = case list of
+      (i, d)::tail -> (i + n, d)::offsetList n tail
+      [] -> []
+  in
+  -- Given a split index n (offset is zero at the beginning), split the newList that is being
+  -- pushed back at the index n (n should be the original length of the left list being concatenated)
+  -- Returns the new list to the left and its differences, and the new list on the right and its differences.
+  letrec
+    splitListDiffsAt n offset newList listDiffs = case listDiffs of
+      [] ->
+        let (left, right) = List.split (n + offset) newList in
+        [(left, [], right, [])]
+      (i, d) :: tail ->
+        let newOffset = case d of
+          ListElemInsert count -> offset + count
+          ListElemDelete count -> offset - count
+          ListElemUpdate _ -> offset
+        in
+        if i < n then
+          if i + (offset - newOffset) > n then -- a deletion spanning until after the split point
+            let (left, right) = List.split (n + offset) newList in
+            [(left, (i, ListElemDelete (n - i))::[],
+              right, offsetList (0 - n) <| (n, ListElemDelete (i + (offset - newOffset) - n))::tail)]
+          else
+          splitListDiffsAt n newOffset newList tail
+          |> List.map (\(left, leftDiffs, right, rightDiffs) ->
+            (left, (i, d)::leftDiffs, right, rightDiffs))
+        else if i > n || i == n && (case d of ListElemInsert _ -> False; _ -> True) then
+          let (left, right) = List.split (n + offset) newList in
+          [(left, [], right, offsetList (0 - n - offset) listDiffs)]
+        else -- i == n now, everything happens at the intersection.
+          let insertionToLeft =
+            let (left, right) = List.split (i + newOffset) newList in
+            (left, (i, d)::[],
+             right, tail)
+          in
+          let insertionToRight =
+            let (left, right) = List.split (i + offset) newList in
+            (left, [],
+             right, offsetList (0 - i) <| (i, d)::tail)
+          in
+          [insertionToLeft, insertionToRight]
   in
   let --------------------------------------------------------------------------------
       -- Update.foldDiff
@@ -651,9 +711,12 @@ Update =
     merge = __merge__
     listDiff = listDiffOp __diff__
     strDiffToConcreteDiff = strDiffToConcreteDiff
+    splitListDiffsAt = splitListDiffsAt
     valuesWithDiffs = valuesWithDiffs
+    resultValuesWithDiffs = resultValuesWithDiffs
     pairDiff2 = pairDiff2
     pairDiff3 = pairDiff3
+    pairDiff4 = pairDiff4
     Regex = {
         replace regex replacement string diffs = updateReplace
       }

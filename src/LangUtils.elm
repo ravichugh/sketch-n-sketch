@@ -22,8 +22,12 @@ identifiersListInPat pat =
     PVar _ ident _              -> [ident]
     PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
     PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
-    PAs _ _ ident _ pat           -> ident::(identifiersListInPat pat)
-    _                           -> []
+    PAs _ _ ident _ pat         -> ident::(identifiersListInPat pat)
+    PRecord _ pvalues _         -> List.concatMap identifiersListInPat (Utils.recordValues pvalues)
+    PConst _ _                  -> []
+    PBase _ _                   -> []
+    PWildcard _                 -> []
+    PParens _ p _               -> identifiersListInPat p
 
 
 identifiersListInPats : List Pat -> List Ident

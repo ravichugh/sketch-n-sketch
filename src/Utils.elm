@@ -1369,6 +1369,12 @@ fromResult result =
     Err x ->
       x
 
+dictGetFirst keys dictionary = case keys of
+  [] -> Nothing
+  key :: otherKeys -> case Dict.get key dictionary of
+    (Just x) as j -> j
+    Nothing -> dictGetFirst otherKeys dictionary
+
 -- Returns the strings from the first elements which are likely to be corrections of the string given in second.
 stringSuggestions : List String -> String -> List String
 stringSuggestions trueStrings wrongString =
