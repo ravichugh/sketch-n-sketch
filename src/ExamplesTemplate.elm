@@ -313,7 +313,7 @@ docsCategory =
       , ("Slides", slides)
       , ("Docs", docs)
       -- TODO maybe Conference?
-      , ("String join", foldl_reversible_join)
+      , ("String join, concatMap", foldl_reversible_join)
       , ("Lens: Maybe Map", mapMaybeLens)
       , ("Lens: List Map 1", mapListLens_1)
       , ("Lens: List Map 2", mapListLens_2)

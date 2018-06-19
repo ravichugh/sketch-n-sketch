@@ -1328,112 +1328,6 @@ Set = {
 
 
 --------------------------------------------------------------------------------
--- String --
-
-String =
-  let strToInt =
-    let d = Dict.fromList [("0", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("6", 6), ("7", 7), ("8", 8), ("9", 9)] in
-    letrec aux x =
-      case extractFirstIn "^([0-9]*)([0-9])$" x of
-        Just [init, last] -> (aux init)*10 + Dict.apply d last
-        Nothing -> 0
-    in
-    aux
-  in
-  let join delimiter list =
-    letrec aux acc list = case list of
-      [] -> acc
-      [head] -> acc + head
-      (head::tail) -> aux (acc + head + freeze delimiter) tail
-    in aux "" list
-  in
-  let substring start end x =
-    case Regex.extract ("^[\\s\\S]{0," + toString start + "}([\\s\\S]{0," + toString (end - start) + "})") x of
-      Just [substr] -> substr
-      Nothing -> Debug.crash <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
-  in
-  let take length x =
-      case Regex.extract ("^([\\s\\S]{0," + toString length + "})") x of
-        Just [substr] -> substr
-        Nothing -> Debug.crash <| "bad arguments to String.take " + toString length + " " + toString x
-  in
-  let drop length x =
-    case Regex.extract ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
-            Just [substr] -> substr
-            Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
-  in
-  let length x = len (explode x) in
-  letrec sprintf str inline = case inline of
-    a::tail -> sprintf (replaceFirstIn "%s" a str) tail
-    [] -> str
-    a -> replaceFirstIn "%s" a str
-  in
-  let freezeRight x = {
-      apply x = freeze x
-      update {input, outputNew} =
-        if String.take String.length input outputNew == input then
-          { values = [] }
-        else
-          { values = [outputNew] }
-    }.apply x
-  in
-  let freezeLeft x = {
-      apply x = freeze x
-      update {input, outputNew} =
-        if String.drop (String.length outputNew - String.length input) outputNew == input then
-          { values = [] }
-        else
-          { values = [outputNew] }
-    }.apply x
-  in
-  { toInt x =
-      { apply x = freeze (strToInt x)
-      , unapply output = Just (toString output)
-      }.apply x
-    join delimiter x = if delimiter == "" then join__ x else {
-        apply x = freeze (join delimiter x)
-        update {output, oldOutput, diffs} =
-          {values = [Regex.split delimiter output]}
-      }.apply x
-    length x = {
-      apply x = freeze (length x)
-      update {input, oldOutput, newOutput} =
-        if newOutput < oldOutput then
-          { values = [take newOutput input], diffs = [Just (VStringDiffs [StringUpdate newOutput oldOutput 0])] }
-        else if newOutput == oldOutput then
-          { values = [input], diffs = [Nothing] }
-        else
-          letrec makeSize s targetLength =
-            let n = length s in
-            if n < targetLength then makeSize (s + s) targetLength
-            else if n == targetLength then s
-            else take targetLength s
-          in
-          let increment = newOutput - oldOutput in
-          let addition = makeSize (if input == "" then "#" else input) increment in
-          { values = [input + addition], diffs = [Just (VStringDiffs [StringUpdate oldOutput oldOutput increment])] }
-      }.apply x
-    substring = substring
-    slice = substring
-    take = take
-    left = take
-    drop = drop
-    dropLeft = drop
-    trim s = case extractFirstIn "^\\s*([\\s\\S]*?)\\s*$" s of
-      Just [trimmed] -> trimmed
-      Nothing -> s
-    sprintf = sprintf
-    uncons s = case extractFirstIn "^([\\s\\S])([\\s\\S]*)$" s of
-      Just [x, y] -> Just (x, y)
-      Nothing -> Nothing
-    update = {
-      freezeLeft = freezeLeft
-      freezeRight = freezeRight
-    }
-  }
-
-
---------------------------------------------------------------------------------
 -- List (all operations should be lenses) --
 
 List =
@@ -1500,6 +1394,16 @@ List =
         {values = [l1 ++ l2], diffs = [finalDiffs]}
     }.apply l
   in
+  -- In this version of foldl, the function f accepts a 1-element list instead of just the element.
+  -- This enable programmers to insert or delete values from the accumulator.
+  letrec foldl2 f b l =
+    letrec aux b l = case l of
+      [] -> b
+      _ ->
+        let (h1, t1) = split 1 l in
+        aux (f h1 b) t1
+    in aux b l
+  in
   letrec reverseInsert elements revAcc =
     case elements of
       [] -> revAcc
@@ -1508,6 +1412,72 @@ List =
   let sum l = foldl (\x y -> x + y) 0 l in
   letrec range min max = if min > max then [] else min :: range (min + 1) max in
   letrec find f l = case l of [] -> Nothing; head :: tail -> if f head then Just head else find f tail in
+  let -- Contrary to concatMap, concatMap_ supports insertion and deletions of elements.
+      -- It requires a function to indicate what to do when inserting in empty lists.
+      concatMap_ insert_in_empty f l =
+        case l of -- Insertion to an emptylist.
+          [] -> { apply l = freeze []
+                  update {input=l, outputNew=lp} = {values = [insert_in_empty lp]}
+                }.apply l
+          _ -> Update.applyLens { -- Back-propagating a ghost boolean indicating if the next element in the computation had its first element deleted.
+          apply (x, y) = freeze x
+          update {output, diffs} = {
+            values = [(output, True)],
+            diffs=[Just (VRecordDiffs { _1 = diffs, _2 = VConstDiffs})]
+        } } <| foldl2 (\headList (oldAcc, dummyBool) ->
+          let lengthAcc = length oldAcc in
+          {apply (f, oldAcc, headList, dummyBool) = freeze (oldAcc ++ f headList, dummyBool)
+           update {input=(f, oldAcc, headList, _) as input, outputNew=(newAccFHeadList, prevDeletedOrLast), diffs=ds} =
+             let handleDiffs = case ds of
+                VRecordDiffs {_1=VListDiffs diffs} -> \continuation -> continuation diffs
+                _ -> \continuation -> {values = [input], diffs=[Nothing]}
+             in handleDiffs <| \diffs ->
+             Update.splitListDiffsAt lengthAcc 0 newAccFHeadList diffs
+             |> concatMap (\(newAcc, newAccDiffs, newFHeadList, newFHeadListDiffs) ->
+               let finalAccDiffs = if newAccDiffs == [] then Nothing else Just (VListDiffs newAccDiffs) in
+               let finalAccDeletedRight =
+                 letrec aux diffs = case diffs of
+                   [] -> False
+                   (i, d)::tail -> case d of
+                     ListElemDelete count -> if count + i == lengthAcc then True else
+                       aux tail
+                     _ -> aux tail
+                 in aux newAccDiffs
+               in
+               let firstElementDeleted = case newFHeadListDiffs of
+                 (0, ListElemDelete x) :: tail -> True
+                 _ -> False
+               in
+               let deleteBoolUpdate = if firstElementDeleted then Just VConstDiffs else Nothing in
+               let surroundingElementsDeleted = finalAccDeletedRight && prevDeletedOrLast in
+               let headListDeletable = newFHeadList == []  && (firstElementDeleted || surroundingElementsDeleted) in
+               let atLeastOneSurroundingElementDeleted = finalAccDeletedRight || prevDeletedOrLast in
+               (if atLeastOneSurroundingElementDeleted && headListDeletable then [] else
+               case newFHeadListDiffs of
+                 [] -> [Ok ((f, newAcc, headList, firstElementDeleted),
+                            Update.pairDiff4 Nothing finalAccDiffs Nothing deleteBoolUpdate)]
+                 _ ->
+               case Update.updateApp{fun (f, x) = f x, input=(f, headList), output=newFHeadList, diffs=VListDiffs newFHeadListDiffs} of
+                 {values = fAndNewHeadLists, diffs = diffsList} ->
+                    LensLess.List.map2 (\(newF, newHeadList) diff ->
+                      case diff of
+                        Nothing ->  Ok ((f, newAcc, headList, firstElementDeleted),
+                          Update.pairDiff4 Nothing finalAccDiffs Nothing deleteBoolUpdate)
+                        Just (VRecordDiffs d) ->
+                          let newFDiff = case d of {_1} -> Just _1; _ -> Nothing in
+                          let newHeadListDiffs = case d of {_2} -> Just _2; _ -> Nothing in
+                          Ok ((newF, newAcc, newHeadList, firstElementDeleted), Update.pairDiff4 newFDiff finalAccDiffs newHeadListDiffs deleteBoolUpdate)
+                    ) fAndNewHeadLists diffsList
+                 {error = msg} -> [Err msg]
+               ) ++ (
+                 if headListDeletable then
+                   [Ok ((f, newAcc, [], True),
+                        Update.pairDiff4 Nothing finalAccDiffs (Just (VListDiffs [(0, ListElemDelete 1)])) (Just VConstDiffs))]
+                 else
+                   [])
+              ) |> Update.resultValuesWithDiffs
+          }.apply (f, oldAcc, headList, dummyBool)) (Update.freeze [], Update.softFreeze False) l
+  in
   let indices l = range 0 (length l - 1) in
   { simpleMap = simpleMap
     map = map
@@ -1518,6 +1488,7 @@ List =
     repeat = repeat
     indexedMap = indexedMap
     concatMap = concatMap
+    concatMap_ = concatMap_
     cartesianProductWith = cartesianProductWith
     unzip = unzip
     split = split
@@ -1526,6 +1497,7 @@ List =
     take = LensLess.List.take
     drop = LensLess.List.drop
     foldl = foldl
+    foldl2 = foldl2
     filterMap = filterMap
     filter = filter
     sum = sum
@@ -1534,6 +1506,165 @@ List =
     indices = indices
     find = find
   }
+
+
+--------------------------------------------------------------------------------
+-- String --
+
+String =
+  let strToInt =
+    let d = Dict.fromList [("0", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("6", 6), ("7", 7), ("8", 8), ("9", 9)] in
+    letrec aux x =
+      case extractFirstIn "^([0-9]*)([0-9])$" x of
+        Just [init, last] -> (aux init)*10 + Dict.apply d last
+        Nothing -> 0
+    in
+    aux
+  in
+  let join delimiter list =
+    letrec aux acc list = case list of
+      [] -> acc
+      [head] -> acc + head
+      (head::tail) -> aux (acc + head + freeze delimiter) tail
+    in aux "" list
+  in
+  let length x = len (explode x) in
+  let join_ x =
+    -- An example of using reversible foldl to join strings without separators
+    -- Here no insertion of element is possible, but we can remove elements.
+    -- We use a trick to propagate a value that is never computed, in order to know if, during update,
+    -- the last string had its first char deleted
+    case x of
+        [] -> {apply x = freeze "", update {outputNew} = {values=[[outputNew]]}}.apply x
+        _ -> Update.applyLens {
+        apply (x, y) = freeze x
+        update {output, diffs} = {
+          values = [(output, True)],
+          diffs=[Just (VRecordDiffs { _1 = diffs, _2 = VConstDiffs})]
+        } } <| List.foldl2 (\oldHeadList (oldAcc, dummyBool) ->
+      { apply (oldAcc, [head], dummyBool) = freeze (oldAcc + head, dummyBool)
+        update {input=(oldAcc, [head], _) as input,outputNew=(newAcc, prevDeletedOrLast),diffs=ds} =
+          let handleDiffs = case ds of
+            VRecordDiffs {_1=VStringDiffs diffs} -> \continuation -> continuation diffs
+            _ -> \continuation -> {values = [input], diffs=[Nothing]}
+          in handleDiffs <| \diffs ->
+          Update.splitStringDiffsAt (length oldAcc) 0 (oldAcc + head) newAcc diffs
+          |> List.concatMap (\(leftValue, leftDiffs, rightValue, rightDiffs) ->
+            let lastCharLeftDeleted =
+              letrec aux leftDiffs = case leftDiffs of
+                [StringUpdate _ end 0] -> end == length oldAcc
+                head::tail -> aux tail
+                _ -> leftValue == ""
+              in aux leftDiffs
+            in
+            let firstCharDeleted = case rightDiffs of (StringUpdate 0 i 0) :: tail -> i > 0; _ -> False in
+            let surroundingElementsDeleted = lastCharLeftDeleted && prevDeletedOrLast in
+            let atLeastOneSurroundingElementDeleted = lastCharLeftDeleted || prevDeletedOrLast in
+            let elemDeleted = rightValue == "" && (firstCharDeleted || surroundingElementsDeleted) in
+            (if atLeastOneSurroundingElementDeleted && elemDeleted then [] else
+              [((leftValue, [rightValue], firstCharDeleted),
+                Update.pairDiff3
+                  (if leftDiffs == [] then Nothing else Just (VStringDiffs leftDiffs))
+                  (if rightDiffs == [] then Nothing else
+                   Just (VListDiffs [(0, ListElemUpdate (VStringDiffs rightDiffs))]))
+                  (if firstCharDeleted then Just VConstDiffs else Nothing)
+              )]) ++
+            (if elemDeleted then -- The string was deleted, one solution is to remove it.
+              [((leftValue, [], True),
+                Update.pairDiff3
+                  (if leftDiffs == [] then Nothing else Just (VStringDiffs leftDiffs))
+                  (Just (VListDiffs [(0, ListElemDelete 1)]))
+                  (Just VConstDiffs)
+                  )]
+            else [])
+          ) |> Update.valuesWithDiffs
+      }.apply (oldAcc, oldHeadList, dummyBool)
+      ) (freeze "", Update.softFreeze False) x
+  in
+  let substring start end x =
+    case Regex.extract ("^[\\s\\S]{0," + toString start + "}([\\s\\S]{0," + toString (end - start) + "})") x of
+      Just [substr] -> substr
+      Nothing -> Debug.crash <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
+  in
+  let take length x =
+      case Regex.extract ("^([\\s\\S]{0," + toString length + "})") x of
+        Just [substr] -> substr
+        Nothing -> Debug.crash <| "bad arguments to String.take " + toString length + " " + toString x
+  in
+  let drop length x =
+    case Regex.extract ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
+            Just [substr] -> substr
+            Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
+  in
+  letrec sprintf str inline = case inline of
+    a::tail -> sprintf (replaceFirstIn "%s" a str) tail
+    [] -> str
+    a -> replaceFirstIn "%s" a str
+  in
+  let freezeRight x = {
+      apply x = freeze x
+      update {input, outputNew} =
+        if String.take String.length input outputNew == input then
+          { values = [] }
+        else
+          { values = [outputNew] }
+    }.apply x
+  in
+  let freezeLeft x = {
+      apply x = freeze x
+      update {input, outputNew} =
+        if String.drop (String.length outputNew - String.length input) outputNew == input then
+          { values = [] }
+        else
+          { values = [outputNew] }
+    }.apply x
+  in
+  { toInt x =
+      { apply x = freeze (strToInt x)
+      , unapply output = Just (toString output)
+      }.apply x
+    join delimiter x = if delimiter == "" then join_ x else {
+        apply x = freeze (join delimiter x)
+        update {output, oldOutput, diffs} =
+          {values = [Regex.split delimiter output]}
+      }.apply x
+    length x = {
+      apply x = freeze (length x)
+      update {input, oldOutput, newOutput} =
+        if newOutput < oldOutput then
+          { values = [take newOutput input], diffs = [Just (VStringDiffs [StringUpdate newOutput oldOutput 0])] }
+        else if newOutput == oldOutput then
+          { values = [input], diffs = [Nothing] }
+        else
+          letrec makeSize s targetLength =
+            let n = length s in
+            if n < targetLength then makeSize (s + s) targetLength
+            else if n == targetLength then s
+            else take targetLength s
+          in
+          let increment = newOutput - oldOutput in
+          let addition = makeSize (if input == "" then "#" else input) increment in
+          { values = [input + addition], diffs = [Just (VStringDiffs [StringUpdate oldOutput oldOutput increment])] }
+      }.apply x
+    substring = substring
+    slice = substring
+    take = take
+    left = take
+    drop = drop
+    dropLeft = drop
+    trim s = case extractFirstIn "^\\s*([\\s\\S]*?)\\s*$" s of
+      Just [trimmed] -> trimmed
+      Nothing -> s
+    sprintf = sprintf
+    uncons s = case extractFirstIn "^([\\s\\S])([\\s\\S]*)$" s of
+      Just [x, y] -> Just (x, y)
+      Nothing -> Nothing
+    update = {
+      freezeLeft = freezeLeft
+      freezeRight = freezeRight
+    }
+  }
+
 
 --------------------------------------------------------------------------------
 -- Maybe --
