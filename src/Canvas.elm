@@ -72,7 +72,7 @@ msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
       let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (mousePosition old) in
       let trigger = Sync.prepareLiveTrigger old.liveSyncInfo old.inputExp zoneKey in
-      { old | mouseMode = MouseDragZone zoneKey (mx, my) False (Just trigger) }
+      { old | mouseMode = MouseDragZone zoneKey (mx, my) False trigger }
     _ ->
       old
 

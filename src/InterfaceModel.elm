@@ -291,9 +291,7 @@ type MouseMode
       ZoneKey               -- (nodeId, shapeKind, zoneName)
       (Int, Int)            -- initial click
       Bool                  -- dragged at least one pixel
-      (Maybe Sync.LiveTrigger)
-        -- Nothing : Inactive live sync zone
-        -- Just f  : Active zone, and f computes program update and highlights
+      Sync.LiveTrigger      -- computes program update and highlights
 
   | MouseDragSelect
       Mouse.Position              -- initial mouse position

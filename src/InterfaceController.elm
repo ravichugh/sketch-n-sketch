@@ -285,12 +285,8 @@ onMouseClick clickPos old maybeClickable =
   let (isOnCanvas, (canvasX, canvasY) as pointOnCanvas) = clickToCanvasPoint old clickPos in
   case (old.tool, old.mouseMode) of
 
-    -- Inactive zone
-    (Cursor, MouseDragZone (i, k, z) _ _ Nothing) ->
-      onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
-
-    -- Active zone but not dragged
-    (Cursor, MouseDragZone (i, k, z) _ False (Just _)) ->
+    -- zone not yet dragged
+    (Cursor, MouseDragZone (i, k, z) _ False _) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     (Cursor, _) ->
@@ -421,10 +417,7 @@ onMouseDrag lastPosition newPosition old =
     MouseDrag f ->
       noCommand <| f lastPosition newPosition old
 
-    MouseDragZone zoneKey _ _ Nothing ->
-      noCommand old
-
-    MouseDragZone zoneKey (mx0, my0) _ (Just trigger) ->
+    MouseDragZone zoneKey (mx0, my0) _ trigger ->
       case old.syncMode of
         TracesAndTriggers True ->
           noCommand <|
@@ -572,7 +565,7 @@ onMouseUp old =
 
     (PrintScopeGraph _, _) -> old
 
-    (Graphics, MouseDragZone zoneKey (mx0, my0) _ (Just trigger)) ->
+    (Graphics, MouseDragZone zoneKey (mx0, my0) _ trigger) ->
       case old.syncMode of
         TracesAndTriggers True ->
           finishTrigger zoneKey old
@@ -644,7 +637,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
           , slateCount = 1 + old.slateCount
           , widgets = newWidgets
           , codeBoxInfo = codeBoxInfo_
-          , mouseMode = MouseDragZone zoneKey (mx0, my0) True (Just trigger)
+          , mouseMode = MouseDragZone zoneKey (mx0, my0) True trigger
           }
   )) |> handleError old
 
