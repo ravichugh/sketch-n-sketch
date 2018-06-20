@@ -399,6 +399,7 @@ valToMatchContinue v continuation =
     Ok regexMatch -> continuation regexMatch
 
 -- Reverse operation of matchToVal. Computes a list of transformations
+-- The transformations are already indexed on the original string
 recoverMatchedStringDiffs : RegexMatch -> RegexMatch -> (Maybe VDiffs) -> Results String (List (Int, Int, String)) {- The matched string -}
 recoverMatchedStringDiffs  oldRegexMatch newRegexMatch mbdiffs =
    let oldMatch      = oldRegexMatch.match in
@@ -410,85 +411,83 @@ recoverMatchedStringDiffs  oldRegexMatch newRegexMatch mbdiffs =
         let newMatch      = newRegexMatch.match
             newSubmatches = newRegexMatch.submatches
             newGroups     = newRegexMatch.group in
+        let ensureThereIsNo list continuation = case list of
+          [] -> continuation ()
+          keyword::tail -> case Dict.get keyword d of
+             Just _ -> Err <| "Cannot update the ." ++ keyword ++" of of a regex match, only the string itself !"
+             Nothing -> ensureThereIsNo tail continuation
+        in
         case Dict.get "match" d of
-          Just (VStringDiffs matchDiff) -> ok1 (strDiffToConcreteDiff newMatch matchDiff)
+          Just (VStringDiffs matchDiff) -> ok1 <| List.map (\(s, e, ss) -> (s+oldRegexMatch.index, e+oldRegexMatch.index,ss)) <| strDiffToConcreteDiff newMatch matchDiff
           Just ds -> Err <| "Expected a VStringDiffs for match, got " ++ toString ds
           Nothing ->
-            case Dict.get "index" d of
-              Just _ -> Err "Cannot update the .index of of a regex match, only the string itself !"
-              Nothing ->
-                case Dict.get "number" d of
-                  Just _ -> Err "Cannot update the .number of of a regex match, only the string itself !"
+            ensureThereIsNo ["index", "number", "start"] <| \_ ->
+            let makeTupleStringDiffs oldStringList newStringList a =
+              (case a of
+                 VListDiffs l -> Just l
+                 _ -> Nothing
+              ) |>
+              Maybe.andThen toTupleDiffs |>
+              Result.fromMaybe "No insertion/deletion allowed in the .submatches of a regex match" |>
+              Result.andThen (\tuplediffs ->
+                 List.map (\d -> case d of
+                  (i, VStringDiffs l) -> Ok (i, l)
+                  (i, VUnoptimizedDiffs) ->
+                    case defaultStringDiffs (Utils.nth oldStringList i |> Utils.fromOk "UpdateRegex.nth1") (Utils.nth newStringList i |> Utils.fromOk "UpdateRegex.nth2") of
+                      Ok (LazyList.Cons (Just l) _) -> Ok (i, l)
+                      Ok (LazyList.Cons Nothing _) -> Ok (i, [])
+                      Err msg -> Err msg
+                      d -> Err <| "Expected vStringDiffs, got " ++ toString d
+                  _ -> Err <| "Expected vStringDiffs, got " ++ toString d
+                 ) tuplediffs |> Utils.projOk
+              ) |>
+              Results.fromResult  in
+            let finalGroupAndDiffs =
+                 let submatchesTupleDiffs = case Dict.get "submatches" d of
+                   Nothing -> Nothing
+                   Just submatchesDiff ->
+                      makeTupleStringDiffs oldRegexMatch.submatches oldRegexMatch.submatches submatchesDiff |>
+                      Results.map (\gTupleDiff -> (newMatch::newRegexMatch.submatches, offset 1 gTupleDiff)) |>
+                      Just
+                 in
+                 let groupTupleDiffs = case Dict.get "group" d of
+                   Nothing -> Nothing
+                   Just groupDiff ->
+                      makeTupleStringDiffs oldRegexMatch.group oldRegexMatch.group groupDiff |>
+                      Results.map (\gTupleDiff -> (newRegexMatch.group, gTupleDiff)) |>
+                      Just
+                 in
+                 --let oldGroups = oldRegexMatch.group |> List.map (replaceV_ newV << VBase << VString) in
+                 case (submatchesTupleDiffs, groupTupleDiffs) of
+                   (Nothing, Nothing) -> ok1 (oldRegexMatch.group, [])
+                   (Just x, Nothing) -> x
+                   (Nothing, Just x) -> x
+                   (Just x, Just y)  ->
+                      Results.map2 (\(newGroups1, newGroupDiffs1) (newGroups2, newGroupDiffs2) ->
+                          mergeTuple mergeString oldRegexMatch.group newGroups1 newGroupDiffs1 newGroups2 newGroupDiffs2
+                     ) x y
+            in
+            flip Results.andThen finalGroupAndDiffs <| \(finalGroups, finalGroupsTupleDiffs) ->
+              let diffByGroupIndex =  Dict.fromList finalGroupsTupleDiffs in
+              --let _ = Debug.log "oldRegexMatch: " (oldRegexMatch) in
+              List.map2 (\(group, i) groupStart ->
+                case Dict.get i diffByGroupIndex of
                   Nothing ->
-                    case Dict.get "start" d of
-                      Just _ -> Err "Cannot update the group .start of a regex match, only the string itself !"
-                      Nothing ->
-                        let makeTupleStringDiffs oldStringList newStringList a =
-                          (case a of
-                             VListDiffs l -> Just l
-                             _ -> Nothing
-                          ) |>
-                          Maybe.andThen toTupleDiffs |>
-                          Result.fromMaybe "No insertion/deletion allowed in the .submatches of a regex match" |>
-                          Result.andThen (\tuplediffs ->
-                             List.map (\d -> case d of
-                              (i, VStringDiffs l) -> Ok (i, l)
-                              (i, VUnoptimizedDiffs) ->
-                                case defaultStringDiffs (Utils.nth oldStringList i |> Utils.fromOk "UpdateRegex.nth1") (Utils.nth newStringList i |> Utils.fromOk "UpdateRegex.nth2") of
-                                  Ok (LazyList.Cons (Just l) _) -> Ok (i, l)
-                                  Ok (LazyList.Cons Nothing _) -> Ok (i, [])
-                                  Err msg -> Err msg
-                                  d -> Err <| "Expected vStringDiffs, got " ++ toString d
-                              _ -> Err <| "Expected vStringDiffs, got " ++ toString d
-                             ) tuplediffs |> Utils.projOk
-                          ) |>
-                          Results.fromResult  in
-                        let finalGroupAndDiffs =
-                             let submatchesTupleDiffs = case Dict.get "submatches" d of
-                               Nothing -> Nothing
-                               Just submatchesDiff ->
-                                  makeTupleStringDiffs oldRegexMatch.submatches oldRegexMatch.submatches submatchesDiff |>
-                                  Results.map (\gTupleDiff -> (newMatch::newRegexMatch.submatches, offset 1 gTupleDiff)) |>
-                                  Just
-                             in
-                             let groupTupleDiffs = case Dict.get "group" d of
-                               Nothing -> Nothing
-                               Just groupDiff ->
-                                  makeTupleStringDiffs oldRegexMatch.group oldRegexMatch.group groupDiff |>
-                                  Results.map (\gTupleDiff -> (newRegexMatch.group, gTupleDiff)) |>
-                                  Just
-                             in
-                             --let oldGroups = oldRegexMatch.group |> List.map (replaceV_ newV << VBase << VString) in
-                             case (submatchesTupleDiffs, groupTupleDiffs) of
-                               (Nothing, Nothing) -> ok1 (oldRegexMatch.group, [])
-                               (Just x, Nothing) -> x
-                               (Nothing, Just x) -> x
-                               (Just x, Just y)  ->
-                                  Results.map2 (\(newGroups1, newGroupDiffs1) (newGroups2, newGroupDiffs2) ->
-                                      mergeTuple mergeString oldRegexMatch.group newGroups1 newGroupDiffs1 newGroups2 newGroupDiffs2
-                                 ) x y
-                        in
-                        flip Results.andThen finalGroupAndDiffs <| \(finalGroups, finalGroupsTupleDiffs) ->
-                          let diffByGroupIndex =  Dict.fromList finalGroupsTupleDiffs in
-                          --let _ = Debug.log "oldRegexMatch: " (oldRegexMatch) in
-                          List.map2 (\(group, i) groupStart ->
-                            case Dict.get i diffByGroupIndex of
-                              Nothing ->
-                                Ok []
-                              Just manydiffs ->
-                                let aux:Int -> List StringDiffs -> List (Int, Int, String) -> List (Int, Int, String)
-                                    aux offset diffs revAcc=
-                                  case diffs of
-                                     [] -> List.reverse revAcc
-                                     StringUpdate start end replaced :: diffsTail->
-                                       (groupStart + start, groupStart + end, String.slice (start + offset) (start + replaced + offset) group)::revAcc |>
-                                       aux (offset + replaced - (end - start)) diffsTail
-                                in
-                                Ok <| aux 0 manydiffs []
-                            ) (Utils.zipWithIndex finalGroups) oldRegexMatch.start |>
-                          Utils.projOk |> Result.map (\listlist ->
-                            List.concatMap identity listlist
-                          ) |> Results.fromResult
+                    Ok []
+                  Just manydiffs ->
+                    let aux:Int -> List StringDiffs -> List (Int, Int, String) -> List (Int, Int, String)
+                        aux offset diffs revAcc=
+                      case diffs of
+                         [] -> List.reverse revAcc
+                         StringUpdate start end replaced :: diffsTail->
+                           (groupStart + start, groupStart + end, String.slice (start + offset) (start + replaced + offset) group)::revAcc |>
+                           aux (offset + replaced - (end - start)) diffsTail
+                    in
+                    Ok <| aux 0 manydiffs []
+                ) (Utils.zipWithIndex finalGroups) oldRegexMatch.start |>
+              Utils.projOk |> Result.map (\listlist ->
+                List.concatMap identity listlist
+              ) |> Results.fromResult
        _ -> Err <| "Expected VRecordDiffs, got " ++ toString vd
 
 mergeTransformations: String -> List (Int, Int, String) -> String

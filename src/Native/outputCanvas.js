@@ -85,11 +85,11 @@ function listenForUpdatesToCanvasCount() {
         } else {
           newAttrValue = "NULL";
         }
-        console.log
+        /*console.log
           ( "Id: "        + mutation.target.id + "; "
           + "Attribute: " + mutation.attributeName + "; "
           + "New Value: " + newAttrValue
-          );
+          );*/
 
         if (mutation.attributeName == "data-canvas-count") {
           listenForUpdatesToOutputValues();
@@ -125,7 +125,7 @@ function triggerAutoUpdate() {
     timerAutoSync = undefined;
     if(!enableAutoUpdate || previewMode) return;
     lastCaretPosition = getCaretPositionIn(document.getElementById("outputCanvas"));
-    console.log("Sending caret position: " + lastCaretPosition);
+    /*console.log("Sending caret position: " + lastCaretPosition);*/
     app.ports.maybeAutoSync.send(lastCaretPosition);
   }, msBeforeAutoSync)
 }
@@ -219,25 +219,25 @@ function listenForUpdatesToOutputValues() {
 
   function handleMutations(mutations) {
     if(previewMode) {
-      console.log("Handling mutations in preview mode ")
+      /*console.log("Handling mutations in preview mode ")*/
       // Only remove nodes which have been inserted manually
       mutations.forEach(function(mutation) {
-        console.log("Checking if a mutation added nodes ", mutation.addedNodes)
+        /*console.log("Checking if a mutation added nodes ", mutation.addedNodes)*/
         for (var i = 0; i < mutation.addedNodes.length; i++) {
           var domNode = mutation.addedNodes[i];
           while(domNode.previousSibling != null) {
-            console.log("During preview, rewiinding ", domNode)
+            /*console.log("During preview, rewiinding ", domNode)*/
             domNode = domNode.previousSibling;
           }
           while(domNode != null) {
-            console.log("During preview, we remove inserted node. Checking ", domNode)
+            /*console.log("During preview, we remove inserted node. Checking ", domNode)*/
             if(domNode.manuallyInsertedNode) {
-              console.log("Manually inserted, we remove it.")
+              /*console.log("Manually inserted, we remove it.")*/
               var next = domNode.nextSibling;
               domNode.remove();
               domNode = next;
             } else {
-              console.log("Not manually inserted")
+              /*console.log("Not manually inserted")*/
               domNode = domNode.nextSibling
             }
           }
@@ -276,7 +276,7 @@ function listenForUpdatesToOutputValues() {
           }
         }
       } else {
-        console.log("mutation type:", mutation.type);
+        /*console.log("mutation type:", mutation.type);*/
         for (var k = 0; k < mutation.addedNodes.length; k ++) { // We add the callback to each added node.
           function walkAllChildren(currentNode) {
             outputValueObserver.observe
@@ -318,8 +318,8 @@ function listenForUpdatesToOutputValues() {
             path.push(2);
             valueUpdateType = 2;
           }
-          console.log("path", path);
-          console.log("encoded node", encodedNode);
+          /*console.log("path", path);
+          console.log("encoded node", encodedNode);*/
           app.ports.receiveValueUpdate.send([valueUpdateType, path, encodedNode])
           triggerAutoUpdate()
         }
@@ -446,7 +446,7 @@ app.ports.setDiffTimer.subscribe(function(b) {
 
 app.ports.setCaretPosition.subscribe(function(position) {
   setTimeout(function() {
-    console.log("Setting caret position: " + position);
+    /*console.log("Setting caret position: " + position);*/
     setCaretPositionIn(document.getElementById("outputCanvas"), position)
   }, 0);
 })

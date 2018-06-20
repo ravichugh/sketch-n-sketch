@@ -23,7 +23,7 @@ Debug = {
 
 -- building block for updating
 freeze x = x
-
+expressionFreeze x = x
 -----------------------------------------
 -- Building blocks functions
 
@@ -263,6 +263,10 @@ LensLess =
       Nothing -> filterMap f tail
       Just newHead -> newHead :: filterMap f tail
   in
+  letrec concatMap f l = case l of
+    [] -> []
+    head :: tail -> f head ++ concatMap f tail
+  in
   letrec last l = case l of
     [head] -> Just head
     _ :: tail -> last tail
@@ -273,6 +277,7 @@ LensLess =
       [x::xs1, y::ys1] -> f x y :: map2 f xs1 ys1
       _                -> []
   in
+  let zip = map2 (,) in
   { appendStrDef = """letrec append a b = case a of [] -> b; (h::t) -> h :: append t b in """
     List = {
       append = append
@@ -285,6 +290,8 @@ LensLess =
       map = map
       last = last
       map2 = map2
+      concatMap = concatMap
+      zip = zip
     },
     Results =
       letrec keepOks l =
@@ -430,7 +437,8 @@ Update =
      (Ok (v, d))::tail -> case resultValuesWithDiffs tail of
        {error} -> {values=v, diffs=d}
        {values,diffs} -> {values = v::values, diffs = d::diffs}
-     (Err msg)::tail -> case resultValuesWithDiffs tail of
+     (Err msg)::tail -> if tail == [] then {error=msg} else
+       case resultValuesWithDiffs tail of
        {error} -> {error=msg + "\n" + error}
        {values,diffs} -> {values = values, diffs = diffs}
   in
@@ -593,7 +601,7 @@ Update =
             (left, (i, d)::leftDiffs, right, rightDiffs))
         else if i > n || i == n && (case d of ListElemInsert _ -> False; _ -> True) then
           let (left, right) = List.split (n + offset) newList in
-          [(left, [], right, offsetList (0 - n - offset) listDiffs)]
+          [(left, [], right, offsetList (0 - n) listDiffs)]
         else -- i == n now, everything happens at the intersection.
           let insertionToLeft =
             let (left, right) = List.split (i + newOffset) newList in
@@ -694,10 +702,28 @@ Update =
                   Just revDiffs -> { error = "Diffs not specified until " + toString value }
             in aux [] Nothing values
   in
+  let preventLengthChange l = {
+         apply l = freeze l
+         update {outputNew=newL, diffs=d} =
+           let lengthNotModified = case d of
+             VListDiffs ds -> letrec aux ds = case ds of
+               (_, ListElemDelete _)::tail -> False
+               (_, ListElemInsert _)::tail -> False
+               _::tail -> aux tail
+               [] -> True
+              in aux ds
+             _ -> False
+           in
+           if lengthNotModified then {values=[newL], diffs=[Just d]} else { values = [], diffs = [] }
+       }.apply l
+  in
   -- exports from Update module
   { freeze x =
       -- eta-expanded because "freeze x" is a syntactic form for U-Freeze
       freeze x
+    expressionFreeze x =
+      expressionFreeze x
+    preventLengthChange = preventLengthChange
     foldDiff = foldDiff
     applyLens lens x =
       -- "f.apply x" is a syntactic form for U-Lens, but eta-expanded anyway
@@ -859,10 +885,18 @@ map f l = {
           case LensLess.List.last insA of Just h -> h; Nothing -> Debug.crash "Empty list for map, cannot insert" in
         case Update.updateApp {fun (f,x) = f x, input = (f, input), output = newOutput} of
           { error = msg } -> {error = msg }
-          { values = vs } -> {values =
+          { values = vs, diffs=ds } -> {values =
               -- We disable the modification of f itself in the insertion (to prevent programmatic styling to change unexpectedly) newF::
-              LensLess.List.map (\(newF, newA) ->
-                [fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]) vs
+              let aprioriResult = LensLess.List.concatMap (\((newF, newA), diff) ->
+                case diff of
+                  Just (VRecordDiffs {_1}) -> []
+                  _ -> [[fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]]) <| LensLess.List.zip vs ds
+              in -- If one of the result does not change f, that's good. Else, we take all the results.
+              if aprioriResult == [] then -- Here we return all possibilities, ignoring changes to the function
+                LensLess.List.concatMap (\(newF, newA) ->
+                   [[fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]]) vs
+              else
+                aprioriResult
           }
 
       onFinish [newFs, newIns, diffInsA, _] =
@@ -1336,13 +1370,7 @@ List =
     -- TODO: reverse the differences as well !
     \l -> { apply l = freeze (r l), update {output}= {values = [r output]}}.apply l
   in
-  letrec simpleMap f l =
-    case l of
-      []    -> []
-      x::xs -> f x :: simpleMap f xs
-  in
-  let map =
-    simpleMap
+  let simpleMap = LensLess.List.map
   in
   letrec filterMap f l = case l of
     [] -> []
@@ -1481,6 +1509,7 @@ List =
   let indices l = range 0 (length l - 1) in
   { simpleMap = simpleMap
     map = map
+    map2 = map2 -- TOOD: Make it a lens that supports insertion?
     nil = nil
     cons = cons
     length = length
