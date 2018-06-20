@@ -3527,6 +3527,15 @@ vListDiffsUnapply vdiffs = case vdiffs of
   VListDiffs d -> Just d
   _ -> Nothing
 
+vRecordDiffsUnapply: VDiffs -> Maybe (Dict String VDiffs)
+vRecordDiffsUnapply x = case x of
+  VRecordDiffs dict -> Just dict
+  _ -> Nothing
+
+-- Given a string "_1", "_2" ... returns if there is a diff associated to it for a diff on datatypes
+vDatatypeDiffsGet: String -> VDiffs -> Maybe VDiffs
+vDatatypeDiffsGet n d = d |> vRecordDiffsUnapply |> Maybe.andThen (Dict.get ctorArgs) |> Maybe.andThen vRecordDiffsUnapply |> Maybe.andThen (Dict.get n)
+
 offsetStr: Int -> List StringDiffs -> List StringDiffs
 offsetStr n diffs =
   --Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <|

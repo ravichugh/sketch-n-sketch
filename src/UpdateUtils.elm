@@ -346,11 +346,71 @@ alldiffs keyOf before after =
 allStringDiffs: String -> String -> Results String (List (DiffChunk String))
 allStringDiffs before after =
     -- If at least one half of the string before/after was the same, no need to look for the longest equal sequence.
-    --let middlePointLeft = max ((String.length before + 2) / 2) ((String.length after + 2) / 2) in
-    --if String.slice 0 middlePointLeft before
-    --   == String.slice 0 middlePointLeft after then
-   --    let remainingBefore = String.dropLeft middlePointLeft before in
-   --    let remainingAfter = String.dropLeft middlePointLeft before in
+    let lengthBefore = String.length before in
+    let lengthAfter = String.length after in
+    let testLeftRight continuation =
+      let halfBeforePlus1 = (lengthBefore + 2) // 2 in
+      let halfAfterPlus1 = (lengthAfter + 2) // 2 in
+      let halfCommon = max halfBeforePlus1 halfAfterPlus1 in
+      let testLeft continuation =
+         let leftPart = String.slice 0 halfCommon before in
+         if leftPart == String.slice 0 halfCommon after then
+           let remainingBefore = String.dropLeft halfCommon before in
+           let remainingAfter = String.dropLeft halfCommon after in
+           allStringDiffs remainingBefore remainingAfter |> Results.map (\l -> case l of
+             DiffEqual x :: tail -> DiffEqual (leftPart ++ x) :: tail
+             _ -> DiffEqual leftPart :: l
+           )
+         else
+           continuation ()
+      in
+      let testRight continuation =
+         let rightPart = String.slice (lengthBefore - halfCommon) lengthBefore before in
+         if rightPart == String.slice (lengthAfter - halfCommon) lengthAfter after then
+           let remainingBefore = String.dropRight halfCommon before in
+           let remainingAfter = String.dropRight halfCommon after in
+           allStringDiffs remainingBefore remainingAfter |> Results.map (\l ->
+             let aux l = case l of
+               [DiffEqual x] -> [DiffEqual (x ++ rightPart)]
+               head::tail -> head :: aux tail
+               [] -> [DiffEqual rightPart]
+            in aux l
+           )
+         else -- Here neither the first half or the last half are in common. We test if the first fourth and the last fourth are simultaneously the same.
+           continuation ()
+      in
+      testLeft <| \_ ->
+      testRight continuation
+    in
+    let testFirstLastFourth continuation =
+      let fourthBeforePlus1 = (lengthBefore + 4) // 4 in
+      let fourthAfterPlus1 = (lengthAfter + 4) // 4 in
+      let fourthCommon = max fourthBeforePlus1 fourthAfterPlus1 in
+      let firstFourth = String.slice 0 fourthCommon before
+          lastFourth = String.slice (lengthBefore - fourthCommon) lengthBefore before in
+      if firstFourth == String.slice 0 fourthCommon after
+         && lastFourth == String.slice (lengthAfter - fourthCommon) lengthAfter after then
+         let remainingBefore = String.dropLeft fourthCommon <| String.dropRight fourthCommon <| before in
+         let remainingAfter = String.dropLeft fourthCommon <| String.dropRight fourthCommon <| after in
+         allStringDiffs remainingBefore remainingAfter |> Results.map (\l ->
+           let aux l = case l of
+             [DiffEqual x] -> [DiffEqual (x ++ lastFourth)]
+             head::tail -> head :: aux tail
+             [] -> [DiffEqual lastFourth]
+          in case aux l of
+            DiffEqual x :: tail -> DiffEqual (firstFourth ++ x) :: tail
+            ll ->  DiffEqual firstFourth :: l
+         )
+    else
+      continuation ()
+    in
+    let tests continuation =
+      if lengthBefore > 2 && lengthAfter > 2 then
+         testLeftRight <| \_ ->
+         testFirstLastFourth continuation
+      else continuation ()
+    in
+    tests <| \_ ->
    --    allStringDiffs remainingBefore remainingAfter
     --let _ = ImpureGoodies.log <| "allStringDiffs '" ++ before ++ "' '" ++ after ++ "'" in
     -- Create a Dict from before values to the list of every index at which they appears
@@ -1380,11 +1440,11 @@ defaultVDiffs original modified =
 defaultVDiffsRec: Bool -> (Val -> Val -> Results String (Maybe VDiffs)) -> Val -> Val -> Results String (Maybe VDiffs)
 defaultVDiffsRec testEquality recurse original modified =
   case (original.v_, modified.v_) of
-    (VList originals, VList modified) ->
+    (VList originals, VList modifieds) ->
       defaultListDiffs valToString (\v -> getDatatypeName v |> Utils.maybeOrElseLazy (\() -> getViewDatatypeName v))
-        recurse originals modified |> Results.map (Maybe.map VListDiffs)
-    (VBase (VString original), VBase (VString modified)) ->
-      defaultStringDiffs original modified |> Results.map (Maybe.map VStringDiffs)
+        recurse originals modifieds |> Results.map (Maybe.map VListDiffs)
+    (VBase (VString originalStr), VBase (VString modifiedStr)) ->
+      defaultStringDiffs originalStr modifiedStr |> Results.map (Maybe.map VStringDiffs)
     (VClosure isRec1 pats1 body1 env1, VClosure isRec2 pats2 body2 env2) ->
       let ids = Set.union (Set.diff (LangUtils.identifiersSet body1) (LangUtils.identifiersSetInPats pats1))
                (Set.diff (LangUtils.identifiersSet body2) (LangUtils.identifiersSetInPats pats2))

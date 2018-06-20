@@ -160,12 +160,7 @@ builtinEnv =
                      Err msg -> Err msg
                      Ok (Ok x) -> Err <| "Cannot change the outpur of __evaluate__ from error to " ++ valToString x ++ "'"
                  Ok x -> ok1 x |> Results.andThen (\prog ->
-                    let vRecordDiffsUnapply x = case x of
-                      VRecordDiffs dict -> Just dict
-                      _ -> Nothing
-                    in
-                    let datatypeDiffsGet n d = d |> vRecordDiffsUnapply |> Maybe.andThen (Dict.get "args") |> Maybe.andThen vRecordDiffsUnapply |> Maybe.andThen (Dict.get n) in
-                    case (Vu.result Vu.identity oldValr, Vu.result Vu.identity newValr, datatypeDiffsGet "_1" d) of
+                    case (Vu.result Vu.identity oldValr, Vu.result Vu.identity newValr, vDatatypeDiffsGet "_1" d) of
                       (Ok (Ok oldVal), Ok (Ok newVal), Just dd) ->
                         -- update = UpdateStack -> LazyList NextAction -> Results (UpdatedEnv, UpdatedExp)
                           UpdateStack.updateContext "Eval.__evaluate__" (env ++ builtinEnv) prog [] oldVal newVal dd
@@ -285,6 +280,7 @@ builtinEnv =
   , ("replaceAllIn", UpdateRegex.replaceAllByIn eval update)
   , ("replaceFirstIn", UpdateRegex.replaceFirstByIn eval update)
   , ("updateReplace", UpdateRegex.updateReplace eval update)
+  , ("findInterleavings", UpdateRegex.findInterleavings update)
   , ("join__", UpdateRegex.join)
 
   , ("__mbwraphtmlnode__", builtinVal "EvalUpdate.__mbwraphtmlnode__" <|
