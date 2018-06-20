@@ -702,7 +702,7 @@ Update =
                   Just revDiffs -> { error = "Diffs not specified until " + toString value }
             in aux [] Nothing values
   in
-  let preventLengthChange l = {
+  let sizeFreeze l = {
          apply l = freeze l
          update {outputNew=newL, diffs=d} =
            let lengthNotModified = case d of
@@ -723,7 +723,7 @@ Update =
       freeze x
     expressionFreeze x =
       expressionFreeze x
-    preventLengthChange = preventLengthChange
+    sizeFreeze = sizeFreeze
     foldDiff = foldDiff
     applyLens lens x =
       -- "f.apply x" is a syntactic form for U-Lens, but eta-expanded anyway

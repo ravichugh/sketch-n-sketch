@@ -336,9 +336,29 @@ __jsEval__ string
 ```
 Evaluates arbitrary JavaScript using JavaScript's eval. Converts back the value to an interpretable value in our language, i.e. integers to integers, strings to strings, records to records, arrays to list.
 Can be useful to execute a program with user-defined values (e.g. `let username = __jsEval__ "document.getElementById('username')" in ...`).
-This function is not reversible.
+This function is not reversible -- use it mostly for non-visible control flow (settings, appearance, language...).
 
+```
+freeze exp
+Update.freeze exp
+```
+For execution purposes, `freeze` is the identity function.
+For evaluation update, `freeze` prevents any changes to be pushed back to the expression (variables and structural).
 
+```
+expressionFreeze exp
+Update.expressionFreeze exp
+```
+For execution purposes, `expressionFreeze` is the identity function.
+For evaluation update, `expressionFreeze` lets changes to propagate back to `exp` but will prevent structural changes to happen.
+It lets only the value of variables to be updated.
+
+```
+sizeFreeze [list...]
+Update.sizeFreeze [list...]
+```
+For execution purposes, `sizeFreeze` is the identity function.
+For evaluation update, `sizeFreeze` will block any insertions and deletion to the list.
 
 ### Comments and Options
 
