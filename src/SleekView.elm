@@ -34,6 +34,7 @@ import OutputTools exposing (OutputTool)
 
 import SleekLayout exposing (px, half)
 import Canvas
+import OutputCanvas
 import Draw
 import LangTools
 import Sync
@@ -1033,8 +1034,21 @@ menuBar model =
                   Controller.msgStopAutoSynthesisAndClear
               ]
           , let msgSetSyncMode mode =
-              Msg "Set Sync Mode" <| \m ->
-                { m | syncMode = mode }
+              NewModelAndCmd "Set Sync Mode" <| \m ->
+                let
+                  newModel =
+                    { m | syncMode = mode }
+
+                  cmd =
+                    case (m.syncMode, mode) of
+                      (ValueBackprop _, TracesAndTriggers _) ->
+                        OutputCanvas.stopDomListener
+                      (TracesAndTriggers _, ValueBackprop _) ->
+                        OutputCanvas.startDomListener
+                      _ ->
+                        Cmd.none
+                in
+                (newModel, cmd)
             in
             hoverMenu "Output Synchronization"
               [ simpleTextRadioButton

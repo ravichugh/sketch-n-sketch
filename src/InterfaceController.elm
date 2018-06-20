@@ -286,11 +286,11 @@ onMouseClick clickPos old maybeClickable =
   case (old.tool, old.mouseMode) of
 
     -- Inactive zone
-    (Cursor, MouseDragZone (i, k, z) Nothing) ->
+    (Cursor, MouseDragZone (i, k, z) _ _ Nothing) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     -- Active zone but not dragged
-    (Cursor, MouseDragZone (i, k, z) (Just (_, _, False))) ->
+    (Cursor, MouseDragZone (i, k, z) _ False (Just _)) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     (Cursor, _) ->
@@ -421,10 +421,10 @@ onMouseDrag lastPosition newPosition old =
     MouseDrag f ->
       noCommand <| f lastPosition newPosition old
 
-    MouseDragZone zoneKey Nothing ->
+    MouseDragZone zoneKey _ _ Nothing ->
       noCommand old
 
-    MouseDragZone zoneKey (Just (trigger, (mx0, my0), _)) ->
+    MouseDragZone zoneKey (mx0, my0) _ (Just trigger) ->
       case old.syncMode of
         TracesAndTriggers True ->
           noCommand <|
@@ -572,7 +572,7 @@ onMouseUp old =
 
     (PrintScopeGraph _, _) -> old
 
-    (Graphics, MouseDragZone zoneKey (Just (trigger, (mx0, my0), _))) ->
+    (Graphics, MouseDragZone zoneKey (mx0, my0) _ (Just trigger)) ->
       case old.syncMode of
         TracesAndTriggers True ->
           finishTrigger zoneKey old
@@ -628,7 +628,6 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
     let codeBoxInfo = old.codeBoxInfo in
     { codeBoxInfo | highlights = highlights }
   in
-  let dragInfo_ = (trigger, (mx0, my0), True) in
 
   EvalUpdate.runWithEnv old.syntax newExp |> Result.andThen (\((newVal, newWidgets), newEnv) ->
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
@@ -645,7 +644,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
           , slateCount = 1 + old.slateCount
           , widgets = newWidgets
           , codeBoxInfo = codeBoxInfo_
-          , mouseMode = MouseDragZone zoneKey (Just dragInfo_)
+          , mouseMode = MouseDragZone zoneKey (mx0, my0) True (Just trigger)
           }
   )) |> handleError old
 
