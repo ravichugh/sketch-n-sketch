@@ -3959,7 +3959,9 @@ Html =
       [] -> nodes
       [head] -> nodes
       [\"TEXT\", str1]::[\"TEXT\", str2]::tail -> mergeTextNodes ([\"TEXT\", str1+str2]::tail)
-      head::tail -> head::mergeTextNodes tail
+      _ ->
+        let (head, tail) = List.split 1 nodes in
+        head ++ mergeTextNodes tail
     in
     letrec aux node = case node of
       [\"TEXT\", text] ->
