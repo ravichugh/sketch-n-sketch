@@ -213,6 +213,7 @@ type alias Model =
   , valueEditorString : String
   , htmlEditorString: Maybe String
   , updatedValue: Maybe (Result String Val)
+  , shapeUpdatesViaZones : Dict NodeId (List LangSvg.Attr)
   , syntax : Syntax
   , codeEditorMode : CodeEditorMode
   , deuceOverlayCache : Maybe (Html Msg)
@@ -1389,6 +1390,7 @@ initModel =
     , valueEditorString = LangUtils.valToString v
     , htmlEditorString = Nothing
     , updatedValue = Nothing
+    , shapeUpdatesViaZones = Dict.empty
     , syntax = Syntax.Elm
     , codeEditorMode = CEText
     , deuceOverlayCache = Nothing
