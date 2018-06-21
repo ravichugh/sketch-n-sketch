@@ -2208,7 +2208,7 @@ LensLess =
           {values = ll} -> {values = ll |> map callback }
           { error = msg} -> results
       in
-      let andElse otherResults results =
+      let andAlso otherResults results =
         case (results, otherResults) of
           ({values = ll}, {values=otherLl}) -> { values = ll ++ otherLl }
           ({error = msg}, {error=msg2}) -> { error = msg + \"\\n\" + msg2 }
@@ -2219,7 +2219,7 @@ LensLess =
         keepOks = keepOks
         projOks = projOks
         andThen = andThen
-        andElse = andElse
+        andAlso = andAlso
         map = resultMap
       }
     String =
@@ -3947,6 +3947,34 @@ Html =
       update {input, outputNew} = { values = [controller input outputNew] }
     }.apply model
   in
+  {- Given
+     * a regex
+     * a replacement function that takes a string match and returns a list of Html nodes
+     * a node
+     This functions returns a node, (excepted if the top-level node is a [\"TEXT\", _] and is splitted.
+  -}
+  let replace regex replacement node =
+    -- Reversibly merges the text nodes from a list of nodes.
+    letrec mergeTextNodes nodes = case nodes of
+      [] -> nodes
+      [head] -> nodes
+      [\"TEXT\", str1]::[\"TEXT\", str2]::tail -> mergeTextNodes ([\"TEXT\", str1+str2]::tail)
+      head::tail -> head::mergeTextNodes tail
+    in
+    letrec aux node = case node of
+      [\"TEXT\", text] ->
+        findInterleavings 0 regex text
+        |> List.concatMap_ identity (\\[head] ->
+          case head of
+            Left str ->
+              [[\"TEXT\", str]]
+            Right match -> replacement match
+        ) |> mergeTextNodes
+      [tag, attrs, children] -> [[tag, attrs, List.concatMap_ (\\x -> [x]) (\\[node] -> aux node) children]]
+    in case aux node of
+      [x] -> x
+      y -> y
+  in
   { textNode = textNode
     p = textElementHelper \"p\"
     th = textElementHelper \"th\"
@@ -3976,6 +4004,7 @@ Html =
     button = button
     observeCopyValueToAttribute = observeCopyValueToAttribute
     onChangeAttribute = onChangeAttribute
+    replace = replace
   }
 
 -- TODO remove this; add as imports as needed in examples

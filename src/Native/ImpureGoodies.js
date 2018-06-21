@@ -157,13 +157,28 @@ var _user$project$Native_ImpureGoodies = {
     })(),
 
     emptyNativeRecord: function(dummy) {
-      return {}
+      return {};
     },
 
     addPairToNativeRecord: function(key) {
       return function(value) {
         return function(record) {
-          record[key] = value
+          record[key] = value;
+          return record;
+        }
+      }
+    },
+
+    setValueToNativeRecord: function(key) {
+      return function(mbValue) {
+        return function(record) {
+          if(typeof record  == "object") {
+            if(mbValue.ctor == "Nothing") {
+              delete record[key];
+            } else {
+              record[key] = mbValue._0;
+            }
+          }
           return record;
         }
       }
@@ -179,6 +194,27 @@ var _user$project$Native_ImpureGoodies = {
         acc = _elm_lang$core$Native_List.Cons(_elm_lang$core$Native_Utils.Tuple2(key, value), acc)
       }
       return acc;
+    },
+
+    nativeRecordGet: function(key) {
+      return function(record) {
+        if(typeof record == "object") {
+          if(typeof record[key] == "undefined") {
+              return _elm_lang$core$Maybe$Nothing;
+          } else {
+            return _elm_lang$core$Maybe$Just(record[key]);
+          }
+        } else return _elm_lang$core$Maybe$Nothing;
+      }
+    },
+
+    nativeRecordKeys: function(record) {
+     var result = Object.keys(record);
+     var listResult = {ctor:"[]"};
+     for(var i = result.length - 1; i >= 0; i--) {
+       listResult = {ctor:"::",_0:result[i],_1:listResult};
+     }
+     return listResult;
     },
 
     toNativeArray: function(elmList) {

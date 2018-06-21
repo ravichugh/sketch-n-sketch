@@ -98,17 +98,43 @@ htmlunescape s = Native.ImpureGoodies.htmlunescape s
 htmlescape: String -> String
 htmlescape s = Native.ImpureGoodies.htmlescape s
 
-emptyNativeRecord: () -> c
+emptyNativeRecord: () -> record
 emptyNativeRecord = Native.ImpureGoodies.emptyNativeRecord
 
 addPairToNativeRecord: (String, b) -> c -> c
 addPairToNativeRecord (s, b) c = Native.ImpureGoodies.addPairToNativeRecord s b c
+
+setValueToNativeRecord: String-> Maybe value -> record -> record
+setValueToNativeRecord key mbValue record =
+  Native.ImpureGoodies.setValueToNativeRecord key mbValue record
+
+updateNativeRecord: String -> (Maybe value -> Maybe value2) -> record -> record
+updateNativeRecord key valueUpdater record =
+  setValueToNativeRecord key (valueUpdater (nativeRecordGet key record)) record
 
 keyPairsToNativeRecord: List (String, b) -> c
 keyPairsToNativeRecord l = List.foldl addPairToNativeRecord (emptyNativeRecord ()) l
 
 keyPairsOfNativeRecord: c -> List (String, b)
 keyPairsOfNativeRecord = Native.ImpureGoodies.keyPairsOfNativeRecord
+
+nativeRecordGet: String -> record -> Maybe value
+nativeRecordGet = Native.ImpureGoodies.nativeRecordGet
+
+nativeRecordKeys: record -> List String
+nativeRecordKeys = Native.ImpureGoodies.nativeRecordKeys
+
+mapNativeRecord: (String -> value -> value2) -> record -> record
+mapNativeRecord transformer record =
+  nativeRecordKeys record |> List.foldl (\key record ->
+    setValueToNativeRecord key (nativeRecordGet key record |> Maybe.map (transformer key)) record) record
+
+nativeDict = {
+  empty = emptyNativeRecord,
+  get = nativeRecordGet,
+  update = updateNativeRecord,
+  map = mapNativeRecord
+  }
 
 fromNative: a ->
   (String -> b) ->
@@ -124,3 +150,4 @@ toNativeArray = Native.ImpureGoodies.toNativeArray
 
 hideType: a -> b
 hideType = Native.ImpureGoodies.hideType
+

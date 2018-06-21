@@ -125,7 +125,7 @@ object SNS extends Module {
     read(pwd / 'src / "ExamplesTemplate.elm").split("\\r?\\n").toList.flatMap{
       case ActiveExampleFile(converter, filename) =>
         val filepath = pwd / 'examples / RelPath(filename+extension(converter))
-        List(filepath)
+        List(filepath.toNIO.toFile.lastModified())
       case _ => Nil
     }
   }

@@ -83,7 +83,7 @@ join = let
                        let firstReplaced =
                          gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput ((StringUpdate start endHead 0)::(StringUpdate endHead end replaced)::diffTail)
                        in
-                       if replaced == 0 then firstReplaced else firstReplaced |> Results.andElse (
+                       if replaced == 0 then firstReplaced else firstReplaced |> Results.andAlso (
                          gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput ((StringUpdate start endHead replaced)::(StringUpdate endHead end 0)::diffTail)
                        )
                      else
@@ -119,8 +119,8 @@ join = let
                            )
                         in
                        if preferStringInsertionToLeft_ sa inserted sb
-                       then appendNow |> Results.andElse appendLater
-                       else appendLater |> Results.andElse appendNow
+                       then appendNow |> Results.andAlso appendLater
+                       else appendLater |> Results.andAlso appendNow
                      else
                        let offsetChange = replaced - (end - start) in
                        let newOffsetOutput = offsetOutput + offsetChange in
@@ -141,7 +141,7 @@ join = let
                        if deleteAnyway then
                          resultsWithDelete
                        else
-                         resultsWithDelete |> Results.andElse resultsWithEmptyString
+                         resultsWithDelete |> Results.andAlso resultsWithEmptyString
                      else -- start
                        let inserted = substring (start + offsetOutput) (start + offsetOutput + replaced) newOutput in
                        let newHead = substring 0 (start - startHead - deltaLengthHeadInput) head ++

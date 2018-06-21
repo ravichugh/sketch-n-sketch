@@ -1,4 +1,4 @@
-LensLess = { LensLess | Results = { LensLess.Results | andElse otherResults results =
+LensLess = { LensLess | Results = { LensLess.Results | andAlso otherResults results =
         case (results, otherResults) of
           ({values = ll}, {values=otherLl}) -> { values = ll ++ otherLl }
           ({error = msg}, {error=msg2}) -> { error = msg + "\n" + msg2 }
@@ -49,7 +49,7 @@ joinEmpty list =
                   let firstReplaced =
                     gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput ((StringUpdate start endHead 0)::(StringUpdate endHead end replaced)::diffTail)
                   in
-                  if replaced == 0 then firstReplaced else firstReplaced |> Results.andElse (
+                  if replaced == 0 then firstReplaced else firstReplaced |> Results.andAlso (
                     gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput ((StringUpdate start endHead replaced)::(StringUpdate endHead end 0)::diffTail)
                   )
                 else 
@@ -82,8 +82,8 @@ joinEmpty list =
                       )
                    in
                   if preferStringInsertionToLeft_ sa inserted sb
-                  then appendNow |> Results.andElse appendLater
-                  else appendLater |> Results.andElse appendNow
+                  then appendNow |> Results.andAlso appendLater
+                  else appendLater |> Results.andAlso appendNow
                 else 
                   let offsetChange = replaced - (end - start) in
                   let newOffsetOutput = offsetOutput + offsetChange in

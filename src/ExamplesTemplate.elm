@@ -276,6 +276,7 @@ LEO_TO_ELM slides
 LEO_TO_ELM docs
 LEO_TO_ELM sync
 LEO_TO_ELM foldl_reversible_join
+LEO_TO_ELM references_in_text
 
 --------------------------------------------------------------------------------
 
@@ -313,6 +314,7 @@ docsCategory =
       , ("Slides", slides)
       , ("Docs", docs)
       -- TODO maybe Conference?
+      , ("Html regex replace: references", references_in_text)
       , ("String join, concatMap", foldl_reversible_join)
       , ("Lens: Maybe Map", mapMaybeLens)
       , ("Lens: List Map 1", mapListLens_1)
