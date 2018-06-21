@@ -289,10 +289,9 @@ type MouseMode
 
   | MouseDragZone
       ZoneKey               -- (nodeId, shapeKind, zoneName)
-      (Maybe                -- Inactive (Nothing) or Active
-        ( Sync.LiveTrigger      -- computes program update and highlights
-        , (Int, Int)            -- initial click
-        , Bool ))               -- dragged at least one pixel
+      (Int, Int)            -- initial click
+      Bool                  -- dragged at least one pixel
+      Sync.LiveTrigger      -- computes program update and highlights
 
   | MouseDragSelect
       Mouse.Position              -- initial mouse position
@@ -1278,7 +1277,9 @@ initModel =
     , widgets       = ws
     , outputMode    = Graphics
     , syncMode      = ValueBackprop False
-                        -- Native/outputCanvas.js: set enableAutoUpdate = true/false to match
+                        -- Native/outputCanvas.js:
+                        --   initializeOutputCanvas() assumes initModel.syncMode == ValueBackprop b
+                        --   set enableAutoUpdate = true/false to match b
     , liveSyncInfo  = liveSyncInfo
     , autoSyncDelay = 1000
     , caretPosition = Nothing -- Caret position in the outputCanvas

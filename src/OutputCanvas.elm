@@ -12,6 +12,8 @@ port module OutputCanvas exposing
   , DiffTimer
   , clearPreviewDiff
   , setCaretPosition
+  , stopDomListener
+  , startDomListener
   )
 
 import InterfaceModel as Model exposing (Model, OutputCanvasInfo)
@@ -32,6 +34,8 @@ type alias DiffTimer = { delay: Int, activate: Bool}
 
 initialize  = sendCmd "initialize"
 resetScroll = sendCmd "resetScroll"
+stopDomListener = sendCmd "stopDomListener"
+startDomListener = sendCmd "startDomListener"
 
 sendCmd message =
   outputCanvasCmd <|

@@ -68,6 +68,8 @@ function setCaretPositionIn(m, a) {
 // If want to debug the SnS UI by watching all changes to the DOM, observe
 // document.documentElement with config.subtree = true.
 
+var outputCanvasObserver;
+
 function dataValueIdOf(mutationTarget) {
   return mutationTarget.attributes.getNamedItem("data-value-id").value;
 }
@@ -99,7 +101,7 @@ function listenForUpdatesToCanvasCount() {
     });
   }
 
-  var outputCanvasObserver = new MutationObserver(handleMutations);
+  outputCanvasObserver = new MutationObserver(handleMutations);
   var config = { attributes: true };
   outputCanvasObserver.observe(outputCanvas, config);
 
@@ -412,6 +414,15 @@ app.ports.outputCanvasCmd.subscribe(function(cmd) {
   } else if (message == "resetScroll") {
     outputCanvas.scrollLeft = 0;
     outputCanvas.scrollTop = 0;
+
+  } else if (message == "stopDomListener") {
+    // console.log("stop listening to DOM changes");
+    outputCanvasObserver.disconnect();
+    outputValueObserver.disconnect();
+
+  } else if (message == "startDomListener") {
+    // console.log("start listening to DOM changes");
+    listenForUpdatesToCanvasCount();
 
   } else {
     console.log("[outputCanvas.js] unexpected message: " + message);
