@@ -166,7 +166,13 @@ buildHtml_ : (Model, Bool) -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> (
 buildHtml_ (model, addZones) insideSvgNode d i =
   case Utils.justGet_ ("buildHtml_ " ++ toString i) i d |> .interpreted of
    LangSvg.TextNode text -> VirtualDom.text text
-   LangSvg.SvgNode shape attrs childIndices ->
+   -- LangSvg.SvgNode shape attrs childIndices ->
+   LangSvg.SvgNode shape originalAttrs childIndices ->
+    let attrs =
+      case Dict.get i model.shapeUpdatesViaZones of
+        Nothing -> originalAttrs
+        Just updatedAttrs -> updatedAttrs
+    in
     case (model.showGhosts, Utils.maybeRemoveFirst "HIDDEN" attrs) of
      (False, Just _) -> Svg.svg [] []
      _ ->

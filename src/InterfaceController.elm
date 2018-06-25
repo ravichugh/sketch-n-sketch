@@ -670,13 +670,13 @@ finishTrigger zoneKey old =
 
 adHocZone =
   let
-    latestAttrs i old =
+    getLatestAttrs i old =
       case Dict.get i old.shapeUpdatesViaZones of
 
         -- shape i hasn't been modified since evaluation
         Nothing ->
           let (_,originalAttrs,_) =
-            LangSvg.justGetSvgNode "latestAttrs" i old.slate
+            LangSvg.justGetSvgNode "getLatestAttrs" i old.slate
           in
           originalAttrs
 
@@ -684,64 +684,67 @@ adHocZone =
         Just attrs ->
           attrs
 
-    updateAttrs zoneKey (mx0,my0) (mx,my) old =
-      let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
-      let dy = if old.keysDown == Keys.x then 0 else (my - my0) in
-      case zoneKey of
-        -- TODO this can certainly be streamlined with
-        -- ShapeWidgets and live sync triggers, but not for now.
-        (i, "rect", ZInterior) ->
-          let attrs = latestAttrs i old in
-          let (x,_) = LangSvg.findNumishAttr "x" attrs in
-          let (y,_) = LangSvg.findNumishAttr "y" attrs in
-          let xNew = x + toFloat dx in
-          let yNew = y + toFloat dy in
-          [ ("x", LangSvg.aNum (xNew, dummyTrace))
-          , ("y", LangSvg.aNum (yNew, dummyTrace))
-          ]
-
-        -- TODO
-        _ ->
-          []
-
     drag zoneKey (mx0,my0) (mx,my) old =
+      let dx = toFloat <| if old.keysDown == Keys.y then 0 else (mx - mx0) in
+      let dy = toFloat <| if old.keysDown == Keys.x then 0 else (my - my0) in
       let
         (i, _, _) =
           zoneKey
 
+        latestAttrs =
+          getLatestAttrs i old
+
         newAttrs =
-          updateAttrs zoneKey (mx0,my0) (mx,my) old
+          Sync.updateAttrs latestAttrs zoneKey dx dy
 
         cmds =
           newAttrs |> List.map (\(k,av) ->
             case av.interpreted of
               LangSvg.ANum (n,_) ->
-                -- let _ = Debug.log "tell the DOM of rect new (x,y)" (xNew, yNew) in
-                OutputCanvas.setDomNumAttribute {nodeId=i, attrName=k, attrValue=n}
-              _ ->
-                let _ = Debug.log "WARN: adHocZone.drag not an ANum?" in
+                OutputCanvas.setDomShapeAttribute
+                  { nodeId = i
+                  , attrName = k
+                  , attrValue = toString n
+                  }
+              LangSvg.APoints points ->
+                OutputCanvas.setDomShapeAttribute
+                  { nodeId = i
+                  , attrName = "points"
+                  , attrValue = LangSvg.strPoints points
+                  }
+              -- LangSvg.APath2
+              -- TODO: add this when Sync.updateAttrs handles "path"
+              aval_ ->
+                let _ = Debug.log "WARN: adHocZone.drag not supported yet" aval_ in
                 Cmd.none
           )
       in
       (old, Cmd.batch cmds)
 
     finishDrag zoneKey (mx0,my0) (mx,my) old =
+      let dx = toFloat <| if old.keysDown == Keys.y then 0 else (mx - mx0) in
+      let dy = toFloat <| if old.keysDown == Keys.x then 0 else (my - my0) in
       let
         (i, _, _) =
           zoneKey
 
+        latestAttrs =
+          getLatestAttrs i old
+
         newAttrs =
-          updateAttrs zoneKey (mx0,my0) (mx,my) old
+          Sync.updateAttrs latestAttrs zoneKey dx dy
 
         newUpdatedAttrs =
           List.foldl
             (\(k,av) acc -> Utils.update (k, av) acc)
-            (latestAttrs i old)
+            latestAttrs
             newAttrs
 
         newModel =
           { old
-             | shapeUpdatesViaZones =
+             | mouseMode =
+                 MouseNothing
+             , shapeUpdatesViaZones =
                  Dict.insert i newUpdatedAttrs old.shapeUpdatesViaZones
           }
       in
@@ -824,6 +827,7 @@ tryRun old =
                       , preview       = Nothing
                       , previewdiffs  = Nothing
                       , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
+                      , shapeUpdatesViaZones = Dict.empty
                 }
               in
               let taskProgressAnnotation =

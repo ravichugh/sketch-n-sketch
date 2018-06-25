@@ -7,7 +7,7 @@ port module OutputCanvas exposing
   , enableAutoSync
   , setAutoSyncDelay
   , setPreviewMode
-  , setDomNumAttribute
+  , setDomShapeAttribute
   , setDiffTimer
   , DiffTimer
   , clearPreviewDiff
@@ -48,7 +48,7 @@ port setAutoSyncDelay : Int -> Cmd msg
 
 port setPreviewMode: Bool -> Cmd msg
 
-port setDomNumAttribute : {nodeId:Int, attrName:String, attrValue:Float} -> Cmd msg
+port setDomShapeAttribute : {nodeId:Int, attrName:String, attrValue:String} -> Cmd msg
 
 port setDiffTimer: DiffTimer-> Cmd msg
 

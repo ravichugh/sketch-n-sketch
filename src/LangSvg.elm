@@ -14,6 +14,7 @@ module LangSvg exposing
   , desugarShapeAttrs
   , buildSvgSimple
   , strAVal
+  , strPoints
   , aNum, aPoints, aTransform
   , toNum, toColorNum, toTransformRot, toPath
   , valsToPath2
@@ -641,7 +642,7 @@ strAVal : AVal -> String
 strAVal a = case a.interpreted of
   AString s -> s
   ANum it   -> toString (Tuple.first it)
-  APoints l -> Utils.spaces (List.map strPoint l)
+  APoints l -> strPoints l
   ARgba tup -> strRgba tup
   APath2 p  -> strAPathCmds (Tuple.first p)
   ATransform l -> Utils.spaces (List.map strTransformCmd l)
@@ -653,6 +654,10 @@ strAVal a = case a.interpreted of
     let (r,g,b) = Utils.numToColor maxColorNum (Tuple.first n) in
     strRgba_ [toFloat r, toFloat g, toFloat b, opacity]
   AStyle styles -> strStyle styles
+
+strPoints : List Point -> String
+strPoints l =
+  Utils.spaces (List.map strPoint l)
 
 
 ------------------------------------------------------------------------------

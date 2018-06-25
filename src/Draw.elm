@@ -346,19 +346,24 @@ addLine old click2 click1 =
 addRawRect old (_,pt2) (_,pt1) =
   let (xa, xb, ya, yb) = boundingBox pt2 pt1 in
   let (x, y, w, h) = (xa, ya, xb - xa, yb - ya) in
-  let (fill, stroke, strokeWidth) = (randomColor old, eDefaultStroke, 0) in
+  let (fill, stroke, strokeWidth) = (randomColor1 old, eDefaultStroke, 0) in
   let (rot) = 0 in
   addShapeToModel old "rect"
     (stencilRawRect x y w h fill stroke strokeWidth rot)
 
-stencilRawRect x y w h fill stroke strokeWidth rot =
+stencilRawRect x y w h fill _ _ _ =
   makeCallWithLocals
+    [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h]) ]
+    (eVar0 "rect")
+    [ fill , eVar "x", eVar "y", eVar "w", eVar "h" ]
+    {-
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
     , makeLet ["fill", "stroke","strokeWidth"] [fill, stroke, eConstDummyLoc strokeWidth]
     , makeLet ["rot"] [eConst (toFloat rot) dummyLoc] ]
     (eVar0 "rawRect")
     [ eVar "fill", eVar "stroke", eVar "strokeWidth"
     , eVar "x", eVar "y", eVar "w", eVar "h", eVar "rot" ]
+    -}
 
 --------------------------------------------------------------------------------
 
@@ -417,11 +422,16 @@ addRawOval old (_,pt2) (_,pt1) =
   let (cx, cy) = (xa + rx, ya + ry) in
   let ellipseExp =
     makeCallWithLocals
+        [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry]) ]
+        (eVar0 "ellipse")
+        [ randomColor1 old, eVar "cx", eVar "cy", eVar "rx", eVar "ry" ]
+{-
         [ makeLet ["cx","cy","rx","ry"] (makeInts [cx,cy,rx,ry])
         , makeLet ["color","rot"] [randomColor old, eConst 0 dummyLoc] ]
         (eVar0 "rawEllipse")
         [ eVar "color", eDefaultStroke, eConst 0 dummyLoc
         , eVar "cx", eVar "cy", eVar "rx", eVar "ry", eVar "rot" ]
+-}
   in
   addShapeToModel old "ellipse" ellipseExp
 
@@ -615,10 +625,13 @@ addRawPolygon old pointsWithSnap =
         [ makeLet ["pts"] [eTuple ePts]
         , makeLet ["color","strokeColor","strokeWidth"]
                   [randomColor old, eDefaultStroke, eConst 2 dummyLoc]
+                  -- [randomColor old, eDefaultStroke, eConst 2 dummyLoc]
         ]
-        (eVar0 "rawPolygon")
+        -- (eVar0 "rawPolygon")
+        (eVar0 "polygon")
         [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
-        , eVar "pts", eConst 0 dummyLoc ]
+        , eVar "pts" ]
+        -- , eVar "pts", eConst 0 dummyLoc ]
   in
   addShapeToModel old "polygon" polygonExp
 
