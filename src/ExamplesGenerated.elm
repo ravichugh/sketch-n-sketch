@@ -672,7 +672,7 @@ boxGridTokenFilter =
 (def sep (+ boxSize 10!))
 (def halfBoxSize (/ boxSize 2!))
 
-(def [ [ cols rows ] boxSlider ] 
+(def [ [ cols rows ] boxSlider ]
   (let pad 10!
   (xySlider
     (- x0 pad) (+ xw pad)
@@ -691,7 +691,7 @@ boxGridTokenFilter =
 (def [posFilter filterKindSlider]
   (button 360! 30! 'PosNeg = ' seedFilterKind))
 
-(def tokens 
+(def tokens
   (let [x0 y0] [400! 50!]
   (let shift (\\(dx dy) [(+ x0 dx) (+ y0 dy)])
   (map (\\[x y] (ghost (circle (if posFilter 'blue' 'red') x y 10!)))
@@ -729,14 +729,14 @@ boxGridTokenFilter =
       (case shapeKind
         ('Box'  (square c x y boxSize))
         ('Dot'  (circle c cx cy halfBoxSize))
-        ('Star' (nStar c 'none' 0! 4! halfBoxSize 10! 0! cx cy))
+        ('Star' (nStar c 'none' 0! 4! halfBoxSize 10! 0! [cx cy]))
         ( else  (circle 'none' 0! 0! 0!)))))))))
     (if (and (= i (- cols 1!)) (< j numColors))
         shape
         (addAttr shape ['ZONES' 'none']))))
   (map drawShape indices))))
 
-(svg (concat [ 
+(svg (concat [
   shapes
   boxSlider
   numColorsSlider
@@ -818,13 +818,13 @@ usFlag50 =
 """
 
 chicago =
- """ 
+ """
 ; The flag of Chicago
 ;
 ; Possible ways to manipulate
 ; - Pull stripes or stars in various directions
 ; - Group box in background
- 
+
 (def [x0 y0 ni nj pts w h] [40 40 0.5! 3.5! 6! 454 300])
 (def [outerLen innerLen] [30 12])
 
@@ -841,7 +841,7 @@ chicago =
   (map (\\i
     (let off (* i (/ w 4!))
     (nStar 'red' 'none' 0 pts outerLen innerLen 0
-      (+ x0 off) (+ y0 (/ h 2!)))))
+      [(+ x0 off) (+ y0 (/ h 2!))])))
   (range ni nj)))
 
 (svg (concat [background stripes stars]))
@@ -1004,20 +1004,20 @@ ferris =
 ;  - Dragging the central hub
 ;  - Setting showSliders to false
 
-(def wheel (\\(cx cy rCenter wCar rCap numSpokes spokeLen rotAngle)
-  (let rim      [(ring 'darkgray' 6 cx cy spokeLen)]
-  (let center   [(circle 'black' cx cy rCenter)]
-  (let frame    [(nStar 'goldenrod' 'darkgray' 3 numSpokes spokeLen 0 rotAngle cx cy)]
-  (let spokePts (nPointsOnCircle numSpokes rotAngle cx cy spokeLen)
-  (let cars     (mapi (\\[i [x y]] (squareByCenter (if (= i 0) 'pink' 'lightgray') x y wCar)) spokePts)
-  (let hubcaps  (map (\\[x y] (circle 'black' x y rCap)) spokePts)
+(def wheel (\\([cx cy] rCenter wCar rCap numSpokes spokeLen rotAngle)
+  (let rim      [(ring 'darkgray' 6 [cx cy] spokeLen)]
+  (let center   [(circle 'black' [cx cy] rCenter)]
+  (let frame    [(nStar 'goldenrod' 'darkgray' 3 numSpokes spokeLen 0 rotAngle [cx cy])]
+  (let spokePts (nPointsOnCircle numSpokes rotAngle [cx cy] spokeLen)
+  (let cars     (mapi (\\[i [x y]] (squareByCenter (if (= i 0) 'pink' 'lightgray') [x y] wCar)) spokePts)
+  (let hubcaps  (map (\\[x y] (circle 'black' [x y] rCap)) spokePts)
     (concat [rim cars center frame hubcaps])
 ))))))))
 
-(def [cx cy spokeLen rCenter wCar rCap] [220 300 80 20 30 7])
+(def [[cx cy] spokeLen rCenter wCar rCap] [[220 300] 80 20 30 7])
 (def [numSpokes rotAngle] [5!{3-15} 0!{-3.14-3.14}])
 
-(svg (wheel cx cy rCenter wCar rCap numSpokes spokeLen rotAngle))
+(svg (wheel [cx cy] rCenter wCar rCap numSpokes spokeLen rotAngle))
 
 """
 
@@ -1028,15 +1028,15 @@ ferris2 =
 
 (def wheel
   (let [cx cy] [280 200]
-  (let rim [(ring 'darkgray' 8 cx cy len)]
-  (let center [(circle 'black' cx cy 20)]
-  (let frame [(nStar 'goldenrod' 'darkgray' 3 n len 0 rot cx cy)]
-  (let spokePts (nPointsOnCircle n rot cx cy len)
-  (let caps (map (\\[x y] (circle 'black' x y 7)) spokePts)
+  (let rim [(ring 'darkgray' 8 [cx cy] len)]
+  (let center [(circle 'black' [cx cy] 20)]
+  (let frame [(nStar 'goldenrod' 'darkgray' 3 n len 0 rot [cx cy])]
+  (let spokePts (nPointsOnCircle n rot [cx cy] len)
+  (let caps (map (\\[x y] (circle 'black' [x y] 7)) spokePts)
   (let cars
     (let wCar 30
     (let wHalfCar (/ wCar 2!)
-    (map (\\[x y] (squareByCenter 'lightgray' x y wCar)) spokePts)))
+    (map (\\[x y] (squareByCenter 'lightgray' [x y] wCar)) spokePts)))
   (concat [rim cars center frame caps])))))))))
 
 (svg wheel)
@@ -1050,15 +1050,15 @@ ferris2target =
 
 (def wheel
   (let [cx cy] [280 200]
-  (let rim [(ring 'darkgray' 3 cx cy len)]
-  (let center [(circle 'black' cx cy 15)]
-  (let frame [(nStar 'goldenrod' 'darkgray' 3 n len 0 rot cx cy)]
-  (let spokePts (nPointsOnCircle n rot cx cy len)
-  (let caps (map (\\[x y] (circle 'black' x y 6)) spokePts)
+  (let rim [(ring 'darkgray' 3 [cx cy] len)]
+  (let center [(circle 'black' [cx cy] 15)]
+  (let frame [(nStar 'goldenrod' 'darkgray' 3 n len 0 rot [cx cy])]
+  (let spokePts (nPointsOnCircle n rot [cx cy] len)
+  (let caps (map (\\[x y] (circle 'black' [x y] 6)) spokePts)
   (let cars
     (let wCar 27
     (let wHalfCar (/ wCar 2!)
-    (mapi (\\[i [x y]] (squareByCenter (if (= 0 i) 'pink' 'lightgray') x y wCar)) spokePts)))
+    (mapi (\\[i [x y]] (squareByCenter (if (= 0 i) 'pink' 'lightgray') [x y] wCar)) spokePts)))
   (concat [rim cars center frame caps])))))))))
 
 (svg wheel)
@@ -2961,7 +2961,7 @@ equiTri =
 (def tri (\\(c x y sideLen rot)
   (let len1 (* sideLen (/ 2! 3!))
   (let len2 (* sideLen (/ 1! 3!))
-  (nStar c 'none' 0 3! len1 len2 rot x y)))))
+  (nStar c 'none' 0 3! len1 len2 rot [x y])))))
 
 (svg [
   (tri 'darkblue'
@@ -3762,27 +3762,27 @@ horrorFilms0 =
  """
 ; http://www.awwwards.com/gallery/4453/99-creative-logo-designs-for-inspiration/
 
-(def equiTriAt (\\(cx cy color sideLen rot)
+(def equiTriAt (\\([cx cy] color sideLen rot)
   (let len1 (* sideLen (/ 2! 3!))
   (let len2 (* sideLen (/ 1! 3!))
-  (let point (circle color cx cy 15!)
-  (let tri (nStar 'none' color 10! 3! len1 len2 rot cx cy)
+  (let point (circle color [cx cy] 15!)
+  (let tri (nStar 'none' color 10! 3! len1 len2 rot [cx cy])
   [tri point]
 ))))))
 
-(def horror (\\(cx0 cy0 bgColor fgColor rBig rSmall sep)
+(def horror (\\([cx0 cy0] bgColor fgColor rBig rSmall sep)
 
   (def helper
-    (ghosts (equiTriAt cx0 cy0 60 sep (pi))))
+    (ghosts (equiTriAt [cx0 cy0] 60 sep (pi))))
 
   (def [ snap3 _ snap2 _ snap1 | _ ]
     (polygonPoints (hd helper)))
 
   (def backgroundCircle
-    [ (rawCircle bgColor 360 0 cx0 cy0 rBig) ])
+    [ (rawCircle bgColor 360 0 [cx0 cy0] rBig) ])
 
   (def foregroundCircle (\\[cx cy]
-    [ (rawCircle fgColor 360 0 cx cy rSmall) ]))
+    [ (rawCircle fgColor 360 0 [cx cy] rSmall) ]))
 
   (concat [
     backgroundCircle
@@ -3794,7 +3794,7 @@ horrorFilms0 =
 ))
 
 (blobs [
-  (horror 220 250 390 499 172 47 139)
+  (horror [220 250] 390 499 172 47 139)
 ])
 
 """
@@ -3807,7 +3807,7 @@ cyclingAssociation0 =
   (let len1 (* sideLen (/ 2! 3!))
   (let len2 (* sideLen (/ 1! 3!))
   (let point (circle color cx cy 15!)
-  (let tri (nStar 'none' color 10! 3! len1 len2 rot cx cy)
+  (let tri (nStar 'none' color 10! 3! len1 len2 rot [cx cy])
   [tri (ghost point)]
 ))))))
 

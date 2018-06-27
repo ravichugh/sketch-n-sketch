@@ -290,11 +290,6 @@ strPt (x,y) = Utils.spaces [toString x, toString y]
 
 
 drawNewFunction fName model pt1 pt2 =
-  let perhapsLogError result =
-    case result of
-      Err s -> let _ = Utils.log <| "drawNewFunction error: " ++ s in result
-      _     -> result
-  in
   let inputPtDots =
     let ((x1, x1Snap), (y1, y1Snap)) = pt1 in
     let ((x2, x2Snap), (y2, y2Snap)) = pt2 in
@@ -314,7 +309,7 @@ drawNewFunction fName model pt1 pt2 =
                 (eApp funcExp (LangTools.expToAppArgs (expEffectiveExp callExp)))
           in
           Eval.doEval Syntax.Elm Eval.initEnv pseudoProgram
-          |> perhapsLogError
+          |> Utils.perhapsLogError "drawNewFunction error"
           |> Result.toMaybe
           |> Maybe.andThen (\((val, _), _) -> valToMaybePoint val)
         in
@@ -1081,24 +1076,45 @@ newFunctionCallExp fName model pt1 pt2 =
         TNamed _ "Color"               -> Just <| eConstDummyLoc 0
         TNamed _ "StrokeWidth"         -> Just <| eConstDummyLoc 5
         TNamed _ "Point"               -> Just <| eTuple (makeInts [0,0])
+        TNamed _ "Width"               -> Just <| eConstDummyLoc 162 -- Golden ratio
+        TNamed _ "Height"              -> Just <| eConstDummyLoc 100
         _                              -> Nothing
   in
   case getDrawableFunctions model |> Utils.findFirst (Utils.fst3 >> (==) fName) of
     Just (_, funcExp, funcType) ->
       case Types.typeToMaybeArgTypesAndReturnType funcType of
         Just (argTypes, returnType) ->
-          let (_, argMaybeExps) =
+          -- See if func can take 2 Points
+          let (ptsUnused, argMaybeExpsTwoPoints) =
             argTypes
-            |> List.foldl
+            |> Utils.foldl
+                ([pt1, pt2], [])
                 (\argType (ptsRemaining, argMaybeExps) ->
                   case (ptsRemaining, isPointType argType) of
                     (pt::otherPts, True) -> (otherPts,     argMaybeExps ++ [Just (makePointExpFromPointWithSnap pt)])
                     _                    -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
                 )
-                ([pt1, pt2], [])
+          in
+          -- See if func can take 1 Point + Width + Height
+          let (ptUsed, widthUsed, heightUsed, argMaybeExpsPointWidthHeight) =
+            argTypes
+            |> Utils.foldl
+                (False, False, False, [])
+                (\argType (pointUsed, widthUsed, heightUsed, argMaybeExps) ->
+                  case ( pointUsed  , isPointType argType
+                       , widthUsed  , Types.typeToMaybeAliasIdent argType == Just "Width"
+                       , heightUsed , Types.typeToMaybeAliasIdent argType == Just "Height"
+                       ) of
+                    (False, True, _, _, _, _) -> (True,      widthUsed, heightUsed, argMaybeExps ++ [Just (makePointExpFromPointWithSnap pt1)])
+                    (_, _, False, True, _, _) -> (pointUsed, True,      heightUsed, argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap X pt2 pt1)])
+                    (_, _, _, _, False, True) -> (pointUsed, widthUsed, True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap Y pt2 pt1)])
+                    _                         -> (pointUsed, widthUsed, heightUsed, argMaybeExps ++ [fillInArgPrimitive argType])
+                )
           in
           let perhapsPointAnnotation = if isPointType returnType then identity else identity in -- eAsPoint
-          Utils.projJusts argMaybeExps
+          Utils.plusMaybe
+              (Utils.projJusts argMaybeExpsTwoPoints        |> Utils.filterMaybe (always (ptsUnused == [])))
+              (Utils.projJusts argMaybeExpsPointWidthHeight |> Utils.filterMaybe (always (ptUsed && widthUsed && heightUsed)))
           |> Maybe.map (\argExps -> (perhapsPointAnnotation (eCall fName argExps), funcExp, returnType))
 
         Nothing -> Debug.crash <| "Draw.newFunctionCallExp bad function type: " ++ toString funcType
@@ -1363,6 +1379,20 @@ makePointExpFromPointWithSnap pt =
   let (xExp, yExp) = makeIntPairOrSnap pt in
   identity <| ePair (removePrecedingWhitespace xExp) yExp -- eAsPoint
 
+-- For making height/width from mouse end/start positions
+makeAxisDifferenceExpFromPointsWithSnap : Axis -> PointWithSnap -> PointWithSnap -> Exp
+makeAxisDifferenceExpFromPointsWithSnap axis ((x2, x2Snap), (y2, y2Snap)) ((x1, x1Snap), (y1, y1Snap)) =
+  let ((endCoord, endSnap), (startCoord, startSnap)) =
+    case axis of
+      X -> ((x2, x2Snap), (x1, x1Snap))
+      Y -> ((y2, y2Snap), (y1, y1Snap))
+  in
+  case (endSnap, startSnap) of
+    (NoSnap,         NoSnap)           -> eInt (endCoord - startCoord)
+    (SnapVal endVal, NoSnap)           -> eMinus (eHoleVal endVal) (eInt startCoord)
+    (NoSnap,         SnapVal startVal) -> eMinus (eInt endCoord) (eHoleVal startVal)
+    (SnapVal endVal, SnapVal startVal) -> eMinus (eHoleVal endVal) (eHoleVal startVal)
+
 addToMainExp : BlobExp -> MainExp -> MainExp
 addToMainExp newBlob mainExp =
   case mainExp of
@@ -1530,16 +1560,24 @@ isPointType tipe =
 
 
 -- Supported inputs:
--- 2 Points
+--  - 2+ Points
+--  - 1+ Point + w + h
 --
 -- Supported outputs:
 -- Anything
+--
+-- Dual is in newFunctionCallExp where the args are actually filled in.
 isDrawableType : Type -> Bool
 isDrawableType tipe =
   case tipe.val of
     TArrow _ argTypes _ ->
       let inputTypes = Utils.dropLast 1 argTypes in
-      Utils.count isPointType inputTypes == 2
+      Utils.count isPointType inputTypes >= 2 ||
+      (
+        Utils.count isPointType inputTypes >= 1 &&
+        Utils.count (Types.typeToMaybeAliasIdent >> (==) (Just "Width"))  inputTypes >= 1 &&
+        Utils.count (Types.typeToMaybeAliasIdent >> (==) (Just "Height")) inputTypes >= 1
+      )
 
     _ -> False
 
@@ -1560,11 +1598,6 @@ getDrawableFunctions_ typeGraph program viewerEId =
             LangTools.BoundUnknown   -> Nothing
         )
   in
-  -- let typeGraph =
-  --   if tryTypeInference
-  --   then SlowTypeInference.typecheck program
-  --   else Dict.empty
-  -- in
   let explicitlyAnnotatedFunctions =
     findWithAncestorsByEId program viewerEId
     |> Utils.fromJust_ "getDrawableFunctions_ findWithAncestorsByEId"

@@ -6,17 +6,17 @@
 ;  - Dragging the central hub
 ;  - Setting showSliders to false
 
-(def wheel (\(cx cy rCenter wCar rCap numSpokes spokeLen rotAngle)
-  (let rim      [(ring 'darkgray' 6 cx cy spokeLen)]
-  (let center   [(circle 'black' cx cy rCenter)]
-  (let frame    [(nStar 'goldenrod' 'darkgray' 3 numSpokes spokeLen 0 rotAngle cx cy)]
-  (let spokePts (nPointsOnCircle numSpokes rotAngle cx cy spokeLen)
-  (let cars     (mapi (\[i [x y]] (squareByCenter (if (= i 0) 'pink' 'lightgray') x y wCar)) spokePts)
-  (let hubcaps  (map (\[x y] (circle 'black' x y rCap)) spokePts)
+(def wheel (\([cx cy] rCenter wCar rCap numSpokes spokeLen rotAngle)
+  (let rim      [(ring 'darkgray' 6 [cx cy] spokeLen)]
+  (let center   [(circle 'black' [cx cy] rCenter)]
+  (let frame    [(nStar 'goldenrod' 'darkgray' 3 numSpokes spokeLen 0 rotAngle [cx cy])]
+  (let spokePts (nPointsOnCircle numSpokes rotAngle [cx cy] spokeLen)
+  (let cars     (mapi (\[i [x y]] (squareByCenter (if (= i 0) 'pink' 'lightgray') [x y] wCar)) spokePts)
+  (let hubcaps  (map (\[x y] (circle 'black' [x y] rCap)) spokePts)
     (concat [rim cars center frame hubcaps])
 ))))))))
 
-(def [cx cy spokeLen rCenter wCar rCap] [220 300 80 20 30 7])
+(def [[cx cy] spokeLen rCenter wCar rCap] [[220 300] 80 20 30 7])
 (def [numSpokes rotAngle] [5!{3-15} 0!{-3.14-3.14}])
 
-(svg (wheel cx cy rCenter wCar rCap numSpokes spokeLen rotAngle))
+(svg (wheel [cx cy] rCenter wCar rCap numSpokes spokeLen rotAngle))

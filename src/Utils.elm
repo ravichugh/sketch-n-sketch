@@ -1261,6 +1261,12 @@ log : String -> ()
 log s =
   Debug.log s ()
 
+-- For usage in a chain. something |> perhapsLogError "mySomething failed" |> Result.map f
+perhapsLogError prefix result =
+  case result of
+    Err s -> let _ = log <| prefix ++ ": " ++ s in result
+    _     -> result
+
 --------------------------------------------------------------------------------
 
 isEven : Int -> Bool

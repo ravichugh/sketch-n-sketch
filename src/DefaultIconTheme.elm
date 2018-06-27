@@ -7,8 +7,8 @@ icons =
     [ ("cursor", cursor)
     , ("pointOrOffset", pointOrOffset)
     , ("text", text)
-    , ("line", line)
-    , ("rect", rect)
+    -- , ("line", line)
+    -- , ("rect", rect)
     , ("ellipse", ellipse)
     , ("polygon", polygon)
     , ("path", path)
@@ -45,17 +45,17 @@ pointOrOffset = """
 (def line1
   (let [x1 y1 x2 y2] [x1 y1 x2 y1]
   (let [color width] ['black' 1]
-    [ (addAttr (line color width x1 y1 x2 y2) ["stroke-dasharray" "1,1"]) ])))
+    [ (addAttr (line color width [x1 y1] [x2 y2]) ["stroke-dasharray" "1,1"]) ])))
 
 (def line2
   (let [x1 y1 x2 y2] [x11 (+ y1 arrowHeadOffset) x2 y1]
   (let [color width] ['black' 1]
-    [ (addAttr (line color width x1 y1 x2 y2) ["stroke-dasharray" "1,1"]) ])))
+    [ (addAttr (line color width [x1 y1] [x2 y2]) ["stroke-dasharray" "1,1"]) ])))
 
 (def line3
   (let [x1 y1 x2 y2] [x11 (- y1 arrowHeadOffset) x2 y1]
   (let [color width] ['black' 1]
-    [ (addAttr (line color width x1 y1 x2 y2) ["stroke-dasharray" "1,1"]) ])))
+    [ (addAttr (line color width [x1 y1] [x2 y2]) ["stroke-dasharray" "1,1"]) ])))
 
 (def circle1
   (let [cx cy r] [19 8 5]
@@ -82,7 +82,7 @@ line = """
 (def line1
   (let [x1 y1 x2 y2] [25 25 175 175]
   (let [color width] [379 7]
-    [ (line color width x1 y1 x2 y2) ])))
+    [ (line color width [x1 y1] [x2 y2]) ])))
 
 (svgViewBox 200 200 (concat [
   line1
@@ -119,7 +119,7 @@ ellipse = """
 polygon = """
 ; To customize, Save As: __ui__polygon.little
 
-(def star [(nStar 365 470 7 5 45 90 3.1415 100 110)])
+(def star [(nStar 365 470 7 5 45 90 3.1415 [100 110])])
 
 (svgViewBox 200 200
   star
@@ -208,7 +208,7 @@ lambda = """
 (let [xw yh w2 h2] [(+ x0 w) (+ y0 h) (div w 2) (div h 2)]
 (let poly (\\pts (polygon 'black' 'none' 0 pts))
 (svgViewBox 200 200 [
-  (rect 'white' x0 y0 w h)
+  (rect 'white' [x0 y0] w h)
   (poly
     [[(+ x0 delta) y0]
      [xw y0]
@@ -233,11 +233,11 @@ text = """
   (let x1 (+ (/ line2_num 2!) (/ line2_x1 2!))
   (let [x1 y2] [x1 165]
   (let [color width] [379 15]
-    [ (line color width x1 line1_y1 x1 y2) ]))))
+    [ (line color width [x1 line1_y1] [x1 y2]) ]))))
 
 (def line2
   (let [color width] [379 15]
-    [ (line color width line2_x1 line1_y1 line2_num line1_y1) ]))
+    [ (line color width [line2_x1 line1_y1] [line2_num line1_y1]) ]))
 
 (svgViewBox 200 200 (concat [
   line1

@@ -22,7 +22,7 @@
   (map (\i
     (let off (* i (/ w 4!))
     (nStar starColor 'none' 0 pts outerLen innerLen 0
-      (+ x0 off) (+ y0 (/ h 2!)))))
+      [(+ x0 off) (+ y0 (/ h 2!))])))
   (range ni nj)))
 
 (svg (concat

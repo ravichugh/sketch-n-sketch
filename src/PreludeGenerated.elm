@@ -362,6 +362,11 @@ prelude =
 ; === SVG Types ===
 
 (def Point [Num Num])
+(def Width Num)
+(def Height Num)
+(def HalfWidth Num)
+(def HalfHeight Num)
+(def Radius Num)
 (def RGBA [Num Num Num Num])
 (def Color (union String Num RGBA))
 (def StrokeWidth Num)
@@ -490,8 +495,8 @@ prelude =
 
 ;; argument order - color, x, y, radius
 ;; creates a circle, center at (x,y) with given radius and color
-(typ circle (-> Color Num Num Num Circle))
-(def circle (\\(fill cx cy r)
+(typ circle (-> Color Point Radius Circle))
+(def circle (\\(fill [cx cy] r)
   ['circle'
      [['cx' cx] ['cy' cy] ['r' r] ['fill' fill]]
      []]))
@@ -545,10 +550,10 @@ prelude =
 
 ;; argument order - color, width, x, y, radius
 ;; Just as circle, except new width parameter determines thickness of ring
-(typ ring (-> Color StrokeWidth Num Num Num SVG))
-(def ring (\\(c w x y r)
+(typ ring (-> Color StrokeWidth Point Radius SVG))
+(def ring (\\(color strokeWidth [x y] r)
   ['circle'
-     [ ['cx' x] ['cy' y] ['r' r] ['fill' 'none'] ['stroke' c] ['stroke-width' w] ]
+     [ ['cx' x] ['cy' y] ['r' r] ['fill' 'none'] ['stroke' color] ['stroke-width' strokeWidth] ]
      []]))
 
 
@@ -558,8 +563,8 @@ prelude =
 
 ;; argument order - color, x, y, x-radius, y-radius
 ;; Just as circle, except radius is separated into x and y parameters
-(typ ellipse (-> Color Num Num Num Num Ellipse))
-(def ellipse (\\(fill x y rx ry)
+(typ ellipse (-> Color Point Radius Radius Ellipse))
+(def ellipse (\\(fill [x y] rx ry)
   ['ellipse'
      [ ['cx' x] ['cy' y] ['rx' rx] ['ry' ry] ['fill' fill] ]
      []]))
@@ -733,16 +738,16 @@ prelude =
 
 (def Rect SVG)
 
-;; argument order - color, x, y, width, height
+;; argument order - color, [x, y], width, height
 ;; creates a rectangle of given width and height with (x,y) as the top left corner coordinate
-(typ rect (-> Color Num Num Num Num Rect))
-(def rect (\\(fill x y w h)
+(typ rect (-> Color Point Width Height Rect))
+(def rect (\\(fill [x y] w h)
   ['rect'
      [ ['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill] ]
      []]))
 
-(typ square (-> Color Num Num Num Rect))
-(def square (\\(fill x y side) (rect fill x y side side)))
+(typ square (-> Color Point Width Rect))
+(def square (\\(fill topLeft w) (rect fill topLeft w w)))
 
 (typ rectWidth (-> Rect Num))
 (def rectWidth (\\rect
@@ -831,17 +836,12 @@ prelude =
 
 (def Line SVG)
 
-;; argument order - color, width, x1, y1, x1, y2
-;; creates a line from (x1, y1) to (x2,y2) with given color and width
-(typ line (-> Color StrokeWidth Num Num Num Num Line))
-(def line (\\(stroke w x1 y1 x2 y2)
+;; argument order - color, width, [x1, y1], [x2, y2]
+(typ line (-> Color StrokeWidth Point Point Line))
+(def line (\\(color strokeWidth [x1 y1] [x2 y2])
   ['line'
-     [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' stroke] ['stroke-width' w] ]
+     [ ['x1' x1] ['y1' y1] ['x2' x2] ['y2' y2] ['stroke' color] ['stroke-width' strokeWidth] ]
      []]))
-
-(typ lineBetween (-> Color StrokeWidth Point Point Line))
-(def lineBetween (\\(stroke w [x1 y1] [x2 y2])
-  (line stroke w x1 y1 x2 y2)))
 
 (typ lineStart (-> Line Point))
 (def lineStart (\\line
@@ -868,35 +868,35 @@ prelude =
 ;; argument order - fill, stroke, width, points
 ;; creates a polygon following the list of points, with given fill color and a border with given width and stroke
 (typ polygon (-> Color Color StrokeWidth Points SVG))
-(def polygon (\\(fill stroke w pts)
+(def polygon (\\(fill strokeColor strokeWidth pts)
   ['polygon'
-     [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
+     [ ['fill' fill] ['points' pts] ['stroke' strokeColor] ['stroke-width' strokeWidth] ]
      []]))
 
 ;; argument order - fill, stroke, width, points
 ;; See polygon
 (typ polyline (-> Color Color StrokeWidth Points SVG))
-(def polyline (\\(fill stroke w pts)
+(def polyline (\\(fill strokeColor strokeWidth pts)
   ['polyline'
-     [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ]
+     [ ['fill' fill] ['points' pts] ['stroke' strokeColor] ['stroke-width' strokeWidth] ]
      []]))
 
 ;; argument order - fill, stroke, width, d
 ;; Given SVG path command d, create path with given fill color, stroke and width
 ;; See https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths for path command info
 (typ path (-> Color Color StrokeWidth PathCmds SVG))
-(def path (\\(fill stroke w d)
+(def path (\\(fill strokeColor strokeWidth d)
   ['path'
-     [ ['fill' fill] ['stroke' stroke] ['stroke-width' w] ['d' d] ]
+     [ ['fill' fill] ['stroke' strokeColor] ['stroke-width' strokeWidth] ['d' d] ]
      []]))
 
 ;; argument order - x, y, string
 ;; place a text string with top left corner at (x,y) - with default color & font
-(typ text (-> Num Num String SVG))
-(def text (\\(x y s)
+(typ text (-> Point String SVG))
+(def text (\\([x y] string)
    ['text' [['x' x] ['y' y] ['style' 'fill:black']
             ['font-family' 'Tahoma, sans-serif']]
-           [['TEXT' s]]]))
+           [['TEXT' string]]]))
 
 ;; argument order - shape, new attribute
 ;; Add a new attribute to a given Shape
@@ -921,13 +921,13 @@ prelude =
     shapes])))
 
 ;; As rect, except x & y represent the center of the defined rectangle
-(typ rectByCenter (-> Color Num Num Num Num Rect))
-(def rectByCenter (\\(fill cx cy w h)
+(typ rectByCenter (-> Color Point Width Height Rect))
+(def rectByCenter (\\(fill [cx cy] w h)
   (rect fill (- cx (/ w 2)) (- cy (/ h 2)) w h)))
 
 ;; As square, except x & y represent the center of the defined rectangle
-(typ squareByCenter (-> Color Num Num Num Rect))
-(def squareByCenter (\\(fill cx cy w) (rectByCenter fill cx cy w w)))
+(typ squareByCenter (-> Color Point Width Rect))
+(def squareByCenter (\\(fill center w) (rectByCenter fill center w w)))
 
 ;; Some shapes with given default values for fill, stroke, and stroke width
 ; TODO remove these
@@ -981,14 +981,14 @@ prelude =
     [(cos ang) (neg (sin ang))]))
   (map foo (list0N (- n 1)))))))
 
-(typ nPointsOnCircle (-> Num Num Num Num Num (List Point)))
+(typ nPointsOnCircle (-> Num Num Point Radius (List Point)))
 ;; argument order - Num of points, degree of rotation, x-center, y-center, radius
 ;; Scales nPointsOnUnitCircle to the proper size and location with a given radius and center
-(def nPointsOnCircle (\\(n rot cx cy r)
+(def nPointsOnCircle (\\(n rot [cx cy] r)
   (let pts (nPointsOnUnitCircle n rot)
   (map (\\[x y] [(+ cx (* x r)) (+ cy (* y r))]) pts))))
 
-(typ nStar (-> Color Color StrokeWidth Num Num Num Num Num Num SVG))
+(typ nStar (-> Color Color StrokeWidth Num Num Num Num Point SVG))
 ;; argument order -
 ;; fill color - interior color of star
 ;; stroke color - border color of star
@@ -1000,7 +1000,7 @@ prelude =
 ;; cx - x-coordinate of center position
 ;; cy - y-coordinate of center position
 ;; Creates stars that can be modified on a number of parameters
-(def nStar (\\(fill stroke w n len1 len2 rot cx cy)
+(def nStar (\\(fill stroke w n len1 len2 rot [cx cy])
   (let pti (\\[i len]
     (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
     (let xi (+ cx (* len (cos anglei)))
@@ -1444,7 +1444,7 @@ prelude =
 (def rotatedRect (\\(fill x y w h rot)
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
   (let bounds [x y (+ x w) (+ y h)]
-  (let shape (rotateAround rot cx cy (rect fill x y w h))
+  (let shape (rotateAround rot cx cy (rect fill [x y] w h))
   (group bounds [shape])
 )))))
 
@@ -1590,7 +1590,7 @@ prelude =
   (let [left top right bot] bounds
   (let [width height] [(- right left) (- bot top)]
   (let [cx cy] [(+ left (/ width 2)) (+ top (/ height 2))]
-  [(nStar 0 'black' 0 6 (min (/ width 2) (/ height 2)) 10 0 cx cy)]
+  [(nStar 0 'black' 0 6 (min (/ width 2) (/ height 2)) 10 0 [cx cy])]
 )))))
 
 (typ blobs (-> (List Blob) SVG))
@@ -1706,7 +1706,7 @@ prelude =
 
 (def rectWithBorder (\\(stroke strokeWidth fill x y w h)
   (addAttr (addAttr
-    (rect fill x y w h)
+    (rect fill [x y] w h)
       [\"stroke\" stroke])
       [\"stroke-width\" strokeWidth])))
 

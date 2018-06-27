@@ -1,10 +1,10 @@
- 
+
 ; The flag of Chicago
 ;
 ; Possible ways to manipulate
 ; - Pull stripes or stars in various directions
 ; - Group box in background
- 
+
 (def [x0 y0 ni nj pts w h] [40 40 0.5! 3.5! 6! 454 300])
 (def [outerLen innerLen] [30 12])
 
@@ -21,7 +21,7 @@
   (map (\i
     (let off (* i (/ w 4!))
     (nStar 'red' 'none' 0 pts outerLen innerLen 0
-      (+ x0 off) (+ y0 (/ h 2!)))))
+      [(+ x0 off) (+ y0 (/ h 2!))])))
   (range ni nj)))
 
 (svg (concat [background stripes stars]))

@@ -19,7 +19,7 @@
 (def sep (+ boxSize 10!))
 (def halfBoxSize (/ boxSize 2!))
 
-(def [ [ cols rows ] boxSlider ] 
+(def [ [ cols rows ] boxSlider ]
   (let pad 10!
   (xySlider
     (- x0 pad) (+ xw pad)
@@ -46,14 +46,14 @@
       (case shapeKind
         ('Box'  (square c x y boxSize))
         ('Dot'  (circle c cx cy halfBoxSize))
-        ('Star' (nStar c 'none' 0! 4! halfBoxSize 10! 0! cx cy))
+        ('Star' (nStar c 'none' 0! 4! halfBoxSize 10! 0! [cx cy]))
         ( else  (circle 'none' 0! 0! 0!)))))))
     (if (and (= i (- cols 1!)) (< j numColors))
         shape
         (addAttr shape ['ZONES' 'none']))))
   (map drawShape indices))))
 
-(svg (concat [ 
+(svg (concat [
   shapes
   boxSlider
   numColorsSlider

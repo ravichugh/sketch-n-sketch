@@ -2211,11 +2211,9 @@ runTool deuceTool =
   -- let _ = Utils.log <| "running tool " ++ deuceTool.name in
   case deuceTool.func of
     Just thunk ->
-      case ImpureGoodies.crashToError thunk of
-        Ok results -> Just results
-        Err errMsg ->
-          let _ = Debug.log ("Deuce Tool Crash \"" ++ deuceTool.name ++ "\"") (toString errMsg) in
-          Nothing
+      ImpureGoodies.crashToError thunk
+      |> Utils.perhapsLogError ("Deuce Tool Crash \"" ++ deuceTool.name ++ "\"")
+      |> Result.toMaybe
 
     _ ->
       Nothing
