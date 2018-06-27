@@ -689,16 +689,21 @@ newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingN
 
 
 -- e.g. "rect1 x" for (def rect1 (let x = ... in ...) ...)
+locDescription : Exp -> Loc -> String
 locDescription program loc =
   String.join " " (locDescriptionParts program loc)
 
 
 -- e.g. ["rect1", "x"] for (def rect1 (let x = ... in ...) ...)
-locDescriptionParts program loc =
-  let (locId, _, ident) = loc in
-  let baseIdent = if ident == "" then "k" ++ toString locId else ident in
-  let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough program loc in
-  scopeNamesLiftedThrough ++ [baseIdent]
+locDescriptionParts : Exp -> Loc -> List Ident
+locDescriptionParts program ((locId, _, ident) as loc) =
+  case locIdToEId program locId |> Maybe.map (expDescriptionParts program) of
+    Just descriptionParts ->
+      descriptionParts
+    Nothing ->
+      let baseIdent = if ident == "" then "k" ++ toString locId else ident in
+      let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough program loc in
+      scopeNamesLiftedThrough ++ [baseIdent]
 
 
 defaultExpName = "thing"
