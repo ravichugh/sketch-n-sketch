@@ -858,10 +858,12 @@ addHoveredShape id =
                 (\(i, widget) ->
                   case (widget, Utils.maybeGeti1 i m.widgetBounds) of
                     (WCall callEId funcVal argVals retVal retWs, Just (Just (left, top, right, bot))) ->
+                      -- This is a little too strict (blobs problem: won't show if result modified before output)
                       if flattenValTree retVal |> List.any (Provenance.valsSame hoveredVal) -- [] /= (Utils.intersectAsSet (Provenance.valToSameVals retVal |> List.concatMap flattenValTree) (Provenance.valToSameVals hoveredVal |> List.concatMap flattenValTree))
                       then Just ((left, top, right, bot), Set.singleton i)
                       else Nothing
                     (WList listVal, Just (Just (left, top, right, bot))) ->
+                      -- This is a little too strict (blobs problem: won't show if result modified before output)
                       if flattenValTree listVal |> List.any (Provenance.valsSame hoveredVal)
                       then Just ((left, top, right, bot), Set.singleton i)
                       else Nothing
