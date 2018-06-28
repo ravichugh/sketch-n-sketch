@@ -305,16 +305,16 @@ eval syntax env bt e =
               (Ok (v1, ws1), Ok (v2, ws2)) ->
                  case (v1.v_, v2.v_) of
                    (VBase (VString x), VBase (VString y)) ->
-                     eval syntax ([("x", v1), ("y", v2)] ++ env) bt_  (ImpureGoodies.logTimedRun "replacing expression" <| \_ -> replaceE__ e <|
+                     eval syntax ([("x", v1), ("y", v2)] ++ env) bt_  (replaceE__ e <|
                        EOp space1 (withDummyRange Plus) [replaceE__ eLeft <| EVar space0 "x", replaceE__ eRight <| EVar space0 "y"] space0)
                    _ ->
-                     eval syntax ([("x", v1), ("y", v2)] ++ env) bt_ (ImpureGoodies.logTimedRun "replacing expression" <| \_ -> replaceE__ e <|
+                     eval syntax ([("x", v1), ("y", v2)] ++ env) bt_ (replaceE__ e <|
                        EApp sp0 (replaceE__ e1 <| EVar sp0 "append") [replaceE__ eLeft <| EVar space1 "x", replaceE__ eRight <| EVar space1 "y"] SpaceApp sp1)
               (Err s, _) -> Err s
               (_, Err s) -> Err s
           _ -> Err ("++ should be called with two arguments, was called on "++toString (List.length es)++". ")
     else
-    case (if (eVarUnapply e1 == Just "++") then (ImpureGoodies.logTimedRun "evaluating ++") else \x -> x ()) <| \_ -> eval_ syntax env bt_ e1 of
+    case eval_ syntax env bt_ e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
         let evalVApp: Val -> List Exp -> Result String ((Val, Widgets), Env)
