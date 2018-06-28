@@ -28,7 +28,7 @@ import HTMLValParser
 import Dict exposing (Dict)
 
 
-exportMode = False {-- -- Add a } to make the benchmark run for all
+exportMode = True {-- -- Add a } to make the benchmark run for all
                     && False --}
 only1 = False {-- -- Add a } to make the benchmark run for all
   && False --}
@@ -126,7 +126,9 @@ type Transform = NoTransform
   | SetNextChoice Int
   | TestOutputContains String (Val -> String)
 
-type Benchmark = BUpdate Int String (List Transform)
+type IfSpeedup = WithSpeedup | WithoutSpeedup
+  
+type Benchmark = BUpdate Int String IfSpeedup (List Transform)
 
 replaceByMatch: HowMany -> ((String -> String) -> a) -> String -> (Regex.Match -> String) -> a
 replaceByMatch howmany final r replacement =
@@ -215,10 +217,10 @@ benchmarks = [
       , replaceHtmlBy "printer" "{printer}"
     ],
   --}
-  --{--{--{--{--
+  {--{--{--{--{--{--{--
 
   {--}
-  BUpdate (2*60+36) "States Table A\\hasvideo{}" [ NoTransform
+  BUpdate (2*60+36) "States Table A\\hasvideo{}" WithSpeedup [ NoTransform
     , replaceProgBy "\"Alabama\", \"AL?\", \"\"" "\"Alabama\", \"AL?\", \"Montgomery\""
     , replaceProgBy "\"Alaska\", \"AL?\", \"\"" "\"Alaska\", \"AL?\", \"Juneau\""
     , replaceHtmlBy "AL\\?" "AL"
@@ -241,10 +243,10 @@ benchmarks = [
   ],
   --}
   {--}
-  BUpdate (0*60+43) "States Table B\\hasvideo{}" transform_table_of_states_b,
+  BUpdate (0*60+43) "States Table B\\hasvideo{}" WithSpeedup transform_table_of_states_b,
   --}
   {--}
-  BUpdate (3*60+51) "Recipe\\hasvideo{}" [ NoTransform
+  BUpdate (3*60+51) "Recipe\\hasvideo{}" WithSpeedup [ NoTransform
     , replaceHtmlBy " alt='cupcakes'" " alt='cupcakes' style='\\n  float:  right;  \\n:  '"
     --, TestOutputContains "float:  right" valToHtml
     , replaceHtmlBy "Chocolate almond cakes"        "Chocolate Almond Cupcakes"
@@ -270,7 +272,7 @@ benchmarks = [
     ],
   --}
   {--}
-  BUpdate (0*60+45) "Budgetting" [ NoTransform
+  BUpdate (0*60+45) "Budgetting" WithSpeedup [ NoTransform
     , SetNextChoice 3
     , replaceHtmlBy "-18000" "0"
     , replaceProgBy "sponsors *= *20000" "sponsors = Update.freeze 35000"
@@ -283,7 +285,7 @@ benchmarks = [
     ],
   --}
   {--}
-  BUpdate (1*60+11) "MVC" [NoTransform
+  BUpdate (1*60+11) "MVC" WithSpeedup [NoTransform
     , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increment)" "trigger='#'"
     , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Increase multiplier to 3)" "trigger='#'"
     , replaceHtmlBy "trigger=''(?=.*\\r?\\n.*Multiply by 3)" "trigger='#'"
@@ -300,7 +302,7 @@ benchmarks = [
   ],
   --}
   {--}
-  BUpdate (0*60+53) "Linked-Text" [NoTransform
+  BUpdate (0*60+53) "Linked-Text" WithSpeedup [NoTransform
     , replaceHtmlBy "P\\(1\\)" "H(1)"
     {--}
     , replaceHtmlBy "H\\(n\\)" "G(m)"
@@ -312,15 +314,11 @@ benchmarks = [
     ]
     , replaceHtmlBy "we want to prove" "we want to show"
     , replaceHtmlBy "we want to show" "we want to really show"
-    --}
   ],
-  {--
-  BUpdate (0*60+43) "States Table C" transform_table_of_states_b,
   --}
-  --{--{--
   {--}
   --BUpdate "Markdown Recursive" transform_markdown_ab_linear,
-  BUpdate (2*60+8) "Markdown" transform_markdown_ab_linear,
+  BUpdate (2*60+8) "Markdown" WithSpeedup transform_markdown_ab_linear,
   --BUpdate "Markdown with lens" transform_markdown_ab_lens,
   --BUpdate "Markdown w/o lens" transform_markdown_ab_lens,
   --}
@@ -333,7 +331,7 @@ benchmarks = [
   let my_card_is_last n = select 1 n in
   let i_bet_on_last n =select 2 n in
   let confirm = replaceStringBy "\"trigger\",\\s*\"\"" "\"trigger\", \"#\"" in
-  BUpdate (0) "Dixit" [NoTransform
+  BUpdate (0) "Dixit" WithoutSpeedup [NoTransform
       , replaceStringBy "John" "Mary"
       , replaceStringBy "\\[\\s*\"TEXT\",\\s*\"Nick\"\\s*]\\s*\\]" "[\"TEXT\", \"Nick\"] ] ], [ \"li\",[ [ \"style\", [] ] ], [ [ \"TEXT\", \"Mac\"]]"
       , replaceStringByReg (AtMost 1) "(select.*\r?\n.*selected-index\",\\s*)\"0\"" (\m -> at m.submatches 0 ++ "\"1\"")
@@ -356,7 +354,7 @@ benchmarks = [
   let uncheck  =
      replaceStringBy ",\\s*\\[\\s*\"checked\",\\s*\"\"\\s*\\]" ""
   in
-  BUpdate (0) "Translation Doc" [NoTransform
+  BUpdate (0) "Translation Doc" WithoutSpeedup [NoTransform
      ,changeLanguageIndex 1
      ,replaceStringBy "please follow these steps" "{please follow these steps}"
      ,uncheck
@@ -367,10 +365,10 @@ benchmarks = [
      ,replaceStringBy "\"v\",\\s*\"\"" "\"v\", \"German\""
    ],
   --}
-  BUpdate 0 "" []
+  BUpdate 0 "" WithoutSpeedup []
   ] |>
   List.filterMap (\c -> case c of
-  BUpdate _ "" _ -> Nothing
+  BUpdate _ "" _ _ -> Nothing
   _ -> Just c )
 
 
@@ -434,7 +432,7 @@ speedup unopt opt =
 
 runBenchmark: Benchmark -> (String, Int, List Float, Int, Int, List Float, List Float, List Int)
 runBenchmark b = case b of
-  BUpdate sessionTime benchmarkname replacements ->
+  BUpdate sessionTime benchmarkname ifspeedup replacements ->
     if benchmarkname == "" then ("", 0, [], 0, 0, [], [], [])
     else
     let finalReplacements = List.filter (\x -> x/= NoTransform) replacements in
@@ -534,11 +532,12 @@ runBenchmark b = case b of
           Nothing ->
             let (progExp, parseProgTimes) = averageTimedRun nToAverageOn (\_ -> parse prog |> Utils.fromOk "parse prog") in
             let (oldOut, evalProgTimes) = averageTimedRun nToAverageOn (\_ -> evalEnv EvalUpdate.preludeEnv progExp |> Utils.fromOk "eval prog") in
-
+            let optResults = tryMany nToAverageOn <| \i -> session progExp oldOut i False in
+            let unoptResults = if ifspeedup == WithoutSpeedup then optResults else
+              tryMany nToAverageOn <| \i -> session progExp oldOut i True
+            in
             (List.map2 (\x y -> x + y) parseProgTimes evalProgTimes,
-             tryMany nToAverageOn <| \i -> session progExp oldOut i False,
-             tryMany nToAverageOn <| \i -> session progExp oldOut i True
-             )
+             optResults, unoptResults)
           Just x -> x
  --           let (progExp, parseProgTimes) = averageTimedRun nToAverageOn (\_ -> parse prog |> Utils.fromOk "parse prog") in
    --         let (oldOut, evalProgTimes) = averageTimedRun nToAverageOn (\_ -> evalEnv EvalUpdate.preludeEnv progExp |> Utils.fromOk "eval prog") in
@@ -608,9 +607,9 @@ runBenchmark b = case b of
                String.pad 15 ' ' ("\\lessthanms{5}")
             else
               if newFormat then
-                String.pad 15 ' ' (s timesOptAv ++ "&\\plusminus{"++std ++ "}"++ "&" ++ speedup (floor timesUnoptAv) (ceiling timesOptAv))
+                String.pad 15 ' ' (s timesOptAv ++ "&\\plusminus{"++std ++ "}"++ "&" ++ (if ifspeedup == WithoutSpeedup then "" else speedup (floor timesUnoptAv) (ceiling timesOptAv)))
               else
-                String.pad 15 ' ' (s timeUnopt ++ "/" ++ s timeOpt ++ speedup timeUnopt timeOpt)
+                String.pad 15 ' ' (s timeUnopt ++ "/" ++ s timeOpt ++ (if ifspeedup == WithoutSpeedup then "" else speedup timeUnopt timeOpt))
       in
       (if only1 then "\\tableRowToUpdate" else "\\tableRow") ++ "   {" ++
        String.padRight 20 ' ' benchmarkname ++ "} {" ++

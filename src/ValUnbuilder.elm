@@ -12,15 +12,11 @@ list sub v = case v.v_ of
 
 tuple2: (Val -> Result String a) -> (Val -> Result String b)-> Val -> Result String (a, b)
 tuple2 sub1 sub2 v = record Ok v |> Result.andThen (\d ->
-    Dict.get "_1" d |> Result.fromMaybe ("Expected tuple, got " ++ valToString v) |> Result.andThen (\t1 ->
-      Dict.get "_2" d |> Result.fromMaybe ("Expected tuple, got " ++ valToString v) |> Result.andThen (\t2 ->
-        sub1 t1 |> Result.andThen (\a ->
-          sub2 t2 |> Result.map (\b ->
-            (a, b)
-          )
-        )
-      )
-    )
+    case Dict.get "_1" d of
+      Nothing -> Err <| "Expected tuple, got " ++ valToString v
+      Just t1 -> case Dict.get "_2" d of
+         Nothing -> Err <| "Expected tuple, got " ++ valToString v
+         Just t2 -> Result.map2 (,) (sub1 t1) (sub2 t2)
   )
 
 innerTuple: Int -> Dict String Val -> List Val
