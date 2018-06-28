@@ -173,6 +173,14 @@ getUpdateStackOp env e oldVal newVal diffs =
              VListDiffs ldiffs ->
                let updateDiffs: Int -> UpdatedEnv ->       List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> Maybe (WS -> Exp -> (WS, Exp)) ->  List Val ->    List Val -> (List (Int, ListElemDiff VDiffs)) -> UpdateStack
                    updateDiffs  i      collectedUpdatedEnv revElems          revEDiffs           elemsToCollect    changeWhitespaceNext               originalValues newValues   ldiffs =
+ --                   let _ = flip Debug.log () <| "updateDiffs " ++ toString i ++ " " ++ UpdatedEnv.show collectedUpdatedEnv ++ " [" ++ (List.map (\(ws, e) -> ws.val ++ ", " ++ Syntax.unparser Syntax.Elm e) revElems |> String.join "") ++ "] " ++
+ --                 toString revEDiffs ++
+ --                   " [" ++ (List.map (\(ws, e) -> ws.val ++ ", " ++ Syntax.unparser Syntax.Elm e) elemsToCollect |> String.join "") ++ "] " ++
+ --                   (if changeWhitespaceNext == Nothing then "Nothing" else "Just [change next space]") ++ " " ++
+ --                 "[" ++ (List.map valToString >> String.join ",") originalValues ++ "]" ++
+ --                 "[" ++ (List.map valToString >> String.join ",") newValues ++ "]" ++
+ --                 toString ldiffs
+ --                 in
                     case ldiffs of
                      [] ->
                        let finalElemsToCollect = case changeWhitespaceNext of
@@ -231,7 +239,7 @@ getUpdateStackOp env e oldVal newVal diffs =
                                            let policy = (wsComma, Lang.copyPrecedingWhitespace elemToCopy << valToExpFull (Just elemToCopy) psWs indentation) in
                                            (policy, policy, Nothing)
                                         _   -> Debug.crash <| "[internal error] There should be an element in this list's position"
-                                    else -- Insertion index == 1 and List.length elems == 1
+                                    else -- Insertion index == 1 and List.length elems <= 1
                                       case elems of
                                         [(wsHead, head)] ->
                                           let (wsComma, wsElem, indentation) = if e.start.line == e.end.line
@@ -248,7 +256,12 @@ getUpdateStackOp env e oldVal newVal diffs =
                                           in
                                           let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
                                           (policy, policy, Nothing)
-                                        _ ->  Debug.crash <| "[internal error] There should be an element in this list's position"
+                                        [] -> -- We are inserting at the second place, but the first one was an insertion already
+                                          let (wsComma, wsElem, indentation) = (ws "", ws " ", InlineSpace)
+                                          in
+                                          let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
+                                          (policy, policy, Nothing)
+                                        _ ->  Debug.crash <| "[internal error] There should be not more than 1 element in this list's position"
                                   else --if insertionIndex == 0 then -- Inserting the first element is always trickier
                                     case elems of
                                       [] ->

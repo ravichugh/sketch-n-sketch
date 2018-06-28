@@ -298,8 +298,9 @@ splitargs n array =
 escape txt = txt |>
   replaceAllIn "\\\\" "\\textbackslash{}" |>
   replaceAllIn "%(\\w+) (\\w+)" (\{group=[_, a, b]} -> "\\" + a + "{" + b  + "}") |>
-  replaceAllIn "<B>(.*)</B>" (\{group=[_, a]} -> "\\textbf{" + a  + "}") |>
-  replaceAllIn "<I>(.*)</I>" (\{group=[_, a]} -> "\\textbf{" + a  + "}")
+  replaceAllIn "<[bB]>" (\_ -> "\\textbf{") |>
+  replaceAllIn "<[iI]>" (\_ -> "\\textit{") |>
+  replaceAllIn "</[bBiI]>" (\_ -> "}")
 
 toHtmlWithoutRefs opts tree =
   letrec aux opts revAcc tree = case tree of
@@ -310,7 +311,7 @@ toHtmlWithoutRefs opts tree =
         aux opts revAcc newTree
       {tag="rawtext", value=text, pos = pos} ->
         let finalText = {
-           apply x = x,
+           apply x = freeze x,
            update {input, oldOutput, newOutput, diffs} = 
              {values = [Update.mapInserted escape newOutput diffs] }
           }.apply text in
@@ -366,7 +367,7 @@ initOptions = {
 
 htmlMapOf htmlOf trees = case trees of
   [] -> ""
-  (head::tail) -> htmlOf head + htmlMapOf tail
+  (head::tail) -> htmlOf head + htmlMapOf htmlOf tail
 
 htmlOf text_tree = case text_tree of
   ["TEXT", value] -> -- Needs some escape here.
@@ -376,12 +377,12 @@ htmlOf text_tree = case text_tree of
 toHtml x =
   let [raw, opts] = toHtmlWithoutRefs initOptions x in
   letrec replaceMap replaceReferences trees = case trees of
-    [] -> []
+    [] -> freeze []
     (head :: tail) -> {
-        apply x = x
-        update {input, outputNew, outputOriginal} =
+        apply x = freeze x
+        update {input, outputNew, outputOriginal, diffs} =
           if (len outputNew /= len outputOriginal && len outputOriginal == 1) then
-            {values = [[["TEXT", htmlOf [outputNew]]]]} else {values=[input]}
+            {values = [[["TEXT", htmlMapOf htmlOf outputNew]]]} else {values=[outputNew], diffs=[Just diffs]}
       }.apply [replaceReferences head] ++ replaceMap replaceReferences tail
   in
   letrec replaceReferences tree = case tree of
