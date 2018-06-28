@@ -27,9 +27,8 @@ valToMaybeLetPat program val =
 
 valsSame : Val -> Val -> Bool
 valsSame v1 v2 =
-  case (Utils.maybeLast (valToSameVals v1), Utils.maybeLast (valToSameVals v2)) of
-    (Just oldest1, Just oldest2) -> valEqFast oldest1 oldest2
-    _                            -> False
+  valEqFast (valToDistalSameVal v1) (valToDistalSameVal v2)
+
 
 valEqFast : Val -> Val -> Bool
 valEqFast v1 v2 =
@@ -37,6 +36,7 @@ valEqFast v1 v2 =
   v1.v_ == v2.v_ &&
   v1.provenance == v2.provenance &&
   v1.parents == v2.parents
+
 
 -- Step backwards in the provenance by one step, if, based on the expression evaluated, the prior step has to be the same value.
 -- That is, step backwards through eVars and noop operations.
@@ -86,10 +86,23 @@ valToSameVals val =
     Nothing         -> [val]
 
 
+valToDistalSameVal : Val -> Val
+valToDistalSameVal val =
+  case valToMaybePreviousSameVal val of
+    Just basedOnVal -> valToDistalSameVal basedOnVal
+    Nothing         -> val
+
+
 isSameOrDistalSameVal : Val -> Val -> Bool
 isSameOrDistalSameVal sameOrDistal reference =
   valToSameVals reference
   |> List.any (valEqFast sameOrDistal)
+
+
+didAffect : Val -> Val -> Bool
+didAffect causeVal effectVal =
+  flattenValBasedOnTree effectVal
+  |> List.any (valEqFast causeVal)
 
 
 -- Where duplicated, first leave most proxmial val, then leave closest to front of list.

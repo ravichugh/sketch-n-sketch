@@ -249,8 +249,15 @@ eval maybeRetEnvEId abortPred syntax env bt e =
         case (m, vs, FastParser.isProgramEId e.val.eid) of
           (Nothing, [v1, v2], True) ->
             case (v1.v_, v2.v_) of
-              (VConst _ nt1, VConst _ nt2) -> Ok <| retBoth vs (VList [{v1 | v_ = VConst (Just (X, nt2, v2)) nt1}, {v2 | v_ = VConst (Just (Y, nt1, v1)) nt2}], ws) deeperRetEnv -- Tracing for drawing offsets.
-              _                            -> Ok <| retBoth vs (VList vs, ws) deeperRetEnv
+              (VConst _ nt1, VConst _ nt2) ->
+                -- Add tracing for drawing offsets.
+                -- Cycles, baby. So otherCoordinateOf(X) actual does equal Y (needed at least for displaying offsets at the appropriate times)
+                let coordinateInfo1 = (X, nt2, v2) in
+                let taggedV1 = {v1 | v_ = VConst (Just coordinateInfo1) nt1} in
+                let taggedV2 = {v2 | v_ = VConst (Just (Y, nt1, taggedV1)) nt2} in
+                let _ = ImpureGoodies.mutateRecordField coordinateInfo1 "_2" taggedV2 in
+                Ok <| retBoth vs (VList [taggedV1, taggedV2], ws) deeperRetEnv
+              _ -> Ok <| retBoth vs (VList vs, ws) deeperRetEnv
           (Nothing, _, _)   -> Ok <| retBoth vs (VList vs, ws) deeperRetEnv
           (Just rest, _, _) ->
             case eval maybeRetEnvEId abortPred syntax env bt_ rest of

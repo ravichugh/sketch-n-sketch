@@ -873,6 +873,13 @@ maybeEnclosureOfAllBounds bounds =
     first::rest -> Just (rest |> List.foldl enclosureOfBoundsPair first)
 
 
+maybeEnclosureOfAllPoints : List (Num, Num) -> Maybe (Num, Num, Num, Num)
+maybeEnclosureOfAllPoints points =
+  points
+  |> List.map (\(x, y) -> (x, y, x, y))
+  |> maybeEnclosureOfAllBounds
+
+
 boundsCenter : (Num, Num, Num, Num) -> (Num, Num)
 boundsCenter (left, top, right, bot) =
   ( (left + right) / 2.0
@@ -891,8 +898,8 @@ boundsContains (left, top, right, bot) (x, y) =
   top  <= y && y <= bot
 
 
-expandBounds : (Num, Num, Num, Num) -> Num -> Num -> (Num, Num, Num, Num)
-expandBounds (left, top, right, bot) padding extraTopPadding =
+expandBounds : Num -> Num -> (Num, Num, Num, Num) -> (Num, Num, Num, Num)
+expandBounds padding extraTopPadding (left, top, right, bot) =
   ( left  - padding
   , top   - padding - extraTopPadding
   , right + padding
@@ -972,11 +979,11 @@ maybeWidgetInitialBounds widget =
       |> (++) (retWs |> List.map maybeWidgetInitialBounds)
       |> Utils.filterJusts
       |> maybeEnclosureOfAllBounds
-      |> Maybe.map  (\bounds -> expandBounds bounds widgetBoundsPadding heightForWCallFuncName)
+      |> Maybe.map (expandBounds widgetBoundsPadding heightForWCallFuncName)
 
     WList val ->
       valToMaybeBounds val
-      |> Maybe.map (\bounds -> expandBounds bounds widgetBoundsPadding heightForWListExp)
+      |> Maybe.map (expandBounds widgetBoundsPadding heightForWListExp)
 
     _ ->
       pointFeaturesOfWidget widget
@@ -1075,7 +1082,7 @@ rejiggerWidgetBounds widgets boundsMaybes =
                       newBounds =
                         enclosureOfBoundsPair
                             thisBounds
-                            (expandBounds boundsToEnclose widgetBoundsPadding (widgetTopSpaceNeeded thisWidget))
+                            (expandBounds widgetBoundsPadding (widgetTopSpaceNeeded thisWidget) boundsToEnclose)
                     in
                     Dict.insert i newBounds calculated
 

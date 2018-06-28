@@ -494,30 +494,34 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
   let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) amountVal endXVal endYVal =
     let idAsShape = -2 - i_ in
     let isSelected = Set.member (ShapeFeature idAsShape (DFeat Offset)) model.selectedFeatures in
-    let dragStyle =
-      if model.tool == Cursor then
-        [ attr "cursor" "pointer"
-        , onMouseEnter (addHoveredShape idAsShape)
-        ] ++ dragZoneEvents idAsShape "offset" ZOffset1D
-      else
-        [ attr "cursor" "default" ]
+    -- let isSelected = Set.member idAsShape model.selectedShapes in
+    let shouldHighlight =
+      isSelected || isShapeBeingDrawnSnappingToVal model amountVal
     in
-    let (arrowParts, (endXNumTr, endYNumTr)) =
-      let shouldHighlight =
-        isSelected || isShapeBeingDrawnSnappingToVal model amountVal
-      in
-      svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp model.renamingInOutput (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
-    in
-    let endPt =
-      zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXVal endYNumTr endYVal
-    in
-    if amount /= 0 then
-      [ Svg.g
-          [onMouseLeave (removeHoveredShape idAsShape)]
-          <| arrowParts ++ endPt
-      ]
-    else
+    if not <| model.tool /= Cursor || shouldHighlight || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
       []
+    else
+      let dragStyle =
+        if model.tool == Cursor then
+          [ attr "cursor" "pointer"
+          , onMouseEnter (addHoveredShape idAsShape)
+          ] ++ dragZoneEvents idAsShape "offset" ZOffset1D
+        else
+          [ attr "cursor" "default" ]
+      in
+      let (arrowParts, (endXNumTr, endYNumTr)) =
+        svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp model.renamingInOutput (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
+      in
+      let endPt =
+        zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXVal endYNumTr endYVal
+      in
+      if amount /= 0 then
+        [ Svg.g
+            [onMouseLeave (removeHoveredShape idAsShape)]
+            <| arrowParts ++ endPt
+        ]
+      else
+        []
   in
   let drawCallWidget i_ maybeBounds callEId funcVal argVals retVal retWs model =
     let program = model.inputExp in
@@ -872,6 +876,36 @@ addHoveredShape id =
                 )
             -- |> List.unzip
           in
+          let hoveredOffsetBounds =
+            let widgetId = -2 - id in
+            case Utils.maybeGeti1 widgetId m.widgets of
+              Just (WPoint (pointX, _) xVal (pointY, _) yVal pairVal) ->
+                m.widgets
+                |> Utils.zipi1
+                |> List.filterMap
+                    (\(i, widget) ->
+                      case widget of
+                        WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountVal endXVal endYVal ->
+                          let (pointCoordinateVal, offsetEndCoordinateVal, otherPointCoordinateVal, otherOffsetCoordinateVal, bounds) =
+                            let multiplier =
+                              case sign of
+                                Positive -> 1
+                                Negative -> -1
+                            in
+                            case axis of
+                              X -> (xVal, endXVal, yVal, endYVal, ShapeWidgets.maybeEnclosureOfAllPoints [(pointX, pointY), (baseX, baseY), (baseX+100, baseY), (baseX + multiplier*amount, baseY)] |> Utils.fromJust_ "" |> ShapeWidgets.expandBounds 20 20)
+                              Y -> (yVal, endYVal, xVal, endXVal, ShapeWidgets.maybeEnclosureOfAllPoints [(pointX, pointY), (baseX, baseY), (baseX+100, baseY), (baseX, baseY + multiplier*amount)] |> Utils.fromJust_ "" |> ShapeWidgets.expandBounds 20 20)
+                          in
+                          if Provenance.valsSame otherPointCoordinateVal otherOffsetCoordinateVal && Provenance.didAffect (Provenance.valToDistalSameVal pointCoordinateVal) offsetEndCoordinateVal -- Walk the point coordinate backwards because of overlapping/subsumed point widgets.
+                          then Just (bounds, Set.singleton i)
+                          else Nothing
+                        _ ->
+                          Nothing
+                    )
+
+              _ ->
+                []
+          in
           -- Can't remember why I had previously set this up so the widgets all disappeared when the largest is left
           -- rather then individual as each is left. Perhaps something was sticking outside of a function and didn't
           -- want the call widget to disappear. Leaving this old code around for a bit until the current version
@@ -879,7 +913,7 @@ addHoveredShape id =
           -- case ShapeWidgets.maybeEnclosureOfAllBounds bounds of
           --   Just bounds ->
               { m | hoveredShapes        = Set.singleton id
-                  , hoveredBoundsWidgets = Utils.addAllAsSet moreHoveredBounds m.hoveredBoundsWidgets
+                  , hoveredBoundsWidgets = Utils.addAllAsSet (moreHoveredBounds ++ hoveredOffsetBounds) m.hoveredBoundsWidgets
               }
             -- Nothing ->
             --   { m | hoveredShapes      = Set.singleton id }
