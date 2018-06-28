@@ -2931,6 +2931,13 @@ allVarEIdsToBindingPIdList program =
   |> List.map (\(eid, maybePat) -> (eid, Maybe.map (.val >> .pid) maybePat))
 
 
+usedPIdsToVarEIds : Exp -> Dict PId (List EId)
+usedPIdsToVarEIds program =
+  allVarEIdsToBindingPIdList program
+  |> List.filterMap (\(varEId, maybePId) -> maybePId |> Maybe.map (\pid -> (pid, varEId)))
+  |> Utils.pairsToDictOfLists
+
+
 -- "Nothing" means free in program
 -- May want this list version when you might have duplicate EIds
 allVarEIdsToBindingPatList : Exp -> List (EId, Maybe Pat)

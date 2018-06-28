@@ -495,10 +495,18 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
     let idAsShape = -2 - i_ in
     let isSelected = Set.member (ShapeFeature idAsShape (DFeat Offset)) model.selectedFeatures in
     -- let isSelected = Set.member idAsShape model.selectedShapes in
-    let shouldHighlight =
-      isSelected || isShapeBeingDrawnSnappingToVal model amountVal
+    let shouldHighlight = isSelected || isShapeBeingDrawnSnappingToVal model amountVal in
+    let isUnused =
+      let endValExp =
+        case axis of
+          X -> valExp endXVal
+          Y -> valExp endYVal
+      in
+      case LangTools.findLetAndPatMatchingExpLoose endValExp.val.eid model.inputExp of
+        Just (letExp, pat) -> not <| Dict.member pat.val.pid (LangTools.usedPIdsToVarEIds letExp)
+        Nothing            -> False
     in
-    if not <| model.tool /= Cursor || shouldHighlight || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
+    if not <| model.tool /= Cursor || shouldHighlight || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets || isUnused then
       []
     else
       let dragStyle =
