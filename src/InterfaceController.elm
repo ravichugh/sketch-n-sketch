@@ -381,17 +381,26 @@ onClickPrimaryZone i k realZone old =
       else
         (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
     else
+      -- Following Pages/Keynote behavior here.
       let toggleThisShape () =
-        Set.insert i <|
+        if Set.member i old.selectedShapes then
           if old.keysDown == [Keys.keyShift]
-          then old.selectedShapes
-          else Set.empty
+          then Set.remove i old.selectedShapes
+          else old.selectedShapes
+        else
+          if old.keysDown == [Keys.keyShift]
+          then Set.insert i old.selectedShapes
+          else Set.singleton i
       in
       let selectBlob blobId =
-        Dict.insert blobId i <|
+        if Dict.member blobId old.selectedBlobs then
           if old.keysDown == [Keys.keyShift]
-          then old.selectedBlobs
-          else Dict.empty
+          then Dict.remove blobId old.selectedBlobs
+          else old.selectedBlobs
+        else
+          if old.keysDown == [Keys.keyShift]
+          then Dict.insert blobId i old.selectedBlobs
+          else Dict.singleton blobId i
       in
       let maybeBlobId =
         case Dict.get i (Tuple.second old.slate) |> Maybe.map .interpreted of
