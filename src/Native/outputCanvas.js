@@ -373,7 +373,7 @@ function listenForUpdatesToOutputValues() {
 //////////////////////////////////////////////////////////////////////
 // DOM Updates from SnS Direct Manipulation UI
 
-app.ports.setDomNumAttribute.subscribe(function(args) {
+app.ports.setDomShapeAttribute.subscribe(function(args) {
   // console.log("setDomNumAttribute:" + args.nodeId + " / " + args.attrName + " / " + args.attrValue);
   var e = document.querySelector('[data-value-id="' + args.nodeId + '"]');
   if (e) {
