@@ -130,6 +130,15 @@ tryUnparseTuple unparseTerm wsBefore elems wsBeforeEnd =
     else
       Nothing
 
+getDataConstructorNameString elems =
+  let
+    ctorString =
+      stringifyCtorKind Lang.DataTypeCtor
+  in
+  elems
+  |> List.map (\(_, _, key, _, val) -> (key, val))
+  |> Utils.maybeFind ctorString
+
 -- Tries to unparse a record as a data constructor
 tryUnparseDataConstructor
   :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (WS, WS, Ident, WS, t)))
@@ -140,10 +149,7 @@ tryUnparseDataConstructor unparseTerm name args wsBefore elems wsBeforeEnd =
     ctorString =
       stringifyCtorKind Lang.DataTypeCtor
 
-    maybeNameString =
-      elems
-        |> List.map (\(_, _, key, _, val) -> (key, val))
-        |> Utils.maybeFind ctorString
+    maybeNameString = getDataConstructorNameString elems
         |> Maybe.andThen name
 
     maybeArgs =
@@ -578,7 +584,7 @@ unparse e =
       unparse tail
 
     ERecord wsBefore mi elems wsAfter ->
-      tryUnparseRecordSugars unparse expName expArgs wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars (\arg -> wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)) expName expArgs wsBefore elems wsAfter <| \_ ->
         wsBefore.val
           ++ "{"
           ++ (case mi of
@@ -967,7 +973,7 @@ unparseAnyHtml e =
           _ -> unparse e
     _ -> unparseHtmlChildList e
 
--- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-conatined
+-- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-contained
 getExpPrecedence: Exp -> Maybe Int
 getExpPrecedence exp =
   case exp.val.e__ of
@@ -982,6 +988,10 @@ getExpPrecedence exp =
             Just (associativity, precedence) -> Just precedence
         _ -> Nothing
     EApp _ _ _ SpaceApp _ -> Just 10
+    ERecord _ _ elems _ ->
+      case getDataConstructorNameString elems of
+        Nothing -> Nothing
+        Just x -> Just 10
     EColonType _ _ _ _ _           -> Just -1
     EOp _ _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
@@ -1013,19 +1023,24 @@ type OpDir = OpLeft | OpRight
 
 wrapWithParensIfLessPrecedence_: (a -> Maybe Int) -> (a -> Maybe BinaryOperatorParser.Associativity) -> OpDir -> a -> a -> String -> String
 wrapWithParensIfLessPrecedence_ getPrecedence getAssociativity opDir outsideExp insideExp unparsedInsideExpr =
+  let _ = Debug.log "#1" (unparsedInsideExpr) in
   let inPrecedenceMb  = getPrecedence insideExp in
   case inPrecedenceMb of
     Nothing -> unparsedInsideExpr
     Just inPrecedence ->
+  let _ = Debug.log "#2" (inPrecedence) in
   let precedenceMb    = getPrecedence outsideExp in
   case precedenceMb of
       Nothing -> unparsedInsideExpr
       Just precedence ->
+  let _ = Debug.log "#3" (precedence) in
   let inAssociativity = getAssociativity insideExp in
   let associativity = getAssociativity outsideExp in
+  let _ = Debug.log "#4" (inAssociativity, associativity) in
   if inPrecedence < precedence
   then wrapWithTightParens unparsedInsideExpr
   else if inPrecedence == precedence then
+    let _ = Debug.log "#5" () in
     if associativity == inAssociativity && (
             associativity == Just BinaryOperatorParser.Left && opDir == OpLeft
          || associativity == Just BinaryOperatorParser.Right && opDir == OpRight) then
