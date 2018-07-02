@@ -4,7 +4,7 @@ module FastParser exposing
   , parseE, parseT
   , sanitizeVariableName
   , clearAllIds
-  , freshen
+  , freshen, freshenFrom
   , maxId
   )
 
@@ -1479,7 +1479,6 @@ clearAllIds root =
 -- assign EId's and locId's
 -- existing unique EId's/locId's are preserved
 -- duplicated and dummy EId's/locId's are reassigned
-
 freshen : Exp -> Exp
 freshen e =
   -- let _ = Debug.log ("To Freshen:\n" ++ LangUnparser.unparseWithIds e) () in
@@ -1492,6 +1491,15 @@ freshen e =
   let (result, _) = freshenPreserving idsToPreserve startK e in
   -- let _ = Debug.log ("Freshened result:\n" ++ LangUnparser.unparseWithIds result) () in
   result
+
+
+freshenFrom : Int -> Exp -> Exp
+freshenFrom initK e =
+  let (duplicateIds, allIds) = duplicateAndAllIds e in
+  let idsToPreserve = Set.diff allIds duplicateIds |> Set.filter (\id -> id < initK) in
+  let (result, _) = freshenPreserving idsToPreserve initK e in
+  result
+
 
 -- Overwrite any existing EId's/locId's
 freshenClean : Int -> Exp -> (Exp, Int)

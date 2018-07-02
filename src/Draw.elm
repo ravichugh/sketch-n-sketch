@@ -1097,6 +1097,9 @@ newFunctionCallExp fName model pt1 pt2 =
           in
           -- See if func can take 1 Point + Width + Height
           let (ptUsed, widthUsed, heightUsed, argMaybeExpsPointWidthHeight) =
+            let maxId = FastParser.maxId model.inputExp in
+            let x1y1Exp = makePointExpFromPointWithSnap pt1 |> FastParser.freshenFrom (maxId + 1) in
+            let maybeX1Y1Vals = Eval.simpleEvalToMaybeVal x1y1Exp |> Maybe.andThen valToMaybeXYVals in
             argTypes
             |> Utils.foldl
                 (False, False, False, [])
@@ -1105,9 +1108,9 @@ newFunctionCallExp fName model pt1 pt2 =
                        , widthUsed  , Types.typeToMaybeAliasIdent argType == Just "Width"
                        , heightUsed , Types.typeToMaybeAliasIdent argType == Just "Height"
                        ) of
-                    (False, True, _, _, _, _) -> (True,      widthUsed, heightUsed, argMaybeExps ++ [Just (makePointExpFromPointWithSnap pt1)])
-                    (_, _, False, True, _, _) -> (pointUsed, True,      heightUsed, argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap X pt2 pt1)])
-                    (_, _, _, _, False, True) -> (pointUsed, widthUsed, True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap Y pt2 pt1)])
+                    (False, True, _, _, _, _) -> (True,      widthUsed, heightUsed, argMaybeExps ++ [Just x1y1Exp])
+                    (_, _, False, True, _, _) -> (pointUsed, True,      heightUsed, argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals X pt2 pt1)])
+                    (_, _, _, _, False, True) -> (pointUsed, widthUsed, True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals Y pt2 pt1)])
                     _                         -> (pointUsed, widthUsed, heightUsed, argMaybeExps ++ [fillInArgPrimitive argType])
                 )
           in
@@ -1380,18 +1383,28 @@ makePointExpFromPointWithSnap pt =
   identity <| ePair (removePrecedingWhitespace xExp) yExp -- eAsPoint
 
 -- For making height/width from mouse end/start positions
-makeAxisDifferenceExpFromPointsWithSnap : Axis -> PointWithSnap -> PointWithSnap -> Exp
-makeAxisDifferenceExpFromPointsWithSnap axis ((x2, x2Snap), (y2, y2Snap)) ((x1, x1Snap), (y1, y1Snap)) =
+-- If the end is snapped but the start is not, then we want to introduce new variables for the x1/y1 pair so we can
+-- use it in both the x1/y1 point and in the calculation of width/height. That's what maybeX1Y1Vals is for.
+-- (I tried making an HoleEId hole type specifically for this case but that (a) sometimes fails and (b) breaks the drawing preview b/c Eval cannot eval through EId holes.
+-- So we will use val holes.)
+makeAxisDifferenceExpFromPointsWithSnap : Maybe (Val, Val) -> Axis -> PointWithSnap -> PointWithSnap -> Exp
+makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals axis ((x2, x2Snap), (y2, y2Snap)) ((x1, x1Snap), (y1, y1Snap)) =
   let ((endCoord, endSnap), (startCoord, startSnap)) =
     case axis of
       X -> ((x2, x2Snap), (x1, x1Snap))
       Y -> ((y2, y2Snap), (y1, y1Snap))
   in
-  case (endSnap, startSnap) of
-    (NoSnap,         NoSnap)           -> eInt (endCoord - startCoord)
-    (SnapVal endVal, NoSnap)           -> eMinus (eHoleVal endVal) (eInt startCoord)
-    (NoSnap,         SnapVal startVal) -> eMinus (eInt endCoord) (eHoleVal startVal)
-    (SnapVal endVal, SnapVal startVal) -> eMinus (eHoleVal endVal) (eHoleVal startVal)
+  let maybeStartVal =
+    case (axis, maybeX1Y1Vals) of
+      (X, Just (x1Val, _)) -> Just x1Val
+      (Y, Just (_, y1Val)) -> Just y1Val
+      _                    -> Nothing
+  in
+  case (endSnap, startSnap, maybeStartVal) of
+    (NoSnap,         _,      _)             -> eInt (endCoord - startCoord)
+    (SnapVal endVal, NoSnap, Just startVal) -> eMinus (eHoleVal endVal) (eHoleVal startVal)
+    (SnapVal endVal, NoSnap, Nothing)       -> eMinus (eHoleVal endVal) (eInt startCoord)
+    (SnapVal endVal, SnapVal startVal, _)   -> eMinus (eHoleVal endVal) (eHoleVal startVal)
 
 addToMainExp : BlobExp -> MainExp -> MainExp
 addToMainExp newBlob mainExp =

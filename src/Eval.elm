@@ -1,4 +1,4 @@
-module Eval exposing (run, doEval, doEvalEarlyAbort, runUntilTheEnd, parseAndRun, parseAndRun_, evalDelta, initEnv, addSubsumingPriorWidgets)
+module Eval exposing (run, doEval, doEvalEarlyAbort, runUntilTheEnd, simpleEvalToMaybeVal, parseAndRun, parseAndRun_, evalDelta, initEnv, addSubsumingPriorWidgets)
 
 import Debug
 import Dict
@@ -129,6 +129,10 @@ doEvalEarlyAbort maybeRetEnvEId abortPred syntax initEnv e =
 -- Like eval, but ignore envOut
 eval_ : Syntax -> Env -> Backtrace -> Exp -> Result String (Val, Widgets)
 eval_ syntax env bt e = Result.map Tuple.first <| eval Nothing runUntilTheEnd syntax env bt e
+
+
+simpleEvalToMaybeVal : Exp -> Maybe Val
+simpleEvalToMaybeVal e = eval Nothing runUntilTheEnd Syntax.Elm initEnv [] e |> Result.toMaybe |> Maybe.map (\((val, _), _) -> val)
 
 
 eval : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Maybe Env)
