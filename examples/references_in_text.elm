@@ -8,18 +8,18 @@ quicksort compare list = case list of
 
 addReferences references node =
   let collectedAddedReferences references node =
-    { apply (references, node) = freeze node
+    { apply (references, node) = node
       update {input = (references, node) as input, outputNew} =
         let refAddRegex = """\[\+\s*((?:(?!\]).)*)\]""" in
         let addedReferences = Html.find refAddRegex outputNew in
-        if addedReferences == [] then {values=[input], diffs=[Nothing]}
+        if addedReferences == [] then Ok (InputsWithDiffs [(input, Nothing)])
         else 
           let (newNode, (_, newReferences)) = Html.foldAndReplace refAddRegex (\{submatches=[name]} (newRefNum, newReferences) ->
               ([["TEXT", """[@newRefNum]"""]], (newRefNum + 1, newReferences ++ [name]))
             ) (List.length references + 1, references) outputNew
           in 
           let newInput = (newReferences, newNode) in
-          {values=[newInput]}
+          Ok (Inputs [newInput])
     }.apply (references, node)
   in
   let refRegex = """\[(\d+)\]""" in
@@ -52,29 +52,29 @@ addReferences references node =
   in
   let lenReferences = List.length references in
   let (sortedReferences, sortedNode, applysort) = {
-    apply (references, node) = freeze (references, node, "")
-    update {outputNew = (newReferences, newNode, newApplySort)} =
-      if newApplySort == "#" then
-        {values=[sortReferences newReferences newNode]}
+    apply (references, node) = (references, node, "")
+    update {outputNew = (newReferences, newNode, newApplySort), diffs} =
+      if newApplySort /= "" then
+        Ok (Inputs [sortReferences newReferences newNode])
       else
-        {values=[(newReferences, newNode)]}
+        Ok (InputsWithDiffs [((newReferences, newNode), Just diffs)])
     }.apply (references, node)
   in
   let finalReferences = {
-    apply (references, node) = freeze references
+    apply (references, node) = references
     update {input=(references, node), outputNew=newReferences, diffs=(VListDiffs diffs) as listDiffs} =
       letrec aux offset currentNode nodeHasChanged diffs = case diffs of
         [] -> if nodeHasChanged then
             case __diff__ node currentNode of
-              Err msg -> {error = msg}
+              Err msg -> Err msg
               Ok x ->
                 let finalDiffs =  case x of
                   Nothing -> {_1 = listDiffs}
                   Just x ->  {_1 = listDiffs, _2 = x}
                 in
-                {values=[(newReferences, currentNode)], diffs=[Just (VRecordDiffs finalDiffs)]}
+                Ok (InputsWithDiffs [((newReferences, currentNode), Just (VRecordDiffs finalDiffs))])
           else
-            {values=[(newReferences, currentNode)], diffs=[Just (VRecordDiffs {_1 = listDiffs})]}
+            Ok (InputsWithDiffs [((newReferences, currentNode), Just (VRecordDiffs {_1 = listDiffs}))])
         (j, d)::diffsTail ->
           case d of
           ListElemUpdate _ -> aux offset currentNode nodeHasChanged diffsTail

@@ -51,7 +51,7 @@ html string = {
               HTMLAttributeString sp1 sp2 delim v ->
                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 delim value2)
               HTMLAttributeNoValue -> 
-                 if value2 == "" then HTMLAttribute sp0 name2 HTMLAttributeNoValue]
+                 if value2 == "" then HTMLAttribute sp0 name2 HTMLAttributeNoValue
                  else toHTMLAttribute [name2, value2]
               _ -> "Error, expected HTMLAttributeUnquoted, HTMLAttributeString, HTMLAttributeNoValue" + 1
         in mergeAttrs (append acc [newIn]) (drop 1 ins) dt

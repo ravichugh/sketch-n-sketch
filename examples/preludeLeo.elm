@@ -293,41 +293,54 @@ LensLess =
       concatMap = concatMap
       zip = zip
     },
+    Result =
+      let map f res = case res of
+        Err msg -> res
+        Ok x -> Ok (f x)
+      in
+      let andThen f res = case res of
+        Err msg -> res
+        Ok x -> f x
+      in
+      {
+        map = map
+        andThen = andThen
+    },
     Results =
       letrec keepOks l =
         case l of
           [] -> []
-          { error }::tail -> keepOks tail
-          { values =  ll }::tail -> ll ++ keepOks tail
+          (Err _) ::tail -> keepOks tail
+          (Ok ll) :: tail -> ll ++ keepOks tail
       in
       letrec projOks l =
         case l of
-          [] -> {values = []}
-          ({values = []}::tail) -> projOks tail
-          ({values = vhead::vtail}::tail) -> {values = vhead::(vtail ++ keepOks tail)}
-          ({error = msg}::tail) ->
+          [] -> Ok []
+          (Ok []) :: tail -> projOks tail
+          (Ok (vhead :: vtail)) ::tail -> Ok (vhead::(vtail ++ keepOks tail))
+          (Err msg) :: tail ->
             case projOks tail of
-              {error = msgTail} -> { error = msg }
-              { values = []}-> {error = msg}
+              Err msgTail -> Err msg
+              Ok []-> Err msg
               result -> result
       in
       let andThen callback results =
         --andThen : (a -> Results x b) -> Results x a -> Results x b
         case results of
-          {values = ll} -> ll |> map callback |> projOks
-          {error = msg} -> results
+          Ok ll -> ll |> map callback |> projOks
+          Err msg -> results
       in
       let resultMap callback results =
         case results of
-          {values = ll} -> {values = ll |> map callback }
-          { error = msg} -> results
+          Ok ll -> Ok (ll |> map callback)
+          Err msg -> results
       in
       let andAlso otherResults results =
         case (results, otherResults) of
-          ({values = ll}, {values=otherLl}) -> { values = ll ++ otherLl }
-          ({error = msg}, {error=msg2}) -> { error = msg + "\n" + msg2 }
-          ({error = msg}, _) -> { error = msg }
-          (_, {error=msg2}) -> { error = msg2 }
+          (Ok ll, Ok otherLl) -> Ok (ll ++ otherLl)
+          (Err msg, Err msg2) -> Err (msg + "\n" + msg2)
+          (Err msg, _) -> Err msg
+          (_, Err msg2) -> Err msg2
       in
       {
         keepOks = keepOks
@@ -383,6 +396,20 @@ LensLess =
       }
   }
 
+Result =
+  let map f res = case res of
+    Err msg -> res
+    Ok x -> Ok (f x)
+  in
+  let andThen f res = case res of
+    Err msg -> res
+    Ok x -> f x
+  in
+  {
+    map = map
+    andThen = andThen
+  }
+
 --------------------------------------------------------------------------------
 -- Update --
 
@@ -422,25 +449,21 @@ Update =
     -- Update.freeze x prevents changes to x (resulting in failure),
     -- Update.softFreeze x ignores changes to x
     let constantInputLens =
-      { apply x = freeze x, update {input} = { values = [input] } }
+      { apply x = x, update {input} = Ok (Inputs [input]) }
     in
     applyLens constantInputLens x
   in
   -- TODO: Replace this by enabling the return of Result String (Values [values...] | ValuesDiffs [(values, diffs)])
-  letrec valuesWithDiffs valuesDiffs = case valuesDiffs of
-     [] -> { values = [], diffs = [] }
-     (v, d)::tail -> let {values, diffs} = valuesWithDiffs tail in
-       {values = v::values, diffs = d::diffs}
-  in
+  let valuesWithDiffs valuesDiffs = Ok (InputsWithDiffs valuesDiffs) in
   letrec resultValuesWithDiffs valuesDiffs = case valuesDiffs of
-     [] -> { values = [], diffs = [] }
-     (Ok (v, d))::tail -> case resultValuesWithDiffs tail of
-       {error} -> {values=v, diffs=d}
-       {values,diffs} -> {values = v::values, diffs = d::diffs}
-     (Err msg)::tail -> if tail == [] then {error=msg} else
+     [] -> Ok (InputsWithDiffs [])
+     (Ok vd)::tail -> case resultValuesWithDiffs tail of
+       Err msg -> Ok (InputsWithDiffs [vd])
+       Ok (InputsWithDiffs vds) -> Ok (InputsWithDiffs (vd :: vds))
+     (Err msg)::tail -> if tail == [] then Err msg else
        case resultValuesWithDiffs tail of
-       {error} -> {error=msg + "\n" + error}
-       {values,diffs} -> {values = values, diffs = diffs}
+       Err error-> Err (msg + "\n" + error)
+       x -> x
   in
   let addDiff f mbDiff (d, changed) =
         case mbDiff of
@@ -618,20 +641,20 @@ Update =
   let --------------------------------------------------------------------------------
       -- Update.foldDiff
 
-      -- type Results err ok = { values: List ok } | { error: err }
+      -- type Results err ok = Result err (List ok)
 
-      -- every onFunction should either return a {values = ...} or an {error =... }
+      -- every onFunction should either return a Ok (List a) or an Err msg
       -- start    : a
       -- onUpdate : a -> {oldOutput: b, newOutput: b, index: Int, diffs: VDiffs} -> Results String a
       -- onInsert : a -> {newOutput: b, index: Int, diffs: VDiffs}  -> Results String a
       -- onRemove : a -> {oldOutput: b, index: Int, diffs! VDoffs}  -> Results String a
       -- onSkip   : a -> {count: Int, index: Int, oldOutputs: List b, newOutputs: List b}  -> Results String a
       -- onFinish : a -> Results String c
-      -- onGather : c -> ({value: d, diff: Maybe VDiffs } | { value: d })
+      -- onGather : c -> (InputWithDiffs (d, Maybe VDiffs) | Input d)
       -- oldOutput: List b
       -- newOutput: List b
       -- diffs    : ListDiffs
-      -- Returns  : {error: String} | {values: List d} | {values: List d, diffs: List (Maybe VDiffs)}
+      -- Returns  : Err String | Ok (Inputs (List d} | InputsWithDiffs (List (d, Maybe VDiffs)))
       foldDiff =
         let {List, Results} = LensLess in
         let {append, split, reverse} = List in
@@ -640,7 +663,7 @@ Update =
           VListDiffs l -> l
           _ -> Debug.crash <| "Expected VListDiffs, got " + toString diffs
         in
-        -- Returns either {error} or {values=list of values}
+        -- Returns either Err msg or Ok (list of values)
         --     fold: Int -> List b -> List b -> List (Int, ListElemDiff) -> a -> Results String c
         letrec fold  j      oldOutput  newOutput  listDiffs                    acc =
             let next i      oldOutput_ newOutput_ d newAcc =
@@ -685,25 +708,25 @@ Update =
             _ -> Debug.crash <| "Expected a list of diffs, got " + toString diffs
         in
         case fold 0 oldOutput newOutput listDiffs start of
-          { error = msg } -> {error = msg}
-          { values = values } -> -- values might be a pair of value and diffs. We use onGather to do the split.
+          Err msg -> Err msg
+          Ok values -> -- values might be a pair of value and diffs. We use onGather to do the split.
             letrec aux revAccValues revAccDiffs values = case values of
               [] -> case revAccDiffs of
-                Nothing -> {values = reverse revAccValues}
-                Just revDiffs -> {values = reverse revAccValues, diffs = reverse revDiffs}
+                Nothing -> Ok (Inputs (reverse revAccValues))
+                Just revDiffs -> Ok (InputsWithDiffs (LensLess.List.zip (reverse revAccValues) (reverse revDiffs)))
               head::tail -> case onGather head of
-                {value, diff} -> case revAccDiffs of
-                  Nothing -> if len revAccValues > 0 then { error = "Diffs not specified for all values, e.g." + toString value } else
+                Ok (InputWithDiff (value, diff)) -> case revAccDiffs of
+                  Nothing -> if len revAccValues > 0 then Err ("Diffs not specified for all values, e.g." + toString value) else
                     aux [value] (Just [diff]) tail
                   Just revDiffs ->
                     aux (value :: revAccValues) (Just (diff::revDiffs)) tail
-                {value} -> case revAccDiffs of
+                Ok (Input value) -> case revAccDiffs of
                   Nothing -> aux (value :: revAccValues) revAccDiffs tail
-                  Just revDiffs -> { error = "Diffs not specified until " + toString value }
+                  Just revDiffs -> Err ("Diffs not specified until " + toString value)
             in aux [] Nothing values
   in
   let sizeFreeze l = {
-         apply l = freeze l
+         apply l = l
          update {outputNew=newL, diffs=d} =
            let lengthNotModified = case d of
              VListDiffs ds -> letrec aux ds = case ds of
@@ -714,7 +737,7 @@ Update =
               in aux ds
              _ -> False
            in
-           if lengthNotModified then {values=[newL], diffs=[Just d]} else { values = [], diffs = [] }
+           if lengthNotModified then Ok (InputsWithDiffs [(newL, Just d)]) else Ok (InputsWithDiffs [])
        }.apply l
   in
   -- exports from Update module
@@ -758,22 +781,20 @@ Update =
        in
        aux 0 (strDiffToConcreteDiff modifiedStr diffs) modifiedStr
     debug msg x =
-         { apply x = freeze x, update { input, newOutput, oldOutput, diffs} =
+         { apply x = x, update { input, newOutput, oldOutput, diffs} =
            let _ = Debug.log ("""@msg:
 oldOutput:@oldOutput
 newOutput:@newOutput
 diffs:@diffs""") "end" in
-           { values = [newOutput],
-             diffs = [Just diffs]}
+           Ok (InputsWithDiffs [(newOutput, Just diffs)])
          }.apply x
     debugstr msg x =
-             { apply x = freeze x, update { input, newOutput, oldOutput, diffs} =
+             { apply x = x, update { input, newOutput, oldOutput, diffs} =
                let _ = Debug.log ("""@msg:
 oldOutput:@oldOutput
 newOutput:@newOutput
 diffs:@(strDiffToConcreteDiff newOutput diffs)""") "end" in
-               { values = [newOutput],
-                 diffs = [Just diffs]}
+               Ok (InputsWithDiffs [(newOutput, Just diffs)])
              }.apply x
   }
 
@@ -789,32 +810,32 @@ evaluate program =
 append =
   let {append=ap,split} = LensLess.List in
   \aas bs -> {
-    apply [aas, bs] = freeze <| ap aas bs
+    apply [aas, bs] = ap aas bs
     update {input = [aas, bs], outputNew, outputOld, diffs} =
       let asLength = len aas in
       Update.foldDiff {
         start = [[], [], [], [], len aas, len bs]
         onSkip [nas, nbs, diffas, diffbs, numA, numB] {count = n, newOutputs = outs} =
           if n <= numA then
-            {values = [[nas ++ outs, nbs, diffas, diffbs, numA - n, numB]]}
+            Ok [[nas ++ outs, nbs, diffas, diffbs, numA - n, numB]]
           else
             let (forA, forB) = split numA outs in
-            {values = [[nas ++ forA, nbs ++ forB, diffas, diffbs, 0, numB - (n - numA)]]}
+            Ok [[nas ++ forA, nbs ++ forB, diffas, diffbs, 0, numB - (n - numA)]]
         onUpdate [nas, nbs, diffas, diffbs, numA, numB] {newOutput = out, diffs, index} =
-          { values = [if numA >= 1
+          Ok [if numA >= 1
            then [nas ++ [out],                                      nbs,
                  diffas ++ [(index, ListElemUpdate diffs)], diffbs,
                  numA - 1,                                          numB]
            else [nas,    nbs ++ [out],
                  diffas, diffbs ++ [(index - asLength, ListElemUpdate diffs)],
-                 0,      numB - 1]] }
+                 0,      numB - 1]]
         onRemove  [nas, nbs, diffas, diffbs, numA, numB] {oldOutput, index} =
           if 1 <= numA then
-            {values = [[nas, nbs, diffas ++ [(index, ListElemDelete 1)], diffbs, numA - 1, numB]] }
+            Ok [[nas, nbs, diffas ++ [(index, ListElemDelete 1)], diffbs, numA - 1, numB]]
           else
-            {values = [[nas, nbs, diffas, diffbs ++ [(index - asLength, ListElemDelete 1)], numA, numB - 1]] }
+            Ok [[nas, nbs, diffas, diffbs ++ [(index - asLength, ListElemDelete 1)], numA, numB - 1]]
         onInsert [nas, nbs, diffas, diffbs, numA, numB] {newOutput, index} =
-          {values =
+          Ok (
             (if numA > 0 || len nbs == 0 then
               [[nas ++ [newOutput], nbs,
                 diffas ++ [(index, ListElemInsert 1)], diffbs,
@@ -825,16 +846,14 @@ append =
                   diffas, diffbs ++ [(index - asLength, ListElemInsert 1)],
                   numA, numB]]
               else [])
-            }
+            )
 
-        onFinish [nas, nbs, diffas, diffbs, _, _] = {
-           values = [[[nas, nbs], (if len diffas == 0 then [] else
+        onFinish [nas, nbs, diffas, diffbs, _, _] = Ok [[[nas, nbs], (if len diffas == 0 then [] else
              [(0, ListElemUpdate (VListDiffs diffas))]) ++
                    (if len diffbs == 0 then [] else
              [(1, ListElemUpdate (VListDiffs diffbs))])]]
-          }
-        onGather [[nas, nbs], diffs] = {value = [nas, nbs],
-          diff = if len diffs == 0 then Nothing else Just (VListDiffs diffs) }
+        onGather [[nas, nbs], diffs] = Ok (InputWithDiff ([nas, nbs],
+          if len diffs == 0 then Nothing else Just (VListDiffs diffs)))
       } outputOld outputNew diffs
     }.apply [aas, bs]
 
@@ -843,7 +862,7 @@ append =
 --; Maps a function, f, over a list of values and returns the resulting list
 --map a b: (a -> b) -> List a -> List b
 map f l = {
-  apply [f, l] = freeze (LensLess.List.map f l)
+  apply [f, l] = LensLess.List.map f l
   update {input=[f, l], oldOutput, outputNew, diffs} =
     Update.foldDiff {
       start =
@@ -857,14 +876,14 @@ map f l = {
       onSkip [fs, insA, diffInsA, insB] {count} =
         --'outs' was the same in oldOutput and outputNew
         let (skipped, remaining) = LensLess.List.split count insB in
-        {values = [[fs, insA ++ skipped, diffInsA, remaining]]}
+        Ok [[fs, insA ++ skipped, diffInsA, remaining]]
 
       onUpdate [fs, insA, diffInsA, insB] {oldOutput, newOutput, diffs, index} =
         let input::remaining = insB in
         case Update.updateApp {fun (f,x) = f x, input = (f, input), output = newOutput, oldOutput = oldOutput, diffs = diffs} of
-          { error = msg } -> {error = msg}
-          { values = vs, diffs = ds} -> {values =
-              LensLess.List.map2 (\(newF, newA) d ->
+          Err msg -> Err msg
+          Ok (InputsWithDiffs vsds) -> Ok (
+              LensLess.List.map (\((newF, newA), d) ->
                 let newFs = case d of
                   Just (VRecordDiffs {_1 = d}) -> (newF, Just d)::fs
                   _ -> fs
@@ -873,37 +892,36 @@ map f l = {
                   Just (VRecordDiffs {_2 = d}) -> diffInsA ++ [(index, ListElemUpdate d)]
                   _ -> diffInsA
                 in
-                [newFs, insA ++ [newA], newDiffsInsA, remaining]) vs ds}
+                [newFs, insA ++ [newA], newDiffsInsA, remaining]) vsds)
 
       onRemove [fs, insA, diffInsA, insB] {oldOutput, index} =
         let _::remaining = insB in
-        { values = [[fs, insA, diffInsA ++ [(index, ListElemDelete 1)], remaining]] }
+        Ok [[fs, insA, diffInsA ++ [(index, ListElemDelete 1)], remaining]]
 
       onInsert [fs, insA, diffInsA, insB] {newOutput, index} =
         let input =
           case insB of h::_ -> h; _ ->
           case LensLess.List.last insA of Just h -> h; Nothing -> Debug.crash "Empty list for map, cannot insert" in
         case Update.updateApp {fun (f,x) = f x, input = (f, input), output = newOutput} of
-          { error = msg } -> {error = msg }
-          { values = vs, diffs=ds } -> {values =
+          Err msg -> Err msg
+          Ok (InputsWithDiffs vsds) -> Ok (
               -- We disable the modification of f itself in the insertion (to prevent programmatic styling to change unexpectedly) newF::
               let aprioriResult = LensLess.List.concatMap (\((newF, newA), diff) ->
                 case diff of
                   Just (VRecordDiffs {_1}) -> []
-                  _ -> [[fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]]) <| LensLess.List.zip vs ds
+                  _ -> [[fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]]) <| vsds
               in -- If one of the result does not change f, that's good. Else, we take all the results.
               if aprioriResult == [] then -- Here we return all possibilities, ignoring changes to the function
-                LensLess.List.concatMap (\(newF, newA) ->
-                   [[fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]]) vs
+                LensLess.List.concatMap (\((newF, newA), _) ->
+                   [[fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]]) vsds
               else
-                aprioriResult
-          }
+                aprioriResult)
 
       onFinish [newFs, newIns, diffInsA, _] =
        --after we finish, we need to return the new function
        --as a merge of original functions with all other modifications
        -- and the collected new inputs
-       {values = [[Update.merge f newFs, newIns, diffInsA]] }
+       Ok [[Update.merge f newFs, newIns, diffInsA]]
 
       onGather [(newF, fdiff), newIns, diffInsA] =
         let fdiffPart = case fdiff of
@@ -918,13 +936,13 @@ map f l = {
           [] -> Nothing
           d -> Just (VListDiffs d)
         in
-        { value = [newF, newIns], diff = finalDiff}
+        Ok (InputWithDiff ([newF, newIns], finalDiff))
     } oldOutput outputNew diffs
   }.apply [f, l]
 
 zipWithIndex xs =
-  { apply x = freeze <| zip (range 0 (len xs - 1)) xs
-    update {output} = {values = [map (\(i, x) -> x) output]}  }.apply xs
+  { apply x = zip (range 0 (len xs - 1)) xs
+    update {output} = Ok (Inputs [map (\(i, x) -> x) output])}.apply xs
 
 indexedMap f l =
   map (\(i, x) -> f i x) (zipWithIndex l)
@@ -1116,7 +1134,7 @@ drop xs n =
 -- dropEnd: (forall a (-> (List a) Num (union Null (List a))))
 -- dropEnd xs n =
 --   let tryDrop = drop (reverse xs) n in
---     {Error: typecase not yet implemented for Elm syntax}
+--     Err "typecase not yet implemented for Elm syntax"
 
 --elem: (forall a (-> a (List a) Bool))
 elem x ys =
@@ -1368,7 +1386,7 @@ List =
   let reverse =
     let r = LensLess.List.reverse in
     -- TODO: reverse the differences as well !
-    \l -> { apply l = freeze (r l), update {output}= {values = [r output]}}.apply l
+    \l -> { apply l = r l, update {output}= Ok (Inputs [r output])}.apply l
   in
   let simpleMap = LensLess.List.map
   in
@@ -1410,7 +1428,7 @@ List =
                      (x::xs, y::ys)
   in
   let split n l = {
-      apply l = freeze (LensLess.List.split n l)
+      apply l = LensLess.List.split n l
       update {output = (l1, l2), diffs} =
         let finalDiffs = case diffs of
           VRecordDiffs {_1 = VListDiffs l1, _2 = VListDiffs l2} ->
@@ -1419,7 +1437,7 @@ List =
           VRecordDiffs {_2 = VListDiffs l2} -> Just (VListDiffs (simpleMap (\(i, d) -> (i + n, d)) l2))
           _ -> Nothing
         in
-        {values = [l1 ++ l2], diffs = [finalDiffs]}
+        Ok (InputsWithDiffs [(l1 ++ l2, finalDiffs)])
     }.apply l
   in
   -- In this version of foldl, the function f accepts a 1-element list instead of just the element.
@@ -1450,21 +1468,21 @@ List =
       -- It requires a function to indicate what to do when inserting in empty lists.
       concatMap_ insert_in_empty f l =
         case l of -- Insertion to an emptylist.
-          [] -> { apply l = freeze []
-                  update {input=l, outputNew=lp} = {values = [insert_in_empty lp]}
+          [] -> { apply l = []
+                  update {input=l, outputNew=lp} = Ok (Inputs [insert_in_empty lp])
                 }.apply l
           _ -> Update.applyLens { -- Back-propagating a ghost boolean indicating if the next element in the computation had its first element deleted.
-          apply (x, y) = freeze x
-          update {output, diffs} = {
-            values = [(output, True)],
-            diffs=[Just (VRecordDiffs { _1 = diffs, _2 = VConstDiffs})]
-        } } <| foldl2 (\headList (oldAcc, dummyBool) ->
+          apply (x, y) = x
+          update {output, diffs} = Ok (InputsWithDiffs [
+            ((output, True),
+             Just (VRecordDiffs { _1 = diffs, _2 = VConstDiffs}))])
+        } <| foldl2 (\headList (oldAcc, dummyBool) ->
           let lengthAcc = length oldAcc in
-          {apply (f, oldAcc, headList, dummyBool) = freeze (oldAcc ++ f headList, dummyBool)
+          {apply (f, oldAcc, headList, dummyBool) = (oldAcc ++ f headList, dummyBool)
            update {input=(f, oldAcc, headList, _) as input, outputNew=(newAccFHeadList, prevDeletedOrLast), diffs=ds} =
              let handleDiffs = case ds of
                 VRecordDiffs {_1=VListDiffs diffs} -> \continuation -> continuation diffs
-                _ -> \continuation -> {values = [input], diffs=[Nothing]}
+                _ -> \continuation -> Ok (InputsWithDiffs [(input, Nothing)])
              in handleDiffs <| \diffs ->
              Update.splitListDiffsAt lengthAcc 0 newAccFHeadList diffs
              |> concatMap (\(newAcc, newAccDiffs, newFHeadList, newFHeadListDiffs) ->
@@ -1492,8 +1510,8 @@ List =
                             Update.pairDiff4 Nothing finalAccDiffs Nothing deleteBoolUpdate)]
                  _ ->
                case Update.updateApp{fun (f, x) = f x, input=(f, headList), output=newFHeadList, diffs=VListDiffs newFHeadListDiffs} of
-                 {values = fAndNewHeadLists, diffs = diffsList} ->
-                    LensLess.List.map2 (\(newF, newHeadList) diff ->
+                 Ok (InputsWithDiffs fAndNewHeadListsWithDiffs) ->
+                    LensLess.List.map (\((newF, newHeadList), diff) ->
                       case diff of
                         Nothing ->  Ok ((f, newAcc, headList, firstElementDeleted),
                           Update.pairDiff4 Nothing finalAccDiffs Nothing deleteBoolUpdate)
@@ -1501,8 +1519,8 @@ List =
                           let newFDiff = case d of {_1} -> Just _1; _ -> Nothing in
                           let newHeadListDiffs = case d of {_2} -> Just _2; _ -> Nothing in
                           Ok ((newF, newAcc, newHeadList, firstElementDeleted), Update.pairDiff4 newFDiff finalAccDiffs newHeadListDiffs deleteBoolUpdate)
-                    ) fAndNewHeadLists diffsList
-                 {error = msg} -> [Err msg]
+                    ) fAndNewHeadListsWithDiffs
+                 Err msg -> [Err msg]
                ) ++ (
                  if headListDeletable then
                    [Ok ((f, newAcc, [], True),
@@ -1571,18 +1589,17 @@ String =
     -- We use a trick to propagate a value that is never computed, in order to know if, during update,
     -- the last string had its first char deleted
     case x of
-        [] -> {apply x = freeze "", update {outputNew} = {values=[[outputNew]]}}.apply x
+        [] -> {apply x = "", update {outputNew} = Ok (Inputs [[outputNew]])}.apply x
         _ -> Update.applyLens {
-        apply (x, y) = freeze x
-        update {output, diffs} = {
-          values = [(output, True)],
-          diffs=[Just (VRecordDiffs { _1 = diffs, _2 = VConstDiffs})]
-        } } <| List.foldl2 (\oldHeadList (oldAcc, dummyBool) ->
-      { apply (oldAcc, [head], dummyBool) = freeze (oldAcc + head, dummyBool)
+        apply (x, y) = x
+        update {output, diffs} = Ok (InputWithDiffs
+          [((output, True), Just (VRecordDiffs { _1 = diffs, _2 = VConstDiffs}))])
+        } <| List.foldl2 (\oldHeadList (oldAcc, dummyBool) ->
+      { apply (oldAcc, [head], dummyBool) = (oldAcc + head, dummyBool)
         update {input=(oldAcc, [head], _) as input,outputNew=(newAcc, prevDeletedOrLast),diffs=ds} =
           let handleDiffs = case ds of
             VRecordDiffs {_1=VStringDiffs diffs} -> \continuation -> continuation diffs
-            _ -> \continuation -> {values = [input], diffs=[Nothing]}
+            _ -> \continuation -> Ok (InputsWithDiffs [(input, Nothing)])
           in handleDiffs <| \diffs ->
           Update.splitStringDiffsAt (length oldAcc) 0 (oldAcc + head) newAcc diffs
           |> List.concatMap (\(leftValue, leftDiffs, rightValue, rightDiffs) ->
@@ -1638,39 +1655,39 @@ String =
     a -> replaceFirstIn "%s" a str
   in
   let freezeRight x = {
-      apply x = freeze x
+      apply x = x
       update {input, outputNew} =
         if String.take String.length input outputNew == input then
-          { values = [] }
+          Ok (Inputs [])
         else
-          { values = [outputNew] }
+          Ok (Inputs [outputNew])
     }.apply x
   in
   let freezeLeft x = {
-      apply x = freeze x
+      apply x = x
       update {input, outputNew} =
         if String.drop (String.length outputNew - String.length input) outputNew == input then
-          { values = [] }
+          Ok (Inputs [])
         else
-          { values = [outputNew] }
+          Ok (Inputs [outputNew])
     }.apply x
   in
   { toInt x =
-      { apply x = freeze (strToInt x)
+      { apply x = strToInt x
       , unapply output = Just (toString output)
       }.apply x
     join delimiter x = if delimiter == "" then join_ x else {
-        apply x = freeze (join delimiter x)
+        apply x = join delimiter x
         update {output, oldOutput, diffs} =
-          {values = [Regex.split delimiter output]}
+          Ok (Inputs [Regex.split delimiter output])
       }.apply x
     length x = {
-      apply x = freeze (length x)
+      apply x = length x
       update {input, oldOutput, newOutput} =
         if newOutput < oldOutput then
-          { values = [take newOutput input], diffs = [Just (VStringDiffs [StringUpdate newOutput oldOutput 0])] }
+          Ok (InputsWithDiffs [(take newOutput input, Just (VStringDiffs [StringUpdate newOutput oldOutput 0]))])
         else if newOutput == oldOutput then
-          { values = [input], diffs = [Nothing] }
+          Ok (InputsWithDiffs [(input, Nothing)])
         else
           letrec makeSize s targetLength =
             let n = length s in
@@ -1680,7 +1697,7 @@ String =
           in
           let increment = newOutput - oldOutput in
           let addition = makeSize (if input == "" then "#" else input) increment in
-          { values = [input + addition], diffs = [Just (VStringDiffs [StringUpdate oldOutput oldOutput increment])] }
+          Ok (InputsWithDiffs [(input + addition, Just (VStringDiffs [StringUpdate oldOutput oldOutput increment]))])
       }.apply x
     substring = substring
     slice = substring
@@ -1773,7 +1790,7 @@ Editor = {}
 
 -- Returns a list of one text element from a string, and updates by taking all the pasted text.
 textInner s = {
-  apply s = freeze [["TEXT", s]]
+  apply s = [["TEXT", s]]
   update {output} =
     letrec textOf = case of
       ["TEXT", s]::tail -> s + textOf tail
@@ -1781,7 +1798,7 @@ textInner s = {
         textOf children + textOf tail
       _ -> ""
     in
-    {values = [textOf output]}
+    Ok (Inputs [textOf output])
 }.apply s
 
 --------------------------------------------------------------------------------
@@ -1806,7 +1823,7 @@ textInner s = {
 -- Example: html "Hello<b>world</b>" returns [["TEXT","Hello"],["b",[], [["TEXT", "world"]]]]
 html string = {
   apply trees =
-    freeze (letrec domap tree = case tree of
+    letrec domap tree = case tree of
       HTMLInner v -> ["TEXT",
         replaceAllIn "&nbsp;|&amp;|&lt;|&gt;|</[^>]*>" (\{match} ->
           case match of "&nbsp;" -> " "; "&amp;" -> "&"; "&lt;" -> "<"; "&gt;" -> ">"; _ -> "") v]
@@ -1829,7 +1846,7 @@ html string = {
             ) attrs
         , map domap children]
       HTMLComment {args = [content]} -> ["comment", [["display", "none"]], [["TEXT", content]]]
-    in map domap trees)
+    in map domap trees
 
   update {input, oldOutput, newOutput, diffs} =
     let toHTMLAttribute [name, mbStyleValue] =
@@ -1855,7 +1872,7 @@ html string = {
         onSkip (revAcc, revDiffs, input) {count} =
           --'outs' was the same in oldOutput and outputNew
           let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
-          {values = [(newRevAcc, revDiffs, remainingInput)]}
+          Ok [(newRevAcc, revDiffs, remainingInput)]
 
         onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
           let inputElem::inputRemaining = input in
@@ -1888,24 +1905,24 @@ html string = {
             Ok (Nothing) ->  revDiffs
             Err msg -> Debug.crash msg
           in
-          {values = [(newInputElem::revAcc, newRevDiffs, inputRemaining)]}
+          Ok [(newInputElem::revAcc, newRevDiffs, inputRemaining)]
 
         onRemove (revAcc, revDiffs, input) {oldOutput, index} =
           let _::remainingInput = input in
-          { values = [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)] }
+          Ok [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)]
 
         onInsert (revAcc, revDiffs, input) {newOutput, index} =
-          { values = [(toHTMLAttribute newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]}
+          Ok [(toHTMLAttribute newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]
 
         onFinish (revAcc, revDiffs, _) =
-         {values = [(reverse revAcc, reverse revDiffs)] }
+          Ok [(reverse revAcc, reverse revDiffs)]
 
         onGather (acc, diffs) =
-          { value = acc,
-             diff = if len diffs == 0 then Nothing else Just (VListDiffs diffs) }
+          Ok (InputWithDiff (acc,
+               (if len diffs == 0 then Nothing else Just (VListDiffs diffs))))
       } oldOutput newOutput diffs
     in
-    -- Returns {values = List (List HTMLNode)., diffs = List (Maybe ListDiff)} or { error = ... }
+    -- Returns Ok (List (List HTMLNode)., diffs = List (Maybe ListDiff)} or Err msg
     letrec mergeNodes input oldOutput newOutput diffs =
       Update.foldDiff {
         start =
@@ -1915,13 +1932,13 @@ html string = {
         onSkip (revAcc, revDiffs, input) {count} =
           --'outs' was the same in oldOutput and outputNew
           let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
-          {values = [(newRevAcc, revDiffs, remainingInput)]}
+          Ok [(newRevAcc, revDiffs, remainingInput)]
 
         onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
           let inputElem::inputRemaining = input in
           --Debug.start ("onUpdate" + toString (oldOutput, newOutput, diffs, index)) <| \_ ->
           let newInputElems = case (inputElem, oldOutput, newOutput) of
-            ( HTMLInner v, _, ["TEXT",v2]) -> { values = [toHTMLInner v2] }
+            ( HTMLInner v, _, ["TEXT",v2]) -> Ok [toHTMLInner v2]
             ( HTMLElement tagName attrs ws1 endOp children closing,
               [tag1, attrs1, children1], [tag2, attrs2, children2] ) ->
                if tag2 == tagName || attrs1 == attrs2 || children2 == children1  then
@@ -1930,45 +1947,46 @@ html string = {
                      let (newAttrsMerged, otherDiffs) = case listDiffs of
                        (1, ListElemUpdate diffAttrs)::tailDiff ->
                          (mergeAttrs attrs attrs1 attrs2 diffAttrs, tailDiff)
-                       _ -> ({values = [attrs]}, listDiffs)
+                       _ -> (Ok [attrs], listDiffs)
                      in
                      let newChildrenMerged = case otherDiffs of
                        (2, ListElemUpdate diffNodes)::_ ->
-                         mergeNodes children children1 children2 diffNodes
-                       _ -> {values = [children]}
+                         case mergeNodes children children1 children2 diffNodes of
+                           Ok (InputsWithDiffs vds) -> Ok (List.map Tuple.first vds)
+                           Err msg -> Err msg
+                       _ -> Ok [children]
                      in
                      newAttrsMerged |>LensLess.Results.andThen (\newAttrs ->
                        newChildrenMerged |>LensLess.Results.andThen (\newChildren ->
-                         {values = [HTMLElement tag2 newAttrs ws1 endOp newChildren closing]}
+                         Ok [HTMLElement tag2 newAttrs ws1 endOp newChildren closing]
                        )
                      )
-               else {values = [toHTMLNode newOutput]}
-            _ -> {values = [toHTMLNode newOutput]}
+               else Ok [toHTMLNode newOutput]
+            _ -> Ok [toHTMLNode newOutput]
           in
           newInputElems |>LensLess.Results.andThen (\newInputElem ->
             --Debug.start ("newInputElem:" + toString newInputElem) <| \_ ->
             case Update.diff inputElem newInputElem of
-              Err msg -> {error = msg}
+              Err msg -> Err msg
               Ok maybeDiff ->
                 let newRevDiffs = case maybeDiff of
                   Nothing -> revDiffs
                   Just v -> (index, ListElemUpdate v)::revDiffs in
-                {values = [ (newInputElem::revAcc, newRevDiffs, inputRemaining) ]}
+                Ok [ (newInputElem::revAcc, newRevDiffs, inputRemaining) ]
           )
 
         onRemove (revAcc, revDiffs, input) {oldOutput, index} =
           let _::remainingInput = input in
-          { values = [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)] }
+          Ok [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)]
 
         onInsert (revAcc, revDiffs, input) {newOutput, index} =
-          { values = [(toHTMLNode newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]}
+          Ok [(toHTMLNode newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]
 
         onFinish (revAcc, revDiffs, _) =
-         {values = [(reverse revAcc, reverse revDiffs)] }
+          Ok [(reverse revAcc, reverse revDiffs)]
 
         onGather (acc, diffs) =
-          { value = acc,
-             diff = if len diffs == 0 then Nothing else Just (VListDiffs diffs)}
+          Ok (InputWithDiff (acc, if len diffs == 0 then Nothing else Just (VListDiffs diffs)))
       } oldOutput newOutput diffs
     in mergeNodes input oldOutput newOutput diffs
 }.apply (parseHTML string)
@@ -1989,20 +2007,20 @@ Html =
   in
   let freshTag x = {
     apply x = "dummy" + toString (getCurrentTime x)
-    update {input} = { value = [input], diffs = [Nothing] } }.apply x
+    update {input} = Ok (InputsWithDiffs [(input, Nothing)]) }.apply x
   in
   let forceRefresh node =
     [freshTag True, [], [node]]
   in
   let option value selected content =
     { apply (value,selected,content) =
-        Update.freeze ["option", [["v",value]] ++ (if selected then [["selected","selected"]] else []), content]
+        ["option", [["v",value]] ++ (if selected then [["selected","selected"]] else []), content]
       update {outputNew} = case outputNew of
         [_, ["v", value] :: ["selected", _] :: _, content] ->
-          {values = [(value, True, content)] }
+          Ok (Inputs [(value, True, content)])
         [_, ["v", value] :: _, content] ->
-          {values = [value, False, content] }
-        _ -> {error = "Expected an option (selected or not), got " ++ toString outputNew }
+          Ok (Inputs [value, False, content])
+        _ -> Err ("Expected an option (selected or not), got " ++ toString outputNew)
     }.apply (value, selected, content)
   in
   let select attributes strArray index =
@@ -2021,10 +2039,10 @@ Html =
         ["label", [["class","switch"],["title", title]], [
           ["input", ["type","checkbox"] :: ["id", id] :: ["onclick","if(this.checked) { this.setAttribute('checked', ''); } else { this.removeAttribute('checked') }"]::
             { apply checked =
-                freeze (if checked then [["checked", ""]] else [])
+                if checked then [["checked", ""]] else []
               update {newOutput} = case newOutput of
-                [] -> {values = [ False ]}
-                _ -> {values = [ True ]}
+                [] -> Ok (Inputs [ False ])
+                _ ->  Ok (Inputs [ True ])
             }.apply isChecked,
             [["span", [["class", "slider round"]], []]]
           ]
@@ -2035,11 +2053,11 @@ Html =
   let button =
     let
     stringFlagForUpdate state1 state2 f model =
-        { apply _ = Update.freeze state1
+        { apply _ = state1
         , update {input = model, outputNew} =
             if outputNew == state2
-              then {values = [f model]}
-              else {values = [model]}
+              then Ok (Inputs [f model])
+              else Ok (Inputs [model])
         }.apply model
     in
     \name title model controller ->
@@ -2064,8 +2082,8 @@ Html =
     </script>
   in
   let onChangeAttribute model controller =
-    { apply model = freeze ""
-      update {input, outputNew} = { values = [controller input outputNew] }
+    { apply model = ""
+      update {input, outputNew} = Ok (Inputs [controller input outputNew])
     }.apply model
   in
   -- Reversibly merges the text nodes from a list of nodes.
@@ -2189,9 +2207,7 @@ TableWithButtons =
       List.repeat numColumns "?"
     in
     Update.applyLens
-      { apply rows =
-          Update.freeze
-            (List.map (\row -> (Update.freeze False, row)) rows)
+      { apply rows = List.map (\row -> (False, row)) rows
 
       , update {outputNew = flaggedRows} =
           let processRow (flag, row) =
@@ -2199,7 +2215,7 @@ TableWithButtons =
               then [ row, blankRow ]
               else [ row ]
           in
-          { values = [List.concatMap processRow flaggedRows] }
+          Ok (Inputs [List.concatMap processRow flaggedRows])
       }
       rows
   in

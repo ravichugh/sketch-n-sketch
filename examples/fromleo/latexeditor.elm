@@ -311,9 +311,9 @@ toHtmlWithoutRefs opts tree =
         aux opts revAcc newTree
       {tag="rawtext", value=text, pos = pos} ->
         let finalText = {
-           apply x = freeze x,
+           apply x = x,
            update {input, oldOutput, newOutput, diffs} = 
-             {values = [Update.mapInserted escape newOutput diffs] }
+             Ok (Inputs [Update.mapInserted escape newOutput diffs])
           }.apply text in
         if opts.indent && Regex.matchIn """^[\s]*\S""" text then
           let newOpts = { opts | indent = False,  newline = False } in
@@ -379,10 +379,10 @@ toHtml x =
   letrec replaceMap replaceReferences trees = case trees of
     [] -> freeze []
     (head :: tail) -> {
-        apply x = freeze x
+        apply x = x
         update {input, outputNew, outputOriginal, diffs} =
           if (len outputNew /= len outputOriginal && len outputOriginal == 1) then
-            {values = [[["TEXT", htmlMapOf htmlOf outputNew outputNew]]]} else {values=[outputNew], diffs=[Just diffs]}
+            Ok (Inputs [[["TEXT", htmlMapOf htmlOf outputNew outputNew]]]) else Ok (InputsWithDiffs [(outputNew, Just diffs)])
       }.apply [replaceReferences head] ++ replaceMap replaceReferences tail
   in
   letrec replaceReferences tree = case tree of
@@ -390,13 +390,13 @@ toHtml x =
       Nothing -> htmlError ("Reference " + refname + " not found.") "???"
       Just txt ->
         let replaceKey refNameTxt = {
-           apply (refname,txt) = freeze txt,
+           apply (refname,txt) = txt,
            update {input=(oldRefname, oldTxt), outputNew=newText} =  -- Lookup for the reference in the options.
              case Dict.get newText opts.nameToLabel of
               Just newRefname ->
-                {values = [(newRefname, oldTxt)]}
+                Ok (Inputs [(newRefname, oldTxt)])
               _ -> -- No solution, cancel update.
-                {error="could not find reference" + toString newText}
+                Err ("could not find reference" + toString newText)
           }.apply refNameTxt
         in
         ["span", [
@@ -410,10 +410,10 @@ toHtml x =
   replaceMap replaceReferences raw
 
 latex2html latex = 
-  { apply (f, latex) = freeze (f latex),
-    update {input = (f, latex), outputOld, outputNew, diffs = VListDiffs diffs} = 
+  { apply (f, latex) = f latex,
+    update {input = (f, latex), outputOld, outputNew, diffs = (VListDiffs ldiffs) as diffs} = 
       letrec gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
-        [] -> {values = [[]]}
+        [] -> Ok [[]]
         ((j, ListElemUpdate d) :: diffTail) ->
           if j > i then
             gatherDiffsChild gatherDiffs j (LensLess.List.drop (j - i) cOld) (LensLess.List.drop (j - i) cNew) childDiffs
@@ -427,29 +427,28 @@ latex2html latex =
                   )
                 )
               _ -> error "Unexpected size of cOld and cNew"
-        ((j, subdiff)::diffTail) -> {error = "Insertion or deletions, cannot short-circuit at " + toString j + ", " + toString subdiff}
+        ((j, subdiff)::diffTail) -> Err ("Insertion or deletions, cannot short-circuit at " + toString j + ", " + toString subdiff)
       in
       letrec gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
         (["span", [["start", p]], [["TEXT", vOld]]], 
          ["span", [["start", p]], [["TEXT", vNew]]],
           VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate (VListDiffs [(1, ListElemUpdate sd)]))]))]) -> 
-           { values = [[(Debug.log ("escaped string '" + vNew + "' with diffs " + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]] }
+           Ok [[(Debug.log ("escaped string '" + vNew + "' with diffs " + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]]
         ([_, _, cOld], [_, _, cNew], VListDiffs [(2, ListElemUpdate (VListDiffs childDiffs))]) ->
            gatherDiffsChild gatherDiffs 0 cOld cNew childDiffs
-        _ -> {error = "Could not find text differences " + toString (outputOld, outputNew, diffs)}
+        _ -> Err ("Could not find text differences " + toString (outputOld, outputNew, diffs))
       in
-      case gatherDiffsChild gatherDiffs 0 outputOld outputNew diffs of
-        { values = [replacements] } ->
+      case gatherDiffsChild gatherDiffs 0 outputOld outputNew ldiffs of
+        Ok [replacements] ->
           let newLatex = foldl (\(newValue, start, end) acc ->
             String.substring 0 start acc + newValue + String.drop end acc
           ) latex replacements in
-          let newDiffs = case Update.diff latex newLatex of
-            Ok (Just d) -> [Just (VRecordDiffs { _2 = d})]
-            Ok Nothing -> [Nothing]
-            Err msg -> error msg
-          in
-          { values = [(f, newLatex)], diffs = newDiffs}
-        { error = msg } ->
+          Update.diff latex newLatex
+          |> Result.map (\mbDiff ->
+            let newDiff = Maybe.map (\d -> VRecordDiffs { _2 = d})  mbDiff in
+            (InputsWithDiffs [((f, newLatex), newDiff)])
+          )
+        Err msg ->
           Update.updateApp {
             fun (f, x) = f x, input = (f, latex), outputOld = outputOld, output = outputNew, diffs = diffs
           }

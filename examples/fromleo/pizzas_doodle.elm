@@ -168,13 +168,13 @@ menus = [
 
 
 addPerson participants choix = {
-  apply (participants, choix) = Update.freeze ""
+  apply (participants, choix) = ""
   update {input=(oldParticipants, oldChoix), outputNew = newParticipant} =
     if newParticipant /= "" then
       let newParticipants = oldParticipants ++ [newParticipant] in
       let newChoix = choix ++ (map (\i -> [len oldParticipants, i, False]) (indices menus)) in
-      {values = [(newParticipants, newChoix)] }
-    else {values = [(oldParticipants, oldChoix)]}
+      Ok (Inputs [(newParticipants, newChoix)])
+    else Ok (Inputs [(oldParticipants, oldChoix)])
 }.apply (participants, choix)
 
 
@@ -183,8 +183,8 @@ total menuId =
   <td>@n</td>
 
 onChangeAttribute model controller =
-    { apply model = Update.freeze ""
-      update {input, outputNew} = { values = [controller input outputNew] }
+    { apply model = ""
+      update {input, outputNew} = Ok (Inputs [controller input outputNew])
     }.apply model
  
 wantsToEat personId menuId =

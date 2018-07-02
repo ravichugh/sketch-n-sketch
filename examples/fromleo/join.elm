@@ -1,11 +1,3 @@
-LensLess = { LensLess | Results = { LensLess.Results | andAlso otherResults results =
-        case (results, otherResults) of
-          ({values = ll}, {values=otherLl}) -> { values = ll ++ otherLl }
-          ({error = msg}, {error=msg2}) -> { error = msg + "\n" + msg2 }
-          ({error = msg}, _) -> { error = msg }
-          (_, {error=msg2}) -> { error = msg2 }
-          }}
-
 substring = String.substring
 take = String.take
 drop = String.drop
@@ -15,7 +7,7 @@ Results = LensLess.Results
 
 preferStringInsertionToLeft_ sa inserted sb = True
 
-ok1 x = { values = [x] }
+ok1 x = Ok [x]
 
 joinEmpty list = 
   letrec aux acc list = case list of
@@ -24,7 +16,7 @@ joinEmpty list =
       (head::tail) -> aux (acc + head) tail
     in 
   {
-  apply list = Update.freeze (aux "" list)
+  apply list = aux "" list
   update {input, newOutput, oldOutput, diffs} =
     case diffs of
       VStringDiffs l ->
@@ -104,7 +96,7 @@ joinEmpty list =
                   if deleteAnyway then
                     resultsWithDelete
                   else
-                    resultsWithDelete |> Results.andElse resultsWithEmptyString
+                    resultsWithDelete |> Results.andAlso resultsWithEmptyString
                 else -- start
                   let inserted = substring (start + offsetOutput) (start + offsetOutput + replaced) newOutput in
                   let newHead = substring 0 (start - startHead - deltaLengthHeadInput) head +
@@ -125,9 +117,7 @@ joinEmpty list =
                   )
         in
         case gather -1 input 0 0 0 0 l of
-          {values = x} ->
-            let (values, diffs) = List.unzip x in
-            { values = values, diffs = map1 (\d -> Just (VListDiffs d)) diffs}
+          Ok x -> Ok (InputsWithDiffs (x |> List.map (\(value, diff) -> (value, Just (VListDiffs diff)))))
           other -> other
       _ -> error ("expected VStringDiffs, got " + toString diffs)
 }.apply list

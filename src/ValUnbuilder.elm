@@ -102,4 +102,3 @@ result subroutine v = case constructor Ok v of
   Ok ("Err", [msg]) -> string msg |> Result.map Err
   Ok _ -> Err <| "Expected Ok or Err, got " ++ valToString v
   Err msg -> Err msg
-

@@ -254,7 +254,7 @@ unparse_ e = case e.val.e__ of
   ETypeAlias ws1 pat tipe e ws2 ->
     ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
   ETypeDef _ _ _ _ _ _ _ ->
-    "{Error: typedef not implemented for Little syntax}"
+    "Error: typedef not implemented for Little syntax"
   EParens ws1 e pStyle ws2 ->
     unparse_ e
   EHole ws v ->
@@ -319,7 +319,7 @@ unparseWithIds e =
     ETypeAlias ws1 pat tipe e ws2 ->
       ws1.val ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
     ETypeDef _ _ _ _ _ _ _ ->
-      "{Error: typedef not implemented for Little syntax}"
+      "Error: typedef not implemented for Little syntax"
     EParens ws1 e pStyle ws2 ->
       ws1.val ++ "(" ++ eidTag ++ unparseWithIds e ++ ws2.val ++ ")"
     EHole ws v ->
@@ -392,7 +392,7 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
     ETypeAlias _ pat tipe e _ ->
       " " ++ "(def" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")" ++ recurse e
     ETypeDef _ _ _ _ _ _ _ ->
-      "{Error: typedef not implemented for Little syntax}"
+      "Error: typedef not implemented for Little syntax"
     EParens _ e _ _ ->
       recurse e
     EHole _ _ ->

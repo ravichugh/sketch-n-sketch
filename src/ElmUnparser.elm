@@ -749,7 +749,7 @@ unparse e =
           ++ unparse rest
 
     ETypeCase _ _ _ _ ->
-      "{Error: typecase not yet implemented for Elm syntax}" -- TODO
+      "(Error: typecase not yet implemented for Elm syntax)" -- TODO
 
 -- If the expression is a EFun, prints the lists of parameters and returns its body.
 getParametersBinding: Exp -> (String, Exp)

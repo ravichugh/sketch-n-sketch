@@ -29,11 +29,13 @@ object SNS extends Module {
     allTimestampsOfIncludedExampleFiles()
     examplesTemplate()
     %%("python", pwd/'scripts/"expandTemplate.py", "Examples") //'
+    println("Examples regenerated")
   }
   
   def prelude = T{
     preludeRoot()
     %%("python", pwd/'scripts/"expandTemplate.py", "Prelude") //'
+    println("Prelude regenerated")
   }
   
   def all = T{

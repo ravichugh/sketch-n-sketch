@@ -368,7 +368,7 @@ longestSufixSizeBetweenGuard maxIndex before after =
 -- Faster implementation of allDiffs for strings
 allStringDiffs: String -> String -> Results String (List (DiffChunk String))
 allStringDiffs before after =
-    let _ = ImpureGoodies.log <| "allStringDiffs '" ++ before ++ "' '" ++ after ++ "'" in
+    --let _ = ImpureGoodies.log <| "allStringDiffs '" ++ before ++ "' '" ++ after ++ "'" in
     -- If at least one half of the string before/after was the same, no need to look for the longest equal sequence, it should be a prefix of this one !
     -- This is true only if the considered strings don't have the same
     let lengthBefore = String.length before in
@@ -445,7 +445,7 @@ allStringDiffs before after =
    --    allStringDiffs remainingBefore remainingAfter
     -- Create a Dict from before values to the list of every index at which they appears
     -- In this variables, the biggest indices appear first
-    let _ = ImpureGoodies.log <| "allStringDiffs not optimized '" ++ before ++ "' '" ++ after ++ "'" in
+    --let _ = ImpureGoodies.log <| "allStringDiffs not optimized '" ++ before ++ "' '" ++ after ++ "'" in
     let oldIndexMapRev =
       strFoldLeftWithIndex (nativeDict.empty ()) before <|
               \d indexBeforeValue  beforeChar ->
@@ -824,6 +824,18 @@ valToEDiffs v = case Vu.constructor Ok v of
   Ok ("EChildDiffs", [list]) -> valToTupleDiffs valToEDiffs list |> Result.map EChildDiffs
   Ok _ -> Err <| "Expected EConstDiffs, EListDiffs, EStringDiffs, EChildDiffs, got " ++ valToString v
   Err msg -> Err msg
+
+valToUpdateReturn: Val -> Result String UpdateReturn
+valToUpdateReturn v = case Vu.constructor Ok v of
+  Ok ("Inputs",          [v]) -> Vu.list Vu.identity v |> Result.map Inputs
+  Ok ("InputsWithDiffs", [v]) -> Vu.list (Vu.tuple2 Vu.identity (Vu.maybe valToVDiffs)) v |> Result.map InputsWithDiffs
+  Ok (n, args) -> Err <| "Expected Inputs (List Val) or InputsWithDiffs (List (Val, Maybe VDiffs)), got " ++ n ++ " with " ++ toString (List.length args) ++ " arguments"
+  Err msg -> Err msg
+
+updateReturnToVal: Vb.Vb -> UpdateReturn -> Val
+updateReturnToVal vb updateReturn = case updateReturn of
+  Inputs l -> Vb.constructor vb "Inputs" [Vb.list Vb.identity vb l]
+  InputsWithDiffs l -> Vb.constructor vb "InputsWithDiffs" [Vb.list (Vb.tuple2 Vb.identity (Vb.maybe vDiffsToVal)) vb l]
 
 {-
 pDiffsToVal: ValBuilders -> PDiffs -> Val

@@ -221,15 +221,11 @@ builtinEnv =
                     case outputDiff of
                       Err msg -> Err <| "while evaluating updateApp and trying to compute the output diff, " ++ msg
                       Ok Nothing -> -- No need to call update
-                        let resultingValue = Vb.record (Vb.list Vb.identity) vb (
-                             Dict.fromList [("values", [input]),
-                                            ("diffs", [Vb.maybe vDiffsToVal vb Nothing] )
-                             ])
-                        in
+                        let resultingValue = Vb.result UpdateUtils.updateReturnToVal vb <| Ok <| InputsWithDiffs [(input, Nothing)] in
                         Ok (resultingValue, [])
                       Ok (Just newOutDiffs) ->
                         let basicResult = case update <| updateContext "__updateApp__" xyEnv xyExp [] oldOut newVal newOutDiffs of
-                          Err msg -> Vb.record Vb.string vb (Dict.fromList [("error", msg)])
+                          Err msg -> Err msg
                           Ok ll ->
                              let l = LazyList.toList ll in
                              let lFiltered = List.filter (\(newXYEnv, newExp) ->
@@ -240,9 +236,9 @@ builtinEnv =
                              in
                              if List.isEmpty lFiltered then
                                if List.isEmpty l then
-                                 Vb.record (Vb.list Vb.identity) vb (Dict.fromList [("values", []), ("diffs", [])])
+                                 Ok <| InputsWithDiffs []
                                else
-                                 Vb.record Vb.string vb (Dict.fromList [("error", "Only solutions modifying the constant function of __updateApp__")])
+                                 Err "Only solutions modifying the constant function of __updateApp__"
                              else
                                let (results, diffs) = lFiltered |> List.map (\(newXYEnv, newExp) ->
                                  case newXYEnv.val of
@@ -253,12 +249,8 @@ builtinEnv =
                                         _ -> Debug.crash "Internal error: expected not much than (1, diff) in environment changes"
                                     _ -> Debug.crash "Internal error: expected x and y in environment"
                                  ) |> List.unzip in
-                               let maybeDiffsVal = diffs |> Vb.list (Vb.maybe vDiffsToVal) vb in
-                               Vb.record Vb.identity vb (
-                                    Dict.fromList [("values", Vb.list Vb.identity vb results),
-                                                 ("diffs", maybeDiffsVal )
-                                    ])
-                        in Ok (basicResult, [])
+                               Ok <| InputsWithDiffs <| Utils.zip results diffs
+                        in Ok (Vb.result UpdateUtils.updateReturnToVal vb basicResult, [])
               (mbFun, mbInput, mbOutput) ->
                 Err <|
                   "__updateApp__ requires a record with at least {fun,input,output}. Missing" ++

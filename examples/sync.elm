@@ -1,5 +1,5 @@
 sync v1v2 = {
-  apply ((s1, n1), (s2, n2)) = freeze (
+  apply ((s1, n1), (s2, n2)) = (
     if s1 == s2 then ((s1, n1), "")
     else let t = Html.freshTag () in
       ((s1, n1), <@t><script id=t mkupdate="">
@@ -13,7 +13,7 @@ document.getElementById("@t").setAttribute("mkupdate",`unify`)
       if n2.recentlyModified then s2 else
       newS, {recentlyModified=False})
     in
-    { values = [(newsn, newsn)] }
+    Ok (Inputs [(newsn, newsn)])
 }.apply v1v2
 
 --------------------------------------------------------------

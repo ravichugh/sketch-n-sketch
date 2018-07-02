@@ -554,12 +554,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                  case v1.v_ of
                    VRecord d ->
                      if Dict.member "apply" d && (Dict.member "unapply" d || Dict.member "update" d) then
-                       let isApplyFrozen = case (Dict.get "apply" d |> Utils.fromJust_ "Update.maybeUpdateStack").v_ of
-                         VClosure _ _ body _ -> case body.val.e__ of
-                           EApp _ bodyFun _ _ _ -> isFreezing bodyFun
-                           _ -> False
-                         _ -> False
-                       in
+                       let isApplyFrozen = True in
                        case e2s of
                          [] -> Nothing
                          [argument] ->
@@ -597,50 +592,37 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                         doEval Syntax.Elm xyEnv xyApplication) of
                                       Err s -> UpdateCriticalError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
-                                        case Vu.record Ok vResult of
-                                          Err msg -> UpdateCriticalError <|
-                                           "The update closure should return either {values = [list of values]}, {error = \"Error string\"}, or more advanced { values = [...], diffs = [..Nothing/Just diff per value.]}. Got "
-                                           ++ valToString vResult
+                                        case Vu.result valToUpdateReturn vResult |> (Utils.resultOrElseLazy (\_ ->
+                                          valToUpdateReturn vResult |> Result.map (Ok << Debug.log ("/!\\ The lens line " ++ toString e.start.line ++ " had this returned. Please wrap it in Ok")))) of
+                                          Err msg ->
+                                            UpdateCriticalError <|
+                                               "The update closure should return either Ok (Inputs [list of values]), Ok (InputsWithDiffs [list of (values, Just diffs | Nothing)]) or Err msg. Got "
+                                               ++ valToString vResult ++ ". (error was " ++ msg ++ ")"
                                           Ok d ->
-                                            let error = case Dict.get "error" d of
-                                                Just errorv -> case Vu.string errorv of
-                                                  Ok e -> e
-                                                  Err x -> "Line " ++ toString e.start.line ++ ": the .error of the result of .update should be a string, got " ++ valToString errorv
-                                                Nothing -> ""
+                                            case d of
+                                              Err msg -> UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": " ++ msg
+                                              Ok newInputs ->
+                                            let diffListRes: Results String (Val, Maybe VDiffs)
+                                                diffListRes = case newInputs of
+                                              Inputs valuesList ->
+                                                  let vArgStr = valToString vArg in
+                                                  Ok (LazyList.fromList valuesList)
+                                                  |> Results.andThen (\v ->
+                                                    (if diffs == VUnoptimizedDiffs
+                                                       then defaultVDiffsShallow
+                                                       else defaultVDiffs) vArg v |> Results.map (\mbDiffs -> (v, mbDiffs)))
+                                              InputsWithDiffs newInputsWithDiffs -> Ok (LazyList.fromList newInputsWithDiffs)
                                             in
-                                            if error /= "" then UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": " ++ error
-                                            else
-                                              case Dict.get "values" d of
-                                                Nothing -> UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": .update  should return a record containing a .values field or an .error field"
-                                                Just values ->  case Vu.list Ok values of
-                                                  Err x -> UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": .update  should return a record whose .values field is a list. Got " ++ valToString values
-                                                  Ok valuesList ->
-                                                    let valuesListLazy = LazyList.fromList valuesList in
-                                                    let diffsListRes = case Dict.get "diffs" d of
-                                                      Nothing ->
-                                                        --ImpureGoodies.logTimedRun ".update recomputing diffs" <| \_ ->
-                                                        let vArgStr = valToString vArg in
-                                                        Results.projOk <|
-                                                        List.map (\r ->
-                                                          (if diffs == VUnoptimizedDiffs
-                                                             then defaultVDiffsShallow
-                                                             else defaultVDiffs) vArg r) <| valuesList
-                                                      Just resultDiffsV ->
-                                                        Vu.list (Vu.maybe valToVDiffs) resultDiffsV |>
-                                                        Results.fromResult |>
-                                                        Result.mapError (\msg -> "Expected a list of (Maybe differences). " ++ msg ++ ", for " ++ valToString resultDiffsV) |>
-                                                        Result.mapError (\msg -> "Line " ++ toString e.start.line ++ " for the .diffs of the result of .update: " ++ msg)
-                                                    in
-                                                    updateManys diffsListRes <| \diffsList ->
-                                                    let resultDiffs = LazyList.zip valuesListLazy (LazyList.fromList <| List.map ok1 diffsList) in
-                                                    case resultDiffs of
-                                                      LazyList.Nil -> UpdateCriticalError <| "[internal error] no diffs obtained for lens.update at line " ++ toString (e.start.line)
-                                                      LazyList.Cons (head, headDiff) lazyTail ->
-                                                        updateContinueRepeat ".update" env argument [] vArg head headDiff lazyTail <|
-                                                          \newUpdatedEnvArg newUpdatedArg ->
-                                                          let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
-                                                          let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
-                                                          updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
+                                            updateManys diffListRes <| \(head, mbHeadDiff) ->
+                                              let continuation = case mbHeadDiff of
+                                                Just headDiff -> updateContinue ".update" env argument [] vArg head headDiff
+                                                Nothing -> \_ -> updateResultSameEnvExp env e
+                                              in
+                                              continuation <|
+                                                \newUpdatedEnvArg newUpdatedArg ->
+                                                let newExp = replaceE__ e <| EApp sp0 (replaceE__ e1 <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
+                                                let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
+                                                updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
                            in
                            updateMaybeFirst2 "after testing update, testing unapply" (not isApplyFrozen) mbUpdateField <| \_ ->
                              case Dict.get "unapply" d of

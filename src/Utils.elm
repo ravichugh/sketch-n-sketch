@@ -154,6 +154,13 @@ maybeWithLazyDefault mba callback = case mba of
   Just a -> a
   Nothing -> callback ()
 
+resultOrElseLazy: (() -> Result err ok) -> Result err ok -> Result err ok
+resultOrElseLazy rb ra = case ra of
+  Ok x -> ra
+  Err x -> case rb () of
+    Err _ -> ra
+    rrb -> rrb
+
 zipi0 : List a -> List (Int, a)
 zipi0 = zipi_ 0
 

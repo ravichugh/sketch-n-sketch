@@ -16,7 +16,6 @@ splitByLength listLength list =
 
 map f l = {
   apply [f, l] =
-    freeze <| -- No update allowed in this function
     letrec aux = case of
       [] -> []
       head::tail -> f head :: aux tail

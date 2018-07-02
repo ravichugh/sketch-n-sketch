@@ -1,6 +1,6 @@
 -- prepend lSmall with its own element until it reaches the size of lBig
 map f l = 
-  { apply [f, l] = freeze <| -- No update allowed in this function
+  { apply [f, l] =
       letrec aux = case of
         [] -> []
         head::tail -> f head :: aux tail
@@ -68,11 +68,11 @@ map f l =
 
 zipWithIndex xs =
   { apply x = zip (range 0 (len xs - 1)) xs
-    update {output} = [map (\[i, x] -> x) output]  }.apply xs
+    update {output} = [map (\(i, x) -> x) output]  }.apply xs
 
 mapi f xs = map f (zipWithIndex xs)
  
-indexedMap f xs = mapi (\[i,x] -> f i x) xs
+indexedMap f xs = mapi (\(i,x) -> f i x) xs
 
 
 customUpdate record x =

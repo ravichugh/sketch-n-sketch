@@ -118,7 +118,7 @@ freshVarName name i dictionary =
   
 content = content |> replaceVariables currentTranslation |>
   (\x ->
-    { apply (x, _) = freeze x
+    { apply (x, _) = x
       update {input = (x, allTranslationDicts), newOutput} =
         Regex.find "\\{([^\\}]*(?!\\})\\S[^\\}]*)\\}" newOutput |>
         List.foldl (\(_::definition::_) (newOutput, currentTranslation, allTranslationDicts) ->
@@ -129,20 +129,20 @@ content = content |> replaceVariables currentTranslation |>
              Dict.insert name definition currentTranslation,
              List.map (\(lang, d) -> (lang, Dict.insert name definition d)) allTranslationDicts)
         ) (newOutput, currentTranslation, allTranslationDicts) |> \(newOutput, _, newTranslationsLangDict) ->
-          { values = [(newOutput, newTranslationsLangDict)] }
+          Ok (Inputs [(newOutput, newTranslationsLangDict)])
     }.apply (x, allTranslationDicts)
   )
 
 alltranslationsLangDict = Dict.fromList translations
 addLang alltranslationsLangDict = {
-  apply alltranslationsLangDict = freeze ""
+  apply alltranslationsLangDict = ""
   update {input, outputNew} =
     if not (outputNew == "") && not (Dict.member outputNew alltranslationsLangDict) then 
       let toCopy = Dict.apply alltranslationsLangDict language in
-      {values = [Dict.insert outputNew toCopy alltranslationsLangDict],
-       diffs=[Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)]))]}
+      Ok (InputsWithDiffs [(Dict.insert outputNew toCopy alltranslationsLangDict,
+                           Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)])))])
     else
-      { values = [input], diffs = [Nothing]}
+      Ok (InputsWithDiffs [(input, Nothing)])
   }.apply alltranslationsLangDict
 
 main = 

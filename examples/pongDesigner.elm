@@ -53,7 +53,7 @@ You can add rules such as "when n.x > 100 do x = 50", play, pause the execution,
 @(case resNext of
   Err msg -> <pre>@msg</pre>
   Ok next -> <span></span>)
-@Html.forceRefresh<|><span id="p"
+@Html.forceRefresh<|<span id="p"
   nextstate=Html.onChangeAttribute(state)(\_ _ -> next)
   setpause=Html.onChangeAttribute(isPlaying)(\_ _ -> False)
   setplay=Html.onChangeAttribute(isPlaying)(\_ _ -> True)

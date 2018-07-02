@@ -59,13 +59,13 @@ markdown text =
       "<h" + level + ">" + trim header + "</h" + level + ">"
   in
   let onUpdate fun acc = {
-    apply acc = freeze acc
+    apply acc = acc
     update {input,newOutput=out,diffs} =
       case fun out diffs of
-        (value, diff) -> { values = [value], diffs = [Just diff] }
+        (value, diff) -> Ok (InputsWithDiffs [(value, Just diff)])
         value  -> case Update.diff input value of
-          Ok n -> { values = [value], diffs = [n] }
-          Err x -> { error = x}
+          Ok n -> Ok (InputsWithDiffs [(value, n)])
+          Err x -> Err x
     }.apply acc
   in
   "\n" + text + "\n" |>
@@ -98,7 +98,7 @@ markdown text =
 
 -- Takes care of newlines inserted in the document.
 newlines_lens x = {
-  apply x = freeze x,
+  apply x = x
   update {outputNew,diffs} =
     letrec aux offset d strAcc = case d of
       [] -> strAcc
@@ -120,7 +120,7 @@ newlines_lens x = {
         in
         left + newInserted + right |>
         aux (offset + String.length inserted - (end - start)) dtail
-    in { values = [aux 0 (strDiffToConcreteDiff outputNew diffs) outputNew] }
+    in Ok (Inputs [aux 0 (strDiffToConcreteDiff outputNew diffs) outputNew])
   }.apply x
 
 Html.forceRefresh <|

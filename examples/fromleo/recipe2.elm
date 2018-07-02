@@ -72,12 +72,12 @@ evaluateMacros base =
         let res = floor (base * freeze mult / freeze div) in
         if res < 6 then -- We take into account 1/2, 1/4 and 3/4 until 5, else it makes no sense, but no more.
           Update.applyLens
-            { apply (base, _) = freeze <|
+            { apply (base, _) =
                 introduceFractions res (floor (base * mult * 4 / div) - 4*res)
 
               update {outputNew, outputOriginal} =
                 if outputNew == outputOriginal then
-                  { values = [(base, match)] }
+                  Ok (Inputs [(base, match)])
                 else
                   let newBase =
                     floor (updateFractions outputNew * div / mult / 4)
@@ -87,7 +87,7 @@ evaluateMacros base =
                     let newDiv  = div  * String.toInt outputOriginal in
                     """multdivby[@newMult,@newDiv]"""
                   in
-                  { values = [(newBase, match), (base, newMatch)] }
+                  Ok (Inputs [(newBase, match), (base, newMatch)])
             }
             (base, match)
         else
@@ -97,29 +97,29 @@ evaluateMacros base =
         let ending = nth m.group 2 in
         let res = floor (base * freeze mult * freeze 4 / freeze div) in
         Update.applyLens
-          { apply (res, ending) = freeze <|
+          { apply (res, ending) =
               if res > 4 then ending else ""
 
             update {input=(res,ending), outputNew, outputOriginal} =
-              if outputNew == "" && outputOriginal == ending then {values=[(4, ending)]}
-              else if Regex.matchIn " " outputNew then {values = []}
-              else {values = [(res, outputNew)]}
+              if outputNew == "" && outputOriginal == ending then Ok (Inputs [(4, ending)])
+              else if Regex.matchIn " " outputNew then Ok (Inputs [])
+              else Ok (Inputs [(res, outputNew)])
           }
           (res, ending)
   )
 
 defineMacros base = 
   Update.applyLens
-    { apply x = Update.freeze x
+    { apply x = x
     , update {output} =
-        { values = [Regex.replace "_(\\d+)(\\w*)_" (\m ->
+        Ok (Inputs [Regex.replace "_(\\d+)(\\w*)_" (\m ->
             let amount = String.toInt (nth m.group 1) in
             let plural = nth m.group 2 in
             case plural of
               "" -> """multdivby[@amount,@base]"""
               _  -> """ifmany@plural[@amount,@base]"""
           ) output]
-        }
+        )
     }
 
 scalableRecipe base recipe =

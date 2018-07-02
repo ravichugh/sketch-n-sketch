@@ -2,18 +2,17 @@ maybeMapSimple f mx =
   case mx of [] -> []; [x] -> [f x]
 
 maybeMapLens default =
-  { apply (f, mx) =
-      Update.freeze (maybeMapSimple f mx)
+  { apply (f, mx) = maybeMapSimple f mx
 
   , update {input = (f, mx), outputNew = my} =
       case my of
-        []  -> { values = [(f, [])] }
+        []  -> Ok (Inputs [(f, [])])
         [y] ->
           let z = case mx of [x] -> x; [] -> default in
           let results =
             Update.updateApp {fun (func, arg) = func arg, input = (f, z), output = y}
           in
-          { values = List.map (\(newF,newZ) -> (newF, [newZ])) results.values }
+          Ok (Inputs (List.map (\((newF,newZ), diffs) -> (newF, [newZ])) results.args._1.args._1))
   }
 
 maybeMap default f mx =

@@ -3522,6 +3522,8 @@ type EDiffs = EConstDiffs EWhitespaceDiffs
 
 type EWhitespaceDiffs = EOnlyWhitespaceDiffs | EAnyDiffs
 
+type UpdateReturn = Inputs (List Val) | InputsWithDiffs (List (Val, Maybe VDiffs))
+
 vListDiffsUnapply: VDiffs -> Maybe (ListDiffs VDiffs)
 vListDiffsUnapply vdiffs = case vdiffs of
   VListDiffs d -> Just d

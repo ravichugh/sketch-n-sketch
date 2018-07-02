@@ -1,10 +1,10 @@
 notBelow bound x = {
-  apply x = freeze x
+  apply x = x
   update {input, outputNew} =
     if outputNew <= bound &&
-       input     >  bound     then { values = [bound] }
-    else if outputNew > bound then { values = [outputNew] }
-    else                           { values = [] }
+       input     >  bound     then Ok (Inputs [bound])
+    else if outputNew > bound then Ok (Inputs [outputNew])
+    else                           Ok (Inputs [])
   }.apply x
 
 exactly x = freeze x

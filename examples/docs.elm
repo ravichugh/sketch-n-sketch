@@ -1,11 +1,11 @@
-ensureNatural {minbound} n = { apply x = freeze x, update {input, outputNew} =
+ensureNatural {minbound} n = { apply x = x, update {input, outputNew} =
   let (f, c) = (max minbound <| floor outputNew, max minbound <| ceiling outputNew) in
   if f /= outputNew || c /= outputNew then let solutions = (if f == input then [] else [f]) ++
   (if c == input || c == f then [] else [c]) in
-  { values = solutions } else { values = [outputNew] } }.apply n
+  Ok (Inputs solutions) else Ok (Inputs [outputNew]) }.apply n
 
-format n = { apply n = freeze (toString n |> Regex.replace """(\d)(?=(?:(?:\d{3})+$))""" (\m -> nth m.group 1 + ","))
-             update {outputNew} = {values=[String.toInt (Regex.replace "," "" outputNew)]}}.apply n
+format n = { apply n = toString n |> Regex.replace """(\d)(?=(?:(?:\d{3})+$))""" (\m -> nth m.group 1 + ",")
+             update {outputNew} = Ok (Inputs [String.toInt (Regex.replace "," "" outputNew)])}.apply n
 
 nbpostdocs     = ensureNatural {minbound=0} 2
 nbgraduates    = ensureNatural {minbound=1} 4

@@ -1,6 +1,5 @@
 listMapLens =
-  { apply (f,xs) =
-      Update.freeze (List.simpleMap f xs)
+  { apply (f,xs) = List.simpleMap f xs
 
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
@@ -41,7 +40,7 @@ listMapLens =
       let newFuncAndInputLists =
         List.simpleMap (\newInputList -> (f, newInputList)) newInputLists
       in
-      { values = newFuncAndInputLists }
+      Ok (Inputs newFuncAndInputLists)
   }
 
 listMap f xs =
