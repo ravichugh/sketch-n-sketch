@@ -50,21 +50,25 @@ builtinEnv =
   , ("<=", builtinVal "EvalUpdate.<=" <| VFun "<=" ["left", "right"] (twoArgs "<=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 <= n2)), [])
+           (VBase (VString n1), VBase (VString n2))  -> Ok (replaceV_ left <| VBase (VBool (n1 <= n2)), [])
            _ -> Err <| "<= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
      ) Nothing)
   , (">=", builtinVal "EvalUpdate.>=" <| VFun ">=" ["left", "right"] (twoArgs ">=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 >= n2)), [])
+           (VBase (VString n1), VBase (VString n2))  -> Ok (replaceV_ left <| VBase (VBool (n1 >= n2)), [])
            _ -> Err <| ">= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
      ) Nothing)
   , (">", builtinVal "EvalUpdate.>" <| VFun ">" ["left", "right"] (twoArgs ">" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 > n2)), [])
+           (VBase (VString n1), VBase (VString n2))  -> Ok (replaceV_ left <| VBase (VBool (n1 > n2)), [])
            _ -> Err <| "> expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
      ) Nothing)
   , ("/=", builtinVal "EvalUpdate./=" <| VFun "/=" ["left", "right"] (twoArgs "/=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 /= n2)), [])
+           (VBase (VString n1), VBase (VString n2))  -> Ok (replaceV_ left <| VBase (VBool (n1 /= n2)), [])
            (_, _) -> Ok (replaceV_ left <| VBase <| VBool <| valToString left /= valToString right, [])
      ) Nothing)
   , ("getCurrentTime", builtinVal "EvalUpdate.getCurrentTime" (VFun "getCurrentTime" ["unit"] (\_ ->
@@ -490,7 +494,9 @@ doUpdate oldExp oldEnv oldVal newValResult =
       case thediffs of
         Err msg -> Err msg
         Ok (LazyList.Nil ) -> Err "[Internal error] expected a diff or an error, got Nil"
-        Ok (LazyList.Cons Nothing _ ) -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
+        Ok (LazyList.Cons Nothing _ ) ->
+          let _ = ImpureGoodies.log "No difference observed in the output." in
+          ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
         Ok ll ->
            ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
             Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->

@@ -7856,8 +7856,9 @@ splitargs n array =
 escape txt = txt |>
   replaceAllIn \"\\\\\\\\\" \"\\\\textbackslash{}\" |>
   replaceAllIn \"%(\\\\w+) (\\\\w+)\" (\\{group=[_, a, b]} -> \"\\\\\" + a + \"{\" + b  + \"}\") |>
-  replaceAllIn \"<B>(.*)</B>\" (\\{group=[_, a]} -> \"\\\\textbf{\" + a  + \"}\") |>
-  replaceAllIn \"<I>(.*)</I>\" (\\{group=[_, a]} -> \"\\\\textbf{\" + a  + \"}\")
+  replaceAllIn \"<[bB]>\" (\\_ -> \"\\\\textbf{\") |>
+  replaceAllIn \"<[iI]>\" (\\_ -> \"\\\\textit{\") |>
+  replaceAllIn \"</[bBiI]>\" (\\_ -> \"}\")
 
 toHtmlWithoutRefs opts tree =
   letrec aux opts revAcc tree = case tree of
@@ -7924,7 +7925,7 @@ initOptions = {
 
 htmlMapOf htmlOf trees = case trees of
   [] -> \"\"
-  (head::tail) -> htmlOf head + htmlMapOf tail
+  (head::tail) -> htmlOf head + htmlMapOf htmlOf tail
 
 htmlOf text_tree = case text_tree of
   [\"TEXT\", value] -> -- Needs some escape here.
@@ -7934,12 +7935,12 @@ htmlOf text_tree = case text_tree of
 toHtml x =
   let [raw, opts] = toHtmlWithoutRefs initOptions x in
   letrec replaceMap replaceReferences trees = case trees of
-    [] -> []
+    [] -> freeze []
     (head :: tail) -> {
         apply x = freeze x
         update {input, outputNew, outputOriginal, diffs} =
           if (len outputNew /= len outputOriginal && len outputOriginal == 1) then
-            {values = [[[\"TEXT\", htmlOf [outputNew]]]]} else {values=[outputNew], diffs=[Just diffs]}
+            {values = [[[\"TEXT\", htmlMapOf htmlOf outputNew outputNew]]]} else {values=[outputNew], diffs=[Just diffs]}
       }.apply [replaceReferences head] ++ replaceMap replaceReferences tail
   in
   letrec replaceReferences tree = case tree of
@@ -9454,13 +9455,68 @@ Try the following on @highlight(color2)(\"\"\"the result above in @color2\"\"\")
 """
 
 references_in_text =
- """addReferences references node =
+ """compareStr a b = if a == b then 0 else if a < b then -1 else 1
+
+quicksort compare list = case list of
+    [] -> []
+    pivot::t -> let tBefore = List.filter (\\e -> compare e pivot < 0) t in
+      let tAfter = List.filter (\\e -> compare pivot e < 0) t in
+      quicksort compare tBefore ++ [pivot] ++ quicksort compare tAfter
+
+addReferences references node =
+  let collectedAddedReferences references node =
+    { apply (references, node) = freeze node
+      update {input = (references, node) as input, outputNew} =
+        let refAddRegex = \"\"\"\\[\\+\\s*((?:(?!\\]).)*)\\]\"\"\" in
+        let addedReferences = Html.find refAddRegex outputNew in
+        if addedReferences == [] then {values=[input], diffs=[Nothing]}
+        else 
+          let (newNode, (_, newReferences)) = Html.foldAndReplace refAddRegex (\\{submatches=[name]} (newRefNum, newReferences) ->
+              ([[\"TEXT\", \"\"\"[@newRefNum]\"\"\"]], (newRefNum + 1, newReferences ++ [name]))
+            ) (List.length references + 1, references) outputNew
+          in 
+          let newInput = (newReferences, newNode) in
+          {values=[newInput]}
+    }.apply (references, node)
+  in
   let refRegex = \"\"\"\\[(\\d+)\\]\"\"\" in
+  letrec -- returns a list of sorted references according to some criterion and an updated node.
+    sortReferences references node = 
+      let (newPermutation, newReferences) = List.zipWithIndex references
+      |> quicksort (\\(i, ref1) (i2, ref2) -> 
+         compareStr ref1 ref2)
+      |> List.unzip
+      in
+      if newReferences == references then (references, node)
+      else
+        let d = List.map2 (,) newPermutation (List.range 0 (List.length newPermutation - 1))
+          |> Dict.fromList in
+        let newNode = Html.replace refRegex (\\{submatches=[ref],match} ->
+          let nref = String.toInt ref in
+          let _ = Debug.log \"permutation:\" d in
+          case Dict.get (nref - 1) d of
+            Just nnref  ->
+              [[\"TEXT\", \"\"\"[@(nnref + 1)]\"\"\"]]
+            Nothing ->
+              [[\"TEXT\", match]]
+          ) node
+        in
+        (newReferences, newNode)
+  in
   let  referencesDict = Dict.fromList (
     List.range 1 (List.length references) |> List.map (toString)
     |> map2 (flip (,)) references)
   in
   let lenReferences = List.length references in
+  let (sortedReferences, sortedNode, applysort) = {
+    apply (references, node) = freeze (references, node, \"\")
+    update {outputNew = (newReferences, newNode, newApplySort)} =
+      if newApplySort == \"#\" then
+        {values=[sortReferences newReferences newNode]}
+      else
+        {values=[(newReferences, newNode)]}
+    }.apply (references, node)
+  in
   let finalReferences = {
     apply (references, node) = freeze references
     update {input=(references, node), outputNew=newReferences, diffs=(VListDiffs diffs) as listDiffs} =
@@ -9499,15 +9555,17 @@ references_in_text =
             aux (offset - count) newNode True diffsTail
       in
       aux 0 node False diffs |> Debug.log \"aux\"
-  }.apply (references, node)
+  }.apply (sortedReferences, sortedNode)
   in
   [Html.replace refRegex  (\\{submatches=[ref],match} ->
     Dict.get ref referencesDict |> 
     Maybe.map (\\name -> Update.sizeFreeze [<abbr title=name>@match</abbr>]) |>
     Maybe.withDefaultLazy (\\_ -> Update.sizeFreeze
-      [<abbr style=\"color:red\" title=\"Unknown reference\">@match</abbr>])) node
+      [<abbr style=\"color:red\" title=\"Unknown reference\">@match</abbr>]))
+    (collectedAddedReferences references node)
   , Update.expressionFreeze <ul
   contenteditable=\"true\">@(List.indexedMap (\\i x -> <li>@(Html.text \"\"\"[@(i + 1)] @x\"\"\")</li>) finalReferences)</ul>
+  , Html.button \"Sort references\" \"Sort the list of references alphabetically\" applysort (\\_ -> \"#\")
   ]
 
   

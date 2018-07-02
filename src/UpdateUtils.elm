@@ -16,7 +16,7 @@ import ValBuilder as Vb
 import ValUnbuilder as Vu
 import UpdateUnoptimized
 import ElmUnparser
-import ImpureGoodies exposing (nativeDict)
+import ImpureGoodies exposing (nativeDict, nativeIntDict)
 import Array
 import Char
 import String
@@ -480,22 +480,22 @@ allStringDiffs before after =
     let afterLength = String.length after in
     let beforeLength = String.length before in
     -- TODO: Put more  information in overlap so that we can obtain the result without this recursion.
-    let (overlap, startOldNew, subLength, weight) =
-         strFoldLeftWithIndex (Dict.empty, [],          0,         -(String.length before + String.length after)) after <|
-                             \(overlap,    startOldNew, subLength, weight)                             afterIndex afterChar ->
+    let (_, startOldNew, subLength, weight) =
+         strFoldLeftWithIndex (nativeIntDict.empty (), [],          0,         -(String.length before + String.length after)) after <|
+                             \(overlap,                startOldNew, subLength, weight)                             afterIndex afterChar ->
            let oldIndicesWhereAfterAppeared = valueToIndexBefore |> nativeDict.get (String.fromChar afterChar) |> Maybe.withDefault [] in
            -- We look for the longest sequence in a row where after values appeared consecutively in before.
            --let _ = ImpureGoodies.log <| "start of round\noverlap="++toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
-           foldLeft    (Dict.empty, startOldNew, subLength, weight) oldIndicesWhereAfterAppeared <|
+           foldLeft    (nativeIntDict.empty (), startOldNew, subLength, weight) oldIndicesWhereAfterAppeared <|
                       \(overlap_,   startOldNew, subLength_, weight_) oldIdxAfterChar ->
               -- now we are considering all values of val such that
               -- `before[oldIdxAfterChar] == after[afterIndex]`
-              let newSubLength = (if oldIdxAfterChar == 0 then 0 else Dict.get (oldIdxAfterChar - 1) overlap |>
+              let newSubLength = (if oldIdxAfterChar == 0 then 0 else nativeIntDict.get (oldIdxAfterChar - 1) overlap |>
                    Maybe.map Tuple.first |> Maybe.withDefault 0) + 1 in
               --let _ = ImpureGoodies.log <| "overlap_=" ++ toString overlap_ ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength_=" ++ toString subLength_ ++ ", weight_=" ++ toString weight_ in
               let newWeight = 0 - abs ((afterLength - afterIndex) - (beforeLength - oldIdxAfterChar)) -
                 abs (afterIndex - oldIdxAfterChar) in
-              let newOverlap_ = Dict.insert oldIdxAfterChar (newSubLength, newWeight) overlap_ in
+              let newOverlap_ = nativeIntDict.insert oldIdxAfterChar (newSubLength, newWeight) overlap_ in
               if combineLengthWeight newSubLength newWeight > combineLengthWeight subLength_ weight_ then
                    (newOverlap_, [(oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)] , newSubLength, newWeight)
               else if combineLengthWeight newSubLength newWeight == combineLengthWeight subLength_ weight_ {-&& combineLengthWeight subLength_ weight_ > combineLengthWeight subLength weight-} then -- Ambiguity
@@ -517,7 +517,7 @@ allStringDiffs before after =
         -- otherwise, the common substring is unchanged and we recursively
         -- diff the text before and after that substring
         let middle = String.slice startNew (startNew + subLength) after in
-        let _ = Debug.log "middle that is the same" middle in
+        --let _ = Debug.log "middle that is the same" middle in
         let left = allStringDiffs (String.left startOld before) (String.left startNew after) in
         let right = allStringDiffs  (String.dropLeft (startOld + subLength) before) (String.dropLeft (startNew + subLength) after) in
         flip Results.andThen left <| \leftDiffs ->

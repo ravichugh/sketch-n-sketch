@@ -89,7 +89,7 @@ getOrUpdateCache record cacheName default =
 evaluate: String -> a
 evaluate s = Native.ImpureGoodies.evaluate s
 
-log: String -> String
+log: a -> a
 log s = Native.ImpureGoodies.log s
 
 htmlunescape: String -> String
@@ -108,9 +108,17 @@ setValueToNativeRecord: String-> Maybe value -> record -> record
 setValueToNativeRecord key mbValue record =
   Native.ImpureGoodies.setValueToNativeRecord key mbValue record
 
+setValueToNativeIntRecord: Int-> Maybe value -> record -> record
+setValueToNativeIntRecord key mbValue record =
+  Native.ImpureGoodies.setValueToNativeRecord key mbValue record
+
 updateNativeRecord: String -> (Maybe value -> Maybe value2) -> record -> record
 updateNativeRecord key valueUpdater record =
   setValueToNativeRecord key (valueUpdater (nativeRecordGet key record)) record
+
+updateNativeIntRecord: Int -> (Maybe value -> Maybe value2) -> record -> record
+updateNativeIntRecord key valueUpdater record =
+  setValueToNativeIntRecord key (valueUpdater (nativeIntRecordGet key record)) record
 
 keyPairsToNativeRecord: List (String, b) -> c
 keyPairsToNativeRecord l = List.foldl addPairToNativeRecord (emptyNativeRecord ()) l
@@ -121,6 +129,9 @@ keyPairsOfNativeRecord = Native.ImpureGoodies.keyPairsOfNativeRecord
 nativeRecordGet: String -> record -> Maybe value
 nativeRecordGet = Native.ImpureGoodies.nativeRecordGet
 
+nativeIntRecordGet: Int -> record -> Maybe value
+nativeIntRecordGet = Native.ImpureGoodies.nativeRecordGet
+
 nativeRecordKeys: record -> List String
 nativeRecordKeys = Native.ImpureGoodies.nativeRecordKeys
 
@@ -129,11 +140,32 @@ mapNativeRecord transformer record =
   nativeRecordKeys record |> List.foldl (\key record ->
     setValueToNativeRecord key (nativeRecordGet key record |> Maybe.map (transformer key)) record) record
 
+nativeDict: {
+  empty: () -> record,
+  get: String -> record -> Maybe value,
+  update: String -> (Maybe value -> Maybe value2) -> record -> record,
+  insert: String -> value -> record -> record,
+  map: (String -> value -> value2) -> record -> record
+  }
 nativeDict = {
   empty = emptyNativeRecord,
   get = nativeRecordGet,
   update = updateNativeRecord,
+  insert = \key v record -> setValueToNativeRecord key (Just v) record,
   map = mapNativeRecord
+  }
+
+nativeIntDict: {
+  empty: () -> record,
+  get: Int -> record -> Maybe value,
+  update: Int -> (Maybe value -> Maybe value2) -> record -> record,
+  insert: Int -> value -> record -> record
+  }
+nativeIntDict = {
+  empty = emptyNativeRecord,
+  get = nativeIntRecordGet,
+  update = updateNativeIntRecord,
+  insert = \key v record -> setValueToNativeIntRecord key (Just v) record
   }
 
 fromNative: a ->

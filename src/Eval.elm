@@ -496,6 +496,7 @@ evalOp syntax env e bt opWithInfo es =
           ArcTan2   -> binMathOp op args
           Lt        -> case args of
             [VConst _ (i,it), VConst _ (j,jt)] -> VBase (VBool (i < j)) |> addProvenanceOk
+            [VBase (VString i), VBase (VString j)] -> VBase (VBool (i < j)) |> addProvenanceOk
             _ -> mkClosureOrError ()
           Eq        ->
             if List.length vs < 2 then mkClosureOrError () else

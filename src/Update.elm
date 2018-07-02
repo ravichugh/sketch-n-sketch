@@ -254,7 +254,12 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                           in
                                           let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
                                           (policy, policy, Nothing)
-                                        _ ->  Debug.crash <| "[internal error] There should be an element in this list's position"
+                                        [] -> -- We are inserting at the second place, but the first one was an insertion already
+                                          let (wsComma, wsElem, indentation) = (ws "", ws " ", InlineSpace)
+                                          in
+                                          let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
+                                          (policy, policy, Nothing)
+                                        _ ->  Debug.crash <| "[internal error] There should be not more than 1 element in this list's position"
                                   else --if insertionIndex == 0 then -- Inserting the first element is always trickier
                                     case elems of
                                       [] ->

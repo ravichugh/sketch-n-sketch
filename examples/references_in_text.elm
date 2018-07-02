@@ -1,10 +1,65 @@
+compareStr a b = if a == b then 0 else if a < b then -1 else 1
+
+quicksort compare list = case list of
+    [] -> []
+    pivot::t -> let tBefore = List.filter (\e -> compare e pivot < 0) t in
+      let tAfter = List.filter (\e -> compare pivot e < 0) t in
+      quicksort compare tBefore ++ [pivot] ++ quicksort compare tAfter
+
 addReferences references node =
+  let collectedAddedReferences references node =
+    { apply (references, node) = freeze node
+      update {input = (references, node) as input, outputNew} =
+        let refAddRegex = """\[\+\s*((?:(?!\]).)*)\]""" in
+        let addedReferences = Html.find refAddRegex outputNew in
+        if addedReferences == [] then {values=[input], diffs=[Nothing]}
+        else 
+          let (newNode, (_, newReferences)) = Html.foldAndReplace refAddRegex (\{submatches=[name]} (newRefNum, newReferences) ->
+              ([["TEXT", """[@newRefNum]"""]], (newRefNum + 1, newReferences ++ [name]))
+            ) (List.length references + 1, references) outputNew
+          in 
+          let newInput = (newReferences, newNode) in
+          {values=[newInput]}
+    }.apply (references, node)
+  in
   let refRegex = """\[(\d+)\]""" in
+  letrec -- returns a list of sorted references according to some criterion and an updated node.
+    sortReferences references node = 
+      let (newPermutation, newReferences) = List.zipWithIndex references
+      |> quicksort (\(i, ref1) (i2, ref2) -> 
+         compareStr ref1 ref2)
+      |> List.unzip
+      in
+      if newReferences == references then (references, node)
+      else
+        let d = List.map2 (,) newPermutation (List.range 0 (List.length newPermutation - 1))
+          |> Dict.fromList in
+        let newNode = Html.replace refRegex (\{submatches=[ref],match} ->
+          let nref = String.toInt ref in
+          let _ = Debug.log "permutation:" d in
+          case Dict.get (nref - 1) d of
+            Just nnref  ->
+              [["TEXT", """[@(nnref + 1)]"""]]
+            Nothing ->
+              [["TEXT", match]]
+          ) node
+        in
+        (newReferences, newNode)
+  in
   let  referencesDict = Dict.fromList (
     List.range 1 (List.length references) |> List.map (toString)
     |> map2 (flip (,)) references)
   in
   let lenReferences = List.length references in
+  let (sortedReferences, sortedNode, applysort) = {
+    apply (references, node) = freeze (references, node, "")
+    update {outputNew = (newReferences, newNode, newApplySort)} =
+      if newApplySort == "#" then
+        {values=[sortReferences newReferences newNode]}
+      else
+        {values=[(newReferences, newNode)]}
+    }.apply (references, node)
+  in
   let finalReferences = {
     apply (references, node) = freeze references
     update {input=(references, node), outputNew=newReferences, diffs=(VListDiffs diffs) as listDiffs} =
@@ -43,15 +98,17 @@ addReferences references node =
             aux (offset - count) newNode True diffsTail
       in
       aux 0 node False diffs |> Debug.log "aux"
-  }.apply (references, node)
+  }.apply (sortedReferences, sortedNode)
   in
   [Html.replace refRegex  (\{submatches=[ref],match} ->
     Dict.get ref referencesDict |> 
     Maybe.map (\name -> Update.sizeFreeze [<abbr title=name>@match</abbr>]) |>
     Maybe.withDefaultLazy (\_ -> Update.sizeFreeze
-      [<abbr style="color:red" title="Unknown reference">@match</abbr>])) node
+      [<abbr style="color:red" title="Unknown reference">@match</abbr>]))
+    (collectedAddedReferences references node)
   , Update.expressionFreeze <ul
   contenteditable="true">@(List.indexedMap (\i x -> <li>@(Html.text """[@(i + 1)] @x""")</li>) finalReferences)</ul>
+  , Html.button "Sort references" "Sort the list of references alphabetically" applysort (\_ -> "#")
   ]
 
   
@@ -127,6 +184,11 @@ Html.forceRefresh  <div id="content" style="margin:20px;cursor:text">
   You can delete any citation that looks like [1], insert
   new ones by typing [2] for example, or change a citation by
   changing its number.
+</p>
+<p>
+  <b>Sort references</b>
+  Click on the "Sort references" button to sort the references.
+  The references are also sorted in the text.
 </p>
 </span>
 <div style="border:4px solid black;padding:20px" id="example">

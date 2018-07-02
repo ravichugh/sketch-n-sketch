@@ -3326,6 +3326,12 @@ List =
   let sum l = foldl (\\x y -> x + y) 0 l in
   letrec range min max = if min > max then [] else min :: range (min + 1) max in
   letrec find f l = case l of [] -> Nothing; head :: tail -> if f head then Just head else find f tail in
+  letrec mapFirstSuccess f l = case l of
+    [] -> Nothing
+    head :: tail -> case f head of
+      Nothing -> mapFirstSuccess f tail
+      x -> x
+  in
   let -- Contrary to concatMap, concatMap_ supports insertion and deletions of elements.
       -- It requires a function to indicate what to do when inserting in empty lists.
       concatMap_ insert_in_empty f l =
@@ -3420,6 +3426,7 @@ List =
     zipWithIndex = zipWithIndex
     indices = indices
     find = find
+    mapFirstSuccess = mapFirstSuccess
   }
 
 
@@ -3947,6 +3954,15 @@ Html =
       update {input, outputNew} = { values = [controller input outputNew] }
     }.apply model
   in
+  -- Reversibly merges the text nodes from a list of nodes.
+  letrec mergeTextNodes nodes = case nodes of
+    [] -> nodes
+    [head] -> nodes
+    [\"TEXT\", str1]::[\"TEXT\", str2]::tail -> mergeTextNodes ([\"TEXT\", str1+str2]::tail)
+    _ ->
+      let (head, tail) = List.split 1 nodes in
+      head ++ mergeTextNodes tail
+  in
   {- Given
      * a regex
      * a replacement function that takes a string match and returns a list of Html nodes
@@ -3954,15 +3970,6 @@ Html =
      This functions returns a node, (excepted if the top-level node is a [\"TEXT\", _] and is splitted.
   -}
   let replace regex replacement node =
-    -- Reversibly merges the text nodes from a list of nodes.
-    letrec mergeTextNodes nodes = case nodes of
-      [] -> nodes
-      [head] -> nodes
-      [\"TEXT\", str1]::[\"TEXT\", str2]::tail -> mergeTextNodes ([\"TEXT\", str1+str2]::tail)
-      _ ->
-        let (head, tail) = List.split 1 nodes in
-        head ++ mergeTextNodes tail
-    in
     letrec aux node = case node of
       [\"TEXT\", text] ->
         findInterleavings 0 regex text
@@ -3976,6 +3983,41 @@ Html =
     in case aux node of
       [x] -> x
       y -> y
+  in
+  let find regex node =
+    letrec aux node = case node of
+       [\"TEXT\", text] ->
+         findInterleavings 0 regex text
+         |> List.concatMap (case of
+            Left _ -> []
+            Right match -> [match]
+          )
+       [tag, attrs, children] ->
+         List.concatMap aux children
+    in aux node
+  in
+  let -- Takes a regex, a function that accepts a match and an accumulator and returns a list of nodes and the new accumulator's value.
+      -- a starting accumulator and a starting node. Returns the final accumulator and the final node.
+      foldAndReplace regex matchAccToNewNodesNewAcc startAcc node =
+          letrec aux acc node = case node of
+             [\"TEXT\", text] ->
+               findInterleavings 0 regex text
+               |> List.foldl (\\interleaving (nodes, acc) ->
+                 case interleaving of
+                  Left str -> (nodes ++ [[\"TEXT\", str]], acc)
+                  Right match -> let (newNodes, newAcc) = matchAccToNewNodesNewAcc match acc in
+                    (nodes ++ newNodes, newAcc)
+                ) ([], acc) |> Tuple.mapFirst mergeTextNodes
+             [tag, attrs, children] ->
+               let (newChildren, newAcc) =
+                 List.foldl (\\child (buildingChildren, acc) ->
+                   let (nChildren, nAcc) = aux acc child in
+                   (buildingChildren ++ nChildren, nAcc)
+                 ) ([], acc) children in
+               ([[tag, attrs, newChildren]], newAcc)
+          in case aux startAcc node of
+            ([node], acc)-> (node, acc)
+            r -> r
   in
   { textNode = textNode
     p = textElementHelper \"p\"
@@ -4007,6 +4049,8 @@ Html =
     observeCopyValueToAttribute = observeCopyValueToAttribute
     onChangeAttribute = onChangeAttribute
     replace = replace
+    find = find
+    foldAndReplace = foldAndReplace
   }
 
 -- TODO remove this; add as imports as needed in examples
