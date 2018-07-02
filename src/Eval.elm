@@ -411,10 +411,9 @@ eval maybeRetEnvEId abortPred syntax env bt e =
     else Ok <| ret [] <| VBase (VBool False)
 
   EHole _ (HoleVal val)     -> Ok <| retV [val] val -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape. UPDATE: the infinite loop problem should be fixed, should be okay to use `retV [val] val`, changed when needed.
-  EHole _ (HoleEId eid)     -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " EId hole! (EId: " ++ toString eid ++ ")"
+  EHole _ HoleEmpty         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
   EHole _ (HolePredicate _) -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"
   EHole _ (HoleNamed name)  -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole " ++ name ++ "!"
-  EHole _ HoleEmpty         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
 
 
 evalOp : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Exp -> Backtrace -> Op -> List Exp -> Result String ((Val, Widgets), Maybe Env)
@@ -794,7 +793,6 @@ valToMaybePreviousSameVal val =
     EParens _ _ _ _                            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
     EHole _ (HoleNamed "terminationCondition") -> Nothing
     EHole _ (HoleVal _)                        -> success ()
-    EHole _ (HoleEId _)                        -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EId hole shouldn't appear in provenance" in Nothing
     EHole _ (HolePredicate _)                  -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
     EHole _ (HoleNamed _)                      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty named hole shouldn't appear in provenance" in Nothing
     EHole _ HoleEmpty                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing

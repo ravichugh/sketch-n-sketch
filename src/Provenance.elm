@@ -40,7 +40,6 @@ valEqFast v1 v2 =
 
 -- Step backwards in the provenance by one step, if, based on the expression evaluated, the prior step has to be the same value.
 -- That is, step backwards through eVars and noop operations.
--- This function is copied in Eval.elm for module reasons. Be sure to copy changes to there.
 valToMaybePreviousSameVal : Val -> Maybe Val
 valToMaybePreviousSameVal val =
   let success () =
@@ -73,7 +72,6 @@ valToMaybePreviousSameVal val =
     EParens _ _ _ _                            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
     EHole _ (HoleNamed "terminationCondition") -> Nothing
     EHole _ (HoleVal _)                        -> success ()
-    EHole _ (HoleEId _)                        -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EId hole shouldn't appear in provenance" in Nothing
     EHole _ (HolePredicate _)                  -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
     EHole _ (HoleNamed _)                      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty named hole shouldn't appear in provenance" in Nothing
     EHole _ HoleEmpty                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing

@@ -165,7 +165,6 @@ type HoleContents
   = HoleEmpty
   | HoleNamed Ident
   | HoleVal Val
-  | HoleEId EId
   | HolePredicate (Exp -> Bool) -- For matching code structure, see LangTools.matchExp below.
 
     -- EFun [] e     impossible
@@ -466,12 +465,6 @@ isColonType e = case e.val.e__ of
 isValHole e = case e.val.e__ of
   EHole _ (HoleVal _) -> True
   _                   -> False
-
-isEIdHole e = case e.val.e__ of
-  EHole _ (HoleEId _) -> True
-  _                   -> False
-
-isValOrEIdHole e = isValHole e || isEIdHole e
 
 isPVar p = case p.val.p__ of
   PVar _ _ _ -> True
@@ -1842,8 +1835,6 @@ eHoleNamed0 s     = withDummyExpInfo <| EHole space0 (HoleNamed s)
 eHoleNamed s      = withDummyExpInfo <| EHole space1 (HoleNamed s)
 eHoleVal0 v       = withDummyExpInfo <| EHole space0 (HoleVal v)
 eHoleVal v        = withDummyExpInfo <| EHole space1 (HoleVal v)
-eHoleEId0 eid     = withDummyExpInfo <| EHole space0 (HoleEId eid)
-eHoleEId eid      = withDummyExpInfo <| EHole space1 (HoleEId eid)
 eHolePred p       = withDummyExpInfo <| EHole space1 (HolePredicate p)
 
 eColonType e t    = withDummyExpInfo <| EColonType space1 e space1 (withDummyRange t) space0

@@ -2898,7 +2898,6 @@ resolveValueHoles syncOptions maybeEnv programWithHolesUnfresh =
     programWithHoles = Parser.freshen programWithHolesUnfresh
 
     -- First, try to find and lift points.
-    -- Points not yet supported for EIdHoles (ValHoles only).
     programWithSomePointHolesResolvedByLifting =
       programWithHoles
       |> findExpMatches (ePair (eHolePred isValHole) (eHolePred isValHole))
@@ -2928,18 +2927,17 @@ resolveValueHoles syncOptions maybeEnv programWithHolesUnfresh =
           programWithHoles
 
     -- Second, try to find and lift simple existing expressions.
-    valAndEIdHoles = programWithSomePointHolesResolvedByLifting |> flattenExpTree |> List.filter isValOrEIdHole
-    -- holeVals = valHoles |> List.filterMap expToMaybeHoleVal
+    valHoles = programWithSomePointHolesResolvedByLifting |> flattenExpTree |> List.filter isValHole
+    holeVals = valHoles |> List.filterMap expToMaybeHoleVal
     programWithSomeHolesResolvedByLifting =
-      valAndEIdHoles
+      Utils.zip holeVals valHoles
       |> List.foldl
-          (\holeExp program ->
+          (\(holeVal, valHoleExp) program ->
             -- Look for value in env
-            case expToMaybeHoleVal holeExp |> Maybe.map (\holeVal -> env |> Utils.removeShadowedKeys |> Utils.findFirst (\(ident, envVal) -> Provenance.valsSame envVal holeVal)) of
-              Just (Just (ident, envVal)) ->
-                -- Assumes given env is at the precise location of the hole to resolve.
+            case env |> Utils.removeShadowedKeys |> Utils.findFirst (\(ident, envVal) -> Provenance.valsSame envVal holeVal) of
+              Just (ident, envVal) ->
                 program
-                |> replaceExpNodePreservingPrecedingWhitespace holeExp.val.eid (eVar ident)
+                |> replaceExpNodePreservingPrecedingWhitespace valHoleExp.val.eid (eVar ident)
 
               _ ->
                 -- Look for exp in program
@@ -2960,22 +2958,16 @@ resolveValueHoles syncOptions maybeEnv programWithHolesUnfresh =
                       Provenance.valToMaybePreviousSameVal val
                       |> Maybe.andThen valProvenanceToProgramExp
                 in
-                let maybeEIdToPointTo =
-                  case holeExp.val.e__ of
-                    EHole _ (HoleVal holeVal) -> valProvenanceToProgramExp holeVal |> Maybe.map (.val >> .eid)
-                    EHole _ (HoleEId holeEId) -> Just holeEId
-                    _                         -> Nothing
-                in
-                case maybeEIdToPointTo of
-                  Just eidToPointTo ->
-                    case makeEIdVisibleToEIds program eidToPointTo (Set.singleton holeExp.val.eid) of
-                      Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace holeExp.val.eid (eVar newName)
+                case valProvenanceToProgramExp holeVal of
+                  Just expInProgram ->
+                    case makeEIdVisibleToEIds program expInProgram.val.eid (Set.singleton valHoleExp.val.eid) of
+                      Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace valHoleExp.val.eid (eVar newName)
                       Nothing                       -> program
                   Nothing -> program
           )
           programWithSomePointHolesResolvedByLifting
   in
-  -- Resolve any remaining val holes by loc lifting.
+  -- Resolve any remaining holes by loc lifting.
   resolveValueHolesByLocLifting syncOptions programWithSomeHolesResolvedByLifting
 
 
