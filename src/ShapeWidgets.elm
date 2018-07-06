@@ -4,6 +4,7 @@ import Lang exposing (..)
 import FastParser
 import LangUnparser
 import LangSvg exposing (RootedIndexedTree, IndexedTree, NodeId, ShapeKind, Attr, AVal)
+import Eval
 import Provenance
 import Utils
 import ValUnparser exposing (strVal)
@@ -72,10 +73,10 @@ nineGenericPointFeatures =
 
 simpleKindGenericFeatures : List (ShapeKind, List GenericFeature)
 simpleKindGenericFeatures =
-  [ ( "rect", nineGenericPointFeatures ++ List.map DistanceFeature [Width, Height])
-  , ( "BOX", nineGenericPointFeatures ++ List.map DistanceFeature [Width, Height])
-  , ( "circle", nineGenericPointFeatures ++ List.map DistanceFeature [Radius])
-  , ( "OVAL", nineGenericPointFeatures ++ List.map DistanceFeature [RadiusX, RadiusY])
+  [ ( "rect",    nineGenericPointFeatures ++ List.map DistanceFeature [Width, Height])
+  , ( "BOX",     nineGenericPointFeatures ++ List.map DistanceFeature [Width, Height])
+  , ( "circle",  nineGenericPointFeatures ++ List.map DistanceFeature [Radius])
+  , ( "OVAL",    nineGenericPointFeatures ++ List.map DistanceFeature [RadiusX, RadiusY])
   , ( "ellipse", nineGenericPointFeatures ++ List.map DistanceFeature [RadiusX, RadiusY])
   , ( "line", List.map PointFeature [Point 1, Point 2, Center])
   ]
@@ -242,8 +243,8 @@ maybeEvaluateShapePointFeature : ShapeKind -> List Attr -> PointFeature -> Maybe
 maybeEvaluateShapePointFeature shapeKind shapeAttrs pointFeature =
   let (xEqn, yEqn) = getPointEquations shapeKind shapeAttrs pointFeature in
   case (evaluateFeatureEquation xEqn, evaluateFeatureEquation yEqn) of
-    (Just x, Just y) -> Just (x, y)
-    _                -> Nothing
+    (Just xVal, Just yVal) -> Just (valToNum xVal, valToNum yVal)
+    _                      -> Nothing
 
 
 maybeEvaluateWidgetPointFeature : Widget -> PointFeature -> Maybe (Num, Num)
@@ -284,23 +285,53 @@ selectablePointToMaybeXY (nodeId, pointFeature) slate widgets =
 --
 -- See LocEqn.elm for a discussion of all the equation types in SnS.
 
-type alias FeatureEquation    = FeatureEquationOf NumTr
-type alias FeatureValEquation = FeatureEquationOf Val
 
-type FeatureEquationOf a
-  = EqnNum a
-  | EqnOp Op_ (List (FeatureEquationOf a))
+type FeatureEquation
+  = EqnNum Val
+  | EqnOp Op_ (List FeatureEquation)
 
 
-featureToEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict LocId (Num, Loc) -> Maybe FeatureEquation
-featureToEquation selectableFeature tree widgets locIdToNumberAndLoc =
-  featureToEquation_ shapeFeatureEquation widgetFeatureEquation (\n -> (n, dummyTrace)) selectableFeature tree widgets locIdToNumberAndLoc
-
-
-featureToValEquation : SelectableFeature -> IndexedTree -> Widgets -> Dict LocId (Num, Loc) -> Maybe FeatureValEquation
-featureToValEquation selectableFeature tree widgets locIdToNumberAndLoc =
+featureToEquation : SelectableFeature -> IndexedTree -> Widgets -> Maybe FeatureEquation
+featureToEquation selectableFeature tree widgets =
   let vConst n = { v_ = VConst Nothing (n, dummyTrace), provenance = dummyProvenance, parents = Parents [] } in
-  featureToEquation_ shapeFeatureValEquation widgetFeatureValEquation vConst selectableFeature tree widgets locIdToNumberAndLoc
+  -- featureToEquation_ shapeFeatureEquation widgetFeatureEquation vConst selectableFeature tree widgets
+  case selectableFeature of
+    ShapeFeature nodeId shapeFeature ->
+      if not <| nodeId < -2 then
+        -- shape feature
+        case Dict.get nodeId tree |> Maybe.map .interpreted of
+          Just (LangSvg.SvgNode kind nodeAttrs _) ->
+            Just (shapeFeatureEquation shapeFeature kind nodeAttrs)
+
+          Just (LangSvg.TextNode _) ->
+            Nothing
+
+          Nothing ->
+            Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation " ++ toString nodeId ++ " " ++ toString tree
+      else
+        -- widget feature
+        -- change to index widgets by position in widget list; then pull feature from widget type
+        let widgetId = -nodeId - 2 in -- widget nodeId's are encoded at -2 and count down. (And they are 1-indexed, so actually they start at -3)
+        case Utils.maybeGeti1 widgetId widgets of
+          Just widget -> Just (widgetFeatureEquation shapeFeature widget)
+          Nothing     -> Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation can't find widget " ++ toString widgetId ++ " in " ++ toString widgets
+
+    DistanceBetweenFeatures pointPairSet ->
+      let (selectablePoint1, selectablePoint2) = extractSelectablePoints pointPairSet in
+      let (x1Feature, y1Feature) = selectablePointToSelectableFeatures selectablePoint1 in
+      let (x2Feature, y2Feature) = selectablePointToSelectableFeatures selectablePoint2 in
+      let getEqn selectableFeature = featureToEquation selectableFeature tree widgets in
+      case (getEqn x1Feature, getEqn y1Feature, getEqn x2Feature, getEqn y2Feature) of
+        (Just x1Eqn, Just y1Eqn, Just x2Eqn, Just y2Eqn) ->
+          let deltaXEqn = EqnOp Minus [x2Eqn, x1Eqn] in -- x2 - x1
+          let deltaYEqn = EqnOp Minus [y2Eqn, y1Eqn] in -- y2 - y1
+          let deltaXSquaredEqn = EqnOp Pow [deltaXEqn, eqnNumTwo] in -- (x2 - x1)^2
+          let deltaYSquaredEqn = EqnOp Pow [deltaYEqn, eqnNumTwo] in -- (y2 - y1)^2
+          let distanceEqn = EqnOp Sqrt [EqnOp Plus [deltaXSquaredEqn, deltaYSquaredEqn]] in -- sqrt( (x2-x1)^2 + (y2-y1)^2 )
+          Just distanceEqn
+
+        _ ->
+          Nothing
 
 
 shapeIdToMaybeVal : NodeId -> IndexedTree -> Widgets -> Maybe Val
@@ -320,114 +351,49 @@ shapeIdToMaybeVal nodeId shapeTree widgets =
     |> Maybe.map .val
 
 
-selectedShapeToValEquation : NodeId -> IndexedTree -> Widgets -> Maybe FeatureValEquation
-selectedShapeToValEquation nodeId shapeTree widgets =
+selectedShapeToEquation : NodeId -> IndexedTree -> Widgets -> Maybe FeatureEquation
+selectedShapeToEquation nodeId shapeTree widgets =
   shapeIdToMaybeVal nodeId shapeTree widgets
   |> Maybe.map EqnNum
 
 
--- The first three args are sort of a type class...but only used here so no need to pull it out into a record.
-featureToEquation_
-  :  (ShapeFeature -> ShapeKind -> List Attr -> FeatureEquationOf a)
-  -> (ShapeFeature -> Widget -> Dict LocId (Num, Loc) -> FeatureEquationOf a)
-  -> (Num -> a)
-  -> SelectableFeature
-  -> IndexedTree
-  -> Widgets
-  -> Dict LocId (Num, Loc)
-  -> Maybe (FeatureEquationOf a)
-featureToEquation_ getFeatureEquation getWidgetFeatureEquation makeConst feature tree widgets locIdToNumberAndLoc =
-  case feature of
-    ShapeFeature nodeId shapeFeature ->
-      if not <| nodeId < -2 then
-        -- shape feature
-        case Dict.get nodeId tree |> Maybe.map .interpreted of
-          Just (LangSvg.SvgNode kind nodeAttrs _) ->
-            Just (getFeatureEquation shapeFeature kind nodeAttrs)
-
-          Just (LangSvg.TextNode _) ->
-            Nothing
-
-          Nothing ->
-            Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation " ++ toString nodeId ++ " " ++ toString tree
-      else
-        -- widget feature
-        -- change to index widgets by position in widget list; then pull feature from widget type
-        let widgetId = -nodeId - 2 in -- widget nodeId's are encoded at -2 and count down. (And they are 1-indexed, so actually they start at -3)
-        case Utils.maybeGeti1 widgetId widgets of
-          Just widget -> Just (getWidgetFeatureEquation shapeFeature widget locIdToNumberAndLoc)
-          Nothing     -> Debug.crash <| "ShapeWidgets.selectableShapeFeatureToEquation can't find widget " ++ toString widgetId ++ " in " ++ toString widgets
-
-    DistanceBetweenFeatures pointPairSet ->
-      let (selectablePoint1, selectablePoint2) = extractSelectablePoints pointPairSet in
-      let (x1Feature, y1Feature) = selectablePointToSelectableFeatures selectablePoint1 in
-      let (x2Feature, y2Feature) = selectablePointToSelectableFeatures selectablePoint2 in
-      let getEqn feature = featureToEquation_ getFeatureEquation getWidgetFeatureEquation makeConst feature tree widgets locIdToNumberAndLoc in
-      case (getEqn x1Feature, getEqn y1Feature, getEqn x2Feature, getEqn y2Feature) of
-        (Just x1Eqn, Just y1Eqn, Just x2Eqn, Just y2Eqn) ->
-          let deltaXEqn = EqnOp Minus [x2Eqn, x1Eqn] in -- x2 - x1
-          let deltaYEqn = EqnOp Minus [y2Eqn, y1Eqn] in -- y2 - y1
-          let deltaXSquaredEqn = EqnOp Pow [deltaXEqn, EqnNum (makeConst 2)] in -- (x2 - x1)^2
-          let deltaYSquaredEqn = EqnOp Pow [deltaYEqn, EqnNum (makeConst 2)] in -- (y2 - y1)^2
-          let distanceEqn = EqnOp Sqrt [EqnOp Plus [deltaXSquaredEqn, deltaYSquaredEqn]] in -- sqrt( (x2-x1)^2 + (y2-y1)^2 )
-          Just distanceEqn
-
-        _ ->
-          Nothing
-
-
+equationNumTrs : FeatureEquation -> List NumTr
 equationNumTrs featureEqn =
   case featureEqn of
-    EqnNum val   -> [val]
+    EqnNum val   -> [valToNumTr val]
     EqnOp _ eqns -> List.concatMap equationNumTrs eqns
 
 
 
-type alias BoxyFeatureEquationsOf a =
-  { left : FeatureEquationOf a
-  , top : FeatureEquationOf a
-  , right : FeatureEquationOf a
-  , bottom : FeatureEquationOf a
-  , cx : FeatureEquationOf a
-  , cy : FeatureEquationOf a
-  , mWidth : Maybe (FeatureEquationOf a)
-  , mHeight : Maybe (FeatureEquationOf a)
-  , mRadius : Maybe (FeatureEquationOf a)
-  , mRadiusX : Maybe (FeatureEquationOf a)
-  , mRadiusY : Maybe (FeatureEquationOf a)
+type alias BoxyFeatureEquations =
+  { left : FeatureEquation
+  , top : FeatureEquation
+  , right : FeatureEquation
+  , bottom : FeatureEquation
+  , cx : FeatureEquation
+  , cy : FeatureEquation
+  , mWidth : Maybe FeatureEquation
+  , mHeight : Maybe FeatureEquation
+  , mRadius : Maybe FeatureEquation
+  , mRadiusX : Maybe FeatureEquation
+  , mRadiusY : Maybe FeatureEquation
   }
 
 
-twoNumTr  = EqnNum (2, dummyTrace)
-twoVal    = EqnNum (Val (VConst Nothing (2, dummyTrace)) (Provenance [] (eConst0 2 dummyLoc) []) (Parents []))
+
+eqnNumTwo = EqnNum (Val (VConst Nothing (2, dummyTrace)) (Provenance [] (eConst0 2 dummyLoc) []) (Parents []))
 plus a b  = EqnOp Plus [a, b]
 minus a b = EqnOp Minus [a, b]
 div a b   = EqnOp Div [a, b]
 
 
+getAttrVal : String -> List Attr -> Val
+getAttrVal attrName attrList =
+  Utils.find ("featureEquation: getAttr " ++ attrName) attrList attrName |> .val
+
+
 shapeFeatureEquation : ShapeFeature -> ShapeKind -> List Attr -> FeatureEquation
 shapeFeatureEquation shapeFeature kind nodeAttrs =
-  let toOpacity attr =
-    case attr.interpreted of
-      LangSvg.AColorNum (_, Just opacity) -> opacity
-      _                                   -> Debug.crash "shapeFeatureEquation: toOpacity"
-  in
-  shapeFeatureEquationOf
-      LangSvg.findNumishAttr
-      LangSvg.getPathPoint
-      LangSvg.getPolyPoint
-      toOpacity
-      LangSvg.toTransformRot
-      twoNumTr
-      kind
-      nodeAttrs
-      shapeFeature
-
-shapeFeatureValEquation : ShapeFeature -> ShapeKind -> List Attr -> FeatureValEquation
-shapeFeatureValEquation shapeFeature kind nodeAttrs =
-  let getAttr attrName attrList =
-    (Utils.find ("featureValEquation: getAttr " ++ attrName) attrList attrName).val
-  in
   let getPathPoint attrList i =
     let toPointValPairs vListElems =
       let commandIsAnyOf cmd options = String.contains (String.toUpper cmd) options in
@@ -463,113 +429,29 @@ shapeFeatureValEquation shapeFeature kind nodeAttrs =
             let _ = Utils.log ("toPointValPairs expected command string, got " ++ strVal v) in
             []
     in
-    case (Utils.find "featureValEquation: getPathPoint d" attrList "d").val.v_ of
+    case (Utils.find "featureEquation: getPathPoint d" attrList "d").val.v_ of
       VList cmds -> toPointValPairs cmds |> Utils.geti i
-      _          -> Debug.crash "featureValEquation: getPathPoint2"
+      _          -> Debug.crash "featureEquation: getPathPoint2"
   in
   let getPolyPoint attrList i =
-    case (Utils.find "featureValEquation: getPolyPoint" attrList "points").val.v_ of
+    case (Utils.find "featureEquation: getPolyPoint" attrList "points").val.v_ of
       VList points ->
         case (Utils.geti i points).v_ of
           VList [xVal, yVal] -> (xVal, yVal)
-          _                  -> Debug.crash "featureValEquation: getPolyPoint2"
-      _            -> Debug.crash "featureValEquation: getPolyPoint3"
+          _                  -> Debug.crash "featureEquation: getPolyPoint2"
+      _            -> Debug.crash "featureEquation: getPolyPoint3"
   in
   let toOpacity attrVal =
     case attrVal.val.v_ of
       VList [_, opacityVal] -> opacityVal
-      _                     -> Debug.crash "featureValEquation: toOpacity"
+      _                     -> Debug.crash "featureEquation: toOpacity"
   in
   let toTransformRot attrVal =
     case attrVal.val.v_ of
-      VList [cmd, rot, cx, cy] -> if cmd.v_ == VBase (VString "rotate") then (rot, cx, cy) else Debug.crash "featureValEquation: bad rotate command"
-      _                        -> Debug.crash "featureValEquation: toTransformRot"
+      VList [cmd, rot, cx, cy] -> if cmd.v_ == VBase (VString "rotate") then (rot, cx, cy) else Debug.crash "featureEquation: bad rotate command"
+      _                        -> Debug.crash "featureEquation: toTransformRot"
   in
-  shapeFeatureEquationOf
-      getAttr
-      getPathPoint
-      getPolyPoint
-      toOpacity
-      toTransformRot
-      twoVal
-      kind
-      nodeAttrs
-      shapeFeature
-
-
-widgetFeatureEquation : ShapeFeature -> Widget -> Dict LocId (Num, Loc) -> FeatureEquation
-widgetFeatureEquation shapeFeature widget locIdToNumberAndLoc =
-  case widget of
-    WIntSlider low high caption curVal provenance (locId,_,_) _ ->
-      let (n, loc) =
-        Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
-      in
-      EqnNum (n, TrLoc loc)
-    WNumSlider low high caption curVal provenance (locId,_,_) _ ->
-      let (n, loc) =
-        Utils.justGet_ "ShapeWidgets.widgetFeatureEquation" locId locIdToNumberAndLoc
-      in
-      EqnNum (n, TrLoc loc)
-    WPoint (x, xTr) xProvenance (y, yTr) yProvenance pairProvenance ->
-      case shapeFeature of
-        XFeat LonePoint -> EqnNum (x, xTr)
-        YFeat LonePoint -> EqnNum (y, yTr)
-        _               -> Debug.crash <| "WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ toString shapeFeature
-    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountProvenance endXProvenance endYProvenance ->
-      let op =
-        case sign of
-          Positive -> Plus
-          Negative -> Minus
-      in
-      case (shapeFeature, axis) of
-        (DFeat Offset, _)   -> EqnNum (amount, amountTr)
-        (XFeat EndPoint, X) -> EqnOp op [EqnNum (baseX, baseXTr), EqnNum (amount, amountTr)]
-        (XFeat EndPoint, Y) -> EqnNum (baseX, baseXTr)
-        (YFeat EndPoint, X) -> EqnNum (baseY, baseYTr)
-        (YFeat EndPoint, Y) -> EqnOp op [EqnNum (baseY, baseYTr), EqnNum (amount, amountTr)]
-        _                   -> Debug.crash <| "WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
-    WCall callEId funcVal argVals retVal retWs ->
-      Debug.crash <| "WCall does not have any feature equations, but asked for " ++ toString shapeFeature
-    WList val ->
-      Debug.crash <| "WList does not have any feature equations, but asked for " ++ toString shapeFeature
-
-
-widgetFeatureValEquation : ShapeFeature -> Widget -> Dict LocId (Num, Loc) -> FeatureValEquation
-widgetFeatureValEquation shapeFeature widget _{- locIdToNumberAndLoc -} =
-  case widget of
-    WIntSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
-    WNumSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
-    WPoint (x, xTr) xVal (y, yTr) yVal pairVal ->
-      case shapeFeature of
-        XFeat LonePoint -> EqnNum xVal
-        YFeat LonePoint -> EqnNum yVal
-        _               -> Debug.crash <| "widgetFeatureValEquation WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ toString shapeFeature
-    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountVal endXVal endYVal ->
-      case shapeFeature of
-        DFeat Offset   -> EqnNum amountVal
-        XFeat EndPoint -> EqnNum endXVal
-        YFeat EndPoint -> EqnNum endYVal
-        _              -> Debug.crash <| "widgetFeatureValEquation WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
-    WCall callEId funcVal argVals retVal retWs ->
-      Debug.crash <| "WCall does not have any feature val equations, but asked for " ++ toString shapeFeature
-    WList val ->
-      Debug.crash <| "WList does not have any feature val equations, but asked for " ++ toString shapeFeature
-
-
-shapeFeatureEquationOf
-  :  (String -> List Attr -> a)
-  -> (List Attr -> Int -> (a, a))
-  -> (List Attr -> Int -> (a, a))
-  -> (AVal -> a)
-  -> (AVal -> (a, a, a))
-  -> FeatureEquationOf a
-  -> ShapeKind
-  -> List Attr
-  -> ShapeFeature
-  -> FeatureEquationOf a
-shapeFeatureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransformRot two kind attrs shapeFeature =
-
-  let get attr  = EqnNum <| getAttrNum attr attrs in
+  let get attr  = EqnNum <| getAttrVal attr nodeAttrs in
   let crash _ = -- Elm compiler crashes if this is instead written as "let crash () ="
     Debug.crash <| Utils.spaces [ "shapeFeatureEquationOf:", kind, toString shapeFeature ] in
 
@@ -579,12 +461,12 @@ shapeFeatureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransfor
       XFeat (Point 2) -> get "x2"
       YFeat (Point 1) -> get "y1"
       YFeat (Point 2) -> get "y2"
-      XFeat Center    -> div (plus (get "x1") (get "x2")) two
-      YFeat Center    -> div (plus (get "y1") (get "y2")) two
+      XFeat Center    -> div (plus (get "x1") (get "x2")) eqnNumTwo
+      YFeat Center    -> div (plus (get "y1") (get "y2")) eqnNumTwo
       _           -> crash () in
 
   let handleBoxyShape () =
-    let equations = boxyFeatureEquationsOf getAttrNum two kind attrs in
+    let equations = boxyFeatureEquations kind nodeAttrs in
     case shapeFeature of
 
       XFeat TopLeft   -> equations.left
@@ -619,17 +501,17 @@ shapeFeatureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransfor
       _ -> crash () in
 
   let handlePath () =
-    let x i = EqnNum <| Tuple.first <| getPathPoint attrs i in
-    let y i = EqnNum <| Tuple.second <| getPathPoint attrs i in
+    let x i = EqnNum <| Tuple.first <| getPathPoint nodeAttrs i in
+    let y i = EqnNum <| Tuple.second <| getPathPoint nodeAttrs i in
     case shapeFeature of
       XFeat (Point i) -> x i
       YFeat (Point i) -> y i
       _           -> crash () in
 
   let handlePoly () =
-    let ptCount = LangSvg.getPtCount attrs in
-    let x i = EqnNum <| Tuple.first <| getPolyPoint attrs i in
-    let y i = EqnNum <| Tuple.second <| getPolyPoint attrs i in
+    let ptCount = LangSvg.getPtCount nodeAttrs in
+    let x i = EqnNum <| Tuple.first <| getPolyPoint nodeAttrs i in
+    let y i = EqnNum <| Tuple.second <| getPolyPoint nodeAttrs i in
     case shapeFeature of
 
       XFeat (Point i) -> x i
@@ -637,10 +519,10 @@ shapeFeatureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransfor
 
       XFeat (Midpoint i1) ->
         let i2 = if i1 == ptCount then 1 else i1 + 1 in
-        div (plus (x i1) (x i2)) two
+        div (plus (x i1) (x i2)) eqnNumTwo
       YFeat (Midpoint i1) ->
         let i2 = if i1 == ptCount then 1 else i1 + 1 in
-        div (plus (y i1) (y i2)) two
+        div (plus (y i1) (y i2)) eqnNumTwo
 
       _  -> crash () in
 
@@ -650,10 +532,10 @@ shapeFeatureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransfor
     OFeat StrokeColor -> get "stroke"
     OFeat StrokeWidth -> get "stroke-width"
 
-    OFeat FillOpacity   -> EqnNum <| toOpacity <| Utils.find_ attrs "fill"
-    OFeat StrokeOpacity -> EqnNum <| toOpacity <| Utils.find_ attrs "stroke"
+    OFeat FillOpacity   -> EqnNum <| toOpacity <| Utils.find_ nodeAttrs "fill"
+    OFeat StrokeOpacity -> EqnNum <| toOpacity <| Utils.find_ nodeAttrs "stroke"
     OFeat Rotation ->
-      let (rot,_{- cx -},_{- cy -}) = toTransformRot <| Utils.find_ attrs "transform" in
+      let (rot,_{- cx -},_{- cy -}) = toTransformRot <| Utils.find_ nodeAttrs "transform" in
       EqnNum rot
 
     _ ->
@@ -670,9 +552,31 @@ shapeFeatureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransfor
         _          -> crash ()
 
 
-boxyFeatureEquationsOf : (String -> List Attr -> a) -> FeatureEquationOf a -> ShapeKind -> List Attr -> BoxyFeatureEquationsOf a
-boxyFeatureEquationsOf getAttrNum two kind attrs =
-  let get attr  = EqnNum <| getAttrNum attr attrs in
+widgetFeatureEquation : ShapeFeature -> Widget -> FeatureEquation
+widgetFeatureEquation shapeFeature widget =
+  case widget of
+    WIntSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
+    WNumSlider low high caption curVal valVal (locId,_,_) _ -> EqnNum valVal
+    WPoint (x, xTr) xVal (y, yTr) yVal pairVal ->
+      case shapeFeature of
+        XFeat LonePoint -> EqnNum xVal
+        YFeat LonePoint -> EqnNum yVal
+        _               -> Debug.crash <| "widgetFeatureEquation WPoint only supports XFeat LonePoint and YFeat LonePoint; but asked for " ++ toString shapeFeature
+    WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) amountVal endXVal endYVal ->
+      case shapeFeature of
+        DFeat Offset   -> EqnNum amountVal
+        XFeat EndPoint -> EqnNum endXVal
+        YFeat EndPoint -> EqnNum endYVal
+        _              -> Debug.crash <| "widgetFeatureEquation WOffset1D only supports DFeat Offset, XFeat EndPoint, and YFeat EndPoint; but asked for " ++ toString shapeFeature
+    WCall callEId funcVal argVals retVal retWs ->
+      Debug.crash <| "WCall does not have any feature val equations, but asked for " ++ toString shapeFeature
+    WList val ->
+      Debug.crash <| "WList does not have any feature val equations, but asked for " ++ toString shapeFeature
+
+
+boxyFeatureEquations : ShapeKind -> List Attr -> BoxyFeatureEquations
+boxyFeatureEquations kind attrs =
+  let get attr  = EqnNum <| getAttrVal attr attrs in
   case kind of
 
     "rect" ->
@@ -680,8 +584,8 @@ boxyFeatureEquationsOf getAttrNum two kind attrs =
       , top      = get "y"
       , right    = plus (get "x") (get "width")
       , bottom   = plus (get "y") (get "height")
-      , cx       = plus (get "x") (div (get "width") two)
-      , cy       = plus (get "y") (div (get "height") two)
+      , cx       = plus (get "x") (div (get "width") eqnNumTwo)
+      , cy       = plus (get "y") (div (get "height") eqnNumTwo)
       , mWidth   = Just <| get "width"
       , mHeight  = Just <| get "height"
       , mRadius  = Nothing
@@ -694,8 +598,8 @@ boxyFeatureEquationsOf getAttrNum two kind attrs =
       , top      = get "TOP"
       , right    = get "RIGHT"
       , bottom   = get "BOT"
-      , cx       = div (plus (get "LEFT") (get "RIGHT")) two
-      , cy       = div (plus (get "TOP") (get "BOT")) two
+      , cx       = div (plus (get "LEFT") (get "RIGHT")) eqnNumTwo
+      , cy       = div (plus (get "TOP") (get "BOT")) eqnNumTwo
       , mWidth   = Just <| minus (get "RIGHT") (get "LEFT")
       , mHeight  = Just <| minus (get "BOT") (get "TOP")
       , mRadius  = Nothing
@@ -708,13 +612,13 @@ boxyFeatureEquationsOf getAttrNum two kind attrs =
       , top      = get "TOP"
       , right    = get "RIGHT"
       , bottom   = get "BOT"
-      , cx       = div (plus (get "LEFT") (get "RIGHT")) two
-      , cy       = div (plus (get "TOP") (get "BOT")) two
+      , cx       = div (plus (get "LEFT") (get "RIGHT")) eqnNumTwo
+      , cy       = div (plus (get "TOP") (get "BOT")) eqnNumTwo
       , mWidth   = Nothing
       , mHeight  = Nothing
       , mRadius  = Nothing
-      , mRadiusX = Just <| div (minus (get "RIGHT") (get "LEFT")) two
-      , mRadiusY = Just <| div (minus (get "BOT") (get "TOP")) two
+      , mRadiusX = Just <| div (minus (get "RIGHT") (get "LEFT")) eqnNumTwo
+      , mRadiusY = Just <| div (minus (get "BOT") (get "TOP")) eqnNumTwo
       }
 
     "circle" ->
@@ -745,43 +649,37 @@ boxyFeatureEquationsOf getAttrNum two kind attrs =
       , mRadiusY = Just <| get "ry"
       }
 
-    _ -> Debug.crash <| "boxyFeatureEquationsOf: " ++ kind
+    _ -> Debug.crash <| "boxyFeatureEquations: " ++ kind
 
 
-evaluateFeatureEquation : FeatureEquation -> Maybe Num
+evaluateFeatureEquation : FeatureEquation -> Maybe Val
 evaluateFeatureEquation eqn =
   case eqn of
-    EqnNum (n, _) ->
-      Just n
+    EqnNum val ->
+      Just val
 
     EqnOp op [left, right] ->
-      let maybePerformBinop op =
-        let maybeLeftResult = evaluateFeatureEquation left in
-        let maybeRightResult = evaluateFeatureEquation right in
-        case (maybeLeftResult, maybeRightResult) of
-          (Just leftResult, Just rightResult) -> Just (op leftResult rightResult)
-          _                                   -> Nothing
-      in
-      case op of
-        Plus  -> maybePerformBinop (+)
-        Minus -> maybePerformBinop (-)
-        Mult  -> maybePerformBinop (*)
-        Div   -> maybePerformBinop (/)
-        _     -> Nothing
+      let maybeLeftResult = evaluateFeatureEquation left in
+      let maybeRightResult = evaluateFeatureEquation right in
+      case (maybeLeftResult, maybeRightResult) of
+        (Just leftResult, Just rightResult) -> Eval.simpleEvalToMaybeVal (eOp op [eHoleVal leftResult, eHoleVal rightResult])
+        _                                   -> Nothing
 
     _ -> Nothing
 
 
+evaluateFeatureEquation_ : FeatureEquation -> Val
 evaluateFeatureEquation_ =
   Utils.fromJust_ "evaluateFeatureEquation_" << evaluateFeatureEquation
 
 
+evaluateLineFeatures : List Attr -> (Num, Num, Num, Num, Num, Num)
 evaluateLineFeatures attrs =
   [ XFeat (Point 1), YFeat (Point 1)
   , XFeat (Point 2), YFeat (Point 2)
   , XFeat Center, YFeat Center
   ]
-  |> List.map (\shapeFeature -> shapeFeatureEquation shapeFeature "line" attrs |> evaluateFeatureEquation_)
+  |> List.map (\shapeFeature -> shapeFeatureEquation shapeFeature "line" attrs |> evaluateFeatureEquation_ |> valToNum)
   |> Utils.unwrap6
 
 
@@ -792,15 +690,16 @@ type alias BoxyNums =
   }
 
 
+evaluateBoxyNums : ShapeKind -> List Attr -> BoxyNums
 evaluateBoxyNums kind attrs =
-  let equations = boxyFeatureEquationsOf LangSvg.findNumishAttr twoNumTr kind attrs in
+  let equations = boxyFeatureEquations kind attrs in
   let (left, top, right, bot, cx, cy) =
-    ( evaluateFeatureEquation_ equations.left
-    , evaluateFeatureEquation_ equations.top
-    , evaluateFeatureEquation_ equations.right
-    , evaluateFeatureEquation_ equations.bottom
-    , evaluateFeatureEquation_ equations.cx
-    , evaluateFeatureEquation_ equations.cy
+    ( evaluateFeatureEquation_ equations.left   |> valToNum
+    , evaluateFeatureEquation_ equations.top    |> valToNum
+    , evaluateFeatureEquation_ equations.right  |> valToNum
+    , evaluateFeatureEquation_ equations.bottom |> valToNum
+    , evaluateFeatureEquation_ equations.cx     |> valToNum
+    , evaluateFeatureEquation_ equations.cy     |> valToNum
     )
   in
   let
@@ -827,13 +726,14 @@ getPointEquations kind attrs pointFeature =
   ( shapeFeatureEquation (XFeat pointFeature) kind attrs
   , shapeFeatureEquation (YFeat pointFeature) kind attrs )
 
-getPrimitivePointEquations : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
-getPrimitivePointEquations (_, tree) nodeId =
+-- Only used for some blob transform (may be able to discard sometime)
+getPrimitivePointNumTrs : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
+getPrimitivePointNumTrs (_, tree) nodeId =
   case Utils.justGet_ "LangSvg.getPrimitivePoints" nodeId tree |> .interpreted of
     LangSvg.SvgNode kind attrs _ ->
       List.concatMap (\pointFeature ->
         case getPointEquations kind attrs pointFeature of
-          (EqnNum v1, EqnNum v2) -> [(v1,v2)]
+          (EqnNum v1, EqnNum v2) -> [(valToNumTr v1, valToNumTr v2)]
           _                      -> []
       ) (pointFeaturesOfShape kind attrs)
     _ ->
@@ -1155,12 +1055,12 @@ wOpacitySlider = 20
 ------------------------------------------------------------------------------
 -- Mapping ouput selections to code EIds for synthesis suggestions.
 
-featureValEquationToValTree : FeatureValEquation -> Val
-featureValEquationToValTree valEqn =
+featureEquationToValTree : FeatureEquation -> Val
+featureEquationToValTree valEqn =
   case valEqn of
     EqnNum val        -> val
     EqnOp op children ->
-      let childVals = List.map featureValEquationToValTree children in
+      let childVals = List.map featureEquationToValTree children in
       -- Only need Provenance basedOn list and the EId of the expression (dummy here)
       { v_         = VList []
       , provenance = Provenance [] (eTuple []) childVals
@@ -1168,24 +1068,24 @@ featureValEquationToValTree valEqn =
       }
 
 -- Combinatorical explosion of interpretations.
-featureValEquationToEIdSets : (Exp -> Bool) -> FeatureValEquation -> List (Set EId)
-featureValEquationToEIdSets expFilter valEqn =
+featureEquationToEIdSets : (Exp -> Bool) -> FeatureEquation -> List (Set EId)
+featureEquationToEIdSets expFilter valEqn =
   valEqn
-  |> featureValEquationToValTree
+  |> featureEquationToValTree
   |> Provenance.valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter
   -- |> Debug.log "eids"
 
-featureValEquationToProximalDistalEIdSets : (Exp -> Bool) -> FeatureValEquation -> (Set EId, Set EId)
-featureValEquationToProximalDistalEIdSets expFilter valEqn =
-  let valTree = valEqn |> featureValEquationToValTree in
+featureEquationToProximalDistalEIdSets : (Exp -> Bool) -> FeatureEquation -> (Set EId, Set EId)
+featureEquationToProximalDistalEIdSets expFilter valEqn =
+  let valTree = valEqn |> featureEquationToValTree in
   ( Provenance.valTreeToMostProximalProgramEIdInterpretation expFilter valTree
   , Provenance.valTreeToMostDistalProgramEIdInterpretation expFilter valTree
   )
 
--- featureValEquationToSingleEIds : Exp -> (Exp -> Bool) -> FeatureValEquation -> List EId
--- featureValEquationToSingleEIds program expFilter valEqn =
+-- featureEquationToSingleEIds : Exp -> (Exp -> Bool) -> FeatureEquation -> List EId
+-- featureEquationToSingleEIds program expFilter valEqn =
 --   valEqn
---   |> featureValEquationToValTree
+--   |> featureEquationToValTree
 --   |> Provenance.valTreeToSingleEIdInterpretations program expFilter
 
 -- Only two interpretations: most proximal for each feature, and most distal.
@@ -1388,9 +1288,9 @@ selectedFeaturesToProximalDistalEIdInterpretations program ((rootI, shapeTree) a
     selectedFeatures
     |> List.map
         (\feature ->
-          featureToValEquation feature shapeTree widgets Dict.empty
+          featureToEquation feature shapeTree widgets
           |> Utils.fromJust_ "selectedFeaturesToEIdLists: can't make feature into val equation"
-          |> featureValEquationToProximalDistalEIdSets expFilter
+          |> featureEquationToProximalDistalEIdSets expFilter
         )
     |> List.unzip
   in
@@ -1411,9 +1311,9 @@ selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTr
     selectableFeature::rest ->
       let returnNotPartOfAPoint () =
         let (thisProximalInterp, thisDistalInterp) =
-          featureToValEquation selectableFeature shapeTree widgets Dict.empty
+          featureToEquation selectableFeature shapeTree widgets
           |> Utils.fromJust_ "selectedFeaturesToProximalDistalPointEIdInterpretations0: can't make feature into val equation"
-          |> featureValEquationToProximalDistalEIdSets expFilter
+          |> featureEquationToProximalDistalEIdSets expFilter
         in
         let (remainingProximalInterps, remainingDistalInterps) = recurse rest in
         ( remainingProximalInterps |> List.map (Set.union thisProximalInterp)
@@ -1428,10 +1328,10 @@ selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTr
             then (selectableFeature, otherSelectableFeature)
             else (otherSelectableFeature, selectableFeature)
           in
-          let xValEqn = featureToValEquation xSelectableFeature shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists1: can't make feature into val equation" in
-          let yValEqn = featureToValEquation ySelectableFeature shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" in
-          let xValTree = featureValEquationToValTree xValEqn in
-          let yValTree = featureValEquationToValTree yValEqn in
+          let xValEqn = featureToEquation xSelectableFeature shapeTree widgets |> Utils.fromJust_ "selectedFeaturesToEIdLists1: can't make feature into val equation" in
+          let yValEqn = featureToEquation ySelectableFeature shapeTree widgets |> Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" in
+          let xValTree = featureEquationToValTree xValEqn in
+          let yValTree = featureEquationToValTree yValEqn in
           let (proximalInterp1, proximalInterp2, distalInterp1, distalInterp2) =
             Provenance.valsToProximalDistalPointInterpretations expFilter xValTree yValTree
           in
@@ -1458,9 +1358,9 @@ selectedFeaturesValTrees ((rootI, shapeTree) as slate) widgets selectedFeatures 
   selectedFeatures
   |> List.map
       (\feature ->
-        featureToValEquation feature shapeTree widgets Dict.empty
+        featureToEquation feature shapeTree widgets
         |> Utils.fromJust_ "selectedFeaturesValTrees: can't make shape into val equation"
-        |> featureValEquationToValTree
+        |> featureEquationToValTree
       )
 
 
@@ -1479,11 +1379,11 @@ selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) w
   case selectedFeatures of
     [] -> []
     selectableFeature::rest ->
-      let eidSets = featureValEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists: can't make feature into val equation" <| featureToValEquation selectableFeature shapeTree widgets Dict.empty in
+      let eidSets = featureEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists: can't make feature into val equation" <| featureToEquation selectableFeature shapeTree widgets in
       -- Try to interpret as point?
       case rest |> Utils.findFirst (\otherSelectableFeature -> featuresAreXYPairs selectableFeature otherSelectableFeature) of
         Just otherSelectableFeature ->
-          let otherEIdSets = featureValEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" <| featureToValEquation otherSelectableFeature shapeTree widgets Dict.empty in
+          let otherEIdSets = featureEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" <| featureToEquation otherSelectableFeature shapeTree widgets in
           let singletonEIdSets      = eidSets      |> List.filter (Set.size >> (==) 1) in
           let singletonOtherEIdSets = otherEIdSets |> List.filter (Set.size >> (==) 1) in
           let pointTuples =
@@ -1514,9 +1414,9 @@ selectedShapesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as 
     selectedShapes
     |> List.map
         (\nodeId ->
-          selectedShapeToValEquation nodeId shapeTree widgets
+          selectedShapeToEquation nodeId shapeTree widgets
           |> Utils.fromJust_ "selectedShapesToProximalDistalEIdInterpretations: can't make shape into val equation"
-          |> featureValEquationToProximalDistalEIdSets expFilter
+          |> featureEquationToProximalDistalEIdSets expFilter
         )
     |> List.unzip
   in
@@ -1541,9 +1441,9 @@ selectedShapesValTrees ((rootI, shapeTree) as slate) widgets selectedShapes =
 --   selectedShapes
 --   |> List.map
 --       (\nodeId ->
---         selectedShapeToValEquation nodeId shapeTree
+--         selectedShapeToEquation nodeId shapeTree
 --         |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
---         |> featureValEquationToEIdSets expFilter
+--         |> featureEquationToEIdSets expFilter
 --       )
 
 

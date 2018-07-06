@@ -1354,13 +1354,18 @@ valToNum v = case v.v_ of
   VConst _  (n, _) -> n
   _                -> Debug.crash "Lang.valToNum"
 
-valToInt : Val -> Int
-valToInt = valToNum >> round
-
 valToTrace : Val -> Trace
 valToTrace v = case v.v_ of
   VConst _  (n, tr) -> tr
   _                 -> Debug.crash "Lang.valToTrace"
+
+valToNumTr : Val -> NumTr
+valToNumTr v = case v.v_ of
+  VConst _  (n, tr) -> (n, tr)
+  _                 -> Debug.crash "Lang.valToNumTr"
+
+valToInt : Val -> Int
+valToInt = valToNum >> round
 
 valToMaybePoint : Val -> Maybe (Num, Num)
 valToMaybePoint v = case v.v_ of

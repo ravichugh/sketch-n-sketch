@@ -991,8 +991,9 @@ groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
   -- TODO
   -- simple approach: anchor must be a primitive point
   case ShapeWidgets.getPointEquations anchorKind anchorAttrs anchorPointFeature of
-    (ShapeWidgets.EqnNum (nxBase, txBase), ShapeWidgets.EqnNum (nyBase, tyBase)) ->
-
+    (ShapeWidgets.EqnNum xBaseVal, ShapeWidgets.EqnNum yBaseVal) ->
+      let (nxBase, txBase) = valToNumTr xBaseVal in
+      let (nyBase, tyBase) = valToNumTr yBaseVal in
       -- simple approach: anchor point must be defined by constant literals
       case (txBase, tyBase) of
         (TrLoc xBaseLoc, TrLoc yBaseLoc) ->
@@ -1046,7 +1047,7 @@ rewritePrimitivePointsOfSelectedBlobs model (nxBase, xBaseLoc)
   let (xAnchor, yAnchor) = ("xAnchor", "yAnchor") in
   let pointsOfSelectedBlobs =
      Dict.foldl
-       (\_ nodeId acc -> acc ++ ShapeWidgets.getPrimitivePointEquations model.slate nodeId)
+       (\_ nodeId acc -> acc ++ ShapeWidgets.getPrimitivePointNumTrs model.slate nodeId)
        [] model.selectedBlobs
   in
   let anchorDef =

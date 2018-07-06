@@ -37,13 +37,12 @@ debugLog = Config.debugLog Config.debugSync
 
 digHole : Exp -> Set.Set ShapeWidgets.SelectableFeature -> LangSvg.RootedIndexedTree -> List Widget -> Sync.Options -> Exp
 digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
-  let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
   let featuresWithEquation =
     selectedFeatures
     |> Set.toList
     |> List.filterMap
         (\feature ->
-          ShapeWidgets.featureToEquation feature tree widgets locIdToNumberAndLoc
+          ShapeWidgets.featureToEquation feature tree widgets
           |> Maybe.map (\eqn -> (feature, eqn))
         )
     |> debugLog "featuresWithEquation"
@@ -246,10 +245,9 @@ indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber mov
               )
       in
       let locsToRevolutionize =
-        let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
         let featureEqns =
           featuresToRevolutionize
-          |> List.map (\feature -> ShapeWidgets.featureToEquation feature tree widgets locIdToNumberAndLoc)
+          |> List.map (\feature -> ShapeWidgets.featureToEquation feature tree widgets)
           |> Utils.projJusts
           |> Maybe.withDefault []
         in
@@ -396,12 +394,11 @@ selectedFeaturesToFeaturesAndEquations selectedFeatures program slideNumber movi
   case evalToSlateAndWidgetsResult program slideNumber movieNumber movieTime of
     Err s -> []
     Ok ((rootI, tree), widgets) ->
-      let locIdToNumberAndLoc = locIdToNumberAndLocOf program in
       selectedFeatures
       |> Set.toList
       |> List.filterMap
           (\selectableFeature ->
-            case ShapeWidgets.featureToEquation selectableFeature tree widgets locIdToNumberAndLoc of
+            case ShapeWidgets.featureToEquation selectableFeature tree widgets of
               Just featureEqn -> Just (selectableFeature, featureEqn)
               Nothing         -> Debug.crash "Could not generate an equation for " <| toString selectableFeature -- Could make this a Utils.log, we'll see.
           )
@@ -1082,18 +1079,18 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
   freshen newProgram
 
 
-locIdToNumberAndLocOf : Exp -> Dict.Dict LocId (Num, Loc)
-locIdToNumberAndLocOf exp =
-  exp
-  |> foldExpViaE__
-      (\e__ dict ->
-        case e__ of
-          EConst _ n (locId, annotation, ident) wd ->
-            Dict.insert locId (n, (locId, annotation, ident)) dict
-          _ ->
-            dict
-      )
-      Dict.empty
+-- locIdToNumberAndLocOf : Exp -> Dict.Dict LocId (Num, Loc)
+-- locIdToNumberAndLocOf exp =
+--   exp
+--   |> foldExpViaE__
+--       (\e__ dict ->
+--         case e__ of
+--           EConst _ n (locId, annotation, ident) wd ->
+--             Dict.insert locId (n, (locId, annotation, ident)) dict
+--           _ ->
+--             dict
+--       )
+--       Dict.empty
 
 
 locIdToWidgetDeclOf : Exp -> Dict.Dict LocId WidgetDecl
@@ -1114,11 +1111,11 @@ locIdToWidgetDeclLittleOf exp =
   |> Dict.map (\locId wd -> unparseWD wd)
 
 
-evaluateFeature selectableFeature slate widgets locIdToNumberAndLoc =
-  let (_, tree) = slate in
-  case (ShapeWidgets.featureToEquation selectableFeature tree widgets locIdToNumberAndLoc) of
-    Just eqn -> ShapeWidgets.evaluateFeatureEquation eqn
-    Nothing  -> Nothing
+-- evaluateFeature selectableFeature slate widgets locIdToNumberAndLoc =
+--   let (_, tree) = slate in
+--   case (ShapeWidgets.featureToEquation selectableFeature tree widgets locIdToNumberAndLoc) of
+--     Just eqn -> ShapeWidgets.evaluateFeatureEquation eqn
+--     Nothing  -> Nothing
 
 
 equationLocs syncOptions featureEqn =
@@ -1146,17 +1143,11 @@ featureEquationToMathExp removedLocIdToMathExp featureEqn =
 featureEquationToMathExp_ : FeatureEquation -> MathExp
 featureEquationToMathExp_ featureEqn =
   case featureEqn of
-
-    -- locId of 0 means it's a constant that's part of the feature equation,
-    -- not the program
-    ShapeWidgets.EqnNum (n, TrLoc (0, _, _)) ->
-      MathNum n
-
-    ShapeWidgets.EqnNum (n, TrLoc (locId, _, _)) ->
-      MathVar locId
-
-    ShapeWidgets.EqnNum (n, TrOp op traces) ->
-      MathOp op (List.map traceToMathExp traces)
+    ShapeWidgets.EqnNum val ->
+      case valToNumTr val of
+        (n, TrLoc (0, _, _))     -> MathNum n -- locId of 0 means it's a constant that's part of the feature equation, not the program
+        (n, TrLoc (locId, _, _)) -> MathVar locId
+        (n, TrOp op traces)      -> MathOp op (List.map traceToMathExp traces)
 
     ShapeWidgets.EqnOp op featureEqns ->
       MathOp op (List.map featureEquationToMathExp_ featureEqns)
@@ -1226,7 +1217,8 @@ traceToLittle substStr trace =
 equationToLittle : SubstStr -> FeatureEquation -> String
 equationToLittle substStr eqn =
   case eqn of
-    ShapeWidgets.EqnNum (n, trace) ->
+    ShapeWidgets.EqnNum val ->
+      let (n, trace) = valToNumTr val in
       let littlizedTrace = traceToLittle substStr trace in
       if littlizedTrace /= "?" then
         littlizedTrace
@@ -1245,8 +1237,8 @@ equationToExp : Dict.Dict LocId Num -> Dict.Dict LocId Ident -> FeatureEquation 
 equationToExp locIdToFrozenNum locIdToIdent eqn =
   let locIdToExp = locIdToExpFromFrozenSubstAndNewNames locIdToFrozenNum locIdToIdent in
   case eqn of
-    ShapeWidgets.EqnNum (n, trace) ->
-      traceToExp locIdToExp trace
+    ShapeWidgets.EqnNum val ->
+      traceToExp locIdToExp (valToTrace val)
 
     ShapeWidgets.EqnOp op childEqns ->
       childEqns
