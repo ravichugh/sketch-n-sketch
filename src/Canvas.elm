@@ -1544,10 +1544,25 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
     ySelectableFeature = ShapeFeature id (YFeat pointFeature)
     (xColor, yColor) = (color [xSelectableFeature], color [ySelectableFeature])
   in
-  let (maybeXPat, maybeYPat) =
+  -- Why are we regenerating vals when we were handed them? b/c most uses of the function give dummy vals.
+  let (maybeXVal, maybeYVal) =
     let (_, shapeTree) = model.slate in
-    ( ShapeWidgets.featureToEquation xSelectableFeature shapeTree model.widgets |> Maybe.andThen (ShapeWidgets.featureEquationToValTree >> Provenance.valToMaybeLetPat model.inputExp)
-    , ShapeWidgets.featureToEquation ySelectableFeature shapeTree model.widgets |> Maybe.andThen (ShapeWidgets.featureEquationToValTree >> Provenance.valToMaybeLetPat model.inputExp)
+    ( ShapeWidgets.featureToEquation xSelectableFeature shapeTree model.widgets |> Maybe.map ShapeWidgets.featureEquationToValTree
+    , ShapeWidgets.featureToEquation ySelectableFeature shapeTree model.widgets |> Maybe.map ShapeWidgets.featureEquationToValTree
+    )
+  in
+  let maybePointPat =
+    Maybe.map2
+        Provenance.pointPartsToPointValsStrict
+        maybeXVal
+        maybeYVal
+    |> Maybe.withDefault []
+    |> List.filterMap (Provenance.valToMaybeLetPat model.inputExp)
+    |> List.head
+  in
+  let (maybeXPat, maybeYPat) =
+    ( maybeXVal |> Maybe.andThen (Provenance.valToMaybeLetPat model.inputExp)
+    , maybeYVal |> Maybe.andThen (Provenance.valToMaybeLetPat model.inputExp)
     )
   in
   let
@@ -1622,6 +1637,11 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
     in
     Draw.svgXYDot (x, y) dotFill isVisible extraAttrs
   in
+  let perhapsPointPatWidget =
+    case (maybePointPat, shouldShowX || shouldShowY) of
+      (Just pat, False) -> [patInOutput model.renamingInOutput False pat (toFloat x) (toFloat y - Utils.parseFloat pointZoneStyles.radius) (HoverPadding 4)]
+      _                 -> []
+  in
   let perhapsXPatWidget =
     case (maybeXPat, shouldShowX) of
       (Just pat, True) -> [patInOutput model.renamingInOutput False pat (toFloat x - Utils.parseFloat hairStrokeWidth / 2) (toFloat  y - len + 9) (HoverPadding 4)]
@@ -1659,7 +1679,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
   -- using nested group for onMouseLeave handler
   List.singleton <| Svg.g
     [onMouseLeave (removeHoveredCrosshair thisCrosshair)]
-    ([backDisc, xLine, yLine, frontDisc] ++ perhapsXPatWidget ++ perhapsYPatWidget ++ [xyDot])
+    ([backDisc, xLine, yLine, frontDisc] ++ perhapsPointPatWidget ++ perhapsXPatWidget ++ perhapsYPatWidget ++ [xyDot])
 
 perhapsZoneSelectLine : Num -> Model -> LangSvg.NodeId -> ShapeWidgets.ShapeFeature -> (Num, Num) -> (Num, Num) -> List (Svg Msg)
 perhapsZoneSelectLine sideLength model nodeId shapeFeature pt1 pt2 =
