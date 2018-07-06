@@ -1694,7 +1694,7 @@ zoneSelectLine model nodeId shapeFeature (x1,y1) (x2,y2) =
      in
      let nameWidget =
        case maybePat of
-         Just pat -> [patInOutput model.renamingInOutput False pat (x1 - Utils.parseFloat hairStrokeWidth / 2) (y1 + 1) (HoverPadding 15)]
+         Just pat -> [patInOutput model.renamingInOutput False pat (x1 - Utils.parseFloat hairStrokeWidth / 2) (y1 + 1) (HoverPadding 4)]
          Nothing  -> []
      in
      let line =
@@ -1748,7 +1748,14 @@ boxySelectZones model id kind boxyNums =
       _ -> [] in
 
   let features = Utils.find "boxySelectZones error" ShapeWidgets.simpleKindGenericFeatures kind in
-  List.concatMap distanceZone features ++ -- draw distance zones below point zones
+  let featuresHeightBeforeWidth =
+    case Utils.findi ((==) (DistanceFeature Width)) features of
+      Just i  -> features |> Utils.removei i |> Utils.inserti (i+1) (DistanceFeature Width)
+      Nothing -> features
+  in
+  -- draw distance zones below point zones
+  -- draw width on top of height (so the height line doesn't go over the width name widget)
+  List.concatMap distanceZone featuresHeightBeforeWidth ++
   List.concatMap pointZone features
 
 
@@ -1757,6 +1764,27 @@ boxySelectZones model id kind boxyNums =
 
 -- TODO significantly refactor point selection zones, by using
 -- ShapeWidgets.genericFeaturesOfShape, BoxyFeatureEquations, eval FeatureEquation, etc.
+
+perhapsPatWidgetForShape : Model -> Int -> Float -> Float -> List (Svg Msg)
+perhapsPatWidgetForShape model nodeId x y =
+  let maybePat =
+    let maybeShapeVal =
+      let (_, shapeTree) = model.slate in
+      ShapeWidgets.shapeIdToMaybeVal nodeId shapeTree model.widgets
+    in
+    maybeShapeVal
+    |> Maybe.andThen (Provenance.valToMaybeLetPat model.inputExp)
+  in
+  let shouldShow =
+    Set.member nodeId model.hoveredShapes ||
+    Set.member nodeId model.selectedShapes ||
+    isRenamingMaybePat maybePat model
+  in
+  case (model.mouseMode, shouldShow, maybePat) of
+    (MouseDragZone _ _, _, _) -> []
+    (_, True, Just pat)       -> [patInOutput model.renamingInOutput False pat x y (HoverPadding 4)]
+    _                         -> []
+
 
 makeZones : Model -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List (Svg Msg)
 makeZones model shape id l =
@@ -1793,6 +1821,7 @@ makeZonesLine model id l =
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
+      perhapsPatWidgetForShape model id x1 y1 ++
       [zLine] ++
       zonesSelect ++
       zonePoints2 model id "line" transform [pt1, pt2]
@@ -1820,6 +1849,7 @@ makeZonesRectOrBox model id shape l =
   let zonesSelect = boxySelectZones model id shape boxyNums in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
+      perhapsPatWidgetForShape model id left top ++
       [zoneInterior] ++
       zonesSelect ++
       eightCardinalZones model id shape transform bounds
@@ -1845,6 +1875,7 @@ makeZonesCircle model id l =
   let zonesSelect = boxySelectZones model id "circle" boxyNums in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
+       perhapsPatWidgetForShape model id left top ++
        [zoneInterior] ++
        zonesSelect ++
        eightCardinalZones model id "circle" transform bounds
@@ -1869,6 +1900,7 @@ makeZonesEllipseOrOval model id shape l =
   let zonesSelect = boxySelectZones model id shape boxyNums in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
+       perhapsPatWidgetForShape model id left top ++
        [zoneInterior] ++
        zonesSelect ++
        eightCardinalZones model id shape transform bounds
@@ -1932,6 +1964,7 @@ makeZonesPoly model shape id l =
   let primaryWidgets =
     let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
+      perhapsPatWidgetForShape model id x1 y1 ++
       [zInterior] ++ zLines ++ zSelect ++ zPts
   in
   primaryWidgets :: zRot ++ zFillAndStroke
@@ -1982,6 +2015,7 @@ makeZonesPath model shape id nodeAttrs =
   let primaryWidgets =
     let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
+      perhapsPatWidgetForShape model id x1 y1 ++
       [zInterior] ++
       zSelect ++
       dots
