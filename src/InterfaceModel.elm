@@ -753,6 +753,13 @@ prependDescription newPrefix synthesisResult =
 
 --------------------------------------------------------------------------------
 
+maybeRenamingPId : Model -> Maybe PId
+maybeRenamingPId model =
+  model.renamingInOutput
+  |> Maybe.map (\(renamingPId, _) -> renamingPId)
+
+--------------------------------------------------------------------------------
+
 bufferName = ""
 
 bufferFilename : Model -> Filename

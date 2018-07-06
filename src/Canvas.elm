@@ -251,6 +251,10 @@ drawNewPointAndOffset model shouldHighlight (x1, y1) (x2, y2) =
 dummyVal : Val
 dummyVal = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] }
 
+isRenamingMaybePat : Maybe Pat -> Model -> Bool
+isRenamingMaybePat maybePat model =
+  maybePat /= Nothing && Maybe.map (.val >> .pid) maybePat == maybeRenamingPId model
+
 svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) amountVal isSelected extraStyles =
   let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
     offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
@@ -301,7 +305,7 @@ svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput ((baseX, ba
       else []
     in
     case Provenance.valToMaybeLetPat program amountVal of
-      Just pat -> patInOutput modelRenamingInOutput False pat left top
+      Just pat -> patInOutput modelRenamingInOutput False pat left top NoHoverPadding
       Nothing ->
         let string = toString amount in
         flip Svg.text_ [VirtualDom.text string] <|
@@ -315,16 +319,36 @@ svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput ((baseX, ba
   ([line, caption, endArrow], ((endX, endXTr), (endY, endYTr)))
 
 
-patAsHTML : Maybe (PId, String) -> Bool -> Pat -> Html Msg
-patAsHTML modelRenamingInOutput showRemover pat  =
+-- Extra invisible padding around pattern.
+-- If hovering off shape will make pattern disappear, want to add
+-- padding so the user can hover onto the pattern from the shape.
+type HoverPadding
+  = NoHoverPadding
+  | HoverPadding Float
+
+patAsHTML : Maybe (PId, String) -> Bool -> Pat -> HoverPadding -> Html Msg
+patAsHTML modelRenamingInOutput showRemover pat hoverPadding =
   let nameStr = Syntax.patternUnparser Syntax.Elm pat |> Utils.squish in
   let pid = pat.val.pid in
   let text =
+    let perhapsHoverPaddingAttr =
+      case hoverPadding of
+        NoHoverPadding -> []
+        HoverPadding paddingAmount ->
+          [ Attr.style
+              [ ("padding", toString paddingAmount ++ "px")
+              , ("margin-left", "-" ++ toString paddingAmount ++ "px")
+              , ("margin-top",  "-" ++ toString paddingAmount ++ "px")
+              ]
+          ]
+    in
     Html.span
-        [ Attr.class "pat"
-        , Attr.title <| "Click to rename " ++ nameStr
-        , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid)
-        ] <|
+        (
+          [ Attr.class "pat"
+          , Attr.title <| "Click to rename " ++ nameStr
+          , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid)
+          ] ++ perhapsHoverPaddingAttr
+        ) <|
         [ VirtualDom.text nameStr ] ++
         if showRemover
         then [ Html.span [Attr.class "remove-arg", Attr.title <| "Remove arg "  ++ nameStr, onMouseDownAndStop (Controller.msgRemoveArg pid)] [VirtualDom.text "❌"] ]
@@ -342,6 +366,7 @@ patAsHTML modelRenamingInOutput showRemover pat  =
             [ Attr.defaultValue renameStr
             , Attr.id "rename-box"
             , Attr.class "pat"
+            , Attr.style [("width", toString (max 90 (String.length renameStr * 10)) ++ "px")]
             , onInput Controller.msgUpdateRenameInOutputTextBox
             , onClickWithoutPropagation Controller.msgNoop
             , onKeyDown <|
@@ -356,14 +381,14 @@ patAsHTML modelRenamingInOutput showRemover pat  =
   Maybe.withDefault text maybeRenameBox
 
 
-patInOutput : Maybe (PId, String) -> Bool -> Pat -> Float -> Float -> Svg Msg
-patInOutput modelRenamingInOutput showRemover pat left top =
-  patsInOutput modelRenamingInOutput showRemover [pat] left top
+patInOutput : Maybe (PId, String) -> Bool -> Pat -> Float -> Float -> HoverPadding -> Svg Msg
+patInOutput modelRenamingInOutput showRemover pat left top hoverPadding =
+  patsInOutput modelRenamingInOutput showRemover [pat] left top hoverPadding
 
 
-patsInOutput : Maybe (PId, String) -> Bool -> List Pat -> Float -> Float -> Svg Msg
-patsInOutput modelRenamingInOutput showRemover pats left top =
-  let elements = pats |> List.map (patAsHTML modelRenamingInOutput showRemover) in
+patsInOutput : Maybe (PId, String) -> Bool -> List Pat -> Float -> Float -> HoverPadding -> Svg Msg
+patsInOutput modelRenamingInOutput showRemover pats left top hoverPadding =
+  let elements = pats |> List.map (\pat -> patAsHTML modelRenamingInOutput showRemover pat hoverPadding) in
   flip Svg.foreignObject [Html.div [Attr.class "pats", Attr.style [("width", toString (100 * List.length pats) ++ "px")]] elements] <|
     [ attr "x" (toString (left - 2))
     , attr "y" (toString (top - 10 - 17))
@@ -683,8 +708,8 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
           [ Just box
           , maybeRecOrBaseCaseLabel
           , maybeTerminationCondition
-          , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat left (boxTop - if isCurrentContext then 20 else 0))
-          , maybeArgPats |> Utils.filterMaybe (always isCurrentContext) |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop)
+          , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput model.renamingInOutput False funcPat left (boxTop - if isCurrentContext then 20 else 0) NoHoverPadding)
+          , maybeArgPats |> Utils.filterMaybe (always isCurrentContext) |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop NoHoverPadding)
           , maybeAddArg
           ] |> Utils.filterJusts
   in
@@ -1017,7 +1042,7 @@ objectIsCurrentlyBeingManipulated model nodeId =
 
 boundingBoxZones model id (left, top, right, bot) shapeWidgets =
   let pad = 10 in
-  let maybeBackgroundBox =
+  let perhapsBackgroundBox =
     if objectIsCurrentlyBeingManipulated model id then []
     else if not (Set.member id model.hoveredShapes) then []
     else
@@ -1032,11 +1057,10 @@ boundingBoxZones model id (left, top, right, bot) shapeWidgets =
         ]
   in
   -- using group so that the onMouseLeave handler gets attached to
-  -- all the nested widgets. probably not needed if pad >> 0, since
-  -- will have to mouseLeave the backgroundBox after any other shapes.
+  -- all the nested widgets.
   Svg.g
     [onMouseLeave (removeHoveredShape id) ]
-    (maybeBackgroundBox ++ shapeWidgets)
+    (perhapsBackgroundBox ++ shapeWidgets)
 
 minLengthForMiddleZones = 30
 
@@ -1520,9 +1544,20 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
     ySelectableFeature = ShapeFeature id (YFeat pointFeature)
     (xColor, yColor) = (color [xSelectableFeature], color [ySelectableFeature])
   in
+  let (maybeXPat, maybeYPat) =
+    let (_, shapeTree) = model.slate in
+    ( ShapeWidgets.featureToEquation xSelectableFeature shapeTree model.widgets |> Maybe.andThen (ShapeWidgets.featureEquationToValTree >> Provenance.valToMaybeLetPat model.inputExp)
+    , ShapeWidgets.featureToEquation ySelectableFeature shapeTree model.widgets |> Maybe.andThen (ShapeWidgets.featureEquationToValTree >> Provenance.valToMaybeLetPat model.inputExp)
+    )
+  in
+  let
+    isHovered = Set.member thisCrosshair model.hoveredCrosshairs && model.tool == Cursor
+    shouldShowX = isHovered || Set.member xSelectableFeature model.selectedFeatures || isRenamingMaybePat maybeXPat model
+    shouldShowY = isHovered || Set.member ySelectableFeature model.selectedFeatures || isRenamingMaybePat maybeYPat model
+  in
   let (backDisc, frontDisc) =
     let r =
-      if Set.member thisCrosshair model.hoveredCrosshairs && model.tool == Cursor
+      if isHovered
         then toString len
         else "0"
     in
@@ -1587,25 +1622,21 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
     in
     Draw.svgXYDot (x, y) dotFill isVisible extraAttrs
   in
-  let yLine =
-    svgLine <|
-      [ attr "stroke" yColor
-      , attr "stroke-width" <|
-          if (Set.member thisCrosshair model.hoveredCrosshairs && model.tool == Cursor) ||
-             Set.member ySelectableFeature model.selectedFeatures
-          then hairStrokeWidth
-          else "0"
-      , attr "x1" (toString (x-len)) , attr "y1" (toString y)
-      , attr "x2" (toString (x+len)) , attr "y2" (toString y)
-      ] ++ if model.tool /= Cursor then [] else
-        [ onMouseDownAndStop (toggleSelected [ySelectableFeature]) ]
+  let perhapsXPatWidget =
+    case (maybeXPat, shouldShowX) of
+      (Just pat, True) -> [patInOutput model.renamingInOutput False pat (toFloat x - Utils.parseFloat hairStrokeWidth / 2) (toFloat  y - len + 9) (HoverPadding 4)]
+      _                -> []
+  in
+  let perhapsYPatWidget =
+    case (maybeYPat, shouldShowY) of
+      (Just pat, True) -> [patInOutput model.renamingInOutput False pat (toFloat x + len + 4) (toFloat y + 10 + Utils.parseFloat hairStrokeWidth / 2) (HoverPadding 4)]
+      _                -> []
   in
   let xLine =
     svgLine <|
       [ attr "stroke" xColor
       , attr "stroke-width" <|
-          if (Set.member thisCrosshair model.hoveredCrosshairs && model.tool == Cursor) ||
-             Set.member xSelectableFeature model.selectedFeatures
+          if shouldShowX
           then hairStrokeWidth
           else "0"
       , attr "y1" (toString (y-len)) , attr "x1" (toString x)
@@ -1613,41 +1644,70 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
       ] ++ if model.tool /= Cursor then [] else
         [ onMouseDownAndStop (toggleSelected [xSelectableFeature]) ]
   in
+  let yLine =
+    svgLine <|
+      [ attr "stroke" yColor
+      , attr "stroke-width" <|
+          if shouldShowY
+          then hairStrokeWidth
+          else "0"
+      , attr "x1" (toString (x-len)) , attr "y1" (toString y)
+      , attr "x2" (toString (x+len)) , attr "y2" (toString y)
+      ] ++ if model.tool /= Cursor then [] else
+        [ onMouseDownAndStop (toggleSelected [ySelectableFeature]) ]
+  in
   -- using nested group for onMouseLeave handler
   List.singleton <| Svg.g
     [onMouseLeave (removeHoveredCrosshair thisCrosshair)]
-    [backDisc, xLine, yLine, frontDisc, xyDot]
+    ([backDisc, xLine, yLine, frontDisc] ++ perhapsXPatWidget ++ perhapsYPatWidget ++ [xyDot])
 
-maybeZoneSelectLine sideLength model nodeId shapeFeature pt1 pt2 =
+perhapsZoneSelectLine : Num -> Model -> LangSvg.NodeId -> ShapeWidgets.ShapeFeature -> (Num, Num) -> (Num, Num) -> List (Svg Msg)
+perhapsZoneSelectLine sideLength model nodeId shapeFeature pt1 pt2 =
   if sideLength < minLengthForMiddleZones then []
   else zoneSelectLine model nodeId shapeFeature pt1 pt2
 
-zoneSelectLine model nodeId shapeFeature pt1 pt2 =
+zoneSelectLine : Model -> LangSvg.NodeId -> ShapeWidgets.ShapeFeature -> (Num, Num) -> (Num, Num) -> List (Svg Msg)
+zoneSelectLine model nodeId shapeFeature (x1,y1) (x2,y2) =
   let selectableFeature = ShapeFeature nodeId shapeFeature in
-  case model.mouseMode of
-    MouseDragZone _ _ -> []
-    _ ->
-     if Set.member nodeId model.hoveredShapes ||
-        Set.member selectableFeature model.selectedFeatures
-     then zoneSelectLine_ model selectableFeature pt1 pt2
-     else []
+  let maybePat =
+    let maybeAmountVal =
+      let (_, shapeTree) = model.slate in
+      ShapeWidgets.featureToEquation selectableFeature shapeTree model.widgets
+      |> Maybe.map ShapeWidgets.featureEquationToValTree
+    in
+    maybeAmountVal
+    |> Maybe.andThen (Provenance.valToMaybeLetPat model.inputExp)
+  in
+  let shouldShow =
+    Set.member nodeId model.hoveredShapes ||
+    Set.member selectableFeature model.selectedFeatures ||
+    isRenamingMaybePat maybePat model
+  in
+  case (model.mouseMode, shouldShow) of
+    (MouseDragZone _ _, _) -> []
+    (_, False)             -> []
+    _                      ->
+     let color =
+       if Set.member selectableFeature model.selectedFeatures
+       then colorLineSelected
+       else colorLineNotSelected
+     in
+     let nameWidget =
+       case maybePat of
+         Just pat -> [patInOutput model.renamingInOutput False pat (x1 - Utils.parseFloat hairStrokeWidth / 2) (y1 + 1) (HoverPadding 15)]
+         Nothing  -> []
+     in
+     let line =
+       svgLine [
+           attr "stroke" color
+         , attr "stroke-width" hairStrokeWidth
+         , attr "x1" (toString x1) , attr "y1" (toString y1)
+         , attr "x2" (toString x2) , attr "y2" (toString y2)
+         , onMouseDownAndStop (toggleSelected [selectableFeature])
+         ]
+     in
+     nameWidget ++ [line]
 
-zoneSelectLine_ model selectableFeature (x1,y1) (x2,y2) =
-  let color =
-    if Set.member selectableFeature model.selectedFeatures
-    then colorLineSelected
-    else colorLineNotSelected
-  in
-  let line =
-    svgLine [
-        attr "stroke" color
-      , attr "stroke-width" hairStrokeWidth
-      , attr "x1" (toString x1) , attr "y1" (toString y1)
-      , attr "x2" (toString x2) , attr "y2" (toString y2)
-      , onMouseDownAndStop (toggleSelected [selectableFeature])
-      ]
-  in
-  [line]
 
 boxySelectZones model id kind boxyNums =
 
@@ -1657,7 +1717,7 @@ boxySelectZones model id kind boxyNums =
       Nothing     -> zoneSelectCrossDot model False (id, kind, feature) (x, dummyTrace) dummyVal (y, dummyTrace) dummyVal in
 
   let drawLine threshold feature pt1 pt2 =
-    maybeZoneSelectLine threshold model id feature pt1 pt2 in
+    perhapsZoneSelectLine threshold model id feature pt1 pt2 in
 
   let {left, top, right, bot, cx, cy, width, height} = boxyNums in
 
@@ -1687,9 +1747,10 @@ boxySelectZones model id kind boxyNums =
 
       _ -> [] in
 
-  let features = Utils.find "boxySelectZones" ShapeWidgets.simpleKindGenericFeatures kind in
-  List.concatMap distanceZone features ++ List.concatMap pointZone features
-    -- draw distance zones below point zones
+  let features = Utils.find "boxySelectZones error" ShapeWidgets.simpleKindGenericFeatures kind in
+  List.concatMap distanceZone features ++ -- draw distance zones below point zones
+  List.concatMap pointZone features
+
 
 
 --------------------------------------------------------------------------------
