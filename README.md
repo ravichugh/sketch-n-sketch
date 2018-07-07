@@ -500,7 +500,7 @@ of the project clone.
 
 1. Install [Elm v0.18](http://elm-lang.org/)
 2. `cd SKETCH-N-SKETCH/src`
-3. `make clean`
+3. `make`
 4. Launch `SKETCH-N-SKETCH/build/out/index.html`
 
 Note: The parser has a performance issue that we have not yet addressed.
