@@ -138,19 +138,22 @@ index = List.indexedMap (,)
 -- Hulls
 --------------------------------------------------------------------------------
 
-type alias CodePos =
-  (Int, Int)
+type LinePos = Top | Bottom
 
-type alias AbsolutePos =
-  (Float, Float)
+type alias CodePosInfo =
+  (LinePos, Int, Int)
+
+type alias AbsolutePosInfo =
+  (LinePos, Float, Float)
 
 type alias Hull =
-  List AbsolutePos
+  List AbsolutePosInfo
 
--- CodePos to AbsolutePos
-c2a : DisplayInfo -> CodePos -> AbsolutePos
-c2a di (cx, cy) =
-  ( di.characterWidth * toFloat cx
+-- CodePosInfo to AbsolutePosInfo
+c2a : DisplayInfo -> CodePosInfo -> AbsolutePosInfo
+c2a di (lp, cx, cy) =
+  ( lp
+  , di.characterWidth * toFloat cx
   , di.lineHeight * toFloat cy
   )
 
@@ -255,10 +258,10 @@ trimmedLine =
 lineHull : DisplayInfo -> Indexed Line -> Hull
 lineHull di (row, line) =
   List.map (c2a di)
-    [ (line.startCol, row)
-    , (line.startCol, row + 1)
-    , (line.endCol, row + 1)
-    , (line.endCol, row)
+    [ (Top, line.startCol, row)
+    , (Bottom, line.startCol, row + 1)
+    , (Bottom, line.endCol, row + 1)
+    , (Top, line.endCol, row)
     ]
 
 -- Returns: (untrimmed, trimmed, max line length)
@@ -295,31 +298,48 @@ specialEndFlag : Float
 specialEndFlag =
   -123456789
 
-addBleed : AbsolutePos -> AbsolutePos
-addBleed (x, y) =
+addBleed : AbsolutePosInfo -> AbsolutePosInfo
+addBleed (lp, x, y) =
   if x == specialEndFlag then
-    ( 0
+    ( lp
+    , 0
     , y
     )
   else if x <= 0 then
-    ( -SleekLayout.deuceOverlayBleed
+    ( lp
+    , -SleekLayout.deuceOverlayBleed
     , y
     )
   else
-    (x, y)
+    (lp, x, y)
 
-addFinalEndBleed : AbsolutePos -> AbsolutePos
-addFinalEndBleed (x, y) =
+addFinalEndBleed : AbsolutePosInfo -> AbsolutePosInfo
+addFinalEndBleed (lp, x, y) =
   if x <= 0 then
-    ( specialEndFlag
+    ( lp
+    , specialEndFlag
     , y
     )
   else
-    (x, y)
+    (lp, x, y)
+
+shorten : DisplayInfo -> AbsolutePosInfo -> AbsolutePosInfo
+shorten di (lp, x, y) =
+  let margin = 0.3 * di.lineHeight in
+  case lp of
+    Top -> (lp, x, y + margin)
+    Bottom -> (lp, x, y - margin)
+
+theGoodIf : Bool -> a -> (a -> a) -> a
+theGoodIf cond default modifier =
+  if cond then
+    modifier default
+  else
+    default
 
 -- NOTE: Use 0-indexing for columns and rows.
-hull : CodeInfo -> Bool -> Bool -> Int -> Int -> Int -> Int -> Hull
-hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow =
+hull : CodeInfo -> Bool -> Bool -> Bool -> Int -> Int -> Int -> Int -> Hull
+hull codeInfo useTrimmed shouldAddBleed shouldShorten startCol startRow endCol endRow =
   let
     lineHulls =
       if useTrimmed then
@@ -329,22 +349,22 @@ hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow =
     relevantLines =
       Utils.slice (startRow + 1) endRow lineHulls
     (modifier, finalEndModifier) =
-      if shouldAddBleed then
-        ( List.map addBleed
-        , addFinalEndBleed
-        )
-      else
-        ( identity
-        , identity
-        )
+      [
+        (shouldAddBleed, addBleed, addFinalEndBleed),
+        (shouldShorten, shorten codeInfo.displayInfo, identity)
+      ] |> List.foldl
+             (\(shouldApply, modifier, final) accum ->
+               theGoodIf shouldApply accum (\(mAccum, fAccum) -> (List.map modifier << mAccum, final << fAccum))
+             )
+             (identity, identity)
   in
     modifier <|
       -- Multi-line
       if startRow /= endRow then
         -- Left of first line
         ( List.map (c2a codeInfo.displayInfo)
-            [ (startCol, startRow)
-            , (startCol, startRow + 1)
+            [ (Top, startCol, startRow)
+            , (Bottom, startCol, startRow + 1)
             ]
         ) ++
 
@@ -362,8 +382,8 @@ hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow =
 
         -- Right of last line
         ( List.map (finalEndModifier << c2a codeInfo.displayInfo)
-            [ (endCol, endRow + 1)
-            , (endCol, endRow)
+            [ (Bottom, endCol, endRow + 1)
+            , (Top, endCol, endRow)
             ]
         ) ++
 
@@ -381,44 +401,45 @@ hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow =
       -- Zero-width
       else if startCol == endCol then
         let
-          (x, yTop) =
-            c2a codeInfo.displayInfo (startCol, startRow)
-          (_, yBottom) =
-            c2a codeInfo.displayInfo (startCol, startRow + 1)
+          (_, x, yTop) =
+            c2a codeInfo.displayInfo (Top, startCol, startRow)
+          (_, _, yBottom) =
+            c2a codeInfo.displayInfo (Bottom, startCol, startRow + 1)
         in
-          [ (x - zeroWidthPadding, yTop)
-          , (x - zeroWidthPadding, yBottom)
-          , (x + zeroWidthPadding, yBottom)
-          , (x + zeroWidthPadding, yTop)
+          [ (Top, x - zeroWidthPadding, yTop)
+          , (Bottom, x - zeroWidthPadding, yBottom)
+          , (Bottom, x + zeroWidthPadding, yBottom)
+          , (Top, x + zeroWidthPadding, yTop)
           ]
       -- Single-line, nonzero-width
       else
         List.map (c2a codeInfo.displayInfo)
-          [ (startCol, startRow)
-          , (startCol, startRow + 1)
-          , (endCol, startRow + 1)
-          , (endCol, startRow)
+          [ (Top, startCol, startRow)
+          , (Bottom, startCol, startRow + 1)
+          , (Bottom, endCol, startRow + 1)
+          , (Top, endCol, startRow)
           ]
 
 codeObjectHull : CodeInfo -> CodeObject -> Hull
 codeObjectHull codeInfo codeObject =
   let
+    (startCol, startRow, endCol, endRow) =
+      startEnd codeInfo codeObject
     useTrimmed =
       (not << isTarget) codeObject
     shouldAddBleed =
       affectedByBleed codeObject
-    (startCol, startRow, endCol, endRow) =
-      startEnd codeInfo codeObject
+    shouldShorten = isTarget codeObject && startRow == endRow && startCol /= endCol
   in
-    hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow
+    hull codeInfo useTrimmed shouldAddBleed shouldShorten startCol startRow endCol endRow
 
 hullPoints : Hull -> String
 hullPoints =
   let
-    pairToString (x, y) =
+    posInfoToString (lp, x, y) =
       (toString x) ++ "," ++ (toString y) ++ " "
   in
-    String.concat << List.map pairToString
+    String.concat << List.map posInfoToString
 
 codeObjectHullPoints : CodeInfo -> CodeObject -> String
 codeObjectHullPoints codeInfo codeObject =
@@ -495,7 +516,7 @@ circleHandles codeInfo codeObject color opacity radius =
   let
     radiusString =
       toString radius
-    accountForBleed mightBleed (x, y) =
+    accountForBleed mightBleed (lp, x, y) =
       if
         x <= 0 &&
         mightBleed &&
@@ -506,10 +527,10 @@ circleHandles codeInfo codeObject color opacity radius =
         )
       else
         (x, y)
-    handle mightBleed col row =
+    handle mightBleed lp col row =
       let
         (cx, cy) =
-          (col, row)
+          (lp, col, row)
             |> c2a codeInfo.displayInfo
             |> accountForBleed mightBleed
             |> Utils.mapBoth toString
@@ -531,8 +552,8 @@ circleHandles codeInfo codeObject color opacity radius =
       , SAttr.stroke <|
           rgbaString color opacity
       ]
-      [ handle True startCol startRow
-      , handle False endCol (endRow + 1)
+      [ handle True Top startCol startRow
+      , handle False Bottom endCol (endRow + 1)
       ]
 
 --oldCircleHandles
@@ -703,7 +724,7 @@ codeObjectPolygon msgs codeInfo codeObject color =
 diffpolygon: CodeInfo -> Exp -> Svg msg
 diffpolygon codeInfo exp =
   let color = diffColor codeInfo.displayInfo.colorScheme <| Maybe.withDefault "+" <| Lang.eStrUnapply exp in
-  let thehull = hullPoints <| hull codeInfo True False exp.start.col exp.start.line exp.end.col exp.end.line in
+  let thehull = hullPoints <| hull codeInfo True False False exp.start.col exp.start.line exp.end.col exp.end.line in
     Svg.polygon
         [ SAttr.points thehull
         , SAttr.strokeWidth <|
