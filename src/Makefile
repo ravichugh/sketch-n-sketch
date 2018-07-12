@@ -7,8 +7,6 @@ out_from_Native :=aceCodeBox.js outputCanvas.js aceTooltips.js animationLoop.js 
 
 out_from_ace-builds :=ace.js mode-little.js mode-elm.js theme-chrome.js
 
-all: prelude examples html
-
 html: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
 	cd Native && cp $(out_from_Native) ../../build/out/
@@ -17,6 +15,8 @@ html: elm-stuff/packages
 	mkdir -p ../build/out/img
 	cp ../img/* ../build/out/img/
 	# sed -i '' 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].api = _user$$project$$EvalUpdate$$api;/g' ../build/out/sns.js
+
+all: prelude examples html
 
 elm-stuff/packages:
 	# Use our custom version of core that allows anything in sets.
@@ -29,6 +29,8 @@ elm-stuff/packages:
 	cd elm-stuff/packages/elm-lang/core && git clone --branch flexible_sets https://github.com/brianhempel/core.git && mv core 5.1.1
 	cd ../../../..
 
+# `make clean` gets rid of a lot of stuff so the subsequent build may be slow.
+# Use this as a sort of "quick clean" that gets rid of less and lets the next build not be too slow.
 remove_build_artifacts:
 	rm -rf elm-stuff/build-artifacts/0.*/user
 	rm -rf ../tests/elm-stuff/build-artifacts/0.*/user
