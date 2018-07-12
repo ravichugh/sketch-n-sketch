@@ -1274,6 +1274,8 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                            updateAlternatives "extractFirstIn" env stringE [] stringV llWithDiffs <| \newUpdatedEnv newStringE ->
                                updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 spo op [regexpE, newStringE.val] sp2) (UpdateUtils.wrap 1 newStringE.changes)
                      _ -> UpdateCriticalError "extractFirstIn requires regexp, replacement (fun or string) and the string"
+                 Lt ->
+                   UpdateFails <| "Cannot change a < to something else"
                  _ ->
                    case maybeUpdateMathOp op vs oldVal newVal diffs of
                      Err msg ->

@@ -1023,24 +1023,19 @@ type OpDir = OpLeft | OpRight
 
 wrapWithParensIfLessPrecedence_: (a -> Maybe Int) -> (a -> Maybe BinaryOperatorParser.Associativity) -> OpDir -> a -> a -> String -> String
 wrapWithParensIfLessPrecedence_ getPrecedence getAssociativity opDir outsideExp insideExp unparsedInsideExpr =
-  let _ = Debug.log "#1" (unparsedInsideExpr) in
   let inPrecedenceMb  = getPrecedence insideExp in
   case inPrecedenceMb of
     Nothing -> unparsedInsideExpr
     Just inPrecedence ->
-  let _ = Debug.log "#2" (inPrecedence) in
   let precedenceMb    = getPrecedence outsideExp in
   case precedenceMb of
       Nothing -> unparsedInsideExpr
       Just precedence ->
-  let _ = Debug.log "#3" (precedence) in
   let inAssociativity = getAssociativity insideExp in
   let associativity = getAssociativity outsideExp in
-  let _ = Debug.log "#4" (inAssociativity, associativity) in
   if inPrecedence < precedence
   then wrapWithTightParens unparsedInsideExpr
   else if inPrecedence == precedence then
-    let _ = Debug.log "#5" () in
     if associativity == inAssociativity && (
             associativity == Just BinaryOperatorParser.Left && opDir == OpLeft
          || associativity == Just BinaryOperatorParser.Right && opDir == OpRight) then

@@ -2626,6 +2626,12 @@ Update =
            if lengthNotModified then Ok (InputsWithDiffs [(newL, Just d)]) else Ok (InputsWithDiffs [])
        }.apply l
   in
+  let mbPairDiffs mbDiffsPair = case mbDiffsPair of
+        (Nothing, Nothing) -> Nothing
+        (Just d, Nothing) -> Just (VRecordDiffs {_1=d})
+        (Just d, Just d2) -> Just (VRecordDiffs {_1=d, _2=d2})
+        (Nothing, Just d2) -> Just (VRecordDiffs {_2=d2})
+  in
   -- exports from Update module
   { freeze x =
       -- eta-expanded because \"freeze x\" is a syntactic form for U-Freeze
@@ -2652,6 +2658,7 @@ Update =
     pairDiff2 = pairDiff2
     pairDiff3 = pairDiff3
     pairDiff4 = pairDiff4
+    mbPairDiffs = mbPairDiffs
     Regex = {
         replace regex replacement string diffs = updateReplace
       }
@@ -3282,20 +3289,53 @@ List =
       Nothing -> filterMap f tail
       Just newHead -> newHead :: filterMap f tail
   in
-  letrec filter f l = case l of
-    [] -> []
-    (head::tail) ->
-       if f head then
-         head :: filter f tail
-       else filter f tail
+  -- This filter lens supports insertions and deletions in output
+  letrec filter f l =
+    case l of
+      [] -> l
+      head::tail ->
+         let cond = f head in
+         let result =
+           if cond then head :: filter f tail
+           else filter f tail
+         in
+         { apply (l, result) = result
+           update {input, outputNew, diffs = VListDiffs ds} =
+             let defaultNewInputDiffs = ((l, outputNew), Just (VRecordDiffs {
+                      _2 = VListDiffs ds})) in
+             let newDiffs firstDiff tailDiffs = case tailDiffs of
+               [] -> VRecordDiffs {
+                 _1 = firstDiff}
+               _ -> VRecordDiffs {
+                 _1 = firstDiff
+                 _2 = VListDiffs tailDiffs}
+             in
+             case ds of
+                (0, ListElemDelete count)::tailDiffs ->
+                  let firstDiff = VListDiffs (LensLess.List.take count (LensLess.List.concatMap (\\(i, lElem) ->
+                      if f lElem then [(i, ListElemDelete 1)] else []) (zipWithIndex l))) in
+                  Ok (InputsWithDiffs [
+                    ((tail, if cond then head :: outputNew else outputNew),
+                      Just (newDiffs firstDiff tailDiffs))])
+                (0, ListElemInsert count)::tailDiffs ->
+                  let (newElems, otherElems) = LensLess.List.split count outputNew in
+                  let firstDiff = VListDiffs [(0, ListElemInsert count)] in
+                  if cond then -- unambiguous
+                    Ok (InputsWithDiffs [
+                      ((newElems ++ l, otherElems), Just (newDiffs firstDiff tailDiffs)),
+                      defaultNewInputDiffs])
+                  else -- ambiguous, we can insert before or after the removed element.
+                    Ok (InputsWithDiffs [
+                      ((newElems ++ l, otherElems), Just (newDiffs firstDiff tailDiffs)),
+                      defaultNewInputDiffs
+                      ])
+                _ -> Ok (InputsWithDiffs[defaultNewInputDiffs])
+         }.apply (l, result)
   in
   let length x = len x
   in
   let nth =
     nth
-  in
-  let repeat =
-    repeat
   in
   let mapi f xs = map f (zipWithIndex xs) in
   let indexedMap f xs =
@@ -3349,6 +3389,12 @@ List =
     head :: tail -> case f head of
       Nothing -> mapFirstSuccess f tail
       x -> x
+  in
+  let contains n =
+    letrec aux l = case l of
+      [] -> False
+      head::tail -> if head == n then True else aux tail
+    in aux
   in
   let -- Contrary to concatMap, concatMap_ supports insertion and deletions of elements.
       -- It requires a function to indicate what to do when inserting in empty lists.
@@ -3417,6 +3463,81 @@ List =
           }.apply (f, oldAcc, headList, dummyBool)) (Update.freeze [], Update.softFreeze False) l
   in
   let indices l = range 0 (length l - 1) in
+  let isEmpty l = l == [] in
+  let head l = {
+    apply l = case l of
+      h :: l -> Just h
+      _ -> Nothing
+    update {input, outputNew, diffs} = case (input, outputNew, diffs) of
+      (h :: tail, Nothing, _) ->
+        Ok (InputsWithDiffs [(tail, Just (VListDiffs [(0, ListElemDelete 1)]))])
+      (h :: tail, Just newH, VRecordDiffs {args= VRecordDiffs {_1=d}}) ->
+        Ok (InputsWithDiffs [(newH :: tail, Just (VListDiffs [(0, ListElemUpdate d)]))])
+      ([], Nothing, _) -> Ok (Inputs [input])
+      ([], Just newH, _) ->
+        Ok (InputsWithDiffs [([newH], Just (VListDiffs [(0, ListElemInsert 1)]))])
+      (_, _, _) -> Err (\"Inconsistent diffs in List.head\" ++ toString diffs)
+    }.apply l
+  in
+  let tail l =  {
+    apply l = case l of
+      h :: l -> Just l
+      _ -> Nothing
+    update {input, outputNew, diffs} = case (input, outputNew, diffs) of
+      (h :: tail, Nothing, _) ->
+        Ok (InputsWithDiffs [([], Just (VListDiffs [(0, ListElemDelete (List.length input))]))])
+      (h :: tail, Just newTail, VRecordDiffs {args= VRecordDiffs {_1=VListDiffs tailDiffs}}) ->
+        Ok (InputsWithDiffs [(h :: newTail, Just (VListDiffs (List.map (\\(i, d) -> (i+1, d)) tailDiffs)))])
+      ([], Nothing, _) -> Ok (Inputs [input])
+      ([], Just newTail, _) ->
+        Err \"I don't know how to insert a new tail where there was none originally.\"
+      (_, _, _) -> Err (\"Inconsistent diffs in List.head\" ++ toString diffs)
+    }.apply l
+  in
+  let take n l =
+    let (taken, remaining) = split n l in
+    taken
+  in
+  let drop n l =
+    let (taken, remaining) = split n l in
+    remaining
+  in
+  let singleton elem = [elem] in
+  let repeat n a =
+    {apply (n, a) =
+      letrec aux i = if i == 0 then [] else a :: aux (i - 1)
+      in aux n
+     update {input, outputNew, diffs = VListDiffs ds} =
+       let nNew = length outputNew in
+       let nNewDiffs = if nNew == n then Nothing else Just (VConstDiffs) in
+       let mergeEnabled =
+         letrec aux i diffs outputNew = case diffs of
+           [] -> []
+           (j, diff)::tailDiffs ->
+             if i == j then
+               case diff of
+                 ListElemUpdate d ->
+                   case outputNew of
+                     o :: t -> (o, Just d) :: aux (i + 1) tailDiffs t
+                 ListElemInsert count ->
+                   let (inserted, remOutputNew) = split count outputNew in
+                   concatMap (\\newA ->
+                     case __diff__ a newA of
+                       Err msg -> []
+                       Ok mbDiff -> [(newA, mbDiff)]) inserted ++ aux i tailDiffs remOutputNew
+                 ListElemDelete count ->
+                   aux (i + count) tailDiffs outputNew
+             else
+               let (_, remOutputNew) = split (j - i) outputNew in
+               aux j diffs remOutputNew
+           k::tailDiffs -> aux i tailDiffs outputNew
+         in aux 0 ds outputNew
+       in
+       let (nA, nDiffsA) = __merge__ a mergeEnabled in
+       Ok (InputsWithDiffs [((nNew, nA), Update.mbPairDiffs (nNewDiffs, nDiffsA))])
+    }.apply (n, a)
+  in
+  -- TODO: Continue to insert List functions from Elm (http://package.elm-lang.org/packages/elm-lang/core/latest/List#range)
   { simpleMap = simpleMap
     map = map
     map2 = map2 -- TOOD: Make it a lens that supports insertion?
@@ -3424,7 +3545,6 @@ List =
     cons = cons
     length = length
     nth = nth
-    repeat = repeat
     indexedMap = indexedMap
     concatMap = concatMap
     concatMap_ = concatMap_
@@ -3433,8 +3553,8 @@ List =
     split = split
     reverseInsert = reverseInsert
     reverse = reverse
-    take = LensLess.List.take
-    drop = LensLess.List.drop
+    take = take
+    drop = drop
     foldl = foldl
     foldl2 = foldl2
     filterMap = filterMap
@@ -3445,6 +3565,13 @@ List =
     indices = indices
     find = find
     mapFirstSuccess = mapFirstSuccess
+    contains = contains
+    member = contains
+    isEmpty = isEmpty
+    head = head
+    tail = tail
+    singleton = singleton
+    repeat = repeat
   }
 
 

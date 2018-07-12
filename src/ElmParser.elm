@@ -2155,7 +2155,7 @@ implicitOp =
     let (ws0, identifier) = op.val in
     case opFromIdentifier identifier of
       Just op_ -> succeed <| \wsBefore -> withInfo (exp_ <| EOp wsBefore space0 (withInfo op_ op.start op.end) [] space0) op.start op.end
-      Nothing -> fail <| "Operator " ++ identifier ++ " not recognized"
+      Nothing ->  succeed <| \w -> withInfo (exp_ <| EVar w identifier) op.start op.end
   )
 
 -- Not a function application nor a binary operator
