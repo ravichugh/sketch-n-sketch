@@ -656,14 +656,14 @@ runBenchmark b = case b of
     let finalEvalTime = ceiling (average evalTimes)  in
     let stddevEvalTime = stddev evalTimes in
     let latexRow newFormat =
-      let displazyunoptoptspeedup timeUnopt timeOpt timesUnoptAv timesOptAv std =
+      let displazyunoptopt dispSpeedup timeUnopt timeOpt timesUnoptAv timesOptAv std =
             if timeUnopt < 5 && timeOpt < 5 then
                String.pad 15 ' ' ("\\lessthanms{5}")
             else
               if newFormat then
-                String.pad 15 ' ' (s timesOptAv ++ "&\\plusminus{"++std ++ "}"++ "&" ++ (if ifspeedup == WithoutSpeedup then "" else speedup (floor timesUnoptAv) (ceiling timesOptAv)))
+                String.pad 15 ' ' (s timesOptAv ++ "&\\plusminus{"++std ++ "}"++ (if dispSpeedup then "&" ++ (if ifspeedup == WithoutSpeedup then "" else speedup (floor timesUnoptAv) (ceiling timesOptAv)) else ""))
               else
-                String.pad 15 ' ' (s timeUnopt ++ "/" ++ s timeOpt ++ (if ifspeedup == WithoutSpeedup then "" else speedup timeUnopt timeOpt))
+                String.pad 15 ' ' (s timeUnopt ++ "/" ++ s timeOpt ++ (if dispSpeedup then "&" ++ (if ifspeedup == WithoutSpeedup then "" else speedup timeUnopt timeOpt)else ""))
       in
       (if only1 then "\\tableRowToUpdate" else "\\tableRow") ++ "   {" ++
        String.padRight 20 ' ' benchmarkname ++ "} {" ++
@@ -671,9 +671,9 @@ runBenchmark b = case b of
        String.pad 4 ' ' (toString <| finalEvalTime) ++ "} {\\plusminus{" ++ stddevEvalTime ++ "}} { "++
        String.pad 6 ' ' (sToMinutsSeconds (toFloat sessionTime)) ++"  } { "++
        String.pad 3 ' ' (toString numberOfUpdates) ++" } {" ++
-       displazyunoptoptspeedup fastestUnopt fastestOpt fastestUnoptAv fastestOptAv fastestOptStd ++ " & " ++
-       displazyunoptoptspeedup slowestUnopt slowestOpt slowestUnoptAv slowestOptAv slowestOptStd ++ " & " ++
-       displazyunoptoptspeedup averageUnopt averageOpt averageUnopt   averageOpt   averagestd++ "} " ++
+       displazyunoptopt False fastestUnopt fastestOpt fastestUnoptAv fastestOptAv fastestOptStd ++ " & " ++
+       displazyunoptopt False slowestUnopt slowestOpt slowestUnoptAv slowestOptAv slowestOptStd ++ " & " ++
+       displazyunoptopt True averageUnopt averageOpt averageUnopt   averageOpt   averagestd++ "} " ++
        "{  " ++ (if (minAmbiguity == maxAmbiguity)
             then "\\always{" ++ toString minAmbiguity ++ "} } {" ++ toString minAmbiguity  ++ "        "
             else "\\fromto{" ++ toString minAmbiguity ++ "}  {" ++ toString maxAmbiguity ++ "}     } {" ++ String.pad 9 ' ' ((String.left 4 (toString averageAmbiguity)))) ++ "} "
