@@ -43,8 +43,10 @@ mergeVal original modified1 modified2 =
     (VBase (VString originalString), VBase (VString modified1String), VBase (VString modified2String)) ->
       replaceV_ original <| VBase (VString <| mergeString originalString modified1String modified2String)
     (VList originalElems, VList modified1Elems, VList modified2Elems) ->
+  --(\x -> let _ = Debug.log ("mergeList " ++ valToString original ++ " " ++ valToString modified1 ++ " " ++ valToString modified2 ++ "=" ++ LangUtils.valToString x) () in x) <|
       replaceV_ original <| VList <| mergeList mergeVal originalElems modified1Elems modified2Elems
     (VRecord originalDict, VRecord modified1Dict, VRecord modified2Dict) ->
+  --(\x -> let _ = Debug.log ("mergeRecord " ++ valToString original ++ " " ++ valToString modified1 ++ " " ++ valToString modified2 ++ "=" ++  LangUtils.valToString x) () in x) <|
       replaceV_ original <| VRecord <| mergeDict mergeVal originalDict modified1Dict modified2Dict
     (VDict originalDict, VDict modified1Dict, VDict modified2Dict) ->
       replaceV_ original <| VDict <| mergeDict mergeVal originalDict modified1Dict modified2Dict
@@ -80,7 +82,7 @@ mergeString o e1 e2 = if o == e1 then e2 else e1 -- Could do a better line-based
 -- * A list which was not modified makes that the other lists replaces the original list.
 -- Would be better to have a real diffing algorithm.
 mergeList: (a -> a -> a -> a) -> List a -> List a -> List a -> List a
-mergeList submerger =
+mergeList submerger o m1 m2 =
   let aux: List a -> List a -> List a -> List a
       aux originals modified1 modified2 =
        case (originals, modified1, modified2) of
@@ -101,7 +103,7 @@ mergeList submerger =
            --aux originals modified2 modified1
          (ohd::otl, v1hd::v1tl, v2hd::v2tl) ->
            submerger ohd v1hd v2hd :: aux otl v1tl v2tl
-  in aux
+  in aux o m1 m2
 
 
 mergeDict: (v -> v -> v -> v) -> Dict k v -> Dict k v -> Dict k v -> Dict k v

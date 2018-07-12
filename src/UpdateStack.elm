@@ -144,8 +144,8 @@ updateMaybeFirst2 msg canContinueAfter mb ll =
 
 
 -- Constructor for updating multiple expressions evaluated in the same environment.
-updateContinueMultiple: String -> Env -> List (Exp, PrevOutput, Output) -> TupleDiffs VDiffs -> (UpdatedEnv -> UpdatedExpTuple -> UpdateStack) -> UpdateStack
-updateContinueMultiple  msg       env    totalExpValOut                    diffs                continuation  =
+updateContinueMultiple: String -> Env -> Exp -> List (Exp, PrevOutput, Output) -> TupleDiffs VDiffs -> (UpdatedEnv -> UpdatedExpTuple -> UpdateStack) -> UpdateStack
+updateContinueMultiple  msg       env    eee    totalExpValOut                    diffs                continuation  =
   let totalExp = withDummyExpInfo <| EList space0 (totalExpValOut |> List.map (\(e, _, _) -> (space1, e))) space0 Nothing space0 in
   let aux: Int -> List Exp   -> TupleDiffs EDiffs -> UpdatedEnv -> List (Exp, PrevOutput, Output) ->TupleDiffs VDiffs -> UpdateStack
       aux  i      revAccExps    revAccEDiffs         updatedEnvAcc expValOut                        diffs =
@@ -167,7 +167,7 @@ updateContinueMultiple  msg       env    totalExpValOut                    diffs
                 (e, v, out)::tail ->
                   updateContinue (toString (i + 1) ++ "/" ++ toString (List.length totalExpValOut) ++ " " ++ msg) env e v out m <|  \newUpdatedEnv newUpdatedExp ->
                     --let _ = Debug.log "started tricombine" () in
-                    let newUpdatedEnvAcc = UpdatedEnv.merge e m env updatedEnvAcc newUpdatedEnv in
+                    let newUpdatedEnvAcc = UpdatedEnv.merge eee m env updatedEnvAcc newUpdatedEnv in
                     let newRevAccEDiffs = case newUpdatedExp.changes of
                       Nothing -> revAccEDiffs
                       Just d -> (i, d)::revAccEDiffs
@@ -201,7 +201,7 @@ updateOpMultiple  hint     env    es          eBuilder             prevOutputs  
          \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple es Nothing)
        Oks (LazyList.Cons (Just d) tail) ->
          \continuation -> updateManyMbHeadTail d tail <| \diff ->
-           updateContinueMultiple (hint ++ " #" ++ toString nth) env (Utils.zip3 es prevOutputs outputsHead) diff continuation
+           updateContinueMultiple (hint ++ " #" ++ toString nth) env (eList es Nothing) (Utils.zip3 es prevOutputs outputsHead) diff continuation
     in
        UpdateResultAlternative "UpdateResultAlternative maybeOp"
          (continue <| \newUpdatedEnv newUpdatedOpArgs ->

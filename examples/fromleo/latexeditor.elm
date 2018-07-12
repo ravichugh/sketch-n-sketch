@@ -1,7 +1,7 @@
 latex = """\newcommand{\small}{mini}
 
 \section{\LaTeX{} editing in \textsc{Html}\label{sec:introduction}}
-This \small{} \LaTeX{} editor is \textit{bidirectional} and supports \small{} \textbf{textual} changes. Rename '\small{}' to 'lightweight' to see\ldots
+This \small{} \LaTeX{} editor supports \small{} textual changes. Rename '\small{}' to 'lightweight' to see\ldots
 
 \section{Reference update\label{sec:commands}}
 References are supported:
@@ -144,7 +144,7 @@ commandsDict = Dict.fromList [
     { arity = 1
     , toHtml toHtml opts args = case args of
       [{tag = "block", children = [{tag = "rawtext", value = v}]}] ->
-        [["span", [["id", v],["class", "labellink"], ["title", v]], [["TEXT", "🔗"]]],
+        [["span", [["id", v],["class", "labellink"], ["title", v]], [["TEXT", "ðŸ”—"]]],
           let currentLabelName = opts.currentLabelName in
           { opts |
              labelToName = opts.labelToName |>
@@ -190,7 +190,7 @@ commandsDict = Dict.fromList [
   ("\\textbf", htmlWrapper (\argsHtml -> ["b", [], argsHtml])),
   ("\\textit", htmlWrapper (\argsHtml -> ["i", [], argsHtml])),
   ("\\textsc", htmlWrapper (\argsHtml -> ["span", [["style", [["font-variant", "small-caps"]]]], argsHtml])),
-  ("\\ldots", htmlConst ["span", [], [["TEXT", "…"]]]),
+  ("\\ldots", htmlConst ["span", [], [["TEXT", "â€¦"]]]),
   ("\\textbackslash", htmlConst ["span", [], [["TEXT", "\\"]]]),
   ("\\newcommand",
     let extractCommand block = case block of
@@ -390,7 +390,7 @@ toHtml x =
       Nothing -> htmlError ("Reference " + refname + " not found.") "???"
       Just txt ->
         let replaceKey refNameTxt = {
-           apply [refname,txt] = Debug.log """refname = @refname, txt= @txt""" txt,
+           apply [refname,txt] = freeze txt,
            update {input=[oldRefname, oldTxt], outputNew=newText} =  -- Lookup for the reference in the options.
              case Dict.get newText opts.nameToLabel of
               Just newRefname ->
@@ -433,7 +433,7 @@ latex2html latex =
         (["span", [["start", p]], [["TEXT", vOld]]], 
          ["span", [["start", p]], [["TEXT", vNew]]],
           VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate (VListDiffs [(1, ListElemUpdate sd)]))]))]) -> 
-           { values = [[(Debug.log ("escaped string '" + vNew + "' with diffs " + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]] }
+           { values = [[(Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]] }
         ([_, _, cOld], [_, _, cNew], VListDiffs [(2, ListElemUpdate (VListDiffs childDiffs))]) ->
            gatherDiffsChild gatherDiffs 0 cOld cNew childDiffs
         _ -> {error = "Could not find text differences " + toString (outputOld, outputNew, diffs)}

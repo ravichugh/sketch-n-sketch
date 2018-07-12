@@ -42,8 +42,11 @@ append env1 env2 =
 -- Returns the first n elements, and the remaining elements
 split: Int -> UpdatedEnv -> (UpdatedEnv, UpdatedEnv)
 split n env =
-  let (changes1, changes2Offset) = Utils.spanWhile (\(i, _) -> i < n) env.changes in
   let (env1, env2) = Utils.split n env.val in
+  if env.changes == [(0, VUnoptimizedDiffs)] then
+    (UpdatedEnv env1 env.changes, UpdatedEnv env2 env.changes)
+  else
+  let (changes1, changes2Offset) = Utils.spanWhile (\(i, _) -> i < n) env.changes in
   let changes2 = offset (0 - n) changes2Offset in
   (UpdatedEnv env1 changes1, UpdatedEnv env2 changes2)
 

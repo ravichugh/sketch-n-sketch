@@ -732,7 +732,10 @@ envDiffsToString_ = tupleDiffsToString (Just "environment") <| \indent (kOrigina
    else "") ++ "\n" ++ indent ++ "Variable " ++ kOriginal ++" changes to value:" ++
    vDiffsToString_ (indent ++ "  ") valueOriginal valueModified change
 
-envDiffsToString = envDiffsToString_ ""
+envDiffsToString originalEnv modifiedEnv envDiffs = 
+  case envDiffs of
+    [(0, VUnoptimizedDiffs)] -> "<unoptimized env diffs>"
+    _ -> envDiffsToString_ "" originalEnv modifiedEnv envDiffs
 
 stringDiffsToString: String -> String -> String -> List StringDiffs -> String
 stringDiffsToString  indent    original  modified  diffs =
@@ -784,6 +787,10 @@ vDiffsToString_ indent vOriginal vModified vDiffs =
     VConstDiffs ->
       "\n" ++ indent ++ "Was " ++ valToString vOriginal ++ ", now " ++ valToString vModified
     VUnoptimizedDiffs ->
+      case vOriginal.v_ of
+        VClosure _ _ _ _ ->
+          "\n" ++ indent ++ "<modified closure>"
+        _ ->
       "\n" ++ indent ++ "Was " ++ valToString vOriginal ++ ", now (maybe not updated) " ++ valToString vModified
 
 vDiffsToString = vDiffsToString_  ""

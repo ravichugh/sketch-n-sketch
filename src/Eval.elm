@@ -133,9 +133,26 @@ doEval syntax env e =
 eval_ : Syntax -> Env -> Backtrace -> Exp -> Result String (Val, Widgets)
 eval_ syntax env bt e = Result.map Tuple.first <| eval syntax env bt e
 
+number = {n = 0}
 
 eval : Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Env)
 eval syntax env bt e =
+  {--
+  let _ = 
+    let _ = ImpureGoodies.mutateRecordField number "n" (number.n + 1) in 
+    if number.n % 1000 == 0 || number.n > 8470 then Debug.log "Evaluation" (number.n) else 0 in
+  let _ = if number.n == 8470 || number.n == 8471 || number.n == 8485 then Debug.log ("Evaluating line " ++ toString e.start.line ++ "-" ++ toString e.end.line ++ " " ++ (
+    case e.val.e__ of
+      EConst _ _ _ _ -> "EConst"
+      EBase _ _ -> "EBase"
+      EVar _ n -> n
+      ELet _ _ _ _ _ _ _ _ _-> "ELet"
+      EIf _ _ _ _ _ _ _ -> "EIf"
+      ERecord _ _ _ _ -> "ERecord"
+      EFun _ _ _ _ -> "EFun"
+      _ -> "<exp>"
+    )) () else () in
+  --}
   let makeProvenance basedOn = Provenance env e basedOn in
 
   --let _ = Debug.log ("Evaluating " ++ (Syntax.unparser Syntax.Elm e)) () in

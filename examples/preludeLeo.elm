@@ -1400,9 +1400,12 @@ html string = {
           let newInputElems = case (inputElem, oldOutput, newOutput) of
             ( HTMLInner v, _, ["TEXT",v2]) -> { values = [toHTMLInner v2] }
             ( HTMLElement tagName attrs ws1 endOp children closing,
-              [tag1, attrs1, children1], [tag2, attrs2, children2] ) ->
+              [tag1, attrs1, children1], [tag2, attrs2, children2] as newTag ) ->
                if tag2 == tagName || attrs1 == attrs2 || children2 == children1  then
                  case diffs of
+                   VUnoptimizedDiffs ->  case toHTMLNode newTag of
+                       HTMLElement tagNameN attrsN ws1N endOpN childrenN closingN ->
+                         {values = [HTMLElement tagNameN attrsN ws1 endOp childrenN closing]}
                    VListDiffs listDiffs ->
                      let (newAttrsMerged, otherDiffs) = case listDiffs of
                        (1, ListElemUpdate diffAttrs)::tailDiff ->

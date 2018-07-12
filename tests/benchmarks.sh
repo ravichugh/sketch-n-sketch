@@ -10,9 +10,9 @@ if [ $# -eq 0 ]
   if [ ! -f pathtobenchmark.txt ]; then
     echo "tests/pathtobenchmark.txt not found. Create it and put inside the relative or absolute path to the TeX file where the benchmarks will be written to. This file is ignored by git. Alternatively, run ./benchmarks.sh --tests to only display the result"
   else
-    elm-make UpdateBenchmarks.elm --output build/benchmarks.js && (node --stack_size=4096 support/runnerBenchmark.js | tee "$(< pathtobenchmark.txt)")
+    elm-make UpdateBenchmarks.elm --output build/benchmarks.js && (node --stack-size=4096 support/runnerBenchmark.js | tee "$(< pathtobenchmark.txt)")
     echo "Content written to $(< pathtobenchmark.txt)"
   fi;
 else
-  elm-make UpdateBenchmarks.elm --output build/benchmarks.js && node --stack_size=4096 support/runnerBenchmark.js
+  elm-make UpdateBenchmarks.elm --output build/benchmarks.js && node  --max-old-space-size=4076 --stack-size=4096 support/runnerBenchmark.js #&& ../../../../../Program\ Files\ \(x86\)/VideoLAN/VLC/vlc.exe ../../../Dropbox/Musiques\ à\ partager/All\ by\ Myself.m4a
 fi
