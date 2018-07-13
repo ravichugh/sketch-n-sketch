@@ -139,22 +139,19 @@ index = List.indexedMap (,)
 -- Hulls
 --------------------------------------------------------------------------------
 
-type LinePos = Top | Bottom
+type alias CodePos =
+  (Int, Int)
 
-type alias CodePosInfo =
-  (LinePos, Int, Int)
-
-type alias AbsolutePosInfo =
-  (LinePos, Float, Float)
+type alias AbsolutePos =
+  (Float, Float)
 
 type alias Hull =
-  List AbsolutePosInfo
+  List AbsolutePos
 
--- CodePosInfo to AbsolutePosInfo
-c2a : DisplayInfo -> CodePosInfo -> AbsolutePosInfo
-c2a di (lp, cx, cy) =
-  ( lp
-  , di.characterWidth * toFloat cx
+-- CodePos to AbsolutePos
+c2a : DisplayInfo -> CodePos -> AbsolutePos
+c2a di (cx, cy) =
+  ( di.characterWidth * toFloat cx
   , di.lineHeight * toFloat cy
   )
 
@@ -259,10 +256,10 @@ trimmedLine =
 lineHull : DisplayInfo -> Indexed Line -> Hull
 lineHull di (row, line) =
   List.map (c2a di)
-    [ (Top, line.startCol, row)
-    , (Bottom, line.startCol, row + 1)
-    , (Bottom, line.endCol, row + 1)
-    , (Top, line.endCol, row)
+    [ (line.startCol, row)
+    , (line.startCol, row + 1)
+    , (line.endCol, row + 1)
+    , (line.endCol, row)
     ]
 
 -- Returns: (untrimmed, trimmed, max line length)
@@ -295,53 +292,81 @@ affectedByBleed : CodeObject -> Bool
 affectedByBleed =
   isTarget
 
+needsDecrusting : CodeInfo -> CodeObject -> Bool
+needsDecrusting codeInfo codeObject =
+  let
+    (startCol, _, endCol, _) =
+      startEnd codeInfo codeObject
+  in
+  isTarget codeObject && startCol /= endCol
+
 specialEndFlag : Float
 specialEndFlag =
   -123456789
 
-addBleed : AbsolutePosInfo -> AbsolutePosInfo
-addBleed (lp, x, y) =
+addBleed : AbsolutePos -> AbsolutePos
+addBleed (x, y) =
   if x == specialEndFlag then
-    ( lp
-    , 0
+    ( 0
     , y
     )
   else if x <= 0 then
-    ( lp
-    , -SleekLayout.deuceOverlayBleed
+    ( -SleekLayout.deuceOverlayBleed
     , y
     )
   else
-    (lp, x, y)
+    (x, y)
 
-addFinalEndBleed : AbsolutePosInfo -> AbsolutePosInfo
-addFinalEndBleed (lp, x, y) =
+addFinalEndBleed : AbsolutePos -> AbsolutePos
+addFinalEndBleed (x, y) =
   if x <= 0 then
-    ( lp
-    , specialEndFlag
+    ( specialEndFlag
     , y
     )
   else
-    (lp, x, y)
+    (x, y)
 
-shorten : DisplayInfo -> AbsolutePosInfo -> AbsolutePosInfo
-shorten di (lp, x, y) =
-  let margin = 0.3 * di.lineHeight in
-  case lp of
-    Top -> (lp, x, y + margin)
-    Bottom -> (lp, x, y - margin)
-
-theGoodIf : Bool -> a -> (a -> a) -> a
-theGoodIf cond default modifier =
-  if cond then
-    modifier default
+crustSize : DisplayInfo -> Float
+crustSize di =
+  if di.lineHeight > di.characterWidth * 1.25 then
+    -- the expected case
+    (di.lineHeight - di.characterWidth) / 2.0
   else
-    default
+    -- a backup in case the settings are weird
+    0.3 * di.lineHeight
+
+removeUpperCrust : DisplayInfo -> AbsolutePos -> AbsolutePos
+removeUpperCrust di (x, y) =
+  (x, y + crustSize di)
+
+removeLowerCrust : DisplayInfo -> AbsolutePos -> AbsolutePos
+removeLowerCrust di (x, y) =
+  (x, y - crustSize di)
+
+maybeDecrust :
+  DisplayInfo -> Bool -> List (DisplayInfo -> AbsolutePos -> AbsolutePos) -> Hull -> Hull
+maybeDecrust di shouldDecrust decrusters =
+  Utils.applyIf shouldDecrust <|
+    List.map2 (\dc pos -> dc di pos) decrusters
+
+magicDecrust :
+  DisplayInfo -> Bool -> List ((DisplayInfo -> AbsolutePos -> AbsolutePos), Int, Int) -> Hull
+magicDecrust di shouldDecrust posInfos =
+  let modifier =
+    (\(dc, col, row) ->
+      Utils.applyIf shouldDecrust
+        (dc di)
+        (c2a di (col, row))
+    )
+  in
+  List.map modifier posInfos
 
 -- NOTE: Use 0-indexing for columns and rows.
 hull : CodeInfo -> Bool -> Bool -> Bool -> Int -> Int -> Int -> Int -> Hull
-hull codeInfo useTrimmed shouldAddBleed shouldShorten startCol startRow endCol endRow =
+hull codeInfo useTrimmed shouldAddBleed shouldDecrust startCol startRow endCol endRow =
   let
+    di =
+      codeInfo.displayInfo
     lineHulls =
       if useTrimmed then
         codeInfo.trimmedLineHulls
@@ -349,23 +374,15 @@ hull codeInfo useTrimmed shouldAddBleed shouldShorten startCol startRow endCol e
         codeInfo.untrimmedLineHulls
     relevantLines =
       Utils.slice (startRow + 1) endRow lineHulls
-    (modifier, finalEndModifier) =
-      [
-        (shouldAddBleed, addBleed, addFinalEndBleed),
-        (shouldShorten, shorten codeInfo.displayInfo, identity)
-      ] |> List.foldl
-             (\(shouldApply, modifier, final) accum ->
-               theGoodIf shouldApply accum (\(mAccum, fAccum) -> (List.map modifier << mAccum, final << fAccum))
-             )
-             (identity, identity)
+    modifier = if shouldAddBleed then List.map addBleed else identity
   in
     modifier <|
       -- Multi-line
       if startRow /= endRow then
         -- Left of first line
-        ( List.map (c2a codeInfo.displayInfo)
-            [ (Top, startCol, startRow)
-            , (Bottom, startCol, startRow + 1)
+        ( magicDecrust di shouldDecrust
+            [ (removeUpperCrust, startCol, startRow)
+            , (always identity, startCol, startRow + 1)
             ]
         ) ++
 
@@ -376,16 +393,19 @@ hull codeInfo useTrimmed shouldAddBleed shouldShorten startCol startRow endCol e
         ) ++
 
         -- Left of last line
-        ( List.take 2 <|
-            Maybe.withDefault [] <|
-              Utils.maybeGeti0 endRow lineHulls
+        ( maybeDecrust di shouldDecrust [always identity, removeLowerCrust] <|
+            List.take 2 <|
+              Maybe.withDefault [] <|
+                Utils.maybeGeti0 endRow lineHulls
         ) ++
 
         -- Right of last line
-        ( List.map (finalEndModifier << c2a codeInfo.displayInfo)
-            [ (Bottom, endCol, endRow + 1)
-            , (Top, endCol, endRow)
-            ]
+        (
+          magicDecrust di shouldDecrust
+            [ (removeLowerCrust, endCol, endRow + 1)
+            , (always identity, endCol, endRow)
+            ] |>
+              Utils.applyIf shouldAddBleed (List.map addFinalEndBleed)
         ) ++
 
         -- Right of middle lines
@@ -395,30 +415,37 @@ hull codeInfo useTrimmed shouldAddBleed shouldShorten startCol startRow endCol e
         ) ++
 
         -- Right of first line
-        ( List.drop 2 <|
-            Maybe.withDefault [] <|
-              Utils.maybeGeti0 startRow lineHulls
+        ( maybeDecrust di shouldDecrust [always identity, removeUpperCrust] <|
+            List.drop 2 <|
+              Maybe.withDefault [] <|
+                Utils.maybeGeti0 startRow lineHulls
         )
       -- Zero-width
       else if startCol == endCol then
         let
-          (_, x, yTop) =
-            c2a codeInfo.displayInfo (Top, startCol, startRow)
-          (_, _, yBottom) =
-            c2a codeInfo.displayInfo (Bottom, startCol, startRow + 1)
+          (x, yTop) =
+            c2a di (startCol, startRow)
+          (_, yBottom) =
+            c2a di (startCol, startRow + 1)
         in
-          [ (Top, x - zeroWidthPadding, yTop)
-          , (Bottom, x - zeroWidthPadding, yBottom)
-          , (Bottom, x + zeroWidthPadding, yBottom)
-          , (Top, x + zeroWidthPadding, yTop)
-          ]
+          [ (x - zeroWidthPadding, yTop)
+          , (x - zeroWidthPadding, yBottom)
+          , (x + zeroWidthPadding, yBottom)
+          , (x + zeroWidthPadding, yTop)
+          ] |>
+            maybeDecrust di shouldDecrust
+              [ removeUpperCrust
+              , removeLowerCrust
+              , removeLowerCrust
+              , removeUpperCrust
+              ]
       -- Single-line, nonzero-width
       else
-        List.map (c2a codeInfo.displayInfo)
-          [ (Top, startCol, startRow)
-          , (Bottom, startCol, startRow + 1)
-          , (Bottom, endCol, startRow + 1)
-          , (Top, endCol, startRow)
+        magicDecrust di shouldDecrust
+          [ (removeUpperCrust, startCol, startRow)
+          , (removeLowerCrust, startCol, startRow + 1)
+          , (removeLowerCrust, endCol, startRow + 1)
+          , (removeUpperCrust, endCol, startRow)
           ]
 
 codeObjectHull : CodeInfo -> CodeObject -> Hull
@@ -430,17 +457,18 @@ codeObjectHull codeInfo codeObject =
       (not << isTarget) codeObject
     shouldAddBleed =
       affectedByBleed codeObject
-    shouldShorten = isTarget codeObject && startRow == endRow && startCol /= endCol
+    shouldDecrust =
+      needsDecrusting codeInfo codeObject
   in
-    hull codeInfo useTrimmed shouldAddBleed shouldShorten startCol startRow endCol endRow
+    hull codeInfo useTrimmed shouldAddBleed shouldDecrust startCol startRow endCol endRow
 
 hullPoints : Hull -> String
 hullPoints =
   let
-    posInfoToString (lp, x, y) =
+    pairToString (x, y) =
       (toString x) ++ "," ++ (toString y) ++ " "
   in
-    String.concat << List.map posInfoToString
+    String.concat << List.map pairToString
 
 codeObjectHullPoints : CodeInfo -> CodeObject -> String
 codeObjectHullPoints codeInfo codeObject =
@@ -517,7 +545,7 @@ circleHandles codeInfo codeObject color opacity radius =
   let
     radiusString =
       toString radius
-    accountForBleed mightBleed (lp, x, y) =
+    accountForBleed mightBleed (x, y) =
       if
         x <= 0 &&
         mightBleed &&
@@ -528,12 +556,17 @@ circleHandles codeInfo codeObject color opacity radius =
         )
       else
         (x, y)
-    handle mightBleed lp col row =
+    decrustAsNecessary decruster absPos =
+      Utils.applyIf (needsDecrusting codeInfo codeObject)
+        (decruster codeInfo.displayInfo)
+        absPos
+    handle mightBleed decruster col row =
       let
         (cx, cy) =
-          (lp, col, row)
+          (col, row)
             |> c2a codeInfo.displayInfo
             |> accountForBleed mightBleed
+            |> decrustAsNecessary decruster
             |> Utils.mapBoth toString
       in
         Svg.circle
@@ -553,8 +586,8 @@ circleHandles codeInfo codeObject color opacity radius =
       , SAttr.stroke <|
           rgbaString color opacity
       ]
-      [ handle True Top startCol startRow
-      , handle False Bottom endCol (endRow + 1)
+      [ handle True removeUpperCrust startCol startRow
+      , handle False removeLowerCrust endCol (endRow + 1)
       ]
 
 --oldCircleHandles

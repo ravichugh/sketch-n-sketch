@@ -1350,6 +1350,15 @@ or =
 
 --------------------------------------------------------------------------------
 
+applyIf : Bool -> (a -> a) -> a -> a
+applyIf cond funToApply default =
+  if cond then
+    funToApply default
+  else
+    default
+
+--------------------------------------------------------------------------------
+
 -- Useful for ensuring that the () in "let _ = Debug.log s ()" is not forgotten.
 log : String -> ()
 log s =
