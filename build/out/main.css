@@ -1001,6 +1001,7 @@ code {
   margin-right: 10px;
   width: 90px;
   cursor: text;
+  background-color: rgba(255,255,255,0.6);
 }
 
 .remove-arg {

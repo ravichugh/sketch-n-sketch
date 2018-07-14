@@ -753,9 +753,9 @@ prependDescription newPrefix synthesisResult =
 
 --------------------------------------------------------------------------------
 
-maybeRenamingPId : Model -> Maybe PId
-maybeRenamingPId model =
-  model.renamingInOutput
+maybeRenamingPId : Maybe (PId, String) -> Maybe PId
+maybeRenamingPId modelRenamingInOutput =
+  modelRenamingInOutput
   |> Maybe.map (\(renamingPId, _) -> renamingPId)
 
 --------------------------------------------------------------------------------

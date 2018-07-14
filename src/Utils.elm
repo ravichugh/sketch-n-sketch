@@ -1200,6 +1200,11 @@ listToPair msg list =
     [x1, x2] -> (x1, x2)
     _        -> Debug.crash <| "listToPair: " ++ msg
 
+maybeUnwrap1 : List a -> Maybe a
+maybeUnwrap1 list = case list of
+  [x] -> Just x
+  _   -> Nothing
+
 unwrapSingletonSet : Set a -> a
 unwrapSingletonSet set = case Set.toList set of
   [x] -> x

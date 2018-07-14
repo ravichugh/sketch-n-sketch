@@ -251,9 +251,9 @@ drawNewPointAndOffset model shouldHighlight (x1, y1) (x2, y2) =
 dummyVal : Val
 dummyVal = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] }
 
-isRenamingMaybePat : Maybe Pat -> Model -> Bool
-isRenamingMaybePat maybePat model =
-  maybePat /= Nothing && Maybe.map (.val >> .pid) maybePat == maybeRenamingPId model
+isRenamingMaybePat : Maybe Pat -> Maybe (PId, String) -> Bool
+isRenamingMaybePat maybePat modelRenamingInOutput =
+  maybePat /= Nothing && Maybe.map (.val >> .pid) maybePat == maybeRenamingPId modelRenamingInOutput
 
 svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) amountVal isSelected extraStyles =
   let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
@@ -399,14 +399,86 @@ expInOutput exp left top =
   expInOutput_ "" exp left top []
 
 expInOutput_ : String -> Exp -> Float -> Float -> List (VirtualDom.Property Msg) -> Svg Msg
-expInOutput_ prefix exp xStr yStr extraAttrs =
-  flip Svg.text_ [VirtualDom.text <| prefix ++ (Syntax.unparser Syntax.Elm exp |> Utils.squish)] <|
-    [ attr "fill" "black"
-    , attr "font-family" params.mainSection.uiWidgets.font
-    , attr "font-size" params.mainSection.uiWidgets.fontSize
-    , attr "x" (toString xStr)
-    , attr "y" (toString yStr)
-    ] ++ extraAttrs
+expInOutput_ prefix exp left top extraAttrs =
+  Svg.g []
+      [ flip Svg.text_ [VirtualDom.text <| prefix ++ (Syntax.unparser Syntax.Elm exp |> Utils.squish)] <|
+          [ attr "fill" "black"
+          , attr "font-family" params.mainSection.uiWidgets.font
+          , attr "font-size" params.mainSection.uiWidgets.fontSize
+          , attr "stroke" "white"
+          , attr "stroke-width" "0.3em"
+          , attr "opacity" "0.6"
+          , attr "x" (toString (left - 2))
+          , attr "y" (toString (top - 11))
+          ] ++ extraAttrs
+      , flip Svg.text_ [VirtualDom.text <| prefix ++ (Syntax.unparser Syntax.Elm exp |> Utils.squish)] <|
+          [ attr "fill" "black"
+          , attr "font-family" params.mainSection.uiWidgets.font
+          , attr "font-size" params.mainSection.uiWidgets.fontSize
+          , attr "opacity" "0.6"
+          , attr "x" (toString (left - 2))
+          , attr "y" (toString (top - 11))
+          ] ++ extraAttrs
+      ]
+
+
+type SelectedItem
+  = SelectedShape NodeId
+  | SelectedFeature ShapeWidgets.SelectableFeature
+  | SelectedPoint ShapeWidgets.SelectableFeature ShapeWidgets.SelectableFeature
+
+perhapsPatOrExpInOutput : Exp -> LangSvg.RootedIndexedTree -> List Widget -> Maybe (PId, String) -> SelectedItem -> Float -> Float -> HoverPadding -> Bool -> List (Svg Msg)
+perhapsPatOrExpInOutput program ((rootI, shapeTree) as slate) widgets modelRenamingInOutput item left top hoverPadding shouldShow =
+  let
+    (features, shapes) =
+      case item of
+        SelectedShape nodeId              -> (Set.empty, Set.singleton nodeId)
+        SelectedFeature selectableFeature -> (Set.singleton selectableFeature, Set.empty)
+        SelectedPoint xFeature yFeature   -> (Set.fromList [xFeature, yFeature], Set.empty)
+
+    -- Trying to follow InterfaceController.deleteInOutput logic for what to show.
+    interpretations =
+      ShapeWidgets.selectionsUniqueProximalEIdInterpretations program slate widgets features shapes Dict.empty
+
+    singleEIdEffectiveInterpretations =
+      interpretations
+      |> List.filterMap Utils.maybeUnwrap1
+      |> List.map (LangTools.justFindExpByEId program >> expEffectiveExp >> .val >> .eid)
+
+    varEIdToMaybePat =
+      LangTools.allVarEIdsToBindingPat program
+
+    maybePat =
+      Utils.firstOrLazySecond
+          -- If interpretation is a variable usage, show the associated pat.
+          (singleEIdEffectiveInterpretations |> Utils.mapFirstSuccess (flip Dict.get varEIdToMaybePat >> Maybe.withDefault Nothing))
+          -- Otherwise see if an interpretation is a bound expression.
+          (\() ->
+            LangTools.allSimplyResolvableLetPatBindings program
+            |> Utils.mapFirstSuccess
+                (\(pat, boundExp) ->
+                  if singleEIdEffectiveInterpretations |> List.any ((==) (expEffectiveExp boundExp).val.eid)
+                  then Just pat
+                  else Nothing
+                )
+          )
+  in
+  if shouldShow || isRenamingMaybePat maybePat modelRenamingInOutput then
+    case maybePat of
+      Just pat ->
+        [patInOutput modelRenamingInOutput False pat left top hoverPadding]
+
+      Nothing ->
+        interpretations
+        |> List.head
+        |> Maybe.andThen (List.map (findExpByEId program) >> Utils.projJusts)
+        |> Utils.filterMaybe (List.length >> (==) 1)
+        |> Maybe.andThen List.head
+        |> Maybe.map (\exp -> [expInOutput exp left top])
+        |> Maybe.withDefault []
+  else
+    []
+
 
 buildSvgWidgets : Int -> Int -> Widgets -> List (Maybe (Num, Num, Num, Num)) -> Model -> List (Svg Msg)
 buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
@@ -695,7 +767,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
                       (False, False, False) -> "😕(False, False, False) " -- wat
                 in
                 Just <|
-                  expInOutput_ prefix scrutinee right (boxTop - 32)
+                  expInOutput_ prefix scrutinee right (boxTop - 21)
                       [ attr "text-anchor" "end"
                       , attr "cursor" "pointer"
                       , attr "class" "text-hover-highlight" -- see master.css
@@ -751,7 +823,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
               ]
           in
           [ box
-          , expInOutput (valExp listVal) left (boxTop - 10)
+          , expInOutput (valExp listVal) left boxTop
           ]
   in
 
@@ -1544,31 +1616,10 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
     ySelectableFeature = ShapeFeature id (YFeat pointFeature)
     (xColor, yColor) = (color [xSelectableFeature], color [ySelectableFeature])
   in
-  -- Why are we regenerating vals when we were handed them? b/c most uses of the function give dummy vals.
-  let (maybeXVal, maybeYVal) =
-    let (_, shapeTree) = model.slate in
-    ( ShapeWidgets.featureToEquation xSelectableFeature shapeTree model.widgets |> Maybe.map ShapeWidgets.featureEquationToValTree
-    , ShapeWidgets.featureToEquation ySelectableFeature shapeTree model.widgets |> Maybe.map ShapeWidgets.featureEquationToValTree
-    )
-  in
-  let maybePointPat =
-    Maybe.map2
-        Provenance.pointPartsToPointValsStrict
-        maybeXVal
-        maybeYVal
-    |> Maybe.withDefault []
-    |> List.filterMap (Provenance.valToMaybeLetPat model.inputExp)
-    |> List.head
-  in
-  let (maybeXPat, maybeYPat) =
-    ( maybeXVal |> Maybe.andThen (Provenance.valToMaybeLetPat model.inputExp)
-    , maybeYVal |> Maybe.andThen (Provenance.valToMaybeLetPat model.inputExp)
-    )
-  in
   let
     isHovered = Set.member thisCrosshair model.hoveredCrosshairs && model.tool == Cursor
-    shouldShowX = isHovered || Set.member xSelectableFeature model.selectedFeatures || isRenamingMaybePat maybeXPat model
-    shouldShowY = isHovered || Set.member ySelectableFeature model.selectedFeatures || isRenamingMaybePat maybeYPat model
+    shouldShowX = isHovered || Set.member xSelectableFeature model.selectedFeatures
+    shouldShowY = isHovered || Set.member ySelectableFeature model.selectedFeatures
   in
   let (backDisc, frontDisc) =
     let r =
@@ -1638,19 +1689,40 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
     Draw.svgXYDot (x, y) dotFill isVisible extraAttrs
   in
   let perhapsPointPatWidget =
-    case (maybePointPat, shouldShowX || shouldShowY) of
-      (Just pat, False) -> [patInOutput model.renamingInOutput False pat (toFloat x) (toFloat y - Utils.parseFloat pointZoneStyles.radius) (HoverPadding 4)]
-      _                 -> []
+    perhapsPatOrExpInOutput
+        model.inputExp
+        model.slate
+        model.widgets
+        model.renamingInOutput
+        (SelectedPoint xSelectableFeature ySelectableFeature)
+        (toFloat x - len - 1)
+        (toFloat y - len + 7)
+        (HoverPadding 3)
+        (shouldShowX || shouldShowY)
   in
   let perhapsXPatWidget =
-    case (maybeXPat, shouldShowX) of
-      (Just pat, True) -> [patInOutput model.renamingInOutput False pat (toFloat x - Utils.parseFloat hairStrokeWidth / 2) (toFloat  y - len + 9) (HoverPadding 4)]
-      _                -> []
+    perhapsPatOrExpInOutput
+        model.inputExp
+        model.slate
+        model.widgets
+        model.renamingInOutput
+        (SelectedFeature xSelectableFeature)
+        (toFloat x - Utils.parseFloat hairStrokeWidth / 2)
+        (toFloat y + len + 25)
+        (HoverPadding 3)
+        shouldShowX
   in
   let perhapsYPatWidget =
-    case (maybeYPat, shouldShowY) of
-      (Just pat, True) -> [patInOutput model.renamingInOutput False pat (toFloat x + len + 4) (toFloat y + 10 + Utils.parseFloat hairStrokeWidth / 2) (HoverPadding 4)]
-      _                -> []
+    perhapsPatOrExpInOutput
+        model.inputExp
+        model.slate
+        model.widgets
+        model.renamingInOutput
+        (SelectedFeature ySelectableFeature)
+        (toFloat x + len + 4)
+        (toFloat y + 11 + Utils.parseFloat hairStrokeWidth / 2)
+        (HoverPadding 3)
+        shouldShowY
   in
   let xLine =
     svgLine <|
@@ -1689,21 +1761,23 @@ perhapsZoneSelectLine sideLength model nodeId shapeFeature pt1 pt2 =
 zoneSelectLine : Model -> LangSvg.NodeId -> ShapeWidgets.ShapeFeature -> (Num, Num) -> (Num, Num) -> List (Svg Msg)
 zoneSelectLine model nodeId shapeFeature (x1,y1) (x2,y2) =
   let selectableFeature = ShapeFeature nodeId shapeFeature in
-  let maybePat =
-    let maybeAmountVal =
-      let (_, shapeTree) = model.slate in
-      ShapeWidgets.featureToEquation selectableFeature shapeTree model.widgets
-      |> Maybe.map ShapeWidgets.featureEquationToValTree
-    in
-    maybeAmountVal
-    |> Maybe.andThen (Provenance.valToMaybeLetPat model.inputExp)
-  in
   let shouldShow =
     Set.member nodeId model.hoveredShapes ||
-    Set.member selectableFeature model.selectedFeatures ||
-    isRenamingMaybePat maybePat model
+    Set.member selectableFeature model.selectedFeatures
   in
-  case (model.mouseMode, shouldShow) of
+  let perhapsLabelWidget =
+    perhapsPatOrExpInOutput
+        model.inputExp
+        model.slate
+        model.widgets
+        model.renamingInOutput
+        (SelectedFeature selectableFeature)
+        (x1 - Utils.parseFloat hairStrokeWidth / 2)
+        (y1 + 1)
+        (HoverPadding 3)
+        shouldShow
+  in
+  case (model.mouseMode, shouldShow || not (List.isEmpty perhapsLabelWidget)) of -- If renaming the pattern the label widget will show and we should show the zone.
     (MouseDragZone _ _, _) -> []
     (_, False)             -> []
     _                      ->
@@ -1711,11 +1785,6 @@ zoneSelectLine model nodeId shapeFeature (x1,y1) (x2,y2) =
        if Set.member selectableFeature model.selectedFeatures
        then colorLineSelected
        else colorLineNotSelected
-     in
-     let nameWidget =
-       case maybePat of
-         Just pat -> [patInOutput model.renamingInOutput False pat (x1 - Utils.parseFloat hairStrokeWidth / 2) (y1 + 1) (HoverPadding 4)]
-         Nothing  -> []
      in
      let line =
        svgLine [
@@ -1726,7 +1795,7 @@ zoneSelectLine model nodeId shapeFeature (x1,y1) (x2,y2) =
          , onMouseDownAndStop (toggleSelected [selectableFeature])
          ]
      in
-     nameWidget ++ [line]
+     perhapsLabelWidget ++ [line]
 
 
 boxySelectZones model id kind boxyNums =
@@ -1785,25 +1854,25 @@ boxySelectZones model id kind boxyNums =
 -- TODO significantly refactor point selection zones, by using
 -- ShapeWidgets.genericFeaturesOfShape, BoxyFeatureEquations, eval FeatureEquation, etc.
 
-perhapsPatWidgetForShape : Model -> Int -> Float -> Float -> List (Svg Msg)
-perhapsPatWidgetForShape model nodeId x y =
-  let maybePat =
-    let maybeShapeVal =
-      let (_, shapeTree) = model.slate in
-      ShapeWidgets.shapeIdToMaybeVal nodeId shapeTree model.widgets
-    in
-    maybeShapeVal
-    |> Maybe.andThen (Provenance.valToMaybeLetPat model.inputExp)
-  in
-  let shouldShow =
-    Set.member nodeId model.hoveredShapes ||
-    Set.member nodeId model.selectedShapes ||
-    isRenamingMaybePat maybePat model
-  in
-  case (model.mouseMode, shouldShow, maybePat) of
-    (MouseDragZone _ _, _, _) -> []
-    (_, True, Just pat)       -> [patInOutput model.renamingInOutput False pat x y (HoverPadding 4)]
-    _                         -> []
+perhapsLabelWidgetForShape : Model -> Int -> Float -> Float -> List (Svg Msg)
+perhapsLabelWidgetForShape model nodeId x y =
+  case model.mouseMode of
+    MouseDragZone _ _ -> []
+    _ ->
+      let shouldShow =
+        Set.member nodeId model.hoveredShapes ||
+        Set.member nodeId model.selectedShapes
+      in
+      perhapsPatOrExpInOutput
+          model.inputExp
+          model.slate
+          model.widgets
+          model.renamingInOutput
+          (SelectedShape nodeId)
+          x
+          y
+          (HoverPadding 3)
+          shouldShow
 
 
 makeZones : Model -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List (Svg Msg)
@@ -1841,7 +1910,7 @@ makeZonesLine model id l =
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
-      perhapsPatWidgetForShape model id x1 y1 ++
+      perhapsLabelWidgetForShape model id x1 y1 ++
       [zLine] ++
       zonesSelect ++
       zonePoints2 model id "line" transform [pt1, pt2]
@@ -1869,7 +1938,7 @@ makeZonesRectOrBox model id shape l =
   let zonesSelect = boxySelectZones model id shape boxyNums in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
-      perhapsPatWidgetForShape model id left top ++
+      perhapsLabelWidgetForShape model id left top ++
       [zoneInterior] ++
       zonesSelect ++
       eightCardinalZones model id shape transform bounds
@@ -1895,7 +1964,7 @@ makeZonesCircle model id l =
   let zonesSelect = boxySelectZones model id "circle" boxyNums in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
-       perhapsPatWidgetForShape model id left top ++
+       perhapsLabelWidgetForShape model id left top ++
        [zoneInterior] ++
        zonesSelect ++
        eightCardinalZones model id "circle" transform bounds
@@ -1920,7 +1989,7 @@ makeZonesEllipseOrOval model id shape l =
   let zonesSelect = boxySelectZones model id shape boxyNums in
   let primaryWidgets =
      boundingBoxZones model id bounds <|
-       perhapsPatWidgetForShape model id left top ++
+       perhapsLabelWidgetForShape model id left top ++
        [zoneInterior] ++
        zonesSelect ++
        eightCardinalZones model id shape transform bounds
@@ -1984,7 +2053,7 @@ makeZonesPoly model shape id l =
   let primaryWidgets =
     let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
-      perhapsPatWidgetForShape model id x1 y1 ++
+      perhapsLabelWidgetForShape model id x1 y1 ++
       [zInterior] ++ zLines ++ zSelect ++ zPts
   in
   primaryWidgets :: zRot ++ zFillAndStroke
@@ -2035,7 +2104,7 @@ makeZonesPath model shape id nodeAttrs =
   let primaryWidgets =
     let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
-      perhapsPatWidgetForShape model id x1 y1 ++
+      perhapsLabelWidgetForShape model id x1 y1 ++
       [zInterior] ++
       zSelect ++
       dots
