@@ -14,7 +14,7 @@ import LangUtils exposing (..)
 import Utils
 import Syntax exposing (Syntax)
 import ElmParser as Parser
-import Results exposing (Results(..), ok1)
+import Results exposing (Results(..), ok1, oks)
 import LazyList exposing (LazyList)
 import LangTools exposing (..)
 import ImpureGoodies
@@ -43,7 +43,25 @@ builtinEnv =
            VBase (VBool False) -> Ok (left, [])
            _ -> Err <| "&& expects two booleans, got " ++ valToString left
        _ -> Err <| "&& expects 2 arguments, got " ++ (toString <| List.length args)
-     ) Nothing)
+     ) <| Just <| twoArgsUpdate "&&" <| \left right oldVal newVal diffs ->
+       case (oldVal.v_, newVal.v_) of
+         (VBase (VBool True), VBase (VBool False)) -> -- At least one of the two must become false.
+           oks [([newVal, oldVal], [(0, VConstDiffs)]),
+                ([oldVal, newVal], [(1, VConstDiffs)]),
+                ([newVal, newVal], [(0, VConstDiffs), (1, VConstDiffs)])]
+         (VBase (VBool False), VBase (VBool True)) -> -- Both need to become true
+           let leftDiff = case left.v_ of
+              VBase (VBool True) -> []
+              _ -> [(0, VConstDiffs)]
+           in
+           let rightDiff = case right.v_ of
+             VBase (VBool True) -> []
+             _ -> [(1, VConstDiffs)]
+           in
+           ok1 ([newVal, newVal], leftDiff ++ rightDiff)
+         _ ->
+           ok1 ([left, right], [])
+     )
   , ("||", builtinVal "EvalUpdate.||" <| VFun "||" ["left", "right"] (\args ->
      case args of
        [left, right] ->
@@ -52,7 +70,24 @@ builtinEnv =
            VBase (VBool False) -> Ok (right, [])
            _ -> Err <| "|| expects two booleans, got " ++ valToString left
        _ -> Err <| "|| expects 2 arguments, got " ++ (toString <| List.length args)
-     ) Nothing)
+     ) <| Just <| twoArgsUpdate "&&" <| \left right oldVal newVal diffs ->
+      case (oldVal.v_, newVal.v_) of
+        (VBase (VBool False), VBase (VBool True)) -> -- At least one of the two must become True.
+          oks [([newVal, oldVal], [(0, VConstDiffs)]),
+               ([oldVal, newVal], [(1, VConstDiffs)]),
+               ([newVal, newVal], [(0, VConstDiffs), (1, VConstDiffs)])]
+        (VBase (VBool True), VBase (VBool False)) -> -- Both need to become False
+          let leftDiff = case left.v_ of
+             VBase (VBool False) -> []
+             _ -> [(0, VConstDiffs)]
+          in
+          let rightDiff = case right.v_ of
+            VBase (VBool False) -> []
+            _ -> [(1, VConstDiffs)]
+          in
+          ok1 ([newVal, newVal], leftDiff ++ rightDiff)
+        _ ->
+          ok1 ([left, right], []))
   , ("<=", builtinVal "EvalUpdate.<=" <| VFun "<=" ["left", "right"] (\args ->
      case args of
        [left, right] ->
@@ -302,6 +337,11 @@ builtinEnv =
   , ("join__", UpdateRegex.join)
   ]
 
+twoArgsUpdate: String -> (Val -> Val -> a -> b -> c -> Results String e) -> (List Val -> a -> b -> c -> Results String e)
+twoArgsUpdate msg fun args a b c = case args of
+    [left, right] -> fun left right a b c
+    _ -> Errs <| msg ++ " takes 2 arguments, got " ++ toString (List.length args)
+  
 eval env e = Eval.doEval Syntax.Elm env e |> Result.map Tuple.first
 update updateStack = Update.update LazyList.Nil LazyList.Nil updateStack
 

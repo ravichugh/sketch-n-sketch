@@ -904,7 +904,11 @@ getUpdateStackOp env e oldVal newVal diffs =
 
                VFun name argList evalDef maybeUpdateDef ->
                  case maybeUpdateDef of
-                   Nothing -> UpdateFails ("No built-in definition to update " ++ name)
+                   Nothing -> 
+                      if name == ">=" || name == ">" || name == "<=" || name == "/=" then
+                        opFlip env e sp0 (precedingWhitespaceWithInfoExp e1) name e2s sp1 oldVal newVal
+                      else
+                        UpdateFails ("No built-in definition to update " ++ name)
                    Just updateDef ->
                      let arity = List.length argList in
                      let nAvailableArgs = List.length e2s in
@@ -1230,8 +1234,8 @@ getUpdateStackOp env e oldVal newVal diffs =
                            updateAlternatives "extractFirstIn" env stringE stringV llWithDiffs <| \newUpdatedEnv newStringE ->
                                updateResult newUpdatedEnv <| UpdatedExp (replaceE__ e <| EOp sp1 op [regexpE, newStringE.val] sp2) (UpdateUtils.wrap 1 newStringE.changes)
                      _ -> UpdateCriticalError "extractFirstIn requires regexp, replacement (fun or string) and the string"
-                 Lt ->
-                   UpdateFails <| "Cannot change a < to something else"
+                 Lt -> opFlip env e space0 sp1 "<" opArgs sp2 oldVal newVal
+                 Eq -> opFlip env e space0 sp1 "==" opArgs sp2 oldVal newVal
                  _ ->
                    case maybeUpdateMathOp op vs oldVal newVal diffs of
                      Errs msg -> UpdateCriticalError msg
@@ -1349,6 +1353,24 @@ getUpdateStackOp env e oldVal newVal diffs =
        let outStr = valToString newVal in
        UpdateCriticalError <| "Non-supported update " ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
 
+opFlip: Env -> Exp -> WS -> WS -> String -> List Exp -> WS -> Val -> Val -> UpdateStack
+opFlip env e sp1 spo initOp opArgs sp2 oldVal newVal =
+  if valEqual oldVal newVal then
+    updateResultSameEnvExp env e
+  else case opArgs of
+    [a, b] ->
+      let newE = case initOp of
+        "<" ->  EApp sp1 (withDummyExpInfo <| EVar spo ">=") [a, b] InfixApp sp2
+        ">" ->  EApp sp1 (withDummyExpInfo <| EVar spo "<=") [a, b] InfixApp sp2
+        ">=" -> EOp spo (withDummyRange Lt) [a, b] sp2
+        "<=" -> EApp sp1 (withDummyExpInfo <| EVar spo ">") [a, b] InfixApp sp2
+        "==" -> EApp sp1 (withDummyExpInfo <| EVar spo "/=") [a, b] InfixApp sp2
+        "/=" -> EOp spo (withDummyRange Eq) [a, b] sp2
+        _ -> Debug.crash ("Unexpected operator to flip: " ++ initOp)
+      in
+      updateResultSameEnv env (replaceE__ e <| newE)
+    _ -> UpdateCriticalError (initOp ++ " requires , 2 arguments, got " ++ toString (List.length opArgs))
+       
 -- Errors are converted to empty solutions because updateRec is called once a solution has been found already.
 updateRec: LazyList HandlePreviousResult -> LazyList Fork -> UpdateStack -> LazyList (UpdatedEnv, UpdatedExp)
 updateRec callbacks forks updateStack =

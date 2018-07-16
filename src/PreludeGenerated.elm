@@ -1929,7 +1929,10 @@ snd [_, b] = b
 
 --; Given a bool, returns the opposite boolean value
 --not: (-> Bool Bool)
-not b = if b then False else True
+not b =  {
+    apply b = if b then False else True
+    unapply b = Just (if b then False else True)
+  }.apply b
 
 --; Given two bools, returns a bool regarding if the first argument is true, then the second argument is as well
 --implies: (-> Bool Bool Bool)
