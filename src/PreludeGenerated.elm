@@ -1992,7 +1992,10 @@ compare a b = if a < b then LT else if a == b then EQ else GT
 
 --; Given a bool, returns the opposite boolean value
 --not: (-> Bool Bool)
-not b = if b then False else True
+not b =  {
+    apply b = if b then False else True
+    unapply b = Just (if b then False else True)
+  }.apply b
 
 --(&&) is built-in
 --(||) is built-in

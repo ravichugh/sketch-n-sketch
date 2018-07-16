@@ -15,7 +15,7 @@ import LangUtils exposing (..)
 import Utils exposing (reverseInsert)
 import Syntax exposing (Syntax)
 import ElmParser as Parser
-import Results exposing (Results, ok1)
+import Results exposing (Results, ok1, oks)
 import LazyList exposing (LazyList)
 import LangTools exposing (..)
 import ImpureGoodies
@@ -26,6 +26,8 @@ import ParserUtils
 import ValBuilder as Vb
 import ValUnbuilder as Vu
 import UpdateRegex
+
+
 
 builtinEnv =
   [ ("error", builtinVal "EvalUpdate.error" <| VFun "error" ["msg"] (oneArg "error" <| \arg ->
@@ -40,13 +42,48 @@ builtinEnv =
            VBase (VBool True) -> Ok (right, [])
            VBase (VBool False) -> Ok (left, [])
            _ -> Err <| "&& expects two booleans, got " ++ valToString left
-     ) Nothing)
+     ) <| Just <| twoArgsUpdate "&&" <| \left right oldVal newVal diffs ->
+       case (oldVal.v_, newVal.v_) of
+         (VBase (VBool True), VBase (VBool False)) -> -- At least one of the two must become false.
+           oks [([newVal, oldVal], [(0, VConstDiffs)]),
+                ([oldVal, newVal], [(1, VConstDiffs)]),
+                ([newVal, newVal], [(0, VConstDiffs), (1, VConstDiffs)])]
+         (VBase (VBool False), VBase (VBool True)) -> -- Both need to become true
+           let leftDiff = case left.v_ of
+              VBase (VBool True) -> []
+              _ -> [(0, VConstDiffs)]
+           in
+           let rightDiff = case right.v_ of
+             VBase (VBool True) -> []
+             _ -> [(1, VConstDiffs)]
+           in
+           ok1 ([newVal, newVal], leftDiff ++ rightDiff)
+         _ ->
+           ok1 ([left, right], [])
+     )
   , ("||", builtinVal "EvalUpdate.||" <| VFun "||" ["left", "right"] (twoArgs "||" <| \left right ->
          case left.v_ of
            VBase (VBool True) -> Ok (left, [])
            VBase (VBool False) -> Ok (right, [])
            _ -> Err <| "|| expects two booleans, got " ++ valToString left
-     ) Nothing)
+     ) <| Just <| twoArgsUpdate "&&" <| \left right oldVal newVal diffs ->
+      case (oldVal.v_, newVal.v_) of
+        (VBase (VBool False), VBase (VBool True)) -> -- At least one of the two must become True.
+          oks [([newVal, oldVal], [(0, VConstDiffs)]),
+               ([oldVal, newVal], [(1, VConstDiffs)]),
+               ([newVal, newVal], [(0, VConstDiffs), (1, VConstDiffs)])]
+        (VBase (VBool True), VBase (VBool False)) -> -- Both need to become False
+          let leftDiff = case left.v_ of
+             VBase (VBool False) -> []
+             _ -> [(0, VConstDiffs)]
+          in
+          let rightDiff = case right.v_ of
+            VBase (VBool False) -> []
+            _ -> [(1, VConstDiffs)]
+          in
+          ok1 ([newVal, newVal], leftDiff ++ rightDiff)
+        _ ->
+          ok1 ([left, right], []))
   , ("<=", builtinVal "EvalUpdate.<=" <| VFun "<=" ["left", "right"] (twoArgs "<=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 <= n2)), [])
