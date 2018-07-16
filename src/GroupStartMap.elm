@@ -283,7 +283,7 @@ setEndReturnStart this newEnd =
     then newEnd
     else case this.matched of
       Nothing -> -1
-      Just x -> String.length x
+      Just x -> newEnd - String.length x
     )
   in
   let _ = propagateStart this in
