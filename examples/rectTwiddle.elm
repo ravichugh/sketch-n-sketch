@@ -37,7 +37,7 @@ twiddleableFeaturesOf rectParams =
             let {x,y,x2,y2} = outputNew in
             wrapRect1 {x=x,y=y,w=x2-x,h=y2-y}
         in
-      { values = [twiddledValue] } 
+        Ok (Inputs [twiddledValue])
     }
     rectParams
 

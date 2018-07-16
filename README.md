@@ -339,16 +339,29 @@ __jsEval__ string
 ```
 Evaluates arbitrary JavaScript using JavaScript's eval. Converts back the value to an interpretable value in our language, i.e. integers to integers, strings to strings, records to records, arrays to list.
 Can be useful to execute a program with user-defined values (e.g. `let username = __jsEval__ "document.getElementById('username')" in ...`).
-This function is not reversible.
+This function is not reversible -- use it mostly for non-visible control flow (settings, appearance, language...).
 
-### `transient` and `ignore` elements/attributes
+```
+freeze exp
+Update.freeze exp
+```
+For execution purposes, `freeze` is the identity function.
+For evaluation update, `freeze` prevents any changes to be pushed back to the expression (variables and structural).
 
-If an attribute's name starts with `transient`, the update algorithm will treat it like it does not even exists. Same for elements whose tagName is `transient`.
-If an attribute's name starts with `ignore`, the update algorithm will not propagate changes made to it.
+```
+expressionFreeze exp
+Update.expressionFreeze exp
+```
+For execution purposes, `expressionFreeze` is the identity function.
+For evaluation update, `expressionFreeze` lets changes to propagate back to `exp` but will prevent structural changes to happen.
+It lets only the value of variables to be updated.
 
-Therefore, the code should not produce `transient` elements or attributes, but they should be created either by third-party tools (e.g. toolbar) or scripts inside the generated document. `ignore` attributes not be created from scripts but be already defined in the code.
-
-If needed in the future, we could add other elements (e.g. `ignore`) or attributes decribing if the element or some attributes are transient or ignorable.
+```
+sizeFreeze [list...]
+Update.sizeFreeze [list...]
+```
+For execution purposes, `sizeFreeze` is the identity function.
+For evaluation update, `sizeFreeze` will block any insertions and deletion to the list.
 
 ### `transient` and `ignore` elements/attributes
 
@@ -493,7 +506,7 @@ of the project clone.
 
 1. Install [Elm v0.18](http://elm-lang.org/)
 2. `cd SKETCH-N-SKETCH/src`
-3. `make clean`
+3. `make`
 4. Launch `SKETCH-N-SKETCH/build/out/index.html`
 
 Note: The parser has a performance issue that we have not yet addressed.

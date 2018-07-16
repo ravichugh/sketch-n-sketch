@@ -150,6 +150,13 @@ maybeWithLazyDefault mba callback = case mba of
   Just a -> a
   Nothing -> callback ()
 
+resultOrElseLazy: (() -> Result err ok) -> Result err ok -> Result err ok
+resultOrElseLazy rb ra = case ra of
+  Ok x -> ra
+  Err x -> case rb () of
+    Err _ -> ra
+    rrb -> rrb
+
 zipi0 : List a -> List (Int, a)
 zipi0 = zipi_ 0
 
@@ -1375,6 +1382,12 @@ fromResult result =
 
     Err x ->
       x
+
+dictGetFirst keys dictionary = case keys of
+  [] -> Nothing
+  key :: otherKeys -> case Dict.get key dictionary of
+    (Just x) as j -> j
+    Nothing -> dictGetFirst otherKeys dictionary
 
 -- Returns the strings from the first elements which are likely to be corrections of the string given in second.
 stringSuggestions : List String -> String -> List String

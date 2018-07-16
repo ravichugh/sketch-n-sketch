@@ -5,6 +5,7 @@ module Sync exposing
   , LiveInfo, Triggers, LiveTrigger, ZoneKey
   , prepareLiveUpdates, prepareLiveTrigger
   , yellowAndGrayHighlights, hoverInfo
+  , updateAttrs
   )
 
 import Lang exposing (..)
@@ -1291,3 +1292,189 @@ highlightChanges initSubstPlus locs changes =
   in
 
   hi_
+
+
+------------------------------------------------------------------------------
+-- Updating Shape Attributes in Ad-Hoc Mode
+
+-- Can certainly be streamlined with "Computing Triggers" above, if desired.
+
+findNumishAttrs attrs attrNames =
+  List.map (\k -> Tuple.first (LangSvg.findNumishAttr k attrs)) attrNames
+
+updateNum n =
+  LangSvg.aNum (n, dummyTrace)
+
+updateAttrs attrs zoneKey dx dy =
+  let
+    (_, shapeKind, realZone) =
+      zoneKey
+  in
+  case shapeKind of
+    "line" ->
+      let
+        (x1,y1,x2,y2) =
+          Utils.unwrap4 <| findNumishAttrs attrs ["x1","y1","x2","y2"]
+        point1 =
+          [ ("x1", updateNum <| x1 + dx), ("y1", updateNum <| y1 + dy) ]
+        point2 =
+          [ ("x2", updateNum <| x2 + dx), ("y2", updateNum <| y2 + dy) ]
+      in
+      case realZone of
+        ZPoint (Point 1) -> point1
+        ZPoint (Point 2) -> point2
+        ZLineEdge        -> point1 ++ point2
+        _                -> []
+
+    "rect" ->
+      let
+        (x,y,w,h) =
+          Utils.unwrap4 <| findNumishAttrs attrs ["x","y","width","height"]
+        interior =
+          [ ("x", updateNum <| x + dx), ("y", updateNum <| y + dy) ]
+        leftEdge =
+          [ ("x", updateNum <| x + dx), ("width", updateNum <| w - dx) ]
+        rightEdge =
+          [ ("width", updateNum <| w + dx) ]
+        topEdge =
+          [ ("y", updateNum <| y + dy), ("height", updateNum <| h - dy) ]
+        botEdge =
+          [ ("height", updateNum <| h + dy) ]
+      in
+      case realZone of
+        ZInterior        -> interior
+        ZPoint TopEdge   -> topEdge
+        ZPoint RightEdge -> rightEdge
+        ZPoint BotEdge   -> botEdge
+        ZPoint LeftEdge  -> leftEdge
+        ZPoint TopLeft   -> topEdge ++ leftEdge
+        ZPoint TopRight  -> topEdge ++ rightEdge
+        ZPoint BotLeft   -> botEdge ++ leftEdge
+        ZPoint BotRight  -> botEdge ++ rightEdge
+        _                -> []
+
+    "ellipse" ->
+      let
+        (cx,cy,rx,ry) =
+          Utils.unwrap4 <| findNumishAttrs attrs ["cx","cy","rx","ry"]
+        interior =
+          [ ("cx", updateNum <| cx + dx), ("cy", updateNum <| cy + dy) ]
+        leftEdge =
+          [ ("rx", updateNum <| rx - dx) ]
+        rightEdge =
+          [ ("rx", updateNum <| rx + dx) ]
+        topEdge =
+          [ ("ry", updateNum <| ry - dy) ]
+        botEdge =
+          [ ("ry", updateNum <| ry + dy) ]
+      in
+      case realZone of
+        ZInterior        -> interior
+        ZPoint TopEdge   -> topEdge
+        ZPoint RightEdge -> rightEdge
+        ZPoint BotEdge   -> botEdge
+        ZPoint LeftEdge  -> leftEdge
+        ZPoint TopLeft   -> topEdge ++ leftEdge
+        ZPoint TopRight  -> topEdge ++ rightEdge
+        ZPoint BotLeft   -> botEdge ++ leftEdge
+        ZPoint BotRight  -> botEdge ++ rightEdge
+        _                -> []
+
+    "circle" ->
+      let
+        (cx,cy,r) =
+          Utils.unwrap3 <| findNumishAttrs attrs ["cx","cy","r"]
+        interior =
+          [ ("cx", updateNum <| cx + dx), ("cy", updateNum <| cy + dy) ]
+        leftEdge =
+          [ ("r", updateNum <| r - dx) ]
+        rightEdge =
+          [ ("r", updateNum <| r + dx) ]
+        topEdge =
+          [ ("r", updateNum <| r - dy) ]
+        botEdge =
+          [ ("r", updateNum <| r + dy) ]
+        co =
+          (*) 1
+        contra =
+          (*) -1
+        corner fx fy =
+          let d = max (fx dx) (fy dy) in
+          [ ("r", updateNum <| r + d) ]
+      in
+      case realZone of
+        ZInterior        -> interior
+        ZPoint TopEdge   -> topEdge
+        ZPoint RightEdge -> rightEdge
+        ZPoint BotEdge   -> botEdge
+        ZPoint LeftEdge  -> leftEdge
+        ZPoint TopLeft   -> corner contra contra
+        ZPoint TopRight  -> corner co contra
+        ZPoint BotLeft   -> corner contra co
+        ZPoint BotRight  -> corner co co
+        _                -> []
+
+    "BOX" ->
+      updateBoxOrOvalAttrs attrs realZone dx dy
+    "OVAL" ->
+      updateBoxOrOvalAttrs attrs realZone dx dy
+
+    "polygon" ->
+      updatePoly attrs realZone dx dy
+    "polyline" ->
+      updatePoly attrs realZone dx dy
+
+    "path" ->
+       [] -- TODO
+
+    _ ->
+      []
+
+updateBoxOrOvalAttrs attrs realZone dx dy =
+  let
+    (left, top, right, bot) =
+      Utils.unwrap4 <| findNumishAttrs attrs ["LEFT", "TOP", "RIGHT", "BOT"]
+    leftEdge =
+      [ ("LEFT", updateNum <| left + dx) ]
+    rightEdge =
+      [ ("RIGHT", updateNum <| right + dx) ]
+    topEdge =
+      [ ("TOP", updateNum <| top + dy) ]
+    botEdge =
+      [ ("BOT", updateNum <| bot + dy) ]
+  in
+  case realZone of
+    ZInterior        -> leftEdge ++ topEdge ++ rightEdge ++ botEdge
+    ZPoint TopEdge   -> topEdge
+    ZPoint RightEdge -> rightEdge
+    ZPoint BotEdge   -> botEdge
+    ZPoint LeftEdge  -> leftEdge
+    ZPoint TopLeft   -> topEdge ++ leftEdge
+    ZPoint TopRight  -> topEdge ++ rightEdge
+    ZPoint BotLeft   -> botEdge ++ leftEdge
+    ZPoint BotRight  -> botEdge ++ rightEdge
+    _                -> []
+
+updatePoint dx dy idx points =
+  let ((xi,_),(yi,_)) = Utils.geti idx points in
+  let newPoints = Utils.replacei idx ((xi + dx, dummyTrace), (yi + dy, dummyTrace)) points in
+  newPoints
+
+updatePoly attrs realZone dx dy =
+  let points = LangSvg.getPolyPoints attrs in
+  let newPoints =
+    case realZone of
+      ZPoint (Point idx) ->
+        points
+          |> updatePoint dx dy idx
+      ZPolyEdge idx ->
+        points
+          |> updatePoint dx dy idx
+          |> updatePoint dx dy (if idx < List.length points then idx + 1 else 1)
+      ZInterior ->
+        points
+          |> List.map (\((x,_),(y,_)) -> ((x + dx, dummyTrace), (y + dy, dummyTrace)))
+      _ ->
+        []
+  in
+  [ ("points", LangSvg.aPoints newPoints) ]

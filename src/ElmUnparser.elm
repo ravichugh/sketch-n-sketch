@@ -131,6 +131,15 @@ tryUnparseTuple unparseTerm wsBefore elems wsBeforeEnd =
     else
       Nothing
 
+getDataConstructorNameString elems =
+  let
+    ctorString =
+      stringifyCtorKind Lang.DataTypeCtor
+  in
+  elems
+  |> List.map (\(_, _, key, _, val) -> (key, val))
+  |> Utils.maybeFind ctorString
+
 -- Tries to unparse a record as a data constructor
 tryUnparseDataConstructor
   :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (WS, WS, Ident, WS, t)))
@@ -141,10 +150,7 @@ tryUnparseDataConstructor unparseTerm name args wsBefore elems wsBeforeEnd =
     ctorString =
       stringifyCtorKind Lang.DataTypeCtor
 
-    maybeNameString =
-      elems
-        |> List.map (\(_, _, key, _, val) -> (key, val))
-        |> Utils.maybeFind ctorString
+    maybeNameString = getDataConstructorNameString elems
         |> Maybe.andThen name
 
     maybeArgs =
@@ -596,7 +602,7 @@ unparse e =
       unparse tail
 
     ERecord wsBefore mi decls wsAfter ->
-      tryUnparseRecordSugars unparse expName expArgs
+      tryUnparseRecordSugars (\arg -> wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)) expName expArgs
           wsBefore (recordEntriesFromDeclarations decls) wsAfter <| \_ ->
         wsBefore.val
           ++ "{"
@@ -931,7 +937,7 @@ unparseAnyHtml e =
           _ -> unparse e
     _ -> unparseHtmlChildList e
 
--- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-conatined
+-- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-contained
 getExpPrecedence: Exp -> Maybe Int
 getExpPrecedence exp =
   case exp.val.e__ of
@@ -946,6 +952,10 @@ getExpPrecedence exp =
             Just (associativity, precedence) -> Just precedence
         _ -> Nothing
     EApp _ _ _ SpaceApp _ -> Just 10
+    ERecord _ _ elems _ ->
+      case getDataConstructorNameString elems of
+        Nothing -> Nothing
+        Just x -> Just 10
     EColonType _ _ _ _ _           -> Just -1
     EOp _ _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of

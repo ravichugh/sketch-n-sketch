@@ -1,10 +1,10 @@
 change model controller =  {
-  apply model = freeze """/*@getCurrentTime*/this.setAttribute('onclick', " " + this.getAttribute('onclick'))"""
+  apply model = """/*@getCurrentTime*/this.setAttribute('onclick', " " + this.getAttribute('onclick'))"""
   update {input, outputNew} =
     if String.take 1 outputNew == " " then
-    { values = [controller model] }
+    Ok (Inputs [controller model])
     else
-    { values = [input], diffs = [Nothing]}
+    Ok (InputsWithDiffs [(input, Nothing)])
   }.apply model
 
 insertAt index newElem elements = 

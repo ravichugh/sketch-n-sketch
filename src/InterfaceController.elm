@@ -284,12 +284,8 @@ onMouseClick clickPos old maybeClickable =
   let (isOnCanvas, (canvasX, canvasY) as pointOnCanvas) = clickToCanvasPoint old clickPos in
   case (old.tool, old.mouseMode) of
 
-    -- Inactive zone
-    (Cursor, MouseDragZone (i, k, z) Nothing) ->
-      onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
-
-    -- Active zone but not dragged
-    (Cursor, MouseDragZone (i, k, z) (Just (_, _, False))) ->
+    -- zone not yet dragged
+    (Cursor, MouseDragZone (i, k, z) _ False _) ->
       onClickPrimaryZone i k z { old | mouseMode = MouseNothing }
 
     (Cursor, _) ->
@@ -420,10 +416,7 @@ onMouseDrag lastPosition newPosition old =
     MouseDrag f ->
       noCommand <| f lastPosition newPosition old
 
-    MouseDragZone zoneKey Nothing ->
-      noCommand old
-
-    MouseDragZone zoneKey (Just (trigger, (mx0, my0), _)) ->
+    MouseDragZone zoneKey (mx0, my0) _ trigger ->
       case old.syncMode of
         TracesAndTriggers True ->
           noCommand <|
@@ -433,7 +426,7 @@ onMouseDrag lastPosition newPosition old =
           -- single value being manipulated, rather than the entire program.
           noCommand old
         ValueBackprop _ ->
-          changeDomValue zoneKey (mx0,my0) (mx,my) old
+          adHocZone.drag zoneKey (mx0,my0) (mx,my) old
 
     MouseDragSelect initialPosition initialSelectedShapes initialSelectedFeatures initialSelectedBlobs ->
       noCommand <|
@@ -571,7 +564,7 @@ onMouseUp old =
 
     (PrintScopeGraph _, _) -> old
 
-    (Graphics, MouseDragZone zoneKey (Just (trigger, (mx0, my0), _))) ->
+    (Graphics, MouseDragZone zoneKey (mx0, my0) _ trigger) ->
       case old.syncMode of
         TracesAndTriggers True ->
           finishTrigger zoneKey old
@@ -581,7 +574,8 @@ onMouseUp old =
             |> applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my)
             |> finishTrigger zoneKey
         ValueBackprop _ ->
-          old
+          let (_, (mx, my)) = clickToCanvasPoint old (mousePosition old) in
+          adHocZone.finishDrag zoneKey (mx0,my0) (mx,my) old
 
     (_, MouseDrawNew points) ->
       let resetMouseMode model = { model | mouseMode = MouseNothing } in
@@ -627,7 +621,6 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
     let codeBoxInfo = old.codeBoxInfo in
     { codeBoxInfo | highlights = highlights }
   in
-  let dragInfo_ = (trigger, (mx0, my0), True) in
 
   EvalUpdate.runWithEnv old.syntax newExp |> Result.andThen (\((newVal, newWidgets), newEnv) ->
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
@@ -644,7 +637,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
           , slateCount = 1 + old.slateCount
           , widgets = newWidgets
           , codeBoxInfo = codeBoxInfo_
-          , mouseMode = MouseDragZone zoneKey (Just dragInfo_)
+          , mouseMode = MouseDragZone zoneKey (mx0, my0) True trigger
           }
   )) |> handleError old
 
@@ -671,32 +664,94 @@ finishTrigger zoneKey old =
            , synthesisResultsDict = Dict.empty
            }
 
+
 --------------------------------------------------------------------------------
 
-changeDomValue zoneKey (mx0,my0) (mx,my) old =
-  let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
-  let dy = if old.keysDown == Keys.x then 0 else (my - my0) in
-  case zoneKey of
-    -- TODO this can certainly be streamlined with
-    -- ShapeWidgets and live sync triggers, but not for now.
-    (i, "rect", ZInterior) ->
-      let (_,attrs,_) = LangSvg.justGetSvgNode "blah" i old.slate in
-      let (x,_) = LangSvg.findNumishAttr "x" attrs in
-      let (y,_) = LangSvg.findNumishAttr "y" attrs in
-      let xNew = x + toFloat dx in
-      let yNew = y + toFloat dy in
-      -- let _ = Debug.log "tell the DOM of rect new (x,y)" (xNew, yNew) in
-      let cmds =
-        -- TODO need to move the zones too...
-        Cmd.batch <|
-          [ OutputCanvas.setDomNumAttribute {nodeId=i, attrName="x", attrValue=xNew}
-          , OutputCanvas.setDomNumAttribute {nodeId=i, attrName="y", attrValue=yNew}
-          ]
-      in
-      (old, cmds)
+adHocZone =
+  let
+    getLatestAttrs i old =
+      case Dict.get i old.shapeUpdatesViaZones of
 
-    _ ->
-      (old, Cmd.none)
+        -- shape i hasn't been modified since evaluation
+        Nothing ->
+          let (_,originalAttrs,_) =
+            LangSvg.justGetSvgNode "getLatestAttrs" i old.slate
+          in
+          originalAttrs
+
+        -- shape i has been modified since evaluation
+        Just attrs ->
+          attrs
+
+    drag zoneKey (mx0,my0) (mx,my) old =
+      let dx = toFloat <| if old.keysDown == Keys.y then 0 else (mx - mx0) in
+      let dy = toFloat <| if old.keysDown == Keys.x then 0 else (my - my0) in
+      let
+        (i, _, _) =
+          zoneKey
+
+        latestAttrs =
+          getLatestAttrs i old
+
+        newAttrs =
+          Sync.updateAttrs latestAttrs zoneKey dx dy
+
+        cmds =
+          newAttrs |> List.map (\(k,av) ->
+            case av.interpreted of
+              LangSvg.ANum (n,_) ->
+                OutputCanvas.setDomShapeAttribute
+                  { nodeId = i
+                  , attrName = k
+                  , attrValue = toString n
+                  }
+              LangSvg.APoints points ->
+                OutputCanvas.setDomShapeAttribute
+                  { nodeId = i
+                  , attrName = "points"
+                  , attrValue = LangSvg.strPoints points
+                  }
+              -- LangSvg.APath2
+              -- TODO: add this when Sync.updateAttrs handles "path"
+              aval_ ->
+                let _ = Debug.log "WARN: adHocZone.drag not supported yet" aval_ in
+                Cmd.none
+          )
+      in
+      (old, Cmd.batch cmds)
+
+    finishDrag zoneKey (mx0,my0) (mx,my) old =
+      let dx = toFloat <| if old.keysDown == Keys.y then 0 else (mx - mx0) in
+      let dy = toFloat <| if old.keysDown == Keys.x then 0 else (my - my0) in
+      let
+        (i, _, _) =
+          zoneKey
+
+        latestAttrs =
+          getLatestAttrs i old
+
+        newAttrs =
+          Sync.updateAttrs latestAttrs zoneKey dx dy
+
+        newUpdatedAttrs =
+          List.foldl
+            (\(k,av) acc -> Utils.update (k, av) acc)
+            latestAttrs
+            newAttrs
+
+        newModel =
+          { old
+             | mouseMode =
+                 MouseNothing
+             , shapeUpdatesViaZones =
+                 Dict.insert i newUpdatedAttrs old.shapeUpdatesViaZones
+          }
+      in
+      newModel
+  in
+  { drag = drag
+  , finishDrag = finishDrag
+  }
 
 
 --------------------------------------------------------------------------------
@@ -771,6 +826,7 @@ tryRun old =
                       , preview       = Nothing
                       , previewdiffs  = Nothing
                       , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
+                      , shapeUpdatesViaZones = Dict.empty
                 }
               in
               let taskProgressAnnotation =
@@ -2357,7 +2413,7 @@ msgValuePathUpdate (nodeAttrsOrChild, path, newEncodedValue) =
             newValueResult =
              JSDecode.decodeValue decoder newEncodedValue |> --Result.map (\x -> let _ = Debug.log ("Decoded Value: " ++ LangUtils.valToString x) () in x) |>
                 Result.andThen (\newSubValue ->
-                  let _ = Debug.log (toString path ++ ":" ++ LangUtils.valToString newSubValue) () in
+                 --let _ = Debug.log (toString path ++ ":" ++ LangUtils.valToString newSubValue) () in
                  integrateValue path valueToUpdate newSubValue)
         in
         { m

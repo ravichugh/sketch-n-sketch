@@ -6157,8 +6157,7 @@ TableWithButtons =
     in
     Update.applyLens
       { apply rows =
-          Update.freeze
-            (List.map (\\row -> (Update.freeze False, row)) rows)
+          List.map (\\row -> (Update.freeze False, row)) rows
 
       , update {outputNew = flaggedRows} =
           let processRow (flag, row) =
@@ -6166,7 +6165,7 @@ TableWithButtons =
               then [ row, blankRow ]
               else [ row ]
           in
-          { values = [List.concatMap processRow flaggedRows] }
+          Ok (Inputs [List.concatMap processRow flaggedRows])
       }
       rows
   in
@@ -6320,18 +6319,17 @@ mapMaybeLens =
   case mx of [] -> []; [x] -> [f x]
 
 maybeMapLens default =
-  { apply (f, mx) =
-      Update.freeze (maybeMapSimple f mx)
+  { apply (f, mx) = maybeMapSimple f mx
 
   , update {input = (f, mx), outputNew = my} =
       case my of
-        []  -> { values = [(f, [])] }
+        []  -> Ok (Inputs [(f, [])])
         [y] ->
           let z = case mx of [x] -> x; [] -> default in
           let results =
             Update.updateApp {fun (func, arg) = func arg, input = (f, z), output = y}
           in
-          { values = List.map (\\(newF,newZ) -> (newF, [newZ])) results.values }
+          Ok (Inputs (List.map (\\((newF,newZ), diffs) -> (newF, [newZ])) results.args._1.args._1))
   }
 
 maybeMap default f mx =
@@ -6359,8 +6357,7 @@ main =
 
 mapListLens_1 =
  """listMapLens =
-  { apply (f,xs) =
-      Update.freeze (List.simpleMap f xs)
+  { apply (f,xs) = List.simpleMap f xs
 
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
@@ -6401,7 +6398,7 @@ mapListLens_1 =
       let newFuncAndInputLists =
         List.simpleMap (\\newInputList -> (f, newInputList)) newInputLists
       in
-      { values = newFuncAndInputLists }
+      Ok (Inputs newFuncAndInputLists)
   }
 
 listMap f xs =
@@ -6421,8 +6418,7 @@ main =
 
 mapListLens_2 =
  """listMapLens =
-  { apply (f,xs) =
-      Update.freeze (List.simpleMap f xs)
+  { apply (f,xs) = List.simpleMap f xs
 
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
@@ -6471,7 +6467,7 @@ mapListLens_2 =
           (newFunc, newInputList)
         ) newLists
       in
-      { values = newFuncAndInputLists }
+      Ok (Inputs newFuncAndInputLists)
   }
 
 listMap f xs =
@@ -6495,8 +6491,7 @@ listAppendLens =
     x::xs -> x :: listAppendSimple xs ys
 
 listAppendLens = {
-  apply (xs, ys) =
-    Update.freeze (listAppendSimple xs ys)
+  apply (xs, ys) = listAppendSimple xs ys
 
   update {input = (xs,ys), outputOld, outputNew} =
 
@@ -6539,7 +6534,7 @@ listAppendLens = {
     let newLists =
       walk True (Update.listDiff outputOld outputNew) xs ys [([],[])]
     in
-    { values = newLists }
+    Ok (Inputs newLists)
 }
 
 listAppend xs ys =
@@ -6648,20 +6643,20 @@ markdown text =
       [regex, replacement] -> Regex.replace regex replacement acc
       [regex, replacement, {postReverse = fun}] ->
         let newAcc = {
-          apply acc = freeze acc
+          apply acc = acc
           update {input,newOutput=out,diffs} =
             case fun out diffs of
-              (value, diff) -> { values = [value], diffs = [Just diff] }
+              (value, diff) -> Ok (InputsWithDiffs [(value, Just diff)])
               value  -> case Update.diff input value of
-                Ok n -> { values = [value], diffs = [n] }
-                Err x -> { error = x}
+                Ok n -> Ok (InputsWithDiffs [(value, n)])
+                Err x -> Err x
           }.apply acc in
         Regex.replace regex replacement newAcc 
   ) finaltext rules 
 
 -- Takes care of newlines inserted in the document.
 newlines_lens x = {
-  apply x = freeze x,
+  apply x = x
   update {outputNew,diffs} =
     letrec aux offset d strAcc = case d of
       [] -> strAcc
@@ -6683,7 +6678,7 @@ newlines_lens x = {
         in
         left + newInserted + right |>
         aux (offset + String.length inserted - (end - start)) dtail
-    in { values = [aux 0 (strDiffToConcreteDiff outputNew diffs) outputNew] }
+    in Ok (Inputs [aux 0 (strDiffToConcreteDiff outputNew diffs) outputNew])
   }.apply x
 
 Html.forceRefresh <|
@@ -6752,13 +6747,13 @@ markdown text =
       \"<h\" + level + \">\" + trim header + \"</h\" + level + \">\"
   in
   let onUpdate fun acc = {
-    apply acc = freeze acc
+    apply acc = acc
     update {input,newOutput=out,diffs} =
       case fun out diffs of
-        (value, diff) -> { values = [value], diffs = [Just diff] }
+        (value, diff) -> Ok (InputsWithDiffs [(value, Just diff)])
         value  -> case Update.diff input value of
-          Ok n -> { values = [value], diffs = [n] }
-          Err x -> { error = x}
+          Ok n -> Ok (InputsWithDiffs [(value, n)])
+          Err x -> Err x
     }.apply acc
   in
   \"\\n\" + text + \"\\n\" |>
@@ -6791,7 +6786,7 @@ markdown text =
 
 -- Takes care of newlines inserted in the document.
 newlines_lens x = {
-  apply x = freeze x,
+  apply x = x
   update {outputNew,diffs} =
     letrec aux offset d strAcc = case d of
       [] -> strAcc
@@ -6813,7 +6808,7 @@ newlines_lens x = {
         in
         left + newInserted + right |>
         aux (offset + String.length inserted - (end - start)) dtail
-    in { values = [aux 0 (strDiffToConcreteDiff outputNew diffs) outputNew] }
+    in Ok (Inputs [aux 0 (strDiffToConcreteDiff outputNew diffs) outputNew])
   }.apply x
 
 Html.forceRefresh <|
@@ -6903,12 +6898,12 @@ Html.span [] [] <| html ((freeze markdown) original)
 
 fromleo_conference_budgetting =
  """notBelow bound x = {
-  apply x = freeze x
+  apply x = x
   update {input, outputNew} =
     if outputNew <= bound &&
-       input     >  bound     then { values = [bound] }
-    else if outputNew > bound then { values = [outputNew] }
-    else                           { values = [] }
+       input     >  bound     then Ok (Inputs [bound])
+    else if outputNew > bound then Ok (Inputs [outputNew])
+    else                           Ok (Inputs [])
   }.apply x
 
 exactly x = freeze x
@@ -6987,14 +6982,14 @@ result = Regex.replace \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\"
     \"multdivby\" ->
       let res = floor (base * freeze mult / freeze div) in
       if res < 6 then -- We take into account 1/2, 1/4 and 3/4 until 5, else it makes no sense, but no more.
-        { apply base = freeze <|
+        { apply base =
            case floor (base * mult * 4 / div) - 4*res of
              0 -> if res == 0 then \"<¼\" else toString res
              1 -> if res == 0 then \"¼\" else if res >= 4 then toString res else toString res + \"¼\"
              2 -> if res == 0 then \"½\" else toString res + \"½\"
              3 -> if res == 0 then \"¾\" else if res >= 4 then toString res else toString res + \"¾\"
           update {outputNew, outputOriginal} =
-            if outputNew == outputOriginal then {values=[base]} else
+            if outputNew == outputOriginal then Ok (Inputs [base]) else
             let quantityTimes4 = case Regex.extract \"(.*)(¼|[ +]?[13]/[24]|½|¾)\" outputNew of
               Just [i, complement] -> 
                  let addi x = if i == \"\" then x else 4 * String.toInt i + x in
@@ -7014,19 +7009,19 @@ result = Regex.replace \"(multdivby|ifmany(\\\\w+))\\\\[(\\\\d+),(\\\\d+)\\\\]\"
                    a      -> error <| \"Unexpected complement: \" + complement
               Nothing -> 4 * String.toInt outputNew
             in
-            {values = [floor (quantityTimes4 * div / mult / 4)] }
+            Ok (Inputs [floor (quantityTimes4 * div / mult / 4)])
         }.apply base
       else toString res
     ifmanyEnding ->
       let ending = nth m.group 2 in
       let res = floor (base * freeze mult * freeze 4 / freeze div) in
-      { apply (res, ending) = freeze <| if res > 4 then ending else \"\"
+      { apply (res, ending) = if res > 4 then ending else \"\"
         update {input=(res,ending), outputNew, outputOriginal} =
           if outputNew == \"\" && outputOriginal == ending then
-            {values=[(4, ending)]}
+            Ok (Inputs [(4, ending)])
           else
-            if Regex.matchIn \" \" outputNew then {values = []} else
-            {values = [(res, outputNew)]} }.apply (res, ending)) txt
+            if Regex.matchIn \" \" outputNew then Ok (Inputs []) else
+            Ok (Inputs [(res, outputNew)]) }.apply (res, ending)) txt
 
 Html.div [[\"margin\", \"20px\"], [\"cursor\", \"text\"]] [] <| (\\x -> [x]) <|
 Html.span [] [] <|
@@ -7035,14 +7030,14 @@ html <| \"\"\"<button onclick=\"this.setAttribute('v','@otherLanguage')\" v=\"@l
           (\"French\", \"\"\"<i>Astuce:</i> Ecrire _5_ pour un nombre proportionel 5, _5s_ pour un 's' conditionel si la quantité 5 est plus grande que 1.\"\"\")] |> flip Dict.apply language) + 
  { apply x = freeze x ,
    update {output} =
-     { values = [Regex.replace \"_(\\\\d+)(\\\\w*)_\" (\\m ->
+     Ok (Inputs [Regex.replace \"_(\\\\d+)(\\\\w*)_\" (\\m ->
         let amount = String.toInt (nth m.group 1) in
         let plural = nth m.group 2 in
         case plural of
            \"\" -> \"\"\"multdivby[@amount,@base]\"\"\"
            _ ->
             \"\"\"ifmany@plural[@amount,@base]\"\"\"
-        ) output] }
+        ) output])
  }.apply result
 
 """
@@ -7122,12 +7117,12 @@ evaluateMacros base =
         let res = floor (base * freeze mult / freeze div) in
         if res < 6 then -- We take into account 1/2, 1/4 and 3/4 until 5, else it makes no sense, but no more.
           Update.applyLens
-            { apply (base, _) = freeze <|
+            { apply (base, _) =
                 introduceFractions res (floor (base * mult * 4 / div) - 4*res)
 
               update {outputNew, outputOriginal} =
                 if outputNew == outputOriginal then
-                  { values = [(base, match)] }
+                  Ok (Inputs [(base, match)])
                 else
                   let newBase =
                     floor (updateFractions outputNew * div / mult / 4)
@@ -7137,7 +7132,7 @@ evaluateMacros base =
                     let newDiv  = div  * String.toInt outputOriginal in
                     \"\"\"multdivby[@newMult,@newDiv]\"\"\"
                   in
-                  { values = [(newBase, match), (base, newMatch)] }
+                  Ok (Inputs [(newBase, match), (base, newMatch)])
             }
             (base, match)
         else
@@ -7147,29 +7142,29 @@ evaluateMacros base =
         let ending = nth m.group 2 in
         let res = floor (base * freeze mult * freeze 4 / freeze div) in
         Update.applyLens
-          { apply (res, ending) = freeze <|
+          { apply (res, ending) =
               if res > 4 then ending else \"\"
 
             update {input=(res,ending), outputNew, outputOriginal} =
-              if outputNew == \"\" && outputOriginal == ending then {values=[(4, ending)]}
-              else if Regex.matchIn \" \" outputNew then {values = []}
-              else {values = [(res, outputNew)]}
+              if outputNew == \"\" && outputOriginal == ending then Ok (Inputs [(4, ending)])
+              else if Regex.matchIn \" \" outputNew then Ok (Inputs [])
+              else Ok (Inputs [(res, outputNew)])
           }
           (res, ending)
   )
 
 defineMacros base = 
   Update.applyLens
-    { apply x = Update.freeze x
+    { apply x = x
     , update {output} =
-        { values = [Regex.replace \"_(\\\\d+)(\\\\w*)_\" (\\m ->
+        Ok (Inputs [Regex.replace \"_(\\\\d+)(\\\\w*)_\" (\\m ->
             let amount = String.toInt (nth m.group 1) in
             let plural = nth m.group 2 in
             case plural of
               \"\" -> \"\"\"multdivby[@amount,@base]\"\"\"
               _  -> \"\"\"ifmany@plural[@amount,@base]\"\"\"
           ) output]
-        }
+        )
     }
 
 scalableRecipe base recipe =
@@ -7248,11 +7243,11 @@ ui model =
   let
     stringFlagForUpdate state1 state2 f model =
       Update.applyLens
-        { apply _ = Update.freeze state1
+        { apply _ = state1
         , update {input = model, outputNew} =
             if outputNew == state2
-              then {values = [f model]}
-              else {values = [model]}
+              then Ok (Inputs [f model])
+              else Ok (InputsWithDiffs [(model, Nothing)])
         } model
   in
   { button name controller =
@@ -7396,7 +7391,7 @@ Therefore, $P($n+1) holds.</li></ul
   Regex.replace \"(\\\\$)_(\\\\w+)\" (\\m ->
     nth m.group 1 + \"<span></span>\" + nth m.group 2) |>
   (\\x ->
-    { apply (x, variables) = freeze x
+    { apply (x, variables) = x
       update {input = (x, variables), output} =
         Regex.find \"\\\\$(?!_)(\\\\w+)(?:=(\\\\w+))?\" output |>
         List.foldl (\\(_::name::definition::_) (variables, variablesDict) ->
@@ -7409,7 +7404,7 @@ Therefore, $P($n+1) holds.</li></ul
             let [_, name, _] = m.group in
              if Dict.member name variablesDict then m.match else \"$\" + name
           ) output in
-          { values = [(newOutput, newVariables)] }
+          Ok (Inputs [(newOutput, newVariables)])
     }.apply (x, variables)
   )
 
@@ -7504,7 +7499,7 @@ translate options language translations content =
     if Dict.member (name + toString i) (dictionary) then freshVarName name (i + 1) (dictionary) else name + toString i
   in
   content |> replaceVariables currentTranslation |> \\x ->
-    { apply (x, _) = freeze x
+    { apply (x, _) = x
       update {input = (x, allTranslationDicts), newOutput} =
         Regex.find \"\\\\{([^\\\\}]*(?!\\\\})\\\\S[^\\\\}]*)\\\\}\" newOutput |>
         List.foldl (\\(_::definition::_) (newOutput, currentTranslation, allTranslationDicts) ->
@@ -7514,18 +7509,18 @@ translate options language translations content =
              Dict.insert name definition currentTranslation,
              List.map (\\(lang, d) -> (lang, Dict.insert name definition d)) allTranslationDicts)
         ) (newOutput, currentTranslation, allTranslationDicts) |> \\(newOutput, _, newTranslationsLangDict) ->
-          { values = [(newOutput, newTranslationsLangDict)] }
+          Ok (Inputs [(newOutput, newTranslationsLangDict)])
     }.apply (x, allTranslationDicts)
 
 addLang translations = {
-  apply alltranslationsLangDict = freeze \"\"
+  apply alltranslationsLangDict = \"\"
   update {input, outputNew} =
     if not (outputNew == \"\") && not (Dict.member outputNew alltranslationsLangDict) then 
       let toCopy = Dict.apply alltranslationsLangDict language in
-      { values = [Dict.insert outputNew toCopy alltranslationsLangDict]
-      , diffs=[Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)]))]}
+      Ok (InputsWithDiffs [(Dict.insert outputNew toCopy alltranslationsLangDict
+                           ,Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)])))])
     else
-      { values = [input], diffs = [Nothing]}
+      Ok (InputsWithDiffs [(input, Nothing)])
   }.apply (Dict.fromList translations)
 
 main = 
@@ -7856,8 +7851,9 @@ splitargs n array =
 escape txt = txt |>
   replaceAllIn \"\\\\\\\\\" \"\\\\textbackslash{}\" |>
   replaceAllIn \"%(\\\\w+) (\\\\w+)\" (\\{group=[_, a, b]} -> \"\\\\\" + a + \"{\" + b  + \"}\") |>
-  replaceAllIn \"<B>(.*)</B>\" (\\{group=[_, a]} -> \"\\\\textbf{\" + a  + \"}\") |>
-  replaceAllIn \"<I>(.*)</I>\" (\\{group=[_, a]} -> \"\\\\textbf{\" + a  + \"}\")
+  replaceAllIn \"<[bB]>\" (\\_ -> \"\\\\textbf{\") |>
+  replaceAllIn \"<[iI]>\" (\\_ -> \"\\\\textit{\") |>
+  replaceAllIn \"</[bBiI]>\" (\\_ -> \"}\")
 
 toHtmlWithoutRefs opts tree =
   letrec aux opts revAcc tree = case tree of
@@ -7868,9 +7864,9 @@ toHtmlWithoutRefs opts tree =
         aux opts revAcc newTree
       {tag=\"rawtext\", value=text, pos = pos} ->
         let finalText = {
-           apply x = freeze x,
+           apply x = x,
            update {input, oldOutput, newOutput, diffs} = 
-             {values = [Update.mapInserted escape newOutput diffs] }
+             Ok (Inputs [Update.mapInserted escape newOutput diffs])
           }.apply text in
         if opts.indent && Regex.matchIn \"\"\"^[\\s]*\\S\"\"\" text then
           let newOpts = { opts | indent = False,  newline = False } in
@@ -7924,7 +7920,7 @@ initOptions = {
 
 htmlMapOf htmlOf trees = case trees of
   [] -> \"\"
-  (head::tail) -> htmlOf head + htmlMapOf tail
+  (head::tail) -> htmlOf head + htmlMapOf htmlOf tail
 
 htmlOf text_tree = case text_tree of
   [\"TEXT\", value] -> -- Needs some escape here.
@@ -7934,12 +7930,12 @@ htmlOf text_tree = case text_tree of
 toHtml x =
   let [raw, opts] = toHtmlWithoutRefs initOptions x in
   letrec replaceMap replaceReferences trees = case trees of
-    [] -> []
+    [] -> freeze []
     (head :: tail) -> {
-        apply x = freeze x
+        apply x = x
         update {input, outputNew, outputOriginal, diffs} =
           if (len outputNew /= len outputOriginal && len outputOriginal == 1) then
-            {values = [[[\"TEXT\", htmlOf [outputNew]]]]} else {values=[outputNew], diffs=[Just diffs]}
+            Ok (Inputs [[[\"TEXT\", htmlMapOf htmlOf outputNew outputNew]]]) else Ok (InputsWithDiffs [(outputNew, Just diffs)])
       }.apply [replaceReferences head] ++ replaceMap replaceReferences tail
   in
   letrec replaceReferences tree = case tree of
@@ -7947,13 +7943,13 @@ toHtml x =
       Nothing -> htmlError (\"Reference \" + refname + \" not found.\") \"???\"
       Just txt ->
         let replaceKey refNameTxt = {
-           apply (refname,txt) = freeze txt,
+           apply (refname,txt) = txt,
            update {input=(oldRefname, oldTxt), outputNew=newText} =  -- Lookup for the reference in the options.
              case Dict.get newText opts.nameToLabel of
               Just newRefname ->
-                {values = [(newRefname, oldTxt)]}
+                Ok (Inputs [(newRefname, oldTxt)])
               _ -> -- No solution, cancel update.
-                {error=\"could not find reference\" + toString newText}
+                Err (\"could not find reference\" + toString newText)
           }.apply refNameTxt
         in
         [\"span\", [
@@ -7967,10 +7963,10 @@ toHtml x =
   replaceMap replaceReferences raw
 
 latex2html latex = 
-  { apply (f, latex) = freeze (f latex),
-    update {input = (f, latex), outputOld, outputNew, diffs = VListDiffs diffs} = 
+  { apply (f, latex) = f latex,
+    update {input = (f, latex), outputOld, outputNew, diffs = (VListDiffs ldiffs) as diffs} = 
       letrec gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
-        [] -> {values = [[]]}
+        [] -> Ok [[]]
         ((j, ListElemUpdate d) :: diffTail) ->
           if j > i then
             gatherDiffsChild gatherDiffs j (LensLess.List.drop (j - i) cOld) (LensLess.List.drop (j - i) cNew) childDiffs
@@ -7984,29 +7980,28 @@ latex2html latex =
                   )
                 )
               _ -> error \"Unexpected size of cOld and cNew\"
-        ((j, subdiff)::diffTail) -> {error = \"Insertion or deletions, cannot short-circuit at \" + toString j + \", \" + toString subdiff}
+        ((j, subdiff)::diffTail) -> Err (\"Insertion or deletions, cannot short-circuit at \" + toString j + \", \" + toString subdiff)
       in
       letrec gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
         ([\"span\", [[\"start\", p]], [[\"TEXT\", vOld]]], 
          [\"span\", [[\"start\", p]], [[\"TEXT\", vNew]]],
           VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate (VListDiffs [(1, ListElemUpdate sd)]))]))]) -> 
-           { values = [[(Debug.log (\"escaped string '\" + vNew + \"' with diffs \" + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]] }
+           Ok [[(Debug.log (\"escaped string '\" + vNew + \"' with diffs \" + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]]
         ([_, _, cOld], [_, _, cNew], VListDiffs [(2, ListElemUpdate (VListDiffs childDiffs))]) ->
            gatherDiffsChild gatherDiffs 0 cOld cNew childDiffs
-        _ -> {error = \"Could not find text differences \" + toString (outputOld, outputNew, diffs)}
+        _ -> Err (\"Could not find text differences \" + toString (outputOld, outputNew, diffs))
       in
-      case gatherDiffsChild gatherDiffs 0 outputOld outputNew diffs of
-        { values = [replacements] } ->
+      case gatherDiffsChild gatherDiffs 0 outputOld outputNew ldiffs of
+        Ok [replacements] ->
           let newLatex = foldl (\\(newValue, start, end) acc ->
             String.substring 0 start acc + newValue + String.drop end acc
           ) latex replacements in
-          let newDiffs = case Update.diff latex newLatex of
-            Ok (Just d) -> [Just (VRecordDiffs { _2 = d})]
-            Ok Nothing -> [Nothing]
-            Err msg -> error msg
-          in
-          { values = [(f, newLatex)], diffs = newDiffs}
-        { error = msg } ->
+          Update.diff latex newLatex
+          |> Result.map (\\mbDiff ->
+            let newDiff = Maybe.map (\\d -> VRecordDiffs { _2 = d})  mbDiff in
+            (InputsWithDiffs [((f, newLatex), newDiff)])
+          )
+        Err msg ->
           Update.updateApp {
             fun (f, x) = f x, input = (f, latex), outputOld = outputOld, output = outputNew, diffs = diffs
           }
@@ -8161,7 +8156,7 @@ function setTransientVisibility(element, condition) {
 function fromId(id) {
   return document.querySelector(\"#\" + id);
 }
-function @id.chooseCallback() {
+function @(id.chooseCallback)() {
   var player = fromId(\"@id.currentPlayer\");
   var tellplayers = fromId(\"@id.tellPlayer\");
   if(player !== null && tellplayers !== null) {
@@ -8182,7 +8177,7 @@ function @id.chooseCallback() {
     setTransientVisibility(button, card.selectedIndex > 0 && bet.selectedIndex > 0 && bet.selectedIndex !== card.selectedIndex);
   }
 }
-function @id.clickbuttoncallback() {
+function @(id.clickbuttoncallback)() {
   // Commits the bets for the given player.
   var card = fromId(\"@id.cardNumber\");
   var bet = fromId(\"@id.betNumber\");
@@ -8195,7 +8190,7 @@ function @id.clickbuttoncallback() {
   setTransientVisibility(e, true);
 }
 
-function @id.addAnotherPlayerBet() {
+function @(id.addAnotherPlayerBet)() {
   var d = fromId(\"@id.forcurrentplayer\");
   var e = fromId(\"@id.foranotherplayer\");
   setTransientVisibility(d, true);
@@ -8206,7 +8201,7 @@ function @id.addAnotherPlayerBet() {
   if(card !== null) card.selectedIndex = 0;
   if(bet !== null) bet.selectedIndex = 0;
   if(player !== null) player.selectedIndex = (player.selectedIndex + 1) % player.children.length;
-  @id.chooseCallback();
+  @(id.chooseCallback)();
 }
 </script><style>
   .normallyNotVisible {
@@ -8248,7 +8243,7 @@ function @id.addAnotherPlayerBet() {
     v=(Html.onChangeAttribute players commitPlayer)>
     </span>
     <script>
-      @id.chooseCallback();
+      @(id.chooseCallback)();
     </script>
   </span>
 </span>
@@ -8456,7 +8451,7 @@ freshVarName name i dictionary =
   
 content = content |> replaceVariables currentTranslation |>
   (\\x ->
-    { apply (x, _) = freeze x
+    { apply (x, _) = x
       update {input = (x, allTranslationDicts), newOutput} =
         Regex.find \"\\\\{([^\\\\}]*(?!\\\\})\\\\S[^\\\\}]*)\\\\}\" newOutput |>
         List.foldl (\\(_::definition::_) (newOutput, currentTranslation, allTranslationDicts) ->
@@ -8467,20 +8462,20 @@ content = content |> replaceVariables currentTranslation |>
              Dict.insert name definition currentTranslation,
              List.map (\\(lang, d) -> (lang, Dict.insert name definition d)) allTranslationDicts)
         ) (newOutput, currentTranslation, allTranslationDicts) |> \\(newOutput, _, newTranslationsLangDict) ->
-          { values = [(newOutput, newTranslationsLangDict)] }
+          Ok (Inputs [(newOutput, newTranslationsLangDict)])
     }.apply (x, allTranslationDicts)
   )
 
 alltranslationsLangDict = Dict.fromList translations
 addLang alltranslationsLangDict = {
-  apply alltranslationsLangDict = freeze \"\"
+  apply alltranslationsLangDict = \"\"
   update {input, outputNew} =
     if not (outputNew == \"\") && not (Dict.member outputNew alltranslationsLangDict) then 
       let toCopy = Dict.apply alltranslationsLangDict language in
-      {values = [Dict.insert outputNew toCopy alltranslationsLangDict],
-       diffs=[Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)]))]}
+      Ok (InputsWithDiffs [(Dict.insert outputNew toCopy alltranslationsLangDict,
+                           Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)])))])
     else
-      { values = [input], diffs = [Nothing]}
+      Ok (InputsWithDiffs [(input, Nothing)])
   }.apply alltranslationsLangDict
 
 main = 
@@ -8670,13 +8665,13 @@ menus = [
 
 
 addPerson participants choix = {
-  apply (participants, choix) = Update.freeze \"\"
+  apply (participants, choix) = \"\"
   update {input=(oldParticipants, oldChoix), outputNew = newParticipant} =
     if newParticipant /= \"\" then
       let newParticipants = oldParticipants ++ [newParticipant] in
       let newChoix = choix ++ (map (\\i -> [len oldParticipants, i, False]) (indices menus)) in
-      {values = [(newParticipants, newChoix)] }
-    else {values = [(oldParticipants, oldChoix)]}
+      Ok (Inputs [(newParticipants, newChoix)])
+    else Ok (Inputs [(oldParticipants, oldChoix)])
 }.apply (participants, choix)
 
 
@@ -8685,8 +8680,8 @@ total menuId =
   <td>@n</td>
 
 onChangeAttribute model controller =
-    { apply model = Update.freeze \"\"
-      update {input, outputNew} = { values = [controller input outputNew] }
+    { apply model = \"\"
+      update {input, outputNew} = Ok (Inputs [controller input outputNew])
     }.apply model
  
 wantsToEat personId menuId =
@@ -8904,8 +8899,8 @@ content =
       let name = {
         apply x = Dict.get defaultName cachedNames |>
           case of Nothing -> defaultName; Just n -> n
-        update {input=(a, b), outputNew=newName} = {
-          values = [(a, Dict.insert defaultName newName cachedNames)] }
+        update {input=(a, b), outputNew=newName} = Ok (Inputs (
+           [(a, Dict.insert defaultName newName cachedNames)]))
         }.apply (defaultName, cachedNames) in
       let res = __evaluate__ prevDefinitions cmd in
       let newPrevDefinitions = case res of
@@ -9138,14 +9133,14 @@ slide h1, slide h2 {
 """
 
 docs =
- """ensureNatural {minbound} n = { apply x = freeze x, update {input, outputNew} =
+ """ensureNatural {minbound} n = { apply x = x, update {input, outputNew} =
   let (f, c) = (max minbound <| floor outputNew, max minbound <| ceiling outputNew) in
   if f /= outputNew || c /= outputNew then let solutions = (if f == input then [] else [f]) ++
   (if c == input || c == f then [] else [c]) in
-  { values = solutions } else { values = [outputNew] } }.apply n
+  Ok (Inputs solutions) else Ok (Inputs [outputNew]) }.apply n
 
-format n = { apply n = freeze (toString n |> Regex.replace \"\"\"(\\d)(?=(?:(?:\\d{3})+$))\"\"\" (\\m -> nth m.group 1 + \",\"))
-             update {outputNew} = {values=[String.toInt (Regex.replace \",\" \"\" outputNew)]}}.apply n
+format n = { apply n = toString n |> Regex.replace \"\"\"(\\d)(?=(?:(?:\\d{3})+$))\"\"\" (\\m -> nth m.group 1 + \",\")
+             update {outputNew} = Ok (Inputs [String.toInt (Regex.replace \",\" \"\" outputNew)])}.apply n
 
 nbpostdocs     = ensureNatural {minbound=0} 2
 nbgraduates    = ensureNatural {minbound=1} 4
@@ -9167,7 +9162,7 @@ Detailed budget can be found in <a class=\"sectionref\" href=\"#budget\">the bud
 <h2 id=\"budget\">Detailed budget</h2>
   <table>
     <tr><th>Who</th>
-    @(years <| \\i -> <th>Year #@i</th>)<th>Total</th></tr>
+    @(years <| \\i -> <th>Year #@(freeze i + 0)</th>)<th>Total</th></tr>
     <tr><td>@nbgraduates graduates</td>
       @(years <| \\i -> <td>@format<|(nbgraduates * graduatesalary)$</td>)
       <td>@(years (always <| nbgraduates * graduatesalary) |> List.sum |> format)$</td></tr>
@@ -9184,22 +9179,24 @@ Detailed budget can be found in <a class=\"sectionref\" href=\"#budget\">the bud
   <ul><li>Make it collaborative<br></li>
   <li>Ensure that we can format paragraphs that contain values properly</li>
   <li>Deal with tables nicely by back-propagating expressions</li></ul>
+<span style=\"position:relative\"><div
+style=\"position:absolute;left:0;width:calc(8.5in - 32mm);height:20px;background:lightgreen;text-align:right\">d</div>
+</span>
+@(List.range 1 50 |> List.map (\\i -> <div>More text @i</div>))
 </div>
-
-
-
-
-
-
-
-
-
 
 -- Very useful link: http://alistapart.com/article/boom
 -- https://code.tutsplus.com/tutorials/create-a-wysiwyg-editor-with-the-contenteditable-attribute--cms-25657
 <div id=\"app\">
-<div id=\"menu\">
+<div id=\"menu\" style=\"padding-left:10px\">
 @Html.forceRefresh<|<style>
+#app {
+  position: relative;
+  background: #eeeeee;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
 #menu > a {
   text-decoration: none;
   color: black;
@@ -9219,11 +9216,10 @@ Detailed budget can be found in <a class=\"sectionref\" href=\"#budget\">the bud
   border-bottom: 2px solid #cccccc;
   background: #eeeeee;
 }
-#app {
+#body {
   position: relative;
-  background: #eeeeee;
+  overflow: scroll;
   height: 100%;
-  width: 100%;
 }
 .page {
   position: relative;
@@ -9231,7 +9227,7 @@ Detailed budget can be found in <a class=\"sectionref\" href=\"#budget\">the bud
   margin-top: 10px;
   top: 0px;
   width: 8.5in;
-  height: 11in;
+  /*height: 11in;*/
   box-sizing: border-box;
   box-shadow: 0px 0px 5px #aaa;
   background: white;
@@ -9243,6 +9239,7 @@ Detailed budget can be found in <a class=\"sectionref\" href=\"#budget\">the bud
    width: 100%;
    height: 100%;
    box-sizing: border-box;
+   word-wrap: break-word;
 }
 th, td {
     padding: 5px;
@@ -9255,8 +9252,26 @@ h2::before {
     content: counter(h2-counter) \". \";
 }
 @@media print {
+  body {
+    background: white;
+  }
   body * {
     visibility: hidden;
+  }
+  #outputCanvas {
+    height: auto !important;
+    overflow: visible;
+  }
+  #app {
+    position: absolute;
+    height: auto;
+    width: 100%;
+    overflow: visible;
+  }
+  #body {
+    position: absolute;
+    top: 0;
+    overflow: visible;
   }
   .code-panel {
     display: none;
@@ -9268,14 +9283,32 @@ h2::before {
     position: absolute;
     left: 0;
     top: 0;
-    right: 0;
-    bottom: 0;
     box-shadow: none;
+    margin: 0;
+    width: calc(8.5in - 32mm);
+    /*width: calc(1.5 * calc(8.5in - 32mm));
+    font-size: 1.5em;*/
+    transform: scale(1.5); /* I don't know why but this is correct on my machine!\" */
+    transform-origin: top left;
   }
   .pagecontent {
     padding: 0;
-    font-size: 1.5em;
+    /*font-size: 1.5em;*/
   }
+  .pagecontent div, .pagecontent h2 {
+    page-break-inside: avoid;
+  }
+  @@page{
+    margin-top: 17mm;
+    margin-right: 16mm;
+    margin-bottom: 27mm;
+    margin-left: 16mm;
+    size: 8.5in 11in;
+    @@bottom-right {
+      content: counter(page);
+    }
+  }
+  
   .output-panel {
     left: 0 !important;
     top: 0 !important;
@@ -9302,8 +9335,8 @@ h2::before {
 <a href=\"#\" data-command='insertOrderedList' title=\"numbered list\"><ol
   style=\"font-size:0.05em;display:inline-block\"
   ><li>---</li><li>---</li><li>---</li></ol></a>
-<a href=\"#\" data-command='print' title=\"Print the document -- look for @media print for configurable options\">Print</a>
-</div>
+<a href=\"#\" data-command='print' title=\"Print the document -- look for @media print for configurable options\">🖶
+</a></div>
 @Html.forceRefresh<|<div id=\"body\">
 <div class=\"page\">
 @pageContent
@@ -9336,7 +9369,7 @@ for(var i = 0; i < as.length; i++) {
 
 sync =
  """sync v1v2 = {
-  apply ((s1, n1), (s2, n2)) = freeze (
+  apply ((s1, n1), (s2, n2)) = (
     if s1 == s2 then ((s1, n1), \"\")
     else let t = Html.freshTag () in
       ((s1, n1), <@t><script id=t mkupdate=\"\">
@@ -9350,7 +9383,7 @@ document.getElementById(\"@t\").setAttribute(\"mkupdate\",`unify`)
       if n2.recentlyModified then s2 else
       newS, {recentlyModified=False})
     in
-    { values = [(newsn, newsn)] }
+    Ok (Inputs [(newsn, newsn)])
 }.apply v1v2
 
 --------------------------------------------------------------
@@ -9367,6 +9400,252 @@ v3 = (\"Hi big world!\", {recentlyModified=False})
 @script
 @script2
 </h1>
+"""
+
+foldl_reversible_join =
+ """big = \"big\"
+world = \" world\"
+list = [\"Hello\", \"2\", \"\", big, world, \"!\"]
+
+[color1, color2] = [\"red\", \"blue\"]
+highlight color x = <span style=\"\"\"color:@color\"\"\">@x</span>
+
+list2 = [[1, 2], [], 3, [4, 5]]
+
+<div style=\"margin:10px\">
+<h1>Reversible join and concatMap</h1>
+<code>String.join</code> and <code>List.concatMap_</code> are two functions making use of <code>List.foldl2</code>. It allows to deal with insertion and deletions of elements in the original list.
+<h2><code>String.join</code></h2>
+<span><code style=\"font-size:1.5em\">join_ @(toString list) =<br>@highlight(color1)(toString<|String.join \"\" list)</code><br>
+Try the following on @highlight(color1)(\"\"\"the result above in @color1\"\"\") to see of join is cleverly thought::
+<ul>
+<li>Insert 1 to the left of 2 - it first snaps with numbers</li>
+<li>Insert 1 to the right of 2 - if first snaps with empty string, then number</li>
+<li>Insert 'a' without quotes to the right of 2</li>
+<li>Delete 'big'</li>
+<li>Delete 'big w'</li>
+<li>Delete ' world'</li>
+<li>Delete 'g world'</li>
+<li>Replace 'Hello2' by 'Hi'</li>
+</ul>
+</span>
+<h2><code>List.concatMap_</code></h2>
+<span>
+<code style=\"font-size:1.5em\">concatMap wrapOrId @(toString list2) =<br> @highlight(color2)(toString (List.concatMap_ (\\x -> [x]) (\\[head] as headList -> case head of
+  [] -> head
+  _ :: _ -> head
+  _ -> headList) list2))</code><br>
+
+Try the following on @highlight(color2)(\"\"\"the result above in @color2\"\"\"):
+<ul>
+<li>Remove the elements 2, 3</li>
+<li>Insert an element, e.g. 8, right before 3</li>
+<li>Insert an element, e.g. 8, right after 3</li>
+<li>Remove 4, 5</li>
+<li>Remove all elements, and then insert one element</li>
+</ul>
+</span>
+</div>
+"""
+
+references_in_text =
+ """compareStr a b = if a == b then 0 else if a < b then -1 else 1
+
+quicksort compare list = case list of
+    [] -> []
+    pivot::t -> let tBefore = List.filter (\\e -> compare e pivot < 0) t in
+      let tAfter = List.filter (\\e -> compare pivot e < 0) t in
+      quicksort compare tBefore ++ [pivot] ++ quicksort compare tAfter
+
+addReferences references node =
+  let collectedAddedReferences references node =
+    { apply (references, node) = node
+      update {input = (references, node) as input, outputNew} =
+        let refAddRegex = \"\"\"\\[\\+\\s*((?:(?!\\]).)*)\\]\"\"\" in
+        let addedReferences = Html.find refAddRegex outputNew in
+        if addedReferences == [] then Ok (InputsWithDiffs [(input, Nothing)])
+        else 
+          let (newNode, (_, newReferences)) = Html.foldAndReplace refAddRegex (\\{submatches=[name]} (newRefNum, newReferences) ->
+              ([[\"TEXT\", \"\"\"[@newRefNum]\"\"\"]], (newRefNum + 1, newReferences ++ [name]))
+            ) (List.length references + 1, references) outputNew
+          in 
+          let newInput = (newReferences, newNode) in
+          Ok (Inputs [newInput])
+    }.apply (references, node)
+  in
+  let refRegex = \"\"\"\\[(\\d+)\\]\"\"\" in
+  letrec -- returns a list of sorted references according to some criterion and an updated node.
+    sortReferences references node = 
+      let (newPermutation, newReferences) = List.zipWithIndex references
+      |> quicksort (\\(i, ref1) (i2, ref2) -> 
+         compareStr ref1 ref2)
+      |> List.unzip
+      in
+      if newReferences == references then (references, node)
+      else
+        let d = List.map2 (,) newPermutation (List.range 0 (List.length newPermutation - 1))
+          |> Dict.fromList in
+        let newNode = Html.replace refRegex (\\{submatches=[ref],match} ->
+          let nref = String.toInt ref in
+          let _ = Debug.log \"permutation:\" d in
+          case Dict.get (nref - 1) d of
+            Just nnref  ->
+              [[\"TEXT\", \"\"\"[@(nnref + 1)]\"\"\"]]
+            Nothing ->
+              [[\"TEXT\", match]]
+          ) node
+        in
+        (newReferences, newNode)
+  in
+  let  referencesDict = Dict.fromList (
+    List.range 1 (List.length references) |> List.map (toString)
+    |> map2 (flip (,)) references)
+  in
+  let lenReferences = List.length references in
+  let (sortedReferences, sortedNode, applysort) = {
+    apply (references, node) = (references, node, \"\")
+    update {outputNew = (newReferences, newNode, newApplySort), diffs} =
+      if newApplySort /= \"\" then
+        Ok (Inputs [sortReferences newReferences newNode])
+      else
+        Ok (InputsWithDiffs [((newReferences, newNode), Just diffs)])
+    }.apply (references, node)
+  in
+  let finalReferences = {
+    apply (references, node) = references
+    update {input=(references, node), outputNew=newReferences, diffs=(VListDiffs diffs) as listDiffs} =
+      letrec aux offset currentNode nodeHasChanged diffs = case diffs of
+        [] -> if nodeHasChanged then
+            case __diff__ node currentNode of
+              Err msg -> Err msg
+              Ok x ->
+                let finalDiffs =  case x of
+                  Nothing -> {_1 = listDiffs}
+                  Just x ->  {_1 = listDiffs, _2 = x}
+                in
+                Ok (InputsWithDiffs [((newReferences, currentNode), Just (VRecordDiffs finalDiffs))])
+          else
+            Ok (InputsWithDiffs [((newReferences, currentNode), Just (VRecordDiffs {_1 = listDiffs}))])
+        (j, d)::diffsTail ->
+          case d of
+          ListElemUpdate _ -> aux offset currentNode nodeHasChanged diffsTail
+          ListElemInsert count ->
+            let newNode = Html.replace refRegex (\\{submatches=[ref],match} ->
+              let nref = String.toInt ref in
+              if nref >= j + 1 + offset && nref <= lenReferences then [[\"TEXT\", \"\"\"[@(nref + count)]\"\"\"]]
+              else [[\"TEXT\", match]]
+              ) currentNode
+            in
+            aux (offset + count) newNode True diffsTail
+          ListElemDelete count ->
+            let newNode = Html.replace refRegex (\\{submatches=[ref],match} ->
+              let nref = String.toInt ref in
+              if nref >= j + 1 + offset + count then [[\"TEXT\", \"\"\"[@(nref - count)]\"\"\"]]
+              else if nref >= j + 1 + offset && nref <= lenReferences then
+                [[\"TEXT\", \"\"\"[0] (deleted ref to '@(Dict.get ref referencesDict |> Maybe.withDefault \"?\"))')\"\"\"]]
+              else [[\"TEXT\", match]]
+              ) currentNode
+            in
+            aux (offset - count) newNode True diffsTail
+      in
+      aux 0 node False diffs |> Debug.log \"aux\"
+  }.apply (sortedReferences, sortedNode)
+  in
+  [Html.replace refRegex  (\\{submatches=[ref],match} ->
+    Dict.get ref referencesDict |> 
+    Maybe.map (\\name -> Update.sizeFreeze [<abbr title=name>@match</abbr>]) |>
+    Maybe.withDefaultLazy (\\_ -> Update.sizeFreeze
+      [<abbr style=\"color:red\" title=\"Unknown reference\">@match</abbr>]))
+    (collectedAddedReferences references node)
+  , Update.expressionFreeze <ul
+  contenteditable=\"true\">@(List.indexedMap (\\i x -> <li>@(Html.text \"\"\"[@(i + 1)] @x\"\"\")</li>) finalReferences)</ul>
+  , Html.button \"Sort references\" \"Sort the list of references alphabetically\" applysort (\\_ -> \"#\")
+  ]
+
+  
+-- We should not remove references or insert them in this list,
+-- instead, we should do these operations from the output to
+-- keep in sync with the text
+references = [
+ \"Mayer\",
+ \"Work that is not that relevant really\",
+ \"Chugh et al. 2016\"]
+
+example =  addReferences references <span>
+  <h2>Related work</h2>
+ The work in [1] both suggested that it is possible to modify
+ an interface without modifying the code. However, it also
+ pin-points that neglecting raw access to the code is a key
+ impedance to adoption. The work of [2] could also be relevant.
+ In [3], the authors demonstrate that dual editing of both code
+ and view increases the productivity. [4] applies a more
+ general-purpose approach to edit programmatically generated
+ documents such as this one.
+</span>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+Html.forceRefresh  <div id=\"content\" style=\"margin:20px;cursor:text\">
+<style>#example { font-family: 'Computer Modern Serif'; }</style>
+<span>
+<h1>HTML Regex replacement</h1>
+<p>
+  The function <code>addReferences</code> adds to all occurrences of [number]
+  a tooltip indicating the reference name, and the list of references at the end.
+  It can also propagate changes in the reference list to the text.</p>
+<p>
+  <b>Modify references:</b>
+  You can change any reference title by simply editing it,
+  either in the UL, or even in the title of a citation.
+  For example, change the first \"Mayer\" to \"Game Programming
+  by Demonstration, Mayer et Kuncak, 2013\".
+</p>
+<p>
+  <b>Adding or inserting references:</b>
+  Position the cursor at the end of an element in the list,
+  press ENTER and enter '[1] The reference name',
+  and <code>addReferences</code> takes care of shifting indices.
+  Try to insert \"[4] Mayer, Chugh and Kuncak 2016\".
+</p>
+<p>
+  <b>Deleting references:</b>
+  If you delete a reference, <code>addReferences</code> takes
+  care of transforming any citation to [0] and inlines the name.
+  Try to delete '[2] Work that is not that relevant really'
+  below.
+</p>
+<p>
+  <b>Insert, delete and modify citations</b>
+  You can delete any citation that looks like [1], insert
+  new ones by typing [2] for example, or change a citation by
+  changing its number.
+</p>
+<p>
+  <b>Sort references</b>
+  Click on the \"Sort references\" button to sort the references.
+  The references are also sorted in the text.
+</p>
+</span>
+<div style=\"border:4px solid black;padding:20px\" id=\"example\">
+@example
+</div>
+</div>
 """
 
 
@@ -9406,6 +9685,8 @@ docsCategory =
       , ("Slides", slides)
       , ("Docs", docs)
       -- TODO maybe Conference?
+      , ("Html regex replace: references", references_in_text)
+      , ("String join, concatMap", foldl_reversible_join)
       , ("Lens: Maybe Map", mapMaybeLens)
       , ("Lens: List Map 1", mapListLens_1)
       , ("Lens: List Map 2", mapListLens_2)

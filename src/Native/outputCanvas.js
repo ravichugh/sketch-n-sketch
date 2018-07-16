@@ -68,6 +68,8 @@ function setCaretPositionIn(m, a) {
 // If want to debug the SnS UI by watching all changes to the DOM, observe
 // document.documentElement with config.subtree = true.
 
+var outputCanvasObserver;
+
 function dataValueIdOf(mutationTarget) {
   return mutationTarget.attributes.getNamedItem("data-value-id").value;
 }
@@ -85,11 +87,11 @@ function listenForUpdatesToCanvasCount() {
         } else {
           newAttrValue = "NULL";
         }
-        console.log
+        /*console.log
           ( "Id: "        + mutation.target.id + "; "
           + "Attribute: " + mutation.attributeName + "; "
           + "New Value: " + newAttrValue
-          );
+          );*/
 
         if (mutation.attributeName == "data-canvas-count") {
           listenForUpdatesToOutputValues();
@@ -99,7 +101,7 @@ function listenForUpdatesToCanvasCount() {
     });
   }
 
-  var outputCanvasObserver = new MutationObserver(handleMutations);
+  outputCanvasObserver = new MutationObserver(handleMutations);
   var config = { attributes: true };
   outputCanvasObserver.observe(outputCanvas, config);
 
@@ -125,7 +127,7 @@ function triggerAutoUpdate() {
     timerAutoSync = undefined;
     if(!enableAutoUpdate || previewMode) return;
     lastCaretPosition = getCaretPositionIn(document.getElementById("outputCanvas"));
-    console.log("Sending caret position: " + lastCaretPosition);
+    /*console.log("Sending caret position: " + lastCaretPosition);*/
     app.ports.maybeAutoSync.send(lastCaretPosition);
   }, msBeforeAutoSync)
 }
@@ -219,25 +221,25 @@ function listenForUpdatesToOutputValues() {
 
   function handleMutations(mutations) {
     if(previewMode) {
-      console.log("Handling mutations in preview mode ")
+      /*console.log("Handling mutations in preview mode ")*/
       // Only remove nodes which have been inserted manually
       mutations.forEach(function(mutation) {
-        console.log("Checking if a mutation added nodes ", mutation.addedNodes)
+        /*console.log("Checking if a mutation added nodes ", mutation.addedNodes)*/
         for (var i = 0; i < mutation.addedNodes.length; i++) {
           var domNode = mutation.addedNodes[i];
           while(domNode.previousSibling != null) {
-            console.log("During preview, rewiinding ", domNode)
+            /*console.log("During preview, rewiinding ", domNode)*/
             domNode = domNode.previousSibling;
           }
           while(domNode != null) {
-            console.log("During preview, we remove inserted node. Checking ", domNode)
+            /*console.log("During preview, we remove inserted node. Checking ", domNode)*/
             if(domNode.manuallyInsertedNode) {
-              console.log("Manually inserted, we remove it.")
+              /*console.log("Manually inserted, we remove it.")*/
               var next = domNode.nextSibling;
               domNode.remove();
               domNode = next;
             } else {
-              console.log("Not manually inserted")
+              /*console.log("Not manually inserted")*/
               domNode = domNode.nextSibling
             }
           }
@@ -276,7 +278,7 @@ function listenForUpdatesToOutputValues() {
           }
         }
       } else {
-        console.log("mutation type:", mutation.type);
+        /*console.log("mutation type:", mutation.type);*/
         for (var k = 0; k < mutation.addedNodes.length; k ++) { // We add the callback to each added node.
           function walkAllChildren(currentNode) {
             outputValueObserver.observe
@@ -318,8 +320,8 @@ function listenForUpdatesToOutputValues() {
             path.push(2);
             valueUpdateType = 2;
           }
-          console.log("path", path);
-          console.log("encoded node", encodedNode);
+          /*console.log("path", path);
+          console.log("encoded node", encodedNode);*/
           app.ports.receiveValueUpdate.send([valueUpdateType, path, encodedNode])
           triggerAutoUpdate()
         }
@@ -371,7 +373,7 @@ function listenForUpdatesToOutputValues() {
 //////////////////////////////////////////////////////////////////////
 // DOM Updates from SnS Direct Manipulation UI
 
-app.ports.setDomNumAttribute.subscribe(function(args) {
+app.ports.setDomShapeAttribute.subscribe(function(args) {
   // console.log("setDomNumAttribute:" + args.nodeId + " / " + args.attrName + " / " + args.attrValue);
   var e = document.querySelector('[data-value-id="' + args.nodeId + '"]');
   if (e) {
@@ -413,6 +415,15 @@ app.ports.outputCanvasCmd.subscribe(function(cmd) {
     outputCanvas.scrollLeft = 0;
     outputCanvas.scrollTop = 0;
 
+  } else if (message == "stopDomListener") {
+    // console.log("stop listening to DOM changes");
+    outputCanvasObserver.disconnect();
+    outputValueObserver.disconnect();
+
+  } else if (message == "startDomListener") {
+    // console.log("start listening to DOM changes");
+    listenForUpdatesToCanvasCount();
+
   } else {
     console.log("[outputCanvas.js] unexpected message: " + message);
   }
@@ -446,7 +457,7 @@ app.ports.setDiffTimer.subscribe(function(b) {
 
 app.ports.setCaretPosition.subscribe(function(position) {
   setTimeout(function() {
-    console.log("Setting caret position: " + position);
+    /*console.log("Setting caret position: " + position);*/
     setCaretPositionIn(document.getElementById("outputCanvas"), position)
   }, 0);
 })

@@ -30,7 +30,7 @@ linksFrom inputLayer biasWeights = {
        let (newBiasWeights, inputLayerDeltas) = List.unzip changes in
        let averagedInputLayerDeltas = averages inputLayerDeltas in
        let newInputLayer = List.map2 (\x y -> x + y) inputLayer averagedInputLayerDeltas in
-       {values = [(newInputLayer, newBiasWeights)]}
+       Ok (InputsWithDiffs [(newInputLayer, newBiasWeights)])
   }.apply (inputLayer, biasWeights)
 
 create_network input biasWeightsList = { input = input, biasWeightsList = biasWeightsList }

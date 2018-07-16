@@ -72,14 +72,13 @@ msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
       let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (mousePosition old) in
       let trigger = Sync.prepareLiveTrigger old.liveSyncInfo old.inputExp zoneKey in
-      let dragInfo = (trigger, (mx, my), False) in
-      { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
+      { old | mouseMode = MouseDragZone zoneKey (mx, my) False trigger }
     _ ->
       old
 
 msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
   case (old.tool, old.mouseMode) of
-    (Cursor, MouseDragZone _ _) -> old
+    (Cursor, MouseDragZone _ _ _ _) -> old
     (Cursor, MouseNothing) ->
       let dragMode = MouseDragSelect (mousePosition old) old.selectedShapes old.selectedFeatures old.selectedBlobs in
       if old.keysDown == [Keys.keyShift]
@@ -167,7 +166,13 @@ buildHtml_ : (Model, Bool) -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> (
 buildHtml_ (model, addZones) insideSvgNode d i =
   case Utils.justGet_ ("buildHtml_ " ++ toString i) i d |> .interpreted of
    LangSvg.TextNode text -> VirtualDom.text text
-   LangSvg.SvgNode shape attrs childIndices ->
+   -- LangSvg.SvgNode shape attrs childIndices ->
+   LangSvg.SvgNode shape originalAttrs childIndices ->
+    let attrs =
+      case Dict.get i model.shapeUpdatesViaZones of
+        Nothing -> originalAttrs
+        Just updatedAttrs -> updatedAttrs
+    in
     case (model.showGhosts, Utils.maybeRemoveFirst "HIDDEN" attrs) of
      (False, Just _) -> Svg.svg [] []
      _ ->
@@ -778,8 +783,8 @@ draggableZone svgFunc addStroke model id shape realZone attrs =
 objectZoneIsCurrentlyBeingManipulated : Model -> NodeId -> (RealZone -> Bool) -> Bool
 objectZoneIsCurrentlyBeingManipulated model nodeId zonePred =
   case model.mouseMode of
-    MouseDragZone (id, _, zone) _ -> nodeId == id && zonePred zone
-    _                             -> False
+    MouseDragZone (id, _, zone) _ _ _ -> nodeId == id && zonePred zone
+    _                                 -> False
 
 objectIsCurrentlyBeingManipulated model nodeId =
   objectZoneIsCurrentlyBeingManipulated model nodeId (always True)
@@ -1419,7 +1424,7 @@ maybeZoneSelectLine sideLength model nodeId shapeFeature pt1 pt2 =
 zoneSelectLine model nodeId shapeFeature pt1 pt2 =
   let selectableFeature = ShapeFeature nodeId shapeFeature in
   case model.mouseMode of
-    MouseDragZone _ _ -> []
+    MouseDragZone _ _ _ _ -> []
     _ ->
      if Set.member nodeId model.hoveredShapes ||
         Set.member selectableFeature model.selectedFeatures

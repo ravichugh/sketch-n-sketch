@@ -4,8 +4,7 @@ listAppendSimple xs ys =
     x::xs -> x :: listAppendSimple xs ys
 
 listAppendLens = {
-  apply (xs, ys) =
-    Update.freeze (listAppendSimple xs ys)
+  apply (xs, ys) = listAppendSimple xs ys
 
   update {input = (xs,ys), outputOld, outputNew} =
 
@@ -48,7 +47,7 @@ listAppendLens = {
     let newLists =
       walk True (Update.listDiff outputOld outputNew) xs ys [([],[])]
     in
-    { values = newLists }
+    Ok (Inputs newLists)
 }
 
 listAppend xs ys =

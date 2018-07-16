@@ -26,15 +26,16 @@ object SNS extends Module {
   }
   
   def examples = T{
-    examplesRoot()
+    allTimestampsOfIncludedExampleFiles()
     examplesTemplate()
-    leoExamplesRoot()
     %%("python", pwd/'scripts/"expandTemplate.py", "Examples") //'
+    println("Examples regenerated")
   }
   
   def prelude = T{
     preludeRoot()
     %%("python", pwd/'scripts/"expandTemplate.py", "Prelude") //'
+    println("Prelude regenerated")
   }
   
   def all = T{
@@ -115,6 +116,19 @@ object SNS extends Module {
     } catch {
       case ammonite.ops.ShelloutException(commandResult) =>
         Left(commandResult.err.string)
+    }
+  }
+
+  val ActiveExampleFile = "(LEO_TO_ELM|LITTLE_TO_ELM) (.*)".r
+  def extension(converter: String) = if(converter == "LEO_TO_ELM") ".elm" else ".little"
+
+  def allTimestampsOfIncludedExampleFiles = T {
+    examplesRoot()
+    read(pwd / 'src / "ExamplesTemplate.elm").split("\\r?\\n").toList.flatMap{
+      case ActiveExampleFile(converter, filename) =>
+        val filepath = pwd / 'examples / RelPath(filename+extension(converter))
+        List(filepath.toNIO.toFile.lastModified())
+      case _ => Nil
     }
   }
 }

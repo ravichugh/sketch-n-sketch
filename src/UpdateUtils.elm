@@ -15,7 +15,7 @@ import Pos exposing (Pos)
 import ValBuilder as Vb
 import ValUnbuilder as Vu
 import ElmUnparser
-import ImpureGoodies
+import ImpureGoodies exposing (nativeDict, nativeIntDict)
 import Array
 import Char
 import String
@@ -340,29 +340,120 @@ alldiffs keyOf before after =
           flip Results.map right <| \rightDiffs ->
             leftDiffs ++ (DiffEqual (List.drop startNew after |> List.take subLength) :: rightDiffs)
 
+longestPrefixSizeBetween before after =
+  let lengthBefore = String.length before in
+  let aux i =
+    if i < lengthBefore && String.slice i (i+1) before == String.slice i (i+1) after then aux (i + 1) else i
+  in aux 0
 
--- Faster implementation of allDiffs for tow strings
+longestSufixSizeBetween before after =
+  let lengthBefore = String.length before in
+  let lengthAfter = String.length after in
+  let aux i =
+    if i < lengthBefore &&
+       String.slice (lengthBefore - 1 - i) (lengthBefore - i) before ==
+       String.slice (lengthAfter - 1 - i) (lengthAfter - i) after then aux (i + 1) else i
+  in aux 0
+
+longestSufixSizeBetweenGuard maxIndex before after =
+  let lengthBefore = String.length before in
+  let lengthAfter = String.length after in
+  let aux i =
+    if i <= maxIndex && i < lengthBefore &&
+       String.slice (lengthBefore - 1 - i) (lengthBefore - i) before ==
+       String.slice (lengthAfter - 1 - i) (lengthAfter - i) after then aux (i + 1) else i
+  in aux 0
+
+-- Faster implementation of allDiffs for strings
 allStringDiffs: String -> String -> Results String (List (DiffChunk String))
 allStringDiffs before after =
-    -- If at least one half of the string before/after was the same, no need to look for the longest equal sequence.
-    --let middlePointLeft = max ((String.length before + 2) / 2) ((String.length after + 2) / 2) in
-    --if String.slice 0 middlePointLeft before
-    --   == String.slice 0 middlePointLeft after then
-   --    let remainingBefore = String.dropLeft middlePointLeft before in
-   --    let remainingAfter = String.dropLeft middlePointLeft before in
-   --    allStringDiffs remainingBefore remainingAfter
     --let _ = ImpureGoodies.log <| "allStringDiffs '" ++ before ++ "' '" ++ after ++ "'" in
+    -- If at least one half of the string before/after was the same, no need to look for the longest equal sequence, it should be a prefix of this one !
+    -- This is true only if the considered strings don't have the same
+    let lengthBefore = String.length before in
+    let lengthAfter = String.length after in
+    let testLeftRight continuation =
+      let longestPrefixSize = longestPrefixSizeBetween before after in
+      let longestSuffixSize = longestSufixSizeBetweenGuard (min (String.length before) (String.length after) - longestPrefixSize) before after in
+      -- Is the longest common substring either the prefix or the suffix?
+      -- For that, it's sufficient to prove that |prefix| + |suffix| >= 2/3 |before| and 2/3 |after|
+      -- Indeed, if this is the case, then
+
+      let halfBeforePlus1 = (lengthBefore + 2) // 2 in
+      let halfAfterPlus1 = (lengthAfter + 2) // 2 in
+      let halfCommon = max halfBeforePlus1 halfAfterPlus1 in
+      let testLeft continuation =
+         let leftPart = String.slice 0 halfCommon before in
+         if leftPart == String.slice 0 halfCommon after then
+           let longestPrefixSize = longestPrefixSizeBetween before after in
+           let longestPrefix = String.left longestPrefixSize before in
+           let remainingBefore = String.dropLeft longestPrefixSize before in
+           let remainingAfter = String.dropLeft longestPrefixSize after in
+           allStringDiffs remainingBefore remainingAfter |> Results.andThen (\l ->
+             maybeExpandLongest [] longestPrefix l
+           )
+         else
+           continuation ()
+      in
+      let testRight continuation =
+         let rightPart = String.slice (lengthBefore - halfCommon) lengthBefore before in
+         if rightPart == String.slice (lengthAfter - halfCommon) lengthAfter after then
+           let longestSuffixSize = longestSufixSizeBetween before after in
+           let longestSuffix = String.right longestSuffixSize after in
+           let remainingBefore = String.dropRight halfCommon before in
+           let remainingAfter = String.dropRight halfCommon after in
+           allStringDiffs remainingBefore remainingAfter |> Results.andThen (\l ->
+             maybeExpandLongest l longestSuffix []
+           )
+         else -- Here neither the first half or the last half are in common. We test if the first fourth and the last fourth are simultaneously the same.
+           continuation ()
+      in
+      testLeft <| \_ ->
+      testRight continuation
+    in
+    let testFirstLastFourth continuation =
+      let fourthBeforePlus1 = (lengthBefore + 4) // 4 in
+      let fourthAfterPlus1 = (lengthAfter + 4) // 4 in
+      let fourthCommon = max fourthBeforePlus1 fourthAfterPlus1 in
+      let firstFourth = String.slice 0 fourthCommon before
+          lastFourth = String.slice (lengthBefore - fourthCommon) lengthBefore before in
+      if firstFourth == String.slice 0 fourthCommon after
+         && lastFourth == String.slice (lengthAfter - fourthCommon) lengthAfter after then
+         let remainingBefore = String.dropLeft fourthCommon <| String.dropRight fourthCommon <| before in
+         let remainingAfter = String.dropLeft fourthCommon <| String.dropRight fourthCommon <| after in
+         allStringDiffs remainingBefore remainingAfter |> Results.map (\l ->
+           let aux l = case l of
+             [DiffEqual x] -> [DiffEqual (x ++ lastFourth)]
+             head::tail -> head :: aux tail
+             [] -> [DiffEqual lastFourth]
+          in case aux l of
+            DiffEqual x :: tail -> DiffEqual (firstFourth ++ x) :: tail
+            ll ->  DiffEqual firstFourth :: l
+         )
+    else
+      continuation ()
+    in
+    let tests continuation =
+      if lengthBefore > 2 && lengthAfter > 2 then
+         testLeftRight-- <| \_ ->
+         --testFirstLastFourth
+         continuation
+      else continuation ()
+    in
+    tests <| \_ ->
+   --    allStringDiffs remainingBefore remainingAfter
     -- Create a Dict from before values to the list of every index at which they appears
     -- In this variables, the biggest indices appear first
+    --let _ = ImpureGoodies.log <| "allStringDiffs not optimized '" ++ before ++ "' '" ++ after ++ "'" in
     let oldIndexMapRev =
-      strFoldLeftWithIndex Dict.empty before <|
+      strFoldLeftWithIndex (nativeDict.empty ()) before <|
               \d indexBeforeValue  beforeChar ->
-         Dict.update beforeChar (
+         nativeDict.update (String.fromChar beforeChar) (
            Just << (\v -> indexBeforeValue :: v) << Maybe.withDefault []
          ) d
     in
     -- Here the smaller indices appear first.
-    let valueToIndexBefore = Dict.map (\k v -> List.reverse v) oldIndexMapRev in
+    let valueToIndexBefore = nativeDict.map (\k v -> List.reverse v) oldIndexMapRev in
 
     -- Find the largest substring common to before and after.
     -- We use a dynamic programming approach here.
@@ -388,22 +479,22 @@ allStringDiffs before after =
     let afterLength = String.length after in
     let beforeLength = String.length before in
     -- TODO: Put more  information in overlap so that we can obtain the result without this recursion.
-    let (overlap, startOldNew, subLength, weight) =
-         strFoldLeftWithIndex (Dict.empty, [],          0,         -(String.length before + String.length after)) after <|
-                             \(overlap,    startOldNew, subLength, weight)                             afterIndex afterChar ->
-           let oldIndicesWhereAfterAppeared = valueToIndexBefore |> Dict.get afterChar |> Maybe.withDefault [] in
+    let (_, startOldNew, subLength, weight) =
+         strFoldLeftWithIndex (nativeIntDict.empty (), [],          0,         -(String.length before + String.length after)) after <|
+                             \(overlap,                startOldNew, subLength, weight)                             afterIndex afterChar ->
+           let oldIndicesWhereAfterAppeared = valueToIndexBefore |> nativeDict.get (String.fromChar afterChar) |> Maybe.withDefault [] in
            -- We look for the longest sequence in a row where after values appeared consecutively in before.
            --let _ = ImpureGoodies.log <| "start of round\noverlap="++toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
-           foldLeft    (Dict.empty, startOldNew, subLength, weight) oldIndicesWhereAfterAppeared <|
+           foldLeft    (nativeIntDict.empty (), startOldNew, subLength, weight) oldIndicesWhereAfterAppeared <|
                       \(overlap_,   startOldNew, subLength_, weight_) oldIdxAfterChar ->
               -- now we are considering all values of val such that
               -- `before[oldIdxAfterChar] == after[afterIndex]`
-              let newSubLength = (if oldIdxAfterChar == 0 then 0 else Dict.get (oldIdxAfterChar - 1) overlap |>
+              let newSubLength = (if oldIdxAfterChar == 0 then 0 else nativeIntDict.get (oldIdxAfterChar - 1) overlap |>
                    Maybe.map Tuple.first |> Maybe.withDefault 0) + 1 in
               --let _ = ImpureGoodies.log <| "overlap_=" ++ toString overlap_ ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength_=" ++ toString subLength_ ++ ", weight_=" ++ toString weight_ in
               let newWeight = 0 - abs ((afterLength - afterIndex) - (beforeLength - oldIdxAfterChar)) -
                 abs (afterIndex - oldIdxAfterChar) in
-              let newOverlap_ = Dict.insert oldIdxAfterChar (newSubLength, newWeight) overlap_ in
+              let newOverlap_ = nativeIntDict.insert oldIdxAfterChar (newSubLength, newWeight) overlap_ in
               if combineLengthWeight newSubLength newWeight > combineLengthWeight subLength_ weight_ then
                    (newOverlap_, [(oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)] , newSubLength, newWeight)
               else if combineLengthWeight newSubLength newWeight == combineLengthWeight subLength_ weight_ {-&& combineLengthWeight subLength_ weight_ > combineLengthWeight subLength weight-} then -- Ambiguity
@@ -424,11 +515,51 @@ allStringDiffs before after =
       flip Results.andThen (oks startOldNewPruned) <| \(startOld, startNew) ->
         -- otherwise, the common substring is unchanged and we recursively
         -- diff the text before and after that substring
+        let middle = String.slice startNew (startNew + subLength) after in
+        --let _ = Debug.log "middle that is the same" middle in
         let left = allStringDiffs (String.left startOld before) (String.left startNew after) in
         let right = allStringDiffs  (String.dropLeft (startOld + subLength) before) (String.dropLeft (startNew + subLength) after) in
         flip Results.andThen left <| \leftDiffs ->
-          flip Results.map right <| \rightDiffs ->
-            leftDiffs ++ (DiffEqual (String.slice startNew (startNew + subLength) after) :: rightDiffs)
+          flip Results.andThen right <| \rightDiffs ->
+            -- If leftDiffs ends with an insertion, there could be an ambiguity. Same if rightDiffs starts with an insertion.
+            -- Consider:
+            -- 'abc Truck' 'abc big Truck' gives DiffEqual "abc", DiffAdded " big", DiffEqual " Truck" because " Truck is the longest substring
+            -- However, the first space of the inserted string " big" could as well have been the first space of "Truck".
+            -- Therefore, the following diff should also be valid:
+            -- DiffEqual "abc ", DiffAdded "big ", DiffEqual "Truck"
+            -- Conversely, for 'Truck abc' 'Truck big abc', gives DiffEqual 'Truck ', DiffAdded 'big ', DiffEqual 'abc'
+            --   alternatively, we should have DiffEqual 'Truck', DiffAdded ' big', DiffEqual ' abc'
+            maybeExpandLongest leftDiffs middle rightDiffs
+
+maybeExpandLongest: List (DiffChunk String) -> String -> List (DiffChunk String) ->  Results String (List (DiffChunk String))
+maybeExpandLongest leftDiffs middleEqual rightDiffs =
+  let processRight middleEqual rightDiffs =
+     let baseResult = ok1 <| leftDiffs ++ (if middleEqual == "" then [] else [DiffEqual middleEqual]) ++ rightDiffs in
+     case rightDiffs of
+        DiffAdded inserted :: DiffEqual x :: tail ->
+          let (initMiddleEqual, lastMiddleEqual) = (String.dropRight 1 middleEqual, String.right 1 middleEqual) in
+          let (initInserted, lastInitInserted) = (String.dropRight 1 inserted, String.right 1 inserted) in
+          if lastMiddleEqual == lastInitInserted && lastInitInserted /= "" then
+            let variant = processRight initMiddleEqual (DiffAdded (lastInitInserted ++ initInserted)::DiffEqual (lastInitInserted++x)::tail) in
+            baseResult |> Results.andAlso variant
+          else
+            baseResult
+        _ -> baseResult
+  in
+  let baseLeftResult = processRight middleEqual rightDiffs  in
+  case leftDiffs of
+  [DiffEqual x, DiffAdded inserted] -> case (String.uncons inserted, String.uncons middleEqual) of
+    (Just (insertedChar, insertedTail), Just (equalChar, equalTail)) ->
+      if insertedChar == equalChar then -- There is a variant
+        let variant = maybeExpandLongest [DiffEqual (x ++ String.fromChar insertedChar), DiffAdded (insertedTail ++ String.fromChar insertedChar)] equalTail rightDiffs in
+        baseLeftResult |> Results.andAlso variant
+      else
+        baseLeftResult
+    _ -> baseLeftResult
+  head::((b::c::_) as tail) -> maybeExpandLongest tail middleEqual rightDiffs |> Results.map (\l -> head::l)
+  _ -> baseLeftResult
+
+
 
 -- Remove differences that, if taken recursively, will produce the same diffs
 onlyOverlappingStartOldNew: Int -> List (Int, Int) -> List (Int, Int)
@@ -691,6 +822,18 @@ valToEDiffs v = case Vu.constructor Ok v of
   Ok _ -> Err <| "Expected EConstDiffs, EListDiffs, EStringDiffs, EChildDiffs, got " ++ valToString v
   Err msg -> Err msg
 
+valToUpdateReturn: Val -> Result String UpdateReturn
+valToUpdateReturn v = case Vu.constructor Ok v of
+  Ok ("Inputs",          [v]) -> Vu.list Vu.identity v |> Result.map Inputs
+  Ok ("InputsWithDiffs", [v]) -> Vu.list (Vu.tuple2 Vu.identity (Vu.maybe valToVDiffs)) v |> Result.map InputsWithDiffs
+  Ok (n, args) -> Err <| "Expected Inputs (List Val) or InputsWithDiffs (List (Val, Maybe VDiffs)), got " ++ n ++ " with " ++ toString (List.length args) ++ " arguments"
+  Err msg -> Err msg
+
+updateReturnToVal: Vb.Vb -> UpdateReturn -> Val
+updateReturnToVal vb updateReturn = case updateReturn of
+  Inputs l -> Vb.constructor vb "Inputs" [Vb.list Vb.identity vb l]
+  InputsWithDiffs l -> Vb.constructor vb "InputsWithDiffs" [Vb.list (Vb.tuple2 Vb.identity (Vb.maybe vDiffsToVal)) vb l]
+
 {-
 pDiffsToVal: ValBuilders -> PDiffs -> Val
 pDiffsToVal v pdiffs = case pdiffs of
@@ -921,8 +1064,8 @@ offsetFromStrings lm startOldReferential s1 s2 =
 --  (end, (lineoffset + lineDelta, if lineDelta >= 0 then colDelta else coloffset + colDelta))
 
 listDiffsToString2: ParensStyle-> String->   (Exp -> String) -> String -> LastEdit -> Pos   -> List (WS, Exp) -> List (WS, Exp) -> ListDiffs EDiffs -> (String, ((LastEdit, Pos), List Exp))
-listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEdit    lastPos  originals         modifieds         diffs =
-  if List.isEmpty diffs then ("[Internal error]: Empty " ++ structName ++ " diff]", ((lastEdit, lastPos), [])) else
+listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEdit    lastPos  originals_        modifieds_        diffs_ =
+  if List.isEmpty diffs_ then ("[Internal error]: Empty " ++ structName ++ " diff]", ((lastEdit, lastPos), [])) else
   let displaySpaceComma = case renderingStyle of
     HtmlSyntax -> False
     _ -> True
@@ -939,7 +1082,11 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
         if j > i then
           let count = j - i in
           let (originalDropped, originalTaken) = Utils.split count original in
-          let newLastPos = Utils.last "listDiffsToString2-0" originalDropped |> Tuple.second |> .end in
+          let newLastPos = Utils.maybeLast originalDropped |> flip Utils.maybeWithLazyDefault ( \_ ->
+               Debug.crash <| "Inconsistent diffs at index " ++ toString i ++ " in listDiffsToStrings2 " ++ toString renderingStyle ++ " " ++
+                toString structName ++ " _ " ++ toString indent ++ " " ++ toString lastEdit ++ " " ++ toString lastPos ++ " " ++
+                Syntax.unparser Syntax.Elm (eListWs  originals_ Nothing) ++ " " ++ Syntax.unparser Syntax.Elm (eListWs  modifieds_ Nothing)  ++ " " ++ toString diffs_
+            ) |> Tuple.second |> .end in
           aux j lastEdit newLastPos  (List.drop count original) (List.drop count modifieds) diffs (accStr, accList)
         else
           case change of
@@ -959,7 +1106,7 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
               let removedExp = dummyExp1 "-" newStartPos.line newStartPos.col newStartPos.line newStartPos.col in
               ( accStr ++ "\n" ++ indent ++ displayPos newEnd ++ "Removed '" ++ beforeS ++ "'",
                 removedExp::accList) |>
-              aux (i + 1) newLastEdit newEnd originalKept modifieds diffsTail
+              aux (i + count) newLastEdit newEnd originalKept modifieds diffsTail
             ListElemInsert count ->
               let (modifiedInserted, modifiedTail) = Utils.split count modifieds in
               let secondCommaSpace = List.tail modifiedInserted |> Maybe.andThen List.head
@@ -993,9 +1140,9 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
                   aux (i + 1) newLastEdit lastPos2 to tm diffsTail
                 _ ->
                   (accStr ++ "[Internal error]2 For diff " ++ toString diff ++ ", expected non-empty lists, got [" ++
-                  (List.map elementDisplay (Utils.listValues originals) |> String.join ",")  ++ "] and [" ++
-                  (List.map elementDisplay (Utils.listValues modifieds) |> String.join ",") ++ "]", ((lastEdit, lastPos), accList))
-  in aux 0 lastEdit lastPos originals modifieds diffs ("", [])
+                  (List.map elementDisplay (Utils.listValues originals_) |> String.join ",")  ++ "] and [" ++
+                  (List.map elementDisplay (Utils.listValues modifieds_) |> String.join ",") ++ "]", ((lastEdit, lastPos), accList))
+  in aux 0 lastEdit lastPos originals_ modifieds_ diffs_ ("", [])
 
 
 stringDiffsToString2: ParensStyle -> String -> LastEdit -> Pos   -> String -> String -> String -> List StringDiffs -> (String, ((LastEdit, Pos), List Exp))
@@ -1349,11 +1496,11 @@ defaultVDiffs original modified =
 defaultVDiffsRec: Bool -> (Val -> Val -> Results String (Maybe VDiffs)) -> Val -> Val -> Results String (Maybe VDiffs)
 defaultVDiffsRec testEquality recurse original modified =
   case (original.v_, modified.v_) of
-    (VList originals, VList modified) ->
+    (VList originals, VList modifieds) ->
       defaultListDiffs valToString (\v -> getDatatypeName v |> Utils.maybeOrElseLazy (\() -> getViewDatatypeName v))
-        recurse originals modified |> Results.map (Maybe.map VListDiffs)
-    (VBase (VString original), VBase (VString modified)) ->
-      defaultStringDiffs original modified |> Results.map (Maybe.map VStringDiffs)
+        recurse originals modifieds |> Results.map (Maybe.map VListDiffs)
+    (VBase (VString originalStr), VBase (VString modifiedStr)) ->
+      defaultStringDiffs originalStr modifiedStr |> Results.map (Maybe.map VStringDiffs)
     (VClosure _ pats1 body1 env1, VClosure _ pats2 body2 env2) ->
       let ids = Set.union (Set.diff (Lang.identifiersSet body1) (Lang.identifiersSetInPats pats1))
                (Set.diff (Lang.identifiersSet body2) (Lang.identifiersSetInPats pats2))
@@ -1408,35 +1555,40 @@ defaultStringDiffs before after =
     in aux 0 difference []
   )
 
-alignRecordDatatypes: (a -> Maybe String) -> List a -> List a -> List (DiffChunk (List a)) -> Maybe (List (DiffChunk (List a)))
+
+-- Given a way to get the name of datatypes-encoded values, try to perform an alignment on the datatype names instead
+-- If all the datatypes returned are the same, return Nothing.
+alignRecordDatatypes: (a -> Maybe String) -> List a -> List a -> List (DiffChunk (List a)) -> Maybe (Results String (List (DiffChunk (List a))))
 alignRecordDatatypes datatypeNameOf removed added difftail =
   let withDatatypes l = List.map (\elem -> (elem, datatypeNameOf elem)) l in
-  let datatypedifferences = diff (\(_, datatypename) -> Maybe.withDefault "" datatypename) (withDatatypes removed) (withDatatypes added) in
-  case datatypedifferences of
-    [DiffEqual _] -> Nothing
+  let resDataTypeDifferences = alldiffs (\(_, datatypename) -> Maybe.withDefault "" datatypename) (withDatatypes removed) (withDatatypes added) in
+  case resDataTypeDifferences of
+    Ok (LazyList.Cons [DiffEqual _] _) -> Nothing
     _ ->
-  let aux: List (DiffChunk (List (a, Maybe String))) -> List a -> List a -> (Bool, List (DiffChunk (List a))) -> Maybe (List (DiffChunk (List a)))
-      aux diffs removed added (changedStructure, revAccDiffs) = case diffs of
-     [] -> if changedStructure then Just <| List.reverse revAccDiffs else Nothing
+      resDataTypeDifferences |> Results.map (\datatypedifferences ->
+  let aux: List (DiffChunk (List (a, Maybe String))) -> List a -> List a -> List (DiffChunk (List a)) -> List (DiffChunk (List a))
+      aux diffs removed added revAccDiffs = case diffs of
+     [] -> List.reverse revAccDiffs
      DiffEqual elems::difftail -> -- Same datatypes here, so the alignment is good.
        let count = List.length elems in
        let (removedTaken, removedRemaining) = Utils.split count removed in
        let (addedTaken, addedRemaining) = Utils.split count added in
-       (changedStructure, DiffEqual [] :: DiffAdded addedTaken :: DiffRemoved removedTaken :: revAccDiffs) |>
+       (DiffEqual [] :: DiffAdded addedTaken :: DiffRemoved removedTaken :: revAccDiffs) |>
        aux difftail removedRemaining addedRemaining
      DiffRemoved elems::difftail -> -- tags were deleted
        let count = List.length elems in
        let (removedTaken, removedRemaining) = Utils.split count removed in
-       (True, DiffEqual [] :: DiffRemoved removedTaken :: revAccDiffs) |>
+       (DiffEqual [] :: DiffRemoved removedTaken :: revAccDiffs) |>
        aux difftail removedRemaining added
      DiffAdded elems :: difftail -> -- tags were inserted
        let count = List.length elems in
        let (addedTaken, addedRemaining) = Utils.split count added in
        -- Prevent these insertions to be part of a replacement
-       (True, DiffEqual [] :: DiffAdded addedTaken :: revAccDiffs) |>
+       (DiffEqual [] :: DiffAdded addedTaken :: revAccDiffs) |>
        aux difftail removed addedRemaining
   in
-  aux datatypedifferences removed added (False, [])
+  aux datatypedifferences removed added []
+  ) |> Just
 
 
 defaultListDiffs: (a -> String) -> (a -> Maybe String) -> (a -> a -> Results String (Maybe b)) -> List a -> List a -> Results String (Maybe (ListDiffs b))
@@ -1450,10 +1602,11 @@ defaultListDiffs keyOf datatypeNameOf defaultElemModif elems1 elems2 =
         DiffEqual elems::difftail ->
           aux (i + List.length elems) accDiffs difftail
         DiffRemoved removed::DiffAdded added::difftail ->
-          case alignRecordDatatypes datatypeNameOf removed added difftail of
-            Just newDiffs -> aux i accDiffs newDiffs
-            Nothing ->
           -- Better align elements based on datatype.
+          case alignRecordDatatypes datatypeNameOf removed added difftail of
+            Just resNewDiffs -> resNewDiffs |> Results.andThen (aux i accDiffs)
+            Nothing ->
+          -- No alignment possible, hence we just diff all elements and then insert/delete the remaining elements.
           let lengthRemoved = List.length removed in
           let lengthAdded = List.length added in
           let toInsertRes = List.map3 (\i r a -> defaultElemModif r a |>
@@ -1469,7 +1622,7 @@ defaultListDiffs keyOf datatypeNameOf defaultElemModif elems1 elems2 =
                   else accDiffs2
              in
              aux (i + lengthRemoved) accDiffs3 difftail
-            ) i lengthRemoved difftail)
+             ) i lengthRemoved difftail)
         DiffRemoved elems::difftail ->
           let removedLength = List.length elems in
           aux (i + removedLength) ((i, ListElemDelete removedLength)::accDiffs) difftail

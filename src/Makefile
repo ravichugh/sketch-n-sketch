@@ -2,34 +2,21 @@ ELMMAKE=elm-make
   # for locally-modified Elm compiler, create a symlink to something like:
   # /PATH/TO/elm-make/.stack-work/install/x86_64-osx/lts-3.22/7.10.2/bin/elm-make
 
-all: elm-stuff/packages
-	$(ELMMAKE) Main.elm --output ../build/out/sns.js
-	# sed -i '' 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].api = _user$$project$$EvalUpdate$$api;/g' ../build/out/sns.js
+out_from_Native :=aceCodeBox.js outputCanvas.js aceTooltips.js animationLoop.js fileHandler.js deucePopupPanelInfo.js \
+ dotGraph.js colorScheme.js syntaxHighlight.js focus.js keyBlocker.js solverServer.js
+
+out_from_ace-builds :=ace.js mode-little.js mode-elm.js theme-chrome.js
 
 html: elm-stuff/packages
 	$(ELMMAKE) Main.elm --output ../build/out/sns.js
-	cp Native/aceCodeBox.js ../build/out/
-	cp Native/outputCanvas.js ../build/out/
-	cp Native/aceTooltips.js ../build/out/
-	cp Native/animationLoop.js ../build/out/
-	cp Native/fileHandler.js ../build/out/
-	cp Native/deucePopupPanelInfo.js ../build/out/
-	cp Native/dotGraph.js ../build/out/
-	cp Native/colorScheme.js ../build/out/
-	cp Native/syntaxHighlight.js ../build/out/
-	cp Native/focus.js ../build/out/
-	cp Native/keyBlocker.js ../build/out/
-	cp Native/solverServer.js ../build/out/
-	cp ../ace-builds/src/ace.js ../build/out/
-	cp ../ace-builds/src/mode-little.js ../build/out/
-	cp ../ace-builds/src/mode-elm.js ../build/out/
-	cp ../ace-builds/src/theme-chrome.js ../build/out/
+	cd Native && cp $(out_from_Native) ../../build/out/
+	cd ../ace-builds/src && cp $(out_from_ace-builds) ../../build/out/
 	cp ../viz.js/viz.js ../build/out/
 	mkdir -p ../build/out/img
-	cp ../img/sketch-n-sketch-logo.png ../build/out/img/
-	cp ../img/light_logo.svg ../build/out/img/
-	cp ../img/*.png ../build/out/img/
+	cp ../img/* ../build/out/img/
 	# sed -i '' 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].api = _user$$project$$EvalUpdate$$api;/g' ../build/out/sns.js
+
+all: prelude examples html
 
 elm-stuff/packages:
 	# Use our custom version of core that allows anything in sets.
@@ -42,10 +29,17 @@ elm-stuff/packages:
 	cd elm-stuff/packages/elm-lang/core && git clone --branch flexible_sets https://github.com/brianhempel/core.git && mv core 5.1.1
 	cd ../../../..
 
+# `make clean` gets rid of a lot of stuff so the subsequent build may be slow.
+# Use this as a sort of "quick clean" that gets rid of less and lets the next build not be too slow.
 remove_build_artifacts:
-	rm -r elm-stuff/build-artifacts/0.*/user; rm -r ../tests/elm-stuff/build-artifacts/0.*/user; true
+	rm -rf elm-stuff/build-artifacts/0.*/user
+	rm -rf ../tests/elm-stuff/build-artifacts/0.*/user
 
-clean: remove_build_artifacts prelude examples html
+# TODO there are some files in ../build/out that aren't in .gitignore, but if we could copy those into
+# ../build/out from somwhere else during an html build, then clean could just delete everything under
+# ../build/out
+clean: remove_build_artifacts
+	cd ../build/out && rm -rf sns.js $(out_from_Native) $(out_from_ace-builds) viz.js img/*
 
 prelude:
 	../scripts/expandTemplate.py Prelude

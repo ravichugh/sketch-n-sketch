@@ -246,7 +246,12 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                           in
                                           let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
                                           (policy, policy, Nothing)
-                                        _ ->  Debug.crash <| "[internal error] There should be an element in this list's position"
+                                        [] -> -- We are inserting at the second place, but the first one was an insertion already
+                                          let (wsComma, wsElem, indentation) = (ws "", ws " ", InlineSpace)
+                                          in
+                                          let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
+                                          (policy, policy, Nothing)
+                                        _ ->  Debug.crash <| "[internal error] There should be not more than 1 element in this list's position"
                                   else --if insertionIndex == 0 then -- Inserting the first element is always trickier
                                     case elems of
                                       [] ->
@@ -505,6 +510,14 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
            _ -> False
          _ -> False
        in
+       let isFreezingExpression e1 =
+         case e1.val.e__ of
+           EVar _ "expressionFreeze" -> True --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
+           ESelect _ e _ _ "expressionFreeze" -> case e.val.e__ of
+             EVar _ "Update" -> True
+             _ -> False
+           _ -> False
+        in
        let continueIfNotFrozen = if isFreezing e1 then
          --case e2s of
            --[argument] -> -- Since we call this function only if there is a difference, freeze will fail !
@@ -525,12 +538,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                  case v1.v_ of
                    VRecord d ->
                      if Dict.member "apply" d && (Dict.member "unapply" d || Dict.member "update" d) then
-                       let isApplyFrozen = case (Dict.get "apply" d |> Utils.fromJust_ "Update.maybeUpdateStack").v_ of
-                         VClosure _ _ body _ -> case body.val.e__ of
-                           EApp _ bodyFun _ _ _ -> isFreezing bodyFun
-                           _ -> False
-                         _ -> False
-                       in
+                       let isApplyFrozen = True in
                        case e2s of
                          [] -> Nothing
                          [argument] ->
@@ -568,48 +576,35 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                         doEval Syntax.Elm xyEnv xyApplication) of
                                       Err s -> UpdateCriticalError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
-                                        case Vu.record Ok vResult of
-                                          Err msg -> UpdateCriticalError <|
-                                           "The update closure should return either {values = [list of values]}, {error = \"Error string\"}, or more advanced { values = [...], diffs = [..Nothing/Just diff per value.]}. Got "
-                                           ++ valToString vResult
+                                        case Vu.result valToUpdateReturn vResult |> (Utils.resultOrElseLazy (\_ ->
+                                          valToUpdateReturn vResult |> Result.map (Ok << Debug.log ("/!\\ The lens line " ++ toString e.start.line ++ " had this returned. Please wrap it in Ok")))) of
+                                          Err msg ->
+                                            UpdateCriticalError <|
+                                               "The update closure should return either Ok (Inputs [list of values]), Ok (InputsWithDiffs [list of (values, Just diffs | Nothing)]) or Err msg. Got "
+                                               ++ valToString vResult ++ ". (error was " ++ msg ++ ")"
                                           Ok d ->
-                                            let error = case Dict.get "error" d of
-                                                Just errorv -> case Vu.string errorv of
-                                                  Ok e -> e
-                                                  Err x -> "Line " ++ toString e.start.line ++ ": the .error of the result of .update should be a string, got " ++ valToString errorv
-                                                Nothing -> ""
+                                            case d of
+                                              Err msg -> UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": " ++ msg
+                                              Ok newInputs ->
+                                            let diffListRes: Results String (Val, Maybe VDiffs)
+                                                diffListRes = case newInputs of
+                                              Inputs valuesList ->
+                                                  let vArgStr = valToString vArg in
+                                                  Ok (LazyList.fromList valuesList)
+                                                  |> Results.andThen (\v ->
+                                                    defaultVDiffs vArg v |> Results.map (\mbDiffs -> (v, mbDiffs)))
+                                              InputsWithDiffs newInputsWithDiffs -> Ok (LazyList.fromList newInputsWithDiffs)
                                             in
-                                            if error /= "" then UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": " ++ error
-                                            else
-                                              case Dict.get "values" d of
-                                                Nothing -> UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": .update  should return a record containing a .values field or an .error field"
-                                                Just values ->  case Vu.list Ok values of
-                                                  Err x -> UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": .update  should return a record whose .values field is a list. Got " ++ valToString values
-                                                  Ok valuesList ->
-                                                    let valuesListLazy = LazyList.fromList valuesList in
-                                                    let diffsListRes = case Dict.get "diffs" d of
-                                                      Nothing ->
-                                                        --ImpureGoodies.logTimedRun ".update recomputing diffs" <| \_ ->
-                                                        let vArgStr = valToString vArg in
-                                                        Results.projOk <|
-                                                        List.map (\r ->
-                                                          defaultVDiffs vArg r) <| valuesList
-                                                      Just resultDiffsV ->
-                                                        Vu.list (Vu.maybe valToVDiffs) resultDiffsV |>
-                                                        Results.fromResult |>
-                                                        Result.mapError (\msg -> "Expected a list of (Maybe differences). " ++ msg ++ ", for " ++ valToString resultDiffsV) |>
-                                                        Result.mapError (\msg -> "Line " ++ toString e.start.line ++ " for the .diffs of the result of .update: " ++ msg)
-                                                    in
-                                                    updateManys diffsListRes <| \diffsList ->
-                                                    let resultDiffs = LazyList.zip valuesListLazy (LazyList.fromList <| List.map ok1 diffsList) in
-                                                    case resultDiffs of
-                                                      LazyList.Nil -> UpdateCriticalError "[internal error] no diffs found"
-                                                      LazyList.Cons (head, headDiff) lazyTail ->
-                                                        updateContinueRepeat ".update" env argument [] vArg head headDiff lazyTail <|
-                                                          \newUpdatedEnvArg newUpdatedArg ->
-                                                          let newExp = ret <| EApp sp0 (ret1 <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
-                                                          let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
-                                                          updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
+                                            updateManys diffListRes <| \(head, mbHeadDiff) ->
+                                              let continuation = case mbHeadDiff of
+                                                Just headDiff -> updateContinue ".update" env argument [] vArg head headDiff
+                                                Nothing -> \_ -> updateResultSameEnvExp env e
+                                              in
+                                              continuation <|
+                                                \newUpdatedEnvArg newUpdatedArg ->
+                                                let newExp = ret <| EApp sp0 (ret1 <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
+                                                let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
+                                                updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
                            in
                            updateMaybeFirst2 "after testing update, testing unapply" (not isApplyFrozen) mbUpdateField <| \_ ->
                              case Dict.get "unapply" d of
@@ -643,51 +638,52 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
             Nothing
        in
        updateMaybeFirst ("after testing update/unapply, testing apply (line " ++ toString e.start.line ++ ")") maybeUpdateStack <| \_ ->
+         if appType == InfixApp && eVarUnapply e1 == Just "++" then
+           case e2s of
+             [eLeft, eRight] -> -- We rewrite ++ to a call to "append" or "plus" depending on the arguments
+               case (doEval Syntax.Elm env eLeft, doEval Syntax.Elm env eRight) of
+                 (Err s, _) -> UpdateCriticalError s
+                 (_, Err s) -> UpdateCriticalError s
+                 (Ok ((v1, _), _), Ok ((v2, _), ws2)) ->
+                    let rewrite2 exp2Builder =
+                          updateContinue "Rewriting ++ to +" (("x", v1)::("y", v2)::env)
+                            (exp2Builder (replaceE__ eLeft <| EVar space0 "x") (replaceE__ eRight <| EVar space0 "y")) [] oldVal newVal diffs <|
+                          \newAugEnv newUpdatedE1 -> -- we discard changes to E1
+                            case newAugEnv.val of
+                              ("x", newV1)::("y", newV2)::newEnv ->
+                                let eLeft_continue =
+                                  case diffsAt 0 newAugEnv.changes of
+                                    Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp eLeft Nothing)
+                                    Just d -> updateContinue "left of ++" env eLeft [] v1 newV1 d
+                                in
+                                let eRight_continue =
+                                  case diffsAt 1 newAugEnv.changes of
+                                    Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp eRight Nothing)
+                                    Just d -> updateContinue "right of ++" env eRight [] v2 newV2 d
+                                in
+                                let finalEnv = dropDiffs 2 newAugEnv.changes in
+                                eLeft_continue <| \newELeftEnv newELeft ->
+                                  eRight_continue <| \newERightEnv newERight ->
+                                    let (newE, newEChanges) = case (newELeft.changes, newERight.changes) of
+                                      (Nothing, Nothing) -> (e, Nothing)
+                                      (e1Change, e2Change) ->
+                                         (replaceE__ e <| EApp sp0 e1 [newELeft.val, newERight.val] appType sp1,
+                                          combineEChildDiffs [(1, e1Change), (2, e2Change)])
+                                    in
+                                    let finalEnv = UpdatedEnv.merge e diffs env newELeftEnv newERightEnv in
+                                    updateResult finalEnv <| UpdatedExp newE newEChanges
+                              _ -> UpdateCriticalError <| "[Internal error] Expected at least 2 values in the environment, got " ++ envToString newAugEnv.val
+                    in
+                    case (v1.v_, v2.v_) of
+                      (VBase (VString _), VBase (VString _)) ->
+                        let _ = Debug.log <| "It's a string update !" ++ valToString v1 ++ " , " ++ valToString v2 ++ " <-- " ++ valToString newVal in
+                        rewrite2 (\ex ey -> replaceE__ e <| EOp space1 space1 (withDummyRange Plus) [ex, ey] space0)
+                      _ ->
+                        rewrite2  (\ex ey -> replaceE__ e <| EApp space1 (replaceE__ e1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
+             _ -> UpdateCriticalError ("++ should be called with two arguments, was called on "++toString (List.length e2s)++". ")
+         else
          case doEval Syntax.Elm env e1 of
-           Err s       ->
-             if appType /= InfixApp then UpdateCriticalError s else
-             case (e1.val.e__, e2s) of
-               (EVar spp "++", [eLeft, eRight]) -> -- We rewrite ++ to a call to "append" or "plus" depending on the arguments
-                 case (doEval Syntax.Elm env eLeft, doEval Syntax.Elm env eRight) of
-                   (Err s, _) -> UpdateCriticalError s
-                   (_, Err s) -> UpdateCriticalError s
-                   (Ok ((v1, _), _), Ok ((v2, _), ws2)) ->
-                      let rewrite2 exp2Builder =
-                            updateContinue "Rewriting ++ to +" (("x", v1)::("y", v2)::env)
-                              (exp2Builder (retLeft <| EVar space0 "x") (retRight <| EVar space0 "y")) [] oldVal newVal diffs <|
-                            \newAugEnv newUpdatedE1 -> -- we discard changes to E1
-                              case newAugEnv.val of
-                                ("x", newV1)::("y", newV2)::newEnv ->
-                                  let eLeft_continue =
-                                    case diffsAt 0 newAugEnv.changes of
-                                      Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp eLeft Nothing)
-                                      Just d -> updateContinue "left of ++" env eLeft [] v1 newV1 d
-                                  in
-                                  let eRight_continue =
-                                    case diffsAt 1 newAugEnv.changes of
-                                      Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp eRight Nothing)
-                                      Just d -> updateContinue "right of ++" env eRight [] v2 newV2 d
-                                  in
-                                  let finalEnv = dropDiffs 2 newAugEnv.changes in
-                                  eLeft_continue <| \newELeftEnv newELeft ->
-                                    eRight_continue <| \newERightEnv newERight ->
-                                      let (newE, newEChanges) = case (newELeft.changes, newERight.changes) of
-                                        (Nothing, Nothing) -> (e, Nothing)
-                                        (e1Change, e2Change) ->
-                                           (ret <| EApp sp0 e1 [newELeft.val, newERight.val] appType sp1,
-                                            combineEChildDiffs [(1, e1Change), (2, e2Change)])
-                                      in
-                                      let finalEnv = UpdatedEnv.merge e diffs env newELeftEnv newERightEnv in
-                                      updateResult finalEnv <| UpdatedExp newE newEChanges
-                                _ -> UpdateCriticalError <| "[Internal error] Expected at least 2 values in the environment, got " ++ envToString newAugEnv.val
-                      in
-                      case (v1.v_, v2.v_) of
-                        (VBase (VString _), VBase (VString _)) ->
-                          let _ = Debug.log <| "It's a string update !" ++ valToString v1 ++ " , " ++ valToString v2 ++ " <-- " ++ valToString newVal in
-                          rewrite2 (\ex ey -> ret <| EOp space1 space1 (withDummyRange Plus) [ex, ey] space0)
-                        _ ->
-                          rewrite2  (\ex ey -> ret <| EApp space1 (ret1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
-               _ -> UpdateCriticalError ("++ should be called with two arguments, was called on "++toString (List.length e2s)++". " ++ s)
+           Err s       -> UpdateCriticalError s
            Ok ((v1, _),v1Env) ->
              case v1.v_ of
                VClosure recName e1ps eBody env_ as vClosure ->
@@ -732,7 +728,8 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                              in
                              let e2s_updater = case newV2sDiffs of
                                [] -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple e2s Nothing)
-                               v2sDiffs -> updateContinueMultiple ("args of " ++ msg) env [] (List.map3 (\e2 v2 newV2 -> (e2, v2, newV2)) e2s v2s newV2s) v2sDiffs
+                               v2sDiffs ->
+                                 updateContinueMultiple ("args of " ++ msg) env [] (List.map3 (\e2 v2 newV2 -> (e2, v2, newV2)) e2s v2s newV2s) v2sDiffs
                              in
                              e1_updater  <| \newE1UpdatedEnv newUpdatedE1 ->
                                 e2s_updater <| \newE2sUpdatedEnv newUpdatedE2s ->
@@ -803,6 +800,9 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                         -- Cannot use the indices of because they are for the closure. But we could use other modifications at this stage, e.g. inserting a variable.
                        e1_updater <| \newE1UpdatedEnv newUpdatedE1 ->
                          e2s_updater <| \newE2UpdatedEnv newUpdatedE2s ->
+                            if isFreezingExpression e1 && newUpdatedE2s.changes /= Nothing then
+                              UpdateFails <| "Hit an expressionFreeze on line " ++ toString (e1.start.line) ++ " (cannot modify expression, only variable's values)"
+                            else
                             let finalEnv = UpdatedEnv.merge e diffs env newE1UpdatedEnv newE2UpdatedEnv in
                             let finalChanges = UpdateUtils.combineAppChanges newUpdatedE1.changes newUpdatedE2s.changes in
                             updateResult finalEnv <| UpdatedExp (ret <| EApp sp0 newUpdatedE1.val newUpdatedE2s.val appType sp1) finalChanges
@@ -844,7 +844,11 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
 
                VFun name argList evalDef maybeUpdateDef ->
                  case maybeUpdateDef of
-                   Nothing -> UpdateFails ("No built-in definition to update " ++ name)
+                   Nothing ->
+                      if name == ">=" || name == ">" || name == "<=" || name == "/=" then
+                        opFlip env e sp0 (precedingWhitespaceWithInfoExp e1) name e2s sp1 oldVal newVal
+                      else
+                        UpdateFails ("No built-in definition to update " ++ name)
                    Just updateDef ->
                      let arity = List.length argList in
                      let nAvailableArgs = List.length e2s in
@@ -1241,11 +1245,6 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                          updateResult newUpdatedEnv <| UpdatedExp (ret <| EOp sp1 spo op [newOpArg.val] sp2) (UpdateUtils.wrap 0 newOpArg.changes)
                                  e -> UpdateCriticalError <| "[internal error] Wrong number of arguments in update: " ++ toString e
                      e -> UpdateCriticalError <| "Expected string, got " ++ valToString newVal
-                 Eq ->
-                   if valEqual newVal oldVal then
-                     updateResultSameEnvExp env e
-                   else
-                     UpdateFails "Don't know how to reverse Eq operation"
                  RegexExtractFirstIn ->
                    case (vs, opArgs) of
                      ([regexpV, stringV], [regexpE, stringE]) ->
@@ -1256,6 +1255,8 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                            updateAlternatives "extractFirstIn" env stringE [] stringV llWithDiffs <| \newUpdatedEnv newStringE ->
                                updateResult newUpdatedEnv <| UpdatedExp (ret <| EOp sp1 spo op [regexpE, newStringE.val] sp2) (UpdateUtils.wrap 1 newStringE.changes)
                      _ -> UpdateCriticalError "extractFirstIn requires regexp, replacement (fun or string) and the string"
+                 Lt -> opFlip env e sp1 spo "<" opArgs sp2 oldVal newVal
+                 Eq -> opFlip env e sp1 spo "==" opArgs sp2 oldVal newVal
                  _ ->
                    case maybeUpdateMathOp op vs oldVal newVal diffs of
                      Err msg ->
@@ -1465,6 +1466,24 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
      _ ->
        let outStr = valToString newVal in
        UpdateCriticalError <| "Non-supported update " ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
+
+opFlip: Env -> Exp -> WS -> WS -> String -> List Exp -> WS -> Val -> Val -> UpdateStack
+opFlip env e sp1 spo initOp opArgs sp2 oldVal newVal =
+  if valEqual oldVal newVal then
+    updateResultSameEnvExp env e
+  else case opArgs of
+    [a, b] ->
+      let newE = case initOp of
+        "<" ->  EApp sp1 (withDummyExpInfo <| EVar spo ">=") [a, b] InfixApp sp2
+        ">" ->  EApp sp1 (withDummyExpInfo <| EVar spo "<=") [a, b] InfixApp sp2
+        ">=" -> EOp sp1 spo (withDummyRange Lt) [a, b] sp2
+        "<=" -> EApp sp1 (withDummyExpInfo <| EVar spo ">") [a, b] InfixApp sp2
+        "==" -> EApp sp1 (withDummyExpInfo <| EVar spo "/=") [a, b] InfixApp sp2
+        "/=" -> EOp sp1 spo (withDummyRange Eq) [a, b] sp2
+        _ -> Debug.crash ("Unexpected operator to flip: " ++ initOp)
+      in
+      updateResultSameEnv env (replaceE__ e <| newE)
+    _ -> UpdateCriticalError (initOp ++ " requires , 2 arguments, got " ++ toString (List.length opArgs))
 
 -- Errors are converted to empty solutions because updateRec is called once a solution has been found already.
 updateRec: LazyList HandlePreviousResult -> LazyList Fork -> UpdateStack -> LazyList (UpdatedEnv, UpdatedExp)

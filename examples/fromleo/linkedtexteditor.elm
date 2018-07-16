@@ -79,7 +79,7 @@ Therefore, $P($n+1) holds.</li></ul
   Regex.replace "(\\$)_(\\w+)" (\m ->
     nth m.group 1 + "<span></span>" + nth m.group 2) |>
   (\x ->
-    { apply (x, variables) = freeze x
+    { apply (x, variables) = x
       update {input = (x, variables), output} =
         Regex.find "\\$(?!_)(\\w+)(?:=(\\w+))?" output |>
         List.foldl (\(_::name::definition::_) (variables, variablesDict) ->
@@ -92,7 +92,7 @@ Therefore, $P($n+1) holds.</li></ul
             let [_, name, _] = m.group in
              if Dict.member name variablesDict then m.match else "$" + name
           ) output in
-          { values = [(newOutput, newVariables)] }
+          Ok (Inputs [(newOutput, newVariables)])
     }.apply (x, variables)
   )
 

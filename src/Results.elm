@@ -7,7 +7,7 @@ module Results exposing
   , fold, toList
   , firstResult
   , force
-  , andElse
+  , andAlso
   )
 
 import Lazy
@@ -237,8 +237,8 @@ force r = case r of
   Err msg -> Err msg
   Ok ll -> Ok (LazyList.fromList (LazyList.toList ll))
 
-andElse: Results e a -> Results e a -> Results e a
-andElse other current =
+andAlso: Results e a -> Results e a -> Results e a
+andAlso other current =
   case (other, current) of
     (Err msg, _) -> Err msg
     (_, Err msg) -> Err msg

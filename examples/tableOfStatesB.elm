@@ -14,8 +14,7 @@ TableWithButtons =
     in
     Update.applyLens
       { apply rows =
-          Update.freeze
-            (List.map (\row -> (Update.freeze False, row)) rows)
+          List.map (\row -> (Update.freeze False, row)) rows
 
       , update {outputNew = flaggedRows} =
           let processRow (flag, row) =
@@ -23,7 +22,7 @@ TableWithButtons =
               then [ row, blankRow ]
               else [ row ]
           in
-          { values = [List.concatMap processRow flaggedRows] }
+          Ok (Inputs [List.concatMap processRow flaggedRows])
       }
       rows
   in

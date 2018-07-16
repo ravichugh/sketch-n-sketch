@@ -4,11 +4,11 @@ ui model =
   let
     stringFlagForUpdate state1 state2 f model =
       Update.applyLens
-        { apply _ = Update.freeze state1
+        { apply _ = state1
         , update {input = model, outputNew} =
             if outputNew == state2
-              then {values = [f model]}
-              else {values = [model]}
+              then Ok (Inputs [f model])
+              else Ok (InputsWithDiffs [(model, Nothing)])
         } model
   in
   { button name controller =

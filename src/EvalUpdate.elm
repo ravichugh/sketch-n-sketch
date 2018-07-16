@@ -15,7 +15,7 @@ import LangUtils exposing (..)
 import Utils exposing (reverseInsert)
 import Syntax exposing (Syntax)
 import ElmParser as Parser
-import Results exposing (Results, ok1)
+import Results exposing (Results, ok1, oks)
 import LazyList exposing (LazyList)
 import LangTools exposing (..)
 import ImpureGoodies
@@ -26,6 +26,8 @@ import ParserUtils
 import ValBuilder as Vb
 import ValUnbuilder as Vu
 import UpdateRegex
+
+
 
 builtinEnv =
   [ ("error", builtinVal "EvalUpdate.error" <| VFun "error" ["msg"] (oneArg "error" <| \arg ->
@@ -40,31 +42,70 @@ builtinEnv =
            VBase (VBool True) -> Ok (right, [])
            VBase (VBool False) -> Ok (left, [])
            _ -> Err <| "&& expects two booleans, got " ++ valToString left
-     ) Nothing)
+     ) <| Just <| twoArgsUpdate "&&" <| \left right oldVal newVal diffs ->
+       case (oldVal.v_, newVal.v_) of
+         (VBase (VBool True), VBase (VBool False)) -> -- At least one of the two must become false.
+           oks [([newVal, oldVal], [(0, VConstDiffs)]),
+                ([oldVal, newVal], [(1, VConstDiffs)]),
+                ([newVal, newVal], [(0, VConstDiffs), (1, VConstDiffs)])]
+         (VBase (VBool False), VBase (VBool True)) -> -- Both need to become true
+           let leftDiff = case left.v_ of
+              VBase (VBool True) -> []
+              _ -> [(0, VConstDiffs)]
+           in
+           let rightDiff = case right.v_ of
+             VBase (VBool True) -> []
+             _ -> [(1, VConstDiffs)]
+           in
+           ok1 ([newVal, newVal], leftDiff ++ rightDiff)
+         _ ->
+           ok1 ([left, right], [])
+     )
   , ("||", builtinVal "EvalUpdate.||" <| VFun "||" ["left", "right"] (twoArgs "||" <| \left right ->
          case left.v_ of
            VBase (VBool True) -> Ok (left, [])
            VBase (VBool False) -> Ok (right, [])
            _ -> Err <| "|| expects two booleans, got " ++ valToString left
-     ) Nothing)
+     ) <| Just <| twoArgsUpdate "&&" <| \left right oldVal newVal diffs ->
+      case (oldVal.v_, newVal.v_) of
+        (VBase (VBool False), VBase (VBool True)) -> -- At least one of the two must become True.
+          oks [([newVal, oldVal], [(0, VConstDiffs)]),
+               ([oldVal, newVal], [(1, VConstDiffs)]),
+               ([newVal, newVal], [(0, VConstDiffs), (1, VConstDiffs)])]
+        (VBase (VBool True), VBase (VBool False)) -> -- Both need to become False
+          let leftDiff = case left.v_ of
+             VBase (VBool False) -> []
+             _ -> [(0, VConstDiffs)]
+          in
+          let rightDiff = case right.v_ of
+            VBase (VBool False) -> []
+            _ -> [(1, VConstDiffs)]
+          in
+          ok1 ([newVal, newVal], leftDiff ++ rightDiff)
+        _ ->
+          ok1 ([left, right], []))
   , ("<=", builtinVal "EvalUpdate.<=" <| VFun "<=" ["left", "right"] (twoArgs "<=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 <= n2)), [])
+           (VBase (VString n1), VBase (VString n2))  -> Ok (replaceV_ left <| VBase (VBool (n1 <= n2)), [])
            _ -> Err <| "<= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
      ) Nothing)
   , (">=", builtinVal "EvalUpdate.>=" <| VFun ">=" ["left", "right"] (twoArgs ">=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 >= n2)), [])
+           (VBase (VString n1), VBase (VString n2))  -> Ok (replaceV_ left <| VBase (VBool (n1 >= n2)), [])
            _ -> Err <| ">= expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
      ) Nothing)
   , (">", builtinVal "EvalUpdate.>" <| VFun ">" ["left", "right"] (twoArgs ">" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 > n2)), [])
+           (VBase (VString n1), VBase (VString n2))  -> Ok (replaceV_ left <| VBase (VBool (n1 > n2)), [])
            _ -> Err <| "> expects two numbers, got " ++ valToString left ++ " and " ++ valToString right
      ) Nothing)
   , ("/=", builtinVal "EvalUpdate./=" <| VFun "/=" ["left", "right"] (twoArgs "/=" <| \left right ->
          case (left.v_, right.v_) of
            (VConst _ (n1, _), VConst _ (n2, _))  -> Ok (replaceV_ left <| VBase (VBool (n1 /= n2)), [])
+           (VBase (VString n1), VBase (VString n2))  -> Ok (replaceV_ left <| VBase (VBool (n1 /= n2)), [])
            (_, _) -> Ok (replaceV_ left <| VBase <| VBool <| valToString left /= valToString right, [])
      ) Nothing)
   , ("getCurrentTime", builtinVal "EvalUpdate.getCurrentTime" (VFun "getCurrentTime" ["unit"] (\_ ->
@@ -160,12 +201,7 @@ builtinEnv =
                      Err msg -> Err msg
                      Ok (Ok x) -> Err <| "Cannot change the outpur of __evaluate__ from error to " ++ valToString x ++ "'"
                  Ok x -> ok1 x |> Results.andThen (\prog ->
-                    let vRecordDiffsUnapply x = case x of
-                      VRecordDiffs dict -> Just dict
-                      _ -> Nothing
-                    in
-                    let datatypeDiffsGet n d = d |> vRecordDiffsUnapply |> Maybe.andThen (Dict.get "args") |> Maybe.andThen vRecordDiffsUnapply |> Maybe.andThen (Dict.get n) in
-                    case (Vu.result Vu.identity oldValr, Vu.result Vu.identity newValr, datatypeDiffsGet "_1" d) of
+                    case (Vu.result Vu.identity oldValr, Vu.result Vu.identity newValr, vDatatypeDiffsGet "_1" d) of
                       (Ok (Ok oldVal), Ok (Ok newVal), Just dd) ->
                         -- update = UpdateStack -> LazyList NextAction -> Results (UpdatedEnv, UpdatedExp)
                           UpdateStack.updateContext "Eval.__evaluate__" (env ++ builtinEnv) prog [] oldVal newVal dd
@@ -201,45 +237,32 @@ builtinEnv =
         let vb = Vb.fromVal arg in
         case arg.v_ of
           VRecord d ->
-            case (Dict.get "fun" d, Dict.get "input" d, Dict.get "output" d) of
+            case (Utils.dictGetFirst ["fun", "function"] d,
+                  Utils.dictGetFirst ["input", "oldInput", "inputOld"] d,
+                  Utils.dictGetFirst ["output", "newOutput", "outputNew"] d) of
               (Just fun, Just input, Just newVal) ->
                 let xyEnv = [("x", fun),("y", input)] in
                 let xyExp = (withDummyExpInfo <| EApp space0 (eVar "x") [eVar "y"] SpaceApp space0) in
-                let oldOut = case Dict.get "oldOutput" d of
-                  Nothing -> case Dict.get "oldout" d of
-                     Nothing -> case Dict.get "outputOld" d of
-                       Nothing ->
-                         Eval.doEval Syntax.Elm xyEnv xyExp |> Result.map (\((v, _), _) -> v)
-                       Just v -> Ok v
-                     Just v -> Ok v
+                let oldOut = case Utils.dictGetFirst ["oldOutput", "oldOut", "outputOld"] d of
+                  Nothing -> Eval.doEval Syntax.Elm xyEnv xyExp |> Result.map (\((v, _), _) -> v)
                   Just v -> Ok v
                 in
                 case oldOut of
                   Err msg -> Err <| "while evaluating updateApp and trying to compute the old value, " ++ msg
                   Ok oldOut ->
-                    let outputDiff = case Dict.get "outputDiff" d of
-                      Nothing -> case Dict.get "diffOutput" d of
-                         Nothing -> case Dict.get "diffOut" d of
-                           Nothing -> case Dict.get "outDiff" d of
-                             Nothing -> UpdateUtils.defaultVDiffs oldOut newVal |> Results.firstResult
-                             Just v -> valToVDiffs v |> Result.map Just
-                           Just v -> valToVDiffs v |> Result.map Just
-                         Just v -> valToVDiffs v |> Result.map Just
+                    let outputDiff = case Utils.dictGetFirst ["outputDiff",  "diffOutput", "diffOut", "outDiff", "diffs"] d of
+                      Nothing -> UpdateUtils.defaultVDiffs oldOut newVal |> Results.firstResult
                       Just v -> valToVDiffs v |> Result.map Just
                     in
                     --let _ = Debug.log "calling back update" () in
                     case outputDiff of
                       Err msg -> Err <| "while evaluating updateApp and trying to compute the output diff, " ++ msg
                       Ok Nothing -> -- No need to call update
-                        let resultingValue = Vb.record (Vb.list Vb.identity) vb (
-                             Dict.fromList [("values", [input]),
-                                            ("diffs", [] )
-                             ])
-                        in
+                        let resultingValue = Vb.result UpdateUtils.updateReturnToVal vb <| Ok <| InputsWithDiffs [(input, Nothing)] in
                         Ok (resultingValue, [])
                       Ok (Just newOutDiffs) ->
                         let basicResult = case update <| updateContext "__updateApp__" xyEnv xyExp [] oldOut newVal newOutDiffs of
-                          Err msg -> Vb.record Vb.string vb (Dict.fromList [("error", msg)])
+                          Err msg -> Err msg
                           Ok ll ->
                              let l = LazyList.toList ll in
                              let lFiltered = List.filter (\(newXYEnv, newExp) ->
@@ -250,9 +273,9 @@ builtinEnv =
                              in
                              if List.isEmpty lFiltered then
                                if List.isEmpty l then
-                                 Vb.record (Vb.list Vb.identity) vb (Dict.fromList [("values", []), ("diffs", [])])
+                                 Ok <| InputsWithDiffs []
                                else
-                                 Vb.record Vb.string vb (Dict.fromList [("error", "Only solutions modifying the constant function of __updateApp__")])
+                                 Err "Only solutions modifying the constant function of __updateApp__"
                              else
                                let (results, diffs) = lFiltered |> List.map (\(newXYEnv, newExp) ->
                                  case newXYEnv.val of
@@ -263,12 +286,8 @@ builtinEnv =
                                         _ -> Debug.crash "Internal error: expected not much than (1, diff) in environment changes"
                                     _ -> Debug.crash "Internal error: expected x and y in environment"
                                  ) |> List.unzip in
-                               let maybeDiffsVal = diffs |> Vb.list (Vb.maybe vDiffsToVal) vb in
-                               Vb.record Vb.identity vb (
-                                    Dict.fromList [("values", Vb.list Vb.identity vb results),
-                                                 ("diffs", maybeDiffsVal )
-                                    ])
-                        in Ok (basicResult, [])
+                               Ok <| InputsWithDiffs <| Utils.zip results diffs
+                        in Ok (Vb.result UpdateUtils.updateReturnToVal vb basicResult, [])
               (mbFun, mbInput, mbOutput) ->
                 Err <|
                   "__updateApp__ requires a record with at least {fun,input,output}. Missing" ++
@@ -294,6 +313,7 @@ builtinEnv =
   , ("replaceAllIn", UpdateRegex.replaceAllByIn eval update)
   , ("replaceFirstIn", UpdateRegex.replaceFirstByIn eval update)
   , ("updateReplace", UpdateRegex.updateReplace eval update)
+  , ("findInterleavings", UpdateRegex.findInterleavings update)
   , ("join__", UpdateRegex.join)
 
   , ("__mbwraphtmlnode__", builtinVal "EvalUpdate.__mbwraphtmlnode__" <|
@@ -503,7 +523,9 @@ doUpdate oldExp oldEnv oldVal newValResult =
       case thediffs of
         Err msg -> Err msg
         Ok (LazyList.Nil ) -> Err "[Internal error] expected a diff or an error, got Nil"
-        Ok (LazyList.Cons Nothing _ ) -> ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
+        Ok (LazyList.Cons Nothing _ ) ->
+          let _ = ImpureGoodies.log "No difference observed in the output." in
+          ok1 (UpdatedEnv.original preludeEnv, UpdatedExp oldExp Nothing)
         Ok ll ->
            ImpureGoodies.logTimedRun "Update.update (doUpdate) " <| \_ ->
             Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->

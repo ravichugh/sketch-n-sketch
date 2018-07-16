@@ -7,11 +7,13 @@ port module OutputCanvas exposing
   , enableAutoSync
   , setAutoSyncDelay
   , setPreviewMode
-  , setDomNumAttribute
+  , setDomShapeAttribute
   , setDiffTimer
   , DiffTimer
   , clearPreviewDiff
   , setCaretPosition
+  , stopDomListener
+  , startDomListener
   )
 
 import InterfaceModel as Model exposing (Model, OutputCanvasInfo)
@@ -32,6 +34,8 @@ type alias DiffTimer = { delay: Int, activate: Bool}
 
 initialize  = sendCmd "initialize"
 resetScroll = sendCmd "resetScroll"
+stopDomListener = sendCmd "stopDomListener"
+startDomListener = sendCmd "startDomListener"
 
 sendCmd message =
   outputCanvasCmd <|
@@ -44,7 +48,7 @@ port setAutoSyncDelay : Int -> Cmd msg
 
 port setPreviewMode: Bool -> Cmd msg
 
-port setDomNumAttribute : {nodeId:Int, attrName:String, attrValue:Float} -> Cmd msg
+port setDomShapeAttribute : {nodeId:Int, attrName:String, attrValue:String} -> Cmd msg
 
 port setDiffTimer: DiffTimer-> Cmd msg
 

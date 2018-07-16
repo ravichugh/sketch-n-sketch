@@ -68,7 +68,7 @@ function setTransientVisibility(element, condition) {
 function fromId(id) {
   return document.querySelector("#" + id);
 }
-function @id.chooseCallback() {
+function @(id.chooseCallback)() {
   var player = fromId("@id.currentPlayer");
   var tellplayers = fromId("@id.tellPlayer");
   if(player !== null && tellplayers !== null) {
@@ -89,7 +89,7 @@ function @id.chooseCallback() {
     setTransientVisibility(button, card.selectedIndex > 0 && bet.selectedIndex > 0 && bet.selectedIndex !== card.selectedIndex);
   }
 }
-function @id.clickbuttoncallback() {
+function @(id.clickbuttoncallback)() {
   // Commits the bets for the given player.
   var card = fromId("@id.cardNumber");
   var bet = fromId("@id.betNumber");
@@ -102,7 +102,7 @@ function @id.clickbuttoncallback() {
   setTransientVisibility(e, true);
 }
 
-function @id.addAnotherPlayerBet() {
+function @(id.addAnotherPlayerBet)() {
   var d = fromId("@id.forcurrentplayer");
   var e = fromId("@id.foranotherplayer");
   setTransientVisibility(d, true);
@@ -113,7 +113,7 @@ function @id.addAnotherPlayerBet() {
   if(card !== null) card.selectedIndex = 0;
   if(bet !== null) bet.selectedIndex = 0;
   if(player !== null) player.selectedIndex = (player.selectedIndex + 1) % player.children.length;
-  @id.chooseCallback();
+  @(id.chooseCallback)();
 }
 </script><style>
   .normallyNotVisible {
@@ -155,7 +155,7 @@ function @id.addAnotherPlayerBet() {
     v=(Html.onChangeAttribute players commitPlayer)>
     </span>
     <script>
-      @id.chooseCallback();
+      @(id.chooseCallback)();
     </script>
   </span>
 </span>

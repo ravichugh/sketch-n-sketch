@@ -34,8 +34,8 @@ content =
       let name = {
         apply x = Dict.get defaultName cachedNames |>
           case of Nothing -> defaultName; Just n -> n
-        update {input=(a, b), outputNew=newName} = {
-          values = [(a, Dict.insert defaultName newName cachedNames)] }
+        update {input=(a, b), outputNew=newName} = Ok (Inputs (
+           [(a, Dict.insert defaultName newName cachedNames)]))
         }.apply (defaultName, cachedNames) in
       let res = __evaluate__ prevDefinitions cmd in
       let newPrevDefinitions = case res of

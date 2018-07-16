@@ -238,7 +238,7 @@ updateManyHeadTail: a -> Lazy.Lazy (LazyList a) -> (a -> UpdateStack) -> UpdateS
 updateManyHeadTail  firstdiff otherdiffs builder =
   updateResults (builder firstdiff) (otherdiffs |> Lazy.map (\otherdiffs -> otherdiffs |> LazyList.map builder))
 
-updateManys: Results String (List (Maybe vdiffs)) -> (List (Maybe vdiffs) -> UpdateStack) -> UpdateStack
+updateManys: Results String a -> (a -> UpdateStack) -> UpdateStack
 updateManys diffResult builder =
   case diffResult of
     Err msg -> UpdateCriticalError msg

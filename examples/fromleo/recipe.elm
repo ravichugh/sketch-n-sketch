@@ -44,14 +44,14 @@ result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
     "multdivby" ->
       let res = floor (base * freeze mult / freeze div) in
       if res < 6 then -- We take into account 1/2, 1/4 and 3/4 until 5, else it makes no sense, but no more.
-        { apply base = freeze <|
+        { apply base =
            case floor (base * mult * 4 / div) - 4*res of
              0 -> if res == 0 then "<¼" else toString res
              1 -> if res == 0 then "¼" else if res >= 4 then toString res else toString res + "¼"
              2 -> if res == 0 then "½" else toString res + "½"
              3 -> if res == 0 then "¾" else if res >= 4 then toString res else toString res + "¾"
           update {outputNew, outputOriginal} =
-            if outputNew == outputOriginal then {values=[base]} else
+            if outputNew == outputOriginal then Ok (Inputs [base]) else
             let quantityTimes4 = case Regex.extract "(.*)(¼|[ +]?[13]/[24]|½|¾)" outputNew of
               Just [i, complement] -> 
                  let addi x = if i == "" then x else 4 * String.toInt i + x in
@@ -71,19 +71,19 @@ result = Regex.replace "(multdivby|ifmany(\\w+))\\[(\\d+),(\\d+)\\]" (\m ->
                    a      -> error <| "Unexpected complement: " + complement
               Nothing -> 4 * String.toInt outputNew
             in
-            {values = [floor (quantityTimes4 * div / mult / 4)] }
+            Ok (Inputs [floor (quantityTimes4 * div / mult / 4)])
         }.apply base
       else toString res
     ifmanyEnding ->
       let ending = nth m.group 2 in
       let res = floor (base * freeze mult * freeze 4 / freeze div) in
-      { apply (res, ending) = freeze <| if res > 4 then ending else ""
+      { apply (res, ending) = if res > 4 then ending else ""
         update {input=(res,ending), outputNew, outputOriginal} =
           if outputNew == "" && outputOriginal == ending then
-            {values=[(4, ending)]}
+            Ok (Inputs [(4, ending)])
           else
-            if Regex.matchIn " " outputNew then {values = []} else
-            {values = [(res, outputNew)]} }.apply (res, ending)) txt
+            if Regex.matchIn " " outputNew then Ok (Inputs []) else
+            Ok (Inputs [(res, outputNew)]) }.apply (res, ending)) txt
 
 Html.div [["margin", "20px"], ["cursor", "text"]] [] <| (\x -> [x]) <|
 Html.span [] [] <|
@@ -92,12 +92,12 @@ html <| """<button onclick="this.setAttribute('v','@otherLanguage')" v="@languag
           ("French", """<i>Astuce:</i> Ecrire _5_ pour un nombre proportionel 5, _5s_ pour un 's' conditionel si la quantité 5 est plus grande que 1.""")] |> flip Dict.apply language) + 
  { apply x = freeze x ,
    update {output} =
-     { values = [Regex.replace "_(\\d+)(\\w*)_" (\m ->
+     Ok (Inputs [Regex.replace "_(\\d+)(\\w*)_" (\m ->
         let amount = String.toInt (nth m.group 1) in
         let plural = nth m.group 2 in
         case plural of
            "" -> """multdivby[@amount,@base]"""
            _ ->
             """ifmany@plural[@amount,@base]"""
-        ) output] }
+        ) output])
  }.apply result

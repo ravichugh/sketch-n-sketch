@@ -3358,7 +3358,11 @@ identifiersListInPat pat =
     PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
     PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
     PAs _ p1 _ p2               -> (identifiersListInPat p1) ++ (identifiersListInPat p2)
-    _                           -> []
+    PRecord _ pvalues _         -> List.concatMap identifiersListInPat (Utils.recordValues pvalues)
+    PConst _ _                  -> []
+    PBase _ _                   -> []
+    PWildcard _                 -> []
+    PParens _ p _               -> identifiersListInPat p
 
 
 identifiersListInPats : List Pat -> List Ident
@@ -3541,10 +3545,21 @@ type EDiffs = EConstDiffs EWhitespaceDiffs
 
 type EWhitespaceDiffs = EOnlyWhitespaceDiffs | EAnyDiffs
 
+type UpdateReturn = Inputs (List Val) | InputsWithDiffs (List (Val, Maybe VDiffs))
+
 vListDiffsUnapply: VDiffs -> Maybe (ListDiffs VDiffs)
 vListDiffsUnapply vdiffs = case vdiffs of
   VListDiffs d -> Just d
   _ -> Nothing
+
+vRecordDiffsUnapply: VDiffs -> Maybe (Dict String VDiffs)
+vRecordDiffsUnapply x = case x of
+  VRecordDiffs dict -> Just dict
+  _ -> Nothing
+
+-- Given a string "_1", "_2" ... returns if there is a diff associated to it for a diff on datatypes
+vDatatypeDiffsGet: String -> VDiffs -> Maybe VDiffs
+vDatatypeDiffsGet n d = d |> vRecordDiffsUnapply |> Maybe.andThen (Dict.get ctorArgs) |> Maybe.andThen vRecordDiffsUnapply |> Maybe.andThen (Dict.get n)
 
 offsetStr: Int -> List StringDiffs -> List StringDiffs
 offsetStr n diffs =

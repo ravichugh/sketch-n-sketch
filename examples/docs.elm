@@ -1,11 +1,11 @@
-ensureNatural {minbound} n = { apply x = freeze x, update {input, outputNew} =
+ensureNatural {minbound} n = { apply x = x, update {input, outputNew} =
   let (f, c) = (max minbound <| floor outputNew, max minbound <| ceiling outputNew) in
   if f /= outputNew || c /= outputNew then let solutions = (if f == input then [] else [f]) ++
   (if c == input || c == f then [] else [c]) in
-  { values = solutions } else { values = [outputNew] } }.apply n
+  Ok (Inputs solutions) else Ok (Inputs [outputNew]) }.apply n
 
-format n = { apply n = freeze (toString n |> Regex.replace """(\d)(?=(?:(?:\d{3})+$))""" (\m -> nth m.group 1 + ","))
-             update {outputNew} = {values=[String.toInt (Regex.replace "," "" outputNew)]}}.apply n
+format n = { apply n = toString n |> Regex.replace """(\d)(?=(?:(?:\d{3})+$))""" (\m -> nth m.group 1 + ",")
+             update {outputNew} = Ok (Inputs [String.toInt (Regex.replace "," "" outputNew)])}.apply n
 
 nbpostdocs     = ensureNatural {minbound=0} 2
 nbgraduates    = ensureNatural {minbound=1} 4
@@ -27,7 +27,7 @@ Detailed budget can be found in <a class="sectionref" href="#budget">the budget 
 <h2 id="budget">Detailed budget</h2>
   <table>
     <tr><th>Who</th>
-    @(years <| \i -> <th>Year #@i</th>)<th>Total</th></tr>
+    @(years <| \i -> <th>Year #@(freeze i + 0)</th>)<th>Total</th></tr>
     <tr><td>@nbgraduates graduates</td>
       @(years <| \i -> <td>@format<|(nbgraduates * graduatesalary)$</td>)
       <td>@(years (always <| nbgraduates * graduatesalary) |> List.sum |> format)$</td></tr>
@@ -44,22 +44,24 @@ Detailed budget can be found in <a class="sectionref" href="#budget">the budget 
   <ul><li>Make it collaborative<br></li>
   <li>Ensure that we can format paragraphs that contain values properly</li>
   <li>Deal with tables nicely by back-propagating expressions</li></ul>
+<span style="position:relative"><div
+style="position:absolute;left:0;width:calc(8.5in - 32mm);height:20px;background:lightgreen;text-align:right">d</div>
+</span>
+@(List.range 1 50 |> List.map (\i -> <div>More text @i</div>))
 </div>
-
-
-
-
-
-
-
-
-
 
 -- Very useful link: http://alistapart.com/article/boom
 -- https://code.tutsplus.com/tutorials/create-a-wysiwyg-editor-with-the-contenteditable-attribute--cms-25657
 <div id="app">
-<div id="menu">
+<div id="menu" style="padding-left:10px">
 @Html.forceRefresh<|<style>
+#app {
+  position: relative;
+  background: #eeeeee;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
 #menu > a {
   text-decoration: none;
   color: black;
@@ -79,11 +81,10 @@ Detailed budget can be found in <a class="sectionref" href="#budget">the budget 
   border-bottom: 2px solid #cccccc;
   background: #eeeeee;
 }
-#app {
+#body {
   position: relative;
-  background: #eeeeee;
+  overflow: scroll;
   height: 100%;
-  width: 100%;
 }
 .page {
   position: relative;
@@ -91,7 +92,7 @@ Detailed budget can be found in <a class="sectionref" href="#budget">the budget 
   margin-top: 10px;
   top: 0px;
   width: 8.5in;
-  height: 11in;
+  /*height: 11in;*/
   box-sizing: border-box;
   box-shadow: 0px 0px 5px #aaa;
   background: white;
@@ -103,6 +104,7 @@ Detailed budget can be found in <a class="sectionref" href="#budget">the budget 
    width: 100%;
    height: 100%;
    box-sizing: border-box;
+   word-wrap: break-word;
 }
 th, td {
     padding: 5px;
@@ -115,8 +117,26 @@ h2::before {
     content: counter(h2-counter) ". ";
 }
 @@media print {
+  body {
+    background: white;
+  }
   body * {
     visibility: hidden;
+  }
+  #outputCanvas {
+    height: auto !important;
+    overflow: visible;
+  }
+  #app {
+    position: absolute;
+    height: auto;
+    width: 100%;
+    overflow: visible;
+  }
+  #body {
+    position: absolute;
+    top: 0;
+    overflow: visible;
   }
   .code-panel {
     display: none;
@@ -128,14 +148,32 @@ h2::before {
     position: absolute;
     left: 0;
     top: 0;
-    right: 0;
-    bottom: 0;
     box-shadow: none;
+    margin: 0;
+    width: calc(8.5in - 32mm);
+    /*width: calc(1.5 * calc(8.5in - 32mm));
+    font-size: 1.5em;*/
+    transform: scale(1.5); /* I don't know why but this is correct on my machine!" */
+    transform-origin: top left;
   }
   .pagecontent {
     padding: 0;
-    font-size: 1.5em;
+    /*font-size: 1.5em;*/
   }
+  .pagecontent div, .pagecontent h2 {
+    page-break-inside: avoid;
+  }
+  @@page{
+    margin-top: 17mm;
+    margin-right: 16mm;
+    margin-bottom: 27mm;
+    margin-left: 16mm;
+    size: 8.5in 11in;
+    @@bottom-right {
+      content: counter(page);
+    }
+  }
+  
   .output-panel {
     left: 0 !important;
     top: 0 !important;
@@ -162,8 +200,8 @@ h2::before {
 <a href="#" data-command='insertOrderedList' title="numbered list"><ol
   style="font-size:0.05em;display:inline-block"
   ><li>---</li><li>---</li><li>---</li></ol></a>
-<a href="#" data-command='print' title="Print the document -- look for @media print for configurable options">Print</a>
-</div>
+<a href="#" data-command='print' title="Print the document -- look for @media print for configurable options">🖶
+</a></div>
 @Html.forceRefresh<|<div id="body">
 <div class="page">
 @pageContent
