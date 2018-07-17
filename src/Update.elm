@@ -1307,12 +1307,30 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                 Nothing ->
                   UpdateCriticalError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
      ELet sp1 letKind ((Declarations po types anns exps) as decls) wsIn body ->
+       updateDeclarations env prevLets declarations <| \envBody remainingPrevLets finishUpdateDeclarations ->
+         updateContinue "ELet" envBody body remainingPrevLets oldVal newVal diffs <| \updatedEnvBody updatedBody ->
+           finishUpdateDeclarations updatedEnvBody <| \updatedDecls ->
+             let declsDiffs = case updatedDecls.changes of
+               Nothing -> []
+               Just x -> x
+             in
+             let bodyDiff = case updatedBody.changes of
+               Nothing -> []
+               Just bd -> [(List.length exps, bd)]
+             in
+             let finalDiff = case declsDiffs ++ bodyDiff of
+               [] -> Nothing
+               x -> Just x
+             in
+             UpdatedExp (replaceE__ e <| ELet sp1 letKind updatedDecls.val wsIn updatedBody.val) finalDiff
+       -- TODO: Move this to updateLetExps so that it's cleaner and can be reused from ERecord.
        case unconsGroup exps of
          Nothing ->
            updateContinue "ELetrec"  env body prevLets oldVal newVal diffs <| \newUpdatedEnvBody newUpdatedBody ->
              UpdatedExp (ret <| ELet sp1 letKind decls wsIn newUpdatedBody.val) (UpdateUtils.wrap 0 newUpdatedBody.changes)
          Just (group, tailExps) ->
-           let aux revAcc prevLets g continuation = case g of
+           let aux: List Int -> Env -> List LetExp -> (Env -> List LetExp -> a) -> a
+               aux revAcc prevLets g continuation = case g of
              [] -> continuation prevLets <| List.reverse revAcc
              (LetExp _ _ p _ _ e1 as letExp):: tailLetExps ->
                 case Utils.maybeWithLazyDefault (prevLetsFind (Vb.fromVal oldVal) prevLets p |> Maybe.map Ok) <|
@@ -1466,6 +1484,40 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
      _ ->
        let outStr = valToString newVal in
        UpdateCriticalError <| "Non-supported update " ++ envToString (pruneEnv e env) ++ "|-" ++ unparse e ++ " <-- " ++ outStr ++ " (was " ++ valToString oldVal ++ ")"
+
+updateDeclarations: Env -> PrevLets -> Declarations -> ContinuationUpdate3
+    {- I'll give you the env after evaluating -} Env
+    {- I give you the remaining prevlets -} PrevLets
+    {- I give you this continuation function that requires you to update this environment, and call it.
+      It will return you as a continuation the new updated declarations , use them to produce the final updateResult -}
+   (UpdatedEnv -> ContinuationUpdate UpdatedDeclarations)
+updateDeclarations env prevLets (Declarations po types anns letexps) doUpdateBody {- Env -> PrevLets -> [continuation with env] -> UpdateStack -} =
+  updateLetExps env prevLets (rebuildGroups letexps) <| \newBodyEnv remainingPrevLets afterUpdatedEnv ->
+    doUpdateBody newBodyEnv remainingPrevLets <| \updatedBodyEnv regroupExp {- UpdatedDeclarations -> UpdateStack-} ->
+      afterUpdatedEnv updatedBodyEnv <| \newLetExps newLetExpDiffs ->
+        let updatedDeclarations =
+          UpdatedDeclarations
+             (Declarations po types anns (unbuildGroups newLetExps))
+             (if newLetExpDiffs == [] then Nothing else Just newLetExpDiffs)
+        in
+        regroupExp updatedDeclarations
+
+
+    -- We should return an UpdateStack
+
+updateLetExps: {-Give me -} Env -> {- Give me -} PrevLets -> {- Give me -} List (List LetExp) ->
+     {- I'll give you the env after evaluating -} Env ->
+     {- I give you the remaining prevlets -} PrevLets ->
+     {- I give you this continuation function that requires you to update this environment, and call it.
+        It will return you as a continuation the new letExps and differences, use them to produce the final updateResult -}
+    (UpdatedEnv ->
+       ContinuationUpdate2 (List (List LetExp)) (TupleDiffs EDiffs))
+updateLetExps env prevLets declarations continueWithNewEnvNewPrevLetsContinuation =
+  "TODO for wednesday"
+
+getUpdateStackOpDeclarations : Env -> Declarations -> PrevLets -> PrevEnv -> Env-> EnvDiffs -> (Declarations -> UpdateStack) -> UpdateStack
+getUpdateStackOpDeclarations env (Declarations po (tpês, gt) anns (exps, ge)) prevLets prevEnv newEnv diffs continuation =
+
 
 opFlip: Env -> Exp -> WS -> WS -> String -> List Exp -> WS -> Val -> Val -> UpdateStack
 opFlip env e sp1 spo initOp opArgs sp2 oldVal newVal =

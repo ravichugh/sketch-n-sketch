@@ -16,8 +16,18 @@ import Pos exposing (Pos)
 
 type alias UpdatedExp = { val: Exp, changes: Maybe EDiffs }
 type alias UpdatedExpTuple = { val: List Exp, changes: Maybe (TupleDiffs EDiffs) }
+type alias UpdatedDeclarations = {val: Declarations, changes: Maybe (TupleDiffs EDiffs)}
 
 type alias PrevLets = Env -- In traversing order
+type alias PrevEnv = Env
+
+type alias Continuation result a = (a -> result) -> result
+type alias Continuation2 result a b = (a -> b -> result) -> result
+type alias Continuation3 result a b c = (a -> b -> c-> result) -> result
+
+type alias ContinuationUpdate a = Continuation UpdateStack a
+type alias ContinuationUpdate2 a b = Continuation2 UpdateStack a b
+type alias ContinuationUpdate3 a b c = Continuation3 UpdateStack a b c
 
 type HandlePreviousResult = HandlePreviousResult String (UpdatedEnv -> UpdatedExp -> UpdateStack)
 type Fork = Fork String UpdateStack (LazyList HandlePreviousResult) (LazyList Fork)
@@ -74,8 +84,9 @@ updateResultSameEnvDiffs env exp diffs = updateResult (UpdatedEnv.original env) 
 updateResult: UpdatedEnv-> UpdatedExp -> UpdateStack
 updateResult updatedEnv exp = UpdateResultS updatedEnv exp Nothing
 
-updateContinue: String -> Env -> Exp -> PrevLets -> PrevOutput -> Output -> VDiffs -> (UpdatedEnv -> UpdatedExp -> UpdateStack) -> UpdateStack
-updateContinue msg env exp prevLets oldVal newVal newValDiffs continuation = UpdateContextS env exp prevLets oldVal newVal newValDiffs (Just (HandlePreviousResult msg <| continuation))
+updateContinue: String -> Env -> Exp -> PrevLets -> PrevOutput -> Output -> VDiffs -> ContinuationUpdate2 UpdatedEnv UpdatedExp
+updateContinue msg env exp prevLets oldVal newVal newValDiffs continuation =
+  UpdateContextS env exp prevLets oldVal newVal newValDiffs <| Just <| HandlePreviousResult msg <| continuation
 
 updateContext: String -> Env -> Exp -> PrevLets -> PrevOutput -> Output -> VDiffs -> UpdateStack
 updateContext msg env exp prevLets oldVal newVal newValDiffs = UpdateContextS env exp prevLets oldVal newVal newValDiffs Nothing
@@ -120,13 +131,13 @@ updateContinueRepeat msg env e prevLets oldVal newVal diffsResults otherNewValMo
         )
     )
 
-updateAlternatives: String -> Env -> Exp -> PrevLets -> PrevOutput -> LazyList (Output, Results String (Maybe VDiffs)) -> (UpdatedEnv -> UpdatedExp -> UpdateStack) -> UpdateStack
+updateAlternatives: String -> Env -> Exp -> PrevLets -> PrevOutput -> LazyList (Output, Results String (Maybe VDiffs)) -> ContinuationUpdate2 UpdatedEnv UpdatedExp
 updateAlternatives msg env e prevLets oldVal newValsDiffs continuation =
   case newValsDiffs of
     LazyList.Nil -> UpdateFails <| "No solution for " ++ msg
     LazyList.Cons (head, headModifs) lazyTail -> updateContinueRepeat msg env e prevLets oldVal head headModifs lazyTail continuation
 
-updateMaybeFirst: String -> (Maybe (UpdateStack, Bool)) -> (() -> UpdateStack) -> UpdateStack
+updateMaybeFirst: String -> (Maybe (UpdateStack, Bool)) -> ContinuationUpdate ()
 updateMaybeFirst msg mb ll =
    case mb of
      Nothing -> ll ()
@@ -146,7 +157,7 @@ updateMaybeFirst2 msg canContinueAfter mb ll =
 
 
 -- Constructor for updating multiple expressions evaluated in the same environment.
-updateContinueMultiple: String -> Env -> PrevLets -> List (Exp, PrevOutput, Output) -> TupleDiffs VDiffs -> (UpdatedEnv -> UpdatedExpTuple -> UpdateStack) -> UpdateStack
+updateContinueMultiple: String -> Env -> PrevLets -> List (Exp, PrevOutput, Output) -> TupleDiffs VDiffs -> ContinuationUpdate2 UpdatedEnv UpdatedExpTuple
 updateContinueMultiple  msg       env    prevLets     totalExpValOut                    diffs                continuation  =
   let totalExp = withDummyExpInfo <| EList space0 (totalExpValOut |> List.map (\(e, _, _) -> (space1, e))) space0 Nothing space0 in
   let aux: Int -> List Exp   -> TupleDiffs EDiffs -> UpdatedEnv -> List (Exp, PrevOutput, Output) ->TupleDiffs VDiffs -> UpdateStack
@@ -181,7 +192,7 @@ updateContinueMultiple  msg       env    prevLets     totalExpValOut            
                    ", got nothing. We are at index " ++ toString i ++ " / length = " ++ toString (List.length totalExpValOut)
   in aux 0 [] [] (UpdatedEnv.original env) totalExpValOut diffs
 
-updateManyMbHeadTail: a -> Lazy.Lazy (LazyList (Maybe a)) -> (a -> UpdateStack) -> UpdateStack
+updateManyMbHeadTail: a -> Lazy.Lazy (LazyList (Maybe a)) -> ContinuationUpdate a
 updateManyMbHeadTail  firstdiff otherdiffs builder =
   updateResults (builder firstdiff) (otherdiffs |> Lazy.map (\otherdiffs -> otherdiffs |> LazyList.filterMap identity |> LazyList.map builder))
 
@@ -221,7 +232,7 @@ updateOpMultiple  hint     env    es          eBuilder             prevLets     
     LazyList.Cons (outputsHead, headDiffs) lazyTail ->
       aux 1 outputsHead headDiffs lazyTail
 
-updateMany: Results String (Maybe vdiffs) -> (() -> UpdateStack) -> (vdiffs -> UpdateStack) -> UpdateStack
+updateMany: Results String (Maybe vdiffs) -> (() -> UpdateStack) -> ContinuationUpdate vdiffs
 updateMany diffResult onSame builder =
   case diffResult of
     Err msg -> UpdateCriticalError msg
@@ -232,7 +243,7 @@ updateMany diffResult onSame builder =
         LazyList.Cons (Just d) tail ->
           updateManyMbHeadTail d tail builder
 
-updateManyHeadTail: a -> Lazy.Lazy (LazyList a) -> (a -> UpdateStack) -> UpdateStack
+updateManyHeadTail: a -> Lazy.Lazy (LazyList a) -> ContinuationUpdate a
 updateManyHeadTail  firstdiff otherdiffs builder =
   updateResults (builder firstdiff) (otherdiffs |> Lazy.map (\otherdiffs -> otherdiffs |> LazyList.map builder))
 

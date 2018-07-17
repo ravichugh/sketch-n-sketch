@@ -3468,6 +3468,13 @@ rebuildGroups: WithGroupingInfo (List a) -> List (List a)
 rebuildGroups grouppedElems =
   List.reverse <| foldLeftGroup [] grouppedElems <| (\b newGroup -> newGroup::b)
 
+unbuildGroups: List (List a) -> WithGroupingInfo (List a)
+unbuildGroups groupped = case groupped of
+  [] -> ([], [])
+  group::tail ->
+    let (g, go) = unbuildGroups tail in
+    (group ++ g, List.length group :: go)
+
 unconsGroup: WithGroupingInfo (List a) -> Maybe (List a, WithGroupingInfo (List a))
 unconsGroup (exps, go) = case go of
   [] -> Nothing

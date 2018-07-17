@@ -1,4 +1,4 @@
-module Eval exposing (doEval, eval, evalDelta)
+module Eval exposing (doEval, eval, evalDelta, evalDeclarations)
 
 import Debug
 import Dict
@@ -109,9 +109,9 @@ lookupVar syntax env bt x pos =
 mkCap mcap l =
   let s =
     case (mcap, l) of
-      (Just cap, _)       -> cap.val
-      (Nothing, (_,_,"")) -> strLoc l
-      (Nothing, (_,_,x))  -> x
+       (Just cap, _)       -> cap.val
+       (Nothing, (_,_,"")) -> strLoc l
+       (Nothing, (_,_,x))  -> x
   in
   s ++ ": "
 
@@ -194,49 +194,6 @@ eval syntax env bt e =
     then e::bt
     else bt
   in
-  let evalDeclarations: Declarations -> (Env -> List Widget -> Result String ((Val, Widgets), Env)) -> Result String ((Val, Widgets), Env)
-      evalDeclarations (Declarations  _ _ _ (exps, groupOrders)) continuation =
-    let aux: List Int -> List LetExp -> List Widget -> Env -> Result String ((Val, Widgets), Env)
-        aux groupOrder exps widgets env = case groupOrder of
-       [] -> continuation env widgets
-       i :: groupTail ->
-         let (expHead, expTail) = Utils.split i exps in
-         let rec = isMutuallyRecursive expHead in
-         case expHead |> List.map (\(LetExp _ _ p _ _ e1) ->
-          eval_ syntax env bt_ e1 |> Result.map ((,) p)) |> Utils.projOk of
-          Err msg -> Err msg
-          Ok pValuesWidgets ->
-            let (names, valuesWidgets) = List.unzip pValuesWidgets in
-            let (values, widgetsList) = List.unzip valuesWidgets in
-            let newWidgets = List.concatMap identity widgetsList in
-            if rec then
-              let allNames = names |> List.map (\p -> case (patEffectivePat p).val.p__ of
-                PVar _ fname _ -> Ok fname
-                _ -> Err "Recursive function with non-variable pattern!") |> Utils.projOk
-              in
-              case allNames of
-                Err msg -> Err msg
-                Ok names ->
-                  let recEnv = List.map2 (,) names values in
-                  let newValues = values |> List.map2 (\name value ->
-                       case value.v_ of
-                         VClosure [] x body env_ -> Ok <| replaceV_ value <| VClosure names x body (recEnv ++ env)
-                         _ -> Err <| "Expected VClosures for recursivity, got " ++ valToString value
-                      ) names |> Utils.projOk
-                  in
-                  case newValues of
-                    Err msg -> Err msg
-                    Ok newVals ->
-                      let newEnv = List.map2 (,) names newVals ++ env in
-                      aux groupTail expTail (widgets ++ newWidgets) newEnv
-            else
-              case Utils.foldLeft (Just env) (Utils.zip names values) <|
-                                   \mbEnv (name, value) -> cons (name, value) mbEnv
-              of
-               Just newEnv -> aux groupTail expTail (widgets ++ newWidgets) newEnv
-               _         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ "match error in let"
-    in aux groupOrders exps [] env
-  in
 
   case e.val.e__ of
 
@@ -277,15 +234,15 @@ eval syntax env bt e =
     let resInitDictWidgets  =case mi of
       Nothing -> Ok <| (Nothing, Dict.empty, [])
       Just (init, ws) -> case eval_ syntax env bt_ init of
-        Ok (v, ws) -> case v.v_ of
-          VRecord d -> Ok (Just v, d, ws)
-          _ -> errorWithBacktrace syntax (e::bt) <| strPos init.start ++ " init expression not a record, but " ++ valToString v
-        Err msg -> Err msg
+         Ok (v, ws) -> case v.v_ of
+           VRecord d -> Ok (Just v, d, ws)
+           _ -> errorWithBacktrace syntax (e::bt) <| strPos init.start ++ " init expression not a record, but " ++ valToString v
+         Err msg -> Err msg
     in
     case resInitDictWidgets of
       Err msg -> Err msg
       Ok (v, d, ws) ->
-        evalDeclarations declarations <| \newEnv widgets ->
+        evalDeclarations syntax env bt declarations <| \newEnv widgets ->
           -- Find the value of each newly added ident and adds it to records.
           let ids = letexps |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
           let kvs = VRecord (Dict.union (ids |> Set.fromList |> Set.map (
@@ -353,13 +310,13 @@ eval syntax env bt e =
     case eval_ syntax env bt_ e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
-        let evalVApp: Val -> List Exp -> Result String ((Val, Widgets), Env)
-            evalVApp v1 es =
+       let evalVApp: Val -> List Exp -> Result String ((Val, Widgets), Env)
+           evalVApp v1 es =
           case v1.v_ of
             VClosure recNames ps funcBody closureEnv ->
               let argValsAndFuncRes =
                 let newEnv = recNames |> List.map (\fName ->
-                  (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust_ "Did not find recursive closure in its environment"))
+                   (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust_ "Did not find recursive closure in its environment"))
                 in
                 apply syntax env bt bt_ e ps es funcBody (newEnv ++ closureEnv)
               in
@@ -402,10 +359,10 @@ eval syntax env bt e =
                         Ok vw -> Ok (vw, env)
             _ ->
               errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
-        in evalVApp v1 es
+       in evalVApp v1 es
 
   ELet wsLet lk declarations _ e2 ->
-    evalDeclarations declarations (\env widgets -> Result.map (addWidgets widgets) <| eval syntax env bt_ e2)
+    evalDeclarations syntax env bt declarations (\env widgets -> Result.map (addWidgets widgets) <| eval syntax env bt_ e2)
 
   EColonType _ e1 _ t1 _ ->
     -- Pass-through, so don't add provenance.
@@ -442,8 +399,8 @@ evalOp syntax env e bt opWithInfo es =
       let (vs,wss) = List.unzip argsEvaled in
       let error () =
         errorWithBacktrace syntax bt
-          <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
-          ++ ":\n" ++ Utils.lines (Utils.zip vs es |> List.map (\(v,e) -> (valToString v) ++ " from " ++ (Syntax.unparser syntax e)))
+           <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
+           ++ ":\n" ++ Utils.lines (Utils.zip vs es |> List.map (\(v,e) -> (valToString v) ++ " from " ++ (Syntax.unparser syntax e)))
       in
       let addProvenance val_   = Val val_ (Provenance env e vs) (Parents []) in
       let addProvenanceOk val_ = Ok (addProvenance val_) in
@@ -454,33 +411,33 @@ evalOp syntax env e bt opWithInfo es =
         let vars = List.range 1 nbArgs |> List.map (\i -> Parser.implicitVarName ++ if (i == 1) then "" else toString i) in
         let (varsComputed, varsRemaining) = Utils.split vLength vars in
         VClosure [] (varsRemaining |> List.map pVar) (
-          eOp opWithInfo.val (List.map eVar vars)) (Utils.reverseInsert (List.map2 (,) varsComputed vs) env) |> addProvenanceOk
+           eOp opWithInfo.val (List.map eVar vars)) (Utils.reverseInsert (List.map2 (,) varsComputed vs) env) |> addProvenanceOk
       in
       let nullaryOp args retVal_ =
         case args of
-          [] -> addProvenanceOk retVal_
-          _  -> error ()
+           [] -> addProvenanceOk retVal_
+           _  -> error ()
       in
       let unaryMathOp op args =
         case args of
-          [VConst _ (n,t)] -> VConst Nothing (evalDelta syntax bt op [n], TrOp op [t]) |> addProvenanceOk
-          _ -> mkClosureOrError ()
+           [VConst _ (n,t)] -> VConst Nothing (evalDelta syntax bt op [n], TrOp op [t]) |> addProvenanceOk
+           _ -> mkClosureOrError ()
       in
       let binMathOp op args =
         case args of
-          [VConst maybeAxisAndOtherDim1 (i,it), VConst maybeAxisAndOtherDim2 (j,jt)] ->
+           [VConst maybeAxisAndOtherDim1 (i,it), VConst maybeAxisAndOtherDim2 (j,jt)] ->
             let maybeAxisAndOtherDim =
               case (op, maybeAxisAndOtherDim1, maybeAxisAndOtherDim2) of
-                (Plus, Just axisAndOtherDim, Nothing)  -> Just axisAndOtherDim
-                (Plus, Nothing, Just axisAndOtherDim)  -> Just axisAndOtherDim
-                (Minus, Just axisAndOtherDim, Nothing) -> Just axisAndOtherDim
-                _                                      -> Nothing
+                 (Plus, Just axisAndOtherDim, Nothing)  -> Just axisAndOtherDim
+                 (Plus, Nothing, Just axisAndOtherDim)  -> Just axisAndOtherDim
+                 (Minus, Just axisAndOtherDim, Nothing) -> Just axisAndOtherDim
+                 _                                      -> Nothing
             in
             VConst maybeAxisAndOtherDim (evalDelta syntax bt op [i,j], TrOp op [it,jt]) |> addProvenanceOk
-          _ -> mkClosureOrError ()
+           _ -> mkClosureOrError ()
       in
       let args = List.map .v_ vs in
-      let newValRes =
+     let newValRes =
         case op of
           Plus    -> case args of
             [VBase (VString s1), VBase (VString s2)] -> VBase (VString (s1 ++ s2)) |> addProvenanceOk
@@ -601,36 +558,78 @@ evalOp syntax env e bt opWithInfo es =
         Ok newVal ->
           let newWidgets =
             case (op, args, vs) of
-              (Plus, [VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
+               (Plus, [VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
                 let (baseXNumTr, baseYNumTr, endXVal, endYVal) =
                   if axis == X
                   then (numTr, otherDimNumTr, newVal, otherDirVal)
                   else (otherDimNumTr, numTr, otherDirVal, newVal)
                 in
                 [WOffset1D baseXNumTr baseYNumTr axis Positive amountNumTr amountVal endXVal endYVal]
-              (Plus, [VConst Nothing amountNumTr, VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr], [amountVal, _]) ->
+               (Plus, [VConst Nothing amountNumTr, VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr], [amountVal, _]) ->
                 let (baseXNumTr, baseYNumTr, endXVal, endYVal) =
                   if axis == X
                   then (numTr, otherDimNumTr, newVal, otherDirVal)
                   else (otherDimNumTr, numTr, otherDirVal, newVal)
                 in
                 [WOffset1D baseXNumTr baseYNumTr axis Positive amountNumTr amountVal endXVal endYVal]
-              (Minus, [VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
+               (Minus, [VConst (Just (axis, otherDimNumTr, otherDirVal)) numTr, VConst Nothing amountNumTr], [_, amountVal]) ->
                 let (baseXNumTr, baseYNumTr, endXVal, endYVal) =
                   if axis == X
                   then (numTr, otherDimNumTr, newVal, otherDirVal)
                   else (otherDimNumTr, numTr, otherDirVal, newVal)
                 in
                 [WOffset1D baseXNumTr baseYNumTr axis Negative amountNumTr amountVal endXVal endYVal]
-              _ -> []
+               _ -> []
           in
           let widgets =
             case op of
-              NoWidgets -> []
-              _         -> List.concat wss ++ newWidgets
+               NoWidgets -> []
+               _         -> List.concat wss ++ newWidgets
           in
           Ok (newVal, widgets)
 
+evalDeclarations: Syntax -> Env -> Backtrace -> Declarations -> (Env -> List Widget -> a) -> a
+evalDeclarations syntax env bt (Declarations  _ _ _ (exps, groupOrders)) continuation =
+  let aux: List Int -> List LetExp -> List Widget -> Env -> a
+      aux groupOrder exps widgets env = case groupOrder of
+     [] -> continuation env widgets
+     i :: groupTail ->
+       let (expHead, expTail) = Utils.split i exps in
+       let rec = isMutuallyRecursive expHead in
+       case expHead |> List.map (\(LetExp _ _ p _ _ e1) ->
+        eval_ syntax env bt e1 |> Result.map ((,) p)) |> Utils.projOk of
+        Err msg -> Err msg
+        Ok pValuesWidgets ->
+          let (names, valuesWidgets) = List.unzip pValuesWidgets in
+          let (values, widgetsList) = List.unzip valuesWidgets in
+          let newWidgets = List.concatMap identity widgetsList in
+          if rec then
+            let allNames = names |> List.map (\p -> case patEffectivePat p |> .val |> .p__ of
+              PVar _ fname _ -> Ok fname
+              _ -> Err "Recursive function with non-variable pattern!") |> Utils.projOk
+            in
+            case allNames of
+              Err msg -> Err msg
+              Ok names ->
+                let recEnv = List.map2 (,) names values in
+                let newValues = values |> List.map2 (\name value ->
+                     case value.v_ of
+                       VClosure [] x body env_ -> Ok <| replaceV_ value <| VClosure names x body (recEnv ++ env)
+                       _ -> Err <| "Expected VClosures for recursivity, got " ++ valToString value
+                         ) names |> Utils.projOk
+                in
+                case newValues of
+                  Err msg -> Err msg
+                  Ok newVals ->
+                    let newEnv = List.map2 (,) names newVals ++ env in
+                    aux groupTail expTail (widgets ++ newWidgets) newEnv
+          else
+            case Utils.foldLeft (Just env) (Utils.zip names values) <|
+                                 \mbEnv (name, value) -> cons (name, value) mbEnv
+            of
+             Just newEnv -> aux groupTail expTail (widgets ++ newWidgets) newEnv
+             _         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ "match error in let"
+  in aux groupOrders exps [] env
 
 -- Returns Ok Nothing if no branch matches
 -- Returns Ok (Just results) if branch matches and no execution errors
@@ -727,7 +726,7 @@ postProcessWidgets widgets =
   --
   let (rangeWidgets, pointWidgets) =
     dedupedWidgets |>
-      List.partition (\widget ->
+       List.partition (\widget ->
         case widget of
           WIntSlider _ _ _ _ _ _ False -> True
           WNumSlider _ _ _ _ _ _ False -> True
@@ -736,7 +735,7 @@ postProcessWidgets widgets =
           WPoint _ _ _ _               -> False
           WOffset1D _ _ _ _ _ _ _ _    -> False
           WCall _ _ _ _                -> False
-      )
+       )
   in
   rangeWidgets ++ pointWidgets
 
